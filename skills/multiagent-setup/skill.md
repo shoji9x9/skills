@@ -20,6 +20,24 @@ description: <description>  # 必須: スキルの説明とトリガー条件、
 ---
 ```
 
+## gh skill によるインストール手順
+
+`gh skill install` は `.claude/skills/` にファイルを配置する。Codex 対応のために `.agents/` へ移動してシンボリックリンクを張り直す。
+
+```bash
+# 1. インストール（.claude/skills/<name>/ にファイルが配置される）
+gh skill install <owner>/<repo> <name>
+
+# 2. .agents/ に移動して実体とする
+mkdir -p .agents/skills
+mv .claude/skills/<name> .agents/skills/<name>
+
+# 3. Claude Code 用シンボリックリンクを再作成
+ln -s ../../.agents/skills/<name> .claude/skills/<name>
+```
+
+`AGENTS.md` の「参照スキルガイド」セクションに追記することで常時参照させられる。
+
 ## スキル作成手順
 
 ```bash

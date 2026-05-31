@@ -24,9 +24,12 @@ skills/<name>/          スキル実体（gh skill publish の対象）
 tests/<name>/           テスト結果（git 管理はサマリーのみ）
   iteration-N/
     benchmark.json      結果サマリー
-.agents/skills/         スキル参照用シンボリックリンク
-.claude/skills/         Claude Code 用シンボリックリンク
+.agents/skills/<name> -> ../../skills/<name>   このリポジトリ固有の構造 ※
+.claude/skills/<name> -> ../../.agents/skills/<name>
 ```
+
+※ 通常のプロジェクトでは `.agents/skills/<name>/` が実体で `.claude/skills/<name>` がシンボリックリンク。  
+このリポジトリはスキルのソースが `skills/` にあるため、`.agents/` もシンボリックリンクとなっている。
 
 ## ワークフロー
 
