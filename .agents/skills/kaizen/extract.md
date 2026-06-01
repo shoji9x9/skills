@@ -94,9 +94,9 @@ session: claude-code
 `priority` の値: `high` / `medium` / `low`
 `status` の初期値: 常に `pending`
 
-## 自動実行のセットアップ（オプション）
+## 自動実行のセットアップ
 
-Stop Hook でセッション終了を記録し、次回 SessionStart 時に自動で `--current` 抽出を実行する。
+Stop Hook でセッション終了を記録し、次回 SessionStart 時に自動で `--current` 抽出を実行する。インストール後に一度だけ設定する（SKILL.md の Step 3 からこのセクションが呼び出される）。
 
 **仕組み**: Claude Code の Stop Hook から Claude 自身を再帰呼び出しすることはできない。そのため Stop 時点でセンチネルファイルを作成し、次のセッション開始時に前セッションのログを解析して学びを保存する（1 セッション遅延）。
 

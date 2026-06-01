@@ -24,6 +24,7 @@ license: MIT
 | セッションを振り返る / 学びを抽出する / kaizen | extract |
 | 学びを適用する / 改善を実施する | apply |
 | .kaizen/ を整理する / 適用済みを削除する / クリーンアップ | apply（cleanup セクション参照） |
+| セットアップ / 初期設定 / hooks を設定する | セットアップ（このファイルの Step 3 参照） |
 
 意図が不明な場合は AskUserQuestion で確認する。
 
@@ -39,6 +40,34 @@ license: MIT
 - `~/.claude/skills/kaizen/<component>.md`
 - `.claude/skills/kaizen/<component>.md`
 - `.agents/skills/kaizen/<component>.md`
+
+### Step 3: セットアップ（インストール後・初回のみ）
+
+インストール後に Stop Hook / SessionStart Hook を設定することで、タスク終了時の自動学び抽出が有効になる。
+
+#### 1. 対象エージェントの確認
+
+```bash
+ls -d .agents .claude .github .codex 2>/dev/null
+```
+
+#### 2. 設定するエージェントをユーザーに確認
+
+AskUserQuestion で確認する。対象エージェントが明示されていない場合のみ確認する。
+
+#### 3. `extract.md` を読み込み、選択されたエージェントごとに Hook を設定する
+
+`extract.md` の「自動実行のセットアップ」セクションに各エージェントの設定例がある。
+
+#### 4. `multiagent-setup` スキルとの依存関係
+
+`apply.md` の学び適用ステップでは `multiagent-setup` スキルを使用する。インストール済みでなければ事前にインストールするようユーザーに案内する:
+
+```bash
+gh skill install shoji9x9/skills multiagent-setup --agent codex
+mkdir -p .claude/skills
+ln -s ../../.agents/skills/multiagent-setup .claude/skills/multiagent-setup
+```
 
 ---
 

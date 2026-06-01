@@ -63,7 +63,7 @@ ls .kaizen/*.md 2>/dev/null
 
 ## クリーンアップ
 
-`.kaizen/` のファイルが増えすぎた場合、ステータスを指定して削除する。
+`.kaizen/` のファイルが増えすぎた場合、ステータスを指定して削除する。「適用済みを削除して」「.kaizen/ をクリーンアップして」などユーザーが指示すると、このセクションの手順を実行する。
 
 ### 削除オプション
 
@@ -90,4 +90,4 @@ grep -l "^status: applied" .kaizen/*.md 2>/dev/null
 
 - `status: applied` / `status: rejected` の履歴が残り、改善の経緯を追跡できる
 - チーム内で学びを共有・レビューできる
-- `pending` のファイルはどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
+- `.kaizen/` 内の全ファイル（ステータス問わず）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
