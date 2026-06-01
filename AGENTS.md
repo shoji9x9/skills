@@ -66,3 +66,4 @@ ln -s ../../.agents/skills/<name> .claude/skills/<name>
 ## 参照スキルガイド
 
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
+- `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する

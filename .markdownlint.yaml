@@ -4,4 +4,6 @@ MD013:
   code_blocks: false
   tables: false
   headings: false
+MD041:
+  front_matter_title: "."
 MD060: false

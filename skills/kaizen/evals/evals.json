@@ -1,0 +1,45 @@
+{
+  "skill_name": "kaizen",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このセッションで「パスを間違えていました、修正してください」という指示があった。このセッションの学びを 1 件抽出して .kaizen/ に保存したい",
+      "assertions": [
+        ".kaizen/ ディレクトリが作成されている",
+        ".kaizen/*.md ファイルが 1 件作成されている",
+        "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+        "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+        "status が pending になっている",
+        "個別の失敗ではなく根本原因が記述されている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "全セッションを振り返って学びを抽出したい",
+      "assertions": [
+        "extract.md の --all モードに従って全セッションログを対象にしようとしている",
+        "複数の候補が提示されている（または候補がない旨が伝えられている）",
+        "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": ".kaizen/ に pending な学びがある前提で、学びを適用したい",
+      "assertions": [
+        ".kaizen/*.md の一覧を確認しようとしている",
+        "1 件ずつユーザーに確認するフローになっている",
+        "type に応じて multiagent-setup スキルを参照しようとしている",
+        "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "kaizen の Stop Hook を Claude Code に設定したい",
+      "assertions": [
+        ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+        ".claude/settings.json の hooks セクションに SessionStart イベントの設定が追加されている",
+        "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている"
+      ]
+    }
+  ]
+}
