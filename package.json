@@ -1,0 +1,25 @@
+{
+  "name": "skills",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "markdownlint-cli2",
+    "lint:fix": "markdownlint-cli2 --fix"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.5.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "lefthook": "^2.1.9",
+    "markdownlint-cli2": "^0.22.1"
+  }
+}

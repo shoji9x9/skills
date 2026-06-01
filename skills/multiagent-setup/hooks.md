@@ -18,7 +18,7 @@
 
 Hook スクリプトは `.agents/hooks/scripts/` に配置し、各エージェントの設定ファイルからそのパスを参照する。これにより複数エージェントで同じスクリプトを共有できる。
 
-```
+```text
 .agents/hooks/scripts/
   pre-tool.sh         # ツール実行前の共通処理
   session-start.sh    # セッション開始時の共通処理

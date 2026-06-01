@@ -26,7 +26,7 @@ description: <description>  # 必須: スキルの説明とトリガー条件、
 
 ## ディレクトリ構造
 
-```
+```text
 skills/<name>/          スキル実体（gh skill publish の対象）
   SKILL.md              スキルのメイン指示
   evals/

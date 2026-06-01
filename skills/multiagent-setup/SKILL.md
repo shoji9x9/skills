@@ -49,6 +49,7 @@ ls -d .agents .claude .github .codex 2>/dev/null
 - ドキュメント整備 → `docs.md`
 
 コンポーネントファイルの場所は SKILL.md と同じディレクトリ。インストール先に応じて以下を試みる:
+
 - `~/.claude/skills/multiagent-setup/<component>.md`
 - `.claude/skills/multiagent-setup/<component>.md`
 - `.agents/skills/multiagent-setup/<component>.md`

@@ -1,0 +1,17 @@
+globs:
+  - "**/*.md"
+  - "!node_modules/**"
+  - "!.agents/**"
+  - "!.claude/**"
+  - "!tests/**"
+
+config:
+  default: true
+  MD013:
+    line_length: 200
+    code_blocks: false
+    tables: false
+    headings: false
+  MD034: false
+  MD041: false
+  MD060: false

@@ -1,0 +1,7 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: markdownlint
+      glob: "*.md"
+      run: mise exec -- pnpm exec markdownlint-cli2 --fix {staged_files}
+      stage_fixed: true

@@ -4,7 +4,7 @@
 
 ## ファイル構成
 
-```
+```text
 /
 ├── skills/multiagent-setup/
 │   └── evals/
@@ -41,7 +41,7 @@ mkdir -p tests/multiagent-setup/iteration-N
 
 AI エージェント（Claude Code, Codex, GitHub Copilot 等）で以下を指示する。Claude Code の場合は `/skill-creator` でスキルを呼び出せる。
 
-```
+```text
 skill-creator を使って skills/multiagent-setup のスキルを検証したい。
 スキルの場所は skills/multiagent-setup/SKILL.md。
 evals/evals.json のテストケースを使って回帰テストを実行したい。

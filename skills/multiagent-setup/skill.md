@@ -4,7 +4,7 @@
 
 ## ディレクトリ構造
 
-```
+```text
 .agents/skills/<name>/SKILL.md   実体（Codex が直接参照）
 .claude/skills/<name>            Claude Code 用シンボリックリンク（ディレクトリへのリンク）
 ```
