@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract && echo 'kaizen: タスク終了時の振り返り候補を記録しました。必要に応じて kaizen --current を実行してください。'"
+          }
+        ]
+      }
+    ]
+  }
+}

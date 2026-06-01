@@ -2,7 +2,7 @@
 
 ## ディレクトリ構造
 
-```
+```text
 .agents/rules/<name>.md                          実体
 .claude/rules/<name>.md                          Claude Code 用シンボリックリンク
 .github/instructions/<name>.instructions.md      GitHub Copilot 用シンボリックリンク

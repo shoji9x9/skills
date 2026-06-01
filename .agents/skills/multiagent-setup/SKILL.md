@@ -1,9 +1,8 @@
 ---
-name: multiagent-setup
 description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・copilot-instructions.mdなどのドキュメント整備、またはプロジェクトのマルチエージェント初期化を行う際はこのスキルを参照する。
 license: MIT
+name: multiagent-setup
 ---
-
 # Multiagent Setup
 
 Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプロジェクト構造を整備するスキル。
@@ -49,6 +48,7 @@ ls -d .agents .claude .github .codex 2>/dev/null
 - ドキュメント整備 → `docs.md`
 
 コンポーネントファイルの場所は SKILL.md と同じディレクトリ。インストール先に応じて以下を試みる:
+
 - `~/.claude/skills/multiagent-setup/<component>.md`
 - `.claude/skills/multiagent-setup/<component>.md`
 - `.agents/skills/multiagent-setup/<component>.md`

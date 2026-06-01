@@ -1,0 +1,7 @@
+{
+  "Stop": [
+    {
+      "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-codex && echo 'kaizen --current を実行してタスク終了時の学びを保存してください'"
+    }
+  ]
+}

@@ -45,23 +45,29 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 1. `skills/<name>/` を作成または編集する
 2. `skills/<name>/evals/evals.json` にテストケースを追加・更新する
-3. skill-creator でテストを実行し `tests/<name>/iteration-N/` に結果を保存する
-4. `gh skill publish --dry-run` でバリデーションを確認する
-5. コミット・タグ・リリースする
+3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
+4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
+5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
+6. `gh skill publish --dry-run` でバリデーションを確認する
+7. コミット・タグ・リリースする
 
 ### スキル修正後の再インストール
 
-スキルを修正した場合は削除して再インストールする:
+スキルを修正した場合は、手作業ではなくスクリプトで再インストールする:
 
 ```bash
-rm -rf .agents/skills/<name> .claude/skills/<name>
-gh skill install ./skills/<name> <name> --from-local --agent codex
-ln -s ../../.agents/skills/<name> .claude/skills/<name>
+scripts/reinstall-skill.sh <name>
 ```
+
+このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作成する。
+また、`gh skill install --from-local` が自動追加する `metadata.local-path` をインストール済み `SKILL.md` から削除する。
+現時点の `gh skill install --help` には、このメタデータ追加を無効化するオプションはない。
 
 ### 回帰テストを実行する
 
 `skills/<name>/evals/README.md` の手順を参照。
+
+スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
 ## 参照スキルガイド
 

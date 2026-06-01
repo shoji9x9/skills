@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot && echo 'kaizen --current を実行してタスク終了時の学びを保存してください'",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

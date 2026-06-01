@@ -34,11 +34,11 @@
     },
     {
       "id": 4,
-      "prompt": "kaizen の Stop Hook を Claude Code に設定したい",
+      "prompt": "kaizen のタスク終了時 Hook を Claude Code に設定したい",
       "assertions": [
         ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
-        ".claude/settings.json の hooks セクションに SessionStart イベントの設定が追加されている",
-        "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている"
+        "SessionStart イベントではなくタスク終了時に振り返り候補を残す設計になっている",
+        "Stop Hook が .kaizen/.pending-extract ファイルを作成し、kaizen --current の実行を促すコマンドになっている"
       ]
     }
   ]

@@ -2,3 +2,6 @@ node_modules/
 
 # テスト実行結果の詳細は除外、サマリーは保持
 tests/*/iteration-*/eval-*/
+
+# kaizen のセンチネルファイル（Stop Hook が作成する一時ファイル）
+.kaizen/.pending-extract*

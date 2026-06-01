@@ -11,6 +11,17 @@
 
 Copilot は `.agents/skills/` と `.claude/skills/` の両方を参照するため、追加対応不要。
 
+## 初期セットアップ
+
+プロジェクトにマルチエージェント対応の基本構造を導入する場合は、`docs.md` を利用して以下を作成・更新する:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.github/copilot-instructions.md`
+- `README.md`
+
+既にファイルが存在する場合は上書きせず、更新するかユーザーに確認する。共通内容は `AGENTS.md` に集約し、`CLAUDE.md` と `.github/copilot-instructions.md` には各エージェント固有の差分のみを記述する。
+
 ## SKILL.md frontmatter
 
 ```yaml

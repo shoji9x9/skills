@@ -1,7 +1,7 @@
 {
   "metadata": {
     "skill_name": "multiagent-setup",
-    "skill_path": "/home/shoji9x9/projects/skills/skills/multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
     "executor_model": "<model-name>",
     "analyzer_model": "<model-name>",
     "timestamp": "2026-05-31T10:53:29Z",
