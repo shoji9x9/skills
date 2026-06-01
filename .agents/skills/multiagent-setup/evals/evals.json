@@ -1,0 +1,41 @@
+{
+  "skill_name": "multiagent-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "TypeScript プロジェクトのコードを自動フォーマットするスキルを追加したい",
+      "expected_output": ".agents/skills/<name>/SKILL.md が作成され、.claude/skills/<name> シンボリックリンクが作成されること",
+      "files": [],
+      "assertions": [
+        ".agents/skills/ ディレクトリが作成されている",
+        "作成された SKILL.md に name: と description: frontmatter フィールドがある",
+        ".claude/skills/<name> シンボリックリンクが作成されている",
+        "ユーザー設定（~/.claude/ 等）は変更されていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "新しい Python プロジェクトを Claude Code と Codex 両方で使えるようにセットアップしたい",
+      "expected_output": "AGENTS.md が作成され、.agents/ 構造が整備され、対象エージェントと対象コンポーネントについて確認が行われること",
+      "files": [],
+      "assertions": [
+        "AGENTS.md が作成されている",
+        ".agents/ ディレクトリが作成されている",
+        "AGENTS.md に 参照スキルガイド または 参照ルールガイド セクションがある",
+        "ユーザー設定（~/.claude/ 等）は変更されていない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "このプロジェクトに React コンポーネントのコーディングルールを追加したい",
+      "expected_output": ".agents/rules/<name>.md が frontmatter（paths + applyTo）付きで作成され、Claude Code と Copilot 向けシンボリックリンクが作成されること",
+      "files": [],
+      "assertions": [
+        ".agents/rules/<name>.md が作成されている",
+        "frontmatter に paths: と applyTo: の両方が含まれている",
+        ".claude/rules/<name>.md シンボリックリンクが作成されている",
+        ".github/instructions/<name>.instructions.md シンボリックリンクが作成されている"
+      ]
+    }
+  ]
+}
