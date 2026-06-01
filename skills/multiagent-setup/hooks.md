@@ -10,9 +10,9 @@
 
 各エージェントのフックは stdin で JSON を受け取り、stdout への JSON 出力で動作を制御できる。最新の設定フォーマットは各エージェントの公式ドキュメントを確認すること:
 
-- Claude Code: https://docs.anthropic.com/en/docs/claude-code/hooks
-- Codex: https://developers.openai.com/codex/hooks
-- GitHub Copilot: https://docs.github.com/en/copilot/concepts/agents/hooks
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/hooks)
+- [Codex](https://developers.openai.com/codex/hooks)
+- [GitHub Copilot](https://docs.github.com/en/copilot/concepts/agents/hooks)
 
 ## フックスクリプトの配置
 
