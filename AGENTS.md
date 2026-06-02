@@ -95,3 +95,4 @@ scripts/reinstall-skill.sh <name>
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
 - `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
+- `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う
