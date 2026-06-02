@@ -6,7 +6,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract && echo 'kaizen: タスク終了時の振り返り候補を記録しました。必要に応じて kaizen --current を実行してください。'"
+            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh"
           }
         ]
       }

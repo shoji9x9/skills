@@ -4,7 +4,15 @@
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot && echo 'kaizen --current を実行してタスク終了時の学びを保存してください'",
+        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh",
         "cwd": ".",
         "timeoutSec": 5
       }

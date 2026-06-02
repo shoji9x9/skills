@@ -34,11 +34,13 @@
     },
     {
       "id": 4,
-      "prompt": "kaizen のタスク終了時 Hook を Claude Code に設定したい",
+      "prompt": "kaizen の Hook を Claude Code に設定して、コミット前に学びを自動抽出できるようにしたい",
       "assertions": [
         ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
-        "SessionStart イベントではなくタスク終了時に振り返り候補を残す設計になっている",
-        "Stop Hook が .kaizen/.pending-extract ファイルを作成し、kaizen --current の実行を促すコマンドになっている"
+        "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+        "Stop Hook に echo によるリマインダー出力が含まれていない",
+        "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+        "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている"
       ]
     }
   ]
