@@ -18,8 +18,8 @@ defaults:
     shell: bash
 
 jobs:
-  lockfile-integrity:
-    name: Lockfile integrity
+  supply-chain:
+    name: Supply chain
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -29,7 +29,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
-      - run: pnpm install --frozen-lockfile
+      - name: Lockfile integrity
+        run: pnpm install --frozen-lockfile
+      - name: Verify registry signatures
+        run: pnpm audit signatures
 
   lint:
     name: Lint
