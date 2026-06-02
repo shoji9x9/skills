@@ -33,3 +33,8 @@ pre-commit:
     - name: gha-lint
       glob: ".github/workflows/*.{yml,yaml}"
       run: actionlint
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: pnpm exec commitlint --edit {1}
