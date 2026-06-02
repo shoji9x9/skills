@@ -1,0 +1,77 @@
+{
+  "skill_name": "issue-create",
+  "iteration": 2,
+  "methodology": {
+    "mode": "with_skill only (dry-run)",
+    "isolation": "background subagent per eval",
+    "safety": "remote-mutating actions (gh issue create) were not executed; subagents stated the exact commands instead. Template copy into .github/ISSUE_TEMPLATE/ was likewise not performed (asked-only). Read-only commands (gh repo view / gh issue list) and template reads were allowed.",
+    "note": "baseline (no-skill) runs omitted: low signal for a command-style workflow skill and would risk real mutations. Mirrors the issue-start benchmark methodology.",
+    "changes_since_iteration_1": "テンプレ正本をスキルへ同梱（assets/issue-templates/）。実行時はインストール先 .github/ISSUE_TEMPLATE/ を優先・尊重し、無ければ同梱を使用。.github へのコピー導入はユーザー確認後・既存は上書きしない。新挙動検証用に eval 5（テンプレ無しリポジトリ）を追加。"
+  },
+  "summary": {
+    "pass_rate": 1.0,
+    "evals_passed": 5,
+    "evals_total": 5,
+    "assertions_passed": 22,
+    "assertions_total": 22
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "bug-report",
+      "pass_rate": 1.0,
+      "assertions_passed": 7,
+      "assertions_total": 7,
+      "tokens": 16212,
+      "tool_calls": 6,
+      "time_seconds": 64.6
+    },
+    {
+      "id": 2,
+      "name": "feature-request",
+      "pass_rate": 1.0,
+      "assertions_passed": 5,
+      "assertions_total": 5,
+      "tokens": 14374,
+      "tool_calls": 6,
+      "time_seconds": 59.7
+    },
+    {
+      "id": 3,
+      "name": "vague-clarify",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 13311,
+      "tool_calls": 5,
+      "time_seconds": 44.3
+    },
+    {
+      "id": 4,
+      "name": "task-fallback",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 15871,
+      "tool_calls": 8,
+      "time_seconds": 67.0
+    },
+    {
+      "id": 5,
+      "name": "no-template-ask-copy",
+      "pass_rate": 1.0,
+      "assertions_passed": 4,
+      "assertions_total": 4,
+      "tokens": 15689,
+      "tool_calls": 6,
+      "time_seconds": 60.4
+    }
+  ],
+  "observations": [
+    "テンプレが存在するリポジトリ（eval 1/2）では、同梱ではなくインストール先 .github/ISSUE_TEMPLATE/ を優先採用し、各リポジトリ固有テンプレを尊重した。",
+    "テンプレが存在しないリポジトリ（eval 5）では同梱 assets/issue-templates/ をひな型に使い、.github へのコピー導入を自動では行わずユーザーに確認、既存上書き禁止（cp -n）も明示した。",
+    "タスク（eval 4）はインストール先・同梱の双方に該当テンプレが無いことを確認した上で汎用構成へフォールバックした。",
+    "曖昧な依頼（eval 3）では推測で本文を埋めず質問し、承認なしに起票しなかった。",
+    "全起票ケースで多行本文を --body-file で渡すコマンドを提示し、承認前に gh issue create を実行しなかった。"
+  ]
+}
