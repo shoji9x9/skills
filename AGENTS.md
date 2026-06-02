@@ -69,7 +69,21 @@ scripts/reinstall-skill.sh <name>
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
+## ブランチ運用
+
+トランクベース（`main` 単一）の Issue 駆動・PR ベース運用とする。`issue-start` スキルがこのフローを標準化する。
+
+- **ブランチ**: `main` から feature ブランチを切る（`develop` は持たない）
+- **命名**: `feature/<issue番号>-<英語の短い説明>`（kebab-case）。日本語 Issue は短い英語に要約する
+- **起点**: Issue 駆動。`gh issue develop <issue番号> --base main --checkout` で作成・checkout する
+  - 作成前に同番号ブランチの重複を local / remote で確認する
+- **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
+- **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
+- **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
+- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
+
 ## 参照スキルガイド
 
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
+- `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する

@@ -1,0 +1,46 @@
+{
+  "skill_name": "issue-start",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "https://github.com/shoji9x9/skills/issues/12 に着手したい",
+      "assertions": [
+        "Issue URL から owner/repo/issue番号を抽出している",
+        "現在の repo と Issue の owner/repo の一致を確認している",
+        "gh issue view で Issue 内容を確認しようとしている",
+        "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+        "同番号ブランチの重複を local/remote で確認している",
+        "gh issue develop --base main --checkout でブランチを作成しようとしている",
+        "モード未指定なので commit/push/PR は行っていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "issue-start 12 --pr",
+      "assertions": [
+        "ブランチ作成後に実装まで進めている",
+        "conventional commits 規約で commit している",
+        "ブランチを push している",
+        "関連 Issue と変更概要を含む PR を作成している",
+        "commit --amend や force push を行っていない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "別リポジトリの https://github.com/other-org/other-repo/issues/5 から始めて",
+      "assertions": [
+        "現在の repo と Issue の owner/repo が一致しないことを検出している",
+        "ブランチ作成を行わず中断してユーザーに確認している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "issue-start 12 --plan",
+      "assertions": [
+        "ブランチを作成・checkout している",
+        "関連ファイルと Issue を確認して詳細計画を作っている",
+        "ユーザーの開始指示前に実装を進めていない"
+      ]
+    }
+  ]
+}
