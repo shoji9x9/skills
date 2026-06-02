@@ -52,11 +52,14 @@ jobs:
           echo "$out"
           # 初回リリースは "...the next release version is X.Y.Z"（小文字 the）と
           # 出力されるため case-insensitive (-i) で照合する。大文字固定にしないこと。
+          # 同じ文言が複数回出ても output が複数行にならないよう head -n1 で1行に絞る。
           next="$(printf '%s\n' "$out" \
-            | grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' || true)"
+            | grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' \
+            | head -n1 || true)"
           echo "next=$next" >>"$GITHUB_OUTPUT"
       - name: Publish skills
-        if: steps.version.outputs.next != ''
+        # workflow_dispatch は任意ブランチから起動できるため、publish は main 限定にする。
+        if: steps.version.outputs.next != '' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh skill publish --tag "v${{ steps.version.outputs.next }}"
