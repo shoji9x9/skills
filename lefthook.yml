@@ -3,5 +3,26 @@ pre-commit:
   jobs:
     - name: markdownlint
       glob: "*.md"
-      run: mise exec -- pnpm exec markdownlint-cli2 --fix {staged_files}
+      run: pnpm exec markdownlint-cli2 --fix {staged_files}
+      stage_fixed: true
+    - name: shellcheck
+      glob: "*.sh"
+      run: pnpm exec shellcheck {staged_files}
+    - name: shfmt
+      glob: "*.sh"
+      run: shfmt -w {staged_files}
+      stage_fixed: true
+    - name: jsonlint
+      glob: "*.json"
+      run: pnpm exec jsonlint --quiet --continue --no-duplicate-keys {staged_files}
+    - name: oxfmt-json
+      glob: "*.json"
+      run: pnpm exec oxfmt {staged_files}
+      stage_fixed: true
+    - name: js-yaml
+      glob: "*.{yml,yaml}"
+      run: sh -c 'for f in {staged_files}; do pnpm exec js-yaml "$f" > /dev/null || exit 1; done'
+    - name: oxfmt-yaml
+      glob: "*.{yml,yaml}"
+      run: pnpm exec oxfmt {staged_files}
       stage_fixed: true

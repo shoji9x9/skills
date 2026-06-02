@@ -2,24 +2,25 @@
   "name": "skills",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "lint": "markdownlint-cli2",
-    "lint:fix": "markdownlint-cli2 --fix"
-  },
   "keywords": [],
-  "author": "",
   "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {},
+  "devDependencies": {
+    "@prantlf/jsonlint": "^17.0.1",
+    "js-yaml": "^4.2.0",
+    "lefthook": "^2.1.9",
+    "markdownlint-cli2": "^0.22.1",
+    "oxfmt": "^0.52.0",
+    "shellcheck": "^4.1.0"
+  },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
       "version": "^11.5.0",
       "onFail": "download"
     }
-  },
-  "type": "module",
-  "devDependencies": {
-    "lefthook": "^2.1.9",
-    "markdownlint-cli2": "^0.22.1"
   }
 }
