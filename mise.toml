@@ -1,5 +1,8 @@
 [settings]
 lockfile = true
+# 直近リリース版は不安定なことがあるため、公開から 7 日未満のバージョンは
+# 採用しない（ファジー指定の解決・mise upgrade/lock 時に適用。厳密ピンは対象外）。
+minimum_release_age = "7d"
 
 [tools]
 node = "24.16.0"

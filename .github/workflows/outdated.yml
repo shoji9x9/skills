@@ -1,0 +1,84 @@
+name: Outdated tools
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 00:00 UTC (09:00 JST)
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  outdated:
+    name: Check outdated mise tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ISSUE_TITLE: "mise outdated tool versions"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+      - name: Detect outdated tools
+        id: detect
+        run: |
+          report="$(mise outdated --bump --json)"
+          if [ -z "$report" ]; then
+            report='{}'
+          fi
+          printf '%s' "$report" >/tmp/outdated.json
+          count="$(jq 'length' /tmp/outdated.json)"
+          echo "count=$count"
+          if [ "$count" -gt 0 ]; then
+            echo "has_outdated=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "has_outdated=false" >>"$GITHUB_OUTPUT"
+          fi
+      - name: Build issue body
+        if: steps.detect.outputs.has_outdated == 'true'
+        run: |
+          {
+            echo "mise 管理ツールに新しいバージョンがあります（\`mise outdated --bump\`）。"
+            echo
+            echo "| ツール | 現在 | 最新 |"
+            echo "| --- | --- | --- |"
+            jq -r 'to_entries[] | "| \(.key) | \(.value.current) | \(.value.bump // .value.latest) |"' /tmp/outdated.json
+            echo
+            echo "採用する場合は \`mise upgrade <tool> --bump\` を実行する。"
+            echo "\`minimum_release_age\` により公開から 7 日未満のバージョンは自動的に除外される。"
+          } >/tmp/issue-body.md
+          cat /tmp/issue-body.md
+      - name: Create or update issue
+        if: steps.detect.outputs.has_outdated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number="$(gh issue list --state open --json number,title \
+            --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -n1)"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file /tmp/issue-body.md
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file /tmp/issue-body.md
+          fi
+      - name: Close stale issue when up to date
+        if: steps.detect.outputs.has_outdated == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number="$(gh issue list --state open --json number,title \
+            --jq ".[] | select(.title == \"$ISSUE_TITLE\") | .number" | head -n1)"
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "全ツールが最新です。自動クローズします。"
+          fi
