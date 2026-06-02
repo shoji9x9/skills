@@ -10,7 +10,7 @@
   "scripts": {},
   "devDependencies": {
     "@prantlf/jsonlint": "^17.0.1",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.1.0",
     "lefthook": "^2.1.9",
     "markdownlint-cli2": "^0.22.1",
     "oxfmt": "^0.52.0",

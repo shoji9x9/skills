@@ -26,3 +26,10 @@ pre-commit:
       glob: "*.{yml,yaml}"
       run: pnpm exec oxfmt {staged_files}
       stage_fixed: true
+    - name: gha-pinact
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: pinact run {staged_files}
+      stage_fixed: true
+    - name: gha-lint
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: actionlint
