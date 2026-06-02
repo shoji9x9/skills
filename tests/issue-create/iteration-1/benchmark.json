@@ -1,0 +1,66 @@
+{
+  "skill_name": "issue-create",
+  "iteration": 1,
+  "methodology": {
+    "mode": "with_skill only (dry-run)",
+    "isolation": "background subagent per eval",
+    "safety": "remote-mutating actions (gh issue create) were not executed; subagents stated the exact commands instead. issue-create creates real GitHub issues, so a destructive automated benchmark is intentionally avoided. Read-only commands (gh repo view / gh issue list) and template reads were allowed.",
+    "note": "baseline (no-skill) runs omitted: low signal for a command-style workflow skill and would risk real mutations. Mirrors the issue-start benchmark methodology."
+  },
+  "summary": {
+    "pass_rate": 1.0,
+    "evals_passed": 4,
+    "evals_total": 4,
+    "assertions_passed": 18,
+    "assertions_total": 18
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "bug-report",
+      "pass_rate": 1.0,
+      "assertions_passed": 7,
+      "assertions_total": 7,
+      "tokens": 14412,
+      "tool_calls": 8,
+      "time_seconds": 61.7
+    },
+    {
+      "id": 2,
+      "name": "feature-request",
+      "pass_rate": 1.0,
+      "assertions_passed": 5,
+      "assertions_total": 5,
+      "tokens": 13890,
+      "tool_calls": 5,
+      "time_seconds": 50.3
+    },
+    {
+      "id": 3,
+      "name": "vague-clarify",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 13155,
+      "tool_calls": 5,
+      "time_seconds": 48.0
+    },
+    {
+      "id": 4,
+      "name": "task-fallback",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 14089,
+      "tool_calls": 5,
+      "time_seconds": 54.5
+    }
+  ],
+  "observations": [
+    "全ケースで対象リポジトリ確認（gh repo view）と gh issue list による重複チェックを先に行ってから後続へ進んだ。",
+    "bug / feature の各ケースで .github/ISSUE_TEMPLATE/ の該当テンプレを検出・読み込み、title 接頭辞とラベルを踏襲した。",
+    "タスク（テンプレ非該当）ケースでは SKILL.md の指示どおり汎用構成（背景・目的/提案内容/スコープ/受け入れ条件）へフォールバックした。",
+    "曖昧な依頼では推測で本文を埋めず、種別・症状・再現手順・環境などを質問し、承認なしに起票しなかった。",
+    "全ケースで多行本文を --body-file で渡すコマンドを提示し、ユーザー承認前に gh issue create を実行しなかった。"
+  ]
+}

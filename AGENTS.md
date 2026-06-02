@@ -86,4 +86,5 @@ scripts/reinstall-skill.sh <name>
 
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
+- `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
