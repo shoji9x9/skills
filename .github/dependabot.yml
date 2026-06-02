@@ -12,9 +12,10 @@ updates:
     # 弾かれる事態を避けられる。
     cooldown:
       default-days: 7
-      semver-major-days: 30
-      semver-minor-days: 14
-      semver-patch-days: 7
+    # メジャーアップデートの PR は作成しない
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       # マイナー/パッチ更新はまとめて 1 PR にしてノイズを減らす
       minor-and-patch:
@@ -28,7 +29,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-    # GitHub Actions エコシステムは default-days のみ対応。
     # minimumReleaseAge (3 日) より大きい 7 日に設定。
     cooldown:
       default-days: 7
+    # メジャーアップデートの PR は作成しない
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
