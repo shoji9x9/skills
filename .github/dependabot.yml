@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # npm (pnpm-lock.yaml を自動検出)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # cooldown は pnpm の minimumReleaseAge (3 日) より大きくする。
+    # こうすることで Dependabot が更新 PR を作る頃には対象バージョンが
+    # minimumReleaseAge の期間を過ぎており、lockfile がポリシー違反で
+    # 弾かれる事態を避けられる。
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
+    groups:
+      # マイナー/パッチ更新はまとめて 1 PR にしてノイズを減らす
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions (pinact で SHA ピン留めしたアクションを追跡)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # GitHub Actions エコシステムは default-days のみ対応。
+    # minimumReleaseAge (3 日) より大きい 7 日に設定。
+    cooldown:
+      default-days: 7
