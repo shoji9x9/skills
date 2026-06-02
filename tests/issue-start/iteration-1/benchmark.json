@@ -1,0 +1,65 @@
+{
+  "skill_name": "issue-start",
+  "iteration": 1,
+  "methodology": {
+    "mode": "with_skill only (dry-run)",
+    "isolation": "git worktree per subagent",
+    "safety": "remote-mutating actions (gh issue develop / git push / git commit / gh pr create / branch create) were not executed; subagents stated the exact commands instead. issue-start performs real GitHub mutations, so a destructive automated benchmark is intentionally avoided.",
+    "note": "baseline (no-skill) runs omitted: low signal for a command-style workflow skill and would risk real mutations."
+  },
+  "summary": {
+    "pass_rate": 1.0,
+    "evals_passed": 4,
+    "evals_total": 4,
+    "assertions_passed": 18,
+    "assertions_total": 18
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "issue-url-default-mode",
+      "pass_rate": 1.0,
+      "assertions_passed": 7,
+      "assertions_total": 7,
+      "tokens": 12058,
+      "tool_calls": 4,
+      "time_seconds": 34.8
+    },
+    {
+      "id": 2,
+      "name": "pr-mode",
+      "pass_rate": 1.0,
+      "assertions_passed": 5,
+      "assertions_total": 5,
+      "tokens": 12258,
+      "tool_calls": 4,
+      "time_seconds": 35.4
+    },
+    {
+      "id": 3,
+      "name": "repo-mismatch-abort",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 11113,
+      "tool_calls": 2,
+      "time_seconds": 17.6
+    },
+    {
+      "id": 4,
+      "name": "plan-mode",
+      "pass_rate": 1.0,
+      "assertions_passed": 3,
+      "assertions_total": 3,
+      "tokens": 11785,
+      "tool_calls": 4,
+      "time_seconds": 29.7
+    }
+  ],
+  "observations": [
+    "全ケースで Issue URL/番号から owner/repo/番号を正しく抽出し、現在の repo との一致を確認してから後続へ進んだ。",
+    "不一致ケース(3)では gh issue view もブランチ作成も行わず中断・確認に回った。",
+    "全エージェントが存在しない issue 12 を検知し、ブランチ slug を捏造せずユーザー確認に回る防御的挙動を示した。",
+    "amend / force push は全ケースで未使用。"
+  ]
+}
