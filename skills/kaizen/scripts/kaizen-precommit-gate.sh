@@ -23,11 +23,13 @@ if [ -z "$cmd" ]; then
 	cmd="$input"
 fi
 
-# git commit 以外は素通り（allow）。
-case "$cmd" in
-*"git commit"*) ;;
-*) exit 0 ;;
-esac
+# git commit の「実行」だけを対象にする。引数や echo 文字列中に "git commit"
+# という substring が含まれるだけのコマンド（例: echo "... git commit ..." や
+# grep "git commit"）を誤ってブロックしないよう、行頭または区切り文字
+# (; & | () 直後の git commit に限定する。
+if ! printf '%s\n' "$cmd" | grep -Eq '(^|[;&|(])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'; then
+	exit 0
+fi
 
 # 未抽出センチネルが無ければ素通り。
 if ! ls .kaizen/.pending-extract* >/dev/null 2>&1; then
@@ -35,5 +37,12 @@ if ! ls .kaizen/.pending-extract* >/dev/null 2>&1; then
 fi
 
 # ブロックして、エージェントへ次のアクションを指示する。
-echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。コミット前に kaizen スキルで kaizen --current を実行し、学びを抽出・適用してから再度コミットしてください。" >&2
+# 注意: センチネル削除と git commit を 1 コマンドにまとめると、PreToolUse は
+# 呼び出し全体を実行前に捕捉するため rm が走らずブロックされる。別コマンドに分ける。
+{
+	echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。"
+	echo "kaizen --current を実行して学びを抽出・適用してください（完了時にセンチネルが消えます）。"
+	echo "その後、別コマンドで git commit を実行してください。"
+	echo "※ センチネル削除と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
+} >&2
 exit 2

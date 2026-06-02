@@ -170,6 +170,10 @@ session: claude-code
 `git commit` を含み、かつ `.kaizen/.pending-extract*` が存在するときだけ **exit code 2 + stderr** でブロックする。
 この方式は Claude Code・Codex とも「exit 2 でブロックし stderr をエージェントへ渡す」と明記されており、JSON 出力スキーマの差を避けられる。
 
+> 運用上の注意: ゲートは Bash 呼び出し全体を実行前に捕捉する。
+> センチネル削除（`rm -f .kaizen/.pending-extract*`）と `git commit` を同一コマンドにまとめると `rm` が走らずブロックされるため、必ず別コマンドに分ける。
+> 通常は `kaizen --current` がセンチネルを削除するので手動削除は不要。
+
 ### セットアップ
 
 スクリプトはプロジェクトへコピーしない。スキルのインストール先にある実体をフックから直接参照する。
