@@ -5,3 +5,6 @@ tests/*/iteration-*/eval-*/
 
 # kaizen のセンチネルファイル（Stop Hook が作成する一時ファイル）
 .kaizen/.pending-extract*
+
+# scheduled tasks のロックファイル
+.claude/scheduled_tasks.lock
