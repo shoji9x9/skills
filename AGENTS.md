@@ -76,6 +76,8 @@ scripts/reinstall-skill.sh <name>
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
+未コミットの skill 変更をベンチする場合、worktree 分離を使うと HEAD の古い版を測ってしまう。読み取り専用ドライランなら分離なしで作業ツリー版を測る（または先に commit する）。
+
 ## ブランチ運用
 
 トランクベース（`main` 単一）の Issue 駆動・PR ベース運用とする。`issue-start` スキルがこのフローを標準化する。
@@ -90,6 +92,14 @@ scripts/reinstall-skill.sh <name>
   - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum` と semantic-release の `releaseRules` が共有。`style` は使わない）
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
+
+## API 取得のページネーション
+
+`gh api` 等で一覧を取得する shell / markdown コードは、**指定件数で暗黙に打ち切らない**こと。
+ページングを処理して必要な範囲をすべて辿る（REST は `--paginate`、GraphQL は `pageInfo`/`endCursor` ＋ `--paginate`）。
+件数が大きくなりうる場合は、全件をメモリに抱えず**ページ単位で逐次処理**し、十分なら早期終了の条件を明示する。
+この規約は `scripts/lint-pagination.mjs` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（完全なシェルパーサではなくヒューリスティックな安全網）。判定ロジックは vitest で `scripts/lint-pagination.test.mjs` がカバーする。
+意図的な単発取得は当該箇所に `# pagination-ok` を付けて明示する。
 
 ## 参照スキルガイド
 
