@@ -16,6 +16,7 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const COLLECTION_SEGMENTS = new Set([
   "comments", "reviews", "commits", "files", "issues", "pulls", "labels",
@@ -119,11 +120,12 @@ export function lint(path, content) {
     const unitText = unit.map((l) => l.text).join("\n");
 
     // GraphQL: コマンド単位で判定（同ブロックの別コマンドの --paginate に惑わされない）。
-    const reGraphql = /gh\s+api\s+graphql\b([^\n]*?)-f\s+query=(['"])([\s\S]*?)\2/g;
+    const reGraphql = /gh\s+api\s+graphql\b[^\n]*?-f\s+query=(['"])([\s\S]*?)\1[^\n]*/g;
     let gm;
     while ((gm = reGraphql.exec(unitText)) !== null) {
-      const flags = gm[1], body = gm[3];
-      if (!/\b(first|last):/.test(body) || /pageInfo/.test(body) || /--paginate/.test(flags)) continue;
+      const cmd = gm[0], body = gm[2];
+      // --paginate は query の前後どちらに書かれてもよいので、コマンド全体（gm[0]）で判定する。
+      if (!/\b(first|last):/.test(body) || /pageInfo/.test(body) || /--paginate/.test(cmd)) continue;
       const startIdx = unitText.slice(0, gm.index).split("\n").length - 1;
       const endIdx = unitText.slice(0, gm.index + gm[0].length).split("\n").length - 1;
       let suppressed = false; // 抑制は当該コマンドが占める行のみで判定する
@@ -178,4 +180,5 @@ function main() {
 }
 
 // CLI として実行されたときだけ走らせる（テストから import しても main は動かない）。
-if (import.meta.url === `file://${process.argv[1]}`) main();
+// import.meta.url との比較は pathToFileURL で正規化する（相対パス/URL エスケープ差分での不一致を避ける）。
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

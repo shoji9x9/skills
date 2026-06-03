@@ -36,6 +36,10 @@ test("GraphQL: --paginate があれば許可", () => {
   expect(count("t.md", md("gh api graphql --paginate -f query='{ reviewThreads(first: 50) { nodes { id } } }'"))).toBe(0);
 });
 
+test("GraphQL: --paginate が query の後ろにあっても許可（順序非依存）", () => {
+  expect(count("t.md", md("gh api graphql -f query='{ reviewThreads(first: 50) { nodes { id } } }' --paginate"))).toBe(0);
+});
+
 test("GraphQL: 同ブロックの別コマンドの --paginate に惑わされない", () => {
   const body = [
     "gh api graphql -f query='{ reviewThreads(first: 50) { nodes { id } } }'",
