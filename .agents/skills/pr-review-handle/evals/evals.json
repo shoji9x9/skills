@@ -25,7 +25,10 @@
         "レビュー対応で触ったファイルだけを stage する方針を示している",
         "conventional commits 規約で commit しようとしている",
         "ブランチを push しようとしている",
-        "commit --amend や force push を行っていない"
+        "commit --amend や force push を行っていない",
+        "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+        "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+        "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している"
       ]
     },
     {
