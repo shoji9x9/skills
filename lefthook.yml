@@ -24,6 +24,10 @@ pre-commit:
       run: sh -c 'for f in {staged_files}; do pnpm exec js-yaml "$f" > /dev/null || exit 1; done'
     - name: oxfmt-yaml
       glob: "*.{yml,yaml}"
+      # oxfmt は pnpm-lock.yaml を内蔵 ignore するため、これだけが staged だと
+      # 対象ゼロで exit 2 になる。lockfile は整形対象外なので除外する。
+      exclude:
+        - "pnpm-lock.yaml"
       run: pnpm exec oxfmt {staged_files}
       stage_fixed: true
     - name: gha-pinact
@@ -33,6 +37,9 @@ pre-commit:
     - name: gha-lint
       glob: ".github/workflows/*.{yml,yaml}"
       run: actionlint
+    - name: pagination
+      glob: "*.{sh,md}"
+      run: node scripts/lint-pagination.mjs {staged_files}
 
 commit-msg:
   jobs:

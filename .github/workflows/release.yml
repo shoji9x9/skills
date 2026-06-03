@@ -1,0 +1,73 @@
+# skills/** の main マージで自動リリースする。
+# semantic-release は --dry-run で次バージョンの算出のみに使い、タグ／Release は
+# gh skill publish が作る（版の真実は git タグ。main への書き戻しはしない）。
+# 前提: リポジトリに agent-skills topic を付与済みであること。publish の topic 付与は
+# 自動 GITHUB_TOKEN の権限では行えないため、初回のみ手動で付与する
+# （gh repo edit <owner>/<repo> --add-topic agent-skills）。
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Publish skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+      - run: pnpm install --frozen-lockfile
+      - name: Compute next version
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          out="$(pnpm exec semantic-release --dry-run 2>&1)" || {
+            echo "$out"
+            echo "semantic-release failed" >&2
+            exit 1
+          }
+          echo "$out"
+          # 初回リリースは "...the next release version is X.Y.Z"（小文字 the）と
+          # 出力されるため case-insensitive (-i) で照合する。大文字固定にしないこと。
+          # 同じ文言が複数回出ても output が複数行にならないよう head -n1 で1行に絞る。
+          next="$(printf '%s\n' "$out" \
+            | grep -oiP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' \
+            | head -n1 || true)"
+          echo "next=$next" >>"$GITHUB_OUTPUT"
+      - name: Publish skills
+        # workflow_dispatch は任意ブランチから起動できるため、publish は main 限定にする。
+        if: steps.version.outputs.next != '' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # runner の gh が skill サブコマンドを持つか先に確認する（古い gh だと
+          # unknown command "skill" でリリースが止まるため、原因を分かるようにする）。
+          gh --version
+          gh skill --help >/dev/null 2>&1 || {
+            echo "::error::この runner の gh に skill サブコマンドがありません（gh が古い可能性）"
+            exit 1
+          }
+          gh skill publish --tag "v${{ steps.version.outputs.next }}"

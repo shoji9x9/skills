@@ -49,7 +49,14 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
 5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
 6. `gh skill publish --dry-run` でバリデーションを確認する
-7. コミット・タグ・リリースする
+7. PR を作成してレビュー・マージする（リリースは CD が自動で行う）
+
+### リリース（CD）
+
+`skills/**` を含む変更が `main` にマージされると `.github/workflows/release.yml` が自動公開する（詳細は同ファイル参照）。**手動でのタグ付け・publish は不要**。
+
+- バージョンはリポジトリ単位の git タグ（conventional commits から決定）が唯一の真実。スキル毎の独立バージョンは持たない
+- `package.json` の `version` はリリースに使わないため `0.0.0` 固定（書き換えない）
 
 ### スキル修正後の再インストール
 
@@ -69,6 +76,8 @@ scripts/reinstall-skill.sh <name>
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
+未コミットの skill 変更をベンチする場合、worktree 分離を使うと HEAD の古い版を測ってしまう。読み取り専用ドライランなら分離なしで作業ツリー版を測る（または先に commit する）。
+
 ## ブランチ運用
 
 トランクベース（`main` 単一）の Issue 駆動・PR ベース運用とする。`issue-start` スキルがこのフローを標準化する。
@@ -79,8 +88,18 @@ scripts/reinstall-skill.sh <name>
   - 作成前に同番号ブランチの重複を local / remote で確認する
 - **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
 - **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
+  - body は 1 行 100 文字以内（`body-max-line-length`）。長い本文は `git commit -F <file>` で渡す
+  - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum` と semantic-release の `releaseRules` が共有。`style` は使わない）
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
+
+## API 取得のページネーション
+
+`gh api` 等で一覧を取得する shell / markdown コードは、**指定件数で暗黙に打ち切らない**こと。
+ページングを処理して必要な範囲をすべて辿る（REST は `--paginate`、GraphQL は `pageInfo`/`endCursor` ＋ `--paginate`）。
+件数が大きくなりうる場合は、全件をメモリに抱えず**ページ単位で逐次処理**し、十分なら早期終了の条件を明示する。
+この規約は `scripts/lint-pagination.mjs` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（完全なシェルパーサではなくヒューリスティックな安全網）。判定ロジックは vitest で `scripts/lint-pagination.test.mjs` がカバーする。
+意図的な単発取得は当該箇所に `# pagination-ok` を付けて明示する。
 
 ## 参照スキルガイド
 
@@ -88,3 +107,4 @@ scripts/reinstall-skill.sh <name>
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
 - `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
+- `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う

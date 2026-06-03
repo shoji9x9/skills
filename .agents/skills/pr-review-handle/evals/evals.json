@@ -1,0 +1,66 @@
+{
+  "skill_name": "pr-review-handle",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "https://github.com/shoji9x9/skills/pull/42 のレビューに対応して",
+      "expected_output": "未解決スレッドを取得し、各指摘を評価して必要時のみ修正、各スレッドに返信して解決する。commit/push はせず停止して通知する。",
+      "assertions": [
+        "PR URL から owner/repo/PR番号を抽出している",
+        "現在の repo と PR の owner/repo の一致を確認している",
+        "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+        "isResolved == false のスレッドのみ対象にする方針を示している",
+        "各指摘をコードに照らして妥当性を判断する方針を示している",
+        "返信してから解決する順序で進めようとしている",
+        "モード未指定なので commit/push を行わず通知して停止する方針である"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "pr-review-handle 42 --push",
+      "expected_output": "レビュー対応（評価・修正・返信・解決）の後、関連ファイルのみを conventional commits で commit し push する。",
+      "assertions": [
+        "PR番号のみのため現在の repo を対象にしている",
+        "未解決スレッドへの返信・解決まで行う手順になっている",
+        "レビュー対応で触ったファイルだけを stage する方針を示している",
+        "conventional commits 規約で commit しようとしている",
+        "ブランチを push しようとしている",
+        "commit --amend や force push を行っていない",
+        "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+        "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+        "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "pr-review-handle https://github.com/shoji9x9/skills/pull/42 — 妥当でないと判断したコメントがある前提で対応して",
+      "expected_output": "妥当でない指摘はファイルを修正せず、修正しない根拠を返信したうえでスレッドを解決する。",
+      "assertions": [
+        "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+        "修正しない根拠を返信しようとしている",
+        "返信した後にスレッドを解決する順序になっている",
+        "妥当な指摘と妥当でない指摘を区別して扱う方針である"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "別リポジトリの https://github.com/other-org/other-repo/pull/5 のレビューを処理して",
+      "expected_output": "現在の repo と PR の owner/repo が一致しないことを検出し、返信・解決を行わず中断してユーザーに確認する。",
+      "assertions": [
+        "現在の repo と PR の owner/repo が一致しないことを検出している",
+        "返信や解決を行わず中断してユーザーに確認している"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "https://github.com/shoji9x9/skills/pull/42#pullrequestreview-9999999999 のこのレビューだけ対応して",
+      "expected_output": "レビュー URL の review-id を抽出し、そのレビューのコメントに絞って対応する。",
+      "assertions": [
+        "レビュー URL から review-id を抽出している",
+        "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+        "対象スレッドに返信してから解決する順序になっている",
+        "モード未指定なので commit/push を行っていない"
+      ]
+    }
+  ]
+}

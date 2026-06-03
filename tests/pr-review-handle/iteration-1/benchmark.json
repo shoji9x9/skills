@@ -1,0 +1,77 @@
+{
+  "skill_name": "pr-review-handle",
+  "iteration": 1,
+  "methodology": {
+    "mode": "with_skill only (dry-run)",
+    "isolation": "git worktree per subagent",
+    "safety": "remote-mutating actions (comment replies / resolveReviewThread / git commit / git push) were not executed; subagents stated the exact commands instead. pr-review-handle performs real GitHub mutations, so a destructive automated benchmark is intentionally avoided. Test prompts target a non-existent PR (#42) and a non-matching repo so read-only calls return 404 with no side effects.",
+    "note": "baseline (no-skill) runs omitted: low signal for a command-style workflow skill and would risk real mutations."
+  },
+  "summary": {
+    "pass_rate": 1.0,
+    "evals_passed": 5,
+    "evals_total": 5,
+    "assertions_passed": 23,
+    "assertions_total": 23
+  },
+  "evals": [
+    {
+      "id": 1,
+      "name": "pr-url-default-mode",
+      "pass_rate": 1.0,
+      "assertions_passed": 7,
+      "assertions_total": 7,
+      "tokens": 14599,
+      "tool_calls": 4,
+      "time_seconds": 44.4
+    },
+    {
+      "id": 2,
+      "name": "push-mode",
+      "pass_rate": 1.0,
+      "assertions_passed": 6,
+      "assertions_total": 6,
+      "tokens": 14606,
+      "tool_calls": 4,
+      "time_seconds": 41.7
+    },
+    {
+      "id": 3,
+      "name": "invalid-finding-reply-rationale",
+      "pass_rate": 1.0,
+      "assertions_passed": 4,
+      "assertions_total": 4,
+      "tokens": 15227,
+      "tool_calls": 4,
+      "time_seconds": 45.3
+    },
+    {
+      "id": 4,
+      "name": "repo-mismatch-abort",
+      "pass_rate": 1.0,
+      "assertions_passed": 2,
+      "assertions_total": 2,
+      "tokens": 13255,
+      "tool_calls": 2,
+      "time_seconds": 19.6
+    },
+    {
+      "id": 5,
+      "name": "review-url-scope",
+      "pass_rate": 1.0,
+      "assertions_passed": 4,
+      "assertions_total": 4,
+      "tokens": 14929,
+      "tool_calls": 4,
+      "time_seconds": 41.0
+    }
+  ],
+  "observations": [
+    "全ケースで PR URL / PR番号 / レビュー URL から owner/repo/PR番号（および review-id）を正しく抽出し、現在の repo との一致を確認してから後続へ進んだ。",
+    "未解決スレッドの取得は GraphQL reviewThreads を用い、isResolved == false のみ対象・全レビュアー対象という方針を一貫して守った。",
+    "返信 → 解決の順序を全ケースで守り、返信していないスレッドを解決しない不変条件を維持した。",
+    "妥当でない指摘（eval 3）ではファイルを修正せず、根拠を返信してから解決する判断を示した。",
+    "repo 不一致（eval 4）では fetch / 返信 / 解決を一切行わず中断してユーザーに確認した。",
+    "モード未指定では commit/push を行わず通知停止、--push では関連ファイルのみ stage・conventional commits・push を行い、--amend / force push を避ける方針を示した。"
+  ]
+}
