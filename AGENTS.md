@@ -87,6 +87,7 @@ scripts/reinstall-skill.sh <name>
 - **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
 - **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
   - body は 1 行 100 文字以内（`body-max-line-length`）。長い本文は `git commit -F <file>` で渡す
+  - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum` と semantic-release の `releaseRules` が共有。`style` は使わない）
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
 

@@ -216,6 +216,9 @@ importers:
       '@prantlf/jsonlint':
         specifier: ^17.0.1
         version: 17.0.1(typescript@6.0.3)
+      conventional-changelog-conventionalcommits:
+        specifier: 9.3.1
+        version: 9.3.1
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.1
