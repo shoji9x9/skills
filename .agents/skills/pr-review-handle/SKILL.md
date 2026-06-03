@@ -166,12 +166,12 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 ```bash
 gh api --method POST \
   repos/<owner>/<repo>/pulls/<番号>/requested_reviewers \
-  -f "reviewers[]=Copilot"
+  -f "reviewers[]=copilot-pull-request-reviewer[bot]"
 ```
 
-- 依頼用の reviewer login は `Copilot`（Bot）。既に依頼中でも冪等に扱える。
-- 依頼が失敗した場合（Copilot レビューが未設定など）は、その旨をユーザーに通知する。
-- 依頼後、Copilot が requested_reviewers に登録されたことを確認してユーザーに通知する。
+- 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（Bot の login、`[bot]` 付き）。既に依頼中でも冪等。
+- **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され（未登録）、後者は 422 になる。必ず `[bot]` 付き login を使う。
+- 依頼後、`requested_reviewers` に `Copilot` が登録されたことを**必ず確認**する。登録されていなければ依頼は成立していないので、その旨をユーザーに通知する。
 
 ## 追加確認が必要な条件
 
