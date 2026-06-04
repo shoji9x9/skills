@@ -41,6 +41,8 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 ## ワークフロー
 
+スキルの作成・改善・評価には `skill-creator` スキルを使う。
+
 ### スキルを追加・修正する
 
 1. `skills/<name>/` を作成または編集する
@@ -72,7 +74,28 @@ scripts/reinstall-skill.sh <name>
 
 ### 回帰テストを実行する
 
-`skills/<name>/evals/README.md` の手順を参照。
+各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
+
+集計スクリプト（skill-creator 同梱）で結果を `tests/<name>/iteration-N/` に集約する:
+
+```bash
+# skill-creator のインストール先を自動検索（各エージェントのスキルディレクトリを横断）
+REPO=$(git rev-parse --show-toplevel)
+SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
+cd "$SKILL_CREATOR"
+# benchmark_dir は実在パスを読むので絶対パスで渡す（cd 後に相対パスだと解決できない）。
+# --skill-path は metadata 用の表示文字列。絶対パスを避け <repo> プレースホルダ形式で渡す
+#（下記の絶対パス除去方針に合わせる。未指定だと <path/to/skill> になる）。
+mise exec python -- python -m scripts.aggregate_benchmark \
+  "$REPO/tests/<name>/iteration-N" \
+  --skill-name <name> \
+  --skill-path '<repo>/skills/<name>'
+```
+
+`aggregate_benchmark.py` は `executor_model` / `analyzer_model`（= `<model-name>`）と `runs_per_configuration`（= `3`）をハードコードしており、これらを設定する CLI 引数は無い。生成後に手動で実値へ直してからコミットする:
+
+- `benchmark.json` / `benchmark.md` の `<model-name>` を実際のモデル名（例: `claude-opus-4-8`）に置換する（モデル名は秘匿情報ではないのでマスクしない）。
+- `runs_per_configuration` と `benchmark.md` ヘッダの「N runs each per configuration」を実際の run 数に合わせる。
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
