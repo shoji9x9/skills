@@ -47,6 +47,36 @@ ls ~/.copilot/session-state/ 2>/dev/null | head -10
 ## 根本原因分析（重要）
 
 個別の失敗を記録するのではなく、**なぜそれが起きたか**を推論する。
+RCA の有効性は LLM エージェント研究でも裏付けられている（SKILL.md「参考文献」参照）。以下の 3 つを必ず実施する。
+
+### 1. 最低 3 階層の「なぜ」を掘る
+
+症状レベルの対策で止めない。「なぜ」を最低 3 回繰り返し、**再現可能で対策可能な**根本原因に到達するまで掘り下げる。各段の「なぜ」は推測ではなく証拠（ログ・コマンド出力・git 履歴・ファイル更新時刻）で裏付ける。1 つの視点だけで結論しない。
+
+```text
+事象: コミットがゲートでブロックされ続けた
+ └ なぜ? rm とコミットを 1 コマンドにまとめていた
+    └ なぜ? PreToolUse が呼び出し全体を実行前に捕捉する仕様を知らなかった
+       └ なぜ? その注意点がスキルに明文化されていなかった ← 根本原因（対策可能）
+```
+
+### 2. KEDB 照合（既存の学びと突き合わせる）
+
+新しい事象を記録する前に、既存の `.kaizen/*.md` に同種の学びがないか grep で照合する。過去事例を参照すると分析精度が上がる（参考文献の RAG 知見）。
+
+```bash
+# 事象に関係しそうなキーワードで既存の学びを検索する
+grep -rl "<キーワード>" .kaizen/*.md 2>/dev/null
+```
+
+- 同種の学びが既にある場合: 新規作成せず、その事象が**繰り返し発生している**と判断して優先度を上げ、提案に既存ファイルへのリンクを含める。
+- 似た根本原因が複数ある場合: 個別記録ではなく共通の根本原因としてまとめる。
+
+### 3. 横断スコープ確認
+
+根本原因が特定できたら、**同じ原因が他の箇所にも潜んでいないか**を確認する（参考文献の horizontal scope check）。例: あるスクリプトでパス解決を誤ったなら、他のスクリプトでも同じパス前提を使っていないか調べる。波及範囲を提案に含める。
+
+### 根本原因のパターン早見表
 
 | 事象のパターン | 根本原因候補 | 提案するアクション |
 |-------------|------------|----------------|
@@ -61,11 +91,15 @@ ls ~/.copilot/session-state/ 2>/dev/null | head -10
 1. `.kaizen/` ディレクトリが存在しなければ作成する
 2. セッションログを読み込む（`--current` なら前セッションの最新ファイル 1 つ）
 3. 抽出パターンに照らして修正・エラー・やり直しの箇所を特定する
-4. 各箇所について根本原因を推論し候補をリストアップする
-5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 繰り返し発生 > 根本原因が明確 > 対策が具体的）
+4. 各箇所について根本原因を推論する（「根本原因分析」の 3 ステップ: 最低 3 階層の「なぜ」→ KEDB 照合 → 横断スコープ確認）し候補をリストアップする
+5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 繰り返し発生（KEDB 照合でヒット） > 根本原因が明確 > 対策が具体的）
 6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る
-7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む
+7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）
 8. 抽出が完了したら未抽出マーカーを消す（同じセッションを再抽出しないため）: `rm -f .kaizen/.pending-extract*`
+
+> **重要（status を pending のまま放置しない）**: 抽出と同じ実行内で、その学びを成果物へ**反映（適用）まで**行う場合は、反映が完了したら必ず当該ファイルの `status` を `pending → applied` に更新する。`apply.md` を経由せず直接 `AGENTS.md` 等へ反映したときに更新漏れが起きやすい（反映済みなのに `pending` のまま残る）。
+> ファイル作成だけで反映しない場合は `pending` のままにする（後で apply フローが適用する）。
+> 実行の最後に、反映済みなのに `pending` が残っていないか確認する: `grep -l "^status: pending" .kaizen/*.md 2>/dev/null`
 
 ## 学びファイルのフォーマット
 
@@ -97,149 +131,4 @@ session: claude-code
 
 ## 自動実行のセットアップ
 
-インストール後に一度だけ設定する（SKILL.md の Step 3 からこのセクションが呼び出される）。
-
-**仕組み**: Hook からエージェント自身を再帰呼び出しして LLM を動かすことはできない。そこで役割を 2 つの Hook に分ける:
-
-- **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract*` を残すだけ（未抽出の活動があるという記録）。
-- **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックしてエージェントに `kaizen --current` を促す。エージェントが抽出を終えるとセンチネルが消え、再試行した commit が通る。
-
-> echo によるリマインダーは設定しない。Stop / sessionEnd Hook の標準出力はエージェントのコンテキストに渡らず（ユーザーにもほぼ surface されず）、行動につながらないため。確実に効かせるには、コミットを実際にブロックしてエージェントへ stderr を返す PreToolUse ゲート（後述）を使う。`AGENTS.md` 等への「コミット前に kaizen を実行する」という散文の指示は守られない確率が高いため主トリガーにはしない。
-
-### タスク終了時 Hook（センチネル記録のみ）
-
-#### Claude Code — Stop (`.claude/settings.json`)
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-#### Codex — Stop (`.codex/hooks.json`)
-
-```json
-{
-  "Stop": [
-    {
-      "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-codex"
-    }
-  ]
-}
-```
-
-詳細なフォーマットは [Codex Hooks ドキュメント](https://developers.openai.com/codex/hooks) を参照すること。
-
-#### GitHub Copilot — sessionEnd (`.github/hooks/kaizen-session.json`)
-
-```json
-{
-  "version": 1,
-  "hooks": {
-    "sessionEnd": [
-      {
-        "type": "command",
-        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot",
-        "cwd": ".",
-        "timeoutSec": 5
-      }
-    ]
-  }
-}
-```
-
-詳細なフォーマットは [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) を参照すること。
-
-## コミット前 PreToolUse ゲート（自動実行の主トリガー）
-
-`git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックして、エージェントに `kaizen --current` の実行を促す。Claude Code / Codex / Copilot のいずれも「ツール実行前に発火し、ブロックできる」Hook（PreToolUse / preToolUse）を備えるため、全エージェント共通で機能する。
-
-判定はスキルにバンドルされたスクリプト（スキル内 `scripts/kaizen-precommit-gate.sh`、インストール後は `.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh`）が行う。
-`git commit` を含み、かつ `.kaizen/.pending-extract*` が存在するときだけ **exit code 2 + stderr** でブロックする。
-この方式は Claude Code・Codex とも「exit 2 でブロックし stderr をエージェントへ渡す」と明記されており、JSON 出力スキーマの差を避けられる。
-
-> 運用上の注意: ゲートは Bash 呼び出し全体を実行前に捕捉する。
-> センチネル削除（`rm -f .kaizen/.pending-extract*`）と `git commit` を同一コマンドにまとめると `rm` が走らずブロックされるため、必ず別コマンドに分ける。
-> 通常は `kaizen --current` がセンチネルを削除するので手動削除は不要。
-
-### セットアップ
-
-スクリプトはプロジェクトへコピーしない。スキルのインストール先にある実体をフックから直接参照する。
-このマルチエージェント構成では実体は `.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh`（`.claude/skills/kaizen` はそこへのシンボリックリンク）にあり、フックの実行 cwd はプロジェクトルートなので、下記のパスでそのまま解決できる。
-スクリプト内の `.kaizen/` 参照も cwd 基準なので、スクリプトの置き場所に依存しない。
-
-> インストール先が異なる場合（例: ユーザースコープの `~/.claude/skills/kaizen/`）は、その実体へのパスに読み替える。
-
-各エージェントの PreToolUse（Bash ツール実行前）に登録する。
-
-#### Claude Code — PreToolUse (`.claude/settings.json`)
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-#### Codex — PreToolUse (`.codex/hooks.json`)
-
-```json
-{
-  "PreToolUse": [
-    {
-      "command": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh"
-    }
-  ]
-}
-```
-
-#### GitHub Copilot — preToolUse (`.github/hooks/kaizen-session.json`)
-
-```json
-{
-  "version": 1,
-  "hooks": {
-    "preToolUse": [
-      {
-        "type": "command",
-        "bash": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh",
-        "cwd": ".",
-        "timeoutSec": 5
-      }
-    ]
-  }
-}
-```
-
-> Copilot の `preToolUse` はブロックできるが、stderr/理由をエージェントのコンテキストへ渡せるかはドキュメント上不明確。
-> 最低限コミットはブロックされるため、エージェントは失敗に反応して `kaizen --current` を実行する余地が残る。
-> 挙動は [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) で確認すること。
-
-### 使わない方式
-
-- **echo によるリマインダー（Stop / SessionStart）**: エージェントの行動を確定的に変えられず、見落とされる。
-- **`AGENTS.md` 等への散文の指示**: 守られない確率が高い。主トリガーにはしない。
-- **lefthook / git pre-commit**: 確定的だが LLM を動かせず、結局リマインダー止まりで echo と同じ問題に陥る。抽出・適用はエージェントの仕事なので、コミットをブロックしてエージェントに返す PreToolUse ゲートを使う。
+Hook の設定（タスク終了時センチネル・コミット前ゲート・セッション開始時の参照注入）は `setup.md` に分離した。インストール後・初回のみ `setup.md` を読み込んで実行する。
