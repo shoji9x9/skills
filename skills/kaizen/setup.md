@@ -78,7 +78,7 @@ PreToolUse ゲートと参照注入フックはスキルにバンドルされた
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract"
+            "command": "mkdir -p .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' > .kaizen/.pending-extract"
           }
         ]
       }
@@ -93,7 +93,7 @@ PreToolUse ゲートと参照注入フックはスキルにバンドルされた
 {
   "Stop": [
     {
-      "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-codex"
+      "command": "mkdir -p .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' > .kaizen/.pending-extract-codex"
     }
   ]
 }
@@ -110,7 +110,7 @@ PreToolUse ゲートと参照注入フックはスキルにバンドルされた
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot",
+        "bash": "mkdir -p .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' > .kaizen/.pending-extract-copilot",
         "cwd": ".",
         "timeoutSec": 5
       }
