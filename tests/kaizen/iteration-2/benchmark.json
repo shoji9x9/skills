@@ -2,8 +2,8 @@
   "metadata": {
     "skill_name": "kaizen",
     "skill_path": "<repo>/skills/kaizen",
-    "executor_model": "<model-name>",
-    "analyzer_model": "<model-name>",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
     "timestamp": "2026-06-04T10:01:23Z",
     "evals_run": [1, 2, 3, 4, 5, 6, 7, 8],
     "runs_per_configuration": 1

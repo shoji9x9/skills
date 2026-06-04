@@ -1,6 +1,6 @@
 # Skill Benchmark: kaizen
 
-**Model**: <model-name>
+**Model**: claude-opus-4-8
 **Date**: 2026-06-04T10:01:23Z
 **Evals**: 1, 2, 3, 4, 5, 6, 7, 8 (1 run each per configuration)
 
@@ -13,7 +13,7 @@
 | Tokens | 0 ± 0 | 0 ± 0 | +0 |
 ## 補足・注意（手動追記）
 
-- 各構成 **1 run**（ヘッダ・`runs_per_configuration` と整合）。Model は claude-opus-4-8。
+- 各構成 **1 run**（ヘッダ・`runs_per_configuration` と整合）。
 - **Time 列は比較に使えない**: with_skill の 8 run は同一ターンで並列起動したため待ち時間込みの wall-clock（≈4000s）で膨らんでいる。実 CPU 時間ではない。Tokens は集計スクリプトが拾えず 0 表示（実値は各 run の timing.json 参照）。
 - **判定の主指標は Pass Rate**: with_skill **100%** vs without_skill **65%**（delta **+0.35**）。Issue #3 の新挙動（RCA 強化 / SessionStart 注入 / status フロー / setup 分離 / 自己改変ガード）はすべて with_skill で合格。
 
