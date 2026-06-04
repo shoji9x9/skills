@@ -101,6 +101,26 @@ scripts/reinstall-skill.sh <name>
 この規約は `scripts/lint-pagination.mjs` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（完全なシェルパーサではなくヒューリスティックな安全網）。判定ロジックは vitest で `scripts/lint-pagination.test.mjs` がカバーする。
 意図的な単発取得は当該箇所に `# pagination-ok` を付けて明示する。
 
+## エージェントの自己設定編集について
+
+コーディングエージェントは自身の設定ファイルの編集が制限される場合がある（自己改変ガード）。設定ファイルを書き換える作業（kaizen の Hook セットアップ等）でブロックされたら、適用すべき内容を一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` 等での適用を依頼する。
+
+| エージェント | 自己設定ファイル | 編集可否 |
+|------------|---------------|---------|
+| Claude Code | `.claude/settings.json` | 不可（ハードブロック。bypass でも確認が出る） |
+| Codex | `.codex/config.toml` / hooks | 現状は可（ただし credentials/auth/profile 等の上書きは制限） |
+| GitHub Copilot | `.github/agents/`（指示） | 不可（ハードブロック） |
+| GitHub Copilot | `.github/hooks/`（フック） | 可（手動承認ガードの設定を推奨） |
+
+## 配布スキルの成果物は同梱する
+
+配布対象スキル（`skills/<name>/`、`gh skill publish` の対象）が実行時に参照する成果物（テンプレート・設定ファイル・スクリプト等）は、必ずスキル内（`assets/` / `scripts/` / `references/`）に正本として同梱する。
+
+配布されるのは `skills/<name>/` 配下のみで、リポジトリ直下や `.github/` に置いたファイルはインストール先プロジェクトに付いて行かず、参照先が無くなるため。
+
+- インストール先リポジトリに同種のファイルが既にある場合はそれを優先・尊重し、無いときだけ同梱物を使う／（ユーザー確認の上）コピー導入する。既存ファイルは上書きしない
+- スキル本体（`SKILL.md` 等）から参照するパスは、リポジトリ固有の場所ではなくスキル内の同梱物を起点にする
+
 ## 参照スキルガイド
 
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
