@@ -24,7 +24,7 @@ license: MIT
 | セッションを振り返る / 学びを抽出する / kaizen | extract |
 | 学びを適用する / 改善を実施する | apply |
 | .kaizen/ を整理する / 適用済みを削除する / クリーンアップ | apply（cleanup セクション参照） |
-| セットアップ / 初期設定 / hooks を設定する | セットアップ（このファイルの Step 3 参照） |
+| セットアップ / 初期設定 / hooks を設定する | setup |
 
 意図が不明な場合は AskUserQuestion で確認する。
 
@@ -34,6 +34,7 @@ license: MIT
 
 - 学び抽出 → `extract.md`
 - 学び適用 → `apply.md`
+- セットアップ → `setup.md`
 
 コンポーネントファイルの場所（インストール先に応じて試みる）:
 
@@ -43,40 +44,7 @@ license: MIT
 
 ### Step 3: セットアップ（インストール後・初回のみ）
 
-kaizen を「自動で回る」状態にするには 2 つの Hook を組み合わせる。Hook からエージェント自身を呼び出して LLM を動かすことはできないため、役割を分ける:
-
-- **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract*` を残し、「未抽出の活動がある」ことを記録する。
-- **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックしてエージェントに `kaizen --current` を促す。
-  エージェントが抽出を終えるとセンチネルが消え、再試行した commit が通る。
-  コミットを実際にブロックするため確定的に効き、全エージェント（Claude Code / Codex / Copilot）の PreToolUse で機能する。
-
-> echo によるリマインダーや `AGENTS.md` への散文の指示は、エージェントの行動を確定的に変えられず守られない確率が高いため使わない。詳細は `extract.md` の「使わない方式」を参照。
-
-既に Hook 設定が存在する場合は、上書きせず、既存設定を更新するかユーザーに確認する。
-
-#### 1. 対象エージェントの確認
-
-```bash
-ls -d .agents .claude .github .codex 2>/dev/null
-```
-
-#### 2. 設定するエージェントをユーザーに確認
-
-AskUserQuestion で確認する。対象エージェントが明示されていない場合のみ確認する。
-
-#### 3. `extract.md` を読み込み、選択されたエージェントごとに 2 つの Hook を設定する
-
-`extract.md` の「自動実行のセットアップ」（タスク終了時 Hook）と「コミット前 PreToolUse ゲート」に各エージェントの設定例がある。PreToolUse ゲートはスキルにバンドルされたスクリプトの実体（`.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh`）をフックから直接参照する。プロジェクトへのコピーは不要。
-
-#### 4. `multiagent-setup` スキルとの依存関係
-
-`apply.md` の学び適用ステップでは `multiagent-setup` スキルを使用する。インストール済みでなければ事前にインストールするようユーザーに案内する:
-
-```bash
-gh skill install shoji9x9/skills multiagent-setup --agent codex
-mkdir -p .claude/skills
-ln -s ../../.agents/skills/multiagent-setup .claude/skills/multiagent-setup
-```
+`setup.md` を Read ツールで読み込み、手順に従う。kaizen を「自動で回る」状態にするための 3 つの Hook（タスク終了時のセンチネル記録・コミット前 PreToolUse ゲート・セッション開始時の参照注入）、`AGENTS.md` へのエージェント自己設定制約の追記、`multiagent-setup` への依存をまとめている。
 
 ---
 
@@ -96,3 +64,18 @@ ln -s ../../.agents/skills/kaizen .claude/skills/kaizen
 `--agent codex` を指定すると `.agents/` 配下にファイルが配置される。Claude Code は手順 2 のシンボリックリンク経由で参照する。
 
 `AGENTS.md` の「参照スキルガイド」セクションに追記すれば常時参照させられる。
+
+---
+
+## 参考文献
+
+このスキルの根本原因分析（`extract.md`「根本原因分析」: 最低 3 階層の「なぜ」・KEDB 照合・横断スコープ確認）は、LLM エージェントによる障害原因分析（RCA）の研究知見に基づく。
+
+- Roy et al. "Exploring LLM-based Agents for Root Cause Analysis" ([arXiv:2403.04123](https://arxiv.org/abs/2403.04123)) — 推論とツール実行を往復する ReAct 型エージェントが単発 LLM より診断精度が高い。証拠を取りに行く反復の根拠。
+- Chen et al. "Automatic Root Cause Analysis via Large Language Models for Cloud Incidents" ([arXiv:2305.15778](https://arxiv.org/abs/2305.15778))
+  — 約 4 万件の過去インシデントを RAG で参照すると精度向上。KEDB（既存 `.kaizen/` 照合）の根拠。
+- "Reasoning Language Models for Root Cause Analysis in 5G Wireless Networks" ([arXiv:2507.21974](https://arxiv.org/abs/2507.21974)) — 推論特化モデルが高い pass@1 を達成。段階的な深掘りの有効性。
+- "Towards LLM-based Root Cause Analysis of Hardware Design Failures" ([arXiv:2507.06512](https://arxiv.org/abs/2507.06512)) — 深い推論で RCA タスクの正答率が向上。
+- "TAMO: Fine-Grained Root Cause Analysis via Tool-Assisted LLM Agent" ([arXiv:2504.20462](https://arxiv.org/abs/2504.20462)) — 多角的な観測データとツール呼び出しで深い分析。「単一の視点だけで結論しない」の根拠。
+
+これらの要素は [karaage0703/ai-assistant-workspace の xangi-kaizen スキル](https://github.com/karaage0703/ai-assistant-workspace/tree/main/skills/xangi-kaizen) を参考に取り入れた。

@@ -15,19 +15,57 @@ set -euo pipefail
 
 input=$(cat)
 
-# 実行されようとしているコマンドを取り出す。PreToolUse の入力スキーマは
-# エージェントごとに微妙に異なるため、既知のフィールドを順に試す。jq が無い
-# 環境でも誤検知を避けすぎない範囲で動くよう、最後は生の入力にフォールバック。
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // .command // .input.command // empty' 2>/dev/null || true)
-if [ -z "$cmd" ]; then
+# 実行されようとしているコマンドを取り出す。PreToolUse の入力スキーマはエージェント
+# ごとに微妙に異なる（.tool_input.command / .command / .input.command）。
+# jq に依存しすぎると、jq が無い・壊れている環境（例: mise の shim が untrusted で
+# 失敗する worktree）でコマンドを取り出せず、生 JSON にフォールバックした結果
+# `"git commit ...` が区切り文字判定に合致せず素通りしてしまう。これを防ぐため
+# jq → python3 → 生 JSON の多段フォールバックにし、どの段でも検出できるようにする。
+cmd=""
+extracted=0
+
+if command -v jq >/dev/null 2>&1; then
+	cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // .command // .input.command // empty' 2>/dev/null || true)
+	[ -n "$cmd" ] && extracted=1
+fi
+
+if [ "$extracted" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
+	cmd=$(printf '%s' "$input" | python3 -c 'import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for k in ("tool_input", "input"):
+    v = d.get(k)
+    if isinstance(v, dict) and v.get("command"):
+        print(v["command"]); sys.exit(0)
+if isinstance(d.get("command"), str):
+    print(d["command"]); sys.exit(0)
+sys.exit(1)' 2>/dev/null || true)
+	[ -n "$cmd" ] && extracted=1
+fi
+
+# どちらでも取り出せなければ最後の手段として生入力で判定する。
+if [ "$extracted" -eq 0 ]; then
 	cmd="$input"
 fi
 
-# git commit の「実行」だけを対象にする。引数や echo 文字列中に "git commit"
-# という substring が含まれるだけのコマンド（例: echo "... git commit ..." や
-# grep "git commit"）を誤ってブロックしないよう、行頭または区切り文字
-# (; & | () 直後の git commit に限定する。
-if ! printf '%s\n' "$cmd" | grep -Eq '(^|[;&|(])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'; then
+# git commit の「実行」だけを対象にする。引数や echo 文字列中に "git commit" という
+# substring が含まれるだけのコマンド（例: echo "... git commit ..." や grep "git commit"）
+# を誤ってブロックしないよう、行頭または区切り文字（`;` `&` `|` `(` のいずれか）直後の
+# git commit に限定する（正規表現の文字クラスは [;&|(]。`)` は含まない）。
+# 生入力フォールバック時はコマンドが JSON で包まれている。ここでクォート (") を単純に
+# 境界扱いすると、エスケープされた文字列（例: echo "git commit"）まで誤検知してしまう。
+# これを避けるため、生入力時は「command フィールドの値が git commit で始まる」場合に
+# 限定して判定する（`"command":"git commit ..."`）。クリーン抽出時は従来どおり区切り
+# 文字の直後を見る。
+if [ "$extracted" -eq 1 ]; then
+	commit_re='(^|[;&|(])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'
+else
+	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*git[[:space:]]+commit([[:space:]]|"|$)'
+fi
+
+if ! printf '%s\n' "$cmd" | grep -Eq "$commit_re"; then
 	exit 0
 fi
 

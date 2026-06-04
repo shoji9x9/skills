@@ -2,7 +2,7 @@
 date: 2026-06-02
 type: skill
 priority: high
-status: pending
+status: applied
 session: claude-code
 ---
 

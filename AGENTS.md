@@ -41,6 +41,8 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 ## ワークフロー
 
+スキルの作成・改善・評価には `skill-creator` スキルを使う。
+
 ### スキルを追加・修正する
 
 1. `skills/<name>/` を作成または編集する
@@ -72,7 +74,28 @@ scripts/reinstall-skill.sh <name>
 
 ### 回帰テストを実行する
 
-`skills/<name>/evals/README.md` の手順を参照。
+各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
+
+集計スクリプト（skill-creator 同梱）で結果を `tests/<name>/iteration-N/` に集約する:
+
+```bash
+# skill-creator のインストール先を自動検索（各エージェントのスキルディレクトリを横断）
+REPO=$(git rev-parse --show-toplevel)
+SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
+cd "$SKILL_CREATOR"
+# benchmark_dir は実在パスを読むので絶対パスで渡す（cd 後に相対パスだと解決できない）。
+# --skill-path は metadata 用の表示文字列。絶対パスを避け <repo> プレースホルダ形式で渡す
+#（下記の絶対パス除去方針に合わせる。未指定だと <path/to/skill> になる）。
+mise exec python -- python -m scripts.aggregate_benchmark \
+  "$REPO/tests/<name>/iteration-N" \
+  --skill-name <name> \
+  --skill-path '<repo>/skills/<name>'
+```
+
+`aggregate_benchmark.py` は `executor_model` / `analyzer_model`（= `<model-name>`）と `runs_per_configuration`（= `3`）をハードコードしており、これらを設定する CLI 引数は無い。生成後に手動で実値へ直してからコミットする:
+
+- `benchmark.json` / `benchmark.md` の `<model-name>` を実際のモデル名（例: `claude-opus-4-8`）に置換する（モデル名は秘匿情報ではないのでマスクしない）。
+- `runs_per_configuration` と `benchmark.md` ヘッダの「N runs each per configuration」を実際の run 数に合わせる。
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
@@ -100,6 +123,26 @@ scripts/reinstall-skill.sh <name>
 件数が大きくなりうる場合は、全件をメモリに抱えず**ページ単位で逐次処理**し、十分なら早期終了の条件を明示する。
 この規約は `scripts/lint-pagination.mjs` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（完全なシェルパーサではなくヒューリスティックな安全網）。判定ロジックは vitest で `scripts/lint-pagination.test.mjs` がカバーする。
 意図的な単発取得は当該箇所に `# pagination-ok` を付けて明示する。
+
+## エージェントの自己設定編集について
+
+コーディングエージェントは自身の設定ファイルの編集が制限される場合がある（自己改変ガード）。設定ファイルを書き換える作業（kaizen の Hook セットアップ等）でブロックされたら、適用すべき内容を一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` 等での適用を依頼する。
+
+| エージェント | 自己設定ファイル | 編集可否 |
+|------------|---------------|---------|
+| Claude Code | `.claude/settings.json` | 不可（ハードブロック。bypass でも確認が出る） |
+| Codex | `.codex/config.toml` / hooks | 現状は可（ただし credentials/auth/profile 等の上書きは制限） |
+| GitHub Copilot | `.github/agents/`（指示） | 不可（ハードブロック） |
+| GitHub Copilot | `.github/hooks/`（フック） | 可（手動承認ガードの設定を推奨） |
+
+## 配布スキルの成果物は同梱する
+
+配布対象スキル（`skills/<name>/`、`gh skill publish` の対象）が実行時に参照する成果物（テンプレート・設定ファイル・スクリプト等）は、必ずスキル内（`assets/` / `scripts/` / `references/`）に正本として同梱する。
+
+配布されるのは `skills/<name>/` 配下のみで、リポジトリ直下や `.github/` に置いたファイルはインストール先プロジェクトに付いて行かず、参照先が無くなるため。
+
+- インストール先リポジトリに同種のファイルが既にある場合はそれを優先・尊重し、無いときだけ同梱物を使う／（ユーザー確認の上）コピー導入する。既存ファイルは上書きしない
+- スキル本体（`SKILL.md` 等）から参照するパスは、リポジトリ固有の場所ではなくスキル内の同梱物を起点にする
 
 ## 参照スキルガイド
 
