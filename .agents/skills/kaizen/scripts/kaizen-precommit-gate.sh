@@ -53,13 +53,15 @@ fi
 # git commit の「実行」だけを対象にする。引数や echo 文字列中に "git commit" という
 # substring が含まれるだけのコマンド（例: echo "... git commit ..." や grep "git commit"）
 # を誤ってブロックしないよう、行頭または区切り文字 (; & | () 直後の git commit に限定する。
-# 生入力フォールバック時はコマンドが JSON で包まれている（`"command":"git commit ..."`）ため、
-# JSON のクォート (") も区切りとして許容しないと検出できない。クリーン抽出時は厳しめの
-# 境界に保ち、生入力時のみクォートを境界に含める。
+# 生入力フォールバック時はコマンドが JSON で包まれている。ここでクォート (") を単純に
+# 境界扱いすると、エスケープされた文字列（例: echo "git commit"）まで誤検知してしまう。
+# これを避けるため、生入力時は「command フィールドの値が git commit で始まる」場合に
+# 限定して判定する（`"command":"git commit ..."`）。クリーン抽出時は従来どおり区切り
+# 文字の直後を見る。
 if [ "$extracted" -eq 1 ]; then
 	commit_re='(^|[;&|(])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'
 else
-	commit_re='(^|[;&|("])[[:space:]]*git[[:space:]]+commit([[:space:]"]|$)'
+	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*git[[:space:]]+commit([[:space:]]|"|$)'
 fi
 
 if ! printf '%s\n' "$cmd" | grep -Eq "$commit_re"; then
