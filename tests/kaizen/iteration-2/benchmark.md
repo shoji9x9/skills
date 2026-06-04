@@ -2,7 +2,7 @@
 
 **Model**: <model-name>
 **Date**: 2026-06-04T10:01:23Z
-**Evals**: 1, 2, 3, 4, 5, 6, 7, 8 (3 runs each per configuration)
+**Evals**: 1, 2, 3, 4, 5, 6, 7, 8 (1 run each per configuration)
 
 ## Summary
 
@@ -13,7 +13,7 @@
 | Tokens | 0 ± 0 | 0 ± 0 | +0 |
 ## 補足・注意（手動追記）
 
-- **実際は各構成 1 run**（テンプレ既定文の「3 runs each」は不正確）。Model は claude-opus-4-8。
+- 各構成 **1 run**（ヘッダ・`runs_per_configuration` と整合）。Model は claude-opus-4-8。
 - **Time 列は比較に使えない**: with_skill の 8 run は同一ターンで並列起動したため待ち時間込みの wall-clock（≈4000s）で膨らんでいる。実 CPU 時間ではない。Tokens は集計スクリプトが拾えず 0 表示（実値は各 run の timing.json 参照）。
 - **判定の主指標は Pass Rate**: with_skill **100%** vs without_skill **65%**（delta **+0.35**）。Issue #3 の新挙動（RCA 強化 / SessionStart 注入 / status フロー / setup 分離 / 自己改変ガード）はすべて with_skill で合格。
 
@@ -32,4 +32,4 @@
 ### ベンチで surface した発見
 1. install 先 `.agents/skills/kaizen/scripts/` に `kaizen-context-inject.sh` が無いとフックが動かない → 再インストールで解消（本リポジトリは対応済み）。
 2. `kaizen-precommit-gate.sh` の **jq 依存** → 本セッションで多段フォールバック化して**修正・検証済み**。
-3. （既知・スコープ外）gate の生JSONフォールバック時のクォート境界による**誤検知**（`grep "...git commit..."` 等を誤ブロック）を baseline eval-5 が独立に指摘。jq 依存とは別論点として未対応。
+3. gate の生JSONフォールバック時のクォート境界による**誤検知**（`grep "...git commit..."` 等を誤ブロック）を baseline eval-5 が独立に指摘。PR #8 のレビュー対応で修正済み（command フィールド値が git commit で始まる場合に限定）。
