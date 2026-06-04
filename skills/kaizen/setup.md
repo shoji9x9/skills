@@ -59,6 +59,12 @@ PreToolUse ゲートと参照注入フックはスキルにバンドルされた
 
 > インストール先が異なる場合（例: ユーザースコープの `~/.claude/skills/kaizen/`）は、その実体へのパスに読み替える。
 
+**重要（3 つの hook を同一ファイルにマージする）**: 4-1〜4-3 の JSON は、エージェントごとに**同じ 1 つの設定ファイル**
+（Claude Code=`.claude/settings.json` / Codex=`.codex/hooks.json` / Copilot=`.github/hooks/kaizen-session.json`）に対するキー断片を示す。
+各ブロックをそのままファイルに書き込んで置き換えると、先に設定した hook キーが上書きされて 1 つしか残らない。
+既存の設定（他スキルの hook 含む）を保持したまま、3 つの hook キーを**同一ファイル内にマージ**すること
+（Claude Code / Copilot は `hooks` オブジェクト配下、Codex はトップレベルにキーを併置）。
+
 #### 4-1. タスク終了時 Hook（センチネル記録のみ）
 
 ##### Claude Code — Stop (`.claude/settings.json`)
