@@ -5,23 +5,58 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    # グループが多い（0.x 専用 + カテゴリ + catch-all で 7 つ）ため、更新が重なっても
+    # 各グループの PR が抑制されないよう上限を引き上げる。
+    open-pull-requests-limit: 10
     # cooldown は pnpm の minimumReleaseAge (3 日) より大きくする。
     # こうすることで Dependabot が更新 PR を作る頃には対象バージョンが
     # minimumReleaseAge の期間を過ぎており、lockfile がポリシー違反で
     # 弾かれる事態を避けられる。
     cooldown:
       default-days: 7
+    # squash マージ時の件名を conventional commits 準拠にする（chore: ...）。
+    # 依存更新の型は commit-types.js の単一の真実に従い chore（build は使わない）。
+    commit-message:
+      prefix: "chore"
     # メジャーアップデートの PR は作成しない
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    # グループはマッチ先勝ち。0.x（<1.0）はマイナー更新でも破壊的変更があり得て
+    # 自動マージ対象外なので、パッケージごとに専用グループへ隔離し 1 PR 単位で
+    # 手動レビューできるようにする。それ以外（>=1.0）は機能カテゴリ + catch-all に
+    # まとめ、dependabot-automerge ワークフローで CI 通過後に自動マージする。
+    # 0.x のパッケージが 1.0 に上がったら、その専用グループを削除しカテゴリ
+    # （または npm-misc）に取り込むこと。
     groups:
-      # マイナー/パッチ更新はまとめて 1 PR にしてノイズを減らす
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
+      # --- 0.x（<1.0）: 1 パッケージ = 1 グループ = 1 PR（手動レビュー） ---
+      oxfmt:
+        patterns: ["oxfmt"]
+        update-types: ["minor", "patch"]
+      markdownlint-cli2:
+        patterns: ["markdownlint-cli2"]
+        update-types: ["minor", "patch"]
+      # --- >=1.0: 機能カテゴリ（自動マージ対象） ---
+      lint:
+        patterns: ["@prantlf/jsonlint", "js-yaml", "shellcheck"]
+        update-types: ["minor", "patch"]
+      test:
+        patterns: ["vitest"]
+        update-types: ["minor", "patch"]
+      release:
+        patterns:
+          - "semantic-release"
+          - "@commitlint/*"
+          - "conventional-changelog-*"
+        update-types: ["minor", "patch"]
+      tooling:
+        patterns: ["lefthook"]
+        update-types: ["minor", "patch"]
+      # --- 上記いずれにも該当しない >=1.0 を 1 PR に集約（個別 PR の散発を防ぐ） ---
+      npm-misc:
+        patterns: ["*"]
+        exclude-patterns: ["oxfmt", "markdownlint-cli2"]
+        update-types: ["minor", "patch"]
 
   # GitHub Actions (pinact で SHA ピン留めしたアクションを追跡)
   - package-ecosystem: "github-actions"
@@ -32,7 +67,17 @@ updates:
     # minimumReleaseAge (3 日) より大きい 7 日に設定。
     cooldown:
       default-days: 7
+    # squash マージ時の件名を conventional commits 準拠にする（chore: ...）。
+    # 依存更新の型は commit-types.js の単一の真実に従い chore（build は使わない）。
+    commit-message:
+      prefix: "chore"
     # メジャーアップデートの PR は作成しない
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+    # 個別 PR を 1 グループに集約する。github-actions はタグが semver を厳密に守らないため、
+    # dependabot-automerge ワークフローは自動マージせず常にレビューラベルへ回す。
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

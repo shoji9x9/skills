@@ -1,0 +1,577 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "claude-sonnet-4-6",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-06-05T00:37:52Z",
+    "evals_run": [1, 2, 3, 4, 5, 6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 44.8,
+        "tokens": 17000,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL \u304b\u3089 owner/repo/PR\u756a\u53f7\u3092\u62bd\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u73fe\u5728\u306e repo \u3068 PR \u306e owner/repo \u306e\u4e00\u81f4\u3092\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "PR \u306e\u8457\u8005\u304c Dependabot \u304b\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "gh pr checks \u3067 CI \u306e\u6210\u529f\u3092\u78ba\u8a8d\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "changelog/release notes \u306a\u3069\u66f4\u65b0\u5185\u5bb9\u304b\u3089\u5f71\u97ff\u3092\u78ba\u8a8d\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u30de\u30fc\u30b8\u524d\u306b\u5224\u65ad\u306e\u6839\u62e0\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": ".github/dependabot-merge.yml \u306e merge_method \u3092\u53c2\u7167\u3057\u3001\u7121\u3051\u308c\u3070 squash \u3092\u30c7\u30d5\u30a9\u30eb\u30c8\u306b\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u5b89\u5168\u3068\u5224\u65ad\u3057\u305f\u5834\u5408\u306b gh pr merge \u3067\u30de\u30fc\u30b8\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 40.7,
+        "tokens": 16615,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR\u756a\u53f7\u306e\u307f\u306e\u305f\u3081\u73fe\u5728\u306e repo \u3092\u5bfe\u8c61\u306b\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "0.x \u306e\u30de\u30a4\u30ca\u30fc\u66f4\u65b0\u306f\u7834\u58ca\u7684\u5909\u66f4\u304c\u3042\u308a\u5f97\u308b\u3068\u8a8d\u8b58\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "changelog/release notes \u3067\u7834\u58ca\u7684\u5909\u66f4\uff08API\u5909\u66f4\u30fb\u524a\u9664\u30fb\u6319\u52d5\u5909\u66f4\uff09\u306e\u6709\u7121\u3092\u78ba\u8a8d\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u5224\u65ad\u306e\u6839\u62e0\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u30ea\u30b9\u30af\u3042\u308a/\u5224\u65ad\u4e0d\u80fd\u306a\u3089\u30de\u30fc\u30b8\u305b\u305a\u3001\u8ab2\u984c\u3068\u89e3\u6c7a\u7b56\u3092\u30b3\u30e1\u30f3\u30c8\u306b\u6b8b\u3057\u3066\u505c\u6b62\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 33.7,
+        "tokens": 15936,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks \u7b49\u3067 CI \u72b6\u614b\u3092\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "CI \u304c\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u30de\u30fc\u30b8\u3057\u306a\u3044\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u5931\u6557\u5185\u5bb9\u3068\u89e3\u6c7a\u306e\u624b\u304c\u304b\u308a\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u30de\u30fc\u30b8\u305b\u305a\u30e6\u30fc\u30b6\u30fc\u306b\u5831\u544a\u3057\u3066\u505c\u6b62\u3059\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 50.7,
+        "tokens": 16870,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot \u3067 open \u306a PR \u3092\u5217\u6319\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "--limit \u3092\u5927\u304d\u304f\u53d6\u308b\u304b --paginate \u3067\u5168\u4ef6\u53d6\u5f97\u3059\u308b\uff0830\u4ef6\u3067\u6253\u3061\u5207\u3089\u306a\u3044\uff09\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u5404 PR \u3092\u51e6\u7406\u3059\u308b\u76f4\u524d\u306b\u6700\u65b0\u72b6\u614b\uff08head/CI/mergeable\uff09\u3092\u53d6\u308a\u76f4\u3059\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "1 \u4ef6\u30de\u30fc\u30b8\u5f8c\u306f Dependabot \u306e rebase/force-push\u30fbCI \u518d\u5b9f\u884c\u306e\u5b8c\u4e86\u3092\u5f85\u3063\u3066\u304b\u3089\u6b21\u3092\u5224\u65ad\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u4e00\u9023\u306e\u51e6\u7406\u5f8c\u306b open \u306a Dependabot PR \u4e00\u89a7\u3092\u518d\u53d6\u5f97\u3057\u3001\u65b0\u898f\u304c\u51fa\u306a\u304f\u306a\u308b\u307e\u3067\u7e70\u308a\u8fd4\u3059\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u5404 PR \u3067\u5b89\u5168\u78ba\u8a8d\u30fbPR \u30b3\u30e1\u30f3\u30c8\u8a18\u9332\u30fb\u5b89\u5168\u306a\u3082\u306e\u3060\u3051\u30de\u30fc\u30b8\u3092\u884c\u3046",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 24.2,
+        "tokens": 15611,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u73fe\u5728\u306e repo \u3068 PR \u306e owner/repo \u304c\u4e00\u81f4\u3057\u306a\u3044\u3053\u3068\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u78ba\u8a8d\u30fb\u30de\u30fc\u30b8\u3092\u884c\u308f\u305a\u4e2d\u65ad\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u30e6\u30fc\u30b6\u30fc\u306b\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.4,
+        "tokens": 16085,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus \u7b49\u3067 behind \u72b6\u614b\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "@dependabot rebase \u3067 base \u3078\u306e\u8ffd\u5f93\u3092\u4fc3\u305d\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "rebase \u5f8c\u306b CI \u304c\u518d\u5b9f\u884c\u3055\u308c\u308b\u305f\u3081\u3001\u305d\u306e\u6210\u529f\u3092\u78ba\u8a8d\u3057\u3066\u304b\u3089\u5224\u65ad\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u72b6\u6cc1\uff08behind \u306e\u305f\u3081 rebase \u304c\u5fc5\u8981\uff09\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u30b9\u30ad\u30eb\u306e\u30d5\u30ed\u30fc\u3069\u304a\u308a\u306e\u624b\u9806\u30fb\u5224\u65ad\u304c\u8a18\u8ff0\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.625,
+        "passed": 5,
+        "failed": 3,
+        "total": 8,
+        "time_seconds": 33.7,
+        "tokens": 11499,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL \u304b\u3089 owner/repo/PR\u756a\u53f7\u3092\u62bd\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u73fe\u5728\u306e repo \u3068 PR \u306e owner/repo \u306e\u4e00\u81f4\u3092\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "--repo \u3092\u4ed8\u3051\u308b\u3060\u3051\u3067 owner/repo \u306e\u4e00\u81f4\u78ba\u8a8d\u3092\u660e\u8a18\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "PR \u306e\u8457\u8005\u304c Dependabot \u304b\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "gh pr view \u306e\u307f\u3067 author \u304c dependabot \u304b\u660e\u793a\u78ba\u8a8d\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "gh pr checks \u3067 CI \u306e\u6210\u529f\u3092\u78ba\u8a8d\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "changelog/release notes \u306a\u3069\u66f4\u65b0\u5185\u5bb9\u304b\u3089\u5f71\u97ff\u3092\u78ba\u8a8d\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u30de\u30fc\u30b8\u524d\u306b\u5224\u65ad\u306e\u6839\u62e0\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": ".github/dependabot-merge.yml \u306e merge_method \u3092\u53c2\u7167\u3057\u3001\u7121\u3051\u308c\u3070 squash \u3092\u30c7\u30d5\u30a9\u30eb\u30c8\u306b\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": false,
+          "evidence": ".github/dependabot-merge.yml \u3092\u53c2\u7167\u305b\u305a\u72ec\u65ad\u3067 --squash \u3092\u9078\u629e"
+        },
+        {
+          "text": "\u5b89\u5168\u3068\u5224\u65ad\u3057\u305f\u5834\u5408\u306b gh pr merge \u3067\u30de\u30fc\u30b8\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 82.9,
+        "tokens": 16167,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR\u756a\u53f7\u306e\u307f\u306e\u305f\u3081\u73fe\u5728\u306e repo \u3092\u5bfe\u8c61\u306b\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "0.x \u306e\u30de\u30a4\u30ca\u30fc\u66f4\u65b0\u306f\u7834\u58ca\u7684\u5909\u66f4\u304c\u3042\u308a\u5f97\u308b\u3068\u8a8d\u8b58\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "changelog/release notes \u3067\u7834\u58ca\u7684\u5909\u66f4\uff08API\u5909\u66f4\u30fb\u524a\u9664\u30fb\u6319\u52d5\u5909\u66f4\uff09\u306e\u6709\u7121\u3092\u78ba\u8a8d\u3059\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u5224\u65ad\u306e\u6839\u62e0\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u30ea\u30b9\u30af\u3042\u308a/\u5224\u65ad\u4e0d\u80fd\u306a\u3089\u30de\u30fc\u30b8\u305b\u305a\u3001\u8ab2\u984c\u3068\u89e3\u6c7a\u7b56\u3092\u30b3\u30e1\u30f3\u30c8\u306b\u6b8b\u3057\u3066\u505c\u6b62\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": false,
+          "evidence": "changelog \u3067\u7834\u58ca\u7684\u5909\u66f4\u306a\u3057\u3068\u5224\u65ad\u3057\u30de\u30fc\u30b8\u7d50\u8ad6\u3002\u30ea\u30b9\u30af\u6642\u306b\u30de\u30fc\u30b8\u305b\u305a\u8ab2\u984c\u3092\u8a18\u9332\u3057\u3066\u505c\u6b62\u3059\u308b\u65b9\u91dd\u3092\u660e\u793a\u3057\u3066\u3044\u306a\u3044"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.0,
+        "tokens": 11696,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks \u7b49\u3067 CI \u72b6\u614b\u3092\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "CI \u304c\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u30de\u30fc\u30b8\u3057\u306a\u3044\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u5931\u6557\u5185\u5bb9\u3068\u89e3\u6c7a\u306e\u624b\u304c\u304b\u308a\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u30de\u30fc\u30b8\u305b\u305a\u30e6\u30fc\u30b6\u30fc\u306b\u5831\u544a\u3057\u3066\u505c\u6b62\u3059\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 31.1,
+        "tokens": 11252,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot \u3067 open \u306a PR \u3092\u5217\u6319\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "--limit \u3092\u5927\u304d\u304f\u53d6\u308b\u304b --paginate \u3067\u5168\u4ef6\u53d6\u5f97\u3059\u308b\uff0830\u4ef6\u3067\u6253\u3061\u5207\u3089\u306a\u3044\uff09\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "gh pr list \u306b --limit/--paginate \u304c\u306a\u304f\u65e2\u5b9a30\u4ef6\u3067\u6253\u3061\u5207\u3089\u308c\u3046\u308b"
+        },
+        {
+          "text": "\u5404 PR \u3092\u51e6\u7406\u3059\u308b\u76f4\u524d\u306b\u6700\u65b0\u72b6\u614b\uff08head/CI/mergeable\uff09\u3092\u53d6\u308a\u76f4\u3059\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5404 PR \u3092\u51e6\u7406\u76f4\u524d\u306b\u6700\u65b0\u72b6\u614b\u3092\u53d6\u308a\u76f4\u3059\u8a18\u8ff0\u304c\u306a\u3044"
+        },
+        {
+          "text": "1 \u4ef6\u30de\u30fc\u30b8\u5f8c\u306f Dependabot \u306e rebase/force-push\u30fbCI \u518d\u5b9f\u884c\u306e\u5b8c\u4e86\u3092\u5f85\u3063\u3066\u304b\u3089\u6b21\u3092\u5224\u65ad\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": false,
+          "evidence": "1 \u4ef6\u30de\u30fc\u30b8\u5f8c\u306b\u6b21PR\u306eCI\u518d\u5b9f\u884c\u5b8c\u4e86\u3092\u5f85\u3064\u8a18\u8ff0\u304c\u306a\u3044"
+        },
+        {
+          "text": "\u4e00\u9023\u306e\u51e6\u7406\u5f8c\u306b open \u306a Dependabot PR \u4e00\u89a7\u3092\u518d\u53d6\u5f97\u3057\u3001\u65b0\u898f\u304c\u51fa\u306a\u304f\u306a\u308b\u307e\u3067\u7e70\u308a\u8fd4\u3059\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5168\u4ef6\u51e6\u7406\u5f8c\u306b open \u4e00\u89a7\u3092\u518d\u53d6\u5f97\u3057\u3066\u65b0\u898f\u304c\u7121\u304f\u306a\u308b\u307e\u3067\u7e70\u308a\u8fd4\u3059\u8a18\u8ff0\u304c\u306a\u3044"
+        },
+        {
+          "text": "\u5404 PR \u3067\u5b89\u5168\u78ba\u8a8d\u30fbPR \u30b3\u30e1\u30f3\u30c8\u8a18\u9332\u30fb\u5b89\u5168\u306a\u3082\u306e\u3060\u3051\u30de\u30fc\u30b8\u3092\u884c\u3046",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 19.3,
+        "tokens": 10891,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u73fe\u5728\u306e repo \u3068 PR \u306e owner/repo \u304c\u4e00\u81f4\u3057\u306a\u3044\u3053\u3068\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "owner/repo \u306e\u4e0d\u4e00\u81f4\u3092\u691c\u51fa\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "\u78ba\u8a8d\u30fb\u30de\u30fc\u30b8\u3092\u884c\u308f\u305a\u4e2d\u65ad\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u4e2d\u65ad\u305b\u305a other-org/other-repo \u306b\u5bfe\u3057\u30de\u30fc\u30b8\u624b\u9806\u3092\u8a08\u753b\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u30e6\u30fc\u30b6\u30fc\u306b\u78ba\u8a8d\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u30e6\u30fc\u30b6\u30fc\u3078\u306e\u4e0d\u4e00\u81f4\u78ba\u8a8d\u3092\u3057\u3066\u3044\u306a\u3044"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 26.3,
+        "tokens": 11646,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus \u7b49\u3067 behind \u72b6\u614b\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "@dependabot rebase \u3067 base \u3078\u306e\u8ffd\u5f93\u3092\u4fc3\u305d\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "rebase \u5f8c\u306b CI \u304c\u518d\u5b9f\u884c\u3055\u308c\u308b\u305f\u3081\u3001\u305d\u306e\u6210\u529f\u3092\u78ba\u8a8d\u3057\u3066\u304b\u3089\u5224\u65ad\u3059\u308b\u65b9\u91dd\u3067\u3042\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        },
+        {
+          "text": "\u72b6\u6cc1\uff08behind \u306e\u305f\u3081 rebase \u304c\u5fc5\u8981\uff09\u3092 PR \u30b3\u30e1\u30f3\u30c8\u306b\u8a18\u9332\u3057\u3088\u3046\u3068\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "result.md \u306b\u8a72\u5f53\u306e\u624b\u9806/\u5224\u65ad\u304c\u542b\u307e\u308c\u308b"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 37.5833,
+        "stddev": 9.6568,
+        "min": 24.2,
+        "max": 50.7
+      },
+      "tokens": {
+        "mean": 16352.8333,
+        "stddev": 556.9235,
+        "min": 15611,
+        "max": 17000
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6264,
+        "stddev": 0.3969,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 36.8833,
+        "stddev": 23.0704,
+        "min": 19.3,
+        "max": 82.9
+      },
+      "tokens": {
+        "mean": 12191.8333,
+        "stddev": 1969.8328,
+        "min": 10891,
+        "max": 16167
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.37",
+      "time_seconds": "+0.7",
+      "tokens": "+4161"
+    }
+  },
+  "notes": []
+}

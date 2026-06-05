@@ -1,0 +1,77 @@
+{
+  "skill_name": "dependabot-merge",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "https://github.com/shoji9x9/skills/pull/42 をマージして（vitest を 4.1.7 から 4.2.0 に上げる Dependabot PR）",
+      "expected_output": "著者が Dependabot か確認し、CI 成功を確認、>=1.0 のマイナー更新として影響を確認し、判断を PR コメントに記録してから設定の merge_method でマージする。",
+      "assertions": [
+        "PR URL から owner/repo/PR番号を抽出している",
+        "現在の repo と PR の owner/repo の一致を確認している",
+        "PR の著者が Dependabot か確認している",
+        "gh pr checks で CI の成功を確認しようとしている",
+        "changelog/release notes など更新内容から影響を確認する方針を示している",
+        "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+        ".github/dependabot-merge.yml の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+        "安全と判断した場合に gh pr merge でマージしようとしている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "dependabot-merge 51 — oxfmt を 0.52.0 から 0.53.0 に上げる PR。0.x なので影響をよく見てから判断して",
+      "expected_output": "0.x のマイナー更新は破壊的変更があり得るため changelog で API 変更等を確認し、安全ならマージ、リスクや判断不能なら課題と解決策を PR コメントに残して停止する。",
+      "assertions": [
+        "PR番号のみのため現在の repo を対象にしている",
+        "0.x のマイナー更新は破壊的変更があり得ると認識している",
+        "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+        "判断の根拠を PR コメントに記録しようとしている",
+        "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "dependabot-merge 73 をマージしたいんだけど、この PR は CI が落ちてる",
+      "expected_output": "CI が失敗しているためマージせず、失敗内容とどうすれば直せそうかを PR コメントに記録してユーザーに報告する。",
+      "assertions": [
+        "gh pr checks 等で CI 状態を確認している",
+        "CI が失敗しているためマージしない方針である",
+        "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+        "マージせずユーザーに報告して停止する"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "dependabot-merge --all で open な Dependabot の PR を全部見てマージして",
+      "expected_output": "open な Dependabot PR をページネーション順守で列挙し、各 PR を処理直前に再取得しながら 1 件ずつ安全確認・コメント記録・マージ。1 件マージ後は rebase/force-push・CI 再実行の完了を待ち、最後に open 一覧を再取得して新規が出なくなるまで繰り返す。",
+      "assertions": [
+        "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+        "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+        "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+        "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+        "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+        "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "別リポジトリの https://github.com/other-org/other-repo/pull/8 の Dependabot PR をマージして",
+      "expected_output": "現在の repo と PR の owner/repo が一致しないことを検出し、確認・マージを行わず中断してユーザーに確認する。",
+      "assertions": [
+        "現在の repo と PR の owner/repo が一致しないことを検出している",
+        "確認・マージを行わず中断している",
+        "ユーザーに確認している"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "dependabot-merge 60 — この PR は base に遅れてる（behind）状態でマージできない",
+      "expected_output": "BEHIND を検出し、@dependabot rebase で更新を促し、更新後の CI 成功を確認してから判断する。状況は PR コメントに記録する。",
+      "assertions": [
+        "mergeStateStatus 等で behind 状態を検出している",
+        "@dependabot rebase で base への追従を促そうとしている",
+        "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+        "状況（behind のため rebase が必要）を PR コメントに記録しようとしている"
+      ]
+    }
+  ]
+}
