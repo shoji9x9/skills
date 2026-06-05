@@ -75,7 +75,7 @@ Dependabot は **1 件マージすると、残りの open PR を rebase / force-
 ### Dependabot PR の列挙（`--all`・全件取得）
 
 著者で絞って取得する。`gh pr list --author` には Dependabot の **app slug `app/dependabot`** を渡す。
-**件数が `--limit` の既定（30）を超えると取りこぼす**ため、`--limit` を十分大きく取るか `--paginate` で全ページ辿る（`AGENTS.md`「API 取得のページネーション」）。意図的な単発取得でない限り `# pagination-ok` は付けない。
+**件数が `--limit` の既定（30）を超えると取りこぼす**ため、`--limit` を十分大きく取る（`gh pr list` に `--paginate` は無い）。既定 30 で暗黙に打ち切らないこと（`AGENTS.md`「API 取得のページネーション」）。
 
 ```bash
 gh pr list --repo <owner>/<repo> --state open --author "app/dependabot" \
