@@ -115,9 +115,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # ラベルが無ければ作成する（既存なら無視）。
+          # ラベルを作成する（--force で既存なら説明・色を最新に更新し、説明が陳腐化しない）。
           gh label create "dependabot/needs-review" \
             --repo "$REPO" \
-            --description "Dependabot 0.x update needs agent impact review" \
-            --color "D93F0B" 2>/dev/null || true
+            --description "Dependabot PR needs agent review (0.x / github-actions / auto-merge fallback)" \
+            --color "D93F0B" \
+            --force 2>/dev/null || true
           gh pr edit "$PR_URL" --add-label "dependabot/needs-review"
