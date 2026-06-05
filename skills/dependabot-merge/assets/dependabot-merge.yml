@@ -1,0 +1,10 @@
+# dependabot-merge スキルの設定（正本テンプレート）。
+# インストール先リポジトリの .github/dependabot-merge.yml としてコピーして使う。
+# 既にファイルがある場合は上書きしないこと。
+
+# マージ方式: squash | merge | rebase（デフォルト squash）
+# - squash: PR の複数コミットを 1 つにまとめてマージ（履歴がすっきりする）
+# - merge:  マージコミットを作成し、個々のコミットを残す
+# - rebase: リベースして直線的な履歴にする
+# リポジトリで許可された方式（Settings > General > Pull Requests）と一致させること。
+merge_method: squash

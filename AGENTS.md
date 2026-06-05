@@ -112,7 +112,8 @@ mise exec python -- python -m scripts.aggregate_benchmark \
 - **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
 - **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
   - body は 1 行 100 文字以内（`body-max-line-length`）。長い本文は `git commit -F <file>` で渡す
-  - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum` と semantic-release の `releaseRules` が共有。`style` は使わない）
+  - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
+    - commitlint / semantic-release はコードで `commit-types.js` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.mjs` が型の整合を CI で検査する
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
 
@@ -151,3 +152,4 @@ mise exec python -- python -m scripts.aggregate_benchmark \
 - `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
 - `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う
+- `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化する。PR 単体または `--all` で open な全 PR を処理。`>=1.0` の決定論的自動マージは `.github/workflows/dependabot-automerge.yml` が担い、本スキルは 0.x や自動マージ未設定リポジトリでの手動判断を受け持つ
