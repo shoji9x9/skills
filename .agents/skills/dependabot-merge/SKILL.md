@@ -38,7 +38,8 @@ merge_method: squash # squash | merge | rebase
 1. 入力から owner / repo / PR 番号を抽出する
 2. 現在の repo と PR の owner / repo が一致するか確認する
    - 一致しない場合は、以降の確認・マージを行わず中断し、ユーザーに確認する
-3. PR の著者が Dependabot か確認する（`gh pr view <番号> --json author` の `author.login` が `app/dependabot` または `dependabot[bot]`）
+3. PR の著者が Dependabot か確認する（`gh pr view <番号> --json author --jq '.author.login'`）
+   - bot の login 表記は揺れる（`dependabot[bot]` 等）ため `dependabot` を含むかで判定する。`app/dependabot` は `gh pr list --author` で絞るときの app slug であって、`author.login` の値とは別物
    - Dependabot 以外なら、本スキルの対象か中断して確認する（取り違え防止）
 4. **CI 成功を確認する**（後述「gh メカニクス」）。必須チェックが
    - 成功 → 次へ
@@ -87,7 +88,7 @@ gh pr list --repo <owner>/<repo> --state open --author "app/dependabot" \
 gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'
 ```
 
-- Dependabot の login は文脈で `app/dependabot`（`gh pr list --author` 用の slug）や `dependabot[bot]`（API の login）と表記が異なる。どちらも Dependabot とみなす。
+- `author.login` の bot 表記は環境で揺れる（`dependabot[bot]` 等）ため、`dependabot` を含むかで緩く判定する。`app/dependabot` は `gh pr list --author` で使う app slug であり、`author.login` の値ではない（混同しない）。
 
 ### CI 成功の確認
 
