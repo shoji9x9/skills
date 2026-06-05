@@ -35,6 +35,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # ラベルは Issues API のリソース。gh label create（リポジトリラベル作成）と
+      # ラベル付与には issues: write が必要。
+      issues: write
     steps:
       - name: Fetch Dependabot metadata
         id: meta
