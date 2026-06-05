@@ -95,14 +95,20 @@ jobs:
           fi
 
       - name: Enable auto-merge for >=1.0 minor/patch
+        id: enable_automerge
         if: steps.route.outputs.decision == 'automerge'
+        # 失敗（コンフリクト / マージ不可 / auto-merge 未許可 等）でもジョブを止めず、
+        # 下のラベル付与ステップが fail-safe で手動レビューへ振り分けられるようにする。
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 
-      - name: Label <1.0 minor/patch for agent review
-        if: steps.route.outputs.decision == 'review'
+      - name: Label for agent review (review route or auto-merge failure)
+        # 手動レビュー対象、または自動マージ予約が失敗したときに fail-safe で振り分ける
+        # （>=1.0 でもコンフリクト等で予約が拒否された PR を取りこぼさない）。
+        if: steps.route.outputs.decision == 'review' || steps.enable_automerge.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
