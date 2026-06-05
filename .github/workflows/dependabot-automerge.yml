@@ -1,0 +1,114 @@
+# Dependabot PR のオートマージを標準化する。
+# - npm で更新対象の依存がすべて >=1.0 のマイナー/パッチ更新なら、CI 必須チェック通過後に
+#   GitHub ネイティブの自動マージ（squash）を予約する（決定論的）。
+# - 0.x（<1.0）の依存を含む / update-type が不明な場合は、マイナー更新でも破壊的変更が
+#   あり得るため自動マージせず、`dependabot/needs-review` ラベルを付けて手動レビュー
+#   （dependabot-merge スキル）に回す。
+# - github-actions はタグが semver を厳密に守らない（必須 CI も構文・ピン留めしか見ない）ため、
+#   決定論的自動マージの対象外とし、常にレビューラベルへ回す。
+# メジャー更新は dependabot.yml の ignore で PR が作られない前提だが、ここでも二重にガードする。
+# 前提: リポジトリ設定で「Allow auto-merge」が有効であること（gh repo edit --enable-auto-merge）。
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  automerge:
+    name: Dependabot auto-merge
+    # Dependabot が作成した PR だけを対象にする。
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide routing
+        id: route
+        env:
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          DEPS_JSON: ${{ steps.meta.outputs.updated-dependencies-json }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+        run: |
+          set -euo pipefail
+          # github-actions はタグが semver を厳密に守らず、必須 CI も構文・ピン留めしか
+          # 検証しないため、決定論的自動マージの対象外。常に手動レビューへ回す。
+          case "$ECOSYSTEM" in
+            github-actions | github_actions)
+              echo "github-actions は常に手動レビューへ回す"
+              echo "decision=review" >>"$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          # 対象は minor/patch のみ。major は dependabot 設定で無視済み（万一来たら何もしない）。
+          # update-type が不明/空のときは取りこぼさないよう手動レビューへ回す（fail-safe）。
+          case "$UPDATE_TYPE" in
+            version-update:semver-minor | version-update:semver-patch) ;;
+            version-update:semver-major)
+              echo "major は対象外のため何もしない"
+              echo "decision=skip" >>"$GITHUB_OUTPUT"
+              exit 0
+              ;;
+            *)
+              echo "update-type '$UPDATE_TYPE' が不明/空のため手動レビューへ回す"
+              echo "decision=review" >>"$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          # 更新対象がすべて新バージョン major >= 1 か判定する。
+          # newVersion から先頭の非数字（例: 'v'）を除き、先頭の数値を major とみなす。
+          # 値が取れない/0.x のものが 1 つでもあれば手動レビューへ回す（保守的）。
+          all_ge_1="$(printf '%s' "$DEPS_JSON" | jq -r '
+            (length > 0)
+            and all(.[];
+              ((.newVersion // "") | sub("^[^0-9]*"; "") | split(".")[0] | (tonumber? // 0)) >= 1
+            )
+          ')"
+          if [ "$all_ge_1" = "true" ]; then
+            echo "全依存が >=1.0 の minor/patch のため自動マージを予約する"
+            echo "decision=automerge" >>"$GITHUB_OUTPUT"
+          else
+            echo "0.x 依存を含む（または版が判定不能）ため手動レビューへ回す"
+            echo "decision=review" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Enable auto-merge for >=1.0 minor/patch
+        if: steps.route.outputs.decision == 'automerge'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Label <1.0 minor/patch for agent review
+        if: steps.route.outputs.decision == 'review'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # ラベルが無ければ作成する（既存なら無視）。
+          gh label create "dependabot/needs-review" \
+            --repo "$REPO" \
+            --description "Dependabot 0.x update needs agent impact review" \
+            --color "D93F0B" 2>/dev/null || true
+          gh pr edit "$PR_URL" --add-label "dependabot/needs-review"
