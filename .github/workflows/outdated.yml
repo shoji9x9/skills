@@ -38,7 +38,18 @@ jobs:
           if [ -z "$report" ]; then
             report='{}'
           fi
-          printf '%s' "$report" >/tmp/outdated.json
+          # メジャーアップデートは対象外にする。--bump は常に絶対最新（次メジャー
+          # 含む）を返すため、current と bump/latest のメジャー番号が一致する項目
+          # だけを残す。メジャー更新は破壊的変更を伴うため自動通知しない。
+          # 制約: 別メジャーが存在する場合、同一メジャー内のより新しいマイナーは
+          # 取りこぼし得る（メジャー誤提案の抑止を優先した割り切り）。
+          printf '%s' "$report" \
+            | jq 'with_entries(
+                select(
+                  (.value.current | split(".")[0])
+                  == ((.value.bump // .value.latest) | split(".")[0])
+                )
+              )' >/tmp/outdated.json
           count="$(jq 'length' /tmp/outdated.json)"
           echo "count=$count"
           if [ "$count" -gt 0 ]; then
