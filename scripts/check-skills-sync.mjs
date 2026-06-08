@@ -45,8 +45,14 @@ function splitFrontmatter(text) {
   return { fm: text.slice(text.indexOf("\n") + 1, close), body: text.slice(close + 4) };
 }
 
-function normFrontmatter(fmText) {
-  const obj = yaml.load(fmText) || {};
+function normFrontmatter(fmText, source) {
+  let obj;
+  try {
+    obj = yaml.load(fmText) || {};
+  } catch (err) {
+    console.error(`skills-sync: invalid YAML frontmatter in ${source}: ${err.message}`);
+    process.exit(2);
+  }
   if (obj.metadata && typeof obj.metadata === "object") {
     delete obj.metadata["local-path"];
     if (Object.keys(obj.metadata).length === 0) delete obj.metadata;
@@ -76,7 +82,9 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     if (rel === "SKILL.md") {
       const A = splitFrontmatter(a.toString("utf8"));
       const B = splitFrontmatter(b.toString("utf8"));
-      if (normFrontmatter(A.fm) !== normFrontmatter(B.fm) || A.body.trim() !== B.body.trim()) {
+      const fmA = normFrontmatter(A.fm, join(srcDir, "SKILL.md"));
+      const fmB = normFrontmatter(B.fm, join(instDir, "SKILL.md"));
+      if (fmA !== fmB || A.body.trim() !== B.body.trim()) {
         drifts.push(`${name}: SKILL.md content differs`);
       }
     } else if (!a.equals(b)) {
