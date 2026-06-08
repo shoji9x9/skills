@@ -58,6 +58,15 @@ with_skill | without_skill) ;;
 	exit 2
 	;;
 esac
+# --skill is used to build filesystem paths (src and the mktemp template), so
+# restrict it to kebab-case up front to avoid path traversal (/, ..) or values
+# starting with - being read as options.
+case "$skill" in
+-* | *[!a-z0-9-]*)
+	echo "invalid --skill (expected kebab-case: a-z, 0-9, -): ${skill}" >&2
+	exit 2
+	;;
+esac
 
 # Resolve repo lazily: only fall back to the current git worktree when --repo
 # wasn't given, so the script still works outside a worktree if --repo is set.
