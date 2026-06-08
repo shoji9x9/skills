@@ -89,11 +89,11 @@ proj="$(mktemp -d "/tmp/skill-eval-${skill}-XXXXXX")"
 trap 'rm -rf -- "${proj}"' EXIT
 
 if [ "${config}" = "with_skill" ]; then
-	mkdir -p "${proj}/.claude/skills"
+	mkdir -p -- "${proj}/.claude/skills"
 	cp -R -- "${src}" "${proj}/.claude/skills/${skill}"
 fi
 
-mkdir -p "${out}"
+mkdir -p -- "${out}"
 
 # Headless run with cwd fixed to the disposable project (cd holds within this one
 # invocation). --dangerously-skip-permissions is acceptable: the target is a
@@ -111,7 +111,7 @@ rc=0
 # Snapshot what the eval created in the isolated project (the installed skill copy
 # is excluded so only eval artifacts remain for grading).
 (cd "${proj}" && find . -path ./.claude/skills -prune -o -print | sort) >"${out}/project-tree.txt"
-mkdir -p "${out}/project"
+mkdir -p -- "${out}/project"
 cp -R -- "${proj}/." "${out}/project/"
 rm -rf -- "${out}/project/.claude/skills"
 

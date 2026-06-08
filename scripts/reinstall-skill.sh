@@ -10,6 +10,14 @@ set -euo pipefail
 
 reinstall_one() {
 	local skill_name="$1"
+	# skill_name builds paths for rm -rf / ln -s / gh, so restrict it to kebab-case
+	# up front to avoid path traversal (.., /) or values starting with -.
+	case "${skill_name}" in
+	-* | *[!a-z0-9-]*)
+		echo "invalid skill name (expected kebab-case: a-z, 0-9, -): ${skill_name}" >&2
+		return 2
+		;;
+	esac
 	local source_dir="skills/${skill_name}"
 	local installed_dir=".agents/skills/${skill_name}"
 	local claude_link=".claude/skills/${skill_name}"
