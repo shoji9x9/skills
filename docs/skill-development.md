@@ -48,7 +48,7 @@ eval プロンプトはファイルを生成・改変する（スキル・ルー
 **落とし穴**: コーディングエージェントに「`/tmp` で作業して」と `cd` で指示しても安全にならない。
 エージェントの Bash ツールは **`cd` を呼び出し間で保持せず、各呼び出しで cwd が（リポジトリルートに）リセットされる**。
 スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような**相対パス**なので、後続の呼び出しでこのリポジトリを汚染する。
-実際にこの方式で `.agents/skills/` を汚した事例がある（[[2026-06-08-eval-isolation-cd-not-persisted]]）。
+実際にこの方式で `.agents/skills/` を汚した事例がある（[.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md](../.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md)）。
 
 **対策**: `scripts/run-skill-eval.sh` を使う。
 ランチャ側で cwd を固定したヘッドレス `claude -p` を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
