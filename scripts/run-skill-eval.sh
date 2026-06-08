@@ -20,8 +20,7 @@ usage() {
 	exit 2
 }
 
-skill="" prompt="" config="" out="" model=""
-repo="$(git rev-parse --show-toplevel)"
+skill="" prompt="" config="" out="" model="" repo=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--skill)
@@ -59,6 +58,14 @@ with_skill | without_skill) ;;
 	exit 2
 	;;
 esac
+
+# Resolve repo lazily: only fall back to the current git worktree when --repo
+# wasn't given, so the script still works outside a worktree if --repo is set.
+[ -n "${repo}" ] || repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "${repo}" ] || {
+	echo "not in a git worktree; pass --repo <path>" >&2
+	exit 2
+}
 
 src="${repo}/skills/${skill}"
 [ -f "${src}/SKILL.md" ] || {
