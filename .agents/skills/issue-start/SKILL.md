@@ -7,6 +7,13 @@ name: issue-start
 
 GitHub Issue 起点の作業開始を `gh` で標準化する。ブランチ命名・PR 運用・commit 規約は `AGENTS.md` の「ブランチ運用」に従う。
 
+## 前提
+
+- **ツール**: `gh`（GitHub CLI）, `git`
+- **前提スキル**: なし
+- **MCP**: なし
+- node / pnpm / python などのランタイムは不要。
+
 ## 入力
 
 - GitHub Issue URL または Issue 番号
