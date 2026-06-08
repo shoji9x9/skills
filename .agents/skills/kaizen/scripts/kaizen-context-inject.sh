@@ -7,7 +7,7 @@
 # タスクに着手できる（KEDB 照合の入口）。
 #
 # これは「kaizen を実行せよ」という行動リマインダーではなく、過去の学びの
-# 中身そのものを供給する点が echo リマインダーと異なる（extract.md
+# 中身そのものを供給する点が echo リマインダーと異なる（references/extract.md
 # 「使わない方式」参照）。SessionStart の stdout を context に注入できるかは
 # エージェントごとに異なる: Claude Code は注入される。Codex / Copilot は
 # 注入可否がドキュメント上不明確なため、効けば加点・効かなくても無害という

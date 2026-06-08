@@ -7,6 +7,13 @@ name: kaizen
 
 セッションから学びを継続的に抽出・適用するスキル。
 
+## 前提
+
+- **ツール**: `git`
+- **前提スキル**: `multiagent-setup`（Hook・ドキュメント整備のセットアップで利用。`references/setup.md` 参照）。学びの反映先スキルの検証に `skill-creator` を使えるが任意
+- **MCP**: なし
+- node / pnpm / python などのランタイムは不要。
+
 ## 基本原則
 
 - **根本原因を分析する**: 個別の失敗への対策ではなく、その失敗が起きた理由を分析し原因への対策を行う
@@ -31,44 +38,25 @@ name: kaizen
 
 対応コンポーネントファイルを Read ツールで読み込み手順に従う:
 
-- 学び抽出 → `extract.md`
-- 学び適用 → `apply.md`
-- セットアップ → `setup.md`
+- 学び抽出 → `references/extract.md`
+- 学び適用 → `references/apply.md`
+- セットアップ → `references/setup.md`
 
-コンポーネントファイルの場所（インストール先に応じて試みる）:
+コンポーネントファイルは SKILL.md と同じディレクトリの `references/` 配下にある。インストール先に応じて以下を試みる:
 
-- `~/.claude/skills/kaizen/<component>.md`
-- `.claude/skills/kaizen/<component>.md`
-- `.agents/skills/kaizen/<component>.md`
+- `~/.claude/skills/kaizen/references/<file>.md`
+- `.claude/skills/kaizen/references/<file>.md`
+- `.agents/skills/kaizen/references/<file>.md`
 
 ### Step 3: セットアップ（インストール後・初回のみ）
 
-`setup.md` を Read ツールで読み込み、手順に従う。kaizen を「自動で回る」状態にするための 3 つの Hook（タスク終了時のセンチネル記録・コミット前 PreToolUse ゲート・セッション開始時の参照注入）、`AGENTS.md` へのエージェント自己設定制約の追記、`multiagent-setup` への依存をまとめている。
-
----
-
-## このスキル自体のインストール手順
-
-`gh skill install` で `.agents/` に実体を配置し、`.claude/` にシンボリックリンクを作成する:
-
-```bash
-# 1. --agent codex で .agents/skills/kaizen/ に実体を配置する
-gh skill install shoji9x9/skills kaizen --agent codex
-
-# 2. Claude Code 用シンボリックリンクを作成
-mkdir -p .claude/skills
-ln -s ../../.agents/skills/kaizen .claude/skills/kaizen
-```
-
-`--agent codex` を指定すると `.agents/` 配下にファイルが配置される。Claude Code は手順 2 のシンボリックリンク経由で参照する。
-
-`AGENTS.md` の「参照スキルガイド」セクションに追記すれば常時参照させられる。
+`references/setup.md` を Read ツールで読み込み、手順に従う。kaizen を「自動で回る」状態にするための 3 つの Hook（タスク終了時のセンチネル記録・コミット前 PreToolUse ゲート・セッション開始時の参照注入）、`AGENTS.md` へのエージェント自己設定制約の追記、`multiagent-setup` への依存をまとめている。
 
 ---
 
 ## 参考文献
 
-このスキルの根本原因分析（`extract.md`「根本原因分析」: 最低 3 階層の「なぜ」・KEDB 照合・横断スコープ確認）は、LLM エージェントによる障害原因分析（RCA）の研究知見に基づく。
+このスキルの根本原因分析（`references/extract.md`「根本原因分析」: 最低 3 階層の「なぜ」・KEDB 照合・横断スコープ確認）は、LLM エージェントによる障害原因分析（RCA）の研究知見に基づく。
 
 - Roy et al. "Exploring LLM-based Agents for Root Cause Analysis" ([arXiv:2403.04123](https://arxiv.org/abs/2403.04123)) — 推論とツール実行を往復する ReAct 型エージェントが単発 LLM より診断精度が高い。証拠を取りに行く反復の根拠。
 - Chen et al. "Automatic Root Cause Analysis via Large Language Models for Cloud Incidents" ([arXiv:2305.15778](https://arxiv.org/abs/2305.15778))
