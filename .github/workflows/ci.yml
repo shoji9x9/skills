@@ -57,6 +57,8 @@ jobs:
           done < <(find . \( -name "*.yml" -o -name "*.yaml" \) -not -path "*/node_modules/*" -not -path "*/.git/*")
       - name: Pagination lint
         run: node scripts/lint-pagination.mjs
+      - name: Skills sync (skills/ vs .agents/skills/)
+        run: node scripts/check-skills-sync.mjs
       - name: Unit tests (vitest)
         run: pnpm test
 
