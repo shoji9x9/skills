@@ -29,6 +29,7 @@ description: <description>  # 必須: スキルの説明とトリガー条件、
 ```text
 skills/<name>/          スキル実体（gh skill publish の対象）
   SKILL.md              スキルのメイン指示
+  references/           進行的開示の補助ドキュメント（コンポーネント手順等。SKILL.md から参照）
   evals/
     evals.json          回帰テスト定義
     README.md           テスト実行手順
@@ -43,63 +44,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 スキルの作成・改善・評価には `skill-creator` スキルを使う。
 
-### スキルを追加・修正する
-
-1. `skills/<name>/` を作成または編集する
-2. `skills/<name>/evals/evals.json` にテストケースを追加・更新する
-3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
-4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
-5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
-6. `gh skill publish --dry-run` でバリデーションを確認する
-7. PR を作成してレビュー・マージする（リリースは CD が自動で行う）
-
-### リリース（CD）
-
-`skills/**` を含む変更が `main` にマージされると `.github/workflows/release.yml` が自動公開する（詳細は同ファイル参照）。**手動でのタグ付け・publish は不要**。
-
-- バージョンはリポジトリ単位の git タグ（conventional commits から決定）が唯一の真実。スキル毎の独立バージョンは持たない
-- `package.json` の `version` はリリースに使わないため `0.0.0` 固定（書き換えない）
-
-### スキル修正後の再インストール
-
-スキルを修正した場合は、手作業ではなくスクリプトで再インストールする:
-
-```bash
-scripts/reinstall-skill.sh <name>
-```
-
-このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作成する。
-また、`gh skill install --from-local` が自動追加する `metadata.local-path` をインストール済み `SKILL.md` から削除する。
-現時点の `gh skill install --help` には、このメタデータ追加を無効化するオプションはない。
-
-### 回帰テストを実行する
-
-各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
-
-集計スクリプト（skill-creator 同梱）で結果を `tests/<name>/iteration-N/` に集約する:
-
-```bash
-# skill-creator のインストール先を自動検索（各エージェントのスキルディレクトリを横断）
-REPO=$(git rev-parse --show-toplevel)
-SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
-cd "$SKILL_CREATOR"
-# benchmark_dir は実在パスを読むので絶対パスで渡す（cd 後に相対パスだと解決できない）。
-# --skill-path は metadata 用の表示文字列。絶対パスを避け <repo> プレースホルダ形式で渡す
-#（下記の絶対パス除去方針に合わせる。未指定だと <path/to/skill> になる）。
-mise exec python -- python -m scripts.aggregate_benchmark \
-  "$REPO/tests/<name>/iteration-N" \
-  --skill-name <name> \
-  --skill-path '<repo>/skills/<name>'
-```
-
-`aggregate_benchmark.py` は `executor_model` / `analyzer_model`（= `<model-name>`）と `runs_per_configuration`（= `3`）をハードコードしており、これらを設定する CLI 引数は無い。生成後に手動で実値へ直してからコミットする:
-
-- `benchmark.json` / `benchmark.md` の `<model-name>` を実際のモデル名（例: `claude-opus-4-8`）に置換する（モデル名は秘匿情報ではないのでマスクしない）。
-- `runs_per_configuration` と `benchmark.md` ヘッダの「N runs each per configuration」を実際の run 数に合わせる。
-
-スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
-
-未コミットの skill 変更をベンチする場合、worktree 分離を使うと HEAD の古い版を測ってしまう。読み取り専用ドライランなら分離なしで作業ツリー版を測る（または先に commit する）。
+スキルの追加・修正、リリース（CD）、修正後の再インストール、回帰テストの**詳細手順は [`docs/skill-development.md`](docs/skill-development.md) を参照**する。
 
 ## ブランチ運用
 
