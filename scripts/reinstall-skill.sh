@@ -23,7 +23,7 @@ fi
 
 # Remove the installed copy first so renamed/deleted files (e.g. moving component
 # files into references/) don't linger as stale leftovers after reinstall.
-rm -rf "${installed_dir}" "${claude_link}"
+rm -rf -- "${installed_dir}" "${claude_link}"
 # --agent codex installs into the shared .agents/skills/ as the single source of
 # truth (Codex/Copilot read it directly). Claude Code reads it via the symlink
 # below; installing with --agent claude-code instead would make a second copy.

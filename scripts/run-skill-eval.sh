@@ -77,11 +77,11 @@ src="${repo}/skills/${skill}"
 # without_skill run sees no skills at all (honest baseline); a with_skill run
 # only sees the one we install below.
 proj="$(mktemp -d "/tmp/skill-eval-${skill}-XXXXXX")"
-trap 'rm -rf "${proj}"' EXIT
+trap 'rm -rf -- "${proj}"' EXIT
 
 if [ "${config}" = "with_skill" ]; then
 	mkdir -p "${proj}/.claude/skills"
-	cp -R "${src}" "${proj}/.claude/skills/${skill}"
+	cp -R -- "${src}" "${proj}/.claude/skills/${skill}"
 fi
 
 mkdir -p "${out}"
@@ -103,8 +103,8 @@ rc=0
 # is excluded so only eval artifacts remain for grading).
 (cd "${proj}" && find . -path ./.claude/skills -prune -o -print | sort) >"${out}/project-tree.txt"
 mkdir -p "${out}/project"
-cp -R "${proj}/." "${out}/project/"
-rm -rf "${out}/project/.claude/skills"
+cp -R -- "${proj}/." "${out}/project/"
+rm -rf -- "${out}/project/.claude/skills"
 
 echo "done: config=${config} skill=${skill} -> ${out} (rc=${rc})"
 exit "${rc}"
