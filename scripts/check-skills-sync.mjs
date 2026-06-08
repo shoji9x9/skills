@@ -86,6 +86,21 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
   for (const extra of instLeft) drifts.push(`${name}: ${extra} exists only in installed copy (stale)`);
 }
 
+// Reverse direction: an installed copy with no source (e.g. a skill removed or
+// renamed under skills/ while .agents/skills/ kept the old dir) is also drift.
+if (existsSync(INSTALLED_ROOT)) {
+  const srcNames = new Set(
+    readdirSync(SRC_ROOT, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name),
+  );
+  for (const e of readdirSync(INSTALLED_ROOT, { withFileTypes: true })) {
+    if (e.isDirectory() && !srcNames.has(e.name)) {
+      drifts.push(`${e.name}: exists under ${INSTALLED_ROOT}/ but not ${SRC_ROOT}/ (orphaned installed copy)`);
+    }
+  }
+}
+
 if (drifts.length) {
   console.error("skills-sync: DRIFT between skills/ and .agents/skills/:");
   for (const d of drifts) console.error(`  - ${d}`);
