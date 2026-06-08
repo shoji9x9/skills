@@ -257,12 +257,10 @@ PreToolUse ゲートと参照注入フックはスキルにバンドルされた
 
 ### 5. `multiagent-setup` スキルとの依存関係
 
-`apply.md` の学び適用ステップでは `multiagent-setup` スキルを使用する。インストール済みでなければ事前にインストールするようユーザーに案内する:
+`references/apply.md` の学び適用ステップでは `multiagent-setup` スキルを使用する。インストール済みでなければ事前にインストールするようユーザーに案内する:
 
 ```bash
-gh skill install shoji9x9/skills multiagent-setup --agent codex
-mkdir -p .claude/skills
-ln -s ../../.agents/skills/multiagent-setup .claude/skills/multiagent-setup
+gh skill install shoji9x9/skills multiagent-setup --agent <利用するエージェント>
 ```
 
 ## 使わない方式
@@ -271,3 +269,8 @@ ln -s ../../.agents/skills/multiagent-setup .claude/skills/multiagent-setup
   - ※ 上記「セッション開始時 参照注入フック」は別物。行動を促すのではなく**過去の学びデータそのものを context に供給する**ため使う。SessionStart は（Stop / sessionEnd と違い）対応エージェントでは stdout が context に注入される。
 - **`AGENTS.md` 等への散文の指示**: 守られない確率が高い。主トリガーにはしない。
 - **lefthook / git pre-commit**: 確定的だが LLM を動かせず、結局リマインダー止まりで echo と同じ問題に陥る。抽出・適用はエージェントの仕事なので、コミットをブロックしてエージェントに返す PreToolUse ゲートを使う。
+- **スキルの YAML フロントマター `hooks`（`SKILL.md`）**: kaizen の「常時オン・全エージェント」要件を満たせないため主トリガーにはしない。
+  - フロントマター hooks は**そのスキルがアクティブな間だけ**有効で、常時オンにできない（[Claude Code skills ドキュメント](https://code.claude.com/docs/ja/skills) 参照）。
+    kaizen を起動していない通常セッションのコミットをゲートできず、セッション開始時の学び注入も保証されない。
+  - **Claude Code 専用**で Codex / Copilot には無い。本スキルは3エージェント共通で効かせる必要がある。
+  - そのため、スキルのライフサイクルに依存しない `.claude/settings.json` / `.codex/hooks.json` / `.github/hooks/` への設定を採る。

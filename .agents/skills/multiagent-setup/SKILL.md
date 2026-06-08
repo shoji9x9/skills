@@ -7,6 +7,13 @@ name: multiagent-setup
 
 Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプロジェクト構造を整備するスキル。
 
+## 前提
+
+- **ツール**: `gh`（`gh skill` 拡張）, `git`
+- **前提スキル**: なし（スキル作成後の検証に `skill-creator` を使えるが任意）
+- **MCP**: なし
+- node / pnpm / python などのランタイムは不要。
+
 ## 基本原則
 
 - `.agents/` ディレクトリを実体の保管場所とし、各エージェント固有のディレクトリへはシンボリックリンクを作成する。同一ファイルを複数箇所に複製しない。
@@ -40,40 +47,21 @@ ls -d .agents .claude .github .codex 2>/dev/null
 
 ### Step 3: コンポーネントの実行
 
-このスキルと同じディレクトリにある対応コンポーネントファイルを Read ツールで読み込み、手順に従って実行する:
+SKILL.md と同じディレクトリの `references/` にある対応コンポーネントファイルを Read ツールで読み込み、手順に従って実行する:
 
-- スキル設定 → `skill.md`
-- ルール設定 → `rule.md`
-- Hooks 設定 → `hooks.md`
-- ドキュメント整備 → `docs.md`
+- スキル設定 → `references/skills.md`
+- ルール設定 → `references/rules.md`
+- Hooks 設定 → `references/hooks.md`
+- ドキュメント整備 → `references/docs.md`
 
-コンポーネントファイルの場所は SKILL.md と同じディレクトリ。インストール先に応じて以下を試みる:
+コンポーネントファイルは SKILL.md と同じディレクトリの `references/` 配下にある。インストール先に応じて以下を試みる:
 
-- `~/.claude/skills/multiagent-setup/<component>.md`
-- `.claude/skills/multiagent-setup/<component>.md`
-- `.agents/skills/multiagent-setup/<component>.md`
+- `~/.claude/skills/multiagent-setup/references/<file>.md`
+- `.claude/skills/multiagent-setup/references/<file>.md`
+- `.agents/skills/multiagent-setup/references/<file>.md`
 
 ### Step 4: 後処理
 
 **スキルを作成した場合**: `skill-creator` スキルが利用可能であれば、スキルの検証・改善を提案する。利用不可の場合はスキップする。
 
-**ドキュメントを整備した場合**: `docs.md` の指示に従う。
-
----
-
-## このスキル自体のインストール手順
-
-`gh skill install` で `.agents/` に実体を配置し、`.claude/` にシンボリックリンクを作成する:
-
-```bash
-# 1. --agent codex で .agents/skills/multiagent-setup/ に実体を配置する
-gh skill install shoji9x9/skills multiagent-setup --agent codex
-
-# 2. Claude Code 用シンボリックリンクを作成
-mkdir -p .claude/skills
-ln -s ../../.agents/skills/multiagent-setup .claude/skills/multiagent-setup
-```
-
-`--agent codex` を指定すると `.agents/` 配下にファイルが配置される。これにより Codex が直接参照できる実体となる。Claude Code は手順 2 で作成するシンボリックリンク経由で参照する。
-
-`AGENTS.md` の「参照スキルガイド」セクションに追記すれば常時参照させられる。
+**ドキュメントを整備した場合**: `references/docs.md` の指示に従う。

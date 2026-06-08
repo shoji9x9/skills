@@ -101,7 +101,8 @@ grep -rl "<キーワード>" .kaizen/*.md 2>/dev/null
 7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）
 8. 抽出が完了したら未抽出マーカーを消す（同じセッションを再抽出しないため）: `rm -f .kaizen/.pending-extract*`
 
-> **重要（status を pending のまま放置しない）**: 抽出と同じ実行内で、その学びを成果物へ**反映（適用）まで**行う場合は、反映が完了したら必ず当該ファイルの `status` を `pending → applied` に更新する。`apply.md` を経由せず直接 `AGENTS.md` 等へ反映したときに更新漏れが起きやすい（反映済みなのに `pending` のまま残る）。
+> **重要（status を pending のまま放置しない）**: 抽出と同じ実行内で、その学びを成果物へ**反映（適用）まで**行う場合は、反映が完了したら必ず当該ファイルの `status` を `pending → applied` に更新する。
+> `references/apply.md` を経由せず直接 `AGENTS.md` 等へ反映したときに更新漏れが起きやすい（反映済みなのに `pending` のまま残る）。
 > ファイル作成だけで反映しない場合は `pending` のままにする（後で apply フローが適用する）。
 > 実行の最後に、反映済みなのに `pending` が残っていないか確認する: `grep -l "^status: pending" .kaizen/*.md 2>/dev/null`
 
@@ -135,4 +136,4 @@ session: claude-code
 
 ## 自動実行のセットアップ
 
-Hook の設定（タスク終了時センチネル・コミット前ゲート・セッション開始時の参照注入）は `setup.md` に分離した。インストール後・初回のみ `setup.md` を読み込んで実行する。
+Hook の設定（タスク終了時センチネル・コミット前ゲート・セッション開始時の参照注入）は `references/setup.md` に分離した。インストール後・初回のみ `references/setup.md` を読み込んで実行する。

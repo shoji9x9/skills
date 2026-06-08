@@ -40,6 +40,10 @@ pre-commit:
     - name: pagination
       glob: "*.{sh,md}"
       run: node scripts/lint-pagination.mjs {staged_files}
+    - name: skills-sync
+      # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
+      # so it runs on every commit rather than relying on path-glob matching.
+      run: node scripts/check-skills-sync.mjs
 
 commit-msg:
   jobs:

@@ -3,7 +3,7 @@
 #
 # 未抽出のセッション活動（.kaizen/.pending-extract* が存在）が残っている間は
 # `git commit` をブロックし、エージェントに kaizen --current の実行を促す。
-# エージェントが kaizen スキルで抽出を完了するとセンチネルが消え（extract.md
+# エージェントが kaizen スキルで抽出を完了するとセンチネルが消え（references/extract.md
 # の手順参照）、再試行した commit が通る。
 #
 # ブロック方式は exit code 2 + stderr を使う。Claude Code / Codex の PreToolUse
