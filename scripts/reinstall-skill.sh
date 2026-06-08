@@ -40,8 +40,9 @@ reinstall_one() {
 	ln -s "../../${installed_dir}" "${claude_link}"
 
 	# gh skill install --from-local injects local-path metadata. Do not commit
-	# machine-local absolute paths into project-scoped installed skills.
-	perl -0pi -e 's/metadata:\n\s+local-path: [^\n]+\n//' "${installed_dir}/SKILL.md"
+	# machine-local absolute paths into project-scoped installed skills. Use node
+	# (already required by repo tooling) rather than perl for portability.
+	node -e 'const fs=require("fs");const f=process.argv[1];fs.writeFileSync(f,fs.readFileSync(f,"utf8").replace(/metadata:\n\s+local-path: [^\n]+\n/,""))' "${installed_dir}/SKILL.md"
 
 	if grep -q "local-path:" "${installed_dir}/SKILL.md"; then
 		echo "Failed to remove local-path metadata from ${installed_dir}/SKILL.md" >&2
