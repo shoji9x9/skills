@@ -21,7 +21,7 @@
 ## 前提条件
 
 - **Python 3.8+** — 集計スクリプトの実行に必要
-- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/` または `.claude/skills/skill-creator/` にインストール済みであること）
+- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/`・`.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のいずれかにインストール済みであること）
 
 ```bash
 python --version
@@ -52,7 +52,7 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 
 ```bash
 # skill-creator のインストール先を自動検索（ユーザーレベル・プロジェクトレベルの両方を探索）
-SKILL_CREATOR=$(find ~/.claude/skills .claude/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
+SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
 
 cd "$SKILL_CREATOR"
 python -m scripts.aggregate_benchmark \
