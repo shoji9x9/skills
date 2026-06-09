@@ -1,0 +1,8 @@
+# shoji9x9/skills 配布物のプロジェクト設定。人手で編集（PR でレビュー）。
+# 各スキルが参照するキーだけを非破壊で追記する。既存のキー・値は変更しない。
+version: 1
+skills:
+  common:
+    conventions_doc: AGENTS.md # ブランチ運用・commit 規約を記したドキュメント
+  dependabot-merge:
+    merge_method: squash # squash | merge | rebase

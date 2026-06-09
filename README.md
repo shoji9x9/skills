@@ -30,3 +30,22 @@ gh skill install shoji9x9/skills dependabot-merge
 ```bash
 gh skill update --all
 ```
+
+## スキルの設定
+
+一部のスキル（issue-start / pr-review-handle / dependabot-merge）は、インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
+`<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。
+設定はスキル実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、skill ディレクトリ外にあるため `gh skill update` でも保持される。
+
+```yaml
+version: 1
+skills:
+  common:
+    # 導入先に実在する規約ドキュメントを指定（例: AGENTS.md / CLAUDE.md / CONTRIBUTING.md）
+    conventions_doc: AGENTS.md
+  dependabot-merge:
+    merge_method: squash # squash | merge | rebase
+```
+
+- `skills.common.conventions_doc`: ブランチ運用・commit 規約を記した**導入先に実在する**ドキュメント。上の `AGENTS.md` は例（盲目コピーしない）。未設定なら標準ドキュメント（`AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` / `CONTRIBUTING.md` 等）を探索し、解決できなければスキルがユーザーに確認する。
+- `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（既定 `squash`）。

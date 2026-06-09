@@ -13,6 +13,13 @@
 #   session's project root (and every cwd reset) stays inside it.
 #
 # This script is repo-internal tooling and is NOT bundled in any distributed skill.
+#
+# PRECONDITIONS: the disposable project is empty, un-trusted and non-interactive.
+# mise shims (python3/node/jq) fail "No version is set" when un-trusted; gh/git
+# skills have no repo context (use real PR/Issue numbers, not fake ones); and a
+# headless `claude -p` has no responder for AskUserQuestion. Give prompts whose
+# intent is unambiguous and ensure skills degrade gracefully. See
+# docs/skill-development.md "eval 環境の前提（runtime / repo / 非対話）".
 set -euo pipefail
 
 usage() {
@@ -101,6 +108,15 @@ mkdir -p -- "${out}"
 # SKILL_EVAL_RUNNER overrides the executable (default `claude`) so isolation can
 # be smoke-tested with a stub without spawning a real agent.
 runner="${SKILL_EVAL_RUNNER:-claude}"
+
+# Headless eval has no one to answer interactive prompts (AskUserQuestion errors
+# under `claude -p`). Inject a non-interactive notice here so the agent degrades
+# gracefully — this keeps the eval-only instruction out of the distributed skills.
+noninteractive_preamble='【非対話の自動評価環境】AskUserQuestion 等の対話確認ツールは使えません。確認が必要でも質問で停止せず続行しますが、破壊的・外向きの操作（commit / push / マージ / リモートへの書き込み等）は行わず、最も安全な非破壊のデフォルトを選び、採用した仮定を冒頭に明示してください。'
+prompt="${noninteractive_preamble}
+
+${prompt}"
+
 claude_args=(-p "${prompt}" --output-format json --dangerously-skip-permissions)
 [ -n "${model}" ] && claude_args+=(--model "${model}")
 

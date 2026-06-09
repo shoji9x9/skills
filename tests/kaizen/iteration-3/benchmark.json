@@ -1,0 +1,1892 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-06-09T01:57:10Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 78.7,
+        "tokens": 4584,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 110.2,
+        "tokens": 6966,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 83.7,
+        "tokens": 4907,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 187.7,
+        "tokens": 11679,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 365.3,
+        "tokens": 13807,
+        "tool_calls": 19,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 226.3,
+        "tokens": 13592,
+        "tool_calls": 18,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 26.5,
+        "tokens": 1579,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 31.9,
+        "tokens": 1580,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 32.5,
+        "tokens": 1968,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 125.4,
+        "tokens": 4288,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 79.2,
+        "tokens": 4933,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 83,
+        "tokens": 5059,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 194.8,
+        "tokens": 11775,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 140.7,
+        "tokens": 8588,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 159.8,
+        "tokens": 10136,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 61.7,
+        "tokens": 2700,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 42.9,
+        "tokens": 2298,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 35.9,
+        "tokens": 2180,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 44.4,
+        "tokens": 2378,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 39.2,
+        "tokens": 2039,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 33.8,
+        "tokens": 2198,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 64.2,
+        "tokens": 4334,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 84.9,
+        "tokens": 4576,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 66.6,
+        "tokens": 4212,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 77.7,
+        "tokens": 4880,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 38.9,
+        "tokens": 2333,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 68.7,
+        "tokens": 3575,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "status が pending になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 212.3,
+        "tokens": 10234,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 253.6,
+        "tokens": 11445,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 387.6,
+        "tokens": 16781,
+        "tool_calls": 18,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "複数の候補が提示されている（または候補がない旨が伝えられている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 277.7,
+        "tokens": 15567,
+        "tool_calls": 29,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 121,
+        "tokens": 7577,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 164.5,
+        "tokens": 9827,
+        "tool_calls": 16,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/*.md の一覧を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "1 件ずつユーザーに確認するフローになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "type に応じて multiagent-setup スキルを参照しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 444.5,
+        "tokens": 26550,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 180.5,
+        "tokens": 10803,
+        "tool_calls": 16,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 71.8,
+        "tokens": 3863,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook が .kaizen/.pending-extract ファイルを作成するコマンドになっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 121.6,
+        "tokens": 7374,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 138.4,
+        "tokens": 8058,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 81.2,
+        "tokens": 4847,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 42.4,
+        "tokens": 2688,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 48.7,
+        "tokens": 2069,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 39.7,
+        "tokens": 1953,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "kaizen-context-inject スクリプトを呼び出す設定になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は context へ注入され、Codex / Copilot はベストエフォートという但し書きに言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 32,
+        "tokens": 2065,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 42.8,
+        "tokens": 2897,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 28.6,
+        "tokens": 1838,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 139.9,
+        "tokens": 9982,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 223.1,
+        "tokens": 15883,
+        "tool_calls": 23,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 65.8,
+        "tokens": 4309,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6563,
+        "stddev": 0.3336,
+        "min": 0,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 99.9708,
+        "stddev": 80.1262,
+        "min": 26.5,
+        "max": 365.3
+      },
+      "tokens": {
+        "mean": 5514.8333,
+        "stddev": 3940.9879,
+        "min": 1579,
+        "max": 13807
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3826,
+        "stddev": 0.2694,
+        "min": 0,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 137.625,
+        "stddev": 113.267,
+        "min": 28.6,
+        "max": 444.5
+      },
+      "tokens": {
+        "mean": 7808.25,
+        "stddev": 6162.9615,
+        "min": 1838,
+        "max": 26550
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.27",
+      "time_seconds": "-37.7",
+      "tokens": "-2293"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-4-8. 3 runs per configuration.",
+    "採点は意図・ナレーション基準: 安全のため各 run は使い捨ての空 /tmp プロジェクトで実行され、GitHub 変更系操作(ブランチ作成/commit/push/PR/マージ等)は実行できない。そのため各アサーションは「エージェントが正しい振る舞い・手順・判断を示したか」で判定した。",
+    "自己完結型(.kaizen/ への学び保存・Hook 設定)のため隔離環境でも実挙動が観測でき、信号が最も明確(Δ +0.27)。",
+    "with_skill は適切な frontmatter(date/type/status/priority)・セクション(事象/根本原因/提案)を持つ学びファイル作成、3 つの Hook(Stop センチネル+PreToolUse ゲート+SessionStart 注入)の正しい設計、pending→applied ルールを demonstrated。",
+    "without_skill はしばしば別設計(PostToolUse 非同期抽出)や eval-7 で『.kaizen は破棄してよい』の誤回答 — kaizen 固有の方法論を持たないことが差として表れた。",
+    "eval-6 は環境に既存の SessionStart フックがあり両構成とも『設定済み』を検出して飽和。"
+  ]
+}

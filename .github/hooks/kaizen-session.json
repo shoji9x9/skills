@@ -16,6 +16,14 @@
         "cwd": ".",
         "timeoutSec": 5
       }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "bash .agents/skills/kaizen/scripts/kaizen-context-inject.sh",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
     ]
   }
 }

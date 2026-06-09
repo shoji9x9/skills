@@ -1,0 +1,1614 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-06-09T01:57:10Z",
+    "evals_run": [1, 2, 3, 4, 5, 6],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 30.4,
+        "tokens": 1632,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 30.6,
+        "tokens": 1887,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 27.4,
+        "tokens": 1494,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 86.8,
+        "tokens": 4020,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 178,
+        "tokens": 6180,
+        "tool_calls": 15,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 267.6,
+        "tokens": 9114,
+        "tool_calls": 21,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 49.9,
+        "tokens": 2962,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 45.9,
+        "tokens": 2034,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 22.7,
+        "tokens": 1227,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 47.2,
+        "tokens": 2402,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 41.4,
+        "tokens": 1882,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 47.2,
+        "tokens": 2317,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 33.3,
+        "tokens": 1792,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 43.2,
+        "tokens": 1872,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 40.6,
+        "tokens": 2230,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 26.2,
+        "tokens": 1501,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.1,
+        "tokens": 1629,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 103.5,
+        "tokens": 3783,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 22,
+        "tokens": 898,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 18.3,
+        "tokens": 901,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.375,
+        "passed": 3,
+        "failed": 5,
+        "total": 8,
+        "time_seconds": 23.1,
+        "tokens": 1093,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 151.6,
+        "tokens": 9602,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 218.3,
+        "tokens": 11613,
+        "tool_calls": 22,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 291.6,
+        "tokens": 15663,
+        "tool_calls": 23,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 224.7,
+        "tokens": 9031,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 324.3,
+        "tokens": 9575,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 104,
+        "tokens": 3884,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 64.2,
+        "tokens": 3273,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 80.8,
+        "tokens": 3047,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 63.4,
+        "tokens": 2869,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 24.1,
+        "tokens": 1266,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 22,
+        "tokens": 1279,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 25.2,
+        "tokens": 1309,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 73.2,
+        "tokens": 3524,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 51.7,
+        "tokens": 2913,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 34.3,
+        "tokens": 2301,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.4949,
+        "stddev": 0.3418,
+        "min": 0,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 64.0556,
+        "stddev": 63.1778,
+        "min": 22.7,
+        "max": 267.6
+      },
+      "tokens": {
+        "mean": 2775.4444,
+        "stddev": 1988.5081,
+        "min": 1227,
+        "max": 9114
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5458,
+        "stddev": 0.2747,
+        "min": 0.25,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 100.9333,
+        "stddev": 98.7268,
+        "min": 18.3,
+        "max": 324.3
+      },
+      "tokens": {
+        "mean": 4668.9444,
+        "stddev": 4409.3724,
+        "min": 898,
+        "max": 15663
+      }
+    },
+    "delta": {
+      "pass_rate": "-0.05",
+      "time_seconds": "-36.9",
+      "tokens": "-1894"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-4-8. 3 runs per configuration.",
+    "採点は意図・ナレーション基準: 安全のため各 run は使い捨ての空 /tmp プロジェクトで実行され、GitHub 変更系操作(ブランチ作成/commit/push/PR/マージ等)は実行できない。そのため各アサーションは「エージェントが正しい振る舞い・手順・判断を示したか」で判定した。",
+    "対象 PR(#42/#51/#73/#60)は不在、--all は open Dependabot PR ゼロ、other-org は解決不可。実マージ判断は行えず narration 評価。",
+    "プロンプト記述シナリオ(0.x 影響・behind・CI 失敗)に対し base モデルが柔軟に対応する一方、with_skill は repo 一致ガードで停止することがあり、総合では拮抗(Δ −0.05)。CI 失敗時にマージしない判断(eval-3)では with_skill が明確に優位。"
+  ]
+}
