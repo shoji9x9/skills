@@ -8,5 +8,10 @@
     {
       "command": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh"
     }
+  ],
+  "SessionStart": [
+    {
+      "command": "bash .agents/skills/kaizen/scripts/kaizen-context-inject.sh"
+    }
   ]
 }

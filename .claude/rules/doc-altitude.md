@@ -1,0 +1,1 @@
+../../.agents/rules/doc-altitude.md
