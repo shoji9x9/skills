@@ -97,6 +97,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 - `.agents/rules/doc-altitude.md`: エージェント向けドキュメント（`AGENTS.md` / `SKILL.md` / `docs/`）の記載粒度（altitude）。行動に必須な情報だけを single source of truth で置き、重複・読み手のいない節を避ける
 - `.agents/rules/github-actions-authoring.md`: GitHub Actions ワークフロー作成・変更時のレビュー観点（必要権限の突き合わせ・happy path 失敗時の fail-safe）。`.github/workflows/**` 編集時に適用
+- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**` 編集時に適用
 
 ## 参照スキルガイド
 
