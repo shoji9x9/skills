@@ -66,6 +66,17 @@ scripts/run-skill-eval.sh \
 
 各 run の生成物（`--out/project/`）を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。採点後に下記の集計へ進む。
 
+### eval 環境の前提（runtime / repo / 非対話）
+
+`run-skill-eval.sh` の使い捨てプロジェクトは「空・未 trust・非対話」だ。スキルの**前提条件**をハーネス側で用意しないと、失敗がスキル欠陥か環境かを切り分けられずシグナルが汚れる。eval を組むとき次を満たす:
+
+- **ランタイム（mise shim）**: 使い捨てプロジェクトに `mise.toml` が無く、mise shim（`python3` / `node` / `jq` 等）は untrusted／未設定で `No version is set for shim` で落ちる。
+  スキルが叩くランタイムは shim 単一依存にせず、システムランタイムへフォールバックするか、fixture 側で `mise trust` 済みの runtime を PATH 前段に置く。
+- **対象リポジトリのコンテキスト**: `gh` / `git` 系スキルは cwd の repo 文脈に暗黙依存しない（引数の URL/番号から `OWNER/REPO` を確定し `--repo` で明示する）。
+  シナリオでは**実在する** PR/Issue 番号を使い、必要なら fixture で対象 repo を clone するか `gh repo set-default OWNER/REPO` する。架空の `PR#42` / `other-org/other-repo` は `Could not resolve` で必ず落ちる。
+- **非対話**: ヘッドレス `claude -p` には `AskUserQuestion` の応答者がいない。質問を投げるとツールがエラーし進行が止まる。
+  eval プロンプトは意図が一意に決まる形（フラグ・URL を明示）で与え、ハーネス側（`run-skill-eval.sh`）がプロンプト先頭に非対話の縮退指示を注入する（配布スキルには載せない）。
+
 ### 集計
 
 集計スクリプト（skill-creator 同梱）で結果を `tests/<name>/iteration-N/` に集約する:

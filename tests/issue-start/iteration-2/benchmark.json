@@ -1,0 +1,1009 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-06-09T01:57:10Z",
+    "evals_run": [1, 2, 3, 4],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 53.2,
+        "tokens": 2844,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 52.7,
+        "tokens": 3203,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 39.6,
+        "tokens": 1888,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 35.9,
+        "tokens": 2075,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 35.2,
+        "tokens": 2018,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 27.1,
+        "tokens": 1480,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 21.2,
+        "tokens": 1089,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 19.9,
+        "tokens": 961,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 38.2,
+        "tokens": 1979,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 30,
+        "tokens": 1778,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 37.7,
+        "tokens": 2044,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 40.4,
+        "tokens": 2382,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 45,
+        "tokens": 1701,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 101.6,
+        "tokens": 4868,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 60.9,
+        "tokens": 2923,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base main --checkout でブランチを作成しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 28.7,
+        "tokens": 1770,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 30.5,
+        "tokens": 2072,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 26,
+        "tokens": 1608,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 34,
+        "tokens": 2061,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 20.1,
+        "tokens": 1041,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 25.3,
+        "tokens": 1232,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 36.8,
+        "tokens": 2474,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 42,
+        "tokens": 2131,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 31.5,
+        "tokens": 2011,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7675,
+        "stddev": 0.1962,
+        "min": 0.3333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 35.925,
+        "stddev": 10.483,
+        "min": 19.9,
+        "max": 53.2
+      },
+      "tokens": {
+        "mean": 1978.4167,
+        "stddev": 643.1368,
+        "min": 961,
+        "max": 3203
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5238,
+        "stddev": 0.3063,
+        "min": 0.2,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 40.2,
+        "stddev": 22.1655,
+        "min": 20.1,
+        "max": 101.6
+      },
+      "tokens": {
+        "mean": 2157.6667,
+        "stddev": 992.4891,
+        "min": 1041,
+        "max": 4868
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.24",
+      "time_seconds": "-4.3",
+      "tokens": "-179"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-4-8. 3 runs per configuration.",
+    "採点は意図・ナレーション基準: 安全のため各 run は使い捨ての空 /tmp プロジェクトで実行され、GitHub 変更系操作(ブランチ作成/commit/push/PR/マージ等)は実行できない。そのため各アサーションは「エージェントが正しい振る舞い・手順・判断を示したか」で判定した。",
+    "with_skill はコマンド構文(issue-start … --pr/--plan)で明確に優位 — without_skill ではコマンド自体が存在せず実行不能。",
+    "eval-3(別リポジトリ)の安全停止(repo 不一致検出→中断)は with/without とも成立し飽和。",
+    "Issue #12 は CLOSED・/tmp は git リポジトリでないため、両構成とも実フローは実行できず安全に停止・narration で評価。"
+  ]
+}

@@ -1,0 +1,1386 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-06-09T01:57:10Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 27.6,
+        "tokens": 1364,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 29.5,
+        "tokens": 1440,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 24.4,
+        "tokens": 1305,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 3,
+        "failed": 6,
+        "total": 9,
+        "time_seconds": 32,
+        "tokens": 1965,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 3,
+        "failed": 6,
+        "total": 9,
+        "time_seconds": 35.9,
+        "tokens": 1864,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 3,
+        "failed": 6,
+        "total": 9,
+        "time_seconds": 52.5,
+        "tokens": 2479,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 40.5,
+        "tokens": 2020,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 34.7,
+        "tokens": 1638,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 40.9,
+        "tokens": 2372,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 36.8,
+        "tokens": 2193,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 33.8,
+        "tokens": 1809,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 29.8,
+        "tokens": 1601,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 32.2,
+        "tokens": 1755,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 33.1,
+        "tokens": 1243,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 35.4,
+        "tokens": 1847,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 22.6,
+        "tokens": 680,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 24,
+        "tokens": 1074,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 23.5,
+        "tokens": 1142,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "GraphQL reviewThreads で未解決スレッドを取得しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "isResolved == false のスレッドのみ対象にする方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "各指摘をコードに照らして妥当性を判断する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信してから解決する順序で進めようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行わず通知して停止する方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 3,
+        "failed": 6,
+        "total": 9,
+        "time_seconds": 38,
+        "tokens": 2360,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.1111,
+        "passed": 1,
+        "failed": 8,
+        "total": 9,
+        "time_seconds": 29.1,
+        "tokens": 1771,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.1111,
+        "passed": 1,
+        "failed": 8,
+        "total": 9,
+        "time_seconds": 28.9,
+        "tokens": 1949,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "未解決スレッドへの返信・解決まで行う手順になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "レビュー対応で触ったファイルだけを stage する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "push 後に Copilot 再依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない の3択）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「CI 完了後」では gh pr checks --watch で成功を確認してから依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "「今すぐ」では CI を待たず requested_reviewers に Copilot を依頼する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 46.9,
+        "tokens": 2683,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 53.3,
+        "tokens": 2878,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 52.2,
+        "tokens": 2879,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "妥当でないと判断した指摘はファイルを修正しない方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "修正しない根拠を返信しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "返信した後にスレッドを解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "妥当な指摘と妥当でない指摘を区別して扱う方針である",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 24.9,
+        "tokens": 1353,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 23.9,
+        "tokens": 1331,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 25.4,
+        "tokens": 1465,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "返信や解決を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 29.6,
+        "tokens": 1455,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 37.1,
+        "tokens": 1545,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 61.7,
+        "tokens": 3625,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "レビュー URL から review-id を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "review-id 指定時にそのレビューのコメントへ絞り込む手順を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "対象スレッドに返信してから解決する順序になっている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push を行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.5357,
+        "stddev": 0.2524,
+        "min": 0.25,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.6067,
+        "stddev": 6.6525,
+        "min": 24.4,
+        "max": 52.5
+      },
+      "tokens": {
+        "mean": 1793,
+        "stddev": 374.8133,
+        "min": 1243,
+        "max": 2479
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4775,
+        "stddev": 0.316,
+        "min": 0.1111,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.74,
+        "stddev": 12.8819,
+        "min": 22.6,
+        "max": 61.7
+      },
+      "tokens": {
+        "mean": 1879.3333,
+        "stddev": 828.4822,
+        "min": 680,
+        "max": 3625
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.06",
+      "time_seconds": "-0.1",
+      "tokens": "-86"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-4-8. 3 runs per configuration.",
+    "採点は意図・ナレーション基準: 安全のため各 run は使い捨ての空 /tmp プロジェクトで実行され、GitHub 変更系操作(ブランチ作成/commit/push/PR/マージ等)は実行できない。そのため各アサーションは「エージェントが正しい振る舞い・手順・判断を示したか」で判定した。",
+    "対象 PR #42 はリポジトリに存在しない(実在は最大 #15)ため、未解決スレッド取得→返信→解決のフローは実行できず、両構成とも PR 不在の検出・安全ガードで停止。",
+    "差は限定的(Δ +0.06)。主な差別化は eval-2 のコマンド認識(without_skill 一部で『pr-review-handle というコマンドは無い』)。eval-4(別リポジトリ)の安全停止は両者成立。"
+  ]
+}
