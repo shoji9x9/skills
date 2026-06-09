@@ -1,0 +1,95 @@
+{
+  "skill_name": "dependabot-alert-issue",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このリポジトリの Dependabot alerts を確認して、対応する Issue を作って",
+      "expected_output": "現在の repo の open alert を gh api でページネーション順守して取得し、着手可否で分類・グルーピングして、severity をタイトルに含む Issue をドラフト提示し、承認を得てから gh issue create で起票する。",
+      "assertions": [
+        "対象リポジトリを現在の repo として確認している",
+        "gh api で /repos/.../dependabot/alerts?state=open を取得し、--paginate でページネーションを順守する方針である",
+        "alert をすぐ着手できるか/できないかで分類する方針を示している",
+        "複数 alert をグルーピングして Issue にまとめる方針を示している",
+        "Issue タイトルに severity を含める方針である",
+        "起票前にドラフトをユーザーに提示し承認を得る方針である",
+        "多行本文は --body-file で渡す方針である"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "dependabot-alert-issue で対応したいんだけど、critical の alert の修正版がまだ公開されていない。どう扱う？",
+      "expected_output": "修正版未公開のためすぐ着手できないと分類し、Issue を止めずに着手可能条件（障害＝修正版未公開、それを解消する既存 Issue/PR の URL を調査して記載）を明記する。脆弱パッケージ×解決バージョンでまとめ、最高 severity をタイトルにする。",
+      "assertions": [
+        "first_patched_version が無い（修正版未公開）ためすぐ着手できないと分類している",
+        "Issue を作らないのではなく、着手可能条件を Issue に明記する方針である",
+        "障害を解消する既存 Issue/PR を調査し、その URL を着手可能条件に記載する方針である",
+        "すぐ着手できない alert は脆弱パッケージ×解決バージョンでグルーピングする方針である",
+        "グループ内の最も高い severity をタイトルに使う方針である"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "すぐ直せる alert が high と low と medium で複数パッケージにまたがってる。Issue はどう分ける？",
+      "expected_output": "パッケージ毎に着手可能な全脆弱性を解消する更新先バージョン（基本は最新パッチ版）を決め、パッケージ毎の最高 severity を記録し、その severity ごとに 1 Issue にまとめる。",
+      "assertions": [
+        "パッケージ毎に更新先バージョン（着手可能な全脆弱性を解消する最新パッチ版）を決める方針である",
+        "パッケージ毎に最も高い severity を記録する方針である",
+        "記録した severity ごとに 1 Issue にまとめる方針である",
+        "同じ severity の複数パッケージは 1 Issue に入りうると理解している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Dependabot alerts から Issue を作って。ただし既に対応 PR や Issue があるものは二重に作らないで",
+      "expected_output": "open な Issue/PR を検索し、同じパッケージ・解決バージョンを扱うもの（Dependabot 更新 PR を含む）があればその alert をスキップし、残りだけを Issue 化する。",
+      "assertions": [
+        "gh issue list / gh pr list で既存の Issue/PR を検索する方針である",
+        "同じパッケージ・解決バージョンを扱う Issue/PR があれば該当 alert をスキップする方針である",
+        "Dependabot の更新 PR もスキップ判定の対象に含めている",
+        "スキップした alert を理由つきで報告する方針である"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "うちは lodash を本番では使ってないので、その alert は Issue にせず dismiss したい。dependabot-alert-issue でできる？",
+      "expected_output": ".config/skills/shoji9x9/skills.yml の skills.dependabot-alert-issue.dismiss に lodash の dismiss 設定（reason/comment）を非破壊で書き、該当 alert は Issue 化せず、ユーザー承認後に gh api で Dismissal comment 付きで dismiss する。",
+      "assertions": [
+        "dismiss 対象は引数ではなく .config/skills/shoji9x9/skills.yml の skills.dependabot-alert-issue に書く方針である",
+        "設定ファイルへの書き込みは非破壊（既存のキー・値・コメントを変更しない）である",
+        "dismiss 該当 alert は Issue 化対象から外す方針である",
+        "gh api --method PATCH で state=dismissed・dismissed_reason・dismissed_comment を渡して却下する方針である",
+        "dismiss も承認を得てから実行する方針である"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "transitive 依存に critical の脆弱性があって直接は上げられない。pnpm.overrides で強制的に上書きして潰しちゃえばいい？",
+      "expected_output": "pnpm.overrides のような品質が保証されない回避策は採らず（pnpm 以外でも使われるため汎用に表現）、依存が固定されてすぐ着手できないと分類し、着手可能条件（障害＝親の依存固定、その解消 Issue の URL 調査）を Issue に明記する。",
+      "assertions": [
+        "pnpm.overrides 等の品質が保証されない回避策を提案しない方針である",
+        "特定パッケージマネージャ固有の回避策に依存しない（汎用に表現する）と理解している",
+        "依存が固定されてすぐ着手できないと分類している",
+        "着手可能条件（障害とその解消 Issue の URL）を Issue に明記する方針である"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "設定で minimum_release_age_days を 3 にしてる。昨日リリースされたパッチ版がある high alert はどう判定される？",
+      "expected_output": "解決バージョンの公開からの経過が 3 日未満なので「すぐ着手できない」に分類し、リリース年齢が条件のため待つ旨を着手可能条件に明記する。",
+      "assertions": [
+        "minimum_release_age_days の設定を読み、解決バージョンの公開日からの経過と比較する方針である",
+        "経過が閾値未満のためすぐ着手できないと分類している",
+        "リリース年齢が着手可能条件である旨を Issue に明記する方針である"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "dependabot-alert-issue で Issue を作るとき、alert の番号って #3 みたいに本文に書けばいい？",
+      "expected_output": "#N で書くと GitHub 上で Issue/PR と誤認されるため、alert は番号ではなく URL で参照する。",
+      "assertions": [
+        "#N 形式だと GitHub が Issue/PR と誤認すると理解している",
+        "alert は番号ではなく URL で参照する方針である"
+      ]
+    }
+  ]
+}
