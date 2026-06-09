@@ -10,7 +10,7 @@
         "gh issue view で Issue 内容を確認しようとしている",
         "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
         "同番号ブランチの重複を local/remote で確認している",
-        "gh issue develop --base main --checkout でブランチを作成しようとしている",
+        "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
         "モード未指定なので commit/push/PR は行っていない"
       ]
     },

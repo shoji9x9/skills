@@ -21,7 +21,7 @@
 ## 前提条件
 
 - **Python 3.8+** — 集計スクリプトの実行に必要
-- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/` または `.claude/skills/skill-creator/` にインストール済みであること）
+- **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/`・`.claude/skills/skill-creator/`・`.agents/skills/skill-creator/` のいずれかにインストール済みであること）
 
 ```bash
 python --version
