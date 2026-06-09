@@ -107,7 +107,7 @@ skills:
 ## Issue 本文の規約
 
 - **alert は `#N` で書かない**。`#1` のように書くと GitHub 上で Issue/PR とリンク誤認されるため、必ず **alert の URL** で参照する
-- 含める情報: 対象パッケージ・現状バージョン → 更新先バージョン・severity・該当 advisory（alert URL）・影響範囲（runtime / devDependency）。着手できない場合は**着手可能条件**（障害＋解消 Issue の URL）
+- 含める情報: 対象パッケージ・現状バージョン → 更新先バージョン・severity・該当 advisory（alert URL）・影響範囲（`dependency.scope` の `runtime` / `development`）。着手できない場合は**着手可能条件**（障害＋解消 Issue の URL）
 - **品質が保証されない回避策は提案しない**。`pnpm.overrides` のような上書きでの強制解決は、保証外であり、かつこのスキルは pnpm 以外のエコシステムでも使われる。manifest の正規の更新で解決できないものは「すぐ着手できない」として着手可能条件を書く方針にする（特定パッケージマネージャ固有の回避策に依存しない）
 - 実装の細部（具体的なコード片）を書きすぎない。実装はブランチ側（issue-start 以降）で扱う
 
