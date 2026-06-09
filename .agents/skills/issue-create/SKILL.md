@@ -14,6 +14,7 @@ GitHub Issue の作成を `gh` で標準化する。起票した Issue に着手
 - **ツール**: `gh`（GitHub CLI）
 - **前提スキル**: なし（起票後の着手は `issue-start` に引き継ぐが必須ではない）
 - **MCP**: なし
+- **シェル**: bash（POSIX 互換シェル）。コマンド例は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは不要。
 
 ## 入力

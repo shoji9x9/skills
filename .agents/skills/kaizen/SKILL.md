@@ -12,6 +12,7 @@ name: kaizen
 - **ツール**: `git`
 - **前提スキル**: `multiagent-setup`（Hook・ドキュメント整備のセットアップで利用。`references/setup.md` 参照）。学びの反映先スキルの検証に `skill-creator` を使えるが任意
 - **MCP**: なし
+- **シェル**: bash（POSIX 互換シェル）。本スキルのコマンド例・設定する Hook（`mkdir -p` / `date -u` 等）は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは不要。
 
 ## 基本原則
