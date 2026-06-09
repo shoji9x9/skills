@@ -112,7 +112,7 @@ runner="${SKILL_EVAL_RUNNER:-claude}"
 # Headless eval has no one to answer interactive prompts (AskUserQuestion errors
 # under `claude -p`). Inject a non-interactive notice here so the agent degrades
 # gracefully — this keeps the eval-only instruction out of the distributed skills.
-noninteractive_preamble='【非対話の自動評価環境】AskUserQuestion 等の対話確認ツールは使えません。確認が必要でも質問で停止せず、最も安全な文書化済みデフォルトを採用して続行し、採用した仮定を冒頭に明示してください。'
+noninteractive_preamble='【非対話の自動評価環境】AskUserQuestion 等の対話確認ツールは使えません。確認が必要でも質問で停止せず続行しますが、破壊的・外向きの操作（commit / push / マージ / リモートへの書き込み等）は行わず、最も安全な非破壊のデフォルトを選び、採用した仮定を冒頭に明示してください。'
 prompt="${noninteractive_preamble}
 
 ${prompt}"
