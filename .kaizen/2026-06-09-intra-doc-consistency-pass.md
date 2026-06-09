@@ -1,7 +1,7 @@
 ---
 date: 2026-06-09
 type: doc
-priority: medium
+priority: high
 status: pending
 session: claude-code
 ---
@@ -42,3 +42,19 @@ KEDB 照合: `2026-06-08-skills-agents-sync-drift.md` は skills/↔.agents/ の
   （例: `dependency.scope` は `development`。npm の `devDependency` と混在させない。混ぜるなら対応関係を併記）。
 - **散文の説明と直後のコード例を突き合わせる**（「常に必要」と書いたフィールドを例で省略していないか等）。
 - 編集した概念のキーワードで対象ファイルを `grep` し、別表記・矛盾記述が残っていないか確認してから push する。
+
+## 追記（2026-06-10: 同根の再発 — 整合パスのスコープを「リポジトリ横断」へ拡張）
+
+Issue #18 の対応で同じ根本原因が**ファイル間**で再発していたことを確認した。
+
+- Issue が報告したのは `multiagent-setup/evals/README.md` の skill-creator 探索先漏れ（`.agents/skills` 欠落）のみだが、
+  リポジトリ横断 grep で `dependabot-merge` / `dependabot-alert-issue` の evals/README.md にも同じ欠陥を発見した。
+- さらに後者 2 ファイルは、過去の修正で `find` コマンド側だけ `.agents/skills` が追加され、直前の散文（前提条件）は
+  旧記述のままという**部分適用ドリフト**になっていた。複製ボイラープレートへの修正が「報告されたファイル単位」で
+  止まり、他の複製に波及していなかった証拠。
+
+**提案の拡張**: 自己整合パスは単一ドキュメント内に閉じず、**複製ボイラープレート（スキル間で複製された
+evals/README.md 等）はリポジトリ横断で grep してから修正する**。修正対象の文字列・コマンド断片で
+`grep -rn <キーワード> skills/` を実行し、全複製に同じ修正を適用してから push する。
+恒久対策としては、evals/README.md の共通節を単一ソース（テンプレート）化するか、スキル間の共通節一致を
+検査するスクリプトを lint に追加することを検討する（`scripts/check-skills-sync.mjs` と同系の決定論的ゲート）。
