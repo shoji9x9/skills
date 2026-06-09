@@ -13,6 +13,7 @@ Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプ
 - **ツール**: `gh`（`gh skill` 拡張）, `git`
 - **前提スキル**: なし（スキル作成後の検証に `skill-creator` を使えるが任意）
 - **MCP**: なし
+- **シェル**: bash（POSIX 互換シェル）。コマンド例（シンボリックリンク作成等）は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは不要。
 
 ## 基本原則
