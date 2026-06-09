@@ -74,7 +74,8 @@ done
 （Claude Code=`.claude/settings.json` / Codex=`.codex/hooks.json` / Copilot=`.github/hooks/kaizen-session.json`）に対するキー断片を示す。
 各ブロックをそのままファイルに書き込んで置き換えると、先に設定した hook キーが上書きされて 1 つしか残らない。
 既存の設定（他スキルの hook 含む）を保持したまま、3 つの hook キーを**同一ファイル内にマージ**すること
-（Claude Code / Copilot は `hooks` オブジェクト配下、Codex はトップレベルにキーを併置）。
+（3 エージェントとも `hooks` オブジェクト配下にイベントキーを併置する。Claude Code と Codex は同じ構造＝イベント→`matcher`＋`hooks` 配列→`type: command`。Copilot は加えてトップレベルに `version` を持つ）。
+Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`Bash`、SessionStart=`startup|resume`、`Stop` は matcher が無視されるため省略）。
 
 #### 4-1. タスク終了時 Hook（センチネル記録のみ）
 
@@ -102,11 +103,18 @@ done
 
 ```json
 {
-  "Stop": [
-    {
-      "command": "mkdir -p .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' > .kaizen/.pending-extract-codex"
-    }
-  ]
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p .kaizen && date -u '+%Y-%m-%dT%H:%M:%SZ' > .kaizen/.pending-extract-codex"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -172,11 +180,19 @@ done
 
 ```json
 {
-  "PreToolUse": [
-    {
-      "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh"
-    }
-  ]
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -236,11 +252,19 @@ done
 
 ```json
 {
-  "SessionStart": [
-    {
-      "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-context-inject.sh"
-    }
-  ]
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-context-inject.sh"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
