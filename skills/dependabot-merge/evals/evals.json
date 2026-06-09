@@ -12,7 +12,7 @@
         "gh pr checks で CI の成功を確認しようとしている",
         "changelog/release notes など更新内容から影響を確認する方針を示している",
         "マージ前に判断の根拠を PR コメントに記録する方針を示している",
-        ".github/dependabot-merge.yml の merge_method を参照し、無ければ squash をデフォルトにする方針である",
+        ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
         "安全と判断した場合に gh pr merge でマージしようとしている"
       ]
     },
