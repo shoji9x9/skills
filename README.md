@@ -41,10 +41,11 @@ gh skill update --all
 version: 1
 skills:
   common:
-    conventions_doc: AGENTS.md   # ブランチ運用・commit 規約を記したドキュメント
+    # 導入先に実在する規約ドキュメントを指定（例: AGENTS.md / CLAUDE.md / CONTRIBUTING.md）
+    conventions_doc: AGENTS.md
   dependabot-merge:
-    merge_method: squash         # squash | merge | rebase
+    merge_method: squash # squash | merge | rebase
 ```
 
-- `skills.common.conventions_doc`: ブランチ運用・commit 規約を記したドキュメント。未設定なら標準ドキュメント（`AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` / `CONTRIBUTING.md` 等）を探索し、解決できなければスキルがユーザーに確認する。
+- `skills.common.conventions_doc`: ブランチ運用・commit 規約を記した**導入先に実在する**ドキュメント。上の `AGENTS.md` は例（盲目コピーしない）。未設定なら標準ドキュメント（`AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` / `CONTRIBUTING.md` 等）を探索し、解決できなければスキルがユーザーに確認する。
 - `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（既定 `squash`）。
