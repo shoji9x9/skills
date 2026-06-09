@@ -1,7 +1,4 @@
 {
-  "permissions": {
-    "defaultMode": "auto"
-  },
   "hooks": {
     "Stop": [
       {
