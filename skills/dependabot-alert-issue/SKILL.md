@@ -58,7 +58,7 @@ skills:
 
 - 対象リポジトリ（省略時は現在の repo。`gh repo view --json nameWithOwner -q .nameWithOwner`）
 - 任意で `--repo <owner>/<repo>`
-- 任意で外部 audit findings JSON（例: `--source pnpm-audit --input <json>`）。外部入力は後述「外部 audit findings 入力」を満たす正規化済み JSON とする
+- 任意で外部 audit findings JSON ファイル（例: `--source pnpm-audit --input <findings.json>`）。外部入力は後述「外部 audit findings 入力」を満たす正規化済み JSON ファイルとする
 
 このスキルは Issue の**ドラフトをユーザーに見せ、承認を得てから**起票・dismiss する（意図とずれた起票・却下を避けるため）。
 
@@ -67,7 +67,7 @@ skills:
 1. 対象リポジトリを確認する（省略時は現在の repo）。`--repo` 指定が現在の repo と異なる場合は、その旨を伝えてから対象を確定する
 2. 入力モードを決める
    - GitHub alerts mode: open な Dependabot alerts を取得する（後述「gh メカニクス」。**ページネーション順守**）
-   - 外部 audit findings mode: 指定された JSON を読み、後述「外部 audit findings 入力」に従って findings を検証する
+   - 外部 audit findings mode: 指定された JSON ファイルを読み、後述「外部 audit findings 入力」に従って findings を検証する
 3. 設定の特別処理を適用する
    - `ignore` に該当する脆弱性は対象から外す（Issue も dismiss もしない）
    - GitHub alerts mode で `dismiss` に該当する alert は **dismiss 候補**として分け、Issue 化対象から外す（実行は後述・ユーザー承認後）
