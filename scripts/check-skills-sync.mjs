@@ -121,7 +121,8 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
       drifts.push(`${name}: ${rel} differs`);
     }
   }
-  for (const extra of instLeft) drifts.push(`${name}: ${extra} exists only in installed copy (stale)`);
+  for (const extra of instLeft)
+    drifts.push(`${name}: ${extra} exists only in installed copy (stale)`);
 }
 
 const srcNames = new Set(
@@ -146,7 +147,9 @@ if (existsSync(INSTALLED_ROOT)) {
 if (drifts.length) {
   console.error("skills-sync: DRIFT between skills/ and .agents/skills/:");
   for (const d of drifts) console.error(`  - ${d}`);
-  console.error("Fix: run `scripts/reinstall-skill.sh <name>` (or --all), then commit the .agents/.claude changes.");
+  console.error(
+    "Fix: run `scripts/reinstall-skill.sh <name>` (or --all), then commit the .agents/.claude changes.",
+  );
   process.exit(1);
 }
 console.log("skills-sync: OK");

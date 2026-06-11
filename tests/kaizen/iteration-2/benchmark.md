@@ -11,6 +11,7 @@
 | Pass Rate | 100% ± 0% | 65% ± 37% | +0.35 |
 | Time | 3993.2s ± 84.9s | 99.3s ± 69.5s | +3893.8s |
 | Tokens | 0 ± 0 | 0 ± 0 | +0 |
+
 ## 補足・注意（手動追記）
 
 - 各構成 **1 run**（ヘッダ・`runs_per_configuration` と整合）。
@@ -18,6 +19,7 @@
 - **判定の主指標は Pass Rate**: with_skill **100%** vs without_skill **65%**（delta **+0.35**）。Issue #3 の新挙動（RCA 強化 / SessionStart 注入 / status フロー / setup 分離 / 自己改変ガード）はすべて with_skill で合格。
 
 ### 構成別の所見（with/without 差の解釈）
+
 | eval | with | without | 差の要因 |
 |------|------|---------|---------|
 | 1 extract-current | 6/6 | 6/6 | 既存 .kaizen 形式を模倣でき baseline も通過。skill は 3why/KEDB/横断で質が高い |
@@ -30,6 +32,7 @@
 | 8 setup-self-mod | 4/4 | 0/4 | baseline は SessionStart 追加・自己改変節・! cp 案内・setup.md 参照をすべて欠く |
 
 ### ベンチで surface した発見
+
 1. install 先 `.agents/skills/kaizen/scripts/` に `kaizen-context-inject.sh` が無いとフックが動かない → 再インストールで解消（本リポジトリは対応済み）。
 2. `kaizen-precommit-gate.sh` の **jq 依存** → 本セッションで多段フォールバック化して**修正・検証済み**。
 3. gate の生JSONフォールバック時のクォート境界による**誤検知**（`grep "...git commit..."` 等を誤ブロック）を baseline eval-5 が独立に指摘。PR #8 のレビュー対応で修正済み（command フィールド値が git commit で始まる場合に限定）。

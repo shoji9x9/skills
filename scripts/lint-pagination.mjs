@@ -19,17 +19,53 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const COLLECTION_SEGMENTS = new Set([
-  "comments", "reviews", "commits", "files", "issues", "pulls", "labels",
-  "assignees", "events", "runs", "jobs", "releases", "tags", "branches",
-  "members", "collaborators", "notifications", "requested_reviewers",
-  "reactions", "statuses", "hooks", "keys", "deployments", "stargazers",
-  "subscribers", "forks", "teams", "milestones",
+  "comments",
+  "reviews",
+  "commits",
+  "files",
+  "issues",
+  "pulls",
+  "labels",
+  "assignees",
+  "events",
+  "runs",
+  "jobs",
+  "releases",
+  "tags",
+  "branches",
+  "members",
+  "collaborators",
+  "notifications",
+  "requested_reviewers",
+  "reactions",
+  "statuses",
+  "hooks",
+  "keys",
+  "deployments",
+  "stargazers",
+  "subscribers",
+  "forks",
+  "teams",
+  "milestones",
 ]);
 const SHELL_LANGS = new Set(["bash", "sh", "shell"]);
 // 後続トークンを値として消費するフラグ（その値を位置引数=エンドポイントと誤認しないため）。
 const VALUE_FLAGS = new Set([
-  "-H", "--header", "-f", "--field", "-F", "--raw-field", "-q", "--jq",
-  "-X", "--method", "-t", "--template", "--hostname", "--cache", "--input",
+  "-H",
+  "--header",
+  "-f",
+  "--field",
+  "-F",
+  "--raw-field",
+  "-q",
+  "--jq",
+  "-X",
+  "--method",
+  "-t",
+  "--template",
+  "--hostname",
+  "--cache",
+  "--input",
 ]);
 const SUPPRESS = "pagination-ok";
 const GRAPHQL_MSG =
@@ -40,17 +76,26 @@ const REST_MSG =
 // クォート（' "）を尊重して空白でトークン分割する。素朴な split より誤りにくい。
 export function tokenize(s) {
   const tokens = [];
-  let cur = "", has = false, quote = null;
+  let cur = "",
+    has = false,
+    quote = null;
   for (const ch of s) {
     if (quote) {
       cur += ch;
       if (ch === quote) quote = null;
     } else if (ch === "'" || ch === '"') {
-      cur += ch; has = true; quote = ch;
+      cur += ch;
+      has = true;
+      quote = ch;
     } else if (/\s/.test(ch)) {
-      if (has) { tokens.push(cur); cur = ""; has = false; }
+      if (has) {
+        tokens.push(cur);
+        cur = "";
+        has = false;
+      }
     } else {
-      cur += ch; has = true;
+      cur += ch;
+      has = true;
     }
   }
   if (has) tokens.push(cur);
@@ -62,7 +107,10 @@ export function restEndpointSegment(cmd) {
   const toks = tokenize(cmd);
   let api = -1;
   for (let i = 0; i < toks.length - 1; i++) {
-    if (toks[i] === "gh" && toks[i + 1] === "api") { api = i; break; }
+    if (toks[i] === "gh" && toks[i + 1] === "api") {
+      api = i;
+      break;
+    }
   }
   if (api < 0) return null;
   for (let i = api + 2; i < toks.length; i++) {
@@ -71,7 +119,10 @@ export function restEndpointSegment(cmd) {
       if (VALUE_FLAGS.has(t.split("=")[0]) && !t.includes("=")) i++; // 値トークンを飛ばす
       continue;
     }
-    const ep = t.replace(/^['"]|['"]$/g, "").split("?")[0].replace(/\/+$/, "");
+    const ep = t
+      .replace(/^['"]|['"]$/g, "")
+      .split("?")[0]
+      .replace(/\/+$/, "");
     if (!ep.includes("/")) return null; // 例: graphql
     return ep.split("/").pop();
   }
@@ -84,16 +135,22 @@ export function unitsFromFile(path, content) {
   const lines = content.split("\n");
   if (path.endsWith(".sh")) return [lines.map((text, i) => ({ n: i + 1, text }))];
   const units = [];
-  let cur = null, fenceChar = null;
+  let cur = null,
+    fenceChar = null;
   for (let i = 0; i < lines.length; i++) {
     const open = lines[i].match(/^\s*(`{3,}|~{3,})\s*([A-Za-z0-9_-]*)/);
     if (!cur && open && SHELL_LANGS.has(open[2].toLowerCase())) {
-      cur = []; fenceChar = open[1][0]; continue;
+      cur = [];
+      fenceChar = open[1][0];
+      continue;
     }
     if (cur) {
       const close = lines[i].match(/^\s*(`{3,}|~{3,})\s*$/);
-      if (close && close[1][0] === fenceChar) { units.push(cur); cur = null; fenceChar = null; }
-      else cur.push({ n: i + 1, text: lines[i] });
+      if (close && close[1][0] === fenceChar) {
+        units.push(cur);
+        cur = null;
+        fenceChar = null;
+      } else cur.push({ n: i + 1, text: lines[i] });
     }
   }
   return units;
@@ -107,7 +164,10 @@ export function logicalLines(unit) {
     if (!buf) buf = { n: it.n, text: it.text };
     else buf.text += " " + it.text;
     if (/\\\s*$/.test(it.text)) buf.text = buf.text.replace(/\\\s*$/, " ");
-    else { out.push(buf); buf = null; }
+    else {
+      out.push(buf);
+      buf = null;
+    }
   }
   if (buf) out.push(buf);
   return out;
@@ -123,13 +183,16 @@ export function lint(path, content) {
     const reGraphql = /gh\s+api\s+graphql\b[^\n]*?-f\s+query=(['"])([\s\S]*?)\1[^\n]*/g;
     let gm;
     while ((gm = reGraphql.exec(unitText)) !== null) {
-      const cmd = gm[0], body = gm[2];
+      const cmd = gm[0],
+        body = gm[2];
       // --paginate は query の前後どちらに書かれてもよいので、コマンド全体（gm[0]）で判定する。
-      if (!/\b(first|last):/.test(body) || /pageInfo/.test(body) || /--paginate/.test(cmd)) continue;
+      if (!/\b(first|last):/.test(body) || /pageInfo/.test(body) || /--paginate/.test(cmd))
+        continue;
       const startIdx = unitText.slice(0, gm.index).split("\n").length - 1;
       const endIdx = unitText.slice(0, gm.index + gm[0].length).split("\n").length - 1;
       let suppressed = false; // 抑制は当該コマンドが占める行のみで判定する
-      for (let i = startIdx; i <= endIdx; i++) if (unit[i]?.text.includes(SUPPRESS)) suppressed = true;
+      for (let i = startIdx; i <= endIdx; i++)
+        if (unit[i]?.text.includes(SUPPRESS)) suppressed = true;
       if (!suppressed) findings.push({ path, n: (unit[startIdx] ?? unit[0]).n, msg: GRAPHQL_MSG });
     }
 
@@ -152,7 +215,8 @@ export function lint(path, content) {
 function listFiles(dir) {
   const out = [];
   for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === ".git") continue;
+    if (name === "node_modules" || name === ".git" || name === ".agents" || name === ".claude")
+      continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) out.push(...listFiles(p));
     else if (name.endsWith(".sh") || name.endsWith(".md")) out.push(p);
@@ -167,7 +231,11 @@ function main() {
   for (const path of targets) {
     if (!(path.endsWith(".sh") || path.endsWith(".md"))) continue;
     let content;
-    try { content = readFileSync(path, "utf8"); } catch { continue; }
+    try {
+      content = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
     findings.push(...lint(path, content));
   }
   if (findings.length) {

@@ -4,7 +4,9 @@
 
 - **モード**: with_skill のみ（ドライラン）
 - **分離**: eval ごとに git worktree subagent
-- **安全性**: リモートを変更する操作（コメント返信 / `resolveReviewThread` / `git commit` / `git push`）は未実行。subagent は実行する代わりに正確なコマンド文字列を提示した。読み取り専用（`gh pr view` / `gh api` GET / GraphQL クエリ）のみ許可。テスト用プロンプトは存在しない PR（#42）と非一致リポジトリを対象とし、読み取りは 404 となり副作用は発生しない。
+- **安全性**: リモートを変更する操作（コメント返信 / `resolveReviewThread` / `git commit` / `git push`）は未実行。
+  subagent は実行する代わりに正確なコマンド文字列を提示した。読み取り専用（`gh pr view` / `gh api` GET / GraphQL クエリ）のみ許可。
+  テスト用プロンプトは存在しない PR（#42）と非一致リポジトリを対象とし、読み取りは 404 となり副作用は発生しない。
 - **備考**: baseline（no-skill）は省略。コマンド型ワークフローのスキルでは信号が乏しく、実際のレビュー操作のリスクもあるため。`issue-start` の方法論に倣う。
 
 ## サマリー

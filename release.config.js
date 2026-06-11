@@ -5,7 +5,5 @@ import { releaseRules } from "./commit-types.js";
 // commit-analyzer は --dry-run で次バージョンの算出にのみ使う（タグ／Release は gh skill publish が作る）。
 export default {
   branches: ["main"],
-  plugins: [
-    ["@semantic-release/commit-analyzer", { preset: "conventionalcommits", releaseRules }],
-  ],
+  plugins: [["@semantic-release/commit-analyzer", { preset: "conventionalcommits", releaseRules }]],
 };

@@ -38,7 +38,7 @@ updates:
         update-types: ["minor", "patch"]
       # --- >=1.0: 機能カテゴリ（自動マージ対象） ---
       lint:
-        patterns: ["@prantlf/jsonlint", "js-yaml", "shellcheck"]
+        patterns: ["@prantlf/jsonlint", "js-yaml", "oxlint", "shellcheck"]
         update-types: ["minor", "patch"]
       test:
         patterns: ["vitest"]

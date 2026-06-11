@@ -1,6 +1,6 @@
 # Skill Benchmark: multiagent-setup
 
-**Model**: <model-name>
+**Model**: `<model-name>`
 **Date**: 2026-05-31T10:53:29Z
 **Evals**: 1, 2, 3 (3 runs each per configuration)
 

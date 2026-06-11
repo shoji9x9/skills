@@ -124,12 +124,41 @@ rc=0
 (cd "${proj}" && "${runner}" "${claude_args[@]}") >"${out}/result.json" 2>"${out}/stderr.log" || rc=$?
 [ "${rc}" -ne 0 ] && echo "warn: claude exited ${rc} (see ${out}/stderr.log)" >&2
 
-# Snapshot what the eval created in the isolated project (the installed skill copy
-# is excluded so only eval artifacts remain for grading).
-(cd "${proj}" && find . -path ./.claude/skills -prune -o -print | sort) >"${out}/project-tree.txt"
-mkdir -p -- "${out}/project"
-cp -R -- "${proj}/." "${out}/project/"
-rm -rf -- "${out}/project/.claude/skills"
+# Snapshot the paths and bounded text contents created in the isolated project.
+# Do not copy the project itself into tests/; repo clones and generated files can
+# be large. The content snapshot keeps only lightweight files needed for grading.
+(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -print | sort) >"${out}/project-tree.txt"
+snapshot_dir="${out}/project-files"
+rm -rf -- "${snapshot_dir}"
+mkdir -p -- "${snapshot_dir}"
+
+total_bytes=0
+max_file_bytes=$((256 * 1024))
+max_total_bytes=$((5 * 1024 * 1024))
+while IFS= read -r -d '' file; do
+	rel="${file#./}"
+	case "${rel}" in
+	.git/* | .claude/skills/* | node_modules/* | pnpm-lock.yaml | package-lock.json | yarn.lock)
+		continue
+		;;
+	*.md | *.txt | *.json | *.yml | *.yaml | *.toml | *.sh | *.js | *.mjs)
+		;;
+	*)
+		continue
+		;;
+	esac
+
+	# The agent may leave unreadable or vanishing files behind; under `set -e` a
+	# failed wc/cp here would kill the whole run after the expensive eval, so skip
+	# the file and keep snapshotting instead.
+	size="$(wc -c 2>/dev/null <"${proj}/${rel}")" || continue
+	size="${size//[[:space:]]/}"
+	[ "${size}" -le "${max_file_bytes}" ] || continue
+	[ $((total_bytes + size)) -le "${max_total_bytes}" ] || break
+	mkdir -p -- "${snapshot_dir}/$(dirname -- "${rel}")"
+	cp -- "${proj}/${rel}" "${snapshot_dir}/${rel}" || continue
+	total_bytes=$((total_bytes + size))
+done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -type f -print0)
 
 echo "done: config=${config} skill=${skill} -> ${out} (rc=${rc})"
 exit "${rc}"
