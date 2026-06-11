@@ -62,6 +62,8 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 スキルの作成・改善・評価には `skill-creator` スキルを使う。
 
+- **検証は目的を果たす最低限のツール実行で行う**。目的より広い一括実行（例: `lefthook run pre-commit --all-files`）は auto-fix・`stage_fixed` による staging などの副作用を伴う。絞り込み方が不明なら範囲を広げる前に `--help` 等で調べる。広い実行をした場合は直後に `git status --short` で意図しない変更を確認して戻す。
+
 スキルの追加・修正、リリース（CD）、修正後の再インストール、回帰テストの**詳細手順は [`docs/skill-development.md`](docs/skill-development.md) を参照**する。
 
 ## ブランチ運用
