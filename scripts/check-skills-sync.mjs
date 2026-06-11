@@ -4,8 +4,8 @@
 // `.claude/skills/<name>` symlinks to). Editing a skill without re-running
 // `scripts/reinstall-skill.sh <name>` leaves the installed copy stale; this check
 // (lefthook pre-commit + CI) fails loudly when that happens. The source of truth
-// is `skills/`; extra entries under `.agents/skills/` are allowed so projects can
-// keep private, non-distributed skills outside the publish set.
+// is `skills/`; extra entries under `.agents/skills/` must be explicitly marked
+// with `.private-skill` so removed/renamed distributed skills do not linger.
 //
 // `gh skill install` normalizes SKILL.md frontmatter (reorders keys, drops the
 // blank line after the closing `---`, and may inject `metadata.local-path`), so
@@ -18,6 +18,7 @@ import yaml from "js-yaml";
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
 const CLAUDE_ROOT = ".claude/skills";
+const PRIVATE_SKILL_MARKER = ".private-skill";
 
 function listFiles(dir) {
   const out = [];
@@ -116,6 +117,23 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     }
   }
   for (const extra of instLeft) drifts.push(`${name}: ${extra} exists only in installed copy (stale)`);
+}
+
+const srcNames = new Set(
+  readdirSync(SRC_ROOT, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name),
+);
+if (existsSync(INSTALLED_ROOT)) {
+  for (const e of readdirSync(INSTALLED_ROOT, { withFileTypes: true })) {
+    if (!e.isDirectory() || srcNames.has(e.name)) continue;
+    const marker = join(INSTALLED_ROOT, e.name, PRIVATE_SKILL_MARKER);
+    if (!existsSync(marker)) {
+      drifts.push(
+        `${e.name}: exists under ${INSTALLED_ROOT}/ but not ${SRC_ROOT}/; add ${PRIVATE_SKILL_MARKER} if this is a private skill`,
+      );
+    }
+  }
 }
 
 if (drifts.length) {

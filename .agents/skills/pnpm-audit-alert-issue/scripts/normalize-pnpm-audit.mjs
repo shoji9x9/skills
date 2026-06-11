@@ -24,6 +24,10 @@ function firstString(...values) {
   return "";
 }
 
+function isUrl(value) {
+  return typeof value === "string" && /^https?:\/\//.test(value);
+}
+
 function ghsaFrom(value) {
   if (typeof value !== "string") return "";
   const match = value.match(/GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/i);
@@ -63,6 +67,33 @@ function mergeFinding(target, source) {
   if (!target.advisory_url && source.advisory_url) target.advisory_url = source.advisory_url;
 }
 
+function advisoryFromVia(via) {
+  if (typeof via === "object" && via) return via;
+  if (typeof via !== "string") return {};
+
+  const ghsa = ghsaFrom(via);
+  if (!ghsa && !isUrl(via)) return {};
+
+  return {
+    ghsa,
+    url: isUrl(via) ? via : "",
+    title: ghsa || via,
+  };
+}
+
+function currentVersionsFrom(packageName, vulnerability, packages) {
+  const versions = [];
+  for (const node of asArray(vulnerability.nodes)) {
+    versions.push(packages?.[node]?.version);
+  }
+  versions.push(
+    vulnerability.version,
+    packages?.[packageName]?.version,
+    packages?.[`node_modules/${packageName}`]?.version,
+  );
+  return uniq(versions);
+}
+
 function fromAdvisory(advisory) {
   const ghsa = firstString(
     normalizeGhsa(advisory.ghsa),
@@ -91,8 +122,8 @@ function fromAdvisory(advisory) {
   };
 }
 
-function fromVulnerability(packageName, vulnerability, via) {
-  const advisory = typeof via === "object" && via ? via : {};
+function fromVulnerability(packageName, vulnerability, via, packages) {
+  const advisory = advisoryFromVia(via);
   const fix = typeof vulnerability.fixAvailable === "object" && vulnerability.fixAvailable ? vulnerability.fixAvailable : {};
   const ghsa = firstString(
     normalizeGhsa(advisory.ghsa),
@@ -114,7 +145,7 @@ function fromVulnerability(packageName, vulnerability, via) {
     vulnerable_versions: firstString(advisory.range, vulnerability.range),
     patched_versions: patchedVersions,
     patched: patched || patchedFrom(patchedVersions),
-    current_versions: [],
+    current_versions: currentVersionsFrom(packageName, vulnerability, packages),
     dependency_paths: uniq(asArray(vulnerability.nodes)),
     manifest: "pnpm-lock.yaml",
     scope: "unknown",
@@ -132,11 +163,16 @@ if (raw.advisories && typeof raw.advisories === "object") {
 
 if (raw.vulnerabilities && typeof raw.vulnerabilities === "object") {
   for (const [packageName, vulnerability] of Object.entries(raw.vulnerabilities)) {
-    const advisories = asArray(vulnerability.via).filter((via) => typeof via === "object" && via);
+    const advisories = asArray(vulnerability.via).filter((via) => {
+      if (typeof via === "object" && via) return true;
+      return typeof via === "string" && (ghsaFrom(via) || isUrl(via));
+    });
     if (advisories.length === 0) {
-      findings.push(fromVulnerability(packageName, vulnerability, {}));
+      findings.push(fromVulnerability(packageName, vulnerability, {}, raw.packages));
     } else {
-      for (const advisory of advisories) findings.push(fromVulnerability(packageName, vulnerability, advisory));
+      for (const advisory of advisories) {
+        findings.push(fromVulnerability(packageName, vulnerability, advisory, raw.packages));
+      }
     }
   }
 }
