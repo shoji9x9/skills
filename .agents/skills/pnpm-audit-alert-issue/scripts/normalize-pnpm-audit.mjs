@@ -8,6 +8,28 @@ if (!inputPath || !outputPath) {
   process.exit(2);
 }
 
+function loadJson(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    console.error(`Failed to read pnpm audit JSON: ${path}: ${err.message}`);
+    process.exit(1);
+  }
+
+  if (text.trim() === "") {
+    console.error(`Failed to parse pnpm audit JSON: ${path} is empty`);
+    process.exit(1);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    console.error(`Failed to parse pnpm audit JSON: ${path}: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 function asArray(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
@@ -155,7 +177,7 @@ function fromVulnerability(packageName, vulnerability, via, packages) {
   };
 }
 
-const raw = JSON.parse(readFileSync(inputPath, "utf8"));
+const raw = loadJson(inputPath);
 const findings = [];
 
 if (raw.advisories && typeof raw.advisories === "object") {
