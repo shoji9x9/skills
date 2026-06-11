@@ -42,6 +42,8 @@ test("commit メッセージ生成設定の prefix は commit-types.js の type 
   // 抽出ロジックが壊れて 0 件になり「素通り」するのを防ぐ回帰ガード。
   expect(prefixes.length).toBeGreaterThan(0);
   for (const { source, value } of prefixes) {
-    expect(types, `${source} = "${value}" は commit-types.js の許可型に含まれること`).toContain(value);
+    expect(types, `${source} = "${value}" は commit-types.js の許可型に含まれること`).toContain(
+      value,
+    );
   }
 });

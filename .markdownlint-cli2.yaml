@@ -3,7 +3,6 @@ globs:
   - "!node_modules/**"
   - "!.agents/**"
   - "!.claude/**"
-  - "!tests/**"
 
 config:
   extends: .markdownlint.yaml

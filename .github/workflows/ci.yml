@@ -47,14 +47,18 @@ jobs:
       - name: Markdown lint
         run: pnpm exec markdownlint-cli2 "**/*.md"
       - name: Shell lint
-        run: find . -name "*.sh" -not -path "*/node_modules/*" -exec pnpm exec shellcheck {} +
+        run: find . -name "*.sh" -not -path "*/node_modules/*" -not -path "./.agents/*" -not -path "./.claude/*" -exec pnpm exec shellcheck {} +
+      - name: JavaScript lint
+        run: pnpm run lint:js
+      - name: JavaScript format check
+        run: pnpm run format:js:check
       - name: JSON lint
-        run: find . -name "*.json" -not -path "*/node_modules/*" -exec pnpm exec jsonlint --quiet --continue --no-duplicate-keys {} +
+        run: find . -name "*.json" -not -path "*/node_modules/*" -not -path "./.agents/*" -not -path "./.claude/*" -exec pnpm exec jsonlint --quiet --continue --no-duplicate-keys {} +
       - name: YAML lint
         run: |
           while IFS= read -r f; do
             pnpm exec js-yaml "$f" > /dev/null
-          done < <(find . \( -name "*.yml" -o -name "*.yaml" \) -not -path "*/node_modules/*" -not -path "*/.git/*")
+          done < <(find . \( -name "*.yml" -o -name "*.yaml" \) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "./.agents/*" -not -path "./.claude/*")
       - name: Pagination lint
         run: node scripts/lint-pagination.mjs
       - name: Skills sync (skills/ vs .agents/skills/)

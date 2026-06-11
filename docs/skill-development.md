@@ -64,7 +64,7 @@ scripts/run-skill-eval.sh \
 # without_skill も同様に --config without_skill で実行する。
 ```
 
-各 run の生成物（`--out/project/`）を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。採点後に下記の集計へ進む。
+各 run の `result.json`、`project-tree.txt`、`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。`project-files/` には採点に使う軽量なテキスト生成物だけを保存し、使い捨てプロジェクト全体は `tests/` 配下へコピーしない。採点後に下記の集計へ進む。
 
 ### eval 環境の前提（runtime / repo / 非対話）
 

@@ -1,6 +1,6 @@
 # Skill Benchmark: kaizen
 
-**Model**: <model-name>
+**Model**: `<model-name>`
 **Date**: 2026-06-01T10:45:41Z
 **Evals**: 1, 2, 3, 4 (3 runs each per configuration)
 
