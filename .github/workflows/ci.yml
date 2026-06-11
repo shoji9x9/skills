@@ -45,7 +45,7 @@ jobs:
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
-        run: pnpm exec markdownlint-cli2 "**/*.md"
+        run: pnpm exec markdownlint-cli2
       - name: Shell lint
         run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.sh" -type f -exec pnpm exec shellcheck {} +
       - name: JavaScript lint

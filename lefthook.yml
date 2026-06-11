@@ -3,13 +3,14 @@ pre-commit:
   jobs:
     - name: markdownlint
       glob: "*.md"
+      exclude: &agent-copies
+        - ".agents/**"
+        - ".claude/**"
       run: pnpm exec markdownlint-cli2 --fix {staged_files}
       stage_fixed: true
     - name: shellcheck
       glob: "*.sh"
-      exclude: &agent-copies
-        - ".agents/**"
-        - ".claude/**"
+      exclude: *agent-copies
       run: pnpm exec shellcheck {staged_files}
     - name: shfmt
       glob: "*.sh"
