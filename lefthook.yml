@@ -11,7 +11,7 @@ pre-commit:
     - name: shellcheck
       glob: "*.sh"
       exclude: *agent-copies
-      run: pnpm exec shellcheck {staged_files}
+      run: shellcheck {staged_files}
     - name: shfmt
       glob: "*.sh"
       exclude: *agent-copies
