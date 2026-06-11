@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/skills/kaizen/scripts/kaizen-context-inject.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
