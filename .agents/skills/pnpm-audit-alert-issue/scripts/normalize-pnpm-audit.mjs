@@ -50,19 +50,22 @@ function normalizeSeverity(value) {
 }
 
 function findingKey(finding) {
-  return [
-    finding.package,
-    finding.ghsa || finding.advisory_url || finding.title,
-    finding.vulnerable_versions,
-    finding.patched_versions,
-  ].join("\0");
+  return [finding.package, finding.ghsa || finding.advisory_url || finding.title].join("\0");
+}
+
+function mergeStringValue(left, right) {
+  const values = uniq(
+    [left, right].flatMap((value) => (typeof value === "string" ? value.split(/\s*;\s*/) : [])),
+  );
+  return values.join("; ");
 }
 
 function mergeFinding(target, source) {
   target.current_versions = uniq([...target.current_versions, ...source.current_versions]);
   target.dependency_paths = uniq([...target.dependency_paths, ...source.dependency_paths]);
+  target.vulnerable_versions = mergeStringValue(target.vulnerable_versions, source.vulnerable_versions);
+  target.patched_versions = mergeStringValue(target.patched_versions, source.patched_versions);
   if (!target.patched && source.patched) target.patched = source.patched;
-  if (!target.patched_versions && source.patched_versions) target.patched_versions = source.patched_versions;
   if (!target.ghsa && source.ghsa) target.ghsa = source.ghsa;
   if (!target.advisory_url && source.advisory_url) target.advisory_url = source.advisory_url;
 }

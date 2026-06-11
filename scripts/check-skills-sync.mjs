@@ -64,28 +64,19 @@ function normFrontmatter(fmText, source) {
   return JSON.stringify(sortKeys(obj));
 }
 
-const drifts = [];
-for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
-  if (!e.isDirectory()) continue;
-  const name = e.name;
-  const srcDir = join(SRC_ROOT, name);
-  const instDir = join(INSTALLED_ROOT, name);
+function checkClaudeSymlink(name, drifts) {
   const claudeLink = join(CLAUDE_ROOT, name);
-  if (!existsSync(instDir)) {
-    drifts.push(`${name}: missing installed copy under ${INSTALLED_ROOT}/`);
-    continue;
-  }
-
   try {
     const stat = lstatSync(claudeLink);
     if (!stat.isSymbolicLink()) {
       drifts.push(`${name}: ${claudeLink} is not a symlink`);
-    } else {
-      const target = readlinkSync(claudeLink);
-      const expected = `../../${INSTALLED_ROOT}/${name}`;
-      if (target !== expected) {
-        drifts.push(`${name}: ${claudeLink} points to ${target}, expected ${expected}`);
-      }
+      return;
+    }
+
+    const target = readlinkSync(claudeLink);
+    const expected = `../../${INSTALLED_ROOT}/${name}`;
+    if (target !== expected) {
+      drifts.push(`${name}: ${claudeLink} points to ${target}, expected ${expected}`);
     }
   } catch (err) {
     if (err.code === "ENOENT") {
@@ -94,6 +85,20 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
       drifts.push(`${name}: cannot inspect ${claudeLink}: ${err.message}`);
     }
   }
+}
+
+const drifts = [];
+for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
+  if (!e.isDirectory()) continue;
+  const name = e.name;
+  const srcDir = join(SRC_ROOT, name);
+  const instDir = join(INSTALLED_ROOT, name);
+  if (!existsSync(instDir)) {
+    drifts.push(`${name}: missing installed copy under ${INSTALLED_ROOT}/`);
+    continue;
+  }
+
+  checkClaudeSymlink(name, drifts);
 
   const instLeft = new Set(listFiles(instDir).map((f) => relative(instDir, f)));
   for (const abs of listFiles(srcDir)) {
@@ -132,6 +137,8 @@ if (existsSync(INSTALLED_ROOT)) {
       drifts.push(
         `${e.name}: exists under ${INSTALLED_ROOT}/ but not ${SRC_ROOT}/; add ${PRIVATE_SKILL_MARKER} if this is a private skill`,
       );
+    } else {
+      checkClaudeSymlink(e.name, drifts);
     }
   }
 }
