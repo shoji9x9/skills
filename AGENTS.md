@@ -65,6 +65,13 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint`）の通過を要求する
 
+## 脆弱性対応
+
+Dependabot の pnpm 11 対応（dependabot/dependabot-core#14794）が完了するまでは、`devEngines.packageManager` により生成される
+multi-document `pnpm-lock.yaml` を Dependabot が解析できず alerts が作られない。
+その間の脆弱性確認・起票は private skill `pnpm-audit-alert-issue` で `pnpm audit --json` を一次情報として扱い、
+Issue 作成は `dependabot-alert-issue` の外部 audit findings mode に委譲する。
+
 ## API 取得のページネーション
 
 `gh api` 等で一覧を取得する shell / markdown コードは、**指定件数で暗黙に打ち切らない**こと。
@@ -108,3 +115,4 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 - `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う
 - `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化する。PR 単体または `--all` で open な全 PR を処理。`>=1.0` の決定論的自動マージは `.github/workflows/dependabot-automerge.yml` が担い、本スキルは 0.x や自動マージ未設定リポジトリでの手動判断を受け持つ
 - `dependabot-alert-issue`: Dependabot alerts を確認し、解消するための Issue を作成する。着手可否で分類し severity・パッケージ単位でグルーピング、着手できないものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定できる。起票後の着手は `issue-start` に引き継ぐ
+- `pnpm-audit-alert-issue`: Dependabot の pnpm 11 対応（dependabot/dependabot-core#14794）完了までの private skill。`pnpm audit --json` を正規化し、`dependabot-alert-issue` の外部 audit findings mode で脆弱性対応 Issue を作る

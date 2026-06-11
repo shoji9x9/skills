@@ -3,18 +3,21 @@
 // in-repo installed copy `.agents/skills/<name>/` (which Codex/Copilot read and
 // `.claude/skills/<name>` symlinks to). Editing a skill without re-running
 // `scripts/reinstall-skill.sh <name>` leaves the installed copy stale; this check
-// (lefthook pre-commit + CI) fails loudly when that happens.
+// (lefthook pre-commit + CI) fails loudly when that happens. The source of truth
+// is `skills/`; extra entries under `.agents/skills/` are allowed so projects can
+// keep private, non-distributed skills outside the publish set.
 //
 // `gh skill install` normalizes SKILL.md frontmatter (reorders keys, drops the
 // blank line after the closing `---`, and may inject `metadata.local-path`), so
 // SKILL.md is compared by parsed-frontmatter (order-independent, local-path
 // ignored) + trimmed body. Every other file must be byte-identical.
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, lstatSync, readlinkSync } from "node:fs";
 import { join, relative } from "node:path";
 import yaml from "js-yaml";
 
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
+const CLAUDE_ROOT = ".claude/skills";
 
 function listFiles(dir) {
   const out = [];
@@ -66,10 +69,31 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
   const name = e.name;
   const srcDir = join(SRC_ROOT, name);
   const instDir = join(INSTALLED_ROOT, name);
+  const claudeLink = join(CLAUDE_ROOT, name);
   if (!existsSync(instDir)) {
     drifts.push(`${name}: missing installed copy under ${INSTALLED_ROOT}/`);
     continue;
   }
+
+  try {
+    const stat = lstatSync(claudeLink);
+    if (!stat.isSymbolicLink()) {
+      drifts.push(`${name}: ${claudeLink} is not a symlink`);
+    } else {
+      const target = readlinkSync(claudeLink);
+      const expected = `../../${INSTALLED_ROOT}/${name}`;
+      if (target !== expected) {
+        drifts.push(`${name}: ${claudeLink} points to ${target}, expected ${expected}`);
+      }
+    }
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      drifts.push(`${name}: missing Claude symlink under ${CLAUDE_ROOT}/`);
+    } else {
+      drifts.push(`${name}: cannot inspect ${claudeLink}: ${err.message}`);
+    }
+  }
+
   const instLeft = new Set(listFiles(instDir).map((f) => relative(instDir, f)));
   for (const abs of listFiles(srcDir)) {
     const rel = relative(srcDir, abs);
@@ -92,21 +116,6 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     }
   }
   for (const extra of instLeft) drifts.push(`${name}: ${extra} exists only in installed copy (stale)`);
-}
-
-// Reverse direction: an installed copy with no source (e.g. a skill removed or
-// renamed under skills/ while .agents/skills/ kept the old dir) is also drift.
-if (existsSync(INSTALLED_ROOT)) {
-  const srcNames = new Set(
-    readdirSync(SRC_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name),
-  );
-  for (const e of readdirSync(INSTALLED_ROOT, { withFileTypes: true })) {
-    if (e.isDirectory() && !srcNames.has(e.name)) {
-      drifts.push(`${e.name}: exists under ${INSTALLED_ROOT}/ but not ${SRC_ROOT}/ (orphaned installed copy)`);
-    }
-  }
 }
 
 if (drifts.length) {
