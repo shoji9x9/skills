@@ -47,7 +47,7 @@ jobs:
       - name: Markdown lint
         run: pnpm exec markdownlint-cli2
       - name: Shell lint
-        run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.sh" -type f -exec pnpm exec shellcheck {} +
+        run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.sh" -type f -exec shellcheck {} +
       - name: JavaScript lint
         run: pnpm run lint:js
       - name: JavaScript format check
