@@ -148,12 +148,15 @@ while IFS= read -r -d '' file; do
 		;;
 	esac
 
-	size="$(wc -c <"${proj}/${rel}")"
+	# The agent may leave unreadable or vanishing files behind; under `set -e` a
+	# failed wc/cp here would kill the whole run after the expensive eval, so skip
+	# the file and keep snapshotting instead.
+	size="$(wc -c 2>/dev/null <"${proj}/${rel}")" || continue
 	size="${size//[[:space:]]/}"
 	[ "${size}" -le "${max_file_bytes}" ] || continue
 	[ $((total_bytes + size)) -le "${max_total_bytes}" ] || break
-	mkdir -p -- "${snapshot_dir}/$(dirname "${rel}")"
-	cp -- "${proj}/${rel}" "${snapshot_dir}/${rel}"
+	mkdir -p -- "${snapshot_dir}/$(dirname -- "${rel}")"
+	cp -- "${proj}/${rel}" "${snapshot_dir}/${rel}" || continue
 	total_bytes=$((total_bytes + size))
 done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -type f -print0)
 
