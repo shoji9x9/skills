@@ -55,9 +55,9 @@
 4. 承認を得てから、バンドルされた `kaizen-archive.sh` で `.kaizen/archive/` へ移動する。**移動と索引 `INDEX.md` の再生成が 1 コマンドで行われる**ため、索引更新の取りこぼしが起きない（git 管理下なら履歴を残す `git mv`、管理外なら `mv` を自動で使い分ける）。
 
    ```bash
-   # インストール先に応じてパスを選ぶ（~/.claude/ / .claude/ / .agents/ のいずれか）。
+   # <スキル> はインストール先（~/.claude/skills/kaizen / .claude/skills/kaizen / .agents/skills/kaizen のいずれか）。
    # 直接実行ではなく bash で起動する（インストール済みコピーは実行ビットを持たないため）。
-   bash .claude/skills/kaizen/scripts/kaizen-archive.sh <対象ファイル...>
+   bash <スキル>/scripts/kaizen-archive.sh <対象ファイル...>
    ```
 
 5. コミットするかはユーザーの判断に委ねる（このスキルは勝手に commit しない）。

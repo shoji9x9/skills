@@ -33,9 +33,13 @@ regenerate_index() {
 			if [ -z "${summary}" ]; then
 				summary=$(awk 'BEGIN{fm=0} /^---[[:space:]]*$/{fm++; next} fm>=2 && NF && $0 !~ /^#/ {print; exit}' "${f}" 2>/dev/null || true)
 			fi
-			# 80 文字に切り詰め。bash のパラメータ展開は UTF-8 ロケールで文字単位なので
+			# 80 文字に切り詰め。bash のパラメータ展開は UTF-8 ロケールでは文字単位なので
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
-			summary=${summary:0:80}
+			# 非 UTF-8 ロケールではバイト単位になり UTF-8 を壊しうるため、UTF-8 のときだけ切り詰める。
+			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では切り詰めず安全側に倒す。
+			if locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8'; then
+				summary=${summary:0:80}
+			fi
 			echo "- \`$(basename "${f}")\` — ${meta}— ${summary}"
 		done
 	} >"${archive_dir}/INDEX.md"
