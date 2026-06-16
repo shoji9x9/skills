@@ -7,6 +7,25 @@ name: kaizen
 
 セッションから学びを継続的に抽出・適用するスキル。
 
+## 使い方
+
+```text
+/kaizen [extract] [--current | --all]   学びを抽出（extract は省略可 = 既定。--current = 最新セッション・最重要 1 件 / --all = 全セッション・優先度順）
+/kaizen apply                           pending の学びを成果物（ルール / doc / hook 等）へ適用
+/kaizen archive [対象フラグ]             .kaizen を整理 = アーカイブ（既定・非破壊。.kaizen/archive/ へ移動）
+/kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
+
+対象フラグ（archive / delete 共通・省略時は対象を対話で確認）:
+  --applied | --rejected | --applied-and-rejected | --all
+
+初回のみ: /kaizen setup（インストール後の hooks 等のセットアップ。「Step 3」参照）
+```
+
+例: `/kaizen --all` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
+
+- 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
+- **抽出と適用はコミット前ゲートからも駆動される**: 未抽出の活動が残っていると PreToolUse ゲートが `git commit` をブロックし、`kaizen --current`（抽出・適用）を促す。extract と apply はこのフローで連続して行われることが多い。
+
 ## 前提
 
 - **ツール**: `git`
@@ -24,16 +43,9 @@ name: kaizen
 
 ## フロー
 
-### Step 1: 意図の特定
+### Step 1: 操作の特定
 
-| ユーザーの意図 | コンポーネント |
-|-------------|-------------|
-| セッションを振り返る / 学びを抽出する / kaizen | extract |
-| 学びを適用する / 改善を実施する | apply |
-| .kaizen/ を整理する / 適用済みを削除する / クリーンアップ | apply（cleanup セクション参照） |
-| セットアップ / 初期設定 / hooks を設定する | setup |
-
-意図が不明な場合は AskUserQuestion で確認する。
+「使い方」のコマンドまたは自然文から、**抽出 / 適用 / 整理（アーカイブ・削除）/ セットアップ**のいずれかを判定する。判定できないときは AskUserQuestion で確認する。整理の対象フラグ（`--applied` 等）が省略されたときは、対象を AskUserQuestion で確認する。
 
 ### Step 2: コンポーネントの実行
 
@@ -41,6 +53,7 @@ name: kaizen
 
 - 学び抽出 → `references/extract.md`
 - 学び適用 → `references/apply.md`
+- 整理（アーカイブ・削除）→ `references/housekeeping.md`
 - セットアップ → `references/setup.md`
 
 コンポーネントファイルは SKILL.md と同じディレクトリの `references/` 配下にある。インストール先に応じて以下を試みる:
