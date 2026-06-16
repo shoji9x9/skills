@@ -56,10 +56,17 @@ if [ "$1" = "--reindex" ]; then
 fi
 
 mkdir -p "${archive_dir}"
+archive_abs=$(cd "${archive_dir}" && pwd)
 moved=0
 for f in "$@"; do
 	if [ ! -f "${f}" ]; then
 		echo "skip (not a file): ${f}" >&2
+		continue
+	fi
+	# 既に archive 配下のファイルはスキップする。同一ディレクトリへの mv は失敗し、
+	# set -e で INDEX 再生成前に終了してしまうため（冪等に・安全に実行できるようにする）。
+	if [ "$(cd "$(dirname "${f}")" && pwd)" = "${archive_abs}" ]; then
+		echo "skip (already archived): ${f}" >&2
 		continue
 	fi
 	if git ls-files --error-unmatch "${f}" >/dev/null 2>&1; then
