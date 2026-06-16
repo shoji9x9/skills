@@ -1,6 +1,6 @@
 ---
 name: dependabot-merge
-description: Dependabot が作成した PR のレビューとマージを `gh` で標準化するスキル。PR URL / PR 番号で 1 件、`--all` で open な全 Dependabot PR を対象にする。CI 成功の確認 → 更新内容（changelog/release notes）からマージ影響の確認 → 判断を PR コメントに記録 → 問題なければマージ、までを進める。特に 0.x（<1.0）依存はマイナー更新でも破壊的変更があり得るため影響を確認してから扱う。「Dependabot の PR をマージして」「依存更新 PR を確認してマージ」「dependabot-merge」「dependabot の PR を全部見て」や、`--all` を伴う依頼で必ず発動する。依存更新 PR を 1 件ずつ影響判断してからマージする。
+description: Dependabot が作成した PR のレビューとマージを `gh` で標準化するスキル。PR URL / PR 番号で 1 件、`--all` または無指定で open な全 Dependabot PR を対象にする。CI 成功の確認 → 更新内容（changelog/release notes）からマージ影響の確認 → 判断を PR コメントに記録 → 問題なければマージ、までを進める。特に 0.x（<1.0）依存はマイナー更新でも破壊的変更があり得るため影響を確認してから扱う。「Dependabot の PR をマージして」「依存更新 PR を確認してマージ」「dependabot-merge」「dependabot の PR を全部見て」や、`--all` を伴う依頼で必ず発動する。依存更新 PR を 1 件ずつ影響判断してからマージする。
 license: MIT
 ---
 
@@ -9,6 +9,22 @@ license: MIT
 Dependabot が作成した PR のレビューとマージを `gh` で標準化する。
 
 依存更新は「CI が通っていること」だけでは安全と言い切れない。semver では `>=1.0` のマイナー/パッチは後方互換が期待できるが、**0.x（<1.0）はマイナー更新でも破壊的変更があり得る**。だから本スキルは、CI 成功の確認に加えて **changelog / release notes から影響を読み、判断の根拠を PR コメントに残してからマージ**する流れを固定する。判断を記録するのは、後から「なぜマージした/しなかったか」を追えるようにするためだ。
+
+## 使い方
+
+```text
+dependabot-merge <PR URL | 番号>   指定した 1 件の Dependabot PR を確認してマージ
+dependabot-merge --all             現在の repo の open な Dependabot PR をすべて逐次処理
+dependabot-merge                   （対象未指定）--all と同じ＝全 open Dependabot PR を逐次処理
+```
+
+- 対象指定: PR URL / PR 番号（現在の repo）/ `--all`（一括）。`--all` は GitHub 自動マージ未設定のリポジトリでの一括処理を想定。
+- **PR URL / 番号も `--all` も指定しない場合は `--all` とみなす**（現在の repo の open な Dependabot PR をすべて逐次処理）。
+- `--all`（対象未指定を含む）は「open な Dependabot PR を順に確認してマージしてよい」という委譲の合図。それでも 1 件ずつ影響を確認し、安全と判断したものだけマージする。
+
+例: `dependabot-merge 12` / `dependabot-merge https://github.com/<owner>/<repo>/pull/12` / `dependabot-merge --all`
+
+- 自然文でも発動する:「Dependabot の PR をマージして」「依存更新 PR を確認してマージ」「dependabot の PR を全部見て」。
 
 ## 前提
 
@@ -33,16 +49,9 @@ skills:
 - インストール先に設定が無ければ、ユーザーに方式を確認してから書く。設定が無いまま起動した場合はデフォルトの `squash` を使い、その旨をユーザーに通知する（次回以降のために設定作成を促してよい）。
 - リポジトリで許可されたマージ方式（`gh repo view --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed`）と矛盾する場合は、許可された方式を案内して確認する。
 
-## 入力
-
-- 次のいずれかで対象を指定する:
-  - PR URL（`https://github.com/<owner>/<repo>/pull/<番号>`）
-  - PR 番号のみ（現在の repo を対象にする）
-  - `--all`: 現在の repo の **open な Dependabot PR をすべて** 処理する（GitHub 自動マージを有効化していないリポジトリでの一括処理を想定）
-
-`--all` は「open な Dependabot PR を順に確認してマージしてよい」という委譲の合図として扱う。それでも 1 件ずつ影響を確認し、安全と判断したものだけマージする。
-
 ## 基本フロー（単一 PR）
+
+対象未指定または `--all` の場合は「`--all` フロー」へ進む。以下は単一 PR（PR URL / 番号）を指定されたときの手順。
 
 1. 入力から owner / repo / PR 番号を抽出する
 2. 現在の repo と PR の owner / repo が一致するか確認する
@@ -161,9 +170,3 @@ gh pr merge --squash <番号> --repo <owner>/<repo>   # または --merge / --re
 - 設定のマージ方式がリポジトリで許可されていない
 - 0.x 依存の破壊的変更の有無が changelog から判断できない
 - 影響が大きい、または判断材料が不足している
-
-## 例
-
-- `dependabot-merge https://github.com/<owner>/<repo>/pull/12`
-- `dependabot-merge 12`
-- `dependabot-merge --all`
