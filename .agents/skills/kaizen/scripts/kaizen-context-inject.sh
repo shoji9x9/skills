@@ -16,6 +16,13 @@
 # SessionStart フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
 set -euo pipefail
 
+# .kaizen/ をプロジェクトルート基準で解決する（kaizen-archive.sh / kaizen-precommit-gate.sh と統一）。
+# Claude Code は CLAUDE_PROJECT_DIR を設定しフックを基本ルート cwd で起動するため通常は no-op だが、
+# cwd がサブディレクトリのときの取り違えを防ぐ。未設定なら git ルート、git 外は cwd のまま。
+# このフックはベストエフォート（常に exit 0）なので、cd できなくてもセッションを止めず現状の cwd で続行する。
+project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
+
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
 if [ ! -d .kaizen ]; then
 	exit 0

@@ -13,6 +13,12 @@
 # PreToolUse フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
 set -euo pipefail
 
+# .kaizen/ をプロジェクトルート基準で解決する（kaizen-archive.sh / kaizen-context-inject.sh と統一）。
+# 通常 CLAUDE_PROJECT_DIR=プロジェクトルートで no-op。未設定なら git ルート、git 外は cwd。
+# cd できなければ現状の cwd で続行する（従来挙動を保つ）。
+project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
+
 input=$(cat)
 
 # 実行されようとしているコマンドを取り出す。PreToolUse の入力スキーマはエージェント
