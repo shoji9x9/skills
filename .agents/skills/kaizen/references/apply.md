@@ -89,33 +89,14 @@ grep -l "^status: pending" .kaizen/*.md 2>/dev/null
 - **このブランチで作業継続**: コミットして次の作業へ進む
 - **Issue を作成**: グループ（= 対策）ごとに 1 Issue を作成し、別ブランチで詳細を詰める
 
-## クリーンアップ
+## クリーンアップ（整理）
 
-`.kaizen/` のファイルが増えすぎた場合、ステータスを指定して削除する。「適用済みを削除して」「.kaizen/ をクリーンアップして」などユーザーが指示すると、このセクションの手順を実行する。
-
-### 削除オプション
-
-| オプション | 削除対象 |
-|-----------|---------|
-| `--applied` | `status: applied` のファイルのみ |
-| `--rejected` | `status: rejected` のファイルのみ |
-| `--applied-and-rejected` | `status: applied` と `status: rejected` の両方 |
-| `--all` | 全ファイル |
-
-### 削除手順
-
-1. 削除対象ファイルの一覧をユーザーに提示する
-2. 確認を得てから削除する
-
-```bash
-# 例: applied なファイルを一覧して削除
-grep -l "^status: applied" .kaizen/*.md 2>/dev/null
-```
+`.kaizen/` のファイルが増えすぎた場合は、適用済み・却下済みの学びを整理する。手順は `references/housekeeping.md` を参照する。既定は `.kaizen/archive/` への**アーカイブ（非破壊な移動）**で、物理削除はユーザーが明示したときだけ行う（対象は対話で確認する）。
 
 ## `.kaizen/` の Git 管理
 
-`.kaizen/` ディレクトリはコミット対象とする（`.gitignore` に追加しない）。
+`.kaizen/` ディレクトリはコミット対象とする（`.gitignore` に追加しない）。`.kaizen/archive/`（整理で移動した applied / rejected の置き場）も同様にコミット対象とする。
 
 - `status: applied` / `status: rejected` の履歴が残り、改善の経緯を追跡できる
 - チーム内で学びを共有・レビューできる
-- `.kaizen/` 内の全ファイル（ステータス問わず）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
+- `.kaizen/` 内の全ファイル（ステータス問わず・`archive/` 配下を含む）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
