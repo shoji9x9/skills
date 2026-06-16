@@ -9,6 +9,22 @@ name: dependabot-alert-issue
 
 脆弱性を機械的に 1 件 1 Issue にするのではなく、**「すぐ着手できるか」で分類してから severity・パッケージ単位でまとめる**。すぐ着手できないものは止めるのではなく、**着手可能になる条件を Issue に書き残す**ことで、後から見た人がそのまま動けるようにする。
 
+## 使い方
+
+```text
+dependabot-alert-issue [--repo <owner>/<repo>] [--source <name> --input <findings.json>]
+```
+
+- `--repo <owner>/<repo>`: 対象リポジトリ（省略時は現在の repo。`gh repo view --json nameWithOwner -q .nameWithOwner`）。
+- 入力ソース（既定）: `--source` / `--input` を渡さなければ対象リポジトリの **GitHub Dependabot alerts** を参照する。
+- `--source <name> --input <findings.json>`: 渡したときだけ外部 audit findings JSON を入力にする（例: `--source pnpm-audit --input findings.json`。後述「外部 audit findings 入力」を満たす正規化済み JSON とする）。
+- dismiss / ignore / リリース年齢などリポジトリ固有の設定は引数ではなく設定ファイルに書く（「セットアップ」参照）。
+- Issue の**ドラフトをユーザーに見せ、承認を得てから**起票・dismiss する（意図とずれた起票・却下を避けるため）。
+
+例: `dependabot-alert-issue` / `dependabot-alert-issue --repo <owner>/<repo>` / `Dependabot alerts から対応 Issue を作って`
+
+- 自然文でも発動する:「Dependabot alerts から Issue」「pnpm audit の結果から Issue」「脆弱性対応の Issue」。
+
 ## 前提
 
 - **ツール**: `gh`（GitHub CLI。`gh api` を含む）, `git`
@@ -52,14 +68,6 @@ skills:
 
 - **作成・追記は非破壊**: ファイルが無ければ `.config/skills/shoji9x9/` ごと作成し、このスキルが使うキーだけを書く。既にあれば欠けたキーだけを該当セクション（無ければ親も）に追記し、既存のキー・値・コメントは変更しない。**既存値は尊重し上書きしない**。
 - 設定が無くても動作する。`ignore` / `dismiss` 無し・`minimum_release_age_days` 無しとして全 open alert を Issue 化対象にする。
-
-## 入力
-
-- 対象リポジトリ（省略時は現在の repo。`gh repo view --json nameWithOwner -q .nameWithOwner`）
-- 任意で `--repo <owner>/<repo>`
-- 任意で外部 audit findings JSON ファイル（例: `--source pnpm-audit --input <findings.json>`）。外部入力は後述「外部 audit findings 入力」を満たす正規化済み JSON ファイルとする
-
-このスキルは Issue の**ドラフトをユーザーに見せ、承認を得てから**起票・dismiss する（意図とずれた起票・却下を避けるため）。
 
 ## 基本フロー
 
@@ -252,9 +260,3 @@ gh api --method PATCH "/repos/<owner>/<repo>/dependabot/alerts/<number>" \
 - `dismiss` 候補の妥当性（本当に未使用か等）が設定だけでは確信できない
 - 着手可否（解決バージョンの公開・リリース年齢・依存固定の有無）が判断できない
 - グルーピングや更新先バージョンの選定に設計判断が絡む
-
-## 例
-
-- `dependabot-alert-issue`
-- `dependabot-alert-issue --repo <owner>/<repo>`
-- `Dependabot alerts から対応 Issue を作って`

@@ -10,6 +10,19 @@ GitHub Issue の作成を `gh` で標準化する。起票した Issue に着手
 
 このスキルは「何を」「なぜ」を簡潔に伝える Issue を作ることに集中する。実装の詳細はブランチ側（issue-start 以降）で扱うため、Issue 本文に書きすぎない。
 
+## 使い方
+
+```text
+issue-create <説明> [--repo <owner>/<repo>]
+```
+
+- `<説明>`: Issue にしたい短い説明（バグ報告 / 機能要望 / タスクなど）。
+- `--repo <owner>/<repo>`: 対象リポジトリ（省略時は現在の repo）。
+
+例: `issue-create ログイン画面が SSO で落ちる` / `issue-create ダークモードを追加したい` / `issue-create README のインストール手順が古い --repo <owner>/<repo>`
+
+- 自然文でも発動する:「Issue を作って」「課題として登録して」「バグを起票して」。
+
 ## 前提
 
 - **ツール**: `gh`（GitHub CLI）
@@ -17,11 +30,6 @@ GitHub Issue の作成を `gh` で標準化する。起票した Issue に着手
 - **MCP**: なし
 - **シェル**: bash（POSIX 互換シェル）。コマンド例は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは不要。
-
-## 入力
-
-- Issue にしたい短い説明（バグ報告 / 機能要望 / タスクなど）
-- 任意で対象リポジトリ（省略時は現在の repo）
 
 ## 基本フロー
 
@@ -85,9 +93,3 @@ cp -n <skill>/assets/issue-templates/feature_request.md .github/ISSUE_TEMPLATE/
 - 要件・スコープが曖昧で、本文を推測で埋めることになる
 - 重複・関連 Issue が見つかり、新規作成すべきか判断できない
 - 対象リポジトリが現在の repo と異なる可能性がある
-
-## 例
-
-- `issue-create ログイン画面が SSO で落ちる`
-- `issue-create ダークモードを追加したい`
-- `issue-create README のインストール手順が古い --repo <owner>/<repo>`
