@@ -18,7 +18,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 
 - 対象指定: PR URL / PR 番号（現在の repo）/ レビュー URL（`...#pullrequestreview-<review-id>`。そのレビューのコメントに絞る）
 
-- 省略時: 全スレッドの返信・解決まで行い、ファイル修正があっても commit / push はしない。変更ファイル一覧と「commit が必要なこと」「`--push` で再実行できること」を通知して止まる
+- `--push` 未指定: 全スレッドの返信・解決まで行い、ファイル修正があっても commit / push はしない。変更ファイル一覧と「commit が必要なこと」「`--push` で再実行できること」を通知して止まる
 - `--push`: 上記に加え、関連ファイルだけを stage し論理単位で commit、push する。push 発生時の完了条件（後述「push 後の Copilot 再レビュー依頼」）を満たしてから締める
 
 `--push` は commit・push の実行をユーザーが明示的に委譲した合図。指定がない限り commit しない。`--push` なしで止めた後にユーザーが commit / push を指示した場合も、push が発生した時点で同じ完了条件を適用する。
