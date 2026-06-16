@@ -25,7 +25,10 @@ orig_pwd=$(pwd)
 orig_pwd=${orig_pwd%/} # 末尾スラッシュ（cwd が / のとき）を除き、resolve_path で // を作らない
 project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 if [ -n "${project_root}" ]; then
-	cd "${project_root}"
+	cd "${project_root}" || {
+		echo "kaizen-archive: failed to cd to project root: ${project_root}" >&2
+		exit 1
+	}
 fi
 
 # 移動前の cwd を基準にパス引数を絶対パス化する（ルートへ cd した後も相対パスが効くように）。
