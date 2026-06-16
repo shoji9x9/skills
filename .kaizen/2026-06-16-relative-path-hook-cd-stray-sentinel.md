@@ -16,7 +16,11 @@ session: claude-code
 証拠（タイムスタンプ）: 正規のルート `.kaizen/.pending-extract` は 12:49 のまま据え置かれ、
 `skills/.kaizen/.pending-extract` は 13:03（= code-review ターンの終了時刻）に生成。
 新ターン開始時には cwd がリポジトリルートに戻る（投稿後の `pwd` がルート）。
-`.gitignore` の `.kaizen/.pending-extract*` は深さ非依存なので git status には現れず、気付きにくい。
+`.gitignore` の `.kaizen/.pending-extract*` は**中間スラッシュを含むためリポジトリルートに
+アンカーされ**、`skills/.kaizen/.pending-extract` のようなサブディレクトリ配下にはマッチしない
+（`git check-ignore -v skills/.kaizen/.pending-extract` がマッチなしと返すことで確認）。
+よって stray センチネルは git status に現れる。ただし `git status --short` は未追跡を
+ディレクトリ `skills/.kaizen/` に畳んで表示するため、`pending` 名での grep だと見落としやすい。
 
 ## 根本原因
 
