@@ -54,7 +54,8 @@ regenerate_index() {
 			# frontmatter（最初の `---` ブロック）内の date/type/priority だけを拾う。
 			# ファイル全体への grep だと本文中の `type:` 等まで索引へ混入するため範囲を区切る。
 			# 行は一旦バッファし、閉じフェンス `---` を確認できたときだけ出力する。
-			# こうすると閉じフェンスを欠く不正 frontmatter では本文まで走査せず meta を空にできる。
+			# こうすると閉じフェンスを欠く不正 frontmatter では、本文まで読み進めても
+			# buf を出力しないため meta を空にできる。
 			meta=$(awk '
 				/^---[[:space:]]*$/ {
 					fm++
