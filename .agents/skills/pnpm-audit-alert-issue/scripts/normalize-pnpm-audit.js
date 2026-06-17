@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const [, , inputPath, outputPath] = process.argv;
 
 if (!inputPath || !outputPath) {
-  console.error("Usage: normalize-pnpm-audit.mjs <pnpm-audit.json> <findings.json>");
+  console.error("Usage: normalize-pnpm-audit.js <pnpm-audit.json> <findings.json>");
   process.exit(2);
 }
 

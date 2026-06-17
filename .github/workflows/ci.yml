@@ -60,9 +60,11 @@ jobs:
             pnpm exec js-yaml "$f" > /dev/null
           done < <(find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o \( -name "*.yml" -o -name "*.yaml" \) -type f -print)
       - name: Pagination lint
-        run: node scripts/lint-pagination.mjs
+        run: node scripts/lint-pagination.js
       - name: Skills sync (skills/ vs .agents/skills/)
-        run: node scripts/check-skills-sync.mjs
+        run: node scripts/check-skills-sync.js
+      - name: JS extensions (skills/ => .mjs, scripts/ => .js)
+        run: node scripts/check-js-extensions.js
       - name: Unit tests (vitest)
         run: pnpm test
 

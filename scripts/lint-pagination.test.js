@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { lint, tokenize, restEndpointSegment } from "./lint-pagination.mjs";
+import { lint, tokenize, restEndpointSegment } from "./lint-pagination.js";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body) => "# t\n\n```bash\n" + body + "\n```\n";

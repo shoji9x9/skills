@@ -9,9 +9,9 @@
 //
 // 意図的に 1 ページだけ取得する場合は、当該コマンドの行に `# pagination-ok` を付けて抑制する。
 //
-// 中核の判定は純粋関数 `lint(path, content)` に切り出してある（scripts/lint-pagination.test.mjs でテスト）。
+// 中核の判定は純粋関数 `lint(path, content)` に切り出してある（scripts/lint-pagination.test.js でテスト）。
 //
-// 使い方: node scripts/lint-pagination.mjs [files...]
+// 使い方: node scripts/lint-pagination.js [files...]
 //   引数なし: リポジトリ内の *.sh と *.md を全件走査（node_modules / .git を除外）。
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
