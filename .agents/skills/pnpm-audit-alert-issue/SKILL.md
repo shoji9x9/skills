@@ -50,7 +50,7 @@ if [ ! -s "$audit_json" ]; then
   exit 1
 fi
 
-node .agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.mjs \
+node .agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.js \
   "$audit_json" \
   "$findings_json"
 ```

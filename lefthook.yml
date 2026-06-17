@@ -59,11 +59,14 @@ pre-commit:
     - name: pagination
       glob: "*.{sh,md}"
       exclude: *agent-copies
-      run: node scripts/lint-pagination.mjs {staged_files}
+      run: node scripts/lint-pagination.js {staged_files}
     - name: skills-sync
       # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
       # so it runs on every commit rather than relying on path-glob matching.
-      run: node scripts/check-skills-sync.mjs
+      run: node scripts/check-skills-sync.js
+    - name: js-extensions
+      # Enforce the JS extension policy (skills/ => .mjs, scripts/ => .js).
+      run: node scripts/check-js-extensions.js
 
 commit-msg:
   jobs:
