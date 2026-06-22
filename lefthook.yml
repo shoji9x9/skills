@@ -1,72 +1,90 @@
+# pre-commit は 3 段で実行する:
+#   1. format: 整形して再ステージするジョブ（piped＝逐次。並列 stage_fixed の index 競合を避ける）
+#   2. lint:   ファイル単位の checker（並列・再ステージしない）
+#   3. scan:   シークレット走査・リポジトリ全体検査（並列）
 pre-commit:
-  parallel: true
   jobs:
-    - name: markdownlint
-      glob: "*.md"
-      exclude: &agent-copies
-        - ".agents/**"
-        - ".claude/**"
-      run: pnpm exec markdownlint-cli2 --fix {staged_files}
-      stage_fixed: true
-    - name: shellcheck
-      glob: "*.sh"
-      exclude: *agent-copies
-      run: shellcheck {staged_files}
-    - name: shfmt
-      glob: "*.sh"
-      exclude: *agent-copies
-      run: shfmt -w {staged_files}
-      stage_fixed: true
-    - name: oxlint
-      glob: "*.{js,mjs}"
-      exclude: *agent-copies
-      run: pnpm exec oxlint {staged_files}
-    - name: oxfmt-js
-      glob: "*.{js,mjs}"
-      exclude: *agent-copies
-      run: pnpm exec oxfmt {staged_files}
-      stage_fixed: true
-    - name: jsonlint
-      glob: "*.json"
-      exclude: *agent-copies
-      run: pnpm exec jsonlint --quiet --continue --no-duplicate-keys {staged_files}
-    - name: oxfmt-json
-      glob: "*.json"
-      exclude: *agent-copies
-      run: pnpm exec oxfmt {staged_files}
-      stage_fixed: true
-    - name: js-yaml
-      glob: "*.{yml,yaml}"
-      exclude: *agent-copies
-      run: sh -c 'for f in {staged_files}; do pnpm exec js-yaml "$f" > /dev/null || exit 1; done'
-    - name: oxfmt-yaml
-      glob: "*.{yml,yaml}"
-      # oxfmt は pnpm-lock.yaml を内蔵 ignore するため、これだけが staged だと
-      # 対象ゼロで exit 2 になる。lockfile は整形対象外なので除外する。
-      exclude:
-        - ".agents/**"
-        - ".claude/**"
-        - "pnpm-lock.yaml"
-      run: pnpm exec oxfmt {staged_files}
-      stage_fixed: true
-    - name: gha-pinact
-      glob: ".github/workflows/*.{yml,yaml}"
-      run: pinact run {staged_files}
-      stage_fixed: true
-    - name: gha-lint
-      glob: ".github/workflows/*.{yml,yaml}"
-      run: actionlint
-    - name: pagination
-      glob: "*.{sh,md}"
-      exclude: *agent-copies
-      run: node scripts/lint-pagination.js {staged_files}
-    - name: skills-sync
-      # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
-      # so it runs on every commit rather than relying on path-glob matching.
-      run: node scripts/check-skills-sync.js
-    - name: js-extensions
-      # Enforce the JS extension policy (skills/ => .mjs, scripts/ => .js).
-      run: node scripts/check-js-extensions.js
+    - name: format
+      group:
+        piped: true
+        jobs:
+          - name: markdownlint
+            glob: "*.md"
+            exclude: &agent-copies
+              - ".agents/**"
+              - ".claude/**"
+            run: pnpm exec markdownlint-cli2 --fix {staged_files}
+            stage_fixed: true
+          - name: shfmt
+            glob: "*.sh"
+            exclude: *agent-copies
+            run: shfmt -w {staged_files}
+            stage_fixed: true
+          - name: oxfmt-js
+            glob: "*.{js,mjs}"
+            exclude: *agent-copies
+            run: pnpm exec oxfmt {staged_files}
+            stage_fixed: true
+          - name: oxfmt-json
+            glob: "*.json"
+            exclude: *agent-copies
+            run: pnpm exec oxfmt {staged_files}
+            stage_fixed: true
+          - name: oxfmt-yaml
+            glob: "*.{yml,yaml}"
+            # oxfmt は pnpm-lock.yaml を内蔵 ignore するため、これだけが staged だと
+            # 対象ゼロで exit 2 になる。lockfile は整形対象外なので除外する。
+            exclude:
+              - ".agents/**"
+              - ".claude/**"
+              - "pnpm-lock.yaml"
+            run: pnpm exec oxfmt {staged_files}
+            stage_fixed: true
+          - name: gha-pinact
+            glob: ".github/workflows/*.{yml,yaml}"
+            run: pinact run {staged_files}
+            stage_fixed: true
+    - name: lint
+      group:
+        parallel: true
+        jobs:
+          - name: shellcheck
+            glob: "*.sh"
+            exclude: *agent-copies
+            run: shellcheck {staged_files}
+          - name: oxlint
+            glob: "*.{js,mjs}"
+            exclude: *agent-copies
+            run: pnpm exec oxlint {staged_files}
+          - name: jsonlint
+            glob: "*.json"
+            exclude: *agent-copies
+            run: pnpm exec jsonlint --quiet --continue --no-duplicate-keys {staged_files}
+          - name: js-yaml
+            glob: "*.{yml,yaml}"
+            exclude: *agent-copies
+            run: sh -c 'for f in {staged_files}; do pnpm exec js-yaml "$f" > /dev/null || exit 1; done'
+          - name: gha-lint
+            glob: ".github/workflows/*.{yml,yaml}"
+            run: actionlint
+          - name: pagination
+            glob: "*.{sh,md}"
+            exclude: *agent-copies
+            run: node scripts/lint-pagination.js {staged_files}
+          - name: skills-sync
+            # Repo-wide drift check (skills/ vs .agents/skills/). Fast and deterministic,
+            # so it runs on every commit rather than relying on path-glob matching.
+            run: node scripts/check-skills-sync.js
+          - name: js-extensions
+            # Enforce the JS extension policy (skills/ => .mjs, scripts/ => .js).
+            run: node scripts/check-js-extensions.js
+    - name: scan
+      group:
+        parallel: true
+        jobs:
+          # ステージ差分のシークレット混入を検査する（glob を付けず毎コミット実行）。
+          - name: gitleaks
+            run: gitleaks git --staged --no-banner --redact
 
 commit-msg:
   jobs:
