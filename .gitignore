@@ -4,7 +4,8 @@ node_modules/
 tests/*/iteration-*/eval-*/
 
 # kaizen のセンチネルファイル（Stop Hook が作成する一時ファイル）
-.kaizen/.pending-extract*
+# ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
+**/.kaizen/.pending-extract*
 
 # scheduled tasks のロックファイル
 .claude/scheduled_tasks.lock
