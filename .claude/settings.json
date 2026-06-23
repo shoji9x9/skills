@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/skills/kaizen/scripts/kaizen-context-inject.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-context-inject.sh\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/skills/kaizen/scripts/kaizen-stop-mark.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-stop-mark.sh\""
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/skills/kaizen/scripts/kaizen-precommit-gate.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh\""
           }
         ]
       }

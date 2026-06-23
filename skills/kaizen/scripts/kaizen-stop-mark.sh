@@ -18,6 +18,12 @@ set -euo pipefail
 
 suffix="${1:-}"
 
+# サフィックスは Hook 設定由来の固定値（-codex / -copilot）だが、スクリプト単体の安全性として
+# 許可パターン以外（`/` や `..` を含む値など）は空にフォールバックし、.kaizen/ の外へ書かせない。
+if [[ -n "${suffix}" && ! "${suffix}" =~ ^-[a-z0-9-]+$ ]]; then
+	suffix=""
+fi
+
 # .kaizen/ をプロジェクトルート基準で解決する。Claude Code は CLAUDE_PROJECT_DIR を
 # 設定するため通常 no-op。未設定（Codex/Copilot/手動）なら git ルート、git 外は cwd。
 # cd できなければ現状の cwd で続行する（記録役なのでセッションを止めない）。
