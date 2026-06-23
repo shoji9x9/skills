@@ -105,7 +105,7 @@ grep -i "<キーワード>" .kaizen/archive/INDEX.md 2>/dev/null
 4. 各箇所について根本原因を推論し（「根本原因分析」の 3 ステップ: 最低 3 階層の「なぜ」→ KEDB 照合 → 横断スコープ確認）、候補をリストアップする
 5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 繰り返し発生（KEDB 照合でヒット） > 根本原因が明確 > 対策が具体的）
 6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る
-7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）
+7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）。frontmatter の直後に学びの要約を表す H1 見出し（`# <学びの要約タイトル>`）を 1 行付ける（markdownlint MD041 を満たし、読み物として自然にするため）
 8. 抽出が完了したら未抽出マーカーを消す（同じセッションを再抽出しないため）: `rm -f .kaizen/.pending-extract*`
 
 > **重要（status を pending のまま放置しない）**: 抽出と同じ実行内で、その学びを成果物へ**反映（適用）まで**行う場合は、反映が完了したら必ず当該ファイルの `status` を `pending → applied` に更新する。
@@ -123,6 +123,8 @@ priority: high
 status: pending
 session: claude-code
 ---
+
+# 〈学びの要約タイトル〉
 
 ## 事象
 
