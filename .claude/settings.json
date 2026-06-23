@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract"
+            "command": "bash .agents/skills/kaizen/scripts/kaizen-stop-mark.sh"
           }
         ]
       }

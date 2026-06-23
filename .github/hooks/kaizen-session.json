@@ -4,7 +4,7 @@
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-copilot",
+        "bash": "bash .agents/skills/kaizen/scripts/kaizen-stop-mark.sh -copilot",
         "cwd": ".",
         "timeoutSec": 5
       }

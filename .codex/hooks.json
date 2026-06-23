@@ -1,7 +1,7 @@
 {
   "Stop": [
     {
-      "command": "mkdir -p .kaizen && date -Iseconds > .kaizen/.pending-extract-codex"
+      "command": "bash .agents/skills/kaizen/scripts/kaizen-stop-mark.sh -codex"
     }
   ],
   "PreToolUse": [
