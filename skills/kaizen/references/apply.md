@@ -38,7 +38,7 @@ ls .kaizen/*.md 2>/dev/null
 
 | type | 適用先 | multiagent-setup コンポーネント |
 |------|--------|-------------------------------|
-| `rule` | `.agents/rules/<name>.md` | rule |
+| `rule` | `.agents/rules/<name>.md`（`paths`/`applyTo` で対象を絞れる場合。`**` のみなら rule の利点が薄いので `AGENTS.md` / hook を検討） | rule |
 | `skill` | `.agents/skills/<name>/` | skill |
 | `hook` | `.claude/settings.json` 等 | hooks |
 | `doc` | `AGENTS.md` / `CLAUDE.md` 等 | docs |
