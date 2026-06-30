@@ -1,0 +1,77 @@
+{
+  "skill_name": "pr-finalize-loop",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "pr-finalize-loop https://github.com/shoji9x9/skills/pull/6 — この PR の CI とレビュー指摘がなくなるまで解決して",
+      "expected_output": "着手前に repo 一致と現在ブランチが PR の head か確認し、CI 完了待ち→収束判定→CI 失敗の修正→レビュー指摘の返信/解決→commit/push→CI 再実行待ちと Copilot 再依頼を、CI 成功かつ未解決スレッドなしになるまで自律で繰り返す。",
+      "assertions": [
+        "PR URL から owner/repo/PR番号を抽出している",
+        "着手前に現在の repo と PR の owner/repo の一致、および現在ブランチが PR の head ブランチかを確認している",
+        "gh pr checks --watch で CI の完了・成否を確認しようとしている",
+        "GraphQL の reviewThreads を --paginate で取得し isResolved==false の未解決スレッドに絞っている",
+        "各スレッドで返信してから解決する（返信→解決の順）方針である",
+        "CI 修正とレビュー対応を両方終えてから関連ファイルだけを stage して commit/push する方針である",
+        "CI 成功かつ未解決スレッドなしを完了条件としてループを止める方針である",
+        "ループ中はユーザー確認を挟まず自律で進める方針である"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "pr-finalize-loop 6 --max-iterations 3 で回して",
+      "expected_output": "最大反復回数を 3 に設定し、3 反復で収束しなければ残った CI 失敗・未解決スレッドを明示して停止・報告する。",
+      "assertions": [
+        "PR番号のみのため現在の repo を対象にしている",
+        "--max-iterations 3 を反復上限として扱っている",
+        "上限に達したら残っている CI 失敗・未解決スレッドを明示して停止・報告する方針である",
+        "無限ループ防止の安全弁として反復回数上限を使う方針である",
+        "CI/レビューの待機に上限を設けハングさせない（無限待ちを避ける）方針である",
+        "長時間実行で auto-compaction が走っても、各反復で GitHub の実状態（CI 状態・未解決スレッド）を取り直して再開できる方針である"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "pr-finalize-loop https://github.com/shoji9x9/skills/pull/6 — このレビュー指摘の中に、設計判断が絡んでコードだけでは妥当性を判断できないものがある",
+      "expected_output": "人間判断を要する指摘は勝手に修正も解決もせず、その 1 件だけユーザーに判断を仰ぎ、反映（修正 or 根拠返信して解決）した後にループへ戻って収束を続ける。",
+      "assertions": [
+        "妥当性がコードだけでは判断できない/設計判断が絡む指摘を人間判断を要するものとして扱っている",
+        "その指摘を勝手に修正したり虚偽に解決したりしない方針である",
+        "その 1 件についてユーザーに判断を仰いでいる",
+        "判断を反映した後はループを打ち切らずに収束まで続ける方針である"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "pr-finalize-loop 6 を回したいが、CI の同じチェックが何度直しても落ち続ける",
+      "expected_output": "同じ CI 失敗が改善せず新たに打てる手が無い行き詰まりを検知し、失敗内容とどうすれば直せそうかを報告して停止する。",
+      "assertions": [
+        "gh run view --log-failed 等で失敗ログを取得して原因を分析しようとしている",
+        "同じ CI 失敗が改善しない場合を行き詰まりとして検知する方針である",
+        "行き詰まり時は失敗内容と解決の手がかりを報告して停止する方針である",
+        "推測で広範囲を書き換えずコードの事実に基づいて判断する方針である"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "pr-finalize-loop https://github.com/other-org/other-repo/pull/8 を最後まで解決して",
+      "expected_output": "現在の repo と PR の owner/repo が一致しないことを検出し、CI 修正・レビュー対応・push を行わず中断してユーザーに確認する。",
+      "assertions": [
+        "現在の repo と PR の owner/repo が一致しないことを検出している",
+        "CI 修正・レビュー対応・push を行わず中断している",
+        "ユーザーに確認している"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "pr-finalize-loop 6 — push 後に Copilot のレビューがまだ付いていない",
+      "expected_output": "新しい HEAD にレビューが付いていなければ copilot-pull-request-reviewer[bot] にレビューを依頼し、登録されたか確認したうえでレビュー結果を待ってループを続ける。",
+      "assertions": [
+        "HEAD にレビューが付いていない場合に Copilot へレビューを依頼する方針である",
+        "依頼用 login として copilot-pull-request-reviewer[bot]（[bot] 付き）を使っている",
+        "依頼後に requested_reviewers へ登録されたことを確認する方針である",
+        "push で CI が再実行されるためその完了を待ってから次の判断をする方針である",
+        "レビュー出現待ちには上限を設け、上限を超えたらレビュー未着のまま反復を閉じて報告に残す方針である"
+      ]
+    }
+  ]
+}
