@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "pr-finalize-loop https://github.com/shoji9x9/skills/pull/6 — この PR の CI とレビュー指摘がなくなるまで解決して",
-      "expected_output": "着手前に repo 一致と現在ブランチが PR の head か確認し、CI 完了待ち→収束判定→CI 失敗の修正→レビュー指摘の返信/解決→commit/push→CI 再実行待ちと Copilot 再依頼を、CI 成功かつ未解決スレッドなしになるまで自律で繰り返す。",
+      "expected_output": "着手前に repo 一致と現在ブランチが PR の head か確認し、CI 完了待ち→収束判定→CI 失敗の修正→レビュー指摘の返信/解決→commit/push→Copilot 再依頼（既定は CI 完了を待たず並行）と次反復での CI 再実行待ちを、CI 成功かつ未解決スレッドなしになるまで自律で繰り返す。",
       "assertions": [
         "PR URL から owner/repo/PR番号を抽出している",
         "着手前に現在の repo と PR の owner/repo の一致、および現在ブランチが PR の head ブランチかを確認している",
@@ -69,8 +69,18 @@
         "HEAD にレビューが付いていない場合に Copilot へレビューを依頼する方針である",
         "依頼用 login として copilot-pull-request-reviewer[bot]（[bot] 付き）を使っている",
         "依頼後に requested_reviewers へ登録されたことを確認する方針である",
-        "push で CI が再実行されるためその完了を待ってから次の判断をする方針である",
+        "既定では push 直後に CI 完了を待たず Copilot へ依頼し、CI とレビューを並行させる（CI 再実行の完了は次反復冒頭で待つ）方針である",
         "レビュー出現待ちには上限を設け、上限を超えたらレビュー未着のまま反復を閉じて報告に残す方針である"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "pr-finalize-loop 6 --wait-ci-before-review — push 後は CI が通ってから Copilot に依頼したい",
+      "expected_output": "--wait-ci-before-review 指定時は、push による CI 再実行の完了を待ってから、新しい HEAD が未レビューであれば Copilot に依頼する（既定の並行依頼とは異なる従来挙動）。",
+      "assertions": [
+        "--wait-ci-before-review 指定時は push 後に CI 再実行の完了を待ってから Copilot に依頼する方針である",
+        "既定（フラグなし）では CI 完了を待たず並行して依頼するのと挙動が異なることを踏まえている",
+        "壊れた HEAD にレビューを促さないための従来挙動として扱っている"
       ]
     }
   ]

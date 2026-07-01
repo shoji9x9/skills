@@ -14,14 +14,15 @@ name: pr-finalize-loop
 ## 使い方
 
 ```text
-pr-finalize-loop <PR URL> [--max-iterations <N>]
+pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
 ```
 
 - `<PR URL>`（必須）: `https://github.com/<owner>/<repo>/pull/<番号>`。番号だけが渡された場合は現在の repo の PR とみなす
 - `--max-iterations <N>`（任意, 既定 5）: ループの最大反復回数。無限ループ防止の安全弁。1 反復＝「状態取得 → CI/レビューを直す → commit/push → 再実行待ち」の 1 周
+- `--wait-ci-before-review`（任意, 既定オフ）: push 後の Copilot 再レビュー依頼を、CI 再実行の完了を待ってから出す。**既定（オフ）では push 直後に CI 完了を待たず依頼し、CI とレビューを並行させる**（収束を速める）。壊れた HEAD にレビューを促したくない場合だけ指定する
 - ループ中はユーザー確認を挟まず自律で進める（唯一の例外は後述「自律性ポリシー」の人間判断を要するレビュー指摘）
 
-例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3`
+例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3` / `pr-finalize-loop 6 --wait-ci-before-review`
 
 - 自然文でも発動する:「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」。
 
@@ -64,7 +65,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>]
    3. スレッドに**返信**してから**解決**する（順序厳守。返信していないスレッドは解決しない）
    4. **人間判断を要する場合**は、ここで修正も解決もせずユーザーに判断を仰ぐ。判断を反映して返信・解決したうえでループを続ける
 5. **commit / push**: 手順 3・4 を**両方終えてから**まとめて行う。レビュー対応・CI 修正で触ったファイルだけを stage し、論理単位で conventional commit、push する（無関係な変更を混ぜない）。コード修正が無ければ commit/push はしない
-6. **push 後の追従**: push で CI が再実行されるので完了を待つ。新しい HEAD にレビューが付いていなければ Copilot へ再依頼する
+6. **push 後の追従**: push 直後の新しい HEAD は未レビューなので Copilot へ再依頼する。**既定では CI 完了を待たずに依頼**し、CI 再実行の完了は次反復冒頭の手順 1 で待つ（CI とレビューが並行して進む）。`--wait-ci-before-review` 指定時のみ、push による CI 再実行の完了を待ってから、新しい HEAD が未レビューであれば依頼する
 7. **行き詰まり検知**: この反復で「コード修正もレビュー対応も新たに行えなかった」かつ「CI 失敗が前反復と同じで改善していない」場合は停止する（後述「停止条件」）
 8. `iteration` を 1 増やす。`--max-iterations` に達したら停止する
 
@@ -204,7 +205,10 @@ query {
 
 ### Copilot 再レビュー依頼
 
-現在の HEAD が未レビューのときだけ依頼する（上の「HEAD のレビュー済み判定」）。push が発生した反復では、push・CI 再実行のあとに依頼する（壊れた HEAD でレビューを促さない）。
+現在の HEAD が未レビューのときだけ依頼する（上の「HEAD のレビュー済み判定」）。
+push が発生した反復では、**既定では push 直後（CI 再実行の完了を待たず）に依頼**し、CI とレビューを並行させる。
+`--wait-ci-before-review` 指定時のみ、push・CI 再実行の完了を待ってから依頼する（壊れた HEAD でレビューを促さない従来挙動）。
+既定では CI 失敗が判明した HEAD にレビューが付き得るが、修正・再 push で新しい HEAD にレビューが再依頼されるため無害。
 
 ```bash
 gh api --method POST \
