@@ -1,0 +1,245 @@
+---
+description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・Copilot 再レビュー依頼を反復する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る。`--max-iterations`（既定 5）で無限ループを防ぐ。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
+license: MIT
+name: pr-finalize-loop
+---
+# Pr Finalize Loop
+
+作成済みの GitHub PR を、**CI が成功し未解決のレビュー指摘が無くなるまで自律的に収束させる**。CI 失敗の修正・レビュー指摘への返信と解決・commit/push・Copilot への再レビュー依頼という決まった往復を、人手で何度も繰り返す代わりにループで回す。PR 自体の作成はこのスキルの対象外（別途行う）。
+
+この往復は「直す → push → CI とレビューが再び走る → また直す」を収束まで続けるもので、止め時を誤ると無限に回る。
+だから本スキルは **(1) ループ中はユーザー確認を挟まず自律で進める、(2) 例外として人間判断を要するレビュー指摘だけは確認して反映後に復帰する、(3) 最大反復回数・行き詰まり検知という安全弁で必ず停止する** の 3 点を固定する。
+レビュー対応 1 回分の確認・返信・解決の作法は姉妹スキル [[pr-review-handle]] と同じで、本スキルはそれを自律ループとして束ねる。
+
+## 使い方
+
+```text
+pr-finalize-loop <PR URL> [--max-iterations <N>]
+```
+
+- `<PR URL>`（必須）: `https://github.com/<owner>/<repo>/pull/<番号>`。番号だけが渡された場合は現在の repo の PR とみなす
+- `--max-iterations <N>`（任意, 既定 5）: ループの最大反復回数。無限ループ防止の安全弁。1 反復＝「状態取得 → CI/レビューを直す → commit/push → 再実行待ち」の 1 周
+- ループ中はユーザー確認を挟まず自律で進める（唯一の例外は後述「自律性ポリシー」の人間判断を要するレビュー指摘）
+
+例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3`
+
+- 自然文でも発動する:「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」。
+
+## 前提
+
+- **ツール**: `gh`（GitHub CLI。`gh api graphql` / `gh pr checks` / `gh run view` を含む）, `git`
+- **前提スキル**: なし（レビュー対応の作法は [[pr-review-handle]] と共通だが、本スキルは自律版を内蔵し単体で動く）
+- **MCP**: なし
+- **シェル**: bash（POSIX 互換シェル）。コマンド例は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
+- node / pnpm / python などのランタイムは不要（CI を直すための修正で対象リポジトリのランタイムが要ることはある）。
+
+## ブランチ運用・commit 規約の参照
+
+ブランチ運用・commit 規約はリポジトリごとに異なる。解決手順（設定ファイル → 標準ドキュメント探索 → ユーザー確認）と設定ファイル `.config/skills/shoji9x9/skills.yml` の扱いは [`references/conventions.md`](references/conventions.md) を参照する。
+`--amend` / force push をしない・関連ファイルだけを stage する・長い commit 本文は `git commit -F <file>` で渡す、といった汎用の操作メカニクスは規約解決の結果に依らず常に守る。
+
+## 自律性ポリシー
+
+- **ループ中は確認なしで自律実行する。** CI 失敗の修正・レビュー指摘の返信/解決・commit/push・Copilot 再依頼を、ユーザーに逐一確認せず進める。
+- **唯一の例外＝人間判断を要するレビュー指摘**: 妥当性がコードだけでは判断できない／修正方針が複数あり影響が大きい／設計判断が絡む指摘は、勝手に直さず・誤った解決もせず、その 1 件だけユーザーに判断を仰ぐ。**判断を反映したら（修正 or 不要の根拠を返信して解決）ループに戻り、収束まで続ける**（この確認で打ち切らない）。
+- **着手前のハード前提チェック**（満たさなければ着手せず中断・報告）。自律で commit/push するため、対象を取り違えると危険ゆえに必ず先に確認する:
+  - PR が OPEN である（`MERGED` / `CLOSED` なら仕上げ対象なしとして報告して終了。head ブランチが消えていることがあるため最初に判定する）
+  - 現在の repo と PR の owner/repo が一致する
+  - 現在のローカルブランチが PR の head ブランチと一致する
+
+## 基本フロー
+
+着手前のハード前提チェックを通過したら、`iteration = 1` から `--max-iterations`（既定 5）まで以下を繰り返す。
+
+1. **状態取得**（この段階では Copilot 依頼をしない。待機の間隔・上限は後述「ポーリングと待機」に従う）
+   - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（いずれかが失敗した時点で抜ける）。push 直後にチェック未登録で `no checks` と即時に返ることがあるため、その場合は間隔を空けて数回まで再確認する
+   - 未解決レビュースレッド: 後述の GraphQL を `--paginate` で全取得し `isResolved == false` で絞る（**全レビュアーが対象**。著者で絞らない）
+   - 現在の HEAD がレビュー済みかを判定する（後述「HEAD のレビュー済み判定」）
+2. **収束判定（依頼より先に評価する）**: CI が全成功 **かつ** 未解決スレッドが無い **かつ** 現在の HEAD がレビュー済み → **完了**。サマリーを報告して終了する。**既に CI・レビューが揃った PR はこの時点で Copilot 依頼もせず無害に終わる**
+   - CI 全成功 かつ 未解決スレッド無しだが **HEAD が未レビュー**の場合のみ、Copilot にレビューを依頼して上限つきで待つ（後述「Copilot 再レビュー依頼」）。レビューが付けば次反復で拾い、上限までに付かなければレビュー未着のまま完了として、その旨を明記して報告する
+3. **CI 失敗の修正**: 失敗したチェックのログを取得（後述）し、原因をコードの事実に照らして分析して修正する。直せない／同じ失敗が前反復から改善しない場合は「行き詰まり」（後述「停止条件」）へ
+4. **レビュー指摘の解消**（1 スレッドずつ）
+   1. 該当 `path` の `line` 付近を Read し、指摘内容を**コードの事実に照らして評価**する
+   2. 妥当かつ要修正 → 対象ファイルを修正する。不要 → 直さない根拠を用意する（例: 既に別の仕組みで緩和済み、指摘が事実と異なる、設計判断として意図的）
+   3. スレッドに**返信**してから**解決**する（順序厳守。返信していないスレッドは解決しない）
+   4. **人間判断を要する場合**は、ここで修正も解決もせずユーザーに判断を仰ぐ。判断を反映して返信・解決したうえでループを続ける
+5. **commit / push**: 手順 3・4 を**両方終えてから**まとめて行う。レビュー対応・CI 修正で触ったファイルだけを stage し、論理単位で conventional commit、push する（無関係な変更を混ぜない）。コード修正が無ければ commit/push はしない
+6. **push 後の追従**: push で CI が再実行されるので完了を待つ。新しい HEAD にレビューが付いていなければ Copilot へ再依頼する
+7. **行き詰まり検知**: この反復で「コード修正もレビュー対応も新たに行えなかった」かつ「CI 失敗が前反復と同じで改善していない」場合は停止する（後述「停止条件」）
+8. `iteration` を 1 増やす。`--max-iterations` に達したら停止する
+
+## 停止条件
+
+いずれの場合も、終了時に **CI 状態・残った未解決スレッド・反復回数・停止理由**を要約して報告する。未解決スレッドを残して終わる場合でも、**虚偽の解決（中身に対応せず resolve）はしない**。
+
+- **完了**: CI が全成功し、未解決スレッドが無く、HEAD がレビュー済み（またはレビュー出現待ちが上限に達した）
+- **最大反復到達**: `--max-iterations`（既定 5）に達した。残っている CI 失敗・未解決スレッドを明示する
+- **行き詰まり**: 同じ CI 失敗が改善せず、新たに打てる手が無い。失敗内容と「どうすれば直せそうか」を報告する
+- **仕上げ対象なし**（着手前に中断）: PR が OPEN でない（`MERGED` / `CLOSED`）
+- **前提不一致**（着手前に中断）: repo 不一致 / 現在ブランチが PR の head と不一致
+
+人間判断を要するレビュー指摘での確認は**停止条件ではない**（判断反映後にループへ戻る）。
+
+## ポーリングと待機
+
+待機は必ず**上限を設けて**行う（無限待ちと過剰ポーリングの両方を避ける）。具体の間隔・回数はリポジトリの CI 所要時間に応じて調整してよい。
+
+- **CI 完了待ち**: `gh pr checks --watch` に委譲する（gh が内部でポーリングし完了までブロックする。間隔は `--interval <秒>`）。自前の短間隔ループで叩き続けない。
+- **`no checks` の再確認**: push 直後の未登録は数回まで再確認し、登録されなければ「この HEAD では CI が走らない」とみなして CI 待ちを打ち切り収束判定へ進む（CI が無いこと自体は失敗ではない）。
+- **レビュー出現待ち**（`--watch` 相当が無い）: Copilot 依頼後、一定間隔で未解決スレッド/レビューの有無を再取得し、上限まで待つ。上限を超えたら**その反復はレビュー未着のまま閉じ**、CI 等の作業を進める（未着を報告に残す）。
+
+## 長時間実行・コンテキストの引き継ぎ
+
+収束は時間がかかり、途中で auto-compaction（コンテキスト圧縮）が走り得る。耐えるため、状態は GitHub の実体から取り直す。
+
+- **各反復は GitHub の実状態から再開可能**にする（手順 1 で CI 状態と未解決スレッドを取り直す。永続化済みの返信・解決から実状態を再構築できる）。
+- **反復予算（`--max-iterations`）と行き詰まり検知だけはメモリに残りやすい**。「何反復目か・直近の CI 失敗の要点」を簡潔な進捗メモに残して再開の起点にする。メモを失ったら GitHub の実状態から現況を再導出し、**残作業が無ければ完了として安全側に倒す**（予算が曖昧なら追加反復せず現況を報告して止める）。
+
+## gh メカニクス
+
+著者の login は API で表記が異なる（REST では `Copilot`、GraphQL では `copilot-pull-request-reviewer`、依頼用は `copilot-pull-request-reviewer[bot]`）。全レビュアー対象のため取得時に著者で絞る必要はないが、Copilot 依頼ではこの差に注意する。
+
+### 着手前チェック（repo / head ブランチの一致）
+
+```bash
+gh pr view <番号> --repo <owner>/<repo> --json headRefName,baseRefName,url,state
+git branch --show-current
+```
+
+- `state` が `OPEN` でなければ（`MERGED` / `CLOSED`）、仕上げ対象なしとして報告して終了する。head ブランチが削除済みのこともあるため、**ブランチ一致より先に判定する**。
+- 現在の repo（`gh repo view --json nameWithOwner -q .nameWithOwner`）と PR の owner/repo が一致しなければ中断する。
+- `headRefName` と現在のブランチが異なれば、修正対象を取り違えるため中断する。
+
+### CI 状態の確認
+
+```bash
+gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
+```
+
+- 全チェックの完了まで待ち、すべて成功なら終了コード 0、いずれか失敗なら非 0 で終わる。
+- push 直後はチェック未登録で `no checks` と即時に返ることがある。その場合は「ポーリングと待機」に従って再確認する。
+
+### CI 失敗ログの取得（修正の手がかり）
+
+失敗したチェック名と、対応する GitHub Actions run の失敗ログを取得して原因を絞る:
+
+```bash
+gh pr checks <番号> --repo <owner>/<repo> --json name,state,bucket,link \
+  --jq '.[] | select(.bucket=="fail")'
+gh run view <run-id> --repo <owner>/<repo> --log-failed   # 失敗ジョブのログだけ表示
+```
+
+- `bucket` は `state` を `pass`/`fail`/`pending`/`skipping`/`cancel` に分類する。`fail` は `FAILURE` / `ERROR` だけでなく
+  `TIMED_OUT` / `ACTION_REQUIRED` / `STARTUP_FAILURE` も含むため、`state` を直接列挙するより失敗を取りこぼさない
+  （キャンセルも拾うなら `or .bucket=="cancel"`）。`link` から run-id を取る。
+
+- `link` から run-id を取り、`--log-failed` で失敗ステップのログに絞る。原因はコードの事実に照らして判断し、推測で広範囲を書き換えない。
+
+### 未解決スレッドの取得（GraphQL・全ページ取得）
+
+`threadId`（解決に必要）・解決状態・先頭コメントの `databaseId`（返信に必要）をまとめて得られる。未解決スレッドは 1 ページに収まらないことがあるため `--paginate` で全ページ取得する。
+
+```bash
+gh api graphql --paginate -f query='
+query($endCursor: String) {
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <番号>) {
+      reviewThreads(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isResolved
+          comments(first: 1) {
+            nodes { databaseId author { login } path line body }
+          }
+        }
+      }
+    }
+  }
+}'
+```
+
+`isResolved == false` のスレッドだけを 1 件ずつ処理する。先頭コメントの `databaseId` を返信先に使う。
+
+### 返信（REST）
+
+```bash
+gh api --method POST \
+  repos/<owner>/<repo>/pulls/<番号>/comments/<comment-id>/replies \
+  -f body="<返信本文>"
+```
+
+### 解決（GraphQL）
+
+返信を投稿した後にスレッドを解決する:
+
+```bash
+gh api graphql -f query='
+mutation {
+  resolveReviewThread(input: { threadId: "<threadId>" }) {
+    thread { isResolved }
+  }
+}'
+```
+
+### HEAD のレビュー済み判定
+
+現在の HEAD（最新コミット）がレビュー済みかは、`headRefOid` と各レビューが対象にした commit を突き合わせて判定する。過去コミットへのレビューはあっても最新 push が未レビュー、という状態を取りこぼさないため。
+
+```bash
+gh api graphql -f query='
+query {
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <番号>) {
+      headRefOid
+      reviews(last: 30) { nodes { author { login } state commit { oid } } }  # pagination-ok: 最新レビュー群で足りる
+    }
+  }
+}'
+```
+
+- `reviews(last: 30)` は単発取得でよい（`# pagination-ok`）。HEAD へのレビューがあるなら最新群に必ず含まれるため、全ページ取得は不要。
+- `reviews` のいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。一致するものが無ければ最新 HEAD は未レビュー。
+- 収束判定ではこの「HEAD レビュー済み」を条件に含める。既済みなら Copilot 依頼をしない（既完了 PR に余計なレビュー活動を起こさない）。
+
+### Copilot 再レビュー依頼
+
+現在の HEAD が未レビューのときだけ依頼する（上の「HEAD のレビュー済み判定」）。push が発生した反復では、push・CI 再実行のあとに依頼する（壊れた HEAD でレビューを促さない）。
+
+```bash
+gh api --method POST \
+  repos/<owner>/<repo>/pulls/<番号>/requested_reviewers \
+  -f "reviewers[]=copilot-pull-request-reviewer[bot]"
+```
+
+- 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（`[bot]` 付き）。既に依頼中でも冪等。
+- **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され、後者は 422 になる。
+- 依頼後、依頼が登録されたことを確認する。REST の `requested_reviewers` は `gh pr view` では `reviewRequests` として
+  得られる（どちらも同じ「レビュー依頼一覧」を指す。API による名称違い）。
+  `gh pr view <番号> --repo <owner>/<repo> --json reviewRequests --jq '.reviewRequests[].login'` に `Copilot` が現れれば登録済み。
+  現れなければ依頼は成立していないので、その旨を報告する。
+- レビューが付くまでの待機は「ポーリングと待機」の上限つきポーリングに従い、ハングさせない。
+
+## commit の扱い
+
+- commit message は「ブランチ運用・commit 規約の参照」で解決した規約に従う（commitlint/lefthook 等の commit-msg 検証があればそれにも従う。body の行長上限があれば守り、長い本文は `git commit -F <file>` で渡す）。
+- 無関係な変更を同じ commit に混ぜない。CI 修正・レビュー対応で触ったファイルだけを stage する。既存 worktree に無関係な差分があれば巻き込まない。
+- pre-commit フック（lefthook 等）や kaizen のコミット前ゲートがあれば走る。ゲートでブロックされたら指示に従って `kaizen --current` を実行してから再 commit する。
+- commit の `--amend` と force push は行わない。
+
+## 妥当性の判断ガイド
+
+CI 失敗もレビュー指摘も、機械的に全部直すのでも全部はねるのでもなく、事実に基づいて 1 件ずつ判断する。
+
+- レビュー指摘がコードの現状と合致し、バグ・リスク・可読性などの**実害**があるか。既に別の仕組みで緩和済みなら、修正せず根拠を返信する
+- 外部ツール / API / ライブラリの**仕様**に関する指摘（特に「常に壊れる／失敗する」系）は、適用前に一次情報（公式 doc・実出力・テスト）で裏取りする。自信ありげな誤指摘をそのまま「修正」するとそれ自体がリグレッションになる
+- CI 失敗は失敗ログの事実から原因を特定して直す。フレーキーが疑われる場合も、まず再実行や原因確認で切り分け、テストやコードの実バグを取り違えない
+- 修正方針が複数あり影響が大きい、妥当性がコードだけでは判断できない、設計判断が絡む場合は「人間判断を要する指摘」として扱い、その 1 件だけユーザーに確認してからループに戻る
+
+## 追加確認が必要な条件
+
+ループ中は自律で進めるが、以下のときだけ確認する（前者 2 つは停止、最後の 1 つは確認後ループ復帰）。
+
+- 現在の repo と PR の owner/repo が一致しない（着手前に中断）
+- 現在のローカルブランチが PR の head ブランチと異なる（着手前に中断）
+- レビュー指摘の妥当性がコードだけでは判断できない／修正方針が複数あり影響が大きい／設計判断が絡む（その 1 件を確認し、反映後にループへ戻る）
