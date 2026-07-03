@@ -196,10 +196,15 @@ gh api --method POST \
 
 - 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（Bot の login、`[bot]` 付き）。既に依頼中でも冪等。
 - **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され（未登録）、後者は 422 になる。必ず `[bot]` 付き login を使う。
-- 依頼後、依頼が登録されたことを**必ず確認**する。REST の `requested_reviewers` は `gh pr view` では `reviewRequests` として
-  得られる（どちらも同じ「レビュー依頼一覧」を指す。API による名称違い）。
-  `gh pr view <番号> --repo <owner>/<repo> --json reviewRequests --jq '.reviewRequests[].login'` に `Copilot` が現れれば登録済み。
-  現れなければ依頼は成立していないので、その旨をユーザーに通知する。
+- 依頼後、依頼が成立したことを**必ず確認**する。ただし **`reviewRequests`（REST の `requested_reviewers`）が空でも不成立と断定しない**。Copilot はレビュー着手時に依頼を即時消費するため、正常に成立していても空になり得る（実測）。
+- 成立はタイムラインの `review_requested` イベントで確認する（`requested_reviewer` の login は REST 表記の `Copilot`）:
+
+  ```bash
+  gh api --paginate repos/<owner>/<repo>/issues/<番号>/timeline \
+    --jq '.[] | select(.event=="review_requested") | {created_at, requested_reviewer: .requested_reviewer.login}'
+  ```
+
+- タイムラインでも確認できず、上限つきポーリングでレビュー到着も確認できなければ、不成立としてその旨をユーザーに通知する。
 
 ## 追加確認が必要な条件
 
