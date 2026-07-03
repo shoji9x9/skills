@@ -191,19 +191,23 @@ mutation {
 現在の HEAD（最新コミット）がレビュー済みかは、`headRefOid` と各レビューが対象にした commit を突き合わせて判定する。過去コミットへのレビューはあっても最新 push が未レビュー、という状態を取りこぼさないため。
 
 ```bash
-gh api graphql -f query='
-query {
+gh api graphql --paginate -f query='
+query($endCursor: String) {
   repository(owner: "<owner>", name: "<repo>") {
     pullRequest(number: <番号>) {
       headRefOid
       author { login }
-      reviews(last: 30) { nodes { author { login } state commit { oid } } }  # pagination-ok: 最新レビュー群で足りる
+      reviews(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { author { login } state commit { oid } }
+      }
     }
   }
 }'
 ```
 
-- `reviews(last: 30)` は単発取得でよい（`# pagination-ok`）。HEAD へのレビューがあるなら最新群に必ず含まれるため、全ページ取得は不要。
+- レビューは `--paginate` で**全ページ取得**する。著者除外（次項）を前提にすると、著者の返信（COMMENTED レビュー）が直近に連なった場合に
+  著者以外の HEAD レビューが `last: N` の窓から押し出され得るため、単発取得では「未レビュー」と誤判定して不要な再依頼につながる。
 - **PR 著者（`pullRequest.author.login`）によるレビューは判定から除外する（必須）**。レビュースレッドへの返信は REST/GraphQL 上、著者の `state: COMMENTED` レビューとして記録され、その `commit.oid` が返信後の新しい HEAD を指し得る（実測）。
   除外しないと「修正 → 返信 → push」という本スキルの標準フローを回すたびに、誰にもレビューされていない新 HEAD が「レビュー済み」と誤判定され、Copilot 再依頼が漏れる。
 - **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。一致するものが無ければ最新 HEAD は未レビュー。
