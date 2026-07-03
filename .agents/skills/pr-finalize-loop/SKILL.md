@@ -224,11 +224,12 @@ gh api --method POST \
 - 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（`[bot]` 付き）。既に依頼中でも冪等。
 - **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され、後者は 422 になる。
 - 依頼後、依頼が成立したことを確認する。ただし **`reviewRequests`（REST の `requested_reviewers`）が空でも不成立と断定しない**。Copilot はレビュー着手時に依頼を即時消費するため、正常に成立していても空になり得る（実測）。
-- 成立はタイムラインの `review_requested` イベントで確認する（`requested_reviewer` の login は REST 表記の `Copilot`。依頼直後の `created_at` を持つイベントがあれば成立・実測済み）:
+- 成立はタイムラインの **Copilot 宛** `review_requested` イベントで確認する（過去に別レビュアーへ依頼した履歴を誤って成立と数えないよう
+  `requested_reviewer` で絞る。login は REST 表記の `Copilot`。依頼直後の `created_at` を持つイベントがあれば成立・実測済み）:
 
   ```bash
   gh api --paginate repos/<owner>/<repo>/issues/<番号>/timeline \
-    --jq '.[] | select(.event=="review_requested") | {created_at, requested_reviewer: .requested_reviewer.login}'
+    --jq '.[] | select(.event=="review_requested" and .requested_reviewer.login=="Copilot") | {created_at, requested_reviewer: .requested_reviewer.login}'
   ```
 
 - タイムラインで確認できない場合も、上限つきポーリング（「ポーリングと待機」）でレビュー到着自体を待てば成立を確認できる。どちらでも確認できなければ不成立として報告する。
