@@ -87,6 +87,7 @@ skills:
    - タイトルは規約の接頭辞 + **severity を含める**（例: `fix(deps): [critical] bump <pkg> to <ver> to resolve advisories`）
    - 本文は後述「Issue 本文の規約」に従う
    - dismiss 候補があれば、何を・なぜ dismiss するかも一覧で提示する
+   - 承認を求める確認 UI 自体に判断材料（ドラフトの全文・dismiss 候補一覧）を同梱する。直前の通常テキストが確認ダイアログと同時に見えることを前提にしない（Claude Code の AskUserQuestion では選択肢の preview フィールドに入れる）
 8. **ユーザーの承認を得てから**、Issue 起票（`gh issue create --body-file`）と dismiss（`gh api`）を実行する
 9. 作成した Issue の URL、dismiss した alert（理由つき）、スキップした alert（理由つき）をサマリーで報告する
 
