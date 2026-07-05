@@ -68,7 +68,7 @@
       "assertions": [
         "HEAD にレビューが付いていない場合に Copilot へレビューを依頼する方針である",
         "依頼用 login として copilot-pull-request-reviewer[bot]（[bot] 付き）を使っている",
-        "依頼後に requested_reviewers へ登録されたことを確認する方針である",
+        "依頼成立をタイムラインの review_requested イベント等で確認し、reviewRequests（requested_reviewers）が空でも不成立と断定しない方針である",
         "既定では push 直後に CI 完了を待たず Copilot へ依頼し、CI とレビューを並行させる（CI 再実行の完了は次反復冒頭で待つ）方針である",
         "レビュー出現待ちには上限を設け、上限を超えたらレビュー未着のまま反復を閉じて報告に残す方針である"
       ]

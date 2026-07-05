@@ -71,3 +71,17 @@ Copilot レビューで「ポリシーの適用範囲が読み手に混乱を与
 強制する lint / ゲート / スクリプトの実際の走査スコープ**も突き合わせる。ルールとその自動チェックを
 同じ変更で追加・更新したら、両者のスコープ（対象ディレクトリ・glob・条件）が一致しているかを push 前に
 確認する。
+
+## 追記（2026-07-03: SKILL.md 本文 ↔ evals assertions の整合へ拡張）
+
+Issue #64 の対応で同根の drift が **SKILL.md 本文と evals の間**で発生しかけた。pr-finalize-loop の
+Copilot 依頼成立の確認方法を「`reviewRequests` に現れるか」から「タイムラインの `review_requested`
+イベント等で確認（空でも不成立と断定しない）」へ変更した際、`evals/evals.json` の assertion
+「依頼後に requested_reviewers へ登録されたことを確認する方針である」が旧仕様のまま残りかけた。
+今回は実装委譲時の場当たり的な grep 指示で捕捉・修正したが、標準手順としての突き合わせは未明文化
+（`docs/skill-development.md` 手順 2 は「テストケースを追加・更新する」とあるのみで、挙動変更時に
+既存 assertion を本文と突き合わせる観点がない）。
+
+**提案の拡張**: 自己整合パスの突き合わせ対象に **SKILL.md 本文 ↔ 同スキルの `evals/evals.json` の
+assertions** を含める。スキルの挙動・手順を変更したら、変更した概念のキーワードで同スキルの
+`evals/` を grep し、旧仕様前提の assertion を更新してから push する。

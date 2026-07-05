@@ -66,7 +66,9 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
    3. スレッドに**返信**してから**解決**する（順序厳守。返信していないスレッドは解決しない）
    4. **人間判断を要する場合**は、ここで修正も解決もせずユーザーに判断を仰ぐ。判断を反映して返信・解決したうえでループを続ける
 5. **commit / push**: 手順 3・4 を**両方終えてから**まとめて行う。レビュー対応・CI 修正で触ったファイルだけを stage し、論理単位で conventional commit、push する（無関係な変更を混ぜない）。コード修正が無ければ commit/push はしない
-6. **push 後の追従**: push 直後の新しい HEAD は未レビューなので Copilot へ再依頼する。**既定では CI 完了を待たずに依頼**し、CI 再実行の完了は次反復冒頭の手順 1 で待つ（CI とレビューが並行して進む）。`--wait-ci-before-review` 指定時のみ、push による CI 再実行の完了を待ってから、新しい HEAD が未レビューであれば依頼する
+6. **push 後の追従**: push 直後の新しい HEAD は未レビューなので Copilot へ再依頼する。**既定では CI 完了を待たずに依頼**し、CI 再実行の完了は次反復冒頭の手順 1 で待つ（CI とレビューが並行して進む）。
+   `--wait-ci-before-review` 指定時のみ、push による CI 再実行の完了を待ってから、新しい HEAD が未レビューであれば依頼する。リポジトリに別のレビュー bot（CI から起動される auto-review 等）が存在しても、それを Copilot 依頼の代替とみなして省略しない。
+   省略するのはユーザーが明示的に指示した場合だけ
 7. **行き詰まり検知**: この反復で「コード修正もレビュー対応も新たに行えなかった」かつ「CI 失敗が前反復と同じで改善していない」場合は停止する（後述「停止条件」）
 8. `iteration` を 1 増やす。`--max-iterations` に達したら停止する
 
@@ -189,19 +191,26 @@ mutation {
 現在の HEAD（最新コミット）がレビュー済みかは、`headRefOid` と各レビューが対象にした commit を突き合わせて判定する。過去コミットへのレビューはあっても最新 push が未レビュー、という状態を取りこぼさないため。
 
 ```bash
-gh api graphql -f query='
-query {
+gh api graphql --paginate -f query='
+query($endCursor: String) {
   repository(owner: "<owner>", name: "<repo>") {
     pullRequest(number: <番号>) {
       headRefOid
-      reviews(last: 30) { nodes { author { login } state commit { oid } } }  # pagination-ok: 最新レビュー群で足りる
+      author { login }
+      reviews(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { author { login } state commit { oid } }
+      }
     }
   }
 }'
 ```
 
-- `reviews(last: 30)` は単発取得でよい（`# pagination-ok`）。HEAD へのレビューがあるなら最新群に必ず含まれるため、全ページ取得は不要。
-- `reviews` のいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。一致するものが無ければ最新 HEAD は未レビュー。
+- レビューは `--paginate` で**全ページ取得**する。著者除外（次項）を前提にすると、著者の返信（COMMENTED レビュー）が直近に連なった場合に
+  著者以外の HEAD レビューが `last: N` の窓から押し出され得るため、単発取得では「未レビュー」と誤判定して不要な再依頼につながる。
+- **PR 著者（`pullRequest.author.login`）によるレビューは判定から除外する（必須）**。レビュースレッドへの返信は REST/GraphQL 上、著者の `state: COMMENTED` レビューとして記録され、その `commit.oid` が返信後の新しい HEAD を指し得る（実測）。
+  除外しないと「修正 → 返信 → push」という本スキルの標準フローを回すたびに、誰にもレビューされていない新 HEAD が「レビュー済み」と誤判定され、Copilot 再依頼が漏れる。
+- **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。一致するものが無ければ最新 HEAD は未レビュー。
 - 収束判定ではこの「HEAD レビュー済み」を条件に含める。既済みなら Copilot 依頼をしない（既完了 PR に余計なレビュー活動を起こさない）。
 
 ### Copilot 再レビュー依頼
@@ -219,10 +228,16 @@ gh api --method POST \
 
 - 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（`[bot]` 付き）。既に依頼中でも冪等。
 - **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され、後者は 422 になる。
-- 依頼後、依頼が登録されたことを確認する。REST の `requested_reviewers` は `gh pr view` では `reviewRequests` として
-  得られる（どちらも同じ「レビュー依頼一覧」を指す。API による名称違い）。
-  `gh pr view <番号> --repo <owner>/<repo> --json reviewRequests --jq '.reviewRequests[].login'` に `Copilot` が現れれば登録済み。
-  現れなければ依頼は成立していないので、その旨を報告する。
+- 依頼後、依頼が成立したことを確認する。ただし **`reviewRequests`（REST の `requested_reviewers`）が空でも不成立と断定しない**。Copilot はレビュー着手時に依頼を即時消費するため、正常に成立していても空になり得る（実測）。
+- 成立はタイムラインの **Copilot 宛** `review_requested` イベントで確認する（過去に別レビュアーへ依頼した履歴を誤って成立と数えないよう
+  `requested_reviewer` で絞る。login は REST 表記の `Copilot`。依頼直後の `created_at` を持つイベントがあれば成立・実測済み）:
+
+  ```bash
+  gh api --paginate repos/<owner>/<repo>/issues/<番号>/timeline \
+    --jq '.[] | select(.event=="review_requested" and .requested_reviewer.login=="Copilot") | {created_at, requested_reviewer: .requested_reviewer.login}'
+  ```
+
+- タイムラインで確認できない場合も、上限つきポーリング（「ポーリングと待機」）でレビュー到着自体を待てば成立を確認できる。どちらでも確認できなければ不成立として報告する。
 - レビューが付くまでの待機は「ポーリングと待機」の上限つきポーリングに従い、ハングさせない。
 
 ## commit の扱い
