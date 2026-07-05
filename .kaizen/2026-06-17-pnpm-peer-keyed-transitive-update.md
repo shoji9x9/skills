@@ -53,3 +53,39 @@ mode）に、pnpm で transitive 依存を patched version へ上げる際の注
    float する」前提を Issue に明記してから分類する。
 4. （補強）判定時の裏取りとして、完全再生成での float 範囲を
    `git diff` の base `name@version` 比較で確認する手順を例示する。
+
+## 追記（2026-07-05, Issue #67）: plain transitive でも `pnpm update` は無関係依存を float させる／surgical hand-edit の実証
+
+### 事象（Issue #67）
+
+Issue #67（undici を 7.28.0 / 6.27.0 へ）の着手で、undici は **peer-key なしの plain
+transitive** であり `pnpm update undici` で patched に到達した（6/17 の peer-keyed ケースと
+異なり完全再生成は不要）。にもかかわらず `pnpm update undici`（pnpm 11.8.0）は nanoid /
+postcss / @napi-rs/wasm-runtime / @tybys/wasm-util の 4 件を in-range で巻き込んで float
+させた。プレーンな `pnpm install --lockfile-only` では差分ゼロだったため、これは `update`
+動詞特有の広い再解決挙動（対象 1 件だけの保証はない）。
+
+### 追加の根本原因
+
+`pnpm update <pkg>` は「対象 1 件だけ」を保証せず、in-range で新版がある他の plain
+transitive も同時に bump する。6/17 提案 #2 の「lockfile 手動編集なしに surgical に上げるのは
+不可能なことがある」は、**plain transitive なら手動編集で確実に surgical にできる**（下記手順）。
+peer-keyed は依然として完全再生成が要る場合がある点は 6/17 のまま。
+
+### 実証した surgical hand-edit 手順（無関係 float を混ぜない）
+
+1. 対象の version 文字列がロックファイル内で他パッケージと衝突しないか確認する
+   （`grep -c '<old-version>' pnpm-lock.yaml`。衝突しなければ version 文字列の一括置換で安全）。
+2. 正しい integrity は**使い捨ての `pnpm update <pkg>` 実行結果からコピー**し、その後
+   `git checkout -- pnpm-lock.yaml` で floats ごと巻き戻す。
+3. version 文字列（resolution key・親 snapshot の参照・snapshot key の全箇所）と integrity 行
+   だけを置換する。`engines` が新旧で変わる場合はそれも更新する。
+4. `pnpm install --frozen-lockfile` で検証する。これは integrity を実際に検証し、かつ
+   `update` と違って無関係依存を re-float しない（成功すればロックファイルは追加変更なし）。
+
+### 提案への追記
+
+`pnpm-audit-alert-issue` / `dependabot-alert-issue` の着手可否分類・実装手順に、
+「**plain transitive でも `pnpm update <pkg>` は無関係な in-range 依存を float させ得る**。
+最小差分が要るときは上記 surgical hand-edit（version+integrity 置換 → `--frozen-lockfile`
+検証）を使う」を加える。
