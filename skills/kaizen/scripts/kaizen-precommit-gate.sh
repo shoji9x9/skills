@@ -100,7 +100,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "<ka
 {
 	echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。"
 	echo "kaizen --current を実行して学びを抽出・適用してください。"
-	echo "抽出完了時は 'bash ${script_dir}/kaizen-extract-done.sh' を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
+	echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
 	echo "その後、別コマンドで git commit を実行してください。"
 	echo "※ スクリプト実行と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
 } >&2
