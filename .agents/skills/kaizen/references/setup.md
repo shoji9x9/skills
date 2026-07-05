@@ -150,9 +150,12 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
 
 判定はスキルにバンドルされたスクリプト（`kaizen-precommit-gate.sh`）が行う。`git commit` を含み、かつ `.kaizen/.pending-extract*` が存在するときだけ **exit code 2 + stderr** でブロックする。
 この方式は Claude Code・Codex とも「exit 2 でブロックし stderr をエージェントへ渡す」と明記されており、JSON 出力スキーマの差を避けられる。
+ただし抽出完了マーカー `.kaizen/.extract-done` が存在する間はセンチネルがあっても素通りする。
+マーカーは抽出完了時に `kaizen-extract-done.sh` が記録し、セッション開始時に SessionStart フック（`kaizen-context-inject.sh`）が削除する。
+これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。
 
 > **運用上の注意（git commit を含む呼び出しは全体がブロックされる）**: ゲートは `git commit` を含む Bash 呼び出し**全体**を実行前にブロックする。
-> そのため `git add` などコミット前準備や、センチネル削除（`rm -f .kaizen/.pending-extract*`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
+> そのため `git add` などコミット前準備や、センチネル削除・マーカー記録（`bash <KAIZEN_SCRIPTS_DIR>/kaizen-extract-done.sh`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
 > コミット前準備は必ず `git commit` と別コマンドに分ける。コミット後は `git log` / `git show` で対象が実際に入ったか確認する。
 > 同様に、`git commit -F <msg>` のメッセージファイルを `git commit` と同じコマンド内の heredoc で作らない（ブロック時に作られず、後続の `-F` がファイル不在で失敗する）。メッセージは別コマンドで先に作り、使用直前に存在を確認する。
 > 論理コミットを連続で分けるときは、各 `git commit` の成功を確認してから次を stage する。失敗したコミットは stage を残し、次のコミットに巻き込まれて無関係な変更の混在・誤ラベルを生む。
@@ -227,6 +230,7 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
 セッション開始時に `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。`AGENTS.md` への散文の指示より確実に `.kaizen/` を参照させられる（KEDB 照合の入口）。
 
 これは「kaizen を実行せよ」という**行動リマインダーではなく**、過去の学びの**中身そのものを供給する**点が echo リマインダーと異なる（末尾「使わない方式」参照）。判定はバンドルスクリプト（`kaizen-context-inject.sh`）が行い、pending な学びがあるときだけダイジェストを出力し、無ければ何も出さず exit 0 で抜ける。
+このスクリプトはダイジェスト出力に加えて、抽出完了マーカー `.kaizen/.extract-done` を削除する役割も担う（セッション開始 = 前セッションのマーカーの失効点。これにより新しいセッションでは再びコミット前ゲートが効く）。ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout が context へ確実に注入される。

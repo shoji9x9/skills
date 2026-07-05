@@ -23,6 +23,22 @@ set -euo pipefail
 project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
+# セッション開始 = 抽出完了マーカーの失効点。前セッションの .extract-done を削除し、
+# このセッションの活動には再びコミット前ゲートが（セッションにつき 1 回）効くようにする。
+# ただし SessionStart は自動圧縮（source: compact）でも発火し得る。圧縮は同一セッションの
+# 継続なので、そのときだけマーカーを残す（消すと、まさに対象の長時間自律ループで commit が
+# ゲートに再ブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
+# 削除側（ブロックが増える安全側）に倒す。stdin が tty の場合（手動実行など JSON が
+# 流れない呼び出し）は読み取り自体をスキップする（cat が入力待ちでブロックし、タイムアウトで
+# kill されるとマーカー削除ごと行われなくなるのを防ぐ）。
+input=""
+if [ ! -t 0 ]; then
+	input=$(cat 2>/dev/null || true)
+fi
+if ! printf '%s' "$input" | grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"'; then
+	rm -f .kaizen/.extract-done
+fi
+
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
 if [ ! -d .kaizen ]; then
 	exit 0

@@ -5,6 +5,8 @@
 # `git commit` をブロックし、エージェントに kaizen --current の実行を促す。
 # エージェントが kaizen スキルで抽出を完了するとセンチネルが消え（references/extract.md
 # の手順参照）、再試行した commit が通る。
+# 抽出完了マーカー `.kaizen/.extract-done` が存在する間は、センチネルが再装填されていても
+# 通す（同一セッション内で抽出済みのため。マーカーは SessionStart フックが削除する）。
 #
 # ブロック方式は exit code 2 + stderr を使う。Claude Code / Codex の PreToolUse
 # はどちらも「exit 2 でツール実行をブロックし、stderr をエージェントへ渡す」と
@@ -80,13 +82,26 @@ if ! ls .kaizen/.pending-extract* >/dev/null 2>&1; then
 	exit 0
 fi
 
+# 抽出完了マーカーがあれば素通りする（同一セッション内で抽出済み）。Stop フックは
+# ターン終了ごとにセンチネルを再装填するため、これが無いと 1 セッション複数 commit の
+# たびにゲート→抽出が挟まる。マーカーは抽出完了時に kaizen-extract-done.sh が記録し、
+# セッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
+if [ -f .kaizen/.extract-done ]; then
+	exit 0
+fi
+
 # ブロックして、エージェントへ次のアクションを指示する。
 # 注意: センチネル削除と git commit を 1 コマンドにまとめると、PreToolUse は
 # 呼び出し全体を実行前に捕捉するため rm が走らずブロックされる。別コマンドに分ける。
+# 案内する kaizen-extract-done.sh は、このスクリプト自身と同じディレクトリにバンドル
+# されているため、実パスを組み立てて表示する（プレースホルダーだとそのまま実行できない）。
+# 万一解決できない場合のみ相対の目安表記にフォールバックする。
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "<kaizen スキルのインストール先>/scripts")
 {
 	echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。"
-	echo "kaizen --current を実行して学びを抽出・適用してください（完了時にセンチネルが消えます）。"
+	echo "kaizen --current を実行して学びを抽出・適用してください。"
+	echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
 	echo "その後、別コマンドで git commit を実行してください。"
-	echo "※ センチネル削除と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
+	echo "※ スクリプト実行と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
 } >&2
 exit 2

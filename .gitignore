@@ -3,9 +3,10 @@ node_modules/
 # テスト実行結果の詳細は除外、サマリーは保持
 tests/*/iteration-*/eval-*/
 
-# kaizen のセンチネルファイル（Stop Hook が作成する一時ファイル）
+# kaizen のセンチネル・抽出完了マーカー（Hook / 抽出完了時に作成する一時ファイル）
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
+**/.kaizen/.extract-done
 
 # scheduled tasks のロックファイル
 .claude/scheduled_tasks.lock
