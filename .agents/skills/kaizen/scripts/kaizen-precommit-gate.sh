@@ -93,10 +93,14 @@ fi
 # ブロックして、エージェントへ次のアクションを指示する。
 # 注意: センチネル削除と git commit を 1 コマンドにまとめると、PreToolUse は
 # 呼び出し全体を実行前に捕捉するため rm が走らずブロックされる。別コマンドに分ける。
+# 案内する kaizen-extract-done.sh は、このスクリプト自身と同じディレクトリにバンドル
+# されているため、実パスを組み立てて表示する（プレースホルダーだとそのまま実行できない）。
+# 万一解決できない場合のみ相対の目安表記にフォールバックする。
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "<kaizen スキルのインストール先>/scripts")
 {
 	echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。"
 	echo "kaizen --current を実行して学びを抽出・適用してください。"
-	echo "抽出完了時は 'bash <kaizen スキルのインストール先>/scripts/kaizen-extract-done.sh' を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
+	echo "抽出完了時は 'bash ${script_dir}/kaizen-extract-done.sh' を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
 	echo "その後、別コマンドで git commit を実行してください。"
 	echo "※ スクリプト実行と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
 } >&2
