@@ -68,9 +68,20 @@ const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
 // サンドボックスが使えない環境でだけ DIAGRAM_CHROME_NO_SANDBOX=1 で opt-in する。
 const noSandbox = process.env.DIAGRAM_CHROME_NO_SANDBOX === "1";
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
+// 任意の SVG（ファイル名指定も可）を Chrome で開くため、埋め込み前に <script>/on* を
+// 除去する（diagram-engine のアイコン埋め込みと同型の多層防御。自前生成の SVG では no-op）。
+const safeSvg = svg
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+  .replace(/<script\b[^>]*\/>/gi, "")
+  .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+  .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "");
+
 try {
   const html = join(work, "preview.html");
-  writeFileSync(html, `<!doctype html><meta charset="utf-8"><body style="margin:0">${svg}</body>`);
+  writeFileSync(
+    html,
+    `<!doctype html><meta charset="utf-8"><body style="margin:0">${safeSvg}</body>`,
+  );
   execFileSync(
     chrome,
     [
