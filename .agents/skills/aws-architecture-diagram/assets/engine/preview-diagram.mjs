@@ -64,6 +64,9 @@ const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
 
 const work = mkdtempSync(join(tmpdir(), "diagram-preview-"));
 const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
+// Chrome サンドボックスは既定で有効（ローカルの安全性を下げない）。root/コンテナ等
+// サンドボックスが使えない環境でだけ DIAGRAM_CHROME_NO_SANDBOX=1 で opt-in する。
+const noSandbox = process.env.DIAGRAM_CHROME_NO_SANDBOX === "1";
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 try {
   const html = join(work, "preview.html");
@@ -72,7 +75,7 @@ try {
     chrome,
     [
       "--headless",
-      "--no-sandbox",
+      ...(noSandbox ? ["--no-sandbox"] : []),
       "--disable-gpu",
       "--hide-scrollbars",
       `--screenshot=${out}`,
