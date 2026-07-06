@@ -1,0 +1,6 @@
+# AWS 公式アイコンは同梱せず fetch-aws-icons.mjs で取得する（再配布回避）。
+assets/starter/icons/aws-icons/
+# render-diagram.mjs / preview-diagram.mjs の生成物。
+assets/starter/out/
+# サンプルの取得アイコン（SVG は commit するがアイコン素材は取得物）。
+assets/samples/**/icons/aws-icons/
