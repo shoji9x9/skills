@@ -298,7 +298,20 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
 
 詳細なフォーマットは [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) を参照すること。
 
-### 5. `multiagent-setup` スキルとの依存関係
+### 5. `.gitignore` にセンチネル・抽出完了マーカーを追加する
+
+kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マーカー記録）は、`.kaizen/` 直下に一時的な制御ファイルを作る。これらはコミット対象ではないため、プロジェクトの `.gitignore` に以下を追加する（既にあれば何もしない）:
+
+```gitignore
+# kaizen のセンチネル・抽出完了マーカー（Hook / 抽出完了時に作成する一時ファイル）
+# ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
+**/.kaizen/.pending-extract*
+**/.kaizen/.extract-done
+```
+
+`.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 2 つの制御ファイルだけ。追加しないと、Stop フックが残すセンチネル（`.pending-extract*`）や抽出完了マーカー（`.extract-done`）が誤ってコミットされうる。
+
+### 6. `multiagent-setup` スキルとの依存関係
 
 `references/apply.md` の学び適用ステップでは `multiagent-setup` スキルを使用する。インストール済みでなければ事前にインストールするようユーザーに案内する:
 
