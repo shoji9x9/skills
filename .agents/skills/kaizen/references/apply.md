@@ -102,3 +102,5 @@ grep -l "^status: pending" .kaizen/*.md 2>/dev/null
 - `status: applied` / `status: rejected` の履歴が残り、改善の経緯を追跡できる
 - チーム内で学びを共有・レビューできる
 - `.kaizen/` 内の全ファイル（ステータス問わず・`archive/` 配下を含む）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
+
+ただし例外として、Hook が作る一時的な制御ファイル（センチネル `.kaizen/.pending-extract*` と抽出完了マーカー `.kaizen/.extract-done`）はコミット対象外で、`.gitignore` に追加して除外する（設定手順は `references/setup.md`「`.gitignore` にセンチネル・抽出完了マーカーを追加する」を参照）。
