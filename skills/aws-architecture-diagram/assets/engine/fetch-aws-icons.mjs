@@ -48,6 +48,11 @@ const only = arg("--only")
   ?.split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+// --only を付けたのに有効な id が 0 件（例: --only=,  や  --only="   "）なら、
+// 黙って 0 件取得に化けさせず明示エラーにする。
+if (only && !only.length) {
+  throw new Error("--only に有効な id がありません（例: --only lambda,dynamodb）");
+}
 
 const manifest = JSON.parse(readFileSync(join(DIAGRAM_DIR, "icon-manifest.json"), "utf8"));
 if (!manifest.aws || typeof manifest.aws !== "object") {

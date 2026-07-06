@@ -91,12 +91,13 @@ export function renderDiagram(spec, options = {}) {
     }
     // 同じ図に複数のアイコンを埋めると内部 id（clipPath/gradient/mask 等）が衝突し、
     // url(#id)/href="#id" が別アイコンの要素を参照してしまう。埋め込みごとに一意の
-    // 接頭辞で id とその参照を書き換えて分離する。
+    // 接頭辞で id とその参照を書き換えて分離する。クォート種別（" / '）や xlink:href、
+    // url() 内のクォート有無を問わず置換する（取得元 SVG・自作アイコンの表記ゆれ対策）。
     const p = `ic${iconSeq++}-`;
     const body = inner.body
-      .replace(/\bid="([^"]+)"/g, `id="${p}$1"`)
-      .replace(/url\(#([^)]+)\)/g, `url(#${p}$1)`)
-      .replace(/href="#([^"]+)"/g, `href="#${p}$1"`);
+      .replace(/\bid=(["'])([^"']+)\1/g, `id=$1${p}$2$1`)
+      .replace(/\b((?:xlink:)?href)=(["'])#([^"']+)\2/g, `$1=$2#${p}$3$2`)
+      .replace(/\burl\((["']?)#([^"')]+)\1\)/g, `url($1#${p}$2$1)`);
     return `<svg x="${x}" y="${y}" width="${ICON}" height="${ICON}" viewBox="${inner.viewBox}" overflow="visible">${body}</svg>`;
   };
 

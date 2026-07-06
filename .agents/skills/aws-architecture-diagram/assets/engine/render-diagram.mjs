@@ -33,9 +33,12 @@ function specFor(name) {
   if (!env) {
     throw new Error(`未知の環境: ${name}（定義済み: ${Object.keys(environments).join(", ")}）`);
   }
-  return env.transform
-    ? env.transform(baseSpec)
-    : { ...baseSpec, title: env.title ?? baseSpec.title };
+  if (env.transform) {
+    // transform が title を付け忘れても "undefined" が図に出ないよう最終フォールバック。
+    const s = env.transform(baseSpec);
+    return { ...s, title: s.title ?? env.title ?? baseSpec.title };
+  }
+  return { ...baseSpec, title: env.title ?? baseSpec.title };
 }
 
 // --env の指定を取り出す（--env a,b / --env=a,b いずれも受ける）。
