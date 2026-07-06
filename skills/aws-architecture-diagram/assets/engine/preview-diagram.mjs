@@ -52,8 +52,12 @@ const head = svg.match(/<svg[^>]*>/);
 if (!head) throw new Error(`SVG が不正（<svg> がありません）: ${svgPath}`);
 // 生成物以外の SVG も受け付けるため、クォート種別・px 等の単位を許容して寛容にパースし、
 // width/height が無ければ viewBox の幅・高さにフォールバックする（NaN で誤サイズにしない）。
+// 値の直後がクォート／空白／`>` で終わるものだけ採用する。これで `100%` のような
+// 単位付き（px 以外）は不一致となり viewBox へフォールバックできる（px は明示的に許容）。
 const dimAttr = (name) =>
-  head[0].match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?\\s*([\\d.]+)`, "i"))?.[1];
+  head[0].match(
+    new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?\\s*([\\d.]+)(?:px)?\\s*["'\\s>]`, "i"),
+  )?.[1];
 const vb = head[0].match(/viewBox\s*=\s*["']\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/i);
 const width = Math.round(Number(dimAttr("width") ?? vb?.[1] ?? 1540));
 const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
