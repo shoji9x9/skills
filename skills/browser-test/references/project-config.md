@@ -27,7 +27,7 @@ skills:
       - name: dev
         url: https://dev.example.com
         auth: user
-        forbidden_actions: # 未定義の環境は読み取り専用として扱う
+        forbidden_actions: # forbidden_actions が未定義の環境は読み取り専用として扱う
           - データの作成・変更・削除
           - 分析ジョブの開始（課金を伴う）
 ```
