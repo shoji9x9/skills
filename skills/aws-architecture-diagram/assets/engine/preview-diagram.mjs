@@ -67,7 +67,7 @@ const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
 // work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
 try {
   const html = join(work, "preview.html");
-  writeFileSync(html, `<!doctype html><meta charset="utf8"><body style="margin:0">${svg}</body>`);
+  writeFileSync(html, `<!doctype html><meta charset="utf-8"><body style="margin:0">${svg}</body>`);
   execFileSync(
     chrome,
     [
