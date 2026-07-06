@@ -34,8 +34,10 @@ function specFor(name) {
     throw new Error(`未知の環境: ${name}（定義済み: ${Object.keys(environments).join(", ")}）`);
   }
   if (env.transform) {
+    // baseSpec は clone して渡す。transform が誤って base をミューテートしても環境間で
+    // 汚染しないため（環境の独立性を担保。structuredClone は Node 18+）。
+    const s = env.transform(structuredClone(baseSpec));
     // transform が title を付け忘れても "undefined" が図に出ないよう最終フォールバック。
-    const s = env.transform(baseSpec);
     return { ...s, title: s.title ?? env.title ?? baseSpec.title };
   }
   return { ...baseSpec, title: env.title ?? baseSpec.title };
