@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <title>internet</title>
+  <circle cx="40" cy="40" r="26" fill="#FFFFFF" stroke="#3A4452" stroke-width="3"/>
+  <ellipse cx="40" cy="40" rx="12" ry="26" fill="none" stroke="#3A4452" stroke-width="3"/>
+  <path d="M14 40 h52 M18 27 h44 M18 53 h44" fill="none" stroke="#3A4452" stroke-width="3"/>
+</svg>

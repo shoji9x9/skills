@@ -1,0 +1,47 @@
+{
+  "skill_name": "aws-architecture-diagram",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "うちの CDK のサーバーレス Web アプリの AWS 構成図を SVG で作りたい。まだ何も無い",
+      "assertions": [
+        "未導入なので setup（対話的セットアップ）で進めようとしている",
+        "starter kit を図の置き場所へ導入し、fetch-aws-icons.mjs で AWS 公式アイコンを取得しようとしている",
+        "CDK のソース（または cdk synth 出力）を情報源として読み、spec（nodes/edges/groups）を手で起こす方針になっている",
+        "references/conventions.md の作図ルール（交差最小・直交配線・軸整列）に従おうとしている",
+        "render-diagram.mjs で生成し preview-diagram.mjs で PNG 化して目視確認する流れになっている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "prod と local の両方の構成図を持ちたい。今は local だけ更新したい",
+      "assertions": [
+        "単一ベース spec ＋ 変換で環境を出し分ける方針を採っている",
+        "「あるべき環境」は environments.mjs の environments で管理する（単一ソース）ことを説明している",
+        "environments.mjs に prod（base）と local（transform）を定義している",
+        "今回の更新は --env local で local だけに絞る（既定は全環境）ことを示している",
+        "1 つの既定環境しか持てない旧来の default_env 方式に依存していない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Terraform で書いたインフラの構成図を更新して。SQS を新しく足した",
+      "assertions": [
+        "情報源が Terraform でも同様に機能する（エージェントが読んで spec に反映）ことを踏まえている",
+        "SQS ノード/エッジを spec に追加し、conventions.md の作図ルール（進入位置のずらし等）を維持している",
+        "icon-manifest.json に SQS があることを確認し、無ければ fetch-aws-icons.mjs で aws-icons/ に取得する",
+        "render → PNG 目視確認のループで仕上げている"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "できた構成図、線が斜めだったりラベルに重なってたりして読みにくい",
+      "assertions": [
+        "conventions.md の直交配線・ラベル配置・進入位置のルールを参照している",
+        "waypoints で直交化し、lp（ラベル位置）を線の出ていない辺へ移す方針を示している",
+        "再生成 → PNG 目視確認のループで直そうとしている",
+        "推測で断定せず PNG を実際に確認して判断している"
+      ]
+    }
+  ]
+}

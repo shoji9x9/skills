@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <title>browser</title>
+  <rect x="10" y="16" width="60" height="48" rx="6" fill="#FFFFFF" stroke="#3A4452" stroke-width="3"/>
+  <path d="M10 30 h60" fill="none" stroke="#3A4452" stroke-width="3"/>
+  <circle cx="19" cy="23" r="2.6" fill="#3A4452"/>
+  <circle cx="27" cy="23" r="2.6" fill="#3A4452"/>
+  <circle cx="35" cy="23" r="2.6" fill="#3A4452"/>
+  <path d="M22 44 h36 M22 52 h26" fill="none" stroke="#8A95A5" stroke-width="3" stroke-linecap="round"/>
+</svg>
