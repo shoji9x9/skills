@@ -6,7 +6,7 @@
 //       node preview-diagram.mjs architecture-prod.svg
 // SVG の場所は render-diagram.mjs と同じ規則（DIAGRAM_DIR/out、DIAGRAM_OUT_DIR で上書き）。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -50,27 +50,37 @@ if (!chrome) {
 const svg = readFileSync(svgPath, "utf8");
 const head = svg.match(/<svg[^>]*>/);
 if (!head) throw new Error(`SVG が不正（<svg> がありません）: ${svgPath}`);
-const width = Number(head[0].match(/width="(\d+)"/)?.[1] ?? 1540);
-const height = Number(head[0].match(/height="(\d+)"/)?.[1] ?? 900);
+// 生成物以外の SVG も受け付けるため、クォート種別・px 等の単位を許容して寛容にパースし、
+// width/height が無ければ viewBox の幅・高さにフォールバックする（NaN で誤サイズにしない）。
+const dimAttr = (name) =>
+  head[0].match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?\\s*([\\d.]+)`, "i"))?.[1];
+const vb = head[0].match(/viewBox\s*=\s*["']\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/i);
+const width = Math.round(Number(dimAttr("width") ?? vb?.[1] ?? 1540));
+const height = Math.round(Number(dimAttr("height") ?? vb?.[2] ?? 900));
 
 const work = mkdtempSync(join(tmpdir(), "diagram-preview-"));
-const html = join(work, "preview.html");
-writeFileSync(html, `<!doctype html><meta charset="utf8"><body style="margin:0">${svg}</body>`);
-
 const out = join(tmpdir(), `${basename(svgPath, ".svg")}-preview.png`);
-execFileSync(
-  chrome,
-  [
-    "--headless",
-    "--no-sandbox",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    `--screenshot=${out}`,
-    `--window-size=${width},${height}`,
-    "--default-background-color=FFFFFFFF",
-    pathToFileURL(html).href,
-  ],
-  { stdio: ["ignore", "ignore", "pipe"] },
-);
+// work は preview.html 置き場。out（PNG）は tmpdir 直下なのでクリーンアップの影響を受けない。
+try {
+  const html = join(work, "preview.html");
+  writeFileSync(html, `<!doctype html><meta charset="utf8"><body style="margin:0">${svg}</body>`);
+  execFileSync(
+    chrome,
+    [
+      "--headless",
+      "--no-sandbox",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      `--screenshot=${out}`,
+      `--window-size=${width},${height}`,
+      "--default-background-color=FFFFFFFF",
+      pathToFileURL(html).href,
+    ],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+} finally {
+  // 失敗時も含め一時ディレクトリを必ず削除（/tmp にゴミを残さない）。
+  rmSync(work, { recursive: true, force: true });
+}
 
 console.log(out);
