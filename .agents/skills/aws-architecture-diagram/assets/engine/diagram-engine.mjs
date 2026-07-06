@@ -14,7 +14,7 @@
 //   notes: [{ x, y, w, title, lines:[...] }]   凡例/注記ボックス。
 //
 // 使い方: renderDiagram(spec, { iconDir })  ← iconDir にアイコン群のルートを渡す。
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 
 const ICON = 64; // アイコン一辺 (px)
@@ -49,15 +49,28 @@ export function renderDiagram(spec, options = {}) {
   // アイコン SVG を <svg> ネストとして取り込み、元の viewBox を引き継ぐ。
   // iconDir の外（.. や絶対パス）は読み込ませない。
   const iconCache = new Map();
+  let iconDirReal; // iconDir の実体パス（symlink 解決後）。初回に一度だけ解決する。
   let iconSeq = 0; // 埋め込みごとに内部 id を名前空間化するための連番。
   const embedIcon = (name, x, y) => {
     let inner = iconCache.get(name);
     if (inner === undefined) {
       const file = join(iconDir, `${name}.svg`);
+      // 1) 字面のチェック（spec の name に .. / 絶対パスが混ざっても弾く）。
       const rel = relative(iconDir, file);
       if (rel.startsWith("..") || isAbsolute(rel))
         throw new Error(`アイコンパスが iconDir の外を指しています: ${name}`);
-      const raw = readFileSync(file, "utf8");
+      // 2) 実体（symlink 解決後）が iconDir 配下かを検証（iconDir 内の外向き symlink 対策）。
+      iconDirReal ??= realpathSync(iconDir);
+      let fileReal;
+      try {
+        fileReal = realpathSync(file);
+      } catch {
+        throw new Error(`アイコンが見つかりません: ${name}`);
+      }
+      const relReal = relative(iconDirReal, fileReal);
+      if (relReal.startsWith("..") || isAbsolute(relReal))
+        throw new Error(`アイコンパスが iconDir の外を指しています（symlink 経由）: ${name}`);
+      const raw = readFileSync(fileReal, "utf8");
       const head = raw.match(/<svg[^>]*>/);
       if (!head) throw new Error(`アイコン SVG が不正（<svg> がありません）: ${name}`);
       // viewBox はシングル/ダブルクォート両対応（自作アイコンで ' を使っても崩れない）。

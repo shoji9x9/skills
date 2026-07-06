@@ -53,7 +53,11 @@ function envArg() {
 function resolveEnvs() {
   const { present, value } = envArg();
   if (!present) return Object.keys(environments); // --env 無し = 全環境
-  const list = (value ?? "")
+  // 値が無い／次トークンが別フラグ（--）のときは、それを環境名扱いせず明示エラーにする。
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error("--env には環境名を指定してください（例: --env prod,local）。省略時は全環境。");
+  }
+  const list = value
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
