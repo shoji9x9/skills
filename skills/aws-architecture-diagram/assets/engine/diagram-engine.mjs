@@ -66,6 +66,12 @@ export function renderDiagram(spec, options = {}) {
         .replace(/<\?xml[^>]*\?>/, "")
         .replace(/<svg[^>]*>/, "")
         .replace(/<\/svg>\s*$/, "")
+        // 取得元（AWS パッケージ）や自作アイコンに万一 <script> や on* ハンドラが
+        // 含まれても出力 SVG へ混入させない（多層防御）。
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
+        .replace(/<script\b[^>]*\/>/gi, "")
+        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+        .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
         .trim();
       inner = { viewBox, body };
       iconCache.set(name, inner);

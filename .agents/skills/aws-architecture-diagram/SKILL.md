@@ -1,5 +1,6 @@
 ---
 description: AWS 構成図を spec（ノード・エッジ・グループの配列）から SVG として生成・更新するスキル。対象システムの IaC（AWS CDK / Terraform / CloudFormation 等）や説明を情報源に spec を起こし、環境（prod / staging / local 等）ごとに出し分け、PNG にラスタライズして作図ルール（交差最小・直交配線・軸整列・ラベル可読）で目視確認しながら反復する。初回は `setup` で対話的に導入（配置・アイコン取得・環境確定・初期作図）、以降は `update` で生成・更新する。描画エンジン・環境レジストリ・render/preview・AWS アイコン取得を starter kit として同梱。「AWS 構成図を作って」「アーキテクチャ図を SVG で描いて」「構成図を更新して」「CDK/Terraform から構成図を」「aws-architecture-diagram setup」や、環境別の構成図を作りたい依頼で発動する。手描き GUI ではなくテキスト差分で管理できる図を作る。
+license: MIT
 name: aws-architecture-diagram
 ---
 # AWS Architecture Diagram

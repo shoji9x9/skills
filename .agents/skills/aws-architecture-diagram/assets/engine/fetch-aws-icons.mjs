@@ -24,12 +24,23 @@ import { join } from "node:path";
 const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
 const ICONS_PAGE = "https://aws.amazon.com/architecture/icons/";
 
+// フラグの「存在」と「値」を区別する。値が無い／次が別フラグ（--）のときは
+// 黙って次フラグを値扱いしたり全件取得に化けさせず、明示的にエラーにする。
 function arg(name) {
   const argv = process.argv.slice(2);
-  const i = argv.indexOf(name);
-  if (i >= 0) return argv[i + 1];
   const eq = argv.find((a) => a.startsWith(`${name}=`));
-  return eq ? eq.slice(name.length + 1) : undefined;
+  if (eq) {
+    const v = eq.slice(name.length + 1);
+    if (!v) throw new Error(`${name}= には値を指定してください（例: ${name}=lambda,dynamodb）`);
+    return v;
+  }
+  const i = argv.indexOf(name);
+  if (i < 0) return undefined;
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith("--")) {
+    throw new Error(`${name} には値を指定してください（例: ${name} lambda,dynamodb）`);
+  }
+  return v;
 }
 
 const OUT_DIR = arg("--out") ?? join(DIAGRAM_DIR, "icons/aws-icons");
