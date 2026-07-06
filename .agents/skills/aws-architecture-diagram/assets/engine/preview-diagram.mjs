@@ -74,7 +74,9 @@ const safeSvg = svg
   .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "")
   .replace(/<script\b[^>]*\/>/gi, "")
   .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
-  .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "");
+  .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "")
+  // クォート無しの on* も除去（値内の `/` は許すが、自己終端 `/>` の `/` は食わない）。
+  .replace(/\son[a-z]+\s*=\s*(?:[^\s"'>/]|\/(?!>))*/gi, "");
 
 try {
   const html = join(work, "preview.html");

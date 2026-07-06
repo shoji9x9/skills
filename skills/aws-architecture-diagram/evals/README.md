@@ -26,7 +26,8 @@
 
 ## 前提条件
 
-- **Node.js** — 描画・取得スクリプト（`assets/engine/*.mjs`）の実行に必要
+- **Node.js 18+** — 描画・取得スクリプト（`assets/engine/*.mjs`）の実行に必要。
+  `fetch-aws-icons.mjs` がグローバル `fetch` を使うため 18 未満は不可
 - **Chrome / Chromium**（headless）— SVG→PNG 変換（`preview-diagram.mjs`）に必要。無い場合は
   `PUPPETEER_EXECUTABLE_PATH` / `CHROME_PATH` を設定する
 - **skill-creator スキル** — テスト実行・評価に必要（`~/.claude/skills/skill-creator/`・
