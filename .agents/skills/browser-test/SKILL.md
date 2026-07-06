@@ -10,11 +10,12 @@ name: browser-test
 ## 使い方
 
 ```text
-browser-test [--env <環境名>] [--scope <uncommitted|branch|自由入力>] [--ignore-forbidden-actions]
+browser-test [--env <環境名>] [--scope <uncommitted|branch|custom>] [--ignore-forbidden-actions]
 browser-test setup
 ```
 
 - 引数省略時は環境・スコープをユーザーに確認する（既定: 設定で `default` とされた環境〈通常はローカル〉・未コミット差分）
+- `--scope custom`: 確認対象のページ・観点をユーザーが自由に指定する。指示（例:「設定ページだけ」）が添えられていればそれを対象にし、無ければ実行時に確認する
 - `--ignore-forbidden-actions`: 選択した環境の `forbidden_actions` を今回だけ無効化し、該当操作も確認対象にする。副作用を伴う操作の承認（「厳守の制約」参照）は変わらず必要
 - `setup`: 対話的にプロジェクト設定（環境・起動方法・認証・禁止操作）を確認して設定ファイルに記録する（「プロジェクト設定の解決」参照）
 - 自然文でも発動する:「ブラウザで確認」「画面で確認して」「動作確認して」「回帰がないか見て」
@@ -46,7 +47,7 @@ browser-test setup
 1. **環境とスコープの確定**: プロジェクト設定を解決し、環境（既定は設定で `default` とされた環境）と確認スコープをユーザーに確認する。認証が必要な環境はユーザーがログインを実施する。「ログインが完了したら教えてください」と伝え、完了の合図を待ってから確認を始める
 2. **サーバ稼働確認（ローカル選択時）**: 解決した URL 群に `curl -s -o /dev/null -w "%{http_code}"` で疎通確認する。落ちていれば確認を始めず、解決済みの起動コマンドを提示してユーザーに起動を促す
 3. **確認スコープの取得と影響ページの導出**:
-   - スコープ: 未コミット（既定。`git status --short` / `git diff --name-only` ＋ untracked）／ブランチ（`git diff --name-only <ベースブランチ>...HEAD`）／自由入力（指定ページ・観点）
+   - スコープ: `uncommitted`（既定。`git status --short` / `git diff --name-only` ＋ untracked）／`branch`（`git diff --name-only <ベースブランチ>...HEAD`）／`custom`（ユーザーが指定したページ・観点）
    - フロントエンド変更: ルーター定義（React Router の Route 定義、Next.js の `pages/`・`app/` ディレクトリ、Vue Router 等）から変更ファイルをページに対応づける。
      認証コンテキスト・レイアウト・共有 UI コンポーネント・グローバル状態などの横断基盤の変更は全ページ影響とみなす。共有コンポーネントは `grep -rl` で import 元を逆引きする
    - バックエンド変更: 変更されたハンドラ／ルートが公開する API パスを特定し、そのパスを呼ぶ画面を grep で逆引きする。該当ページでデータ表示の正しさ・空状態・エラー表示・型不一致を確認する。Network 系ツールでリクエストのステータス・レスポンス本文も確認する。ただし副作用を伴う API を承認なしにトリガーしない（「厳守の制約」に従う）
