@@ -4,10 +4,12 @@
 
 このファイルには Claude Code 固有の設定だけを置く。
 
-## モデル運用方針（Fable 5 サブスク提供期間中・2026-07-07 まで）
+## モデル運用方針（Fable 5 サブスク提供期間中・2026-07-12 まで）
 
-Fable 5 は **2026-07-07 まで** Pro/Max/Team・seat ベース Enterprise プランに追加費用なしで含まれる（週次利用上限の最大 50%。以降はクレジット課金）。出典（一次情報）: Anthropic「Redeploying Claude Fable 5」<https://www.anthropic.com/news/redeploying-fable-5>（**終了の時刻・タイムゾーンは公式に明記なし**）。
+Fable 5 は **2026-07-12 まで**（当初 2026-07-07 から延長）全有料プランに追加費用なしで含まれる（週次利用上限の最大 50%。以降はクレジット課金）。
+出典（一次情報）: 延長は Claude 公式 X「We're extending access to Claude Fable 5 on all paid plans through July 12.」<https://x.com/claudeai/status/2074548242386178258>。
+当初条件は Anthropic「Redeploying Claude Fable 5」<https://www.anthropic.com/news/redeploying-fable-5>（**終了の時刻・タイムゾーンは公式に明記なし**。同ページは 2026-07-08 時点で 7/7 表記のまま未更新）。
 
 - **このメインセッションが Fable 5 で動作している場合（上記期間内）**: トークン節約のため、実装は Opus / Sonnet を適切にサブエージェント（Agent ツール）として切り出して実行し、メインセッション（Fable 5）は**設計・監査・レビュー**に専念する。実装難易度が特に高い箇所はメインセッションで実装してよい。
 - **メインセッションのモデルを明示的に Opus 4.8 等に指定している場合**: Fable 5 は原則利用しない（サブエージェントにも Fable 5 を指定しない）。メインセッションでそのまま実装・レビューを進める。
-- **2026-07-07 を過ぎたら本節は見直す**（Fable 5 がクレジット課金になるため、既定の委譲方針は解除する）。
+- **2026-07-12 を過ぎたら本節は見直す**（Fable 5 がクレジット課金になるため、既定の委譲方針は解除する）。
