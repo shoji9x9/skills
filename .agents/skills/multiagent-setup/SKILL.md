@@ -1,4 +1,5 @@
 ---
+argument-hint: '[操作内容（スキル / ルール / Hooks / ドキュメント / 全体）]'
 description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・copilot-instructions.mdなどのドキュメント整備、またはプロジェクトのマルチエージェント初期化を行う際はこのスキルを参照する。
 license: MIT
 name: multiagent-setup

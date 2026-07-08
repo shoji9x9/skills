@@ -1,4 +1,5 @@
 ---
+argument-hint: '[--repo <owner>/<repo>] [--source <name> --input <findings.json>]'
 description: Dependabot alerts または外部 audit findings（例 pnpm audit の正規化 JSON）を確認し、解消 Issue を `gh` で作成するスキル。対象を「すぐ着手できるか」で分類し、着手可能なものは severity 毎、ブロック中のものは脆弱パッケージ＋解決バージョン毎にまとめる。既存 Issue/PR はスキップし、特定 alert の ignore/dismiss も設定できる。`pnpm.overrides` 等の品質が保証されない回避策は採らない。「Dependabot alerts から Issue」「pnpm audit の結果から Issue」「脆弱性対応の Issue」「dependabot-alert-issue」で必ず発動する。
 license: MIT
 name: dependabot-alert-issue

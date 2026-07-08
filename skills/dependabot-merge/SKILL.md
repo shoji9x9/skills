@@ -1,6 +1,7 @@
 ---
 name: dependabot-merge
 description: Dependabot が作成した PR のレビューとマージを `gh` で標準化するスキル。PR URL / PR 番号で 1 件、`--all` または無指定で open な全 Dependabot PR を対象にする。CI 成功の確認 → 更新内容（changelog/release notes）からマージ影響の確認 → 判断を PR コメントに記録 → 問題なければマージ、までを進める。特に 0.x（<1.0）依存はマイナー更新でも破壊的変更があり得るため影響を確認してから扱う。「Dependabot の PR をマージして」「依存更新 PR を確認してマージ」「dependabot-merge」「dependabot の PR を全部見て」や、`--all` を伴う依頼で必ず発動する。依存更新 PR を 1 件ずつ影響判断してからマージする。
+argument-hint: "[PR URL | 番号 | --all]"
 license: MIT
 ---
 

@@ -54,8 +54,12 @@ JavaScript の拡張子は配布有無で使い分ける（新規ファイルも
 ---
 name: <skill-name> # 必須: 小文字英数字とハイフンのみ、最大64文字
 description: <description> # 必須: スキルの説明とトリガー条件、最大1024文字
+argument-hint: "<hint>" # 任意: スラッシュコマンド実行時に表示する引数ヒント
 ---
 ```
+
+`argument-hint` は Agent Skills 標準仕様外の拡張フィールド（Claude Code / VS Code が表示に使用。Codex CLI・Copilot CLI は無視するがエラーにはならない）。
+値が `[` で始まると YAML の flow sequence と誤解釈されるため引用符で囲む（単・二重どちらでも可）。
 
 ## ディレクトリ構造
 
