@@ -1,6 +1,7 @@
 ---
 name: browser-test
 description: フロントエンド／バックエンドの変更が画面表示・コンソール・API 応答・主要コンポーネントの挙動に悪影響を与えていないかを、実ブラウザ（chrome-devtools MCP）で回帰確認するスキル。実施できる操作は環境ごとの設定（`forbidden_actions`）に従い、未定義の環境は読み取り専用として扱う。副作用を伴う操作は実施前にユーザーの承認を得る。環境とスコープからの影響ページ導出・console クリーンの確認・課題のクロス環境切り分けまで進める。バックエンドの変更もそれを呼ぶ画面を通して確認する。`browser-test setup` は対話的にプロジェクト設定を記録する。「ブラウザで確認」「画面で確認して」「browser-test」「動作確認して」「回帰がないか見て」や、`--env` / `--scope` / `--ignore-forbidden-actions` / `setup` を伴う依頼で発動する。
+argument-hint: "[setup] [--env <環境名>] [--scope <uncommitted|branch|custom>] [--ignore-forbidden-actions]"
 license: MIT
 ---
 

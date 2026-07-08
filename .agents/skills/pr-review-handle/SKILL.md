@@ -1,4 +1,5 @@
 ---
+argument-hint: <PR URL | 番号 | レビュー URL> [--push]
 description: GitHub PR のレビューコメント対応を `gh` で標準化するスキル。PR URL / PR 番号 / レビュー URL を受け取り、未解決レビュースレッドの確認・指摘の妥当性判断・必要な場合のみ修正・返信・解決（resolve）までを段階的に進める。全レビュアー（Copilot を含む）が対象。「レビューに対応して」「Copilot のレビューを処理して」「レビューコメントを解決して」「pr-review-handle」や、`--push` を伴う依頼で必ず発動する。ブランチ作成や Issue 着手は姉妹スキル issue-start が担う。
 license: MIT
 name: pr-review-handle

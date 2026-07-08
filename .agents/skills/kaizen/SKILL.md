@@ -1,4 +1,5 @@
 ---
+argument-hint: '[extract|apply|archive] [--current | --all]'
 description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」などで発動。
 license: MIT
 name: kaizen

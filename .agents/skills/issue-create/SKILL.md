@@ -1,4 +1,5 @@
 ---
+argument-hint: <説明> [--repo <owner>/<repo>]
 description: GitHub Issue の作成を `gh` で標準化するスキル。バグ・機能要望・タスクなどの短い説明を受け取り、対象リポジトリ確認・重複チェック・`.github/ISSUE_TEMPLATE/` のテンプレ検出・本文ドラフトのユーザー承認・`gh issue create` での起票までを進める。「Issue を作って」「課題として登録して」「バグを起票して」「issue-create」や、新しい機能要望・不具合・タスクを GitHub Issue にしたい依頼で必ず発動する。作業着手は姉妹スキル issue-start が担う。
 license: MIT
 name: issue-create

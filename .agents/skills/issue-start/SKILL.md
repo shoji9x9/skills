@@ -1,4 +1,5 @@
 ---
+argument-hint: <Issue URL | 番号> [--plan | --commit | --pr]
 description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。「Issue から始める」「この issue に着手」「issue-start」や、`--plan` / `--commit` / `--pr` を伴う依頼で発動する。
 license: MIT
 name: issue-start
