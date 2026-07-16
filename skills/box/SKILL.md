@@ -30,13 +30,13 @@ TOKEN="$(bash <skill>/scripts/box-token.sh)"
 | Dev Token     | `BOX_ACCESS_TOKEN`                                    | Box Developer Console で発行する 60 分有効トークン。即時・管理者承認不要。期限切れごとに再発行            |
 | OAuth refresh | `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` / refresh token | refresh token から access token を都度取得。持続的。refresh token はローテーションするため自動保存する    |
 
-OAuth refresh の refresh token は `BOX_REFRESH_TOKEN`、または `BOX_REFRESH_TOKEN_FILE`（既定 `~/.config/box/refresh_token`）から読む。`BOX_ACCESS_TOKEN` が設定されていればそちらを優先する。
+OAuth refresh の refresh token は `BOX_REFRESH_TOKEN`、または `BOX_REFRESH_TOKEN_FILE`（既定 `$HOME/.config/box/refresh_token`）から読む。`BOX_ACCESS_TOKEN` が設定されていればそちらを優先する。
 
 OAuth refresh を使う場合、初回だけ Client ID/Secret の取得と認可コード交換が必要になる。手順は [`references/oauth-setup.md`](references/oauth-setup.md) を参照する。
 
 必要な環境変数は、同梱テンプレート [`assets/.env.example`](assets/.env.example) を `.env` に複製して設定する（インストール先に同種の設定があればそれを優先する）。
 
-**秘匿情報の扱い**: トークン・client secret・refresh token はリポジトリにコミットしない。環境変数（direnv 等）か、リポジトリ外のファイル（既定の `~/.config/box/`）で管理する。
+**秘匿情報の扱い**: トークン・client secret・refresh token はリポジトリにコミットしない。環境変数（direnv 等）か、リポジトリ外のファイル（既定の `$HOME/.config/box/`）で管理する。
 
 疎通確認:
 

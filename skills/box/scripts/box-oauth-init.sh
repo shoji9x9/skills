@@ -2,7 +2,7 @@
 # Box OAuth 2.0 の認可コードを access/refresh token に交換し、refresh token を保存する（初回のみ実行）。
 # 使い方: box-oauth-init.sh <authorization_code>
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
-# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 ~/.config/box/refresh_token）
+# 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
 set -euo pipefail
 
 code="${1:-}"
@@ -12,6 +12,9 @@ code="${1:-}"
 
 redirect_uri="${BOX_REDIRECT_URI:-https://app.box.com}"
 token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
+stripped="${token_file#\~/}"
+[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 
 resp="$(curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=authorization_code \

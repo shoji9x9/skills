@@ -12,6 +12,9 @@ fi
 : "${BOX_CLIENT_SECRET:?BOX_CLIENT_SECRET が未設定}"
 
 token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
+# env/dotenv 経由の値は ~ が展開されないため、先頭 ~/ を $HOME/ に正規化する
+stripped="${token_file#\~/}"
+[ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
 	# 手動保存で混入し得る改行/CR/空白を除去する（token は非空白のみ）
