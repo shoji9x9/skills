@@ -39,7 +39,7 @@ if [ -z "$access" ]; then
 fi
 
 # refresh token は都度ローテーションするため新しい値を保存する
-if [ -n "$new_refresh" ] && [ "$new_refresh" != "null" ]; then
+if [ -n "$new_refresh" ]; then
 	(
 		umask 077
 		mkdir -p "$(dirname "$token_file")"
