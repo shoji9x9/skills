@@ -40,7 +40,7 @@ OAuth refresh を使う場合、初回だけ Client ID/Secret の取得と認可
 疎通確認:
 
 ```bash
-curl -sf "https://api.box.com/2.0/users/me" \
+curl -sSf "https://api.box.com/2.0/users/me" \
   -H "Authorization: Bearer $TOKEN" | jq '{id, name, login}'
 ```
 
@@ -69,7 +69,7 @@ while :; do
     --data-urlencode "limit=1000"
     --data-urlencode "fields=id,name,type,size,modified_at")
   [ -n "$marker" ] && args+=(--data-urlencode "marker=$marker")
-  page="$(curl -sf "${args[@]}")"
+  page="$(curl -sSf "${args[@]}")"
   printf '%s' "$page" | jq -c '.entries[] | {id, type, name, size, modified_at}'
   marker="$(printf '%s' "$page" | jq -r '.next_marker // empty')"
   [ -n "$marker" ] || break
@@ -81,7 +81,7 @@ done
 ### ファイルのメタ取得
 
 ```bash
-curl -sf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension,modified_at,sha1" \
+curl -sSf "https://api.box.com/2.0/files/<file-id>?fields=id,name,size,extension,modified_at,sha1" \
   -H "Authorization: Bearer $TOKEN" | jq
 ```
 
@@ -95,7 +95,7 @@ curl -fL "https://api.box.com/2.0/files/<file-id>/content" \
 ### 検索（対象フォルダ配下に限定）
 
 ```bash
-curl -sf -G "https://api.box.com/2.0/search" \
+curl -sSf -G "https://api.box.com/2.0/search" \
   -H "Authorization: Bearer $TOKEN" \
   --data-urlencode "query=<検索語>" \
   --data-urlencode "ancestor_folder_ids=$FOLDER" \
@@ -107,7 +107,7 @@ curl -sf -G "https://api.box.com/2.0/search" \
 ### アップロード（新規ファイル）
 
 ```bash
-curl -sf -X POST "https://upload.box.com/api/2.0/files/content" \
+curl -sSf -X POST "https://upload.box.com/api/2.0/files/content" \
   -H "Authorization: Bearer $TOKEN" \
   -F "attributes={\"name\":\"report.txt\",\"parent\":{\"id\":\"$FOLDER\"}}" \
   -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, size}'
@@ -116,7 +116,7 @@ curl -sf -X POST "https://upload.box.com/api/2.0/files/content" \
 ### 新バージョンのアップロード（既存ファイルの更新）
 
 ```bash
-curl -sf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
+curl -sSf -X POST "https://upload.box.com/api/2.0/files/<file-id>/content" \
   -H "Authorization: Bearer $TOKEN" \
   -F file=@/tmp/report.txt | jq '.entries[0] | {id, name, modified_at}'
 ```

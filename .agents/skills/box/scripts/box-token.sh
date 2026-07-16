@@ -14,7 +14,8 @@ fi
 token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
 refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
-	refresh="$(cat "$token_file")"
+	# 手動保存で混入し得る改行/CR/空白を除去する（token は非空白のみ）
+	refresh="$(tr -d '[:space:]' <"$token_file")"
 fi
 : "${refresh:?refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）}"
 
