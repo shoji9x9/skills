@@ -60,10 +60,16 @@ FOLDER="${BOX_ROOT_FOLDER_ID:-0}"
 
 ```bash
 # marker ベースで全ページを辿る（大きいフォルダでも取りこぼさない）
+# next_marker は不透明トークンなので -G + --data-urlencode で必ずエンコードする
 marker=""
 while :; do
-  page="$(curl -sf "https://api.box.com/2.0/folders/$FOLDER/items?usemarker=true&limit=1000&fields=id,name,type,size,modified_at${marker:+&marker=$marker}" \
-    -H "Authorization: Bearer $TOKEN")"
+  args=(-G "https://api.box.com/2.0/folders/$FOLDER/items"
+    -H "Authorization: Bearer $TOKEN"
+    --data-urlencode "usemarker=true"
+    --data-urlencode "limit=1000"
+    --data-urlencode "fields=id,name,type,size,modified_at")
+  [ -n "$marker" ] && args+=(--data-urlencode "marker=$marker")
+  page="$(curl -sf "${args[@]}")"
   printf '%s' "$page" | jq -c '.entries[] | {id, type, name, size, modified_at}'
   marker="$(printf '%s' "$page" | jq -r '.next_marker // empty')"
   [ -n "$marker" ] || break
