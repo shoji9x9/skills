@@ -1,0 +1,45 @@
+{
+  "skill_name": "box",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Box の対象フォルダにあるファイルを一覧して",
+      "assertions": [
+        "box-token.sh でアクセストークンを取得しようとしている",
+        "BOX_ROOT_FOLDER_ID（未設定なら 0）を対象フォルダに使っている",
+        "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
+        "Authorization: Bearer ヘッダを付けている",
+        "件数が limit を超える場合に offset でページを辿ることに触れている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Box のファイル id 123456 をダウンロードして中身を見たい",
+      "assertions": [
+        "https://api.box.com/2.0/files/123456/content を叩いている",
+        "curl -fL でリダイレクトを追い、-o でファイルに保存している",
+        "Authorization: Bearer ヘッダを付けている"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Box に report.txt を新規アップロードして",
+      "assertions": [
+        "https://upload.box.com/api/2.0/files/content に POST している",
+        "attributes に name と parent.id を指定している",
+        "-F file=@ でファイル本体を送っている",
+        "アップロード後に id/名前など結果を確認している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Box をずっと使いたいので Dev Token じゃなく持続的な認証にしたい",
+      "assertions": [
+        "OAuth refresh 方式を案内している",
+        "初回は Client ID/Secret 取得と認可コード交換が必要と説明している",
+        "box-oauth-init.sh で認可コードを交換して refresh token を保存する手順に触れている",
+        "トークンや client secret をリポジトリにコミットしないよう注意している"
+      ]
+    }
+  ]
+}
