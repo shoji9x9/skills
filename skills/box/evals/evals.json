@@ -9,7 +9,7 @@
         "BOX_ROOT_FOLDER_ID（未設定なら 0）を対象フォルダに使っている",
         "https://api.box.com/2.0/folders/<id>/items を curl で叩いている",
         "Authorization: Bearer ヘッダを付けている",
-        "件数が limit を超える場合に offset でページを辿ることに触れている"
+        "marker ベース（usemarker=true / next_marker）で全ページを辿ることに触れている"
       ]
     },
     {

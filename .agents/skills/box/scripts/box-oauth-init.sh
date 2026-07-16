@@ -13,12 +13,12 @@ code="${1:-}"
 redirect_uri="${BOX_REDIRECT_URI:-https://app.box.com}"
 token_file="${BOX_REFRESH_TOKEN_FILE:-$HOME/.config/box/refresh_token}"
 
-resp="$(curl -s https://api.box.com/oauth2/token \
+resp="$(curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=authorization_code \
-	-d "code=$code" \
-	-d "client_id=$BOX_CLIENT_ID" \
-	-d "client_secret=$BOX_CLIENT_SECRET" \
-	-d "redirect_uri=$redirect_uri")"
+	--data-urlencode "code=$code" \
+	--data-urlencode "client_id=$BOX_CLIENT_ID" \
+	--data-urlencode "client_secret=$BOX_CLIENT_SECRET" \
+	--data-urlencode "redirect_uri=$redirect_uri")"
 
 err="$(printf '%s' "$resp" | jq -r '.error // empty')"
 if [ -n "$err" ]; then
@@ -34,9 +34,9 @@ if [ -z "$refresh" ] || [ "$refresh" = "null" ]; then
 	exit 1
 fi
 
-mkdir -p "$(dirname "$token_file")"
 (
 	umask 077
+	mkdir -p "$(dirname "$token_file")"
 	printf '%s' "$refresh" >"$token_file"
 )
 

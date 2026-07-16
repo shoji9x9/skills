@@ -18,11 +18,11 @@ if [ -z "$refresh" ] && [ -f "$token_file" ]; then
 fi
 : "${refresh:?refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）}"
 
-resp="$(curl -s https://api.box.com/oauth2/token \
+resp="$(curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=refresh_token \
-	-d "client_id=$BOX_CLIENT_ID" \
-	-d "client_secret=$BOX_CLIENT_SECRET" \
-	-d "refresh_token=$refresh")"
+	--data-urlencode "client_id=$BOX_CLIENT_ID" \
+	--data-urlencode "client_secret=$BOX_CLIENT_SECRET" \
+	--data-urlencode "refresh_token=$refresh")"
 
 err="$(printf '%s' "$resp" | jq -r '.error // empty')"
 if [ -n "$err" ]; then
@@ -40,9 +40,9 @@ fi
 
 # refresh token は都度ローテーションするため新しい値を保存する
 if [ -n "$new_refresh" ] && [ "$new_refresh" != "null" ]; then
-	mkdir -p "$(dirname "$token_file")"
 	(
 		umask 077
+		mkdir -p "$(dirname "$token_file")"
 		printf '%s' "$new_refresh" >"$token_file"
 	)
 fi
