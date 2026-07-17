@@ -1,0 +1,5 @@
+# Codex CLI のプロジェクト設定（trusted プロジェクトでのみ読み込まれる）。
+# MCP サーバ定義は Claude Code / Copilot CLI 用の .mcp.json と対で管理する。
+[mcp_servers.chrome-devtools]
+command = "pnpm"
+args = ["dlx", "chrome-devtools-mcp@latest"]

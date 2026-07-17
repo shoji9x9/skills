@@ -1,4 +1,5 @@
 {
+  "enabledMcpjsonServers": ["chrome-devtools"],
   "hooks": {
     "SessionStart": [
       {
