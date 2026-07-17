@@ -11,7 +11,8 @@
 手順:
 
 1. chrome-devtools MCP で現行アプリの対象ページを開く（認証が必要ならユーザーにログインを依頼する）
-2. 同梱の [`../scripts/role-probe.mjs`](../scripts/role-probe.mjs) を読み、`roleProbe` 関数のリテラルを chrome-devtools MCP の `evaluate_script` にそのまま渡して実行する
+2. 同梱の [`../scripts/role-probe.mjs`](../scripts/role-probe.mjs) を読み、`roleProbe` 関数のリテラル（`() => { ... }` の部分）を chrome-devtools MCP の `evaluate_script` の `function` 引数に渡す。
+   `evaluate_script` は渡された関数を自ら呼び出して実行し、返り値（測定結果オブジェクト）を JSON で返す（IIFE 化は不要）
 3. 返り値（総数・named／unnamed・role 別内訳・(role, name) の重複数・unnamed のサンプル）をページごとに記録する
 4. 対象ページは機能インベントリの代表ページから選ぶ。**最低でも一覧系・フォーム系・ダイアログを含む 3 ページ以上**。全ページでなくてよいが、対象にしたページを明記する
 

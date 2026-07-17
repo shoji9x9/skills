@@ -1,6 +1,8 @@
 // セマンティクス測定の role プローブ（正本）。
-// 使い方: 下の `roleProbe` の関数リテラルを chrome-devtools MCP の evaluate_script に
-// そのまま渡してページ上で実行する（Node では実行しない。ブラウザの document を参照する）。
+// 使い方: 下の `roleProbe` の関数リテラルを chrome-devtools MCP の evaluate_script の
+// function 引数にそのまま渡す（Node では実行しない。ブラウザの document を参照する）。
+// evaluate_script は渡された関数宣言を自ら呼び出して実行し、返り値を JSON で返すため、
+// IIFE 化（`(...)()`）は不要（ツール仕様・実測とも確認済み）。
 //
 // 測るもの: 可視の対象要素（インタラクティブ要素に加え、見出し・テーブル・画像など
 // role ロケータの対象になる要素）のうち、role ＋アクセシブルネームで引ける割合。
