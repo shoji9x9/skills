@@ -1,0 +1,217 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-fable-5",
+    "timestamp": "2026-07-17T12:20:39Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.8,
+        "tokens": 16559,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前提スキル（issue-create / browser-test）のインストール状況を確認している",
+          "passed": true,
+          "evidence": "依存確認表で issue-create / browser-test を未インストールと判定"
+        },
+        {
+          "text": "chrome-devtools MCP の有効性を確認し、無効・未設定なことを検出している",
+          "passed": true,
+          "evidence": "「chrome-devtools MCP ❌ 未検出（ブラウザ操作系ツールなし）」"
+        },
+        {
+          "text": "不足に対して導入手順（gh skill install / MCP の設定）を示している",
+          "passed": true,
+          "evidence": "gh skill install shoji9x9/skills issue-create 等と MCP 登録手順を提示"
+        },
+        {
+          "text": "測定できないため戦略提示へ進まず停止している",
+          "passed": true,
+          "evidence": "「測定に必要な前提が揃っていないため…ここで停止します」"
+        },
+        {
+          "text": "推測で .replace/survey.md や .replace/strategy.md を生成していない",
+          "passed": true,
+          "evidence": "project-files に生成物なし（.claude のみ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 36.5,
+        "tokens": 13968,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "自前の状態を持たず .replace/features.md 等の成果物から導出しようとしている",
+          "passed": true,
+          "evidence": ".replace/features.md・skills.yml の存在確認から導出を開始"
+        },
+        {
+          "text": "インベントリ・設定が無いことを検出し、setup 未実施として案内している",
+          "passed": true,
+          "evidence": "「結果: setup 未実施」とし replace-strategy setup を案内"
+        },
+        {
+          "text": "存在しない現況を捏造していない（未着手・未検証を未検証のまま報告している）",
+          "passed": true,
+          "evidence": "観測（なし/未初期化）のみを報告し推測なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 31.9,
+        "tokens": 12900,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "「.replace/（ディレクトリ自体が未作成）」を確認し setup 未完了と判定"
+        },
+        {
+          "text": "Issue を起票せず、setup の実行を促している",
+          "passed": true,
+          "evidence": "「起票せず停止」「先に setup モードを実行してください」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 41.4,
+        "tokens": 12800,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定せずに戦略を語らない原則に従い、戦略の生成を拒否している",
+          "passed": true,
+          "evidence": "「測定なしで戦略を書くことはできません。…ここで停止します」"
+        },
+        {
+          "text": "測定が必要な理由（戦略判断が実測値に依存する）か停止条件を説明している",
+          "passed": true,
+          "evidence": "戦略が実測値の上にしか成立しない理由と切り分け表を提示"
+        },
+        {
+          "text": "推測値を「未測定」と区別せずに戦略へ埋め込んでいない",
+          "passed": true,
+          "evidence": "strategy.md を生成せず、project-files に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 59.7,
+        "tokens": 15669,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "シークレットの値を設定ファイルに書くことを拒否している",
+          "passed": true,
+          "evidence": "「これは実行しませんでした」と明示し設定ファイル未作成"
+        },
+        {
+          "text": "設定ファイルには環境変数名だけを持つ契約を説明している",
+          "passed": true,
+          "evidence": "「設定ファイルには環境変数名のみを記録（例: db.password_env: DB_PASSWORD）」"
+        },
+        {
+          "text": "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない",
+          "passed": false,
+          "evidence": "応答本文に export DB_PASSWORD='hunter2' と値を復唱しており標準出力に露出（ファイルへの書き込みは無し）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9334,
+        "stddev": 0.1489,
+        "min": 0.667,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 45.46,
+        "stddev": 12.6065,
+        "min": 31.9,
+        "max": 59.7
+      },
+      "tokens": {
+        "mean": 14379.2,
+        "stddev": 1678.2508,
+        "min": 12800,
+        "max": 16559
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.93",
+      "time_seconds": "+45.5",
+      "tokens": "+14379"
+    }
+  },
+  "notes": [],
+  "methodology": {
+    "mode": "with_skill only (lightweight, 1 run per eval)",
+    "isolation": "scripts/run-skill-eval.sh による使い捨て空プロジェクト（/tmp）での headless 実行",
+    "note": "baseline (without_skill) は省略。停止パス中心のコマンド型スキルでシグナルが薄く、issue-create iteration-2 の方式に合わせた。delta はベースライン無しのため参考値ではない",
+    "safety": "外向き・破壊的操作なし。全 run で生成物ゼロ（推測での survey/strategy 生成なし）を確認"
+  }
+}
