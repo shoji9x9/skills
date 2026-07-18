@@ -1,0 +1,62 @@
+{
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "mode": "<feature | api-resource | batch>",
+  "target": {
+    "url": "<現行テスト環境の URL>",
+    "commit": "<現行リポジトリのコミット SHA。入手不可なら none>"
+  },
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<調査したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<parity-suite のバージョン>"
+  },
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。現在より古ければ陳腐化として再取得する>",
+  "suite": {
+    "dir": "<parity_suite_dir。未指定時 e2e/>",
+    "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
+    "locator_map": "<現側マッピングのパス>",
+    "interactions": "<操作アダプタのパス>",
+    "tools": "<決定論的ツール（trait-capture / trait-compare のコピー）のパス>",
+    "current_green": false
+  },
+  "capture_conditions": {
+    "environment": "<撮影環境。parity-diff が新側を同一環境で撮れるようにする>",
+    "viewports": [{ "width": 0, "height": 0, "label": "<例: desktop / mobile>" }],
+    "animations": "disabled",
+    "masks": [
+      "<マスクした動的領域のロケータと理由（認証情報・トークン・個人情報・揮発項目は残さない）>"
+    ],
+    "states": ["<遷移させた状態: default | hover | focus | active | disabled | selected | error>"]
+  },
+  "traits": {
+    "tool": "<プロジェクト側 trait-capture.mjs のパスと VERSION 値>",
+    "property_set": ["<採取した FIXED_PROPERTIES の集合。ツールのスキーマを変えたら更新する>"],
+    "elements": ["<採取対象の論理名の一覧>"]
+  },
+  "differ": {
+    "trait_compare": "<プロジェクト側 trait-compare.mjs のパスと VERSION 値>",
+    "align_tolerance": 1,
+    "pixel_tool": "<画素差分ツール名とバージョン（例: pixelmatch / odiff）>",
+    "pixel_threshold": 0,
+    "aria_compare": "<aria 構造比較の手段（取得スナップショットのベースライン相手の構造比較。ツールを使う場合はパスとバージョン>",
+    "validated_by_strength_gate": false
+  },
+  "noise_baseline": [
+    {
+      "page": "<ページ>",
+      "state": "<状態>",
+      "viewport": "<ビューポート label>",
+      "pixel_diff": 0,
+      "trait_diffs": 0
+    }
+  ],
+  "artifacts_storage": {
+    "selected": "<local | git | git-lfs。既定は設定の storage、overrides.<slug> で上書き>",
+    "size_threshold_mb": 0,
+    "baseline_pointer": "<ベースライン（.replace/parity/<slug>/baseline/）の保存先ポインタ>"
+  }
+}
