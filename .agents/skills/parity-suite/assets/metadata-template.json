@@ -42,7 +42,7 @@
     "align_tolerance": 1,
     "pixel_tool": "<画素差分ツール名とバージョン（例: pixelmatch / odiff）>",
     "pixel_threshold": 0,
-    "aria_compare": "<aria 構造比較の手段（取得スナップショットのベースライン相手の構造比較。ツールを使う場合はパスとバージョン>",
+    "aria_compare": "<aria 構造比較の手段（取得スナップショットのベースライン相手の構造比較。ツールを使う場合はパスとバージョン）>",
     "validated_by_strength_gate": false
   },
   "noise_baseline": [
