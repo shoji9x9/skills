@@ -13,7 +13,8 @@
 | 参考 aria スナップショット | 採取した aria | **参考資料であって assertion ではない**（assertion は手書き。[`coverage.md`](coverage.md)） |
 
 - **特性照合の対象は論理名付き要素に絞る。** 名前の付かない要素の見た目差はスクリーンショット（画素経路）が担う
-- 採取には同梱 [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs)（プロジェクト側 `tools/` へコピーした正本）を使う。何を採ったか（対象要素・プロパティ集合・状態）を `metadata.json` に残し、`parity-diff` が同一条件で照合できるようにする
+- 採取には同梱 [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側 `<parity_suite_dir>/parity/lib/tools/`（既定。配置指針は [`locator-mapping.md`](locator-mapping.md)）へコピーして使う。
+  何を採ったか（対象要素・プロパティ集合・状態）を `metadata.json` に残し、`parity-diff` が同一条件で照合できるようにする
 
 ## 撮影条件の統制
 

@@ -101,7 +101,8 @@ parity-suite [--feature <slug>]
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
-- 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。実行時はプロジェクト側 `tools/` へコピーして使い、実際のパスを `metadata.json` に記録する
+- 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
+  実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/`（既定。配置指針は [`references/locator-mapping.md`](references/locator-mapping.md)）へコピーして使い、実際のパスを `metadata.json` に記録する
 
 ## 姉妹スキルとの連携
 
