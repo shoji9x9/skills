@@ -55,7 +55,8 @@ gh skill update --all
 一部のスキル（issue-start / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test / replace-strategy / parity-suite）は、
 インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
 `<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。
-設定はスキル実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、skill ディレクトリ外にあるため `gh skill update` でも保持される。
+設定は、**設定を作成するスキル**（`replace-strategy setup` / `browser-test setup` や各スキルの規約解決フロー等）の実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、
+skill ディレクトリ外にあるため `gh skill update` でも保持される。共有契約を**読むだけ**のスキル（parity-suite 等）は設定を生成せず、未設定なら作成元スキル（`replace-strategy setup`）の実行を促して停止する。
 
 ```yaml
 version: 1
