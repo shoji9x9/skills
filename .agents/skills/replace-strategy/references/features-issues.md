@@ -46,17 +46,18 @@
 - ページ・API・テーブル・副作用出力の一覧
 - **「この機能が新規に実装する API」と「依存する横断 API（どの Issue で実装されるか）」を分けて書き**、再実装しない
 - Issue 内は**ページ単位でフェーズを分ける**（1 ページを作り切って比較してから次へ）
-- ワークフロー: `golden-dataset`（フェーズ B）→ `parity-suite` → `parity-replace` ⇄ `parity-diff`
+- ワークフロー: `parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）
 
 ### 横断 API Issue
 
 - 対象リソースと API 一覧、利用側の機能（fan-out）
 - 画面が無くても旧 API の実応答が正解になるため、消費側の機能を待たずに仕様は確定する。**パリティスイートは一度だけ書いて共有する**（機能ごとに重複して書かない）
+- 新側の検証（`parity-replace` の green 化・`parity-diff`）の前に、対象リソースのテーブルへ `golden-dataset`（フェーズ B）で投入されていること（新側 DB が未シードのままでは値の比較が成立しない）
 
 ### バッチ Issue
 
 - 対象バッチ、入力（ゴールデンデータセット＋入力ファイル）、比較する出力（DB 状態・生成ファイル）
-- ワークフロー: 姉妹スキルのバッチモード（`parity-suite` が現行出力をベースライン捕捉 → `parity-replace` が新側実装 → `parity-diff` が決定論的比較）
+- ワークフロー: 姉妹スキルのバッチモード（`parity-suite` が現行出力をベースライン捕捉 → `parity-replace` が新側実装 → `golden-dataset`（フェーズ B）で新側へ投入 → `parity-diff` が決定論的比較）
 
 ## issues モードのフロー
 

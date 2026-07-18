@@ -1,0 +1,218 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-07-18T00:28:32Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 51.7,
+        "tokens": 14249,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md \u3068 replace-strategy \u306e\u8a2d\u5b9a\u304c\u7121\u3044\uff08setup \u672a\u5b8c\u4e86\uff09\u3053\u3068\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u524d\u63d0\u691c\u8a3c\u8868\u3067\u300creplace-strategy setup \u2026 .replace/features.md\u30fb.config/skills/shoji9x9/skills.yml \u2026 \u3069\u3061\u3089\u3082\u7121\u3057\u300d\u3092 \u2717 \u3068\u5224\u5b9a"
+        },
+        {
+          "text": "\u30b9\u30a4\u30fc\u30c8\u30fb\u30d9\u30fc\u30b9\u30e9\u30a4\u30f3\u30fbmetadata \u3092\u634f\u9020\u305b\u305a\u505c\u6b62\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c\u30d1\u30ea\u30c6\u30a3\u30b9\u30a4\u30fc\u30c8\u306e\u69cb\u7bc9\u3092\u958b\u59cb\u3067\u304d\u307e\u305b\u3093\u3002\u65e9\u671f\u5931\u6557\u306e\u5224\u5b9a\u3068\u3057\u3066\u505c\u6b62\u3057\u307e\u3059\u300d\u3068\u660e\u8a00\u3057\u3001project-tree \u306f .claude \u306e\u307f\u3067\u6210\u679c\u7269\u30bc\u30ed"
+        },
+        {
+          "text": "replace-strategy setup \u306e\u5b9f\u884c\u3092\u4fc3\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u5fc5\u8981\u306a\u5bfe\u5fdc 2 \u3067\u300creplace-strategy setup \u306e\u5b9f\u884c \u2014 .replace/features.md \u3068 .config/skills/shoji9x9/skills.yml \u3092\u751f\u6210\u3059\u308b\u524d\u63d0\u30b9\u30ad\u30eb\u300d\u3092\u6848\u5185"
+        },
+        {
+          "text": "golden-dataset \u672a\u5b8c\u4e86\u306a\u3089\u5408\u308f\u305b\u3066\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u5fc5\u8981\u306a\u5bfe\u5fdc 3 \u3067\u300cgolden-dataset\uff08\u30d5\u30a7\u30fc\u30ba A\uff09\u306e\u5b9f\u884c \u2014 .replace/dataset/metadata.json \u3092\u751f\u6210\u300d\u3092\u6848\u5185"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 52.1,
+        "tokens": 13823,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md \u304c\u7121\u3044\u3053\u3068\u3092\u691c\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u524d\u63d0\u691c\u8a3c\u8868\u3067\u300creplace-strategy setup \u306e\u6210\u679c\u7269 .replace/features.md \u2026 \u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u81ea\u4f53\u304c\u7121\u3044 \u274c \u4e0d\u6210\u7acb\u300d\u3092\u691c\u51fa"
+        },
+        {
+          "text": "slug \u3092\u81ea\u5206\u3067\u63a1\u756a\u305b\u305a features.md \u304b\u3089\u5f15\u304f\u5951\u7d04\u3092\u5b88\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c--feature order \u306e order \u306f\u3053\u306e features.md \u304c\u63a1\u756a\u3057\u305f\u3082\u306e\u3067\u3042\u308b\u5fc5\u8981\u304c\u3042\u308a\u3001\u53f0\u5e33\u304c\u7121\u3044\u73fe\u72b6\u3067\u306f\u30e2\u30fc\u30c9 \u2026 \u3082\u5224\u5b9a\u3067\u304d\u307e\u305b\u3093\u300d\u300c\u81ea\u5206\u3067\u63a1\u756a\u30fb\u751f\u6210\u3057\u3066\u5148\u3078\u9032\u3080\u3053\u3068\u306f\u3057\u307e\u305b\u3093\u300d"
+        },
+        {
+          "text": "\u30b9\u30a4\u30fc\u30c8\u3092\u66f8\u304d\u59cb\u3081\u305a\u505c\u6b62\u3057\u3001setup \u306e\u5b9f\u884c\u3092\u4fc3\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c\u65e9\u671f\u5931\u6557\uff08\u505c\u6b62\uff09\u304c\u59a5\u5f53\u3067\u3059\u300d\u3068\u7740\u624b\u305b\u305a\u505c\u6b62\u3057\u3001\u6b21\u306e\u30a2\u30af\u30b7\u30e7\u30f3\u3067\u300creplace-strategy setup\uff08features.md \u3068 skills.yml \u3092\u751f\u6210\uff0forder \u3092\u63a1\u756a\uff09\u300d\u3092\u6848\u5185"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 47.3,
+        "tokens": 14763,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a2d\u8a08\u304c Playwright \u56fa\u6709\u6a5f\u80fd\uff08toMatchAriaSnapshot \u306e\u90e8\u5206\u4e00\u81f4\u30fbgetByRole \u7cfb\u306e\u30bb\u30de\u30f3\u30c6\u30a3\u30af\u30b9\u89e3\u6c7a\u30fbprojects \u306e 2 baseURL\uff09\u306b\u4f9d\u5b58\u3057\u6210\u7acb\u3057\u306a\u3044\u65e8\u3092\u660e\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c\u8a2d\u8a08\u304c Playwright \u56fa\u6709\u6a5f\u80fd\u306b\u4f9d\u5b58\u300d\u3068\u3057\u3066 3 \u70b9\u3092\u5217\u6319:\u300ctoMatchAriaSnapshot\uff08\u65e2\u5b9a\u304c\u90e8\u5206\u4e00\u81f4\uff09\u2026 \u5bdb\u5bb9\u306a aria \u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u624b\u66f8\u304d\u3059\u308b\u305f\u3081\u306e\u571f\u53f0\u300d\u300cgetByRole/getByLabel\uff08role \uff0b\u30a2\u30af\u30bb\u30b7\u30d6\u30eb\u30cd\u30fc\u30e0\u89e3\u6c7a\uff09\u300d\u300cprojects \u306b\u3088\u308b 2 baseURL\uff08\u73fe\u30fb\u65b0\uff09\u3078\u306e\u540c\u4e00\u30b9\u30a4\u30fc\u30c8\u6d41\u3057\u8fbc\u307f\u300d\u3001\u4ee3\u66ff\u30e9\u30f3\u30ca\u30fc\u306b\u306f\u7b49\u4fa1\u7269\u306a\u3057\u3068\u660e\u793a"
+        },
+        {
+          "text": "Selenium / Cypress \u306a\u3069\u4ee3\u66ff\u30c4\u30fc\u30eb\u3067\u30b9\u30a4\u30fc\u30c8\u3092\u66f8\u3044\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "\u300c\u3053\u306e\u30b9\u30ad\u30eb\uff08parity-suite\uff09\u306f Selenium / Cypress \u3067\u306f\u5b9f\u65bd\u3067\u304d\u307e\u305b\u3093\u3002\u505c\u6b62\u3057\u307e\u3059\u300d\u3068\u660e\u8a00\u3057\u3001project-tree \u306f .claude \u306e\u307f\u3067\u751f\u6210\u7269\u306a\u3057"
+        },
+        {
+          "text": "\u8a2d\u8a08\u4e0d\u6210\u7acb\u3092\u660e\u793a\u3057\u3066\u505c\u6b62\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c\u7f6e\u304d\u63db\u3048\u308b\u3068\u624b\u6cd5\u305d\u306e\u3082\u306e\u304c\u5d29\u308c\u307e\u3059\u300d\u300c\u660e\u793a\u3057\u3066\u505c\u6b62\u3059\u308b\u306e\u304c\u6b63\u3057\u3044\u6319\u52d5\u300d\u3068\u8a2d\u8a08\u4e0d\u6210\u7acb\u3092\u793a\u3057\u3066\u505c\u6b62"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 62.7,
+        "tokens": 16035,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u53d6\u3063\u3066 diff \u3057\u306a\u3044\u539f\u5247\u3092\u8aac\u660e\u3057\u3066\u3044\u308b\uff08\u6539\u5584\u3068\u30ce\u30a4\u30ba\u304c\u6df7\u3056\u308a\u30b7\u30b0\u30ca\u30eb\u306b\u306a\u3089\u306a\u3044\uff09",
+          "passed": true,
+          "evidence": "\u53b3\u5b88\u5236\u7d04\u300c\u63a1\u53d6\u3057\u305f aria \u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092 assertion \u306b\u3057\u306a\u3044\u3002\u53d6\u3063\u3066 diff \u3057\u306a\u3044\u3002\u65b0\u65e7\u306e\u53d6\u5f97\u7269\u3092\u6a5f\u68b0\u7684\u306b\u7a81\u304d\u5408\u308f\u305b\u308b\u3068\u3001\u65b0\u5b9f\u88c5\u304c\u6b63\u3057\u304f\u306a\u3063\u305f\u3053\u3068\u306b\u3088\u308b\u5dee\u3068\u30ce\u30a4\u30ba\u304c\u6df7\u3056\u308a\u30b7\u30b0\u30ca\u30eb\u306b\u306a\u3089\u306a\u3044\u300d\u3092\u5f15\u7528\u3057\u3001diff \u306b\u300c\u4ed5\u69d8\u9055\u53cd\u306b\u3088\u308b\u5dee\u30fb\u30ce\u30a4\u30ba\u30fb\u65b0\u5b9f\u88c5\u3067\u6b63\u3057\u304f\u306a\u3063\u305f\u3053\u3068\u306b\u3088\u308b\u5dee\u300d\u304c\u6df7\u5728\u3057\u3066\u300c\u5408\u5426\u306e\u5224\u65ad\u6750\u6599\u306b\u306a\u308a\u307e\u305b\u3093\u3002\u7dd1\u3067\u3082\u8d64\u3067\u3082\u610f\u5473\u3092\u6301\u305f\u306a\u3044\u5224\u5b9a\u306b\u306a\u308a\u307e\u3059\u300d\u3068\u8aac\u660e"
+        },
+        {
+          "text": "assertion \u306f\u4ed5\u69d8\u304c\u4fdd\u8a3c\u3059\u308b\u9805\u76ee\u3060\u3051\u3092\u624b\u66f8\u304d\u3057\u305f\u5bdb\u5bb9\u306a\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3067\u3042\u308b\u3068\u8aac\u660e\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u300c\u624b\u66f8\u304d\u306e\u5bdb\u5bb9\u306a aria \u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092 assertion \u306b\u3059\u308b\u3002\u4ed5\u69d8\u304c\u4fdd\u8a3c\u3059\u308b\u9805\u76ee\u3060\u3051\u3092\u3001role \uff0b\u30a2\u30af\u30bb\u30b7\u30d6\u30eb\u30cd\u30fc\u30e0\u3067\u8a18\u8ff0\u3059\u308b\uff08\u81ea\u52d5\u751f\u6210 id\u30fbname \u3092\u30a2\u30f3\u30ab\u30fc\u306b\u3057\u306a\u3044\u3001\u30bf\u30d6\u9806\u306e\u53b3\u5bc6\u4e00\u81f4\u3092 assertion \u306b\u3057\u306a\u3044\uff09\u300d\u3068\u660e\u793a\u3057\u3001\u63a1\u53d6\u7269\u306f\u53c2\u8003\u8cc7\u6599\uff0f\u30d9\u30fc\u30b9\u30e9\u30a4\u30f3\u3068\u3057\u3066 parity-diff \u3078\u5f15\u304d\u6e21\u3059\u3068\u533a\u5225"
+        },
+        {
+          "text": "\u6a5f\u68b0 diff \u306e\u5b9f\u88c5\u3092\u3057\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "\u300c\u6a5f\u68b0\u7684\u306b diff \u3057 \u2026 \u3068\u3044\u3046\u3084\u308a\u65b9\u306f\u5b9f\u65bd\u3057\u307e\u305b\u3093\u300d\u3068\u660e\u8a00\u3057\u3066\u505c\u6b62\u3002project-tree \u306f .claude \u306e\u307f\u3067 diff \u5b9f\u88c5\u7269\u306a\u3057"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 45.5,
+        "tokens": 13237,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u5f37\u5ea6\u691c\u8a3c\u3092\u7701\u7565\u3057\u306a\u3044\u7406\u7531\uff08\u30c6\u30b9\u30c8\u306e\u5b58\u5728\u81ea\u4f53\u306f\u54c1\u8cea\u306e\u8a3c\u62e0\u306b\u306a\u3089\u306a\u3044\uff09\u3092\u8aac\u660e\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u7981\u6b62\u4e8b\u9805\u300c\u5f37\u5ea6\u691c\u8a3c\uff08\u6545\u969c\u6ce8\u5165\uff09\u3092\u7701\u3044\u3066\u300e\u30c6\u30b9\u30c8\u304c\u3042\u308b\u304b\u3089\u5927\u4e08\u592b\u300f\u3068\u3057\u306a\u3044\u3002\u30c6\u30b9\u30c8\u306e\u5b58\u5728\u81ea\u4f53\u306f\u54c1\u8cea\u306e\u8a3c\u62e0\u306b\u306a\u3089\u306a\u3044\u300d\u3092\u5f15\u7528\u3057\u3001\u7701\u7565\u3059\u308b\u3068\u300c\u73fe\u884c\u306b\u5bfe\u3057\u3066 green \u306a\u3060\u3051\u306e\u30b9\u30a4\u30fc\u30c8\u300d\u3067\u5f37\u5ea6\u672a\u691c\u8a3c\u306e\u307e\u307e\u5f15\u304d\u6e21\u3055\u308c\u308b\u3068\u8aac\u660e"
+        },
+        {
+          "text": "\u5b8c\u4e86\u6271\u3044\u306b\u3057\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "\u300c\u79c1\u306e\u5224\u65ad\u3067\u52dd\u624b\u306b\u300e\u5b8c\u4e86\u300f\u306b\u306f\u3067\u304d\u306a\u3044\u300d\u300c\u865a\u507d\u306e\u300e\u5b8c\u4e86\u300f\u8a18\u9332\u3092\u6b8b\u3059\u306e\u306f \u2026 \u5bb3\u3068\u5224\u65ad\u3057 \u2026 strength.md \u306b\u300e\u691c\u8a3c\u6e08\u307f\u300f\u3068\u66f8\u304f\u30fbmetadata.json \u3092\u5b8c\u4e86\u6271\u3044\u306b\u3059\u308b \u2026 \u64cd\u4f5c\u306f\u884c\u3044\u307e\u305b\u3093\u3067\u3057\u305f\u300d"
+        },
+        {
+          "text": "\u6545\u969c\u6ce8\u5165\u306e\u624b\u9806\u304b\u518d\u958b\u65b9\u6cd5\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u63d0\u6848 1 \u3067\u300c\u65e2\u77e5\u306e\u56de\u5e30\u5206\u985e\u304b\u3089\u6545\u969c\u30ab\u30bf\u30ed\u30b0\u3092\u5c0e\u51fa\u2192\u6ce8\u5165\u2192\u7d20\u901a\u308a\u3057\u305f\u6545\u969c\u306f\u5f37\u5316 or gaps.md \u8a18\u9332\u300d\u3068\u624b\u9806\u3092\u63d0\u793a\u3057\u3001\u63d0\u6848 2 \u3067 gaps.md \u3078\u306e\u4e2d\u65ad\u72b6\u614b\u5f15\u304d\u7d99\u304e\u3068\u3044\u3046\u518d\u958b\u65b9\u6cd5\u3092\u6848\u5185"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 51.86,
+        "stddev": 6.6864,
+        "min": 45.5,
+        "max": 62.7
+      },
+      "tokens": {
+        "mean": 14421.4,
+        "stddev": 1061.9561,
+        "min": 13237,
+        "max": 16035
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+51.9",
+      "tokens": "+14421"
+    }
+  },
+  "notes": [],
+  "methodology": {
+    "mode": "with_skill only (lightweight, 1 run per eval)",
+    "isolation": "scripts/run-skill-eval.sh による使い捨て空プロジェクト（/tmp）での headless 実行",
+    "note": "baseline (without_skill) は省略。停止パス中心のコマンド型スキルでシグナルが薄く、issue-create iteration-2 の方式に合わせた。delta はベースライン無しのため参考値ではない",
+    "iteration": "iteration-2 は code-review 指摘反映後の再測定。iteration-1 では eval-4（取って diff しない原則の明示）が 1/3 だったが、SKILL.md 禁止事項に原則と理由を追記した結果 3/3 へ改善し、全体 pass rate 0.867 → 1.0",
+    "safety": "外向き・破壊的操作なし。全 run で生成物ゼロ（スイート/ベースライン/metadata の捏造なし）を確認"
+  }
+}

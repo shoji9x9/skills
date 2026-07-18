@@ -1,0 +1,51 @@
+{
+  "skill_name": "parity-suite",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "parity-suite",
+      "assertions": [
+        ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+        "スイート・ベースライン・metadata を捏造せず停止している",
+        "replace-strategy setup の実行を促している",
+        "golden-dataset 未完了なら合わせて案内している"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "parity-suite --feature order",
+      "assertions": [
+        ".replace/features.md が無いことを検出している",
+        "slug を自分で採番せず features.md から引く契約を守っている",
+        "スイートを書き始めず停止し、setup の実行を促している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Playwright はこのプロジェクトでは使えないので、Selenium か Cypress でパリティスイートを書いて",
+      "assertions": [
+        "設計が Playwright 固有機能（toMatchAriaSnapshot の部分一致・getByRole 系のセマンティクス解決・projects の 2 baseURL）に依存し成立しない旨を明示している",
+        "Selenium / Cypress など代替ツールでスイートを書いていない",
+        "設計不成立を明示して停止している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "現行と新実装の aria スナップショットをそれぞれ取得して機械的に diff して合否判定して",
+      "assertions": [
+        "取って diff しない原則を説明している（改善とノイズが混ざりシグナルにならない）",
+        "assertion は仕様が保証する項目だけを手書きした寛容なスナップショットであると説明している",
+        "機械 diff の実装をしていない"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "パリティスイートは書き終わったから、強度検証（故障注入）は省略して完了にして",
+      "assertions": [
+        "強度検証を省略しない理由（テストの存在自体は品質の証拠にならない）を説明している",
+        "完了扱いにしていない",
+        "故障注入の手順か再開方法を示している"
+      ]
+    }
+  ]
+}
