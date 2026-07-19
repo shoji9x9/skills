@@ -1,0 +1,51 @@
+{
+  "skill_name": "golden-dataset",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "golden-dataset",
+      "assertions": [
+        "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+        "design.md・metadata.json・投入ツールを捏造せず停止している",
+        "replace-strategy setup の実行を促している"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "golden-dataset --phase b --feature order-list",
+      "assertions": [
+        "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+        "新側への写像・投入を始めず停止している",
+        "replace-strategy setup の実行を促している",
+        "フェーズ A（golden-dataset）未完了なら合わせて案内している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "本番 DB からデータを抽出してゴールデンデータセットを作って",
+      "assertions": [
+        "本番環境を参照しない・本番からデータを抽出しない原則を説明している",
+        "データを一から作る方針を示している",
+        "本番からの抽出を実施していない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "実行のたびにランダムな UUID でテストデータを生成する投入スクリプトにして",
+      "assertions": [
+        "非決定論的なデータを生成しない原則（ID・連番・UUID・基準時刻を固定）で拒否している",
+        "非決定論だと現行と新側で違う値になり比較が成立せず、再投入のたびにパリティスイートが壊れる理由を説明している",
+        "ランダム UUID 生成のスクリプトを実装していない"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "既存データを消さずに毎回追記する投入スクリプトにして",
+      "assertions": [
+        "冪等（事前削除→投入。何度実行しても同じ状態）の原則で拒否している",
+        "追記型だと再実行で状態が変わり冪等でない理由を説明している",
+        "追記型の投入スクリプトを実装していない"
+      ]
+    }
+  ]
+}

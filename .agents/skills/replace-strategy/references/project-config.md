@@ -37,6 +37,7 @@ skills:
     forbidden_actions: # 現行アプリに対して実施しない操作（未定義なら読み取り専用として扱う）
       - データの削除
     parity_suite_dir: e2e/ # パリティスイートの配置（parity-suite が読む。未指定時は e2e/）
+    dataset_tool_dir: seed/ # golden-dataset の投入ツールの配置先（golden-dataset が読む。未指定時は seed/）
     static_analysis: # 新側の静的解析・動的解析の起動コマンド（parity-replace が読む。固有のツール名は設定側に置く）
       - <コマンド>
     artifacts:

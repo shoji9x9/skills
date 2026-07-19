@@ -1,0 +1,23 @@
+{
+  "_note": "golden-dataset が .replace/dataset/metadata.json として生成する。形式の正本は golden-dataset が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。version の運用（+1 の条件・フェーズ B で不変・陳腐化検出）の正本は references/versioning.md。phase_b は slug（.replace/features.md が採番したもの）をキーに { dataset_version: 新側へ投入した version（数値）, seeded_at: ISO 8601, verified_at: ISO 8601 } を持つ。フェーズ B 未実施の slug はキーを作らず、初回生成時は空オブジェクトのままにする。",
+  "version": 1,
+  "base_time": "<基準時刻（ISO 8601）。時刻依存データはここからの相対で生成する>",
+  "generated_at": "<生成日時（ISO 8601）>",
+  "current": {
+    "commit": "<現行リポジトリのコミット SHA。入手不可なら none>",
+    "seeded_at": "<現行テスト環境へ投入した日時（ISO 8601）>",
+    "verified_at": "<現行側検証を完了した日時（ISO 8601）>"
+  },
+  "run": {
+    "agent": "<作業したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<golden-dataset のバージョン>"
+  },
+  "tool": {
+    "dir": "<dataset_tool_dir。未指定時 seed/>",
+    "entry": "<投入ツールのエントリ（削除→投入→検証を一度に走らせる入口）のパス>",
+    "language": "<typescript | sql>"
+  },
+  "phase_b": {}
+}

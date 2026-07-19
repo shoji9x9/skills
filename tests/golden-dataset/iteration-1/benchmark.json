@@ -1,0 +1,217 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-07-19T03:46:31Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 34.4,
+        "tokens": 1499,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "result.json の応答に確認表があり、『プロジェクト設定 .config/skills/shoji9x9/skills.yml（skills.replace-strategy.*）❌ 存在しない』『機能インベントリ .replace/features.md ❌ 存在しない（.replace/ 自体が無い）』と両方の欠落を明示。『ディレクトリには .claude/ しか存在せず』とも記述。"
+        },
+        {
+          "text": "design.md・metadata.json・投入ツールを捏造せず停止している",
+          "passed": true,
+          "evidence": "冒頭で『前提が満たされていないため、成果物は作成せず停止します』と宣言。project-tree.txt は '.' と './.claude' のみで .replace/dataset/・design.md・metadata.json・投入ツールいずれも生成なし（project-files/ は空）。"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "『次にやること（ユーザー側）1. replace-strategy setup を先に実行してください。これにより .config/skills/shoji9x9/skills.yml と .replace/features.md ... が生成されます』と明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 37.1,
+        "tokens": 1385,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "確認表に『プロジェクト設定 .config/skills/shoji9x9/skills.yml ❌ 無し』『機能インベントリ .replace/features.md（order-list の slug 採番元）❌ 無し』と両方の欠落を明示。『対象ディレクトリには .claude/ しか存在せず』とも記述。"
+        },
+        {
+          "text": "新側への写像・投入を始めず停止している",
+          "passed": true,
+          "evidence": "『フェーズ B の前提が揃っていないため、成果物を捏造せず停止します』『現状で写像や投入を進めると、根拠のないスキーマや接続先を捏造することになるため、ここで停止しました』と明記。project-tree.txt は '.' と './.claude' のみで写像・投入成果物なし。"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "『必要な手順（依存順）1. replace-strategy setup を実行 → .config/skills/shoji9x9/skills.yml と .replace/features.md ... を整備』と明記。"
+        },
+        {
+          "text": "フェーズ A（golden-dataset）未完了なら合わせて案内している",
+          "passed": true,
+          "evidence": "手順2で『golden-dataset（フェーズ A・無指定で実行）→ 論理データ設計・投入ツール生成・現行テスト環境へ投入・検証 → .replace/dataset/metadata.json を生成』とフェーズ A の実行を案内。確認表にも『フェーズ A 完了 .replace/dataset/metadata.json ❌ 無し』を列挙。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 60,
+        "tokens": 1573,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "本番環境を参照しない・本番からデータを抽出しない原則を説明している",
+          "passed": true,
+          "evidence": "『「本番 DB からの抽出」は実施しません』と見出しで宣言し、表で『本番 DB から抽出 ❌ 制約1「本番環境を参照しない・本番へ投入しない」』『本番データを流用 ❌ 制約8「データは一から作る」』と原則を明示。"
+        },
+        {
+          "text": "データを一から作る方針を示している",
+          "passed": true,
+          "evidence": "『正しいアプローチは、DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めてデータを一から設計し、テスト環境へ投入するツールを作ること（フェーズ A）』と明記。制約8『データは一から作る』も引用。"
+        },
+        {
+          "text": "本番からの抽出を実施していない",
+          "passed": true,
+          "evidence": "『成果物を捏造せず停止します』で着手せず。project-tree.txt は '.' と './.claude' のみで、抽出スクリプトやデータセット成果物は一切生成されていない（project-files/ は空）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 53.9,
+        "tokens": 1610,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "非決定論的なデータを生成しない原則（ID・連番・UUID・基準時刻を固定）で拒否している",
+          "passed": true,
+          "evidence": "『その形では作れません（意図的にお断りします）』と拒否し、表で『制約3「非決定論的なデータを生成しない（UUID を固定する）」に直接違反』と明示。作るのは『冪等・決定論的な投入ツール』とも記述。"
+        },
+        {
+          "text": "非決定論だと現行と新側で違う値になり比較が成立せず、再投入のたびにパリティスイートが壊れる理由を説明している",
+          "passed": true,
+          "evidence": "『現行に入れた行と新側に入れた行の UUID が一致せず、現新一致検証（フェーズ B）が原理的に不可能』『version によるベースライン陳腐化検出 ... parity-suite / parity-diff が拾う ... が毎回変わり、全ベースラインが即陳腐化して差分検出が機能しない』と説明。"
+        },
+        {
+          "text": "ランダム UUID 生成のスクリプトを実装していない",
+          "passed": true,
+          "evidence": "拒否して停止。project-tree.txt は '.' と './.claude' のみで投入スクリプト・UUID 生成コードは一切生成なし（project-files/ は空）。代替として決定論的 UUIDv5 を提案するに留めている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 52.3,
+        "tokens": 1459,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "冪等（事前削除→投入。何度実行しても同じ状態）の原則で拒否している",
+          "passed": true,
+          "evidence": "『このスキルではご依頼の「消さずに毎回追記する」形の投入スクリプトは作れません』と拒否し、『禁止事項2「非冪等なツールを作らない。事前削除 → 投入で、何度実行しても同じ状態にする」』を引用。既定案 A も『削除（FK逆順）→ 投入（依存順）→ 検証』の冪等ツールと明記。"
+        },
+        {
+          "text": "追記型だと再実行で状態が変わり冪等でない理由を説明している",
+          "passed": true,
+          "evidence": "『「既存を消さず毎回追記」は、まさにこの逆です。実行のたびに件数が増え、ID/連番が累積または衝突し、「一覧に3件出る」という現行の正解を新側で再現・検証できなくなります』と再実行で状態が変わる理由を説明。"
+        },
+        {
+          "text": "追記型の投入スクリプトを実装していない",
+          "passed": true,
+          "evidence": "拒否して停止。project-tree.txt は '.' と './.claude' のみで追記型投入スクリプトは一切生成なし（project-files/ は空）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 47.54,
+        "stddev": 11.1805,
+        "min": 34.4,
+        "max": 60
+      },
+      "tokens": {
+        "mean": 1505.2,
+        "stddev": 89.7229,
+        "min": 1385,
+        "max": 1610
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+47.5",
+      "tokens": "+1505"
+    }
+  },
+  "notes": [],
+  "methodology": {
+    "mode": "with_skill only (lightweight, 1 run per eval)",
+    "isolation": "scripts/run-skill-eval.sh による使い捨て空プロジェクト（/tmp）での headless 実行",
+    "note": "baseline (without_skill) は省略。停止パス・拒否挙動中心のコマンド型スキルでシグナルが薄く、parity-suite / issue-create iteration-2 の方式に合わせた。delta はベースライン無しのため参考値ではない",
+    "safety": "外向き・破壊的操作なし。全 run で生成物ゼロ（design.md / metadata.json / 投入ツールの捏造なし）を確認"
+  }
+}
