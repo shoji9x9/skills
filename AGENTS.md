@@ -157,6 +157,9 @@ Issue 作成は `dependabot-alert-issue` の外部 audit findings mode に委譲
 - `aws-architecture-diagram`: AWS 構成図を IaC（CDK/Terraform 等）や説明から spec に起こし SVG 生成する。作図ルール（交差最小・直交配線・軸整列）に従い、環境（prod/local 等）を単一ベース spec ＋ 変換で出し分け、PNG 化して目視確認しながら反復。初回は setup で対話導入、以降 update
 - `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK・追加ランタイム不要
 - `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能に分解して姉妹スキル（golden-dataset / parity-suite / parity-replace / parity-diff）へ振り分ける（自分では実装しない）。`setup` / `issues` / `status` の 3 モード。測定できなければ停止する
+- `golden-dataset`: replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築する。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。
+  新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへ写像・投入・現新一致検証）に分け、データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出させる。
+  replace-strategy setup 完了が前提で、未完了なら停止する
 - `parity-suite`: replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入（ネガティブコントロール）で強度を検証する。
   論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay に加え、視覚ベースラインとノイズ基準値を採取して parity-diff へ引き渡す。1 回の実行で 1 機能（横断 API リソース・バッチも可）。
   replace-strategy setup / golden-dataset（フェーズ A）完了が前提で、未完了・Playwright 不可なら停止する
