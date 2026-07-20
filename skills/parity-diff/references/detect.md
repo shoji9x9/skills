@@ -18,7 +18,7 @@
 - 記録ツールに差分画像を出力させ、同梱 [`../scripts/pixel-crops.mjs`](../scripts/pixel-crops.mjs) で差分画素の bbox クラスタリング → crop 対を生成する。**検出はツールに委ね、本スクリプトは差分画素のクラスタリングと crop 切り出しだけを行う**（差分器を再実装しない）
 
   ```text
-  node <スキルディレクトリ>/scripts/pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <px2>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]
+  node <スキルディレクトリ>/scripts/pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]
   ```
 
   - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある

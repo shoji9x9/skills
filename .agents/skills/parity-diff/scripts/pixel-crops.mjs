@@ -240,14 +240,14 @@ async function loadPng() {
 
 /**
  * CLI エントリ。
- * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <px2>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
+ * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
  * 差分領域があれば exit 1、無ければ exit 0、入力エラーは exit 2。
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
  */
 export async function main(argv) {
   const usage =
-    "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <px2>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]\n";
+    "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]\n";
   const positionals = [];
   let out;
   let minCluster = 1;
