@@ -79,7 +79,8 @@ parity-replace [--feature <slug>] [--max-iterations <n>]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: 前提（上記）を metadata.json の存在で判定し、欠ければ捏造せず停止して該当スキル（`replace-strategy setup` / `golden-dataset` / 対象 slug の `parity-suite`）の実行を促す。
-   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で `issue-start <番号>`（モード未指定＝ブランチ作成・checkout のみ）を実行してブランチを作る。未起票なら停止して `replace-strategy issues` を促す
+   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る
+   （`--commit` / `--pr` は付けない。ブランチ作成・checkout 後の調査・実装は issue-start に委ねず、本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す
 2. **ページ分割とフェーズ構成**: 機能をページ単位のフェーズに分ける。**1 ページを作り切って比較してから次へ**。フェーズ内は読み取り経路 → 書き込み経路の順。api-resource / batch モードはページ分割せず該当モードで動く。詳細: [`references/paging.md`](references/paging.md)
 3. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
    推測せず、確信度を実装単位ごとに `porting.md` へ**常に**申告し、判断できない箇所は `TODO` で未解決を明示する。詳細: [`references/implementation.md`](references/implementation.md)
