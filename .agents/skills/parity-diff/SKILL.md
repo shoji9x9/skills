@@ -80,7 +80,7 @@ parity-diff [--feature <slug>]
 2. **モード分岐**: `metadata.json.mode` で feature（3 経路）/ api-resource / batch に分岐する。api-resource / batch は画面系 3 経路を動かさない（[`references/api-batch.md`](references/api-batch.md)）
 3. **新側ベースライン取得**（[`references/capture-new.md`](references/capture-new.md)）: 同一条件で新側だけを撮る。**条件一致を先行検証**し、不一致なら差分報告せず停止する
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
-5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: ノイズ基準値 → `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → 宣言できない構造差（`gaps.md`）は未検証として転記
+5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
 6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。要対応が残れば `diff.md` を差し戻し入力に `parity-replace` へ。反復上限超過なら差し戻さず停止してユーザーへ
 

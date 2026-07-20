@@ -316,6 +316,17 @@ export async function main(argv) {
     process.stderr.write(`error: cannot read PNG inputs: ${message}\n`);
     return 2;
   }
+  if (
+    current.width !== next.width ||
+    current.height !== next.height ||
+    current.width !== diff.width ||
+    current.height !== diff.height
+  ) {
+    process.stderr.write(
+      `error: PNG dimensions differ (must match): current ${current.width}x${current.height}, new ${next.width}x${next.height}, diff ${diff.width}x${diff.height}\n`,
+    );
+    return 2;
+  }
   const mask = buildDiffMask(diff.data, diff.width, diff.height, target, DEFAULT_COLOR_TOLERANCE);
   const regions = filterAndMerge(clusterComponents(mask, diff.width, diff.height), minCluster, pad);
   try {
