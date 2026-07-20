@@ -114,6 +114,8 @@ export function matchException(diff, exceptions, ctx) {
 /**
  * ノイズ基準値から該当 page/state/viewport の行を引く（最初に合致した行）。
  * 吸収の判定はここでは行わない（applyNoiseBaseline が残余の件数と集計で比較する）。
+ * noise_baseline は page × state × viewport の組で記録する契約のため、ctx で指定した軸は
+ * 行側の値と厳密に比較し、行側の欠落は不一致として扱う（別の組の基準値を誤適用しない）。
  * @param {Array<{ page?:string, state?:string, viewport?:string, trait_diffs?:number }>} noiseBaseline
  * @param {{ page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ trait_diffs:number } | null}
@@ -121,9 +123,9 @@ export function matchException(diff, exceptions, ctx) {
 export function matchNoise(noiseBaseline, ctx) {
   const list = Array.isArray(noiseBaseline) ? noiseBaseline : [];
   for (const row of list) {
-    if (ctx.page && row.page && row.page !== ctx.page) continue;
-    if (ctx.state && row.state && row.state !== ctx.state) continue;
-    if (ctx.viewport && row.viewport && row.viewport !== ctx.viewport) continue;
+    if (ctx.page && row.page !== ctx.page) continue;
+    if (ctx.state && row.state !== ctx.state) continue;
+    if (ctx.viewport && row.viewport !== ctx.viewport) continue;
     return { trait_diffs: Number(row.trait_diffs) || 0 };
   }
   return null;
