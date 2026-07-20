@@ -54,7 +54,8 @@ skills:
       keep: [] # 変えない（例: テーブル名、項目名、API エンドポイント、関数名）
       may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異）
       pending: [] # 保留（測定結果で決める）
-    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（インスタンス単位の例外へのフォールバックは parity-diff が定義する）。要素の形は { component, property, current, new, reason }
+    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（インスタンス単位の例外は component_diff_exceptions へ。形式の正本は parity-diff）。要素の形は { component, property, current, new, reason }
+    component_diff_exceptions: [] # T が引けない箇所のインスタンス単位例外。宣言者は parity-diff（ユーザー承認の上で追記）。スキーマ正本は parity-diff の references/normalize.md。要素の形は { slug, page, element, state, viewport, property, current, new, reason }
 ```
 
 - **作成・追記は非破壊**: ファイルが無ければ `.config/skills/shoji9x9/` ごと作成し、このスキルが使うキー（`skills.replace-strategy`）だけを書く。指定値は**探索またはユーザー確認で得た実在の値**にする（上の URL・変数名・コマンドは例なので、そのまま盲目コピーしない）。既にあれば欠けたキーだけを該当セクションに追記し、既存のキー・値・コメントは変更しない。値が既にあれば尊重し上書きしない。
@@ -84,4 +85,5 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 
 - **具体的な中身はプロジェクトごとに異なるため設定ファイルで管理し、スキルは分類の枠組みと運用ルールだけを持つ。**
 - `keep` はレビュー可能性を買うための規律である（テーブル名・項目名・API・関数名を保つことで、`parity-replace` の旧新 diff レビューが成立する）。
-- 下流スキルが実装中に発見した差異は、勝手に判断せずこのレジストリへ追記してユーザーに確認する（`parity-replace` の規約）。コンポーネントライブラリ由来の系統差（クラス／トークン単位の宣言）は `component_diffs` キーで扱う。宣言者は `parity-replace`（テーマで消せない構造差をユーザー確認の上で宣言）、利用者は `parity-diff`（比較の正規化に使う）。
+- 下流スキルが実装中に発見した差異は、勝手に判断せずこのレジストリへ追記してユーザーに確認する（`parity-replace` の規約）。コンポーネントライブラリ由来の系統差（クラス／トークン単位の宣言）は `component_diffs` キーで扱う。
+  宣言者は `parity-replace`（テーマで消せない構造差をユーザー確認の上で宣言）、利用者は `parity-diff`（比較の正規化に使う）。T が引けないインスタンス単位の例外は `component_diff_exceptions` キーで扱い、宣言者は `parity-diff`（ユーザー承認の上で追記）。

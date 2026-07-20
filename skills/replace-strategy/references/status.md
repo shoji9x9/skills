@@ -12,6 +12,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
 | `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット（同上） |
 | `.replace/parity/<slug>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠（`parity-diff` が生成。スキーマ正本は同スキル） |
+| `.replace/parity/<slug>/diff-metadata.json` | 収束判定の機械可読値（`converged`・`results`）（`parity-diff` が生成。スキーマ正本は同スキル） |
 | `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）と新側投入記録（`phase_b.<slug>`）（`golden-dataset` が生成） |
 
 成果物のスキーマ正本は各生産スキルにある。ファイルが無い場合は「未着手」として扱う（エラーにしない）。
