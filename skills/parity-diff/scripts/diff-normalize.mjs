@@ -83,6 +83,8 @@ export function matchComponentT(diff, componentDiffs) {
 
 /**
  * インスタンス例外との照合。slug・page・state・viewport・element・property・値が合致するか。
+ * slug はスキーマ上必須のため、欠落・不一致の例外は常に不一致として扱う
+ * （書き忘れた例外が全 slug の差分を吸収しないための安全側）。
  * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
  * @param {Array<object>} exceptions
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
@@ -91,7 +93,7 @@ export function matchComponentT(diff, componentDiffs) {
 export function matchException(diff, exceptions, ctx) {
   const list = Array.isArray(exceptions) ? exceptions : [];
   for (const ex of list) {
-    if (ex.slug && ex.slug !== ctx.slug) continue;
+    if (!ex.slug || ex.slug !== ctx.slug) continue;
     if (ctx.page && ex.page && ex.page !== ctx.page) continue;
     if (ctx.state && ex.state && ex.state !== ctx.state) continue;
     if (ctx.viewport && ex.viewport && ex.viewport !== ctx.viewport) continue;

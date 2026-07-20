@@ -77,7 +77,25 @@ export function removePath(node, segs) {
 }
 
 /**
- * 指定パスにある配列を JSON 文字列キーでソートした複製を返す（宣言済みの並び順差の正規化）。
+ * オブジェクトのキーを再帰的に昇順へ正規化した複製を返す（ソートキー生成用）。
+ * @param {unknown} v
+ * @returns {unknown}
+ */
+function canonicalize(v) {
+  if (Array.isArray(v)) return v.map(canonicalize);
+  if (v !== null && typeof v === "object") {
+    const out = {};
+    for (const key of Object.keys(v).sort()) out[key] = canonicalize(v[key]);
+    return out;
+  }
+  return v;
+}
+
+/**
+ * 指定パスにある配列を、キー順を正規化した安定 JSON 文字列キーでソートした複製を返す
+ * （宣言済みの並び順差の正規化）。素の JSON.stringify だと同じ集合でもキー挿入順の違いで
+ * ソート順が変わり、current/new の並びが揃わず偽の差分が出るため、キーを昇順に正規化してから
+ * 文字列化する。
  * @param {unknown} node
  * @param {string[]} segs
  * @returns {unknown}
@@ -87,8 +105,8 @@ export function sortArrayAtPath(node, segs) {
   if (segs.length === 0) {
     if (Array.isArray(node)) {
       return [...node].sort((a, b) => {
-        const ka = JSON.stringify(a);
-        const kb = JSON.stringify(b);
+        const ka = JSON.stringify(canonicalize(a));
+        const kb = JSON.stringify(canonicalize(b));
         return ka < kb ? -1 : ka > kb ? 1 : 0;
       });
     }
