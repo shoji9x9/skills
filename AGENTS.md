@@ -163,3 +163,6 @@ Issue 作成は `dependabot-alert-issue` の外部 audit findings mode に委譲
 - `parity-suite`: replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入（ネガティブコントロール）で強度を検証する。
   論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay に加え、視覚ベースラインとノイズ基準値を採取して parity-diff へ引き渡す。1 回の実行で 1 機能（横断 API リソース・バッチも可）。
   replace-strategy setup / golden-dataset（フェーズ A）完了が前提で、未完了・Playwright 不可なら停止する
+- `parity-replace`: replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。担うのは 3 つ——機能をページ単位のフェーズに分割・新側ロケータマッピングの例外充填・実装役と分離した敵対的レビュー（未コミット差分）。
+  ブランチ作成・commit・push・PR は issue-start へ委譲する。現行コードを一次情報源に読み、推測せず確信度を常に申告し、スイートが新に対して green ＋ 静的解析が通れば完了（parity-diff の差分ゼロは含めず、往復ループの終了条件）。1 回の実行で 1 機能。
+  replace-strategy setup / golden-dataset（フェーズ A）/ 対象 slug の parity-suite 完了が前提で、未完了なら停止する
