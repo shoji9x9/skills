@@ -1,0 +1,34 @@
+{
+  "skill_name": "parity-diff",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "parity-diff",
+      "assertions": [
+        "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+        "diff.md / diff-metadata.json / 新側ベースラインを捏造せず停止している",
+        "replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内している",
+        "slug を自分で採番せず features.md から引く契約を守っている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "parity-diff --feature order-list",
+      "assertions": [
+        "前提（replace-strategy setup / metadata.json / replace-metadata.json の new_green）が無いことを検出している",
+        "スイートを再実行せず・現行アプリを駆動せず停止している",
+        "最初に欠ける前提で停止し parity-replace など後続の前提も合わせて案内している",
+        "slug を自分で採番していない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "現行と新実装のスクリーンショットを 2 枚渡すので、違いを見つけて重要かどうか判断して",
+      "assertions": [
+        "検出はしない（決定論的ツールの仕事）と説明し、モデルは分類だけを担うと答えている",
+        "全画面のスクリーンショット対を突き合わせて差分を探していない",
+        "検出済みの差分について差分領域の crop 対を 1 件ずつ渡して 3 値（要対応／許容／環境ノイズ）に分類する方針を示している"
+      ]
+    }
+  ]
+}

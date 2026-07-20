@@ -166,3 +166,6 @@ Issue 作成は `dependabot-alert-issue` の外部 audit findings mode に委譲
 - `parity-replace`: replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。担うのは 3 つ——機能をページ単位のフェーズに分割・新側ロケータマッピングの例外充填・実装役と分離した敵対的レビュー（未コミット差分）。
   ブランチ作成・commit・push・PR は issue-start へ委譲する。現行コードを一次情報源に読み、推測せず確信度を常に申告し、スイートが新に対して green ＋ 静的解析が通れば完了（parity-diff の差分ゼロは含めず、往復ループの終了条件）。1 回の実行で 1 機能。
   replace-strategy setup / golden-dataset（フェーズ A）/ 対象 slug の parity-suite 完了が前提で、未完了なら停止する
+- `parity-diff`: replace-strategy の姉妹スキル。現行と新側の差分を画素・特性照合・aria の 3 経路の決定論的差分器（parity-suite が強度検証済みのものを再利用）で検出し、LLM は分類（要対応／許容／環境ノイズ）だけを行う。新側を現行と同一条件で撮る。
+  収束は未説明差分ゼロ＋未修正回帰ゼロ。修正はせず parity-replace へ差し戻す。
+  replace-strategy setup・golden-dataset・対象 slug の parity-suite 完了・parity-replace の新側 green が前提で、未完了なら停止する

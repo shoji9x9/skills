@@ -1,0 +1,51 @@
+{
+  "_note": "parity-diff が .replace/parity/<slug>/diff-metadata.json として生成する。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "mode": "<feature | api-resource | batch>",
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<検出したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<parity-diff のバージョン>"
+  },
+  "dataset_version": "<三者一致を確認した version（数値）>",
+  "new": {
+    "url": "<replace-metadata.json の new.url>",
+    "commit": "<同 new.commit>"
+  },
+  "capture_conditions_verified": true,
+  "differ_versions": {
+    "trait_capture": "<使用したプロジェクト側 trait-capture.mjs のパスと VERSION>",
+    "trait_compare": "<同 trait-compare.mjs のパスと VERSION>",
+    "pixel_tool": "<metadata.json の differ.pixel_tool の記録値>",
+    "aria_compare": "<同 differ.aria_compare>",
+    "align_tolerance": 1,
+    "pixel_crops": "<同梱 pixel-crops.mjs の VERSION>",
+    "diff_normalize": "<同梱 diff-normalize.mjs の VERSION>"
+  },
+  "noise_baseline_applied": [
+    {
+      "page": "<ページ>",
+      "state": "<状態>",
+      "viewport": "<viewport label>",
+      "pixel_diff": 0,
+      "trait_diffs": 0
+    }
+  ],
+  "paths": {
+    "diff_report": ".replace/parity/<slug>/diff.md",
+    "baseline_new": "<baseline-new の保存先ポインタ（artifacts 設定に従う）>"
+  },
+  "results": {
+    "total": 0,
+    "actionable": 0,
+    "accepted": 0,
+    "noise": 0,
+    "unexplained": 0,
+    "unverified": ["<未検証領域（ベースラインに写らない箇所・宣言できない構造差・アニメーション）>"]
+  },
+  "iteration": "<読んだ時点の replace-metadata.json の loop.iterations（数値）>",
+  "converged": false
+}
