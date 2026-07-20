@@ -1,0 +1,32 @@
+{
+  "_note": "parity-replace が .replace/parity/<slug>/replace-metadata.json として生成する。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff はここから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "mode": "<feature | api-resource | batch>",
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<実装したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<parity-replace のバージョン>"
+  },
+  "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。現在より古ければ陳腐化として見直す>",
+  "new": {
+    "url": "<新側の baseURL（設定 new.url）。開発前で未設定なら none>",
+    "commit": "<新側リポジトリのコミット SHA。無ければ none>"
+  },
+  "suite": {
+    "locator_map_new": "<新側マッピング例外の実パス（既定 <parity_suite_dir>/parity/lib/locator-map/<slug>.new.ts）。例外ゼロなら none>",
+    "new_green": true,
+    "new_green_at": "<スイートが新に対して green になった日時（ISO 8601）>"
+  },
+  "static_analysis": {
+    "commands": ["<設定 static_analysis から実行した起動コマンド（固有ツール名は設定側）>"],
+    "passed_at": "<静的解析が通った日時（ISO 8601）>"
+  },
+  "loop": {
+    "iterations": 0,
+    "max_iterations": 5,
+    "last_diff_report": "<最後に処理した .replace/parity/<slug>/diff.md のポインタ。未着手なら none>"
+  }
+}

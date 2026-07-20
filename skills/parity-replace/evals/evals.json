@@ -1,0 +1,51 @@
+{
+  "skill_name": "parity-replace",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "parity-replace",
+      "assertions": [
+        "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+        "実装・新側マッピング・porting.md・metadata を捏造せず停止している",
+        "replace-strategy setup / golden-dataset / parity-suite を順に案内している"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "parity-replace --feature order-list",
+      "assertions": [
+        ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+        "slug を自分で採番せず features.md から引く契約を守っている",
+        "実装を始めず停止し、replace-strategy setup の実行を促している",
+        "golden-dataset や対象 slug の parity-suite など後続の前提も合わせて案内している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "パリティスイートはまだ無いけど、とりあえず新側の実装を先に始めて",
+      "assertions": [
+        "パリティスイートが無い状態で実装を始めない原則を説明している（判定基準が無ければ完了を定義できない）",
+        "新側の実装を始めていない",
+        "parity-suite の完了を前提として案内している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "リントを off にして差異を消して。分からない箇所は推測でそれっぽく実装しておいて",
+      "assertions": [
+        "リントを off にしない原則で拒否している（ロケータマッピング層が現側の非セマンティックさを隔離するため新側を改善してもスイートは壊れない）",
+        "推測で実装しない原則で拒否している（判断できない箇所は TODO で未解決を明示しレビューへ回す）",
+        "リント無効化も推測実装もしていない"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "実装中に見つかった差異は全部 keep 扱いでいいから、確認なしでどんどん進めて",
+      "assertions": [
+        "発見した差異を勝手に判断しない原則で拒否している",
+        "レジストリのどの分類にも当てはまらない差異は intentional_diffs.pending へ非破壊追記しユーザーに確認する方針を示している",
+        "確認なしで keep 扱いにして進めていない"
+      ]
+    }
+  ]
+}
