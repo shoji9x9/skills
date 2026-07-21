@@ -68,6 +68,8 @@ jobs:
         run: node scripts/check-skills-sync.js
       - name: JS extensions (skills/ => .mjs, scripts/ => .js)
         run: node scripts/check-js-extensions.js
+      - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
+        run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
 

@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync, existsSync, lstatSync, readlinkSync } from "node:fs";
 import { join, relative } from "node:path";
 import yaml from "js-yaml";
+import { splitFrontmatter } from "./lib/frontmatter.js";
 
 const SRC_ROOT = "skills";
 const INSTALLED_ROOT = ".agents/skills";
@@ -42,11 +43,10 @@ function sortKeys(value) {
   return value;
 }
 
-function splitFrontmatter(text) {
-  if (!text.startsWith("---")) return { fm: "", body: text };
-  const close = text.indexOf("\n---", 3);
-  if (close === -1) return { fm: "", body: text };
-  return { fm: text.slice(text.indexOf("\n") + 1, close), body: text.slice(close + 4) };
+// frontmatter を切り出す。共通ヘルパー（BOM/CRLF 対応）に委譲し、frontmatter が
+// 無い場合は従来どおり { fm: "", body: text } を返して比較ロジックの挙動を保つ。
+function frontmatterOf(text) {
+  return splitFrontmatter(text) ?? { fm: "", body: text };
 }
 
 function normFrontmatter(fmText, source) {
@@ -110,8 +110,8 @@ for (const e of readdirSync(SRC_ROOT, { withFileTypes: true })) {
     const a = readFileSync(abs);
     const b = readFileSync(join(instDir, rel));
     if (rel === "SKILL.md") {
-      const A = splitFrontmatter(a.toString("utf8"));
-      const B = splitFrontmatter(b.toString("utf8"));
+      const A = frontmatterOf(a.toString("utf8"));
+      const B = frontmatterOf(b.toString("utf8"));
       const fmA = normFrontmatter(A.fm, join(srcDir, "SKILL.md"));
       const fmB = normFrontmatter(B.fm, join(instDir, "SKILL.md"));
       if (fmA !== fmB || A.body.trim() !== B.body.trim()) {
