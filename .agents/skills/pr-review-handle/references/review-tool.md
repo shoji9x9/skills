@@ -97,11 +97,12 @@ gh api --method POST \
 ### mention 方式（claude-code / codex）の依頼は冪等でない
 
 `requested_reviewers`（copilot）と違い、mention コメントの投稿は**冪等でない**。同じ依頼を再投稿すると
-新しいレビューが重ねて起動し、余計なレビュー実行・コメントを生む。**現在の HEAD の push 以降に自分が投稿した
-`@claude review` / `@codex review` コメントが既にあれば、それを「この HEAD 向けに依頼済み・進行中」とみなして再投稿しない**
-（copilot のタイムライン `review_requested` に相当する、この HEAD 向けの依頼済みシグナル）。自分の依頼コメントは
-bot ではなく実行アカウントの投稿のため、bot コメントの進行中シグナルには現れない点に注意する。依頼前に issue コメントを
-取得し、直近の push 時刻より後の自分の `@<tool> review` コメントの有無で判定する:
+新しいレビューが重ねて起動し、余計なレビュー実行・コメントを生む。**現在の HEAD の push 以降に投稿された
+`@claude review` / `@codex review` コメントが（投稿者を問わず）既にあれば、それを「この HEAD 向けに依頼済み・進行中」
+とみなして再投稿しない**（copilot のタイムライン `review_requested` に相当する、この HEAD 向けの依頼済みシグナル。
+人間が手動で mention した場合も依頼済みとして扱い、重複起動を避ける）。この依頼コメントは bot ではなく通常アカウントの
+投稿のため、bot コメントの進行中シグナルには現れない点に注意する。依頼前に issue コメントを取得し、直近の push 時刻より後の
+`@<tool> review` コメント（投稿者を問わない）の有無で判定する:
 
 ```bash
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
