@@ -6,7 +6,7 @@ minimum_release_age = "7d"
 
 [tools]
 node = "24.17.0"
-pnpm = "11.10.0"
+pnpm = "11.13.1"
 python = "3.14.6"
 shellcheck = "0.11.0"
 shfmt = "3.13.1"
