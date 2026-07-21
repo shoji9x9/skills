@@ -101,6 +101,8 @@ skills:
 - **解決バージョンが未公開**: GitHub alerts mode では `first_patched_version` が無い、外部 audit findings mode では `patched_versions` / `patched` が無い（修正版がまだ出ていない）
 - **リリース年齢が足りない**: `minimum_release_age_days` が設定されており、解決バージョンの公開からの経過がそれ未満（公開日時はパッケージレジストリで確認する。取得できず判断不能なら「すぐ着手できない」扱いにして条件に明記）
 - **依存バージョンが固定されている**: 親依存がバージョンを固定している transitive 依存などで、manifest を直接上げても解決できない
+- **transitive dependency が patched へ到達するか未確認**: 親 range が patched version を許容していても、パッケージマネージャの実装によっては通常の更新操作で再解決されないことがある（pnpm の詳細は [`references/pnpm-transitive-update.md`](references/pnpm-transitive-update.md)）。
+  **「親 range が許容している」だけで transitive を「すぐ着手できる」に分類しない**。実際に patched へ到達することを確認するか、確認できない場合は「lockfile 更新で無関係な依存も float する可能性がある」前提を Issue に明記してから分類する
 
 **着手できない脆弱性は、障害を解消する既存 Issue を調査する。** 障害となっているパッケージ（修正版を出す上流、またはバージョンを固定している親）に、その障害を取り除く Issue/PR が既にある可能性がある。見つかればその **Issue/PR の URL を着手可能条件に記載**する（無ければ「未発見」と書く）。
 
@@ -109,12 +111,13 @@ skills:
 すぐ着手できる例:
 
 - vulnerable package が direct dependency で、manifest の正規更新で patched version に上げられる
-- direct dependency の最新版が transitive dependency を patched version へ上げている
+- transitive dependency が、実際に更新操作で patched version へ到達することを確認済み（親 range が許容しているだけでは不十分）
 
 すぐ着手できない例:
 
 - transitive dependency が direct dependency 側で固定されている
 - direct dependency の最新版でも patched version に上がらない
+- transitive dependency が親 range 上は許容されているが、実際に patched へ到達するか未確認
 - 解消には既存 Issue の完了や上流リリース待ちが必要
 
 ## グルーピング
