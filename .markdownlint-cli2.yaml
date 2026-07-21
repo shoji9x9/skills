@@ -1,6 +1,9 @@
 globs:
   - "**/*.md"
   - "!node_modules/**"
+  # .agents/** は installed copy 向けの除外。ただし .agents/rules/ の実体は
+  # .github/instructions/ のシンボリックリンク経由で lint 対象になるため、ルール実体は
+  # symlink 経由で検査される（除外されるのは installed copy であってルール実体ではない）。
   - "!.agents/**"
   - "!.claude/**"
 

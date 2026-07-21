@@ -77,6 +77,15 @@ pnpm why <package>
 
 `pnpm why` が sandbox や store DB の制約で失敗したら、同じコマンドを通常権限で再実行する。結果は findings の `dependency_paths` の確認・補足として扱う。
 
+### transitive dependency の解決可否確認
+
+transitive dependency は、親 range が patched version を許容していても `pnpm update <pkg>` で再解決されないことがある（lockfile 上で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で顕著）。着手可否分類（`dependabot-alert-issue` 側の責務）を誤らせないよう、次を確認して `context_note` に記録する。
+
+- 対象が peer-keyed か plain か
+- 可能なら使い捨てで `pnpm update <package>` を試し、patched version に到達するか（到達しなければ完全再生成が必要になる可能性を記録する）
+
+pnpm の transitive 更新特有の制約（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・最小差分が必要な場合の surgical hand-edit 手順）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
+
 補強できる場合は、外部 audit findings JSON の各 finding に次の任意フィールドを追加してよい:
 
 - `direct_dependencies`: 脆弱 package を持ち込む direct dependency 名の配列

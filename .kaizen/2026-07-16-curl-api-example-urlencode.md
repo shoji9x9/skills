@@ -2,7 +2,7 @@
 date: 2026-07-16
 type: rule
 priority: medium
-status: pending
+status: applied
 session: claude-code
 ---
 

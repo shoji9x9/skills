@@ -2,7 +2,7 @@
 date: 2026-06-16
 type: hook
 priority: high
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -53,3 +53,11 @@ KEDB 照合: applied 2 件の系譜の**新形態での再発**。
 
 注意: 本ノートは #30 では記録のみ（pending）。決定論的対策（提案 1）は `.claude/settings.json` と
 kaizen 配布スキルの同期を伴うため、kaizen を扱うブランチ（#29 等）で適用する。
+
+## 適用記録（2026-07-21）
+
+提案 1（決定論的対策）は適用済みであることを実機確認した。`.claude/settings.json` の 3 フックはすべて
+`bash "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel ...)}/.agents/skills/kaizen/scripts/..."` の
+スクリプト呼び出しになっており、`kaizen-stop-mark.sh` はプロジェクトルート基準で `.kaizen/` を解決する
+（スクリプト冒頭コメントで本件＝迷子センチネルに言及）。配布側 `skills/kaizen` も同構成。
+提案 2（「subdir へ cd しない」の運用ガード追記）は、決定論的対策の完了により不要と判断し見送り。

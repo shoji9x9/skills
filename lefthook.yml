@@ -78,6 +78,14 @@ pre-commit:
           - name: js-extensions
             # Enforce the JS extension policy (skills/ => .mjs, scripts/ => .js).
             run: node scripts/check-js-extensions.js
+          - name: skill-frontmatter
+            # SKILL.md frontmatter を検査（YAML 妥当性・description<=1024B・name 形式）。
+            # 配布スキル（skills/*/SKILL.md）に加え private skill（.agents/skills/*/SKILL.md）も
+            # 拾うためブレースで両ルートを対象にする。lefthook は gobwas/glob を separators なしで
+            # 使い（internal/run/controller/filter/filter.go の glob.MustCompile）、gobwas は
+            # スラッシュを含む pattern-list を含めブレース展開をサポートするため、この glob は機能する。
+            glob: "{skills,.agents/skills}/*/SKILL.md"
+            run: node scripts/check-skill-frontmatter.js {staged_files}
     - name: scan
       group:
         parallel: true

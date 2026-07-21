@@ -1,0 +1,1 @@
+../../.agents/rules/external-tool-format-verification.md
