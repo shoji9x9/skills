@@ -22,6 +22,7 @@
       "expected_output": "最大反復回数を 3 に設定し、3 反復で収束しなければ残った CI 失敗・未解決スレッドを明示して停止・報告する。",
       "assertions": [
         "PR番号のみのため現在の repo を対象にしている",
+        "現在の repo を gh repo view（nameWithOwner）等で明示的に解決してから着手前チェックを行う方針である",
         "--max-iterations 3 を反復上限として扱っている",
         "上限に達したら残っている CI 失敗・未解決スレッドを明示して停止・報告する方針である",
         "無限ループ防止の安全弁として反復回数上限を使う方針である",
@@ -93,6 +94,29 @@
         "進行中を検出したら Copilot 依頼を出さず、上限つきポーリングで完了を待つ方針である",
         "完了後に HEAD レビュー済み判定を再評価し、別エージェントのレビューが HEAD に付いていれば Copilot に依頼しない方針である",
         "上限までに完了しなければ進行中シグナルを無効とみなして通常の依頼判断に戻り、その旨を報告に残す方針である"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "pr-finalize-loop 6（.config/skills/shoji9x9/skills.yml で skills.common.review_tool: codex）— push 後に新しい HEAD が未レビュー",
+      "expected_output": "新しい HEAD が未レビューなら、requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼し、進行中・到着を汎用シグナルで確認してループを続ける。",
+      "assertions": [
+        "skills.common.review_tool の設定（codex）を参照して依頼先ツールを決めている",
+        "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+        "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
+        "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
+        "mention は非冪等のため、現在の HEAD の push 以降に自分が投稿した @codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "pr-finalize-loop 6（review_tool: none）",
+      "expected_output": "AI レビュアーへの再依頼をせず、CI 全成功かつ未解決スレッド無しで完了とする（HEAD レビュー済みを条件にしない）。",
+      "assertions": [
+        "skills.common.review_tool の設定（none）を参照している",
+        "AI レビュアーへの再レビュー依頼を一切行わない方針である",
+        "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
+        "未解決スレッドの返信・解決は通常どおり行う方針である"
       ]
     }
   ]

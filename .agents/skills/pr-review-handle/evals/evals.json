@@ -48,7 +48,8 @@
       "expected_output": "現在の repo と PR の owner/repo が一致しないことを検出し、返信・解決を行わず中断してユーザーに確認する。",
       "assertions": [
         "現在の repo と PR の owner/repo が一致しないことを検出している",
-        "返信や解決を行わず中断してユーザーに確認している"
+        "返信や解決を行わず中断してユーザーに確認している",
+        "不一致検出後は未解決スレッドの取得・返信・解決を一切実行せず中断する（誤リポジトリへ副作用を出さない）方針である"
       ]
     },
     {
@@ -72,6 +73,28 @@
         "対応後に Copilot 再レビュー依頼の要否をユーザーに確認する方針を示している",
         "push がないため選択肢は「今すぐ / 依頼しない」の 2 択で、「CI 完了後」を含めない",
         "「今すぐ」では requested_reviewers に Copilot（[bot] 付き login）を依頼する方針を示している"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "pr-review-handle 42 --push（.config/skills/shoji9x9/skills.yml で skills.common.review_tool: codex）",
+      "expected_output": "レビュー対応・commit・push の後、再レビュー依頼のタイミングを確認し、依頼時は requested_reviewers ではなくトップレベル PR コメントに @codex review を投稿して依頼する。",
+      "assertions": [
+        "skills.common.review_tool の設定（codex）を参照して依頼先ツールを決めている",
+        "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
+        "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
+        "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
+        "mention は非冪等のため、現在の HEAD の push 以降に自分が投稿した @codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "pr-review-handle 42（review_tool: none 設定）— 指摘はすべて返信のみで対応でき、コード修正は不要な前提",
+      "expected_output": "未解決スレッドへの返信・解決まで行い、review_tool が none のため再レビュー依頼の確認自体を省略して完了する。",
+      "assertions": [
+        "skills.common.review_tool の設定（none）を参照している",
+        "未解決スレッドへの返信・解決は通常どおり行う手順になっている",
+        "AI レビュアーへの再レビュー依頼をせず、その要否確認も省略して完了する方針である"
       ]
     }
   ]

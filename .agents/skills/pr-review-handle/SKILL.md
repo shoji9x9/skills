@@ -18,8 +18,8 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 
 - 対象指定: PR URL / PR 番号（現在の repo）/ レビュー URL（`...#pullrequestreview-<review-id>`。そのレビューのコメントに絞る）
 
-- `--push` 未指定: 全スレッドの返信・解決まで行い、ファイル修正があっても commit / push はしない。ファイル修正があれば変更ファイル一覧と「commit が必要なこと」「`--push` で再実行できること」を通知して止まる。修正がなく返信・解決だけで終わる場合は、後述「レビュー対応後の Copilot 再レビュー依頼」の確認まで行う
-- `--push`: 上記に加え、関連ファイルだけを stage し論理単位で commit、push する。完了条件（後述「レビュー対応後の Copilot 再レビュー依頼」）を満たしてから締める
+- `--push` 未指定: 全スレッドの返信・解決まで行い、ファイル修正があっても commit / push はしない。ファイル修正があれば変更ファイル一覧と「commit が必要なこと」「`--push` で再実行できること」を通知して止まる。修正がなく返信・解決だけで終わる場合は、後述「レビュー対応後の再レビュー依頼」の確認まで行う
+- `--push`: 上記に加え、関連ファイルだけを stage し論理単位で commit、push する。完了条件（後述「レビュー対応後の再レビュー依頼」）を満たしてから締める
 
 `--push` は commit・push の実行をユーザーが明示的に委譲した合図。指定がない限り commit しない。`--push` なしで止めた後にユーザーが commit / push を指示した場合も、push が発生した時点で同じ完了条件を適用する。
 
@@ -155,32 +155,35 @@ mutation {
 - commit 時に pre-commit フック（lefthook 等）や kaizen のコミット前ゲートが設定されていれば走る。ゲートでブロックされた場合は指示に従って `kaizen --current` を実行してから再 commit する
 - commit の `--amend` と force push は行わない
 
-## レビュー対応後の Copilot 再レビュー依頼
+## レビュー対応後の再レビュー依頼
 
-レビュー対応（返信・解決）を終えたら、**Copilot 再レビュー依頼の要否・タイミングをユーザーに確認する**。
-GitHub 側の自動レビュー設定があっても push 後に Copilot レビューが始まらないことがあり、また
+レビュー対応（返信・解決）を終えたら、**設定したレビューツールへの再レビュー依頼の要否・タイミングをユーザーに確認する**。
+依頼先ツールの選択（`skills.common.review_tool`）と、ツールごとの依頼・成立確認の具体手順は
+[`references/review-tool.md`](references/review-tool.md) を参照する（既定 `copilot`）。
+GitHub 側の自動レビュー設定があっても push 後にレビューが始まらないことがあり、また
 push せず返信だけで閉じたスレッドも改めて見てほしいことがあるため、このスキルから明示的に依頼する。
 
 **この確認は作業の完了条件である。** push の有無を問わず、確認して選択に応じた処理を終えるまで
-final response してはいけない。依頼に使う login や検証手順は後述「Copilot へレビューを再依頼する」を参照する。
+final response してはいけない。ただし **`review_tool: none` の場合は再依頼をしない**ため、この確認自体を省略し、
+返信・解決が済んだ時点で完了とする。
 
-ただし確認に先立ち、push が発生した場合は**自動レビュー依頼**が既に走っていないかをタイムラインで確認する
-（リポジトリ設定により push に連動して Copilot へ自動で再依頼されることがある・実測。確認コマンドは後述
-「Copilot へレビューを再依頼する」の `review_requested` イベント）。**push 完了直後に記録した時刻より後**の
-`created_at` を持つ Copilot 宛依頼イベントが既にあれば、改めて依頼せずその旨をユーザーに伝え、
-依頼要否の確認は省略してレビュー結果の確認へ進む。最新イベントの日時だけでは判定できないため、
-過去の HEAD への古い依頼イベント（PR 作成時など）を「自動依頼済み」の根拠にしない。
+ただし確認に先立ち、push が発生した場合は**自動レビュー**が既に走っていないかを確認する
+（リポジトリ設定により push に連動して自動レビューが走ることがある・実測）。`copilot` はタイムラインの
+Copilot 宛 `review_requested` イベント、mention 方式（`claude-code` / `codex`）は現在の HEAD に対する進行中の
+bot レビュー／コメントで判定する（判定手順は [`references/review-tool.md`](references/review-tool.md)）。**push 完了直後に記録した時刻より後**に
+自動レビューが走っていれば、改めて依頼せずその旨をユーザーに伝え、依頼要否の確認は省略してレビュー結果の確認へ進む。
+最新イベントの日時だけでは判定できないため、過去の HEAD への古い依頼（PR 作成時など）を「自動依頼済み」の根拠にしない。
 
 選べる選択肢は、リモートの HEAD が再レビュー可能な状態かで変わる。
 
 - **push が発生した場合**（`--push`、または `--push` なしで対応後にユーザー指示で push した場合）:
   新しい HEAD を対象に、CI と並行でレビューしたいこともあるのでタイミングを固定せず次の 3 択で選んでもらう。
-  - **今すぐ依頼**: CI の完了を待たず、すぐ Copilot に再依頼する（CI と並行でレビュー）。
+  - **今すぐ依頼**: CI の完了を待たず、すぐ再依頼する（CI と並行でレビュー）。
   - **CI 完了後に依頼**: CI の成功を確認してから依頼する（壊れた変更でレビューを促さない）。
   - **依頼しない**: 再依頼しない。
 - **push が発生しない場合**（返信・解決だけで終わり、コード修正もない）:
   リモートの HEAD は変わらず新たな CI 実行もないため、「CI 完了後」は出さず次の 2 択で選んでもらう。
-  - **今すぐ依頼**: 既存 HEAD を対象に Copilot へ再依頼する。
+  - **今すぐ依頼**: 既存 HEAD を対象に再依頼する。
   - **依頼しない**: 再依頼しない。
 
 ただし `--push` 未指定でファイル修正があり commit / push 待ちの場合は、まだ確認しない。
@@ -197,28 +200,11 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 - 失敗した場合は **依頼を出さず**、失敗内容をユーザーに通知して止まる（先に CI を直す）。
 - push 直後はチェック未登録で `no checks` と即時に返ることがある。その場合は数秒待ってから再確認する。
 
-### Copilot へレビューを再依頼する
+### レビューツールへ再依頼する
 
-「今すぐ依頼」（push の有無を問わない）ならそのまま、「CI 完了後に依頼」なら CI 成功の確認後に実行する:
-
-```bash
-gh api --method POST \
-  repos/<owner>/<repo>/pulls/<番号>/requested_reviewers \
-  -f "reviewers[]=copilot-pull-request-reviewer[bot]"
-```
-
-- 依頼用の login は **`copilot-pull-request-reviewer[bot]`**（Bot の login、`[bot]` 付き）。既に依頼中でも冪等。
-- **注意**: 表示名の `Copilot` や slug の `copilot-pull-request-reviewer` を渡してはいけない。前者は 200 が返るのに無言で無視され（未登録）、後者は 422 になる。必ず `[bot]` 付き login を使う。
-- 依頼後、依頼が成立したことを**必ず確認**する。ただし **`reviewRequests`（REST の `requested_reviewers`）が空でも不成立と断定しない**。Copilot はレビュー着手時に依頼を即時消費するため、正常に成立していても空になり得る（実測）。
-- 成立はタイムラインの **Copilot 宛** `review_requested` イベントで確認する（過去に別レビュアーへ依頼した履歴を誤って成立と数えないよう
-  `requested_reviewer` で絞る。login は REST 表記の `Copilot`）:
-
-  ```bash
-  gh api --paginate repos/<owner>/<repo>/issues/<番号>/timeline \
-    --jq '.[] | select(.event=="review_requested" and .requested_reviewer.login=="Copilot") | {created_at, requested_reviewer: .requested_reviewer.login}'
-  ```
-
-- タイムラインでも確認できず、上限つきポーリングでレビュー到着も確認できなければ、不成立としてその旨をユーザーに通知する。
+「今すぐ依頼」（push の有無を問わない）ならそのまま、「CI 完了後に依頼」なら CI 成功の確認後に、設定した
+`review_tool` のツール別手順（[`references/review-tool.md`](references/review-tool.md)）で依頼し、成立を確認する。
+依頼後、上限つきでレビュー到着を待っても成立を確認できなければ、不成立としてその旨をユーザーに通知する。
 
 ## 追加確認が必要な条件
 
@@ -228,4 +214,4 @@ gh api --method POST \
 - 現在のブランチが PR の head ブランチと異なる
 - 指摘の妥当性がコードだけでは判断できない
 - 修正方針が複数あり、実装に大きく影響する
-- レビュー対応後の Copilot 再レビュー依頼の要否・タイミング（push 時は 今すぐ / CI 完了後 / 依頼しない、push なしは 今すぐ / 依頼しない）
+- レビュー対応後の再レビュー依頼の要否・タイミング（push 時は 今すぐ / CI 完了後 / 依頼しない、push なしは 今すぐ / 依頼しない）。依頼先は設定した `review_tool`（[`references/review-tool.md`](references/review-tool.md)、既定 `copilot`）に従い、`none` なら確認しない
