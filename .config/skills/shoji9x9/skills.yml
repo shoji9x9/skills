@@ -4,5 +4,6 @@ version: 1
 skills:
   common:
     conventions_doc: AGENTS.md # ブランチ運用・commit 規約を記したドキュメント
+    review_tool: copilot # pr-review-handle / pr-finalize-loop の再レビュー依頼先。copilot | claude-code | codex | none
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
