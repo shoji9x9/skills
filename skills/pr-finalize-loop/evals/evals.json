@@ -105,7 +105,7 @@
         "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
         "Copilot 専用の login（copilot-pull-request-reviewer[bot]）や review_requested タイムラインに依存しない方針である",
         "レビュー到着・進行中は非著者レビューや bot コメント等の汎用シグナルで判定する方針である",
-        "mention は非冪等のため、現在の HEAD の push 以降に自分が投稿した @codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である"
+        "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントがあれば再投稿せず、重複レビュー起動を避ける方針である"
       ]
     },
     {

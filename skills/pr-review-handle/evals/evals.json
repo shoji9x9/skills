@@ -84,7 +84,7 @@
         "push 後に再レビュー依頼のタイミングをユーザーに確認する（今すぐ / CI 完了後 / 依頼しない）",
         "依頼は requested_reviewers ではなくトップレベル PR コメントへの @codex review 投稿で行う方針である",
         "Copilot 専用の login（copilot-pull-request-reviewer[bot]）は使わない方針である",
-        "mention は非冪等のため、現在の HEAD の push 以降に自分が投稿した @codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である"
+        "mention は非冪等のため、現在の HEAD の push 以降に投稿された（投稿者を問わない）@codex review コメントの有無を確認し、既にあれば再投稿せず重複レビュー起動を避ける方針である"
       ]
     },
     {
