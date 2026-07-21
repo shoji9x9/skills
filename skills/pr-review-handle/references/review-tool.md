@@ -59,7 +59,9 @@ gh api --method POST \
 - リポジトリ設定により PR 作成時・push 時に**自動でこの依頼**が走ることがある（実測）。基準時刻より後の
   Copilot 宛 `review_requested` があり、その HEAD への非著者レビューがまだ無ければ自動依頼済み・進行中とみなし、
   重ねて依頼しない（最新イベントの日時だけで判定せず、過去 HEAD への依頼を根拠にしない）。
-- 出典: `requested_reviewers` REST API <https://docs.github.com/en/rest/pulls/review-requests>
+- 出典: `requested_reviewers` REST API <https://docs.github.com/en/rest/pulls/review-requests>、
+  成立確認に使う issues timeline API（`event` / `requested_reviewer.login` 等のレスポンス形状）
+  <https://docs.github.com/en/rest/issues/timeline>
 
 ### claude-code
 
@@ -101,8 +103,11 @@ gh api --method POST \
 `@claude review` / `@codex review` コメントが（投稿者を問わず）既にあれば、それを「この HEAD 向けに依頼済み・進行中」
 とみなして再投稿しない**（copilot のタイムライン `review_requested` に相当する、この HEAD 向けの依頼済みシグナル。
 人間が手動で mention した場合も依頼済みとして扱い、重複起動を避ける）。この依頼コメントは bot ではなく通常アカウントの
-投稿のため、bot コメントの進行中シグナルには現れない点に注意する。依頼前に issue コメントを取得し、直近の push 時刻より後の
-`@<tool> review` コメント（投稿者を問わない）の有無で判定する:
+投稿のため、bot コメントの進行中シグナルには現れない点に注意する。依頼前に issue コメントを取得し、
+`@<tool> review` コメント（投稿者を問わない）を列挙する。**列挙結果の `created_at` を push 完了時刻と比較し、
+それ以降のものだけを「依頼済み」とみなす**（古い mention を誤って依頼済みと判定しないため）。
+`gh api` の `--jq` は jq の `--arg` を受け取れないため、時刻比較は jq 側でなく列挙後にエージェント側で行う
+（copilot 経路の `review_requested` 基準時刻比較と同じ扱い）:
 
 ```bash
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
