@@ -36,7 +36,7 @@ OAuth refresh を使う場合、初回だけ Client ID/Secret の取得と認可
 
 必要な環境変数は、同梱テンプレート [`assets/.env.example`](assets/.env.example) を `.env` に複製して設定する（インストール先に同種の設定があればそれを優先する）。
 
-**秘匿情報の扱い**: トークン・client secret・refresh token はリポジトリにコミットしない。環境変数（direnv 等）か、リポジトリ外のファイル（既定の `$HOME/.config/box/`）で管理する。
+**秘匿情報の扱い**: トークン・client secret・refresh token はリポジトリにコミットしない。環境変数（direnv 等）か、リポジトリ外のファイル（既定の `$HOME/.config/box/`）で管理する。値をログ・標準出力・成果物に出さない。ユーザーが値を提示してきた場合も**復唱しない**（コマンド例・説明文はプレースホルダ・環境変数名で置き換える）。
 
 疎通確認:
 
