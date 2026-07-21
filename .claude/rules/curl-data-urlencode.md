@@ -1,0 +1,1 @@
+../../.agents/rules/curl-data-urlencode.md
