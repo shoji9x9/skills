@@ -1,0 +1,1 @@
+../../.agents/rules/skill-file-format.md

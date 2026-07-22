@@ -1,0 +1,1 @@
+../../.agents/rules/distributed-skill-bundle-artifacts.md
