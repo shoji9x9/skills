@@ -1,6 +1,6 @@
 ---
 argument-hint: '[操作内容（スキル / ルール / Hooks / ドキュメント / 全体）]'
-description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・copilot-instructions.mdなどのドキュメント整備、またはプロジェクトのマルチエージェント初期化を行う際はこのスキルを参照する。
+description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・copilot-instructions.mdなどのドキュメントの整備・整理・分割・集約、プロジェクトのマルチエージェント初期化で参照する。加えて、知識・規約・処理を新たに追加する、またはドキュメントを整理・再配置するときに、それを skill / rule / hook / ドキュメントのどれに落とすか（rule なら paths を最小スコープに、ドキュメントなら基底ドキュメントか個別かを選ぶ）を判断する場面でも必ず参照する。
 license: MIT
 name: multiagent-setup
 ---
@@ -37,6 +37,8 @@ Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプ
 
 意図が不明または複数該当する場合は AskUserQuestion で確認する。
 
+追加したい知識・規約・処理を skill / rule / hook / ドキュメントのどれに落とすか迷う場合は、`references/component-selection.md` の判断基準に従う。
+
 ### Step 2: 対象エージェントの確認
 
 プロジェクトの現状を確認する:
@@ -51,6 +53,7 @@ ls -d .agents .claude .github .codex 2>/dev/null
 
 SKILL.md と同じディレクトリの `references/` にある対応コンポーネントファイルを Read ツールで読み込み、手順に従って実行する:
 
+- コンポーネント選択基準（どのコンポーネントか迷う場合にまず参照する判断基準） → `references/component-selection.md`
 - スキル設定 → `references/skills.md`
 - ルール設定 → `references/rules.md`
 - Hooks 設定 → `references/hooks.md`
