@@ -44,7 +44,9 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
 1. Issue URL から owner / repo / issue 番号を抽出する（番号のみ渡された場合は現在の repo を対象にする）
 2. 現在の repo と Issue の owner / repo が一致するか確認する
    - 一致しない場合は、以降の `gh issue view` やブランチ作成を行わず中断し、ユーザーに確認する
-3. 一致を確認できた場合のみ `gh issue view <番号> --repo <owner>/<repo> --comments` で title / body に加えコメントも確認する
+3. 一致を確認できた場合のみ title / body とコメントの両方を確認する。`gh issue view --comments` は body を表示せずコメントのみを出す別ビュー（コメント 0 件だと出力が空になる）なので 1 コマンドでは両取得できない。次のいずれかで取得する:
+   - title / body は `gh issue view <番号> --repo <owner>/<repo>`、コメントは `gh issue view <番号> --repo <owner>/<repo> --comments`（0 件なら空でよい）の 2 コール
+   - または `gh issue view <番号> --repo <owner>/<repo> --json title,body,comments --jq ...` で一括取得する
    - 設計の改訂・実測に基づく方針変更はコメントに追記されることが多い。本文が最新とは限らないため、本文とコメントで改訂・追記・両論併記があれば最新の決定を優先し、計画・実装に反映する
 4. ブランチ名を `feature/<番号>-<英語の短い説明>` で決める（リポジトリの規約に別の命名があればそれに従う）
    - title が日本語中心なら、転写せず作業内容を表す短い英語の kebab-case に要約する
