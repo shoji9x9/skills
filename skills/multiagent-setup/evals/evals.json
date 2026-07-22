@@ -28,13 +28,28 @@
     {
       "id": 3,
       "prompt": "このプロジェクトに React コンポーネントのコーディングルールを追加したい",
-      "expected_output": ".agents/rules/<name>.md が frontmatter（paths + applyTo）付きで作成され、Claude Code と Copilot 向けシンボリックリンクが作成されること",
+      "expected_output": ".agents/rules/<name>.md が frontmatter（paths + applyTo）付きで作成され、paths がリポジトリ構造を踏まえて対象ディレクトリまで最小スコープで絞られ、Claude Code と Copilot 向けシンボリックリンクが作成されること",
       "files": [],
       "assertions": [
         ".agents/rules/<name>.md が作成されている",
         "frontmatter に paths: と applyTo: の両方が含まれている",
+        "paths がリポジトリ構造を踏まえて対象ディレクトリまで絞られている（例 src/components/** や src/**/*.tsx）",
+        "paths が ** や **/*.tsx のような全ファイル/ファイル種別だけの広域指定になっていない",
+        "applyTo が paths と同じスコープに揃っている",
         ".claude/rules/<name>.md シンボリックリンクが作成されている",
         ".github/instructions/<name>.instructions.md シンボリックリンクが作成されている"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "プロジェクト全体で、どのエージェントもどのファイルを触るときも常に守るべき認証トークンの取り扱い方針を、エージェントが常に把握できるようにしたい。どのコンポーネントに入れるのが適切か判断して設定して。",
+      "expected_output": "常に適用される横断方針は基底ドキュメント（AGENTS.md 等）へ配置され、paths: ** の広域ルールとしてルール化されないこと。コンポーネント選択の根拠が示されること",
+      "files": [],
+      "assertions": [
+        "認証トークン方針が基底ドキュメント（AGENTS.md 等の常時ロードされる指示ドキュメント）に配置されている",
+        "paths を **（全ファイル）にした新規ルールとして作成していない",
+        "skill / rule / hook / ドキュメントのどれに落とすかの選択理由が示されている",
+        "ユーザー設定（~/.claude/ 等）は変更されていない"
       ]
     }
   ]

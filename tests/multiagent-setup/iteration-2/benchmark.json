@@ -1,0 +1,577 @@
+{
+  "metadata": {
+    "skill_name": "multiagent-setup",
+    "skill_path": "<repo>/skills/multiagent-setup",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-07-22T00:21:14Z",
+    "evals_run": [3, 4],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 3,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 93.2,
+        "tokens": 41177,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-component-conventions.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/components/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/components/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "old_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 105.0,
+        "tokens": 40144,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-components.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "old_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 109.3,
+        "tokens": 41069,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-component-conventions.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/components/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/components/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "old_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 97.4,
+        "tokens": 43958,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u306a\u3057\uff08\u672c\u6587\u672a\u914d\u7f6e\uff09"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": false,
+          "evidence": "** \u30eb\u30fc\u30eb\u4f5c\u6210"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "summary \u306b\u6839\u62e0\u3042\u308a"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": false,
+          "evidence": "rules=1, section=False"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "old_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 104.1,
+        "tokens": 46034,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u306a\u3057\uff08\u672c\u6587\u672a\u914d\u7f6e\uff09"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": false,
+          "evidence": "** \u30eb\u30fc\u30eb\u4f5c\u6210"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u6839\u62e0\u4e0d\u660e"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": false,
+          "evidence": "rules=1, section=False"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "old_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 111.0,
+        "tokens": 42855,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u306a\u3057\uff08\u672c\u6587\u672a\u914d\u7f6e\uff09"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": false,
+          "evidence": "** \u30eb\u30fc\u30eb\u4f5c\u6210"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "summary \u306b\u6839\u62e0\u3042\u308a"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": false,
+          "evidence": "rules=1, section=False"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 90.7,
+        "tokens": 40828,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-component-conventions.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/components/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/components/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 98.9,
+        "tokens": 41397,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-component-conventions.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/components/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/components/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 115.3,
+        "tokens": 42744,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".agents/rules/ \u306b\u30eb\u30fc\u30eb\u5b9f\u4f53\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "react-component-conventions.md"
+        },
+        {
+          "text": "frontmatter \u306b paths \u3068 applyTo \u306e\u4e21\u65b9\u304c\u3042\u308b",
+          "passed": true,
+          "evidence": "paths:True applyTo:True"
+        },
+        {
+          "text": "paths \u304c\u5bfe\u8c61\u30c7\u30a3\u30ec\u30af\u30c8\u30ea\u307e\u3067\u7d5e\u3089\u308c\u3066\u3044\u308b\uff08\u4f8b src/components/** \u3084 src/**/*.tsx\uff09",
+          "passed": true,
+          "evidence": "paths=['src/**/*.tsx']"
+        },
+        {
+          "text": "paths \u304c ** \u3084 **/*.tsx \u306e\u5e83\u57df\u6307\u5b9a\u306b\u306a\u3063\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "no broad glob"
+        },
+        {
+          "text": "applyTo \u304c paths \u3068\u540c\u3058\u30b9\u30b3\u30fc\u30d7\u306b\u63c3\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "applyTo=\"src/**/*.tsx\""
+        },
+        {
+          "text": ".claude/rules \u3068 .github/instructions \u306e\u30b7\u30f3\u30dc\u30ea\u30c3\u30af\u30ea\u30f3\u30af\u304c\u4f5c\u6210\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "claude:True copilot:True"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 91.2,
+        "tokens": 40877,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "AGENTS.md \u306b\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u3042\u308a"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "** \u30eb\u30fc\u30eb\u306a\u3057\uff08rules=0\uff09"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "summary \u306b\u6839\u62e0\u3042\u308a"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": true,
+          "evidence": "documentation \u9078\u629e\u30fb\u30eb\u30fc\u30eb\u672a\u4f5c\u6210"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 102.4,
+        "tokens": 42590,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "AGENTS.md \u306b\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u3042\u308a"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "** \u30eb\u30fc\u30eb\u306a\u3057\uff08rules=0\uff09"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "summary \u306b\u6839\u62e0\u3042\u308a"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": true,
+          "evidence": "documentation \u9078\u629e\u30fb\u30eb\u30fc\u30eb\u672a\u4f5c\u6210"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 75.9,
+        "tokens": 40085,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u8a8d\u8a3c\u30c8\u30fc\u30af\u30f3\u65b9\u91dd\u304c\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\uff08AGENTS.md\uff09\u306b\u914d\u7f6e\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "AGENTS.md \u306b\u65b9\u91dd\u30bb\u30af\u30b7\u30e7\u30f3\u3042\u308a"
+        },
+        {
+          "text": "paths \u3092 **\uff08\u5168\u30d5\u30a1\u30a4\u30eb\uff09\u306b\u3057\u305f\u65b0\u898f\u30eb\u30fc\u30eb\u3068\u3057\u3066\u4f5c\u6210\u3057\u3066\u3044\u306a\u3044",
+          "passed": true,
+          "evidence": "** \u30eb\u30fc\u30eb\u306a\u3057\uff08rules=0\uff09"
+        },
+        {
+          "text": "\u30b3\u30f3\u30dd\u30fc\u30cd\u30f3\u30c8\u9078\u629e\uff08doc/rule \u7b49\uff09\u306e\u6839\u62e0\u304c\u793a\u3055\u308c\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "summary \u306b\u6839\u62e0\u3042\u308a"
+        },
+        {
+          "text": "\u57fa\u6e96\u306b\u6cbf\u3063\u305f\u7d50\u8ad6\uff08\u30eb\u30fc\u30eb\u5316\u305b\u305a\u57fa\u5e95\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8\u3078\uff09",
+          "passed": true,
+          "evidence": "documentation \u9078\u629e\u30fb\u30eb\u30fc\u30eb\u672a\u4f5c\u6210"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "old_skill": {
+      "pass_rate": {
+        "mean": 0.5833,
+        "stddev": 0.4655,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 103.3333,
+        "stddev": 6.8649,
+        "min": 93.2,
+        "max": 111.0
+      },
+      "tokens": {
+        "mean": 42539.5,
+        "stddev": 2194.5573,
+        "min": 40144,
+        "max": 46034
+      }
+    },
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 95.7333,
+        "stddev": 13.2406,
+        "min": 75.9,
+        "max": 115.3
+      },
+      "tokens": {
+        "mean": 41420.1667,
+        "stddev": 1053.5599,
+        "min": 40085,
+        "max": 42744
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "-7.6",
+      "tokens": "-1119"
+    }
+  },
+  "notes": []
+}
