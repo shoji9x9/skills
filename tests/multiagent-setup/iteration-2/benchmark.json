@@ -568,9 +568,9 @@
       }
     },
     "delta": {
-      "pass_rate": "-0.42",
-      "time_seconds": "+7.6",
-      "tokens": "+1119"
+      "pass_rate": "+0.42",
+      "time_seconds": "-7.6",
+      "tokens": "-1119"
     }
   },
   "notes": []

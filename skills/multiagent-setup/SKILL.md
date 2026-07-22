@@ -1,6 +1,6 @@
 ---
 name: multiagent-setup
-description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・copilot-instructions.mdなどのドキュメントの整備・整理・分割・集約、プロジェクトのマルチエージェント初期化で参照する。加えて、知識・規約・処理を新たに追加する、またはドキュメントを整理・再配置するときに、それを skill / rule / hook / ドキュメントのどれに落とすか（rule なら paths を最小スコープに、ドキュメントなら基底ドキュメントか個別かを選ぶ）を判断する場面でも必ず参照する。
+description: マルチエージェント環境（Claude Code / Codex / GitHub Copilot）向けのスキル・ルール・Hooks・ドキュメントのセットアップに必ず使用すること。スキルの作成・更新・削除、ルールの追加・管理、Hooksの設定、CLAUDE.md・AGENTS.md・.github/copilot-instructions.mdなどのドキュメントの整備・整理・分割・集約、プロジェクトのマルチエージェント初期化で参照する。加えて、知識・規約・処理を新たに追加する、またはドキュメントを整理・再配置するときに、それを skill / rule / hook / ドキュメントのどれに落とすか（rule なら paths を最小スコープに、ドキュメントなら基底ドキュメントか個別かを選ぶ）を判断する場面でも必ず参照する。
 argument-hint: "[操作内容（スキル / ルール / Hooks / ドキュメント / 全体）]"
 license: MIT
 ---
