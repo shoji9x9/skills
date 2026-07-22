@@ -2,7 +2,8 @@
 paths:
   - "skills/*/SKILL.md"
   - ".agents/skills/*/SKILL.md"
-applyTo: "skills/*/SKILL.md,.agents/skills/*/SKILL.md"
+  - ".claude/skills/*/SKILL.md"
+applyTo: "skills/*/SKILL.md,.agents/skills/*/SKILL.md,.claude/skills/*/SKILL.md"
 ---
 
 # スキルファイル形式

@@ -125,7 +125,7 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 - `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**` 編集時に適用
 - `.agents/rules/external-tool-format-verification.md`: 外部ツール（Codex / Copilot / `gh` / GitHub API 等）の設定・Hook・API 形状は公式一次ドキュメントで構造とフィールド意味論を検証してから記述し、検証 URL を併記する。`skills/**` 編集時に適用
 - `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl 例・スクリプトでは変数値を URL クエリ / フォームに直挿しせず `--data-urlencode`（GET は `-G` 併用）でエンコードする。`skills/**` 編集時に適用
-- `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルは基底ドキュメントを `AGENTS.md` に決め打ちせず、`CLAUDE.md` / `copilot-instructions.md` のみの下流でも成立するよう一般化する。`skills/**` 編集時に適用
+- `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルは基底ドキュメントを `AGENTS.md` に決め打ちせず `CLAUDE.md` / `.github/copilot-instructions.md` のみの下流でも成立させる。`skills/**` 編集時に適用
 - `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に参照する成果物（テンプレート・スクリプト等）はスキル内（`assets/` / `scripts/` / `references/`）に正本を同梱する。`skills/**` 編集時に適用
 - `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
 - `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint`）を維持する。`skills/*/SKILL.md` 編集時に適用
