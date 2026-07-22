@@ -216,7 +216,7 @@ gh api --paginate \
     patched: .security_vulnerability.first_patched_version.identifier}'
 ```
 
-- `per_page=100` ＋ `--paginate` で全ページを辿る。既定の 30 件で暗黙に打ち切らない（`AGENTS.md` のページネーション規約に従う）。
+- `per_page=100` ＋ `--paginate` で全ページを辿る。既定の 30 件で暗黙に打ち切らない（一覧取得は指定件数で暗黙に打ち切らず、必要範囲をすべてページネーションで辿る）。
 - `dependency.scope` は `runtime` / `development`。`first_patched_version` が `null` なら修正版未公開。
 - **取得が 403 / 404 で失敗する場合**は、Issue 化を進めず原因を切り分けてユーザーに提示し停止する:
   - **403**: Dependabot alerts が無効、または token に必要権限が無い。リポジトリ設定（Settings → Code security）で Dependabot alerts を有効化するか、`security_events` スコープを持つ token で再認証する（例: `gh auth refresh -s security_events`）よう案内する
