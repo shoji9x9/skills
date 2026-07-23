@@ -17,16 +17,29 @@ stripped="${token_file#\~/}"
 [ "$stripped" != "$token_file" ] && token_file="$HOME/$stripped"
 refresh="${BOX_REFRESH_TOKEN:-}"
 if [ -z "$refresh" ] && [ -f "$token_file" ]; then
-	# 手動保存で混入し得る改行/CR/空白を除去する（token は非空白のみ）
-	refresh="$(tr -d '[:space:]' <"$token_file")"
+	refresh="$(<"$token_file")"
 fi
+# 手動 export/手動保存で混入し得る改行/CR/空白を除去する（token は非空白のみ）。
+# 環境変数・ファイルのどちらの経路でも同じ正規化を適用して挙動を対称にする。
+refresh="$(printf '%s' "$refresh" | tr -d '[:space:]')"
 : "${refresh:?refresh token が無い（BOX_REFRESH_TOKEN か $token_file を設定）}"
+
+# refresh_token・client_secret を curl の argv（ps/proc）に載せないよう、umask 077 の一時ファイル経由で
+# 渡す（--data-urlencode name@file は curl がファイル内容を読んで URL エンコードする。argv には
+# ファイル名しか現れない。送信ボディは name=value 直挿しと同一）。client_id は秘密でないため直挿し。
+secret_dir="$(mktemp -d "${TMPDIR:-/tmp}/box-token.XXXXXX")"
+trap 'rm -rf "$secret_dir"' EXIT
+(
+	umask 077
+	printf '%s' "$refresh" >"$secret_dir/refresh"
+	printf '%s' "$BOX_CLIENT_SECRET" >"$secret_dir/secret"
+)
 
 resp="$(curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=refresh_token \
 	--data-urlencode "client_id=$BOX_CLIENT_ID" \
-	--data-urlencode "client_secret=$BOX_CLIENT_SECRET" \
-	--data-urlencode "refresh_token=$refresh")"
+	--data-urlencode "client_secret@$secret_dir/secret" \
+	--data-urlencode "refresh_token@$secret_dir/refresh")"
 
 err="$(printf '%s' "$resp" | jq -r '.error // empty')"
 if [ -n "$err" ]; then
