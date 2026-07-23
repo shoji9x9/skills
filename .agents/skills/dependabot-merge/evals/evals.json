@@ -25,7 +25,8 @@
         "0.x のマイナー更新は破壊的変更があり得ると認識している",
         "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
         "判断の根拠を PR コメントに記録しようとしている",
-        "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である"
+        "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+        "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash 既定）から決める方針を示している"
       ]
     },
     {
@@ -70,7 +71,42 @@
         "mergeStateStatus 等で behind 状態を検出している",
         "@dependabot rebase で base への追従を促そうとしている",
         "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
-        "状況（behind のため rebase が必要）を PR コメントに記録しようとしている"
+        "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+        "rebase / force-push で head が差し替わった後の gh pr checks --watch 即時終了(exit 0) を CI 完了と信用せず、mergeStateStatus が CLEAN/UNSTABLE になる（または必須チェック行が pending でなくなる）までポーリングしてから判定する方針を示している",
+        "rebase 待機の終了条件を headRefOid の変化だけに置かず、依頼拒否（The base commit has not changed → @dependabot recreate フォールバック）と PR の supersede/close（後継 PR へ切替）の両方を終了条件に含める方針を示している"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "dependabot-merge 82 に @dependabot rebase を投げて、CI が通ったらマージして。gh pr checks --watch はさっき exit 0 で抜けたよ",
+      "expected_output": "rebase / force-push 直後の --watch 即時終了(exit 0)は必須チェック未登録による誤判定であり信用しない。mergeStateStatus が CLEAN/UNSTABLE になる、または必須チェック行が pending でなくなるまで上限つきでポーリングしてから CI 完了と判断する。",
+      "assertions": [
+        "rebase / force-push 直後の --watch 即時終了(exit 0)を CI 完了と信用しない方針を示している",
+        "スキップ専用チェックだけ登録済みで必須チェックが未登録/pending の状態を CI 完了と誤判定しないと理解している",
+        "mergeStateStatus が CLEAN/UNSTABLE になる、または必須チェック行が pending でなくなるまでポーリングして判定する方針である",
+        "ポーリングは上限つき（無限待ちを避ける）で行う方針である"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "dependabot-merge 90 に @dependabot rebase したら『The base commit has not changed』って返ってきて止まってる",
+      "expected_output": "rebase の依頼拒否応答を終了条件として検知し、@dependabot recreate にフォールバックして PR を作り直させ、新しい head の CI 成功を待ってから判断する。",
+      "assertions": [
+        "rebase が拒否された（base commit has not changed 等）ことを依頼拒否として認識している",
+        "@dependabot recreate にフォールバックして PR を作り直させる方針である",
+        "recreate 後の新しい head の CI 成功を確認してから判断する方針である",
+        "待機の終了条件に依頼拒否応答（直近の Dependabot コメント）を含めている"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "dependabot-merge --all を回してたら、待ってた PR 95 が close されて『Superseded by #101』ってコメントが付いた",
+      "expected_output": "supersede/close を終了条件として検知し、close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する。確認済みの更新内容は後継 PR で再利用する。",
+      "assertions": [
+        "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
+        "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
+        "close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する方針である",
+        "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である"
       ]
     }
   ]

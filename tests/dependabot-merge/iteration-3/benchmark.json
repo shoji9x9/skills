@@ -1,0 +1,835 @@
+{
+  "metadata": {
+    "skill_name": "dependabot-merge",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/dependabot-merge",
+    "executor_model": "claude-opus-4-8",
+    "analyzer_model": "claude-opus-4-8",
+    "timestamp": "2026-07-23T02:40:15Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 76.1,
+        "tokens": 42769,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "Section 1: 「URL `https://github.com/shoji9x9/skills/pull/42` から `owner=shoji9x9`, `repo=skills`, `番号=42` を抽出。」"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "Section 1: `gh repo view --json nameWithOwner --jq '.nameWithOwner'` で現在 repo を取得し「現在の repo（`shoji9x9/skills`…）と PR の owner/repo が **一致** → 続行。もし一致しなければ…中断してユーザーに確認（取り違え・誤マージ防止）」"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "Section 2: `gh pr view 42 --json author --jq '.author.login'` を実行し「`author.login` に `dependabot` を含むか…を確認」、含まなければ中断する方針。`app/dependabot` と author.login の混同も注意している。"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "Section 3: `gh pr checks 42 --repo shoji9x9/skills --watch --fail-fast` で「全チェックの完了を待つ。すべて成功なら exit 0」。加えて mergeStateStatus で CLEAN/UNSTABLE/BLOCKED/BEHIND/DIRTY を判定。"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "Section 4: 「PR 本文の Release notes / Changelog / Commits セクションを読む」「release notes にマイナー相当の…破壊的変更が無いことを確認」。semver・devDependency の影響範囲も分析。"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": true,
+          "evidence": "Section 5「判断の根拠を PR コメントに記録（マージより先）」: 「**マージの前に**必ず判断をコメントで残す」+ `gh pr comment 42 --body \"…\"`。Section 7 でも「記録順序を厳守: 判断をコメントに記録 → マージ」。"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": true,
+          "evidence": "Section 0: 「`.config/skills/shoji9x9/skills.yml` を読み、`skills.dependabot-merge.merge_method` を取得する。確認結果: `merge_method: squash`（設定済み）。→ マージは `--squash` で行う。デフォルトへのフォールバックや設定作成の案内は不要。」正確なパスとキーを参照し、フォールバック概念にも言及。"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": true,
+          "evidence": "Section 6: 設定 `merge_method: squash` に従い `gh pr merge --squash 42 --repo shoji9x9/skills`。Section 7「最終判断: マージする（squash）」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 110.9,
+        "tokens": 44620,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "「入力: `dependabot-merge 51`。PR 番号 1 件指定なので **単一 PR フロー**を適用する（`--all` ではない）」。手順1で `gh repo view --json owner,name` により現在 repo を特定し、PR 51 が同一 repo に属するか突合、不一致なら以降を行わず中断する方針を明示。"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "「**0.x（<1.0）依存のマイナー更新**。semver の後方互換保証が効かない帯域なので、CI 通過だけでは安全と言い切れず、changelog / release notes から破壊的変更の有無を必ず読む対象」。"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "手順4「マージ影響の確認（0.x なので changelog を必ず読む）」で「Release notes / Changelog / Commits セクションを読む。... 0.x マイナーゆえの **API 変更・削除・デフォルト挙動（整形出力）変更・設定キーの変更**の有無」を確認する方針を具体化。"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "手順6「判断の根拠を PR コメントに記録」で「マージ可否いずれの場合も、先にコメントで根拠を残してからマージする（返信より先にマージしない）」とし、`gh pr comment 51 --body \"...\"` の具体的な文面例を提示。"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": true,
+          "evidence": "判断表で失敗/判断材料不足時は「**マージしない**」「**マージせずユーザーに確認**」とし、手順6のマージしない場合の記録例では「課題と解決策を必ず明記」した `gh pr comment` 文面（失敗理由＋`pnpm exec oxfmt` で再整形して別 commit を積めば通る見込み）を提示。最終判断でも保留・中断条件と直し方の記録を明記。"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": true,
+          "evidence": "「マージ方式の設定確認」節で「`.config/skills/shoji9x9/skills.yml` を読む（非破壊参照）」とし実測値 `skills.dependabot-merge.merge_method: squash` を提示、「→ マージ方式は **squash**」と設定ファイルから決定。手順7でも設定どおり squash でマージする方針。推測ではなく設定参照。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 91.5,
+        "tokens": 42750,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": true,
+          "evidence": "セクション4「CI 成功の確認」で `gh pr checks 73 --repo <owner>/<repo>` と `gh pr view ... --json mergeable,mergeStateStatus`、さらに `gh pr checks ... --json name,state,bucket,link` と `gh run view ... --log-failed` を挙げ、fail の実体・BLOCKED/BEHIND を確認する手順を narration している。ユーザー申告を鵜呑みにせず「事実を自分で確認してから判断する」と明記。"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": true,
+          "evidence": "セクション7「マージする / しない」で『しない。CI（必須チェック）が失敗しており、マージの最低条件を満たさない。』、セクション4で『CI（必須チェック）が失敗している間はマージしない』と明記。"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "セクション6「判断の根拠を PR コメントに記録」で `gh pr comment 73` とコメント本文案を提示。本文に『失敗チェック』『失敗原因（破壊的変更で型エラー/テスト落ち もしくは BEHIND）』『直し方（該当箇所を新 API に追随修正 / @dependabot rebase）』を含み、『次に見た人がそのまま動けるように』具体化する意図を示す。"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "セクション8「報告（最終判断）」で『最終判断: マージしない（中断してユーザーに報告）』とし、失敗要因別（破壊的変更起因/BEHIND/flaky）の次アクションをユーザー向けに整理。状態変更系コマンドは未実行と明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 106.6,
+        "tokens": 44073,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "手順1 (L42-43): `gh pr list --repo <owner>/<repo> --state open --author \"app/dependabot\" --limit 200 --json number,title,headRefName,url`。L47 で `app/dependabot` は gh pr list --author 用の app slug と明記。"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": true,
+          "evidence": "L35 「既定 limit 30 で打ち切らない」、L43 `--limit 200`、L48 「今回は既定 30 を超える取りこぼしを避けるため 200 を指定」「200 に達していたら取りこぼしの疑い」。gh pr list に --paginate は無いことも補足。"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": true,
+          "evidence": "手順2 (L62-73)「列挙時のスナップショットを信じず、処理直前に最新状態を取り直す」→ `gh pr view <番号> --json author,state,headRefOid,mergeable,mergeStateStatus,...` と `gh pr checks`。PR#42 でも L101「処理直前に再取得... headRefOid が列挙時から変わっていれば CI 再実行を待つ」。"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": true,
+          "evidence": "L96-97「マージ後: 残り PR（#42, #43）が rebase / force-push・CI 再実行される可能性を見込み、次の PR は head が落ち着き CI が完走するのを待ってから判断する。`gh pr checks --watch` の即時終了(exit 0)を『CI 完了』と信用せず、(a) mergeStateStatus が CLEAN/UNSTABLE になる、(b) 必須チェック行が bucket=pending でなくなる、までポーリング」。"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": true,
+          "evidence": "手順3「再確認ループ」(L147-158)「一連の処理後、open な Dependabot PR 一覧を取り直す」同一の gh pr list を再実行し、L158「新規が出なくなるまで繰り返す」。バックグラウンドの Dependabot Updates ジョブが後から新規 PR を作る理由も明記。"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": true,
+          "evidence": "各 PR で CI 確認(L82)・影響確認(L85,104,113)を行い、L94「必ず『コメント記録 → マージ』の順。記録より先にマージしない」。安全なもの(#41,#42)のみマージし、#43(0.x マイナー・破壊的変更の可能性)は L119「保留（マージしない）」で根拠をコメント記録しユーザー確認。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 65.3,
+        "tokens": 41773,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "手順 2「現在の repo と PR の owner / repo が一致するか確認（ここで停止）」で owner=other-org/repo=other-repo を抽出し、「本タスクではプロンプト自身が『別リポジトリ』と明言しており、対象 PR は現在の作業対象リポジトリの外にある。…『現在の repo ＝ other-org/other-repo』という前提は成り立たない」と明確に不一致を検出している。"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": true,
+          "evidence": "結論「マージしない。処理を中断してユーザーに確認する」。手順 2 で「スキルのガードに従いここで停止する」「この時点で gh pr view 8 などの PR 実体確認や CI 確認へは進まない」「上記 3〜7 は実行しない」と、CI 確認・changelog レビュー・マージへ進まず停止している。"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": true,
+          "evidence": "「ユーザーへの確認内容（例）: 『対象 PR は現在の作業リポジトリ外の other-org/other-repo#8 です。このリポジトリで作業する意図でしょうか。…取り違えでなければ対象を教えてください。』」と具体的な確認文言を提示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 88.3,
+        "tokens": 43033,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": true,
+          "evidence": "§4 で `gh pr view 60 --repo <owner>/<repo> --json mergeable,mergeStateStatus,state,headRefOid` を投げ、「本タスクの前提より `mergeStateStatus` = `BEHIND`。これは『head が base に遅れており、そのままではマージ不可（要 rebase）』を意味する」と各値（CLEAN/BLOCKED/BEHIND/UNSTABLE/DIRTY）の意味も添えて BEHIND を検出している。"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "§7「BEHIND の標準対処は Dependabot に rebase を依頼して base に追従させること」とし `gh pr comment 60 --repo <owner>/<repo> --body \"@dependabot rebase\"`（DRY RUN のため未実行）を narration している。"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "§6 コメント案「`@dependabot rebase` で base に追従させ、再実行された CI の成功を確認してから改めてマージ判断する」、§7「CI 成功かつ `mergeStateStatus` が `CLEAN`/`UNSTABLE` になったら…マージする」と、rebase 後の再実行 CI 成功を確認してからの判断方針を明示。"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "§6「マージ不可（BEHIND）と判断したので、課題と解決策を PR コメントに残すのが本スキルの流儀」とし、投稿コメント本文案（BEHIND のためマージ不可・rebase で追従・CI 成功確認後に判断）を提示。DRY RUN のため `gh pr comment` は未実行だが記録方針を明示。"
+        },
+        {
+          "text": "rebase / force-push で head が差し替わった後の gh pr checks --watch 即時終了(exit 0) を CI 完了と信用せず、mergeStateStatus が CLEAN/UNSTABLE になる（または必須チェック行が pending でなくなる）までポーリングしてから判定する方針を示している",
+          "passed": true,
+          "evidence": "§7『重要（head 差し替え後の CI 判定）』で「rebase / force-push の直後は必須チェックがまだ登録されておらず、先に登録されるスキップ専用チェック（CodeQL skipping 等）だけが見える瞬間がある。`gh pr checks --watch` はその時点で登録済みのチェック集合の完了しか待たないため、必須チェックが pending のままでも exit 0 で抜ける」と premature race を明示し、「`--watch` の即時終了(exit 0) を『CI 完了』と信用せず」(a) mergeStateStatus が CLEAN/UNSTABLE になる、または (b) 必須チェック行が登録され bucket が pending でなくなる（未登録＝行が無いだけを pending 不在とみなさない）までポーリング、というポーリング述語を明示している。"
+        },
+        {
+          "text": "rebase 待機の終了条件を headRefOid の変化だけに置かず、依頼拒否（The base commit has not changed → @dependabot recreate フォールバック）と PR の supersede/close（後継 PR へ切替）の両方を終了条件に含める方針を示している",
+          "passed": true,
+          "evidence": "§7 の待機分岐で headRefOid のほか state と直近 Dependabot コメントを監視し、3 分岐を明示: 「依頼拒否: `The base commit has not changed` 等で拒否されたら `@dependabot recreate` にフォールバックして PR を作り直させ、新しい head の CI 成功を待つ」および「supersede / close: グループ更新の再編成で `state` が `CLOSED`（`Superseded by #<N>` 等）になったら当該 PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定し…影響評価を後継 PR で再利用する」。recreate を rebase 拒否時のフォールバックとして、supersede/close を後継 PR 切替の終了条件として両方明示。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 110.9,
+        "tokens": 44591,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rebase / force-push 直後の --watch 即時終了(exit 0)を CI 完了と信用しない方針を示している",
+          "passed": true,
+          "evidence": "L19-21: 「本スキルは head を差し替える操作（rebase / force-push）を挟んだ後の `--watch` 即時終了(exit 0)を「CI 完了」と信用しないと明記している」。L120「★ `--watch` の exit 0 を信用しない」。L136「`gh pr checks 82 --watch --fail-fast` を併用してもよいが、その即時終了(exit 0)だけを CI 完了の根拠にしない」。stale（rebase 前）と premature（rebase 直後の未登録）の両面を明示。"
+        },
+        {
+          "text": "スキップ専用チェックだけ登録済みで必須チェックが未登録/pending の状態を CI 完了と誤判定しないと理解している",
+          "passed": true,
+          "evidence": "L26-30:「`@dependabot rebase` / force-push 直後は必須チェック（`check` / `signatures` 等）がまだ登録されておらず、先に登録されるスキップ専用チェック（CodeQL skipping 等）だけが見える瞬間がある。`--watch` はその時点で登録済みのチェック集合の完了を待つため、必須チェックが pending のままでも exit 0 で抜ける」。L129-135:「必須チェック行が登録され、その bucket が pending でなくなる（未登録＝行が無いだけは pending 不在とみなさない）」「行がまだ無いだけの状態を『pending 不在＝完了』と誤読しない」。核心を正確に narration。"
+        },
+        {
+          "text": "mergeStateStatus が CLEAN/UNSTABLE になる、または必須チェック行が pending でなくなるまでポーリングして判定する方針である",
+          "passed": true,
+          "evidence": "L123-135:「rebase 後の head に対して、以下の (a)/(b) のいずれかを満たすまで上限つきでポーリングしてから判定する」(a) mergeStateStatus が BLOCKED/BEHIND を抜けて CLEAN/UNSTABLE になる、(b) 必須チェック行が登録されその bucket が pending でなくなる。L133「CLEAN / UNSTABLE になれば必須は通過」。二経路の判定を明示。"
+        },
+        {
+          "text": "ポーリングは上限つき（無限待ちを避ける）で行う方針である",
+          "passed": true,
+          "evidence": "L100「上限つきポーリング」、L123「上限つきでポーリングしてから判定する」。手順5 の rebase 反映待機・手順6 の CI 完了確認いずれも上限つきと明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 114.1,
+        "tokens": 44631,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rebase が拒否された（base commit has not changed 等）ことを依頼拒否として認識している",
+          "passed": true,
+          "evidence": "「`The base commit has not changed` は Dependabot が rebase 依頼を**拒否**したときのメッセージ」（§0）。手順8でも「『The base commit has not changed』は Dependabot による rebase 拒否メッセージであり、rebase を繰り返しても進まない」と明記。"
+        },
+        {
+          "text": "@dependabot recreate にフォールバックして PR を作り直させる方針である",
+          "passed": true,
+          "evidence": "「rebase が必要なのに拒否されているなら、skill の指示どおり **`@dependabot recreate` にフォールバック**して PR を作り直させる」（§0-2）。§3 で `gh pr comment 90 --body \"@dependabot recreate\"` を提示し「Dependabot がブランチを破棄して最新 base から作り直すため『base commit が変わっていない』で拒否されるケースを回避できる」と説明。"
+        },
+        {
+          "text": "recreate 後の新しい head の CI 成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "§4「recreate は head を差し替える操作なので…`gh pr checks --watch` の即時 exit 0 を『CI 完了』と信用してはいけない」「新しい head で CI が再実行される」。mergeStateStatus が CLEAN/UNSTABLE になる or 必須チェックが pending を抜けるまで上限つきポーリングし、全チェック成功(exit 0)を確認してから影響確認・判断へ進む方針を明記。"
+        },
+        {
+          "text": "待機の終了条件に依頼拒否応答（直近の Dependabot コメント）を含めている",
+          "passed": true,
+          "evidence": "§3.1「待機は『期待する変化』だけで終わらせない（上限つきポーリング）」で、headRefOid の更新だけでなく Dependabot の直近コメントを取得（`issues/90/comments` を select dependabot）し、終了条件に「**再び拒否 / 別メッセージ**: recreate も通らない、あるいは `updatable in another way` 等が出たら」を含めている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 106.1,
+        "tokens": 43977,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
+          "passed": true,
+          "evidence": "手順1で `gh pr view 95 --json state,headRefOid,mergeStateStatus,title` を取得し「state が CLOSED になっているか（MERGED ではないこと。superseded は merge ではなく close）」を確認。さらに Dependabot コメント末尾の `Superseded by #101` で「supersede 確定」と判定している（L41-60）。"
+        },
+        {
+          "text": "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
+          "passed": true,
+          "evidence": "L36 で `--json state,headRefOid,...` を head だけでなく state 込みで取得し、L49-60 で `dependabot` を含む author の末尾（最新）コメントを取り直して `Superseded by #101` を supersede 終了条件として判定。加えて後継 #101 でも `--watch` 即時終了を信用せず mergeStateStatus / 必須チェック bucket でポーリングする旨を明記（L112-126）。"
+        },
+        {
+          "text": "close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する方針である",
+          "passed": true,
+          "evidence": "「close された #95 は追わない。open な Dependabot PR 一覧を取り直して後継 PR #101 を特定」（L19-22）。手順2で `gh pr list --state open --author app/dependabot --limit 200` を取り直し「この一覧に #101 が含まれるか」を確認、無ければ state を辿る分岐まで用意（L64-88）。"
+        },
+        {
+          "text": "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である",
+          "passed": true,
+          "evidence": "手順3-3「#95 で既に確認済みの changelog / 影響評価を #101 で再利用する。ただし #101 が範囲を広げている可能性があるので、差分だけ追加確認」（L139-141, L150-151）。マージコメント例にも「#95 で確認済みの changelog（…）を再利用」と明記（L166）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 6,
+        "failed": 2,
+        "total": 8,
+        "time_seconds": 72.2,
+        "tokens": 31069,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL から owner/repo/PR番号を抽出している",
+          "passed": true,
+          "evidence": "冒頭で対象 URL を示し、以降一貫して `--repo shoji9x9/skills` と PR 番号 `42` を用いる（Section 1: `gh pr view 42 --repo shoji9x9/skills`）。owner/repo/番号を正しく分解して使用している。"
+        },
+        {
+          "text": "現在の repo と PR の owner/repo の一致を確認している",
+          "passed": false,
+          "evidence": "PR の author/state/headRefName/baseRefName 等は確認するが（Section 1）、現在の作業 repo が PR の owner/repo（shoji9x9/skills）と一致するかを確認する手順が無い。`gh repo view --json nameWithOwner` 相当の一致確認・取り違え防止の記述が存在しない。"
+        },
+        {
+          "text": "PR の著者が Dependabot か確認している",
+          "passed": true,
+          "evidence": "Section 1: 「`author.login` が `dependabot[bot]`（または `app/dependabot`）であること。Dependabot 発でなければ…ユーザーに確認する（勝手にマージしない）。」"
+        },
+        {
+          "text": "gh pr checks で CI の成功を確認しようとしている",
+          "passed": true,
+          "evidence": "Section 2: `gh pr checks 42 --repo shoji9x9/skills` で「必須チェック…が **すべて success** であること」、pending は待ち、fail はマージせずログ確認。"
+        },
+        {
+          "text": "changelog/release notes など更新内容から影響を確認する方針を示している",
+          "passed": true,
+          "evidence": "Section 3「更新内容レビュー（changelog / release notes）」: v4.2.0 リリースノート/CHANGELOG を確認し Breaking changes・config/reporter・peer 依存(Vite)の変更を見る方針。compatibility score も参照。"
+        },
+        {
+          "text": "マージ前に判断の根拠を PR コメントに記録する方針を示している",
+          "passed": true,
+          "evidence": "Section 4「判断の記録」で `gh pr comment 42 --body '…確認結果と判断根拠…'` を示し、判断順序 (4) 記録 →(5) マージ とコメントを先行させる（Section 0 の順序: 「(4) 判断を PR コメントに記録 → (5) 問題なければマージ」）。"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method を参照し、無ければ squash をデフォルトにする方針である",
+          "passed": false,
+          "evidence": "Section 5: 「マージ方式はリポジトリのルールセットに従う…squash 運用が一般的なら `--squash`。プロジェクト既定に合わせる」とするのみで、`.config/skills/shoji9x9/skills.yml` の `skills.dependabot-merge.merge_method` を参照する記述が無い。config を読まず一般論で squash を推測している。"
+        },
+        {
+          "text": "安全と判断した場合に gh pr merge でマージしようとしている",
+          "passed": true,
+          "evidence": "Section 5: `gh pr merge 42 --repo shoji9x9/skills --squash --delete-branch`。最終判断で条件を満たせばコメント記録の上マージする方針。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 86.9,
+        "tokens": 31482,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR番号のみのため現在の repo を対象にしている",
+          "passed": true,
+          "evidence": "手順0「カレントが対象リポジトリか確認（PR 番号だけ渡されているため）」で `gh repo view --json nameWithOwner` を実行し「番号だけの PR 参照は取り違えやすいので最初に固定する」と明示。"
+        },
+        {
+          "text": "0.x のマイナー更新は破壊的変更があり得ると認識している",
+          "passed": true,
+          "evidence": "冒頭「0.x（< 1.0）依存なので、マイナー更新でも破壊的変更があり得る前提で影響を確認してから判断する」。手順3でも「0.x では minor に breaking が入り得る」と明記。"
+        },
+        {
+          "text": "changelog/release notes で破壊的変更（API変更・削除・挙動変更）の有無を確認する方針を示している",
+          "passed": true,
+          "evidence": "手順3「0.x 更新の影響を changelog / release notes で確認（最重要）」で「フォーマット既定の変更 / 新ルール」「CLI / 設定キーの破壊的変更（オプション名変更・廃止）」「BREAKING 記載や『changed default』系の文言を探す」を確認項目に列挙。oxc-project/oxc の 0.53.0 リリースノートも直接確認。"
+        },
+        {
+          "text": "判断の根拠を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "手順7「判断の記録」で「マージすると決めた場合に **投稿する予定のコメント文面**」として、0.x/dev 依存・release notes 確認結果・Lint green の実証を含む根拠を記した PR コメント文面を提示。"
+        },
+        {
+          "text": "リスクあり/判断不能ならマージせず、課題と解決策をコメントに残して停止する方針である",
+          "passed": false,
+          "evidence": "決定木では「あり、CI が fail → **マージしない**。別途『新 oxfmt でリポジトリ全体を再整形する』対応 Issue/PR が必要」とマージ停止と解決策には触れるが、その課題と解決策を PR コメントとして残す手順が無い。手順7のコメント文面はマージ確定ケースのみで、リスクあり/判断不能時に PR コメントで課題と解決策を記録して停止する方針は示されていない。"
+        },
+        {
+          "text": "マージ方式を、リポジトリ規約からの推測ではなく設定 .config/skills/shoji9x9/skills.yml の skills.dependabot-merge.merge_method（無ければ squash 既定）から決める方針を示している",
+          "passed": false,
+          "evidence": "手順5で「マージ方式はリポジトリ規約（squash 運用が一般的）に合わせる」とし、`.config/skills/shoji9x9/skills.yml` の merge_method を参照する記述が一切ない。設定ファイル参照ではなくリポジトリ規約からの推測に留まり、採点基準が明示的に FAIL とするケースに該当。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 81.0,
+        "tokens": 31193,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks 等で CI 状態を確認している",
+          "passed": true,
+          "evidence": "セクション2「CI（チェック）の失敗内容を特定」で `gh pr checks 73`、`gh pr view 73 --json statusCheckRollup`、`gh run list --branch <headRefName>`、`gh run view <run-id> --log-failed` を挙げ、必須/任意チェックの切り分けと失敗根本原因の読み取り手順を narration。main 側の緑も比較する。"
+        },
+        {
+          "text": "CI が失敗しているためマージしない方針である",
+          "passed": true,
+          "evidence": "最終判断で『現時点: マージしない（保留）。CI が赤い Dependabot PR を、失敗原因を切り分けずにマージするのは不可』、セクション0で『CI が落ちている PR はそのままマージしないのが原則』と明記。"
+        },
+        {
+          "text": "失敗内容と解決の手がかりを PR コメントに記録しようとしている",
+          "passed": false,
+          "evidence": "PR コメント（`gh pr comment 73`）はセクション5『マージする場合の手順（B で緑化した後のみ）』にのみ登場し、本文案は『CI 失敗は…のノイズと判断。再実行で緑化。更新影響は…問題なし』というマージ前提の内容。CI が落ちて非マージのケースで、失敗内容と解決の手がかりを PR コメントに記録する意図は示されていない（A では『ユーザーに返す』『@dependabot rebase を提案するに留める』とあり、判断・失敗内容の PR コメント記録に踏み込んでいない）。"
+        },
+        {
+          "text": "マージせずユーザーに報告して停止する",
+          "passed": true,
+          "evidence": "最終判断で『現時点: マージしない（保留）』とし、A/B/C の切り分けと次アクションをユーザー向けに提示。C『判定に必要な情報が取れない → 断定せず中断し、不足情報をユーザーに確認』。状態変更系は一切実行しないと明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.83,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 90.6,
+        "tokens": 32041,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr list --author app/dependabot で open な PR を列挙しようとしている",
+          "passed": true,
+          "evidence": "手順1 (L31-37): `gh pr list --repo <owner>/<repo> --state open --author \"app/dependabot\" --json ... --limit 200`。L46「app/dependabot 指定で確実に Dependabot 作成分だけに絞る」。"
+        },
+        {
+          "text": "--limit を大きく取るか --paginate で全件取得する（30件で打ち切らない）方針を示している",
+          "passed": true,
+          "evidence": "L37 `--limit 200`、L41「`--limit` は暗黙の打ち切りを避けるため十分大きく（200）。件数が limit に達していたら取りこぼしを疑い、`--json` + `jq` でのページ確認や Search API での再取得を検討」。"
+        },
+        {
+          "text": "各 PR を処理する直前に最新状態（head/CI/mergeable）を取り直す方針を示している",
+          "passed": true,
+          "evidence": "手順2 (L56-64) 各 PR N のループ内で `gh pr view N --json ...mergeable,mergeStateStatus,statusCheckRollup` と `gh pr checks N` を毎回取得。L50「各 PR 番号 N についてループで 2〜5 を回します」。ただし headRefOid の再取得比較は無く、mergeable/CI 中心（head 要素は弱い）。"
+        },
+        {
+          "text": "1 件マージ後は Dependabot の rebase/force-push・CI 再実行の完了を待ってから次を判断する方針である",
+          "passed": true,
+          "evidence": "L145「マージ後は Dependabot が次の PR を rebase/再作成することがあるので、ループの最後に 1 の一覧を取り直す」でマージ起因の rebase を認識。手順2 L72-73「PENDING / IN_PROGRESS → 待つ」で再実行中 CI の完了を待つ。ただし『次を判断する前に完了を待つ』という順序付けの明示は with_skill より弱い（マージ間の待機として直接は結び付いていない）。"
+        },
+        {
+          "text": "一連の処理後に open な Dependabot PR 一覧を再取得し、新規が出なくなるまで繰り返す方針を示している",
+          "passed": false,
+          "evidence": "L145「ループの最後に 1 の一覧を取り直す」で再取得には触れるが、これは一度きりの取り直しの記述。『新規が出なくなるまでフローを繰り返す（収束するまでループ）』という反復・収束条件が示されていない。手順6 (L153-160) も集計報告で終了し、再ループしない。"
+        },
+        {
+          "text": "各 PR で安全確認・PR コメント記録・安全なものだけマージを行う",
+          "passed": true,
+          "evidence": "手順2-3 で CI 成功・バージョン差分分類・changelog/利用箇所の安全確認、手順4「判断を PR コメントに記録する」、手順5「2〜4 で『マージ可』と判断できた PR のみ...マージ」。L165-170 で無条件一括マージを否定し、危ういもの(major/0.x 破壊的変更疑い等)は保留。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.33,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 72.1,
+        "tokens": 31031,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と PR の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "「対象は現在のリポジトリではなく別リポジトリ other-org/other-repo」「別 org のリポジトリなので、そもそも自分（の gh 認証ユーザー）が collaborator でない可能性が高い」と、対象 PR が現在の repo と別であることを認識・言及している。"
+        },
+        {
+          "text": "確認・マージを行わず中断している",
+          "passed": false,
+          "evidence": "不一致をガードとして停止せず、逆に全マージフロー（手順 0 権限確認 →1 PR メタ →2 CI 確認 →3 マージ影響 →4 コメント記録 →5 マージ →6 コンフリクト対応）を計画している。停止は repo 不一致ではなく viewerPermission<WRITE や PR 不在という条件付きにすぎず、「CI 緑 かつ >=1.0 の minor/patch かつ破壊的変更なし → マージする」と、条件が揃えばマージへ進む前提。確認・マージを行わず中断する挙動になっていない。"
+        },
+        {
+          "text": "ユーザーに確認している",
+          "passed": false,
+          "evidence": "cross-repo の意図についてユーザーに確認していない。権限不足や PR 不在時に「報告する」とあるのみで、「別 repo だが本当にこの repo で作業する意図か」を問い返す確認は行っていない。最終判断も「手順 1〜3 の結果に依存」と条件付き進行を述べるだけで、ユーザーへの確認要求がない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 65.9,
+        "tokens": 30524,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "mergeStateStatus 等で behind 状態を検出している",
+          "passed": true,
+          "evidence": "§1 で `gh pr view 60 --json ...mergeable,mergeStateStatus...` を取得し、「今回は `mergeStateStatus == \"BEHIND\"` が想定される（＝コンフリクトはしていないが base に後れており、かつ up-to-date 必須の保護がかかっているためマージ不可）」と BEHIND を検出。§2 で BEHIND/DIRTY/BLOCKED/UNSTABLE の分岐も明示。"
+        },
+        {
+          "text": "@dependabot rebase で base への追従を促そうとしている",
+          "passed": true,
+          "evidence": "§2「behind の解消手段」で「`@dependabot rebase`（推奨）: PR にコメントで指示すると Dependabot が head を base に rebase して push し直す」とし、§5 でも「PR に `@dependabot rebase` をコメント」を実行順序に含める。"
+        },
+        {
+          "text": "rebase 後に CI が再実行されるため、その成功を確認してから判断する方針である",
+          "passed": true,
+          "evidence": "§3「CI が全部緑か（up-to-date 化後に再走した結果で判断する）」、§4 コメント想定「rebase 後に CI 緑を確認」、§5「3. Dependabot が rebase・push → CI 再走を待つ。4. `gh pr checks 60` で緑を確認」と、rebase 後の再走 CI 緑を確認してからの判断方針を明示。"
+        },
+        {
+          "text": "状況（behind のため rebase が必要）を PR コメントに記録しようとしている",
+          "passed": true,
+          "evidence": "§4「実運用では、確認した内容と判断根拠を PR コメントに記録してからマージする」とし記録内容案（mergeStateStatus=BEHIND を確認・`@dependabot rebase` で最新化・rebase 後 CI 緑確認・破壊的変更なし）を提示。ドライランのため未実行だが記録方針を明示。"
+        },
+        {
+          "text": "rebase / force-push で head が差し替わった後の gh pr checks --watch 即時終了(exit 0) を CI 完了と信用せず、mergeStateStatus が CLEAN/UNSTABLE になる（または必須チェック行が pending でなくなる）までポーリングしてから判定する方針を示している",
+          "passed": false,
+          "evidence": "head 差し替え直後の premature race（--watch がその時点の登録済みチェックしか待たず必須チェック未登録のまま exit 0 で抜ける）への言及が皆無。§3/§5 は単に `gh pr checks 60` で「緑を確認」「CI 再走を待つ」とするのみで、--watch の即時 exit 0 を信用しない・mergeStateStatus が CLEAN/UNSTABLE になる／必須チェック行が pending でなくなるまでポーリングする、という述語を示していない。表面的な『CI を確認する』に留まる。"
+        },
+        {
+          "text": "rebase 待機の終了条件を headRefOid の変化だけに置かず、依頼拒否（The base commit has not changed → @dependabot recreate フォールバック）と PR の supersede/close（後継 PR へ切替）の両方を終了条件に含める方針を示している",
+          "passed": false,
+          "evidence": "§2/§最終判断で `@dependabot recreate` に触れるが、それは「behind が rebase で解消しない、あるいはコンフリクト（DIRTY）に転じた場合」というコンフリクト対処の一般論としてであり、rebase 依頼拒否の合図『The base commit has not changed』を終了条件として結び付けていない。かつ supersede/close（`state` CLOSED・後継 PR への切替）への言及が皆無。両終了条件を含める方針を示していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 87.5,
+        "tokens": 32440,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rebase / force-push 直後の --watch 即時終了(exit 0)を CI 完了と信用しない方針を示している",
+          "passed": true,
+          "evidence": "L19-22:「ユーザーが『さっき exit 0』で見た CI 結果は rebase 前の古い HEAD SHA に対するものであり、rebase 後の新しい HEAD では 無効（stale）になる」。L76「ユーザーが言う『さっき exit 0』は古い HEAD のものなので根拠にしない」。L119「今すぐマージはしない」。exit 0 をマージ根拠にしない不信は示している（ただし stale 観点に限定）。"
+        },
+        {
+          "text": "スキップ専用チェックだけ登録済みで必須チェックが未登録/pending の状態を CI 完了と誤判定しないと理解している",
+          "passed": false,
+          "evidence": "スキップ専用チェック・CodeQL skipping・必須チェック未登録の race・行が無いだけを pending 不在と誤読しない、といった記述が皆無。手順4(L71-78)は `gh pr checks --watch` を回し `bucket=pass` を確認するのみで、必須チェック行が未登録の瞬間に watch が premature に exit 0 する可能性への理解がない。stale（rebase 前）観点のみで premature（rebase 直後の未登録）観点を欠く。"
+        },
+        {
+          "text": "mergeStateStatus が CLEAN/UNSTABLE になる、または必須チェック行が pending でなくなるまでポーリングして判定する方針である",
+          "passed": true,
+          "evidence": "L75「全 required チェックが `pass`（`bucket=pass`）か」、L78「チェックが `pending` の間は完了待ち。`fail` があればマージせず」。必須チェックが pending でなくなる（pass）ことを判定基準に置き、pending 中は待機する方針は示している。ただし待機は --watch 依存で明示的なポーリング上限や mergeStateStatus をゲートに使う堅牢さは弱い。"
+        },
+        {
+          "text": "ポーリングは上限つき（無限待ちを避ける）で行う方針である",
+          "passed": false,
+          "evidence": "手順3・手順4 のいずれもポーリングに上限・タイムアウト・最大反復・無限待ち回避の記述が一切ない。`gh pr checks --watch` に完了待ちを委ねるのみで bound を設けていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 105.2,
+        "tokens": 32893,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "rebase が拒否された（base commit has not changed 等）ことを依頼拒否として認識している",
+          "passed": false,
+          "evidence": "拒否ではなく no-op と解釈している。§1「この返信は **エラーでも詰まりでもない**」「rebase は **no-op** になり…何もしない」「失敗ではない」、§5「『The base commit has not changed』は**失敗ではなく rebase 不要の通知**」。依頼拒否としての認識ではなく『rebase 不要』の通知として真逆に解釈しており FAIL。"
+        },
+        {
+          "text": "@dependabot recreate にフォールバックして PR を作り直させる方針である",
+          "passed": true,
+          "evidence": "§3「**rebase の no-op に対する正しい代替は多くの場合 `@dependabot recreate`**（ブランチをゼロから作り直す。rebase と違いベースが動いていなくても強制的に再生成し…）」と recreate を代替として明示。ただし主に DIRTY / CI 再トリガー時の条件付きで、本件は『問題なしなら merge』とする傾向があり方針としては弱め（borderline PASS）。"
+        },
+        {
+          "text": "recreate 後の新しい head の CI 成功を確認してから判断する方針である",
+          "passed": false,
+          "evidence": "recreate 後に新 head を待って新 head の CI 成功を確認する明確なフローが無い。§3「recreate なら新ブランチで CI が回る。ただし赤の原因が実質的なら回しても赤のまま。まず §2-2 で失敗理由を確定してから」と、recreate 前の CI 診断が中心で、recreate 後の新 head CI 成功確認を判断条件とする方針を示していない。FAIL。"
+        },
+        {
+          "text": "待機の終了条件に依頼拒否応答（直近の Dependabot コメント）を含めている",
+          "passed": false,
+          "evidence": "待機／ポーリングのループ自体が存在しない。§2-3 で `gh pr view 90 --comments` を診断目的で読むのみで、待機の終了条件（依頼拒否応答＝直近 Dependabot コメント）を組み込んだ上限つきポーリングを持たない。FAIL。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 80.8,
+        "tokens": 31533,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR が close/supersede された（state が CLOSED・Superseded by #N 等）ことを検知している",
+          "passed": true,
+          "evidence": "1-1 で `gh pr view 95 --json ...state,...,comments` を取得し「state == \"CLOSED\"」かつ supersede コメントの発言者が dependabot[bot] で本文に #101 が入っていることを確認（L22-34）。冒頭でも「PR #95 が close され『Superseded by #101』が付いた」を Dependabot の正常動作として解釈（L8-10）。"
+        },
+        {
+          "text": "headRefOid だけでなく state と直近の Dependabot コメントを待機の終了条件に含めている",
+          "passed": false,
+          "evidence": "state と Dependabot の supersede コメントは事実確認するが（L22-34）、そもそも headRefOid（head SHA）に基づく待機ループの終了条件という枠組みを扱っていない。取得するのは headRefName のみで headRefOid への言及はなく、『head だけを見て待つと取りこぼす→state と直近コメントも終了条件に含める』という対比・設計が narration にない。close は事後確認としてのみ登場する。"
+        },
+        {
+          "text": "close された PR を追わず、open な Dependabot PR 一覧を取り直して後継 PR を特定する方針である",
+          "passed": true,
+          "evidence": "「#95 はもう追いかけない。reopen も merge もしない」（L13）。セクション2「`--all` の対象一覧を取り直す」で `gh pr list --state open --author app/dependabot --limit 100` を再列挙し「ここに #101 が含まれることを確認し、未処理キューへ追加」「#95 は close 済みなので当然この一覧に出てこない」（L52-65）。"
+        },
+        {
+          "text": "既に確認済みの更新内容（changelog/影響評価）を後継 PR で再利用する方針である",
+          "passed": false,
+          "evidence": "#101 は #95 を飛び越した累積更新で「レビュー範囲が #95 のときより広がっている」「差分が #95 想定より広い点に注意」とし、#101 の release notes を新規に精読する方針（L15, L86-98）。#95 で確認済みの changelog/影響評価を再利用して差分だけ追加確認する、という再利用の明示がなく、むしろ #101 を独立に（広く）再レビューする方向で述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 96.6444,
+        "stddev": 17.3216,
+        "min": 65.3,
+        "max": 114.1
+      },
+      "tokens": {
+        "mean": 43579.6667,
+        "stddev": 1031.9919,
+        "min": 41773,
+        "max": 44631
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.583,
+        "stddev": 0.2,
+        "min": 0.25,
+        "max": 0.83
+      },
+      "time_seconds": {
+        "mean": 82.4667,
+        "stddev": 11.8332,
+        "min": 65.9,
+        "max": 105.2
+      },
+      "tokens": {
+        "mean": 31578.4444,
+        "stddev": 751.2746,
+        "min": 30524,
+        "max": 32893
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.42",
+      "time_seconds": "+14.2",
+      "tokens": "+12001"
+    }
+  },
+  "notes": []
+}
