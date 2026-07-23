@@ -8,6 +8,13 @@
 # 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
 set -euo pipefail
 
+# 旧来の `box-oauth-init.sh <code>` 形式を弾く。引数で渡すと ps/proc に露出し、かつ現在は
+# 無視されて stdin 待ちになり混乱するため、明示的にエラーで新しい入力方法へ誘導する。
+if [ "$#" -gt 0 ]; then
+	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行し、プロンプトに貼り付けるか stdin で渡してください（box-oauth-init.sh < code.txt）。" >&2
+	exit 2
+fi
+
 # 認可コードは引数で受け取らずプロンプト（TTY）または stdin（パイプ）から読む。
 if [ -t 0 ]; then
 	printf '認可コードを貼り付けて Enter: ' >&2
