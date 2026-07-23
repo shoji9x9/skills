@@ -56,20 +56,20 @@ skills:
 1. 入力から owner / repo / PR 番号を抽出する
 2. 現在の repo と PR の owner / repo が一致するか確認する
    - 一致しない場合は、以降の確認・マージを行わず中断し、ユーザーに確認する
-3. PR の著者が Dependabot か確認する（`gh pr view <番号> --json author --jq '.author.login'`）
+3. PR の著者が Dependabot か確認する（`gh pr view <番号> --repo <owner>/<repo> --json author --jq '.author.login'`）
    - bot の login 表記は揺れる（`dependabot[bot]` 等）ため `dependabot` を含むかで判定する。`app/dependabot` は `gh pr list --author` で絞るときの app slug であって、`author.login` の値とは別物
    - Dependabot 以外なら、本スキルの対象か中断して確認する（取り違え防止）
 4. **CI 成功を確認する**（後述「gh メカニクス」）。必須チェックが
    - 成功 → 次へ
    - 実行中 → 完了を待つ（`--watch`）か、待たない場合はその旨を伝えて停止
    - 失敗 → **マージせず**、失敗内容と「どうすれば直せそうか」を PR コメントに記録してユーザーに報告
-5. **マージ影響を確認する**。Dependabot が PR 本文に入れる Release notes / Changelog / Commits（`gh pr view <番号> --json title,body,files`）と、更新依存・バージョン差分（lockfile / manifest の差分）を読む
+5. **マージ影響を確認する**。Dependabot が PR 本文に入れる Release notes / Changelog / Commits（`gh pr view <番号> --repo <owner>/<repo> --json title,body,files`）と、更新依存・バージョン差分（lockfile / manifest の差分）を読む
    - 特に **0.x 依存**は、マイナー更新でも破壊的変更があり得るため changelog を必ず確認する
    - devDependency か runtime か、リポジトリ内での使用箇所も踏まえて影響範囲を見積もる
 6. **判断の根拠を PR コメントに記録する**（`gh pr comment`）。マージ可否いずれの場合も残す
    - **マージ不可と判断した場合は、何が課題か（例: 破壊的変更で X の対応が必要 / CI の失敗原因 / behind のため rebase が必要）と、どうすればマージできるかを必ず明記**する。次に見た人がそのまま動けるようにするため
 7. **マージする / しない**
-   - 安全 → 設定の `merge_method` でマージ（`gh pr merge --<method> <番号>`）
+   - 安全 → 設定の `merge_method` でマージ（`gh pr merge --<method> <番号> --repo <owner>/<repo>`）
    - リスクあり / 影響が判断できない → マージせず、6 のコメントを残したうえでユーザーに報告
 8. 実施結果（マージ有無・理由）を報告する
 
@@ -81,7 +81,7 @@ Dependabot は **1 件マージすると、残りの open PR を rebase / force-
 
 1. open な Dependabot PR を列挙する（後述。**ページネーション順守**）
 2. 1 件ずつ、**処理直前に最新状態を取り直して**から単一フローを適用する
-   - 処理直前に `gh pr view <番号> --json headRefOid,mergeable,mergeStateStatus,state` と CI 状態を再取得する（列挙時の値を使い回さない）
+   - 処理直前に `gh pr view <番号> --repo <owner>/<repo> --json headRefOid,mergeable,mergeStateStatus,state` と CI 状態を再取得する（列挙時の値を使い回さない）
    - `mergeStateStatus` が `BEHIND`（base に遅れている）なら `@dependabot rebase` で更新を促す。rebase 後の待機・拒否時の `recreate` フォールバック・supersede/close 時の後継 PR への切り替えは
      「behind（base に遅れている）PR の更新」に従い、**更新後の CI 成功は `--watch` の即時終了を信用せず**確認してから判断する
    - 処理中に `state` が `CLOSED`（`Superseded by #<N>` 等）へ変わったら当該 PR を追わず、手順 5 の open 一覧再取得で後継 PR を拾う
