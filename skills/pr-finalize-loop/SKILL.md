@@ -144,7 +144,7 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 - **push 直後の `--watch` 即時終了(exit 0)を「CI 完了」と信用しない**。force-push・再 push 直後は必須チェックがまだ登録されず、先に登録されるスキップ専用チェック（CodeQL skipping 等）だけが見える瞬間があり、
   `--watch` はその集合の完了で exit 0 する（必須チェックは pending のまま）。`no checks` 即時返却と同系の false positive。CI 完了は、`mergeStateStatus` が `BLOCKED` / `BEHIND` を抜けて `CLEAN` / `UNSTABLE` になる、
   または必須チェック行（`check` / `signatures` 等、ブランチ保護で必須指定されたもの）が登録され pending でなくなるまで、「ポーリングと待機」の上限つきでポーリングしてから判定する
-  （`gh pr view <番号> --json mergeStateStatus` / `gh pr checks <番号> --json name,state,bucket`。**未登録＝行が無いだけで pending 不在とみなさない**）。
+  （`gh pr view <番号> --repo <owner>/<repo> --json mergeStateStatus` / `gh pr checks <番号> --repo <owner>/<repo> --json name,state,bucket`。**未登録＝行が無いだけで pending 不在とみなさない**）。
 
 ### CI 失敗ログの取得（修正の手がかり）
 

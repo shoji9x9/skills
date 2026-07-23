@@ -1,7 +1,7 @@
 {
   "metadata": {
     "skill_name": "dependabot-merge",
-    "skill_path": "/home/shoji9x9/projects/skills/skills/dependabot-merge",
+    "skill_path": "<repo>/skills/dependabot-merge",
     "executor_model": "claude-opus-4-8",
     "analyzer_model": "claude-opus-4-8",
     "timestamp": "2026-07-23T02:40:15Z",

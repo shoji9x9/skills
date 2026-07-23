@@ -159,7 +159,7 @@ Dependabot 側の**依頼拒否**やグループ更新の再編成による**PR 
 ```bash
 gh pr view <番号> --repo <owner>/<repo> --json state,headRefOid,mergeStateStatus
 gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
-  --jq '.[] | select(.user.login | ascii_downcase | contains("dependabot")) | {created_at, body: .body[:300]}'
+  --jq '.[] | select(.user.login | ascii_downcase | contains("dependabot")) | {created_at, body: (.body // "")[:300]}'
 ```
 
 ### 判断の記録（PR コメント）
