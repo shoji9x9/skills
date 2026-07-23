@@ -83,8 +83,11 @@ Dependabot は **1 件マージすると、残りの open PR を rebase / force-
 1. open な Dependabot PR を列挙する（後述。**ページネーション順守**）
 2. 1 件ずつ、**処理直前に最新状態を取り直して**から単一フローを適用する
    - 処理直前に `gh pr view <番号> --json headRefOid,mergeable,mergeStateStatus,state` と CI 状態を再取得する（列挙時の値を使い回さない）
-   - `mergeStateStatus` が `BEHIND`（base に遅れている）なら `@dependabot rebase` で更新を促し、**更新後の CI 成功を確認してから**判断する
-3. 1 件マージしたら、残り PR が rebase / force-push・CI 再実行される可能性を見込み、次の PR は **head が落ち着き CI が完走するのを待ってから**判断する（`gh pr checks <番号> --watch`）
+   - `mergeStateStatus` が `BEHIND`（base に遅れている）なら `@dependabot rebase` で更新を促す。rebase 後の待機・拒否時の `recreate` フォールバック・supersede/close 時の後継 PR への切り替えは
+     「behind（base に遅れている）PR の更新」に従い、**更新後の CI 成功は `--watch` の即時終了を信用せず**確認してから判断する
+   - 処理中に `state` が `CLOSED`（`Superseded by #<N>` 等）へ変わったら当該 PR を追わず、手順 5 の open 一覧再取得で後継 PR を拾う
+3. 1 件マージしたら、残り PR が rebase / force-push・CI 再実行される可能性を見込み、次の PR は **head が落ち着き CI が完走するのを待ってから**判断する。
+   このとき `gh pr checks --watch` の即時終了(exit 0)を「CI 完了」と信用せず、「CI 成功の確認」の予定（`mergeStateStatus` が `CLEAN` / `UNSTABLE`、または必須チェック行が pending でなくなる）でポーリングしてから判定する
 4. 失敗 / リスクありはスキップし、理由を PR コメントに残す
 5. **一連の処理後に再確認ループ**: open な Dependabot PR 一覧を取り直し、未処理 / 新規 PR が残っていないか確認する。残っていれば（in-flight な update ジョブの完了を待ったうえで）再度フローを回し、**新規が出なくなるまで繰り返す**
 6. 最後に、マージした PR・スキップした PR（理由つき）のサマリーを報告する
@@ -123,13 +126,42 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 gh pr view <番号> --repo <owner>/<repo> --json mergeable,mergeStateStatus
 ```
 
+**rebase / force-push 後の `--watch` 即時終了(exit 0)を「CI 完了」と信用しない。** `@dependabot rebase` / force-push 直後は、必須チェック（`check` / `signatures` 等、ブランチ保護で必須指定されたもの）がまだ登録されておらず、
+先に登録されるスキップ専用チェック（CodeQL skipping 等）だけが見える瞬間がある。`--watch` は**その時点で登録済みのチェック集合**の完了を待つため、必須チェックが pending のままでも exit 0 で抜ける。
+head を差し替える操作（rebase / force-push）を挟んだ後の CI 完了は、次のどちらかを満たすまで**上限つきでポーリング**してから判定する:
+
+- **(a) `mergeStateStatus` が `BLOCKED` / `BEHIND` を抜けて `CLEAN` / `UNSTABLE` になる**（リポジトリ非依存で堅い。必須チェック未通過なら `BLOCKED` のまま）。
+- **(b) 必須チェック行が登録され pending でなくなる**（`gh pr checks <番号> --repo <owner>/<repo> --json name,state,bucket` で必須チェックの `bucket` が `pending` でないこと。**未登録＝行が無いだけで pending 不在とみなさない**）。
+
+この予定は `--all` フローで 1 件マージ後に次 PR の CI 完了を待つときにも使う。
+
 ### behind（base に遅れている）PR の更新
 
 ```bash
 gh pr comment <番号> --repo <owner>/<repo> --body "@dependabot rebase"
 ```
 
-- Dependabot がブランチを base に追従させ直す。**更新後に CI が再実行される**ので、その完了・成功を待ってから判断する。
+Dependabot がブランチを base に追従させ直し、**更新後に CI が再実行される**。ただし rebase 依頼後の待機を「期待する変化（head 更新・CI 完了）」だけで終わらせると、
+Dependabot 側の**依頼拒否**やグループ更新の再編成による**PR の作り直し（supersede / close）**で空振りする。
+待機は `headRefOid` の変化だけでなく **`state`（`CLOSED` / `MERGED`）と直近の Dependabot コメント**も監視し、次の分岐を終了条件に含める（上限つきポーリング）:
+
+- **rebase 反映**: head が更新され CI が再実行される。CI 完了は上の「CI 成功の確認」の予定（`--watch` の即時終了を信用しない）で待ってから判断する。
+- **依頼拒否**: Dependabot が `The base commit has not changed`（実際は BEHIND でも起こる）等で rebase を拒否したら、`@dependabot recreate` にフォールバックして PR を作り直させ、新しい head の CI 成功を待つ。
+
+  ```bash
+  gh pr comment <番号> --repo <owner>/<repo> --body "@dependabot recreate"
+  ```
+
+- **supersede / close**: グループ更新の再編成で当該 PR が後継 PR に置き換えられ close されることがある（Dependabot コメントの `Superseded by #<N>` / `updatable in another way`、`state` が `CLOSED`）。
+  この場合は当該 PR を追わず、**open な Dependabot PR 一覧を取り直して後継 PR を特定**し、既に確認済みの更新内容（changelog / 影響評価）は後継 PR で再利用する。
+
+`state` と直近の Dependabot コメントは次で確認する（bot 表記の揺れに対応し `dependabot` を含む author で緩く絞る。コメントは古い順のため**末尾が最新**）:
+
+```bash
+gh pr view <番号> --repo <owner>/<repo> --json state,headRefOid,mergeStateStatus
+gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
+  --jq '.[] | select(.user.login | ascii_downcase | contains("dependabot")) | {created_at, body: .body[:300]}'
+```
 
 ### 判断の記録（PR コメント）
 
@@ -148,7 +180,7 @@ gh pr comment <番号> --repo <owner>/<repo> --body "<判断と根拠>"
 gh pr merge --squash <番号> --repo <owner>/<repo>   # または --merge / --rebase
 ```
 
-- `BEHIND` でマージが拒否される場合は `@dependabot rebase` で更新 → CI 成功を確認してから再試行する。
+- `BEHIND` でマージが拒否される場合は「behind（base に遅れている）PR の更新」に従い、`@dependabot rebase`（拒否されたら `@dependabot recreate`）で更新 → CI 成功を確認してから再試行する。
 - commit の `--amend` や force push は行わない。`@dependabot` への指示コメント以外で履歴を書き換えない。
 
 ## マージ可否の判断ガイド
