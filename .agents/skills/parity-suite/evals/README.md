@@ -17,9 +17,18 @@ scripts/run-skill-eval.sh \
   --prompt "parity-suite" \
   --out tests/parity-suite/iteration-1/eval-1/with_skill/run-1 \
   --model opus
+
+# fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
+scripts/run-skill-eval.sh \
+  --skill parity-suite --config with_skill \
+  --prompt "parity-suite --feature order-list --target current-test" \
+  --fixture skills/parity-suite/evals/fixtures/dataset-target-mismatch \
+  --out tests/parity-suite/iteration-1/eval-6/with_skill/run-1 \
+  --model opus
 ```
 
 - 使い捨てプロジェクトには `.replace/features.md`・設定が無いため、eval 1・2 は「捏造せず停止し setup を促す」パスを検証する
 - eval 3〜5 は前提の有無に関わらず成立する拒否挙動（Playwright 固有依存・取って diff しない・強度検証の省略拒否）を対象にする
+- eval 6 は fixture（設定・`.replace/features.md`・`.replace/dataset/metadata.json`）で前提を揃え、データセットの投入先 target（`current.target`）と選択 target の不一致を検出して停止するパスを検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

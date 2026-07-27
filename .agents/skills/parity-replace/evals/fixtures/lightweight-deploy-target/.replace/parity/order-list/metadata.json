@@ -1,0 +1,62 @@
+{
+  "slug": "order-list",
+  "mode": "feature",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "started_at": "2026-07-21T00:00:00Z",
+    "finished_at": "2026-07-21T01:40:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.0.0"
+  },
+  "dataset_version": 1,
+  "suite": {
+    "dir": "e2e/",
+    "specs": "e2e/parity/specs/order-list.spec.ts",
+    "locator_map": "e2e/parity/lib/locator-map/order-list.current.ts",
+    "interactions": "e2e/parity/lib/interactions/order-list.ts",
+    "tools": "e2e/parity/tools/",
+    "auth_roles": ["admin"],
+    "current_green": true
+  },
+  "capture_conditions": {
+    "environment": "current-test / Chromium / deviceScaleFactor 1",
+    "viewports": [{ "width": 1280, "height": 800, "label": "desktop" }],
+    "animations": "disabled",
+    "masks": ["order-list.updated-at（更新時刻の揮発表示）"],
+    "states": ["default", "hover", "focus", "disabled"]
+  },
+  "traits": {
+    "tool": "e2e/parity/tools/trait-capture.mjs VERSION 1",
+    "property_set": ["color", "background-color", "font-size", "font-weight", "padding", "border"],
+    "elements": ["order-list.table", "order-list.search-button", "order-list.row"]
+  },
+  "differ": {
+    "trait_compare": "e2e/parity/tools/trait-compare.mjs VERSION 1",
+    "align_tolerance": 1,
+    "pixel_tool": "pixelmatch 6.0.0",
+    "pixel_threshold": 0,
+    "aria_compare": "Playwright toMatchAriaSnapshot による手書きスナップショットの構造比較",
+    "validated_by_strength_gate": true
+  },
+  "noise_baseline": [
+    {
+      "page": "/orders",
+      "state": "default",
+      "viewport": "desktop",
+      "pixel_diff": 0,
+      "trait_diffs": 0
+    }
+  ],
+  "artifacts_storage": {
+    "selected": "local",
+    "size_threshold_mb": 50,
+    "baseline_pointer": ".replace/parity/order-list/baseline/"
+  }
+}

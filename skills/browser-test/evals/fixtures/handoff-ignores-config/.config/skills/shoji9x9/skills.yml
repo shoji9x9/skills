@@ -1,0 +1,10 @@
+version: 1
+skills:
+  browser-test:
+    environments:
+      - name: local
+        url: http://localhost:9999
+        auth: none
+        start: npm run start
+        default: true
+        forbidden_actions: []

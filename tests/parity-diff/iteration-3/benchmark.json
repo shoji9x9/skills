@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T13:51:51Z",
+    "evals_run": [4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 49.4,
+        "tokens": 156494,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop の new/develop/replace-metadata.json が無いことを検出し「その環境ではまだ green 証跡が無い」として停止している",
+          "passed": true,
+          "evidence": "「## 結果: 手順 1（前提確認）で**停止**します」「`--target develop` に対する **`parity-replace` の新側 green 証跡がありません**」。前提表で「**parity-replace 新側 green** | **`.replace/parity/order-list/new/develop/replace-metadata.json`** | ❌ **ファイルが存在しない**」と、他 6 前提が ✅ の中でこの 1 件だけを失格として特定している。"
+        },
+        {
+          "text": "同じ --target develop での parity-replace の実行を案内している",
+          "passed": true,
+          "evidence": "「## 次にやること 同じ target で `parity-replace` を回して `develop` を新側 green にしてください:」に続けてコードブロックで `parity-replace --feature order-list --target develop` を提示している。"
+        },
+        {
+          "text": "local-dev の green 証跡・新側ベースラインを develop 用に流用・複製・捏造していない",
+          "passed": true,
+          "evidence": "「### なぜ local-dev の証跡で代替しないか 新側の成果物・green 証跡は**環境ごとに独立**です。`local-dev` で green でも `develop`（配信型・別ビルド・別データ状態）で green である保証はなく、別環境の証跡を流用すると…前提が崩れます」と拒否。project-files は fixture と `diff -r` で同一（`new/develop/` も `baseline-new/` も diff.md も無い）。"
+        },
+        {
+          "text": "develop が db を持たない target であることの扱い（データセットバージョン三者一致の免除、またはデータ依存差分が未検証になる旨）に触れている",
+          "passed": true,
+          "evidence": "「**`develop` は `db` を持たない**ため、ゴールデンデータ未投入扱いです。データセットバージョンの三者一致（`phase_b.order-list.develop`）は**要求しません**が、代わりに**データ依存の差分は実装差かデータ差か判別不能＝未検証**として `diff.md` に明記し、確認をデータ非依存の範囲（レイアウト・スタイル・構造）に限定します。」と免除と未検証扱いの両方に言及している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 49.4,
+        "stddev": 0.0,
+        "min": 49.4,
+        "max": 49.4
+      },
+      "tokens": {
+        "mean": 156494.0,
+        "stddev": 0.0,
+        "min": 156494,
+        "max": 156494
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+49.4",
+      "tokens": "+156494"
+    }
+  },
+  "notes": []
+}

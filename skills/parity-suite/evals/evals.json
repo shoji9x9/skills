@@ -46,6 +46,17 @@
         "完了扱いにしていない",
         "故障注入の手順か再開方法を示している"
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "parity-suite --feature order-list --target current-test",
+      "fixture": "evals/fixtures/dataset-target-mismatch",
+      "assertions": [
+        ".replace/dataset/metadata.json の current.target（current-staging）と選択した target（current-test）が一致しないことを検出している",
+        "「ベースラインとシードの環境不一致」として停止し、ベースライン採取（スクリーンショット・computed style・aria スナップショット）へ進んでいない",
+        "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
+        "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）"
+      ]
     }
   ]
 }

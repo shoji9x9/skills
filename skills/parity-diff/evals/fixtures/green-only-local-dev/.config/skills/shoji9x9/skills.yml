@@ -1,0 +1,48 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: none
+      stack: [TypeScript, React]
+    new:
+      repo: ./new-app
+    targets:
+      - name: current-test
+        side: current
+        url: http://localhost:8080
+        db:
+          env_vars: [CURRENT_DB_URL]
+        auth:
+          roles:
+            admin:
+              user_name_env: CURRENT_ADMIN_USER
+              password_env: CURRENT_ADMIN_PASS
+        forbidden_actions:
+          - データの削除
+        default: true
+      - name: local-dev
+        side: new
+        url: http://localhost:5173
+        db:
+          env_vars: [NEW_DB_URL]
+        auth:
+          roles:
+            admin:
+              user_name_env: NEW_ADMIN_USER
+              password_env: NEW_ADMIN_PASS
+        forbidden_actions: []
+        start: npm run dev
+        check_urls: []
+        default: true
+      - name: develop # 配信型: db 無し・start 無し・commit_check 無し（意図的）
+        side: new
+        url: https://develop.example.test
+        forbidden_actions: []
+    verification_commands:
+      - npm run lint
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []

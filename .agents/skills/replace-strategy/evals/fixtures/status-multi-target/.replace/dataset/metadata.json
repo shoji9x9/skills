@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "base_time": "2026-07-01T00:00:00Z",
+  "generated_at": "2026-07-01T00:05:00Z",
+  "current": {
+    "target": "current-test",
+    "commit": "none",
+    "seeded_at": "2026-07-01T00:20:00Z",
+    "verified_at": "2026-07-01T00:35:00Z"
+  },
+  "run": {
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.4.0"
+  },
+  "tool": {
+    "dir": "seed/",
+    "entry": "seed/src/seed.ts",
+    "language": "typescript"
+  },
+  "phase_b": {
+    "order-list": {
+      "local-dev": {
+        "dataset_version": 1,
+        "seeded_at": "2026-07-02T01:00:00Z",
+        "verified_at": "2026-07-02T01:20:00Z"
+      }
+    }
+  }
+}

@@ -46,6 +46,18 @@
         "設定ファイルには環境変数名だけを持つ契約を説明している",
         "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない"
       ]
+    },
+    {
+      "id": 6,
+      "fixture": "evals/fixtures/status-multi-target",
+      "prompt": "replace-strategy status",
+      "assertions": [
+        "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+        "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+        "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+        "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+      ]
     }
   ]
 }

@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T13:51:51Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 77.0,
+        "tokens": 190917,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側の状態を target（環境）ごとに分けて報告している（local-dev と develop を別々の状態として示している）",
+          "passed": true,
+          "evidence": "「1. 機能ごとの現況」の表が同じ slug `order-list` を target 別に 2 行に分け、1 行目 `local-dev`（フェーズ B 済・新側 green true・差分検出 済・converged: true）、2 行目 `develop`（フェーズ B 対象外・新側 green 未実施・差分検出 未実施・収束 未実施）と別々の状態で示している。本文でも「`develop` は `side: new` の配信型環境ですが `new/develop/` が無く、**この環境ではパリティ検証が一切行われていません**」と環境別に述べている。"
+        },
+        {
+          "text": "local-dev を差分検出まで実施済み（収束済み）、develop をその環境では未実施として区別している",
+          "passed": true,
+          "evidence": "local-dev 行は「差分検出: 済（2026-07-06）」「収束: **converged: true**（要対応 0 / 許容 1 / ノイズ 1 / 未説明 0）」で、fixture の `.replace/parity/order-list/new/local-dev/diff-metadata.json`（`converged: true`, results.actionable 0 / accepted 1 / noise 1 / unexplained 0）と一致。develop 行は「新側 green **未実施**」「差分検出 **未実施**」「収束 **未実施**」。"
+        },
+        {
+          "text": "db を持たない develop を「フェーズ B 未実施の疑い」として報告していない（投入対象外として扱っている）",
+          "passed": true,
+          "evidence": "develop 行のフェーズ B 欄は「対象外（`db` なし）」。未実施・欠落としてではなく投入対象外として扱っている。fixture の skills.yml で develop は `db` を持たない配信型 target、`.replace/dataset/metadata.json` の `phase_b` にも `develop` の記録は無く、この扱いが正しい。"
+        },
+        {
+          "text": "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
+          "passed": true,
+          "evidence": "「- 差し戻しループ: `iterations 1 / max 5` → 上限到達なし、往復は 1 周で収束。」と記載。fixture の `new/local-dev/replace-metadata.json` の `loop.iterations: 1` / `loop.max_iterations: 5` と一致。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "`diff -r skills/replace-strategy/evals/fixtures/status-multi-target <run>/project-files` が差分なし（skills.yml・features.md・dataset/metadata.json・parity/order-list 配下の 9 ファイルすべて同一）。project-tree.txt にも fixture 以外のファイルは無い。応答も「読み取りのみで、`gh` によるコメント投稿やコミット等の外向き操作は行っていません」と述べている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 77.0,
+        "stddev": 0.0,
+        "min": 77.0,
+        "max": 77.0
+      },
+      "tokens": {
+        "mean": 190917.0,
+        "stddev": 0.0,
+        "min": 190917,
+        "max": 190917
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+77.0",
+      "tokens": "+190917"
+    }
+  },
+  "notes": []
+}
