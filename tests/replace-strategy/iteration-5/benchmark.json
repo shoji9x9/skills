@@ -1,0 +1,311 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T17:23:11Z",
+    "evals_run": [7, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 95.9,
+        "tokens": 215653,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md から未起票候補（ゴールデンデータセット・横断 API リソース user・機能 order / report）を列挙している",
+          "passed": true,
+          "evidence": "最終応答の起票候補表が 4 件を列挙: 「| 1 | ゴールデンデータセット | `golden-dataset` |」「| 2 | 横断 API | `user` |」「| 3 | 機能 | `order` |」「| 4 | 機能 | `report` |」。fixture の .replace/features.md の未起票行（機能 order / report、横断 API user、および先頭の「ゴールデンデータセット Issue: 未起票」）と過不足なく一致し、バッチは fixture どおり「なし」として扱っている。同じ 4 件が project-files/.replace/issue-drafts.md の「## 起票順（依存順）」表にも記録されている。"
+        },
+        {
+          "text": "ゴールデンデータセット Issue を最初の起票対象として提案している（全 Issue の前提のため先頭）",
+          "passed": true,
+          "evidence": "候補表の #1 が「ゴールデンデータセット / `golden-dataset` / 前提: なし（全 Issue の前提）」で先頭。本文でも「ゴールデンデータセット Issue が未起票のため、選択に関わらず先頭の起票対象として提案しています」と明示。issue-drafts.md でも「## 1. ゴールデンデータセットの構築（フェーズ A: 現行への投入）」が最初の節。"
+        },
+        {
+          "text": "候補の依存関係（横断 API → 機能の順）と各 Issue の本文ドラフトを提示している",
+          "passed": true,
+          "evidence": "依存関係: 候補表の「前提」列が #2 user=#1、#3 order=#1,#2、#4 report=#1,#2 で、横断 API（user）→ 機能（order / report）の順になっている。本文ドラフト: project-files/.replace/issue-drafts.md（159 行）に 4 本すべての本文があり（`grep '^## '` で「## 1. ゴールデンデータセットの構築」「## 2. 横断 API パリティ: ユーザー」「## 3. 機能パリティ: 注文管理」「## 4. 機能パリティ: 集計レポート」）、各本文に対象 slug・使用スキルと順序・受け入れ条件（`grep -c 受け入れ条件` = 4）を含む。"
+        },
+        {
+          "text": "明示承認が得られない（非対話・利用者不在）ため gh issue create も issue-create への委譲も実行せず、承認待ちであることを明示して停止している",
+          "passed": true,
+          "evidence": "冒頭で「**Issue は 1 件も起票していません。** skill の `issues` モードは「利用者が不在（非対話実行）なら起票せず停止する」と定めており、`gh issue create` も `issue-create` への委譲も実行していません」と明示。issue-drafts.md 冒頭も「状態: **未起票。`gh issue create` も `issue-create` への委譲も実行していない。**」。末尾で「起票する対象（全件でなくて構いません）を指定して承認いただければ、依存順に 1 件ずつ `issue-create` へ委譲し」と承認待ちを述べて停止している。result.json の permission_denials は [] で、project-tree.txt にも新規に作られたのは .replace/issue-drafts.md のみ（外向き操作の痕跡なし）。"
+        },
+        {
+          "text": ".replace/features.md の Issue 列を書き換えていない（すべて未起票のまま）",
+          "passed": true,
+          "evidence": "`diff -u skills/replace-strategy/evals/fixtures/issues-approval-gate/.replace/features.md tests/replace-strategy/iteration-5/eval-7/with_skill/run-1/project-files/.replace/features.md` が差分なし（完全一致）。機能一覧の order / report、横断 API の user、ヘッダの「ゴールデンデータセット Issue」いずれも「未起票」のまま。応答でも「`.replace/features.md` の Issue 列は「未起票」のまま変更していません」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 75.4,
+        "tokens": 192809,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "注文一覧と注文詳細（複数ページ）を 1 機能 1 行にまとめ、ページごとに機能行を分けていない",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の機能一覧は 2 行のみで、`| order | 注文管理 | 1 | /orders, /orders/:id | …` と 2 ページを 1 行に集約（もう 1 行は `| report | レポート | 2 | /reports | …`）。/orders と /orders/:id で行が分かれていないことを機能一覧表のデータ行数（2 行）で確認。「### 分解の根拠」でも「注文一覧 `/orders` と注文詳細 `/orders/:id` は…同一の利用者目的・同一のデータ境界…のため **1 機能・1 Issue** にまとめる。ページ単位の作業分割は Issue 内のフェーズ（`/orders` → `/orders/:id`）で行う」と根拠を明示。"
+        },
+        {
+          "text": "単一機能からしか使われない GET /api/orders 系を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "order 行の「新規実装 API」列が `GET /api/orders, GET /api/orders/:id`。横断 API 表のデータ行は `| user | ユーザー | GET /api/users | order, report | 未起票 | - |` の 1 行のみで、`/api/orders` は横断表に一切現れない（features.md 内で GET /api/orders が現れるのは機能一覧行と分解の根拠のみ）。根拠も「`GET /api/orders` と `GET /api/orders/:id` は **order からしか使われない**ため横断 API にせず、order の「新規実装 API」に含める」と明記。"
+        },
+        {
+          "text": "2 機能が使う GET /api/users をリソース単位（slug: user 等）で横断 API 表に分類し fan-out（利用機能 slug）を記録している",
+          "passed": true,
+          "evidence": "「## 横断 API（リソース単位）」表に `| user | ユーザー | GET /api/users | order, report | 未起票 | - |`。slug が `user`、リソース列が「ユーザー」、fan-out 列に利用機能 slug `order, report` を記録。加えて両機能行の「依存する横断 API（リソース slug）」列にも `user` が入っており参照が双方向に整合。「**リソース「ユーザー」で 1 Issue**（API ごとに分割しない／他の API と束ねない）」と分類方針も記載。"
+        },
+        {
+          "text": "slug が ASCII kebab-case でインベントリ全体で一意（日本語の転写でない）",
+          "passed": true,
+          "evidence": "実在 slug は `order` / `report`（機能一覧）と `user`（横断 API）の 3 つで、いずれも ASCII 小文字のみ・重複なし（日本語機能名「注文管理」「レポート」「ユーザー」は機能名/リソース列に置かれ slug 列には入っていない）。表の第 1 列を抽出して非 ASCII を grep すると、ヒットするのは末尾の gaps 表（「| 項目 | 内容 | 影響 |」）の行だけで、機能一覧・横断 API 表の slug 列には非 ASCII なし。"
+        },
+        {
+          "text": "features-template の表構成（機能一覧・横断 API・Issue 列「未起票」）に従っている",
+          "passed": true,
+          "evidence": "assets/features-template.md と同じ節構成・同じ列見出しを持つ: 「## 機能一覧」の見出し行が `| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |`、「## 横断 API（リソース単位）」が `| slug | リソース | API | fan-out（利用機能 slug） | Issue | 状態 |`、「## バッチ」も同一見出し（該当なしのためデータ行なし）。ヘッダの「ゴールデンデータセット Issue: 未起票」を含め Issue 列は 4 箇所すべて「未起票」（`grep -c 未起票` = 4: ヘッダ 1・機能 2・横断 API 1）。テンプレートにない「## 依存順（Issue 起票順）」「## 未測定・要確認（gaps）」の追記はあるが、テンプレの 3 表構成は保持している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 57.5,
+        "tokens": 158702,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "表示セクション（一覧・追加フォーム・絞り込み・完了済み）ごとに機能行を分割せず、利用者目的とデータ境界（tasks）に基づき 1 機能 1 行にまとめている",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の機能一覧はデータ行 1 行のみ: `| task | タスク管理 | 1 | / | GET /api/tasks, POST /api/tasks, PATCH /api/tasks | （なし） | tasks | なし | 未起票 | - |`。「### 分解の根拠」で「単一ページ `/` に含まれる一覧・追加フォーム・絞り込みタブ・完了済みセクションは**画面内の表示セクション**であり、機能境界ではない。利用者目的（タスクを作成・状態変更・確認する）・データ境界（`tasks` 単一テーブル）…がいずれも共通のため、**1 機能 `task` にまとめる**」と、利用者目的とデータ境界を根拠に挙げている。"
+        },
+        {
+          "text": "単一機能のみが使う API を横断 API にしていない（横断 API 表が空または該当なし）",
+          "passed": true,
+          "evidence": "「## 横断 API（リソース単位）」節の本文が「該当なし。`GET/POST/PATCH /api/tasks` はいずれも `task` 機能からのみ利用され（fan-out = 1）、横断 API の条件（2 つ以上の機能が利用）を満たさないため、`task` の「新規実装 API」に含める。」で、表のデータ行は `| （なし） | - | - | - | - | - |` のプレースホルダのみ（実 API を 1 件も載せていない）。3 本の API は機能行の「新規実装 API」列に入っている。"
+        },
+        {
+          "text": "slug が ASCII kebab-case（日本語の転写でない）",
+          "passed": true,
+          "evidence": "実在 slug は `task` の 1 つのみで ASCII 小文字。日本語機能名「タスク管理」は機能名列にあり slug 列ではない。第 1 列の非 ASCII grep でヒットするのは横断 API / バッチ表の「該当なし」プレースホルダ行 `（なし）` だけで、これは slug ではなく空表を明示するための埋め字（節本文でも「該当なし」と明記）。判定は字義どおり「slug」を対象に適用し pass とした。"
+        },
+        {
+          "text": "features-template の表構成に従い Issue 列を「未起票」としている",
+          "passed": true,
+          "evidence": "assets/features-template.md と同じ 3 節・同じ列見出し（機能一覧 `| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |`、横断 API `| slug | リソース | API | fan-out（利用機能 slug） | Issue | 状態 |`、バッチ `| slug | バッチ名 | 入力 | 比較する出力（DB 状態・生成ファイル） | 参照テーブル | Issue | 状態 |`）。ヘッダ「- ゴールデンデータセット Issue: 未起票」と task 行の Issue 列「未起票」（`grep -c 未起票` = 4: ヘッダ 1・機能 1・起票計画節 2）。fixture の survey.md / strategy.md は改変なし（`diff -r` で features.md の追加のみ）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 131.7,
+        "tokens": 357828,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md から未起票候補（ゴールデンデータセット・横断 API リソース user・機能 order / report）を列挙している",
+          "passed": true,
+          "evidence": "最終応答の表が 4 件を列挙: 「| 1 | ゴールデンデータセット | `dataset` |」「| 2 | 横断 API | `user` |」「| 3 | 機能 | `order` |」「| 4 | 機能 | `report` |」。「バッチはなし」も fixture どおり。project-files/.replace/issue-drafts.md の「## 起票候補と依存順」表も同一。なお本 run はスキル未インストール環境にもかかわらず「`<repo>/skills/replace-strategy/` の SKILL.md と references を読み、その手順に従いました」と自ら述べており、baseline としてスキル本文がリークしている点は留意（アサーション判定自体は成果物どおり pass）。"
+        },
+        {
+          "text": "ゴールデンデータセット Issue を最初の起票対象として提案している（全 Issue の前提のため先頭）",
+          "passed": true,
+          "evidence": "表の #1 が「ゴールデンデータセット / `dataset` / 依存: なし（全 Issue の前提）」で先頭。issue-drafts.md にも「依存順の根拠: ゴールデンデータセットが先頭 → 横断 API（`user`）→ 機能（features.md の依存順 order=2, report=3）」と明記。"
+        },
+        {
+          "text": "候補の依存関係（横断 API → 機能の順）と各 Issue の本文ドラフトを提示している",
+          "passed": true,
+          "evidence": "依存関係: 表の「依存」列が #2 user=#1、#3 order=#1,#2、#4 report=#1,#2 で横断 API → 機能の順。本文ドラフト: project-files/.replace/issue-drafts.md（161 行）に 4 本（`grep '^## '` で「## 1. [golden-dataset] …」「## 2. [横断API] ユーザーリソース API のパリティ移植」「## 3. [機能] 注文管理…」「## 4. [機能] 集計レポート…」）、各本文に目的・スコープ・制約・使用する姉妹スキルと順序・受け入れ条件（`grep -c 受け入れ条件` = 4）を含む。"
+        },
+        {
+          "text": "明示承認が得られない（非対話・利用者不在）ため gh issue create も issue-create への委譲も実行せず、承認待ちであることを明示して停止している",
+          "passed": true,
+          "evidence": "冒頭で「**非対話実行のため、Issue は起票していません。** …`gh issue create` も `issue-create` への委譲も行っていません」と明示。「## 起票前に解消が必要な事項」の 1 番目が「**明示承認**（必須）— これが得られるまで起票しません。」、issue-drafts.md 冒頭も「状態: **承認待ち**。承認が得られるまで `gh issue create` も `issue-create` への委譲も行わない」。末尾は承認後の手順を示して停止。result.json の permission_denials は []、新規ファイルは .replace/issue-drafts.md のみ。"
+        },
+        {
+          "text": ".replace/features.md の Issue 列を書き換えていない（すべて未起票のまま）",
+          "passed": true,
+          "evidence": "`diff -u` で fixture の .replace/features.md と run の project-files/.replace/features.md が完全一致（差分なし）。order / report / user の Issue 列とヘッダの「ゴールデンデータセット Issue」はすべて「未起票」のまま。応答でも「Issue 番号を `.replace/features.md` に書き戻します」を承認後の作業として将来形で述べるにとどめている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 95.7,
+        "tokens": 287904,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "注文一覧と注文詳細（複数ページ）を 1 機能 1 行にまとめ、ページごとに機能行を分けていない",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の機能一覧は `| order | 注文管理 | 2 | /orders, /orders/:id | GET /api/orders, GET /api/orders/:id | user | orders, order_items | 注文 CSV 出力（対象） | 未起票 | - |` と `| report | レポート | 3 | /reports | … |` の 2 行のみ。ページ単位の分割なし。表下の注記でも「注文一覧（/orders）と注文詳細（/orders/:id）は…**1 機能・1 Issue** にまとめる。ページ単位の分割は Issue 内のフェーズで行う」と述べている。"
+        },
+        {
+          "text": "単一機能からしか使われない GET /api/orders 系を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "order 行の「新規実装 API」列が `GET /api/orders, GET /api/orders/:id`。横断 API 表のデータ行は `| user | ユーザー | GET /api/users | order, report | 未起票 | - |` のみで `/api/orders` 系は含まれない。注記「`GET /api/orders` と `GET /api/orders/:id` は注文画面だけが使用するため、横断 API 表には載せず `order` の「新規実装 API」に含める」と一致。"
+        },
+        {
+          "text": "2 機能が使う GET /api/users をリソース単位（slug: user 等）で横断 API 表に分類し fan-out（利用機能 slug）を記録している",
+          "passed": true,
+          "evidence": "「## 横断 API（リソース単位）」表に `| user | ユーザー | GET /api/users | order, report | 未起票 | - |`。リソース単位（slug `user`）で分類し fan-out 列に利用機能 slug `order, report` を記録。注記でも「2 機能（order / report）から使われるため横断 API とし、リソース「ユーザー」単位で 1 Issue にする」と明示。"
+        },
+        {
+          "text": "slug が ASCII kebab-case でインベントリ全体で一意（日本語の転写でない）",
+          "passed": true,
+          "evidence": "実在 slug は `order` / `report` / `user` の 3 つで ASCII 小文字のみ・一意。表の第 1 列を抽出して非 ASCII を grep しても 1 件もヒットしない（「(all ASCII in first column)」）。日本語の転写（chumon 等）は使われていない。"
+        },
+        {
+          "text": "features-template の表構成（機能一覧・横断 API・Issue 列「未起票」）に従っている",
+          "passed": true,
+          "evidence": "features-template と同一の列見出しを持つ 3 表（機能一覧 `| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |` / 横断 API `| slug | リソース | API | fan-out（利用機能 slug） | Issue | 状態 |` / バッチ）を備え、Issue 列は「未起票」（`grep -c 未起票` = 5: ヘッダ 1・機能 2・横断 API 1・「## Issue 化の状態」節の文中 1）。末尾に「## 依存順（Issue 起票順）」「## 未確認（要追加測定）」「## Issue 化の状態」を追記しているがテンプレの表構成は保持。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 98.6,
+        "tokens": 273141,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "表示セクション（一覧・追加フォーム・絞り込み・完了済み）ごとに機能行を分割せず、利用者目的とデータ境界（tasks）に基づき 1 機能 1 行にまとめている",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md の機能一覧はデータ行 1 行のみ: `| task | ToDo 管理 | 1 | / | GET /api/tasks, POST /api/tasks, PATCH /api/tasks | なし | tasks | なし | 未起票 | - |`。「### 分解の根拠」で「**利用者目的**: 「自分の ToDo を登録し、進捗を管理し、終わったものを確認する」という単一の目的」「**データ境界**: 所有テーブルは `tasks` のみ、4 セクション全てが同一テーブルを読み書きする」「一覧・追加フォーム・絞り込みタブ・完了済みセクションはいずれも…**画面内の表示セクション**であり、機能境界ではない」と明記。"
+        },
+        {
+          "text": "単一機能のみが使う API を横断 API にしていない（横断 API 表が空または該当なし）",
+          "passed": true,
+          "evidence": "「## 横断 API（リソース単位）」節は「該当なし。」のみで表自体を出さず、「機能が 1 つしか無いため、定義上「2 つ以上の機能から使われる API」は存在しない…したがって**横断 API Issue は起票しない**」と記載。`GET/POST/PATCH /api/tasks` は機能行の「新規実装 API」列に入っている（「規則: 2 つ以上の機能が利用するリソースだけを横断 API 表に載せる」と補足）。アサーションは「表が空または該当なし」を許容しており、表を省いて「該当なし」と明記する形も字義上これを満たすと判断した。"
+        },
+        {
+          "text": "slug が ASCII kebab-case（日本語の転写でない）",
+          "passed": true,
+          "evidence": "実在 slug は `task` の 1 つのみで ASCII 小文字。日本語機能名「ToDo 管理」は機能名列。第 1 列の非 ASCII grep でヒットするのは末尾「## Issue 起票の依存順」表の見出し「順」のみで、slug 列には非 ASCII なし。"
+        },
+        {
+          "text": "features-template の表構成に従い Issue 列を「未起票」としている",
+          "passed": true,
+          "evidence": "機能一覧の列見出しが features-template と完全一致（`| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |`）。冒頭のテンプレ由来コメント 2 行もそのまま残っている。ヘッダ「- ゴールデンデータセット Issue: 未起票（全 Issue の前提。`issues` モードで最初に起票する）」と task 行の Issue 列「未起票」（`grep -c 未起票` = 2）。横断 API / バッチ節は該当なしのため表を省き「該当なし。」としているが、節見出し（## 横断 API（リソース単位） / ## バッチ）は保持しており、eval-7 fixture の features.md も「## バッチ / なし」と同形のため表構成違反とはしなかった。なお本 run は「同一マシン上の他サンドボックスにある同スキルパッケージ（`SKILL.md` / `references/features-issues.md` / `assets/features-template.md`）を規則の正本として参照しました」と述べており、baseline へのスキル本文リークがある点に留意。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 76.2667,
+        "stddev": 19.2147,
+        "min": 57.5,
+        "max": 95.9
+      },
+      "tokens": {
+        "mean": 189054.6667,
+        "stddev": 28660.5193,
+        "min": 158702,
+        "max": 215653
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 108.6667,
+        "stddev": 20.0001,
+        "min": 95.7,
+        "max": 131.7
+      },
+      "tokens": {
+        "mean": 306291.0,
+        "stddev": 45238.6264,
+        "min": 273141,
+        "max": 357828
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "-32.4",
+      "tokens": "-117236"
+    }
+  },
+  "notes": [
+    "baseline 汚染: without_skill の 3 run すべてが、使い捨てプロジェクト外にある本リポジトリの skills/replace-strategy/（SKILL.md・references・assets）を自発的に発見・参照して回答した（eval-7/eval-9 は result.json で明言、eval-8 は生成物のテーブル見出しがテンプレートと完全一致）。このため Pass Rate の Delta +0.00 はスキル効果の弁別として無効。with_skill の 3 run は全 assertion pass で正当性検証としては有効。Time -32.4s / Tokens -117k はスキル参照の探索コスト差として参考値。"
+  ]
+}
