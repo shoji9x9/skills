@@ -4,20 +4,41 @@
 
 ## 本スキル単体の完了とループ全体の終了は別
 
-- **本スキル単体の完了**: パリティスイートが**新に対して green** ＋ 静的解析（設定 `static_analysis`）が通る。**`parity-diff` の差分ゼロは含めない**——含めると `parity-diff`（前提に本スキルの完了を要求する）と循環する
+- **本スキル単体の完了**: 選択した target に対しパリティスイートが**新で green** ＋ 検証コマンド（設定 `verification_commands`）が通る。**`parity-diff` の差分ゼロは含めない**——含めると `parity-diff`（前提に本スキルの完了を要求する）と循環する
 - **往復ループ全体の終了条件**: `parity-diff` が**未説明差分ゼロ かつ 未修正回帰ゼロ**（全差分が系統差／宣言済み例外に分類済み）。「許容」例外の確定には**ユーザー承認**が要る（`parity-diff` 側で扱う）
+
+## 1 反復の定義とカウントの起点
+
+- **`parity-diff` の差し戻し（`diff.md`）を受領した時点で `loop.iterations` を +1 し、`loop.last_diff_report` をその `diff.md` に更新する**（修正の着手前に数える。修正が途中で止まっても回数が消えないため）
+- **1 反復の範囲は「差し戻しの受領 → 修正 → 対象 target での再テスト → `parity-diff` へ戻す」まで。** 同じ `diff.md` 内で複数箇所を直しても 1 反復であり、差分の件数では数えない
 
 ## 反復上限
 
 - **上限は `--max-iterations`（既定 5）。** 余白を直すと別要素がズレる（カスケード）状況で修正が新たな差分を生み続けうるため、上限を置く
 - 超えたら停止してユーザーに上げる（頭から作り直さない）
-- 反復回数を `.replace/parity/<slug>/replace-metadata.json` の `loop.iterations` に記録する（`max_iterations` / `last_diff_report` も）
+- 反復回数は上記の起点で `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `loop.iterations` に記録する（`max_iterations` / `last_diff_report` も）。**上限は target ごとに数える**（環境を変えれば別の証跡・別のカウント）
 
 ## 差し戻し時の再入手順
 
-- 本スキルは差分レポート `.replace/parity/<slug>/diff.md`（`parity-diff` の出力）を入力として受け取る
+- 本スキルは差分レポート `.replace/parity/<slug>/new/<target>/diff.md`（`parity-diff` の出力）を入力として受け取る。`<target>` は `parity-diff` が実行したのと同じ新側 target
 - **該当ページのフェーズから再開する。頭から作り直さない。** diff.md が指す差分の分類を確認し、要対応のものだけを該当ページの実装・新側マッピング・テーマの各フェーズへ差し戻す
+- **コード変更を伴う修正は敵対的レビューまで再入する**（[`adversarial-review.md`](adversarial-review.md)）。差し戻し対応は小さく見えても commit 前のレビューを省略しない。
+  `on_diff` ドキュメントが commit・push を指示していても、**レビューが先**（差し戻しをレビュー省略の抜け道にしない）
 - 差分が「テーマで消せない構造差」に該当するなら `component_diffs` 宣言または `gaps.md` 追記で扱う（[`theming.md`](theming.md)）。仕様変更で差分を消さない
+
+## `on_diff` の解釈（対象 target ごと）
+
+対象 target の `on_diff` は「差分を見つけた後にどう動くか」を書いた **Markdown ドキュメントのパス**（任意）。**意味論の正本は `replace-strategy` の `references/project-config.md`「`on_diff`」節**（ここへ転記しない）。
+
+- **`on_diff` があれば、そのドキュメントに従う。** 典型的な内容（先行環境での再テスト・修正の反映〈commit / push / デプロイ〉・反映完了の待ち合わせ）と書き方は上記正本を参照する
+- **省略時の既定挙動**: 上記「差し戻し時の再入手順」で該当ページのフェーズから修正し、対象 target を起動してスイートを流して `parity-diff` へ戻す（反映工程は無い）
+- **ガードレール**: 一覧の正本は上記正本の「ガードレール」（ドキュメントの指示より優先する）。本スキルでの適用は——現行アプリへの操作指示は実行せず停止、
+  対象 target だけでなく**すべての target** の `forbidden_actions` を尊重、コード変更を伴う修正はレビュー先行、
+  `on_diff` のパスが解決できなければ既定挙動へフォールバックせず停止、ドキュメントが挙げる target 名の実在を実行前に検証。
+  決定論的にしたい手順はドキュメントがリンクするスクリプトを実行する（手順を自分で言い換えて代替しない）
+- **従ったドキュメントのパスを `new/<target>/replace-metadata.json` の `loop.on_diff_doc` に記録する**（無ければ `none`）
+
+ドキュメントが「修正ループを回さず Issue を起票して停止する」運用（マージ後デプロイ環境等）を指示する場合、**その分岐は `parity-diff` 側が担う**（本スキルは差分の Issue 起票をしない）。差し戻しが来た場合は対象 target の `on_diff` ドキュメントを確認し、その運用なら停止して `parity-diff` 側の分岐に委ねる。
 
 ## strength ゲート再実行との関係
 

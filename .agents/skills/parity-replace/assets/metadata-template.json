@@ -1,5 +1,5 @@
 {
-  "_note": "parity-replace が .replace/parity/<slug>/replace-metadata.json として生成する。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff はここから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。",
+  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -12,21 +12,27 @@
   },
   "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。現在より古ければ陳腐化として見直す>",
   "new": {
-    "url": "<新側の baseURL（設定 new.url）。開発前で未設定なら none>",
-    "commit": "<新側リポジトリのコミット SHA。無ければ none>"
+    "target": "<選択した新側 target 名（設定 targets の side: new）。成果物ディレクトリ名と一致させる>",
+    "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none>",
+    "api_url": "<その target の API baseURL（PARITY_NEW_API_URL に解決した値。api_url 省略時は url と同じ）>",
+    "commit": "<新側リポジトリのコミット SHA。無ければ none。別 target での軽量経路の判定に使う>",
+    "dirty": false
   },
   "suite": {
     "locator_map_new": "<新側マッピング例外の実パス（既定 <parity_suite_dir>/parity/lib/locator-map/<slug>.new.ts）。例外ゼロなら none>",
     "new_green": true,
     "new_green_at": "<スイートが新に対して green になった日時（ISO 8601）>"
   },
-  "static_analysis": {
-    "commands": ["<設定 static_analysis から実行した起動コマンド（固有ツール名は設定側）>"],
-    "passed_at": "<静的解析が通った日時（ISO 8601）>"
+  "verification": {
+    "commands": [
+      "<設定 verification_commands から実行した検証コマンド（静的解析・単体テスト等。固有ツール名は設定側）>"
+    ],
+    "passed_at": "<検証コマンドが全て通った日時（ISO 8601）>"
   },
   "loop": {
     "iterations": 0,
     "max_iterations": 5,
-    "last_diff_report": "<最後に処理した .replace/parity/<slug>/diff.md のポインタ。未着手なら none>"
+    "last_diff_report": "<最後に処理した .replace/parity/<slug>/new/<target>/diff.md のポインタ。未着手なら none>",
+    "on_diff_doc": "<従った on_diff ドキュメントのパス。無ければ none>"
   }
 }

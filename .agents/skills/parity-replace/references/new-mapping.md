@@ -19,8 +19,10 @@
 
 ## `new` プロジェクトの green 化
 
-- Playwright の `projects` は `current` / `new` の 2 つを `parity-suite` が定義済み。**`new` の baseURL 設定（設定の `new.url`）と、新に対する green 化が本スキルの担当**
-- baseURL は設定 `skills.replace-strategy.new.url` から引く。開発前で `none` なら実装が URL を持つまで green 化を保留する
+- Playwright の `projects` は `current` / `new` の 2 つを `parity-suite` が定義済み。**`new` の baseURL の解決・引き渡しと、新に対する green 化が本スキルの担当**
+- baseURL は選択した target（設定 `skills.replace-strategy.targets` の `side: new`）から解決し、環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に入れて渡す（`api_url` 省略時は `url`。配線の正本は `parity-suite`）
+- green 化の前に target を起動する: `pre_commands` → `start` → `check_urls` の順で、失敗したら早期停止する（各項目の意味論の正本は `browser-test` の `references/project-config.md`）
+- target の `url` が開発前で `none` なら、実装が URL を持つまで green 化を保留する
 
 ## assertion を変えたら強度ゲートを再実行する
 
