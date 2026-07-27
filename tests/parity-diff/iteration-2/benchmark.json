@@ -1,0 +1,155 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:37Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 39.1,
+        "tokens": 141842,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "前提確認の表で『replace-strategy setup | `.config/skills/shoji9x9/skills.yml` | ✗ 存在しない（`.config/` 自体なし）』『機能台帳（slug 採番） | `.replace/features.md` | ✗ 存在しない（`.replace/` 自体なし）』と、両方の欠落をパス単位で明示している。"
+        },
+        {
+          "text": "diff.md / diff-metadata.json / 新側ベースラインを捏造せず停止している",
+          "passed": true,
+          "evidence": "『検出・成果物・ベースラインの**捏造は一切していません**（新規ファイル作成・コマンド実行なし、実施したのは読み取り確認のみ）』と宣言し、『**新側ベースライン取得・3 経路の差分検出** — 比較の正となる現側ベースラインもノイズ基準値も存在しない』として実行していない。実際に run-1/project-files/ は空、project-tree.txt も `.` と `./.claude` のみで生成物なし。"
+        },
+        {
+          "text": "replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内している",
+          "passed": true,
+          "evidence": "『次にやること（依存順）』で 1. `replace-strategy setup` → 2. `golden-dataset`（フェーズ A→B）→ 3. `parity-suite`（対象 slug、`suite.current_green` / `differ.validated_by_strength_gate`）→ 4. `parity-replace`（同じ `--target` で `suite.new_green: true`）と 4 スキルを依存順に列挙し、『上から順に完了させてください。飛ばすと後段が成立しません』と付記している。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から引く契約を守っている",
+          "passed": true,
+          "evidence": "『`.replace/features.md` を作り、対象機能に slug を採番する（slug は本スキルでは採番しません）』と明示し、前提表でも `.replace/features.md` を『機能台帳（slug 採番）』として参照先に位置づけている。応答内で slug を創作していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 40.2,
+        "tokens": 148397,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前提（replace-strategy setup / metadata.json / new/<target>/replace-metadata.json の new_green）が無いことを検出している",
+          "passed": true,
+          "evidence": "確認結果の表で `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` を『❌ ファイルが存在しない』と判定し、slug / target の妥当性を『⛔ 判定不能』としている。metadata.json / `new/<target>/replace-metadata.json` は個別の確認パスとしては表に載せていないが、『次にやること（依存順）』で parity-suite の `suite.current_green` / `differ.validated_by_strength_gate`、parity-replace の `suite.new_green: true` を未充足の前提として列挙し、『`parity-diff` は連鎖の最後段です』と position づけている。"
+        },
+        {
+          "text": "スイートを再実行せず・現行アプリを駆動せず停止している",
+          "passed": true,
+          "evidence": "『手順 1（target 解決と前提確認）で停止しました。検出・成果物・ベースラインの捏造は行っていません』と明記。実行したのは存在確認・`node`/`git` の環境確認のみで、スイート実行やアプリ駆動の記述はなく、project-files/ は空、project-tree.txt も `.` と `./.claude` のみ。"
+        },
+        {
+          "text": "最初に欠ける前提で停止し parity-replace など後続の前提も合わせて案内している",
+          "passed": true,
+          "evidence": "1 番目に `replace-strategy setup` を挙げ『← **今ここ。**』と最初に欠ける前提で停止したことを示しつつ、2. golden-dataset（フェーズ A・B）、3. `parity-suite --feature order-list`、4. `parity-replace --feature order-list --target preview`（`suite.new_green: true`）、5. 本コマンド再実行、と後続の前提まで案内している。"
+        },
+        {
+          "text": "指定された target を設定で確認できないまま存在すると仮定したり、勝手に別の環境へ読み替えたりしていない",
+          "passed": true,
+          "evidence": "表で『target の妥当性（`preview`） | `skills.replace-strategy.targets[]`（`side: new`） | ⛔ 判定不能（設定が無い）』と未確認であることを明示し、setup 手順でも『`targets[]`（`preview` を `side: new` として定義）』と定義がこれから必要な旨を書いている。さらに『**別環境の green 証跡は流用できません**』と読み替えを否定。別環境名への置き換えは一切していない。"
+        },
+        {
+          "text": "slug を自分で採番していない",
+          "passed": true,
+          "evidence": "『なお、slug `order-list` は私が採番したものではなく引数として受け取った値です。`.replace/features.md` 採番後に実際の slug が異なる場合は、そちらが正となります』と明示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 53.6,
+        "tokens": 157212,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "検出はしない（決定論的ツールの仕事）と説明し、モデルは分類だけを担うと答えている",
+          "passed": true,
+          "evidence": "『**LLM に「差分があるか」を聞かない** — 検出は決定論的ツール（画素・特性照合・aria の3経路）の仕事で、モデルの仕事は検出済み差分の**分類だけ**』と、検出＝ツール／モデル＝分類の分担を明示している。"
+        },
+        {
+          "text": "全画面のスクリーンショット対を突き合わせて差分を探していない",
+          "passed": true,
+          "evidence": "『**全画面のスクリーンショット対をモデルに渡して比較させない** — スイート外の「2枚を見比べて違いを見つけて」という依頼にも**目視検出を代替提供しない**と明記されています』とし、実際に画像比較を行っていない（『添付画像が実際には渡ってきていないため、画像そのものの受領は未確認として扱いました』、差分の列挙も無し）。見落としが『差分なし』として通る失敗モードも説明している。"
+        },
+        {
+          "text": "検出済みの差分について差分領域の crop 対を 1 件ずつ渡して 3 値（要対応／許容／環境ノイズ）に分類する方針を示している",
+          "passed": false,
+          "evidence": "応答本文に『crop』『要対応』『許容』『環境ノイズ』の語が 1 度も出現しない（文字列検索で 0 件）。『分類』は 1 箇所のみで、『モデルの仕事は検出済み差分の**分類だけ**』と分担を述べるに留まり、差分領域の crop 対を 1 件ずつ渡すこと・3 値の分類区分には言及していない。前提未充足での停止に終始し、正しい進め方（トリアージの具体像）を提示していない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.89,
+        "stddev": 0.1905,
+        "min": 0.67,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 44.3,
+        "stddev": 8.0728,
+        "min": 39.1,
+        "max": 53.6
+      },
+      "tokens": {
+        "mean": 149150.3333,
+        "stddev": 7712.6428,
+        "min": 141842,
+        "max": 157212
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.89",
+      "time_seconds": "+44.3",
+      "tokens": "+149150"
+    }
+  },
+  "notes": []
+}

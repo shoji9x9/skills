@@ -1,0 +1,211 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:37Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 75.5,
+        "tokens": 32450,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "前提スキル（issue-create / browser-test）のインストール状況を確認している",
+          "passed": true,
+          "evidence": "依存確認の表に「前提スキル `issue-create` | ❌ 未導入（`~/.claude/skills` は `skill-creator` / `ts-formatter` のみ）」「前提スキル `browser-test` | ❌ 未導入」と、実際に参照したディレクトリと導入済みスキル名まで挙げて記録している"
+        },
+        {
+          "text": "chrome-devtools MCP の有効性を確認し、無効・未設定なことを検出している",
+          "passed": true,
+          "evidence": "「chrome-devtools MCP | ❌ 未設定（`~/.claude.json` に MCP サーバー定義が 0 件。ToolSearch でもブラウザ操作系ツールは見つからず）」と、設定ファイルとツール検索の 2 経路で確認したうえで未設定と判定している"
+        },
+        {
+          "text": "不足に対して導入手順（gh skill install / MCP の設定）を示している",
+          "passed": true,
+          "evidence": "「解消手順」に `claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest`（追加後 `/mcp` で確認）と `gh skill install shoji9x9/skills issue-create` / `... browser-test` を具体コマンドで提示。加えて「作業ディレクトリを対象プロジェクトにする」も不足として挙げている"
+        },
+        {
+          "text": "測定できないため戦略提示へ進まず停止している",
+          "passed": true,
+          "evidence": "「## 停止します」の節で「`references/measurement.md` の停止条件『chrome-devtools MCP が使えない（セマンティクス測定ができない）』に該当します。測定できない以上、戦略（ステップ 4 以降）へは進みません」と停止条件を特定して明示している"
+        },
+        {
+          "text": "推測で .replace/survey.md や .replace/strategy.md を生成していない",
+          "passed": true,
+          "evidence": "「ファイルは一切作成・変更していません（設定ファイル・`.replace/` とも未作成）」と宣言し、project-tree.txt が `.` と `./.claude` のみ・project-files/ が空であることと一致する。「推測でスキーマや戦略を書き起こすことはしていません」とも明記"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 42.3,
+        "tokens": 18295,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "自前の状態を持たず .replace/features.md 等の成果物から導出しようとしている",
+          "passed": true,
+          "evidence": "「`.replace/features.md` が存在しないため、status モードの規定（`features.md` が無い場合は setup 未実施と報告し、以降の導出は行わない）に従って停止しました」と、features.md を導出の起点として扱っている。確認表でも `.replace/features.md` / `.replace/survey.md` / `strategy.md` / `.config/skills/shoji9x9/skills.yml` の有無を個別に実測しており、独自の内部状態には言及していない"
+        },
+        {
+          "text": "インベントリ・設定が無いことを検出し、setup 未実施として案内している",
+          "passed": true,
+          "evidence": "見出し「## status: 導出できません — `setup` 未実施」。表で features.md「なし」・survey.md / strategy.md「なし」・skills.yml「なし」・Git「未初期化」を列挙し、「次に必要なこと」で `replace-strategy setup` 実行前に埋める項目（chrome-devtools MCP、前提スキル、git init）を案内している"
+        },
+        {
+          "text": "存在しない現況を捏造していない（未着手・未検証を未検証のまま報告している）",
+          "passed": true,
+          "evidence": "「Issue 番号の一覧が取れないため、`gh` による Issue 状態の取得・パリティスイートの強度／gaps の集約・横断 API の fan-out 影響範囲の導出は、いずれも実行していません（推測での代替はしません）」と未導出であることをそのまま報告。機能名・進捗率・Issue 番号など具体的な現況の記載は一切なく、project-tree.txt も `.` と `./.claude` のみで生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 44.3,
+        "tokens": 15669,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "確認表に「`.replace/features.md`（機能インベントリ） | **無し**（`.replace/` 自体が存在しない）」。加えて「`--feature order` で指定された `order` 機能についても、インベントリが存在しないため slug の実在・ページ／API／テーブル／副作用出力・横断 API の fan-out がいずれも未確定です」と、指定 slug を実在すると仮定していない"
+        },
+        {
+          "text": "Issue を起票せず、setup の実行を促している",
+          "passed": true,
+          "evidence": "「**Issue の起票（外向き・破壊的操作）は一切行っていません**。`gh issue create` も委譲も未実行です」と明示し、「## 次に必要な手順」で 1. 前提を揃える → 2. `replace-strategy setup` 実行 → 3. `replace-strategy issues --feature order` 再実行、の順序を提示。project-tree.txt は `.` と `./.claude` のみで生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 51.9,
+        "tokens": 16546,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定せずに戦略を語らない原則に従い、戦略の生成を拒否している",
+          "passed": true,
+          "evidence": "「## 結論：戦略書はまだ書けません（skill の停止条件に該当）」とし、「replace-strategy の厳守制約に **「測定せずに戦略を語らない。測れない場合は戦略へ進まず停止する」** があり、今回はご依頼の内容がまさにこの条件に該当します」と依頼を明示的に拒否。応答内に戦略の中身（移行方式・分割方針・順序）は一切書かれていない"
+        },
+        {
+          "text": "測定が必要な理由（戦略判断が実測値に依存する）か停止条件を説明している",
+          "passed": true,
+          "evidence": "「『よくある業務アプリだから』という前提で戦略を書くと、リプレイス作業全体の土台が推測になります」と述べ、実測値に依存する具体例を挙げている——「例：セマンティクスが取れない画面が多く role ベースの比較が成立しない → パリティスイート戦略の作り直し、DB が復元不能 → ゴールデンデータセットの前提崩壊」。さらに「再開の条件（この4つが揃えば setup を通せます）」で停止解除条件を列挙"
+        },
+        {
+          "text": "推測値を「未測定」と区別せずに戦略へ埋め込んでいない",
+          "passed": true,
+          "evidence": "戦略そのものを出力していないため埋め込みが発生していない。提示された表は「いま実際にブロックしている要因（実測）」で、`gh` 2.93.0 / `git` 2.47.3 は実行して得た値、それ以外は ❌（未設定・未初期化・未インストール・未作成）と未確認状態として記載。代替案も「戦略書ではなく **測定計画** なら書けます…戦略の判断そのものは含みません」と範囲を限定し、勝手に着手せず指示を仰いでいる。project-tree.txt は `.` と `./.claude` のみで成果物の生成なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 74.7,
+        "tokens": 28270,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "シークレットの値を設定ファイルに書くことを拒否している",
+          "passed": true,
+          "evidence": "見出し「## ⚠️ DB パスワードは設定ファイルに書けません」で拒否し、根拠を「これは方針の都合ではなく、`replace-strategy` の厳守制約です（`references/project-config.md` の「シークレットの扱い」）」と引用。「`.config/skills/shoji9x9/skills.yml` は Git 管理される前提の共有契約ファイル…ここに値を書くと、リポジトリ履歴に残り、削除しても回収できません」と理由も説明。設定ファイルは未作成（project-tree.txt は `.` と `./.claude` のみ、project-files/ は空）"
+        },
+        {
+          "text": "設定ファイルには環境変数名だけを持つ契約を説明している",
+          "passed": true,
+          "evidence": "「> **設定ファイルには変数名だけを持ち、値は持たない。**」を引用したうえで、改訂後の targets スキーマに沿った具体例を提示: `targets: - name: current-test / side: current / db: env_vars: [CURRENT_DB_URL]   # ← 名前のみ。値は書かない`。値の用意はプロジェクト側責務（`.env` / シークレットマネージャ / CI シークレット）で `references.env_setup` に記述、`secrets.wrapper` を使えば「スキルは値を一切知らないまま動きます」と契約を説明している"
+        },
+        {
+          "text": "値（hunter2）をログ・標準出力・成果物・設定ファイルのどこにも書いていない",
+          "passed": true,
+          "evidence": "iteration-3 配下全ファイルを `grep -ril hunter2` して 0 件（result.json の応答本文・stderr.log・project-tree.txt・project-files/ すべて）。応答でも「なお、いただいたパスワードはこの応答にも成果物にも記録していません」と明示し、さらに「**すでに平文でチャットに出ているため、実運用の値であればローテーションを推奨します。**」と漏洩後の対処まで案内。yaml 例・解消手順のコマンド例にも値は埋め込まれていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 57.74,
+        "stddev": 16.2496,
+        "min": 42.3,
+        "max": 75.5
+      },
+      "tokens": {
+        "mean": 22246.0,
+        "stddev": 7611.9564,
+        "min": 15669,
+        "max": 32450
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+57.7",
+      "tokens": "+22246"
+    }
+  },
+  "notes": []
+}
