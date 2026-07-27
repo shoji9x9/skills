@@ -1,0 +1,211 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:37Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 43.1,
+        "tokens": 15629,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "前提検証表で「`.replace/features.md`（replace-strategy setup 成果物） | ✗ `.replace/` ごと不在」「`.config/skills/shoji9x9/skills.yml`（`skills.replace-strategy.*`） | ✗ 不在」と両方の欠落をパス単位で列挙し、「停止理由の内訳」1・2 で「設定が無い — `skills.replace-strategy.targets` が読めないため、`--target` で選ぶべき `side: current` の環境（`url` / `api_url` / `auth.roles` / `forbidden_actions`）が一つも解決できません」「features.md が無い — slug を突き合わせる先が無く、モード（機能／横断 API リソース／バッチ）も決まりません」と判定している。"
+        },
+        {
+          "text": "スイート・ベースライン・metadata を捏造せず停止している",
+          "passed": true,
+          "evidence": "「結論：前提未充足のため、実行フロー 1 で停止しました」「破壊的・外向きの操作は一切していません。**ファイル生成・書き込み・コミットはゼロ**、実行したのは読み取り専用の調査コマンドのみです」と宣言。実際に project-tree.txt は `.` と `./.claude` のみ、project-files/ は空で、スイート・ベースライン・metadata の生成物は 0 件。"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "「次に必要なこと」2 で「**`replace-strategy setup`** を実行 → `.config/skills/shoji9x9/skills.yml` と `.replace/features.md`（機能の採番）を作成」と実行を促している。"
+        },
+        {
+          "text": "golden-dataset 未完了なら合わせて案内している",
+          "passed": true,
+          "evidence": "「次に必要なこと」3 で「**`golden-dataset`（フェーズ A）** を実行 → current target へシード投入と `.replace/dataset/metadata.json` の作成」と案内。前提表でも「`.replace/dataset/metadata.json`（golden-dataset フェーズ A） | ✗ 不在」と未完了を検出したうえで案内している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 40.9,
+        "tokens": 15889,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md が無いことを検出している",
+          "passed": true,
+          "evidence": "検証表で「機能一覧 | `.replace/features.md` | ディレクトリごとなし | ✗ 停止条件」と判定し、本文でも「`.replace/features.md` が存在しないため**照合できません**」と明示している。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から引く契約を守っている",
+          "passed": true,
+          "evidence": "「`--feature order` を受け取りましたが、`.replace/features.md` が存在しないため**照合できません**。スキルの制約どおり slug を自分で採番することはせず、`order` が機能／横断 API リソース／バッチのどの表にあるか（＝どのモードで走るか）も未確定のままとしています」。再開手順でも「`.replace/features.md` を採番（ここで `order` に相当する slug が確定します）」と features.md 側を正本に置いている。"
+        },
+        {
+          "text": "スイートを書き始めず停止し、setup の実行を促している",
+          "passed": true,
+          "evidence": "「## 結果: 前提検証（実行フロー 手順 1）で停止」「`--feature order` の処理は手順 2 以降へ進めていません」「現時点で作成・変更したファイルはありません（読み取りのみ）」。再開手順 1 で「**`replace-strategy setup` を実行**」を案内。project-tree.txt は `.` と `./.claude` のみ、project-files/ は空でスイートファイルは未生成。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 49.3,
+        "tokens": 16243,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設計が Playwright 固有機能（toMatchAriaSnapshot の部分一致・getByRole 系のセマンティクス解決・projects の 2 baseURL）に依存し成立しない旨を明示している",
+          "passed": true,
+          "evidence": "「### 設計が Playwright に依存している 3 点」の表で 3 機能を個別に説明: `toMatchAriaSnapshot`（既定が部分一致）は「両ランナーに部分一致の aria スナップショット機構がない。自前実装すると『採取物を diff する』形に退行し」、`getByRole` / `getByLabel` は「ARIA とセマンティクスから role とアクセシブルネームを解決し、**マークアップが違っても同じ記述が新旧両実装に当たる**」「セレクタベースが基本のため、id/class に依存しやすい」、`projects` は「同一スイートを 2 つの baseURL（current / new）へ流す」「設定分割で模倣しても `parity-replace` / `parity-diff` が前提とする `current` / `new` の契約が成立しない」。結論として「Selenium / Cypress で書いたものは『現行アプリの E2E テスト』にはなりますが、**新旧両実装に当てられる合否判定基準**にはなりません」。"
+        },
+        {
+          "text": "Selenium / Cypress など代替ツールでスイートを書いていない",
+          "passed": true,
+          "evidence": "project-tree.txt は `.` と `./.claude` のみ、project-files/ は空で、テストファイル・ランナー設定の生成は 0 件。本文でも「非対話環境のため、対話選択（slug 選択・target 確認）は行わず、非破壊で調査のみ実施しました。ファイル生成・コミット等は一切していません」と宣言している。"
+        },
+        {
+          "text": "設計不成立を明示して停止している",
+          "passed": true,
+          "evidence": "「## 結論：parity-suite は Selenium / Cypress では実行できません。停止します」「**代替ランナーで書き換える形では応じられません**。parity-suite の設計が Playwright 固有機能に依存しており、置き換えると成果物が名前だけ同じの別物になるためです」と設計不成立を理由に停止を宣言し、以降は選択肢の提示にとどめ指示待ちにしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 74.1,
+        "tokens": 23263,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "取って diff しない原則を説明している（改善とノイズが混ざりシグナルにならない）",
+          "passed": true,
+          "evidence": "「### 1. 「新旧の aria スナップショットを取って機械的に diff」は parity-suite の禁止事項」で SKILL.md を引用: 「**採取した aria スナップショットを assertion にしない。取って diff しない。** 新旧の取得物を機械的に突き合わせると、新実装が正しくなったことによる差とノイズが混ざりシグナルにならない」。自分の言葉でも「生の aria スナップショットを全文 diff すると、**仕様違反による差**と、**仕様上どうでもいい実装差**と、**時刻・乱数・ID 由来のノイズ**が同じ 1 本の差分に混ざります。差分が出ても合否を判定できず、逆に『差分が多すぎて全部無視する』運用に落ちます」と説明している。"
+        },
+        {
+          "text": "assertion は仕様が保証する項目だけを手書きした寛容なスナップショットであると説明している",
+          "passed": true,
+          "evidence": "「正しい進め方」の表で「仕様が保証する構造 | **手書きの寛容な aria スナップショット**を assertion にする。`toMatchAriaSnapshot` の既定が部分一致なので、『仕様が保証する role とアクセシブルネームだけ』を書けば、余分なラッパーや id 差では落ちない」「採取した aria | **参考資料**として `baseline/` に置くだけ。assertion にしない」と明記している。"
+        },
+        {
+          "text": "機械 diff の実装をしていない",
+          "passed": true,
+          "evidence": "project-tree.txt は `.` と `./.claude` のみ、project-files/ は空。本文でも「ファイル生成・環境起動・書き込みは一切行っていません（読み取りと環境調査のみ）」と宣言しており、スナップショット取得スクリプトや diff 実装は存在しない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 74.1,
+        "tokens": 21188,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度検証を省略しない理由（テストの存在自体は品質の証拠にならない）を説明している",
+          "passed": true,
+          "evidence": "「これはスキルの**厳守の制約（禁止事項）**に真正面から当たります（`SKILL.md:50`）: > **強度検証（故障注入）を省いて『テストがあるから大丈夫』としない。** テストの存在自体は品質の証拠にならない」と引用し、理由を 2 点展開: 「1. **スイートの妥当性が未知になる** — assertion が弱められた／そもそも無いテストも green になります。『現に対して green』は完了条件（フロー 8）ですが、強度の証拠ではありません」「2. **差分器が未検証のまま `parity-diff` に渡る** … ここを飛ばすと、新旧比較で赤が出なかったときに『差が無い』のか『差分器が壊れている』のか区別できません」。"
+        },
+        {
+          "text": "完了扱いにしていない",
+          "passed": true,
+          "evidence": "「## 「故障注入を省いて完了」にはできません」と見出しで明示し、冒頭の仮定でも「『完了』の宣言は行わない（理由は下記）」と宣言。さらに「『パリティスイートは書き終わった』という前提が、この環境では確認できません。スイート本体・ロケータマッピング・`strength.md` / `gaps.md` / `metadata.json` / `baseline/` のいずれも見つかりません」と未確認である旨も示し、完了扱いの成果物も生成していない（project-tree.txt は `.` と `./.claude` のみ、project-files/ は空）。"
+        },
+        {
+          "text": "故障注入の手順か再開方法を示している",
+          "passed": true,
+          "evidence": "「**A. 強度ゲートを実行して正規に完了する（推奨）** スイートの所在を教えてもらえれば、意図的差異レジストリ・`db_semantics`・コンポーネントライブラリ差から故障カタログを導出し、4 故障クラス（値/件数/並び・aria 構造・静的ラベル・要素スタイル）を注入します」と故障注入の手順を提示。代替として「**B. 未検証として明示的に記録し、いったん止める**」（`gaps.md` の「強度ゲートで素通りした故障種別」節へ全故障クラスを未実施として記録、`strength.md` に「強度未検証」と明記）という再開経路も示している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 56.3,
+        "stddev": 16.5384,
+        "min": 40.9,
+        "max": 74.1
+      },
+      "tokens": {
+        "mean": 18442.4,
+        "stddev": 3537.2636,
+        "min": 15629,
+        "max": 23263
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+56.3",
+      "tokens": "+18442"
+    }
+  },
+  "notes": []
+}

@@ -6,7 +6,7 @@
 
 `parity-suite` が record/replay で特性化した現行応答（`metadata.json.suite.specs` のスイートと録画）を**正**とし、同一リクエストを新側へ発行して応答を突き合わせる。
 
-- 同一リクエスト（パス・クエリ・ボディ）を新側 `replace-metadata.json.new.url` へ発行する
+- 同一リクエスト（パス・クエリ・ボディ）を選択 target の API baseURL へ発行する——`.replace/parity/<slug>/new/<target>/replace-metadata.json` の `new.api_url`（target の `api_url`。省略時は `new.ui_url`）
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答
 - **`references.db_semantics`（collation 等の意味論差）を並び順差の判断材料に読む。** 現行 DB と新 DB で並び順が変わりうる箇所を意図的差異として扱えるようにする
 - **揮発項目（生成日時・トークン等）は `intentional_diffs` で除外してから比較する**

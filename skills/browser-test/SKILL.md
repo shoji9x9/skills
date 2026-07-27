@@ -29,13 +29,16 @@ browser-test setup
 - `--ignore-forbidden-actions` 指定時は `forbidden_actions` に該当する操作も実施してよい
 - いずれの場合も、CUD・課金・生成・通知など副作用を伴う操作は、実施前に操作内容と影響を伝えてユーザーの承認を得る（注意喚起）
 - 環境の分離度（ローカル環境が専用データを持つか、共有リソース〈リモート DB・外部 API 等〉を参照するか）はプロジェクトごとに異なる。分離を確認できない限り、書き込み・課金操作は共有環境に影響する前提で承認を求める
+- 呼び出し元スキルから環境を渡されたときは、**渡された環境だけ**を使う。設定ファイル（`skills.browser-test.environments`）を**開かない・存在確認もしない・内容に言及しない**
+  （「参照していない」ことを示す目的でも読まない。読んだ内容が判断・応答へ混入する経路を断つため。受け渡し契約の正本: [`references/project-config.md`](references/project-config.md)）
 
 ## 前提
 
 - **MCP**: chrome-devtools MCP が有効であること。主に使うツール:
   `navigate_page` / `list_pages` / `list_console_messages` / `take_snapshot` / `take_screenshot` /
   `wait_for` / `click` / `fill` / `list_network_requests` / `get_network_request`。`wait_for` は非同期描画の完了待ちに使う
-- MCP が無効・未設定のときはユーザーに有効化を促し、本スキルを中断する
+- MCP が無効・未設定のときはユーザーに有効化を促し、本スキルを中断する。
+  **中断するときは、環境が整った後に実施する確認内容（対象ページと確認観点の一覧）を導出して報告に残してから中断する**（ローカル環境が起動していない等、他の理由で中断する場合も同じ）
 - **WSL で実行する場合**: Chrome 本体と CJK フォント（`fonts-noto-cjk`。日本語の文字化け防止）
 - **ツール**: `git`（確認スコープの導出）、`curl`（ローカル環境の稼働確認）
 
@@ -47,7 +50,7 @@ browser-test setup
 ## フロー
 
 1. **環境とスコープの確定**: プロジェクト設定を解決し、環境（既定は設定で `default` とされた環境）と確認スコープをユーザーに確認する。認証が必要な環境はユーザーがログインを実施する。「ログインが完了したら教えてください」と伝え、完了の合図を待ってから確認を始める
-2. **サーバ稼働確認（ローカル選択時）**: 解決した URL 群に `curl -s -o /dev/null -w "%{http_code}"` で疎通確認する。落ちていれば確認を始めず、解決済みの起動コマンドを提示してユーザーに起動を促す
+2. **サーバ稼働確認（ローカル選択時）**: 起動前に環境の `pre_commands` があれば順に実行し、失敗したらそこで停止する。続いて解決した URL 群に `curl -s -o /dev/null -w "%{http_code}"` で疎通確認する。落ちていれば確認を始めず、解決済みの起動コマンドを提示してユーザーに起動を促す
 3. **確認スコープの取得と影響ページの導出**:
    - スコープ: `uncommitted`（既定。`git status --short` / `git diff --name-only` ＋ untracked）／`branch`（`git diff --name-only <ベースブランチ>...HEAD`）／`custom`（ユーザーが指定したページ・観点）
    - フロントエンド変更: ルーター定義（React Router の Route 定義、Next.js の `pages/`・`app/` ディレクトリ、Vue Router 等）から変更ファイルをページに対応づける。

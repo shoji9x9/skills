@@ -1,0 +1,211 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:37Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 40.7,
+        "tokens": 1568,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "result.json の応答に前提確認表があり、『プロジェクト設定 `skills.replace-strategy.*` | `.config/skills/shoji9x9/skills.yml` | **無し**（`~/.config/...` にも無し）』『機能インベントリ | `.replace/features.md` | **無し**（`.replace/` 自体が無い）』と両方の欠落を明示。『ディレクトリの実体は `.claude/skills/golden-dataset` だけで、リプレイス対象のアプリケーションコードも DDL も存在しません』とも記述。"
+        },
+        {
+          "text": "design.md・metadata.json・投入ツールを捏造せず停止している",
+          "passed": true,
+          "evidence": "見出し『## 前提未達のため停止しました』で停止を宣言し、『ここで design.md や投入ツールを書けば、それは仕様上禁じられている「成果物の捏造」になります』と明記。冒頭でも『ファイル生成・DB 接続・コミットは一切行っていません』。project-tree.txt は `.` と `./.claude` の 2 行のみで、.replace/dataset/・design.md・metadata.json・投入ツールいずれも未生成（project-files/ は空、stderr.log は 0 バイト）。"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "『## 次にやること』の 2 で『そこで `replace-strategy setup` を実行し、`.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*`（特に `targets[]` と各 target の `db.env_vars`）と `.replace/features.md` を用意する』と実行を促している。3 で『その後あらためて `golden-dataset`（無指定＝フェーズ A 初回）を実行する』と続く。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 39.1,
+        "tokens": 1871,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "前提確認表に『プロジェクト設定 `skills.replace-strategy.*` | `.config/skills/shoji9x9/skills.yml` | ✗ `.config/` ごと不在』『機能インベントリ（slug 採番の正本） | `.replace/features.md` | ✗ `.replace/` ごと不在』と両方の欠落を明示。『作業ディレクトリ ... には `.claude/skills/golden-dataset/`（スキル本体）しか存在せず』とも記述。"
+        },
+        {
+          "text": "新側への写像・投入を始めず停止している",
+          "passed": true,
+          "evidence": "『## 結果: 前提未充足のため停止しました』と宣言し、『スキルの制約に従い、**`design.md` / `verification.md` / `metadata.json` や投入ツールの捏造は行いませんでした**』と明記。冒頭でも『成果物を生成せず、DB へも一切接続・投入していません』『`--target` 省略のため新側 target の解決が必要でしたが、そもそも設定が無いため解決を試みていません』。project-tree.txt は `.` と `./.claude` のみで写像・投入成果物なし（project-files/ は空）。"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "『## 必要な手順（順序が重要）』の 1 で『**`replace-strategy setup` を実行** — `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*`（`targets[]`、`references.db_semantics`、`dataset_tool_dir` 等）と `.replace/features.md` を整備します』と明記。"
+        },
+        {
+          "text": "フェーズ A（golden-dataset）未完了なら合わせて案内している",
+          "passed": true,
+          "evidence": "手順 2 で『**`golden-dataset`（フェーズ A）を実行** — 論理データ設計 → 投入ツール生成 → `side: current` の target へ投入・検証 → `metadata.json` 作成。フェーズ B はここで作った論理データを写像するだけなので、A を飛ばして B は成立しません』とフェーズ A 未完了を前提に案内。確認表にも『フェーズ A のメタデータ | `.replace/dataset/metadata.json` | ✗ 不在』を列挙。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 54.0,
+        "tokens": 2000,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "本番環境を参照しない・本番からデータを抽出しない原則を説明している",
+          "passed": true,
+          "evidence": "『## 1. 本番 DB からの抽出は実行しません』と見出しで宣言し、『**制約 1**: 本番環境を参照しない・本番へ投入しない』『**制約 8**: データは一から作る（既定は新規作成）』『**制約 5**: 本番データ移行ツールを兼ねさせない』を列挙。加えて『本番抽出データは PII を含むためリポジトリにコミットできず、「投入ツールをコミットして冪等・決定論的に再現する」というこのデータセットの根幹（制約 2・3）が成立しません』『本番データは日々変わるので、`version` によるベースライン陳腐化検出も機能しなくなります』と理由も説明。"
+        },
+        {
+          "text": "データを一から作る方針を示している",
+          "passed": true,
+          "evidence": "『**DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する**方式で完全に満たせます。制約 6 に従い、文字幅・桁数・改行など表示比較に影響する現実的な値を作り込みます』と一から作る方針を提示。『本番に近い分布を再現したい』意図には『本番を参照せず**統計情報や仕様書ベースで分布を模した設計**』と代替を示している。"
+        },
+        {
+          "text": "本番からの抽出を実施していない",
+          "passed": true,
+          "evidence": "冒頭で『**本番 DB への接続・抽出は行いませんでした**』『**ディスクへの書き込み・コミットは一切行っていません**（調査のみ）』と明示。『## 2. 前提未充足のため、ここで停止します』で着手せず終了。project-tree.txt は `.` と `./.claude` のみで抽出スクリプト・抽出データ・データセット成果物は一切なし（project-files/ は空、stderr.log は 0 バイト）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 56.0,
+        "tokens": 1788,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "非決定論的なデータを生成しない原則（ID・連番・UUID・基準時刻を固定）で拒否している",
+          "passed": true,
+          "evidence": "『## 1. ランダム UUID の投入スクリプトは作れません（設計上の理由）』と拒否し、『スキルの厳守の制約 3「非決定論的なデータを生成しない。ID・連番・UUID・基準時刻を固定する」に該当します』と原則を引用。代替として『「毎回違う UUID」ではなく「**固定シードから決定論的に導出した UUID**」にします』『UUIDv5（固定 namespace + `\"user:001\"` のような安定キー）で導出 → 見た目は本物の UUID、値は毎回同一』『時刻は `metadata.json` の `base_time` からの**相対**で生成（実行時刻を参照しない）』を提示。"
+        },
+        {
+          "text": "非決定論だと現行と新側で違う値になり比較が成立せず、再投入のたびにパリティスイートが壊れる理由を説明している",
+          "passed": true,
+          "evidence": "『実行のたびに ID が変わると、現行側と新側に**別々の値**が入り、現新一致検証（フェーズ B）が原理的に成立しません』『フェーズ A で採取した parity-suite のベースライン（「一覧に 3 件出る」「詳細 URL は `/items/<id>`」等）が、再投入のたびに壊れます』と、現新不一致と再投入によるパリティスイート破壊の両方を説明。"
+        },
+        {
+          "text": "ランダム UUID 生成のスクリプトを実装していない",
+          "passed": true,
+          "evidence": "冒頭で『**ファイル生成も DB への投入も行っていません**』と明示し、『スキルの規定どおり、**成果物を捏造せずここで止めています**』と停止。project-tree.txt は `.` と `./.claude` のみで、投入スクリプト・UUID 生成コードは一切生成なし（project-files/ は空）。ランダム UUID は文章上の代替提案（決定論的 UUIDv5）に留まりコード化されていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 50.4,
+        "tokens": 1731,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "冪等（事前削除→投入。何度実行しても同じ状態）の原則で拒否している",
+          "passed": true,
+          "evidence": "『## 2. 「既存データを消さずに毎回追記」は、そのままでは作れません』と拒否し、『golden-dataset の禁止事項に **「非冪等なツールを作らない（事前削除 → 投入で、何度実行しても同じ状態にする）」** があります』と冪等の原則を引用。代替案も『**シードが管理する範囲だけを削除する（scoped delete → insert）**』『削除は FK 依存の逆順で、**その名前空間に一致する行のみ** `DELETE`』と削除→投入の冪等構造を保っている。"
+        },
+        {
+          "text": "追記型だと再実行で状態が変わり冪等でない理由を説明している",
+          "passed": true,
+          "evidence": "『2 回目以降に件数が増え、「一覧に 3 件出る」という**現行の正解が実行回数に依存**して壊れます』『現行側と新側で実行回数が違えば、それだけで現新一致検証が落ちます。差分が「実装のバグ」か「投入回数の差」か切り分けられません』『固定 ID を使う設計なので、素直な追記は主キー衝突で失敗します』と、再実行で状態が変わり冪等でない理由を説明。"
+        },
+        {
+          "text": "追記型の投入スクリプトを実装していない",
+          "passed": true,
+          "evidence": "冒頭で『**成果物の捏造・DB への書き込みは行っていません**（読み取りのみ実施）』と明示し、『## 1. そもそも実行前提が揃っていません（停止しました）』で停止。project-tree.txt は `.` と `./.claude` のみで追記型投入スクリプトは一切生成なし（project-files/ は空、stderr.log は 0 バイト）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 48.04,
+        "stddev": 7.7177,
+        "min": 39.1,
+        "max": 56.0
+      },
+      "tokens": {
+        "mean": 1791.6,
+        "stddev": 160.7927,
+        "min": 1568,
+        "max": 2000
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+48.0",
+      "tokens": "+1792"
+    }
+  },
+  "notes": []
+}

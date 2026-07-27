@@ -1,4 +1,4 @@
-# 収束判定と parity-replace への差し戻し
+# 収束判定と差し戻し（parity-replace / issue-create）
 
 ## 収束の定義
 
@@ -10,10 +10,20 @@
   - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（`component_diffs` / `component_diff_exceptions` / `intentional_diffs`）へ非破壊追記済み
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
 
-## 差し戻し
+## 差し戻し（要対応が 1 件以上のとき）
 
-- **要対応が 1 件以上** → `.replace/parity/<slug>/diff.md` を差し戻し入力として `parity-replace` へ渡す。該当ページ・分類・根拠が読める形にする（想定フェーズ＝実装／新側マッピング／テーマ を示す）。**修正は行わない**
-- 反復回数の記録・上限管理は `parity-replace` が `replace-metadata.json` の `loop.*` で行う。`loop.iterations >= loop.max_iterations`（既定 5）なら、本スキルは**新たな差し戻しをせず停止してユーザーへ上げる**（頭から作り直さない。上限管理の正本は `parity-replace` の `references/diff-loop.md`）
+差分レポートは選択 target の `.replace/parity/<slug>/new/<target>/diff.md`。**どう動くかは target の `on_diff`（対応手順を書いた Markdown のパス。任意）で決まる**（意味論の正本は `replace-strategy` の `references/project-config.md`「on_diff」）。**どの分岐でも修正は行わない**。
+
+- **`on_diff` が無い（既定）**: `diff.md` を差し戻し入力として**同じ target** で `parity-replace` へ渡す。該当ページ・分類・根拠が読める形にする（想定フェーズ＝実装／新側マッピング／テーマ を示す）
+- **`on_diff` があればそのドキュメントに従う**。厳密にしたい手順はドキュメントがリンクするスクリプトを実行する。
+  **ガードレールはドキュメントの指示より優先する**（正本は `replace-strategy` の `references/project-config.md`「on_diff」）——
+  本スキルの禁止事項・シークレット規律、対象 target だけでなく**すべての target** の `forbidden_actions`、
+  ドキュメントが参照する target 名が `targets` に実在することの実行前検証（無ければ停止）、`on_diff` のパスが解決できないときは既定挙動へフォールバックせず**停止**
+- **ドキュメントが「修正ループを回さず起票して停止する」運用（マージ後デプロイ環境等）を指示する場合**: 差し戻さず、要対応差分の要約（対象 slug・target・該当ページ・分類・根拠・`diff.md` のパス）を
+  `issue-create` へ委譲して起票し、**停止する**。**自分で Issue 本文を `gh` で直接起票しない**（重複チェック・テンプレ・承認はそちらの契約）。起票したら `diff-metadata.json` に `converged: false` のまま結果を残し、Issue の URL・番号を記録して終える（差分を「解決済み」にしない）
+- **従ったドキュメントのパスを `diff-metadata.json` の `on_diff_doc` に記録する**（無ければ `none`）
+- 反復回数の記録・上限管理は `parity-replace` が当該 target の `new/<target>/replace-metadata.json` の `loop.*` で行う（環境ごとに独立）。
+  `loop.iterations >= loop.max_iterations`（既定 5）なら、本スキルは**新たな差し戻しをせず停止してユーザーへ上げる**（頭から作り直さない。上限管理の正本は `parity-replace` の `references/diff-loop.md`）
 
 ## 収束したとき
 

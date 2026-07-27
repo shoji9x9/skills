@@ -25,6 +25,8 @@
 3. **ルール記述 ↔ 強制ゲートのスコープ一致**: ルールとそれを強制する lint / ゲート / スクリプトを同じ変更で追加・更新したら、両者の走査スコープ（対象 glob・条件）が一致しているか確認する。
 4. **SKILL.md 本文 ↔ evals の整合**: スキルの挙動・手順を変更したら、変更した概念のキーワードで同スキルの `evals/` を `grep` し、旧仕様前提の assertion を更新する。
 5. **実装物 ↔ 消費側仕様の契約整合**: 共有契約（設定キー・成果物スキーマ・プロパティ集合・経路・名前）を定義・変更したら、消費側仕様（姉妹 Issue の本文・コメント、下流スキルの前提節）と契約面を 1 項目ずつ突き合わせる。
+6. **共有契約変更時のライフサイクル実走**: 設定スキーマ・成果物パス等の共有契約を変えたら、消費側スキルの代表ワークフロー（正常系・境界ケース）を doc の記述だけで順にたどり、
+   途切れ・矛盾・到達不能（デッドロック）がないかを検証する。突合（項目 5）は壊れた参照しか見つけられず、「手順として成立しないフロー」は参照が全部整合していても起きる。
 
 執筆注意: リンク化しない注記に ASCII `[text]` を使わない。対応する `[text]: URL` 定義が無いと Markdown の未定義 shortcut 参照リンクになり GitHub 上で表示が崩れる（markdownlint 既定の MD052 は shortcut 構文を検査せず検出されない）。必要なら全角『』や丸括弧を使い、リンクにするなら必ず定義／URL を付ける。
 
@@ -80,6 +82,10 @@ scripts/run-skill-eval.sh \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
   --model opus
 # without_skill も同様に --config without_skill で実行する。
+# 正常系 eval（前提が揃った状態の検証）は --fixture <dir> で使い捨てプロジェクトへ
+# 事前状態（設定・.replace/ 成果物等）をコピーして実行する。fixture の正本は
+# skills/<name>/evals/fixtures/<fixture名>/ に置き、evals.json の当該 eval に
+# "fixture": "evals/fixtures/<fixture名>" を記録する（fixture は実行で変更されない）。
 ```
 
 各 run の `result.json`、`project-tree.txt`、`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。`project-files/` には採点に使う軽量なテキスト生成物だけを保存し、使い捨てプロジェクト全体は `tests/` 配下へコピーしない。採点後に下記の集計へ進む。

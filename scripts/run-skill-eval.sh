@@ -23,11 +23,11 @@
 set -euo pipefail
 
 usage() {
-	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--model <model>] [--repo <path>]" >&2
+	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--model <model>] [--repo <path>] [--fixture <dir>]" >&2
 	exit 2
 }
 
-skill="" prompt="" config="" out="" model="" repo=""
+skill="" prompt="" config="" out="" model="" repo="" fixture=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--skill)
@@ -52,6 +52,10 @@ while [ "$#" -gt 0 ]; do
 		;;
 	--repo)
 		repo="$2"
+		shift 2
+		;;
+	--fixture)
+		fixture="$2"
 		shift 2
 		;;
 	*) usage ;;
@@ -94,6 +98,17 @@ src="${repo}/skills/${skill}"
 # only sees the one we install below.
 proj="$(mktemp -d "/tmp/skill-eval-${skill}-XXXXXX")"
 trap 'rm -rf -- "${proj}"' EXIT
+
+# Optional fixture: seed the disposable project with a prepared state (config,
+# .replace/ artifacts, etc.) so normal-path evals can exercise behavior beyond
+# "stop on missing prerequisites". The fixture is copied, never mutated.
+if [ -n "${fixture}" ]; then
+	[ -d "${fixture}" ] || {
+		echo "fixture dir not found: ${fixture}" >&2
+		exit 1
+	}
+	cp -R -- "${fixture}/." "${proj}/"
+fi
 
 if [ "${config}" = "with_skill" ]; then
 	mkdir -p -- "${proj}/.claude/skills"

@@ -46,6 +46,17 @@
         "追記型だと再実行で状態が変わり冪等でない理由を説明している",
         "追記型の投入スクリプトを実装していない"
       ]
+    },
+    {
+      "id": 6,
+      "prompt": "golden-dataset --phase b --feature order-list --target develop",
+      "fixture": "evals/fixtures/dbless-target",
+      "assertions": [
+        "develop が db.env_vars を持たないため投入対象にできないことを検出して停止している",
+        "db を持つ side: new の target（local-dev）を選ぶか develop に db.env_vars を足すよう案内している",
+        "勝手に local-dev へ読み替えて写像・投入を進めていない",
+        "metadata.json の phase_b 記録・投入ツールを生成していない"
+      ]
     }
   ]
 }

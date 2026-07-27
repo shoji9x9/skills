@@ -1,0 +1,35 @@
+{
+  "slug": "order-list",
+  "mode": "feature",
+  "run": {
+    "started_at": "2026-07-21T02:00:00Z",
+    "finished_at": "2026-07-21T03:30:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.0.0"
+  },
+  "dataset_version": 1,
+  "new": {
+    "target": "local-dev",
+    "ui_url": "http://localhost:5173",
+    "api_url": "http://localhost:5173",
+    "commit": "abc1234def5678",
+    "dirty": false
+  },
+  "suite": {
+    "locator_map_new": "none",
+    "new_green": true,
+    "new_green_at": "2026-07-21T03:20:00Z"
+  },
+  "verification": {
+    "commands": ["npm run lint"],
+    "passed_at": "2026-07-21T03:28:00Z"
+  },
+  "loop": {
+    "iterations": 0,
+    "max_iterations": 5,
+    "last_diff_report": "none",
+    "on_diff_doc": "none"
+  }
+}

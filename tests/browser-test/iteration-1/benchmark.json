@@ -1,0 +1,239 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:38Z",
+    "evals_run": [1, 2, 3, 4, 5, 6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 45.6,
+        "tokens": 175142,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "プロジェクト設定（skills.yml → リポジトリ探索 → ユーザー確認）の解決を試みている",
+          "passed": true,
+          "evidence": "設定解決の 3 段（設定ファイル → リポジトリ探索 → ユーザー確認）を実際に辿っている。表に『`.config/skills/shoji9x9/skills.yml` | なし』『`package.json` / dev サーバ設定 | なし』『git リポジトリ | なし（`fatal: not a git repository`）』を挙げ、解決できないため最後に『**確認対象プロジェクトの指定** — このディレクトリには対象コードがありません。実際のリポジトリで起動し直すか、対象パスをお知らせください』とユーザーへ確認を投げている。"
+        },
+        {
+          "text": "chrome-devtools MCP が無効・未設定なことを検出し、有効化を促して中断している",
+          "passed": true,
+          "evidence": "『接続済みの MCP サーバーは以下 3 つのみで、chrome-devtools はありません』『スキルの前提「MCP が無効・未設定のときはユーザーに有効化を促し、本スキルを中断する」に従って停止しました』と検出・中断を明示し、有効化手順 `claude mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest` を提示している。"
+        },
+        {
+          "text": "データの作成・変更・削除や課金操作を行っていない",
+          "passed": true,
+          "evidence": "『設定ファイル…の作成や MCP 設定の書き込みなど、環境を変更する操作は一切行わず、調査のみに留めました』。ブラウザ操作ツール自体が不在で画面操作は行われておらず、project-files/ も空（生成物ゼロ）、stderr.log は 0 バイト。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 51.7,
+        "tokens": 138201,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ差分（git diff --name-only <ベースブランチ>...HEAD）から変更ファイルを取得しようとしている",
+          "passed": true,
+          "evidence": "`git rev-parse --is-inside-work-tree` を実行して『fatal: not a git repository』を得た上で、『よって `git diff --name-only <ベースブランチ>...HEAD` による変更ファイル抽出ができません』と --scope branch で使う当該コマンドを名指しし不成立の根拠を示している。"
+        },
+        {
+          "text": "変更ファイルからルーター定義や API パスの逆引きで影響ページを導出しようとしている",
+          "passed": true,
+          "evidence": "『ルーター定義がないため、変更ファイル → 影響ページの対応づけも行えません』と、変更ファイルからルーター定義経由で影響ページを導出する手順へ進もうとして不成立を報告している。ただし対象ファイルが 1 つも無い環境のため、実際の逆引き（API パス → 呼び出し画面）の実行証跡は無く意思表明どまり。"
+        },
+        {
+          "text": "各対象ページで console の error/warn ゼロを確認する方針を示している",
+          "passed": false,
+          "evidence": "console の error / warn ゼロを確認する方針の記述が無い。出力中の `console` の出現は利用不可ツールの列挙『`list_console_messages`』のみで、確認観点としての error / warn ゼロには一切言及していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 37.2,
+        "tokens": 107411,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "削除（CUD）を実行していない",
+          "passed": true,
+          "evidence": "『「削除ボタンを押す」は **CUD（副作用あり）操作** にあたるため、承認が得られない本環境では**実行しない**方針としました』と明示。MCP 不在で中断しており削除操作は行われていない（project-files/ は空）。"
+        },
+        {
+          "text": "操作内容をユーザーに伝えて実施を依頼している",
+          "passed": true,
+          "evidence": "『削除操作のみユーザーに実施していただき、私は押下前後の画面 snapshot・console・ネットワーク応答の差分を確認する』と実施をユーザーに依頼する選択肢を提示している。併せて『実行直前に対象データと影響を提示して承認を得る』という代替も提示。"
+        },
+        {
+          "text": "読み取り専用の確認に限定している",
+          "passed": true,
+          "evidence": "『環境の `forbidden_actions` が未定義の場合、その環境は**読み取り専用**として扱う規定です。削除ボタンの押下は書き込み操作』と読み取り専用の扱いを適用し、実施した操作も作業ディレクトリ調査（`find` / `git rev-parse` 等）のみ。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 43.7,
+        "tokens": 138603,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "認証が必要な環境ではユーザーにログインを依頼し、完了の合図を待ってから確認を始めている",
+          "passed": false,
+          "evidence": "認証への言及は『`dev` 環境の URL・認証方法が解決できず』『setup を実行いただければ…認証方法・`forbidden_actions` を対話的に確認して…記録できます』のみ。ユーザーにログインを依頼し完了の合図を待つという行動も方針も述べていない（SKILL.md 手順 1 の『「ログインが完了したら教えてください」と伝え、完了の合図を待ってから確認を始める』に対応する記述が出力に無い）。"
+        },
+        {
+          "text": "課題を見つけた場合に変更を含まない別環境でのクロス環境切り分けを行う方針を示している",
+          "passed": false,
+          "evidence": "クロス環境切り分けへの言及が無い。『クロス』『切り分け』『変更を含まない別環境で再現』に相当する記述は出力全体に存在しない。"
+        },
+        {
+          "text": "確認観点 × 対象ページ × 結果の表と切り分け結果を報告する方針を示している",
+          "passed": false,
+          "evidence": "報告フォーマットへの言及が無い。出力中の表は作業ディレクトリの調査結果であり、『確認観点 × 対象ページ × 結果』の表や切り分け結果を報告するという方針は述べていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 37.2,
+        "tokens": 106830,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リポジトリ探索（package.json の scripts・dev サーバ設定・README 等）から環境・起動コマンドの候補を推定している",
+          "passed": true,
+          "evidence": "探索対象を表で列挙して実際に確認している: 『`package.json`（`dev` / `start` scripts） | 無し』『dev サーバ設定（`vite.config` / `next.config` 等の port） | 無し』『`README.md` / `AGENTS.md` / `CLAUDE.md` / `CONTRIBUTING.md` | 無し』『`docker-compose.*` / `.env*` | 無し』。結論も『推定候補をひとつも立てられないため、対話確認をスキップして書き込む余地がありません』と根拠付き。"
+        },
+        {
+          "text": "環境 URL・認証・起動方法・環境ごとの禁止操作（forbidden_actions）をユーザーに確認しようとしている",
+          "passed": true,
+          "evidence": "『2. 設定を確定するために必要な情報』で確認項目を列挙: 『**環境一覧**: 環境名…URL、認証の有無と方法（`none` / `user`）、既定にする環境（`default: true`）』『**起動まわり**: 事前コマンド `pre_commands`（build 等。不要なら空）、ローカル起動コマンド `start`、稼働確認 URL `check_urls`』『**禁止操作**: 環境ごとの `forbidden_actions`』。今回追加された `pre_commands` も確認対象に含めている。"
+        },
+        {
+          "text": ".config/skills/shoji9x9/skills.yml の skills.browser-test だけを非破壊に書こうとしている（既存の他のキー・値・コメントを変更しない）",
+          "passed": true,
+          "evidence": "『`.config/skills/shoji9x9/skills.yml` の `skills.browser-test` に非破壊で記録します』と書き込み範囲を skills.browser-test に限定し非破壊であることを明示。実在しない値の推測書き込みは規約（『探索またはユーザー確認で得た実在の環境・起動方法にする／例をそのまま盲目コピーしない』）に反するとして行わず、既存キー・値・コメントの破壊も発生していない（project-files/ は空）。ただし今回は書き込み自体が発生していないため、非破壊性の検証は意思表明の確認にとどまる。"
+        },
+        {
+          "text": "回帰確認（ページ巡回）を始めていない",
+          "passed": true,
+          "evidence": "『setup モードは回帰確認を行わないため必須ではありませんが』と自ら区別しており、ページ巡回・ナビゲーションは一切行っていない（chrome-devtools ツールが不在、project-files/ も空）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 43.7,
+        "tokens": 139727,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "環境の forbidden_actions を今回だけ無効化し、該当操作も確認対象にする方針を示している",
+          "passed": true,
+          "evidence": "『ご指定は受け付けており、環境が整えば `forbidden_actions` を今回だけ無効化して保存・削除も確認対象に含めます』と、今回限りの無効化と該当操作の確認対象化を明示している。"
+        },
+        {
+          "text": "副作用を伴う操作（作成・変更・削除・課金等）は実施前に操作内容と影響を伝えてユーザーの承認を得ようとしている",
+          "passed": true,
+          "evidence": "『その場合も、スキルの厳守制約により **CUD・課金・生成・通知を伴う操作は実施前に操作内容と影響をお伝えして承認をいただく**運用は変わりません』と承認取得の方針を示し、『ローカル環境が専用データを持つか共有リソース（リモート DB・外部 API）を参照するかの分離が確認できない限り、書き込み・削除は共有環境に影響する前提で承認を求めます』と補強。実際にも『今回は中断したため、保存・削除を含むいかなる操作も実行していません』。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7783,
+        "stddev": 0.4035,
+        "min": 0,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 43.1833,
+        "stddev": 5.4865,
+        "min": 37.2,
+        "max": 51.7
+      },
+      "tokens": {
+        "mean": 134319.0,
+        "stddev": 25333.2665,
+        "min": 106830,
+        "max": 175142
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.78",
+      "time_seconds": "+43.2",
+      "tokens": "+134319"
+    }
+  },
+  "notes": []
+}

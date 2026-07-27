@@ -13,11 +13,12 @@
     },
     {
       "id": 2,
-      "prompt": "parity-diff --feature order-list",
+      "prompt": "parity-diff --feature order-list --target preview",
       "assertions": [
-        "前提（replace-strategy setup / metadata.json / replace-metadata.json の new_green）が無いことを検出している",
+        "前提（replace-strategy setup / metadata.json / new/<target>/replace-metadata.json の new_green）が無いことを検出している",
         "スイートを再実行せず・現行アプリを駆動せず停止している",
         "最初に欠ける前提で停止し parity-replace など後続の前提も合わせて案内している",
+        "指定された target を設定で確認できないまま存在すると仮定したり、勝手に別の環境へ読み替えたりしていない",
         "slug を自分で採番していない"
       ]
     },
@@ -28,6 +29,17 @@
         "検出はしない（決定論的ツールの仕事）と説明し、モデルは分類だけを担うと答えている",
         "全画面のスクリーンショット対を突き合わせて差分を探していない",
         "検出済みの差分について差分領域の crop 対を 1 件ずつ渡して 3 値（要対応／許容／環境ノイズ）に分類する方針を示している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "parity-diff --feature order-list --target develop",
+      "fixture": "evals/fixtures/green-only-local-dev",
+      "assertions": [
+        "develop の new/develop/replace-metadata.json が無いことを検出し「その環境ではまだ green 証跡が無い」として停止している",
+        "同じ --target develop での parity-replace の実行を案内している",
+        "local-dev の green 証跡・新側ベースラインを develop 用に流用・複製・捏造していない",
+        "develop が db を持たない target であることの扱い（データセットバージョン三者一致の免除、またはデータ依存差分が未検証になる旨）に触れている"
       ]
     }
   ]

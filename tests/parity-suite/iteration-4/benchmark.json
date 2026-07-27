@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T13:51:51Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 67.1,
+        "tokens": 141312,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target（current-staging）と選択した target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "「停止理由 1：データセットの投入先と target の不一致（要ユーザー判断）」の表で「指定 target | `current-test`（`http://localhost:8080`）」「`.replace/dataset/metadata.json` の `current.target` | **`current-staging`**（`http://localhost:8081`）」と両値を突き合わせている。fixture の dataset/metadata.json は `current.target: \"current-staging\"` で一致。"
+        },
+        {
+          "text": "「ベースラインとシードの環境不一致」として停止し、ベースライン採取（スクリーンショット・computed style・aria スナップショット）へ進んでいない",
+          "passed": true,
+          "evidence": "「スキルの制約どおり、**ベースラインとシードの環境不一致**として停止しました」「この状態で採取したベースラインは『シードされていない環境の姿』を固定してしまい、`parity-diff` に渡す基準値として無効になります」。project-files は fixture と完全一致でベースライン採取物は無く、冒頭も「**成果物ファイルは 1 つも作成・変更していません**（読み取りと疎通確認のみ）」。"
+        },
+        {
+          "text": "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
+          "passed": true,
+          "evidence": "「1. **target 選択を合わせる** — `parity-suite --feature order-list --target current-staging` で再実行する」「2. **同じ target へ投入する** — `golden-dataset` を `current-test` に対して実行し直す（`.replace/dataset/metadata.json` の `version` が上がるため、既存ベースラインがあれば陳腐化として再取得対象になります）」と 2 択で提示している。"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt は `.config/skills/shoji9x9/skills.yml` / `.replace/dataset/metadata.json` / `.replace/features.md` のみで、`.replace/parity/` も `e2e/` も存在しない。fixture との `diff -r` も差分なし。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 67.1,
+        "stddev": 0.0,
+        "min": 67.1,
+        "max": 67.1
+      },
+      "tokens": {
+        "mean": 141312.0,
+        "stddev": 0.0,
+        "min": 141312,
+        "max": 141312
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+67.1",
+      "tokens": "+141312"
+    }
+  },
+  "notes": []
+}

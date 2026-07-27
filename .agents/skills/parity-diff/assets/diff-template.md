@@ -1,26 +1,30 @@
 # 差分レポート（diff）
 
-<!-- parity-diff が .replace/parity/<slug>/diff.md として生成する。このファイルの形式の正本は parity-diff が定義する。 -->
+<!-- parity-diff が .replace/parity/<slug>/new/<target>/diff.md として生成する（新側の成果物は target ごとに分かれる）。このファイルの形式の正本は parity-diff が定義する。 -->
 <!-- 収束の定義: 未説明差分ゼロ かつ 未修正回帰ゼロ（生の差分ゼロは求めない）。判定は差分器（diff-normalize の機械分類）が行い、モデルの主観を根拠にしない。 -->
 <!-- 「確認済みにしない」原則: ベースラインに写らない箇所・宣言できない構造差・アニメーションは「未検証」として残す。 -->
 <!-- 各行・各値は例。実際の検出結果・分類・根拠で置き換える。 -->
 
 - 対象 slug: （features.md の slug）
+- 対象 target: （skills.replace-strategy.targets のうち side: new の環境名）
 - モード: （feature | api-resource | batch）
 - 実施日時: （ISO 8601）
-- 読んだ replace-metadata.json の loop.iterations: （数値）
+- 読んだ同 target の replace-metadata.json の loop.iterations: （数値）
 
 ## 1. 前提確認の結果
 
 <!-- preflight の確認値。欠け・不一致があれば差分検出へ進まず停止していること。 -->
+<!-- 視覚系の行（noise_baseline・baseline 実体・自己ノイズ・条件一致・差分器バージョン）は feature モードのみ。api-resource / batch は該当行を「対象外」にする。 -->
 
 | 前提 | 確認値 | 判定 |
 |---|---|---|
 | replace-strategy setup（設定・features.md） | （あり／なし） | （OK／停止） |
-| parity-suite 完了（suite.current_green・validated_by_strength_gate・noise_baseline・baseline 実体） | （値） | （OK／停止） |
-| parity-replace 新側 green（suite.new_green） | （true／false） | （OK／停止） |
-| データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>`） | （3 値） | （一致／陳腐化→差し戻し先） |
-| 条件一致検証（viewport・アニメーション無効・マスク・states） | （検証済み／不一致） | （OK／停止） |
+| target の起動・稼働確認（pre_commands → start → check_urls） | （実行したもの／無し） | （OK／停止） |
+| parity-suite 完了（suite.current_green・validated_by_strength_gate＋モード別の追加要求） | （値） | （OK／停止） |
+| parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | （true／false） | （OK／停止） |
+| データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>.<target>`） | （3 値。db を持たない target は「免除」） | （一致／免除／陳腐化→差し戻し先） |
+| 条件一致検証（viewports / animations / masks / states / environment の 5 項目） | （項目ごとの結果。environment は原則 unverified） | （OK／停止） |
+| 新側の自己ノイズ（noise_baseline_new と現側 noise_baseline の対比） | （組ごとの値） | （OK／乖離→停止） |
 | 差分器バージョン一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |
 
 ## 2. 経路別サマリ
@@ -42,15 +46,17 @@
 | （例: 1） | 特性照合 | （ページ） | default | desktop | （論理名） | padding-left 差 | deviates_T | 要対応 | T の期待値から逸脱 |
 | （例: 2） | 画素 | （ページ） | hover | mobile | （bbox） | 罫線色の微差 | noise_candidate | 環境ノイズ | ノイズ基準値と同程度 |
 
-## 4. 要対応 — parity-replace への差し戻し
+## 4. 要対応 — 差し戻し（on_diff で分岐）
 
 <!-- 該当ページ・想定フェーズ（実装／新側マッピング／テーマ）を示す。修正はここで行わない。反復上限超過なら差し戻さず停止しユーザーへ。 -->
+<!-- target の on_diff ドキュメントが無ければ parity-replace へ差し戻し、あればそのドキュメントに従う（起票して停止する運用なら issue-create へ委譲して起票し停止する）。 -->
 
 | ID | ページ | 想定フェーズ | 差し戻し内容 |
 |---|---|---|---|
 | （例: 1） | （ページ） | テーマ | design token を寄せる or component_diffs を宣言 |
 
-- 差し戻し入力としてこの diff.md を parity-replace へ渡す（再入手順は parity-replace の references/diff-loop.md）
+- 従った on_diff ドキュメント: （パス／無ければ none）と、それに応じた行き先（同じ target の parity-replace へ差し戻し／issue-create で起票した Issue の URL）
+- 差し戻すときは入力としてこの diff.md を parity-replace へ渡す（再入手順は parity-replace の references/diff-loop.md）
 
 ## 5. 許容 — 記録先とユーザー承認
 
@@ -62,12 +68,14 @@
 
 ## 6. 未検証領域
 
-<!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション。確認済みにしない。 -->
+<!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・db を持たない target のデータ依存差分。確認済みにしない。 -->
 
-| 箇所 | 種別（写らない／宣言できない構造差／アニメーション） | 理由 |
+| 箇所 | 種別（写らない／宣言できない構造差／アニメーション／撮影条件／データ依存） | 理由 |
 |---|---|---|
 | （例: 保存ボタンのフォーカスリング） | 宣言できない構造差 | クラス/トークンのプロパティ差に還元できない |
 | （例: 一覧のフェードイン） | アニメーション | 停止させて比較するため扱えない |
+| （例: 撮影環境の一致） | 撮影条件 | capture_conditions.environment は自由記述で機械照合できない（unverified: 理由） |
+| （例: 一覧の表示件数・並び） | データ依存 | 選択 target が db を持たずゴールデンデータ未投入。実装差かデータ差か判別できない |
 
 ## 7. 収束判定
 

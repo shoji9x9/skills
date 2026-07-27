@@ -4,6 +4,10 @@
 
 結果は `.replace/survey.md`（テンプレート: [`../assets/survey-template.md`](../assets/survey-template.md)）に記録する。各測定値には測定方法・対象・日時を添え、後から再測定・比較できるようにする。
 
+**測定対象の環境**: `side: current` の target から選ぶ。依頼に環境指定（`--target <name>` 相当）があればそれに従い、無ければ `default: true` の target を使う。
+`default` が無い／指定が side 違いや不在の名前だった場合の扱いは [`project-config.md`](project-config.md) の「実行対象環境」の選択規則に従う。
+**選んだ target 名は `.replace/survey.md` の「対象環境」に記録する**（現側 target の変更はベースライン陳腐化として扱われるため、どの環境で測ったかを後から辿れるようにする）。
+
 ## 1. セマンティクス測定（role プローブ）
 
 現行アプリの代表ページに role プローブを流し、**role ＋アクセシブルネームで引ける要素の割合**を出す。この値で、ロケータマッピング層の規模（`parity-suite`）と、HTML の id/name を変更してよいか（意図的差異レジストリの `pending` を確定）が決まる。
@@ -28,7 +32,7 @@
 
 - 実際に「スナップショット取得 → 無害な変更 → リストア → 変更が消えたことを確認」まで通して初めて「復元可」とする。手段があるはずだ、では「未測定」
 - 対象は**テスト環境の DB**。本番 DB には触れない
-- 接続は環境変数（`skills.replace-strategy.current.db.env_vars`）＋起動ラッパー経由。値を出力しない
+- 接続は環境変数（測定対象の `side: current` target の `db.env_vars`）＋起動ラッパー経由。値を出力しない
 - 復元にかかる時間も記録する（書き込みテストの実行コストの見積もりに使う）
 
 ## 3. 現行コードの入手性

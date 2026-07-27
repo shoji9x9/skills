@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "browser-test",
+    "skill_path": "<repo>/skills/browser-test",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T13:51:51Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 53.1,
+        "tokens": 104602,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない契約に従っている）",
+          "passed": true,
+          "evidence": "「環境は呼び出し元 parity-replace から渡された 1 件のみを使用（設定ファイル skills.yml は未参照）」と明言し、囮設定の具体値（http://localhost:9999・環境名 local・npm run start）の出現は全文で 0 件。疎通確認・確認対象はすべて渡された http://localhost:5173"
+        },
+        {
+          "text": "pre_commands（npm run build）→ start（npm run dev）→ check_urls（http://localhost:5173/）の順で扱い、失敗したらそこで停止する方針を示している",
+          "passed": true,
+          "evidence": "「pre_commands の npm run build は package.json が存在せず必ず失敗するため実行していません（pre_commands 失敗時はそこで停止する扱い）」と順序・停止規則を明示。環境が整った後の手順も build → dev 起動 → check_urls 疎通の順で提示"
+        },
+        {
+          "text": "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
+          "passed": true,
+          "evidence": "「forbidden_actions の『データの削除』に該当する操作は実行せず、必要になった場合は操作内容を提示して依頼します」と渡された禁止操作を今回の確認に適用"
+        },
+        {
+          "text": "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している",
+          "passed": true,
+          "evidence": "「環境が整った後に実施する確認内容」節で前段（build・起動・疎通）→対象ページの導出（git 差分・ルーター逆引き）→確認観点表（console クリーン・snapshot・API 応答・副作用なし操作）を定型で残して中断"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 53.1,
+        "stddev": 0.0,
+        "min": 53.1,
+        "max": 53.1
+      },
+      "tokens": {
+        "mean": 104602.0,
+        "stddev": 0.0,
+        "min": 104602,
+        "max": 104602
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+53.1",
+      "tokens": "+104602"
+    }
+  },
+  "notes": []
+}

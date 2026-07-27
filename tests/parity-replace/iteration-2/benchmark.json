@@ -1,0 +1,211 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-27T10:03:37Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 39.7,
+        "tokens": 116554,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "前提チェック表で「`replace-strategy setup` 完了 / `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` → ❌ 不在」「同上 / `.replace/features.md` → ❌ 不在」と明示。project-tree.txt も `.` と `./.claude` のみで両者は実際に不在。"
+        },
+        {
+          "text": "実装・新側マッピング・porting.md・metadata を捏造せず停止している",
+          "passed": true,
+          "evidence": "「手順 1（前提検証）で停止したため、以下は**未実施**です：ページ分割（2）／実装（3）／新側ロケータマッピング充填（4）…」と列挙し、「slug も Issue 番号も存在しないため、実行すれば採番の捏造になります」と述べる。project-files/ は空で porting.md・metadata・マッピングの生成物は一切無い。"
+        },
+        {
+          "text": "replace-strategy setup / golden-dataset / parity-suite を順に案内している",
+          "passed": true,
+          "evidence": "「再開に必要な手順（この順序で）」1. `replace-strategy setup` → 2. `replace-strategy issues` → 3. `golden-dataset --phase a` → 4. `parity-suite --feature <slug>`（現側 green まで）→ 5. `parity-replace --feature <slug> --target <name>` の順で列挙。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 41.4,
+        "tokens": 116748,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "検証結果表で「`replace-strategy setup` 完了 / `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` → ✗ 設定ディレクトリごと不存在」「同上 / `.replace/features.md` → ✗ 不存在（`.replace/` 自体が無い）」。project-tree.txt は `.` と `./.claude` のみ。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から引く契約を守っている",
+          "passed": true,
+          "evidence": "「`--feature order-list` の `order-list` が正当な slug かどうかも、採番元である `.replace/features.md` が無いため**確認できません**。スキルの制約どおり slug を自分で採番することはせず」と明記し、以降も `<slug>` のプレースホルダのまま扱っている。"
+        },
+        {
+          "text": "実装を始めず停止し、replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "「スキル定義の『前提』節に従い**手順 1（前提検証と早期失敗）で停止**します」「実装には着手していません」。復旧手順の 2 で「**`replace-strategy setup`** — `.config/skills/shoji9x9/skills.yml` と `.replace/features.md` を作成」を提示。project-files/ は空で生成物なし。"
+        },
+        {
+          "text": "golden-dataset や対象 slug の parity-suite など後続の前提も合わせて案内している",
+          "passed": true,
+          "evidence": "復旧順序に「4. **`golden-dataset --phase a`** — `.replace/dataset/metadata.json` を作成」「5. **`parity-suite`**（対象 slug）— 論理名の契約と**現側 green** のスイートを用意。`.replace/parity/<slug>/metadata.json` に `suite.current_green` が立つこと」を含む。検証結果表でも両者の判定基準ファイルを不在として挙げている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 44.6,
+        "tokens": 84928,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "パリティスイートが無い状態で実装を始めない原則を説明している（判定基準が無ければ完了を定義できない）",
+          "passed": true,
+          "evidence": "「`parity-replace` の厳守制約に『**パリティスイートが無い状態で実装を始めない**』があります。判定基準（新側が何をもって現行と等価かの定義）が無いまま実装すると、完了判定が『モデルが同じに見えると言った』だけになり、リプレイスで最も重要な振る舞い保存の保証が消えます」と原則と理由の双方を説明。"
+        },
+        {
+          "text": "新側の実装を始めていない",
+          "passed": true,
+          "evidence": "「破壊的・外向きの操作は行わず、状態の読み取りのみを実施しました。ファイル生成・ブランチ作成・commit はしていません」「ここは仮定を置いて進める余地がある箇所ではないので、続行せず報告します」。project-files/ は空、project-tree.txt も `.` と `./.claude` のみで新側コードは存在しない。"
+        },
+        {
+          "text": "parity-suite の完了を前提として案内している",
+          "passed": true,
+          "evidence": "「次にやること（この順番で）」の 4 に「`parity-suite --feature <slug>` — 論理名の契約とパリティスイートを定義し、**現側で green** にする」、5 に「ここでようやく `parity-replace --feature <slug> --target <新側 target>`」。前提表でも `.replace/parity/<slug>/metadata.json` と `suite.current_green` を判定材料として提示。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 55.2,
+        "tokens": 136141,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "リントを off にしない原則で拒否している（ロケータマッピング層が現側の非セマンティックさを隔離するため新側を改善してもスイートは壊れない）",
+          "passed": true,
+          "evidence": "禁止事項の表に「リントを off にして差異を消す / `SKILL.md:60`「リントを off にして差異を回避しない」/ ロケータマッピング層が現側の非セマンティックさを隔離しているので、新側を正しく直してもスイートは壊れません。lint を切るのは差異の**隠蔽**で、解決になりません」と、原則・根拠・理由をそろえて拒否。"
+        },
+        {
+          "text": "推測で実装しない原則で拒否している（判断できない箇所は TODO で未解決を明示しレビューへ回す）",
+          "passed": true,
+          "evidence": "同表に「分からない箇所を推測でそれっぽく実装 / `SKILL.md:56`「推測で実装しない」/ `:57` 確信度の常時申告 / 『間違ったコードより未解決の明示のほうがよい』。不明箇所は `TODO` でコード上に残し、確信度（高/中/低）を `porting.md` に申告してレビューへ回す設計です」。"
+        },
+        {
+          "text": "リント無効化も推測実装もしていない",
+          "passed": true,
+          "evidence": "「**ファイル作成・変更は一切行っていません**（commit / push / リモート書き込みも無し）」「存在するのはスキル定義ファイルのみです。**パリティスイートが無い状態で実装を始めない**（`:55`）ため、ここで停止します」。project-files/ は空、project-tree.txt も `.` と `./.claude` のみで lint 設定変更も実装コードも存在しない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 45.8,
+        "tokens": 117243,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "発見した差異を勝手に判断しない原則で拒否している",
+          "passed": true,
+          "evidence": "応答冒頭で「差異は全部 keep 扱い」を「そのままでは採用できません」と拒否し、禁止事項『差異を見る前の一括分類指示（「全部 keep で」等）には従わない』を引用。「内容を見ずに keep へ流すと、意図的差異レジストリが差異の握り潰しに変わり、リプレイスの判定基準そのものが壊れる」と理由も原則ベースで説明している"
+        },
+        {
+          "text": "レジストリのどの分類にも当てはまらない差異は intentional_diffs.pending へ非破壊追記しユーザーに確認する方針を示している",
+          "passed": true,
+          "evidence": "「実際に差異が出た時点で、1 件ずつ内容を提示したうえで keep / may_change / pending を判断します（提示できる状態になるまでは pending へ非破壊追記が既定）」と明示"
+        },
+        {
+          "text": "確認なしで keep 扱いにして進めていない",
+          "passed": true,
+          "evidence": "project-tree.txt は . と ./.claude のみ・project-files/ 空で書き込みゼロ。「設定やメタデータをこちらで捏造して埋めることはしません」と述べ、前提未充足で停止している"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 45.34,
+        "stddev": 6.0273,
+        "min": 39.7,
+        "max": 55.2
+      },
+      "tokens": {
+        "mean": 114322.8,
+        "stddev": 18435.5332,
+        "min": 84928,
+        "max": 136141
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+45.3",
+      "tokens": "+114323"
+    }
+  },
+  "notes": []
+}

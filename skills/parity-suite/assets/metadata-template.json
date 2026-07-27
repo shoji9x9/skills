@@ -1,9 +1,11 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。",
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）を持たない（省略する）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "target": {
-    "url": "<現行テスト環境の URL>",
+    "name": "<選択した current target 名（設定 targets の side: current。変更はベースライン陳腐化として扱う）>",
+    "ui_url": "<解決した UI の baseURL（PARITY_CURRENT_UI_URL）>",
+    "api_url": "<解決した API の baseURL（PARITY_CURRENT_API_URL。target の api_url、省略時は url）>",
     "commit": "<現行リポジトリのコミット SHA。入手不可なら none>"
   },
   "run": {
@@ -21,6 +23,9 @@
     "locator_map": "<現側マッピングのパス>",
     "interactions": "<操作アダプタのパス>",
     "tools": "<決定論的ツール（trait-capture / trait-compare のコピー）のパス>",
+    "auth_roles": [
+      "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
+    ],
     "current_green": true
   },
   "capture_conditions": {
