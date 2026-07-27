@@ -14,7 +14,7 @@
 
 ## 画素経路
 
-- `metadata.json.differ.pixel_tool` / `pixel_threshold` に記録されたツール・しきい値で、現行 `baseline/` と新側 `baseline-new/` のスクリーンショットを**ページ・状態・ビューポートごと**に比較する
+- `metadata.json.differ.pixel_tool` / `pixel_threshold` に記録されたツール・しきい値で、現行 `baseline/`（slug 直下）と新側 `new/<target>/baseline-new/`（選択 target のもの）のスクリーンショットを**ページ・状態・ビューポートごと**に比較する
 - 記録ツールに差分画像を出力させ、同梱 [`../scripts/pixel-crops.mjs`](../scripts/pixel-crops.mjs) で差分画素の bbox クラスタリング → crop 対を生成する。**検出はツールに委ね、本スクリプトは差分画素のクラスタリングと crop 切り出しだけを行う**（差分器を再実装しない）
 
   ```text

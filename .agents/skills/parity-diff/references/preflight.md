@@ -2,35 +2,78 @@
 
 前提が欠けたら**捏造せず停止**し、依存順（`replace-strategy setup` → `golden-dataset` → 対象 slug の `parity-suite` → `parity-replace`）で案内する。検出・成果物・ベースラインを作り出さない。判定は指定パスの Read で行う（jq は必須ではない）。
 
+## 対象 target の解決（前提確認より先）
+
+成果物のパスも疎通先も target で決まるため、最初に対象環境を確定する。候補は `skills.replace-strategy.targets` のうち **`side: new`** のものだけ（選択規則の正本は `replace-strategy` の `references/project-config.md`）。
+
+- `--target <name>` があればそれを使う。省略時は new 側の `default: true`、無ければ候補を提示してユーザーに確認する
+- 存在しない名前・`side: current` の名前は**停止**する（勝手に読み替えない）
+- 旧スキーマ・旧レイアウトは**フォールバックとして読まない**。見つけたら移行を案内して停止する（自動で移さない・両方を読まない）。
+  検出対象の旧キー・旧レイアウトの一覧と移行手順は `replace-strategy` の `references/project-config.md`「移行」を正本として参照する（ここで個別に列挙しない）
+
+## 対象 target の起動・稼働確認（疎通確認より先）
+
+選択 target に `pre_commands` / `start` / `check_urls` があれば**この順**で実行・確認してから疎通確認へ進む
+（各キーの意味論と実行順・失敗時の早期停止の正本は `browser-test` の `references/project-config.md`）。
+
+- `pre_commands` の失敗、`check_urls`（省略時は `url`）の稼働確認失敗はいずれも**早期停止**する（撮り始めてから落ちるのを避ける）
+- `start` は稼働していないときだけ実行する（配信型 target は `start` を持たないため、稼働確認のみで判定する）
+- シークレットが要るコマンドには `secrets.wrapper` を前置する（値は表示しない）
+
 ## 確認するキー（フルパス）
+
+`<target>` は解決済みの新側 target 名。現側の成果物（`metadata.json` / `baseline/`）は 1 環境なので slug 直下のまま。次は**全モード共通**の前提。
 
 | 前提 | 確認するパス・キー | 欠け/偽のときの差し戻し先 |
 |---|---|---|
 | replace-strategy setup | `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` の存在／`.replace/features.md` の存在 | `replace-strategy setup` |
 | slug の妥当性 | `slug` が `.replace/features.md` に載っている（自分で採番しない） | 停止（未採番なら `replace-strategy` へ） |
-| parity-suite 完了 | `.replace/parity/<slug>/metadata.json` の `suite.current_green: true`・`differ.validated_by_strength_gate: true`・`noise_baseline` が記録済み・`artifacts_storage.baseline_pointer` の実体（`baseline/`）がある | 対象 slug の `parity-suite` |
-| parity-replace 新側 green | `.replace/parity/<slug>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（新側 green にする） |
-| Playwright と新側疎通 | Node.js が使える／`replace-metadata.json` の `new.url` に疎通できる | 停止（環境を整える） |
-| ノイズ基準値 | `metadata.json` の `noise_baseline[]` が対象 page/state/viewport 分ある | `parity-suite`（測定は現行アプリを駆動する parity-suite の仕事） |
+| parity-suite 完了 | `.replace/parity/<slug>/metadata.json` の `suite.current_green: true`・`differ.validated_by_strength_gate: true` | 対象 slug の `parity-suite` |
+| parity-replace 新側 green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（**同じ `--target`** で新側 green にする） |
+| target 名の一致 | 同ファイルの `new.target` が解決した target 名と一致する | 停止（別環境の green 証跡を流用しない） |
+| Node.js と新側疎通 | Node.js が使える／選択 target の `url`（＝ `new.ui_url`）に疎通できる。api-resource モードは `api_url`（＝ `new.api_url`。省略時 `ui_url`）にも疎通できる | 停止（環境を整える） |
 
+- 選択 target の `replace-metadata.json` が無い／`suite.new_green` が偽なら「**その環境ではまだ green 証跡が無い**」として停止する。別環境の証跡で代替しない（環境ごとに独立）
 - **parity-replace の「完了」を待つのではなく `suite.new_green` を前提とする。** 差分ゼロは本スキルとの往復で達成されるため、`parity-replace` 単体の完了条件に差分ゼロは含まれない
 - **スイートは再実行しない。** 新に対して green かは `suite.new_green` キーで判定する
 
+## モード別の追加要求（`metadata.json.mode` で分岐）
+
+視覚系の前提（ノイズ基準値・視覚ベースライン・画素／特性の差分器）は **`feature` モードだけが要求する**。
+`api-resource` / `batch` は画面系 3 経路を動かさないため、`parity-suite` がこれらを記録していないのが正常であり、**欠落を停止条件にしない**（無いものを理由に差し戻さない）。
+
+| モード | 追加で要求するもの | 欠けたときの差し戻し先 |
+|---|---|---|
+| feature | `metadata.json` の `noise_baseline[]` が対象 page/state/viewport 分ある・`artifacts_storage.baseline_pointer` の実体（`baseline/`）がある・下記「差分器バージョンの一致確認」 | `parity-suite`（ノイズ基準値の測定は現行アプリを駆動する `parity-suite` の仕事） |
+| api-resource | 現行応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比較は同梱 `json-normalize-diff.mjs` 系のみ | `parity-suite` |
+| batch | 現行バッチの出力ベースライン（DB 状態・生成ファイル）が実体としてある | `parity-suite` |
+
 ## データセットバージョンの三者一致
 
-`metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version` ＝ 同 `phase_b.<slug>.dataset_version` の三者一致を確認する。`version` は 1 始まりの単調増加の整数で、論理データが変わったときだけ +1（フェーズ B では上がらない）。
+`metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version` ＝ 同 `phase_b.<slug>.<target>.dataset_version`（**選択した新側 target のエントリ**）の三者一致を確認する。
+`version` は 1 始まりの単調増加の整数で、論理データが変わったときだけ +1（フェーズ B では上がらない）。
 
 | 状態 | 意味 | 対応 |
 |---|---|---|
 | 三者一致 | ベースラインも新側投入も現行データセットに追随 | 差分検出へ進む |
 | `metadata.json.dataset_version` ＜ `dataset.version` | ベースライン側が陳腐化 | `parity-suite` にベースライン再取得を促し停止 |
-| `phase_b.<slug>.dataset_version` が欠落 or ＜ `dataset.version` | 新側投入（フェーズ B）が未実施 or 古い | `golden-dataset`（フェーズ B）へ差し戻し停止 |
+| `phase_b.<slug>.<target>.dataset_version` が欠落 or ＜ `dataset.version` | その target への新側投入（フェーズ B）が未実施 or 古い | `golden-dataset`（フェーズ B）へ**同じ target** で差し戻し停止 |
 
 - データ起因の差で `.replace/dataset/verification.md` のフェーズ B 節に説明済みのものは許容。説明されていないデータ差は `golden-dataset`（フェーズ B）へ差し戻す（[`api-batch.md`](api-batch.md)）
 
-## 差分器バージョンの一致確認
+### 選択 target が `db` を持たない場合（三者一致の免除）
+
+`db.env_vars` を書いていない target はゴールデンデータの投入対象外である（`db` の有無が契約であることの正本は `replace-strategy` の `references/project-config.md`）。
+
+- **三者一致（`phase_b.<slug>.<target>`）を要求しない**。フェーズ B 未実施を理由に `golden-dataset` へ差し戻さない
+- 代わりに「**ゴールデンデータ未投入のため、データ依存の差分は実装差かデータ差か判別できない＝未検証**」を `diff.md` の未検証領域に明記し、
+  確認をデータ非依存の範囲（レイアウト・スタイル・構造など、投入データの内容に依存しない差分）に限定する
+- `metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version`（ベースライン側の陳腐化）の確認は `db` の有無に関わらず行う
+
+## 差分器バージョンの一致確認（feature モードのみ）
 
 `parity-diff` は `parity-suite` が強度ゲートで健全性を確認済みの差分器を**そのまま**再利用する。ここが崩れると「検証済み」の前提が崩れるため一致を確認する。
+`api-resource` / `batch` は画素・特性照合の差分器を使わないため**この節は確認しない**（比較は同梱 `json-normalize-diff.mjs` が担い、そのバージョンは `diff-metadata.json.differ_versions` に記録する）。
 
 - プロジェクト側 `trait-compare.mjs` の `VERSION` ＝ `metadata.json.differ.trait_compare` に記録された値
 - プロジェクト側 `trait-capture.mjs` の `VERSION` ＝ `metadata.json.traits.tool` に記録された値
@@ -40,7 +83,8 @@
 
 ## 反復上限
 
-往復ループの反復回数と上限は `parity-replace` が `replace-metadata.json` の `loop.{iterations,max_iterations,last_diff_report}` に記録する（上限管理の正本は `parity-replace` の `references/diff-loop.md`）。
+往復ループの反復回数と上限は `parity-replace` が選択 target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` の
+`loop.{iterations,max_iterations,last_diff_report}` に記録する（**環境ごとに独立**。上限管理の正本は `parity-replace` の `references/diff-loop.md`）。
 
 - `loop.iterations >= loop.max_iterations` のとき、本スキルは**新しい差分検出は行ってよい**が、**要対応が残る場合の差し戻しは行わず停止してユーザーへ上げる**（頭から作り直さない）
 - 差し戻しの可否判定は [`convergence.md`](convergence.md)

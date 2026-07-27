@@ -13,11 +13,12 @@
     },
     {
       "id": 2,
-      "prompt": "parity-diff --feature order-list",
+      "prompt": "parity-diff --feature order-list --target preview",
       "assertions": [
-        "前提（replace-strategy setup / metadata.json / replace-metadata.json の new_green）が無いことを検出している",
+        "前提（replace-strategy setup / metadata.json / new/<target>/replace-metadata.json の new_green）が無いことを検出している",
         "スイートを再実行せず・現行アプリを駆動せず停止している",
         "最初に欠ける前提で停止し parity-replace など後続の前提も合わせて案内している",
+        "指定された target を設定で確認できないまま存在すると仮定したり、勝手に別の環境へ読み替えたりしていない",
         "slug を自分で採番していない"
       ]
     },
