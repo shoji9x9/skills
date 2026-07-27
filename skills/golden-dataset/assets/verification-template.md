@@ -34,6 +34,7 @@
 
 ### slug: （features.md の slug）
 
+- target: （投入先の新側 target 名）
 - dataset_version: （新側へ投入した version）
 - 検証日時: （ISO 8601）
 
