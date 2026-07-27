@@ -82,6 +82,10 @@ scripts/run-skill-eval.sh \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
   --model opus
 # without_skill も同様に --config without_skill で実行する。
+# 正常系 eval（前提が揃った状態の検証）は --fixture <dir> で使い捨てプロジェクトへ
+# 事前状態（設定・.replace/ 成果物等）をコピーして実行する。fixture の正本は
+# skills/<name>/evals/fixtures/<fixture名>/ に置き、evals.json の当該 eval に
+# "fixture": "evals/fixtures/<fixture名>" を記録する（fixture は実行で変更されない）。
 ```
 
 各 run の `result.json`、`project-tree.txt`、`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。`project-files/` には採点に使う軽量なテキスト生成物だけを保存し、使い捨てプロジェクト全体は `tests/` 配下へコピーしない。採点後に下記の集計へ進む。
