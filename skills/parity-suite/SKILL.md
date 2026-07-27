@@ -1,7 +1,7 @@
 ---
 name: parity-suite
-description: 仕様を変えないアプリケーションリプレイスで、新旧どちらの実装にも当てられる実行可能な合否判定基準（パリティスイート）を現行アプリに対して構築し、故障注入で強度を検証する replace-strategy の姉妹スキル。論理名のロケータマッピング層と手書きの寛容な aria スナップショットで Playwright スイートを書き、API を record/replay で特性化し、視覚ベースライン（スクリーンショット・computed style・参考 aria スナップショット）とノイズ基準値を採取して parity-diff へ引き渡す。1 回の実行で 1 機能（横断 API リソース・バッチも可）。replace-strategy setup と golden-dataset の完了が前提で、未完了・Playwright 不可なら停止する。「パリティスイートを作って」「現行アプリを特性化して」「parity-suite」や --feature <slug> を伴う依頼で発動する。
-argument-hint: "[--feature <slug>]"
+description: 仕様を変えないアプリケーションリプレイスで、新旧どちらの実装にも当てられる実行可能な合否判定基準（パリティスイート）を現行アプリに対して構築し、故障注入で強度を検証する replace-strategy の姉妹スキル。論理名のロケータマッピング層と手書きの寛容な aria スナップショットで Playwright スイートを書き、API を record/replay で特性化し、視覚ベースライン（スクリーンショット・computed style・参考 aria スナップショット）とノイズ基準値を採取して parity-diff へ引き渡す。1 回で 1 機能（横断 API リソース・バッチも可）。replace-strategy setup と golden-dataset の完了が前提で、未完了・Playwright 不可なら停止する。「パリティスイートを作って」「現行アプリを特性化して」「parity-suite」や --feature <slug> / --target <name>（対象環境）を伴う依頼で発動する。
+argument-hint: "[--feature <slug>] [--target <name>]"
 license: MIT
 ---
 
@@ -14,11 +14,12 @@ license: MIT
 ## 使い方
 
 ```text
-parity-suite [--feature <slug>]
+parity-suite [--feature <slug>] [--target <name>]
 ```
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない（調査・特性化・強度検証が浅くなるため）
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
+- `--target <name>` は実行対象の現行環境。設定の `targets` のうち **`side: current` のものだけを候補**にする。省略時はその側の `default: true` の target を使い、無ければ候補を提示して確認する（存在しない名前・側違いは停止。選択規則の正本は `replace-strategy` の `references/project-config.md`）
 - **モードは slug の種別で決まる**（フラグは無い）。features.md の 機能／横断 API リソース／バッチ のどの表にあるかで下表のモードになる
 
 | モード | 起点 | 内容 |
@@ -49,7 +50,7 @@ parity-suite [--feature <slug>]
 - **強度検証（故障注入）を省いて「テストがあるから大丈夫」としない。** テストの存在自体は品質の証拠にならない
 - **強度を手書き assertion 単体で判定しない。** 「手書き assertion ＋ ベースライン ＋ 差分器」の一式で判定する
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない
-- **現行アプリのデータを破壊しない**（`forbidden_actions` を尊重。読み取りを既定、書き込みは承認済みの範囲のみ）
+- **現行アプリのデータを破壊しない**（選択した target の `forbidden_actions` を尊重。書き込みが許可されない target ではスイートの書き込み系スペックを実行せず「未検証」として `gaps.md` に記録する）
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
 
@@ -61,32 +62,40 @@ parity-suite [--feature <slug>]
 |---|---|
 | `parity_suite_dir` | パリティスイートの配置（未指定時 `e2e/`） |
 | `artifacts.{retention,storage,size_threshold_mb,overrides.<slug>}` | 大きなバイナリの保存先既定と機能ごとの上書き |
-| `auth.current.env_vars` / `auth.new.env_vars` | 認証情報の環境変数名（側ごとに分ける） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
-| `current.{url,db.env_vars}` | 現行テスト環境の URL・DB 接続の環境変数名 |
-| `forbidden_actions` | 現行アプリに実施しない操作 |
+| `targets` | 実行対象環境。`side: current` から `--target` で選ぶ。選択した target の `url` が UI、`api_url`（省略時 `url`）が API 特性化の baseURL。`pre_commands` / `start` / `check_urls` があれば実行フロー 1 で起動・稼働確認に使う |
+| `targets[].auth.roles` | ロール別の認証情報の環境変数**名**（認証不要の環境では `auth` ごと省略。扱いは [`references/auth.md`](references/auth.md)） |
+| `targets[].db.env_vars` | 現行 DB 接続の環境変数名。選択した current target のもの（DB を持たない環境では省略可） |
+| `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
+| `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出で読む（[`references/strength-gate.md`](references/strength-gate.md)） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む） |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない。`parity_suite_dir` の既定だけは本スキルの受け入れ条件のため明記した）。
 
-設定が無ければ `replace-strategy setup` を促して停止する。
+設定が無ければ `replace-strategy setup` を促して停止する。スキーマ文書の「移行」節に列挙された**旧キー**が残っていたら**フォールバックとして読まず**、同節を示して停止する。
 
 ## 実行フロー
 
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。`.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
-   Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。現行 URL への疎通と認証環境変数の存在確認（値は出さない）で早期に失敗する
+   Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。
+   `--target` から現行環境を確定し、その target に `pre_commands` / `start` / `check_urls` があればその順で起動・稼働確認する（意味論と実行順の正本は `browser-test` の `references/project-config.md`。失敗したらそこで停止し、後続工程へ進まない）。
+   選択した target の `url` / `api_url` への疎通と認証環境変数の存在確認（値は出さない）で早期に失敗する
 2. **対象決定**: `slug` を features.md と突き合わせる（無い slug は停止。自分で採番しない）。種別からモードを決める
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（詳細: [`references/baseline.md`](references/baseline.md)）
-4. **データセットバージョン確認**: `.replace/dataset/metadata.json` の `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
+4. **データセットの投入先・バージョン確認**: `.replace/dataset/metadata.json` の `current.target`（`golden-dataset` がフェーズ A で投入した current target 名）が手順 1 で確定した target と一致することを確認する。
+   一致しなければ「ベースラインとシードの環境不一致」として停止し、同じ target へ投入するか target 選択を変えるようユーザーに促す。
+   続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
 5. **authoring**: ロケータマッピング（現側）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ）→ 手書き aria → API 特性化。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す。詳細: [`references/baseline.md`](references/baseline.md)。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない
 7. **強度ゲート（故障注入）**: 既知の回帰分類から故障カタログを導出し注入する。素通りした故障は強化するか `gaps.md` へ。詳細: [`references/strength-gate.md`](references/strength-gate.md)
-8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、`strength.md` / `gaps.md` / `metadata.json` を生成する。データ不足があれば `golden-dataset` へ戻す案内をする
+8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、`strength.md` / `gaps.md` / `metadata.json` を生成する。
+   `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
+   データ不足があれば `golden-dataset` へ戻す案内をする
 
 ## 成果物
 
@@ -108,6 +117,7 @@ parity-suite [--feature <slug>]
 ## 姉妹スキルとの連携
 
 - **`golden-dataset` との往復**: フェーズ A 完了が前提。探索でシード不足（空リストしか確認できない・ページネーションが 1 ページ等）を見つけたら `gaps.md` に「データ不足」として記録し `golden-dataset` へ戻す。戻るとバージョンが上がり、影響を受けるベースラインを再取得する
-- **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、Playwright `projects` の `current` / `new` という名前（`new` の baseURL は `parity-replace` 段階で設定される）
+- **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
+  （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
 - **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy status`** が `strength.md` / `gaps.md` / `metadata.json` を読んで現況を導出する

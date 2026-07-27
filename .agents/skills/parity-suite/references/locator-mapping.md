@@ -42,4 +42,14 @@
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
 | 決定論的ツール（同梱 scripts のコピー） | `<parity_suite_dir>/parity/lib/tools/` |
 
-Playwright の `projects` は `current` / `new` の 2 つを定義し、**本スキルでは `current` のみ実行する**（`new` の baseURL は `parity-replace` 段階で設定される）。
+Playwright の `projects` は `current` / `new` の 2 つを定義し、**本スキルでは `current` のみ実行する**。
+`current` / `new` の baseURL は、選択した target から解決した環境変数 `PARITY_CURRENT_UI_URL` / `PARITY_NEW_UI_URL`（API は `PARITY_CURRENT_API_URL` / `PARITY_NEW_API_URL`）を参照する形で書く（URL を config に直書きしない）。
+**この環境変数の配線が本スキルの正本**であり、`parity-replace` / `parity-diff` は新側 target から `PARITY_NEW_*` を解決して同じ配線に流す。
+実行は選択した target の URL を環境変数に解決して渡す（`<url>` はプレースホルダ。値を成果物に書かない）:
+
+```bash
+# playwright の起動はプロジェクトのパッケージマネージャに読み替える（npx / pnpm exec / yarn 等）
+PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --project current
+```
+
+`new` 側の target 選択と green 化は `parity-replace` 段階で行われるため、本スキルでは `PARITY_NEW_UI_URL` は未設定でよい。
