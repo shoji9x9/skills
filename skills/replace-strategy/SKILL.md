@@ -78,7 +78,8 @@ replace-strategy status
 4. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
 5. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
 6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書きは DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
-7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out、slug を `.replace/features.md` に記録する。規則は [`references/features-issues.md`](references/features-issues.md)
+7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out、slug を `.replace/features.md` に記録する。
+   **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。規則は [`references/features-issues.md`](references/features-issues.md)
 
 ## issues モード
 
@@ -86,7 +87,8 @@ replace-strategy status
 手順・Issue 種類（ゴールデンデータセット／横断 API／機能／バッチの 4 種）・本文構成は [`references/features-issues.md`](references/features-issues.md) を参照する。
 
 - `.replace/features.md` が無い（`setup` 未完了）場合は起票せず停止し、`setup` の実行を促す
-- 起票は `issue-create` スキルへ委譲する。**起票対象を提示してまとめて承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
+- 起票は `issue-create` スキルへ委譲する。**候補・依存関係・各 Issue の本文ドラフトを提示して明示承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
+- **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）
 - 重複チェックはページネーションに留意する（既定件数で打ち切らない）
 
 ## status モード

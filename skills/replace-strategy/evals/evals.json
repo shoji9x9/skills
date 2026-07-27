@@ -58,6 +58,41 @@
         "差し戻しループの状態（loop.iterations 1 / max_iterations 5）を報告に含めている",
         "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
       ]
+    },
+    {
+      "id": 7,
+      "fixture": "evals/fixtures/issues-approval-gate",
+      "prompt": "replace-strategy issues",
+      "assertions": [
+        ".replace/features.md から未起票候補（ゴールデンデータセット・横断 API リソース user・機能 order / report）を列挙している",
+        "ゴールデンデータセット Issue を最初の起票対象として提案している（全 Issue の前提のため先頭）",
+        "候補の依存関係（横断 API → 機能の順）と各 Issue の本文ドラフトを提示している",
+        "明示承認が得られない（非対話・利用者不在）ため gh issue create も issue-create への委譲も実行せず、承認待ちであることを明示して停止している",
+        ".replace/features.md の Issue 列を書き換えていない（すべて未起票のまま）"
+      ]
+    },
+    {
+      "id": 8,
+      "fixture": "evals/fixtures/inventory-multi-page",
+      "prompt": "測定と戦略は完了済み（.replace/survey.md / .replace/strategy.md）。現行アプリの構成: ページは注文一覧 /orders・注文詳細 /orders/:id・レポート /reports。API は GET /api/orders と GET /api/orders/:id（注文画面だけが使用）、GET /api/users（注文とレポートの両方が使用）。テーブルは orders, order_items, users。副作用出力は注文 CSV（/orders が所有）。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
+      "assertions": [
+        "注文一覧と注文詳細（複数ページ）を 1 機能 1 行にまとめ、ページごとに機能行を分けていない",
+        "単一機能からしか使われない GET /api/orders 系を横断 API 表に載せず、機能行の新規実装 API に含めている",
+        "2 機能が使う GET /api/users をリソース単位（slug: user 等）で横断 API 表に分類し fan-out（利用機能 slug）を記録している",
+        "slug が ASCII kebab-case でインベントリ全体で一意（日本語の転写でない）",
+        "features-template の表構成（機能一覧・横断 API・Issue 列「未起票」）に従っている"
+      ]
+    },
+    {
+      "id": 9,
+      "fixture": "evals/fixtures/inventory-single-page",
+      "prompt": "測定と戦略は完了済み。現行アプリは単一ページの ToDo 管理アプリで、1 ページ（/）にタスク一覧・追加フォーム・絞り込みタブ・完了済みセクションがある。API は GET/POST/PATCH /api/tasks のみ、テーブルは tasks のみ。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
+      "assertions": [
+        "表示セクション（一覧・追加フォーム・絞り込み・完了済み）ごとに機能行を分割せず、利用者目的とデータ境界（tasks）に基づき 1 機能 1 行にまとめている",
+        "単一機能のみが使う API を横断 API にしていない（横断 API 表が空または該当なし）",
+        "slug が ASCII kebab-case（日本語の転写でない）",
+        "features-template の表構成に従い Issue 列を「未起票」としている"
+      ]
     }
   ]
 }

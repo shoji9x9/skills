@@ -6,6 +6,9 @@ globs:
   # symlink 経由で検査される（除外されるのは installed copy であってルール実体ではない）。
   - "!.agents/**"
   - "!.claude/**"
+  # eval 実行の生成スナップショット（.gitignore 済み・エージェント生成物）。コミットされず
+  # CI にも存在しないため、lint スコープを git 管理対象に揃えて pre-commit のブロックを防ぐ。
+  - "!tests/*/iteration-*/eval-*/**"
 
 config:
   extends: .markdownlint.yaml
