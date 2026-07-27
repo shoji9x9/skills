@@ -49,7 +49,7 @@
     },
     {
       "id": 6,
-      "prompt": "parity-replace --feature order-list --target develop（新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）",
+      "prompt": "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）",
       "fixture": "evals/fixtures/lightweight-deploy-target",
       "assertions": [
         "develop が start を持たない配信型 target であることを踏まえ、軽量経路を確認なしに自動適用していない",

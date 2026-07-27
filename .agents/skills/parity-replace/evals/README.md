@@ -21,7 +21,7 @@ scripts/run-skill-eval.sh \
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
 scripts/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
-  --prompt "parity-replace --feature order-list --target develop（新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）" \
+  --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）" \
   --fixture skills/parity-replace/evals/fixtures/lightweight-deploy-target \
   --out tests/parity-replace/iteration-1/eval-6/with_skill/run-1 \
   --model opus
