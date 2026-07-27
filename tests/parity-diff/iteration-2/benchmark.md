@@ -2,7 +2,7 @@
 
 **Model**: claude-opus-5
 **Date**: 2026-07-27T10:03:37Z
-**Evals**: 1, 2, 3 (3 runs each per configuration)
+**Evals**: 1, 2, 3 (1 run each per configuration)
 
 ## Summary
 
