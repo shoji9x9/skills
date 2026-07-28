@@ -1,5 +1,5 @@
 {
-  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（同じ形・同じ組。現側の値を超えた組があれば差分報告せず停止する）。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・differ_versions の画素/特性項目）を持たない（省略する）。",
+  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（現側と同じ組で、項目に source / measured_at を加えた形。現側の値を超えた組があれば差分報告せず停止する）。noise_measurement は往復ループでの測定値再利用の判定材料（失効条件の正本は parity-diff の references/capture-new.md「測定値の再利用」）で、次回実行はこのファイルの noise_baseline_new と併せて、このファイルを上書きする前に読む。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・noise_measurement・differ_versions の画素/特性項目）を持たない（省略する）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -50,9 +50,29 @@
       "state": "<状態>",
       "viewport": "<viewport label>",
       "pixel_diff": 0,
-      "trait_diffs": 0
+      "trait_diffs": 0,
+      "source": "<measured（この実行で 2 回撮って測った） | reused（前回実行の測定値を再利用した）>",
+      "measured_at": "<この組を実際に測った日時（ISO 8601）。reused の組は前回値をそのまま引き継ぐ（他の組を測り直しても更新しない）>"
     }
   ],
+  "noise_measurement": {
+    "measured_at": "<noise_baseline_new[].measured_at のうち最も古い日時（ISO 8601）。24 時間の失効判定は組ごとの measured_at で行う（この値は概観用）>",
+    "measured_at_commit": "<測定時点の新側コミット SHA。変化そのものは単独の失効条件にしない（往復ループでは毎反復変わるため）が、反復が進んでいない（loop.iterations の差が 0）のに変わっていればループ外の変更として全組を再測定する>",
+    "loop_iteration": "<測定時点の同 target の replace-metadata.json の loop.iterations（数値）>",
+    "fingerprint": {
+      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations を正規化した文字列>",
+      "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
+      "dataset_version": "<測定時点の dataset_version（数値）。三者一致を免除した target では null>",
+      "pairs": [
+        "<この実行終了時点で有効な測定値を持つ全組（noise_baseline_new と同一集合）を page|state|viewport で表した識別子（昇順）。この実行で測った組だけに絞らない>"
+      ]
+    },
+    "reused_pairs": 0,
+    "remeasured_pairs": 0,
+    "remeasure_reason": [
+      "<再測定した組がある場合の失効条件（例: loop.changed_scope.pages に該当 / --remeasure-noise 指定 / 前回記録なし）。全組を再利用したなら空配列>"
+    ]
+  },
   "paths": {
     "diff_report": ".replace/parity/<slug>/new/<target>/diff.md",
     "baseline_new": "<new/<target>/baseline-new/ の保存先ポインタ（artifacts 設定に従う）>"
