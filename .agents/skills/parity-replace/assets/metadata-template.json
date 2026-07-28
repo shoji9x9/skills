@@ -1,5 +1,5 @@
 {
-  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。",
+  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。loop.changed_scope は直近の反復で描画に効く変更を入れた範囲で、parity-diff が新側の自己ノイズ測定を再利用してよい組の判定に使う（pages は features.md のページ識別子で書く。global が真なら pages は空でよい。反復の +1 時に null へ戻し修正完了時に確定値を書く。判断が付かない・記録しない場合は null のまま＝parity-diff 側で全組再測定に倒れる。pages: [] は「描画に効く変更なし」の積極的な申告であり null と意味が違う）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -33,6 +33,12 @@
     "iterations": 0,
     "max_iterations": 5,
     "last_diff_report": "<最後に処理した .replace/parity/<slug>/new/<target>/diff.md のポインタ。未着手なら none>",
-    "on_diff_doc": "<従った on_diff ドキュメントのパス。無ければ none>"
+    "on_diff_doc": "<従った on_diff ドキュメントのパス。無ければ none>",
+    "changed_scope": {
+      "pages": [
+        "<直近の反復で描画に効く変更を入れたページ（修正で実際に触れた範囲。差し戻された差分のページに限らない）。値は .replace/features.md のページ識別子＝現側 metadata.json の noise_baseline[].page と同じ語彙で書く>"
+      ],
+      "global": "<共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れたら true。真なら pages は空でよい。真偽値で書く>"
+    }
   }
 }

@@ -9,7 +9,8 @@
 
 ## 1 反復の定義とカウントの起点
 
-- **`parity-diff` の差し戻し（`diff.md`）を受領した時点で `loop.iterations` を +1 し、`loop.last_diff_report` をその `diff.md` に更新する**（修正の着手前に数える。修正が途中で止まっても回数が消えないため）
+- **`parity-diff` の差し戻し（`diff.md`）を受領した時点で `loop.iterations` を +1 し、`loop.last_diff_report` をその `diff.md` に更新する**（修正の着手前に数える。修正が途中で止まっても回数が消えないため）。
+  **同じ書き込みで `loop.changed_scope` を `null` に戻す**（前反復の範囲を今の反復の範囲として名乗らせないため。確定値は下記のとおり修正完了時に書く）
 - **1 反復の範囲は「差し戻しの受領 → 修正 → 対象 target での再テスト → `parity-diff` へ戻す」まで。** 同じ `diff.md` 内で複数箇所を直しても 1 反復であり、差分の件数では数えない
 
 ## 反復上限
@@ -25,6 +26,19 @@
 - **コード変更を伴う修正は敵対的レビューまで再入する**（[`adversarial-review.md`](adversarial-review.md)）。差し戻し対応は小さく見えても commit 前のレビューを省略しない。
   `on_diff` ドキュメントが commit・push を指示していても、**レビューが先**（差し戻しをレビュー省略の抜け道にしない）
 - 差分が「テーマで消せない構造差」に該当するなら `component_diffs` 宣言または `gaps.md` 追記で扱う（[`theming.md`](theming.md)）。仕様変更で差分を消さない
+
+## 変更範囲の記録（`loop.changed_scope`）
+
+差し戻し対応で新側を修正したら、**その反復で描画に効く変更を入れた範囲**を `new/<target>/replace-metadata.json` の `loop.changed_scope` に記録する
+（反復ごとに上書きし、最後の反復の範囲だけを持つ。反復の +1 時に `null` へ戻し、**その反復の修正を終えてから**確定値を書く——修正の途中で止まった反復が `null` のまま残れば安全側に倒れる）。
+`parity-diff` はこの値で新側の自己ノイズ測定を再利用してよい組を決める（用途と失効条件の正本は `parity-diff` の `references/capture-new.md`「測定値の再利用」）。
+
+- `pages`: 変更が描画に効くページ（差し戻された差分のページだけでなく、**修正で実際に触れた範囲**を書く）。
+  値は `.replace/features.md` のページ識別子（＝現側 `metadata.json.noise_baseline[].page` と同じ語彙）で書く——ファイルパスやコンポーネント名で書くと `parity-diff` 側で突き合わせられず全組再測定に倒れる
+- `global`: 共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れたら `true`。真なら `pages` は空でよい
+- **`pages: []` と `null` を取り違えない。** `pages: []`（`global: false`）は「**この反復では描画に効く変更を入れなかった**」という積極的な申告で、
+  `parity-diff` は全組を再利用してよいと読む。範囲が**未確定・未記録**なら空配列ではなく `loop.changed_scope` ごと `null` にする（`parity-diff` 側で「全組再測定」に倒れる）
+- **範囲を過小申告しない。** 判断が付かないなら上記のとおり `null` に倒す——過小申告は測り直すべき組を黙って飛ばす（誤ったノイズ基準で実回帰を吸収しうる）
 
 ## `on_diff` の解釈（対象 target ごと）
 
