@@ -1,0 +1,175 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-28T01:42:04Z",
+    "evals_run": [6, 7, 8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 45.6,
+        "tokens": 146788,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が db.env_vars を持たないため投入対象にできないことを検出して停止している",
+          "passed": true,
+          "evidence": "「## 結論: フェーズ B は実行できません（投入前に停止）」「`--target develop` は**投入対象になりません**」と述べ、確認表で「`develop` の `db` | **セクションごと存在しない** ❌」「`db.env_vars` | 無い ❌（接続先が特定できない）」を挙げている。fixture の該当ブロックも引用している。"
+        },
+        {
+          "text": "db を持つ side: new の target（local-dev）を選ぶか develop に db.env_vars を足すよう案内している",
+          "passed": true,
+          "evidence": "選択肢 1「**投入可能な新側 target を指定する**（推奨）`golden-dataset --phase b --feature order-list --target local-dev`」（local-dev が `db.seedable: true` / `env_vars: [NEW_DB_URL]` を持つ点も明示）と、選択肢 2「設定に `db`（`env_vars` と `seedable: true`）を追加してください」の両方を案内している。"
+        },
+        {
+          "text": "勝手に local-dev へ読み替えて写像・投入を進めていない",
+          "passed": true,
+          "evidence": "local-dev はユーザーが選ぶ選択肢として提示するにとどまる。「設定ファイルの書き換え・成果物の生成・DB への書き込みは一切行っていません」と宣言し、project-files は fixture と `diff -r` で差分なし。"
+        },
+        {
+          "text": "metadata.json の phase_b 記録・投入ツールを生成していない",
+          "passed": true,
+          "evidence": "project-files の `.replace/dataset/metadata.json` は fixture のまま（`diff -r` 差分なし・`phase_b: {}`）。project-tree.txt に fixture 以外の生成物は存在せず、`seed/` も作られていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 53.4,
+        "tokens": 244980,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop は db.env_vars を持つが db.seedable が無いため読み取り専用であり投入対象外だと判定して停止している",
+          "passed": true,
+          "evidence": "「**1. 設定由来ゲート未通過（本スキル 厳守の制約 9 / phase-b.md 前提）— 決定的**」で「`db.env_vars: [DEVELOP_DB_URL]` はあっても **`db.seedable` がありません**」「投入対象は `db.seedable: true` を持つ `side: new` target に限られます」と判定し、「写像設計・投入・検証・`metadata.json` の `phase_b` 記録のいずれも行っていません」と停止している。"
+        },
+        {
+          "text": "接続情報を知っていること（env_vars がある）を投入してよいことと同一視していない",
+          "passed": true,
+          "evidence": "「意図的な読み取り専用接続です」「読み取り専用接続への削除・投入は禁止事項」と明示し、`env_vars` の存在をシード許可と読み替えていない。fixture のコメント（読み取り専用の意図）も根拠として引用している。"
+        },
+        {
+          "text": "投入したいなら設定に db.seedable: true を足すのはユーザーの判断だと示し、スキル自身が skills.yml へ seedable: true を書き足していない",
+          "passed": true,
+          "evidence": "「**私が設定に `seedable: true` を足すことも禁止**されています」と述べ、選択肢 2 で「`skills.yml` の `develop` に `db.seedable: true` を追加してください」とユーザー側の判断として提示。実際に project-files の skills.yml は fixture と差分なし。"
+        },
+        {
+          "text": "develop の DB に対する削除・投入を実行していない",
+          "passed": true,
+          "evidence": "冒頭で「投入・設定変更・コミットは一切行わず、読み取りのみで判定しました」と宣言。project-tree.txt に投入ツール（`seed/`）や実行痕跡は無く、fixture 以外の生成物ゼロ。"
+        },
+        {
+          "text": "metadata.json の phase_b 記録を作っていない",
+          "passed": true,
+          "evidence": "project-files の `.replace/dataset/metadata.json` は fixture と `diff -r` で差分なし（`phase_b: {}` のまま）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 317.3,
+        "tokens": 761075,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "停止せずフェーズ A 再実行を完走している（`content/works` に 15 ファイル生成、`design.md` / `verification.md` / `metadata.json` 更新）。DB 不在を停止理由として挙げた箇所は無く、「DB 接続・環境変数は一切使っていません」と述べている。"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "「**投入ゲート 2 枚**: 設定由来ゲート（`dataset_mode: static`、書き込み先は `dataset_static_paths` = `content/works` 配下のみ）は通過」と明示。verification.md にも「ツール内の `assertWritable()` が `dataset_static_paths`（`content/works`）外への書き込みを実行時に拒否する」と記録している。"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": true,
+          "evidence": "design.md の「gaps 由来の追加履歴」に version 2 の 3 行（ページネーション由来・空状態由来・併せた境界値回収）を追記。「`seed/src/main.ts` を更新し、制作実績を **2 件 → 15 件**に拡張。2 回連続実行して fingerprint 一致（`sha256:011d04ef…`）を確認済み」と述べ、fixture に無かった `fingerprint()` / `assertWritable()` / `verify()` の表明が verification.md に記録されている。project-tree.txt に `./seed/src/main.ts` が残存。"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "fixture との `diff -r` で変化したのは `content/works/`（13 ファイル追加）と `.replace/dataset/`（本スキル自身の成果物）のみ。`dataset_static_paths` 外のデータ生成は無く、「`cover` はパスのみを持ち、`/images/works/*.png` の実体は `dataset_static_paths` の外にあるため本ツールは生成・削除しない」と自ら線引きしている。"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": true,
+          "evidence": "`.replace/dataset/metadata.json` が `\"version\": 2`（fixture は 1）。design.md / verification.md のヘッダも version 2 に揃っている。"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": true,
+          "evidence": "`current.fingerprint` が fixture の `sha256:0f2c1d9a…` から `sha256:011d04ef…` へ更新され、`\"target\": null` / `\"seeded_at\": null` は維持。verification.md に算出方法（パス昇順で「相対パス + NUL + 内容」を連結して SHA-256）まで記録している。"
+        },
+        {
+          "text": "version が上がったことで陳腐化した parity-suite のベースライン再取得を案内している",
+          "passed": true,
+          "evidence": "「## 次のステップ」で「version が 2 に上がったため、**version 1 で取得した `parity-suite` の works-list ベースラインは陳腐化しています**。`parity-suite --feature works-list --target current-test` を再実行してベースラインを再取得してください」と案内している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 138.7667,
+        "stddev": 154.6636,
+        "min": 45.6,
+        "max": 317.3
+      },
+      "tokens": {
+        "mean": 384281.0,
+        "stddev": 329985.9179,
+        "min": 146788,
+        "max": 761075
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+138.8",
+      "tokens": "+384281"
+    }
+  },
+  "notes": []
+}

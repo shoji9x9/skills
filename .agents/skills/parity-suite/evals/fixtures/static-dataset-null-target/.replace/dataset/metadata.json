@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "mode": "static",
+  "base_time": "2026-05-01T00:00:00Z",
+  "generated_at": "2026-05-01T09:12:00Z",
+  "current": {
+    "target": null,
+    "commit": "none",
+    "seeded_at": null,
+    "fingerprint": "sha256:0f2c1d9a6b4e8f37a1c05d2e93b7684af5c1093d2e7b4a86f0c53d19e2748bb1",
+    "verified_at": "2026-05-01T09:35:00Z"
+  },
+  "run": {
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "medium",
+    "skill_version": "1.0.0"
+  },
+  "tool": {
+    "dir": "seed/",
+    "entry": "seed/src/main.ts",
+    "language": "typescript"
+  },
+  "phase_b": {}
+}

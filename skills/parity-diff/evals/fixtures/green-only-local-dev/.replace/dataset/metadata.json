@@ -1,11 +1,13 @@
 {
   "version": 1,
+  "mode": "db",
   "base_time": "2026-05-01T00:00:00Z",
   "generated_at": "2026-05-01T09:12:00Z",
   "current": {
     "target": "current-test",
     "commit": "none",
     "seeded_at": "2026-05-01T09:20:00Z",
+    "fingerprint": null,
     "verified_at": "2026-05-01T09:35:00Z"
   },
   "run": {

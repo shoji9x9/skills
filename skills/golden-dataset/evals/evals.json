@@ -57,6 +57,32 @@
         "勝手に local-dev へ読み替えて写像・投入を進めていない",
         "metadata.json の phase_b 記録・投入ツールを生成していない"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "golden-dataset --phase b --feature order-list --target develop",
+      "fixture": "evals/fixtures/readonly-db-target",
+      "assertions": [
+        "develop は db.env_vars を持つが db.seedable が無いため読み取り専用であり投入対象外だと判定して停止している",
+        "接続情報を知っていること（env_vars がある）を投入してよいことと同一視していない",
+        "投入したいなら設定に db.seedable: true を足すのはユーザーの判断だと示し、スキル自身が skills.yml へ seedable: true を書き足していない",
+        "develop の DB に対する削除・投入を実行していない",
+        "metadata.json の phase_b 記録を作っていない"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "parity-suite の gaps.md でページ送りと空状態のデータ不足が出た。golden-dataset でデータを追加して",
+      "fixture": "evals/fixtures/static-dataset",
+      "assertions": [
+        "db を持つ target が 1 つも無いことを理由に停止していない",
+        "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+        "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+        "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+        "metadata.json の version を 1 から 2 へ上げている",
+        "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+        "version が上がったことで陳腐化した parity-suite のベースライン再取得を案内している"
+      ]
     }
   ]
 }

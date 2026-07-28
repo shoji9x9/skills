@@ -57,6 +57,17 @@
         "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
         "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "parity-suite --feature works-list --target current-test",
+      "fixture": "evals/fixtures/static-dataset-null-target",
+      "assertions": [
+        ".replace/dataset/metadata.json の current.target が null であることを理由に「ベースラインとシードの環境不一致」として停止していない",
+        "dataset_mode: static ではゴールデンデータが特定環境に紐づかないため current.target の照合を行わない契約に触れている",
+        "スイート・ベースライン・.replace/parity/works-list/ の成果物を捏造していない（project-files に存在しない）",
+        "停止する場合はデータセットの target 照合ではなく別の前提（現行アプリへの疎通・Playwright の可否など）が理由であることを明示している"
+      ]
     }
   ]
 }

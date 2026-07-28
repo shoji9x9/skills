@@ -12,6 +12,7 @@ skills:
         url: http://localhost:8080
         db:
           env_vars: [CURRENT_DB_URL]
+          seedable: true
         auth:
           roles:
             admin:
@@ -25,6 +26,7 @@ skills:
         url: http://localhost:8081
         db:
           env_vars: [CURRENT_STG_DB_URL]
+          seedable: true
         auth:
           roles:
             admin:
@@ -37,6 +39,7 @@ skills:
         url: http://localhost:5173
         db:
           env_vars: [NEW_DB_URL]
+          seedable: true
         auth:
           roles:
             admin:

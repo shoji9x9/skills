@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-28T01:42:04Z",
+    "evals_run": [6],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 94.1,
+        "tokens": 304802,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量経路を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「## 結論：軽量経路は「適用条件は満たすが、適用不可」。ここで停止します」とし、「SKILL.md の規定どおり、この場合はユーザー確認が取れない限り軽量経路を**適用しない**ため、スイート実行も証跡記録も行いませんでした」と述べている。SHA / dirty の適用条件が成立していることを認めたうえで、なお自動適用していない点が明確。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「`develop` は `start` を持たないデプロイ更新型の環境で、`commit_check` も未定義です。**稼働中のコードが `abc1234def5678` である保証がありません。**」と述べ、再開条件 1 として「デプロイ確認を返す」、2 として `commit_check` の追加（恒久策）を提示している。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の証跡は軽量経路の適用条件（`dirty: false` / `commit: abc1234def5678`）の照合にのみ用い、develop の green 証跡としては使っていない。「別コミットの結果を騙る恐れがあります。証跡の意味が壊れるため、確認前の実行は行いません」と明言。project-files は fixture と差分なし。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に `./.replace/parity/order-list/new/develop/` は存在せず、project-files も fixture と `diff -r` で差分なし。冒頭で「破壊的・外向きの操作は一切行っていません（ファイル書き込み・スイート実行・commit いずれもなし）」と宣言している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 94.1,
+        "stddev": 0.0,
+        "min": 94.1,
+        "max": 94.1
+      },
+      "tokens": {
+        "mean": 304802.0,
+        "stddev": 0.0,
+        "min": 304802,
+        "max": 304802
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+94.1",
+      "tokens": "+304802"
+    }
+  },
+  "notes": []
+}
