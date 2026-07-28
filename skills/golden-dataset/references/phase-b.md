@@ -7,7 +7,7 @@
 ## 前提
 
 - 対象 slug の**新側の受け皿**（`parity-replace` の実装したスキーマ／静的データ形式）が存在すること。無ければ停止する
-- 投入先 target（`side: new`。`--target` で選択、省略時は new 側の `default`）が書き込みを許可されていること（契約の正本は `replace-strategy` の `references/project-config.md`）:
+- 投入先 target（`side: new`。`--target` の選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」）が書き込みを許可されていること（契約の正本も同ファイル）:
   - **`dataset_mode: db`**: 対象は **`db.seedable: true` の `side: new` target のみ**。`db` を書かない target（DB に触れない）と `env_vars` だけの target（読み取り専用）は投入対象外であり、フェーズ B の記録も作らない
     （`parity-diff` がその target を「データ整合未検証」として扱う）。`db.env_vars` の接続を確認する（値は出さず存在確認のみ、`secrets.wrapper` 前置）
   - **`dataset_mode: static`**: `db` を要求しない。`dataset_static_paths` 配下が新側リポジトリで書き込めることを確認する

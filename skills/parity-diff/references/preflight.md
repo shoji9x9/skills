@@ -4,11 +4,10 @@
 
 ## 対象 target の解決（前提確認より先）
 
-成果物のパスも疎通先も target で決まるため、最初に対象環境を確定する。候補は `skills.replace-strategy.targets` のうち **`side: new`** のものだけ（選択規則の正本は `replace-strategy` の `references/project-config.md`）。
+成果物のパスも疎通先も target で決まるため、最初に対象環境を確定する。候補は `skills.replace-strategy.targets` のうち **`side: new`** のものだけ。
 
-- `--target <name>` があればそれを使う。省略時は new 側の `default: true`、無ければ候補を提示してユーザーに確認する
+- **選択規則**（`--target` 省略時の既定・候補提示・存在しない名前や側違いでの停止）は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）
 - `url_command` の target は**ここで 1 回だけ**コマンドを実行して URL を解決する（失敗・空出力は停止）。以降の工程（疎通・撮影・API 発行）は解決済みの値を再利用する
-- 存在しない名前・`side: current` の名前は**停止**する（勝手に読み替えない）
 - 旧スキーマ・旧レイアウトは**フォールバックとして読まない**。見つけたら移行を案内して停止する（自動で移さない・両方を読まない）。
   検出対象の旧キー・旧レイアウトの一覧と移行手順は `replace-strategy` の `references/project-config.md`「移行」を正本として参照する（ここで個別に列挙しない）
 

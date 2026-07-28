@@ -4,8 +4,8 @@
 
 結果は `.replace/survey.md`（テンプレート: [`../assets/survey-template.md`](../assets/survey-template.md)）に記録する。各測定値には測定方法・対象・日時を添え、後から再測定・比較できるようにする。
 
-**測定対象の環境**: `side: current` の target から選ぶ。依頼に環境指定（`--target <name>` 相当）があればそれに従い、無ければ `default: true` の target を使う。
-`default` が無い／指定が side 違いや不在の名前だった場合の扱いは [`project-config.md`](project-config.md) の「実行対象環境」の選択規則に従う。
+**測定対象の環境**: `side: current` の target から選ぶ（依頼の環境指定は `--target <name>` 相当として扱う）。
+省略時の既定・候補提示・不在や側違いの名前の扱いは [`project-config.md`](project-config.md)「実行対象環境」の「選択規則」に従う（ここへ転記しない）。
 **選んだ target 名は `.replace/survey.md` の「対象環境」に記録する**（現側 target の変更はベースライン陳腐化として扱われるため、どの環境で測ったかを後から辿れるようにする）。
 
 ## 1. セマンティクス測定（role プローブ）

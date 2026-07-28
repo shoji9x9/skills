@@ -69,7 +69,7 @@ replace-strategy status
    - **実行対象環境（`targets`）**: 現側は測定対象のテスト環境、新側は local-dev / develop 等。環境ごとに `side`（必須）・`url`・
      `url_command`（URL が実行ごとに決まる環境で `url` の代わりに）・`api_url`（UI と API が別 origin のときだけ）・
      DB（環境変数名と**投入してよいかの `seedable`**）・認証（ロールごとの環境変数名のみ）・禁止操作・`pre_commands` / `start` / `check_urls`・`commit_check`（`start` を持たない配信型環境で稼働中コミットを確認するコマンド）・
-     **側ごとの `default`**（`current` / `new` で 1 つずつ）・`on_diff` を確認する。スキーマ不変条件と選択規則は [`references/project-config.md`](references/project-config.md) の「実行対象環境」に従う
+     **側ごとの `default`**（`current` / `new` で 1 つずつ）・`on_diff` を確認する。スキーマ不変条件は [`references/project-config.md`](references/project-config.md)「実行対象環境」、選択規則は同節の「選択規則」に従う
    - **ゴールデンデータセットの実体（`dataset_mode`）**: DB なら `db`（既定）、リポジトリ内の静的データなら `static` を選び、`static` では投入ツールが生成・削除してよい `dataset_static_paths` を確定する。
      **`seedable` と `dataset_static_paths` は投入の設定由来ゲート**であり、既定は deny（書かなければ投入されない）。実データを持つ環境は `seedable` を付けずに読み取り専用として登録する。正本は [`references/project-config.md`](references/project-config.md) の「データセットの実体」
    - **検証コマンド列（`verification_commands`）**: 完了前に実行する静的解析・テスト等。`parity-replace` の完了判定に必須のため、無いままにせずここで確定する

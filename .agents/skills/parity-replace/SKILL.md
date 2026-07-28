@@ -23,8 +23,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **1 回の実行につき 1 機能。** ページをまたいで並行に実装しない（調査・実装・比較が浅くなり差異を見落とす）
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
 - **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）。`mode` は `parity-suite` が features.md の分類（下表の起点）から記録済み
-- `--target <name>`（任意）: 実装・検証を行う新側の実行対象環境。設定 `targets` のうち **`side: new`** のものだけを候補にする。
-  省略時は新側の `default: true` の target を使い、無ければ候補を提示してユーザーに確認する。存在しない名前・`side: current` の名前は**停止する**（勝手に読み替えない。選択規則の正本は `replace-strategy` の `references/project-config.md`）
+- `--target <name>`（任意）: 実装・検証を行う新側の実行対象環境。設定 `targets` のうち **`side: new`** のものだけを候補にする（本スキルが対象とする側の宣言はここが正本）。
+  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - `--max-iterations <n>`（任意, 既定 5）: `parity-diff` との往復ループの反復上限。超えたら停止してユーザーに上げる
 
 | モード | 起点 | 内容 |

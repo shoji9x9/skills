@@ -18,7 +18,8 @@ parity-suite [--feature <slug>] [--target <name>]
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない（調査・特性化・強度検証が浅くなるため）
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
-- `--target <name>` は実行対象の現行環境。設定の `targets` のうち **`side: current` のものだけを候補**にする。省略時はその側の `default: true` の target を使い、無ければ候補を提示して確認する（存在しない名前・側違いは停止。選択規則の正本は `replace-strategy` の `references/project-config.md`）
+- `--target <name>` は実行対象の現行環境。設定の `targets` のうち **`side: current` のものだけを候補**にする（本スキルが対象とする側の宣言はここが正本）。
+  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - **モードは slug の種別で決まる**（フラグは無い）。features.md の 機能／横断 API リソース／バッチ のどの表にあるかで下表のモードになる
 
 | モード | 起点 | 内容 |
