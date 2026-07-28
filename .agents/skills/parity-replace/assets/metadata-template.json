@@ -13,8 +13,8 @@
   "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。現在より古ければ陳腐化として見直す>",
   "new": {
     "target": "<選択した新側 target 名（設定 targets の side: new）。成果物ディレクトリ名と一致させる>",
-    "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none>",
-    "api_url": "<その target の API baseURL（PARITY_NEW_API_URL に解決した値。api_url 省略時は url と同じ）>",
+    "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none。target が url_command のときは解決値を書かず \"runtime\"（値は成果物に書かない。利用側は target 名から再解決する）>",
+    "api_url": "<その target の API baseURL（PARITY_NEW_API_URL に解決した値。api_url 省略時は url と同じ）。実行時解決（url_command 由来）のときは \"runtime\">",
     "commit": "<新側リポジトリのコミット SHA。無ければ none。別 target での軽量経路の判定に使う>",
     "dirty": false
   },

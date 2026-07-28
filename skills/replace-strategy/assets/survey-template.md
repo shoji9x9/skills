@@ -4,7 +4,7 @@
 <!-- すべて実測値。測れなかった項目は「未測定」と明記する（推測で埋めない）。 -->
 
 - 測定日時: （ISO 8601）
-- 対象環境: （測定に使った `side: current` の target 名（URL）。例: current-test（<その target の url>））
+- 対象環境: （測定に使った `side: current` の target 名（URL）。例: current-test（<その target の url>）。`url_command` の target は URL を書かず target 名のみ——解決した URL は成果物に書かない）
 - 対象コミット: （現行リポジトリのコミット SHA。コード入手不可ならその旨）
 - 測定エージェント・モデル・エフォート・スキルバージョン: （値）
 

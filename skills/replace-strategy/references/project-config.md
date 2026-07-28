@@ -67,6 +67,16 @@ skills:
               password_env: DEVELOP_ADMIN_PASS
         commit_check: <コマンド> # 任意。稼働中の新側コミット SHA を標準出力に出す（start を持たない配信型 target の軽量経路判定に parity-replace が使う）
         on_diff: <path> # 任意。この target で要対応差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければ既定挙動）
+      - name: preview # 例: ブランチ連動のプレビュー環境（URL がブランチ名に連動し固定文字列で書けない）
+        side: new
+        url_command: <コマンド> # url と排他。標準出力に URL を 1 行出す（意味論の正本は browser-test、parity 系での解決・記録規則は下記「URL の引き渡し」）
+        auth:
+          roles:
+            admin:
+              user_name_env: PREVIEW_ADMIN_USER
+              password_env: PREVIEW_ADMIN_PASS
+        forbidden_actions: []
+        commit_check: <コマンド>
     secrets:
       wrapper: "" # 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
     parity_suite_dir: e2e/ # パリティスイートの配置（parity-suite が読む。未指定時は e2e/）
@@ -99,7 +109,7 @@ skills:
 
 現・新の実行対象環境を環境名で複数定義し、各スキル実行時に `--target <name>` で選択する。local-dev / local-production / preview / develop など、同じスイートを当てる環境をここに並べる。
 
-- **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
+- **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
   実行順 `pre_commands` → `start` → `check_urls`・失敗時の早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
   本ファイルが定義するのは `side`・`api_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
@@ -107,6 +117,8 @@ skills:
   - `side` は必須（`current` | `new`。省略時の既定は無い——新側環境を追加するときの書き忘れが「正解＝現行」の原則を反転させるため）
   - `default: true` は側ごとに **1 つまで**。同じ側に複数あれば停止する（0 個は可——`--target` 省略時に候補を提示して確認する）
   - `url: none` の target に `default: true` を付けない（省略時の全実行が未開発環境に吸い寄せられるため）
+  - 各 target は `url`（未開発は `none`）と `url_command` の**どちらか一方だけ**を持つ（両方あるのも、どちらも無いのも停止する）
+  - `url_command` の target には `default: true` を付けてよい（`url: none` と違い実行可能な環境を指すため。解決に失敗すれば実行時に停止する）
   - `name` は小文字英数とハイフンのみで、**全 target を通して一意**（側をまたいだ同名も不可。成果物ディレクトリ名に使うため）
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
 - **選択規則**: 各スキルは自分が対象とする側の target だけを候補にする——`parity-suite`・`golden-dataset`（フェーズ A）は `side: current`、`parity-replace` / `parity-diff`・`golden-dataset`（フェーズ B）は
@@ -124,7 +136,13 @@ skills:
 - **ノイズ基準値は現側 1 環境の測定値**: `parity-suite` が current 側で測った `noise_baseline` を新側の全 target に流用できるとは限らない（CDN・フォント読み込み等で環境ノイズは変わる）。
   `parity-diff` は新側撮影時に自己ノイズを測って乖離が大きければ停止する（正本: `parity-diff` の `references/capture-new.md`）
 - **URL の引き渡し**: 選択した target の UI / API URL は環境変数 `PARITY_CURRENT_UI_URL` / `PARITY_CURRENT_API_URL` / `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、
-  Playwright の `current` / `new` プロジェクトの baseURL と API request fixture が一貫して使う（配線の正本は `parity-suite`）
+  Playwright の `current` / `new` プロジェクトの baseURL と API request fixture が一貫して使う（配線の正本は `parity-suite`）。
+  `url_command` の target はコマンドを実行して得た URL を `PARITY_*_URL` へ解決する（失敗・空出力は停止する。基本意味論〈`url` との排他・停止〉の正本は
+  `browser-test`、`PARITY_*_URL` への解決・`"runtime"` 記録は**本節が正本**）。
+  **解決はスキル 1 実行につき 1 回**（target 解決時）とし、同一実行内の後続工程（疎通確認・撮影・API 発行）は解決済みの値を再利用する
+  （工程ごとに再実行しない——実行中に解決先が変わると、疎通確認した環境と撮影・発行先の環境が乖離するため）。
+  **解決した URL は成果物・ログへ書かず**、成果物（`metadata.json` / `replace-metadata.json` 等）の URL 記録フィールドには `"runtime"` を記録する。
+  利用側スキルは記録値ではなく target 名から設定を引いて**再解決する**（別のスキル実行では改めて 1 回解決する。`api_url` は従来どおり任意の固定値で、省略時は解決後の UI URL を使う）
 - **成果物は新側だけ環境別**: `parity-replace` / `parity-diff` の成果物は `.replace/parity/<slug>/new/<target>/` に分離し、環境を切り替えても green 証跡・差分メタデータ・新側ベースラインを上書きしない
   （レイアウトの正本は各生産スキル）。現側は 1 環境で、`parity-suite` が `metadata.json` に選択した target 名を記録する（現側 target の変更はベースライン陳腐化として扱う）
 

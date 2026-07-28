@@ -14,8 +14,8 @@
   "dataset_version_exempt": "<三者一致を免除した理由（例: 選択 target が db を持たない）。免除時は未検証領域にも残す。免除していなければ null>",
   "new": {
     "target": "<検出対象にした新側 target 名（--target で解決した値。replace-metadata.json の new.target と一致）>",
-    "ui_url": "<replace-metadata.json の new.ui_url>",
-    "api_url": "<同 new.api_url（target の api_url。省略時は ui_url と同値）>",
+    "ui_url": "<replace-metadata.json の new.ui_url。url_command の target は \"runtime\"（解決した URL を書かない）>",
+    "api_url": "<同 new.api_url（target の api_url。省略時は ui_url と同値）。実行時解決（url_command 由来）のときは \"runtime\">",
     "commit": "<同 new.commit>"
   },
   "capture_conditions_verified": {
