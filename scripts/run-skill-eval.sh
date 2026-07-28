@@ -190,7 +190,7 @@ while IFS= read -r -d '' file; do
 	# the first file that would exceed the total cap can drop small
 	# grading-critical artifacts that merely came later in the walk.
 	if [ $((total_bytes + size)) -gt "${max_total_bytes}" ]; then
-		printf '%s\tover-total-cap (total %s B)\n' "${rel}" "${total_bytes}" >>"${skipped_log}"
+		printf '%s\tover-total-cap (%s B + %s B > %s B)\n' "${rel}" "${total_bytes}" "${size}" "${max_total_bytes}" >>"${skipped_log}"
 		continue
 	fi
 	mkdir -p -- "${snapshot_dir}/$(dirname -- "${rel}")"
