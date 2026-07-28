@@ -141,8 +141,9 @@ skills:
   `browser-test`、`PARITY_*_URL` への解決・`"runtime"` 記録は**本節が正本**）。
   **解決はスキル 1 実行につき 1 回**（target 解決時）とし、同一実行内の後続工程（疎通確認・撮影・API 発行）は解決済みの値を再利用する
   （工程ごとに再実行しない——実行中に解決先が変わると、疎通確認した環境と撮影・発行先の環境が乖離するため）。
-  **解決した URL は成果物・ログへ書かず**、成果物（`metadata.json` / `replace-metadata.json` 等）の URL 記録フィールドには `"runtime"` を記録する。
-  利用側スキルは記録値ではなく target 名から設定を引いて**再解決する**（別のスキル実行では改めて 1 回解決する。`api_url` は従来どおり任意の固定値で、省略時は解決後の UI URL を使う）
+  **解決した URL は成果物・ログへ書かず**、成果物（`metadata.json` / `replace-metadata.json` 等）の記録フィールドのうち **`url_command` で解決した値が入る箇所**に `"runtime"` を記録する
+  （`api_url` は従来どおり任意の固定値で、固定値で指定していればその値を記録してよい。`api_url` を省略して解決後の UI URL を使う場合のみ `"runtime"` になる）。
+  利用側スキルは `"runtime"` の箇所を記録値ではなく target 名から設定を引いて**再解決する**（別のスキル実行では改めて 1 回解決する）
 - **成果物は新側だけ環境別**: `parity-replace` / `parity-diff` の成果物は `.replace/parity/<slug>/new/<target>/` に分離し、環境を切り替えても green 証跡・差分メタデータ・新側ベースラインを上書きしない
   （レイアウトの正本は各生産スキル）。現側は 1 環境で、`parity-suite` が `metadata.json` に選択した target 名を記録する（現側 target の変更はベースライン陳腐化として扱う）
 
