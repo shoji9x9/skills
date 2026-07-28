@@ -2,7 +2,7 @@
 
 同じ Playwright ランナーに寄せる（`request` フィクスチャで書けるため、2 baseURL の仕組みをそのまま流用できる）。
 
-`request` フィクスチャの baseURL は、選択した target の `api_url`（省略時は `url`）から解決した環境変数 `PARITY_CURRENT_API_URL` / `PARITY_NEW_API_URL` を参照する（UI と API が別 origin でも一貫する。本スキルが使うのは現側）。
+`request` フィクスチャの baseURL は、選択した target の `api_url`（省略時は `url`。`url_command` の target は解決後の UI URL）から解決した環境変数 `PARITY_CURRENT_API_URL` / `PARITY_NEW_API_URL` を参照する（UI と API が別 origin でも一貫する。本スキルが使うのは現側）。
 
 ## API の特性化（record/replay）
 

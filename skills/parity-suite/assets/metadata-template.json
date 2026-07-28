@@ -4,8 +4,8 @@
   "mode": "<feature | api-resource | batch>",
   "target": {
     "name": "<選択した current target 名（設定 targets の side: current。変更はベースライン陳腐化として扱う）>",
-    "ui_url": "<解決した UI の baseURL（PARITY_CURRENT_UI_URL）>",
-    "api_url": "<解決した API の baseURL（PARITY_CURRENT_API_URL。target の api_url、省略時は url）>",
+    "ui_url": "<解決した UI の baseURL（PARITY_CURRENT_UI_URL）。target が url_command のときは解決値を書かず \"runtime\"（値は成果物に書かない。利用側は target 名から再解決する）>",
+    "api_url": "<解決した API の baseURL（PARITY_CURRENT_API_URL。target の api_url、省略時は url）。固定の api_url はその値を記録し、api_url を省略して url_command で解決した UI URL を使う場合のみ \"runtime\">",
     "commit": "<現行リポジトリのコミット SHA。入手不可なら none>"
   },
   "run": {

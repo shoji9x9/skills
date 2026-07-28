@@ -7,6 +7,7 @@
 成果物のパスも疎通先も target で決まるため、最初に対象環境を確定する。候補は `skills.replace-strategy.targets` のうち **`side: new`** のものだけ（選択規則の正本は `replace-strategy` の `references/project-config.md`）。
 
 - `--target <name>` があればそれを使う。省略時は new 側の `default: true`、無ければ候補を提示してユーザーに確認する
+- `url_command` の target は**ここで 1 回だけ**コマンドを実行して URL を解決する（失敗・空出力は停止）。以降の工程（疎通・撮影・API 発行）は解決済みの値を再利用する
 - 存在しない名前・`side: current` の名前は**停止**する（勝手に読み替えない）
 - 旧スキーマ・旧レイアウトは**フォールバックとして読まない**。見つけたら移行を案内して停止する（自動で移さない・両方を読まない）。
   検出対象の旧キー・旧レイアウトの一覧と移行手順は `replace-strategy` の `references/project-config.md`「移行」を正本として参照する（ここで個別に列挙しない）
@@ -16,7 +17,7 @@
 選択 target に `pre_commands` / `start` / `check_urls` があれば**この順**で実行・確認してから疎通確認へ進む
 （各キーの意味論と実行順・失敗時の早期停止の正本は `browser-test` の `references/project-config.md`）。
 
-- `pre_commands` の失敗、`check_urls`（省略時は `url`）の稼働確認失敗はいずれも**早期停止**する（撮り始めてから落ちるのを避ける）
+- `pre_commands` の失敗、`check_urls`（省略時は `url`。`url_command` の target は解決後の URL）の稼働確認失敗はいずれも**早期停止**する（撮り始めてから落ちるのを避ける）
 - `start` は稼働していないときだけ実行する（配信型 target は `start` を持たないため、稼働確認のみで判定する）
 - シークレットが要るコマンドには `secrets.wrapper` を前置する（値は表示しない）
 
@@ -31,7 +32,7 @@
 | parity-suite 完了 | `.replace/parity/<slug>/metadata.json` の `suite.current_green: true`・`differ.validated_by_strength_gate: true` | 対象 slug の `parity-suite` |
 | parity-replace 新側 green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（**同じ `--target`** で新側 green にする） |
 | target 名の一致 | 同ファイルの `new.target` が解決した target 名と一致する | 停止（別環境の green 証跡を流用しない） |
-| Node.js と新側疎通 | Node.js が使える／選択 target の `url`（＝ `new.ui_url`）に疎通できる。api-resource モードは `api_url`（＝ `new.api_url`。省略時 `ui_url`）にも疎通できる | 停止（環境を整える） |
+| Node.js と新側疎通 | Node.js が使える／選択 target の `url`（＝ `new.ui_url`）に疎通できる。api-resource モードは `api_url`（＝ `new.api_url`。省略時 `ui_url`）にも疎通できる。`url_command` の target は解決後の URL へ疎通する（`new.ui_url` の記録は `"runtime"`） | 停止（環境を整える） |
 
 - 選択 target の `replace-metadata.json` が無い／`suite.new_green` が偽なら「**その環境ではまだ green 証跡が無い**」として停止する。別環境の証跡で代替しない（環境ごとに独立）
 - **parity-replace の「完了」を待つのではなく `suite.new_green` を前提とする。** 差分ゼロは本スキルとの往復で達成されるため、`parity-replace` 単体の完了条件に差分ゼロは含まれない

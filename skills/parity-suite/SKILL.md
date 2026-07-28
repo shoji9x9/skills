@@ -63,7 +63,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `parity_suite_dir` | パリティスイートの配置（未指定時 `e2e/`） |
 | `artifacts.{retention,storage,size_threshold_mb,overrides.<slug>}` | 大きなバイナリの保存先既定と機能ごとの上書き |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
-| `targets` | 実行対象環境。`side: current` から `--target` で選ぶ。選択した target の `url` が UI、`api_url`（省略時 `url`）が API 特性化の baseURL。`pre_commands` / `start` / `check_urls` があれば実行フロー 1 で起動・稼働確認に使う |
+| `targets` | 実行対象環境。`side: current` から `--target` で選ぶ。選択した target の `url`（`url_command` の target はコマンド実行で解決した URL）が UI、`api_url`（省略時はその UI URL）が API 特性化の baseURL。`pre_commands` / `start` / `check_urls` があれば実行フロー 1 で起動・稼働確認に使う |
 | `targets[].auth.roles` | ロール別の認証情報の環境変数**名**（認証不要の環境では `auth` ごと省略。扱いは [`references/auth.md`](references/auth.md)） |
 | `targets[].db.env_vars` | 現行 DB 接続の環境変数名。選択した current target のもの（DB を持たない環境では省略可） |
 | `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
@@ -80,7 +80,8 @@ parity-suite [--feature <slug>] [--target <name>]
 
 1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。`.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
    Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。
-   `--target` から現行環境を確定し、その target に `pre_commands` / `start` / `check_urls` があればその順で起動・稼働確認する（意味論と実行順の正本は `browser-test` の `references/project-config.md`。失敗したらそこで停止し、後続工程へ進まない）。
+   `--target` から現行環境を確定し（`url_command` の target はここで 1 回だけコマンドを実行して URL を解決する。失敗・空出力は停止し、以降は解決済みの値を再利用する）、
+   その target に `pre_commands` / `start` / `check_urls` があればその順で起動・稼働確認する（意味論と実行順の正本は `browser-test` の `references/project-config.md`。失敗したらそこで停止し、後続工程へ進まない）。
    選択した target の `url` / `api_url` への疎通と認証環境変数の存在確認（値は出さない）で早期に失敗する
 2. **対象決定**: `slug` を features.md と突き合わせる（無い slug は停止。自分で採番しない）。種別からモードを決める
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（詳細: [`references/baseline.md`](references/baseline.md)）
