@@ -110,7 +110,7 @@ skills:
 現・新の実行対象環境を環境名で複数定義し、各スキル実行時に `--target <name>` で選択する。local-dev / local-production / preview / develop など、同じスイートを当てる環境をここに並べる。
 
 - **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
-  実行順 `pre_commands` → `start` → `check_urls`・失敗時の早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
+  実行順 `url_command` の解決 → `pre_commands` → `start` → `check_urls`・失敗時の早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
   本ファイルが定義するのは `side`・`api_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
 - **スキーマ不変条件**（各スキルは target 解決時に検証し、違反したら**停止**して設定修正を促す）:
