@@ -96,7 +96,7 @@
 | データセットバージョンが上がった | 全組 | 同 `fingerprint.dataset_version` の不一致 |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
 | 反復が進んでいない（差が 0）のに `new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同 `new.commit`（ループ外で新側を触っており変更範囲を辿れない） |
-| `loop.changed_scope` が無い（範囲を記録していない `parity-replace` の証跡） | 全組 | 同上の欠落 |
+| `loop.changed_scope` が無い、または `null`（範囲が未確定・未記録の `parity-replace` の証跡） | 全組 | 同上（`null` は「範囲不明」であり、`pages: []`＝「描画に効く変更なし」の申告とは別物） |
 | 前反復で共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れた | 全組 | `loop.changed_scope.global` が真 |
 | `loop.changed_scope.pages` に現側 `noise_baseline[].page` のどれとも一致しない値がある | 全組 | 同 `pages` と `metadata.json.noise_baseline[].page`（語彙が噛み合わず範囲を突き合わせられない） |
 | 前反復で変更したページ | 該当ページの組 | `loop.changed_scope.pages` |
