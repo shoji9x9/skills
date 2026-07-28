@@ -1,0 +1,34 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: ./current-site
+      stack: [TypeScript, Astro]
+    new:
+      repo: ./new-site
+    targets:
+      # DB を持つ target は 1 つも無い（静的サイトのため意図的）
+      - name: current-test
+        side: current
+        url: http://localhost:8080
+        forbidden_actions:
+          - 問い合わせフォームの送信
+        default: true
+      - name: local-dev
+        side: new
+        url: http://localhost:4321
+        forbidden_actions: []
+        start: npm run dev
+        check_urls: []
+        default: true
+    dataset_mode: static
+    dataset_static_paths:
+      - content/works
+    verification_commands:
+      - npm run lint
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []

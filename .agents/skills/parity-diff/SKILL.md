@@ -66,7 +66,7 @@ parity-diff [--feature <slug>] [--target <name>]
 
 | キー | 読/書 | 用途 |
 |---|---|---|
-| `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（省略時は new 側の `default`）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**`db` を持たない target はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
+| `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（省略時は new 側の `default`）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
 | `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補 |
 | `component_diff_exceptions` | 読・書 | T が引けない箇所のインスタンス単位フォールバック。**本スキルが形式を定義する**（スキーマ: [`references/normalize.md`](references/normalize.md)）。**書くのはユーザー承認済みのみ・非破壊追記** |

@@ -1,0 +1,117 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-28T01:42:04Z",
+    "evals_run": [6, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 74.7,
+        "tokens": 174736,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target（current-staging）と選択した target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "「| 4 | **`dataset/metadata.json` の `current.target` 照合** | **不一致 → 停止** |」とし、「`current.target: \"current-staging\"` — ゴールデンデータが投入済みなのは **current-staging**」「今回の実行対象は **current-test**…**別 DB**（`CURRENT_DB_URL` と `CURRENT_STG_DB_URL`）」と根拠を挙げている。加えて `mode: \"db\"` なので static の照合免除は適用されないと明示している。"
+        },
+        {
+          "text": "「ベースラインとシードの環境不一致」として停止し、ベースライン採取（スクリーンショット・computed style・aria スナップショット）へ進んでいない",
+          "passed": true,
+          "evidence": "「## 結論: 手順 4 で停止します（ベースラインとシードの環境不一致）」と宣言。「シードされていない環境でベースラインを採ると、視覚 3 点セット・API 特性化・ノイズ基準値がすべて『別データ由来』になり…ここで先へ進めないのが正しい挙動です」と述べ、採取を実施していない。"
+        },
+        {
+          "text": "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
+          "passed": true,
+          "evidence": "「**案 A: 対象を current-staging に合わせる（即時・非破壊）**」と「**案 B: current-test にシードし直す**（`golden-dataset` をフェーズ A で `current-test` に対して実行し…）」の両案を提示し、推奨まで述べている。"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "「`.replace/parity/order-list/` は作成していません」と宣言。project-files は fixture と `diff -r` で差分なし、project-tree.txt にも fixture 以外の生成物は無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 77.1,
+        "tokens": 182821,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target が null であることを理由に「ベースラインとシードの環境不一致」として停止していない",
+          "passed": true,
+          "evidence": "「### データセット整合（フロー 4）について — これは阻害要因ではありません」と節を立て、「`current-test` との『環境不一致』ではないため、ここでの停止ではない点を明確にしておきます」と明示。停止理由はフロー 1（疎通・ソース不在）としている。"
+        },
+        {
+          "text": "dataset_mode: static ではゴールデンデータが特定環境に紐づかないため current.target の照合を行わない契約に触れている",
+          "passed": true,
+          "evidence": "「`mode: static` かつ `current.target: null` です。これは**静的データがリポジトリ内にあり特定環境に紐づかない**ケースなので、仕様どおり **target 照合は行いません**」と述べ、設定側の `dataset_mode: static` / `dataset_static_paths: [content/works]` との整合も確認している。"
+        },
+        {
+          "text": "dataset_version として metadata.json の version（1）を成果物へ記録する方針を示している",
+          "passed": false,
+          "evidence": "`.replace/dataset/metadata.json` を読み `version: 1` を検証済み前提の表に記載してはいるが、それを成果物へ `dataset_version` として記録する方針の言及は無い。実行がフロー 1（現行アプリへ疎通不可・`./current-site` 不在）で停止し、記録はフロー 8 の工程のため到達していない。使い捨て環境では現行アプリを起動できず到達不能な検査項目であり、アサーション側の設計不備と判断する（スキル側の欠陥ではない）。"
+        },
+        {
+          "text": "停止する場合はデータセットの target 照合ではなく別の前提（現行アプリへの疎通・Playwright の可否など）が理由であることを明示している",
+          "passed": true,
+          "evidence": "「### 停止理由（フロー 1）」として「1. **現行 target に疎通できない** — `http://localhost:8080` へ接続不可（`curl: (7) Could not connect`）」「2. 自動起動の手段が設定にない」「3. 現行アプリのソースが無い」を挙げ、Playwright 前提は「✅ mise 経由で Node v24.18.0 が利用可能。**設計不成立による停止ではない**」と切り分けている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.875,
+        "stddev": 0.1768,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 75.9,
+        "stddev": 1.6971,
+        "min": 74.7,
+        "max": 77.1
+      },
+      "tokens": {
+        "mean": 178778.5,
+        "stddev": 5716.9583,
+        "min": 174736,
+        "max": 182821
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.88",
+      "time_seconds": "+75.9",
+      "tokens": "+178778"
+    }
+  },
+  "notes": []
+}

@@ -3,8 +3,10 @@
 <!-- golden-dataset が .replace/dataset/verification.md として生成する。このファイルの形式の正本は golden-dataset が定義する。 -->
 <!-- フェーズ A（現行側）とフェーズ B（新側・slug ごと）を分けて記録する。 -->
 <!-- 各行は例。実際の検査結果で置き換える。 -->
+<!-- dataset_mode: static では「テーブル」を静的データの単位、「外部キー整合・必須項目」をファイル間の参照整合・必須フィールドと読み替える。 -->
 
 - version: （metadata.json の version と一致）
+- mode: （db | static。metadata.json の mode と一致）
 - 最終更新: （ISO 8601）
 
 ## フェーズ A（現行フェーズ）
@@ -19,6 +21,16 @@
 | 必須項目 | （例: NOT NULL 制約違反なし） |
 | 件数 | （例: 期待件数と一致） |
 | 冪等性（2 回実行で同一状態） | （例: 確認済み） |
+
+### フィンガープリント（`dataset_mode: static` のみ）
+
+<!-- metadata.json の current.fingerprint の算出方法を残す（値そのものは metadata.json が持つ）。db では本節を省く。 -->
+
+| 項目 | 内容 |
+|---|---|
+| 対象 | （例: dataset_static_paths 配下の全生成物） |
+| 算出方法 | （例: パスを昇順に並べ「相対パス + NUL + 内容」を連結して SHA-256） |
+| 書き込み範囲の確認 | （例: 生成・削除の対象がすべて dataset_static_paths 配下に収まることを確認済み） |
 
 ### カバレッジ
 

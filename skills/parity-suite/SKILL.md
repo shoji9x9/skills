@@ -65,7 +65,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `targets` | 実行対象環境。`side: current` から `--target` で選ぶ。選択した target の `url`（`url_command` の target はコマンド実行で解決した URL）が UI、`api_url`（省略時はその UI URL）が API 特性化の baseURL。`pre_commands` / `start` / `check_urls` があれば実行フロー 1 で起動・稼働確認に使う |
 | `targets[].auth.roles` | ロール別の認証情報の環境変数**名**（認証不要の環境では `auth` ごと省略。扱いは [`references/auth.md`](references/auth.md)） |
-| `targets[].db.env_vars` | 現行 DB 接続の環境変数名。選択した current target のもの（DB を持たない環境では省略可） |
+| `targets[].db.env_vars` | 現行 DB 接続の環境変数名。選択した current target のもの（DB を持たない環境では省略可）。本スキルは**読むだけ**で投入しないため `db.seedable` は見ない |
 | `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出で読む（[`references/strength-gate.md`](references/strength-gate.md)） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む） |
@@ -87,6 +87,7 @@ parity-suite [--feature <slug>] [--target <name>]
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（詳細: [`references/baseline.md`](references/baseline.md)）
 4. **データセットの投入先・バージョン確認**: `.replace/dataset/metadata.json` の `current.target`（`golden-dataset` がフェーズ A で投入した current target 名）が手順 1 で確定した target と一致することを確認する。
    一致しなければ「ベースラインとシードの環境不一致」として停止し、同じ target へ投入するか target 選択を変えるようユーザーに促す。
+   **`current.target` が `null` のときは照合しない**（`mode: static` ＝ ゴールデンデータがリポジトリ内の静的データで、特定の環境に紐づかないため。契約の正本は `replace-strategy` の `references/project-config.md`）。
    続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
 5. **authoring**: ロケータマッピング（現側）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ）→ 手書き aria → API 特性化。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。

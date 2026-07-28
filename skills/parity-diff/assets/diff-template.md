@@ -22,7 +22,7 @@
 | target の起動・稼働確認（pre_commands → start → check_urls） | （実行したもの／無し） | （OK／停止） |
 | parity-suite 完了（suite.current_green・validated_by_strength_gate＋モード別の追加要求） | （値） | （OK／停止） |
 | parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | （true／false） | （OK／停止） |
-| データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>.<target>`） | （3 値。db を持たない target は「免除」） | （一致／免除／陳腐化→差し戻し先） |
+| データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>.<target>`） | （3 値。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （一致／免除／陳腐化→差し戻し先） |
 | 条件一致検証（viewports / animations / masks / states / environment の 5 項目） | （項目ごとの結果。environment は原則 unverified） | （OK／停止） |
 | 新側の自己ノイズ（noise_baseline_new と現側 noise_baseline の対比） | （組ごとの値） | （OK／乖離→停止） |
 | 差分器バージョン一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |
@@ -68,14 +68,14 @@
 
 ## 6. 未検証領域
 
-<!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・db を持たない target のデータ依存差分。確認済みにしない。 -->
+<!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・投入対象でない target のデータ依存差分。確認済みにしない。 -->
 
 | 箇所 | 種別（写らない／宣言できない構造差／アニメーション／撮影条件／データ依存） | 理由 |
 |---|---|---|
 | （例: 保存ボタンのフォーカスリング） | 宣言できない構造差 | クラス/トークンのプロパティ差に還元できない |
 | （例: 一覧のフェードイン） | アニメーション | 停止させて比較するため扱えない |
 | （例: 撮影環境の一致） | 撮影条件 | capture_conditions.environment は自由記述で機械照合できない（unverified: 理由） |
-| （例: 一覧の表示件数・並び） | データ依存 | 選択 target が db を持たずゴールデンデータ未投入。実装差かデータ差か判別できない |
+| （例: 一覧の表示件数・並び） | データ依存 | 選択 target が投入対象外（db 無し／seedable 無し）でゴールデンデータ未投入。実装差かデータ差か判別できない |
 
 ## 7. 収束判定
 
