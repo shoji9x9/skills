@@ -144,8 +144,15 @@ rc=0
 # be large. The content snapshot keeps only lightweight files needed for grading.
 (cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -print | sort) >"${out}/project-tree.txt"
 snapshot_dir="${out}/project-files"
+skipped_log="${out}/project-files-skipped.txt"
 rm -rf -- "${snapshot_dir}"
 mkdir -p -- "${snapshot_dir}"
+# Record files that matched the snapshot extensions but still did not make it in
+# (size caps, unreadable, copy failure). Many eval assertions read "<path> is
+# absent from project-files" as "the skill did not create it"; without this log a
+# capped-out file is indistinguishable from one that was never written and the
+# grading silently goes wrong. Always created: 0 lines means nothing was dropped.
+: >"${skipped_log}"
 
 total_bytes=0
 max_file_bytes=$((256 * 1024))
@@ -156,7 +163,11 @@ while IFS= read -r -d '' file; do
 	.git/* | .claude/skills/* | node_modules/* | pnpm-lock.yaml | package-lock.json | yarn.lock)
 		continue
 		;;
-	*.md | *.txt | *.json | *.yml | *.yaml | *.toml | *.sh | *.js | *.mjs)
+	# .ts / .tsx / .sql are the languages the replace-strategy skill family writes
+	# into the target project (golden-dataset の投入ツール〈typescript | sql〉,
+	# parity-suite の Playwright スイート・ロケータマッピング, parity-replace の新側実装).
+	# Assertions name those files directly, so they must be gradable from the snapshot.
+	*.md | *.txt | *.json | *.yml | *.yaml | *.toml | *.sh | *.js | *.mjs | *.ts | *.tsx | *.sql)
 		;;
 	*)
 		continue
@@ -166,12 +177,27 @@ while IFS= read -r -d '' file; do
 	# The agent may leave unreadable or vanishing files behind; under `set -e` a
 	# failed wc/cp here would kill the whole run after the expensive eval, so skip
 	# the file and keep snapshotting instead.
-	size="$(wc -c 2>/dev/null <"${proj}/${rel}")" || continue
+	size="$(wc -c 2>/dev/null <"${proj}/${rel}")" || {
+		printf '%s\tunreadable\n' "${rel}" >>"${skipped_log}"
+		continue
+	}
 	size="${size//[[:space:]]/}"
-	[ "${size}" -le "${max_file_bytes}" ] || continue
-	[ $((total_bytes + size)) -le "${max_total_bytes}" ] || break
+	if [ "${size}" -gt "${max_file_bytes}" ]; then
+		printf '%s\tover-per-file-cap (%s B > %s B)\n' "${rel}" "${size}" "${max_file_bytes}" >>"${skipped_log}"
+		continue
+	fi
+	# Skip rather than break: find's traversal order is arbitrary, so stopping at
+	# the first file that would exceed the total cap can drop small
+	# grading-critical artifacts that merely came later in the walk.
+	if [ $((total_bytes + size)) -gt "${max_total_bytes}" ]; then
+		printf '%s\tover-total-cap (total %s B)\n' "${rel}" "${total_bytes}" >>"${skipped_log}"
+		continue
+	fi
 	mkdir -p -- "${snapshot_dir}/$(dirname -- "${rel}")"
-	cp -- "${proj}/${rel}" "${snapshot_dir}/${rel}" || continue
+	cp -- "${proj}/${rel}" "${snapshot_dir}/${rel}" || {
+		printf '%s\tcopy-failed\n' "${rel}" >>"${skipped_log}"
+		continue
+	}
 	total_bytes=$((total_bytes + size))
 done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -type f -print0)
 
