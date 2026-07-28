@@ -28,9 +28,9 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 - **無指定**: `.replace/dataset/metadata.json` が無ければフェーズ A（初回）。あれば用途を確認する（データ追加＝フェーズ A 再実行か、フェーズ B か）
 - **データセットの実体は設定の `dataset_mode`**（既定 `db`）。`db` は各 target の DB、`static` はリポジトリ内の静的データ（`dataset_static_paths` 配下）で、
   **`static` は投入先 target に `db` を要求しない**（DB を持たない静的サイト等でもフェーズ A が成立する）。契約の正本は `replace-strategy` の `references/project-config.md`
-- `--target <name>` は**投入先の実行対象環境**。フェーズ A は設定の `targets` のうち `side: current`、フェーズ B は `side: new` のものだけを候補にする。
+- `--target <name>` は**投入先の実行対象環境**。フェーズ A は設定の `targets` のうち `side: current`、フェーズ B は `side: new` のものだけを候補にする（本スキルが対象とする側の宣言はここが正本）。
   `dataset_mode: db` ではさらに**`db.seedable: true` の target に限る**（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れない）。
-  省略時はその側の `default: true` の target を使い、無ければ候補を提示して確認する（存在しない名前・側違いは停止。選択規則の正本は `replace-strategy` の `references/project-config.md`）
+  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
 - `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
 - 自然文でも発動する:「ゴールデンデータセットを作って」「テストデータを投入して」

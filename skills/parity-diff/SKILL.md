@@ -21,8 +21,9 @@ parity-diff [--feature <slug>] [--target <name>]
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
-- `--target` は差分を検出する**新側の環境**（`skills.replace-strategy.targets` のうち `side: new` のもの）。省略時はその側の `default: true`、無ければ候補を提示して確認する。
-  存在しない名前・`side: current` の名前は**停止**する（読み替えない。選択規則の正本は `replace-strategy` の `references/project-config.md`）。**成果物は環境ごとに分かれる**（下記「成果物」）
+- `--target` は差分を検出する**新側の環境**（`skills.replace-strategy.targets` のうち `side: new` のもの。本スキルが対象とする側の宣言はここが正本）。
+  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）。
+  **成果物は環境ごとに分かれる**（下記「成果物」）
 - **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）
 - 自然文でも発動する:「現新の差分を検出して」「差分を分類して」「この画面の差を見て」
 
@@ -67,7 +68,7 @@ parity-diff [--feature <slug>] [--target <name>]
 
 | キー | 読/書 | 用途 |
 |---|---|---|
-| `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（省略時は new 側の `default`）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
+| `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
 | `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補 |
 | `component_diff_exceptions` | 読・書 | T が引けない箇所のインスタンス単位フォールバック。**本スキルが形式を定義する**（スキーマ: [`references/normalize.md`](references/normalize.md)）。**書くのはユーザー承認済みのみ・非破壊追記** |
