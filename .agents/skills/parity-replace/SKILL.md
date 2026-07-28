@@ -44,9 +44,10 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
   - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
-  - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が `db` を持つ場合）= `.replace/dataset/metadata.json` の
+  - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
     `phase_b.<slug>.<target>.dataset_version` が現在の `version` と一致すること。欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。
-    `db` を持たない target はフェーズ B の対象外（投入しないため不要。データ整合の未検証は `parity-diff` が扱う）
+    **投入対象**は設定の `dataset_mode` で決まる——`db`（既定）なら `db.seedable: true` の target のみ、`static` ならすべての target（契約の正本は `replace-strategy` の `references/project-config.md`）。
+    投入対象でない target はフェーズ B の対象外（投入しないため不要。データ整合の未検証は `parity-diff` が扱う）
 - **パスは推測せず `.replace/parity/<slug>/metadata.json` から引く**（スイート・現側マッピング・操作アダプタの実パス）。`slug` は `.replace/features.md` から引き、自分で採番しない
 
 ## 厳守の制約（禁止事項）
@@ -76,7 +77,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。本スキルがユーザー確認の上で宣言し、`parity-diff` が比較の正規化に使う |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**） |
 | `new.repo` | 新側リポジトリ（実装対象）。コミット SHA は設定ではなく `replace-metadata.json` に記録する |
-| `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`pre_commands` → `start` → `check_urls` の順に起動して UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db` の有無は投入対象かの契約（フェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
+| `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`pre_commands` → `start` → `check_urls` の順に起動して UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
 | `targets[].on_diff` | 選択した target で要対応差分が出たときの対応手順を書いた Markdown のパス（任意。省略時は修正 → 対象 target で再テスト）。本スキルでの解釈手順は [`references/diff-loop.md`](references/diff-loop.md) |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target のロール別認証情報（`<ロール名>.{user_name_env,password_env}`。値は環境変数の**名前**。認証不要の環境では省略可）と、実施しない UI / API 操作（未定義時の扱いは正本に従う）。いずれも target ごとの定義のみで、側単位のフォールバックは持たない |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
@@ -100,7 +101,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 4. **新側ロケータマッピングの充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
    **この「既定は不要」は新側マッピングだけの話であり、フェーズ B は例外ゼロでも省略しない。** データ依存 assertion を green にするには新側 DB への投入が要るため、
-   選択した target が `db` を持つなら新側スキーマが揃った時点で `golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行する（`db` を持たない target では実行しない）。
+   選択した target が投入対象なら新側スキーマが揃った時点で `golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行する（投入対象でない target では実行しない）。
    そのうえで選択した target を起動し（`pre_commands` → `start` → `check_urls` の順。失敗したら早期停止）、解決した URL を `new` プロジェクトの baseURL に渡す。
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
 5. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
@@ -124,7 +125,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   `start` の無い配信型 target（デプロイで更新される環境）は稼働中のコードが同じ commit とは限らないため、`commit_check` があればその標準出力の SHA と照合し、
   無ければ「対象環境に commit `<SHA>` がデプロイ済みか」をユーザーに確認してから適用する（確認が取れなければ適用しない）
 - **飛ばす手順**: 2（ページ分割）・3（実装）・5（見た目の系統差）・6（敵対的レビュー）。手順 4 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
-- **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が `db` を持つ場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` ＝ 現在の `version` を確認し、
+- **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` ＝ 現在の `version` を確認し、
   欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の起動（`pre_commands` → `start` → `check_urls`）→
   スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 7（`new/<target>/replace-metadata.json` へ証跡を記録）
 - **green にならなければ、まずデータを疑う**（フェーズ B 未実施・データセットバージョンの不一致）。次に環境差（URL・起動・外部依存・認証）を疑う。
@@ -154,7 +155,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **`parity-suite` から引き継ぐもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、Playwright `projects` の `current` / `new` という名前（`new` の baseURL を選択した target から解決して渡すことと green 化は本スキルの担当。配線の正本は `parity-suite`）、脆弱マッピングを記録したマッピング層コメント。
   **assertion を変えた場合（例外充填・穴埋め）は `parity-suite` の強度ゲート再実行が必要**（詳細: [`references/new-mapping.md`](references/new-mapping.md)）
 - **`golden-dataset`（フェーズ B）**: 新側スキーマを作った後（実装フェーズで確定した時点）、`golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行して新側 DB へ投入する。
-  **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は `db` を持つ target のみ（持たない target には投入しない）
+  **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は投入対象の target のみ（対象外の target には投入しない）
 - **`parity-diff` と往復**: 本スキルで**選択した target に対して**新を green にした後、`parity-diff` を**同じ target** で実行して差分を検出し、差分があれば本スキルへ差し戻す。
   引き渡しは環境別ディレクトリ `.replace/parity/<slug>/new/<target>/`（本スキルが `replace-metadata.json` を書き、`parity-diff` がそれを読んで `diff.md` を書く）。終了条件・上限・再入手順は上記「往復ループ」
 - **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start`（モード未指定）を 1 回。実装は本スキルが行うため **`--commit` / `--pr`（実装を内包する）は使わず**、commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）

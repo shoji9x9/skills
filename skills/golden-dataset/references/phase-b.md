@@ -1,27 +1,32 @@
 # フェーズ B（新側への写像・投入・現新一致検証）
 
-フェーズ B は対象機能の `parity-replace` が新側スキーマを作った後に、slug ごとに再実行して進める。**フェーズ A の論理データが共通の正本であり、フェーズ B はそれを新側スキーマへ写像するだけ**で、新しいデータを作らない（`version` の運用は [`versioning.md`](versioning.md) が正本）。
+フェーズ B は対象機能の `parity-replace` が新側の受け皿を作った後に、slug ごとに再実行して進める。**フェーズ A の論理データが共通の正本であり、フェーズ B はそれを新側へ写像するだけ**で、新しいデータを作らない（`version` の運用は [`versioning.md`](versioning.md) が正本）。
+
+「新側の受け皿」は設定の `dataset_mode` によって変わる——`db`（既定）では新側 DB スキーマ、`static` では新側リポジトリの静的データ形式である。
 
 ## 前提
 
-- 対象 slug の**新側スキーマ**（`parity-replace` の実装）が存在すること。無ければ停止する
-- 投入先 target（`side: new`。`--target` で選択、省略時は new 側の `default`）の `db.env_vars` の接続が確認できること（値は出さず存在確認のみ、`secrets.wrapper` 前置）。
-  **対象は `db` を持つ `side: new` の target のみ**——`db` を書かない target は投入対象外であり、フェーズ B の記録も作らない（`parity-diff` がその target を「データ整合未検証」として扱う。契約の正本は `replace-strategy` の `references/project-config.md`）
-- `references.db_semantics` の reference が存在すること。無ければ停止して整備を促す
+- 対象 slug の**新側の受け皿**（`parity-replace` の実装したスキーマ／静的データ形式）が存在すること。無ければ停止する
+- 投入先 target（`side: new`。`--target` で選択、省略時は new 側の `default`）が書き込みを許可されていること（契約の正本は `replace-strategy` の `references/project-config.md`）:
+  - **`dataset_mode: db`**: 対象は **`db.seedable: true` の `side: new` target のみ**。`db` を書かない target（DB に触れない）と `env_vars` だけの target（読み取り専用）は投入対象外であり、フェーズ B の記録も作らない
+    （`parity-diff` がその target を「データ整合未検証」として扱う）。`db.env_vars` の接続を確認する（値は出さず存在確認のみ、`secrets.wrapper` 前置）
+  - **`dataset_mode: static`**: `db` を要求しない。`dataset_static_paths` 配下が新側リポジトリで書き込めることを確認する
+- `references.db_semantics` の reference が存在すること。無ければ停止して整備を促す（`static` では静的データ形式の対応と意味論差を記した同キーの reference）
 
-## 論理データ → 新側スキーマの写像
+## 論理データ → 新側への写像
 
-現行 DB と新 DB は型・意味論が異なりうる。写像層はこの差を吸収する。
+現行と新側は型・意味論が異なりうる。写像層はこの差を吸収する。
 
-- `references.db_semantics` の**型マッピングと意味論差**を適用する（現行 → 新の型変換、空文字と NULL の扱い、collation による並び順など）
+- `references.db_semantics` の**型マッピングと意味論差**を適用する（現行 → 新の型変換、空文字と NULL の扱い、collation による並び順など。`static` ではフィールド構成・エンコーディング・日付表記・ファイル分割の差）
 - 意図的差異レジストリ `intentional_diffs.may_change`（型変換に伴う差異など）に該当する差を写像で吸収する
 - 論理データの**意味は保つ**。写像は表現形式の変換であって、値の意味を変えるものではない
 
 ## 新側投入
 
-投入ツールに新側ターゲットを追加し（[`seeding-tool.md`](seeding-tool.md)）、選択した新側 target の `db.env_vars` の接続先へ投入する。削除 → 投入 → 検証の構造は共通のまま、接続先と写像層が新側向けになる。
+投入ツールに新側ターゲットを追加し（[`seeding-tool.md`](seeding-tool.md)）、フェーズ A と同じ 2 枚のゲート（設定由来・自己申告）を通してから、`db` では選択した新側 target の `db.env_vars` の接続先へ投入し、`static` では新側リポジトリの `dataset_static_paths` 配下へ生成する。削除 → 投入 → 検証の構造は共通のまま、書き込み先と写像層が新側向けになる。
 
 **フェーズ B は新側 target ごとに実行する。** 同じ DB を複数 target が共有する場合も、target ごとに実行して記録を残す（投入ツールは冪等なので再実行は安全）。
+`static` では生成物が target をまたいで同一になるため、target ごとに意味を持つのは**投入後の検証**（その target が実際にゴールデンデータを配信しているか）である。検証は target ごとに行い、記録も target ごとに残す。
 
 ## 現新一致検証
 

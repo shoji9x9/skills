@@ -27,7 +27,8 @@ skills:
         url: <URL> # UI の baseURL。current 側は測定・特性化の対象環境（本番ではないテスト環境）
         api_url: <URL> # API の baseURL。UI と別 origin のときだけ指定する（省略時は url を使う）
         db:
-          env_vars: [CURRENT_DB_URL] # この環境の DB 接続情報を持つ環境変数の「名前」。値は書かない。書く＝golden-dataset の投入対象（書かない target の DB にスキルは触れない）
+          env_vars: [CURRENT_DB_URL] # この環境の DB 接続情報を持つ環境変数の「名前」。値は書かない。書く＝スキルが接続を読んでよい（書かない target の DB にスキルは一切触れない）
+          seedable: true # true のときだけ golden-dataset の投入対象。省略・false は読み取り専用接続（接続は読むが削除・投入をしない）
         auth: # この環境の認証情報。ロールごとに環境変数の「名前」を持つ（認証不要の環境では省略。単一ロールなら 1 ロールでよい）
           roles:
             admin:
@@ -36,7 +37,7 @@ skills:
             approver:
               user_name_env: CURRENT_APPROVER_USER
               password_env: CURRENT_APPROVER_PASS
-        forbidden_actions: # この環境で実施しない UI / API 操作（投入ツール〈db.env_vars 経由〉には適用しない。空リスト = すべて実施可、未定義 = 読み取り専用）
+        forbidden_actions: # この環境で実施しない UI / API 操作（投入ツール〈db.seedable 経由〉には適用しない。空リスト = すべて実施可、未定義 = 読み取り専用）
           - データの削除
         default: true # --target 省略時に使う target。側ごとに 1 つ（同じ側に複数あれば停止）
       - name: local-dev
@@ -45,6 +46,7 @@ skills:
         api_url: <URL>
         db:
           env_vars: [NEW_DB_URL]
+          seedable: true
         auth:
           roles:
             admin:
@@ -55,11 +57,11 @@ skills:
         start: <コマンド> # 長時間実行する起動コマンド（稼働していないときだけ実行する。稼働判定は check_urls）
         check_urls: [] # 稼働確認に使う URL（省略時は url のみ）
         default: true
-      - name: develop # 例: PR マージ後に自動デプロイされる環境（実体は開発環境。テスト用 DB を持つなら db を書いてよい）
+      - name: develop # 例: PR マージ後に自動デプロイされる環境（実体は開発環境。実データを持つなら seedable を書かず読み取り専用にする）
         side: new
         url: <URL>
         db:
-          env_vars: [DEVELOP_DB_URL]
+          env_vars: [DEVELOP_DB_URL] # seedable を書かない＝読み取り専用。バッチの出力一致検証などで DB 状態は読むが、削除・投入はしない
         auth:
           roles:
             admin:
@@ -81,6 +83,8 @@ skills:
       wrapper: "" # 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
     parity_suite_dir: e2e/ # パリティスイートの配置（parity-suite が読む。未指定時は e2e/）
     dataset_tool_dir: seed/ # golden-dataset の投入ツールの配置先（golden-dataset が読む。未指定時は seed/）
+    dataset_mode: db # ゴールデンデータセットの実体（下記「データセットの実体」）。db（既定・省略可）| static
+    dataset_static_paths: [] # dataset_mode: static のとき必須。投入ツールが生成・削除してよいパス（これ以外へ書いたら停止）
     verification_commands: # 完了前に実行する検証コマンド列（静的解析・単体テスト・統合テスト等。parity-replace が読む。固有のツール名は設定側に置く）
       - <コマンド> # 環境準備・起動・URL 解決は含めない（それらは targets の pre_commands / start / check_urls）。環境に依存しないコード検証のため、どの target でも同じ列を一律に実行する
     artifacts:
@@ -120,18 +124,28 @@ skills:
   - 各 target は `url`（未開発は `none`）と `url_command` の**どちらか一方だけ**を持つ（両方あるのも、どちらも無いのも停止する）
   - `url_command` の target には `default: true` を付けてよい（`url: none` と違い実行可能な環境を指すため。解決に失敗すれば実行時に停止する）
   - `name` は小文字英数とハイフンのみで、**全 target を通して一意**（側をまたいだ同名も不可。成果物ディレクトリ名に使うため）
+  - `db.seedable: true` の target は `db.env_vars` を持つ（接続先を知らずに投入はできない。`env_vars` 無しの `seedable` は停止する）
+  - `dataset_mode: static` なら `dataset_static_paths` が 1 つ以上ある（無ければ書き込み範囲を限定できないため停止する）
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
 - **選択規則**: 各スキルは自分が対象とする側の target だけを候補にする——`parity-suite`・`golden-dataset`（フェーズ A）は `side: current`、`parity-replace` / `parity-diff`・`golden-dataset`（フェーズ B）は
   `side: new`（`side` は設定の値であり、スキルの引数ではない）。`--target` 省略時はその側で `default: true` の target を使い、無ければ候補を提示してユーザーに確認する。存在しない名前・側違いの名前は停止する（勝手に読み替えない）
 - **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい）
-- **`db` の有無は契約**: `db.env_vars` を書いた target は `golden-dataset` の投入対象（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target）。
-  同じ DB を複数 target が共有する場合も target ごとにフェーズ B を実行して記録する（投入ツールは冪等なので再実行は安全）。
-  **`db` を書かない target の DB にはスキルは一切触れない**——`golden-dataset` は投入対象にせず、`parity-diff` はデータセットバージョンの三者一致を免除する代わりに
-  「ゴールデンデータ未投入のため**データ依存の差分は実装差かデータ差か判別できない＝未検証**」を `diff.md` に明記する（実データを持つ環境などを想定した宣言）
+- **`db` は「接続を知っている」、`db.seedable` は「シードしてよい」——2 段の契約**（`dataset_mode: db` のときの投入先解決の正本。`static` の扱いは下記「データセットの実体」）:
+
+  | `db` の宣言 | 意味 | `golden-dataset` | 読み取り（バッチの出力一致検証など） |
+  |---|---|---|---|
+  | 未定義 | この target の DB にスキルは**一切触れない** | 投入対象外 | しない |
+  | `env_vars` のみ | 読み取り専用接続 | 投入対象外 | する |
+  | `env_vars` ＋ `seedable: true` | 投入してよい環境 | 投入対象（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target） | する |
+
+  - **`seedable` は投入の設定由来ゲート**である。`golden-dataset` は自己申告の「本番でないことの確認ゲート」に加えてこのゲートを通す（安全弁を 2 枚にし、設定ミス・判断ミスの単一障害点を無くすため）。既定は deny——省略・`false` は読み取り専用として扱う
+  - 同じ DB を複数 target が共有する場合も target ごとにフェーズ B を実行して記録する（投入ツールは冪等なので再実行は安全）
+  - **投入対象外の target**（`db` 未定義／`seedable` なし）では、`parity-diff` はデータセットバージョンの三者一致を免除する代わりに
+    「ゴールデンデータ未投入のため**データ依存の差分は実装差かデータ差か判別できない＝未検証**」を `diff.md` に明記する（実データを持つ配信型環境などを想定した宣言）
 - **`auth` はロール構造**: `roles.<ロール名>` の下に `user_name_env` / `password_env`（値は環境変数の**名前**。他の要素は `<論理名>_env` で追加できる）。
   認可はそれ自体が仕様であり、ロール別の代表ユーザー・storageState の扱いは `parity-suite` の `references/auth.md` が正本。認証不要の環境では `auth` ごと省略する
-- **`forbidden_actions` の適用範囲**: 対象は**アプリへの UI / API 操作**であり、`db.env_vars` 経由の投入ツール（`golden-dataset`）には適用しない
-  （投入の安全弁は golden-dataset の「本番でないことの確認ゲート」が担う）。**空リストは「すべて実施可」、未定義は「読み取り専用」で意味が異なる**。
+- **`forbidden_actions` の適用範囲**: 対象は**アプリへの UI / API 操作**であり、`db` 経由の投入ツール（`golden-dataset`）には適用しない
+  （投入の安全弁は上記 `db.seedable`〈`static` では `dataset_static_paths`〉と golden-dataset の「本番でないことの確認ゲート」の 2 枚が担う）。**空リストは「すべて実施可」、未定義は「読み取り専用」で意味が異なる**。
   書き込みを許可しない target では、parity 系はスイートの書き込み系スペックを実行せず「未検証」として記録する
 - **ノイズ基準値は現側 1 環境の測定値**: `parity-suite` が current 側で測った `noise_baseline` を新側の全 target に流用できるとは限らない（CDN・フォント読み込み等で環境ノイズは変わる）。
   `parity-diff` は新側撮影時に自己ノイズを測って乖離が大きければ停止する（正本: `parity-diff` の `references/capture-new.md`）
@@ -175,6 +189,21 @@ skills:
 4. preview で再テストする
 ```
 
+## データセットの実体（`dataset_mode` / `dataset_static_paths`）
+
+ゴールデンデータセットの実体が **DB にあるか、リポジトリ内の静的データにあるか**を宣言する。`golden-dataset` の投入先解決と、`parity-suite` / `parity-diff` の照合条件がここで分岐する。
+
+| `dataset_mode` | データの実体 | フェーズ A の「投入」 | 投入の設定由来ゲート |
+|---|---|---|---|
+| `db`（既定・省略可） | 各 target の DB | `db.seedable: true` の `side: current` target へ削除 → 投入 | `db.seedable: true` |
+| `static` | リポジトリ内の静的データ（JSON / Markdown / フィクスチャ等） | `dataset_static_paths` 配下へ投入ツールが**生成** | `dataset_static_paths`（配下以外へ書いたら停止） |
+
+- **`static` では投入先 target に `db` を要求しない。** DB を持たない静的サイト等でもフェーズ A が成立し、`parity-suite` の「データ不足」差し戻し → フェーズ A 再実行（`version` +1 → ベースライン再取得）のループが回る
+- **`dataset_static_paths` は投入ツールの書き込み範囲そのもの**である。生成・削除はこの配下だけに限り、外へ書こうとしたら停止する（`db` 側の `seedable` に対応する安全弁）
+- `static` でも冪等・決定論・`version` 運用・フェーズ A / B の分割は `db` と同じ。フェーズ B は同じ論理データを**新側の静的データ形式へ写像して生成**し、投入先 target で現新一致を検証する
+- **`dataset_mode` はプロジェクト単位で現・新の両側に適用する。** 片側だけ実体が異なる構成（現行は静的・新側は DB 等）は本契約では表現できない。
+  そう判明したら（例: フェーズ B で新側の受け皿が宣言と違う実体だった）`golden-dataset` は片側だけ進めず、停止してユーザーに確認する
+
 ## 移行（旧キーからの更新）
 
 旧スキーマ（単一 URL・側ごとの DB／認証・単一リストの禁止操作・`static_analysis`）からは次の対応で移行する。**スキルは旧キーをフォールバックとして読まない**——旧キーを見つけたら、この移行手順を示して停止する。
@@ -186,13 +215,20 @@ skills:
 |---|---|
 | `current.url` | `targets` に `side: current` のエントリを作り `url` へ（`default: true` を付ける） |
 | `new.url` | `targets` に `side: new` のエントリを作り `url` へ（値が `none` の場合は `url: none` のまま移すが、**`default: true` は付けない**——動く target ができた時点で付ける） |
-| `current.db` / `new.db` | 対応する側の各 target の `db.env_vars` へ（**投入してよい環境にだけ**書く。書かない target の DB にはスキルは触れない） |
+| `current.db` / `new.db` | 対応する側の各 target の `db.env_vars` へ（DB を**読んでよい環境にだけ**書く。書かない target の DB にはスキルは触れない）。**投入してよい環境にはさらに `db.seedable: true` を足す**（下記） |
 | `auth.current` / `auth.new` | 対応する側の各 target の `auth.roles.<ロール名>.{user_name_env,password_env}` へ。旧フラットリストのどの変数がユーザー名／パスワードかは**名前から推測せずユーザーに確認**する。旧 `auth.new` が空リストだった場合は `auth` を省略のまま移行せず、`setup` で新側の認証情報を確認して埋める |
 | `forbidden_actions`（単一リスト） | `side: current` の target の `forbidden_actions` へ。**新側 target には `forbidden_actions: []` を明示的に置く**（空リスト＝すべて実施可。未定義＝読み取り専用とは意味が異なる） |
 | `static_analysis` | `verification_commands` へ（コマンド列は変更不要。環境準備・起動が混ざっていたら target の `pre_commands` / `start` へ移す） |
 | 成果物レイアウト: `.replace/parity/<slug>/` 直下の `replace-metadata.json` / `diff.md` / `diff-metadata.json` / `baseline-new/` | `.replace/parity/<slug>/new/<target>/` へ移動する。`<target>` は旧 `new.url` から移行で作った `side: new` の target 名。移動後、`replace-metadata.json` の `new` に `target: <その名前>` を追記する |
 
 - **target 名は一度決めたら変えない。** 現側 target 名の変更はベースライン陳腐化（全 slug の再取得）、新側 target 名の変更は `new/<target>/` 配下の証跡との不一致を生む。移行時は環境の役割が分かる名前（例: `current-test` / `local-dev`）を付ける
+
+### `db.env_vars` の意味変更（`seedable` の明示要求）
+
+`targets` スキーマ導入時は `db.env_vars` の存在が「接続を知っている」と「シードしてよい」を兼ねていたが、現在は `db.seedable: true` が投入対象の条件である（上記「`db` は『接続を知っている』…」）。キー名は変わらないため機械的には検出できない。
+
+- `db.env_vars` を持つが `seedable` の無い target を投入先に選ぶと、`golden-dataset` は**投入せず停止する**（fail-closed）。投入してよい環境なら `seedable: true` を足し、読み取り専用のままでよければ投入先を変える
+- 投入対象外になった target は `parity-diff` の三者一致免除対象になる（`diff.md` の未検証領域にデータ依存差分が積まれる）ため、**意図せず読み取り専用へ落ちていないか**を移行時に確認する
 
 ## シークレットの扱い（スキル群共通のルール）
 

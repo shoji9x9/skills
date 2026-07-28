@@ -62,14 +62,21 @@
 
 - データ起因の差で `.replace/dataset/verification.md` のフェーズ B 節に説明済みのものは許容。説明されていないデータ差は `golden-dataset`（フェーズ B）へ差し戻す（[`api-batch.md`](api-batch.md)）
 
-### 選択 target が `db` を持たない場合（三者一致の免除）
+### 選択 target が投入対象でない場合（三者一致の免除）
 
-`db.env_vars` を書いていない target はゴールデンデータの投入対象外である（`db` の有無が契約であることの正本は `replace-strategy` の `references/project-config.md`）。
+免除するのは**その target がゴールデンデータの投入対象でないとき**だけである（投入契約の正本は `replace-strategy` の `references/project-config.md`）。設定の `dataset_mode` で判定が変わる。
 
-- **三者一致（`phase_b.<slug>.<target>`）を要求しない**。フェーズ B 未実施を理由に `golden-dataset` へ差し戻さない
+| `dataset_mode` | 選択した新側 target | 三者一致 |
+|---|---|---|
+| `db`（既定） | `db` 未定義（DB に触れない）／`db.env_vars` はあるが `seedable` が無い（読み取り専用） | **免除**（投入対象外） |
+| `db` | `db.seedable: true` | 要求する |
+| `static` | すべて | 要求する（データはリポジトリ内にあり、target の `db` に依存しない） |
+
+- 免除するときは**三者一致（`phase_b.<slug>.<target>`）を要求しない**。フェーズ B 未実施を理由に `golden-dataset` へ差し戻さない
 - 代わりに「**ゴールデンデータ未投入のため、データ依存の差分は実装差かデータ差か判別できない＝未検証**」を `diff.md` の未検証領域に明記し、
-  確認をデータ非依存の範囲（レイアウト・スタイル・構造など、投入データの内容に依存しない差分）に限定する
-- `metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version`（ベースライン側の陳腐化）の確認は `db` の有無に関わらず行う
+  確認をデータ非依存の範囲（レイアウト・スタイル・構造など、投入データの内容に依存しない差分）に限定する。`diff-metadata.json.dataset_version_exempt` に免除理由（DB 未定義か読み取り専用か）を記録する
+- **`seedable` が無いだけの target を「投入対象にできる」と読み替えない**（設定の修正はユーザーの判断。免除して未検証と記録するか、ユーザーに `seedable: true` の追加を促して停止するかのどちらかで、勝手に投入しない）
+- `metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version`（ベースライン側の陳腐化）の確認は**免除の有無に関わらず**行う
 
 ## 差分器バージョンの一致確認（feature モードのみ）
 

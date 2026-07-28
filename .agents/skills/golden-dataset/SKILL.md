@@ -20,12 +20,15 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 | モード | 起点 | 内容 |
 |---|---|---|
-| フェーズ A（初回） | `.replace/dataset/metadata.json` が無い | 論理データ設計 → 投入ツール生成 → 現行側 target へ投入 → 現行側検証 |
+| フェーズ A（初回） | `.replace/dataset/metadata.json` が無い | 論理データ設計 → 投入ツール生成 → 現行側へ投入 → 現行側検証 |
 | フェーズ A（再実行） | `parity-suite` の `gaps.md`「データ不足」行 | 設計追記 → ツール更新 → 再投入 → 再検証。`version` を +1 し、影響ベースラインの再取得（`parity-suite` 再実行）を案内する |
-| フェーズ B（`--phase b --feature <slug>... [--target <name>]`） | 対象 slug の新側スキーマが揃った | 新側スキーマへの写像 → 選択した新側 target へ投入 → 新側整合性＋現新一致検証。**論理データは変えないので `version` は上げない** |
+| フェーズ B（`--phase b --feature <slug>... [--target <name>]`） | 対象 slug の新側の受け皿（スキーマ／静的データ形式）が揃った | 新側への写像 → 選択した新側 target へ投入 → 新側整合性＋現新一致検証。**論理データは変えないので `version` は上げない** |
 
 - **無指定**: `.replace/dataset/metadata.json` が無ければフェーズ A（初回）。あれば用途を確認する（データ追加＝フェーズ A 再実行か、フェーズ B か）
-- `--target <name>` は**投入先の実行対象環境**。フェーズ A は設定の `targets` のうち `side: current`、フェーズ B は `side: new` のものだけを候補にし、さらに**`db.env_vars` を持つ target に限る**（`db` を書かない target の DB には触れない）。
+- **データセットの実体は設定の `dataset_mode`**（既定 `db`）。`db` は各 target の DB、`static` はリポジトリ内の静的データ（`dataset_static_paths` 配下）で、
+  **`static` は投入先 target に `db` を要求しない**（DB を持たない静的サイト等でもフェーズ A が成立する）。契約の正本は `replace-strategy` の `references/project-config.md`
+- `--target <name>` は**投入先の実行対象環境**。フェーズ A は設定の `targets` のうち `side: current`、フェーズ B は `side: new` のものだけを候補にする。
+  `dataset_mode: db` ではさらに**`db.seedable: true` の target に限る**（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れない）。
   省略時はその側の `default: true` の target を使い、無ければ候補を提示して確認する（存在しない名前・側違いは停止。選択規則の正本は `replace-strategy` の `references/project-config.md`）
 - フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
 - `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
@@ -42,7 +45,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 ## 厳守の制約（禁止事項）
 
-1. **本番環境を参照しない・本番へ投入しない。** 投入前に接続先の環境変数**名**を提示し（値は表示しない）、テスト環境であることをユーザーに確認してから実行する
+1. **本番環境を参照しない・本番へ投入しない。** 投入前に接続先の環境変数**名**を提示し（値は表示しない）、テスト環境であることをユーザーに確認してから実行する。
+   この自己申告ゲートに加えて**設定由来ゲート**（禁止事項 9）を必ず通す。**どちらか一方でも通らなければ投入しない**
 2. **非冪等なツールを作らない。** 事前削除 → 投入で、何度実行しても同じ状態にする
 3. **非決定論的なデータを生成しない。** ID・連番・UUID・基準時刻を固定する
 4. **代表性を「確認済み」と宣言しない。** 何を含めなかったかを理由付きで必ず残す
@@ -50,6 +54,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 6. **非現実的な値ばかりにしない**（文字幅・桁数・改行が表示比較に影響する。`テスト1` のような値ばかりにしない）
 7. **シークレットの値をログ・成果物・応答に出さない**（変数名のみ扱う。ユーザーが値を提示しても復唱しない）
 8. **データは一から作る。** 例外として非本番の既存データを参考にする場合のみ、本番コピーの可能性を前提にマスキング方針を適用する（**既定は新規作成**）
+9. **設定が許可した書き込み先の外へ投入しない**（設定由来ゲート）。`dataset_mode: db` では `db.seedable: true` の target の DB のみ、`static` では `dataset_static_paths` 配下のみ。
+   **読み取り専用接続（`db.env_vars` はあるが `seedable` の無い target）へ削除・投入を行わない。** 許可が無ければ設定の修正を促して停止する（自分で設定に `seedable: true` を足さない）
 
 ## プロジェクト設定の解決
 
@@ -57,12 +63,15 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 | キー | 用途 |
 |---|---|
+| `dataset_mode` | データセットの実体（`db`〈既定〉/ `static`）。投入先解決とフェーズ A / B の投入手順が分岐する |
+| `dataset_static_paths` | `dataset_mode: static` のとき投入ツールが生成・削除してよいパス（**書き込み範囲の設定由来ゲート**。無ければ停止） |
+| `targets[].db.seedable` | **投入許可の設定由来ゲート**。`true` の target だけが投入対象（省略・`false` は読み取り専用接続） |
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
-| `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差 |
+| `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差） |
 | `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
 
-`targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照。投入の安全弁は「本番でないことの確認ゲート」）。
+`targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
 
 対象テーブル・リソースドメインは `.replace/features.md` から引く。
 
@@ -75,24 +84,32 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 ### フェーズ A（現行フェーズ）
 
-1. **前提確認と早期失敗**: 設定・`.replace/features.md`・DDL の入手性を確認。DDL（またはスキーマを決定論的に得る手段）が無ければ停止してユーザーに確認する。
-   投入先 target（`side: current`）を確定する。**候補は `db.env_vars` を持つ target に限る**——選択された target（`--target` 省略時の
-   `default` を含む）が `db` を持たなければ停止し、`db` を持つ target を選ぶか設定に `db.env_vars` を足すようユーザーに促す（`db` を書かない target の DB には触れないため）。
-   確定したらその `db.env_vars` の存在確認（値は出さない）を `secrets.wrapper` 前置で最初に行い、繋がらなければ早期に失敗する
+1. **前提確認と早期失敗**: 設定・`.replace/features.md` を確認し、`dataset_mode`（既定 `db`）で分岐する。
+   - **`db`**: DDL（またはスキーマを決定論的に得る手段）が無ければ停止してユーザーに確認する。投入先 target（`side: current`）を確定する。
+     **候補は `db.seedable: true` の target に限る**——選択された target（`--target` 省略時の `default` を含む）が `seedable: true` を持たなければ**投入せず停止**し、
+     投入してよい target を選ぶか設定に `seedable: true` を足すようユーザーに促す（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れないため）。
+     確定したらその `db.env_vars` の存在確認（値は出さない）を `secrets.wrapper` 前置で最初に行い、繋がらなければ早期に失敗する
+   - **`static`**: `dataset_static_paths` が 1 つ以上あることを確認し（無ければ停止）、その配下が現行リポジトリで読み書きできることを確認する。**投入先 target に `db` を要求しない**。
+     現行の静的データの形式（ファイル配置・フィールド構成・型。DDL に相当する）を現行リポジトリから決定論的に読み取れなければ停止してユーザーに確認する
 2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)
 3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
-4. **本番でないことの確認ゲート**: 厳守の制約 1 の確認を経てから投入する
-5. **投入**: 選択した `side: current` の target へ投入する（新側スキーマは存在しないため新側へは投入しない）
-6. **検証**: FK 整合・必須項目・件数を検査し、カバレッジ（どのテーブルのどのパターンを含んだか）を報告する
+4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
+   **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
+5. **投入**: `db` は選択した `side: current` の target へ投入し、`static` は `dataset_static_paths` 配下へ生成する（新側の受け皿はまだ存在しないため新側へは投入しない）
+6. **検証**: `db` は FK 整合・必須項目・件数、`static` は形式妥当性（必須フィールド・型・参照整合）・件数を検査し、カバレッジ（どのテーブル／どの静的データのどのパターンを含んだか）を報告する
 7. **成果物記録**: `design.md` / `verification.md` / `metadata.json` を生成し、**投入ツールとデータをコミットする**（本番由来でなく PII を含まないため。大きなバイナリをコミットしない規約は視覚ベースラインの話でここには当てはまらない）。
-   `metadata.json` の `current.target` に**投入先の current target 名**を記録する（`parity-suite` がベースライン採取時に自分の選択 target と照合し、不一致なら停止する）
+   `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで:
+   - **`db`**: `current.target` に**投入先の current target 名**を記録する（`parity-suite` がベースライン採取時に自分の選択 target と照合し、不一致なら停止する）
+   - **`static`**: 投入先環境を持たないため `current.target` と `current.seeded_at` を `null` にし、代わりに `current.fingerprint` へ生成物の決定論的ハッシュを記録する
+     （`parity-suite` は `current.target` が `null` なら target 照合を行わない）
 
 ### フェーズ B（新側フェーズ・slug ごと）
 
-1. **前提確認**: 対象 slug の新側スキーマ（`parity-replace` の実装）・投入先 target（`side: new`。`--target` で選択）の `db.env_vars` 接続・`references.db_semantics` を確認し、無ければ停止する（`db_semantics` は整備を促す）。
+1. **前提確認**: 対象 slug の新側の受け皿（`parity-replace` が実装したスキーマ／静的データ形式）と `references.db_semantics` を確認し、無ければ停止する（`db_semantics` は整備を促す）。
+   投入先 target（`side: new`。`--target` で選択）は `dataset_mode: db` なら `db.seedable: true` と `db.env_vars` 接続を要求し、`static` なら `db` を要求せず `dataset_static_paths` の書き込み可否を確認する。
    `.replace/dataset/metadata.json`（フェーズ A 完了）が無ければフェーズ A を先に実行するよう案内する
-2. **写像設計**: 論理データ → 新側スキーマの写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
-3. **投入**: 投入ツールに新側ターゲットを追加し、選択した target へ投入する
+2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
+3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する
 4. **検証**: 新側整合性＋現新一致を検査する。`db_semantics` で説明できる差は意図的差異として `verification.md` に記録し、**説明できない不一致は失敗として扱い修正する**。新規の意図的差異は `intentional_diffs.pending` へ追記しユーザー確認へ回す
 5. **成果物記録**: `metadata.json` の `phase_b.<slug>.<target>` を更新する（`version` は上げない）。同じ DB を共有する target でも target ごとに実行して記録する
 

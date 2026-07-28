@@ -11,7 +11,7 @@
     "skill_version": "<parity-diff のバージョン>"
   },
   "dataset_version": "<三者一致を確認した version（数値）。db 無し target で三者一致を免除した場合は null（型を数値 | null に保つ）>",
-  "dataset_version_exempt": "<三者一致を免除した理由（例: 選択 target が db を持たない）。免除時は未検証領域にも残す。免除していなければ null>",
+  "dataset_version_exempt": "<三者一致を免除した理由（免除条件は選択 target が投入対象でないとき。例: 選択 target に db が無い／db.env_vars はあるが seedable が無い読み取り専用）。免除時は未検証領域にも残す。免除していなければ null>",
   "new": {
     "target": "<検出対象にした新側 target 名（--target で解決した値。replace-metadata.json の new.target と一致）>",
     "ui_url": "<replace-metadata.json の new.ui_url。url_command の target は \"runtime\"（解決した URL を書かない）>",
@@ -64,7 +64,7 @@
     "noise": 0,
     "unexplained": 0,
     "unverified": [
-      "<未検証領域（ベースラインに写らない箇所・宣言できない構造差・アニメーション・照合できなかった撮影条件・db を持たない target のデータ依存差分）>"
+      "<未検証領域（ベースラインに写らない箇所・宣言できない構造差・アニメーション・照合できなかった撮影条件・投入対象でない target のデータ依存差分）>"
     ]
   },
   "iteration": "<読んだ時点の同 target の replace-metadata.json の loop.iterations（数値）>",
