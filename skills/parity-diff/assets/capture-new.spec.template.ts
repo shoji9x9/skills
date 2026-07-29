@@ -94,7 +94,7 @@ if (unknownPairs.length > 0) {
   );
 }
 
-test.beforeEach(async ({}, testInfo) => {
+test.beforeEach(async (_fixtures, testInfo) => {
   // fail-fast: current で走ると現行アプリを新側ベースラインとして書き出す（testIgnore の設定漏れ対策）
   if (testInfo.project.name !== "new-capture") {
     throw new Error(`new-only spec ran under project "${testInfo.project.name}": exclude it with testIgnore`);
