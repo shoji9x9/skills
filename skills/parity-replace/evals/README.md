@@ -29,7 +29,8 @@ scripts/run-skill-eval.sh \
 
 - 使い捨てプロジェクトには `.replace/features.md`・設定・`.replace/parity/<slug>/metadata.json` が無いため、eval 1 は「捏造せず停止し replace-strategy setup / golden-dataset / parity-suite を順に案内」、
   eval 2 は「`--feature` 指定でも slug を自分で採番せず、最初に欠ける前提（replace-strategy setup）で停止して setup を促す（後続の前提も合わせて案内）」パスを検証する
-- eval 3〜5 は前提の有無に関わらず成立する拒否挙動（パリティスイート無しで実装しない・リント off / 推測実装の拒否・発見した差異を確認なしで進めない）を対象にする
+- eval 3〜5 / 7 は前提の有無に関わらず成立する拒否挙動（パリティスイート無しで実装しない・リント off / 推測実装の拒否・発見した差異を確認なしで進めない・既存パッケージを探さず自前実装を始めない）を対象にする。
+  eval 7 は実装中に部品が必要になった場面で、判断材料の確認と `.replace/dependencies.md` への記録を省略しないことを検証する（基準の正本は `replace-strategy` の `references/dependency-selection.md`）
 - eval 6 は fixture（設定・`.replace/features.md`・データセット／パリティスイートのメタデータ・`new/local-dev/` の green 証跡）で前提を揃え、
   `start` も `commit_check` も持たない配信型 target（develop）へ軽量経路を確認なしに適用しないパスを検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す

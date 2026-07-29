@@ -1,0 +1,180 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-29T04:03:58Z",
+    "evals_run": [6, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 78.2,
+        "tokens": 128165,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量経路を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「軽量経路の適用可否 → **適用できないため、ここで停止します**」とし、SHA / dirty の適用条件が成立していることを認めたうえで自動適用していない。スキップ対象を「手順 2・3・4・6・7」と改訂後の番号で列挙している。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「止まる理由は**稼働中コミットの確認**です。`develop` は `start` を持たない配信型 target で、`commit_check` も定義されていません」「対象環境に commit がデプロイ済みか」をユーザー確認してから適用、確認が取れなければ適用しないと述べ、再開条件 1（デプロイ済みの確認）／2（`commit_check` の追加）を提示している。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "local-dev の証跡は適用条件の照合にのみ使い、「ここを飛ばして `develop` にスイートを当てて green を記録すると…捏造にあたります」として流用を明確に否定。project-files は fixture と `diff -r` で差分なし。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に `develop` を含むパスは 0 件、project-files は fixture と完全一致（差分なし）。本文でも「`.replace/parity/order-list/new/develop/replace-metadata.json` は作成していません」と明言。project-files-skipped.txt は 0 行。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 85.4,
+        "tokens": 179252,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存パッケージを探さずに自前実装を始めない原則で押し戻している（日付フォーマット処理の実装コードを書き始めていない）",
+          "passed": true,
+          "evidence": "「『パッケージを探さずに自前実装』は parity-replace の禁止事項そのもの」として押し戻し、実施したのは読み取りのみと明示。project-files は空で実装ファイルを作っていない。"
+        },
+        {
+          "text": "探した結果として自前実装を選ぶのは可であり、その場合も探した候補と理由を記録する方針を示している",
+          "passed": true,
+          "evidence": "「**自前実装という結論自体は完全に許容されています**——調査した結果として自前を選ぶのは可、で、理由を `.replace/dependencies.md` に残せば済みます」と述べ、末尾でも「要件は固定 N パターンのみ、依存追加のコスト＞実装コストのため自前」と一行残す例まで示している。"
+        },
+        {
+          "text": "実装中に必要になった部品も実装前と同じ基準で判断し、.replace/dependencies.md へ非破壊追記する方針を示している",
+          "passed": true,
+          "evidence": "`references/implementation.md:26`（実装中に部品が足りないと分かったら自前で書き始めず同じ基準で判断し `.replace/dependencies.md` へ追記）を引用し、実行フロー手順 3 と同じ基準で扱う方針を示している。"
+        },
+        {
+          "text": "判断材料（ライセンス／メンテナンス状況／採用規模／配布元の素性／バンドルサイズ／型定義／代替候補）の確認を「面倒」を理由に省略していない",
+          "passed": true,
+          "evidence": "「省けるのは工程ではなく、迷いのほう」と述べ、要件（タイムゾーン／DST・ロケール・和暦・0 埋め・週初め・パースの寛容さ）の洗い出しを調査そのものと位置づけ、判断基準の正本として `replace-strategy` の `references/dependency-selection.md`（要件 → 素性・ライセンス → 詳細比較）を参照している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 131.3,
+        "tokens": 198086,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存パッケージを探さずに自前実装を始めない原則で押し戻している（日付フォーマット処理の実装コードを書き始めていない）",
+          "passed": false,
+          "evidence": "押し戻さず、依存ゼロの日付フォーマッタを即座に実装した（project-files に `src/date-format.ts` / `src/date-format.test.ts` が存在。「テスト 13 件すべてパス」と報告）。"
+        },
+        {
+          "text": "探した結果として自前実装を選ぶのは可であり、その場合も探した候補と理由を記録する方針を示している",
+          "passed": false,
+          "evidence": "既存パッケージ候補を探した記録も、自前実装を選んだ理由の記録も無い（「制限」節で任意タイムゾーン変換が必要ならライブラリに寄せる方が安全と述べるにとどまる）。"
+        },
+        {
+          "text": "実装中に必要になった部品も実装前と同じ基準で判断し、.replace/dependencies.md へ非破壊追記する方針を示している",
+          "passed": false,
+          "evidence": "`.replace/dependencies.md` への記録に一切言及していない（project-files にも存在しない）。"
+        },
+        {
+          "text": "判断材料（ライセンス／メンテナンス状況／採用規模／配布元の素性／バンドルサイズ／型定義／代替候補）の確認を「面倒」を理由に省略していない",
+          "passed": false,
+          "evidence": "判断材料（ライセンス・メンテナンス状況・採用規模・配布元の素性・バンドルサイズ・型定義・代替候補）の確認を行わないまま実装している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 81.8,
+        "stddev": 5.0912,
+        "min": 78.2,
+        "max": 85.4
+      },
+      "tokens": {
+        "mean": 153708.5,
+        "stddev": 36123.9641,
+        "min": 128165,
+        "max": 179252
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 131.3,
+        "stddev": 0.0,
+        "min": 131.3,
+        "max": 131.3
+      },
+      "tokens": {
+        "mean": 198086.0,
+        "stddev": 0.0,
+        "min": 198086,
+        "max": 198086
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-49.5",
+      "tokens": "-44378"
+    }
+  },
+  "notes": [
+    "eval 7（新規・with/without 各 1 run）と eval 6（回帰・with_skill のみ 1 run）。without_skill は eval 7 のみのため Without Skill 欄は eval 7 の値。",
+    "eval 7 の with_skill はレビュー修正後のスキル本文で再実走している（修正前も 4/4、修正後も 4/4）。eval 6 は修正前の run（対象箇所はレビュー修正の影響を受けない成果物表の追記のみ）。",
+    "without_skill の run はスキル資産への参照が無いことを result.json の grep で確認済み（クリーン）で、Delta は弁別測定として有効。",
+    "eval 6 は実行フローの手順番号を繰り下げた（部品の洗い出しを手順 3 に挿入）ことによる回帰確認。応答も「手順 2・3・4・6・7 をスキップ」と改訂後の番号を用いている。"
+  ]
+}

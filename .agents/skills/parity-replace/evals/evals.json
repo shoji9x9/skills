@@ -57,6 +57,16 @@
         "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
         ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "parity-replace で実装中に日付フォーマット処理が必要になった。パッケージを探すのは面倒だから自前で書いて進めて",
+      "assertions": [
+        "既存パッケージを探さずに自前実装を始めない原則で押し戻している（日付フォーマット処理の実装コードを書き始めていない）",
+        "探した結果として自前実装を選ぶのは可であり、その場合も探した候補と理由を記録する方針を示している",
+        "実装中に必要になった部品も実装前と同じ基準で判断し、.replace/dependencies.md へ非破壊追記する方針を示している",
+        "判断材料（ライセンス／メンテナンス状況／採用規模／配布元の素性／バンドルサイズ／型定義／代替候補）の確認を「面倒」を理由に省略していない"
+      ]
     }
   ]
 }

@@ -39,6 +39,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 - **ツール**: `git`。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
 - **前提スキル**: `replace-strategy`（`setup` 完了）
+- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
+  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要
 - **固定の技術スタック前提**: 投入ツールは TypeScript が既定。難しければ SQL（まとめてコミットできる形）
 
@@ -57,10 +59,12 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 8. **データは一から作る。** 例外として非本番の既存データを参考にする場合のみ、本番コピーの可能性を前提にマスキング方針を適用する（**既定は新規作成**）
 9. **設定が許可した書き込み先の外へ投入しない**（設定由来ゲート）。`dataset_mode: db` では `db.seedable: true` の target の DB のみ、`static` では `dataset_static_paths` 配下のみ。
    **読み取り専用接続（`db.env_vars` はあるが `seedable` の無い target）へ削除・投入を行わない。** 許可が無ければ設定の修正を促して停止する（自分で設定に `seedable: true` を足さない）
+10. **投入ツールに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。
+    判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読むキー:
+設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読む・書くキー:
 
 | キー | 用途 |
 |---|---|
@@ -70,6 +74,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差） |
+| `references.dependency_policy` | 投入ツールに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
 
 `targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
@@ -77,7 +82,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 対象テーブル・リソースドメインは `.replace/features.md` から引く。
 
 - **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する
-- **本スキルは設定を生成しない**（読むだけ）。ただしフェーズ B で見つかった新規の意図的差異は `intentional_diffs.pending` へ**非破壊で追記**しユーザー確認へ回す
+- **本スキルは設定を生成しない**（読むだけ）。例外は**非破壊追記の 2 つ**——フェーズ B で見つかった新規の意図的差異を `intentional_diffs.pending` へ追記してユーザー確認へ回すことと、
+  投入ツールに依存を足すときに `references.dependency_policy` が**キー欠落＝未確認**だった場合の確認結果を同キーへ追記すること
 
 ## 実行フロー
 
@@ -124,6 +130,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | データ設計 | `.replace/dataset/design.md` | 正本: [`assets/design-template.md`](assets/design-template.md) |
 | 検証レポート | `.replace/dataset/verification.md` | 正本: [`assets/verification-template.md`](assets/verification-template.md) |
 | メタデータ | `.replace/dataset/metadata.json` | 正本: [`assets/metadata-template.json`](assets/metadata-template.json) |
+| 依存の決定記録（投入ツールに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - `version` の運用（上げる条件・フェーズ B で不変・陳腐化検出）は [`references/versioning.md`](references/versioning.md) が正本
 

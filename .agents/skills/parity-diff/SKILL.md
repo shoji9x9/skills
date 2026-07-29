@@ -39,6 +39,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 
 - **ツール**: `git`、Node.js。画素経路は記録済み画素差分ツールの出力（差分画像）を読むため `pngjs` を要する（[`references/detect.md`](references/detect.md)）
 - **前提スキル（依存順）**: `replace-strategy`（`setup` 完了）→ `golden-dataset`（フェーズ A・B）→ 対象 slug の `parity-suite`（完了）→ `parity-replace`（**選択した target で**新側 green）
+- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
+  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` / `parity-suite` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **`issue-create`**: 選択した target の `on_diff` ドキュメントが Issue 起票を指示する場合のみ必要（要対応差分の起票を委譲する）
 - **本スキルは現行アプリを駆動しない。** ノイズ基準値・視覚ベースラインの測定は `parity-suite` の仕事。撮るのは新側だけ
 - 判定の詳細（target の解決・起動・モード別の要求・確認するキーのフルパス・データセットバージョンの三者一致・差分器バージョン一致・反復上限）は [`references/preflight.md`](references/preflight.md)
@@ -61,6 +63,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **未検証の箇所を「確認済み」にしない**（ベースラインに写らない箇所・宣言できない構造差は `diff.md` に未検証として残す）
 - **差分の修正を自分で行わない**（`parity-replace` へ戻す）
 - **現行アプリを駆動しない**（ノイズ基準値の測定は `parity-suite` の仕事）
+- **差分器・トリアージ補助に依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショットに残さない**（環境変数名だけを扱い、値は復唱しない。正本: `replace-strategy` の `references/project-config.md`「シークレットの扱い」）
 
 ## プロジェクト設定の解決
@@ -76,6 +79,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
 | `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
 | `references.db_semantics` | 読 | DB 意味論の差（API 応答の並び順差の判断材料） |
+| `references.dependency_policy` | 読・書 | 差分器・トリアージ補助に依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**書くのはキー欠落＝未確認のときだけ**（ユーザーに要否を確認した結果を非破壊追記） |
 | `secrets.wrapper` | 読 | シークレットが要るコマンドの前置ラッパー |
 
 設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
@@ -108,6 +112,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側ベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側 `baseline/` と対称のレイアウト） | — |
 | インスタンス例外 | `.config/skills/shoji9x9/skills.yml` の `component_diff_exceptions`（ユーザー承認済みのみ・非破壊追記） | スキーマ: [`references/normalize.md`](references/normalize.md) |
+| 依存の決定記録（差分器・トリアージ補助に依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - **新側の成果物は環境別**（`new/<target>/` 配下）。環境を切り替えても他の環境の差分レポート・メタデータ・新側ベースラインを上書きしない。現側 `baseline/` は 1 環境で slug 直下のまま
 - テキスト成果物（`diff.md` / `diff-metadata.json`）は Git。新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
