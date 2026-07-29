@@ -1,6 +1,14 @@
-# ロケータマッピング層と操作差分の吸収
+# ロケータマッピング層・期待値解決層・操作差分の吸収
 
 パリティスイートは**論理名**（例:「保存ボタン」）で書き、マッピング層が現・新それぞれのロケータへ解決する。論理名そのものが**現・新をまたぐ契約**である。
+
+スイート本体から切り出す層は 3 つあり、**役割で分ける**（混ぜると片方の変更がもう片方を壊す）。
+
+| 層 | 担うこと | 片側ずつ埋まるか |
+|---|---|---|
+| ロケータマッピング層 | **どう引くか**（論理名 → ロケータ） | 現側は本スキル、新側の例外は `parity-replace` |
+| 期待値解決層 | **何を期待するか**（論理名 → side 別の期待値） | 同上 |
+| 操作アダプタ | **どう操作するか**（論理名 → 操作の実装差） | 同上 |
 
 ## ロケータマッピング層
 
@@ -24,6 +32,18 @@
 
 現側のマッピングが `div` への CSS セレクタなど脆弱な形にならざるを得ない箇所は、**その事実をマッピング層のコメントに記録する**。新側で改善される見込みの箇所であり、`parity-replace` で新側マッピングが不要になるか否かの porting 判断材料になる（`gaps.md` ではなくマッピング層のコメントで良い）。
 
+## 期待値解決層（side 別の期待値）
+
+**スイートは現・新の両方に当てて両方で green である必要がある。** 一方で意図的差異レジストリ `intentional_diffs` は散文の配列であり機械可読ではないため、「現側ではこの値、新側ではこの値を期待する」を**スイートのどこかで解決する層**が要る。それが期待値解決層で、ロケータマッピング層とは別に置く（引き方と期待値を同じ場所に混ぜない）。
+
+- **既定は side 共通の 1 値**。side 別に分けるのは、`intentional_diffs.may_change` に**宣言済みの差**に触れる assertion だけ。宣言に無い差を勝手に side 別にしない（＝新側の不一致を期待値で吸収して緑にすることになる。レジストリに無い差は `intentional_diffs.pending` へ回してユーザー確認）
+- **side 別にした項目には、根拠となるレジストリの該当項目を隣にコメントで書く**。これが無いと後から「なぜ 2 値なのか」を復元できない
+- **side の解決は Playwright の `projects` 名（`current` / `new`）から行う**。テスト内では `testInfo.project.name` で参照できる
+  （出典: <https://playwright.dev/docs/api/class-testinfo#test-info-project> / <https://playwright.dev/docs/api/class-testproject#test-project-name>）。
+  環境変数や `baseURL` の中身で side を判定しない（projects 名が本スキルの確定契約）
+- **本スキルが埋めるのは現側の値だけ**（マッピング層と同じく片側ずつ埋まる）。新側の値は `parity-replace` が埋める。現側だけの時点では、新側の値は未定として置き、`new` プロジェクトの green 化時に埋まる
+- 配置の既定は後述の「配置の指針」の表（実際のパスは `metadata.json` の `suite.expectations` に記録し、`parity-replace` が推測せず引く）
+
 ## 操作の実装差を吸収する層
 
 **ロケータが移植可能でも、操作は移植可能ではない。** `getByRole('combobox')` が両実装で要素を見つけても、`selectOption()` はネイティブ `<select>` でない実装では落ちる、という類のずれが起きる。
@@ -40,8 +60,12 @@
 | スペック（現・新の両方に当てるもの） | `<parity_suite_dir>/parity/<slug>/` |
 | **現側専用スペック**（ベースライン採取・ノイズ基準値測定・強度ゲート） | `<parity_suite_dir>/parity/<slug>/current-only/` |
 | 現側マッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
+| 期待値解決層 | `<parity_suite_dir>/parity/lib/expectations/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
-| 決定論的ツール（同梱 scripts のコピー） | `<parity_suite_dir>/parity/lib/tools/` |
+| プロジェクトが自分で書くツール（画素差分の呼び出し・aria 比較等） | `<parity_suite_dir>/parity/lib/tools/` |
+| **決定論的ツール（同梱 scripts のコピー）** | `<parity_suite_dir>/parity/lib/tools/vendor/` |
+
+**同梱スクリプトのコピーは、プロジェクト自作のツールと同じディレクトリに置かない。** コピーは修正しない規約（正本はスキル側で、`gh skill update` の更新を取り込む）である一方、自作ツールは通常のコードとして扱う。同居させるとこの 2 つを**パスで分けられず**、整形・リント・レビューの対象をコピー側にも巻き込む。既定として `tools/vendor/` のようなコピー専用のサブディレクトリを切り、プロジェクトの整形・リント設定からパスで除外できる状態にしておく（除外するか否かの規約自体はプロジェクト側の判断であり、本スキルは決めない）。
 
 Playwright の `projects` は `current` / `new` の 2 つを定義し、**本スキルでは `current` のみ実行する**。
 

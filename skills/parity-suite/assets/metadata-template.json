@@ -22,8 +22,9 @@
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
     "current_only": "<現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）のパスと、new プロジェクトへ設定した testIgnore のパターン。新側実行が現側の証跡を上書きしないことの記録>",
     "locator_map": "<現側マッピングのパス>",
+    "expectations": "<期待値解決層（論理名 → side 別期待値）のパス。現側の値だけを埋めた状態で引き渡し、新側の値は parity-replace が充填する>",
     "interactions": "<操作アダプタのパス>",
-    "tools": "<決定論的ツール（trait-capture / trait-compare のコピー）のパス>",
+    "tools": "<決定論的ツール（trait-capture / trait-compare のコピー）のパス。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
     ],

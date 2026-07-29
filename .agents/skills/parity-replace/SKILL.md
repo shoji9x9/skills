@@ -109,7 +109,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かったものも、そのまま自前実装で進めず同じ基準で判断して同じファイルへ追記する**（`porting.md` の該当実装単位にも一行残す）
 4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
    推測せず、確信度を実装単位ごとに `porting.md` へ**常に**申告し、判断できない箇所は `TODO` で未解決を明示する。詳細: [`references/implementation.md`](references/implementation.md)
-5. **新側ロケータマッピングの充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
+5. **新側ロケータマッピング・期待値の充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
+   期待値解決層（`metadata.json` の `suite.expectations`）には**宣言済みの意図的差異に対応する新側の値だけ**を埋める。
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
    **この「既定は不要」は新側マッピングだけの話であり、フェーズ B は例外ゼロでも省略しない。** データ依存 assertion を green にするには新側 DB への投入が要るため、
    選択した target が投入対象なら新側スキーマが揃った時点で `golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行する（投入対象でない target では実行しない）。
@@ -155,6 +156,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 |---|---|---|
 | 実装 | プロジェクトの構成に従う（新側のコード） | — |
 | 新側ロケータマッピング | パリティスイートと同じ配置（例外のみ・操作差の分岐を含む） | — |
+| 期待値解決層の新側の値 | `metadata.json` の `suite.expectations` が指すパス（宣言済みの意図的差異に対応する項目のみ充填） | 層の正本: `parity-suite` の `references/locator-mapping.md` |
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
@@ -169,7 +171,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 ## 姉妹スキルとの連携
 
 - **依存順**: `replace-strategy`（setup）→ `golden-dataset`（フェーズ A）→ 各機能で〔`parity-suite` → **`parity-replace`** → `golden-dataset`（フェーズ B）→ `parity-diff`（本スキルと往復）〕
-- **`parity-suite` から引き継ぐもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、Playwright `projects` の `current` / `new` という名前（`new` の baseURL を選択した target から解決して渡すことと green 化は本スキルの担当。配線の正本は `parity-suite`）、脆弱マッピングを記録したマッピング層コメント。
+- **`parity-suite` から引き継ぐもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、
+  現側の値だけが埋まった期待値解決層（新側の値の充填は本スキル。[`references/new-mapping.md`](references/new-mapping.md)）、
+  Playwright `projects` の `current` / `new` という名前（`new` の baseURL を選択した target から解決して渡すことと green 化は本スキルの担当。配線の正本は `parity-suite`）、脆弱マッピングを記録したマッピング層コメント。
   **assertion を変えた場合（例外充填・穴埋め）は `parity-suite` の強度ゲート再実行が必要**（詳細: [`references/new-mapping.md`](references/new-mapping.md)）
 - **`golden-dataset`（フェーズ B）**: 新側スキーマを作った後（実装フェーズで確定した時点）、`golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行して新側 DB へ投入する。
   **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は投入対象の target のみ（対象外の target には投入しない）
