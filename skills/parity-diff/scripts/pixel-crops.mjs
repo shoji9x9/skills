@@ -16,9 +16,9 @@
 // 無ければ導入をユーザーに確認する。本スクリプトは勝手にインストールしない）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 /**
  * ツールのバージョン（正本）。クラスタリング・出力形状を変えたら上げる。
@@ -364,6 +364,31 @@ export async function main(argv) {
   return result.length > 0 ? 1 : 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
-  main(process.argv.slice(2)).then((code) => process.exit(code));
+// CLI エントリ判定は両辺を実パスに解決してから突き合わせる。
+// process.argv[1] は起動時のパスのまま、import.meta.url も --preserve-symlinks(-main)
+// （NODE_OPTIONS 経由でも付く）では未解決のままなので、片側だけ解決すると
+// シンボリックリンク経由（.claude/skills/<name> → .agents/skills/<name>）の起動で条件が偽になり、
+// main() が呼ばれず何も出力せず exit 0 になる（サイレント no-op）。
+const invokedAsCli = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  const self = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(entry) === realpathSync(self);
+  } catch {
+    // 実パス解決に失敗したら生パスで突き合わせる（サイレント no-op より誤検出を選ぶ）。
+    return entry === self;
+  }
+})();
+
+if (invokedAsCli) {
+  // 想定外の reject を握らないと未処理 rejection で exit 1 になり、
+  // 「差分あり」（exit 1）と区別が付かないまま呼び出し側に伝わる。入力エラーと同じ exit 2 に寄せる。
+  main(process.argv.slice(2))
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`error: ${message}\n`);
+      process.exit(2);
+    });
 }
