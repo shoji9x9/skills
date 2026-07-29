@@ -53,11 +53,12 @@ parity-suite [--feature <slug>] [--target <name>]
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない
 - **現行アプリのデータを破壊しない**（選択した target の `forbidden_actions` を尊重。書き込みが許可されない target ではスイートの書き込み系スペックを実行せず「未検証」として `gaps.md` に記録する）
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す
+- **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読むキー:
+設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読む・書くキー:
 
 | キー | 用途 |
 |---|---|
@@ -70,6 +71,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出で読む（[`references/strength-gate.md`](references/strength-gate.md)） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む） |
+| `references.dependency_policy` | スイートに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない。`parity_suite_dir` の既定だけは本スキルの受け入れ条件のため明記した）。
 
@@ -112,6 +114,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | 未検証領域 | `.replace/parity/<slug>/gaps.md` | `assets/gaps-template.md` |
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
+| 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。

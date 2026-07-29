@@ -54,6 +54,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 
 - **パリティスイートが無い状態で実装を始めない**（判定基準が無ければ何をもって完了とするか決められない）
 - **推測で実装しない。** 判断できない箇所は `TODO` 等でコード上に未解決と明示しレビューへ回す。**間違ったコードより未解決の明示のほうがよい**
+- **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する）
+- **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
 - **モデルの「同じに見えます」を完了根拠にしない**
 - **振る舞い保存と品質改善を同じフェーズで狙わない。** レガシーの奇妙な挙動も再現する
@@ -76,6 +78,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` が旧新 diff レビューを可能にする。発見した差異は `pending` へ非破壊追記しユーザー確認 |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。本スキルがユーザー確認の上で宣言し、`parity-diff` が比較の正規化に使う |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**） |
+| `references.dependency_policy` | 依存導入の方針ドキュメントのパス（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する（記録しないと毎回聞き直しになる） |
 | `new.repo` | 新側リポジトリ（実装対象）。コミット SHA は設定ではなく `replace-metadata.json` に記録する |
 | `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`pre_commands` → `start` → `check_urls` の順に起動して UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
 | `targets[].on_diff` | 選択した target で要対応差分が出たときの対応手順を書いた Markdown のパス（任意。省略時は修正 → 対象 target で再テスト）。本スキルでの解釈手順は [`references/diff-loop.md`](references/diff-loop.md) |
@@ -96,22 +99,25 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    （`--commit` / `--pr` は付けない。ブランチ作成・checkout 後の調査・実装は issue-start に委ねず、本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す。
    合わせて**新側 target を確定する**（`--target` の解決規則は上記「使い方」。旧キーを見つけたら移行手順を示して停止）
 2. **ページ分割とフェーズ構成**: 機能をページ単位のフェーズに分ける。**1 ページを作り切って比較してから次へ**。フェーズ内は読み取り経路 → 書き込み経路の順。api-resource / batch モードはページ分割せず該当モードで動く。詳細: [`references/paging.md`](references/paging.md)
-3. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
+3. **部品の洗い出しと依存の決定**: このフェーズの実装に要る部品（UI 部品・データ処理・フォント等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装に入る前に決める。
+   判断材料・決める順序（要件 → 素性・ライセンス → 詳細比較）・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従い、決定を `.replace/dependencies.md` へ**非破壊追記**する。
+   `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かったものも、そのまま自前実装で進めず同じ基準で判断して同じファイルへ追記する**（`porting.md` の該当実装単位にも一行残す）
+4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
    推測せず、確信度を実装単位ごとに `porting.md` へ**常に**申告し、判断できない箇所は `TODO` で未解決を明示する。詳細: [`references/implementation.md`](references/implementation.md)
-4. **新側ロケータマッピングの充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
+5. **新側ロケータマッピングの充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
    **この「既定は不要」は新側マッピングだけの話であり、フェーズ B は例外ゼロでも省略しない。** データ依存 assertion を green にするには新側 DB への投入が要るため、
    選択した target が投入対象なら新側スキーマが揃った時点で `golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行する（投入対象でない target では実行しない）。
    そのうえで選択した target を起動し（`pre_commands` → `start` → `check_urls` の順。失敗したら早期停止）、解決した URL を `new` プロジェクトの baseURL に渡す。
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
-5. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
+6. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
    テーマで消せない構造差はクラス/トークン単位の系統差として `component_diffs` へユーザー確認の上で宣言し、宣言できない構造差は `gaps.md` へ追記する（比較の正規化であって仕様変更ではない）。詳細: [`references/theming.md`](references/theming.md)
-6. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンド（設定 `verification_commands`）を通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
+7. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンド（設定 `verification_commands`）を通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
    そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**差分のみ**を渡し実装意図を知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
-7. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ 検証コマンド（設定 `verification_commands`）が通る（batch モードは実行可能スイートを持たないため**出力一致**＋検証コマンド。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
+8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ 検証コマンド（設定 `verification_commands`）が通る（batch モードは実行可能スイートを持たないため**出力一致**＋検証コマンド。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
    証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（**環境別**。他の target の証跡を上書きしない）。
    **`parity-diff` の差分ゼロは含めない**（循環回避。理由の正本: [`references/diff-loop.md`](references/diff-loop.md)）。実装フロー（commit / push / PR）は `issue-start` に委ねる
-8. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。
+9. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。
    対象 target の `on_diff` ドキュメントがあればそれに従って修正・反映・再テストを進め（無ければ修正して対象 target で再テストする）、反復回数と**その反復で描画に効く変更を入れた範囲**（`loop.changed_scope`。`parity-diff` の自己ノイズ再測定判定に使う）を `new/<target>/replace-metadata.json` に記録する。
    `on_diff` の解釈手順・終了条件・反復上限（`--max-iterations` 既定 5）の正本: [`references/diff-loop.md`](references/diff-loop.md)
 
@@ -124,12 +130,12 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **稼働中コミットの確認**: `start` を持つ target は本スキルが起動するので、上記条件を満たせば自動で適用してよい。
   `start` の無い配信型 target（デプロイで更新される環境）は稼働中のコードが同じ commit とは限らないため、`commit_check` があればその標準出力の SHA と照合し、
   無ければ「対象環境に commit `<SHA>` がデプロイ済みか」をユーザーに確認してから適用する（確認が取れなければ適用しない）
-- **飛ばす手順**: 2（ページ分割）・3（実装）・5（見た目の系統差）・6（敵対的レビュー）。手順 4 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
+- **飛ばす手順**: 2（ページ分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。手順 5 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
 - **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` ＝ 現在の `version` を確認し、
   欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の起動（`pre_commands` → `start` → `check_urls`）→
-  スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 7（`new/<target>/replace-metadata.json` へ証跡を記録）
+  スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 8（`new/<target>/replace-metadata.json` へ証跡を記録）
 - **green にならなければ、まずデータを疑う**（フェーズ B 未実施・データセットバージョンの不一致）。次に環境差（URL・起動・外部依存・認証）を疑う。
-  **実装を触るのは「同一実装が動いている」前提が崩れたと分かった場合だけ**——そのときは軽量経路を抜けて通常フロー（手順 3 以降）で修正する
+  **実装を触るのは「同一実装が動いている」前提が崩れたと分かった場合だけ**——そのときは軽量経路を抜けて通常フロー（手順 4 以降）で修正する
 
 ## 成果物
 
@@ -142,7 +148,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
-| レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` | 正本: `replace-strategy` の `references/project-config.md` |
+| レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） | 正本: `replace-strategy` の `references/project-config.md` |
+| 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
 - テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
