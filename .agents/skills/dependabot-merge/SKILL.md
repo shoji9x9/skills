@@ -130,7 +130,17 @@ gh pr view <番号> --repo <owner>/<repo> --json mergeable,mergeStateStatus
 head を差し替える操作（rebase / force-push）を挟んだ後の CI 完了は、次のどちらかを満たすまで**上限つきでポーリング**してから判定する:
 
 - **(a) `mergeStateStatus` が `BLOCKED` / `BEHIND` を抜けて `CLEAN` / `UNSTABLE` になる**（リポジトリ非依存で堅い。必須チェック未通過なら `BLOCKED` のまま）。
-- **(b) 必須チェック行が登録され pending でなくなる**（`gh pr checks <番号> --repo <owner>/<repo> --json name,state,bucket` で必須チェックの `bucket` が `pending` でないこと。**未登録＝行が無いだけで pending 不在とみなさない**）。
+- **(b) 必須チェック行が登録され pending でなくなる**。`--json` のフィールド（`bucket, completedAt, description, event, link, name, startedAt, state, workflow`）に「必須か」を示すものは無いため、
+  絞り込みは **`--required` フラグ**で行う（<https://cli.github.com/manual/gh_pr_checks>）。全チェックを見ると、スキップ専用チェックだけが登録された瞬間に全行が非 pending となり同じ false positive を踏む。
+
+  ```bash
+  gh pr checks <番号> --repo <owner>/<repo> --required --json name,state,bucket
+  ```
+
+  **行が 0 件のときは pending 不在とみなさない**（`--required` でも同じ。必須チェック未登録か、必須チェックを設定していないリポジトリのいずれか）。
+  このとき `gh` は空配列を返さず `no required checks reported on the '<branch>' branch` を stderr に出して**非 0 で終了する**（rebase 直後の未登録はまさにこの状態）ため、
+  コマンド不備として扱わず「0 件」としてポーリングを続ける。
+  `bucket` に `fail` / `cancel` があれば CI 失敗が確定しているので、`mergeStateStatus` の遷移（失敗時は `BLOCKED` のまま）を待たずマージしない判断へ進む。
 
 この予定は `--all` フローで 1 件マージ後に次 PR の CI 完了を待つときにも使う。
 
