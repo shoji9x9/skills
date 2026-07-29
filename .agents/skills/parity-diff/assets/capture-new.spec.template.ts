@@ -32,7 +32,7 @@
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
  */
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { test } from "@playwright/test";
 
 // TODO: プロジェクトの現側スペックが使っている入口をそのまま使う（現側と対称に書く）。
@@ -79,6 +79,18 @@ function resolveLocator(page: import("@playwright/test").Page, name: string) {
   return resolveNewException(page, name) ?? resolveCurrent(page, name);
 }
 
+// page / state / viewport はそのままディレクトリ階層になる。`..` が混じると join が outRoot の
+// 外を指し、reused 時の rmSync が採取ディレクトリの外を消しうる。撮影・削除の前に落とす
+function assertInsideOutRoot(dir: string): void {
+  const rel = relative(outRoot, dir);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(
+      `capture output "${dir}" escapes "${outRoot}": ` +
+        "check capture_conditions.pages[].name / states / viewports for path traversal",
+    );
+  }
+}
+
 // PARITY_NOISE_PAIRS の語彙が pages[].name とずれると「全組スキップ＝自己ノイズ未測定」が
 // 静かに成功扱いになる。ずれは撮影前に落とす（安全側＝測り直しではなく停止）
 const allPairs = new Set<string>(
@@ -110,9 +122,11 @@ for (const viewport of viewports) {
     for (const pageDef of pages) {
       for (const state of states) {
         const pair = `${pageDef.name}|${state}|${viewport.label}`;
+        // 収集時点（撮影・削除より前）に検証する
+        const outDir = join(outRoot, pageDef.name, state, viewport.label);
+        assertInsideOutRoot(outDir);
 
         test(`capture ${pair}`, async ({ page }) => {
-          const outDir = join(outRoot, pageDef.name, state, viewport.label);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
           // 撮らない組は前回実行の noise-pass2 を消す——残すと「今回の baseline-new」対「前反復の 2 回目」が
           // 突き合わされ、反復間のコード変更を自己ノイズとして計上する
