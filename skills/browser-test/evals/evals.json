@@ -61,7 +61,7 @@
       "prompt": "parity-replace から解決済みの環境を渡します: url は http://localhost:5173、pre_commands は [npm run build]、start は npm run dev、check_urls は [http://localhost:5173/]、forbidden_actions は [データの削除]。この環境で browser-test を実行し回帰がないか確認してください",
       "assertions": [
         "渡された環境の URL（http://localhost:5173）を対象にし、設定ファイルの環境（http://localhost:9999 / 環境名 local）を参照も言及もしていない（呼び出し元から環境を渡されたときは設定解決を行わない契約に従っている）",
-        "pre_commands（npm run build）→ start（npm run dev）→ check_urls（http://localhost:5173/）の順で扱い、失敗したらそこで停止する方針を示している",
+        "check_urls（http://localhost:5173/）の疎通確認で稼働判定を先に行い、落ちているときだけ pre_commands（npm run build）→ start（npm run dev）を扱う方針を示している（稼働中なら npm run build を実行しない・build を無条件に実行するとは述べていない）",
         "渡された forbidden_actions（データの削除）を今回の確認に適用する方針を示している",
         "chrome-devtools MCP が無く中断する際、環境が整った後に実施する確認内容（対象ページと確認観点）を残している"
       ]

@@ -92,7 +92,8 @@ parity-suite [--feature <slug>] [--target <name>]
 1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。`.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
    Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。
    `--target` から現行環境を確定し（`url_command` の target はここで 1 回だけコマンドを実行して URL を解決する。失敗・空出力は停止し、以降は解決済みの値を再利用する）、
-   その target に `pre_commands` / `start` / `check_urls` があればその順で起動・稼働確認する（意味論と実行順の正本は `browser-test` の `references/project-config.md`。失敗したらそこで停止し、後続工程へ進まない）。
+   その target を `check_urls`（省略時は `url`）で稼働判定し、落ちているときだけ `pre_commands` → `start` の順で起動して再確認する（稼働中なら `pre_commands` / `start` はどちらも実行しない。
+   意味論と条件付き実行順の正本は `browser-test` の `references/project-config.md`。**最初の稼働判定が落ちていることは停止条件ではなく起動の合図**で、`pre_commands` / `start` / 起動後の再確認の失敗はそこで停止し、後続工程へ進まない）。
    選択した target の `url` / `api_url` への疎通と認証環境変数の存在確認（値は出さない）で早期に失敗する
 2. **対象決定**: `slug` を features.md と突き合わせる（無い slug は停止。自分で採番しない）。種別からモードを決める
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（詳細: [`references/baseline.md`](references/baseline.md)）

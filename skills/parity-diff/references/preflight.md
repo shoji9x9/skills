@@ -13,11 +13,13 @@
 
 ## 対象 target の起動・稼働確認（疎通確認より先）
 
-選択 target に `pre_commands` / `start` / `check_urls` があれば**この順**で実行・確認してから疎通確認へ進む
-（各キーの意味論と実行順・失敗時の早期停止の正本は `browser-test` の `references/project-config.md`）。
+選択 target の `check_urls`（省略時は `url`。`url_command` の target は解決後の URL）で**稼働判定を先に行い**、落ちているときだけ `pre_commands` → `start` の順で起動して再度疎通確認する
+（各キーの意味論と条件付きの実行順・失敗時の早期停止の正本は `browser-test` の `references/project-config.md`）。
 
-- `pre_commands` の失敗、`check_urls`（省略時は `url`。`url_command` の target は解決後の URL）の稼働確認失敗はいずれも**早期停止**する（撮り始めてから落ちるのを避ける）
-- `start` は稼働していないときだけ実行する（配信型 target は `start` を持たないため、稼働確認のみで判定する）
+- **稼働していれば `pre_commands` / `start` はどちらも実行しない**（`pre_commands` は `start` の前提であり、稼働中の環境に build 等の副作用を起こさない）
+- **最初の稼働判定が落ちていることは停止条件ではなく起動の合図**（`start` を持たない target ではそこで早期停止する）
+- `pre_commands` / `start` の失敗、**起動後**の稼働確認の失敗はいずれも**早期停止**する（撮り始めてから落ちるのを避ける）
+- 配信型 target は `start` を持たないため、稼働確認のみで判定する
 - シークレットが要るコマンドには `secrets.wrapper` を前置する（値は表示しない）
 
 ## 確認するキー（フルパス）

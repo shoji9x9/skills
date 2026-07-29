@@ -19,7 +19,7 @@
 | 前提 | 確認値 | 判定 |
 |---|---|---|
 | replace-strategy setup（設定・features.md） | （あり／なし） | （OK／停止） |
-| target の起動・稼働確認（pre_commands → start → check_urls） | （実行したもの／無し） | （OK／停止） |
+| target の稼働確認（check_urls）と、落ちていた場合のみの起動（pre_commands → start） | （実行したもの／稼働中のため起動なし） | （OK／停止） |
 | parity-suite 完了（suite.current_green・validated_by_strength_gate＋モード別の追加要求） | （値） | （OK／停止） |
 | parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | （true／false） | （OK／停止） |
 | データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>.<target>`） | （3 値。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （一致／免除／陳腐化→差し戻し先） |
