@@ -42,7 +42,9 @@ const works: Work[] = [
 
 function assertWritable(dir: string): void {
   if (!ALLOWED_PATHS.some((allowed) => dir === allowed || dir.startsWith(`${allowed}/`))) {
-    throw new Error(`書き込み先 ${dir} が dataset_static_paths の外にある。設定を確認して停止する。`);
+    throw new Error(
+      `書き込み先 ${dir} が dataset_static_paths の外にある。設定を確認して停止する。`,
+    );
   }
 }
 

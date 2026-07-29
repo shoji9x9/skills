@@ -21,7 +21,9 @@ pre-commit:
             run: shfmt -w {staged_files}
             stage_fixed: true
           - name: oxfmt-js
-            glob: "*.{js,mjs}"
+            # oxlint / oxfmt は JS/TS ファミリ全体を対象にする。CI は引数なし実行（= 既定の探索範囲）
+            # なので、ここを js,mjs だけに絞ると .ts が手元で検査されず CI でだけ落ちる。
+            glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
             exclude: *agent-copies
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
@@ -53,7 +55,7 @@ pre-commit:
             exclude: *agent-copies
             run: shellcheck {staged_files}
           - name: oxlint
-            glob: "*.{js,mjs}"
+            glob: "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
             exclude: *agent-copies
             run: pnpm exec oxlint {staged_files}
           - name: jsonlint

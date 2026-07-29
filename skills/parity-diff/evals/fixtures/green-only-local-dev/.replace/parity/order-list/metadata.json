@@ -29,7 +29,9 @@
     "environment": "current-test / Chromium 128 / ローカル Docker",
     "viewports": [{ "width": 1280, "height": 800, "label": "desktop" }],
     "animations": "disabled",
-    "masks": ["[data-testid=order-updated-at]: 表示時刻が撮影ごとに変わるため"],
+    "full_page": true,
+    "pages": [{ "name": "/orders", "path": "/orders" }],
+    "masks": [{ "name": "order-list.updated-at", "reason": "表示時刻が撮影ごとに変わるため" }],
     "states": ["default"]
   },
   "traits": {

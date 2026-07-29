@@ -1,5 +1,5 @@
 {
-  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（現側と同じ組で、項目に source / measured_at を加えた形。現側の値を超えた組があれば差分報告せず停止する）。noise_measurement は往復ループでの測定値再利用の判定材料（失効条件の正本は parity-diff の references/capture-new.md「測定値の再利用」）で、次回実行はこのファイルの noise_baseline_new と併せて、このファイルを上書きする前に読む。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・noise_measurement・differ_versions の画素/特性項目）を持たない（省略する）。",
+  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（現側と同じ組で、項目に source / measured_at を加えた形。現側の値を超えた組があれば差分報告せず停止する）。results.unexplained には、diff.md に 許容候補（要確認）（＝ユーザー承認前の「許容」）として残っている候補と blocked_by に帰属させた差分も数える（accepted へ入れない——入れると unexplained: 0 経由で converged: true へ到達でき、承認と他機能待ちの条件を機械可読値の側で迂回できる。replace-strategy status はこの数値を読む）。blocked_by は他機能の新側未実装に由来して解消できない差分の帰属（3 つの帰属条件・収束状態の導出・再判定トリガーの正本は parity-diff の references/convergence.md「他機能待ちの差分」）で、帰属しても results.unexplained からは差し引かず converged を true にしない。空配列なら他機能待ちは無い。noise_measurement は往復ループでの測定値再利用の判定材料（失効条件の正本は parity-diff の references/capture-new.md「測定値の再利用」）で、次回実行はこのファイルの noise_baseline_new と併せて、このファイルを上書きする前に読む。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・noise_measurement・differ_versions の画素/特性項目）を持たない（省略する）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -90,5 +90,14 @@
   "iteration": "<読んだ時点の同 target の replace-metadata.json の loop.iterations（数値）>",
   "on_diff_doc": "<従った on_diff ドキュメントのパス。無ければ none>",
   "filed_issue": "<on_diff ドキュメントの指示で起票した場合の Issue URL（issue-create 経由）。それ以外は null>",
+  "blocked_by": [
+    {
+      "feature": "<依存先の slug（.replace/features.md のもの。自分で採番しない）>",
+      "issue": "<依存先機能の Issue 番号または URL。features.md に無ければ null>",
+      "reason": "<この差分が依存先機能の新側未実装で説明できる理由（例: 同じページに乗るセクションが新側に無く親要素の高さが変わる）>",
+      "diff_ids": ["<diff.md の差分一覧の ID>"],
+      "evidence": "<新側未達を読んで確かめた根拠（読んだパスと値。例: new/<target>/replace-metadata.json が無い / suite.new_green: false）>"
+    }
+  ],
   "converged": false
 }

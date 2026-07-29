@@ -1,0 +1,656 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-29T10:12:07Z",
+    "evals_run": [3, 5, 6, 7, 8, 9, 10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 51.4,
+        "tokens": 122064,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手で書き起こさずスキル同梱の雛形（assets/capture-new.spec.template.ts）をコピーして埋めると答えている",
+          "passed": true,
+          "evidence": "「同梱の雛形 assets/capture-new.spec.template.ts をコピーして埋めます」と回答し、書き起こしを禁じている理由（書き写しは不一致の混入源）も示している。"
+        },
+        {
+          "text": "コピー先は metadata.json の suite.new_only（既定 <parity_suite_dir>/parity/<slug>/new-only/）から引き、パスを推測しないと示している",
+          "passed": true,
+          "evidence": "「コピー先は metadata.json の suite.new_only（推測しない。既定は <parity_suite_dir>/parity/<slug>/new-only/）」「既にあれば上書きしない」と明示。"
+        },
+        {
+          "text": "current / new の両プロジェクトからの testIgnore 除外と採取用プロジェクト（new-capture）を撮影前に確認し、無ければ撮らずに停止して parity-suite へ戻すと示している（current に混ざると現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化け、new に残ると parity-replace の green 検証が収集時に落ちるため）",
+          "passed": false,
+          "evidence": "current / new 両プロジェクトの testIgnore 除外と採取専用プロジェクト new-capture での実行、両方の漏れがもたらす結果（差分ゼロに化ける／green 検証が収集時に落ちる）は挙げているが、「無ければ撮らずに停止して parity-suite へ設定を戻す」までは述べていない（run-1 では述べていた。要約度によるぶれ）。"
+        },
+        {
+          "text": "撮影条件を書き写さず metadata.json の capture_conditions から引くと示している",
+          "passed": true,
+          "evidence": "「雛形は撮影条件を metadata.json.capture_conditions から読む形で書いてあり、手で書き写す箇所が残らない設計です（viewports / states / pages / masks / full_page）」と回答。"
+        },
+        {
+          "text": "同一条件で 2 回撮って新側の自己ノイズを測る（1 回目は baseline-new、2 回目は別ディレクトリ）と示している",
+          "passed": true,
+          "evidence": "「撮影後も条件一致の先行検証 → 自己ノイズ測定（現側 noise_baseline との乖離ゲート）を通してから差分検出」と 2 回撮りに基づくゲートを提示（雛形の baseline / noise の 2 パスに対応）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 59.3,
+        "tokens": 88145,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "検出はしない（決定論的ツールの仕事）と説明し、モデルは分類だけを担うと答えている",
+          "passed": true,
+          "evidence": "「LLM に『差分があるか』を聞かない。検出は決定論的ツール、モデルの仕事は分類だけ」と引用し、依頼の進め方は採れないと明示。"
+        },
+        {
+          "text": "全画面のスクリーンショット対を突き合わせて差分を探していない",
+          "passed": true,
+          "evidence": "画像は未添付だが、届いていても 2 枚を見比べる形の回答はしないと先に宣言し、目視比較を一切行っていない。"
+        },
+        {
+          "text": "検出済みの差分について差分領域の crop 対を 1 件ずつ渡して 3 値（要対応／許容／環境ノイズ）に分類する方針を示している",
+          "passed": true,
+          "evidence": "3 経路の検出 → 正規化 → 「残った候補だけを 1 件ずつ差分領域の crop 対で渡す」→ 要対応／許容／環境ノイズの 3 値、という手順を提示。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 58.8,
+        "tokens": 90406,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じフォント名を根拠に環境ノイズ・許容へ分類せず、切り分けを先に行う方針を示している",
+          "passed": true,
+          "evidence": "「結論：許容できません」「CSS で同じフォント名を指定しているは切り分けの根拠になりません」とし、切り分け手順を先に提示。フォント差はノイズに分類しないとも明示。"
+        },
+        {
+          "text": "フォントの版（head の fontRevision）とヒンティング命令の有無（prep 等のテーブル）の 2 軸で決まると説明している",
+          "passed": true,
+          "evidence": "表で『版＝head.fontRevision（補助 name の version string ID 5）』『ヒンティング命令の有無＝prep / fpgm / cvt の在否』の 2 軸を提示。"
+        },
+        {
+          "text": "同じ版でもヒンティング命令の有無で小サイズの送り幅の丸めが変わり本文幅が変わる（送り値が同一でもレンダリング幅は違う）と説明している",
+          "passed": true,
+          "evidence": "「同じ版でも prep の有無だけで本文幅は変わります」「送り値が 1 単位まで同一でもレンダリング結果の幅が違う」と head.flags ビット 4 を根拠に説明。"
+        },
+        {
+          "text": "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）",
+          "passed": true,
+          "evidence": "ネットワークログ・document.fonts で実ファイル特定 → ttx -l でテーブルと head/name → 両側に geometricPrecision を掛けて撮り直す、の 3 手順。効いたことを確認してから根拠に使う但し書きも。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 47.6,
+        "tokens": 135797,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "converged: true にせず、かつ parity-replace へも差し戻さない（その target では直せない）と答えている",
+          "passed": true,
+          "evidence": "「converged: true もダメ、parity-replace への差し戻しもダメです」と両方を否定し、第 3 の状態を提示。"
+        },
+        {
+          "text": "diff-metadata.json の blocked_by[] へ依存先 slug・Issue・理由・対象差分 ID・根拠を帰属させる扱いを示している",
+          "passed": true,
+          "evidence": "diff-metadata.json へ追記する blocked_by の JSON を feature / issue / reason / diff_ids / evidence 付きで提示。"
+        },
+        {
+          "text": "帰属の条件として、依存先が .replace/features.md の slug であることと、同じ target の new/<target>/replace-metadata.json が無い／suite.new_green が false であることを読んで確かめると示している",
+          "passed": true,
+          "evidence": "帰属条件 3 つ（features.md の slug・同じ target で replace-metadata.json が無い or suite.new_green が false を読んで確認・要素が無いことで説明できる）を列挙し、緩めると逃げ場になると明記。"
+        },
+        {
+          "text": "帰属しても results.unexplained から差し引かない（未説明として数えたまま停止してユーザーへ報告する）と答えている",
+          "passed": true,
+          "evidence": "「results.unexplained の件数から差し引かず converged を true にしない」「停止してユーザーへ『依存先の実装待ち』として報告」と回答。"
+        },
+        {
+          "text": "解除の検出・再実行の指示は replace-strategy status が持つ（依存先が同 target で新側 green になった slug を列挙する）と答えている",
+          "passed": true,
+          "evidence": "「再実行が必要だと教えてくれるのは replace-strategy status 側です（parity-replace は依存元を知らないので通知しません）」と所在を明示。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 75.1,
+        "tokens": 128327,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
+          "passed": true,
+          "evidence": "「component_diffs（系統差 T）は特性照合経路にしか効きません」「computed style の値が一致している差には掛かるキーがありません」と説明。"
+        },
+        {
+          "text": "置き場所は component_diff_exceptions で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": true,
+          "evidence": "component_diff_exceptions の YAML を property: pixel 付きで提示し、インスタンス単位のフォールバックであることを明示。"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、同一原因のインスタンスを後から辿れるようにする（reason を揃える等）と示している",
+          "passed": true,
+          "evidence": "「1 回宣言して全インスタンスで吸収は構造上できません」とし、reason の冒頭を同じ原因ラベルで揃えて後から系統差として辿る運用を提示。"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": true,
+          "evidence": "「ユーザー承認を得たうえで」「承認前は成果物に『許容』と書かず許容候補（要確認）」「書くのは非破壊追記のみ」と明記。"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値・無視リストによる抑制を勧めず、まず font-diff の切り分けで要対応（配信ビルド差）に着地する可能性が高いとして parity-replace への差し戻しを一次推奨にしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 84.5,
+        "tokens": 175252,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
+          "passed": true,
+          "evidence": "「component_diffs（系統差 T）は特性照合経路にしか効きません」「両側の値が一致している差には掛かる照合キーがありません」と normalize.md の適用対象を引いて説明。"
+        },
+        {
+          "text": "置き場所は component_diff_exceptions で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": true,
+          "evidence": "値の差ゼロ（画素経路のみ）の分岐で component_diff_exceptions の YAML を property: pixel・bbox 付きで提示し、インスタンス単位と明示。"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、同一原因のインスタンスを後から辿れるようにする（reason を揃える等）と示している",
+          "passed": true,
+          "evidence": "「インスタンス単位で全箇所に書く必要があります。系統性は reason 冒頭を同じ原因ラベル（[font-hinting-w700]）で揃えて後から辿れるように」と回答。"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": true,
+          "evidence": "「書けるのはユーザー承認済みのものだけです。承認前は diff.md 上の未説明差分のまま＝未収束として扱います（pending に書いて逃がさない）」と明記。"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値・無視リストを勧めず、例外を書く前に font-diff の手順で要対応（配信ビルド差・合成ボールド）でないかを確認するよう求めている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 34.2,
+        "tokens": 87558,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認前は分類欄に「許容」と書かず 許容候補（要確認） と書くと答えている",
+          "passed": true,
+          "evidence": "「承認前は許容候補（要確認）と書き、収束判定では未説明として数える」を引用し、許容で埋めるのは不可と回答。"
+        },
+        {
+          "text": "レポートへの記入自体は禁じず、承認で確定するのは分類だという 2 段階を示している",
+          "passed": true,
+          "evidence": "「先に埋めておくこと自体は禁じられておらず、埋める文字列が違うだけ」として承認前／承認後の 2 段階を提示。"
+        },
+        {
+          "text": "承認前の候補は収束判定で未説明として数え、converged: true にできないと述べている",
+          "passed": true,
+          "evidence": "「許容候補（要確認）が 1 件でも残っている間は converged: true にできません」と収束判定への影響を明示。"
+        },
+        {
+          "text": "承認前は component_diffs / component_diff_exceptions / intentional_diffs のいずれにも書かないと述べている",
+          "passed": true,
+          "evidence": "「レジストリ（component_diffs / component_diff_exceptions / intentional_diffs）へはまだ書かない」と明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 66.4,
+        "tokens": 149844,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分が観測された条件（要素・サイズ・ウェイト・状態）を検出結果から列挙してから実験を組むと答えている",
+          "passed": true,
+          "evidence": "「差分器の出力から観測条件を列挙する（ページ・状態・ビューポート・要素・font-size・ウェイト）。画素差が出ている条件そのもので測る」と回答。"
+        },
+        {
+          "text": "差が出ていない別条件で測った差ゼロを仮説の否定にしない（観測条件で測り直す）と指摘している",
+          "passed": true,
+          "evidence": "「本文 400 の差ゼロは、仮説が正しい場合にもそのまま観測される結果」であり否定の証拠にならないと指摘。"
+        },
+        {
+          "text": "比較の相手は常に現行であり、新側の実験変種どうしの一致を結論にしないと述べている",
+          "passed": true,
+          "evidence": "「比較の相手は常に現行。新側の実験変種どうしの一致を結論にしない（triage.md:30）」と明記。"
+        },
+        {
+          "text": "結論を diff.md に書くときは測定条件を併記し、条件を書けない結論はその候補を未説明のまま残すと述べている",
+          "passed": true,
+          "evidence": "○「本文（weight 400、page/state/viewport）で測定、差ゼロ」は可・×「仮説は否定された」は不可と条件併記を要求し、該当候補の分類は未説明のまま残ると述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 52.6,
+        "tokens": 103877,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手で書き起こさずスキル同梱の雛形（assets/capture-new.spec.template.ts）をコピーして埋めると答えている",
+          "passed": false,
+          "evidence": "雛形に言及なし。spec.yaml 1 本＋targets/ の差し替えという独自構成を提案している。"
+        },
+        {
+          "text": "コピー先は metadata.json の suite.new_only（既定 <parity_suite_dir>/parity/<slug>/new-only/）から引き、パスを推測しないと示している",
+          "passed": false,
+          "evidence": "metadata.json の suite.new_only に言及なし。"
+        },
+        {
+          "text": "current プロジェクトからの testIgnore 除外を撮影前に確認し、無ければ撮らずに停止して parity-suite へ戻すと示している（現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化けるため）",
+          "passed": false,
+          "evidence": "current プロジェクトからの testIgnore 除外・現側実行に混ざる危険に言及なし。"
+        },
+        {
+          "text": "撮影条件を書き写さず metadata.json の capture_conditions から引くと示している",
+          "passed": false,
+          "evidence": "capture_conditions から撮影条件を引くことに言及なし（採取項目はスペック本文で定義する前提）。"
+        },
+        {
+          "text": "同一条件で 2 回撮って新側の自己ノイズを測る（1 回目は baseline-new、2 回目は別ディレクトリ）と示している",
+          "passed": false,
+          "evidence": "測っているのは現側同士の交互 2 周によるノイズ下限で、新側を同一条件で 2 回撮る自己ノイズ測定ではない。baseline-new / 2 回目の出力先にも言及なし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 22.4,
+        "tokens": 67180,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "検出はしない（決定論的ツールの仕事）と説明し、モデルは分類だけを担うと答えている",
+          "passed": false,
+          "evidence": "「受領後に行う分析の内容（そのまま進めます）」としてレイアウト・テキスト・配色差分を自ら抽出すると宣言。検出を決定論的ツールに委ねる分担に言及なし。"
+        },
+        {
+          "text": "全画面のスクリーンショット対を突き合わせて差分を探していない",
+          "passed": false,
+          "evidence": "画像未着のため実行はしていないが、受領次第 2 枚を突き合わせて差分を抽出すると明言しており、禁止された全画面比較を予定している。"
+        },
+        {
+          "text": "検出済みの差分について差分領域の crop 対を 1 件ずつ渡して 3 値（要対応／許容／環境ノイズ）に分類する方針を示している",
+          "passed": false,
+          "evidence": "crop 対・1 件ずつの提示に言及なし。判定は「重要／要確認／軽微」の独自 3 段階で、要対応／許容／環境ノイズではない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 66.8,
+        "tokens": 47828,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じフォント名を根拠に環境ノイズ・許容へ分類せず、切り分けを先に行う方針を示している",
+          "passed": true,
+          "evidence": "「CSS で同じフォント名を指定しているは、同じフォントで描画された証拠になりません」とし、許容の前に切り分けを求めている。"
+        },
+        {
+          "text": "フォントの版（head の fontRevision）とヒンティング命令の有無（prep 等のテーブル）の 2 軸で決まると説明している",
+          "passed": false,
+          "evidence": "原因候補は fallback・FOUT/FOIT・バージョン違い・合成ボールド・letter-spacing 等の列挙で、head.fontRevision と prep 等のテーブルによる 2 軸の枠組みは示していない。"
+        },
+        {
+          "text": "同じ版でもヒンティング命令の有無で小サイズの送り幅の丸めが変わり本文幅が変わる（送り値が同一でもレンダリング幅は違う）と説明している",
+          "passed": false,
+          "evidence": "ヒンティング命令の有無で送り幅の整数丸めが変わる説明は無い。逆に「真の環境ノイズはテキストランの長さを変えない」とだけ述べている。"
+        },
+        {
+          "text": "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）",
+          "passed": true,
+          "evidence": "CDP の CSS.getPlatformFontsForNode で実際に使われた platform font を取得する手順と document.fonts の状態確認を提示しており、目視判断ではない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 76.7,
+        "tokens": 95712,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "converged: true にせず、かつ parity-replace へも差し戻さない（その target では直せない）と答えている",
+          "passed": false,
+          "evidence": "差し戻し否定は一致するが、「中和して差分がゼロになる → 原因既知・スコープ外として記録し、converged: true は正当」と述べ、未説明差分を残したまま収束させる経路を認めている。"
+        },
+        {
+          "text": "diff-metadata.json の blocked_by[] へ依存先 slug・Issue・理由・対象差分 ID・根拠を帰属させる扱いを示している",
+          "passed": false,
+          "evidence": "blocked_by に相当する帰属先が無く、「記録に残す」一般論に留まる。"
+        },
+        {
+          "text": "帰属の条件として、依存先が .replace/features.md の slug であることと、同じ target の new/<target>/replace-metadata.json が無い／suite.new_green が false であることを読んで確かめると示している",
+          "passed": false,
+          "evidence": "帰属条件ではなく DOM 除去・スタブ挿入による中和テストを提案。features.md の slug 確認・同 target の suite.new_green 確認に言及なし。"
+        },
+        {
+          "text": "帰属しても results.unexplained から差し引かない（未説明として数えたまま停止してユーザーへ報告する）と答えている",
+          "passed": false,
+          "evidence": "中和テストが通れば受容へ「格上げ」して converge 可としており、未説明として数えたまま停止する扱いではない。"
+        },
+        {
+          "text": "解除の検出・再実行の指示は replace-strategy status が持つ（依存先が同 target で新側 green になった slug を列挙する）と答えている",
+          "passed": false,
+          "evidence": "再判定は「機能 X が実装されたら再実行」と記録に書くだけで、トリガーの所有者（replace-strategy status）に言及なし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 197.4,
+        "tokens": 102306,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
+          "passed": false,
+          "evidence": "「scope は列挙でなく条件で書く」として component_diffs 側で吸収できると回答。特性照合経路に限られる制約に言及なし。"
+        },
+        {
+          "text": "置き場所は component_diff_exceptions で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": false,
+          "evidence": "component_diff_exceptions / property: pixel に言及なし。独自の scope / systemic / tolerance / expires キーを創作している。"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、同一原因のインスタンスを後から辿れるようにする（reason を揃える等）と示している",
+          "passed": false,
+          "evidence": "「宣言 1 件 = 原因 1 件」を達成できる前提で書いており、インスタンス単位に落とさざるをえない制約を認識していない。"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": false,
+          "evidence": "ユーザー承認・非破壊追記に言及なし。"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": false,
+          "evidence": "tolerance: max 0.02 の pixel-diff-ratio による免除を提案しており、差分をしきい値で潰す方法そのものを勧めている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 34.6,
+        "tokens": 68840,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認前は分類欄に「許容」と書かず 許容候補（要確認） と書くと答えている",
+          "passed": false,
+          "evidence": "提案した表記は「許容（提案・承認待ち）」または分類（案）＋承認状態列で、許容候補（要確認）という分類欄の値ではない。"
+        },
+        {
+          "text": "レポートへの記入自体は禁じず、承認で確定するのは分類だという 2 段階を示している",
+          "passed": true,
+          "evidence": "「承認待ちであることを欄の中に明示する」とし、承認時に表記を確定へ変えるだけで済むという 2 段階を提示している。"
+        },
+        {
+          "text": "承認前の候補は収束判定で未説明として数え、converged: true にできないと述べている",
+          "passed": false,
+          "evidence": "収束判定・未説明という概念に言及なし（converged への影響を述べていない）。"
+        },
+        {
+          "text": "承認前は component_diffs / component_diff_exceptions / intentional_diffs のいずれにも書かないと述べている",
+          "passed": false,
+          "evidence": "レジストリ（component_diffs / component_diff_exceptions / intentional_diffs）への書き込みに言及なし。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 44.9,
+        "tokens": 46578,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分が観測された条件（要素・サイズ・ウェイト・状態）を検出結果から列挙してから実験を組むと答えている",
+          "passed": true,
+          "evidence": "「代表 1 点ではなく差が実際に出ている領域を特定してから、その領域に含まれる全ウェイト／スタイルで測ってください」と観測条件先行を提示。"
+        },
+        {
+          "text": "差が出ていない別条件で測った差ゼロを仮説の否定にしない（観測条件で測り直す）と指摘している",
+          "passed": true,
+          "evidence": "「プローブが的を外したと原因ではなかったは別物」「本文 400 は代表として最弱の検体」と述べ、差ゼロを否定の根拠にしないと指摘。"
+        },
+        {
+          "text": "比較の相手は常に現行であり、新側の実験変種どうしの一致を結論にしないと述べている",
+          "passed": false,
+          "evidence": "比較の相手が常に現行であること・実験変種どうしの比較を避けることに言及なし。"
+        },
+        {
+          "text": "結論を diff.md に書くときは測定条件を併記し、条件を書けない結論はその候補を未説明のまま残すと述べている",
+          "passed": false,
+          "evidence": "条件併記の文例は提示しているが、条件を書けない結論を未説明のまま残す（分類を確定させない）という扱いには言及していない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.975,
+        "stddev": 0.0707,
+        "min": 0.8,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 59.7,
+        "stddev": 15.9,
+        "min": 34.2,
+        "max": 84.5
+      },
+      "tokens": {
+        "mean": 122174.1,
+        "stddev": 32008.5,
+        "min": 87558,
+        "max": 175252
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1786,
+        "stddev": 0.2378,
+        "min": 0.0,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 70.8,
+        "stddev": 58.8,
+        "min": 22.4,
+        "max": 197.4
+      },
+      "tokens": {
+        "mean": 76045.9,
+        "stddev": 24651.1,
+        "min": 46578,
+        "max": 103877
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": -11.1,
+      "tokens": 46128.2
+    }
+  },
+  "notes": []
+}

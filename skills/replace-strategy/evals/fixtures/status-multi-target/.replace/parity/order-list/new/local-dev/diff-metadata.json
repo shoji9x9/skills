@@ -65,5 +65,6 @@
   "iteration": 1,
   "on_diff_doc": "none",
   "filed_issue": null,
+  "blocked_by": [],
   "converged": true
 }

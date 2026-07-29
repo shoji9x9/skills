@@ -32,4 +32,7 @@
    確認が取れるまでは `component_diffs` にも `intentional_diffs.pending`（分類ラベルの列で要素の形が違う）にも書かず、対話で確認してから宣言する
 2. **クラス/トークン単位でも表せない構造差**（フォーカスリング形状・内部 DOM・余白の配り方等） → `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ追記する（正本の様式は `parity-suite` の `assets/gaps-template.md`）。`parity-diff` の正規化対象外＝未検証として残す
 
+- **`component_diffs` は特性照合経路（computed style の値比較）にしか効かない。** 現・新で computed style が一致し画素だけ違う差（フォントのサブセットビルド差等）は、系統的な原因でもここへ宣言して吸収させられない——
+  置き場所は `parity-diff` のインスタンス例外（`component_diff_exceptions` の `property: pixel`）で、宣言者もトリアージで承認を取る `parity-diff`。レジストリごとに効く経路の正本は同スキルの `references/normalize.md`
+
 いずれも比較の正規化であって仕様変更ではない。**論理名・振る舞い・構造は不変**に保つ。

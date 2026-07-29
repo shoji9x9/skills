@@ -2,23 +2,40 @@
 
 **撮るのは新側だけ。** 現行は `parity-suite` が採ったベースライン（`.replace/parity/<slug>/baseline/`。現側は 1 環境なので slug 直下）を使う。本スキルは現行アプリを駆動しない。
 
+## 採取スペックは雛形から起こす
+
+**新側の採取スペックを現側スペックを読んで手で書き起こさない。** 条件の一致が差分報告の前提である以上、書き写しは不一致の混入源になる。
+同梱の雛形 [`../assets/capture-new.spec.template.ts`](../assets/capture-new.spec.template.ts) をプロジェクトへコピーして埋める（雛形は撮影条件を `metadata.json.capture_conditions` から読む形で書いてある。手で書き写す箇所を残さない）。
+
+- **コピー先は `metadata.json` の `suite.new_only`**（`parity-suite` が記録した新側専用スペックの置き場所。既定 `<parity_suite_dir>/parity/<slug>/new-only/`）。パスを推測せず引く
+- **`current` / `new` の両プロジェクトから除外されていることを撮影前に確認する**（同 `suite.new_only` の `testIgnore` パターン）。
+  `current` から除外が無いまま現側の実行（ベースライン再取得・強度ゲート）に混ざると、**現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化ける**。
+  `new` から除外が無いと、採取専用の環境変数を持たない `parity-replace` の green 検証が**テスト収集の時点で落ちる**（往復ループが進まなくなる）。
+  記録が無い・除外が設定されていなければ撮影せず停止し、`parity-suite` へ設定を戻す（対称の規則である現側専用スペックの除外は `parity-suite` の `references/locator-mapping.md` が正本）
+- **撮影は `suite.new_only` に記録された採取専用プロジェクト（既定 `new-capture`）で実行する**（`--project new` では走らない）。プロジェクト名が記録に無ければ撮影せず停止し `parity-suite` へ戻す
+- 雛形が読む撮影条件は `metadata.json.capture_conditions` の `viewports` / `states` / `pages` / `masks` / `full_page`。**`pages[].name` は `noise_baseline[].page` と同じ語彙**であることを確認する
+  （語彙がずれると `PARITY_NOISE_PAIRS` による再利用の絞り込みが 1 組も一致せず、自己ノイズ測定が空振りする）。`masks[].name` はロケータマッピングで解決できる論理名であることを確認する
+- 雛形は 1 回目（`baseline-new/`）と 2 回目（`noise-pass2/`）を同じスペックの別パスとして撮る。差分量（`pixel_diff` / `trait_diffs`）を測るのは記録済みの差分器の仕事で、スペックは撮るだけ
+- 既にプロジェクトに新側採取スペックがある場合はそれを優先し、上書きしない（雛形の要件を満たしているかだけ確認する）
+
 ## URL の配線（撮影より先）
 
 撮影も api-resource モードの発行も、選択 target の URL が Playwright に渡っていないと成立しない。**撮影の前に配線する。**
 
-- 選択 target の `url` / `api_url`（省略時は `url`）を環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、Playwright の **`new` プロジェクト**の baseURL と `request` フィクスチャへ渡す
+- 選択 target の `url` / `api_url`（省略時は `url`）を環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、Playwright の**採取用プロジェクト**
+  （`metadata.json.suite.new_only` に記録された名前。既定 `new-capture`。`new` と同じ baseURL 配線を使う）の baseURL と `request` フィクスチャへ渡す
   （`url_command` を持つ target は、本スキル実行の target 解決時に 1 回だけコマンドを実行して得た URL を使う。失敗・空出力は停止する。
   以降の工程では解決済みの値を再利用し、工程ごとに再実行しない——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」）
 - 解決値は `new/<target>/replace-metadata.json` の `new.ui_url` / `new.api_url` と一致することを確認する（別環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決値を持たないため、照合は **target 名の一致**で代替する（固定値で記録されたフィールド〈例: `url_command` の target の固定 `api_url`〉は従来どおり照合する）。
   `url_command` の target に `commit_check` があれば、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する）
-- **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
+- **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` / `new-capture` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
 
 ## 条件一致の先行検証（差分検出より前）
 
 環境差を差分として報告しないため、撮影前に条件一致を検証する。**不一致を検出したら差分報告をせず停止する。**
 
-- `metadata.json.capture_conditions` の `environment` / `viewports` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
+- `metadata.json.capture_conditions` の `environment` / `viewports` / `full_page` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
 - ビューポート寸法・アニメーション無効化・マスク適用が現行と一致していることを撮影前に検証する
 
 ### `capture_conditions_verified` は項目ごとに記録する
@@ -28,7 +45,7 @@
 
 | キー | 記録する内容 |
 |---|---|
-| `viewports` | 現側の `viewports` と新側の実寸が一致したか（不一致は停止） |
+| `viewports` | 現側の `viewports` と新側の実寸、および `full_page`（全画面かビューポート内か）が一致したか（不一致は停止。画像サイズが違えば全ページが全面差分になる） |
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
@@ -94,7 +111,7 @@
 |---|---|---|
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影条件が変わった（`capture_conditions` の `viewports` / `states` / `masks` / `animations`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
 | データセットバージョンが上がった | 全組 | 同 `fingerprint.dataset_version` の不一致 |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
