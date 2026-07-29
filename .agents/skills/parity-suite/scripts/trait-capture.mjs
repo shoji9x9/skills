@@ -1,6 +1,7 @@
 // 論理名付き要素の特性採取（正本）。
 // 正本はこのスキル側にあり、実行時はプロジェクトの
-// `<parity_suite_dir>/parity/lib/tools/` へコピーして使う（配布スキルの成果物同梱規約）。
+// `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（配布スキルの成果物同梱規約）。
+// コピー先はコピー専用のサブディレクトリで、プロジェクト自作ツールと同居させない（修正しない規約のため）。
 // このファイルのスキーマ（FIXED_PROPERTIES・採取形状）を変えたら、成果物の
 // `metadata.json` の `traits.property_set` も必ず更新する（parity-diff は property_set を正とする）。
 //
@@ -107,6 +108,8 @@ function captureElement(el, props) {
  *
  * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした等）は、
  * どの論理名で失敗したかを付けたエラーで報告する（既採取分を黙って失うより、失敗箇所の特定を優先）。
+ * したがって「失敗した名前だけ落として続行したい」呼び出し側（強度ゲートの故障注入）は、
+ * entries を 1 件ずつ渡して呼び、成功分を連結する（まとめて渡すと最初の失敗で既採取分ごと失う）。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
  * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number } }>>}

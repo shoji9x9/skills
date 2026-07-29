@@ -8,6 +8,14 @@
 - 例外の実パス既定は `<parity_suite_dir>/parity/lib/locator-map/<slug>.new.ts`（`metadata.json` の `suite` から引く。例外ゼロなら作らない）
 - 現側マッピング・論理名の契約・スイート配置は `.replace/parity/<slug>/metadata.json` の `suite.*` から引く（推測しない）
 
+## 新側の期待値（期待値解決層）
+
+論理名に対する**期待値**は、ロケータマッピングとは別の層（期待値解決層）で解決される。層の定義・side の解決方法（Playwright の `projects` 名）・「宣言に無い差を side 別にしない」原則の正本は `parity-suite` の `references/locator-mapping.md`「期待値解決層」（転記しない）。本スキルの担当は**新側の値の充填**。
+
+- 実パスは `metadata.json` の `suite.expectations` から引く（推測しない）。`parity-suite` は**現側の値だけ**を埋めた状態で引き渡している
+- **新側の値を埋めるのは、意図的差異レジストリ `intentional_diffs.may_change` に宣言済みの差に対応する項目だけ。** 宣言に無い差を期待値で吸収しない（スイートが新に対して緑になっても、それはパリティの証拠ではなく期待値を新側に合わせただけになる）。宣言に無い差は `intentional_diffs.pending` へ非破壊追記してユーザー確認へ回す
+- 充填した項目と根拠（レジストリの該当項目）を `porting.md` に残す
+
 ## 操作の実装差は分岐が必須
 
 **ロケータが解決しても操作が通らない。** 分岐が必須なコンポーネント集合と理由の正本は `parity-suite` の `references/locator-mapping.md`「操作の実装差を吸収する層」（転記しない）。本スキルは新側の分岐を、`metadata.json` の `suite.interactions` が指す操作アダプタへ実装する。スイート本体には触れず、論理名と操作意図だけを保つ。

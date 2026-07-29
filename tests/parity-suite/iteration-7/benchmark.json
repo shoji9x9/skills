@@ -1,0 +1,943 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-29T08:39:59Z",
+    "evals_run": [4, 5, 8, 9, 10, 11, 12, 13, 14, 15],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 67.7,
+        "tokens": 124564,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部分一致が許容するのは書いていない兄弟が在ることだけで、中間の階層を省略する（入れ子の深さを飛ばす）と一致しないことを説明している",
+          "passed": true,
+          "evidence": "表で「書いていない兄弟が在る＝許容」「中間階層を省いて孫を直接書く＝一致しない（照合は直下の子関係。深さは飛ばせない）」を明示している。"
+        },
+        {
+          "text": "兄弟の順序は厳密に効くと述べている",
+          "passed": true,
+          "evidence": "同表で「兄弟の順序が違う＝一致しない」と明示している。"
+        },
+        {
+          "text": "ページ全体 1 枚ではなく、セクション単位でロケータにアンカーして複数枚に分ける方針を示している",
+          "passed": true,
+          "evidence": "「ページ本体ではなく論理名で引いたセクションのロケータにアンカーして複数枚」を示し、sections.searchFilter / sections.resultList の 2 枚に分けたコード例を提示している。"
+        },
+        {
+          "text": "1 枚で書くと現行の DOM 階層が契約に入り、新側がセクションを landmark 化するなど構造を改善しただけで赤くなることを理由として述べている",
+          "passed": true,
+          "evidence": "「新側が div の入れ子を <main> / <section> でランドマーク化するなど『構造を改善しただけ』で赤くなる — 仕様は変わっていないのに落ちるのでパリティ判定としては誤検知」と理由を述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 82.3,
+        "tokens": 145057,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部分一致が許容するのは書いていない兄弟が在ることだけで、中間の階層を省略する（入れ子の深さを飛ばす）と一致しないことを説明している",
+          "passed": true,
+          "evidence": "表で「書いていない兄弟要素が増えた＝許容」「セクションを landmark 化して階層が 1 段増えた＝不一致（照合は直下の子関係。深さは飛ばせない）」を示している。"
+        },
+        {
+          "text": "兄弟の順序は厳密に効くと述べている",
+          "passed": true,
+          "evidence": "同表で「兄弟の並び順を変えた＝不一致（順序は厳密）」と示している。"
+        },
+        {
+          "text": "ページ全体 1 枚ではなく、セクション単位でロケータにアンカーして複数枚に分ける方針を示している",
+          "passed": true,
+          "evidence": "「セクション単位でアンカーして複数枚に分ける」を第 1 項に置き、section('検索条件') / section('結果一覧') の 2 枚に分けたコード例を提示している。"
+        },
+        {
+          "text": "1 枚で書くと現行の DOM 階層が契約に入り、新側がセクションを landmark 化するなど構造を改善しただけで赤くなることを理由として述べている",
+          "passed": true,
+          "evidence": "「ページ全体を 1 枚で書くと現行の DOM 階層をまるごと契約に焼き込む。新側がマークアップを改善しただけ（仕様は不変）で赤くなる——パリティ判定としては誤検知」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 60.6,
+        "tokens": 90147,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "期待値解決層をロケータマッピング層とは別の層として置く役割分担（どう引くか／何を期待するか）を示している",
+          "passed": true,
+          "evidence": "層の表（ロケータマッピング層＝どう引くか／期待値解決層＝何を期待するか）を示し、表示ラベルは期待値解決層だとして if をマッピング層へ足す案を退けている。"
+        },
+        {
+          "text": "side の判定を Playwright の projects 名（current / new。testInfo.project.name）から行う方針を示している（環境変数や baseURL の中身で判定していない）",
+          "passed": true,
+          "evidence": "「side の解決は Playwright の projects 名（current / new）から行う。環境変数や baseURL の中身で判定しないこと」と述べ、testInfo.project.name を使うコード例を示している。"
+        },
+        {
+          "text": "side 別にするのは intentional_diffs に宣言済みの差だけで、宣言に無い差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べている",
+          "passed": true,
+          "evidence": "「side 別に分けてよいのは intentional_diffs.may_change に宣言済みの差に触れる assertion だけ」「宣言に無い差は intentional_diffs.pending へ回してユーザー確認」と述べている。"
+        },
+        {
+          "text": "期待値解決層のパスを metadata.json の suite.expectations に記録し parity-replace が推測せず引ける形にすると述べている",
+          "passed": true,
+          "evidence": "「実際のパスは metadata.json の suite.expectations に記録してください。parity-replace / parity-diff はパスを推測せずここから引きます」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 69.1,
+        "tokens": 128326,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全経路が緑になること（ポジティブコントロール）を、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分器としきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": true,
+          "evidence": "「注入前に無注入で全経路が緑であることを、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分器としきい値・同じベースライン）で確認することです」と条件を列挙している。"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "「注入スクリプトの副作用・環境差・ベースラインの陳腐化でも赤くなるため、常に赤い状態を『捕捉できている』と読み違えます」と明記。"
+        },
+        {
+          "text": "確認する経路として手書き assertion／特性照合／画素／aria 比較の 4 経路を挙げ、1 経路でも赤ければ原因を潰してから注入に進むとしている",
+          "passed": true,
+          "evidence": "故障クラスごとに拾う経路（手書き assertion／特性照合／画素／aria 比較）を対応付けたうえで、進め方の手順 2 に「無注入で 4 経路が緑になるまで潰す（赤が残るなら原因を先に解消。赤いまま注入した結果は読めない）」を置いている。"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "「完了にはできません」と明言し、strength.md への書き込みも行っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 59.9,
+        "tokens": 88855,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全経路が緑になること（ポジティブコントロール）を、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分器としきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": true,
+          "evidence": "「無注入緑を同じ実行系（同じ config・同じ actionTimeout / expect タイムアウト・同じ差分器としきい値・同じベースライン）で取れていますか」と条件を列挙している。"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "strength-gate.md を引用し「注入スクリプトの副作用・環境差・ベースラインの陳腐化でも赤くなるため、常に赤い状態を『捕捉できている』と読み違える」と明記。"
+        },
+        {
+          "text": "確認する経路として手書き assertion／特性照合／画素／aria 比較の 4 経路を挙げ、1 経路でも赤ければ原因を潰してから注入に進むとしている",
+          "passed": false,
+          "evidence": "故障クラス別に拾う経路を表で示し「全経路が一斉に赤いのは実行系が壊れている可能性が高い」とまでは述べるが、確認対象を 4 経路として列挙し「1 経路でも赤ければ原因を潰してから注入に進む」とする記述が無い（run-1 にはあった）。"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "「完了にできません」と明言し、strength.md への記録も行っていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 52.8,
+        "tokens": 88228,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度ゲートの実行では actionTimeout を短く設定する方針を示している（タイムアウトを伸ばす案を採っていない）",
+          "passed": true,
+          "evidence": "「伸ばすのではなく、短くする」とし、use.actionTimeout を注入用のプロジェクト／設定側で短く指定し通常実行の値は変えないと示している。"
+        },
+        {
+          "text": "actionTimeout の既定は 0（無制限）で、テスト全体のタイムアウトまで待つことを前提として説明している",
+          "passed": true,
+          "evidence": "「Playwright の actionTimeout は既定が 0（無制限）なので、注入で要素が消えるとロケータの解決を待ち続け、テスト全体のタイムアウトまで止まります」と前提を説明している。"
+        },
+        {
+          "text": "ロケータが解決しないことを例外で run を止めず、差分（要素の欠落）として検出結果に変換する呼び出し側の扱いを示している",
+          "passed": true,
+          "evidence": "「呼び出し側（現側専用スペック）で例外を捕捉し、その論理名を採取結果から落として先へ進む」「例外を上げて run を止めると、捕捉できたのか実行できなかったのかが区別できなくなる」と扱いを定義している。"
+        },
+        {
+          "text": "欠落が差分器（特性照合）で missing として現れる、または採用値・扱いを strength.md に記録すると述べている",
+          "passed": true,
+          "evidence": "「trait-compare.mjs は『ベースラインに在って採取に無い論理名』を kind: \"missing\" として出します」と述べ、採用値を strength.md に記録するとしている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 44.9,
+        "tokens": 122762,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度ゲートの実行では actionTimeout を短く設定する方針を示している（タイムアウトを伸ばす案を採っていない）",
+          "passed": true,
+          "evidence": "「伸ばすのではなく、逆に短くする」とし、注入用のプロジェクト／設定側でだけ use.actionTimeout を短くする（通常実行の値は変えない）と示している。"
+        },
+        {
+          "text": "actionTimeout の既定は 0（無制限）で、テスト全体のタイムアウトまで待つことを前提として説明している",
+          "passed": true,
+          "evidence": "表で actionTimeout の既定を 0＝無制限とし、「テスト全体のタイムアウトまで解決を待ち続けている」と説明している（expect タイムアウト 5000ms との違いも整理）。"
+        },
+        {
+          "text": "ロケータが解決しないことを例外で run を止めず、差分（要素の欠落）として検出結果に変換する呼び出し側の扱いを示している",
+          "passed": true,
+          "evidence": "「呼び出し側（現側専用スペック）で捕捉し、その論理名を採取結果から落として先へ進めてください」とし、captureTraits を論理名 1 件ずつ呼ぶ必要も示している。"
+        },
+        {
+          "text": "欠落が差分器（特性照合）で missing として現れる、または採用値・扱いを strength.md に記録すると述べている",
+          "passed": true,
+          "evidence": "trait-compare.mjs が kind: \"missing\" として出すこと、採用値を strength.md に記録することの両方に触れている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 40.2,
+        "tokens": 118103,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "上流を「その画面がデータを受け取る境界」と一般化し、API を持たない場合は document 応答そのものが上流だと説明している",
+          "passed": true,
+          "evidence": "「上流＝その画面がデータを受け取る境界であって、API 応答のことではありません」と一般化し、表で API を持たない場合は document 応答そのものが上流だと示している。"
+        },
+        {
+          "text": "page.route で document 応答を捕まえてボディを改変して返す（route.fetch した元応答を改変して route.fulfill する）具体を示している",
+          "passed": true,
+          "evidence": "「page.route で document 応答を捕まえ、route.fetch() で元応答を取得 → ボディを改変 → route.fulfill() で返す」と具体を示し、出典 URL も併記している。"
+        },
+        {
+          "text": "外部リソース（画像・フォント等）の遮断（route.abort）も上流摂動として挙げている",
+          "passed": false,
+          "evidence": "外部リソースの遮断は表の「外部リソース依存 | その配信」に留まり、route.abort() による遮断を上流摂動の具体として挙げていない。"
+        },
+        {
+          "text": "上流摂動を組めないとして未検証・gaps 送りで済ませていない",
+          "passed": true,
+          "evidence": "「gaps.md は『注入手段が本当に無い』ものを残す場所。今回は手段があるので未検証扱いにすると強度ゲートの下限がその分だけ嘘になる」と述べ、gaps 送りを退けている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 50.1,
+        "tokens": 88043,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "上流を「その画面がデータを受け取る境界」と一般化し、API を持たない場合は document 応答そのものが上流だと説明している",
+          "passed": true,
+          "evidence": "「上流＝その画面がデータを受け取る境界であって、API 応答のことではありません」と一般化し、表で API を持たない場合は document 応答そのものが上流だと示している。"
+        },
+        {
+          "text": "page.route で document 応答を捕まえてボディを改変して返す（route.fetch した元応答を改変して route.fulfill する）具体を示している",
+          "passed": true,
+          "evidence": "page.route → route.fetch() → ボディ改変 → route.fulfill() のコード例と出典 URL を示している。"
+        },
+        {
+          "text": "外部リソース（画像・フォント等）の遮断（route.abort）も上流摂動として挙げている",
+          "passed": true,
+          "evidence": "表の「外部リソース（画像・フォント・CSS）に依存」行で route.abort() による遮断を挙げている。"
+        },
+        {
+          "text": "上流摂動を組めないとして未検証・gaps 送りで済ませていない",
+          "passed": true,
+          "evidence": "「gaps.md は…注入経路が見つけにくいものの逃がし先ではありません」「今回の値・並び順は境界（document 応答）が存在するので該当しません」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 43.9,
+        "tokens": 107659,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱スクリプトのコピーはコピー専用のサブディレクトリ（既定 tools/vendor/）へ置き、プロジェクト自作ツールと同居させない方針を示している",
+          "passed": true,
+          "evidence": "e2e/parity/lib/tools/vendor/ をコピー専用サブディレクトリとするツリー図を示し、自作の pixel-compare.mjs / aria-compare.mjs と分けている。"
+        },
+        {
+          "text": "コピーは修正しない規約であり、自作ツールと同居するとプロジェクトの整形・リント設定からパスで分けられなくなることを理由として述べている",
+          "passed": true,
+          "evidence": "「コピーは修正しない・正本はスキル側で gh skill update で更新を取り込む規約」に対し自作は通常のコードであり、同居させるとパスで分けられず整形・リント・レビューにコピーまで巻き込むと説明している。"
+        },
+        {
+          "text": "実際の配置パスを metadata.json に記録する（parity-diff / parity-replace が推測しない）ことに触れている",
+          "passed": true,
+          "evidence": "「配置したパスは metadata.json に記録してください。parity-replace / parity-diff はパスを推測せず metadata.json から引きます」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 67.0,
+        "tokens": 181586,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "取って diff しない原則を説明している（改善とノイズが混ざりシグナルにならない）",
+          "passed": true,
+          "evidence": "「aria を新旧で取って機械 diff」は禁止事項そのものとして SKILL.md を引用し、機械 diff の赤は「新側がリファクタで DOM 階層を改善した（＝正しい差）／宣言済みの意図的差異／ノイズ／本物の退行」を区別できないと説明している。"
+        },
+        {
+          "text": "assertion は仕様が保証する項目だけを手書きした寛容なスナップショットであると説明している",
+          "passed": true,
+          "evidence": "「仕様が保証する項目だけをセクション単位で手書きした寛容なスナップショット」を assertion にし、採取物は参考資料として baseline/ に置くと明示している。"
+        },
+        {
+          "text": "機械 diff の実装をしていない",
+          "passed": true,
+          "evidence": "project-tree.txt は ./.claude のみで、比較スクリプト等を一切生成していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 67.8,
+        "tokens": 151986,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度検証を省略しない理由（テストの存在自体は品質の証拠にならない）を説明している",
+          "passed": true,
+          "evidence": "「強度検証（故障注入）を省いて『テストがあるから大丈夫』としない」を引用し、assertion が弱められた／無いテストも pass するため緑は何も保証しないと説明。下流（parity-diff）が健全性確認済みの差分器を前提とすることにも触れている。"
+        },
+        {
+          "text": "完了扱いにしていない",
+          "passed": true,
+          "evidence": "「この依頼は『完了』にできません」と明言し、strength.md 等の生成も行っていない（project-tree.txt は ./.claude のみ）。"
+        },
+        {
+          "text": "故障注入の手順か再開方法を示している",
+          "passed": true,
+          "evidence": "着地案として「gaps.md に強度未検証を理由付きで記録」「ポジティブコントロール＋主要 4 故障クラス各 1 件の縮小版ゲート」「カタログ導出のフル実行」を提示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 77.4,
+        "tokens": 231330,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を new プロジェクトの実行対象に含めない方針で押し戻している",
+          "passed": true,
+          "evidence": "「結論：その依頼は受けられない（new の実行対象には含めない）」と押し戻している。"
+        },
+        {
+          "text": "new プロジェクトの testIgnore で除外する具体策を示している（スペック内の条件分岐に頼っていない）",
+          "passed": true,
+          "evidence": "current-only/ へ集約したうえで new プロジェクトに testIgnore: '**/current-only/**' を設定する config を提示し、「スペック内の条件分岐（test.skip(project.name === 'new') 等）に頼らない」と明記している。"
+        },
+        {
+          "text": "除外しないと新側の実行が現側の証跡（ベースライン・強度ゲートの結果ファイル）を静かに上書きすることを、成果物を書き出すスペックの危険として説明している",
+          "passed": true,
+          "evidence": "「テストは緑のまま通り、次に parity-diff が比較する『現行の基準』が新側の姿にすり替わっている。差分がゼロに見えるのは一致したからではなく、比較対象が同じものになったから」と、書き出すスペック固有の危険として説明している。"
+        },
+        {
+          "text": "除外の設定内容を metadata.json（suite.current_only）に記録し parity-replace が新側実行前に確認できるようにする方針に触れている",
+          "passed": true,
+          "evidence": "metadata.json の suite.current_only へ除外の事実とパターンを記録する JSON 例を示し、parity-replace が新側実行前に確認できるようにすると述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 51.6,
+        "tokens": 153030,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "title・favicon・主要な meta・html[lang] をカバレッジの対象（ドキュメントレベルの要素）として含める方針を示している",
+          "passed": true,
+          "evidence": "coverage.md を引用し title・favicon（link[rel~=icon] の解決先 URL）・主要な meta・html[lang] をページごとに 1 回の対象として挙げている。"
+        },
+        {
+          "text": "これらは視覚ベースラインにも aria スナップショットにも写らないため、手書き assertion 以外に捕まえる経路が無いことを説明している",
+          "passed": true,
+          "evidence": "「検出経路が 3 つあるが <head> は後ろ 2 つの射程外」「手書き assertion が唯一の経路」と説明している。"
+        },
+        {
+          "text": "新側テンプレートの既定 favicon・既定 title のまま置き換わっても誰も赤くならない、という具体的な見落としに触れている",
+          "passed": true,
+          "evidence": "「新側を Next.js や Vite のテンプレートから起こすと title が Create Next App のまま、favicon がフレームワーク既定のまま、html[lang] が en のまま」という具体的な退行に触れている。"
+        },
+        {
+          "text": "決定論的に取得できるためページごとに 1 回の手書き assertion に向くと述べている",
+          "passed": true,
+          "evidence": "「ページごとに 1 回、決定論的な値の照合だけで済む」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 107.0,
+        "tokens": 106116,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部分一致が許容するのは書いていない兄弟が在ることだけで、中間の階層を省略する（入れ子の深さを飛ばす）と一致しないことを説明している",
+          "passed": false,
+          "evidence": "部分一致の内訳を説明せず、tests/parity.spec.ts で page.locator('body') のページ全体 aria スナップショットを toMatchAriaSnapshot に渡す実装を作り、前提をそのまま受け入れている。"
+        },
+        {
+          "text": "兄弟の順序は厳密に効くと述べている",
+          "passed": false,
+          "evidence": "兄弟の順序が厳密であることに触れていない。"
+        },
+        {
+          "text": "ページ全体 1 枚ではなく、セクション単位でロケータにアンカーして複数枚に分ける方針を示している",
+          "passed": false,
+          "evidence": "セクション単位の分割は「運用してみてノイズが多いようなら区画単位への分割に切り替えるのが現実的な落とし所」と条件付きの次善策に留め、既定はページ全体 1 枚のままにしている。"
+        },
+        {
+          "text": "1 枚で書くと現行の DOM 階層が契約に入り、新側がセクションを landmark 化するなど構造を改善しただけで赤くなることを理由として述べている",
+          "passed": false,
+          "evidence": "新側の構造改善で赤くなることを理由として述べていない（ベースラインは旧実装から --update-snapshots で生成せよ、としている）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 50.8,
+        "tokens": 46477,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "期待値解決層をロケータマッピング層とは別の層として置く役割分担（どう引くか／何を期待するか）を示している",
+          "passed": true,
+          "evidence": "「『どこを見るか』（ロケータ層）と『何が正しいか』（期待値層）を分離するのがポイント」と述べ、parity/expected-diffs.ts のレジストリと assertParity を別層として提示している。"
+        },
+        {
+          "text": "side の判定を Playwright の projects 名（current / new。testInfo.project.name）から行う方針を示している（環境変数や baseURL の中身で判定していない）",
+          "passed": false,
+          "evidence": "side を Playwright の projects 名から解決する方針が無い（legacy / next の値をレジストリに直接持たせる形で、testInfo.project.name にも触れていない）。"
+        },
+        {
+          "text": "side 別にするのは intentional_diffs に宣言済みの差だけで、宣言に無い差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べている",
+          "passed": false,
+          "evidence": "「既定はあくまで一致」までは同じだが、宣言先が intentional_diffs.may_change ではなく独自レジストリで、宣言に無い差を pending へ非破壊追記してユーザー確認へ回す運用が無い。"
+        },
+        {
+          "text": "期待値解決層のパスを metadata.json の suite.expectations に記録し parity-replace が推測せず引ける形にすると述べている",
+          "passed": false,
+          "evidence": "metadata.json の suite.expectations への記録に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 67.2,
+        "tokens": 73355,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全経路が緑になること（ポジティブコントロール）を、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分器としきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": false,
+          "evidence": "合格チェックリストに「ベースライン緑: 注入前に全経路がグリーンであること」はあるが、同じ実行系（config・actionTimeout・差分器としきい値・ベースライン）で取るという条件が無い。"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "「注入点が共有パス（DI / 設定ロード / エントリポイント / 共通フィクスチャ）上にあり、ビルドまたはセットアップが落ちて連鎖失敗した」等、注入以外の原因を列挙している。"
+        },
+        {
+          "text": "確認する経路として手書き assertion／特性照合／画素／aria 比較の 4 経路を挙げ、1 経路でも赤ければ原因を潰してから注入に進むとしている",
+          "passed": false,
+          "evidence": "経路を「担当経路 / 無関係の経路」と抽象的に扱うだけで、手書き assertion・特性照合・画素・aria 比較の 4 経路を挙げていない。"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "strength.md に「未判定（NOT PASSED）」と記録し、「『捕捉』『ゲート完了』とは書いていません」と明言している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 52.7,
+        "tokens": 46694,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度ゲートの実行では actionTimeout を短く設定する方針を示している（タイムアウトを伸ばす案を採っていない）",
+          "passed": true,
+          "evidence": "「結論：伸ばすのは逆方向」とし、「3. タイムアウトはむしろ縮める」でベースライン p95 の 3 倍程度を上限にする案を出している。"
+        },
+        {
+          "text": "actionTimeout の既定は 0（無制限）で、テスト全体のタイムアウトまで待つことを前提として説明している",
+          "passed": false,
+          "evidence": "Playwright の actionTimeout の既定が 0（無制限）でテスト全体のタイムアウトまで待つ、という前提の説明が無い（設定値は「フレームワークのデフォルトかコピペ由来」と推測している）。"
+        },
+        {
+          "text": "ロケータが解決しないことを例外で run を止めず、差分（要素の欠落）として検出結果に変換する呼び出し側の扱いを示している",
+          "passed": false,
+          "evidence": "解決不能を差分（要素の欠落）として検出結果に変換する扱いが無い。完了シグナル待ち・センチネルとの race で待ち方を変える提案に留まる。"
+        },
+        {
+          "text": "欠落が差分器（特性照合）で missing として現れる、または採用値・扱いを strength.md に記録すると述べている",
+          "passed": false,
+          "evidence": "特性照合の missing・採用値の strength.md への記録に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 46.8,
+        "tokens": 46424,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "上流を「その画面がデータを受け取る境界」と一般化し、API を持たない場合は document 応答そのものが上流だと説明している",
+          "passed": false,
+          "evidence": "「リポジトリ内の静的ファイルそのものが上流」とし、document 応答そのものを上流とする一般化には至っていない。"
+        },
+        {
+          "text": "page.route で document 応答を捕まえてボディを改変して返す（route.fetch した元応答を改変して route.fulfill する）具体を示している",
+          "passed": false,
+          "evidence": "page.route / route.fetch / route.fulfill による document 応答の改変ではなく、リポジトリを temp にコピーしてデータファイルを書き換える方式を提案している。"
+        },
+        {
+          "text": "外部リソース（画像・フォント等）の遮断（route.abort）も上流摂動として挙げている",
+          "passed": false,
+          "evidence": "外部リソースの遮断（route.abort）に触れていない。"
+        },
+        {
+          "text": "上流摂動を組めないとして未検証・gaps 送りで済ませていない",
+          "passed": true,
+          "evidence": "「結論：gaps に送るのは不可」「値・並び順の故障は検証可能な故障モードなので gaps ではなく本検証に入れてください」と述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 63.1,
+        "tokens": 95918,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱スクリプトのコピーはコピー専用のサブディレクトリ（既定 tools/vendor/）へ置き、プロジェクト自作ツールと同居させない方針を示している",
+          "passed": true,
+          "evidence": "tools/ 直下に自作、tools/vendor/ に外部由来のコピーを置くツリーを提示し、「フラットに混ぜるのは勧めません」と述べている。"
+        },
+        {
+          "text": "コピーは修正しない規約であり、自作ツールと同居するとプロジェクトの整形・リント設定からパスで分けられなくなることを理由として述べている",
+          "passed": true,
+          "evidence": "「原則無改変」「lint / format / 型チェックの除外がしやすい（.prettierignore / eslint ignores / tsconfig exclude に vendor/ を一行）」と、修正しない前提と除外の容易さを理由に挙げている。"
+        },
+        {
+          "text": "実際の配置パスを metadata.json に記録する（parity-diff / parity-replace が推測しない）ことに触れている",
+          "passed": false,
+          "evidence": "metadata.json への配置パスの記録に触れていない（vendor/README.md に取得元・version を書く案に留まる）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 169.7,
+        "tokens": 343808,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "取って diff しない原則を説明している（改善とノイズが混ざりシグナルにならない）",
+          "passed": false,
+          "evidence": "「取って diff しない」原則には触れず、aria-parity.mjs で取得→正規化→LCS 行 diff→完全一致で PASS/FAIL を判定する機械 diff を納品している。"
+        },
+        {
+          "text": "assertion は仕様が保証する項目だけを手書きした寛容なスナップショットであると説明している",
+          "passed": false,
+          "evidence": "手書きの寛容なスナップショットに言及せず、「ベースラインは手書きせず旧実装から生成」に相当する完全一致比較を判定基準にしている。"
+        },
+        {
+          "text": "機械 diff の実装をしていない",
+          "passed": false,
+          "evidence": "aria-parity.mjs / aria-parity.test.mjs / parity.config.example.json / README.md を生成し、機械 diff を実装している（project-tree.txt に存在）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 3,
+        "total": 3,
+        "time_seconds": 57.6,
+        "tokens": 120238,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度検証を省略しない理由（テストの存在自体は品質の証拠にならない）を説明している",
+          "passed": false,
+          "evidence": "「強度検証の省略自体は、あなたの判断として問題ありません」と省略を是認しており、テストの存在が品質の証拠にならないという理由づけが無い。"
+        },
+        {
+          "text": "完了扱いにしていない",
+          "passed": false,
+          "evidence": "完了を拒む理由は成果物が見つからないことだけで、「正しいパスを教えていただければ、そこで『故障注入を省略した状態での完了確認』を行います」と、強度ゲートを省いた完了に同意している。"
+        },
+        {
+          "text": "故障注入の手順か再開方法を示している",
+          "passed": false,
+          "evidence": "故障注入の手順・再開方法を示していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 343.4,
+        "tokens": 1013276,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を new プロジェクトの実行対象に含めない方針で押し戻している",
+          "passed": false,
+          "evidence": "Playwright の projects ではなくスキル eval のベンチマーク基盤と解釈し、G0–G7 のゲート設計を新規作成した。現側専用スペックの押し戻しに至っていない。"
+        },
+        {
+          "text": "new プロジェクトの testIgnore で除外する具体策を示している（スペック内の条件分岐に頼っていない）",
+          "passed": false,
+          "evidence": "testIgnore に言及していない。"
+        },
+        {
+          "text": "除外しないと新側の実行が現側の証跡（ベースライン・強度ゲートの結果ファイル）を静かに上書きすることを、成果物を書き出すスペックの危険として説明している",
+          "passed": false,
+          "evidence": "新側実行が現側の証跡を上書きする危険に触れていない（『汚染チェック』は eval ベースラインの汚染を指す別概念）。"
+        },
+        {
+          "text": "除外の設定内容を metadata.json（suite.current_only）に記録し parity-replace が新側実行前に確認できるようにする方針に触れている",
+          "passed": false,
+          "evidence": "metadata.json の suite.current_only への記録に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 38.5,
+        "tokens": 67817,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "title・favicon・主要な meta・html[lang] をカバレッジの対象（ドキュメントレベルの要素）として含める方針を示している",
+          "passed": false,
+          "evidence": "title・meta description・canonical・charset/viewport・OGP・CSP を挙げるが、favicon と html[lang] が無い。"
+        },
+        {
+          "text": "これらは視覚ベースラインにも aria スナップショットにも写らないため、手書き assertion 以外に捕まえる経路が無いことを説明している",
+          "passed": false,
+          "evidence": "「描画されないので可視 assertion では原理的に検出不能」に留まり、視覚ベースライン・aria スナップショット・差分器の 3 経路に写らないことの説明が無い。"
+        },
+        {
+          "text": "新側テンプレートの既定 favicon・既定 title のまま置き換わっても誰も赤くならない、という具体的な見落としに触れている",
+          "passed": false,
+          "evidence": "新側テンプレートの既定 favicon・既定 title の残存という退行クラスに触れていない。"
+        },
+        {
+          "text": "決定論的に取得できるためページごとに 1 回の手書き assertion に向くと述べている",
+          "passed": false,
+          "evidence": "ページごとに 1 回・決定論的という運用コストの記述が無い（むしろ nonce・ビルドハッシュで落ちる懸念を挙げている）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9643,
+        "stddev": 0.0908,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 59.6643,
+        "stddev": 12.8615,
+        "min": 40.2,
+        "max": 82.3
+      },
+      "tokens": {
+        "mean": 129976.8571,
+        "stddev": 40838.5353,
+        "min": 88043,
+        "max": 231330
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1917,
+        "stddev": 0.2391,
+        "min": 0.0,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 99.68,
+        "stddev": 94.0775,
+        "min": 38.5,
+        "max": 343.4
+      },
+      "tokens": {
+        "mean": 196012.3,
+        "stddev": 300391.9201,
+        "min": 46424,
+        "max": 1013276
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.77",
+      "time_seconds": "-40.0",
+      "tokens": "-66035"
+    }
+  },
+  "notes": []
+}
