@@ -35,16 +35,27 @@ trap 'rm -rf "$secret_dir"' EXIT
 	printf '%s' "$BOX_CLIENT_SECRET" >"$secret_dir/secret"
 )
 
-resp="$(curl -sS https://api.box.com/oauth2/token \
+# curl は name@file の区切りを探すとき `=` を `@` より先に見るため、ファイルパスに `=` が含まれると
+# ファイルとして読まれず「name@<パス前半>=<パス後半>」がそのままボディになる（実測 curl 8.14.1）。
+# secret_dir は TMPDIR 由来なので `=` を含み得る。パスの文字に依存しないよう secret_dir へ cd し、
+# 相対ファイル名（`=` を含まない）で渡す。cd はコマンド置換のサブシェル内に閉じる。
+# CDPATH が export されていると cd が解決先を stdout に出して $resp を汚すため、cd の間だけ空にする。
+resp="$(CDPATH='' cd -- "$secret_dir" && curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=refresh_token \
 	--data-urlencode "client_id=$BOX_CLIENT_ID" \
-	--data-urlencode "client_secret@$secret_dir/secret" \
-	--data-urlencode "refresh_token@$secret_dir/refresh")"
+	--data-urlencode "client_secret@secret" \
+	--data-urlencode "refresh_token@refresh")"
 
 err="$(printf '%s' "$resp" | jq -r '.error // empty')"
 if [ -n "$err" ]; then
 	echo "トークン更新失敗: $err - $(printf '%s' "$resp" | jq -r '.error_description // ""')" >&2
-	echo "（refresh token が失効している可能性があります。box-oauth-init.sh で再取得してください）" >&2
+	# invalid_client は client 認証の失敗であって refresh token の失効ではない。混同すると
+	# 「再認可すれば直る」と誤誘導するため、原因ごとに案内を分ける。
+	if [ "$err" = "invalid_client" ]; then
+		echo "（client 認証に失敗しました。BOX_CLIENT_ID / BOX_CLIENT_SECRET の値を確認してください）" >&2
+	else
+		echo "（refresh token が失効している可能性があります。box-oauth-init.sh で再取得してください）" >&2
+	fi
 	exit 1
 fi
 

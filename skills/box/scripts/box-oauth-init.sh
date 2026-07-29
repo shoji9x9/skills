@@ -2,7 +2,8 @@
 # Box OAuth 2.0 の認可コードを access/refresh token に交換し、refresh token を保存する（初回のみ実行）。
 # 使い方: box-oauth-init.sh（認可コードは引数ではなくプロンプト or stdin から入力する）
 #   対話: box-oauth-init.sh を実行し、プロンプトに認可コードを貼り付けて Enter（ps/proc 露出を確実に避ける）
-#   stdin: box-oauth-init.sh < code.txt（自動実行向け。値を argv に載せない）
+#   stdin: f="$(mktemp)"; cat >"$f"; box-oauth-init.sh <"$f"; rm -f "$f"（自動実行向け。値を argv に載せない）
+#          一時ファイルは mktemp（0600）で作る。CWD の code.txt は既定 umask 0022 では 0644 になり他ユーザに読める
 # 認可コードを引数で渡さないのは、実行中に ps/proc から他プロセスへ露出させないため。
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
 # 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
@@ -11,7 +12,7 @@ set -euo pipefail
 # 旧来の `box-oauth-init.sh <code>` 形式を弾く。引数で渡すと ps/proc に露出し、かつ現在は
 # 無視されて stdin 待ちになり混乱するため、明示的にエラーで新しい入力方法へ誘導する。
 if [ "$#" -gt 0 ]; then
-	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行し、プロンプトに貼り付けるか stdin で渡してください（box-oauth-init.sh < code.txt）。" >&2
+	echo "エラー: 認可コードは引数で渡しません（ps/proc 露出を避けるため）。引数なしで実行してプロンプトに貼り付けるか、mktemp で作った 0600 の一時ファイルに書いて stdin で渡してください（CWD の code.txt は既定 umask では 0644 になるため使わない）。" >&2
 	exit 2
 fi
 
@@ -43,17 +44,28 @@ trap 'rm -rf "$secret_dir"' EXIT
 	printf '%s' "$BOX_CLIENT_SECRET" >"$secret_dir/secret"
 )
 
-resp="$(curl -sS https://api.box.com/oauth2/token \
+# curl は name@file の区切りを探すとき `=` を `@` より先に見るため、ファイルパスに `=` が含まれると
+# ファイルとして読まれず「name@<パス前半>=<パス後半>」がそのままボディになる（実測 curl 8.14.1）。
+# secret_dir は TMPDIR 由来なので `=` を含み得る。パスの文字に依存しないよう secret_dir へ cd し、
+# 相対ファイル名（`=` を含まない）で渡す。cd はコマンド置換のサブシェル内に閉じる。
+# CDPATH が export されていると cd が解決先を stdout に出して $resp を汚すため、cd の間だけ空にする。
+resp="$(CDPATH='' cd -- "$secret_dir" && curl -sS https://api.box.com/oauth2/token \
 	-d grant_type=authorization_code \
-	--data-urlencode "code@$secret_dir/code" \
+	--data-urlencode "code@code" \
 	--data-urlencode "client_id=$BOX_CLIENT_ID" \
-	--data-urlencode "client_secret@$secret_dir/secret" \
+	--data-urlencode "client_secret@secret" \
 	--data-urlencode "redirect_uri=$redirect_uri")"
 
 err="$(printf '%s' "$resp" | jq -r '.error // empty')"
 if [ -n "$err" ]; then
 	echo "トークン交換失敗: $err - $(printf '%s' "$resp" | jq -r '.error_description // ""')" >&2
-	echo "（認可コードは約30秒で失効します。DevTools を開いた状態で認可からやり直してください）" >&2
+	# invalid_client は client 認証の失敗であって認可コードの失効ではない。混同すると「認可からやり直せば
+	# 直る」と誤誘導するため、原因ごとに案内を分ける（box-token.sh と同じ切り分け）。
+	if [ "$err" = "invalid_client" ]; then
+		echo "（client 認証に失敗しました。BOX_CLIENT_ID / BOX_CLIENT_SECRET の値を確認してください）" >&2
+	else
+		echo "（認可コードは約30秒で失効します。DevTools を開いた状態で認可からやり直してください）" >&2
+	fi
 	exit 1
 fi
 
