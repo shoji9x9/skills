@@ -22,13 +22,14 @@
 
 撮影も api-resource モードの発行も、選択 target の URL が Playwright に渡っていないと成立しない。**撮影の前に配線する。**
 
-- 選択 target の `url` / `api_url`（省略時は `url`）を環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、Playwright の **`new` プロジェクト**の baseURL と `request` フィクスチャへ渡す
+- 選択 target の `url` / `api_url`（省略時は `url`）を環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、Playwright の**採取用プロジェクト**
+  （`metadata.json.suite.new_only` に記録された名前。既定 `new-capture`。`new` と同じ baseURL 配線を使う）の baseURL と `request` フィクスチャへ渡す
   （`url_command` を持つ target は、本スキル実行の target 解決時に 1 回だけコマンドを実行して得た URL を使う。失敗・空出力は停止する。
   以降の工程では解決済みの値を再利用し、工程ごとに再実行しない——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」）
 - 解決値は `new/<target>/replace-metadata.json` の `new.ui_url` / `new.api_url` と一致することを確認する（別環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決値を持たないため、照合は **target 名の一致**で代替する（固定値で記録されたフィールド〈例: `url_command` の target の固定 `api_url`〉は従来どおり照合する）。
   `url_command` の target に `commit_check` があれば、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する）
-- **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
+- **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` / `new-capture` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
 
 ## 条件一致の先行検証（差分検出より前）
 
