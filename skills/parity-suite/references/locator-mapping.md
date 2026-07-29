@@ -59,6 +59,7 @@
 |---|---|
 | スペック（現・新の両方に当てるもの） | `<parity_suite_dir>/parity/<slug>/` |
 | **現側専用スペック**（ベースライン採取・ノイズ基準値測定・強度ゲート） | `<parity_suite_dir>/parity/<slug>/current-only/` |
+| **新側専用スペック**（新側ベースライン採取・新側の自己ノイズ測定。置くのは `parity-diff`。本スキルは場所・除外・`new-capture` プロジェクトだけ用意する） | `<parity_suite_dir>/parity/<slug>/new-only/` |
 | 現側マッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
 | 期待値解決層 | `<parity_suite_dir>/parity/lib/expectations/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
@@ -67,28 +68,48 @@
 
 **同梱スクリプトのコピーは、プロジェクト自作のツールと同じディレクトリに置かない。** コピーは修正しない規約（正本はスキル側で、`gh skill update` の更新を取り込む）である一方、自作ツールは通常のコードとして扱う。同居させるとこの 2 つを**パスで分けられず**、整形・リント・レビューの対象をコピー側にも巻き込む。既定として `tools/vendor/` のようなコピー専用のサブディレクトリを切り、プロジェクトの整形・リント設定からパスで除外できる状態にしておく（除外するか否かの規約自体はプロジェクト側の判断であり、本スキルは決めない）。
 
-Playwright の `projects` は `current` / `new` の 2 つを定義し、**本スキルでは `current` のみ実行する**。
+Playwright の `projects` は `current` / `new` / `new-capture` の 3 つを定義し、**本スキルでは `current` のみ実行する**（`new` は `parity-replace` の green 検証、`new-capture` は `parity-diff` の新側ベースライン採取が実行する）。
 
-### 現側専用スペックは `new` から `testIgnore` で除外する
+### side 専用スペックは相手側の project から `testIgnore` で除外する（両向き）
 
 **ベースライン採取・ノイズ基準値測定・強度ゲートのスペックは現側専用**であり、`projects` で分けないと `new` プロジェクトの実行にも含まれる。
 **成果物を書き出すスペックは特に危険で、新側の実行が現側の証跡（ベースライン・強度ゲートの結果ファイル）を静かに上書きする**（実際に上書きした事例がある）。
+
+**除外は両向きに要る。** `parity-diff` が後から `new-only/` へ置く新側採取スペックが `current` プロジェクトの実行に混ざると、
+**現行アプリの画面が新側ベースラインとして書き出され、差分ゼロに化ける**（現側の証跡が壊れるのではなく、新側の証跡が偽物になる）。
+`new-only/` はこの時点では空でよい——**除外はディレクトリの存在に依らない**ので、スイート構築時に両向きとも設定しておく。
+
+**新側採取スペックは `new` ではなく専用の `new-capture` プロジェクトで走らせる。** `new` は `parity-replace` が green 検証で回すプロジェクトであり、
+採取スペックは採取専用の環境変数（slug・target・撮影パス）をモジュール読み込み時に要求する。`new` に残すと **`parity-replace` の green 検証がテスト収集の時点で落ち**、往復ループが進まなくなる。
+`new-capture` は `new` と同じ baseURL 配線を使い、`testDir` を `new-only/` に絞る（`new` 側は `new-only/` も `testIgnore` する）。
 
 - 現側専用スペックを上表の `current-only/` に集め、`new` プロジェクトに `testIgnore` を設定して除外する。`testIgnore` に一致したファイルはテストとして実行されない
   （glob 文字列または正規表現。照合は絶対パスに対して行われる。出典: <https://playwright.dev/docs/api/class-testproject#test-project-test-ignore>）
 - **除外は `projects` 側で行う**（スペック内の条件分岐に頼らない。分岐は書き忘れが検出されず、書き出し済みのファイルは戻せない）。
   この規則は**ファイル単位の除外**に対するもので、[`coverage.md`](coverage.md) の「同じページに乗る他機能の在席」が使う**テスト単位のスキップ**（新側未実装の機能を `new` でだけ飛ばし、実装後に外す）は対象外——成果物を書き出さず、外し忘れは在席が緑にならないことで見える
 - **除外の対象は「現側パスへ成果物を書き出すスペック」**であり、`parity-diff` の新側ベースライン取得を止めるものではない（新側は環境別の `new/<target>/baseline-new/` へ書く。手順の正本は `parity-diff` の `references/capture-new.md`）
-- `testIgnore` を設定したことと対象パターンを `metadata.json` の `suite.current_only` に記録し、`parity-replace` が新側実行前に確認できるようにする
+- `testIgnore` を設定したことと対象パターン、および `new-capture` プロジェクト名を、現側専用は `metadata.json` の `suite.current_only`、新側専用は `suite.new_only` に記録する
+  （前者は `parity-replace` が新側実行前に、後者は `parity-diff` が新側採取スペックの置き場所・除外の有無・実行するプロジェクト名を確認するために読む）
 
 ```ts
 // playwright.config.ts（抜粋。パスはプロジェクト規約に合わせる）
 projects: [
-  { name: 'current', use: { baseURL: process.env.PARITY_CURRENT_UI_URL } },
+  {
+    name: 'current',
+    use: { baseURL: process.env.PARITY_CURRENT_UI_URL },
+    testIgnore: '**/new-only/**',
+  },
   {
     name: 'new',
     use: { baseURL: process.env.PARITY_NEW_UI_URL },
-    testIgnore: '**/current-only/**',
+    // parity-replace の green 検証用。採取スペックは走らせない（収集時に採取用の環境変数を要求するため）
+    testIgnore: ['**/current-only/**', '**/new-only/**'],
+  },
+  {
+    name: 'new-capture',
+    use: { baseURL: process.env.PARITY_NEW_UI_URL },
+    // parity-diff の新側ベースライン採取専用。testDir を new-only/ に絞る
+    testDir: 'e2e/parity/<slug>/new-only',
   },
 ],
 ```

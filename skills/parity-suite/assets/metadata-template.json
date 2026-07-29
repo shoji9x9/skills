@@ -21,6 +21,7 @@
     "dir": "<parity_suite_dir。未指定時 e2e/>",
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
     "current_only": "<現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）のパスと、new プロジェクトへ設定した testIgnore のパターン。新側実行が現側の証跡を上書きしないことの記録>",
+    "new_only": "<新側専用スペック（新側ベースライン採取・自己ノイズ測定。置くのは parity-diff）の置き場所と、current / new の両プロジェクトへ設定した testIgnore のパターン、および採取を実行する専用プロジェクト名（既定 new-capture）。本スキル時点ではディレクトリは空でよく、除外・プロジェクト・場所だけを用意して記録する（current に混ざると現行アプリが新側ベースラインとして書き出され差分ゼロに化け、new に残ると parity-replace の green 検証が収集時に落ちる）>",
     "locator_map": "<現側マッピングのパス>",
     "expectations": "<期待値解決層（論理名 → side 別期待値）のパス。現側の値だけを埋めた状態で引き渡し、新側の値は parity-replace が充填する>",
     "interactions": "<操作アダプタのパス>",
@@ -35,8 +36,18 @@
     "viewer_environment": "<想定利用者環境との一致。一致 | 乖離: <内容と gaps.md の該当箇所> | 未確認。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す>",
     "viewports": [{ "width": 0, "height": 0, "label": "<例: desktop / mobile>" }],
     "animations": "disabled",
+    "full_page": "<スクリーンショットを全画面（true）で撮ったかビューポート内（false）で撮ったか。parity-diff の新側採取が同じ値で撮るために必須（決め打ちすると画像サイズが違い全面差分になる）。真偽値で書く>",
+    "pages": [
+      {
+        "name": "<ページ名。noise_baseline[].page と同じ語彙を使う（parity-diff が組の再測定範囲を突き合わせるため）>",
+        "path": "<baseURL からの相対パス。parity-diff が新側を同一ページで撮るために使う>"
+      }
+    ],
     "masks": [
-      "<マスクした動的領域のロケータと理由（認証情報・トークン・個人情報・揮発項目は残さない）>"
+      {
+        "name": "<マスクした動的領域の論理名（ロケータマッピングで解決できる名前。自由記述にせず parity-diff が機械的に解決できる形にする）>",
+        "reason": "<マスクした理由（認証情報・トークン・個人情報・揮発項目は残さない）>"
+      }
     ],
     "states": ["<遷移させた状態: default | hover | focus | active | disabled | selected | error>"]
   },

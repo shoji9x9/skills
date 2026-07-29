@@ -102,8 +102,8 @@ skills:
       keep: [] # 変えない（例: テーブル名、項目名、API エンドポイント、関数名）
       may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異）
       pending: [] # 保留（測定結果で決める）
-    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（インスタンス単位の例外は component_diff_exceptions へ）。要素の形の正本は本ファイル: { component, property, current, new, reason }
-    component_diff_exceptions: [] # T が引けない箇所のインスタンス単位例外。宣言者は parity-diff（ユーザー承認の上で追記）。スキーマ正本は parity-diff の references/normalize.md。要素の形は { slug, page, element, state, viewport, property, current, new, reason }
+    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。画素経路のみの差・インスタンス単位の例外は component_diff_exceptions へ。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }
+    component_diff_exceptions: [] # T が引けない箇所のインスタンス単位例外。宣言者は parity-diff（ユーザー承認の上で追記）。スキーマ正本は parity-diff の references/normalize.md。要素の形は { slug, page, element, state, viewport, property, bbox（property: pixel のとき必須。照合キー）, current, new, reason }
 ```
 
 - **作成・追記は非破壊**: ファイルが無ければ `.config/skills/shoji9x9/` ごと作成し、このスキルが使うキー（`skills.replace-strategy`）だけを書く。指定値は**探索またはユーザー確認で得た実在の値**にする（上の URL・変数名・コマンドは例なので、そのまま盲目コピーしない）。既にあれば欠けたキーだけを該当セクションに追記し、既存のキー・値・コメントは変更しない。値が既にあれば尊重し上書きしない。

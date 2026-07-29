@@ -7,8 +7,34 @@
 - **差分器が判定する。** [`../scripts/diff-normalize.mjs`](../scripts/diff-normalize.mjs) の機械分類と `diff.md` の分類集計で判定し、**モデルの主観（「もう同じに見えます」）を根拠にしない**
 - 収束の条件:
   - `diff-normalize.mjs` の出力に `unexplained` / `deviates_T` / `pending_review` が無い
-  - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（`component_diffs` / `component_diff_exceptions` / `intentional_diffs`）へ非破壊追記済み
+  - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（`component_diffs` / `component_diff_exceptions` / `intentional_diffs`）へ非破壊追記済み。
+    `diff.md` に**承認前の分類**（`許容候補（要確認）`）が 1 件も残っていない（承認前は未説明として数える）
+  - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
+
+## 他機能待ちの差分（`blocked_by`）
+
+機能単位で分割して移行する以上、**同じページに乗る別機能が新側に未実装であることに由来する差分**は必然的に出る（欠けたセクションのぶん親要素の高さが変わり相対幾何が反転する等）。
+その機能を実装しない限り解消しないので、`parity-replace` へ差し戻しても直せない。**要対応でも許容でもない第 3 の状態**として `diff-metadata.json` の `blocked_by[]` に帰属させる。
+
+- **帰属できるのは次の 3 つをすべて満たす差分だけ**（ひとつでも確かめられなければ `unexplained` のまま残す。ここを緩めると `blocked_by` が直せない差分の逃げ場になる）:
+  1. 依存先が `.replace/features.md` にある slug である（自分で採番しない）
+  2. **同じ target** で依存先が新側未達であることを読んで確かめた（`new/<target>/replace-metadata.json` が無い、または `suite.new_green` が false）。読んだパスと値を `evidence` に書く
+  3. 差分が「その機能の要素が新側に無いこと」で説明できる（説明を `reason` に書く）
+- 帰属しても**差分は残っている**。`results.unexplained` の件数から差し引かず、`converged` を `true` にしない
+- **差し戻さない**（その target では直せない）。`on_diff` の分岐にも入れず、停止してユーザーへ「依存先の実装待ち」として報告する。要対応が別にあればそちらは通常どおり差し戻す
+- 前回実行の `blocked_by` は**引き継がず毎回検証し直す**。依存先が `suite.new_green` になっていれば帰属を外し、その差分を通常の候補として再判定する
+
+### 収束状態は 3 つ（`converged` の 2 値では表せない）
+
+| 状態 | 導出 | 次の行き先 |
+|---|---|---|
+| 収束 | `converged: true`（上記「収束の条件」4 項目をすべて満たす） | 完了 |
+| 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
+| 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
+
+**再判定のトリガーは `replace-strategy status` が持つ**——依存先の同 target が `suite.new_green` になった slug を検出し、`blocked_by` で参照している側の `parity-diff` 再実行が必要だと列挙する（成果物から毎回導出する原則に沿う）。
+`parity-replace` は自分が green にした機能の依存元を知らないため、通知役を持たせない。
 
 ## 差し戻し（要対応が 1 件以上のとき）
 
@@ -27,7 +53,7 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は「未説明差分ゼロ・未修正回帰ゼロ」かつ「『許容』例外の確定（ユーザー承認）がすべて済んでいる」こと
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（4 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存を見落とす）
 - `results`（total / actionable / accepted / noise / unexplained / unverified）を記録する
 
 ## 対象外・未検証の明示

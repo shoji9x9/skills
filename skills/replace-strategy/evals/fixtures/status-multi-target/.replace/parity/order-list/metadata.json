@@ -29,7 +29,9 @@
     "environment": "Chrome 140 / 1280x800 / 日本語ロケール / アニメーション無効",
     "viewports": [{ "width": 1280, "height": 800, "label": "desktop" }],
     "animations": "disabled",
-    "masks": ["ヘッダーの最終更新時刻（揮発項目のため）"],
+    "full_page": true,
+    "pages": [{ "name": "/orders", "path": "/orders" }],
+    "masks": [{ "name": "注文一覧ヘッダーの最終更新時刻", "reason": "揮発項目のため" }],
     "states": ["default"]
   },
   "traits": {
