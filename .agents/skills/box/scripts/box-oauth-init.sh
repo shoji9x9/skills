@@ -2,8 +2,9 @@
 # Box OAuth 2.0 の認可コードを access/refresh token に交換し、refresh token を保存する（初回のみ実行）。
 # 使い方: box-oauth-init.sh（認可コードは引数ではなくプロンプト or stdin から入力する）
 #   対話: box-oauth-init.sh を実行し、プロンプトに認可コードを貼り付けて Enter（ps/proc 露出を確実に避ける）
-#   stdin: f="$(mktemp)"; cat >"$f"; box-oauth-init.sh <"$f"; rm -f "$f"（自動実行向け。値を argv に載せない）
+#   stdin: f="$(mktemp)"; trap 'rm -f "$f"' EXIT; cat >"$f"; box-oauth-init.sh <"$f"（自動実行向け。値を argv に載せない）
 #          一時ファイルは mktemp（0600）で作る。CWD の code.txt は既定 umask 0022 では 0644 になり他ユーザに読める
+#          削除は trap EXIT で行う（`; rm -f` の連結は set -e のシェルだと交換失敗時に到達せず認可コードが残留する）
 # 認可コードを引数で渡さないのは、実行中に ps/proc から他プロセスへ露出させないため。
 # 必要env: BOX_CLIENT_ID, BOX_CLIENT_SECRET
 # 任意env: BOX_REDIRECT_URI（既定 https://app.box.com）, BOX_REFRESH_TOKEN_FILE（既定 $HOME/.config/box/refresh_token）
