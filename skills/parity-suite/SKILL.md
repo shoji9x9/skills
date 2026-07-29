@@ -55,6 +55,8 @@ parity-suite [--feature <slug>] [--target <name>]
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない
 - **現行アプリのデータを破壊しない**（選択した target の `forbidden_actions` を尊重。書き込みが許可されない target ではスイートの書き込み系スペックを実行せず「未検証」として `gaps.md` に記録する）
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す
+- **現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を `new` プロジェクトの実行対象に残さない。** `testIgnore` で除外する——残すと新側の実行が現側の証跡を静かに上書きする
+- **採取環境でだけ成立する一致を「一致」として扱わない。** 総称ファミリーのフォントフォールバック等は採取環境では差分ゼロになり、利用者環境でだけ壊れる（`viewer_environment` に記録し、乖離は `gaps.md` へ）
 - **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
 
@@ -72,7 +74,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `targets[].db.env_vars` | 現行 DB 接続の環境変数名。選択した current target のもの（DB を持たない環境では省略可）。本スキルは**読むだけ**で投入しないため `db.seedable` は見ない |
 | `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出で読む（[`references/strength-gate.md`](references/strength-gate.md)） |
-| `references.db_semantics` | DB 意味論の差（並び順の特性化で読む） |
+| `references.db_semantics` | DB 意味論の差（並び順の特性化で読む）。**未整備（キー欠落・空値・解決できないパス）なら停止せず**、判断材料が無いまま推測せずに実測で特性化し、整備をユーザーに促す |
 | `references.dependency_policy` | スイートに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない。`parity_suite_dir` の既定だけは本スキルの受け入れ条件のため明記した）。
@@ -94,10 +96,11 @@ parity-suite [--feature <slug>] [--target <name>]
    一致しなければ「ベースラインとシードの環境不一致」として停止し、同じ target へ投入するか target 選択を変えるようユーザーに促す。
    **`current.target` が `null` のときは照合しない**（`mode: static` ＝ ゴールデンデータがリポジトリ内の静的データで、特定の環境に紐づかないため。契約の正本は `replace-strategy` の `references/project-config.md`）。
    続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
-5. **authoring**: ロケータマッピング（現側）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ）→ 手書き aria → API 特性化。
+5. **authoring**: ロケータマッピング（現側）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria → API 特性化。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す。詳細: [`references/baseline.md`](references/baseline.md)。
+   **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない
 7. **強度ゲート（故障注入）**: 既知の回帰分類から故障カタログを導出し注入する。素通りした故障は強化するか `gaps.md` へ。詳細: [`references/strength-gate.md`](references/strength-gate.md)
 8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、`strength.md` / `gaps.md` / `metadata.json` を生成する。
@@ -125,7 +128,8 @@ parity-suite [--feature <slug>] [--target <name>]
 ## 姉妹スキルとの連携
 
 - **`golden-dataset` との往復**: フェーズ A 完了が前提。探索でシード不足（空リストしか確認できない・ページネーションが 1 ページ等）を見つけたら `gaps.md` に「データ不足」として記録し `golden-dataset` へ戻す。戻るとバージョンが上がり、影響を受けるベースラインを再取得する
-- **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
+- **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、現側専用スペックの `testIgnore` 除外（`metadata.json.suite.current_only`）、
+  未実装機能の在席チェック（slug 付きでスキップ）、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
 - **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy status`** が `strength.md` / `gaps.md` / `metadata.json` を読んで現況を導出する

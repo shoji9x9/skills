@@ -20,6 +20,7 @@
   "suite": {
     "dir": "<parity_suite_dir。未指定時 e2e/>",
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
+    "current_only": "<現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）のパスと、new プロジェクトへ設定した testIgnore のパターン。新側実行が現側の証跡を上書きしないことの記録>",
     "locator_map": "<現側マッピングのパス>",
     "interactions": "<操作アダプタのパス>",
     "tools": "<決定論的ツール（trait-capture / trait-compare のコピー）のパス>",
@@ -29,7 +30,8 @@
     "current_green": true
   },
   "capture_conditions": {
-    "environment": "<撮影環境。parity-diff が新側を同一環境で撮れるようにする>",
+    "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
+    "viewer_environment": "<想定利用者環境との一致。一致 | 乖離: <内容と gaps.md の該当箇所> | 未確認。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す>",
     "viewports": [{ "width": 0, "height": 0, "label": "<例: desktop / mobile>" }],
     "animations": "disabled",
     "masks": [

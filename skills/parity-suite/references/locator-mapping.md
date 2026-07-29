@@ -37,12 +37,38 @@
 
 | 種別 | 既定の配置 |
 |---|---|
-| スペック | `<parity_suite_dir>/parity/<slug>/` |
+| スペック（現・新の両方に当てるもの） | `<parity_suite_dir>/parity/<slug>/` |
+| **現側専用スペック**（ベースライン採取・ノイズ基準値測定・強度ゲート） | `<parity_suite_dir>/parity/<slug>/current-only/` |
 | 現側マッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
 | 決定論的ツール（同梱 scripts のコピー） | `<parity_suite_dir>/parity/lib/tools/` |
 
 Playwright の `projects` は `current` / `new` の 2 つを定義し、**本スキルでは `current` のみ実行する**。
+
+### 現側専用スペックは `new` から `testIgnore` で除外する
+
+**ベースライン採取・ノイズ基準値測定・強度ゲートのスペックは現側専用**であり、`projects` で分けないと `new` プロジェクトの実行にも含まれる。
+**成果物を書き出すスペックは特に危険で、新側の実行が現側の証跡（ベースライン・強度ゲートの結果ファイル）を静かに上書きする**（実際に上書きした事例がある）。
+
+- 現側専用スペックを上表の `current-only/` に集め、`new` プロジェクトに `testIgnore` を設定して除外する。`testIgnore` に一致したファイルはテストとして実行されない
+  （glob 文字列または正規表現。照合は絶対パスに対して行われる。出典: <https://playwright.dev/docs/api/class-testproject#test-project-test-ignore>）
+- **除外は `projects` 側で行う**（スペック内の条件分岐に頼らない。分岐は書き忘れが検出されず、書き出し済みのファイルは戻せない）。
+  この規則は**ファイル単位の除外**に対するもので、[`coverage.md`](coverage.md) の「同じページに乗る他機能の在席」が使う**テスト単位のスキップ**（新側未実装の機能を `new` でだけ飛ばし、実装後に外す）は対象外——成果物を書き出さず、外し忘れは在席が緑にならないことで見える
+- **除外の対象は「現側パスへ成果物を書き出すスペック」**であり、`parity-diff` の新側ベースライン取得を止めるものではない（新側は環境別の `new/<target>/baseline-new/` へ書く。手順の正本は `parity-diff` の `references/capture-new.md`）
+- `testIgnore` を設定したことと対象パターンを `metadata.json` の `suite.current_only` に記録し、`parity-replace` が新側実行前に確認できるようにする
+
+```ts
+// playwright.config.ts（抜粋。パスはプロジェクト規約に合わせる）
+projects: [
+  { name: 'current', use: { baseURL: process.env.PARITY_CURRENT_UI_URL } },
+  {
+    name: 'new',
+    use: { baseURL: process.env.PARITY_NEW_UI_URL },
+    testIgnore: '**/current-only/**',
+  },
+],
+```
+
 `current` / `new` の baseURL は、選択した target から解決した環境変数 `PARITY_CURRENT_UI_URL` / `PARITY_NEW_UI_URL`（API は `PARITY_CURRENT_API_URL` / `PARITY_NEW_API_URL`）を参照する形で書く（URL を config に直書きしない）。
 `url_command` を持つ target は、そのコマンドを実行して得た URL を環境変数へ入れる（解決規則の正本は `replace-strategy` の `references/project-config.md`）。
 **この環境変数の配線が本スキルの正本**であり、`parity-replace` / `parity-diff` は新側 target から `PARITY_NEW_*` を解決して同じ配線に流す。

@@ -56,6 +56,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **カタログサイト（コンポーネントライブラリの見本）を比較の正解にしない。** 正解は動いている現行アプリ
 - **ピクセル比較系 VRT ツールで新旧を突き合わせない**（実装が違えば全面赤になり無意味）
 - **差分をしきい値で潰さない**（特性照合の別経路で捉える）
+- **テキストの幅・字形の差を切り分けずに分類しない。** 「同じフォント名だから」で環境ノイズ・許容にしない——版（`head.fontRevision`）とヒンティング命令の有無で決まるため、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する
 - **コンポーネント差分をインスタンス単位の無視リストで飲み込まない。** クラス/トークン単位の系統差 T（`component_diffs`）で宣言し、T からの逸脱を検出する
 - **生の差分ゼロを収束条件にしない。** 収束＝未説明差分ゼロ かつ 未修正回帰ゼロ
 - **名前の付かない要素の見た目差を「computed style で保証済み」と扱わない**（特性照合は名前付き要素しか見ない。名前無しは画素経路の担当）
@@ -79,6 +80,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
 | `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
 | `references.db_semantics` | 読 | DB 意味論の差（API 応答の並び順差の判断材料） |
+| （上記 2 キーが**未整備**のとき） | — | キー欠落・空値・解決できないパスはいずれも未整備。**停止はしない**が、判断材料が無いまま「許容」へ寄せず、該当候補は未説明のまま残して `diff.md` に理由を記録する |
 | `references.dependency_policy` | 読・書 | 差分器・トリアージ補助に依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**書くのはキー欠落＝未確認のときだけ**（ユーザーに要否を確認した結果を非破壊追記） |
 | `secrets.wrapper` | 読 | シークレットが要るコマンドの前置ラッパー |
 
@@ -98,7 +100,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    **条件一致を先行検証**し、不一致なら差分報告せず停止する。新側の自己ノイズも測り（往復ループでは前回実行の測定値を組単位で再利用してよい。失効条件は同 reference）、現側 `noise_baseline` との乖離が大きければ停止する
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
 5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
-6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認
+6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認。
+   テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
    ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
 
