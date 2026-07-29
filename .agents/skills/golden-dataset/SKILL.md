@@ -38,6 +38,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 - **ツール**: `git`。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
 - **前提スキル**: `replace-strategy`（`setup` 完了）
+- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
+  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要
 - **固定の技術スタック前提**: 投入ツールは TypeScript が既定。難しければ SQL（まとめてコミットできる形）
 

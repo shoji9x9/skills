@@ -39,6 +39,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 
 - **ツール**: `git`、Node.js。画素経路は記録済み画素差分ツールの出力（差分画像）を読むため `pngjs` を要する（[`references/detect.md`](references/detect.md)）
 - **前提スキル（依存順）**: `replace-strategy`（`setup` 完了）→ `golden-dataset`（フェーズ A・B）→ 対象 slug の `parity-suite`（完了）→ `parity-replace`（**選択した target で**新側 green）
+- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
+  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` / `parity-suite` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **`issue-create`**: 選択した target の `on_diff` ドキュメントが Issue 起票を指示する場合のみ必要（要対応差分の起票を委譲する）
 - **本スキルは現行アプリを駆動しない。** ノイズ基準値・視覚ベースラインの測定は `parity-suite` の仕事。撮るのは新側だけ
 - 判定の詳細（target の解決・起動・モード別の要求・確認するキーのフルパス・データセットバージョンの三者一致・差分器バージョン一致・反復上限）は [`references/preflight.md`](references/preflight.md)

@@ -34,6 +34,8 @@ parity-suite [--feature <slug>] [--target <name>]
 
 - **ツール**: `git`、Node.js（Playwright の実行環境）。`gh` は不要（本スキルは Issue を操作しない）
 - **前提スキル**: `replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）
+- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
+  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要（現行アプリの駆動は Playwright 自身が行う）
 - **Playwright（TypeScript）前提**。好みではなく設計が Playwright 固有機能に依存するため。理由は 3 点:
   - `toMatchAriaSnapshot` の既定が部分一致であることを利用して「寛容なスナップショット」を手書きする
