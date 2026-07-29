@@ -22,7 +22,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | 対象                                              | リント              | フォーマット        | 補助検査                                                                                  |
 | ------------------------------------------------- | ------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
 | Markdown (`*.md`)                                 | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/lint-pagination.js` で shell コードブロック内の `gh api` ページネーションを検査 |
-| JavaScript (`*.js`, `*.mjs`)                      | `oxlint`            | `oxfmt`             | なし                                                                                      |
+| JavaScript / TypeScript (`*.js`, `*.mjs`, `*.ts` 等) | `oxlint`          | `oxfmt`             | なし                                                                                      |
 | JSON (`*.json`)                                   | `jsonlint`          | `oxfmt`             | duplicate key も検査                                                                      |
 | YAML (`*.yml`, `*.yaml`)                          | `js-yaml`           | `oxfmt`             | なし                                                                                      |
 | Shell (`*.sh`)                                    | `shellcheck`        | `shfmt`             | `scripts/lint-pagination.js` で `gh api` ページネーションを検査                          |
@@ -30,6 +30,8 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は mise でインストールし（`mise.toml`）素のコマンド名で起動する。それ以外は pnpm devDependencies（`pnpm exec` で起動）。
 
+- **`oxlint` / `oxfmt` の対象は JS/TS ファミリ全体**（`js` / `mjs` / `cjs` / `jsx` / `ts` / `tsx` / `mts` / `cts`）。CI は引数なし（`pnpm run lint:js`）で走らせるためこの範囲を自動で拾う。
+  **lefthook の glob と `format:js*` スクリプトの glob もこの範囲に揃える**——片方だけ狭いと、その拡張子は手元で検査されず CI でだけ落ちる（`.ts` を配布テンプレートに追加した際に実際に起きた）。
 - **GitHub Actions のポリシー検査**: `actionlint`（構文）に加え `ghalint`（`permissions`・`timeout-minutes`・`persist-credentials` 等のポリシー）で多層検査する。`ghalint` は全走査のため pre-commit に入れず CI（`GitHub Actions lint`）専任。
 - **シークレット走査**: `gitleaks` で行う。pre-commit はステージ差分（`gitleaks git --staged`）、CI はリポジトリ全体・全履歴（`Secret scan` ジョブ・`fetch-depth: 0`）を走査する。
 - **Markdown の行長（MD013）**: `markdownlint-cli2` の MD013 は非 strict 運用（`line_length: 200`、`code_blocks` / `tables` / `headings` は除外）。

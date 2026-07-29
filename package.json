@@ -8,8 +8,8 @@
   "author": "",
   "type": "module",
   "scripts": {
-    "format:js": "oxfmt \"**/*.{js,mjs}\"",
-    "format:js:check": "oxfmt --check \"**/*.{js,mjs}\"",
+    "format:js": "oxfmt \"**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"",
+    "format:js:check": "oxfmt --check \"**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"",
     "lint:js": "oxlint",
     "test": "vitest run"
   },
