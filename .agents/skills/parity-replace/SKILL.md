@@ -85,7 +85,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**）。**未整備（キー欠落・空値・解決できないパス）なら手順 6 に入る前に整備を促す**（源流で系統差を縮められず、宣言と未検証が膨らむため。ライブラリを勝手に決めない） |
 | `references.dependency_policy` | 依存導入の方針ドキュメントのパス（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する（記録しないと毎回聞き直しになる） |
 | `new.repo` | 新側リポジトリ（実装対象）。コミット SHA は設定ではなく `replace-metadata.json` に記録する |
-| `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`pre_commands` → `start` → `check_urls` の順に起動して UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
+| `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`check_urls` で稼働判定して落ちているときだけ `pre_commands` → `start` の順に起動し、UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
 | `targets[].on_diff` | 選択した target で要対応差分が出たときの対応手順を書いた Markdown のパス（任意。省略時は修正 → 対象 target で再テスト）。本スキルでの解釈手順は [`references/diff-loop.md`](references/diff-loop.md) |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target のロール別認証情報（`<ロール名>.{user_name_env,password_env}`。値は環境変数の**名前**。認証不要の環境では省略可）と、実施しない UI / API 操作（未定義時の扱いは正本に従う）。いずれも target ごとの定義のみで、側単位のフォールバックは持たない |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
@@ -114,7 +114,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
    **この「既定は不要」は新側マッピングだけの話であり、フェーズ B は例外ゼロでも省略しない。** データ依存 assertion を green にするには新側 DB への投入が要るため、
    選択した target が投入対象なら新側スキーマが揃った時点で `golden-dataset --phase b --feature <slug> --target <選択中の new target>` を実行する（投入対象でない target では実行しない）。
-   そのうえで選択した target を起動し（`pre_commands` → `start` → `check_urls` の順。失敗したら早期停止）、解決した URL を `new` プロジェクトの baseURL に渡す。
+   そのうえで選択した target の稼働を確認し（`check_urls` で稼働判定 → 落ちているときだけ `pre_commands` → `start` → 再確認。最初の稼働判定の失敗は起動の合図であり、`pre_commands` / `start` / 再確認の失敗が早期停止）、解決した URL を `new` プロジェクトの baseURL に渡す。
    **新側でスイートを回す前に、`new` プロジェクトが現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を `testIgnore` で除外していることを確認する**（`metadata.json.suite.current_only`）。
    除外されていなければ回す前に設定する——**新側の実行が現側の証跡を静かに上書きする**（配置と設定の正本は `parity-suite` の `references/locator-mapping.md`）。
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
@@ -143,7 +143,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   無ければ「対象環境に commit `<SHA>` がデプロイ済みか」をユーザーに確認してから適用する（確認が取れなければ適用しない）
 - **飛ばす手順**: 2（ページ分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。手順 5 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
 - **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` ＝ 現在の `version` を確認し、
-  欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の起動（`pre_commands` → `start` → `check_urls`）→
+  欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の稼働確認（`check_urls`。落ちていれば `pre_commands` → `start` → 再確認）→
   スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 8（`new/<target>/replace-metadata.json` へ証跡を記録）
 - **green にならなければ、まずデータを疑う**（フェーズ B 未実施・データセットバージョンの不一致）。次に環境差（URL・起動・外部依存・認証）を疑う。
   **実装を触るのは「同一実装が動いている」前提が崩れたと分かった場合だけ**——そのときは軽量経路を抜けて通常フロー（手順 4 以降）で修正する

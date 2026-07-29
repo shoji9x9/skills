@@ -118,6 +118,17 @@
         "収束・完了判定から「HEAD がレビュー済み」条件を外し、CI 全成功かつ未解決スレッド無しで完了とする方針である",
         "未解決スレッドの返信・解決は通常どおり行う方針である"
       ]
+    },
+    {
+      "id": 11,
+      "prompt": "pr-finalize-loop 6 — push 後に必須チェックの Lint が FAILURE になった。mergeStateStatus は BLOCKED のままだよ",
+      "expected_output": "必須チェックの failed を CI 完了（失敗確定）として扱い、mergeStateStatus が CLEAN/UNSTABLE へ遷移するのを待たずに失敗ログ取得と修正へ進む。",
+      "assertions": [
+        "gh pr checks に --required を付けて必須チェックだけに絞って状態を見ている（--json のフィールドには必須かを示すものが無いことを踏まえている）",
+        "必須チェックが failed の場合は CI 失敗確定として、mergeStateStatus が CLEAN/UNSTABLE になるのを待たずに次へ進む方針である（BLOCKED のままポーリング上限まで待つ手順にしていない）",
+        "pending と failed を区別して扱っている（failed を pending 扱いに丸めていない）",
+        "失敗チェックの特定に bucket==\"fail\" での絞り込みを使い、gh run view --log-failed で失敗ジョブのログを取得しようとしている（チェック名を目視で拾う手順にしていない）"
+      ]
     }
   ]
 }

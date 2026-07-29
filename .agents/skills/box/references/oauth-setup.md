@@ -24,11 +24,16 @@ Dev Token（`BOX_ACCESS_TOKEN`）で足りる場合はこの手順は不要。�
    bash <skill>/scripts/box-oauth-init.sh
    ```
 
-   自動実行では stdin でも渡せる。ただし `ps` / `/proc` 露出を確実に避けるには、認可コードを argv に載せない形で流し込むこと。`printf '%s' '<code>' | ...` は `printf` が外部コマンドの環境では argv に見え得るため、コードをファイルに置いて stdin に流すのが安全。ファイルは交換の成否に関わらず削除する（`;` で連結し、失敗時に認可コードが残留しないようにする）。
+   自動実行では stdin でも渡せる。ただし `ps` / `/proc` 露出を確実に避けるには、認可コードを argv に載せない形で流し込むこと。`printf '%s' '<code>' | ...` は `printf` が外部コマンドの環境では argv に見え得るため、コードをファイルに置いて stdin に流すのが安全。
+   ファイルは**他ユーザから読めない権限**で作る（CWD に `code.txt` を作ると既定 umask 0022 では 0644 になり、削除するまで他ユーザに読める）。`mktemp` は 0600 で作るのでそこへ置く。書き込みも `cat >` へ貼り付ける等、argv に載せない手段で行う。
+削除は `trap ... EXIT` で行う（`bash ...; rm -f` の `;` 連結は、**`set -e` のスクリプトだと交換失敗時に `rm` へ到達せず認可コードが残留する**——実測）。
 
    ```bash
-   # コードをファイルに置いて stdin に流す（成否に関わらず後始末する）
-   bash <skill>/scripts/box-oauth-init.sh < code.txt; rm -f code.txt
+   # 0600 の一時ファイルに置いて stdin に流す（trap で成否に関わらず削除する）
+   code_file="$(mktemp)" # mktemp は 0600 で作る。CWD の code.txt は既定 umask では 0644
+   trap 'rm -f "$code_file"' EXIT
+   cat >"$code_file"     # 認可コードを貼り付けて Ctrl-D（argv に載る printf '<code>' は使わない）
+   bash <skill>/scripts/box-oauth-init.sh <"$code_file"
    ```
 
 以後は `box-token.sh` が refresh token から access token を自動取得・更新するため、トークンの手動更新は不要。

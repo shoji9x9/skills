@@ -53,7 +53,7 @@ skills:
               user_name_env: NEW_ADMIN_USER
               password_env: NEW_ADMIN_PASS
         forbidden_actions: []
-        pre_commands: [] # テスト前に順に実行するコマンド列（build 等）。失敗したら停止する
+        pre_commands: [] # start の前提となる環境準備コマンド列（build 等）。起動が必要なときだけ実行し、失敗したら停止する
         start: <コマンド> # 長時間実行する起動コマンド（稼働していないときだけ実行する。稼働判定は check_urls）
         check_urls: [] # 稼働確認に使う URL（省略時は url のみ）
         default: true
@@ -134,7 +134,7 @@ skills:
 現・新の実行対象環境を環境名で複数定義し、各スキル実行時に `--target <name>` で選択する。local-dev / local-production / preview / develop など、同じスイートを当てる環境をここに並べる。
 
 - **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
-  実行順 `url_command` の解決 → `pre_commands` → `start` → `check_urls`・失敗時の早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
+  実行順 `url_command` の解決 → `check_urls` で稼働判定 → 落ちているときだけ `pre_commands` → `start` → 再度 `check_urls`。最初の稼働判定の失敗は起動の合図で、それ以外の失敗は早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
   本ファイルが定義するのは `side`・`api_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
 - **スキーマ不変条件**（各スキルは target 解決時に検証し、違反したら**停止**して設定修正を促す）:

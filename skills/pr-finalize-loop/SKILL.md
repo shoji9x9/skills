@@ -142,9 +142,23 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 - 全チェックの完了まで待ち、すべて成功なら終了コード 0、いずれか失敗なら非 0 で終わる。
 - push 直後はチェック未登録で `no checks` と即時に返ることがある。その場合は「ポーリングと待機」に従って再確認する。
 - **push 直後の `--watch` 即時終了(exit 0)を「CI 完了」と信用しない**。force-push・再 push 直後は必須チェックがまだ登録されず、先に登録されるスキップ専用チェック（CodeQL skipping 等）だけが見える瞬間があり、
-  `--watch` はその集合の完了で exit 0 する（必須チェックは pending のまま）。`no checks` 即時返却と同系の false positive。CI 完了は、`mergeStateStatus` が `BLOCKED` / `BEHIND` を抜けて `CLEAN` / `UNSTABLE` になる、
-  または必須チェック行（`check` / `signatures` 等、ブランチ保護で必須指定されたもの）が登録され pending でなくなるまで、「ポーリングと待機」の上限つきでポーリングしてから判定する
-  （`gh pr view <番号> --repo <owner>/<repo> --json mergeStateStatus` / `gh pr checks <番号> --repo <owner>/<repo> --json name,state,bucket`。**未登録＝行が無いだけで pending 不在とみなさない**）。
+  `--watch` はその集合の完了で exit 0 する（必須チェックは pending のまま）。`no checks` 即時返却と同系の false positive。
+  判定は**必須チェック（`check` / `signatures` 等、ブランチ保護で必須指定されたもの）だけ**を見て行う。`--json` のフィールド（`bucket, completedAt, description, event, link, name, startedAt, state, workflow`）に
+  「必須か」を示すものは無いため、絞り込みは **`--required` フラグ**で行う（<https://cli.github.com/manual/gh_pr_checks>）:
+
+  ```bash
+  gh pr checks <番号> --repo <owner>/<repo> --required --json name,state,bucket
+  ```
+
+  結果を「failed / pending / 未登録」で区別して分岐する（pending 扱いに丸めない）:
+
+  - **`bucket` が `fail` / `cancel` の行がある**: CI 失敗が確定しているので待たずに「CI 失敗ログの取得」へ進む。
+    **`mergeStateStatus` の遷移待ちで代用しない**——必須チェックが失敗した PR は `BLOCKED` のままで `CLEAN` / `UNSTABLE` にならず、赤い CI では毎反復ポーリング上限まで空費する。
+  - **`pending` が残る**: 「ポーリングと待機」の上限つきで再確認する。
+  - **すべて非 pending で `fail` / `cancel` が無い**: CI 完了・成功とみなす（補助的に `gh pr view <番号> --repo <owner>/<repo> --json mergeStateStatus` が `CLEAN` / `UNSTABLE` であることも確認できる）。
+  - **必須チェックが 0 件**: 必須チェック未登録か、必須チェックを設定していないリポジトリのいずれか。**行が無い＝pending 不在とみなさない**（`--required` でも同じ）。
+    このとき `gh` は空配列を返さず `no required checks reported on the '<branch>' branch` を stderr に出して**非 0 で終了する**（force-push 直後の未登録はまさにこの状態）。
+    コマンド不備として扱わず、この分岐＝「ポーリングと待機」の `no checks` 再確認に従う。
 
 ### CI 失敗ログの取得（修正の手がかり）
 
