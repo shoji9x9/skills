@@ -19,6 +19,18 @@
 | slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |
 |---|---|---|---|---|---|---|---|---|---|
 | order | 注文管理 | 2 | /orders, /orders/:id | GET /api/orders | user | orders, order_items | CSV 出力（対象）、確認メール（スコープ外） | 未起票 | - |
+| notification-banner | お知らせバナー | 1 | /orders | GET /api/notices | - | notices | - | 未起票 | - |
+
+## ページ一覧
+
+<!-- 機能一覧の「ページ」列の逆引き。1 ページに複数機能が乗るなら全 slug を列挙する。 -->
+<!-- parity-suite が「同じページに乗る他機能の在席チェック」の根拠に使う（未実装の機能はスキップ扱いで置き、実装後に parity-replace が外す）。 -->
+<!-- 機能を追加・分割したらこの表も更新する（漏れると在席チェックの対象から外れる）。 -->
+
+| ページ | パス | 乗る機能（slug） |
+|---|---|---|
+| 注文一覧 | /orders | order, notification-banner |
+| 注文詳細 | /orders/:id | order |
 
 ## 横断 API（リソース単位）
 

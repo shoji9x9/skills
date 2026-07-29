@@ -60,6 +60,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
    **読み取り専用接続（`db.env_vars` はあるが `seedable` の無い target）へ削除・投入を行わない。** 許可が無ければ設定の修正を促して停止する（自分で設定に `seedable: true` を足さない）
 10. **投入ツールに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。
     判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
+11. **フェーズ B の現新一致を逆写像の往復で検証しない**（`map∘unmap = id` で空回りし、宣言外の正規化を足しても通る）。判定は「差の列挙 × 宣言済み差分一覧との完全一致」で行い、
+    **宣言外の正規化を 1 件足したら落ちること**まで確認する（詳細: [`references/phase-b.md`](references/phase-b.md)）
 
 ## プロジェクト設定の解決
 
@@ -72,7 +74,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | `targets[].db.seedable` | **投入許可の設定由来ゲート**。`true` の target だけが投入対象（省略・`false` は読み取り専用接続） |
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
-| `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差） |
+| `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差）。**キー欠落・空値・解決できないパスはいずれも未整備**として停止する |
 | `references.dependency_policy` | 投入ツールに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
 
@@ -116,7 +118,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
    `.replace/dataset/metadata.json`（フェーズ A 完了）が無ければフェーズ A を先に実行するよう案内する
 2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
 3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する
-4. **検証**: 新側整合性＋現新一致を検査する。`db_semantics` で説明できる差は意図的差異として `verification.md` に記録し、**説明できない不一致は失敗として扱い修正する**。新規の意図的差異は `intentional_diffs.pending` へ追記しユーザー確認へ回す
+4. **検証**: 新側整合性＋現新一致を検査する。現新一致は**差のある箇所を列挙し、宣言済みの差分一覧（`db_semantics` / `intentional_diffs.may_change`）と完全一致するか**で判定し、**逆写像（新側 → 論理）の往復で書かない**（前方写像と同じ表を使う限り恒等になり、宣言外の正規化を足しても通る）。
+   宣言外の正規化を 1 件足したら検証が落ちることまで確認して `verification.md` に記録する。**説明できない不一致は失敗として扱い修正する**。新規の意図的差異は `intentional_diffs.pending` へ追記しユーザー確認へ回す
 5. **成果物記録**: `metadata.json` の `phase_b.<slug>.<target>` を更新する（`version` は上げない）。同じ DB を共有する target でも target ごとに実行して記録する
 
 ## 成果物

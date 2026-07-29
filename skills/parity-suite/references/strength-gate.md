@@ -27,6 +27,7 @@
 | 構造（aria） | role・構造の欠落 | DOM 摂動（`page.evaluate`） | 手書き assertion ＋ aria 比較（摂動後に aria を再取得し**ベースライン相手に**構造比較） |
 | 静的ラベル・placeholder・role | 文言・placeholder の改変 | **DOM 摂動**（`page.evaluate`。上流で届かない静的マークアップ用の第二経路） | 手書き assertion |
 | 要素スタイル（色・余白・フォント・罫線） | 色・余白等の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag` / CSS 応答摂動）して撮り直す | 差分器を**ベースライン相手に**回す（新側不要） |
+| ドキュメントレベル要素 | `title` / favicon / `meta` / `html[lang]` の改変 | DOM 摂動（`page.evaluate` で `document.title` や `link[rel~="icon"]` の `href` を書き換え） | 手書き assertion（**画素・特性照合・aria のどれにも写らない**ため、この経路しか無い） |
 
 - **検出＝手書き assertion が赤 ∪ 差分器（特性照合／画素／aria 比較）が赤。** 名前付き要素のスタイルは特性照合が、名前無しは画素が拾う。
   aria 比較＝取得済み aria スナップショット（参考資料）のベースラインとの構造比較で、`parity-diff` の第 3 経路（テーブル/フォームの内容パリティ）に相当する

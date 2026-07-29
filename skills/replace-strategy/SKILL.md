@@ -77,13 +77,18 @@ replace-strategy status
    - **検証コマンド列（`verification_commands`）**: 完了前に実行する静的解析・テスト等。`parity-replace` の完了判定に必須のため、無いままにせずここで確定する
      （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）
    - **`on_diff` のドキュメント**: 内容はプロジェクトが持つものだが、`references` と同様に **`setup` が下書きを生成し、人間がレビューして確定する**（既定挙動で足りる環境には作らない）
+   - **`references`（知識の注入）**: パス型キー（`ui_library` / `db_semantics` / `env_setup`）を**キーごと生成する**。この時点でパスが決まらないキーも省略せず空値で置き、「どのスキルがいつ読むか」をコメントで添える。
+     **未整備で下流が停止するのは正しい挙動**であり、枠を作るのは停止を避けるためではなく**不足を `setup` 時点で見えるようにするため**（キーごと無いと、下流のスキルが停止して初めて不足が分かる）。
+     **`dependency_policy` だけは空値で生成しない**——キーの有無自体が「未確認」を表す三値のため、空値の枠を置くと下流の確認が発火しなくなる
+     （手順 8 の確認結果としてパスか `none` を書き、確認まで至らなければキーごと書かない）。正本は [`references/project-config.md`](references/project-config.md) の「references（知識の注入）」
 3. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・既存テストの評価を行い、`.replace/survey.md` に記録する。**測れない場合はここで停止する**
 4. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
 5. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
 6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書きは DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
 7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out、slug を `.replace/features.md` に記録する。
-   **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。規則は [`references/features-issues.md`](references/features-issues.md)
+   **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
+   併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)
 8. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
    判断材料・確認手段・決める順序は [`references/dependency-selection.md`](references/dependency-selection.md)。
    **ライセンス方針・供給網ポリシーの有無はリポジトリごとに違うため、あればそれに従い、未確認なら方針の要否そのものをユーザーに確認**して結果を設定（`references.dependency_policy`）へ記録する（`none` ＝確認済みで方針なしは再確認しない）。
@@ -118,7 +123,7 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリ／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、横断 API の fan-out とリソースグルーピング、slug、Issue 化の状態 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out とリソースグルーピング、slug、Issue 化の状態 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` が機能固有・実装中の追加を非破壊追記する |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 

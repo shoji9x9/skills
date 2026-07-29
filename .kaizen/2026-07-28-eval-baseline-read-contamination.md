@@ -1,7 +1,7 @@
 ---
 date: 2026-07-28
 type: other
-priority: medium
+priority: high
 status: pending
 session: claude-code
 ---
@@ -15,6 +15,16 @@ replace-strategy の回帰評価 iteration-5 で、without_skill（baseline）�
 自発的に発見・参照して回答した（eval-7/9 は result.json で明言、eval-8 は生成物の
 テーブル見出しがテンプレートと一字一句一致）。全 assertion を baseline も満たし、
 Pass Rate の Delta +0.00 は弁別測定として無効になった。
+
+**2026-07-29 に再発（Issue #146 の回帰評価）。** replace-strategy eval-11 の without_skill run-1 が、
+スキル未設置にもかかわらず `dependency_policy` の三値契約・各 references キーの読み手・空値の枠の目的を
+正確に再現し 4/4 で pass した（弁別ゼロ）。使い捨てプロジェクトは空（`project-tree.txt` は `.` のみ）で、
+ハーネスの設置漏れではない。
+
+**このとき汚染経路を実測で確定した。** ハーネスの `SKILL_EVAL_RUNNER` に bwrap ラッパー
+（`--dev-bind / / --tmpfs <リポジトリの親ディレクトリ>`）を渡して同一プロンプトを再実行すると、
+baseline はスキル資産を発見できず 0/4 へ落ちた（`grep` でファイルシステム全体を探索した旨を自ら報告）。
+汚染経路はローカル作業ツリーの read であり、隔離すれば弁別は回復する。
 
 ## 根本原因
 
@@ -41,3 +51,13 @@ Pass Rate の Delta +0.00 は弁別測定として無効になった。
 - 横断スコープ: 本ハーネスで測定する全スキルの benchmark に共通（過去の Delta も
   汚染有無は未検証）。採点者（grader）にも「baseline がスキル資産を参照した形跡」の
   確認を標準項目にする
+
+2026-07-29 の実測を踏まえた具体化:
+
+- **遮断は `SKILL_EVAL_RUNNER` で実装できる**（ハーネス本体を変えずに検証済み）。without_skill では既定で
+  サンドボックス経由の runner を使い、リポジトリを `--tmpfs` で隠す。bwrap が無い環境はフォールバックし、
+  遮断できなかったことを run に記録して汚染検知へ回す
+- **汚染が疑われる baseline は、遮断した環境で再実行して切り分ける**（run を捨てる前に経路を確定させる）。
+  汚染した run は `grading.json` を置かず集計から除外し、benchmark.md に経緯（汚染の根拠・再実行の結果）を残す
+- **残る穴を明記する**: 対象リポジトリが PUBLIC の場合、`gh` / WebFetch 経由でスキル本文を取得する経路は
+  ローカル遮断では塞げない。採点時に「baseline 応答がスキル固有の語彙・契約を再現していないか」を確認する項目は残す

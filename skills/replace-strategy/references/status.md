@@ -6,7 +6,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 
 | 情報源 | 読むもの |
 |---|---|
-| `.replace/features.md` | 機能・横断 API・バッチの一覧、slug、fan-out、Issue 番号 |
+| `.replace/features.md` | 機能・横断 API・バッチの一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、Issue 番号 |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
@@ -46,6 +46,8 @@ done
    **新側の進捗は target（環境）ごとに分かれる**ため、同じ slug でも環境別に状態を示す（例: local-dev は収束済み・preview は未実施）。`new/` 配下に無い target は「その環境では未実施」として扱う
 2. **未検証領域の一覧**: 全 slug の `gaps.md` を集約する。スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データ不足も含め、**対象外にした事実を隠さない**。切替判断の材料として提示する
 3. **横断 API の影響範囲**: 横断 API に手が入ったら利用側の全機能を再検証する必要がある。features.md の fan-out から「このリソースを使う機能一覧」を導出し、横断 API Issue の状態変化（再オープン・変更）に対して**再検証が必要な機能**を列挙する
+4. **ページ単位の在席**: features.md のページ一覧から**複数機能が乗るページ**を抽出し、そのうち新側で未実装の機能（当該 slug の `new/<target>/replace-metadata.json` が無い、または `suite.new_green` でない）を列挙する。
+   **在席チェックがスキップされたままの範囲**であり、そのページでセクションが丸ごと欠けていてもどのスイートも赤くならない（環境ごとに分かれる）。ページ一覧を持たない features.md では「在席が未導出」として報告する
 
 ## 報告
 
