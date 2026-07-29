@@ -34,5 +34,8 @@ scripts/run-skill-eval.sh \
   ゴールデンデータがリポジトリ内にあり特定環境に紐づかないため target 照合を行わず、DB レス・プロジェクトが環境不一致を理由に止まらないことを見る。
   **検査項目は実行フロー 4 までで到達できる範囲に限る**——使い捨てプロジェクトには現行アプリが無く run はフロー 1（疎通不可）で正しく停止するため、
   フロー 8 の成果物記録（`dataset_version` の書き込み等）を検査項目にすると到達不能で必ず fail する（iteration-5 でこの設計不備により 3/4 になった）
+- eval 10〜15 は静的サイト移行で見つかった 6 件の不足（Issue #145）に対する回帰。いずれも**誤った前提での依頼を押し戻す形**にしてあり、
+  現行アプリ・ブラウザを要する工程まで到達しなくても採点できる（aria の粒度・side 別期待値の置き場所・ポジティブコントロール・
+  解決不能ロケータとタイムアウト・API を持たない場合の上流・同梱ツールのコピー先）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
