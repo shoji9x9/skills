@@ -1,0 +1,555 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T06:39:12Z",
+    "evals_run": [1, 5, 7, 8, 12, 13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 63.4,
+        "tokens": 190137,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "確認結果テーブルの 1・2 行目で両方を個別に判定: 「replace-strategy setup | `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` | ✗ 設定ファイル自体が無い」「同上 | `.replace/features.md` | ✗ `.replace/` ディレクトリが無い」。パスは preflight.md「確認するキー」の記載（`.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` の存在／`.replace/features.md` の存在）と一致。project-tree.txt が `.` と `./.claude` のみであることから、実際に両者が不在の環境で正しく判定している。"
+        },
+        {
+          "text": "diff.md / diff-metadata.json / 新側ベースラインを捏造せず停止している",
+          "passed": true,
+          "evidence": "明示宣言「前提確認までを実行して停止…ファイル生成・ベースライン採取・設定書き込みは一切行っていません」「**検出も成果物も捏造しません。**」。実測でも裏付けあり: project-tree.txt は `.` / `./.claude` のみで `.replace/` すら無く、project-files/ は空、project-files-skipped.txt は 0 バイト（フィルタで落とされたファイルも無い＝「見えないだけ」ではない）。result.json は `is_error: false` / `permission_denials: []` で、diff.md・diff-metadata.json・baseline-new のいずれも作られていない。差分内容やページ一覧の作り話も応答中に無い。"
+        },
+        {
+          "text": "replace-strategy setup / golden-dataset / parity-suite / parity-replace を順に案内している",
+          "passed": true,
+          "evidence": "「### 進めるための手順（依存順）」に 4 つすべてが SKILL.md の依存順どおり: 2.「`replace-strategy setup`」→ 3.「`golden-dataset`（フェーズ A・B）」→ 4.「対象 slug の `parity-suite`」→ 5.「`parity-replace --target <name>`」→ 6. `parity-diff` 再実行。各ステップに何が生成/達成されるか（skills.yml と features.md の作成、データ投入、ノイズ基準値・視覚ベースライン・強度ゲート検証済み差分器の採取、`suite.new_green: true`）まで書かれており、羅列だけではない。前置きの手順 1（`gh skill install` で姉妹スキル導入）も SKILL.md の「前提スキルが未インストールの場合」に沿った正当な追加で、順序を乱していない。"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から引く契約を守っている",
+          "passed": true,
+          "evidence": "テーブル行「slug の妥当性 | features.md の採番 | ✗ 判定不能（features.md が無い。**自分で採番しません**）」。応答全体で具体的な slug 名を一切創作しておらず、以降の案内はプレースホルダ `<slug>` / `<target>`（例: `parity-diff --feature <slug> --target <name>`、`.replace/parity/<slug>/new/<target>/...`）のままで、採番は手順 2 の `replace-strategy setup`（`.replace/features.md`（slug 採番）を作成）に帰属させている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 88.9,
+        "tokens": 339064,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": true,
+          "evidence": "見出し「停止理由 1（主因）: インスタンス例外が設定ファイルに残っている」の直下で「`.config/skills/shoji9x9/skills.yml:54` に旧キー `skills.replace-strategy.component_diff_exceptions` が 3 件あります。これは slug スコープの台帳であり、設定ファイルは置き場所ではありません」と、キーの完全修飾（直下であること）・旧キーであること・件数を明示。冒頭でも「手順 1（target 解決・前提確認）で**旧スキーマを検出**した」と述べている。"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": true,
+          "evidence": "「## 結果: 停止しました（差分検出には入っていません）」「フォールバック読みをせずに停止しました」「旧キーはフォールバックとして読まず、自動移行もしません（両方を読む／黙って移す、はしない）」。旧キーの 3 件を既知例外として適用済み扱いにする記述は無く、逆に `approved_at`/`cause` 欠落のため fail-closed で `unexplained` に残ると述べている。"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の正本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": true,
+          "evidence": "対応表に「`skills.yml` の `component_diff_exceptions[]`（3 件）→ `.replace/parity/order-list/component-diff-exceptions.json`（slug 直下・環境非依存）」。正本の所在は「**移行手順の正本**（`replace-strategy` の `references/project-config.md`「移行」）も読めません」および次のアクション 2「`replace-strategy` の移行手順に従い…」で明示。どちらもフィクスチャには一切書かれておらず、parity-diff の references/normalize.md・preflight.md 由来の契約知識。"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": true,
+          "evidence": "対応表の行「3 件すべてが同一の `reason` 文言を複製 → `component_diff_exception_causes[]` に**原因を 1 回定義**し、各インスタンスは `cause` で参照。インスタンスから `reason` フィールドを落とす」。加えて「`approved_at` なし／`cause` なし → 両方必須」も示しており、normalize.md のスキーマ（原因 1 件＋薄い参照）と一致。causes キー名はフィクスチャに存在しない。"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": true,
+          "evidence": "対応表の最終行「件数は畳まない（3 インスタンスのまま。`page`/`element`/`bbox` にワイルドカードを置かない）」。normalize.md「インスタンス件数を畳まない」の規律をワイルドカード禁止まで含めて述べている。"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": true,
+          "evidence": "冒頭「**設定ファイルの自動移行・成果物の作成・新側の撮影・commit は一切していません**（判定は Read のみ）」、本文「自動移行もしません」。実際に 6 行の移行対応表を提示して停止しており、project-tree.txt はフィクスチャと同一（`.claude` 以外の追加・変更なし）、project-files/ も空で書き込みが無いことを裏付ける。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 70.4,
+        "tokens": 162201,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "経緯の宛先を gaps.md にしないと答えている（gaps.md は未検証領域の台帳で、そこに置くと承認済み＝説明済みのものが未検証と混ざり、毎回 diff.md へ未検証として転記される経路に乗るため）",
+          "passed": true,
+          "evidence": "見出しで「## 結論：gaps.md ではありません。「解決済み」節も作らないでください」と明示し、契約固有の理由まで述べている: 「`gaps.md` は**未検証領域の台帳**です。その「宣言できない構造差」節にあるものは正規化対象外＝**未検証として毎回 `diff.md` へ転記される**経路に乗ります（`references/normalize.md` の適用順序 5）。そこへ承認済み＝説明済みの根拠を置くと、未検証と混ざり、節の位置次第で収束判定の見え方が変わります」。normalize.md L58-59 の記述と一致。さらにユーザーの提案（「解決済み」節）を「ファイルの目的が二重化するだけで同じ問題が残ります」として明確に却下している。"
+        },
+        {
+          "text": "経緯の宛先は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節であり、component_diff_exception_causes[].evidence がその節を指すと示している",
+          "passed": true,
+          "evidence": "表で「原因調査の経緯・観測条件・承認記録 → `.replace/parity/<slug>/component-diff-exceptions.md`（非破壊追記。無ければ `assets/component-diff-exceptions-template.md` から作成）」と宛先を特定。加えて「`evidence` は `component-diff-exceptions.md#<同じ id>`。Markdown 側の**節見出しは id と同一文字列**にする（アンカーが指すため）」と、causes[].evidence が原因ごとの節（見出し = cause id）を指す関係を明示。normalize.md L56 / L78-80 とテンプレート L6, L14 の契約に一致。JSON 本体（component-diff-exceptions.json）と .md の役割分離も正しく書き分けている。"
+        },
+        {
+          "text": "reason は 1〜2 行の識別ラベルに留め、経緯は evidence 側へ分けると示している（YAML / JSON のコメントに溜めない）",
+          "passed": true,
+          "evidence": "「`component_diff_exception_causes[]` に `{id, reason, evidence}` を 1 件。`reason` は 1〜2 行の識別ラベルだけ（経緯は書かない）、`evidence` は `component-diff-exceptions.md#<同じ id>`」。normalize.md のスキーマ注記「<1〜2 行の識別ラベル。原因調査の経緯は書かず evidence 側に置く>」と一致。経緯の置き場所を .md の該当節と明言しており、コメント欄へ溜める案は一切提示していない（括弧内の否定条件も満たす）。"
+        },
+        {
+          "text": "原因は component_diff_exception_causes に 1 件だけ定義し、7 箇所は cause で参照する薄いインスタンスとして残す（7 件の件数は畳まない）と示している",
+          "passed": true,
+          "evidence": "三点すべてを明示。(1)「**原因は 1 回だけ定義**：`component_diff_exception_causes[]` に … 1 件」(2)「**インスタンスは 7 件そのまま並べる**：各エントリに `cause: \"<id>\"` を持たせ、`reason` フィールドは持たせない（複製が構造的に起きない形）」(3)「**畳まないこと**：`page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで 7 箇所を吸収させない … 1 原因 ＋ 7 個の薄い参照が正しい形」。normalize.md L100-103 と一致。"
+        },
+        {
+          "text": "例外の件数が検証の弱さのシグナルであることに触れ、行数削減のために件数を隠さないと述べている",
+          "passed": true,
+          "evidence": "「**例外の件数は検証の弱さのシグナル**で、行数削減のために隠すと弱さが見えなくなります」と、シグナル性・行数削減目的の隠蔽禁止の両方を明記。加えて件数を `diff-metadata.json` の `accepted_exceptions`（原因数 1・インスタンス数 7）へ記録するよう指示し、件数を可視に残す具体経路も示している（normalize.md L105 と一致）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 60.9,
+        "tokens": 92780,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じフォント名を根拠に環境ノイズ・許容へ分類せず、切り分けを先に行う方針を示している",
+          "passed": true,
+          "evidence": "「結論：許容できません」「『CSS で同じフォント名を指定しているから』は、環境ノイズにも許容にも分類してよい根拠になりません」。節見出し自体が「正しい進め方（分類の前に切り分ける）」で切り分け先行を明示。"
+        },
+        {
+          "text": "フォントの版（head の fontRevision）とヒンティング命令の有無（prep 等のテーブル）の 2 軸で決まると説明している",
+          "passed": true,
+          "evidence": "2 軸の表を提示: 「フォントの版 / head.fontRevision（補助として name テーブル ID 5）」「ヒンティング命令の有無 / prep・fpgm・cvt テーブルの在否」。"
+        },
+        {
+          "text": "同じ版でもヒンティング命令の有無で小サイズの送り幅の丸めが変わり本文幅が変わる（送り値が同一でもレンダリング幅は違う）と説明している",
+          "passed": true,
+          "evidence": "「版が同一でも prep の有無だけで本文幅は変わります」「16px 前後の小サイズでは送り値が 1 単位まで一致していてもレンダリング幅が違います」と、送り値一致でも幅が違う点まで述べている。"
+        },
+        {
+          "text": "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）",
+          "passed": true,
+          "evidence": "3 手順を提示: 実際に読み込んだファイルの特定（ネットワークログ・document.fonts）→ head / name とテーブル一覧を ttx -l 等で読む → text-rendering: geometricPrecision で丸めを切り離す。さらに同手法がエンジン依存なので「掛ける前後で幅が実際に変わることを確認してから根拠に使う」と条件付き。目視判断は無い。"
+        },
+        {
+          "text": "版差・ヒンティング差はいずれも要対応（同じ版・ヒンティング命令を持つビルドを新側へ配信して解消する）だと述べ、インスタンス例外や gaps.md の未検証へ落とすのは配信物を選べず源流で消せない場合に限る（かつユーザー承認が要る）と条件つきで示している",
+          "passed": true,
+          "evidence": "「切り分け結果の落とし込み」表で 版差＝要対応（現行と同じ版を新側へ配信）／ヒンティング差＝要対応（ヒンティング命令を持つビルドを配信）と分類し、例外・gaps.md は「配信物を選べず消せない場合のみ、承認を得て」と条件つき退避として示している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 5,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 296.3,
+        "tokens": 139022,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
+          "passed": true,
+          "evidence": "レジストリ × 経路の表を提示し「component_diffs（系統差 T）＝特性照合経路のみ」。さらに「font-family も版も送り幅も両側で一致している——つまり掛かるキーになる値の差が存在しません」「何を current / new に書いても照合が成立せず」と、照合キー不在を理由として説明。"
+        },
+        {
+          "text": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": true,
+          "evidence": "「置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイル .config/skills/shoji9x9/skills.yml ではありません。new/<target>/ 配下でもなく slug 直下＝環境非依存）」と明示し、JSON 例で property: pixel のインスタンスを示している。"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "passed": true,
+          "evidence": "「ご要望の『1 回宣言して全インスタンスで吸収』に一番近いのは component_diff_exception_causes[] です。原因は 1 回だけ定義し、インスタンスは cause で参照する（インスタンスに reason フィールドは持たせない＝文言の複製が構造的に起こらない）」。加えて「照合キーはインスタンス側にしか無いので、原因を 1 件立てても吸収範囲は広がりません」と形式上の制約を明言。"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": true,
+          "evidence": "節見出し「承認が下りた場合にだけ、こう書きます」。末尾で「承認が下りるまでは、component_diffs / intentional_diffs（pending を含む）/ component-diff-exceptions.json のいずれにも書きません」。"
+        },
+        {
+          "text": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "passed": true,
+          "evidence": "専用節「『次の実行から自動で吸収』の実際」で「property: pixel の例外は diff-normalize.mjs では吸収されません。同スクリプトの入力は trait-compare.mjs の出力だけで、画素経路の crop 対は通らないからです。画素例外の適用は本スキルが工程 5 で行い」と述べ、前段でも「次の実行でも同じ crop が unexplained として再浮上します」と再浮上に言及。bbox が動いた場合の fail-closed も説明。"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値による抑制を一切勧めていない。逆に「page / element / bbox にワイルドカードを置いて N 箇所を 1 行に畳むのは禁止です。例外の件数は検証の弱さのシグナルであり、行数削減のために隠さない」と無視リスト化を明確に否定し、「多くの場合ここで、吸収ではなく parity-replace への差し戻しが正解だと判明します」と締めている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 66.7,
+        "tokens": 129541,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認前は分類欄に「許容」と書かず 許容候補（要確認） と書くと答えている",
+          "passed": true,
+          "evidence": "冒頭で「### 1. 分類欄に「許容」を先に埋める → ダメ」と明示し、SKILL.md の厳守事項「承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える」を引用。さらに「正しい進め方」で diff.md の表を実際に示し、分類欄に `許容候補（要確認）` を入れている（『| 3 | 画素 | ... | `unexplained` | `許容候補（要確認）` |』）。指定の暫定表記そのものを提示している。"
+        },
+        {
+          "text": "レポートへの記入自体は禁じず、承認で確定するのは分類だという 2 段階を示している",
+          "passed": true,
+          "evidence": "「置き場所は別に用意せず、`diff.md` の未説明差分のままが正解です。承認前後の 2 段階で書き分けます」と述べ、承認前（分類欄＝許容候補（要確認）／記録先は空／根拠・観測条件は書いてよい）と承認後（分類を「許容」へ確定し記録先へ非破壊追記）を節に分けて提示。「根拠・観測条件は書いてよい——確定するのは分類だけです」と、記入可・確定は分類のみという 2 段階を明言している。"
+        },
+        {
+          "text": "承認前の候補は収束判定で未説明として数え、converged: true にできないと述べている",
+          "passed": true,
+          "evidence": "引用部で「収束判定では未説明として数える」を示したうえ、diff-metadata.json 側の指示として「3 件を `results.unexplained` に算入する（`accepted` に入れない。入れると `unexplained: 0` 経由で `converged: true` に到達でき、承認条件を機械可読値の側で迂回できます）」「`converged: false`」と書いている。加えて「承認が取れるまで未収束のまま残る、というのが仕様上の意図した状態です」。diff-metadata-template.json の _note の意味論と一致する。"
+        },
+        {
+          "text": "承認前は component_diffs / intentional_diffs / .replace/parity/<slug>/component-diff-exceptions.json のいずれにも書かないと述べている",
+          "passed": true,
+          "evidence": "3 宛先すべてを名指しし、いずれも承認後の宛先として位置づけている。(a) intentional_diffs: 「本スキルは `intentional_diffs` を読み専用で扱う。SKILL.md のキー表で読/書＝「読」」＋ `pending` も不可（normalize.md:67 引用）。(b)(c) 「承認後 — 分類を「許容」へ確定し、承認日時とともに記録先（`component-diff-exceptions.json` ＋ 根拠を `component-diff-exceptions.md`、または T なら設定側 `component_diffs`）へ非破壊追記します」。承認前については「置き場所は別に用意せず、`diff.md` の未説明差分のまま」「セクション 5（記録先とユーザー承認）は記録先を空のまま」と明言。単一の否定文で 3 件を列挙する形ではなく 2 段階の書き分けとして表現しているが、承認前にどこにも書かないことは実質的に述べられている。"
+        },
+        {
+          "text": "intentional_diffs.pending への退避を断り、その理由（pending は未確定として要確認扱いで残るだけで承認の代わりにならず、未説明が残る＝未収束として扱う）を示している",
+          "passed": true,
+          "evidence": "「### 2. `intentional_diffs.pending` を置き場所にする → ダメ（二重に）」として拒否。理由の両側を提示: (1) normalize.md:67 を引用し「`intentional_diffs.pending` にも書かない——未説明が残る＝未収束として扱う」、(2) 「`pending` の意味論が違う。これは「宣言済みだが未確定な意図的差異 → 正規化で落とさず要確認扱いにする」ためのキーで、承認待ちのステージング領域ではありません（`normalize.md:7`）」。承認の代替にならない点・未収束扱いの点がどちらも明示されている。"
+        }
+      ],
+      "notes": [
+        "非対話環境のため承認取得ができない、と executor 自身が冒頭で宣言している",
+        "作業ディレクトリに .replace/ 実体が無いため実ファイルへの書き込みを行わず、方針回答のみに留めた（捏造せず停止する契約に沿う）"
+      ]
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 81.0,
+        "tokens": 229679,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+          "passed": false,
+          "evidence": "旧キーとしての検出は無い。逆に有効な設定として扱っている: 「`component_diff_exceptions` に order-list の header/table/row（desktop/default/pixel）の 3 件がフォントサブセット差として登録済み」を『記録されている状態（参考）』表の「差分許容」行に置き、旧スキーマ・移行要という判断はどこにも無い。"
+        },
+        {
+          "text": "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+          "passed": false,
+          "evidence": "停止自体はしているが理由が別（スキル未インストール・成果物欠落・localhost 到達不可）で、旧キーは有効値として読んでいる: 「つまり「diff を回せばこの 3 件は既知例外として除外される」状態まで設定されている、というのが記録上の位置づけです」。これは旧キーを暗黙の代替として採用した明示的な記述であり、期待の否定側と矛盾する。なお本フィクスチャは baseline/・e2e/・new-app が実体として無く localhost も落ちているため、差分検出へ進めないこと自体は旧キー検出とは無関係に成立する。"
+        },
+        {
+          "text": "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の正本が replace-strategy の references/project-config.md「移行」であることを示している",
+          "passed": false,
+          "evidence": "`.replace/parity/order-list/component-diff-exceptions.json` も `references/project-config.md`「移行」も出現しない。移行という概念自体が言及されていない（『進めるために必要なもの』はスキル導入・成果物配置・サーバ起動と環境変数のみ）。"
+        },
+        {
+          "text": "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+          "passed": false,
+          "evidence": "`component_diff_exception_causes` / `cause` への言及なし。3 件の reason が同一文言の複製であることにも触れず、単に「3 件がフォントサブセット差として登録済み」と要約しているだけ。"
+        },
+        {
+          "text": "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+          "passed": false,
+          "evidence": "件数の扱い（畳まない・ワイルドカード禁止）に関する記述は無い。移行を前提にしていないため議論が発生していない。"
+        },
+        {
+          "text": "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）",
+          "passed": false,
+          "evidence": "否定側（自動書き換えなし）は満たす——「ファイルの作成・更新、`npm run dev` によるサーバ起動、DB シード投入は一切行っていません（読み取りと localhost への HTTP GET のみ）」、project-tree.txt もフィクスチャと同一。しかし括弧内で要求されている「対応表を示して停止している」を満たさない: 旧→新の移行対応表は一切示されておらず、旧キーは移行対象ではなく有効な設定として提示されている。部分充足のため FAIL。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 44.2,
+        "tokens": 46257,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "経緯の宛先を gaps.md にしないと答えている（gaps.md は未検証領域の台帳で、そこに置くと承認済み＝説明済みのものが未検証と混ざり、毎回 diff.md へ未検証として転記される経路に乗るため）",
+          "passed": false,
+          "evidence": "結論は「gaps.md に「解決済み」節は作らない方がいい」と述べるが、(a) 理由は契約固有ではなく一般論（「解決済み節を作ると単調増加して、本来の『あと何が残っているか』が読み取りにくくなります」「write-once / read-rarely な情報を、毎回読むファイルに混ぜるのは相性が悪い」）で、gaps.md が未検証領域の台帳であること・そこに置いたものが未検証として毎回 diff.md へ転記されること（normalize.md 適用順序 5）には一切触れていない。(b) さらに末尾の「## 例外」節で「gaps.md が「調査ログそのもの」として運用されている（＝最初から時系列の記録簿）なら … そのまま追記して構いません」と、経緯を gaps.md に書く選択肢を条件付きで許容しており、アサーションが禁じている宛先を撤回していない。"
+        },
+        {
+          "text": "経緯の宛先は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節であり、component_diff_exception_causes[].evidence がその節を指すと示している",
+          "passed": false,
+          "evidence": "宛先として `docs/investigations/font-subset-pixel-diff.md` という架空の調査ノートを新規に切ることを提案している（「`docs/investigations/font-subset-pixel-diff.md` のような 1 ファイルを新規に切る」）。`.replace/parity/<slug>/component-diff-exceptions.md` にも `component_diff_exception_causes[].evidence` にも言及なし。例外レジストリという概念自体が登場しない。"
+        },
+        {
+          "text": "reason は 1〜2 行の識別ラベルに留め、経緯は evidence 側へ分けると示している（YAML / JSON のコメントに溜めない）",
+          "passed": false,
+          "evidence": "`reason` / `evidence` というフィールド、およびそれらの役割分担への言及が全く無い。近いのは「説明を 7 回コピーしない。正典は 1 つ、そこへのポインタが 7 つ」だが、これは gaps.md のエントリ行から調査ノートへのリンクという別の構造の話で、識別ラベル（1〜2 行）と経緯本文の分離を規定していない。加えて「『なぜ』が最も確実に残るのはコミット本文です」「コード内コメントを付けるなら…フォントのサブセット生成設定の 1 箇所だけに置きます」と、レジストリ外（commit message / コードコメント）へ経緯を置く案を出している。"
+        },
+        {
+          "text": "原因は component_diff_exception_causes に 1 件だけ定義し、7 箇所は cause で参照する薄いインスタンスとして残す（7 件の件数は畳まない）と示している",
+          "passed": false,
+          "evidence": "`component_diff_exception_causes` に触れていない。「正典は 1 つ、そこへのポインタが 7 つ」という形は精神的には近いが、置き場所が gaps.md のエントリであり、しかも「各エントリを**削除するか**、1 行だけ残す」と 7 件を消す選択肢を先に挙げている（削除は 7 件の件数を消滅させる＝畳む）。cause 参照による薄いインスタンスという構造の指定も無い。"
+        },
+        {
+          "text": "例外の件数が検証の弱さのシグナルであることに触れ、行数削減のために件数を隠さないと述べている",
+          "passed": false,
+          "evidence": "件数がシグナルであるという観点は一切登場しない。むしろ動機づけが逆向きで、「単調増加して … 読み取りにくくなります」という可読性・行数の観点から記録を減らす方向を勧め、「各エントリを削除するか、1 行だけ残す」としている。件数を残す先（diff-metadata.json の accepted_exceptions 等）への言及も無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 57.5,
+        "tokens": 47122,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じフォント名を根拠に環境ノイズ・許容へ分類せず、切り分けを先に行う方針を示している",
+          "passed": true,
+          "evidence": "「結論：許容しないでください」「『CSS で同じフォント名を指定している』は必要条件でしかなく、同じ字送りになる保証にはなりません」と述べ、計測手順を先に置いている。"
+        },
+        {
+          "text": "フォントの版（head の fontRevision）とヒンティング命令の有無（prep 等のテーブル）の 2 軸で決まると説明している",
+          "passed": false,
+          "evidence": "版（head.fontRevision）にもヒンティング命令（prep 等）にも一切言及が無い。挙げた原因はフォールバック・合成ボールド・letter-spacing・実効フォントサイズ・レイアウト起因で、2 軸の枠組みが出ていない。"
+        },
+        {
+          "text": "同じ版でもヒンティング命令の有無で小サイズの送り幅の丸めが変わり本文幅が変わる（送り値が同一でもレンダリング幅は違う）と説明している",
+          "passed": false,
+          "evidence": "同版でヒンティング有無により小サイズの送り幅の丸めが変わる、という説明が無い。代わりに「真のノイズは非累積／メトリクス差は累積」という別の判別軸を提示している。"
+        },
+        {
+          "text": "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）",
+          "passed": true,
+          "evidence": "getComputedStyle での計算値比較、document.fonts.status / check、getBoundingClientRect、CDP の CSS.getPlatformFontsForNode を挙げ「推測ではなく計測で」と明示。決定論的手順であり目視判断はしていない（assertion の『など』の範囲）。"
+        },
+        {
+          "text": "版差・ヒンティング差はいずれも要対応（同じ版・ヒンティング命令を持つビルドを新側へ配信して解消する）だと述べ、インスタンス例外や gaps.md の未検証へ落とすのは配信物を選べず源流で消せない場合に限る（かつユーザー承認が要る）と条件つきで示している",
+          "passed": false,
+          "evidence": "版差・ヒンティング差という分類自体が無いため要対応の言明も無い。むしろ差が 1px 未満なら「『無視』ではなく許容閾値としてテストに明記してください」と、しきい値での許容を勧めており契約と逆向き。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.17,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 90.1,
+        "tokens": 133130,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
+          "passed": false,
+          "evidence": "スキーマを参照できないため経路の説明そのものが無い。むしろ「『系統的な原因なので1回宣言して全インスタンスで吸収』というご判断の形自体は正しいです」と述べ、特性照合経路のみという制約に反する方向。"
+        },
+        {
+          "text": "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+          "passed": false,
+          "evidence": "置き場所の言及が無い（「設定ファイルかスキーマをこちらに置いていただければ、そのまま書き起こします」と保留）。property: pixel も出ない。"
+        },
+        {
+          "text": "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
+          "passed": false,
+          "evidence": "component_diff_exception_causes / cause 参照の構造は一切出ない。"
+        },
+        {
+          "text": "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+          "passed": false,
+          "evidence": "ユーザー承認への言及が無い。スキーマが与えられれば「そのまま書き起こします」としており、承認ゲートが無い。"
+        },
+        {
+          "text": "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
+          "passed": false,
+          "evidence": "「比較時に適用される型 → 次の実行から効きます／ベースライン側に焼き込む型 → 再ベースラインが必要」と実装の二分岐を挙げて保留するのみで、画素例外を適用する主体（diff-normalize.mjs ではなく本スキル）を述べていない。再浮上の言及も無い。"
+        },
+        {
+          "text": "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない",
+          "passed": true,
+          "evidence": "しきい値で潰すことを勧めてはいない。「吸収は回避策であって、原因は残ります」「根本解決は不足側に実ウェイトのフォントを配置することです」と根本対応を促し、吸収させる場合の副作用（そのウェイトの本物の回帰も見えなくなる）も警告している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 55.5,
+        "tokens": 94098,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "承認前は分類欄に「許容」と書かず 許容候補（要確認） と書くと答えている",
+          "passed": false,
+          "evidence": "前半（承認前に素の「許容」を入れるのはやめたほうがよい）は合っているが、指定の暫定表記が出てこない。推奨は「分類欄は空のままにして備考欄に `→ intentional_diffs.pending で承認待ち` と参照だけ張るのが安全です」で、譲歩案も「分類欄に書くとしても最低限「許容（提案・未承認）」のように」。`許容候補（要確認）` という語は一度も現れず、第一推奨は分類欄を空にすること＝契約と異なる（契約は分類欄に許容候補（要確認）と書く）。"
+        },
+        {
+          "text": "レポートへの記入自体は禁じず、承認で確定するのは分類だという 2 段階を示している",
+          "passed": false,
+          "evidence": "2 段階として提示されているのは「pending ファイル → 承認後に本ファイルへ移す」というレジストリ側の移動であり（「承認が取れたら pending から削除して本ファイルへ移す、という一方向の流れ」）、diff.md への記入を許したうえで承認が分類だけを確定するという構成ではない。逆に diff.md については「分類欄は空のままにして備考欄に…参照だけ張るのが安全」と、レポート本体からの退避を勧めている。『記入は禁じず・確定するのは分類だけ』の言明が無い。"
+        },
+        {
+          "text": "承認前の候補は収束判定で未説明として数え、converged: true にできないと述べている",
+          "passed": false,
+          "evidence": "収束判定・未説明（unexplained）・converged への言及が回答全体に一切無い。触れているのは記録の見え方（「すでに合意済みの差分として見えます」）と巻き戻しコストのみで、機械可読な収束条件への影響は述べていない。"
+        },
+        {
+          "text": "承認前は component_diffs / intentional_diffs / .replace/parity/<slug>/component-diff-exceptions.json のいずれにも書かないと述べている",
+          "passed": false,
+          "evidence": "3 宛先のいずれにも触れないうえ、方向が逆。承認前に intentional_diffs 系のファイル（pending）へ書くことを積極的に推奨し（「`intentional_diffs.pending` に入れる案は、そちらが正解です」）、エントリのスキーマ案（`status: pending-approval` / 承認待ちの主体 / トリアージ日）まで提案している。component_diffs・component-diff-exceptions.json は言及なし。"
+        },
+        {
+          "text": "intentional_diffs.pending への退避を断り、その理由（pending は未確定として要確認扱いで残るだけで承認の代わりにならず、未説明が残る＝未収束として扱う）を示している",
+          "passed": false,
+          "evidence": "断るどころか明示的に肯定している: 「**`intentional_diffs.pending` に入れる案は、そちらが正解です。** ただし2点だけ補強を:」。pending の意味論（宣言済みだが未確定な意図的差異を正規化で落とさず要確認扱いにするキー）にも、未説明が残る＝未収束という帰結にも触れていない。assertion と正反対の回答。"
+        }
+      ],
+      "notes": [
+        "対象ファイルが見つからないため実際の書き込みはできていない、と回答末尾で申告",
+        "intentional_diffs.pending 推奨は skill 契約に正面から反する。without_skill ベースラインとしては期待どおりの挙動"
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 107.7667,
+        "stddev": 92.8961,
+        "min": 60.9,
+        "max": 296.3
+      },
+      "tokens": {
+        "mean": 175457.5,
+        "stddev": 86521.3835,
+        "min": 92780,
+        "max": 339064
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.114,
+        "stddev": 0.176,
+        "min": 0.0,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 65.66,
+        "stddev": 19.1244,
+        "min": 44.2,
+        "max": 90.1
+      },
+      "tokens": {
+        "mean": 110057.2,
+        "stddev": 76039.0198,
+        "min": 46257,
+        "max": 229679
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.89",
+      "time_seconds": "+42.1",
+      "tokens": "+65400"
+    }
+  },
+  "notes": []
+}
