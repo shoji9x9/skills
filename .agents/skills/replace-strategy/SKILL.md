@@ -39,7 +39,12 @@ replace-strategy status
   - `golden-dataset` の投入ツール: TypeScript（SQL 可）
   - テキスト成果物: Git
   - Issue・PR・委譲先: GitHub（`gh`）
-- **利用者が選ぶもの**（設定・references で受け取る。スキル本体に固有名を書かない）: 新 UI コンポーネントライブラリと design token、現行・新の DB とその型・意味論の差、検証コマンド一式（静的解析・テスト）、実行対象環境（`targets`）、環境変数の用意方法。現行アプリのスタックは測定で把握する
+- **利用者が選ぶもの**（設定・references で受け取る。スキル本体に固有名を書かない）: 新側アプリの骨格（下記）、新 UI コンポーネントライブラリと design token、現行・新の DB とその型・意味論の差、検証コマンド一式（静的解析・テスト）、実行対象環境（`targets`）、環境変数の用意方法。現行アプリのスタックは測定で把握する
+- **新側アーキテクチャは本スキル群の対象外**（フレームワーク・バックエンド構成・ORM・レイヤ／ディレクトリ構成・API 設計方針・ホスティング／リリース構成）。
+  **言語は上記のとおり TypeScript 固定であり、骨格はその上の選択**（言語まで利用者が選べる意味ではない）。
+  **事前に決定済みで、新側リポジトリは骨格がスキャフォールド済み**である前提に立つ。
+  骨格は現行アプリの測定からは決まらず（組織の制約・運用・既存資産・人員で決まる）、スキルが決めれば「測定できなければ停止する」規律が崩れるため、
+  `setup` は決定の**確認と記録だけ**を行う（`new.stack` / `references.architecture`。正本は [`references/project-config.md`](references/project-config.md) の「新側アーキテクチャ」）
 
 ## 厳守の制約（禁止事項）
 
@@ -67,6 +72,8 @@ replace-strategy status
 1. **依存の確認**: 前提スキル（`issue-create` / `browser-test`）のインストール状況と chrome-devtools MCP の有効性を確認する。未導入・無効なら導入手順（`gh skill install shoji9x9/skills <name>`、MCP の設定）を示す。**MCP が無いままでは測定できないため、手順を示したうえで停止する**
 2. **対話セットアップ**: 次を対話で確認し設定ファイルへ保存する。**技術スタックはスキル本体に書かず、設定で受け取る。** シークレットの扱いは [`references/project-config.md`](references/project-config.md) の「シークレットの扱い」に従い、**接続確認を最初に行い、繋がらなければ早期に失敗する**
    - 現・新のリポジトリ、起動ラッパー
+   - **新側アーキテクチャの確認と記録**: 事前に決定済みの骨格を確認し、スタックの列挙を `new.stack` に、決定記録のドキュメントのパスを `references.architecture` に記録する。
+     **骨格を決めず、下書きも生成しない**（未決なら決定を促し、`references.architecture` は空値の枠だけを残す。正本は [`references/project-config.md`](references/project-config.md) の「新側アーキテクチャ」）
    - **実行対象環境（`targets`）**: 現側は測定対象のテスト環境、新側は local-dev / develop 等。環境ごとに `side`（必須）・`url`・
      `url_command`（URL が実行ごとに決まる環境で `url` の代わりに）・`api_url`（UI と API が別 origin のときだけ）・
      DB（環境変数名と**投入してよいかの `seedable`**）・認証（ロールごとの環境変数名のみ）・禁止操作・`pre_commands` / `start` / `check_urls`・`commit_check`（`start` を持たない配信型環境で稼働中コミットを確認するコマンド）・
@@ -76,7 +83,7 @@ replace-strategy status
    - **検証コマンド列（`verification_commands`）**: 完了前に実行する静的解析・テスト等。`parity-replace` の完了判定に必須のため、無いままにせずここで確定する
      （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）
    - **`on_diff` のドキュメント**: 内容はプロジェクトが持つものだが、`references` と同様に **`setup` が下書きを生成し、人間がレビューして確定する**（既定挙動で足りる環境には作らない）
-   - **`references`（知識の注入）**: パス型キー（`ui_library` / `db_semantics` / `env_setup`）を**キーごと生成する**。この時点でパスが決まらないキーも省略せず空値で置き、「どのスキルがいつ読むか」をコメントで添える。
+   - **`references`（知識の注入）**: パス型キー（`architecture` / `ui_library` / `db_semantics` / `env_setup`）を**キーごと生成する**。この時点でパスが決まらないキーも省略せず空値で置き、「どのスキルがいつ読むか」をコメントで添える。
      **未整備で下流が停止するのは正しい挙動**であり、枠を作るのは停止を避けるためではなく**不足を `setup` 時点で見えるようにするため**（キーごと無いと、下流のスキルが停止して初めて不足が分かる）。
      **`dependency_policy` だけは空値で生成しない**——キーの有無自体が「未確認」を表す三値のため、空値の枠を置くと下流の確認が発火しなくなる
      （手順 8 の確認結果としてパスか `none` を書き、確認まで至らなければキーごと書かない）。正本は [`references/project-config.md`](references/project-config.md) の「references（知識の注入）」
@@ -84,7 +91,7 @@ replace-strategy status
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・既存テストの評価を行い、`.replace/survey.md` に記録する。**測れない場合はここで停止する**
 4. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
 5. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
-6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書きは DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
+6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
 7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
    併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)
@@ -119,7 +126,7 @@ replace-strategy status
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
-| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリ／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
+| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out とリソースグルーピング、slug、Issue 化の状態 |

@@ -42,6 +42,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` / `parity-suite` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要
+- **新側アーキテクチャは事前定義**: 骨格（フレームワーク・レイヤ／ディレクトリ構成・API 設計方針・ホスティング構成）の選定はスキル群の対象外で、
+  **新側リポジトリは骨格がスキャフォールド済み**である前提に立つ。本スキルは決定記録（`references.architecture`）を読んで従うだけで、決めない
+  （正本: `replace-strategy` の `references/project-config.md`「新側アーキテクチャ」）
 - **実行環境の能力**: 敵対的レビュー（手順 7）は**必須工程**であり、**実装役とは別のサブエージェント（Agent ツール等）をレビュー役として起動する**ことを要求する。
   起動できない・実行のたびにユーザー承認が要る実行環境では、**着手前に**可否を確認する（工程 7 で初めて判明する事態を避ける）。
   起動できない場合の代替は、**差分だけを人間のレビュアーへ渡してレビューを受け、記録を `review.md` に残す**こと（レビュー役が人間であった旨を明記する）。**代替が取れなくても省略はしない**（手順: [`references/adversarial-review.md`](references/adversarial-review.md)）
@@ -59,6 +62,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 
 - **パリティスイートが無い状態で実装を始めない**（判定基準が無ければ何をもって完了とするか決められない）
 - **推測で実装しない。** 判断できない箇所は `TODO` 等でコード上に未解決と明示しレビューへ回す。**間違ったコードより未解決の明示のほうがよい**
+- **新側アーキテクチャ（骨格）を自分で決めない。** 未整備なら実装工程に入らず停止し、事前定義を促す
+  （既存実装から読み取った内容を下書きとして提示するのは可。確定は必ずユーザーが行う）
 - **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する）
 - **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
@@ -82,6 +87,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | `verification_commands` | 敵対的レビュー前と完了判定で走らせる検証コマンド列（静的解析・単体テスト・統合テスト等。**固有のツール名は設定側に置く**。スキル本体に書かない） |
 | `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` が旧新 diff レビューを可能にする。発見した差異は `pending` へ非破壊追記しユーザー確認 |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。本スキルがユーザー確認の上で宣言し、`parity-diff` が比較の正規化に使う |
+| `references.architecture` | 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング構成）の決定記録のパス。**骨格は事前定義であり本スキルは決めない。** 未整備（キー欠落・空値・解決できないパス）なら**部品の採否・実装（手順 3 以降）に入らず停止する**（新側リポジトリに骨格が既に実装されていれば、実態から読み取った内容を下書きとして提示し、ユーザーが確定させてから進める。**確定した決定記録のパスは同キーへ書く**）。意味論の正本はスキーマ文書の「新側アーキテクチャ」 |
+| `new.stack` | 新側スタックの列挙。依存の候補が新側スタック（フレームワーク・ORM 等）と両立するかの判断に使う。空・欠落なら推測せずユーザーに確認し、**確認結果を同キーへ非破壊追記する**（記録しないと機能ごとに聞き直しになる）。骨格の未整備ゲートは `references.architecture` が担うため、これ単独では停止しない |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**）。**未整備（キー欠落・空値・解決できないパス）なら手順 6 に入る前に整備を促す**（源流で系統差を縮められず、宣言と未検証が膨らむため。ライブラリを勝手に決めない） |
 | `references.dependency_policy` | 依存導入の方針ドキュメントのパス（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する（記録しないと毎回聞き直しになる） |
 | `new.repo` | 新側リポジトリ（実装対象）。コミット SHA は設定ではなく `replace-metadata.json` に記録する |
@@ -104,7 +111,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    （`--commit` / `--pr` は付けない。ブランチ作成・checkout 後の調査・実装は issue-start に委ねず、本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す。
    合わせて**新側 target を確定する**（`--target` の解決規則は上記「使い方」。旧キーを見つけたら移行手順を示して停止）
 2. **ページ分割とフェーズ構成**: 機能をページ単位のフェーズに分ける。**1 ページを作り切って比較してから次へ**。フェーズ内は読み取り経路 → 書き込み経路の順。api-resource / batch モードはページ分割せず該当モードで動く。詳細: [`references/paging.md`](references/paging.md)
-3. **部品の洗い出しと依存の決定**: このフェーズの実装に要る部品（UI 部品・データ処理・フォント等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装に入る前に決める。
+3. **部品の洗い出しと依存の決定**: **入る前に骨格（`references.architecture`）の未整備を検出し、未整備なら停止する**（挙動は上記キー表。骨格を自分で決めない）。
+   部品は骨格の上に載るため、骨格が未確定のまま採否を決めると差し替えになり、非破壊追記した決定記録も残り続ける。
+   このフェーズの実装に要る部品（UI 部品・データ処理・フォント等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装に入る前に決める。
    判断材料・決める順序（要件 → 素性・ライセンス → 詳細比較）・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従い、決定を `.replace/dependencies.md` へ**非破壊追記**する。
    `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かったものも、そのまま自前実装で進めず同じ基準で判断して同じファイルへ追記する**（`porting.md` の該当実装単位にも一行残す）
 4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
@@ -160,7 +169,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
-| レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） | 正本: `replace-strategy` の `references/project-config.md` |
+| レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
