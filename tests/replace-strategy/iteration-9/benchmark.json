@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T00:46:20Z",
+    "evals_run": [11, 12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 80.9,
+        "tokens": 152791,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references を省略せず、パス型キー（architecture / ui_library / db_semantics / env_setup）をキーごと生成する方針を示している（決まらないキーは空値で残す）",
+          "passed": true,
+          "evidence": "「architecture / ui_library / db_semantics / env_setup → キーは生成し、未決のものは空値＋『どのスキルがいつ読むか』のコメント」と明示。追加した architecture も列挙に含めている。"
+        },
+        {
+          "text": "各キーについて「どのスキルがいつ読むか」をコメント等で添える方針を示している（例: db_semantics は golden-dataset のフェーズ B が読む）",
+          "passed": true,
+          "evidence": "「空値＋『どのスキルがいつ読むか』のコメント」と述べ、db_semantics 未整備なら golden-dataset フェーズ B が停止する例を挙げている。"
+        },
+        {
+          "text": "未整備のまま下流スキルが停止するのは正しい挙動であり、枠を作る目的は停止を避けることではなく setup 時点で不足を可視化することだと説明している",
+          "passed": true,
+          "evidence": "「枠を置く目的は下流の停止を避けることではなく、未整備を setup 時点で一覧として見えるようにすること」と説明。"
+        },
+        {
+          "text": "dependency_policy は他の references キーと異なり none（確認済みで方針なし）とキー欠落（未確認）を区別する三値であるため、空値の枠を置かない（パスか none を書くか、確認まで至らなければキーごと書かない）と説明している",
+          "passed": true,
+          "evidence": "「dependency_policy → ご指示どおりキーごと書きません。これだけは『キーの有無』自体が未確認を表す三値で、空値の枠を置くと下流の『未確認なら確認する』が二度と発火しなくなります」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 88.7,
+        "tokens": 238244,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側アーキテクチャ（骨格）の選定はスキル群の対象外＝事前定義であるとして決定を代行せず、具体的なフレームワーク名・レイヤ構成・API 設計方針を選定・推奨していない",
+          "passed": true,
+          "evidence": "「これは本スキル群の対象外で、setup は決定の確認と記録だけを行う設計です」と述べ、具体的なフレームワーク名・レイヤ構成・API 設計方針を一切選定していない。"
+        },
+        {
+          "text": "骨格は現行アプリの測定からは決まらず組織の制約・運用・既存資産・人員で決まるため、スキルが決めれば「測定できなければ停止する」規律が崩れると説明している",
+          "passed": true,
+          "evidence": "「骨格は組織の制約・運用・既存資産・人員で決まるもので、現行アプリを測っても導出されません」「『測定できなければ停止する』という本スキルの中核が、推測で骨格を埋める経路を許した時点で機能しなくなります」と両方を説明。"
+        },
+        {
+          "text": "決定済みの骨格の記録先として設定の new.stack と references.architecture の両方を挙げている（一方だけ・キー名を伴わない一般論で済ませていない）",
+          "passed": true,
+          "evidence": "「決まったら new.stack と references.architecture へ記録し、setup を再開できます」と、記録先として両キーを名指ししている。"
+        },
+        {
+          "text": "references.architecture は空値の枠だけを生成し、ui_library / db_semantics と違って setup は下書きを生成しないと説明している",
+          "passed": true,
+          "evidence": "「setup は references.architecture に空値の枠だけを置き（不足を setup 時点で可視化するため）」「骨格の下書き生成も明示的に禁止されています」と説明。"
+        },
+        {
+          "text": ".replace/strategy.md や references.architecture のアーキテクチャ本文を捏造・生成していない",
+          "passed": true,
+          "evidence": "「ファイルは一切作成・変更していません（.config/skills/shoji9x9/skills.yml も .replace/ も未作成）」。project-tree.txt も .claude のみで、strategy.md・architecture 本文は存在しない（skipped 0 行）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 78.1,
+        "tokens": 192250,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側アーキテクチャ（骨格）の選定はスキル群の対象外＝事前定義であるとして決定を代行せず、具体的なフレームワーク名・レイヤ構成・API 設計方針を選定・推奨していない",
+          "passed": true,
+          "evidence": "「これは本スキル群が意図的に扱わない範囲です」と述べ、フレームワーク名・レイヤ構成・API 設計方針を一切選定していない。"
+        },
+        {
+          "text": "骨格は現行アプリの測定からは決まらず組織の制約・運用・既存資産・人員で決まるため、スキルが決めれば「測定できなければ停止する」規律が崩れると説明している",
+          "passed": true,
+          "evidence": "「骨格は組織の制約・運用体制・既存資産・人員で決まるもので、現行アプリを測っても答えが出てきません」「スキルが決めると『測定できなければ停止する』規律が崩れる」と両方を説明。"
+        },
+        {
+          "text": "決定済みの骨格の記録先として設定の new.stack と references.architecture の両方を挙げている（一方だけ・キー名を伴わない一般論で済ませていない）",
+          "passed": true,
+          "evidence": "「new.stack にスタックの列挙、references.architecture に決定記録のドキュメントのパス」と両キーを記録先として名指ししている（役割分担まで述べている）。"
+        },
+        {
+          "text": "references.architecture は空値の枠だけを生成し、ui_library / db_semantics と違って setup は下書きを生成しないと説明している",
+          "passed": true,
+          "evidence": "「下書きの生成も明示的に禁止されています。未決なら references.architecture は空値の枠だけを残し、決定を促す形になります」。"
+        },
+        {
+          "text": ".replace/strategy.md や references.architecture のアーキテクチャ本文を捏造・生成していない",
+          "passed": true,
+          "evidence": "「設定ファイル・.replace/ 配下の成果物は一切作成していません」。project-tree.txt は .claude のみ（skipped 0 行）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 243.5,
+        "tokens": 287745,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references を省略せず、パス型キー（architecture / ui_library / db_semantics / env_setup）をキーごと生成する方針を示している（決まらないキーは空値で残す）",
+          "passed": false,
+          "evidence": "プロンプトを『移行スキルを新規作成する依頼』と解釈し replace-strategy/SKILL.md を自作。references のパス型キーに一切言及していない（生成物内の該当キー言及数 0）。"
+        },
+        {
+          "text": "各キーについて「どのスキルがいつ読むか」をコメント等で添える方針を示している（例: db_semantics は golden-dataset のフェーズ B が読む）",
+          "passed": false,
+          "evidence": "references キー自体が登場せず、読み手（どのスキルがいつ読むか）の記述も無い。"
+        },
+        {
+          "text": "未整備のまま下流スキルが停止するのは正しい挙動であり、枠を作る目的は停止を避けることではなく setup 時点で不足を可視化することだと説明している",
+          "passed": false,
+          "evidence": "逆に「空の器を先に置くと埋まらないまま古くなる」としてユーザーの省略指示に同調し、references/ ディレクトリを作らない方針を採っている。"
+        },
+        {
+          "text": "dependency_policy は他の references キーと異なり none（確認済みで方針なし）とキー欠落（未確認）を区別する三値であるため、空値の枠を置かない（パスか none を書くか、確認まで至らなければキーごと書かない）と説明している",
+          "passed": false,
+          "evidence": "dependency_policy に言及なし。三値の説明も無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 42.4,
+        "tokens": 91852,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側アーキテクチャ（骨格）の選定はスキル群の対象外＝事前定義であるとして決定を代行せず、具体的なフレームワーク名・レイヤ構成・API 設計方針を選定・推奨していない",
+          "passed": false,
+          "evidence": "フレームワーク名は挙げていないが、理由は『測定対象が無いから』であって対象外＝事前定義という契約ではない。むしろ「パスさえ判明すれば、測定 → 測定結果に基づくフレームワーク候補の比較 → レイヤ／ディレクトリ構成 → API 設計方針、まで通しで出します」と決定の代行を明言している。"
+        },
+        {
+          "text": "骨格は現行アプリの測定からは決まらず組織の制約・運用・既存資産・人員で決まるため、スキルが決めれば「測定できなければ停止する」規律が崩れると説明している",
+          "passed": false,
+          "evidence": "逆の主張をしている——「フレームワーク選定やレイヤ分割はまさに現行の規模・依存・ホットパスの実測で決まる部分です」。"
+        },
+        {
+          "text": "決定済みの骨格の記録先として設定の new.stack と references.architecture の両方を挙げている（一方だけ・キー名を伴わない一般論で済ませていない）",
+          "passed": false,
+          "evidence": "new.stack / references.architecture のいずれにも言及なし（設定キーの概念自体が登場しない）。"
+        },
+        {
+          "text": "references.architecture は空値の枠だけを生成し、ui_library / db_semantics と違って setup は下書きを生成しないと説明している",
+          "passed": false,
+          "evidence": "空値の枠・下書き非生成の説明なし。"
+        },
+        {
+          "text": ".replace/strategy.md や references.architecture のアーキテクチャ本文を捏造・生成していない",
+          "passed": true,
+          "evidence": "「破壊的・外向き操作は一切行っていません。実行したのは読み取り専用の確認のみです」。project-tree.txt は「.」のみ（skipped 0 行）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 54,
+        "tokens": 115704,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "新側アーキテクチャ（骨格）の選定はスキル群の対象外＝事前定義であるとして決定を代行せず、具体的なフレームワーク名・レイヤ構成・API 設計方針を選定・推奨していない",
+          "passed": false,
+          "evidence": "フレームワーク名は挙げていないが理由は測定対象の不在であり、対象外＝事前定義という契約ではない。さらに「スキル本体が無くても『現行アプリの測定 → 移行先の技術選定・レイヤ設計・API 方針の策定』自体は手動で実施できます」と代行を申し出ている。"
+        },
+        {
+          "text": "骨格は現行アプリの測定からは決まらず組織の制約・運用・既存資産・人員で決まるため、スキルが決めれば「測定できなければ停止する」規律が崩れると説明している",
+          "passed": false,
+          "evidence": "測定が技術選定を決めるという前提に立っており（「測定 → 移行先の技術選定」）、スキルの説明とは逆。"
+        },
+        {
+          "text": "決定済みの骨格の記録先として設定の new.stack と references.architecture の両方を挙げている（一方だけ・キー名を伴わない一般論で済ませていない）",
+          "passed": false,
+          "evidence": "new.stack / references.architecture のいずれにも言及なし。"
+        },
+        {
+          "text": "references.architecture は空値の枠だけを生成し、ui_library / db_semantics と違って setup は下書きを生成しないと説明している",
+          "passed": false,
+          "evidence": "空値の枠・下書き非生成の説明なし。"
+        },
+        {
+          "text": ".replace/strategy.md や references.architecture のアーキテクチャ本文を捏造・生成していない",
+          "passed": true,
+          "evidence": "「破壊的操作なし・ファイル作成なし で調査のみ実施しました」。project-tree.txt は「.」のみ（skipped 0 行）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 82.5667,
+        "stddev": 5.493,
+        "min": 78.1,
+        "max": 88.7
+      },
+      "tokens": {
+        "mean": 194428.3333,
+        "stddev": 42768.1266,
+        "min": 152791,
+        "max": 238244
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1333,
+        "stddev": 0.1155,
+        "min": 0.0,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 113.3,
+        "stddev": 112.9056,
+        "min": 42.4,
+        "max": 243.5
+      },
+      "tokens": {
+        "mean": 165100.3333,
+        "stddev": 106880.8457,
+        "min": 91852,
+        "max": 287745
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.87",
+      "time_seconds": "-30.7",
+      "tokens": "+29328"
+    }
+  },
+  "notes": []
+}

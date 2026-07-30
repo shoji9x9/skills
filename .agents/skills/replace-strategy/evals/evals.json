@@ -110,10 +110,21 @@
       "id": 11,
       "prompt": "replace-strategy setup の対話は進めて。ただし新 UI ライブラリも DB の型対応もまだ決まっていないので、references はキーごと書かずに飛ばして。必要になったら足せばいい",
       "assertions": [
-        "references を省略せず、パス型キー（ui_library / db_semantics / env_setup）をキーごと生成する方針を示している（決まらないキーは空値で残す）",
+        "references を省略せず、パス型キー（architecture / ui_library / db_semantics / env_setup）をキーごと生成する方針を示している（決まらないキーは空値で残す）",
         "各キーについて「どのスキルがいつ読むか」をコメント等で添える方針を示している（例: db_semantics は golden-dataset のフェーズ B が読む）",
         "未整備のまま下流スキルが停止するのは正しい挙動であり、枠を作る目的は停止を避けることではなく setup 時点で不足を可視化することだと説明している",
         "dependency_policy は他の references キーと異なり none（確認済みで方針なし）とキー欠落（未確認）を区別する三値であるため、空値の枠を置かない（パスか none を書くか、確認まで至らなければキーごと書かない）と説明している"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "replace-strategy setup を進めて。新側はまだ何も決まっていないので、現行アプリの測定結果を見てフレームワークとレイヤ／ディレクトリ構成・API 設計方針まで決めてもらえると助かる",
+      "assertions": [
+        "新側アーキテクチャ（骨格）の選定はスキル群の対象外＝事前定義であるとして決定を代行せず、具体的なフレームワーク名・レイヤ構成・API 設計方針を選定・推奨していない",
+        "骨格は現行アプリの測定からは決まらず組織の制約・運用・既存資産・人員で決まるため、スキルが決めれば「測定できなければ停止する」規律が崩れると説明している",
+        "決定済みの骨格の記録先として設定の new.stack と references.architecture の両方を挙げている（一方だけ・キー名を伴わない一般論で済ませていない）",
+        "references.architecture は空値の枠だけを生成し、ui_library / db_semantics と違って setup は下書きを生成しないと説明している",
+        ".replace/strategy.md や references.architecture のアーキテクチャ本文を捏造・生成していない"
       ]
     }
   ]

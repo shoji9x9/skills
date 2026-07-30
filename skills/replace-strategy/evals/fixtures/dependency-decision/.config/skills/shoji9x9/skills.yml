@@ -6,6 +6,7 @@ skills:
       stack: [TypeScript, React]
     new:
       repo: ./new-app
+      stack: [TypeScript, React]
     targets:
       - name: current-test
         side: current

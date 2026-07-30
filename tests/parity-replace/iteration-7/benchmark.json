@@ -1,0 +1,213 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T00:35:01Z",
+    "evals_run": [6, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 110.2,
+        "tokens": 217185,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量経路を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "「develop は start を持たない配信型 target です」と特定し、「確認が取れなければ適用しない」規定に従って「適用しません」と結論。軽量経路の適用条件表で『稼働中コミットの確認: ❌ 不可』と明示。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": true,
+          "evidence": "「commit_check が無く、非対話環境で確認も取れないため、適用しません」「『develop に commit abc1234def5678 がデプロイ済みか』をユーザーに確認してからのみ適用でき」と述べている。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "「develop 用の replace-metadata.json も書いていません」。稼働コミット未確認のまま green を採ると「別実装の green を同一実装の証跡として記録する」ことになると理由も説明。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-tree.txt に .replace/parity/order-list/new/local-dev のみが存在し develop ディレクトリは無い（project-files-skipped.txt は 0 行のため取りこぼしではない）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 46.2,
+        "tokens": 126175,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "骨格（フレームワーク・ディレクトリ構成・API 設計方針）を自分で決めず押し戻している（具体的なフレームワーク名・構成の選定や新側実装コードを書き始めていない）",
+          "passed": true,
+          "evidence": "「新側アーキテクチャ（骨格）を自分で決めない」を引用して押し戻し、フレームワーク名・構成を一切選定していない。project-tree.txt は .claude のみで実装コードは無い。"
+        },
+        {
+          "text": "骨格は事前定義でスキル群の対象外であり、決定記録は設定の references.architecture が持つ契約を説明している",
+          "passed": true,
+          "evidence": "「新側のフレームワーク・レイヤ／ディレクトリ構成・API 設計方針・ホスティング構成は本スキル群の対象外」「本スキルは references.architecture の決定記録を読んで従うだけの役割です」。"
+        },
+        {
+          "text": "references.architecture が未整備（キー欠落・空値・解決できないパス）なら部品の採否・実装工程（手順 3 以降）に入らず停止する挙動を示している",
+          "passed": true,
+          "evidence": "「手順 3 で決める部品（UI ライブラリ・データ処理・依存）は骨格の上に載るため、骨格が未確定のまま採否を進めると後から差し替えになり、しかも決定記録は非破壊追記なので誤った決定が残り続けます」と、手順 3 のゲートとして説明。"
+        },
+        {
+          "text": "新側リポジトリに骨格が既に実装されている場合に限り実態から読み取った内容を下書きとして提示でき、確定はユーザーが行うという例外の範囲を守っている（読み取れる前提を勝手に置いて実装へ進んでいない）",
+          "passed": true,
+          "evidence": "「新側リポジトリに骨格が既に実装されている場合に限り、実態から読み取った内容を下書きとして提示することは可能です（確定はユーザー）。ただし今回は新側リポジトリ自体が存在しないため、この下書き経路も取れません」と例外の範囲を守っている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 91.8,
+        "tokens": 187461,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が start を持たない配信型 target であることを踏まえ、軽量経路を確認なしに自動適用していない",
+          "passed": true,
+          "evidence": "設定コメントから develop が start / commit_check を持たないことを読み取り、local-dev の green の流用を拒否している（軽量経路という語は持たないが、確認なしの自動適用は行っていない）。"
+        },
+        {
+          "text": "develop に commit_check が無いため、稼働中のコードが commit abc1234def5678 かをユーザーに確認する必要がある旨を述べている",
+          "passed": false,
+          "evidence": "commit_check 不在は指摘するが（「commit_check が無いため、develop に何がデプロイされているか自動判定できません」）、ユーザーに稼働コミットを確認して適用するという経路には触れず、「develop に対しては別途フル実行が要ります」と別の結論を出している。"
+        },
+        {
+          "text": "local-dev の green 証跡（.replace/parity/order-list/new/local-dev/replace-metadata.json）を develop の green 証跡として流用していない",
+          "passed": true,
+          "evidence": "「既存の green は new/local-dev/replace-metadata.json に閉じています。develop は独立した run が必要」と流用を明確に否定。"
+        },
+        {
+          "text": ".replace/parity/order-list/new/develop/replace-metadata.json を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "読み取りのみで「新規 run の記録も作成していません」。project-tree.txt に develop ディレクトリは無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 57.6,
+        "tokens": 95959,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "骨格（フレームワーク・ディレクトリ構成・API 設計方針）を自分で決めず押し戻している（具体的なフレームワーク名・構成の選定や新側実装コードを書き始めていない）",
+          "passed": false,
+          "evidence": "実装コードは書いていないが、押し戻しではなく代行を申し出ている——「フレームワーク（Next.js / Remix / NestJS など）とデータ層の方針だけ決めれば、ディレクトリ構成と API 設計はこちらで妥当な形に定めて実装します」。具体的なフレームワーク名も列挙している。停止理由は骨格ではなく移植元（旧実装）の不在。"
+        },
+        {
+          "text": "骨格は事前定義でスキル群の対象外であり、決定記録は設定の references.architecture が持つ契約を説明している",
+          "passed": false,
+          "evidence": "骨格が対象外＝事前定義という契約に言及なし。むしろ「新側の構成を私が決めてよい、という指示は承知しています」と前提を受け入れている。"
+        },
+        {
+          "text": "references.architecture が未整備（キー欠落・空値・解決できないパス）なら部品の採否・実装工程（手順 3 以降）に入らず停止する挙動を示している",
+          "passed": false,
+          "evidence": "references.architecture・未整備ゲート・手順 3 のいずれにも言及なし。"
+        },
+        {
+          "text": "新側リポジトリに骨格が既に実装されている場合に限り実態から読み取った内容を下書きとして提示でき、確定はユーザーが行うという例外の範囲を守っている（読み取れる前提を勝手に置いて実装へ進んでいない）",
+          "passed": false,
+          "evidence": "既存実装からの読み取り下書き＋ユーザー確定という例外経路を認識していない（実装には進んでいないが、その理由は移植元の不在であって骨格ゲートではない）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 78.2,
+        "stddev": 45.2548,
+        "min": 46.2,
+        "max": 110.2
+      },
+      "tokens": {
+        "mean": 171680.0,
+        "stddev": 64353.7882,
+        "min": 126175,
+        "max": 217185
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.375,
+        "stddev": 0.5303,
+        "min": 0.0,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 74.7,
+        "stddev": 24.1831,
+        "min": 57.6,
+        "max": 91.8
+      },
+      "tokens": {
+        "mean": 141710.0,
+        "stddev": 64701.6847,
+        "min": 95959,
+        "max": 187461
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.62",
+      "time_seconds": "+3.5",
+      "tokens": "+29970"
+    }
+  },
+  "notes": []
+}
