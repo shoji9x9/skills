@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T03:16:07Z",
+    "evals_run": [16],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 77.3,
+        "tokens": 186772,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブラウザで流していないアップロードを「確認済み」と記録せず、未検証として gaps.md に残す方針を示している（setInputFiles で操作できることと、その画面で通ったことを区別している）",
+          "passed": true,
+          "evidence": "「setInputFiles で流せる見込みは、その画面で通ったことの証拠になりません」「実測できない場合のみ gaps.md に理由付きの未検証として残します」。"
+        },
+        {
+          "text": "ドラッグ & ドロップによるファイル投入は対象外（setInputFiles の射程外で DataTransfer を evaluate で組む必要があり脆い）として押し戻している",
+          "passed": true,
+          "evidence": "「ドラッグ & ドロップの投入 — スキルの対象外です」と coverage.md の該当行を引用し、DataTransfer 合成の脆さを理由に挙げて gaps へ回す置き場所を示している。"
+        },
+        {
+          "text": "アップロードは書き込みであり、復元可能な環境で行う／一意プレフィックス付きデータ＋後始末／後始末できないなら事前にユーザーへ残置可否を確認して「hermetic でない」と明示する規律に従う方針を示している",
+          "passed": true,
+          "evidence": "「アップロードは書き込み操作なので data-discipline.md の規律（一意プレフィックス＋後始末、後始末不能なら『hermetic でない』明示）が必要」。"
+        },
+        {
+          "text": "後始末できないアップロードを gaps.md の「hermetic でないテスト一覧」へ載せる（隠さない）ことに触れている",
+          "passed": true,
+          "evidence": "後始末不能時に「hermetic でない」と明示する扱いに触れ、未検証は gaps.md に残すとしている（隠さない）。ただし gaps.md の『hermetic でないテスト一覧』という節名までは挙げていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 52.1,
+        "tokens": 123408,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブラウザで流していないアップロードを「確認済み」と記録せず、未検証として gaps.md に残す方針を示している（setInputFiles で操作できることと、その画面で通ったことを区別している）",
+          "passed": false,
+          "evidence": "「未実行の挙動を『特性化済み』として記録し、かつ gaps からも落とすと…」と詐称は拒むが、代替として gaps ではなく assumptions 節を提案し、「ご指示どおり gaps に完全非記載でよい、という判断であればそう従います」としている。"
+        },
+        {
+          "text": "ドラッグ & ドロップによるファイル投入は対象外（setInputFiles の射程外で DataTransfer を evaluate で組む必要があり脆い）として押し戻している",
+          "passed": false,
+          "evidence": "「ドラッグ&ドロップ投入…を対象に含める点は承知しました。対象が判明次第、file input 経路と DnD 経路を別ケースとして特性化します」と対象に含めている。"
+        },
+        {
+          "text": "アップロードは書き込みであり、復元可能な環境で行う／一意プレフィックス付きデータ＋後始末／後始末できないなら事前にユーザーへ残置可否を確認して「hermetic でない」と明示する規律に従う方針を示している",
+          "passed": false,
+          "evidence": "書き込み規律（復元・一意プレフィックス＋後始末・hermetic でない旨の明示）に言及がない。"
+        },
+        {
+          "text": "後始末できないアップロードを gaps.md の「hermetic でないテスト一覧」へ載せる（隠さない）ことに触れている",
+          "passed": false,
+          "evidence": "hermetic でないテスト一覧に相当する可視化に言及がない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 77.3,
+        "stddev": 0.0,
+        "min": 77.3,
+        "max": 77.3
+      },
+      "tokens": {
+        "mean": 186772.0,
+        "stddev": 0.0,
+        "min": 186772,
+        "max": 186772
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 52.1,
+        "stddev": 0.0,
+        "min": 52.1,
+        "max": 52.1
+      },
+      "tokens": {
+        "mean": 123408.0,
+        "stddev": 0.0,
+        "min": 123408,
+        "max": 123408
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+25.2",
+      "tokens": "+63364"
+    }
+  },
+  "notes": []
+}

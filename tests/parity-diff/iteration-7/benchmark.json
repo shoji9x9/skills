@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T03:16:07Z",
+    "evals_run": [11],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 61.6,
+        "tokens": 187122,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx はバイト一致で比較せず、シート × セル値と構造で比較すると説明している（zip 内に生成日時等の揮発項目が入り内容が同じでも一致しないため）",
+          "passed": true,
+          "evidence": "「xlsx は実体が ZIP で、zip 内に生成日時などの揮発項目が入るため、実装が正しくてもバイト一致しません」「正しい比較は シート × セル値と構造」。"
+        },
+        {
+          "text": "解析ツールは metadata.json の differ.file_extract の記録値を使い、自分で選び直さない（現側と新側で抽出ツールが変わると差分がツール差か実装差か切り分けられない）と説明している",
+          "passed": true,
+          "evidence": "「抽出ツールは metadata.json.differ.file_extract の記録値を使います。現側と新側で抽出ツールが変わると、出た差分がツール差なのか実装差なのか切り分けられなくなるため」。"
+        },
+        {
+          "text": "記録が無い場合は推測でツールを導入せず parity-suite へ戻す方針を示している",
+          "passed": true,
+          "evidence": "「記録が無い場合も推測で導入せず、parity-suite に戻して現側捕捉時の選定をやり直します」。"
+        },
+        {
+          "text": "抽出結果の比較には同梱の json-normalize-diff.mjs を使い、揮発項目を --ignore で除外する形を示している（差分器を新たに書き起こしていない）",
+          "passed": true,
+          "evidence": "「抽出結果を JSON 化して json-normalize-diff.mjs に通し、揮発項目は --ignore で除外」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 126.7,
+        "tokens": 162650,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx はバイト一致で比較せず、シート × セル値と構造で比較すると説明している（zip 内に生成日時等の揮発項目が入り内容が同じでも一致しないため）",
+          "passed": true,
+          "evidence": "「『バイト差分ゼロ』は、生成ライブラリが同一のときだけ有効な基準」として正規化後一致（xl/worksheets 等）を必須にし、バイト一致を参考値に落とす 2 段構えを提案している。"
+        },
+        {
+          "text": "解析ツールは metadata.json の differ.file_extract の記録値を使い、自分で選び直さない（現側と新側で抽出ツールが変わると差分がツール差か実装差か切り分けられない）と説明している",
+          "passed": false,
+          "evidence": "新しく入れた別ライブラリの使用を前提に自作スクリプト（compare_xlsx.py）を作成しており、記録値の共通ツールを使う契約が無い。"
+        },
+        {
+          "text": "記録が無い場合は推測でツールを導入せず parity-suite へ戻す方針を示している",
+          "passed": false,
+          "evidence": "記録が無い場合に前工程へ戻すという分岐が無い。"
+        },
+        {
+          "text": "抽出結果の比較には同梱の json-normalize-diff.mjs を使い、揮発項目を --ignore で除外する形を示している（差分器を新たに書き起こしていない）",
+          "passed": false,
+          "evidence": "同梱ツールの流用ではなく独自実装。--ignore による揮発項目除外という形も無い。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 61.6,
+        "stddev": 0.0,
+        "min": 61.6,
+        "max": 61.6
+      },
+      "tokens": {
+        "mean": 187122.0,
+        "stddev": 0.0,
+        "min": 187122,
+        "max": 187122
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0.0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 126.7,
+        "stddev": 0.0,
+        "min": 126.7,
+        "max": 126.7
+      },
+      "tokens": {
+        "mean": 162650.0,
+        "stddev": 0.0,
+        "min": 162650,
+        "max": 162650
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "-65.1",
+      "tokens": "+24472"
+    }
+  },
+  "notes": []
+}

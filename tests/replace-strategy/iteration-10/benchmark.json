@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T03:16:06Z",
+    "evals_run": [13, 14],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 69.9,
+        "tokens": 185125,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dataset_mode に第 3 の値を足さず、ストレージ利用を直交する別キー（uses_storage とターゲットごとの storage）で表現する方針を示している",
+          "passed": true,
+          "evidence": "「dataset_mode に storage は足しません」「トップレベルの uses_storage（環境に依らないアプリの事実）＋ targets[].storage（環境ごとの接続・バケット）」と明示し、4 通りの組合せを理由に挙げている。"
+        },
+        {
+          "text": "ストレージ実体へのゴールデンデータ投入は v1 スコープ外であり、storage.seedable: true でも投入せず gaps に未検証として記録すると説明している",
+          "passed": true,
+          "evidence": "「投入そのものは v1 のスコープ外です。storage.seedable: true を書いても golden-dataset はファイルを投入しません」「ストレージ実体に依存する検証は gaps.md に『ストレージ投入はスコープ外＝未検証』として必ず記録される」。"
+        },
+        {
+          "text": "投入ゲートを fail-closed（既定 deny）として扱い、storage.seedable を勝手に true にしていない",
+          "passed": true,
+          "evidence": "コメントに「投入ゲート。既定 deny」、不変条件として「storage.seedable: true の target は storage.env_vars と 1 つ以上の storage.write_scope を持つ（db.seedable と同じ fail-closed）」を提示。設定ファイル自体は書き換えず提示のみ（新側 target 例の seedable: true は利用者の要望に沿った記載で、v1 では投入されない旨を併記）。"
+        },
+        {
+          "text": "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ契約を示している",
+          "passed": true,
+          "evidence": "write_scope に「削除・生成してよい範囲（<bucket>/<prefix>）。空＝書き込み不可」、env_vars に「接続情報を持つ環境変数の『名前』。値は書かない」、加えて「設定ファイルには環境変数名だけを書き、値（エンドポイント・キー）は書かない」。"
+        },
+        {
+          "text": "アップロード経路（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない",
+          "passed": true,
+          "evidence": "「upload_route：省略は『未確認』扱いです」「推測で direct と決めず実測/確認して記録してください」と確認対象として提示。direct / presigned で検証対象が変わる説明も併記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 148.8,
+        "tokens": 217078,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx は zip 内に生成日時等の揮発項目が入るためバイト一致を取らず、シート × セル値と構造で比較すると説明している（CSV・テキストはバイト列比較が忠実であることと区別している）",
+          "passed": true,
+          "evidence": "「xlsx の実体は OOXML の ZIP コンテナで、zip 内に生成日時等の揮発項目が入るため、内容が同一でもバイト列が一致しません」→ シート × セル値と構造。表で CSV＝バイト列比較（方針どおり）と対比している。"
+        },
+        {
+          "text": "バッチはブラウザを経由せずサーバのファイルシステムへ書くため、ダウンロードイベントでは取得できないと指摘している",
+          "passed": true,
+          "evidence": "「ダウンロードイベントはブラウザが介在する出力にしか発火しません。夜間バッチはブラウザを経由せず、サーバのファイルシステムへ直接書きます」。"
+        },
+        {
+          "text": "現行テスト環境のファイルシステム到達性を、読めた手段（コンテナへの入り方・リモートからの転送方法）とパスまで記録する実測項目として扱い、「取れるはず」を未測定と明記して測定を飛ばしていない",
+          "passed": true,
+          "evidence": "測定項目 1 に「出力ディレクトリを実際に読めたか。読めた手段（コンテナへの入り方／リモートからの転送方法）と絶対パスを記録」「読めるはずだ、は『未測定』扱い」と明記し、戦略へ進まず測定計画に留めている。"
+        },
+        {
+          "text": "xlsx / PDF の解析ツールはプロジェクトが選び metadata.json の differ.file_extract に記録する形を示している（スキルが特定ツールを決め打ちしていない）",
+          "passed": true,
+          "evidence": "測定項目 5 に「選定結果は .replace/parity/<slug>/metadata.json の differ.file_extract に記録し、parity-diff は記録値を使い選び直さない」。特定ツールの決め打ちはしていない。"
+        },
+        {
+          "text": "抽出結果の比較には parity-diff 同梱の json-normalize-diff.mjs を流用し揮発項目を --ignore で除外する形を示し、バイト列に到達できない出力は gaps に未検証として残す方針を示している",
+          "passed": true,
+          "evidence": "「抽出結果を JSON 化すれば parity-diff 同梱の scripts/json-normalize-diff.mjs で正規化＋決定論的比較ができ、揮発項目は同ツールの --ignore で除外できます」。到達できなければ「対象と判定できず gaps に未検証として回す領域」と明記。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 68.5,
+        "tokens": 72671,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "dataset_mode に第 3 の値を足さず、ストレージ利用を直交する別キー（uses_storage とターゲットごとの storage）で表現する方針を示している",
+          "passed": false,
+          "evidence": "「1. 素直な書き方：enum に storage を追加」として dataset_mode: storage を採用可能な完成形として提示（直交性の懸念は述べるが代替は dataset_source で、uses_storage / targets[].storage は登場しない）。"
+        },
+        {
+          "text": "ストレージ実体へのゴールデンデータ投入は v1 スコープ外であり、storage.seedable: true でも投入せず gaps に未検証として記録すると説明している",
+          "passed": false,
+          "evidence": "upload.enabled: true / cleanup: after_run で投入を有効化する前提。v1 スコープ外・gaps への未検証記録という概念が無い。"
+        },
+        {
+          "text": "投入ゲートを fail-closed（既定 deny）として扱い、storage.seedable を勝手に true にしていない",
+          "passed": false,
+          "evidence": "投入は既定で有効（enabled: true）。バケット名の許可リストによるガードはあるが、設定由来ゲートの fail-closed（既定 deny）ではない。"
+        },
+        {
+          "text": "書き込み範囲（storage.write_scope。パスまたは <bucket>/<prefix>）を宣言する必要と、接続はターゲットの storage.env_vars の環境変数名だけを持つ契約を示している",
+          "passed": false,
+          "evidence": "bucket / prefix を値として設定に書き、write_scope に相当する書き込み範囲宣言は無い。認証は環境変数/IAM と述べるが、接続情報の環境変数『名』を設定に持つ契約ではない。"
+        },
+        {
+          "text": "アップロード経路（upload_route: direct / presigned）を確認対象として挙げ、未宣言のまま推測で決めていない",
+          "passed": false,
+          "evidence": "アップロード経路（direct / presigned）の区別と確認に触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 141.9,
+        "tokens": 52165,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "xlsx は zip 内に生成日時等の揮発項目が入るためバイト一致を取らず、シート × セル値と構造で比較すると説明している（CSV・テキストはバイト列比較が忠実であることと区別している）",
+          "passed": true,
+          "evidence": "「xlsx のバイト単位完全一致は、実装が違う 2 系統の間ではまず成立しません」と ZIP/メタデータ層を列挙し、CSV は Tier 0（バイト一致）を必須ゲート、xlsx は Tier 2 構造一致（セル参照付き比較）とした。"
+        },
+        {
+          "text": "バッチはブラウザを経由せずサーバのファイルシステムへ書くため、ダウンロードイベントでは取得できないと指摘している",
+          "passed": false,
+          "evidence": "バッチ出力と UI ダウンロードの「バイト同一性が保証されない」点は指摘するが、バッチがブラウザを経由しないためダウンロードイベントでは取得できないという指摘はなく、PlaywrightDownloadSource を有効な取得経路の 1 つとして残している。"
+        },
+        {
+          "text": "現行テスト環境のファイルシステム到達性を、読めた手段（コンテナへの入り方・リモートからの転送方法）とパスまで記録する実測項目として扱い、「取れるはず」を未測定と明記して測定を飛ばしていない",
+          "passed": false,
+          "evidence": "Step 2「取得経路の確定」で直読み可否を確認事項に挙げるのみで、読めた手段・パスを記録する実測項目としての扱いは無い。"
+        },
+        {
+          "text": "xlsx / PDF の解析ツールはプロジェクトが選び metadata.json の differ.file_extract に記録する形を示している（スキルが特定ツールを決め打ちしていない）",
+          "passed": false,
+          "evidence": "解析は exceljs / SheetJS を候補に挙げるだけで、選定ツールを metadata に記録して現新で共通化する契約が無い。"
+        },
+        {
+          "text": "抽出結果の比較には parity-diff 同梱の json-normalize-diff.mjs を流用し揮発項目を --ignore で除外する形を示し、バイト列に到達できない出力は gaps に未検証として残す方針を示している",
+          "passed": false,
+          "evidence": "比較器を自前実装（パート網羅・XML 正規化）する計画で、json-normalize-diff.mjs の流用も gaps への未検証記録も無い。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 109.35,
+        "stddev": 55.7907,
+        "min": 69.9,
+        "max": 148.8
+      },
+      "tokens": {
+        "mean": 201101.5,
+        "stddev": 22594.183,
+        "min": 185125,
+        "max": 217078
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1,
+        "stddev": 0.1414,
+        "min": 0.0,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 105.2,
+        "stddev": 51.9016,
+        "min": 68.5,
+        "max": 141.9
+      },
+      "tokens": {
+        "mean": 62418.0,
+        "stddev": 14499.9317,
+        "min": 52165,
+        "max": 72671
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.90",
+      "time_seconds": "+4.1",
+      "tokens": "+138684"
+    }
+  },
+  "notes": []
+}
