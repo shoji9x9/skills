@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T03:16:06Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 83.8,
+        "tokens": 227149,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手書きの静的ファイルを直接コミットせず、決定論的に生成するツールを書く方針を示している（冪等性・決定論・再生成可能性が失われ、フェーズ A 再実行のループが回らなくなるため）",
+          "passed": true,
+          "evidence": "「サンプル xlsx・画像を『手でコミット』→ できません。生成ツールで作ります」「手置きだと再生成の再現性が担保されず、DB データと同じ冪等・決定論の規律から外れます」。"
+        },
+        {
+          "text": "実アプリが中身の妥当性を検査する（xlsx として開ける・画像としてデコードできる・サイズ上限）ため、本物として通るバイト列を生成する必要を説明している",
+          "passed": true,
+          "evidence": "「xlsx として実際に開けて画像としてデコードできる本物のバイト列を固定シードで生成」「数バイトのダミーは実アプリの検査を通らないため使いません」。"
+        },
+        {
+          "text": "storage.seedable: true でもストレージ実体へは投入しない（v1 スコープ外）とし、ストレージ依存のデータを未投入＝未検証として verification.md / gaps に残す方針を示している",
+          "passed": true,
+          "evidence": "「storage.seedable: true であってもストレージ実体には書き込まない、が明文の規定」「verification.md に『ストレージ投入はスコープ外＝未検証』として残し、gaps へ回します（『確認済み』とは書きません）」。"
+        },
+        {
+          "text": "投入してよい先は設定由来ゲート（db.seedable の DB か dataset_static_paths 配下）に限るという fail-closed の規律を維持している（自分で設定を書き換えていない）",
+          "passed": true,
+          "evidence": "前提（設定・features.md）が無いため投入ツール・成果物・設定を一切生成せず停止。設定に seedable を足す等の書き換えもしていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 61.6,
+        "tokens": 150147,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手書きの静的ファイルを直接コミットせず、決定論的に生成するツールを書く方針を示している（冪等性・決定論・再生成可能性が失われ、フェーズ A 再実行のループが回らなくなるため）",
+          "passed": false,
+          "evidence": "「推測でファイルをでっち上げると…作らずに報告します」と捏造は避けるが、手書き静的データをコミットしない・生成ツールに寄せるという規律は示さず、指示があれば「サンプル xlsx / 画像の生成まで一式設計して作る」としている。"
+        },
+        {
+          "text": "実アプリが中身の妥当性を検査する（xlsx として開ける・画像としてデコードできる・サイズ上限）ため、本物として通るバイト列を生成する必要を説明している",
+          "passed": false,
+          "evidence": "アプリ側の妥当性検査（xlsx として開ける・デコードできる・サイズ上限）に触れず、本物のバイト列を生成する必要性を述べていない。"
+        },
+        {
+          "text": "storage.seedable: true でもストレージ実体へは投入しない（v1 スコープ外）とし、ストレージ依存のデータを未投入＝未検証として verification.md / gaps に残す方針を示している",
+          "passed": false,
+          "evidence": "ストレージ書き込みを行わない理由は「非対話環境のため外向き・不可逆な操作は避ける」であり、v1 スコープ外・未投入＝未検証としての記録方針は無い。"
+        },
+        {
+          "text": "投入してよい先は設定由来ゲート（db.seedable の DB か dataset_static_paths 配下）に限るという fail-closed の規律を維持している（自分で設定を書き換えていない）",
+          "passed": false,
+          "evidence": "投入先を設定由来ゲート（db.seedable / dataset_static_paths 配下）に限る規律に言及がない（設定の書き換えはしていない）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 83.8,
+        "stddev": 0.0,
+        "min": 83.8,
+        "max": 83.8
+      },
+      "tokens": {
+        "mean": 227149.0,
+        "stddev": 0.0,
+        "min": 227149,
+        "max": 227149
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 61.6,
+        "stddev": 0.0,
+        "min": 61.6,
+        "max": 61.6
+      },
+      "tokens": {
+        "mean": 150147.0,
+        "stddev": 0.0,
+        "min": 150147,
+        "max": 150147
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+22.2",
+      "tokens": "+77002"
+    }
+  },
+  "notes": []
+}

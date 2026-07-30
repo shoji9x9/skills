@@ -56,6 +56,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **カタログサイト（コンポーネントライブラリの見本）を比較の正解にしない。** 正解は動いている現行アプリ
 - **ピクセル比較系 VRT ツールで新旧を突き合わせない**（実装が違えば全面赤になり無意味）
 - **差分をしきい値で潰さない**（特性照合の別経路で捉える）
+- **xlsx・PDF をバイト一致で比較しない**（揮発項目が入るため一致しない）。xlsx はシート × セル値と構造、PDF は抽出テキストと構造で比較する。
+  **解析ツールは `metadata.json.differ.file_extract` の記録値を使い、自分で選び直さない**（現側と抽出ツールが変われば差分がツール差か実装差か切り分けられない。正本: `replace-strategy` の `references/file-io.md`）
 - **テキストの幅・字形の差を切り分けずに分類しない。** 「同じフォント名だから」で環境ノイズ・許容にしない——版（`head.fontRevision`）とヒンティング命令の有無で決まるため、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する
 - **コンポーネント差分をインスタンス単位の無視リストで飲み込まない。** クラス/トークン単位の系統差 T（`component_diffs`）で宣言し、T からの逸脱を検出する。
   ただし**画素経路でしか出ない差**（computed style は一致し描画だけ違う）は T の照合キーが無く `component_diffs` では吸収されないため、インスタンス例外（`property: pixel`）が唯一の置き場所（レジストリごとに効く経路の正本は [`references/normalize.md`](references/normalize.md)）
@@ -80,6 +82,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 |---|---|---|
 | `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
+| `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入は v1 スコープ外のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
 | `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補 |
 | `component_diff_exceptions` | 読・書 | T が引けない箇所のインスタンス単位フォールバック。**本スキルが形式を定義する**（スキーマ: [`references/normalize.md`](references/normalize.md)）。**書くのはユーザー承認済みのみ・非破壊追記** |
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |

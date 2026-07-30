@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T03:16:07Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 75.1,
+        "tokens": 164469,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "アップロード経路（upload_route）の変更と保存ファイル名（path）の命名規則の変更を意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認へ回す方針を示している（内部実装として黙って進めていない）",
+          "passed": true,
+          "evidence": "「アップロード経路の変更・保存ファイル名の規則変更は、どちらも意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認を通す対象です」。"
+        },
+        {
+          "text": "upload_route が未宣言のまま実装せず、設定側（targets[].storage.upload_route）の宣言が先に必要だと示している",
+          "passed": true,
+          "evidence": "「upload_route 未宣言のまま実装してはいけないので、設定側の宣言が先に必要です」。presigned がアプリサーバを通らないことによる波及（ネットワーク経路・環境変数・write_scope・forbidden_actions）も挙げている。"
+        },
+        {
+          "text": "「内部実装だから記録不要」を否定し、差異を見る前の一括分類指示には従わず個々の差異を提示して分類を確定させる規約に触れている",
+          "passed": true,
+          "evidence": "「『内部実装だから』は記録を省く理由になりません」「『差異を見る前の一括分類指示』には従えない規約なので、今回の 2 件も個々の差異を提示して分類を確定させます」。"
+        },
+        {
+          "text": "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない",
+          "passed": true,
+          "evidence": "前提表で parity-suite の metadata.json / suite.current_green と verification_commands の欠落を検出し手順 1 で停止。「order-list という slug も、採番元の features.md が無いため実在を確認できません（slug は自分で採番しない規約）」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 49.5,
+        "tokens": 98558,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "アップロード経路（upload_route）の変更と保存ファイル名（path）の命名規則の変更を意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認へ回す方針を示している（内部実装として黙って進めていない）",
+          "passed": false,
+          "evidence": "記録は必要と述べるが、intentional_diffs.pending への非破壊追記・個別確認という手続きには触れず、一般論としての「記録対象という切り分けを勧めます」に留まる。"
+        },
+        {
+          "text": "upload_route が未宣言のまま実装せず、設定側（targets[].storage.upload_route）の宣言が先に必要だと示している",
+          "passed": false,
+          "evidence": "設定キー（targets[].storage.upload_route）の宣言が実装の前提になるという指摘が無い。"
+        },
+        {
+          "text": "「内部実装だから記録不要」を否定し、差異を見る前の一括分類指示には従わず個々の差異を提示して分類を確定させる規約に触れている",
+          "passed": true,
+          "evidence": "「『内部実装だからレジストリに書かなくていい』は成り立たないと思います」と否定し、外部に漏れる経路を列挙している。"
+        },
+        {
+          "text": "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない",
+          "passed": false,
+          "evidence": "停止理由はスキル未インストールで、parity-suite の証跡（current_green）・verification_commands・slug 採番規約の検証は行っていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 75.1,
+        "stddev": 0.0,
+        "min": 75.1,
+        "max": 75.1
+      },
+      "tokens": {
+        "mean": 164469.0,
+        "stddev": 0.0,
+        "min": 164469,
+        "max": 164469
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0.0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 49.5,
+        "stddev": 0.0,
+        "min": 49.5,
+        "max": 49.5
+      },
+      "tokens": {
+        "mean": 98558.0,
+        "stddev": 0.0,
+        "min": 98558,
+        "max": 98558
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+25.6",
+      "tokens": "+65911"
+    }
+  },
+  "notes": []
+}

@@ -63,6 +63,9 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
     判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 11. **フェーズ B の現新一致を逆写像の往復で検証しない**（`map∘unmap = id` で空回りし、宣言外の正規化を足しても通る）。判定は「差の列挙 × 宣言済み差分一覧との完全一致」で行い、
     **宣言外の正規化を 1 件足したら落ちること**まで確認する（詳細: [`references/phase-b.md`](references/phase-b.md)）
+12. **ファイルストレージ実体へ投入しない**（v1 スコープ外）。`targets[].storage.seedable: true` でも投入せず、ストレージ実体に依存するデータは
+    「ストレージ投入はスコープ外＝未検証」として `verification.md` と `gaps` に残す（確認済みにしない）。アップロード用ファイルの**生成**（決定論的な fixture 生成）は対象で、
+    **手書きの静的ファイルを直接コミットして生成ツールを省略しない**（正本: `replace-strategy` の `references/file-io.md`「ファイル入力（アップロード）」・同 `references/project-config.md`「ファイルストレージ」）
 
 ## プロジェクト設定の解決
 
@@ -73,6 +76,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | `dataset_mode` | データセットの実体（`db`〈既定〉/ `static`）。投入先解決とフェーズ A / B の投入手順が分岐する |
 | `dataset_static_paths` | `dataset_mode: static` のとき投入ツールが生成・削除してよいパス（**書き込み範囲の設定由来ゲート**。無ければ停止） |
 | `targets[].db.seedable` | **投入許可の設定由来ゲート**。`true` の target だけが投入対象（省略・`false` は読み取り専用接続） |
+| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、その環境の接続・書き込み範囲・投入ゲート（`storage.seedable`）・アップロード経路。**読むだけで投入しない**——ストレージ実体への投入は v1 スコープ外（禁止事項 12）。`uses_storage: true` なら、ストレージ実体に依存するデータを `verification.md` の未投入一覧に残し `gaps` へ回す |
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差）。**キー欠落・空値・解決できないパスはいずれも未整備**として停止する |

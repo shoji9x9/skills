@@ -96,6 +96,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`check_urls` で稼働判定して落ちているときだけ `pre_commands` → `start` の順に起動し、UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
 | `targets[].on_diff` | 選択した target で要対応差分が出たときの対応手順を書いた Markdown のパス（任意。省略時は修正 → 対象 target で再テスト）。本スキルでの解釈手順は [`references/diff-loop.md`](references/diff-loop.md) |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target のロール別認証情報（`<ロール名>.{user_name_env,password_env}`。値は環境変数の**名前**。認証不要の環境では省略可）と、実施しない UI / API 操作（未定義時の扱いは正本に従う）。いずれも target ごとの定義のみで、側単位のフォールバックは持たない |
+| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。**読むだけ**で、経路を現側から変えるなら意図的差異として `intentional_diffs.pending` へ非破壊追記しユーザー確認へ回す（`upload_route` 未宣言のまま実装しない）。ストレージ実体への投入は v1 スコープ外（正本: スキーマ文書「ファイルストレージ」、実装上の扱いは [`references/paging.md`](references/paging.md)） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない）。設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
