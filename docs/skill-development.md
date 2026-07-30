@@ -82,7 +82,7 @@ eval プロンプトはファイルを生成・改変する（スキル・ルー
 
 **対策**: `scripts/run-skill-eval.sh` を使う。
 ランチャ側で cwd を固定したヘッドレス `claude -p` を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
-`with_skill` はその dir にスキルを設置し、`without_skill` は設置しない（親に `.claude/skills` が無いので**公正なベースライン**になる）。
+`with_skill` はその dir にスキルを設置し、`without_skill` は設置しない。ただし**未設置は公正なベースラインの十分条件ではない**——`claude -p` はマシン上の任意パスを読めるため、read 隔離と汚染判定まで含めて初めて Delta が信号になる（下記）。
 
 ```bash
 # 1 run を隔離実行（生成物は --out 配下に保存され、リポジトリは汚れない）
@@ -98,6 +98,17 @@ scripts/run-skill-eval.sh \
 # "fixture": "evals/fixtures/<fixture名>" を記録する（fixture は実行で変更されない）。
 ```
 
+- **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
+  `run-skill-eval.sh` は**両 configuration** を `scripts/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
+  各 run に `isolation.txt`（遮断できたか）を必ず残す。`without_skill` にはさらに `contamination.txt`（判定）を残す。`SKILL_EVAL_RUNNER` を明示した場合はそれが優先され、遮断は未検証として記録される。
+  **`with_skill` も隔離するのは、比較の差を「スキルの有無」だけに保つため**——隔離しないと `with_skill` は `~/.claude/projects`（スキルを書いた／eval を設計したセッションのトランスクリプト）や
+  グローバルインストール済みスキルを読めてしまい、Delta が上方に膨らむ（実測で、そこを読んで根拠にした run がある）。使い捨てプロジェクト内のスキルはサンドボックス内でも読めるため `with_skill` は成立する。
+  - `contamination.txt` の `verdict` が `clean` 以外（`CONTAMINATED` / `CHECK-BROKEN` / `SKIPPED`）のとき、run 自体が成功していても exit 4 になる。
+    **その run の Delta は無効**として扱い、`grading.json` を置かず集計から除外し、遮断（または判定の前提）を直して取り直したうえで benchmark に経緯を残す。
+    `SKIPPED` は「判定が走らなかった」であって clean ではない。
+  - bwrap（または `eval-sandbox.sh`）が無い環境は `UNISOLATED` を記録し、`flock` で `with_skill` 実行と排他して逐次へ落とす（並列実行は `/tmp` 隔離が効いているときだけ成立する）。
+  - 遮断そのものを確かめるときは `scripts/eval-sandbox.sh --verify <marker>...` を使う（3 段: リポジトリがサンドボックス内で消えていること・マーカーが 1 件も見つからないこと〈走査根ごとに陽性コントロールを植えて検出能力を実証する〉・`$HOME` が書き込みを拒み書き込み可の箇所への書き込みがホストへ漏れないこと）。
+  - 残る穴: 対象リポジトリが public なら `gh` / WebFetch でスキル本文を取得する経路はローカル遮断では塞げない。採点時に「baseline がスキル固有の語彙・契約を再現していないか」は見る。
 - **fixture に「期待する答え」を書かない。** fixture はスキルが読む**入力**であって契約知識ではない。
   設定・成果物に置くコメントや注記が、その eval が検査している結論（移行先のパス・意図的にそう作った旨・こう扱うのが正しいという診断）を述べていると、
   **ベースラインがそれを読んで assertion を満たし、Delta が消える**。実際に `parity-diff` の fixture で移行先パスと「同一原因の `reason` が複製されている」診断を漏らし、ベースラインが正答した事例がある。
