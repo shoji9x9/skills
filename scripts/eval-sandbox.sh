@@ -152,7 +152,7 @@ for c in "${controls[@]}"; do
   r="${c%%|*}"; p="${c#*|}"
   printf "stage2 positive control %s: " "$r"
   if [ -z "$p" ]; then echo "NOT PLANTED (FAIL: cannot prove this root is searchable)"; rc=1; continue; fi
-  timeout 600 grep -rlIq $excludes -e "SENTINEL-EVAL-SANDBOX-STAGE2" "$r" 2>/dev/null; cs=$?
+  timeout 600 grep -rlIqF $excludes -e "SENTINEL-EVAL-SANDBOX-STAGE2" "$r" 2>/dev/null; cs=$?
   if [ "$cs" -eq 0 ]; then echo "sentinel found (ok)"
   elif [ "$cs" -ge 124 ]; then echo "TIMED OUT (FAIL: control scan incomplete after 600s; results for this root are meaningless)"; rc=1
   else echo "SENTINEL NOT FOUND (FAIL: this root is not being searched; its results below are meaningless)"; rc=1; fi
@@ -160,7 +160,7 @@ done
 for c in "${controls[@]}"; do p="${c#*|}"; [ -n "$p" ] && rm -f "$p"; done
 for m in "$@"; do
   printf "stage2 marker %s: " "$m"
-  hits="$(timeout 600 grep -rlI $excludes -e "$m" "${roots[@]}" 2>/dev/null | head -5)"; gs=$?
+  hits="$(timeout 600 grep -rlIF $excludes -e "$m" "${roots[@]}" 2>/dev/null | head -5)"; gs=$?
   if [ -n "$hits" ]; then echo "FOUND (FAIL)"; echo "$hits" | sed "s/^/    /"; rc=1
   elif [ "$gs" -ge 124 ]; then echo "TIMED OUT (FAIL: scan incomplete after 600s; rerun or narrow the roots)"; rc=1
   elif [ "$gs" -gt 1 ]; then echo "not found (ok; grep rc=$gs — some paths unreadable)"

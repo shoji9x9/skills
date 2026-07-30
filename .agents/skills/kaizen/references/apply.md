@@ -45,7 +45,7 @@ ls .kaizen/*.md 2>/dev/null
 | `hook` | `.claude/settings.json` 等 | hooks |
 | `doc` | 基底ドキュメント（`AGENTS.md`、無ければ `CLAUDE.md` / `.github/copilot-instructions.md`）、または長大・専用の知見なら `docs/` 等の専用ドキュメント（配置は利用先で異なる） | docs |
 | `other` | ユーザーと相談して決める | — |
-| （type 共通）**機構** | リポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設。`type` が `rule` / `doc` / `other` でも、散文で閉じると再発する対策はここに落とす（判断は下記「決定性で選ぶ」） | hooks |
+| （type 共通）**機構** | リポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設。`type` が `rule` / `doc` / `other` でも、散文で閉じると再発する対策はここに落とす（判断は下記「決定性で選ぶ」） | Hook を追加するときだけ hooks。lint / スクリプト / CI はリポジトリのツールを直接改修する |
 
 #### 記述先（適用先）の選び方
 
