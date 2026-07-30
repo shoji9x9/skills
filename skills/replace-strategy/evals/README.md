@@ -36,5 +36,7 @@ scripts/run-skill-eval.sh \
 - eval 10 の fixture（`dependency-decision`）は測定・戦略・インベントリまで完了し、**`references.dependency_policy` を持たない**（＝方針未確認）状態を持たせ、
   **依存パッケージの導入判断**（要件 → 素性・ライセンス → 詳細比較の順序、判断材料の記録、方針の要否をユーザーに確認）を検証する。
   fixture 無しでは「`setup` 未完了」で早期停止して判断材料の提示に到達しないため、fixture で到達性を担保している
+- eval 15 は fixture 無しで会話だけで判定できる契約（設定キーの**書き手区分**・作業中に増え続ける slug スコープの台帳を設定に置かない・`component_diffs` を設定側に残す根拠・
+  スキルキーを跨いだ YAML アンカー共有が課す分割不可制約）を対象にする
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

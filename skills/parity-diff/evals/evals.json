@@ -49,7 +49,8 @@
         "同じフォント名を根拠に環境ノイズ・許容へ分類せず、切り分けを先に行う方針を示している",
         "フォントの版（head の fontRevision）とヒンティング命令の有無（prep 等のテーブル）の 2 軸で決まると説明している",
         "同じ版でもヒンティング命令の有無で小サイズの送り幅の丸めが変わり本文幅が変わる（送り値が同一でもレンダリング幅は違う）と説明している",
-        "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）"
+        "実際に読み込まれたフォントファイルの特定や text-rendering: geometricPrecision での分離など、決定論的に切り分ける手順を示している（目視で判断していない）",
+        "版差・ヒンティング差はいずれも要対応（同じ版・ヒンティング命令を持つビルドを新側へ配信して解消する）だと述べ、インスタンス例外や gaps.md の未検証へ落とすのは配信物を選べず源流で消せない場合に限る（かつユーザー承認が要る）と条件つきで示している"
       ]
     },
     {
@@ -65,23 +66,25 @@
     },
     {
       "id": 7,
-      "prompt": "現行と新側で font-family も版も送り幅も一致しているのに、特定のウェイトの見出しだけ画素差が出る。系統的な原因なので component_diffs に 1 回宣言して全インスタンスで吸収させたい。どう書けばいい？",
+      "prompt": "現行と新側で font-family も版も送り幅も一致しているのに、特定のウェイトの見出しだけ画素差が出る。系統的な原因なので component_diffs に 1 回宣言して全インスタンスで吸収させたい。どう書けばいい？ 書いておけば次の実行から差分器が自動で吸収してくれるんだよね？",
       "assertions": [
         "component_diffs は特性照合経路（computed style の値比較）にしか効かず、両側の値が一致する画素経路のみの差には照合キーが無いため吸収されないと説明している",
-        "置き場所は component_diff_exceptions で、property に pixel を入れてインスタンス単位に書くと示している",
-        "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、同一原因のインスタンスを後から辿れるようにする（reason を揃える等）と示している",
+        "置き場所は .replace/parity/<slug>/component-diff-exceptions.json（設定ファイルの skills.yml ではない）で、property に pixel を入れてインスタンス単位に書くと示している",
+        "系統的な原因でも 1 回の宣言にできないのは形式上の制約だと述べ、原因は component_diff_exception_causes に 1 回だけ定義して各インスタンスから cause で参照すると示している（reason をインスタンスへ複製しない）",
         "レジストリへ書くのはユーザー承認済みのものだけだと述べている",
+        "property: pixel の例外は diff-normalize.mjs では吸収されない（同スクリプトの入力は特性照合の Diff だけで画素候補は通らない）ため本スキルが画素候補へ適用すると説明し、取り違えると承認済みでも次の実行で同じ crop が unexplained として再浮上すると述べている",
         "しきい値で潰す・インスタンス単位の無視リストで飲み込む、といった代替を勧めていない"
       ]
     },
     {
       "id": 8,
-      "prompt": "トリアージで 3 件を「許容」と判断した。ユーザー承認はこれから取るけど、先に diff.md の分類欄を「許容」で埋めておいていい？",
+      "prompt": "トリアージで 3 件を「許容」と判断した。ユーザー承認はこれから取るけど、先に diff.md の分類欄を「許容」で埋めておいていい？ 承認が取れるまでの置き場所として intentional_diffs.pending に入れておくのはどう？",
       "assertions": [
         "承認前は分類欄に「許容」と書かず 許容候補（要確認） と書くと答えている",
         "レポートへの記入自体は禁じず、承認で確定するのは分類だという 2 段階を示している",
         "承認前の候補は収束判定で未説明として数え、converged: true にできないと述べている",
-        "承認前は component_diffs / component_diff_exceptions / intentional_diffs のいずれにも書かないと述べている"
+        "承認前は component_diffs / intentional_diffs / .replace/parity/<slug>/component-diff-exceptions.json のいずれにも書かないと述べている",
+        "intentional_diffs.pending への退避を断り、その理由（pending は未確定として要確認扱いで残るだけで承認の代わりにならず、未説明が残る＝未収束として扱う）を示している"
       ]
     },
     {
@@ -113,6 +116,30 @@
         "解析ツールは metadata.json の differ.file_extract の記録値を使い、自分で選び直さない（現側と新側で抽出ツールが変わると差分がツール差か実装差か切り分けられない）と説明している",
         "記録が無い場合は推測でツールを導入せず parity-suite へ戻す方針を示している",
         "抽出結果の比較には同梱の json-normalize-diff.mjs を使い、揮発項目を --ignore で除外する形を示している（差分器を新たに書き起こしていない）"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "parity-diff --feature order-list --target local-dev",
+      "fixture": "evals/fixtures/legacy-exceptions-key",
+      "assertions": [
+        "設定ファイルの skills.replace-strategy 直下に component_diff_exceptions が残っていることを旧キーとして検出している",
+        "旧キーをフォールバックとして読まず（値で暗黙に代替せず）差分検出へ進まずに停止している",
+        "移行先が .replace/parity/order-list/component-diff-exceptions.json であることと、移行手順の正本が replace-strategy の references/project-config.md「移行」であることを示している",
+        "3 インスタンスに複製されている同一原因の reason を component_diff_exception_causes の 1 件へ畳み、各インスタンスは cause で参照する形へ移すと示している",
+        "インスタンスは 3 件のまま残す（件数を畳まない・ワイルドカードで 1 エントリにまとめない）と示している",
+        "設定ファイルを自動で書き換えて移行を代行していない（対応表を示して停止している）"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "画素差の原因は 1 つ（フォントのサブセットビルド差）だと切り分けが済んで、ユーザー承認も取れた。該当箇所は 7 つある。原因調査の経緯が長いんだけど、これはどこに書けばいい？ gaps.md に「解決済み」の節を作ろうか？",
+      "assertions": [
+        "経緯の宛先を gaps.md にしないと答えている（gaps.md は未検証領域の台帳で、そこに置くと承認済み＝説明済みのものが未検証と混ざり、毎回 diff.md へ未検証として転記される経路に乗るため）",
+        "経緯の宛先は .replace/parity/<slug>/component-diff-exceptions.md の原因ごとの節であり、component_diff_exception_causes[].evidence がその節を指すと示している",
+        "reason は 1〜2 行の識別ラベルに留め、経緯は evidence 側へ分けると示している（YAML / JSON のコメントに溜めない）",
+        "原因は component_diff_exception_causes に 1 件だけ定義し、7 箇所は cause で参照する薄いインスタンスとして残す（7 件の件数は畳まない）と示している",
+        "例外の件数が検証の弱さのシグナルであることに触れ、行数削減のために件数を隠さないと述べている"
       ]
     }
   ]
