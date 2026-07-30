@@ -177,22 +177,29 @@ else echo "rejected (ok)"; fi
 # $HOME says nothing about it, and from in here a tmpfs and a host bind look the same,
 # so plant a marker and let the parent shell check the host path after bwrap exits.
 printf "stage3 ~/.claude write containment: "
-if : >"$HOME/.claude/.eval-sandbox-escape-probe" 2>/dev/null; then echo "probe planted (parent checks the host)"
+if printf "%s\n" "$SENTINEL" >"$HOME/.claude/.eval-sandbox-escape-probe" 2>/dev/null; then echo "probe planted (parent checks the host)"
 else echo "NOT PLANTED (FAIL: ~/.claude must stay writable, and containment is unproven)"; rc=1; fi
 exit $rc'
 	rc=0
-	bwrap "${args[@]}" --chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
+	escape_sentinel="SENTINEL-EVAL-SANDBOX-ESCAPE"
+	bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" --chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported
 	# "probe planted" (it sets rc=1 otherwise), so "absent" cannot mean "never written".
+	# Delete only what this check wrote: the file is identified by its sentinel content,
+	# so a same-named file that is NOT ours fails the check and is left untouched
+	# (a verification step must never destroy a user file on a false positive).
 	escape_probe="${home}/.claude/.eval-sandbox-escape-probe"
 	printf "stage3 host leak check (~/.claude): "
-	if [ -e "${escape_probe}" ]; then
+	if [ ! -e "${escape_probe}" ]; then
+		echo "no leak (ok)"
+	elif [ "$(cat -- "${escape_probe}" 2>/dev/null)" = "${escape_sentinel}" ]; then
 		echo "LEAKED (FAIL: writes under ~/.claude reach the host)"
 		rm -f -- "${escape_probe}"
 		rc=1
 	else
-		echo "no leak (ok)"
+		echo "COLLISION (FAIL: ${escape_probe} exists but is not this check's probe; left untouched — move it aside and rerun)"
+		rc=1
 	fi
 	exit "${rc}"
 fi
