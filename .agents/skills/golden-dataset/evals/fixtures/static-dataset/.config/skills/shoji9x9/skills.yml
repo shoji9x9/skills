@@ -7,7 +7,6 @@ skills:
     new:
       repo: ./new-site
     targets:
-      # DB を持つ target は 1 つも無い（静的サイトのため意図的）
       - name: current-test
         side: current
         url: http://localhost:8080

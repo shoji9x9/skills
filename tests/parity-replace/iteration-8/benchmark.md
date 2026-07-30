@@ -32,3 +32,14 @@ eval 10 は「アップロードを presigned 化し保存ファイル名の規�
 
 `without_skill` は `scripts/eval-sandbox.sh`（4 群遮断）経由・逐次で取得。事前 2 段検証と事後のマーカー grep（15 語）はいずれも 0 件で汚染なし
 （前 iteration では同時実行で汚染していた箇所）。経緯と手順は `tests/replace-strategy/iteration-10/benchmark.md` の同節を参照。
+
+## fixture の cue 除去について（2026-07-30 追記）
+
+本 iteration までの測定に使った fixture の設定ファイルには、`targets` の `develop` エントリに
+`# 配信型: db 無し・start 無し・commit_check 無し（意図的）` という注記があった。
+これは欠落が「意図的」であることを明言しており、**否定形の assertion**（「〜が無いことを理由に停止していない」等）を
+ベースラインが通しやすくなる cue だった（Issue #160 の eval 整備中に `parity-diff` の fixture で同型・より重度の漏れが見つかったのを機に、リポジトリ全体で棚卸しした）。
+
+- **cue を実在しうる役割説明（`# PR マージ後に自動デプロイされる環境`）へ置き換えた。** YAML のキー・値は変えていないので設定の意味論は不変
+- **再計測はしていない。** cue の除去はベースラインを弱くする方向にしか働かないため、ここに記録した Delta は**下限**として有効である
+- 規約は `docs/skill-development.md`「回帰テストを実行する」の「fixture に『期待する答え』を書かない」に明文化した
