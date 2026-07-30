@@ -2,7 +2,7 @@
 date: 2026-07-28
 type: skill
 priority: high
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -55,3 +55,10 @@ KEDB 照合: `2026-06-17-pnpm-peer-keyed-transitive-update.md`（applied、2026-
    `pnpm install --frozen-lockfile` と test で検証 → name@version 比較で float 範囲を確認。
 4. 選択肢の優先順: (a) direct dep なら直接更新 (b) 親 remove+re-add (c) surgical hand-edit
    (d) 完全再生成。
+
+## 適用（2026-07-30・Issue #143）
+
+`skills/dependabot-alert-issue/references/pnpm-transitive-update.md` に「手段の優先順」と
+「親を remove して同一 range で add し直す」節を追加した（動詞を広げてから結論する旨・exact pin の事前確認・手順・Issue #124 の実測値）。
+`pnpm-audit-alert-issue`（private skill）は同ファイルを参照する要約を更新し、「到達しなければ完全再生成」の二者択一を外した。
+[[2026-07-23-pnpm-update-stdout-vs-lockfile-diff]] と同じ成果物へ統合して適用。

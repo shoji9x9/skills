@@ -2,7 +2,7 @@
 date: 2026-07-23
 type: skill
 priority: low
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -41,3 +41,9 @@ stdout サマリだけを見て「混入した／していない」を判断す�
 [[2026-06-17-pnpm-peer-keyed-transitive-update]] の「float 範囲は git diff で確認」を、
 「stdout は過大表示もあり得るので lockfile 差分が唯一の権威」と補強する（適用先も同ノートと同じ
 `pnpm-audit-alert-issue` / `dependabot-alert-issue` の実装手順・裏取り例）。
+
+## 適用（2026-07-30・Issue #143）
+
+`skills/dependabot-alert-issue/references/pnpm-transitive-update.md` に「更新結果の判断は lockfile 差分で行う」節を追加した
+（stdout サマリは node_modules 整合分を含む過大表示で、判断の権威は `git diff pnpm-lock.yaml`）。
+[[2026-07-28-pnpm-subtree-reresolve-by-reinstall]] と同じ成果物へ統合して適用。

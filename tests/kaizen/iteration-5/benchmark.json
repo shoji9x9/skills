@@ -1,0 +1,328 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T09:56:31Z",
+    "evals_run": [9],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 135.2,
+        "tokens": 7703,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "「## 2. 反映先: 散文ではなく機構（リポジトリのツール改修・新設）」。rule / doc を退け、スクリプト＋プリフライト＋pre-commit/CI ゲートを成果物にしている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "apply.md の判定 3 点を表で引用（手順の記述で閉じるなら知識であって仕組みではない／同じ組み立てを毎回人が再現している対策は既定挙動にする／再発があるなら散文を疑う）"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": true,
+          "evidence": "「## 3. 適用可否の確認（本来はここでユーザーに聞く 3 分岐）」で承認→成果物作成 / 却下→status: rejected / スキップ→pending のまま を列挙"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": true,
+          "evidence": "status を pending → applied に更新（必須）＋ grep -l \"^status: pending\" .kaizen/*.md をグループ直後と全処理後の 2 回実行すると明記"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "「全グループ処理後、次のどちらかをユーザーに確認する: このブランチで作業継続 / Issue を作成（グループごとに 1 Issue）」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 284.3,
+        "tokens": 18295,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "scripts/measure-baseline.sh を主対策、AGENTS.md は「入口の周知のみ・強制はスクリプト側」と従に位置づけている。rule を退けた理由も paths の観点で述べている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「同じ組み立てを人が毎回再現している対策は、その組み立てをツール側の既定挙動にするまで機構へ寄せる」を根拠として引用"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップのいずれにも言及なし（grep で 0 件）。承認を取らずに status を applied へ書き換えて適用した"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": true,
+          "evidence": "「status: pending → applied」＋「grep -l \"^status: pending\" .kaizen/*.md で取りこぼしゼロを確認」"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "Issue 化には触れるが「今回は 1 グループ完結で追加設計が不要なため不要と判断」と自己判断しており、二択をユーザーに確認する形になっていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 127,
+        "tokens": 7246,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "「## 2. 反映先：散文（rule / doc）ではなく「機構」— 測定ハーネスの既定挙動にする」。rule / doc を却下理由付きで退けている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「apply.md は「同じ組み立てを人が毎回再現している対策は、その組み立てをツール側の既定挙動にする」まで機構へ寄せると明示」＋ 5 回再発を散文が効かない証拠として引用"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": false,
+          "evidence": "「承認ステップを取れません」「承認いただければ」と承認には触れるが、承認 / 却下 / スキップの 3 分岐は示していない（却下は「却下した選択肢」の意味で使用）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": true,
+          "evidence": "① status を必ず更新（sed で pending → applied）② grep -l \"^status: pending\" .kaizen/*.md で取りこぼし確認（グループ直後と全処理後の 2 回）"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "「③ 継続方針の選択」で「このブランチで作業継続」と「Issue を作成（対策ごとに 1 Issue、別ブランチ）」を提示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 165.7,
+        "tokens": 8820,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。主たる反映先を測定ハーネスのコード（1〜3）とし、memory / グローバル CLAUDE.md / skill を却下したと記録している"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": false,
+          "evidence": "判定法に相当する記述がない。最終回答は後処理から始まっており、機構を選んだ根拠（手順の記述で閉じる／毎回の再現）は述べられていない"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし。「却下」は「却下した反映先」の意味のみ"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": false,
+          "evidence": "status: pending → applied には言及するが、grep による取りこぼし確認がない"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "ブランチ継続 or Issue 作成の二択をユーザーに確認する記述がない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 118.2,
+        "tokens": 6922,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。「① 測定ハーネス本体 ― 遮断ラッパーを名前のある再利用部品にする【主】」「文章に足すだけの反映は却下」"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "弁別なし。「決め手は「5 回とも同一」です。内容が毎回同じなら、それは知識ではなく未実装の部品です」＋「5 回分がすでにその形で、止まっていません」"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし（「却下したもの」は反映先の話）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": false,
+          "evidence": "frontmatter を status: applied に更新する diff は示すが、grep による取りこぼし確認がない"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "「コミットは人の手で」とあるが、ブランチ継続 or Issue 作成の二択をユーザーに確認する記述はない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 127.1,
+        "tokens": 7401,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。「1. 測定ハーネスのコード — 遮断ラッパーを 1 本に固定（主たる反映先）」、CLAUDE.md はポインタ 1〜2 行に留め「散文は強制力が最も弱い層」と述べている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "弁別なし。「内容が 5 回同一なら、それは判断ではなく定数であり、定数の置き場所はコードです」「文書・ルール・記憶に書くと…6 回目を止めません」"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階として承認 / 却下 / スキップの 3 分岐を示している",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし（grep で 0 件）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+          "passed": false,
+          "evidence": "status: pending → applied には言及するが、grep による取りこぼし確認がない"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "ブランチ継続 or Issue 作成の二択をユーザーに確認する記述がない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0.2,
+        "min": 0.6,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 182.1667,
+        "stddev": 88.545,
+        "min": 127,
+        "max": 284.3
+      },
+      "tokens": {
+        "mean": 11081.3333,
+        "stddev": 6251.396,
+        "min": 7246,
+        "max": 18295
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0.1155,
+        "min": 0.2,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 137.0,
+        "stddev": 25.2501,
+        "min": 118.2,
+        "max": 165.7
+      },
+      "tokens": {
+        "mean": 7714.3333,
+        "stddev": 987.0331,
+        "min": 6922,
+        "max": 8820
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.47",
+      "time_seconds": "+45.2",
+      "tokens": "+3367"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-5. 3 runs per configuration.",
+    "iteration-4 の弁別ゼロを受けた再測。fixture（evals/fixtures/apply-mechanism）の根本原因欄からメタ診断「対策が手順の記述で終わっていた」を除去してドメイン層の why 連鎖に差し替え、アサーションを 4 本 → 5 本に改訂した（#3 の但し書き削除、#4 に grep 取りこぼし確認を追加、#5 に Step 5 の二択を新設）。",
+    "read 隔離: without_skill 3 run すべて scripts/eval-sandbox.sh（$HOME read-only ＋ ~/.claude 全体 tmpfs へ強化した版）経由、contamination.txt verdict=clean。iteration-4 で起きたグローバル資産への書き込みは再発していない。",
+    "Delta は +0.17（iteration-4）から **+0.47** へ改善（with 80% / without 33%）。改善分は skill 固有の手順（#4 の grep 取りこぼし確認・#5 の Step 5 二択）が弁別したことによる。",
+    "アサーション別の弁別: #1 機構を第一候補 = with 3/3・without 3/3（**依然ゼロ**）、#2 判定法の根拠 = with 3/3・without 3/3（**依然ゼロ**）、#3 承認/却下/スキップ = with 1/3・without 0/3、#4 status + grep 取りこぼし = with 3/3・without 0/3、#5 Step 5 の二択 = with 2/3・without 0/3。",
+    "#1 / #2 が弁別しない理由は fixture の cue ではなく**事象そのもの**にある: 「5 回とも同一のラッパーを組み立て直した」という事実だけで、十分に強いモデルは「定数の置き場所はコード」「知識ではなく未実装の部品」と自力で到達する（ベースライン 3 run すべてがこの推論を独自の言葉で示した）。この事実を fixture から削ると学びとして成立しないため、apply.md の「機構」行の効果はこの eval では原理的に測れない。行の価値は Delta ではなく、判断の一貫性と後退検知にある。",
+    "#3 が with 1/3 に留まったのは実際のシグナル: apply.md Step 2 の承認段階（承認/却下/スキップ）を、3 run のうち 2 本が示さなかった（run-2 は承認を取らずに status を applied へ書き換えた）。ただしハーネスは非対話プリアンブルで「確認が必要でも質問で停止せず続行」と指示しているため、この項目は環境要因を含む。承認段階の強制力を上げるかは別途判断が必要。",
+    "with_skill run-3 は ~/.claude/skills/skill-creator への書き込みを「プロジェクト外のグローバル資産なので承認が要る」として自ら見送った（iteration-4 のベースラインが実行してしまった操作）。"
+  ]
+}

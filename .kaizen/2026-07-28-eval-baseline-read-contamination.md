@@ -2,7 +2,7 @@
 date: 2026-07-28
 type: other
 priority: high
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -157,8 +157,14 @@ parity-replace の baseline 2 本が汚染した（eval 9 は「正本は `<repo
 
 - **ラッパーはリポジトリに入った**（`scripts/eval-sandbox.sh`。4 群遮断）。Issue #159 の回帰評価では
   `without_skill` 6 run すべてをこれ経由・逐次で取得し、事後のマーカー grep も 0 件だった
-- **未実施**（本項目は pending のまま）: `run-skill-eval.sh` の `--config without_skill` での**既定化**と、
-  run 後の汚染検知の**自動化**（今回は手元のスクリプトで grep した）。ハーネス共有部の変更のため別途起票する
+- **既定化と汚染検知の自動化は Issue #143 で実装した**（`scripts/run-skill-eval.sh`）。
+  `--config without_skill` は `SKILL_EVAL_RUNNER` 未指定なら `scripts/eval-sandbox.sh` 経由で起動し、
+  run ごとに `isolation.txt`（遮断できたか）と `contamination.txt`（判定）を必ず残す。
+  汚染・検査破損は exit 4 で表面化させ、遮断が未証明な run は `flock` で `with_skill` と排他して逐次へ落とす。
+  マーカーはスキル同梱物の名前から導出し、プロンプト・fixture に含まれる語は偽陽性として除外する。
+  検査は「陰性＝合格」にせず、毎 run で陽性コントロール（既知マーカーを植えて検出できること）を通してから
+  clean を名乗る。実測: 遮断なしの probe は `references/` を読めて CONTAMINATED（exit 4）、
+  サンドボックス既定では読めず clean（exit 0）
 - **上記 4 群の具体化を 1 点訂正**: `history.jsonl` は `--ro-bind /dev/null` ではなく **`--dev-bind /dev/null`** で覆う。
   `--dev-bind` 以外の bind は `nodev` でマウントされ、`/dev/null` が「空のファイル」ではなく **open 不可（EACCES）** になる
   （実測: `--ro-bind` は `Permission denied`、`--dev-bind` は 0 バイト読み取り成功）

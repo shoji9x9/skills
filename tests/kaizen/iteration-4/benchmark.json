@@ -1,0 +1,299 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T09:36:37Z",
+    "evals_run": [9],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 112.7,
+        "tokens": 6088,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "「## 2. 反映先: 機構（測定ランナー側のツール改修）が第一候補」。rule / doc / pre-commit を退ける理由も個別に挙げている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「手順の記述で閉じるなら知識であって仕組みではない」「同じ組み立てを人が毎回再現しているなら、それをツール側の既定挙動にする」を根拠として明示的に引用"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": true,
+          "evidence": "「## 3. 適用可否の確認（本来のフロー）」で承認 / 却下 / スキップの 3 分岐と各々の帰結を列挙し、非対話のため保留した旨も明記"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "「status を pending → applied に更新（必須）」＋ grep -l \"^status: pending\" での取りこぼし確認まで記述"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 304.8,
+        "tokens": 18519,
+        "tool_calls": 27,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "「type: other → 機構（scripts）に振り分けました」。AGENTS.md 追記は却下と明記し、成果物 2 スクリプトを作成"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「手順の記述で閉じる対策は知識であって仕組みではない」「同じ組み立て（4 群のマウント指定）を 5 回とも人が再現している → ツール側の既定挙動にする」"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": true,
+          "evidence": "「承認ステップ: 非対話のため取得できず「承認」と仮定しました。却下なら status: rejected に戻し…」と承認 / 却下の分岐を明示"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "「学びファイルを status: pending → applied に更新し、適用先を追記」＋ grep で取りこぼしゼロを確認"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 328.1,
+        "tokens": 21497,
+        "tool_calls": 24,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "「apply.md の「決定性で選ぶ」に従いリポジトリのツール（スクリプト + ゲート）の新設を第一候補にしました。rule / doc への追記は主対策にしていません」"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "根拠 1「手順の記述で閉じる対策は知識であって仕組みではない」根拠 2「同じ組み立てを人が毎回再現しているなら、その組み立てをツール側の既定挙動にする」"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし（grep で 0 件）。非対話で確認できない旨の仮定も置かず、そのまま適用した。commit を見送った理由としてのみ非対話に言及"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "「status 更新（必須・実施済み）: 当該ファイルを pending → applied に更新」＋ grep で pending なしを確認"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 508.8,
+        "tokens": 30313,
+        "tool_calls": 30,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。「もう一段の文書（CLAUDE.md / memory / 手順書）に書くのは 5 回失敗した形の再演」と述べ、反映先をスクリプト＋PreToolUse フックに限定している"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "弁別なし。「このエントリの根本原因は「対策が手順の記述で終わったこと」」を根拠に散文を退けている（fixture の根本原因欄をそのまま利用）"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし（grep で 0 件）。確認段階そのものが手順に現れない"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "弁別なし。「status: pending → applied、applied: 2026-07-30、applied_to:（5 ファイル）を frontmatter に追加」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 106.8,
+        "tokens": 6516,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。「反映先の判断：実行可能な資産（スクリプト）＋それを呼ぶスキル。CLAUDE.md / memory への追記は主たる反映先として不適」"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "弁別なし。fixture の根本原因を引用（「対策が「次に測るときはこうする」という手順の記述で終わっていた」）し「記述ではなく、実行経路上に置く」と導いている"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": false,
+          "evidence": "「非対話環境のため、確認せずに進めました」と仮定は置くが、承認 / 却下 / スキップという適用可否の確認段階自体は手順に現れない（grep で 0 件）。※ assertion の但し書きの解釈幅がある箇所（benchmark の notes 参照）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "弁別なし。「status: applied # pending から」＋ applied_to の記録まで提示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 538.9,
+        "tokens": 33748,
+        "tool_calls": 45,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "弁別なし。「恒久化の形を「文章」ではなく「同梱物」にした」とし、スクリプト新設 + 集計側の除外ロジックを反映先にしている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "弁別なし。「根本原因は「対策が手順の記述で終わっていた」、事象は「5 回とも同一のラッパーを組み直した」」を根拠に同梱物化を導いている"
+        },
+        {
+          "text": "適用の可否をユーザーに確認する段階（承認 / 却下 / スキップ）を手順に含めている（非対話環境では確認できない旨と置いた仮定の明示でもよい）",
+          "passed": false,
+          "evidence": "承認 / 却下 / スキップへの言及なし（grep で 0 件）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新すると述べている",
+          "passed": true,
+          "evidence": "弁別なし。「.kaizen エントリを更新済み：status: pending → applied、applied_date、applied_to（5 ファイル）」"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9167,
+        "stddev": 0.1443,
+        "min": 0.75,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 248.5333,
+        "stddev": 118.2106,
+        "min": 112.7,
+        "max": 328.1
+      },
+      "tokens": {
+        "mean": 15368.0,
+        "stddev": 8173.4889,
+        "min": 6088,
+        "max": 21497
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.75,
+        "stddev": 0.0,
+        "min": 0.75,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 384.8333,
+        "stddev": 241.2538,
+        "min": 106.8,
+        "max": 538.9
+      },
+      "tokens": {
+        "mean": 23525.6667,
+        "stddev": 14830.5892,
+        "min": 6516,
+        "max": 33748
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.17",
+      "time_seconds": "-136.3",
+      "tokens": "-8158"
+    }
+  },
+  "notes": [
+    "Executor & analyzer model: claude-opus-5. 3 runs per configuration.",
+    "採点は意図・ナレーション基準: 使い捨ての空 /tmp プロジェクト（fixture = evals/fixtures/apply-mechanism）で実行し、各アサーションは「エージェントが正しい判断・手順を示したか」で判定した。",
+    "read 隔離: without_skill 3 run すべて scripts/eval-sandbox.sh 経由（isolation.txt = sandboxed）、事後の汚染判定は 3 run とも contamination.txt verdict=clean（マーカー 9 種）。ベースラインはスキル本文を読んでいない。",
+    "**この eval は弁別していない（Delta +0.17 は実質 1 アサーションに由来）**。アサーション別: #1 機構を第一候補 = with 3/3・without 3/3、#2 判定法の根拠 = with 3/3・without 3/3、#4 status pending→applied = with 3/3・without 3/3、#3 承認/却下/スキップ = with 2/3・without 0/3。差が出たのは #3 のみで、これは apply フロー一般の項目であって今回追加した「機構」行・「判定法」の弁別ではない。",
+    "原因は fixture が答えを持っていたこと: 根本原因欄の「対策が『次に測るときはこうする』という手順の記述で終わっていた」と事象欄の「5 回とも同一のラッパーを組み直した」が結論（散文ではなく機構へ）の根拠そのもので、ベースライン 3 run すべてがこれを引用して正答した。新設ルール .agents/rules/eval-assertion-discrimination.md の 4 点目「入力が答えを持っていないか」に該当する。",
+    "アサーション #3 の但し書き（「非対話環境では確認できない旨と置いた仮定の明示でもよい」）は解釈幅がある。without_skill run-2 は「非対話環境のため、確認せずに進めました」と仮定を置くが承認/却下/スキップの段階は手順に現れないため fail と判定した。再測時は但し書きを削り「承認/却下/スキップの 3 分岐を示す」に絞るべき。",
+    "弁別が出た skill 固有シグナル（次の反復でアサーション化の候補）: grep -l \"^status: pending\" による取りこぼし確認（with 3/3・without 0/3）、`/kaizen archive` の存在（with 3/3・without 0/3）、Step 5 のブランチ継続 or Issue 作成の二択（with 2/3・without 0/3）。",
+    "with_skill run-3 の #3 fail は挙動の揺れ（承認段階を飛ばして適用した）。3 run 中 1 本のため flaky 寄りで、スキル側の Step 2 の強制力が弱い可能性がある。",
+    "副作用: without_skill run-3 が ~/.claude/skills/skill-creator（ベンダ配布物）を実際に書き換えた。サンドボックスは read だけを塞いでおり $HOME への write を塞いでいなかったため。復旧済み（pin された github-tree-sha の内容へ）、scripts/eval-sandbox.sh を $HOME read-only ＋ ~/.claude 全体 tmpfs へ強化した。"
+  ]
+}
