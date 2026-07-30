@@ -39,14 +39,27 @@ pnpm の transitive 依存には 2 種類ある。
 
 先に**親の依存宣言が range か exact pin か**を確認する。exact pin（`1.2.3` 固定）ならこの手法でも上がらず上流待ちになる。
 
-1. `pnpm remove <親>`
-2. `pnpm add -D '<親>@<元の range>'`（元の range をそのまま渡す）
-3. `package.json` の range が書き換わったら元に戻し、`pnpm install --lockfile-only` で lockfile を追随させる
-4. `pnpm install --frozen-lockfile` とテストで検証する
-5. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する
+1. **親がどの依存種別に宣言されているかを記録する**（`dependencies` / `devDependencies` / `optionalDependencies`）。
+   `remove` すると宣言そのものが消えるため、先に確認しておく:
+
+   ```bash
+   node -e 'const p=require("./package.json");for(const k of ["dependencies","devDependencies","optionalDependencies"])if(p[k]?.[process.argv[1]])console.log(k,p[k][process.argv[1]])' '<親>'
+   ```
+
+2. `pnpm remove <親>`
+3. **記録した種別に合わせて**同一 range で add し直す（元の range をそのまま渡す）:
+   - `dependencies` → `pnpm add --save-prod '<親>@<元の range>'`
+   - `devDependencies` → `pnpm add --save-dev '<親>@<元の range>'`
+   - `optionalDependencies` → `pnpm add --save-optional '<親>@<元の range>'`
+
+   **種別を取り違えない**。production dependency を `--save-dev` で入れ直すと `devDependencies` へ移動し、
+   lockfile だけでなく本番インストール（`--prod` / デプロイ）で依存が欠落する。
+4. `package.json` の宣言（**種別と range の両方**）が元と変わっていないか確認し、変わっていたら戻して `pnpm install --lockfile-only` で lockfile を追随させる
+5. `pnpm install --frozen-lockfile` とテストで検証する
+6. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する
 
 実例: Issue #124（postcss high）で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
-`pnpm remove vitest && pnpm add -D 'vitest@^4.1.7'` では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
+`pnpm remove vitest && pnpm add --save-dev 'vitest@^4.1.7'`（vitest は `devDependencies` 宣言）では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
 
 ## 更新結果の判断は lockfile 差分で行う
 
