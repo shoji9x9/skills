@@ -2,7 +2,7 @@
 date: 2026-07-23
 type: rule
 priority: medium
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -37,3 +37,9 @@ curl の実行時間 ≒ スクリプト実行時間のため curl argv 露出�
   現状はエンコード正しさの観点）に「秘密値の argv 露出」観点を追記して統合する。
 - レビュー観点としても: 「値を argv から外した」対策を見たら、その値の**次の渡し先**（子プロセスの argv）まで
   追い、露出が本当に消えているかを確認する。関連: [[secret-echo-back-prohibition]]。
+
+## 適用（2026-07-30・Issue #143）
+
+`.agents/rules/curl-data-urlencode.md` に「秘密値は argv（ps / proc）に載せない」節を追記して統合した
+（`k@file` ＋ `umask 077` の一時ファイル ＋ `trap` での掃除、完了条件は「値が argv で渡る全プロセスを塞いだこと」、レビュー観点も併記）。
+`AGENTS.md` の参照ルールガイドの当該行も更新した。

@@ -2,7 +2,7 @@
 date: 2026-07-23
 type: rule
 priority: high
-status: pending
+status: applied
 session: claude-code
 ---
 
@@ -86,3 +86,10 @@ Issue #160 の eval 整備で、上記「到達」が**同一セッション内�
 - **到達性の検証手段**: assertion を書いたら「この要求は**プロンプトのどの文が引き出すか**」を 1 本ずつ言えるか確かめる。
   言えないものは、プロンプトに問いを足すか assertion を落とす（自発的言及に賭けると run 間で揺れて flaky になる）
 - 関連: [[2026-07-28-eval-baseline-read-contamination]]（同じ Delta の妥当性を、読み取り経路の側から壊す機構）
+
+## 適用（2026-07-30・Issue #143）
+
+`.agents/rules/eval-assertion-discrimination.md`（`paths` / `applyTo` = `skills/*/evals/**`）を新設し、
+`.claude/rules/` と `.github/instructions/` にシンボリックリンク、`AGENTS.md` の参照ルールガイドに追記して 3 エージェントへ配線した。
+4 点の検証（弁別・到達・材料・入力が答えを持っていないか）と到達性の検証手段（プロンプトのどの文が引き出すかを 1 本ずつ言えるか）を規定し、
+read 隔離とは別機構であることを明記した。

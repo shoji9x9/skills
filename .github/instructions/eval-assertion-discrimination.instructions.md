@@ -1,0 +1,1 @@
+../../.agents/rules/eval-assertion-discrimination.md
