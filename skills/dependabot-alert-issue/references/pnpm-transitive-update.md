@@ -19,6 +19,41 @@ pnpm の transitive 依存には 2 種類ある。
 `pnpm update` は in-range で新版がある他の plain transitive も同時に bump することがある（実例: `pnpm update undici` が nanoid / postcss / @napi-rs/wasm-runtime / @tybys/wasm-util を巻き込んだ）。
 プレーンな `pnpm install --lockfile-only` では差分が出ないため、これは `update` 動詞特有の広い再解決挙動であり、peer-keyed 限定の問題ではない。
 
+## 手段の優先順
+
+`pnpm update` で上がらないことを確認しても、**同じ動詞のオプションを広げただけ**（`--depth Infinity` / `-L` / `<pkg>@"*"` 等）で
+「不可能／完全再生成しかない」と結論しない。拒む理由（lockfile の既存 transitive 解決を保持する）を特定したら、
+**その前提を崩す別の動詞**（lockfile からエントリを消す `remove`）まで候補に入れてから結論する。
+
+1. **direct dependency なら直接更新する**
+2. **親を remove して同一 range で add し直す**（サブツリーだけ再解決。下記）
+3. **surgical hand-edit**（最小差分が要る plain transitive。下記）
+4. **lockfile 完全再生成**（無関係な依存も一斉に float する。最後の手段）
+
+`pnpm.overrides` による強制解決は品質が保証されないため、いずれの段でも採らない（SKILL.md「品質が保証されない回避策は提案しない」）。
+
+## 親を remove して同一 range で add し直す
+
+親（direct dependency）を一度アンインストールすると lockfile からそのサブツリーの解決が消えるため、
+同一 range で入れ直したときに**そのサブツリーだけが再解決**される。float は当該サブツリーに限定され、完全再生成のような全体巻き込みにならない。
+
+先に**親の依存宣言が range か exact pin か**を確認する。exact pin（`1.2.3` 固定）ならこの手法でも上がらず上流待ちになる。
+
+1. `pnpm remove <親>`
+2. `pnpm add -D '<親>@<元の range>'`（元の range をそのまま渡す）
+3. `package.json` の range が書き換わったら元に戻し、`pnpm install --lockfile-only` で lockfile を追随させる
+4. `pnpm install --frozen-lockfile` とテストで検証する
+5. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する
+
+実例: Issue #124（postcss high）で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
+`pnpm remove vitest && pnpm add -D 'vitest@^4.1.7'` では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
+
+## 更新結果の判断は lockfile 差分で行う
+
+**混入・float の有無を `pnpm update` の stdout サマリで判断しない。** stdout の増減（`- pkg X` / `+ pkg Y`）は
+node_modules を lockfile 記載へ整合させた分も報告するため、**lockfile 差分が無くても増減が表示される**（過大表示）。
+判断の権威は常に `git diff pnpm-lock.yaml`（必要なら `git show HEAD:pnpm-lock.yaml` と突き合わせる）。
+
 ## 着手可否分類への反映
 
 分類ルールは SKILL.md「着手可否の判定」を正とする。pnpm 固有の補足として、完全再生成での float 範囲は `git diff` で再生成前後の base `name@version` を比較すれば確認できる。
@@ -36,4 +71,4 @@ peer-keyed transitive はこの hand-edit が確実に機能するとは限ら�
 
 ## 出典
 
-Issue #39（vite / peer-keyed）・Issue #67（undici / plain）の実例に基づく。
+Issue #39（vite / peer-keyed）・Issue #67（undici / plain）・Issue #113（stdout の過大表示）・Issue #124（親 remove + re-add）の実例に基づく。
