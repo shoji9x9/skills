@@ -2,7 +2,7 @@
 
 **Model**: claude-opus-5
 **Date**: 2026-07-30T00:35:01Z
-**Evals**: 6, 9 (1 run each per configuration)
+**Evals**: 6, 9 (1 run each per configuration。eval 6・9 の without_skill は read 汚染により run-1 を破棄し run-2 を採用)
 
 ## Summary
 

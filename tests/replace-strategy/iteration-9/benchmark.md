@@ -2,7 +2,7 @@
 
 **Model**: claude-opus-5
 **Date**: 2026-07-30T00:46:20Z
-**Evals**: 11, 12 (eval 11: 1 run, eval 12: 2 runs — per configuration)
+**Evals**: 11, 12 (1 run each per configuration。eval 12 はアサーション緩和に伴う再取得を run-2 として追加)
 
 ## Summary
 
