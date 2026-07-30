@@ -101,13 +101,13 @@ T が引けない箇所のインスタンス単位フォールバック。**ユ�
 - **`cause` は単発の例外でも必須。** インスタンスが 1 件しか無い原因も `causes` に 1 件立てる（根拠の枠が常に付き、後から同原因が増えたときは薄い参照を足すだけで済む）
 - **インスタンス件数を畳まない。** `page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで N 箇所を吸収させない——
   **例外の件数は検証の弱さのシグナル**であり、行数削減のために件数を隠すと弱さが見えなくなる（1 原因 ＋ N 個の薄い参照にする）。
-  **照合キーの省略もワイルドカードにならない**（`page` / `viewport` を省いた例外は照合に使われない。`state` だけはスキーマの既定値 `default` を補う）。
+  **照合キーの省略もワイルドカードにならない**（`page` / `viewport` / `element` を省いた例外は照合に使われない。`state` だけはスキーマの既定値 `default` を補う）。
   **同じことが実行側にも効く**——`--page` / `--viewport` を省いた実行では「どの組の候補か」を確かめられないため例外は 1 件も適用されず、その旨が stderr に出る（下記「diff-normalize.mjs の実行」）
 - **`element: none` は「論理名が無い要素」を指すスキーマ値で、match-all ではない。** 特性照合の Diff は必ず論理名を持つため `none` の例外はその経路では合致しない
   （画素経路の候補に対して本スキルが適用する。下記「画素経路の例外の適用」）
 - **照合キーはインスタンス側にだけある。** `causes` は `reason` / `evidence` を共有するだけで照合に一切関与しない（原因を足しても吸収範囲は変わらない）
 - **承認済み例外の件数は `diff-metadata.json` の `accepted_exceptions`（原因数・インスタンス数）に記録する**（`replace-strategy status` が読める形で件数を残す。様式の正本は [`../assets/diff-metadata-template.json`](../assets/diff-metadata-template.json)）
-- **fail-closed の検証**: `cause` が `component_diff_exception_causes[].id` に解決できない／解決先の `evidence` が空／`slug` がファイルの `slug` と違う／照合キー（`page` / `viewport`）が欠けている——いずれのインスタンスも**照合に使わず**、
+- **fail-closed の検証**: `cause` が `component_diff_exception_causes[].id` に解決できない／解決先の `evidence` が空／`slug` がファイルの `slug` と違う／照合キー（`page` / `viewport` / `element`）が欠けている——いずれのインスタンスも**照合に使わず**、
   該当候補は `unexplained` のまま残す。不整合は `diff.md` に明記する（黙って吸収しない・黙って捨てない）。検証の実施箇所は下記「registries.json の組み立て」と `diff-normalize.mjs`
 
 ## 画素経路の例外の適用（`property: pixel`）

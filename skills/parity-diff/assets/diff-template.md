@@ -75,8 +75,8 @@
 | （例: 3） | （空。承認前は記録先を書かない。承認されれば component-diff-exceptions.json の property: pixel） | （空） | （空） | 未承認（許容候補のまま。未説明として数える） |
 | （例: 4） | component-diff-exceptions.json | （例: font-subset-weight600） | component-diff-exceptions.md#font-subset-weight600 | 承認済み（ISO 8601） |
 
-- 台帳の規模（原因数・インスタンス数・照合に使えなかった件数〈cause 未解決・evidence 空・slug 不一致・照合キー欠落〉）: （diff-metadata.json の accepted_exceptions と一致させる）
-- 台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー〈page / viewport〉欠落で照合に使われなかった例外）: （あれば列挙。無ければ none。該当候補は吸収されず未説明のまま残っている）
+- 台帳の規模（原因数・インスタンス数・照合に使えなかった件数〈cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落〉）: （diff-metadata.json の accepted_exceptions と一致させる）
+- 台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー〈page / viewport / element〉欠落で照合に使われなかった例外）: （あれば列挙。無ければ none。該当候補は吸収されず未説明のまま残っている）
 
 ## 6. 他機能待ち（blocked_by）
 
@@ -107,6 +107,6 @@
 - 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属: （件数））
 - 未修正回帰（deviates_T / actionable）: （件数。ゼロが条件）
 - 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。`許容候補（要確認）` の残数: （件数。ゼロが条件））
-- インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
+- インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 収束状態: （収束／他機能待ち／未収束）と根拠
 - 収束: （converged: true / false）

@@ -10,7 +10,7 @@
   - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（設定ファイルの `component_diffs` / `intentional_diffs`、または
     `.replace/parity/<slug>/component-diff-exceptions.json` ＋ 根拠の `component-diff-exceptions.md`）へ非破壊追記済み。
     `diff.md` に**承認前の分類**（`許容候補（要確認）`）が 1 件も残っていない（承認前は未説明として数える）
-  - インスタンス例外の台帳に**照合に使えない不整合が無い**（`cause` が解決できない・`evidence` が空・`slug` 不一致・照合キー〈`page` / `viewport`〉欠落。
+  - インスタンス例外の台帳に**照合に使えない不整合が無い**（`cause` が解決できない・`evidence` が空・`slug` 不一致・照合キー〈`page` / `viewport` / `element`〉欠落。
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）

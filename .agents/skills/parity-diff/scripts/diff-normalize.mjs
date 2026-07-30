@@ -139,8 +139,10 @@ export function validateExceptions(exceptions, causes, slug) {
       );
     }
     // 照合キーの欠落は「どの値にも合う」ではなく不一致（1 エントリで N 件を畳めないようにする）。
-    // state はスキーマに既定値 default があるので欠落を不足として数えない。
-    const missingKeys = ["page", "viewport"].filter((k) => !ex[k]);
+    // element も照合キー（論理名。無ければ "none" を書く）なので欠落を検出する——書き忘れると
+    // どの Diff にも合致せず、警告が無ければ「黙って無効化された例外」になる。
+    // state だけはスキーマに既定値 default があるので欠落を不足として数えない。
+    const missingKeys = ["page", "viewport", "element"].filter((k) => !ex[k]);
     if (missingKeys.length > 0) {
       problems.push(
         `${at}: missing matching key(s) ${missingKeys.join(", ")} — not used for matching ` +
