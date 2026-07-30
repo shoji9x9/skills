@@ -152,8 +152,12 @@ for c in "${controls[@]}"; do
   r="${c%%|*}"; p="${c#*|}"
   printf "stage2 positive control %s: " "$r"
   if [ -z "$p" ]; then echo "NOT PLANTED (FAIL: cannot prove this root is searchable)"; rc=1; continue; fi
-  timeout 600 grep -rlIqF $excludes -e "SENTINEL-EVAL-SANDBOX-STAGE2" "$r" 2>/dev/null; cs=$?
-  if [ "$cs" -eq 0 ]; then echo "sentinel found (ok)"
+  # Detection is judged by OUTPUT, not by the exit code. The grep here can be ugrep,
+  # which returns 2 whenever it meets an unreadable path even when -q matched (GNU
+  # documents the opposite: -q plus a match wins). Trusting the code would FAIL the
+  # control on any root holding an unreadable dir — a false "this root is not searched".
+  hit="$(timeout 600 grep -rlIF $excludes -e "SENTINEL-EVAL-SANDBOX-STAGE2" "$r" 2>/dev/null | head -1)"; cs=$?
+  if [ -n "$hit" ]; then echo "sentinel found (ok)"
   elif [ "$cs" -ge 124 ]; then echo "TIMED OUT (FAIL: control scan incomplete after 600s; results for this root are meaningless)"; rc=1
   else echo "SENTINEL NOT FOUND (FAIL: this root is not being searched; its results below are meaningless)"; rc=1; fi
 done

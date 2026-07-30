@@ -333,9 +333,13 @@ if [ "${config}" = "without_skill" ]; then
 		rm -rf -- "${control}"
 		mkdir -p -- "${control}"
 		printf '%s\n' "${kept[@]}" >"${control}/planted"
+		# Judge detection by OUTPUT, not by grep's exit code: ugrep returns 2 on any
+		# unreadable path even when it matched (GNU's "-q plus a match wins" rule is
+		# not universal), which would fake a CHECK-BROKEN verdict on a working scan.
 		undetected=""
 		for m in "${kept[@]}"; do
-			grep -rqIF -e "${m}" -- "${scan_roots[@]}" 2>/dev/null || undetected="${undetected} ${m}"
+			hit="$(grep -rlIF -e "${m}" -- "${scan_roots[@]}" 2>/dev/null | head -1)" || true
+			[ -n "${hit}" ] || undetected="${undetected} ${m}"
 		done
 		rm -rf -- "${control}"
 		# result.json is the other root and cannot host a control (it is the evidence
