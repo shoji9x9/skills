@@ -62,6 +62,10 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **テキストの幅・字形の差を切り分けずに分類しない。** 「同じフォント名だから」で環境ノイズ・許容にしない——版（`head.fontRevision`）とヒンティング命令の有無で決まるため、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する
 - **コンポーネント差分をインスタンス単位の無視リストで飲み込まない。** クラス/トークン単位の系統差 T（`component_diffs`）で宣言し、T からの逸脱を検出する。
   ただし**画素経路でしか出ない差**（computed style は一致し描画だけ違う）は T の照合キーが無く `component_diffs` では吸収されないため、インスタンス例外（`property: pixel`）が唯一の置き場所（レジストリごとに効く経路の正本は [`references/normalize.md`](references/normalize.md)）
+- **インスタンス例外を設定ファイル（`.config/skills/shoji9x9/skills.yml`）へ書かない。** slug スコープの台帳なので `.replace/parity/<slug>/component-diff-exceptions.json` に書く（旧キーが残っていたら移行を案内して停止する）
+- **同一原因の複数インスタンスに同じ `reason` を複製しない。** 原因は `component_diff_exception_causes[]` に 1 回定義して `cause` で参照する（インスタンスに `reason` フィールドを持たせない）
+- **例外のインスタンス件数を畳まない。** `page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで N 箇所を吸収させない——**例外の件数は検証の弱さのシグナル**であり、行数削減のために隠さない
+- **承認済み例外の根拠を `gaps.md` に書かない。** `gaps.md` は未検証領域の台帳で、そこに置くと承認済み（説明済み・許容）と未検証が混ざる。宛先は `component-diff-exceptions.md`
 - **承認前の分類を成果物に「許容」と書かない。** 承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で後続の判断の入力になるため）
 - **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
   比較の相手は常に**現行**であり、新側の実験変種どうしの一致を結論にしない。結論を成果物に書くときは測定条件を併記する（書けない結論は未説明のまま残す）
@@ -84,8 +88,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝データセットバージョンの三者一致を要求しない代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
 | `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入は v1 スコープ外のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
-| `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補 |
-| `component_diff_exceptions` | 読・書 | T が引けない箇所のインスタンス単位フォールバック。**本スキルが形式を定義する**（スキーマ: [`references/normalize.md`](references/normalize.md)）。**書くのはユーザー承認済みのみ・非破壊追記** |
+| `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（1 回の宣言が全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
 | `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
 | `references.db_semantics` | 読 | DB 意味論の差（API 応答の並び順差の判断材料） |
@@ -128,11 +131,14 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
 | 新側ベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側 `baseline/` と対称のレイアウト） | — |
 | 新側採取スペック | `metadata.json.suite.new_only` の場所（既定 `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
-| インスタンス例外 | `.config/skills/shoji9x9/skills.yml` の `component_diff_exceptions`（ユーザー承認済みのみ・非破壊追記） | スキーマ: [`references/normalize.md`](references/normalize.md) |
+| インスタンス例外レジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` へ**非破壊追記**（無ければテンプレートから作成）。ユーザー承認済みのみ・**設定ファイルには置かない** | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
+| 承認済み例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` へ**非破壊追記**（無ければテンプレートから作成）。`component_diff_exception_causes[].evidence` の宛先で、**`gaps.md` に書かない** | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
 | 依存の決定記録（差分器・トリアージ補助に依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - **新側の成果物は環境別**（`new/<target>/` 配下）。環境を切り替えても他の環境の差分レポート・メタデータ・新側ベースラインを上書きしない。現側 `baseline/` は 1 環境で slug 直下のまま
-- テキスト成果物（`diff.md` / `diff-metadata.json`）は Git。新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
+- **インスタンス例外レジストリとその根拠は環境非依存**なので slug 直下に置く（`gaps.md` / `porting.md` と同じ扱い）。特定の target でだけ出る差は例外ではなく環境差であり、ノイズ基準値と新側の自己ノイズで扱う
+- テキスト成果物（`diff.md` / `diff-metadata.json` / 例外レジストリとその根拠）は Git。
+  新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) / [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)）は
   **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う
 

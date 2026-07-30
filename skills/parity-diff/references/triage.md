@@ -39,9 +39,15 @@
 
 - **「許容」の確定にはユーザー承認が要る**（AskUserQuestion）。承認 UI には crop・特性差分など**判断材料を同梱する**（直前のテキストが見えている前提を置かない）
 - 承認されたら記録先へ**非破壊追記**する:
-  - クラス/トークン単位で表せる系統差 → `component_diffs`（宣言者は本来 `parity-replace`。ここで確定した系統差は `parity-replace` 側の宣言として整理する）
-  - T が引けないインスタンス単位・**画素経路でしか出ない差** → `component_diff_exceptions`（画素は `property: pixel`。スキーマと**レジストリごとに効く経路**の正本は [`normalize.md`](normalize.md)）
-  - 環境揮発など意図的差異 → `intentional_diffs`
+  - クラス/トークン単位で表せる系統差 → 設定ファイルの `component_diffs`（宣言者は本来 `parity-replace`。ここで確定した系統差は `parity-replace` 側の宣言として整理する）
+  - T が引けないインスタンス単位・**画素経路でしか出ない差** → `.replace/parity/<slug>/component-diff-exceptions.json`（画素は `property: pixel`。**設定ファイルには書かない**）
+  - 環境揮発など意図的差異 → 設定ファイルの `intentional_diffs`
+- **インスタンス例外は 2 ファイルで 1 組**（どちらも無ければ同梱テンプレート〈[`../assets/`](../assets/)〉から作成し、以降は非破壊追記する。スキーマと配置の正本は [`normalize.md`](normalize.md)）:
+  1. `component-diff-exceptions.json`: 原因を `component_diff_exception_causes[]` に **1 回だけ**定義し（既にあれば足さない）、インスタンスは `cause` で参照する。
+     **同一原因のインスタンスに同じ文言を複製しない**（インスタンスに `reason` フィールドは無い）。**件数は畳まない**——ワイルドカードで N 箇所を 1 エントリにしない
+  2. `component-diff-exceptions.md`: 原因ごとに `cause` の id と同名の節を作り、**原因調査の経緯・観測条件・承認記録**を書く（`causes[].evidence` がこの節を指す）。
+     `reason` は 1〜2 行の識別ラベルに留め、経緯はこちらに置く（YAML／JSON コメントへ溜めない）
+- **根拠の宛先を `gaps.md` にしない**（未検証領域の台帳であり、承認済み＝説明済みの根拠を混ぜない）
 - **未承認なら未説明のまま残す**（`diff.md` の未説明差分。未収束として扱う）
 
 ## 環境ノイズの分類

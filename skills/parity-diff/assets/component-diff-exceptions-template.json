@@ -1,0 +1,27 @@
+{
+  "_note": "parity-diff が .replace/parity/<slug>/component-diff-exceptions.json として生成する（slug スコープの成果物。環境非依存のため new/<target>/ 配下には置かない）。スキーマの正本は parity-diff の references/normalize.md「インスタンス例外のスキーマ」。全ての値はプレースホルダ例であり実測値・実際の承認記録で置き換える（JSON はコメント不可のため説明を値文字列で示す）。書くのはユーザー承認済みの例外だけで、承認前の候補は diff.md の未説明差分のまま残す。原因は component_diff_exception_causes に 1 回だけ定義し、インスタンスは cause で参照する（インスタンスに reason フィールドは持たせない——同一原因の文言が複製されるため）。インスタンス件数は畳まない（page / element / bbox にワイルドカードを置いて 1 エントリで N 箇所を吸収させない。例外の件数は検証の弱さのシグナルであり、行数削減のために隠さない）。cause が解決できない・解決先の evidence が空・slug がこのファイルの slug と違う・照合キー（page / viewport / element）が欠けているインスタンスは照合に使われず、該当候補は unexplained のまま残る（fail-closed）。照合キーの省略はワイルドカードにならないので、該当箇所ごとに page / viewport / element を書く（論理名が無い要素は element: none と明示する）。fail-closed で照合に使わなかったインスタンスの件数は diff-metadata.json の accepted_exceptions.unresolved に記録し、diff.md にも明記する（数えるのはこの台帳のインスタンス単位の不整合だけで、diff-normalize.mjs の実行時に --page / --viewport を渡し忘れた警告は含めない）。",
+  "version": 1,
+  "slug": "<このファイルが住むディレクトリの slug（features.md が採番したもの。自分で採番しない）>",
+  "component_diff_exception_causes": [
+    {
+      "id": "<小文字英数とハイフン。このファイル内で一意。根拠 Markdown の見出しと同一文字列にする>",
+      "reason": "<1〜2 行の識別ラベル。原因調査の経緯は書かず evidence 側に置く>",
+      "evidence": "component-diff-exceptions.md#<同じ id>"
+    }
+  ],
+  "component_diff_exceptions": [
+    {
+      "slug": "<slug。照合の安全弁として各インスタンスに持つ（このファイルの slug と一致させる）>",
+      "page": "<ページ>",
+      "element": "<論理名。無ければ none>",
+      "state": "<状態。既定 default>",
+      "viewport": "<viewport label>",
+      "property": "<CSS プロパティ。画素経路のみで拾った差は pixel>",
+      "bbox": "<property: pixel のときだけ必須。差分領域の bbox「x,y,w,h」（現側 crop の座標）。照合キーはこれ>",
+      "current": "<旧値。property: pixel のときは crop への相対パス（実行ごとに変わるため照合キーにしない＝根拠）>",
+      "new": "<新値。同上>",
+      "cause": "<component_diff_exception_causes[].id。必須（単発の例外でも原因を 1 件立てて参照する）>",
+      "approved_at": "<ユーザー承認の日時（ISO 8601）>"
+    }
+  ]
+}

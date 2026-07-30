@@ -1,0 +1,84 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: none
+      stack: [TypeScript, React]
+    new:
+      repo: ./new-app
+    targets:
+      - name: current-test
+        side: current
+        url: http://localhost:8080
+        db:
+          env_vars: [CURRENT_DB_URL]
+          seedable: true
+        auth:
+          roles:
+            admin:
+              user_name_env: CURRENT_ADMIN_USER
+              password_env: CURRENT_ADMIN_PASS
+        forbidden_actions:
+          - データの削除
+        default: true
+      - name: local-dev
+        side: new
+        url: http://localhost:5173
+        db:
+          env_vars: [NEW_DB_URL]
+          seedable: true
+        auth:
+          roles:
+            admin:
+              user_name_env: NEW_ADMIN_USER
+              password_env: NEW_ADMIN_PASS
+        forbidden_actions: []
+        start: npm run dev
+        check_urls: []
+        default: true
+      - name: develop # PR マージ後に自動デプロイされる環境
+        side: new
+        url: https://develop.example.test
+        forbidden_actions: []
+    verification_commands:
+      - npm run lint
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []
+    component_diffs: []
+    # 2026-06-12 調査メモ: 版（head.fontRevision）と送り値は現・新で一致。weight 600 の見出しでのみ
+    # 再現し、weight 400 の本文では差ゼロ。配信物を選べないため源流では消せないと判断した。
+    component_diff_exceptions:
+      - slug: order-list
+        page: /orders
+        element: order-list.header
+        state: default
+        viewport: desktop
+        property: pixel
+        bbox: 24,96,180,28
+        current: baseline/orders-desktop-default/crops/c1-current.png
+        new: baseline-new/orders-desktop-default/crops/c1-new.png
+        reason: フォントのサブセットビルド差による weight 600 のラスタライズ差。版・送り値は一致し画素だけ違う
+      - slug: order-list
+        page: /orders
+        element: order-list.table
+        state: default
+        viewport: desktop
+        property: pixel
+        bbox: 24,140,720,32
+        current: baseline/orders-desktop-default/crops/c2-current.png
+        new: baseline-new/orders-desktop-default/crops/c2-new.png
+        reason: フォントのサブセットビルド差による weight 600 のラスタライズ差。版・送り値は一致し画素だけ違う
+      - slug: order-list
+        page: /orders
+        element: order-list.row
+        state: default
+        viewport: desktop
+        property: pixel
+        bbox: 24,172,720,32
+        current: baseline/orders-desktop-default/crops/c3-current.png
+        new: baseline-new/orders-desktop-default/crops/c3-new.png
+        reason: フォントのサブセットビルド差による weight 600 のラスタライズ差。版・送り値は一致し画素だけ違う

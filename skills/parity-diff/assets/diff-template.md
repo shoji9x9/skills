@@ -43,6 +43,7 @@
 <!-- 「許容」は承認後にだけ書く。承認前は 許容候補（要確認） と書き、収束判定では未説明として数える。 -->
 <!-- 他機能の新側未実装に由来する差分は分類を 未説明 のままにし、次節「他機能待ち」へ帰属させる（分類の 4 値目にしない）。 -->
 <!-- 根拠には測定・実験で得た結論を書くとき、どの条件（要素・サイズ・ウェイト・状態）で測ったかを併記する。条件を書けない結論は書かず未説明のまま残す。 -->
+<!-- 正規化結果が absorbed_exception の行は、吸収した例外の cause（原因 id）と reason を根拠欄に書く（画素経路は bbox の実測ずれも併記する）。どの例外がどの候補を吸収したか追えるようにする。 -->
 
 | ID | 経路 | ページ | 状態 | ビューポート | 位置（論理名 or bbox） | 内容 | 正規化結果 | 分類 | 根拠（測定条件を併記） |
 |---|---|---|---|---|---|---|---|---|---|
@@ -65,12 +66,17 @@
 ## 5. 許容 — 記録先とユーザー承認
 
 <!-- 「許容」の確定にはユーザー承認が要る。承認済みのものだけを記録先へ非破壊追記する。承認前の行は「許容候補（要確認）」のまま置き、記録先は空にする。 -->
-<!-- 記録先はレジストリごとに効く経路が違う。画素経路でしか出ない差は component_diffs では吸収されず component_diff_exceptions（property: pixel）へ書く。 -->
+<!-- 記録先はレジストリごとに効く経路が違う。画素経路でしか出ない差は component_diffs では吸収されず、インスタンス例外（property: pixel）へ書く。 -->
+<!-- インスタンス例外の置き場所は設定ファイルではなく slug 成果物 .replace/parity/<slug>/component-diff-exceptions.json（原因は cause で参照し、根拠は同ディレクトリの component-diff-exceptions.md）。 -->
+<!-- 同一原因の複数インスタンスに同じ文言を複製しない。原因を 1 回定義して cause 参照にし、インスタンス件数は畳まない（件数は検証の弱さのシグナル）。 -->
 
-| ID | 記録先（component_diffs / component_diff_exceptions / intentional_diffs） | ユーザー承認（有無・日時） |
-|---|---|---|
-| （例: 3） | （空。承認前は記録先を書かない。承認されれば component_diff_exceptions の property: pixel） | 未承認（許容候補のまま。未説明として数える） |
-| （例: 4） | component_diff_exceptions | 承認済み（ISO 8601） |
+| ID | 記録先（component_diffs / component-diff-exceptions.json / intentional_diffs） | cause（原因 id。例外へ書いた場合） | 根拠の宛先（`component-diff-exceptions.md` の節） | ユーザー承認（有無・日時） |
+|---|---|---|---|---|
+| （例: 3） | （空。承認前は記録先を書かない。承認されれば component-diff-exceptions.json の property: pixel） | （空） | （空） | 未承認（許容候補のまま。未説明として数える） |
+| （例: 4） | component-diff-exceptions.json | （例: font-subset-weight600） | component-diff-exceptions.md#font-subset-weight600 | 承認済み（ISO 8601） |
+
+- 台帳の規模（原因数・インスタンス数・照合に使えなかった件数〈cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落〉）: （diff-metadata.json の accepted_exceptions と一致させる）
+- 台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー〈page / viewport / element〉欠落で照合に使われなかった例外）: （あれば列挙。無ければ none。該当候補は吸収されず未説明のまま残っている）
 
 ## 6. 他機能待ち（blocked_by）
 
@@ -101,5 +107,6 @@
 - 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属: （件数））
 - 未修正回帰（deviates_T / actionable）: （件数。ゼロが条件）
 - 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。`許容候補（要確認）` の残数: （件数。ゼロが条件））
+- インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 収束状態: （収束／他機能待ち／未収束）と根拠
 - 収束: （converged: true / false）

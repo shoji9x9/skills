@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-07-30T05:55:12Z",
+    "evals_run": [15],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 71.4,
+        "tokens": 167460,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": true,
+          "evidence": "見出し「1. 新しい「機能ごとの許容記録」キー → skills.yml に足さない」で新キー追加を明確に却下。除外条件を「slug スコープ かつ 作業中に件数が増え続ける台帳」と述べ「両方満たすので段 1 で落ちます」と判定し、置き場所を「slug 成果物側 —— `.replace/parity/<slug>/` 配下」と明示。先例として component_diff_exceptions → .replace/parity/<slug>/component-diff-exceptions.json の移行（project-config.md:389、実在を確認）も挙げている。"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": true,
+          "evidence": "「判定は独立した 2 段で、順序が決まっています」として段 1「そのキーが設定ファイルに載るか」と段 2（書き手区分）を分離。さらに「『書き手がスキルだから設定から出す』は、ドキュメントが名指しで誤った結論としている推論です（project-config.md:131）。書き手は段 2 の話で、段 1 の判断材料ではありません。」と明言している。"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": true,
+          "evidence": "「`intentional_diffs.pending`: これも slug 横断で、置くべき slug ディレクトリが存在しない。つまり段 1 の条件（slug スコープ）を満たさないので設定に残ります。加えて `keep` / `may_change` と同じ 3 分類の一員で、昇格が同じキー内での人間の移動作業である以上、分離すると運用が壊れます。設定ファイルに残る唯一の作業中記録という位置づけです」。3 要素（3 分類の一員 / 同一キー内の人間の昇格作業 / slug ディレクトリが無い）すべてを述べている。"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断に効き 1 回の宣言が全 slug・全インスタンスに効くため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": true,
+          "evidence": "「`component_diffs`: 要素が `component` × `property` で slug 横断に効き、1 回の宣言が全 slug・全インスタンスへ及ぶ。slug ごとに割ると同じ宣言が slug 数だけ複製されるので、むしろ移してはいけない側です（project-config.md:143）」。根拠 3 要素すべて一致。"
+        },
+        {
+          "text": "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている",
+          "passed": true,
+          "evidence": "3 要素すべてを満たす。(1)「YAML アンカーはファイル単位でしか解決できない。スキルキーを跨いだアンカー共有（例: skills.replace-strategy.targets と skills.browser-test.environments）が 1 つでも残っている間は分割できません。alias が解決先を失います。」(2)「分割するなら先に共有を解消し、各所へ実体を書くのが順序です。」(3) 第 4 節「アンカー定義の位置を動かさない・消さない。…末尾へ足すだけなら安全。アンカー定義を持つスキルキーを削除・移動するときは参照側を先に実体化する」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 93.0,
+        "tokens": 175001,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定ファイルは人間が確定させた方針の置き場所で、作業中に件数が増え続ける slug スコープの台帳は設定に置かず .replace/parity/<slug>/ の成果物へ置く方針を示している（新しい設定キーを足す提案を採らない）",
+          "passed": false,
+          "evidence": "部分的。新キー追加は却下し（「勧めません」）、「人が事前に決め、run をまたいで不変」対「スキルが作業中に生成し…際限なく増える」の表で設定／成果物側を切り分けている点は方向として一致。しかし置き場所は契約上の `.replace/parity/<slug>/` ではなく独自案「例 `<slug>/diffs/<feature>.yml`、あるいは1機能1ファイル」を提示しており、アサーションが求める成果物ディレクトリを述べていない。部分カバーのため FAIL。"
+        },
+        {
+          "text": "設定から出すかの判断と、載せるキーを書き手（人間が確定させる方針 / スキルが作業中に追記する記録）で区別する判断を別段として扱い、書き手がスキルであること自体は設定から出す理由にならないと区別している",
+          "passed": false,
+          "evidence": "2 段の分離がない。判断軸を「キーの寿命と増え方」の単一表に統合し、「スキルが作業中に生成し…増える → slug 成果物側」と、書き手＝スキルであることをそのまま設定から出す理由に使っている。これはアサーションが否定を求めている推論そのもの。「書き手がスキルであること自体は設定から出す理由にならない」という記述は一切ない。"
+        },
+        {
+          "text": "intentional_diffs.pending は slug 成果物へ出さず設定側に残すと答え、その根拠（keep / may_change と同じ 3 分類の一員で昇格が同一キー内での人間の作業、かつ slug 横断で置くべき slug ディレクトリが無い）を示している",
+          "passed": false,
+          "evidence": "結論が逆。「`intentional_diffs.pending`: 出すべき（優先度高）。`pending` は定義上、実行中に積まれて解決されたら消える揮発的な状態です」と成果物側への移動を強く推奨している。keep / may_change との 3 分類の一員である点、昇格が同一キー内の人間の作業である点、slug 横断で置くべき slug ディレクトリが無い点はいずれも言及なし。"
+        },
+        {
+          "text": "component_diffs も設定側に残すと答え、その根拠（component × property で slug 横断に効き 1 回の宣言が全 slug・全インスタンスに効くため、slug ごとに分けると同じ宣言が複製される）を示している",
+          "passed": false,
+          "evidence": "結論が逆かつ実際のスキーマと不整合。「`component_diffs`: 分割して出す。」として「人が決めた方針」と「実際に検出された差分の中身」に二分し後者を成果物側へ移すよう提案しているが、component_diffs は { component, property, current, new, reason } の宣言レジストリで検出結果を含まない。component × property の slug 横断性・宣言複製のリスクへの言及なし。"
+        },
+        {
+          "text": "skills.yml のスキルごとのファイル分割は、スキーマキーを跨いだ YAML アンカー共有がある間はできない（alias が解決先を失う）と指摘し、分割前に共有の解消が必要だと述べ、既存ファイルへの非破壊追記ではアンカー定義の位置を動かさない・消さないことにも触れている",
+          "passed": false,
+          "evidence": "3 要素のうち第 1 のみ部分的。「YAML アンカー/エイリアス（&/*）はファイルをまたげません。共有していた定義があれば分割で壊れます。共通部分は別扱いに」と一般論として指摘するが、スキルキーを跨いだ共有がある間は分割不可という前提条件・順序（分割前に共有の解消が必要）は「共通部分は別扱いに」の一言に留まり明示されていない。決定的に、第 4 節「既存ファイルへ追記するときの注意」（コメント消失・重複キー・インデント・原子的書き込み・ロック・末尾改行）にアンカー定義の位置を動かさない／消さないという指摘が完全に欠落している。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 71.4,
+        "stddev": 0.0,
+        "min": 71.4,
+        "max": 71.4
+      },
+      "tokens": {
+        "mean": 167460.0,
+        "stddev": 0.0,
+        "min": 167460,
+        "max": 167460
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 93.0,
+        "stddev": 0.0,
+        "min": 93.0,
+        "max": 93.0
+      },
+      "tokens": {
+        "mean": 175001.0,
+        "stddev": 0.0,
+        "min": 175001,
+        "max": 175001
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-21.6",
+      "tokens": "-7541"
+    }
+  },
+  "notes": []
+}

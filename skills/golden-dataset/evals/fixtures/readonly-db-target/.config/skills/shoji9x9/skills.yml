@@ -36,7 +36,7 @@ skills:
         start: npm run dev
         check_urls: []
         default: true
-      - name: develop # 読み取り専用: db.env_vars はあるが seedable が無い（実データを持つ配信型環境。意図的）
+      - name: develop # PR マージ後に自動デプロイされる環境
         side: new
         url: https://develop.example.test
         db:
