@@ -62,6 +62,12 @@
     "pixel_tool": "<画素差分ツール名とバージョン（例: pixelmatch / odiff）>",
     "pixel_threshold": 0,
     "aria_compare": "<aria 構造比較の手段（取得スナップショットのベースライン相手の構造比較。ツールを使う場合はパスとバージョン）>",
+    "file_extract": {
+      "_note": "ファイル出力（xlsx / PDF 等）の解析ツール。プロジェクトが選び、ここに記録する（parity-diff は記録値を使い自分で選び直さない）。ファイル出力が無いモード・機能では省略する。選定の正本は replace-strategy の references/file-io.md。",
+      "xlsx": "<xlsx 解析ツール名とバージョン。バイト一致は取らずシート × セル値と構造で比較する>",
+      "pdf": "<PDF テキスト抽出ツール名とバージョン。抽出テキストと構造で比較する>",
+      "text": "<CSV・固定長・テキストの比較手段。既定はバイト列（Buffer）比較で、文字コード・BOM・改行コードを保つ>"
+    },
     "validated_by_strength_gate": true
   },
   "noise_baseline": [

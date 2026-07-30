@@ -30,6 +30,11 @@ skills:
         db:
           env_vars: [CURRENT_DB_URL] # この環境の DB 接続情報を持つ環境変数の「名前」。値は書かない。書く＝スキルが接続を読んでよい（書かない target の DB にスキルは一切触れない）
           seedable: true # true のときだけ golden-dataset の投入対象。省略・false は読み取り専用接続（接続は読むが削除・投入をしない）
+        storage: # この環境のファイルストレージ（アップロード先・ファイル出力先）。未定義＝この target のストレージにスキルは一切触れない（下記「ファイルストレージ」）
+          env_vars: [CURRENT_STORAGE_ENDPOINT] # 接続情報を持つ環境変数の「名前」。値は書かない（db と同じ規律）
+          write_scope: [] # 削除・生成してよい範囲（パス、または <bucket>/<prefix>）。空・未定義＝書き込み不可
+          seedable: false # ゴールデンデータ投入の設定由来ゲート（既定 deny）。true でも v1 は投入しない（投入の実装は明示的スコープ外）
+          upload_route: direct # direct（アプリサーバ経由の multipart）| presigned（ブラウザがストレージへ直接 PUT）| none（アップロード経路なし）。省略＝未確認で、推測せず確認する
         auth: # この環境の認証情報。ロールごとに環境変数の「名前」を持つ（認証不要の環境では省略。単一ロールなら 1 ロールでよい）
           roles:
             admin:
@@ -48,6 +53,11 @@ skills:
         db:
           env_vars: [NEW_DB_URL]
           seedable: true
+        storage:
+          env_vars: [NEW_STORAGE_ENDPOINT]
+          write_scope: []
+          seedable: false
+          upload_route: presigned # 現側と経路が違う場合、保存 path の命名規則差も含めて意図的差異レジストリの対象（下記「ファイルストレージ」）
         auth:
           roles:
             admin:
@@ -86,6 +96,7 @@ skills:
     dataset_tool_dir: seed/ # golden-dataset の投入ツールの配置先（golden-dataset が読む。未指定時は seed/）
     dataset_mode: db # ゴールデンデータセットの実体（下記「データセットの実体」）。db（既定・省略可）| static
     dataset_static_paths: [] # dataset_mode: static のとき必須。投入ツールが生成・削除してよいパス（これ以外へ書いたら停止）
+    uses_storage: true # アプリがファイルストレージ（オブジェクトストレージ・共有ファイルシステム）を使うか。既定は false で、false・省略なら targets の storage も書かない（下記「ファイルストレージ」）。dataset_mode と直交する別軸
     verification_commands: # 完了前に実行する検証コマンド列（静的解析・単体テスト・統合テスト等。parity-replace が読む。固有のツール名は設定側に置く）
       - <コマンド> # 環境準備・起動・URL 解決は含めない（それらは targets の pre_commands / start / check_urls）。環境に依存しないコード検証のため、どの target でも同じ列を一律に実行する
     artifacts:
@@ -170,6 +181,8 @@ skills:
   - `name` は小文字英数とハイフンのみで、**全 target を通して一意**（側をまたいだ同名も不可。成果物ディレクトリ名に使うため）
   - `db.seedable: true` の target は `db.env_vars` を持つ（接続先を知らずに投入はできない。`env_vars` 無しの `seedable` は停止する）
   - `dataset_mode: static` なら `dataset_static_paths` が 1 つ以上ある（無ければ書き込み範囲を限定できないため停止する）
+  - `storage.seedable: true` の target は `storage.env_vars` と 1 つ以上の `storage.write_scope` を持つ（`db.seedable` と同じ fail-closed。欠ければ停止する）
+  - `uses_storage` が `false`・欠落なのに `storage` を持つ target があれば停止する（宣言の矛盾を黙って解釈しない。使うなら `uses_storage: true` を書く）
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
 - **選択規則の正本は下記「選択規則」節**（各スキルは自分の対象側だけを宣言し、規則の全文はここだけが持つ）
 - **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい）
@@ -258,6 +271,48 @@ skills:
 - `static` でも冪等・決定論・`version` 運用・フェーズ A / B の分割は `db` と同じ。フェーズ B は同じ論理データを**新側の静的データ形式へ写像して生成**し、投入先 target で現新一致を検証する
 - **`dataset_mode` はプロジェクト単位で現・新の両側に適用する。** 片側だけ実体が異なる構成（現行は静的・新側は DB 等）は本契約では表現できない。
   そう判明したら（例: フェーズ B で新側の受け皿が宣言と違う実体だった）`golden-dataset` は片側だけ進めず、停止してユーザーに確認する
+
+## ファイルストレージ（`uses_storage` / `targets[].storage`）
+
+アップロードされたファイル・アプリが生成したファイルの置き場所（オブジェクトストレージ・共有ファイルシステム）を宣言する。
+
+**`dataset_mode` とは直交する軸である。** `dataset_mode` が答えるのは「ゴールデンデータの実体が DB かリポジトリ内の静的データか」であり、
+ストレージ利用の有無はそれと独立に 4 通り（DB あり×ストレージあり／なし、DB なし×ストレージあり／なし）ある。**`dataset_mode` に第 3 の値を足して表現しない。**
+
+| キー | 階層 | 内容 |
+|---|---|---|
+| `uses_storage` | トップレベル（環境非依存） | アプリがストレージを使うか。既定 `false`。アプリの構造はプロジェクト単位の事実で環境では変わらない |
+| `targets[].storage` | target ごと | その環境の接続（`env_vars`）・書き込み範囲（`write_scope`）・投入ゲート（`seedable`）・アップロード経路（`upload_route`） |
+
+- **保持階層の規則**: **環境ごとに変わる値は target 側、リポジトリ相対で環境に依らない値はトップレベル**に置く。
+  `dataset_static_paths` がトップレベルなのはリポジトリ内のパスで環境に依らないため、`db` / `storage` が target 側なのは接続先・バケットが環境ごとに違うためである
+  （非対称に見えるが軸は 1 つ。新しいキーを足すときもこの軸で置き場所を決める）
+- **3 段の契約**（`db` と同じ形。既定は deny）:
+
+  | `storage` の宣言 | 意味 | 読み取り（出力ファイルの捕捉・保存結果の確認） | ゴールデンデータ投入 |
+  |---|---|---|---|
+  | 未定義 | この target のストレージにスキルは**一切触れない** | しない | しない |
+  | `env_vars` のみ | 読み取り専用接続 | する | しない |
+  | `env_vars` ＋ `write_scope` ＋ `seedable: true` | 書き込みを許可した環境 | する | **v1 では行わない**（下記） |
+
+- **ストレージ実体へのゴールデンデータ投入は本スキル群の v1 スコープ外。** `storage.seedable: true` でも `golden-dataset` は投入せず、
+  ストレージ実体に依存する検証は `gaps.md` に「ストレージ投入はスコープ外＝未検証」として**必ず記録する**（確認済みにしない）。
+  理由は「スキルがセットアップも検証もできないものを選択肢として出さない」線引き（下記「成果物の保存先」と同じ）——投入はプロバイダ固有の SDK・認証・バケット構成に踏み込むため。
+  **それでもキーを先に切るのは、宣言があることで「ストレージがあるのに未検証」を可視化するため**（`references` の空値の枠と同じ考え方）
+- **`write_scope` は書き込み範囲の上限宣言**である。v1 でも、テストが生成物を消す・作る操作を持つ場合の適用範囲はこの配下に限る（外へ出たら停止する）
+- **アップロード経路（`upload_route`）で検証対象が変わる**:
+
+  | 値 | 経路 | 検証への影響 |
+  |---|---|---|
+  | `direct` | ブラウザ → アプリサーバ（multipart） | アップロード要求がアプリの API に現れる。API 特性化・record/replay の対象になる |
+  | `presigned` | ブラウザ → ストレージへ直接 PUT（署名 URL 等） | **アプリサーバを通らないため API 特性化・record/replay の対象が変わる**（アプリ側に現れるのは署名発行 API だけ）。署名の有効期限・CORS・テスト環境からストレージへの到達性が前提になる |
+  | `none` | アップロード経路を持たない | ファイル入力の特性化は対象外 |
+
+  - **省略は「未確認」**として扱う。推測で `direct` と決めず、アップロードの特性化に入る前にユーザーへ確認して記録する
+  - **現側と新側で `upload_route` が変わると、保存ファイル名（path）の命名規則も変わりうる**。これは意図的差異レジストリ（`intentional_diffs`）の対象であり、宣言が無いまま「許容」にしない
+- **キーが無いプロジェクトに `setup` の再実行を要求しない**（本キーの導入前に `setup` を終えたもの）。`uses_storage` の欠落は `false`、`targets[].storage` の欠落は未宣言として扱う。
+  ただし `uses_storage: true` なのに `storage` を宣言した target が 1 つも無い場合は、ストレージ依存の検証を**すべて未検証**として `gaps.md` に記録する（停止はしない）
+- ファイルの取得経路・形式別の扱い・アップロード操作・解析ツールの正本は [`file-io.md`](file-io.md)、対応範囲の一覧は [`scope.md`](scope.md)（ここへ転記しない）
 
 ## 依存導入の方針（`references.dependency_policy`）
 

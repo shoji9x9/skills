@@ -48,6 +48,8 @@
 - **撮影前に書き込み可否を検証**し、不可なら早期に失敗する（全部撮ってから保存できないと分かるのを避ける）。容量閾値超過で警告する
 - **実際に選ばれた保存先を `metadata.json` に記録する**（スクリーンショットは足場であり、切替後に残っている必要はない）
 - 画素差分ツールはプロジェクトで選び `metadata.json` に記録する（例: pixelmatch / odiff）
+- **ファイル出力の解析ツール（xlsx / PDF）も同じ形**——プロジェクトが選び `metadata.json` の `differ.file_extract` に記録する（選定・候補の判断材料の正本は `replace-strategy` の `references/file-io.md`）。
+  捕捉したバイト列と抽出結果は `baseline/` 配下に置き、保存は上記の区分に従う（抽出結果はテキストなので Git、元のバイナリは `artifacts` 設定）
 
 ## golden-dataset との連携
 
