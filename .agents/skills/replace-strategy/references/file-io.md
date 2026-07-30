@@ -21,7 +21,9 @@
 
 - **`acceptDownloads` は既定 `true`** なので追加設定は要らないが、**ダウンロードしたファイルは browser context のクローズで削除される**。
   捕捉するなら `saveAs()` で**必ず退避する**（テスト終了後に読む前提で放置できない）。
-  出典（2026-07-30 確認）: <https://playwright.dev/docs/downloads> ・ <https://playwright.dev/docs/api/class-browser#browser-new-context-option-accept-downloads>
+  ただし**プロジェクト設定（`use`）で明示的に `false` にしていると download イベントは発火しない**ため、捕捉スペックを書く前に現在の設定値を確認する（既定に依存する記述をコードに残さない）。
+  出典（2026-07-30 確認）: <https://playwright.dev/docs/downloads> ・ <https://playwright.dev/docs/api/class-browser#browser-new-context-option-accept-downloads> ・
+  <https://playwright.dev/docs/api/class-testoptions#test-options-accept-downloads>（`browser.newContext()` と Playwright Test の `use` の双方が「Defaults to true」）
 - **`Content-Disposition` が無い経路・ビューアでインライン表示される経路では download イベントが出ない。** その場合は API 要求経路を使う（発火を待って停まらない）
 - **API 要求経路は `page.request` / `browserContext.request` を使う。** これは所属する BrowserContext と**同じ cookie jar** を使うため、UI でログインした状態のままファイルを取れる。
   **`@playwright/test` の `request` フィクスチャは各テストごとの Isolated APIRequestContext であり、`page` の cookie を共有しない**——

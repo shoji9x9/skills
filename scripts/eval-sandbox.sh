@@ -88,7 +88,8 @@ if [ "${1:-}" = "--verify" ]; then
 	# A killed scan must never read as "clean": the full scan measured ~85s on this
 	# machine, so the budget is 600s and a timeout is reported as FAIL. `grep` rc 2
 	# (unreadable paths) is not a failure — what this user cannot read, the run cannot
-	# read either — but it is printed.
+	# read either — but the rc is surfaced in the result line so the partial scan is
+	# visible (stderr is discarded, so the unreadable paths themselves are not listed).
 	# shellcheck disable=SC2016 # deliberate: $HOME / $1 / $m must expand inside the sandboxed shell, not here
 	script='set -u -o pipefail; rc=0
 printf "stage1 repo listing: "; if ls -A "$1" 2>/dev/null | grep -q .; then echo "REACHABLE (FAIL)"; rc=1; else echo "empty/absent (ok)"; fi

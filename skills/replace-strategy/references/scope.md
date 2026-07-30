@@ -21,7 +21,7 @@
 | API（応答・エラー・並び順・ページング・認可） | 対象 | — | `parity-suite` の `references/api-batch.md` |
 | バッチの出力（DB 状態・生成ファイル） | 対象 | 現行テスト環境のファイルシステムに到達できること | `parity-suite` の `references/api-batch.md`、[`file-io.md`](file-io.md) |
 | ファイル出力（CSV / Excel / 帳票・PDF） | 対象 | バイト列に到達できること（到達性は [`measurement.md`](measurement.md) で実測） | [`file-io.md`](file-io.md) |
-| ファイル入力（アップロード）の操作・保存結果 | 対象 | `upload_route` が宣言済みで、対象 target が書き込みを許可していること | [`file-io.md`](file-io.md) |
+| ファイル入力（アップロード）の操作・保存結果 | 対象 | `targets[].storage.upload_route` が宣言済みで、対象 target が**アプリへの書き込み操作**を許可していること（`forbidden_actions`）。アップロードは書き込みであり、ストレージへ**直接**書く後始末を行うならさらに `storage.seedable: true` ＋ `write_scope` 配下が前提 | [`file-io.md`](file-io.md)、`parity-suite` の `references/data-discipline.md` |
 | ドラッグ & ドロップによるファイル投入 | 対象外 | `setInputFiles` の射程外で、`DataTransfer` を `evaluate` で組む必要があり脆い | [`file-io.md`](file-io.md) |
 | ストレージ実体へのゴールデンデータ投入 | 対象外（v1） | 設定スキーマ（`uses_storage` / `targets[].storage`）だけを先に切り、投入は実装しない。ストレージ依存の検証は `gaps.md` に未検証として必須記録 | [`project-config.md`](project-config.md)「ファイルストレージ」 |
 | メール送信・外部連携 | 対象外 | 捕捉に現行アプリの変更が要る | [`measurement.md`](measurement.md)「副作用の棚卸し」 |
