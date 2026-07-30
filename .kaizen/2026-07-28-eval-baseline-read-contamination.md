@@ -152,3 +152,16 @@ parity-replace の baseline 2 本が汚染した（eval 9 は「正本は `<repo
   マーカーは fixture にも含まれる語を避けて選ぶ（5 度目では `commit_check` が fixture のコメント由来で偽陽性だった）。
 - **並列実行は `/tmp` 隔離が有効なときだけ許可する**（無効なら configuration ごとに逐次へ落とす）。3 度目の具体化を
   ハーネス側の制約として強制する。
+
+## 2026-07-30 の進捗と、残った層
+
+- **ラッパーはリポジトリに入った**（`scripts/eval-sandbox.sh`。4 群遮断）。Issue #159 の回帰評価では
+  `without_skill` 6 run すべてをこれ経由・逐次で取得し、事後のマーカー grep も 0 件だった
+- **未実施**（本項目は pending のまま）: `run-skill-eval.sh` の `--config without_skill` での**既定化**と、
+  run 後の汚染検知の**自動化**（今回は手元のスクリプトで grep した）。ハーネス共有部の変更のため別途起票する
+- **上記 4 群の具体化を 1 点訂正**: `history.jsonl` は `--ro-bind /dev/null` ではなく **`--dev-bind /dev/null`** で覆う。
+  `--dev-bind` 以外の bind は `nodev` でマウントされ、`/dev/null` が「空のファイル」ではなく **open 不可（EACCES）** になる
+  （実測: `--ro-bind` は `Permission denied`、`--dev-bind` は 0 バイト読み取り成功）
+- **新たに分かった層**: ラッパーを作っても、その**遮断できたことを測る検査自体**が「陰性＝合格」で
+  書かれていると穴に気づけない（今回は timeout の打ち切りが合格に化け、陽性コントロールを遮断対象の
+  内側に置いていた）。→ [[2026-07-30-negative-result-checks-need-positive-control]]
