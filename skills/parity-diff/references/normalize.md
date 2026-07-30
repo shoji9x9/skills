@@ -101,7 +101,8 @@ T が引けない箇所のインスタンス単位フォールバック。**ユ�
 - **`cause` は単発の例外でも必須。** インスタンスが 1 件しか無い原因も `causes` に 1 件立てる（根拠の枠が常に付き、後から同原因が増えたときは薄い参照を足すだけで済む）
 - **インスタンス件数を畳まない。** `page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで N 箇所を吸収させない——
   **例外の件数は検証の弱さのシグナル**であり、行数削減のために件数を隠すと弱さが見えなくなる（1 原因 ＋ N 個の薄い参照にする）。
-  **照合キーの省略もワイルドカードにならない**（`page` / `viewport` を省いた例外は照合に使われない。`state` だけはスキーマの既定値 `default` を補う）
+  **照合キーの省略もワイルドカードにならない**（`page` / `viewport` を省いた例外は照合に使われない。`state` だけはスキーマの既定値 `default` を補う）。
+  **同じことが実行側にも効く**——`--page` / `--viewport` を省いた実行では「どの組の候補か」を確かめられないため例外は 1 件も適用されず、その旨が stderr に出る（下記「diff-normalize.mjs の実行」）
 - **`element: none` は「論理名が無い要素」を指すスキーマ値で、match-all ではない。** 特性照合の Diff は必ず論理名を持つため `none` の例外はその経路では合致しない
   （画素経路の候補に対して本スキルが適用する。下記「画素経路の例外の適用」）
 - **照合キーはインスタンス側にだけある。** `causes` は `reason` / `evidence` を共有するだけで照合に一切関与しない（原因を足しても吸収範囲は変わらない）
@@ -131,7 +132,9 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 - `--noise <metadata.json>`: `noise_baseline[]` を読むために `parity-suite` の `metadata.json` を渡す
 - 出力は各 Diff に `classification`（`absorbed_registry` / `absorbed_T` / `deviates_T` / `absorbed_exception` / `noise_candidate` / `pending_review` / `unexplained`）と `matched_rule` を付けた JSON。
   `absorbed_exception` の `matched_rule` には解決済みの原因（`cause_reason` / `cause_evidence`）が入る
-- 例外の不整合（`cause` が解決できない・`evidence` が空・`slug` が `--slug` と違う）は stderr に警告として出る。**警告が出た例外は照合に使われていない**ので、`diff.md` の不整合として記録して直す
+- 例外の不整合（上記「fail-closed の検証」の各条件）は stderr に警告として出る。**警告が出た例外は照合に使われていない**ので、`diff.md` の不整合として記録して直す
+- **`--page` / `--state` / `--viewport` は組ごとに必ず渡す。** `--page` / `--viewport` を省くと照合キーを確かめられず例外は 1 件も適用されないため、
+  その旨も stderr に出る（`--state` の省略だけは両側で既定値 `default` として突き合わせる）
   （警告の件数が `diff-metadata.json.accepted_exceptions.unresolved` になる）
 - 終了コード 0=全て吸収（要対応なし）/ 1=`unexplained` または `deviates_T` または `pending_review` あり / 2=入力エラー
 

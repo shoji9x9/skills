@@ -15,10 +15,10 @@
 // 組み立て方の正本は references/normalize.md「registries.json の組み立て」）。
 //
 // インスタンス例外は原因を causes 側に 1 回だけ持ち、インスタンスは cause（id）で参照する。
-// 解決できない参照・根拠（evidence）の無い原因・slug が対象 slug と違うインスタンスは
-// fail-closed で照合に使わない（吸収されず unexplained として残る）。
-// 理由は「黙って吸収する」より「残す」ほうが安全側だから。
-// ただし黙って捨てもしない——3 条件はいずれも stderr の警告として出す（diff.md の不整合の母数）。
+// 参照や照合キーが揃わないインスタンスは fail-closed で照合に使わない（吸収されず unexplained として
+// 残る）。理由は「黙って吸収する」より「残す」ほうが安全側だから。
+// ただし黙って捨てもしない——fail-closed で照合に使わなかった例外は stderr の警告として出す
+// （diff.md の不整合の母数。条件の一覧は references/normalize.md が正本なのでここでは数を固定しない）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って分類する。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -115,7 +115,7 @@ export function resolveExceptionCause(ex, causes) {
  * インスタンス例外の参照整合を検査して、照合に使えないものの理由を列挙する。
  * 「何も出ないこと」を合格根拠にせず、CLI は結果を stderr の警告として出す
  * （警告が出た例外は照合されていない＝候補は unexplained のまま残る）。
- * 検査するのは fail-closed の 3 条件（slug 欠落・不一致 / cause 未解決 / evidence 空）で、
+ * 検査するのは fail-closed の各条件（条件の一覧は references/normalize.md が正本）で、
  * これが diff-metadata.json の accepted_exceptions.unresolved の母数になる。
  * @param {Array<object>} exceptions
  * @param {Array<object>} causes
@@ -188,9 +188,13 @@ export function matchException(diff, exceptions, ctx, causes) {
   const list = Array.isArray(exceptions) ? exceptions : [];
   for (const ex of list) {
     if (!ex.slug || ex.slug !== ctx.slug) continue;
-    if (ctx.page && ex.page !== ctx.page) continue;
-    if (ctx.state && (ex.state || "default") !== ctx.state) continue;
-    if (ctx.viewport && ex.viewport !== ctx.viewport) continue;
+    // ctx 側の欠落も不一致にする。Diff は page / viewport を持たないので、ctx に無ければ
+    // 「どの page / viewport の候補か」を確かめる手段が無い——ここを「指定されたときだけ比較」に
+    // すると --page / --viewport を省いた実行で例外がページ・viewport を跨いで一致してしまう。
+    if (!ctx.page || ex.page !== ctx.page) continue;
+    if (!ctx.viewport || ex.viewport !== ctx.viewport) continue;
+    // state だけは両側にスキーマ既定値 default があるので、欠落を default として突き合わせる。
+    if ((ex.state || "default") !== (ctx.state || "default")) continue;
     const elementOk = ex.element === "none" ? !diff.name : ex.element === diff.name;
     if (!elementOk) continue;
     const propertyOk =
@@ -352,6 +356,18 @@ export function main(argv) {
     ctx.slug,
   )) {
     process.stderr.write(`warning: ${problem}\n`);
+  }
+  // fail-closed は「落とす」だけでなく「見える」まで作る。--page / --viewport を省くと
+  // 照合キーを確かめられず例外は 1 件も適用されないので、黙って 0 件にせず理由を出す。
+  const exceptionCount = Array.isArray(registries.component_diff_exceptions)
+    ? registries.component_diff_exceptions.length
+    : 0;
+  const missingCtx = ["page", "viewport"].filter((k) => !ctx[k]);
+  if (exceptionCount > 0 && missingCtx.length > 0) {
+    process.stderr.write(
+      `warning: --${missingCtx.join(" / --")} not given; ` +
+        `none of the ${exceptionCount} instance exception(s) can be matched (fail-closed)\n`,
+    );
   }
   const classified = applyNoiseBaseline(
     diffs.map((diff) => ({ ...diff, ...classifyDiff(diff, registries, ctx) })),
