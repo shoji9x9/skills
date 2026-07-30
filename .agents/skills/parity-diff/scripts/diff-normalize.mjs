@@ -9,8 +9,16 @@
 // 何をしないか: 差分の検出（trait-compare の仕事）・crop 生成（pixel-crops の仕事）・
 // 分類の主観判断（triage の仕事）は行わない。
 //
-// レジストリは YAML パーサを同梱しないため、skills.yml から該当キーを読み取って JSON へ変換した
-// registries.json を受け取る（intentional_diffs / component_diffs / component_diff_exceptions）。
+// レジストリは YAML パーサを同梱しないため、キーを名前を変えずに集めた registries.json を受け取る
+// （intentional_diffs / component_diffs は設定ファイル由来、component_diff_exception_causes /
+// component_diff_exceptions は .replace/parity/<slug>/component-diff-exceptions.json 由来。
+// 組み立て方の正本は references/normalize.md「registries.json の組み立て」）。
+//
+// インスタンス例外は原因を causes 側に 1 回だけ持ち、インスタンスは cause（id）で参照する。
+// 解決できない参照・根拠（evidence）の無い原因・slug が対象 slug と違うインスタンスは
+// fail-closed で照合に使わない（吸収されず unexplained として残る）。
+// 理由は「黙って吸収する」より「残す」ほうが安全側だから。
+// ただし黙って捨てもしない——3 条件はいずれも stderr の警告として出す（diff.md の不整合の母数）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って分類する。
 // TypeScript 構文は使わない（型は JSDoc）。
@@ -23,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.diff_normalize に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
@@ -82,22 +90,108 @@ export function matchComponentT(diff, componentDiffs) {
 }
 
 /**
+ * インスタンス例外の cause（id）を causes 配列へ解決する。
+ * 解決できない・根拠（evidence）が空の原因は null を返し、呼び出し側は照合に使わない（fail-closed）。
+ * 原因の文言をインスタンスへ複製させないための参照解決であり、照合キーには一切関与しない。
+ * @param {object} ex - インスタンス例外
+ * @param {Array<{ id?:string, reason?:string, evidence?:string }>} causes
+ * @returns {{ id:string, reason:string, evidence:string } | null}
+ */
+export function resolveExceptionCause(ex, causes) {
+  const list = Array.isArray(causes) ? causes : [];
+  if (!ex || typeof ex.cause !== "string" || ex.cause.length === 0) return null;
+  const found = list.find((c) => c && c.id === ex.cause);
+  if (!found) return null;
+  const evidence = typeof found.evidence === "string" ? found.evidence.trim() : "";
+  if (evidence.length === 0) return null;
+  return {
+    id: found.id,
+    reason: typeof found.reason === "string" ? found.reason : "",
+    evidence,
+  };
+}
+
+/**
+ * インスタンス例外の参照整合を検査して、照合に使えないものの理由を列挙する。
+ * 「何も出ないこと」を合格根拠にせず、CLI は結果を stderr の警告として出す
+ * （警告が出た例外は照合されていない＝候補は unexplained のまま残る）。
+ * 検査するのは fail-closed の 3 条件（slug 欠落・不一致 / cause 未解決 / evidence 空）で、
+ * これが diff-metadata.json の accepted_exceptions.unresolved の母数になる。
+ * @param {Array<object>} exceptions
+ * @param {Array<object>} causes
+ * @param {string} [slug] - 対象 slug（ctx.slug）。渡すと slug 不一致も検出する
+ * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
+ */
+export function validateExceptions(exceptions, causes, slug) {
+  const list = Array.isArray(exceptions) ? exceptions : [];
+  const problems = [];
+  list.forEach((ex, i) => {
+    const at = `component_diff_exceptions[${i}]`;
+    if (!ex || typeof ex !== "object") {
+      problems.push(`${at}: not an object`);
+      return;
+    }
+    if (!ex.slug) {
+      problems.push(`${at}: missing slug — not used for matching`);
+    } else if (slug && ex.slug !== slug) {
+      problems.push(
+        `${at}: slug "${ex.slug}" does not match the target slug "${slug}" — not used for matching`,
+      );
+    }
+    // 照合キーの欠落は「どの値にも合う」ではなく不一致（1 エントリで N 件を畳めないようにする）。
+    // state はスキーマに既定値 default があるので欠落を不足として数えない。
+    const missingKeys = ["page", "viewport"].filter((k) => !ex[k]);
+    if (missingKeys.length > 0) {
+      problems.push(
+        `${at}: missing matching key(s) ${missingKeys.join(", ")} — not used for matching ` +
+          `(an omitted key is not a wildcard; write one instance per occurrence)`,
+      );
+    }
+    if (typeof ex.cause !== "string" || ex.cause.length === 0) {
+      problems.push(`${at}: missing cause (required; the reason text lives in the cause entry)`);
+      return;
+    }
+    if (!resolveExceptionCause(ex, causes)) {
+      problems.push(
+        `${at}: cause "${ex.cause}" is unresolved or its evidence is empty — not used for matching`,
+      );
+    }
+  });
+  return problems;
+}
+
+/**
  * インスタンス例外との照合。slug・page・state・viewport・element・property・値が合致するか。
  * slug はスキーマ上必須のため、欠落・不一致の例外は常に不一致として扱う
  * （書き忘れた例外が全 slug の差分を吸収しないための安全側）。
+ * cause が解決できない例外も同じく不一致として扱う（fail-closed）。
+ *
+ * 照合キー（page / viewport）の欠落も不一致として扱う。欠落を「どの値にも合う」と
+ * 読むと 1 エントリが N インスタンスを吸収でき、契約が禁じている「件数を畳まない」を
+ * スキーマ側から破れてしまう（元の実装では別ページ・別状態の 2 件が警告なしで吸収された）。
+ * matchNoise が「行側の欠落は不一致として扱う」のと同じ規律で、
+ * 「件数は検証の弱さのシグナル」を命名規約ではなくコードで守る。
+ * state だけはスキーマの既定値 default を補う。
+ *
+ * element の "none" は「論理名が無い要素」を指すスキーマ値であって match-all ではない
+ * （特性照合の Diff は必ず論理名を持つため、"none" の例外はこの経路では合致しない。
+ * 画素経路の例外は本スキルが適用する）。
+ *
+ * 合致したら解決済みの原因を cause_reason / cause_evidence として添えて返す。
  * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
  * @param {Array<object>} exceptions
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
+ * @param {Array<object>} causes - registries.component_diff_exception_causes
  * @returns {object | null}
  */
-export function matchException(diff, exceptions, ctx) {
+export function matchException(diff, exceptions, ctx, causes) {
   const list = Array.isArray(exceptions) ? exceptions : [];
   for (const ex of list) {
     if (!ex.slug || ex.slug !== ctx.slug) continue;
-    if (ctx.page && ex.page && ex.page !== ctx.page) continue;
-    if (ctx.state && ex.state && ex.state !== ctx.state) continue;
-    if (ctx.viewport && ex.viewport && ex.viewport !== ctx.viewport) continue;
-    const elementOk = !ex.element || ex.element === "none" || ex.element === diff.name;
+    if (ctx.page && ex.page !== ctx.page) continue;
+    if (ctx.state && (ex.state || "default") !== ctx.state) continue;
+    if (ctx.viewport && ex.viewport !== ctx.viewport) continue;
+    const elementOk = ex.element === "none" ? !diff.name : ex.element === diff.name;
     if (!elementOk) continue;
     const propertyOk =
       ex.property === "pixel" || normalizeValue(ex.property) === normalizeValue(diff.prop);
@@ -106,7 +200,9 @@ export function matchException(diff, exceptions, ctx) {
       normalizeValue(ex.current) === normalizeValue(diff.expected) &&
       normalizeValue(ex.new) === normalizeValue(diff.actual);
     if (!valuesOk) continue;
-    return ex;
+    const cause = resolveExceptionCause(ex, causes);
+    if (!cause) continue;
+    return { ...ex, cause_reason: cause.reason, cause_evidence: cause.evidence };
   }
   return null;
 }
@@ -162,7 +258,7 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
  * 1 件の Diff を分類する。順序は intentional → T → exception → unexplained。
  * ノイズ基準値は個々の Diff ではなく残余へ集計で適用する（applyNoiseBaseline）。
  * @param {object} diff
- * @param {object} registries - { intentional_diffs, component_diffs, component_diff_exceptions }
+ * @param {object} registries - { intentional_diffs, component_diffs, component_diff_exceptions, component_diff_exception_causes }
  * @param {{ slug:string, page?:string, state?:string, viewport?:string }} ctx
  * @returns {{ classification:string, matched_rule: (object|string|null) }}
  */
@@ -182,7 +278,12 @@ export function classifyDiff(diff, registries, ctx) {
   }
   const t = matchComponentT(diff, registries.component_diffs);
   if (t) return { classification: t.status, matched_rule: t.rule };
-  const ex = matchException(diff, registries.component_diff_exceptions, ctx);
+  const ex = matchException(
+    diff,
+    registries.component_diff_exceptions,
+    ctx,
+    registries.component_diff_exception_causes,
+  );
   if (ex) return { classification: "absorbed_exception", matched_rule: ex };
   return { classification: "unexplained", matched_rule: null };
 }
@@ -243,6 +344,15 @@ export function main(argv) {
     return 2;
   }
   const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
+  // 参照整合の問題は入力エラーにせず警告に留める（他の例外・レジストリの分類は続行する）。
+  // 警告が出た例外は照合に使われていないため、該当候補は unexplained として残る。
+  for (const problem of validateExceptions(
+    registries.component_diff_exceptions,
+    registries.component_diff_exception_causes,
+    ctx.slug,
+  )) {
+    process.stderr.write(`warning: ${problem}\n`);
+  }
   const classified = applyNoiseBaseline(
     diffs.map((diff) => ({ ...diff, ...classifyDiff(diff, registries, ctx) })),
     noiseBaseline,

@@ -33,6 +33,7 @@
 2. **クラス/トークン単位でも表せない構造差**（フォーカスリング形状・内部 DOM・余白の配り方等） → `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ追記する（正本の様式は `parity-suite` の `assets/gaps-template.md`）。`parity-diff` の正規化対象外＝未検証として残す
 
 - **`component_diffs` は特性照合経路（computed style の値比較）にしか効かない。** 現・新で computed style が一致し画素だけ違う差（フォントのサブセットビルド差等）は、系統的な原因でもここへ宣言して吸収させられない——
-  置き場所は `parity-diff` のインスタンス例外（`component_diff_exceptions` の `property: pixel`）で、宣言者もトリアージで承認を取る `parity-diff`。レジストリごとに効く経路の正本は同スキルの `references/normalize.md`
+  置き場所は `parity-diff` のインスタンス例外（`property: pixel`）で、**共有契約の設定ファイルではなく slug 成果物** `.replace/parity/<slug>/component-diff-exceptions.json` に住み、宣言者もトリアージで承認を取る `parity-diff`。
+  **本スキルはここへ書かない**（テーマで消せないなら上記 2 の `gaps.md` か、`parity-diff` の往復で承認を取る）。スキーマ・置き場所・レジストリごとに効く経路の正本は同スキルの `references/normalize.md`
 
 いずれも比較の正規化であって仕様変更ではない。**論理名・振る舞い・構造は不変**に保つ。

@@ -8,7 +8,8 @@
 
 ## 設定ファイル（`.config/skills/shoji9x9/skills.yml`）
 
-`shoji9x9/skills` 配布物がインストール先で参照するプロジェクト設定。人手で編集でき、`gh skill update` は skill ディレクトリ外のこのファイルに触れないため設定は保持される。
+`shoji9x9/skills` 配布物がインストール先で参照するプロジェクト設定。**人間が確定させた方針の置き場所**であり、`gh skill update` は skill ディレクトリ外のこのファイルに触れないため設定は保持される。
+スキルが書くキーは限られる（下記「キーの書き手とライフサイクル」。作業中に件数が増え続ける台帳はここに置かない）。
 
 **このキーは姉妹スキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）が直接読む共有契約である。** キー名・構造を変える場合は姉妹スキル側の参照も併せて更新する。
 
@@ -114,13 +115,52 @@ skills:
     intentional_diffs: # 意図的差異レジストリ
       keep: [] # 変えない（例: テーブル名、項目名、API エンドポイント、関数名）
       may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異）
-      pending: [] # 保留（測定結果で決める）
-    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。画素経路のみの差・インスタンス単位の例外は component_diff_exceptions へ。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }
-    component_diff_exceptions: [] # T が引けない箇所のインスタンス単位例外。宣言者は parity-diff（ユーザー承認の上で追記）。スキーマ正本は parity-diff の references/normalize.md。要素の形は { slug, page, element, state, viewport, property, bbox（property: pixel のとき必須。照合キー）, current, new, reason }
+      pending: [] # 保留（測定結果で決める）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す
+      # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
+    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }
+    # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```
 
 - **作成・追記は非破壊**: ファイルが無ければ `.config/skills/shoji9x9/` ごと作成し、このスキルが使うキー（`skills.replace-strategy`）だけを書く。指定値は**探索またはユーザー確認で得た実在の値**にする（上の URL・変数名・コマンドは例なので、そのまま盲目コピーしない）。既にあれば欠けたキーだけを該当セクションに追記し、既存のキー・値・コメントは変更しない。値が既にあれば尊重し上書きしない。
 - references の扱いは下記「references（知識の注入）」を参照する。
+
+## キーの書き手とライフサイクル
+
+**設定ファイルは「人間が確定させた方針」の置き場所である。** スキルが作業中に増やし続ける記録を同じファイル末尾へ追記すると、
+PR の diff で「環境設定の変更」と「作業中に見つけた差異の記録」が区別できず、機能ブランチを並行させると衝突する。**本節が書き手区分の正本**で、各スキルの設定キー表はここへ転記しない。
+
+判断は**独立した 2 段**である。混ぜると「書き手がスキルだから設定から出す」という誤った結論になり、`intentional_diffs.pending` の扱いを間違える。
+
+| 段 | 問い | 決めるもの |
+|---|---|---|
+| 1 | **そのキーが設定ファイルに載るか** | **slug スコープ かつ 作業中に件数が増え続ける台帳なら載せない**（slug 成果物へ。下記 3 番目の箇条） |
+| 2 | 載るキーが下表のどちらの区分か | **書き手**（人間が確定させるか、スキルが作業中に追記するか） |
+
+| 区分 | キー | 書き込み |
+|---|---|---|
+| **人間が確定させる方針** | `current` / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` の確認結果、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
+| **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき非破壊追記し、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録** |
+
+- **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
+  slug ごとに分けると同じ宣言が slug 数だけ複製されるため、slug 成果物側へ移さない
+- **`intentional_diffs.pending` を設定側に残す根拠**: `keep` / `may_change` と同じ 3 分類の一員で、**昇格が同じキー内での人間の移動作業**である。加えて **slug 横断**のため置くべき slug ディレクトリが無い——
+  つまり段 1 の条件（slug スコープ）を満たさないので設定に残る。**書き手がスキルであることは段 1 の判断材料ではない**（それは段 2 で上表の下段に置く理由にしかならない）
+- **新しいキーを足すときは段 1 → 段 2 の順で判定する**（載せると決めたものだけを上表のどちらかに置く）。段 1 の除外条件が**作業中に件数が増え続ける slug スコープの台帳**で、これは設定ファイルに置かず**slug 成果物（`.replace/parity/<slug>/`）へ置く**
+  （下流スキルの成果物の形式は各スキルが定義する。[`../SKILL.md`](../SKILL.md)「成果物」）。
+  実例: `parity-diff` のインスタンス例外は設定キーから `.replace/parity/<slug>/component-diff-exceptions.json` へ移した（下記「移行」）
+
+## 設定ファイルの共有と YAML アンカー
+
+設定ファイルは全スキルが 1 ファイルを共有する（`skills.<スキル名>` でスキルごとのキーに分かれる）。**スキルキーを跨いだ YAML アンカーの共有は認める**——
+同じ URL・環境変数名・環境定義を複数スキルへ書き写すと二重管理になるため（例: `skills.replace-strategy.targets` と `skills.browser-test.environments` で同じ環境の定義を共有する）。
+
+ただし**アンカーはファイル単位でしか解決できない**ため、共有は次の制約を課す。**設定ファイルの分割・再配置を提案・実施するときは、先にこの制約を確認する**。
+
+- **分割不可制約**: スキルキーを跨いだアンカー共有がある間は、**設定ファイルをスキルごとのファイルへ分割できない**（alias が解決先を失う）。分割するなら先に共有を解消して各所へ実体を書く
+- **アンカーは参照より前に定義されている必要がある。** 「作成・追記は非破壊」に従う追記では、**アンカー定義の位置を動かさない・消さない**（末尾へ足すだけなら安全）
+- アンカー定義を持つスキルキーを削除・移動するときは、**参照側を先に実体化する**（削除して初めて壊れることを避ける）
+- **値の意味論は参照側のスキーマに従う。** アンカー経由で他スキルのキー由来の値を読むことになるが、定義元スキルの意味論を持ち込まない
+  （例: `browser-test` の `auth: none | user` と本ファイルの `auth.roles` は別物。正本はそれぞれの参照側にある）
 
 ## references（知識の注入）
 
@@ -185,7 +225,7 @@ skills:
   - `uses_storage` が `false`・欠落なのに `storage` を持つ target があれば停止する（宣言の矛盾を黙って解釈しない。使うなら `uses_storage: true` を書く）
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
 - **選択規則の正本は下記「選択規則」節**（各スキルは自分の対象側だけを宣言し、規則の全文はここだけが持つ）
-- **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい）
+- **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい。スキルキーを跨いだ共有の可否と制約は上記「設定ファイルの共有と YAML アンカー」）
 - **`db` は「接続を知っている」、`db.seedable` は「シードしてよい」——2 段の契約**（`dataset_mode: db` のときの投入先解決の正本。`static` の扱いは下記「データセットの実体」）:
 
   | `db` の宣言 | 意味 | `golden-dataset` | 読み取り（バッチの出力一致検証など） |
@@ -332,10 +372,12 @@ skills:
 
 ## 移行（旧キーからの更新）
 
-旧スキーマ（単一 URL・側ごとの DB／認証・単一リストの禁止操作・`static_analysis`）からは次の対応で移行する。**スキルは旧キーをフォールバックとして読まない**——旧キーを見つけたら、この移行手順を示して停止する。
+旧スキーマ（単一 URL・側ごとの DB／認証・単一リストの禁止操作・`static_analysis`・設定側のインスタンス例外）からは次の対応で移行する。**スキルは旧キーをフォールバックとして読まない**——旧キーを見つけたら、この移行手順を示して停止する。
 
 **検出対象の旧キー一覧**（各スキルはこの一覧を参照して検出する。`current:` ブロック自体は新スキーマにも存在する〈`repo` / `stack`〉ため、ブロック単位ではなく**キー単位**で検出する）:
-`current.url` / `new.url` / `current.db` / `new.db` / `auth.current` / `auth.new` / `forbidden_actions`（**`skills.replace-strategy` 直下**の単一リスト。`targets[].forbidden_actions` は新スキーマの正規キーであり検出対象ではない）/ `static_analysis`
+`current.url` / `new.url` / `current.db` / `new.db` / `auth.current` / `auth.new` / `static_analysis` /
+`forbidden_actions`（**`skills.replace-strategy` 直下**の単一リスト。`targets[].forbidden_actions` は新スキーマの正規キーであり検出対象ではない）/
+`component_diff_exceptions`（**`skills.replace-strategy` 直下**。slug 成果物へ移した。`component_diffs` は新スキーマの正規キーであり検出対象ではない）
 
 | 旧 | 新 |
 |---|---|
@@ -345,6 +387,7 @@ skills:
 | `auth.current` / `auth.new` | 対応する側の各 target の `auth.roles.<ロール名>.{user_name_env,password_env}` へ。旧フラットリストのどの変数がユーザー名／パスワードかは**名前から推測せずユーザーに確認**する。旧 `auth.new` が空リストだった場合は `auth` を省略のまま移行せず、`setup` で新側の認証情報を確認して埋める |
 | `forbidden_actions`（単一リスト） | `side: current` の target の `forbidden_actions` へ。**新側 target には `forbidden_actions: []` を明示的に置く**（空リスト＝すべて実施可。未定義＝読み取り専用とは意味が異なる） |
 | `static_analysis` | `verification_commands` へ（コマンド列は変更不要。環境準備・起動が混ざっていたら target の `pre_commands` / `start` へ移す） |
+| `component_diff_exceptions`（設定側の単一リスト） | 要素の `slug` ごとに `.replace/parity/<slug>/component-diff-exceptions.json` へ分割する。**同一原因の要素は `reason` の複製を畳んで `component_diff_exception_causes[]` に 1 件立て**、各インスタンスは `reason` を捨てて `cause` で参照する（インスタンス件数は減らさない）。原因調査の経緯（YAML コメント等に溜まっているもの）は同ディレクトリの `component-diff-exceptions.md` の原因の節へ移し、`causes[].evidence` にその節を指させる。移行後、設定側のキーは削除する。スキーマの正本は `parity-diff` の `references/normalize.md`、2 ファイルの様式は同スキルの `assets/component-diff-exceptions-template.{json,md}` |
 | 成果物レイアウト: `.replace/parity/<slug>/` 直下の `replace-metadata.json` / `diff.md` / `diff-metadata.json` / `baseline-new/` | `.replace/parity/<slug>/new/<target>/` へ移動する。`<target>` は旧 `new.url` から移行で作った `side: new` の target 名。移動後、`replace-metadata.json` の `new` に `target: <その名前>` を追記する |
 
 - **target 名は一度決めたら変えない。** 現側 target 名の変更はベースライン陳腐化（全 slug の再取得）、新側 target 名の変更は `new/<target>/` 配下の証跡との不一致を生む。移行時は環境の役割が分かる名前（例: `current-test` / `local-dev`）を付ける
@@ -381,4 +424,6 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 - **具体的な中身はプロジェクトごとに異なるため設定ファイルで管理し、スキルは分類の枠組みと運用ルールだけを持つ。**
 - `keep` はレビュー可能性を買うための規律である（テーブル名・項目名・API・関数名を保つことで、`parity-replace` の旧新 diff レビューが成立する）。
 - 下流スキルが実装中に発見した差異は、勝手に判断せずこのレジストリへ追記してユーザーに確認する（`parity-replace` の規約）。コンポーネントライブラリ由来の系統差（クラス／トークン単位の宣言）は `component_diffs` キーで扱う。
-  宣言者は `parity-replace`（テーマで消せない構造差をユーザー確認の上で宣言）、利用者は `parity-diff`（比較の正規化に使う）。T が引けないインスタンス単位の例外は `component_diff_exceptions` キーで扱い、宣言者は `parity-diff`（ユーザー承認の上で追記）。
+  宣言者は `parity-replace`（テーマで消せない構造差をユーザー確認の上で宣言）、利用者は `parity-diff`（比較の正規化に使う）。
+  T が引けないインスタンス単位の例外は**設定ファイルではなく** `.replace/parity/<slug>/component-diff-exceptions.json` で扱い、宣言者は `parity-diff`（ユーザー承認の上で追記。スキーマ正本は同スキルの `references/normalize.md`）。
+- **`pending` だけは書き手がスキル**である（`keep` / `may_change` は人間）。区分の正本は上記「キーの書き手とライフサイクル」。

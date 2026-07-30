@@ -7,8 +7,11 @@
 - **差分器が判定する。** [`../scripts/diff-normalize.mjs`](../scripts/diff-normalize.mjs) の機械分類と `diff.md` の分類集計で判定し、**モデルの主観（「もう同じに見えます」）を根拠にしない**
 - 収束の条件:
   - `diff-normalize.mjs` の出力に `unexplained` / `deviates_T` / `pending_review` が無い
-  - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（`component_diffs` / `component_diff_exceptions` / `intentional_diffs`）へ非破壊追記済み。
+  - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（設定ファイルの `component_diffs` / `intentional_diffs`、または
+    `.replace/parity/<slug>/component-diff-exceptions.json` ＋ 根拠の `component-diff-exceptions.md`）へ非破壊追記済み。
     `diff.md` に**承認前の分類**（`許容候補（要確認）`）が 1 件も残っていない（承認前は未説明として数える）
+  - インスタンス例外の台帳に**照合に使えない不整合が無い**（`cause` が解決できない・`evidence` が空・`slug` 不一致・照合キー〈`page` / `viewport`〉欠落。
+    `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
 
@@ -29,7 +32,7 @@
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」4 項目をすべて満たす） | 完了 |
+| 収束 | `converged: true`（上記「収束の条件」5 項目をすべて満たす） | 完了 |
 | 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
 | 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
 
@@ -53,8 +56,8 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（4 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存を見落とす）
-- `results`（total / actionable / accepted / noise / unexplained / unverified）を記録する
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（5 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合を見落とす）
+- `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）を記録する
 
 ## 対象外・未検証の明示
 
