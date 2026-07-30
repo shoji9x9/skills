@@ -43,8 +43,12 @@ pnpm の transitive 依存には 2 種類ある。
    `remove` すると宣言そのものが消えるため、先に確認しておく:
 
    ```bash
-   node -e 'const p=require("./package.json");for(const k of ["dependencies","devDependencies","optionalDependencies"])if(p[k]?.[process.argv[1]])console.log(k,p[k][process.argv[1]])' '<親>'
+   PARENT='<親>' node -e 'const p=require("./package.json");const n=process.env.PARENT;for(const k of ["dependencies","devDependencies","optionalDependencies"])if(p[k]?.[n])console.log(k,p[k][n])'
    ```
+
+   引数ではなく環境変数で渡す。`node -e` は script path を取らないため `process.argv` の添字が
+   ファイル実行時と 1 つずれる（`-e` では最初のユーザー引数が `argv[1]`）。環境変数なら添字を
+   意識せずに済む。
 
 2. `pnpm remove <親>`
 3. **記録した種別に合わせて**同一 range で add し直す（元の range をそのまま渡す）:
