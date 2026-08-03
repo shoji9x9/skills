@@ -11,6 +11,13 @@
 `pnpm-lock.yaml` を再生成。mise だけ更新して package.json / lock を取りこぼすと
 `devEngines` 警告・不整合になる。
 
+## mise lock の巻き込み差分を絞る
+
+`mise lock` は lockfile 全体を再解決するため、バージョン指定が同じ他ツールでも上流の再ビルド
+（例: python-build-standalone のビルド日）を拾って entry を書き換える。生成後に
+`git --no-pager diff mise.lock` で範囲を確認し、bump 対象以外のツールのブロックは元に戻して
+commit を対象ツールだけに絞る。
+
 ## broken 版を避ける
 
 採用前に選定版が deprecated/broken でないか `pnpm view <版> deprecated` で確認する。
