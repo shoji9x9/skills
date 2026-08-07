@@ -29,9 +29,10 @@ Issue のグルーピング・起票は配布 skill `dependabot-alert-issue` の
    - JSON が空、または parse 不能な場合だけ停止して原因を報告する
 3. 同梱 script で外部 audit findings JSON に正規化する
 4. 正規化結果を読み、findings が 0 件なら「検出なし」と報告して終了する
-5. 各 package について `pnpm why <package>` を実行し、依存経路を補強情報として整理する
-6. 正規化 JSON と `pnpm why` の結果を `dependabot-alert-issue` の外部 audit findings mode に渡す
-7. 以降の重複確認・着手可否分類・Issue ドラフト作成・起票は `dependabot-alert-issue` に委譲する
+5. `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期する（以降の `pnpm why` / `pnpm list` を現況の根拠にするための前提）
+6. 各 package について `pnpm why <package>` を実行し、依存経路を補強情報として整理する
+7. 正規化 JSON と `pnpm why` の結果を `dependabot-alert-issue` の外部 audit findings mode に渡す
+8. 以降の重複確認・着手可否分類・Issue ドラフト作成・起票は `dependabot-alert-issue` に委譲する
 
 ## コマンド手順
 
@@ -65,7 +66,10 @@ node .agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.js \
 
 正規化 JSON の `findings[].package` を重複排除し、各 package について `pnpm why` を実行する。これは pnpm audit の結果に、pnpm 固有の依存経路コンテキストを付与するための手順であり、Issue の重複確認や分類は `dependabot-alert-issue` に任せる。
 
+**実行前に基本フロー 5 の同期を済ませる。** `pnpm why` / `pnpm list` は lockfile ではなく node_modules の実インストールツリーを読むため、同期前の出力は過去の解決状態を映し現況の根拠にならない（ブランチを切った直後は特にずれる）。
+
 ```bash
+pnpm install --frozen-lockfile   # 未実施なら先に
 pnpm why <package>
 ```
 
@@ -83,8 +87,6 @@ transitive dependency は、親 range が patched version を許容していて�
 
 - 対象が peer-keyed か plain か
 - 可能なら使い捨てで `pnpm update <package>` を試し、patched version に到達するか（到達しなくても「完全再生成しかない」と記録しない。下記の手段の優先順に従って判定する）
-
-確認の前に `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期する。同期前の `pnpm why` / `pnpm list` は過去の解決状態を映すため、現況の根拠にならない。
 
 pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・手段の優先順・判断の権威は現況・更新結果とも node_modules 由来の出力でなく lockfile）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
 
