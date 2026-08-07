@@ -84,12 +84,14 @@ transitive dependency は、親 range が patched version を許容していて�
 - 対象が peer-keyed か plain か
 - 可能なら使い捨てで `pnpm update <package>` を試し、patched version に到達するか（到達しなくても「完全再生成しかない」と記録しない。下記の手段の優先順に従って判定する）
 
-pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・手段の優先順・判断の権威は stdout でなく lockfile 差分）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
+確認の前に `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期する。同期前の `pnpm why` / `pnpm list` は過去の解決状態を映すため、現況の根拠にならない。
+
+pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・手段の優先順・判断の権威は現況・更新結果とも node_modules 由来の出力でなく lockfile）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
 
 補強できる場合は、外部 audit findings JSON の各 finding に次の任意フィールドを追加してよい:
 
 - `direct_dependencies`: 脆弱 package を持ち込む direct dependency 名の配列
-- `why_summary`: `pnpm why` から分かる短い依存経路要約
+- `why_summary`: `pnpm why` から分かる短い依存経路要約（`--frozen-lockfile` 同期後に取る）
 - `context_note`: Dependabot #14794 回避など、pnpm audit を使う理由の短い補足
 
 これらの補助フィールドは Issue 化の判断材料であり、最終的な重複確認・着手可否分類・本文作成は `dependabot-alert-issue` の責務とする。

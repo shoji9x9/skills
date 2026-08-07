@@ -65,11 +65,31 @@ pnpm の transitive 依存には 2 種類ある。
 実例: Issue #124（postcss high）で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
 `pnpm remove vitest && pnpm add --save-dev 'vitest@^4.1.7'`（vitest は `devDependencies` 宣言）では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
 
-## 更新結果の判断は lockfile 差分で行う
+## 判断の権威は lockfile（現況・更新結果とも）
 
-**混入・float の有無を `pnpm update` の stdout サマリで判断しない。** stdout の増減（`- pkg X` / `+ pkg Y`）は
-node_modules を lockfile 記載へ整合させた分も報告するため、**lockfile 差分が無くても増減が表示される**（過大表示）。
-判断の権威は常に `git diff pnpm-lock.yaml`（必要なら `git show HEAD:pnpm-lock.yaml` と突き合わせる）。
+pnpm には **lockfile を読むコマンド**と **node_modules（実インストールツリー）を読むコマンド**があり、
+両者は install していない間ずれる。**現況の判定も更新結果の判定も、権威は常に lockfile 側**に置く。
+
+| 判定したいこと | 権威（lockfile 由来） | 使わない（node_modules 由来） |
+| --- | --- | --- |
+| 着手前の現況（どの version が入っているか・脆弱か） | `pnpm audit` / lockfile の直接確認 | `pnpm why` / `pnpm list` |
+| 更新後の混入・float の有無 | `git diff pnpm-lock.yaml`（必要なら `git show HEAD:pnpm-lock.yaml`） | `pnpm update` の stdout サマリ |
+
+- **着手前に `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期してから観測する。**
+  ブランチを切った直後の node_modules は前回 install 時点のままで、その間に base へマージされた依存更新が
+  反映されていない。同期前の `pnpm why` は base の lockfile ではなく過去の解決状態を映す。
+- **`pnpm why` の出力が Issue 本文と「一致」しても裏取りにならない。** 起票時点の状態と同期前の
+  node_modules は「古い」という同じ軸を共有しており、独立した 2 情報源ではない。
+- **起票から時間が経った Issue は、対象パッケージごとに着手時点で再測定する。** 一部だけが他 PR の
+  マージで解消済み、ということが起きる（本文全体を疑うのではなく、対象ごとに測り直す）。
+- 更新後の stdout の増減（`- pkg X` / `+ pkg Y`）は node_modules を lockfile 記載へ整合させた分も
+  報告するため、**lockfile 差分が無くても増減が表示される**（過大表示）。
+
+実例: Issue #177（js-yaml / undici / fast-uri）の着手時、同期前の `pnpm why undici` は Issue 本文と同じ
+`6.27.0` / `7.28.0` を返したが、base の lockfile は既に `6.28.0` / `7.29.0`（起票後にマージされた
+semantic-release の bump で解消済み）で `pnpm audit` にも advisory は無かった。
+`pnpm install --frozen-lockfile` 後は `pnpm why` も patched version を返した。
+同 Issue の js-yaml / fast-uri は未解消のままで、実際に更新が要ったのはこの 2 件だけだった。
 
 ## 着手可否分類への反映
 
@@ -88,4 +108,4 @@ peer-keyed transitive はこの hand-edit が確実に機能するとは限ら�
 
 ## 出典
 
-Issue #39（vite / peer-keyed）・Issue #67（undici / plain）・Issue #113（stdout の過大表示）・Issue #124（親 remove + re-add）の実例に基づく。
+Issue #39（vite / peer-keyed）・Issue #67（undici / plain）・Issue #113（stdout の過大表示）・Issue #124（親 remove + re-add）・Issue #177（同期前 `pnpm why` の陳腐化）の実例に基づく。
