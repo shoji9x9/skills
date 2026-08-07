@@ -91,7 +91,7 @@ pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の upd
 補強できる場合は、外部 audit findings JSON の各 finding に次の任意フィールドを追加してよい:
 
 - `direct_dependencies`: 脆弱 package を持ち込む direct dependency 名の配列
-- `why_summary`: `pnpm why` から分かる短い依存経路要約（`--frozen-lockfile` 同期後に取る）
+- `why_summary`: `pnpm why` から分かる短い依存経路要約（`pnpm install --frozen-lockfile` で node_modules を同期した後に取る）
 - `context_note`: Dependabot #14794 回避など、pnpm audit を使う理由の短い補足
 
 これらの補助フィールドは Issue 化の判断材料であり、最終的な重複確認・着手可否分類・本文作成は `dependabot-alert-issue` の責務とする。
