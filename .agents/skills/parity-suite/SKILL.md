@@ -37,7 +37,7 @@ parity-suite [--feature <slug>] [--target <name>]
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要（現行アプリの駆動は Playwright 自身が行う）
-- **対応範囲（対象・対象外・条件付き）の一覧は `replace-strategy` の `references/scope.md` が正本。** 本スキルは実行時の行動（`gaps.md` への記録・`golden-dataset` への差し戻し）を持ち、一覧を転記しない
+- **対応範囲（比較・検証の範囲）の一覧は `replace-strategy` の `references/scope.md` が正本。** 本スキルは実行時の行動（`gaps.md` への記録・`golden-dataset` への差し戻し）を持ち、一覧を転記しない
   （読めない環境では対象外と断定せず `gaps.md` に未検証として残す）
 - **Playwright（TypeScript）前提**。好みではなく設計が Playwright 固有機能に依存するため。理由は 3 点:
   - `toMatchAriaSnapshot` の既定が部分一致であることを利用して「寛容なスナップショット」を手書きする
@@ -84,6 +84,8 @@ parity-suite [--feature <slug>] [--target <name>]
 | `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した current target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。ファイル出力の捕捉・アップロードの特性化で**読む**（ゴールデンデータ投入はしないが、**テストがストレージへ直接書く・消す**〈後始末等〉場合の許可は `storage.seedable: true` ＋ `write_scope` 配下が前提。正本は [`references/data-discipline.md`](references/data-discipline.md)。アプリ経由のアップロードは `forbidden_actions` が律する）。`upload_route` が未宣言なら推測せずユーザーに確認し、`uses_storage: true` なのに宣言した target が無ければストレージ依存を `gaps.md` へ |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出（[`references/strength-gate.md`](references/strength-gate.md)）と、side 別期待値の根拠（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）で**読む**。書くのは `pending` への非破壊追記だけ（宣言に無い差を見つけたとき。`keep` / `may_change` は人間が確定させるため書かない。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む）。**未整備（キー欠落・空値・解決できないパス）なら停止せず**、判断材料が無いまま推測せずに実測で特性化し、整備をユーザーに促す |
+| `verification_commands` | 書いたスイート・マッピング層・操作アダプタに通す検証コマンド列（静的解析・型検査）。**設定に無くても停止せず**、その旨を `gaps.md` に記録して進む（`parity-replace` の完了判定と違い、ここでは生成物の品質担保であってスイートの合否判定ではない。スイートの合否は現側 green と強度ゲートが見る。意味論の正本はスキーマ文書の「検証コマンド」） |
+| `references.coding_conventions` | スイート・マッピング層・操作アダプタを書くときに従うコーディング規約（**スイートは対象プロジェクト側のコード**であり、リポジトリの規約に従う。同梱ツールのコピーは修正しない規約のため対象外）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
 | `references.dependency_policy` | スイートに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない。`parity_suite_dir` の既定だけは本スキルの受け入れ条件のため明記した）。
@@ -108,6 +110,8 @@ parity-suite [--feature <slug>] [--target <name>]
    続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
 5. **authoring**: ロケータマッピング（現側）→ **期待値解決層**（side 別の期待値。現側の値だけを埋める）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria（**セクション単位で複数枚**。部分一致は書いていない兄弟が在ることしか許容せず深さを飛ばせない）→ API 特性化。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
+   **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
+   （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
    **状態を変える工程（書き込み系スペック・ファイルアップロード・バッチ実行）は全モード共通で [`references/data-discipline.md`](references/data-discipline.md) の規律に従う**（復元 → 一意プレフィックス＋後始末 → 後始末できないなら承認を得て「hermetic でない」と明示）。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す。詳細: [`references/baseline.md`](references/baseline.md)。
@@ -115,7 +119,9 @@ parity-suite [--feature <slug>] [--target <name>]
    同じ設定で **`current` / `new` の両プロジェクトから `new-only/`（`parity-diff` が新側採取スペックを置く場所）も除外し、採取用の `new-capture` プロジェクトを用意する**（この時点では空でよい）。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない
 7. **強度ゲート（故障注入）**: **無注入で全経路が緑になること（ポジティブコントロール）を同じ実行系で先に確認**したうえで、既知の回帰分類から故障カタログを導出し注入する。素通りした故障は強化するか `gaps.md` へ。詳細: [`references/strength-gate.md`](references/strength-gate.md)
-8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、`strength.md` / `gaps.md` / `metadata.json` を生成する。
+8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、設定の `verification_commands`（静的解析・型検査）をスイートに通す
+   （**設定に無ければ停止せず** `gaps.md` に記録して進む。検証コマンドがスイートのパスを対象に含んでいない場合も、含まれていないことを記録して範囲を勝手に広げない）。
+   そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
 

@@ -79,6 +79,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差）。**キー欠落・空値・解決できないパスはいずれも未整備**として停止する |
+| `verification_commands` | 生成・更新した投入ツールに通す検証コマンド列（静的解析・型検査・テスト）。**設定に無くても停止せず**、その旨を `verification.md` に記録して進む（`parity-replace` の完了判定と違い、ここでは生成物の品質担保であって投入の合否判定ではない。意味論の正本はスキーマ文書の「検証コマンド」） |
+| `references.coding_conventions` | 投入ツールを書くときに従うコーディング規約（**投入ツールは対象プロジェクト側のコード**であり、リポジトリの規約に従う）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
 | `references.dependency_policy` | 投入ツールに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
 
@@ -104,7 +106,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
    - **`static`**: `dataset_static_paths` が 1 つ以上あることを確認し（無ければ停止）、その配下が現行リポジトリで読み書きできることを確認する。**投入先 target に `db` を要求しない**。
      現行の静的データの形式（ファイル配置・フィールド構成・型。DDL に相当する）を現行リポジトリから決定論的に読み取れなければ停止してユーザーに確認する
 2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)
-3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
+3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。
+   書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成後に設定の `verification_commands` を通す（無ければ停止せず記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
 4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
    **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
 5. **投入**: `db` は選択した `side: current` の target へ投入し、`static` は `dataset_static_paths` 配下へ生成する（新側の受け皿はまだ存在しないため新側へは投入しない）
@@ -121,7 +124,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
    投入先 target（`side: new`。`--target` で選択）は `dataset_mode: db` なら `db.seedable: true` と `db.env_vars` 接続を要求し、`static` なら `db` を要求せず `dataset_static_paths` の書き込み可否を確認する。
    `.replace/dataset/metadata.json`（フェーズ A 完了）が無ければフェーズ A を先に実行するよう案内する
 2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
-3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する
+3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する。
+   **ツールを更新したらフェーズ A と同じく規約（`references.coding_conventions`）に従い、設定の `verification_commands` を通す**（無ければ停止せず `verification.md` に記録して進む）
 4. **検証**: 新側整合性＋現新一致を検査する。現新一致は**差のある箇所を列挙し、宣言済みの差分一覧（`db_semantics` / `intentional_diffs.may_change`）と完全一致するか**で判定し、**逆写像（新側 → 論理）の往復で書かない**（前方写像と同じ表を使う限り恒等になり、宣言外の正規化を足しても通る）。
    宣言外の正規化を 1 件足したら検証が落ちることまで確認して `verification.md` に記録する。**説明できない不一致は失敗として扱い修正する**。新規の意図的差異は `intentional_diffs.pending` へ追記しユーザー確認へ回す
 5. **成果物記録**: `metadata.json` の `phase_b.<slug>.<target>` を更新する（`version` は上げない）。同じ DB を共有する target でも target ごとに実行して記録する
