@@ -8,10 +8,12 @@
 #
 # これは「kaizen を実行せよ」という行動リマインダーではなく、過去の学びの
 # 中身そのものを供給する点が echo リマインダーと異なる（references/extract.md
-# 「使わない方式」参照）。SessionStart の stdout を context に注入できるかは
-# エージェントごとに異なる: Claude Code は注入される。Codex / Copilot は
-# 注入可否がドキュメント上不明確なため、効けば加点・効かなくても無害という
-# ベストエフォート。失敗してもセッションを止めないよう常に exit 0 で抜ける。
+# 「使わない方式」参照）。Claude Code は SessionStart の stdout を context に注入する。
+# Codex は plain text の stdout を extra developer context として追加する
+# (https://developers.openai.com/codex/hooks#sessionstart)。
+# Copilot は注入可否がドキュメント上不明確なため、効けば
+# 加点・効かなくても無害というベストエフォート。失敗してもセッションを止めない
+# よう常に exit 0 で抜ける。
 #
 # SessionStart フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
 set -euo pipefail
