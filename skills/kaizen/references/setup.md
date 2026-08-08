@@ -10,7 +10,7 @@ Hook からエージェント自身を呼び出して LLM を動かすことは�
 - **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックしてエージェントに `kaizen --current` を促す。
   エージェントが抽出を終えるとセンチネルが消え、再試行した commit が通る。コミットを実際にブロックするため確定的に効き、全エージェント（Claude Code / Codex / Copilot）の PreToolUse で機能する。
 - **セッション開始時 Hook（参照注入役）**: `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。これにより過去の学びを踏まえてタスクに着手できる（KEDB 照合の入口）。
-  Claude Code は SessionStart の stdout が確実に context へ注入される。Codex / Copilot は注入可否がドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
+  Claude Code と Codex は SessionStart の stdout を context へ注入する。Copilot は注入可否がドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
 
 > echo による行動リマインダーや `AGENTS.md` への散文の指示は、エージェントの行動を確定的に変えられず守られない確率が高いため主トリガーにはしない。詳細は末尾「使わない方式」を参照。
 
@@ -85,7 +85,8 @@ done
 各ブロックをそのままファイルに書き込んで置き換えると、先に設定した hook キーが上書きされて 1 つしか残らない。
 既存の設定（他スキルの hook 含む）を保持したまま、3 つの hook キーを**同一ファイル内にマージ**すること
 （3 エージェントとも `hooks` オブジェクト配下にイベントキーを併置する。Claude Code と Codex は同じ構造＝イベント→（任意の `matcher`＋）`hooks` 配列→`type: command`。`matcher` は任意で、省略すると全マッチ。Copilot は加えてトップレベルに `version` を持つ）。
-Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`Bash`、SessionStart=`startup|resume`、`Stop` は matcher が無視されるため省略）。
+Codex の `matcher` は正規表現で、PreToolUse は `Bash` に限定する。SessionStart は `startup` / `resume` / `clear` / `compact` のすべてでマーカー管理が必要なため省略して全マッチとし、`Stop` も matcher が無視されるため省略する。
+Codex は設定ファイルをマージしただけでは Hook を実行しない。3 つの定義をマージした後、4-4 の信頼手順まで完了させる。
 
 #### 4-1. タスク終了時 Hook（センチネル記録のみ）
 
@@ -239,8 +240,8 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
 このスクリプトはダイジェスト出力に加えて、抽出完了マーカー `.kaizen/.extract-done` を削除する役割も担う（セッション開始 = 前セッションのマーカーの失効点。これにより新しいセッションでは再びコミット前ゲートが効く）。ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
-> Claude Code の `SessionStart` は stdout が context へ確実に注入される。
-> Codex / Copilot のセッション開始フックは stdout を context へ注入できるかドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
+> Claude Code と Codex の `SessionStart` は stdout を context へ注入する。
+> Copilot のセッション開始フックは stdout を context へ注入できるかドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
 
 ##### Claude Code — SessionStart (`.claude/settings.json`)
 
@@ -269,7 +270,6 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume",
         "hooks": [
           {
             "type": "command",
@@ -303,6 +303,18 @@ Codex の `matcher` は正規表現で、値は公式例に従う（PreToolUse=`
 ```
 
 詳細なフォーマットは [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) を参照すること。
+
+#### 4-4. Codex の Hook 定義をレビューして信頼する
+
+Codex の非 managed command Hook は、定義を設定ファイルへ追加しただけでは実行されない。Codex CLI で `/hooks` を開き、
+`.codex/hooks.json` の参照元と Stop / PreToolUse / SessionStart の各 command が意図した定義であることを確認して信頼する。
+信頼されるまでは Codex が対象 Hook をスキップするため、このレビューまでを初回セットアップの完了条件にする。
+
+信頼は Hook 定義の現在のハッシュに対して記録される。command や matcher などの定義を変更した場合は新しい定義としてレビュー待ちに戻るため、
+変更後も `/hooks` で再レビューして信頼する。`--dangerously-bypass-hook-trust` は事前に Hook を検査する一時的な自動化用であり、
+プロジェクトの永続セットアップを完了させる代わりには使わない。
+
+詳細は [Codex Hooks ドキュメント「Review and trust hooks」](https://developers.openai.com/codex/hooks#review-and-trust-hooks) を参照すること。
 
 ### 5. `.gitignore` にセンチネル・抽出完了マーカーを追加する
 

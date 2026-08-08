@@ -1,0 +1,355 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-08T11:05:20Z",
+    "evals_run": [10],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 104.1,
+        "tokens": 7316,
+        "tool_calls": 17,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": true,
+          "evidence": "project-files/.codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u30ad\u30fc\u306f hooks \u306e\u307f\u3067\u3001hooks \u914d\u4e0b\u306b Stop / PreToolUse / SessionStart \u304c\u5b58\u5728\u3059\u308b"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "3\u30a4\u30d9\u30f3\u30c8\u3059\u3079\u3066\u304c matcher group \u306e\u914d\u5217\u3067\u3001\u5404 group \u306e hooks \u914d\u5217\u306b type: command \u3068 command \u3092\u6301\u3064\u8981\u7d20\u304c\u3042\u308b"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "PreToolUse \u306b matcher: Bash \u304c\u3042\u308a\u3001command \u306f kaizen-precommit-gate.sh \u3092\u53c2\u7167\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "Stop \u306e command \u306f kaizen-stop-mark.sh -codex \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "SessionStart \u306f matcher \u3092\u7701\u7565\u3057\u3066\u5168 source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject.sh \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u3001\u4fe1\u983c\u524d\u306f\u5b9f\u884c\u3055\u308c\u306a\u3044\u3053\u3068\u3001\u5b9a\u7fa9\u5909\u66f4\u3001\u518d\u30ec\u30d3\u30e5\u30fc\u306e4\u70b9\u304c\u660e\u8a18\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 95.3,
+        "tokens": 6349,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": true,
+          "evidence": "project-files/.codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u30ad\u30fc\u306f hooks \u306e\u307f\u3067\u3001hooks \u914d\u4e0b\u306b Stop / PreToolUse / SessionStart \u304c\u5b58\u5728\u3059\u308b"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "3\u30a4\u30d9\u30f3\u30c8\u3059\u3079\u3066\u304c matcher group \u306e\u914d\u5217\u3067\u3001\u5404 group \u306e hooks \u914d\u5217\u306b type: command \u3068 command \u3092\u6301\u3064\u8981\u7d20\u304c\u3042\u308b"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "PreToolUse \u306b matcher: Bash \u304c\u3042\u308a\u3001command \u306f kaizen-precommit-gate.sh \u3092\u53c2\u7167\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "Stop \u306e command \u306f kaizen-stop-mark.sh -codex \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "SessionStart \u306f matcher \u3092\u7701\u7565\u3057\u3066\u5168 source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject.sh \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u3001\u4fe1\u983c\u524d\u306f\u5b9f\u884c\u3055\u308c\u306a\u3044\u3053\u3068\u3001\u5b9a\u7fa9\u5909\u66f4\u3001\u518d\u30ec\u30d3\u30e5\u30fc\u306e4\u70b9\u304c\u660e\u8a18\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 84.8,
+        "tokens": 6113,
+        "tool_calls": 14,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": true,
+          "evidence": "project-files/.codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u30ad\u30fc\u306f hooks \u306e\u307f\u3067\u3001hooks \u914d\u4e0b\u306b Stop / PreToolUse / SessionStart \u304c\u5b58\u5728\u3059\u308b"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "3\u30a4\u30d9\u30f3\u30c8\u3059\u3079\u3066\u304c matcher group \u306e\u914d\u5217\u3067\u3001\u5404 group \u306e hooks \u914d\u5217\u306b type: command \u3068 command \u3092\u6301\u3064\u8981\u7d20\u304c\u3042\u308b"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "PreToolUse \u306b matcher: Bash \u304c\u3042\u308a\u3001command \u306f kaizen-precommit-gate.sh \u3092\u53c2\u7167\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "Stop \u306e command \u306f kaizen-stop-mark.sh -codex \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "SessionStart \u306f matcher \u3092\u7701\u7565\u3057\u3066\u5168 source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject.sh \u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u3001\u4fe1\u983c\u524d\u306f\u5b9f\u884c\u3055\u308c\u306a\u3044\u3053\u3068\u3001\u5b9a\u7fa9\u5909\u66f4\u3001\u518d\u30ec\u30d3\u30e5\u30fc\u306e4\u70b9\u304c\u660e\u8a18\u3055\u308c\u3066\u3044\u308b"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 490,
+        "tokens": 34177,
+        "tool_calls": 55,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": false,
+          "evidence": "project-files/.codex/hooks.json \u304c\u5b58\u5728\u3057\u306a\u3044\u304b\u3001\u8981\u6c42\u3055\u308c\u305f\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u69cb\u9020\u30fb3\u30a4\u30d9\u30f3\u30c8\u3092\u6e80\u305f\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u30673\u30a4\u30d9\u30f3\u30c8\u5171\u901a\u306e matcher group \u2192 hooks[] \u2192 command \u69cb\u9020\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher: Bash \u3068 kaizen-precommit-gate.sh \u306e\u7d44\u307f\u5408\u308f\u305b\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 kaizen-stop-mark.sh -codex \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher \u7701\u7565\u306e SessionStart \u3068 kaizen-context-inject.sh \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u30fb\u4fe1\u983c\u524d\u306e\u30b9\u30ad\u30c3\u30d7\u76f8\u5f53\u30fb\u5b9a\u7fa9\u5909\u66f4\u30fb\u518d\u30ec\u30d3\u30e5\u30fc\u306e\u5168\u8981\u7d20\u304c\u63c3\u3063\u3066\u3044\u306a\u3044"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 643.6,
+        "tokens": 41909,
+        "tool_calls": 50,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": false,
+          "evidence": "project-files/.codex/hooks.json \u304c\u5b58\u5728\u3057\u306a\u3044\u304b\u3001\u8981\u6c42\u3055\u308c\u305f\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u69cb\u9020\u30fb3\u30a4\u30d9\u30f3\u30c8\u3092\u6e80\u305f\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u30673\u30a4\u30d9\u30f3\u30c8\u5171\u901a\u306e matcher group \u2192 hooks[] \u2192 command \u69cb\u9020\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher: Bash \u3068 kaizen-precommit-gate.sh \u306e\u7d44\u307f\u5408\u308f\u305b\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 kaizen-stop-mark.sh -codex \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher \u7701\u7565\u306e SessionStart \u3068 kaizen-context-inject.sh \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u30fb\u4fe1\u983c\u524d\u306e\u30b9\u30ad\u30c3\u30d7\u76f8\u5f53\u30fb\u5b9a\u7fa9\u5909\u66f4\u30fb\u518d\u30ec\u30d3\u30e5\u30fc\u306e\u5168\u8981\u7d20\u304c\u63c3\u3063\u3066\u3044\u306a\u3044"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 550.3,
+        "tokens": 35988,
+        "tool_calls": 69,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".codex/hooks.json \u306e\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u306f\u4efb\u610f\u306e description \u3068\u5fc5\u9808\u306e hooks \u3060\u3051\u3067\u3001Stop / PreToolUse / SessionStart \u306f hooks \u914d\u4e0b\u306b\u3042\u308b",
+          "passed": false,
+          "evidence": "project-files/.codex/hooks.json \u304c\u5b58\u5728\u3057\u306a\u3044\u304b\u3001\u8981\u6c42\u3055\u308c\u305f\u30c8\u30c3\u30d7\u30ec\u30d9\u30eb\u69cb\u9020\u30fb3\u30a4\u30d9\u30f3\u30c8\u3092\u6e80\u305f\u3057\u3066\u3044\u306a\u3044"
+        },
+        {
+          "text": "\u5404\u30a4\u30d9\u30f3\u30c8\u304c matcher group \u306e hooks \u914d\u5217\u5185\u306b type: command \u3068 command \u3092\u6301\u3064 Codex \u306e\u73fe\u884c\u5f62\u5f0f\u306b\u306a\u3063\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u30673\u30a4\u30d9\u30f3\u30c8\u5171\u901a\u306e matcher group \u2192 hooks[] \u2192 command \u69cb\u9020\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "PreToolUse \u306e matcher \u304c Bash \u3067\u3001kaizen-precommit-gate \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher: Bash \u3068 kaizen-precommit-gate.sh \u306e\u7d44\u307f\u5408\u308f\u305b\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "Stop \u306f kaizen-stop-mark \u30b9\u30af\u30ea\u30d7\u30c8\u3092 -codex \u4ed8\u304d\u3067\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 kaizen-stop-mark.sh -codex \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "SessionStart \u306f\u5168 start source \u306b\u30de\u30c3\u30c1\u3057\u3001kaizen-context-inject \u30b9\u30af\u30ea\u30d7\u30c8\u3092\u547c\u3073\u51fa\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u5bfe\u8c61\u30d5\u30a1\u30a4\u30eb\u4e0a\u3067 matcher \u7701\u7565\u306e SessionStart \u3068 kaizen-context-inject.sh \u306e\u547c\u3073\u51fa\u3057\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044"
+        },
+        {
+          "text": "\u521d\u56de\u8a2d\u5b9a\u3068 Hook \u5b9a\u7fa9\u5909\u66f4\u5f8c\u306b Codex CLI \u306e /hooks \u3067\u53c2\u7167\u5143\u3068 command \u3092\u30ec\u30d3\u30e5\u30fc\u3057\u3066\u4fe1\u983c\u3057\u3001\u4fe1\u983c\u524d\u306f Hook \u304c\u30b9\u30ad\u30c3\u30d7\u3055\u308c\u308b\u3068\u6848\u5185\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "\u6700\u7d42\u8aac\u660e\u306b /hooks\u30fb\u4fe1\u983c\u524d\u306e\u30b9\u30ad\u30c3\u30d7\u76f8\u5f53\u30fb\u5b9a\u7fa9\u5909\u66f4\u30fb\u518d\u30ec\u30d3\u30e5\u30fc\u306e\u5168\u8981\u7d20\u304c\u63c3\u3063\u3066\u3044\u306a\u3044"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 94.7333,
+        "stddev": 9.6625,
+        "min": 84.8,
+        "max": 104.1
+      },
+      "tokens": {
+        "mean": 6592.6667,
+        "stddev": 637.442,
+        "min": 6113,
+        "max": 7316
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 561.3,
+        "stddev": 77.3886,
+        "min": 490,
+        "max": 643.6
+      },
+      "tokens": {
+        "mean": 37358.0,
+        "stddev": 4043.9623,
+        "min": 34177,
+        "max": 41909
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-466.6",
+      "tokens": "-30765"
+    }
+  },
+  "notes": [
+    "6アサーションすべてが完全に弁別した。with_skill は各項目3/3、without_skill は各項目0/3で、run間の判定揺れはない。",
+    "今回追加した信頼手順も with_skill 3/3・without_skill 0/3。baseline も初回の信頼には触れたが、信頼前のスキップ相当・定義変更・再レビューの全要素を揃えたrunはなかった。",
+    "without_skill は3runとも kaizen が無い状態から別実装を作ろうとし、プロジェクトローカルの .codex/hooks.json を生成しなかった。with_skill は3runとも同ファイルに Stop / PreToolUse / SessionStart を現行構造で生成した。",
+    "with_skill は平均94.7秒・6593 output tokens、without_skill は平均561.3秒・37358 output tokensで、スキル利用時は平均466.6秒・30765 tokens少なかった。",
+    "このevalは非対話の隔離環境なので、/hooks での人間による信頼操作と、その後のCodex実プロセスでの発火自体は検証対象外。生成設定とユーザーへの信頼案内を評価している。"
+  ]
+}
