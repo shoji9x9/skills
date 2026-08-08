@@ -102,6 +102,7 @@
         "PreToolUse の matcher が Bash で、kaizen-precommit-gate スクリプトを呼び出している",
         "Stop は kaizen-stop-mark スクリプトを -codex 付きで呼び出している",
         "SessionStart は全 start source にマッチし、kaizen-context-inject スクリプトを呼び出している",
+        "SessionStart の plain text stdout が extra developer context に追加される根拠として、Codex Hooks 公式ドキュメントの SessionStart 節 URL を近接位置に示している",
         "初回設定と Hook 定義変更後に Codex CLI の /hooks で参照元と command をレビューして信頼し、信頼前は Hook がスキップされると案内している"
       ]
     }

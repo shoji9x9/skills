@@ -46,9 +46,14 @@ pnpm の transitive 依存には 2 種類ある。
 次の順で切り分ける。
 
 1. `pnpm config get minimumReleaseAge` で有効値を確認する。CLI で条件を変える再現では、同じ `--config.minimumReleaseAge=<分>` を付けた `pnpm config get minimumReleaseAge` で上書き後の値も確認する
-2. 元の作業ツリーを汚さないよう `package.json` / `pnpm-lock.yaml` / `pnpm-workspace.yaml` を一時ディレクトリへ複製し、**リポジトリと同じ pnpm 実体**を使う
-3. 複製先で `pnpm update <pkg> --depth Infinity --lockfile-only` を実行し、lockfile の対象 version を確認する
-4. 同じ複製元から作った別コピーで `pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` を実行する
+2. 元の作業ツリーを汚さないよう、必須の `package.json` / `pnpm-lock.yaml` を一時ディレクトリへ複製する。
+   `pnpm-workspace.yaml` とレジストリ・認証に必要な `.npmrc` は、リポジトリに存在する場合だけ複製する。
+   `.npmrc` に秘密値がある場合は一時ディレクトリの権限を制限し、診断後に破棄する
+3. **リポジトリと同じ pnpm 実体**と、元の有効値を作った global config・環境変数・CLI override を同じ条件で使う。
+   複製先それぞれで `pnpm config get minimumReleaseAge` を再実行して元と同じ有効値であることを確認する。
+   pnpm 11 では `minimumReleaseAge` などの project settings は `pnpm-workspace.yaml`、レジストリ・認証設定は `.npmrc` から読まれる
+4. 複製先で `pnpm update <pkg> --depth Infinity --lockfile-only` を実行し、lockfile の対象 version を確認する
+5. 同じ複製元から作った別コピーで `pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` を実行する
 
 `add` が `ERR_PNPM_NO_MATURE_MATCHING_VERSION` と対象 version の公開日時・cutoff を出して失敗すれば、`update` の無言据え置きも同じ年齢ゲートによるものと判断できる。
 ゲート無効時のバージョン無指定 `update` が patched version へ到達する陽性コントロールも取り、単なる通信失敗・pnpm 未起動・別設定の読み込みを no-op と誤認しない。
@@ -132,4 +137,5 @@ peer-keyed transitive はこの hand-edit が確実に機能するとは限ら�
 
 - Issue #39（vite / peer-keyed）・Issue #67（undici / plain）・Issue #113（stdout の過大表示）・Issue #124（親 remove + re-add）・Issue #177（同期前 `pnpm why` の陳腐化）・Issue #181（バージョン明示とリリース年齢ゲートの無言 no-op）の実例
 - [pnpm update](https://pnpm.io/cli/update)
-- [pnpm Dependency Resolution Settings — minimumReleaseAge](https://pnpm.io/settings/dependency-resolution#minimumreleaseage)
+- [pnpm Settings — configuration files](https://pnpm.io/settings)
+- [pnpm Dependency Resolution Settings — minimumReleaseAge](https://pnpm.io/settings#minimumreleaseage)
