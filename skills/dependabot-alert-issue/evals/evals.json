@@ -90,6 +90,18 @@
         "#N 形式だと GitHub が Issue/PR と誤認すると理解している",
         "alert は番号ではなく URL で参照する方針である"
       ]
+    },
+    {
+      "id": 9,
+      "prompt": "pnpm の transitive dependency に patched version が出ていて親 range も許容している。`pnpm update target@patched --depth Infinity --lockfile-only` は exit 0 なのに lockfile 差分がない。この alert がすぐ着手可能か、リリース年齢待ちか、別の更新経路が必要かをどう切り分ける？",
+      "expected_output": "plain transitive では patched version が分かっていてもバージョン無指定の update を最初に試す。minimumReleaseAge の有効値を確認し、同じ入力の使い捨てコピーでゲート無効時の無指定 update を陽性コントロールにし、別コピーの add が ERR_PNPM_NO_MATURE_MATCHING_VERSION と cutoff を出すかで年齢ゲートを識別する。",
+      "assertions": [
+        "plain transitive ではバージョン明示が有効な update 経路を無言 no-op にし得るため、最初に `pnpm update <pkg> --depth Infinity --lockfile-only` をバージョン無指定で試すと案内している",
+        "`pnpm config get minimumReleaseAge` で有効値を確認し、CLI override を使う場合は同じ override 付きの config get で値を確認すると案内している",
+        "元の作業ツリーを汚さない同じ入力の使い捨てコピーで診断すると案内している",
+        "別コピーの `pnpm add --save-dev <pkg>@<patched-version> --lockfile-only` が ERR_PNPM_NO_MATURE_MATCHING_VERSION と cutoff を出すかで年齢ゲートを識別している",
+        "ゲート無効時のバージョン無指定 update が patched version へ到達する陽性コントロールを求め、pnpm 未起動や通信失敗を no-op と誤認しない設計になっている"
+      ]
     }
   ]
 }
