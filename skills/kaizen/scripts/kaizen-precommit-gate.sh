@@ -131,7 +131,9 @@ if [ -n "${transcript}" ] && [ -r "${script_dir}/kaizen-candidate-scan.sh" ]; th
 			exit 2
 		fi
 		set +e
-		done_output=$(bash "${script_dir}/kaizen-extract-done.sh" --checkpoint-only --sentinel-suffix "${sentinel_suffix}" "${transcript}" 2>&1)
+		# --agent は checkpoint の 3 行目へ記録される。次回、新しいレコードが 1 件も無いとき
+		# （＝前回の走査以降に活動が無いとき）に走査器がエージェントを知る唯一の手掛かりになる。
+		done_output=$(bash "${script_dir}/kaizen-extract-done.sh" --checkpoint-only --sentinel-suffix "${sentinel_suffix}" --agent "${scan_agent}" "${transcript}" 2>&1)
 		done_rc=$?
 		set -e
 		if [ "${done_rc}" -ne 0 ]; then

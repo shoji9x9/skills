@@ -16,6 +16,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 offset=0
+checkpoint_agent=""
 if [ -r "${checkpoint}" ]; then
 	checkpoint_path=$(sed -n '1p' "${checkpoint}")
 	checkpoint_offset=$(sed -n '2p' "${checkpoint}")
@@ -23,6 +24,11 @@ if [ -r "${checkpoint}" ]; then
 		size=$(wc -c <"${transcript}")
 		if [ "${checkpoint_offset}" -le "${size}" ]; then
 			offset=${checkpoint_offset}
+			# 3 行目は checkpoint を進めた時点で識別済みのエージェント（任意）。
+			# 空 slice ではレコードから判定できないため、この確定値だけが手掛かりになる。
+			case "$(sed -n '3p' "${checkpoint}")" in
+			claude-code | codex) checkpoint_agent=$(sed -n '3p' "${checkpoint}") ;;
+			esac
 		fi
 	fi
 fi
@@ -31,6 +37,21 @@ slice=$(mktemp)
 records=$(mktemp)
 trap 'rm -f "${slice}" "${records}"' EXIT
 tail -c "+$((offset + 1))" "${transcript}" >"${slice}"
+
+# checkpoint 以降に 1 バイトも増えていない ＝ 前回の走査以降に新しい活動が無い。
+# レコードが無いので「未知形式」と同じ recognized=0 に落ちるが、意味は正反対なので
+# 検証済みゼロ（exit 1）として扱う。そうしないと、候補ゼロで自動通過した直後に Stop フックが
+# センチネルを再装填しただけで次の commit が止まる（実測済み）。
+# エージェントは checkpoint に記録された確定値を使う。無い（旧形式）なら従来どおり安全側。
+if [ ! -s "${slice}" ]; then
+	if [ -n "${checkpoint_agent}" ]; then
+		echo "kaizen-candidate-scan: agent=${checkpoint_agent}"
+		echo "kaizen-candidate-scan: no new records since checkpoint (offset=${offset})" >&2
+		exit 1
+	fi
+	echo "kaizen-candidate-scan: no new records since checkpoint but the agent is unknown (legacy checkpoint)" >&2
+	exit 2
+fi
 
 if ! jq -Rr '
 	def clean: tostring | gsub("[\\r\\n\\t]+"; " ") | .[0:500];

@@ -31,6 +31,7 @@ mode=complete
 sentinel_suffix=""
 sentinel_suffix_set=0
 transcript=""
+agent=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--checkpoint-only)
@@ -44,6 +45,14 @@ while [ "$#" -gt 0 ]; do
 		}
 		sentinel_suffix=$2
 		sentinel_suffix_set=1
+		shift 2
+		;;
+	--agent)
+		[ "$#" -ge 2 ] || {
+			echo "kaizen-extract-done: --agent requires a value" >&2
+			exit 2
+		}
+		agent=$2
 		shift 2
 		;;
 	-*)
@@ -64,6 +73,13 @@ if [[ -n "${sentinel_suffix}" && ! "${sentinel_suffix}" =~ ^-[a-z0-9-]+$ ]]; the
 	echo "kaizen-extract-done: invalid sentinel suffix: ${sentinel_suffix}" >&2
 	exit 2
 fi
+case "${agent}" in
+"" | claude-code | codex) ;;
+*)
+	echo "kaizen-extract-done: invalid agent: ${agent}" >&2
+	exit 2
+	;;
+esac
 if [ "${mode}" = "checkpoint-only" ] && [ "${sentinel_suffix_set}" -ne 1 ]; then
 	echo "kaizen-extract-done: checkpoint-only requires --sentinel-suffix" >&2
 	exit 2
@@ -79,9 +95,16 @@ fi
 if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	checkpoint_tmp=$(mktemp)
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
+	# 3 行目のエージェント識別子は任意。走査器は新しいレコードが 1 件も無いとき、
+	# レコードから判定できないためこの値を使って「検証済みゼロ」と判定する。
+	# `[ -n ... ] && printf` をグループ末尾に置くと、agent 未指定時にグループの終了コードが
+	# 非 0 になり set -e でスクリプトごと落ちる。条件分岐は if で書く。
 	{
 		printf '%s\n' "${transcript}"
 		wc -c <"${transcript}"
+		if [ -n "${agent}" ]; then
+			printf '%s\n' "${agent}"
+		fi
 	} >"${checkpoint_tmp}"
 	mv "${checkpoint_tmp}" .kaizen/.extract-checkpoint
 fi
