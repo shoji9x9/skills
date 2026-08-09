@@ -77,6 +77,11 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	elif { [ "${status}" = "applied" ] || [ "${status}" = "rejected" ]; } && [ "${nonempty}" = "0" ]; then
 		echo "kaizen-status-check: ${note}: status is ${status} but applied-to is empty" >&2
 		errors=$((errors + 1))
+	elif [ "${status}" != "pending" ] && [ "${status}" != "applied" ] && [ "${status}" != "rejected" ]; then
+		# 未知の status は非空なのでどの分岐にも当たらず、全検査を素通りしていた。
+		# applied-to を宣言した時点で新形式なので、定義済みの 3 値だけを受け付ける。
+		echo "kaizen-status-check: ${note}: unknown status: ${status} (expected pending, applied or rejected)" >&2
+		errors=$((errors + 1))
 	fi
 done
 

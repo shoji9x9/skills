@@ -39,10 +39,22 @@ if [ -r "${checkpoint}" ]; then
 	fi
 fi
 
-slice=$(mktemp)
-records=$(mktemp)
-trap 'rm -f "${slice}" "${records}"' EXIT
-tail -c "+$((offset + 1))" "${transcript}" >"${slice}"
+# 内部の失敗は必ず exit 2（不明）へ倒す。set -e に任せると mktemp の失敗がそのまま
+# exit 1 になり、ゲートからは「検証済みゼロ」に見えてしまう（今は scan_agent が空に
+# なるおかげで止まっているだけで、契約としては壊れている）。
+slice=$(mktemp 2>/dev/null) || {
+	echo "kaizen-candidate-scan: could not create a temporary file" >&2
+	exit 2
+}
+trap 'rm -f "${slice}" "${records:-}"' EXIT
+records=$(mktemp 2>/dev/null) || {
+	echo "kaizen-candidate-scan: could not create a temporary file" >&2
+	exit 2
+}
+tail -c "+$((offset + 1))" "${transcript}" >"${slice}" 2>/dev/null || {
+	echo "kaizen-candidate-scan: could not read the transcript from the checkpoint offset" >&2
+	exit 2
+}
 
 # checkpoint 以降に 1 バイトも増えていない ＝ 前回の走査以降に新しい活動が無い。
 # レコードが無いので「未知形式」と同じ recognized=0 に落ちるが、意味は正反対なので
