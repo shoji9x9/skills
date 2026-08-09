@@ -95,16 +95,23 @@ fi
 if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	checkpoint_tmp=$(mktemp)
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
-	# 3 行目のエージェント識別子は任意。走査器は新しいレコードが 1 件も無いとき、
-	# レコードから判定できないためこの値を使って「検証済みゼロ」と判定する。
-	# `[ -n ... ] && printf` をグループ末尾に置くと、agent 未指定時にグループの終了コードが
-	# 非 0 になり set -e でスクリプトごと落ちる。条件分岐は if で書く。
+	# checkpoint の様式:
+	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空可）/ 4 行目 行数
+	# 3 行目は、新しいレコードが 1 件も無いときにレコードから判定できないエージェントを
+	# 持ち越すため。4 行目は走査器が根拠の絶対行番号を出すときの起点で、これが無いと
+	# 処理済み部分を毎回読み直すことになる（走査は O(差分) に保つ）。
+	# 行位置を固定するため、agent が空でも 3 行目は空行として書く。
+	# wc の出力は実装によって先頭に空白が入る。数値だけを書かないと読み側の
+	# `^[0-9]+$` 検証に落ち、offset が無視されて毎回全走査へ静かに退行する。
+	checkpoint_bytes=$(wc -c <"${transcript}")
+	checkpoint_bytes=${checkpoint_bytes//[[:space:]]/}
+	checkpoint_lines=$(wc -l <"${transcript}")
+	checkpoint_lines=${checkpoint_lines//[[:space:]]/}
 	{
 		printf '%s\n' "${transcript}"
-		wc -c <"${transcript}"
-		if [ -n "${agent}" ]; then
-			printf '%s\n' "${agent}"
-		fi
+		printf '%s\n' "${checkpoint_bytes}"
+		printf '%s\n' "${agent}"
+		printf '%s\n' "${checkpoint_lines}"
 	} >"${checkpoint_tmp}"
 	mv "${checkpoint_tmp}" .kaizen/.extract-checkpoint
 fi

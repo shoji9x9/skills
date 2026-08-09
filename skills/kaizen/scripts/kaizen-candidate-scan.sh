@@ -17,11 +17,13 @@ fi
 
 offset=0
 checkpoint_agent=""
+checkpoint_lines=""
 if [ -r "${checkpoint}" ]; then
 	checkpoint_path=$(sed -n '1p' "${checkpoint}")
 	checkpoint_offset=$(sed -n '2p' "${checkpoint}")
 	if [ "${checkpoint_path}" = "${transcript}" ] && [[ "${checkpoint_offset}" =~ ^[0-9]+$ ]]; then
 		size=$(wc -c <"${transcript}")
+		size=${size//[[:space:]]/}
 		if [ "${checkpoint_offset}" -le "${size}" ]; then
 			offset=${checkpoint_offset}
 			# 3 行目は checkpoint を進めた時点で識別済みのエージェント（任意）。
@@ -29,6 +31,10 @@ if [ -r "${checkpoint}" ]; then
 			case "$(sed -n '3p' "${checkpoint}")" in
 			claude-code | codex) checkpoint_agent=$(sed -n '3p' "${checkpoint}") ;;
 			esac
+			# 4 行目は処理済み行数（任意）。根拠の絶対行番号の起点で、あれば
+			# 処理済み部分を読み直さずに済む。無い旧 checkpoint は下で数え直す。
+			checkpoint_lines=$(sed -n '4p' "${checkpoint}")
+			[[ "${checkpoint_lines}" =~ ^[0-9]+$ ]] || checkpoint_lines=""
 		fi
 	fi
 fi
@@ -150,8 +156,14 @@ fi
 #（読むのは自分のセッションの transcript なので、位置さえ分かれば内容は自分で取得できる）。
 base_line=0
 if [ "${offset}" -gt 0 ]; then
-	base_line=$(head -c "${offset}" "${transcript}" | wc -l)
-	base_line=${base_line//[[:space:]]/}
+	if [ -n "${checkpoint_lines}" ]; then
+		# checkpoint が行数を持っていれば読み直さない（走査を O(差分) に保つ）。
+		base_line=${checkpoint_lines}
+	else
+		# 旧 checkpoint 向けのフォールバック。処理済み部分を 1 度だけ数える。
+		base_line=$(head -c "${offset}" "${transcript}" | wc -l)
+		base_line=${base_line//[[:space:]]/}
+	fi
 fi
 
 recognized=0

@@ -78,14 +78,20 @@ done
 archive_dir=.kaizen/archive
 index_file=${archive_dir}/INDEX.md
 if [ -d "${archive_dir}" ]; then
+	# エントリ一覧は 1 度だけ抽出する。archived note ごとに INDEX.md を読み直すと
+	# 件数の二乗に比例して重くなり、コミット前ゲートの実行時間へ効いてくる。
+	index_entries=""
+	if [ -f "${index_file}" ]; then
+		# shellcheck disable=SC2016 # sed の backtick と後方参照はリテラル。
+		index_entries=$(sed -n 's/^- `\([^`]*\.md\)` .*$/\1/p' "${index_file}")
+	fi
 	for note in "${archive_dir}"/*.md; do
 		[ -e "${note}" ] || continue
 		[ "$(basename "${note}")" = "INDEX.md" ] && continue
 		base=$(basename "${note}")
 		entry_count=0
-		if [ -f "${index_file}" ]; then
-			# shellcheck disable=SC2016 # sed の backtick と後方参照はリテラル。
-			entry_count=$(sed -n 's/^- `\([^`]*\.md\)` .*$/\1/p' "${index_file}" | awk -v target="${base}" '$0 == target { count++ } END { print count + 0 }')
+		if [ -n "${index_entries}" ]; then
+			entry_count=$(awk -v target="${base}" '$0 == target { count++ } END { print count + 0 }' <<<"${index_entries}")
 		fi
 		if [ "${entry_count}" -ne 1 ]; then
 			echo "kaizen-status-check: ${note}: expected exactly one entry in ${index_file}, found ${entry_count}" >&2
@@ -93,15 +99,14 @@ if [ -d "${archive_dir}" ]; then
 		fi
 	done
 
-	if [ -f "${index_file}" ]; then
-		# shellcheck disable=SC2016 # sed の backtick と後方参照はリテラル。
+	if [ -n "${index_entries}" ]; then
 		while IFS= read -r base; do
 			[ -n "${base}" ] || continue
 			if [ ! -f "${archive_dir}/${base}" ]; then
 				echo "kaizen-status-check: ${index_file}: stale entry for ${base}" >&2
 				errors=$((errors + 1))
 			fi
-		done < <(sed -n 's/^- `\([^`]*\.md\)` .*$/\1/p' "${index_file}")
+		done <<<"${index_entries}"
 	fi
 fi
 

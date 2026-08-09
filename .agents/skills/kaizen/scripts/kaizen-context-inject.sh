@@ -95,7 +95,9 @@ if [ ! -s "${pending_index}" ]; then
 	exit 0
 fi
 
+# wc の出力は実装によって先頭に空白が入るため数値だけに正規化する。
 count=$(wc -l <"${pending_index}")
+count=${count//[[:space:]]/}
 
 echo "## kaizen: 未適用の学び（${count} 件）"
 echo ""
