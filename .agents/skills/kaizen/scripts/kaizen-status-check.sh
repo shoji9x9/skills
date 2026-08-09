@@ -5,6 +5,8 @@
 # 不整合は exit 2 + stderr で返し、kaizen-precommit-gate.sh から commit を止める。
 set -euo pipefail
 
+# cd する前に解決する（BASH_SOURCE は起動時の cwd 相対になり得るため）。
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
@@ -99,7 +101,13 @@ if [ -d "${archive_dir}" ]; then
 fi
 
 if [ "${errors}" -gt 0 ]; then
-	echo "kaizen-status-check: ${errors} lifecycle inconsistency(s); update status/applied-to or run kaizen-archive.sh --reindex" >&2
+	# スクリプトは PATH に無いので、そのまま貼れる形で案内する。
+	if [ -n "${script_dir}" ]; then
+		reindex_cmd="bash \"${script_dir}/kaizen-archive.sh\" --reindex"
+	else
+		reindex_cmd="バンドルされた kaizen-archive.sh を --reindex 付きで実行"
+	fi
+	echo "kaizen-status-check: ${errors} lifecycle inconsistency(s); update status/applied-to or ${reindex_cmd}" >&2
 	exit 2
 fi
 

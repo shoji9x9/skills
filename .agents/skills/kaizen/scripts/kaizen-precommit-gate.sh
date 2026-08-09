@@ -162,8 +162,13 @@ fi
 	if [ -n "${scan_agent}" ]; then
 		echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"${sentinel_suffix}\" \"${transcript}\" を別コマンドで実行してください。"
 	else
-		echo "抽出完了時は対象エージェントに応じた suffix（Claude Code は \"\"、Codex は \"-codex\"、Copilot は \"-copilot\"）を選び、次を別コマンドで実行してください。"
-		echo "bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"\" \"${transcript}\""
+		# 走査でエージェントを特定できなかったので、どれを実行するかは人が選ぶ。単一の例を出すと
+		# Codex / Copilot の利用者が Claude Code 用の suffix をそのまま実行し、自分のセンチネルが
+		# 消えずに再ブロックへ戻る。3 通りをそのまま貼れる形で並べる。
+		echo "抽出完了時は、対象エージェントの行を別コマンドで実行してください。"
+		echo "  Claude Code: bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"\" \"${transcript}\""
+		echo "  Codex:       bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"-codex\" \"${transcript}\""
+		echo "  Copilot:     bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"-copilot\" \"${transcript}\""
 	fi
 	echo "その後、git commit を再実行してください。"
 } >&2
