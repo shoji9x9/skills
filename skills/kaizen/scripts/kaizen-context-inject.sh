@@ -78,7 +78,9 @@ pending_index=$(mktemp 2>/dev/null) || exit 0
 trap 'rm -f "${pending_index}"' EXIT
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
-	grep -q '^status: pending' "${f}" 2>/dev/null || continue
+	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
+	# `status: pending` を拾い、frontmatter が applied / rejected のノートまで注入してしまう。
+	[ "$(frontmatter_field "${f}" status)" = "pending" ] || continue
 	priority=$(frontmatter_field "${f}" priority)
 	case "${priority}" in
 	high) rank=0 ;;
@@ -118,7 +120,8 @@ first_line_under() {
 # 提案が無い古い学びは「## 事象」にフォールバックする。
 while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
-	meta=$(grep -E "^(date|type|priority):" "$f" 2>/dev/null | tr '\n' ' ' || true)
+	# meta も frontmatter 限定にする。全文 grep だと本文の `type:` 等を拾って壊れる。
+	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
 	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくし、120 字で切り詰める。
