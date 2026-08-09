@@ -40,7 +40,12 @@ frontmatter_state() {
 			sub(/^applied-to:[[:space:]]*/, "", value)
 			sub(/[[:space:]]+#.*$/, "", value)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-			if (value != "" && value != "[]" && value != "null" && value != "~") nonempty = 1
+			# 空配列は `[]` だけでなく `[ ]` のような空白入りでも書かれる。内部の空白を
+			# 落としてから判定しないと、pending は誤ブロック（空なのに「適用先あり」）、
+			# applied / rejected は検査漏れ（空なのに素通り）になる。
+			compact = value
+			gsub(/[[:space:]]/, "", compact)
+			if (compact != "" && compact != "[]" && compact != "null" && compact != "~") nonempty = 1
 			in_applied = 1
 			next
 		}

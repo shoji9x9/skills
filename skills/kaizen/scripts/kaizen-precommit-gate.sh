@@ -160,7 +160,10 @@ fi
 	echo "kaizen --current を実行し、最重要 1 件を記録してください。"
 	echo "コミットの既定クリティカルパスでは apply を後回しにできます。今すぐ適用する場合だけ apply フローまで続けてください。"
 	if [ -n "${scan_agent}" ]; then
-		echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"${sentinel_suffix}\" \"${transcript}\" を別コマンドで実行してください。"
+		# --agent を含めないと checkpoint の 3 行目が空のまま進み、次に「新レコード 0 件」に
+		# なったとき走査器がエージェントを判定できず fail closed へ落ちる。走査で特定できて
+		# いるのだから案内にも含める。
+		echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"${sentinel_suffix}\" --agent \"${scan_agent}\" \"${transcript}\" を別コマンドで実行してください。"
 	else
 		# 走査でエージェントを特定できなかったので、どれを実行するかは人が選ぶ。単一の例を出すと
 		# Codex / Copilot の利用者が Claude Code 用の suffix をそのまま実行し、自分のセンチネルが
