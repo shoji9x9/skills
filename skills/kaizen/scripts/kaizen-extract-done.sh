@@ -93,7 +93,10 @@ if [ "${mode}" = "checkpoint-only" ] && { [ -z "${transcript}" ] || [ ! -r "${tr
 	exit 2
 fi
 if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
-	checkpoint_tmp=$(mktemp)
+	# mktemp が無い／失敗する環境でも、この後のセンチネル削除と .extract-done 記録まで
+	# 必ず到達させる。ここで set -e に中断されるとゲートを解除する手段が無くなり、
+	# commit が永久に止まる（ゲート解除はこのスクリプトだけが行う）。
+	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp=".kaizen/.extract-checkpoint.tmp.$$"
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
 	# checkpoint の様式:
 	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空可）/ 4 行目 行数
@@ -103,17 +106,26 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# 行位置を固定するため、agent が空でも 3 行目は空行として書く。
 	# wc の出力は実装によって先頭に空白が入る。数値だけを書かないと読み側の
 	# `^[0-9]+$` 検証に落ち、offset が無視されて毎回全走査へ静かに退行する。
-	checkpoint_bytes=$(wc -c <"${transcript}")
+	checkpoint_bytes=$(wc -c <"${transcript}" 2>/dev/null || true)
 	checkpoint_bytes=${checkpoint_bytes//[[:space:]]/}
-	checkpoint_lines=$(wc -l <"${transcript}")
+	checkpoint_lines=$(wc -l <"${transcript}" 2>/dev/null || true)
 	checkpoint_lines=${checkpoint_lines//[[:space:]]/}
-	{
-		printf '%s\n' "${transcript}"
-		printf '%s\n' "${checkpoint_bytes}"
-		printf '%s\n' "${agent}"
-		printf '%s\n' "${checkpoint_lines}"
-	} >"${checkpoint_tmp}"
-	mv "${checkpoint_tmp}" .kaizen/.extract-checkpoint
+	checkpoint_written=0
+	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
+		if printf '%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" \
+			>"${checkpoint_tmp}" 2>/dev/null &&
+			mv "${checkpoint_tmp}" .kaizen/.extract-checkpoint 2>/dev/null; then
+			checkpoint_written=1
+		fi
+	fi
+	if [ "${checkpoint_written}" -eq 0 ]; then
+		echo "kaizen-extract-done: checkpoint を記録できませんでした（次回は transcript を全走査します）" >&2
+		# checkpoint-only は checkpoint を進めること自体が目的。書けないのにセンチネルを
+		# 消すと未処理の活動を取りこぼすので、消さずに失敗させてゲートを fail closed に保つ。
+		if [ "${mode}" = "checkpoint-only" ]; then
+			exit 2
+		fi
+	fi
 fi
 if [ "${mode}" = "complete" ]; then
 	date -u '+%Y-%m-%dT%H:%M:%SZ' >".kaizen/.extract-done"

@@ -9,7 +9,7 @@ tests/*/iteration-*/review.html
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
 **/.kaizen/.extract-done
-**/.kaizen/.extract-checkpoint
+**/.kaizen/.extract-checkpoint*
 
 # scheduled tasks のロックファイル
 .claude/scheduled_tasks.lock

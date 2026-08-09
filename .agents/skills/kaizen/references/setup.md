@@ -341,7 +341,7 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
 **/.kaizen/.extract-done
-**/.kaizen/.extract-checkpoint
+**/.kaizen/.extract-checkpoint*
 ```
 
 `.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 3 種の制御ファイルだけ。
