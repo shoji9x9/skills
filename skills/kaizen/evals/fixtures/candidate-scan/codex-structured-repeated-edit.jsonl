@@ -1,0 +1,2 @@
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/structured-example.md":{"type":"update","unified_diff":"first"}}}}}
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/structured-example.md":{"type":"update","unified_diff":"second"}}}}}

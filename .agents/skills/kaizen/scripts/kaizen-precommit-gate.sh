@@ -1,107 +1,185 @@
 #!/usr/bin/env bash
 # kaizen pre-commit gate (PreToolUse hook)
 #
-# 未抽出のセッション活動（.kaizen/.pending-extract* が存在）が残っている間は
-# `git commit` をブロックし、エージェントに kaizen --current の実行を促す。
-# エージェントが kaizen スキルで抽出を完了するとセンチネルが消え（references/extract.md
-# の手順参照）、再試行した commit が通る。
-# 抽出完了マーカー `.kaizen/.extract-done` が存在する間は、センチネルが再装填されていても
-# 通す（同一セッション内で抽出済みのため。マーカーは SessionStart フックが削除する）。
-#
-# ブロック方式は exit code 2 + stderr を使う。Claude Code / Codex の PreToolUse
-# はどちらも「exit 2 でツール実行をブロックし、stderr をエージェントへ渡す」と
-# 明記されており、JSON 出力スキーマの差を避けられて移植性が高い。
-#
-# PreToolUse フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
+# 非 commit は bash 組み込みの prefilter だけで即時終了する。commit のときは
+# lifecycle 整合を検査し、未抽出センチネルがあれば transcript の未処理部分を走査する。
+# 候補ゼロを検証できた場合だけ自動で checkpoint を進める。候補あり・形式不明・timeout は
+# exit 2 + stderr でブロックし、従来の kaizen --current にフォールバックする。
 set -euo pipefail
 
-# .kaizen/ をプロジェクトルート基準で解決する（kaizen-archive.sh / kaizen-context-inject.sh と統一）。
-# 通常 CLAUDE_PROJECT_DIR=プロジェクトルートで no-op。未設定なら git ルート、git 外は cwd。
-# cd できなければ現状の cwd で続行する（従来挙動を保つ）。
+input=""
+if [ ! -t 0 ]; then
+	# NUL は通常の Hook JSON に現れないため、read 1 回で EOF まで読み込む。cat / jq / python を
+	# 起動する前に非 commit を落とすのが、このフックの hot path。
+	IFS= read -r -d '' input || true
+fi
+
+# Claude Code は setup の handler `if` でも絞る。Codex / Copilot の matcher は tool 名まで
+# なので、この広い prefilter が全 Bash 呼び出しの低コストな第一段になる。
+case "${input}" in
+*git*commit*) ;;
+*) exit 0 ;;
+esac
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
-input=$(cat)
-
-# 実行されようとしているコマンドを取り出す。PreToolUse の入力スキーマはエージェント
-# ごとに微妙に異なる（.tool_input.command / .command / .input.command）。
-# jq に依存しすぎると、jq が無い・壊れている環境（例: mise の shim が untrusted で
-# 失敗する worktree）でコマンドを取り出せず、生 JSON にフォールバックした結果
-# `"git commit ...` が区切り文字判定に合致せず素通りしてしまう。これを防ぐため
-# jq → python3 → 生 JSON の多段フォールバックにし、どの段でも検出できるようにする。
+# Hook 入力から command と transcript_path を取り出す。jq が無い／壊れている環境では
+# python3、それも無ければ生 JSON の command フィールド判定へ縮退する。
 cmd=""
+transcript=""
 extracted=0
-
 if command -v jq >/dev/null 2>&1; then
-	cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // .command // .input.command // empty' 2>/dev/null || true)
-	[ -n "$cmd" ] && extracted=1
+	cmd=$(printf '%s' "${input}" | jq -r '
+		.tool_input.command // .toolArgs.command //
+		(try (.toolArgs | fromjson | .command) catch empty) //
+		.command // .input.command // empty
+	' 2>/dev/null || true)
+	transcript=$(printf '%s' "${input}" | jq -r '.transcript_path // .transcriptPath // .tool_input.transcript_path // .input.transcript_path // empty' 2>/dev/null || true)
+	[ -n "${cmd}" ] && extracted=1
 fi
 
-if [ "$extracted" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
-	cmd=$(printf '%s' "$input" | python3 -c 'import sys, json
+if [ "${extracted}" -eq 0 ] && command -v python3 >/dev/null 2>&1; then
+	cmd=$(printf '%s' "${input}" | python3 -c 'import json, sys
 try:
-    d = json.load(sys.stdin)
+    data = json.load(sys.stdin)
 except Exception:
     sys.exit(1)
-for k in ("tool_input", "input"):
-    v = d.get(k)
-    if isinstance(v, dict) and v.get("command"):
-        print(v["command"]); sys.exit(0)
-if isinstance(d.get("command"), str):
-    print(d["command"]); sys.exit(0)
-sys.exit(1)' 2>/dev/null || true)
-	[ -n "$cmd" ] && extracted=1
+command = ""
+for key in ("tool_input", "toolArgs", "input"):
+    value = data.get(key)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            value = None
+    if isinstance(value, dict) and isinstance(value.get("command"), str):
+        command = value["command"]
+        break
+if not command and isinstance(data.get("command"), str):
+    command = data["command"]
+sys.stdout.write(command)' 2>/dev/null || true)
+	transcript=$(printf '%s' "${input}" | python3 -c 'import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+transcript = data.get("transcript_path", data.get("transcriptPath", ""))
+if isinstance(transcript, str):
+    sys.stdout.write(transcript)' 2>/dev/null || true)
+	[ -n "${cmd}" ] && extracted=1
 fi
 
-# どちらでも取り出せなければ最後の手段として生入力で判定する。
-if [ "$extracted" -eq 0 ]; then
-	cmd="$input"
-fi
-
-# git commit の「実行」だけを対象にする。引数や echo 文字列中に "git commit" という
-# substring が含まれるだけのコマンド（例: echo "... git commit ..." や grep "git commit"）
-# を誤ってブロックしないよう、行頭または区切り文字（`;` `&` `|` `(` のいずれか）直後の
-# git commit に限定する（正規表現の文字クラスは [;&|(]。`)` は含まない）。
-# 生入力フォールバック時はコマンドが JSON で包まれている。ここでクォート (") を単純に
-# 境界扱いすると、エスケープされた文字列（例: echo "git commit"）まで誤検知してしまう。
-# これを避けるため、生入力時は「command フィールドの値が git commit で始まる」場合に
-# 限定して判定する（`"command":"git commit ..."`）。クリーン抽出時は従来どおり区切り
-# 文字の直後を見る。
-if [ "$extracted" -eq 1 ]; then
-	commit_re='(^|[;&|(])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'
+# 区切り文字（行頭・`;` `&` `|` `(` ・改行）の直後だけでなく、環境変数代入と既知の
+# ラッパー（sudo / env / nice 等とその引数）を挟んだ `git commit` も捕捉する。
+# 区切りを単なる空白まで広げると `echo "... git commit ..."` や `man git commit` まで
+# ブロックしてしまうため、先頭に置ける語を列挙する方式にしている。
+wrappers='(sudo|env|command|nohup|nice|time|xargs)'
+assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
+if [ "${extracted}" -eq 1 ]; then
+	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|$)'
 else
-	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*git[[:space:]]+commit([[:space:]]|"|$)'
+	cmd=${input}
+	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|"|$)'
 fi
-
-if ! printf '%s\n' "$cmd" | grep -Eq "$commit_re"; then
+if [[ ! "${cmd}" =~ ${commit_re} ]]; then
 	exit 0
 fi
 
-# 未抽出センチネルが無ければ素通り。
-if ! ls .kaizen/.pending-extract* >/dev/null 2>&1; then
-	exit 0
+# lifecycle の不整合はセンチネルの有無にかかわらず commit を止める。
+if [ -z "${script_dir}" ] || [ ! -r "${script_dir}/kaizen-status-check.sh" ]; then
+	echo "kaizen-precommit-gate: bundled kaizen-status-check.sh is unavailable" >&2
+	exit 2
+fi
+set +e
+status_output=$(bash "${script_dir}/kaizen-status-check.sh" 2>&1)
+status_rc=$?
+set -e
+if [ "${status_rc}" -ne 0 ]; then
+	printf '%s\n' "${status_output}" >&2
+	exit 2
 fi
 
-# 抽出完了マーカーがあれば素通りする（同一セッション内で抽出済み）。Stop フックは
-# ターン終了ごとにセンチネルを再装填するため、これが無いと 1 セッション複数 commit の
-# たびにゲート→抽出が挟まる。マーカーは抽出完了時に kaizen-extract-done.sh が記録し、
-# セッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
+if ! compgen -G '.kaizen/.pending-extract*' >/dev/null; then
+	exit 0
+fi
 if [ -f .kaizen/.extract-done ]; then
 	exit 0
 fi
 
-# ブロックして、エージェントへ次のアクションを指示する。
-# 注意: センチネル削除と git commit を 1 コマンドにまとめると、PreToolUse は
-# 呼び出し全体を実行前に捕捉するため rm が走らずブロックされる。別コマンドに分ける。
-# 案内する kaizen-extract-done.sh は、このスクリプト自身と同じディレクトリにバンドル
-# されているため、実パスを組み立てて表示する（プレースホルダーだとそのまま実行できない）。
-# 万一解決できない場合のみ相対の目安表記にフォールバックする。
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "<kaizen スキルのインストール先>/scripts")
+# transcript_path があり、バンドルされた走査器が読めるときだけ候補ゼロの自動通過を試みる。
+# 走査器の契約: 0=候補あり、1=検証済みゼロ、2=不明。timeout(124) を含む 1 以外は安全側。
+scan_output=""
+scan_rc=2
+scan_agent=""
+sentinel_suffix=""
+if [ -n "${transcript}" ] && [ -r "${script_dir}/kaizen-candidate-scan.sh" ]; then
+	set +e
+	if command -v timeout >/dev/null 2>&1; then
+		scan_output=$(timeout 8 bash "${script_dir}/kaizen-candidate-scan.sh" "${transcript}" .kaizen/.extract-checkpoint 2>&1)
+		scan_rc=$?
+	else
+		scan_output="kaizen-precommit-gate: timeout command is unavailable; automatic transcript scan is disabled"
+		scan_rc=2
+	fi
+	set -e
+	scan_agent=$(sed -n 's/^kaizen-candidate-scan: agent=\(claude-code\|codex\)$/\1/p' <<<"${scan_output}")
+	case "${scan_agent}" in
+	claude-code) sentinel_suffix="" ;;
+	codex) sentinel_suffix="-codex" ;;
+	*) sentinel_suffix="" ;;
+	esac
+
+	if [ "${scan_rc}" -eq 1 ]; then
+		if [ -z "${scan_agent}" ]; then
+			echo "kaizen-precommit-gate: verified-zero scan did not identify its agent; pending sentinels were preserved" >&2
+			exit 2
+		fi
+		set +e
+		# --agent は checkpoint の 3 行目へ記録される。次回、新しいレコードが 1 件も無いとき
+		# （＝前回の走査以降に活動が無いとき）に走査器がエージェントを知る唯一の手掛かりになる。
+		done_output=$(bash "${script_dir}/kaizen-extract-done.sh" --checkpoint-only --sentinel-suffix "${sentinel_suffix}" --agent "${scan_agent}" "${transcript}" 2>&1)
+		done_rc=$?
+		set -e
+		if [ "${done_rc}" -ne 0 ]; then
+			printf 'kaizen-precommit-gate: failed to advance checkpoint: %s\n' "${done_output}" >&2
+			exit 2
+		fi
+		if compgen -G '.kaizen/.pending-extract*' >/dev/null; then
+			echo "kaizen-precommit-gate: another agent still has an unprocessed pending sentinel; commit remains blocked" >&2
+			printf '  %s\n' .kaizen/.pending-extract* >&2
+			exit 2
+		fi
+		exit 0
+	fi
+fi
+
 {
-	echo "未抽出の kaizen 候補があります（.kaizen/.pending-extract*）。"
-	echo "kaizen --current を実行して学びを抽出・適用してください。"
-	echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" を実行してください（センチネル削除と抽出完了マーカー記録。マーカーがある間、同一セッションの commit は再ブロックされません）。"
-	echo "その後、別コマンドで git commit を実行してください。"
-	echo "※ スクリプト実行と git commit を 1 つのコマンドにまとめると、PreToolUse が呼び出し全体を実行前にブロックして失敗します。"
+	if [ "${scan_rc}" -eq 0 ]; then
+		echo "kaizen の学び候補が transcript の未処理範囲で検出されました:"
+		printf '%s\n' "${scan_output}"
+	else
+		echo "未抽出の kaizen 候補を自動判定できませんでした（fail closed）。"
+		[ -n "${scan_output}" ] && printf '%s\n' "${scan_output}"
+	fi
+	echo "kaizen --current を実行し、最重要 1 件を記録してください。"
+	echo "コミットの既定クリティカルパスでは apply を後回しにできます。今すぐ適用する場合だけ apply フローまで続けてください。"
+	if [ -n "${scan_agent}" ]; then
+		# --agent を含めないと checkpoint の 3 行目が空のまま進み、次に「新レコード 0 件」に
+		# なったとき走査器がエージェントを判定できず fail closed へ落ちる。走査で特定できて
+		# いるのだから案内にも含める。
+		echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"${sentinel_suffix}\" --agent \"${scan_agent}\" \"${transcript}\" を別コマンドで実行してください。"
+	else
+		# 走査でエージェントを特定できなかったので、どれを実行するかは人が選ぶ。単一の例を出すと
+		# Codex / Copilot の利用者が Claude Code 用の suffix をそのまま実行し、自分のセンチネルが
+		# 消えずに再ブロックへ戻る。3 通りをそのまま貼れる形で並べる。
+		echo "抽出完了時は、対象エージェントの行を別コマンドで実行してください。"
+		echo "  Claude Code: bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"\" \"${transcript}\""
+		echo "  Codex:       bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"-codex\" \"${transcript}\""
+		echo "  Copilot:     bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"-copilot\" \"${transcript}\""
+	fi
+	echo "その後、git commit を再実行してください。"
 } >&2
 exit 2

@@ -26,7 +26,7 @@ license: MIT
 例: `/kaizen --all` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
 
 - 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
-- **抽出と適用はコミット前ゲートからも駆動される**: 未抽出の活動が残っていると PreToolUse ゲートが `git commit` をブロックし、`kaizen --current`（抽出・適用）を促す。extract と apply はこのフローで連続して行われることが多い。
+- **抽出はコミット前ゲートからも駆動される**: 未抽出の活動があり transcript に候補が見つかる、または安全に判定できないと、PreToolUse ゲートが `git commit` をブロックして `kaizen --current` を促す。候補ゼロを検証できた場合は自動通過する。コミットの既定クリティカルパスは抽出・記録までで、apply はユーザーが今すぐ適用すると選んだ場合だけ続ける。
 
 ## 前提
 
@@ -34,7 +34,7 @@ license: MIT
 - **前提スキル**: `multiagent-setup`（Hook・ドキュメント整備のセットアップで利用。`references/setup.md` 参照）。学びの反映先スキルの検証に `skill-creator` を使えるが任意
 - **MCP**: なし
 - **シェル**: bash（POSIX 互換シェル）。本スキルのコマンド例・設定する Hook（`mkdir -p` / `date -u` 等）は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
-- node / pnpm / python などのランタイムは不要。
+- node / pnpm / python などのランタイムは不要。高速な transcript 候補走査には `jq` を任意利用し、無い場合は従来どおり安全側にブロックする。
 
 ## 基本原則
 

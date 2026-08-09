@@ -1,0 +1,1 @@
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"CommandExecution","status":"failed","exit_code":2,"command":["bash","-lc","shellcheck broken.sh"],"formatted_output":"Process exited with code 2: shellcheck broken.sh"}}}

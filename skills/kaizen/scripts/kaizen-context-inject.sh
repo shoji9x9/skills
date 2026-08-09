@@ -10,7 +10,7 @@
 # 中身そのものを供給する点が echo リマインダーと異なる（references/extract.md
 # 「使わない方式」参照）。Claude Code は SessionStart の stdout を context に注入する。
 # Codex は plain text の stdout を extra developer context として追加する
-# (https://developers.openai.com/codex/hooks#sessionstart)。
+# (https://learn.chatgpt.com/docs/hooks#sessionstart)。
 # Copilot は注入可否がドキュメント上不明確なため、効けば
 # 加点・効かなくても無害というベストエフォート。失敗してもセッションを止めない
 # よう常に exit 0 で抜ける。
@@ -46,13 +46,60 @@ if [ ! -d .kaizen ]; then
 	exit 0
 fi
 
-# pending な学びファイルだけを対象にする（適用済み/却下済みは現在の作業に不要）。
-pending_files=$(grep -l "^status: pending" .kaizen/*.md 2>/dev/null || true)
-if [ -z "$pending_files" ]; then
+# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
+# `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
+# pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
+# するのでパイプが要らず、読めないファイルは `|| true` で空文字に倒せる。
+# 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
+frontmatter_field() {
+	awk -v key="$2" '
+		BEGIN { fm = 0 }
+		/^---[[:space:]]*$/ {
+			fm++
+			if (fm == 2) exit
+			next
+		}
+		fm == 1 && index($0, key ":") == 1 {
+			value = substr($0, length(key) + 2)
+			sub(/^[[:space:]]+/, "", value)
+			sub(/[[:space:]]+$/, "", value)
+			print value
+			exit
+		}
+	' "$1" 2>/dev/null || true
+}
+
+# pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
+# 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
+# ベストエフォート（常に exit 0）を守るため、一時ファイルの作成・追記・整列が失敗したら
+# 注入を諦めて正常終了する。set -e のままだと mktemp 不在・TMPDIR 不正・書き込み失敗で
+# SessionStart フックが非 0 終了し、学びの供給という加点機能がセッション開始を汚す。
+pending_index=$(mktemp 2>/dev/null) || exit 0
+trap 'rm -f "${pending_index}"' EXIT
+for f in .kaizen/*.md; do
+	[ -e "${f}" ] || continue
+	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
+	# `status: pending` を拾い、frontmatter が applied / rejected のノートまで注入してしまう。
+	[ "$(frontmatter_field "${f}" status)" = "pending" ] || continue
+	priority=$(frontmatter_field "${f}" priority)
+	case "${priority}" in
+	high) rank=0 ;;
+	medium) rank=1 ;;
+	low) rank=2 ;;
+	*) rank=3 ;;
+	esac
+	date_value=$(frontmatter_field "${f}" date)
+	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
+done
+sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
+
+if [ ! -s "${pending_index}" ]; then
 	exit 0
 fi
 
-count=$(printf '%s\n' "$pending_files" | grep -c . || true)
+# wc の出力は実装によって先頭に空白が入るため数値だけに正規化する。
+count=$(wc -l <"${pending_index}")
+count=${count//[[:space:]]/}
 
 echo "## kaizen: 未適用の学び（${count} 件）"
 echo ""
@@ -71,9 +118,10 @@ first_line_under() {
 # 要約は「## 提案」（＝一般化された行動規律）を優先する。事象（個別事案）の冒頭だけだと
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
 # 提案が無い古い学びは「## 事象」にフォールバックする。
-printf '%s\n' "$pending_files" | while IFS= read -r f; do
+while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
-	meta=$(grep -E "^(date|type|priority):" "$f" 2>/dev/null | tr '\n' ' ' || true)
+	# meta も frontmatter 限定にする。全文 grep だと本文の `type:` 等を拾って壊れる。
+	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
 	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくし、120 字で切り詰める。
@@ -81,7 +129,7 @@ printf '%s\n' "$pending_files" | while IFS= read -r f; do
 	# shellcheck disable=SC2016
 	summary=$(printf '%s' "$summary_src" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' | cut -c1-120 || true)
 	echo "- \`${f}\` — ${meta}— ${summary}"
-done
+done <"${pending_index}"
 
 echo ""
 echo "詳細は各ファイルを参照。適用するには kaizen スキルの apply フローを使う。"

@@ -1,0 +1,915 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-09T22:14:57Z",
+    "evals_run": [1, 4, 7, 8, 9, 11, 12, 13, 14, 15],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 106.7,
+        "tokens": 6806,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": "project-tree.txt に ./.kaizen がある"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": true,
+          "evidence": ".kaizen/2026-08-09-verify-path-before-reference.md の 1 件のみ"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+          "passed": true,
+          "evidence": "frontmatter は date/type/priority/status/applied-to/session を持つ"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": true,
+          "evidence": "本文に ## 事象 / ## 根本原因 / ## 提案 がある"
+        },
+        {
+          "text": "status が pending、applied-to が空配列になっている",
+          "passed": true,
+          "evidence": "status: pending、applied-to: [] "
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "3 階層の why を辿り「パスを出力・実行する前に実在確認する規律が無い」を根本原因としている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 56.5,
+        "tokens": 3693,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-context-inject.sh を fixture ルート基準で実行し、HIGH_OLD, HIGH_NEW, MEDIUM, LOW, UNKNOWN の順で出力されたことを示している",
+          "passed": true,
+          "evidence": "CLAUDE_PROJECT_DIR を fixture ルートに設定して kaizen-context-inject.sh を実行し HIGH_OLD, HIGH_NEW, MEDIUM, LOW, UNKNOWN の順の出力を貼っている"
+        },
+        {
+          "text": "同じ high の中で date 昇順（2026-07-01 が 2026-08-01 より先）になり、未知の priority が最末尾でも処理が失敗していない",
+          "passed": true,
+          "evidence": "high 同士は date 昇順（2026-07-01 が先）で priority: legacy-value は rank 3 として末尾に回り失敗していないと説明している"
+        },
+        {
+          "text": "high は作業停止、medium は実時間損失または手戻り、low は papercut と説明している",
+          "passed": true,
+          "evidence": "high=作業を続行できず止まった / medium=実時間を失った・手戻り / low=papercut と表で示している"
+        },
+        {
+          "text": "--current の選択根拠として実際の影響度を、KEDB の反復・根本原因の明確さ・対策の具体性より先に評価している",
+          "passed": true,
+          "evidence": "--current の優先順位を 1. 実際の影響度 high>medium>low, 2. 繰り返し発生, 3. 根本原因が明確, 4. 対策が具体的 の順で挙げている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 100.2,
+        "tokens": 6775,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-kedb-match.sh に事象語と hook または対象パスの複数キーワードを渡して照合している",
+          "passed": true,
+          "evidence": "kaizen-kedb-match.sh に「サブディレクトリ」「pre-commit」「制御ファイル」等の複数キーワードを渡し、単語 1 つでは exit 2 になることも示している"
+        },
+        {
+          "text": "fixture の 2026-08-01-hook-path-resolution.md を status=pending のヒットとして特定している",
+          "passed": true,
+          "evidence": ".kaizen/2026-08-01-hook-path-resolution.md status=pending を主ヒットとして特定している"
+        },
+        {
+          "text": "新しい学びファイルを作らず、既存 pending ノートの priority を上げて事象・提案を追記する扱いを選んでいる",
+          "passed": true,
+          "evidence": "新規ファイルを作らず priority: medium → high への引き上げと ## 事象 / ## 提案 への追記案を提示している"
+        },
+        {
+          "text": "ONLY_ARCHIVE_BODY_MARKER と空でない第2キーワードを渡した検索が出力なし・exit 1 になる一方、INDEX.md にある語の検索は archived ノートを検出して exit 0 になることを示している",
+          "passed": true,
+          "evidence": "ONLY_ARCHIVE_BODY_MARKER + hook が exit 1、archive 本文の直接 grep が exit 0、INDEX 経由の語（サブディレクトリ + hook）で archived ノートが exit 0 で出ることを表で示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 84.4,
+        "tokens": 4986,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "根本原因の所有者が外部にいるため type: upstream と分類している",
+          "passed": true,
+          "evidence": "所有者判定で上流と出たため type: upstream に分類し、rule/doc に丸めない理由も述べている"
+        },
+        {
+          "text": "frog が導入済みなら frog targets の opt-in を確認して frog log --target を使い、0 件・未設定・失敗時は停止せず次へ進む",
+          "passed": true,
+          "evidence": "frog 導入済みなら frog targets の opt-in を確認して frog log --target、0 件・App 未設定・inbound 無効・失敗は停止せず経路 2 へ進むと分岐図で示している"
+        },
+        {
+          "text": "frog を利用できない場合は issue-create に委譲するが、起票先とドラフトを示してユーザー承認を得るまで外部 Issue を作成しない",
+          "passed": true,
+          "evidence": "issue-create へ委譲し、起票先・ドラフト・既存 Issue 確認を判断材料として提示、承認まで作成しないと明記して実際に承認待ちで停止している"
+        },
+        {
+          "text": "上流報告できない場合はローカル回避策に上流 Issue または修正版を基準とする撤去条件を併記する",
+          "passed": true,
+          "evidence": "経路 3 で「上流 Issue #NNN が close、または CLI vX.Y.Z 以降で本ファイルを削除」という撤去条件を同じ成果物に明記すると述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 112.8,
+        "tokens": 6780,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-status-check.sh が exit 2 となり、pending-with-target と applied-empty の両ファイルを status/applied-to 不整合として出力したことを示している",
+          "passed": true,
+          "evidence": "CLAUDE_PROJECT_DIR を明示して kaizen-status-check.sh を実行し EXIT=2 と 4 行の stderr を貼り、pending-with-target / applied-empty を status/applied-to 不整合として表に分類している"
+        },
+        {
+          "text": "archive の 2026-06-01-archived.md 欠落と INDEX.md の 2026-06-02-stale.md 過剰を両方検出している",
+          "passed": true,
+          "evidence": "2026-06-01-archived.md の found 0（エントリ欠落）と INDEX.md の 2026-06-02-stale.md（実体なし）を両方 4 件の内訳として挙げている"
+        },
+        {
+          "text": "found 0 の理由として、バンドルされた kaizen-status-check.sh のエントリ抽出が行頭の - `<name>.md` 形式だけを拾う sed 式に限られる点を、その実装（式または該当行）を引いて説明している",
+          "passed": true,
+          "evidence": "kaizen-status-check.sh:81,97 の sed 式 s/^- `\\([^`]*\\.md\\)` .*$/\\1/p を引用し、行頭アンカー・文字クラスがバッククォートを除外する点・awk の完全一致の 3 点で found 0 を説明し、sed 出力 1 行 vs grep -c 1 の実測を並べている"
+        },
+        {
+          "text": "legacy-applied.md は applied-to フィールド自体が無い旧形式なのでエラー対象になっていないことを出力と照合している",
+          "passed": true,
+          "evidence": "legacy-applied.md が 4 行の出力に一切現れないことを指摘し、kaizen-status-check.sh:59-61 の後方互換分岐と present / nonempty の 2 フラグ表で理由を示している"
+        },
+        {
+          "text": "修正後は status: applied と applied-to の成果物パスまたは Issue 番号を対にし、kaizen-archive.sh --reindex 後に再検査すると説明している",
+          "passed": true,
+          "evidence": "status: applied と applied-to の成果物パスまたは #123 を対にし、INDEX は手編集せず kaizen-archive.sh --reindex で再生成したうえで、同じ kaizen-status-check.sh を再実行して stderr 空・EXIT=0 を合格条件とすると述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 184.1,
+        "tokens": 12910,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "claude-no-candidate.jsonl と codex-no-candidate.jsonl は exit 1、claude-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・correction-at-boundary.jsonl は exit 0、unknown.jsonl は exit 2 という実測結果を示している",
+          "passed": true,
+          "evidence": "9 fixture すべての exit を表で示し、no-candidate 2 件が 1、候補あり 6 件が 0、unknown が 2 という実測と一致している"
+        },
+        {
+          "text": "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+          "passed": true,
+          "evidence": "Script completed 本文中の exit code 2 は先頭一致しないため候補にせず、Script failed の runner envelope は候補にすると弁別を説明している"
+        },
+        {
+          "text": "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 2 回を repeated edit として候補にする",
+          "passed": true,
+          "evidence": "event_msg.item_completed の CommandExecution.status=failed を tool error、FileChange.changes の同一パス 2 回目を repeated edit にすると説明している"
+        },
+        {
+          "text": "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+          "passed": true,
+          "evidence": "Claude Code は handler if を Bash(git commit *) に限定、Codex / Copilot は matcher がツール名までのためスクリプト内 prefilter を第一段にすると表で示している"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "prefilter の case を通過した後にしか jq / python3 / git rev-parse が実行されないと明記し約 2 ms/call の実測を添えている"
+        },
+        {
+          "text": "transcript_path と .kaizen/.extract-checkpoint の間だけを走査し、検証済み候補ゼロなら checkpoint とセンチネルだけを更新して session-wide .extract-done は作らず commit を通す",
+          "passed": true,
+          "evidence": "checkpoint の 1 行目パス・2 行目 offset と tail -c で間だけを走査し、候補ゼロでは --checkpoint-only により .extract-done を作らず checkpoint とセンチネルだけ更新して commit を通すと説明している"
+        },
+        {
+          "text": ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
+          "passed": true,
+          "evidence": "一時プロジェクトで .pending-extract-codex と -copilot を同時に置き、Codex 分だけ削除され -copilot が残って exit 2 でブロックされる出力を実証している"
+        },
+        {
+          "text": "候補あり、未知形式、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促す",
+          "passed": true,
+          "evidence": "候補あり / 未知形式 / 読めない transcript / jq 不在 / 内部 timeout / timeout コマンド不在 をすべて fail closed として列挙している"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": true,
+          "evidence": "既定クリティカルパスは抽出・記録と extract-done まで、apply は明示選択時だけと述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 122.9,
+        "tokens": 8488,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": ".claude/settings.json の hooks に Stop がある"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、未抽出センチネル .kaizen/.pending-extract を作成する設定になっている",
+          "passed": true,
+          "evidence": "Stop は kaizen-stop-mark.sh を呼び、project-tree に .kaizen/.pending-extract が生成されている"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop の handler は type: command のみで echo リマインダーが無い"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "PreToolUse は matcher: \"Bash\"、handler に \"if\": \"Bash(git commit *)\" と kaizen-precommit-gate.sh がある"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "センチネル有りの git commit が exit 2 でブロックされ stderr で kaizen --current を促すことを実行して確認している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 70.9,
+        "tokens": 4322,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新し applied-to に AGENTS.md を記録すべきと案内している",
+          "passed": true,
+          "evidence": "status: pending → applied に更新し applied-to に AGENTS.md を列挙する diff を提示している"
+        },
+        {
+          "text": "kaizen-status-check.sh で status と applied-to の整合を検査すると案内している",
+          "passed": true,
+          "evidence": "kaizen-status-check.sh を実行して status と applied-to の食い違いを exit 2 + stderr で検出すると案内している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 92.7,
+        "tokens": 6915,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "references/setup.md の 4-1〜4-4 を参照して手順を進めている"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": true,
+          "evidence": "基底ドキュメント CLAUDE.md を新規作成し「エージェントの自己設定編集について」節と可否表を追記している"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": true,
+          "evidence": "同節に Claude Code は .claude/settings.json 編集不可であり tmp へ書き出して `! cp <tmp> <設定ファイル>` をユーザーに依頼する旨を記述している"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "Stop / PreToolUse(commit ゲート) / SessionStart の 3 Hook を settings.json に設定している"
+        },
+        {
+          "text": ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done、**/.kaizen/.extract-checkpoint を追加しようとしている（.kaizen/ 本体はコミット対象のまま）",
+          "passed": true,
+          "evidence": "project-files/.gitignore に **/.kaizen/.pending-extract* / .extract-done / .extract-checkpoint の 3 パターンがあり .kaizen/ 本体は除外していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 321.8,
+        "tokens": 21575,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": true,
+          "evidence": "rule/doc ではなく scripts/measure-isolated.sh という実行可能な機構を第一候補にし、apply.md の決定性基準と対応表で根拠を示している"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「手順の記述で閉じるならそれは知識であって仕組みではない」「同じ組み立てを人が毎回再現している対策はツール側の既定挙動にする」を引用している"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、applied-to に成果物パスを記録して kaizen-status-check.sh で検査すると述べている",
+          "passed": true,
+          "evidence": "status を pending → applied、applied-to: [scripts/measure-isolated.sh] に更新し kaizen-status-check.sh が exit 0 であることを示している"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "「このブランチで継続するか、対策ごとに Issue を立てて別ブランチで詰めるか」の二択を提示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333333333333333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 47.4,
+        "tokens": 2917,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".kaizen/ ディレクトリが作成されている",
+          "passed": true,
+          "evidence": ".kaizen/ を新規作成している"
+        },
+        {
+          "text": ".kaizen/*.md ファイルが 1 件作成されている",
+          "passed": false,
+          "evidence": ".kaizen/ に 2026-08-09-verify-path-before-write.md と README.md の 2 つの .md を作成している"
+        },
+        {
+          "text": "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+          "passed": false,
+          "evidence": "frontmatter は date/title/type/trigger/tags で status・priority・applied-to が無い"
+        },
+        {
+          "text": "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+          "passed": false,
+          "evidence": "見出しは 何が起きたか / なぜ問題か / どう行動を変えるか で規定のセクション名でない"
+        },
+        {
+          "text": "status が pending、applied-to が空配列になっている",
+          "passed": false,
+          "evidence": "status フィールド自体が無く applied-to も無い"
+        },
+        {
+          "text": "個別の失敗ではなく根本原因が記述されている",
+          "passed": true,
+          "evidence": "「パスの取り違えは内容レビューで検出できない」「存在しないパスへの書き込みはエラーにならず可視化されない」と一般化した原因を書いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 84.1,
+        "tokens": 5649,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-context-inject.sh を fixture ルート基準で実行し、HIGH_OLD, HIGH_NEW, MEDIUM, LOW, UNKNOWN の順で出力されたことを示している",
+          "passed": false,
+          "evidence": "注入スクリプトが環境に無いため実行できず、出力順を示していない"
+        },
+        {
+          "text": "同じ high の中で date 昇順（2026-07-01 が 2026-08-01 より先）になり、未知の priority が最末尾でも処理が失敗していない",
+          "passed": false,
+          "evidence": "同上。fixture の生データを日付昇順で並べただけで、tie-break や未知 priority の挙動は「実装を見ないと断定できない」としている"
+        },
+        {
+          "text": "high は作業停止、medium は実時間損失または手戻り、low は papercut と説明している",
+          "passed": false,
+          "evidence": "high / medium / low の基準は「推測で書けば creative writing になる」として提示していない"
+        },
+        {
+          "text": "--current の選択根拠として実際の影響度を、KEDB の反復・根本原因の明確さ・対策の具体性より先に評価している",
+          "passed": false,
+          "evidence": "--current の選択順は提示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 74.6,
+        "tokens": 4813,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-kedb-match.sh に事象語と hook または対象パスの複数キーワードを渡して照合している",
+          "passed": false,
+          "evidence": "バンドルスクリプトが無いため grep -rn で代替しており kaizen-kedb-match.sh を使っていない"
+        },
+        {
+          "text": "fixture の 2026-08-01-hook-path-resolution.md を status=pending のヒットとして特定している",
+          "passed": true,
+          "evidence": "grep で 2026-08-01-hook-path-resolution.md を特定し status: pending を読み取っている（汎用 grep で満たせる非弁別項目）"
+        },
+        {
+          "text": "新しい学びファイルを作らず、既存 pending ノートの priority を上げて事象・提案を追記する扱いを選んでいる",
+          "passed": true,
+          "evidence": "新規ノートを作らず priority を medium → high、## 事象 に再発 1 行追記を提案している（同上）"
+        },
+        {
+          "text": "ONLY_ARCHIVE_BODY_MARKER と空でない第2キーワードを渡した検索が出力なし・exit 1 になる一方、INDEX.md にある語の検索は archived ノートを検出して exit 0 になることを示している",
+          "passed": false,
+          "evidence": "marker の exit 1 と archive 本文直接 grep の exit 0 は示したが、INDEX.md にある語の検索で archived ノートが exit 0 で出ることは示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 73.9,
+        "tokens": 4332,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "根本原因の所有者が外部にいるため type: upstream と分類している",
+          "passed": false,
+          "evidence": "「type の正式な列挙値を持つ仕様が存在しないため確定値としては提示しない」とし upstream / external-dependency の 2 候補を併記するに留まる"
+        },
+        {
+          "text": "frog が導入済みなら frog targets の opt-in を確認して frog log --target を使い、0 件・未設定・失敗時は停止せず次へ進む",
+          "passed": false,
+          "evidence": "frog targets / frog log --target への言及が無く、0 件は no-op 記録とするだけで opt-in 確認の経路が無い"
+        },
+        {
+          "text": "frog を利用できない場合は issue-create に委譲するが、起票先とドラフトを示してユーザー承認を得るまで外部 Issue を作成しない",
+          "passed": false,
+          "evidence": "承認前に起票しない点は述べているが issue-create への委譲が無い"
+        },
+        {
+          "text": "上流報告できない場合はローカル回避策に上流 Issue または修正版を基準とする撤去条件を併記する",
+          "passed": false,
+          "evidence": "上流修正後に回避策を撤去する判断の話はあるが、回避策へ撤去条件（上流 Issue / 修正版）を併記するとは述べていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 288.6,
+        "tokens": 10370,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "kaizen-status-check.sh が exit 2 となり、pending-with-target と applied-empty の両ファイルを status/applied-to 不整合として出力したことを示している",
+          "passed": false,
+          "evidence": "バンドル版が無いため自作の /tmp/kaizen-lifecycle-check.py を書いて EXIT=1 と報告しており kaizen-status-check.sh の exit 2 ではない"
+        },
+        {
+          "text": "archive の 2026-06-01-archived.md 欠落と INDEX.md の 2026-06-02-stale.md 過剰を両方検出している",
+          "passed": true,
+          "evidence": "欠落と stale を両方 NG として挙げている（INDEX と archive の実ファイルを突き合わせれば演繹でき baseline も満たす後退検知項目）"
+        },
+        {
+          "text": "found 0 の理由として、バンドルされた kaizen-status-check.sh のエントリ抽出が行頭の - `<name>.md` 形式だけを拾う sed 式に限られる点を、その実装（式または該当行）を引いて説明している",
+          "passed": false,
+          "evidence": "行頭アンカーの説明はしているが根拠は自作の grep -oP（「本実装では」と明記）で、バンドル版 kaizen-status-check.sh の sed 式は引用できていない"
+        },
+        {
+          "text": "legacy-applied.md は applied-to フィールド自体が無い旧形式なのでエラー対象になっていないことを出力と照合している",
+          "passed": true,
+          "evidence": "キー不在と空リストを区別し、旧形式は不明として素通しする設計だと表つきで説明している"
+        },
+        {
+          "text": "修正後は status: applied と applied-to の成果物パスまたは Issue 番号を対にし、kaizen-archive.sh --reindex 後に再検査すると説明している",
+          "passed": false,
+          "evidence": "INDEX.md へ 1 行手で追記する修正を提示し、確認も自作スクリプトの再実行で、kaizen-archive.sh --reindex による再生成に言及していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2222222222222222,
+        "passed": 2,
+        "failed": 7,
+        "total": 9,
+        "time_seconds": 327.7,
+        "tokens": 21793,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "claude-no-candidate.jsonl と codex-no-candidate.jsonl は exit 1、claude-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・correction-at-boundary.jsonl は exit 0、unknown.jsonl は exit 2 という実測結果を示している",
+          "passed": false,
+          "evidence": "バンドル版が無いため自作の参照実装を書いて実行しており、バンドル走査器の実測ではない"
+        },
+        {
+          "text": "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+          "passed": true,
+          "evidence": "Script completed の本文中 exit code 2 を naive grep のトラップとして回避し、Script failed の先頭状態行を tool error にすると弁別している（fixture の設計から演繹でき baseline も満たす）"
+        },
+        {
+          "text": "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 2 回を repeated edit として候補にする",
+          "passed": true,
+          "evidence": "CommandExecution status=failed と FileChange の同一パス 2 回をそれぞれ検出している（同上）"
+        },
+        {
+          "text": "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+          "passed": false,
+          "evidence": "「PostToolUse はツール単位の粒度が必要な場合だけ」として Stop 側へ寄せる設計で、handler if を Bash(git commit *) に限定する commit 前ゲートも tool-name matcher の prefilter も採っていない"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": false,
+          "evidence": "hook は毎回 jq を起動して transcript_path を取り出す設計で、非 commit を外部プロセス 0 回で落とす prefilter が無い"
+        },
+        {
+          "text": "transcript_path と .kaizen/.extract-checkpoint の間だけを走査し、検証済み候補ゼロなら checkpoint とセンチネルだけを更新して session-wide .extract-done は作らず commit を通す",
+          "passed": false,
+          "evidence": "独自の ~/.cache/kaizen/checkpoints/<session_id>.json を提案しており、.kaizen/.extract-checkpoint との差分走査・センチネル・.extract-done を作らない自動通過の経路が無い"
+        },
+        {
+          "text": ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
+          "passed": false,
+          "evidence": "エージェント別センチネルの概念が無く、マルチセンチネルの分岐も示していない"
+        },
+        {
+          "text": "候補あり、未知形式、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促す",
+          "passed": false,
+          "evidence": "fail closed の分岐（候補あり・未知形式・読めない transcript・jq 不在・内部 timeout）を kaizen --current へ結びつける記述が無い"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "コミット前のクリティカルパスという概念自体が無い（commit 経路に介入しない設計）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 392.9,
+        "tokens": 28788,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": false,
+          "evidence": "hooks は PreToolUse のみで Stop イベントが無い"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、未抽出センチネル .kaizen/.pending-extract を作成する設定になっている",
+          "passed": false,
+          "evidence": "自作の ~/.claude/hooks/kaizen-precommit.sh を使い、バンドル済み kaizen-stop-mark もセンチネルも無い"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop Hook 自体が無いため echo リマインダーも無い（空振りで満たす非弁別項目）"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": false,
+          "evidence": "PreToolUse の matcher は Bash だが呼ぶのは自作スクリプトで kaizen-precommit-gate ではない"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている",
+          "passed": false,
+          "evidence": "「最優先ルール: このコミットを絶対にブロックしないこと」「コミットをブロックしません」と明記し設計思想が逆"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 2,
+        "total": 2,
+        "time_seconds": 41.9,
+        "tokens": 2392,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映（適用）が完了したら当該ファイルの status を pending から applied に更新し applied-to に AGENTS.md を記録すべきと案内している",
+          "passed": false,
+          "evidence": "基本方針は「反映済みのエントリは .kaizen に残さない」＝削除。status: applied の記録は選択肢の一つに留まり applied-to への記録には言及が無い"
+        },
+        {
+          "text": "kaizen-status-check.sh で status と applied-to の整合を検査すると案内している",
+          "passed": false,
+          "evidence": "整合検査スクリプトへの言及が無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 60.7,
+        "tokens": 3704,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": false,
+          "evidence": "kaizen がこの環境に無いと結論し入手元を尋ねて停止。references/setup.md に到達していない"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": false,
+          "evidence": "基底ドキュメントを作成・追記していない（project-tree は空）"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": false,
+          "evidence": "自己改変ガードへの言及が無い"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": false,
+          "evidence": "Hook を 1 つも設定していない"
+        },
+        {
+          "text": ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done、**/.kaizen/.extract-checkpoint を追加しようとしている（.kaizen/ 本体はコミット対象のまま）",
+          "passed": false,
+          "evidence": ".gitignore を作成していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 146.2,
+        "tokens": 8286,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+          "passed": false,
+          "evidence": "反映先に .claude/skills/baseline-isolation/SKILL.md（散文の skill）を選んでいる。機構化は再発時のエスカレーション先として先送りしている"
+        },
+        {
+          "text": "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+          "passed": true,
+          "evidence": "「Skill という『思い出す必要がある仕組み』では強制力が足りない」と決定性の観点を述べている（fixture の 5 回反復という事実から演繹でき弁別が弱い項目）"
+        },
+        {
+          "text": "反映後に当該ファイルの status を pending から applied に更新し、applied-to に成果物パスを記録して kaizen-status-check.sh で検査すると述べている",
+          "passed": false,
+          "evidence": "独自の applied_to（アンダースコア）と applied: 日付 を使い、kaizen-status-check.sh への言及が無い"
+        },
+        {
+          "text": "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている",
+          "passed": false,
+          "evidence": "ブランチ継続か Issue 作成かの二択をユーザーに確認していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 125.3,
+        "stddev": 77.1982,
+        "min": 56.5,
+        "max": 321.8
+      },
+      "tokens": {
+        "mean": 8325.0,
+        "stddev": 5315.853,
+        "min": 3693,
+        "max": 21575
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1906,
+        "stddev": 0.1856,
+        "min": 0.0,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 153.8,
+        "stddev": 131.5141,
+        "min": 41.9,
+        "max": 392.9
+      },
+      "tokens": {
+        "mean": 9304.4,
+        "stddev": 8919.096,
+        "min": 2392,
+        "max": 28788
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.81",
+      "time_seconds": "-28.5",
+      "tokens": "-979"
+    }
+  },
+  "notes": [
+    "Issue #183（frog の設計取り込み・ライフサイクル機構化）実装後の回帰。対象は assertion を変更した eval 1/4/7/8/9 と新規 eval 11-15 の 10 件。未変更の eval 2/3/5/6/10 は今回走らせていない。",
+    "with_skill は 48 アサーション全通過（10 eval すべて 1.00）。without_skill は 10/48。Delta +0.81 は eval ごとの pass_rate 平均差。",
+    "1 run/configuration のため configuration 内の分散は測っていない（表の ± は eval 間のばらつき）。run 間の揺れを見るなら 3 run へ増やす必要がある。",
+    "初回実行で eval-14 without_skill・eval-15 両 configuration がセッション上限（api_error）で失敗した。上限リセット後に同一プロンプト・同一 fixture で再実行し、その結果を採用している。",
+    "PR #184 のレビュー対応で測定対象スクリプトは 9 回変更された。最終 HEAD（ゲート正規表現の許容リスト化まで）に対して eval-14 と eval-15 を取り直しており、両者が今回の変更（applied-to の空白入り空配列・未知 status の検出・mktemp フォールバック・checkpoint 4 行・ゲート正規表現）を直接踏む。契約（終了コード・出力様式・設定様式）が変わっていない他の eval は取り直していない。",
+    "修正 1（fixture の答え漏れ）: lifecycle-inconsistent の archive/INDEX.md の summary が、eval-14 のアサーションが検査している結論そのものを英語で書いていた（.agents/rules/eval-assertion-discrimination.md「入力が答えを持っていないか」に抵触）。下流に実在しうる日本語の summary へ置換し、バッククォート付き basename を別エントリの summary に置く罠は維持した。",
+    "修正 2（採点材料の穴）: run-skill-eval.sh の project-files スナップショットが拡張子ベースで .gitignore を拾わず、eval-8 のアサーション 5 が内容照合できなかった。.gitignore / .gitattributes を名前で対象に追加し docs/skill-development.md も更新。再実行では with_skill の .gitignore が実際に採取され 3 パターンを直接照合して採点している。",
+    "修正 3（非弁別項目の差し替え）: 修正 1 の後も eval-14 の旧アサーション 2 は baseline が満たした（INDEX 1 行と archive 実ファイルを突き合わせれば演繹でき、否定形は満たしやすい）。ルールの「検査項目を skill 固有側へ替える」に従い、プロンプトへ問いを追加し、アサーションを後退検知（両方検出）と弁別（kaizen-status-check.sh の sed 式を引用）の 2 本へ分割した。最終 run でも with_skill は該当行と sed 式を引いて PASS、baseline は自作の grep -oP を「本実装では」と断って FAIL。狙いどおり弁別している。",
+    "修正 4（アサーション 5 の到達性）: 「--reindex 後に再検査する」は run 間で言及が揺れた。プロンプトへ確認手順を問う一文を足した。最初の文言「修正をすべて適用した後に…」は適用の指示と読まれて run が読み取り専用でなくなり、result.json（最終メッセージのみ）に前半の根拠が残らず採点不能になったため、「その修正手順には、整合が取れたことをどう確認するかまで含めて」へ直して取り直した。",
+    "ハーネスの制約（今回判明）: run の採点材料になるのは result.json の最終アシスタントメッセージと project-files / project-tree だけ。プロンプトが作業の実行を誘発すると回答が複数メッセージに分かれ、前半の根拠が採取物から落ちる。eval プロンプトは「実行させる」より「1 つの報告にまとめさせる」形にする。",
+    "read 隔離: without_skill 10 run すべて contamination verdict = clean。baseline は 10 run 中 8 run で「kaizen スキルがこの環境に無い」と明示的に報告しており、スキル資産への到達は起きていない。",
+    "非弁別アサーション（baseline も満たした 10 項目）: eval-1 の .kaizen 作成／根本原因記述、eval-4 の「Stop に echo が無い」（Stop Hook 自体が無く空振りで成立）、eval-9 の決定性の言及、eval-12 の既存ノート特定と追記方針、eval-14 の archive 不整合検出と旧形式の扱い、eval-15 の Codex transcript 弁別 2 項目。いずれも汎用の grep / 自作スクリプトで到達できる。後退検知として残す。",
+    "時間・トークンは with_skill 側が短く少ないが、eval-4 without_skill が 392.9s / 34k tokens（自作 hook 実装）と外れ値で、両者のばらつきが大きい。この差は有意と読まない。"
+  ]
+}

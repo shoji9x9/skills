@@ -1,0 +1,8 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"README の構成を確認してください"}]}}
+{"type":"agent-name","agentName":"fixture-agent","sessionId":"fixture-session"}
+{"type":"queue-operation","operation":"enqueue"}
+{"type":"started","agentId":"fixture-agent","key":"fixture-task"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"確認しました。"}]}}
+{"type":"result","agentId":"fixture-agent","key":"fixture-task","result":{"summary":"read-only inspection completed"}}
+{"type":"pr-link","prNumber":183}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"次にテスト結果も確認してください"}]}}

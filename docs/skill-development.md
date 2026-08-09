@@ -121,7 +121,13 @@ scripts/run-skill-eval.sh \
 各 run の `result.json`、`project-tree.txt`、`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。`project-files/` には採点に使う軽量なテキスト生成物だけを保存し、使い捨てプロジェクト全体は `tests/` 配下へコピーしない。採点後に下記の集計へ進む。
 
 - **「`project-files/` に無い ＝ 生成しなかった」と判定する前に `project-files-skipped.txt` を見る。** サイズ上限・読み取り失敗でスナップショットから漏れたファイルがここに理由付きで記録される（0 行なら漏れなし）。
-  スナップショット対象の拡張子は `.md` / `.txt` / `.json` / `.yml` / `.yaml` / `.toml` / `.sh` / `.js` / `.mjs` / `.ts` / `.tsx` / `.sql`。**これ以外の拡張子は最初から対象外**で skipped にも載らないため、その判定には `project-tree.txt`（全パスを列挙）を使う。
+  スナップショット対象の拡張子は `.md` / `.txt` / `.json` / `.yml` / `.yaml` / `.toml` / `.sh` / `.js` / `.mjs` / `.ts` / `.tsx` / `.sql`。
+  拡張子を持たない設定ファイルは `.gitignore` / `.gitattributes` だけを名前で対象に含める。
+  **これ以外は最初から対象外**で skipped にも載らないため、その判定には `project-tree.txt`（全パスを列挙）を使う。
+  **内容を検査する assertion を書くときは、その成果物がこの対象に入っているかを先に確かめる**（入っていなければ対象へ追加するか、`project-tree.txt` で測れる形へ assertion を変える）。
+- **`result.json` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採取されない。
+  プロンプトが**作業の実行を誘発**すると回答が複数メッセージに分かれ、前半に書かれた根拠（実行した終了コード・引用した実装）が採取物から落ちて採点不能になる。
+  eval プロンプトは「実行してから報告させる」のではなく**1 つの報告にまとめさせる**形にし、`〜した後に` のような完了を前提とする言い回しを避ける。
 
 `grading.json` は集計スクリプト／ビューアが実際に読むスキーマで生成する（後段の集計が 0.0% や「No runs found」になるのを防ぐ）。
 必須フィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text` / `passed` / `evidence`。
