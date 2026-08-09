@@ -245,6 +245,11 @@ while IFS= read -r -d '' file; do
 	# Assertions name those files directly, so they must be gradable from the snapshot.
 	*.md | *.txt | *.json | *.yml | *.yaml | *.toml | *.sh | *.js | *.mjs | *.ts | *.tsx | *.sql)
 		;;
+	# Extensionless config files that assertions read by content (kaizen の setup は
+	# .gitignore に制御ファイルのパターンを追記する)。拡張子マッチだけだと採点材料が
+	# 無いまま「作られたかどうか」しか見られず、内容を検査する assertion が測れない。
+	.gitignore | */.gitignore | .gitattributes | */.gitattributes)
+		;;
 	*)
 		continue
 		;;
