@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # kaizen extract-done marker（抽出完了の記録）
 #
-# 抽出完了時にエージェントが呼び出す: 対象エージェントの未抽出センチネルを削除し、
+# 既定（抽出完了時にエージェントが呼び出す）: 対象エージェントの未抽出センチネルを削除し、
 # 抽出完了マーカー `.kaizen/.extract-done`（UTC タイムスタンプ）を書く。
 # コミット前ゲート（kaizen-precommit-gate.sh）はマーカーがある間、Stop フックによる
 # センチネル再装填を無視して commit を通す（ゲートはセッションにつき 1 回だけ抽出を要求する）。
 # マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
+#
+# `--checkpoint-only`（ゲートが候補ゼロを検証できたときに呼ぶ）: transcript の処理位置
+# `.kaizen/.extract-checkpoint` を進め、対象エージェントのセンチネルだけを削除する。
+# **`.extract-done` は書かない**——セッション全体を抽出済みにすると、以降に新しい活動が
+# 積まれても同一セッション内の commit が素通りしてしまうため。次の commit では checkpoint
+# 以降の未処理範囲だけが再走査される。
 #
 # インラインの rm / リダイレクトは cwd 相対のため迷子ファイルを生み得る
 #（kaizen-stop-mark.sh の注記参照）。このスクリプトでプロジェクトルート基準に統一する。
