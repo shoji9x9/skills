@@ -61,7 +61,12 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# applied-to が無い旧形式は後方互換のため検査対象外。新形式としてフィールドを
 	# 宣言したノートだけを厳密に検査する。
 	[ "${present}" = "1" ] || continue
-	if [ "${status}" = "pending" ] && [ "${nonempty}" = "1" ]; then
+	# applied-to を宣言したノートは新形式なので status も必須。status 行が無い／読めないと
+	# pending / applied / rejected のどれにも一致せず、以降の検査を素通りしてしまう。
+	if [ -z "${status}" ]; then
+		echo "kaizen-status-check: ${note}: applied-to is declared but status is missing" >&2
+		errors=$((errors + 1))
+	elif [ "${status}" = "pending" ] && [ "${nonempty}" = "1" ]; then
 		echo "kaizen-status-check: ${note}: applied-to is set but status is pending" >&2
 		errors=$((errors + 1))
 	elif { [ "${status}" = "applied" ] || [ "${status}" = "rejected" ]; } && [ "${nonempty}" = "0" ]; then

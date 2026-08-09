@@ -46,6 +46,29 @@ if [ ! -d .kaizen ]; then
 	exit 0
 fi
 
+# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
+# `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
+# pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
+# するのでパイプが要らず、読めないファイルは `|| true` で空文字に倒せる。
+# 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
+frontmatter_field() {
+	awk -v key="$2" '
+		BEGIN { fm = 0 }
+		/^---[[:space:]]*$/ {
+			fm++
+			if (fm == 2) exit
+			next
+		}
+		fm == 1 && index($0, key ":") == 1 {
+			value = substr($0, length(key) + 2)
+			sub(/^[[:space:]]+/, "", value)
+			sub(/[[:space:]]+$/, "", value)
+			print value
+			exit
+		}
+	' "$1" 2>/dev/null || true
+}
+
 # pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
 # 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
 # ベストエフォート（常に exit 0）を守るため、一時ファイルの作成・追記・整列が失敗したら
@@ -56,14 +79,14 @@ trap 'rm -f "${pending_index}"' EXIT
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
 	grep -q '^status: pending' "${f}" 2>/dev/null || continue
-	priority=$(sed -n 's/^priority:[[:space:]]*//p' "${f}" | head -n 1)
+	priority=$(frontmatter_field "${f}" priority)
 	case "${priority}" in
 	high) rank=0 ;;
 	medium) rank=1 ;;
 	low) rank=2 ;;
 	*) rank=3 ;;
 	esac
-	date_value=$(sed -n 's/^date:[[:space:]]*//p' "${f}" | head -n 1)
+	date_value=$(frontmatter_field "${f}" date)
 	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
 done
 sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
