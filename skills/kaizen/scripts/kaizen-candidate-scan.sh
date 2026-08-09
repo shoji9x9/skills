@@ -40,7 +40,8 @@ if ! jq -Rr '
 		elif type == "object" then ((.text // .content // "") | content_text)
 		else "" end;
 	(try fromjson catch null) as $j |
-	if $j == null then "X"
+	("N\t" + (input_line_number | tostring)),
+	(if $j == null then "X"
 	elif $j.type == "assistant" then
 		"C", "A",
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
@@ -115,10 +116,21 @@ if ! jq -Rr '
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or
 	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
-	else "X" end
+	else "X" end)
 ' "${slice}" >"${records}"; then
 	echo "kaizen-candidate-scan: transcript JSONL could not be parsed" >&2
 	exit 2
+fi
+
+# 候補の根拠は「どこで検出したか」だけを出し、transcript の本文（ユーザー発話・ツール出力・
+# 編集先パス）は 1 文字も出さない。ゲートはこの出力を block 理由の stderr へ転送するため、
+# 秘密値・社外情報がスクロールバックやログへ漏れる経路を塞ぐ。位置を出すのは、ブロックされた
+# エージェントが session directory を手探りせず該当レコードへ直行できるようにするため
+#（読むのは自分のセッションの transcript なので、位置さえ分かれば内容は自分で取得できる）。
+base_line=0
+if [ "${offset}" -gt 0 ]; then
+	base_line=$(head -c "${offset}" "${transcript}" | wc -l)
+	base_line=${base_line//[[:space:]]/}
 fi
 
 recognized=0
@@ -127,9 +139,14 @@ saw_claude=0
 saw_codex=0
 saw_assistant=0
 candidate_count=0
+record_line=0
 edited_paths=""
 while IFS= read -r record; do
 	case "${record}" in
+	N$'\t'*)
+		record_line=$((base_line + ${record#*$'\t'}))
+		continue
+		;;
 	X) invalid=1 ;;
 	C) saw_claude=1 ;;
 	D) saw_codex=1 ;;
@@ -143,7 +160,7 @@ while IFS= read -r record; do
 		path=${record#*$'\t'}
 		if [ -n "${edited_paths}" ] && grep -Fxq -- "${path}" <<<"${edited_paths}"; then
 			if [ "${candidate_count}" -lt 5 ]; then
-				printf 'repeated edit: %.180s\n' "${path}"
+				printf 'repeated edit: transcript line %s\n' "${record_line}"
 			fi
 			candidate_count=$((candidate_count + 1))
 		else
@@ -159,7 +176,7 @@ while IFS= read -r record; do
 		fi
 		if [ "${strong_correction}" -eq 1 ] || { [ "${saw_assistant}" -eq 1 ] && grep -Eiq '(修正して|fix that)' <<<"${text}"; }; then
 			if [ "${candidate_count}" -lt 5 ]; then
-				printf 'user correction: %.180s\n' "${text}"
+				printf 'user correction: transcript line %s\n' "${record_line}"
 			fi
 			candidate_count=$((candidate_count + 1))
 		fi
@@ -168,7 +185,7 @@ while IFS= read -r record; do
 		recognized=$((recognized + 1))
 		text=${record#*$'\t'}
 		if [ "${candidate_count}" -lt 5 ]; then
-			printf 'tool error: %.180s\n' "${text}"
+			printf 'tool error: transcript line %s\n' "${record_line}"
 		fi
 		candidate_count=$((candidate_count + 1))
 		;;

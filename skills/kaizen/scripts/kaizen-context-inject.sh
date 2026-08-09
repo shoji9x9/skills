@@ -48,7 +48,10 @@ fi
 
 # pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
 # 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
-pending_index=$(mktemp)
+# ベストエフォート（常に exit 0）を守るため、一時ファイルの作成・追記・整列が失敗したら
+# 注入を諦めて正常終了する。set -e のままだと mktemp 不在・TMPDIR 不正・書き込み失敗で
+# SessionStart フックが非 0 終了し、学びの供給という加点機能がセッション開始を汚す。
+pending_index=$(mktemp 2>/dev/null) || exit 0
 trap 'rm -f "${pending_index}"' EXIT
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
@@ -61,9 +64,9 @@ for f in .kaizen/*.md; do
 	*) rank=3 ;;
 	esac
 	date_value=$(sed -n 's/^date:[[:space:]]*//p' "${f}" | head -n 1)
-	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}"
+	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}" || exit 0
 done
-sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}"
+sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}" 2>/dev/null || exit 0
 
 if [ ! -s "${pending_index}" ]; then
 	exit 0

@@ -160,6 +160,8 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 判定はスキルにバンドルされた `kaizen-precommit-gate.sh` が行う。非 commit は Bash 組み込みの prefilter だけで終了し、jq / python / git を起動しない。
 commit のときだけ `kaizen-status-check.sh` を実行し、未抽出センチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理範囲を最大 8 秒で走査する。
 走査結果は `0` = 候補あり、`1` = 検証済みゼロ、`2` = 不明。`1` だけが自動通過し、候補あり・読めない形式・jq 不在・timeout は **exit code 2 + stderr** でブロックする。
+ブロック理由に載る候補の根拠は、カテゴリ（`user correction` / `tool error` / `repeated edit`）と **transcript の行番号**だけで、transcript の本文は出さない。
+ブロックされたエージェントは自分のセッションの transcript を読めるため、位置さえ分かれば内容は自分で取得できる。stderr は端末のスクロールバックやログに残るので、秘密値をそこへ流さない。
 候補ゼロでは transcript のレコード形式から Claude Code / Codex を識別し、そのエージェントの `.pending-extract<suffix>` だけを削除する。別エージェントのセンチネルが残っていれば commit は通さず、所有者側の抽出を待つ。
 Claude Code の Hook 入力と handler `if` は [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を正本とする。
 Codex の matcher・`transcript_path`・exit code は [Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を正本として再検証する。

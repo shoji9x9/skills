@@ -160,7 +160,8 @@ fi
 	if [ -n "${scan_agent}" ]; then
 		echo "抽出完了時は bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"${sentinel_suffix}\" \"${transcript}\" を別コマンドで実行してください。"
 	else
-		echo "抽出完了時は対象エージェントを確認し、bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"<-codex|-copilot|空文字>\" \"${transcript}\" を別コマンドで実行してください。"
+		echo "抽出完了時は対象エージェントに応じた suffix（Claude Code は \"\"、Codex は \"-codex\"、Copilot は \"-copilot\"）を選び、次を別コマンドで実行してください。"
+		echo "bash \"${script_dir}/kaizen-extract-done.sh\" --sentinel-suffix \"\" \"${transcript}\""
 	fi
 	echo "その後、git commit を再実行してください。"
 } >&2
