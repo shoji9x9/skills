@@ -10,7 +10,7 @@
 # 中身そのものを供給する点が echo リマインダーと異なる（references/extract.md
 # 「使わない方式」参照）。Claude Code は SessionStart の stdout を context に注入する。
 # Codex は plain text の stdout を extra developer context として追加する
-# (https://developers.openai.com/codex/hooks#sessionstart)。
+# (https://learn.chatgpt.com/docs/hooks#sessionstart)。
 # Copilot は注入可否がドキュメント上不明確なため、効けば
 # 加点・効かなくても無害というベストエフォート。失敗してもセッションを止めない
 # よう常に exit 0 で抜ける。
@@ -46,13 +46,30 @@ if [ ! -d .kaizen ]; then
 	exit 0
 fi
 
-# pending な学びファイルだけを対象にする（適用済み/却下済みは現在の作業に不要）。
-pending_files=$(grep -l "^status: pending" .kaizen/*.md 2>/dev/null || true)
-if [ -z "$pending_files" ]; then
+# pending な学びを priority 降順（high / medium / low / 不明）、同順位は日付昇順に並べる。
+# 未定義・未知の priority は既存ノートとの後方互換のため失敗させず末尾へ回す。
+pending_index=$(mktemp)
+trap 'rm -f "${pending_index}"' EXIT
+for f in .kaizen/*.md; do
+	[ -e "${f}" ] || continue
+	grep -q '^status: pending' "${f}" 2>/dev/null || continue
+	priority=$(sed -n 's/^priority:[[:space:]]*//p' "${f}" | head -n 1)
+	case "${priority}" in
+	high) rank=0 ;;
+	medium) rank=1 ;;
+	low) rank=2 ;;
+	*) rank=3 ;;
+	esac
+	date_value=$(sed -n 's/^date:[[:space:]]*//p' "${f}" | head -n 1)
+	printf '%s\t%s\t%s\n' "${rank}" "${date_value:-9999-99-99}" "${f}" >>"${pending_index}"
+done
+sort -t $'\t' -k1,1n -k2,2 -k3,3 "${pending_index}" -o "${pending_index}"
+
+if [ ! -s "${pending_index}" ]; then
 	exit 0
 fi
 
-count=$(printf '%s\n' "$pending_files" | grep -c . || true)
+count=$(wc -l <"${pending_index}")
 
 echo "## kaizen: 未適用の学び（${count} 件）"
 echo ""
@@ -71,7 +88,7 @@ first_line_under() {
 # 要約は「## 提案」（＝一般化された行動規律）を優先する。事象（個別事案）の冒頭だけだと
 # 過去の特定インシデントとしか結び付かず、別文脈での再発を防ぐトリガーになりにくい。
 # 提案が無い古い学びは「## 事象」にフォールバックする。
-printf '%s\n' "$pending_files" | while IFS= read -r f; do
+while IFS=$'\t' read -r _rank _date f; do
 	[ -n "$f" ] || continue
 	meta=$(grep -E "^(date|type|priority):" "$f" 2>/dev/null | tr '\n' ' ' || true)
 	summary_src=$(first_line_under "## 提案" "$f")
@@ -81,7 +98,7 @@ printf '%s\n' "$pending_files" | while IFS= read -r f; do
 	# shellcheck disable=SC2016
 	summary=$(printf '%s' "$summary_src" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' | cut -c1-120 || true)
 	echo "- \`${f}\` — ${meta}— ${summary}"
-done
+done <"${pending_index}"
 
 echo ""
 echo "詳細は各ファイルを参照。適用するには kaizen スキルの apply フローを使う。"

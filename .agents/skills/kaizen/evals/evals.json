@@ -7,9 +7,9 @@
       "assertions": [
         ".kaizen/ ディレクトリが作成されている",
         ".kaizen/*.md ファイルが 1 件作成されている",
-        "作成されたファイルの frontmatter に date, type, status, priority フィールドがある",
+        "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
         "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
-        "status が pending になっている",
+        "status が pending、applied-to が空配列になっている",
         "個別の失敗ではなく根本原因が記述されている"
       ]
     },
@@ -39,7 +39,7 @@
         ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
         "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、未抽出センチネル .kaizen/.pending-extract を作成する設定になっている",
         "Stop Hook に echo によるリマインダー出力が含まれていない",
-        "PreToolUse Hook（matcher が Bash）が設定され、kaizen-precommit-gate スクリプトを呼び出している",
+        "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
         "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている"
       ]
     },
@@ -67,8 +67,8 @@
       "id": 7,
       "prompt": "学びを抽出し、その内容を同じセッションで AGENTS.md に反映した。.kaizen のファイルはどう扱うべきか",
       "assertions": [
-        "反映（適用）が完了したら当該ファイルの status を pending から applied に更新すべきと案内している",
-        "grep などで反映済みなのに status: pending が残っていないか確認する手順に言及している"
+        "反映（適用）が完了したら当該ファイルの status を pending から applied に更新し applied-to に AGENTS.md を記録すべきと案内している",
+        "kaizen-status-check.sh で status と applied-to の整合を検査すると案内している"
       ]
     },
     {
@@ -79,7 +79,7 @@
         "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
         "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
         "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
-        ".gitignore に **/.kaizen/.pending-extract* と **/.kaizen/.extract-done を追加しようとしている（.kaizen/ 本体はコミット対象のまま）"
+        ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done、**/.kaizen/.extract-checkpoint を追加しようとしている（.kaizen/ 本体はコミット対象のまま）"
       ]
     },
     {
@@ -89,7 +89,7 @@
       "assertions": [
         "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
         "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
-        "反映後に当該ファイルの status を pending から applied に更新し、grep で status: pending の取りこぼしが残っていないか確認すると述べている",
+        "反映後に当該ファイルの status を pending から applied に更新し、applied-to に成果物パスを記録して kaizen-status-check.sh で検査すると述べている",
         "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている"
       ]
     },
@@ -104,6 +104,66 @@
         "SessionStart は全 start source にマッチし、kaizen-context-inject スクリプトを呼び出している",
         "SessionStart の plain text stdout が extra developer context に追加される根拠として、Codex Hooks 公式ドキュメントの SessionStart 節 URL を近接位置に示している",
         "初回設定と Hook 定義変更後に Codex CLI の /hooks で参照元と command をレビューして信頼し、信頼前は Hook がスキップされると案内している"
+      ]
+    },
+    {
+      "id": 11,
+      "fixture": "evals/fixtures/priority-order",
+      "prompt": "fixture の pending 学びを SessionStart と同じスクリプトで注入し、実際の出力順を示して。あわせて high / medium / low の判定基準と --current の選択順を説明して。",
+      "assertions": [
+        "kaizen-context-inject.sh を fixture ルート基準で実行し、HIGH_OLD, HIGH_NEW, MEDIUM, LOW, UNKNOWN の順で出力されたことを示している",
+        "同じ high の中で date 昇順（2026-07-01 が 2026-08-01 より先）になり、未知の priority が最末尾でも処理が失敗していない",
+        "high は作業停止、medium は実時間損失または手戻り、low は papercut と説明している",
+        "--current の選択根拠として実際の影響度を、KEDB の反復・根本原因の明確さ・対策の具体性より先に評価している"
+      ]
+    },
+    {
+      "id": 12,
+      "fixture": "evals/fixtures/kedb-existing",
+      "prompt": "サブディレクトリから pre-commit hook を動かしたところ制御ファイルが別の cwd に作られた。バンドルされた KEDB スクリプトで既存ノートを照合して扱いを示して。さらに ONLY_ARCHIVE_BODY_MARKER を同じスクリプトで検索し、archive 本文が通常走査から除外されることを終了コード付きで実証して。",
+      "assertions": [
+        "kaizen-kedb-match.sh に事象語と hook または対象パスの複数キーワードを渡して照合している",
+        "fixture の 2026-08-01-hook-path-resolution.md を status=pending のヒットとして特定している",
+        "新しい学びファイルを作らず、既存 pending ノートの priority を上げて事象・提案を追記する扱いを選んでいる",
+        "ONLY_ARCHIVE_BODY_MARKER と空でない第2キーワードを渡した検索が出力なし・exit 1 になる一方、INDEX.md にある語の検索は archived ノートを検出して exit 0 になることを示している"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "外部 CLI の仕様上の不具合が根本原因で、このリポジトリ側では直せない。kaizen の type と適用経路を、frog が無い場合や targets が 0 件の場合も含めて示して。外部への起票はまだ承認していない。",
+      "assertions": [
+        "根本原因の所有者が外部にいるため type: upstream と分類している",
+        "frog が導入済みなら frog targets の opt-in を確認して frog log --target を使い、0 件・未設定・失敗時は停止せず次へ進む",
+        "frog を利用できない場合は issue-create に委譲するが、起票先とドラフトを示してユーザー承認を得るまで外部 Issue を作成しない",
+        "上流報告できない場合はローカル回避策に上流 Issue または修正版を基準とする撤去条件を併記する"
+      ]
+    },
+    {
+      "id": 14,
+      "fixture": "evals/fixtures/lifecycle-inconsistent",
+      "prompt": "fixture に新旧形式の kaizen ノートと不整合な archive INDEX がある。バンドルされた lifecycle 検査を実行し、終了コードと対象ファイルを示してから、各不整合の修正方法と旧形式の互換性を説明して。その修正手順には、整合が取れたことをどう確認するかまで含めて。あわせて、INDEX.md に 2026-06-01-archived.md という文字列があるのに検査が 0 件と言う理由を、検査スクリプトのエントリ判定に即して説明して。",
+      "assertions": [
+        "kaizen-status-check.sh が exit 2 となり、pending-with-target と applied-empty の両ファイルを status/applied-to 不整合として出力したことを示している",
+        "archive の 2026-06-01-archived.md 欠落と INDEX.md の 2026-06-02-stale.md 過剰を両方検出している",
+        "found 0 の理由として、バンドルされた kaizen-status-check.sh のエントリ抽出が行頭の - `<name>.md` 形式だけを拾う sed 式に限られる点を、その実装（式または該当行）を引いて説明している",
+        "legacy-applied.md は applied-to フィールド自体が無い旧形式なのでエラー対象になっていないことを出力と照合している",
+        "修正後は status: applied と applied-to の成果物パスまたは Issue 番号を対にし、kaizen-archive.sh --reindex 後に再検査すると説明している"
+      ]
+    },
+    {
+      "id": 15,
+      "fixture": "evals/fixtures/candidate-scan",
+      "prompt": "fixture の各 JSONL をバンドルされた candidate scanner で実行し、ファイルごとの終了コードと根拠を示して。続けて、全 Bash 呼び出しを遅くしない Claude Code / Codex / Copilot の Hook 設定と、候補ゼロ時の checkpoint 処理を説明して。",
+      "assertions": [
+        "claude-no-candidate.jsonl と codex-no-candidate.jsonl は exit 1、claude-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・correction-at-boundary.jsonl は exit 0、unknown.jsonl は exit 2 という実測結果を示している",
+        "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+        "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 2 回を repeated edit として候補にする",
+        "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+        "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+        "transcript_path と .kaizen/.extract-checkpoint の間だけを走査し、検証済み候補ゼロなら checkpoint とセンチネルだけを更新して session-wide .extract-done は作らず commit を通す",
+        ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
+        "候補あり、未知形式、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促す",
+        "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
       ]
     }
   ]

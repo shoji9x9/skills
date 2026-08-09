@@ -31,7 +31,7 @@ ls .kaizen/*.md 2>/dev/null
 1. グループ内のファイル一覧と統合した事象・根本原因・提案をユーザーに提示する
 2. 適用するか確認する（承認 / 却下 / スキップ）
 3. **承認された場合**: Step 3 へ進む
-4. **却下された場合**: グループ内の全ファイルを `status: rejected` に更新して次へ
+4. **却下された場合**: グループ内の全ファイルを `status: rejected` に更新し、`applied-to` に `"rejected: <理由>"` を記録して次へ
 5. **スキップの場合**: そのまま次へ
 
 ### 3. 成果物の作成
@@ -44,6 +44,7 @@ ls .kaizen/*.md 2>/dev/null
 | `skill` | `.agents/skills/<name>/` | skill |
 | `hook` | `.claude/settings.json` 等 | hooks |
 | `doc` | 基底ドキュメント（`AGENTS.md`、無ければ `CLAUDE.md` / `.github/copilot-instructions.md`）、または長大・専用の知見なら `docs/` 等の専用ドキュメント（配置は利用先で異なる） | docs |
+| `upstream` | 根本原因を所有する外部ツール・依存の上流。下記「上流エスカレーション」を使う | — |
 | `other` | ユーザーと相談して決める | — |
 | （type 共通）**機構** | リポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設。`type` が `rule` / `doc` / `other` でも、散文で閉じると再発する対策はここに落とす（判断は下記「決定性で選ぶ」） | Hook を追加するときだけ hooks。lint / スクリプト / CI はリポジトリのツールを直接改修する |
 
@@ -74,24 +75,37 @@ ls .kaizen/*.md 2>/dev/null
 
 `type: rule` の場合: 各ファイルの「提案」セクションを統合してルール文面を作成する。
 
+#### 上流エスカレーション
+
+`type: upstream` は kaizen の内部成果物へ直接適用せず、次の順で根本原因の所有者へ渡す。frog は任意経路であり、kaizen の必須依存にはしない。
+
+1. `frog` コマンドが導入済みなら `frog targets` を実行し、対象が受け入れを opt-in していることを確認してから `frog log --target <pkg>` を使う。
+   対象が 0 件、App 未設定、inbound 無効、コマンド失敗なら次へ進む。
+   仕様は [wevm/frog の CLI 実装](https://github.com/wevm/frog/blob/main/src/cli/commands/log.ts) と [Target 実装](https://github.com/wevm/frog/blob/main/src/Target.ts) で実行時にも再検証する。
+2. frog を利用できなければ `issue-create` スキルへ委譲する。外部リポジトリへの起票は外部発信なので、起票先・ドラフト・既存 Issue の確認結果を判断材料として示し、**必ずユーザー承認を得てから**作成する。
+3. どちらもできなければ内部の rule / doc / script に回避策を置く。その際は上流 Issue URL または修正版を基準に、**いつ撤去するか**を同じ成果物へ明記する。
+
+`frog targets` が 0 件であることは正常なフォールバック条件であり停止理由にしない。frog の導入そのものや受け入れ設定の変更は、このフローから自動実行しない。
+検証基準: 2026-08-08 に空の一時ディレクトリで `pnpm dlx frog@1.1.0 targets --format json` を実行すると exit 0 と `{"targets":[]}` が返った。
+バージョン更新後は同じ未設定状態を作り、0 件と失敗を終了コードで区別できることを再測定する。
+
 ### 4. 成果物の確認と後処理（status 更新は必須）
 
 1. 作成した成果物をユーザーに確認する
-2. 問題なければグループ内の**全ファイル**の `status` を `pending → applied` に更新する（**反映したら必ず実施。ここを飛ばすと反映済みなのに `pending` のまま残る**）
+2. 問題なければグループ内の**全ファイル**の `status` を `pending → applied` に更新し、`applied-to` に成果物のパスまたは `"#<Issue番号>"` を列挙する
 3. 修正が必要な場合は修正後に更新する
-4. グループ処理の直後に、反映済みのファイルに `pending` が残っていないか確認する:
+4. グループ処理の直後に lifecycle の整合を検査する:
 
 ```bash
-# 反映済みグループのファイルが applied になっているか確認する
-grep -l "^status: pending" .kaizen/*.md 2>/dev/null
+bash <スキル>/scripts/kaizen-status-check.sh
 ```
 
 ### 5. 全グループ処理後の対応
 
-すべてのグループを処理した後、まず status の取りこぼしが無いか最終確認する。反映したのに `pending` が残っているファイルがあれば `applied` に是正する（反映していないものは `pending` のままで正しい）:
+すべてのグループを処理した後、status・`applied-to`・アーカイブ索引を最終確認する。不整合があれば stderr に出たファイルを是正する:
 
 ```bash
-grep -l "^status: pending" .kaizen/*.md 2>/dev/null
+bash <スキル>/scripts/kaizen-status-check.sh
 ```
 
 続いて、適用済みグループについてユーザーに確認する:
@@ -111,4 +125,5 @@ grep -l "^status: pending" .kaizen/*.md 2>/dev/null
 - チーム内で学びを共有・レビューできる
 - `.kaizen/` 内の全ファイル（ステータス問わず・`archive/` 配下を含む）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
 
-ただし例外として、Hook が作る一時的な制御ファイル（センチネル `.kaizen/.pending-extract*` と抽出完了マーカー `.kaizen/.extract-done`）はコミット対象外で、`.gitignore` に追加して除外する（設定手順は `references/setup.md`「`.gitignore` にセンチネル・抽出完了マーカーを追加する」を参照）。
+ただし例外として、Hook が作る一時的な制御ファイル（センチネル `.kaizen/.pending-extract*`、抽出完了マーカー `.kaizen/.extract-done`、transcript の処理位置 `.kaizen/.extract-checkpoint`）はコミット対象外。
+`.gitignore` に追加して除外する（設定手順は `references/setup.md` を参照）。

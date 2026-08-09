@@ -7,11 +7,11 @@
 Hook からエージェント自身を呼び出して LLM を動かすことはできないため、役割を 3 つに分ける:
 
 - **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract*` を残し、「未抽出の活動がある」ことを記録する。
-- **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックしてエージェントに `kaizen --current` を促す。
-  エージェントが抽出を終えるとセンチネルが消え、再試行した commit が通る。コミットを実際にブロックするため確定的に効き、全エージェント（Claude Code / Codex / Copilot）の PreToolUse で機能する。
+- **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、まず lifecycle 整合を検査する。未抽出センチネルがあり Hook から transcript パスを取得できる場合は、checkpoint との間だけを走査する。候補ゼロを検証できたときは自動通過し、候補あり・形式不明・timeout は `kaizen --current` を促す。
+  全エージェント（Claude Code / Codex / Copilot）で commit のブロックは機能する。transcript を提供しない Copilot は候補ゼロの自動通過だけを使わず、安全側の従来フローへ戻る。
 - **セッション開始時 Hook（参照注入役）**: `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。これにより過去の学びを踏まえてタスクに着手できる（KEDB 照合の入口）。
   Claude Code は SessionStart の stdout を context へ注入する。
-  Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://developers.openai.com/codex/hooks#sessionstart)）。
+  Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
   Copilot は注入可否がドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
 
 > echo による行動リマインダーや `AGENTS.md` への散文の指示は、エージェントの行動を確定的に変えられず守られない確率が高いため主トリガーにはしない。詳細は末尾「使わない方式」を参照。
@@ -131,7 +131,7 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 }
 ```
 
-詳細なフォーマットは [Codex Hooks ドキュメント](https://developers.openai.com/codex/hooks) を参照すること。
+詳細なフォーマットは [Codex Hooks ドキュメント](https://learn.chatgpt.com/docs/hooks) を参照すること。
 
 ##### GitHub Copilot — sessionEnd (`.github/hooks/kaizen-session.json`)
 
@@ -151,17 +151,22 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 }
 ```
 
-詳細なフォーマットは [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) を参照すること。
+詳細なフォーマットは [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を参照すること。
 
 #### 4-2. コミット前 PreToolUse ゲート（自動実行の主トリガー）
 
-`git commit` を捕捉し、未抽出センチネルが残っていればコミットをブロックして、エージェントに `kaizen --current` の実行を促す。Claude Code / Codex / Copilot のいずれも「ツール実行前に発火し、ブロックできる」Hook（PreToolUse / preToolUse）を備えるため、全エージェント共通で機能する。
+`git commit` を捕捉し、lifecycle 不整合または未処理の学び候補があればブロックして、エージェントに `kaizen --current` の実行を促す。Claude Code / Codex / Copilot のいずれも「ツール実行前に発火し、ブロックできる」Hook（PreToolUse / preToolUse）を備えるため、全エージェント共通で機能する。
 
-判定はスキルにバンドルされたスクリプト（`kaizen-precommit-gate.sh`）が行う。`git commit` を含み、かつ `.kaizen/.pending-extract*` が存在するときだけ **exit code 2 + stderr** でブロックする。
-この方式は Claude Code・Codex とも「exit 2 でブロックし stderr をエージェントへ渡す」と明記されており、JSON 出力スキーマの差を避けられる。
+判定はスキルにバンドルされた `kaizen-precommit-gate.sh` が行う。非 commit は Bash 組み込みの prefilter だけで終了し、jq / python / git を起動しない。
+commit のときだけ `kaizen-status-check.sh` を実行し、未抽出センチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理範囲を最大 8 秒で走査する。
+走査結果は `0` = 候補あり、`1` = 検証済みゼロ、`2` = 不明。`1` だけが自動通過し、候補あり・読めない形式・jq 不在・timeout は **exit code 2 + stderr** でブロックする。
+候補ゼロでは transcript のレコード形式から Claude Code / Codex を識別し、そのエージェントの `.pending-extract<suffix>` だけを削除する。別エージェントのセンチネルが残っていれば commit は通さず、所有者側の抽出を待つ。
+Claude Code の Hook 入力と handler `if` は [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を正本とする。
+Codex の matcher・`transcript_path`・exit code は [Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を正本として再検証する。
+Copilot は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を正本とする。
 ただし抽出完了マーカー `.kaizen/.extract-done` が存在する間はセンチネルがあっても素通りする。
 マーカーは抽出完了時に `kaizen-extract-done.sh` が記録し、セッション開始時に SessionStart フック（`kaizen-context-inject.sh`）が削除する。
-これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。
+これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。複数エージェントが同時稼働する場合、抽出完了時はゲートが表示する `--sentinel-suffix` 付きコマンドを使い、他エージェントのセンチネルを削除しない。
 
 > **運用上の注意（git commit を含む呼び出しは全体がブロックされる）**: ゲートは `git commit` を含む Bash 呼び出し**全体**を実行前にブロックする。
 > そのため `git add` などコミット前準備や、センチネル削除・マーカー記録（`bash <KAIZEN_SCRIPTS_DIR>/kaizen-extract-done.sh`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
@@ -183,7 +188,8 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
         "hooks": [
           {
             "type": "command",
-            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh"
+            "command": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh",
+            "if": "Bash(git commit *)"
           }
         ]
       }
@@ -191,6 +197,8 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
   }
 }
 ```
+
+Claude Code の handler `if` は非 commit でスクリプト自体を起動しない第一段フィルタ。`if` をサポートしない旧版ではこのフィールドを省略し、スクリプト内 prefilter をフォールバックとして使う。複合 Bash コマンドは permission rule が安全側に handler を起動する場合があるため、スクリプト側の厳密判定を残す。
 
 ##### Codex — PreToolUse (`.codex/hooks.json`)
 
@@ -221,9 +229,10 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
     "preToolUse": [
       {
         "type": "command",
+        "matcher": "bash",
         "bash": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh",
         "cwd": ".",
-        "timeoutSec": 5
+        "timeoutSec": 15
       }
     ]
   }
@@ -232,7 +241,9 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 
 > Copilot の `preToolUse` はブロックできるが、stderr/理由をエージェントのコンテキストへ渡せるかはドキュメント上不明確。
 > 最低限コミットはブロックされるため、エージェントは失敗に反応して `kaizen --current` を実行する余地が残る。
-> 挙動は [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) で確認すること。
+> Copilot の matcher は tool 名まででコマンド文字列を絞れないため、スクリプト内 prefilter を使う。`timeoutSec` は内部走査の 8 秒より長くし、内部 timeout を exit 2 の fail-closed に変換できる余地を持たせる。
+> 現行の camelCase `preToolUse` payload は `toolArgs` を渡すが `transcriptPath` を渡さない。そのため非 commit の高速 prefilter と commit 判定は機能する一方、候補ゼロの自動通過は使わず従来の `kaizen --current` ブロックへフォールバックする。
+> 挙動は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) で確認すること。
 
 #### 4-3. セッション開始時 参照注入フック（過去の学びをコンテキストへ供給）
 
@@ -243,7 +254,7 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout を context へ注入する。
-> Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://developers.openai.com/codex/hooks#sessionstart)）。
+> Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
 > Copilot のセッション開始フックは stdout を context へ注入できるかドキュメント上不明確なため、効けば加点・効かなくても無害というベストエフォート。
 
 ##### Claude Code — SessionStart (`.claude/settings.json`)
@@ -285,7 +296,7 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 }
 ```
 
-詳細なフォーマットは [Codex Hooks ドキュメント](https://developers.openai.com/codex/hooks) を参照すること。
+詳細なフォーマットは [Codex Hooks ドキュメント](https://learn.chatgpt.com/docs/hooks) を参照すること。
 
 ##### GitHub Copilot — sessionStart (`.github/hooks/kaizen-session.json`)
 
@@ -305,7 +316,7 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 }
 ```
 
-詳細なフォーマットは [GitHub Copilot Hooks ドキュメント](https://docs.github.com/en/copilot/concepts/agents/hooks) を参照すること。
+詳細なフォーマットは [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を参照すること。
 
 #### 4-4. Codex の Hook 定義をレビューして信頼する
 
@@ -317,20 +328,21 @@ Codex の非 managed command Hook は、定義を設定ファイルへ追加し�
 変更後も `/hooks` で再レビューして信頼する。`--dangerously-bypass-hook-trust` は事前に Hook を検査する一時的な自動化用であり、
 プロジェクトの永続セットアップを完了させる代わりには使わない。
 
-詳細は [Codex Hooks ドキュメント「Review and trust hooks」](https://developers.openai.com/codex/hooks#review-and-trust-hooks) を参照すること。
+詳細は [Codex Hooks ドキュメント「Review and trust hooks」](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) を参照すること。
 
-### 5. `.gitignore` にセンチネル・抽出完了マーカーを追加する
+### 5. `.gitignore` に制御ファイルを追加する
 
 kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マーカー記録）は、`.kaizen/` 直下に一時的な制御ファイルを作る。これらはコミット対象ではないため、プロジェクトの `.gitignore` に以下を追加する（既にあれば何もしない）:
 
 ```gitignore
-# kaizen のセンチネル・抽出完了マーカー（Hook / 抽出完了時に作成する一時ファイル）
+# kaizen の制御ファイル（Hook / 抽出完了時に作成する一時ファイル）
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
 **/.kaizen/.extract-done
+**/.kaizen/.extract-checkpoint
 ```
 
-`.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 2 つの制御ファイルだけ。追加しないと、Stop フックが残すセンチネル（`.pending-extract*`）や抽出完了マーカー（`.extract-done`）が誤ってコミットされうる。
+`.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 3 種の制御ファイルだけ。`.extract-checkpoint` は処理済み transcript のパスとバイト位置を保持し、セッションをまたいで差分走査を成立させる。
 
 ### 6. `multiagent-setup` スキルとの依存関係
 

@@ -51,7 +51,7 @@ regenerate_index() {
 		for f in "${archive_dir}"/*.md; do
 			[ -e "${f}" ] || continue
 			[ "$(basename "${f}")" = "INDEX.md" ] && continue
-			# frontmatter（最初の `---` ブロック）内の date/type/priority だけを拾う。
+			# frontmatter（最初の `---` ブロック）内の date/type/priority/status だけを拾う。
 			# ファイル全体への grep だと本文中の `type:` 等まで索引へ混入するため範囲を区切る。
 			# 行は一旦バッファし、閉じフェンス `---` を確認できたときだけ出力する。
 			# こうすると閉じフェンスを欠く不正 frontmatter では、本文まで読み進めても
@@ -62,7 +62,7 @@ regenerate_index() {
 					if (fm >= 2) { printf "%s", buf; exit }
 					next
 				}
-				fm == 1 && /^(date|type|priority):/ { buf = buf $0 " " }
+				fm == 1 && /^(date|type|priority|status):/ { buf = buf $0 " " }
 			' "${f}" 2>/dev/null || true)
 			# 優先: 「## 事象」見出し直後の最初の非空行。
 			summary=$(awk '/^## 事象/{flag=1; next} flag && NF {print; exit}' "${f}" 2>/dev/null || true)

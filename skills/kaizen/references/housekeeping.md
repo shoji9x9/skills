@@ -62,6 +62,7 @@
    ```
 
 5. コミットするかはユーザーの判断に委ねる（このスキルは勝手に commit しない）。
+6. `bash <スキル>/scripts/kaizen-status-check.sh` を実行し、移動後のファイル集合と `INDEX.md` が一致することを確認する。
 
 ### 削除（明示指示時のみ）
 
@@ -89,4 +90,5 @@
 # インストール済みコピーは実行ビットを持たないため bash で起動する。
 bash <スキル>/scripts/kaizen-archive.sh <対象ファイル...>   # 移動と索引再生成を同時に行う
 bash <スキル>/scripts/kaizen-archive.sh --reindex          # 索引だけを作り直す（削除後の同期など）
+bash <スキル>/scripts/kaizen-status-check.sh                # ファイル集合と索引の整合を検査する
 ```

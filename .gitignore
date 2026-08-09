@@ -5,10 +5,11 @@ tests/*/iteration-*/eval-*/
 # eval ビューアが生成する閲覧用 HTML（run 出力を埋め込んだ数百 KB の生成物。サマリーではない）
 tests/*/iteration-*/review.html
 
-# kaizen のセンチネル・抽出完了マーカー（Hook / 抽出完了時に作成する一時ファイル）
+# kaizen の制御ファイル（Hook / 抽出完了時に作成する一時ファイル）
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
 **/.kaizen/.extract-done
+**/.kaizen/.extract-checkpoint
 
 # scheduled tasks のロックファイル
 .claude/scheduled_tasks.lock
