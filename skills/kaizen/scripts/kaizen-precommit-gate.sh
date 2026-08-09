@@ -71,11 +71,18 @@ if isinstance(transcript, str):
 	[ -n "${cmd}" ] && extracted=1
 fi
 
+# 区切り文字（行頭・`;` `&` `|` `(` ・改行）の直後だけでなく、環境変数代入と既知の
+# ラッパー（sudo / env / nice 等とその引数）を挟んだ `git commit` も捕捉する。
+# 区切りを単なる空白まで広げると `echo "... git commit ..."` や `man git commit` まで
+# ブロックしてしまうため、先頭に置ける語を列挙する方式にしている。
+wrappers='(sudo|env|command|nohup|nice|time|xargs)'
+assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
+prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
 if [ "${extracted}" -eq 1 ]; then
-	commit_re=$'(^|[;&|(\n])[[:space:]]*git[[:space:]]+commit([[:space:]]|$)'
+	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|$)'
 else
 	cmd=${input}
-	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*git[[:space:]]+commit([[:space:]]|"|$)'
+	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|"|$)'
 fi
 if [[ ! "${cmd}" =~ ${commit_re} ]]; then
 	exit 0
