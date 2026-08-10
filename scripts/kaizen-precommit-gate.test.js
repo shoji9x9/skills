@@ -196,6 +196,24 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
     expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-checkpoint");
   });
 
+  test("走査済み位置は --checkpoint-only 専用で、抽出完了モードでは受け付けない", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+
+    // 抽出完了は transcript 全体を読んだ後の記録。ここで終端を受け付けると checkpoint を
+    // 任意の位置へ進められ、未走査範囲を飛ばせてしまう（checkpoint はセッションをまたいで残る）。
+    const done = runScript(
+      "kaizen-extract-done.sh",
+      ["--sentinel-suffix", "", "--scanned-bytes", "999999", "--scanned-lines", "999", transcript],
+      { cwd },
+    );
+    expect(done.status).toBe(2);
+    expect(done.stderr).toMatch(/require --checkpoint-only/);
+    expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-checkpoint");
+    expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(".extract-done");
+  });
+
   test("走査器が走査済み位置を報告しないときゲートはブロックする", () => {
     const scripts = cloneScripts();
     writeFileSync(

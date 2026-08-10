@@ -114,6 +114,13 @@ if [ "${mode}" = "checkpoint-only" ] && { [ -z "${scanned_bytes}" ] || [ -z "${s
 	echo "kaizen-extract-done: checkpoint-only requires --scanned-bytes and --scanned-lines from the scanner" >&2
 	exit 2
 fi
+# 逆向きも塞ぐ。抽出完了（--checkpoint-only なし）は transcript 全体を読んだ後の記録なので、
+# 走査器の終端を受け付ける理由が無い。受け付けると checkpoint を任意の位置へ進められ、
+# 未走査範囲を飛ばせてしまう（.extract-done と違い checkpoint はセッションをまたいで残る）。
+if [ "${mode}" != "checkpoint-only" ] && { [ -n "${scanned_bytes}" ] || [ -n "${scanned_lines}" ]; }; then
+	echo "kaizen-extract-done: --scanned-bytes / --scanned-lines require --checkpoint-only" >&2
+	exit 2
+fi
 mkdir -p .kaizen
 
 # PreToolUse が渡した transcript_path を受け取れる場合は、処理済みバイト位置を記録する。
@@ -136,9 +143,10 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# 行位置を固定するため、agent が空でも 3 行目は空行として書く。
 	# wc の出力は実装によって先頭に空白が入る。数値だけを書かないと読み側の
 	# `^[0-9]+$` 検証に落ち、offset が無視されて毎回全走査へ静かに退行する。
-	# 走査器から終端位置を渡された場合（checkpoint-only）はそれを使う。渡されない
-	# 抽出完了（--checkpoint-only なし）は transcript 全体を読んだ後なので現在位置を測る。
-	if [ -n "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; then
+	# 走査器から終端位置を渡された場合（checkpoint-only）はそれを使う。抽出完了
+	# （--checkpoint-only なし）は transcript 全体を読んだ後なので現在位置を測る。
+	# 採用条件にモードを含め、上の引数検査だけに依存しない（検査を後で緩めても穴が開かない）。
+	if [ "${mode}" = "checkpoint-only" ] && [ -n "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; then
 		checkpoint_bytes=${scanned_bytes}
 		checkpoint_lines=${scanned_lines}
 	else
