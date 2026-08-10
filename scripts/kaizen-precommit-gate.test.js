@@ -298,10 +298,15 @@ describe("ゲートの commit 検出", () => {
     ['git -C "/tmp/a b" commit -m x', 2],
     ["git -C '/tmp/a b' commit -m x", 2],
     ['git -c user.name="A B" commit -m x', 2],
+    // ダブルクォート内のエスケープ。閉じ引用符を「次の "」とすると \" で早期に閉じ素通りする。
+    ['git -c user.name="A \\"B\\"" commit -m x', 2],
+    ['git -C "/tmp/a \\"b\\"" commit -m x', 2],
     ["git help commit", 0],
     ["man git commit", 0],
     ['echo "run git commit later"', 0],
     ["git log --oneline", 0],
+    ['git stash push -m "commit wip"', 0],
+    ["git config --get alias.commit", 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {

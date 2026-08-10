@@ -83,9 +83,13 @@ prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]
 # 許す形にとどめ、`git help commit` のような非オプション語では止まるようにする（過剰ブロック回避）。
 # 引数は引用符で囲まれて空白を含み得る（`git -C "/tmp/a b" commit`、`git -c user.name="A B" commit`）。
 # 非空白の連続だけを引数とみなすとこの形を取りこぼし、ゲートが素通りする（fail open）。
+# ダブルクォート内はエスケープを含み得る（`git -c user.name="A \"B\"" commit`）。閉じ引用符を
+# 単純に「次の `"`」とすると `\"` で早期に閉じ、以降が引数として続かず素通りする（実測）。
 # 生 JSON へ縮退した経路では引用符が `\"` になるため、その形も引用塊として認める。
+# シングルクォート内にエスケープは無い（シェルの仕様）ので、そちらは単純な形のままでよい。
 sq=\'
-gitoptquoted="(\\\\\"[^\"]*\\\\\"|\"[^\"]*\"|${sq}[^${sq}]*${sq})"
+dqbody='([^"\\]|\\.)*'
+gitoptquoted='(\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"')'
 gitoptbare="[^[:space:]\"${sq}]*"
 gitoptval="(${gitoptbare}${gitoptquoted}${gitoptbare}|[^[:space:]]+)"
 gitopts="(-[^[:space:]]+([[:space:]]+${gitoptval})?[[:space:]]+)*"
