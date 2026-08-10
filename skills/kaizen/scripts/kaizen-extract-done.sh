@@ -8,7 +8,8 @@
 # マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
 #
 # `--checkpoint-only`（ゲートが候補ゼロを検証できたときに呼ぶ）: transcript の処理位置
-# `.kaizen/.extract-checkpoint` を進め、対象エージェントのセンチネルだけを削除する。
+# `.kaizen/.extract-checkpoint` を走査器が報告した終端（`--scanned-bytes` / `--scanned-lines`。
+# どちらも必須）まで進め、対象エージェントのセンチネルだけを削除する。
 # **`.extract-done` は書かない**——セッション全体を抽出済みにすると、以降に新しい活動が
 # 積まれても同一セッション内の commit が素通りしてしまうため。次の commit では checkpoint
 # 以降の未処理範囲だけが再走査される。
@@ -32,11 +33,25 @@ sentinel_suffix=""
 sentinel_suffix_set=0
 transcript=""
 agent=""
+scanned_bytes=""
+scanned_lines=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--checkpoint-only)
 		mode=checkpoint-only
 		shift
+		;;
+	--scanned-bytes | --scanned-lines)
+		[ "$#" -ge 2 ] || {
+			echo "kaizen-extract-done: $1 requires a value" >&2
+			exit 2
+		}
+		[[ "$2" =~ ^[0-9]+$ ]] || {
+			echo "kaizen-extract-done: $1 requires a non-negative integer: $2" >&2
+			exit 2
+		}
+		if [ "$1" = "--scanned-bytes" ]; then scanned_bytes=$2; else scanned_lines=$2; fi
+		shift 2
 		;;
 	--sentinel-suffix)
 		[ "$#" -ge 2 ] || {
@@ -84,6 +99,21 @@ if [ "${mode}" = "checkpoint-only" ] && [ "${sentinel_suffix_set}" -ne 1 ]; then
 	echo "kaizen-extract-done: checkpoint-only requires --sentinel-suffix" >&2
 	exit 2
 fi
+# 走査済み位置はバイト位置と行数が対でしか意味を持たない（片方だけでは checkpoint の
+# 2 行目と 4 行目が別の地点を指す）。片方だけの指定は呼び出し側の誤りなので、黙って
+# 両方 wc へ縮退させず、モードに依らずここで落とす。
+if { [ -n "${scanned_bytes}" ] && [ -z "${scanned_lines}" ]; } ||
+	{ [ -z "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; }; then
+	echo "kaizen-extract-done: --scanned-bytes and --scanned-lines must be given together" >&2
+	exit 2
+fi
+# checkpoint-only は「走査器が候補ゼロを検証できた範囲」を記録するためのモード。ここで
+# transcript を測り直すと、走査から呼び出しまでの間に追記されたレコードを検査しないまま
+# 処理済みにしてしまう（fail open）。走査器が出した終端位置を必須にして塞ぐ。
+if [ "${mode}" = "checkpoint-only" ] && { [ -z "${scanned_bytes}" ] || [ -z "${scanned_lines}" ]; }; then
+	echo "kaizen-extract-done: checkpoint-only requires --scanned-bytes and --scanned-lines from the scanner" >&2
+	exit 2
+fi
 mkdir -p .kaizen
 
 # PreToolUse が渡した transcript_path を受け取れる場合は、処理済みバイト位置を記録する。
@@ -106,10 +136,17 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# 行位置を固定するため、agent が空でも 3 行目は空行として書く。
 	# wc の出力は実装によって先頭に空白が入る。数値だけを書かないと読み側の
 	# `^[0-9]+$` 検証に落ち、offset が無視されて毎回全走査へ静かに退行する。
-	checkpoint_bytes=$(wc -c <"${transcript}" 2>/dev/null || true)
-	checkpoint_bytes=${checkpoint_bytes//[[:space:]]/}
-	checkpoint_lines=$(wc -l <"${transcript}" 2>/dev/null || true)
-	checkpoint_lines=${checkpoint_lines//[[:space:]]/}
+	# 走査器から終端位置を渡された場合（checkpoint-only）はそれを使う。渡されない
+	# 抽出完了（--checkpoint-only なし）は transcript 全体を読んだ後なので現在位置を測る。
+	if [ -n "${scanned_bytes}" ] && [ -n "${scanned_lines}" ]; then
+		checkpoint_bytes=${scanned_bytes}
+		checkpoint_lines=${scanned_lines}
+	else
+		checkpoint_bytes=$(wc -c <"${transcript}" 2>/dev/null || true)
+		checkpoint_bytes=${checkpoint_bytes//[[:space:]]/}
+		checkpoint_lines=$(wc -l <"${transcript}" 2>/dev/null || true)
+		checkpoint_lines=${checkpoint_lines//[[:space:]]/}
+	fi
 	checkpoint_written=0
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
 		if printf '%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" \
