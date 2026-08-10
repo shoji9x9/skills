@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Scan the unprocessed portion of an agent transcript for kaizen candidates.
 # exit 0: candidates found, exit 1: verified no candidates, exit 2: inconclusive.
+#
+# 検証済みゼロ（exit 1）のときは、走査した終端位置を stdout に出す:
+#   kaizen-candidate-scan: scanned-bytes=<走査済みバイト数>
+#   kaizen-candidate-scan: scanned-lines=<走査済み行数>
+# checkpoint はこの値で進める。呼び出し側が改めて `wc -c` を測ると、走査と記録の間に
+# 追記されたレコードを検査しないまま処理済みにしてしまう（fail open）。
 set -euo pipefail
 
 transcript=${1:-}
@@ -39,6 +45,38 @@ if [ -r "${checkpoint}" ]; then
 	fi
 fi
 
+# 根拠の絶対行番号の起点。checkpoint が行数を持っていれば読み直さない（走査を O(差分) に保つ）。
+base_line=0
+if [ "${offset}" -gt 0 ]; then
+	if [ -n "${checkpoint_lines}" ]; then
+		base_line=${checkpoint_lines}
+	else
+		# 旧 checkpoint 向けのフォールバック。処理済み部分を 1 度だけ数える。
+		base_line=$(head -c "${offset}" "${transcript}" | wc -l)
+		base_line=${base_line//[[:space:]]/}
+	fi
+fi
+
+# 走査した終端を呼び出し側へ返す。checkpoint はこの値で進める。
+emit_scanned_position() {
+	printf 'kaizen-candidate-scan: scanned-bytes=%s\nkaizen-candidate-scan: scanned-lines=%s\n' "$1" "$2"
+}
+
+# 前回の走査以降に新しいレコードが無い場合。レコードが無いので「未知形式」と同じ
+# recognized=0 に落ちるが、意味は正反対なので検証済みゼロ（exit 1）として扱う。そうしないと、
+# 候補ゼロで自動通過した直後に Stop フックがセンチネルを再装填しただけで次の commit が止まる（実測済み）。
+# エージェントは checkpoint に記録された確定値を使う。無い（旧形式）なら従来どおり安全側。
+no_new_records() { # $1: 走査済みバイト数 / $2: 走査済み行数
+	if [ -n "${checkpoint_agent}" ]; then
+		echo "kaizen-candidate-scan: agent=${checkpoint_agent}"
+		emit_scanned_position "$1" "$2"
+		echo "kaizen-candidate-scan: no new records since checkpoint (offset=${offset})" >&2
+		exit 1
+	fi
+	echo "kaizen-candidate-scan: no new records since checkpoint but the agent is unknown (legacy checkpoint)" >&2
+	exit 2
+}
+
 # 内部の失敗は必ず exit 2（不明）へ倒す。set -e に任せると mktemp の失敗がそのまま
 # exit 1 になり、ゲートからは「検証済みゼロ」に見えてしまう（今は scan_agent が空に
 # なるおかげで止まっているだけで、契約としては壊れている）。
@@ -56,19 +94,22 @@ tail -c "+$((offset + 1))" "${transcript}" >"${slice}" 2>/dev/null || {
 	exit 2
 }
 
+# 走査したのは「この slice の終端まで」。呼び出し側が後から wc -c を測り直すと、走査と
+# checkpoint 記録の間に追記されたレコードを未検査のまま処理済みにしてしまう（fail open）。
+# 行数は「offset より前にある改行の数」で統一する（`kaizen-extract-done.sh` の `wc -l` と同じ定義）。
+# 改行で終わらない末尾レコードを 1 行として足すと、後から改行だけが届いたときにその行を
+# 二重に数え、以降の根拠行番号が 1 ずつ恒久的にずれる。jq の input_line_number は
+# base_line からの相対で数えるので、足さなくても末尾レコードの行番号は正しく出る。
+slice_bytes=$(wc -c <"${slice}")
+slice_bytes=${slice_bytes//[[:space:]]/}
+slice_lines=$(wc -l <"${slice}")
+slice_lines=${slice_lines//[[:space:]]/}
+scanned_bytes=$((offset + slice_bytes))
+scanned_lines=$((base_line + slice_lines))
+
 # checkpoint 以降に 1 バイトも増えていない ＝ 前回の走査以降に新しい活動が無い。
-# レコードが無いので「未知形式」と同じ recognized=0 に落ちるが、意味は正反対なので
-# 検証済みゼロ（exit 1）として扱う。そうしないと、候補ゼロで自動通過した直後に Stop フックが
-# センチネルを再装填しただけで次の commit が止まる（実測済み）。
-# エージェントは checkpoint に記録された確定値を使う。無い（旧形式）なら従来どおり安全側。
 if [ ! -s "${slice}" ]; then
-	if [ -n "${checkpoint_agent}" ]; then
-		echo "kaizen-candidate-scan: agent=${checkpoint_agent}"
-		echo "kaizen-candidate-scan: no new records since checkpoint (offset=${offset})" >&2
-		exit 1
-	fi
-	echo "kaizen-candidate-scan: no new records since checkpoint but the agent is unknown (legacy checkpoint)" >&2
-	exit 2
+	no_new_records "${offset}" "${base_line}"
 fi
 
 if ! jq -Rr '
@@ -80,7 +121,7 @@ if ! jq -Rr '
 		else "" end;
 	(try fromjson catch null) as $j |
 	("N\t" + (input_line_number | tostring)),
-	(if $j == null then "X"
+	(if $j == null then (if test("^\\s*$") then "B" else "X" end)
 	elif $j.type == "assistant" then
 		"C", "A",
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
@@ -166,25 +207,15 @@ fi
 # 秘密値・社外情報がスクロールバックやログへ漏れる経路を塞ぐ。位置を出すのは、ブロックされた
 # エージェントが session directory を手探りせず該当レコードへ直行できるようにするため
 #（読むのは自分のセッションの transcript なので、位置さえ分かれば内容は自分で取得できる）。
-base_line=0
-if [ "${offset}" -gt 0 ]; then
-	if [ -n "${checkpoint_lines}" ]; then
-		# checkpoint が行数を持っていれば読み直さない（走査を O(差分) に保つ）。
-		base_line=${checkpoint_lines}
-	else
-		# 旧 checkpoint 向けのフォールバック。処理済み部分を 1 度だけ数える。
-		base_line=$(head -c "${offset}" "${transcript}" | wc -l)
-		base_line=${base_line//[[:space:]]/}
-	fi
-fi
-
 recognized=0
 invalid=0
+blank=0
 saw_claude=0
 saw_codex=0
 saw_assistant=0
 candidate_count=0
 record_line=0
+# 既出の編集先パス。前後を改行で挟んだ 1 本の文字列にして、組み込みの照合で既出判定する。
 edited_paths=""
 while IFS= read -r record; do
 	case "${record}" in
@@ -193,6 +224,7 @@ while IFS= read -r record; do
 		continue
 		;;
 	X) invalid=1 ;;
+	B) blank=$((blank + 1)) ;;
 	C) saw_claude=1 ;;
 	D) saw_codex=1 ;;
 	R) recognized=$((recognized + 1)) ;;
@@ -203,13 +235,15 @@ while IFS= read -r record; do
 	F$'\t'*)
 		recognized=$((recognized + 1))
 		path=${record#*$'\t'}
-		if [ -n "${edited_paths}" ] && grep -Fxq -- "${path}" <<<"${edited_paths}"; then
+		# 既出判定は bash の組み込みパターン照合で行う。レコードごとに grep を起動すると
+		# 編集レコード数 × プロセス起動になり、長いセッションでゲートの timeout に近づく。
+		if [[ ${edited_paths} == *$'\n'"${path}"$'\n'* ]]; then
 			if [ "${candidate_count}" -lt 5 ]; then
 				printf 'repeated edit: transcript line %s\n' "${record_line}"
 			fi
 			candidate_count=$((candidate_count + 1))
 		else
-			edited_paths=${edited_paths:+${edited_paths}$'\n'}${path}
+			edited_paths=${edited_paths:-$'\n'}${path}$'\n'
 		fi
 		;;
 	U$'\t'*)
@@ -241,6 +275,10 @@ if [ "${invalid}" -eq 1 ]; then
 	echo "kaizen-candidate-scan: transcript contains an unsupported or malformed record" >&2
 	exit 2
 fi
+if [ "${recognized}" -eq 0 ] && [ "${blank}" -gt 0 ]; then
+	# 空行だけが増えていた（前レコードの改行が後から届いた等）。新しい活動は無い。
+	no_new_records "${scanned_bytes}" "${scanned_lines}"
+fi
 if [ "${recognized}" -eq 0 ]; then
 	echo "kaizen-candidate-scan: no supported Claude Code or Codex records were found" >&2
 	exit 2
@@ -262,4 +300,5 @@ if [ "${candidate_count}" -gt 0 ]; then
 	exit 0
 fi
 
+emit_scanned_position "${scanned_bytes}" "${scanned_lines}"
 exit 1

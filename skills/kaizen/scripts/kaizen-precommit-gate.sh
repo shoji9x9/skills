@@ -78,11 +78,26 @@ fi
 wrappers='(sudo|env|command|nohup|nice|time|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
 prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
+# `git` と `commit` の間に挟まる git のグローバルオプション（`git -C <path> commit`,
+# `git --no-pager commit`, `git -c k=v commit` 等）も捕捉する。オプション語とその引数 1 つまでを
+# 許す形にとどめ、`git help commit` のような非オプション語では止まるようにする（過剰ブロック回避）。
+# 引数は空白を含み得る（`git -C "/tmp/a b" commit`、`git -C /tmp\ a commit`）。非空白の連続だけを
+# 引数とみなすとこれらを取りこぼし、ゲートが素通りする（fail open。いずれも実測）。
+# 引用・エスケープはクラスごとに継ぎ足すと別クラスが残るため（`"..."` を足すと `\"` で早期に閉じ、
+# それを直すと `\ ` が残った）、**シェルの 1 トークン**としてまとめて表す:
+#   エスケープ `\<任意>` / シングルクォート塊 / ダブルクォート塊（内部のエスケープ込み） / 素の文字
+# の 1 回以上の連結。これで `/tmp/"a b"/c\ d` のような混在も 1 引数として続く。
+# 生 JSON へ縮退した経路では引用符が `\"`、エスケープが `\\<文字>` として現れるため、その形も要素に加える。
+# シングルクォート内にエスケープは無い（シェルの仕様）ので、そちらは単純な形でよい。
+sq=\'
+dqbody='([^"\\]|\\.)*'
+gitoptval='((\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"'|\\\\.|\\.|[^[:space:]"'"${sq}"'\\])+)'
+gitopts="(-[^[:space:]]+([[:space:]]+${gitoptval})?[[:space:]]+)*"
 if [ "${extracted}" -eq 1 ]; then
-	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|$)'
+	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
-	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*'"${prefix}"'git[[:space:]]+commit([[:space:]]|"|$)'
+	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
 if [[ ! "${cmd}" =~ ${commit_re} ]]; then
 	exit 0
@@ -114,6 +129,8 @@ fi
 scan_output=""
 scan_rc=2
 scan_agent=""
+scanned_bytes=""
+scanned_lines=""
 sentinel_suffix=""
 if [ -n "${transcript}" ] && [ -r "${script_dir}/kaizen-candidate-scan.sh" ]; then
 	set +e
@@ -125,7 +142,16 @@ if [ -n "${transcript}" ] && [ -r "${script_dir}/kaizen-candidate-scan.sh" ]; th
 		scan_rc=2
 	fi
 	set -e
-	scan_agent=$(sed -n 's/^kaizen-candidate-scan: agent=\(claude-code\|codex\)$/\1/p' <<<"${scan_output}")
+	# 走査器の報告は bash の組み込み照合だけで読む。`sed` の `\|`（BRE の交替）は GNU 拡張で、
+	# 持たない実装（BSD / macOS 標準）では agent を取り出せず、候補ゼロでも毎回ブロックへ倒れる。
+	while IFS= read -r scan_line; do
+		case "${scan_line}" in
+		"kaizen-candidate-scan: agent=claude-code") scan_agent=claude-code ;;
+		"kaizen-candidate-scan: agent=codex") scan_agent=codex ;;
+		"kaizen-candidate-scan: scanned-bytes="*) scanned_bytes=${scan_line#*=} ;;
+		"kaizen-candidate-scan: scanned-lines="*) scanned_lines=${scan_line#*=} ;;
+		esac
+	done <<<"${scan_output}"
 	case "${scan_agent}" in
 	claude-code) sentinel_suffix="" ;;
 	codex) sentinel_suffix="-codex" ;;
@@ -137,10 +163,16 @@ if [ -n "${transcript}" ] && [ -r "${script_dir}/kaizen-candidate-scan.sh" ]; th
 			echo "kaizen-precommit-gate: verified-zero scan did not identify its agent; pending sentinels were preserved" >&2
 			exit 2
 		fi
+		# 走査済みの終端が分からないまま checkpoint を進めると、走査していない範囲まで
+		# 処理済みにしてしまう（fail open）。取れなければ従来どおり fail closed で止める。
+		if [[ ! "${scanned_bytes}" =~ ^[0-9]+$ ]] || [[ ! "${scanned_lines}" =~ ^[0-9]+$ ]]; then
+			echo "kaizen-precommit-gate: verified-zero scan did not report its scanned position; pending sentinels were preserved" >&2
+			exit 2
+		fi
 		set +e
 		# --agent は checkpoint の 3 行目へ記録される。次回、新しいレコードが 1 件も無いとき
 		# （＝前回の走査以降に活動が無いとき）に走査器がエージェントを知る唯一の手掛かりになる。
-		done_output=$(bash "${script_dir}/kaizen-extract-done.sh" --checkpoint-only --sentinel-suffix "${sentinel_suffix}" --agent "${scan_agent}" "${transcript}" 2>&1)
+		done_output=$(bash "${script_dir}/kaizen-extract-done.sh" --checkpoint-only --sentinel-suffix "${sentinel_suffix}" --agent "${scan_agent}" --scanned-bytes "${scanned_bytes}" --scanned-lines "${scanned_lines}" "${transcript}" 2>&1)
 		done_rc=$?
 		set -e
 		if [ "${done_rc}" -ne 0 ]; then
