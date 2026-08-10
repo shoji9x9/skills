@@ -76,7 +76,10 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# 診断も awk のメッセージだけになって「何の不整合か分からないまま commit できない」状態になる）。
 	# 読めないノートは検査できていないので、素通りさせず不整合として数えて fail closed を保つ。
 	if ! state=$(frontmatter_state "${note}" 2>/dev/null); then
-		echo "kaizen-status-check: ${note}: could not read the frontmatter (unreadable file?)" >&2
+		# 失敗理由は権限とは限らない（破損・awk の内部エラー等）。捨てると「何の不整合か
+		# 分からないまま commit できない」状態に戻るので、失敗時だけ読み直して診断を添える。
+		detail=$(frontmatter_state "${note}" 2>&1 >/dev/null | tr '\n' ' ') || true
+		echo "kaizen-status-check: ${note}: could not read the frontmatter: ${detail:-no diagnostics from awk}" >&2
 		errors=$((errors + 1))
 		continue
 	fi

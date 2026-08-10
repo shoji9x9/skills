@@ -301,6 +301,14 @@ describe("ゲートの commit 検出", () => {
     // ダブルクォート内のエスケープ。閉じ引用符を「次の "」とすると \" で早期に閉じ素通りする。
     ['git -c user.name="A \\"B\\"" commit -m x', 2],
     ['git -C "/tmp/a \\"b\\"" commit -m x', 2],
+    // backslash でエスケープされた空白。引用符だけを見ていると 1 引数として続かず素通りする。
+    ["git -C /tmp\\ a commit -m x", 2],
+    ["git -c user.name=A\\ B commit -m x", 2],
+    // 引用とエスケープの混在も 1 トークンとして続くこと。
+    ['git -C /tmp/"a b"/c\\ d commit -m x', 2],
+    // エスケープを許しても非オプション語では止まる（過剰ブロックの回帰）。
+    ["git log --grep commit", 0],
+    ["echo git\\ commit", 0],
     ["git help commit", 0],
     ["man git commit", 0],
     ['echo "run git commit later"', 0],
@@ -335,6 +343,8 @@ describe("lifecycle 検査", () => {
       const check = runScript("kaizen-status-check.sh", [], { cwd });
       expect(check.status).toBe(2);
       expect(check.stderr).toMatch(/2026-08-10-a-unreadable\.md: could not read the frontmatter/);
+      // 失敗理由は権限とは限らないので、awk の診断を捨てずに添える（原因の切り分けに要る）。
+      expect(check.stderr).toMatch(/could not read the frontmatter: .*Permission denied/);
       expect(check.stderr).toMatch(
         /2026-08-10-b-broken\.md: status is applied but applied-to is empty/,
       );
