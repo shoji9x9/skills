@@ -51,7 +51,8 @@ Terraform でも情報源として同様に機能する（差を吸収するの�
   `fetch` を使うため 18 未満は不可）、SVG→PNG 変換用の Chrome/Chromium
   （headless。`preview-diagram.mjs` が使う。無い場合は `PUPPETEER_EXECUTABLE_PATH` /
   `CHROME_PATH` を設定）。Chrome サンドボックスは既定で有効。root/コンテナ等で
-  サンドボックスが使えず起動に失敗する場合のみ `DIAGRAM_CHROME_NO_SANDBOX=1` を設定する
+  サンドボックスが使えず起動に失敗する場合のみ `DIAGRAM_CHROME_NO_SANDBOX=1` を設定する。
+  PNG 化は既定 120 秒で打ち切る（大きな図で足りなければ `DIAGRAM_CHROME_TIMEOUT_MS` で延長）
 - **ネットワーク**: AWS 公式アイコン取得時のみ（`fetch-aws-icons.mjs`）
 - **MCP**: なし
 
@@ -141,4 +142,6 @@ node "$SKILL/assets/engine/render-diagram.mjs"     # 既定=全環境。--env pr
 - 多対多で集まる領域は幹線 x に寄せてから分岐。平行線は 20px 以上離す。
 - ノード間の矢印は最大 1 本。同じ辺への複数進入は `waypoint` で進入位置をずらす。
 - 残った交差は飛び越し（line jump）で「非接続」を明示（エンジンが自動付与）。
-- ラベルは線の出ていない辺へ。キャンバス端に 50px 以上の余白。
+- 斜めのエッジはエンジンがエラーで止める（直交は機械が担保。目視の対象外）。
+- エッジラベルは屈曲点を避けて自動配置。位置を明示するときだけ `labelAt` を使う。
+- ノードのラベルは線の出ていない辺へ。キャンバス端に 50px 以上の余白。

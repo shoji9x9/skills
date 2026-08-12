@@ -81,7 +81,8 @@ const nodes = [
   },
 ];
 
-// edge: from, to, label?, dashed?, waypoints?（経由点で他アイコン/ラベルを避けて直交配線）
+// edge: from, to, label?, dashed?, waypoints?（経由点で他アイコン/ラベルを避けて直交配線）,
+//        labelAt?（ラベル中心の [x,y]。省略時は屈曲点を避けて自動配置されるので通常は不要）
 const edges = [
   { from: "browser", to: "cf" },
   {
