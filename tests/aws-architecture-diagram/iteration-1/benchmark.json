@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "skill_name": "aws-architecture-diagram",
+    "skill_path": "<repo>/skills/aws-architecture-diagram",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-12T12:02:48Z",
+    "evals_run": [4],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 442.5,
+        "tokens": 28855,
+        "tool_calls": 31,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "conventions.md の直交配線・ラベル配置・進入位置のルールを参照している",
+          "passed": true,
+          "evidence": "「目視観点 (a)〜(j) で見つかった以下も修正しました」として、枠線沿いの配線・平行線の離間（幹線 x=1030/1060/1090 を互いに 30px）・同一辺への進入 y 分離（540/560）・キャンバス端 50px の余白を挙げている。"
+        },
+        {
+          "text": "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
+          "passed": true,
+          "evidence": "「ddb を lp: \"top\"（線が入るのは左辺のみ）に変更」と述べ、project-files の architecture-spec.mjs:68 でも lp が \"right\" → \"top\" に変わっている。waypoints も「全 waypoints を前後と x/y 共有、端点は中心 ±20px 以内に統一」と直交化している。"
+        },
+        {
+          "text": "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
+          "passed": true,
+          "evidence": "「今回は発生なし（エンジンの直交検査がエラーで止める）」と明記し、原因として「端点の waypoint がノード中心から ±20px を超える」ケースまで説明している。"
+        },
+        {
+          "text": "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",
+          "passed": true,
+          "evidence": "「『既定』『同一プロセス』等は屈曲点を外した直線区間に載っており折れなし。位置を固定したい場合は labelAt を使う（waypoints で動かさない）」と述べている。"
+        },
+        {
+          "text": "再生成 → PNG 目視確認のループで直そうとしている",
+          "passed": true,
+          "evidence": "「prod / local とも PNG で確認しました」と述べ、再生成コマンド（render-diagram.mjs → preview-diagram.mjs）を提示している。"
+        },
+        {
+          "text": "推測で断定せず PNG を実際に確認して判断している",
+          "passed": true,
+          "evidence": "PNG を画像として読んだ結果として、枠線に沿う配線・同一辺への重複進入・交差 3 箇所を具体的に指摘し、修正後に飛び越しが 2 箇所へ減ったことまで報告している。"
+        }
+      ],
+      "notes": [
+        "使い捨てプロジェクトでは mise の shim が解決できず、node を絶対パス（~/.local/share/mise/installs/node/24.18.0/bin）で実行している。eval 環境の前提であり、スキルの欠陥ではない。"
+      ]
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 1399.2,
+        "tokens": 96745,
+        "tool_calls": 88,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "conventions.md の直交配線・ラベル配置・進入位置のルールを参照している",
+          "passed": false,
+          "evidence": "conventions.md には一切触れず、グリッド吸着・レーン・コスト最小化という独自の作図規則を自分で定義している。"
+        },
+        {
+          "text": "waypoints で直交化し、lp（ノードのラベル位置）を線の出ていない辺へ移す方針を示している",
+          "passed": false,
+          "evidence": "waypoints / lp という語彙が出力に存在しない。Python ジェネレータ（aws_arch.py）の GX() / GY() レーンとラベル帯という自前の概念で解いている。"
+        },
+        {
+          "text": "斜めのエッジは diagram-engine.mjs がエラーで止める（目視ではなく生成時に検出される）ことを踏まえている",
+          "passed": false,
+          "evidence": "diagram-engine.mjs を知らず、自作の `python3 aws_arch.py --verify` で斜め線 0 本を検査している。機械検査という発想には自力で到達したが、スキルの契約（エンジンが生成時にエラーで止める）ではない。"
+        },
+        {
+          "text": "エッジラベルは屈曲点を避けて自動配置されるため waypoints でラベルを動かす必要が無く、位置を明示するときは labelAt を使うと示している",
+          "passed": false,
+          "evidence": "labelAt の言及なし。候補位置の総当たり＋コスト最小化（折れ点への近さをコストに含む）という独自方式で解いている。"
+        },
+        {
+          "text": "再生成 → PNG 目視確認のループで直そうとしている",
+          "passed": true,
+          "evidence": "preview.png を出力し、「これは最初の版で実際に起きていて、レンダリング画像を見て直しました」と反復している。スキル非依存の一般的振る舞いで弁別しない項目。"
+        },
+        {
+          "text": "推測で断定せず PNG を実際に確認して判断している",
+          "passed": true,
+          "evidence": "ECS-b の貫通・2 本の線の完全重なり・レプリケーション線の接続点共有を、描画結果を見て検出・修正したと報告している。スキル非依存の一般的振る舞いで弁別しない項目。"
+        }
+      ],
+      "notes": [
+        "assertion 5・6 は with_skill / without_skill の双方が満たした。スキル固有ではない一般的振る舞いのため Delta には寄与せず、後退検知目的の項目として扱う。"
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 442.5,
+        "stddev": 0,
+        "min": 442.5,
+        "max": 442.5
+      },
+      "tokens": {
+        "mean": 28855,
+        "stddev": 0,
+        "min": 28855,
+        "max": 28855
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 1399.2,
+        "stddev": 0,
+        "min": 1399.2,
+        "max": 1399.2
+      },
+      "tokens": {
+        "mean": 96745,
+        "stddev": 0,
+        "min": 96745,
+        "max": 96745
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "-956.7",
+      "tokens": "-67890"
+    }
+  },
+  "notes": [
+    "Issue #196（エッジラベルの屈曲点回避・labelAt 追加・直交検査のエンジン強制・preview-diagram.mjs のコンテナ安定化）実装後の回帰。対象は assertion を書き換えた eval 4 のみ。未変更の eval 1/2/3 は今回走らせていない。",
+    "with_skill は 6 アサーション全通過。without_skill は 2/6。Delta +0.67 は eval ごとの pass_rate 平均差。",
+    "1 run/configuration のため configuration 内の分散は測っていない（表の ± は eval 間のばらつきで、今回は 1 eval なので 0）。",
+    "eval 4 のプロンプトは今回 2 度直している。1 度目は「エッジラベルが屈曲点に重なる」手掛かりが無く labelAt のアサーションに到達しなかった（with_skill が 5/6）。2 度目はエッジラベルだけを問う形にしたため、今度はノードラベルの手掛かりが消えて lp のアサーションに到達しなくなった。最終形は斜め線・ノードラベル・エッジラベルの 3 症状すべてを問う。到達しなかった run は採用せず scratchpad へ退避した。",
+    "最終プロンプトでの初回実行は両 configuration ともセッション上限で失敗した。result.json が is_error: true・本文がセッション上限メッセージで、subtype は success・ハーネスの exit も 0 のため、終了コードだけでは無効を判別できない。採点前に is_error を見る必要がある。上限リセット後に同一プロンプトで取り直し、その結果を採用している。",
+    "read 隔離: without_skill は contamination verdict = clean。baseline はスキル資産に到達せず、独自の Python ジェネレータ（グリッド吸着・レーン配線・ラベル位置のコスト最小化）を自作している。",
+    "非弁別アサーション（baseline も満たした 2 項目）: 「再生成 → PNG 目視確認のループ」「推測せず PNG を実際に確認」。baseline は headless Chrome で preview.png を出して反復修正しており、スキル非依存の一般的振る舞いで到達できる。Delta ではなく後退検知の項目として残す。",
+    "弁別している 4 項目（with_skill 4/4・baseline 0/4）は conventions.md 参照・waypoints/lp の語彙・diagram-engine.mjs が斜めをエラーで止める契約・labelAt。今回の変更で追加した 2 項目（直交検査・labelAt）は with_skill が原因条件（端点 waypoint はノード中心 ±20px 以内）まで説明して満たした。",
+    "時間・トークンは baseline が 1399s / 96.7k tokens と大きいが、これは自作ジェネレータを書き切ったためで、スキルの優位として読むには 1 run では足りない。"
+  ]
+}
