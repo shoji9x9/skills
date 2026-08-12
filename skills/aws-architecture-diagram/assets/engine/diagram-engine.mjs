@@ -8,8 +8,9 @@
 //                   null なら無地の箱を描く。
 //            lp   = ラベル位置 "top"|"bottom"|"left"|"right"（線の出ていない辺へ寄せる）。
 //            dim  = true で淡色化（環境差分の「未使用」表現）。
-//   edge : { from, to, label?, dashed?, waypoints?, dim? }
+//   edge : { from, to, label?, labelAt?, dashed?, waypoints?, dim? }
 //            waypoints = [[x,y]...] 直交配線の経由点。無ければ自動 L 字。
+//            labelAt   = [x,y] ラベルの中心座標。省略時は屈曲点を避けて自動配置。
 //   group: { label, x, y, w, h, color }   背景の枠（左上基準）。
 //   notes: [{ x, y, w, title, lines:[...] }]   凡例/注記ボックス。
 //
@@ -175,6 +176,25 @@ export function renderDiagram(spec, options = {}) {
 
   // 全エッジの経路を先に確定し、垂直セグメント一覧を作る（交差の飛び越し判定用）。
   const routed = edges.map((e) => ({ e, pts: route(node(e.from), node(e.to), e) }));
+
+  // 直交配線（conventions.md の確認観点 (b)）を機械的に強制する。斜め線は目視で
+  // 見落としやすく、`waypoints` の座標を 1 つ間違えるだけで発生するのでここで止める。
+  // 両端の区間も検査対象。ノード側の接続点は相手側 waypoint に合わせて辺上を動くが、
+  // 辺の範囲（中心 ±20px）を超える指定は丸められるため斜めになる。
+  for (const { e, pts } of routed) {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i];
+      const b = pts[i + 1];
+      if (a.x !== b.x && a.y !== b.y) {
+        throw new Error(
+          `斜めのエッジ: ${e.from}->${e.to} の区間 (${a.x},${a.y})-(${b.x},${b.y})` +
+            `（直交配線が必要。waypoints は前後の点と x か y を共有させ、` +
+            `最初/最後の waypoint は接続先ノードの中心と x か y を ±20px 以内で揃える）`,
+        );
+      }
+    }
+  }
+
   const verticals = [];
   routed.forEach(({ pts }, ei) => {
     for (let i = 0; i < pts.length - 1; i++) {
@@ -184,6 +204,26 @@ export function renderDiagram(spec, options = {}) {
         verticals.push({ ei, x: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
     }
   });
+
+  // エッジラベルの中心座標。`labelAt` があればそれを使う。省略時は点列の中央を採るが、
+  // そこが屈曲点だとラベルの白背景が角を覆い「線が折れていること」を隠す（自動 L 字は
+  // 常に 4 点なので中央インデックスは必ず屈曲点になる）。屈曲点・端点に当たったら、
+  // 隣接する直線区間の長い方の中点へ寄せる（線の形は変えずラベルだけ動かす）。
+  const labelPoint = (pts, e) => {
+    if (e.labelAt) return { x: e.labelAt[0], y: e.labelAt[1] };
+    const i = Math.floor(pts.length / 2);
+    const p = pts[i];
+    const prev = pts[i - 1];
+    const next = pts[i + 1];
+    const straight =
+      prev && next && ((prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y));
+    if (straight) return p;
+    const segs = [prev && [prev, p], next && [p, next]].filter(Boolean);
+    if (!segs.length) return p;
+    const len = ([a, b]) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    const [a, b] = segs.reduce((best, s) => (len(s) > len(best) ? s : best));
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
 
   // 水平セグメントが他エッジの垂直セグメントと交わる点で半円アーチ（∩）を描く。
   const pathD = (pts, ei) => {
@@ -241,7 +281,7 @@ export function renderDiagram(spec, options = {}) {
       `<path d="${pathD(pts, ei)}" fill="none" stroke="${stroke}" stroke-width="1.8" marker-end="url(#${marker})"${e.dashed ? ' stroke-dasharray="6,4"' : ""}/>`,
     );
     if (e.label) {
-      const mid = pts[Math.floor(pts.length / 2)];
+      const mid = labelPoint(pts, e);
       // 全角（CJK 等の非 Latin-1）は ASCII より広いので、文字幅を出し分けて背景がラベルより
       // 狭くならないようにする（font-size 11 での概算: Latin-1 ≈ 6.5px / 全角 ≈ 11px）。
       const textW = [...e.label].reduce((a, ch) => a + (/[\x20-\xff]/.test(ch) ? 6.5 : 11), 0);

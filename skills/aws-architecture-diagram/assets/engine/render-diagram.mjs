@@ -72,10 +72,15 @@ function resolveEnvs() {
   return list;
 }
 
+// 先に全環境をレンダリングしてから書き出す。エンジンは規約違反（直交検査・重複エッジ等）を
+// 例外で止めるため、レンダリングと書き出しを交互に行うと「先頭の環境だけ新しく、残りは
+// 古いまま」の out/ が残り、目視確認で stale な PNG を新しい図と取り違える。
 mkdirSync(OUT_DIR, { recursive: true });
-for (const name of resolveEnvs()) {
-  const svg = renderDiagram(specFor(name), { iconDir: ICON_DIR });
-  const out = join(OUT_DIR, `architecture-${name}.svg`);
+const rendered = resolveEnvs().map((name) => ({
+  out: join(OUT_DIR, `architecture-${name}.svg`),
+  svg: renderDiagram(specFor(name), { iconDir: ICON_DIR }),
+}));
+for (const { out, svg } of rendered) {
   writeFileSync(out, svg);
   console.log(`wrote ${out} (${svg.length} bytes)`);
 }
