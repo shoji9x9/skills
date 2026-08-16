@@ -42,6 +42,15 @@ export { baseSpec }; // エンジンが base を読めるよう再エクスポ�
 - 環境を**削除**: キーを消す。
 - `title` は base そのままの環境で使う。`transform` を持つ環境の title は transform の戻り値で設定する。
 
+### ファイル名の拡張子
+
+エンジンはレジストリを `environments.mjs` → `environments.js` の順で探す（両方あれば `.mjs` を使い、
+無視した方を警告に出す。**リネームしたら古い方を必ず削除する**——残すと編集した側が黙って無視される）。
+`package.json` に `"type": "module"` があるプロジェクトは `.js` も ESM として解釈されるため、
+リポジトリの拡張子規約に合わせて `environments.js` にリネームしてよい。base 仕様
+（`architecture-spec.mjs`）はレジストリからの相対 import なので、名前も拡張子も自由に決められる
+（リネームしたらレジストリ側の import も直す）。
+
 ## 「今どれを更新するか」の指定
 
 図ディレクトリで、スキル同梱のエンジンを実行する（`$SKILL` は導入先）。
