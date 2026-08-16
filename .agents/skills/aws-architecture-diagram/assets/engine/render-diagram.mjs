@@ -3,14 +3,15 @@
 //   （または DIAGRAM_DIR=<図ディレクトリ> を指定）
 //
 // プロジェクト所有ファイル（DIAGRAM_DIR に置く。既定は cwd）:
-//   environments.mjs      環境レジストリ（＝存在すべき環境の単一ソース）
-//   architecture-spec.mjs environments.mjs が読む base 仕様
+//   environments.mjs      環境レジストリ（＝存在すべき環境の単一ソース。.js でもよい）
+//   architecture-spec.mjs 環境レジストリが読む base 仕様（レジストリからの相対 import なので
+//                         ファイル名・拡張子はプロジェクトが自由に決めてよい）
 //   icons/                アイコン（browser/internet ＋ fetch した aws-icons/）
 //   out/                  SVG 出力先
 //
-// 対象環境: --env 省略時は environments.mjs の全環境、--env a,b で一部だけ。
+// 対象環境: --env 省略時は環境レジストリの全環境、--env a,b で一部だけ。
 // 場所の上書き: DIAGRAM_DIR / DIAGRAM_ICON_DIR / DIAGRAM_OUT_DIR。
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { renderDiagram } from "./diagram-engine.mjs";
@@ -19,12 +20,32 @@ const DIAGRAM_DIR = process.env.DIAGRAM_DIR ?? process.cwd();
 const ICON_DIR = process.env.DIAGRAM_ICON_DIR ?? join(DIAGRAM_DIR, "icons");
 const OUT_DIR = process.env.DIAGRAM_OUT_DIR ?? join(DIAGRAM_DIR, "out");
 
-// プロジェクト所有の environments.mjs を動的 import（sibling の architecture-spec.mjs も辿る）。
-// environments.mjs は環境定義（environments）と base（baseSpec）だけを持てばよく、環境→spec の
-// 解決はここ（エンジン）で行う（プロジェクト側のボイラープレートを増やさない）。
-const { environments, baseSpec } = await import(
-  pathToFileURL(join(DIAGRAM_DIR, "environments.mjs")).href
+// 環境レジストリの拡張子は決め打ちしない。"type": "module" のプロジェクトでは .js が既定で ESM に
+// なるため、リポジトリの拡張子規約に合わせて environments.js で置けるようにする（.mjs 優先なので
+// 既存プロジェクトの挙動は変わらない）。どちらも無いときは ERR_MODULE_NOT_FOUND ではなく、探した
+// 候補を示すエラーで止める（「レジストリの中身を間違えた」との誤診を防ぐ）。
+const REGISTRY_CANDIDATES = ["environments.mjs", "environments.js"];
+const found = REGISTRY_CANDIDATES.map((name) => join(DIAGRAM_DIR, name)).filter((p) =>
+  existsSync(p),
 );
+const registryPath = found[0];
+if (!registryPath) {
+  throw new Error(
+    `環境レジストリが見つかりません: ${DIAGRAM_DIR} に ${REGISTRY_CANDIDATES.join(" か ")} を置いてください。`,
+  );
+}
+// 両方あると先勝ちで片方が黙って無視され、「編集したのに図に反映されない」を起こす（.mjs →
+// .js へリネームした際の消し忘れが典型）。どちらを使いどちらを捨てたかを必ず知らせる。
+if (found.length > 1) {
+  console.error(
+    `警告: 環境レジストリが複数あります。${registryPath} を使い、${found.slice(1).join(" / ")} は無視します（リネームしたなら古い方を削除してください）。`,
+  );
+}
+
+// プロジェクト所有の環境レジストリを動的 import（sibling の base 仕様もそこから辿られる）。
+// レジストリは環境定義（environments）と base（baseSpec）だけを持てばよく、環境→spec の
+// 解決はここ（エンジン）で行う（プロジェクト側のボイラープレートを増やさない）。
+const { environments, baseSpec } = await import(pathToFileURL(registryPath).href);
 
 // 環境名 → spec（transform があれば base に適用、無ければ base に title だけ差し替え）。
 // title 未設定の環境は base の title を既定に使う（"undefined" が図に出るのを防ぐ）。
