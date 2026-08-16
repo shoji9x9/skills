@@ -39,10 +39,17 @@ export const baseSpec = {
 export const environments = { ${envName}: { title: "t" } };
 `;
 
-/** files（ファイル名 → 内容）だけを置いた図ディレクトリを作る。 */
+/**
+ * files（ファイル名 → 内容）を置いた図ディレクトリを作る。
+ *
+ * `package.json` の `"type": "module"` を必ず置く。Issue #198 が対象にしているのは
+ * まさにその設定を持つプロジェクトであり、fixture 側もその前提を明示しておく
+ * （Node の module 構文検出に暗黙に頼ると、何を再現しているのかが読めなくなる）。
+ */
 function diagramDir(files) {
   const dir = mkdtempSync(join(tmpdir(), "diagram-registry-"));
   createdDirs.push(dir);
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
   for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
   return dir;
 }
