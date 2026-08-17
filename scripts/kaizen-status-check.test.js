@@ -81,6 +81,15 @@ const ACCEPTED = [
   - "b.md"`,
   },
   {
+    // ブロックシーケンスは親キーと同じ桁 0 に置いても正しい YAML。桁 0 を一律で値の終わりと
+    // 見なすと、この非空の適用先が空と読まれて applied が誤ブロックされる。
+    name: "桁 0 のブロックシーケンス",
+    status: "applied",
+    appliedTo: `
+- "a.md"
+- "b.md"`,
+  },
+  {
     name: "折り返し配列の途中にコメント行",
     status: "applied",
     appliedTo: `
@@ -115,6 +124,14 @@ const REJECTED = [
     message: "status is rejected but applied-to is empty",
   },
   {
+    // 桁 0 のブロックシーケンスを読み落とすと「空」に化けて pending が素通りする（fail open）。
+    name: "pending なのに桁 0 のブロックシーケンスに適用先がある",
+    status: "pending",
+    appliedTo: `
+- "a.md"`,
+    message: "applied-to is set but status is pending",
+  },
+  {
     name: "pending なのに折り返された配列に適用先がある",
     status: "pending",
     appliedTo: `
@@ -143,3 +160,49 @@ test.each(REJECTED)("不整合は exit 2 で止める: $name", ({ status, applie
   expect(stderr).toContain(message);
   expect(exitCode).toBe(2);
 });
+
+// applied-to の継続行の終わりを「キー名が [[:alnum:]_-]+ のキー行」で判定していた頃は、
+// それ以外の文字を含むキー（`kedb.ref:` や引用符付きキー）の後ろで継続状態が残り、
+// そのブロックスカラー本文まで applied-to の値へ連結された。空配列が非空に化けて pending が
+// 誤ブロックされ（偽陽性）、逆に applied の空配列は「非空」と見なされて素通りした（fail open）。
+// キー名の字種だけが違う対照検体を並べ、字種で結果が変わらないことを固定する。
+const KEY_CHARSET_CASES = [
+  { name: "非 alnum のキー（kedb.ref）", key: "kedb.ref" },
+  { name: "対照: alnum のみのキー（kedbref）", key: "kedbref" },
+  { name: "引用符付きキー", key: '"kedb ref"' },
+];
+
+const noteWithBlockKey = (status, appliedTo, key) =>
+  `---
+date: 2026-08-10
+type: doc
+priority: high
+status: ${status}
+applied-to:${appliedTo}
+${key}: |
+  indented body line
+---
+
+学びの本文。
+`;
+
+test.each(KEY_CHARSET_CASES)(
+  "後続キーのブロックスカラー本文を applied-to へ吸い込まない: $name",
+  ({ key }) => {
+    // 空配列 × pending は整合しているので通らなければならない。
+    const empty = runCheck(noteWithBlockKey("pending", " []", key));
+    expect(empty.stderr).toBe("");
+    expect(empty.status).toBe(0);
+
+    // 同じ本文でも applied × 空配列は不整合として検出できること（緩めすぎの陽性コントロール。
+    // 継続行を吸い込んでいた頃はここが「非空」に化けて exit 0 で素通りしていた）。
+    const appliedEmpty = runCheck(noteWithBlockKey("applied", " []", key));
+    expect(appliedEmpty.stderr).toContain("status is applied but applied-to is empty");
+    expect(appliedEmpty.status).toBe(2);
+
+    // 折り返された非空配列は、後続キーが何であれ非空のまま検出できること。
+    const wrapped = runCheck(noteWithBlockKey("pending", '\n  ["a.md"]', key));
+    expect(wrapped.stderr).toContain("applied-to is set but status is pending");
+    expect(wrapped.status).toBe(2);
+  },
+);

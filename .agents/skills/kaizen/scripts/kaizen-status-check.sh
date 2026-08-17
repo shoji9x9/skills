@@ -53,6 +53,11 @@ frontmatter_state() {
 			next
 		}
 		in_applied && /^[[:space:]]+-[[:space:]]*[^[:space:]]/ { nonempty = 1; next }
+		# ブロックシーケンスは親キーと同じ桁 0 に置いても正しい YAML で、フォーマッタ次第で
+		# その形で書かれる。桁 0 というだけで値の終わりに倒すと、非空の applied-to が空と
+		# 読まれ、applied / rejected は誤ブロック、pending は検査漏れ（fail open）になる（実測）。
+		# 閉じ `---` は先頭のルールが先に next するのでここへは来ない。
+		in_applied && /^-[[:space:]]+[^[:space:]]/ { nonempty = 1; next }
 		# 折り返された flow 配列（`applied-to:` の次行以降にインデントで続く値）を拾う。
 		# Markdown フォーマッタを .kaizen/*.md に掛けていると applied-to が長いだけで折り返される。
 		in_applied && /^[[:space:]]+[^[:space:]#]/ {
@@ -62,7 +67,13 @@ frontmatter_state() {
 			applied_value = applied_value cont
 			next
 		}
-		/^[[:alnum:]_-]+:[[:space:]]*/ { in_applied = 0 }
+		# ここへ来る桁 0 の行は applied-to の値の終わり（桁 0 に置ける継続行はブロック
+		# シーケンスだけで、それは上のルールが先に next する）。リセット条件を
+		# キー名の字種（`[[:alnum:]_-]+:`）で絞ると、それ以外の文字を含むキー（`kedb.ref:` や
+		# 引用符付きキー）の後ろで in_applied が残り、そのブロックスカラー本文まで applied_value へ
+		# 連結されて、空の `applied-to: []` が非空と判定される（実測）。
+		# 桁 0 のコメントだけは値の途中に現れ得るのでリセットしない。
+		/^[^[:space:]#]/ { in_applied = 0 }
 		END {
 			if (fm < 2) emit()
 		}
