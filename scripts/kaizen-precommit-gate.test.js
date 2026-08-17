@@ -14,6 +14,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -306,6 +307,22 @@ describe("ゲートの commit 検出", () => {
     ["git -c user.name=A\\ B commit -m x", 2],
     // 引用とエスケープの混在も 1 トークンとして続くこと。
     ['git -C /tmp/"a b"/c\\ d commit -m x', 2],
+    // 引数を取らないグローバルオプションの後ろのサブコマンドを「オプションの引数」として
+    // 飲み込まないこと。飲み込むと次の語 `commit` にマッチし、読み取り専用コマンドを誤ブロックする。
+    ["git --no-pager grep -n commit -- src/", 0],
+    ["git --no-pager grep commit", 0],
+    ["git --no-pager log commit", 0],
+    ["git --no-pager show commit", 0],
+    ["git --no-pager diff --stat commit", 0],
+    ["git --paginate log commit", 0],
+    // `--exec-path` は SYNOPSIS が `--exec-path[=<path>]` でも、値なし形は exec-path を出力して
+    // 即 exit するだけで次の引数を消費しない（実測）。値を取るオプション扱いにすると `log` を
+    // 飲んで次の `commit` にマッチし、同じ誤ブロックへ戻る。
+    ["git --exec-path log commit", 0],
+    // 値を別引数として取るオプションの引数は引き続き飲む（そこで止まると真陽性を落とす）。
+    ["git --git-dir /tmp/g --work-tree /tmp/w commit", 2],
+    ["git --git-dir=/tmp/g commit -m x", 2],
+    ["git -c a=b -C /tmp --no-pager commit -m x", 2],
     // エスケープを許しても非オプション語では止まる（過剰ブロックの回帰）。
     ["git log --grep commit", 0],
     ["echo git\\ commit", 0],
@@ -321,6 +338,89 @@ describe("ゲートの commit 検出", () => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
     expect(runGate(command, { cwd }).status).toBe(expected);
+  });
+});
+
+// jq も python3 も無い環境では、ゲートは Hook 入力を構造として読めず生 JSON を直接照合する
+// 縮退経路へ落ちる。この経路は普段の開発機では絶対に通らないため、壊れても気づけない。
+// commit 判定は jq 経路と同じ結論でなければならない（ここが緩むと fail open、きつくなると誤ブロック）。
+describe("生 JSON へ縮退した経路の commit 検出", () => {
+  /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
+  function makeJqlessPathDir() {
+    const dir = mkdtempSync(join(tmpdir(), "kaizen-nojq-"));
+    // ゲート本体と kaizen-status-check.sh が使う外部コマンドは通す。ここが欠けると
+    // 「縮退経路で正しく判定した」ではなく「別の理由で落ちた」を測ってしまう。
+    // `dirname` は両スクリプトが script_dir の解決に使う。落とすと script_dir が壊れ、
+    // commit 判定より手前の「bundled kaizen-status-check.sh is unavailable」で exit 2 になり、
+    // 期待値 2 のケースが全部その理由で通ってしまう（lifecycle 検査以降を一切検証しない）。
+    for (const tool of [
+      "bash",
+      "sed",
+      "awk",
+      "basename",
+      "dirname",
+      "tr",
+      "cat",
+      "timeout",
+      "git",
+    ]) {
+      const path = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        encoding: "utf8",
+      }).stdout.trim();
+      if (path) symlinkSync(path, join(dir, tool));
+    }
+    return dir;
+  }
+
+  const jqlessPath = makeJqlessPathDir();
+
+  // この経路を本当に通したことの陽性コントロール。jq か python3 が解決できてしまうと
+  // ゲートは構造化経路を通り、以下のケースは縮退経路を一切検証しないまま全て pass する。
+  test("PATH から jq / python3 が解決できないこと", () => {
+    for (const tool of ["jq", "python3", "python"]) {
+      const probe = spawnSync("bash", ["-c", `command -v ${tool}`], {
+        env: { ...process.env, PATH: jqlessPath },
+        encoding: "utf8",
+      });
+      expect(probe.status).not.toBe(0);
+    }
+  });
+
+  const cases = [
+    // 区切りの後ろの commit。値の先頭だけに錨を打っていた頃は取りこぼしていた（fail open）。
+    ["cd /tmp && git commit -m x", 2],
+    ["make build; git commit -m x", 2],
+    ["ls | xargs git commit", 2],
+    ["(git commit -m x)", 2],
+    ["git add -A && git -C /tmp commit -m x", 2],
+    ["cd /tmp; git --no-pager commit -m x", 2],
+    // JSON では改行が `\n` の 2 文字として現れる。リテラルの区切りだけを見ていると取りこぼす。
+    ["cd /tmp\ngit commit -m x", 2],
+    // 先頭の commit（従来から捕捉できていた形）。
+    ["git commit -m x", 2],
+    ["git -C /tmp commit -m x", 2],
+    // 区切りを許しても過剰ブロックへ倒れないこと。
+    ["echo hi; echo git commit", 0],
+    ['echo "run git commit later"', 0],
+    ["git log; git status", 0],
+    ["grep -rn commit src/ | head", 0],
+    ["cd /tmp && git --no-pager grep commit", 0],
+    ["git --no-pager log commit", 0],
+    ["git help commit", 0],
+  ];
+
+  test.each(cases)("生 JSON: %s => exit %i", (command, expected) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    const result = runGate(command, { cwd, env: { PATH: jqlessPath } });
+    expect(result.status).toBe(expected);
+    if (expected === 2) {
+      // 縮退 PATH に必要なコマンドが欠けると、commit 判定より手前の環境エラーでも exit 2 に
+      // なる。それでは「縮退経路が commit を検出した」を測ったことにならないので、
+      // ブロック理由が未抽出センチネル由来であることまで固定する。
+      expect(result.stderr).not.toMatch(/unavailable|command not found/);
+      expect(result.stderr).toContain("kaizen --current");
+    }
   });
 });
 
