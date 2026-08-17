@@ -79,8 +79,12 @@ wrappers='(sudo|env|command|nohup|nice|time|xargs)'
 assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
 prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]]+)*)*"
 # `git` と `commit` の間に挟まる git のグローバルオプション（`git -C <path> commit`,
-# `git --no-pager commit`, `git -c k=v commit` 等）も捕捉する。オプション語とその引数 1 つまでを
+# `git --no-pager commit`, `git -c k=v commit` 等）も捕捉する。オプション語とその引数を
 # 許す形にとどめ、`git help commit` のような非オプション語では止まるようにする（過剰ブロック回避）。
+# 引数消費を許すのは**値を別引数として取るオプションだけ**に限定する。任意のオプションの直後 1 語を
+# 飲めるようにすると、引数を取らないオプション（`--no-pager` 等）の後ろのサブコマンドまで消費され、
+# その次の語が `commit` にマッチして読み取り専用コマンドを誤ブロックする
+# （`git --no-pager grep commit` / `git --no-pager log commit` 等。いずれも実測）。
 # 引数は空白を含み得る（`git -C "/tmp/a b" commit`、`git -C /tmp\ a commit`）。非空白の連続だけを
 # 引数とみなすとこれらを取りこぼし、ゲートが素通りする（fail open。いずれも実測）。
 # 引用・エスケープはクラスごとに継ぎ足すと別クラスが残るため（`"..."` を足すと `\"` で早期に閉じ、
@@ -92,12 +96,25 @@ prefix="(${assign}[[:space:]]+)*(${wrappers}[[:space:]]+([^[:space:]]+[[:space:]
 sq=\'
 dqbody='([^"\\]|\\.)*'
 gitoptval='((\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"'|\\\\.|\\.|[^[:space:]"'"${sq}"'\\])+)'
-gitopts="(-[^[:space:]]+([[:space:]]+${gitoptval})?[[:space:]]+)*"
+# 値を別引数として取る git のグローバルオプション。git(1) の SYNOPSIS ではなく
+# **次の引数を実際に消費するか**を実測して選ぶ（`git <opt> <値> version` が version を実行するか）。
+# `--exec-path` は SYNOPSIS に `--exec-path[=<path>]` と載るが、値なしで呼ぶと exec-path を出力して
+# 即 exit するだけで次の引数を消費しない。ここへ入れると `git --exec-path log commit` の `log` を
+# 引数として飲み、次の `commit` にマッチして読み取り専用コマンドを誤ブロックする（実測）。
+# `--git-dir=<path>` のような `=` 連結形は空白を含まない 1 語なので、下の `-[^[:space:]]+` 側で拾える。
+gitoptval_opt='(-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--attr-source)'
+gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]]+)[[:space:]]+)*"
 if [ "${extracted}" -eq 1 ]; then
 	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
-	commit_re='"command"[[:space:]]*:[[:space:]]*"[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
+	# 生 JSON 経路でも区切りの後ろの `git commit` を捕捉する。command の値の先頭だけに錨を打つと
+	# `cd /tmp && git commit -m x` のような複合コマンドを取りこぼす（fail open。実測）。
+	# 区切りまでの前置きは `dqbody`（`([^"\\]|\\.)*`）で表す。これはエスケープされていない `"` を
+	# 跨がないため、走査は command の値の中に閉じる（値の外の別フィールドを拾わない）。
+	# JSON では改行が `\n` の 2 文字として現れるので、リテラルの区切り `;&|(` に加えてその形も区切りに含める。
+	raw_sep='([;&|(]|\\[nr])'
+	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
 if [[ ! "${cmd}" =~ ${commit_re} ]]; then
 	exit 0
