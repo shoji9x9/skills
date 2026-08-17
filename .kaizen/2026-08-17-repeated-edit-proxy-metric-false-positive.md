@@ -20,8 +20,8 @@ Issue #200（mise ツール bump）で `git commit` がゲートにブロック�
 ## 根本原因
 
 - なぜブロックされたか → `kaizen-candidate-scan.sh` が同一 file_path への 2 回目以降の
-  Edit / Write を無条件で候補にする（`scripts/kaizen-candidate-scan.sh:240-247`）
-  - なぜ無条件か → `references/extract.md` の抽出パターン「同一ファイルへの複数回の編集
+  Edit / Write を無条件で候補にする（`skills/kaizen/scripts/kaizen-candidate-scan.sh:240-247`）
+  - なぜ無条件か → `skills/kaizen/references/extract.md` の抽出パターン「同一ファイルへの複数回の編集
     （作成→削除→再作成など）」から、括弧内の“やり直し”条件を落として実装しているため
     - なぜ落ちたか → 検出したい事象は「同じ箇所を作り直した（手戻り）」なのに、観測が容易な
       「同一パスへの編集回数」という代理指標に置き換わり、正常系と弁別できなくなった ← 根本原因
