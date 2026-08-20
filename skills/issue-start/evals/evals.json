@@ -44,7 +44,7 @@
     },
     {
       "id": 5,
-      "prompt": "issue-start 12 --plan 起票からしばらく経っていて、Issue に書いてある対象ファイルが今の main に見当たらない",
+      "prompt": "issue-start 12 --plan 起票からしばらく経っていて、Issue に書いてある対象ファイルが今のベースブランチに見当たらない",
       "assertions": [
         "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
         "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",

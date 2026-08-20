@@ -4,12 +4,13 @@
     "skill_path": "<repo>/skills/issue-start",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5[1m]",
-    "timestamp": "2026-08-20T03:18:40Z",
+    "timestamp": "2026-08-20T03:49:30Z",
     "evals_run": [1, 2, 3, 4, 5, 6],
     "runs_per_configuration": 3,
     "notes": [
       "without_skill の 6 run（eval-1 run-1/run-2、eval-2 run-1/run-2、eval-4 run-1/run-3）は contamination.txt が CONTAMINATED（ベースラインが公開リポジトリ shoji9x9/skills を gh 経由で読み、スキル本文に到達）。docs/skill-development.md の規定に従い grading.json を置かず集計から除外した（各 2 回まで取り直したが clean にならず）。without_skill の有効 run 数は eval-1:1 / eval-2:1 / eval-3:3 / eval-4:1 / eval-5:3 / eval-6:3。",
       "eval-6 without_skill run-2 は初回がレート上限（is_error）で失敗したため取り直した（1 回 CONTAMINATED を挟み clean を採用）。この 1 run のみ --model 未指定で claude-opus-5[1m] が実行者。",
+      "eval-5 は PR #207 のレビュー指摘で prompt の main 決め打ちを外したため、その 6 run のみ新 prompt で取り直して再採点した（他の eval は初回測定のまま）。",
       "採点は最終アシスタントメッセージのみを対象とする intent/narration lens（iteration-2 と同じ基準）。使い捨てプロジェクトは git リポジトリではないため、実ブランチ作成・commit・PR を要求する assertion（eval-2 の大半・eval-4 の一部）は with_skill でも構造的に満たせない。"
     ]
   },
@@ -494,9 +495,9 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 46.5,
-        "tokens": 1809,
-        "tool_calls": 8,
+        "time_seconds": 63.1,
+        "tokens": 2762,
+        "tool_calls": 7,
         "errors": 0
       },
       "expectations": [
@@ -508,7 +509,7 @@
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": true,
-          "evidence": "git fetch + tip..origin/<base> の範囲比較を提示"
+          "evidence": "fetch + tip..origin/<base>、--since を使わない理由も明示"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
@@ -518,7 +519,7 @@
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": true,
-          "evidence": "記載パス非現存を「拡大」に分類し Issue 更新・分割の相談を明記"
+          "evidence": "「拡大」に分類し影響範囲の再定義と Issue 更新・分割の相談を明記"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -537,9 +538,9 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 59.2,
-        "tokens": 2578,
-        "tool_calls": 8,
+        "time_seconds": 77.6,
+        "tokens": 3056,
+        "tool_calls": 7,
         "errors": 0
       },
       "expectations": [
@@ -551,17 +552,17 @@
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": true,
-          "evidence": "--since を使わない理由を述べ範囲比較を提示"
+          "evidence": "fetch 後の範囲比較、0 件・パス絞りの 0 件とも根拠にしないと明示"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
           "passed": true,
-          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+          "evidence": "パス起点でなくシンボル起点で独立に再導出すると明記"
         },
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": true,
-          "evidence": "「拡大」→影響範囲の再定義と Issue 更新・分割の相談を明記"
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -580,9 +581,9 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 57.8,
-        "tokens": 2106,
-        "tool_calls": 7,
+        "time_seconds": 56.0,
+        "tokens": 2577,
+        "tool_calls": 8,
         "errors": 0
       },
       "expectations": [
@@ -594,7 +595,7 @@
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": true,
-          "evidence": "fetch 後 tip..origin/<base> を提示"
+          "evidence": "fetch 後の範囲比較、パス絞りを最初から付けない旨も明示"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
@@ -604,7 +605,7 @@
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": true,
-          "evidence": "「拡大」ケースに該当と明示し Issue 更新・分割を相談"
+          "evidence": "「拡大」→実装に進まず Issue の更新・分割を相談"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -991,35 +992,35 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.4,
-        "passed": 2,
-        "failed": 3,
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
         "total": 5,
-        "time_seconds": 37.8,
-        "tokens": 1527,
-        "tool_calls": 5,
+        "time_seconds": 50.9,
+        "tokens": 1877,
+        "tool_calls": 6,
         "errors": 0
       },
       "expectations": [
         {
           "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
-          "passed": false,
-          "evidence": "createdAt に言及なし"
+          "passed": true,
+          "evidence": "gh issue view 12 --json title,body,createdAt,comments"
         },
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": false,
-          "evidence": "範囲比較・fetch いずれも無し"
+          "evidence": "createdAt 時点のツリー確認のみで fetch・範囲比較なし"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
           "passed": true,
-          "evidence": "git log -S による内容ベース追跡で移動先を特定"
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
         },
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": false,
-          "evidence": "not demonstrated in final result"
+          "evidence": "スコープ再定義に触れるが拡大分類・Issue 更新/分割の相談なし"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -1034,35 +1035,35 @@
       "configuration": "without_skill",
       "run_number": 2,
       "result": {
-        "pass_rate": 0.4,
-        "passed": 2,
-        "failed": 3,
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
         "total": 5,
-        "time_seconds": 48.9,
-        "tokens": 1740,
-        "tool_calls": 7,
+        "time_seconds": 75.8,
+        "tokens": 1911,
+        "tool_calls": 9,
         "errors": 0
       },
       "expectations": [
         {
           "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
           "passed": false,
-          "evidence": "not demonstrated in final result"
+          "evidence": "gh issue view は使うが createdAt の取得は示していない"
         },
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": false,
-          "evidence": "git log --until + git diff SHA..main の範囲比較はあるが fetch / origin 参照なし"
+          "evidence": "not demonstrated in final result"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
-          "passed": true,
-          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+          "passed": false,
+          "evidence": "パス起点の追跡のみ（現行コードからの独立再導出なし）"
         },
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": false,
-          "evidence": "クローズ提案には触れるが「拡大」分類・Issue 更新/分割の相談は無し"
+          "evidence": "not demonstrated in final result"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -1077,35 +1078,35 @@
       "configuration": "without_skill",
       "run_number": 3,
       "result": {
-        "pass_rate": 0.6,
-        "passed": 3,
-        "failed": 2,
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
         "total": 5,
-        "time_seconds": 49.7,
-        "tokens": 1857,
+        "time_seconds": 54.2,
+        "tokens": 1700,
         "tool_calls": 6,
         "errors": 0
       },
       "expectations": [
         {
           "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
-          "passed": true,
-          "evidence": "gh issue view 12 --json title,body,createdAt,comments を提示"
+          "passed": false,
+          "evidence": "createdAt への言及なし"
         },
         {
           "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
           "passed": false,
-          "evidence": "git log --since 単独（範囲比較なし）"
+          "evidence": "not demonstrated in final result"
         },
         {
           "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
           "passed": true,
-          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+          "evidence": "git grep による内容ベースの移転先特定"
         },
         {
           "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
           "passed": false,
-          "evidence": "not demonstrated in final result"
+          "evidence": "Issue へ返す判断には触れるが拡大分類・更新/分割の相談なし"
         },
         {
           "text": "ユーザーの開始指示前に実装を進めていない",
@@ -1284,42 +1285,42 @@
         "max": 1.0
       },
       "time_seconds": {
-        "mean": 51.2667,
-        "stddev": 24.6108,
+        "mean": 53.1111,
+        "stddev": 25.3946,
         "min": 23.0,
         "max": 132.3
       },
       "tokens": {
-        "mean": 1635.8333,
-        "stddev": 371.9137,
+        "mean": 1741.5,
+        "stddev": 552.1432,
         "min": 1160,
-        "max": 2578
+        "max": 3056
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.4409,
-        "stddev": 0.1504,
+        "mean": 0.4242,
+        "stddev": 0.1656,
         "min": 0.2,
         "max": 0.7143
       },
       "time_seconds": {
-        "mean": 43.5417,
-        "stddev": 11.0154,
+        "mean": 47.25,
+        "stddev": 14.3921,
         "min": 23.9,
-        "max": 59.3
+        "max": 75.8
       },
       "tokens": {
-        "mean": 1418.3333,
-        "stddev": 280.7857,
+        "mean": 1448.6667,
+        "stddev": 313.4748,
         "min": 975,
-        "max": 1857
+        "max": 1911
       }
     },
     "delta": {
-      "pass_rate": "+0.19",
-      "time_seconds": "+7.7",
-      "tokens": "+218"
+      "pass_rate": "+0.20",
+      "time_seconds": "+5.9",
+      "tokens": "+293"
     }
   },
   "notes": []
