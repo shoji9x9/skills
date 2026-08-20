@@ -45,8 +45,8 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
 2. 現在の repo と Issue の owner / repo が一致するか確認する
    - 一致しない場合は、以降の `gh issue view` やブランチ作成を行わず中断し、ユーザーに確認する
 3. 一致を確認できた場合のみ title / body とコメントの両方を確認する。**非 TTY（パイプ／エージェント経由）では** `gh issue view --comments` はコメントのみを出力し body を含めない（コメント 0 件だと出力が空になる。TTY では body も表示される）。エージェント実行では次のいずれかで確実に両方を得る:
-   - `gh issue view <番号> --repo <owner>/<repo> --json title,body,comments --jq ...` で 1 コマンド一括取得する（推奨）
-   - または title / body は `gh issue view <番号> --repo <owner>/<repo>`、コメントは `gh issue view <番号> --repo <owner>/<repo> --comments`（0 件なら空でよい）の 2 コール
+   - `gh issue view <番号> --repo <owner>/<repo> --json title,body,comments,createdAt --jq ...` で 1 コマンド一括取得する（推奨）。`createdAt` は step 8 の現状検証で使う
+   - または title / body は `gh issue view <番号> --repo <owner>/<repo>`、コメントは `gh issue view <番号> --repo <owner>/<repo> --comments`（0 件なら空でよい）に分ける。この場合も `createdAt` は `--json createdAt` で別途取得する（計 3 コール）
    - 設計の改訂・実測に基づく方針変更はコメントに追記されることが多い。本文が最新とは限らないため、本文とコメントで改訂・追記・両論併記があれば最新の決定を優先し、計画・実装に反映する
 4. ブランチ名を `feature/<番号>-<英語の短い説明>` で決める（リポジトリの規約に別の命名があればそれに従う）
    - title が日本語中心なら、転写せず作業内容を表す短い英語の kebab-case に要約する
@@ -60,7 +60,25 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
    - ベースブランチは「ブランチ運用・commit 規約の参照」で解決する。規約に統合ブランチの指定（例: `main` / `master` / `develop`）があればそれに従い、`main` に固定しない
    - 規約から判断できなければ、既定のベースブランチを勝手に決めず、リポジトリのデフォルトブランチ（`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`）を候補として提示してユーザーに確認する
    - `gh issue develop <番号> --name "feature/<番号>-<英語の短い説明>" --base <ベースブランチ> --checkout`
-8. ブランチ切り替え後、選択されたモードに応じて後続へ進む（各モードの挙動は「使い方」を参照）
+8. **Issue 記載の影響範囲を鵜呑みにせず、現状に対して再検証する**（計画・実装に進む前。全モード共通）
+   - Issue 記載の対象（ファイル・パス・モジュール）を唯一の出発点にせず、**現行コードから独立に影響範囲を再導出**して突き合わせる。記載パスは既にリネーム・移動・削除されている場合がある
+   - step 3 の `createdAt` 以降にベースブランチへ入った変更を確認する。**先に `git fetch` して**、`createdAt` 時点のベース先端との**範囲比較**で見る
+     （ローカルの `origin/<ベースブランチ>` は古いことがある。また `--since` は commit 日時で絞るため、createdAt より前に commit され後からマージされた変更を取りこぼす。`-- <パス>` を付けると 0 件になりやすい）
+
+     ```bash
+     git fetch --quiet origin '<ベースブランチ>'
+     tip=$(git rev-list -1 --first-parent --before='<createdAt>' 'origin/<ベースブランチ>')
+     [ -n "$tip" ] || { echo '判定不能: createdAt 時点の先端を特定できない（履歴が浅い可能性）'; exit 1; }
+     git --no-pager log --oneline "$tip..origin/<ベースブランチ>"   # 対象が絞れるなら末尾に -- <パス>
+     ```
+
+   - **0 件を「乖離なし」の根拠にしない**。`tip` が空・`git fetch` が失敗したときは合格に倒さず判定不能として扱い、深い fetch（`--unshallow` 等）を試すかユーザーに確認する。
+     記載パスの現存は `git ls-files -- '<パス>'` で直接確かめる
+   - 突き合わせで乖離が出たら分類して扱う
+     - **縮小**（別 PR で解決済み・対象が削除済み）: 残っている作業だけを対象にする。全て解決済みなら実装せず Issue のクローズを相談する
+     - **拡大**（記載外へ波及する・記載パスが現存しない）: 影響範囲を再定義し、Issue の更新・分割を相談する
+   - 乖離が作業範囲や実装方針を変える規模なら、実装に進まずユーザーに確認する（「追加確認が必要な条件」）
+9. 選択されたモードに応じて後続へ進む（各モードの挙動は「使い方」を参照）
 
 ## commit / PR の扱い
 
@@ -80,3 +98,4 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
 - 既存ブランチが複数あり、どれを使うべきか判断できない
 - `--plan` で詳細計画を立てる前提条件が不足している
 - 本文とコメントに齟齬があり、どの決定に従うか判断できない（特に `--plan`）
+- Issue 記載の影響範囲と現状が乖離し、作業範囲が変わる（記載対象が現存しない・別 PR で解決済み・記載外へ波及する）
