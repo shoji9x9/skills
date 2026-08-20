@@ -1,0 +1,1327 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5[1m]",
+    "timestamp": "2026-08-20T03:49:30Z",
+    "evals_run": [1, 2, 3, 4, 5, 6],
+    "runs_per_configuration": 3,
+    "notes": [
+      "without_skill の 6 run（eval-1 run-1/run-2、eval-2 run-1/run-2、eval-4 run-1/run-3）は contamination.txt が CONTAMINATED（ベースラインが公開リポジトリ shoji9x9/skills を gh 経由で読み、スキル本文に到達）。docs/skill-development.md の規定に従い grading.json を置かず集計から除外した（各 2 回まで取り直したが clean にならず）。without_skill の有効 run 数は eval-1:1 / eval-2:1 / eval-3:3 / eval-4:1 / eval-5:3 / eval-6:3。",
+      "eval-6 without_skill run-2 は初回がレート上限（is_error）で失敗したため取り直した（1 回 CONTAMINATED を挟み clean を採用）。この 1 run のみ --model 未指定で claude-opus-5[1m] が実行者。",
+      "eval-5 は PR #207 のレビュー指摘で prompt の main 決め打ちを外したため、その 6 run のみ新 prompt で取り直して再採点した（他の eval は初回測定のまま）。",
+      "採点は最終アシスタントメッセージのみを対象とする intent/narration lens（iteration-2 と同じ基準）。使い捨てプロジェクトは git リポジトリではないため、実ブランチ作成・commit・PR を要求する assertion（eval-2 の大半・eval-4 の一部）は with_skill でも構造的に満たせない。"
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 55.2,
+        "tokens": 1160,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": false,
+          "evidence": "repo 未特定のため gh issue view を意図的に未実行"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "clone/ブランチ作成/push/PR いずれも未実行"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 43.3,
+        "tokens": 1548,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "既存 feature/12-* の確認に言及するが local/remote の区別なし"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": true,
+          "evidence": "skills.yml→探索→gh repo view の順でベースブランチを解決すると明示"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 67.1,
+        "tokens": 1490,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "GitHub API で #12 本文・コメント・クローズ経緯を取得"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "着手不要と判断したためブランチ名は決めず"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "リモートの feature/12-* のみ確認（local は repo 不在）"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 33.8,
+        "tokens": 1436,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "--amend / force push を含む書き込み操作を一切実行せず"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 41.1,
+        "tokens": 1575,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "委譲範囲に入る前に停止し書き込み操作なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 45.6,
+        "tokens": 1855,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "外向き操作を一切実行せず"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 25.6,
+        "tokens": 1352,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "other-org/other-repo と現在地の不一致を明示的に検出"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 25.9,
+        "tokens": 1566,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "other-org/other-repo と現在地の不一致を明示的に検出"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 23.0,
+        "tokens": 1170,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": true,
+          "evidence": "other-org/other-repo と現在地の不一致を明示的に検出"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 42.2,
+        "tokens": 1756,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "計画も実装も行わず中断して確認を求めた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 45.2,
+        "tokens": 1644,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "計画も実装も行わず中断して確認を求めた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 44.7,
+        "tokens": 1336,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "計画も実装も行わず中断して確認を求めた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 63.1,
+        "tokens": 2762,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": true,
+          "evidence": "fetch + tip..origin/<base>、--since を使わない理由も明示"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": true,
+          "evidence": "「拡大」に分類し影響範囲の再定義と Issue 更新・分割の相談を明記"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 77.6,
+        "tokens": 3056,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": true,
+          "evidence": "fetch 後の範囲比較、0 件・パス絞りの 0 件とも根拠にしないと明示"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "パス起点でなくシンボル起点で独立に再導出すると明記"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.0,
+        "tokens": 2577,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": true,
+          "evidence": "fetch 後の範囲比較、パス絞りを最初から付けない旨も明示"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": true,
+          "evidence": "「拡大」→実装に進まず Issue の更新・分割を相談"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 61.5,
+        "tokens": 1206,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "repo 特定不能として中断し書き込み操作なし"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "ブランチ作成・commit・push を一切実施せず"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 132.3,
+        "tokens": 1703,
+        "tool_calls": 17,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "outdated.yml の jq フィルタ・mise.toml の node 実値を現行 main に対して確認"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": true,
+          "evidence": "手順 8 の「縮小」＝全て解決済みと明示的に分類"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 72.8,
+        "tokens": 2155,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": true,
+          "evidence": "git fetch 後 tip..origin/<base> の範囲比較を明記"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": true,
+          "evidence": "0 件を判定不能として扱い git ls-files で現存確認と明記"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 56.8,
+        "tokens": 1578,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue URL から owner/repo/issue番号を抽出している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "現在の repo と Issue の owner/repo の一致を確認している",
+          "passed": true,
+          "evidence": "cwd が git リポジトリでないことを確認"
+        },
+        {
+          "text": "gh issue view で Issue 内容を確認しようとしている",
+          "passed": true,
+          "evidence": "gh API で #12 の本文・クローズ経緯を取得"
+        },
+        {
+          "text": "feature/12-<英語の短い説明> 形式のブランチ名を決めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "同番号ブランチの重複を local/remote で確認している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "gh issue develop --base <規約から解決したベースブランチ> --checkout でブランチを作成しようとしている（ベースブランチを main に固定せず、リポジトリの規約から解決した値を使っている）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "非破壊調査のみ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 28.7,
+        "tokens": 1205,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチ作成後に実装まで進めている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "conventional commits 規約で commit している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ブランチを push している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連 Issue と変更概要を含む PR を作成している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "commit --amend や force push を行っていない",
+          "passed": true,
+          "evidence": "書き込み操作を一切実行せず"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 48.0,
+        "tokens": 1634,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": false,
+          "evidence": "repo 不一致ではなく other-org/other-repo の 404 を理由に停止（先に gh issue view を実行）"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 43.4,
+        "tokens": 1621,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": false,
+          "evidence": "一致確認を経ず gh issue view / gh api を実行し 404 で停止"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 1,
+        "failed": 1,
+        "total": 2,
+        "time_seconds": 50.0,
+        "tokens": 1204,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現在の repo と Issue の owner/repo が一致しないことを検出している",
+          "passed": false,
+          "evidence": "ローカルに該当クローンなしとは述べるが、一致確認をゲートにせず gh issue view を先に実行"
+        },
+        {
+          "text": "ブランチ作成を行わず中断してユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 31.6,
+        "tokens": 1091,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブランチを作成・checkout している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "関連ファイルと Issue を確認して詳細計画を作っている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "計画も実装も行わず必要情報を求めて停止"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 50.9,
+        "tokens": 1877,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": true,
+          "evidence": "gh issue view 12 --json title,body,createdAt,comments"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": false,
+          "evidence": "createdAt 時点のツリー確認のみで fetch・範囲比較なし"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": false,
+          "evidence": "スコープ再定義に触れるが拡大分類・Issue 更新/分割の相談なし"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 75.8,
+        "tokens": 1911,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": false,
+          "evidence": "gh issue view は使うが createdAt の取得は示していない"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": false,
+          "evidence": "パス起点の追跡のみ（現行コードからの独立再導出なし）"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 54.2,
+        "tokens": 1700,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の作成時刻を createdAt で取得している（gh issue view の --json に createdAt を含めている）",
+          "passed": false,
+          "evidence": "createdAt への言及なし"
+        },
+        {
+          "text": "git fetch した上で、createdAt 時点のベース先端との範囲比較（<tip>..origin/<ベースブランチ>）でベースへ入った変更を確認しようとしている（--since 単独で済ませていない）",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue 記載の対象ファイル・パスを唯一の出発点とせず、現行コードから影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "git grep による内容ベースの移転先特定"
+        },
+        {
+          "text": "記載パスが現存しない乖離を拡大側として扱い、影響範囲を再定義したうえで Issue の更新・分割を相談している",
+          "passed": false,
+          "evidence": "Issue へ返す判断には触れるが拡大分類・更新/分割の相談なし"
+        },
+        {
+          "text": "ユーザーの開始指示前に実装を進めていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 23.9,
+        "tokens": 975,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "リポジトリ特定不能として確認を求め停止"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "非破壊調査のみ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 44.4,
+        "tokens": 1395,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "必要情報を求めて停止"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "書き込み操作なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 59.3,
+        "tokens": 1193,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue 記載の対象を唯一の出発点とせず、現行コードから独立に影響範囲を再導出して突き合わせている",
+          "passed": true,
+          "evidence": "main の outdated.yml / mise.toml の実物に対して確認"
+        },
+        {
+          "text": "Issue の createdAt を起点に、git fetch 後の origin/<ベースブランチ> との範囲比較でベースへ入った変更を確認しようとしている",
+          "passed": false,
+          "evidence": "not demonstrated in final result"
+        },
+        {
+          "text": "乖離を「縮小」側（別 PR で解決済み）として分類し、残っている作業だけを対象にしている",
+          "passed": true,
+          "evidence": "PR #15 で解決済みと判定し新規変更なしと結論（「縮小」の語彙はなし）"
+        },
+        {
+          "text": "全て解決済みだった場合は実装せず Issue のクローズを相談する方針を示している",
+          "passed": true,
+          "evidence": "実装せず着手不要と報告（Issue は既にクローズ済み）"
+        },
+        {
+          "text": "確認結果が 0 件でも「乖離なし」と即断せず、記載パスの現存（git ls-files 等）を直接確かめている",
+          "passed": false,
+          "evidence": "0 件判定・git ls-files への言及なし"
+        },
+        {
+          "text": "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        },
+        {
+          "text": "モード未指定なので commit/push/PR は行っていない",
+          "passed": true,
+          "evidence": "demonstrated in final result (intent/narration lens; safe isolated env)"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.6286,
+        "stddev": 0.3354,
+        "min": 0.2,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 53.1111,
+        "stddev": 25.3946,
+        "min": 23.0,
+        "max": 132.3
+      },
+      "tokens": {
+        "mean": 1741.5,
+        "stddev": 552.1432,
+        "min": 1160,
+        "max": 3056
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4242,
+        "stddev": 0.1656,
+        "min": 0.2,
+        "max": 0.7143
+      },
+      "time_seconds": {
+        "mean": 47.25,
+        "stddev": 14.3921,
+        "min": 23.9,
+        "max": 75.8
+      },
+      "tokens": {
+        "mean": 1448.6667,
+        "stddev": 313.4748,
+        "min": 975,
+        "max": 1911
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+5.9",
+      "tokens": "+293"
+    }
+  },
+  "notes": []
+}
