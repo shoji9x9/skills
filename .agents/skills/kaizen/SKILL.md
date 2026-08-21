@@ -1,5 +1,5 @@
 ---
-argument-hint: '[extract|apply|archive] [--current | --all]'
+argument-hint: '[extract|apply|archive] [--current | --all] [--record-pending]'
 description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」などで発動。
 license: MIT
 name: kaizen
@@ -12,6 +12,8 @@ name: kaizen
 
 ```text
 /kaizen [extract] [--current | --all]   学びを抽出（extract は省略可 = 既定。--current = 最新セッション・最重要 1 件 / --all = 全セッション・優先度順）
+/kaizen extract --current --record-pending
+                                      最重要候補を最大 1 件、承認確認なしで pending 記録（オーケストレーション専用）
 /kaizen apply                           pending の学びを成果物（ルール / doc / hook 等）へ適用
 /kaizen archive [対象フラグ]             .kaizen を整理 = アーカイブ（既定・非破壊。.kaizen/archive/ へ移動）
 /kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
@@ -25,6 +27,7 @@ name: kaizen
 例: `/kaizen --all` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
 
 - 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
+- `--record-pending` は `extract --current` と同時指定した場合だけ受理する。通常抽出の承認フローを変えず、apply / archive / delete は行わない。
 - **抽出はコミット前ゲートからも駆動される**: 未抽出の活動があり transcript に候補が見つかる、または安全に判定できないと、PreToolUse ゲートが `git commit` をブロックして `kaizen --current` を促す。候補ゼロを検証できた場合は自動通過する。コミットの既定クリティカルパスは抽出・記録までで、apply はユーザーが今すぐ適用すると選んだ場合だけ続ける。
 
 ## 前提

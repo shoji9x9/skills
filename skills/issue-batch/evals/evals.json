@@ -1,0 +1,155 @@
+{
+  "skill_name": "issue-batch",
+  "evals": [
+    {
+      "id": 1,
+      "fixture": "evals/fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 102 を実行する前の全体 preflight と、その後の正常系の状態遷移を最終報告にまとめて。外部変更はせず dry-run として説明して。",
+      "assertions": [
+        "2 Issue を入力順に保持し、1 Issue 1 worktree / branch / PR で直列処理すると述べている",
+        "変更前に repo 一致、OPEN、本文と全コメント、依存関係、既存 branch / PR / worktree、設定、権限を全件確認する",
+        "呼び出し元を checkout せず /tmp の隔離 worktree と秘密値を含まない manifest を使う",
+        "DONE を MERGED、CLOSED、exact-SHA deployment、local / remote branch 削除の全成立後だけ付ける"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "issue-batch 101 102 とだけ入力された。どこまで進めるべきか、変更を行わず報告して。",
+      "assertions": [
+        "run サブコマンド省略を拒否して usage を示す",
+        "Issue の取得、設定変更、branch 作成を行わない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "issue-batch setup 101 --max-pr-iterations 3 を受け取った。構文検証結果と副作用の有無を報告して。",
+      "assertions": [
+        "setup への Issue 引数と run option の混在を拒否する",
+        "設定、Issue、branch、PR を変更前に停止する"
+      ]
+    },
+    {
+      "id": 4,
+      "fixture": "evals/fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 101 と重複 Issue を指定した。preflight の判定と作業ツリーへの影響を報告して。",
+      "assertions": [
+        "正規化後の Issue 重複を全体 preflight で検出する",
+        "branch / worktree / PR を作る前に全体を停止する"
+      ]
+    },
+    {
+      "id": 5,
+      "fixture": "evals/fixtures/resume-state",
+      "prompt": "issue-batch run 101 を再実行した場合の branch / PR / review request の扱いを、fixture の状態を踏まえて dry-run 報告して。",
+      "assertions": [
+        "manifest だけで判断せず GitHub / git の実状態を再取得する",
+        "一意な既存 branch / PR を再利用し、重複 branch / PR / review request を作らない",
+        "linked PR が MERGED で Issue が CLOSED、残作業が deployment / cleanup だけなら post-merge の再開を許容する",
+        "複数候補で一意に再開できない場合は変更前に全体停止する"
+      ]
+    },
+    {
+      "id": 6,
+      "fixture": "evals/fixtures/browser-blocked",
+      "prompt": "issue-batch run 101 --browser-test-env staging の browser preflight を評価し、無人実行できるか報告して。あわせて、preflight を通過した場合に browser-test へ何をどう引き渡す契約かも述べて。操作は実行しないで。",
+      "assertions": [
+        "auth: user と禁止されたデータ変更を preflight で検出する",
+        "ログインや禁止操作解除を求めず当該 Issue を BLOCKED にする",
+        "browser-test handoff 後に設定ファイルを再読させない契約に言及する"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Issue 101 の差分が Markdown 文書だけだった場合、issue-batch の browser-test 分岐を報告して。判定をどの状態値で表し、その根拠を manifest と PR 本文にどう残すか、また逆引きで画面影響の有無を判定しきれない場合にどう扱うかも含めて。操作は実行しないで。",
+      "assertions": [
+        "変更パスと UI / API 逆引き結果を根拠に browser-test を not-applicable とする",
+        "判定と根拠を manifest（検証名・結果・証拠 URL / SHA）と PR 本文の非適用根拠として残す",
+        "逆引きの根拠を示せないときは not-applicable と名乗らず、browser-test 実行か BLOCKED へ倒す",
+        "無条件なページ巡回を行わない"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Issue 101 の実装後、現在の agent は Codex で、ローカルレビュー上限は 1。ローカルレビューから Kaizen、PR 作成までの handoff を dry-run で報告して。",
+      "assertions": [
+        "codex review --uncommitted で staged / unstaged / untracked をレビューする",
+        "妥当な指摘だけ修正し、検証後に上限内で再レビューする",
+        "kaizen extract --current --record-pending を使い apply / archive / delete を行わない",
+        "PR 本文に Closes #101、検証、browser、Kaizen の結果を含める"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Issue 101 が人間判断を要するレビューで BLOCKED、Issue 102 は独立している。既定時と --stop-on-blocked 時、共有 GitHub 認証が失敗した時の違いを報告して。既定の続行方針がどの設定で決まるか、--stop-on-blocked が設定ファイルに与える影響、BLOCKED になった Issue 101 の worktree と最終報告の扱いも述べて。",
+      "assertions": [
+        "既定では隔離可能な BLOCKED 後も Issue 102 を続行する",
+        "--stop-on-blocked では Issue 101 で停止する",
+        "共有認証失敗は option にかかわらず全体停止する",
+        "既定の続行方針は setup 済みの continue_on_blocked が正本で、--stop-on-blocked は当該 run だけ上書きし skills.yml を書き換えない",
+        "BLOCKED の Issue 101 の worktree を削除せず、絶対パスと残作業を最終報告に残す"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "PR finalize 済みの Issue 101 を auto-merge する直前。head SHA 固定から Issue close 確認まで、完了と誤認しない判定をコマンド形付きで報告して。",
+      "assertions": [
+        "pr-finalize-loop だけに remote AI review を委譲する",
+        "gh pr merge --auto --<method> --match-head-commit <headRefOid> を使い --admin を使わない",
+        "auto-merge 予約ではなく PR MERGED を確認する",
+        "Issue が OPEN のままなら手動 close せず BLOCKED にする"
+      ]
+    },
+    {
+      "id": 11,
+      "fixture": "evals/fixtures/deployment-recovery",
+      "prompt": "Issue 101 の PR merge 後、Release workflow を deployment として相関・監視する手順を、古い成功 run と登録 timeout の扱いも含めて報告して。登録待ちが 0 件だったときにどの状態値で表し分けるか、設定の deployment.workflows に空配列が明示保存されている場合との違いも述べて。",
+      "assertions": [
+        "workflow file、merge commit SHA、event、base branch を照合する",
+        "同名の古い成功 run や別 SHA を採用しない",
+        "適用対象なのに registration timeout 内に run が無ければ BLOCKED にする",
+        "gh run watch を completion timeout で打ち切り completed/success を確認する",
+        "0 件を not-applicable（workflow の branches / paths と変更ファイルの両方から外れる場合のみ）、not-configured（deployment.workflows に空配列が明示保存）、未登録・API 失敗として表し分ける"
+      ]
+    },
+    {
+      "id": 12,
+      "fixture": "evals/fixtures/deployment-recovery",
+      "prompt": "Issue 101 の deployment がコード不具合で失敗した。修復から再 deployment までの branch / Issue / PR 操作を dry-run で報告して。",
+      "assertions": [
+        "Issue を reopen して failed run URL と理由をコメントする",
+        "元 feature branch に最新 base を merge し、別 branch、rebase、force push を使わない",
+        "同じ Issue を Closes #101 で結ぶ follow-up PR を作る",
+        "新しい merge SHA の deployment 成功へ戻る"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "deployment は成功したが worktree が dirty で、remote に main、feature/101-fix、feature/101-fix-old がある。branch cleanup の判定と、3 つの ref それぞれを削除対象にするかどうかを報告して。削除は実行しないで。",
+      "assertions": [
+        "dirty worktree のため cleanup せず BLOCKED にする",
+        "clean な場合も worktree を先に解除し、解除済みを確認してから local branch を削除する",
+        "検証済み完全一致 ref だけを対象とし glob を使わない",
+        "default / protected branch と似た別 branch を削除対象にしない"
+      ]
+    },
+    {
+      "id": 14,
+      "fixture": "evals/fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 --max-pr-iterations 3 --no-wait-ci-before-review --merge-method rebase を dry-run し、CLI override と設定ファイルの関係を報告して。",
+      "assertions": [
+        "max PR 3、CI 待機 false、merge rebase を当該 run の解決値にする",
+        "pr-finalize-loop --max-iterations 3 へ転送する",
+        "CLI override で skills.yml を書き換えない"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "GitHub Copilot 上で issue-batch run 101 を開始するが、current transcript path は取得できない。Kaizen の候補ゼロをどう扱うか、変更前の判定を報告して。",
+      "assertions": [
+        "Copilot では current transcript を同定できず candidate scanner が形式を検証できないと判定する",
+        "候補ゼロを推測や別形式の陽性コントロールだけで成立させない",
+        "run の変更前に BLOCKED とし、Kaizen を省略して続行しない"
+      ]
+    }
+  ]
+}

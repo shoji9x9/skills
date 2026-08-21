@@ -1,0 +1,13 @@
+{
+  "issue": 101,
+  "issue_state": "CLOSED",
+  "branches": ["feature/101-add-report"],
+  "pull_requests": [
+    {
+      "url": "https://github.com/example/project/pull/12",
+      "head": "feature/101-add-report",
+      "state": "MERGED"
+    }
+  ],
+  "review_requests": ["copilot-pull-request-reviewer[bot]"]
+}

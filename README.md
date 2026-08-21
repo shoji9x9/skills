@@ -11,6 +11,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [kaizen](./skills/kaizen/) | セッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映して同じ失敗の再発を防ぐ |
 | [issue-create](./skills/issue-create/) | 短い説明から GitHub Issue を作成。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票 |
 | [issue-start](./skills/issue-start/) | GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化 |
+| [issue-batch](./skills/issue-batch/) | 複数 Issue を 1 件ずつ隔離 worktree・独立 branch / PR で連続処理し、実装、レビュー、検証、PR 収束、自動 merge、Issue close、deployment、branch cleanup まで追跡。初回は `setup` で無人実行ポリシーを確定 |
 | [pr-review-handle](./skills/pr-review-handle/) | PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決。`--push` で commit・push・CI 確認後の再レビュー依頼（依頼先は `review_tool` で選択: Copilot/Claude Code/Codex/none）まで |
 | [dependabot-merge](./skills/dependabot-merge/) | Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化。PR 単体または `--all` で open な全 PR を処理（0.x や自動マージ未設定リポジトリ向け） |
 | [dependabot-alert-issue](./skills/dependabot-alert-issue/) | Dependabot alerts を確認し解消 Issue を作成。着手可否で分類し severity・パッケージ単位でグルーピング、着手不能なものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定可 |
@@ -36,6 +37,7 @@ gh skill install shoji9x9/skills multiagent-setup
 gh skill install shoji9x9/skills kaizen
 gh skill install shoji9x9/skills issue-create
 gh skill install shoji9x9/skills issue-start
+gh skill install shoji9x9/skills issue-batch
 gh skill install shoji9x9/skills pr-review-handle
 gh skill install shoji9x9/skills dependabot-merge
 gh skill install shoji9x9/skills dependabot-alert-issue
@@ -58,7 +60,8 @@ gh skill update --all
 
 ## スキルの設定
 
-一部のスキル（issue-start / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test / replace-strategy / golden-dataset / parity-suite / parity-replace / parity-diff）は、
+一部のスキル（issue-start / issue-batch / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test /
+replace-strategy / golden-dataset / parity-suite / parity-replace / parity-diff）は、
 インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
 `<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。
 設定は、**設定を作成するスキル**（`replace-strategy setup` / `browser-test setup` や各スキルの規約解決フロー等）の実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、
@@ -73,6 +76,18 @@ skills:
     review_tool: copilot # 再レビュー依頼先。copilot | claude-code | codex | none
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
+  issue-batch:
+    # issue-batch setup が repository の許可方式と実測 workflow から対話的に確定する
+    merge_method: squash
+    max_local_review_iterations: 1
+    max_pr_iterations: 5
+    wait_ci_before_review: false
+    continue_on_blocked: true
+    deployment:
+      workflows: [] # 対象なしも空配列で明示する
+      registration_timeout_minutes: 5
+      completion_timeout_minutes: 20
+      max_fix_iterations: 3
   dependabot-alert-issue:
     minimum_release_age_days: 3 # 任意。解決バージョン公開からこの日数未満は「すぐ着手できない」扱い
     ignore: [] # 任意。Issue も dismiss もしない alert の条件（自由記述）
@@ -91,6 +106,7 @@ skills:
 - `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（既定）/ `claude-code` / `codex` / `none`。
   `copilot` は `requested_reviewers` API、`claude-code` / `codex` はトップレベル PR コメントの mention（`@claude review` / `@codex review`）で依頼する。`none` は再依頼をしない。未設定なら `copilot`。
 - `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（既定 `squash`）。
+- `skills.issue-batch.*`: 複数 Issue のローカルレビュー／PR 収束上限、CI 待機、BLOCKED 後の続行、merge、deployment 監視を定める。値は例を盲目コピーせず `issue-batch setup` で対話的に作成する（schema はスキルの `references/project-config.md`）。
 - `skills.dependabot-alert-issue.*`: dependabot-alert-issue が読む特別処理設定（リリース年齢のしきい値・無視・dismiss）。すべて任意。
 - `skills.browser-test.*`: browser-test が読む環境・禁止操作の設定。上の値は例（盲目コピーしない）。未設定ならリポジトリ探索とユーザー確認で解決する。`browser-test setup` で対話的に作成・更新できる（詳細はスキルの `references/project-config.md`）。
 - `skills.replace-strategy.*`: リプレイス対象（現・新）・DB 接続の環境変数名・成果物方針・意図的差異レジストリ・references（利用者が選ぶ UI ライブラリ／DB 意味論／環境変数の用意方法のドキュメントパス）。

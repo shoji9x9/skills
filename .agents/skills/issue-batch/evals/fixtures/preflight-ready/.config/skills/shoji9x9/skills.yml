@@ -1,0 +1,16 @@
+version: 1
+skills:
+  common:
+    conventions_doc: AGENTS.md
+    review_tool: copilot
+  issue-batch:
+    merge_method: squash
+    max_local_review_iterations: 1
+    max_pr_iterations: 5
+    wait_ci_before_review: false
+    continue_on_blocked: true
+    deployment:
+      workflows: []
+      registration_timeout_minutes: 5
+      completion_timeout_minutes: 10
+      max_fix_iterations: 2

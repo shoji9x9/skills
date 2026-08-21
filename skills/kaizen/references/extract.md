@@ -7,6 +7,8 @@
 | `--all` | 手動のみ | 全セッション | 制限なし（優先度順に提示） |
 | `--current`（デフォルト） | 手動 / コミット前の PreToolUse ゲート | 最新セッション（実行中のものを含む） | 最重要 1 件 |
 
+`--record-pending` は `extract --current` の限定非対話モード。オーケストレーションスキルが commit 前ゲートを無人で通過するため、最重要候補を最大 1 件だけ `status: pending` で記録する。`--all`、apply、archive、delete、setup との組み合わせは変更前に拒否する。
+
 ## セッションログの場所
 
 | エージェント | ログの場所 | 形式 |
@@ -111,7 +113,7 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
 3. 抽出パターンに照らして修正・エラー・やり直しの箇所を特定する
 4. 各箇所について根本原因を推論する（最低 3 階層の「なぜ」→ `kaizen-kedb-match.sh` に事象語・ツール名・対象パスを渡す KEDB 照合 → 横断スコープ確認）。そのうえで、根本原因をこのリポジトリで直せるか、上流でしか直せないかという**所有者判定**を行い、候補をリストアップする
 5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 実際の影響度 `high > medium > low` > 繰り返し発生（KEDB 照合でヒット） > 根本原因が明確 > 対策が具体的）
-6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る。承認を求める確認 UI 自体に判断材料（学びファイルのドラフト全文）を同梱し、直前の通常テキストが確認ダイアログと同時に見えることを前提にしない（Claude Code の AskUserQuestion では選択肢の preview フィールドに入れる）
+6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る。承認を求める確認 UI 自体に判断材料（学びファイルのドラフト全文）を同梱し、直前の通常テキストが確認ダイアログと同時に見えることを前提にしない（Claude Code の AskUserQuestion では選択肢の preview フィールドに入れる）。`--record-pending` の場合だけこの承認を省略し、次項の限定契約に従う
 7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）。frontmatter の直後に学びの要約を表す H1 見出し（`# <学びの要約タイトル>`）を 1 行付ける（markdownlint MD041 を満たし、読み物として自然にするため）
 8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と抽出完了マーカー `.kaizen/.extract-done` の記録を行う
    （同じセッションを再抽出しない・同一セッション内の後続 commit をゲートで再ブロックしないため）:
@@ -123,6 +125,23 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
 > 実行の最後に `bash <スキル>/scripts/kaizen-status-check.sh` を実行する。不整合はファイル名付きの stderr と exit 2 になり、コミット前ゲートも同じ検査を強制する。
 
 コミット前ゲートから起動された場合の既定クリティカルパスは、最重要 1 件の**抽出・記録と extract-done まで**。apply は後続作業へ回し、ユーザーが「今すぐ適用」を選んだ場合だけ同じ実行で続ける。
+
+## `--record-pending` の限定契約
+
+このモードは「恒久対策を自動適用せず、後続セッションがレビューできる pending 候補だけを残す」ための狭い例外である。
+
+current transcript の同定と candidate scanner による検証が前提。Claude Code / Codex は transcript path を解決して使う。Copilot は現行 Hook が transcript path を提供せず scanner も形式を識別できないため、このモードの候補ゼロを検証できない。候補なしと推測せず BLOCKED にする。
+
+1. `extract --current --record-pending` の完全な組み合わせだけを受理する。候補数は最大 1 件
+2. 通常と同じ transcript 同定、候補走査、最低 3 階層の「なぜ」、KEDB 照合、横断スコープ確認、所有者判定を行う
+3. 候補がある場合は承認確認を挟まず `.kaizen/YYYY-MM-DD-<slug>.md` へ `status: pending` / `applied-to: []` で記録する。同種の pending があれば新規作成せず既存記録を更新する
+4. 候補がない場合は、current transcript を同定したうえで、候補ありの既知 transcript も同じ scanner で検出できる陽性コントロールを先に通す。scanner 失敗、timeout、未知形式、current transcript 未同定を「候補なし」に倒さない。検出能力を確認できた場合だけ no-op とする
+5. 候補を記録した場合は `kaizen-extract-done.sh` を agent 固有 sentinel suffix / agent / transcript path 付きの complete モードで実行する。
+   候補ゼロの場合は scanner が返した `scanned-bytes` / `scanned-lines` を使い、`--checkpoint-only` と同じ同定情報を付けて checkpoint と当該 agent の sentinel だけを更新する。候補ゼロで session-wide `.extract-done` を作らない
+6. どちらの分岐でも最後に `kaizen-status-check.sh` を通す
+7. apply / archive / delete、Issue 作成、外部報告、既存成果物への恒久反映は行わない。呼び出し元は pending 記録を実装変更と分離した commit にする
+
+通常の `kaizen --current` と `kaizen extract --current` は従来どおりユーザー承認を必須とする。フラグを推測で補わず、呼び出し元が明示した場合だけ限定モードに入る。
 
 ## 学びファイルのフォーマット
 
