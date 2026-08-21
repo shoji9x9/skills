@@ -71,12 +71,13 @@ BLOCKED / FAILED が Issue の隔離 worktree 内に閉じる場合、既定方�
 ## 安全制約
 
 - 課金、通知、データの作成・変更・削除、ログイン待ち、禁止操作解除を無人実行しない。必要なら preflight で BLOCKED にする。
-- `--admin`、commit `--amend`、rebase、force push を使わない。deployment 修復では同じ feature branch に最新 base を merge する。
+- `--admin`、commit `--amend`、ローカルの `git rebase`、force push を使わない。deployment 修復では同じ feature branch に最新 base を merge する。
+  ここでの禁止は git 履歴の書き換えを指し、`--merge-method rebase`（GitHub の rebase merge）とは別物である。
 - auto-merge の有効化、成功済みの古い workflow run、同名 workflow の別 SHA を完了根拠にしない。
 - merge / close / deployment の全条件が成立する前に branch を削除しない。glob ではなく検証済みの完全一致 ref だけを扱う。
 - dirty / BLOCKED worktree は削除しない。絶対パスと残作業を最終報告へ残す。
 - ユーザー確認が必要なレビュー・仕様判断を「無人実行」で迂回しない。結果を捏造せず BLOCKED とする。
-- `kaizen --record-pending` が current transcript を同定できない agent では候補ゼロを検証できない。現状の Copilot はこの条件に該当するため、run の変更前に BLOCKED とし、検出能力を捏造して続行しない。
+- `kaizen extract --current --record-pending` が current transcript を同定できない agent では候補ゼロを検証できない。現状の Copilot はこの条件に該当するため、run の変更前に BLOCKED とし、検出能力を捏造して続行しない。
 
 ## 最終報告
 
