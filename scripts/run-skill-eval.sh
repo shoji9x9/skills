@@ -303,7 +303,16 @@ if [ "${config}" = "without_skill" ]; then
 	while IFS= read -r rel; do
 		[ -n "${rel}" ] && markers+=("${rel}")
 	done < <(cd "${src}" && find references assets scripts -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
-	markers+=("skills/${skill}")
+	# The bare source path `skills/<name>` is NOT a marker. A baseline that correctly
+	# reports the skill is absent routinely names where it would live ("install it at
+	# ~/.claude/skills/<name>/SKILL.md", "show me skills/<name>/ and I will retrace"),
+	# which is guessed from the skill name already in the prompt, not read from disk.
+	# Observed as a false CONTAMINATED on 2 of 7 sandboxed baselines, each one telling
+	# the operator to discard a valid measurement. Only fall back to it when the bundle
+	# offers no directory-anchored file to key on, so a marker always exists.
+	if [ "${#markers[@]}" -eq 0 ]; then
+		markers+=("skills/${skill}")
+	fi
 
 	kept=()
 	for m in ${markers[@]+"${markers[@]}"}; do
