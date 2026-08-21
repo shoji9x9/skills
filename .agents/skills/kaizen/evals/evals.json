@@ -165,6 +165,20 @@
         "候補あり、未知形式、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促す",
         "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
       ]
+    },
+    {
+      "id": 16,
+      "fixture": "evals/fixtures/candidate-scan",
+      "prompt": "issue-batch から kaizen extract --current --record-pending を呼ぶ。候補あり／候補なしの両分岐、通常の kaizen --current との差、完了処理を 1 つの報告にまとめて。fixture の candidate scanner で検出能力も実測して。",
+      "assertions": [
+        "--record-pending を extract --current と同時指定した場合だけ受理し、候補を最大 1 件に制限する",
+        "候補ありは承認確認なしで status: pending / applied-to: [] として記録し、apply / archive / delete を行わない",
+        "候補なしの前に candidate fixture の既知候補を scanner が検出できる陽性コントロールを実行し、失敗や未知形式を no-op に倒さない",
+        "候補ありは agent 固有 suffix / agent / transcript path 付きの complete モード、候補なしは scanner の scanned-bytes / scanned-lines を渡す --checkpoint-only で処理し、候補なしでは session-wide .extract-done を作らない",
+        "候補あり／なしの両方で kaizen-status-check.sh を通す",
+        "current transcript を同定できない Copilot では候補ゼロと推測せず BLOCKED にする",
+        "通常の kaizen --current は従来どおりユーザー承認を要求すると区別する"
+      ]
     }
   ]
 }
