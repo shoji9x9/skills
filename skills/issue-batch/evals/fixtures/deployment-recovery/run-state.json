@@ -1,0 +1,22 @@
+{
+  "issue": 101,
+  "branch": "feature/101-fix-release",
+  "base": "main",
+  "merge_commit": "1111111111111111111111111111111111111111",
+  "runs": [
+    {
+      "databaseId": 10,
+      "workflow": ".github/workflows/release.yml",
+      "headSha": "0000000000000000000000000000000000000000",
+      "event": "push",
+      "conclusion": "success"
+    },
+    {
+      "databaseId": 11,
+      "workflow": ".github/workflows/release.yml",
+      "headSha": "1111111111111111111111111111111111111111",
+      "event": "push",
+      "conclusion": "failure"
+    }
+  ]
+}
