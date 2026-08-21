@@ -150,6 +150,7 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
 - `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
+- `issue-batch`: 複数 Issue を入力順に隔離 worktree・独立 branch / PR で連続処理し、ローカルレビュー、検証、Kaizen、PR 収束、自動 merge、Issue close、deployment、branch cleanup まで追跡する。初回は `setup` で無人実行ポリシーを確定する
 - `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う。対応後の再レビュー依頼先は `skills.common.review_tool`（Copilot/Claude Code/Codex/none、既定 copilot）で選択する
 - `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化する。PR 単体または `--all` で open な全 PR を処理。`>=1.0` の決定論的自動マージは `.github/workflows/dependabot-automerge.yml` が担い、本スキルは 0.x や自動マージ未設定リポジトリでの手動判断を受け持つ
 - `dependabot-alert-issue`: Dependabot alerts を確認し、解消するための Issue を作成する。着手可否で分類し severity・パッケージ単位でグルーピング、着手できないものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定できる。起票後の着手は `issue-start` に引き継ぐ
