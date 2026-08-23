@@ -32,5 +32,8 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 8 は fixture `static-dataset`（`dataset_mode: static`・DB を持つ target がゼロ・フェーズ A 完了済み・`gaps.md` にデータ不足 2 件）で、
   **DB レス・プロジェクトのフェーズ A 再実行がデッドロックしない**ことを検証する。実 DB を要さず生成先がリポジトリ内（`dataset_static_paths`）で完結するため、
   使い捨てプロジェクトでも設計追記 → ツール更新 → 再生成 → `version` +1 → ベースライン再取得の案内まで通しで実行できる
+- eval 12 は fixture 無しで、`features.md` の抜粋を会話で与えて**対象テーブルの参照元**を問う。`db` モードのフェーズ A は使い捨てプロジェクトでは step 1 の
+  接続確認で止まりデータ設計へ到達しないため、実行させず問いの形にして到達性を確保している。横断 API 行の**参照テーブルが空欄**という材料だけを与え、
+  「空欄＝参照テーブル無し」と断定せず記録漏れを疑って確定を保留するかを見る（結論はプロンプトに書かない）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

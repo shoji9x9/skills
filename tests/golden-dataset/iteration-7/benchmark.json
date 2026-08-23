@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-23T03:25:00Z",
+    "evals_run": [12],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 41.5,
+        "tokens": 119524,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象テーブルを機能一覧の「テーブル」列だけから決めず、横断 API 表の「参照テーブル」列も参照元に含めると答えている",
+          "passed": true,
+          "evidence": "「機能一覧のテーブル列・横断 API の参照テーブル列・バッチの参照テーブル列の 3 つの表に分散していて 3 つとも読むのが前提」と明示。バッチ表の有無の確認も促した"
+        },
+        {
+          "text": "db-context の参照テーブル欄が空であることを「参照テーブル無し」と断定せず、replace-strategy 側の記録漏れの可能性として指摘している",
+          "passed": true,
+          "evidence": "「空欄と『参照テーブル無し』は同じに扱わない」「replace-strategy 側の記録漏れを疑う」と明示。明示的な - / なし の行だけがゼロ件扱いとも述べた"
+        },
+        {
+          "text": "空欄が埋まるまで対象テーブルを確定させず、次の行動として利用者への確認（または replace-strategy 側で参照テーブル列を補うこと）を示している",
+          "passed": true,
+          "evidence": "「4 つ目の括りが埋まるまではフェーズ A の対象集合は確定しません」とし、次の一歩に replace-strategy 側で欄を埋める（無ければ - と明記する）ことを挙げた"
+        },
+        {
+          "text": "features.md に記録の無いテーブルを推測で補っていない",
+          "passed": true,
+          "evidence": "対象は orders / order_items / reports ＋『db-context が読むテーブル（未記録）』とし、推測でテーブル名を足していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 45.9,
+        "tokens": 124086,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象テーブルを機能一覧の「テーブル」列だけから決めず、横断 API 表の「参照テーブル」列も参照元に含めると答えている",
+          "passed": false,
+          "evidence": "空欄を「fan-out 先の参照テーブルを継承する」と読み替え、「db-context は新しいテーブルを追加しない」と結論。参照テーブル列を独立した参照元として扱っていない"
+        },
+        {
+          "text": "db-context の参照テーブル欄が空であることを「参照テーブル無し」と断定せず、replace-strategy 側の記録漏れの可能性として指摘している",
+          "passed": true,
+          "evidence": "後段で「空欄は『継承で足りる』ではなく『単に未記入』であり、対象テーブルが 3 つでは足りなくなります」と記録漏れの可能性を指摘した"
+        },
+        {
+          "text": "空欄が埋まるまで対象テーブルを確定させず、次の行動として利用者への確認（または replace-strategy 側で参照テーブル列を補うこと）を示している",
+          "passed": false,
+          "evidence": "「回答：対象テーブルは 3 つ」と確定させ、「この点はフェーズ A の判断に影響しません」と述べた。確認は任意の追加提案に留まる"
+        },
+        {
+          "text": "features.md に記録の無いテーブルを推測で補っていない",
+          "passed": true,
+          "evidence": "orders / order_items / reports のみを挙げ、記録の無いテーブル名を推測で足していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 41.5,
+        "stddev": 0.0,
+        "min": 41.5,
+        "max": 41.5
+      },
+      "tokens": {
+        "mean": 119524.0,
+        "stddev": 0.0,
+        "min": 119524,
+        "max": 119524
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 45.9,
+        "stddev": 0.0,
+        "min": 45.9,
+        "max": 45.9
+      },
+      "tokens": {
+        "mean": 124086.0,
+        "stddev": 0.0,
+        "min": 124086,
+        "max": 124086
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "-4.4",
+      "tokens": "-4562"
+    }
+  },
+  "notes": []
+}

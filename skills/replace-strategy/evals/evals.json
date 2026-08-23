@@ -204,6 +204,18 @@
         "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
         "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している"
       ]
+    },
+    {
+      "id": 20,
+      "fixture": "evals/fixtures/inventory-crosscut-tables",
+      "prompt": "測定と戦略は完了済み（.replace/survey.md / .replace/strategy.md）。現行アプリの構成: ページは接続先一覧 /dbs・検索 /search・権限管理 /admin/roles の 3 つ。全ページ共通のヘッダは GET /api/db-context を呼び、接続先 DB の表示名・プルダウン候補・遷移先 URL を得る（3 ページすべてが使用）。ほかに /dbs は GET /api/dbs、/search は GET /api/search、/admin/roles は GET /api/roles と PATCH /api/roles を使い、いずれもその画面だけが使用する。テーブルは DBS, SEARCH_INDEX, ROLES, MST_DB_ADMIN, MST_DB_ACCESS, MST_URL。GET /api/dbs は DBS を、GET /api/search は SEARCH_INDEX を、GET /api/roles と PATCH /api/roles は ROLES を読む。GET /api/db-context は MST_DB_ADMIN と MST_DB_ACCESS と MST_URL を読み、ほかの API はこの 3 つを読まない。副作用出力は検索結果 CSV（/search が所有）。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
+      "assertions": [
+        "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
+        "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
+        "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
+        "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
+        "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない"
+      ]
     }
   ]
 }

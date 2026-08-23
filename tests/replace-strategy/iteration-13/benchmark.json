@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-23T03:24:56Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 96.3,
+        "tokens": 312778,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
+          "passed": true,
+          "evidence": "横断 API 表に db-context 行を作り fan-out に db-list, search, role-admin の 3 slug を記録"
+        },
+        {
+          "text": "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
+          "passed": true,
+          "evidence": "同行の参照テーブル列に MST_DB_ADMIN, MST_DB_ACCESS, MST_URL の 3 つを記録。列コメントで「この列だけが記録先」とも明記"
+        },
+        {
+          "text": "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
+          "passed": true,
+          "evidence": "3 テーブルとも横断 API 表の行として記録（散文だけの言及ではない）"
+        },
+        {
+          "text": "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "GET /api/dbs / /api/search / /api/roles・PATCH /api/roles を各機能行の「新規実装 API」列に置き、横断 API 表には載せていない"
+        },
+        {
+          "text": "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない",
+          "passed": true,
+          "evidence": "機能一覧のテーブル列は db-list=DBS, search=SEARCH_INDEX, role-admin=ROLES。MST_ 3 つは機能行に現れない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 122.9,
+        "tokens": 162164,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
+          "passed": false,
+          "evidence": "横断 API の表を作らず、db-context を機能一覧の F-00 行（機能）として扱った。fan-out 列も無く「被依存: F-01,F-02,F-03」と散文で記述"
+        },
+        {
+          "text": "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
+          "passed": false,
+          "evidence": "横断 API 表が存在しないため、その行の参照テーブル列も存在しない"
+        },
+        {
+          "text": "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
+          "passed": true,
+          "evidence": "MST_DB_ADMIN / MST_DB_ACCESS / MST_URL は F-00 行のテーブル列に 3 つとも記録された（表への記録という点だけは満たす）"
+        },
+        {
+          "text": "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
+          "passed": true,
+          "evidence": "各画面専用 API を横断扱いに昇格させず機能行の API 列に置いた。ただし列名は「新規実装 API」ではなく「API」で、テンプレートの表構成には従っていない"
+        },
+        {
+          "text": "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない",
+          "passed": false,
+          "evidence": "MST_ 3 テーブルを機能 F-00（DB コンテキスト）の所有テーブルとして機能一覧に置いた。所有者を持たないテーブルを機能行へ付け替えている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 96.3,
+        "stddev": 0.0,
+        "min": 96.3,
+        "max": 96.3
+      },
+      "tokens": {
+        "mean": 312778.0,
+        "stddev": 0.0,
+        "min": 312778,
+        "max": 312778
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0.0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 122.9,
+        "stddev": 0.0,
+        "min": 122.9,
+        "max": 122.9
+      },
+      "tokens": {
+        "mean": 162164.0,
+        "stddev": 0.0,
+        "min": 162164,
+        "max": 162164
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.60",
+      "time_seconds": "-26.6",
+      "tokens": "+150614"
+    }
+  },
+  "notes": []
+}

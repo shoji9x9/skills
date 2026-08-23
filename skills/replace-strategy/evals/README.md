@@ -41,5 +41,8 @@ scripts/run-skill-eval.sh \
 - eval 19 の fixture（`features-nonstandard-item`）は、**テンプレートに無いヘッダ項目（`スキーマ Issue: #47`）を利用者が足した features.md** を持たせ、
   4 種に還元できない Issue の記録先（「その他の Issue（4 種以外）」表）・非破壊更新の契約・`status` での扱いを検証する。
   fixture 側にはその項目がテンプレート外である旨も移設先も書かない（書くと baseline がそれを読んで assertion を満たす）
+- eval 20 の fixture（`inventory-crosscut-tables`）は測定・戦略が完了した状態を持たせ、**どの機能も所有せず横断 API からしか読まれないテーブル**（`MST_*` 3 つ）が
+  インベントリから落ちないことを検証する。fixture・プロンプトのどちらにも「横断 API 表の参照テーブル列に書く」という結論は書かない
+  （書くと baseline がそれを読んで assertion を満たす）。機能一覧の列だけを見る実装では 3 テーブルの置き場所が無く落ちるため、弁別が立つ
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
