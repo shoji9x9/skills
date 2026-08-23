@@ -108,7 +108,8 @@ replace-strategy status
 6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
 7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
-   併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)
+   併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)。
+   **4 種（ゴールデンデータセット／横断 API／機能／バッチ）に還元できない作業**（例: テーブルをまたぐ新側スキーマの前倒し設計）は「その他の Issue（4 種以外）」表に置き、記録先が無いことを理由にヘッダへ独自項目を足したり記録を諦めたりしない
 8. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
    判断材料・確認手段・決める順序は [`references/dependency-selection.md`](references/dependency-selection.md)。
    **ライセンス方針・供給網ポリシーの有無はリポジトリごとに違うため、あればそれに従い、未確認なら方針の要否そのものをユーザーに確認**して結果を設定（`references.dependency_policy`）へ記録する（`none` ＝確認済みで方針なしは再確認しない）。
@@ -117,9 +118,10 @@ replace-strategy status
 ## issues モード
 
 `.replace/features.md` の未起票の機能・横断 API リソース・バッチから対象を選択し、Issue を起票して Issue 番号をインベントリへ書き戻す。
-手順・Issue 種類（ゴールデンデータセット／横断 API／機能／バッチの 4 種）・本文構成は [`references/features-issues.md`](references/features-issues.md) を参照する。
+手順・Issue 種類（ゴールデンデータセット／横断 API／機能／バッチの 4 種と、**4 種に還元できない作業のための「その他 Issue」**の計 5 種）・本文構成は [`references/features-issues.md`](references/features-issues.md) を参照する。
 
 - `.replace/features.md` が無い（`setup` 未完了）場合は起票せず停止し、`setup` の実行を促す
+- **`.replace/features.md` の更新は非破壊**——テンプレートは初期生成の雛形であって更新時の項目の上限ではない。変える行・列だけを書き換え、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しない。4 種に当てはまらない Issue は「その他の Issue（4 種以外）」表へ置く（正本は [`references/features-issues.md`](references/features-issues.md)）
 - 起票は `issue-create` スキルへ委譲する。**候補・依存関係・各 Issue の本文ドラフトを提示して明示承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
 - **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）
 - 重複チェックはページネーションに留意する（既定件数で打ち切らない）
@@ -132,6 +134,7 @@ replace-strategy status
 - Issue の状態は features.md に記録された番号を個別取得する。番号を列挙できない取得はページネーションを処理する（指定件数で打ち切らない）
 - 機能ごとのパリティスイートの有無・強度・データセットバージョンの陳腐化・未検証領域（`gaps`）を導出する
 - 横断 API に変更があった場合の影響範囲（利用側の機能一覧）を fan-out から導出する
+- 「その他の Issue（4 種以外）」表の各行は Issue 状態と依存順・影響範囲を報告する（`.replace/parity/<slug>/` の成果物を持たないため、スイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別する）
 
 ## 成果物
 
@@ -143,7 +146,7 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out とリソースグルーピング、slug、Issue 化の状態 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out とリソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` が機能固有・実装中の追加を非破壊追記する |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
