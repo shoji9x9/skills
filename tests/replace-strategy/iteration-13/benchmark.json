@@ -1,12 +1,12 @@
 {
   "metadata": {
     "skill_name": "replace-strategy",
-    "skill_path": "<path/to/skill>",
-    "executor_model": "<model-name>",
-    "analyzer_model": "<model-name>",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
     "timestamp": "2026-08-23T03:24:56Z",
     "evals_run": [20],
-    "runs_per_configuration": 3
+    "runs_per_configuration": 1
   },
   "runs": [
     {
@@ -25,29 +25,29 @@
       },
       "expectations": [
         {
-          "text": "3 \u30da\u30fc\u30b8\u3059\u3079\u3066\u304c\u4f7f\u3046 GET /api/db-context \u3092\u30ea\u30bd\u30fc\u30b9\u5358\u4f4d\u3067\u6a2a\u65ad API \u8868\u306b\u5206\u985e\u3057\u3001fan-out \u306b 3 \u6a5f\u80fd\u306e slug \u3092\u8a18\u9332\u3057\u3066\u3044\u308b",
+          "text": "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
           "passed": true,
-          "evidence": "\u6a2a\u65ad API \u8868\u306b db-context \u884c\u3092\u4f5c\u308a fan-out \u306b db-list, search, role-admin \u306e 3 slug \u3092\u8a18\u9332"
+          "evidence": "横断 API 表に db-context 行を作り fan-out に db-list, search, role-admin の 3 slug を記録"
         },
         {
-          "text": "\u6a2a\u65ad API \u306e\u884c\u306b\u53c2\u7167\u30c6\u30fc\u30d6\u30eb\u3068\u3057\u3066 MST_DB_ADMIN\u30fbMST_DB_ACCESS\u30fbMST_URL \u306e 3 \u3064\u3059\u3079\u3066\u3092\u8a18\u9332\u3057\u3066\u3044\u308b",
+          "text": "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
           "passed": true,
-          "evidence": "\u540c\u884c\u306e\u53c2\u7167\u30c6\u30fc\u30d6\u30eb\u5217\u306b MST_DB_ADMIN, MST_DB_ACCESS, MST_URL \u306e 3 \u3064\u3092\u8a18\u9332\u3002\u5217\u30b3\u30e1\u30f3\u30c8\u3067\u300c\u3053\u306e\u5217\u3060\u3051\u304c\u8a18\u9332\u5148\u300d\u3068\u3082\u660e\u8a18"
+          "evidence": "同行の参照テーブル列に MST_DB_ADMIN, MST_DB_ACCESS, MST_URL の 3 つを記録。列コメントで「この列だけが記録先」とも明記"
         },
         {
-          "text": "MST_DB_ADMIN\u30fbMST_DB_ACCESS\u30fbMST_URL \u306e\u3069\u308c\u3082\u53d6\u308a\u3053\u307c\u3055\u305a\u3001features.md \u306e\u3044\u305a\u308c\u304b\u306e\u8868\u306b\u8a18\u9332\u3057\u3066\u3044\u308b\uff08\u672c\u6587\u306e\u6563\u6587\u3060\u3051\u306e\u8a00\u53ca\u3067\u6e08\u307e\u305b\u3066\u3044\u306a\u3044\uff09",
+          "text": "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
           "passed": true,
-          "evidence": "3 \u30c6\u30fc\u30d6\u30eb\u3068\u3082\u6a2a\u65ad API \u8868\u306e\u884c\u3068\u3057\u3066\u8a18\u9332\uff08\u6563\u6587\u3060\u3051\u306e\u8a00\u53ca\u3067\u306f\u306a\u3044\uff09"
+          "evidence": "3 テーブルとも横断 API 表の行として記録（散文だけの言及ではない）"
         },
         {
-          "text": "\u5404\u753b\u9762\u3060\u3051\u304c\u4f7f\u3046 API\uff08/api/dbs\u30fb/api/search\u30fb/api/roles\uff09\u3092\u6a2a\u65ad API \u8868\u306b\u8f09\u305b\u305a\u3001\u6a5f\u80fd\u884c\u306e\u65b0\u898f\u5b9f\u88c5 API \u306b\u542b\u3081\u3066\u3044\u308b",
+          "text": "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
           "passed": true,
-          "evidence": "GET /api/dbs / /api/search / /api/roles\u30fbPATCH /api/roles \u3092\u5404\u6a5f\u80fd\u884c\u306e\u300c\u65b0\u898f\u5b9f\u88c5 API\u300d\u5217\u306b\u7f6e\u304d\u3001\u6a2a\u65ad API \u8868\u306b\u306f\u8f09\u305b\u3066\u3044\u306a\u3044"
+          "evidence": "GET /api/dbs / /api/search / /api/roles・PATCH /api/roles を各機能行の「新規実装 API」列に置き、横断 API 表には載せていない"
         },
         {
-          "text": "\u6a5f\u80fd\u4e00\u89a7\u306e\u300c\u30c6\u30fc\u30d6\u30eb\u300d\u5217\u306f\u5404\u6a5f\u80fd\u304c\u6240\u6709\u3059\u308b\u30c6\u30fc\u30d6\u30eb\uff08DBS / SEARCH_INDEX / ROLES\uff09\u3067\u3001MST_ 3 \u30c6\u30fc\u30d6\u30eb\u3092\u6240\u6709\u8005\u3068\u3057\u3066\u6a5f\u80fd\u884c\u306b\u4ed8\u3051\u66ff\u3048\u3066\u3044\u306a\u3044",
+          "text": "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない",
           "passed": true,
-          "evidence": "\u6a5f\u80fd\u4e00\u89a7\u306e\u30c6\u30fc\u30d6\u30eb\u5217\u306f db-list=DBS, search=SEARCH_INDEX, role-admin=ROLES\u3002MST_ 3 \u3064\u306f\u6a5f\u80fd\u884c\u306b\u73fe\u308c\u306a\u3044"
+          "evidence": "機能一覧のテーブル列は db-list=DBS, search=SEARCH_INDEX, role-admin=ROLES。MST_ 3 つは機能行に現れない"
         }
       ],
       "notes": []
@@ -68,29 +68,29 @@
       },
       "expectations": [
         {
-          "text": "3 \u30da\u30fc\u30b8\u3059\u3079\u3066\u304c\u4f7f\u3046 GET /api/db-context \u3092\u30ea\u30bd\u30fc\u30b9\u5358\u4f4d\u3067\u6a2a\u65ad API \u8868\u306b\u5206\u985e\u3057\u3001fan-out \u306b 3 \u6a5f\u80fd\u306e slug \u3092\u8a18\u9332\u3057\u3066\u3044\u308b",
+          "text": "3 ページすべてが使う GET /api/db-context をリソース単位で横断 API 表に分類し、fan-out に 3 機能の slug を記録している",
           "passed": false,
-          "evidence": "\u6a2a\u65ad API \u306e\u8868\u3092\u4f5c\u3089\u305a\u3001db-context \u3092\u6a5f\u80fd\u4e00\u89a7\u306e F-00 \u884c\uff08\u6a5f\u80fd\uff09\u3068\u3057\u3066\u6271\u3063\u305f\u3002fan-out \u5217\u3082\u7121\u304f\u300c\u88ab\u4f9d\u5b58: F-01,F-02,F-03\u300d\u3068\u6563\u6587\u3067\u8a18\u8ff0"
+          "evidence": "横断 API の表を作らず、db-context を機能一覧の F-00 行（機能）として扱った。fan-out 列も無く「被依存: F-01,F-02,F-03」と散文で記述"
         },
         {
-          "text": "\u6a2a\u65ad API \u306e\u884c\u306b\u53c2\u7167\u30c6\u30fc\u30d6\u30eb\u3068\u3057\u3066 MST_DB_ADMIN\u30fbMST_DB_ACCESS\u30fbMST_URL \u306e 3 \u3064\u3059\u3079\u3066\u3092\u8a18\u9332\u3057\u3066\u3044\u308b",
+          "text": "横断 API の行に参照テーブルとして MST_DB_ADMIN・MST_DB_ACCESS・MST_URL の 3 つすべてを記録している",
           "passed": false,
-          "evidence": "\u6a2a\u65ad API \u8868\u304c\u5b58\u5728\u3057\u306a\u3044\u305f\u3081\u3001\u305d\u306e\u884c\u306e\u53c2\u7167\u30c6\u30fc\u30d6\u30eb\u5217\u3082\u5b58\u5728\u3057\u306a\u3044"
+          "evidence": "横断 API 表が存在しないため、その行の参照テーブル列も存在しない"
         },
         {
-          "text": "MST_DB_ADMIN\u30fbMST_DB_ACCESS\u30fbMST_URL \u306e\u3069\u308c\u3082\u53d6\u308a\u3053\u307c\u3055\u305a\u3001features.md \u306e\u3044\u305a\u308c\u304b\u306e\u8868\u306b\u8a18\u9332\u3057\u3066\u3044\u308b\uff08\u672c\u6587\u306e\u6563\u6587\u3060\u3051\u306e\u8a00\u53ca\u3067\u6e08\u307e\u305b\u3066\u3044\u306a\u3044\uff09",
+          "text": "MST_DB_ADMIN・MST_DB_ACCESS・MST_URL のどれも取りこぼさず、features.md のいずれかの表に記録している（本文の散文だけの言及で済ませていない）",
           "passed": true,
-          "evidence": "MST_DB_ADMIN / MST_DB_ACCESS / MST_URL \u306f F-00 \u884c\u306e\u30c6\u30fc\u30d6\u30eb\u5217\u306b 3 \u3064\u3068\u3082\u8a18\u9332\u3055\u308c\u305f\uff08\u8868\u3078\u306e\u8a18\u9332\u3068\u3044\u3046\u70b9\u3060\u3051\u306f\u6e80\u305f\u3059\uff09"
+          "evidence": "MST_DB_ADMIN / MST_DB_ACCESS / MST_URL は F-00 行のテーブル列に 3 つとも記録された（表への記録という点だけは満たす）"
         },
         {
-          "text": "\u5404\u753b\u9762\u3060\u3051\u304c\u4f7f\u3046 API\uff08/api/dbs\u30fb/api/search\u30fb/api/roles\uff09\u3092\u6a2a\u65ad API \u8868\u306b\u8f09\u305b\u305a\u3001\u6a5f\u80fd\u884c\u306e\u65b0\u898f\u5b9f\u88c5 API \u306b\u542b\u3081\u3066\u3044\u308b",
+          "text": "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
           "passed": true,
-          "evidence": "\u5404\u753b\u9762\u5c02\u7528 API \u3092\u6a2a\u65ad\u6271\u3044\u306b\u6607\u683c\u3055\u305b\u305a\u6a5f\u80fd\u884c\u306e API \u5217\u306b\u7f6e\u3044\u305f\u3002\u305f\u3060\u3057\u5217\u540d\u306f\u300c\u65b0\u898f\u5b9f\u88c5 API\u300d\u3067\u306f\u306a\u304f\u300cAPI\u300d\u3067\u3001\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u306e\u8868\u69cb\u6210\u306b\u306f\u5f93\u3063\u3066\u3044\u306a\u3044"
+          "evidence": "各画面専用 API を横断扱いに昇格させず機能行の API 列に置いた。ただし列名は「新規実装 API」ではなく「API」で、テンプレートの表構成には従っていない"
         },
         {
-          "text": "\u6a5f\u80fd\u4e00\u89a7\u306e\u300c\u30c6\u30fc\u30d6\u30eb\u300d\u5217\u306f\u5404\u6a5f\u80fd\u304c\u6240\u6709\u3059\u308b\u30c6\u30fc\u30d6\u30eb\uff08DBS / SEARCH_INDEX / ROLES\uff09\u3067\u3001MST_ 3 \u30c6\u30fc\u30d6\u30eb\u3092\u6240\u6709\u8005\u3068\u3057\u3066\u6a5f\u80fd\u884c\u306b\u4ed8\u3051\u66ff\u3048\u3066\u3044\u306a\u3044",
+          "text": "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない",
           "passed": false,
-          "evidence": "MST_ 3 \u30c6\u30fc\u30d6\u30eb\u3092\u6a5f\u80fd F-00\uff08DB \u30b3\u30f3\u30c6\u30ad\u30b9\u30c8\uff09\u306e\u6240\u6709\u30c6\u30fc\u30d6\u30eb\u3068\u3057\u3066\u6a5f\u80fd\u4e00\u89a7\u306b\u7f6e\u3044\u305f\u3002\u6240\u6709\u8005\u3092\u6301\u305f\u306a\u3044\u30c6\u30fc\u30d6\u30eb\u3092\u6a5f\u80fd\u884c\u3078\u4ed8\u3051\u66ff\u3048\u3066\u3044\u308b"
+          "evidence": "MST_ 3 テーブルを機能 F-00（DB コンテキスト）の所有テーブルとして機能一覧に置いた。所有者を持たないテーブルを機能行へ付け替えている"
         }
       ],
       "notes": []
