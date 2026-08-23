@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-23T01:30:13Z",
+    "evals_run": [19],
+    "runs_per_configuration": 2
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 91.5,
+        "tokens": 218374,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": true,
+          "evidence": "「記録先は .replace/features.md の「その他の Issue（4 種以外）」表」と明示し、現在の features.md に節が無いため節ごと追加を提案。ヘッダの「スキーマ Issue: #47」は表へ移すため削除すると案内"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": true,
+          "evidence": "列 7 つを列挙し「4 種に当てはまらない理由」「影響範囲」「依存順」をその他 Issue 固有の必須項目と説明。「4 種は依存順が種類で決まるが、その他 Issue は行ごとに違うため明記が要る」と区別"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "「ASCII kebab-case（[a-z0-9-]）で、インベントリ全体で一意 — 機能・横断 API リソース・バッチ・その他 Issue が同じ名前空間を共有」。既存 order/report/user と衝突しないことも確認"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": true,
+          "evidence": "「features.md の更新は非破壊」を引き、テンプレートは初期生成の雛形であって更新時の項目の上限ではない・テンプレートに無いヘッダ項目/節/列/行を見つけても削除しない・全文再生成でテンプレートに揃え直さない、と説明"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": true,
+          "evidence": "「移したあと status にどう出るか」の表で「スイート強度／ベースライン／フェーズ B／差分 →「対象外」— .replace/parity/schema/ を持たないため導出せず、「未着手」とは区別して示す」。節の不在は「該当なし」と読まない点にも言及"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 91.0,
+        "tokens": 151968,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": true,
+          "evidence": "「.replace/features.md の ## その他の Issue（4 種以外）表」と明示。4 種は成果物の所有者で切られており #47 は所有者を定められないため 5 つ目に当たると説明し、節ごと追加する diff を提示（ヘッダの独自項目行は削除）"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": true,
+          "evidence": "列 7 つを提示し「4 種に当てはまらない理由は必ず書く（書けないなら 4 種のどれかに当てはまる）」「依存順は行に明記が必須（4 種は種類で順序が決まるが、その他 Issue は行ごとに違うため）」と区別"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "「ASCII kebab-case（[a-z0-9-]）で、インベントリ全体で一意。名前空間は機能・横断 API リソース・バッチと共有」。加えて対象範囲は共有せず下流スキルの対象外になる点まで説明"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": true,
+          "evidence": "「黙って消されることはありません」として非破壊更新の契約（テンプレートに無いヘッダ項目・節・列・行を削除しない／変える行・列だけ書き換え全文再生成しない／テンプレートは雛形で上限ではない）を説明"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": true,
+          "evidence": "「報告順の先頭に出る」「スイート強度・ベースライン・フェーズ B・差分の列は導出されず『対象外』と表示。.replace/parity/schema/ を持たないためで、成果物が無いだけの『未着手』とは区別される」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 126.4,
+        "tokens": 174967,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": false,
+          "evidence": "記録先を「横断 API（リソース単位）」表と回答し、schema 行を fan-out 付きで追加する案を提示。「その他の Issue（4 種以外）」表には一切言及していない"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": false,
+          "evidence": "行の内容は横断 API 表の列（リソース／API／fan-out）で構成。「4 種に当てはまらない理由」「影響範囲」列にも、行ごとに依存順を明記する契約にも言及していない（依存順は「機能側の依存列に schema を足す」形で代替）"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "slug は schema、既存 slug に倣い小文字 ASCII の短い名詞、「名前空間は機能 slug と横断 slug で共通」と述べており、一意な ASCII kebab-case の要件を満たしている"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": false,
+          "evidence": "「ヘッダに手で足した スキーマ Issue: は、スキルが再生成するヘッダ項目の集合に入っていなければ、次の書き直しで落ちます」と、非破壊更新の契約と逆の推測を提示している"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": false,
+          "evidence": "status では「横断のグループに独立した 1 行として出ます（#47 / open）」と推測。.replace/parity/<slug>/ 成果物を持たないことも「対象外」と「未着手」の区別にも触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 138.9,
+        "tokens": 174798,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": false,
+          "evidence": "機能一覧表に schema 行（ページ「なし」・新規実装 API「なし」）を追加して features.md を書き換えた。「その他の Issue（4 種以外）」表には言及なし。次善案としても横断 API 表を挙げている"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": false,
+          "evidence": "機能一覧の列（ページ／新規実装 API／テーブル／副作用出力）で行を構成し、いずれも「なし」で埋めた。「4 種に当てはまらない理由」「影響範囲」列・行ごとの依存順明記の契約には触れていない"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "slug は schema を採用し既存 slug と衝突しない一意な小文字 ASCII として機能一覧へ追加している"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": false,
+          "evidence": "非破壊更新の契約に触れず、ヘッダの「- スキーマ Issue: #47」行を承認なしに削除して features.md を書き換えた（契約が禁じる「黙って移す・黙って消す」に該当）"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": false,
+          "evidence": "status での見え方は「schema 行が依存順 1 の先頭に出て警告を出さないか確認してください」と未検証の推測。「対象外」と「未着手」の区別には触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 91.25,
+        "stddev": 0.3536,
+        "min": 91.0,
+        "max": 91.5
+      },
+      "tokens": {
+        "mean": 185171.0,
+        "stddev": 46956.1329,
+        "min": 151968,
+        "max": 218374
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.0,
+        "min": 0.2,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 132.65,
+        "stddev": 8.8388,
+        "min": 126.4,
+        "max": 138.9
+      },
+      "tokens": {
+        "mean": 174882.5,
+        "stddev": 119.501,
+        "min": 174798,
+        "max": 174967
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "-41.4",
+      "tokens": "+10288"
+    }
+  },
+  "notes": []
+}

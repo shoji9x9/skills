@@ -38,5 +38,8 @@ scripts/run-skill-eval.sh \
   fixture 無しでは「`setup` 未完了」で早期停止して判断材料の提示に到達しないため、fixture で到達性を担保している
 - eval 15 は fixture 無しで会話だけで判定できる契約（設定キーの**書き手区分**・作業中に増え続ける slug スコープの台帳を設定に置かない・`component_diffs` を設定側に残す根拠・
   スキルキーを跨いだ YAML アンカー共有が課す分割不可制約）を対象にする
+- eval 19 の fixture（`features-nonstandard-item`）は、**テンプレートに無いヘッダ項目（`スキーマ Issue: #47`）を利用者が足した features.md** を持たせ、
+  4 種に還元できない Issue の記録先（「その他の Issue（4 種以外）」表）・非破壊更新の契約・`status` での扱いを検証する。
+  fixture 側にはその項目がテンプレート外である旨も移設先も書かない（書くと baseline がそれを読んで assertion を満たす）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
