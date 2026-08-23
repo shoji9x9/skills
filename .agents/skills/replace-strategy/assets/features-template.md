@@ -3,7 +3,7 @@
 <!-- replace-strategy が生成・更新する。このファイルの形式（slug 規則を含む）の正本は replace-strategy が定義し、 -->
 <!-- 下流スキル（golden-dataset / parity-suite / parity-replace / parity-diff）は slug をここから引く（自分で採番しない）。 -->
 <!-- 各行は例。実際の機能・値で置き換える。 -->
-<!-- 更新は非破壊。既存の行・ヘッダ項目・テンプレートに無い追記も、書き直しで落とさない（正本は references/features-issues.md「features.md の更新は非破壊」）。 -->
+<!-- 更新は非破壊。既存の行・ヘッダ項目・テンプレートに無い追記も、書き直しで落とさない（正本は replace-strategy スキルの「features.md の更新は非破壊」）。 -->
 
 - 最終更新: （ISO 8601）
 - ゴールデンデータセット Issue: 未起票
