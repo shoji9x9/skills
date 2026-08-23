@@ -87,7 +87,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 `targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
 
-対象テーブル・リソースドメインは `.replace/features.md` から引く。
+対象テーブル・リソースドメインは `.replace/features.md` から引く。**テーブルは 3 つの表（機能一覧の「テーブル」列・横断 API とバッチの「参照テーブル」列）に分散しているので 3 つとも読む**（詳細: [`references/data-design.md`](references/data-design.md)）。
 
 - **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する
 - **本スキルは設定を生成しない**（読むだけ）。例外は**非破壊追記の 2 つ**——フェーズ B で見つかった新規の意図的差異を `intentional_diffs.pending` へ追記してユーザー確認へ回すことと、
