@@ -22,7 +22,7 @@
     "lefthook": "^2.1.10",
     "markdownlint-cli2": "^0.23.2",
     "oxfmt": "^0.63.0",
-    "oxlint": "^1.78.0",
+    "oxlint": "^1.79.0",
     "semantic-release": "^25.0.8",
     "vitest": "^4.1.7"
   },
