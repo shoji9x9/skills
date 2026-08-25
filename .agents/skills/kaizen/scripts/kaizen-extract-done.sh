@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # kaizen extract-done marker（抽出完了の記録）
 #
-# 既定（抽出完了時にエージェントが呼び出す）: 対象エージェントの未抽出センチネルを削除し、
-# 抽出完了マーカー `.kaizen/.extract-done`（UTC タイムスタンプ）を書く。
-# コミット前ゲート（kaizen-precommit-gate.sh）はマーカーがある間、Stop フックによる
+# 既定（抽出完了時にエージェントが呼び出す）: 対象セッションの未抽出センチネルを削除し、
+# 抽出完了マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書く。
+# コミット前ゲート（kaizen-precommit-gate.sh）はそのセッションのマーカーがある間、Stop フックによる
 # センチネル再装填を無視して commit を通す（ゲートはセッションにつき 1 回だけ抽出を要求する）。
 # マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
 #
+# `--session-id <id>`: 対象セッション（センチネルを立てた本人。自分自身とは限らない）。
+# センチネル・checkpoint・抽出完了マーカーはこの id で決まる key を名前に持つ。省略すると
+# Issue #218 以前の agent 単位の名前（`.pending-extract<suffix>` 等）を対象にする（後方互換）。
+#
 # `--checkpoint-only`（ゲートが候補ゼロを検証できたときに呼ぶ）: transcript の処理位置
-# `.kaizen/.extract-checkpoint` を走査器が報告した終端（`--scanned-bytes` / `--scanned-lines`。
-# どちらも必須）まで進め、対象エージェントのセンチネルだけを削除する。
+# `.kaizen/.extract-checkpoint.<session key>` を走査器が報告した終端（`--scanned-bytes` /
+# `--scanned-lines`。どちらも必須）まで進め、対象セッションのセンチネルだけを削除する。
 # **`.extract-done` は書かない**——セッション全体を抽出済みにすると、以降に新しい活動が
 # 積まれても同一セッション内の commit が素通りしてしまうため。次の commit では checkpoint
 # 以降の未処理範囲だけが再走査される。
@@ -23,7 +27,16 @@ set -euo pipefail
 # cwd 基準に縮退する（他の kaizen スクリプトと同じ縮退）。ただしこのスクリプトの場合、
 # ゲートが見る .kaizen/ と別の場所へマーカーを書くとゲート解除が効かないため、
 # 縮退したことを stderr に警告して気づけるようにする（exit 0 のまま続行はする）。
-project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
+# 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
+# shellcheck source=./kaizen-hook-common.sh disable=SC1091
+[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+
+if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
+	project_root=$(kaizen_resolve_project_root "")
+else
+	project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+fi
 if [ -z "${project_root}" ] || ! cd "${project_root}" 2>/dev/null; then
 	echo "kaizen-extract-done: プロジェクトルートを解決できないため cwd（$(pwd)）基準で .kaizen/ に書き込みます" >&2
 fi
@@ -31,6 +44,7 @@ fi
 mode=complete
 sentinel_suffix=""
 sentinel_suffix_set=0
+session_id=""
 transcript=""
 agent=""
 scanned_bytes=""
@@ -62,6 +76,14 @@ while [ "$#" -gt 0 ]; do
 		sentinel_suffix_set=1
 		shift 2
 		;;
+	--session-id)
+		[ "$#" -ge 2 ] || {
+			echo "kaizen-extract-done: --session-id requires a value" >&2
+			exit 2
+		}
+		session_id=$2
+		shift 2
+		;;
 	--agent)
 		[ "$#" -ge 2 ] || {
 			echo "kaizen-extract-done: --agent requires a value" >&2
@@ -89,7 +111,7 @@ if [[ -n "${sentinel_suffix}" && ! "${sentinel_suffix}" =~ ^-[a-z0-9-]+$ ]]; the
 	exit 2
 fi
 case "${agent}" in
-"" | claude-code | codex) ;;
+"" | claude-code | codex | copilot) ;;
 *)
 	echo "kaizen-extract-done: invalid agent: ${agent}" >&2
 	exit 2
@@ -121,6 +143,25 @@ if [ "${mode}" != "checkpoint-only" ] && { [ -n "${scanned_bytes}" ] || [ -n "${
 	echo "kaizen-extract-done: --scanned-bytes / --scanned-lines require --checkpoint-only" >&2
 	exit 2
 fi
+# 制御ファイルは session 単位。session id を渡されない（または共通ライブラリを読めない）場合は
+# Issue #218 以前の agent 単位の名前へ縮退する。縮退した状態で複数セッションを動かすと
+# 従来どおり奪い合うため、呼び出し側（ゲートの案内・references/extract.md）は常に渡す。
+session_key=""
+if declare -f kaizen_session_key >/dev/null 2>&1; then
+	session_key=$(kaizen_session_key "${session_id}")
+elif [ -n "${session_id}" ]; then
+	echo "kaizen-extract-done: 共通ライブラリを読めないため --session-id を無視し、agent 単位の制御ファイルを対象にします" >&2
+fi
+if declare -f kaizen_sentinel_path >/dev/null 2>&1; then
+	sentinel_path=$(kaizen_sentinel_path "${sentinel_suffix}" "${session_key}")
+	checkpoint_path=$(kaizen_checkpoint_path "${session_key}")
+	done_path=$(kaizen_done_path "${session_key}")
+else
+	sentinel_path=".kaizen/.pending-extract${sentinel_suffix}"
+	checkpoint_path=".kaizen/.extract-checkpoint"
+	done_path=".kaizen/.extract-done"
+fi
+
 mkdir -p .kaizen
 
 # PreToolUse が渡した transcript_path を受け取れる場合は、処理済みバイト位置を記録する。
@@ -159,7 +200,7 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
 		if printf '%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" \
 			>"${checkpoint_tmp}" 2>/dev/null &&
-			mv "${checkpoint_tmp}" .kaizen/.extract-checkpoint 2>/dev/null; then
+			mv "${checkpoint_tmp}" "${checkpoint_path}" 2>/dev/null; then
 			checkpoint_written=1
 		fi
 	fi
@@ -173,13 +214,14 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	fi
 fi
 if [ "${mode}" = "complete" ]; then
-	date -u '+%Y-%m-%dT%H:%M:%SZ' >".kaizen/.extract-done"
+	date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
 fi
 if [ "${sentinel_suffix_set}" -eq 1 ]; then
-	rm -f ".kaizen/.pending-extract${sentinel_suffix}"
+	rm -f "${sentinel_path}"
 else
-	# 引数なしの既存利用は後方互換のため全センチネルを完了扱いにする。
-	# マルチエージェント環境では --sentinel-suffix を必ず使う。
+	# 引数なしの既存利用は後方互換のため全センチネルを完了扱いにする。他エージェント・
+	# 他セッションのシグナルまで消すため、マルチエージェント／複数セッション環境では
+	# --sentinel-suffix と --session-id を必ず使う（ゲートの案内は常に両方を含める）。
 	rm -f .kaizen/.pending-extract*
 fi
 exit 0

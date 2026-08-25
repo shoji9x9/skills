@@ -115,10 +115,16 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
 5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 実際の影響度 `high > medium > low` > 繰り返し発生（KEDB 照合でヒット） > 根本原因が明確 > 対策が具体的）
 6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る。承認を求める確認 UI 自体に判断材料（学びファイルのドラフト全文）を同梱し、直前の通常テキストが確認ダイアログと同時に見えることを前提にしない（Claude Code の AskUserQuestion では選択肢の preview フィールドに入れる）。`--record-pending` の場合だけこの承認を省略し、次項の限定契約に従う
 7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）。frontmatter の直後に学びの要約を表す H1 見出し（`# <学びの要約タイトル>`）を 1 行付ける（markdownlint MD041 を満たし、読み物として自然にするため）
-8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と抽出完了マーカー `.kaizen/.extract-done` の記録を行う
+8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と抽出完了マーカー `.kaizen/.extract-done.<session key>` の記録を行う
    （同じセッションを再抽出しない・同一セッション内の後続 commit をゲートで再ブロックしないため）:
-   `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" [transcript_path]`（`<スキル>` はインストール先。Claude Code は空文字、Codex は `-codex`、Copilot は `-copilot`。ゲートが表示したコマンドを使う）
-   マルチエージェント環境では suffix を省略しない。省略時の全センチネル削除は旧設定との後方互換専用であり、別エージェントの未処理シグナルまで完了扱いにしてしまう。
+   `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" --agent "<agent>" --session-id "<session id>" [transcript_path]`
+   （`<スキル>` はインストール先。suffix は Claude Code が空文字、Codex は `-codex`、Copilot は `-copilot`。ゲートが表示したコマンドをそのまま使う）
+   `--sentinel-suffix` と `--session-id` を省略しない。省略時は旧設定との後方互換のため agent 単位の名前になり、両方省略すると `rm -f .kaizen/.pending-extract*` で**全セッションのセンチネルを削除**してしまう（他エージェント・他セッションの未処理シグナルまで完了扱いになる）。
+   **解消するのはセンチネルを立てたセッションの id** であって自分の id ではない（他セッションのセンチネルを引き受けて抽出した場合は、その値をゲートの案内から取る）。
+   **ゲートにブロックされていない状態（ユーザーが直接 `kaizen --current` を指示した等）で自分の session id が分からない場合は、値を推測せずセンチネルから読む**:
+   `.kaizen/.pending-extract*` の各ファイルは 1 行目 UTC タイムスタンプ / 2 行目 transcript パス / 3 行目 エージェント / 4 行目 session id を持つ。
+   2 行目が自分が読んでいる transcript と一致するファイルの 4 行目が自分の session id で、ファイル名の最初の `.` より前が `--sentinel-suffix` の値になる。
+   一致するセンチネルが無ければ、そのセッションにはセンチネルが無い（＝解消するものが無い）ので `kaizen-extract-done.sh` を引数なしで呼ばない。
 
 > **重要（適用先も記録する）**: 抽出と同じ実行内で成果物へ**反映（適用）まで**行う場合は、反映完了後に当該ファイルの `status` を `pending → applied` に更新し、`applied-to` に適用先パスまたは Issue（例: `"#123"`）を記録する。
 > ファイル作成だけで反映しない場合は `pending` のままにする（後で apply フローが適用する）。
@@ -136,8 +142,8 @@ current transcript の同定と candidate scanner による検証が前提。Cla
 2. 通常と同じ transcript 同定、候補走査、最低 3 階層の「なぜ」、KEDB 照合、横断スコープ確認、所有者判定を行う
 3. 候補がある場合は承認確認を挟まず `.kaizen/YYYY-MM-DD-<slug>.md` へ `status: pending` / `applied-to: []` で記録する。同種の pending があれば新規作成せず既存記録を更新する
 4. 候補がない場合は、current transcript を同定したうえで、候補ありの既知 transcript も同じ scanner で検出できる陽性コントロールを先に通す。scanner 失敗、timeout、未知形式、current transcript 未同定を「候補なし」に倒さない。検出能力を確認できた場合だけ no-op とする
-5. 候補を記録した場合は `kaizen-extract-done.sh` を agent 固有 sentinel suffix / agent / transcript path 付きの complete モードで実行する。
-   候補ゼロの場合は scanner が返した `scanned-bytes` / `scanned-lines` を使い、`--checkpoint-only` と同じ同定情報を付けて checkpoint と当該 agent の sentinel だけを更新する。候補ゼロで session-wide `.extract-done` を作らない
+5. 候補を記録した場合は `kaizen-extract-done.sh` を agent 固有 sentinel suffix / agent / session id / transcript path 付きの complete モードで実行する。
+   候補ゼロの場合は scanner が返した `scanned-bytes` / `scanned-lines` を使い、`--checkpoint-only` と同じ同定情報を付けて checkpoint と当該セッションの sentinel だけを更新する。候補ゼロで `.extract-done.<session key>` を作らない
 6. どちらの分岐でも最後に `kaizen-status-check.sh` を通す
 7. apply / archive / delete、Issue 作成、外部報告、既存成果物への恒久反映は行わない。呼び出し元は pending 記録を実装変更と分離した commit にする
 

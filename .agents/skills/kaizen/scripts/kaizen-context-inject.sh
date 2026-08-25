@@ -18,26 +18,54 @@
 # SessionStart フックとして各エージェントに設定する（SKILL.md Step 3 参照）。
 set -euo pipefail
 
-# .kaizen/ をプロジェクトルート基準で解決する（kaizen-archive.sh / kaizen-precommit-gate.sh と統一）。
-# Claude Code は CLAUDE_PROJECT_DIR を設定しフックを基本ルート cwd で起動するため通常は no-op だが、
-# cwd がサブディレクトリのときの取り違えを防ぐ。未設定なら git ルート、git 外は cwd のまま。
-# このフックはベストエフォート（常に exit 0）なので、cd できなくてもセッションを止めず現状の cwd で続行する。
-project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
-[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
-
-# セッション開始 = 抽出完了マーカーの失効点。前セッションの .extract-done を削除し、
-# このセッションの活動には再びコミット前ゲートが（セッションにつき 1 回）効くようにする。
-# ただし SessionStart は自動圧縮（source: compact）でも発火し得る。圧縮は同一セッションの
-# 継続なので、そのときだけマーカーを残す（消すと、まさに対象の長時間自律ループで commit が
-# ゲートに再ブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
-# 削除側（ブロックが増える安全側）に倒す。stdin が tty の場合（手動実行など JSON が
-# 流れない呼び出し）は読み取り自体をスキップする（cat が入力待ちでブロックし、タイムアウトで
-# kill されるとマーカー削除ごと行われなくなるのを防ぐ）。
+# stdin の Hook JSON を先に読む（`source` 判定と、この後の session key / プロジェクトルート解決に使う）。
+# stdin が tty の場合（手動実行など JSON が流れない呼び出し）は読み取り自体をスキップする
+# （cat が入力待ちでブロックし、タイムアウトで kill されるとマーカー削除ごと行われなくなるのを防ぐ）。
 input=""
 if [ ! -t 0 ]; then
 	input=$(cat 2>/dev/null || true)
 fi
+
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
+# 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
+# shellcheck source=./kaizen-hook-common.sh disable=SC1091
+[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+
+session_key=""
+payload_cwd=""
+if declare -f kaizen_hook_fields >/dev/null 2>&1; then
+	{
+		IFS= read -r hook_session_id
+		IFS= read -r _hook_transcript
+		IFS= read -r payload_cwd
+	} <<<"$(kaizen_hook_fields "${input}")" || true
+	session_key=$(kaizen_session_key "${hook_session_id}")
+fi
+
+# .kaizen/ をプロジェクトルート基準で解決する（kaizen-archive.sh / kaizen-precommit-gate.sh と統一）。
+# 共通ライブラリが読めれば、コミットが実行される作業ツリー（git worktree を含む）を優先する。
+# このフックはベストエフォート（常に exit 0）なので、cd できなくてもセッションを止めず現状の cwd で続行する。
+if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
+	project_root=$(kaizen_resolve_project_root "${payload_cwd}")
+else
+	project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+fi
+[ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
+
+# セッション開始 = 抽出完了マーカーの失効点。**このセッションの**マーカーを削除し、
+# このセッションの活動には再びコミット前ゲートが（セッションにつき 1 回）効くようにする。
+# 他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で
+# 再びブロックされる（Issue #218 の奪い合いの一形態）。
+# ただし SessionStart は自動圧縮（source: compact）でも発火し得る。圧縮は同一セッションの
+# 継続なので、そのときだけマーカーを残す（消すと、まさに対象の長時間自律ループで commit が
+# ゲートに再ブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
+# 削除側（ブロックが増える安全側）に倒す。
 if ! printf '%s' "$input" | grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"'; then
+	if declare -f kaizen_done_path >/dev/null 2>&1; then
+		rm -f "$(kaizen_done_path "${session_key}")"
+	fi
+	# session 単位化より前に書かれた（key を持たない）マーカーは、同じく key を持たない
+	# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
 	rm -f .kaizen/.extract-done
 fi
 

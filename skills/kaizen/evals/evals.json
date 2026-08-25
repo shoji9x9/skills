@@ -37,7 +37,7 @@
       "prompt": "kaizen の Hook を Claude Code に設定して、コミット前に学びを自動抽出できるようにしたい",
       "assertions": [
         ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
-        "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、未抽出センチネル .kaizen/.pending-extract を作成する設定になっている",
+        "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
         "Stop Hook に echo によるリマインダー出力が含まれていない",
         "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
         "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている"
@@ -79,7 +79,7 @@
         "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
         "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
         "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
-        ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done、**/.kaizen/.extract-checkpoint を追加しようとしている（.kaizen/ 本体はコミット対象のまま）"
+        ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done*、**/.kaizen/.extract-checkpoint* を追加しようとしている（session 単位の派生名まで掛かる末尾 * 付き。.kaizen/ 本体はコミット対象のまま）"
       ]
     },
     {
@@ -160,7 +160,7 @@
         "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 2 回を repeated edit として候補にする",
         "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
         "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
-        "transcript_path と .kaizen/.extract-checkpoint の間だけを走査し、検証済み候補ゼロなら checkpoint とセンチネルだけを更新して session-wide .extract-done は作らず commit を通す",
+        "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
         ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
         "候補あり、未知形式、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促す",
         "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
@@ -174,10 +174,23 @@
         "--record-pending を extract --current と同時指定した場合だけ受理し、候補を最大 1 件に制限する",
         "候補ありは承認確認なしで status: pending / applied-to: [] として記録し、apply / archive / delete を行わない",
         "候補なしの前に candidate fixture の既知候補を scanner が検出できる陽性コントロールを実行し、失敗や未知形式を no-op に倒さない",
-        "候補ありは agent 固有 suffix / agent / transcript path 付きの complete モード、候補なしは scanner の scanned-bytes / scanned-lines を渡す --checkpoint-only で処理し、候補なしでは session-wide .extract-done を作らない",
+        "候補ありは agent 固有 suffix / agent / session id / transcript path 付きの complete モード、候補なしは scanner の scanned-bytes / scanned-lines を渡す --checkpoint-only で処理し、候補なしでは .extract-done.<session key> を作らない",
         "候補あり／なしの両方で kaizen-status-check.sh を通す",
         "current transcript を同定できない Copilot では候補ゼロと推測せず BLOCKED にする",
         "通常の kaizen --current は従来どおりユーザー承認を要求すると区別する"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "同じリポジトリで Claude Code のセッションを 2 つ動かしている（片方は git worktree で作業）。片方で kaizen の抽出を終えたのに、もう片方の commit がゲートに止められ続ける。kaizen の制御ファイルがどの単位で分かれていて、この状況で何が起きるのかを、実際のファイル名と解消コマンドまで具体的に説明して。",
+      "assertions": [
+        "センチネル・抽出完了マーカー・checkpoint がいずれも session 単位（.pending-extract<suffix>.<session key> / .extract-done.<session key> / .extract-checkpoint.<session key>）だと説明している",
+        "片方のセッションの抽出完了は他方のセンチネルを削除せず、SessionStart も自セッションのマーカーだけを失効させると説明している",
+        "ゲートは自セッション分を解消した後、他セッションの未解決センチネルもそのセンチネルが持つ transcript で差分走査し、候補ゼロを検証できたものは自動解消すると説明している",
+        "候補が残っている他セッションのセンチネルは commit をブロックし続け、ゲートがセンチネルの中身（transcript パス・エージェント・session id）から kaizen-extract-done.sh の実行可能なコマンドを案内すると説明している",
+        "解消コマンドの --session-id にはセンチネルを立てたセッションの id を渡すのであって、自分のセッションの id ではないと区別している",
+        "worktree では .kaizen/ をコミット対象の作業ツリー基準で解決するため、ゲートと抽出側の参照先が分かれないと説明している",
+        "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない"
       ]
     }
   ]

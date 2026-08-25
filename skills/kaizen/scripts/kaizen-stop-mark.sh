@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
 # kaizen stop sentinel mark (Stop / sessionEnd hook)
 #
-# タスク/セッション終了時に未抽出センチネル `.kaizen/.pending-extract<suffix>` を残し、
-# 「未抽出の活動がある」ことを記録する。コミット前ゲート（kaizen-precommit-gate.sh）が
+# タスク/セッション終了時に未抽出センチネル `.kaizen/.pending-extract<suffix>.<session key>` を
+# 残し、「未抽出の活動がある」ことを記録する。コミット前ゲート（kaizen-precommit-gate.sh）が
 # これを検出して `git commit` をブロックし、エージェントに kaizen --current を促す。
 #
 # 第 1 引数 $1: センチネルのサフィックス（例: -codex / -copilot）。省略時は空（Claude Code 用）。
+# stdin: Hook の JSON（`session_id` / `transcript_path` / `cwd`。無くても動く）。
+#
+# センチネルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで同じ agent の
+# セッションを 2 つ動かしたときに、片方の抽出完了が他方の未抽出シグナルを消す（Issue #218）。
+# session id を取れない環境では従来どおり agent 単位の名前へ縮退する（機能が落ちるだけ）。
+#
+# センチネルの中身は「1 行 1 値」で、それを解消するための同定情報を持たせる:
+#   1 行目 UTC タイムスタンプ（従来からの唯一の内容。後方互換のため位置を維持）
+#   2 行目 transcript パス（取れなければ空。Copilot は payload に持たない）
+#   3 行目 エージェント名（claude-code / codex / copilot）
+#   4 行目 session id（原文。key ではなく人が読む・案内コマンドに載せる用）
+# これが無いと、フラグを立てた本人が戻らないまま別セッションがブロックされたときに、
+# どの transcript を抽出すれば解消するのかを機械的に解決できない。
 #
 # .kaizen/ は他フック（kaizen-precommit-gate.sh / kaizen-context-inject.sh /
 # kaizen-archive.sh）と統一してプロジェクトルート基準で解決する。インラインの
@@ -24,12 +37,55 @@ if [[ -n "${suffix}" && ! "${suffix}" =~ ^-[a-z0-9-]+$ ]]; then
 	suffix=""
 fi
 
-# .kaizen/ をプロジェクトルート基準で解決する。Claude Code は CLAUDE_PROJECT_DIR を
-# 設定するため通常 no-op。未設定（Codex/Copilot/手動）なら git ルート、git 外は cwd。
+case "${suffix}" in
+"") agent=claude-code ;;
+-codex) agent=codex ;;
+-copilot) agent=copilot ;;
+*) agent="" ;;
+esac
+
+# Hook の JSON を読む。記録役なのでここで止まらないことを優先し、取れなければ空のまま進む。
+input=""
+if [ ! -t 0 ]; then
+	# NUL は通常の Hook JSON に現れないため、read 1 回で EOF まで読み込む。
+	IFS= read -r -d '' input || true
+fi
+
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
+# 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
+# shellcheck source=./kaizen-hook-common.sh disable=SC1091
+[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+
+session_id=""
+transcript=""
+payload_cwd=""
+session_key=""
+if declare -f kaizen_hook_fields >/dev/null 2>&1; then
+	{
+		IFS= read -r session_id
+		IFS= read -r transcript
+		IFS= read -r payload_cwd
+	} <<<"$(kaizen_hook_fields "${input}")" || true
+	session_key=$(kaizen_session_key "${session_id}")
+fi
+
+# .kaizen/ をプロジェクトルート基準で解決する。共通ライブラリが読めれば、コミットが実行される
+# 作業ツリー（git worktree を含む）を優先する。読めなければ従来の解決へ縮退する。
+if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
+	project_root=$(kaizen_resolve_project_root "${payload_cwd}")
+else
+	project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+fi
 # cd できなければ現状の cwd で続行する（記録役なのでセッションを止めない）。
-project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
+if declare -f kaizen_sentinel_path >/dev/null 2>&1; then
+	sentinel=$(kaizen_sentinel_path "${suffix}" "${session_key}")
+else
+	sentinel=".kaizen/.pending-extract${suffix}"
+fi
+
 mkdir -p .kaizen
-date -u '+%Y-%m-%dT%H:%M:%SZ' >".kaizen/.pending-extract${suffix}"
+printf '%s\n%s\n%s\n%s\n' \
+	"$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${transcript}" "${agent}" "${session_id}" >"${sentinel}"
 exit 0

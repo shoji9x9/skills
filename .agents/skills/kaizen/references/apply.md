@@ -125,5 +125,5 @@ bash <スキル>/scripts/kaizen-status-check.sh
 - チーム内で学びを共有・レビューできる
 - `.kaizen/` 内の全ファイル（ステータス問わず・`archive/` 配下を含む）はどのエージェントも参照できる（Claude Code / Codex / Copilot 間の学び共有）
 
-ただし例外として、Hook が作る一時的な制御ファイル（センチネル `.kaizen/.pending-extract*`、抽出完了マーカー `.kaizen/.extract-done`、transcript の処理位置 `.kaizen/.extract-checkpoint`）はコミット対象外。
+ただし例外として、Hook が作る一時的な制御ファイル（センチネル `.kaizen/.pending-extract*`、抽出完了マーカー `.kaizen/.extract-done*`、transcript の処理位置 `.kaizen/.extract-checkpoint*`。いずれも session 単位）はコミット対象外。
 `.gitignore` に追加して除外する（設定手順は `references/setup.md` を参照）。
