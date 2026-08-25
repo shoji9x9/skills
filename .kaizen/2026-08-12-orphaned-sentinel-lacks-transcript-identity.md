@@ -2,8 +2,22 @@
 date: 2026-08-12
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to:
+  - skills/kaizen/scripts/kaizen-stop-mark.sh
+  - skills/kaizen/scripts/kaizen-precommit-gate.sh
+  - skills/kaizen/scripts/kaizen-hook-common.sh
+  - skills/kaizen/scripts/kaizen-extract-done.sh
+  - skills/kaizen/scripts/kaizen-context-inject.sh
+  - skills/kaizen/scripts/kaizen-archive.sh
+  - skills/kaizen/scripts/kaizen-kedb-match.sh
+  - skills/kaizen/scripts/kaizen-status-check.sh
+  - skills/kaizen/references/setup.md
+  - skills/kaizen/references/extract.md
+  - skills/kaizen/references/apply.md
+  - skills/kaizen/evals/evals.json
+  - .gitignore
+  - "#218"
 session: codex
 ---
 
@@ -61,3 +75,11 @@ transcript を引くこともできない。
    （`~/.codex/sessions/**` 等）を示す。
 3. 旧形式のセンチネルでもゲートは従来どおり fail closed を保つ。案内の追加で
    あって、遮断条件は緩めない。
+
+## 適用結果（2026-08-25 / Issue #218）
+
+センチネルは「1 行 1 値」の 4 行（タイムスタンプ / transcript パス / エージェント / session id）を持つようになり、
+ゲートは未解決センチネルごとに `kaizen-extract-done.sh --sentinel-suffix ... --agent ... --session-id ... <transcript>` を
+そのまま貼れる形で案内する。transcript を持たないセンチネル（旧形式・Copilot）は、その旨と探索先を示すフォールバックへ倒す。
+遮断条件は緩めていない（案内の追加のみ）。あわせて制御ファイル一式を session 単位にし、
+「立てた本人以外が解消できない」の裏返しである「他セッションが勝手に解消してしまう」も塞いだ。

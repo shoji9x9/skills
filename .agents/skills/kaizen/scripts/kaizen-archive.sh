@@ -16,14 +16,22 @@ set -euo pipefail
 
 # .kaizen/ はプロジェクトルート直下に置く前提。サブディレクトリで実行されても、その cwd 配下に
 # 別の .kaizen/ を作ってしまわないよう、ルートへ移動してから .kaizen/ を解決する。
-# アンカーは姉妹スクリプト（kaizen-context-inject.sh / kaizen-precommit-gate.sh）と揃える:
-# それらは cwd（= Claude Code がフックを起動するプロジェクトルート）相対で .kaizen/ を見るため、
-# 同じ基準になる $CLAUDE_PROJECT_DIR を最優先する。未設定（Codex/Copilot/手動）なら git ルート、
-# git 管理外なら従来どおり cwd を基準にする。
+# アンカーは姉妹スクリプト（kaizen-context-inject.sh / kaizen-precommit-gate.sh）と揃える。
 # FILE 引数は移動前の cwd を基準に絶対パス化するので、どのディレクトリから渡しても解決できる。
 orig_pwd=$(pwd)
 orig_pwd=${orig_pwd%/} # 末尾スラッシュ（cwd が / のとき）を除き、resolve_path で // を作らない
-project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
+# 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
+# shellcheck source=./kaizen-hook-common.sh disable=SC1091
+[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+# `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
+# $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
+# 別の `.kaizen/` を見てしまう（Issue #218）。
+if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
+	project_root=$(kaizen_resolve_project_root "")
+else
+	project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+fi
 if [ -n "${project_root}" ]; then
 	cd "${project_root}" || {
 		echo "kaizen-archive: failed to cd to project root: ${project_root}" >&2

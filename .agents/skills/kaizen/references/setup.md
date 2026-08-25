@@ -6,7 +6,7 @@
 
 Hook からエージェント自身を呼び出して LLM を動かすことはできないため、役割を 3 つに分ける:
 
-- **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract*` を残し、「未抽出の活動がある」ことを記録する。
+- **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract<agent suffix>.<session key>` を残し、「未抽出の活動がある」ことを記録する。センチネルは **session 単位**で、中身に解消用の同定情報（transcript パス・エージェント・session id）を持つ。
 - **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、まず lifecycle 整合を検査する。未抽出センチネルがあり Hook から transcript パスを取得できる場合は、checkpoint との間だけを走査する。候補ゼロを検証できたときは自動通過し、候補あり・形式不明・timeout は `kaizen --current` を促す。
   全エージェント（Claude Code / Codex / Copilot）で commit のブロックは機能する。transcript を提供しない Copilot は候補ゼロの自動通過だけを使わず、安全側の従来フローへ戻る。
 - **セッション開始時 Hook（参照注入役）**: `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。これにより過去の学びを踏まえてタスクに着手できる（KEDB 照合の入口）。
@@ -63,7 +63,10 @@ AGENTS.md を持たない下流（`CLAUDE.md` のみ／`.github/copilot-instruct
 > ブロックされたら、適用すべき JSON を一時ファイルに書き出し、ユーザーに `! cp <tmp> .claude/settings.json` での適用を依頼する。Codex（`.codex/hooks.json`）/ Copilot（`.github/hooks/...`）は直接編集できる。
 
 タスク終了時 Hook・PreToolUse ゲート・参照注入フックは、いずれもスキルにバンドルされたスクリプトの実体（`kaizen-stop-mark.sh` / `kaizen-precommit-gate.sh` / `kaizen-context-inject.sh`）をフックから直接参照する。プロジェクトへのコピーは不要。
-これらのスクリプトは `.kaizen/` をプロジェクトルート基準（`$CLAUDE_PROJECT_DIR`、未設定なら git ルート）で解決するため、フックがサブディレクトリ cwd で起動しても迷子のセンチネルや取り違えが起きない。
+これらのスクリプトは `.kaizen/` を**いま作業している作業ツリーの root** 基準で解決するため、フックがサブディレクトリ cwd で起動しても迷子のセンチネルや取り違えが起きない。
+解決順は、Hook payload の `cwd` から辿った git root → プロセスの cwd から辿った git root → `$CLAUDE_PROJECT_DIR` → cwd。
+git root を採用するのは `$CLAUDE_PROJECT_DIR` と同じリポジトリ（本体かその worktree）だと共有 git ディレクトリの一致で確かめられたときだけで、ネストした別リポジトリへ cd した状態でフックが起動しても、そこへは書かない。
+git worktree で作業している場合も**コミット対象のリポジトリ側**の `.kaizen/` を見る（セッションの起点が worktree の外でも、ゲートと抽出側の参照先が分かれない）。
 
 **まず kaizen scripts ディレクトリを特定する。** `<KAIZEN_SCRIPTS_DIR>` は、いま読み込んでいる kaizen スキル本体（この `setup.md` の 1 階層上＝`../`）直下の `scripts/`（＝`../scripts/`）の絶対パス。
 インストール先（エージェント・スコープ）により場所が異なるため、下のスニペットで主要な配置を確認し、最初に存在したパスを `<KAIZEN_SCRIPTS_DIR>` として下記 JSON の該当箇所を実際のパスへ置き換える。
@@ -80,7 +83,7 @@ done
 > **フック起動は cwd 非依存にする。** Stop / PreToolUse フックは、エージェントが `cd` したサブディレクトリの cwd を継承して起動することがある（Issue #53 / `.kaizen/2026-06-16-relative-path-hook-cd-stray-sentinel.md`）。
 > このとき `bash <KAIZEN_SCRIPTS_DIR>/...` が相対パスだとスクリプト自体が見つからず起動に失敗するため、`<KAIZEN_SCRIPTS_DIR>` は**絶対パス**にする（上の `cd … && pwd` が絶対パスを返す）。
 > 絶対パスをハードコードしたくないプロジェクト内配置では、コマンドを `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}` で前置して root 基準に解決する（このリポジトリの `.claude/settings.json` 等はこの形）。
-> なお各スクリプト内の `.kaizen/` 参照も同じ基準（`$CLAUDE_PROJECT_DIR`、未設定なら git ルート）で解決するため、起動後の書き込み先も cwd に依存しない。
+> これはスクリプト**本体の在り処**を解決するための前置きで、書き込み先の `.kaizen/` は各スクリプトが上記のとおり作業ツリー基準で別に解決する。
 
 **重要（3 つの hook を同一ファイルにマージする）**: 4-1〜4-3 の JSON は、エージェントごとに**同じ 1 つの設定ファイル**
 （Claude Code=`.claude/settings.json` / Codex=`.codex/hooks.json` / Copilot=`.github/hooks/kaizen-session.json`）に対するキー断片を示す。
@@ -162,13 +165,18 @@ commit のときだけ `kaizen-status-check.sh` を実行し、未抽出セン�
 走査結果は `0` = 候補あり、`1` = 検証済みゼロ、`2` = 不明。`1` だけが自動通過し、候補あり・読めない形式・jq 不在・timeout は **exit code 2 + stderr** でブロックする。
 ブロック理由に載る候補の根拠は、カテゴリ（`user correction` / `tool error` / `repeated edit`）と **transcript の行番号**だけで、transcript の本文は出さない。
 ブロックされたエージェントは自分のセッションの transcript を読めるため、位置さえ分かれば内容は自分で取得できる。stderr は端末のスクロールバックやログに残るので、秘密値をそこへ流さない。
-候補ゼロでは transcript のレコード形式から Claude Code / Codex を識別し、そのエージェントの `.pending-extract<suffix>` だけを削除する。別エージェントのセンチネルが残っていれば commit は通さず、所有者側の抽出を待つ。
+候補ゼロでは transcript のレコード形式から Claude Code / Codex を識別し、**そのエージェントかつ自セッション**の `.pending-extract<suffix>.<session key>` だけを削除する。別エージェント・別セッションのセンチネルが残っていれば commit は通さず、所有者側の抽出を待つ。
+自セッション分がブロック要因でなくなったら、**他セッションの未解決センチネルも同じ差分走査に掛ける**（センチネルが transcript パスと session id を持ち、そのセッションの checkpoint も残っているため）。
+候補ゼロを検証できたものはそこで解消し、候補が残っているものだけがブロックする。
+これが無いと、Stop フックが毎ターン立てるセンチネルのうち「一度も commit せずに終わったセッション」の分が恒久ブロッカーとして残り、以後どのセッションの commit も人手の抽出なしには通らない。
+走査には合計時間の上限があり、打ち切った分は fail closed のまま残して打ち切った旨を出す（黙って諦めると「全部見た上でブロックしている」と読めてしまうため）。
+ブロック理由には残っているセンチネルごとに**そのまま実行できる `kaizen-extract-done.sh` のコマンド**（センチネルが持つ transcript パス・エージェント・session id 入り）を並べる。立てた本人が戻らなくても、ブロックされた側が抽出して解消できるようにするため。
 Claude Code の Hook 入力と handler `if` は [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を正本とする。
 Codex の matcher・`transcript_path`・exit code は [Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を正本として再検証する。
 Copilot は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を正本とする。
-ただし抽出完了マーカー `.kaizen/.extract-done` が存在する間はセンチネルがあっても素通りする。
-マーカーは抽出完了時に `kaizen-extract-done.sh` が記録し、セッション開始時に SessionStart フック（`kaizen-context-inject.sh`）が削除する。
-これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。複数エージェントが同時稼働する場合、抽出完了時はゲートが表示する `--sentinel-suffix` 付きコマンドを使い、他エージェントのセンチネルを削除しない。
+ただし、そのセンチネルに対応する抽出完了マーカー `.kaizen/.extract-done.<session key>` が存在する間は素通りする（マーカーもセンチネルも session 単位なので、あるセッションの抽出完了が他セッションの未抽出シグナルを覆い隠さない）。
+マーカーは抽出完了時に `kaizen-extract-done.sh` が記録し、セッション開始時に SessionStart フック（`kaizen-context-inject.sh`）が**自セッション分だけ**削除する。
+これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。複数エージェント・複数セッションが同時稼働する場合、抽出完了時はゲートが表示する `--sentinel-suffix` / `--session-id` 付きコマンドを使い、他のセンチネルを削除しない。
 
 > **運用上の注意（git commit を含む呼び出しは全体がブロックされる）**: ゲートは `git commit` を含む Bash 呼び出し**全体**を実行前にブロックする。
 > そのため `git add` などコミット前準備や、センチネル削除・マーカー記録（`bash <KAIZEN_SCRIPTS_DIR>/kaizen-extract-done.sh`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
@@ -252,7 +260,9 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 セッション開始時に `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。`AGENTS.md` への散文の指示より確実に `.kaizen/` を参照させられる（KEDB 照合の入口）。
 
 これは「kaizen を実行せよ」という**行動リマインダーではなく**、過去の学びの**中身そのものを供給する**点が echo リマインダーと異なる（末尾「使わない方式」参照）。判定はバンドルスクリプト（`kaizen-context-inject.sh`）が行い、pending な学びがあるときだけダイジェストを出力し、無ければ何も出さず exit 0 で抜ける。
-このスクリプトはダイジェスト出力に加えて、抽出完了マーカー `.kaizen/.extract-done` を削除する役割も担う（セッション開始 = 前セッションのマーカーの失効点。これにより新しいセッションでは再びコミット前ゲートが効く）。ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
+このスクリプトはダイジェスト出力に加えて、**自セッションの**抽出完了マーカー `.kaizen/.extract-done.<session key>` を削除する役割も担う（セッション開始 = そのセッションのマーカーの失効点。これにより新しいセッションでは再びコミット前ゲートが効く）。
+他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で再びブロックされる。
+ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout を context へ注入する。
@@ -340,12 +350,13 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 # kaizen の制御ファイル（Hook / 抽出完了時に作成する一時ファイル）
 # ルートだけでなく、万一サブディレクトリに迷子で作られた場合も除外する（二重の防御）。
 **/.kaizen/.pending-extract*
-**/.kaizen/.extract-done
+**/.kaizen/.extract-done*
 **/.kaizen/.extract-checkpoint*
 ```
 
 `.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 3 種の制御ファイルだけ。
-`.extract-checkpoint` は処理済み transcript のパス（1 行目）・バイト位置（2 行目）・識別済みエージェント（3 行目、空可）・処理済み行数（4 行目）を保持し、セッションをまたいで差分走査を成立させる。
+`.extract-checkpoint.<session key>` は処理済み transcript のパス（1 行目）・バイト位置（2 行目）・識別済みエージェント（3 行目、空可）・処理済み行数（4 行目）を保持し、セッションをまたいで差分走査を成立させる。
+**session 単位のファイルにするのは、同じプロジェクトで同じエージェントのセッションを 2 つ動かしたときに走査位置を上書きし合わないため**（session key を取れない環境では単一ファイルへ縮退する）。
 2 行目・4 行目は**走査器が実際に検査し終えた終端**（`kaizen-candidate-scan.sh` が検証済みゼロのときに出力する `scanned-bytes` / `scanned-lines`）を記録する。
 記録側で `wc -c` を測り直すと、走査から記録までの間に追記されたレコードを検査しないまま処理済みにしてしまう（fail open）。走査済み位置を受け取れないときはブロックする（fail closed）。
 3 行目は、前回の走査以降にレコードが 1 件も増えていないときに使う。レコードが無いとエージェントを判定できず、どのセンチネルを消せばよいか分からなくなるため、
