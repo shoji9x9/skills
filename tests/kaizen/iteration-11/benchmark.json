@@ -1,0 +1,210 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-25T02:40:47Z",
+    "evals_run": [4, 8, 17],
+    "runs_per_configuration": 1,
+    "scope": "Issue #218（制御ファイルの session 単位化 / worktree でのルート解決 / 他セッションのセンチネル自動走査）に関係する eval のみ。コスト最小化のため id 15 / 16 は除外（走査器ロジック自体は未変更で文言更新のみ）。",
+    "excluded_runs": [
+      {
+        "eval_id": 17,
+        "configuration": "without_skill",
+        "run_number": 1,
+        "reason": "contamination.txt verdict=CONTAMINATED（出力に kaizen スクリプト名が現れた）。docs/skill-development.md の規約どおり Delta 無効として grading.json を置かず集計から除外する。",
+        "consequence": "eval 17 の弁別（スキル無しでは答えられないこと）は本イテレーションでは未実証。Without Skill 列の 0% はベースライン不在によるもので、実測値ではない。"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 154.2,
+        "tokens": 10949,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "センチネル・抽出完了マーカー・checkpoint がいずれも session 単位（.pending-extract<suffix>.<session key> / .extract-done.<session key> / .extract-checkpoint.<session key>）だと説明している",
+          "passed": true,
+          "evidence": "「軸 B: ファイル名 = agent suffix × session key」の表で 3 種の実ファイル名を列挙し、Claude Code は suffix 空で .kaizen/.pending-extract.<session key> になると明示"
+        },
+        {
+          "text": "片方のセッションの抽出完了は他方のセンチネルを削除せず、SessionStart も自セッションのマーカーだけを失効させると説明している",
+          "passed": true,
+          "evidence": "「B のセンチネル .pending-extract.<keyB> を解除できるのは .extract-done.<keyB> だけ。A の完了は関係ありません」／表に「kaizen-context-inject.sh（SessionStart）が自分の分だけ削除」"
+        },
+        {
+          "text": "ゲートは自セッション分を解消した後、他セッションの未解決センチネルもそのセンチネルが持つ transcript で差分走査し、候補ゼロを検証できたものは自動解消すると説明している",
+          "passed": true,
+          "evidence": "原因 3 で「ゲートは『自分の分が解消済み』のときだけ他セッションのセンチネルを自動解消」とし、resolve_foreign_sentinels の条件（key 付き・agent・transcript 可読・scan exit 1 等）と 24 秒/8 秒の予算まで説明"
+        },
+        {
+          "text": "候補が残っている他セッションのセンチネルは commit をブロックし続け、ゲートがセンチネルの中身（transcript パス・エージェント・session id）から kaizen-extract-done.sh の実行可能なコマンドを案内すると説明している",
+          "passed": true,
+          "evidence": "「A に実際に学びがあった場合は走査が exit 0（候補あり）を返すので、そもそも自動解消されません」＋ゲートの実メッセージを引用し、4-2 でゲート印字コマンドをそのまま使うよう案内"
+        },
+        {
+          "text": "解消コマンドの --session-id にはセンチネルを立てたセッションの id を渡すのであって、自分のセッションの id ではないと区別している",
+          "passed": true,
+          "evidence": "4-2「--sentinel-suffix と --session-id はセンチネルを立てた側の値であり、自分の値に置き換えてはいけません（置き換えると別名のマーカーが増えるだけでブロックは解けません）」"
+        },
+        {
+          "text": "worktree では .kaizen/ をコミット対象の作業ツリー基準で解決するため、ゲートと抽出側の参照先が分かれないと説明している",
+          "passed": true,
+          "evidence": "軸 A で kaizen_resolve_project_root の解決順 4 段と git-common-dir 一致条件を挙げ、「commit が実行される作業ツリーの .kaizen/ をゲートも抽出側も見る」と説明。4-3 で本体/worktree 間は共有されない帰結も明示"
+        },
+        {
+          "text": "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない",
+          "passed": true,
+          "evidence": "「やりがちな悪化操作」として引数なし実行が rm -f .kaizen/.pending-extract* で全セッション分を消すと警告し、4-1 でも省略しないよう指示。ワイルドカード rm の提案なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 104.7,
+        "tokens": 7785,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+          "passed": true,
+          "evidence": "生成された .claude/settings.json に hooks.Stop があり kaizen-stop-mark.sh を呼ぶ"
+        },
+        {
+          "text": "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+          "passed": true,
+          "evidence": "project-tree.txt に .kaizen/.pending-extract.44b50ad4-4af7-4736-a44a-950a18ac8839（suffix 空＋session id）が実生成されている"
+        },
+        {
+          "text": "Stop Hook に echo によるリマインダー出力が含まれていない",
+          "passed": true,
+          "evidence": "Stop の command は bash \"...kaizen-stop-mark.sh\" のみ。echo なし"
+        },
+        {
+          "text": "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
+          "passed": true,
+          "evidence": "settings.json の PreToolUse: matcher \"Bash\" / \"if\": \"Bash(git commit *)\" / kaizen-precommit-gate.sh"
+        },
+        {
+          "text": "ゲートは未抽出センチネルがある時にコミットをブロックして kaizen --current の実行を促す設計になっている",
+          "passed": true,
+          "evidence": "報告に「未抽出センチネルあり＋transcript 不読 → exit 2 でブロック、解消コマンド付きの理由を stderr に出力」の実測記載"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 135.1,
+        "tokens": 9922,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "報告が setup.md の Step 3 / 4-4 / 前置形の推奨に言及し手順どおり進めている"
+        },
+        {
+          "text": "AGENTS.md にエージェントの自己設定編集の制約（自己改変ガード）を追記しようとしている（既存なら追記しない）",
+          "passed": true,
+          "evidence": "AGENTS.md 不在のため基底ドキュメントとして CLAUDE.md を作成し「エージェントの自己設定編集について」節を追記"
+        },
+        {
+          "text": "Claude Code は .claude/settings.json を直接編集できない場合があり、tmp に書いて ! cp での適用をユーザーに依頼すると案内している",
+          "passed": true,
+          "evidence": "「自己改変ガードにブロックされず適用できたため ! cp によるフォールバックは不要」とガードの存在と回避手順を認識して報告"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": "settings.json に Stop / PreToolUse / SessionStart の 3 種をマージ済み"
+        },
+        {
+          "text": ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done*、**/.kaizen/.extract-checkpoint* を追加しようとしている（session 単位の派生名まで掛かる末尾 * 付き。.kaizen/ 本体はコミット対象のまま）",
+          "passed": true,
+          "evidence": "生成された .gitignore が 3 行とも末尾 * 付きで一致。.kaizen/ 本体は除外していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 131.3333,
+        "stddev": 24.964,
+        "min": 104.7,
+        "max": 154.2
+      },
+      "tokens": {
+        "mean": 9552.0,
+        "stddev": 1614.1248,
+        "min": 7785,
+        "max": 10949
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+131.3",
+      "tokens": "+9552"
+    }
+  },
+  "notes": []
+}
