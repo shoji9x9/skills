@@ -1,7 +1,7 @@
 {
   "metadata": {
     "skill_name": "kaizen",
-    "skill_path": "skills/kaizen",
+    "skill_path": "<repo>/skills/kaizen",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5",
     "timestamp": "2026-08-25T02:40:47Z",
@@ -180,31 +180,10 @@
         "max": 10949
       }
     },
-    "without_skill": {
-      "pass_rate": {
-        "mean": 0.0,
-        "stddev": 0.0,
-        "min": 0.0,
-        "max": 0.0
-      },
-      "time_seconds": {
-        "mean": 0.0,
-        "stddev": 0.0,
-        "min": 0.0,
-        "max": 0.0
-      },
-      "tokens": {
-        "mean": 0,
-        "stddev": 0,
-        "min": 0,
-        "max": 0
-      }
-    },
-    "delta": {
-      "pass_rate": "+1.00",
-      "time_seconds": "+131.3",
-      "tokens": "+9552"
-    }
+    "without_skill": null,
+    "delta": null
   },
-  "notes": []
+  "notes": [
+    "without_skill / delta は null。eval 17 のベースライン 1 本が CONTAMINATED 判定で除外され、有効な baseline run が 0 本になったため算出できない。0 埋めすると JSON だけを読む集計が 「without_skill=0%」という実測値と誤解し、benchmark.md の記述（測定なし・Delta 算出しない）とも矛盾する。"
+  ]
 }

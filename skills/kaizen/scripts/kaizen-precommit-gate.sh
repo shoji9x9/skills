@@ -204,10 +204,22 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 		if ! sentinel_value_is_safe "${s_transcript}" || [ ! -r "${s_transcript}" ]; then
 			s_transcript=""
 		fi
+		# suffix はファイル名由来なので、案内へ載せる前に stop-mark が作る形かを検査する。
+		# 中身（transcript / session id）だけを検査して名前を素通しすると、想定外の名前の
+		# ファイル（引用符を含む等）がそのまま「貼れるコマンド」へ入り、コピペ実行で
+		# 意図しない解釈を招く。形が違うセンチネルはこちらが作ったものではなく、
+		# kaizen-extract-done.sh も同じ検査で弾くため、コマンドを出さず手当てを促す。
+		if [ -n "${suffix}" ] && [[ ! "${suffix}" =~ ^-[a-z0-9-]+$ ]]; then
+			printf '  %q\n' "${sentinel}" >&2
+			printf '    センチネル名が想定の形式ではありません（kaizen が作ったものではない可能性）。\n' >&2
+			printf '    内容を確認したうえで手動で削除してください。\n' >&2
+			continue
+		fi
 		opts="--sentinel-suffix \"${suffix}\""
 		[ -n "${s_agent}" ] && opts="${opts} --agent \"${s_agent}\""
 		[ -n "${s_session}" ] && opts="${opts} --session-id \"${s_session}\""
-		printf '  %s\n' "${sentinel}" >&2
+		# パスは案内として貼られ得るので %q でシェル安全に出す（通常の名前では見た目は変わらない）。
+		printf '  %q\n' "${sentinel}" >&2
 		if [ -n "${s_transcript}" ]; then
 			printf '    bash "%s/kaizen-extract-done.sh" %s "%s"\n' "${script_dir}" "${opts}" "${s_transcript}" >&2
 		elif [ "${s_agent}" = "copilot" ]; then
