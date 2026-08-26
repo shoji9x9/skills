@@ -4,5 +4,5 @@ INSERT INTO app_users (login_id, password_hash, role_code) VALUES
   ('operator', '$2y$10$exampleexampleexampleexampleexampleexampleexampleexamp', 'OPERATOR');
 
 INSERT INTO customers (code, name, name_kana, created_at) VALUES
-  ('C0001', '株式会社あかつき商事', 'カブシキガイシャアカツキショウジ', '2024-04-01 09:00:00'),
-  ('C0002', '有限会社みなと物流',   'ユウゲンガイシャミナトブツリュウ', '2024-05-15 13:30:00');
+  ('C0001', 'ダミー取引先A株式会社', 'ダミートリヒキサキエーカブシキガイシャ', '2024-04-01 09:00:00'),
+  ('C0002', 'ダミー取引先B株式会社', 'ダミートリヒキサキビーカブシキガイシャ', '2024-05-15 13:30:00');

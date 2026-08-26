@@ -15,9 +15,9 @@ CREATE TABLE `customers` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_ja_0900_as_cs;
 
 INSERT INTO `customers` VALUES
- (1,'C0001','株式会社あかつき商事','03-5555-0101','keiri@akatsuki-shoji.example.jp','2019-04-01 09:00:00'),
- (2,'C0002','有限会社みなと物流','045-555-0202','info@minato-butsuryu.example.jp','2019-05-15 13:30:00'),
- (3,'C0003','鈴木製作所','052-555-0303','suzuki@suzuki-ss.example.jp','2020-01-20 10:15:00');
+ (1,'C0001','ダミー取引先A株式会社','000-0000-0001','customer-a@example.invalid','2019-04-01 09:00:00'),
+ (2,'C0002','ダミー取引先B株式会社','000-0000-0002','customer-b@example.invalid','2019-05-15 13:30:00'),
+ (3,'C0003','ダミー取引先C株式会社','000-0000-0003','customer-c@example.invalid','2020-01-20 10:15:00');
 
 CREATE TABLE `orders` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -46,5 +46,5 @@ CREATE TABLE `app_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_ja_0900_as_cs;
 
 INSERT INTO `app_users` VALUES
- (1,'t.yamada','$2y$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','ADMIN'),
- (2,'m.sato','$2y$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy','OPERATOR');
+ (1,'dummy.user.a','$2y$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','ADMIN'),
+ (2,'dummy.user.b','$2y$10$yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy','OPERATOR');
