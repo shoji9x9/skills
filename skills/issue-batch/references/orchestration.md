@@ -32,7 +32,18 @@ branch や設定を変更する前に次を全件分完了する。
 
 ## worktree と manifest
 
-`mktemp -d` で run root を作り、その配下に Issue ごとの worktree と manifest を置く。run root のパスを最終報告まで保持する。
+`mktemp -d` で run root を作り、その配下に manifest を置く。run root のパスを最終報告まで保持する。
+
+worktree の機構（置き場所、セッションの移動、`.gitignore` 対象ファイルの運搬、検査からの除外、clean 確認付きの後片付け）は
+`git-worktree` スキルへ委譲し、ここへ複製しない。branch を先に作ってから `git-worktree enter <branch>` 相当の契約で入る。
+**`git worktree add` だけで隔離できたとしない**——セッションを移さないと subagent・フォークして走るスキル・
+バックグラウンドの Bash が呼び出し元の作業ツリーで動く。参照先が読めなければ停止する。
+
+**worktree は run root（`mktemp -d`）配下に置かない。** リポジトリ外の worktree には
+起動ディレクトリからの 1 回しか入れず、Issue ごとに worktree を移る本スキルの進め方が 2 件目で成立しない。
+移動のたびユーザー承認も要り無人実行で詰まる（根拠は `git-worktree` の `references/isolation.md`）。
+置き場所は `git-worktree setup` が決めたリポジトリ内のディレクトリを使い、
+その除外が全走査ジョブに入っていることを preflight で確認する。未設定・未除外なら BLOCKED。
 
 manifest が持てるのは次だけ。
 
@@ -112,4 +123,4 @@ workflow の `branches` / `paths` と変更ファイルから確実に外れる�
 全 deployment が success / not-configured / 根拠ある not-applicable、Issue が CLOSED、worktree が clean、同じ branch の全 PR が MERGED のときだけ進む。
 
 manifest の worktree と branch が期待する Issue に完全一致し、branch が default / protected branch でなく `feature/<Issue番号>-` prefix を持つことを再検証する。
-clean な worktree を先に解除し、解除済みを再確認してから完全一致した local branch、remote ref の順に削除する。glob と `gh pr merge --delete-branch` は使わない。解除・削除のいずれかが失敗したら BLOCKED。
+解除と削除は `git-worktree cleanup` 相当の契約に従う（clean 確認 → 解除 → `git worktree list` を取り直して再確認 → 完全一致した local branch、remote ref の順に削除）。glob と `gh pr merge --delete-branch` は使わない。解除・削除のいずれかが失敗したら BLOCKED。

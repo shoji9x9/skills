@@ -148,6 +148,7 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
+- `git-worktree`: git worktree による作業隔離の機構を担う。渡された branch に worktree を用意してセッションをそこへ移し（作るだけでは隔離にならない）、`.gitignore` 対象ファイルの運搬、検査ツールからの除外、clean 確認付きの後片付けまでを標準化する。branch の作成と Issue との紐付けは行わず呼び出し側に委ねる
 - `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
 - `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する
 - `issue-batch`: 複数 Issue を入力順に隔離 worktree・独立 branch / PR で連続処理し、ローカルレビュー、検証、Kaizen、PR 収束、自動 merge、Issue close、deployment、branch cleanup まで追跡する。初回は `setup` で無人実行ポリシーを確定する

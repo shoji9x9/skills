@@ -11,6 +11,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [kaizen](./skills/kaizen/) | セッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映して同じ失敗の再発を防ぐ |
 | [issue-create](./skills/issue-create/) | 短い説明から GitHub Issue を作成。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票 |
 | [issue-start](./skills/issue-start/) | GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化 |
+| [git-worktree](./skills/git-worktree/) | git worktree による作業隔離の機構。渡された branch に worktree を用意してセッションをそこへ移し（作るだけでは subagent・fork・background Bash が共有ツリーで動くため隔離にならない）、`.gitignore` 対象ファイルの運搬、検査ツールからの除外、clean 確認付きの後片付けまでを標準化。branch 作成と Issue との紐付けは呼び出し側（issue-start / issue-batch 等）に委ねる。`setup` / `enter` / `cleanup` の 3 モード |
 | [issue-batch](./skills/issue-batch/) | 複数 Issue を 1 件ずつ隔離 worktree・独立 branch / PR で連続処理し、実装、レビュー、検証、PR 収束、自動 merge、Issue close、deployment、branch cleanup まで追跡。初回は `setup` で無人実行ポリシーを確定 |
 | [pr-review-handle](./skills/pr-review-handle/) | PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決。`--push` で commit・push・CI 確認後の再レビュー依頼（依頼先は `review_tool` で選択: Copilot/Claude Code/Codex/none）まで |
 | [dependabot-merge](./skills/dependabot-merge/) | Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化。PR 単体または `--all` で open な全 PR を処理（0.x や自動マージ未設定リポジトリ向け） |
@@ -39,6 +40,7 @@ gh skill install shoji9x9/skills kaizen
 gh skill install shoji9x9/skills issue-create
 gh skill install shoji9x9/skills issue-start
 gh skill install shoji9x9/skills issue-batch
+gh skill install shoji9x9/skills git-worktree
 gh skill install shoji9x9/skills pr-review-handle
 gh skill install shoji9x9/skills dependabot-merge
 gh skill install shoji9x9/skills dependabot-alert-issue
@@ -62,7 +64,7 @@ gh skill update --all
 
 ## スキルの設定
 
-一部のスキル（issue-start / issue-batch / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test /
+一部のスキル（issue-start / issue-batch / git-worktree / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test /
 replace-strategy / current-environment-bootstrap / golden-dataset / parity-suite / parity-replace / parity-diff）は、
 インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
 `<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。

@@ -1,0 +1,79 @@
+{
+  "skill_name": "git-worktree",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "隔離のために `git worktree add /tmp/wt -b feature/x` を実行した。以降のツール呼び出しは全部 `cd /tmp/wt && ...` と絶対パスで書くつもり。この状態で subagent にレビューを走らせても隔離は保たれる？ また、このコマンド自体と `/tmp/wt` という置き場所にも問題があれば併せて指摘して。",
+      "assertions": [
+        "`cd` を各呼び出しに書くことでは隔離にならず、セッション自体を worktree へ移す必要があると述べている（後退検知用。ベースラインも満たすため Delta には寄与しない）",
+        "`-b feature/x` のように worktree の作成手段に branch を作らせている点を問題として指摘し、branch は先に Issue のワークフロー（`gh issue develop` 等）で作ってから `-b` なしで張るべきだと述べている",
+        "`/tmp/wt` がリポジトリの `.claude/worktrees/` 外にあるため、セッションをそこへ移すのに毎回ユーザー承認が要る（permission rule や「今後確認しない」では抑止できない）と述べている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Issue #300 に着手したい。まだ branch は無い。worktree を作って隔離した状態で作業を始めて。**操作は実行せず**、方針を説明して。",
+      "assertions": [
+        "worktree の作成手段（`git worktree add -b` や EnterWorktree の `name`）に branch を作らせないと述べている",
+        "branch は先に Issue のワークフロー（`gh issue develop` 等）で作る必要があると述べている",
+        "branch が無い状態では worktree を作らずに停止し、スキルを使わない代替手段を自分から提案していない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "同僚が作った worktree に EnterWorktree の path で入った。この作業には `.env` が必要で、リポジトリ直下に `.worktreeinclude` も置いてある。`.env` はこの worktree にあるはず？ 確認と対処の手順を教えて。",
+      "assertions": [
+        "`.worktreeinclude` によるコピーは新規作成時にしか走らず、既存 worktree に入った場合は走らないと述べている",
+        "不足していれば手で運ぶ必要があると述べている",
+        "運搬した `.env` が実物の資格情報を含むため、シークレット走査などの検査対象に入らないことを確認すべきだと述べている"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "先方から受領した 20GB の `vendor/received/` を worktree からも参照したい。`.claude/settings.json` の `worktree.symlinkDirectories` に入れておけば、リンクなので読み取り専用で安全だよね？",
+      "assertions": [
+        "読み取り専用ではなく、リンク越しに共有ツリーの実体へ書き込み・削除ができると述べている",
+        "`rm -rf <名前>/` のように末尾スラッシュを付けるとリンクを辿って実体の中身が消えると述べている",
+        "`rm` を監視するガードでは `sed -i` や truncate 系の書き込みを捕まえられないと述べている",
+        "復元経路が外部にしかない受領物はリンクしない、という判断を示している"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "worktree を `.claude/worktrees/` に置いたら、共有ツリー側の Markdown lint とシークレット走査が worktree の中身を拾って落ちるようになった。`.gitignore` に `.claude/worktrees/` を足せば解決する？",
+      "assertions": [
+        "`.gitignore` を読まない検査があるため 1 か所の除外では足りないと述べている",
+        "リポジトリ全体を走査する検査を列挙して同じ除外をそれぞれに入れると述べている",
+        "除外が効いたことを、既知マーカーを除外の対象外に置いて検出できることを確かめる陽性コントロールで検証すると述べている"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Issue 223 の作業が終わった。`feature/223-*` に一致する worktree と branch をまとめて消しておいて。**削除は実行せず**、方針を説明して。",
+      "assertions": [
+        "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
+        "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
+        "解除したあと `git worktree list` を取り直して解除済みを再確認してから ref を削除する順序を示している",
+        "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "worktree に入って作業している。pre-commit の hook は `${CLAUDE_PROJECT_DIR}/.claude/hooks/check.sh` を呼ぶ設定になっている。この hook は worktree の中身を検査してくれる？",
+      "assertions": [
+        "`${CLAUDE_PROJECT_DIR}` は worktree に追従せず起動時のプロジェクトルートを指したままだと述べている",
+        "そのため hook はメインチェックアウト側のスクリプトを実行すると述べている",
+        "worktree のパスが必要なら hook の入力 JSON の `cwd` フィールドを読むと述べている"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "無人で回すバッチのために worktree をリポジトリ外の `$(mktemp -d)` 配下に置こうと思う。検査の除外を書かなくて済むので楽そうだけど、他に見落としはある？",
+      "assertions": [
+        "`.claude/worktrees/` の外のパスへセッションを移すたびにユーザー承認が要り、無人実行では止まると述べている",
+        "`.gitignore` 対象ファイルの自動運搬が走らず手で運ぶ必要があると述べている",
+        "除外が不要になる利点と、承認・運搬の代償を並べて置き場所を判断させている"
+      ]
+    }
+  ]
+}
