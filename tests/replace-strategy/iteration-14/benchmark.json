@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-25T21:10:59Z",
+    "evals_run": [21],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 79.1,
+        "tokens": 326456,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に current.origin キーが無いことを「未確認」ではなく managed（既存の管理済みテスト環境）として扱い、setup の再実行や由来の作り直しを要求していない",
+          "passed": true,
+          "evidence": "『current.origin が未記載（スキーマ上は欠落＝managed 扱い）』と明示し、setup の再実行や由来の作り直しを要求していない。"
+        },
+        {
+          "text": "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
+          "passed": true,
+          "evidence": "current-environment-bootstrap への委譲を行わず、received-assets を選ぶ場合の条件付き手順として提示するに留めた。.replace/ 配下は 1 ファイルも生成されていない（project-tree に .replace 自体が無い）。"
+        },
+        {
+          "text": "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
+          "passed": true,
+          "evidence": "前提スキルと chrome-devtools MCP の確認を行い、MCP 未導入のため測定へ進まず停止している。"
+        },
+        {
+          "text": "現行環境の由来を推測で received-assets に切り替えていない",
+          "passed": true,
+          "evidence": "『由来は推測で決めてはいけない』と述べ、managed / received-assets の選択をユーザーに返している。"
+        },
+        {
+          "text": "fixture の設定（skills.yml）の既存のキー・値を書き換えていない",
+          "passed": true,
+          "evidence": "fixture の skills.yml と出力の skills.yml が diff で一致（変更なし）。応答でも『設定ファイルは一切変更していません』と宣言。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 75.4,
+        "tokens": 272135,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に current.origin キーが無いことを「未確認」ではなく managed（既存の管理済みテスト環境）として扱い、setup の再実行や由来の作り直しを要求していない",
+          "passed": false,
+          "evidence": "current.origin というキーの存在自体に触れておらず、由来の分岐という概念が無い（キー欠落＝managed という契約を扱えていない）。"
+        },
+        {
+          "text": "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
+          "passed": true,
+          "evidence": "current-environment-bootstrap に言及せず、.replace/bootstrap/ も生成していない（結果として委譲していない）。"
+        },
+        {
+          "text": "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
+          "passed": false,
+          "evidence": "chrome-devtools MCP の要否に触れず、測定不能を理由とする停止をしていない。"
+        },
+        {
+          "text": "現行環境の由来を推測で received-assets に切り替えていない",
+          "passed": true,
+          "evidence": "由来を received-assets と誤って断定してはいない（そもそも由来の概念を扱っていない）。"
+        },
+        {
+          "text": "fixture の設定（skills.yml）の既存のキー・値を書き換えていない",
+          "passed": true,
+          "evidence": "skills.yml は生成物ツリーに存在するのみで、fixture の内容を書き換えていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 79.1,
+        "stddev": 0.0,
+        "min": 79.1,
+        "max": 79.1
+      },
+      "tokens": {
+        "mean": 326456.0,
+        "stddev": 0.0,
+        "min": 326456,
+        "max": 326456
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 75.4,
+        "stddev": 0.0,
+        "min": 75.4,
+        "max": 75.4
+      },
+      "tokens": {
+        "mean": 272135.0,
+        "stddev": 0.0,
+        "min": 272135,
+        "max": 272135
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+3.7",
+      "tokens": "+54321"
+    }
+  },
+  "notes": [],
+  "model": "claude-opus-5"
+}

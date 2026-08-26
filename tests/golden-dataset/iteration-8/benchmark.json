@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-26T02:27:08Z",
+    "evals_run": [13],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 606.4,
+        "tokens": 1514221,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": true,
+          "evidence": "metadata.json の status: handed-off を確認したうえでフェーズ A に入っている（応答に handed-off・boot_requirements の語が現れ、design.md がそれを根拠として引用）。"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": true,
+          "evidence": "design.md 17 行目『app_users は features.md に記載なし。**起動要件由来**（handoff.boot_requirements）』として 3 件、customers 26 件を設計に含め、20 行目で『推測で足したのではなく起動要件として明示されているため含めた』と根拠を明示。"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": true,
+          "evidence": "投入ツールを seed/ 配下に新規作成し、bootstrap/seed.sh は無改変・未参照（応答に bootstrap/seed.sh への言及なし）。"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": true,
+          "evidence": "orders を **0 件**とし、design.md 16 行目で『status の意味論が未確定のため 1 件も入れない』と明記。確定済みの意味論（customers.code の形式・role_code の値集合）だけを根拠に設計している。"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "verification.md に『意味論が未確定の機能』節を持ち、order-list を slug 単位で記録。確定できない意味論・質問票 Q-2・『この機能の parity-suite を開始できない』まで記載。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 368.7,
+        "tokens": 884932,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": false,
+          "evidence": "metadata.json の status を確認した形跡が無く（応答に handed-off の語なし）、引き渡し状態を前提としたフェーズ分けを行っていない。"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": false,
+          "evidence": "app_users 3 件・customers 11 件を投入しているが、handoff.boot_requirements を根拠として引いていない（応答に boot_requirements の語なし）。coverage.md の根拠列は semantics.md 4 章＝暫定起動データを指しており、起動要件の引き継ぎではなく既存データの踏襲になっている。"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": true,
+          "evidence": "投入ツールは seed/data/*.sql として新規作成し、bootstrap/seed.sh は diff 一致で無改変。"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": false,
+          "evidence": "**orders を 26 件投入した。** coverage.md は『状態別表示・絞り込み（status 全候補値）』を踏めると主張しており、確認待ちの orders.status の意味を確定扱いにしてデータを作っている（踏めない観点として挙げたのは表示文言・遷移可否のみ）。"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": false,
+          "evidence": "『意味論が未確定の機能』に相当する記録が無く（該当語なし）、order-list を開始不可として下流へ回していない。coverage.md では order-list を『踏める観点』側に置いている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 606.4,
+        "stddev": 0.0,
+        "min": 606.4,
+        "max": 606.4
+      },
+      "tokens": {
+        "mean": 1514221.0,
+        "stddev": 0.0,
+        "min": 1514221,
+        "max": 1514221
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.0,
+        "min": 0.2,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 368.7,
+        "stddev": 0.0,
+        "min": 368.7,
+        "max": 368.7
+      },
+      "tokens": {
+        "mean": 884932.0,
+        "stddev": 0.0,
+        "min": 884932,
+        "max": 884932
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "+237.7",
+      "tokens": "+629289"
+    }
+  },
+  "notes": [],
+  "model": "claude-opus-5"
+}
