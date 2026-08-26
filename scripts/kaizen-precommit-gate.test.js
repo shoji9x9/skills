@@ -14,11 +14,12 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -288,25 +289,29 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
 
 describe("ゲートの commit 検出", () => {
   // 未抽出センチネルがある状態では、commit と判定されれば exit 2（ブロック）になる。
+  // `{P}` は実行時にプロジェクトルートへ置換する。`-C` / `--git-dir` / `--work-tree` で
+  // コミット先を指定する形は、**プロジェクト内**を指していないとゲートの対象外（exit 0）に
+  // なるため（Issue #221）、正規表現の到達性を測るここのケースはコミット先をプロジェクト内に置く。
+  // 外部宛てになる条件そのものは「コミット先のスコープ判定」で測る。
   const cases = [
     ["git commit -m x", 2],
-    ["git -C /tmp commit -m x", 2],
+    ["git -C {P} commit -m x", 2],
     ["git --no-pager commit -m x", 2],
     ["git -c user.name=x -c user.email=y commit -m x", 2],
-    ["git --no-pager -C /tmp commit -m x", 2],
-    ["cd /tmp && git -C /tmp commit -m x", 2],
+    ["git --no-pager -C {P} commit -m x", 2],
+    ["cd /tmp && git -C {P} commit -m x", 2],
     // 引用符で囲まれた（空白を含む）オプション引数。
-    ['git -C "/tmp/a b" commit -m x', 2],
-    ["git -C '/tmp/a b' commit -m x", 2],
+    ['git -C "{P}/a b" commit -m x', 2],
+    ["git -C '{P}/a b' commit -m x", 2],
     ['git -c user.name="A B" commit -m x', 2],
     // ダブルクォート内のエスケープ。閉じ引用符を「次の "」とすると \" で早期に閉じ素通りする。
     ['git -c user.name="A \\"B\\"" commit -m x', 2],
-    ['git -C "/tmp/a \\"b\\"" commit -m x', 2],
+    ['git -C "{P}/a \\"b\\"" commit -m x', 2],
     // backslash でエスケープされた空白。引用符だけを見ていると 1 引数として続かず素通りする。
-    ["git -C /tmp\\ a commit -m x", 2],
+    ["git -C {P}/tmp\\ a commit -m x", 2],
     ["git -c user.name=A\\ B commit -m x", 2],
     // 引用とエスケープの混在も 1 トークンとして続くこと。
-    ['git -C /tmp/"a b"/c\\ d commit -m x', 2],
+    ['git -C {P}/"a b"/c\\ d commit -m x', 2],
     // 引数を取らないグローバルオプションの後ろのサブコマンドを「オプションの引数」として
     // 飲み込まないこと。飲み込むと次の語 `commit` にマッチし、読み取り専用コマンドを誤ブロックする。
     ["git --no-pager grep -n commit -- src/", 0],
@@ -320,9 +325,18 @@ describe("ゲートの commit 検出", () => {
     // 飲んで次の `commit` にマッチし、同じ誤ブロックへ戻る。
     ["git --exec-path log commit", 0],
     // 値を別引数として取るオプションの引数は引き続き飲む（そこで止まると真陽性を落とす）。
-    ["git --git-dir /tmp/g --work-tree /tmp/w commit", 2],
-    ["git --git-dir=/tmp/g commit -m x", 2],
-    ["git -c a=b -C /tmp --no-pager commit -m x", 2],
+    ["git --git-dir {P}/.git --work-tree {P} commit", 2],
+    ["git --git-dir={P}/.git commit -m x", 2],
+    // `=` 連結形の値も引用・エスケープで空白を含み得る。`-[^[:space:]]+` だけで拾うと引用の
+    // 途中で切れ、続く語がオプションでないためオプション列が終わり `commit` へ到達しない
+    // （素通り＝fail open。修正前は実測で exit 0）。
+    ['git --git-dir="{P}/a b/.git" commit -m x', 2],
+    ["git --git-dir={P}/a\\ b/.git commit -m x", 2],
+    ["git --git-dir='{P}/a b/.git' commit -m x", 2],
+    ['git --work-tree="{P}/a b" commit -m x', 2],
+    // `=` 連結形を 1 トークンとして飲んでも、非オプション語では止まる（過剰ブロックの回帰）。
+    ['git --foo="a b" log commit', 0],
+    ["git -c a=b -C {P} --no-pager commit -m x", 2],
     // エスケープを許しても非オプション語では止まる（過剰ブロックの回帰）。
     ["git log --grep commit", 0],
     ["echo git\\ commit", 0],
@@ -337,13 +351,165 @@ describe("ゲートの commit 検出", () => {
   test.each(cases)("%s => exit %i", (command, expected) => {
     const cwd = makeProject();
     writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
-    expect(runGate(command, { cwd }).status).toBe(expected);
+    expect(runGate(command.replaceAll("{P}", cwd), { cwd }).status).toBe(expected);
+  });
+});
+
+// コミット先がプロジェクト外のリポジトリだとコマンド行から分かる呼び出しは、ゲートの対象に
+// しない（Issue #221）。テストのフィクスチャとして使い捨ての一時リポジトリへコミットする形まで
+// 止めると、抽出を求めている「このプロジェクトの活動」と無関係な commit が実行できなくなる。
+// ここが緩むとプロジェクト宛ての commit を素通しし（fail open）、きつくなると元の不具合へ戻る。
+// 外部宛てのケースはいずれも「プロジェクト内を指す同形のケース」を下の blocked 側に持つ。
+// 同形の対（同じオプション・同じ引用形で、違うのはコミット先だけ）が両方あって初めて、
+// exit 0 が「スコープ判定で外した」のか「commit として検出できていない」のかを弁別できる。
+describe("コミット先のスコープ判定", () => {
+  // プロジェクト（`makeProject()` の mkdtemp）の外側にある一意なパス。`/tmp` 直書きだと
+  // 既存ディレクトリ・リポジトリと衝突してスコープ判定が変わり得る（`tmpdir()` は環境で異なる）。
+  const FIXTURE = join(tmpdir(), `kaizen-gate-external-221-${process.pid}`);
+  const SPACE_NAME = `kaizen gate external ${process.pid}`;
+  const SPACE_FIXTURE = join(tmpdir(), SPACE_NAME);
+  const ESCAPED_SPACE_FIXTURE = SPACE_FIXTURE.replaceAll(" ", "\\ ");
+  const ESCAPED_SPACE_NAME = SPACE_NAME.replaceAll(" ", "\\ ");
+
+  const external = [
+    `git -C ${FIXTURE} commit -qm base`,
+    `git --git-dir=${FIXTURE}/.git --work-tree=${FIXTURE} commit -qm base`,
+    `git --git-dir ${FIXTURE}/.git commit -m x`,
+    // `=` 連結形で引用・エスケープにより空白を含む値。
+    `git --git-dir="${SPACE_FIXTURE}/.git" commit -m x`,
+    `git --git-dir=${ESCAPED_SPACE_FIXTURE}/.git commit -m x`,
+    `git --git-dir='${SPACE_FIXTURE}/.git' commit -m x`,
+    // フィクスチャは 1 行で作られるので、フックが走る時点では対象がまだ存在しない。
+    `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git -C ${FIXTURE} commit -m base`,
+    // 引用・エスケープを含むコミット先も、外した結果が同じであること。
+    `git -C "${SPACE_FIXTURE}" commit -m x`,
+    `git -C ${ESCAPED_SPACE_FIXTURE} commit -m x`,
+    // `--git-dir` と併記した `--work-tree` は、リポジトリが外部だと確定するので対象外。
+    `git --git-dir=${FIXTURE}/.git --work-tree ${FIXTURE} commit -m x`,
+    // `cd` があっても、絶対パス指定なら cwd に依存しないので判定できる。
+    `cd ${tmpdir()} && git -C ${FIXTURE} commit -m x`,
+    // 区切り直後に空白を入れない形。commit_re は捕捉するので、オプション列の解析も
+    // 区切り文字から始まる部分文字列を受けられなければならない（さもないと判定不能＝ブロック）。
+    `ls;git -C ${FIXTURE} commit -m x`,
+    `ls&&git -C ${FIXTURE} commit -m x`,
+    // glob メタ文字を含む引数があっても、外部宛ての判定自体は成立する（上の対）。
+    `git -c user.name=A*B -C ${FIXTURE} commit -m a`,
+    // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
+    `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
+  ];
+
+  test.each(external)("外部宛て: %s => exit 0", (command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    expect(runGate(command, { cwd }).status).toBe(0);
+  });
+
+  const blocked = [
+    // コミット先を指定しない＝コマンド行からは決まらない（従来どおりブロック）。
+    "git commit -m x",
+    `cd ${FIXTURE} && git commit -m x`,
+    // プロジェクト内を指す形（上の外部宛てケースと同形の対）。
+    "git -C . commit -m x",
+    "git -C {P} commit -m x",
+    "git -C {P}/sub commit -m x",
+    "git --git-dir={P}/.git --work-tree={P} commit -qm base",
+    "git --git-dir {P}/.git commit -m x",
+    'git --git-dir="{P}/{SPACE}/.git" commit -m x',
+    "git --git-dir={P}/{ESCAPED_SPACE}/.git commit -m x",
+    "git --git-dir='{P}/{SPACE}/.git' commit -m x",
+    // `--work-tree` 単独は外部パスでも判定不能（リポジトリは cwd から探索される）。
+    `git --work-tree="${SPACE_FIXTURE}" commit -m x`,
+    // コミット先 repo は外部でも、作業ツリーがプロジェクトならコミットされる内容はこの
+    // プロジェクトの活動そのもの。意図的に安全側（ブロック）へ倒す。
+    `git --git-dir=${FIXTURE}/.git --work-tree={P} commit -m x`,
+    `git -C ${FIXTURE} --work-tree={P} commit -m x`,
+    `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git commit -m base`,
+    'git -C "{P}/{SPACE}" commit -m x',
+    "git -C {P}/{ESCAPED_SPACE} commit -m x",
+    "git -C {PARENT} -C {BASE} commit -m x",
+    // 区切り直後に空白が無くてもプロジェクト宛ては見落とさない（上の対）。
+    "ls;git -C {P} commit -m x",
+    "ls&&git -C {P} commit -m x",
+    // 展開しないと値が決まらないパスは判定不能（fail closed）。外部宛てと同形だが通してはいけない。
+    "git -C $FIXTURE commit -m x",
+    'git -C "$(mktemp -d)" commit -m x',
+    "git -C /tmp/kaizen-gate-*/fixture commit -m x",
+    // `--work-tree` は作業ツリーだけを差し替え、リポジトリは cwd からの探索で決まる。
+    // 外部を指していてもコミット先はプロジェクトのリポジトリなので通してはいけない。
+    `git --work-tree=${FIXTURE} commit -m x`,
+    `git --work-tree ${FIXTURE} commit -am x`,
+    // `cd` があると git が走る cwd が確定しないので、相対パス指定は判定不能。
+    "cd /tmp && git -C fixture commit -m x",
+    // 1 行に複数の commit。先頭が外部宛てでも、後続のプロジェクト宛てを見落とさない。
+    `git -C ${FIXTURE} commit -m a && git commit -m b`,
+    // 走査位置の算出はマッチ文字列を**リテラル**として扱う必要がある。パターン展開になると
+    // パス以外の引数（`-c` の値など）の glob メタ文字がマッチ範囲を広げ、後続の commit を
+    // 見落として素通りする（fail open）。
+    `git -c user.name=A*B -C ${FIXTURE} commit -m a && git commit -m b`,
+    `git -c user.name=A?B -C ${FIXTURE} commit -m a && git commit -m b`,
+    `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
+  ];
+
+  test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", (command) => {
+    const cwd = makeProject();
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    const resolved = command
+      .replaceAll("{P}", cwd)
+      .replaceAll("{PARENT}", dirname(cwd))
+      .replaceAll("{BASE}", basename(cwd))
+      .replaceAll("{ESCAPED_SPACE}", ESCAPED_SPACE_NAME)
+      .replaceAll("{SPACE}", SPACE_NAME);
+    expect(runGate(resolved, { cwd }).status).toBe(2);
+  });
+
+  // 同じリポジトリの別 worktree はプロジェクトルートの外に置かれる。パスの包含だけで判定すると
+  // 外部宛てに見えるが、コミット先はこのプロジェクトそのものなのでブロックしなければならない。
+  test("同一リポジトリの別 worktree 宛ては外部扱いにしない", () => {
+    const root = mkdtempSync(join(tmpdir(), "kaizen-wt-"));
+    const main = join(root, "main");
+    const linked = join(root, "linked");
+    mkdirSync(main);
+    mkdirSync(join(main, ".kaizen"));
+    writeFileSync(join(main, ".kaizen", ".pending-extract"), "");
+    const git = (args, cwd) =>
+      spawnSync("git", args, {
+        cwd,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: "t",
+          GIT_AUTHOR_EMAIL: "t@e",
+          GIT_COMMITTER_NAME: "t",
+          GIT_COMMITTER_EMAIL: "t@e",
+        },
+      });
+    expect(git(["init", "-q", "."], main).status).toBe(0);
+    expect(git(["commit", "-q", "--allow-empty", "-m", "init"], main).status).toBe(0);
+    expect(git(["worktree", "add", "-q", linked, "-b", "wt"], main).status).toBe(0);
+
+    expect(runGate(`git -C ${linked} commit -m x`, { cwd: main }).status).toBe(2);
+    // linked worktree の `.git` は**ファイル**（`gitdir: <path>`）。`-d` 前提で共有 git ディレクトリを
+    // 引くと解決できず、同一リポジトリ判定が抜けて外部宛て扱いで素通りする（fail open。実測）。
+    expect(statSync(join(linked, ".git")).isFile()).toBe(true);
+    expect(runGate(`git --git-dir=${linked}/.git commit -m x`, { cwd: main }).status).toBe(2);
+    expect(
+      runGate(`git --git-dir=${linked}/.git --work-tree=${linked} commit -m x`, { cwd: main })
+        .status,
+    ).toBe(2);
+    // 別リポジトリなら同じ形でも素通りする（この対がないと「常にブロック」でも pass してしまう）。
+    const other = join(root, "other");
+    mkdirSync(other);
+    expect(git(["init", "-q", "."], other).status).toBe(0);
+    expect(runGate(`git -C ${other} commit -m x`, { cwd: main }).status).toBe(0);
+    expect(runGate(`git --git-dir=${other}/.git commit -m x`, { cwd: main }).status).toBe(0);
   });
 });
 
 // jq も python3 も無い環境では、ゲートは Hook 入力を構造として読めず生 JSON を直接照合する
 // 縮退経路へ落ちる。この経路は普段の開発機では絶対に通らないため、壊れても気づけない。
 // commit 判定は jq 経路と同じ結論でなければならない（ここが緩むと fail open、きつくなると誤ブロック）。
+// ただしコミット先のスコープ判定（Issue #221）だけは**意図的に差がある**。この経路はコマンド行を
+// 構造として取り出せていないため外部宛てを確定できず、`git -C <外部> commit` も従来どおりブロックする。
 describe("生 JSON へ縮退した経路の commit 検出", () => {
   /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
   function makeJqlessPathDir() {
@@ -393,6 +559,9 @@ describe("生 JSON へ縮退した経路の commit 検出", () => {
     ["ls | xargs git commit", 2],
     ["(git commit -m x)", 2],
     ["git add -A && git -C /tmp commit -m x", 2],
+    // 外部宛てのスコープ判定はこの経路では行わない（構造化経路なら 0 になる形も 2 のまま）。
+    ["git -C /tmp/kaizen-gate-external-221 commit -qm base", 2],
+    ["git --git-dir=/tmp/kaizen-gate-external-221/.git commit -m x", 2],
     ["cd /tmp; git --no-pager commit -m x", 2],
     // JSON では改行が `\n` の 2 文字として現れる。リテラルの区切りだけを見ていると取りこぼす。
     ["cd /tmp\ngit commit -m x", 2],
