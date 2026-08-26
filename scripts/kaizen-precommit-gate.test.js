@@ -14,6 +14,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -460,11 +461,20 @@ describe("コミット先のスコープ判定", () => {
     expect(git(["worktree", "add", "-q", linked, "-b", "wt"], main).status).toBe(0);
 
     expect(runGate(`git -C ${linked} commit -m x`, { cwd: main }).status).toBe(2);
+    // linked worktree の `.git` は**ファイル**（`gitdir: <path>`）。`-d` 前提で共有 git ディレクトリを
+    // 引くと解決できず、同一リポジトリ判定が抜けて外部宛て扱いで素通りする（fail open。実測）。
+    expect(statSync(join(linked, ".git")).isFile()).toBe(true);
+    expect(runGate(`git --git-dir=${linked}/.git commit -m x`, { cwd: main }).status).toBe(2);
+    expect(
+      runGate(`git --git-dir=${linked}/.git --work-tree=${linked} commit -m x`, { cwd: main })
+        .status,
+    ).toBe(2);
     // 別リポジトリなら同じ形でも素通りする（この対がないと「常にブロック」でも pass してしまう）。
     const other = join(root, "other");
     mkdirSync(other);
     expect(git(["init", "-q", "."], other).status).toBe(0);
     expect(runGate(`git -C ${other} commit -m x`, { cwd: main }).status).toBe(0);
+    expect(runGate(`git --git-dir=${other}/.git commit -m x`, { cwd: main }).status).toBe(0);
   });
 });
 

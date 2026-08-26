@@ -269,12 +269,26 @@ canonical_path() { # $1: パス $2: 相対パスの基準ディレクトリ
 }
 
 # $1 のリポジトリの共有 git ディレクトリ。worktree は本体と同じ値になるので「同じリポジトリか」に使える。
-git_common_dir_of() { # $1: ディレクトリ
-	local dir="${1:-}" common
-	[ -n "${dir}" ] && [ -d "${dir}" ] || return 1
-	common=$(git -C "${dir}" rev-parse --git-common-dir 2>/dev/null) || return 1
+# $1 は作業ツリーのディレクトリでも gitdir でもよい。linked worktree の `<worktree>/.git` は
+# **ファイル**（`gitdir: <path>`）なので `-d` に掛からない。ここで諦めると同一リポジトリ判定が
+# 抜け、`git --git-dir=<worktree>/.git commit`（実測でその repo へコミットされる）を外部宛てと
+# 誤判定して素通しする（fail open）。
+git_common_dir_of() { # $1: ディレクトリ、または gitdir（ディレクトリ / ファイル）
+	local dir="${1:-}" base common
+	[ -n "${dir}" ] || return 1
+	if [ -d "${dir}" ]; then
+		base=${dir}
+		common=$(git -C "${dir}" rev-parse --git-common-dir 2>/dev/null) || return 1
+	elif [ -f "${dir}" ]; then
+		base=${dir%/*}
+		[ -n "${base}" ] || base=/
+		common=$(git --git-dir="${dir}" rev-parse --git-common-dir 2>/dev/null) || return 1
+	else
+		return 1
+	fi
 	[ -n "${common}" ] || return 1
-	(cd "${dir}" 2>/dev/null && cd "${common}" 2>/dev/null && pwd -P) || return 1
+	# `--git-common-dir` は相対パスを返すことがあるため、基準ディレクトリから解決する。
+	(cd "${base}" 2>/dev/null && cd "${common}" 2>/dev/null && pwd -P) || return 1
 }
 
 path_is_within() { # $1: 正準パス $2: 正準の親
