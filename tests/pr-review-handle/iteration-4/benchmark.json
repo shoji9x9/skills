@@ -1,7 +1,7 @@
 {
   "metadata": {
     "skill_name": "pr-review-handle",
-    "skill_path": "/home/shoji9x9/projects/skills/skills/pr-review-handle",
+    "skill_path": "<repo>/skills/pr-review-handle",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5",
     "timestamp": "2026-08-26T11:19:27Z",

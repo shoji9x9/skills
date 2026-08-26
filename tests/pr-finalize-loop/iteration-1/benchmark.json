@@ -1,7 +1,7 @@
 {
   "metadata": {
     "skill_name": "pr-finalize-loop",
-    "skill_path": "/home/shoji9x9/projects/skills/skills/pr-finalize-loop",
+    "skill_path": "<repo>/skills/pr-finalize-loop",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5",
     "timestamp": "2026-08-26T11:19:27Z",
