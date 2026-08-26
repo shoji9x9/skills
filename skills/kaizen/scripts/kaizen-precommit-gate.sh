@@ -140,9 +140,12 @@ gitoptval='((\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"'|\\\\.|\
 # `--exec-path` は SYNOPSIS に `--exec-path[=<path>]` と載るが、値なしで呼ぶと exec-path を出力して
 # 即 exit するだけで次の引数を消費しない。ここへ入れると `git --exec-path log commit` の `log` を
 # 引数として飲み、次の `commit` にマッチして読み取り専用コマンドを誤ブロックする（実測）。
-# `--git-dir=<path>` のような `=` 連結形は空白を含まない 1 語なので、下の `-[^[:space:]]+` 側で拾える。
+# `--git-dir=<path>` のような `=` 連結形も、値が引用・エスケープされていれば空白を含み得る
+# （`--git-dir="/tmp/a b/.git"`）。`-[^[:space:]]+` だけで拾うと引用の途中で切れ、続く語が
+# オプションでないためオプション列がそこで終わり、`commit` に到達せず**素通りする**（fail open。実測）。
+# 値側は空白区切りのオプションと同じ `${gitoptval}` で 1 トークンとして取る。
 gitoptval_opt='(-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--attr-source)'
-gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]]+)[[:space:]]+)*"
+gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}|-[^[:space:]]+)[[:space:]]+)*"
 if [ "${extracted}" -eq 1 ]; then
 	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
@@ -300,19 +303,16 @@ commit_target_is_external() { # $1: マッチした部分文字列
 			opt=${BASH_REMATCH[1]}
 			val=${BASH_REMATCH[2]}
 			seg=${seg:${#BASH_REMATCH[0]}}
-		elif [[ ${seg} =~ ^(-[^[:space:]]+) ]]; then
+		elif [[ ${seg} =~ ^(-[^[:space:]=]+)=${gitoptval} ]]; then
+			# `=` 連結形。値は引用・エスケープを含み得るので gitopts と同じトークンとして取る。
 			tok=${BASH_REMATCH[1]}
+			val=${BASH_REMATCH[2]}
 			seg=${seg:${#BASH_REMATCH[0]}}
 			case "${tok}" in
-			--git-dir=*)
-				opt=--git-dir
-				val=${tok#--git-dir=}
-				;;
-			--work-tree=*)
-				opt=--work-tree
-				val=${tok#--work-tree=}
-				;;
+			--git-dir | --work-tree) opt=${tok} ;;
 			esac
+		elif [[ ${seg} =~ ^(-[^[:space:]]+) ]]; then
+			seg=${seg:${#BASH_REMATCH[0]}}
 		else
 			break
 		fi

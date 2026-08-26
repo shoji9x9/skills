@@ -326,6 +326,15 @@ describe("ゲートの commit 検出", () => {
     // 値を別引数として取るオプションの引数は引き続き飲む（そこで止まると真陽性を落とす）。
     ["git --git-dir {P}/.git --work-tree {P} commit", 2],
     ["git --git-dir={P}/.git commit -m x", 2],
+    // `=` 連結形の値も引用・エスケープで空白を含み得る。`-[^[:space:]]+` だけで拾うと引用の
+    // 途中で切れ、続く語がオプションでないためオプション列が終わり `commit` へ到達しない
+    // （素通り＝fail open。修正前は実測で exit 0）。
+    ['git --git-dir="{P}/a b/.git" commit -m x', 2],
+    ["git --git-dir={P}/a\\ b/.git commit -m x", 2],
+    ["git --git-dir='{P}/a b/.git' commit -m x", 2],
+    ['git --work-tree="{P}/a b" commit -m x', 2],
+    // `=` 連結形を 1 トークンとして飲んでも、非オプション語では止まる（過剰ブロックの回帰）。
+    ['git --foo="a b" log commit', 0],
     ["git -c a=b -C {P} --no-pager commit -m x", 2],
     // エスケープを許しても非オプション語では止まる（過剰ブロックの回帰）。
     ["git log --grep commit", 0],
@@ -359,6 +368,10 @@ describe("コミット先のスコープ判定", () => {
     `git -C ${FIXTURE} commit -qm base`,
     `git --git-dir=${FIXTURE}/.git --work-tree=${FIXTURE} commit -qm base`,
     `git --git-dir ${FIXTURE}/.git commit -m x`,
+    // `=` 連結形で引用・エスケープにより空白を含む値。
+    `git --git-dir="/tmp/kaizen gate external 221/.git" commit -m x`,
+    "git --git-dir=/tmp/kaizen\\ gate\\ external\\ 221/.git commit -m x",
+    `git --git-dir='/tmp/kaizen gate external 221/.git' commit -m x`,
     // フィクスチャは 1 行で作られるので、フックが走る時点では対象がまだ存在しない。
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git -C ${FIXTURE} commit -m base`,
     // 引用・エスケープを含むコミット先も、外した結果が同じであること。
@@ -388,6 +401,11 @@ describe("コミット先のスコープ判定", () => {
     "git -C {P}/sub commit -m x",
     "git --git-dir={P}/.git --work-tree={P} commit -qm base",
     "git --git-dir {P}/.git commit -m x",
+    'git --git-dir="{P}/kaizen gate external 221/.git" commit -m x',
+    "git --git-dir={P}/kaizen\\ gate\\ external\\ 221/.git commit -m x",
+    "git --git-dir='{P}/kaizen gate external 221/.git' commit -m x",
+    // `--work-tree` 単独は外部パスでも判定不能（リポジトリは cwd から探索される）。
+    `git --work-tree="/tmp/kaizen gate external 221" commit -m x`,
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git commit -m base`,
     'git -C "{P}/kaizen gate external 221" commit -m x',
     "git -C {P}/kaizen\\ gate\\ external\\ 221 commit -m x",
