@@ -249,15 +249,19 @@ canonical_path() { # $1: パス $2: 相対パスの基準ディレクトリ
 		abs="${base%/}/${path}"
 		;;
 	esac
-	local IFS=/
-	for part in ${abs}; do
+	# 分割は `read -a` で行う。`for part in ${abs}`（非引用展開）は**パス名展開も受ける**ため、
+	# `[` を含むディレクトリ名が cwd の実ファイルにマッチすると別のパスへ化ける
+	# （実測: cwd に `ab` があると `/tmp/a[b]/c` の `a[b]` が `ab` になる）。
+	# `read` は分割だけを行い glob は起きない。
+	local -a parts=()
+	IFS=/ read -r -a parts <<<"${abs}"
+	for part in "${parts[@]}"; do
 		case "${part}" in
 		'' | .) ;;
 		..) norm=${norm%/*} ;;
 		*) norm="${norm}/${part}" ;;
 		esac
 	done
-	IFS=$' \t\n'
 	head=${norm:-/}
 	while :; do
 		if resolved=$(cd "${head}" 2>/dev/null && pwd -P); then
