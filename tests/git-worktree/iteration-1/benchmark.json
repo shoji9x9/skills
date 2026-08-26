@@ -1,0 +1,320 @@
+{
+  "metadata": {
+    "skill_name": "git-worktree",
+    "skill_path": "<repo>/skills/git-worktree",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-27T00:00:00Z",
+    "evals_run": [1, 4, 6],
+    "runs_per_configuration": 1,
+    "isolation": "scripts/eval-sandbox.sh（全 6 run が sandboxed）",
+    "baseline_contamination": "eval 1 / 4 / 6 の without_skill いずれも verdict: clean"
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 72.5,
+        "tokens": 87842,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`cd` を各呼び出しに書くことでは隔離にならず、セッション自体を worktree へ移す必要があると述べている（後退検知用。ベースラインも満たすため Delta には寄与しない）",
+          "passed": true,
+          "evidence": "「`cd /tmp/wt && ...` を徹底しても、subagent・フォークして走るスキル・バックグラウンドの Bash は起動時の作業ディレクトリを継承します」「『入る』ことが隔離の実体で、代わりになる書き方はありません」"
+        },
+        {
+          "text": "`-b feature/x` のように worktree の作成手段に branch を作らせている点を問題として指摘し、branch は先に Issue のワークフロー（`gh issue develop` 等）で作ってから `-b` なしで張るべきだと述べている",
+          "passed": true,
+          "evidence": "「worktree の作成手段に branch を作らせています。これは責務が逆です」→ `gh issue develop` で先に作り `git worktree add \"<パス>\" \"<branch>\"`（`-b` なし）を提示。`EnterWorktree` の `name` は `worktree-<名前>` になり紐付けが失われる点、base が既定で `origin/<デフォルト branch>` に変わる点も併記"
+        },
+        {
+          "text": "`/tmp/wt` がリポジトリの `.claude/worktrees/` 外にあるため、セッションをそこへ移すのに毎回ユーザー承認が要る（permission rule や「今後確認しない」では抑止できない）と述べている",
+          "passed": true,
+          "evidence": "「`.claude/worktrees/` の外のパスへの `EnterWorktree` は、permission rule でも『今後確認しない』でも抑止できません（`bypassPermissions` のみが飛ばす）。今回のような無人実行ではここで詰まります」"
+        }
+      ],
+      "notes": [
+        "共有ツリーが既にその branch を checkout している場合の `fatal: ... already used by worktree` にも言及した（code-review 由来の修正。assertion 化は未実施）。"
+      ]
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 112.3,
+        "tokens": 61557,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`cd` を各呼び出しに書くことでは隔離にならず、セッション自体を worktree へ移す必要があると述べている（後退検知用。ベースラインも満たすため Delta には寄与しない）",
+          "passed": true,
+          "evidence": "「呼び出しごとのプレフィックスでは隔離になりません」「推奨: セッションごと worktree に入れてください。`EnterWorktree` はセッションの作業ディレクトリ自体を切り替える」"
+        },
+        {
+          "text": "`-b feature/x` のように worktree の作成手段に branch を作らせている点を問題として指摘し、branch は先に Issue のワークフロー（`gh issue develop` 等）で作ってから `-b` なしで張るべきだと述べている",
+          "passed": false,
+          "evidence": "コマンドは分析したが「引数の順序は…バグではありません」と結論し、指摘は start-point 未指定・未追跡ファイル非コピーに留まる。branch を worktree の作成手段に作らせる問題には触れず、逆に `feature/x` が既存なら `-B`（強制再作成）を、さらに `EnterWorktree(name: \"feature-x\")` を推奨した——どちらもスキルが Issue 紐付けの喪失として禁じている形。"
+        },
+        {
+          "text": "`/tmp/wt` がリポジトリの `.claude/worktrees/` 外にあるため、セッションをそこへ移すのに毎回ユーザー承認が要る（permission rule や「今後確認しない」では抑止できない）と述べている",
+          "passed": false,
+          "evidence": "`/tmp` が tmpfs で消える・stale エントリが残る・gitdir に絶対パスが記録される等は述べたが、`.claude/worktrees/` 外へセッションを移すのに毎回ユーザー承認が要る点には触れていない。"
+        }
+      ],
+      "notes": [
+        "改訂前（自発的言及に依存する assertion 群）では 3/3 で弁別しなかったが、prompt に問いを足した改訂版では 1/3 に落ちた。"
+      ]
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 77.8,
+        "tokens": 144082,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み取り専用ではなく、リンク越しに共有ツリーの実体へ書き込み・削除ができると述べている",
+          "passed": true,
+          "evidence": "「シンボリックリンクは読み取り専用ではありません。リンク越しに実体へ書けるし、消せます」「読み取り専用にする機構がそもそもありません」"
+        },
+        {
+          "text": "`rm -rf <名前>/` のように末尾スラッシュを付けるとリンクを辿って実体の中身が消えると述べている",
+          "passed": true,
+          "evidence": "実測表に「`rm -rf linked/`（末尾スラッシュあり）→ リンクを辿って実体の中身が消えた。終了コードは 0」。同一環境（coreutils 9.7）で再実測している"
+        },
+        {
+          "text": "`rm` を監視するガードでは `sed -i` や truncate 系の書き込みを捕まえられないと述べている",
+          "passed": true,
+          "evidence": "「`rm` を監視するガードを入れても 1 行目（`sed -i` / `truncate` / `: > file`）は捕まりません」"
+        },
+        {
+          "text": "復元経路が外部にしかない受領物はリンクしない、という判断を示している",
+          "passed": true,
+          "evidence": "「`vendor/received/` は、スキルが名指しで『リンクするな』と定めている側の典型 — 復元経路が外部にしかないディレクトリだから」。そのうえで 20GB のコピーが非現実的な事情を述べ chmod a-w で実体側を守る代替を提示"
+        }
+      ],
+      "notes": [
+        "`worktree.symlinkDirectories` が公式ドキュメント未記載である旨とバージョン固定の勧めも述べた"
+      ]
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 84.7,
+        "tokens": 222692,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "読み取り専用ではなく、リンク越しに共有ツリーの実体へ書き込み・削除ができると述べている",
+          "passed": true,
+          "evidence": "「シンボリックリンクはアクセス制御ではなく単なる別名です。書き込みも削除もリンク越しに実体へ貫通します」"
+        },
+        {
+          "text": "`rm -rf <名前>/` のように末尾スラッシュを付けるとリンクを辿って実体の中身が消えると述べている",
+          "passed": false,
+          "evidence": "末尾スラッシュの有無を区別せず、逆に「`rm -rf <worktree>` でうっかり 20GB を消す事故は防げます（[3]）」と安全側に誤結論。実測 [3] はスラッシュ無しのケースだけで、危険な方を測っていない"
+        },
+        {
+          "text": "`rm` を監視するガードでは `sed -i` や truncate 系の書き込みを捕まえられないと述べている",
+          "passed": false,
+          "evidence": "`permissions.deny` の `Bash(rm:*)` が文字列一致で抜ける旨は述べたが、rm を見るガードが sed -i / truncate 系を捕まえられないという指摘には至っていない"
+        },
+        {
+          "text": "復元経路が外部にしかない受領物はリンクしない、という判断を示している",
+          "passed": true,
+          "evidence": "「`symlinkDirectories` の想定用途は `node_modules` や `.cache` —『壊れても再生成できるから』であって『壊してはいけないから共有したい』ではありません」"
+        }
+      ],
+      "notes": ["assertion 2 は不正解（安全側への誤り）。この eval が Delta を生んだ主因"]
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 41.8,
+        "tokens": 101288,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
+          "passed": true,
+          "evidence": "「glob では消しません」「`git worktree list --porcelain` で列挙した完全一致のパス／ref を 1 件ずつ削除します」"
+        },
+        {
+          "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
+          "passed": true,
+          "evidence": "「`git status --porcelain` が空であること、`git rev-list --max-count=1 HEAD --not --remotes` に未 push commit が無いことを確認します」"
+        },
+        {
+          "text": "解除したあと `git worktree list` を取り直して解除済みを再確認してから ref を削除する順序を示している",
+          "passed": false,
+          "evidence": "列挙 → 完全一致削除は述べたが、解除後に一覧を取り直して再確認する段（cleanup.md 手順 4）に言及していない。git リポジトリが無く手順に入れなかった影響もある"
+        },
+        {
+          "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
+          "passed": true,
+          "evidence": "「dirty なら削除せず絶対パスを報告します」"
+        }
+      ],
+      "notes": [
+        "ベースラインを再取得したので Delta を算出した（旧 run は session limit で無効だった）。"
+      ]
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 34.5,
+        "tokens": 99668,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
+          "passed": false,
+          "evidence": "手順 1 で `git branch --list 'feature/223-*'` と列挙するが、削除対象の選定は glob 由来のままで、「glob で消さない／完全一致した ref だけを削除する」という規律は述べていない。"
+        },
+        {
+          "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
+          "passed": false,
+          "evidence": "`git status --porcelain`（未 commit・未追跡）は挙げたが、未 push の確認を `git branch --no-merged`（未マージ）で代替している。squash merge 後は未マージ判定が効かず、未 push commit の消失を防げない。"
+        },
+        {
+          "text": "解除したあと `git worktree list` を取り直して解除済みを再確認してから ref を削除する順序を示している",
+          "passed": false,
+          "evidence": "`git worktree remove` → `git branch -d` と続けるだけで、解除後に一覧を取り直す段が無い。"
+        },
+        {
+          "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
+          "passed": true,
+          "evidence": "「未コミット/未マージが残っているものは削除せず報告（`-f` / `-D` は使いません）」。絶対パスの明示は無いが判断は同じ。"
+        }
+      ],
+      "notes": [
+        "ベースラインは `-D` を無条件に使わないと宣言している。squash merge されたリポジトリでは `git branch -d` が `not fully merged` で必ず拒否するため、この方針は必ずデッドロックする（スキル側は `gh pr view` の `state: MERGED` ＋ `headRefName` 完全一致を条件に `-D` を許す）。この差は現行の assertion では測っていない。"
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9167,
+        "stddev": 0.1179,
+        "min": 0.75,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 64.0333,
+        "stddev": 15.8695,
+        "min": 41.8,
+        "max": 77.8
+      },
+      "tokens": {
+        "mean": 111070.6667,
+        "stddev": 23979.2942,
+        "min": 87842,
+        "max": 144082
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3611,
+        "stddev": 0.1039,
+        "min": 0.25,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 77.1667,
+        "stddev": 32.2053,
+        "min": 34.5,
+        "max": 112.3
+      },
+      "tokens": {
+        "mean": 127972.3333,
+        "stddev": 68760.3254,
+        "min": 61557,
+        "max": 222692
+      }
+    }
+  },
+  "delta": {
+    "scope": "eval 1 / 4 / 6（全て有効）",
+    "pass_rate_mean": {
+      "with_skill": 0.9167,
+      "without_skill": 0.3611
+    },
+    "per_eval": [
+      {
+        "eval_id": 1,
+        "with": 1.0,
+        "without": 0.3333,
+        "delta": 0.6667
+      },
+      {
+        "eval_id": 4,
+        "with": 1.0,
+        "without": 0.5,
+        "delta": 0.5
+      },
+      {
+        "eval_id": 6,
+        "with": 0.75,
+        "without": 0.25,
+        "delta": 0.5
+      }
+    ]
+  },
+  "excluded_runs": [],
+  "notes": [
+    "レートリミット回避のため 8 eval のうち 3 件（isolation / carry-in / cleanup の各 reference から 1 件）を 1 run ずつ実行した。全 eval・複数 run の測定は未実施。",
+    "eval 1 は旧定義で with 3/3・without 3/3 と弁別しなかった。原因は assertion ではなく prompt——スキルが出した弁別的な指摘（`-b` で branch を作らせている・`/tmp/wt` がリポジトリ外）は prompt が問うていない自発的言及だった。`.agents/rules/eval-assertion-discrimination.md`「assertion を弱めるのではなく問う形にする」に従い prompt に問いを足し assertion を差し替えたところ、ベースラインが 3/3 → 1/3 に落ち Delta +0.667 になった。",
+    "改訂後の eval 1 の assertion 1（セッションを移す必要がある）はベースラインも満たすため Delta に寄与しない。**後退検知が目的**であることを assertion 本文に明記した。3 本中 1 本が後退検知なので、この eval の実効 Delta は 2 本分（1.0 対 0.0）である。",
+    "ベースラインの誤りは 3 件とも「安全側または通例側への誤結論」だった。eval 1 は `-B` と `EnterWorktree(name:)` というスキルが禁じる形を推奨し、eval 4 は末尾スラッシュ付き `rm -rf` を測らず安全と結論し、eval 6 は未 push の確認を未マージ判定で代替した（squash merge で効かない）。",
+    "code-review で挙動が変わった 3 点（メインチェックアウトの再利用禁止・squash merge 後の branch 削除・リポジトリ外 worktree の再入場制限）はまだ assertion 化していない。eval 6 のベースラインが `-D` を無条件に禁じてデッドロックする点は、この差を測る assertion があれば拾えた。"
+  ]
+}
