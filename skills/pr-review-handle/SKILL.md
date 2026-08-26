@@ -130,8 +130,8 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   --jq '.[] | {id, login: .user.login, type: .user.type, created_at, updated_at, body}'
 ```
 
-- **トップレベルコメントは切り詰めずに読む。** 進行中判定や mention 依頼済み判定では同じ API を
-  `body: .body[:60]` のように切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）が、
+- **トップレベルコメントは切り詰めずに読む。** mention 依頼済み判定では同じ API を
+  `body: .body[:60]` に切り詰めて取得する（[`references/review-tool.md`](references/review-tool.md)）が、
   **指摘の収集にその取得を使い回さない**（切り詰めた分より後ろの指摘を取りこぼす）。
   対象は自分（PR 著者。本スキルの依頼コメントや対応記録を含む）以外の投稿**すべて**。
   **`select(.user.type=="Bot")` で bot に絞らない**——人間レビュアーが総評をトップレベルに置くこともあり、絞ると取りこぼす。
