@@ -1,6 +1,6 @@
 {
-  "_note": "current-environment-bootstrap が .replace/bootstrap/metadata.json として生成する。形式の正本は current-environment-bootstrap が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。status は in-progress | blocked | handed-off の 3 値で、handed-off を名乗る条件は工程 7（起動・認証・主要画面到達）がすべて実測済みかつ工程 8（空の環境からの再実行）が再現できていること。確認待ちの意味論が残っていること自体は handed-off を妨げない（handoff.unconfirmed に載せて渡す）。blocked のときは blocked_on に停止理由を入れ、質問票の該当項目を questionnaire_refs に載せる。handoff.boot_requirements は golden-dataset フェーズ A のデータ設計に含める必要がある起動要件（フェーズ A の投入が暫定起動データを置き換えるため、列挙しないと再投入後に環境が起動しなくなる）。",
-  "status": "<in-progress | blocked | handed-off>",
+  "_note": "current-environment-bootstrap が .replace/bootstrap/metadata.json として生成する。形式の正本は current-environment-bootstrap が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。status は blocked | handed-off の 2 値で、handed-off を名乗る条件は工程 7（起動・認証・主要画面到達）がすべて実測済みかつ工程 8（空の環境からの再実行）が再現できていること。確認待ちの意味論が残っていること自体は handed-off を妨げない（handoff.unconfirmed に載せて渡す）。blocked のときは blocked_on に停止理由を入れ、質問票の該当項目を questionnaire_refs に載せる。handoff.boot_requirements は golden-dataset フェーズ A のデータ設計に含める必要がある起動要件（フェーズ A の投入が暫定起動データを置き換えるため、列挙しないと再投入後に環境が起動しなくなる）。",
+  "status": "<blocked | handed-off>",
   "blocked_on": ["<停止理由。status が blocked のときだけ。例: 起動に必須の semantics が確認待ち>"],
   "questionnaire_refs": ["<質問票の該当項目。例: Q-3>"],
   "origin": "received-assets",
