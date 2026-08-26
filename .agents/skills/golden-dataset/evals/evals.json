@@ -124,6 +124,18 @@
         "空欄が埋まるまで対象テーブルを確定させず、次の行動として利用者への確認（または replace-strategy 側で参照テーブル列を補うこと）を示している",
         "features.md に記録の無いテーブルを推測で補っていない"
       ]
+    },
+    {
+      "id": 13,
+      "fixture": "evals/fixtures/bootstrap-handoff",
+      "prompt": "golden-dataset",
+      "assertions": [
+        "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+        "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+        "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+        "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+        "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）"
+      ]
     }
   ]
 }

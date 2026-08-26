@@ -58,6 +58,8 @@ parity-suite [--feature <slug>] [--target <name>]
 - **強度を手書き assertion 単体で判定しない。** 「手書き assertion ＋ ベースライン ＋ 差分器」の一式で判定する
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない
 - **現行アプリのデータを破壊しない**（選択した target の `forbidden_actions` を尊重。書き込みが許可されない target ではスイートの書き込み系スペックを実行せず「未検証」として `gaps.md` に記録する）
+- **意味論が未確定の機能でスイートを書き始めない。** `current.origin: received-assets` で、対象 slug の必須データ意味論が `.replace/bootstrap/semantics.md` の
+  「確認待ち」または「確認したが確定できなかったもの」に残っている間は、**合否判定基準を作れない**（何が正解かが決まっていない）。推測でシナリオを埋めず、不足情報を報告して停止する
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す。
   **ファイルアップロードも同じ**——`setInputFiles` で流せることは、その画面で通ったことの証拠にならない（操作可能性と特性化済みを混同しない）
 - **バイト列に到達できない出力を「対象」として扱わない。** ダウンロードが発火しない・出力ディレクトリに到達できない出力は `gaps.md` に未検証として残す
@@ -84,6 +86,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `targets[].forbidden_actions` | 選択した target に実施しない UI / API 操作（空リスト・未定義の意味論は正本に従う） |
 | `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した current target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。ファイル出力の捕捉・アップロードの特性化で**読む**（ゴールデンデータ投入はしないが、**テストがストレージへ直接書く・消す**〈後始末等〉場合の許可は `storage.seedable: true` ＋ `write_scope` 配下が前提。正本は [`references/data-discipline.md`](references/data-discipline.md)。アプリ経由のアップロードは `forbidden_actions` が律する）。`upload_route` が未宣言なら推測せずユーザーに確認し、`uses_storage: true` なのに宣言した target が無ければストレージ依存を `gaps.md` へ |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出（[`references/strength-gate.md`](references/strength-gate.md)）と、side 別期待値の根拠（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）で**読む**。書くのは `pending` への非破壊追記だけ（宣言に無い差を見つけたとき。`keep` / `may_change` は人間が確定させるため書かない。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」） |
+| `current.origin` | 現行環境の由来（`managed` / `received-assets`。**キー欠落は `managed`**）。`received-assets` のときだけ、対象 slug の意味論が確定しているかを実行フロー 1 で確認する（意味論の正本はスキーマ文書の「現行環境の由来」） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む）。**未整備（キー欠落・空値・解決できないパス）なら停止せず**、判断材料が無いまま推測せずに実測で特性化し、整備をユーザーに促す |
 | `verification_commands` | 書いたスイート・マッピング層・操作アダプタに通す検証コマンド列（静的解析・型検査）。**設定に無くても停止せず**、その旨を `gaps.md` に記録して進む（`parity-replace` の完了判定と違い、ここでは生成物の品質担保であってスイートの合否判定ではない。スイートの合否は現側 green と強度ゲートが見る。意味論の正本はスキーマ文書の「検証コマンド」） |
 | `references.coding_conventions` | スイート・マッピング層・操作アダプタを書くときに従うコーディング規約（**スイートは対象プロジェクト側のコード**であり、リポジトリの規約に従う。同梱ツールのコピーは修正しない規約のため対象外）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
@@ -103,7 +106,11 @@ parity-suite [--feature <slug>] [--target <name>]
    その target を `check_urls`（省略時は `url`）で稼働判定し、落ちているときだけ `pre_commands` → `start` の順で起動して再確認する（稼働中なら `pre_commands` / `start` はどちらも実行しない。
    意味論と条件付き実行順の正本は `browser-test` の `references/project-config.md`。**最初の稼働判定が落ちていることは停止条件ではなく起動の合図**で、`pre_commands` / `start` / 起動後の再確認の失敗はそこで停止し、後続工程へ進まない）。
    選択した target の `url` / `api_url` への疎通と認証環境変数の存在確認（値は出さない）で早期に失敗する
-2. **対象決定**: `slug` を features.md と突き合わせる（無い slug は停止。自分で採番しない）。種別からモードを決める
+2. **対象決定**: `slug` を features.md と突き合わせる（無い slug は停止。自分で採番しない）。種別からモードを決める。
+   **`current.origin: received-assets` の場合はここでシナリオの確定可否を確認する**——`.replace/dataset/verification.md` の「意味論が未確定の機能」に対象 slug があるか、
+   `.replace/bootstrap/semantics.md` の「確認待ち」または「確認したが確定できなかったもの」にその slug の必須意味論が残っていれば、**スイート構築へ進まず停止**し、
+   不足している意味論・質問票の該当項目・回答が返るまで開始できないことを報告する（`managed`・キー欠落のプロジェクトでは本確認を行わない）。
+   **この確認は設定ファイルと成果物だけで済むため、手順 1 の起動（`pre_commands` / `start`）より先に行う**——開始できない機能のために現行アプリを起動しない
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（詳細: [`references/baseline.md`](references/baseline.md)）
 4. **データセットの投入先・バージョン確認**: `.replace/dataset/metadata.json` の `current.target`（`golden-dataset` がフェーズ A で投入した current target 名）が手順 1 で確定した target と一致することを確認する。
    一致しなければ「ベースラインとシードの環境不一致」として停止し、同じ target へ投入するか target 選択を変えるようユーザーに促す。

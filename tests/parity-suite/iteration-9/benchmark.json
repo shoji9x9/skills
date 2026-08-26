@@ -1,0 +1,234 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-26T02:27:08Z",
+    "evals_run": [18, 19],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 52.2,
+        "tokens": 161414,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug（order-list）の必須データ意味論が確認待ちであることを検出し、スイート構築（authoring）へ進まず停止している",
+          "passed": true,
+          "evidence": "order-list の必須意味論が確認待ちであることを検出し、スイート構築へ進まず停止している。"
+        },
+        {
+          "text": "確定できていない意味論（orders.status の意味・正常系遷移・初期値）と質問票の該当項目（Q-2）を挙げ、回答が返るまで開始できないと報告している",
+          "passed": true,
+          "evidence": "orders.status の意味・正常系遷移・初期値と質問票 Q-2 を挙げ、回答が返るまで開始できないと報告している。"
+        },
+        {
+          "text": "推測でシナリオ・状態・期待値を埋めてスイートを書き始めていない（何が正解かが決まっていないため合否判定基準を作れないと述べている）",
+          "passed": true,
+          "evidence": "シナリオ・状態・期待値を推測で埋めたスペックを書いていない。"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない（project-tree に e2e なし）。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": ".replace/ 配下・skills.yml とも fixture のまま（新規・変更ファイルなし）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 107.6,
+        "tokens": 291972,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "customer-list の意味論は確定済みであることを確認し、意味論の確認待ちを理由には停止していない（order-list の Q-2 を customer-list の停止理由に持ち込んでいない）",
+          "passed": true,
+          "evidence": "『semantics.md の確認待ち・確認したが確定できなかったもの、verification.md の意味論が未確定の機能に載っているのはすべて order-list（Q-2）で、customer-list の必須意味論は確定している』と切り分け、意味論を停止理由にしていない。"
+        },
+        {
+          "text": "current.origin: received-assets であること自体を停止理由にしていない（受領資産由来の環境でもスイート構築は成立すると扱っている）",
+          "passed": true,
+          "evidence": "current.origin: received-assets であること自体を停止理由にしていない（Playwright 前提は成立すると判定）。"
+        },
+        {
+          "text": "停止する場合の理由が Playwright / Node の不在または現行アプリ（current-test）へ到達できないことであり、その旨を明示している",
+          "passed": true,
+          "evidence": "停止理由を『現行環境 current-test が落ちており pre_commands / start が無く起動手段が無い』『認証・DB の環境変数が未設定』と明示している。"
+        },
+        {
+          "text": "到達できていない現行アプリの挙動を「確認済み」として strength.md / metadata.json に記録していない",
+          "passed": true,
+          "evidence": "『.replace/ 配下・設定ファイルへの書き込みは一切行っていません（gaps.md 等は実行フロー 8 の成果物で、そこまで到達していないため）』と述べ、strength.md / metadata.json を生成していない。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "fixture の成果物・設定を書き換えていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 96.1,
+        "tokens": 253970,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug（order-list）の必須データ意味論が確認待ちであることを検出し、スイート構築（authoring）へ進まず停止している",
+          "passed": true,
+          "evidence": "semantics.md / verification.md を読み order-list の意味論が未確定であることを指摘している（Q-2・確認待ちに言及）。"
+        },
+        {
+          "text": "確定できていない意味論（orders.status の意味・正常系遷移・初期値）と質問票の該当項目（Q-2）を挙げ、回答が返るまで開始できないと報告している",
+          "passed": true,
+          "evidence": "確定できない意味論と Q-2 を挙げている。"
+        },
+        {
+          "text": "推測でシナリオ・状態・期待値を埋めてスイートを書き始めていない（何が正解かが決まっていないため合否判定基準を作れないと述べている）",
+          "passed": false,
+          "evidence": "停止という判断に至らず、『指示をいただければ規約が参照できる環境で status 非依存分のみ先行生成します』と部分着手を提案している。合否判定基準が確定しない機能で着手余地を残しており、開始しないという規律になっていない。"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "実際には e2e/ 配下を生成していない。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "fixture の成果物・設定を書き換えていない（『.replace/ 配下への書き込みは行っていません』と明記）。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 63.1,
+        "tokens": 196205,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "customer-list の意味論は確定済みであることを確認し、意味論の確認待ちを理由には停止していない（order-list の Q-2 を customer-list の停止理由に持ち込んでいない）",
+          "passed": true,
+          "evidence": "customer-list を意味論の確認待ちを理由に止めてはいない（そもそも Q-2 に言及せず、意味論の切り分けを行っていない）。"
+        },
+        {
+          "text": "current.origin: received-assets であること自体を停止理由にしていない（受領資産由来の環境でもスイート構築は成立すると扱っている）",
+          "passed": true,
+          "evidence": "received-assets を停止理由にしていない。"
+        },
+        {
+          "text": "停止する場合の理由が Playwright / Node の不在または現行アプリ（current-test）へ到達できないことであり、その旨を明示している",
+          "passed": false,
+          "evidence": "停止理由が『parity-suite スキルの実体が見つからない・受領資産一式が無い・接続情報が無い』であり、『この .replace/ 構造を前提とした自作スキルなら SKILL.md を新規作成することもできます』とスキル自体の作成を提案している。現行環境への到達不能を停止理由として述べていない。"
+        },
+        {
+          "text": "到達できていない現行アプリの挙動を「確認済み」として strength.md / metadata.json に記録していない",
+          "passed": true,
+          "evidence": "strength.md / metadata.json を生成していない。"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "fixture を書き換えていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 79.9,
+        "stddev": 39.1737,
+        "min": 52.2,
+        "max": 107.6
+      },
+      "tokens": {
+        "mean": 226693.0,
+        "stddev": 92318.4471,
+        "min": 161414,
+        "max": 291972
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0.0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 79.6,
+        "stddev": 23.3345,
+        "min": 63.1,
+        "max": 96.1
+      },
+      "tokens": {
+        "mean": 225087.5,
+        "stddev": 40846.0232,
+        "min": 196205,
+        "max": 253970
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "+0.3",
+      "tokens": "+1606"
+    }
+  },
+  "notes": [],
+  "model": "claude-opus-5"
+}

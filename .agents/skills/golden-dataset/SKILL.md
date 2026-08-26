@@ -37,7 +37,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 ## 前提
 
 - **ツール**: `git`。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
-- **前提スキル**: `replace-strategy`（`setup` 完了）
+- **前提スキル**: `replace-strategy`（`setup` 完了）。`current.origin: received-assets` のプロジェクトではさらに `current-environment-bootstrap` の引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
   本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要
@@ -65,6 +65,11 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 12. **ファイルストレージ実体へ投入しない**（v1 スコープ外）。`targets[].storage.seedable: true` でも投入せず、ストレージ実体に依存するデータは
     「ストレージ投入はスコープ外＝未検証」として `verification.md` と `gaps` に残す（確認済みにしない）。アップロード用ファイルの**生成**（決定論的な fixture 生成）は対象で、
     **手書きの静的ファイルを直接コミットして生成ツールを省略しない**（正本: `replace-strategy` の `references/file-io.md`「ファイル入力（アップロード）」・同 `references/project-config.md`「ファイルストレージ」）
+13. **暫定起動データをゴールデンデータへ昇格させない。** `current-environment-bootstrap` が作った暫定起動データ（`<bootstrap_tool_dir>`・`.replace/bootstrap/semantics.md` の「暫定起動データに投入した値」）は
+    **起動・ログイン・画面探索のための最小限であって比較の正解ではない**。流用は代表性の検討を飛ばすことになる——本スキルは確認済みの意味論から**一から設計する**（投入ツールも別ディレクトリに分ける）
+14. **確認待ちの意味論を確定扱いにしない。** `.replace/bootstrap/semantics.md` の「確認待ち」行と「確認したが確定できなかったもの」行の値を、推測・多数決・LLM の一般論で確定させない
+    （後者は確認済みだが**確定していない**——「確認待ちに無いから確定済み」と読み替えない）。
+    確定できないまま必要になった場合は、その機能のデータを捏造せず**未確定として記録し `verification.md` の「意味論が未確定の機能」へ回す**（その機能の `parity-suite` は開始できない）
 
 ## プロジェクト設定の解決
 
@@ -83,6 +88,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 | `references.coding_conventions` | 投入ツールを書くときに従うコーディング規約（**投入ツールは対象プロジェクト側のコード**であり、リポジトリの規約に従う）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
 | `references.dependency_policy` | 投入ツールに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
+| `current.origin` | 現行環境の由来（`managed` / `received-assets`。**キー欠落は `managed`**）。`received-assets` のときだけ `.replace/bootstrap/` を前提確認と設計の入力にする（意味論の正本はスキーマ文書の「現行環境の由来」） |
+| `bootstrap_tool_dir` | `current-environment-bootstrap` の暫定起動データ投入ツールの配置先（未指定時 `bootstrap/`）。**本スキルの `dataset_tool_dir` と分けるため**に読む（同じディレクトリ・同じエントリに相乗りさせない。禁止事項 13） |
 
 `targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
 
@@ -99,19 +106,28 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 ### フェーズ A（現行フェーズ）
 
 1. **前提確認と早期失敗**: 設定・`.replace/features.md` を確認し、`dataset_mode`（既定 `db`）で分岐する。
+   **`current.origin: received-assets` の場合は先に `.replace/bootstrap/metadata.json` を読む**——`status` が `handed-off` でなければ、現行環境がまだ比較基準として成立していないため
+   **投入せず停止**して `current-environment-bootstrap` の完了を促す（`blocked` なら質問票の回答待ちであることを併せて示す）。
+   `handed-off` なら `handoff.boot_requirements` を控える（手順 2 で使う）。`managed`・キー欠落のプロジェクトでは本確認を行わない。
    - **`db`**: DDL（またはスキーマを決定論的に得る手段）が無ければ停止してユーザーに確認する。投入先 target（`side: current`）を確定する。
      **候補は `db.seedable: true` の target に限る**——選択された target（`--target` 省略時の `default` を含む）が `seedable: true` を持たなければ**投入せず停止**し、
      投入してよい target を選ぶか設定に `seedable: true` を足すようユーザーに促す（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れないため）。
      確定したらその `db.env_vars` の存在確認（値は出さない）を `secrets.wrapper` 前置で最初に行い、繋がらなければ早期に失敗する
    - **`static`**: `dataset_static_paths` が 1 つ以上あることを確認し（無ければ停止）、その配下が現行リポジトリで読み書きできることを確認する。**投入先 target に `db` を要求しない**。
      現行の静的データの形式（ファイル配置・フィールド構成・型。DDL に相当する）を現行リポジトリから決定論的に読み取れなければ停止してユーザーに確認する
-2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)
+2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)。
+   **`current.origin: received-assets` では加えて `.replace/bootstrap/semantics.md` を読む**——「確定済み」の意味論だけを設計の根拠に使い、「確認待ち」の行は根拠にしない（禁止事項 14）。
+   `handoff.boot_requirements` に挙がった**起動要件（認証ユーザー・マスタ・コード表等）を必ず設計に含める**——本フェーズの投入は暫定起動データを事前削除で置き換えるため、
+   含めないと投入後に現行アプリが起動しなくなる。確認待ちのために設計できなかった機能は手順 6 で「意味論が未確定の機能」として記録する
 3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。
    書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成後に設定の `verification_commands` を通す（無ければ停止せず記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
 4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
    **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
 5. **投入**: `db` は選択した `side: current` の target へ投入し、`static` は `dataset_static_paths` 配下へ生成する（新側の受け皿はまだ存在しないため新側へは投入しない）
-6. **検証**: `db` は FK 整合・必須項目・件数、`static` は形式妥当性（必須フィールド・型・参照整合）・件数を検査し、カバレッジ（どのテーブル／どの静的データのどのパターンを含んだか）を報告する
+6. **検証**: `db` は FK 整合・必須項目・件数、`static` は形式妥当性（必須フィールド・型・参照整合）・件数を検査し、カバレッジ（どのテーブル／どの静的データのどのパターンを含んだか）を報告する。
+   **`current.origin: received-assets` では、未確定の意味論（「確認待ち」と「確認したが確定できなかったもの」の両方）のせいで最低限のシナリオを確定できなかった機能を
+   `verification.md` の「意味論が未確定の機能」へ slug 単位で記録する**
+   （`parity-suite` がこの記録を読んで開始可否を判断する。**捏造で埋めて「確認済み」にしない**）
 7. **成果物記録**: `design.md` / `verification.md` / `metadata.json` を生成し、**投入ツールとデータをコミットする**（本番由来でなく PII を含まないため。大きなバイナリをコミットしない規約は視覚ベースラインの話でここには当てはまらない）。
    `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで:
    - **`db`**: `current.target` に**投入先の current target 名**を記録する（`parity-suite` がベースライン採取時に自分の選択 target と照合し、不一致なら停止する）
@@ -146,7 +162,10 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（setup）→ **golden-dataset（フェーズ A）** → 各機能で〔`parity-suite` → `parity-replace` → **golden-dataset（フェーズ B）** → `parity-diff`（`parity-replace` と往復）〕
+- **依存順**: `replace-strategy`（setup。`received-assets` なら測定前に `current-environment-bootstrap`）→ **golden-dataset（フェーズ A）**
+  → 各機能で〔`parity-suite` → `parity-replace` → **golden-dataset（フェーズ B）** → `parity-diff`（`parity-replace` と往復）〕
+- **`current-environment-bootstrap`**: `current.origin: received-assets` のとき、`.replace/bootstrap/semantics.md` の**確定済み**の意味論と根拠を引き継ぐ。
+  暫定起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動要件だけを本スキルのデータ設計へ取り込む
 - **`parity-suite`**: フェーズ A 完了（＝`.replace/dataset/metadata.json` の存在）が前提。探索でシード不足を見つけると `gaps.md`「データ不足」で本スキルへ戻る。戻ると `version` が上がり、影響ベースラインを再取得する
 - **`parity-replace`**: フェーズ B の前提となる新側スキーマを作る。自分が選んだ新側 target を渡して `golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
 - **`parity-diff` / `replace-strategy status`**: `metadata.json` の `version` で陳腐化を検出する（記録 < 現在なら再取得）。フェーズ B の投入状況は `phase_b.<slug>.<target>` を target 単位で見る

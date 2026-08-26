@@ -1,12 +1,15 @@
 # 測定手順
 
-`setup` モードのステップ 3。**すべて実測する。推測は「未測定」と明記する**（測れない場合の扱いは末尾「停止条件」を参照）。
+`setup` モードのステップ 5。**すべて実測する。推測は「未測定」と明記する**（測れない場合の扱いは末尾「停止条件」を参照）。
 
 結果は `.replace/survey.md`（テンプレート: [`../assets/survey-template.md`](../assets/survey-template.md)）に記録する。各測定値には測定方法・対象・日時を添え、後から再測定・比較できるようにする。
 
 **測定対象の環境**: `side: current` の target から選ぶ（依頼の環境指定は `--target <name>` 相当として扱う）。
+**`current.origin: received-assets` の場合、対象は `current-environment-bootstrap` が再構築して引き渡した target である**——
+引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）を確認してから測定に入る（未完了なら測定せず `setup` の手順 4 へ戻す）。
 省略時の既定・候補提示・不在や側違いの名前の扱いは [`project-config.md`](project-config.md)「実行対象環境」の「選択規則」に従う（ここへ転記しない）。
 **選んだ target 名は `.replace/survey.md` の「対象環境」に記録する**（現側 target の変更はベースライン陳腐化として扱われるため、どの環境で測ったかを後から辿れるようにする）。
+**`received-assets` の場合は同ファイルの「現行環境の由来」欄に再構築である旨と引き渡しの状態も残す**——同じ URL でも再構築の版が変われば測定値が変わりうるため。
 
 ## 1. セマンティクス測定（role プローブ）
 

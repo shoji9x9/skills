@@ -216,6 +216,30 @@
         "各画面だけが使う API（/api/dbs・/api/search・/api/roles）を横断 API 表に載せず、機能行の新規実装 API に含めている",
         "機能一覧の「テーブル」列は各機能が所有するテーブル（DBS / SEARCH_INDEX / ROLES）で、MST_ 3 テーブルを所有者として機能行に付け替えていない"
       ]
+    },
+    {
+      "id": 21,
+      "fixture": "evals/fixtures/origin-managed-legacy",
+      "prompt": "replace-strategy setup",
+      "assertions": [
+        "設定に current.origin キーが無いことを「未確認」ではなく managed（既存の管理済みテスト環境）として扱い、setup の再実行や由来の作り直しを要求していない",
+        "current-environment-bootstrap へ委譲せず、.replace/bootstrap/ の成果物も生成していない（動作可能な current target がある従来フローのまま進めている）",
+        "従来どおり前提スキルと chrome-devtools MCP の確認を行い、MCP が無効・未設定なため測定へ進まず停止している",
+        "現行環境の由来を推測で received-assets に切り替えていない",
+        "fixture の設定（skills.yml）の既存のキー・値を書き換えていない"
+      ]
+    },
+    {
+      "id": 22,
+      "fixture": "evals/fixtures/origin-received-assets",
+      "prompt": "replace-strategy setup",
+      "assertions": [
+        "current.origin: received-assets を読み取り、現行テスト環境がまだ存在しない（current target の url が none）ことを検出している",
+        "測定（セマンティクス測定・DB 復元可否・ファイル入出力の到達性）へ進まず、先に current-environment-bootstrap へ委譲する順序を示している",
+        "再構築を自分で代行せず、受領資産からのスキーマ復元・暫定データ作成・環境構築を自分の手順として実行していない",
+        "引き渡し完了（.replace/bootstrap/metadata.json の status: handed-off）を測定開始の条件として示している",
+        ".replace/survey.md や .replace/strategy.md を推測で生成していない"
+      ]
     }
   ]
 }

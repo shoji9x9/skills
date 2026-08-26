@@ -5,6 +5,8 @@
 
 - 測定日時: （ISO 8601）
 - 対象環境: （測定に使った `side: current` の target 名（URL）。例: current-test（<その target の url>）。`url_command` の target は URL を書かず target 名のみ——解決した URL は成果物に書かない）
+- 現行環境の由来: （設定 `current.origin` の値。`managed` ＝既存の管理済み環境／`received-assets` ＝受領資産から再構築。
+  後者は `.replace/bootstrap/metadata.json` の `status` と `handoff.unconfirmed` を併記する——未確認の意味論の上で測った値であることを後から辿れるようにする）
 - 対象コミット: （現行リポジトリのコミット SHA。コード入手不可ならその旨）
 - 測定エージェント・モデル・エフォート・スキルバージョン: （値）
 

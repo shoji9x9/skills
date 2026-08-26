@@ -1,0 +1,49 @@
+{
+  "_note": "current-environment-bootstrap が .replace/bootstrap/metadata.json として生成する。形式の正本は current-environment-bootstrap が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。status は blocked | handed-off の 2 値で、handed-off を名乗る条件は工程 7（起動・認証・主要画面到達）がすべて実測済みかつ工程 8（空の環境からの再実行）が再現できていること。確認待ちの意味論が残っていること自体は handed-off を妨げない（handoff.unconfirmed に載せて渡す）。blocked のときは blocked_on に停止理由を入れ、質問票の該当項目を questionnaire_refs に載せる。handoff.boot_requirements は golden-dataset フェーズ A のデータ設計に含める必要がある起動要件（フェーズ A の投入が暫定起動データを置き換えるため、列挙しないと再投入後に環境が起動しなくなる）。",
+  "status": "<blocked | handed-off>",
+  "blocked_on": ["<停止理由。status が blocked のときだけ。例: 起動に必須の semantics が確認待ち>"],
+  "questionnaire_refs": ["<質問票の該当項目。例: Q-3>"],
+  "origin": "received-assets",
+  "generated_at": "<生成日時（ISO 8601）>",
+  "updated_at": "<最終更新日時（ISO 8601）>",
+  "current": {
+    "target": "<再構築先の side: current target 名>",
+    "schema_restored_from": "<received-ddl | migrations | orm | mixed>",
+    "schema_unfilled": ["<復元で埋まらなかった領域。無ければ空配列>"],
+    "provisional_seeded_at": "<暫定起動データを投入した日時（ISO 8601）。未投入なら null>",
+    "verified_at": "<工程 7 を完了した日時（ISO 8601）。未完了なら null>",
+    "rebuild_reproduced": "<工程 8 で空の環境から再現できたか。true | false（真偽値で書く）>",
+    "rebuild_verified_at": "<工程 8 を完了した日時（ISO 8601）。未実施なら null>"
+  },
+  "assets": {
+    "received": 0,
+    "derivable": 0,
+    "missing": 0
+  },
+  "semantics": {
+    "confirmed": 0,
+    "pending": 0,
+    "unresolvable": 0,
+    "pending_features": [
+      "<確認待ちが影響する機能。features.md 採番後は slug。採番前は機能の呼び名>"
+    ]
+  },
+  "handoff": {
+    "boot_requirements": [
+      "<golden-dataset フェーズ A のデータ設計に含める起動要件。例: admin ロールのユーザー、コード表 mst_status>"
+    ],
+    "unconfirmed": ["<未確認のまま引き渡す項目。無ければ [\"なし\"] と書き、空配列で黙らせない>"]
+  },
+  "tool": {
+    "dir": "<bootstrap_tool_dir。未指定時 bootstrap/>",
+    "schema_entry": "<空の DB からスキーマを構築する入口のパス>",
+    "seed_entry": "<暫定起動データを投入する入口のパス>",
+    "language": "<typescript | sql | shell>"
+  },
+  "run": {
+    "agent": "<作業したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<current-environment-bootstrap のバージョン>"
+  }
+}

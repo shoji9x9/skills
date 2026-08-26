@@ -16,6 +16,8 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠（`parity-diff` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束判定の機械可読値（`converged`・`results`）と他機能待ちの帰属（`blocked_by[]`）（`parity-diff` が生成。スキーマ正本は同スキル）。同上 |
 | `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）と新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
+| `.replace/dataset/verification.md` | 「意味論が未確定の機能」（`current.origin: received-assets` のときだけ。`golden-dataset` が生成。スキーマ正本は同スキル） |
+| `.replace/bootstrap/metadata.json` | 現行環境の再構築の状態（`status` / `blocked_on` / `semantics.pending_features`）（`current-environment-bootstrap` が生成。スキーマ正本は同スキル。`received-assets` のときだけ） |
 
 成果物のスキーマ正本は各生産スキルにある。ファイルが無い場合は「未着手」として扱う（エラーにしない）。
 ただし `.replace/features.md` 自体が無い場合は `setup` 未実施として報告し、`setup` の実行を案内する（以降の導出は行わない）。
@@ -48,7 +50,9 @@ done
 2. **他機能待ちの解除検出**: `diff-metadata.json` の `blocked_by[]` を全 slug × target で集め、**依存先が同じ target で新側 green（`new/<target>/replace-metadata.json` の `suite.new_green` が true）になっているものを列挙する**。
    これは「依存先が実装されたので依存元の `parity-diff` を再実行すれば解消しうる差分」であり、**再判定のトリガーは本モードが持つ**（`parity-replace` は自分が green にした機能の依存元を知らない）。
    依存先がまだ green でない `blocked_by` は「他機能待ちで停止中（依存先 slug と Issue）」として報告する——`converged: false` を「往復中」と混同しない
-3. **未検証領域と許容した差分の一覧**: 全 slug の `gaps.md` を集約する。スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データ不足も含め、**対象外にした事実を隠さない**。切替判断の材料として提示する。
+3. **未検証領域と許容した差分の一覧**: 全 slug の `gaps.md` を集約する。
+   **`current.origin: received-assets` では、`.replace/dataset/verification.md` の「意味論が未確定の機能」（無ければ `.replace/bootstrap/metadata.json` の `semantics.pending_features`）も併せて集約し、
+   「意味論の確認待ちで開始できない」機能を未着手と区別して示す**——スイートを持たないことは同じでも、待っているものが違う（前者は質問票の回答、後者は着手）。スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データ不足も含め、**対象外にした事実を隠さない**。切替判断の材料として提示する。
    合わせて `component-diff-exceptions.json` の**原因数とインスタンス数**を slug ごとに示す——承認済みで説明済みではあるが、**インスタンス件数は検証の弱さのシグナル**である
    （件数を畳んで隠さない契約なので、原因数ではなくインスタンス数もそのまま数えて報告する）
 4. **横断 API の影響範囲**: 横断 API に手が入ったら利用側の全機能を再検証する必要がある。features.md の fan-out から「このリソースを使う機能一覧」を導出し、横断 API Issue の状態変化（再オープン・変更）に対して**再検証が必要な機能**を列挙する

@@ -18,7 +18,7 @@ scripts/run-skill-eval.sh \
   --out tests/replace-strategy/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
-# fixture 付き eval（evals.json に `fixture` を持つ eval 6-9）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
+# fixture 付き eval（evals.json に `fixture` を持つもの）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
 scripts/run-skill-eval.sh \
   --skill replace-strategy --config with_skill \
   --fixture skills/replace-strategy/evals/fixtures/status-multi-target \
@@ -44,5 +44,11 @@ scripts/run-skill-eval.sh \
 - eval 20 の fixture（`inventory-crosscut-tables`）は測定・戦略が完了した状態を持たせ、**どの機能も所有せず横断 API からしか読まれないテーブル**（`MST_*` 3 つ）が
   インベントリから落ちないことを検証する。fixture・プロンプトのどちらにも「横断 API 表の参照テーブル列に書く」という結論は書かない
   （書くと baseline がそれを読んで assertion を満たす）。機能一覧の列だけを見る実装では 3 テーブルの置き場所が無く落ちるため、弁別が立つ
+- eval 21 の fixture（`origin-managed-legacy`）は **`current.origin` キーを持たない**設定（本キー導入前に `setup` を終えたプロジェクト）を持たせ、
+  キー欠落＝`managed` として**従来フローが変わらない**こと（`current-environment-bootstrap` へ委譲せず、由来を推測で切り替えないこと）を検証する。
+  fixture には由来に関する注記を書かない（書くとベースラインがそれを読んで assertion を満たす）
+- eval 22 の fixture（`origin-received-assets`）は `current.origin: received-assets` と `url: none` の current target、受領した DDL だけを持たせ、
+  **測定の前に `current-environment-bootstrap` へ委譲し、再構築を代行しない**ことを検証する。
+  受領資産を fixture に置くのは、置かないと「再構築を代行しない」が「材料が無いからできない」と区別できないため
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
