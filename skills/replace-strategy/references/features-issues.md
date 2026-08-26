@@ -1,6 +1,6 @@
 # 機能インベントリと Issue 起票
 
-`setup` モードのステップ 7（インベントリ作成）と `issues` モード（起票）の詳細。インベントリの正本は `.replace/features.md`（テンプレート: [`../assets/features-template.md`](../assets/features-template.md)）。
+`setup` モードのステップ 9（インベントリ作成）と `issues` モード（起票）の詳細。インベントリの正本は `.replace/features.md`（テンプレート: [`../assets/features-template.md`](../assets/features-template.md)）。
 
 ## 機能インベントリ（`.replace/features.md`）
 

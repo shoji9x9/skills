@@ -1,6 +1,6 @@
 ---
 argument-hint: <setup | issues | status> [--feature <slug>...]
-description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル（golden-dataset / parity-suite / parity-replace / parity-diff）へ振り分けるスキル。自分では実装しない。setup（依存確認・対話セットアップ・測定・戦略決定・意図的差異レジストリ・機能インベントリ・パッケージ選定）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル（golden-dataset / parity-suite / parity-replace / parity-diff）へ振り分けるスキル。自分では実装しない。setup（依存確認・現行環境の由来確認・対話セットアップ・測定・戦略決定・レジストリ・機能インベントリ・パッケージ選定。受領資産からの再構築は current-environment-bootstrap へ委譲）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
 license: MIT
 name: replace-strategy
 ---
@@ -20,7 +20,7 @@ replace-strategy status
 
 | モード | 内容 | 実行タイミング |
 |---|---|---|
-| `setup` | 依存確認 → 対話セットアップ → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 | 最初に 1 回 |
+| `setup` | 依存確認 → **現行環境の由来の確認** → 対話セットアップ → **現行環境の再構築（受領資産のときだけ）** → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 | 最初に 1 回 |
 | `issues` | 対象機能を選択して Issue 起票。未起票の機能だけが候補に出る | 何度でも |
 | `status` | Issue の状態とリポジトリ内の成果物から現況を導出し、未検証領域の一覧を出す | 何度でも。切替判断の前に |
 
@@ -31,7 +31,8 @@ replace-strategy status
 ## 前提
 
 - **ツール**: `gh`（GitHub CLI）, `git`
-- **前提スキル**: `issue-create`（`issues` モードの起票委譲先）、`browser-test`（現行アプリのブラウザ操作の作法）
+- **前提スキル**: `issue-create`（`issues` モードの起票委譲先）、`browser-test`（現行アプリのブラウザ操作の作法）、
+  `current-environment-bootstrap`（**現行環境の由来が「受領資産からの再構築」のときだけ**。委譲先。下記「setup モード」の手順 2・4）
 - **MCP**: chrome-devtools MCP（セマンティクス測定に必須）
 - **固定の技術スタック前提**（スキル群共通。ここに列挙したもの以外は固定しない）:
   - 新側フロントエンド・バックエンド: TypeScript
@@ -52,6 +53,7 @@ replace-strategy status
 ## 厳守の制約（禁止事項）
 
 - **測定せずに戦略を語らない。** 測れない場合は戦略へ進まず停止する。推測は「未測定」と明記する
+- **現行テスト環境が無いまま測定へ進まない。** 現行環境の由来（`current.origin`）が「受領資産からの再構築」なら、`current-environment-bootstrap` の引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）まで測定・戦略へ進まない。**再構築を自分で代行しない**（推測で建てた環境を正解の基準にすると、以降の全比較がその誤りを追認する）
 - **LLM に「差分があるか」を聞かない。** 差分の検出は決定論的ツールの仕事、LLM の仕事は分類（要対応／許容／環境ノイズ）
 - **モデルの主観（「同じに見えます」）を収束根拠にしない。** 収束判定は決定論的ツールが行う
 - **振る舞い保存と品質改善を同じフェーズで狙わない。** 忠実な移植は良い性質も悪い性質も等しく運ぶ
@@ -73,10 +75,16 @@ replace-strategy status
 
 ## setup モード
 
-依存確認 → 対話セットアップ → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定、の順に進める。
+依存確認 → 現行環境の由来の確認 → 対話セットアップ → 現行環境の再構築（必要時のみ）→ 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定、の順に進める。
 
 1. **依存の確認**: 前提スキル（`issue-create` / `browser-test`）のインストール状況と chrome-devtools MCP の有効性を確認する。未導入・無効なら導入手順（`gh skill install shoji9x9/skills <name>`、MCP の設定）を示す。**MCP が無いままでは測定できないため、手順を示したうえで停止する**
-2. **対話セットアップ**: 次を対話で確認し設定ファイルへ保存する。**技術スタックはスキル本体に書かず、設定で受け取る。** シークレットの扱いは [`references/project-config.md`](references/project-config.md) の「シークレットの扱い」に従い、**接続確認を最初に行い、繋がらなければ早期に失敗する**
+2. **現行環境の由来の確認**: 測定対象になる現行テスト環境が次のどちらかを確認し、`current.origin` へ記録する（意味論の正本は [`references/project-config.md`](references/project-config.md) の「現行環境の由来」）。
+   **由来を推測で決めない**——現行アプリの URL が設定に書けることは、その環境が動いていることの証拠ではない
+   - **`managed`（既存の管理済みテスト環境）**: 自社で管理している動作可能な環境がある。以降は従来どおり進める（手順 4 は行わない）
+   - **`received-assets`（受領資産から自社で再構築する）**: 先方から受領した資産だけがあり、比較基準になる環境をこれから建てる。
+     受領資産の置き場所を `current.received_assets`（1 つ以上のパス）に記録し、**`current-environment-bootstrap` のインストール状況をここで確認する**
+     （未導入なら `gh skill install shoji9x9/skills current-environment-bootstrap` を示して停止する。再構築を代行しない）
+3. **対話セットアップ**: 次を対話で確認し設定ファイルへ保存する。**技術スタックはスキル本体に書かず、設定で受け取る。** シークレットの扱いは [`references/project-config.md`](references/project-config.md) の「シークレットの扱い」に従い、**接続確認を最初に行い、繋がらなければ早期に失敗する**
    - 現・新のリポジトリ、起動ラッパー
    - **新側アーキテクチャの確認と記録**: 事前に決定済みの骨格を確認し、スタックの列挙を `new.stack` に、決定記録のドキュメントのパスを `references.architecture` に記録する。
      **骨格を決めず、下書きも生成しない**（未決なら決定を促し、`references.architecture` は空値の枠だけを残す。正本は [`references/project-config.md`](references/project-config.md) の「新側アーキテクチャ」）
@@ -99,18 +107,24 @@ replace-strategy status
    - **`references`（知識の注入）**: パス型キー（`architecture` / `coding_conventions` / `ui_library` / `db_semantics` / `env_setup`）を**キーごと生成する**。この時点でパスが決まらないキーも省略せず空値で置き、「どのスキルがいつ読むか」をコメントで添える。
      **未整備で下流が停止するのは正しい挙動**であり、枠を作るのは停止を避けるためではなく**不足を `setup` 時点で見えるようにするため**（キーごと無いと、下流のスキルが停止して初めて不足が分かる）。
      **`dependency_policy` だけは空値で生成しない**——キーの有無自体が「未確認」を表す三値のため、空値の枠を置くと下流の確認が発火しなくなる
-     （手順 8 の確認結果としてパスか `none` を書き、確認まで至らなければキーごと書かない）。正本は [`references/project-config.md`](references/project-config.md) の「references（知識の注入）」
-3. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
+     （手順 10 の確認結果としてパスか `none` を書き、確認まで至らなければキーごと書かない）。正本は [`references/project-config.md`](references/project-config.md) の「references（知識の注入）」
+4. **現行環境の再構築**（`current.origin: received-assets` のときだけ）: `current-environment-bootstrap` へ委譲する。
+   **引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）まで測定へ進まない**（`blocked` なら質問票の回答・追加資産を待ち、`--resume` での再開を案内して停止する）。
+   引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**（従来フローは変わらない）
+5. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価を行い、
    `.replace/survey.md` に記録する。**測れない場合はここで停止する**
-4. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
-5. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
-6. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
-7. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
+6. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
+7. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
+8. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**
+9. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
    併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)。
    **4 種（ゴールデンデータセット／横断 API／機能／バッチ）に還元できない作業**（例: テーブルをまたぐ新側スキーマの前倒し設計）は「その他の Issue（4 種以外）」表に置き、記録先が無いことを理由にヘッダへ独自項目を足したり記録を諦めたりしない
-8. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
+   **`current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列へ非破壊で書き戻す**——
+   同ファイルは `.replace/features.md` が存在しない時点で書かれるため機能の呼び名しか持てず、書き戻さないと `golden-dataset` / `parity-suite` が確認待ちの意味論を slug で引けない
+   （正本は `current-environment-bootstrap` の `references/data-semantics.md`）
+10. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
    判断材料・確認手段・決める順序は [`references/dependency-selection.md`](references/dependency-selection.md)。
    **ライセンス方針・供給網ポリシーの有無はリポジトリごとに違うため、あればそれに従い、未確認なら方針の要否そのものをユーザーに確認**して結果を設定（`references.dependency_policy`）へ記録する（`none` ＝確認済みで方針なしは再確認しない）。
    機能固有の部品は `parity-replace` が実装フェーズ前に同じ基準で決める（ここで全部を洗い出そうとしない）
@@ -139,11 +153,11 @@ replace-strategy status
 ## 成果物
 
 すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
-下流スキルの成果物（`.replace/parity/<slug>/` や `.replace/dataset/` の形式）は各スキルが定義する。同じ形式を複数スキルで重複定義しない。
+下流スキルの成果物（`.replace/parity/<slug>/` や `.replace/dataset/`、`.replace/bootstrap/` の形式）は各スキルが定義する。同じ形式を複数スキルで重複定義しない。
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
-| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
+| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |
@@ -154,11 +168,14 @@ replace-strategy status
 
 | スキル | 役割 |
 |---|---|
+| `current-environment-bootstrap` | 受領資産から現行テスト環境（`side: current` target）を再構築する。**`current.origin: received-assets` のときだけ**、`setup` が測定の前に委譲する |
 | `golden-dataset` | 現行と新側に投入する共通テストデータの投入ツール（フェーズ A: 現行、フェーズ B: 新側）。全機能横断 |
 | `parity-suite` | パリティスイート（新旧どちらにも当てられる実行可能な合否判定基準）の構築と強度検証 |
 | `parity-replace` | 新側実装の薄い層。ページ単位の分割・新側マッピングの充填・敵対的レビュー。実装フローは `issue-start` に委譲 |
 | `parity-diff` | 決定論的差分器（画素＋特性照合＋aria）→ LLM トリアージ |
 
-**全体の依存順**: `replace-strategy`（setup）→ `golden-dataset`（フェーズ A）→ 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）〕。横断 API Issue は機能 Issue より先。
+**全体の依存順**: `replace-strategy`（`setup` の由来確認）→ **必要時のみ `current-environment-bootstrap`** → `replace-strategy`（測定・戦略・機能インベントリ）
+→ `golden-dataset`（フェーズ A）→ 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）〕。横断 API Issue は機能 Issue より先。
 
 姉妹スキルが未インストールでも本スキル（測定・戦略・起票）は動くが、起票した Issue の実施には必要になる。`issues` モードの完了時に案内する。
+**例外は `current-environment-bootstrap`**——`current.origin: received-assets` のときは測定の前提そのものが揃わないため、未インストールなら導入手順を示して停止する（手順 2）。

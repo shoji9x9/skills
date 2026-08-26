@@ -11,7 +11,7 @@
 `shoji9x9/skills` 配布物がインストール先で参照するプロジェクト設定。**人間が確定させた方針の置き場所**であり、`gh skill update` は skill ディレクトリ外のこのファイルに触れないため設定は保持される。
 スキルが書くキーは限られる（下記「キーの書き手とライフサイクル」。作業中に件数が増え続ける台帳はここに置かない）。
 
-**このキーは姉妹スキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）が直接読む共有契約である。** キー名・構造を変える場合は姉妹スキル側の参照も併せて更新する。
+**このキーは姉妹スキル（`current-environment-bootstrap` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）が直接読む共有契約である。** キー名・構造を変える場合は姉妹スキル側の参照も併せて更新する。
 
 ```yaml
 version: 1
@@ -20,6 +20,8 @@ skills:
     current: # 現行アプリ（URL・DB・認証・禁止操作は targets の side: current が持つ）
       repo: <owner/repo | ローカルパス | none> # コードの入手性。無ければ none
       stack: [] # 現行のスタック（バックエンド言語・フロントフレームワーク）。測定・対話で判明した値を記録する
+      origin: managed # 現行テスト環境の由来。managed（既存の管理済み環境。既定・キー欠落も managed）| received-assets（受領資産から自社で再構築する。下記「現行環境の由来」）
+      received_assets: [] # origin: received-assets のとき必須（1 つ以上のパス）。受領資産の置き場所。current-environment-bootstrap が棚卸しの入力に読む
     new: # 新側アプリ（URL・DB・認証・禁止操作は targets の side: new が持つ）
       repo: <owner/repo | ローカルパス> # 骨格がスキャフォールド済みのリポジトリ（骨格の選定はスキル群の対象外。下記「新側アーキテクチャ」）
       stack: [] # 新側のスタック（フレームワーク・バックエンド構成・ORM 等）。事前に決定済みのものを setup の対話で記録する（current.stack と対称）
@@ -95,6 +97,7 @@ skills:
       wrapper: "" # 任意の起動ラッパー（例: aws-vault exec dev --）。シークレットが要るコマンドの前に付ける
     parity_suite_dir: e2e/ # パリティスイートの配置（parity-suite が読む。未指定時は e2e/）
     dataset_tool_dir: seed/ # golden-dataset の投入ツールの配置先（golden-dataset が読む。未指定時は seed/）
+    bootstrap_tool_dir: bootstrap/ # current-environment-bootstrap の再構築ツール・暫定起動データ投入ツールの配置先（未指定時は bootstrap/）。current.origin: received-assets のときだけ使う
     dataset_mode: db # ゴールデンデータセットの実体（下記「データセットの実体」）。db（既定・省略可）| static
     dataset_static_paths: [] # dataset_mode: static のとき必須。投入ツールが生成・削除してよいパス（これ以外へ書いたら停止）
     uses_storage: true # アプリがファイルストレージ（オブジェクトストレージ・共有ファイルシステム）を使うか。既定は false で、false・省略なら targets の storage も書かない（下記「ファイルストレージ」）。dataset_mode と直交する別軸
@@ -139,7 +142,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 
 | 区分 | キー | 書き込み |
 |---|---|---|
-| **人間が確定させる方針** | `current` / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` の確認結果、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
+| **人間が確定させる方針** | `current`（`origin` / `received_assets` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
 | **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき非破壊追記し、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録** |
 
 - **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
@@ -180,9 +183,9 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 | キー | 読むスキルと工程 | 未整備のときの挙動 |
 |---|---|---|
 | `architecture` | `parity-replace` の部品の採否・実装工程（手順 3 以降）、依存を決める全スキルのランタイム制約の判断 | `parity-replace` は部品の採否・実装に入らず**停止する**（骨格を推測すると全機能・全ページに波及し、後戻りが最も高くつく）。ただし新側リポジトリに骨格が既に実装されていれば、**実態から読み取った内容**を下書きとして提示し、ユーザーが確定させてから進める（既存実装の読み取りは記述であって決定ではない）。**依存を決める側**（`parity-suite` / `parity-diff` 等、実装工程を持たないスキル）は**停止しないが、実行基盤の制約を推測で埋めない**——ユーザーに確認してから候補を絞る（[`dependency-selection.md`](dependency-selection.md)「判断材料」の実行基盤の行） |
-| `coding_conventions` | 対象プロジェクト側にコードを書く全スキル——`parity-replace` の実装工程と敵対的レビュー、`golden-dataset` の投入ツール生成、`parity-suite` のスイート authoring | **停止しない**（規約を持たないリポジトリもあるため）。ただし**推測で自分の流儀を持ち込まず**、**生成先リポジトリ**（新側とは限らない。下記「コーディング規約」の対応表）の既存コードと基底ドキュメントから読み取れる範囲に従い、整備をユーザーに促す |
+| `coding_conventions` | 対象プロジェクト側にコードを書く全スキル——`parity-replace` の実装工程と敵対的レビュー、`golden-dataset` の投入ツール生成、`parity-suite` のスイート authoring、`current-environment-bootstrap` の再構築ツール・暫定起動データ投入ツール生成 | **停止しない**（規約を持たないリポジトリもあるため）。ただし**推測で自分の流儀を持ち込まず**、**生成先リポジトリ**（新側とは限らない。下記「コーディング規約」の対応表）の既存コードと基底ドキュメントから読み取れる範囲に従い、整備をユーザーに促す |
 | `ui_library` | `parity-replace` の「見た目の系統差を源流で縮める」工程、`parity-diff` の正規化（系統差の判断材料） | `parity-replace` はテーマ寄せに入る前に整備を促す（系統差を源流で縮められず、宣言・未検証が膨らむ）。`parity-diff` は**停止しない**が、判断材料が無いまま「許容」へ寄せない |
-| `db_semantics` | `golden-dataset` のフェーズ B（新側への写像・現新一致検証）、`parity-suite` の並び順特性化、`parity-diff` の並び順差の判断 | フェーズ B は**停止する**（写像の根拠が無い）。`parity-suite` / `parity-diff` は**停止しない**（実測で特性化し、整備を促す） |
+| `db_semantics` | `golden-dataset` のフェーズ B（新側への写像・現新一致検証）、`parity-suite` の並び順特性化、`parity-diff` の並び順差の判断、`current-environment-bootstrap` の復元項目の突き合わせ（整備済みのときだけ） | フェーズ B は**停止する**（写像の根拠が無い）。`parity-suite` / `parity-diff` は**停止しない**（実測で特性化し、整備を促す） |
 | `env_setup` | 全スキル。接続確認（現行 URL への疎通・環境変数の存在確認）が失敗したときの案内先 | 案内先が無いだけで停止はしない |
 | `dependency_policy` | 依存を決める全スキル（`replace-strategy` / `parity-suite` / `parity-replace` / `parity-diff`） | 三値のため下記「依存導入の方針」に従う（欠落＝未確認としてユーザーに要否を確認して記録する） |
 
@@ -196,6 +199,23 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 - **停止させるのは、推測が全機能・全ページに波及して後戻りが高くつくキーだけにする**（`architecture` / フェーズ B の `db_semantics` がこれに当たる）
 - **パス型キーは空値（`""`）で枠を作る。** 三値（キーの有無が「未確認」を意味する）にするのは、「持たない」こと自体が判断を変える場合だけ（現状は `dependency_policy` のみ）
 - 追加したキーを読むスキル側にも、そのスキルの「プロジェクト設定の解決」キー表へ行を足す
+
+## 現行環境の由来（`current.origin` / `current.received_assets`）
+
+**測定対象になる現行テスト環境が「既にある」のか「これから建てる」のか**を宣言する。スキル群の全工程は「動いている現行アプリが正解である」ことに立脚するため、
+**この 1 つの分岐が、以降のすべての比較が正しい基準の上に乗るかどうかを決める。**
+
+| 値 | 意味 | `setup` の挙動 |
+|---|---|---|
+| `managed`（既定） | 自社で管理している動作可能なテスト環境がある | 従来どおり。対話セットアップの直後に測定へ進む |
+| `received-assets` | 先方から受領した資産だけがあり、比較基準になる環境をこれから自社に再構築する | 測定の前に `current-environment-bootstrap` へ委譲し、**引き渡し完了まで測定へ進まない** |
+
+- **キー欠落は `managed`** として扱う。**キーが無いプロジェクトに `setup` の再実行を要求しない**（本キーの導入前に `setup` を終えたものは、動作可能な現行環境が既にあったからこそ測定を完了できている）
+- **`received-assets` は「コードだけ受領した」ことを指すのではない。** 判定の軸は**測定できる環境が動いているか**であり、コードの入手性（`current.repo`）とは別の軸である
+  （コードがあっても環境が無ければ `received-assets`、コードが無くても動く環境があれば `managed`）
+- **由来を推測で決めない。** 設定に現行アプリの URL を書けることは、その URL に到達できることの証拠ではない。`setup` の手順 2 でユーザーに確認して記録する
+- `current.received_assets` は 1 つ以上のパス。受領が複数回に分かれる場合は追記する（`current-environment-bootstrap` が棚卸しで全パスを走査する）
+- **再構築の実施は `current-environment-bootstrap` の担当**であり、`replace-strategy` は代行しない。同スキルの成果物（`.replace/bootstrap/`）とツール配置（`bootstrap_tool_dir`）の正本は同スキルにある
 
 ## 新側アーキテクチャ（`new.stack` / `references.architecture`）
 
@@ -283,6 +303,9 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
   - `dataset_mode: static` なら `dataset_static_paths` が 1 つ以上ある（無ければ書き込み範囲を限定できないため停止する）
   - `storage.seedable: true` の target は `storage.env_vars` と 1 つ以上の `storage.write_scope` を持つ（`db.seedable` と同じ fail-closed。欠ければ停止する）
   - `uses_storage` が `false`・欠落なのに `storage` を持つ target があれば停止する（宣言の矛盾を黙って解釈しない。使うなら `uses_storage: true` を書く）
+  - `current.origin: received-assets` なら `current.received_assets` が 1 つ以上ある（受領資産の所在を知らずに再構築はできない。空・欠落は停止する）
+  - **`side: current` の target が `url: none` を持てるのは `current.origin: received-assets` かつ再構築が未完了の間だけ**（`current-environment-bootstrap` が引き渡し時に実 URL と `default: true` を埋める）。
+    `origin: managed` で `url: none` の current target は停止する——測定対象が無いまま `setup` が測定へ進む
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
 - **選択規則の正本は下記「選択規則」節**（各スキルは自分の対象側だけを宣言し、規則の全文はここだけが持つ）
 - **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい。スキルキーを跨いだ共有の可否と制約は上記「設定ファイルの共有と YAML アンカー」）
