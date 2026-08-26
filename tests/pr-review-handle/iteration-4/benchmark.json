@@ -8,7 +8,7 @@
     "evals_run": [10],
     "runs_per_configuration": 1,
     "scope": "Issue #230 で追加した新規 eval（id 10）のみ。既存 eval は再実行していない。",
-    "baseline": "without_skill 未実施（レートリミット配慮）。run_summary.without_skill / delta は算出されておらず、比較値として無効。"
+    "baseline": "without_skill 未実施（レートリミット配慮）。存在しないベースラインとの比較値になるため run_summary.without_skill と run_summary.delta は削除した（比較値は無い）。"
   },
   "runs": [
     {
@@ -72,11 +72,6 @@
         "min": 0,
         "max": 0
       }
-    },
-    "delta": {
-      "pass_rate": "+1.00",
-      "time_seconds": "+0.0",
-      "tokens": "+0"
     }
   },
   "notes": []
