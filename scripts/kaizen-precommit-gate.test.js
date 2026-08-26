@@ -363,27 +363,33 @@ describe("ゲートの commit 検出", () => {
 // 同形の対（同じオプション・同じ引用形で、違うのはコミット先だけ）が両方あって初めて、
 // exit 0 が「スコープ判定で外した」のか「commit として検出できていない」のかを弁別できる。
 describe("コミット先のスコープ判定", () => {
-  const FIXTURE = "/tmp/kaizen-gate-external-221";
+  // プロジェクト（`makeProject()` の mkdtemp）の外側にある一意なパス。`/tmp` 直書きだと
+  // 既存ディレクトリ・リポジトリと衝突してスコープ判定が変わり得る（`tmpdir()` は環境で異なる）。
+  const FIXTURE = join(tmpdir(), `kaizen-gate-external-221-${process.pid}`);
+  const SPACE_NAME = `kaizen gate external ${process.pid}`;
+  const SPACE_FIXTURE = join(tmpdir(), SPACE_NAME);
+  const ESCAPED_SPACE_FIXTURE = SPACE_FIXTURE.replaceAll(" ", "\\ ");
+  const ESCAPED_SPACE_NAME = SPACE_NAME.replaceAll(" ", "\\ ");
 
   const external = [
     `git -C ${FIXTURE} commit -qm base`,
     `git --git-dir=${FIXTURE}/.git --work-tree=${FIXTURE} commit -qm base`,
     `git --git-dir ${FIXTURE}/.git commit -m x`,
     // `=` 連結形で引用・エスケープにより空白を含む値。
-    `git --git-dir="/tmp/kaizen gate external 221/.git" commit -m x`,
-    "git --git-dir=/tmp/kaizen\\ gate\\ external\\ 221/.git commit -m x",
-    `git --git-dir='/tmp/kaizen gate external 221/.git' commit -m x`,
+    `git --git-dir="${SPACE_FIXTURE}/.git" commit -m x`,
+    `git --git-dir=${ESCAPED_SPACE_FIXTURE}/.git commit -m x`,
+    `git --git-dir='${SPACE_FIXTURE}/.git' commit -m x`,
     // フィクスチャは 1 行で作られるので、フックが走る時点では対象がまだ存在しない。
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git -C ${FIXTURE} commit -m base`,
     // 引用・エスケープを含むコミット先も、外した結果が同じであること。
-    `git -C "/tmp/kaizen gate external 221" commit -m x`,
-    "git -C /tmp/kaizen\\ gate\\ external\\ 221 commit -m x",
+    `git -C "${SPACE_FIXTURE}" commit -m x`,
+    `git -C ${ESCAPED_SPACE_FIXTURE} commit -m x`,
     // `--git-dir` と併記した `--work-tree` は、リポジトリが外部だと確定するので対象外。
     `git --git-dir=${FIXTURE}/.git --work-tree ${FIXTURE} commit -m x`,
     // `cd` があっても、絶対パス指定なら cwd に依存しないので判定できる。
-    `cd /tmp && git -C ${FIXTURE} commit -m x`,
+    `cd ${tmpdir()} && git -C ${FIXTURE} commit -m x`,
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
-    "git -C /tmp -C kaizen-gate-external-221 commit -m x",
+    `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
   ];
 
   test.each(external)("外部宛て: %s => exit 0", (command) => {
@@ -402,18 +408,18 @@ describe("コミット先のスコープ判定", () => {
     "git -C {P}/sub commit -m x",
     "git --git-dir={P}/.git --work-tree={P} commit -qm base",
     "git --git-dir {P}/.git commit -m x",
-    'git --git-dir="{P}/kaizen gate external 221/.git" commit -m x',
-    "git --git-dir={P}/kaizen\\ gate\\ external\\ 221/.git commit -m x",
-    "git --git-dir='{P}/kaizen gate external 221/.git' commit -m x",
+    'git --git-dir="{P}/{SPACE}/.git" commit -m x',
+    "git --git-dir={P}/{ESCAPED_SPACE}/.git commit -m x",
+    "git --git-dir='{P}/{SPACE}/.git' commit -m x",
     // `--work-tree` 単独は外部パスでも判定不能（リポジトリは cwd から探索される）。
-    `git --work-tree="/tmp/kaizen gate external 221" commit -m x`,
+    `git --work-tree="${SPACE_FIXTURE}" commit -m x`,
     // コミット先 repo は外部でも、作業ツリーがプロジェクトならコミットされる内容はこの
     // プロジェクトの活動そのもの。意図的に安全側（ブロック）へ倒す。
     `git --git-dir=${FIXTURE}/.git --work-tree={P} commit -m x`,
     `git -C ${FIXTURE} --work-tree={P} commit -m x`,
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git commit -m base`,
-    'git -C "{P}/kaizen gate external 221" commit -m x',
-    "git -C {P}/kaizen\\ gate\\ external\\ 221 commit -m x",
+    'git -C "{P}/{SPACE}" commit -m x',
+    "git -C {P}/{ESCAPED_SPACE} commit -m x",
     "git -C {PARENT} -C {BASE} commit -m x",
     // 展開しないと値が決まらないパスは判定不能（fail closed）。外部宛てと同形だが通してはいけない。
     "git -C $FIXTURE commit -m x",
@@ -435,7 +441,9 @@ describe("コミット先のスコープ判定", () => {
     const resolved = command
       .replaceAll("{P}", cwd)
       .replaceAll("{PARENT}", dirname(cwd))
-      .replaceAll("{BASE}", basename(cwd));
+      .replaceAll("{BASE}", basename(cwd))
+      .replaceAll("{ESCAPED_SPACE}", ESCAPED_SPACE_NAME)
+      .replaceAll("{SPACE}", SPACE_NAME);
     expect(runGate(resolved, { cwd }).status).toBe(2);
   });
 
