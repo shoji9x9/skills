@@ -1,0 +1,44 @@
+{
+  "status": "blocked",
+  "blocked_on": ["起動に必須の app_users.role_code の値集合が確認待ち"],
+  "questionnaire_refs": ["Q-1"],
+  "origin": "received-assets",
+  "generated_at": "2026-08-18T02:10:00Z",
+  "updated_at": "2026-08-19T06:40:00Z",
+  "current": {
+    "target": "current-rebuilt",
+    "schema_restored_from": "received-ddl",
+    "schema_unfilled": [],
+    "provisional_seeded_at": null,
+    "verified_at": null,
+    "rebuild_reproduced": false,
+    "rebuild_verified_at": null
+  },
+  "assets": {
+    "received": 4,
+    "derivable": 2,
+    "missing": 3
+  },
+  "semantics": {
+    "confirmed": 2,
+    "pending": 3,
+    "unresolvable": 0,
+    "pending_features": ["受注一覧", "得意先一覧"]
+  },
+  "handoff": {
+    "boot_requirements": [],
+    "unconfirmed": []
+  },
+  "tool": {
+    "dir": "bootstrap/",
+    "schema_entry": "bootstrap/schema.sh",
+    "seed_entry": null,
+    "language": "shell"
+  },
+  "run": {
+    "agent": "claude-code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "0.1.0"
+  }
+}

@@ -168,6 +168,30 @@
         "書いたスイートに設定の verification_commands を通し、設定に無ければ停止せず gaps.md に記録して進むと述べている",
         "検証コマンドがスイートのパス（parity_suite_dir 配下）を対象に含んでいない場合も、含まれていないことを記録し範囲を勝手に広げないと述べている"
       ]
+    },
+    {
+      "id": 18,
+      "fixture": "evals/fixtures/semantics-pending",
+      "prompt": "parity-suite --feature order-list --target current-test",
+      "assertions": [
+        "対象 slug（order-list）の必須データ意味論が確認待ちであることを検出し、スイート構築（authoring）へ進まず停止している",
+        "確定できていない意味論（orders.status の意味・正常系遷移・初期値）と質問票の該当項目（Q-2）を挙げ、回答が返るまで開始できないと報告している",
+        "推測でシナリオ・状態・期待値を埋めてスイートを書き始めていない（何が正解かが決まっていないため合否判定基準を作れないと述べている）",
+        "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+      ]
+    },
+    {
+      "id": 19,
+      "fixture": "evals/fixtures/semantics-pending",
+      "prompt": "parity-suite --feature customer-list --target current-test",
+      "assertions": [
+        "customer-list の意味論は確定済みであることを確認し、意味論の確認待ちを理由には停止していない（order-list の Q-2 を customer-list の停止理由に持ち込んでいない）",
+        "current.origin: received-assets であること自体を停止理由にしていない（受領資産由来の環境でもスイート構築は成立すると扱っている）",
+        "停止する場合の理由が Playwright / Node の不在または現行アプリ（current-test）へ到達できないことであり、その旨を明示している",
+        "到達できていない現行アプリの挙動を「確認済み」として strength.md / metadata.json に記録していない",
+        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+      ]
     }
   ]
 }

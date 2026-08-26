@@ -1,0 +1,50 @@
+{
+  "status": "handed-off",
+  "blocked_on": [],
+  "questionnaire_refs": ["Q-2"],
+  "origin": "received-assets",
+  "generated_at": "2026-08-18T02:10:00Z",
+  "updated_at": "2026-08-20T05:00:00Z",
+  "current": {
+    "target": "current-test",
+    "schema_restored_from": "received-ddl",
+    "schema_unfilled": [],
+    "provisional_seeded_at": "2026-08-20T04:30:00Z",
+    "verified_at": "2026-08-20T04:50:00Z",
+    "rebuild_reproduced": true,
+    "rebuild_verified_at": "2026-08-20T04:58:00Z"
+  },
+  "assets": {
+    "received": 5,
+    "derivable": 2,
+    "missing": 2
+  },
+  "semantics": {
+    "confirmed": 3,
+    "pending": 2,
+    "unresolvable": 1,
+    "pending_features": ["order-list"]
+  },
+  "handoff": {
+    "boot_requirements": [
+      "app_users に ADMIN ロールと OPERATOR ロールのユーザーが各 1 件（無いとログイン画面から先へ進めない）",
+      "customers に 1 件以上（受注登録画面の得意先選択が空だと登録できない）"
+    ],
+    "unconfirmed": [
+      "orders.status の意味と正常系遷移（Q-2・回答不能のため追加資産を依頼中）",
+      "orders.status の初期値（Q-2）"
+    ]
+  },
+  "tool": {
+    "dir": "bootstrap/",
+    "schema_entry": "bootstrap/schema.sh",
+    "seed_entry": "bootstrap/seed.sh",
+    "language": "shell"
+  },
+  "run": {
+    "agent": "claude-code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "0.1.0"
+  }
+}

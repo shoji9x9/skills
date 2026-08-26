@@ -1,0 +1,53 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: ./received/app
+      stack: [Java, JSP]
+      origin: received-assets
+      received_assets:
+        - received/
+    new:
+      repo: ./new-app
+      stack: [TypeScript]
+    targets:
+      - name: current-rebuilt
+        side: current
+        url: none
+        db:
+          env_vars: [CURRENT_DB_URL]
+          seedable: true
+        auth:
+          roles:
+            admin:
+              user_name_env: CURRENT_ADMIN_USER
+              password_env: CURRENT_ADMIN_PASS
+        forbidden_actions: []
+        pre_commands: []
+        start: docker compose up -d
+        check_urls: []
+      - name: local-dev
+        side: new
+        url: none
+        db:
+          env_vars: [NEW_DB_URL]
+          seedable: true
+        forbidden_actions: []
+    secrets:
+      wrapper: ""
+    verification_commands:
+      - npm run lint
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    bootstrap_tool_dir: bootstrap/
+    dataset_mode: db
+    references:
+      architecture: ""
+      coding_conventions: ""
+      ui_library: ""
+      db_semantics: ""
+      env_setup: ""
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []

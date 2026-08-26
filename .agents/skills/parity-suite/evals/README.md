@@ -37,5 +37,11 @@ scripts/run-skill-eval.sh \
 - eval 10〜15 は静的サイト移行で見つかった 6 件の不足（Issue #145）に対する回帰。いずれも**誤った前提での依頼を押し戻す形**にしてあり、
   現行アプリ・ブラウザを要する工程まで到達しなくても採点できる（aria の粒度・side 別期待値の置き場所・ポジティブコントロール・
   解決不能ロケータとタイムアウト・API を持たない場合の上流・同梱ツールのコピー先）
+- eval 18 の fixture（`semantics-pending`）は `current.origin: received-assets` でフェーズ A まで完了し、
+  `.replace/dataset/verification.md` の「意味論が未確定の機能」と `.replace/bootstrap/semantics.md` の確認待ちに **`order-list` が残った**状態を持たせ、
+  **その機能のスイート構築を開始しない**ことを検証する。fixture には開始可否の判定そのものを書かない（書くとベースラインがそれを読んで assertion を満たす）
+- eval 19 は eval 18 と**同じ fixture** に対し、意味論が**確定済み**の `customer-list` を対象にする陽性コントロール。
+  「`received-assets` なら一律で止まる」「確認待ちが 1 件でもあれば全機能を止める」実装を弾く（eval 18 だけでは、全部止める実装と区別できない）。
+  この環境では Playwright・現行アプリに到達できないため、**停止するとしてもその理由が意味論の確認待ちでないこと**を見る
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
