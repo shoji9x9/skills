@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/pr-review-handle",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-26T11:19:27Z",
+    "evals_run": [10],
+    "runs_per_configuration": 1,
+    "scope": "Issue #230 で追加した新規 eval（id 10）のみ。既存 eval は再実行していない。",
+    "baseline": "without_skill 未実施（レートリミット配慮）。run_summary.without_skill / delta は算出されておらず、比較値として無効。"
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 0.0,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "トップレベルの PR コメント（issues/<番号>/comments）を指摘の収集対象として読む方針である",
+          "passed": true,
+          "evidence": "「未確認なのは 3 系統目です」として gh api --paginate repos/<owner>/<repo>/issues/6/comments を最優先の実行手順に挙げている"
+        },
+        {
+          "text": "レビュアーが総評・軽微な指摘をトップレベルコメントに置く形を挙げている（スレッド 0 件・reviews[].body 空を根拠に「指摘なし」と結論していない）",
+          "passed": true,
+          "evidence": "「Claude GitHub Action は総評と軽微な指摘をトップレベルの PR コメントに置き…いま見えている 2 系統だけでは『指摘なし』と判断できません」と述べ、対応することはほぼ確実にあると結論"
+        },
+        {
+          "text": "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
+          "passed": true,
+          "evidence": "「body[:60] のような切り詰め取得を流用しない（進行中判定用の取得とは別物。切り詰めた先の指摘を落とします）」と明記。提示コマンドの --jq も body を切り詰めていない"
+        },
+        {
+          "text": "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である",
+          "passed": true,
+          "evidence": "「トップレベルの指摘には返信先スレッドが無く resolve もできません…そのコメントが唯一の証跡になります」と明記"
+        }
+      ],
+      "notes": [
+        "without_skill ベースライン未実施（レートリミット配慮）のため Delta は測定していない"
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+0.0",
+      "tokens": "+0"
+    }
+  },
+  "notes": []
+}
