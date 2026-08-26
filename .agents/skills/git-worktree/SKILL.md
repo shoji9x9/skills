@@ -28,8 +28,9 @@ git-worktree cleanup [<worktree パス>]
 
 ## 前提
 
-- **ツール**: `git` **2.22+**（下の手順が使うコマンドの追加時期は
-  `git worktree list --porcelain` が 2.7、`git worktree remove` が 2.17、`git branch --show-current` が 2.22。2.5 では揃わない）。
+- **ツール**: `git` **2.23+**（下の手順が使うコマンドの追加時期は
+  `git worktree list --porcelain` が 2.7、`git worktree remove` が 2.17、`git branch --show-current` が 2.22、
+  `git switch` が 2.23。2.5 では揃わない）。
   エージェント側にセッションを移す機能（Claude Code の `EnterWorktree` 等）
 - **前提スキル**: なし
 - **シェル**: bash。Windows では WSL / Git Bash 等を使う

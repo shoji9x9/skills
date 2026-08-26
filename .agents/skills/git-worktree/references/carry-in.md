@@ -59,10 +59,14 @@ config/secrets.local.json
 ```json
 {
   "worktree": {
-    "symlinkDirectories": ["node_modules", "vendor/received"]
+    "symlinkDirectories": ["node_modules", ".cache"]
   }
 }
 ```
+
+**例に挙げるのは再生成できるディレクトリだけにする。** 受領物・ベンダー配布物は下の
+「リンクは読み取り専用ではない」の理由からリンクの対象にしないため、設定例にも書かない
+（設定例はコピー&ペーストされる）。
 
 各エントリについて `<worktree>/<エントリ>` から `<リポジトリルート>/<エントリ>` へ、
 **絶対パスの dir 型シンボリックリンク**を張る。
