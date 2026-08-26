@@ -313,7 +313,11 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	local -a targets=()
 	# `git` の直後から `commit` の直前までがグローバルオプション列。
 	seg=${seg%commit*}
-	[[ ${seg} =~ (^|[[:space:]])git[[:space:]]+(.*)$ ]] || return 1
+	# 先頭は commit_re が消費した区切り（`;` `&` `|` `(` ・改行）で始まり得る。空白だけを
+	# `git` の直前に許すと `;git -C <外部> commit` のような区切り直後の呼び出しが解析できず、
+	# 外部宛てでも判定不能＝ブロックへ落ちる（Issue #221 の意図に反する）。
+	local git_head_re='(^|[[:space:]]|[;&|(])git[[:space:]]+(.*)$'
+	[[ ${seg} =~ ${git_head_re} ]] || return 1
 	seg=${BASH_REMATCH[2]}
 	while [ -n "${seg}" ]; do
 		seg=${seg#"${seg%%[![:space:]]*}"}

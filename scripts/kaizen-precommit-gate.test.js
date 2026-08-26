@@ -388,6 +388,10 @@ describe("コミット先のスコープ判定", () => {
     `git --git-dir=${FIXTURE}/.git --work-tree ${FIXTURE} commit -m x`,
     // `cd` があっても、絶対パス指定なら cwd に依存しないので判定できる。
     `cd ${tmpdir()} && git -C ${FIXTURE} commit -m x`,
+    // 区切り直後に空白を入れない形。commit_re は捕捉するので、オプション列の解析も
+    // 区切り文字から始まる部分文字列を受けられなければならない（さもないと判定不能＝ブロック）。
+    `ls;git -C ${FIXTURE} commit -m x`,
+    `ls&&git -C ${FIXTURE} commit -m x`,
     // glob メタ文字を含む引数があっても、外部宛ての判定自体は成立する（上の対）。
     `git -c user.name=A*B -C ${FIXTURE} commit -m a`,
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
@@ -423,6 +427,9 @@ describe("コミット先のスコープ判定", () => {
     'git -C "{P}/{SPACE}" commit -m x',
     "git -C {P}/{ESCAPED_SPACE} commit -m x",
     "git -C {PARENT} -C {BASE} commit -m x",
+    // 区切り直後に空白が無くてもプロジェクト宛ては見落とさない（上の対）。
+    "ls;git -C {P} commit -m x",
+    "ls&&git -C {P} commit -m x",
     // 展開しないと値が決まらないパスは判定不能（fail closed）。外部宛てと同形だが通してはいけない。
     "git -C $FIXTURE commit -m x",
     'git -C "$(mktemp -d)" commit -m x',
