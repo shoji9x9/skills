@@ -159,6 +159,262 @@ if [[ ! "${cmd}" =~ ${commit_re} ]]; then
 	exit 0
 fi
 
+# コマンド行から**コミット先がプロジェクト外のリポジトリだと分かる**呼び出しは、ゲートの対象に
+# しない（Issue #221）。テストのフィクスチャとして使い捨ての一時リポジトリへコミットする形
+# （`git -C <dir> commit` / `--git-dir=<dir>`）まで止めると、抽出を求めている
+# 「このプロジェクトの活動」と無関係な commit が実行できなくなる。
+# 判定できない形（`cd <dir> && git commit`・パス指定なし・`--work-tree` 単独・`cd` と相対パスの
+# 併用・変数展開を含むパス）は従来どおりブロックする（fail closed）。生 JSON へ縮退した経路（jq / python3 が無い）はコマンド行を
+# 構造として取り出せていないため、この判定を行わず従来どおりブロックする。
+
+# シェルの 1 トークンから引用・エスケープを外す。値が実行時にしか決まらないトークン
+# （変数展開・コマンド置換・チルダ・glob）は失敗を返す——展開後のパスを当てられないまま
+# 「外部宛て」と判定すると、プロジェクト宛ての commit を素通ししうる（fail open）。
+unquote_token() { # $1: トークン
+	local s="${1:-}" out="" c closed
+	while [ -n "${s}" ]; do
+		c=${s:0:1}
+		case "${c}" in
+		"\\")
+			out+=${s:1:1}
+			s=${s:2}
+			;;
+		"'")
+			s=${s:1}
+			case "${s}" in
+			*"'"*) ;;
+			*) return 1 ;;
+			esac
+			out+=${s%%\'*}
+			s=${s#*\'}
+			;;
+		'"')
+			s=${s:1}
+			closed=0
+			while [ -n "${s}" ]; do
+				c=${s:0:1}
+				case "${c}" in
+				"\\")
+					# ダブルクォート内で `\` が特別扱いされるのは `$` `` ` `` `"` `\` の前だけ（シェルの仕様）。
+					# それ以外は `\` 自体もリテラルとして残る。無条件に落とすと `"/tmp/a\b"` を
+					# `/tmp/ab` と読み違え、git が使うのとは別のパスでスコープを判定する。
+					case "${s:1:1}" in
+					'$' | '`' | '"' | "\\") out+=${s:1:1} ;;
+					*) out+=${c}${s:1:1} ;;
+					esac
+					s=${s:2}
+					;;
+				'"')
+					s=${s:1}
+					closed=1
+					break
+					;;
+				*)
+					out+=${c}
+					s=${s:1}
+					;;
+				esac
+			done
+			[ "${closed}" -eq 1 ] || return 1
+			;;
+		*)
+			out+=${c}
+			s=${s:1}
+			;;
+		esac
+	done
+	case "${out}" in
+	'' | *'$'* | *'`'* | '~'* | *'*'* | *'?'* | *'['*) return 1 ;;
+	esac
+	printf '%s' "${out}"
+}
+
+# パスを絶対化し、`.` / `..` を字句的に畳んだうえで、**存在する最深の祖先だけ**を realpath する。
+# フィクスチャは `git init <dir> && git -C <dir> commit ...` のように 1 行で作られ、フックが
+# 走る時点では対象ディレクトリがまだ存在しない。存在を前提にすると、直そうとしているケースが
+# そのまま判定不能（＝ブロック）へ落ちる。
+canonical_path() { # $1: パス $2: 相対パスの基準ディレクトリ
+	local path="${1:-}" base="${2:-}" abs part norm="" rest="" head resolved
+	[ -n "${path}" ] || return 1
+	case "${path}" in
+	/*) abs=${path} ;;
+	*)
+		[ -n "${base}" ] || return 1
+		abs="${base%/}/${path}"
+		;;
+	esac
+	local IFS=/
+	for part in ${abs}; do
+		case "${part}" in
+		'' | .) ;;
+		..) norm=${norm%/*} ;;
+		*) norm="${norm}/${part}" ;;
+		esac
+	done
+	IFS=$' \t\n'
+	head=${norm:-/}
+	while :; do
+		if resolved=$(cd "${head}" 2>/dev/null && pwd -P); then
+			break
+		fi
+		[ "${head}" != "/" ] || return 1
+		rest="${head##*/}${rest:+/}${rest}"
+		head=${head%/*}
+		[ -n "${head}" ] || head=/
+	done
+	printf '%s' "${resolved%/}${rest:+/}${rest}"
+}
+
+# $1 のリポジトリの共有 git ディレクトリ。worktree は本体と同じ値になるので「同じリポジトリか」に使える。
+git_common_dir_of() { # $1: ディレクトリ
+	local dir="${1:-}" common
+	[ -n "${dir}" ] && [ -d "${dir}" ] || return 1
+	common=$(git -C "${dir}" rev-parse --git-common-dir 2>/dev/null) || return 1
+	[ -n "${common}" ] || return 1
+	(cd "${dir}" 2>/dev/null && cd "${common}" 2>/dev/null && pwd -P) || return 1
+}
+
+path_is_within() { # $1: 正準パス $2: 正準の親
+	[ -n "${2:-}" ] || return 1
+	case "${1}" in
+	"${2}" | "${2%/}"/*) return 0 ;;
+	esac
+	return 1
+}
+
+# commit_re がマッチした部分文字列から、コミット先がプロジェクト外だと確定できるかを返す
+# （0 = 外部宛て、1 = プロジェクト宛て or 判定不能）。
+commit_target_is_external() { # $1: マッチした部分文字列
+	local seg="${1}" opt val tok cdir="" gitdir="" worktree="" abs base t tcommon rel_used=0
+	local -a targets=()
+	# `git` の直後から `commit` の直前までがグローバルオプション列。
+	seg=${seg%commit*}
+	[[ ${seg} =~ (^|[[:space:]])git[[:space:]]+(.*)$ ]] || return 1
+	seg=${BASH_REMATCH[2]}
+	while [ -n "${seg}" ]; do
+		seg=${seg#"${seg%%[![:space:]]*}"}
+		[ -n "${seg}" ] || break
+		opt=""
+		val=""
+		if [[ ${seg} =~ ^${gitoptval_opt}[[:space:]]+${gitoptval} ]]; then
+			opt=${BASH_REMATCH[1]}
+			val=${BASH_REMATCH[2]}
+			seg=${seg:${#BASH_REMATCH[0]}}
+		elif [[ ${seg} =~ ^(-[^[:space:]]+) ]]; then
+			tok=${BASH_REMATCH[1]}
+			seg=${seg:${#BASH_REMATCH[0]}}
+			case "${tok}" in
+			--git-dir=*)
+				opt=--git-dir
+				val=${tok#--git-dir=}
+				;;
+			--work-tree=*)
+				opt=--work-tree
+				val=${tok#--work-tree=}
+				;;
+			esac
+		else
+			break
+		fi
+		case "${opt}" in
+		-C | --git-dir | --work-tree) ;;
+		*) continue ;;
+		esac
+		val=$(unquote_token "${val}") || return 1
+		case "${opt}" in
+		-C)
+			# `-C` は繰り返すと累積して相対解決される（`git -C /a -C b` は /a/b）。
+			# 先頭が相対のときだけ base_dir（＝推定した cwd）に依存する。
+			case "${val}" in
+			/*) ;;
+			*) [ -n "${cdir}" ] || rel_used=1 ;;
+			esac
+			cdir=$(canonical_path "${val}" "${cdir:-${base_dir}}") || return 1
+			;;
+		--git-dir) gitdir=${val} ;;
+		--work-tree) worktree=${val} ;;
+		esac
+	done
+	for val in "${gitdir}" "${worktree}"; do
+		case "${val}" in
+		'' | /*) ;;
+		*) [ -n "${cdir}" ] || rel_used=1 ;;
+		esac
+	done
+	# コマンド行に `cd` が含まれると、`git` が実際に走る cwd は Hook payload の cwd と
+	# 一致しない。相対パスの解決基準が変わり、プロジェクト宛てを外部宛てと読み違え得るので
+	# （`cd <dir> && git commit` を判定不能とするのと同じ理由）判定不能として扱う。
+	if [ "${rel_used}" -eq 1 ] && [ "${cmd_cwd_uncertain}" -eq 1 ]; then
+		return 1
+	fi
+	base=${cdir:-${base_dir}}
+	if [ -n "${gitdir}" ]; then
+		abs=$(canonical_path "${gitdir}" "${base}") || return 1
+		targets+=("${abs}")
+	fi
+	if [ -n "${worktree}" ]; then
+		abs=$(canonical_path "${worktree}" "${base}") || return 1
+		targets+=("${abs}")
+	fi
+	if [ -n "${cdir}" ]; then
+		targets+=("${cdir}")
+	fi
+	# コミット先の**リポジトリ**を決めるのは `--git-dir` と（探索起点を動かす）`-C` だけ。
+	# `--work-tree` は作業ツリーを差し替えるだけで、リポジトリは cwd からの探索で決まる——
+	# `git --work-tree=<外部> commit` はプロジェクトのリポジトリへコミットされる（実測）。
+	# したがって `--work-tree` 単独は「外部宛て」の根拠にならず、パス未指定と同じく判定不能。
+	# （プロジェクト内を指す `--work-tree` は上の targets 経由でブロック側に効かせる。）
+	{ [ -n "${cdir}" ] || [ -n "${gitdir}" ]; } || return 1
+	for t in "${targets[@]}"; do
+		# プロジェクトの作業ツリーの内側を指すなら、このプロジェクト宛て。
+		path_is_within "${t}" "${project_canon}" && return 1
+		# 同じリポジトリの別 worktree はプロジェクトルートの外に置かれ得るので、
+		# パスの包含だけでなく共有 git ディレクトリの一致でも対象内と判定する。
+		if [ -n "${project_common}" ]; then
+			tcommon=$(git_common_dir_of "${t}") || tcommon=""
+			if [ -n "${tcommon}" ] && [ "${tcommon}" = "${project_common}" ]; then
+				return 1
+			fi
+		fi
+	done
+	return 0
+}
+
+if [ "${extracted}" -eq 1 ]; then
+	# 相対パス（`git -C ../fixture commit`）は**コマンドが走る cwd** 基準で解決する。ゲートは
+	# 既に project_root へ cd しているため、Hook payload の cwd を優先して基準にする。
+	base_dir=${payload_cwd}
+	[ -n "${base_dir}" ] && [ -d "${base_dir}" ] || base_dir=${project_root}
+	[ -n "${base_dir}" ] && [ -d "${base_dir}" ] || base_dir=$(pwd)
+	# 比較する両辺に同じ正準化を当てる（片側だけだと symlink・`..` を挟んだ指定で一致しない）。
+	project_canon=$(canonical_path "${project_root:-$(pwd)}" "$(pwd)") || project_canon=""
+	project_common=$(git_common_dir_of "${project_root}") || project_common=""
+	# `cd` / `pushd` / `popd` を含むコマンド行は、`git` が走る cwd を確定できない。
+	# 引用した右辺はリテラル扱いになるため、正規表現は変数に入れて非引用で渡す。
+	cd_re=$'(^|[;&|(\n])[[:space:]]*(cd|pushd|popd)([[:space:]]|$)'
+	cmd_cwd_uncertain=0
+	if [[ ${cmd} =~ ${cd_re} ]]; then
+		cmd_cwd_uncertain=1
+	fi
+	# 1 行に複数の `git commit` が並ぶ形（`git -C /tmp/f commit -m a && git commit -m b`）が
+	# あるので、最初の 1 件で判断しない。1 件でもプロジェクト宛て・判定不能があればブロックする。
+	scan=${cmd}
+	all_external=1
+	while [[ ${scan} =~ ${commit_re} ]]; do
+		matched=${BASH_REMATCH[0]}
+		[ -n "${matched}" ] || break
+		head_part=${scan%%"${matched}"*}
+		scan=${scan:$((${#head_part} + ${#matched}))}
+		if ! commit_target_is_external "${matched}"; then
+			all_external=0
+			break
+		fi
+	done
+	if [ "${all_external}" -eq 1 ]; then
+		exit 0
+	fi
+fi
+
 # lifecycle の不整合はセンチネルの有無にかかわらず commit を止める。
 if [ -z "${script_dir}" ] || [ ! -r "${script_dir}/kaizen-status-check.sh" ]; then
 	echo "kaizen-precommit-gate: bundled kaizen-status-check.sh is unavailable" >&2

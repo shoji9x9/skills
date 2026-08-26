@@ -7,7 +7,8 @@
 Hook からエージェント自身を呼び出して LLM を動かすことはできないため、役割を 3 つに分ける:
 
 - **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract<agent suffix>.<session key>` を残し、「未抽出の活動がある」ことを記録する。センチネルは **session 単位**で、中身に解消用の同定情報（transcript パス・エージェント・session id）を持つ。
-- **コミット前 PreToolUse ゲート（実行役）**: `git commit` を捕捉し、まず lifecycle 整合を検査する。未抽出センチネルがあり Hook から transcript パスを取得できる場合は、checkpoint との間だけを走査する。候補ゼロを検証できたときは自動通過し、候補あり・形式不明・timeout は `kaizen --current` を促す。
+- **コミット前 PreToolUse ゲート（実行役）**: このプロジェクト宛ての `git commit` を捕捉し（コマンド行から外部リポジトリ宛てと分かるものは対象外）、まず lifecycle 整合を検査する。
+  未抽出センチネルがあり Hook から transcript パスを取得できる場合は、checkpoint との間だけを走査する。候補ゼロを検証できたときは自動通過し、候補あり・形式不明・timeout は `kaizen --current` を促す。
   全エージェント（Claude Code / Codex / Copilot）で commit のブロックは機能する。transcript を提供しない Copilot は候補ゼロの自動通過だけを使わず、安全側の従来フローへ戻る。
 - **セッション開始時 Hook（参照注入役）**: `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。これにより過去の学びを踏まえてタスクに着手できる（KEDB 照合の入口）。
   Claude Code は SessionStart の stdout を context へ注入する。
@@ -179,6 +180,9 @@ Copilot は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/
 これにより、Stop フックがターン終了ごとにセンチネルを再装填しても、同一セッション内で既に抽出済みなら後続の commit を再ブロックしない。複数エージェント・複数セッションが同時稼働する場合、抽出完了時はゲートが表示する `--sentinel-suffix` / `--session-id` 付きコマンドを使い、他のセンチネルを削除しない。
 
 > **運用上の注意（git commit を含む呼び出しは全体がブロックされる）**: ゲートは `git commit` を含む Bash 呼び出し**全体**を実行前にブロックする。
+> ただし、**コミット先のリポジトリがこのプロジェクト外だとコマンド行から分かる形**（`git -C <外部dir>` / `--git-dir=<外部dir>`）はゲートの対象外で、そのまま実行できる（テストのフィクスチャとして使い捨てリポジトリへコミットする形。同じリポジトリの別 worktree 宛ては対象内）。
+> コミット先がコマンド行から決まらない形（`cd <dir> && git commit`・パス指定なし・変数展開や glob を含むパス）は判定不能として従来どおりブロックする。
+> `--work-tree` はリポジトリではなく作業ツリーだけを差し替えるため（`git --work-tree=<外部dir> commit` はプロジェクトのリポジトリへコミットされる）、単独では対象外にならない。`cd` と相対パスの併用も、`git` が走る cwd が確定しないため判定不能として扱う。
 > そのため `git add` などコミット前準備や、センチネル削除・マーカー記録（`bash <KAIZEN_SCRIPTS_DIR>/kaizen-extract-done.sh`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
 > コミット前準備は必ず `git commit` と別コマンドに分ける。コミット後は `git log` / `git show` で対象が実際に入ったか確認する。
 > 同様に、`git commit -F <msg>` のメッセージファイルを `git commit` と同じコマンド内の heredoc で作らない（ブロック時に作られず、後続の `-F` がファイル不在で失敗する）。メッセージは別コマンドで先に作り、使用直前に存在を確認する。
