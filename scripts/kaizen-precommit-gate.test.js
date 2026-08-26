@@ -388,6 +388,8 @@ describe("コミット先のスコープ判定", () => {
     `git --git-dir=${FIXTURE}/.git --work-tree ${FIXTURE} commit -m x`,
     // `cd` があっても、絶対パス指定なら cwd に依存しないので判定できる。
     `cd ${tmpdir()} && git -C ${FIXTURE} commit -m x`,
+    // glob メタ文字を含む引数があっても、外部宛ての判定自体は成立する（上の対）。
+    `git -c user.name=A*B -C ${FIXTURE} commit -m a`,
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
     `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
   ];
@@ -433,6 +435,12 @@ describe("コミット先のスコープ判定", () => {
     "cd /tmp && git -C fixture commit -m x",
     // 1 行に複数の commit。先頭が外部宛てでも、後続のプロジェクト宛てを見落とさない。
     `git -C ${FIXTURE} commit -m a && git commit -m b`,
+    // 走査位置の算出はマッチ文字列を**リテラル**として扱う必要がある。パターン展開になると
+    // パス以外の引数（`-c` の値など）の glob メタ文字がマッチ範囲を広げ、後続の commit を
+    // 見落として素通りする（fail open）。
+    `git -c user.name=A*B -C ${FIXTURE} commit -m a && git commit -m b`,
+    `git -c user.name=A?B -C ${FIXTURE} commit -m a && git commit -m b`,
+    `git -c user.name=A[b]B -C ${FIXTURE} commit -m a && git commit -m b`,
   ];
 
   test.each(blocked)("プロジェクト宛て・判定不能: %s => exit 2", (command) => {
