@@ -78,6 +78,9 @@ gh api --method POST \
 
 - Claude Code の GitHub App / Action が `@claude review` を検出してレビューを投稿する。`requested_reviewers` は使わない。
 - **`-f`（raw-field）で渡す**。`-F`（field）だと先頭 `@` をファイル参照と解釈するため使わない。本文は固定リテラル。
+- **レビュー結果の置き場所に注意**: このレビュアーは総評と軽微な指摘を**トップレベルコメント**（`issues/<番号>/comments`）に置き、
+  `reviews[].body` を空・`state` を `COMMENTED` にすることがある（実測）。指摘の収集は各 SKILL の
+  「スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）」に従い、トップレベルコメントを**切り詰めずに**読む。
 - 成立確認・進行中・レビュー到着判定は各 SKILL の汎用シグナル（非著者レビュー・bot コメント・check-run）に従う。
   bot の login（例 `claude[bot]`）は導入した App 依存のため固定名を前提にしない。
 - 出典: Claude Code の code review 設定 <https://support.claude.com/en/articles/14233555-set-up-code-review-for-claude-code>
@@ -120,5 +123,5 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 ### none
 
 - AI レビュアーへの再レビュー依頼を**一切行わない**。未解決スレッドの返信・解決は通常どおり行う。
-- 収束・完了判定から「HEAD がレビュー済み」条件を外す（CI 全成功かつ未解決スレッド無しで完了とする）。
+- 収束・完了判定から「HEAD がレビュー済み」条件を外す（CI 全成功・未解決スレッド無し・スレッド外の指摘対応済みで完了とする）。
 - 再依頼の要否確認（pr-review-handle）や push 後の再依頼（pr-finalize-loop）は行わない。
