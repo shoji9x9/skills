@@ -12,7 +12,7 @@
     },
     {
       "id": 2,
-      "prompt": "Issue #300 に着手したい。まだ branch は無い。worktree を作って隔離した状態で作業を始めて。",
+      "prompt": "Issue #300 に着手したい。まだ branch は無い。worktree を作って隔離した状態で作業を始めて。**操作は実行せず**、方針を説明して。",
       "assertions": [
         "worktree の作成手段（`git worktree add -b` や EnterWorktree の `name`）に branch を作らせないと述べている",
         "branch は先に Issue のワークフロー（`gh issue develop` 等）で作る必要があると述べている",
@@ -49,7 +49,7 @@
     },
     {
       "id": 6,
-      "prompt": "Issue 223 の作業が終わった。`feature/223-*` に一致する worktree と branch をまとめて消しておいて。",
+      "prompt": "Issue 223 の作業が終わった。`feature/223-*` に一致する worktree と branch をまとめて消しておいて。**削除は実行せず**、方針を説明して。",
       "assertions": [
         "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
         "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",

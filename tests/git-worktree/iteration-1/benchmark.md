@@ -9,9 +9,9 @@
 | --- | --- | --- | --- | --- |
 | 1 | セッション移動・`-b` での branch 作成・リポジトリ外配置 | 3/3 | 1/3 | **+0.667** |
 | 4 | 共有ツリーへのリンクは読み取り専用ではない | 4/4 | 2/4 | **+0.5** |
-| 6 | 後片付けの規律（glob 不使用・clean 確認・順序） | 3/4 | 1/4 | **+0.5** |
+| 6 | 後片付けの規律（glob 不使用・clean 確認・順序） | 4/4 | 2/4 | **+0.5** |
 
-pass_rate 平均: with_skill 0.917 / without_skill 0.361。
+pass_rate 平均: with_skill 1.000 / without_skill 0.444。
 
 ## eval 1 の改訂（測定中に実施）
 
@@ -39,8 +39,19 @@ prompt が問うていない**自発的言及**だった。`.agents/rules/eval-a
   `not fully merged` で必ず拒否するため、この方針は必ずデッドロックする。
   スキル側は `gh pr view` の `state: MERGED` ＋ `headRefName` 完全一致を条件に `-D` を許す。
   **この差は現行の assertion では測っていない。**
-- **eval 6 の with_skill が落とした 1 点**は「解除後に `git worktree list` を取り直して再確認する」段
-  （`cleanup.md` 手順 4）への未言及。
+
+## eval 6 の prompt 改訂（PR レビュー指摘への対応）
+
+`evals/README.md` は全 eval が dry-run である前提を宣言していたが、prompt 側にその制約が 1 件も入っていなかった
+（実測 0/8）。測定で削除が起きなかったのは使い捨て環境に git リポジトリが無かったためで、prompt の設計によるものではない。
+action を要求する eval 2 / 6 に明示を足した。
+
+**ただし最初に添えた文言は答えを漏らした。**「何をどう確認してから何を消すかを説明して」は
+assertion が測る内容（確認してから消す）そのもので、ベースラインが **1/4 → 3/4** に上がり Delta が +0.5 → +0.25 に落ちた。
+`.agents/rules/eval-assertion-discrimination.md`「入力が答えを持っていないか」に該当する。
+「方針を説明して」へ中立化して再測定し、Delta +0.5（with 4/4・without 2/4）に戻した。
+
+**安全のための prompt 追記でも、答えの形を述べると弁別が落ちる。**
 
 ## 未実施
 

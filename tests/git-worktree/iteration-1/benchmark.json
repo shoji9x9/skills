@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/git-worktree",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5",
-    "timestamp": "2026-08-27T00:00:00Z",
+    "timestamp": "2026-08-26T22:42:46Z",
     "evals_run": [1, 4, 6],
     "runs_per_configuration": 1,
     "isolation": "scripts/eval-sandbox.sh（全 6 run が sandboxed）",
@@ -164,39 +164,40 @@
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.75,
-        "passed": 3,
-        "failed": 1,
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
         "total": 4,
-        "time_seconds": 41.8,
-        "tokens": 101288,
-        "tool_calls": 8,
+        "time_seconds": 46.4,
+        "tokens": 76638,
+        "tool_calls": 7,
         "errors": 0
       },
       "expectations": [
         {
           "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
           "passed": true,
-          "evidence": "「glob では消しません」「`git worktree list --porcelain` で列挙した完全一致のパス／ref を 1 件ずつ削除します」"
+          "evidence": "「glob での worktree / branch 削除は行わない方針です」「一致した対象を列挙 → 1 件ずつ完全一致で削除」。`gh pr merge --delete-branch` も同じ理由で使わないと明記"
         },
         {
           "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
           "passed": true,
-          "evidence": "「`git status --porcelain` が空であること、`git rev-list --max-count=1 HEAD --not --remotes` に未 push commit が無いことを確認します」"
+          "evidence": "`git status --porcelain` と `git rev-list --max-count=1 HEAD --not --remotes` を挙げ、どちらかに出力があれば削除しないと述べている"
         },
         {
           "text": "解除したあと `git worktree list` を取り直して解除済みを再確認してから ref を削除する順序を示している",
-          "passed": false,
-          "evidence": "列挙 → 完全一致削除は述べたが、解除後に一覧を取り直して再確認する段（cleanup.md 手順 4）に言及していない。git リポジトリが無く手順に入れなかった影響もある"
+          "passed": true,
+          "evidence": "手順 4「解除済みを再確認」で `git worktree list --porcelain` を取り直し、「終了コードではなく、一覧を取り直して消えたことを確認します」"
         },
         {
           "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
           "passed": true,
-          "evidence": "「dirty なら削除せず絶対パスを報告します」"
+          "evidence": "「絶対パスと残っている内容を報告して止めます。『Issue 223 の作業が終わった』という申告があっても、実測を優先します」"
         }
       ],
       "notes": [
-        "ベースラインを再取得したので Delta を算出した（旧 run は session limit で無効だった）。"
+        "`git branch -d` が squash / rebase merge で拒否される点と、`gh pr view` の `state: MERGED` ＋ `headRefName` 完全一致を条件に `-D` へ進む分岐も示した（assertion 化は未実施）。",
+        "解除前にセッションを出る（`ExitWorktree` の `action: \"keep\"`）段も示した。"
       ]
     },
     {
@@ -204,80 +205,80 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.25,
-        "passed": 1,
-        "failed": 3,
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
         "total": 4,
-        "time_seconds": 34.5,
-        "tokens": 99668,
-        "tool_calls": 6,
+        "time_seconds": 47.0,
+        "tokens": 32693,
+        "tool_calls": 3,
         "errors": 0
       },
       "expectations": [
         {
           "text": "glob による一括削除を行わず、完全一致した対象だけを削除すると述べている",
           "passed": false,
-          "evidence": "手順 1 で `git branch --list 'feature/223-*'` と列挙するが、削除対象の選定は glob 由来のままで、「glob で消さない／完全一致した ref だけを削除する」という規律は述べていない。"
+          "evidence": "`for-each-ref 'refs/heads/feature/223-*'` でループして一致した全 branch を削除する形。安全確認で個別に除外はするが、削除対象の選定は glob 由来のままで、完全一致だけを削除する規律は述べていない。"
         },
         {
           "text": "削除前に worktree が clean であること（未 commit の変更・未追跡ファイル・未 push の commit が無いこと）を確認すると述べている",
-          "passed": false,
-          "evidence": "`git status --porcelain`（未 commit・未追跡）は挙げたが、未 push の確認を `git branch --no-merged`（未マージ）で代替している。squash merge 後は未マージ判定が効かず、未 push commit の消失を防げない。"
+          "passed": true,
+          "evidence": "(a) `git status --porcelain`（未 commit・未追跡）、(b) 未マージ、(c) `origin/$br..$br`（未 push）の 3 点を確認すると述べている。"
         },
         {
           "text": "解除したあと `git worktree list` を取り直して解除済みを再確認してから ref を削除する順序を示している",
           "passed": false,
-          "evidence": "`git worktree remove` → `git branch -d` と続けるだけで、解除後に一覧を取り直す段が無い。"
+          "evidence": "`worktree remove` → `branch -d` → `worktree prune` と続けるだけで、解除後に一覧を取り直して確認する段が無い。"
         },
         {
           "text": "dirty または未 push がある場合は削除せず絶対パスと残作業を報告すると述べている",
           "passed": true,
-          "evidence": "「未コミット/未マージが残っているものは削除せず報告（`-f` / `-D` は使いません）」。絶対パスの明示は無いが判断は同じ。"
+          "evidence": "「1 つでも引っかかったら、そのブランチは自動削除の対象から外して個別判断にします」"
         }
       ],
       "notes": [
-        "ベースラインは `-D` を無条件に使わないと宣言している。squash merge されたリポジトリでは `git branch -d` が `not fully merged` で必ず拒否するため、この方針は必ずデッドロックする（スキル側は `gh pr view` の `state: MERGED` ＋ `headRefName` 完全一致を条件に `-D` を許す）。この差は現行の assertion では測っていない。"
+        "ベースラインは `branch -D` を「マージ判定を無視する」として一律に使わないと宣言した。squash merge 運用では `git branch -d` が必ず拒否するため、この方針はデッドロックする（with_skill は PR の実状態を条件に `-D` を許す）。この差は現行の assertion では測っていない。"
       ]
     }
   ],
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 0.9167,
-        "stddev": 0.1179,
-        "min": 0.75,
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
         "max": 1.0
       },
       "time_seconds": {
-        "mean": 64.0333,
-        "stddev": 15.8695,
-        "min": 41.8,
+        "mean": 65.5667,
+        "stddev": 13.7245,
+        "min": 46.4,
         "max": 77.8
       },
       "tokens": {
-        "mean": 111070.6667,
-        "stddev": 23979.2942,
-        "min": 87842,
+        "mean": 102854,
+        "stddev": 29509.2459,
+        "min": 76638,
         "max": 144082
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.3611,
-        "stddev": 0.1039,
-        "min": 0.25,
+        "mean": 0.4444,
+        "stddev": 0.0786,
+        "min": 0.3333,
         "max": 0.5
       },
       "time_seconds": {
-        "mean": 77.1667,
-        "stddev": 32.2053,
-        "min": 34.5,
+        "mean": 81.3333,
+        "stddev": 26.7647,
+        "min": 47.0,
         "max": 112.3
       },
       "tokens": {
-        "mean": 127972.3333,
-        "stddev": 68760.3254,
-        "min": 61557,
+        "mean": 105647.3333,
+        "stddev": 83597.7397,
+        "min": 32693,
         "max": 222692
       }
     }
@@ -285,8 +286,8 @@
   "delta": {
     "scope": "eval 1 / 4 / 6（全て有効）",
     "pass_rate_mean": {
-      "with_skill": 0.9167,
-      "without_skill": 0.3611
+      "with_skill": 1.0,
+      "without_skill": 0.4444
     },
     "per_eval": [
       {
@@ -303,8 +304,8 @@
       },
       {
         "eval_id": 6,
-        "with": 0.75,
-        "without": 0.25,
+        "with": 1.0,
+        "without": 0.5,
         "delta": 0.5
       }
     ]
@@ -315,6 +316,7 @@
     "eval 1 は旧定義で with 3/3・without 3/3 と弁別しなかった。原因は assertion ではなく prompt——スキルが出した弁別的な指摘（`-b` で branch を作らせている・`/tmp/wt` がリポジトリ外）は prompt が問うていない自発的言及だった。`.agents/rules/eval-assertion-discrimination.md`「assertion を弱めるのではなく問う形にする」に従い prompt に問いを足し assertion を差し替えたところ、ベースラインが 3/3 → 1/3 に落ち Delta +0.667 になった。",
     "改訂後の eval 1 の assertion 1（セッションを移す必要がある）はベースラインも満たすため Delta に寄与しない。**後退検知が目的**であることを assertion 本文に明記した。3 本中 1 本が後退検知なので、この eval の実効 Delta は 2 本分（1.0 対 0.0）である。",
     "ベースラインの誤りは 3 件とも「安全側または通例側への誤結論」だった。eval 1 は `-B` と `EnterWorktree(name:)` というスキルが禁じる形を推奨し、eval 4 は末尾スラッシュ付き `rm -rf` を測らず安全と結論し、eval 6 は未 push の確認を未マージ判定で代替した（squash merge で効かない）。",
-    "code-review で挙動が変わった 3 点（メインチェックアウトの再利用禁止・squash merge 後の branch 削除・リポジトリ外 worktree の再入場制限）はまだ assertion 化していない。eval 6 のベースラインが `-D` を無条件に禁じてデッドロックする点は、この差を測る assertion があれば拾えた。"
+    "code-review で挙動が変わった 3 点（メインチェックアウトの再利用禁止・squash merge 後の branch 削除・リポジトリ外 worktree の再入場制限）はまだ assertion 化していない。eval 6 のベースラインが `-D` を無条件に禁じてデッドロックする点は、この差を測る assertion があれば拾えた。",
+    "eval 6 は PR レビュー指摘（eval の dry-run 前提が prompt に無い）を受けて prompt に「削除は実行せず」を足し再測定した。最初に添えた「何をどう確認してから何を消すかを説明して」は assertion が測る答え（確認してから消す）を prompt が漏らしており、ベースラインが 1/4 → 3/4 に上がった（Delta +0.5 → +0.25）。`.agents/rules/eval-assertion-discrimination.md` の「入力が答えを持っていないか」に該当するため「方針を説明して」へ中立化し、再測定で Delta +0.5 に戻した。安全のための prompt 追記でも、答えの形を述べると弁別が落ちる。"
   ]
 }
