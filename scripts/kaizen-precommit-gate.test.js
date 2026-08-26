@@ -407,6 +407,10 @@ describe("コミット先のスコープ判定", () => {
     "git --git-dir='{P}/kaizen gate external 221/.git' commit -m x",
     // `--work-tree` 単独は外部パスでも判定不能（リポジトリは cwd から探索される）。
     `git --work-tree="/tmp/kaizen gate external 221" commit -m x`,
+    // コミット先 repo は外部でも、作業ツリーがプロジェクトならコミットされる内容はこの
+    // プロジェクトの活動そのもの。意図的に安全側（ブロック）へ倒す。
+    `git --git-dir=${FIXTURE}/.git --work-tree={P} commit -m x`,
+    `git -C ${FIXTURE} --work-tree={P} commit -m x`,
     `git init ${FIXTURE} && git -C ${FIXTURE} add a.txt && git commit -m base`,
     'git -C "{P}/kaizen gate external 221" commit -m x',
     "git -C {P}/kaizen\\ gate\\ external\\ 221 commit -m x",
