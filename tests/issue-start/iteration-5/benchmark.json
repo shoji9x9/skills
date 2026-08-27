@@ -1,0 +1,183 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5[1m]",
+    "timestamp": "2026-08-27T11:45:00Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1,
+    "isolation": "scripts/eval-sandbox.sh（with_skill / without_skill とも sandboxed）",
+    "baseline_contamination": "eval 7 の without_skill は verdict: clean"
+  },
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 67.7,
+        "stddev": 0.0,
+        "min": 67.7,
+        "max": 67.7
+      },
+      "output_tokens": {
+        "mean": 4370,
+        "stddev": 0.0,
+        "min": 4370,
+        "max": 4370
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1429,
+        "stddev": 0.0,
+        "min": 0.1429,
+        "max": 0.1429
+      },
+      "time_seconds": {
+        "mean": 40.3,
+        "stddev": 0.0,
+        "min": 40.3,
+        "max": 40.3
+      },
+      "output_tokens": {
+        "mean": 2512,
+        "stddev": 0.0,
+        "min": 2512,
+        "max": 2512
+      }
+    }
+  },
+  "delta": {
+    "scope": "eval 7（1 run / configuration）",
+    "pass_rate_mean": {
+      "with_skill": 1.0,
+      "without_skill": 0.1429
+    },
+    "per_eval": [
+      {
+        "eval_id": 7,
+        "with": 1.0,
+        "without": 0.1429,
+        "delta": 0.8571
+      }
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 67.7,
+        "tokens": 4370,
+        "turns": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+          "passed": true,
+          "evidence": "「## 順序の結論：**branch が先、worktree が後**」「ブランチは必ず `gh issue develop` に作らせ、worktree はその**既存ブランチに対して張る**」"
+        },
+        {
+          "text": "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+          "passed": true,
+          "evidence": "Step 1: `gh issue develop 91 --name \"${BRANCH}\" --base \"<base>\"`（`--checkout` なし）＋「`--checkout` を外すのは、別セッションが使っている現在のブランチに触らないため」"
+        },
+        {
+          "text": "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+          "passed": true,
+          "evidence": "Step 1.5: 「`--checkout` なしの `gh issue develop` はリモート側にブランチを作るだけ」→ `git fetch origin \"+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}\"`（refspec 明示は single-branch clone 対策と明記）→ `git branch \"${BRANCH}\" FETCH_HEAD` → `git rev-parse --verify`。「共有ツリーの checkout を変えないので、別セッションのブランチは無傷」"
+        },
+        {
+          "text": "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+          "passed": true,
+          "evidence": "「命名がその機構の規則（`worktree-<名前>` 等）になり base も変わるため、**Issue ↔ ブランチの linked branches 紐付けが作られません**」「紐付けの欠落は成功した作業と見分けが付かず、Issue 画面を見るまで気付けません」"
+        },
+        {
+          "text": "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+          "passed": true,
+          "evidence": "Step 2「本来の契約：`git-worktree enter \"${BRANCH}\"`（＝新規作成しない enter）」。後片付けも「`git-worktree cleanup` 相当」と委譲。置き場所・運搬・除外の手順を自前で列挙していない"
+        },
+        {
+          "text": "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+          "passed": true,
+          "evidence": "「`git worktree add` しただけでは隔離になりません。**セッションを移さないと** subagent・フォークして走るスキル・バックグラウンド Bash が呼び出し元の作業ツリーで動きます」"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "「**何も実行していません**（read-only の環境確認のみ）」「モード指定なしのため commit / push / PR はしない」"
+        }
+      ]
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 40.3,
+        "tokens": 2512,
+        "turns": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+          "passed": false,
+          "evidence": "逆を推奨: 「結論：ブランチと worktree は『順番に作る』のではなく **同時に作る**」`git worktree add -b issue-91-<短い説明> ...`。さらに「なぜ『先にブランチを作る』をやってはいけないか」と明示的に否定している"
+        },
+        {
+          "text": "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+          "passed": false,
+          "evidence": "`gh issue develop` を branch 作成に使っていない（`gh issue view 91` を read-only の事前確認に使うだけ）"
+        },
+        {
+          "text": "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+          "passed": false,
+          "evidence": "ローカル ref の話に到達していない"
+        },
+        {
+          "text": "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+          "passed": false,
+          "evidence": "linked branches への言及なし"
+        },
+        {
+          "text": "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+          "passed": false,
+          "evidence": "worktree の置き場所・`.gitignore` 対象ファイルのコピー・`git worktree remove` / `prune` を自前で列挙しており、委譲先が無い"
+        },
+        {
+          "text": "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+          "passed": false,
+          "evidence": "「Claude Code 側では `EnterWorktree` ツールでこの worktree をセッションの作業ディレクトリにできます」と手段には触れるが、`add` だけでは隔離が成立しない（subagent 等が呼び出し元で動く）という核心を述べていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留め、commit / push / PR へ進んでいない",
+          "passed": true,
+          "evidence": "「**何も実行していません**（`git` コマンド・`gh` 参照も含めゼロ実行）」「commit / push は今回の環境では行いません」"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Issue #222（worktree で着手すると branch が Issue に紐づかない）に対する新規 eval の初回有効測定。",
+    "iteration-4 では prompt が「着手して」＝実行要求だったため、git リポジトリでない使い捨てプロジェクトでは step 2（repo 一致確認）で停止し step 7 へ到達せず採点不能だった。prompt を dry-run（「まだ何も実行しないで、手順だけ先に示して」）へ改めた結果、両 configuration とも検査対象の論点へ到達した。",
+    "弁別は明瞭。without_skill は `git worktree add -b` を積極的に推奨し、さらに「なぜ『先にブランチを作る』をやってはいけないか」と正しい順序を明示的に否定した——Issue が報告した故障そのものをベースラインが再現している。",
+    "唯一 without_skill が満たした assertion（実行せず手順提示に留める）は prompt が dry-run を要求しているため両者が満たす。後退検知用で Delta には寄与しない。",
+    "1 run / configuration のためばらつきは測っていない（レートリミット制約）。"
+  ]
+}

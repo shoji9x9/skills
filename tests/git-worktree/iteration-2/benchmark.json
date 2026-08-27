@@ -1,0 +1,224 @@
+{
+  "metadata": {
+    "skill_name": "git-worktree",
+    "skill_path": "<repo>/skills/git-worktree",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5[1m]",
+    "timestamp": "2026-08-27T11:50:00Z",
+    "evals_run": [9, 10],
+    "runs_per_configuration": 1,
+    "isolation": "scripts/eval-sandbox.sh（全 4 run が sandboxed）",
+    "baseline_contamination": "eval 9 / 10 の without_skill とも verdict: clean（markers に branch-guard-hook.md と git-worktree-branch-guard.sh を含む）"
+  },
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 53.55,
+        "stddev": 0.0,
+        "min": 33.7,
+        "max": 73.4
+      },
+      "output_tokens": {
+        "mean": 3567,
+        "stddev": 0.0,
+        "min": 2194,
+        "max": 4940
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 46.45,
+        "stddev": 0.0,
+        "min": 29.4,
+        "max": 63.5
+      },
+      "output_tokens": {
+        "mean": 2980.5,
+        "stddev": 0.0,
+        "min": 2036,
+        "max": 3925
+      }
+    }
+  },
+  "delta": {
+    "scope": "eval 9 / 10（1 run / configuration）",
+    "pass_rate_mean": {
+      "with_skill": 1.0,
+      "without_skill": 0.5
+    },
+    "per_eval": [
+      {
+        "eval_id": 9,
+        "with": 1.0,
+        "without": 0.0,
+        "delta": 1.0
+      },
+      {
+        "eval_id": 10,
+        "with": 1.0,
+        "without": 1.0,
+        "delta": 0.0,
+        "purpose": "後退検知（Delta には寄与しない）"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 73.4,
+        "tokens": 4940,
+        "turns": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse へ配線する手順（`references/branch-guard-hook.md`）を示している",
+          "passed": true,
+          "evidence": "「`setup` の手順 5 は、同じ規律を **PreToolUse hook（branch guard）で機構化**することを求めています」。settings.json を一時ファイルへ出力し `! cp` での適用を案内、設定例は `references/branch-guard-hook.md` と明記"
+        },
+        {
+          "text": "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+          "passed": true,
+          "evidence": "「**ブロックはしません** —— 過去の版を読む/使い捨て検証など Issue に紐づかない worktree にも正当な用途があり、そこで止めると hook ごと外されるから」"
+        },
+        {
+          "text": "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の経路だけになると述べている",
+          "passed": true,
+          "evidence": "「Codex / Copilot も使うなら、そちらには `EnterWorktree` が存在せず `git worktree add` の経路しか捕捉できない点を把握しておいてください」"
+        },
+        {
+          "text": "配線後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている",
+          "passed": true,
+          "evidence": "「配線後は必ず**陽性コントロール**（上表の 1 行目）をエージェント経由で 1 度通してください。『通知が出ない』は未配線でも同じ出力になるので、配線成功の根拠になりません」。加えて同梱スクリプトへ 5 検体を通した実測表（通知あり 3 / 無通知 2）を提示"
+        }
+      ]
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 63.5,
+        "tokens": 3925,
+        "turns": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse へ配線する手順（`references/branch-guard-hook.md`）を示している",
+          "passed": false,
+          "evidence": "同梱 hook の存在を知らず、自作の `scripts/new-worktree.sh` ラッパーを提案している。PreToolUse hook による機構化に到達していない"
+        },
+        {
+          "text": "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+          "passed": false,
+          "evidence": "通知／ブロックの選択に言及していない（ラッパーで経路を塞ぐ案のみ）"
+        },
+        {
+          "text": "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の経路だけになると述べている",
+          "passed": false,
+          "evidence": "エージェント別の捕捉範囲に言及していない"
+        },
+        {
+          "text": "配線後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている",
+          "passed": false,
+          "evidence": "配線の検証手順そのものが無い（hook を提案していないため）"
+        }
+      ]
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 33.7,
+        "tokens": 2194,
+        "turns": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit-ish も `--detach` も無い形では git が path の basename（`wt-review`）から新しい branch を作ると述べている",
+          "passed": true,
+          "evidence": "使い捨てリポジトリでの実測を提示: 「`Preparing worktree (new branch 'wt-review')` ← 新規ブランチが作られている」"
+        },
+        {
+          "text": "branch を作りたくないなら `--detach` を付けるか、既存の commit-ish / branch を引数で渡すと述べている",
+          "passed": true,
+          "evidence": "「読むだけなら `--detach`」＋ `git worktree add --detach ../wt-review <見たいコミット>`、実測で `git branch` が増えないことを確認"
+        },
+        {
+          "text": "作られた branch は後片付けの対象として残ることに触れ、`git worktree add` が成功したことを「branch を作っていない」根拠にしていない",
+          "passed": true,
+          "evidence": "「ブランチ一覧が汚れる（`git branch` に `wt-review` が残る）」「同名ブランチが既にあると fatal で失敗する」＋ `git worktree remove` を案内"
+        }
+      ]
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 29.4,
+        "tokens": 2036,
+        "turns": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "commit-ish も `--detach` も無い形では git が path の basename（`wt-review`）から新しい branch を作ると述べている",
+          "passed": true,
+          "evidence": "同じく使い捨てリポジトリで実測: 「commit-ish を省略し、`-b` / `-B` / `--detach` のいずれも付けない場合、git は『便宜的に』パスの basename から新しいブランチを作ります」（git 2.47.3 で検証）"
+        },
+        {
+          "text": "branch を作りたくないなら `--detach` を付けるか、既存の commit-ish / branch を引数で渡すと述べている",
+          "passed": true,
+          "evidence": "「`--detach` を付ければ detached HEAD になり、ブランチは一切作られません」＋ SHA / タグを渡した場合の挙動も補足"
+        },
+        {
+          "text": "作られた branch は後片付けの対象として残ることに触れ、`git worktree add` が成功したことを「branch を作っていない」根拠にしていない",
+          "passed": true,
+          "evidence": "「`-b` なしで作ってしまってブランチが残った場合は、追加で `git branch -d wt-review` が必要です」"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Issue #222 の期待挙動②（branch guard hook）に対する初回測定。",
+    "eval 9 の弁別は最大。ベースラインは同梱 hook の存在に到達できず、代わりに自作ラッパースクリプトを提案した。「機構で守らせる」という発想自体には到達するが、スキルが提供する具体（PreToolUse hook・通知に留める判断・エージェント別の捕捉範囲・陽性コントロールでの配線検証）はどれも出てこない。",
+    "eval 10 は **Delta 0**。`git worktree add <パス>` の DWIM は git の一般挙動で、ベースラインも使い捨てリポジトリで実測して正解に到達した。`.agents/rules/eval-assertion-discrimination.md` の「一般的な振る舞いは baseline も自力で満たすため弁別しない」に該当する。**この eval の目的は Delta ではなく後退検知**（guard の検出条件からこの経路が落ちたときに気付くため）と位置付ける。",
+    "eval 9 の without_skill は、スキル無しで独立に `gh issue develop --help` を読み『`--checkout` はオプトインなのでローカルに branch は来ない。fetch を挟まないと `git worktree add` が解決できない』と指摘した。PR #234 のレビューが同じ欠陥を指摘して修正済みであり、独立した 2 経路で同じ結論に至っている。",
+    "1 run / configuration のためばらつきは測っていない（レートリミット制約）。"
+  ]
+}

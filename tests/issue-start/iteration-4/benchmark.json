@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5[1m]",
+    "timestamp": "2026-08-27T10:20:00Z",
+    "evals_run": [7],
+    "runs_per_configuration": 1,
+    "isolation": "scripts/eval-sandbox.sh（with_skill / without_skill とも sandboxed）",
+    "notes": [
+      "eval-7（worktree 着手時の branch 紐付け契約）の初回測定。両 configuration とも **採点不能**のため grading.json を置かず、pass_rate を記録しない。",
+      "到達しなかった: 使い捨てプロジェクトは git リポジトリではないため、with_skill は step 2（repo 一致確認）で契約どおり停止し、step 7（branch と worktree の順序）へ到達しなかった。without_skill も同じ理由で停止。iteration-3 の note が記録済みの構造的制約（実ブランチ作成を要求する assertion は with_skill でも満たせない）と同じ壁。",
+      "原因は fixture ではなく prompt 側。「着手して」は実行を要求するため、リポジトリの無い sandbox では手順の提示へ進まない。`.agents/rules/eval-assertion-discrimination.md` の到達性検証に従い、prompt を dry-run（「まだ何も実行しないで、手順だけ先に示して」）へ改め、次の iteration で測り直す。git-worktree の全 eval が dry-run 前提なのと同じ形。",
+      "同じ run で git-worktree eval-9 / eval-10 も測る予定だったが、実行途中で API 429（session limit）に当たり 0 件で終了したため未測定。"
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "scorable": false,
+      "reason": "step 2（repo 一致確認）で停止し、検査対象の step 7 へ到達しなかった",
+      "result": { "time_seconds": 89.6, "output_tokens": 5484, "turns": 13, "errors": 0 }
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "scorable": false,
+      "reason": "リポジトリ不在・Issue #91 が CLOSED を理由に停止し、検査対象の論点へ到達しなかった",
+      "result": { "time_seconds": 64.3, "output_tokens": 3969, "turns": 9, "errors": 0 }
+    }
+  ]
+}
