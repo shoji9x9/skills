@@ -407,7 +407,7 @@ done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -
 normalizer_args+=(--project-files "${snapshot_dir}" --initial-files "${initial_files_manifest}")
 normalizer_rc=0
 node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
-if [ "${rc}" -eq 0 ] && [ "${normalizer_rc}" -ne 0 ]; then
+if [ "${normalizer_rc}" -ne 0 ]; then
 	rc=5
 	echo "warn: result normalization failed (see ${out}/stderr.log)" >&2
 fi

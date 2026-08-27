@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -32,6 +32,10 @@ function makeStub() {
     `#!/usr/bin/env bash
 set -euo pipefail
 args="$*"
+if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
+  printf 'not-json\n'
+  exit 7
+fi
 if [[ "$args" == *EXPECT_CREATE_FILE* ]]; then printf 'generated\n' >generated.txt; fi
 if [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
   if [ "$1" = "exec" ]; then test -f .agents/skills/box/SKILL.md; else test -f .claude/skills/box/SKILL.md; fi
@@ -202,5 +206,45 @@ describe("run-skill-eval executor compatibility", () => {
       "generated.txt",
     ]);
     expect(readFileSync(join(output, "project-files", "existing.txt"), "utf8")).toBe("fixture\n");
+  });
+
+  test("returns exit 5 when normalization and the executor both fail", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        "EXPECT_EXECUTOR_AND_NORMALIZER_FAIL",
+        "--config",
+        "without_skill",
+        "--out",
+        output,
+        "--executor",
+        "codex",
+        "--eval-id",
+        "1",
+        "--repo",
+        repository,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SKILL_EVAL_CLI_VERSION: "codex stub-version",
+          SKILL_EVAL_RUNNER: stub,
+        },
+      },
+    );
+
+    expect(result.status).toBe(5);
+    expect(result.stderr).toMatch(/codex exited 7/u);
+    expect(result.stderr).toMatch(/result normalization failed/u);
+    expect(readJson(join(output, "result.json"))).toMatchObject({
+      exit_code: 7,
+      status: "failed",
+    });
   });
 });
