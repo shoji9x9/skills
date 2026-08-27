@@ -1,12 +1,4 @@
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -15,7 +7,7 @@ import { afterEach, expect, test } from "vitest";
 
 const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const temporaryDirectories = [];
-const hasBwrap = ["/usr/bin/bwrap", "/bin/bwrap"].some((path) => existsSync(path));
+const hasBwrap = spawnSync("sh", ["-c", "command -v bwrap >/dev/null 2>&1"]).status === 0;
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
