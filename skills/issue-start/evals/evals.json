@@ -65,6 +65,31 @@
         "乖離が作業範囲を変えるため、実装を進める前にユーザーに確認している",
         "モード未指定なので commit/push/PR は行っていない"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Issue #91 に着手したい。別セッションが今のブランチを使っているので worktree で作業したい。まだ何も実行しないで、branch と worktree をどの順で作るのか手順だけ先に示して。",
+      "assertions": [
+        "worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせず、先に `gh issue develop` で branch を作る順序を示している",
+        "worktree で作業するため `gh issue develop` に `--checkout` を付けず、branch だけ作ると述べている",
+        "`--checkout` 無しではローカル ref が作られないため、`git fetch` してから `git branch <名前> FETCH_HEAD` でローカル branch を起こしてから `git-worktree` へ渡すと述べている（共有ツリーの checkout は変えない）",
+        "作成手段に作らせると branch 名がその機構の命名規則になり、Issue とブランチの紐付け（linked branches）が失われると述べている",
+        "worktree の機構（置き場所・セッションの移動・運搬・除外・後片付け）は `git-worktree` スキルへ委譲し、手順をここへ複製していない",
+        "`git worktree add` しただけでは隔離にならず、セッションを worktree へ移す必要があると述べている",
+        "実行はせず手順の提示に留め、commit / push / PR へ進んでいない"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Issue #91 用の branch feature/91-x はもうローカルにある（前に worktree を作ったときに一緒に作られた）。まだ push していない。この branch で作業を続けたい。まだ何も実行しないで、何を確認してどう進めるか手順だけ示して。",
+      "assertions": [
+        "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
+        "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
+        "local にしか無い branch は紐付けの対象になり得ない（紐付けはリポジトリ側に存在する ref が対象）と述べている",
+        "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
+        "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
+        "実行はせず手順の提示に留め、commit / push / PR へ進んでいない"
+      ]
     }
   ]
 }

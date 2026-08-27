@@ -28,7 +28,7 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
 ## 前提
 
 - **ツール**: `gh`（GitHub CLI）, `git`
-- **前提スキル**: なし
+- **前提スキル**: なし（worktree で作業する場合のみ `git-worktree`）
 - **MCP**: なし
 - **シェル**: bash（POSIX 互換シェル）。コマンド例は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
 - node / pnpm / python などのランタイムは不要。
@@ -51,14 +51,61 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
    - title が日本語中心なら、転写せず作業内容を表す短い英語の kebab-case に要約する
 5. 同じ issue 番号のブランチが既にないか確認する
    - local: `git --no-pager branch --list 'feature/<番号>-*'`
-   - remote: `git --no-pager branch -r --list 'origin/feature/<番号>-*'`
+   - remote: `git ls-remote --heads origin 'refs/heads/feature/<番号>-*'`
+     - **`git branch -r --list` を使わない。** 手元の remote-tracking ref を読むだけなので、fetch していないと
+       実在する branch を 0 件と誤判定する。step 6 の紐付け判定がこの結果に依存するため、リモートへ直接問い合わせる
 6. 同番号ブランチが見つかった場合は重複作成せず分岐する
-   - 1 本だけで意図が明確なら、その branch を checkout して継続する
+   - 1 本だけで意図が明確なら、その branch を使って継続する。
+     ただし**入る前に Issue との紐付けを確かめる**——既存 branch は
+     worktree の作成手段や `git switch -c` で作られていることがあり、その場合は紐付けが無い
+     - **local にしか無い場合**（step 5 の remote 検索が 0 件）: 紐付けの対象はリポジトリ側に存在する ref なので、
+       **紐付けは作られていない**。`git-worktree` の `references/isolation.md`「作らせてしまった後の回復」に従い、
+       未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>`（`--checkout` なし）で
+       回復してから続ける。commit 済みなら回復できないのでユーザーに確認する
+     - **remote にもある場合**: `gh issue develop --list <番号> --repo <owner>/<repo>` で紐付けを実測する。
+       **PR が既にあると紐付けは PR へ移り、この一覧は空になる**（実測）ため、空だったときは
+       `gh pr list --head <branch>` も見てから判断する（PR があれば紐付け済み、無ければ上と同じ回復を検討する）
+     - 紐付けを確認できたら branch へ入る。共有ツリーなら checkout する
+     - worktree で作業する場合は、**branch は既にあるので `gh issue develop` で作り直さない**。
+       local ref が無ければ `git fetch origin '+refs/heads/<branch>:refs/remotes/origin/<branch>'` と
+       `git branch <branch> FETCH_HEAD` で起こしてから、`git-worktree enter <branch>` 相当の契約で入る
+       （step 7 の worktree の項は「branch が見つからない場合」の手順なので、その branch 作成部分は適用しない）
    - 複数候補がある、または意図が不明ならユーザーに確認する
-7. 見つからない場合のみ、ベースブランチから作成して checkout する
+7. 見つからない場合のみ、ベースブランチから作成する
    - ベースブランチは「ブランチ運用・commit 規約の参照」で解決する。規約に統合ブランチの指定（例: `main` / `master` / `develop`）があればそれに従い、`main` に固定しない
    - 規約から判断できなければ、既定のベースブランチを勝手に決めず、リポジトリのデフォルトブランチ（`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`）を候補として提示してユーザーに確認する
-   - `gh issue develop <番号> --name "feature/<番号>-<英語の短い説明>" --base <ベースブランチ> --checkout`
+   - **ブランチは `gh issue develop` が作る。これは worktree の有無に依らない契約。**
+     worktree の作成手段（`git worktree add -b` / Claude Code の `EnterWorktree` の `name`）に作らせると、
+     ブランチ名がその機構の命名規則になり（`worktree-<名前>` 等）、既定の base も変わるため、
+     **Issue とブランチの紐付け（linked branches）が作られない**。
+     紐付けの欠落は成功した作業と見分けが付かず、Issue の画面を見るまで気付けない
+   - 共有ツリーでそのまま作業する場合: `gh issue develop <番号> --name "feature/<番号>-<英語の短い説明>" --base <ベースブランチ> --checkout`
+   - **worktree で作業する場合**（別セッションが現在のブランチを使っている等）: `--checkout` を**付けずに**ブランチだけ作り、その**既存ブランチ**に対して worktree を用意してセッションを移す
+
+     `--checkout` を付けない `gh issue develop` は**リモート側にブランチを作るだけ**で、ローカルの
+     `refs/heads/<branch>` も remote-tracking ref も作らない（`--checkout` が fetch と checkout を担っている）。
+     `git-worktree` の `enter` は渡されたブランチがローカルに**存在すること**を前提に張るため、
+     続けて fetch してローカルブランチを起こしてから渡す。
+
+     ```bash
+     BRANCH="feature/<番号>-<英語の短い説明>"
+     gh issue develop <番号> --name "${BRANCH}" --base <ベースブランチ>
+     # refspec を明示する。既定の refspec に頼ると single-branch clone では
+     # remote-tracking ref が作られず、次の行が「そんな ref は無い」で落ちる
+     git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+     git branch "${BRANCH}" FETCH_HEAD                      # ローカル ref を作る
+     git rev-parse --verify --quiet "refs/heads/${BRANCH}"  # 存在を実測してから git-worktree へ渡す
+     ```
+
+     `git branch <名前> <始点>` は共有ツリーの checkout を変えないので、別セッションが使っている
+     現在のブランチに触らない（これが `--checkout` を外す理由）。
+     upstream は未設定なので、最初の push は `git push -u origin "${BRANCH}"` で行う。
+
+     worktree の機構（置き場所、セッションの移動、`.gitignore` 対象ファイルの運搬、検査からの除外、
+     clean 確認付きの後片付け）は `git-worktree` スキルへ委譲し、ここへ複製しない
+     （`git-worktree enter <branch>` 相当の契約で入り、作業後は `git-worktree cleanup` 相当の契約で片付ける）。
+     `git worktree add` しただけでは隔離にならない——セッションを移さないと subagent・
+     フォークして走るスキル・バックグラウンドの Bash が呼び出し元の作業ツリーで動く
 8. **Issue 記載の影響範囲を鵜呑みにせず、現状に対して再検証する**（計画・実装に進む前。全モード共通）
    - Issue 記載の対象（ファイル・パス・モジュール）を唯一の出発点にせず、**現行コードから独立に影響範囲を再導出**して突き合わせる。記載パスは既にリネーム・移動・削除されている場合がある
    - step 3 の `createdAt` 以降にベースブランチへ入った変更を確認する。**先に `git fetch` して**、`createdAt` 時点のベース先端との**範囲比較**で見る

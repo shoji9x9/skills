@@ -74,6 +74,25 @@
         "`.gitignore` 対象ファイルの自動運搬が走らず手で運ぶ必要があると述べている",
         "除外が不要になる利点と、承認・運搬の代償を並べて置き場所を判断させている"
       ]
+    },
+    {
+      "id": 9,
+      "prompt": "git-worktree setup をやりたい。置き場所と検査の除外はもう決めた。「branch は worktree より先に gh issue develop で作る」という規律は、AGENTS.md に一文書いておけば足りるよね？",
+      "assertions": [
+        "散文の指示だけでは守られないとして、同梱の `scripts/git-worktree-branch-guard.sh` を PreToolUse へ配線する手順（`references/branch-guard-hook.md`）を示している",
+        "ブロックではなく通知に留める理由（Issue に紐づかない worktree にも正当な用途がある）を述べている",
+        "Claude Code の matcher は Bash 以外の組み込みツールにも一致するため `EnterWorktree` を捕捉できるが、Codex / Copilot では `git worktree add` の経路だけになると述べている",
+        "配線後の確認で「通知が出ないこと」を成功の根拠にせず、捕捉されるはずの入力を通して通知が出ることを実測すると述べている"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "過去の版を読みたいだけなので `git worktree add ../wt-review` で作る。`-b` を付けていないから branch は作られないよね？",
+      "assertions": [
+        "commit-ish も `--detach` も無い形では git が path の basename（`wt-review`）から新しい branch を作ると述べている",
+        "branch を作りたくないなら `--detach` を付けるか、既存の commit-ish / branch を引数で渡すと述べている",
+        "作られた branch は後片付けの対象として残ることに触れ、`git worktree add` が成功したことを「branch を作っていない」根拠にしていない"
+      ]
     }
   ]
 }

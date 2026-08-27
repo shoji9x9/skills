@@ -58,6 +58,10 @@ worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）
 停止したときに「このスキルを使わず私が直接 branch を作りましょうか」と**スキル外の代替を提案しない**。
 必要な branch の名前と、それを作る手順（Issue のワークフロー）を示して呼び出し側へ返す。
 
+この規律は散文だけでは守られない（このスキルを呼ばずに worktree を作れば、指示は読まれない）。
+`setup` が配線する branch guard hook が、branch を作る経路を PreToolUse で捕捉して通知する
+（[`references/branch-guard-hook.md`](references/branch-guard-hook.md)）。
+
 ## モード
 
 ### setup
@@ -70,6 +74,7 @@ worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）
 2. 置き場所がリポジトリ内なら、worktree ディレクトリを**全ての検査から除外する**。`.gitignore` 1 か所では足りない。
 3. `.gitignore` 対象で worktree に必要なファイル（`.env`・受領物・ベンダー配布物）を列挙し、運搬経路を選ぶ。
 4. 決めた内容を設定ファイル（`.config/skills/shoji9x9/skills.yml` 等、リポジトリの慣行に従う）へ記録する。エージェントが自身の設定ファイルを書けない場合は一時ファイルに出してユーザーへ適用を依頼する。
+5. 同梱の branch guard hook（`scripts/git-worktree-branch-guard.sh`）を各エージェントの PreToolUse へ配線する。手順は [`references/branch-guard-hook.md`](references/branch-guard-hook.md) を参照する。上の「責務の境界」の「branch は渡してもらう」を散文の指示のままにせず機構で守らせる部分で、**ブロックはせず通知だけ**する。
 
 | 置き場所 | 利点 | 代償 |
 | --- | --- | --- |
