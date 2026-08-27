@@ -37,8 +37,11 @@ test("refuses to replace an existing managed Codex directory", () => {
   writeFileSync(join(fakeHome, ".codex", "auth.json"), "{}\n", "utf8");
 
   const fakeCodex = join(fakeBin, "codex");
+  const fakeBwrap = join(fakeBin, "bwrap");
   writeFileSync(fakeCodex, "#!/usr/bin/env bash\nexit 99\n", "utf8");
+  writeFileSync(fakeBwrap, "#!/usr/bin/env bash\nexit 98\n", "utf8");
   chmodSync(fakeCodex, 0o755);
+  chmodSync(fakeBwrap, 0o755);
   const rewritten = readFileSync(sourceScript, "utf8").replaceAll("/etc/codex", managedDirectory);
   writeFileSync(copiedScript, rewritten, "utf8");
   chmodSync(copiedScript, 0o755);
