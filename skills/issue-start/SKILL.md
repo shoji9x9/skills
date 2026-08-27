@@ -54,7 +54,12 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
    - local: `git --no-pager branch --list 'feature/<番号>-*'`
    - remote: `git --no-pager branch -r --list 'origin/feature/<番号>-*'`
 6. 同番号ブランチが見つかった場合は重複作成せず分岐する
-   - 1 本だけで意図が明確なら、その branch へ入って継続する（共有ツリーなら checkout、worktree なら step 7 の worktree の項に従う）
+   - 1 本だけで意図が明確なら、その branch へ入って継続する
+     - 共有ツリーで作業する場合: checkout する
+     - worktree で作業する場合: **branch は既にあるので作らない**。`gh issue develop` は実行せず、
+       remote にしか無ければ `git fetch origin '+refs/heads/<branch>:refs/remotes/origin/<branch>'` と
+       `git branch <branch> FETCH_HEAD` でローカル ref を起こしてから、`git-worktree enter <branch>` 相当の契約で入る
+       （step 7 の worktree の項は「branch が見つからない場合」の手順なので、その branch 作成部分は適用しない）
    - 複数候補がある、または意図が不明ならユーザーに確認する
 7. 見つからない場合のみ、ベースブランチから作成する
    - ベースブランチは「ブランチ運用・commit 規約の参照」で解決する。規約に統合ブランチの指定（例: `main` / `master` / `develop`）があればそれに従い、`main` に固定しない

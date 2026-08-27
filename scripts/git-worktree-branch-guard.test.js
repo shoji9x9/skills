@@ -144,6 +144,25 @@ test("コマンド位置へ戻すと同じ語列が検出側へ移る", () => {
   expect(runGuard(bash("printf %s まず; git worktree add -b feature/x wt")).stdout).not.toBe("");
 });
 
+// 以下 2 本は**後退検知**であって Delta を測るものではない（PR #236 のレビュー指摘への対応）。
+// どちらも修正前の版でも同じ結果になることを実測した——引用が閉じないトークンは残り全部を
+// 1 トークンとして飲むため、`unquote` の重複（`'abc` を `abcabc` と読む）が判定へ現れる
+// 経路を構成できなかった。判定に現れないだけで誤った読みではあるので修正は入れてあり、
+// この 2 本はその読みが将来 verdict に効くようになったときに気付くための固定。
+test("閉じないシングルクォートを含んでも判定が入力と対応する", () => {
+  // 引用が閉じていない `-b` 付きの add。branch を作る形として検出されること。
+  expect(runGuard(bash("git worktree add -b 'feature/x /tmp/wt")).stdout).not.toBe("");
+  // 引用が閉じていない既存 branch 指定。branch を作らない形のままであること。
+  expect(runGuard(bash("git worktree add /tmp/wt 'feature/x")).stdout).toBe("");
+});
+
+// パス名展開が判定を書き換えないこと。glob メタ文字を含むパスでも cwd の中身に依存しない。
+// （代入 RHS はパス名展開の対象外で、配列要素の非引用展開だけが対象になることを実測した）
+test("glob メタ文字を含むパスでも判定が cwd に依存しない", () => {
+  expect(runGuard(bash("git worktree add -b feature/x '/tmp/wt[1]'")).stdout).not.toBe("");
+  expect(runGuard(bash("git worktree add '/tmp/wt*' feature/x")).stdout).toBe("");
+});
+
 // Copilot の preToolUse 出力は permission 決定専用で additionalContext を持たないため、
 // 通知は permissionDecision: "ask" + reason で出す。
 // <https://docs.github.com/en/copilot/reference/hooks-reference>
