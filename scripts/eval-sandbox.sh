@@ -42,6 +42,20 @@ self="$(readlink -f "$0")"
 repo="$(dirname "$(dirname "${self}")")"
 repo_parent="$(dirname "${repo}")"
 home="${HOME:?HOME must be set}"
+cli="${EVAL_SANDBOX_CLI:-claude}"
+codex_home_raw="${CODEX_HOME:-${home}/.codex}"
+codex_home="$(realpath -m -- "${codex_home_raw}")"
+codex_auth="${codex_home}/auth.json"
+if [ "${cli}" = "codex" ] && [ ! -d "${codex_home}" ]; then
+	echo "eval-sandbox: CODEX_HOME does not exist: ${codex_home}" >&2
+	exit 3
+fi
+cli_launcher="$(command -v -- "${cli}" 2>/dev/null || true)"
+[ -n "${cli_launcher}" ] || {
+	echo "eval-sandbox: CLI not found: ${cli}" >&2
+	exit 3
+}
+cli_real="$(readlink -f -- "${cli_launcher}")"
 
 command -v bwrap >/dev/null 2>&1 || {
 	echo "eval-sandbox: bwrap not found; cannot isolate reads. Install bubblewrap or record the run as UNISOLATED." >&2
@@ -52,6 +66,7 @@ command -v bwrap >/dev/null 2>&1 || {
 # cwd, but `--verify` is invoked from this repo — a path that the tmpfs below hides,
 # so chdir there would abort bwrap before any check runs.
 args=(--dev-bind / / --die-with-parent)
+[ "${cli}" = "codex" ] && args+=(--setenv CODEX_HOME "${codex_home}")
 
 # 0. $HOME read-only, so nothing the run does escapes into the user's environment.
 #    This must precede every mount under $HOME: bwrap applies operations in order,
@@ -64,7 +79,15 @@ args+=(--ro-bind "${home}" "${home}")
 # "corrupted"). `mktemp` lands in /tmp, resolved here on the host before the /tmp
 # tmpfs below hides it inside the sandbox.
 scratch_state="$(mktemp)"
-trap 'rm -f -- "${scratch_state}"' EXIT
+scratch_etc=""
+host_etc_mount=""
+# shellcheck disable=SC2329 # invoked by the EXIT trap below
+cleanup() {
+	rm -f -- "${scratch_state}"
+	[ -z "${scratch_etc}" ] || rm -rf -- "${scratch_etc}"
+	[ -z "${host_etc_mount}" ] || rmdir -- "${host_etc_mount}" 2>/dev/null || true
+}
+trap cleanup EXIT
 printf '{}\n' >"${scratch_state}"
 args+=(--bind "${scratch_state}" "${home}/.claude.json")
 
@@ -101,9 +124,50 @@ args+=(--tmpfs "${home}/.claude")
 for f in settings.json .credentials.json CLAUDE.md; do
 	[ -e "${home}/.claude/${f}" ] && args+=(--ro-bind "${home}/.claude/${f}" "${home}/.claude/${f}")
 done
-for d in "${home}/.codex" "${home}/.copilot" "${home}/.agents" "${home}/.vscode-server"; do
-	[ -e "${d}" ] && args+=(--tmpfs "${d}")
+declare -A hidden_agent_dirs=()
+for d in "${home}/.codex" "${codex_home}" "${home}/.copilot" "${home}/.agents" "${home}/.vscode-server"; do
+	[ -e "${d}" ] || continue
+	d="$(realpath -m -- "${d}")"
+	[ -z "${hidden_agent_dirs["${d}"]+present}" ] || continue
+	hidden_agent_dirs["${d}"]=1
+	args+=(--tmpfs "${d}")
 done
+# The standalone Codex launcher commonly resolves into CODEX_HOME/packages,
+# which the tmpfs above deliberately hides together with user config, histories and
+# globally installed skills. Reopen only its read-only bin directory (Codex also
+# spawns the sibling codex-code-mode-host) and auth file:
+# `--ignore-user-config --ephemeral` keeps config/session state out of the run,
+# while authentication still needs auth.json. Both mounts are read-only.
+case "${cli_real}" in
+"${home}/.codex/"* | "${codex_home}/"*)
+	cli_bin_dir="$(dirname -- "${cli_real}")"
+	args+=(--ro-bind "${cli_bin_dir}" "${cli_bin_dir}")
+	;;
+esac
+if [ "${cli}" = "codex" ] && [ -f "${codex_auth}" ]; then
+	args+=(--ro-bind "${codex_auth}" "${codex_auth}")
+	# The CLI must read auth.json during startup, but agent-issued shell commands
+	# must not. Bind an admin requirements file only inside this mount namespace;
+	# Codex applies deny_read after it has loaded credentials and users cannot
+	# weaken the rule through project or CLI config.
+	[ ! -e /etc/codex ] || {
+		echo "eval-sandbox: /etc/codex already exists; refusing to replace managed requirements. Add the auth.json deny_read rule to the managed policy or use a dedicated credential store." >&2
+		exit 3
+	}
+	host_etc_mount="$(mktemp -d "/tmp/codex-eval-host-etc-XXXXXX")"
+	scratch_etc="$(mktemp -d)"
+	while IFS= read -r -d '' entry; do
+		name="$(basename -- "${entry}")"
+		[ "${name}" = "codex" ] && continue
+		ln -s -- "${host_etc_mount}/${name}" "${scratch_etc}/${name}"
+	done < <(find /etc -mindepth 1 -maxdepth 1 -print0)
+	mkdir -p -- "${scratch_etc}/codex"
+	{
+		echo "[permissions.filesystem]"
+		printf 'deny_read = ["%s"]\n' "${codex_auth}"
+	} >"${scratch_etc}/codex/requirements.toml"
+	args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
+fi
 
 if [ "${1:-}" = "--verify" ]; then
 	shift
@@ -217,7 +281,6 @@ fi
 # CLI's arguments (`-p <prompt> --output-format json ...`), so the binary has to be
 # prepended here. EVAL_SANDBOX_CLI allows a stub for smoke tests.
 # Not `exec`: the EXIT trap has to survive the run to delete the throwaway state file.
-cli="${EVAL_SANDBOX_CLI:-claude}"
 rc=0
-bwrap "${args[@]}" --chdir "${PWD}" -- "${cli}" "$@" || rc=$?
+bwrap "${args[@]}" --chdir "${PWD}" -- "${cli_real}" "$@" || rc=$?
 exit "${rc}"

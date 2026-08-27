@@ -84,16 +84,18 @@ eval プロンプトはファイルを生成・改変する（スキル・ルー
 実際にこの方式で `.agents/skills/` を汚した事例がある（[.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md](../.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md)）。
 
 **対策**: `scripts/run-skill-eval.sh` を使う。
-ランチャ側で cwd を固定したヘッドレス `claude -p` を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
-`with_skill` はその dir にスキルを設置し、`without_skill` は設置しない。ただし**未設置は公正なベースラインの十分条件ではない**——`claude -p` はマシン上の任意パスを読めるため、read 隔離と汚染判定まで含めて初めて Delta が信号になる（下記）。
+ランチャ側で cwd を固定したヘッドレス executor を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
+`with_skill` は executor の native skill path にスキルを設置し、`without_skill` は設置しない。ただし**未設置は公正なベースラインの十分条件ではない**——CLI はマシン上の任意パスを読めるため、read 隔離と汚染判定まで含めて初めて Delta が信号になる（下記）。
+
+Claude Code / Codex の選択、共通 artifact schema、native skill discovery、NVIDIA SkillEvaluator の pilot 判断は [`skill-eval-executors.md`](skill-eval-executors.md) を正本とする。
 
 ```bash
 # 1 run を隔離実行（生成物は --out 配下に保存され、リポジトリは汚れない）
 scripts/run-skill-eval.sh \
-  --skill <name> --config with_skill \
+  --skill <name> --executor <claude-code|codex> --config with_skill \
   --prompt "<evals.json の prompt>" \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
-  --model opus
+  --eval-id <id> --model <model> --reasoning-effort <effort>
 # without_skill も同様に --config without_skill で実行する。
 # 正常系 eval（前提が揃った状態の検証）は --fixture <dir> で使い捨てプロジェクトへ
 # 事前状態（設定・.replace/ 成果物等）をコピーして実行する。fixture の正本は
@@ -104,7 +106,7 @@ scripts/run-skill-eval.sh \
 - **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
   `run-skill-eval.sh` は**両 configuration** を `scripts/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
   各 run に `isolation.txt`（遮断できたか）を必ず残す。`without_skill` にはさらに `contamination.txt`（判定）を残す。`SKILL_EVAL_RUNNER` を明示した場合はそれが優先され、遮断は未検証として記録される。
-  **`with_skill` も隔離するのは、比較の差を「スキルの有無」だけに保つため**——隔離しないと `with_skill` は `~/.claude/projects`（スキルを書いた／eval を設計したセッションのトランスクリプト）や
+  **`with_skill` も隔離するのは、比較の差を「スキルの有無」だけに保つため**——隔離しないと `with_skill` はエージェントの履歴（スキルを書いた／eval を設計したセッションのトランスクリプト）や
   グローバルインストール済みスキルを読めてしまい、Delta が上方に膨らむ（実測で、そこを読んで根拠にした run がある）。使い捨てプロジェクト内のスキルはサンドボックス内でも読めるため `with_skill` は成立する。
   - `contamination.txt` の `verdict` が `clean` 以外（`CONTAMINATED` / `CHECK-BROKEN` / `SKIPPED`）のとき、run 自体が成功していても exit 4 になる。
     **その run の Delta は無効**として扱い、`grading.json` を置かず集計から除外し、遮断（または判定の前提）を直して取り直したうえで benchmark に経緯を残す。
@@ -125,7 +127,7 @@ scripts/run-skill-eval.sh \
   拡張子を持たない設定ファイルは `.gitignore` / `.gitattributes` だけを名前で対象に含める。
   **これ以外は最初から対象外**で skipped にも載らないため、その判定には `project-tree.txt`（全パスを列挙）を使う。
   **内容を検査する assertion を書くときは、その成果物がこの対象に入っているかを先に確かめる**（入っていなければ対象へ追加するか、`project-tree.txt` で測れる形へ assertion を変える）。
-- **`result.json` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採取されない。
+- **`result.json` の `result` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採点用の応答には含まれない。executor 固有の全 trace は `raw/` に残るが、共通の採点・集計を raw schema へ依存させない。
   プロンプトが**作業の実行を誘発**すると回答が複数メッセージに分かれ、前半に書かれた根拠（実行した終了コード・引用した実装）が採取物から落ちて採点不能になる。
   eval プロンプトは「実行してから報告させる」のではなく**1 つの報告にまとめさせる**形にし、`〜した後に` のような完了を前提とする言い回しを避ける。
 
@@ -141,7 +143,7 @@ scripts/run-skill-eval.sh \
   スキルが叩くランタイムは shim 単一依存にせず、システムランタイムへフォールバックするか、fixture 側で `mise trust` 済みの runtime を PATH 前段に置く。
 - **対象リポジトリのコンテキスト**: `gh` / `git` 系スキルは cwd の repo 文脈に暗黙依存しない（引数の URL/番号から `OWNER/REPO` を確定し `--repo` で明示する）。
   シナリオでは**実在する** PR/Issue 番号を使い、必要なら fixture で対象 repo を clone するか `gh repo set-default OWNER/REPO` する。架空の `PR#42` / `other-org/other-repo` は `Could not resolve` で必ず落ちる。
-- **非対話**: ヘッドレス `claude -p` には `AskUserQuestion` の応答者がいない。質問を投げるとツールがエラーし進行が止まる。
+- **非対話**: ヘッドレス executor には対話確認の応答者がいない。質問を投げるとツールがエラーし進行が止まる。
   eval プロンプトは意図が一意に決まる形（フラグ・URL を明示）で与え、ハーネス側（`run-skill-eval.sh`）がプロンプト先頭に非対話の縮退指示を注入する（配布スキルには載せない）。
 
 ### 採点（一次資料は成果物、応答は補助）
@@ -183,6 +185,8 @@ mise exec python -- python -m scripts.aggregate_benchmark \
 
 - `benchmark.json` / `benchmark.md` の `<model-name>` を実際のモデル名（例: `claude-opus-4-8`）に置換する（モデル名は秘匿情報ではないのでマスクしない）。
 - `runs_per_configuration` と `benchmark.md` ヘッダの「N runs each per configuration」を実際の run 数に合わせる。
+
+model・reasoning effort・CLI / harness version の一次情報は各 run の `result.json` / `timing.json` にある。異なる executor や model の run を同じ母集団へ集計せず、iteration を分ける。
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
