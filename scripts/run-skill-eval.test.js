@@ -10,9 +10,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, test } from "vitest";
 
-const repository = resolve(import.meta.dirname, "..");
+const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temporaryDirectories = [];
 
 afterEach(() => {

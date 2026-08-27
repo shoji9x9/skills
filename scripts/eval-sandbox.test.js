@@ -10,9 +10,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 
-const sourceScript = resolve(import.meta.dirname, "eval-sandbox.sh");
+const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const temporaryDirectories = [];
 const hasBwrap = ["/usr/bin/bwrap", "/bin/bwrap"].some((path) => existsSync(path));
 
