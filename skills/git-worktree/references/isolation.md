@@ -78,10 +78,13 @@ worktree のパスが要る hook は、入力 JSON の `cwd` フィールドを�
 
 ```bash
 # 1. branch は Issue のワークフローが作る（このスキルの担当外）
+#    `--checkout` 無しの `gh issue develop` はリモート側にしか branch を作らないので、
+#    呼び出し側は fetch してローカル ref まで起こしてから渡す（`enter` の前提）
 gh issue develop <番号> --name "feature/<番号>-<説明>" --base main
+git fetch --quiet origin "+refs/heads/feature/<番号>-<説明>:refs/remotes/origin/feature/<番号>-<説明>"
+git branch "feature/<番号>-<説明>" FETCH_HEAD
 
 # 2. 既存 branch に worktree を張る（-b を付けない）
-git fetch --quiet origin
 git worktree add "<worktree パス>" "feature/<番号>-<説明>"
 
 # 3. セッションをそこへ移す（EnterWorktree に path を渡す）
@@ -92,6 +95,32 @@ git worktree add "<worktree パス>" "feature/<番号>-<説明>"
 ```bash
 git rev-parse --show-toplevel   # worktree のパスであること
 git branch --show-current       # 渡した branch であること
+```
+
+この順序は散文だけでは守られない。同梱の branch guard hook を配線すると、branch を作る経路
+（`EnterWorktree` の `name`、`git worktree add -b`、および commit-ish の無い `git worktree add`）を
+PreToolUse で捕捉して通知する（[branch-guard-hook.md](branch-guard-hook.md)）。
+
+#### 作らせてしまった後の回復
+
+**未 commit で、作られた branch がベースと同一コミットの間だけ回復できる。**
+`gh issue develop` が作る branch はベースの先端を指すため、commit 済みの場合は使えない
+（その場合は commit を移す判断が要るので、呼び出し側／ユーザーへ返す）。
+
+1. リモートに同名 branch が無いことを確かめる。**remote-tracking ref は fetch しないと古いまま**なので、
+   `git ls-remote --exit-code --heads origin '<名前>'` でリモートへ直接問い合わせる（終了コード 2 ＝ 無い）。
+   紐付けの対象はリポジトリ側に存在する ref なので、ローカルにしか無い branch は対象になり得ない。
+2. ローカルの branch 名が違っていれば `git branch -m <正しい名前>` で改名する。
+3. `gh issue develop <番号> --name <同じ名前> --base <同じベース>` を実行する。
+   `--checkout` を付けないので**ローカル ref は増えない**（作られるのはリモート側の branch だけ）。
+4. `git fetch origin '<名前>'` してから、ローカルとリモート（`FETCH_HEAD`）が同一コミットであることと、
+   `linkedBranches` に載ったことを確認する。
+
+```bash
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ # pagination-ok（作った 1 本が載ったかの確認）
+  repository(owner:$o,name:$r){
+    issue(number:$n){ linkedBranches(first:10){ nodes { ref { name } } } } } }' \
+  -F o=<owner> -F r=<repo> -F n=<番号>
 ```
 
 ### 入れ子と再入場
