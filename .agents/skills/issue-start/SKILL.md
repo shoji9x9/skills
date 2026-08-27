@@ -53,11 +53,20 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
    - local: `git --no-pager branch --list 'feature/<番号>-*'`
    - remote: `git --no-pager branch -r --list 'origin/feature/<番号>-*'`
 6. 同番号ブランチが見つかった場合は重複作成せず分岐する
-   - 1 本だけで意図が明確なら、その branch へ入って継続する
-     - 共有ツリーで作業する場合: checkout する
-     - worktree で作業する場合: **branch は既にあるので作らない**。`gh issue develop` は実行せず、
-       remote にしか無ければ `git fetch origin '+refs/heads/<branch>:refs/remotes/origin/<branch>'` と
-       `git branch <branch> FETCH_HEAD` でローカル ref を起こしてから、`git-worktree enter <branch>` 相当の契約で入る
+   - 1 本だけで意図が明確なら、その branch を使って継続する。
+     ただし**入る前に Issue との紐付けを確かめる**——既存 branch は
+     worktree の作成手段や `git switch -c` で作られていることがあり、その場合は紐付けが無い
+     - **local にしか無い場合**（step 5 の remote 検索が 0 件）: 紐付けの対象はリポジトリ側に存在する ref なので、
+       **紐付けは作られていない**。`git-worktree` の `references/isolation.md`「作らせてしまった後の回復」に従い、
+       未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>`（`--checkout` なし）で
+       回復してから続ける。commit 済みなら回復できないのでユーザーに確認する
+     - **remote にもある場合**: `gh issue develop --list <番号> --repo <owner>/<repo>` で紐付けを実測する。
+       **PR が既にあると紐付けは PR へ移り、この一覧は空になる**（実測）ため、空だったときは
+       `gh pr list --head <branch>` も見てから判断する（PR があれば紐付け済み、無ければ上と同じ回復を検討する）
+     - 紐付けを確認できたら branch へ入る。共有ツリーなら checkout する
+     - worktree で作業する場合は、**branch は既にあるので `gh issue develop` で作り直さない**。
+       local ref が無ければ `git fetch origin '+refs/heads/<branch>:refs/remotes/origin/<branch>'` と
+       `git branch <branch> FETCH_HEAD` で起こしてから、`git-worktree enter <branch>` 相当の契約で入る
        （step 7 の worktree の項は「branch が見つからない場合」の手順なので、その branch 作成部分は適用しない）
    - 複数候補がある、または意図が不明ならユーザーに確認する
 7. 見つからない場合のみ、ベースブランチから作成する
