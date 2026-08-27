@@ -46,6 +46,18 @@ const NOTIFIED = [
     payload: bash("git -C /tmp/repo worktree add /tmp/wt"),
   },
   { name: "パス指定の git", payload: bash("/usr/bin/git worktree add -b feature/x /tmp/wt") },
+  {
+    name: "ラッパー越しの add（time）",
+    payload: bash("time git worktree add -b feature/x /tmp/wt"),
+  },
+  {
+    name: "ラッパーのオプション越しの add（time -p）",
+    payload: bash("time -p git worktree add -b feature/x /tmp/wt"),
+  },
+  {
+    name: "値を別トークンに取るラッパーオプション越しの add（nice -n 10）",
+    payload: bash("nice -n 10 git worktree add -b feature/x /tmp/wt"),
+  },
   // 1 コマンド行に add が複数あるとき、先頭が branch を作らない形でも打ち切らない。
   {
     name: "branch を作らない add の後ろに続く add",
@@ -84,6 +96,10 @@ const SILENT = [
   {
     name: "コマンド位置にない git（説明文の途中）",
     payload: bash("printf %s まず git worktree add -b feature/x wt を避ける"),
+  },
+  {
+    name: "markdown 箇条書きとして現れる add（ラッパー無し）",
+    payload: bash("cat > /tmp/m.txt <<EOF\n- git worktree add -b feature/x wt は使わない\nEOF"),
   },
   // `-d` と `-f` の束ね。detach なので branch は作られない（実測）。
   { name: "短オプションの束ねの -d", payload: bash("git worktree add -df /tmp/wt") },
@@ -161,6 +177,16 @@ test("閉じないシングルクォートを含んでも判定が入力と対�
 test("glob メタ文字を含むパスでも判定が cwd に依存しない", () => {
   expect(runGuard(bash("git worktree add -b feature/x '/tmp/wt[1]'")).stdout).not.toBe("");
   expect(runGuard(bash("git worktree add '/tmp/wt*' feature/x")).stdout).toBe("");
+});
+
+// 陽性コントロール: ラッパーのオプションを外すと元から検出できていた形に戻る。つまり
+// 検出できるようになったのはオプション読み飛ばしを足したからで、検出器全体が
+// 緩くなったからではない。同時に、ラッパーの無い `- ` 始まりの行が
+// コマンド位置に化けていないことも押さえる（PR #236 レビュー）。
+test("ラッパーのオプションを読み飛ばしても箇条書きは化けない", () => {
+  expect(runGuard(bash("time -p git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
+  expect(runGuard(bash("time git worktree add -b feature/x /tmp/wt")).stdout).not.toBe("");
+  expect(runGuard(bash("- git worktree add -b feature/x /tmp/wt")).stdout).toBe("");
 });
 
 // Copilot の preToolUse 出力は permission 決定専用で additionalContext を持たないため、

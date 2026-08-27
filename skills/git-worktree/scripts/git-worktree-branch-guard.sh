@@ -224,7 +224,7 @@ tokenize() { # $1: コマンド文字列
 # 0 = 作る（通知）、1 = 作らない／該当なし。
 worktree_add_creates_branch() { # $1: コマンド文字列
 	local -a tokens=()
-	local raw t i n operands=0 detach=0 saw_dashdash=0 at_cmd_start=1
+	local raw t i n operands=0 detach=0 saw_dashdash=0 at_cmd_start=1 saw_wrapper=0
 	mapfile -t tokens < <(tokenize "${1:-}")
 	n=${#tokens[@]}
 	i=0
@@ -233,6 +233,7 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 		i=$((i + 1))
 		if [ "${raw}" = $'\x1e' ]; then
 			at_cmd_start=1
+			saw_wrapper=0
 			continue
 		fi
 		t=$(unquote "${raw}")
@@ -240,8 +241,29 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 		if [ "${at_cmd_start}" -eq 1 ]; then
 			case "${t}" in
 			[A-Za-z_]*=*) continue ;;
-			sudo | env | command | nohup | nice | time | xargs) continue ;;
+			sudo | env | command | nohup | nice | time | xargs)
+				saw_wrapper=1
+				continue
+				;;
 			esac
+			# ラッパーのオプション（`time -p git ...` / `nice -n 10 git ...`）を読み飛ばす。
+			# **ラッパーを見た後だけ**に限る——コマンド位置で無条件に `-*` を飛ばすと、
+			# markdown の箇条書き（`- git worktree add -b ...`）が散文の中でコマンド位置に化ける。
+			if [ "${saw_wrapper}" -eq 1 ]; then
+				case "${t}" in
+				*=*) continue ;; # `--opt=値`。値は同じトークンなので次を食わない
+				-*)
+					# 値を別トークンに取る形（`-n 10`）に備え、次が git でなければ 1 語飲む。
+					if [ "${i}" -lt "${n}" ]; then
+						case "$(unquote "${tokens[i]}")" in
+						git | */git | -*) ;;
+						*) i=$((i + 1)) ;;
+						esac
+					fi
+					continue
+					;;
+				esac
+			fi
 		fi
 		# `git` 本体（`/usr/bin/git` のようなパス指定も含む）。
 		# **コマンド位置にある `git` だけを見る。** 語の並びのどこにでも反応させると、
@@ -252,10 +274,12 @@ worktree_add_creates_branch() { # $1: コマンド文字列
 		git | */git) [ "${at_cmd_start}" -eq 1 ] || continue ;;
 		*)
 			at_cmd_start=0
+			saw_wrapper=0
 			continue
 			;;
 		esac
 		at_cmd_start=0
+		saw_wrapper=0
 		# git のグローバルオプションを読み飛ばす。値を別引数で取るものだけ 1 語消費する。
 		while [ "${i}" -lt "${n}" ]; do
 			t=$(unquote "${tokens[i]}")
