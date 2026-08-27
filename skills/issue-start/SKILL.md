@@ -52,7 +52,9 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
    - title が日本語中心なら、転写せず作業内容を表す短い英語の kebab-case に要約する
 5. 同じ issue 番号のブランチが既にないか確認する
    - local: `git --no-pager branch --list 'feature/<番号>-*'`
-   - remote: `git --no-pager branch -r --list 'origin/feature/<番号>-*'`
+   - remote: `git ls-remote --heads origin 'refs/heads/feature/<番号>-*'`
+     - **`git branch -r --list` を使わない。** 手元の remote-tracking ref を読むだけなので、fetch していないと
+       実在する branch を 0 件と誤判定する。step 6 の紐付け判定がこの結果に依存するため、リモートへ直接問い合わせる
 6. 同番号ブランチが見つかった場合は重複作成せず分岐する
    - 1 本だけで意図が明確なら、その branch を使って継続する。
      ただし**入る前に Issue との紐付けを確かめる**——既存 branch は

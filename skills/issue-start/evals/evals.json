@@ -84,6 +84,7 @@
       "prompt": "Issue #91 用の branch feature/91-x はもうローカルにある（前に worktree を作ったときに一緒に作られた）。まだ push していない。この branch で作業を続けたい。まだ何も実行しないで、何を確認してどう進めるか手順だけ示して。",
       "assertions": [
         "既存 branch を使う前に Issue との紐付けを確かめる必要があると述べている",
+        "remote の有無を `git ls-remote --heads` でリモートへ直接問い合わせている（`git branch -r --list` は fetch していないと実在する branch を 0 件と誤判定するため使わない）",
         "local にしか無い branch は紐付けの対象になり得ない（紐付けはリポジトリ側に存在する ref が対象）と述べている",
         "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
         "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
