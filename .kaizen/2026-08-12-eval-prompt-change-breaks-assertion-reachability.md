@@ -1,7 +1,7 @@
 ---
 date: 2026-08-12
 type: rule
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -50,3 +50,40 @@ eval のプロンプトを変更したら、その eval の**全** assertion に
 - **症状を絞る書き換えは、絞った側に依存する既存 assertion を到達不能にする。**
   「ラベル」→「エッジのラベル」のように限定語を足すときは、
   既存 assertion が依存していた語が残っているかを先に確認する。
+
+---
+
+## 事象（2 件目・2026-08-27）
+
+Issue #222 の実装で `issue-start` に新規 eval を書き、
+prompt「issue-start 91 に着手して。…worktree で作業してほしい。」で 2 run 回したところ、
+with_skill / without_skill とも step 2（repo 一致確認）で停止し、
+検査対象の step 7（branch と worktree の順序）へ到達せず採点不能になった。
+レートリミット直前に 2 run を捨てた。
+
+prompt を dry-run（「まだ何も実行しないで、手順だけ先に示して」）へ改めたら
+両 configuration とも到達し、Delta 0.86（with 1.00 / without 0.14）が出た。
+
+## 根本原因（2 件目）
+
+- なぜ到達しなかった? → prompt が実行を要求し、sandbox に git リポジトリが無いので早期停止した
+  - なぜ気付かなかった? → 新規 eval を書く時点で到達性を検証しなかった
+    - なぜ? → この制約は**同じスキルの過去 benchmark の `notes`**
+      （`tests/issue-start/iteration-3/benchmark.json`「使い捨てプロジェクトは git リポジトリでは
+      ないため、実ブランチ作成・commit・PR を要求する assertion は with_skill でも構造的に
+      満たせない」）に既にあった。一方 rule 側は「外部依存より先の工程を検査項目にしない」
+      までで、**prompt の要求形が到達性を決める**という具体が無い ← 根本原因（対策可能）
+
+1 件目（プロンプト編集で既存 assertion が壊れる）と同じ rule の同じ節が不足しており、
+到達性の検証が「assertion を書く時点」の話としてしか読めない点が共通の原因。
+
+## 提案（追記分）
+
+`.agents/rules/eval-assertion-discrimination.md` の「到達」に追記する:
+
+- **prompt の要求形も到達性を決める。** eval 環境の使い捨てプロジェクトは git リポジトリでは
+  ないので、「実行して」「着手して」と実行を要求する prompt は、repo を前提とする手順へ
+  到達せず早期停止する。手順・判断そのものを検査したいなら
+  dry-run 形（「まだ実行しないで、手順だけ示して」）で問う。
+- **新規 eval を書く前に、そのスキルの直近 benchmark の `notes` を読む。**
+  到達しない工程は「構造的に満たせない」として既に記録されていることがある。
