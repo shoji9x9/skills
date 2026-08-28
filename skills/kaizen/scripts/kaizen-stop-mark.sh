@@ -60,6 +60,13 @@ session_id=""
 transcript=""
 payload_cwd=""
 session_key=""
+# 共通ライブラリが読めて Hook JSON を実際に解析できたかどうか。次のセンチネル省略判定は
+# 「transcript_path を解析した結果、値が無かった」場合だけに限る必要がある。ライブラリが
+# 読めない配布物の欠落・部分展開（呼び出し側は動く前提。冒頭コメント参照）では
+# `transcript` は解析できずに空のままになるだけで、「セッションに transcript が無い」とは
+# 別の理由であり、区別しないと縮退時に一律センチネルを立てなくなってしまう（実測で確認済み:
+# 有効な transcript_path を含む payload でもライブラリ欠落時は完全にセンチネルが消える）。
+hook_fields_resolved=0
 if declare -f kaizen_hook_fields >/dev/null 2>&1; then
 	{
 		IFS= read -r session_id
@@ -67,7 +74,26 @@ if declare -f kaizen_hook_fields >/dev/null 2>&1; then
 		IFS= read -r payload_cwd
 	} <<<"$(kaizen_hook_fields "${input}")" || true
 	session_key=$(kaizen_session_key "${session_id}")
+	hook_fields_resolved=1
 fi
+
+# Claude Code / Codex は Hook payload に transcript_path を必ず持つ（`string | null`）。
+# `/compact` 専用の隠しセッションのように transcript を一度も作らないまま Stop が走ることが
+# あり（Issue #240）、そのままセンチネルを立てるとコミット前ゲートの案内どおりに解消できない
+# 恒久ブロッカーになる（記録された transcript が実在しないため、案内の「探して抽出する」手順が
+# 完結しない）。transcript の無いセッションには抽出すべき学びも無いので、活動なしとして扱い
+# センチネルを立てない。
+# ただし、この判定は Hook JSON を実際に解析できた（`hook_fields_resolved=1`）ときに限る。
+# 解析できていなければ「transcript が無い」のか「取れなかっただけ」なのか区別できず、
+# 従来どおりセンチネルを立てる（縮退時は機能が落ちるだけで壊れない、という既存方針を維持する）。
+# Copilot は Hook payload に transcript を持たないのが正常系なので対象外（従来どおり立てる）。
+case "${agent}" in
+claude-code | codex)
+	if [ "${hook_fields_resolved}" -eq 1 ]; then
+		[ -n "${transcript}" ] && [ -r "${transcript}" ] || exit 0
+	fi
+	;;
+esac
 
 # .kaizen/ をプロジェクトルート基準で解決する。共通ライブラリが読めれば、コミットが実行される
 # 作業ツリー（git worktree を含む）を優先する。読めなければ従来の解決へ縮退する。

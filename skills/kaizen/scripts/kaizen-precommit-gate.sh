@@ -511,11 +511,20 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 			# 一括りにすると、実在するのに読めていないだけの transcript を探し直させてしまう。
 			if [ -n "${s_recorded}" ]; then
 				printf '    センチネルが記録した transcript を読めません（移動・削除済み、または値が不正）。\n' >&2
+				printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、抽出後に実行してください:\n' >&2
+				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
 			else
-				printf '    transcript の記録がありません（session 単位化より前のセンチネル、または記録に失敗）。\n' >&2
+				# transcript を一度も記録していないセンチネル（session 単位化より前、記録失敗、
+				# または `/compact` 専用の隠しセッションのように transcript を一度も作らないまま
+				# Stop が走った場合。Issue #240）。無い transcript は探しても見つからないので、
+				# 見つからなかった場合の解消コマンドも合わせて出す（「transcript の無いセッションに
+				# 抽出すべき学びはない」という判断で、transcript を指定せず解消できる）。
+				printf '    transcript の記録がありません（session 単位化より前のセンチネル、記録に失敗、または /compact 専用の隠しセッションのように transcript を一度も作らないまま終了した可能性）。\n' >&2
+				printf '    Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/** を探し、見つかれば抽出後に渡して実行してください:\n' >&2
+				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
+				printf '    探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n' >&2
+				printf '    bash "%s/kaizen-extract-done.sh" %s\n' "${script_dir}" "${opts}" >&2
 			fi
-			printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、抽出後に実行してください:\n' >&2
-			printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
 			recovery_needs_transcript=1
 		fi
 	done
