@@ -509,14 +509,27 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 		else
 			# 「記録が無い」と「記録はあるが今は使えない」は原因も対処も違うので区別して出す。
 			# 一括りにすると、実在するのに読めていないだけの transcript を探し直させてしまう。
-			if [ -n "${s_recorded}" ]; then
-				printf '    センチネルが記録した transcript を読めません（移動・削除済み、または値が不正）。\n' >&2
-				printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、抽出後に実行してください:\n' >&2
+			if [ -n "${s_recorded}" ] && [ -e "${s_recorded}" ]; then
+				printf '    センチネルが記録した transcript を読めません（権限・FS 状態。パスは実在する）。\n' >&2
+				printf '    読めるようにしてから抽出し、実行してください:\n' >&2
 				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
-				# `<transcript>` の穴埋めが必須なのはこの分岐（記録はあるが今は読めない）だけ。
-				# 「記録が無い」分岐は transcript なしの解消コマンドで完結するため、ここでだけ立てる
-				# （両分岐に共通で立てると、無記録側でも <transcript> の穴埋めが要るように読めてしまう）。
+				# `<transcript>` の穴埋めが必須なのはこの分岐（実在するが今は読めない）だけ。
+				# 他の分岐は transcript なしの解消コマンドで完結するため、ここでだけ立てる
+				# （共通で立てると、他の分岐でも <transcript> の穴埋めが要るように読めてしまう）。
 				recovery_needs_transcript=1
+			elif [ -n "${s_recorded}" ]; then
+				# 記録はあるがパスが実在しない（移動・削除済み、剪定、値が不正）。探しても
+				# 見つからないことがあるので、「無記録」分岐と同じく transcript なしの解消も出す。
+				# ここを `-r` だけで「読めない」と一括りにすると、実在しない transcript を
+				# 探させ続ける案内しか出ず、抽出済みセッションが残したセンチネルが
+				# 恒久ブロッカーになる（transcript が剪定された後に到達する。Issue #244 で
+				# 抽出済みセッションのセンチネルもマーカーに覆われなくなったため露出が広がった）。
+				# 実在するが読めないだけのケース（上の分岐）は従来どおり抽出を要求する。
+				printf '    センチネルが記録した transcript が実在しません（移動・削除済み、剪定、または値が不正）。\n' >&2
+				printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、見つかれば抽出後に実行してください:\n' >&2
+				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
+				printf '    探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n' >&2
+				printf '    bash "%s/kaizen-extract-done.sh" %s\n' "${script_dir}" "${opts}" >&2
 			else
 				# transcript を一度も記録していないセンチネル（session 単位化より前、記録失敗、
 				# または `/compact` 専用の隠しセッションのように transcript を一度も作らないまま
@@ -537,12 +550,25 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 # session 単位なので、あるセッションの抽出完了が他セッションの未抽出シグナルを覆い隠さない
 # （Issue #218）。session 単位化より前の（key を持たない）センチネルは、同じく key を持たない
 # マーカーが覆う。
+#
+# ただし**そのセッションの checkpoint がある場合、マーカーは覆わない**（Issue #244）。
+# マーカーはセッション全体を抽出済みにする印なので、覆わせると 1 本の branch で複数 commit する
+# ときに最初の commit までの活動しか抽出されない。checkpoint があれば差分走査で「前回の抽出以降に
+# 積まれた活動」だけを検査でき、候補ゼロなら自動で通り、候補があればブロックできる。
+# checkpoint が無いときだけマーカーを尊重する（差分走査の起点が無く、毎 commit 全走査＝恒久
+# ブロックになるため。書き手側 kaizen-extract-done.sh もこの条件でしかマーカーを書かないが、
+# 遮断の判断はゲート側にも置く——古いマーカーが残っていても取りこぼさない）。
+# key を持たない旧形式は対象外にする。key 無しの checkpoint は単一ファイルで、そのセンチネルの
+# transcript を指しているとは限らず、「新しい活動がある」の根拠にできない（従来どおりマーカーが覆う）。
 collect_unresolved() {
 	unresolved=()
-	local sentinel
+	local sentinel key
 	for sentinel in .kaizen/.pending-extract*; do
 		[ -e "${sentinel}" ] || continue
-		[ -f "$(kaizen_done_path "$(kaizen_sentinel_key_of "${sentinel}")")" ] && continue
+		key=$(kaizen_sentinel_key_of "${sentinel}")
+		if [ -f "$(kaizen_done_path "${key}")" ]; then
+			[ -n "${key}" ] && [ -f "$(kaizen_checkpoint_path "${key}")" ] || continue
+		fi
 		unresolved+=("${sentinel}")
 	done
 }

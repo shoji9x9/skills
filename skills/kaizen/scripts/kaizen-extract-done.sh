@@ -2,10 +2,17 @@
 # kaizen extract-done marker（抽出完了の記録）
 #
 # 既定（抽出完了時にエージェントが呼び出す）: 対象セッションの未抽出センチネルを削除し、
-# 抽出完了マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書く。
-# コミット前ゲート（kaizen-precommit-gate.sh）はそのセッションのマーカーがある間、Stop フックによる
-# センチネル再装填を無視して commit を通す（ゲートはセッションにつき 1 回だけ抽出を要求する）。
-# マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
+# transcript を渡されていれば処理位置 `.kaizen/.extract-checkpoint.<session key>` を transcript の
+# 現在の終端まで進める。以降のコミット前ゲート（kaizen-precommit-gate.sh）は、その位置より後の
+# 未処理範囲だけを走査する——1 本の branch で複数 commit しても、前回の抽出以降に積まれた活動が
+# 毎回検査される（Issue #244）。
+# checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）だけ、抽出完了
+# マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書き、古い checkpoint は
+# 落とす（残すとゲートがマーカーを尊重せず、古い起点から同じ候補を再検出して止まり続ける）。
+# 差分走査の起点が無いと毎 commit が全走査＝恒久ブロックになるため、そのセッションのゲートを
+# 解除する fail safe。
+# ゲートはそのセッションのマーカーがある間、Stop フックによるセンチネル再装填を無視して commit を
+# 通す。マーカーはセッション開始時に kaizen-context-inject.sh（SessionStart フック）が削除する。
 #
 # `--session-id <id>`: 対象セッション（センチネルを立てた本人。自分自身とは限らない）。
 # センチネル・checkpoint・抽出完了マーカーはこの id で決まる key を名前に持つ。省略すると
@@ -164,6 +171,10 @@ fi
 
 mkdir -p .kaizen
 
+# checkpoint を記録できたか。transcript を渡されない呼び出しでは下のブロックに入らないため、
+# `set -u` に落ちないようここで初期化する（0 のままなら「差分走査の起点が無い」を意味する）。
+checkpoint_written=0
+
 # PreToolUse が渡した transcript_path を受け取れる場合は、処理済みバイト位置を記録する。
 # 次回の候補走査はこの位置より後だけを見る。パスを省略した従来の呼び出しも有効。
 if [ "${mode}" = "checkpoint-only" ] && { [ -z "${transcript}" ] || [ ! -r "${transcript}" ]; }; then
@@ -196,7 +207,6 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 		checkpoint_lines=$(wc -l <"${transcript}" 2>/dev/null || true)
 		checkpoint_lines=${checkpoint_lines//[[:space:]]/}
 	fi
-	checkpoint_written=0
 	if [ -n "${checkpoint_bytes}" ] && [ -n "${checkpoint_lines}" ]; then
 		if printf '%s\n%s\n%s\n%s\n' "${transcript}" "${checkpoint_bytes}" "${agent}" "${checkpoint_lines}" \
 			>"${checkpoint_tmp}" 2>/dev/null &&
@@ -214,7 +224,27 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	fi
 fi
 if [ "${mode}" = "complete" ]; then
-	date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
+	# `.extract-done` は**セッション全体**を抽出済みにする強い印なので、checkpoint を記録できた
+	# ときは書かない。書くと同一セッション内の後続 commit が素通りし、1 本の branch で複数
+	# commit する運用では最初の commit までの活動しか抽出されない（Issue #244）。
+	# checkpoint があれば、次の commit ではその位置より後の未処理範囲だけが再走査され、
+	# 候補ゼロなら自動で通り、候補があればブロックされる——取りこぼしも恒久ブロックも起きない。
+	# 逆に checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）は、
+	# 差分走査の起点が無く再走査が毎回全走査＝毎 commit ブロックになるため、従来どおり
+	# マーカーを書いてゲートを解除する（fail safe。セッション開始時に SessionStart が失効させる）。
+	if [ "${checkpoint_written}" -eq 1 ]; then
+		# 同一セッションで先に checkpoint 無しの完了があった場合の古いマーカーを失効させる。
+		# 残すとゲート側が素通りへ倒れ、いま記録した checkpoint 以降の活動を取りこぼす。
+		rm -f "${done_path}"
+	else
+		date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
+		# 古い checkpoint を残すとゲートがマーカーを尊重せず（「checkpoint がある間は覆わない」）、
+		# いま抽出したばかりの範囲を古い起点から再走査して同じ候補で再びブロックする。
+		# 抽出をやり直しても checkpoint を記録できない限り同じ状態に戻るため、fail safe が
+		# 効かないまま commit が止まり続ける。上の警告どおり「次回は全走査」に倒すため、
+		# マーカーを書けた後に差分走査の起点も落として整合させる。
+		rm -f "${checkpoint_path}"
+	fi
 fi
 if [ "${sentinel_suffix_set}" -eq 1 ]; then
 	rm -f "${sentinel_path}"

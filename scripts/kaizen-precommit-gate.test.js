@@ -42,10 +42,11 @@ function runScript(script, args, { cwd, scripts = scriptsDir, env = {} } = {}) {
 }
 
 /** PreToolUse Hook の入力を模して、ゲートに 1 コマンドを判定させる。 */
-function runGate(command, { cwd, transcriptPath, scripts = scriptsDir, env = {} } = {}) {
+function runGate(command, { cwd, transcriptPath, sessionId, scripts = scriptsDir, env = {} } = {}) {
   const input = JSON.stringify({
     tool_input: { command },
     ...(transcriptPath ? { transcript_path: transcriptPath } : {}),
+    ...(sessionId ? { session_id: sessionId } : {}),
   });
   return spawnSync("bash", [join(scripts, "kaizen-precommit-gate.sh")], {
     cwd,
@@ -231,6 +232,198 @@ describe("checkpoint は走査器が検査した範囲までしか進めない",
     expect(gate.status).toBe(2);
     expect(gate.stderr).toMatch(/did not report its scanned position/);
     expect(readdirSync(join(cwd, ".kaizen"))).toContain(".pending-extract");
+  });
+});
+
+// 1 本の branch で複数 commit する運用では、最初の commit の後に積まれた活動も抽出対象でなければ
+// ならない（Issue #244）。抽出完了マーカー `.extract-done.<key>` はセッション全体を抽出済みにする
+// 印なので、checkpoint がある限りゲートに尊重させない。ここが緩むと 2 回目以降の commit が静かに
+// 素通りし、「ゲートが動いている」ように見えたまま学びを取りこぼす。
+describe("同一セッションの後続 commit も未処理範囲を再走査する", () => {
+  const SESSION = "sess-244";
+  const sentinelName = `.pending-extract.${SESSION}`;
+
+  /** Stop フックが毎ターン行うセンチネル再装填を模す。 */
+  function armSentinel(cwd, transcript) {
+    writeFileSync(
+      join(cwd, ".kaizen", sentinelName),
+      `2026-01-01T00:00:00Z\n${transcript}\nclaude-code\n${SESSION}\n`,
+    );
+  }
+
+  function completeExtraction(cwd, args) {
+    const done = runScript(
+      "kaizen-extract-done.sh",
+      ["--sentinel-suffix", "", "--agent", "claude-code", "--session-id", SESSION, ...args],
+      { cwd },
+    );
+    expect(done.status).toBe(0);
+    return done;
+  }
+
+  test("checkpoint を記録できた抽出完了は .extract-done を書かない", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+
+    completeExtraction(cwd, [transcript]);
+
+    const files = readdirSync(join(cwd, ".kaizen"));
+    expect(files).toContain(`.extract-checkpoint.${SESSION}`);
+    expect(files).not.toContain(`.extract-done.${SESSION}`);
+    expect(files).not.toContain(sentinelName);
+  });
+
+  test("抽出後に積まれた候補は次の commit でブロックされる", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, [transcript]);
+
+    // 1 回目の commit の後に積まれた活動（ユーザーの訂正を含む）。
+    appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
+    armSentinel(cwd, transcript);
+
+    const gate = runGate("git commit -m second", {
+      cwd,
+      transcriptPath: transcript,
+      sessionId: SESSION,
+    });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/candidate\(s\) found/);
+    expect(readdirSync(join(cwd, ".kaizen"))).toContain(sentinelName);
+  });
+
+  test("抽出後に新しい活動が無ければ次の commit は通る", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, [transcript]);
+    armSentinel(cwd, transcript);
+
+    const gate = runGate("git commit -m second", {
+      cwd,
+      transcriptPath: transcript,
+      sessionId: SESSION,
+    });
+    expect(gate.status).toBe(0);
+    expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(sentinelName);
+  });
+
+  test("修正前に書かれた .extract-done が残っていても再走査する", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, [transcript]);
+    // 旧版が書いたマーカー（アップグレード直後にセッション内で残っている状態）。
+    writeFileSync(join(cwd, ".kaizen", `.extract-done.${SESSION}`), "2026-01-01T00:00:00Z\n");
+
+    appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
+    armSentinel(cwd, transcript);
+
+    const gate = runGate("git commit -m second", {
+      cwd,
+      transcriptPath: transcript,
+      sessionId: SESSION,
+    });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/candidate\(s\) found/);
+  });
+
+  test("checkpoint を記録できない抽出完了は .extract-done でゲートを解除する", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+
+    // transcript を渡さない呼び出しでは差分走査の起点が作れない。ここでマーカーまで
+    // 書かないと、以降の commit が全走査で毎回ブロックされる恒久ブロッカーになる。
+    completeExtraction(cwd, []);
+    const files = readdirSync(join(cwd, ".kaizen"));
+    expect(files).toContain(`.extract-done.${SESSION}`);
+    expect(files).not.toContain(`.extract-checkpoint.${SESSION}`);
+
+    appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
+    armSentinel(cwd, transcript);
+
+    const gate = runGate("git commit -m second", {
+      cwd,
+      transcriptPath: transcript,
+      sessionId: SESSION,
+    });
+    expect(gate.status).toBe(0);
+  });
+
+  test("checkpoint を後から記録できたら、先に書かれた .extract-done を失効させる", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, []);
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, [transcript]);
+
+    const files = readdirSync(join(cwd, ".kaizen"));
+    expect(files).toContain(`.extract-checkpoint.${SESSION}`);
+    expect(files).not.toContain(`.extract-done.${SESSION}`);
+  });
+
+  // ゲートは候補ゼロの自動通過のたびに checkpoint を書く。その後の抽出で checkpoint を
+  // 記録できなかった場合（transcript を渡し忘れた・読めない・書けない）、古い checkpoint を
+  // 残したままマーカーだけ書くと、ゲートはマーカーを尊重せず古い起点から再走査し、いま抽出
+  // したばかりの候補で再びブロックする。抽出をやり直しても同じ状態に戻るため fail safe が
+  // 効かず commit が止まり続ける。
+  test("先に checkpoint がある状態でも .extract-done の fail safe は効く", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+
+    // 1 回目の commit: 候補ゼロでゲートが自動通過し、checkpoint が書かれる。
+    armSentinel(cwd, transcript);
+    expect(
+      runGate("git commit -m first", { cwd, transcriptPath: transcript, sessionId: SESSION })
+        .status,
+    ).toBe(0);
+    expect(readdirSync(join(cwd, ".kaizen"))).toContain(`.extract-checkpoint.${SESSION}`);
+
+    // 候補が積まれ、抽出は済んだが transcript を渡せず checkpoint を記録できなかった。
+    appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
+    armSentinel(cwd, transcript);
+    completeExtraction(cwd, []);
+    const files = readdirSync(join(cwd, ".kaizen"));
+    expect(files).toContain(`.extract-done.${SESSION}`);
+    // 起点を残すと fail safe がゲートに無視される。全走査へ倒すため落とす。
+    expect(files).not.toContain(`.extract-checkpoint.${SESSION}`);
+
+    armSentinel(cwd, transcript);
+    const gate = runGate("git commit -m second", {
+      cwd,
+      transcriptPath: transcript,
+      sessionId: SESSION,
+    });
+    expect(gate.status).toBe(0);
+  });
+
+  test("key を持たない旧形式のセンチネルは従来どおりマーカーが覆う", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    // key 無しの checkpoint は単一ファイルで、このセンチネルの transcript を指しているとは
+    // 限らない。「新しい活動がある」の根拠にできないので、マーカーの効力を保つ。
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+    writeFileSync(join(cwd, ".kaizen", ".extract-done"), "2026-01-01T00:00:00Z\n");
+    writeFileSync(
+      join(cwd, ".kaizen", ".extract-checkpoint"),
+      `${join(cwd, "other.jsonl")}\n999\nclaude-code\n99\n`,
+    );
+    appendFileSync(transcript, readFileSync(join(fixturesDir, "claude-candidate.jsonl"), "utf8"));
+
+    const gate = runGate("git commit -m x", { cwd, transcriptPath: transcript });
+    expect(gate.status).toBe(0);
   });
 });
 
@@ -684,16 +877,41 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
-  test("transcript は記録されているが今は読めない場合は、探して抽出する案内だけを出す", () => {
+  test("transcript が実在するのに読めない場合は、探して抽出する案内だけを出す", () => {
     const cwd = makeProject();
-    const missingTranscript = join(cwd, "moved-or-deleted.jsonl");
-    writeSentinel(cwd, "other-session-2", missingTranscript);
+    const unreadable = join(cwd, "unreadable.jsonl");
+    writeFileSync(unreadable, "{}\n");
+    chmodSync(unreadable, 0o000);
+    writeSentinel(cwd, "other-session-2", unreadable);
+    try {
+      const gate = runGate("git commit -m x", { cwd });
+      expect(gate.status).toBe(2);
+      expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
+      expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
+      expect(gate.stderr).not.toMatch(/transcript を指定せず次のコマンドで解消してください/);
+      // このケースは <transcript> の穴埋めが必須の唯一の解消コマンドなので、注意書きが出る。
+      expect(gate.stderr).toMatch(/<transcript> だけを.*置き換えてください/);
+    } finally {
+      chmodSync(unreadable, 0o644);
+    }
+  });
+
+  // 記録された transcript が**実在しない**（剪定・削除・移動）ケース。探しても見つからないので、
+  // 「実在するが読めない」と同じ案内に倒すと解消手段が無い恒久ブロッカーになる。
+  // Issue #244 で抽出済みセッションのセンチネルもマーカーに覆われなくなったため、
+  // transcript が剪定された旧セッションの残骸としてこの状態に到達しやすくなった。
+  test("transcript の記録が実在しない場合は、transcript 無しで解消するコマンドも提示する", () => {
+    const cwd = makeProject();
+    const pruned = join(cwd, "pruned.jsonl"); // 作らない
+    writeSentinel(cwd, "other-session-3", pruned);
     const gate = runGate("git commit -m x", { cwd });
     expect(gate.status).toBe(2);
-    expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
-    expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
-    expect(gate.stderr).not.toMatch(/transcript を指定せず次のコマンドで解消してください/);
-    // このケースは <transcript> の穴埋めが必須の唯一の解消コマンドなので、注意書きが出る。
-    expect(gate.stderr).toMatch(/<transcript> だけを.*置き換えてください/);
+    expect(gate.stderr).toMatch(/センチネルが記録した transcript が実在しません/);
+    expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
+    expect(gate.stderr).toMatch(
+      /探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n\s*bash "[^"]+\/kaizen-extract-done\.sh" --sentinel-suffix "" --agent "claude-code" --session-id "other-session-3"\n/,
+    );
+    // 穴埋め必須の注意書きは出ない（transcript 無しの解消コマンドで完結するため）。
+    expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 });
