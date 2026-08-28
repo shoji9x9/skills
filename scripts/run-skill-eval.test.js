@@ -208,6 +208,48 @@ describe("run-skill-eval executor compatibility", () => {
     expect(readFileSync(join(output, "project-files", "existing.txt"), "utf8")).toBe("fixture\n");
   });
 
+  test("runs an executable fixture setup before the executor and initial manifest", () => {
+    const { directory, stub } = makeStub();
+    const fixture = join(directory, "fixture");
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    mkdirSync(fixture);
+    const setup = join(fixture, "setup.sh");
+    writeFileSync(
+      setup,
+      "#!/usr/bin/env bash\nset -euo pipefail\nprintf 'seeded\\n' >seeded.txt\n",
+      "utf8",
+    );
+    chmodSync(setup, 0o755);
+
+    runEval({
+      config: "with_skill",
+      prompt: "EXPECT_WITH_SKILL EXPECT_CREATE_FILE",
+      output,
+      stub,
+      fixture,
+    });
+
+    expect(readFileSync(join(output, "project-files", "seeded.txt"), "utf8")).toBe("seeded\n");
+    expect(readJson(join(output, "outputs", "metrics.json")).files_created).toEqual([
+      "generated.txt",
+    ]);
+  });
+
+  test("fails before starting the executor when fixture setup fails", () => {
+    const { directory, stub } = makeStub();
+    const fixture = join(directory, "fixture");
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    mkdirSync(fixture);
+    const setup = join(fixture, "setup.sh");
+    writeFileSync(setup, "#!/usr/bin/env bash\nexit 23\n", "utf8");
+    chmodSync(setup, 0o755);
+
+    expect(() =>
+      runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture }),
+    ).toThrow();
+    expect(existsSync(output)).toBe(false);
+  });
+
   test("returns exit 5 when normalization and the executor both fail", () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");

@@ -107,6 +107,10 @@ scripts/run-skill-eval.sh \
 # "fixture": "evals/fixtures/<fixture名>" を記録する（fixture は実行で変更されない）。
 ```
 
+fixture のルートに executable な `setup.sh` があれば、ハーネスはコピー後・executor 起動前に使い捨てプロジェクト内で実行する。
+Git 管理領域や local bare remote のように通常ファイルとして同梱できない前提状態はここで決定論的に構築する。
+setup が非 0 なら executor を起動せず eval を失敗させ、setup が生成したファイルは run 前の入力として扱う。
+
 - **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
   `run-skill-eval.sh` は**両 configuration** を `scripts/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
   各 run に `isolation.txt`（遮断できたか）を必ず残す。`without_skill` にはさらに `contamination.txt`（判定）を残す。`SKILL_EVAL_RUNNER` を明示した場合はそれが優先され、遮断は未検証として記録される。

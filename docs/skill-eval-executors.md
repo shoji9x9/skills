@@ -21,7 +21,9 @@ scripts/run-skill-eval.sh \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1
 ```
 
-`--fixture`、`with_skill|without_skill`、`--model` の既存契約は両 executor で共通。`--eval-id` を渡すと `evals.json` の assertion を読み、canonical な `eval-<id>/eval_metadata.json` と viewer 後方互換用の run 配下コピーを生成する。
+`--fixture`、`with_skill|without_skill`、`--model` の既存契約は両 executor で共通。
+fixture ルートの executable な `setup.sh` はコピー後・executor 起動前に実行し、非 0 終了なら fail-closed にする。
+`--eval-id` を渡すと `evals.json` の assertion を読み、canonical な `eval-<id>/eval_metadata.json` と viewer 後方互換用の run 配下コピーを生成する。
 
 Codex-only の run は `codex exec` だけを起動し、Claude Code CLI や Anthropic API を呼ばない。
 CLI version の取得も選択した executor だけを対象にする。

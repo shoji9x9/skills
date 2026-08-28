@@ -176,8 +176,15 @@ trap cleanup EXIT
 # Optional fixture: seed the disposable project with a prepared state (config,
 # .replace/ artifacts, etc.) so normal-path evals can exercise behavior beyond
 # "stop on missing prerequisites". The fixture is copied, never mutated.
+# An executable root setup.sh may materialize state that cannot be committed as
+# ordinary fixture files (for example a Git repository and local bare remote).
+# Run it before the executor sandbox makes .git read-only and before capturing
+# the initial manifest, so its outputs remain fixture inputs rather than results.
 if [ -n "${fixture}" ]; then
 	cp -R -- "${fixture}/." "${proj}/"
+	if [ -x "${proj}/setup.sh" ]; then
+		(cd "${proj}" && ./setup.sh)
+	fi
 fi
 
 # Read isolation, applied to BOTH configurations. Isolating only the baseline
