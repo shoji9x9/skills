@@ -235,7 +235,7 @@ if [ "${mode}" = "complete" ]; then
 	if [ "${checkpoint_written}" -eq 1 ]; then
 		# 同一セッションで先に checkpoint 無しの完了があった場合の古いマーカーを失効させる。
 		# 残すとゲート側が素通りへ倒れ、いま記録した checkpoint 以降の活動を取りこぼす。
-		rm -f "${done_path}"
+		rm -f "${done_path}" || true
 	else
 		date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
 		# 古い checkpoint を残すとゲートがマーカーを尊重せず（「checkpoint がある間は覆わない」）、

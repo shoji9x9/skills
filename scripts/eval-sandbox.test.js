@@ -101,3 +101,20 @@ echo CUSTOM_CODEX_HOME_OK
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout).toBe("CUSTOM_CODEX_HOME_OK\n");
 });
+
+test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mount", () => {
+  const source = readFileSync(sourceScript, "utf8");
+  const worktreeSection = source.slice(
+    source.indexOf("# 1b. other work trees"),
+    source.indexOf("# 2. sibling runs"),
+  );
+
+  // Positive control: the pre-fix loop mounted every existing parent unconditionally.
+  expect('[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")').toMatch(
+    /args\+=\(--tmpfs "\$\{wt_parent\}"\)/u,
+  );
+  expect(worktreeSection).toMatch(/declare -A hidden_worktree_parents=/u);
+  expect(worktreeSection).toMatch(/\["\/tmp"\]=1/u);
+  expect(worktreeSection).toMatch(/hidden_worktree_parents\["\$\{wt_parent\}"\]=1/u);
+  expect(worktreeSection).not.toContain('[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")');
+});

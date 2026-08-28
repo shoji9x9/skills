@@ -126,14 +126,21 @@ args+=(--tmpfs "${repo_parent}")
 #     and contamination.txt flagged it CONTAMINATED. Hide the parent of every work
 #     tree git reports, not just our own.
 if command -v git >/dev/null 2>&1; then
+	declare -A hidden_worktree_parents=(
+		["${repo_parent}"]=1
+		["/tmp"]=1
+	)
 	while IFS= read -r wt; do
 		[ -n "${wt}" ] || continue
 		wt_parent="$(dirname "${wt}")"
 		# Already covered by ${repo_parent} (or by the /tmp tmpfs below), or a path
 		# whose removal would take the disposable project with it.
-		[ "${wt_parent}" = "${repo_parent}" ] && continue
+		[ -z "${hidden_worktree_parents["${wt_parent}"]+present}" ] || continue
 		case "${PWD}/" in "${wt_parent}"/*) continue ;; esac
-		[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")
+		if [ -e "${wt_parent}" ]; then
+			hidden_worktree_parents["${wt_parent}"]=1
+			args+=(--tmpfs "${wt_parent}")
+		fi
 	done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null |
 		sed -n 's/^worktree //p')
 fi

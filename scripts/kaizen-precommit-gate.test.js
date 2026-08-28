@@ -372,6 +372,39 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
     expect(files).not.toContain(`.extract-done.${SESSION}`);
   });
 
+  test("古い .extract-done を削除できなくても checkpoint 後のセンチネル解除を続ける", () => {
+    const scripts = cloneScripts();
+    const shimDir = mkdtempSync(join(tmpdir(), "kaizen-rm-shim-"));
+    const realRm = spawnSync("bash", ["-c", "command -v rm"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(
+      join(shimDir, "rm"),
+      `#!/usr/bin/env bash
+for arg in "$@"; do
+  case "$arg" in *.extract-done*) exit 1 ;; esac
+done
+exec "${realRm}" "$@"
+`,
+      { mode: 0o755 },
+    );
+
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    copyFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), transcript);
+    armSentinel(cwd, transcript);
+    writeFileSync(join(cwd, ".kaizen", `.extract-done.${SESSION}`), "old\n");
+
+    const done = runScript(
+      "kaizen-extract-done.sh",
+      ["--sentinel-suffix", "", "--agent", "claude-code", "--session-id", SESSION, transcript],
+      { cwd, scripts, env: { PATH: `${shimDir}:${process.env.PATH}` } },
+    );
+
+    expect(done.status).toBe(0);
+    expect(readdirSync(join(cwd, ".kaizen"))).toContain(`.extract-checkpoint.${SESSION}`);
+    expect(readdirSync(join(cwd, ".kaizen"))).toContain(`.extract-done.${SESSION}`);
+    expect(readdirSync(join(cwd, ".kaizen"))).not.toContain(sentinelName);
+  });
+
   // ゲートは候補ゼロの自動通過のたびに checkpoint を書く。その後の抽出で checkpoint を
   // 記録できなかった場合（transcript を渡し忘れた・読めない・書けない）、古い checkpoint を
   // 残したままマーカーだけ書くと、ゲートはマーカーを尊重せず古い起点から再走査し、いま抽出
