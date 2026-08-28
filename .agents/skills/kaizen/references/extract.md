@@ -109,15 +109,20 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
 ## 抽出手順
 
 1. `.kaizen/` ディレクトリが存在しなければ作成する
-2. セッションログを読み込む（`--current` なら前セッションの最新ファイル 1 つ）
+2. セッションログを読み込む（`--current` なら前セッションの最新ファイル 1 つ）。
+   そのセッションの処理位置 `.kaizen/.extract-checkpoint.<session key>`（1 行目 transcript パス / 2 行目 バイト位置 / 4 行目 行数）が
+   いま読んでいる transcript を指しているなら、**その位置より後だけ**を対象にする。同一セッションで 2 回目以降の抽出（複数 commit する branch では普通に起きる）で
+   全体を読み直すと、既に記録済みの学びを重複して起票してしまう。ゲートがブロックした場合は、走査器が出した候補の絶対行番号がそのまま対象範囲の手掛かりになる
 3. 抽出パターンに照らして修正・エラー・やり直しの箇所を特定する
 4. 各箇所について根本原因を推論する（最低 3 階層の「なぜ」→ `kaizen-kedb-match.sh` に事象語・ツール名・対象パスを渡す KEDB 照合 → 横断スコープ確認）。そのうえで、根本原因をこのリポジトリで直せるか、上流でしか直せないかという**所有者判定**を行い、候補をリストアップする
 5. `--current` モードの場合: 最も重要な 1 件を選ぶ（優先度: 実際の影響度 `high > medium > low` > 繰り返し発生（KEDB 照合でヒット） > 根本原因が明確 > 対策が具体的）
 6. 候補の内容（事象・根本原因・提案）をユーザーに提示し承認を得る。承認を求める確認 UI 自体に判断材料（学びファイルのドラフト全文）を同梱し、直前の通常テキストが確認ダイアログと同時に見えることを前提にしない（Claude Code の AskUserQuestion では選択肢の preview フィールドに入れる）。`--record-pending` の場合だけこの承認を省略し、次項の限定契約に従う
 7. 承認された候補を `.kaizen/YYYY-MM-DD-<slug>.md` に書き込む（`status: pending`）。frontmatter の直後に学びの要約を表す H1 見出し（`# <学びの要約タイトル>`）を 1 行付ける（markdownlint MD041 を満たし、読み物として自然にするため）
-8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と抽出完了マーカー `.kaizen/.extract-done.<session key>` の記録を行う
-   （同じセッションを再抽出しない・同一セッション内の後続 commit をゲートで再ブロックしないため）:
+8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と処理位置 `.kaizen/.extract-checkpoint.<session key>` の記録を行う
+   （同じ範囲を再抽出せず、かつ**この後に積まれた活動は次の commit で検査させる**ため。同一セッションで複数 commit しても取りこぼさない）:
    `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" --agent "<agent>" --session-id "<session id>" [transcript_path]`
+   **transcript_path を省略しない。** 省略すると処理位置を記録できず、代わりに書かれる抽出完了マーカー `.kaizen/.extract-done.<session key>` が**セッション全体**を抽出済みにするため、以降の commit が素通りする（恒久ブロッカーを避けるための fail safe であって、通常の経路ではない）。
+   このとき既存の checkpoint も落ちるので、次のセッションはその transcript を全走査することになる。
    （`<スキル>` はインストール先。suffix は Claude Code が空文字、Codex は `-codex`、Copilot は `-copilot`。ゲートが表示したコマンドをそのまま使う）
    `--sentinel-suffix` と `--session-id` を省略しない。省略時は旧設定との後方互換のため agent 単位の名前になり、両方省略すると `rm -f .kaizen/.pending-extract*` で**全セッションのセンチネルを削除**してしまう（他エージェント・他セッションの未処理シグナルまで完了扱いになる）。
    **解消するのはセンチネルを立てたセッションの id** であって自分の id ではない（他セッションのセンチネルを引き受けて抽出した場合は、その値をゲートの案内から取る）。
