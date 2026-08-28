@@ -39,7 +39,9 @@ branch や設定を変更する前に次を全件分完了する。
 7. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
    auto-merge 権限と repository の許可（`gh api repos/{owner}/{repo} --jq .allow_auto_merge`。
    [REST: Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)）を追加で確認し、
-   `false` なら設定を無人で書き換えず全体を停止して setup か `--merge-mode agent` を案内する。
+   `false` なら設定を無人で書き換えず全体を停止し、`issue-batch setup` を案内する。
+   `--merge-mode agent` での再実行を案内できるのは**設定に `merge_ready_timeout_minutes` が既にある場合だけ**で、
+   無ければ `agent` に必要な待機上限が埋まらず再実行しても preflight で止まる（設定を読んでどちらかを案内する）。
    `agent` でも base が merge queue 必須なら `gh pr merge` は queue 投入（要件未充足なら auto-merge 有効化）になるため、
    その base では同じ確認を行う。共有障害は全体停止にする。
 
