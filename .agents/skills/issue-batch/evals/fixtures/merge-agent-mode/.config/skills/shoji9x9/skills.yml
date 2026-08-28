@@ -4,7 +4,7 @@ skills:
     conventions_doc: AGENTS.md
     review_tool: copilot
   issue-batch:
-    merge_mode: auto
+    merge_mode: agent
     merge_method: squash
     merge_ready_timeout_minutes: 10
     max_local_review_iterations: 1
