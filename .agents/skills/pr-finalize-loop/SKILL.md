@@ -62,6 +62,7 @@ push 後などに再レビューを依頼する AI レビュアーは設定で�
 着手前のハード前提チェックを通過したら、`iteration = 1` から `--max-iterations`（既定 5）まで以下を繰り返す。
 
 1. **状態取得**（この段階ではレビュー依頼をしない。待機の間隔・上限は後述「ポーリングと待機」に従う）
+   - **summary-firstで取得する**: [`references/state-query.md`](references/state-query.md) を読み、review・thread・トップレベルコメント・timelineはcompact indexを先に取得する。全文は現在HEAD、前回取得後に遅延到着した旧HEAD review、未処理ID、未解決指摘だけを個別取得し、未加工の全APIレスポンスを反復ごとに会話へ返さない
    - **PR 状態の再確認**: `gh pr view <番号> --repo <owner>/<repo> --json state` を取り直し、`OPEN` でなくなっていたら（他者のマージ / クローズ等で対象が消滅）**仕上げ対象消滅**として停止する。着手前チェックだけでなく各反復の冒頭で確認し、消えた対象の CI・レビューを待ち続けない
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（いずれかが失敗した時点で抜ける）。push 直後にチェック未登録で `no checks` と即時に返ることがあるため、その場合は間隔を空けて数回まで再確認する
    - 未解決レビュースレッド: 後述の GraphQL を `--paginate` で全取得し `isResolved == false` で絞る（**全レビュアーが対象**。著者で絞らない）

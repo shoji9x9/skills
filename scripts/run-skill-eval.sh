@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Dev-only: run ONE skill eval prompt in an isolated, disposable empty project so
+# Dev-only: run ONE skill eval prompt through Claude Code or Codex in an
+# isolated, disposable empty project so
 # the eval's file mutations never touch this repo. Used to build regression
 # benchmarks (see docs/skill-development.md "回帰テストを実行する").
 #
@@ -9,7 +10,7 @@
 #   ops resolve against the agent's base dir. So instructing a subagent to "work
 #   in /tmp" lets the skill's relative-path steps (`mkdir .agents/...`, `ln -s`)
 #   land in THIS repo. Here the cwd is fixed by the launcher within a single
-#   shell invocation: `claude -p` runs with cwd = the temp project, so the nested
+#   shell invocation: the selected executor runs with cwd = the temp project, so the nested
 #   session's project root (and every cwd reset) stays inside it.
 #
 # This script is repo-internal tooling and is NOT bundled in any distributed skill.
@@ -17,12 +18,18 @@
 # PRECONDITIONS: the disposable project is empty, un-trusted and non-interactive.
 # mise shims (python3/node/jq) fail "No version is set" when un-trusted; gh/git
 # skills have no repo context (use real PR/Issue numbers, not fake ones); and a
-# headless `claude -p` has no responder for AskUserQuestion. Give prompts whose
+# headless executor has no responder for interactive questions. Give prompts whose
 # intent is unambiguous and ensure skills degrade gracefully. See
 # docs/skill-development.md "eval 環境の前提（runtime / repo / 非対話）".
 #
+# EXECUTOR CONTRACT: `--executor claude-code|codex` selects the vendor CLI, but
+# both paths emit the same result.json / timing.json / outputs/response.md shape.
+# Vendor-native traces stay under raw/ and consumers must not depend on them.
+# Codex skills are installed at the native repository scope `.agents/skills`;
+# their SKILL.md is never injected into the prompt.
+#
 # BASELINE INTEGRITY (`--config without_skill`): isolating cwd and skill
-# installation is not enough — `claude -p` can read this repo's skill sources and
+# installation is not enough — a vendor CLI can read this repo's skill sources and
 # then satisfy skill-specific assertions, which silently voids the measured
 # Delta. That happened 5 times, and every time it was fixed by hand-building the
 # same wrapper (.kaizen/2026-07-28-eval-baseline-read-contamination.md). So the
@@ -33,15 +40,16 @@
 # EXIT CODES: 0 / the CLI's own code on a failed run; 2 usage; 3 could not
 # acquire the serialization lock; 4 the run itself succeeded but the baseline is
 # contaminated (CONTAMINATED) or the contamination check could not be trusted
-# (CHECK-BROKEN / SKIPPED — a check that did not run is not a clean verdict).
+# (CHECK-BROKEN / SKIPPED — a check that did not run is not a clean verdict); 5
+# result normalization or eval metadata generation failed.
 set -euo pipefail
 
 usage() {
-	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--model <model>] [--repo <path>] [--fixture <dir>]" >&2
+	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--executor <claude-code|codex>] [--model <model>] [--reasoning-effort <effort>] [--eval-id <id>] [--eval-name <name>] [--repo <path>] [--fixture <dir>]" >&2
 	exit 2
 }
 
-skill="" prompt="" config="" out="" model="" repo="" fixture=""
+skill="" prompt="" config="" out="" executor="claude-code" model="" reasoning_effort="" eval_id="" eval_name="" repo="" fixture=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--skill)
@@ -60,8 +68,24 @@ while [ "$#" -gt 0 ]; do
 		out="$2"
 		shift 2
 		;;
+	--executor)
+		executor="$2"
+		shift 2
+		;;
 	--model)
 		model="$2"
+		shift 2
+		;;
+	--reasoning-effort)
+		reasoning_effort="$2"
+		shift 2
+		;;
+	--eval-id)
+		eval_id="$2"
+		shift 2
+		;;
+	--eval-name)
+		eval_name="$2"
 		shift 2
 		;;
 	--repo)
@@ -83,6 +107,21 @@ with_skill | without_skill) ;;
 	exit 2
 	;;
 esac
+case "$executor" in
+claude-code | codex) ;;
+*)
+	echo "executor must be claude-code|codex" >&2
+	exit 2
+	;;
+esac
+case "${reasoning_effort}" in
+"" | *[!A-Za-z0-9_-]*)
+	[ -z "${reasoning_effort}" ] || {
+		echo "invalid --reasoning-effort (expected A-Z, a-z, 0-9, _, -): ${reasoning_effort}" >&2
+		exit 2
+	}
+	;;
+esac
 # --skill is used to build filesystem paths (src and the mktemp template), so
 # restrict it to kebab-case up front to avoid path traversal (/, ..) or values
 # starting with - being read as options.
@@ -100,10 +139,24 @@ esac
 	echo "not in a git worktree; pass --repo <path>" >&2
 	exit 2
 }
+repo="$(realpath -- "${repo}")"
+out="$(realpath -m -- "${out}")"
+if [ -n "${fixture}" ]; then
+	[ -d "${fixture}" ] || {
+		echo "fixture dir not found: ${fixture}" >&2
+		exit 1
+	}
+	fixture="$(realpath -- "${fixture}")"
+fi
 
 src="${repo}/skills/${skill}"
 [ -f "${src}/SKILL.md" ] || {
 	echo "skill source not found: ${src}/SKILL.md" >&2
+	exit 1
+}
+normalizer="${repo}/scripts/normalize-skill-eval-result.js"
+[ -f "${normalizer}" ] || {
+	echo "normalizer not found: ${normalizer}" >&2
 	exit 1
 }
 
@@ -112,16 +165,18 @@ src="${repo}/skills/${skill}"
 # install below. Not installing the skill is necessary but NOT sufficient for an
 # honest baseline — see BASELINE INTEGRITY above for the read side.
 proj="$(mktemp -d "/tmp/skill-eval-${skill}-XXXXXX")"
-trap 'rm -rf -- "${proj}"' EXIT
+initial_files_manifest="$(mktemp "/tmp/skill-eval-initial-${skill}-XXXXXX")"
+# shellcheck disable=SC2329 # invoked by the EXIT trap below
+cleanup() {
+	rm -rf -- "${proj}"
+	rm -f -- "${initial_files_manifest}"
+}
+trap cleanup EXIT
 
 # Optional fixture: seed the disposable project with a prepared state (config,
 # .replace/ artifacts, etc.) so normal-path evals can exercise behavior beyond
 # "stop on missing prerequisites". The fixture is copied, never mutated.
 if [ -n "${fixture}" ]; then
-	[ -d "${fixture}" ] || {
-		echo "fixture dir not found: ${fixture}" >&2
-		exit 1
-	}
 	cp -R -- "${fixture}/." "${proj}/"
 fi
 
@@ -177,12 +232,22 @@ if [ -n "${lock_mode}" ]; then
 fi
 
 if [ "${config}" = "with_skill" ]; then
-	mkdir -p -- "${proj}/.claude/skills"
-	cp -R -- "${src}" "${proj}/.claude/skills/${skill}"
+	case "${executor}" in
+	claude-code) skill_home="${proj}/.claude/skills" ;;
+	codex) skill_home="${proj}/.agents/skills" ;;
+	esac
+	mkdir -p -- "${skill_home}"
+	cp -R -- "${src}" "${skill_home}/${skill}"
 fi
 
-mkdir -p -- "${out}"
+# Capture fixture/input paths before the executor runs. files_created is later
+# derived from captured project-files minus this manifest, so pre-existing
+# fixture files are not mislabeled as generated outputs.
+(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" -o -path "./.agents/skills" \) -prune -o -type f -printf '%P\0' | LC_ALL=C sort -z) >"${initial_files_manifest}"
+
+mkdir -p -- "${out}/outputs" "${out}/raw"
 {
+	echo "executor: ${executor}"
 	echo "config: ${config}"
 	echo "isolation: ${isolation}"
 	echo "serialization: ${serialization}"
@@ -191,34 +256,99 @@ case "${isolation}" in
 UNISOLATED* | UNVERIFIED*) echo "warn: read isolation is ${isolation} (see ${out}/isolation.txt)" >&2 ;;
 esac
 
-# Headless run with cwd fixed to the disposable project (cd holds within this one
-# invocation). --dangerously-skip-permissions is acceptable: the target is a
-# throwaway /tmp dir, never this repo.
-# SKILL_EVAL_RUNNER overrides the executable (default `claude`) so isolation can
-# be smoke-tested with a stub without spawning a real agent. Without it, a
-# baseline goes through the sandbox wrapper resolved above (which execs the real
-# CLI inside bwrap).
-runner="${SKILL_EVAL_RUNNER:-${runner_override:-claude}}"
+# Headless runs keep cwd fixed to the disposable project within one invocation.
+# Bubblewrap owns host read isolation. Codex also retains its own workspace-write
+# sandbox so the auth file mounted for CLI startup is not exposed to agent shell
+# commands. The two layers protect different boundaries and both stay enabled.
+case "${executor}" in
+claude-code) executor_binary="claude" ;;
+codex) executor_binary="codex" ;;
+esac
+runner="${SKILL_EVAL_RUNNER:-${runner_override:-${executor_binary}}}"
+if [ -n "${SKILL_EVAL_CLI_VERSION:-}" ]; then
+	cli_version="${SKILL_EVAL_CLI_VERSION}"
+else
+	cli_version="$(${executor_binary} --version 2>/dev/null || true)"
+fi
+[ -n "${cli_version}" ] || cli_version="unknown"
+harness_version="run-skill-eval/1"
 
 # Headless eval has no one to answer interactive prompts (AskUserQuestion errors
 # under `claude -p`). Inject a non-interactive notice here so the agent degrades
 # gracefully — this keeps the eval-only instruction out of the distributed skills.
 noninteractive_preamble='【非対話の自動評価環境】AskUserQuestion 等の対話確認ツールは使えません。確認が必要でも質問で停止せず続行しますが、破壊的・外向きの操作（commit / push / マージ / リモートへの書き込み等）は行わず、最も安全な非破壊のデフォルトを選び、採用した仮定を冒頭に明示してください。'
+eval_prompt="${prompt}"
 prompt="${noninteractive_preamble}
 
 ${prompt}"
 
-claude_args=(-p "${prompt}" --output-format json --dangerously-skip-permissions)
-[ -n "${model}" ] && claude_args+=(--model "${model}")
+raw_trace=""
+executor_args=()
+case "${executor}" in
+claude-code)
+	raw_trace="${out}/raw/claude-code.json"
+	executor_args=(-p "${prompt}" --output-format json --dangerously-skip-permissions)
+	[ -n "${model}" ] && executor_args+=(--model "${model}")
+	[ -n "${reasoning_effort}" ] && executor_args+=(--effort "${reasoning_effort}")
+	;;
+codex)
+	raw_trace="${out}/raw/codex.jsonl"
+	executor_args=(exec --json --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check --approve-for-me)
+	[ -n "${model}" ] && executor_args+=(--model "${model}")
+	[ -n "${reasoning_effort}" ] && executor_args+=(--config "model_reasoning_effort=\"${reasoning_effort}\"")
+	executor_args+=("${prompt}")
+	;;
+esac
 
+started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+started_ms="$(date +%s%3N)"
 rc=0
-(cd "${proj}" && "${runner}" "${claude_args[@]}") >"${out}/result.json" 2>"${out}/stderr.log" || rc=$?
-[ "${rc}" -ne 0 ] && echo "warn: claude exited ${rc} (see ${out}/stderr.log)" >&2
+(cd "${proj}" && EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}") >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
+ended_ms="$(date +%s%3N)"
+ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+duration_ms=$((ended_ms - started_ms))
+[ "${rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${rc} (see ${out}/stderr.log)" >&2
+
+metadata_eval_id="${eval_id}"
+eval_dir="$(dirname -- "$(dirname -- "${out}")")"
+eval_dir_name="$(basename -- "${eval_dir}")"
+if [ -z "${metadata_eval_id}" ]; then
+	case "${eval_dir_name}" in
+	eval-*) metadata_eval_id="${eval_dir_name#eval-}" ;;
+	esac
+fi
+
+normalizer_args=(
+	--executor "${executor}"
+	--raw "${raw_trace}"
+	--result "${out}/result.json"
+	--timing "${out}/timing.json"
+	--metrics "${out}/outputs/metrics.json"
+	--response "${out}/outputs/response.md"
+	--exit-code "${rc}"
+	--duration-ms "${duration_ms}"
+	--started-at "${started_at}"
+	--ended-at "${ended_at}"
+	--harness-version "${harness_version}"
+	--cli-version "${cli_version}"
+	--model "${model}"
+	--reasoning-effort "${reasoning_effort}"
+)
+if [ -n "${metadata_eval_id}" ]; then
+	normalizer_args+=(
+		--eval-id "${metadata_eval_id}"
+		--eval-name "${eval_name}"
+		--prompt "${eval_prompt}"
+		--eval-metadata "${eval_dir}/eval_metadata.json"
+		--compat-eval-metadata "${out}/eval_metadata.json"
+	)
+	[ -f "${src}/evals/evals.json" ] && normalizer_args+=(--evals "${src}/evals/evals.json")
+fi
 
 # Snapshot the paths and bounded text contents created in the isolated project.
 # Do not copy the project itself into tests/; repo clones and generated files can
 # be large. The content snapshot keeps only lightweight files needed for grading.
-(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -print | sort) >"${out}/project-tree.txt"
+(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" -o -path "./.agents/skills" \) -prune -o -print | sort) >"${out}/project-tree.txt"
 snapshot_dir="${out}/project-files"
 skipped_log="${out}/project-files-skipped.txt"
 rm -rf -- "${snapshot_dir}"
@@ -236,7 +366,7 @@ max_total_bytes=$((5 * 1024 * 1024))
 while IFS= read -r -d '' file; do
 	rel="${file#./}"
 	case "${rel}" in
-	.git/* | .claude/skills/* | node_modules/* | pnpm-lock.yaml | package-lock.json | yarn.lock)
+	.git/* | .claude/skills/* | .agents/skills/* | node_modules/* | pnpm-lock.yaml | package-lock.json | yarn.lock)
 		continue
 		;;
 	# .ts / .tsx / .sql are the languages the replace-strategy skill family writes
@@ -280,7 +410,15 @@ while IFS= read -r -d '' file; do
 		continue
 	}
 	total_bytes=$((total_bytes + size))
-done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" \) -prune -o -type f -print0)
+done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" -o -path "./.agents/skills" \) -prune -o -type f -print0)
+
+normalizer_args+=(--project-files "${snapshot_dir}" --initial-files "${initial_files_manifest}")
+normalizer_rc=0
+node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
+if [ "${normalizer_rc}" -ne 0 ]; then
+	rc=5
+	echo "warn: result normalization failed (see ${out}/stderr.log)" >&2
+fi
 
 # Contamination check (baselines only). A baseline that names this skill's own
 # files read them from a route the isolation missed; catching that must not
@@ -323,9 +461,12 @@ if [ "${config}" = "without_skill" ]; then
 		kept+=("${m}")
 	done
 
+	scan_directories=()
+	[ -d "${snapshot_dir}" ] && scan_directories+=("${snapshot_dir}")
+	[ -d "${out}/raw" ] && scan_directories+=("${out}/raw")
 	scan_roots=()
 	[ -e "${out}/result.json" ] && scan_roots+=("${out}/result.json")
-	[ -d "${snapshot_dir}" ] && scan_roots+=("${snapshot_dir}")
+	scan_roots+=("${scan_directories[@]}")
 
 	verdict="clean"
 	detail=""
@@ -340,28 +481,32 @@ if [ "${config}" = "without_skill" ]; then
 		# same output, so prove the scan finds a marker it is meant to find before
 		# any clean verdict is trusted (AGENTS.md「何も出ないこと」を合格根拠に
 		# する検査は、陽性コントロールで検出能力を実証してから使う).
-		# The control has to sit INSIDE a scanned root and be searched through the
-		# same root list: planted anywhere else it proves only that grep works, not
-		# that these roots are read at all.
-		control="${snapshot_dir}/.contamination-control"
-		rm -rf -- "${control}"
-		mkdir -p -- "${control}"
-		printf '%s\n' "${kept[@]}" >"${control}/planted"
+		# Put one control in every scanned directory and search that directory by
+		# itself. A single control would prove only one root and could let a broken
+		# raw-trace leg report a false clean verdict.
 		# Judge detection by OUTPUT, not by grep's exit code: ugrep returns 2 on any
 		# unreadable path even when it matched (GNU's "-q plus a match wins" rule is
 		# not universal), which would fake a CHECK-BROKEN verdict on a working scan.
 		undetected=""
-		for m in "${kept[@]}"; do
-			hit="$(grep -rlIF -e "${m}" -- "${scan_roots[@]}" 2>/dev/null | head -1)" || true
-			[ -n "${hit}" ] || undetected="${undetected} ${m}"
+		for root in "${scan_directories[@]}"; do
+			control="${root}/.contamination-control"
+			rm -rf -- "${control}"
+			mkdir -p -- "${control}"
+			printf '%s\n' "${kept[@]}" >"${control}/planted"
+			for m in "${kept[@]}"; do
+				hit="$(grep -rlIF -e "${m}" -- "${root}" 2>/dev/null | head -1)" || true
+				[ -n "${hit}" ] || undetected="${undetected} ${root}:${m}"
+			done
+			rm -rf -- "${control}"
 		done
-		rm -rf -- "${control}"
-		# result.json is the other root and cannot host a control (it is the evidence
-		# being judged), so assert it is at least a readable non-empty file. An empty
-		# or unreadable one contributes nothing and would still read as "clean".
+		# File roots cannot host controls because they are evidence. Assert they are
+		# readable and non-empty so an absent final response or trace cannot count as
+		# a successful scan.
 		unusable=""
 		if [ ! -r "${out}/result.json" ] || [ ! -s "${out}/result.json" ]; then
 			unusable="result.json is empty or unreadable; the response side was not searched"
+		elif [ ! -r "${raw_trace}" ] || [ ! -s "${raw_trace}" ]; then
+			unusable="raw trace is empty or unreadable; executor behavior was not searched"
 		fi
 
 		if [ -n "${undetected}" ]; then
@@ -404,7 +549,7 @@ if [ "${config}" = "without_skill" ]; then
 	esac
 fi
 
-echo "done: config=${config} skill=${skill} -> ${out} (rc=${rc})"
+echo "done: executor=${executor} config=${config} skill=${skill} -> ${out} (rc=${rc})"
 # A contaminated baseline that exits 0 gets aggregated as a real measurement, so
 # surface it in the exit status too — but never mask the CLI's own failure code.
 if [ "${rc}" -eq 0 ] && [ "${contaminated}" -eq 1 ]; then
