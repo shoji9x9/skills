@@ -655,3 +655,45 @@ describe("lifecycle 検査", () => {
     },
   );
 });
+
+// transcript を「一度も記録していない」センチネル（`/compact` 専用の隠しセッションのように
+// transcript を一度も作らないまま Stop が走った場合。Issue #240）は、案内どおりに探しても
+// 見つからない。「記録はあるが今は読めない」（移動・削除済み）とは対処が違うので、案内が
+// 両者を混同していないことを固定する。
+describe("未抽出センチネルの復旧案内は「記録なし」と「記録はあるが読めない」を区別する", () => {
+  function writeSentinel(cwd, key, transcriptLine) {
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${key}`),
+      `2026-08-27T21:54:39Z\n${transcriptLine}\nclaude-code\n${key}\n`,
+    );
+  }
+
+  test("transcript の記録が無い場合は、transcript 無しで解消するコマンドも提示する", () => {
+    const cwd = makeProject();
+    writeSentinel(cwd, "other-session-1", "");
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/transcript の記録がありません/);
+    expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
+    // 「見つからない場合」の解消コマンドは transcript 引数を伴わない。
+    expect(gate.stderr).toMatch(
+      /探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n\s*bash "[^"]+\/kaizen-extract-done\.sh" --sentinel-suffix "" --agent "claude-code" --session-id "other-session-1"\n/,
+    );
+    // 「記録なし」の場合はプレースホルダ無しのコマンドで解消が完結するため、"<transcript> を
+    // 置き換えてください" という穴埋め必須の注意書きは出ない（出ると、常に穴埋めが要ると誤解される）。
+    expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
+  });
+
+  test("transcript は記録されているが今は読めない場合は、探して抽出する案内だけを出す", () => {
+    const cwd = makeProject();
+    const missingTranscript = join(cwd, "moved-or-deleted.jsonl");
+    writeSentinel(cwd, "other-session-2", missingTranscript);
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
+    expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
+    expect(gate.stderr).not.toMatch(/transcript を指定せず次のコマンドで解消してください/);
+    // このケースは <transcript> の穴埋めが必須の唯一の解消コマンドなので、注意書きが出る。
+    expect(gate.stderr).toMatch(/<transcript> だけを.*置き換えてください/);
+  });
+});
