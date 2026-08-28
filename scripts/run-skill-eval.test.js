@@ -247,4 +247,40 @@ describe("run-skill-eval executor compatibility", () => {
       status: "failed",
     });
   });
+
+  test("rejects unsafe reasoning effort before starting the executor", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        "EXPECT_WITH_SKILL",
+        "--config",
+        "with_skill",
+        "--out",
+        output,
+        "--executor",
+        "codex",
+        "--reasoning-effort",
+        'low" -c model="unexpected',
+        "--repo",
+        repository,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SKILL_EVAL_CLI_VERSION: "codex stub-version",
+          SKILL_EVAL_RUNNER: stub,
+        },
+      },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/invalid --reasoning-effort/u);
+    expect(existsSync(output)).toBe(false);
+  });
 });

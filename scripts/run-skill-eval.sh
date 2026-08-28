@@ -114,6 +114,14 @@ claude-code | codex) ;;
 	exit 2
 	;;
 esac
+case "${reasoning_effort}" in
+"" | *[!A-Za-z0-9_-]*)
+	[ -z "${reasoning_effort}" ] || {
+		echo "invalid --reasoning-effort (expected A-Z, a-z, 0-9, _, -): ${reasoning_effort}" >&2
+		exit 2
+	}
+	;;
+esac
 # --skill is used to build filesystem paths (src and the mktemp template), so
 # restrict it to kebab-case up front to avoid path traversal (/, ..) or values
 # starting with - being read as options.
