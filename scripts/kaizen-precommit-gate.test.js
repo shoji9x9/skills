@@ -947,4 +947,18 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     // 穴埋め必須の注意書きは出ない（transcript 無しの解消コマンドで完結するため）。
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
+
+  test("unsafe な transcript 値と同名のパスが実在しても権限・FS 問題に誤分類しない", () => {
+    const cwd = makeProject();
+    const unsafe = join(cwd, "unsafe$path.jsonl");
+    writeFileSync(unsafe, "{}\n");
+    writeSentinel(cwd, "other-session-4", unsafe);
+
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(2);
+    expect(gate.stderr).toMatch(/値が不正/);
+    expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
+    expect(gate.stderr).toMatch(/transcript を指定せず次のコマンドで解消してください/);
+    expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
+  });
 });

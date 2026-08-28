@@ -509,7 +509,7 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 		else
 			# 「記録が無い」と「記録はあるが今は使えない」は原因も対処も違うので区別して出す。
 			# 一括りにすると、実在するのに読めていないだけの transcript を探し直させてしまう。
-			if [ -n "${s_recorded}" ] && [ -e "${s_recorded}" ]; then
+			if sentinel_value_is_safe "${s_recorded}" && [ -e "${s_recorded}" ]; then
 				printf '    センチネルが記録した transcript を読めません（権限・FS 状態。パスは実在する）。\n' >&2
 				printf '    読めるようにしてから抽出し、実行してください:\n' >&2
 				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2

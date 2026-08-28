@@ -103,18 +103,55 @@ echo CUSTOM_CODEX_HOME_OK
 });
 
 test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mount", () => {
-  const source = readFileSync(sourceScript, "utf8");
-  const worktreeSection = source.slice(
-    source.indexOf("# 1b. other work trees"),
-    source.indexOf("# 2. sibling runs"),
+  const root = mkdtempSync(join(tmpdir(), "eval-sandbox-worktrees-"));
+  temporaryDirectories.push(root);
+  const repo = join(root, "repo");
+  const project = join(root, "project");
+  const sharedParent = join(root, "shared");
+  const fakeHome = join(root, "home");
+  const fakeBin = join(root, "bin");
+  const copiedScript = join(repo, "scripts", "eval-sandbox.sh");
+  const capturedArgs = join(root, "bwrap-args.txt");
+  mkdirSync(dirname(copiedScript), { recursive: true });
+  mkdirSync(project);
+  mkdirSync(sharedParent);
+  mkdirSync(fakeHome);
+  mkdirSync(fakeBin);
+  writeFileSync(copiedScript, readFileSync(sourceScript));
+  chmodSync(copiedScript, 0o755);
+
+  writeFileSync(join(fakeBin, "claude-wrapper"), "#!/usr/bin/env bash\nexit 99\n", {
+    mode: 0o755,
+  });
+  writeFileSync(
+    join(fakeBin, "git"),
+    `#!/usr/bin/env bash
+printf 'worktree %s/one\\nworktree %s/two\\nworktree /tmp/three\\n' "${sharedParent}" "${sharedParent}"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(fakeBin, "bwrap"),
+    `#!/usr/bin/env bash
+printf '%s\\n' "$@" >"${capturedArgs}"
+`,
+    { mode: 0o755 },
   );
 
-  // Positive control: the pre-fix loop mounted every existing parent unconditionally.
-  expect('[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")').toMatch(
-    /args\+=\(--tmpfs "\$\{wt_parent\}"\)/u,
-  );
-  expect(worktreeSection).toMatch(/declare -A hidden_worktree_parents=/u);
-  expect(worktreeSection).toMatch(/\["\/tmp"\]=1/u);
-  expect(worktreeSection).toMatch(/hidden_worktree_parents\["\$\{wt_parent\}"\]=1/u);
-  expect(worktreeSection).not.toContain('[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")');
+  const result = spawnSync(copiedScript, ["--version"], {
+    cwd: project,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      EVAL_SANDBOX_CLI: "claude-wrapper",
+      EVAL_SANDBOX_VENDOR: "claude-code",
+      HOME: fakeHome,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+    },
+  });
+  expect(result.status, result.stderr).toBe(0);
+  const args = readFileSync(capturedArgs, "utf8").split("\n");
+  const tmpfsTargets = args.flatMap((arg, index) => (arg === "--tmpfs" ? [args[index + 1]] : []));
+  expect(tmpfsTargets.filter((target) => target === sharedParent)).toHaveLength(1);
+  expect(tmpfsTargets.filter((target) => target === "/tmp")).toHaveLength(1);
 });
