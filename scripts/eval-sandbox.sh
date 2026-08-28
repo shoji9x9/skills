@@ -117,6 +117,27 @@ args+=(--bind "${scratch_state}" "${home}/.claude.json")
 #    skill under .agents/.claude carry older revisions — a worse-than-useless baseline).
 args+=(--tmpfs "${repo_parent}")
 
+# 1b. other work trees of the same repository. When eval-sandbox runs from a git
+#     worktree placed outside the main checkout's parent (e.g. /tmp/wt-244 while the
+#     checkout lives in ~/projects/skills), ${repo_parent} covers only the worktree
+#     and the main checkout stays readable — with its own .agents/.claude installed
+#     copies at whatever revision that tree is on. Measured: a without_skill run read
+#     ~/projects/skills/.agents/skills/kaizen/ and described the PRE-change design,
+#     and contamination.txt flagged it CONTAMINATED. Hide the parent of every work
+#     tree git reports, not just our own.
+if command -v git >/dev/null 2>&1; then
+	while IFS= read -r wt; do
+		[ -n "${wt}" ] || continue
+		wt_parent="$(dirname "${wt}")"
+		# Already covered by ${repo_parent} (or by the /tmp tmpfs below), or a path
+		# whose removal would take the disposable project with it.
+		[ "${wt_parent}" = "${repo_parent}" ] && continue
+		case "${PWD}/" in "${wt_parent}"/*) continue ;; esac
+		[ -e "${wt_parent}" ] && args+=(--tmpfs "${wt_parent}")
+	done < <(git -C "${repo}" worktree list --porcelain 2>/dev/null |
+		sed -n 's/^worktree //p')
+fi
+
 # 2. sibling runs: /tmp holds other configurations' disposable projects, each a full
 #    copy of the skill. Keep only our own project (bind AFTER the tmpfs so it wins).
 case "${PWD}" in
