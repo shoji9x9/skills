@@ -136,13 +136,25 @@ workflow の `branches` / `paths` と変更ファイルから確実に外れる�
 
 ```bash
 gh pr view "$PR_URL" --json state,mergeable,mergeStateStatus,reviewDecision,headRefOid
-gh pr checks "$PR_URL" --required --json name,bucket,state,link
+
+# --required は非 0 終了し得るので、終了コードと stderr を捕まえてから弁別する。
+# `cmd && rc=0 || rc=$?` は set -e 下でも止まらない（実測）。
+req_err=$(mktemp)
+req_json=$(gh pr checks "$PR_URL" --required --json name,bucket,state,link 2>"$req_err") && rc=0 || rc=$?
+all_json=$(gh pr checks "$PR_URL" --json name,bucket,state,link)   # 突き合わせ用（必ず取る）
 ```
 
 `gh pr checks --json` の `bucket` は `state` を `pass` / `fail` / `pending` / `skipping` / `cancel` に正規化した値で、
 この 5 値が許容値の全部（`gh pr checks --help`）。生の `state` を自分で分類せず `bucket` を使う。
-`--required` は**必須チェックが 0 件のとき空配列ではなく stderr メッセージ＋非 0 終了**になるため、非 0 終了を「失敗」に倒さず
-`--required` なしの取得と突き合わせて「必須チェックが無い」と「取得に失敗した」を弁別する。checks pending は終了コード 8。
+`rc` の弁別は次のとおり。**非 0 を「失敗」に倒さない。**
+
+| `rc` | 観測 | 意味 |
+| --- | --- | --- |
+| `0` | `req_json` に JSON | 必須チェックを取得できた |
+| `8` | — | checks pending（`gh pr checks --help` の Additional exit codes） |
+| それ以外（実測は `1`） | `req_json` は**空**、`req_err` に `no (required )?checks reported on the '<branch>' branch` | 必須チェックが 0 件。`all_json` が取れていれば「必須が無い」、そちらも失敗なら「取得に失敗した」 |
+
+`req_json` が空のまま JSON として解析しない（`rc != 0` のとき stdout は空になる・実測）。
 **必須チェックが 0 件のときは required の pass を merge 根拠にできない**（branch protection の無い repository では常にこの状態で、
 「required が全て pass」は空集合で自明に成立してしまう）。この場合は `--required` なしの全 check の `bucket` へ下の規則を当て、
 `UNSTABLE` の免除も適用しない。全 check も 0 件なら「CI 未設定のため check を根拠にしていない」と manifest に明示し、
