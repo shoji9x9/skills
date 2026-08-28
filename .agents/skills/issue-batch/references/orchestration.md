@@ -125,7 +125,9 @@ merge の実行方法だけが `merge_mode` で分かれる。head SHA の固定
    `agent` mode でも即時 merge を前提にせず `MERGE_QUEUED` を経由し得るものとして扱う。
 3. 上限付きで PR を再取得し、`MERGED` を確認する。auto-merge request の作成、queue 投入、merge コマンドの成功終了はいずれも完了根拠にしない。
 4. Issue の `state` と linked PR を再取得し、`CLOSED` を確認する。OPEN なら手動 close で隠さず BLOCKED。
-5. PR から merge commit OID / mergedAt を取得する。workflow ごとに `gh run list --workflow <file> --commit <OID> --event <event> --json ...` を使い、`headSha == OID`、event、base branch を全て照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
+5. PR から merge commit OID / mergedAt を取得する。workflow ごとに
+   `gh run list --workflow <file> --commit <OID> --event <event> --limit <N> --json ...` を使い、`headSha == OID`、event、base branch を全て照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
+   **`--limit` を明示する**（既定 20 件で暗黙に打ち切られ、再実行で同一 commit の run が増えると取りこぼす）。返却件数が `--limit` に達したら打ち切りを疑い、広げて取り直す。
 6. 適用対象 run が registration timeout 内に現れなければ BLOCKED。`gh run watch <id> --exit-status` を completion timeout で打ち切り、全対象が `completed/success` のときだけ `DEPLOYED`（[gh run watch](https://cli.github.com/manual/gh_run_watch)）。
 
 workflow の `branches` / `paths` と変更ファイルから確実に外れる場合だけ `not-applicable`。設定で空配列が明示されていれば `not-configured`。同名の最新 run や別 SHA の成功を代用しない。
@@ -139,22 +141,34 @@ gh pr view "$PR_URL" --json state,mergeable,mergeStateStatus,reviewDecision,head
 
 # --required は非 0 終了し得るので、終了コードと stderr を捕まえてから弁別する。
 # `cmd && rc=0 || rc=$?` は set -e 下でも止まらない（実測）。
-req_err=$(mktemp)
-req_json=$(gh pr checks "$PR_URL" --required --json name,bucket,state,link 2>"$req_err") && rc=0 || rc=$?
-all_json=$(gh pr checks "$PR_URL" --json name,bucket,state,link)   # 突き合わせ用（必ず取る）
+req_err=$(mktemp); all_err=$(mktemp)
+trap 'rm -f "$req_err" "$all_err"' EXIT
+
+fields=name,bucket,state,link
+req_json=$(gh pr checks "$PR_URL" --required --json "$fields" 2>"$req_err") && req_rc=0 || req_rc=$?
+# 突き合わせ用。こちらも rc を保持する（両方失敗なら「必須が無い」ではなく「取得に失敗した」）
+all_json=$(gh pr checks "$PR_URL" --json "$fields" 2>"$all_err") && all_rc=0 || all_rc=$?
 ```
 
 `gh pr checks --json` の `bucket` は `state` を `pass` / `fail` / `pending` / `skipping` / `cancel` に正規化した値で、
 この 5 値が許容値の全部（`gh pr checks --help`）。生の `state` を自分で分類せず `bucket` を使う。
-`rc` の弁別は次のとおり。**非 0 を「失敗」に倒さない。**
+`req_rc` の弁別は次のとおり。**非 0 を「失敗」に倒さない。**
 
-| `rc` | 観測 | 意味 |
+| `req_rc` | 観測 | 意味 |
 | --- | --- | --- |
 | `0` | `req_json` に JSON | 必須チェックを取得できた |
 | `8` | — | checks pending（`gh pr checks --help` の Additional exit codes） |
-| それ以外（実測は `1`） | `req_json` は**空**、`req_err` に `no (required )?checks reported on the '<branch>' branch` | 必須チェックが 0 件。`all_json` が取れていれば「必須が無い」、そちらも失敗なら「取得に失敗した」 |
+| それ以外（実測は `1`） | `req_json` は**空**、`req_err` に `no (required )?checks reported on the '<branch>' branch` | 必須チェックが 0 件。内訳は下表で `all_rc` と `all_err` から決める |
 
-`req_json` が空のまま JSON として解析しない（`rc != 0` のとき stdout は空になる・実測）。
+`req_rc != 0` のときの内訳は次の 3 通り。**`all_rc != 0` を一律「取得失敗」に倒さない**（CI が 1 件も無い repository でも `all_rc` は非 0 になる・実測）。
+
+| `all_rc` | `all_err` | 状態 |
+| --- | --- | --- |
+| `0` | — | 必須チェックは 0 件だが check はある。`all_json` の `bucket` へ規則を当てる |
+| 非 0 | `no checks reported on the '<branch>' branch` | **check が 1 件も無い**（CI 未設定）。pass 扱いにせず、check を根拠にしていない旨を manifest に残す |
+| 非 0 | それ以外（認証・ネットワーク等） | 取得に失敗した。0 件と読み替えず BLOCKED |
+
+`req_json` / `all_json` が空のまま JSON として解析しない（`rc != 0` のとき stdout は空になる・実測）。
 **必須チェックが 0 件のときは required の pass を merge 根拠にできない**（branch protection の無い repository では常にこの状態で、
 「required が全て pass」は空集合で自明に成立してしまう）。この場合は `--required` なしの全 check の `bucket` へ下の規則を当て、
 `UNSTABLE` の免除も適用しない。全 check も 0 件なら「CI 未設定のため check を根拠にしていない」と manifest に明示し、
