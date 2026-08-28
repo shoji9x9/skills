@@ -1,0 +1,1 @@
+../../.agents/rules/skill-consistency-pass.md

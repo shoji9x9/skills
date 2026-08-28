@@ -2,8 +2,8 @@
 date: 2026-08-26
 type: rule
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/external-tool-format-verification.md]
 session: claude-code
 ---
 

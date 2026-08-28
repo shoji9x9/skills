@@ -1,0 +1,4 @@
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/a-b.md":{"type":"update","unified_diff":"first"}}}}}
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/a-b.md":{"type":"update","unified_diff":"second"}}}}}
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/a_b.md":{"type":"update","unified_diff":"other"}}}}}
+{"type":"event_msg","payload":{"type":"item_completed","item":{"type":"FileChange","changes":{"/tmp/a-b.md":{"type":"update","unified_diff":"third"}}}}}

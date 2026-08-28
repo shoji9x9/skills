@@ -2,8 +2,8 @@
 date: 2026-08-21
 type: doc
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [docs/skill-development.md, scripts/run-skill-eval.sh, .agents/rules/eval-assertion-discrimination.md]
 session: claude-code
 ---
 

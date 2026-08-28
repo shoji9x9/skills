@@ -2,7 +2,8 @@
 date: 2026-08-08
 type: rule
 priority: high
-status: pending
+status: applied
+applied-to: [.agents/rules/skill-consistency-pass.md]
 session: claude-code
 ---
 

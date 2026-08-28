@@ -2,8 +2,8 @@
 date: 2026-08-11
 type: doc
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, skills/dependabot-alert-issue/references/pnpm-transitive-update.md]
 session: claude-code
 ---
 

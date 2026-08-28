@@ -2,8 +2,8 @@
 date: 2026-08-17
 type: hook
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/scripts/kaizen-candidate-scan.sh, skills/kaizen/evals/fixtures/candidate-scan/]
 session: claude-code
 ---
 

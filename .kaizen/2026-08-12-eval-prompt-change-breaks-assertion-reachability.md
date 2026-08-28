@@ -2,8 +2,8 @@
 date: 2026-08-12
 type: rule
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/eval-assertion-discrimination.md]
 session: claude-code
 ---
 
