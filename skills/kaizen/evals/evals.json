@@ -192,6 +192,19 @@
         "worktree では .kaizen/ をコミット対象の作業ツリー基準で解決するため、ゲートと抽出側の参照先が分かれないと説明している",
         "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない"
       ]
+    },
+    {
+      "id": 18,
+      "prompt": "1 本の feature branch で作業を 3 つの commit に分ける。1 回目の commit の前にコミット前ゲートに止められ、kaizen --current で 1 件抽出して commit した。その後も実装を続けて 2 回目・3 回目の commit をする。ゲートは 2 回目以降に何を見て何をするのか、抽出のたびに何を記録すべきか、記録し損ねると何が起きるのかを、実際のファイル名とコマンドで説明して。",
+      "assertions": [
+        "2 回目以降の commit でも、前回の抽出以降に積まれた活動を .kaizen/.extract-checkpoint.<session key> より後の未処理範囲として走査すると説明している",
+        "抽出完了時の kaizen-extract-done.sh に transcript path を渡して処理位置を記録させ、省略しないと説明している",
+        ".extract-done.<session key> は checkpoint を記録できなかったときだけ書かれる fail safe で、これがあるとセッション全体が抽出済みになり後続の commit が素通りすると説明している",
+        "checkpoint がある間はゲートが .extract-done を尊重せず再走査すると説明している",
+        "candidate scanner の exit code 契約（0=候補あり／1=検証済みゼロ／それ以外=不明）を挙げ、exit 1 のときだけ --checkpoint-only で checkpoint を進めて自動通過し、それ以外は再ブロックすると具体的に説明している",
+        "2 回目の抽出では checkpoint より後だけを読み、1 回目に記録済みの学びを重複して起票しないと説明している",
+        "セッション内で毎回抽出を要求されないよう .extract-done を先に書いておく、センチネルを手で消す、といった回避策を勧めていない"
+      ]
     }
   ]
 }
