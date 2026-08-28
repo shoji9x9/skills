@@ -237,7 +237,11 @@ if [ "${config}" = "with_skill" ]; then
 	codex) skill_home="${proj}/.agents/skills" ;;
 	esac
 	mkdir -p -- "${skill_home}"
-	cp -R -- "${src}" "${skill_home}/${skill}"
+	mkdir -p -- "${skill_home}/${skill}"
+	for subject_part in SKILL.md references assets scripts; do
+		[ -e "${src}/${subject_part}" ] || continue
+		cp -R -- "${src}/${subject_part}" "${skill_home}/${skill}/"
+	done
 fi
 
 # Capture fixture/input paths before the executor runs. files_created is later

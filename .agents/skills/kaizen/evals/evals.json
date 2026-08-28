@@ -155,9 +155,9 @@
       "fixture": "evals/fixtures/candidate-scan",
       "prompt": "fixture の各 JSONL をバンドルされた candidate scanner で実行し、ファイルごとの終了コードと根拠を示して。続けて、全 Bash 呼び出しを遅くしない Claude Code / Codex / Copilot の Hook 設定と、候補ゼロ時の checkpoint 処理を説明して。",
       "assertions": [
-        "claude-no-candidate.jsonl と codex-no-candidate.jsonl は exit 1、claude-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・correction-at-boundary.jsonl は exit 0、unknown.jsonl は exit 2 という実測結果を示している",
+        "claude-no-candidate.jsonl・codex-no-candidate.jsonl・codex-two-edits-no-candidate.jsonl は exit 1、claude-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・codex-colliding-paths-repeated-edit.jsonl・correction-at-boundary.jsonl は exit 0、unknown.jsonl は exit 2 という実測結果を示している",
         "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
-        "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 2 回を repeated edit として候補にする",
+        "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 3 回目を repeated edit として候補にする。記号だけが異なるパスは別々に数える",
         "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
         "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
         "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",

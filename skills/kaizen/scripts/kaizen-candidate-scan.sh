@@ -215,8 +215,9 @@ saw_codex=0
 saw_assistant=0
 candidate_count=0
 record_line=0
-# 既出の編集先パス。前後を改行で挟んだ 1 本の文字列にして、組み込みの照合で既出判定する。
-edited_paths=""
+# 編集先パスとその編集回数。パスを変数名へ正規化すると異なるパスが衝突しうるため、値としてそのまま保持する。
+edited_paths=()
+edit_counts=()
 while IFS= read -r record; do
 	case "${record}" in
 	N$'\t'*)
@@ -235,15 +236,27 @@ while IFS= read -r record; do
 	F$'\t'*)
 		recognized=$((recognized + 1))
 		path=${record#*$'\t'}
-		# 既出判定は bash の組み込みパターン照合で行う。レコードごとに grep を起動すると
-		# 編集レコード数 × プロセス起動になり、長いセッションでゲートの timeout に近づく。
-		if [[ ${edited_paths} == *$'\n'"${path}"$'\n'* ]]; then
+		# 同一パスを 2 回編集することは Edit の一意性制約で正常に起きうるため、3 回目から候補にする。
+		# 配列は任意のパス文字列を値として比較する。レコードごとに外部コマンドを起動しない。
+		path_index=""
+		for index in "${!edited_paths[@]}"; do
+			if [ "${edited_paths[index]}" = "${path}" ]; then
+				path_index=${index}
+				break
+			fi
+		done
+		if [ -z "${path_index}" ]; then
+			path_index=${#edited_paths[@]}
+			edited_paths+=("${path}")
+			edit_counts+=(1)
+		else
+			edit_counts[path_index]=$((edit_counts[path_index] + 1))
+		fi
+		if [ "${edit_counts[path_index]}" -ge 3 ]; then
 			if [ "${candidate_count}" -lt 5 ]; then
 				printf 'repeated edit: transcript line %s\n' "${record_line}"
 			fi
 			candidate_count=$((candidate_count + 1))
-		else
-			edited_paths=${edited_paths:-$'\n'}${path}$'\n'
 		fi
 		;;
 	U$'\t'*)

@@ -2,7 +2,8 @@
 date: 2026-08-20
 type: doc
 priority: medium
-status: pending
+status: applied
+applied-to: [AGENTS.md]
 session: claude-code
 ---
 

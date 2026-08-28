@@ -2,7 +2,8 @@
 date: 2026-08-26
 type: doc
 priority: high
-status: pending
+status: applied
+applied-to: [docs/skill-development.md]
 session: claude-code
 ---
 

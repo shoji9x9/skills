@@ -2,8 +2,8 @@
 date: 2026-08-25
 type: doc
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md]
 session: codex
 ---
 

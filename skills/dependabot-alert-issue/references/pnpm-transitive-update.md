@@ -87,7 +87,7 @@ pnpm の transitive 依存には 2 種類ある。
    lockfile だけでなく本番インストール（`--prod` / デプロイ）で依存が欠落する。
 4. `package.json` の宣言（**種別と range の両方**）が元と変わっていないか確認し、変わっていたら戻して `pnpm install --lockfile-only` で lockfile を追随させる
 5. `pnpm install --frozen-lockfile` とテストで検証する
-6. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する
+6. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する。キー列挙は grep でなく YAML パーサの `loadAll` で取り、既知の quoted scoped key と総数を陽性コントロールとして突き合わせる（`pnpm-lock.yaml` は複数ドキュメントになりうる）。
 
 実例: Issue #124（postcss high）で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
 `pnpm remove vitest && pnpm add --save-dev 'vitest@^4.1.7'`（vitest は `devDependencies` 宣言）では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
