@@ -1,6 +1,6 @@
 ---
 name: issue-batch
-description: 複数の GitHub Issue を入力順に、Issue ごとの隔離 worktree・独立 branch / PR で連続処理し、実装、ローカルレビュー、検証、必要なブラウザ回帰、Kaizen、PR 収束、自動マージ、Issue close、deployment、branch cleanup まで追跡するスキル。初回は `issue-batch setup` で無人実行ポリシーを確定する。「複数 Issue をまとめて処理」「Issue を順番に最後まで」「issue-batch」や `run` / `setup` を伴う依頼で必ず使う。
+description: 複数の GitHub Issue を入力順に、Issue ごとの隔離 worktree・独立 branch / PR で連続処理し、実装、ローカルレビュー、検証、必要なブラウザ回帰、Kaizen、PR 収束、merge（GitHub の auto-merge／エージェントが PR の状況を実測してから merge、のいずれかを選択）、Issue close、deployment、branch cleanup まで追跡するスキル。初回は `issue-batch setup` で無人実行ポリシーとマージ方式を確定する。「複数 Issue をまとめて処理」「Issue を順番に最後まで」「issue-batch」や `run` / `setup` を伴う依頼で必ず使う。
 argument-hint: "<setup | run <Issue URL | 番号>...> [options]"
 license: MIT
 ---
@@ -19,6 +19,7 @@ issue-batch run <Issue URL | 番号>... \
   [--max-local-review-iterations <N>] \
   [--max-pr-iterations <N>] \
   [--wait-ci-before-review | --no-wait-ci-before-review] \
+  [--merge-mode <auto|agent>] \
   [--merge-method <squash|merge|rebase>] \
   [--max-deployment-fix-iterations <N>] \
   [--stop-on-blocked]
@@ -53,7 +54,8 @@ issue-batch run <Issue URL | 番号>... \
 3. 呼び出し元 worktree を checkout せず、Issue ごとに一意な隔離 worktree を `git-worktree` の契約で用意して**セッションを移す**。置き場所は `git-worktree setup` の決定に従う（Issue ごとに worktree を渡り歩くため、**リポジトリ内**に置く必要がある）。
 4. 各 Issue を入力順に `issue-start` の契約で実装し、現在の agent のローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit / push / PR 作成へ進める。
 5. PR は `pr-finalize-loop` へ渡して収束させる。AI レビュー依頼は同スキルに一本化する。
-6. head SHA を固定して auto-merge し、実際の PR `MERGED`、Issue `CLOSED`、対象 deployment の exact-SHA 成功、exact branch cleanup を確認して `DONE` にする。
+6. head SHA を固定し、解決済みの merge mode（`auto` は GitHub の auto-merge に委ねる、`agent` は PR の状況を実測してから merge する）で merge する。
+   実際の PR `MERGED`、Issue `CLOSED`、対象 deployment の exact-SHA 成功、exact branch cleanup を確認して `DONE` にする。
 
 各状態遷移の前に GitHub / git の実状態を再取得する。manifest の記憶だけで判断しない。
 
@@ -65,6 +67,8 @@ issue-batch run <Issue URL | 番号>... \
 - PR 収束上限: setup 値。初期候補は 5
 - CI 待機: setup 値。初期候補は false（CI とレビューを並行）
 - BLOCKED 後の続行: setup 値。初期候補は true。`--stop-on-blocked` で当該 run だけ停止側へ上書き
+- merge mode: setup 値。初期候補は `auto`（現行踏襲）。`--merge-mode` で当該 run だけ上書き
+- merge 準備完了の待機上限: setup 値（`merge_ready_timeout_minutes`）。`agent` mode でだけ使い、CLI override は無い。`agent` で解決したのに設定に無ければ推測せず停止する
 - deployment 修正上限: `--max-deployment-fix-iterations` があれば当該 run だけ上書き
 
 BLOCKED / FAILED が Issue の隔離 worktree 内に閉じる場合、既定方針に従い次 Issue へ進める。認証、権限、repo 不一致、共有設定破損など全体へ波及する失敗は option にかかわらず全体を停止する。
@@ -74,7 +78,8 @@ BLOCKED / FAILED が Issue の隔離 worktree 内に閉じる場合、既定方�
 - 課金、通知、データの作成・変更・削除、ログイン待ち、禁止操作解除を無人実行しない。必要なら preflight で BLOCKED にする。
 - `--admin`、commit `--amend`、ローカルの `git rebase`、force push を使わない。deployment 修復では同じ feature branch に最新 base を merge する。
   ここでの禁止は git 履歴の書き換えを指し、`--merge-method rebase`（GitHub の rebase merge）とは別物である。
-- auto-merge の有効化、成功済みの古い workflow run、同名 workflow の別 SHA を完了根拠にしない。
+- merge mode に依らず、merge 要求の送信（auto-merge の有効化、merge queue への投入を含む）を完了根拠にしない。成功済みの古い workflow run、同名 workflow の別 SHA も同様に使わない。
+- `agent` mode でも required check の完了・成功と mergeable を実測してから merge する。未完了の check を待たずに merge せず、`--admin` や branch protection の一時解除で押し通さない。
 - merge / close / deployment の全条件が成立する前に branch を削除しない。glob ではなく検証済みの完全一致 ref だけを扱う。
 - dirty / BLOCKED worktree は削除しない。絶対パスと残作業を最終報告へ残す。
 - ユーザー確認が必要なレビュー・仕様判断を「無人実行」で迂回しない。結果を捏造せず BLOCKED とする。

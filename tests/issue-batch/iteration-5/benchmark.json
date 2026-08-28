@@ -1,0 +1,527 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "<repo>/skills/issue-batch",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-28T09:47:44Z",
+    "evals_run": [10, 16, 17, 18, 19, 20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 98.319,
+        "tokens": 111834,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr merge --auto --<method> --match-head-commit <headRefOid> を使い --admin を使わない",
+          "passed": true,
+          "evidence": "Phase 2『gh pr merge \"$PR_URL\" --auto --squash --match-head-commit \"$HEAD_SHA\"』、直後に『--admin は使わない。--delete-branch も付けない』"
+        },
+        {
+          "text": "auto-merge 予約や merge queue 投入ではなく PR MERGED を確認する",
+          "passed": true,
+          "evidence": "誤認表で『gh pr merge --auto が exit 0 → MERGE_QUEUED。要求の送信にすぎない』『autoMergeRequest != null → 予約の存在は根拠にしない。state == MERGED のみ』『merge queue に入った → 完了根拠にしない』"
+        },
+        {
+          "text": "Issue が OPEN のままなら手動 close せず BLOCKED にする",
+          "passed": true,
+          "evidence": "Phase 4『OPEN のままなら手動 close で隠さず BLOCKED』、誤認表にも同項"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 92.481,
+        "tokens": 118392,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定から merge mode agent を解決し、gh pr merge に --auto を付けずに merge する",
+          "passed": true,
+          "evidence": "前提節で fixture から merge_mode: agent を解決、Step 4『gh pr merge \"$PR_URL\" --squash --match-head-commit \"$HEAD\"』に『--auto は付けず、--admin も branch protection の一時解除も使わない』"
+        },
+        {
+          "text": "gh pr checks --required の bucket と PR の mergeable / mergeStateStatus を実測してから merge する",
+          "passed": true,
+          "evidence": "節 1 で gh pr checks --required --json name,bucket,state,link、節 2 で gh pr view の mergeable / mergeStateStatus 判定表。『生の state を自前で解釈せず bucket で行う』"
+        },
+        {
+          "text": "required check の pending は merge_ready_timeout_minutes を上限に再取得し、超過したら merge せず BLOCKED にする",
+          "passed": true,
+          "evidence": "ケース①『merge_ready_timeout_minutes: 10 を上限に…再取得を繰り返す』『10 分を超過したら merge コマンドを一切送らずに BLOCKED』。終了コード 8 を失敗に倒さない点も明記"
+        },
+        {
+          "text": "mergeStateStatus BEHIND は rebase / force push / 別 branch を使わず同じ feature branch に最新 base を merge して収束へ戻す",
+          "passed": true,
+          "evidence": "ケース②『rebase も force push も別 branch 作成もしない。同じ feature branch に最新 base を merge』『FINALIZING へ差し戻し』、差し戻し回数は max_pr_iterations: 5 上限"
+        },
+        {
+          "text": "必須でない check だけの失敗（UNSTABLE）は required が全て pass なら merge してよく、失敗した check を判断根拠として残す",
+          "passed": true,
+          "evidence": "ケース③『免除が使えるのは required check が 1 件以上あり、その全ての bucket が pass のときだけ…どの非必須 check が失敗したかを判断根拠として manifest に残す』"
+        },
+        {
+          "text": "merge コマンドの成功終了ではなく PR MERGED を再取得して確認する",
+          "passed": true,
+          "evidence": "節 5『merge コマンドの成功終了・auto-merge 予約・queue 投入はいずれも完了根拠にしない』『上限付きで PR を再取得し state: MERGED を実測』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 83.975,
+        "tokens": 138507,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+          "passed": true,
+          "evidence": "解決値表で merge_mode = agent（CLI override、設定の auto を当該 run だけ上書き）、『設定ファイルへの影響: 影響なし。.config/skills/shoji9x9/skills.yml は 1 バイトも書き換わりません』"
+        },
+        {
+          "text": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "passed": true,
+          "evidence": "『この確認は auto に解決したときだけ必要で、agent では原則不要』。merge queue 必須 base の例外まで補足"
+        },
+        {
+          "text": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "passed": true,
+          "evidence": "『gh api repos/{owner}/{repo} --jq .allow_auto_merge』を preflight 7 の追加実測として提示"
+        },
+        {
+          "text": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "passed": true,
+          "evidence": "『設定を無人で書き換えない…勝手に agent へ倒して続行するのは禁止』『全体を停止する』『issue-batch run 101 --merge-mode agent で再実行 / issue-batch setup で確定・保存 / repository 側で auto-merge を許可』を案内"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 85.806,
+        "tokens": 160781,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを弁別する",
+          "passed": true,
+          "evidence": "Step 2『非 0 終了を機械的に「check 失敗」に倒さない』『--required なしの取得と突き合わせ、「必須チェックが無い」と「取得に失敗した」を弁別（前者は全 check が取れる、後者は両方失敗する）』。pending の終了コード 8 も区別"
+        },
+        {
+          "text": "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+          "passed": true,
+          "evidence": "Step 3『「required が全て pass」は空集合で自明に成立するため、required の pass を merge 根拠にできません』『--required なしの全 check の bucket に、通常の required 用規則を当てる』"
+        },
+        {
+          "text": "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+          "passed": true,
+          "evidence": "Step 3『UNSTABLE の免除は適用しない。免除は「必須チェックが 1 件以上あり、その全てが pass」の場合のみ成立』"
+        },
+        {
+          "text": "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する",
+          "passed": true,
+          "evidence": "節 3『manifest に「CI 未設定のため check を根拠にしていない」と明示的に記録』『0 件を pass に読み替えるのが、本件で最も避けるべき捏造。空集合の全称成立（vacuous truth）で GO を出さない』"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 81.447,
+        "tokens": 187966,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に merge_ready_timeout_minutes が無いことを検出する",
+          "passed": true,
+          "evidence": "停止理由 1『.config/skills/shoji9x9/skills.yml の skills.issue-batch には次の 2 キーがありません…merge_ready_timeout_minutes — 未解決』"
+        },
+        {
+          "text": "待機上限を推測値や既定値で補わない",
+          "passed": true,
+          "evidence": "『推測値で補わず変更前に停止するのが契約』。値の確定根拠（recent PR の実測時間、履歴が無ければ質問）まで案内し、既定値を置いていない"
+        },
+        {
+          "text": "--merge-mode の指定だけでは agent mode に必要な待機上限は埋まらないと述べる",
+          "passed": true,
+          "evidence": "『merge_ready_timeout_minutes は…CLI override は存在しません。--merge-mode agent を指定しても agent に必要な待機上限は埋まらない』"
+        },
+        {
+          "text": "branch / PR / merge を変更する前に停止して issue-batch setup を案内する",
+          "passed": true,
+          "evidence": "『preflight で停止（変更前）』『issue-batch setup を実行し、merge_ready_timeout_minutes（分・正整数）を追記してください』。manifest / worktree / branch / PR いずれも未作成と最終報告表で明示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 93.606,
+        "tokens": 112169,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+          "passed": true,
+          "evidence": "担当分界表 #1『PR_OPEN → FINALIZING | issue-batch（手渡しのみ）| pr-finalize-loop <PR_URL> --max-iterations 5』"
+        },
+        {
+          "text": "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が正本で、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+          "passed": true,
+          "evidence": "表 #2『FINALIZING 内のループ | pr-finalize-loop が正本 | CI 監視、全 reviewer の thread / review body 収集、copilot への再レビュー依頼、収束判定』。issue-batch の担当は #1 の『手渡しのみ』に限定。設定表でも review_tool を『PR 上の再レビュー依頼先。ローカルレビューの実行主体ではない』と区別"
+        },
+        {
+          "text": "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+          "passed": true,
+          "evidence": "『false（現行）: pr-finalize-loop <PR_URL> --max-iterations 5 / true: … --wait-ci-before-review』と差分は 1 点だけと明示。設定表でも false → 『--wait-ci-before-review を付けない』"
+        },
+        {
+          "text": "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む",
+          "passed": true,
+          "evidence": "『max_pr_iterations: 5 を超えて収束しない場合、merge 要求を送らず BLOCKED』『continue_on_blocked: true なので、失敗が Issue 101 の隔離 worktree 内に閉じる限り、次の Issue へ進む』。全体波及型（認証・権限・repo 不一致・共有設定破損・allow_auto_merge: false）は option に関わらず全体停止と弁別"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 104.003,
+        "tokens": 53103,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr merge --auto --<method> --match-head-commit <headRefOid> を使い --admin を使わない",
+          "passed": true,
+          "evidence": "Step 3『gh pr merge \"$PR\" --squash --auto --match-head-commit \"$SHA\"』。--admin の使用も提案していない"
+        },
+        {
+          "text": "auto-merge 予約や merge queue 投入ではなく PR MERGED を確認する",
+          "passed": true,
+          "evidence": "『終了コード 0 は「マージ済み」を意味しません…完了判定に使ってよいのは Step 4 の結果のみ』、Step 4 で state==MERGED かつ mergedAt 非 null かつ mergeCommit.oid の 3 条件 AND"
+        },
+        {
+          "text": "Issue が OPEN のままなら手動 close せず BLOCKED にする",
+          "passed": false,
+          "evidence": "Step 6 で自動 close されない構成と判明した場合の手動 close コマンド（gh issue close 101 --reason completed）を提示しており、BLOCKED に倒していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 114.527,
+        "tokens": 117087,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定から merge mode agent を解決し、gh pr merge に --auto を付けずに merge する",
+          "passed": true,
+          "evidence": "fixture から merge_mode: agent を解決、『gh pr merge 101 --squash --match-head-commit <...> --delete-branch』に --auto なし。『未確認のまま将来の merge を予約する auto-merge はこの契約を満たしません』"
+        },
+        {
+          "text": "gh pr checks --required の bucket と PR の mergeable / mergeStateStatus を実測してから merge する",
+          "passed": false,
+          "evidence": "mergeable / mergeStateStatus は実測するが、gh pr checks --required も bucket も使わず、statusCheckRollup と branch protection API から required 集合を自力再構成している。正規化フィールド（bucket）と --required の 0 件挙動の契約は現れない"
+        },
+        {
+          "text": "required check の pending は merge_ready_timeout_minutes を上限に再取得し、超過したら merge せず BLOCKED にする",
+          "passed": true,
+          "evidence": "『merge_ready_timeout_minutes: 10 を上限に再測定（指数バックオフ…合計 10 分でハードストップ）』『タイムアウトしたら merge しません…blocked として記録』"
+        },
+        {
+          "text": "mergeStateStatus BEHIND は rebase / force push / 別 branch を使わず同じ feature branch に最新 base を merge して収束へ戻す",
+          "passed": true,
+          "evidence": "『gh pr update-branch 101 # base を head にマージ』、--rebase を明示的に退け（既存 commit の SHA 書き換えを理由に）、更新後は測定を最初からやり直し max_pr_iterations を 1 回消費"
+        },
+        {
+          "text": "必須でない check だけの失敗（UNSTABLE）は required が全て pass なら merge してよく、失敗した check を判断根拠として残す",
+          "passed": true,
+          "evidence": "ケース C で merge 可の分岐（変更と因果なし）を示し『無言で通さず、どの check がなぜ許容されたかを merge 時の記録と run レポートに残します』"
+        },
+        {
+          "text": "merge コマンドの成功終了ではなく PR MERGED を再取得して確認する",
+          "passed": false,
+          "evidence": "merge 実行後に state: MERGED を再取得する手順が無い。--match-head-commit 不一致時のやり直しには触れるが、merge 後の完了実測は deployment スキップの記述のみで終わっている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 85.632,
+        "tokens": 132702,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+          "passed": true,
+          "evidence": "解決値表で merge_mode = agent（CLI オーバーライド）、『skills.yml は変更されません…書き戻し（永続化）は行われません』"
+        },
+        {
+          "text": "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+          "passed": true,
+          "evidence": "『agent モードはエージェントが自力でマージするため repository 側の能力に依存しません』"
+        },
+        {
+          "text": "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+          "passed": false,
+          "evidence": "意図は述べるが提示コマンドが `gh repo view --json autoMergeAllowed` で、このフィールドは gh に存在しない（実測: Unknown JSON field: \"autoMergeAllowed\"）。allow_auto_merge を取る経路（REST repos/{owner}/{repo}）は挙げていない"
+        },
+        {
+          "text": "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する",
+          "passed": false,
+          "evidence": "『その run に限り merge_mode を agent に自動フォールバック』と無人での方式切り替えを推奨し、停止していない。setup の案内も無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 110.946,
+        "tokens": 120088,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを弁別する",
+          "passed": false,
+          "evidence": "gh pr checks --required を使わず、branches/main/protection と rulesets の 2 API から required 集合を再構成している。--required の 0 件時の非 0 終了という挙動には触れていない"
+        },
+        {
+          "text": "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+          "passed": true,
+          "evidence": "『branch protection が無い場合、statusCheckRollup に存在するチェックを事実上すべて必須とみなす（self-imposed gate）』として全 check に合否規則を適用（分類は bucket ではなく生の conclusion / status 列挙）"
+        },
+        {
+          "text": "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+          "passed": true,
+          "evidence": "『CI が全部赤でも GitHub は merge を許可し…UNSTABLE になる。merge_mode: agent である以上、GitHub の可否判定に委ねるのは誤り』、UNSTABLE は Step 2 の自前ゲートへ回す"
+        },
+        {
+          "text": "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する",
+          "passed": true,
+          "evidence": "CI 皆無ケース (a) で『「CI による裏付けゼロで merge した」ことをレポートに明示的に記録』。(b) 登録レースとの弁別も提示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 59.03,
+        "tokens": 138153,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定に merge_ready_timeout_minutes が無いことを検出する",
+          "passed": false,
+          "evidence": "『merge_mode というキーはありません』とだけ述べ、merge_ready_timeout_minutes には一切言及していない"
+        },
+        {
+          "text": "待機上限を推測値や既定値で補わない",
+          "passed": false,
+          "evidence": "待機上限そのものに言及がなく、欠落キーを認識していない。推測値を書いていないのは別理由（スキル定義が無く実行を諦めた）による空虚な成立で、要求される挙動の証拠にならない"
+        },
+        {
+          "text": "--merge-mode の指定だけでは agent mode に必要な待機上限は埋まらないと述べる",
+          "passed": false,
+          "evidence": "『--merge-mode agent が既定の squash を上書きする意図なら』と merge_method との関係を誤って推測しており、待機上限に触れていない"
+        },
+        {
+          "text": "branch / PR / merge を変更する前に停止して issue-batch setup を案内する",
+          "passed": false,
+          "evidence": "停止はしているが理由は『issue-batch のスキル定義が見つからない』。setup の案内は無く、スキル定義の入手先を尋ねている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 110.405,
+        "tokens": 82126,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+          "passed": false,
+          "evidence": "pr-finalize-loop への言及が一度も無い。収束フェーズを A〜H の自作フェーズ表に分解し、担当を全て『オーケストレータ』に置いている。max_pr_iterations: 5 は handoff payload の counters として自作 YAML に載せるだけで、委譲先の option にしていない"
+        },
+        {
+          "text": "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が正本で、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+          "passed": false,
+          "evidence": "フェーズ B『レビュー依頼 | オーケストレータ → Copilot』とし、オーケストレータ自身が再レビューを依頼する設計になっている。dry-run の予定コマンドにも『Copilot レビュー要求』『gh pr comment』を列挙しており、依頼主体の一本化と逆行"
+        },
+        {
+          "text": "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+          "passed": false,
+          "evidence": "true / false の意味論の違い（並行 vs 直列、iteration 消費のしやすさ）は詳述するが、委譲先へ渡すフラグとしての扱いに触れていない。むしろ『CI 待ちの上限値が fixture に存在しない…要確認事項』と、委譲先が持つ責務を設定の穴と誤診している"
+        },
+        {
+          "text": "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む",
+          "passed": true,
+          "evidence": "打ち切り条件 3 つを挙げ『Issue はクローズしない』『continue_on_blocked: true なので バッチは停止せず次の Issue に進みます』。依存関係のある後続 Issue を blocked にする配慮まで自力で到達"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 89.2723,
+        "stddev": 6.5151,
+        "min": 81.447,
+        "max": 98.319
+      },
+      "tokens": {
+        "mean": 138274.8333,
+        "stddev": 30827.7562,
+        "min": 111834,
+        "max": 187966
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4722,
+        "stddev": 0.2919,
+        "min": 0.0,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 97.4238,
+        "stddev": 21.449,
+        "min": 59.03,
+        "max": 114.527
+      },
+      "tokens": {
+        "mean": 107209.8333,
+        "stddev": 32946.8779,
+        "min": 53103,
+        "max": 138153
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.53",
+      "time_seconds": "-8.2",
+      "tokens": "+31065"
+    }
+  },
+  "notes": []
+}

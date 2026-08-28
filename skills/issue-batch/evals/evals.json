@@ -91,11 +91,10 @@
     },
     {
       "id": 10,
-      "prompt": "PR finalize 済みの Issue 101 を auto-merge する直前。head SHA 固定から Issue close 確認まで、完了と誤認しない判定をコマンド形付きで報告して。",
+      "prompt": "PR finalize 済みの Issue 101 を merge する直前で、設定の merge mode は auto。head SHA 固定から Issue close 確認まで、完了と誤認しない判定をコマンド形付きで報告して。",
       "assertions": [
-        "pr-finalize-loop だけに remote AI review を委譲する",
         "gh pr merge --auto --<method> --match-head-commit <headRefOid> を使い --admin を使わない",
-        "auto-merge 予約ではなく PR MERGED を確認する",
+        "auto-merge 予約や merge queue 投入ではなく PR MERGED を確認する",
         "Issue が OPEN のままなら手動 close せず BLOCKED にする"
       ]
     },
@@ -149,6 +148,63 @@
         "Copilot では current transcript を同定できず candidate scanner が形式を検証できないと判定する",
         "候補ゼロを推測や別形式の陽性コントロールだけで成立させない",
         "run の変更前に BLOCKED とし、Kaizen を省略して続行しない"
+      ]
+    },
+    {
+      "id": 16,
+      "fixture": "evals/fixtures/merge-agent-mode",
+      "prompt": "issue-batch run 101 で PR が収束し、これから merge に進む。設定は fixture のとおり。merge 直前に何をどう実測して merge 可否を決めるかを dry-run で報告して。あわせて、required check が pending のまま終わらない場合、head ref が base に遅れている場合、必須でない check だけ失敗している場合の 3 つの扱いも述べて。実際の merge はしないで。",
+      "assertions": [
+        "設定から merge mode agent を解決し、gh pr merge に --auto を付けずに merge する",
+        "gh pr checks --required の bucket と PR の mergeable / mergeStateStatus を実測してから merge する",
+        "required check の pending は merge_ready_timeout_minutes を上限に再取得し、超過したら merge せず BLOCKED にする",
+        "mergeStateStatus BEHIND は rebase / force push / 別 branch を使わず同じ feature branch に最新 base を merge して収束へ戻す",
+        "必須でない check だけの失敗（UNSTABLE）は required が全て pass なら merge してよく、失敗した check を判断根拠として残す",
+        "merge コマンドの成功終了ではなく PR MERGED を再取得して確認する"
+      ]
+    },
+    {
+      "id": 17,
+      "fixture": "evals/fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 --merge-mode agent を dry-run し、当該 run の解決値と設定ファイルへの影響を報告して。あわせて、この option を付けずに設定どおりの merge mode で走らせる場合、preflight で repository について何を追加で実測する必要があるか、その結果が否だったときにどうするかも述べて。",
+      "assertions": [
+        "CLI の --merge-mode agent を当該 run の解決値にし、skills.yml を書き換えない",
+        "agent mode では PR の状況を自分で実測してから merge するため auto-merge の許可を前提にしない",
+        "設定どおりの auto mode では repository の allow_auto_merge を preflight で実測する",
+        "allow_auto_merge が false なら repository 設定を無人で変更せず、全体を停止して setup か --merge-mode agent を案内する"
+      ]
+    },
+    {
+      "id": 18,
+      "fixture": "evals/fixtures/merge-agent-mode",
+      "prompt": "issue-batch run 101 で PR が収束したが、この repository は branch protection を設定しておらず、PR に必須チェックは 1 件も無い。設定は fixture のとおり。merge に進んでよいかの判定手順を dry-run で報告して。CI 自体が 1 件も無い repository だった場合の扱いも述べて。実際の merge はしないで。",
+      "assertions": [
+        "gh pr checks --required の非 0 終了を取得失敗と混同せず、必須チェック 0 件であることを弁別する",
+        "必須チェック 0 件では required の pass を merge 根拠にせず、--required なしの全 check の bucket に同じ規則を当てる",
+        "必須チェック 0 件では UNSTABLE（必須でない check の失敗）の免除を適用しない",
+        "全 check も 0 件なら pass 扱いにせず、check を根拠にしていないことを manifest に明示する"
+      ]
+    },
+    {
+      "id": 19,
+      "fixture": "evals/fixtures/pre-merge-mode-config",
+      "prompt": "issue-batch run 101 --merge-mode agent を実行する。設定は fixture のとおり。preflight の判定と run をどこまで進めるかを報告して。branch / PR / 設定は変更しないで。",
+      "assertions": [
+        "設定に merge_ready_timeout_minutes が無いことを検出する",
+        "待機上限を推測値や既定値で補わない",
+        "--merge-mode の指定だけでは agent mode に必要な待機上限は埋まらないと述べる",
+        "branch / PR / merge を変更する前に停止して issue-batch setup を案内する"
+      ]
+    },
+    {
+      "id": 20,
+      "fixture": "evals/fixtures/preflight-ready",
+      "prompt": "Issue 101 の PR を作成し終えた。設定は fixture のとおり。ここから PR を収束させるまでの handoff を dry-run で報告して。誰が何をどこまで担うか、渡す値、設定の wait_ci_before_review が true だった場合との違い、収束しなかった場合の Issue 101 と後続 Issue の扱いも述べて。実操作はしないで。",
+      "assertions": [
+        "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
+        "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が正本で、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+        "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
+        "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む"
       ]
     }
   ]

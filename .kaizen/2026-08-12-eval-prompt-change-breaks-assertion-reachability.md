@@ -87,3 +87,43 @@ prompt を dry-run（「まだ何も実行しないで、手順だけ先に示�
   dry-run 形（「まだ実行しないで、手順だけ示して」）で問う。
 - **新規 eval を書く前に、そのスキルの直近 benchmark の `notes` を読む。**
   到達しない工程は「構造的に満たせない」として既に記録されていることがある。
+
+---
+
+## 事象（3 件目・2026-08-28）
+
+Issue #241 で `issue-batch` の eval 10 のプロンプトに「設定の merge mode は auto」を足して
+mode を明示したところ、既存 assertion 1「pr-finalize-loop だけに remote AI review を委譲する」が
+with / without ともに FAIL した（iteration-5）。
+
+この assertion は iteration-3 では with_skill だけが pass し、eval 10 で**唯一 Delta を出していた**項目。
+調べると、eval 10 のプロンプトはもともと merge 直前〜Issue close しか問うておらず、
+レビュー委譲を引き出す文は**改訂前から無かった**。iteration-3 の pass は
+「PR finalize 済み」という語から前フェーズを自発的に語った偶然で、
+測っていたのは契約知識ではなく冗長さだった。
+
+対応として eval 10 から当該 assertion を落とし、handoff を正面から問う eval 20 を新設して移設した
+（移設後: with 4/4・without 1/4、+75pt）。
+
+## 根本原因（3 件目）
+
+- なぜプロンプト改訂で落ちた? → 改訂時に全 assertion の「どの文が引き出すか」を取り直さなかった
+  （1 件目と同じ。この学びが `status: pending` のまま未適用で、rule に規定が無い）
+  - なぜ改訂前に気付けなかった? → **過去 iteration で with_skill が pass したことを到達性の証拠に使った**。
+    pass の根拠が「プロンプトが問うている」からか「自発的に語った」からかを区別していなかった
+    - なぜ? → 既存 rule の到達性検証は「assertion を 1 本ずつ自問する」形で、
+      **benchmark の pass 履歴は到達性を担保しない**という否定が書かれていない ← 根本原因（対策可能）
+
+3 件目にして同じ rule の同じ節の不足。1・2 件目の提案が未適用のまま再発している。
+
+## 提案（3 件目の追記分）
+
+`.agents/rules/eval-assertion-discrimination.md` の「到達性の検証手段」に追記する:
+
+- **過去 iteration で pass したことを到達性の証拠にしない。** with_skill が pass した assertion でも、
+  pass の根拠が「プロンプトが問うている」のか「問われていない話題を自発的に語った」のかを区別する。
+  後者は run 間で揺れる flaky で、プロンプトを 1 語変えただけで落ちる。
+  対応表を作り直すのは**新規・変更した assertion だけでなく、過去に pass した既存 assertion も対象**。
+- **Delta を出している assertion ほど先に疑う。** その eval で唯一 Delta を出す項目は、
+  スキル固有の契約を測れているか、baseline が語らない冗長さを測っているだけかの
+  どちらかであり、後者は置き場所が間違っている（プロンプトが問うている eval へ移す）。
