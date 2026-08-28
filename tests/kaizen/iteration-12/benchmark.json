@@ -1,0 +1,177 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-28T14:31:51Z",
+    "evals_run": [18],
+    "runs_per_configuration": 1,
+    "scope": "Issue #244（同一セッションの後続 commit も未処理範囲を再走査する）で追加した eval 18 のみ。コスト最小化のため既存 eval は再実行していない。",
+    "excluded_runs": [
+      {
+        "eval_id": 18,
+        "configuration": "without_skill",
+        "run_number": 1,
+        "reason": "初回試行は contamination.txt verdict=CONTAMINATED。scripts/eval-sandbox.sh は自身のパスから repo/repo_parent を求めるため、git worktree（/tmp 配下）から実行するとメインチェックアウト（~/projects/skills）が遮断対象に入らず、その .agents/skills/kaizen/（変更前リビジョン）をベースラインが読んでいた。",
+        "consequence": "eval-sandbox.sh に「同一リポジトリの全 work tree の親を隠す」処理を追加したうえで取り直し、verdict=clean の run に差し替えた。集計に載っているのは取り直し後の run のみ。"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.86,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 125.044,
+        "tokens": 455311,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 回目以降の commit でも、前回の抽出以降に積まれた活動を .kaizen/.extract-checkpoint.<session key> より後の未処理範囲として走査すると説明している",
+          "passed": true,
+          "evidence": "「kaizen-candidate-scan.sh <transcript> .kaizen/.extract-checkpoint.<key> を timeout 8 で実行。checkpoint の 2 行目のバイト位置以降だけを読み」／「2 回目・3 回目は『前回の抽出以降に積まれた分だけ』を見ます」"
+        },
+        {
+          "text": "抽出完了時の kaizen-extract-done.sh に transcript path を渡して処理位置を記録させ、省略しないと説明している",
+          "passed": true,
+          "evidence": "「2) センチネル解消 + checkpoint 記録（transcript を必ず渡す）」としてコマンド例の末尾に \"<transcript_path>\" を含めている"
+        },
+        {
+          "text": ".extract-done.<session key> は checkpoint を記録できなかったときだけ書かれる fail safe で、これがあるとセッション全体が抽出済みになり後続の commit が素通りすると説明している",
+          "passed": true,
+          "evidence": "ファイル表に「kaizen-extract-done.sh（checkpoint を書けなかったときだけ）／セッション全体を抽出済みにする fail safe」。失敗表でも「transcript_path を渡し忘れた → .extract-done.<key> が書かれ…2 回目・3 回目の commit が素通り。1 回目までの学びしか残らず（これが Issue #244 の症状）」"
+        },
+        {
+          "text": "checkpoint がある間はゲートが .extract-done を尊重せず再走査すると説明している",
+          "passed": true,
+          "evidence": "collect_unresolved の説明で「そのセッションの .extract-checkpoint.<key> があるときは .extract-done.<key> があってもセンチネルを覆わない」と明示"
+        },
+        {
+          "text": "candidate scanner の exit code 契約（0=候補あり／1=検証済みゼロ／それ以外=不明）を挙げ、exit 1 のときだけ --checkpoint-only で checkpoint を進めて自動通過し、それ以外は再ブロックすると具体的に説明している",
+          "passed": true,
+          "evidence": "「契約は 0=候補あり／1=検証済みゼロ／それ以外=不明」と明示したうえで「1 なら…kaizen-extract-done.sh --checkpoint-only …--scanned-bytes N --scanned-lines M <transcript> を呼び、checkpoint を…終端まで進めてセンチネルだけ消し、commit を通す（.extract-done は書かない）／0 なら候補を stderr に出して exit 2／2（jq 不在・timeout・未知形式・agent 不明・走査終端が取れない）は fail closed でブロック」"
+        },
+        {
+          "text": "2 回目の抽出では checkpoint より後だけを読み、1 回目に記録済みの学びを重複して起票しないと説明している",
+          "passed": false,
+          "evidence": "走査器が checkpoint 以降だけを読むことは説明しているが、**抽出（エージェント側の読み取り範囲）**を checkpoint 以降に限る規律と、それが重複起票を防ぐという因果は述べていない。重複への言及は「extract-done をまったく呼ばない」場合の帰結（『重複ノートを作るか止まり続ける』）に留まり、正常系の 2 回目抽出の手順としては出ていない。references/extract.md 手順 2 に書いた内容が応答へ到達しなかった"
+        },
+        {
+          "text": "セッション内で毎回抽出を要求されないよう .extract-done を先に書いておく、センチネルを手で消す、といった回避策を勧めていない",
+          "passed": true,
+          "evidence": "回避策の提示なし。逆に --session-id / --sentinel-suffix 省略時の `rm -f .kaizen/.pending-extract*` を「他セッション・他エージェントの未抽出シグナルまで完了扱いにして、その分の学びを丸ごと落とします」と害として記述している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.14,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 107.568,
+        "tokens": 147724,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 回目以降の commit でも、前回の抽出以降に積まれた活動を .kaizen/.extract-checkpoint.<session key> より後の未処理範囲として走査すると説明している",
+          "passed": false,
+          "evidence": "checkpoint を知らない。ゲートは「今回ステージされている変更」「ブランチ上に既にある kaizen エントリ」を git diff --cached / git log で突き合わせると推測しており、transcript の差分走査という機構自体が出ていない"
+        },
+        {
+          "text": "抽出完了時の kaizen-extract-done.sh に transcript path を渡して処理位置を記録させ、省略しないと説明している",
+          "passed": false,
+          "evidence": "kaizen-extract-done.sh に言及なし。記録は「学びノート + git add」で完結するとしている"
+        },
+        {
+          "text": ".extract-done.<session key> は checkpoint を記録できなかったときだけ書かれる fail safe で、これがあるとセッション全体が抽出済みになり後続の commit が素通りすると説明している",
+          "passed": false,
+          "evidence": "制御ファイル（.extract-done / .pending-extract）に一切言及なし"
+        },
+        {
+          "text": "checkpoint がある間はゲートが .extract-done を尊重せず再走査すると説明している",
+          "passed": false,
+          "evidence": "該当する記述なし"
+        },
+        {
+          "text": "candidate scanner の exit code 契約（0=候補あり／1=検証済みゼロ／それ以外=不明）を挙げ、exit 1 のときだけ --checkpoint-only で checkpoint を進めて自動通過し、それ以外は再ブロックすると具体的に説明している",
+          "passed": false,
+          "evidence": "candidate scanner・exit code・--checkpoint-only のいずれにも一切言及がない（本文全体を grep して確認: 「契約」「exit」「scan」いずれも 0 件）。通過／ブロックの判定は git diff --cached / git log による独自の推測に基づいており、走査器の契約とは無関係"
+        },
+        {
+          "text": "2 回目の抽出では checkpoint より後だけを読み、1 回目に記録済みの学びを重複して起票しないと説明している",
+          "passed": false,
+          "evidence": "逆に「1 件目の抽出が何に対する知見だったか分からなくなり、kaizen --current が同じ内容を再抽出します」と重複を避けられない前提で書いている。対策として提案するのは commit メッセージへの手動の紐付け"
+        },
+        {
+          "text": "セッション内で毎回抽出を要求されないよう .extract-done を先に書いておく、センチネルを手で消す、といった回避策を勧めていない",
+          "passed": true,
+          "evidence": "制御ファイルを知らないため回避策も出していない（否定形の assertion で、ベースラインが無知ゆえに通る型。弁別しない）"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.86,
+        "stddev": 0.0,
+        "min": 0.86,
+        "max": 0.86
+      },
+      "time_seconds": {
+        "mean": 125.044,
+        "stddev": 0.0,
+        "min": 125.044,
+        "max": 125.044
+      },
+      "tokens": {
+        "mean": 455311.0,
+        "stddev": 0.0,
+        "min": 455311,
+        "max": 455311
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.14,
+        "stddev": 0.0,
+        "min": 0.14,
+        "max": 0.14
+      },
+      "time_seconds": {
+        "mean": 107.568,
+        "stddev": 0.0,
+        "min": 107.568,
+        "max": 107.568
+      },
+      "tokens": {
+        "mean": 147724.0,
+        "stddev": 0.0,
+        "min": 147724,
+        "max": 147724
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.72",
+      "time_seconds": "+17.5",
+      "tokens": "+307587"
+    }
+  },
+  "notes": []
+}
