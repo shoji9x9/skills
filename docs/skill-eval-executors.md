@@ -86,7 +86,7 @@ Codex はファイル操作で sibling の `codex-code-mode-host` を起動す�
 `/tmp` の scratch から隔離 namespace 内だけに一時 `/etc/codex/requirements.toml` を重ね、`permissions.filesystem.deny_read` で CLI 起動用の `auth.json` を agent shell command から保護する。
 host の `/etc` は変更しない。
 
-この境界は、eval run 内で agent が発行する shell command から内容を表示しない probe で実測する。`test -r "$CODEX_HOME/auth.json"` は `AUTH_BLOCKED` にならなければならない。
+この境界は、eval run 内で agent が発行する shell command から内容を読み出す probe で実測する。`cat "$CODEX_HOME/auth.json" >/dev/null` は非 0 でなければならない（エラー文言はバージョン差があるため固定しない）。
 同じ run の fixture と `.agents/skills/<name>/SKILL.md` は読取り成功しなければならない。
 deny-read の公式仕様と system requirements の配置は [OpenAI: Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) を参照する。
 

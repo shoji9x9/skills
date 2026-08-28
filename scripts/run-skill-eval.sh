@@ -303,7 +303,7 @@ esac
 started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 started_ms="$(date +%s%3N)"
 rc=0
-(cd "${proj}" && EVAL_SANDBOX_CLI="${executor_binary}" "${runner}" "${executor_args[@]}") >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
+(cd "${proj}" && EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}") >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))

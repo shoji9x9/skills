@@ -114,7 +114,7 @@ function readJson(path) {
 describe("run-skill-eval executor compatibility", () => {
   test.each([
     ["claude-code", "claude-code.json", "claude stub response", 17],
-    ["codex", "codex.jsonl", "codex stub response", 15],
+    ["codex", "codex.jsonl", "codex stub response", 20],
   ])("emits the common run contract for %s", (executor, rawName, response, totalTokens) => {
     const { claudeMarker, directory, stub } = makeStub();
     const iteration = join(directory, "iteration-1");

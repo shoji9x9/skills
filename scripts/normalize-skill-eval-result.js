@@ -13,14 +13,22 @@ function numberOrZero(value) {
 function normalizeUsage(executor, usage = {}) {
   if (executor === "codex") {
     const inputTokens = numberOrZero(usage.input_tokens);
+    const cachedInputTokens = numberOrZero(usage.cached_input_tokens);
+    const cacheWriteInputTokens = numberOrZero(usage.cache_write_input_tokens);
     const outputTokens = numberOrZero(usage.output_tokens);
+    const reasoningOutputTokens = numberOrZero(usage.reasoning_output_tokens);
     return {
       input_tokens: inputTokens,
-      cached_input_tokens: numberOrZero(usage.cached_input_tokens),
-      cache_write_input_tokens: numberOrZero(usage.cache_write_input_tokens),
+      cached_input_tokens: cachedInputTokens,
+      cache_write_input_tokens: cacheWriteInputTokens,
       output_tokens: outputTokens,
-      reasoning_output_tokens: numberOrZero(usage.reasoning_output_tokens),
-      total_tokens: inputTokens + outputTokens,
+      reasoning_output_tokens: reasoningOutputTokens,
+      total_tokens:
+        inputTokens +
+        cachedInputTokens +
+        cacheWriteInputTokens +
+        outputTokens +
+        reasoningOutputTokens,
     };
   }
 

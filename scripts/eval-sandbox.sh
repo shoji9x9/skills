@@ -43,19 +43,41 @@ repo="$(dirname "$(dirname "${self}")")"
 repo_parent="$(dirname "${repo}")"
 home="${HOME:?HOME must be set}"
 cli="${EVAL_SANDBOX_CLI:-claude}"
+vendor="${EVAL_SANDBOX_VENDOR:-}"
+if [ -z "${vendor}" ]; then
+	case "$(basename -- "${cli}")" in
+	codex) vendor="codex" ;;
+	claude | claude-code) vendor="claude-code" ;;
+	*)
+		echo "eval-sandbox: EVAL_SANDBOX_VENDOR is required when the CLI is a wrapper: ${cli}" >&2
+		exit 3
+		;;
+	esac
+fi
+case "${vendor}" in
+claude-code | codex) ;;
+*)
+	echo "eval-sandbox: unsupported EVAL_SANDBOX_VENDOR: ${vendor}" >&2
+	exit 3
+	;;
+esac
 codex_home_raw="${CODEX_HOME:-${home}/.codex}"
 codex_home="$(realpath -m -- "${codex_home_raw}")"
 codex_auth="${codex_home}/auth.json"
-if [ "${cli}" = "codex" ] && [ ! -d "${codex_home}" ]; then
+if [ "${vendor}" = "codex" ] && [ ! -d "${codex_home}" ]; then
 	echo "eval-sandbox: CODEX_HOME does not exist: ${codex_home}" >&2
 	exit 3
 fi
-cli_launcher="$(command -v -- "${cli}" 2>/dev/null || true)"
-[ -n "${cli_launcher}" ] || {
+cli_launcher="$(type -P -- "${cli}" 2>/dev/null || true)"
+[ -n "${cli_launcher}" ] && [ -f "${cli_launcher}" ] && [ -x "${cli_launcher}" ] || {
 	echo "eval-sandbox: CLI not found: ${cli}" >&2
 	exit 3
 }
-cli_real="$(readlink -f -- "${cli_launcher}")"
+cli_real="$(readlink -f -- "${cli_launcher}" 2>/dev/null || true)"
+[ -n "${cli_real}" ] && [ -f "${cli_real}" ] && [ -x "${cli_real}" ] || {
+	echo "eval-sandbox: CLI not found: ${cli}" >&2
+	exit 3
+}
 
 command -v bwrap >/dev/null 2>&1 || {
 	echo "eval-sandbox: bwrap not found; cannot isolate reads. Install bubblewrap or record the run as UNISOLATED." >&2
@@ -66,7 +88,7 @@ command -v bwrap >/dev/null 2>&1 || {
 # cwd, but `--verify` is invoked from this repo — a path that the tmpfs below hides,
 # so chdir there would abort bwrap before any check runs.
 args=(--dev-bind / / --die-with-parent)
-[ "${cli}" = "codex" ] && args+=(--setenv CODEX_HOME "${codex_home}")
+[ "${vendor}" = "codex" ] && args+=(--setenv CODEX_HOME "${codex_home}")
 
 # 0. $HOME read-only, so nothing the run does escapes into the user's environment.
 #    This must precede every mount under $HOME: bwrap applies operations in order,
@@ -144,7 +166,7 @@ case "${cli_real}" in
 	args+=(--ro-bind "${cli_bin_dir}" "${cli_bin_dir}")
 	;;
 esac
-if [ "${cli}" = "codex" ] && [ -f "${codex_auth}" ]; then
+if [ "${vendor}" = "codex" ] && [ -f "${codex_auth}" ]; then
 	args+=(--ro-bind "${codex_auth}" "${codex_auth}")
 	# The CLI must read auth.json during startup, but agent-issued shell commands
 	# must not. Bind an admin requirements file only inside this mount namespace;

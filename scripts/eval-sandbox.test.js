@@ -29,7 +29,7 @@ test("refuses to replace an existing managed Codex directory", () => {
   writeFileSync(join(managedDirectory, "requirements.toml"), "managed-policy-marker\n", "utf8");
   writeFileSync(join(fakeHome, ".codex", "auth.json"), "{}\n", "utf8");
 
-  const fakeCodex = join(fakeBin, "codex");
+  const fakeCodex = join(fakeBin, "codex-wrapper");
   const fakeBwrap = join(fakeBin, "bwrap");
   writeFileSync(fakeCodex, "#!/usr/bin/env bash\nexit 99\n", "utf8");
   writeFileSync(fakeBwrap, "#!/usr/bin/env bash\nexit 98\n", "utf8");
@@ -44,7 +44,8 @@ test("refuses to replace an existing managed Codex directory", () => {
     encoding: "utf8",
     env: {
       ...process.env,
-      EVAL_SANDBOX_CLI: "codex",
+      EVAL_SANDBOX_CLI: "codex-wrapper",
+      EVAL_SANDBOX_VENDOR: "codex",
       HOME: fakeHome,
       PATH: `${fakeBin}:${process.env.PATH}`,
     },
@@ -63,7 +64,7 @@ test.skipIf(!hasBwrap)("isolates and reopens only required state from a custom C
   const fakeHome = join(root, "home");
   const codexHome = join(root, "custom-codex-home");
   const fakeBin = join(codexHome, "packages", "standalone", "releases", "test", "bin");
-  const fakeCodex = join(fakeBin, "codex");
+  const fakeCodex = join(fakeBin, "codex-wrapper");
   mkdirSync(join(codexHome, "skills", "leaked-skill"), { recursive: true });
   mkdirSync(fakeBin, { recursive: true });
   mkdirSync(join(fakeHome, ".claude"), { recursive: true });
@@ -90,7 +91,8 @@ echo CUSTOM_CODEX_HOME_OK
     env: {
       ...process.env,
       CODEX_HOME: codexHome,
-      EVAL_SANDBOX_CLI: "codex",
+      EVAL_SANDBOX_CLI: "codex-wrapper",
+      EVAL_SANDBOX_VENDOR: "codex",
       HOME: fakeHome,
       PATH: `${fakeBin}:${process.env.PATH}`,
     },

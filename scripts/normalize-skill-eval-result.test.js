@@ -62,7 +62,7 @@ describe("skill eval result normalization", () => {
     );
 
     expect(parsed.finalResponse).toBe("codex response");
-    expect(parsed.usage.total_tokens).toBe(140);
+    expect(parsed.usage.total_tokens).toBe(215);
     expect(parsed.usage.cached_input_tokens).toBe(60);
     expect(parsed.toolCalls).toEqual({ command_execution: 1 });
     expect(parsed.totalToolCalls).toBe(1);
