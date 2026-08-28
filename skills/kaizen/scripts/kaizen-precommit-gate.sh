@@ -513,6 +513,10 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 				printf '    センチネルが記録した transcript を読めません（移動・削除済み、または値が不正）。\n' >&2
 				printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、抽出後に実行してください:\n' >&2
 				printf '    bash "%s/kaizen-extract-done.sh" %s <transcript>\n' "${script_dir}" "${opts}" >&2
+				# `<transcript>` の穴埋めが必須なのはこの分岐（記録はあるが今は読めない）だけ。
+				# 「記録が無い」分岐は transcript なしの解消コマンドで完結するため、ここでだけ立てる
+				# （両分岐に共通で立てると、無記録側でも <transcript> の穴埋めが要るように読めてしまう）。
+				recovery_needs_transcript=1
 			else
 				# transcript を一度も記録していないセンチネル（session 単位化より前、記録失敗、
 				# または `/compact` 専用の隠しセッションのように transcript を一度も作らないまま
@@ -525,7 +529,6 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 				printf '    探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n' >&2
 				printf '    bash "%s/kaizen-extract-done.sh" %s\n' "${script_dir}" "${opts}" >&2
 			fi
-			recovery_needs_transcript=1
 		fi
 	done
 }

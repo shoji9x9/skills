@@ -679,6 +679,9 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).toMatch(
       /探しても見つからない場合は、transcript を指定せず次のコマンドで解消してください:\n\s*bash "[^"]+\/kaizen-extract-done\.sh" --sentinel-suffix "" --agent "claude-code" --session-id "other-session-1"\n/,
     );
+    // 「記録なし」の場合はプレースホルダ無しのコマンドで解消が完結するため、"<transcript> を
+    // 置き換えてください" という穴埋め必須の注意書きは出ない（出ると、常に穴埋めが要ると誤解される）。
+    expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
   });
 
   test("transcript は記録されているが今は読めない場合は、探して抽出する案内だけを出す", () => {
@@ -690,5 +693,7 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).toMatch(/センチネルが記録した transcript を読めません/);
     expect(gate.stderr).not.toMatch(/transcript の記録がありません/);
     expect(gate.stderr).not.toMatch(/transcript を指定せず次のコマンドで解消してください/);
+    // このケースは <transcript> の穴埋めが必須の唯一の解消コマンドなので、注意書きが出る。
+    expect(gate.stderr).toMatch(/<transcript> だけを.*置き換えてください/);
   });
 });

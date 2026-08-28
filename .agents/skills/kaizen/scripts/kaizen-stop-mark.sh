@@ -83,14 +83,18 @@ fi
 # 恒久ブロッカーになる（記録された transcript が実在しないため、案内の「探して抽出する」手順が
 # 完結しない）。transcript の無いセッションには抽出すべき学びも無いので、活動なしとして扱い
 # センチネルを立てない。
-# ただし、この判定は Hook JSON を実際に解析できた（`hook_fields_resolved=1`）ときに限る。
+# 判定は存在確認（`-e`）に留め、可読性（`-r`）では判定しない。可読性まで見ると、実在するが
+# 権限・FS 状態で一時的に読めないだけの transcript（本当は学びが積まれている）まで「無い」扱いに
+# なり、その未抽出の学びがコミット前ゲートで検出されなくなる。存在するが読めない場合は従来どおり
+# センチネルを立て、ゲート側の「記録はあるが読めない」復旧案内に委ねる。
+# また、この判定は Hook JSON を実際に解析できた（`hook_fields_resolved=1`）ときに限る。
 # 解析できていなければ「transcript が無い」のか「取れなかっただけ」なのか区別できず、
 # 従来どおりセンチネルを立てる（縮退時は機能が落ちるだけで壊れない、という既存方針を維持する）。
 # Copilot は Hook payload に transcript を持たないのが正常系なので対象外（従来どおり立てる）。
 case "${agent}" in
 claude-code | codex)
 	if [ "${hook_fields_resolved}" -eq 1 ]; then
-		[ -n "${transcript}" ] && [ -r "${transcript}" ] || exit 0
+		[ -n "${transcript}" ] && [ -e "${transcript}" ] || exit 0
 	fi
 	;;
 esac

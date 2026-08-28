@@ -10,6 +10,7 @@
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   copyFileSync,
   mkdirSync,
   mkdtempSync,
@@ -95,6 +96,27 @@ describe("transcript が無い claude-code / codex の Stop はセンチネル�
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+  // 判定は存在確認（-e）に留め、可読性（-r）では判定しない。実在するが権限・FS 状態で
+  // 一時的に読めないだけの transcript まで「無い」扱いにすると、そのセッションの未抽出の
+  // 学びがコミット前ゲートで検出されなくなる（code review で指摘・修正）。
+  test.skipIf(process.getuid?.() === 0)(
+    "claude-code: transcript_path が存在するが読めない場合はセンチネルを立てる",
+    () => {
+      const cwd = makeProject();
+      try {
+        const transcript = join(cwd, "unreadable.jsonl");
+        writeFileSync(transcript, "{}\n");
+        chmodSync(transcript, 0o000);
+        const result = runStopMark(cwd, { transcriptPath: transcript });
+        expect(result.status).toBe(0);
+        expect(sentinelFiles(cwd).length).toBe(1);
+      } finally {
+        chmodSync(join(cwd, "unreadable.jsonl"), 0o644);
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    },
+  );
 
   test("codex: 読める transcript があればセンチネルを立て、無ければ立てない", () => {
     const cwd = makeProject();
