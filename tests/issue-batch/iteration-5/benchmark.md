@@ -9,8 +9,10 @@
 | Metric | With Skill | Without Skill | Delta |
 |--------|------------|---------------|-------|
 | Pass Rate | 100% ± 0% | 47% ± 29% | +0.53 |
-| Time | 89.3s | 97.4s | -8.2s |
-| Tokens | 138275 | 107210 | +31065 |
+| Time | 89.3s ± 6.5s | 97.4s ± 21.4s | -8.2s |
+| Tokens | 138275 ± 30828 | 107210 ± 32947 | +31065 |
+
+数値は `benchmark.json` の `run_summary` と同じ入力（各 run の `timing.json`）から算出している。
 
 ## 実行条件
 
