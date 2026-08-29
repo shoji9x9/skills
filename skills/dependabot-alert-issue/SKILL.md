@@ -106,7 +106,7 @@ skills:
 
 **着手できない脆弱性は、障害を解消する既存 Issue を調査する。** 障害となっているパッケージ（修正版を出す上流、またはバージョンを固定している親）に、その障害を取り除く Issue/PR が既にある可能性がある。見つかればその **Issue/PR の URL を着手可能条件に記載**する（無ければ「未発見」と書く）。
 
-外部 audit findings mode では、finding の `dependency_paths` / `direct_dependencies` / `why_summary` を使って direct dependency と transitive dependency を見分ける。補助情報が足りない場合は、入力元 skill（例: `pnpm-audit-alert-issue`）の調査結果を確認するか、必要なコマンドを実行してから分類する。
+外部 audit findings mode では、finding の `dependency_paths` / `direct_dependencies` / `why_summary` を使って direct dependency と transitive dependency を見分ける。補助情報が足りない場合は、入力元 skill の調査結果を確認するか、必要なコマンドを実行してから分類する。
 
 すぐ着手できる例:
 
