@@ -43,6 +43,7 @@ test("current fixture puts PR base develop fully behind feature HEAD", () => {
 
   expect(git(directory, "branch", "--show-current")).toBe("feature/12-example");
   expect(git(directory, "rev-list", "--count", "HEAD..origin/develop")).toBe("0");
+  expect(git(directory, "rev-list", "--count", "origin/develop..HEAD")).toBe("1");
 });
 
 test("fetch-failure fixture has no usable remote PR base and fetch fails", () => {
