@@ -194,7 +194,8 @@ if ! jq -Rr '
 	elif ($j.type == "ai-title" or $j.type == "attachment" or $j.type == "file-history-delta" or
 	      $j.type == "file-history-snapshot" or $j.type == "last-prompt" or $j.type == "mode" or
 	      $j.type == "permission-mode" or $j.type == "pr-link" or $j.type == "queue-operation" or
-	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started") then "R"
+	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started" or
+	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
 	else "X" end)
 ' "${slice}" >"${records}"; then
@@ -303,6 +304,8 @@ elif [ "${saw_codex}" -eq 1 ]; then
 	agent=codex
 elif [ "${saw_claude}" -eq 1 ]; then
 	agent=claude-code
+elif [ -n "${checkpoint_agent}" ]; then
+	agent=${checkpoint_agent}
 else
 	echo "kaizen-candidate-scan: transcript agent could not be identified" >&2
 	exit 2

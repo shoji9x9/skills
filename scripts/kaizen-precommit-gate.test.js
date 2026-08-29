@@ -69,6 +69,54 @@ function scannedPosition(stdout) {
   return { bytes: bytes?.[1], lines: lines?.[1] };
 }
 
+describe("Claude Code の atis-latch 補助レコード", () => {
+  test.each([
+    ["atis-latch だけなら候補ゼロ", "claude-atis-latch-no-candidate.jsonl", 1],
+    ["atis-latch は候補を隠さない", "claude-atis-latch-candidate.jsonl", 0],
+    ["type 欠落は判定不能", "unknown.jsonl", 2],
+    ["未知の文字列 type は判定不能", "unknown-string-type.jsonl", 2],
+    ["壊れた JSON は判定不能", "malformed-json.jsonl", 2],
+    ["event_msg の subtype 欠落は判定不能", "malformed-event-msg.jsonl", 2],
+    ["response_item の未知 subtype は判定不能", "unknown-response-item-subtype.jsonl", 2],
+  ])("%s", (_label, fixture, expectedStatus) => {
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, fixture);
+    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
+      cwd,
+    });
+
+    expect(scan.status).toBe(expectedStatus);
+  });
+
+  test("atis-latch だけでは commit をブロックしない", () => {
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, "claude-atis-latch-no-candidate.jsonl");
+    writeFileSync(join(cwd, ".kaizen", ".pending-extract"), "");
+
+    const gate = runGate("git commit -m x", { cwd, transcriptPath: transcript });
+
+    expect(gate.status).toBe(0);
+  });
+
+  test("checkpoint 後の差分が atis-latch だけでも検証済みゼロ", () => {
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    const checkpoint = join(cwd, ".kaizen", ".extract-checkpoint");
+    const initial = readFileSync(join(fixturesDir, "claude-no-candidate.jsonl"), "utf8");
+    writeFileSync(transcript, initial);
+    writeFileSync(
+      checkpoint,
+      `${transcript}\n${Buffer.byteLength(initial)}\nclaude-code\n${initial.split("\n").length - 1}\n`,
+    );
+    appendFileSync(transcript, '{"type":"atis-latch","atis":{},"sessionId":"test-session"}\n');
+
+    const scan = runScript("kaizen-candidate-scan.sh", [transcript, checkpoint], { cwd });
+
+    expect(scan.status).toBe(1);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=claude-code$/m);
+  });
+});
+
 describe("checkpoint は走査器が検査した範囲までしか進めない", () => {
   test("走査後に追記されたレコードは処理済みにならず、次の走査で検出される", () => {
     const cwd = makeProject();
