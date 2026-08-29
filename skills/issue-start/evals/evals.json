@@ -16,13 +16,14 @@
     },
     {
       "id": 2,
-      "prompt": "issue-start 12 --pr",
+      "prompt": "issue-start 12 --pr の push 直前確認だけを dry-run で評価したい。準備済みの Git リポジトリについて現在の履歴とリポジトリ規約を実測し、何を比較し、どの条件で push を止めるかを報告して。評価環境では .git が読み取り専用なので、fetch は --no-write-fetch-head を使うこと。commit、merge、rebase、push、PR 作成は実行しないで。",
+      "fixture": "evals/fixtures/pr-base-behind",
       "assertions": [
-        "ブランチ作成後に実装まで進めている",
-        "conventional commits 規約で commit している",
-        "ブランチを push している",
-        "関連 Issue と変更概要を含む PR を作成している",
-        "commit --amend や force push を行っていない"
+        "AGENTS.md の規約から PR ベースが develop だと解決し、デフォルトブランチ main を比較対象にしていない",
+        "git fetch --no-write-fetch-head origin develop の成功後、git rev-list --count HEAD..origin/develop で未取り込み commit 数を実測している",
+        "未取り込み commit があるため git log --oneline HEAD..origin/develop で差分を示している",
+        "取り込み方法が規約に無いため、push を止めて merge / rebase の選択をユーザーに確認すると判断している",
+        "dry-run 指示どおり commit、merge、rebase、push、PR 作成を実行していない"
       ]
     },
     {
@@ -89,6 +90,41 @@
         "未 commit でベースと同一コミットなら `gh issue develop --name <同じ名前> --base <ベース>` で回復できると述べている",
         "commit 済みでは回復できない（作られる branch がベースの先端を指す）ため、ユーザーに確認すると述べている",
         "実行はせず手順の提示に留め、commit / push / PR へ進んでいない"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "issue-start 12 --pr の push 直前確認を dry-run して。準備済みの Git リポジトリの規約・ブランチ・remote を自分で調べ、未取り込みがある場合の判断と手順を報告して。評価環境では .git が読み取り専用なので、fetch は --no-write-fetch-head を使うこと。履歴変更、push、PR 作成は実行しないで。",
+      "fixture": "evals/fixtures/pr-base-behind",
+      "assertions": [
+        "規約から解決した develop を PR ベースとして保持し、デフォルトブランチ main を比較対象にしていない",
+        "push 直前に git fetch --no-write-fetch-head origin develop で到達性を確認し、HEAD..origin/develop の未取り込み commit 数を確認している",
+        "未取り込み commit があるため git log --oneline HEAD..origin/develop で差分を示している",
+        "取り込み方法が規約に無いため push せず、merge / rebase の選択をユーザーに確認すると判断している",
+        "dry-run 指示どおり履歴変更、push、PR 作成を実行していない"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "issue-start 12 --pr の push 直前確認を dry-run して。準備済みの Git リポジトリの規約・ブランチ・remote を自分で調べ、未取り込み状況と次の操作を報告して。評価環境では .git が読み取り専用なので、fetch は --no-write-fetch-head を使うこと。履歴変更、push、PR 作成は実行しないで。",
+      "fixture": "evals/fixtures/pr-base-current",
+      "assertions": [
+        "AGENTS.md の規約から PR ベースが develop だと解決し、git fetch --no-write-fetch-head origin develop を実行している",
+        "git rev-list --count HEAD..origin/develop の結果が 0 であることを実測している",
+        "未取り込みが 0 件なので merge / rebase は不要で、実運用なら push へ進めると判断している",
+        "dry-run 指示どおり履歴変更、push、PR 作成を実行していない"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "issue-start 12 --pr の push 直前確認を dry-run して。準備済みの Git リポジトリの規約・ブランチ・remote を自分で調べ、fetch から確認を進めて。評価環境では .git が読み取り専用なので、fetch は --no-write-fetch-head を使うこと。履歴変更、push、PR 作成は実行しないで。",
+      "fixture": "evals/fixtures/pr-base-fetch-failure",
+      "assertions": [
+        "AGENTS.md の規約から PR ベースが develop だと解決している",
+        "git fetch --no-write-fetch-head origin develop の失敗を実測している",
+        "fetch 失敗を未取り込み 0 件として扱わず判定不能としている",
+        "原因を解消するまで push を止めると判断している",
+        "dry-run 指示どおり履歴変更、push、PR 作成を実行していない"
       ]
     }
   ]
