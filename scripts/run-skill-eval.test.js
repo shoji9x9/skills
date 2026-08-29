@@ -250,6 +250,17 @@ describe("run-skill-eval executor compatibility", () => {
     expect(existsSync(output)).toBe(false);
   });
 
+  test("does not execute a fixture setup.sh directory", () => {
+    const { directory, stub } = makeStub();
+    const fixture = join(directory, "fixture");
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    mkdirSync(join(fixture, "setup.sh"), { recursive: true });
+
+    runEval({ config: "with_skill", prompt: "EXPECT_WITH_SKILL", output, stub, fixture });
+
+    expect(readJson(join(output, "result.json")).status).toBe("succeeded");
+  });
+
   test("returns exit 5 when normalization and the executor both fail", () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");

@@ -182,7 +182,7 @@ trap cleanup EXIT
 # the initial manifest, so its outputs remain fixture inputs rather than results.
 if [ -n "${fixture}" ]; then
 	cp -R -- "${fixture}/." "${proj}/"
-	if [ -x "${proj}/setup.sh" ]; then
+	if [ -f "${proj}/setup.sh" ] && [ -x "${proj}/setup.sh" ]; then
 		(cd "${proj}" && ./setup.sh)
 	fi
 fi
