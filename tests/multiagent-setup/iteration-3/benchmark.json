@@ -15,12 +15,12 @@
       "run_number": 1,
       "result": {
         "pass_rate": 1.0,
-        "passed": 5,
+        "passed": 6,
         "failed": 0,
-        "total": 5,
-        "time_seconds": 82.513,
-        "tokens": 243414,
-        "tool_calls": 3,
+        "total": 6,
+        "time_seconds": 90.782,
+        "tokens": 285525,
+        "tool_calls": 4,
         "errors": 0
       },
       "expectations": [
@@ -37,10 +37,15 @@
         {
           "text": "基底ドキュメントに、利用者の判断が必要な場合は推奨案を先に示し、理由・主な影響・代替案を添える方針がある",
           "passed": true,
-          "evidence": "AGENTS.md のコミュニケーション節に4項目を明記"
+          "evidence": "AGENTS.md のコミュニケーション節に5方針を明記"
         },
         {
           "text": "安全性・仕様・権限に関わる必要な確認を省略しない方針がある",
+          "passed": true,
+          "evidence": "AGENTS.md のコミュニケーション節に明記"
+        },
+        {
+          "text": "用語の完全な禁止や、すべての説明の長文化を求めていない",
           "passed": true,
           "evidence": "AGENTS.md のコミュニケーション節に明記"
         },
@@ -57,10 +62,10 @@
       "configuration": "without_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 0.8,
-        "passed": 4,
+        "pass_rate": 0.8333333333,
+        "passed": 5,
         "failed": 1,
-        "total": 5,
+        "total": 6,
         "time_seconds": 109.412,
         "tokens": 203929,
         "tool_calls": 4,
@@ -88,13 +93,18 @@
           "evidence": "AGENTS.md の変更と安全性節に記載"
         },
         {
+          "text": "用語の完全な禁止や、すべての説明の長文化を求めていない",
+          "passed": true,
+          "evidence": "用語の禁止や全説明の長文化を要求していない"
+        },
+        {
           "text": "応答方針のための用語集・文章検査 Hook・エージェント固有ファイルへの同内容の複製を作成していない",
           "passed": false,
           "evidence": "CLAUDE.md と copilot-instructions.md に共通方針を複製し、AI_COLLABORATION_GUIDE.md も追加"
         }
       ],
       "notes": [
-        "主要な4方針は baseline も満たしたため、これらは効果差ではなく後退検知として扱う",
+        "主要な5方針は baseline も満たしたため、これらは効果差ではなく後退検知として扱う",
         "弁別差は共通方針の集約と追加成果物の抑制に現れた"
       ]
     },
@@ -107,9 +117,9 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 61.05,
-        "tokens": 245057,
-        "tool_calls": 5,
+        "time_seconds": 56.697,
+        "tokens": 288587,
+        "tool_calls": 6,
         "errors": 3
       },
       "expectations": [
@@ -119,9 +129,9 @@
           "evidence": "3つの既存記述をすべて保持"
         },
         {
-          "text": "基底ドキュメントに4つのコミュニケーション方針が追加されている",
+          "text": "基底ドキュメントに5つのコミュニケーション方針が追加されている",
           "passed": true,
-          "evidence": "AGENTS.md のコミュニケーション節に4方針を追加"
+          "evidence": "AGENTS.md のコミュニケーション節に5方針を追加"
         },
         {
           "text": "コミュニケーション方針が基底ドキュメント内で意味的に一組だけである",
@@ -162,7 +172,7 @@
           "evidence": "3つの既存記述をすべて保持"
         },
         {
-          "text": "基底ドキュメントに4つのコミュニケーション方針が追加されている",
+          "text": "基底ドキュメントに5つのコミュニケーション方針が追加されている",
           "passed": false,
           "evidence": "初出用語の短い説明と、判断時に推奨案を先に示す契約が不足"
         },
@@ -193,9 +203,9 @@
         "passed": 5,
         "failed": 0,
         "total": 5,
-        "time_seconds": 42.689,
-        "tokens": 211056,
-        "tool_calls": 4,
+        "time_seconds": 51.662,
+        "tokens": 241789,
+        "tool_calls": 5,
         "errors": 1
       },
       "expectations": [
@@ -210,9 +220,9 @@
           "evidence": "既存の回答方針をそのまま一組だけ保持"
         },
         {
-          "text": "既存方針の4つの意味を弱めていない",
+          "text": "既存方針の5つの意味を弱めていない",
           "passed": true,
-          "evidence": "既存4項目を変更せず保持"
+          "evidence": "既存5項目を変更せず保持"
         },
         {
           "text": "エージェント固有ファイルは基底ドキュメントを参照し、共通方針を複製していない",
@@ -253,9 +263,9 @@
           "evidence": "既存の回答方針に加えて、同じ判断依頼契約を確認依頼の書き方節へ重複追加"
         },
         {
-          "text": "既存方針の4つの意味を弱めていない",
+          "text": "既存方針の5つの意味を弱めていない",
           "passed": true,
-          "evidence": "既存4項目を保持"
+          "evidence": "既存5項目を保持"
         },
         {
           "text": "エージェント固有ファイルは基底ドキュメントを参照し、共通方針を複製していない",
