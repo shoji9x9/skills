@@ -12,7 +12,7 @@
 |---|---|---|
 | parity-suite 完了（suite.current_green・validated_by_strength_gate） | true / true | OK |
 | parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | true / local-dev | OK |
-| データセットバージョン三者整合（metadata / dataset.version / phase_b.order-list.local-dev） | 1 / 1 / 1 | 影響変更なし |
+| データセットバージョン三者整合（metadata / dataset changes / phase_b.order-list.local-dev） | 1 / なし / 1 | 影響変更なし |
 
 ## 3. 差分一覧
 

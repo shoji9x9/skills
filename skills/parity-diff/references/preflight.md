@@ -62,7 +62,7 @@
 | 両記録後に対象 slug への影響変更が無い | ベースラインも新側投入も対象データに追随（数値が現在版より古くてもよい） | 差分検出へ進む |
 | ベースライン記録後の `affects` が対象 slug と交差 | ベースライン側が陳腐化 | `parity-suite` にベースライン再取得を促し停止 |
 | phase B 記録が欠落、または記録後の `affects` が対象 slug と交差 | その target への新側投入が未実施または対象データが古い | `golden-dataset`（フェーズ B）へ**同じ target** で差し戻し停止 |
-| `changes` が欠落／不正、slug の実効参照テーブルが判定不能 | 影響なしを証明できない | 全体影響として上記の古い側を差し戻す |
+| `changes` が欠落／不正、slug の実効参照テーブルが判定不能 | 影響なしを証明できない | 全体影響として、記録 version が現在より古い側（ベースラインなら `parity-suite`、phase B なら `golden-dataset` フェーズ B）へ差し戻し停止。`changes`／実効参照テーブルの復元は次回の `golden-dataset` フェーズ A 実行で行う（正本: `golden-dataset` の `references/versioning.md`） |
 | いずれかの記録 version が現在 version より大きい、0 以下、非整数 | metadata の破損または dataset metadata の巻き戻し | 整合不能として停止し、成果物と dataset metadata の復元・再生成を促す |
 
 - データ起因の差で `.replace/dataset/verification.md` のフェーズ B 節に説明済みのものは許容。説明されていないデータ差は `golden-dataset`（フェーズ B）へ差し戻す（[`api-batch.md`](api-batch.md)）
