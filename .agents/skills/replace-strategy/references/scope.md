@@ -71,7 +71,7 @@
 | 暫定起動データをゴールデンデータとして扱うこと | 対象外 | **禁止型。** 暫定起動データは起動・ログイン・画面探索のための最小限であり比較の正解ではない。ゴールデンデータセットは確認済みの意味論から `golden-dataset` が別途構築する | `current-environment-bootstrap` の `references/provisional-data.md` |
 | 新側アーキテクチャ（骨格）の選定 | 対象外 | 事前定義が前提。スキルは確認・記録・参照だけ。実行基盤・利用マネージドサービスを含む | [`project-config.md`](project-config.md)「新側アーキテクチャ」 |
 | IaC / CI-CD パイプラインの新規構築 | 対象外 | 事前条件。**スキル群の必須要件ではなく**、配信型 target（`develop` / `preview` 等）を `targets` に登録する場合にだけ「動いていること」が前提になる（ローカル target だけなら不要） | [`../SKILL.md`](../SKILL.md)「前提」 |
-| 既存 IaC への付随差分（テーブル追加・ルート追加等） | 対象 | 新側実装に付随する差分だけ。パリティスイートでは検証できないため、敵対的レビューと `verification_commands`（`cdk synth` / `terraform validate` 等、**認証情報・リモート state を要さない**機械検証）を通す | `parity-replace` の `SKILL.md`「厳守の制約」 |
+| 既存 IaC への付随差分（テーブル追加・ルート追加等） | 対象 | 新側実装に付随する差分だけ。パリティスイートでは検証できないため、敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等、**認証情報・リモート state を要さない**機械検証）を通す | `parity-replace` の `SKILL.md`「厳守の制約」 |
 | 部品（ライブラリ・フォント等）の採否 | 対象 | 骨格の上に載るものだけ。判断材料・順序はリポジトリ方針（`references.dependency_policy`）に従う | [`dependency-selection.md`](dependency-selection.md) |
 | 本番環境への参照・投入 | 対象外 | 参照も投入もしない（テスト環境のみ） | `golden-dataset` の `SKILL.md`「厳守の制約」 |
 | 現行アプリの変更・駆動（`side: current`） | 対象外 | 正解の基準を動かさないため。指示されても実行せず停止してユーザーに上げる | `parity-replace` の `SKILL.md`「厳守の制約」 |

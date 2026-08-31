@@ -80,9 +80,9 @@ current-environment-bootstrap [--target <name>] [--resume]
 | `references.env_setup` | 環境変数の用意方法。接続確認・起動が失敗したときの案内先 |
 | `references.coding_conventions` | 再構築ツール・投入ツールを書くときに従う規約（**ツールは対象プロジェクト側のコード**）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**（意味論の正本はスキーマ文書の「コーディング規約」） |
 | `references.db_semantics` | 既に整備済みなら復元項目の突き合わせに**読む**（本スキルは書かない。復元根拠は `schema.md` に書き、それを入力に `db_semantics` を整備するのは `replace-strategy setup`）。**未整備でも停止しない** |
-| `verification_commands` | 生成した再構築ツール・投入ツールに通す検証コマンド列。**設定に無くても停止せず**、その旨を `verification.md` に記録して進む（意味論の正本はスキーマ文書の「検証コマンド」） |
+| `verification_commands` | 生成した再構築ツール・投入ツールに通す検証コマンド。**通すのは `full`（全体走査の列）**で、`diff`（変更ファイルだけの列）は使わない。**`full` が無くても、値がリスト（旧形式＝走る範囲が未宣言）でも停止せず**、その旨を `verification.md` に記録して進む（意味論の正本はスキーマ文書の「検証コマンド」） |
 
-- **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する
+- **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する（**一律停止はキー名が変わった旧キーだけ**。`verification_commands` がリストなど「キー名が変わらない移行」は上表の挙動に従う）
 - **本スキルが設定へ書くのは引き渡しの 1 箇所だけ**——再構築が完了した current target の `url`（`none` → 実 URL）と `default: true` を、ユーザーに確認したうえで非破壊追記する（[`references/verification-handoff.md`](references/verification-handoff.md)）
 
 ## 実行フロー

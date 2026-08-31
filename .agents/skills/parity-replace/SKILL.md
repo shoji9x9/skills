@@ -75,7 +75,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   （既存実装から読み取った内容を下書きとして提示するのは可。確定は必ずユーザーが行う）
 - **IaC（CDK / Terraform 等）は実装に付随する差分だけを触る。** テーブル追加・ルート追加など新側実装に必要な差分は書いてよいが、**パイプライン・基盤の新規構築はしない**
   （事前条件。区分の正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）。付随の範囲を超えると判断したら停止してユーザーに上げる。
-  **書いた付随差分は敵対的レビューと `verification_commands`（`cdk synth` / `terraform validate` 等）を通す**——パリティスイートは IaC を検証しないため、この 2 つだけが担保になる。
+  **書いた付随差分は敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等）を通す**——パリティスイートは IaC を検証しないため、この 2 つだけが担保になる。
   `verification_commands` は**環境に依存しないコード検証**に限る規約なので、認証情報・リモート state・実環境への問い合わせを要するコマンド（`terraform plan` 等）はここに入れない
 - **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する）
 - **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
@@ -97,7 +97,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 
 | キー | 用途 |
 |---|---|
-| `verification_commands` | 敵対的レビュー前と完了判定で走らせる検証コマンド列（静的解析・単体テスト・統合テスト等。**固有のツール名は設定側に置く**。スキル本体に書かない。意味論の正本はスキーマ文書の「検証コマンド」） |
+| `verification_commands` | 検証コマンド。**走る範囲で 2 列に分かれる**——`full`（全体走査）は**完了判定（手順 8）で常に走らせる**列、`diff`（変更ファイルだけ。`{changed_files}` を本スキルが展開する）は敵対的レビュー前の早期検出（手順 7）専用で完了判定には使わない。**固有のツール名は設定側に置く**（スキル本体に書かない）。意味論の正本はスキーマ文書の「検証コマンド」 |
 | `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` が旧新 diff レビューを可能にする。発見した差異は `pending` へ非破壊追記しユーザー確認（**`pending` は設定ファイル上で唯一「スキルが書く作業中記録」**。`keep` / `may_change` へ移すのは人間。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」） |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。本スキルがユーザー確認の上で宣言し、`parity-diff` が比較の正規化に使う。**T が引けないインスタンス例外は設定に置かない**（`parity-diff` の slug 成果物 `.replace/parity/<slug>/component-diff-exceptions.json`。本スキルは書かない。[`references/theming.md`](references/theming.md)） |
 | `references.architecture` | 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング構成）の決定記録のパス。**骨格は事前定義であり本スキルは決めない。** 未整備（キー欠落・空値・解決できないパス）なら**部品の採否・実装（手順 3 以降）に入らず停止する**（新側リポジトリに骨格が既に実装されていれば、実態から読み取った内容を下書きとして提示し、ユーザーが確定させてから進める。**確定した決定記録のパスは同キーへ書く**）。意味論の正本はスキーマ文書の「新側アーキテクチャ」 |
@@ -116,7 +116,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない）。設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
 
 - **旧キーはフォールバックとして読まない。** スキーマ正本の「移行」節に列挙された旧キーを見つけたら、同節の対応表を示して**停止する**（旧キーの値で暗黙に代替しない。検出対象の一覧をここへ転記しない）
-- **`verification_commands` が設定に無ければ停止する。** 完了判定（新側 green ＋検証コマンド）が成立しないため、勝手にコマンドを推測せずユーザーに確認して設定へ記録してもらう
+- **`verification_commands.full` が設定に無ければ停止する。** 完了判定（新側 green ＋検証コマンド）が成立しないため、勝手にコマンドを推測せずユーザーに確認して設定へ記録してもらう。
+  **値がリスト（旧形式＝走る範囲が未宣言）のときも同じく停止する**——未宣言を「全体」に倒すと、差分限定の結果が「全体で通った」と名乗る。移行の正本はスキーマ文書「`verification_commands` の形の変更」
 
 ## 実行フロー
 
@@ -147,9 +148,13 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
 6. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
    テーマで消せない構造差はクラス/トークン単位の系統差として `component_diffs` へユーザー確認の上で宣言し、宣言できない構造差は `gaps.md` へ追記する（比較の正規化であって仕様変更ではない）。詳細: [`references/theming.md`](references/theming.md)
-7. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンド（設定 `verification_commands`）を通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
+7. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンドを通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
+   ここで回すのは `verification_commands.diff`（無ければ `full`）でよいが、**変更集合がファイルの削除・改名（`git diff --name-status` の `D` / `R`）か定義元（design token・共有定数・設定値・型・エクスポート）の削除・改名を含むなら `full` へ前倒しする**——
+   壊れる相手が変更集合の外にいるため差分限定では原理的に捕まらない（走る範囲の正本はスキーマ文書「走る範囲」）。
    そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**判断の基準だけ**（差分・現行コード・規約・DB 意味論の点検表・レジストリの `keep` / `may_change`）を渡し、実装意図・確信度は知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
-8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ 検証コマンド（設定 `verification_commands`）が通る（batch モードは実行可能スイートを持たないため**出力一致**＋検証コマンド。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
+8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ **`verification_commands.full` が通る**（batch モードは実行可能スイートを持たないため**出力一致**＋ `full`。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
+   **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
+   合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
    合わせて、**他機能のスイートに置かれた在席チェックのうち自 slug を理由にスキップされているものを外し**、green を確認する（自機能のページを他機能と共有する場合。外して赤くなるなら、そのページでの自機能の在席が欠けている）。
    対象は**注記の機械的な目印**（既定は `presence:<slug>`）でスイート全体を検索して見つける（自然文の読み取りで探さない）。
    在席チェックの置き方の正本は `parity-suite` の `references/coverage.md`「同じページに乗る他機能の在席」。
@@ -171,7 +176,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **飛ばす手順**: 2（ページ分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。手順 5 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
 - **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` 後に対象 slug へ影響する `changes` が無いことを確認し、
   欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の稼働確認（`check_urls`。落ちていれば `pre_commands` → `start` → 再確認）→
-  スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 8（`new/<target>/replace-metadata.json` へ証跡を記録）
+  スイートを新に対して green 化 → 検証コマンド（`verification_commands.full`。軽量経路でも完了判定は全体走査）→ 8（`new/<target>/replace-metadata.json` へ証跡を記録）
 - **green にならなければ、まずデータを疑う**（フェーズ B 未実施・データセットバージョンの不一致）。次に環境差（URL・起動・外部依存・認証）を疑う。
   **実装を触るのは「同一実装が動いている」前提が崩れたと分かった場合だけ**——そのときは軽量経路を抜けて通常フロー（手順 4 以降）で修正する
 
