@@ -33,5 +33,7 @@ scripts/run-skill-eval.sh \
   eval 7 は実装中に部品が必要になった場面で、判断材料の確認と `.replace/dependencies.md` への記録を省略しないことを検証する（基準の正本は `replace-strategy` の `references/dependency-selection.md`）
 - eval 6 は fixture（設定・`.replace/features.md`・データセット／パリティスイートのメタデータ・`new/local-dev/` の green 証跡）で前提を揃え、
   `start` も `commit_check` も持たない配信型 target（develop）へ軽量経路を確認なしに適用しないパスを検証する
+- eval 13 は前提の有無に関わらず成立する契約説明として、**DB の方言差を実装前に点検する**契約（`references.db_semantics` を書く前に読む・未整備でも推測で埋めない・`porting.md` の「DB 方言差の点検結果」へ該当なしも含めて記録する・吸収しない差は `intentional_diffs.pending` へ回す）を検証する。
+  点検項目の正本は `replace-strategy` の `references/project-config.md`「DB 意味論」
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
