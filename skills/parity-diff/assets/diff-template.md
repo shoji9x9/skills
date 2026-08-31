@@ -69,11 +69,26 @@
 <!-- 記録先はレジストリごとに効く経路が違う。画素経路でしか出ない差は component_diffs では吸収されず、インスタンス例外（property: pixel）へ書く。 -->
 <!-- インスタンス例外の置き場所は設定ファイルではなく slug 成果物 .replace/parity/<slug>/component-diff-exceptions.json（原因は cause で参照し、根拠は同ディレクトリの component-diff-exceptions.md）。 -->
 <!-- 同一原因の複数インスタンスに同じ文言を複製しない。原因を 1 回定義して cause 参照にし、インスタンス件数は畳まない（件数は検証の弱さのシグナル）。 -->
+<!-- 承認は原因単位で取る（1 原因につき 1 回）。同一原因の N インスタンスはその承認で確定し、下の候補表の承認欄はその原因の承認を参照する。 -->
 
-| ID | 記録先（component_diffs / component-diff-exceptions.json / intentional_diffs） | cause（原因 id。例外へ書いた場合） | 根拠の宛先（`component-diff-exceptions.md` の節） | ユーザー承認（有無・日時） |
+### 5.1 承認単位（原因ごと）
+
+<!-- 束ねてよいのは観測条件で同一原因だと確かめた候補だけ。crop の見た目が似ているだけで束ねない（確かめていない候補は別の承認単位として残す）。 -->
+<!-- 件数を畳まない規則は台帳の規則。承認を原因単位にしても、覆う件数 N と内訳は承認 UI とこの表に出す。 -->
+<!-- 原因が確定していない候補はこの表に行を作らない（承認単位にしない）。5.2 に記録先も cause も空のまま未承認で残し、未説明として数える。 -->
+<!-- 件数 N は承認時に提示した件数の累計。JSON 側の cause 参照数と一致すること（JSON 側が多ければ承認後に足された未承認インスタンスがあるので、増分の承認を取るまで収束させない）。 -->
+
+| cause（原因 id） | 識別ラベル（`reason`） | 覆うインスタンス件数 N と内訳（ページ／状態／ビューポート／要素） | 承認 UI に提示した代表インスタンスと判断材料 | ユーザー承認（有無・日時） |
+|---|---|---|---|---|
+| （例: font-subset-weight600） | （例: フォントのサブセットビルド差による weight 600 のラスタライズ差） | （例: 7 件。一覧 default desktop の見出し 5 / 詳細 default desktop の見出し 2） | （例: 一覧 default desktop の見出し 1 件の crop 対 ＋ 観測条件の表 ＋ 源流で消せない理由） | 承認済み（ISO 8601） |
+| （例: chip-radius-rounding） | （例: 角丸のサブピクセル丸め差） | （例: 3 件〈初回 2 ＋ 増分 1〉。一覧 default desktop の chip 2 / 一覧 default mobile の chip 1） | （例: 初回は一覧 default desktop の 1 件、増分は mobile の 1 件を提示） | 承認済み（初回 ISO 8601 ／増分 ISO 8601） |
+
+### 5.2 候補ごとの記録先
+
+| ID | 記録先（component_diffs / component-diff-exceptions.json / intentional_diffs） | cause（原因 id。例外へ書いた場合） | 根拠の宛先（`component-diff-exceptions.md` の節） | ユーザー承認（cause の承認を参照） |
 |---|---|---|---|---|
 | （例: 3） | （空。承認前は記録先を書かない。承認されれば component-diff-exceptions.json の property: pixel） | （空） | （空） | 未承認（許容候補のまま。未説明として数える） |
-| （例: 4） | component-diff-exceptions.json | （例: font-subset-weight600） | component-diff-exceptions.md#font-subset-weight600 | 承認済み（ISO 8601） |
+| （例: 4） | component-diff-exceptions.json | （例: font-subset-weight600） | component-diff-exceptions.md#font-subset-weight600 | 承認済み（5.1 の font-subset-weight600 の承認。ISO 8601） |
 
 - 台帳の規模（原因数・インスタンス数・照合に使えなかった件数〈cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落〉）: （diff-metadata.json の accepted_exceptions と一致させる）
 - 台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー〈page / viewport / element〉欠落で照合に使われなかった例外）: （あれば列挙。無ければ none。該当候補は吸収されず未説明のまま残っている）
@@ -106,7 +121,8 @@
 
 - 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属: （件数））
 - 未修正回帰（deviates_T / actionable）: （件数。ゼロが条件）
-- 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。`許容候補（要確認）` の残数: （件数。ゼロが条件））
+- 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。承認は原因単位で数える〈承認済み原因数／承認単位の総数〉。`許容候補（要確認）` の残数: （件数。ゼロが条件））
+- 承認記録が覆う件数と台帳の一致: （原因ごとに component-diff-exceptions.md の承認記録の累計 N ＝ JSON の cause 参照数。超過件数: （件数。ゼロが条件。超過分は未承認＝未説明として数える））
 - インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 収束状態: （収束／他機能待ち／未収束）と根拠
 - 収束: （converged: true / false）
