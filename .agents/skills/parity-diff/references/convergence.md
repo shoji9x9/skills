@@ -9,7 +9,12 @@
   - `diff-normalize.mjs` の出力に `unexplained` / `deviates_T` / `pending_review` が無い
   - [`triage.md`](triage.md) の「許容」がすべてユーザー承認済みで記録先（設定ファイルの `component_diffs` / `intentional_diffs`、または
     `.replace/parity/<slug>/component-diff-exceptions.json` ＋ 根拠の `component-diff-exceptions.md`）へ非破壊追記済み。
-    `diff.md` に**承認前の分類**（`許容候補（要確認）`）が 1 件も残っていない（承認前は未説明として数える）
+    `diff.md` に**承認前の分類**（`許容候補（要確認）`）が 1 件も残っていない（承認前は未説明として数える）。
+    **承認の単位は原因**（正本: [`triage.md`](triage.md)「承認の単位は原因」）なので、原因が承認済みならそれを参照する N インスタンスは承認済みとして数える——
+    インスタンスごとの承認記録が無いことを未承認の根拠にしない。
+    ただし**承認済みとして数えられるのは承認記録が覆う件数まで**——原因ごとに `component-diff-exceptions.md` の承認記録の N（承認が複数回に分かれていれば累計）と
+    JSON でその `cause` を参照するインスタンス数が一致することを確認する。JSON 側が多ければ**承認後に足された未承認インスタンス**があるので、
+    超過分は未説明として数え収束させない（増分の承認を取って記録へ追記する。手順は `triage.md`「承認の単位は原因」）
   - インスタンス例外の台帳に**照合に使えない不整合が無い**（`cause` が解決できない・`evidence` が空・`slug` 不一致・照合キー〈`page` / `viewport` / `element`〉欠落。
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）

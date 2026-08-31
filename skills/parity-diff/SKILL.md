@@ -69,6 +69,10 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **インスタンス例外を設定ファイル（`.config/skills/shoji9x9/skills.yml`）へ書かない。** slug スコープの台帳なので `.replace/parity/<slug>/component-diff-exceptions.json` に書く（旧キーが残っていたら移行を案内して停止する）
 - **同一原因の複数インスタンスに同じ `reason` を複製しない。** 原因は `component_diff_exception_causes[]` に 1 回定義して `cause` で参照する（インスタンスに `reason` フィールドを持たせない）
 - **例外のインスタンス件数を畳まない。** `page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで N 箇所を吸収させない——**例外の件数は検証の弱さのシグナル**であり、行数削減のために隠さない
+- **同一原因の候補に承認を N 回求めない。** 分類は候補ごと、**承認は原因ごと**——`component_diff_exception_causes[]` の 1 原因につき 1 回承認し、同一原因の N インスタンスはその承認で確定する。
+  「件数を畳まない」は台帳の規則であって承認の粒度ではない（台帳のインスタンスは N 件のまま並べ、承認 UI にも件数 N と内訳を出す）
+- **承認済み原因への参照を足して未承認のインスタンスを吸収しない。** 承認後にインスタンスが増えたら増分の承認を 1 回取る——
+  承認記録の累計 N と `cause` 参照数が一致しなければ超過分は未承認＝未説明として数え、収束させない
 - **承認済み例外の根拠を `gaps.md` に書かない。** `gaps.md` は未検証領域の台帳で、そこに置くと承認済み（説明済み・許容）と未検証が混ざる。宛先は `component-diff-exceptions.md`
 - **承認前の分類を成果物に「許容」と書かない。** 承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で後続の判断の入力になるため）
 - **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
@@ -122,7 +126,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    適用詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録・報告し、恒久マスクの検証結果である既存 `.masks` へ混ぜない
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
 5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
-6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認。
+6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。
+   「許容」の確定はユーザー承認で、**承認は原因単位**（同一原因の N インスタンスを 1 回で確定する。代表インスタンスの判断材料と件数 N を UI に載せる）。
    テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 3 つ（収束／**他機能待ち**／未収束）。
    他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
