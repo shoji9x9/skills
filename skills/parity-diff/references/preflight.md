@@ -50,34 +50,38 @@
 | api-resource | 現行応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比較は同梱 `json-normalize-diff.mjs` 系のみ | `parity-suite` |
 | batch | 現行バッチの出力ベースライン（DB 状態・生成ファイル）が実体としてある | `parity-suite` |
 
-## データセットバージョンの三者一致
+## データセットバージョンの三者整合
 
-`metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version` ＝ 同 `phase_b.<slug>.<target>.dataset_version`（**選択した新側 target のエントリ**）の三者一致を確認する。
+`.replace/dataset/metadata.json` の `changes[].affects` を `golden-dataset` の `references/versioning.md` に従って読む。
+`metadata.json.dataset_version` と `phase_b.<slug>.<target>.dataset_version`（**選択した新側 target のエントリ**）のそれぞれについて、その版より後に対象 slug へ影響する変更が無いことを確認する。
 `version` は 1 始まりの単調増加の整数で、論理データが変わったときだけ +1（フェーズ B では上がらない）。
+影響判定の前に、dataset の現在 version と各記録 version が整数で、各記録が `1..現在 version` に収まることを確認する。将来 version、0 以下、非整数、欠落は整合不能として差分検出を開始せず停止する。
 
 | 状態 | 意味 | 対応 |
 |---|---|---|
-| 三者一致 | ベースラインも新側投入も現行データセットに追随 | 差分検出へ進む |
-| `metadata.json.dataset_version` ＜ `dataset.version` | ベースライン側が陳腐化 | `parity-suite` にベースライン再取得を促し停止 |
-| `phase_b.<slug>.<target>.dataset_version` が欠落 or ＜ `dataset.version` | その target への新側投入（フェーズ B）が未実施 or 古い | `golden-dataset`（フェーズ B）へ**同じ target** で差し戻し停止 |
+| 両記録後に対象 slug への影響変更が無い | ベースラインも新側投入も対象データに追随（数値が現在版より古くてもよい） | 差分検出へ進む |
+| ベースライン記録後の `affects` が対象 slug と交差 | ベースライン側が陳腐化 | `parity-suite` にベースライン再取得を促し停止 |
+| phase B 記録が欠落、または記録後の `affects` が対象 slug と交差 | その target への新側投入が未実施または対象データが古い | `golden-dataset`（フェーズ B）へ**同じ target** で差し戻し停止 |
+| `changes` が欠落／不正、slug の実効参照テーブルが判定不能 | 影響なしを証明できない | 全体影響として、記録 version が現在より古い側（ベースラインなら `parity-suite`、phase B なら `golden-dataset` フェーズ B）へ差し戻し停止。`changes`／実効参照テーブルの復元は次回の `golden-dataset` フェーズ A 実行で行う（正本: `golden-dataset` の `references/versioning.md`） |
+| いずれかの記録 version が現在 version より大きい、0 以下、非整数 | metadata の破損または dataset metadata の巻き戻し | 整合不能として停止し、成果物と dataset metadata の復元・再生成を促す |
 
 - データ起因の差で `.replace/dataset/verification.md` のフェーズ B 節に説明済みのものは許容。説明されていないデータ差は `golden-dataset`（フェーズ B）へ差し戻す（[`api-batch.md`](api-batch.md)）
 
-### 選択 target が投入対象でない場合（三者一致の免除）
+### 選択 target が投入対象でない場合（phase B 整合の免除）
 
 免除するのは**その target がゴールデンデータの投入対象でないとき**だけである（投入契約の正本は `replace-strategy` の `references/project-config.md`）。設定の `dataset_mode` で判定が変わる。
 
-| `dataset_mode` | 選択した新側 target | 三者一致 |
+| `dataset_mode` | 選択した新側 target | phase B との整合 |
 |---|---|---|
 | `db`（既定） | `db` 未定義（DB に触れない）／`db.env_vars` はあるが `seedable` が無い（読み取り専用） | **免除**（投入対象外） |
 | `db` | `db.seedable: true` | 要求する |
 | `static` | すべて | 要求する（データはリポジトリ内にあり、target の `db` に依存しない） |
 
-- 免除するときは**三者一致（`phase_b.<slug>.<target>`）を要求しない**。フェーズ B 未実施を理由に `golden-dataset` へ差し戻さない
+- 免除するときは**phase B との整合（`phase_b.<slug>.<target>`）を要求しない**。フェーズ B 未実施を理由に `golden-dataset` へ差し戻さない
 - 代わりに「**ゴールデンデータ未投入のため、データ依存の差分は実装差かデータ差か判別できない＝未検証**」を `diff.md` の未検証領域に明記し、
   確認をデータ非依存の範囲（レイアウト・スタイル・構造など、投入データの内容に依存しない差分）に限定する。`diff-metadata.json.dataset_version_exempt` に免除理由（DB 未定義か読み取り専用か）を記録する
 - **`seedable` が無いだけの target を「投入対象にできる」と読み替えない**（設定の修正はユーザーの判断。免除して未検証と記録するか、ユーザーに `seedable: true` の追加を促して停止するかのどちらかで、勝手に投入しない）
-- `metadata.json.dataset_version` ＝ `.replace/dataset/metadata.json.version`（ベースライン側の陳腐化）の確認は**免除の有無に関わらず**行う
+- ベースライン記録後の変更が対象 slug に影響しないことの確認は**免除の有無に関わらず**行う
 
 ## 差分器バージョンの一致確認（feature モードのみ）
 

@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "changes": [{ "version": 1, "affects": ["*"] }],
   "mode": "db",
   "current": { "target": "current-test", "verified_at": "2026-08-30T00:00:00Z" },
   "phase_b": {

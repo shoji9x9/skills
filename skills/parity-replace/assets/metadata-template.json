@@ -10,7 +10,7 @@
     "effort": "<エフォート。省略不可>",
     "skill_version": "<parity-replace のバージョン>"
   },
-  "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。現在より古ければ陳腐化として見直す>",
+  "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。その版より後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として見直す。数値が古いだけなら有効>",
   "new": {
     "target": "<選択した新側 target 名（設定 targets の side: new）。成果物ディレクトリ名と一致させる>",
     "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none。target が url_command のときは解決値を書かず \"runtime\"（値は成果物に書かない。利用側は target 名から再解決する）>",

@@ -1,0 +1,6 @@
+[
+  "With-skill passed all 9 assertions; without-skill passed 7 of 9.",
+  "Both configurations read current-site/src/works-list.ts and grounded page size, filtering, ordering, and page retention in the fixture source.",
+  "Without-skill recorded the feature slug works-list instead of the changed static data unit content/works in changes[].affects.",
+  "Without-skill did not advise rerunning the affected parity-suite baseline."
+]

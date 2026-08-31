@@ -15,7 +15,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green 証跡（`suite.new_green`・`verification.passed_at`）と差し戻しループの状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）（`parity-replace` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠（`parity-diff` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束判定の機械可読値（`converged`・`results`）と他機能待ちの帰属（`blocked_by[]`）（`parity-diff` が生成。スキーマ正本は同スキル）。同上 |
-| `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）と新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
+| `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）、版ごとの影響範囲（`changes[].affects`。テーブル名、`dataset_mode: static` では静的データ単位）、新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」（`current.origin: received-assets` のときだけ。`golden-dataset` が生成。スキーマ正本は同スキル） |
 | `.replace/bootstrap/metadata.json` | 現行環境の再構築の状態（`status` / `blocked_on` / `semantics.pending_features`）（`current-environment-bootstrap` が生成。スキーマ正本は同スキル。`received-assets` のときだけ） |
 
@@ -38,9 +38,9 @@ done
 ## 導出する内容
 
 1. **機能ごとの現況表**: slug ごとに、Issue 状態（未起票／open／closed）、パリティスイートの有無と強度（`strength.md` の弱点・未検証種別を含む）、ベースラインの有無、
-   データセットバージョンの陳腐化（`metadata.json` のバージョン < `.replace/dataset/metadata.json` のバージョンなら「要再取得」）、
+   データセットバージョンの陳腐化（ベースラインの `dataset_version` より後の `changes[].affects` と、その slug の実効参照テーブルが交差するときだけ「要再取得」。実効参照テーブルと fail-closed 条件の正本は `golden-dataset` の `references/versioning.md`）、
    フェーズ B の状態（**`new/<target>/` が存在する target**〈`diff.md` の有無は問わない——差分検出前でも新側データは要る〉に対応する `phase_b.<slug>.<target>` が無ければ「その環境でフェーズ B 未実施の疑い」、
-   `phase_b.<slug>.<target>.dataset_version` < 現在の `version` なら「その環境の新側データが陳腐化・要再投入」。
+   `phase_b.<slug>.<target>.dataset_version` より後の変更がその slug に影響するなら「その環境の新側データが陳腐化・要再投入」。数値が古くても影響変更が無ければ再投入不要として記録 version は書き換えない。
    ただし**投入対象でない target は対象にしない**——`dataset_mode: db`（既定）では `db` 未定義の target と、`db.env_vars` はあるが `seedable` が無い読み取り専用の target が該当する。
    `dataset_mode: static` では**全 target が投入対象**なので免除は起きず、どの target もフェーズ B の状態を見る〈契約の正本は [`project-config.md`](project-config.md)〉）、
    新側の到達点（`replace-metadata.json` の `suite.new_green` が true なのに `new/<target>/diff.md` が無ければ「**green 済み・差分検出は未実施**」として区別する。`parity-diff` の未実行が「未着手」に埋もれるのを防ぐ）、

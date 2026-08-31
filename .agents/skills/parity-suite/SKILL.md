@@ -118,7 +118,9 @@ parity-suite [--feature <slug>] [--target <name>]
 4. **データセットの投入先・バージョン確認**: `.replace/dataset/metadata.json` の `current.target`（`golden-dataset` がフェーズ A で投入した current target 名）が手順 1 で確定した target と一致することを確認する。
    一致しなければ「ベースラインとシードの環境不一致」として停止し、同じ target へ投入するか target 選択を変えるようユーザーに促す。
    **`current.target` が `null` のときは照合しない**（`mode: static` ＝ ゴールデンデータがリポジトリ内の静的データで、特定の環境に紐づかないため。契約の正本は `replace-strategy` の `references/project-config.md`）。
-   続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` が古ければ陳腐化として再取得を宣言する
+   続けて `version` を読み、成果物に `dataset_version` として記録する。既存の `.replace/parity/<slug>/metadata.json` の `dataset_version` より後の
+   `changes[].affects` と slug の実効参照テーブルを、`golden-dataset` の `references/versioning.md` に従って照合する。
+   交差するときだけ陳腐化として再取得を宣言し、数値が古いだけなら再取得せず記録値も書き換えない。不正／欠落した変更履歴は全 slug に影響するものとして扱う
 5. **authoring**: ロケータマッピング（現側）→ **期待値解決層**（side 別の期待値。現側の値だけを埋める）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria（**セクション単位で複数枚**。部分一致は書いていない兄弟が在ることしか許容せず深さを飛ばせない）→ API 特性化。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**

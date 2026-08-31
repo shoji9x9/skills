@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "changes": [{ "version": 1, "affects": ["*"] }],
   "mode": "static",
   "base_time": "2026-05-01T00:00:00Z",
   "generated_at": "2026-05-01T09:12:00Z",

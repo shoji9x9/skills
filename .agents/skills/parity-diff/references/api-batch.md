@@ -37,6 +37,6 @@
 
 ## データ起因の差の扱い
 
-- 新側 DB への投入は `golden-dataset` フェーズ B 済みが前提（三者一致は [`preflight.md`](preflight.md)）
+- 新側 DB への投入は `golden-dataset` フェーズ B 済みが前提（三者整合は [`preflight.md`](preflight.md)）
 - データ起因の差で `.replace/dataset/verification.md` のフェーズ B 節に説明済みのものは**許容**する
 - **説明されていないデータ差は `golden-dataset`（フェーズ B）へ差し戻す**（差分器の問題ではなくデータの問題として扱う）

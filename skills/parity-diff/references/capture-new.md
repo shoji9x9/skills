@@ -135,7 +135,7 @@
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
 | 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
-| データセットバージョンが上がった | 全組 | 同 `fingerprint.dataset_version` の不一致 |
+| `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
 | 反復が進んでいない（差が 0）のに `new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同 `new.commit`（ループ外で新側を触っており変更範囲を辿れない） |
 | `loop.changed_scope` が無い、または `null`（範囲が未確定・未記録の `parity-replace` の証跡） | 全組 | 同上（`null` は「範囲不明」であり、`pages: []`＝「描画に効く変更なし」の申告とは別物） |

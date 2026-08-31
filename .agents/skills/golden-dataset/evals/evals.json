@@ -77,11 +77,13 @@
       "assertions": [
         "db を持つ target が 1 つも無いことを理由に停止していない",
         "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+        "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
         "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
         "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
         "metadata.json の version を 1 から 2 へ上げている",
+        "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
         "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
-        "version が上がったことで陳腐化した parity-suite のベースライン再取得を案内している"
+        "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している"
       ]
     },
     {
@@ -145,6 +147,46 @@
         "3ページを成立させる最小件数として41件を提案し、表示件数 P=20・必要ページ数 K=3・採用件数41の算出根拠を示している",
         "対象一覧・確認した操作・表示件数・必要ページ数・採用件数・確認経路を design.md のページネーション境界へ記録する方針を示している",
         "ページ送り機能を、選択した現行 target から取得して対象版・採取時点・条件を追跡できる実行ログ／観測記録、ソースコード、API、UI の順に必要なところまで確認し、この順は調査コストが高くなるためで、必要な証拠が得られた時点で止めて API／UI 操作は不足時だけ行うと説明している。古い設計書と受領ログは現行挙動の確定根拠にせず、UI に現れる操作の有無は UI で確定すると述べている"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "データセットは version 7。changes は v6 が roles、v7 が audit_logs。version 5 で採取した order-list（テーブル orders）と role-admin（テーブル roles）、業務テーブルを読まない header（テーブル -）のベースラインは、どれを再取得する？ dataset_version はどう扱う？",
+      "assertions": [
+        "version 5 より後の v6 と v7 の affects を両方調べ、role-admin だけを再取得対象にしている",
+        "order-list は orders と roles / audit_logs が交差しないため、header は実効参照テーブルが空集合のため再取得不要としている",
+        "再取得不要な order-list と header の dataset_version を 7 へ書き換えず、採取時の 5 を保持すると説明している",
+        "最新 1 版の affects だけを見る、または数値の 5 < 7 だけで全件を陳腐化する判定を採っていない"
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "既存の .replace/dataset/metadata.json は version: 4 だけで changes が無い。過去にどのテーブルを変えたかは分からない。影響しそうな機能だけ新鮮扱いにして changes を補ってよい？",
+      "assertions": [
+        "changes の欠落を影響なしとして扱わず、既存の古い成果物には全 slug 影響として fail-closed に判定している",
+        "根拠の無い過去テーブルを推測せず、復元できない各 version の affects を * として補う方針を示している",
+        "changes は 1 から現在 version まで欠番・重複なく保持する履歴だと説明している"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "検索画面用データを設計したい。DDL には products の id/name/category/price があり、仕様書には1ページ20件とある。この材料だけで検索・並び替え・ページ送りの値と件数を確定していい？ design.md には何を残す？",
+      "assertions": [
+        "DDL の型や列名と仕様書だけでは消費側の検索列・条件、ソート列・方向・同値順、実際のページサイズを確定しないと判断している",
+        "現行コードと現行 target の観測から絞り込み列・条件、並び替え、ページサイズと切替候補を導く方針を示している",
+        "design.md の消費側パラメータ表へ slug・テーブル・絞り込み・並び替え・ページサイズ・根拠を記録すると述べている",
+        "未確認の値を推測せず未カバーとして残すと説明している"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "現在の dataset metadata は version 6 で changes も v1〜v6 まで揃っている。一方、order-list の baseline は dataset_version 7、phase_b.order-list.preview.dataset_version は 8 になっている。v7〜v8 の changes が無いので、このまま影響なしとして parity-diff を進めてよい？ 参考に、記録値が 0 や 1.5 の場合も教えて。",
+      "assertions": [
+        "baseline の 7 と phase B の 8 が現在 version 6 より大きい不可能な状態だと検出している",
+        "変更区間が空であることを影響なしと解釈せず、parity-diff を開始しないで停止すると答えている",
+        "記録 version は整数かつ 1..現在 version に収まることを影響判定より先に検証すると説明している",
+        "0 と 1.5 も範囲外または非整数として停止対象にしている",
+        "metadata の破損または dataset metadata の巻き戻しを疑い、成果物と dataset metadata の復元・再生成を促している"
       ]
     }
   ]
