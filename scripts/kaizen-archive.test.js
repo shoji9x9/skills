@@ -34,7 +34,7 @@ function writeNote(dir, name, summary, body = "") {
 function archive(dir, ...files) {
   return spawnSync("bash", [script, ...files], {
     cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: "" },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
     encoding: "utf8",
   });
 }

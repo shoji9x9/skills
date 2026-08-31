@@ -54,7 +54,7 @@
    ```
 
 4. 承認を得てから、バンドルされた `kaizen-archive.sh` で `.kaizen/archive/` へ移動する。**移動と索引 `INDEX.md` の再生成が 1 コマンドで行われる**ため、索引更新の取りこぼしが起きない（git 管理下なら履歴を残す `git mv`、管理外なら `mv` を自動で使い分ける）。
-   ノート内の `../` で始まる Markdown 相対リンクは、移動先から同じ対象を指すよう 1 階層分自動で補正される。
+   ノート内の `](../` 形式の Markdown インラインリンクと画像リンクは、移動先から同じ対象を指すよう 1 階層分自動で補正される。
 
    ```bash
    # <スキル> はインストール先（~/.claude/skills/kaizen / .claude/skills/kaizen / .agents/skills/kaizen のいずれか）。
