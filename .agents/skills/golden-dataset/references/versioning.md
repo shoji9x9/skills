@@ -21,7 +21,7 @@
 
 ## slug が読むテーブルの導出
 
-陳腐化判定では `.replace/features.md` から slug の実効参照テーブルを導く。
+陳腐化判定では `.replace/features.md` から slug の実効参照テーブルを導く。**`dataset_mode: static` では「テーブル」「参照テーブル」列の値は静的データ単位を指す**（`changes[].affects` と同じ読み替え。上記「version のセマンティクス」参照）ため、実効参照テーブルはモード非依存の概念として扱う。
 
 - 機能: 機能一覧の「テーブル」＋その slug を fan-out に含む横断 API の「参照テーブル」
 - 横断 API リソース: その行の「参照テーブル」
