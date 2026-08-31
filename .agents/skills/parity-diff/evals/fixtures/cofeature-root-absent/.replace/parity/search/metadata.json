@@ -1,0 +1,75 @@
+{
+  "slug": "search",
+  "mode": "feature",
+  "dataset_version": 1,
+  "suite": {
+    "dir": "e2e/",
+    "new_only": "e2e/parity/search/new-only/; current/new testIgnore 済み; project=new-capture",
+    "locator_map": "e2e/parity/lib/locator-map/search.current.ts",
+    "interactions": "e2e/parity/lib/interactions/search.ts",
+    "tools": "e2e/parity/lib/tools/vendor/",
+    "current_green": true
+  },
+  "capture_conditions": {
+    "viewports": [{ "width": 1280, "height": 800, "label": "desktop" }],
+    "animations": "disabled",
+    "full_page": false,
+    "pages": [{ "name": "注文", "path": "/orders" }],
+    "masks": [],
+    "cofeature_masks": [
+      {
+        "page": "注文",
+        "slug": "grid-settings",
+        "regions": [
+          {
+            "state": "default",
+            "viewport": "desktop",
+            "name": "grid-settings.root",
+            "bbox": { "x": 0, "y": 56, "width": 134, "height": 21 }
+          }
+        ],
+        "reason": "preview で未実装の間だけ除外"
+      },
+      {
+        "page": "注文",
+        "slug": "export",
+        "regions": [
+          {
+            "state": "default",
+            "viewport": "desktop",
+            "name": "export.root",
+            "bbox": { "x": 140, "y": 56, "width": 90, "height": 21 }
+          }
+        ],
+        "reason": "preview で未実装の間だけ除外"
+      }
+    ],
+    "states": ["default"]
+  },
+  "noise_baseline": [
+    {
+      "page": "注文",
+      "state": "default",
+      "viewport": "desktop",
+      "pixel_diff": 0,
+      "trait_diffs": 0
+    }
+  ],
+  "traits": {
+    "tool": "e2e/parity/lib/tools/vendor/trait-capture.mjs VERSION=1.0.0",
+    "property_set": ["color", "padding"],
+    "elements": ["search.root", "grid-settings.root", "export.root"]
+  },
+  "differ": {
+    "trait_compare": "e2e/parity/lib/tools/vendor/trait-compare.mjs VERSION=1.0.0",
+    "align_tolerance": 1,
+    "pixel_tool": "pixelmatch 5.3.0",
+    "pixel_threshold": 0,
+    "aria_compare": "aria structure comparator",
+    "validated_by_strength_gate": true
+  },
+  "artifacts_storage": {
+    "selected": "git",
+    "baseline_pointer": ".replace/parity/search/baseline/"
+  }
+}

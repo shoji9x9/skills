@@ -31,6 +31,7 @@ scripts/run-skill-eval.sh \
 - eval 6 の fixture は新側 target を 2 つ（`local-dev` は収束済み・`develop` は未実施かつ `db` 無し）持たせ、環境別の状態導出を検証する。
   `features.md` の Issue 列は未起票のため `gh` 呼び出しは発生しない
 - eval 7 の fixture（`issues-approval-gate`）は全件未起票のインベントリを持たせ、**非対話実行では候補・依存関係・本文ドラフトの提示までで止まり起票しない**承認ゲートを検証する
+- eval 23 は同じ fixture のページ一覧（2 機能が共同居住）を使い、実依存を保ったページ束の連続順、slug ごとの再実行回数・束の合計・最後の全面比較の事前提示と承認ゲートを検証する
 - eval 8 / 9 の fixture（`inventory-multi-page` / `inventory-single-page`）は測定・戦略が完了した状態（`features.md` は未作成）を持たせ、
   **機能の分解基準**（複数ページを 1 機能にまとめる／表示セクションで割らない／単一機能の API を横断 API にしない）を複数ページ・単一ページの両方で検証する
 - eval 10 の fixture（`dependency-decision`）は測定・戦略・インベントリまで完了し、**`references.dependency_policy` を持たない**（＝方針未確認）状態を持たせ、

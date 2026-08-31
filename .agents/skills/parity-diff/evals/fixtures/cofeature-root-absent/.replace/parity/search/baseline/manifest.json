@@ -1,0 +1,8 @@
+{
+  "page": "注文",
+  "state": "default",
+  "viewport": "desktop",
+  "image": { "path": "orders.png", "width": 1280, "height": 800 },
+  "traits": "orders.traits.json",
+  "aria": "orders.aria.yml"
+}

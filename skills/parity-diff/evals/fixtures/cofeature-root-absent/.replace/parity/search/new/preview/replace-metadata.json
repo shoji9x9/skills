@@ -1,0 +1,7 @@
+{
+  "slug": "search",
+  "dataset_version": 1,
+  "new": { "target": "preview", "ui_url": "https://preview.example.test" },
+  "suite": { "locator_map_new": "e2e/parity/lib/locator-map/search.new.ts", "new_green": true },
+  "verification": { "passed_at": "2026-08-30T02:00:00Z" }
+}

@@ -240,6 +240,17 @@
         "引き渡し完了（.replace/bootstrap/metadata.json の status: handed-off）を測定開始の条件として示している",
         ".replace/survey.md や .replace/strategy.md を推測で生成していない"
       ]
+    },
+    {
+      "id": 23,
+      "fixture": "evals/fixtures/issues-approval-gate",
+      "prompt": "replace-strategy issues。order と report は同じページ束にあり、report は order に依存する。起票前に順序と parity-diff の再実行費用も見せて",
+      "assertions": [
+        "ページ一覧から order / report を同一ページ束として示し、実依存 order → report を保った連続順を提案している",
+        "order は後続の report が green になったとき 1 回再実行し、その回が最後のマスクを外す全面比較になること、および束の合計が 1 回であることを提示している",
+        "ページ束の都合で横断 API や明示された実依存を逆転させていない",
+        "明示承認が無いため Issue を作成せず、features.md も更新していない"
+      ]
     }
   ]
 }
