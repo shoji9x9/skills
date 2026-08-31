@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-31T06:53:28Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 102.067,
+        "tokens": 266200,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "クエリ・データアクセスを書く前に設定の references.db_semantics（移植時の点検表）を読む契約を示し、方言差の点検を実装後の敵対的レビューに委ねないと答えている（手戻りが最も高くつく層だと説明している）",
+          "passed": true,
+          "evidence": "「DB の方言差を点検せずにクエリ・データアクセスを書かない」（SKILL.md）を引き、点検表は書く前に読む工程（手順 4）だと答え、「書いてから敵対的レビューで拾うと手戻りが最も高くつく」と理由を述べている。"
+        },
+        {
+          "text": "点検項目（NULL の並び順・暗黙の型変換と変換に失敗したときの値・照合順序・連結における NULL の扱い・数値／日付書式のロケール依存）を挙げたうえで、点検表は網羅ではなく実測の代替にもならないと断り、実際の検証は golden-dataset（フェーズ B の一致検証）と parity-suite（並び順の特性化）が担うと述べている",
+          "passed": true,
+          "evidence": "5 項目（NULL の並び順・暗黙の型変換と失敗時の値・照合順序・連結における NULL・数値／日付書式のロケール依存）を列挙。「全部見れば差は出尽くす？→ 出尽くしません」「点検表を通したことを実測の代替にしない」とし、「実測を担うのは golden-dataset（フェーズ B の一致検証）と parity-suite（並び順の特性化）」と明示。"
+        },
+        {
+          "text": "references.db_semantics が未整備（キー欠落・空値・解決できないパス）でも停止しないが、方言差を推測で埋めず現行 DB と新 DB それぞれの一次ドキュメントで確認すると述べている",
+          "passed": true,
+          "evidence": "「点検表（references.db_semantics）が未整備であること自体は停止事由ではありません」「推測で埋めず、現行 DB と新 DB それぞれの一次ドキュメントで確認し、結果と未確定を porting.md に記録して整備を促します」。"
+        },
+        {
+          "text": "点検結果を .replace/parity/<slug>/porting.md の「DB 方言差の点検結果」へ記録し、該当なしも「該当なし」と明記する（空欄にすると差が無いのか未点検なのか区別できない）と述べている",
+          "passed": true,
+          "evidence": "「porting.md の『DB 方言差の点検結果』に記録します。該当なしも『該当なし』と書く——空欄にすると『差が無い』と『誰も見ていない』が区別できない」。節名を正確に指している（`.replace/parity/<slug>/` の完全パスまでは綴っていない）。"
+        },
+        {
+          "text": "実装で吸収しないと決めた差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べ、実装者が単独で「許容」に倒していない",
+          "passed": true,
+          "evidence": "「吸収しないと決めたら、それは意図的差異です。単独で『許容』に倒さず intentional_diffs.pending へ非破壊追記してユーザー確認へ回します」。確認しきれない項目は TODO ＋確信度「低」とも述べる。"
+        },
+        {
+          "text": "パリティスイートが green であることや型検査・テストの通過を点検の代替にしないと述べている（絞り込みが全件に化ける類の差はデータ件数が少ないと green のまま残る）",
+          "passed": true,
+          "evidence": "「パリティスイートが green なら問題ない → 成り立たない」「絞り込みが全件に化ける類の差は、ゴールデンデータセットの件数が少ないとスイートが green のまま残る」「『型検査もテストも通った』も同様に代替になりません」。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 128.713,
+        "tokens": 37665,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "クエリ・データアクセスを書く前に設定の references.db_semantics（移植時の点検表）を読む契約を示し、方言差の点検を実装後の敵対的レビューに委ねないと答えている（手戻りが最も高くつく層だと説明している）",
+          "passed": false,
+          "evidence": "「順序が逆です」と一般論では否定するが、設定キー references.db_semantics も点検表を書く前に読むという契約も示していない。"
+        },
+        {
+          "text": "点検項目（NULL の並び順・暗黙の型変換と変換に失敗したときの値・照合順序・連結における NULL の扱い・数値／日付書式のロケール依存）を挙げたうえで、点検表は網羅ではなく実測の代替にもならないと断り、実際の検証は golden-dataset（フェーズ B の一致検証）と parity-suite（並び順の特性化）が担うと述べている",
+          "passed": false,
+          "evidence": "点検クラスは網羅的に挙げ「出尽くしません」とも述べるが、実測の担い手を golden-dataset のフェーズ B / parity-suite ではなく「本番相当データでの両系並行実行（シャドー実行）」に置いており、スキルの工程分担を示していない。"
+        },
+        {
+          "text": "references.db_semantics が未整備（キー欠落・空値・解決できないパス）でも停止しないが、方言差を推測で埋めず現行 DB と新 DB それぞれの一次ドキュメントで確認すると述べている",
+          "passed": false,
+          "evidence": "references.db_semantics というキーも、未整備時に停止しない／推測で埋めないという扱いも述べていない。"
+        },
+        {
+          "text": "点検結果を .replace/parity/<slug>/porting.md の「DB 方言差の点検結果」へ記録し、該当なしも「該当なし」と明記する（空欄にすると差が無いのか未点検なのか区別できない）と述べている",
+          "passed": false,
+          "evidence": "記録は必要と強く述べるが、記録先は「docs/ 配下の Markdown」「1 件 1 行」の自案で、porting.md の「DB 方言差の点検結果」節を指していない。"
+        },
+        {
+          "text": "実装で吸収しないと決めた差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べ、実装者が単独で「許容」に倒していない",
+          "passed": false,
+          "evidence": "「現行に合わせる／新側に合わせるはビジネス判断」とは述べるが、intentional_diffs.pending への非破壊追記という手続きに触れていない。"
+        },
+        {
+          "text": "パリティスイートが green であることや型検査・テストの通過を点検の代替にしないと述べている（絞り込みが全件に化ける類の差はデータ件数が少ないと green のまま残る）",
+          "passed": true,
+          "evidence": "「パリティスイートが green なら問題ない — スイートは『書いた分だけ』を保証します」「フィクスチャ主体のパリティスイートはこれらをほぼ踏みません」「green は『既知の等価性が壊れていない』であって『差がない』ではない」。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 102.067,
+        "stddev": 0.0,
+        "min": 102.067,
+        "max": 102.067
+      },
+      "tokens": {
+        "mean": 266200.0,
+        "stddev": 0.0,
+        "min": 266200,
+        "max": 266200
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1667,
+        "stddev": 0.0,
+        "min": 0.1667,
+        "max": 0.1667
+      },
+      "time_seconds": {
+        "mean": 128.713,
+        "stddev": 0.0,
+        "min": 128.713,
+        "max": 128.713
+      },
+      "tokens": {
+        "mean": 37665.0,
+        "stddev": 0.0,
+        "min": 37665,
+        "max": 37665
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.83",
+      "time_seconds": "-26.6",
+      "tokens": "+228535"
+    }
+  },
+  "notes": []
+}
