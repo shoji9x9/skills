@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-31T11:45:06Z",
+    "evals_run": [14, 15],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 94.3,
+        "tokens": 144880,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定の verification_commands の値がコマンドのリストで、走る範囲（全体走査か差分限定か）が宣言されていないことを検出している",
+          "passed": true,
+          "evidence": "停止理由 2 で「`verification_commands` が旧形式（リスト）」「走る範囲が未宣言のまま進むと、差分限定の結果が『全体で通った』と名乗ります」と明示。"
+        },
+        {
+          "text": "未宣言を「全体走査」に倒さず、実装工程に入らず停止して full / diff の 2 列への移行をユーザーに促している",
+          "passed": true,
+          "evidence": "「明示の停止条件です」とし手順 1 で停止。`full`（完了判定で常に走る）/ `diff`（`{changed_files}`・レビュー前の早期検出）の 2 列へ移行が必要と述べ、次の順序に「3. verification_commands を 2 列形式へ移行」を置いた。"
+        },
+        {
+          "text": "リストの中身を自分で full / diff へ振り分けず、移行の正本（replace-strategy の references/project-config.md）を示してユーザーに委ねている",
+          "passed": true,
+          "evidence": "「移行手順の正本（`replace-strategy` の `references/project-config.md`）が参照できないため、私の側で形を推測して書き換えることはしません」。skills.yml への書き込みも行っていない。"
+        },
+        {
+          "text": "完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため、full が確定しないと完了判定が成立しないことを理由に挙げている",
+          "passed": true,
+          "evidence": "「差分限定の結果が『全体で通った』と名乗ります」と `full`（完了判定で常に走る）の役割を示して停止を正当化。ただし「完了判定が成立しない」という明示の語は無く、根拠は含意にとどまる（弱め）。"
+        },
+        {
+          "text": "実装・porting.md・replace-metadata.json を捏造せず、検証コマンドを自分で推測して補っていない",
+          "passed": true,
+          "evidence": "project-tree.txt に `.replace/parity/order-list/new/`・`porting.md`・`review.md` いずれも無く、fixture の skills.yml も無変更。metrics.json の files_created が空。"
+        }
+      ],
+      "notes": [
+        "assertion 3 は初回実行で到達不能と判明したため書き換えた（旧: 「スクリプト側の引数の扱いまで読んで確かめる」）。当該知識は replace-strategy の references/project-config.md「走る範囲」にあり、with_skill では対象スキルのみ設置されるため parity-replace 単独では読めない。上記の pass は書き換え後の assertion に対する採点。"
+      ]
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 110.8,
+        "tokens": 200165,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分限定（verification_commands.diff）が緑でも完了判定にはならず、手順 8 では verification_commands.full を回すと述べている",
+          "passed": true,
+          "evidence": "「pre-commit の緑は、完了判定に使う列ではありません」。設定の full / diff を表で切り分け、pre-commit が回しているのが diff 列だと同定したうえで「完了判定は列に関わらず別途 full を回す規定」と述べた。さらに full の 2 本のうち typecheck が未実行であることも指摘。"
+        },
+        {
+          "text": "design token の削除は壊れる相手が変更集合の外のファイルにいるため、変更ファイルだけを渡す検査では原理的に捕まらないと理由を述べている",
+          "passed": true,
+          "evidence": "「壊れる相手が変更集合の外にいる」と明記し、「削除した旧トークンをまだ参照しているが今回は編集していないファイルは、そもそも {changed_files} に入らない」と具体化。CSS カスタムプロパティなら lint も typecheck も落ちない可能性まで挙げた。"
+        },
+        {
+          "text": "削除・改名を含む変更では敵対的レビュー前（手順 7）の検査も full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「手順 7 は『変更集合がファイルの削除・改名か、定義元（design token・共有定数・設定値・型・エクスポート）の削除・改名を含むなら full へ前倒しする』と定めています」と引き、今回がその対象そのものだと判定。"
+        },
+        {
+          "text": "実行した列（full / diff）を replace-metadata.json の証跡に記録すると述べている",
+          "passed": true,
+          "evidence": "次にやる順番 1 で「全体走査で回す（`diff_run.escalated_to_full: true` として記録）」。加えて機械検査の穴を `verification.unchecked` へ写すこと（正本は .replace/strategy.md）にも言及。"
+        },
+        {
+          "text": "full を回す前に完了・green を名乗らず、完了判定を済んだことにしていない",
+          "passed": true,
+          "evidence": "「結論：済んだことにはできません」。手順 8 の 4 要件（new_green / full / presence 在席チェック / 証跡）をいずれも未確認と列挙し、review.md・porting.md の欠落も未了として挙げた。files_created は空。"
+        }
+      ],
+      "notes": [
+        ".replace/strategy.md 不在時のフォールバック（停止せず記録して進む）が実際に効いていることを確認した——「ただし現状そのファイル自体が存在しません」と記録しつつ進行し、停止していない。"
+      ]
+    }
+  ]
+}

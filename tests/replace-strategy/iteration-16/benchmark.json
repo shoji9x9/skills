@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-31T12:05:00Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 83.1,
+        "tokens": 172622,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "verification_commands を full（全体走査）と diff（変更ファイルだけ）の 2 列に分けて確定すると述べている",
+          "passed": true,
+          "evidence": "「走る範囲で full / diff の 2 列に分ける必要があり、いまの 3 つは 1 列に並ぶ形になっていません」。ツール別の行き先を表で提示した。"
+        },
+        {
+          "text": "変更ファイルを渡しているリント・フォーマッタを機械的に full へ入れず、全体走査の起動形をユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "「変更ファイルだけを渡している起動形は diff 列です」と同定し、「全体走査の起動形を別に確認して full にも載せる」。全体走査の起動形が無いツールは .replace/strategy.md へ未検査として記録するとも述べた。"
+        },
+        {
+          "text": "フック設定に変更ファイルが渡っているかだけでは判別できず、スクリプト側が引数をどう使うか（判定がファイル単位か他ファイルを見るか）まで読む必要があると述べている",
+          "passed": true,
+          "evidence": "「lefthook の設定を見るだけで full を埋めない」「判別にはスクリプト側が引数をどう使うか（判定がファイル単位か、他ファイルを見るか）まで読む必要があります」。"
+        },
+        {
+          "text": "references.coding_conventions の規約項目を full で落ちるもの／落ちないものに仕分け、未検査の項目を記録すると述べている",
+          "passed": true,
+          "evidence": "「docs/coding-conventions.md の機械検査の仕分け」の項で「各項目を『full で落ちる／落ちない』に分けます」「残った未検査の項目は .replace/strategy.md の「未検証領域の扱い」へ記録」。"
+        },
+        {
+          "text": "仕分けの判定を「対応するルール設定があるか」ではなく「その規約を破った入力が full で落ちるか」で行うと述べている",
+          "passed": true,
+          "evidence": "「判定は『規約に対応するルール設定があるか』ではなく『その規約を破った入力が full で落ちるか』です（設定にルール名があっても対象パスから外れていれば落ちません）」。"
+        },
+        {
+          "text": "full / diff のどちらにも auto-fix 付きの起動形（フォーマッタの書き込みモード等）を置かず、差分があれば非ゼロで終わるチェック形にすると述べ、チェック形かどうかは --check の有無でなく通した後に作業ツリーの差分が増えないことの実測で判別すると述べている",
+          "passed": true,
+          "evidence": "見出し「フォーマッタ（とリンタの --fix）は、そのままでは full にも diff にも置けない」。diff 列の二重の害（レビュー対象の差分を動かす）に触れ、「判定は名前ではなく実測です——--check が付いていても書き換えるツール、付いていなくても書き換えないツールがあるため、1 回通した後に作業ツリーの差分が増えていないことを確かめます」。末尾で実測手順を `git status --porcelain` まで具体化した。"
+        }
+      ],
+      "notes": [
+        "assertion 6 は iteration-15 の走行後に skill へ追加した規定に対応する。iteration-15 の run は同じ論点をフォーマッタについて自力で指摘したが実測判別には触れていなかった。skill へ規定を入れた本 run は diff 列側の害と実測手順まで述べており、規定が挙動に効いていることを示す。",
+        "契約外の副次確認: コードレビューで入れた 2 つの修正が効いている——full の判別基準を「引数の有無ではなく全体を走査するか」とした点（`tsc -p tsconfig.json` を例に挙げた）と、full への前倒しを diff 列の中身によらず一律適用する点（「1 本ずつ分類して判断すると誤分類がそのまま穴になります」）。"
+      ]
+    }
+  ]
+}
