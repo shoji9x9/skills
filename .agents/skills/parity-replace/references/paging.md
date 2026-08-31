@@ -8,7 +8,7 @@
 
 - **1 ページを作り切って比較してから次のページへ進む。** ページをまたいで並行に進めない（調査・実装・比較が浅くなり、差異を見落とす）
 - ページの単位は `.replace/features.md` が機能に紐づけたページ一覧を起点にする。推測で足さない
-- フェーズは「実装 → 新側マッピング充填 → 見た目の系統差の縮小 → 敵対的レビュー → スイート green ＋ 検証コマンド」までを 1 ページ分回し切る単位とする
+- フェーズは「実装 → 新側マッピング充填 → 見た目の系統差の縮小 → 敵対的レビュー → スイート green ＋ 検証コマンド（`verification_commands.full`）」までを 1 ページ分回し切る単位とする
 
 ## フェーズ内の順序（読み取り → 書き込み）
 
@@ -36,7 +36,7 @@
 
 - 担うのはバックエンド実装（現行コードとの diff レビュー）と、API パリティスイートを新に対して green にすることだけ
 - 成果物パスの `slug` は当該リソースのもの
-- 完了判定は API スイート green ＋ 検証コマンド（視覚 3 点セットは無い）。green 化の前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
+- 完了判定は API スイート green ＋ 検証コマンド（`verification_commands.full`。視覚 3 点セットは無い）。green 化の前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
 
 ## batch モード（バッチ Issue）
 
@@ -44,4 +44,4 @@
 
 - バッチ本体の新側実装（現行コードとの diff レビュー）と、その出力（DB 状態・生成ファイル・対象範囲内の副作用出力）が現行と一致することを担う
 - 出力一致の検証手段は `parity-suite` がバッチモードで採取した現行ベースライン（`.replace/parity/<slug>/` 配下）に対して行う
-- 完了判定は出力一致 ＋ 検証コマンド。新側でバッチを走らせる前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
+- 完了判定は出力一致 ＋ 検証コマンド（`verification_commands.full`）。新側でバッチを走らせる前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する

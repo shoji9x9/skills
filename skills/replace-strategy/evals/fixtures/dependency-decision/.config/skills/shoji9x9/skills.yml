@@ -27,7 +27,8 @@ skills:
         start: npm run dev
         default: true
     verification_commands:
-      - npm run lint
+      full:
+        - npm run lint
     parity_suite_dir: e2e/
     dataset_tool_dir: seed/
     intentional_diffs:

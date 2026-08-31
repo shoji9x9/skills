@@ -41,7 +41,8 @@ replace-strategy status
   - `golden-dataset` の投入ツール: TypeScript（SQL 可）
   - テキスト成果物: Git
   - Issue・PR・委譲先: GitHub（`gh`）
-- **利用者が選ぶもの**（設定・references で受け取る。スキル本体に固有名を書かない）: 新側アプリの骨格（下記）、**生成先リポジトリのコーディング規約**（生成物ごとに引き先が変わる。常に新側とは限らない）、新 UI コンポーネントライブラリと design token、現行・新の DB とその型・意味論の差、検証コマンド一式（静的解析・テスト）、実行対象環境（`targets`）、環境変数の用意方法。現行アプリのスタックは測定で把握する
+- **利用者が選ぶもの**（設定・references で受け取る。スキル本体に固有名を書かない）: 新側アプリの骨格（下記）、**生成先リポジトリのコーディング規約**（生成物ごとに引き先が変わる。常に新側とは限らない）、新 UI コンポーネントライブラリと design token、現行・新の DB とその型・意味論の差、
+  検証コマンド一式（静的解析・テスト。全体走査の `full` と差分限定の `diff` の 2 列）、実行対象環境（`targets`）、環境変数の用意方法。現行アプリのスタックは測定で把握する
 - **新側アーキテクチャは本スキル群の対象外**（フレームワーク・バックエンド構成・ORM・レイヤ／ディレクトリ構成・API 設計方針・ホスティング／リリース構成・実行基盤と利用マネージドサービス）。
   **言語は上記のとおり TypeScript 固定であり、骨格はその上の選択**（言語まで利用者が選べる意味ではない）。
   **事前に決定済みで、新側リポジトリは骨格がスキャフォールド済み**である前提に立つ。
@@ -103,10 +104,19 @@ replace-strategy status
    - **ファイルストレージ（`uses_storage` / `targets[].storage`）**: アップロード先・ファイル出力先のストレージを使うかを確認し（**`dataset_mode` とは直交する別軸**——`dataset_mode` に第 3 の値を足さない）、
      使うなら環境ごとに接続の環境変数名・書き込み範囲（パスまたは `<bucket>/<prefix>`）・アップロード経路（`direct` / `presigned`）を確認する。
      **投入ゲート（`storage.seedable`）は既定 deny で、ストレージ実体へのゴールデンデータ投入は v1 スコープ外**（宣言だけを残し、ストレージ依存の検証は `gaps` に未検証として記録させる）。正本は [`references/project-config.md`](references/project-config.md) の「ファイルストレージ」
-   - **検証コマンド列（`verification_commands`）**: 完了前に実行する静的解析・テスト等。`parity-replace` の完了判定に必須のため、無いままにせずここで確定する
-     （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）。
+   - **検証コマンド（`verification_commands`）**: 完了前に実行する静的解析・テスト等を、**走る範囲で `full`（全体走査）と `diff`（変更ファイルだけ）の 2 列に分けて**確定する
+     （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）。**`full` は `parity-replace` の完了判定に必須のため、無いままにしない。**
+     **`full` はフック設定を見るだけで埋めない**——コミット前フックが同じツールを差分限定で回していることは多く、**スクリプト側が引数をどう使うか**まで読まないと全体走査か判別できない。
+     判別できないコマンドは全体走査の起動形をここで確認し、全体走査の起動形が無いツールは `full` に入れず**未検査として `.replace/strategy.md` の「未検証領域の扱い」へ記録する**。
+     **どちらの列にも auto-fix 付きの起動形（フォーマッタの書き込みモード・リンタの `--fix`）を置かない**——対象を黙って直したうえで必ず成功するため、ゲートにならない。
+     差分があれば非ゼロで終わるチェック形を確認し、**チェック形かどうかは 1 回通した後に作業ツリーの差分が増えないことを実測して確かめる**（`--check` の有無で判断しない）。
+     詳細は [`references/project-config.md`](references/project-config.md)「走る範囲」。
      **`golden-dataset` の投入ツール（`dataset_tool_dir`）と `parity-suite` のスイート（`parity_suite_dir`）もこの列で検証される**ため、
      それらのパスを検査対象に含めるかをここでユーザーに確認する（含めない選択も可。下流は範囲を勝手に広げず「含まれていない」と記録するだけなので、**ここで決めないと恒久的に未検査になる**）
+   - **規約の機械検査の仕分け**: `references.coding_conventions` の規約項目を、`verification_commands.full` で**落ちるもの**と**落ちないもの**に分け、未検査の項目を記録する。
+     判定は「規約に対応するルール設定があるか」ではなく「**その規約を破った入力が `full` で落ちるか**」で行う。
+     未検査のままだと、規約に従ったつもりの箇所が `parity-replace` の敵対的レビューやユーザー指摘で初めて出て、機能ごとに「指摘を受けてから検査を足す」を繰り返す。
+     ルール・フォーマッタ設定で表現できる項目はここで整備を促し、足した検査は `full` へ載せる。**残った未検査の項目は `.replace/strategy.md` の「未検証領域の扱い」へ記録する**（`parity-replace` の敵対的レビューが人で見る観点になる）。正本は [`references/project-config.md`](references/project-config.md)「コーディング規約」
    - **`on_diff` のドキュメント**: 内容はプロジェクトが持つものだが、`references` と同様に **`setup` が下書きを生成し、人間がレビューして確定する**（既定挙動で足りる環境には作らない）
    - **`references`（知識の注入）**: パス型キー（`architecture` / `coding_conventions` / `ui_library` / `db_semantics` / `env_setup`）を**キーごと生成する**。この時点でパスが決まらないキーも省略せず空値で置き、「どのスキルがいつ読むか」をコメントで添える。
      **未整備で下流が停止するのは正しい挙動**であり、枠を作るのは停止を避けるためではなく**不足を `setup` 時点で見えるようにするため**（キーごと無いと、下流のスキルが停止して初めて不足が分かる）。
@@ -164,7 +174,7 @@ replace-strategy status
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
-| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド列／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
+| 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |

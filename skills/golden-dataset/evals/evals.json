@@ -110,8 +110,8 @@
       "id": 11,
       "prompt": "投入ツールを TypeScript で作ってもらうとして、うちのリポジトリの lint と型検査には通してくれるの？ verification_commands はまだ設定に書いていない。命名規約も既存コードに合わせてほしい。",
       "assertions": [
-        "生成・更新した投入ツールに設定の verification_commands（静的解析・型検査・テスト）を通す方針を示している",
-        "verification_commands が設定に無ければ停止せず、その旨を verification.md に記録して進むと述べ、parity-replace の完了判定と違い投入の合否判定ではないと区別している",
+        "生成・更新した投入ツールに設定の verification_commands.full（全体走査の列。静的解析・型検査・テスト）を通す方針を示し、差分限定の diff 列は使わないと述べている",
+        "verification_commands.full が設定に無ければ停止せず、その旨を verification.md に記録して進むと述べ、parity-replace の完了判定と違い投入の合否判定ではないと区別している",
         "投入ツールは対象プロジェクト側のコードなので references.coding_conventions に従って書くと述べ、未整備なら基底ドキュメント・リント設定・既存コードから読み取ると説明している",
         "検証コマンドが投入ツールのパス（dataset_tool_dir 配下）を対象に含んでいない場合は、含まれていないことを記録し範囲を勝手に広げないと述べている",
         "冪等性・決定論の確認（2 回連続実行で同一状態・ID や時刻の固定）は verification_commands の代替ではなく両方行うと述べている"

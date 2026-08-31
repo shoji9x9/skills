@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-08-31T11:48:20Z",
+    "evals_run": [24],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 83.2,
+        "tokens": 123811,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "verification_commands を full（全体走査）と diff（変更ファイルだけ）の 2 列に分けて確定すると述べている",
+          "passed": true,
+          "evidence": "「フラットな配列ではなく、走る範囲で full / diff の 2 列に分ける形です」と述べ、YAML の形を提示した。"
+        },
+        {
+          "text": "変更ファイルを渡しているリント・フォーマッタを機械的に full へ入れず、全体走査の起動形をユーザーに確認すると述べている",
+          "passed": true,
+          "evidence": "「『lefthook の pre-commit に載っているもの』をそのまま full に移すのは、スキルが明示的に禁止している埋め方です」。提示 YAML でリント・フォーマッタの full 行に「← フックのものとは別。要確認」を付した。"
+        },
+        {
+          "text": "フック設定に変更ファイルが渡っているかだけでは判別できず、スクリプト側が引数をどう使うか（判定がファイル単位か他ファイルを見るか）まで読む必要があると述べている",
+          "passed": true,
+          "evidence": "「フック設定からは判別できません（スクリプト側が引数をどう使うか——判定がファイル単位か、他ファイルを見るか——まで読む必要がある）」。全体走査の起動形が無いツールは .replace/strategy.md へ未検査として記録することにも言及。"
+        },
+        {
+          "text": "references.coding_conventions の規約項目を full で落ちるもの／落ちないものに仕分け、未検査の項目を記録すると述べている",
+          "passed": true,
+          "evidence": "「docs/coding-conventions.md の項目を full で落ちる／落ちないに仕分ける」「残った未検査項目は .replace/strategy.md に記録します」。飛ばすと機能ごとに「敵対的レビューで指摘されてから検査を足す」を繰り返す、と目的も述べた。"
+        },
+        {
+          "text": "仕分けの判定を「対応するルール設定があるか」ではなく「その規約を破った入力が full で落ちるか」で行うと述べている",
+          "passed": true,
+          "evidence": "「判定基準は『規約に対応するルール設定があるか』ではなく『その規約を破った入力が full で落ちるか』です（設定にルール名があっても、対象パスから外れていれば落ちない）」。"
+        }
+      ],
+      "notes": [
+        "契約に無い有用な指摘も出た: full のフォーマッタは非破壊のチェック形（--check 相当）にしないと、生成コードを黙って書き換えて必ず通りゲートとして機能しない。設計へ取り込む価値がある。"
+      ]
+    }
+  ]
+}

@@ -24,10 +24,21 @@
     "new_green_at": "<スイートが新に対して green になった日時（ISO 8601）>"
   },
   "verification": {
+    "scope": "full",
     "commands": [
-      "<設定 verification_commands から実行した検証コマンド（静的解析・単体テスト等。固有ツール名は設定側）>"
+      "<設定 verification_commands.full から実行した検証コマンド（静的解析・単体テスト等。固有ツール名は設定側）>"
     ],
-    "passed_at": "<検証コマンドが全て通った日時（ISO 8601）>"
+    "diff_run": {
+      "commands": [
+        "<手順 7 で実行した verification_commands.diff のコマンド（{changed_files} 展開後）。diff 列が無い・対象 0 件で回さなかった場合は空配列>"
+      ],
+      "escalated_to_full": "<削除・改名を含むため手順 7 で full へ前倒ししたかを真偽値で記録する>",
+      "not_run_reason": "<回さなかった場合の理由（例: diff 列が未設定 / 変更ファイル 0 件）。回した場合は null>"
+    },
+    "unchecked": [
+      "<.replace/strategy.md「未検証領域の扱い」の機械検査の穴のうち本機能に効く項目を写す（全体走査の起動形が無く full に載せられないツール／full で落ちない規約項目）。無ければ空配列>"
+    ],
+    "passed_at": "<verification_commands.full が全て通った日時（ISO 8601）>"
   },
   "loop": {
     "iterations": 0,
