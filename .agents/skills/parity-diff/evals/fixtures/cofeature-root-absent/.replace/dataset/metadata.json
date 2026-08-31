@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "mode": "db",
+  "current": { "target": "current-test", "verified_at": "2026-08-30T00:00:00Z" },
+  "phase_b": {
+    "search": {
+      "preview": { "dataset_version": 1, "verified_at": "2026-08-30T01:00:00Z" }
+    }
+  }
+}

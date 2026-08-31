@@ -141,6 +141,7 @@ replace-strategy status
 - `.replace/features.md` が無い（`setup` 未完了）場合は起票せず停止し、`setup` の実行を促す
 - **`.replace/features.md` の更新は非破壊**——テンプレートは初期生成の雛形であって更新時の項目の上限ではない。変える行・列だけを書き換え、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しない。4 種に当てはまらない Issue は「その他の Issue（4 種以外）」表へ置く（正本は [`references/features-issues.md`](references/features-issues.md)）
 - 起票は `issue-create` スキルへ委譲する。**候補・依存関係・各 Issue の本文ドラフトを提示して明示承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
+- 同じページに乗る機能はページ一覧から束ねて連続順を提案し、着手前に slug ごとの再実行回数・束の合計・最後にマスクが外れる全面比較を示す（実依存を逆転させない。数え方は [`references/features-issues.md`](references/features-issues.md)）
 - **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）
 - 重複チェックはページネーションに留意する（既定件数で打ち切らない）
 

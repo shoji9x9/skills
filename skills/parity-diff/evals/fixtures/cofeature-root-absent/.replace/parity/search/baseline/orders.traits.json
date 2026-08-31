@@ -1,0 +1,5 @@
+{
+  "search.root": { "color": "rgb(0, 0, 0)", "padding": "0px" },
+  "grid-settings.root": { "color": "rgb(0, 0, 0)", "padding": "0px" },
+  "export.root": { "color": "rgb(0, 0, 0)", "padding": "0px" }
+}

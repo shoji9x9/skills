@@ -1,0 +1,10 @@
+{
+  "converged": false,
+  "blocked_by": [
+    {
+      "slug": "stale-feature",
+      "evidence": "2026-08-29 の実行ではツールバーが新側に存在しなかった",
+      "diff_ids": ["old-1"]
+    }
+  ]
+}

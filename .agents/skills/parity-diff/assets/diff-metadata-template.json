@@ -22,6 +22,18 @@
     "viewports": "<現側 capture_conditions.viewports と新側実寸の照合結果。不一致なら停止しているはず>",
     "animations": "<animations: disabled を新側でも適用できたかの確認結果>",
     "masks": "<現側 masks のロケータを新側で解決してマスクできたかの確認結果（解決できないものは理由）>",
+    "cofeature_masks": [
+      {
+        "page": "<ページ>",
+        "state": "<状態>",
+        "viewport": "<viewport label>",
+        "slug": "<同じページで未実装の機能 slug>",
+        "name": "<現側で領域を測った root 論理名>",
+        "bbox": { "x": 0, "y": 0, "width": 0, "height": 0 },
+        "green_evidence": "<同 target の replace-metadata.json のパスと suite.new_green 値、またはファイル欠落>",
+        "new_root": "<absent | present: 実測 bbox と現側由来 bbox 内に収まることの確認>"
+      }
+    ],
     "states": "<現側 capture_conditions.states の各状態へ操作アダプタで新側でも遷移できたかの確認結果。遷移できない状態があれば停止しているはず>",
     "environment": "<機械照合できない自由記述のため原則 'unverified: <理由>'。diff.md の未検証領域にも転記する>"
   },

@@ -74,6 +74,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
   比較の相手は常に**現行**であり、新側の実験変種どうしの一致を結論にしない。結論を成果物に書くときは測定条件を併記する（書けない結論は未説明のまま残す）
 - **他機能の未実装に由来して解消できない差分を、`converged: true` で押し通さない／`parity-replace` へ差し戻さない。** `blocked_by` に帰属させて停止し、依存先の実装後に再実行する（[`references/convergence.md`](references/convergence.md)）
+- **共同居住機能の未実装領域を、実行時マスクより先に `blocked_by` へ分類しない。** 新側 root の欠落は通常状態なので、現側ベースラインで測定済みの target 非依存 `bbox` を両作業画像へ適用し、特性・aria の同領域も除外してから差分検出する。`blocked_by` はマスク外へ残った差分だけに使う
 - **生の差分ゼロを収束条件にしない。** 収束＝未説明差分ゼロ かつ 未修正回帰ゼロ
 - **名前の付かない要素の見た目差を「computed style で保証済み」と扱わない**（特性照合は名前付き要素しか見ない。名前無しは画素経路の担当）
 - **セル/行/フィールドに論理名を付けてテーブル/フォームを比較しない**（内容パリティは aria 経路が担う）
@@ -116,7 +117,9 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    採取スペックは**現側スペックから手で書き起こさず**同梱雛形（[`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts)）を `metadata.json.suite.new_only` の場所へコピーして埋め、
    `current` / `new` からの `testIgnore` 除外と採取用プロジェクト（既定 `new-capture`）を撮影前に確認する。
    `url_command` の target は手順 1 の target 解決時に解決した URL を再利用する（工程ごとに再実行しない）。
-   **条件一致を先行検証**し、不一致なら差分報告せず停止する。新側の自己ノイズも測り（往復ループでは前回実行の測定値を組単位で再利用してよい。失効条件は同 reference）、現側 `noise_baseline` との乖離が大きければ停止する
+   **条件一致を先行検証**し、不一致なら差分報告せず停止する。新側の自己ノイズも測り（往復ループでは前回実行の測定値を組単位で再利用してよい。失効条件は同 reference）、現側 `noise_baseline` との乖離が大きければ停止する。
+   既存の新側ベースラインから再開する場合も、差分検出の前に同 reference「共同居住機能の実行時マスク」を必ず通す。ページ一覧と同 target の green 証跡から有効集合を再導出し、現側由来の `bbox` を両画像へ適用する。新側 root が無いことを停止理由や `blocked_by` の根拠にしない
+   適用詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録・報告し、恒久マスクの検証結果である既存 `.masks` へ混ぜない
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
 5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
 6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認。

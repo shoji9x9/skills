@@ -1,0 +1,19 @@
+version: 1
+skills:
+  replace-strategy:
+    targets:
+      - name: current-test
+        side: current
+        url: https://current.example.test
+        db:
+          env_vars: [CURRENT_DB_URL]
+          seedable: true
+        default: true
+      - name: preview
+        side: new
+        url: https://preview.example.test
+        db:
+          env_vars: [PREVIEW_DB_URL]
+          seedable: true
+        default: true
+    parity_suite_dir: e2e/

@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）を持たない（省略する）。",
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "target": {
@@ -47,6 +47,21 @@
       {
         "name": "<マスクした動的領域の論理名（ロケータマッピングで解決できる名前。自由記述にせず parity-diff が機械的に解決できる形にする）>",
         "reason": "<マスクした理由（認証情報・トークン・個人情報・揮発項目は残さない）>"
+      }
+    ],
+    "cofeature_masks": [
+      {
+        "page": "<features.md のページ一覧にあるページ名>",
+        "slug": "<同じページに乗る別機能の slug>",
+        "regions": [
+          {
+            "state": "<撮影状態>",
+            "viewport": "<ビューポート label>",
+            "name": "<現側でその機能の領域を覆うルート要素の論理名>",
+            "bbox": { "x": 0, "y": 0, "width": 0, "height": 0 }
+          }
+        ],
+        "reason": "<同じページに乗る機能が選択 target で未実装の間だけ比較から外す理由>"
       }
     ],
     "states": ["<遷移させた状態: default | hover | focus | active | disabled | selected | error>"]
