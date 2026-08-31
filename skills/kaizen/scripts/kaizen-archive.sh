@@ -128,7 +128,9 @@ for arg in "$@"; do
 		echo "skip (name collision in archive): ${arg} -> ${dest}" >&2
 		continue
 	fi
+	tracked=0
 	if git ls-files --error-unmatch "${f}" >/dev/null 2>&1; then
+		tracked=1
 		git mv -- "${f}" "${archive_dir}/"
 	else
 		mv -- "${f}" "${archive_dir}/"
@@ -142,6 +144,11 @@ for arg in "$@"; do
 	cat "${rewritten}" >"${dest}"
 	rm -f "${rewritten}"
 	rewritten=""
+	# git mv で stage した rename の後に本文を書き換えたため、tracked ノートは
+	# 移動先を再度 stage して index にもリンク補正を反映する。
+	if [ "${tracked}" -eq 1 ]; then
+		git add -- "${dest}"
+	fi
 	moved=$((moved + 1))
 done
 

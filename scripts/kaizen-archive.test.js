@@ -56,6 +56,19 @@ test("../ で始まる Markdown 相対リンクを移動先の階層に合わせ
   expect(archived).toContain("[x](../../docs/x.md)");
   expect(archived).toContain("![image](../../../assets/x.png)");
   expect(archived).toContain("[web](https://example.com)");
+  const staged = spawnSync("git", ["show", ":.kaizen/archive/2026-09-01-links.md"], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  expect(staged.status, staged.stderr).toBe(0);
+  expect(staged.stdout).toContain("[x](../../docs/x.md)");
+  expect(staged.stdout).toContain("![image](../../../assets/x.png)");
+  const unstaged = spawnSync("git", ["diff", "--", ".kaizen/archive/2026-09-01-links.md"], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  expect(unstaged.status, unstaged.stderr).toBe(0);
+  expect(unstaged.stdout).toBe("");
 });
 
 test.each([
