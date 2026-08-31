@@ -95,7 +95,7 @@
         "アップロード経路（upload_route）の変更と保存ファイル名（path）の命名規則の変更を意図的差異として intentional_diffs.pending へ非破壊追記し、個別にユーザー確認へ回す方針を示している（内部実装として黙って進めていない）",
         "upload_route が未宣言のまま実装せず、設定側（targets[].storage.upload_route）の宣言が先に必要だと示している",
         "「内部実装だから記録不要」を否定し、差異を見る前の一括分類指示には従わず個々の差異を提示して分類を確定させる規約に触れている",
-        "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない"
+        "前提未達（対象 slug の parity-suite の metadata.json / suite.current_green、verification_commands.full の欠落）を検出して実装工程に入らず停止し、slug を自分で採番していない"
       ]
     },
     {
@@ -116,7 +116,7 @@
       "assertions": [
         "テーブル追加は新側実装に付随する IaC 差分として扱い、実装してよいと答えている",
         "デプロイワークフローの新規構築は対象外（事前条件）として行わないと答え、区分の正本が replace-strategy の references/scope.md「スキルが行う作業の範囲」だと示している",
-        "書いた付随差分は敵対的レビューと verification_commands（cdk synth / terraform validate 等、認証情報や実環境への問い合わせを要さない機械検証）を通すと述べ、パリティスイートが IaC を検証しないことを理由に挙げている",
+        "書いた付随差分は敵対的レビューと verification_commands.full（cdk synth / terraform validate 等、認証情報や実環境への問い合わせを要さない機械検証）を通すと述べ、パリティスイートが IaC を検証しないことを理由に挙げている",
         "付随の範囲を超えると判断したら停止してユーザーに上げると述べている",
         "現行のインフラ構成と新側 IaC のパリティ比較は対象外であり、突き合わせて差分ゼロにする対象ではないと答えている"
       ]
@@ -131,6 +131,30 @@
         "点検結果を .replace/parity/<slug>/porting.md の「DB 方言差の点検結果」へ記録し、該当なしも「該当なし」と明記する（空欄にすると差が無いのか未点検なのか区別できない）と述べている",
         "実装で吸収しないと決めた差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べ、実装者が単独で「許容」に倒していない",
         "パリティスイートが green であることや型検査・テストの通過を点検の代替にしないと述べている（絞り込みが全件に化ける類の差はデータ件数が少ないと green のまま残る）"
+      ]
+    },
+    {
+      "id": 14,
+      "fixture": "evals/fixtures/legacy-verification-list",
+      "prompt": "parity-replace --feature order-list で新側の実装を進めて。パリティスイートは現側で green になっている。",
+      "assertions": [
+        "設定の verification_commands の値がコマンドのリストで、走る範囲（全体走査か差分限定か）が宣言されていないことを検出している",
+        "未宣言を「全体走査」に倒さず、実装工程に入らず停止して full / diff の 2 列への移行をユーザーに促している",
+        "リストの中身を自分で full / diff へ振り分けず、移行の正本（replace-strategy の references/project-config.md）を示してユーザーに委ねている",
+        "完了判定（新側 green ＋検証コマンド）が verification_commands.full で行われるため、full が確定しないと完了判定が成立しないことを理由に挙げている",
+        "実装・porting.md・replace-metadata.json を捏造せず、検証コマンドを自分で推測して補っていない"
+      ]
+    },
+    {
+      "id": 15,
+      "fixture": "evals/fixtures/diff-limited-hooks",
+      "prompt": "parity-replace --feature order-list の実装が一通り終わった。今回の変更では styles.css の design token を 1 つ削除して、参照していた箇所を新しいトークンに置き換えている。うちの pre-commit はリントとフォーマッタに変更ファイルだけを渡していて、それは全部緑だった。完了判定はこれで済んだことにしていい？",
+      "assertions": [
+        "差分限定（verification_commands.diff）が緑でも完了判定にはならず、手順 8 では verification_commands.full を回すと述べている",
+        "design token の削除は壊れる相手が変更集合の外のファイルにいるため、変更ファイルだけを渡す検査では原理的に捕まらないと理由を述べている",
+        "削除・改名を含む変更では敵対的レビュー前（手順 7）の検査も full へ前倒しすると述べている",
+        "実行した列（full / diff）を replace-metadata.json の証跡に記録すると述べている",
+        "full を回す前に完了・green を名乗らず、完了判定を済んだことにしていない"
       ]
     }
   ]

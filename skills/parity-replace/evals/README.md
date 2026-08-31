@@ -35,5 +35,9 @@ scripts/run-skill-eval.sh \
   `start` も `commit_check` も持たない配信型 target（develop）へ軽量経路を確認なしに適用しないパスを検証する
 - eval 13 は前提の有無に関わらず成立する契約説明として、**DB の方言差を実装前に点検する**契約（`references.db_semantics` を書く前に読む・未整備でも推測で埋めない・`porting.md` の「DB 方言差の点検結果」へ該当なしも含めて記録する・吸収しない差は `intentional_diffs.pending` へ回す）を検証する。
   点検項目の正本は `replace-strategy` の `references/project-config.md`「DB 意味論」
+- eval 14 の fixture（`legacy-verification-list`）は `verification_commands` の値が**旧形式のコマンドリスト**（走る範囲が未宣言）の設定を持たせ、
+  未宣言を「全体走査」に倒さず実装工程に入らず停止し、`full` / `diff` の 2 列への移行を促すパスを検証する（移行の正本は `replace-strategy` の `references/project-config.md`「`verification_commands` の形の変更」）
+- eval 15 の fixture（`diff-limited-hooks`）は `full` と `diff` の 2 列を持つ設定を持たせ、**差分限定の列が緑でも完了判定にはならない**こと
+  （定義元の削除は変更集合の外を壊すため差分限定では捕まらない・手順 7 も `full` へ前倒しする・実行した列を証跡へ記録する）を検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

@@ -51,5 +51,7 @@ scripts/run-skill-eval.sh \
 - eval 22 の fixture（`origin-received-assets`）は `current.origin: received-assets` と `url: none` の current target、受領した DDL だけを持たせ、
   **測定の前に `current-environment-bootstrap` へ委譲し、再構築を代行しない**ことを検証する。
   受領資産を fixture に置くのは、置かないと「再構築を代行しない」が「材料が無いからできない」と区別できないため
+- eval 24 は fixture 無しで会話だけで判定できる契約として、**`verification_commands` を走る範囲で `full` / `diff` の 2 列に分けて確定する**こと
+  （変更ファイルを渡しているフックのコマンドを機械的に `full` へ入れない・スクリプト側の引数の扱いまで読む・`references.coding_conventions` の項目を「`full` で落ちるか」で仕分けて未検査を記録する）を検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
