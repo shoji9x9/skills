@@ -126,7 +126,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    適用詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録・報告し、恒久マスクの検証結果である既存 `.masks` へ混ぜない
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
 5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
-6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。
+6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。**モデルに聞くのは要対応／許容／環境ノイズの 3 値**で、どれとも判断できない候補は未説明のまま残す（`diff.md` の分類欄には未説明も並ぶ）。
    「許容」の確定はユーザー承認で、**承認は原因単位**（同一原因の N インスタンスを 1 回で確定する。代表インスタンスの判断材料と件数 N を UI に載せる）。
    テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 3 つ（収束／**他機能待ち**／未収束）。
