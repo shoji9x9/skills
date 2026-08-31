@@ -82,8 +82,8 @@ regenerate_index() {
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
 			# 非 UTF-8 ロケールではバイト単位になり UTF-8 を壊しうるため、UTF-8 のときだけ切り詰める。
 			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では切り詰めず安全側に倒す。
-			if locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8'; then
-				summary=${summary:0:80}
+			if locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8' && [ "${#summary}" -gt 80 ]; then
+				summary=${summary:0:79}…
 			fi
 			echo "- \`$(basename "${f}")\` — ${meta}— ${summary}"
 		done
@@ -107,6 +107,8 @@ fi
 mkdir -p "${archive_dir}"
 archive_abs=$(cd "${archive_dir}" && pwd)
 moved=0
+rewritten=""
+trap '[ -z "${rewritten}" ] || rm -f "${rewritten}"' EXIT
 for arg in "$@"; do
 	f=$(resolve_path "${arg}")
 	if [ ! -f "${f}" ]; then
@@ -126,10 +128,26 @@ for arg in "$@"; do
 		echo "skip (name collision in archive): ${arg} -> ${dest}" >&2
 		continue
 	fi
+	tracked=0
 	if git ls-files --error-unmatch "${f}" >/dev/null 2>&1; then
+		tracked=1
 		git mv -- "${f}" "${archive_dir}/"
 	else
 		mv -- "${f}" "${archive_dir}/"
+	fi
+	# ノートは .kaizen/ から .kaizen/archive/ へ 1 階層深く移るため、ノート位置を
+	# 基準にする ../ リンクも 1 階層分補正する。リンク先の残りや title は触らない。
+	# 一時ファイルから元ファイルへ書き戻し、mv 済みファイルの mode は維持する。
+	dest="${archive_dir}/$(basename "${f}")"
+	rewritten="${dest}.kaizen-archive-tmp"
+	sed 's#](\.\./#](../../#g' "${dest}" >"${rewritten}"
+	cat "${rewritten}" >"${dest}"
+	rm -f "${rewritten}"
+	rewritten=""
+	# git mv で stage した rename の後に本文を書き換えたため、tracked ノートは
+	# 移動先を再度 stage して index にもリンク補正を反映する。
+	if [ "${tracked}" -eq 1 ]; then
+		git add -- "${dest}"
 	fi
 	moved=$((moved + 1))
 done
