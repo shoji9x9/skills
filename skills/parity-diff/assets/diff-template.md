@@ -78,10 +78,10 @@
 <!-- 原因が確定していない候補はこの表に行を作らない（承認単位にしない）。5.2 に記録先も cause も空のまま未承認で残し、未説明として数える。 -->
 <!-- 件数 N は承認時に提示した件数の累計。JSON 側の cause 参照数と一致すること（JSON 側が多ければ承認後に足された未承認インスタンスがあるので、増分の承認を取るまで収束させない）。 -->
 
-| cause（原因 id） | 識別ラベル（`reason`） | 覆うインスタンス件数 N と内訳（ページ／状態／ビューポート） | 承認 UI に提示した代表インスタンスと判断材料 | ユーザー承認（有無・日時） |
+| cause（原因 id） | 識別ラベル（`reason`） | 覆うインスタンス件数 N と内訳（ページ／状態／ビューポート／要素） | 承認 UI に提示した代表インスタンスと判断材料 | ユーザー承認（有無・日時） |
 |---|---|---|---|---|
-| （例: font-subset-weight600） | （例: フォントのサブセットビルド差による weight 600 のラスタライズ差） | （例: 7 件。一覧 default desktop 5 / 詳細 default desktop 2） | （例: 一覧 default desktop の見出し 1 件の crop 対 ＋ 観測条件の表 ＋ 源流で消せない理由） | 承認済み（ISO 8601） |
-| （例: chip-radius-rounding） | （例: 角丸のサブピクセル丸め差） | （例: 3 件〈初回 2 ＋ 増分 1〉。一覧 default desktop 2 / 一覧 default mobile 1） | （例: 初回は一覧 default desktop の 1 件、増分は mobile の 1 件を提示） | 承認済み（初回 ISO 8601 ／増分 ISO 8601） |
+| （例: font-subset-weight600） | （例: フォントのサブセットビルド差による weight 600 のラスタライズ差） | （例: 7 件。一覧 default desktop の見出し 5 / 詳細 default desktop の見出し 2） | （例: 一覧 default desktop の見出し 1 件の crop 対 ＋ 観測条件の表 ＋ 源流で消せない理由） | 承認済み（ISO 8601） |
+| （例: chip-radius-rounding） | （例: 角丸のサブピクセル丸め差） | （例: 3 件〈初回 2 ＋ 増分 1〉。一覧 default desktop の chip 2 / 一覧 default mobile の chip 1） | （例: 初回は一覧 default desktop の 1 件、増分は mobile の 1 件を提示） | 承認済み（初回 ISO 8601 ／増分 ISO 8601） |
 
 ### 5.2 候補ごとの記録先
 
