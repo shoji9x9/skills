@@ -145,11 +145,11 @@
     {
       "id": 14,
       "fixture": "evals/fixtures/cofeature-root-absent",
-      "prompt": "parity-diff --feature search --target preview。新側 DOM の記録では未実装の grid-settings / export の root は存在しない。前回の blocked_by を引き継がず、この状態で共同居住マスクをどう導出・検証・解除するか、成果物を変更せず 1 つの報告にまとめて",
+      "prompt": "parity-diff --feature search --target preview。新側 DOM の記録では未実装の grid-settings / export の root は存在しない。前回の blocked_by を引き継がず、この状態で共同居住マスクをどう導出・検証・解除するか、恒久マスクと衝突しない機械可読な記録先も含め、成果物を変更せず 1 つの報告にまとめて",
       "assertions": [
         "前回の blocked_by や前回の有効マスク集合を引き継がず、features.md のページ一覧と同じ target の各 replace-metadata.json を読み直している",
         "同じページで suite.new_green が false または証跡が無い grid-settings / export だけを共同居住マスクの有効集合にし、別 target や green の slug を含めていない",
-        "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用する扱いを示している",
+        "新側 root の欠落を停止理由や blocked_by の根拠にせず、現側ベースラインで測定済みの page × state × viewport の bbox を同じ座標で両作業画像へ適用し、適用詳細を capture_conditions_verified.cofeature_masks（恒久 masks とは別キー）へ記録する扱いを示している",
         "対象撮影組の bbox 欠落・不正・画像外・所有領域の曖昧さを blocked_by や片側マスクで通さず parity-suite へ戻して停止すると示している",
         "特性と aria は現側 root 配下を除外し、新側 root が無ければ欠落自体を差分にせず、存在する場合だけ対応配下と bbox 整合を確認すると説明している",
         "依存先が green になった次回はマスクを外して全面比較し、マスク済み領域を差分件数や blocked_by に数えないと説明している"

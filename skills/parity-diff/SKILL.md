@@ -119,6 +119,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    `url_command` の target は手順 1 の target 解決時に解決した URL を再利用する（工程ごとに再実行しない）。
    **条件一致を先行検証**し、不一致なら差分報告せず停止する。新側の自己ノイズも測り（往復ループでは前回実行の測定値を組単位で再利用してよい。失効条件は同 reference）、現側 `noise_baseline` との乖離が大きければ停止する。
    既存の新側ベースラインから再開する場合も、差分検出の前に同 reference「共同居住機能の実行時マスク」を必ず通す。ページ一覧と同 target の green 証跡から有効集合を再導出し、現側由来の `bbox` を両画像へ適用する。新側 root が無いことを停止理由や `blocked_by` の根拠にしない
+   適用詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録・報告し、恒久マスクの検証結果である既存 `.masks` へ混ぜない
 4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
 5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
 6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。分類は要対応／許容／環境ノイズの 3 値。「許容」の確定はユーザー承認。

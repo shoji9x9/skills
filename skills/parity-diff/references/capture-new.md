@@ -70,7 +70,8 @@
 5. 新側 root の解決は必須にしない。未実装なら新側 DOM に root が無いのが正常なので、現側由来の同じ `bbox` を現側・新側の作業画像へ適用する。新側 root が解決できた場合だけ、その矩形が記録済み `bbox` 内に収まることを確認し、外なら「別領域を隠す恐れ」として停止する
 6. 恒久 `masks` を適用済みの正本は上書きしない。画素は両作業画像の同じ座標へ同じマスク色を適用する。特性照合と aria は現側の `name` 配下を比較入力から外し、新側に対応 root が存在する場合だけその配下も外す。新側 root の欠落自体をエラーや aria 差分にしない
 
-`diff.md` と `diff-metadata.json.capture_conditions_verified.masks` には、ページ・状態・ビューポートごとに有効にした `slug → name + bbox`、読んだ green 証跡のパスと値、新側 root の有無を記録する。
+`diff.md` と `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` には、ページ・状態・ビューポートごとに有効にした `slug → name + bbox`、読んだ green 証跡のパスと値、新側 root の有無を記録する。
+恒久 `capture_conditions.masks` の検証結果は既存の `capture_conditions_verified.masks` にだけ記録し、共同居住マスクを混ぜない。用途を分離しないと、恒久マスクの解決成功と実行時に増減する候補集合を同じ値から判定できなくなる。
 依存先が green になれば次回は集合から外れ、最終の 1 回はその領域を含む全面比較になる。共同居住マスクの外に残った未実装由来の差分だけが `blocked_by` の候補であり、マスク済み領域を差分件数や `blocked_by` に数えない。
 
 実行結果の報告には、正常系だけでなく次の境界も含める。ここを省くと、新側 root 欠落を許す変更が別の異常まで成功扱いするように読める。
