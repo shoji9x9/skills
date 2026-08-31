@@ -39,7 +39,7 @@
         "develop の new/develop/replace-metadata.json が無いことを検出し「その環境ではまだ green 証跡が無い」として停止している",
         "同じ --target develop での parity-replace の実行を案内している",
         "local-dev の green 証跡・新側ベースラインを develop 用に流用・複製・捏造していない",
-        "develop が db を持たない target であることの扱い（データセットバージョン三者一致の免除、またはデータ依存差分が未検証になる旨）に触れている"
+        "develop が db を持たない target であることの扱い（データセットバージョン三者整合の免除、またはデータ依存差分が未検証になる旨）に触れている"
       ]
     },
     {
