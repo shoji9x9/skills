@@ -1,5 +1,5 @@
 [
-  "With-skill passed all 24 formal assertions; without-skill passed 14 of 22, for a +36.3 percentage-point delta.",
+  "With-skill passed all 24 formal assertions (24/24); without-skill passed 16 of 24 (66.7%). The mean per-eval pass rate is 100% vs. 64%, a +36.3 percentage-point delta.",
   "Eval 15 is non-discriminating in this run: both configurations passed all four assertions.",
   "Eval 16 separates the explicit migration contract: without-skill did not produce one changes entry per version with affects: [\"*\"].",
   "Eval 17 separates evidence provenance and artifact shape: without-skill omitted current-target observation and the complete consumer-parameters record.",
