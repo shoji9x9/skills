@@ -16,7 +16,7 @@
     "effort": "<エフォート。省略不可>",
     "skill_version": "<parity-suite のバージョン>"
   },
-  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。現在より古ければ陳腐化として再取得する>",
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。現在より後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として再取得する。数値が古いだけなら有効>",
   "suite": {
     "dir": "<parity_suite_dir。未指定時 e2e/>",
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",

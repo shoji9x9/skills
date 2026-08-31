@@ -6,6 +6,7 @@
 <!-- dataset_mode: static では「テーブル」を静的データの単位、「外部キー整合・必須項目」をファイル間の参照整合・必須フィールドと読み替える。 -->
 
 - version: （metadata.json の version と一致）
+- affects: （この version で変更したテーブル／静的データ単位。metadata.json の changes と一致）
 - mode: （db | static。metadata.json の mode と一致）
 - 最終更新: （ISO 8601）
 

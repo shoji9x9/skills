@@ -53,7 +53,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
   - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
   - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
-    `phase_b.<slug>.<target>.dataset_version` が現在の `version` と一致すること。欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。
+    `phase_b.<slug>.<target>.dataset_version` が存在し、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないこと。
+    影響変更があれば `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。数値が古いだけなら再投入しない。
+    判定契約は `golden-dataset` の `references/versioning.md` を参照する。
     **投入対象**は設定の `dataset_mode` で決まる——`db`（既定）なら `db.seedable: true` の target のみ、`static` ならすべての target（契約の正本は `replace-strategy` の `references/project-config.md`）。
     投入対象でない target はフェーズ B の対象外（投入しないため不要。データ整合の未検証は `parity-diff` が扱う）
 - **パスは推測せず `.replace/parity/<slug>/metadata.json` から引く**（スイート・現側マッピング・操作アダプタの実パス）。`slug` は `.replace/features.md` から引き、自分で採番しない
@@ -162,7 +164,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   `start` の無い配信型 target（デプロイで更新される環境）は稼働中のコードが同じ commit とは限らないため、`commit_check` があればその標準出力の SHA と照合し、
   無ければ「対象環境に commit `<SHA>` がデプロイ済みか」をユーザーに確認してから適用する（確認が取れなければ適用しない）
 - **飛ばす手順**: 2（ページ分割）・3（部品の洗い出しと依存の決定）・4（実装）・6（見た目の系統差）・7（敵対的レビュー）。手順 5 は**新側マッピングの充填を行わず、フェーズ B 確認・target の起動・green 化だけ**を行う
-- **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` ＝ 現在の `version` を確認し、
+- **回す手順**: 1（前提検証・target 確定）→ **フェーズ B の確認**（対象 target が投入対象の場合のみ。`.replace/dataset/metadata.json` の `phase_b.<slug>.<target>.dataset_version` 後に対象 slug へ影響する `changes` が無いことを確認し、
   欠け／古ければ `golden-dataset --phase b --feature <slug> --target <target>` を先に実行）→ 対象 target の稼働確認（`check_urls`。落ちていれば `pre_commands` → `start` → 再確認）→
   スイートを新に対して green 化 → 検証コマンド（設定 `verification_commands`）→ 8（`new/<target>/replace-metadata.json` へ証跡を記録）
 - **green にならなければ、まずデータを疑う**（フェーズ B 未実施・データセットバージョンの不一致）。次に環境差（URL・起動・外部依存・認証）を疑う。

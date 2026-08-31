@@ -22,7 +22,7 @@
 | target の稼働確認（check_urls）と、落ちていた場合のみの起動（pre_commands → start） | （実行したもの／稼働中のため起動なし） | （OK／停止） |
 | parity-suite 完了（suite.current_green・validated_by_strength_gate＋モード別の追加要求） | （値） | （OK／停止） |
 | parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | （true／false） | （OK／停止） |
-| データセットバージョン三者一致（metadata / dataset.version / `phase_b.<slug>.<target>`） | （3 値。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （一致／免除／陳腐化→差し戻し先） |
+| データセットバージョン三者整合（metadata / dataset changes / `phase_b.<slug>.<target>`） | （3 値と記録後に交差した affects。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （影響変更なし／免除／陳腐化→差し戻し先） |
 | 条件一致検証（viewports / animations / masks / states / environment の 5 項目） | （項目ごとの結果。environment は原則 unverified） | （OK／停止） |
 | 新側の自己ノイズ（noise_baseline_new と現側 noise_baseline の対比） | （組ごとの値と source＝measured／reused の別・その組の measured_at。再測定した組はその失効条件） | （OK／乖離→停止） |
 | 差分器バージョン一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |

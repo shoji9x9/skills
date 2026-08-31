@@ -1,0 +1,8 @@
+[
+  "With-skill passed all 24 formal assertions; without-skill passed 14 of 22, for a +36.3 percentage-point delta.",
+  "Eval 15 is non-discriminating in this run: both configurations passed all four assertions.",
+  "Eval 16 separates the explicit migration contract: without-skill did not produce one changes entry per version with affects: [\"*\"].",
+  "Eval 17 separates evidence provenance and artifact shape: without-skill omitted current-target observation and the complete consumer-parameters record.",
+  "Eval 18 separates fail-closed execution: without-skill allowed a diagnostic diff and proposed contract-incompatible empty/no-op changes, while with-skill stopped before parity-diff.",
+  "Eval 8 with-skill passed its assertions but its generated design states that page size 6 and tag/page behavior were assumed because source and observations were absent; the current assertions do not detect this conflict with the no-guessing contract."
+]

@@ -98,7 +98,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 `targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
 
-対象テーブル・リソースドメインは `.replace/features.md` から引く。**テーブルは 3 つの表（機能一覧の「テーブル」列・横断 API とバッチの「参照テーブル」列）に分散しているので 3 つとも読む**（詳細: [`references/data-design.md`](references/data-design.md)）。
+対象テーブル・リソースドメインは `.replace/features.md` から引く。**テーブルは 3 つの表（機能一覧の「テーブル」列・横断 API とバッチの「参照テーブル」列）に分散しているので 3 つとも読む**。その後、現行コード／実測から各消費側の絞り込み列・並び替え列・ページサイズを導き、必要な値と件数を決める（詳細: [`references/data-design.md`](references/data-design.md)）。
 
 - **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する
 - **本スキルは設定を生成しない**（読むだけ）。例外は**非破壊追記の 2 つ**——フェーズ B で見つかった新規の意図的差異を `intentional_diffs.pending` へ追記してユーザー確認へ回すことと、
@@ -133,7 +133,9 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
    **`current.origin: received-assets` では、未確定の意味論（「確認待ち」と「確認したが確定できなかったもの」の両方）のせいで最低限のシナリオを確定できなかった機能を
    `verification.md` の「意味論が未確定の機能」へ slug 単位で記録する**
    （`parity-suite` がこの記録を読んで開始可否を判断する。**捏造で埋めて「確認済み」にしない**）
-7. **成果物記録**: `design.md` / `verification.md` / `metadata.json` を生成し、**投入ツールとデータをコミットする**（本番由来でなく PII を含まないため。大きなバイナリをコミットしない規約は視覚ベースラインの話でここには当てはまらない）。
+7. **成果物記録**: `design.md` / `verification.md` / `metadata.json` を生成し、**投入ツールとデータをコミットする**
+   （本番由来でなく PII を含まないため。大きなバイナリをコミットしない規約は視覚ベースラインの話でここには当てはまらない）。
+   初回は `changes` に version 1、再実行は新 version と実際に変更したテーブル／静的データ単位の `affects` を追記し、過去の履歴を保持する。
    `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで:
    - **`db`**: `current.target` に**投入先の current target 名**を記録する（`parity-suite` がベースライン採取時に自分の選択 target と照合し、不一致なら停止する）
    - **`static`**: 投入先環境を持たないため `current.target` と `current.seeded_at` を `null` にし、代わりに `current.fingerprint` へ生成物の決定論的ハッシュを記録する
@@ -173,4 +175,4 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
   暫定起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動要件だけを本スキルのデータ設計へ取り込む
 - **`parity-suite`**: フェーズ A 完了（＝`.replace/dataset/metadata.json` の存在）が前提。探索でシード不足を見つけると `gaps.md`「データ不足」で本スキルへ戻る。戻ると `version` が上がり、影響ベースラインを再取得する
 - **`parity-replace`**: フェーズ B の前提となる新側スキーマを作る。自分が選んだ新側 target を渡して `golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
-- **`parity-diff` / `replace-strategy status`**: `metadata.json` の `version` で陳腐化を検出する（記録 < 現在なら再取得）。フェーズ B の投入状況は `phase_b.<slug>.<target>` を target 単位で見る
+- **`parity-diff` / `replace-strategy status`**: `metadata.json` の version 順序と `changes[].affects` を slug の実効参照テーブルに照合して陳腐化を検出する。フェーズ B の投入状況は `phase_b.<slug>.<target>` を target 単位で同じ判定にかける

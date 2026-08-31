@@ -1,6 +1,12 @@
 {
-  "_note": "golden-dataset が .replace/dataset/metadata.json として生成する。形式の正本は golden-dataset が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。version の運用（+1 の条件・フェーズ B で不変・陳腐化検出）の正本は references/versioning.md。mode は設定の dataset_mode（db | static）を写したもので、db では current.target がフェーズ A の投入先 current target 名（parity-suite がベースライン採取時に自分の選択 target と一致するか照合する）、static では投入先環境を持たないため current.target と current.seeded_at を null にし current.fingerprint を記録する（parity-suite は current.target が null なら照合しない）。phase_b は slug（.replace/features.md が採番したもの）をキーに、さらに投入先の new 側 target 名をキーとして { dataset_version: 新側へ投入した version（数値）, seeded_at: ISO 8601, verified_at: ISO 8601 } を持つ。フェーズ B 未実施の slug / target はキーを作らず、初回生成時は空オブジェクトのままにする。",
+  "_note": "golden-dataset が .replace/dataset/metadata.json として生成する。形式の正本は golden-dataset が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。version / changes の運用（+1 の条件・影響範囲・フェーズ B で不変・陳腐化検出）の正本は references/versioning.md。changes は version ごとの変更履歴を欠番なく保持し、affects に変更したテーブル／静的データ単位を列挙する。全機能へ波及する変更だけ * を使う。mode は設定の dataset_mode（db | static）を写したもので、db では current.target がフェーズ A の投入先 current target 名（parity-suite がベースライン採取時に自分の選択 target と一致するか照合する）、static では投入先環境を持たないため current.target と current.seeded_at を null にし current.fingerprint を記録する（parity-suite は current.target が null なら照合しない）。phase_b は slug（.replace/features.md が採番したもの）をキーに、さらに投入先の new 側 target 名をキーとして { dataset_version: 新側へ投入した version（数値）, seeded_at: ISO 8601, verified_at: ISO 8601 } を持つ。フェーズ B 未実施の slug / target はキーを作らず、初回生成時は空オブジェクトのままにする。",
   "version": 1,
+  "changes": [
+    {
+      "version": 1,
+      "affects": ["<初期生成で投入したテーブル／静的データ単位。全体なら *>"]
+    }
+  ],
   "mode": "<db | static。設定の dataset_mode の値（省略時は db）>",
   "base_time": "<基準時刻（ISO 8601）。時刻依存データはここからの相対で生成する>",
   "generated_at": "<生成日時（ISO 8601）>",
