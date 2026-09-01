@@ -202,6 +202,42 @@ test("id 欠落のインスタンスも同様に、その列ぶんのセルが�
   expect(r.unmeasured).toBe(2);
 });
 
+test("declared: false は reason が必須（免除の根拠が残らない形を通さない）", () => {
+  expect(readDeclaration({ component_coverage: { declared: false } })).toMatchObject({
+    judged: false,
+    malformed: true,
+  });
+  expect(readDeclaration({ component_coverage: { declared: false, reason: "  " } })).toMatchObject({
+    judged: false,
+    malformed: true,
+  });
+});
+
+test("components[].id が空・重複でも期待セルは 項目数 × インスタンス数 で数える", () => {
+  const grid = {
+    items: [{ id: "a" }, { id: "b" }],
+    instances: [{ id: "p1" }, { id: "p2" }, { id: "p3" }],
+  };
+  const noId = countCoverage(
+    { slug: "order-list", components: [{ ...grid }], cells: [] },
+    "order-list",
+  );
+  expect(noId).toMatchObject({ cells: 6, unmeasured: 6 });
+  const dup = countCoverage(
+    {
+      slug: "order-list",
+      components: [
+        { id: "grid", ...grid },
+        { id: "grid", ...grid },
+      ],
+      cells: [],
+    },
+    "order-list",
+  );
+  // 1 つ目は通常展開（6 セル・全未測定）、2 つ目は重複として 6 セルぶん未測定。
+  expect(dup).toMatchObject({ cells: 12, unmeasured: 12 });
+});
+
 test("型崩れの metadata.json は旧成果物に倒さず malformed として弾く", () => {
   expect(readDeclaration([])).toMatchObject({ judged: false, malformed: true });
   expect(readDeclaration({ component_coverage: [] })).toMatchObject({
@@ -270,6 +306,13 @@ test("CLI: declared: true なのに被覆表が読めなければ合格に倒さ
   const r = runCli(declared, null);
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout)).toMatchObject({ judged: true, unmeasured: null });
+});
+
+test("CLI: 未測定 0 でも不整合が残れば error 行を出して exit 1 する", () => {
+  const r = runCli(declared, { slug: "order-list", components: [], cells: [] });
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout).unmeasured).toBe(0);
+  expect(r.stderr).toMatch(/error: 被覆表の不整合/);
 });
 
 test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 に倒さない）", () => {

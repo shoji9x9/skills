@@ -76,7 +76,7 @@
   - `unmeasured`: 測っていない。`unmeasured_reason` に理由を書き、`gaps.md` にも残す
 - **行が無い組み合わせは `unmeasured` として数える**（fail-closed）。`present` / `absent` なのに `evidence` が空、`present` なのに `covered_by` が空のセルも同じ——測った証拠が無いものを測った扱いにしない
 - 期待セル数（部品ごとの 項目数 × インスタンス数 の合計）と未測定数を `metadata.json` の `component_coverage` に書く。**`declared: true` のときだけ `parity-diff` の収束判定に入り、未測定が残る間は収束しない**（判定の正本は `parity-diff` の `references/convergence.md`）
-- **部品を使っていない、または資料にも実 UI にも到達できず列挙を起こせない場合は `declared: false` と理由を書き、同じ理由を `gaps.md` に残す。キーごと省略しない**——キーの欠落は「旧版の `parity-suite` が作った成果物」の意味で、`parity-diff` が後方互換のため判定を飛ばす経路になる（測らなかった事実がそこへ紛れる）
+- **部品を使っていない、または資料にも実 UI にも到達できず列挙を起こせない場合は `declared: false` と理由を書き、同じ理由を `gaps.md` に残す。理由は必須で、空だと `parity-diff` 側が落とす。キーごと省略しない**——キーの欠落は「旧版の `parity-suite` が作った成果物」の意味で、`parity-diff` が後方互換のため判定を飛ばす経路になる（測らなかった事実がそこへ紛れる）
 - 被覆表は現側の測定結果なので **slug 直下に 1 つ**（環境別に分けない）。`api-resource` / `batch` モードは画面部品を持たないため作らない
 
 ## 同じページに乗る他機能の在席

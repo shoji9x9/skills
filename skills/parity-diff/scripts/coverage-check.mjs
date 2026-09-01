@@ -68,8 +68,12 @@ export function readDeclaration(metadata) {
   }
   const d = /** @type {Record<string, unknown>} */ (decl);
   if (d.declared === false) {
-    const why = nonEmptyString(d.reason) ? String(d.reason) : "理由の記載なし";
-    return skip(`declared: false（${why}）`);
+    // 免除経路は理由の記録とセットでだけ成立する。理由が無い declared: false を通すと、
+    // 「測らなかった事実」がどの成果物にも残らないまま収束条件を外せる（緩和経路の抜け道）。
+    if (!nonEmptyString(d.reason)) {
+      return bad("component_coverage.declared: false なのに reason が空（免除の根拠が残らない）");
+    }
+    return skip(`declared: false（${String(d.reason)}）`);
   }
   if (d.declared !== true) {
     return bad("component_coverage.declared が真偽値ではない（型崩れ）");
@@ -184,22 +188,26 @@ export function countCoverage(coverage, slug) {
 
   for (const [componentIndex, component] of components.entries()) {
     const c = /** @type {Record<string, unknown>} */ (component || {});
+    const items = Array.isArray(c.items) ? c.items : [];
+    const instances = Array.isArray(c.instances) ? c.instances : [];
+    // 期待セル数は部品を識別できるかに依らず「項目数 × インスタンス数」で数える。部品側の id が
+    // 空・重複でもセルは実在するので、1 セルに丸めるとレポート値が定義より小さく出る（列挙が
+    // 空のときだけ 0 に落ちてしまうため、fail-closed の下限として 1 を取る）。
+    const declaredCells = Math.max(items.length * instances.length, 1);
     if (!nonEmptyString(c.id)) {
       problems.push(`components[${componentIndex}]: id が空（識別できないので未測定として数える）`);
-      cells += 1;
-      unmeasured += 1;
+      cells += declaredCells;
+      unmeasured += declaredCells;
       continue;
     }
     const cid = String(c.id);
     if (seenComponents.has(cid)) {
       problems.push(`components[${componentIndex}]: id ${cid} が重複している（先勝ちにしない）`);
-      cells += 1;
-      unmeasured += 1;
+      cells += declaredCells;
+      unmeasured += declaredCells;
       continue;
     }
     seenComponents.add(cid);
-    const items = Array.isArray(c.items) ? c.items : [];
-    const instances = Array.isArray(c.instances) ? c.instances : [];
     if (items.length === 0 || instances.length === 0) {
       // 空の列挙は期待セル 0 ＝ 未測定 0 に化けるので、fail-closed で 1 件の未測定として数える。
       problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
@@ -390,9 +398,16 @@ export function main(argv, deps = {}) {
     `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: true, reason: null, source, ...counted }, null, 2)}\n`,
   );
   for (const p of counted.problems) process.stderr.write(`warn: ${p}\n`);
+  // exit 1 の理由は必ず error 行として出す。problems はあるが未測定 0（components が空など）のとき
+  // warn だけだと、終了コードが 1 になった理由が利用者から読めない。
   if (counted.unmeasured > 0) {
     process.stderr.write(
       `error: 未測定 ${counted.unmeasured} / 期待セル ${counted.cells} — 収束させず parity-suite へ戻す\n`,
+    );
+  }
+  if (counted.problems.length > 0) {
+    process.stderr.write(
+      `error: 被覆表の不整合 ${counted.problems.length} 件（上の warn を参照）— 収束させず parity-suite へ戻す\n`,
     );
   }
   return ok ? 0 : 1;
