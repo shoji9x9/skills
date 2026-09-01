@@ -1,0 +1,51 @@
+{
+  "_note": "parity-suite が .replace/parity/<slug>/component-coverage.json として生成する。形式の正本は parity-suite が定義する。部品（データグリッド・エディタ等、1 つで多数の操作を持つ共通コンポーネント）について、機能表の項目 × 部品インスタンス（ページ）の被覆表を持つ。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。値は present / absent / unmeasured の 3 値で、cells に行が無い組み合わせは unmeasured として数える（欠落を「無」に倒さない）。同じ部品でもインスタンスごとに設定が違うため、1 インスタンスで測った結果を他インスタンスへ流用しない。parity-diff は metadata.json の component_coverage.declared が true のときだけこのファイルを読み、unmeasured が残る間は収束させない。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
+  "components": [
+    {
+      "id": "<部品 id。cells から参照する>",
+      "name": "<部品名（例: 商用データグリッド）>",
+      "version": "<現行アプリが使っている版。入手できなければ unknown>",
+      "source": {
+        "kind": "<vendor-feature-list | vendor-test-spec | official-sample | app-ui。列挙をどこから起こしたか。ベンダー資料が入手できず現行アプリの実 UI から洗い出した場合は app-ui>",
+        "ref": "<資料の所在（URL・ファイルパス・文書名と版）。app-ui のときは洗い出しに使った画面と手順>",
+        "retrieved_at": "<資料を参照した日時（ISO 8601）>",
+        "note": "<資料は列挙の生成源であって比較の正解ではない。正解は動いている現行アプリ>"
+      },
+      "items": [
+        {
+          "id": "<項目 id。cells から参照する>",
+          "category": "<機能表の分類（例: 行操作）>",
+          "name": "<項目名（例: 右クリックのコンテキストメニュー）>"
+        }
+      ],
+      "instances": [
+        {
+          "id": "<インスタンス id。cells から参照する>",
+          "page": "<metadata.json.capture_conditions.pages[].name と同じ語彙のページ名>",
+          "locator": "<そのインスタンスを引く論理名（ロケータマッピングで解決できる名前）>"
+        }
+      ]
+    }
+  ],
+  "cells": [
+    {
+      "component": "<部品 id>",
+      "item": "<項目 id>",
+      "instance": "<インスタンス id>",
+      "value": "<present | absent | unmeasured>",
+      "evidence": "<測った操作と観測結果（present / absent はここが空だと未測定として数える）>",
+      "covered_by": [
+        "<present のとき、その操作を押さえた採取状態（metadata.json.capture_conditions.states の値）または assertion のスペックパス＋テスト名。空なら未測定として数える>"
+      ],
+      "unmeasured_reason": "<unmeasured のときだけ、測れなかった理由（例: 該当データが無く行を選択できない）。present / absent では null>"
+    }
+  ],
+  "totals": {
+    "cells": 0,
+    "present": 0,
+    "absent": 0,
+    "unmeasured": 0
+  }
+}

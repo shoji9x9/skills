@@ -57,7 +57,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
   **拒否するときは正しい進め方（決定論的ツールに検出させ、差分領域の crop 対を 1 件ずつ提示して要対応／許容／環境ノイズの 3 値に分類する）を必ず添える**
 - **現行と異なる条件で新側を撮らない**（環境差を差分として報告しないため）
 - **失効条件を確かめずに自己ノイズ測定値を再利用しない。** 判断材料が欠ければ再利用せず測り直す（安全側）。再利用してもゲート判定は毎回行う
-- **カタログサイト（コンポーネントライブラリの見本）を比較の正解にしない。** 正解は動いている現行アプリ
+- **カタログサイト（コンポーネントライブラリの見本）・部品ベンダーの機能一覧を比較の正解にしない。** どちらも状態網羅の列挙の生成源であり、正解は動いている現行アプリ
 - **ピクセル比較系 VRT ツールで新旧を突き合わせない**（実装が違えば全面赤になり無意味）
 - **差分をしきい値で潰さない**（特性照合の別経路で捉える）
 - **xlsx・PDF をバイト一致で比較しない**（揮発項目が入るため一致しない）。xlsx はシート × セル値と構造、PDF は抽出テキストと構造で比較する。
@@ -76,6 +76,10 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **承認前の分類を成果物に「許容」と書かない。** 承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で後続の判断の入力になるため）
 - **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
   比較の相手は常に**現行**であり、新側の実験変種どうしの一致を結論にしない。結論を成果物に書くときは測定条件を併記する（書けない結論は未説明のまま残す）
+- **部品被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら `scripts/coverage-check.mjs` で数え直し、未測定が 1 件以上なら `parity-suite` へ戻す
+  （差分器は**採取した状態しか見ない**ため、測っていない操作の欠落は差分ゼロとして通る。判定の正本は [`references/convergence.md`](references/convergence.md)）
+- **被覆表を判定しなかったことを黙って合格にしない。** `declared: false` と `component_coverage` を持たない旧成果物は判定に入れない（後方互換）が、
+  判定しなかった事実と理由を `diff-metadata.json.component_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
 - **他機能の未実装に由来して解消できない差分を、`converged: true` で押し通さない／`parity-replace` へ差し戻さない。** `blocked_by` に帰属させて停止し、依存先の実装後に再実行する（[`references/convergence.md`](references/convergence.md)）
 - **共同居住機能の未実装領域を、実行時マスクより先に `blocked_by` へ分類しない。** 新側 root の欠落は通常状態なので、現側ベースラインで測定済みの target 非依存 `bbox` を両作業画像へ適用し、特性・aria の同領域も除外してから差分検出する。`blocked_by` はマスク外へ残った差分だけに使う
 - **生の差分ゼロを収束条件にしない。** 収束＝未説明差分ゼロ かつ 未修正回帰ゼロ
@@ -129,6 +133,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    「許容」の確定はユーザー承認で、**承認は原因単位**（同一原因の N インスタンスを 1 回で確定する。代表インスタンスの判断材料と件数 N を UI に載せる）。
    テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 3 つ（収束／**他機能待ち**／未収束）。
+   現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
    ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
 
@@ -150,13 +155,15 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **インスタンス例外レジストリとその根拠は環境非依存**なので slug 直下に置く（`gaps.md` / `porting.md` と同じ扱い）。特定の target でだけ出る差は例外ではなく環境差であり、ノイズ基準値と新側の自己ノイズで扱う
 - テキスト成果物（`diff.md` / `diff-metadata.json` / 例外レジストリとその根拠）は Git。
   新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
-- 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) / [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)）は
+- 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
+  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)）は
   **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う
 
 ## 姉妹スキルとの連携
 
 - **依存順**: `replace-strategy`（setup）→ `golden-dataset` → `parity-suite` → `parity-replace` → **`parity-diff`**（`parity-replace` と往復）
 - **`parity-suite` から引き継ぐもの**: 強度ゲートで健全性を確認済みの差分器（画素・特性照合・aria の 3 経路のツール・しきい値）、ノイズ基準値、撮影条件（ページ一覧・マスクの論理名を含む）、
+  部品被覆表（`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読み、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`suite.new_only`）。すべて `.replace/parity/<slug>/metadata.json` 経由
 - **`parity-replace` から引き継ぐもの**: 新側 green の証拠（`suite.new_green`）・target 名と新側 URL（`new.{target,ui_url,api_url}`。`url_command` の target は `"runtime"` が記録されるため target 設定から再解決する）・新側マッピング例外・実装時に前提としたデータセットバージョン（`dataset_version`）。
   すべて選択 target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` から推測せず引く（スイートは再実行しない）。

@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-01T14:37:41Z",
+    "evals_run": [20, 21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 98.582,
+        "tokens": 107645,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ベンダーの試験仕様書を状態網羅の導出源（列挙の生成源）として使い、比較の正解にはしない（正解は動いている現行アプリ）と答えている",
+          "passed": true,
+          "evidence": "「使える用途（状態網羅の導出源）」と「使えない用途（比較の正解＝オラクル）」に節を分け、coverage.md の『版更新の前後比較用の資料は、採取状態の列挙としてそのまま使える』を引用。『正解は動いている現行アプリです』と明言し、受領資料は現行挙動の確定根拠にしないという厳守制約まで挙げた。"
+        },
+        {
+          "text": "明細一覧で測った結果を検索結果のインスタンスへ流用せず、部品 × ページのインスタンスごとに測ると答えている",
+          "passed": true,
+          "evidence": "『同じ部品の 1 インスタンスで測った結果を、他のインスタンスの測定結果として流用しない』を引用し『インスタンスは「部品 × ページ」で数え』と回答。流用してよいのは『「何を測るか」のチェックリスト（列挙）だけで、「測った結果」ではありません』と区別した。"
+        },
+        {
+          "text": "機能表の項目 × 部品インスタンスの被覆表を .replace/parity/<slug>/component-coverage.json に作り、値を present / absent / unmeasured の 3 値で残すと示している",
+          "passed": true,
+          "evidence": "『component-coverage.json に 24 項目 × 2 インスタンス = 48 セルの表を作り、セルごとに 3 値で埋めます』と述べ、present / absent / unmeasured の 3 行表を提示。別 slug なら slug 直下に 1 つずつ、同一 slug の 2 ページなら 1 表 2 インスタンスと配置まで示した。"
+        },
+        {
+          "text": "現行インスタンスに無い操作も absent として測った結果を記録し、未測定と同じ空欄にしないと説明している",
+          "passed": true,
+          "evidence": "『absent を空欄で済ませないこと。「無いと確かめた」と「測っていない」を同じ空欄にしないのが表の主眼です』、absent の必須記録として evidence（観測）を挙げ、『行が無い組み合わせ・evidence の空欄は unmeasured として数えます（fail-closed）』も添えた。"
+        },
+        {
+          "text": "present のセルは採取状態（capture_conditions.states）か assertion に落として covered_by に書く（列挙しただけでは押さえたことにしない）と答えている",
+          "passed": true,
+          "evidence": "3 値の表で present の必須記録を『covered_by（落とし先）』とし、定義を『そのインスタンスに操作が在り、採取状態か assertion に落とした』とした。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.866,
+        "tokens": 110649,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "行を落としても fail-closed で unmeasured として数えられる（落としても未測定は消えない）と説明し、行を落とす案を採らない",
+          "passed": true,
+          "evidence": "coverage.md の『行が無い組み合わせは unmeasured として数える（fail-closed）』を引用し、『行を落としても穴は消えず、「未測定」として数えられたまま、理由だけが失われます』と述べて行の削除案を明確に断った。"
+        },
+        {
+          "text": "測れなかった組み合わせは value: unmeasured と unmeasured_reason で残し、gaps.md にも記録すると答えている",
+          "passed": true,
+          "evidence": "value: \"unmeasured\" ＋ unmeasured_reason を持つ JSON 行の実例を示し、『同じ内容を gaps.md の「部品被覆表の未測定・非宣言」表にも書き、種別はデータ不足なので golden-dataset へ差し戻す』とした。"
+        },
+        {
+          "text": "metadata.json の component_coverage をキーごと省略しないと答えている",
+          "passed": true,
+          "evidence": "『これが一番危険です』として『キーごと省略しない』を引用し、『不完全なまま declared: true で宣言し、未測定数を正直に書くのが正解』と cells / unmeasured / reason 入りの JSON 例で示した。"
+        },
+        {
+          "text": "キーの欠落は旧版 parity-suite の成果物という意味になり、parity-diff が後方互換で判定を飛ばす経路に測らなかった事実が紛れると説明している",
+          "passed": true,
+          "evidence": "『書かないことは「未宣言」ではなく「旧成果物」というシグナルとして解釈され、parity-diff は被覆表を収束判定に入れずに黙って通します。測らなかった事実がそこへ紛れます』と説明した。"
+        },
+        {
+          "text": "未測定が残る間は parity-diff が収束させないため、測るか理由を残して未測定と宣言するかのどちらかだと示している",
+          "passed": true,
+          "evidence": "『unmeasured が 1 以上の間 parity-diff が収束しないのは不具合ではなく、データ不足が未解決であることを下流に伝える唯一の経路』とし、declared: false が許されるのは部品を使っていない／列挙自体を起こせない場合だけで今回は該当しないと切り分けた。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 65.167,
+        "tokens": 34147,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ベンダーの試験仕様書を状態網羅の導出源（列挙の生成源）として使い、比較の正解にはしない（正解は動いている現行アプリ）と答えている",
+          "passed": true,
+          "evidence": "『使えません。用途が一段ずれています』と答え、ベンダー参照環境での描画であること・偽陽性の山になることを説明。正解は『版更新前の自社アプリを、自社設定・自社データで採取したもの』とし、仕様書はケース設計の骨格・画像 ID は突合キーとして使うと整理した（スキル固有の語彙ではないが、導出源としての用途と正解にしない判断は満たす）。"
+        },
+        {
+          "text": "明細一覧で測った結果を検索結果のインスタンスへ流用せず、部品 × ページのインスタンスごとに測ると答えている",
+          "passed": true,
+          "evidence": "『採取状態の\"決定\"としては流用不可、\"初期案\"としては流用可』と答え、列定義・データソース方式・件数レンジ・検索結果固有の状態を挙げて『設定が同一かつデータ依存でないケースのみ「同等」と判定し、残りは検索結果側で実測』とした。"
+        },
+        {
+          "text": "機能表の項目 × 部品インスタンスの被覆表を .replace/parity/<slug>/component-coverage.json に作り、値を present / absent / unmeasured の 3 値で残すと示している",
+          "passed": false,
+          "evidence": "『24ケース × 2画面 のマトリクス』までは到達したが、値は「同等」「要個別実測」の 2 値仕分けで、present / absent / unmeasured の 3 値ではない。記録先の成果物（component-coverage.json）にも言及がない。"
+        },
+        {
+          "text": "現行インスタンスに無い操作も absent として測った結果を記録し、未測定と同じ空欄にしないと説明している",
+          "passed": false,
+          "evidence": "「無いことを確かめた」を測定結果として記録する概念が無い。仕分けは「同等」か「要個別実測」で、未測定と absent の区別に触れていない。"
+        },
+        {
+          "text": "present のセルは採取状態（capture_conditions.states）か assertion に落として covered_by に書く（列挙しただけでは押さえたことにしない）と答えている",
+          "passed": false,
+          "evidence": "present に相当するセルを採取状態・assertion へ落として記録する（covered_by）という契約に触れていない。『採取タイミング・操作手順の定義』に仕様書を使うとは述べるが、セル側に落とし先を残す話は無い。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 45.122,
+        "tokens": 31724,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "行を落としても fail-closed で unmeasured として数えられる（落としても未測定は消えない）と説明し、行を落とす案を採らない",
+          "passed": false,
+          "evidence": "行を落とすことには反対したが、理由は『「測れなかった」という情報ごと消える』という情報損失で、落としても未測定として数えられる（fail-closed の数え直し）という機構には触れていない。むしろ『見出しが「測定できた組み合わせ一覧」であることが明確なら行を落とす選択もありえます』と条件付きで容認している。"
+        },
+        {
+          "text": "測れなかった組み合わせは value: unmeasured と unmeasured_reason で残し、gaps.md にも記録すると答えている",
+          "passed": false,
+          "evidence": "代替として ✅/❌/⚠️未測定 の 3 値ステータス列を提案したが、value: unmeasured ＋ unmeasured_reason というセルの様式にも gaps.md への記録にも触れていない。"
+        },
+        {
+          "text": "metadata.json の component_coverage をキーごと省略しないと答えている",
+          "passed": false,
+          "evidence": "『「不完全だから書かない」は、欠落が下流でどう解釈されるか次第で判断が変わります』とし、『宣言が無い ＝「カバレッジの主張なし」として扱われるなら書かない選択は安全です』と省略を容認した（キーごと省略しないという契約に達していない）。"
+        },
+        {
+          "text": "キーの欠落は旧版 parity-suite の成果物という意味になり、parity-diff が後方互換で判定を飛ばす経路に測らなかった事実が紛れると説明している",
+          "passed": false,
+          "evidence": "欠落が素通りに化ける可能性は一般論として挙げたが、キーの欠落が「旧版の parity-suite が作った成果物」を意味し parity-diff が後方互換で判定を飛ばす、という具体には到達していない。"
+        },
+        {
+          "text": "未測定が残る間は parity-diff が収束させないため、測るか理由を残して未測定と宣言するかのどちらかだと示している",
+          "passed": false,
+          "evidence": "未測定が残る間は下流の収束が止まる（それが正しい挙動である）という帰結に触れず、TODO / issue として残せばよいという扱いに留めた。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 78.224,
+        "stddev": 28.7906,
+        "min": 57.866,
+        "max": 98.582
+      },
+      "tokens": {
+        "mean": 109147.0,
+        "stddev": 2124.1488,
+        "min": 107645,
+        "max": 110649
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.2828,
+        "min": 0.0,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 55.1445,
+        "stddev": 14.174,
+        "min": 45.122,
+        "max": 65.167
+      },
+      "tokens": {
+        "mean": 32935.5,
+        "stddev": 1713.3197,
+        "min": 31724,
+        "max": 34147
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "+23.1",
+      "tokens": "+76212"
+    }
+  },
+  "notes": []
+}

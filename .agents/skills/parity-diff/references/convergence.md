@@ -20,6 +20,24 @@
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
+  - **部品被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「部品被覆表」）。
+    `.replace/parity/<slug>/metadata.json` の `component_coverage.declared` が `true` のときだけ判定に入り、
+    数え直しは [`../scripts/coverage-check.mjs`](../scripts/coverage-check.mjs) が行う（**宣言された件数を信用せず被覆表から数え直す**。目視で数えない）:
+
+    ```bash
+    node <skill>/scripts/coverage-check.mjs --metadata .replace/parity/<slug>/metadata.json
+    ```
+
+    未測定として数えるのは `value: unmeasured` のセル、部品ごとの 項目 × インスタンス の組み合わせのうち**行が無いもの**、
+    `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、**同じ組み合わせの重複行**（先勝ちにしない）。
+    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る、2 ＝ 使い方の誤り。1 件以上なら収束させず `parity-suite` へ戻して測らせる。
+    **`metadata.json` や `component_coverage` の型崩れ**（オブジェクトでない・`declared` が真偽値でない・`path` が空でない文字列でない）と、
+    **`declared: false` なのに `reason` が空**（免除の根拠が残らない）は、後方互換の「判定しない」に倒さず exit 2 で落ちる——
+    旧成果物の経路を型崩れ・無根拠の免除の逃げ場にしない
+    （差分器は**採取した状態しか見ない**ため、測っていない操作の欠落は差分ゼロとして通り抜ける）。
+    **`declared: true` なのに被覆表が無い・読めない・JSON として壊れているときは合格に倒さない**（スクリプトも `unmeasured: null` ＋ exit 1 を返す）。
+    `declared: false` のとき、および `component_coverage` を**キーごと持たない旧成果物**のときは本項目を判定に入れない（後方互換）——
+    ただし判定しなかった事実と理由を `diff-metadata.json` の `component_coverage`（`judged: false`）に記録し、`diff.md` の未検証領域にも残す（黙って合格にしない）
 
 ## 他機能待ちの差分（`blocked_by`）
 
@@ -40,7 +58,7 @@
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」5 項目をすべて満たす） | 完了 |
+| 収束 | `converged: true`（上記「収束の条件」6 項目をすべて満たす） | 完了 |
 | 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
 | 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
 
@@ -64,8 +82,9 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（5 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合を見落とす）
-- `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）を記録する
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（6 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定を見落とす）
+- `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）、
+  `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）を記録する
 
 ## 対象外・未検証の明示
 
