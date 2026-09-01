@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-01T14:37:41Z",
+    "evals_run": [17, 18],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 69.988,
+        "tokens": 148412,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分がゼロであることを根拠に converged: true にせず、部品被覆表の未測定も収束条件として確認すると答えている",
+          "passed": true,
+          "evidence": "『いいえ、その根拠では converged: true にできません』と答え、『挙げていただいた 5 点は収束条件のうち 5 つで、条件は 6 つあります』として 6 項目目の部品被覆表の未測定を確認対象に挙げた。"
+        },
+        {
+          "text": "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で被覆表から数え直す（宣言された件数を信用しない）と答えている",
+          "passed": true,
+          "evidence": "『現側の宣言を見る — metadata.json の component_coverage.declared』『declared: true なら数え直す（目視で数えない／宣言された件数を信用しない）』とし、coverage-check.mjs の実行コマンドと終了コード 0/1/2 の意味まで示した。"
+        },
+        {
+          "text": "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・同じ組み合わせの重複行 を含めると示している",
+          "passed": true,
+          "evidence": "『value: unmeasured だけでなく、項目 × インスタンスの組で行が無いもの／present・absent なのに evidence が空／present なのに covered_by が空／同じ組み合わせの重複行、および id が空・重複の列挙要素』と列挙した。"
+        },
+        {
+          "text": "差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
+          "passed": true,
+          "evidence": "『差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通り抜ける』を引用し、『差分ゼロは「同じだった」ではなく「見ていない」の可能性があり、その区別を付けるために被覆表が存在します』と敷衍した。"
+        },
+        {
+          "text": "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている",
+          "passed": true,
+          "evidence": "『1 件以上なら converged: false のままにして、差し戻し先は parity-replace ではなく parity-suite（測るのは向こうの仕事、こちらは現行アプリを駆動しない）』と明示した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 56.628,
+        "tokens": 114553,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に component_coverage をキーごと持たない旧成果物は判定に入れず、他の条件を満たせば収束させる（後方互換）と答えている",
+          "passed": true,
+          "evidence": "『収束させてよいが、「今まで通り」ではない。被覆表が無いこと自体は収束を止めませんが、「判定しなかった」事実と理由を成果物に残すのが必須条件です』と答え、convergence.md の後方互換の条文を引用した。"
+        },
+        {
+          "text": "判定しなかった事実と理由を diff-metadata.json の component_coverage（judged: false と reason）に記録すると答えている",
+          "passed": true,
+          "evidence": "『new/<target>/diff-metadata.json の component_coverage: judged: false, reason: \"旧成果物: metadata.json に component_coverage キーが無い\", source: null, cells: 0, unmeasured: 0』と記録内容を具体化した。differ_versions.coverage_check は判定時のみ記録なので省略、まで押さえている。"
+        },
+        {
+          "text": "同じことを diff.md の未検証領域にも残し、黙って合格にしないと答えている",
+          "passed": true,
+          "evidence": "『new/<target>/diff.md §7 未検証領域に 1 行（種別 = 部品被覆表未判定）』とし、§8 収束判定の行を「判定していない〈理由〉」にして diff-metadata.json と一致させる、と 2 箇所への記録を示した。"
+        },
+        {
+          "text": "キーの欠落（旧成果物）と declared: false（宣言したうえで判定に入れない）を区別して扱うと示している",
+          "passed": true,
+          "evidence": "分岐表で『component_coverage キーが無い（旧成果物）』『declared: false』『declared: true なのに被覆表が無い/読めない/壊れている（合格に倒さない・exit 1）』の 3 つを分けて扱い、『「古い suite だから無いはず」で決めない』と実測を求めた。"
+        },
+        {
+          "text": "収束させるために被覆表を捏造したり declared: true を書き足したりせず、被覆表を作るのは parity-suite だと答えている",
+          "passed": true,
+          "evidence": "被覆表を作り出さず、『恒久的に埋めたいなら parity-suite を新版で再実行して component_coverage を宣言させるのが本筋で、その判断はユーザー側の選択』とした。declared: true を書き足す案は出していない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 45.158,
+        "tokens": 31813,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分がゼロであることを根拠に converged: true にせず、部品被覆表の未測定も収束条件として確認すると答えている",
+          "passed": true,
+          "evidence": "『まだ converged: true にはできません』と答え、『「差分として出ていない」は「差が無い」ではない』として測定範囲の穴を確認対象に挙げた。ただし確認手段は「観測レコードの有無を数える」という一般論で、部品被覆表という成果物には到達していない。"
+        },
+        {
+          "text": "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で被覆表から数え直す（宣言された件数を信用しない）と答えている",
+          "passed": false,
+          "evidence": "現側 metadata.json の component_coverage.declared という宣言ゲートにも coverage-check.mjs にも触れていない。"
+        },
+        {
+          "text": "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・同じ組み合わせの重複行 を含めると示している",
+          "passed": false,
+          "evidence": "数え直しの対象カテゴリ（行が無い・evidence 空・covered_by 空・重複行）に触れず、『観測レコードが 0 件か 1 件以上か』の粒度に留まる。"
+        },
+        {
+          "text": "差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
+          "passed": true,
+          "evidence": "『仮想スクロールで DOM に存在しない行、canvas 描画…あたりは、ハーネスが素通りして静かにゼロ件を返しがち』『載らなかったものは、どの条件にも引っかかりません』と、測っていないものが差分ゼロとして通る構図を説明した。"
+        },
+        {
+          "text": "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている",
+          "passed": false,
+          "evidence": "差し戻し先を誤っている——『カバレッジギャップとして起票し、blocked_by に戻す（coverage-unknown: datagrid 等）』とした。blocked_by は他機能の新側未実装の帰属先であり、parity-suite へ戻して測らせるという回答になっていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 46.144,
+        "tokens": 32441,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "metadata.json に component_coverage をキーごと持たない旧成果物は判定に入れず、他の条件を満たせば収束させる（後方互換）と答えている",
+          "passed": false,
+          "evidence": "『今まで通りの収束はできません』『収束判定という手続きがそもそも成立しない』と答え、後方互換（キーを持たない旧成果物は判定に入れず他の条件を満たせば収束させる）と逆の結論になった。"
+        },
+        {
+          "text": "判定しなかった事実と理由を diff-metadata.json の component_coverage（judged: false と reason）に記録すると答えている",
+          "passed": false,
+          "evidence": "diff-metadata.json の component_coverage（judged: false / reason）という記録先に触れていない。"
+        },
+        {
+          "text": "同じことを diff.md の未検証領域にも残し、黙って合格にしないと答えている",
+          "passed": false,
+          "evidence": "diff.md の未検証領域への記録に触れていない。成果物側へ『被覆表が欠落している旨』を書く案は出すが、選択肢 B（条件付き収束）の中の一般論に留まる。"
+        },
+        {
+          "text": "キーの欠落（旧成果物）と declared: false（宣言したうえで判定に入れない）を区別して扱うと示している",
+          "passed": false,
+          "evidence": "declared: false（宣言したうえで判定に入れない）という状態が存在すること自体に触れておらず、キー欠落との区別が無い。"
+        },
+        {
+          "text": "収束させるために被覆表を捏造したり declared: true を書き足したりせず、被覆表を作るのは parity-suite だと答えている",
+          "passed": false,
+          "evidence": "『被覆表を事後再構成する（推奨）』として、実行ログ・比較対象ファイル一覧・テストケース名から parity-diff 側で最小限の部品リストを起こす案を第一候補にした。被覆表を作るのは parity-suite の仕事という切り分けになっていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 63.308,
+        "stddev": 9.4469,
+        "min": 56.628,
+        "max": 69.988
+      },
+      "tokens": {
+        "mean": 131482.5,
+        "stddev": 23941.9285,
+        "min": 114553,
+        "max": 148412
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.2828,
+        "min": 0.0,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 45.651,
+        "stddev": 0.6972,
+        "min": 45.158,
+        "max": 46.144
+      },
+      "tokens": {
+        "mean": 32127.0,
+        "stddev": 444.0631,
+        "min": 31813,
+        "max": 32441
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "+17.7",
+      "tokens": "+99356"
+    }
+  },
+  "notes": []
+}
