@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-01T12:01:34Z",
+    "evals_run": [16],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 74.957,
+        "tokens": 207745,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component が照合キーであり、宣言した要素（filter-popup）の差分にしか掛からないと答えている（別要素の同値の差分は吸収されない）",
+          "passed": true,
+          "evidence": "「`component_diffs` の照合キーは **`component`（要素の論理名）・`property`・値の 3 つ**で、値だけではありません」と述べ、normalize.md「component_diffs T の照合方法」と diff-normalize.mjs:152 matchComponentT を根拠に挙げた。「他要素の `margin-top: 0px → 2px` は `component` 不一致で掛からず、`unexplained` のまま残ります」「未説明差分が残る＝収束条件（未説明差分ゼロ）を満たさないので、収束判定は通りません」と収束への帰結まで示している。"
+        },
+        {
+          "text": "clear-button の 0px → 5.2969px は filter-popup の宣言では扱えず、clear-button を対象にした別の宣言かトリアージが要ると示している（同じ宣言でカバーされるとしていない）",
+          "passed": true,
+          "evidence": "「T は baseline＝`current`・capture＝`new` の**両方の一致**を見ます」とし、`new: 2px` の宣言に `5.2969px` は不一致で `component` が filter-popup のままなら `unexplained`、glob を広げて掛かる書き方にすると `deviates_T` になると 2 分岐で示した。正しい進め方 1 で「filter-popup の `0px → 2px` と、clear-button の `0px → 5.2969px` は**別の宣言**です」、同 2 で系統差か回帰かの切り分け（トリアージ）が先だと述べている。"
+        },
+        {
+          "text": "component を空にする案を断り、欠落・空は wildcard ではなく不一致として扱われ照合に使われない（stderr に警告が出て該当差分は unexplained として残る）と説明している",
+          "passed": true,
+          "evidence": "「`component` の欠落・空は **wildcard ではなく不一致（fail-closed）**」とし、警告文言 `component_diffs[<添字>]: missing component — not used for matching` を引用して「『全部に効く』ではなく『何にも効かない』になります」と結論。空にする案を明確に断っている。"
+        },
+        {
+          "text": "複数インスタンスに効かせたい場合の手段として component の glob（例 filter-popup-*）を示し、対象を絞らない全要素一致の宣言へ倒していない",
+          "passed": true,
+          "evidence": "「範囲を広げたいときは空欄ではなく `filter-popup-*` のような明示的な glob を書き、掛かる範囲を宣言側に見えるようにします」と glob を手段として提示。全要素一致へは倒さず「そもそも全件に効かせること自体が上記 1 の偽陰性を作る」と否定している。"
+        },
+        {
+          "text": "要素で絞らない照合が別要素の本物の回帰を absorbed_T として吸収し、回帰を抱えたまま収束する（偽陰性）ことを危険として述べている",
+          "passed": true,
+          "evidence": "「要素を見ずに値だけで吸収すると、**ある要素のために書いた T が、値の偶然一致する別要素の本物の回帰を `absorbed_T` として黙って飲み込み、回帰を抱えたまま収束する**（偽陰性）」と absorbed_T の語まで含めて危険として述べ、余白系プロパティで衝突しやすい理由も付している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 61.461,
+        "tokens": 64708,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component が照合キーであり、宣言した要素（filter-popup）の差分にしか掛からないと答えている（別要素の同値の差分は吸収されない）",
+          "passed": true,
+          "evidence": "「されません（されるべきでもありません）」と答え、「系統差の宣言は『値のパターン』の登録ではなく、調査済みの特定の差分に対する説明の添付」「別の要素で偶然同じ 2px が出たことの説明にはなりません」と述べた。ただし `component` が実装上の照合キーであるという契約ではなく一般則としての規範論で、冒頭で「実装の挙動を実地で確認できず、以下はこの手の parity 収束ワークフローの一般則」と自認している。"
+        },
+        {
+          "text": "clear-button の 0px → 5.2969px は filter-popup の宣言では扱えず、clear-button を対象にした別の宣言かトリアージが要ると示している（同じ宣言でカバーされるとしていない）",
+          "passed": true,
+          "evidence": "「されません。これは値が違います」と明言し、「`5.2969px` という端数は、2px のような固定値とは**原因の種類自体が違う**サイン」「別件として調査すべき差分です」と別途トリアージへ回す方針を示している。"
+        },
+        {
+          "text": "component を空にする案を断り、欠落・空は wildcard ではなく不一致として扱われ照合に使われない（stderr に警告が出て該当差分は unexplained として残る）と説明している",
+          "passed": false,
+          "evidence": "空にする案は断っているが（「これが一番まずいです」）、理由を「ワイルドカード宣言は、その property に対する収束チェックを事実上無効化します」「値がたまたま一致すれば黙って吸収され、検知できなくなります」＝**全要素に効く wildcard として吸収される**と説明しており、実際の挙動（欠落は不一致として扱われ照合に使われない・stderr 警告・該当差分は unexplained のまま残る）と逆。fail-closed にも警告にも言及が無い。"
+        },
+        {
+          "text": "複数インスタンスに効かせたい場合の手段として component の glob（例 filter-popup-*）を示し、対象を絞らない全要素一致の宣言へ倒していない",
+          "passed": false,
+          "evidence": "複数インスタンスへ効かせる手段として示したのは「対象コンポーネントを明示的に列挙した宣言にまとめる」で、`component` の glob（`filter-popup-*`）には一切触れていない。glob 自体が存在しない前提の回答になっている。"
+        },
+        {
+          "text": "要素で絞らない照合が別要素の本物の回帰を absorbed_T として吸収し、回帰を抱えたまま収束する（偽陰性）ことを危険として述べている",
+          "passed": true,
+          "evidence": "「今後どのコンポーネントで margin-top の**本物のリグレッション**が出ても、値がたまたま一致すれば黙って吸収され、検知できなくなります」「収束判定は通りますが、それは**未調査の差分を通したという意味での偽の収束**です」と偽陰性の危険を述べている（`absorbed_T` という分類名は使っていないが内容は一致）。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 74.957,
+        "stddev": 0.0,
+        "min": 74.957,
+        "max": 74.957
+      },
+      "tokens": {
+        "mean": 207745.0,
+        "stddev": 0.0,
+        "min": 207745,
+        "max": 207745
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 61.461,
+        "stddev": 0.0,
+        "min": 61.461,
+        "max": 61.461
+      },
+      "tokens": {
+        "mean": 64708.0,
+        "stddev": 0.0,
+        "min": 64708,
+        "max": 64708
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+13.5",
+      "tokens": "+143037"
+    }
+  },
+  "notes": []
+}

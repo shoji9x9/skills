@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.diff_normalize に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
@@ -68,9 +68,85 @@ export function matchIntentional(diff, registry) {
 }
 
 /**
- * コンポーネント系統差 T との照合。クラス名は補助メタ扱いで、判定は property と値で行う。
- * @param {{ prop?:string, expected?:string, actual?:string }} diff
- * @param {Array<{ component?:string, property:string, current:string, new:string, reason?:string }>} componentDiffs
+ * 正規表現メタ文字を打ち消す（glob の `*` は呼び出し側で分割済みなのでここには来ない）。
+ * @param {string} s
+ * @returns {string}
+ */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Diff の論理名を照合候補へ分解する。
+ * 幾何差分の name は trait-compare が `"A | B"` の対で出すため、両側を候補にする
+ * （対の片側が T の対象要素なら掛ける。対の文字列そのものに一致させる書き方は要求しない）。
+ * @param {unknown} name
+ * @returns {string[]}
+ */
+function componentCandidates(name) {
+  const normalized = normalizeValue(name);
+  if (normalized.length === 0) return [];
+  return normalized.split(" | ").filter((part) => part.length > 0);
+}
+
+/**
+ * T の `component` を Diff の論理名へ照合する。
+ * `*` を含めば glob（`*` は任意個の文字）、含まなければ完全一致。
+ *
+ * `component` の欠落・空は「どの要素にも合う」ではなく不一致として扱う（fail-closed）。
+ * T は slug 横断のレジストリなので、欠落を wildcard と読むと 1 件の宣言が全要素へ効き、
+ * 別要素の本物の回帰を absorbed_T として黙って吸収する（収束条件を満たしてしまう）。
+ * matchException が照合キーの欠落を不一致として扱うのと同じ規律。
+ *
+ * 論理名を持たない Diff（name が空）にも掛けない。特性照合の Diff は必ず論理名を持つため、
+ * 名前が無い入力は照合キーを確かめられない＝不一致（unexplained として残る）。
+ * @param {unknown} pattern - T の component
+ * @param {unknown} name - Diff の name（論理名。幾何差分は "A | B"）
+ * @returns {boolean}
+ */
+export function matchesComponentPattern(pattern, name) {
+  const pat = normalizeValue(pattern);
+  if (pat.length === 0) return false;
+  const candidates = componentCandidates(name);
+  if (candidates.length === 0) return false;
+  if (!pat.includes("*")) return candidates.includes(pat);
+  const re = new RegExp(`^${pat.split("*").map(escapeRegExp).join(".*")}$`);
+  return candidates.some((c) => re.test(c));
+}
+
+/**
+ * コンポーネント系統差 T の宣言のうち、照合に使えないものの理由を列挙する。
+ * `component` は照合キーなので、欠落した宣言は 1 件も掛からない——
+ * 警告が無いと「黙って無効化された宣言」になり、宣言側からは吸収されたのか
+ * 掛からなかったのかが見えない（fail-closed は落とすだけでなく見えるまで作る）。
+ * @param {Array<object>} componentDiffs
+ * @returns {string[]} 問題の説明（空配列なら全件が照合に使える）
+ */
+export function validateComponentDiffs(componentDiffs) {
+  const list = Array.isArray(componentDiffs) ? componentDiffs : [];
+  const problems = [];
+  list.forEach((t, i) => {
+    const at = `component_diffs[${i}]`;
+    if (!t || typeof t !== "object") {
+      problems.push(`${at}: not an object`);
+      return;
+    }
+    if (normalizeValue(t.component).length === 0) {
+      problems.push(
+        `${at}: missing component — not used for matching ` +
+          `(an omitted component is not a wildcard; write the logical name or a glob such as "filter-popup-*")`,
+      );
+    }
+  });
+  return problems;
+}
+
+/**
+ * コンポーネント系統差 T との照合。要素（`component`）・`property`・値の 3 つで判定する。
+ * `component` は Diff の論理名に対する完全一致 / glob であり、
+ * 一致しない要素の差分には掛からない（別要素の回帰を吸収せず、別要素の差分を deviates_T へ格上げしない）。
+ * @param {{ name?:string, prop?:string, expected?:string, actual?:string }} diff
+ * @param {Array<{ component:string, property:string, current:string, new:string, reason?:string }>} componentDiffs
  * @returns {{ status:'absorbed_T'|'deviates_T', rule:object } | null}
  */
 export function matchComponentT(diff, componentDiffs) {
@@ -78,6 +154,8 @@ export function matchComponentT(diff, componentDiffs) {
   /** @type {{ status:'deviates_T', rule:object } | null} */
   let deviation = null;
   for (const t of list) {
+    if (!t || typeof t !== "object") continue;
+    if (!matchesComponentPattern(t.component, diff.name)) continue;
     if (normalizeValue(t.property) !== normalizeValue(diff.prop)) continue;
     const baselineMatches = normalizeValue(diff.expected) === normalizeValue(t.current);
     if (!baselineMatches) continue;
@@ -350,6 +428,10 @@ export function main(argv) {
     return 2;
   }
   const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
+  // 照合キー（component）が欠けた T は 1 件も掛からない。黙って無効化せず理由を出す。
+  for (const problem of validateComponentDiffs(registries.component_diffs)) {
+    process.stderr.write(`warning: ${problem}\n`);
+  }
   // 参照整合の問題は入力エラーにせず警告に留める（他の例外・レジストリの分類は続行する）。
   // 警告が出た例外は照合に使われていないため、該当候補は unexplained として残る。
   for (const problem of validateExceptions(

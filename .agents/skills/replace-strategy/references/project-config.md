@@ -124,7 +124,7 @@ skills:
       may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異）
       pending: [] # 保留（測定結果で決める）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
-    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }
+    component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
     # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```
 
@@ -148,7 +148,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 | **人間が確定させる方針** | `current`（`origin` / `received_assets` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
 | **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき非破壊追記し、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録** |
 
-- **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
+- **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が（`component` に glob を書けば）全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
   slug ごとに分けると同じ宣言が slug 数だけ複製されるため、slug 成果物側へ移さない
 - **`intentional_diffs.pending` を設定側に残す根拠**: `keep` / `may_change` と同じ 3 分類の一員で、**昇格が同じキー内での人間の移動作業**である。加えて **slug 横断**のため置くべき slug ディレクトリが無い——
   つまり段 1 の条件（slug スコープ）を満たさないので設定に残る。**書き手がスキルであることは段 1 の判断材料ではない**（それは段 2 で上表の下段に置く理由にしかならない）

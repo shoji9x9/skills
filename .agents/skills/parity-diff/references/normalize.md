@@ -6,7 +6,8 @@
 
 1. **意図的差異レジストリ** `intentional_diffs.{keep,may_change,pending}`: 宣言済みの差分を落とす。**`pending` 該当は未確定なので落とさず要確認扱い**（未収束として残す）
 2. **コンポーネント系統差 T** `component_diffs[]`（`{component, property, current, new, reason}`）: 比較は「生の値が違うか」ではなく「新側の値が T から許容を超えて逸脱しているか」。
-   **T に合致すれば吸収、逸脱すれば回帰候補として浮かせる。** 1 回の宣言が全インスタンスに効く。`references.ui_library`（旧→新 design token マッピング）を判断材料に読む
+   **T に合致すれば吸収、逸脱すれば回帰候補として浮かせる。** 照合キーは `component`（対象要素の論理名 / glob）・`property`・値で、
+   1 回の宣言が `component` に合致する全インスタンスに効く（下記「component_diffs T の照合方法」）。`references.ui_library`（旧→新 design token マッピング）を判断材料に読む
 3. **インスタンス例外** `component_diff_exceptions`（本スキルが形式を定義する。フォールバック）: T が引けない箇所のみ。
    **置き場所は slug 成果物** `.replace/parity/<slug>/component-diff-exceptions.json`（設定ファイルではない。下記「インスタンス例外の置き場所」）
 4. **ノイズ基準値** `metadata.json.noise_baseline[]`（page × state × viewport）: 現行を同一条件で 2 回撮った差分量。新側との差分がこれと同程度なら回帰ではない。
@@ -21,7 +22,7 @@
 | レジストリ | 効く経路 | 適用する主体と照合キー |
 |---|---|---|
 | `intentional_diffs` | 全経路（散文の宣言を候補の説明に使う） | 特性照合経路は `diff-normalize.mjs`、他経路は本スキルが同じ語で照合する |
-| `component_diffs`（T） | **特性照合経路のみ**（computed style・相対幾何の**値**を `property` / `current` / `new` で照合する） | `diff-normalize.mjs`。**画素経路には効かない**（照合キーになる値の差が無いため）・aria にも効かない |
+| `component_diffs`（T） | **特性照合経路のみ**（computed style・相対幾何を `component`〈論理名・glob〉 / `property` / `current` / `new` で照合する） | `diff-normalize.mjs`。**画素経路には効かない**（照合キーになる値の差が無いため）・aria にも効かない |
 | `component_diff_exceptions`（`property` が CSS プロパティ） | 特性照合経路 | `diff-normalize.mjs`（page / state / viewport / element ＋ **値の一致**で照合） |
 | `component_diff_exceptions`（`property: pixel`） | **画素経路のみ** | **本スキルが画素候補に対して適用する**（page / state / viewport / element / **`bbox`** で照合。値では照合しない） |
 
@@ -39,10 +40,31 @@
 
 ## component_diffs T の照合方法
 
-`component_diffs` の `component` はコンポーネントクラス名だが、DOM クラスの解決は無理に行わない。**照合は「`property` が一致し、baseline 値が `current`・capture 値が `new` と（単位正規化のうえ）一致するか」で行う。** クラス名は補助メタとして `matched_rule` に出すだけ。
+**照合キーは `component`（要素）・`property`・値の 3 つ。** `component` は Diff の**論理名**（`trait-compare.mjs` の `name`）に対して照合する。DOM クラスの解決は行わない——宣言側が論理名の空間で要素を表す。
 
-- `property` が一致し baseline＝`current`・capture＝`new` → 吸収（`absorbed_T`）
-- `property` が一致し baseline＝`current` だが capture≠`new` → **逸脱**（`deviates_T`。回帰候補として強調）
+- **`*` を含めば glob**（`*` は任意個の文字）、**含まなければ完全一致**。`filter-popup-*` のように書けば「1 回の宣言が全インスタンスに効く」T の性質を保ったまま、掛かる範囲が宣言に明示される（`*` 以外の正規表現メタ文字はリテラル）
+- **幾何差分の `name` は `"A | B"` の対**（`trait-compare.mjs` が 2 要素の相対幾何をこの形で出す）。**両側が照合候補**で、片側が一致すれば掛かる
+- `component` の一致を確かめたうえで、`property` が一致し baseline 値が `current`・capture 値が `new` と（単位正規化のうえ）一致するかを見る
+
+| 条件 | 分類 |
+|---|---|
+| `component` 一致・`property` 一致・baseline＝`current`・capture＝`new` | 吸収（`absorbed_T`） |
+| `component` 一致・`property` 一致・baseline＝`current`・capture≠`new` | **逸脱**（`deviates_T`。回帰候補として強調） |
+| `component` が一致しない | 掛からない（`unexplained` として残りトリアージへ回る） |
+
+**`component` の欠落・空は「どの要素にも合う」ではなく不一致として扱う（fail-closed）。** `component_diff_exceptions` の照合キー欠落と同じ規律で、`diff-normalize.mjs` は該当の宣言を照合に使わず、
+`warning: component_diffs[<添字>]: missing component — not used for matching` を stderr に出す。
+
+- 要素を照合しないと、**ある要素のために宣言した T が、値の偶然一致する別要素の差分にも当たる**。同じ `(property, current)` に複数の `new` が実在するのは珍しくない（余白のように初期値が要素間で共通なプロパティで、新側が要素ごとに違う値へ移ると自然にそうなる）
+- 影響は 2 つで、**前者のほうが重大**:
+  - **偽陰性**（`absorbed_T`・exit 0）: 別要素の本物の回帰を黙って吸収し、収束条件（[`convergence.md`](convergence.md)）を満たしてしまう＝**回帰を抱えたまま収束する**
+  - **偽陽性**（`deviates_T`）: 本来 `unexplained`（トリアージ対象）である別要素の差分が「未修正回帰」へ格上げされ、`parity-replace` へ差し戻される
+- 論理名を持たない Diff にも掛からない（特性照合の Diff は必ず論理名を持つため、名前が無い入力は照合キーを確かめられない＝不一致）
+
+**既存宣言の移行**（`diff-normalize.mjs` の `VERSION` が `2` までの挙動＝`component` を照合に使わない、で書かれた宣言）:
+`component` にコンポーネントクラス名を書いていて論理名と一致しない宣言は掛からなくなり、該当差分は `unexplained` として浮く（黙って吸収され続けるより安全側）。
+**浮いた差分は「新しい回帰」ではなく「これまで要素を問わず吸収されていた差分」**なので、1 件ずつ対象要素を確かめて `component` を論理名 / glob へ書き換える。
+書き換え後も残る差分は本物の未説明差分としてトリアージへ回す。
 
 ## インスタンス例外の置き場所（slug 成果物。設定ファイルではない）
 
@@ -134,6 +156,9 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 - `--noise <metadata.json>`: `noise_baseline[]` を読むために `parity-suite` の `metadata.json` を渡す
 - 出力は各 Diff に `classification`（`absorbed_registry` / `absorbed_T` / `deviates_T` / `absorbed_exception` / `noise_candidate` / `pending_review` / `unexplained`）と `matched_rule` を付けた JSON。
   `absorbed_exception` の `matched_rule` には解決済みの原因（`cause_reason` / `cause_evidence`）が入る
+- **T の不整合は `component_diffs[<添字>]: ...` の形で stderr に警告として出る**（`component` の欠落・空。上記「component_diffs T の照合方法」）。
+  **警告が出た T は照合に使われていない**ので、設定ファイルの宣言に対象要素の論理名 / glob を補って実行し直す。
+  台帳（例外）の不整合ではないので `diff-metadata.json.accepted_exceptions.unresolved` には数えない
 - 例外の不整合（上記「fail-closed の検証」の各条件）は `component_diff_exceptions[<添字>]: ...` の形で stderr に警告として出る。**警告が出た例外は照合に使われていない**ので、`diff.md` の不整合として記録して直す。
   **`diff-metadata.json.accepted_exceptions.unresolved` に数えるのはこの添字つき警告（＝台帳のインスタンス単位の不整合）だけ**
 - **`--page` / `--state` / `--viewport` は組ごとに必ず渡す。** `--page` / `--viewport` を省くと照合キーを確かめられず例外は 1 件も適用されないため、

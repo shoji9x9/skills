@@ -97,7 +97,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝phase B との整合を免除する代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
 | `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入は v1 スコープ外のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
-| `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（1 回の宣言が全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
+| `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（`component` は対象要素の論理名 / glob。1 回の宣言が範囲内の全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
 | `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
 | `references.db_semantics` | 読 | DB 意味論の差（API 応答の並び順差の判断材料） |

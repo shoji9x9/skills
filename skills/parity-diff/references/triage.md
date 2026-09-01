@@ -40,7 +40,8 @@
 - **「許容」の確定にはユーザー承認が要る**（AskUserQuestion）。承認 UI には crop・特性差分など**判断材料を同梱する**（直前のテキストが見えている前提を置かない）。
   **承認を求める単位と UI に載せるものは下記「承認の単位は原因」**
 - 承認されたら記録先へ**非破壊追記**する:
-  - クラス/トークン単位で表せる系統差 → 設定ファイルの `component_diffs`（宣言者は本来 `parity-replace`。ここで確定した系統差は `parity-replace` 側の宣言として整理する）
+  - クラス/トークン単位で表せる系統差 → 設定ファイルの `component_diffs`（宣言者は本来 `parity-replace`。ここで確定した系統差は `parity-replace` 側の宣言として整理する）。
+    **`component` は照合キー**なので対象要素の論理名（複数インスタンスに効かせるなら glob）を書く——空にすると宣言が 1 件も掛からない（[`normalize.md`](normalize.md)「component_diffs T の照合方法」）
   - T が引けないインスタンス単位・**画素経路でしか出ない差** → `.replace/parity/<slug>/component-diff-exceptions.json`（画素は `property: pixel`。**設定ファイルには書かない**）
   - 環境揮発など意図的差異 → 設定ファイルの `intentional_diffs`
 - **インスタンス例外は 2 ファイルで 1 組**（どちらも無ければ同梱テンプレート〈[`../assets/`](../assets/)〉から作成し、以降は非破壊追記する。スキーマと配置の正本は [`normalize.md`](normalize.md)）:
