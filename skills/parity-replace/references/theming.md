@@ -29,6 +29,7 @@
 テーマで消せない構造差（フォーカスリング形状・内部 DOM・余白の配り方）は残る。二段構えで扱う。
 
 1. **クラス/トークン単位で表せる系統差** → 共有契約の `component_diffs` レジストリ（`intentional_diffs` とは**別のキー**。要素の形の正本: `replace-strategy` の `references/project-config.md`）へ**ユーザー確認の上で宣言**する。`parity-diff` が比較の正規化に使う。
+   **`component` は照合キー**なので、対象要素の論理名（複数インスタンスに効かせるなら `filter-popup-*` のような glob）を書く——ここを空にしたり実在しない名前を書いたりすると宣言が 1 件も掛からない（`parity-diff` が stderr に警告を出す。照合方法の正本は同スキルの `references/normalize.md`）。
    確認が取れるまでは `component_diffs` にも `intentional_diffs.pending`（分類ラベルの列で要素の形が違う）にも書かず、対話で確認してから宣言する
 2. **クラス/トークン単位でも表せない構造差**（フォーカスリング形状・内部 DOM・余白の配り方等） → `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ追記する（正本の様式は `parity-suite` の `assets/gaps-template.md`）。`parity-diff` の正規化対象外＝未検証として残す
 
