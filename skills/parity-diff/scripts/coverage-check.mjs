@@ -105,7 +105,7 @@ function collectIds(entries, label, problems) {
   let rejected = 0;
   entries.forEach((entry, index) => {
     const raw =
-      entry && typeof entry === "object"
+      entry && typeof entry === "object" && !Array.isArray(entry)
         ? /** @type {Record<string, unknown>} */ (entry).id
         : undefined;
     if (!nonEmptyString(raw)) {
@@ -134,7 +134,9 @@ function collectIds(entries, label, problems) {
 export function countCoverage(coverage, slug) {
   /** @type {string[]} */
   const problems = [];
-  if (!coverage || typeof coverage !== "object") {
+  // 配列は typeof で "object" を通るため明示的に弾く。通すと slug 不一致・components 空といった
+  // 別の問題文にすり替わり、原因の切り分けを誤らせる（JSON オブジェクト判定はこのファイル内で同じ形に揃える）。
+  if (!coverage || typeof coverage !== "object" || Array.isArray(coverage)) {
     return {
       cells: 0,
       present: 0,
@@ -161,8 +163,8 @@ export function countCoverage(coverage, slug) {
   const duplicated = new Set();
   const keyOf = (c, i, n) => JSON.stringify([c, i, n]);
   rows.forEach((row, index) => {
-    if (!row || typeof row !== "object") {
-      problems.push(`cells[${index}]: オブジェクトでない要素がある`);
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      problems.push(`cells[${index}]: JSON オブジェクトでない要素がある`);
       return;
     }
     const r = /** @type {Record<string, unknown>} */ (row);
@@ -338,6 +340,7 @@ export function main(argv, deps = {}) {
   const slug =
     metadata &&
     typeof metadata === "object" &&
+    !Array.isArray(metadata) &&
     nonEmptyString(/** @type {Record<string, unknown>} */ (metadata).slug)
       ? String(/** @type {Record<string, unknown>} */ (metadata).slug)
       : null;

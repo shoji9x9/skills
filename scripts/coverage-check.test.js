@@ -202,6 +202,26 @@ test("id 欠落のインスタンスも同様に、その列ぶんのセルが�
   expect(r.unmeasured).toBe(2);
 });
 
+test("配列の被覆表・列挙要素・セル行は JSON オブジェクトでないとして弾く", () => {
+  // 被覆表そのもの: 「components が空」等へすり替わらず、型崩れの問題文が返ること。
+  const arr = countCoverage([], "order-list");
+  expect(arr.problems).toEqual(["被覆表が JSON オブジェクトではない"]);
+  expect(arr.unmeasured).toBe(1);
+  // 列挙要素とセル行: 配列を混ぜても索引に入らず、未測定として数えられること。
+  const mixed = countCoverage(
+    {
+      slug: "order-list",
+      components: [{ id: "grid", items: [{ id: "a" }, []], instances: [{ id: "p1" }] }],
+      cells: [[], cell("a", "p1")],
+    },
+    "order-list",
+  );
+  expect(mixed.cells).toBe(2);
+  expect(mixed.present).toBe(1);
+  expect(mixed.unmeasured).toBe(1);
+  expect(mixed.problems.join("\n")).toMatch(/JSON オブジェクトでない要素/);
+});
+
 test("declared: false は reason が必須（免除の根拠が残らない形を通さない）", () => {
   expect(readDeclaration({ component_coverage: { declared: false } })).toMatchObject({
     judged: false,
