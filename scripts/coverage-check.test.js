@@ -160,9 +160,68 @@ test("どのセルの行か決まらない行（component / item / instance が�
   expect(r.problems.join("\n")).toMatch(/component \/ item \/ instance/);
 });
 
+test("id 欠落の項目が関わるセルは「項目数 × インスタンス数」ぶん未測定として数える", () => {
+  // 項目 3（うち 1 件 id 欠落）× インスタンス 4 = 期待セル 12。欠落項目の 4 セルはすべて未測定。
+  const cov = {
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        items: [{ id: "a" }, { id: "b" }, { name: "id なし" }],
+        instances: [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }],
+      },
+    ],
+    cells: [],
+  };
+  for (const item of ["a", "b"]) {
+    for (const instance of ["p1", "p2", "p3", "p4"]) {
+      cov.cells.push(cell(item, instance));
+    }
+  }
+  const r = countCoverage(cov, "order-list");
+  expect(r.cells).toBe(12);
+  expect(r.present).toBe(8);
+  expect(r.unmeasured).toBe(4);
+});
+
+test("id 欠落のインスタンスも同様に、その列ぶんのセルが未測定になる", () => {
+  const cov = {
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        items: [{ id: "a" }, { id: "b" }],
+        instances: [{ id: "p1" }, { name: "id なし" }],
+      },
+    ],
+    cells: [cell("a", "p1"), cell("b", "p1")],
+  };
+  const r = countCoverage(cov, "order-list");
+  expect(r.cells).toBe(4);
+  expect(r.present).toBe(2);
+  expect(r.unmeasured).toBe(2);
+});
+
+test("型崩れの metadata.json は旧成果物に倒さず malformed として弾く", () => {
+  expect(readDeclaration([])).toMatchObject({ judged: false, malformed: true });
+  expect(readDeclaration({ component_coverage: [] })).toMatchObject({
+    judged: false,
+    malformed: true,
+  });
+  expect(readDeclaration({ component_coverage: { declared: "true" } })).toMatchObject({
+    judged: false,
+    malformed: true,
+  });
+  expect(readDeclaration({ component_coverage: { declared: true, path: 5 } })).toMatchObject({
+    judged: false,
+    malformed: true,
+  });
+});
+
 test("後方互換: component_coverage キーが無い旧成果物は判定に入れない", () => {
   const d = readDeclaration({ slug: "order-list" });
   expect(d.judged).toBe(false);
+  expect(d.malformed).toBe(false);
   expect(d.reason).toMatch(/旧成果物/);
 });
 
@@ -211,6 +270,12 @@ test("CLI: declared: true なのに被覆表が読めなければ合格に倒さ
   const r = runCli(declared, null);
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout)).toMatchObject({ judged: true, unmeasured: null });
+});
+
+test("CLI: 型崩れの metadata.json は exit 2（後方互換の exit 0 に倒さない）", () => {
+  const r = runCli([], full());
+  expect(r.status).toBe(2);
+  expect(JSON.parse(r.stdout)).toMatchObject({ judged: false, malformed: true, unmeasured: null });
 });
 
 test("CLI: キーを持たない旧成果物は exit 0 で judged: false を出力する", () => {

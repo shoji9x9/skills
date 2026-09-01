@@ -101,7 +101,7 @@
     ]
   },
   "component_coverage": {
-    "_note": "部品被覆表の判定結果。現側 metadata.json の component_coverage.declared が true のときだけ判定に入れる（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。判定したときは component-coverage.json を読んで数え直した値を書き、現側の宣言値をそのまま写さない。unmeasured が 1 以上なら converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す（黙って合格にしない）。api-resource / batch モードでは省略する。",
+    "_note": "部品被覆表の判定結果。現側 metadata.json の component_coverage.declared が true のときだけ判定に入れる（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。判定したときは component-coverage.json を読んで数え直した値を書き、現側の宣言値をそのまま写さない。unmeasured が 1 以上なら converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す（黙って合格にしない）。ただし現側 metadata.json / component_coverage の型崩れは後方互換に倒さず coverage-check.mjs が exit 2 で落ちるので、その場合は収束判定へ進まず現側の成果物を直す。api-resource / batch モードでは省略する。",
     "judged": false,
     "reason": "<judged: false のときの理由（現側が declared: false ならその reason、component_coverage をキーごと持たない旧成果物ならその旨）。judged: true では null>",
     "source": "<judged: true のとき読んだ被覆表のパス。declared: true なのに無い・読めない・壊れているときはそのパスと読めなかった旨を書き、unmeasured は数え直せないので null にする（cells は 0。null を 0 と読み替えて合格に倒さない）。path も --coverage も無くて読みに行けなかったときは null>",

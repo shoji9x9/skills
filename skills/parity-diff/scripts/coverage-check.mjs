@@ -45,37 +45,41 @@ function nonEmptyString(v) {
 }
 
 /**
- * 現側 metadata.json の component_coverage 宣言を読む。
- * キーが無い（旧成果物）・declared が true でない場合は judged: false を返す（後方互換）。
+ * 現側 metadata.json の component_coverage 宣言を読む。返す状態は 3 つ:
+ * judged: true（判定に入れる）／judged: false（後方互換で判定に入れない。キー欠落 = 旧成果物、declared: false）／
+ * malformed: true（型崩れ。後方互換に倒さず使い方の誤りとして扱う）。
+ * **型崩れを「旧成果物」に倒さない**——倒すと metadata.json が配列や壊れた形のときに judged: false → exit 0 で
+ * 収束条件を素通りできる（後方互換の経路が fail-open の抜け道になる）。
  * @param {unknown} metadata
- * @returns {{judged: boolean, reason: string|null, path: string|null}}
+ * @returns {{judged: boolean, malformed: boolean, reason: string|null, path: string|null}}
  */
 export function readDeclaration(metadata) {
-  if (!metadata || typeof metadata !== "object") {
-    return {
-      judged: false,
-      reason: "metadata.json を読めない（オブジェクトではない）",
-      path: null,
-    };
+  const bad = (reason) => ({ judged: false, malformed: true, reason, path: null });
+  const skip = (reason) => ({ judged: false, malformed: false, reason, path: null });
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return bad("metadata.json が JSON オブジェクトではない（型崩れ）");
   }
   const decl = /** @type {Record<string, unknown>} */ (metadata).component_coverage;
   if (decl === undefined || decl === null) {
-    return {
-      judged: false,
-      reason: "旧成果物: metadata.json に component_coverage キーが無い（判定に入れない）",
-      path: null,
-    };
+    return skip("旧成果物: metadata.json に component_coverage キーが無い（判定に入れない）");
   }
-  if (typeof decl !== "object") {
-    return { judged: false, reason: "component_coverage がオブジェクトではない", path: null };
+  if (typeof decl !== "object" || Array.isArray(decl)) {
+    return bad("component_coverage が JSON オブジェクトではない（型崩れ）");
   }
   const d = /** @type {Record<string, unknown>} */ (decl);
-  if (d.declared !== true) {
+  if (d.declared === false) {
     const why = nonEmptyString(d.reason) ? String(d.reason) : "理由の記載なし";
-    return { judged: false, reason: `declared: false（${why}）`, path: null };
+    return skip(`declared: false（${why}）`);
+  }
+  if (d.declared !== true) {
+    return bad("component_coverage.declared が真偽値ではない（型崩れ）");
+  }
+  if (d.path !== undefined && d.path !== null && !nonEmptyString(d.path)) {
+    return bad("component_coverage.path が空でない文字列ではない（型崩れ）");
   }
   return {
     judged: true,
+    malformed: false,
     reason: null,
     path: nonEmptyString(d.path) ? String(d.path) : null,
   };
@@ -213,13 +217,17 @@ export function countCoverage(coverage, slug) {
       `部品 ${cid} の instances`,
       problems,
     );
-    cells += itemRejected + instanceRejected;
-    unmeasured += itemRejected + instanceRejected;
+    // 期待セル数は定義どおり「項目数 × インスタンス数」で数える。id が空・重複の要素も項目／インスタンスとしては
+    // 実在するので、その要素が関わるセルは全て期待セルであり、識別できない以上すべて未測定になる
+    // （rejected を 1 セルとして数えると、件数が定義より小さく出て収束レポートが過小になる）。
+    const itemTotal = itemIds.length + itemRejected;
+    const instanceTotal = instanceIds.length + instanceRejected;
+    cells += itemTotal * instanceTotal;
+    unmeasured += itemTotal * instanceTotal - itemIds.length * instanceIds.length;
     for (const iid of itemIds) {
       for (const nid of instanceIds) {
         const key = keyOf(cid, iid, nid);
         expected.add(key);
-        cells += 1;
         if (duplicated.has(key)) {
           problems.push(`セル ${key}: 同じ組み合わせの行が複数ある（先勝ちにしない）`);
           unmeasured += 1;
@@ -327,6 +335,14 @@ export function main(argv, deps = {}) {
       : null;
 
   const decl = readDeclaration(metadata);
+  if (decl.malformed) {
+    // 型崩れは後方互換（judged: false → exit 0）に倒さず、使い方の誤りとして落とす。
+    process.stdout.write(
+      `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: false, malformed: true, reason: decl.reason, source: null, cells: 0, unmeasured: null }, null, 2)}\n`,
+    );
+    process.stderr.write(`error: ${decl.reason} — 旧成果物として扱わない（${opts.metadata}）\n`);
+    return 2;
+  }
   if (!decl.judged) {
     // 判定に入れないことを出力に残す（黙って合格にしない）。
     process.stdout.write(
