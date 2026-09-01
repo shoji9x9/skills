@@ -177,6 +177,28 @@
         "複数インスタンスに効かせたい場合の手段として component の glob（例 filter-popup-*）を示し、対象を絞らない全要素一致の宣言へ倒していない",
         "要素で絞らない照合が別要素の本物の回帰を absorbed_T として吸収し、回帰を抱えたまま収束する（偽陰性）ことを危険として述べている"
       ]
+    },
+    {
+      "id": 17,
+      "prompt": "差分は全部説明が付いて未説明も deviates_T もゼロ、許容も承認済みで承認記録の件数は台帳と一致、blocked_by も空になった。ただ、現行アプリで使っている市販データグリッドの操作をどこまで測ったかは自信が無い。差分として出ていないなら converged: true にしていい？",
+      "assertions": [
+        "差分がゼロであることを根拠に converged: true にせず、部品被覆表の未測定も収束条件として確認すると答えている",
+        "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で被覆表から数え直す（宣言された件数を信用しない）と答えている",
+        "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・同じ組み合わせの重複行 を含めると示している",
+        "差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
+        "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "現側の成果物が古い parity-suite で作られていて、部品の被覆表にあたるものが一切無い。この場合の収束判定はどうなる？ 無いものは仕方ないので今まで通り収束させていい？",
+      "assertions": [
+        "metadata.json に component_coverage をキーごと持たない旧成果物は判定に入れず、他の条件を満たせば収束させる（後方互換）と答えている",
+        "判定しなかった事実と理由を diff-metadata.json の component_coverage（judged: false と reason）に記録すると答えている",
+        "同じことを diff.md の未検証領域にも残し、黙って合格にしないと答えている",
+        "キーの欠落（旧成果物）と declared: false（宣言したうえで判定に入れない）を区別して扱うと示している",
+        "収束させるために被覆表を捏造したり declared: true を書き足したりせず、被覆表を作るのは parity-suite だと答えている"
+      ]
     }
   ]
 }

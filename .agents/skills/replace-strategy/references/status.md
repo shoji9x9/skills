@@ -10,11 +10,12 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
-| `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット（同上） |
+| `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）（同上） |
+| `.replace/parity/<slug>/component-coverage.json` | 部品被覆表（機能表の項目 × 部品インスタンス〈ページ〉の 3 値。`parity-suite` が生成。スキーマ正本は同スキル）。現側の測定結果のため slug 直下に 1 つ |
 | `.replace/parity/<slug>/component-diff-exceptions.json` | 承認済みインスタンス例外の規模（`component_diff_exception_causes[]` の原因数と `component_diff_exceptions[]` のインスタンス数。`parity-diff` が生成。スキーマ正本は同スキル）。環境非依存のため slug 直下に 1 つ |
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green 証跡（`suite.new_green`・`verification.passed_at`）と差し戻しループの状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）（`parity-replace` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠（`parity-diff` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
-| `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束判定の機械可読値（`converged`・`results`）と他機能待ちの帰属（`blocked_by[]`）（`parity-diff` が生成。スキーマ正本は同スキル）。同上 |
+| `.replace/parity/<slug>/new/<target>/diff-metadata.json` | 収束判定の機械可読値（`converged`・`results`・`component_coverage`）と他機能待ちの帰属（`blocked_by[]`）（`parity-diff` が生成。スキーマ正本は同スキル）。同上 |
 | `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）、版ごとの影響範囲（`changes[].affects`。テーブル名、`dataset_mode: static` では静的データ単位）、新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」（`current.origin: received-assets` のときだけ。`golden-dataset` が生成。スキーマ正本は同スキル） |
 | `.replace/bootstrap/metadata.json` | 現行環境の再構築の状態（`status` / `blocked_on` / `semantics.pending_features`）（`current-environment-bootstrap` が生成。スキーマ正本は同スキル。`received-assets` のときだけ） |
@@ -53,6 +54,11 @@ done
 3. **未検証領域と許容した差分の一覧**: 全 slug の `gaps.md` を集約する。
    **`current.origin: received-assets` では、`.replace/dataset/verification.md` の「意味論が未確定の機能」（無ければ `.replace/bootstrap/metadata.json` の `semantics.pending_features`）も併せて集約し、
    「意味論の確認待ちで開始できない」機能を未着手と区別して示す**——スイートを持たないことは同じでも、待っているものが違う（前者は質問票の回答、後者は着手）。スコープ外にした副作用（メール・外部連携）・hermetic でないテスト・データ不足も含め、**対象外にした事実を隠さない**。切替判断の材料として提示する。
+   合わせて**部品被覆表の状態**を slug ごとに示す——`metadata.json.component_coverage` が `declared: true` なら未測定セル数（測っていない部品の操作は差分ゼロとして通るため未検証領域）を、
+   `diff-metadata.json.component_coverage.unmeasured` から取る（`parity-diff` を実行済みの target のもの）。**`component-coverage.json` の `value: unmeasured` 行を目視で数えず、`metadata.json` の宣言値も転記しない**
+   （行が無い組み合わせ・`evidence` が空・`present` なのに `covered_by` が空・重複行も未測定であり、目視の行数え・宣言値はいずれも少なく出る。数え方の正本は `parity-suite` の `references/coverage.md`）。
+   **どの target でも `parity-diff` 未実行なら「未測定数は未算出（`parity-diff` の実行で確定する）」と報告する**——本モードは自前で数えない（数え直しは `parity-diff` 同梱ツールの担当で、本スキル単体では到達できない）、
+   `declared: false` ならその理由、**キーごと無ければ「被覆表が未導出（旧版 `parity-suite` の成果物）」**として区別する（`declared: false` と混同しない）。
    合わせて `component-diff-exceptions.json` の**原因数とインスタンス数**を slug ごとに示す——承認済みで説明済みではあるが、**インスタンス件数は検証の弱さのシグナル**である
    （件数を畳んで隠さない契約なので、原因数ではなくインスタンス数もそのまま数えて報告する）
 4. **横断 API の影響範囲**: 横断 API に手が入ったら利用側の全機能を再検証する必要がある。features.md の fan-out から「このリソースを使う機能一覧」を導出し、横断 API Issue の状態変化（再オープン・変更）に対して**再検証が必要な機能**を列挙する

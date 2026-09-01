@@ -33,5 +33,9 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 12 は fixture `legacy-exceptions-key`（他の前提は揃っているが、設定側に旧キー `component_diff_exceptions` が残り同一原因の `reason` が 3 インスタンスへ複製されている）で、
   「旧キーをフォールバックとして読まず、移行先の slug 成果物と `cause` へ畳む対応表を示して停止する（自動移行しない・件数は畳まない）」パスを検証する。
   他の前提が揃っているため、停止理由が旧キー**以外**（疎通失敗・green 証跡欠落）にすり替わっていれば弁別できる
+- eval 17・18 は部品被覆表を収束条件に入れる契約（Issue #274）の回帰で、**対になっている**——
+  17 は宣言がある場合に未測定を数え直して収束させない（差し戻し先は `parity-suite`）、18 は `component_coverage` をキーごと持たない旧成果物では判定に入れず**収束させる**（後方互換）。
+  17 だけでは「被覆表が無ければ常に止める」実装と区別できないため、18 が陽性コントロールになる。
+  どちらのプロンプトにも被覆表のファイル名・キー名を書かない（書くとベースラインがそれを読んで assertion を満たす）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

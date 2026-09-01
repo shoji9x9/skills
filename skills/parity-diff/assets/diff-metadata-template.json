@@ -1,5 +1,5 @@
 {
-  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（現側と同じ組で、項目に source / measured_at を加えた形。現側の値を超えた組があれば差分報告せず停止する）。results.unexplained には、diff.md に 許容候補（要確認）（＝ユーザー承認前の「許容」）として残っている候補と blocked_by に帰属させた差分も数える（accepted へ入れない——入れると unexplained: 0 経由で converged: true へ到達でき、承認と他機能待ちの条件を機械可読値の側で迂回できる。replace-strategy status はこの数値を読む）。blocked_by は他機能の新側未実装に由来して解消できない差分の帰属（3 つの帰属条件・収束状態の導出・再判定トリガーの正本は parity-diff の references/convergence.md「他機能待ちの差分」）で、帰属しても results.unexplained からは差し引かず converged を true にしない。空配列なら他機能待ちは無い。accepted_exceptions は実行時点の .replace/parity/<slug>/component-diff-exceptions.json の台帳規模で、causes が原因数・instances がインスタンス数・unresolved が照合に使えなかったインスタンス数（fail-closed の 4 条件——cause が解決できない・解決先の evidence が空・slug がファイルの slug と違う・照合キー（page / viewport / element）が欠けている。すべて数値）。results.accepted（この実行で許容に分類した件数）とは別物で、cause 参照にしてもインスタンス件数を数えられるようにするための記録である（件数は検証の弱さのシグナルなので隠さない。unresolved が 0 でなければ台帳の不整合なので diff.md にも明記する。数えるのは diff-normalize.mjs が component_diff_exceptions[<添字>] 付きで警告したインスタンス単位の不整合だけで、--page / --viewport の指定漏れ（実行側の誤り。例外が 1 件も適用されない）の警告は数えない——キーを渡して実行し直す）。noise_measurement は往復ループでの測定値再利用の判定材料（失効条件の正本は parity-diff の references/capture-new.md「測定値の再利用」）で、次回実行はこのファイルの noise_baseline_new と併せて、このファイルを上書きする前に読む。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・noise_measurement・differ_versions の画素/特性項目）を持たない（省略する）。",
+  "_note": "parity-diff が .replace/parity/<slug>/new/<target>/diff-metadata.json として生成する（新側の成果物は target ごとに分かれ、環境を切り替えても上書きしない）。形式の正本は parity-diff が定義する。全ての値はプレースホルダ例であり実測値で置き換える（数値項目は数値のまま書く。JSON はコメント不可のため説明を値文字列で示す）。noise_baseline_applied は現側 metadata.json の noise_baseline のうち適用した組、noise_baseline_new は新側を同一条件で 2 回撮って測った自己ノイズ（現側と同じ組で、項目に source / measured_at を加えた形。現側の値を超えた組があれば差分報告せず停止する）。results.unexplained には、diff.md に 許容候補（要確認）（＝ユーザー承認前の「許容」）として残っている候補と blocked_by に帰属させた差分も数える（accepted へ入れない——入れると unexplained: 0 経由で converged: true へ到達でき、承認と他機能待ちの条件を機械可読値の側で迂回できる。replace-strategy status はこの数値を読む）。blocked_by は他機能の新側未実装に由来して解消できない差分の帰属（3 つの帰属条件・収束状態の導出・再判定トリガーの正本は parity-diff の references/convergence.md「他機能待ちの差分」）で、帰属しても results.unexplained からは差し引かず converged を true にしない。空配列なら他機能待ちは無い。accepted_exceptions は実行時点の .replace/parity/<slug>/component-diff-exceptions.json の台帳規模で、causes が原因数・instances がインスタンス数・unresolved が照合に使えなかったインスタンス数（fail-closed の 4 条件——cause が解決できない・解決先の evidence が空・slug がファイルの slug と違う・照合キー（page / viewport / element）が欠けている。すべて数値）。results.accepted（この実行で許容に分類した件数）とは別物で、cause 参照にしてもインスタンス件数を数えられるようにするための記録である（件数は検証の弱さのシグナルなので隠さない。unresolved が 0 でなければ台帳の不整合なので diff.md にも明記する。数えるのは diff-normalize.mjs が component_diff_exceptions[<添字>] 付きで警告したインスタンス単位の不整合だけで、--page / --viewport の指定漏れ（実行側の誤り。例外が 1 件も適用されない）の警告は数えない——キーを渡して実行し直す）。noise_measurement は往復ループでの測定値再利用の判定材料（失効条件の正本は parity-diff の references/capture-new.md「測定値の再利用」）で、次回実行はこのファイルの noise_baseline_new と併せて、このファイルを上書きする前に読む。api-resource / batch モードでは視覚系フィールド（capture_conditions_verified・noise_baseline_applied・noise_baseline_new・noise_measurement・differ_versions の画素/特性項目）と component_coverage を持たない（省略する）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -45,6 +45,7 @@
     "align_tolerance": 1,
     "pixel_crops": "<同梱 pixel-crops.mjs の VERSION>",
     "diff_normalize": "<同梱 diff-normalize.mjs の VERSION>",
+    "coverage_check": "<同梱 coverage-check.mjs の VERSION（component_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
     "json_normalize_diff": "<同梱 json-normalize-diff.mjs の VERSION（api-resource / batch モードで使う。feature モードでは省略）>"
   },
   "noise_baseline_applied": [
@@ -98,6 +99,14 @@
     "unverified": [
       "<未検証領域（ベースラインに写らない箇所・宣言できない構造差・アニメーション・照合できなかった撮影条件・投入対象でない target のデータ依存差分）>"
     ]
+  },
+  "component_coverage": {
+    "_note": "部品被覆表の判定結果。現側 metadata.json の component_coverage.declared が true のときだけ判定に入れる（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。判定したときは component-coverage.json を読んで数え直した値を書き、現側の宣言値をそのまま写さない。unmeasured が 1 以上なら converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す（黙って合格にしない）。api-resource / batch モードでは省略する。",
+    "judged": false,
+    "reason": "<judged: false のときの理由（現側が declared: false ならその reason、component_coverage をキーごと持たない旧成果物ならその旨）。judged: true では null>",
+    "source": "<judged: true のとき読んだ被覆表のパス。declared: true なのに無い・読めない・壊れているときはそのパスと読めなかった旨を書き、unmeasured は数え直せないので null にする（cells は 0。null を 0 と読み替えて合格に倒さない）。path も --coverage も無くて読みに行けなかったときは null>",
+    "cells": 0,
+    "unmeasured": 0
   },
   "accepted_exceptions": {
     "causes": 0,

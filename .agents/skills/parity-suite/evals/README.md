@@ -43,5 +43,9 @@ scripts/run-skill-eval.sh \
 - eval 19 は eval 18 と**同じ fixture** に対し、意味論が**確定済み**の `customer-list` を対象にする陽性コントロール。
   「`received-assets` なら一律で止まる」「確認待ちが 1 件でもあれば全機能を止める」実装を弾く（eval 18 だけでは、全部止める実装と区別できない）。
   この環境では Playwright・現行アプリに到達できないため、**停止するとしてもその理由が意味論の確認待ちでないこと**を見る
+- eval 20・21 は部品被覆表（Issue #274）の回帰。前提の有無に関わらず会話で判定できる契約を対象にする——
+  20 はベンダー資料を列挙の生成源に留めること・部品 × ページのインスタンスごとに測ること・3 値と `covered_by` の記録、
+  21 は未測定を行の削除で消せないこと（fail-closed）と `metadata.json` の `component_coverage` をキーごと省略しないこと。
+  どちらのプロンプトにも被覆表のファイル名・キー名を書かない（書くとベースラインがそれを読んで assertion を満たす）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

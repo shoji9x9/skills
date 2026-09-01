@@ -63,6 +63,10 @@ parity-suite [--feature <slug>] [--target <name>]
 - **現行アプリのデータを破壊しない**（選択した target の `forbidden_actions` を尊重。書き込みが許可されない target ではスイートの書き込み系スペックを実行せず「未検証」として `gaps.md` に記録する）
 - **意味論が未確定の機能でスイートを書き始めない。** `current.origin: received-assets` で、対象 slug の必須データ意味論が `.replace/bootstrap/semantics.md` の
   「確認待ち」または「確認したが確定できなかったもの」に残っている間は、**合否判定基準を作れない**（何が正解かが決まっていない）。推測でシナリオを埋めず、不足情報を報告して停止する
+- **同じ部品の 1 インスタンスで測った結果を、他のインスタンスの測定結果として流用しない。** 部品は画面ごとに設定が違うため、あるページで無効な操作が別のページでは有効でありうる。
+  インスタンス（部品 × ページ）ごとに測り、`present` / `absent` / `unmeasured` の 3 値で被覆表に残す（[`references/coverage.md`](references/coverage.md)「部品被覆表」）
+- **測っていない部品の操作を、被覆表の空欄で済ませない。** 行が無い組み合わせ・`evidence` の空欄は `unmeasured` として数える（fail-closed）。
+  `metadata.json` の `component_coverage` を**キーごと省略しない**——キーの欠落は旧成果物の意味になり、`parity-diff` が後方互換で判定を飛ばす経路に測らなかった事実が紛れる
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す。
   **ファイルアップロードも同じ**——`setInputFiles` で流せることは、その画面で通ったことの証拠にならない（操作可能性と特性化済みを混同しない）
 - **バイト列に到達できない出力を「対象」として扱わない。** ダウンロードが発火しない・出力ディレクトリに到達できない出力は `gaps.md` に未検証として残す
@@ -123,6 +127,7 @@ parity-suite [--feature <slug>] [--target <name>]
    `changes[].affects` と slug の実効参照テーブルを、`golden-dataset` の `references/versioning.md` に従って照合する。
    交差するときだけ陳腐化として再取得を宣言し、数値が古いだけなら再取得せず記録値も書き換えない。不正／欠落した変更履歴は全 slug に影響するものとして扱う
 5. **authoring**: ロケータマッピング（現側）→ **期待値解決層**（side 別の期待値。現側の値だけを埋める）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria（**セクション単位で複数枚**。部分一致は書いていない兄弟が在ることしか許容せず深さを飛ばせない）→ API 特性化。
+   **状態網羅は部品の規範的な資料（コンポーネントカタログ・部品ベンダーの機能一覧）から導出し、部品インスタンス（部品 × ページ）ごとに測って被覆表 `component-coverage.json` に 3 値で残す**（feature モードのみ。[`references/coverage.md`](references/coverage.md)「状態網羅の導出源」）。
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
@@ -136,6 +141,7 @@ parity-suite [--feature <slug>] [--target <name>]
 8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、設定の `verification_commands.full`（静的解析・型検査）をスイートに通す
    （**`full` が無くても、値がリスト〈旧形式＝走る範囲が未宣言〉でも停止せず** `gaps.md` に記録して進む。検証コマンドがスイートのパスを対象に含んでいない場合も、含まれていないことを記録して範囲を勝手に広げない）。
    そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
+   feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
 
@@ -151,9 +157,10 @@ parity-suite [--feature <slug>] [--target <name>]
 | 未検証領域 | `.replace/parity/<slug>/gaps.md` | `assets/gaps-template.md` |
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
+| 部品被覆表（feature モードのみ） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
-- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
   **コピーは修正しない規約のため、プロジェクト自作ツールとパスで分けられるコピー専用のサブディレクトリに置く**（配置指針は [`references/locator-mapping.md`](references/locator-mapping.md)）
@@ -164,6 +171,6 @@ parity-suite [--feature <slug>] [--target <name>]
 - **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、現側の値だけを埋めた期待値解決層（`metadata.json.suite.expectations`。新側の値の充填は `parity-replace`）、現側専用スペックの `testIgnore` 除外（`metadata.json.suite.current_only`）、
   未実装機能の在席チェック（slug 付きでスキップ）、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
-- **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、
+- **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy status`** が `strength.md` / `gaps.md` / `metadata.json` を読んで現況を導出する
