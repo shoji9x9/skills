@@ -164,7 +164,9 @@ while IFS=$'\t' read -r _rank _date f; do
 	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので割れない。
 	# 非 UTF-8 ロケールではバイト単位に戻るため、UTF-8 のときだけ切り詰めて安全側に倒す
 	# （kaizen-archive.sh の INDEX 生成と同じ方針。python 等の追加ランタイムには依存しない）。
-	if locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8' && [ "${#summary}" -gt 120 ]; then
+	# 長さ判定を先に置く。ロケール判定は `locale` と `grep` のプロセス起動を伴うので、
+	# 切り詰めが要らない短い要約（大半）ではそこまで到達させない。
+	if [ "${#summary}" -gt 120 ] && locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8'; then
 		summary="${summary:0:119}…"
 	fi
 	echo "- \`${f}\` — ${meta}— ${summary}"
