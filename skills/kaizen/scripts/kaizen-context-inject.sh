@@ -154,10 +154,21 @@ while IFS=$'\t' read -r _rank _date f; do
 	meta="date: $(frontmatter_field "$f" date) type: $(frontmatter_field "$f" type) priority: $(frontmatter_field "$f" priority) "
 	summary_src=$(first_line_under "## 提案" "$f")
 	[ -n "$summary_src" ] || summary_src=$(first_line_under "## 事象" "$f")
-	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくし、120 字で切り詰める。
+	# 先頭の箇条書き記号と「`type: rule`。」のような接頭辞を落として読みやすくする。
 	# SC2016: sed の式はバッククォートを含むリテラル正規表現で、シェル展開させない意図のため単一引用符が正しい。
 	# shellcheck disable=SC2016
-	summary=$(printf '%s' "$summary_src" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' | cut -c1-120 || true)
+	summary=$(printf '%s' "$summary_src" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
+	# 120 文字に切り詰め。`cut -c` は使わない——GNU coreutils ではバイト単位で切るため、
+	# 日本語（UTF-8 で 1 文字 3 バイト）だと文字の途中で割れ、壊れたバイト列がそのまま
+	# エージェントのコンテキストへ入る（Issue #271。locale を変えても同じ）。
+	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので割れない。
+	# 非 UTF-8 ロケールではバイト単位に戻るため、UTF-8 のときだけ切り詰めて安全側に倒す
+	# （kaizen-archive.sh の INDEX 生成と同じ方針。python 等の追加ランタイムには依存しない）。
+	# 長さ判定を先に置く。ロケール判定は `locale` と `grep` のプロセス起動を伴うので、
+	# 切り詰めが要らない短い要約（大半）ではそこまで到達させない。
+	if [ "${#summary}" -gt 120 ] && locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8'; then
+		summary="${summary:0:119}…"
+	fi
 	echo "- \`${f}\` — ${meta}— ${summary}"
 done <"${pending_index}"
 
