@@ -59,5 +59,10 @@ scripts/run-skill-eval.sh \
   「根拠の無い暫定値で埋めない」契約（assertion 5）がここで測れる。fixture・プロンプトのどちらにも記録先の表名・所有者の決め方は書かない
   （書くと baseline がそれを読んで assertion を満たす）。
   **assertion 2（配置することと挙動を作らないことの書き分け）は baseline も自前のスコープ表で到達した実測がある**ため、Delta ではなく**後退検知**が目的の項目として残している
+- eval 26 の fixture（`features-stale-status-column`）は、**旧版テンプレート由来の「状態」列を持つ features.md**（`open` / `closed` を手書きで持ち、Issue 番号も入っている）を持たせ、
+  **状態の根拠をトラッカーへの問い合わせだけに限る**こと（列の値を現況として報告しない・問い合わせに到達できない番号を「判定不能」として open / closed のどちらにも倒さない・列を黙って書き換えない）を検証する。
+  使い捨てプロジェクトにはリポジトリが無く問い合わせが必ず失敗するため、**列を読めば「状態が分かる」・読まなければ「判定不能」**という弁別がここで立つ。
+  fixture には列が古い旨も「読まない」という結論も書かない（書くと baseline がそれを読んで assertion を満たす）。
+  成果物（`strength.md` / `gaps.md`）を持たせてあるのは、判定不能で報告全体を止めず導出を続けることまで測るため
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
