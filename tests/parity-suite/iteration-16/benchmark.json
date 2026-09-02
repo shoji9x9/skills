@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "gpt-5.4",
+    "analyzer_model": "gpt-5.4",
+    "timestamp": "2026-09-02T23:56:28Z",
+    "evals_run": [23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 47.687,
+        "tokens": 252093,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u30e1\u30cb\u30e5\u30fc\u304c\u51fa\u306a\u304b\u3063\u305f\u3060\u3051\u3067\u306f absent \u306b\u305b\u305a\u3001\u64cd\u4f5c\u306e\u767a\u706b\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044\u73fe\u72b6\u306f unmeasured \u3068\u3057\u3066\u7406\u7531\u3092\u6b8b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u767a\u706b\u81ea\u4f53\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044\u7d50\u679c\u306f absent \u3067\u306f\u306a\u304f unmeasured \u3068\u660e\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u5224\u5b9a\u7528\u30ed\u30b1\u30fc\u30bf\u306f role \uff0b\u30a2\u30af\u30bb\u30b7\u30d6\u30eb\u30cd\u30fc\u30e0\u3092\u4fdd\u3061\u3001\u5ea7\u6a19\u64cd\u4f5c\u7528\u306b\u306f\u5b9f\u969b\u306b\u63cf\u753b\u3055\u308c\u3066\u3044\u308b\u8981\u7d20\u3092\u5225\u306b\u5f15\u304f\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u5224\u5b9a\u7528 getByRole \u3092\u7dad\u6301\u3057\u3001\u64cd\u4f5c\u7528\u3060\u3051\u53ef\u8996\u30bb\u30eb\u3078\u5206\u3051\u308b\u3068\u7b54\u3048\u305f\u3002"
+        },
+        {
+          "text": "locator.click({ button: 'right' }) \u3067\u767a\u706b\u3057\u306a\u3044\u5b9f\u88c5\u3067\u306f\u3001\u53ef\u8996\u8981\u7d20\u306e boundingBox() \u306e\u4e2d\u5fc3\u5ea7\u6a19\u3078 page.mouse.click(x, y, { button: 'right' }) \u3092\u9001\u308b\u5177\u4f53\u7b56\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u53ef\u8996\u8981\u7d20\u306e boundingBox() \u4e2d\u5fc3\u3078 page.mouse.click(x, y, { button: 'right' }) \u3092\u9001\u308b\u5177\u4f53\u7b56\u3092\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u518d\u8a66\u884c\u5f8c\u306f\u64cd\u4f5c\u30a4\u30d9\u30f3\u30c8\u306e\u5230\u9054\u3001\u307e\u305f\u306f\u64cd\u4f5c\u306b\u5fdc\u3058\u308b DOM\u30fb\u72b6\u614b\u5909\u5316\u3067\u767a\u706b\u3092\u5225\u9014\u78ba\u8a8d\u3057\u3001\u305d\u306e\u78ba\u8a8d\u3068\u89b3\u6e2c\u7d50\u679c\u3092 evidence \u306b\u8a18\u9332\u3059\u308b\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "\u53ef\u8996\u8981\u7d20\u3078\u306e\u64cd\u4f5c\u3001\u30a4\u30d9\u30f3\u30c8\u5230\u9054\u307e\u305f\u306f DOM\u30fb\u72b6\u614b\u5909\u5316\u306b\u3088\u308b\u767a\u706b\u78ba\u8a8d\u3001evidence \u8a18\u9332\u3092\u4e00\u7d9a\u304d\u306e absent \u6761\u4ef6\u3068\u3057\u3066\u793a\u3057\u305f\u3002"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 47.687,
+        "stddev": 0.0,
+        "min": 47.687,
+        "max": 47.687
+      },
+      "tokens": {
+        "mean": 252093.0,
+        "stddev": 0.0,
+        "min": 252093,
+        "max": 252093
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+47.7",
+      "tokens": "+252093"
+    }
+  },
+  "notes": []
+}

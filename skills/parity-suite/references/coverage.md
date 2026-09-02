@@ -72,7 +72,12 @@
 - **インスタンスは「部品 × ページ」で数える。** 同じ部品を 2 画面で使っていればインスタンスは 2 つで、セルもそれぞれ測る。**片方で測った結果を共有部品の値として固定しない**
 - **値は 3 値**（`present` / `absent` / `unmeasured`）。**`absent` も測った結果として記録する**——「無いことを確かめた」と「測っていない」を同じ空欄にしない
   - `present`: 現行インスタンスにその操作が在り、**採取状態（`metadata.json.capture_conditions.states`）か assertion に落として押さえた**（落とし先を `covered_by` に書く）
-  - `absent`: 現行インスタンスにその操作が無いことを実際に操作して確かめた（観測を `evidence` に書く）
+  - `absent`: 現行インスタンスにその操作が無いことを、次の 4 条件を一続きで満たして確かめた。
+    **(1)** 操作用に引いた可視要素へ操作を送る、**(2)** 操作イベントの到達または操作に応じる DOM・状態変化で発火を別途確認する、
+    **(3)** 送り方・発火確認・観測結果の 3 点を `evidence` に記録する、**(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
+    **`absent` に進める順序は「発火確認済み」→「期待する UI 応答なし」であり、発火自体を確認できない結果を `absent` と結論しない。**
+    コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、[`locator-mapping.md`](locator-mapping.md)「操作の実装差を吸収する層」に従い、
+    判定用と操作用のロケータを分け、可視要素の `boundingBox()` から求めた中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送って再測定する
   - `unmeasured`: 測っていない。`unmeasured_reason` に理由を書き、`gaps.md` にも残す
 - **行が無い組み合わせは `unmeasured` として数える**（fail-closed）。`present` / `absent` なのに `evidence` が空、`present` なのに `covered_by` が空のセルも同じ——測った証拠が無いものを測った扱いにしない
 - 期待セル数（部品ごとの 項目数 × インスタンス数 の合計）と未測定数を `metadata.json` の `component_coverage` に書く。**`declared: true` のときだけ `parity-diff` の収束判定に入り、未測定が残る間は収束しない**（判定の正本は `parity-diff` の `references/convergence.md`）
