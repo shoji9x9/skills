@@ -43,3 +43,20 @@ KEDB を `user correction` / `誤検知` / `tool_result` × `kaizen-candidate-sc
 回帰 fixture は 2 本置く。(1) tool_result にだけ修正語があり実ユーザー発話が無い入力 → 候補 0 件、
 (2) 同じ tool_result に加えて本物のユーザー修正発話がある入力 → 候補 1 件。
 弁別できることまで確かめ、「候補が減った」ではなく「正しい行だけが出る」を検証する。
+
+## 再発（2026-09-02）
+
+Issue #276 のコミット時に再発し、**2 セッション分**でゲートが止まった。
+
+- 自セッション（8ca3783e）: `user correction: transcript line 198 / 203 / 296 / 429` の 4 件はすべて
+  tool_result（`evals/README.md` の追記内容、`docs/skill-development.md` の抜粋、
+  `run-skill-eval.sh` の先頭、`evals.json` の eval 19）で、ユーザー発話は 1 件も無い。
+- 他セッション（d3e4cb5d）: `user correction: transcript line 828` も tool_result（`parity-suite` の
+  references 本文）だった。
+
+**副作用としてゲートが連鎖する**: 他セッションのセンチネルは自セッションで解消するまで commit を通さないため、
+誤検知 1 件が別セッションの commit を止める。実際 d3e4cb5d の transcript 685 行目には、
+そのセッションが**さらに別の 2 セッション**のセンチネルでブロックされたゲート出力が残っている
+（誤検知が連鎖の入口になり、抽出しても次のセッションで同じ誤検知が積み上がる）。
+
+提案は変更なし。誤検知が commit の連鎖ブロックを生む点を踏まえ、優先度は `high` のまま維持する。
