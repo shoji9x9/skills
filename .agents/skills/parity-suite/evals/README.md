@@ -47,5 +47,8 @@ scripts/run-skill-eval.sh \
   20 はベンダー資料を列挙の生成源に留めること・部品 × ページのインスタンスごとに測ること・3 値と `covered_by` の記録、
   21 は未測定を行の削除で消せないこと（fail-closed）と `metadata.json` の `component_coverage` をキーごと省略しないこと。
   どちらのプロンプトにも被覆表のファイル名・キー名を書かない（書くとベースラインがそれを読んで assertion を満たす）
+- eval 22 はノイズ測定の 2 回目の採取物の扱い（Issue #277）の回帰。書き出し先（`noise-pass2/`）・基準値を記録した後の削除・
+  「テキストは Git」の区分を 2 回目には当てないこと・不在が欠落ではないことを対象にする。
+  プロンプトは**残してコミットする案**を持ち込む形にしてあり、現行アプリ・ブラウザに到達しなくても採点できる
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

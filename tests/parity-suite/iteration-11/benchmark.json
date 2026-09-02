@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-02T06:59:07Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 46.656,
+        "tokens": 74012,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 回目の書き出し先を .replace/parity/<slug>/noise-pass2/（1 回目の baseline/ と対称のレイアウト。1 回目を上書きしない）と答えている",
+          "passed": true,
+          "evidence": "「.replace/parity/<slug>/noise-pass2/ です。1 回目（baseline/）と対称のレイアウトで書き出します」と答え、同じ場所へ撮ると 1 回目を上書きして比較相手が消えると理由も添えた。"
+        },
+        {
+          "text": "基準値を metadata.json.noise_baseline へ記録したら 2 回目の採取物を削除し、コミットしないと答えている",
+          "passed": true,
+          "evidence": "「書いた直後に noise-pass2/ を削除する — ここまでで測定完了」「削除は後片付けではなく測定手順の一部」とし、コミットの意図は規約と逆向きだと押し戻した。"
+        },
+        {
+          "text": "削除してよい理由として、判定に使うのは記録した数値で、記録後の 2 回目は parity-diff を含めどの工程も読まない（現新比較の相手は 1 回目の baseline/）と述べている",
+          "passed": true,
+          "evidence": "「parity-diff が現新比較で読むのは 1 回目の baseline/ だけで、基準値を記録した後の noise-pass2/ はどの工程も読みません」「判定に使うのは基準値（数値）だけ」と述べた。"
+        },
+        {
+          "text": "「テキスト成果物は Git」の区分は 1 回目の baseline/ に適用するもので 2 回目には当てないと述べている",
+          "passed": true,
+          "evidence": "「『テキスト成果物は Git』という区分が対象にしているのは 1 回目の baseline/ だけで、2 回目には適用されません」「その区分をそのまま当てると baseline/ と同量の重複がリポジトリに入るだけ」と説明した。"
+        },
+        {
+          "text": "検算は capture_conditions に記録した撮影条件で撮り直せるため残す必要が無いと答えている",
+          "passed": true,
+          "evidence": "「撮影条件は metadata.json.capture_conditions（同一ビューポート・animations: 'disabled'・マスク・full_page の範囲など）に記録済みなので、検算したくなったら同じ条件で撮り直せます」と答え、抱えておく必要はないと明言した。"
+        },
+        {
+          "text": "削除後の不在は欠落ではなく、parity-diff の前提確認も 2 回目の実体を要求しない（gaps.md にも書かない）と答えている",
+          "passed": true,
+          "evidence": "「止まりません」と答え、後続工程は実体を要求しない（parity-diff の前提確認を含む）・不在は欠落として扱わず gaps.md にも記録しない・中断で残っていた場合も破棄してよい、と 3 点を挙げた。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 133.934,
+        "tokens": 119852,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 回目の書き出し先を .replace/parity/<slug>/noise-pass2/（1 回目の baseline/ と対称のレイアウト。1 回目を上書きしない）と答えている",
+          "passed": false,
+          "evidence": "書き出し先を baseline/noise-2026-09-02/run-1/ のような「キャリブレーション専用の別ディレクトリ」と創作し、noise-pass2/ にも .replace/parity/<slug>/ のレイアウトにも到達していない。"
+        },
+        {
+          "text": "基準値を metadata.json.noise_baseline へ記録したら 2 回目の採取物を削除し、コミットしないと答えている",
+          "passed": false,
+          "evidence": "削除ではなく保存を推奨。「凍結ディレクトリに置く」「日付入りの固定ディレクトリに 1 回だけ入れて、それ以降触らない運用に」とコミット手順を示した。"
+        },
+        {
+          "text": "削除してよい理由として、判定に使うのは記録した数値で、記録後の 2 回目は parity-diff を含めどの工程も読まない（現新比較の相手は 1 回目の baseline/）と述べている",
+          "passed": false,
+          "evidence": "「metadata.json に書く基準値は導出値で、元の 2 本が無ければ再導出できません。数値だけ残して原資料を捨てるのは、確かに片手落ち」と、記録後は誰も読まないという契約と逆の判断をしている。"
+        },
+        {
+          "text": "「テキスト成果物は Git」の区分は 1 回目の baseline/ に適用するもので 2 回目には当てないと述べている",
+          "passed": false,
+          "evidence": "「テキスト成果物は Git」の区分に触れず、コミット可否を機微データの有無・.gitignore 設計の観点だけで論じている。1 回目と 2 回目で区分を分ける話は無い。"
+        },
+        {
+          "text": "検算は capture_conditions に記録した撮影条件で撮り直せるため残す必要が無いと答えている",
+          "passed": false,
+          "evidence": "検算には原資料の保存が要る（ハッシュだけでは再導出できない）という立場で、撮影条件から撮り直せるとは述べていない。capture_conditions への言及も無い。"
+        },
+        {
+          "text": "削除後の不在は欠落ではなく、parity-diff の前提確認も 2 回目の実体を要求しない（gaps.md にも書かない）と答えている",
+          "passed": false,
+          "evidence": "「第 3 の場所に置いたなら削除しても parity-diff は止まりません」と一般論で述べたのみで、前提確認が 2 回目の実体を要求しないという契約にも gaps.md へ書かないことにも到達していない。実物での確認を宿題として残した。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 46.656,
+        "stddev": 0.0,
+        "min": 46.656,
+        "max": 46.656
+      },
+      "tokens": {
+        "mean": 74012.0,
+        "stddev": 0.0,
+        "min": 74012,
+        "max": 74012
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 133.934,
+        "stddev": 0.0,
+        "min": 133.934,
+        "max": 133.934
+      },
+      "tokens": {
+        "mean": 119852.0,
+        "stddev": 0.0,
+        "min": 119852,
+        "max": 119852
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-87.3",
+      "tokens": "-45840"
+    }
+  },
+  "notes": []
+}
