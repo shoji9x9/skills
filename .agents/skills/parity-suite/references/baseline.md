@@ -61,7 +61,7 @@
 - **再測定はいつでもできる**——撮影条件は `capture_conditions` に記録済みなので、基準値を検算したくなったら同じ条件で撮り直す（次の測定は同じ場所へ書く）
 - **`artifacts` 設定（`retention` / `storage`）の対象ではない。** `retention` は版（撮り直した過去の版を残すか）の話で、`storage` は残す大きなバイナリの保存先の話。
   2 回目は同一版の一時作業物であり、どちらの軸にも乗らない
-- **新側も同じ扱い**（`parity-diff` が測る自己ノイズの 2 回目。正本は同スキルの `references/capture-new.md`）
+- **新側も同じ扱い**（`parity-diff` が測る自己ノイズの 2 回目。正本は `parity-diff` の `references/capture-new.md`）
 
 ## 保存先
 
