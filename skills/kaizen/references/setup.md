@@ -295,7 +295,7 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
         "matcher": "bash",
         "bash": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh -copilot",
         "cwd": ".",
-        "timeoutSec": 15
+        "timeoutSec": 40
       }
     ]
   }
@@ -305,7 +305,10 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 > Copilot の `preToolUse` はブロックできるが、stderr/理由をエージェントのコンテキストへ渡せるかはドキュメント上不明確。
 > 第 1 引数 `-copilot` は必須。Copilot は timeout 以外の非 0 をすべて deny するため、これが無いと「他セッションのセンチネルが残っている」だけの警告（exit 1）でも commit が拒否される。
 > 最低限コミットはブロックされるため、エージェントは失敗に反応して `kaizen --current` を実行する余地が残る。
-> Copilot の matcher は tool 名まででコマンド文字列を絞れないため、スクリプト内 prefilter を使う。`timeoutSec` は内部走査の 8 秒より長くし、内部 timeout を exit 2 の fail-closed に変換できる余地を持たせる。
+> Copilot の matcher は tool 名まででコマンド文字列を絞れないため、スクリプト内 prefilter を使う。
+> `timeoutSec` は**ゲートの最悪ケースより長くする**。内部の走査予算は自セッション分が 8 秒、他セッション分が合計 24 秒なので、合わせて 40 秒にしてある。
+> **Copilot の `preToolUse` は timeout だけが fail-open** で、他の非 0 は deny される（[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
+> 短すぎる `timeoutSec` はゲートを黙って素通りさせるため、遮断が効かなくなる側へ倒れる。
 > 現行の camelCase `preToolUse` payload は `toolArgs` を渡すが `transcriptPath` を渡さない。そのため非 commit の高速 prefilter と commit 判定は機能する一方、候補ゼロの自動通過は使わず従来の `kaizen --current` ブロックへフォールバックする。
 > 挙動は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) で確認すること。
 
