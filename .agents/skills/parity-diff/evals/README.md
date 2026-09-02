@@ -37,5 +37,8 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   17 は宣言がある場合に未測定を数え直して収束させない（差し戻し先は `parity-suite`）、18 は `component_coverage` をキーごと持たない旧成果物では判定に入れず**収束させる**（後方互換）。
   17 だけでは「被覆表が無ければ常に止める」実装と区別できないため、18 が陽性コントロールになる。
   どちらのプロンプトにも被覆表のファイル名・キー名を書かない（書くとベースラインがそれを読んで assertion を満たす）
+- eval 19 は新側の自己ノイズの 2 回目の採取物（`new/<target>/noise-pass2/`）の扱い（Issue #277）の回帰。記録後に削除しコミットしないこと、
+  再利用の判断材料が記録値（`noise_baseline_new` / `noise_measurement`）であって採取物ではないこと、不在が失効条件でも前提確認の停止理由でもないことを対象にする。
+  プロンプトは**残す案と、消すと全組再測定になるという誤解**を持ち込む形にしてあり、前提が無い環境でも会話で採点できる
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

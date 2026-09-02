@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-02T08:54:40Z",
+    "evals_run": [19],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 57.271,
+        "tokens": 176056,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定値を diff-metadata.json へ記録した直後に noise-pass2/ を削除し、コミットもしないと答えている",
+          "passed": true,
+          "evidence": "「noise-pass2/ は成果物ではなく、削除までが測定手順の一部」「diff-metadata.json へ書いた直後に削除し、そこまで済ませて測定完了」と答え、コミットしない理由（baseline-new/ と同量の重複が入るためテキスト＝Git の区分を当てない）も示した。"
+        },
+        {
+          "text": "再利用の判断材料は前回実行の diff-metadata.json の noise_baseline_new / noise_measurement（fingerprint を含む記録値）であって採取物ではないと述べている",
+          "passed": true,
+          "evidence": "「再利用判定が読むのは採取物ではなく、同じ target の new/<target>/diff-metadata.json の noise_baseline_new と noise_measurement（fingerprint 含む）」「判断材料は測定値としてすでに diff-metadata.json に入っている」と述べた。"
+        },
+        {
+          "text": "採取物の不在を失効条件として扱わず、そのために全組を測り直しはしないと答えている",
+          "passed": true,
+          "evidence": "「なりません」と答え、『不在は失効条件ではない…採取物が無いことを理由に再測定へ倒さない』を引用。全組再測定になる条件（--remeasure-noise・noise_measurement 欠損/破損・fingerprint 不一致・反復飛び・データセット変更等）を列挙し、採取物の有無はどれにも入らないと示した。"
+        },
+        {
+          "text": "前提確認は 2 回目の採取物の実体を要求せず、不在を parity-suite への差し戻しや停止の理由にしないと述べている",
+          "passed": true,
+          "evidence": "「弾かれません」と答え、preflight の『2 回目の採取物は実体を要求しない』を引用。前提確認が実体を要求するのは metadata.json の noise_baseline[] と artifacts_storage.baseline_pointer の実体（baseline/）だと対比した。"
+        },
+        {
+          "text": "測り直す組は同じ noise-pass2/ へ撮り直すため、削除しても次の測定に支障が無いと述べている",
+          "passed": true,
+          "evidence": "「測り直す組はどこへ撮り直す → 同じ new/<target>/noise-pass2/ です」と答え、中断で残っていた場合も入力ではないので破棄してよく、同じ場所へ撮り直す（毎回作って測って消す一時領域）と述べた。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 55.701,
+        "tokens": 90068,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "測定値を diff-metadata.json へ記録した直後に noise-pass2/ を削除し、コミットもしないと答えている",
+          "passed": false,
+          "evidence": "削除・非コミットの契約に到達せず、「ディレクトリの保持・削除の判断は、それを確認してからで安全」と保留した。commit は git リポジトリでないため実行不可という環境上の理由だけを述べている。"
+        },
+        {
+          "text": "再利用の判断材料は前回実行の diff-metadata.json の noise_baseline_new / noise_measurement（fingerprint を含む記録値）であって採取物ではないと述べている",
+          "passed": false,
+          "evidence": "「再利用判定が採取物ディレクトリを見るのか、diff-metadata.json の記録値だけを見るのかで結論が逆になります。判定ロジックを読まないと決められません」と未確定のまま残した。"
+        },
+        {
+          "text": "採取物の不在を失効条件として扱わず、そのために全組を測り直しはしないと答えている",
+          "passed": false,
+          "evidence": "全組再測定になるかを判定できないとして回答を保留し、失効条件の判定材料に採取物が入らないという結論に到達していない。"
+        },
+        {
+          "text": "前提確認は 2 回目の採取物の実体を要求せず、不在を parity-suite への差し戻しや停止の理由にしないと述べている",
+          "passed": false,
+          "evidence": "「前提確認が採取物の存在を要求するかどうか、スキル本体の記述を確認する必要があります」と保留。実体を要求しないという契約に到達していない。"
+        },
+        {
+          "text": "測り直す組は同じ noise-pass2/ へ撮り直すため、削除しても次の測定に支障が無いと述べている",
+          "passed": false,
+          "evidence": "「出力パスの決まり方（pass2 固定か連番か、target ごとか）を確認する必要があります」と保留し、同じ new/<target>/noise-pass2/ へ撮り直すと答えていない。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 57.271,
+        "stddev": 0.0,
+        "min": 57.271,
+        "max": 57.271
+      },
+      "tokens": {
+        "mean": 176056.0,
+        "stddev": 0.0,
+        "min": 176056,
+        "max": 176056
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 55.701,
+        "stddev": 0.0,
+        "min": 55.701,
+        "max": 55.701
+      },
+      "tokens": {
+        "mean": 90068.0,
+        "stddev": 0.0,
+        "min": 90068,
+        "max": 90068
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+1.6",
+      "tokens": "+85988"
+    }
+  },
+  "notes": []
+}
