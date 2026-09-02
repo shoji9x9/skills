@@ -53,5 +53,11 @@ scripts/run-skill-eval.sh \
   受領資産を fixture に置くのは、置かないと「再構築を代行しない」が「材料が無いからできない」と区別できないため
 - eval 24 は fixture 無しで会話だけで判定できる契約として、**`verification_commands` を走る範囲で `full` / `diff` の 2 列に分けて確定する**こと
   （変更ファイルを渡しているフックのコマンドを機械的に `full` へ入れない・スクリプト側の引数の扱いまで読む・`references.coding_conventions` の項目を「`full` で落ちるか」で仕分けて未検査を記録する）を検証する
+- eval 25 の fixture（`inventory-unowned-element`）は測定・戦略が完了した状態を持たせ、**どの機能のセクションにも収まらない可視要素**
+  （ヘッダの外部サイト導線）が「ページ要素の帰属」表に残り、スコープ外の方針を理由に記録から落ちないことを検証する。
+  1 ページに 2 機能が乗る構成にしてあるため**この要素の所有者は一意に決まらない**——所有者を確定するなら選定根拠、確定しないなら空欄＋候補 slug という
+  「根拠の無い暫定値で埋めない」契約（assertion 5）がここで測れる。fixture・プロンプトのどちらにも記録先の表名・所有者の決め方は書かない
+  （書くと baseline がそれを読んで assertion を満たす）。
+  **assertion 2（配置することと挙動を作らないことの書き分け）は baseline も自前のスコープ表で到達した実測がある**ため、Delta ではなく**後退検知**が目的の項目として残している
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
