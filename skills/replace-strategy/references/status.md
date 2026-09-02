@@ -28,7 +28,9 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 features.md に記録された Issue 番号だけを個別取得する（リポジトリの全 Issue 一覧を取らない。対象は既知の番号なので全件走査は不要）:
 
 ```bash
-# <numbers> は features.md から抽出した Issue 番号の一覧
+# <numbers> は features.md から抽出した Issue 番号の一覧。**`#` を外した数字だけ**にする
+# （features.md は `#103` の形で記録するため、そのまま渡すとパスが `issues/#103` になり
+#  404 で全件が判定不能に化ける。取得失敗と表記ミスが同じ出力になり区別できない）
 for n in $NUMBERS; do
   # 取得できた番号だけ行が出る作りにすると、失敗した番号が出力から黙って消える
   # （gh のエラーは番号を含まない）。失敗も 1 行として残し、後段で「判定不能」に落とす
@@ -36,7 +38,8 @@ for n in $NUMBERS; do
   if row="$(gh api "repos/$OWNER/$REPO/issues/$n" --jq '[.number, .state, .title] | @tsv')"; then
     printf '%s\n' "$row"
   else
-    printf '%s\t判定不能\n' "$n"
+    # 成功行と同じ 3 列に揃える（列数が揺れると後段が判定不能行を落とす）
+    printf '%s\t判定不能\t-\n' "$n"
   fi
 done
 ```
