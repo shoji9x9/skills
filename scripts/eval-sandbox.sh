@@ -194,6 +194,82 @@ case "${cli_real}" in
 	args+=(--ro-bind "${cli_bin_dir}" "${cli_bin_dir}")
 	;;
 esac
+# Group 5: the network. The four groups above hide the skill CONTENT on this machine,
+# but the repository is public — a baseline can `git clone https://github.com/<owner>/<repo>`
+# and answer from the real sources. That is not hypothetical: it happened on the first
+# claude-code baseline of iteration-16 (contamination.txt reported CONTAMINATED, and the
+# run quoted kaizen-candidate-scan.sh from the cloned tree).
+#
+# The block is **default-deny by name resolution**, not a list of forbidden hosts. An
+# enumeration of blocked hosts cannot detect the mirror it forgot (this file's own
+# doctrine, see group 4), so instead `/etc/resolv.conf` points at an unroutable
+# nameserver and `/etc/hosts` carries ONLY loopback plus the vendor API addresses that
+# the CLI itself needs, resolved here on the host at start-up. Every other hostname —
+# github.com, any mirror, any forge, any search endpoint — fails to resolve.
+# `hosts: files dns` in nsswitch.conf is what makes the allowlist win; the resolver
+# never gets a chance to answer for anything else.
+#
+# Residual gap: a host reachable by literal IP is not blocked, and the allowlisted API
+# is a live model endpoint, so a baseline could in principle ask the model itself about
+# the skill. Both are out of reach of a mount-namespace wrapper.
+#
+# EVAL_SANDBOX_NET_ALLOW adds space-separated hostnames (for a vendor endpoint this
+# script does not know about). EVAL_SANDBOX_NET=off restores the host network for
+# debugging; it must never be used for a run whose Delta is reported.
+net_hosts_default=""
+case "${vendor}" in
+claude-code) net_hosts_default="api.anthropic.com statsig.anthropic.com" ;;
+codex) net_hosts_default="chatgpt.com api.openai.com auth.openai.com" ;;
+esac
+net_allow="${net_hosts_default} ${EVAL_SANDBOX_NET_ALLOW:-}"
+
+scratch_etc=""
+host_etc_mount=""
+if [ "${EVAL_SANDBOX_NET:-on}" != "off" ] || { [ "${vendor}" = "codex" ] && [ -f "${codex_auth}" ]; }; then
+	# One /etc symlink farm serves both purposes: the network allowlist (hosts,
+	# resolv.conf) and Codex's managed requirements. Everything else keeps pointing at
+	# the host's real /etc through a read-only mirror, so nsswitch.conf, ssl certs and
+	# the rest stay exactly as they are.
+	host_etc_mount="$(mktemp -d "/tmp/eval-sandbox-host-etc-XXXXXX")"
+	scratch_etc="$(mktemp -d)"
+	while IFS= read -r -d '' entry; do
+		name="$(basename -- "${entry}")"
+		case "${name}" in
+		codex) continue ;;
+		hosts | resolv.conf)
+			[ "${EVAL_SANDBOX_NET:-on}" != "off" ] && continue
+			;;
+		esac
+		ln -s -- "${host_etc_mount}/${name}" "${scratch_etc}/${name}"
+	done < <(find /etc -mindepth 1 -maxdepth 1 -print0)
+fi
+
+if [ "${EVAL_SANDBOX_NET:-on}" != "off" ]; then
+	{
+		echo "127.0.0.1 localhost"
+		echo "::1 localhost ip6-localhost ip6-loopback"
+	} >"${scratch_etc}/hosts"
+	resolved_any=0
+	for net_host in ${net_allow}; do
+		# A vendor host that does not resolve here would resolve to nothing inside
+		# either, so the run would fail with a confusing network error instead of a
+		# clear one. Record which ones were reachable and fail closed below if none was.
+		if addrs="$(getent ahostsv4 "${net_host}" 2>/dev/null | awk '{print $1}' | sort -u)" && [ -n "${addrs}" ]; then
+			while IFS= read -r addr; do
+				[ -n "${addr}" ] || continue
+				printf '%s %s\n' "${addr}" "${net_host}" >>"${scratch_etc}/hosts"
+			done <<<"${addrs}"
+			resolved_any=1
+		fi
+	done
+	if [ "${resolved_any}" -eq 0 ]; then
+		echo "eval-sandbox: could not resolve any allowlisted API host (${net_allow// /, }); refusing to start a run that cannot reach its model. Set EVAL_SANDBOX_NET_ALLOW, or EVAL_SANDBOX_NET=off for a debugging run whose Delta is not reported." >&2
+		exit 3
+	fi
+	# Unroutable nameserver: anything not in the hosts file above simply has no answer.
+	echo "nameserver 0.0.0.0" >"${scratch_etc}/resolv.conf"
+fi
+
 if [ "${vendor}" = "codex" ] && [ -f "${codex_auth}" ]; then
 	args+=(--ro-bind "${codex_auth}" "${codex_auth}")
 	# The CLI must read auth.json during startup, but agent-issued shell commands
@@ -204,20 +280,14 @@ if [ "${vendor}" = "codex" ] && [ -f "${codex_auth}" ]; then
 		echo "eval-sandbox: /etc/codex already exists; refusing to replace managed requirements. Add the auth.json deny_read rule to the managed policy or use a dedicated credential store." >&2
 		exit 3
 	}
-	host_etc_mount="$(mktemp -d "/tmp/codex-eval-host-etc-XXXXXX")"
-	scratch_etc="$(mktemp -d)"
-	while IFS= read -r -d '' entry; do
-		name="$(basename -- "${entry}")"
-		[ "${name}" = "codex" ] && continue
-		ln -s -- "${host_etc_mount}/${name}" "${scratch_etc}/${name}"
-	done < <(find /etc -mindepth 1 -maxdepth 1 -print0)
 	mkdir -p -- "${scratch_etc}/codex"
 	{
 		echo "[permissions.filesystem]"
 		printf 'deny_read = ["%s"]\n' "${codex_auth}"
 	} >"${scratch_etc}/codex/requirements.toml"
-	args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 fi
+
+[ -n "${scratch_etc}" ] && args+=(--ro-bind /etc "${host_etc_mount}" --ro-bind "${scratch_etc}" /etc)
 
 if [ "${1:-}" = "--verify" ]; then
 	shift
@@ -297,10 +367,29 @@ else echo "rejected (ok)"; fi
 printf "stage3 ~/.claude write containment: "
 if printf "%s\n" "$SENTINEL" >"$HOME/.claude/.eval-sandbox-escape-probe" 2>/dev/null; then echo "probe planted (parent checks the host)"
 else echo "NOT PLANTED (FAIL: ~/.claude must stay writable, and containment is unproven)"; rc=1; fi
+# Stage 4: the network. Judged by a pair, never by the deny half alone — "github.com
+# does not resolve" is also what a sandbox with no network at all looks like, and that
+# would silently break every run instead of isolating it. The allow half is the
+# positive control that proves resolution still works for what the CLI needs.
+printf "stage4 positive control (allowlisted API resolves): "
+allow_ok=0
+for h in $ALLOW_HOSTS; do getent ahostsv4 "$h" >/dev/null 2>&1 && { echo "$h (ok)"; allow_ok=1; break; }; done
+[ "$allow_ok" -eq 1 ] || { echo "NONE RESOLVED (FAIL: the sandbox has no usable network; the deny results below mean nothing)"; rc=1; }
+for h in github.com raw.githubusercontent.com codeload.github.com gitlab.com; do
+  printf "stage4 deny %s: " "$h"
+  if getent ahostsv4 "$h" >/dev/null 2>&1; then echo "RESOLVED (FAIL)"; rc=1; else echo "not resolvable (ok)"; fi
+done
+printf "stage4 deny git clone (end to end): "
+if timeout 30 git clone -q --depth 1 "$CLONE_PROBE_URL" /tmp/.eval-sandbox-clone-probe >/dev/null 2>&1; then
+  echo "CLONE SUCCEEDED (FAIL)"; rm -rf /tmp/.eval-sandbox-clone-probe; rc=1
+else echo "blocked (ok)"; fi
 exit $rc'
 	rc=0
 	escape_sentinel="SENTINEL-EVAL-SANDBOX-ESCAPE"
-	bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" --chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
+	clone_probe_url="${EVAL_SANDBOX_CLONE_PROBE_URL:-https://github.com/shoji9x9/skills}"
+	bwrap "${args[@]}" --setenv SENTINEL "${escape_sentinel}" \
+		--setenv ALLOW_HOSTS "${net_allow}" --setenv CLONE_PROBE_URL "${clone_probe_url}" \
+		--chdir / -- /bin/bash -c "${script}" _ "${repo}" "${markers[@]}" || rc=$?
 	# Negative half of the containment check: the probe planted inside must not exist
 	# on the host. A missing probe here only counts once the inner half reported
 	# "probe planted" (it sets rc=1 otherwise), so "absent" cannot mean "never written".
