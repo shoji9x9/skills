@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "skill_name": "replace-strategy",
+    "skill_path": "<repo>/skills/replace-strategy",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-02T04:24:12Z",
+    "evals_run": [19, 26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 77.642,
+        "tokens": 116300,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": true,
+          "evidence": "「記録先は `.replace/features.md` の「その他の Issue（4 種以外）」表」と明示し、ヘッダの `スキーマ Issue: #47` は削除してその表の行へ移す案を提示。節が無い版の features.md なので非破壊更新で節ごと追加すると説明している。"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": true,
+          "evidence": "提示した行に `4 種に当てはまらない理由`（特定の機能・リソース・バッチに帰属せず全テーブルにまたがる／FK が両端待ちになる）と `影響範囲` を埋め、「依存順は行ごとに書くのがこの表の決まり（4 種は種類で順序が決まるが、その他 Issue は違う）」と区別して述べている。値も「先頭（ゴールデンデータセットより前）」。"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": true,
+          "evidence": "「インベントリ全体で一意な ASCII kebab-case。既存は order / report / user なので schema は衝突しない」と述べ、さらにその他 Issue の slug は `.replace/parity/<slug>/` を持たず下流スキルの対象外（名前空間は共有・対象範囲は非共有）まで補足している。"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": true,
+          "evidence": "「`issues` / `setup` の更新は変える行・列だけを書き換える。全文を再生成してテンプレートに揃え直さない」「テンプレートに無いヘッダ項目・節・列・行を見つけても削除しない」を引用し、移動も提案→承認が要ると説明。実際にファイルを書き換えず提案に留めている。"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": true,
+          "evidence": "「提示順はその他の Issue の状態が最初」「スイート強度・ベースライン・フェーズ B・差分の列は『対象外』と出る（『未着手』とは区別される）」と説明。加えて今回の変更を反映し、状態は features.md の値ではなく #47 でトラッカーへ問い合わせた結果（未起票／open／closed／判定不能）だと述べている。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 90.873,
+        "tokens": 188291,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
+          "passed": true,
+          "evidence": "冒頭で「問い合わせ先 owner/repo を決められない」と述べ、状態の情報源をトラッカーに置いている。機能 × 状態表は features.md の表から採った #102 / #103 / #104（＋ヘッダの #101）を行に並べ、いずれも「状態」列の値を持ち込んでいない。"
+        },
+        {
+          "text": "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらにも倒していない（features.md の記述で代替していない）",
+          "passed": true,
+          "evidence": "#101〜#104 の 4 件すべてを **判定不能** と表記し、「open / closed のどちらにも倒していません」と明記。features.md の記述で代替していない。"
+        },
+        {
+          "text": "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
+          "passed": true,
+          "evidence": "fixture の列は order=open・notice=open・user=closed だが、応答のどこにもこれらを現況として書いていない（`user` を closed と報告していない点が baseline との決定的な差）。「features.md の『状態』列は旧版テンプレート由来のため読んでいません」と明言。"
+        },
+        {
+          "text": "features.md の「状態」列を黙って書き換え・削除していない",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md は fixture と diff 差分ゼロ。project-tree.txt にも新規生成物なし。「読み取りのみで導出し、ファイルの作成・変更、Issue 操作は一切行っていません」と宣言どおり。"
+        },
+        {
+          "text": "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している",
+          "passed": true,
+          "evidence": "判定不能で報告を打ち切らず、order の強度（注入 3 件中 2 捕捉 / 1 素通り、並び順の素通り、権限差の未検証）と gaps.md の 4 行（CSV 本文・確認メール・並び順・部品被覆非宣言）を列挙。notice / user は「スイート未着手のため gaps 未導出（＝未検証領域が無いのではない）」と区別している。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 156.655,
+        "tokens": 120957,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "記録先として .replace/features.md の「その他の Issue（4 種以外）」表を示し、ヘッダへの独自項目追記ではなくその表の行として置くよう案内している",
+          "passed": false,
+          "evidence": "「記録先：ヘッダのままで正しい」と結論し、その他の Issue 表を候補にすら挙げていない（検討したのは横断 API 表のみで、それも却下）。"
+        },
+        {
+          "text": "その行に書く項目として「4 種に当てはまらない理由」と行ごとの「依存順」（先頭／ゴールデンデータセットより前 等）を挙げている（4 種は種類で依存順が決まるがその他 Issue は行ごとに違うと区別している）",
+          "passed": false,
+          "evidence": "行の内容として「ラベル + Issue 番号 + スコープの一言」を挙げるだけ。「4 種に当てはまらない理由」列も行ごとの依存順も無く、むしろ「ヘッダ行には依存順がない」ことをコストとして受け入れている。"
+        },
+        {
+          "text": "slug を機能・横断 API・バッチと同じ名前空間でインベントリ全体に一意な ASCII kebab-case として採る必要を示している",
+          "passed": false,
+          "evidence": "「識別子：slug は採らない」と明示的に逆の結論。"
+        },
+        {
+          "text": "features.md の更新は非破壊であり、テンプレートは初期生成の雛形で更新時の項目の上限ではないため、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しないと説明している",
+          "passed": false,
+          "evidence": "「消えないか — 正直に言うと保証できません」とし、非破壊更新の契約を示せていない。代替として退避＋差分取得を提案している。"
+        },
+        {
+          "text": "status モードはその他の Issue の行を Issue 状態・依存順・影響範囲として報告し、.replace/parity/<slug>/ の成果物を持たないためスイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別すると説明している",
+          "passed": false,
+          "evidence": "「仕様を確認できないため断定を避ける」とし、現況表の行にはならない・行ごとの状態が付かないと推測。「対象外」と「未着手」の区別にも触れていない。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 73.95,
+        "tokens": 152583,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "各 Issue の状態を features.md の「状態」列から読み取らず、表に記録された Issue 番号（横断 API #102・機能 #103 / #104）でトラッカーへ問い合わせようとしている",
+          "passed": false,
+          "evidence": "トラッカーへの問い合わせに言及せず、features.md の「状態」列をそのまま進捗表の「状態」列へ転記している（`| notice | … | #104 | open |`・`| order | … | #103 | open |`）。"
+        },
+        {
+          "text": "トラッカーへ問い合わせられなかった番号を「判定不能」として示し、open / closed のどちらにも倒していない（features.md の記述で代替していない）",
+          "passed": false,
+          "evidence": "判定不能の概念が無く、全 Issue に open / closed を断定している。取得できていない事実が消えている。"
+        },
+        {
+          "text": "「状態」列に書かれた値（order・notice の open、user の closed）をその Issue の現況として報告していない",
+          "passed": false,
+          "evidence": "「横断 API `user`（#102）は closed。`order`・`notice` の両方が依存しているため、下流の前提は揃っています」と、列の値を現況として報告し、さらにその値を根拠に判断まで進めている。"
+        },
+        {
+          "text": "features.md の「状態」列を黙って書き換え・削除していない",
+          "passed": true,
+          "evidence": "project-files/.replace/features.md は fixture と diff 差分ゼロ。読み取りのみ。"
+        },
+        {
+          "text": "Issue 状態が判定不能でも成果物からの導出は続け、order のスイート強度（素通り・未検証種別）と gaps.md の未検証領域を報告している",
+          "passed": true,
+          "evidence": "強度ゲート（注入 3 件中 2 捕捉 / 1 素通り）と gaps 4 件を表で報告しており、成果物からの導出自体は行っている。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 84.2575,
+        "stddev": 9.3557,
+        "min": 77.642,
+        "max": 90.873
+      },
+      "tokens": {
+        "mean": 152295.5,
+        "stddev": 50905.3243,
+        "min": 116300,
+        "max": 188291
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.2828,
+        "min": 0.0,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 115.3025,
+        "stddev": 58.4813,
+        "min": 73.95,
+        "max": 156.655
+      },
+      "tokens": {
+        "mean": 136770.0,
+        "stddev": 22362.9591,
+        "min": 120957,
+        "max": 152583
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "-31.0",
+      "tokens": "+15526"
+    }
+  },
+  "notes": []
+}

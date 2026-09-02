@@ -6,7 +6,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 
 | 情報源 | 読むもの |
 |---|---|
-| `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、Issue 番号 |
+| `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、Issue 番号（**番号だけ。旧版テンプレート由来の「状態」列があっても読まない**——下記「Issue 状態の取得」） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
@@ -28,17 +28,32 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 features.md に記録された Issue 番号だけを個別取得する（リポジトリの全 Issue 一覧を取らない。対象は既知の番号なので全件走査は不要）:
 
 ```bash
-# <numbers> は features.md から抽出した Issue 番号の一覧
+# $NUMBERS は features.md から抽出した Issue 番号の一覧。**`#` を外した数字だけ**にする
+# （features.md は `#103` の形で記録するため、そのまま渡すとパスが `issues/#103` になり
+#  404 で全件が判定不能に化ける。取得失敗と表記ミスが同じ出力になり区別できない）
 for n in $NUMBERS; do
-  gh api "repos/$OWNER/$REPO/issues/$n" --jq '[.number, .state, .title] | @tsv'
+  # 取得できた番号だけ行が出る作りにすると、失敗した番号が出力から黙って消える
+  # （gh のエラーは番号を含まない）。失敗も 1 行として残し、後段で「判定不能」に落とす
+  # stderr は握り潰さない（認証切れ・404 の別を残す）
+  if row="$(gh api "repos/$OWNER/$REPO/issues/$n" --jq '[.number, .state, .title] | @tsv')"; then
+    printf '%s\n' "$row"
+  else
+    # 成功行と同じ 3 列に揃える（列数が揺れると後段が判定不能行を落とす）
+    printf '%s\t判定不能\t-\n' "$n"
+  fi
 done
 ```
 
 番号を列挙できない取得（横断的な検索等）を行う場合は、指定件数で打ち切らずページネーションを処理する（REST は `--paginate`、GraphQL は `pageInfo`/`endCursor` ＋ `--paginate`）。
 
+**状態はこの問い合わせだけを根拠にする。** features.md に「状態」列（旧版テンプレート由来）があっても読まない——写しは閉じたときに更新されず黙って古くなる（正本は [`features-issues.md`](features-issues.md)「Issue の状態は写さない」）。
+
+**取得できなかった番号は `判定不能` として報告する**（`gh` が使えない・認証が無い・番号が存在しない等）。open とも closed とも仮定せず、features.md の記述で代替しない。
+取得失敗を closed に倒すと「終わった」と読め、open に倒すと未着手の山に紛れる——どちらも取得できていない事実が消える。**取得できた分の導出は続け、判定不能の番号を一覧で示す**。
+
 ## 導出する内容
 
-1. **機能ごとの現況表**: slug ごとに、Issue 状態（未起票／open／closed）、パリティスイートの有無と強度（`strength.md` の弱点・未検証種別を含む）、ベースラインの有無、
+1. **機能ごとの現況表**: slug ごとに、Issue 状態（未起票／open／closed／判定不能）、パリティスイートの有無と強度（`strength.md` の弱点・未検証種別を含む）、ベースラインの有無、
    データセットバージョンの陳腐化（ベースラインの `dataset_version` より後の `changes[].affects` と、その slug の実効参照テーブルが交差するときだけ「要再取得」。実効参照テーブルと fail-closed 条件の正本は `golden-dataset` の `references/versioning.md`）、
    フェーズ B の状態（**`new/<target>/` が存在する target**〈`diff.md` の有無は問わない——差分検出前でも新側データは要る〉に対応する `phase_b.<slug>.<target>` が無ければ「その環境でフェーズ B 未実施の疑い」、
    `phase_b.<slug>.<target>.dataset_version` より後の変更がその slug に影響するなら「その環境の新側データが陳腐化・要再投入」。数値が古くても影響変更が無ければ再投入不要として記録 version は書き換えない。
@@ -62,7 +77,7 @@ done
    合わせて `component-diff-exceptions.json` の**原因数とインスタンス数**を slug ごとに示す——承認済みで説明済みではあるが、**インスタンス件数は検証の弱さのシグナル**である
    （件数を畳んで隠さない契約なので、原因数ではなくインスタンス数もそのまま数えて報告する）
 4. **横断 API の影響範囲**: 横断 API に手が入ったら利用側の全機能を再検証する必要がある。features.md の fan-out から「このリソースを使う機能一覧」を導出し、横断 API Issue の状態変化（再オープン・変更）に対して**再検証が必要な機能**を列挙する
-5. **その他の Issue（4 種以外）の状態**: 「その他の Issue」表の各行について、Issue 状態（未起票／open／closed）と依存順・影響範囲を報告する。
+5. **その他の Issue（4 種以外）の状態**: 「その他の Issue」表の各行について、Issue 状態（未起票／open／closed／判定不能）と依存順・影響範囲を報告する。
    **`.replace/parity/<slug>/` の成果物は持たない**ため、スイート強度・ベースライン・フェーズ B・差分の列は導出せず「対象外」として示す（未着手と混同しない）。
    **依存順が「先頭」等で他の Issue の前提になっている行が open のまま**なら、それを前提とする Issue が進行中であることを併せて示す。
    **節が「なし」（該当が無いと明記）なら「該当なし」として報告する**。節そのものが features.md に無い場合だけ「その他の Issue が未導出（テンプレート更新前の features.md）」として報告する——**節の不在を「該当なし」と読まない**

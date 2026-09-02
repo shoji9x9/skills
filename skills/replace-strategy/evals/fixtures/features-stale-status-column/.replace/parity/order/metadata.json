@@ -1,0 +1,12 @@
+{
+  "slug": "order",
+  "mode": "feature",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "a1b2c3d"
+  },
+  "dataset_version": 3,
+  "component_coverage": { "declared": false, "reason": "部品ライブラリを使っていない" }
+}

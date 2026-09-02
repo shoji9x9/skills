@@ -165,6 +165,7 @@ replace-strategy status
 
 - `.replace/features.md` が無ければ `setup` 未実施と報告し、`setup` の実行を案内する
 - Issue の状態は features.md に記録された番号を個別取得する。番号を列挙できない取得はページネーションを処理する（指定件数で打ち切らない）
+- **状態の根拠はトラッカーへの問い合わせだけ**。features.md は番号だけを持ち（旧版テンプレート由来の「状態」列があっても読まない）、取得できなかった番号は `判定不能` として示す（open / closed のどちらにも倒さない）
 - 機能ごとのパリティスイートの有無・強度・データセットバージョンの陳腐化・未検証領域（`gaps`）を導出する
 - 横断 API に変更があった場合の影響範囲（利用側の機能一覧）を fan-out から導出する
 - 「その他の Issue（4 種以外）」表の各行は Issue 状態と依存順・影響範囲を報告する（`.replace/parity/<slug>/` の成果物を持たないため、スイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別する）
@@ -179,7 +180,7 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` が機能固有・実装中の追加を非破壊追記する |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 

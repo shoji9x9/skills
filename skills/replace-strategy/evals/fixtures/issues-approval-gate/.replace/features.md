@@ -5,10 +5,10 @@
 
 ## 機能一覧
 
-| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue | 状態 |
-|---|---|---|---|---|---|---|---|---|---|
-| order | 注文管理 | 2 | /dashboard | GET /api/orders, GET /api/orders/:id | user | orders, order_items | CSV 出力（対象） | 未起票 | - |
-| report | 集計レポート | 3 | /dashboard | GET /api/reports | user | reports | なし | 未起票 | - |
+| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue |
+|---|---|---|---|---|---|---|---|---|
+| order | 注文管理 | 2 | /dashboard | GET /api/orders, GET /api/orders/:id | user | orders, order_items | CSV 出力（対象） | 未起票 |
+| report | 集計レポート | 3 | /dashboard | GET /api/reports | user | reports | なし | 未起票 |
 
 ## ページ一覧
 
@@ -18,9 +18,9 @@
 
 ## 横断 API（リソース単位）
 
-| slug | リソース | API | fan-out（利用機能 slug） | Issue | 状態 |
-|---|---|---|---|---|---|
-| user | ユーザー | GET /api/users, GET /api/users/:id | order, report | 未起票 | - |
+| slug | リソース | API | fan-out（利用機能 slug） | Issue |
+|---|---|---|---|---|
+| user | ユーザー | GET /api/users, GET /api/users/:id | order, report | 未起票 |
 
 ## バッチ
 

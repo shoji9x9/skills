@@ -27,3 +27,10 @@ KEDB を `unsupported`・`kaizen-candidate-scan.sh`・`bridge-session` で照合
 Claude transcript の新しい metadata record は実例 fixture で構造を固定してから candidate scanner の識別済み入力に追加し、既知候補を保持した混在入力と候補ゼロ入力の両方を回帰テストする。
 
 `bridge-session`、`cost-state`、`last-prompt`、`ai-title`、`mode`、`permission-mode`、`atis-latch`、`pr-link` を単に無視するのではなく、候補を含まない metadata として許可する構造を fixture で確かめる。未知の record type は引き続き exit 2 にし、schema 変化を黙って見逃さない。
+
+## 再発（2026-09-02）
+
+Issue #276 のコミット時に再発。他セッション（d3e4cb5d、claude-code）の transcript を走査すると
+候補 2 件を出したうえで `unsupported or malformed record` の exit 2 になり、
+「候補の有無を判定できない」ためゲートが commit を止めた（候補を出せている＝走査自体は進んでいるのに、
+未知 record 1 件で判定不能に倒れる）。提案は変更なし。優先度は `high` のまま維持する。
