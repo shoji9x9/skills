@@ -2,8 +2,13 @@
 date: 2026-09-01
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to:
+  - skills/kaizen/scripts/kaizen-candidate-scan.sh
+  - skills/kaizen/evals/fixtures/candidate-scan/
+  - skills/kaizen/evals/evals.json
+  - skills/kaizen/references/setup.md
+  - "#288"
 session: claude-code
 ---
 
@@ -62,3 +67,22 @@ Issue #276 のコミット時に再発し、**2 セッション分**でゲート
 同一セッションの 2 回目の commit でも再発した（`user correction: transcript line 631`）。実体は **この学びファイル自身を Read した tool_result** であり、誤検知を記録したノートを読むこと自体が次の誤検知を生む。
 
 提案は変更なし。誤検知が commit の連鎖ブロックを生む点を踏まえ、優先度は `high` のまま維持する。
+
+## 適用（2026-09-02・Issue #288 の branch）
+
+提案どおり `kaizen-candidate-scan.sh` の `type == "user"` 分岐に `user_text` を新設し、`U`（ユーザー発話）
+抽出を**文字列の `content` と `text` 要素だけ**に限定した。`tool_result` 要素は連結しない
+（`E` 抽出の `select(.type == "tool_result")` と対称）。
+
+回帰 fixture は提案どおり 2 本置き、弁別まで実測した。
+
+- `claude-tool-result-correction-word.jsonl`: `tool_result` の本文にだけ「ではなく」があり実ユーザー
+  発話が無い → `exit 1`（候補 0 件）
+- `claude-tool-result-and-user-correction.jsonl`: 同じ `tool_result` に加えて本物のユーザー修正発話が
+  ある → `exit 0` で、根拠は `tool_result` の 3 行目ではなく**ユーザー発話の 5 行目**
+
+「候補が減った」ではなく「正しい行だけが出る」ことまで確認している。
+
+なお、再発記録にある**連鎖ブロック**（他セッションのセンチネルが自セッションの commit を止める）は、
+同じ branch でコミット前ゲートの遮断範囲を自セッション分だけに絞ったことで解消した（`#288`）。
+誤検知が起きても、それが別セッションの commit を止める経路は無くなっている。

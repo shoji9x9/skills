@@ -1,0 +1,6 @@
+{"type":"user","message":{"content":"ドキュメントの表を整えてください"}}
+{"type":"cost-state","sessionId":"test-session","startTime":"2026-09-02T00:00:00Z","totalCostUSD":0.12,"modelUsage":{}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}
+{"type":"worktree-state","sessionId":"test-session","worktreeSession":{"id":"wt-1"}}
+{"type":"user","message":{"content":"違う、やり直してください"}}
+{"type":"relocated","sessionId":"test-session","relocatedCwd":"/tmp/wt-1"}

@@ -12,9 +12,9 @@
     "preToolUse": [
       {
         "type": "command",
-        "bash": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh\"",
+        "bash": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/kaizen/scripts/kaizen-precommit-gate.sh\" -copilot",
         "cwd": ".",
-        "timeoutSec": 5
+        "timeoutSec": 40
       }
     ],
     "sessionStart": [

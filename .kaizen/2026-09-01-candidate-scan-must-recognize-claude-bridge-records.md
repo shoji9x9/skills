@@ -2,8 +2,13 @@
 date: 2026-09-01
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to:
+  - skills/kaizen/scripts/kaizen-candidate-scan.sh
+  - skills/kaizen/evals/fixtures/candidate-scan/
+  - skills/kaizen/evals/evals.json
+  - skills/kaizen/references/setup.md
+  - "#288"
 session: codex
 ---
 
@@ -34,3 +39,19 @@ Issue #276 のコミット時に再発。他セッション（d3e4cb5d、claude-
 候補 2 件を出したうえで `unsupported or malformed record` の exit 2 になり、
 「候補の有無を判定できない」ためゲートが commit を止めた（候補を出せている＝走査自体は進んでいるのに、
 未知 record 1 件で判定不能に倒れる）。提案は変更なし。優先度は `high` のまま維持する。
+
+## 適用（2026-09-02・Issue #288）
+
+提案のうち**型名を 1 つずつ許可する方式は採用しなかった**。`#251` で `atis-latch` を足した後、
+`cost-state` / `worktree-state` / `relocated` で同じ症状が 3 件再発したため（いずれも候補ゼロの
+セッションでも 1 件混ざるだけで恒久ブロックになる）。
+
+代わりに**構造で弁別**する。未知の top-level `type` のうち、会話を運ぶ入れ物
+（`message` / `payload` / `content`）を持たないレコードは候補の判定に関係しないとして読み飛ばし、
+持つものは従来どおり `exit 2` にする。**「schema 変化を黙って見逃さない」という本旨は保たれている**
+——会話内容を持つ新形式が来れば今でも fail closed になる。
+
+fixture で構造を固定するという提案は採用した。`claude-internal-records-no-candidate.jsonl`（内部レコード
+混在・候補ゼロ → `exit 1`）、`claude-internal-records-candidate.jsonl`（内部レコード混在・既知候補あり →
+`exit 0`）、`unknown-type-with-message.jsonl`（未知型だが `message` あり → `exit 2`）の 3 本で、
+読み飛ばしと fail closed の弁別まで検証している。

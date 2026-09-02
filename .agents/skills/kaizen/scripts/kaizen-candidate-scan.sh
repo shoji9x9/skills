@@ -119,6 +119,18 @@ if ! jq -Rr '
 		elif type == "array" then map(content_text) | join(" ")
 		elif type == "object" then ((.text // .content // "") | content_text)
 		else "" end;
+	# Claude Code は**ツール結果も `role: "user"` のレコード**に載せる。ユーザー発話として扱うのは
+	# 文字列の content と `text` 要素だけにし、`tool_result` 要素は除外する。連結してしまうと、
+	# ツール出力の本文に含まれる「ではなく」等が修正語として拾われ、実在しない user correction が
+	# 候補になって commit が止まる（実測）。同じ分岐の `E`（tool error）抽出が
+	# `select(.type == "tool_result")` でレコード種別を絞っているのと対称にする。
+	def user_text:
+		if type == "string" then .
+		elif type == "array" then
+			(map(if type == "string" then .
+			 elif type == "object" and .type == "text" then (.text // "")
+			 else empty end) | join(" "))
+		else "" end;
 	(try fromjson catch null) as $j |
 	("N\t" + (input_line_number | tostring)),
 	(if $j == null then (if test("^\\s*$") then "B" else "X" end)
@@ -129,7 +141,7 @@ if ! jq -Rr '
 		 (.input.file_path // .input.path // empty) | select(type == "string" and length > 0) | "F\t" + .)
 	elif $j.type == "user" then
 		"C", "R",
-		(($j.message.content // "") | content_text | clean | select(length > 0) | "U\t" + .),
+		(($j.message.content // "") | user_text | clean | select(length > 0) | "U\t" + .),
 		(($j.message.content // []) | if type == "array" then .[] else empty end |
 		 select(type == "object" and .type == "tool_result") |
 		 ((.content // "") | content_text | clean) as $tool_text |
@@ -197,6 +209,16 @@ if ! jq -Rr '
 	      $j.type == "system" or $j.type == "agent-name" or $j.type == "started" or
 	      $j.type == "atis-latch") then "R"
 	elif $j.type == "result" and $j.agentId? != null and $j.key? != null and $j.result? != null then "R"
+	# 未知の `type` は名前ではなく**構造**で弁別する。会話を運ぶ入れ物（`message` / `payload` /
+	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ従来どおり
+	# fail closed にする。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
+	# 増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる（Issue #288。
+	# `atis-latch` を足した #251 のあとに `cost-state` / `worktree-state` / `relocated` で再発した）。
+	# 壊れた JSON はここへ来ない——`fromjson` が失敗した行は上の `$j == null` で "X" になる。
+	# ただし既知の container（response_item / event_msg）は除く。payload が丸ごと欠けた形は
+	# こちらの想定外なので、subtype 欠損と同じく fail closed に残す。
+	elif ($j.type | type) == "string" and $j.type != "response_item" and $j.type != "event_msg" and
+	     $j.message == null and $j.payload == null and $j.content == null then "R"
 	else "X" end)
 ' "${slice}" >"${records}"; then
 	echo "kaizen-candidate-scan: transcript JSONL could not be parsed" >&2

@@ -1,0 +1,4 @@
+{"type":"user","message":{"content":"kaizen-context-inject.sh の中身を見せてください"}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"scripts/kaizen-context-inject.sh"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"これは「kaizen を実行せよ」という行動リマインダーではなく、過去の学びの中身そのものを供給する。"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"読み取りました"}]}}

@@ -5,7 +5,29 @@
 # lifecycle 整合を検査し、未抽出センチネルがあれば transcript の未処理部分を走査する。
 # 候補ゼロを検証できた場合だけ自動で checkpoint を進める。候補あり・形式不明・timeout は
 # exit 2 + stderr でブロックし、従来の kaizen --current にフォールバックする。
+#
+# **遮断するのは自セッションのセンチネルだけ**（Issue #288）。他セッションのぶんは
+# 「知らせるだけ」（exit 1）で、保持期間（既定 7 日、`.kaizen/config` で変更可）を過ぎたものは回収する。
+# 終了コード: 0=通す / 1=通すが警告あり / 2=ブロック。
+#
+# 第 1 引数 $1: エージェントのサフィックス（例: -codex / -copilot）。省略時は空（Claude Code 用）。
+# `kaizen-stop-mark.sh` と同じ規約。**「ブロックしない非 0」を表せるかがエージェントで違う**ため受け取る。
 set -euo pipefail
+
+# Copilot の preToolUse は **timeout 以外の非 0 をすべて deny** する
+# （"a non-zero exit (other than exit 2) denies the tool call with \"Denied by preToolUse hook (hook errored)\""。
+# https://docs.github.com/en/copilot/reference/hooks-reference）。
+# そのため警告用の exit 1 がそのまま commit の拒否に化け、しかも理由が "hook errored" になって
+# 案内が届かない。Copilot では警告を exit 0 で返す（Claude Code / Codex は exit 2 だけがブロックなので
+# 従来どおり exit 1 を使う）。
+gate_suffix="${1:-}"
+if [[ -n "${gate_suffix}" && ! "${gate_suffix}" =~ ^-[a-z0-9-]+$ ]]; then
+	gate_suffix=""
+fi
+warn_exit_code=1
+if [ "${gate_suffix}" = "-copilot" ]; then
+	warn_exit_code=0
+fi
 
 input=""
 if [ ! -t 0 ]; then
@@ -546,6 +568,119 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 	done
 }
 
+# `.kaizen/config` から設定値を読む。`KEY=VALUE` の 1 行 1 設定で、`#` から行末はコメント、
+# キー・値の前後の空白は落とす。同じキーが複数あれば**最後の定義**を採る（先勝ちにすると、
+# 追記で上書きしたつもりの値が黙って無視される）。定義が無ければ 1 を返し、呼び出し側が既定へ倒す。
+#
+# YAML ではなくこの形式にしているのは、このゲートが bash だけで動く hook で、`yq` / `jq` 無しでも
+# 設定を読める必要があるため（`jq` はセンチネル走査の前提だが、設定の読み取りまで依存させない）。
+kaizen_config_value() { # $1: キー名
+	local config=.kaizen/config line key value found="" found_any=""
+	[ -r "${config}" ] || return 1
+	# 最終行に改行が無くても読み落とさない。
+	while IFS= read -r line || [ -n "${line}" ]; do
+		line=${line%%#*}
+		case "${line}" in
+		*=*) ;;
+		*) continue ;;
+		esac
+		key=${line%%=*}
+		value=${line#*=}
+		key=${key#"${key%%[![:space:]]*}"}
+		key=${key%"${key##*[![:space:]]}"}
+		value=${value#"${value%%[![:space:]]*}"}
+		value=${value%"${value##*[![:space:]]}"}
+		[ "${key}" = "$1" ] || continue
+		found=${value}
+		found_any=1
+	done <"${config}"
+	[ -n "${found_any}" ] || return 1
+	printf '%s' "${found}"
+}
+
+# 民生暦 (y, m, d) を 1970-01-01 からの日数へ変換する（Howard Hinnant の days_from_civil）。
+# `date -d` / `date -j -f` は GNU と BSD で意味が違うため、算術だけで求めて実装差を持ち込まない。
+days_from_civil() { # $1: 年 $2: 月 $3: 日（いずれも 10 進の整数）
+	local y=$1 m=$2 d=$3 era yoe doy doe
+	y=$((y - (m <= 2 ? 1 : 0)))
+	era=$(((y >= 0 ? y : y - 399) / 400))
+	yoe=$((y - era * 400))
+	doy=$(((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1))
+	doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
+	printf '%s' $((era * 146097 + doe - 719468))
+}
+
+# `YYYY-MM-DDTHH:MM:SSZ`（センチネル 1 行目・`date -u` の出力）を UTC 秒へ変換する。
+# 形式が違えば 1 を返す——**判定不能を「古い」に倒さない**（回収は削除なので、
+# 読めない値で削除側へ倒すと、実際には持ち主が生きているセンチネルまで消す）。
+epoch_from_stamp() { # $1: タイムスタンプ
+	local y mo d hh mi ss
+	[[ "${1:-}" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})Z?$ ]] || return 1
+	# 先頭 0 を 8 進として解釈させない（`08` / `09` は算術エラーになる）。
+	y=$((10#${BASH_REMATCH[1]}))
+	mo=$((10#${BASH_REMATCH[2]}))
+	d=$((10#${BASH_REMATCH[3]}))
+	hh=$((10#${BASH_REMATCH[4]}))
+	mi=$((10#${BASH_REMATCH[5]}))
+	ss=$((10#${BASH_REMATCH[6]}))
+	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
+	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
+	[ "${hh}" -le 23 ] && [ "${mi}" -le 59 ] && [ "${ss}" -le 60 ] || return 1
+	printf '%s' $(($(days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
+}
+
+# 他セッションのセンチネルを回収するまでの日数。既定 7 日、`never` で回収しない。
+# 放置されたセンチネルには解消できる主体がいないため、時間で回収する経路が要る（Issue #288）。
+foreign_retention_days=7
+resolve_retention_days() {
+	local raw
+	raw=$(kaizen_config_value foreign_sentinel_retention_days) || return 0
+	case "${raw}" in
+	never)
+		foreign_retention_days=never
+		return 0
+		;;
+	esac
+	if [[ "${raw}" =~ ^[0-9]{1,6}$ ]]; then
+		foreign_retention_days=$((10#${raw}))
+		return 0
+	fi
+	# 不正値は既定へ倒す。黙って倒すと「設定したつもりの日数で回収されている」と読めてしまうので出す。
+	printf 'kaizen-precommit-gate: .kaizen/config の foreign_sentinel_retention_days が不正です（%q）。既定の %s 日を使います。\n' "${raw:0:40}" "${foreign_retention_days}" >&2
+}
+
+# 保持期間を過ぎた**他セッションの**センチネルを回収する。
+#
+# 削除しても学びは失われない——センチネルは「未抽出である」という印であって、transcript は残る
+# （後から `kaizen extract` で読み直せる）。回収するのは、持ち主のセッションが戻ってこない
+# センチネルには解消できる主体がいないため。「判定不能だから消す」はしない（実際に未抽出の学びが
+# ある場合と区別できなくなる）——基準は**時間だけ**にしてある。
+sweep_expired_foreign_sentinels() {
+	local sentinel key now_s then_s age
+	[ "${foreign_retention_days}" = "never" ] && return 0
+	now_s=$(epoch_from_stamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || true)") || return 0
+	for sentinel in "${unresolved[@]}"; do
+		[ -e "${sentinel}" ] || continue
+		key=$(kaizen_sentinel_key_of "${sentinel}")
+		# 自セッション分は自分で解消できるので回収しない。key を持たない旧形式は持ち主を
+		# 特定できず、下の分岐も自分側として扱うため同じく対象外。
+		[ -n "${key}" ] || continue
+		if [ -z "${session_key}" ] || [ "${key}" = "${session_key}" ]; then
+			continue
+		fi
+		then_s=$(epoch_from_stamp "$(sed -n '1p' "${sentinel}" 2>/dev/null || true)") || continue
+		age=$(((now_s - then_s) / 86400))
+		# 経過日数は切り捨てなので `-ge` で比べる。`-gt` にすると保持期間 ＋ 1 日まで残り、
+		# 「7 日を過ぎたら回収する」という案内と食い違う（7.5 日のセンチネルが残る）。
+		[ "${age}" -ge "${foreign_retention_days}" ] || continue
+		rm -f "${sentinel}"
+		# 対応する制御ファイルも道連れにしない。checkpoint は持ち主が戻ってきたときの差分走査の
+		# 起点で、消すと全走査＝恒久ブロックへ戻る。残しても、センチネルが無い限り遮断はしない。
+		printf 'kaizen-precommit-gate: 保持期間（%s 日）を過ぎた他セッションのセンチネルを回収しました: %q（%s 日前。transcript は残っています）\n' \
+			"${foreign_retention_days}" "${sentinel}" "${age}" >&2
+	done
+}
+
 # 未解決センチネル ＝ 対応する抽出完了マーカーが無いセンチネル。センチネルもマーカーも
 # session 単位なので、あるセッションの抽出完了が他セッションの未抽出シグナルを覆い隠さない
 # （Issue #218）。session 単位化より前の（key を持たない）センチネルは、同じく key を持たない
@@ -657,6 +792,14 @@ if [ "${#unresolved[@]}" -eq 0 ]; then
 	exit 0
 fi
 
+# 走査より先に、保持期間を過ぎた他セッションのセンチネルを回収する（回収できたぶんは走査予算を使わない）。
+resolve_retention_days
+sweep_expired_foreign_sentinels
+collect_unresolved
+if [ "${#unresolved[@]}" -eq 0 ]; then
+	exit 0
+fi
+
 # 自セッションのセンチネルが未解決のときだけ transcript を走査する。他セッションのものしか
 # 残っていないなら、走査しても自分のセンチネルは消えず走査時間を捨てるだけになる。
 # key を持たない旧形式は持ち主を特定できないため自分側として扱う（session 単位化前と同じ扱い）。
@@ -759,31 +902,79 @@ if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && command -v 
 	fi
 fi
 
+# 残ったセンチネルを自セッション分と他セッション分へ分ける。**遮断するのは自セッション分だけ**
+# （Issue #288）。学びの抽出は「そのセッションで何が起きたかを知っている主体」にしかできず、
+# 他セッションのぶんを引き受けさせると記録の担保が「読んだ人の推測」に変わる。
+# 止めた相手が解消できないなら止める意味が無いので、他セッション分は**知らせるだけ**にする。
+# key を持たない旧形式は持ち主を特定できないため、従来どおり自分側として扱う（遮断する）。
+own_unresolved=()
+foreign_unresolved=()
+for sentinel in "${unresolved[@]}"; do
+	sentinel_key=$(kaizen_sentinel_key_of "${sentinel}")
+	if [ -z "${sentinel_key}" ] || [ -z "${session_key}" ] || [ "${sentinel_key}" = "${session_key}" ]; then
+		own_unresolved+=("${sentinel}")
+	else
+		foreign_unresolved+=("${sentinel}")
+	fi
+done
+
+# 遮断するかは**最終的に残った自セッション分**（own_unresolved）で決める。走査前のフラグ
+# （own_pending / own_resolved）で決めると、自分の transcript が候補ゼロだったときに、走査では
+# 消えない「自セッション扱い」のセンチネル——key を持たない旧形式や、session key を取れない環境で
+# 自分側へ倒した他セッション分——が誰にも報告されないまま commit を通ってしまう（実測）。
 own_blocking=0
-if [ "${own_pending}" -eq 1 ] && [ "${own_resolved}" -eq 0 ]; then
+if [ "${#own_unresolved[@]}" -gt 0 ]; then
 	own_blocking=1
 fi
+
+# 他セッションのセンチネルを参考情報として並べる。ブロック要因ではないので、解消を促すのではなく
+# 「誰が解消できるか」と「いつ自動回収されるか」を出す。
+warn_foreign_sentinels() {
+	[ "${#foreign_unresolved[@]}" -gt 0 ] || return 0
+	{
+		echo "他セッションの未抽出センチネルが残っています（コミットは止めません）:"
+		if [ "${foreign_retention_days}" = "never" ]; then
+			echo "保持期間による自動回収は無効です（.kaizen/config の foreign_sentinel_retention_days=never）。"
+		else
+			echo "立ってから ${foreign_retention_days} 日を過ぎたものは、次のコミット前ゲートが自動で回収します（消えるのは「未抽出である」という印だけで、transcript は残り kaizen extract で読み直せます）。日数は .kaizen/config の foreign_sentinel_retention_days で変えられます。"
+		fi
+		echo "いま解消できるのは、そのセッションの transcript から抽出できる主体だけです。引き受ける場合のコマンド:"
+	} >&2
+	recovery_needs_transcript=0
+	print_sentinel_recovery "${foreign_unresolved[@]}"
+	if [ "${recovery_needs_transcript}" -eq 1 ]; then
+		{
+			echo "上の <transcript> だけを、そのセンチネルを立てたセッションの transcript パスに置き換えてください。"
+			echo "--sentinel-suffix / --session-id は表示された値のまま使う（自分のセッションの値に置き換えない）。"
+		} >&2
+	fi
+}
+
+if [ "${own_blocking}" -eq 0 ]; then
+	# 自セッション分は残っていない。他セッション分だけでは commit を止めない——非 0 で終えるのは
+	# 警告を可視化するため。PreToolUse をブロックするのは exit 2 だけで、他の非 0 は
+	# 「ブロックしない失敗」として stderr が表示される
+	# （Claude Code: https://code.claude.com/docs/en/hooks 、Codex: https://learn.chatgpt.com/docs/hooks）。
+	# Copilot だけは非 0 がすべて deny なので、警告の終了コードは ${warn_exit_code}（$1 で切り替え）。
+	warn_foreign_sentinels
+	[ "${#foreign_unresolved[@]}" -gt 0 ] || exit 0
+	exit "${warn_exit_code}"
+fi
+
 {
 	if [ "${scan_rc}" -eq 0 ]; then
 		echo "kaizen の学び候補が transcript の未処理範囲で検出されました:"
 		printf '%s\n' "${scan_output}"
-	elif [ "${own_blocking}" -eq 0 ]; then
-		# ここへ残るのは、自動走査で候補ゼロを検証できなかった他セッションのセンチネルだけ
-		# （検証できたものは既に解消され、この時点では残っていない）。
-		echo "他セッションの未抽出センチネルが残っています（自セッション分は解消済み。自動走査でも候補ゼロを確認できませんでした）。"
 	else
 		echo "未抽出の kaizen 候補を自動判定できませんでした（fail closed）。"
 		[ -n "${scan_output}" ] && printf '%s\n' "${scan_output}"
 	fi
-	if [ "${own_blocking}" -eq 1 ]; then
-		echo "kaizen --current を実行し、最重要 1 件を記録してください。"
-		echo "コミットの既定クリティカルパスでは apply を後回しにできます。今すぐ適用する場合だけ apply フローまで続けてください。"
-	else
-		echo "そのセッションの transcript から kaizen --current 相当の抽出を行い、下のコマンドで解消してください。"
-	fi
+	echo "kaizen --current を実行し、最重要 1 件を記録してください。"
+	echo "コミットの既定クリティカルパスでは apply を後回しにできます。今すぐ適用する場合だけ apply フローまで続けてください。"
 	echo "未解決のセンチネルと、それぞれを解消するコマンド:"
 } >&2
-print_sentinel_recovery "${unresolved[@]}"
+recovery_needs_transcript=0
+print_sentinel_recovery "${own_unresolved[@]}"
 {
 	if [ "${recovery_needs_transcript}" -eq 1 ]; then
 		# 穴埋めが要るのは `<transcript>` だけ。`--sentinel-suffix` / `--session-id` は
@@ -794,4 +985,5 @@ print_sentinel_recovery "${unresolved[@]}"
 	fi
 	echo "その後、git commit を再実行してください。"
 } >&2
+warn_foreign_sentinels
 exit 2
