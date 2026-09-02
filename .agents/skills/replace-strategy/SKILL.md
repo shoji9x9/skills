@@ -135,6 +135,9 @@ replace-strategy status
 9. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
    併せて**ページ一覧（ページ × そのページに乗る機能）**を記録する——機能単位に分けた裏返しとして、同じページに乗る別機能のセクションが丸ごと欠けてもどのスイートも赤くならないため、`parity-suite` が在席チェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md)。
+   **ページ一覧を書いたら、そのページの可視要素が漏れなくどれかの slug に帰属しているかを確かめ、どの機能行のセクションにも収まらない要素を「ページ要素の帰属」表へ所有者 slug 付きで記録する**——
+   機能一覧が所有者を持つのはテーブル・API・副作用出力だけで、**スコープ外と決めた要素にも場所を占めるものがあり**、誰も配置しなければ実装後の `parity-diff` まで「説明できない差分」として現れない。
+   **帰属の無い要素が残るなら、候補 slug を添えて着手前にユーザーへ確認し、確定するまで所有者は空欄のまま残す（暫定値で埋めない）**（規則は同 [`references/features-issues.md`](references/features-issues.md)）。
    **4 種（ゴールデンデータセット／横断 API／機能／バッチ）に還元できない作業**（例: テーブルをまたぐ新側スキーマの前倒し設計）は「その他の Issue（4 種以外）」表に置き、記録先が無いことを理由にヘッダへ独自項目を足したり記録を諦めたりしない
    **`current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列へ非破壊で書き戻す**——
    同ファイルは `.replace/features.md` が存在しない時点で書かれるため機能の呼び名しか持てず、書き戻さないと `golden-dataset` / `parity-suite` が確認待ちの意味論を slug で引けない
@@ -176,7 +179,7 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 化の状態。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` が機能固有・実装中の追加を非破壊追記する |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
