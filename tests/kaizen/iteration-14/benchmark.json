@@ -1,0 +1,398 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "gpt-5.6-sol",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-02T12:39:12Z",
+    "evals_run": [15, 17, 19],
+    "runs_per_configuration": 1,
+    "scope": "Issue #288 の変更（コミット前ゲートの遮断範囲を自セッション分に限定・他セッション分の保持期間による回収・未知 type の構造弁別）と、同 branch で適用した tool_result 誤検知修正で変更／追加した eval のみ。15 と 17 は assertion を更新、19 は新規。Codex-only で with_skill / without_skill を各 1 回実行した。"
+  },
+  "deltas": {
+    "15": 0.3637,
+    "17": 0.5714,
+    "19": 0.625
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6364,
+        "passed": 7,
+        "failed": 4,
+        "total": 11,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "claude-no-candidate.jsonl・claude-atis-latch-no-candidate.jsonl・codex-no-candidate.jsonl・codex-two-edits-no-candidate.jsonl・claude-internal-records-no-candidate.jsonl・claude-tool-result-correction-word.jsonl は exit 1、claude-candidate.jsonl・claude-atis-latch-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・codex-colliding-paths-repeated-edit.jsonl・correction-at-boundary.jsonl・claude-internal-records-candidate.jsonl・claude-tool-result-and-user-correction.jsonl は exit 0、unknown.jsonl・unknown-string-type.jsonl・unknown-type-with-message.jsonl・malformed-json.jsonl・malformed-event-msg.jsonl・unknown-response-item-subtype.jsonl・response-item-missing-payload.jsonl・event-msg-missing-payload.jsonl は exit 2 という実測結果を示している",
+          "passed": true,
+          "evidence": "24 fixture 全件を表で報告。exit 1 の 6 件・exit 0 の 10 件・exit 2 の 8 件が assertion の集合と完全一致。"
+        },
+        {
+          "text": "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+          "passed": true,
+          "evidence": "codex-no-candidate を『成功出力途中の exit code 2 はエラー扱いしない』で 1、codex-tool-error を『Script failed で始まる出力』で 0 と弁別している。"
+        },
+        {
+          "text": "Claude Code はツール結果も role: user のレコードに載せるため、user correction の判定に使うのは文字列の content と text 要素だけで tool_result 要素は除外すると説明し、claude-tool-result-and-user-correction.jsonl では tool_result の行ではなく本物のユーザー発話の行番号（transcript line 5）が根拠に出ることを示している",
+          "passed": true,
+          "evidence": "『訂正判定へ渡すのは文字列 content と配列中の type: text だけ、tool_result は除外』と述べ、claude-tool-result-and-user-correction を line 5（tool_result の line 3 ではない）で報告している。"
+        },
+        {
+          "text": "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 3 回目を repeated edit として候補にする。記号だけが異なるパスは別々に数える",
+          "passed": false,
+          "evidence": "『構造化された失敗ステータス』『同一パスの3回目の編集』と述べ記号違いパスの別カウントも示したが、CommandExecution.status=failed / FileChange.changes というフィールド名を挙げていない。"
+        },
+        {
+          "text": "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+          "passed": true,
+          "evidence": "表で Claude Code の handler if を git commit 限定の形で示し、Codex/Copilot は matcher がコマンド文字列まで絞れないためスクリプト内 prefilter を使うと説明している。"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": true,
+          "evidence": "『非 commit なら case の照合だけで即 exit 0。そこでは jq、Python、Git、scanner を起動しません』と明記。"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": true,
+          "evidence": "checkpoint の byte offset 以後だけを走査し、scanned-bytes/lines/agent を検証してから --checkpoint-only で session 単位の checkpoint を進め、.extract-done は書かないと説明している。"
+        },
+        {
+          "text": ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
+          "passed": false,
+          "evidence": ".pending-extract-codex と .pending-extract-copilot が同時にある状態の弁別（Codex だけ削除し Copilot を保持して exit 2）に触れていない。"
+        },
+        {
+          "text": "未知の top-level type は型名の allowlist ではなく構造で弁別し、message / payload / content を持たないレコード（cost-state・worktree-state・relocated 等）は読み飛ばして exit 1、同じ未知の型でも message を持つものは exit 2 の fail closed になると、両者を対比して説明している。既知 container（response_item / event_msg）は payload が丸ごと欠けていてもこの読み飛ばしの対象外で exit 2 のままだと区別している",
+          "passed": true,
+          "evidence": "型名 allowlist ではなく message/payload/content の有無で弁別すると述べ、cost-state/worktree-state/relocated は読み飛ばし、unknown-type-with-message は 2、response_item/event_msg は payload 欠損でも 2 と区別している。"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、壊れた JSON、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "候補あり・未知/欠損 subtype・壊れた JSON は fail closed と述べたが、読めない transcript・jq 不在・内部 timeout を fail closed として列挙していない。"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "コミットの既定クリティカルパスが抽出・記録と extract-done までで apply は明示選択時だけ、という記述がない。"
+        }
+      ]
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2727,
+        "passed": 3,
+        "failed": 8,
+        "total": 11,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "contamination": "clean",
+      "expectations": [
+        {
+          "text": "claude-no-candidate.jsonl・claude-atis-latch-no-candidate.jsonl・codex-no-candidate.jsonl・codex-two-edits-no-candidate.jsonl・claude-internal-records-no-candidate.jsonl・claude-tool-result-correction-word.jsonl は exit 1、claude-candidate.jsonl・claude-atis-latch-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・codex-colliding-paths-repeated-edit.jsonl・correction-at-boundary.jsonl・claude-internal-records-candidate.jsonl・claude-tool-result-and-user-correction.jsonl は exit 0、unknown.jsonl・unknown-string-type.jsonl・unknown-type-with-message.jsonl・malformed-json.jsonl・malformed-event-msg.jsonl・unknown-response-item-subtype.jsonl・response-item-missing-payload.jsonl・event-msg-missing-payload.jsonl は exit 2 という実測結果を示している",
+          "passed": false,
+          "evidence": "scanner が無いため『期待値』を推定。correction-at-boundary を 1（実測 0）、unknown-string-type を 1（実測 2）、unknown-type-with-message を 1（実測 2）と誤り、3 件が assertion と不一致。"
+        },
+        {
+          "text": "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+          "passed": true,
+          "evidence": "codex-no-candidate の『成功出力中の文字列 exit code 2 は構造化エラーではない』と codex-tool-error の『明示的な Script failed』で弁別している。"
+        },
+        {
+          "text": "Claude Code はツール結果も role: user のレコードに載せるため、user correction の判定に使うのは文字列の content と text 要素だけで tool_result 要素は除外すると説明し、claude-tool-result-and-user-correction.jsonl では tool_result の行ではなく本物のユーザー発話の行番号（transcript line 5）が根拠に出ることを示している",
+          "passed": true,
+          "evidence": "『3 行目は tool result だが、5 行目は実ユーザーの text 訂正』『tool result 内の「ではなく」などは無視』と述べている。"
+        },
+        {
+          "text": "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 3 回目を repeated edit として候補にする。記号だけが異なるパスは別々に数える",
+          "passed": true,
+          "evidence": "CommandExecution.status=failed / exit_code=2、構造化 FileChange の同一パス 3 回、a_b.md を別パスとして数える、をいずれも明示している。"
+        },
+        {
+          "text": "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+          "passed": false,
+          "evidence": "PreToolUse ゲートを設計せず Stop / notify / agentStop のターン終端 hook を提案しており、handler if もスクリプト内 prefilter も出てこない。"
+        },
+        {
+          "text": "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+          "passed": false,
+          "evidence": "非 commit の高速 prefilter という構造が無く、jq/python/git を起動しないという記述もない。"
+        },
+        {
+          "text": "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+          "passed": false,
+          "evidence": "transcript_path と .extract-checkpoint.<session key> の間だけを走査し自セッションのセンチネルだけを更新する、という契約を示していない。"
+        },
+        {
+          "text": ".pending-extract-codex と .pending-extract-copilot が同時にある状態で Codex の候補ゼロ transcript を走査すると Codex のセンチネルだけを削除し、Copilot のセンチネルを保持したまま exit 2 で commit をブロックする",
+          "passed": false,
+          "evidence": "-codex / -copilot センチネル併存時の弁別に触れていない。"
+        },
+        {
+          "text": "未知の top-level type は型名の allowlist ではなく構造で弁別し、message / payload / content を持たないレコード（cost-state・worktree-state・relocated 等）は読み飛ばして exit 1、同じ未知の型でも message を持つものは exit 2 の fail closed になると、両者を対比して説明している。既知 container（response_item / event_msg）は payload が丸ごと欠けていてもこの読み飛ばしの対象外で exit 2 のままだと区別している",
+          "passed": false,
+          "evidence": "『トップレベルに文字列 type があれば前方互換でスキップして 1』とし、message/payload/content の有無による弁別を示していない（unknown-type-with-message を 1 と誤判定）。"
+        },
+        {
+          "text": "候補あり、既知 container の未知・欠損 subtype、壊れた JSON、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促すと説明している",
+          "passed": false,
+          "evidence": "fail closed の対象列挙（読めない transcript・jq 不在・内部 timeout）が無い。"
+        },
+        {
+          "text": "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける",
+          "passed": false,
+          "evidence": "コミットの既定クリティカルパスと apply の後回しに触れていない。"
+        }
+      ]
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "センチネル・抽出完了マーカー・checkpoint がいずれも session 単位（.pending-extract<suffix>.<session key> / .extract-done.<session key> / .extract-checkpoint.<session key>）だと説明している",
+          "passed": true,
+          "evidence": "表で .pending-extract.<session-key> / .extract-checkpoint.<session-key> / .extract-done.<session-key> を挙げ、agent suffix（空・-codex・-copilot）も示している。"
+        },
+        {
+          "text": "片方のセッションの抽出完了は他方のセンチネルを削除せず、SessionStart も自セッションのマーカーだけを失効させると説明している",
+          "passed": false,
+          "evidence": "『B のファイルは残ります』で片方の抽出完了が他方を消さない点は示したが、SessionStart が自セッションのマーカーだけを失効させる点に触れていない。"
+        },
+        {
+          "text": "ゲートは自セッション分を解消した後、他セッションの未解決センチネルもそのセンチネルが持つ transcript で差分走査し、候補ゼロを検証できたものは自動解消すると説明している",
+          "passed": false,
+          "evidence": "自セッション解消後に他セッションのセンチネルをその transcript で差分走査し候補ゼロなら自動解消する、という経路を説明していない。"
+        },
+        {
+          "text": "他セッションのセンチネルは候補が残っていても commit をブロックせず警告に留まり（ゲートの exit 1）、ゲートがセンチネルの中身（transcript パス・エージェント・session id）から kaizen-extract-done.sh の実行可能なコマンドを案内すると説明している",
+          "passed": true,
+          "evidence": "『現行実装では別 session のセンチネルだけなら commit は止めず、警告だけです』と述べ、センチネルの中身（transcript パス・agent・session id）入りの kaizen-extract-done.sh コマンドを案内している（exit 1 という数値までは挙げていない）。"
+        },
+        {
+          "text": "解消コマンドの --session-id にはセンチネルを立てたセッションの id を渡すのであって、自分のセッションの id ではないと区別している",
+          "passed": true,
+          "evidence": "『ファイル名の key を --session-id に流用せず、センチネル 4 行目の元 session ID を使う』と明記し、コマンド例も B 側の session id にしている。"
+        },
+        {
+          "text": "worktree では .kaizen/ をコミット対象の作業ツリー基準で解決するため、ゲートと抽出側の参照先が分かれないと説明している",
+          "passed": true,
+          "evidence": "『ゲートは共有 .git ディレクトリではなく、コミットが実行される worktree のトップレベルを選ぶ』と説明している。"
+        },
+        {
+          "text": "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない",
+          "passed": true,
+          "evidence": "『引数なしで呼ぶのは避ける。.kaizen/.pending-extract* を一括削除し他 session の未抽出シグナルまで消す』と明示的に非推奨としている。"
+        }
+      ]
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "contamination": "clean",
+      "expectations": [
+        {
+          "text": "センチネル・抽出完了マーカー・checkpoint がいずれも session 単位（.pending-extract<suffix>.<session key> / .extract-done.<session key> / .extract-checkpoint.<session key>）だと説明している",
+          "passed": false,
+          "evidence": "実装を確認せず公開版の別スキルを前提に .planning/kaizen/ 配下の成果物を挙げており、.pending-extract / .extract-done / .extract-checkpoint の session 単位という構造を示していない。"
+        },
+        {
+          "text": "片方のセッションの抽出完了は他方のセンチネルを削除せず、SessionStart も自セッションのマーカーだけを失効させると説明している",
+          "passed": false,
+          "evidence": "SessionStart のマーカー失効にも、片方の抽出完了が他方を消さないという kaizen の契約にも触れていない。"
+        },
+        {
+          "text": "ゲートは自セッション分を解消した後、他セッションの未解決センチネルもそのセンチネルが持つ transcript で差分走査し、候補ゼロを検証できたものは自動解消すると説明している",
+          "passed": false,
+          "evidence": "他セッションのセンチネルの差分走査という経路が存在しない前提で回答している。"
+        },
+        {
+          "text": "他セッションのセンチネルは候補が残っていても commit をブロックせず警告に留まり（ゲートの exit 1）、ゲートがセンチネルの中身（transcript パス・エージェント・session id）から kaizen-extract-done.sh の実行可能なコマンドを案内すると説明している",
+          "passed": false,
+          "evidence": "『標準実装には commit gate は無い』としており、警告に留まる挙動も解消コマンドの案内も示していない。"
+        },
+        {
+          "text": "解消コマンドの --session-id にはセンチネルを立てたセッションの id を渡すのであって、自分のセッションの id ではないと区別している",
+          "passed": false,
+          "evidence": "--session-id の区別に触れていない（そのオプション自体が登場しない）。"
+        },
+        {
+          "text": "worktree では .kaizen/ をコミット対象の作業ツリー基準で解決するため、ゲートと抽出側の参照先が分かれないと説明している",
+          "passed": false,
+          "evidence": "worktree の分離は git-worktree 一般論として説明しているが、.kaizen/ をコミット対象の作業ツリー基準で解決するという kaizen 固有の解決規則は示していない。"
+        },
+        {
+          "text": "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない",
+          "passed": true,
+          "evidence": "一括削除やワイルドカードでの削除を解消策として勧めてはいない。"
+        }
+      ]
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+          "passed": true,
+          "evidence": "claude-internal-records-no-candidate=1、claude-internal-records-candidate=0（line 5）、unknown-type-with-message=2 を実測値として表で示している。"
+        },
+        {
+          "text": "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+          "passed": true,
+          "evidence": "『差を決めるのは型名ではなく構造』とし、message/payload/content を持たない cost-state・worktree-state・relocated は読み飛ばし、message を持つ未知型は 2 に倒すと説明している。"
+        },
+        {
+          "text": "ゲートが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+          "passed": true,
+          "evidence": "遮断根拠を自セッション key 一致・旧形式・session key 不明の 3 つに限定し、正常な key を持つ終了済み 2 セッション分は commit を止めず exit 1 の警告に留まる（遮断は exit 2 だけ）と述べている。"
+        },
+        {
+          "text": "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+          "passed": false,
+          "evidence": "他セッション分を遮断に使わない理由（そのセッションを知らない主体が抽出すると記録の担保が推測に変わる／止めた相手が解消できない）を述べていない。"
+        },
+        {
+          "text": "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをゲートが自動で削除すると説明している",
+          "passed": true,
+          "evidence": "『保持期限を過ぎていれば、そのセンチネルだけを回収』と述べ、判定がセンチネルのタイムスタンプ由来であることを回収処理の参照付きで示している。"
+        },
+        {
+          "text": "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+          "passed": true,
+          "evidence": "『消えるのは「未抽出である」という印だけ。transcript と checkpoint は削除されないため後から kaizen extract で読み直せる』と明記している。"
+        },
+        {
+          "text": "保持期間は .kaizen/config の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+          "passed": true,
+          "evidence": ".kaizen/config の foreign_sentinel_retention_days、既定 7 日、never での無効化、不正値は既定へ、重複は最後勝ち、を具体値で示している。"
+        },
+        {
+          "text": "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない",
+          "passed": true,
+          "evidence": "一括削除や .extract-done の先置きを勧めていない（回収は保持期間による自動処理として説明）。"
+        }
+      ]
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "contamination": "clean",
+      "expectations": [
+        {
+          "text": "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+          "passed": true,
+          "evidence": "claude-internal-records-no-candidate=1、claude-internal-records-candidate=0、unknown-type-with-message=2 と 3 件とも一致（ただし scanner は起動できず fixture 構造からの推定と明記している）。"
+        },
+        {
+          "text": "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+          "passed": false,
+          "evidence": "cost-state・worktree-state・relocated を『既知の Claude 内部レコード』として無視するという型名ベースの説明に留まり、message/payload/content の有無という構造での弁別を示していない。"
+        },
+        {
+          "text": "ゲートが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+          "passed": false,
+          "evidence": "『遮断範囲は…未解決センチネル全体。終了済み 2 セッションのセンチネルも遮断理由になります』と、実装と逆の挙動を述べている。"
+        },
+        {
+          "text": "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+          "passed": false,
+          "evidence": "他セッション分を遮断に使わない理由を述べていない（むしろ引き継いで解消すべきとしている）。"
+        },
+        {
+          "text": "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをゲートが自動で削除すると説明している",
+          "passed": false,
+          "evidence": "『終了済みセッションのセンチネルは、原則として自動的に解決済みにはしません』とし、保持期間による自動回収の経路を否定している。"
+        },
+        {
+          "text": "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+          "passed": false,
+          "evidence": "transcript が残る点には触れているが、保持期間による回収で消えるのが印だけであるという説明ではなく、手動削除＋purge による回収不能リスクの話に留まる。"
+        },
+        {
+          "text": "保持期間は .kaizen/config の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+          "passed": false,
+          "evidence": ".kaizen/config の foreign_sentinel_retention_days ではなく Claude Code の cleanupPeriodDays（既定 30 日）を挙げており、設定場所・キー・既定値がいずれも異なる。"
+        },
+        {
+          "text": "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない",
+          "passed": true,
+          "evidence": "センチネルの一括削除や .extract-done の先置きを勧めていない（手で消すリスクを警告している）。"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "変更の主眼である 3 点は with_skill で再現された: 未知 type の構造弁別（15・19）、tool_result を user correction から除外する弁別と根拠行番号（15）、ゲートの遮断範囲・保持期間・.kaizen/config の設定（19、17 でも更新後の挙動を説明）。",
+    "eval 19 の without_skill は遮断範囲を実装と逆（他セッション分も遮断理由）に述べ、保持設定として cleanupPeriodDays（既定 30 日）を挙げた。Delta +0.625 はこの契約知識の差による。",
+    "eval 15 の without_skill は fixture 構造から exit コードの大半を導けたが、correction-at-boundary・unknown-string-type・unknown-type-with-message の 3 件を外した。fixture が答えを持ちすぎていないかは今後も監視する（.agents/rules/eval-assertion-discrimination.md）。",
+    "落ちた assertion は主に今回の変更と無関係な既存項目（Codex item_completed のフィールド名、-codex/-copilot 併存の弁別、SessionStart のマーカー失効、他セッションの差分走査経路、fail closed の完全列挙、apply 後回しのクリティカルパス）。eval 19 のみ、他セッションを遮断に使わない『理由』を述べさせる assertion が落ちた。",
+    "運用メモ: 最初の実行で eval 15 / with_skill が raw trace 0 バイトのまま 24 分停止した。stdin ではなく原因不明のため kill して再実行し、以降は各 run に timeout 1800 を付けた。",
+    "採点時、eval 15 は assertion を途中挿入した後に判定リストを新しい並びへ合わせ直しておらず、index 6–8（checkpoint 契約 / -codex+-copilot 併存 / 未知 type の構造弁別）で判定と assertion の対応がずれていた。再整列済み。pass 件数は変わらないが、with_skill では構造弁別が PASS、-codex+-copilot 併存が FAIL が正しい。"
+  ]
+}
