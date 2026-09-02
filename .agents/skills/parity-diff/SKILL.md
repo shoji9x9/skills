@@ -155,6 +155,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **インスタンス例外レジストリとその根拠は環境非依存**なので slug 直下に置く（`gaps.md` / `porting.md` と同じ扱い）。特定の target でだけ出る差は例外ではなく環境差であり、ノイズ基準値と新側の自己ノイズで扱う
 - テキスト成果物（`diff.md` / `diff-metadata.json` / 例外レジストリとその根拠）は Git。
   新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
+- **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）は成果物ではない。** 測定値を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
   [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)）は
   **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う

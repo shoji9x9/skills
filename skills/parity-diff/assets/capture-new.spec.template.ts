@@ -8,7 +8,8 @@
  * 満たすべきこと（parity-diff の references/capture-new.md が要求する条件）:
  *   1. 現側と同一条件で撮る。条件は手で書き写さず metadata.json の capture_conditions から引く
  *   2. 現側ベースラインと対称のレイアウトで書き出す（page × state × viewport の対応が取れる形）
- *   3. 同一条件で 2 回撮り、新側の自己ノイズを測れるようにする（2 回目は別ディレクトリへ）
+ *   3. 同一条件で 2 回撮り、新側の自己ノイズを測れるようにする（2 回目は別ディレクトリへ）。
+ *      2 回目は測定後に parity-diff が削除する一時作業物であり、成果物として残さない
  *   4. 採取専用の `new-capture` プロジェクトでだけ走らせる。`current` にも `new` にも入れない
  *      （`current` に入ると現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化ける。
  *      `new` に残すと、採取用の環境変数を渡さない parity-replace の green 検証が
@@ -63,6 +64,8 @@ const { viewports, states, masks, full_page: fullPage } = metadata.capture_condi
 const pages: { name: string; path: string }[] = metadata.capture_conditions.pages;
 
 // baseline パスは新側ベースライン本体、noise パスは自己ノイズ測定用の 2 回目
+// （noise-pass2/ は測定値を diff-metadata.json へ記録した時点で parity-diff が削除する。
+//  次の測定はここへ撮り直すので、不在は欠落ではない）
 const outRoot = join(
   repoRoot,
   ".replace",
@@ -80,7 +83,7 @@ function resolveLocator(page: import("@playwright/test").Page, name: string) {
 }
 
 // page / state / viewport はそのままディレクトリ階層になる。`..` が混じると join が outRoot の
-// 外を指し、reused 時の rmSync が採取ディレクトリの外を消しうる。撮影・削除の前に落とす
+// 外を指し、noise パスの rmSync が採取ディレクトリの外を消しうる。撮影・削除の前に落とす
 function assertInsideOutRoot(dir: string): void {
   const rel = relative(outRoot, dir);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
@@ -128,10 +131,12 @@ for (const viewport of viewports) {
 
         test(`capture ${pair}`, async ({ page }) => {
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
-          // 撮らない組は前回実行の noise-pass2 を消す——残すと「今回の baseline-new」対「前反復の 2 回目」が
-          // 突き合わされ、反復間のコード変更を自己ノイズとして計上する
+          // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
+          // 撮らない組は「今回の baseline-new」対「前反復の 2 回目」が突き合わされて反復間のコード変更を
+          // 自己ノイズとして計上し、撮る組は今回撮り直さなかったファイルが混ざる。
+          // 通常は前回の測定後に parity-diff が削除済みなので no-op で、削除が中断した場合の保険として残す
           const reused = pass === "noise" && onlyPairs.length > 0 && !onlyPairs.includes(pair);
-          if (reused) rmSync(outDir, { recursive: true, force: true });
+          if (pass === "noise") rmSync(outDir, { recursive: true, force: true });
           test.skip(reused, "reused noise measurement");
 
           mkdirSync(outDir, { recursive: true });

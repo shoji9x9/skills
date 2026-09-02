@@ -50,6 +50,9 @@
 | api-resource | 現行応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比較は同梱 `json-normalize-diff.mjs` 系のみ | `parity-suite` |
 | batch | 現行バッチの出力ベースライン（DB 状態・生成ファイル）が実体としてある | `parity-suite` |
 
+- **ノイズ測定の 2 回目の採取物（現側 `noise-pass2/`・新側 `new/<target>/noise-pass2/`）は実体を要求しない。** 基準値・自己ノイズは記録済みの数値であり、
+  採取物は測定後に削除する一時作業物（正本: `parity-suite` の `references/baseline.md`、新側は [`capture-new.md`](capture-new.md)）。**不在を差し戻し・再測定の理由にしない**
+
 ## データセットバージョンの三者整合
 
 `.replace/dataset/metadata.json` の `changes[].affects` を `golden-dataset` の `references/versioning.md` に従って読む。
