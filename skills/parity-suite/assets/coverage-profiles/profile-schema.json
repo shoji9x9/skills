@@ -1,0 +1,51 @@
+{
+  "_note": "被覆プロファイルの形式の正本。parity-suite の scripts/coverage-expand.mjs がこの形式を解釈する。全ての値はプレースホルダ例であり、実際のプロファイルは同ディレクトリの <id>.json として置く（JSON はコメント不可のため説明を値文字列で示す）。共通処理は本スキーマの範囲だけを解釈し、部品固有の条件分岐を持たない。新しい部品のプロファイルを足すときに coverage-expand.mjs と references/coverage-profiles.md を変更しない。",
+  "id": "<プロファイル id（ファイル名と一致させる。被覆表の components[].profile が参照する）>",
+  "version": "<プロファイルの版。軸・ルール・制約を変えたら上げる。被覆表に記録され、陳腐化の判定に使う>",
+  "name": "<人が読む部品種別名（例: データグリッド）>",
+  "applies_to": "<このプロファイルを当てる部品の条件。プロファイル選択の判断材料になるので、製品名ではなく構造で書く>",
+  "axes": [
+    {
+      "id": "<軸 id。candidate_rules と equivalence.reducible_axes が参照する>",
+      "kind": "<element | enum。element はインスタンスの enumeration.elements[<軸 id>] から値を取る（列・メニュー項目など列挙が要るもの）。enum は下の values から取る（操作の種類など部品共通で固定のもの）>",
+      "name": "<軸の説明>",
+      "values": [
+        "<kind: enum のときだけ。取りうる値の一覧。kind: element では持たない（列挙はインスタンスごとに違うため）>"
+      ],
+      "flags": [
+        "<kind: element のときだけ。その軸の要素が持ちうる真偽フラグ名の一覧。guard が参照する。ここに無いフラグを guard が使うと coverage-expand が落とす（誤記を候補ゼロで通さない）>"
+      ]
+    }
+  ],
+  "enumeration": {
+    "sources": [
+      "<候補の列挙に使ってよい情報源の kind: current-source | config | app-ui。ソース・設定は候補集合の抽出に使い、UI 操作の期待値は動作中の現行アプリで確定する>"
+    ],
+    "procedure": "<列挙の手順。どのファイル・設定・画面から何を抜くか>",
+    "pitfalls": [
+      "<その部品で列挙から落ちやすい経路（非表示・横スクロール先・権限で出ないもの等）。列挙時に一つずつ潰し、潰した記録を enumeration.source.condition に残す>"
+    ],
+    "fail_closed": "<ソースを読めない場合の扱い。complete: false ＋ incomplete_reason に実 UI からの列挙手順と不足を書き、確認済みにしない>"
+  },
+  "candidate_rules": [
+    {
+      "id": "<ルール id。候補 id の先頭になる>",
+      "name": "<ルールの説明（例: 列ごとのソート操作）>",
+      "axes": [
+        "<このルールが直積を取る軸 id の並び。候補 id は <ルール id>/<この順で軸値を \"/\" 連結> になる（順序を固定して決定論的にする）>"
+      ],
+      "guard": {
+        "<軸 id>.<フラグ名>": "<真偽値。element 軸の要素の flags に対する条件。全て満たす要素だけが候補になる（設定で無効な操作を候補に数えない）>"
+      }
+    }
+  ],
+  "required_rules": [
+    "<候補を 1 件も生まなかったら失敗させるルール id。列挙されないと静かに 0 件になる軸（コンテキストメニュー等）を、「その部品には無い」と区別できない形で通さないため。本当に無い場合は被覆表の instances[].enumeration.justified_absences に根拠を残すと通る（fail-closed を行き止まりにしないため。契約は references/coverage-profiles.md）>"
+  ],
+  "equivalence": {
+    "reducible_axes": ["<視覚採取を同値クラスで束ねてよい軸 id。ここに無い軸で束ねたら失敗させる>"],
+    "constraints": [
+      "<束ねるときの追加制約（人が読む条件）。coverage-expand は所属の全体性・reducible_axes・rationale の非空を機械的に見るが、ここに書いた条件は authoring 時に人／エージェントが確認する>"
+    ]
+  }
+}

@@ -27,11 +27,17 @@
 <!-- component-coverage.json の unmeasured セルと、metadata.json の component_coverage.declared: false の理由をここに残す。 -->
 <!-- 「無いことを確かめた」（absent）はここに書かない——測った結果なので被覆表の側に残す。 -->
 <!-- declared: false の理由は metadata.json の reason と同じ文言にする（宣言を省いた事実を成果物の片側だけに残さない）。 -->
+<!-- 被覆プロファイル（references/coverage-profiles.md）が絡む未検証も同じ表に残す。行が無いと「暗黙の汎用扱い」「列挙未完了」が -->
+<!-- 成果物のどこにも残らず、被覆表の側でだけ落ちる状態になる。理由は被覆表の profile_absent_reason / incomplete_reason と同じ文言にする。 -->
+<!--   - 適合する被覆プロファイルが無い複雑な部品（`profile: null` ＋ `profile_absent_reason`） -->
+<!--   - 構成要素の列挙を読み切れなかったインスタンス（`enumeration.complete: false` ＋ `incomplete_reason`） -->
 <!-- 各行は例。実際の部品・インスタンス・項目・理由で置き換える。 -->
 
 | 部品 | インスタンス（ページ） | 機能表の項目 | 理由（測れなかった事情） |
 |---|---|---|---|
 | データグリッド（例） | 明細一覧 | 行のドラッグ並べ替え | 並べ替えを有効にした状態のデータが無く操作を発火できない |
+| ガントチャート（例） | 工程一覧 | — | `profile: null`: 適合する被覆プロファイルが無く、構成要素ごとの候補を導出できない。汎用扱いにせず未検証として残す |
+| データグリッド（例） | 検索結果 | — | `enumeration.complete: false`: 列定義が動的生成で読み切れない。実 UI から列表示切替を全て開いて列挙する手順が要る |
 | （非宣言の例） | — | — | `declared: false`: ベンダーの機能一覧にも実 UI にも到達できず列挙を起こせない |
 
 ## hermetic でないテスト一覧

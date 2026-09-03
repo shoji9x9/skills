@@ -80,9 +80,29 @@
     判定用と操作用のロケータを分け、可視要素の `boundingBox()` から求めた中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送って再測定する
   - `unmeasured`: 測っていない。`unmeasured_reason` に理由を書き、`gaps.md` にも残す
 - **行が無い組み合わせは `unmeasured` として数える**（fail-closed）。`present` / `absent` なのに `evidence` が空、`present` なのに `covered_by` が空のセルも同じ——測った証拠が無いものを測った扱いにしない
-- 期待セル数（部品ごとの 項目数 × インスタンス数 の合計）と未測定数を `metadata.json` の `component_coverage` に書く。**`declared: true` のときだけ `parity-diff` の収束判定に入り、未測定が残る間は収束しない**（判定の正本は `parity-diff` の `references/convergence.md`）
+- 期待セル数と未測定数を `metadata.json` の `component_coverage` に書く（期待セルはプロファイルを宣言していない部品なら 項目数 × インスタンス数、宣言した部品ならインスタンスごとの候補数の合計）。
+  **`declared: true` のときだけ `parity-diff` の収束判定に入り、未測定が残る間は収束しない**（判定の正本は `parity-diff` の `references/convergence.md`）
 - **部品を使っていない、または資料にも実 UI にも到達できず列挙を起こせない場合は `declared: false` と理由を書き、同じ理由を `gaps.md` に残す。理由は必須で、空だと `parity-diff` 側が落とす。キーごと省略しない**——キーの欠落は「旧版の `parity-suite` が作った成果物」の意味で、`parity-diff` が後方互換のため判定を飛ばす経路になる（測らなかった事実がそこへ紛れる）
 - 被覆表は現側の測定結果なので **slug 直下に 1 つ**（環境別に分けない）。`api-resource` / `batch` モードは画面部品を持たないため作らない
+
+### 項目集合そのものを導出する（被覆プロファイル）
+
+**被覆表は登録された項目しか数えない。** データグリッドで代表列だけを操作して「フィルターあり」「ソートあり」の
+2 項目を登録すれば、他の列・非表示列・横スクロール先の列・コンテキストメニューは**期待セルにすら現れず**、
+未測定 0 で収束する。項目の粒度が実行エージェントの判断に委ねられている限り、この欠落は機械的に残らない。
+
+塞ぐのは **UI 部品ごとの被覆プロファイル**。部品の構成要素（列・メニュー項目等）を来歴付きで列挙し、
+プロファイルが宣言する軸との直積から候補集合を機械的に展開して、被覆表と照合する。
+
+- **部品固有の軸をこのファイルに書かない。** 軸・候補の列挙方法・必須組み合わせ・同値クラスの制約は
+  各プロファイルが宣言し、共通処理はプロファイルを解釈するだけにする
+  （Chart・Tree・DatePicker 等を、共通処理・中心ドキュメントを変えずに足せるようにするため）
+- **契約の正本は [`coverage-profiles.md`](coverage-profiles.md)**、照合ツールは
+  [`../scripts/coverage-expand.mjs`](../scripts/coverage-expand.mjs)、同梱プロファイルは
+  [`../assets/coverage-profiles/`](../assets/coverage-profiles/)
+- **適合するプロファイルが無い複雑な部品を、暗黙に汎用扱いにしない。** `profile: null` ＋
+  `profile_absent_reason` を書き、同じ理由を `gaps.md` の未検証領域に残す（`profile` キーの省略は落ちる）
+- 上の 3 値・`evidence`・`covered_by`・fail-closed の規則は、候補由来の期待セルにもそのまま当たる
 
 ## 同じページに乗る他機能の在席
 

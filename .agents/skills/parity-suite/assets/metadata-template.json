@@ -38,14 +38,24 @@
     "components": 0,
     "items": 0,
     "instances": 0,
-    "cells": "<期待セル数（部品ごとの 項目数 × インスタンス数 の合計）。被覆表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
-    "unmeasured": "<未測定セル数（value: unmeasured ＋ 行が無い組み合わせ ＋ present/absent なのに evidence が空 ＋ present なのに covered_by が空）。1 以上なら parity-diff は収束させない>",
+    "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。被覆表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
+    "unmeasured": "<未測定セル数（value: unmeasured ＋ 行が無い組み合わせ ＋ present/absent なのに evidence が空 ＋ present なのに covered_by が空 ＋ 列挙できていないインスタンス）。1 以上なら parity-diff は収束させない>",
+    "profiles": [
+      "<被覆表の components[].profile に現れたプロファイル id。適合プロファイルが無い部品は含めない（その部品は profile: null ＋ profile_absent_reason で未検証として残す）>"
+    ],
+    "conformance_ok": "<被覆表の conformance.ok（scripts/coverage-expand.mjs の照合結果）。false・記録なしなら parity-diff は収束させない>",
     "reason": "<declared: false のときだけ、宣言しない理由（例: 共通部品を使っていない／ベンダー資料にも実 UI にも到達できず列挙を起こせない）。同じ理由を gaps.md にも残す。declared: false で空だと免除の根拠が残らないため parity-diff の coverage-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "capture_conditions": {
     "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
     "viewer_environment": "<想定利用者環境との一致。一致 | 乖離: <内容と gaps.md の該当箇所> | 未確認。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す>",
-    "viewports": [{ "width": 0, "height": 0, "label": "<例: desktop / mobile>" }],
+    "viewports": [
+      {
+        "width": 0,
+        "height": 0,
+        "label": "<例: desktop / mobile>"
+      }
+    ],
     "animations": "disabled",
     "full_page": "<スクリーンショットを全画面（true）で撮ったかビューポート内（false）で撮ったか。parity-diff の新側採取が同じ値で撮るために必須（決め打ちすると画像サイズが違い全面差分になる）。真偽値で書く>",
     "pages": [
@@ -69,7 +79,12 @@
             "state": "<撮影状態>",
             "viewport": "<ビューポート label>",
             "name": "<現側でその機能の領域を覆うルート要素の論理名>",
-            "bbox": { "x": 0, "y": 0, "width": 0, "height": 0 }
+            "bbox": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            }
           }
         ],
         "reason": "<同じページに乗る機能が選択 target で未実装の間だけ比較から外す理由>"
