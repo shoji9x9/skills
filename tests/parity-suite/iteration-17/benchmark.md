@@ -29,7 +29,9 @@
 - **eval 26 は初回 2/5 でスキル欠陥を検出した。** with_skill が `SKILL.md` だけを読んで答え、同値クラスの記録要件（分類根拠・全候補の所属）に到達しなかった。
   `SKILL.md` の禁止事項へ当該契約を明記して 5/5。本 iteration の数値は修正後のもの。
 - **本 iteration は全 eval を同一スキル版で測り直している。** eval 26 の修正が SKILL.md に及んだため、24・25・27・28 も修正後の版で再走した。
-- **executor のハングに注意。** `scripts/run-skill-eval.sh` は executor の stdin をリダイレクトしないため、
-  呼び出し側の stdin が EOF しないパイプ（バックグラウンド実行・エージェント経由）だと codex が
-  `Reading additional input from stdin...` で無限に待つ（trace は 0 バイト、実行は timeout でしか終わらない）。
-  本 iteration では eval 24・25 で発生し、`</dev/null` を付けて解消した。
+- **本 iteration 中に executor のハングが起きた（同 PR で修正済み）。** 当時の `scripts/run-skill-eval.sh` は
+  executor の stdin をリダイレクトしておらず、呼び出し側の stdin が EOF しないパイプ
+  （バックグラウンド実行・エージェント経由）だと codex が `Reading additional input from stdin...` で
+  無限に待った（trace は 0 バイト、実行は timeout でしか終わらない）。eval 24・25 で計 4 回発生している。
+  同 PR の `fix(skill-eval): close the executor's stdin so runs cannot hang` で `</dev/null` を追加して解消したため、
+  以降の iteration では起きない。
