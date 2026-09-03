@@ -68,6 +68,16 @@ parity-suite [--feature <slug>] [--target <name>]
   インスタンス（部品 × ページ）ごとに測り、`present` / `absent` / `unmeasured` の 3 値で被覆表に残す（[`references/coverage.md`](references/coverage.md)「部品被覆表」）
 - **測っていない部品の操作を、被覆表の空欄で済ませない。** 行が無い組み合わせ・`evidence` の空欄は `unmeasured` として数える（fail-closed）。
   `metadata.json` の `component_coverage` を**キーごと省略しない**——キーの欠落は旧成果物の意味になり、`parity-diff` が後方互換で判定を飛ばす経路に測らなかった事実が紛れる
+- **被覆表に載せる項目の粒度を自分の判断で決めない。** データグリッドのように構成要素ごとに操作可否が設定される部品は、
+  代表列だけを測っても被覆表は満たせてしまう（登録しなかった列は期待セルにすら現れない）。
+  **同梱の被覆プロファイルで候補集合を展開し、`scripts/coverage-expand.mjs` で被覆表と機械的に照合する**
+  （[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
+  適合するプロファイルが無い複雑な部品は暗黙に汎用扱いにせず、`profile: null` ＋理由で未検証として残す
+- **視覚採取を同値クラスで減らすとき、代表以外の候補を成果物から消さない。** 削減してよいのは視覚ベースライン採取だけで、
+  **E2E は全候補に要る**（機能配線の確認は候補ごと）。削減するなら `equivalence_classes` に**分類根拠**と
+  **全候補の所属**を残す——**1 つでもクラスを宣言したら、どのクラスにも属さない候補が 1 件でもあれば失敗する**。
+  根拠は「現行アプリで実際に同じ描画になることを確かめた手順」で、**「見た目が同じそう」は根拠にしない**
+  （[`references/coverage-profiles.md`](references/coverage-profiles.md)「視覚採取の同値クラス」）
 - **ブラウザで確認していない挙動を「確認済み」と記録しない。** 未検証は理由付きで `gaps.md` に残す。
   **ファイルアップロードも同じ**——`setInputFiles` で流せることは、その画面で通ったことの証拠にならない（操作可能性と特性化済みを混同しない）
 - **バイト列に到達できない出力を「対象」として扱わない。** ダウンロードが発火しない・出力ディレクトリに到達できない出力は `gaps.md` に未検証として残す
@@ -129,6 +139,10 @@ parity-suite [--feature <slug>] [--target <name>]
    交差するときだけ陳腐化として再取得を宣言し、数値が古いだけなら再取得せず記録値も書き換えない。不正／欠落した変更履歴は全 slug に影響するものとして扱う
 5. **authoring**: ロケータマッピング（現側）→ **期待値解決層**（side 別の期待値。現側の値だけを埋める）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria（**セクション単位で複数枚**。部分一致は書いていない兄弟が在ることしか許容せず深さを飛ばせない）→ API 特性化。
    **状態網羅は部品の規範的な資料（コンポーネントカタログ・部品ベンダーの機能一覧）から導出し、部品インスタンス（部品 × ページ）ごとに測って被覆表 `component-coverage.json` に 3 値で残す**（feature モードのみ。[`references/coverage.md`](references/coverage.md)「状態網羅の導出源」）。
+   **構成要素ごとに操作可否が設定される部品（データグリッド等）は、被覆プロファイルで候補集合を展開してから測る**——
+   インスタンスごとに構成要素を来歴付きで列挙し、`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --write` で候補と適合結果を書き戻し（**コピーせずスキル配下のスクリプトをそのまま実行する**。プロファイルはスクリプトの位置から解決するので実行時の cwd は問わない）、
+   欠落・未列挙・証拠なし・対応付けなしが 0 件になるまで測定へ戻る（[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
+   **視覚採取を同値クラスで削減する場合も、E2E は全候補に要る**（削減してよいのはベースライン採取だけ）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
@@ -143,6 +157,8 @@ parity-suite [--feature <slug>] [--target <name>]
    （**`full` が無くても、値がリスト〈旧形式＝走る範囲が未宣言〉でも停止せず** `gaps.md` に記録して進む。検証コマンドがスイートのパスを対象に含んでいない場合も、含まれていないことを記録して範囲を勝手に広げない）。
    そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
    feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
+   **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る。
+   記録が無い・`ok: false` の被覆表は `parity-diff` が収束させない（`conformance` の欠落は旧成果物ではなく未実行として扱われる）。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
 
@@ -166,6 +182,10 @@ parity-suite [--feature <slug>] [--target <name>]
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
   **コピーは修正しない規約のため、プロジェクト自作ツールとパスで分けられるコピー専用のサブディレクトリに置く**（配置指針は [`references/locator-mapping.md`](references/locator-mapping.md)）
+- **被覆プロファイルと [`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs) はコピーしない。**
+  スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）。
+  プロファイル（[`assets/coverage-profiles/`](assets/coverage-profiles/)）はスクリプトの位置から解決するので、
+  実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
 
 ## 姉妹スキルとの連携
 
@@ -173,6 +193,7 @@ parity-suite [--feature <slug>] [--target <name>]
 - **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、現側の値だけを埋めた期待値解決層（`metadata.json.suite.expectations`。新側の値の充填は `parity-replace`）、現側専用スペックの `testIgnore` 除外（`metadata.json.suite.current_only`）、
   未実装機能の在席チェック（slug 付きでスキップ）、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
-- **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る）、
+- **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
+  プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy status`** が `strength.md` / `gaps.md` / `metadata.json` を読んで現況を導出する

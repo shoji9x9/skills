@@ -1,0 +1,111 @@
+{
+  "id": "datagrid",
+  "version": "1",
+  "name": "データグリッド",
+  "applies_to": "1 つのインスタンスが多数の列を持ち、列ごとに表示可否・フィルター可否・ソート可否が設定される表形式部品。特定の製品に依存しない（自作・OSS・市販のいずれでも、この構造を持てば当てる）",
+  "axes": [
+    {
+      "id": "column",
+      "kind": "element",
+      "name": "グリッドが定義する列。非表示列・横スクロールしないと到達しない列も含む",
+      "flags": [
+        "initially_visible",
+        "toggleable",
+        "requires_horizontal_scroll",
+        "filterable",
+        "sortable"
+      ]
+    },
+    {
+      "id": "sort-direction",
+      "kind": "enum",
+      "name": "ソートの方向。解除まで含める（昇順・降順だけ測ると解除の配線が落ちる）",
+      "values": ["asc", "desc", "none"]
+    },
+    {
+      "id": "menu-target",
+      "kind": "element",
+      "name": "右クリックの対象。メニュー構成が変わる単位で列挙する（列ヘッダ・データ行・空白領域など）",
+      "flags": ["has_context_menu"]
+    },
+    {
+      "id": "menu-item",
+      "kind": "element",
+      "name": "コンテキストメニューに出る項目。対象・状態・権限で構成が変わるため、出る条件ごとに列挙する",
+      "flags": ["enabled"]
+    },
+    {
+      "id": "menu-condition",
+      "kind": "element",
+      "name": "メニュー構成を変える条件（権限ロール・行状態・選択件数など）。条件が 1 つもないインスタンスでは既定条件を 1 件だけ列挙する",
+      "flags": []
+    }
+  ],
+  "enumeration": {
+    "sources": ["current-source", "config", "app-ui"],
+    "procedure": "現行ソースのグリッド定義（列定義の配列、列ごとの表示・フィルター・ソートの設定、コンテキストメニューの項目定義とその表示条件）を一次情報源にして column / menu-target / menu-item / menu-condition を抜く。設定ファイル・DB 由来の動的な列定義があればそれも合わせる。抜いた候補の期待値（実際にフィルターが効くか、メニュー項目が出るか）は動作中の現行アプリで確定する——ソースの設定値をそのまま実測の代わりにしない。",
+    "pitfalls": [
+      "初期表示で非表示の列（列選択・列表示切替で出るもの）を列挙から落とす",
+      "横スクロールしないと画面に出ない列を「無い」と扱う",
+      "列定義が動的に組まれていて、静的な配列リテラルだけを読んで打ち切る",
+      "右クリック対象を 1 種類（データ行）だけ見て、列ヘッダ・空白領域のメニューを落とす",
+      "権限・行状態でメニュー項目が増減するのに、1 ロール・1 状態でだけ開いて確定する",
+      "無効（グレーアウト）で出る項目を「出ない」と扱う"
+    ],
+    "fail_closed": "グリッド定義を読めない（ソース未受領・難読化・動的生成で追えない）場合は complete: false ＋ incomplete_reason に、実 UI からの列挙手順（列表示切替を全て開く・横スクロールを右端まで送る・対象ごとに右クリックする・ロールと行状態を変えて開き直す）と、その手順でも確定できない不足を書く。確認済みにしない。"
+  },
+  "candidate_rules": [
+    {
+      "id": "column-visible",
+      "name": "初期表示の列が見えていること",
+      "axes": ["column"],
+      "guard": { "column.initially_visible": true }
+    },
+    {
+      "id": "column-toggle",
+      "name": "初期非表示の列を表示切替で出せること",
+      "axes": ["column"],
+      "guard": { "column.toggleable": true }
+    },
+    {
+      "id": "column-scroll-reach",
+      "name": "横スクロールで到達する列に届くこと",
+      "axes": ["column"],
+      "guard": { "column.requires_horizontal_scroll": true }
+    },
+    {
+      "id": "column-filter",
+      "name": "列ごとのフィルター操作",
+      "axes": ["column"],
+      "guard": { "column.filterable": true }
+    },
+    {
+      "id": "column-sort",
+      "name": "列ごとのソート操作（昇順・降順・解除）",
+      "axes": ["column", "sort-direction"],
+      "guard": { "column.sortable": true }
+    },
+    {
+      "id": "context-menu-open",
+      "name": "対象ごとの右クリックでメニューが開くこと",
+      "axes": ["menu-target", "menu-condition"],
+      "guard": { "menu-target.has_context_menu": true }
+    },
+    {
+      "id": "context-menu-item",
+      "name": "条件ごとのメニュー項目の在席と活性",
+      "axes": ["menu-target", "menu-condition", "menu-item"],
+      "guard": { "menu-target.has_context_menu": true }
+    }
+  ],
+  "required_rules": ["column-visible", "column-sort", "context-menu-open", "context-menu-item"],
+  "equivalence": {
+    "reducible_axes": ["column", "menu-item"],
+    "constraints": [
+      "列を束ねてよいのは、列の描画が同じ型（同じセルレンダラ・同じ書式・同じ幅の決まり方）に属するときだけ。書式が違う列（数値・日付・バッジ・リンク）は別クラスにする",
+      "メニュー項目を束ねてよいのは、項目の描画が同じ型（アイコンの有無・活性の見え方・区切りの入り方）のときだけ。無効表示のある項目は活性のものと束ねない",
+      "sort-direction・menu-target・menu-condition は束ねない。方向・対象・条件はそれぞれ描画が変わりうるため、代表 1 件では差分が見えなくなる",
+      "束ねた根拠は「現行アプリで実際に同じ描画になることを確かめた手順」を rationale に書く。「同じに見えたから」は根拠にしない"
+    ]
+  }
+}

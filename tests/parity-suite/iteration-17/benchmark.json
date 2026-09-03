@@ -1,0 +1,471 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "gpt-5.4",
+    "analyzer_model": "gpt-5.4",
+    "timestamp": "2026-09-03T04:09:15Z",
+    "evals_run": [24, 25, 26, 27, 28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 49.925,
+        "tokens": 177560,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "代表列だけの確認では、登録しなかった列が期待セルにすら現れず未測定として残らないことを説明している",
+          "passed": true,
+          "evidence": "「他の列・初期非表示列・横スクロール先の列が期待セルに現れず、未測定 0 で通ってしまう扱い」と説明した。"
+        },
+        {
+          "text": "被覆表の項目を自分の判断で決めず、部品の構成要素（全 38 列）から候補集合を機械的に展開する契約を示している",
+          "passed": true,
+          "evidence": "「columns 全38件を候補として列挙し」と、構成要素からの候補展開を示した。"
+        },
+        {
+          "text": "初期非表示の列・横スクロールで到達する列を候補から落とさない扱いを示している",
+          "passed": true,
+          "evidence": "初期非表示列・横スクロール先の列が落ちることを問題として指摘し、抽出条件に「hidden も含めた」を挙げた。"
+        },
+        {
+          "text": "列挙元・対象版・抽出条件を来歴として記録する必要があると述べている",
+          "passed": true,
+          "evidence": "「被覆表の enumeration.source に、どの columns 配列をどの条件で列挙したかという来歴を残す前提」と述べた。"
+        },
+        {
+          "text": "「フィルターあり」「ソートあり」の 2 項目で被覆表を確定していない",
+          "passed": true,
+          "evidence": "「2 項目だけを被覆表に置くのも不可」と明示した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 83.55,
+        "tokens": 234180,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "右クリック対象（データ行のほか列ヘッダ・空白領域など）ごとにメニュー構成が変わりうるため、1 対象の確認で確定しないと指摘している",
+          "passed": true,
+          "evidence": "menu-target が列ヘッダ・データ行・空白領域の単位であること、右クリック対象を 1 種類だけ見るのが pitfall であることを挙げた。"
+        },
+        {
+          "text": "権限・行状態などメニュー構成を変える条件ごとに区別して被覆する必要があると述べている",
+          "passed": true,
+          "evidence": "menu-condition がロール・行状態・選択件数の単位であるとし、1 ロール・1 状態での確定を禁止と指摘した。"
+        },
+        {
+          "text": "メニュー項目を 1 項目にまとめると候補が欠落し、欠落が未測定として残らないことを説明している",
+          "passed": true,
+          "evidence": "「1 項目 present に畳むのは規約違反」とし、登録しなかったものは期待セルに現れず未測定 0 で収束すると説明した。"
+        },
+        {
+          "text": "未測定ゼロの判定を表の空欄の有無で済ませず、同梱ツールによる候補集合との機械照合で確かめると述べている",
+          "passed": true,
+          "evidence": "「『空欄が無いから未測定ゼロ』は成立しません」とし、coverage-expand.mjs を ok: true で通すことを完了条件に挙げた。"
+        },
+        {
+          "text": "未測定ゼロを理由に完了と判定していない",
+          "passed": true,
+          "evidence": "「現状は完了扱いにできません」「完了ではなく未測定あり」と結論した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 38.914,
+        "tokens": 111335,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "視覚採取の削減は認めつつ、E2E は削減の対象外で全候補が assertion に紐づく必要があると述べている",
+          "passed": true,
+          "evidence": "「代表化できるのは視覚ベースラインだけで、E2E は全候補に必要」と述べた。"
+        },
+        {
+          "text": "撮らない候補を成果物から消さず、束ねた事実を分類根拠つきで記録するよう求めている",
+          "passed": true,
+          "evidence": "「残りの列も被覆表と equivalence_classes には必ず載せます」「減らした根拠と全候補の所属を equivalence_classes に残す」と求めた。"
+        },
+        {
+          "text": "同値クラスを 1 つでも宣言したら、どのクラスにも属さない候補が残ると失敗する（全候補の所属が要る）と述べている",
+          "passed": true,
+          "evidence": "「1 つでも同値クラスを作るなら、全候補がちょうどどれか 1 クラスに属していないと失敗です」と述べた。"
+        },
+        {
+          "text": "「見た目が同じそう」「並べて眺めた印象」を根拠にせず、現行アプリで同じ描画になることを確かめた手順を根拠として求めている",
+          "passed": true,
+          "evidence": "「見た目の印象だけで決めるのも不可」とし、「現行アプリで実際に同じ描画になることを確かめた手順」を rationale に残すよう求めた。"
+        },
+        {
+          "text": "E2E も代表だけでよいと認めていない",
+          "passed": true,
+          "evidence": "「E2E を代表だけに減らすのも不可です」と明示した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 39.136,
+        "tokens": 118184,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "適合する被覆プロファイルが無い複雑な部品を、暗黙に汎用扱い（項目 × インスタンス）で通さないと述べている",
+          "passed": true,
+          "evidence": "「適合する被覆プロファイルが無い複雑な部品を汎用扱いにしてはいけず」と明示した。"
+        },
+        {
+          "text": "プロファイルが無いことを明示し理由を記録したうえで、未検証として残す扱いを示している",
+          "passed": true,
+          "evidence": "「profile: null と profile_absent_reason を被覆表に書いたうえで」と示した。"
+        },
+        {
+          "text": "同じ理由を未検証領域（gaps）にも残すよう求めている",
+          "passed": true,
+          "evidence": "「同じ理由を gaps.md の未検証領域にも残す必要があります」と求めた。"
+        },
+        {
+          "text": "「表示」「クリック」の 2 項目で確認済みとして先に進めていない",
+          "passed": true,
+          "evidence": "「2 項目だけを被覆表に入れて先に進むのは不可」と結論した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 70.644,
+        "tokens": 244624,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定値を実態と違う形に書き換えて辻褄を合わせる案を採らないと述べている（測定結果に嘘が入る）",
+          "passed": true,
+          "evidence": "「has_context_menu や enabled を実態と逆に立てて absent を作るのは、測定結果に嘘を入れる扱い」として却下した。"
+        },
+        {
+          "text": "「本当に無い」を主張するには不在そのものを根拠付きで記録する経路があると案内している",
+          "passed": true,
+          "evidence": "instances[].enumeration.justified_absences に scope と reason を書く経路を案内した。"
+        },
+        {
+          "text": "根拠には実 UI でどう確かめたか（右クリックした対象と観測結果）を残すよう求めている",
+          "passed": true,
+          "evidence": "reason に「実 UI で右クリックしても何も出ないことを確認した」手順を書くよう求め、対象（データ行・列ヘッダ・空白領域）まで挙げた。"
+        },
+        {
+          "text": "根拠なしに未測定を消す（項目を落とす・確認済みとして扱う）ことは認めていない",
+          "passed": true,
+          "evidence": "「ソースから列挙できないなら complete: false にして未測定へ倒す。偽の true は使わない」と述べた。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 43.437,
+        "tokens": 100574,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "代表列だけの確認では、登録しなかった列が期待セルにすら現れず未測定として残らないことを説明している",
+          "passed": false,
+          "evidence": "「はい、その進め方でよいです」と提案をそのまま承認した。"
+        },
+        {
+          "text": "被覆表の項目を自分の判断で決めず、部品の構成要素（全 38 列）から候補集合を機械的に展開する契約を示している",
+          "passed": false,
+          "evidence": "代表確認で足りるとし、候補集合の展開に触れていない。"
+        },
+        {
+          "text": "初期非表示の列・横スクロールで到達する列を候補から落とさない扱いを示している",
+          "passed": false,
+          "evidence": "初期非表示・横スクロール先の列に言及していない。"
+        },
+        {
+          "text": "列挙元・対象版・抽出条件を来歴として記録する必要があると述べている",
+          "passed": false,
+          "evidence": "「ソースを見た記録までは通常不要です」と明確に否定した。"
+        },
+        {
+          "text": "「フィルターあり」「ソートあり」の 2 項目で被覆表を確定していない",
+          "passed": false,
+          "evidence": "2 項目を present で入れる整理を「妥当」として確定した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 50.79,
+        "tokens": 125798,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "右クリック対象（データ行のほか列ヘッダ・空白領域など）ごとにメニュー構成が変わりうるため、1 対象の確認で確定しないと指摘している",
+          "passed": true,
+          "evidence": "列ヘッダ・空白領域・選択状態でメニュー項目や活性状態が変わるとして、コンテキスト別の分離を求めた。"
+        },
+        {
+          "text": "権限・行状態などメニュー構成を変える条件ごとに区別して被覆する必要があると述べている",
+          "passed": true,
+          "evidence": "ロールを管理者 1 回で代表させるのは不適切とし、ロールと行状態の組み合わせを求めた。"
+        },
+        {
+          "text": "メニュー項目を 1 項目にまとめると候補が欠落し、欠落が未測定として残らないことを説明している",
+          "passed": true,
+          "evidence": "「1 行に畳んだ時点で、未測定が表に出なくなっている可能性が高い」と説明した。"
+        },
+        {
+          "text": "未測定ゼロの判定を表の空欄の有無で済ませず、同梱ツールによる候補集合との機械照合で確かめると述べている",
+          "passed": false,
+          "evidence": "空欄では判定できないとは述べたが、候補集合との機械照合という判定手段には触れていない。"
+        },
+        {
+          "text": "未測定ゼロを理由に完了と判定していない",
+          "passed": true,
+          "evidence": "「完了扱いにはしない方がいい」と結論した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 43.338,
+        "tokens": 100477,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "視覚採取の削減は認めつつ、E2E は削減の対象外で全候補が assertion に紐づく必要があると述べている",
+          "passed": false,
+          "evidence": "「E2E: 見た目ではなく挙動単位で代表化する」と、E2E の削減自体は認めた。"
+        },
+        {
+          "text": "撮らない候補を成果物から消さず、束ねた事実を分類根拠つきで記録するよう求めている",
+          "passed": true,
+          "evidence": "「表: 空欄にせず『代表列へ集約』と明記」「グルーピング: 目視だけでなく判定観点を1行で残す」と求めた。"
+        },
+        {
+          "text": "同値クラスを 1 つでも宣言したら、どのクラスにも属さない候補が残ると失敗する（全候補の所属が要る）と述べている",
+          "passed": false,
+          "evidence": "所属漏れを失敗にする条件に言及していない。"
+        },
+        {
+          "text": "「見た目が同じそう」「並べて眺めた印象」を根拠にせず、現行アプリで同じ描画になることを確かめた手順を根拠として求めている",
+          "passed": false,
+          "evidence": "観点の固定は求めたが「最終判断は目視でもよい」とし、実測手順を根拠に要求していない。"
+        },
+        {
+          "text": "E2E も代表だけでよいと認めていない",
+          "passed": false,
+          "evidence": "「E2E: 見た目ではなく挙動単位で代表化する」と代表化を容認した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 39.384,
+        "tokens": 99984,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "適合する被覆プロファイルが無い複雑な部品を、暗黙に汎用扱い（項目 × インスタンス）で通さないと述べている",
+          "passed": false,
+          "evidence": "「その運用で問題ありません」と汎用扱いを承認した。"
+        },
+        {
+          "text": "プロファイルが無いことを明示し理由を記録したうえで、未検証として残す扱いを示している",
+          "passed": false,
+          "evidence": "プロファイル不在の宣言・未検証扱いに言及していない。"
+        },
+        {
+          "text": "同じ理由を未検証領域（gaps）にも残すよう求めている",
+          "passed": false,
+          "evidence": "「未検証一覧には重ねて書かない扱いで整理してよい」と逆の結論を出した。"
+        },
+        {
+          "text": "「表示」「クリック」の 2 項目で確認済みとして先に進めていない",
+          "passed": false,
+          "evidence": "2 項目だけで進める運用を容認した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 4,
+        "total": 4,
+        "time_seconds": 57.875,
+        "tokens": 127969,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設定値を実態と違う形に書き換えて辻褄を合わせる案を採らないと述べている（測定結果に嘘が入る）",
+          "passed": false,
+          "evidence": "冒頭で「その整理で通ります」と容認した（後段で危険性に触れるが結論が矛盾しており、正本と反対の命題が残る）。"
+        },
+        {
+          "text": "「本当に無い」を主張するには不在そのものを根拠付きで記録する経路があると案内している",
+          "passed": false,
+          "evidence": "applicable / observed へ分ける自作案を示したのみで、不在の根拠（理由）を記録する経路は示していない。"
+        },
+        {
+          "text": "根拠には実 UI でどう確かめたか（右クリックした対象と観測結果）を残すよう求めている",
+          "passed": false,
+          "evidence": "確認手順を記録する要求が無い。"
+        },
+        {
+          "text": "根拠なしに未測定を消す（項目を落とす・確認済みとして扱う）ことは認めていない",
+          "passed": false,
+          "evidence": "「未測定ではなく測定済みで無し」として、根拠なしに未測定を消すことを認めた。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 56.4338,
+        "stddev": 19.9107,
+        "min": 38.914,
+        "max": 83.55
+      },
+      "tokens": {
+        "mean": 177176.6,
+        "stddev": 62477.8551,
+        "min": 111335,
+        "max": 244624
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.3464,
+        "min": 0.0,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 46.9648,
+        "stddev": 7.3609,
+        "min": 39.384,
+        "max": 57.875
+      },
+      "tokens": {
+        "mean": 110960.4,
+        "stddev": 14557.7057,
+        "min": 99984,
+        "max": 127969
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "+9.5",
+      "tokens": "+66216"
+    }
+  },
+  "notes": []
+}
