@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.diff_normalize に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
@@ -46,11 +46,35 @@ export function normalizeValue(v) {
 }
 
 /**
+ * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
+ *
+ * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
+ * 照合キーは `item` である（要素の形の正本は replace-strategy の
+ * references/project-config.md「`pending` 要素の形」）。素の文字列の要素も読む（旧形式）。
+ * `item` が文字列でないオブジェクトは照合に使わない（fail-closed。`[object Object]` を
+ * needle にすると意図しない一致・不一致が混ざる）。
+ *
+ * pending-triage-check.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
+ * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
+ * リンクの置き場所を基準に解決され ERR_MODULE_NOT_FOUND で落ちるため。片方を直したらもう片方も直す。
+ * @param {unknown} entry
+ * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
+ */
+export function intentionalEntryText(entry) {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+    const item = /** @type {{ item?: unknown }} */ (entry).item;
+    return typeof item === "string" ? item : "";
+  }
+  return "";
+}
+
+/**
  * 意図的差異レジストリの分類 3 群のどれに該当するかを返す（部分一致・最良努力）。
- * 各エントリはカテゴリ文字列であり、Diff の name / prop にそのテキストが含まれるかで判定する。
+ * 各エントリはカテゴリの散文であり、Diff の name / prop にそのテキストが含まれるかで判定する。
  * 最終判断は triage が担う（ここは機械的な粗フィルタ）。
  * @param {{ name?:string, prop?:string }} diff
- * @param {{ keep?:string[], may_change?:string[], pending?:string[] }} registry
+ * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
  * @returns {{ group:'keep'|'may_change'|'pending', entry:string } | null}
  */
 export function matchIntentional(diff, registry) {
@@ -58,9 +82,10 @@ export function matchIntentional(diff, registry) {
   for (const group of ["keep", "may_change", "pending"]) {
     const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
     for (const entry of entries) {
-      const needle = normalizeValue(entry);
+      const text = intentionalEntryText(entry);
+      const needle = normalizeValue(text);
       if (needle.length > 0 && hay.includes(needle)) {
-        return { group: /** @type {'keep'|'may_change'|'pending'} */ (group), entry };
+        return { group: /** @type {'keep'|'may_change'|'pending'} */ (group), entry: text };
       }
     }
   }

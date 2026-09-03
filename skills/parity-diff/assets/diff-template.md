@@ -115,7 +115,22 @@
 | （例: 一覧の表示件数・並び） | データ依存 | 選択 target が投入対象外（db 無し／seedable 無し）でゴールデンデータ未投入。実装差かデータ差か判別できない |
 | （例: データグリッドが持つ操作の網羅） | 部品被覆表未判定 | 現側 `metadata.json` に `component_coverage` が無い（旧成果物）ため未測定を判定できない。採取状態の外にある操作の欠落は差分ゼロとして通る |
 
-## 8. 収束判定
+## 8. 意図的差異の保留（intentional_diffs.pending）の棚卸し
+
+<!-- 設定ファイルの intentional_diffs.pending のうち、この機能で棚卸しした保留。件数は diff-metadata.json の intentional_diffs_pending と一致させる。 -->
+<!-- 対象は 3 群: この機能に帰属（slug 一致）／横断（cross-cutting。閉じる工程を持たないため毎回提示）／帰属不明（素の文字列の旧形式・slug 欠落）。他の機能に帰属する保留は対象外。 -->
+<!-- 1 件ずつ人へ提示して決める。keep / may_change へ移すのは人間で、スキルは設定ファイルを書き換えない。対象 0 件でも「0 件」と書く（無記録にしない）。 -->
+
+- 棚卸し対象: （件数。内訳: この機能 （件数） / 横断 （件数） / 帰属不明 （件数））
+- 確定（keep / may_change へ移した）: （件数）
+- 持ち越し: （件数。持ち越しは理由の記録が条件）
+
+| 保留（item） | 帰属（slug / cross-cutting / 帰属不明） | 追記元（added_by / added_at） | 処置（keep / may_change / carried_over） | 移動後の文言（変えた場合） | 持ち越しの理由 |
+|---|---|---|---|---|---|
+| （例: 一覧の並び順が新側で安定ソートになる） | （slug） | parity-replace / 2026-09-03 | keep | （変えていなければ none） | （keep なので none） |
+| （例: 日付の丸め方が新側 DB で変わる） | cross-cutting | golden-dataset / 2026-08-20 | carried_over | none | （例: DB 意味論の確認待ち） |
+
+## 9. 収束判定
 
 <!-- 差分器の集計で判定する。converged は diff-metadata.json と一致させる。 -->
 <!-- 状態は 3 つ: 収束 / 他機能待ち（残る未説明がすべて blocked_by に帰属し要対応ゼロ）/ 未収束。 -->
@@ -125,6 +140,7 @@
 - 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。承認は原因単位で数える〈承認済み原因数／承認単位の総数〉。`許容候補（要確認）` の残数: （件数。ゼロが条件））
 - 承認記録が覆う件数と台帳の一致: （原因ごとに component-diff-exceptions.md の承認記録の累計 N ＝ JSON の cause 参照数。超過件数: （件数。ゼロが条件。超過分は未承認＝未説明として数える））
 - インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
+- 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
 - 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
 - 収束状態: （収束／他機能待ち／未収束）と根拠
 - 収束: （converged: true / false）

@@ -76,6 +76,9 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 - **承認前の分類を成果物に「許容」と書かない。** 承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で後続の判断の入力になるため）
 - **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
   比較の相手は常に**現行**であり、新側の実験変種どうしの一致を結論にしない。結論を成果物に書くときは測定条件を併記する（書けない結論は未説明のまま残す）
+- **意図的差異の保留（`intentional_diffs.pending`）を棚卸ししないまま機能を閉じない。** この機能に帰属する保留・横断（`cross-cutting`）・帰属不明の保留を人へ 1 件ずつ提示し、
+  `keep` / `may_change` へ移す（移すのは人間）か持ち越す理由を記録して、件数を `diff-metadata.json` の `intentional_diffs_pending` に残す。数え直しは [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)
+  （確定の時期を工程が要求しないと、保留が機能をまたいで積み上がり「まだ決まっていない差」と「決まったが記録が古い差」の区別が付かなくなる。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **部品被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら `scripts/coverage-check.mjs` で数え直し、未測定が 1 件以上なら `parity-suite` へ戻す
   （差分器は**採取した状態しか見ない**ため、測っていない操作の欠落は差分ゼロとして通る。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **被覆プロファイルを宣言した部品の期待セルを 項目 × インスタンス で数えない。** 宣言した部品はインスタンスごとの候補（`instances[].candidates`）が期待セルで、
@@ -100,7 +103,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 | キー | 読/書 | 用途 |
 |---|---|---|
 | `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝phase B との整合を免除する代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
-| `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認 |
+| `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認。**`pending` は収束判定で棚卸しの対象としても読む**（対象の決め方は要素の `slug`。書き換えは人間が行い本スキルは書かない。要素の形の正本はスキーマ文書の「`pending` 要素の形」） |
 | `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入は v1 スコープ外のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
 | `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（`component` は対象要素の論理名 / glob。1 回の宣言が範囲内の全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
@@ -136,6 +139,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
    テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 3 つ（収束／**他機能待ち**／未収束）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
+   **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
    他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
    ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
 
@@ -159,7 +163,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
   新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
 - **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）は成果物ではない。** 測定値を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
-  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)）は
+  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) / [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)）は
   **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う
 
 ## 姉妹スキルとの連携

@@ -40,5 +40,10 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 19 は新側の自己ノイズの 2 回目の採取物（`new/<target>/noise-pass2/`）の扱い（Issue #277）の回帰。記録後に削除しコミットしないこと、
   再利用の判断材料が記録値（`noise_baseline_new` / `noise_measurement`）であって採取物ではないこと、不在が失効条件でも前提確認の停止理由でもないことを対象にする。
   プロンプトは**残す案と、消すと全組再測定になるという誤解**を持ち込む形にしてあり、前提が無い環境でも会話で採点できる
+- eval 20・21 は意図的差異の保留（`intentional_diffs.pending`）の棚卸しを収束条件に入れる契約（Issue #279）の回帰で、**対になっている**——
+  20 は保留が積まれた状態で棚卸しを済ませるまで収束させない（対象は この機能に帰属 / `cross-cutting` / 帰属不明 の 3 群で、別機能の保留は対象外）、
+  21 は保留 0 件では棚卸しを理由に止めず**収束させる**（ただしゼロ件数の記録は残す）。
+  20 だけでは「保留の話題が出たら常に止める」実装と区別できないため、21 が陽性コントロールになる。
+  どちらのプロンプトにもキー名・スクリプト名・`cross-cutting` の語を書かない（書くとベースラインがそれを読んで assertion を満たす）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

@@ -73,6 +73,7 @@
 - 日本語の機能名は転写せず、作業内容を表す短い英語に要約する（例: 注文一覧＋注文詳細 → `order`）
 - 下流スキルの成果物パス `.replace/parity/<slug>/` はこの slug を使う。**下流スキルは slug を自分で作らず、features.md から引く**（別々に採番すると成果物が合流しない）
 - 一意性はインベントリ全体（機能・横断 API リソース・バッチ・その他 Issue の間）で保つ
+- **`cross-cutting` は予約語なので slug に使わない**（意図的差異レジストリの `pending` で「機能に帰属しない追記」を表す。使うと横断の追記と機能の追記が区別できなくなる。正本は [`project-config.md`](project-config.md)「`pending` 要素の形」）
 - **その他 Issue の slug は `.replace/parity/<slug>/` を持たず、下流スキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）の対象にならない。**
   下流スキルが features.md から引くのは機能・横断 API リソース・バッチの slug だけで、その他 Issue の slug を対象に指定されたら「下流の対象外」として停止する（名前空間は共有するが対象範囲は共有しない）
 

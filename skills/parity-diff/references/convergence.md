@@ -20,6 +20,15 @@
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
+  - **意図的差異の保留（`intentional_diffs.pending`）の棚卸しが済んでいる**（下記「`intentional_diffs.pending` の棚卸し」）。
+    数え直しは [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が行う（**記録された件数を信用せず設定ファイルの `pending` から数え直す**）:
+
+    ```bash
+    node <skill>/scripts/pending-triage-check.mjs --registries <registries.json> --metadata .replace/parity/<slug>/new/<target>/diff-metadata.json
+    ```
+
+    **渡す `registries.json` は棚卸しの後の設定ファイルから組み立て直したもの**にする（正規化のときのスナップショットを使い回すと、人が `keep` / `may_change` へ移した要素が `pending` に残って見え、正しい記録が不整合として落ちる。組み立て方は [`normalize.md`](normalize.md)「registries.json の組み立て」）。
+    終了コードは 0 ＝ 棚卸し済み、1 ＝ 未棚卸し・記録の不整合が残る、2 ＝ 使い方の誤り・型崩れ（設定ファイル側に `intentional_diffs.pending` が無い・配列でない場合を含む）。1 以上なら収束させず棚卸しを行う
   - **部品被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「部品被覆表」）。
     `.replace/parity/<slug>/metadata.json` の `component_coverage.declared` が `true` のときだけ判定に入り、
     数え直しは [`../scripts/coverage-check.mjs`](../scripts/coverage-check.mjs) が行う（**宣言された件数を信用せず被覆表から数え直す**。目視で数えない）:
@@ -53,6 +62,53 @@
     `declared: false` のとき、および `component_coverage` を**キーごと持たない旧成果物**のときは本項目を判定に入れない（後方互換）——
     ただし判定しなかった事実と理由を `diff-metadata.json` の `component_coverage`（`judged: false`）に記録し、`diff.md` の未検証領域にも残す（黙って合格にしない）
 
+## `intentional_diffs.pending` の棚卸し
+
+**機能を閉じる前に、意図的差異の保留を人へ提示して処置を決める。** 追記だけを定めて確定の時期を定めないと、
+保留が残ったまま機能が閉じられ、**判断待ちが機能をまたいで積み上がる**（後から読む人には「まだ決まっていない差」と「決まったが記録が古い差」の区別が付かない）。
+`pending` は**設定ファイルに残る唯一の作業中記録**であり、閉じる工程を持つのはここだけなので本スキルが要求する。
+
+**`pending_review` とは別物である。** 前者は**その差分の分類が承認待ち**（`diff-normalize.mjs` の分類）で、
+本節が扱うのは**意図的差異として認めるかどうかが未決**という宣言（設定ファイルのレジストリ）。混同すると片方だけを見て収束させる。
+
+### 対象
+
+要素の形と `slug` の意味論の正本は `replace-strategy` の `references/project-config.md`「`pending` 要素の形」。**次の 3 群すべて**を提示する。
+
+| 群 | 条件 | 提示する理由 |
+|---|---|---|
+| この機能の保留 | `slug` が対象 slug と一致 | この機能が積んだもの |
+| 横断の保留 | `slug` が `cross-cutting` | 機能に帰属しないため**閉じる工程を持たない**（どこかで提示しないと永久に残る） |
+| 帰属不明の保留 | 素の文字列（旧形式）／`slug` 欠落 | 黙って対象外にすると、**いちばん古くから積んでいる保留だけが誰の目にも触れなくなる** |
+
+**他の機能に帰属する保留（`slug` が別 slug）は対象外**。その機能の収束判定が扱う。
+
+### 処置
+
+**1 件ずつ人へ提示する**（まとめて「全部持ち越し」等の一括指示に従わない——内容を見ずに決めると棚卸しが素通りの儀式になる）。処置は 3 つのいずれか。
+
+| 処置（`disposition`） | 意味 | 必要な記録 |
+|---|---|---|
+| `keep` / `may_change` | 意図的差異として確定した | **人間が**設定ファイルの `pending` から当該分類へ**文言を移す**（スキルは移さない。書き手区分の正本はスキーマ文書「キーの書き手とライフサイクル」）。文言を変えて移したなら `promoted_as` に移動後の文言 |
+| `carried_over` | 次工程へ持ち越す | `reason` に**持ち越す理由**（測定待ち・依存先の実装待ち等）。理由の記録で通過できるので、**恒久的に機能を止めることはない** |
+
+### 記録
+
+`diff-metadata.json` の `intentional_diffs_pending` に**件数と各件の処置**を残す（様式の正本は [`../assets/diff-metadata-template.json`](../assets/diff-metadata-template.json)）。
+`diff.md` にも同じ内訳を書く（正本の件数は `diff-metadata.json`）。**積んでいることは件数で気づく**ので、対象 0 件でも記録を省かない。
+
+- 判定は [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が行う（実行方法は上記「収束の条件」）。**記録された件数を信用せず設定ファイルの `pending` から数え直す**
+- スクリプトが落とすのは次の 6 つ——**対象なのに記録が無い**（未棚卸し）、
+  **`keep` / `may_change` と記録したのに `pending` に残っている・移動先に見つからない**（記録だけで通ると棚卸しが「書けば通るチェックリスト」になる）、
+  **持ち越しの `reason` が空**、**`pending` に同じ文言が複数ある**（どれを棚卸ししたか決められない。先勝ちにしない）、
+  **記録した帰属が設定ファイルの `pending` の帰属と違う**（別機能の保留を自機能の slug で閉じられる）、
+  **宣言した件数が数え直しと一致しない**
+- **`intentional_diffs_pending` キーが無いときは旧成果物として合格に倒さず未実施として落とす**（対象 0 件と無記録を同じ出力にしない）
+- **未実施（exit 1）と成果物の型崩れ（exit 2）を分ける。** `intentional_diffs_pending` キーごと無いのは**未実施**（棚卸しをすれば直る）。
+  一方、記録がオブジェクトでない・`entries` が配列でない（キー欠落を含む）のは**型崩れ**なので exit 2 で落とす——
+  対象 0 件の棚卸しも `entries: []` を書く契約なので、`entries` を持たない記録は「0 件」ではなく壊れた成果物である
+  （両方を exit 1 に丸めると、自動化が「やり直せば直る」と「成果物が壊れている」を区別できない）
+
 ## 他機能待ちの差分（`blocked_by`）
 
 機能単位で分割して移行する以上、**同じページに乗る別機能が新側に未実装であることに由来する差分**は必然的に出る（欠けたセクションのぶん親要素の高さが変わり相対幾何が反転する等）。
@@ -72,7 +128,7 @@
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」6 項目をすべて満たす） | 完了 |
+| 収束 | `converged: true`（上記「収束の条件」7 項目をすべて満たす） | 完了 |
 | 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
 | 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
 
@@ -96,9 +152,10 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（6 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定を見落とす）
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（7 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・保留の未棚卸しを見落とす）
 - `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）、
-  `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）を記録する
+  `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）、
+  `intentional_diffs_pending`（棚卸しの対象内訳 / 確定件数 / 持ち越し件数と各件の処置）を記録する
 
 ## 対象外・未検証の明示
 

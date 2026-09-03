@@ -4,7 +4,7 @@
 
 ## 適用順序
 
-1. **意図的差異レジストリ** `intentional_diffs.{keep,may_change,pending}`: 宣言済みの差分を落とす。**`pending` 該当は未確定なので落とさず要確認扱い**（未収束として残す）
+1. **意図的差異レジストリ** `intentional_diffs.{keep,may_change,pending}`: 宣言済みの差分を落とす。**`pending` 該当は未確定なので落とさず要確認扱い**（未収束として残す）（`pending` の照合キーは要素の `item`）
 2. **コンポーネント系統差 T** `component_diffs[]`（`{component, property, current, new, reason}`）: 比較は「生の値が違うか」ではなく「新側の値が T から許容を超えて逸脱しているか」。
    **T に合致すれば吸収、逸脱すれば回帰候補として浮かせる。** 照合キーは `component`（対象要素の論理名 / glob）・`property`・値で、
    1 回の宣言が `component` に合致する全インスタンスに効く（下記「component_diffs T の照合方法」）。`references.ui_library`（旧→新 design token マッピング）を判断材料に読む
@@ -177,6 +177,10 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 | `component_diff_exception_causes` | `.replace/parity/<slug>/component-diff-exceptions.json` の同名キー |
 | `component_diff_exceptions` | 同ファイルの同名キー |
 
+- **`intentional_diffs.pending` の要素はオブジェクト**（`item` / `slug` / `added_by` / `added_at`）で、**照合に使うのは `item`**（素の文字列の旧形式も読む。要素の形の正本は `replace-strategy` の `references/project-config.md`「`pending` 要素の形」）。
+  **キーを名前を変えずに集める**原則どおり、`item` だけを抜き出して文字列配列へ潰さない——潰すと [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が帰属（`slug`）を読めず、全件が帰属不明になる
+- **棚卸しの判定に渡す `registries.json` は、人が `keep` / `may_change` へ移した後の設定ファイルから組み立て直す**（[`convergence.md`](convergence.md)「`intentional_diffs.pending` の棚卸し」）。
+  正規化のときに作ったスナップショットを使い回すと、移動済みの要素が `pending` に残って見え、正しく確定させた記録が「移したと記録されているが `pending` に残っている」「移動先に見つからない」の不整合として落ちる（組み立て方は同じ、読む時点だけが違う）
 - **例外ファイルが無ければ後者 2 キーは空配列**にする（例外ゼロ。停止しない）
 - **ファイルの `slug` が対象 slug と違えば停止する**（別 slug の台帳を読んでいる。空として黙って進めない）
 - **原因の文言をインスタンスへ展開しない。** 解決は `diff-normalize.mjs`（特性照合経路）と本スキル（画素経路）が照合時に行う。組み立て時に展開すると複製が復活する

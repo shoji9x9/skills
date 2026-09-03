@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-03T07:37:31Z",
+    "evals_run": [16],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 66.302,
+        "tokens": 144134,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留は差の文章だけで足さず、追記元が分かる形（item と slug、追記したスキル名、追記日）で書くと答えている",
+          "passed": true,
+          "evidence": "「1 行の文章だけでは足りません」とし、追記元フィールド（slug / added_by / added_at）＋差異の内容を要求している（item のキー名は正本未参照のため明示せず、正本で合わせるよう指示）"
+        },
+        {
+          "text": "slug には対象機能の slug、追記したスキル名には parity-replace を書くと具体的に示している",
+          "passed": true,
+          "evidence": "表で slug に order-list、added_by に parity-replace、added_at に追記日を具体的に示している"
+        },
+        {
+          "text": "要素の形の正本が replace-strategy のスキーマ文書（references/project-config.md）であることを示し、その内容を自分で決め直していない",
+          "passed": true,
+          "evidence": "「要素の形の正本は replace-strategy の references/project-config.md『pending 要素の形』」と示し、環境で参照できなかったため厳密なキー名は正本に合わせるよう委ねている"
+        },
+        {
+          "text": "追記元が分かる形にする理由として、機能を閉じるときの棚卸しでこの機能が積んだ保留を列挙できるようにすること（帰属が無いと判断待ちが機能をまたいで積み上がること）を挙げている",
+          "passed": true,
+          "evidence": "「追記元が分からない pending は、後で parity-diff の収束判定が要求する棚卸しのときに誰が・いつ・どの機能で見つけた差か追えなくなる」と理由を述べている"
+        },
+        {
+          "text": "keep へ移すのは人間の作業であり、明らかに見えても自分では移さずユーザー確認へ回すと断っている",
+          "passed": true,
+          "evidence": "「keep への移動は、こちらではできません」「keep / may_change へ移すのは人間」と断り、2 件とも pending へ入れて確認へ回すとしている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2,
+        "passed": 1,
+        "failed": 4,
+        "total": 5,
+        "time_seconds": 100.057,
+        "tokens": 103198,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "保留は差の文章だけで足さず、追記元が分かる形（item と slug、追記したスキル名、追記日）で書くと答えている",
+          "passed": false,
+          "evidence": "1 行では足りないとは述べたが、要求しているのは旧新の挙動・再現条件・除外理由・影響範囲という内容の充実であり、追記元（slug / 追記スキル名 / 追記日）に触れていない"
+        },
+        {
+          "text": "slug には対象機能の slug、追記したスキル名には parity-replace を書くと具体的に示している",
+          "passed": false,
+          "evidence": "slug / added_by の具体値を示していない"
+        },
+        {
+          "text": "要素の形の正本が replace-strategy のスキーマ文書（references/project-config.md）であることを示し、その内容を自分で決め直していない",
+          "passed": false,
+          "evidence": "正本の所在（replace-strategy のスキーマ文書）に触れず、「既存の保留エントリが 1 行運用ならそれに合わせるべき」と既存表記への追従を示唆している"
+        },
+        {
+          "text": "追記元が分かる形にする理由として、機能を閉じるときの棚卸しでこの機能が積んだ保留を列挙できるようにすること（帰属が無いと判断待ちが機能をまたいで積み上がること）を挙げている",
+          "passed": false,
+          "evidence": "棚卸し・帰属の積み上がりに言及していない"
+        },
+        {
+          "text": "keep へ移すのは人間の作業であり、明らかに見えても自分では移さずユーザー確認へ回すと断っている",
+          "passed": true,
+          "evidence": "「勝手に移すのは避けるべき」として keep への移動を実行せず確認に回している"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 66.302,
+        "stddev": 0.0,
+        "min": 66.302,
+        "max": 66.302
+      },
+      "tokens": {
+        "mean": 144134.0,
+        "stddev": 0.0,
+        "min": 144134,
+        "max": 144134
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2,
+        "stddev": 0.0,
+        "min": 0.2,
+        "max": 0.2
+      },
+      "time_seconds": {
+        "mean": 100.057,
+        "stddev": 0.0,
+        "min": 100.057,
+        "max": 100.057
+      },
+      "tokens": {
+        "mean": 103198.0,
+        "stddev": 0.0,
+        "min": 103198,
+        "max": 103198
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.80",
+      "time_seconds": "-33.8",
+      "tokens": "+40936"
+    }
+  },
+  "notes": []
+}

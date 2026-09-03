@@ -55,6 +55,11 @@
 写像・検証の過程で、レジストリに未登録の意図的差異（新たに判明した型・意味論の差）を見つけたら:
 
 - **勝手に確定しない**。設定の `intentional_diffs.pending` へ**非破壊で追記**し、ユーザー確認へ回す
+- **追記元が分かる形で書く**（要素の形の正本は `replace-strategy` の `references/project-config.md`「`pending` 要素の形」）。`added_by: golden-dataset` ／ `added_at` に追記日を書く。
+  素の文字列で追記すると帰属不明になり、どの機能の棚卸しでも提示され続ける
+- **`slug` は帰属できるかで決める。** その差が `--feature` で渡された特定の slug の写像でだけ起きるなら**その slug** を書く（`--feature` が 1 件ならその slug）。
+  複数 slug を対象にした実行でどの機能にも固有でない差（DB 全体の型・意味論の差など）と、機能スコープを持たない工程（フェーズ A）は `cross-cutting`。
+  **帰属できるものを `cross-cutting` にしない**——閉じる担当が決まらず、どの機能の棚卸しにも出続ける
 - 確認が済むまでは `verification.md` に「保留（pending）」として残す
 
 ## 成果物
