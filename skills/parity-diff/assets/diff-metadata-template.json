@@ -51,6 +51,7 @@
     "pixel_crops": "<同梱 pixel-crops.mjs の VERSION>",
     "diff_normalize": "<同梱 diff-normalize.mjs の VERSION>",
     "coverage_check": "<同梱 coverage-check.mjs の VERSION（component_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
+    "pending_triage_check": "<同梱 pending-triage-check.mjs の VERSION（棚卸しは常に判定するので常に記録する）>",
     "json_normalize_diff": "<同梱 json-normalize-diff.mjs の VERSION（api-resource / batch モードで使う。feature モードでは省略）>"
   },
   "noise_baseline_applied": [
@@ -112,6 +113,23 @@
     "source": "<judged: true のとき読んだ被覆表のパス。declared: true なのに無い・読めない・壊れているときはそのパスと読めなかった旨を書き、unmeasured は数え直せないので null にする（cells は 0。null を 0 と読み替えて合格に倒さない）。path も --coverage も無くて読みに行けなかったときは null>",
     "cells": 0,
     "unmeasured": 0
+  },
+  "intentional_diffs_pending": {
+    "_note": "意図的差異の保留（設定ファイルの intentional_diffs.pending）の棚卸し結果。手順と収束条件への組み込みの正本は parity-diff の references/convergence.md「intentional_diffs.pending の棚卸し」、要素の形の正本は replace-strategy の references/project-config.md「pending 要素の形」。棚卸しの対象は 3 群——この機能に帰属する保留（slug 一致）・横断の保留（slug: cross-cutting。閉じる工程を持たないため毎回提示する）・帰属不明の保留（素の文字列の旧形式 / slug 欠落）。他の機能に帰属する保留は対象外（その機能の収束判定が扱う）。件数は数値のまま書き、対象 0 件でも entries: [] とゼロ件数を記録する（0 件と無記録を同じ出力にしない——キーごと無い場合は pending-triage-check.mjs が未実施として exit 1 で落とす）。件数は pending-triage-check.mjs が設定ファイルの pending から数え直すので、宣言値と食い違えば落ちる。keep / may_change へ移すのは人間で、本スキルは設定ファイルを書き換えない。",
+    "attributed": 0,
+    "cross_cutting": 0,
+    "unattributed": 0,
+    "resolved": 0,
+    "carried_over": 0,
+    "entries": [
+      {
+        "item": "<pending にあった散文の宣言（照合キー）>",
+        "slug": "<この機能の slug | cross-cutting | 帰属不明なら null>",
+        "disposition": "<keep | may_change | carried_over>",
+        "promoted_as": "<keep / may_change へ文言を変えて移した場合の移動後の文言。変えていなければ null>",
+        "reason": "<carried_over の理由（測定待ち・依存先の実装待ち等）。keep / may_change では null>"
+      }
+    ]
   },
   "accepted_exceptions": {
     "causes": 0,
