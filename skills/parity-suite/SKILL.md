@@ -182,9 +182,10 @@ parity-suite [--feature <slug>] [--target <name>]
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
   **コピーは修正しない規約のため、プロジェクト自作ツールとパスで分けられるコピー専用のサブディレクトリに置く**（配置指針は [`references/locator-mapping.md`](references/locator-mapping.md)）
-- **被覆プロファイルと [`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs) はコピーしない。** プロファイル（[`assets/coverage-profiles/`](assets/coverage-profiles/)）を
-  同梱ディレクトリから読むため、スキルディレクトリ内から直接実行する（`gh skill update` の自動更新を効かせる）。
-  照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
+- **被覆プロファイルと [`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs) はコピーしない。**
+  スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）。
+  プロファイル（[`assets/coverage-profiles/`](assets/coverage-profiles/)）はスクリプトの位置から解決するので、
+  実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
 
 ## 姉妹スキルとの連携
 
