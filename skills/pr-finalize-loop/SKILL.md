@@ -63,11 +63,12 @@ push 後などに再レビューを依頼する AI レビュアーは設定で�
 着手前のハード前提チェックを通過したら、`iteration = 1` から `--max-iterations`（既定 5）まで以下を繰り返す。
 
 1. **状態取得**（この段階ではレビュー依頼をしない。待機の間隔・上限は後述「ポーリングと待機」に従う）
-   - **summary-firstで取得する**: [`references/state-query.md`](references/state-query.md) を読み、review・thread・トップレベルコメント・timelineはcompact indexを先に取得する。全文は現在HEAD、前回取得後に遅延到着した旧HEAD review、未処理ID、未解決指摘だけを個別取得し、未加工の全APIレスポンスを反復ごとに会話へ返さない
+   - **summary-firstで取得する**: [`references/state-query.md`](references/state-query.md) を読み、review・thread・トップレベルコメント・timeline・check-runはcompact indexを先に取得する。全文は現在HEAD、前回取得後に遅延到着した旧HEAD review、未処理ID、未解決指摘、レビュー到着判定に必要なcheck-run出力だけを個別取得し、未加工の全APIレスポンスを反復ごとに会話へ返さない
    - **PR 状態の再確認**: `gh pr view <番号> --repo <owner>/<repo> --json state` を取り直し、`OPEN` でなくなっていたら（他者のマージ / クローズ等で対象が消滅）**仕上げ対象消滅**として停止する。着手前チェックだけでなく各反復の冒頭で確認し、消えた対象の CI・レビューを待ち続けない
    - CI: `gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast` で完了を待つ（いずれかが失敗した時点で抜ける）。push 直後にチェック未登録で `no checks` と即時に返ることがあるため、その場合は間隔を空けて数回まで再確認する
    - 未解決レビュースレッド: 後述の GraphQL を `--paginate` で全取得し `isResolved == false` で絞る（**全レビュアーが対象**。著者で絞らない）
-   - 現在の HEAD がレビュー済みかを判定する（後述「HEAD のレビュー済み判定」）
+   - 現在の HEAD がレビュー済みかを、レビュー・現在 HEAD のレビュー用 check-run・現在 HEAD の完全な commit OID を明示するレビューボットコメントから判定する
+     （後述「HEAD のレビュー済み判定」）
    - レビュー進行中の検出: 現在の HEAD に対する**進行中のレビュー**（PR 作成時・push 時の**自動レビュー**を含む）や進行中のレビューエージェントがないかを確認する
      （後述「レビュー進行中の検出」。`review_tool` により検出手段が異なる。`none` は再依頼しないためこの保留自体が不要）。進行中なら依頼せず上限つきで結果を待ち、到着分を反映してから判定する
    - レビュー内容との整合検証: HEAD への非著者レビューがコメントを生成しているのに reviewThreads から取得できない場合は反映ラグとみなし、
@@ -230,7 +231,7 @@ mutation {
 
 ### HEAD のレビュー済み判定
 
-現在の HEAD（最新コミット）がレビュー済みかは、`headRefOid` と各レビューが対象にした commit を突き合わせて判定する。過去コミットへのレビューはあっても最新 push が未レビュー、という状態を取りこぼさないため。
+現在の HEAD（最新コミット）がレビュー済みかは、次の証跡を現在 HEAD と突き合わせて判定する。過去コミットへのレビューや古い完了コメントで、最新 push をレビュー済みにしないため。
 
 ```bash
 gh api graphql --paginate -f query='
@@ -252,7 +253,22 @@ query($endCursor: String) {
   著者以外の HEAD レビューが `last: N` の窓から押し出され得るため、単発取得では「未レビュー」と誤判定して不要な再依頼につながる。
 - **PR 著者（`pullRequest.author.login`）によるレビューは判定から除外する（必須）**。レビュースレッドへの返信は REST/GraphQL 上、著者の `state: COMMENTED` レビューとして記録され、その `commit.oid` が返信後の新しい HEAD を指し得る（実測）。
   除外しないと「修正 → 返信 → push」という本スキルの標準フローを回すたびに、誰にもレビューされていない新 HEAD が「レビュー済み」と誤判定され、レビュー再依頼が漏れる。
-- **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。一致するものが無ければ最新 HEAD は未レビュー。
+- **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。
+- `review_tool: claude-code` では、指摘が 0 件だとレビュー結果がトップレベルコメントまたは check-run だけに載り、`reviews[]` にレコード自体が作られないことがある。次のどちらかもレビュー到着の証跡として認める:
+  1. `headRefOid` を ref にして取得した check-run のうち、名称・GitHub App・出力の趣旨から Claude のレビュー用と確認でき、正常に完了したもの。
+     `status: completed` だけでは足りず、`conclusion` と `output.title` / `output.summary` も読み、失敗・timeout・skip・spend cap 等でレビューが行われなかったものを除外する
+  2. PR 著者以外のレビューボットによるトップレベルコメントのうち、本文がレビュー完了またはレビュー結果を示し、現在の完全な `headRefOid` をレビュー対象として明示するもの。working 等の進行中、エラー・skip、無関係な bot コメントは除外する
+- コメントの `created_at` / `updated_at` が直近 push の基準時刻より後というだけでは、レビュー済みの証跡にしない。旧 HEAD で開始したレビューが新しい push の後に完了すると時刻条件を満たすためである。完全な `headRefOid` の明示が無い完了コメントは指摘収集とcheck-runの意味確認には使えるが、単独では現在 HEAD のレビュー到着を証明しない。
+- check-run は GitHub の commit ref 用 endpoint で現在 HEAD に限定して取得する。既定の `filter=latest` は同名 check-run の古い再実行を畳むため、その HEAD の全 attempt を判定する必要があれば `filter=all` とページネーションを使う:
+
+  ```bash
+  gh api --paginate \
+    "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
+    --jq '.check_runs[] | {name, head_sha, status, conclusion, app: .app.slug, started_at, completed_at, title: .output.title, summary: .output.summary}'
+  ```
+
+  API 形状は [GitHub の check runs REST API](https://docs.github.com/en/rest/checks/runs)、Claude Code Review の指摘 0 件時の出力は [Claude Code Review 公式ドキュメント](https://code.claude.com/docs/en/code-review) を参照する。
+- 上の証跡がいずれも無ければ最新 HEAD は未レビュー。レビュー済みと判定した後も、レビュー本文・トップレベルコメント・check-run の出力に未対応の指摘や失敗がないかを後続の収集・整合検証で確認する。「到着した」と「指摘が無い」を同一視しない。
 - 収束判定ではこの「HEAD レビュー済み」を条件に含める（`review_tool: none` を除く）。既済みならレビュー依頼をしない（既完了 PR に余計なレビュー活動を起こさない）。
 
 ### レビュー内容との整合検証（スレッド反映ラグ）
