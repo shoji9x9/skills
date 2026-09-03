@@ -232,6 +232,7 @@ export function countTriage(registries, record, slug) {
     ? /** @type {Record<string, unknown>} */ (record).entries
     : undefined;
   if (!Array.isArray(entries)) {
+    // CLI はこの形を exit 2 で先に落とすため、ここへは main() を経由しない呼び出しだけが来る。
     problems.push("intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）");
     return {
       attributed: 0,
@@ -471,6 +472,14 @@ export function main(argv, deps = {}) {
   if (!isPlainObject(record)) {
     process.stderr.write(
       `error: intentional_diffs_pending がオブジェクトでない: ${opts.metadata}\n`,
+    );
+    return 2;
+  }
+  if (!Array.isArray(/** @type {Record<string, unknown>} */ (record).entries)) {
+    // 成果物の型崩れは「未棚卸し」(exit 1) と混ぜず、型崩れ・使い方の誤り (exit 2) に寄せる
+    // （両方を 1 で返すと、自動化が「棚卸しをやり直せば直る」と「成果物が壊れている」を区別できない）。
+    process.stderr.write(
+      `error: intentional_diffs_pending.entries が配列でない（棚卸しの記録が読めない）: ${opts.metadata}\n`,
     );
     return 2;
   }
