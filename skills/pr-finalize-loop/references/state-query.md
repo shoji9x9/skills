@@ -12,7 +12,8 @@ CI とレビューを繰り返し確認するとき、毎回 reviews・timeline�
 - reviewThreads: `isResolved == false` のスレッドと、その指摘本文
 - トップレベルコメント: 非著者分のID、author、createdAt、updatedAt、body文字数。`body` はまだ返さない
 - timeline: review request・review開始など、進行判定に必要なeventと時刻だけ
-- check-runs（`review_tool: claude-code`）: 現在の `headRefOid` を ref にしたレビュー用候補のID、name、head_sha、app、status、conclusion、started_at、completed_at。`output` はまだ返さない
+- check-runs（`review_tool: claude-code`）: 現在の `headRefOid` を ref にしたレビュー用候補のID、name、head_sha、app、status、conclusion、started_at、completed_at。
+  1段目では `output` を返さず、2段目で候補だけ `output.title` / `output.summary` を抽出する
 
 reviews と reviewThreads は pagination cursor が別なので、1つの `$endCursor` を共用せず別クエリで全ページを取得する。
 `gh api --jq` で必要な行だけ出力し、未加工のAPIレスポンス全体を会話へ返さない。
