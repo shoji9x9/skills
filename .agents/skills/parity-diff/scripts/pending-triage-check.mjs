@@ -30,8 +30,6 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { intentionalEntryText } from "./diff-normalize.mjs";
-
 /**
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * diff-metadata.json の differ_versions.pending_triage_check に記録する値はこれを使う（手入力にしない）。
@@ -44,6 +42,30 @@ export const CROSS_CUTTING = "cross-cutting";
 
 /** 棚卸しで記録できる処置。 */
 const DISPOSITIONS = ["keep", "may_change", "carried_over"];
+
+/**
+ * 意図的差異レジストリの 1 要素から照合に使う散文テキストを取り出す。
+ *
+ * `pending` は追記元（slug / added_by / added_at）を持つオブジェクト形式で書かれるため、
+ * 照合キーは `item` である（要素の形の正本は replace-strategy の
+ * references/project-config.md「`pending` 要素の形」）。素の文字列の要素も読む（旧形式）。
+ * `item` が文字列でないオブジェクトは照合に使わない（fail-closed）。
+ *
+ * diff-normalize.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
+ * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
+ * リンク先ではなくリンクの置き場所を基準に解決され、ERR_MODULE_NOT_FOUND で落ちる
+ * （SKILL.md が案内する実行パスは常にリンク経由になる）。片方を直したらもう片方も直す。
+ * @param {unknown} entry
+ * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
+ */
+export function intentionalEntryText(entry) {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+    const item = /** @type {{ item?: unknown }} */ (entry).item;
+    return typeof item === "string" ? item : "";
+  }
+  return "";
+}
 
 /**
  * 空でない文字列か。

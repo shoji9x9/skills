@@ -53,6 +53,10 @@ export function normalizeValue(v) {
  * references/project-config.md「`pending` 要素の形」）。素の文字列の要素も読む（旧形式）。
  * `item` が文字列でないオブジェクトは照合に使わない（fail-closed。`[object Object]` を
  * needle にすると意図しない一致・不一致が混ざる）。
+ *
+ * pending-triage-check.mjs にも同じ関数がある。**同梱スクリプトは互いを import しない**——
+ * シンボリックリンク経由の起動（`--preserve-symlinks-main`）では相対 import が
+ * リンクの置き場所を基準に解決され ERR_MODULE_NOT_FOUND で落ちるため。片方を直したらもう片方も直す。
  * @param {unknown} entry
  * @returns {string} 照合に使うテキスト（取り出せなければ空文字列）
  */
