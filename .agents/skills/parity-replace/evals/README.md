@@ -39,5 +39,7 @@ scripts/run-skill-eval.sh \
   未宣言を「全体走査」に倒さず実装工程に入らず停止し、`full` / `diff` の 2 列への移行を促すパスを検証する（移行の正本は `replace-strategy` の `references/project-config.md`「`verification_commands` の形の変更」）
 - eval 15 の fixture（`diff-limited-hooks`）は `full` と `diff` の 2 列を持つ設定を持たせ、**差分限定の列が緑でも完了判定にはならない**こと
   （定義元の削除は変更集合の外を壊すため差分限定では捕まらない・手順 7 も `full` へ前倒しする・実行した列を証跡へ記録する）を検証する
+- eval 16 は fixture 無しで、実装中に見つけた差を保留へ足す場面と「明らかなものは keep へ移しておいて」という依頼を同時に与える。
+  保留を散文 1 行で足さず追記元（`item` / `slug` / 追記スキル名 / 追記日）が分かる形で書くこと、`keep` へ移すのは人間でありスキルは移さないことを検証する（Issue #279。要素の形の正本は `replace-strategy` の `references/project-config.md`）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

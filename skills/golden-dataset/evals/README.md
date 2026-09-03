@@ -48,5 +48,9 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 16 は fixture 無しで、旧 metadata に `changes` が無く過去の変更根拠も無い移行状態を与える。欠落を影響なしへ倒さず、推測した個別テーブルで履歴を捏造せず、復元不能な版を `*` で保守的に埋めることを検証する
 - eval 17 は fixture 無しで、DDL と古い仕様書だけがある設計相談を与える。テーブル列だけで設計を終えず、消費側の絞り込み・並び替え・ページサイズを現行コード／実測から導いて `design.md` に根拠付きで残すことを検証する
 - eval 18 は fixture 無しで、baseline と phase B の記録 version が現在の dataset version より大きい不可能な状態を与える。空の変更区間を影響なしに倒さず、整数かつ `1..現在 version` の範囲検証で差分検出前に停止することを検証する
+- eval 19 は fixture 無しで、`--feature order-list` の実行中に「その機能に固有の差」と「どの機能にも固有でない差」を同時に与え、
+  まとめて横断扱いにしてよいかを問う。帰属できる差には slug を書き、`cross-cutting` は帰属できないときだけ使うこと
+  （まとめて横断にするのは安全側ではなく、閉じる担当が決まらず毎回の棚卸しに出続けること）、空欄・素の文字列は帰属不明になることを検証する
+  （Issue #279。要素の形の正本は `replace-strategy` の `references/project-config.md`）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
