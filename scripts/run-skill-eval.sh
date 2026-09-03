@@ -314,7 +314,11 @@ esac
 started_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 started_ms="$(date +%s%3N)"
 rc=0
-(cd "${proj}" && EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}") >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
+# stdin は必ず /dev/null にする。プロンプトは引数で渡しているが、executor は stdin も読もうとし、
+# 呼び出し側の stdin が EOF しないパイプ（バックグラウンド実行・エージェント経由）だと
+# `Reading additional input from stdin...` のまま無限に待つ（raw trace は 0 バイトのまま、
+# timeout でしか終わらない。実測で codex が 7 分以上ハングした）。
+(cd "${proj}" && EVAL_SANDBOX_CLI="${executor_binary}" EVAL_SANDBOX_VENDOR="${executor}" "${runner}" "${executor_args[@]}") </dev/null >"${raw_trace}" 2>"${out}/stderr.log" || rc=$?
 ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))
