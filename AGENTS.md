@@ -109,6 +109,11 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 - **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
 - **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
   - body は 1 行 100 文字以内（`body-max-line-length`）。長い本文は `git commit -F <file>` で渡す
+  - **`git commit` を含む呼び出しには、コミット前の準備（`git add`・message ファイルの作成）を混ぜない。**
+    PreToolUse ゲート（kaizen 等）は `git commit` を含む**呼び出し全体**を実行前にブロックするため、
+    同一コマンドに入れた準備も走らない。ゲート解消後に `git commit` だけ再実行すると、
+    作られていない message ファイルを読もうとして `could not read log file` で落ちる
+    （ブロックの症状と別物に見えるため原因を取り違えやすい）。準備は別コマンドで先に済ませる
   - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
     - commitlint / semantic-release はコードで `commit-types.js` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.js` が型の整合を CI で検査する
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
