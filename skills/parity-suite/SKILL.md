@@ -140,7 +140,7 @@ parity-suite [--feature <slug>] [--target <name>]
 5. **authoring**: ロケータマッピング（現側）→ **期待値解決層**（side 別の期待値。現側の値だけを埋める）→ 操作差分の吸収 → スイート（表示＋操作・状態カバレッジ＋ドキュメントレベル要素＋**同じページに乗る他機能の在席**）→ 手書き aria（**セクション単位で複数枚**。部分一致は書いていない兄弟が在ることしか許容せず深さを飛ばせない）→ API 特性化。
    **状態網羅は部品の規範的な資料（コンポーネントカタログ・部品ベンダーの機能一覧）から導出し、部品インスタンス（部品 × ページ）ごとに測って被覆表 `component-coverage.json` に 3 値で残す**（feature モードのみ。[`references/coverage.md`](references/coverage.md)「状態網羅の導出源」）。
    **構成要素ごとに操作可否が設定される部品（データグリッド等）は、被覆プロファイルで候補集合を展開してから測る**——
-   インスタンスごとに構成要素を来歴付きで列挙し、`node scripts/coverage-expand.mjs --coverage <被覆表> --write` で候補と適合結果を書き戻し、
+   インスタンスごとに構成要素を来歴付きで列挙し、`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --write` で候補と適合結果を書き戻し（同梱プロファイルを読むためスキルディレクトリから実行する）、
    欠落・未列挙・証拠なし・対応付けなしが 0 件になるまで測定へ戻る（[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
    **視覚採取を同値クラスで削減する場合も、E2E は全候補に要る**（削減してよいのはベースライン採取だけ）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。

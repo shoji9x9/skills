@@ -173,6 +173,33 @@ export function validateProfile(profile, source) {
       at(`required_rules: 未定義のルール ${String(rid)} を参照している`);
   }
 
+  // enumeration ブロックは形式の正本（profile-schema.json）が必須にしている。
+  // とくに sources が空だと readEnumeration の source.kind 検査が「候補ゼロ」で黙って素通りし、
+  // どの列挙元でも通ってしまう（fail-open）。procedure / fail_closed / pitfalls が空のプロファイルは
+  // 列挙手順・落ちやすい経路・ソースを読めない場合の扱いを持たないまま配布されるため、ここで落とす。
+  const enumeration = isPlainObject(p.enumeration)
+    ? /** @type {Record<string, unknown>} */ (p.enumeration)
+    : null;
+  if (!enumeration) {
+    at("enumeration が無い（列挙元・手順・fail-closed の扱いが宣言されていない）");
+  } else {
+    const sources = Array.isArray(enumeration.sources)
+      ? enumeration.sources.filter(nonEmptyString)
+      : [];
+    if (sources.length === 0) {
+      at("enumeration.sources が空（列挙元の kind を検査できず、どの値でも通る）");
+    }
+    for (const key of ["procedure", "fail_closed"]) {
+      if (!nonEmptyString(enumeration[key])) at(`enumeration.${key} が空`);
+    }
+    const pitfalls = Array.isArray(enumeration.pitfalls)
+      ? enumeration.pitfalls.filter(nonEmptyString)
+      : [];
+    if (pitfalls.length === 0) {
+      at("enumeration.pitfalls が空（列挙から落ちやすい経路が宣言されていない）");
+    }
+  }
+
   const equivalence = isPlainObject(p.equivalence)
     ? /** @type {Record<string, unknown>} */ (p.equivalence)
     : null;

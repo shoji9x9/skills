@@ -374,6 +374,12 @@ test("プロファイルの形式検査: 誤記したフラグ・未定義の軸
     version: "1",
     applies_to: "テスト用",
     axes: [{ id: "a", kind: "element", flags: ["on"] }],
+    enumeration: {
+      sources: ["current-source"],
+      procedure: "定義から a を抜く",
+      pitfalls: ["隠れている a を落とす"],
+      fail_closed: "読めなければ complete: false",
+    },
     candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true } }],
     required_rules: ["r"],
     equivalence: { reducible_axes: ["a"] },
@@ -389,6 +395,40 @@ test("プロファイルの形式検査: 誤記したフラグ・未定義の軸
   const separator = structuredClone(base);
   separator.axes.push({ id: "b", kind: "enum", values: ["a/b"] });
   expect(validateProfile(separator, "x.json").join("\n")).toMatch(/候補 id が衝突する/);
+});
+
+test("プロファイルの形式検査: enumeration の欠落・空フィールドを弾く", () => {
+  // enumeration.sources が空だと readEnumeration の source.kind 検査が候補ゼロで素通りし、
+  // どの列挙元でも通ってしまう（fail-open）。配布前に形式検査で落とす。
+  const base = {
+    id: "y",
+    version: "1",
+    applies_to: "テスト用",
+    axes: [{ id: "a", kind: "element", flags: ["on"] }],
+    enumeration: {
+      sources: ["current-source"],
+      procedure: "定義から a を抜く",
+      pitfalls: ["隠れている a を落とす"],
+      fail_closed: "読めなければ complete: false",
+    },
+    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true } }],
+    required_rules: ["r"],
+    equivalence: { reducible_axes: ["a"] },
+  };
+  expect(validateProfile(base, "y.json")).toEqual([]);
+  const missing = structuredClone(base);
+  delete missing.enumeration;
+  expect(validateProfile(missing, "y.json").join("\n")).toMatch(/enumeration が無い/);
+  for (const [mutate, pattern] of [
+    [(p) => (p.enumeration.sources = []), /sources が空/],
+    [(p) => (p.enumeration.procedure = "  "), /procedure が空/],
+    [(p) => (p.enumeration.fail_closed = "  "), /fail_closed が空/],
+    [(p) => (p.enumeration.pitfalls = []), /pitfalls が空/],
+  ]) {
+    const broken = structuredClone(base);
+    mutate(broken);
+    expect(validateProfile(broken, "y.json").join("\n")).toMatch(pattern);
+  }
 });
 
 /**
