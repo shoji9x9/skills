@@ -50,5 +50,8 @@ scripts/run-skill-eval.sh \
 - eval 22 はノイズ測定の 2 回目の採取物の扱い（Issue #277）の回帰。書き出し先（`noise-pass2/`）・基準値を記録した後の削除・
   「テキストは Git」の区分を 2 回目には当てないこと・不在が欠落ではないことを対象にする。
   プロンプトは**残してコミットする案**を持ち込む形にしてあり、現行アプリ・ブラウザに到達しなくても採点できる
+- eval 23 は右クリックが発火しないデータグリッド（Issue #290）の回帰。判定用と操作用のロケータを分け、可視要素の中心座標へ
+  `page.mouse.click` を送ることと、発火確認なしに `absent` と記録しないことを対象にする。
+  プロンプトは**発火しない結果を absent とする案**を持ち込む形にしてあり、現行アプリ・ブラウザに到達しなくても採点できる
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

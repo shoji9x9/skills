@@ -35,7 +35,7 @@
       "item": "<項目 id>",
       "instance": "<インスタンス id>",
       "value": "<present | absent | unmeasured>",
-      "evidence": "<測った操作と観測結果（present / absent はここが空だと未測定として数える）>",
+      "evidence": "<測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果（present / absent はここが空だと未測定として数える。発火を確認できなければ absent にせず unmeasured）>",
       "covered_by": [
         "<present のとき、その操作を押さえた採取状態（metadata.json.capture_conditions.states の値）または assertion のスペックパス＋テスト名。空なら未測定として数える>"
       ],
