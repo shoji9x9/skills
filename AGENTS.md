@@ -16,6 +16,9 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 - **テスト**: skill-creator、Python 3.8+（集計スクリプト）
 - **環境管理**: mise
 - **ツール起動**: スクリプト・lefthook・CI からツールを起動する際は `./node_modules/.bin/<tool>` のハードパスで叩かず、`pnpm exec <tool>`（または mise の shim）経由で起動する
+  - **mise の shim は cwd の設定階層で解決する。** リポジトリ外の cwd（`/tmp` 等）から素のコマンド名で起動すると
+    `No version is set for shim` で落ちる（グローバル既定が無いため。untrusted とは別の失敗）。
+    プロジェクト外で動かす検証は `mise which <tool>` で実体パスを解決して渡すか、cwd をプロジェクト内に保つ
 
 ### リント／フォーマット
 
