@@ -79,12 +79,14 @@ gh api --method POST \
 - Claude Code の GitHub App / Action が `@claude review` を検出してレビューを投稿する。`requested_reviewers` は使わない。
 - **`-f`（raw-field）で渡す**。`-F`（field）だと先頭 `@` をファイル参照と解釈するため使わない。本文は固定リテラル。
 - **レビュー結果の置き場所に注意**: このレビュアーは総評と軽微な指摘を**トップレベルコメント**（`issues/<番号>/comments`）に置き、
-  `reviews[].body` を空・`state` を `COMMENTED` にすることがある（実測）。指摘の収集は各 SKILL の
+  `reviews[].body` を空・`state` を `COMMENTED` にすることがある。インラインコメントが 0 件なら `reviews[]` にレコード自体を作らず、
+  結果をトップレベルコメントまたは check-run だけに載せることもある（レコード不在は実測。公式仕様も指摘 0 件では check-run を更新し、
+  確認コメントを投稿する場合があると説明している）。指摘の収集は各 SKILL の
   「スレッド外に置かれた指摘（レビュー本文・トップレベルコメント）」に従い、トップレベルコメントを**切り詰めずに**読む。
 - 成立確認・進行中・レビュー到着判定は各 SKILL の汎用シグナル（非著者レビュー・bot コメント・check-run）に従う。
   bot の login（例 `claude[bot]`）は導入した App 依存のため固定名を前提にしない。
-- 出典: Claude Code の code review 設定 <https://support.claude.com/en/articles/14233555-set-up-code-review-for-claude-code>
-  （manual trigger はトップレベルコメントの `@claude review`）、GitHub Actions
+- 出典: Claude Code Review <https://code.claude.com/docs/en/code-review>
+  （指摘 0 件では check-run を更新し、確認コメントを投稿する場合がある。manual trigger はトップレベルコメントの `@claude review`）、GitHub Actions
   <https://code.claude.com/docs/en/github-actions>
 
 ### codex

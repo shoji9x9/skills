@@ -155,14 +155,39 @@
     },
     {
       "id": 14,
-      "prompt": "pr-finalize-loop 6 — review と timeline が多く、状態確認だけでコンテキストを大量消費する。指摘を落とさず取得量を減らして収束させて",
-      "expected_output": "compact index と対象本文の2段取得を使い、現在HEAD・遅延した旧HEAD review・未解決thread・新規非著者コメントだけを全文確認する。未加工の全APIレスポンスや同じ本文を反復ごとに再取得しない。",
+      "prompt": "pr-finalize-loop 6 — review と timeline が多く、状態確認だけでコンテキストを大量消費する。外向き操作は実行せず、指摘を落とさず取得量を減らして収束させる取得計画を1つの報告にまとめて。",
+      "expected_output": "compact index と対象本文の2段取得を使い、現在HEAD・遅延した旧HEAD review・未解決thread・新規非著者コメント・レビュー到着判定に必要なcheck-run出力だけを全文確認する。未加工の全APIレスポンスや同じ本文を反復ごとに再取得しない。",
       "assertions": [
-        "review・thread・トップレベルコメント・timelineはcompact indexを先に取得し、未加工の全APIレスポンスを会話へ返さない方針である",
+        "review・thread・トップレベルコメント・timeline・check-runはcompact indexを先に取得し、未加工の全APIレスポンスを会話へ返さない方針である",
         "review本文は現在HEADだけでなく、前回取得後に遅延到着した旧HEAD reviewも対象にしている",
-        "未解決review threadと、新規または更新された非著者トップレベルコメントを全文取得する方針である",
+        "未解決review thread、新規または更新された非著者トップレベルコメント、レビュー到着判定に必要なcheck-run出力を全文取得する方針である",
         "同じreview/comment IDとupdatedAtの本文を反復ごとに再取得しない方針である",
         "指摘の妥当性判断では全文を読み、進行中検出用のbody先頭切り詰めを流用しない方針である"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "pr-finalize-loop 6（review_tool: claude-code）— 現在 HEAD の Claude レビューは指摘 0 件で、reviews[] に Claude のレコードが無い。現在 HEAD の Claude Code Review check-run は正常完了し、push 後に更新された bot のトップレベルコメントにも『新たな指摘なし』とある。CI は全成功、未解決スレッドと未対応のスレッド外指摘も 0 件。この状態の判定と、確認に使う API・除外条件を1つの報告にまとめて。",
+      "expected_output": "reviews[] が空でも未レビューと決めつけず、現在 HEAD の正常完了した Claude レビュー用 check-run をレビュー到着証跡として認め、指摘収集と整合確認を別途通して収束と判定する。push 後という時刻だけの bot コメントは単独証跡にしない。",
+      "assertions": [
+        "review_tool: claude-code では指摘 0 件のとき reviews[] にレコード自体が作られない形を扱っている",
+        "現在の headRefOid を commit ref にした check-runs API を使い、レビュー用 check-run の head_sha・status・conclusion・output の趣旨を確認する方針である",
+        "正常完了した現在 HEAD の Claude レビュー用 check-runをレビュー到着証跡として認めている",
+        "push 後に作成・更新されたという時刻だけのレビューボットコメントを単独の到着証跡にせず、単独で使うなら本文に現在の完全な headRefOid が必要としている",
+        "status: completed だけで合格にせず、失敗・timeout・skip・spend cap と、無関係な check-run を除外している",
+        "レビュー到着と指摘なしを分け、レビュー本文・トップレベルコメント・check-run 出力に未対応指摘や失敗が無いことも確認してから収束と判定している"
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "pr-finalize-loop 6（review_tool: claude-code）— 現在 HEAD の reviews[] は空。成功した Lint check、前の HEAD で開始して現在 HEAD のpush後に完了・更新されたがcommit OIDを本文に含まないClaude botコメント、現在 HEAD で working のClaude botコメント、著者自身の『レビュー完了』コメントがある。この状態をレビュー済みにできるか、各候補の扱いと次の行動を1つの報告にまとめて。",
+      "expected_output": "いずれも現在 HEAD のレビュー正常完了を証明しないため未レビューと判定する。無関係なcheck、push後に遅延完了した旧HEADのコメント、進行中コメント、著者コメントを除外し、進行中なら上限付きで待って再評価する。",
+      "assertions": [
+        "Lint の成功はレビュー用 check-run ではないためレビュー到着証跡から除外している",
+        "旧HEADで開始して現在HEADのpush後に完了・更新されたコメントでも、現在の完全なheadRefOidを本文に含まなければ単独の証拠にしていない",
+        "working のレビューボットコメントを完了扱いせず、上限付きで完了を待って再評価する方針である",
+        "PR 著者自身のコメントをレビュー到着証跡から除外している",
+        "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である"
       ]
     }
   ]
