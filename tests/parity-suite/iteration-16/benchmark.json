@@ -75,5 +75,10 @@
       "tokens": "+252093"
     }
   },
-  "notes": []
+  "notes": [],
+  "methodology": {
+    "mode": "with_skill only (lightweight, 1 run)",
+    "isolation": "scripts/run-skill-eval.sh による使い捨て空プロジェクト（/tmp）での headless 実行",
+    "note": "ユーザーのコスト制約により baseline (without_skill) は省略。run_summary.delta はベースライン無しの 0 基準で生成された値であり、比較値としては使わない"
+  }
 }
