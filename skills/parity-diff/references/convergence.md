@@ -28,8 +28,22 @@
     node <skill>/scripts/coverage-check.mjs --metadata .replace/parity/<slug>/metadata.json
     ```
 
-    未測定として数えるのは `value: unmeasured` のセル、部品ごとの 項目 × インスタンス の組み合わせのうち**行が無いもの**、
+    未測定として数えるのは `value: unmeasured` のセル、期待セルの組み合わせのうち**行が無いもの**、
     `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、**同じ組み合わせの重複行**（先勝ちにしない）。
+    **期待セルの取り方は部品が被覆プロファイルを宣言しているかで変わる**（プロファイルの契約は `parity-suite` の `references/coverage-profiles.md` が正本）:
+    宣言していない部品（`profile: null` ＋ `profile_absent_reason`）は 項目 × インスタンス、宣言した部品は**インスタンスごとに記録された候補**（`instances[].candidates`）。
+    プロファイル本体は `parity-suite` の同梱物なので**ここでは読まず**、被覆表に記録された列挙・候補・適合結果から数え直す。
+    プロファイル経路で追加で落とすのは次の 4 つ——
+    **`enumeration` が無い・`complete` が `true` でない・`source` が無い**（列挙の来歴が残らない）、
+    **`candidates` が空**（展開が記録されていない）、
+    **`enumeration.elements` に列挙した要素がどの候補にも現れない**（「40 列を列挙したが候補は代表 1 列だけ」。
+    突き合わせは `items[].candidate.axes` で**軸ごと**に行い、軸値を引けない候補は和集合へフォールバックせず未測定にする。
+    `enumeration.justified_absences` に要素スコープの根拠があるものだけ通す）、
+    **同値クラスを 1 つでも宣言したのに全候補が属していない・`rationale` が空・`representative` が `members` に無い**（視覚採取の削減の根拠が残らない）。
+    さらに **`components[].profile` キーの欠落**（暗黙の汎用扱い）と **`profile: null` なのに `profile_absent_reason` が空**、
+    および被覆表の **`conformance` が無い・`ok` が `true` でない**（`parity-suite` の `coverage-expand.mjs` が未実行・未達）も落とす。
+    `conformance` の欠落は「旧成果物」ではなく未実行として扱う——`declared: true` は被覆表の契約に乗ることの宣言だから
+    （後方互換で判定を飛ばすのは `component_coverage` を**キーごと持たない**成果物だけ）。
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る、2 ＝ 使い方の誤り。1 件以上なら収束させず `parity-suite` へ戻して測らせる。
     **`metadata.json` や `component_coverage` の型崩れ**（オブジェクトでない・`declared` が真偽値でない・`path` が空でない文字列でない）と、
     **`declared: false` なのに `reason` が空**（免除の根拠が残らない）は、後方互換の「判定しない」に倒さず exit 2 で落ちる——

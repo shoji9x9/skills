@@ -11,7 +11,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
 | `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）（同上） |
-| `.replace/parity/<slug>/component-coverage.json` | 部品被覆表（機能表の項目 × 部品インスタンス〈ページ〉の 3 値。`parity-suite` が生成。スキーマ正本は同スキル）。現側の測定結果のため slug 直下に 1 つ |
+| `.replace/parity/<slug>/component-coverage.json` | 部品被覆表（項目 × 部品インスタンス〈ページ〉の 3 値。被覆プロファイルを宣言した部品ではインスタンスごとの候補が期待セル。`parity-suite` が生成。スキーマ・プロファイルの正本は同スキル）。現側の測定結果のため slug 直下に 1 つ |
 | `.replace/parity/<slug>/component-diff-exceptions.json` | 承認済みインスタンス例外の規模（`component_diff_exception_causes[]` の原因数と `component_diff_exceptions[]` のインスタンス数。`parity-diff` が生成。スキーマ正本は同スキル）。環境非依存のため slug 直下に 1 つ |
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | 新側の green 証跡（`suite.new_green`・`verification.passed_at`）と差し戻しループの状態（`loop.iterations` / `loop.max_iterations` / `loop.last_diff_report`）（`parity-replace` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/new/<target>/diff.md` | 検出した差分と分類（要対応／許容／環境ノイズ）・根拠（`parity-diff` が生成。スキーマ正本は同スキル）。新側成果物は環境別のため target ごとに存在しうる |

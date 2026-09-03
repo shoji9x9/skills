@@ -12,6 +12,15 @@
 // ただし黙って合格にしない——判定しなかった理由を出力に残し、利用側は diff-metadata.json の
 // component_coverage と diff.md の未検証領域へ転記する。
 //
+// 被覆プロファイル: components[].profile を宣言した部品では、期待セルを「項目 × インスタンス」ではなく
+// インスタンスごとに記録された候補（instances[].candidates）で数える。
+// 列挙要素の突き合わせは items[].candidate.axes による**軸ごと**の照合で行う（軸をまたいだ和集合は
+// 別軸の同名値で fail-open する）。「その要素はどの候補にもならない」は enumeration.justified_absences の
+// 根拠付きでだけ通す（根拠を読む経路が無いと fail-closed が行き止まりになる）。プロファイル自体は parity-suite の
+// 同梱物なのでここでは読まず、被覆表に記録された列挙・候補・適合結果（conformance）から数え直す
+// （展開ルールの解釈は parity-suite の coverage-expand.mjs が authoring 時に検査する）。
+// 「40 列を列挙したが候補は代表 1 列だけ」は、列挙要素が候補に現れないことで落とす。
+//
 // fail-closed: 未測定は「value: unmeasured」だけではない。行が無い組み合わせ・evidence の空・
 // present なのに covered_by が空・同じ組み合わせの重複行も未測定として数える
 // （「測っていない」と「測ったが証拠が無い」を同じ空欄で通さない。重複は黙って先勝ちにしない）。
@@ -30,10 +39,13 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "3";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
+
+/** 候補 id と同値クラスの members の区切り（正本は parity-suite の coverage-profiles.md）。 */
+const ID_SEPARATOR = "/";
 
 /**
  * 空でない文字列か。
@@ -126,6 +138,353 @@ function collectIds(entries, label, problems) {
 }
 
 /**
+ * JSON オブジェクト（配列でない）か。配列は typeof で "object" を通るため明示的に弾く。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function isPlainObject(v) {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * 部品の items から 項目 id → 軸値（items[].candidate.axes）の索引を作る。
+ * 列挙要素が候補に現れるかの判定は**軸ごと**に行う必要がある——候補 id を "/" で割った
+ * 値の集合（軸をまたいだ和集合）で見ると、別軸に同じ値がある要素（列名 default と
+ * menu-condition の default 等）が自分の軸の候補に 1 件も無くても通ってしまい、
+ * 「代表だけを確認していないか」のゲートが fail-open になる。
+ * 軸値の記録（candidate.axes）は被覆表テンプレートが必須にしており、
+ * parity-suite の coverage-expand.mjs が展開結果との一致まで検査している。
+ * 無い場合は和集合へフォールバックせず未測定に倒す（フォールバックは同じ穴を作り直す）。
+ * @param {unknown} items - components[].items
+ * @returns {Map<string, Record<string, string>>}
+ */
+function readItemAxes(items) {
+  /** @type {Map<string, Record<string, string>>} */
+  const byId = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!isPlainObject(item)) continue;
+    const it = /** @type {Record<string, unknown>} */ (item);
+    if (!nonEmptyString(it.id) || !isPlainObject(it.candidate)) continue;
+    const candidate = /** @type {Record<string, unknown>} */ (it.candidate);
+    if (!isPlainObject(candidate.axes)) continue;
+    /** @type {Record<string, string>} */
+    const axes = {};
+    for (const [axisId, value] of Object.entries(
+      /** @type {Record<string, unknown>} */ (candidate.axes),
+    )) {
+      if (typeof value === "string") axes[axisId] = value;
+    }
+    byId.set(String(it.id), axes);
+  }
+  return byId;
+}
+
+/**
+ * 「その軸・その要素は無い」の根拠（enumeration.justified_absences）のうち、
+ * 要素スコープ（`<軸 id>/<要素 id>`）で理由が空でないものを集める。
+ * 根拠を読む経路が無いと、候補に現れない要素の判定が行き止まりになる
+ * （様式の正本は parity-suite の references/coverage-profiles.md）。
+ * @param {unknown} raw - enumeration.justified_absences
+ * @returns {Set<string>}
+ */
+function readJustifiedElementAbsences(raw) {
+  /** @type {Set<string>} */
+  const scopes = new Set();
+  for (const entry of Array.isArray(raw) ? raw : []) {
+    if (!isPlainObject(entry)) continue;
+    const e = /** @type {Record<string, unknown>} */ (entry);
+    if (!nonEmptyString(e.scope) || !nonEmptyString(e.reason)) continue;
+    if (!String(e.scope).includes(ID_SEPARATOR)) continue;
+    scopes.add(String(e.scope));
+  }
+  return scopes;
+}
+
+/**
+ * セル 1 件を採点する。判定規則の正本は parity-suite の references/coverage.md「部品被覆表」。
+ * @param {Record<string, unknown>|undefined} row
+ * @param {boolean} duplicated
+ * @param {string} label - 問題文に付けるセルの識別子
+ * @param {string[]} problems
+ * @returns {'present'|'absent'|'unmeasured'}
+ */
+function gradeCell(row, duplicated, label, problems) {
+  if (duplicated) {
+    problems.push(`セル ${label}: 同じ組み合わせの行が複数ある（先勝ちにしない）`);
+    return "unmeasured";
+  }
+  if (!row) return "unmeasured";
+  const value = row.value;
+  if (typeof value !== "string" || !VALUES.includes(value)) {
+    problems.push(`セル ${label}: value が ${VALUES.join(" / ")} のいずれでもない`);
+    return "unmeasured";
+  }
+  if (value === "unmeasured") return "unmeasured";
+  if (!nonEmptyString(row.evidence)) {
+    problems.push(`セル ${label}: value: ${value} なのに evidence が空`);
+    return "unmeasured";
+  }
+  if (value === "present") {
+    const coveredBy = Array.isArray(row.covered_by) ? row.covered_by : [];
+    if (coveredBy.filter(nonEmptyString).length === 0) {
+      problems.push(
+        `セル ${label}: value: present なのに covered_by が空（採取状態・assertion に落ちていない）`,
+      );
+      return "unmeasured";
+    }
+    return "present";
+  }
+  return "absent";
+}
+
+/**
+ * 同値クラスの所属を検査する（プロファイルを読まずにできる範囲）。
+ * 束ねてよい軸かどうか（reducible_axes）は parity-suite の coverage-expand.mjs が見るので、
+ * ここでは「削減したなら全候補が過不足なくいずれかのクラスに属する」ことと根拠の非空だけを見る。
+ * @param {unknown} classes - components[].equivalence_classes
+ * @param {Set<string>} candidateKeys - "<インスタンス id>/<候補 id>" の集合
+ * @param {string} cid
+ * @param {string[]} problems
+ */
+function checkEquivalenceMembership(classes, candidateKeys, cid, problems) {
+  const list = Array.isArray(classes) ? classes : [];
+  // 宣言が空なら削減していない（全候補を個別に採取した）とみなす。1 つでも宣言されたら全候補の所属が要る。
+  if (list.length === 0) return;
+  /** @type {Map<string, string>} */
+  const owner = new Map();
+  list.forEach((cls, i) => {
+    if (!isPlainObject(cls)) {
+      problems.push(`部品 ${cid}: equivalence_classes[${i}] が JSON オブジェクトではない`);
+      return;
+    }
+    const klass = /** @type {Record<string, unknown>} */ (cls);
+    const kid = nonEmptyString(klass.id) ? String(klass.id) : `#${i}`;
+    if (!nonEmptyString(klass.rationale)) {
+      problems.push(`部品 ${cid}: 同値クラス ${kid}: rationale が空（分類根拠が残らない）`);
+    }
+    const members = (Array.isArray(klass.members) ? klass.members : [])
+      .filter(nonEmptyString)
+      .map(String);
+    if (members.length === 0) {
+      problems.push(`部品 ${cid}: 同値クラス ${kid}: members が空`);
+      return;
+    }
+    for (const member of members) {
+      if (!candidateKeys.has(member)) {
+        problems.push(
+          `部品 ${cid}: 同値クラス ${kid}: 候補に無いメンバー ${member} を参照している`,
+        );
+        continue;
+      }
+      const previous = owner.get(member);
+      if (previous !== undefined) {
+        problems.push(
+          `部品 ${cid}: 候補 ${member} が同値クラス ${previous} と ${kid} の両方に属している`,
+        );
+        continue;
+      }
+      owner.set(member, kid);
+    }
+    const representative = nonEmptyString(klass.representative)
+      ? String(klass.representative)
+      : null;
+    if (!representative) {
+      problems.push(
+        `部品 ${cid}: 同値クラス ${kid}: representative が空（採取する候補が決まらない）`,
+      );
+    } else if (!members.includes(representative)) {
+      problems.push(
+        `部品 ${cid}: 同値クラス ${kid}: representative ${representative} が members に含まれていない`,
+      );
+    }
+  });
+  for (const key of candidateKeys) {
+    if (!owner.has(key)) {
+      problems.push(
+        `部品 ${cid}: 候補 ${key} がどの同値クラスにも属していない（削減するなら全候補の所属が要る）`,
+      );
+    }
+  }
+}
+
+/**
+ * プロファイルを宣言した部品を数え直す。期待セルは「項目 × インスタンス」ではなく
+ * インスタンスごとに記録された候補（instances[].candidates）で、プロファイル本体は読まない。
+ * @param {Record<string, unknown>} c - 部品
+ * @param {string} cid - 部品 id
+ * @param {Map<string, Record<string, unknown>>} byKey
+ * @param {Set<string>} duplicated
+ * @param {(c: string, i: string, n: string) => string} keyOf
+ * @param {Set<string>} expected - 期待セルのキー集合（呼び出し側と共有）
+ * @param {string[]} problems
+ * @returns {{cells: number, present: number, absent: number, unmeasured: number}}
+ */
+function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, problems) {
+  let cells = 0;
+  let present = 0;
+  let absent = 0;
+  let unmeasured = 0;
+  const instances = Array.isArray(c.instances) ? c.instances : [];
+  if (instances.length === 0) {
+    problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
+    return { cells: 1, present: 0, absent: 0, unmeasured: 1 };
+  }
+  const itemAxes = readItemAxes(c.items);
+  /** @type {Set<string>} */
+  const candidateKeys = new Set();
+  /** @type {Set<string>} */
+  const seenInstances = new Set();
+
+  for (const [index, instance] of instances.entries()) {
+    if (!isPlainObject(instance)) {
+      problems.push(`部品 ${cid}: instances[${index}] が JSON オブジェクトではない`);
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    const inst = /** @type {Record<string, unknown>} */ (instance);
+    if (!nonEmptyString(inst.id)) {
+      problems.push(
+        `部品 ${cid}: instances[${index}]: id が空（識別できないので未測定として数える）`,
+      );
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    const iid = String(inst.id);
+    // インスタンス id は同値クラスの members（"<インスタンス id>/<候補 id>"）の前半になる。
+    // 区切り文字を含むと前半と後半を切り分けられず、所属検査が別の組み合わせと突き合う。
+    if (iid.includes(ID_SEPARATOR)) {
+      problems.push(
+        `部品 ${cid}: インスタンス id ${iid} に "${ID_SEPARATOR}" を含む（同値クラスの members が切り分けられない）`,
+      );
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    if (seenInstances.has(iid)) {
+      problems.push(`部品 ${cid}: インスタンス id ${iid} が重複している（先勝ちにしない）`);
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    seenInstances.add(iid);
+    const label = `部品 ${cid} / インスタンス ${iid}`;
+
+    // 列挙が未完了なら候補は信用できない。候補ゼロで素通りさせず 1 件の未測定として数える。
+    const enumeration = isPlainObject(inst.enumeration)
+      ? /** @type {Record<string, unknown>} */ (inst.enumeration)
+      : null;
+    if (!enumeration) {
+      problems.push(`${label}: enumeration が無い（候補の来歴が残らない）`);
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    if (enumeration.complete !== true) {
+      problems.push(
+        `${label}: enumeration.complete が true ではない（列挙が未完了のまま確認済みにしない）`,
+      );
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+    if (!isPlainObject(enumeration.source)) {
+      problems.push(
+        `${label}: enumeration.source が無い（どの版のどこから何を条件に抜いたか残らない）`,
+      );
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+
+    const candidates = (Array.isArray(inst.candidates) ? inst.candidates : [])
+      .filter(nonEmptyString)
+      .map(String);
+    if (candidates.length === 0) {
+      problems.push(`${label}: candidates が空（プロファイルからの展開が記録されていない）`);
+      cells += 1;
+      unmeasured += 1;
+      continue;
+    }
+
+    // 「40 列を列挙したが候補は代表 1 列だけ」を落とす。プロファイルは読まないので、
+    // 候補に対応する項目の candidate.axes から**軸ごと**の値集合を作って突き合わせる。
+    /** @type {Map<string, Set<string>>} */
+    const valuesByAxis = new Map();
+    let axesResolvable = true;
+    for (const candidateId of candidates) {
+      const axes = itemAxes.get(candidateId);
+      if (axes === undefined) {
+        // 軸値が引けない候補があると軸ごとの突き合わせが成立しない。和集合へ倒さず未測定にする。
+        problems.push(
+          `${label}: 候補 ${candidateId} に対応する項目の candidate.axes が無い（軸ごとの突き合わせができない）`,
+        );
+        cells += 1;
+        unmeasured += 1;
+        axesResolvable = false;
+        continue;
+      }
+      for (const [axisId, value] of Object.entries(axes)) {
+        if (!valuesByAxis.has(axisId)) valuesByAxis.set(axisId, new Set());
+        /** @type {Set<string>} */ (valuesByAxis.get(axisId)).add(value);
+      }
+    }
+    const elements = isPlainObject(enumeration.elements)
+      ? /** @type {Record<string, unknown>} */ (enumeration.elements)
+      : {};
+    const justified = readJustifiedElementAbsences(enumeration.justified_absences);
+    for (const [axisId, list] of Object.entries(elements)) {
+      if (!Array.isArray(list)) {
+        problems.push(`${label}: enumeration.elements.${axisId} が配列ではない`);
+        continue;
+      }
+      if (!axesResolvable) continue; // 軸値が欠けている状態での判定は誤検出になる（上で未測定に数えている）
+      const seen = valuesByAxis.get(axisId) ?? new Set();
+      for (const el of list) {
+        if (!isPlainObject(el) || !nonEmptyString(/** @type {Record<string, unknown>} */ (el).id))
+          continue;
+        const elementId = String(/** @type {Record<string, unknown>} */ (el).id);
+        if (seen.has(elementId)) continue;
+        // 「その要素はどの候補にもならない」を主張するには根拠が要る（fail-closed の行き止まりを作らない）。
+        if (justified.has(`${axisId}${ID_SEPARATOR}${elementId}`)) continue;
+        problems.push(
+          `${label}: 列挙した ${axisId} の要素 ${elementId} がどの候補にも現れない（代表だけを確認していないか。意図的なら enumeration.justified_absences に根拠を残す）`,
+        );
+        cells += 1;
+        unmeasured += 1;
+      }
+    }
+
+    /** @type {Set<string>} */
+    const seenCandidates = new Set();
+    for (const candidateId of candidates) {
+      if (seenCandidates.has(candidateId)) {
+        problems.push(`${label}: 候補 ${candidateId} が重複している（期待セルを二重に数えない）`);
+        continue;
+      }
+      seenCandidates.add(candidateId);
+      candidateKeys.add(`${iid}${ID_SEPARATOR}${candidateId}`);
+      const key = keyOf(cid, candidateId, iid);
+      expected.add(key);
+      cells += 1;
+      const graded = gradeCell(
+        byKey.get(key),
+        duplicated.has(key),
+        `${label} / ${candidateId}`,
+        problems,
+      );
+      if (graded === "present") present += 1;
+      else if (graded === "absent") absent += 1;
+      else unmeasured += 1;
+    }
+  }
+
+  checkEquivalenceMembership(c.equivalence_classes, candidateKeys, cid, problems);
+  return { cells, present, absent, unmeasured };
+}
+
+/**
  * 被覆表を数え直す。宣言された件数（metadata.json 側の cells / unmeasured）は参照しない。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {string|null} slug - 突き合わせる slug（metadata.json の slug）。null なら照合しない
@@ -152,6 +511,22 @@ export function countCoverage(coverage, slug) {
   const components = Array.isArray(cov.components) ? cov.components : [];
   if (components.length === 0) {
     problems.push("components が空（declared: true なら 1 つ以上の部品が要る）");
+  }
+
+  // プロファイル適合の記録。展開ルールの解釈は parity-suite 側の coverage-expand.mjs が行うため、
+  // ここではその実行結果だけを要求する。無い・ok: false を合格に倒さない
+  // （declared: true は被覆表の契約に乗ることの宣言なので、記録の欠落は「旧成果物」ではなく未実行）。
+  if (!isPlainObject(cov.conformance)) {
+    problems.push(
+      "conformance が無い（parity-suite の coverage-expand.mjs を実行してプロファイル適合を記録する）",
+    );
+  } else {
+    const conf = /** @type {Record<string, unknown>} */ (cov.conformance);
+    if (conf.ok !== true) {
+      problems.push(
+        `conformance.ok が true ではない（プロファイル適合が未達のまま。${nonEmptyString(conf.tool) ? String(conf.tool) : "coverage-expand"} の問題を解消する）`,
+      );
+    }
   }
 
   // セル行を 部品／項目／インスタンス で索引する。重複は先勝ちにせず記録する。
@@ -210,6 +585,38 @@ export function countCoverage(coverage, slug) {
       continue;
     }
     seenComponents.add(cid);
+
+    // profile キーの欠落を「汎用扱い」に倒さない。プロファイル無しを選ぶには理由が要る
+    // （正本は parity-suite の references/coverage-profiles.md「プロファイルの選択」）。
+    if (!("profile" in c)) {
+      problems.push(
+        `部品 ${cid}: profile キーが無い（適合プロファイルが無いなら profile: null ＋ profile_absent_reason を書く。暗黙の汎用扱いにしない）`,
+      );
+      cells += declaredCells;
+      unmeasured += declaredCells;
+      continue;
+    }
+    if (c.profile !== null) {
+      if (!nonEmptyString(c.profile)) {
+        problems.push(`部品 ${cid}: profile が空でない文字列でも null でもない`);
+        cells += declaredCells;
+        unmeasured += declaredCells;
+        continue;
+      }
+      const counted = countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, problems);
+      cells += counted.cells;
+      present += counted.present;
+      absent += counted.absent;
+      unmeasured += counted.unmeasured;
+      continue;
+    }
+    if (!nonEmptyString(c.profile_absent_reason)) {
+      // 「適合プロファイルが無い」を主張するには根拠が要る（未検証として残すため）。
+      problems.push(
+        `部品 ${cid}: profile: null なのに profile_absent_reason が空（未検証の根拠が残らない）`,
+      );
+    }
+
     if (items.length === 0 || instances.length === 0) {
       // 空の列挙は期待セル 0 ＝ 未測定 0 に化けるので、fail-closed で 1 件の未測定として数える。
       problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
@@ -238,44 +645,11 @@ export function countCoverage(coverage, slug) {
       for (const nid of instanceIds) {
         const key = keyOf(cid, iid, nid);
         expected.add(key);
-        if (duplicated.has(key)) {
-          problems.push(`セル ${key}: 同じ組み合わせの行が複数ある（先勝ちにしない）`);
-          unmeasured += 1;
-          continue;
-        }
-        const row = byKey.get(key);
-        if (!row) {
-          unmeasured += 1;
-          continue;
-        }
-        const value = row.value;
-        if (typeof value !== "string" || !VALUES.includes(value)) {
-          problems.push(`セル ${key}: value が ${VALUES.join(" / ")} のいずれでもない`);
-          unmeasured += 1;
-          continue;
-        }
-        if (value === "unmeasured") {
-          unmeasured += 1;
-          continue;
-        }
-        if (!nonEmptyString(row.evidence)) {
-          problems.push(`セル ${key}: value: ${value} なのに evidence が空`);
-          unmeasured += 1;
-          continue;
-        }
-        if (value === "present") {
-          const coveredBy = Array.isArray(row.covered_by) ? row.covered_by : [];
-          if (coveredBy.filter(nonEmptyString).length === 0) {
-            problems.push(
-              `セル ${key}: value: present なのに covered_by が空（採取状態・assertion に落ちていない）`,
-            );
-            unmeasured += 1;
-            continue;
-          }
-          present += 1;
-          continue;
-        }
-        absent += 1;
+        // 採点規則はプロファイル経路と共有する（片方だけ緩めない）。
+        const graded = gradeCell(byKey.get(key), duplicated.has(key), key, problems);
+        if (graded === "present") present += 1;
+        else if (graded === "absent") absent += 1;
+        else unmeasured += 1;
       }
     }
   }
