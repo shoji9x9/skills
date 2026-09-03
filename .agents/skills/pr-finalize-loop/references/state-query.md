@@ -62,6 +62,11 @@ gh api graphql --paginate -f query='query($endCursor: String) {
 gh api --paginate repos/<owner>/<repo>/issues/<number>/comments \
   --jq '.[] | select(.user.login != "<author>") |
     {id, login: .user.login, created_at, updated_at, body_length: (.body | length)}'
+
+# 現在HEADのcheck-run索引。outputは2段目で候補だけ取得する
+gh api --paginate \
+  "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
+  --jq '.check_runs[] | {id, name, head_sha, app: .app.slug, status, conclusion, started_at, completed_at}'
 ```
 
 ## 2段目: 対象だけ全文取得
