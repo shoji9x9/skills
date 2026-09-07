@@ -50,6 +50,49 @@ resolve_path() {
 kaizen_dir=".kaizen"
 archive_dir="${kaizen_dir}/archive"
 
+# 見出し直後の**先頭段落**を 1 行に連結して返す。索引の要約は最初の非空行だけを読んでいたため、
+# 先頭段落が折り返されたノートでは要約が文の途中で切れ、しかも `…` が付かないので完結した文に
+# 見えた（Issue #303）。INDEX.md は人が読む索引でエージェント文脈へは注入されないため、
+# 注入側（kaizen-context-inject.sh）のように「折り返しを検査してブロック」ではなく連結を選ぶ。
+# 節の切り出し方は kaizen-status-check.sh の section_lead_state() と揃える（見出しは前方一致、
+# 見出し・空行・`---` 行・箇条書きの開始は段落の境界）。折り返しを検出するだけの
+# section_lead_state() と違い、こちらは連結した文字列を出力するため、段落の直後に始まる
+# リストも境界にする（継続行として繋ぐと `…2 つ。- A- B` のような文になる）。
+# 第 1 引数が空文字なら見出しを使わず frontmatter 以降の最初の段落を対象にする（フォールバック）。
+lead_paragraph() {
+	awk -v h="$1" '
+		# 日本語の折り返しは空白を伴わないので、両側が ASCII のときだけ空白で継ぐ。
+		# `[ -~]` は非 UTF-8 ロケール（mawk のバイト処理）でも多バイト文字の境界に一致しない。
+		function join(a, b) {
+			if (a ~ /[ -~]$/ && b ~ /^[ -~]/) return a " " b
+			return a b
+		}
+		# 段落を読み始める前の `---` だけの行は frontmatter の境界か区切り線。どちらも要約では
+		# ないので読み飛ばす（フォールバックは 2 本目の `---` の後から本文として読む）。
+		!found && /^---[[:space:]]*$/ { if (h == "" && !in_sec && ++fm >= 2) in_sec = 1; next }
+		h != "" && index($0, h) == 1 { in_sec = 1; next }
+		# 見出しは節と段落の境界。段落を読み始める前の見出しは、フォールバックでは読み飛ばし
+		# （タイトル行 `# ...` の後に本文が来るため）、見出し指定時は「節が空」として打ち切る。
+		in_sec && /^#/ { if (h == "" && !found) next; exit }
+		in_sec && !found && NF { found = 1; lead = $0; next }
+		# 先頭段落に続く `---` / `===` だけの行は setext 見出しの下線か区切り線で、いずれも段落の
+		# 境界。`{3,}` は古い mawk が区間指定を解さないため使わない。
+		in_sec && found && /^(---+|===+)[[:space:]]*$/ { exit }
+		in_sec && found {
+			if (!NF) exit
+			# 箇条書きの項目は継続行ではない。先頭項目に続く兄弟項目も、段落の直後に始まる
+			# リストも境界として打ち切り、要約には先頭段落（箇条書きなら先頭項目）だけを使う。
+			marker = "^[[:space:]]*([-*+]|[0-9]+\\.)[[:space:]]"
+			if ($0 ~ marker) exit
+			line = $0
+			sub(/^[[:space:]]+/, "", line)
+			lead = join(lead, line)
+			next
+		}
+		END { if (found) print lead }
+	' "$2" 2>/dev/null || true
+}
+
 # archive/*.md の frontmatter と要約から INDEX.md を作り直す。
 regenerate_index() {
 	mkdir -p "${archive_dir}"
@@ -72,11 +115,11 @@ regenerate_index() {
 				}
 				fm == 1 && /^(date|type|priority|status):/ { buf = buf $0 " " }
 			' "${f}" 2>/dev/null || true)
-			# 優先: 「## 事象」見出し直後の最初の非空行。
-			summary=$(awk '/^## 事象/{flag=1; next} flag && NF {print; exit}' "${f}" 2>/dev/null || true)
-			# フォールバック: 見出しが無いフォーマットなら、frontmatter 以降の最初の本文行を使う。
+			# 優先: 「## 事象」見出し直後の先頭段落。
+			summary=$(lead_paragraph "## 事象" "${f}")
+			# フォールバック: 見出しが無いフォーマットなら、frontmatter 以降の最初の段落を使う。
 			if [ -z "${summary}" ]; then
-				summary=$(awk 'BEGIN{fm=0} /^---[[:space:]]*$/{fm++; next} fm>=2 && NF && $0 !~ /^#/ {print; exit}' "${f}" 2>/dev/null || true)
+				summary=$(lead_paragraph "" "${f}")
 			fi
 			# 80 文字に切り詰め。bash のパラメータ展開は UTF-8 ロケールでは文字単位なので
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
