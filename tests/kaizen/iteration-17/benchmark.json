@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-08T07:32:00Z",
+    "evals_run": [8],
+    "runs_per_configuration": 1,
+    "scope": "Issue #305（自己改変ガードは環境依存で、人への確認をガードの発火から切り離す）で references/setup.md の Step 3 の表と Step 4 の注記を条件付きへ書き換え、eval 8 に assertion 4（可否を断定せず／緩める変更はブロックの有無に関わらず確認）を追加した。その eval 8 のみを取り直した回。 run 後に eval 8 の assertion 2 / 3 の文面も更新した（2: AGENTS.md 名指し→基底ドキュメント一般。使い捨てプロジェクトは空で AGENTS.md に到達できず、setup.md 規定の CLAUDE.md フォールバックが正しい挙動のため。3: 応答での自発的言及依存→追記された基底ドキュメントの記載で判定。ブロックが起きない環境で flaky になるのを防ぐため）。スキル本体とプロンプトは変えていないので run は取り直さず、同じ成果物に対して再採点した（with 6/6・without 0/6 は不変）。"
+  },
+  "status": "complete",
+  "deltas": {
+    "8": 1.0
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "references/setup.md を参照してセットアップ手順に従おうとしている",
+          "passed": true,
+          "evidence": "setup.md のみが規定する ${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel ...)} 前置き形を settings.json に採用し、setup.md の手順番号（4-4 の Codex 信頼手順）を対象外と判断した旨を述べている。raw は result envelope のみのため成果物と応答からの間接判定。"
+        },
+        {
+          "text": "基底ドキュメント（AGENTS.md。無ければ CLAUDE.md / .github/copilot-instructions.md）にエージェントの自己設定編集の制約（自己改変ガード）の節を追記しようとしている（既存なら追記しない）",
+          "passed": true,
+          "evidence": "空プロジェクトに AGENTS.md / CLAUDE.md が無く、setup.md 規定のフォールバックに従って CLAUDE.md を新規作成し当該節を記載。"
+        },
+        {
+          "text": "追記した基底ドキュメントの節に、ブロックされたときのフォールバック（適用内容を一時ファイルへ書き出し `! cp <tmp> <設定ファイル>` での適用をユーザーに依頼する）が記載されている（成果物で判定。ブロックが起きなかった run では応答本文での言及を要求しない）",
+          "passed": true,
+          "evidence": "project-files/CLAUDE.md に ! cp フォールバックの記載が実在。成果物判定なので、ブロックが起きなかった本 run でも決定論的に測れる。"
+        },
+        {
+          "text": "追記する表で Claude Code の編集可否を「不可」と断定せず、版と権限モードで変わるので実測する旨にしており、かつ設定を緩める変更はブロックされたかどうかに関わらず人に確認する旨を含めている",
+          "passed": true,
+          "evidence": "CLAUDE.md の表 Claude Code 行が「版と権限モードで変わる。前提にせず実測する」で、直前段落に「権限・検査を緩める設定変更は、止められるかどうかに関わらず人に確認する」を含む。応答も「追加したのは検査を増やす hook キーのみ（permissions の緩和や既存 hook の削除・置換なし）」と Step 4 の条件を適用している。"
+        },
+        {
+          "text": "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+          "passed": true,
+          "evidence": ".claude/settings.json に Stop / PreToolUse（if: Bash(git commit *)）/ SessionStart の 3 hook が実在。"
+        },
+        {
+          "text": ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done*、**/.kaizen/.extract-checkpoint* を追加しようとしている（session 単位の派生名まで掛かる末尾 * 付き。.kaizen/ 本体はコミット対象のまま）",
+          "passed": true,
+          "evidence": ".gitignore に 3 パターンが末尾 * 付きで実在し、.kaizen/ 本体の除外は無い。"
+        }
+      ]
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "contamination": "clean",
+      "expectations": [
+        {
+          "text": "6 assertion すべて",
+          "passed": false,
+          "evidence": "project-tree.txt は「.」のみで成果物ゼロ。応答は kaizen の実体が見つからないとして配布元の特定を質問し、セットアップへ進んでいない。"
+        }
+      ]
+    }
+  ],
+  "follow_ups": [
+    "without_skill のサンドボックス内 ~/.claude/settings.json の autoMode.environment にホスト側の .kaizen/*.md ファイル名が残り応答が引用した。スキル本文は含まれず contamination は clean だが、HOME ミラーの絞り込み余地として記録する。"
+  ]
+}
