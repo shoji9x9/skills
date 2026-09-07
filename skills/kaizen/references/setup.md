@@ -50,9 +50,13 @@ AGENTS.md を持たない下流（`CLAUDE.md` のみ／`.github/copilot-instruct
 設定ファイルを書き換える作業（kaizen の Hook セットアップ等）でブロックされたら、適用すべき内容を
 一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` 等での適用を依頼する。
 
+**ブロックされないこともある。** ガードが効くかは版と権限モードに依るので、
+**権限・検査を緩める設定変更は、止められるかどうかに関わらず人に確認する。**
+下表の可否は前提にせず、その場で実測した結果を優先する。
+
 | エージェント | 自己設定ファイル | 編集可否 |
 |------------|---------------|---------|
-| Claude Code | `.claude/settings.json` | 不可（ハードブロック。bypass でも確認が出る） |
+| Claude Code | `.claude/settings.json` と `~/.claude/settings.json` | **版と権限モードで変わる。前提にせず実測する**（ある版 × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
 | Codex | `.codex/config.toml` / hooks | 現状は可（ただし credentials/auth/profile 等の上書きは制限） |
 | GitHub Copilot | `.github/agents/`（指示） | 不可（ハードブロック） |
 | GitHub Copilot | `.github/hooks/`（フック） | 可（手動承認ガードの設定を推奨） |
@@ -60,8 +64,9 @@ AGENTS.md を持たない下流（`CLAUDE.md` のみ／`.github/copilot-instruct
 
 ### 4. 各エージェントに 3 つの Hook を設定する
 
-> **設定ファイル編集時の注意**: この手順は `.claude/settings.json` などエージェントの設定ファイルを編集する。Step 3 の表のとおり、Claude Code はこれを直接編集できない（自己改変ガード）。
+> **設定ファイル編集時の注意**: この手順は `.claude/settings.json` などエージェントの設定ファイルを編集する。Step 3 のとおり自己改変ガードでブロックされることも、されないこともあるため、可否を前提にせず実際の結果で分岐する。
 > ブロックされたら、適用すべき JSON を一時ファイルに書き出し、ユーザーに `! cp <tmp> .claude/settings.json` での適用を依頼する。Codex（`.codex/hooks.json`）/ Copilot（`.github/hooks/...`）は直接編集できる。
+> ブロックされずに書けた場合はそのまま適用してよい（この手順が足すのは PreToolUse ゲート等の検査を増やす変更）。ただしそれは**既存の設定を保ったまま hook キーを増やせたときに限る**——`permissions` を緩める変更や、既存 hook（他スキルのゲート等）の削除・置換が混ざるなら、止められなくても人に確認する（Step 3 の「権限・検査を緩める設定変更は、止められるかどうかに関わらず人に確認する」）。書いた後は差分を見て、検査を増やす変更だけになっていることを確かめる。
 
 タスク終了時 Hook・PreToolUse ゲート・参照注入フックは、いずれもスキルにバンドルされたスクリプトの実体（`kaizen-stop-mark.sh` / `kaizen-precommit-gate.sh` / `kaizen-context-inject.sh`）をフックから直接参照する。プロジェクトへのコピーは不要。
 これらのスクリプトは `.kaizen/` を**いま作業している作業ツリーの root** 基準で解決するため、フックがサブディレクトリ cwd で起動しても迷子のセンチネルや取り違えが起きない。
