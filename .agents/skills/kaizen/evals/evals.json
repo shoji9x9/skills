@@ -144,6 +144,7 @@
       "prompt": "fixture に新旧形式の kaizen ノートと不整合な archive INDEX がある。バンドルされた lifecycle 検査を実行し、終了コードと対象ファイルを示してから、各不整合の修正方法と旧形式の互換性を説明して。その修正手順には、整合が取れたことをどう確認するかまで含めて。あわせて、INDEX.md に 2026-06-01-archived.md という文字列があるのに検査が 0 件と言う理由を、検査スクリプトのエントリ判定に即して説明して。",
       "assertions": [
         "kaizen-status-check.sh が exit 2 となり、pending-with-target と applied-empty の両ファイルを status/applied-to 不整合として出力したことを示している",
+        "2026-08-03-wrapped-lead.md は `## 提案` の先頭段落が次の行へ折り返されている点を検出し、参照注入が最初の非空行だけを要約に使うため先頭段落を 1 行に収めると説明している",
         "archive の 2026-06-01-archived.md 欠落と INDEX.md の 2026-06-02-stale.md 過剰を両方検出している",
         "found 0 の理由として、バンドルされた kaizen-status-check.sh のエントリ抽出が行頭の - `<name>.md` 形式だけを拾う sed 式に限られる点を、その実装（式または該当行）を引いて説明している",
         "legacy-applied.md は applied-to フィールド自体が無い旧形式なのでエラー対象になっていないことを出力と照合している",

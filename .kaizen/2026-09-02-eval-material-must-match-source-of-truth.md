@@ -43,6 +43,7 @@ KEDB: [[2026-08-12-eval-prompt-change-breaks-assertion-reachability]] /
 ## 提案
 
 eval の assertion と fixture は、書いた時点で**正本に実在する形か**を突き合わせてから確定する。
+
 assertion の根拠は自分が置いた fixture の中身ではなくスキルの契約文に取り、fixture の様式・キー・型は
 その成果物を生成する側のスキルの正本に合わせる。
 

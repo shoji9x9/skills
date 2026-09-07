@@ -27,4 +27,5 @@ KEDB 照合: `Codex-only` / `run-skill-eval` / `executor` で既存記録なし�
 ## 提案
 
 Codex-only 評価で失敗したら executor を変える前に raw trace の最終失敗、Codex-only 契約、sandbox 内で使える非書き込み代替を順に確認し、比較 executor を変更しない。
+
 Git の読み取り評価では、fixture setup で remote-tracking ref を準備し、Codex の `.git` 保護下では `git fetch --no-write-fetch-head` で到達性を実測する。

@@ -43,8 +43,9 @@ KEDB 照合: `2026-08-08-consistency-pass-not-path-loaded.md`（applied）は整
 
 ## 提案
 
-`docs/skill-development.md`「push 前の整合パス」項目 4 を次の趣旨へ拡張する（配送は既存の
-`.agents/rules/skill-consistency-pass.md` が `skills/**` 編集時に担うため、正本の更新だけで届く）。
+`docs/skill-development.md`「push 前の整合パス」項目 4 を次の趣旨へ拡張する。
+
+配送は既存の `.agents/rules/skill-consistency-pass.md` が `skills/**` 編集時に担うため、正本の更新だけで届く。
 
 - 変更したのが**姉妹スキルが読む共有契約**（`replace-strategy/references/project-config.md` 等）や
   他スキルが根拠として引用しうる記述なら、grep の範囲を同スキルに閉じず `skills/*/evals/` 横断にする

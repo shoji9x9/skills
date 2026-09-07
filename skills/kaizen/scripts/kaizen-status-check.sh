@@ -91,6 +91,40 @@ frontmatter_state() {
 	' "$1"
 }
 
+# 参照注入（kaizen-context-inject.sh）が要約に使う節の**先頭段落**が、複数の物理行に
+# 折り返されていないかを判定する。注入はその節の最初の非空行だけを供給するため、
+# 折り返されていると注入される要約が文の途中で切れる（Issue #301）。切れても注入は
+# 成功し終了コードも 0 なので、書いた時点で気づける経路はこの形式検査しかない。
+# 節の選び方は注入側と同じにする（見出しは前方一致、最初の非空行を要約とみなす）。
+# 出力: `none`（その節に要約となる行が無い）/ `ok` / `wrapped` / `error`（読めなかった）。
+# 判定が付いた時点で awk を `exit` させる（END は実行される）。5MB 級のノートを最後まで
+# 読まずに済み、判定後に現れる同名見出しで結論が覆ることもない。
+section_lead_state() {
+	awk -v h="$1" '
+		BEGIN { found = 0; wrapped = 0 }
+		index($0, h) == 1 { in_sec = 1; next }
+		# 見出しは節と段落の境界。境界に当たるまでに非空行が無ければ `none`（節が空）、
+		# 先頭行を見つけた後なら段落はそこで閉じているので `ok`。これが無いと、次の見出しを
+		# 先頭行と読んで（a）空の `## 提案` で `## 事象` へのフォールバックが起きず、
+		# （b）1 行の先頭段落の直後に見出しが来るだけで `wrapped` と誤報する（実測）。
+		# 注入側の `first_line_under()` は節を区切らないので、`## 提案` が空のときに注入される
+		# 要約は次の見出し行そのものになる。その形は本検査の対象（折り返し）とは別の欠陥。
+		in_sec && /^#/ { exit }
+		in_sec && !found && NF { found = 1; lead = $0; next }
+		in_sec && found {
+			# 空行で先頭段落が閉じていれば折り返しではない。
+			if (NF) {
+				# 箇条書きの先頭項目に別の箇条書き項目が続くのは折り返しではなく兄弟項目。
+				# 注入は先頭項目だけを要約に使う設計なので、後続項目の不在は欠落ではない。
+				marker = "^[[:space:]]*([-*+]|[0-9]+\\.)[[:space:]]"
+				if (!(lead ~ marker && $0 ~ marker)) wrapped = 1
+			}
+			exit
+		}
+		END { print (found ? (wrapped ? "wrapped" : "ok") : "none") }
+	' "$2" || printf 'error\n'
+}
+
 for note in .kaizen/*.md .kaizen/archive/*.md; do
 	[ -e "${note}" ] || continue
 	[ "$(basename "${note}")" = "INDEX.md" ] && continue
@@ -106,6 +140,39 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		continue
 	fi
 	IFS='|' read -r status present nonempty <<<"${state}"
+
+	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
+	# status: pending）に揃える。archive と applied / rejected は注入されないので、
+	# 過去の書き方を理由に commit を止めない。
+	case "${note}" in
+	.kaizen/archive/*) ;;
+	*)
+		if [ "${status}" = "pending" ]; then
+			lead_section="## 提案"
+			lead_state=$(section_lead_state "${lead_section}" "${note}" 2>/dev/null)
+			# 注入は「## 提案」に要約となる行が無ければ「## 事象」へフォールバックする。
+			if [ "${lead_state}" = "none" ]; then
+				lead_section="## 事象"
+				lead_state=$(section_lead_state "${lead_section}" "${note}" 2>/dev/null)
+			fi
+			case "${lead_state}" in
+			wrapped)
+				echo "kaizen-status-check: ${note}: the lead paragraph under ${lead_section} is wrapped onto the next line; the session-start digest injects only its first line, so keep the lead on one physical line" >&2
+				errors=$((errors + 1))
+				;;
+			ok | none) ;;
+			*)
+				# 判定不能を素通りさせない（ループ先頭の frontmatter 読み取りと同じ fail closed）。
+				# 素通りさせると「検査した」と「検査できなかった」が同じ exit 0 になる。
+				# 理由を捨てると直しようがないので、失敗時だけ読み直して awk の診断を添える。
+				detail=$(section_lead_state "${lead_section}" "${note}" 2>&1 >/dev/null | tr '\n' ' ') || true
+				echo "kaizen-status-check: ${note}: could not inspect the lead paragraph under ${lead_section}: ${detail:-no diagnostics from awk}" >&2
+				errors=$((errors + 1))
+				;;
+			esac
+		fi
+		;;
+	esac
 
 	# applied-to が無い旧形式は後方互換のため検査対象外。新形式としてフィールドを
 	# 宣言したノートだけを厳密に検査する。
@@ -171,7 +238,7 @@ if [ "${errors}" -gt 0 ]; then
 	else
 		reindex_cmd="バンドルされた kaizen-archive.sh を --reindex 付きで実行"
 	fi
-	echo "kaizen-status-check: ${errors} lifecycle inconsistency(s); update status/applied-to or ${reindex_cmd}" >&2
+	echo "kaizen-status-check: ${errors} problem(s); fix status/applied-to or the reported note text, or ${reindex_cmd}" >&2
 	exit 2
 fi
 
