@@ -88,3 +88,122 @@ test.each([
   expect(indexedSummary.endsWith("…")).toBe(ellipsis);
   expect([...indexedSummary]).toHaveLength(Math.min(length, 80));
 });
+
+// Issue #303: 先頭段落が折り返されたノートで、索引の要約が文の途中で切れていた。
+// 連結してから 80 文字で切り詰めるため、境界（見出し・空行・箇条書きの兄弟項目）で
+// 止まることと、止まらずに継ぐことの両方を弁別する。
+test("折り返した先頭段落を連結してから索引化する", () => {
+  const dir = createRepo();
+  const note = writeNote(
+    dir,
+    "2026-09-01-wrapped.md",
+    "先頭段落が折り返されている",
+    "ので続きも読む。\n",
+  );
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(index).toContain("— 先頭段落が折り返されているので続きも読む。\n");
+});
+
+test("段落の境界（空行・後続見出し・箇条書き・水平線）を越えて連結しない", () => {
+  const dir = createRepo();
+  const blank = writeNote(
+    dir,
+    "2026-09-01-blank.md",
+    "空行で閉じる段落。",
+    "\n次の段落は含めない。\n",
+  );
+  // 見出しの前後に空行を挟むと空行側の境界だけで止まり、見出しの分岐に到達しない
+  // （変異で実測）。見出しは先頭段落の直後に、次の本文は見出しの直後に置く。
+  const heading = writeNote(
+    dir,
+    "2026-09-01-heading.md",
+    "見出しで閉じる段落。",
+    "## 根本原因\n別の節。\n",
+  );
+  const bullet = writeNote(dir, "2026-09-01-bullet.md", "- 先頭の項目", "- 兄弟の項目\n");
+  // 段落の直後に始まるリストも継続行ではない（繋ぐと「。- A の項目- B の項目」になる）。
+  const paraList = writeNote(
+    dir,
+    "2026-09-01-para-list.md",
+    "対象は次の 2 つ。",
+    "- A の項目\n- B の項目\n",
+  );
+  const rule = writeNote(dir, "2026-09-01-rule.md", "水平線で閉じる段落。", "---\n\n別の節。\n");
+
+  const result = archive(dir, blank, heading, bullet, paraList, rule);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(index).toContain("— 空行で閉じる段落。\n");
+  expect(index).toContain("— 見出しで閉じる段落。\n");
+  expect(index).toContain("— - 先頭の項目\n");
+  expect(index).toContain("— 対象は次の 2 つ。\n");
+  expect(index).toContain("— 水平線で閉じる段落。\n");
+});
+
+test("連結の継ぎ目は両側が ASCII のときだけ空白を入れる", () => {
+  const dir = createRepo();
+  const ascii = writeNote(
+    dir,
+    "2026-09-01-ascii.md",
+    "the lead paragraph is",
+    "wrapped onto two lines.\n",
+  );
+  const cjk = writeNote(dir, "2026-09-01-cjk.md", "日本語の折り返しは", "空白を伴わない。\n");
+  const mixed = writeNote(dir, "2026-09-01-mixed.md", "対象は`gh api`の", "pagination である。\n");
+
+  const result = archive(dir, ascii, cjk, mixed);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(index).toContain("— the lead paragraph is wrapped onto two lines.\n");
+  expect(index).toContain("— 日本語の折り返しは空白を伴わない。\n");
+  expect(index).toContain("— 対象は`gh api`のpagination である。\n");
+});
+
+test("連結後に 80 文字を超えたら … を付けて切り詰める", () => {
+  const dir = createRepo();
+  const note = writeNote(dir, "2026-09-01-long.md", "あ".repeat(60), `${"い".repeat(60)}\n`);
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  const indexedSummary = index.split("— ").at(-1).trimEnd();
+  expect(indexedSummary).toBe(`${"あ".repeat(60)}${"い".repeat(19)}…`);
+});
+
+test("見出しが無いノートのフォールバックでも先頭段落を連結する", () => {
+  const dir = createRepo();
+  const path = join(dir, ".kaizen", "2026-09-01-no-heading.md");
+  writeFileSync(
+    path,
+    "---\ndate: 2026-09-01\ntype: doc\npriority: low\nstatus: pending\n---\n\n# タイトル\n\n見出しが無くても\n段落として読む。\n",
+  );
+
+  const result = archive(dir, path);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(index).toContain("— 見出しが無くても段落として読む。\n");
+});
+
+// frontmatter の後に区切り線を置くノートで、要約が `---` そのものにならないこと。
+test("フォールバックは frontmatter 後の水平線を要約にしない", () => {
+  const dir = createRepo();
+  const path = join(dir, ".kaizen", "2026-09-01-rule-fallback.md");
+  writeFileSync(
+    path,
+    "---\ndate: 2026-09-01\ntype: doc\npriority: low\nstatus: pending\n---\n\n---\n\n本文はここから\n始まる。\n",
+  );
+
+  const result = archive(dir, path);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(index).toContain("— 本文はここから始まる。\n");
+});
