@@ -384,7 +384,7 @@ if [ "$1" = "-v" ]; then
   h=*) echo "stubbed awk failure" >&2; exit 3 ;;
   esac
 fi
-exec ${realAwk} "$@"
+exec "${realAwk}" "$@"
 `;
 
 function realAwkPath() {
@@ -420,6 +420,9 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
       encoding: "utf8",
     });
     expect(broken.stderr ?? "").toContain("could not inspect the lead paragraph");
+    // 理由まで添える（frontmatter 読み取りと同じ）。捨てると「検査できなかった」とだけ言われ、
+    // 何を直せばいいか分からないまま commit できない状態になる。
+    expect(broken.stderr ?? "").toContain("stubbed awk failure");
     expect(broken.status).toBe(2);
   } finally {
     rmSync(dir, { recursive: true, force: true });

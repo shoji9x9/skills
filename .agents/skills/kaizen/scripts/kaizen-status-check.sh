@@ -122,7 +122,7 @@ section_lead_state() {
 			exit
 		}
 		END { print (found ? (wrapped ? "wrapped" : "ok") : "none") }
-	' "$2" 2>/dev/null || printf 'error\n'
+	' "$2" || printf 'error\n'
 }
 
 for note in .kaizen/*.md .kaizen/archive/*.md; do
@@ -149,11 +149,11 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	*)
 		if [ "${status}" = "pending" ]; then
 			lead_section="## 提案"
-			lead_state=$(section_lead_state "${lead_section}" "${note}")
+			lead_state=$(section_lead_state "${lead_section}" "${note}" 2>/dev/null)
 			# 注入は「## 提案」に要約となる行が無ければ「## 事象」へフォールバックする。
 			if [ "${lead_state}" = "none" ]; then
 				lead_section="## 事象"
-				lead_state=$(section_lead_state "${lead_section}" "${note}")
+				lead_state=$(section_lead_state "${lead_section}" "${note}" 2>/dev/null)
 			fi
 			case "${lead_state}" in
 			wrapped)
@@ -164,7 +164,9 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 			*)
 				# 判定不能を素通りさせない（ループ先頭の frontmatter 読み取りと同じ fail closed）。
 				# 素通りさせると「検査した」と「検査できなかった」が同じ exit 0 になる。
-				echo "kaizen-status-check: ${note}: could not inspect the lead paragraph under ${lead_section}" >&2
+				# 理由を捨てると直しようがないので、失敗時だけ読み直して awk の診断を添える。
+				detail=$(section_lead_state "${lead_section}" "${note}" 2>&1 >/dev/null | tr '\n' ' ') || true
+				echo "kaizen-status-check: ${note}: could not inspect the lead paragraph under ${lead_section}: ${detail:-no diagnostics from awk}" >&2
 				errors=$((errors + 1))
 				;;
 			esac
