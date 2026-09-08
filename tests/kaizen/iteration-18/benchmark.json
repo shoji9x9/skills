@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/kaizen",
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5",
-    "timestamp": "2026-09-08T11:40:00Z",
+    "timestamp": "2026-09-08T02:37:39Z",
     "evals_run": [21],
     "runs_per_configuration": 1,
     "scope": "Issue #307（抽出手順が自分のセッションの transcript を読ませるため文脈窓を超える大きさでは実行できない）で references/extract.md 手順 2 を持ち主判定つきの分岐へ書き換え、新規 eval 21 を追加した回。with_skill run-1 が手順 2 の欠陥を検出した——センチネル一致 0 件を「持ち主でない（＝読む）」へ倒す規定が、setup 未実行で Stop フックが無い状態でも 0 件になることを状態空間から落としており、同じ手順の『文脈窓を超えるので読めない』と衝突していた。その分岐を修正（0 件は持ち主判定を覆さず、checkpoint 無し＝offset 0 で索引だけ取る）して with_skill を run-2 で取り直した。without_skill は修正の影響を受けない（スキル資産に到達できない）ため run-1 のまま。Delta は run-2 と without_skill run-1 で算出。"
