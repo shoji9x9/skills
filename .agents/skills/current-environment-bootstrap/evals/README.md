@@ -49,5 +49,18 @@ scripts/run-skill-eval.sh \
   検査しているのは「dump を開かず停止するか」であって値の真実味ではなく、実在しそうな値を fixture に置く必要が無いため
 - eval 5（`resume-after-answers`）: 質問票に回答が返った状態（Q-1 は確定回答、Q-2 は「現物が無く回答できない」、Q-3 は未回答）。
   **工程 1 からやり直さないこと**と、**「聞いていない」「聞いたが確定できない」「確定した」の 3 状態を潰さないこと**が弁別点
+- eval 6（`commercial-ui-component-without-vendor-docs`）: 受領した依存台帳と UI ソースから市販データグリッドの使用と版は確認できるが、ベンダーの機能一覧・試験仕様書・公式サンプルは届いていない状態。
+  **資料不足を資産カテゴリで検出すること**、**CoE／ベンダー窓口を依頼先として残すこと**、および **`app-ui` へ縮退しても現行未使用の操作は測れないと可視化すること**が弁別点
+
+### eval 6 の prompt と assertion の到達対応
+
+| Assertion の要点 | Prompt の引用 |
+|---|---|
+| 対象 current target を一意に選択 | 「--target current-rebuilt」 |
+| 市販部品と版を特定し、ベンダー資料を不足に分類 | 「受領資産の不足と追加資産依頼をまとめてください」 |
+| CoE またはベンダー窓口を依頼先に記録 | 「受領資産の不足と追加資産依頼をまとめてください」 |
+| `parity-suite` の被覆表に対する影響を記録 | 「後続の parity-suite が状態網羅に使う資料が足りるかも報告に含めてください」 |
+| `app-ui` 縮退時に測れない操作を記録 | 「app-ui を代替資産として扱えるか、何が測れないかも明記してください」 |
+
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

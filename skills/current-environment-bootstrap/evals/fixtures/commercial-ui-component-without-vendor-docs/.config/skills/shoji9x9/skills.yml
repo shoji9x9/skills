@@ -1,0 +1,44 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: ./received/app
+      stack: [TypeScript, React]
+      origin: received-assets
+      received_assets:
+        - received/
+    new:
+      repo: ./new-app
+      stack: [TypeScript, React]
+    targets:
+      - name: current-rebuilt
+        side: current
+        url: none
+        db:
+          env_vars: [CURRENT_DB_URL]
+          seedable: true
+        auth:
+          roles: {}
+        forbidden_actions: []
+        pre_commands: []
+        start: pnpm start
+        check_urls: []
+    secrets:
+      wrapper: ""
+    verification_commands:
+      full:
+        - pnpm test
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    bootstrap_tool_dir: bootstrap/
+    dataset_mode: none
+    references:
+      architecture: ""
+      coding_conventions: ""
+      ui_library: ""
+      db_semantics: ""
+      env_setup: ""
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []

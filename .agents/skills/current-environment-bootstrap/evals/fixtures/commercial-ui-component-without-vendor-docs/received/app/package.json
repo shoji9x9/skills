@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@progress/kendo-react-grid": "9.0.0"
+  }
+}
