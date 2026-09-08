@@ -1,5 +1,5 @@
 ---
-date: 2026-09-09
+date: 2026-09-08
 type: hook
 priority: high
 status: pending

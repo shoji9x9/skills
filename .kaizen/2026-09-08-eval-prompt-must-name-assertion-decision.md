@@ -22,7 +22,7 @@ session: codex
 
 KEDB を `eval assertion`・`evals.json`・`prompt` で照合したが一致は無かった。横断すると、同じ形式の到達対応表を持つ全スキルの eval が対象になる。
 
-## 適用結果（2026-09-09・実測により提案を修正）
+## 適用結果（2026-09-08・実測により提案を修正）
 
 **当初の提案（下記）は実測で否定された。** 「assertion 固有の判断軸を直接問う prompt 引用を要求する」を
 `current-environment-bootstrap` の eval 6 に実装して実走したところ、到達性は上がったが**弁別が消えた**
