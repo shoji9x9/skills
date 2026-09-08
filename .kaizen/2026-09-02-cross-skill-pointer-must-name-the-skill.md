@@ -2,7 +2,8 @@
 date: 2026-09-02
 type: rule
 priority: medium
-status: pending
+status: applied
+applied-to: [.agents/rules/doc-altitude.md]
 session: claude-code
 ---
 
