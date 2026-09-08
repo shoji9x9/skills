@@ -2,8 +2,8 @@
 date: 2026-08-30
 type: rule
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/doc-altitude.md]
 session: codex
 ---
 

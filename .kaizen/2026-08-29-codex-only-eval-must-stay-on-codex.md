@@ -2,8 +2,8 @@
 date: 2026-08-29
 type: rule
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [docs/skill-development.md]
 session: codex
 ---
 

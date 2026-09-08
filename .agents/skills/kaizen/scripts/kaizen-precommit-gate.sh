@@ -132,6 +132,130 @@ session_key=$(kaizen_session_key "${session_id}")
 project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
+# コマンド文字列の**引用の内側**とコメントを、同じ長さの `_` へ潰したコピーを返す。
+# 区切り文字（`;` `&` `|` `(` ・改行）が引用の内側にあるとき、シェルはそこでコマンドを
+# 区切らない。下の判定はシェル構文の解析ではなく正規表現なので引用状態を持たず、
+# リテラルの `(` を区切りと読んで読み取り専用コマンドを誤ブロックしていた
+# （`.kaizen/2026-09-08-quoted-separator-must-not-trigger-command-gate.md`。
+# `echo "Bash(git ""commit *)"` のような、settings.json の matcher 表記を本文に含むだけの
+# 呼び出しが止まる）。
+#
+# 引用符**そのもの**は残す。`gitoptval` が引用符をトークンの区切りとして使っており、
+# 潰すと `git -C "a b" commit` のような真陽性を取りこぼす（fail open）。
+# 長さを保つので、マスク後の一致位置と長さをそのまま元の文字列の位置として使える
+# （`commit_target_is_external` には元の部分文字列を渡す必要がある）。
+#
+# **シェルの引用規則が当たらない領域を先に片付ける**。素通りさせると、その中の素の `'` が
+# 引用の開始として数えられ、対を跨いだ範囲——本物の `git commit` を含む範囲——まで潰れて
+# ゲートが素通りする（fail open。実測: `# don't` / `git commit -m x` / `# won't` の 3 行が exit 0）。
+#   - コメント（語頭の `#` から行末）: シェルは中身を解釈しないので、行末まで丸ごと潰す。
+#   - heredoc（`<<`）: 本文の開始位置は区切り語に依存し、この関数では追えない。判定不能として
+#     **fail closed**（呼び出し側に元の文字列を使わせる）に倒す。
+#
+# 引用が閉じていないコマンドも同じく判定不能で fail closed。ここを fail open にすると
+# `git commit "` のような形で検出そのものを外せてしまう。
+#
+# 走査は 1 文字ずつではなく「次の特殊文字までの塊」単位で進める。コマンドは本文を書く形で
+# 数十 KB になり、1 文字ずつ削ると残り全体のコピーが毎回走って O(n^2) になる
+# （実測: 50KB の入力でゲート全体が 0.17 秒 → 20.5 秒）。
+mask_quoted() { # $1: コマンド文字列
+	local s="${1:-}" out="" c chunk body pad closed line at_word_start=1
+	# 引用の外で意味を持つ文字。ここまでをまとめて写して走査を進める。
+	local outer_pat="[\\\\'\"#]*" inner_pat="[\\\\\"]*"
+	# heredoc の本文はシェルの引用規則の外にあり、この関数では範囲を確定できない。
+	case "${s}" in
+	*'<<'*) return 1 ;;
+	esac
+	while [ -n "${s}" ]; do
+		c=${s:0:1}
+		case "${c}" in
+		"\\")
+			# 引用の外のエスケープ。`\(` は区切りにならないので 2 文字とも潰す。
+			[ "${#s}" -ge 2 ] || return 1
+			out+='__'
+			s=${s:2}
+			at_word_start=0
+			;;
+		"'")
+			# シングルクォート内にエスケープは無い（シェルの仕様）。次の `'` までが中身。
+			s=${s:1}
+			case "${s}" in
+			*"'"*) ;;
+			*) return 1 ;;
+			esac
+			body=${s%%\'*}
+			printf -v pad '%*s' "${#body}" ''
+			out+="'${pad// /_}'"
+			s=${s#*\'}
+			at_word_start=0
+			;;
+		'"')
+			s=${s:1}
+			out+='"'
+			closed=0
+			while [ -n "${s}" ]; do
+				# パターンとして展開させたいので意図的に非引用（SC2295）。
+				# shellcheck disable=SC2295
+				chunk=${s%%$inner_pat}
+				if [ -n "${chunk}" ]; then
+					printf -v pad '%*s' "${#chunk}" ''
+					out+=${pad// /_}
+					s=${s:${#chunk}}
+					continue
+				fi
+				c=${s:0:1}
+				case "${c}" in
+				"\\")
+					# `\"` は閉じ引用符ではない。2 文字とも潰して引用の内側を続ける。
+					[ "${#s}" -ge 2 ] || return 1
+					out+='__'
+					s=${s:2}
+					;;
+				*)
+					out+='"'
+					s=${s:1}
+					closed=1
+					break
+					;;
+				esac
+			done
+			[ "${closed}" -eq 1 ] || return 1
+			at_word_start=0
+			;;
+		'#')
+			# 語頭の `#` は行末までコメント。中身は実行されず引用規則も当たらないので丸ごと潰す。
+			# 語中の `#`（`a#b`）はただの文字。
+			if [ "${at_word_start}" -eq 1 ]; then
+				case "${s}" in
+				*$'\n'*) line=${s%%$'\n'*} ;;
+				*) line=${s} ;;
+				esac
+				printf -v pad '%*s' "${#line}" ''
+				out+=${pad// /_}
+				s=${s:${#line}}
+			else
+				out+='#'
+				s=${s:1}
+			fi
+			at_word_start=0
+			;;
+		*)
+			# パターンとして展開させたいので意図的に非引用（SC2295）。
+			# shellcheck disable=SC2295
+			chunk=${s%%$outer_pat}
+			out+=${chunk}
+			s=${s:${#chunk}}
+			# 次の `#` が語頭かどうかは直前の文字で決まる。
+			case "${chunk: -1}" in
+			[[:space:]] | ';' | '&' | '|' | '(' | ')' | '<' | '>') at_word_start=1 ;;
+			*) at_word_start=0 ;;
+			esac
+			;;
+		esac
+	done
+	printf '%s' "${out}"
+}
+
 # 区切り文字（行頭・`;` `&` `|` `(` ・改行）の直後だけでなく、環境変数代入と既知の
 # ラッパー（sudo / env / nice 等とその引数）を挟んだ `git commit` も捕捉する。
 # 区切りを単なる空白まで広げると `echo "... git commit ..."` や `man git commit` まで
@@ -180,7 +304,20 @@ else
 	raw_sep='([;&|(]|\\[nr])'
 	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
-if [[ ! "${cmd}" =~ ${commit_re} ]]; then
+# 引用の内側の区切り文字で誤発火しないよう、判定はマスク済みのコピーに対して行う。
+# 生 JSON へ縮退した経路（jq / python3 が無い）はコマンド行を構造として取り出せておらず、
+# 引用符が JSON のものと混ざるためシェルの引用規則を当てられない。マスクせず従来どおり扱う
+# （その経路は元から fail closed 側で、スコープ判定も行わない）。
+cmd_masked=${cmd}
+if [ "${extracted}" -eq 1 ]; then
+	# `$( )` は出力末尾の改行を落とす。下の走査はマスク側で取った一致位置と長さを**元の文字列**の
+	# 位置として使うため、長さがずれない形で受け取る（番兵 `x` を付けて剥がす）。
+	# mask_quoted が判定不能（非 0）を返したときは元の文字列のまま＝従来どおりの fail closed。
+	if masked_raw=$(mask_quoted "${cmd}" && printf 'x'); then
+		cmd_masked=${masked_raw%x}
+	fi
+fi
+if [[ ! "${cmd_masked}" =~ ${commit_re} ]]; then
 	exit 0
 fi
 
@@ -440,18 +577,26 @@ if [ "${extracted}" -eq 1 ]; then
 	# 引用した右辺はリテラル扱いになるため、正規表現は変数に入れて非引用で渡す。
 	cd_re=$'(^|[;&|(\n])[[:space:]]*(cd|pushd|popd)([[:space:]]|$)'
 	cmd_cwd_uncertain=0
-	if [[ ${cmd} =~ ${cd_re} ]]; then
+	if [[ ${cmd_masked} =~ ${cd_re} ]]; then
 		cmd_cwd_uncertain=1
 	fi
 	# 1 行に複数の `git commit` が並ぶ形（`git -C /tmp/f commit -m a && git commit -m b`）が
 	# あるので、最初の 1 件で判断しない。1 件でもプロジェクト宛て・判定不能があればブロックする。
+	# 一致はマスク済みのコピーで取り、`commit_target_is_external` には**元の**部分文字列を渡す
+	# （マスクは長さを保つので位置と長さをそのまま使える）。マスク側で切り出すとパスが `_` に
+	# 潰れており、プロジェクト内外の判定ができない。
 	scan=${cmd}
+	scan_masked=${cmd_masked}
 	all_external=1
-	while [[ ${scan} =~ ${commit_re} ]]; do
-		matched=${BASH_REMATCH[0]}
-		[ -n "${matched}" ] || break
-		head_part=${scan%%"${matched}"*}
-		scan=${scan:$((${#head_part} + ${#matched}))}
+	while [[ ${scan_masked} =~ ${commit_re} ]]; do
+		matched_masked=${BASH_REMATCH[0]}
+		[ -n "${matched_masked}" ] || break
+		head_part=${scan_masked%%"${matched_masked}"*}
+		match_off=${#head_part}
+		match_len=${#matched_masked}
+		matched=${scan:${match_off}:${match_len}}
+		scan=${scan:$((match_off + match_len))}
+		scan_masked=${scan_masked:$((match_off + match_len))}
 		if ! commit_target_is_external "${matched}"; then
 			all_external=0
 			break

@@ -1,0 +1,1 @@
+../../.agents/rules/state-space-and-mutation-proof.md

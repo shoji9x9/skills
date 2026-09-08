@@ -2,8 +2,8 @@
 date: 2026-08-30
 type: rule
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/state-space-and-mutation-proof.md, AGENTS.md]
 session: codex
 ---
 
