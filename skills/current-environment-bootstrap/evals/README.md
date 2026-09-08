@@ -62,5 +62,24 @@ scripts/run-skill-eval.sh \
 | `parity-suite` の被覆表に対する影響を記録 | 「後続の parity-suite が状態網羅に使う資料が足りるかも報告に含めてください」 |
 | `app-ui` 縮退時に測れない操作を記録 | 「app-ui を代替資産として扱えるか、何が測れないかも明記してください」 |
 
+**上 2 行の引用は上位概念だが、この 2 件は現行 prompt で到達している（`with_skill` 3/3）。** prompt を「3 資料を 1 件ずつ
+受領済み／導出可能／不足／該当なしで判定して」と直接問う形へ強めると、**弁別が消える**ことを実測した。
+
+| 測定 | executor | 上 2 行の assertion |
+|---|---|---|
+| iteration-5（現行 prompt） | codex | `with_skill` 3/3 pass・`without_skill` は 1 行目 0/3 pass・2 行目 2/3 pass |
+| 対照 run（現行 prompt） | claude-code | `with_skill` pass・`without_skill` fail（ベースラインは 3 資料を 1 項目に束ね、依頼先も付けない） |
+| 対照 run（直接問う prompt） | claude-code | `without_skill` **pass**（ベースラインが 4 区分語彙をそのまま埋める） |
+
+- **直接問う形にできない理由**: 「3 資料を個別に分類する」という結論そのものがスキル固有の契約であり、
+  prompt でその分類軸と語彙を渡すと、渡した時点でベースラインが満たす。到達性は
+  **prompt を強めることではなく `with_skill` 側の実測**（3/3）で担保する。
+- したがってこの 2 行は、引用が上位概念であることを承知のうえで残す。**強める変更を再提案する前に
+  `without_skill` を 1 run 取り、弁別が残るかを必ず確認する**（`docs/skill-development.md`「実走の既定スコープ」）。
+- 2 行目（依頼先）は codex のベースラインが 3 run 中 2 run で到達しており、**codex では弱い弁別**（`tests/current-environment-bootstrap/iteration-5/benchmark.json`）。
+  強い弁別を確認したのは claude-code の対照 run。
+- 下 2 行（被覆表・`app-ui`）は claude-code のベースラインが現行 prompt でも到達するため、
+  **この executor では弁別せず後退検知として機能する**。Delta を読むときは executor 別に扱う。
+
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
