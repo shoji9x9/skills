@@ -620,6 +620,36 @@ describe("ゲートの commit 検出", () => {
     ["git log --oneline", 0],
     ['git stash push -m "commit wip"', 0],
     ["git config --get alias.commit", 0],
+    // 区切り文字（`;` `&` `|` `(` ・改行）が**引用の内側**にある形。シェルはそこで
+    // コマンドを区切らないので commit は実行されない。判定が引用状態を持たないと
+    // リテラルの区切りを本物と読んで読み取り専用コマンドを誤ブロックする
+    // （.kaizen/2026-09-08-quoted-separator-must-not-trigger-command-gate.md）。
+    //
+    // どのケースも**引用を外せば BLOCK になる形**にしてある（区切りの直後が
+    // マッチしうる `git` + サブコマンド）。引用対応を外すと下の 5 件が赤くなることを
+    // 実測して弁別性を確認した。対になる「引用の外の同じ区切り」を後ろに置き、
+    // exit 0 が引用対応によるものか検出漏れかを切り分けられるようにする。
+    ['echo "Bash(git commit *)"', 0],
+    ["echo 'Bash(git commit *)'", 0],
+    ['echo "x;git commit -m y"', 0],
+    ["echo 'x && git commit -m y'", 0],
+    ['echo "a|git commit -m y"', 0],
+    // 引用の**外**の同じ区切りは従来どおり止める（引用対応で fail open にしない）。
+    ["(git commit -m x)", 2],
+    ["(cd {P} && git commit -m x)", 2],
+    ['echo "quoted" ; git commit -m x', 2],
+    ["echo 'quoted' && git commit -m x", 2],
+    // シェルの引用規則が当たらない領域（コメント本文・heredoc 本文）。中の素の `'` を
+    // 引用の開始として数えると、対を跨いだ範囲——本物の `git commit` を含む範囲——まで
+    // マスクされてゲートが素通りする。引用マスクからコメント／heredoc の扱いを外すと
+    // 下の 2 件が exit 0 になることを実測して弁別性を確認した。
+    ["# don't\ngit commit -m x\n# won't", 2],
+    ["cat <<EOF > f\ndon't\nEOF\ngit commit -m x\n# won't", 2],
+    // コメントを潰しても、引用の内側の `#` と語中の `#` はコメントではない（過剰ブロックの回帰）。
+    ['echo "Bash(git commit *) # matcher"', 0],
+    ['echo "Bash(git commit *)" # matcher', 0],
+    // コメント本文の中だけにある `git commit` は実行されない。
+    ["# git commit -m x\ngit status", 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {

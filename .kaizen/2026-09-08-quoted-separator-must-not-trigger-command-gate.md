@@ -2,8 +2,8 @@
 date: 2026-09-08
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/scripts/kaizen-precommit-gate.sh, scripts/kaizen-precommit-gate.test.js]
 session: claude-code
 ---
 
