@@ -119,7 +119,7 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    （「セッションログの場所」の `ls -lt` で mtime が最新のもの＝実行中の自分の transcript）。
    その絶対パスと 2 行目が一致する `.kaizen/.pending-extract*` を探し、一致したファイルの 4 行目を自分の session id、
    ファイル名の `.pending-extract` に続く部分の最初の `.` より後ろを `<session key>` として使う
-   （`.kaizen/.extract-checkpoint.<session key>` と同じ key。`.` より前は手順 8 の `--sentinel-suffix`）。
+   （`.kaizen/.extract-checkpoint.<session key>` と同じ key。その `.` より前＝`.pending-extract` の直後から次の `.` までが手順 8 の `--sentinel-suffix` で、Claude Code は空文字）。
    **センチネルの一致 0 件は「持ち主でない」の根拠にならない**——`setup` 未実行で Stop フックが無い、既に解消済み、といった理由でも 0 件になる。
    mtime 最新のログが自分の transcript であることは変わらないので**持ち主側のまま進め**、`<session key>` が取れないぶんは checkpoint 無し
    （走査器の第 2 引数に不在パスを渡す＝offset 0）で索引だけ取る。手順 8 は「一致するセンチネルが無ければ解消するものが無い」に従う。
@@ -167,7 +167,8 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    **解消するのはセンチネルを立てたセッションの id** であって自分の id ではない（他セッションのセンチネルを引き受けて抽出した場合は、その値をゲートの案内から取る）。
    **ゲートにブロックされていない状態（ユーザーが直接 `kaizen --current` を指示した等）で自分の session id が分からない場合は、値を推測せずセンチネルから読む**:
    `.kaizen/.pending-extract*` の各ファイルは 1 行目 UTC タイムスタンプ / 2 行目 transcript パス / 3 行目 エージェント / 4 行目 session id を持つ。
-   2 行目が手順 2 で同定した自分の transcript と一致するファイルの 4 行目が自分の session id で、ファイル名の最初の `.` より前が `--sentinel-suffix` の値になる。
+   2 行目が手順 2 で同定した自分の transcript と一致するファイルの 4 行目が自分の session id で、
+   `--sentinel-suffix` は手順 2 と同じ復号でファイル名から取る（`.pending-extract` の直後から次の `.` まで。Claude Code は空文字）。
    一致するセンチネルが無ければ、そのセッションにはセンチネルが無い（＝解消するものが無い）ので `kaizen-extract-done.sh` を引数なしで呼ばない。
 
 > **重要（適用先も記録する）**: 抽出と同じ実行内で成果物へ**反映（適用）まで**行う場合は、反映完了後に当該ファイルの `status` を `pending → applied` に更新し、`applied-to` に適用先パスまたは Issue（例: `"#123"`）を記録する。
