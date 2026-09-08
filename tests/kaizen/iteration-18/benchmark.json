@@ -1,0 +1,178 @@
+{
+  "metadata": {
+    "skill_name": "kaizen",
+    "skill_path": "<repo>/skills/kaizen",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-08T11:40:00Z",
+    "evals_run": [21],
+    "runs_per_configuration": 1,
+    "scope": "Issue #307（抽出手順が自分のセッションの transcript を読ませるため文脈窓を超える大きさでは実行できない）で references/extract.md 手順 2 を持ち主判定つきの分岐へ書き換え、新規 eval 21 を追加した回。with_skill run-1 が手順 2 の欠陥を検出した——センチネル一致 0 件を「持ち主でない（＝読む）」へ倒す規定が、setup 未実行で Stop フックが無い状態でも 0 件になることを状態空間から落としており、同じ手順の『文脈窓を超えるので読めない』と衝突していた。その分岐を修正（0 件は持ち主判定を覆さず、checkpoint 無し＝offset 0 で索引だけ取る）して with_skill を run-2 で取り直した。without_skill は修正の影響を受けない（スキル資産に到達できない）ため run-1 のまま。Delta は run-2 と without_skill run-1 で算出。"
+  },
+  "status": "complete",
+  "deltas": {
+    "21": 0.8571
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "抽出しているセッション自身が transcript の持ち主である場合は一次情報を自分の文脈にし、transcript 全体を読み直さないと説明している",
+          "passed": true,
+          "evidence": "§1「抽出の一次情報＝自分の文脈」、§2「全体は読みません」。transcript を読み直すのは二重取り込みだと述べ、実際に読んだのは 4,757 行のうち sed -n '33p' の 1 行だけと報告している。"
+        },
+        {
+          "text": "transcript は候補の位置特定にだけ使い、kaizen-candidate-scan.sh に transcript パスと .kaizen/.extract-checkpoint.<session key> を渡す実行コマンドを示している",
+          "passed": true,
+          "evidence": "§3 に bash .claude/skills/kaizen/scripts/kaizen-candidate-scan.sh <transcript 絶対パス> .kaizen/.extract-checkpoint.8e25242e-... の実行コマンドと実出力を掲載（session key を実値で埋めている）。"
+        },
+        {
+          "text": "走査器が返すのはカテゴリ（user correction / tool error / repeated edit）と transcript の絶対行番号だけで本文は出ないと述べ、自分の文脈で辿れない行があるときだけその周辺だけを読むと説明している",
+          "passed": true,
+          "evidence": "§3「返るのはカテゴリ（user correction / tool error / repeated edit）と絶対行番号、識別したエージェント、総数だけで、本文は 1 バイトも出ません」。§2 で「圧縮で要約しか残っておらず思い出せない行だけ、その周辺を狙って読む」と述べ 1 行だけ読んでいる。加えて印字は先頭 5 件までで総数は N candidate(s) found 側という上限も指摘。"
+        },
+        {
+          "text": "走査器の exit 1（検証済みゼロ）を「学びが無い」と読み替えず自分の文脈に残る失敗を打ち消さない、exit 2 を候補なしに倒さない、と説明している",
+          "passed": true,
+          "evidence": "§4 の表で exit 1 を「『学びが無い』ではない。走査パターンに当たらなかっただけ。自分の文脈に残っている失敗をこれで打ち消さない」、exit 2 を「『候補なし』に倒さない。索引が得られなかっただけ」とし、exit 2 でも transcript 全体を読む側へ倒さないと明記。--record-pending だけが走査器判定を根拠にできる点も述べている。"
+        },
+        {
+          "text": "1 回目の抽出でも checkpoint はありうる（同じセッションの前の commit がゲートを候補ゼロで自動通過すると kaizen-extract-done.sh --checkpoint-only が書く）ため、offset の有無は .kaizen/.extract-checkpoint.<session key> の実在で確かめると説明している",
+          "passed": true,
+          "evidence": "§5「初回抽出でも checkpoint はありえます」。ゲートが候補ゼロ自動通過時に kaizen-extract-done.sh --checkpoint-only で checkpoint だけ進める旨を理由として挙げ、ls -la .kaizen/.extract-checkpoint* で実在を確かめて「今回は不在なので offset=0」と結論している（「初回だから無い」と決め打ちしていない）。"
+        },
+        {
+          "text": "持ち主かどうかはモードでなく transcript ごとに決まると述べ、持ち主でない transcript（--all のうち他セッションのぶん、他セッションのセンチネルを引き受けた場合）は出来事が文脈に無いので従来どおり読み込む、という分岐を示している",
+          "passed": true,
+          "evidence": "§6「持ち主かどうかはモードではなく transcript ごとに決まります（--all でも自分のぶんだけは持ち主側の扱い）」と明記し、持ち主／持ち主でないの対比表で一次情報・読む量・exit 2・session id・checkpoint の 5 軸を区別している。"
+        },
+        {
+          "text": "文脈窓を超える transcript を分割・要約しながら全体を読み通す回避策を勧めていない",
+          "passed": true,
+          "evidence": "分割読み・要約しながらの全体読み通しを一切提案していない。§4 で exit 2 でも「『じゃあ transcript 全体を読む』側にも倒さない」と明示的に否定している。"
+        }
+      ]
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "抽出しているセッション自身が transcript の持ち主である場合は一次情報を自分の文脈にし、transcript 全体を読み直さないと説明している",
+          "passed": true,
+          "evidence": "§1 の表で「自分の文脈＝一次情報 / transcript＝候補の位置特定（索引）のみ」と役割を分け、§3 で「transcript 全体は読みません」と明記。"
+        },
+        {
+          "text": "transcript は候補の位置特定にだけ使い、kaizen-candidate-scan.sh に transcript パスと .kaizen/.extract-checkpoint.<session key> を渡す実行コマンドを示している",
+          "passed": true,
+          "evidence": "§3 に bash .claude/skills/kaizen/scripts/kaizen-candidate-scan.sh <transcript 絶対パス> \".kaizen/.extract-checkpoint.<session key>\" の実行コマンドと実出力（agent=claude-code / scanned-bytes=154709 / scanned-lines=49 / exit=1）を掲載。"
+        },
+        {
+          "text": "走査器が返すのはカテゴリ（user correction / tool error / repeated edit）と transcript の絶対行番号だけで本文は出ないと述べ、自分の文脈で辿れない行があるときだけその周辺だけを読むと説明している",
+          "passed": true,
+          "evidence": "§3「返るのはカテゴリと絶対行番号だけ」「transcript の本文（ユーザー発話・ツール出力・編集先パス）は 1 文字も出ません」。思い出せない行だけ sed -n '3110,3130p' のように周辺だけ読むと述べ、印字は先頭 5 件までで総数は N candidate(s) found 側という上限も指摘。"
+        },
+        {
+          "text": "走査器の exit 1（検証済みゼロ）を「学びが無い」と読み替えず自分の文脈に残る失敗を打ち消さない、exit 2 を候補なしに倒さない、と説明している",
+          "passed": true,
+          "evidence": "§4 の表で exit 1 を「候補パターンに当たらなかっただけで学びが無いではない」、exit 2 を「候補なしに倒さない。索引が取れなかっただけ」とし全体読み直しへも倒さないと明記。§4 末で「候補ゼロという結論は走査器の exit 1 ではなく自分の文脈側の確認から来ています」と実際に契約どおり運用している。"
+        },
+        {
+          "text": "1 回目の抽出でも checkpoint はありうる（同じセッションの前の commit がゲートを候補ゼロで自動通過すると kaizen-extract-done.sh --checkpoint-only が書く）ため、offset の有無は .kaizen/.extract-checkpoint.<session key> の実在で確かめると説明している",
+          "passed": true,
+          "evidence": "§5「初回抽出でも checkpoint はありえます」——ゲートの候補ゼロ自動通過時に kaizen-extract-done.sh --checkpoint-only が書くためと理由を挙げ、ls -la .kaizen/.extract-checkpoint* で実在を確認して不在＝offset 0 と結論。旧形式 .kaizen/.extract-checkpoint のフォールバックにも言及。"
+        },
+        {
+          "text": "持ち主かどうかはモードでなく transcript ごとに決まると述べ、持ち主でない transcript（--all のうち他セッションのぶん、他セッションのセンチネルを引き受けた場合）は出来事が文脈に無いので従来どおり読み込む、という分岐を示している",
+          "passed": true,
+          "evidence": "§6 の対比表（一次情報・読み方・exit 1/2・解消する session id の 4 軸）と「持ち主かどうかはモードではなく transcript ごとに決まります。--all は複数の transcript を回るので、そのうち自分のぶんだけが持ち主側の扱い」。"
+        },
+        {
+          "text": "文脈窓を超える transcript を分割・要約しながら全体を読み通す回避策を勧めていない",
+          "passed": true,
+          "evidence": "全体読み通し・分割読みを一切勧めていない。§2 で「0 件を理由に 9.7 MB を読み始めない」、§4 で exit 2 でも全体を読み直す側へ倒さないと明示的に否定。"
+        }
+      ]
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": null,
+        "tokens": null,
+        "tool_calls": null,
+        "errors": 0
+      },
+      "isolation": "sandboxed (scripts/eval-sandbox.sh)",
+      "expectations": [
+        {
+          "text": "抽出しているセッション自身が transcript の持ち主である場合は一次情報を自分の文脈にし、transcript 全体を読み直さないと説明している",
+          "passed": false,
+          "evidence": "スキル不在を報告し「実際のコマンドとファイル名は示せません」と結論。一次情報の定義に触れていない。"
+        },
+        {
+          "text": "transcript は候補の位置特定にだけ使い、kaizen-candidate-scan.sh に transcript パスと .kaizen/.extract-checkpoint.<session key> を渡す実行コマンドを示している",
+          "passed": false,
+          "evidence": "kaizen-candidate-scan.sh の存在自体を知らず「走査器 — 実際のスクリプト名、出力形式」を要求事項として挙げている。コマンドの提示なし。"
+        },
+        {
+          "text": "走査器が返すのはカテゴリ（user correction / tool error / repeated edit）と transcript の絶対行番号だけで本文は出ないと述べ、自分の文脈で辿れない行があるときだけその周辺だけを読むと説明している",
+          "passed": false,
+          "evidence": "走査器の出力形式は不明として回答を留保。"
+        },
+        {
+          "text": "走査器の exit 1（検証済みゼロ）を「学びが無い」と読み替えず自分の文脈に残る失敗を打ち消さない、exit 2 を候補なしに倒さない、と説明している",
+          "passed": false,
+          "evidence": "exit 1 / exit 2 の意味と対処を「回答するために必要なもの」に列挙しており、契約を述べていない。"
+        },
+        {
+          "text": "1 回目の抽出でも checkpoint はありうる（同じセッションの前の commit がゲートを候補ゼロで自動通過すると kaizen-extract-done.sh --checkpoint-only が書く）ため、offset の有無は .kaizen/.extract-checkpoint.<session key> の実在で確かめると説明している",
+          "passed": false,
+          "evidence": "checkpoint の保存先と初回に差分化が成立するかを未知として列挙。--checkpoint-only にも言及なし。"
+        },
+        {
+          "text": "持ち主かどうかはモードでなく transcript ごとに決まると述べ、持ち主でない transcript（--all のうち他セッションのぶん、他セッションのセンチネルを引き受けた場合）は出来事が文脈に無いので従来どおり読み込む、という分岐を示している",
+          "passed": false,
+          "evidence": "持ち主でない transcript を扱う分岐を未知として列挙。transcript 単位／モード単位の区別なし。"
+        },
+        {
+          "text": "文脈窓を超える transcript を分割・要約しながら全体を読み通す回避策を勧めていない",
+          "passed": true,
+          "evidence": "回答自体を留保しているため、全体を分割・要約して読み通す回避策は提案していない（否定形 assertion のため vacuous pass）。"
+        }
+      ],
+      "contamination": "clean"
+    }
+  ]
+}
