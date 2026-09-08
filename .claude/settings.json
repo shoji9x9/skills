@@ -1,4 +1,7 @@
 {
+  "attribution": {
+    "sessionUrl": false
+  },
   "enabledMcpjsonServers": ["chrome-devtools"],
   "hooks": {
     "SessionStart": [
