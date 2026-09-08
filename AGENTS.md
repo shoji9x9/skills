@@ -177,6 +177,8 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 - `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
 - `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint`）を維持する。`skills/*/SKILL.md` 編集時に適用
 - `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval のアサーション・fixture は書いた時点で「弁別・到達・材料・主価値・入力が答えを持っていないか・正本整合」の 6 点を検証し、採点は位置でなく assertion のテキストで対応づけ、出力内の矛盾を fail にする。`skills/*/evals/**` 編集時に適用
+- `.agents/rules/eval-run-scope.md`: eval の実走は起動前に目的とスコープを宣言する。既定は入力が変わった eval だけを `with_skill` / `without_skill` 各 1 run で、
+  benchmark（3 run × 2 config）へ広げるのと実走中の executor 切り替えは人が決める。正本は `docs/skill-development.md`。`skills/*/evals/**` 編集時に適用
 - `.agents/rules/state-space-and-mutation-proof.md`: 検出器・照合器・集計・ゲートの状態空間には値だけでなくキーの材料（id・照合キー）の欠落・重複・型崩れを入れ、
   境界テストは判定行を無効化する変異で赤くなることを実証してから green を根拠にする。`scripts/**` / `skills/*/scripts/**` / `skills/*/evals/**` 編集時に適用
 - `.agents/rules/skill-consistency-pass.md`: 配布スキルの変更時に、`docs/skill-development.md` の push 前整合パスを実行する入口。`skills/**` 編集時に適用

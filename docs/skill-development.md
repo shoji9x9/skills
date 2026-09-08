@@ -89,6 +89,27 @@ scripts/reinstall-skill.sh <name>
 
 各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
 
+### 実走の既定スコープ（変更確認と benchmark を分ける）
+
+**実走には目的が 2 つあり、必要な run 数が桁で違う。起動前にどちらかを宣言する。**
+
+| 目的 | スコープ | run 数 |
+|---|---|---|
+| **変更確認**（既定） | **入力が変わった eval だけ**を `with_skill` と `without_skill` 各 1 run | 変更 eval 数 × 2 |
+| **benchmark 更新** | `benchmark.json` を更新すると**明示的に決めたとき**だけ。対象 eval × 2 config × 3 run | 対象 eval 数 × 6 |
+
+- **入力が変わった eval だけを回す。** 変わったのは prompt（`evals.json`）・fixture・assertion のいずれか。
+  触っていない eval は実走しない。
+- **変更確認でも `without_skill` を 1 run 回す。** prompt や fixture を変えると**ベースラインの入力も変わる**ため、
+  到達性（`with_skill` が assertion に届くか）だけを見ると、**弁別が消えたこと**——新しい prompt で baseline も自力到達するようになった——を見逃す。
+  1 run では分散を測れないので、Delta の数値は語らず「弁別が残っているか」だけを見る。
+- **前 iteration が benchmark だったことを理由に、自動で benchmark へ広げない。**
+  Issue や依頼が「実走して挙動を確認」までしか求めていないなら、既定スコープで止める。
+  benchmark へ広げるかはコストを伴う判断なので、エージェントが前例に合わせて決めず**依頼者に諮る**
+  （eval 2 本の変更確認を 12 run の benchmark に広げ、executor 2 つ分の利用上限を使い切った記録がある）。
+- **起動前に「どの eval のどの入力が変わったか」と総 run 数を書き出してから実行する。**
+  数えずに並列起動すると、上限到達で走り切れず、成功 run と失敗 run が混ざった集計不能な iteration が残る。
+
 ### eval 実行の隔離（必須）
 
 eval プロンプトはファイルを生成・改変する（スキル・ルール・Hooks・`AGENTS.md` 等）。**このリポジトリの作業ツリーで直接実行してはならない。**
@@ -184,6 +205,24 @@ Codex 単体で評価可能だったと差し戻された記録がある。後�
 
 「評価前提を満たす代替コマンドへの差し替え」と「executor の変更」は同じ回避策ではない。
 前者は測る対象を変えず、後者は比較可能性そのものを変える。
+
+#### それでも executor を切り替えるときの運用
+
+利用上限（クォータ）到達など、**切り分けの結果が「executor の非対応ではない」と分かったうえで、
+待たずに別 executor で取り直すと人が判断した場合**に限り、次を守る。
+
+1. **切り替えは人が決める。** エージェントが判断して切り替えない。上限到達は executor 非対応の証拠ではないため、
+   「落ちたから別の executor で」は理由にならない。待つ選択肢（上限のリセット時刻）を添えて諮る。
+2. **切り替え前の run は iteration ごと破棄する。** 1 つの iteration に 2 つの executor を混在させない
+   （[`skill-eval-executors.md`](skill-eval-executors.md)）。部分的に成功した run を新 executor の run と混ぜて集計しない。
+3. **新 executor で最初から取り直す。** 同じ eval・同じ config・同じ run 数を揃える。
+   **`with_skill` と `without_skill` を別 executor にしない**——Delta が「スキルの有無」ではなく「executor の違い」を測る。
+4. **切り替えた事実と理由を成果物に残す。** `benchmark.md` / `benchmark.json` に executor と切り替え理由（利用上限到達など）を書き、
+   前 iteration と executor が異なるなら**その Delta を前 iteration と直接比較しない**旨を明記する。
+   変更確認だけで benchmark を作らない場合も、実走の報告に executor と切り替え理由を書く。
+5. **切り替え先でも上限に当たる前提で run 数を数える。** 起動前に総 run 数を書き出し、
+   「実走の既定スコープ」を超えるなら実行前に諮る（codex の上限到達で claude-code へ切り替え、
+   同じ 12 run の計画を再投入して claude-code 側も 429 に当たり、12 run 中 5 run が失敗した記録がある）。
 
 ### 採点（一次資料は成果物、応答は補助）
 
