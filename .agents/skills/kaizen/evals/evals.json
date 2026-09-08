@@ -230,6 +230,19 @@
         "候補あり、既知 container の未知・欠損 subtype、壊れた JSON、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促すと説明している",
         "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
       ]
+    },
+    {
+      "id": 21,
+      "prompt": "Claude Code で数時間作業したセッションから、同じセッションのまま kaizen --current を実行する。このセッションの transcript は 9.7 MB / 4,757 行ある。抽出の一次情報を何にするのか、transcript をどこまで読むのか、候補の場所をどう特定して走査器が何を返すのか、走査器が exit 1 / exit 2 を返したときにどう扱うのか、この 1 回目の抽出で checkpoint による差分化が効くのかどうかとその理由、そして自分が持ち主でない transcript を抽出する場合との違いを、実際のコマンドとファイル名で示して。",
+      "assertions": [
+        "抽出しているセッション自身が transcript の持ち主である場合は一次情報を自分の文脈にし、transcript 全体を読み直さないと説明している",
+        "transcript は候補の位置特定にだけ使い、kaizen-candidate-scan.sh に transcript パスと .kaizen/.extract-checkpoint.<session key> を渡す実行コマンドを示している",
+        "走査器が返すのはカテゴリ（user correction / tool error / repeated edit）と transcript の絶対行番号だけで本文は出ないと述べ、自分の文脈で辿れない行があるときだけその周辺だけを読むと説明している",
+        "走査器の exit 1（検証済みゼロ）を「学びが無い」と読み替えず自分の文脈に残る失敗を打ち消さない、exit 2 を候補なしに倒さない、と説明している",
+        "1 回目の抽出でも checkpoint はありうる（同じセッションの前の commit がゲートを候補ゼロで自動通過すると kaizen-extract-done.sh --checkpoint-only が書く）ため、offset の有無は .kaizen/.extract-checkpoint.<session key> の実在で確かめると説明している",
+        "持ち主かどうかはモードでなく transcript ごとに決まると述べ、持ち主でない transcript（--all のうち他セッションのぶん、他セッションのセンチネルを引き受けた場合）は出来事が文脈に無いので従来どおり読み込む、という分岐を示している",
+        "文脈窓を超える transcript を分割・要約しながら全体を読み通す回避策を勧めていない"
+      ]
     }
   ]
 }
