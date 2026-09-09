@@ -11,8 +11,7 @@ session: codex
 
 ## 事象
 
-Codex CLI 0.153.4 の transcript を `kaizen-candidate-scan.sh` で走査すると、候補自体は検出できる一方、
-`unsupported or malformed record` として exit 2 になり、Issue #311 の commit 前ゲートが停止した。
+Codex CLI 0.153.4 の transcript を `kaizen-candidate-scan.sh` で走査すると、候補自体は検出できる一方、`unsupported or malformed record` として exit 2 になり、Issue #311 の commit 前ゲートが停止した。
 
 本文を露出させず構造を調べると、走査器が未対応の top-level `token_usage_record` が162件あり、
 `event_msg.item_completed` 内にも `EnteredReviewMode` / `ExitedReviewMode` が追加されていた。
