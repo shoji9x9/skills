@@ -108,6 +108,7 @@ replace-strategy status
      （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）。**`full` は `parity-replace` の完了判定に必須のため、無いままにしない。**
      **`full` は生成先リポジトリの必須 CI から導出する。** 対象ブランチに有効な ruleset は `gh api --paginate` で全ページ・全 rule type を取得し、classic branch protection も読み、
      必須 status check と ruleset の必須 workflow を漏れなく棚卸しする。workflow の job と、その job が呼ぶ script / reusable workflow の実行コマンドまで辿って突き合わせ、取得不能・未知の強制 rule・対応不明・説明の無い差があれば確定しない。
+     status check の context は文字列から job 名を推測せず、実在 PR / commit の check run `name` から workflow / job へ辿る。同名 job・matrix 展開・check run 未生成などで一意に対応できなければ確定しない。
      推奨は、必須 CI job と `full` が**同じリポジトリ内の全体検証コマンド 1 本**を呼ぶ形である。畳めない場合は、必須 CI と `full` の対応・対象外理由を記録し、
      どちらかの変更で落ちるプロジェクト側の乖離検査を必須 CI に含める。setup 時点の目視比較だけでは、その後の CI 変更を検出できないため完了にしない。詳細は [`references/project-config.md`](references/project-config.md)「必須 CI との整合」。
      **`full` はフック設定を見るだけで埋めない**——コミット前フックが同じツールを差分限定で回していることは多く、**スクリプト側が引数をどう使うか**まで読まないと全体走査か判別できない。

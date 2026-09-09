@@ -320,7 +320,11 @@ status check の context だけでは ruleset が workflow 自体を必須化す
    rules API はページング対象なので `gh api --paginate` で全ページを取得する。既定ページの結果だけを「全件」と扱わず、ページ取得が途中で失敗した場合も必須 CI の取得不能として確定しない。
    **返された ruleset rule は type で先に絞らず全件を棚卸しする。** 現行 API の `required_status_checks` に加えて、`workflows` の `parameters.workflows[]` が指す必須 workflow、`code_scanning` など自動検査を強制する rule も対象にする。
    必須 workflow は `repository_id` から定義元リポジトリを解決し、`path` と、指定されていれば `ref` / `sha` の版を読む。将来追加されたものを含め、CI・workflow・検査を強制しうる未知の rule type を未分類のまま無視せず、意味論を公式仕様で確認できるまで確定しない。
-2. 必須 status check の context は workflow の job `name` に対応づけ、ruleset の必須 workflow は workflow ファイル全体を対象にする。そのうえで job の `steps[].run` だけでなく、package script・リポジトリ内 wrapper・reusable workflow / action の呼び先まで辿る。
+2. 必須 status check の context は文字列から job を推測せず、対象ブランチへ向かう実在 PR / commit で生成された **check run の `name`** と照合し、check run の workflow / job へ辿る。
+   同名 job が複数 workflow にある、matrix 等で実行時に名前が展開される、まだ check run が生成されていないなど、一意に対応できない状態では確定しない。
+   GitHub も required status checks では job name を全 workflow で一意にするよう求めている
+   （[GitHub Docs: About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)）。
+   ruleset の必須 workflow は workflow ファイル全体を対象にする。そのうえで job の `steps[].run` だけでなく、package script・リポジトリ内 wrapper・reusable workflow / action の呼び先まで辿る。
    workflow の `jobs.<job_id>.name` と `jobs.<job_id>.uses` の構造は
    [GitHub Actions workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax) を根拠にする。
 3. 各検査を、環境に依存しない全体走査としてローカル実行できるもの、CI 固有で `full` の対象外にするもの、対応不明のものに分ける。

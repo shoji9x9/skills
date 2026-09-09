@@ -65,7 +65,9 @@ scripts/run-skill-eval.sh \
   fixture には列が古い旨も「読まない」という結論も書かない（書くと baseline がそれを読んで assertion を満たす）。
   成果物（`strength.md` / `gaps.md`）を持たせてあるのは、判定不能で報告全体を止めず導出を続けることまで測るため
 - eval 27 は fixture 無しで会話だけで判定できる契約として、対象ブランチの ruleset 全ページ・全 rule type / classic branch protection から必須 status check と必須 workflow を取得し、
-  workflow の定義元・版・job の呼び先まで辿って `verification_commands.full` と突き合わせることを検証する。既知の `Test` / required workflow 欠落を prompt に明示するのは診断当てではなく、
+  status check context は実在 check run の name から workflow / job へ、必須 workflow は定義元・版・job の呼び先まで辿って `verification_commands.full` と突き合わせることを検証する。
+  prompt には同名 job・matrix 展開・check run 未生成を一次情報として置き、context 文字列から job を推測せず一意な実測対応ができるまで確定しない分岐へ到達させる。
+  既知の `Test` / required workflow 欠落を prompt に明示するのは診断当てではなく、
   **差がある状態で確定を拒むこと・共通集約コマンドまたは必須 CI 上の乖離検査まで将来の drift 対策として要求すること**を測るためである
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
