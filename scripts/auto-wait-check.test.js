@@ -32,6 +32,8 @@ test.each([
   ["count", "await locator.count()", "immediate-read"],
   ["isVisible", "await locator.isVisible()", "immediate-read"],
   ["waitForTimeout", "await page.waitForTimeout(500)", "fixed-wait"],
+  ["optional Page", "await page?.waitForTimeout(500)", "fixed-wait"],
+  ["optional Page chain", "await page?.getByRole('status').textContent()", "immediate-read"],
 ])("%s を違反として検出する", (_name, source, rule) => {
   expect(scanSource(source)).toEqual([expect.objectContaining({ rule })]);
 });

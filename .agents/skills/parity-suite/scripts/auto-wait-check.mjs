@@ -149,6 +149,11 @@ function receiverRoot(code, dotIndex) {
     while (i >= 0 && /\s/.test(code[i])) i -= 1;
   };
   skipSpace();
+  // optional chaining の `?.method()` では、検出対象の `.` の直前に `?` がある。
+  if (code[i] === "?") {
+    i -= 1;
+    skipSpace();
+  }
   while (i >= 0) {
     if (code[i] === ")" || code[i] === "]") {
       const close = code[i];
@@ -171,6 +176,8 @@ function receiverRoot(code, dotIndex) {
     skipSpace();
     if (code[i] !== ".") return identifier;
     i -= 1;
+    // チェーン途中の `receiver?.method()` も通常の `receiver.method()` と同じ起点へ辿る。
+    if (code[i] === "?") i -= 1;
     skipSpace();
   }
   return null;
