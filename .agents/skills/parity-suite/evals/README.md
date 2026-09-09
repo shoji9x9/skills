@@ -63,6 +63,9 @@ scripts/run-skill-eval.sh \
 - eval 28 は同じ Issue の「fail-closed を行き止まりにしない」側の回帰。**設定値を実態と違う形に書き換えて辻褄を合わせる案**を持ち込む形にしてあり、
   不在そのものを根拠付きで記録する経路へ誘導できるかを見る（24〜27 が「甘くしない」側なので、これが対になる陽性側の押し戻し）。
   プロンプトにはキー名・ファイル名を書かない
+- eval 29 は待たない Playwright API（Issue #311）の回帰。SSR の現行で繰り返し green だったことを根拠に `locator.all()` と即時読み取りを残し、
+  新側の低頻度失敗を retries / `waitForTimeout` で吸収する案を押し戻せるかを見る。Locator と自動リトライ assertion、同梱検査、遅延描画の故障注入までを対象にする
+  （同梱検査・故障注入まで安定して到達させるため、答えを明かさず修正後の確認方法も尋ねる）
 - 被覆プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付き不在）は
   リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す

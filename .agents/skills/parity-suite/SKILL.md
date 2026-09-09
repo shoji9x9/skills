@@ -57,6 +57,7 @@ parity-suite [--feature <slug>] [--target <name>]
 - **意図的差異レジストリに宣言の無い差を side 別の期待値で吸収しない。** 新側の不一致を期待値側で緑にすることになる（宣言に無い差は `intentional_diffs.pending` へ回してユーザー確認）
 - **タブ順の厳密一致（停止数・順序の完全一致）を assertion にしない。** 仕様が保証するのは到達可能性と論理的順序であり、停止数は実装方式で変わりうる
 - **id / name を比較のアンカーにしない。** 原則は role ＋アクセシブルネーム（自動生成 id は変更対象）
+- **待たない取得 API の検査を省かない。** feature モードの authoring 後は `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、走査対象が 1 件以上かつ違反 0 件になるまで先へ進まない（禁止 API と理由の正本は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - **強度検証（故障注入）を省いて「テストがあるから大丈夫」としない。** テストの存在自体は品質の証拠にならない
 - **強度を手書き assertion 単体で判定しない。** 「手書き assertion ＋ ベースライン ＋ 差分器」の一式で判定する
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない
@@ -145,6 +146,7 @@ parity-suite [--feature <slug>] [--target <name>]
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
+   feature モードでは、authoring 後に `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、走査対象が 1 件以上かつ待たない取得 API が 0 件になるまで修正する（スクリプトはコピーせずスキル配下から実行する）。
    **状態を変える工程（書き込み系スペック・ファイルアップロード・バッチ実行）は全モード共通で [`references/data-discipline.md`](references/data-discipline.md) の規律に従う**（復元 → 一意プレフィックス＋後始末 → 後始末できないなら承認を得て「hermetic でない」と明示）。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。詳細: [`references/baseline.md`](references/baseline.md)。
