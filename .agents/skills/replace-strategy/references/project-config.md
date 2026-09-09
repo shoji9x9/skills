@@ -308,6 +308,37 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
   - **0 件のときは `diff` 列を回さない。** 引数無しで起動すると、ツールによって「全体走査に化ける」か「対象 0 件で無条件に成功する」かのどちらかになり、**どちらも「差分限定で通った」の証跡にならない**。回さなかったことを証跡へ記録する（0 件を成功に倒さない）
   - パスは**1 つずつ別の引数として**渡す（空白・非 ASCII を含むパスがあるため、区切り文字で連結した 1 つの文字列にしない）
 
+### 必須 CI との整合
+
+`full` は人が思い出した検査の一覧ではなく、**生成物を受け入れる対象ブランチの必須 CI から導出する**。
+status check の context だけでは ruleset が workflow 自体を必須化する `workflows` rule を取りこぼすため、次の順に実測してから確定する。
+
+1. 生成先リポジトリと対象ブランチを確定し、そのブランチに有効な repository / organization ruleset と classic branch protection の両方を読む。
+   ruleset は branch に適用される rule の取得 API、classic protection は branch protection API を使う
+   （[GitHub REST: Get rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)、
+   [GitHub REST: Get branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)）。片方の 404 を「必須チェック無し」に倒さず、もう片方を確認する。
+   rules API はページング対象なので `gh api --paginate` で全ページを取得する。既定ページの結果だけを「全件」と扱わず、ページ取得が途中で失敗した場合も必須 CI の取得不能として確定しない。
+   **返された ruleset rule は type で先に絞らず全件を棚卸しする。** 現行 API の `required_status_checks` に加えて、`workflows` の `parameters.workflows[]` が指す必須 workflow、`code_scanning` など自動検査を強制する rule も対象にする。
+   必須 workflow は `repository_id` から定義元リポジトリを解決し、`path` と、指定されていれば `ref` / `sha` の版を読む。将来追加されたものを含め、CI・workflow・検査を強制しうる未知の rule type を未分類のまま無視せず、意味論を公式仕様で確認できるまで確定しない。
+2. 必須 status check の context は文字列から job を推測せず、対象ブランチへ向かう実在 PR / commit で生成された **check run の `name`** と照合し、check run の workflow / job へ辿る。
+   同名 job が複数 workflow にある、matrix 等で実行時に名前が展開される、まだ check run が生成されていないなど、一意に対応できない状態では確定しない。
+   GitHub も required status checks では job name を全 workflow で一意にするよう求めている
+   （[GitHub Docs: About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)）。
+   ruleset の必須 workflow は workflow ファイル全体を対象にする。そのうえで job の `steps[].run` だけでなく、package script・リポジトリ内 wrapper・reusable workflow / action の呼び先まで辿る。
+   workflow の `jobs.<job_id>.name` と `jobs.<job_id>.uses` の構造は
+   [GitHub Actions workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax) を根拠にする。
+3. 各検査を、環境に依存しない全体走査としてローカル実行できるもの、CI 固有で `full` の対象外にするもの、対応不明のものに分ける。
+   対象外（例: デプロイ資格情報を要する検査）は理由を `.replace/strategy.md` の「必須 CI と `full` の整合」へ残す。対応不明・説明の無い差が 1 件でもあれば `full` を確定しない。
+
+**推奨は、リポジトリ内に全体検証を束ねる非書き換えのコマンドを 1 本置き、必須 CI job と `verification_commands.full` の双方がその同じコマンドを呼ぶ形**である。
+検査一覧の正本がコマンド側だけになるため、検査を足すたびに `full` の列も手で同期する必要がない。
+
+CI を複数の必須 job に分けるなど 1 本へ畳めない場合は、必須 CI の種別・context または workflow 参照 → workflow job → ローカル実行コマンド → `full` の対応表を戦略書へ記録する。
+さらに、**必須 rule / context / workflow / job の実行内容と `full` のどれかが変わったのに対応表が更新されなければ非 0 になる決定論的な乖離検査をプロジェクト側に置き、その検査自体を必須 CI に含める**。
+setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出できないため、乖離検査が無い状態を「整合済み」にしない。
+
+必須 CI が 0 件なら、空集合との一致を品質保証として扱わない。必須 CI を整備するか、必須にできない理由と `full` を代替ゲートとして扱う方針をユーザーが決め、後者なら「必須 CI との整合」ではなく代替ゲートであることを戦略書へ記録する。
+
 ## コーディング規約（`references.coding_conventions`）
 
 本スキル群は**対象プロジェクト側にコードを生成する**——新側の実装（`parity-replace`）・投入ツール（`golden-dataset`）・パリティスイート（`parity-suite`）。
