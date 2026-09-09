@@ -119,6 +119,10 @@ esac
 	echo "--reuse-baseline requires an explicit --eval-id so assertions are fingerprinted" >&2
 	exit 2
 }
+[ -z "${reuse_baseline}" ] || { [ -n "${model}" ] && [ -n "${reasoning_effort}" ]; } || {
+	echo "--reuse-baseline requires explicit --model and --reasoning-effort values" >&2
+	exit 2
+}
 case "$executor" in
 claude-code | codex) ;;
 *)

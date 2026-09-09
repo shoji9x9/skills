@@ -1,5 +1,5 @@
 import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const requiredArtifacts = [
@@ -35,6 +35,14 @@ export function validateReusableBaseline(source, expectedFingerprint) {
     resolve(source, "eval-fingerprint.json"),
     "baseline fingerprint",
   );
+  for (const [label, fingerprint] of [
+    ["expected", expectedFingerprint],
+    ["baseline", actualFingerprint],
+  ]) {
+    if (fingerprint.schema_version !== 1 || fingerprint.algorithm !== "sha256") {
+      throw new Error(`${label} fingerprint metadata is unsupported`);
+    }
+  }
   if (actualFingerprint.fingerprint !== expectedFingerprint.fingerprint) {
     throw new Error(
       `baseline fingerprint mismatch: expected ${expectedFingerprint.fingerprint}, got ${actualFingerprint.fingerprint ?? "missing"}`,
@@ -43,6 +51,21 @@ export function validateReusableBaseline(source, expectedFingerprint) {
   const result = readJson(resolve(source, "result.json"), "baseline result");
   if (result.status !== "succeeded" || result.exit_code !== 0)
     throw new Error("baseline run did not succeed");
+  if (typeof result.raw_trace !== "string" || !result.raw_trace) {
+    throw new Error("baseline result has no raw_trace path");
+  }
+  const rawTrace = resolve(source, result.raw_trace);
+  const relativeRawTrace = relative(source, rawTrace);
+  if (
+    relativeRawTrace === ".." ||
+    relativeRawTrace.startsWith(`..${sep}`) ||
+    isAbsolute(relativeRawTrace)
+  ) {
+    throw new Error("baseline raw_trace escapes the source run");
+  }
+  if (!existsSync(rawTrace) || readFileSync(rawTrace).length === 0) {
+    throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
+  }
   if (!/^verdict: clean$/mu.test(readFileSync(resolve(source, "contamination.txt"), "utf8"))) {
     throw new Error("baseline contamination verdict is not clean");
   }

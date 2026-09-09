@@ -403,6 +403,113 @@ describe("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
+  test.each([
+    ["model", ["--reasoning-effort", "low"]],
+    ["reasoning effort", ["--model", "model-stub"]],
+  ])("rejects baseline reuse without an explicit %s", (_label, executionArgs) => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        "EXPECT_WITHOUT_SKILL",
+        "--config",
+        "without_skill",
+        "--out",
+        target,
+        "--executor",
+        "codex",
+        ...executionArgs,
+        "--eval-id",
+        "1",
+        "--reuse-baseline",
+        source,
+        "--repo",
+        repository,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SKILL_EVAL_CLI_VERSION: "codex stub-version",
+          SKILL_EVAL_RUNNER: stub,
+        },
+      },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/requires explicit --model and --reasoning-effort/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test.each([
+    [
+      "schema metadata",
+      (source) => {
+        const path = join(source, "eval-fingerprint.json");
+        const fingerprint = readJson(path);
+        fingerprint.schema_version = 2;
+        writeFileSync(path, `${JSON.stringify(fingerprint)}\n`, "utf8");
+      },
+      /fingerprint metadata is unsupported/u,
+    ],
+    [
+      "raw trace",
+      (source) => {
+        const result = readJson(join(source, "result.json"));
+        rmSync(join(source, result.raw_trace));
+      },
+      /raw trace missing or empty/u,
+    ],
+  ])("rejects reuse with invalid %s", (_label, mutate, errorPattern) => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    mutate(source);
+
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
+    ).toThrow();
+    expect(existsSync(target)).toBe(false);
+    const result = spawnSync(
+      "node",
+      [
+        join(repository, "scripts", "reuse-skill-eval-baseline.js"),
+        source,
+        target,
+        join(source, "eval-fingerprint.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    expect(result.stderr).toMatch(errorPattern);
+  });
+
   test("keeps Claude Code as the default executor for existing callers", () => {
     const { directory, stub } = makeStub();
     const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");

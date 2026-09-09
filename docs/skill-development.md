@@ -118,7 +118,7 @@ LLM eval は最初のデバッグ手段にしない。先に変更したラン�
 
 prompt・対象 eval の assertion・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
 既存の成功した `without_skill` run を再利用できる。`scripts/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
-再利用では assertion の欠落を防ぐため `--eval-id` を明示し、executor の CLI version を取得できなければ停止する。
+再利用では assertion の欠落を防ぐため `--eval-id`、実行時の既定値変化を防ぐため `--model` と `--reasoning-effort` を明示し、executor の CLI version を取得できなければ停止する。
 
 ```bash
 scripts/run-skill-eval.sh \
