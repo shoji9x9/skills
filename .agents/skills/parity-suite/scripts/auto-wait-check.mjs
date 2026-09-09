@@ -234,7 +234,7 @@ export function scanSource(source, file = "<source>") {
   );
 }
 
-function collect(path, files, problems) {
+function collect(path, files, problems, explicit = true) {
   let stat;
   try {
     stat = statSync(path);
@@ -244,7 +244,7 @@ function collect(path, files, problems) {
   }
   if (stat.isFile()) {
     if (SOURCE_EXTENSIONS.has(extname(path))) files.push(path);
-    else problems.push(`${path}: 対象外の拡張子`);
+    else if (explicit) problems.push(`${path}: 対象外の拡張子`);
     return;
   }
   if (!stat.isDirectory()) {
@@ -255,7 +255,7 @@ function collect(path, files, problems) {
     a.name.localeCompare(b.name),
   )) {
     if (entry.name === "node_modules" || entry.name === ".git") continue;
-    collect(resolve(path, entry.name), files, problems);
+    collect(resolve(path, entry.name), files, problems, false);
   }
 }
 

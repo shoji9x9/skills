@@ -106,3 +106,20 @@ test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を弁�
   expect(result.status).toBe(2);
   expect(result.stderr).toMatch(/読み込めない/);
 });
+
+test("ディレクトリ走査では非対象ファイルを無視し、明示ファイルなら入力誤りにする", () => {
+  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-mixed-"));
+  const source = join(dir, "suite.spec.ts");
+  const metadata = join(dir, "metadata.json");
+  writeFileSync(source, "await expect(page.getByRole('status')).toBeVisible();\n");
+  writeFileSync(metadata, "{}\n");
+  writeFileSync(join(dir, "README.md"), "# Suite\n");
+
+  let result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toMatch(/1 ファイルを走査/);
+
+  result = spawnSync(process.execPath, [script, metadata], { encoding: "utf8" });
+  expect(result.status).toBe(2);
+  expect(result.stderr).toMatch(/対象外の拡張子/);
+});
