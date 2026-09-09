@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "gpt-5.6-sol",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-09T09:52:11Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 80.137,
+        "tokens": 130331,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u73fe\u884c\u3067 green \u3067\u3082\u65b0\u5074\u306e\u63cf\u753b\u5b8c\u4e86\u524d\u306b\u8aad\u3080\u7af6\u5408\u304c\u6b8b\u308b\u305f\u3081\u3001\u305d\u306e\u5b9f\u88c5\u3092\u63a1\u3089\u306a\u3044\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "SSR\u3067100\u56degreen\u3067\u3082\u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u63cf\u753b\u3078\u306e\u79fb\u690d\u6027\u306f\u8a3c\u660e\u305b\u305a\u3001\u9014\u4e2d\u72b6\u614b\u3092\u8aad\u3080\u7af6\u5408\u306b\u306a\u308b\u3068\u3057\u3066\u9000\u3051\u305f\u3002"
+        },
+        {
+          "text": "locator.all() \u3068 assertion \u3092\u901a\u3055\u306a\u3044 textContent() \u306e\u5373\u6642\u8aad\u307f\u53d6\u308a\u3092\u7981\u6b62\u5bfe\u8c61\u3068\u3057\u3066\u660e\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "locator.all()\u3001\u5224\u5b9a\u7528textContent()\u3001\u56fa\u5b9a\u5f85\u6a5f\u3092\u3044\u305a\u308c\u3082\u7981\u6b62\u5bfe\u8c61\u3068\u660e\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "Locator \u3092\u4fdd\u6301\u3057\u3001toHaveCount / toHaveText \u7b49\u306e\u81ea\u52d5\u30ea\u30c8\u30e9\u30a4 assertion \u3078\u7f6e\u304d\u63db\u3048\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "rows Locator\u3092\u4fdd\u6301\u3057\u3001toHaveText\u914d\u5217\u3068toHaveCount\uff0f\u30bb\u30eb\u5358\u4f4dtoHaveText\u306e\u5177\u4f53\u4f8b\u3092\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u4f4e\u983b\u5ea6\u306e\u5931\u6557\u3092 retries \u3084 waitForTimeout \u3067\u5438\u53ce\u3057\u306a\u3044\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "retries\u306f\u7af6\u5408\u3092\u96a0\u3057\u3001500ms\u56fa\u5b9a\u5f85\u6a5f\u306f\u901f\u5ea6\u5dee\u306b\u8010\u3048\u306a\u3044\u3068\u3057\u3066\u4e21\u65b9\u3092\u63a1\u7528\u3057\u306a\u3044\u3068\u660e\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u540c\u68b1 auto-wait-check.mjs \u3067\u30b9\u30a4\u30fc\u30c8\u3092\u691c\u67fb\u3057\u3001\u9045\u5ef6\u5f8c\u306b\u63cf\u753b\u3055\u308c\u308b\u6545\u969c\u6ce8\u5165\u3067\u5f85\u3061\u306e\u6b20\u843d\u3092\u691c\u8a3c\u3059\u308b\u3088\u3046\u6c42\u3081\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "API\u5fdc\u7b54\u3084\u63cf\u753b\u958b\u59cb\u3092\u9045\u5ef6\u3055\u305b\u3066\u3082green\u3001\u6545\u969c\u6ce8\u5165\u3067red\u3001auto-wait-check.mjs\u304c\u5bfe\u8c611\u4ef6\u4ee5\u4e0a\u30fb\u9055\u53cd0\u4ef6\u3092\u78ba\u8a8d\u3059\u308b\u3088\u3046\u6c42\u3081\u305f\u3002"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 61.578,
+        "tokens": 87192,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "\u73fe\u884c\u3067 green \u3067\u3082\u65b0\u5074\u306e\u63cf\u753b\u5b8c\u4e86\u524d\u306b\u8aad\u3080\u7af6\u5408\u304c\u6b8b\u308b\u305f\u3081\u3001\u305d\u306e\u5b9f\u88c5\u3092\u63a1\u3089\u306a\u3044\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "SSR\u3067100\u56de\u6210\u529f\u3057\u3066\u3082\u30af\u30e9\u30a4\u30a2\u30f3\u30c8\u63cf\u753b\u3067\u5b89\u5b9a\u3059\u308b\u4fdd\u8a3c\u306f\u306a\u304f\u3001\u9014\u4e2d\u306e\u4e00\u89a7\u3092\u53d6\u5f97\u3059\u308b\u7af6\u5408\u306b\u306a\u308b\u3068\u8ff0\u3079\u305f\u3002"
+        },
+        {
+          "text": "locator.all() \u3068 assertion \u3092\u901a\u3055\u306a\u3044 textContent() \u306e\u5373\u6642\u8aad\u307f\u53d6\u308a\u3092\u7981\u6b62\u5bfe\u8c61\u3068\u3057\u3066\u660e\u793a\u3057\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "locator.all()\u306e\u975e\u5f85\u6a5f\u6027\u306f\u8ff0\u3079\u305f\u304c\u3001assertion\u3092\u901a\u3055\u306a\u3044textContent()\u3092\u7981\u6b62\u5bfe\u8c61\u3068\u3057\u3066\u660e\u793a\u3057\u306a\u304b\u3063\u305f\u3002"
+        },
+        {
+          "text": "Locator \u3092\u4fdd\u6301\u3057\u3001toHaveCount / toHaveText \u7b49\u306e\u81ea\u52d5\u30ea\u30c8\u30e9\u30a4 assertion \u3078\u7f6e\u304d\u63db\u3048\u308b\u65b9\u91dd\u3092\u793a\u3057\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "rows Locator\u3092\u4fdd\u6301\u3057\u3001toHaveText\u914d\u5217\u3068\u7a7a\u4e00\u89a7\u5411\u3051toHaveCount(0)\u306e\u5177\u4f53\u4f8b\u3092\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u4f4e\u983b\u5ea6\u306e\u5931\u6557\u3092 retries \u3084 waitForTimeout \u3067\u5438\u53ce\u3057\u306a\u3044\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "passed": true,
+          "evidence": "waitForTimeout\u306f\u901f\u5ea6\u5dee\u306b\u8010\u3048\u305a\u3001retries\u306f\u540c\u671f\u554f\u984c\u3092\u96a0\u3059\u305f\u3081\u4f7f\u308f\u306a\u3044\u3068\u4e21\u65b9\u3092\u660e\u793a\u3057\u305f\u3002"
+        },
+        {
+          "text": "\u540c\u68b1 auto-wait-check.mjs \u3067\u30b9\u30a4\u30fc\u30c8\u3092\u691c\u67fb\u3057\u3001\u9045\u5ef6\u5f8c\u306b\u63cf\u753b\u3055\u308c\u308b\u6545\u969c\u6ce8\u5165\u3067\u5f85\u3061\u306e\u6b20\u843d\u3092\u691c\u8a3c\u3059\u308b\u3088\u3046\u6c42\u3081\u3066\u3044\u308b",
+          "passed": false,
+          "evidence": "API\u5fdc\u7b54\u3084\u63cf\u753b\u9045\u5ef6\u306e\u78ba\u8a8d\u306f\u6319\u3052\u305f\u304c\u3001\u540c\u68b1auto-wait-check.mjs\u306b\u3082\u3001\u5f85\u305f\u306a\u3044\u5224\u5b9a\u3078\u306e\u5909\u7570\u3067red\u3092\u53d6\u308b\u6545\u969c\u6ce8\u5165\u306b\u3082\u89e6\u308c\u3066\u3044\u306a\u3044\u3002"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 80.137,
+        "stddev": 0.0,
+        "min": 80.137,
+        "max": 80.137
+      },
+      "tokens": {
+        "mean": 130331.0,
+        "stddev": 0.0,
+        "min": 130331,
+        "max": 130331
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 61.578,
+        "stddev": 0.0,
+        "min": 61.578,
+        "max": 61.578
+      },
+      "tokens": {
+        "mean": 87192.0,
+        "stddev": 0.0,
+        "min": 87192,
+        "max": 87192
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+18.6",
+      "tokens": "+43139"
+    }
+  },
+  "notes": [
+    "変更確認スコープのため各 configuration 1 run。分散は評価しない。",
+    "プロンプトに waitForTimeout の回避案と修正後の確認方法を追加し、with_skill の到達性と without_skill との差を取り直した。"
+  ]
+}

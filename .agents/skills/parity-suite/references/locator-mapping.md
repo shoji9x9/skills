@@ -14,6 +14,11 @@
 
 - **目的は現行アプリの非セマンティックな箇所を隔離すること。** これにより、新側でアクセシビリティを改善してもリントを off にせずに済む
 - **原則は role ＋アクセシブルネーム。** `getByRole` / `getByLabel` はマークアップの詳細ではなく意味で要素を引くため、フレームワークやコンポーネントライブラリが違っても同じ記述が両実装に当たりうる
+- **引き方と検証は自動で待つ API に限る。** 要素は Locator で保持し、検証は `expect(locator).toBeVisible()` / `toHaveText()` / `toHaveCount()` 等の自動リトライ assertion で行う。
+  `page.$` / `page.$$`、`elementHandle()` / `elementHandles()`、要素が揃うのを待たない `locator.all()`、assertion を通さない
+  `textContent()` / `innerText()` / `inputValue()` / `getAttribute()` / `count()` / `isVisible()` 等の即時読み取り、`waitForTimeout()` による固定待機は禁止する。
+  現行のサーバー描画で安定しても、新側のクライアント描画では描画完了前の値を読むためである（Locator と assertion の自動待機: <https://playwright.dev/docs/actionability#assertions>、`locator.all()` は待たない: <https://playwright.dev/docs/api/class-locator#locator-all>）。
+  authoring 後は同梱 `scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、対象ファイル数が 1 件以上かつ違反 0 件であることを確認する
 - **判定用と操作用のロケータを分けてよい。** データグリッド等は `role="columnheader"` を画面外のミラー要素に付けることがあり、role では意味を判定できても、
   その要素の `boundingBox()` を使ったポインター操作は画面外へ送られる。判定は role ＋アクセシブルネームを保ち、座標を使う操作は実際に描画されている要素を操作アダプタで引く
   （`boundingBox()` は要素の座標を返す。出典: <https://playwright.dev/docs/api/class-locator#locator-bounding-box>）

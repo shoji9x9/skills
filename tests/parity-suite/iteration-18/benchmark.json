@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "gpt-5.6-sol",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-09T09:13:54Z",
+    "evals_run": [29],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 29,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 78.266,
+        "tokens": 176546,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行で green でも新側の描画完了前に読む競合が残るため、その実装を採らないと答えている",
+          "passed": true,
+          "evidence": "SSRで100回greenでも待機欠落を検証できず、CSRでは途中状態を読む可能性があるとして退けた。"
+        },
+        {
+          "text": "locator.all() と assertion を通さない textContent() の即時読み取りを禁止対象として明示している",
+          "passed": true,
+          "evidence": "両APIが待機・再試行しない危険を明示した。"
+        },
+        {
+          "text": "Locator を保持し、toHaveCount / toHaveText 等の自動リトライ assertion へ置き換える方針を示している",
+          "passed": true,
+          "evidence": "rows LocatorとtoHaveCount／toHaveTextの具体例を示した。"
+        },
+        {
+          "text": "低頻度の失敗を retries や waitForTimeout で吸収しないと述べている",
+          "passed": false,
+          "evidence": "retriesは退けたがwaitForTimeoutを明示しなかった。"
+        },
+        {
+          "text": "同梱 auto-wait-check.mjs でスイートを検査し、遅延後に描画される故障注入で待ちの欠落を検証するよう求めている",
+          "passed": true,
+          "evidence": "遅延描画の注入、即時読み取りへの変異、auto-wait-checkの違反0件確認を列挙した。"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 29,
+      "configuration": "without_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 44.748,
+        "tokens": 55641,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行で green でも新側の描画完了前に読む競合が残るため、その実装を採らないと答えている",
+          "passed": true,
+          "evidence": "SSRでの反復greenはCSRの競合を検証しないとして退けた。"
+        },
+        {
+          "text": "locator.all() と assertion を通さない textContent() の即時読み取りを禁止対象として明示している",
+          "passed": false,
+          "evidence": "描画完了後のallTextContentsによる即時読み取りを許容した。"
+        },
+        {
+          "text": "Locator を保持し、toHaveCount / toHaveText 等の自動リトライ assertion へ置き換える方針を示している",
+          "passed": true,
+          "evidence": "rows LocatorとtoHaveTextの具体例を示した。"
+        },
+        {
+          "text": "低頻度の失敗を retries や waitForTimeout で吸収しないと述べている",
+          "passed": false,
+          "evidence": "retriesは退けたがwaitForTimeoutを明示しなかった。"
+        },
+        {
+          "text": "同梱 auto-wait-check.mjs でスイートを検査し、遅延後に描画される故障注入で待ちの欠落を検証するよう求めている",
+          "passed": false,
+          "evidence": "同梱検査にも遅延描画の故障注入にも触れなかった。"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": { "pass_rate": 0.8, "time_seconds": 78.266, "tokens": 176546 },
+    "without_skill": { "pass_rate": 0.4, "time_seconds": 44.748, "tokens": 55641 },
+    "delta": { "pass_rate": "+0.40", "time_seconds": "+33.5", "tokens": "+120905" }
+  },
+  "notes": [
+    "変更確認スコープのため各 configuration 1 successful run。分散は評価しない。",
+    "18:00 JST の run-1 は gpt-5.4 が ChatGPT 認証で非対応となり、両 configuration とも0 tokenで失敗した。executorはCodexのまま、対応モデルgpt-5.6-solでrun-2を取得した。"
+  ]
+}
