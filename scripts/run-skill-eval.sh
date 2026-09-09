@@ -41,7 +41,9 @@
 # acquire the serialization lock; 4 the run itself succeeded but the baseline is
 # contaminated (CONTAMINATED) or the contamination check could not be trusted
 # (CHECK-BROKEN / SKIPPED — a check that did not run is not a clean verdict); 5
-# result normalization or eval metadata generation failed.
+# result normalization or eval metadata generation failed; 6 baseline reuse was
+# rejected because its inputs, execution conditions, provenance, or artifacts
+# could not be verified.
 set -euo pipefail
 
 usage() {

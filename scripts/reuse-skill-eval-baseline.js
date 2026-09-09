@@ -74,6 +74,12 @@ export function validateReusableBaseline(source, expectedFingerprint) {
 export function reuseBaseline(sourceValue, targetValue, expectedPath) {
   const source = resolve(sourceValue);
   const target = resolve(targetValue);
+  if (
+    basename(dirname(source)) !== "without_skill" ||
+    !/^run-[1-9][0-9]*$/u.test(basename(source))
+  ) {
+    throw new Error("reusable baseline source must be under without_skill/run-N");
+  }
   if (source === target || relative(source, target).split("/")[0] !== "..") {
     throw new Error("reuse target must not be the source or nested inside it");
   }

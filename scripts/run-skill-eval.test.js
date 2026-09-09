@@ -321,6 +321,31 @@ describe("run-skill-eval executor compatibility", () => {
     expect(existsSync(target)).toBe(false);
   });
 
+  test("rejects a complete baseline artifact stored outside without_skill/run-N", () => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
+    ).toThrow();
+    expect(existsSync(target)).toBe(false);
+  });
+
   test("rejects baseline reuse without an explicit eval id before fingerprinting", () => {
     const { directory, stub } = makeStub();
     const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
