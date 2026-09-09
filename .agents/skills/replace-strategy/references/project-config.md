@@ -317,6 +317,7 @@ status check の context だけでは ruleset が workflow 自体を必須化す
    ruleset は branch に適用される rule の取得 API、classic protection は branch protection API を使う
    （[GitHub REST: Get rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)、
    [GitHub REST: Get branch protection](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection)）。片方の 404 を「必須チェック無し」に倒さず、もう片方を確認する。
+   rules API はページング対象なので `gh api --paginate` で全ページを取得する。既定ページの結果だけを「全件」と扱わず、ページ取得が途中で失敗した場合も必須 CI の取得不能として確定しない。
    **返された ruleset rule は type で先に絞らず全件を棚卸しする。** 現行 API の `required_status_checks` に加えて、`workflows` の `parameters.workflows[]` が指す必須 workflow、`code_scanning` など自動検査を強制する rule も対象にする。
    必須 workflow は `repository_id` から定義元リポジトリを解決し、`path` と、指定されていれば `ref` / `sha` の版を読む。将来追加されたものを含め、CI・workflow・検査を強制しうる未知の rule type を未分類のまま無視せず、意味論を公式仕様で確認できるまで確定しない。
 2. 必須 status check の context は workflow の job `name` に対応づけ、ruleset の必須 workflow は workflow ファイル全体を対象にする。そのうえで job の `steps[].run` だけでなく、package script・リポジトリ内 wrapper・reusable workflow / action の呼び先まで辿る。

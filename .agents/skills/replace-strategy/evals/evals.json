@@ -292,7 +292,7 @@
       "id": 27,
       "prompt": "replace-strategy setup で verification_commands.full を確定したい。main の ruleset では status check の Lint と Test に加え、別リポジトリ org/standards の .github/workflows/security.yml が required workflow になっている。.github/workflows/ci.yml の別々の job は pnpm run lint と pnpm test を呼ぶ。いまの full には pnpm run lint だけが書かれている。このまま確定してよい？ 今後 CI に必須検査が増えた場合も含めた扱いを報告して。設定や CI は実際には変更しないで。",
       "assertions": [
-        "ruleset の全 rule type と classic branch protection の両方を実測する手順を示し、片方の 404 や取得失敗を必須 CI 無しに倒さないと述べている",
+        "rules API は gh api --paginate で全ページを取得してから全 rule type を棚卸しし、classic branch protection も確認すると述べ、片方の 404・ページ取得途中の失敗・その他の取得失敗を必須 CI 無しに倒さないと述べている",
         "required_status_checks だけでなく ruleset の workflows rule も棚卸しし、required workflow の repository_id・path・任意の ref/sha から定義元と版を解決すると述べている",
         "CI・workflow・検査を強制しうる未知の ruleset rule type を無視せず、公式仕様で意味論を確認できるまで full を確定しないと述べている",
         "必須 context を workflow job 名へ対応づけ、job が呼ぶ package script・wrapper・reusable workflow/action の実行内容まで辿って full と比較すると述べている",

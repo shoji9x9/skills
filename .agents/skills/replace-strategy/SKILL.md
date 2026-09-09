@@ -105,7 +105,7 @@ replace-strategy status
      **投入ゲート（`storage.seedable`）は既定 deny で、ストレージ実体へのゴールデンデータ投入は v1 スコープ外**（宣言だけを残し、ストレージ依存の検証は `gaps` に未検証として記録させる）。正本は [`references/project-config.md`](references/project-config.md) の「ファイルストレージ」
    - **検証コマンド（`verification_commands`）**: 完了前に実行する静的解析・テスト等を、**走る範囲で `full`（全体走査）と `diff`（変更ファイルだけ）の 2 列に分けて**確定する
      （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）。**`full` は `parity-replace` の完了判定に必須のため、無いままにしない。**
-     **`full` は生成先リポジトリの必須 CI から導出する。** 対象ブランチに有効な ruleset の全 rule type と classic branch protection の両方を読み、
+     **`full` は生成先リポジトリの必須 CI から導出する。** 対象ブランチに有効な ruleset は `gh api --paginate` で全ページ・全 rule type を取得し、classic branch protection も読み、
      必須 status check と ruleset の必須 workflow を漏れなく棚卸しする。workflow の job と、その job が呼ぶ script / reusable workflow の実行コマンドまで辿って突き合わせ、取得不能・未知の強制 rule・対応不明・説明の無い差があれば確定しない。
      推奨は、必須 CI job と `full` が**同じリポジトリ内の全体検証コマンド 1 本**を呼ぶ形である。畳めない場合は、必須 CI と `full` の対応・対象外理由を記録し、
      どちらかの変更で落ちるプロジェクト側の乖離検査を必須 CI に含める。setup 時点の目視比較だけでは、その後の CI 変更を検出できないため完了にしない。詳細は [`references/project-config.md`](references/project-config.md)「必須 CI との整合」。
