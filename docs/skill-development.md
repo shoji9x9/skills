@@ -109,6 +109,8 @@ scripts/reinstall-skill.sh <name>
   （eval 2 本の変更確認を 12 run の benchmark に広げ、executor 2 つ分の利用上限を使い切った記録がある）。
 - **起動前に「どの eval のどの入力が変わったか」と総 run 数を書き出してから実行する。**
   数えずに並列起動すると、上限到達で走り切れず、成功 run と失敗 run が混ざった集計不能な iteration が残る。
+- **executor は現在作業しているエージェントに合わせ、`--executor` で明示する。** Codex セッションなら `codex`、Claude Code セッションなら `claude-code` を既定にする。
+  ユーザー指定・スキル固有契約があればそれを優先し、対応 executor が無いエージェントではユーザーに確認する。選択規則の正本は [`skill-eval-executors.md`](skill-eval-executors.md)「Executor の選択」。
 
 ### eval 実行の隔離（必須）
 

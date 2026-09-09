@@ -5,7 +5,11 @@ Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択
 
-`--executor claude-code|codex` で選ぶ。既定は後方互換のため `claude-code`。
+`--executor claude-code|codex` で選ぶ。**エージェントが実走を起動する場合の既定は、現在その作業をしているエージェントと同じ executor** とする
+（Codex セッションは `--executor codex`、Claude Code セッションは `--executor claude-code`）。評価対象と日常の利用環境を揃え、別ベンダーの利用枠を意図せず消費しないためである。
+ユーザーが executor を明示した場合とスキル固有の executor 契約がある場合はそちらを優先する。GitHub Copilot など対応する executor が無い環境では推測せずユーザーに選択を確認する。
+
+引数省略時のランチャ自体の既定は後方互換のため `claude-code` だが、これはエージェント運用上の既定ではない。エージェントは `--executor` を省略せず上記の選択を明示する。
 比較可能性を保つため、1 つの iteration に異なる executor・model・reasoning effort を混在させない。
 各 run の `result.json` と `timing.json` に executor、model、reasoning effort、CLI version、harness version を記録する。
 

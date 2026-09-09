@@ -39,6 +39,19 @@
   | （例: フォーマッタ） | 全体走査の起動形が無く `verification_commands.full` に載せられないツール | （例: コミット前フック経由でしか起動できない） |
   | （例: エラー処理の分類規約） | `references.coding_conventions` のうち `full` で落ちない規約項目 | （例: 対応するリントルールが無い。敵対的レビューの観点として扱う） |
 
+## 必須 CI と `full` の整合
+
+<!-- 推奨形では、必須 CI job と verification_commands.full が呼ぶ同じ集約コマンド 1 本を記録する。 -->
+<!-- 1 本へ畳めない場合は必須 status check と ruleset の必須 workflow の対応を列挙し、対象外には理由を付ける。説明の無い差を残さない。 -->
+
+- 対象リポジトリ／ブランチ: `{owner/repo}` / `{branch}`
+- 整合方式: `{共通の集約コマンド | 対応表＋プロジェクト側の乖離検査}`
+- 共通の集約コマンド、または乖離検査: `{command}`
+
+| 必須 CI の種別／参照 | workflow job / 呼び先 | `verification_commands.full` の対応 | 対象外理由 |
+|---|---|---|---|
+| `{status check context または required workflow の repository / path / ref}` | `{workflow path / job name / script}` | `{command または対象外}` | `{対象外のときだけ記入}` |
+
 ## 成果物の扱い
 
 - 保持方針: ワークツリーは最新のみ（履歴は Git）
