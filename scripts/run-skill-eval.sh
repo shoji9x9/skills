@@ -198,6 +198,15 @@ fi
 }
 harness_version="run-skill-eval/2"
 
+metadata_eval_id="${eval_id}"
+eval_dir="$(dirname -- "$(dirname -- "${out}")")"
+eval_dir_name="$(basename -- "${eval_dir}")"
+if [ -z "${metadata_eval_id}" ]; then
+	case "${eval_dir_name}" in
+	eval-*) metadata_eval_id="${eval_dir_name#eval-}" ;;
+	esac
+fi
+
 fingerprint_file="$(mktemp "/tmp/skill-eval-fingerprint-${skill}-XXXXXX.json")"
 fingerprint_args=(
 	--prompt "${prompt}"
@@ -207,7 +216,7 @@ fingerprint_args=(
 	--cli-version "${cli_version}"
 	--harness-version "${harness_version}"
 )
-[ -n "${eval_id}" ] && fingerprint_args+=(--eval-id "${eval_id}" --evals "${src}/evals/evals.json")
+[ -n "${metadata_eval_id}" ] && fingerprint_args+=(--eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")
 [ -n "${fixture}" ] && fingerprint_args+=(--fixture "${fixture}")
 node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || {
 	rm -f -- "${fingerprint_file}"
@@ -378,15 +387,6 @@ ended_ms="$(date +%s%3N)"
 ended_at="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
 duration_ms=$((ended_ms - started_ms))
 [ "${rc}" -ne 0 ] && echo "warn: ${executor_binary} exited ${rc} (see ${out}/stderr.log)" >&2
-
-metadata_eval_id="${eval_id}"
-eval_dir="$(dirname -- "$(dirname -- "${out}")")"
-eval_dir_name="$(basename -- "${eval_dir}")"
-if [ -z "${metadata_eval_id}" ]; then
-	case "${eval_dir_name}" in
-	eval-*) metadata_eval_id="${eval_dir_name#eval-}" ;;
-	esac
-fi
 
 normalizer_args=(
 	--executor "${executor}"

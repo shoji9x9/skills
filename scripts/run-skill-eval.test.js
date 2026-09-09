@@ -71,11 +71,12 @@ exit 91
   return { claudeMarker, directory, invocationLog, stub };
 }
 
-function runEval({ executor, config, prompt, output, stub, fixture, reuseBaseline }) {
+function runEval({ executor, config, prompt, output, stub, fixture, reuseBaseline, evalId = "1" }) {
   const effectiveExecutor = executor ?? "claude-code";
   const executorArgs = executor ? ["--executor", executor] : [];
   const fixtureArgs = fixture ? ["--fixture", fixture] : [];
   const reuseArgs = reuseBaseline ? ["--reuse-baseline", reuseBaseline] : [];
+  const evalArgs = evalId === null ? [] : ["--eval-id", evalId];
   execFileSync(
     join(repository, "scripts", "run-skill-eval.sh"),
     [
@@ -92,8 +93,7 @@ function runEval({ executor, config, prompt, output, stub, fixture, reuseBaselin
       "model-stub",
       "--reasoning-effort",
       "low",
-      "--eval-id",
-      "1",
+      ...evalArgs,
       ...fixtureArgs,
       ...reuseArgs,
       "--repo",
@@ -186,6 +186,26 @@ describe("run-skill-eval executor compatibility", () => {
         harness_version: "run-skill-eval/2",
       },
     });
+  });
+
+  test("infers the eval id before fingerprinting so ordinary runs include assertions", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output,
+      stub,
+      evalId: null,
+    });
+
+    const fingerprint = readJson(join(output, "eval-fingerprint.json"));
+    const metadata = readJson(join(output, "eval_metadata.json"));
+    expect(fingerprint.inputs.eval_id).toBe("1");
+    expect(fingerprint.inputs.assertions).toEqual(metadata.assertions);
+    expect(fingerprint.inputs.assertions.length).toBeGreaterThan(0);
   });
 
   test("reuses only a matching successful clean baseline and records its provenance", () => {

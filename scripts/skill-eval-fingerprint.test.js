@@ -31,6 +31,11 @@ test("fingerprint is insensitive to object key order but changes for input mutat
   expect(left.fingerprint).not.toBe(mutated.fingerprint);
 });
 
+test("canonical object keys use locale-independent codepoint order", () => {
+  const fingerprint = createFingerprint({ nested: { あ: 4, z: 2, ä: 3, A: 1 } });
+  expect(Object.keys(fingerprint.inputs.nested)).toEqual(["A", "z", "ä", "あ"]);
+});
+
 test("fixture hash covers relative paths, bytes, and executable mode", () => {
   const fixture = temporaryDirectory();
   mkdirSync(join(fixture, "nested"));
