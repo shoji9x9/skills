@@ -80,7 +80,7 @@ export function reuseBaseline(sourceValue, targetValue, expectedPath) {
   ) {
     throw new Error("reusable baseline source must be under without_skill/run-N");
   }
-  if (source === target || relative(source, target).split("/")[0] !== "..") {
+  if (source === target || relative(source, target).split(sep)[0] !== "..") {
     throw new Error("reuse target must not be the source or nested inside it");
   }
   if (existsSync(target)) throw new Error(`reuse target already exists: ${target}`);
