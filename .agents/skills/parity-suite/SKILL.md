@@ -57,7 +57,7 @@ parity-suite [--feature <slug>] [--target <name>]
 - **意図的差異レジストリに宣言の無い差を side 別の期待値で吸収しない。** 新側の不一致を期待値側で緑にすることになる（宣言に無い差は `intentional_diffs.pending` へ回してユーザー確認）
 - **タブ順の厳密一致（停止数・順序の完全一致）を assertion にしない。** 仕様が保証するのは到達可能性と論理的順序であり、停止数は実装方式で変わりうる
 - **id / name を比較のアンカーにしない。** 原則は role ＋アクセシブルネーム（自動生成 id は変更対象）
-- **待たない取得 API の検査を省かない。** feature モードの authoring 後は同梱 `scripts/auto-wait-check.mjs` をスキル配下から実行し、走査対象が 1 件以上かつ違反 0 件になるまで先へ進まない（禁止 API と理由の正本は [`references/locator-mapping.md`](references/locator-mapping.md)）
+- **待たない取得 API の検査を省かない。** feature モードの authoring 後は `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、走査対象が 1 件以上かつ違反 0 件になるまで先へ進まない（禁止 API と理由の正本は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - **強度検証（故障注入）を省いて「テストがあるから大丈夫」としない。** テストの存在自体は品質の証拠にならない
 - **強度を手書き assertion 単体で判定しない。** 「手書き assertion ＋ ベースライン ＋ 差分器」の一式で判定する
 - **故障注入の緑を「スイートは強い」と宣言しない。** カタログ外は射程外であり、緑は反例が見つからなかったことに過ぎない

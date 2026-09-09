@@ -57,7 +57,9 @@ const RULES = [
 
 /** コメントと文字列を空白へ置換し、行・桁位置を保つ。判定不能な終端はエラーにする。 */
 export function maskNonCode(source) {
-  const out = [...source];
+  // source.length / source[i] と同じ UTF-16 code unit 単位にする。スプレッドは code point 単位なので、
+  // 非 BMP 文字の後で添字がずれ、マスク位置・違反位置が壊れる。
+  const out = source.split("");
   let state = "code";
   let quote = "";
   /** テンプレート補間ごとの波括弧深さ。0 の `}` でテンプレート文字列へ戻る。 */
@@ -191,16 +193,13 @@ function playwrightReceivers(code) {
       const root = rhs.match(/^([A-Za-z_$][\w$]*)/)?.[1];
       if (!root) continue;
       const target = match[1];
+      const rhsStatement = rhs.split(/[;\n]/, 1)[0].trim();
       const isLocatorExpression =
         locators.has(root) || (pages.has(root) && /^\w+\s*\.(?:locator|getBy\w+)\s*\(/.test(rhs));
       if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
         changed = true;
-      } else if (
-        pages.has(root) &&
-        !pages.has(target) &&
-        new RegExp(`^${root}\\s*(?:;|$)`).test(rhs)
-      ) {
+      } else if (pages.has(root) && !pages.has(target) && rhsStatement === root) {
         pages.add(target);
         changed = true;
       }

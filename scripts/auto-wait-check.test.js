@@ -83,6 +83,25 @@ test("Page / Locator の直接チェーン・代入別名・型注釈を検出�
   ]);
 });
 
+test("非 BMP 文字の後でも違反位置を UTF-16 code unit 単位で保つ", () => {
+  const source = "const note = '𠮟る'; await locator.textContent();";
+  const [violation] = scanSource(source);
+  expect(violation).toMatchObject({
+    line: 1,
+    column: source.indexOf(".textContent") + 1,
+    rule: "immediate-read",
+  });
+});
+
+test("セミコロン無しの Page 別名も検出する", () => {
+  const source = `
+    const browserPage = page
+    await browserPage.$('#save')
+    await browserPage.waitForTimeout(100)
+  `;
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["query-handle", "fixed-wait"]);
+});
+
 test("閉じていない文字列は判定不能を成功扱いにしない", () => {
   expect(() => scanSource("const x = 'unterminated")).toThrow(/閉じていない/);
 });
