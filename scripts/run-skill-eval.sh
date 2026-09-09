@@ -45,11 +45,11 @@
 set -euo pipefail
 
 usage() {
-	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--executor <claude-code|codex>] [--model <model>] [--reasoning-effort <effort>] [--eval-id <id>] [--eval-name <name>] [--repo <path>] [--fixture <dir>]" >&2
+	echo "Usage: $0 --skill <name> --prompt <text> --config <with_skill|without_skill> --out <dir> [--executor <claude-code|codex>] [--model <model>] [--reasoning-effort <effort>] [--eval-id <id>] [--eval-name <name>] [--repo <path>] [--fixture <dir>] [--reuse-baseline <run-dir>]" >&2
 	exit 2
 }
 
-skill="" prompt="" config="" out="" executor="claude-code" model="" reasoning_effort="" eval_id="" eval_name="" repo="" fixture=""
+skill="" prompt="" config="" out="" executor="claude-code" model="" reasoning_effort="" eval_id="" eval_name="" repo="" fixture="" reuse_baseline=""
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--skill)
@@ -96,6 +96,10 @@ while [ "$#" -gt 0 ]; do
 		fixture="$2"
 		shift 2
 		;;
+	--reuse-baseline)
+		reuse_baseline="$2"
+		shift 2
+		;;
 	*) usage ;;
 	esac
 done
@@ -107,6 +111,14 @@ with_skill | without_skill) ;;
 	exit 2
 	;;
 esac
+[ -z "${reuse_baseline}" ] || [ "${config}" = "without_skill" ] || {
+	echo "--reuse-baseline is valid only with --config without_skill" >&2
+	exit 2
+}
+[ -z "${reuse_baseline}" ] || [ -n "${eval_id}" ] || {
+	echo "--reuse-baseline requires an explicit --eval-id so assertions are fingerprinted" >&2
+	exit 2
+}
 case "$executor" in
 claude-code | codex) ;;
 *)
@@ -159,6 +171,54 @@ normalizer="${repo}/scripts/normalize-skill-eval-result.js"
 	echo "normalizer not found: ${normalizer}" >&2
 	exit 1
 }
+fingerprinter="${repo}/scripts/skill-eval-fingerprint.js"
+reuse_helper="${repo}/scripts/reuse-skill-eval-baseline.js"
+[ -f "${fingerprinter}" ] && [ -f "${reuse_helper}" ] || {
+	echo "baseline fingerprint helpers not found under ${repo}/scripts" >&2
+	exit 1
+}
+
+case "${executor}" in
+claude-code) executor_binary="claude" ;;
+codex) executor_binary="codex" ;;
+esac
+if [ -n "${SKILL_EVAL_CLI_VERSION:-}" ]; then
+	cli_version="${SKILL_EVAL_CLI_VERSION}"
+else
+	cli_version="$(${executor_binary} --version 2>/dev/null || true)"
+fi
+[ -n "${cli_version}" ] || cli_version="unknown"
+[ -z "${reuse_baseline}" ] || [ "${cli_version}" != "unknown" ] || {
+	echo "baseline reuse rejected: executor CLI version could not be determined; run a new without_skill evaluation" >&2
+	exit 6
+}
+harness_version="run-skill-eval/2"
+
+fingerprint_file="$(mktemp "/tmp/skill-eval-fingerprint-${skill}-XXXXXX.json")"
+fingerprint_args=(
+	--prompt "${prompt}"
+	--executor "${executor}"
+	--model "${model}"
+	--reasoning-effort "${reasoning_effort}"
+	--cli-version "${cli_version}"
+	--harness-version "${harness_version}"
+)
+[ -n "${eval_id}" ] && fingerprint_args+=(--eval-id "${eval_id}" --evals "${src}/evals/evals.json")
+[ -n "${fixture}" ] && fingerprint_args+=(--fixture "${fixture}")
+node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || {
+	rm -f -- "${fingerprint_file}"
+	exit 5
+}
+
+if [ -n "${reuse_baseline}" ]; then
+	node "${reuse_helper}" "${reuse_baseline}" "${out}" "${fingerprint_file}" || {
+		rm -f -- "${fingerprint_file}"
+		echo "baseline reuse rejected; run a new without_skill evaluation" >&2
+		exit 6
+	}
+	rm -f -- "${fingerprint_file}"
+	exit 0
+fi
 
 # Disposable empty project under /tmp. Its parents hold no .claude/skills, so a
 # without_skill run has no skill installed; a with_skill run only sees the one we
@@ -170,6 +230,7 @@ initial_files_manifest="$(mktemp "/tmp/skill-eval-initial-${skill}-XXXXXX")"
 cleanup() {
 	rm -rf -- "${proj}"
 	rm -f -- "${initial_files_manifest}"
+	rm -f -- "${fingerprint_file}"
 }
 trap cleanup EXIT
 
@@ -257,6 +318,7 @@ fi
 (cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" -o -path "./.agents/skills" \) -prune -o -type f -printf '%P\0' | LC_ALL=C sort -z) >"${initial_files_manifest}"
 
 mkdir -p -- "${out}/outputs" "${out}/raw"
+cp -- "${fingerprint_file}" "${out}/eval-fingerprint.json"
 {
 	echo "executor: ${executor}"
 	echo "config: ${config}"
@@ -271,18 +333,7 @@ esac
 # Bubblewrap owns host read isolation. Codex also retains its own workspace-write
 # sandbox so the auth file mounted for CLI startup is not exposed to agent shell
 # commands. The two layers protect different boundaries and both stay enabled.
-case "${executor}" in
-claude-code) executor_binary="claude" ;;
-codex) executor_binary="codex" ;;
-esac
 runner="${SKILL_EVAL_RUNNER:-${runner_override:-${executor_binary}}}"
-if [ -n "${SKILL_EVAL_CLI_VERSION:-}" ]; then
-	cli_version="${SKILL_EVAL_CLI_VERSION}"
-else
-	cli_version="$(${executor_binary} --version 2>/dev/null || true)"
-fi
-[ -n "${cli_version}" ] || cli_version="unknown"
-harness_version="run-skill-eval/1"
 
 # Headless eval has no one to answer interactive prompts (AskUserQuestion errors
 # under `claude -p`). Inject a non-interactive notice here so the agent degrades

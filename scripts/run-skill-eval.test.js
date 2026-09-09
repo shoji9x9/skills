@@ -27,10 +27,12 @@ function makeStub() {
   temporaryDirectories.push(directory);
   const stub = join(directory, "executor-stub.sh");
   const claudeMarker = join(directory, "claude-was-invoked");
+  const invocationLog = join(directory, "executor-invocations");
   writeFileSync(
     stub,
     `#!/usr/bin/env bash
 set -euo pipefail
+printf 'invoked\n' >>${JSON.stringify(invocationLog)}
 args="$*"
 if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
   printf 'not-json\n'
@@ -66,13 +68,14 @@ exit 91
     "utf8",
   );
   chmodSync(poisonClaude, 0o755);
-  return { claudeMarker, directory, stub };
+  return { claudeMarker, directory, invocationLog, stub };
 }
 
-function runEval({ executor, config, prompt, output, stub, fixture }) {
+function runEval({ executor, config, prompt, output, stub, fixture, reuseBaseline }) {
   const effectiveExecutor = executor ?? "claude-code";
   const executorArgs = executor ? ["--executor", executor] : [];
   const fixtureArgs = fixture ? ["--fixture", fixture] : [];
+  const reuseArgs = reuseBaseline ? ["--reuse-baseline", reuseBaseline] : [];
   execFileSync(
     join(repository, "scripts", "run-skill-eval.sh"),
     [
@@ -92,6 +95,7 @@ function runEval({ executor, config, prompt, output, stub, fixture }) {
       "--eval-id",
       "1",
       ...fixtureArgs,
+      ...reuseArgs,
       "--repo",
       repository,
     ],
@@ -133,7 +137,7 @@ describe("run-skill-eval executor compatibility", () => {
         model: "model-stub",
         reasoning_effort: "low",
         cli_version: `${executor} stub-version`,
-        harness_version: "run-skill-eval/1",
+        harness_version: "run-skill-eval/2",
       },
       status: "succeeded",
       exit_code: 0,
@@ -173,6 +177,230 @@ describe("run-skill-eval executor compatibility", () => {
 
     expect(readFileSync(join(output, "contamination.txt"), "utf8")).toMatch(/^verdict: clean$/mu);
     expect(readJson(join(output, "result.json")).executor.name).toBe("codex");
+    expect(readJson(join(output, "eval-fingerprint.json"))).toMatchObject({
+      algorithm: "sha256",
+      inputs: {
+        executor: "codex",
+        model: "model-stub",
+        reasoning_effort: "low",
+        harness_version: "run-skill-eval/2",
+      },
+    });
+  });
+
+  test("reuses only a matching successful clean baseline and records its provenance", () => {
+    const { directory, invocationLog, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: target,
+      reuseBaseline: source,
+      stub,
+    });
+
+    expect(readJson(join(target, "baseline-reuse.json"))).toMatchObject({
+      reused_from: source,
+      source_run: "run-1",
+      source_configuration: "without_skill",
+      executor: "codex",
+      model: "model-stub",
+      reasoning_effort: "low",
+      harness_version: "run-skill-eval/2",
+    });
+    expect(readJson(join(target, "eval-fingerprint.json"))).toEqual(
+      readJson(join(source, "eval-fingerprint.json")),
+    );
+    expect(readFileSync(invocationLog, "utf8").trim().split("\n")).toHaveLength(1);
+  });
+
+  test.each([
+    ["changed prompt", { prompt: "CHANGED EXPECT_WITHOUT_SKILL" }],
+    ["changed model", { model: "different-model" }],
+  ])("rejects baseline reuse with %s", (_label, mutation) => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        mutation.prompt ?? "EXPECT_WITHOUT_SKILL",
+        "--config",
+        "without_skill",
+        "--out",
+        target,
+        "--executor",
+        "codex",
+        "--model",
+        mutation.model ?? "model-stub",
+        "--reasoning-effort",
+        "low",
+        "--eval-id",
+        "1",
+        "--reuse-baseline",
+        source,
+        "--repo",
+        repository,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SKILL_EVAL_CLI_VERSION: "codex stub-version",
+          SKILL_EVAL_RUNNER: stub,
+        },
+      },
+    );
+    expect(result.status).toBe(6);
+    expect(result.stderr).toMatch(/fingerprint mismatch/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects reuse when a required source artifact is missing", () => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    rmSync(join(source, "result.json"));
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
+    ).toThrow();
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects baseline reuse without an explicit eval id before fingerprinting", () => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        "EXPECT_WITHOUT_SKILL",
+        "--config",
+        "without_skill",
+        "--out",
+        target,
+        "--executor",
+        "codex",
+        "--model",
+        "model-stub",
+        "--reasoning-effort",
+        "low",
+        "--reuse-baseline",
+        source,
+        "--repo",
+        repository,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SKILL_EVAL_CLI_VERSION: "codex stub-version",
+          SKILL_EVAL_RUNNER: stub,
+        },
+      },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/requires an explicit --eval-id/u);
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects baseline reuse when the executor CLI version is unknown", () => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    const fakeCodex = join(directory, "codex");
+    writeFileSync(fakeCodex, "#!/usr/bin/env bash\nexit 91\n", "utf8");
+    chmodSync(fakeCodex, 0o755);
+
+    const env = {
+      ...process.env,
+      PATH: `${directory}:${process.env.PATH}`,
+      SKILL_EVAL_RUNNER: stub,
+    };
+    delete env.SKILL_EVAL_CLI_VERSION;
+    const result = spawnSync(
+      join(repository, "scripts", "run-skill-eval.sh"),
+      [
+        "--skill",
+        "box",
+        "--prompt",
+        "EXPECT_WITHOUT_SKILL",
+        "--config",
+        "without_skill",
+        "--out",
+        target,
+        "--executor",
+        "codex",
+        "--model",
+        "model-stub",
+        "--reasoning-effort",
+        "low",
+        "--eval-id",
+        "1",
+        "--reuse-baseline",
+        source,
+        "--repo",
+        repository,
+      ],
+      { encoding: "utf8", env },
+    );
+
+    expect(result.status).toBe(6);
+    expect(result.stderr).toMatch(/CLI version could not be determined/u);
+    expect(existsSync(target)).toBe(false);
   });
 
   test("keeps Claude Code as the default executor for existing callers", () => {
