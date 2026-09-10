@@ -300,6 +300,17 @@
         "低頻度の失敗を retries や waitForTimeout で吸収しないと述べている",
         "同梱 auto-wait-check.mjs でスイートを検査し、遅延後に描画される故障注入で待ちの欠落を検証するよう求めている"
       ]
+    },
+    {
+      "id": 30,
+      "prompt": "横断 API の record にはレスポンスボディを丸ごと保存したけど、パリティスイートの assertion は業務上重要そうな 2 項目だけにした。現側では green だし、残りの項目は parity-diff が後で比較するから、このまま parity-replace へ渡していいよね？ 問題があるなら、修正手順と修正後に何を確認すべきかも教えて。",
+      "assertions": [
+        "少数の代表項目だけの assertion のまま引き渡すと、record 全体を見る parity-diff まで残りの差の発見が遅れるため、そのまま完了しないと答えている",
+        "捕捉したステータスは assertion で確認し、レスポンスボディの全 JSON path は assertion・両工程で同じ正規化をする揮発項目・未検証のいずれかへ分類するよう求めている",
+        "親オブジェクトや配列の深い等値比較で覆う場合を含め、各 path がどの assertion に覆われるかを record と突き合わせる方針を示している",
+        "assertion にできない path はシナリオ・JSON path・理由とともに gaps.md の未検証として残し、未分類の path がある状態で authoring を完了しないと述べている",
+        "差をまだ観測していない未 assertion 項目は gaps.md、現新の差を観測した後の確認待ちは intentional_diffs.pending と使い分ける旨を説明している"
+      ]
     }
   ]
 }
