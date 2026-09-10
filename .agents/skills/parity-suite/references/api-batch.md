@@ -21,7 +21,7 @@
 | ページング | ページサイズ・境界・カーソル/オフセット |
 | 副作用 | 関連テーブルへの伝播 |
 
-- **record と assertion の範囲を authoring 時に突き合わせる。** 各シナリオで捕捉したステータスとレスポンスボディの全 JSON path を列挙し、各 path を次のいずれかへ分類する。record 全体を assertion に使う場合も、暗黙に全項目を見ていると済ませず、比較前の正規化で除かれる path が無いか確認する
+- **record と assertion の範囲を authoring 時に突き合わせる。** 各シナリオで捕捉したステータスとレスポンスボディの全 JSON path を列挙し、各 path を次のいずれかへ分類する。record 全体を assertion に使う場合も、暗黙に全項目を見ているとして済ませず、比較前の正規化で除かれる path が無いか確認する。
   - 手書き assertion が直接検証する（親オブジェクト／配列の深い等値比較で覆う場合は、その assertion を根拠としてよい）
   - 揮発項目として record/replay と `parity-diff` の双方で同じ正規化・除外を行う
   - assertion にできず未検証として `gaps.md` の「API record / assertion の未被覆」へ、シナリオ・JSON path・理由を記録する
