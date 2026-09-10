@@ -66,6 +66,9 @@ scripts/run-skill-eval.sh \
 - eval 29 は待たない Playwright API（Issue #311）の回帰。SSR の現行で繰り返し green だったことを根拠に `locator.all()` と即時読み取りを残し、
   新側の低頻度失敗を retries / `waitForTimeout` で吸収する案を押し戻せるかを見る。Locator と自動リトライ assertion、同梱検査、遅延描画の故障注入までを対象にする
   （同梱検査・故障注入まで安定して到達させるため、答えを明かさず修正後の確認方法も尋ねる）
+- eval 30 は API record と assertion の被覆差（Issue #330）の回帰。record 全体に対して代表 2 項目だけを assertion にし、残りは `parity-diff` に委ねる案を押し戻せるかを見る。
+  捕捉した全 JSON path を assertion／両工程で同じ正規化をする揮発項目／`gaps.md` の未検証へ分類し、未分類のまま authoring を完了しない契約を対象にする。
+  修正手順と修正後の確認を開かれた形で尋ねて詳細への到達性を確保する一方、分類先のファイル名・全 path の列挙を求める語は書かず、スキル固有の前倒し手順を baseline に渡さない
 - 被覆プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付き不在）は
   リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す

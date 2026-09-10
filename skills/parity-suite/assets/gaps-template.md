@@ -22,6 +22,17 @@
 | 夜間バッチの出力 CSV（例） | 出力に到達不可 | 出力先がコンテナ内で、テスト環境のファイルシステムに到達できない | 未検証として残す（到達手段が用意できれば対象に戻す） |
 | 添付ファイルの保存結果（例） | ストレージ投入スコープ外 | ストレージ実体へのゴールデンデータ投入は v1 スコープ外で、事前配置に依存する状態を作れない | 記録のみ（検証しない） |
 
+## API record / assertion の未被覆
+
+<!-- api-resource / API 特性化で、record に捕捉したが assertion にできないレスポンス項目を残す。 -->
+<!-- 捕捉した各 JSON path は assertion／record と parity-diff の双方に同じ形で適用する正規化／本表のいずれかへ分類し、未分類を残さない。 -->
+<!-- 現新の差をまだ観測していない段階なので intentional_diffs.pending へは置かない。 -->
+<!-- 各行は例。実際のシナリオ・JSON path・理由で置き換える。該当が無ければ「なし（全 path を assertion または正規化へ分類済み）」と明記する。 -->
+
+| シナリオ | record の JSON path | 未検証の理由 | 対応 |
+|---|---|---|---|
+| 会社一覧の取得（例） | `$.items[*].legacyCode` | 現行で意味論を確定できず、仕様として assertion にできない | 未検証として残し、意味論の確認後に assertion へ移す |
+
 ## 部品被覆表の未測定・非宣言
 
 <!-- component-coverage.json の unmeasured セルと、metadata.json の component_coverage.declared: false の理由をここに残す。 -->
