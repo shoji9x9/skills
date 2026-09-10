@@ -32,3 +32,7 @@ KEDBを `background process` / `exec_command` / `namespace` で照合したが�
 Codex transcript の非会話レコードを閉じた集合で認識し、会話を運ぶ未知形式の fail-closed を維持したまま CLI の schema drift を fixture と変異テストで検出する。
 
 Issue #322 で `token_usage_record`、`EnteredReviewMode`、`ExitedReviewMode` を追加し、候補あり／候補なしの弁別と判定分岐を無効化した変異で回帰テストが赤くなることを確認する。
+
+2026-09-10 の Codex セッションでも候補行を5件検出した後に未知または malformed record として exit 2 になり、Issue #324 の commit 前ゲートが再び停止した。Issue #322 の対応完了までは同じ停止が継続するため、本件の優先度 high を維持する。
+
+同セッションで PR #325 の finalize loop を再開した際も、候補行を検出後に未知または malformed record として exit 2 になり、追加レビュー修正の commit が停止した。

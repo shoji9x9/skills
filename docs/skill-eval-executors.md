@@ -69,6 +69,8 @@ tests/<skill>/iteration-N/
 - `raw_trace`: run からの相対パス
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
+各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
+`without_skill` の `--reuse-baseline` は fingerprint と成果物の健全性を検証し、再利用した run に `baseline-reuse.json` を追加する。
 `scripts/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
 `outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる executor だけに置く。Claude Code の final JSON から復元できない値を `0` で埋めない。
 `files_created` は run 前の fixture file manifest と、run 後に `project-files/` へ保存できた artifact の差分で生成する。既存 fixture、size cap 等で保存されなかったファイルは含めない。

@@ -91,6 +91,8 @@ scripts/reinstall-skill.sh <name>
 
 ### 実走の既定スコープ（変更確認と benchmark を分ける）
 
+LLM eval は最初のデバッグ手段にしない。先に変更したランチャー・fixture・grader の unit test を通し、判定を反転・削除する mutation でテストが赤くなることまで確認する。開発中はこの決定論的検証で反復し、LLM eval は最終候補に対する変更確認へ遅らせる。
+
 **実走には目的が 2 つあり、必要な run 数が桁で違う。起動前にどちらかを宣言する。**
 
 | 目的 | スコープ | run 数 |
@@ -111,6 +113,29 @@ scripts/reinstall-skill.sh <name>
   数えずに並列起動すると、上限到達で走り切れず、成功 run と失敗 run が混ざった集計不能な iteration が残る。
 - **executor は現在作業しているエージェントに合わせ、`--executor` で明示する。** Codex セッションなら `codex`、Claude Code セッションなら `claude-code` を既定にする。
   ユーザー指定・スキル固有契約があればそれを優先し、対応 executor が無いエージェントではユーザーに確認する。選択規則の正本は [`skill-eval-executors.md`](skill-eval-executors.md)「Executor の選択」。
+
+#### without-skill baseline の再利用
+
+prompt・対象 eval の assertion・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
+既存の成功した `without_skill` run を再利用できる。`scripts/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
+再利用では assertion の欠落を防ぐため `--eval-id`、実行時の既定値変化を防ぐため `--model` と `--reasoning-effort` を明示し、executor の CLI version を取得できなければ停止する。
+
+```bash
+scripts/run-skill-eval.sh \
+  --skill <name> --config without_skill \
+  --executor <executor> --model <model> --reasoning-effort <effort> \
+  --eval-id <id> --prompt '<prompt>' --fixture <fixture-dir> \
+  --out tests/<name>/iteration-N/eval-<id>/without_skill/run-1 \
+  --reuse-baseline tests/<name>/iteration-M/eval-<id>/without_skill/run-1
+```
+
+再利用時は executor を起動せず、元 run の成功、`contamination.txt` の `clean`、`isolation.txt` の `sandboxed`、必須 artifact、fingerprint の完全一致を検証してからコピーする。
+`baseline-reuse.json` に再利用元、fingerprint、executor、model、reasoning effort、CLI / harness version を記録する。不一致・欠損・汚染判定不良は exit 6 で停止し、新しい run を要求する。
+自動で新規 LLM run へフォールバックするとコスト発生を隠すため行わない。
+
+assertion、prompt、fixture、executor、model、reasoning effort、CLI / harness のどれかを変えた場合は再利用しない。benchmark の監査では `baseline-reuse.json` をたどり、元 run と再利用 run を独立した反復サンプルとして数えない。
+
+with-skill run の前には対象 `SKILL.md` の参照導線を確認し、その eval の処理に必要な `references/` だけを読むよう本文から選択条件が付いているかを確認する。全 reference の一括読込を促す導線は token 削減だけでなく progressive disclosure の境界を壊すため修正する。
 
 ### eval 実行の隔離（必須）
 
