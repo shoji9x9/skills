@@ -148,6 +148,9 @@ if ! jq -Rr '
 		 select(((.is_error // false) == true) or ($tool_text | test("^(<tool_use_error>|error:|exit code [1-9]|process exited|timed out)"; "i"))) |
 		 "E\t" + $tool_text)
 	elif $j.type == "session_meta" then "D", "R"
+	# Codex CLI の token_usage_record は会話・ツール結果・編集を運ばない使用量メタデータ。
+	# top-level の閉じた既知 type としてだけ許容し、未知の payload 付き type は下の fail-closed に残す。
+	elif $j.type == "token_usage_record" then "D", "R"
 	elif $j.type == "response_item" and $j.payload.type == "message" then
 		"D", "R",
 		(if $j.payload.role == "assistant" then "A"
@@ -192,7 +195,8 @@ if ! jq -Rr '
 		 elif $item.type == "CollabAgentToolCall" then
 			(if (($item.status // "completed") == "completed") then empty
 			 else "E\t" + (($item.status // "collaboration call failed") | content_text | clean) end)
-		 elif ($item.type == "ContextCompaction" or $item.type == "Extension" or
+		 elif ($item.type == "ContextCompaction" or $item.type == "EnteredReviewMode" or
+		       $item.type == "ExitedReviewMode" or $item.type == "Extension" or
 		       $item.type == "Reasoning" or $item.type == "SubAgentActivity") then empty
 		 else "X" end)
 	elif $j.type == "event_msg" and
