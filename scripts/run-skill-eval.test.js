@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  symlinkSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -587,6 +588,52 @@ describe("run-skill-eval executor compatibility", () => {
       { encoding: "utf8" },
     );
     expect(result.stderr).toMatch(errorPattern);
+  });
+
+  test.each([
+    [
+      "required artifact",
+      (source, external) => {
+        const artifact = join(source, "timing.json");
+        rmSync(artifact);
+        symlinkSync(external, artifact);
+      },
+    ],
+    [
+      "raw trace",
+      (source, external) => {
+        const result = readJson(join(source, "result.json"));
+        const rawTrace = join(source, result.raw_trace);
+        rmSync(rawTrace);
+        symlinkSync(external, rawTrace);
+      },
+    ],
+  ])("rejects a symlinked %s", (_label, replaceWithSymlink) => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    const external = join(directory, "external-artifact");
+    writeFileSync(external, "external\n", "utf8");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    replaceWithSymlink(source, external);
+
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
+    ).toThrow();
+    expect(existsSync(target)).toBe(false);
   });
 
   test("keeps Claude Code as the default executor for existing callers", () => {

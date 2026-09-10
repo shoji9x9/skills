@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,8 +34,11 @@ export function formatError(error) {
 
 export function validateReusableBaseline(source, expectedFingerprint) {
   for (const artifact of requiredArtifacts) {
-    if (!existsSync(resolve(source, artifact)))
-      throw new Error(`baseline artifact missing: ${artifact}`);
+    const artifactPath = resolve(source, artifact);
+    if (!existsSync(artifactPath)) throw new Error(`baseline artifact missing: ${artifact}`);
+    if (lstatSync(artifactPath).isSymbolicLink()) {
+      throw new Error(`baseline artifact must not be a symlink: ${artifact}`);
+    }
   }
   const actualFingerprint = readJson(
     resolve(source, "eval-fingerprint.json"),
@@ -69,7 +72,12 @@ export function validateReusableBaseline(source, expectedFingerprint) {
   ) {
     throw new Error("baseline raw_trace escapes the source run");
   }
-  if (!existsSync(rawTrace) || readFileSync(rawTrace).length === 0) {
+  if (
+    !existsSync(rawTrace) ||
+    lstatSync(rawTrace).isSymbolicLink() ||
+    !lstatSync(rawTrace).isFile() ||
+    readFileSync(rawTrace).length === 0
+  ) {
     throw new Error(`baseline raw trace missing or empty: ${result.raw_trace}`);
   }
   if (!/^verdict: clean$/mu.test(readFileSync(resolve(source, "contamination.txt"), "utf8"))) {
