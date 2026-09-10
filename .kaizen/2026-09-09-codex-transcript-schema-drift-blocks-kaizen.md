@@ -36,3 +36,5 @@ Issue #322 で `token_usage_record`、`EnteredReviewMode`、`ExitedReviewMode` �
 2026-09-10 の Codex セッションでも候補行を5件検出した後に未知または malformed record として exit 2 になり、Issue #324 の commit 前ゲートが再び停止した。Issue #322 の対応完了までは同じ停止が継続するため、本件の優先度 high を維持する。
 
 同セッションで PR #325 の finalize loop を再開した際も、候補行を検出後に未知または malformed record として exit 2 になり、追加レビュー修正の commit が停止した。
+
+2026-09-10 の Issue #327 でも、`kaizen-candidate-scan.sh` が transcript の5行を未知または malformed record と判定して exit 2 になり、実装済み変更の commit 前ゲートが停止した。Issue #322 の未適用期間に同じ停止が継続している。
