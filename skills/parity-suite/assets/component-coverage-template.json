@@ -87,7 +87,7 @@
       "item": "<項目 id（プロファイル由来なら候補 id）>",
       "instance": "<インスタンス id>",
       "value": "<present | absent | unmeasured>",
-      "evidence": "<測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果（present / absent はここが空だと未測定として数える。発火を確認できなければ absent にせず unmeasured）>",
+      "evidence": "<present または操作可能要素が在る absent: 測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果。全到達状態で非描画の absent: ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と offsetParent、非表示原因となった要素または祖先とその computed style。present / absent はここが空だと未測定として数える。後者以外で発火を確認できなければ absent にせず unmeasured>",
       "covered_by": [
         "<present のとき、その操作を押さえた採取状態（metadata.json.capture_conditions.states の値）または assertion のスペックパス＋テスト名。空なら未測定として数える>"
       ],
