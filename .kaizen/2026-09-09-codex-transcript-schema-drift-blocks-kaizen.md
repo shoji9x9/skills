@@ -2,8 +2,8 @@
 date: 2026-09-09
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: ["#322"]
 session: codex
 ---
 

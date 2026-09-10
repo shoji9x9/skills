@@ -117,6 +117,45 @@ describe("Claude Code の atis-latch 補助レコード", () => {
   });
 });
 
+describe("Codex の token usage / review mode 補助レコード", () => {
+  test.each([
+    ["補助レコードだけなら候補ゼロ", "codex-review-metadata-no-candidate.jsonl", 1],
+    ["補助レコードはツール失敗候補を隠さない", "codex-review-metadata-candidate.jsonl", 0],
+  ])("%s", (_label, fixture, expectedStatus) => {
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, fixture);
+    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
+      cwd,
+    });
+
+    expect(scan.status).toBe(expectedStatus);
+    expect(scan.stdout).toMatch(/^kaizen-candidate-scan: agent=codex$/m);
+  });
+
+  test.each([
+    ["token_usage_record", '\n\telif $j.type == "token_usage_record" then "D", "R"'],
+    ["EnteredReviewMode", '$item.type == "EnteredReviewMode" or\n\t\t       '],
+    ["ExitedReviewMode", '$item.type == "ExitedReviewMode" or '],
+  ])("%s の認識分岐を除くと fixture は判定不能になる", (_label, branch) => {
+    const scripts = cloneScripts();
+    const scanner = join(scripts, "kaizen-candidate-scan.sh");
+    const original = readFileSync(scanner, "utf8");
+    const mutated = original.replace(branch, "");
+    expect(mutated).not.toBe(original);
+    writeFileSync(scanner, mutated);
+
+    const cwd = makeProject();
+    const transcript = join(fixturesDir, "codex-review-metadata-no-candidate.jsonl");
+    const scan = runScript("kaizen-candidate-scan.sh", [transcript, join(cwd, "no-checkpoint")], {
+      cwd,
+      scripts,
+    });
+
+    expect(scan.status).toBe(2);
+    expect(scan.stderr).toMatch(/unsupported or malformed record/);
+  });
+});
+
 describe("checkpoint は走査器が検査した範囲までしか進めない", () => {
   test("走査後に追記されたレコードは処理済みにならず、次の走査で検出される", () => {
     const cwd = makeProject();
