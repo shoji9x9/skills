@@ -19,6 +19,12 @@ function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export function formatError(error) {
+  return error && typeof error === "object" && "message" in error
+    ? String(error.message)
+    : String(error);
+}
+
 export function hashFixture(directory) {
   if (!directory) return digest("no-fixture\n");
   const root = resolve(directory);
@@ -106,7 +112,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   try {
     main();
   } catch (error) {
-    console.error(`skill-eval-fingerprint: ${error.message}`);
+    console.error(`skill-eval-fingerprint: ${formatError(error)}`);
     process.exitCode = 1;
   }
 }

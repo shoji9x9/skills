@@ -129,7 +129,7 @@ scripts/run-skill-eval.sh \
   --reuse-baseline tests/<name>/iteration-M/eval-<id>/without_skill/run-1
 ```
 
-再利用時は executor を起動せず、元 run の成功、`contamination.txt` の `clean`、必須 artifact、fingerprint の完全一致を検証してからコピーする。
+再利用時は executor を起動せず、元 run の成功、`contamination.txt` の `clean`、`isolation.txt` の `sandboxed`、必須 artifact、fingerprint の完全一致を検証してからコピーする。
 `baseline-reuse.json` に再利用元、fingerprint、executor、model、reasoning effort、CLI / harness version を記録する。不一致・欠損・汚染判定不良は exit 6 で停止し、新しい run を要求する。
 自動で新規 LLM run へフォールバックするとコスト発生を隠すため行わない。
 

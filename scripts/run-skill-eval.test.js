@@ -109,6 +109,14 @@ function runEval({ executor, config, prompt, output, stub, fixture, reuseBaselin
       stdio: "pipe",
     },
   );
+  if (config === "without_skill" && !reuseBaseline) {
+    const isolationPath = join(output, "isolation.txt");
+    const isolation = readFileSync(isolationPath, "utf8").replace(
+      /^isolation: .*$/mu,
+      "isolation: sandboxed (scripts/eval-sandbox.sh)",
+    );
+    writeFileSync(isolationPath, isolation, "utf8");
+  }
 }
 
 function readJson(path) {
@@ -308,6 +316,32 @@ describe("run-skill-eval executor compatibility", () => {
       stub,
     });
     rmSync(join(source, "result.json"));
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL",
+        output: target,
+        reuseBaseline: source,
+        stub,
+      }),
+    ).toThrow();
+    expect(existsSync(target)).toBe(false);
+  });
+
+  test("rejects a baseline whose read isolation is not trusted", () => {
+    const { directory, stub } = makeStub();
+    const source = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+    const target = join(directory, "iteration-2", "eval-1", "without_skill", "run-1");
+    runEval({
+      executor: "codex",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output: source,
+      stub,
+    });
+    writeFileSync(join(source, "isolation.txt"), "isolation: UNISOLATED (bwrap missing)\n", "utf8");
+
     expect(() =>
       runEval({
         executor: "codex",

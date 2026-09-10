@@ -26,6 +26,12 @@ function readJson(path, label) {
   }
 }
 
+export function formatError(error) {
+  return error && typeof error === "object" && "message" in error
+    ? String(error.message)
+    : String(error);
+}
+
 export function validateReusableBaseline(source, expectedFingerprint) {
   for (const artifact of requiredArtifacts) {
     if (!existsSync(resolve(source, artifact)))
@@ -68,6 +74,13 @@ export function validateReusableBaseline(source, expectedFingerprint) {
   }
   if (!/^verdict: clean$/mu.test(readFileSync(resolve(source, "contamination.txt"), "utf8"))) {
     throw new Error("baseline contamination verdict is not clean");
+  }
+  if (
+    !/^isolation: sandboxed \(scripts\/eval-sandbox\.sh\)$/mu.test(
+      readFileSync(resolve(source, "isolation.txt"), "utf8"),
+    )
+  ) {
+    throw new Error("baseline read isolation is not trusted");
   }
 }
 
@@ -123,7 +136,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   try {
     main();
   } catch (error) {
-    console.error(`reuse-skill-eval-baseline: ${error.message}`);
+    console.error(`reuse-skill-eval-baseline: ${formatError(error)}`);
     process.exitCode = 1;
   }
 }

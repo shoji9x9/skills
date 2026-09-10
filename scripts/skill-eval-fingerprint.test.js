@@ -2,7 +2,13 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { assertionsForEval, createFingerprint, hashFixture } from "./skill-eval-fingerprint.js";
+import { formatError as formatReuseError } from "./reuse-skill-eval-baseline.js";
+import {
+  assertionsForEval,
+  createFingerprint,
+  formatError as formatFingerprintError,
+  hashFixture,
+} from "./skill-eval-fingerprint.js";
 
 const temporaryDirectories = [];
 
@@ -67,3 +73,12 @@ test("missing eval assertions fail closed", () => {
   expect(() => assertionsForEval(evals, "1")).toThrow(/no assertions array/u);
   expect(() => assertionsForEval(evals, "2")).toThrow(/not found/u);
 });
+
+test.each([formatFingerprintError, formatReuseError])(
+  "CLI error formatting preserves Error and non-Error diagnostics",
+  (formatError) => {
+    expect(formatError(new Error("failure"))).toBe("failure");
+    expect(formatError("plain failure")).toBe("plain failure");
+    expect(formatError({ reason: "structured failure" })).toBe("[object Object]");
+  },
+);
