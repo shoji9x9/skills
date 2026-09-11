@@ -10,25 +10,35 @@ const { FIXED_PROPERTIES, captureTraits } = await import(script);
 
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
-function fakeLocator(styles, { pseudoContent = "none", pseudoStyles = styles } = {}) {
+function fakeLocator(
+  styles,
+  { pseudoContent = "none", pseudoStyles = styles, origin = "http://legacy.example:8811" } = {},
+) {
   return {
     evaluate(fn, props) {
       const el = {
         getBoundingClientRect: () => ({ x: 1, y: 2, width: 3, height: 4 }),
       };
-      const previous = globalThis.getComputedStyle;
+      const previousStyle = globalThis.getComputedStyle;
+      const previousLocation = globalThis.location;
       globalThis.getComputedStyle = (_element, pseudo) => ({
         content: pseudo ? pseudoContent : "normal",
         getPropertyValue: (prop) => (pseudo ? pseudoStyles : styles)[prop] ?? "",
       });
+      globalThis.location = { origin };
       try {
         return Promise.resolve(fn(el, props));
       } finally {
-        globalThis.getComputedStyle = previous;
+        globalThis.getComputedStyle = previousStyle;
+        globalThis.location = previousLocation;
       }
     },
   };
 }
+
+// 実測（Chrome 経由）: cursor: url(cur.png) の計算値は自分のオリジンで絶対化され、
+// 同じ CSS が http://127.0.0.1:8811 と :8822 で別文字列になる。
+const cursorOn = (origin, path) => `url("${origin}/${path}"), pointer`;
 
 function allResolved(overrides = {}) {
   return Object.fromEntries(FIXED_PROPERTIES.map((prop) => [prop, overrides[prop] ?? "0px"]));
@@ -90,4 +100,88 @@ test("擬似要素側だけで解決しないプロパティ名も落ちる", as
       },
     ]),
   ).rejects.toThrow(/detail\.save[\s\S]*::before[\s\S]*cursor/);
+});
+
+test("同一オリジンの url() は畳まれ、現・新のホスト違いが偽の差分にならない", async () => {
+  const [legacy] = await captureTraits([
+    {
+      name: "detail.save",
+      locator: fakeLocator(
+        allResolved({ cursor: cursorOn("http://legacy.example:8811", "cur.png") }),
+        {
+          origin: "http://legacy.example:8811",
+        },
+      ),
+    },
+  ]);
+  const [replacement] = await captureTraits([
+    {
+      name: "detail.save",
+      locator: fakeLocator(
+        allResolved({ cursor: cursorOn("http://new.example:3000", "cur.png") }),
+        {
+          origin: "http://new.example:3000",
+        },
+      ),
+    },
+  ]);
+
+  expect(legacy.computed.cursor).toBe('url("<same-origin>/cur.png"), pointer');
+  expect(legacy.computed.cursor).toBe(replacement.computed.cursor);
+});
+
+test("同一オリジンでもパスが違えば差分として残る（畳んで本物の差を消さない）", async () => {
+  const [legacy] = await captureTraits([
+    {
+      name: "detail.save",
+      locator: fakeLocator(
+        allResolved({ cursor: cursorOn("http://legacy.example:8811", "cur.png") }),
+        {
+          origin: "http://legacy.example:8811",
+        },
+      ),
+    },
+  ]);
+  const [replacement] = await captureTraits([
+    {
+      name: "detail.save",
+      locator: fakeLocator(
+        allResolved({ cursor: cursorOn("http://new.example:3000", "other.png") }),
+        {
+          origin: "http://new.example:3000",
+        },
+      ),
+    },
+  ]);
+
+  expect(legacy.computed.cursor).not.toBe(replacement.computed.cursor);
+});
+
+test.each([
+  ["data URI", 'url("data:image/gif;base64,R0lGODlhAQABAAAAACw="), auto'],
+  ["別オリジン", 'url("https://cdn.example.com/x.png"), auto'],
+  ["自オリジンを前方一致で含む別ホスト", 'url("http://legacy.example:8811.evil/x.png"), auto'],
+])("%s の url() は畳まず原文のまま残す", async (_name, value) => {
+  const [trait] = await captureTraits([
+    {
+      name: "detail.save",
+      locator: fakeLocator(allResolved({ cursor: value }), {
+        origin: "http://legacy.example:8811",
+      }),
+    },
+  ]);
+  expect(trait.computed.cursor).toBe(value);
+});
+
+// origin が http(s) でないときは畳まない。"" を含めるのはガードの弁別のため——ガードを外すと
+// 空オリジンが value.includes("/") に化けて、あらゆるスラッシュを印へ置換し値を壊す。
+test.each([
+  ["file:// 等で origin が null", "null"],
+  ["origin が空", ""],
+])("%s のときは畳まず原文のまま残す（黙って一致させない）", async (_name, origin) => {
+  const value = cursorOn("http://legacy.example:8811", "cur.png");
+  const [trait] = await captureTraits([
+    { name: "detail.save", locator: fakeLocator(allResolved({ cursor: value }), { origin }) },
+  ]);
+  expect(trait.computed.cursor).toBe(value);
 });

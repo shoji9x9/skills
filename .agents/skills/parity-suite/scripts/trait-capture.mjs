@@ -21,6 +21,11 @@
 // 委ねる先が無いのでこの集合に入れる。足す候補を検討するときは「決定論的か」「両実装で意味が
 // 保たれるか」に加えて「外したとき画素経路が拾えるか」を必ず問う。
 //
+// 計算値が url() を含みうる項目（cursor のカスタムカーソル等）は、相対 URL が自分のオリジンで
+// 絶対化されるため、そのままでは現・新のホスト違いが偽の差分になる。captureElement が同一
+// オリジンの url() だけを畳んで比較可能にしている（下記 foldOrigin）。url() を持ちうる項目を
+// 足すときは、この正規化で両側が揃うかを確かめる。
+//
 // 状態遷移（hover / focus / active / disabled 等）はこの関数の責務ではない。呼び出し側
 // （スイート）が状態へ遷移させたうえで captureTraits を呼ぶ。この関数は「今の状態」を採るだけ。
 //
@@ -88,6 +93,20 @@ export const FIXED_PROPERTIES = [
  * @param {readonly string[]} props
  */
 function captureElement(el, props) {
+  // 同一オリジンの url() をオリジン非依存の印へ畳む。cursor: url(cur.png) のような相対 URL の
+  // 計算値は自分のオリジンで絶対化されるため（実測: 同じ CSS が :8811 と :8822 で別文字列になる）、
+  // 現・新がホストもポートも違う前提のパリティ比較では、同じ指定が偽の property 差分になる。
+  // 畳むのは自分のオリジンで始まる URL だけ。data: と他オリジンの URL は両側で同じ文字列に
+  // なるので触らない（畳むと別ホストの資産どうしが同一視され、本物の差分を消す）。
+  // 正規化できないとき（file:// 等で origin が "null"）は元の値のまま残す——偽の差分として
+  // 目に見える側へ倒し、黙って一致させない。
+  const origin = location.origin;
+  const foldable = /^https?:\/\//.test(origin);
+  const foldOrigin = (value) =>
+    foldable && value.includes(origin + "/")
+      ? value.split(origin + "/").join("<same-origin>/")
+      : value;
+
   const pick = (pseudo) => {
     const style = getComputedStyle(el, pseudo);
     if (pseudo && style.content === "none") return null;
@@ -99,7 +118,7 @@ function captureElement(el, props) {
       // 現・新の両側が同じ空文字になり「差が無い」と読めてしまう（集合に入れた意味が消える）。
       // 検出できないことを黙って通さず、どの名前が解決しなかったかを付けて落とす。
       if (value === "") unknown.push(prop);
-      out[prop] = value;
+      out[prop] = foldOrigin(value);
     }
     if (unknown.length > 0) {
       throw new Error(
