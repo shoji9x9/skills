@@ -353,6 +353,11 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   **`gh pr checks` だけで「進行中でない」と結論しない。** 同コマンドはレビュー bot の check-run を一覧に出さないことがあり（実測: `copilot-pull-request-reviewer` が
   `in_progress` でも `gh pr checks` の pending に現れない）、**pending 0 件は不在の証拠にならない**。現 HEAD の commit check-runs endpoint を必ず併せて見る:
 
+  **この経路を使えるのは、レビュー用 check-run 名が分かっている `review_tool` だけ**（`copilot` は `copilot-pull-request-reviewer`・実測）。
+  mention 方式（`claude-code` / `codex`）は check-run 名が決まっていないため、名前を推測してこの照会を撃たない——
+  候補ゼロが返り、実行中のレビューを不在と誤判定する。名前が分からないツールでは**この経路を「判定不能」として扱い**、
+  補助シグナル（進行中の bot レビュー／コメント）と上限つき待機で判断する（不在の証拠にはしない）。
+
   ```bash
   # <review-check-name> は設定した review_tool のレビュー用 check-run 名（copilot なら copilot-pull-request-reviewer・実測）。
   # 絞り込みは gh の --jq 内で完結させる（外部 jq へパイプしない。前提ツールを増やさず、gh api の終了コードも保てる）。
@@ -365,8 +370,9 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 
   **ここで数えるのはレビュー用 check-run だけにする。** この endpoint には通常の CI も入るため、未完了を無条件にレビュー進行中と読むと、
   `gh pr checks` に pending として出ない無関係な run が再依頼を無期限に抑止する。**名前の部分一致で拾わない**——
-  `dependency-review` / `security-review` のような通常の CI まで進行中レビューに数えてしまう。設定した `review_tool` の check-run 名に完全一致させ、
-  返した `app` と `output` の趣旨からレビューエージェントのものだと確認できた候補だけを進行中シグナルに数える。
+  `dependency-review` / `security-review` のような通常の CI まで進行中レビューに数えてしまう。設定した `review_tool` の check-run 名に完全一致させる。
+  **`output` の有無を条件にしない**——進行中の check-run は `output.title` / `output.summary` を持たないことがある（実測）。
+  出力は「到着したレビューが実際に行われたか」を確かめる材料であって、進行中判定の必須条件ではない。
   **`gh api` が非 0 で終わったら空の結果を「進行中なし」の証拠にしない**（権限・ref 不正・一時的な API 失敗でも空になる）。
   終了コードを確認し、失敗なら不在と判定せずに再取得へ回す（fail-closed）。
   両経路ともレビュー候補が空で、かつ取得自体が成功しているときだけ「進行中なし」とする。

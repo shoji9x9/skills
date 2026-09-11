@@ -463,6 +463,63 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
   }
 });
 
+test("プロファイルを宣言しない部品のセルも候補経路と同じ規則で採点する", () => {
+  // 記録側だけ通る表を作らない。片方だけ検査すると conformance.ok を出した表を収束側が弾く
+  const generic = () => ({
+    feature: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "適合プロファイルが無い",
+        items: [{ id: "ctx-menu" }],
+        instances: [{ id: "orders" }],
+      },
+    ],
+    cells: [
+      {
+        component: "grid",
+        item: "ctx-menu",
+        instance: "orders",
+        value: "absent",
+        covered_by: [],
+        evidence: "全状態で非表示",
+        absence_evidence: { kind: "non-renderable" },
+      },
+    ],
+  });
+
+  const broken = reconcile(generic(), bundled);
+  expect(broken).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(broken.problems.join("\n")).toMatch(/non-renderable/);
+
+  for (const [mutate, pattern] of [
+    [(c) => (c.cells = []), /セルが無い/],
+    [(c) => (c.cells[0].evidence = "  "), /evidence が空/],
+    [(c) => c.cells.push(structuredClone(c.cells[0])), /セル行が複数ある/],
+    [
+      (c) => {
+        c.cells[0].value = "present";
+        c.cells[0].absence_evidence = null;
+      },
+      /covered_by が空/,
+    ],
+  ]) {
+    const cov = generic();
+    mutate(cov);
+    const r = reconcile(cov, bundled);
+    expect(r.ok).toBe(false);
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+
+  // 陽性コントロール: 正しく測れていれば通る（常に落とす実装を弾く）
+  const good = generic();
+  good.cells[0].value = "present";
+  good.cells[0].covered_by = ["e2e/parity/order-list.spec.ts > ctx menu"];
+  good.cells[0].absence_evidence = null;
+  expect(reconcile(good, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+});
+
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
   const cov = datagridCoverage();
   cov.components[0].instances[0].enumeration.complete = false;

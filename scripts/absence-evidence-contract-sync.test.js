@@ -64,8 +64,9 @@ const regions = Object.fromEntries(
 test.each(Object.keys(SOURCES))(
   "陽性コントロール: %s の契約領域が実体を含む（空振り・切り詰めを一致と報告しない）",
   (tool) => {
+    // 長さの下限は置かない。契約の意味ではなく実装サイズに依存し、コメント整理や
+    // 共通化だけで落ちる。空振り・切り詰めは REQUIRED_MEMBERS と構文検査が捕まえる。
     const region = regions[tool];
-    expect(region.length).toBeGreaterThan(5000);
     for (const member of REQUIRED_MEMBERS) {
       expect(region, `${tool} に ${member} が無い`).toContain(member);
     }

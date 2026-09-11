@@ -332,6 +332,54 @@ function absentEvidenceProblem(row, label, stateManifest) {
 // ===== absence-evidence-contract:end =====
 
 /**
+ * 被覆表のセル 1 件を採点する。判定規則の正本は `references/coverage.md`「部品被覆表」。
+ * **候補経路（プロファイル宣言あり）と汎用経路（`profile: null`）で同じ規則を使う**——
+ * 片方だけ検査すると、記録側は conformance.ok を出すのに収束側（parity-diff の
+ * coverage-check.mjs）が同じ表を弾く状態になる。
+ * @param {unknown} row - セル行（無ければ undefined）
+ * @param {boolean} isDuplicated - 同じ組み合わせの行が複数あるか
+ * @param {string} label - 問題文に出す位置
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @param {string[]} problems - 問題の追記先
+ * @returns {boolean} 未測定として数えるべきか
+ */
+function gradeCellRow(row, isDuplicated, label, stateManifest, problems) {
+  if (isDuplicated) {
+    problems.push(`${label}: セル行が複数ある（先勝ちにしない）`);
+    return true;
+  }
+  if (!isPlainObject(row)) {
+    problems.push(`${label}: セルが無い（行の無い組み合わせは未測定）`);
+    return true;
+  }
+  const cell = /** @type {Record<string, unknown>} */ (row);
+  const value = cell.value;
+  if (typeof value !== "string" || !VALUES.includes(value)) {
+    problems.push(`${label}: value が ${VALUES.join(" / ")} のいずれでもない`);
+    return true;
+  }
+  if (value === "unmeasured") return true;
+  if (!nonEmptyString(cell.evidence)) {
+    problems.push(`${label}: value: ${value} なのに evidence が空`);
+    return true;
+  }
+  if (value === "present") {
+    const coveredBy = Array.isArray(cell.covered_by) ? cell.covered_by.filter(nonEmptyString) : [];
+    if (coveredBy.length === 0) {
+      problems.push(`${label}: value: present なのに covered_by が空（assertion に落ちていない）`);
+      return true;
+    }
+    return false;
+  }
+  const absenceProblem = absentEvidenceProblem(cell, label, stateManifest);
+  if (absenceProblem) {
+    problems.push(absenceProblem);
+    return true;
+  }
+  return false;
+}
+
+/**
  * プロファイルの形式を検査する。壊れたプロファイルを静かに無視すると、
  * 候補ゼロ＝「照合するものが無い」で素通りするため、その場で問題として返す。
  * @param {unknown} profile
@@ -1037,6 +1085,28 @@ export function reconcile(coverage, profiles) {
         problems.push(
           `部品 ${cid}: profile: null なのに profile_absent_reason が空（未検証の根拠が残らない）`,
         );
+      }
+      // プロファイルを宣言しない部品でも期待セルは 項目 × インスタンス で存在する。
+      // 候補展開はしないが、セルの判定規則は候補経路と同じものを当てる（記録側だけ通る表を作らない）。
+      for (const rawItem of Array.isArray(c.items) ? c.items : []) {
+        const itemId = isPlainObject(rawItem)
+          ? /** @type {Record<string, unknown>} */ (rawItem).id
+          : undefined;
+        if (!nonEmptyString(itemId)) continue;
+        for (const rawInst of Array.isArray(c.instances) ? c.instances : []) {
+          if (!isPlainObject(rawInst)) continue;
+          const inst = /** @type {Record<string, unknown>} */ (rawInst);
+          if (!nonEmptyString(inst.id)) continue;
+          const key = keyOf(cid, String(itemId), String(inst.id));
+          const isUnmeasured = gradeCellRow(
+            byKey.get(key),
+            duplicated.has(key),
+            `部品 ${cid} / インスタンス ${String(inst.id)}: 項目 ${String(itemId)}`,
+            inst.applicable_states,
+            problems,
+          );
+          if (isUnmeasured) unmeasured += 1;
+        }
       }
       report.push({
         component: cid,
