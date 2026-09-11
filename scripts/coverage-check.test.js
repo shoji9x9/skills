@@ -248,6 +248,9 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
       }
     },
     (e) => (e.states[1].hidden_by.computed_style = {}),
+    // hidden_by は「非表示原因なし」を明示的な null で書く。キーごとの省略は証拠の欠落として扱う
+    (e) => delete e.states[0].hidden_by,
+    (e) => delete e.states[1].hidden_by,
     (e) => {
       e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
       e.states[1].hidden_by.computed_style = { display: "block", color: "red" };

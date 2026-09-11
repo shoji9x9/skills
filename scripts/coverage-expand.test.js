@@ -355,6 +355,8 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     [(e) => (e.states[0].locator_match_count = 2), /一意に引けていない/],
     [(e) => delete e.states[0].locator_match_count, /locator_match_count/],
     [(e) => (e.states[0].locator_match_count = -1), /locator_match_count/],
+    // hidden_by のキーごとの省略は、明示的な null と区別して証拠の欠落として扱う
+    [(e) => delete e.states[0].hidden_by, /hidden_by が null または JSON オブジェクトではない/],
     // 0 件（DOM に無い）なのに矩形が残っている矛盾
     [(e) => (e.states[0].locator_match_count = 0), /0 件なのに/],
     // 全状態 0 件では locator の正しさを実証できていない
