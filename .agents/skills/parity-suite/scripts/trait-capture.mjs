@@ -105,6 +105,10 @@ function captureElement(el, props) {
   // 値全体への単純置換にすると、他オリジン URL のパス・クエリにたまたま自オリジンが現れた値
   // （url("https://cdn.example/redirect/http://legacy.example:8811/x") 等）まで畳んで、
   // 現・新で別物を指している外部参照を同値化し、本物の差分を消す。
+  //
+  // 射程: 畳むのは URL 文字列までで、参照先の資産の中身は照合しない。現新が同じパスで
+  // 別バイトの資産を配信していると、その見た目差はこの経路にも画素にも現れない。
+  // 対象要素がある機能は gaps.md へ「採取値の射程外」として残す（確認済みにしない）。
   const origin = location.origin;
   const foldable = /^https?:\/\//.test(origin);
   const foldOrigin = (value) => {

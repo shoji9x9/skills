@@ -40,6 +40,7 @@
 | タブ順の厳密一致（停止数・順序の完全一致） | 対象外 | 仕様が保証するのは到達可能性と論理的順序。停止数は実装方式で変わる | `parity-suite` の `SKILL.md`「厳守の制約」 |
 | インフラ構成・CI/CD パイプラインのパリティ | 対象外 | **現・新で基盤が変わることは前提**であり、保存すべき仕様はアプリの外形的な振る舞い。現行の IaC / ワークフローと新側のそれを突き合わせない | — |
 | ローディング表示 | 条件付き | 明示的な loading UI がある画面だけ対象。indicator が無い画面は対象外として記録 | `parity-suite` の `references/coverage.md` |
+| `url()` 参照資産の中身（カスタムカーソル画像等） | 対象外 | 特性照合は URL 文字列までで資産のバイトを見ず、カーソルは撮影にも写らない。対象要素があれば `gaps.md` に「採取値の射程外」として必須記録 | `parity-suite` の `references/baseline.md` |
 | 採取環境依存の一致（フォント等） | 条件付き | 環境非依存のフォントスタックにする／利用者環境でも採取する／`gaps.md` に残す のいずれか | `parity-suite` の `references/baseline.md` |
 | 書き込み系の検証 | 条件付き | 対象 target が書き込みを許可していること（`forbidden_actions` / `seedable`）。不許可なら実行せず未検証として記録 | [`project-config.md`](project-config.md)「実行対象環境」 |
 | 後始末できない書き込み（削除機能が無い等） | 条件付き | 事前にユーザーへ残置可否を確認し、「hermetic でない」と明示して一覧化 | `parity-suite` の `references/data-discipline.md` |

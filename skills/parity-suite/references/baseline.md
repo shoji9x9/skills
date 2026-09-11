@@ -18,6 +18,11 @@
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
   固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。プロパティ集合の正本は
   [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる
+- **`url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。** 採取ツールは相対 URL の絶対化によるホスト違いを消すため
+  同一オリジンの `url()` をオリジン非依存の印へ畳む（[`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `foldOrigin`）。
+  このため**現新が同じパスで別バイトの資産を配信していると、その見た目差は特性照合にも画素にも現れない**（カスタムカーソルの画像が該当する）。
+  対象要素があれば `gaps.md` の「特性化できなかった箇所と理由」へ種別「採取値の射程外」として残し、確認済みにしない。
+  強度ゲートで注入しても特性照合が赤にならないので、`strength.md` の「未検証の故障種別」にも同じ理由で残す
 - **`FIXED_PROPERTIES` を変えたら現側・新側の両方を採り直す。** `parity-diff` の前提確認はツールの `VERSION` と `metadata.json` の記録値の一致を要求するため、
   片側だけ採り直した成果物は比較に進めない（止まるのが正しい振る舞い）
 - 採取には同梱 [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定。コピー専用のサブディレクトリ。配置指針は [`locator-mapping.md`](locator-mapping.md)）へコピーして使う。
