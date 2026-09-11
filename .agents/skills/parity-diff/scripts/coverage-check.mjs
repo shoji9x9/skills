@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -54,6 +54,74 @@ const ID_SEPARATOR = "/";
  */
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
+}
+
+/**
+ * absent セルの経路別証拠を検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、非描画経路は状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} row
+ * @param {string} label
+ * @returns {string|null}
+ */
+function absentEvidenceProblem(row, label) {
+  if (!isPlainObject(row.absence_evidence)) {
+    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
+  }
+  const evidence = /** @type {Record<string, unknown>} */ (row.absence_evidence);
+  if (evidence.kind === "fired-without-response") return null;
+  if (evidence.kind !== "non-renderable") {
+    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
+  }
+  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
+    return `${label}: non-renderable の locator / state_source が空`;
+  }
+  if (evidence.states_exhaustive !== true) {
+    return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
+    return `${label}: non-renderable の states が空`;
+  }
+  for (const [index, rawState] of evidence.states.entries()) {
+    const stateLabel = `${label}: non-renderable.states[${index}]`;
+    if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
+    const state = /** @type {Record<string, unknown>} */ (rawState);
+    if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
+      return `${stateLabel} の name / transition が空`;
+    }
+    if (!("bounding_box" in state) || !("offset_parent" in state)) {
+      return `${stateLabel} に bounding_box / offset_parent が無い`;
+    }
+    if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
+      return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
+    }
+    let zeroArea = false;
+    if (state.bounding_box !== null) {
+      if (!isPlainObject(state.bounding_box)) {
+        return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
+      }
+      const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
+      if (![box.x, box.y, box.width, box.height].every((v) => typeof v === "number")) {
+        return `${stateLabel}.bounding_box の x / y / width / height が数値ではない`;
+      }
+      zeroArea = box.width === 0 || box.height === 0;
+    }
+    let hiddenCause = false;
+    if (state.hidden_by !== null) {
+      if (!isPlainObject(state.hidden_by)) {
+        return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
+      }
+      const hidden = /** @type {Record<string, unknown>} */ (state.hidden_by);
+      hiddenCause =
+        nonEmptyString(hidden.locator) &&
+        isPlainObject(hidden.computed_style) &&
+        Object.keys(hidden.computed_style).length > 0;
+      if (!hiddenCause) return `${stateLabel}.hidden_by の locator / computed_style が空`;
+    }
+    if (!zeroArea && !hiddenCause) {
+      return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -233,6 +301,11 @@ function gradeCell(row, duplicated, label, problems) {
       return "unmeasured";
     }
     return "present";
+  }
+  const absenceProblem = absentEvidenceProblem(row, label);
+  if (absenceProblem) {
+    problems.push(absenceProblem);
+    return "unmeasured";
   }
   return "absent";
 }

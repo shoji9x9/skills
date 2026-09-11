@@ -195,6 +195,37 @@ test("セルの未測定・証拠なし・対応付けなしは候補由来の�
   }
 });
 
+test("候補由来の非描画 absent も全状態の機械可読証拠を検査する", () => {
+  const cov = datagridCoverage();
+  cov.cells[0] = {
+    ...cov.cells[0],
+    value: "absent",
+    covered_by: [],
+    evidence: "全到達状態で非描画",
+    absence_evidence: {
+      kind: "non-renderable",
+      locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
+      state_source: "datagrid profile と現行 UI",
+      states_exhaustive: true,
+      states: [
+        {
+          name: "desktop/default",
+          transition: "右端までスクロールする",
+          bounding_box: { x: 0, y: 0, width: 0, height: 20 },
+          offset_parent: null,
+          hidden_by: null,
+        },
+      ],
+    },
+  };
+  expect(reconcile(cov, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  delete cov.cells[0].absence_evidence.states[0].offset_parent;
+  const invalid = reconcile(cov, bundled);
+  expect(invalid).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(invalid.problems.join("\n")).toMatch(/offset_parent/);
+});
+
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
   const cov = datagridCoverage();
   cov.components[0].instances[0].enumeration.complete = false;

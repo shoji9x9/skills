@@ -88,6 +88,21 @@
       "instance": "<インスタンス id>",
       "value": "<present | absent | unmeasured>",
       "evidence": "<present または操作可能要素が在る absent: 測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果。全到達状態で非描画の absent: ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と offsetParent、非表示原因となった要素または祖先とその computed style。present / absent はここが空だと未測定として数える。後者以外で発火を確認できなければ absent にせず unmeasured>",
+      "absence_evidence": {
+        "kind": "<absent のとき fired-without-response | non-renderable。present / unmeasured では null>",
+        "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
+        "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
+        "states_exhaustive": true,
+        "states": [
+          {
+            "name": "<状態名>",
+            "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
+            "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
+            "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
+            "hidden_by": "<null または { locator, computed_style }。非表示原因となった本人／祖先と display・visibility 等の実測値>"
+          }
+        ]
+      },
       "covered_by": [
         "<present のとき、その操作を押さえた採取状態（metadata.json.capture_conditions.states の値）または assertion のスペックパス＋テスト名。空なら未測定として数える>"
       ],

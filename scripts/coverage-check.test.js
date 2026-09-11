@@ -61,10 +61,37 @@ function full() {
       cell("ctx-menu", "search", {
         value: "absent",
         evidence: "右クリックしてもメニューが出ない",
+        absence_evidence: { kind: "fired-without-response" },
         covered_by: [],
       }),
       cell("drag-reorder", "orders"),
       cell("drag-reorder", "search"),
+    ],
+  };
+}
+
+/** 全到達状態で非描画だった absent の機械可読証拠。 */
+function nonRenderableEvidence() {
+  return {
+    kind: "non-renderable",
+    locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
+    state_source: "vendor spec v2 と現行 UI",
+    states_exhaustive: true,
+    states: [
+      {
+        name: "desktop/default",
+        transition: "desktop viewport でメニューを開く",
+        bounding_box: { x: 60, y: 0, width: 0, height: 20 },
+        offset_parent: null,
+        hidden_by: null,
+      },
+      {
+        name: "mobile/admin",
+        transition: "mobile viewport・admin 権限でメニューを開く",
+        bounding_box: null,
+        offset_parent: null,
+        hidden_by: { locator: "#menu", computed_style: { display: "none" } },
+      },
     ],
   };
 }
@@ -104,6 +131,47 @@ test("evidence が空なら present / absent でも未測定", () => {
   const r = countCoverage(cov, "order-list");
   expect(r.unmeasured).toBe(1);
   expect(r.problems.join("\n")).toMatch(/evidence/);
+});
+
+test("非描画 absent は全状態の機械可読証拠が揃った場合だけ通る", () => {
+  const cov = full();
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に倒す", () => {
+  const mutations = [
+    (e) => delete e.locator,
+    (e) => delete e.state_source,
+    (e) => (e.states_exhaustive = false),
+    (e) => (e.states = []),
+    (e) => delete e.states[0].bounding_box,
+    (e) => delete e.states[0].offset_parent,
+    (e) => (e.states[0].offset_parent = 3),
+    (e) => (e.states[0].bounding_box.width = "0"),
+    (e) => (e.states[0].bounding_box.width = 10),
+    (e) => (e.states[1].hidden_by.computed_style = {}),
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r.absent).toBe(0);
+    expect(r.unmeasured).toBe(1);
+    expect(r.problems.join("\n")).toMatch(
+      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法/,
+    );
+  }
+});
+
+test("absent の経路識別が無い・未知なら散文 evidence があっても未測定", () => {
+  for (const absenceEvidence of [undefined, { kind: "unknown" }]) {
+    const cov = full();
+    cov.cells[1].absence_evidence = absenceEvidence;
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 0, unmeasured: 1 });
+  }
 });
 
 test("同じ組み合わせの重複行は先勝ちにせず未測定として数える", () => {

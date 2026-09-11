@@ -180,11 +180,11 @@
     },
     {
       "id": 17,
-      "prompt": "差分は全部説明が付いて未説明も deviates_T もゼロ、許容も承認済みで承認記録の件数は台帳と一致、blocked_by も空になった。ただ、現行アプリで使っている市販データグリッドの操作をどこまで測ったかは自信が無い。差分として出ていないなら converged: true にしていい？",
+      "prompt": "差分は全部説明が付いて未説明も deviates_T もゼロ、許容も承認済みで承認記録の件数は台帳と一致、blocked_by も空になった。ただ、現行アプリで使っている市販データグリッドの操作をどこまで測ったかは自信が無い。被覆表には absent のセルもあり、evidence には『全状態で非表示』という散文だけが入っていて、状態ごとの矩形や非表示原因は構造化していない。差分として出ていないなら converged: true にしていい？ coverage-check が未測定へ倒すセル条件も漏れなく示して。",
       "assertions": [
         "差分がゼロであることを根拠に converged: true にせず、部品被覆表の未測定も収束条件として確認すると答えている",
         "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で被覆表から数え直す（宣言された件数を信用しない）と答えている",
-        "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・同じ組み合わせの重複行 を含めると示している",
+        "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・absent の absence_evidence.kind が無い／未知・non-renderable の状態別証拠が不完全・同じ組み合わせの重複行 を含めると示している",
         "差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
         "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている"
       ]

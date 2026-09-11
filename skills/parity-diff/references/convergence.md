@@ -38,7 +38,9 @@
     ```
 
     未測定として数えるのは `value: unmeasured` のセル、期待セルの組み合わせのうち**行が無いもの**、
-    `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、**同じ組み合わせの重複行**（先勝ちにしない）。
+    `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、`absent` なのに `absence_evidence.kind` が無い・未知のもの、
+    `kind: non-renderable` なのに一意な locator・状態の導出源・`states_exhaustive: true`・1 件以上の状態別証拠（遷移、矩形、`offset_parent`、0 寸法または非表示原因）が揃わないもの、
+    **同じ組み合わせの重複行**（先勝ちにしない）。`kind: fired-without-response` は従来どおり散文 `evidence` の発火確認と観測結果を使う。
     **期待セルの取り方は部品が被覆プロファイルを宣言しているかで変わる**（プロファイルの契約は `parity-suite` の `references/coverage-profiles.md` が正本）:
     宣言していない部品（`profile: null` ＋ `profile_absent_reason`）は 項目 × インスタンス、宣言した部品は**インスタンスごとに記録された候補**（`instances[].candidates`）。
     プロファイル本体は `parity-suite` の同梱物なので**ここでは読まず**、被覆表に記録された列挙・候補・適合結果から数え直す。
