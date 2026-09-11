@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -62,9 +62,10 @@ function isPlainObject(v) {
  * parity-diff 側でも数え直せる機械可読な形に限定する。
  * @param {Record<string, unknown>} row
  * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
  * @returns {string|null}
  */
-function absentEvidenceProblem(row, label) {
+function absentEvidenceProblem(row, label, stateManifest) {
   if (!isPlainObject(row.absence_evidence)) {
     return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
   }
@@ -78,6 +79,35 @@ function absentEvidenceProblem(row, label) {
   }
   if (evidence.states_exhaustive !== true) {
     return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  if (!isPlainObject(stateManifest)) {
+    return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
+  }
+  const manifest = /** @type {Record<string, unknown>} */ (stateManifest);
+  const source = isPlainObject(manifest.source)
+    ? /** @type {Record<string, unknown>} */ (manifest.source)
+    : null;
+  if (
+    manifest.complete !== true ||
+    source === null ||
+    ![source.kind, source.ref, source.version, source.condition].every(nonEmptyString)
+  ) {
+    return `${label}: applicable_states の complete / source が不完全`;
+  }
+  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+    return `${label}: applicable_states.items が空`;
+  }
+  /** @type {Map<string, string>} */
+  const manifestStates = new Map();
+  for (const [index, rawItem] of manifest.items.entries()) {
+    if (!isPlainObject(rawItem)) return `${label}: applicable_states.items[${index}] が不正`;
+    const item = /** @type {Record<string, unknown>} */ (rawItem);
+    if (!nonEmptyString(item.id) || !nonEmptyString(item.transition)) {
+      return `${label}: applicable_states.items[${index}] の id / transition が空`;
+    }
+    const id = String(item.id);
+    if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
+    manifestStates.set(id, String(item.transition));
   }
   if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
     return `${label}: non-renderable の states が空`;
@@ -105,6 +135,9 @@ function absentEvidenceProblem(row, label) {
     const stateName = String(state.name);
     if (measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
     measuredStates.add(stateName);
+    if (manifestStates.get(stateName) !== String(state.transition)) {
+      return `${stateLabel} が applicable_states の id / transition と一致しない`;
+    }
     if (!("bounding_box" in state) || !("offset_parent" in state)) {
       return `${stateLabel} に bounding_box / offset_parent が無い`;
     }
@@ -133,13 +166,19 @@ function absentEvidenceProblem(row, label) {
         : null;
       hiddenCause =
         nonEmptyString(hidden.locator) &&
+        hidden.relationship_verified === true &&
+        (hidden.relation === "self" || hidden.relation === "ancestor") &&
+        hidden.target_locator === evidence.locator &&
         style !== null &&
         (style.display === "none" ||
           style.visibility === "hidden" ||
           style.visibility === "collapse");
       if (!hiddenCause) {
-        return `${stateLabel}.hidden_by が display: none / visibility: hidden | collapse を示さない`;
+        return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
       }
+    }
+    if (hiddenCause && state.bounding_box !== null) {
+      return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
     }
     if (!zeroArea && !hiddenCause) {
       return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
@@ -147,9 +186,11 @@ function absentEvidenceProblem(row, label) {
   }
   if (
     measuredStates.size !== expectedStates.length ||
-    expectedStates.some((name) => !measuredStates.has(name))
+    expectedStates.some((name) => !measuredStates.has(name)) ||
+    expectedStates.length !== manifestStates.size ||
+    expectedStates.some((name) => !manifestStates.has(name))
   ) {
-    return `${label}: non-renderable の expected_states と states[].name が完全一致しない`;
+    return `${label}: expected_states / states[].name / applicable_states.items[].id が完全一致しない`;
   }
   return null;
 }
@@ -1078,7 +1119,11 @@ export function reconcile(coverage, profiles) {
             unmeasured += 1;
           }
         } else {
-          const absenceProblem = absentEvidenceProblem(row, `${label}: 候補 ${cand.id}`);
+          const absenceProblem = absentEvidenceProblem(
+            row,
+            `${label}: 候補 ${cand.id}`,
+            inst.applicable_states,
+          );
           if (absenceProblem) {
             problems.push(absenceProblem);
             unmeasured += 1;

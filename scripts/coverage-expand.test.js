@@ -219,6 +219,16 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
       ],
     },
   };
+  cov.components[0].instances[0].applicable_states = {
+    source: {
+      kind: "current-source",
+      ref: "src/grid/states.json",
+      version: "rev-abc123",
+      condition: "desktop の全状態",
+    },
+    complete: true,
+    items: [{ id: "desktop/default", transition: "右端までスクロールする" }],
+  };
   expect(reconcile(cov, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
   delete cov.cells[0].absence_evidence.states[0].offset_parent;
@@ -236,16 +246,41 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     height: 20,
   };
   visibleStyle.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
     locator: "#price",
+    relation: "self",
+    relationship_verified: true,
     computed_style: { display: "block", color: "red" },
   };
-  expect(reconcile(visibleStyle, bundled).problems.join("\n")).toMatch(/display: none/);
+  visibleStyle.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(visibleStyle, bundled).problems.join("\n")).toMatch(/非表示 CSS/);
 
   const duplicateState = datagridCoverage();
   duplicateState.cells[0] = structuredClone(cov.cells[0]);
   duplicateState.cells[0].absence_evidence.states[0].offset_parent = null;
+  duplicateState.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
   duplicateState.cells[0].absence_evidence.expected_states.push("desktop/default");
   expect(reconcile(duplicateState, bundled).problems.join("\n")).toMatch(/expected_states が重複/);
+
+  const unrelatedHidden = datagridCoverage();
+  unrelatedHidden.cells[0] = structuredClone(cov.cells[0]);
+  unrelatedHidden.cells[0].absence_evidence.states[0].bounding_box = null;
+  unrelatedHidden.cells[0].absence_evidence.states[0].offset_parent = null;
+  unrelatedHidden.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "other-locator",
+    locator: "#other",
+    relation: "ancestor",
+    relationship_verified: true,
+    computed_style: { display: "none" },
+  };
+  unrelatedHidden.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(unrelatedHidden, bundled).problems.join("\n")).toMatch(/検証済み関係/);
 });
 
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {

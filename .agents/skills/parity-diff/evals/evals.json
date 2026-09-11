@@ -184,7 +184,7 @@
       "assertions": [
         "差分がゼロであることを根拠に converged: true にせず、部品被覆表の未測定も収束条件として確認すると答えている",
         "現側 metadata.json の component_coverage.declared が true のときだけ判定に入り、同梱の coverage-check.mjs で被覆表から数え直す（宣言された件数を信用しない）と答えている",
-        "数え直しの対象に value: unmeasured だけでなく、行が無い組み合わせ・evidence が空・present なのに covered_by が空・absent の absence_evidence.kind が無い／未知・non-renderable の expected_states 重複／不一致・状態別証拠が不完全・表示中の computed style・同じ組み合わせの重複行 を含めると示している",
+        "数え直しの対象に value: unmeasured だけでなく、行欠落・evidence 空・present の covered_by 空・absent の kind 無し／未知・applicable_states manifest 不完全／不一致・状態証拠不完全・hidden_by の関係未検証／表示中style／正寸法との矛盾・重複行を含めると示している",
         "差分器は採取した状態しか見ないため、測っていない操作の欠落は差分ゼロとして通ることを理由に挙げている",
         "未測定が残るなら parity-replace ではなく parity-suite へ戻して測らせると答えている"
       ]

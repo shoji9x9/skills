@@ -91,8 +91,30 @@ function nonRenderableEvidence() {
         transition: "mobile viewport・admin 権限でメニューを開く",
         bounding_box: null,
         offset_parent: null,
-        hidden_by: { locator: "#menu", computed_style: { display: "none" } },
+        hidden_by: {
+          target_locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
+          locator: "#menu",
+          relation: "ancestor",
+          relationship_verified: true,
+          computed_style: { display: "none" },
+        },
       },
+    ],
+  };
+}
+
+function applicableStates() {
+  return {
+    source: {
+      kind: "vendor-spec",
+      ref: "docs/grid-v2.json",
+      version: "v2",
+      condition: "viewport と権限の全組み合わせ",
+    },
+    complete: true,
+    items: [
+      { id: "desktop/default", transition: "desktop viewport でメニューを開く" },
+      { id: "mobile/admin", transition: "mobile viewport・admin 権限でメニューを開く" },
     ],
   };
 }
@@ -138,6 +160,7 @@ test("非描画 absent は全状態の機械可読証拠が揃った場合だけ
   const cov = full();
   cov.cells[1].evidence = "全到達状態で非描画";
   cov.cells[1].absence_evidence = nonRenderableEvidence();
+  cov.components[0].instances[1].applicable_states = applicableStates();
   expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
 });
 
@@ -165,6 +188,7 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
   for (const mutate of mutations) {
     const cov = full();
     cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
     mutate(cov.cells[1].absence_evidence);
     const r = countCoverage(cov, "order-list");
     expect(r.absent).toBe(0);
@@ -172,6 +196,22 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     expect(r.problems.join("\n")).toMatch(
       /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複/,
     );
+  }
+});
+
+test("非描画 absent は独立した applicable_states manifest と一致しなければ未測定", () => {
+  for (const mutate of [
+    (manifest) => (manifest.complete = false),
+    (manifest) => delete manifest.source.version,
+    (manifest) => manifest.items.push(structuredClone(manifest.items[0])),
+    (manifest) => (manifest.items[0].transition = "別の遷移"),
+    (manifest) => manifest.items.pop(),
+  ]) {
+    const cov = full();
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
+    mutate(cov.components[0].instances[1].applicable_states);
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 0, unmeasured: 1 });
   }
 });
 

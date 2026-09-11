@@ -34,6 +34,22 @@
           "id": "<インスタンス id。cells から参照する。\"/\" を含めない（候補キー・同値クラスの members が切り分けられない）>",
           "page": "<metadata.json.capture_conditions.pages[].name と同じ語彙のページ名>",
           "locator": "<そのインスタンスを引く論理名（ロケータマッピングで解決できる名前）>",
+          "applicable_states": {
+            "_note": "non-renderable absent を使うインスタンスだけが持つ、セルとは独立した適用可能状態manifest。セル側の自己申告だけで網羅済みにしないため、absence_evidence.expected_states と機械照合する。",
+            "source": {
+              "kind": "<profile | vendor-spec | current-source | app-ui>",
+              "ref": "<状態を導出した機械可読manifest・資料・ソース・画面の所在>",
+              "version": "<導出元の版・commit SHA>",
+              "condition": "<どのトリガー・viewport・scroll・データ・権限軸を列挙したか>"
+            },
+            "complete": true,
+            "items": [
+              {
+                "id": "<一意な状態 id。absence_evidence.expected_states / states[].name と完全一致させる>",
+                "transition": "<状態へ到達させる操作・条件。states[].transition と一致させる>"
+              }
+            ]
+          },
           "enumeration": {
             "_note": "プロファイルを宣言した部品だけが持つ。候補の列挙元と抽出条件（来歴）。同じ部品でも画面ごとに構成が違うためインスタンスごとに列挙し、他インスタンスへ流用しない。",
             "source": {
@@ -102,7 +118,7 @@
             "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
             "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
             "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
-            "hidden_by": "<null または { locator, computed_style }。非表示原因となった本人／祖先と display: none または visibility: hidden | collapse の実測値>"
+            "hidden_by": "<null または { target_locator, locator, relation: self | ancestor, relationship_verified: true, computed_style }。対象本人／祖先との関係を実測し、display: none または visibility: hidden | collapse を記録する。hidden_by がある状態の bounding_box は null>"
           }
         ]
       },
