@@ -84,8 +84,9 @@
       `offsetParent: null` だけを非表示の証拠にせず、矩形と非表示原因も突き合わせる。セルの `absence_evidence` は `kind: non-renderable`、`states_exhaustive: true` とし、
       インスタンスの `applicable_states` に、セルとは独立した状態manifest（完全な source と `complete: true`、一意な `items[].id` と遷移）を置く。
       `applicable_states.source.kind` は `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかで、それ以外は出所不明として `unmeasured` にする。`state_source` から導出した重複のない状態 id を
-      `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、実測した一致数を `locator_match_count`（1 以外は `unmeasured`）、
-      それを測った状態を `locator_match_state`（`states[].name` のいずれか）として記録する。同じ証拠を `locator` / `state_source` /
+      `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、**状態ごとに**実測した一致数を `states[].locator_match_count` として記録する。
+      2 件以上は一意に引けていないので `unmeasured`。0 件はその状態で DOM に無いことの実測として扱い、このとき矩形・`offset_parent`・`hidden_by` は全て `null` にする
+      （値が入っていれば矛盾として `unmeasured`）。全状態が 0 件だと `locator` が対象を引けている実証が一度も無く、誤った `locator` と区別できないため `unmeasured` とする。同じ証拠を `locator` / `state_source` /
       `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by` は `target_locator`、`relation: self | ancestor`、`relationship_verified: true` で対象との関係を記録し、
       `computed_style` が `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。`hidden_by` があるのに矩形が `null` でなければ矛盾として `unmeasured` にする。
       これらを満たした場合だけ、操作を送らず `absent` とする。
@@ -94,7 +95,9 @@
     操作可能な要素へ発火を確認する経路では `absence_evidence.kind: fired-without-response` を記録する。
     **送り方・発火確認・観測結果の 3 点は散文 `evidence` ではなく機械可読に残す**——`action`（`locator` / `method`（`locator-api` | `coordinate`）/ `detail`）、
     `fired`（`signal`（`event-listener` | `dom-change` | `state-change`）/ `detail` / `verified: true`）、`observation`。
-    `method: coordinate` では加えて `bounding_box`（幅・高さがともに正）、`hit_test_target`、`hit_test_is_target_or_descendant: true` を実測値で記録する。
+    この経路の前提は可視要素への操作なので、`method` に関わらず `bounding_box`（幅・高さがともに正）、`visible: true`、`actionability_bypassed: false` を実測値で記録する
+    （`force` や `dispatchEvent` で actionability を迂回した操作は可視要素への操作の証拠にならない）。`method: coordinate` では加えて `hit_test_target` と
+    `hit_test_is_target_or_descendant: true` も記録する。
     どれかが欠ける・`true` にならない場合は `absent` にせず `unmeasured` とする。コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、
     [`locator-mapping.md`](locator-mapping.md)「操作の実装差を吸収する層」に従い、
     判定用と操作用のロケータを分ける。操作用要素の `boundingBox()` が `null` でなく幅・高さがともに正で、中心座標の hit-test がその要素または子孫を指す状態まで `expect.poll` で自動リトライし、

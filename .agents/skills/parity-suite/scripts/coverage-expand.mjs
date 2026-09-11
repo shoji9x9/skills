@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -90,18 +90,26 @@ function firedEvidenceProblem(evidence, label) {
   if (!FIRED_ACTION_METHODS.includes(String(action.method))) {
     return `${label}: fired-without-response の action.method が ${FIRED_ACTION_METHODS.join(" / ")} のいずれでもない`;
   }
-  // 座標操作だけは、重なった別要素の発火を対象の発火と誤認しうる。正の矩形と hit-test の実測を要求する。
+  // この経路の前提は「操作可能な可視要素へ送った」こと。どちらの method でも正の矩形と可視性を実測させる。
+  // force / dispatchEvent のように actionability を迂回する送り方は、可視要素への操作の証拠にならない。
+  if (!isPlainObject(action.bounding_box)) {
+    return `${label}: fired-without-response なのに action.bounding_box が JSON オブジェクトではない`;
+  }
+  const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
+  if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+    return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
+  }
+  if (!(Number(box.width) > 0) || !(Number(box.height) > 0)) {
+    return `${label}: action.bounding_box の幅・高さが正ではない（可視要素への操作になっていない）`;
+  }
+  if (action.visible !== true) {
+    return `${label}: action.visible が実測の true ではない（可視要素へ送った証拠が無い）`;
+  }
+  if (action.actionability_bypassed !== false) {
+    return `${label}: action.actionability_bypassed が実測の false ではない（force / dispatchEvent 等で actionability を迂回していないことを示せていない）`;
+  }
+  // 座標操作だけは、重なった別要素の発火を対象の発火と誤認しうる。hit-test の実測も要求する。
   if (action.method === "coordinate") {
-    if (!isPlainObject(action.bounding_box)) {
-      return `${label}: 座標操作なのに action.bounding_box が JSON オブジェクトではない`;
-    }
-    const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
-    if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
-      return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
-    }
-    if (!(Number(box.width) > 0) || !(Number(box.height) > 0)) {
-      return `${label}: 座標操作なのに action.bounding_box の幅・高さが正ではない`;
-    }
     if (!nonEmptyString(action.hit_test_target)) {
       return `${label}: 座標操作なのに action.hit_test_target が空（何が発火先だったか残らない）`;
     }
@@ -147,11 +155,6 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   if (evidence.states_exhaustive !== true) {
     return `${label}: non-renderable の states_exhaustive が true ではない`;
-  }
-  // locator が対象の操作要素を一意に引くことは散文の規約では担保できない。実測した一致数を要求し、
-  // 1 以外（複数要素に当たる・0 件で別候補を指している）は不在を証明できていないので未測定へ倒す。
-  if (evidence.locator_match_count !== 1) {
-    return `${label}: non-renderable の locator_match_count が 1 ではない（対象の操作要素を一意に引けていない）`;
   }
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
@@ -201,6 +204,8 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   /** @type {Set<string>} */
   const measuredStates = new Set();
+  // locator が 0 件だった状態数。全状態が 0 件なら locator の正しさを実証できていない。
+  let domAbsentStates = 0;
   for (const [index, rawState] of evidence.states.entries()) {
     const stateLabel = `${label}: non-renderable.states[${index}]`;
     if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
@@ -213,6 +218,23 @@ function absentEvidenceProblem(row, label, stateManifest) {
     measuredStates.add(stateName);
     if (manifestStates.get(stateName) !== String(state.transition)) {
       return `${stateLabel} が applicable_states の id / transition と一致しない`;
+    }
+    // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
+    // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
+    if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
+      return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
+    }
+    const matchCount = Number(state.locator_match_count);
+    if (matchCount > 1) {
+      return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
+    }
+    if (matchCount === 0) {
+      // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
+      if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
+        return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
+      }
+      domAbsentStates += 1;
+      continue;
     }
     if (!("bounding_box" in state) || !("offset_parent" in state)) {
       return `${stateLabel} に bounding_box / offset_parent が無い`;
@@ -269,11 +291,9 @@ function absentEvidenceProblem(row, label, stateManifest) {
       return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
     }
   }
-  if (
-    !nonEmptyString(evidence.locator_match_state) ||
-    !measuredStates.has(String(evidence.locator_match_state))
-  ) {
-    return `${label}: non-renderable の locator_match_state が測定した状態のいずれでもない`;
+  // 全状態で 0 件なら locator が正しいことを一度も実証できておらず、誤った locator と区別できない。
+  if (domAbsentStates === measuredStates.size) {
+    return `${label}: non-renderable の locator がどの状態でも 0 件（locator が対象を引けている実証が無い）`;
   }
   if (
     measuredStates.size !== expectedStates.length ||

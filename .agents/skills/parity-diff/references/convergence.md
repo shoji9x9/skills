@@ -39,10 +39,12 @@
 
     未測定として数えるのは `value: unmeasured` のセル、期待セルの組み合わせのうち**行が無いもの**、
     `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、`absent` なのに `absence_evidence.kind` が無い・未知のもの、
-    `kind: non-renderable` なのに一意な locator（`locator_match_count: 1` と測定状態 `locator_match_state` の実測記録）・状態の導出源・`states_exhaustive: true`・インスタンス側の完全な `applicable_states` manifest
+    `kind: non-renderable` なのに一意な locator
+    （状態ごとの `locator_match_count` が 0 または 1 で、0 の状態は矩形・`offset_parent`・`hidden_by` が全て `null`、かつ 1 件の状態が 1 つ以上ある）・
+    状態の導出源・`states_exhaustive: true`・インスタンス側の完全な `applicable_states` manifest
     （`source.kind` が `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかであることを含む）・
     `expected_states` / `states[].name` / manifest 状態 id の一意な完全一致・遷移一致・1 件以上の状態別証拠（矩形、`offset_parent`、0 寸法または対象本人／祖先との検証済み関係を持つ非表示原因）が揃わないもの、
-    **同じ組み合わせの重複行**（先勝ちにしない）。`kind: fired-without-response` なのに `action`（`locator` / 語彙内の `method` / `detail`。`coordinate` では正の矩形・`hit_test_target`・
+    **同じ組み合わせの重複行**（先勝ちにしない）。`kind: fired-without-response` なのに `action`（`locator` / 語彙内の `method` / `detail`。正の矩形・`visible: true`・`actionability_bypassed: false`。`coordinate` では `hit_test_target`・
     `hit_test_is_target_or_descendant: true` も）・`fired`（語彙内の `signal` / `detail` / `verified: true`）・`observation` が揃わないもの。
     **期待セルの取り方は部品が被覆プロファイルを宣言しているかで変わる**（プロファイルの契約は `parity-suite` の `references/coverage-profiles.md` が正本）:
     宣言していない部品（`profile: null` ＋ `profile_absent_reason`）は 項目 × インスタンス、宣言した部品は**インスタンスごとに記録された候補**（`instances[].candidates`）。

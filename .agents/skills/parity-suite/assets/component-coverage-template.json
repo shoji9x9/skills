@@ -113,7 +113,9 @@
           "locator": "<操作用に引いた可視要素のロケータ（判定用と分ける場合は操作用の方）>",
           "method": "<locator-api | coordinate。座標操作は重なった別要素の発火を誤認しうるため追加条件が要る>",
           "detail": "<送った操作。例 locator.click({ button: 'right' }) / page.mouse.click(x, y, { button: 'right' })>",
-          "bounding_box": "<coordinate のとき必須。{ x, y, width, height } を数値のまま書く。幅・高さがともに正でなければ座標操作へ進めない>",
+          "bounding_box": "<必須。{ x, y, width, height } を数値のまま書く。幅・高さがともに正でなければ可視要素への操作になっていない>",
+          "visible": "<必須。操作時に実測した可視性（true 以外は unmeasured）>",
+          "actionability_bypassed": "<必須。force / dispatchEvent 等で actionability を迂回したか。false 以外は可視要素への操作の証拠にならない>",
           "hit_test_target": "<coordinate のとき必須。中心座標の hit-test が実際に指した要素のロケータ>",
           "hit_test_is_target_or_descendant": "<coordinate のとき必須。hit-test が操作用要素またはその子孫を指したかの実測（true 以外は unmeasured）>"
         },
@@ -124,8 +126,6 @@
           "verified": true
         },
         "observation": "<fired-without-response のとき、操作後に期待した UI 応答が無かったことの観測結果>",
-        "locator_match_count": "<non-renderable のとき、locator が実際に一致した要素数の実測値（数値のまま書く）。1 でなければ対象を一意に引けていないので absent にせず unmeasured>",
-        "locator_match_state": "<locator_match_count を実測した状態名。states[].name のいずれかと一致させる>",
         "states_exhaustive": true,
         "expected_states": [
           "<state_source から導出した状態 id。重複不可で states[].name と完全一致させる>"
@@ -134,6 +134,7 @@
           {
             "name": "<状態名>",
             "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
+            "locator_match_count": "<この状態で locator が一致した要素数の実測値（0 以上の整数を数値のまま書く）。2 以上は一意に引けていないので unmeasured。0 はその状態で DOM に無いことの実測で、このとき bounding_box / offset_parent / hidden_by は全て null にする。全状態が 0 だと locator の正しさを実証できないので unmeasured>",
             "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
             "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
             "hidden_by": "<null または { target_locator, locator, relation: self | ancestor, relationship_verified: true, computed_style }。対象本人／祖先との関係を実測し、display: none または visibility: hidden | collapse を記録する。hidden_by がある状態の bounding_box は null>"

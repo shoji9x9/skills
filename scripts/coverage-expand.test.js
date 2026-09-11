@@ -207,13 +207,12 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
       locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
       state_source: "datagrid profile と現行 UI",
       states_exhaustive: true,
-      locator_match_count: 1,
-      locator_match_state: "desktop/default",
       expected_states: ["desktop/default"],
       states: [
         {
           name: "desktop/default",
           transition: "右端までスクロールする",
+          locator_match_count: 1,
           bounding_box: { x: 0, y: 0, width: 0, height: 20 },
           offset_parent: null,
           hidden_by: null,
@@ -329,11 +328,45 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
   };
   expect(reconcile(visibilityHidden, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
 
-  // locator が対象を一意に引けていない記録は未測定へ倒す
+  // 新たに受理する入力クラス: 一部の状態で DOM に無い候補（1 件の状態が残っていれば通る）
+  const partiallyAbsent = datagridCoverage();
+  partiallyAbsent.cells[0] = structuredClone(cov.cells[0]);
+  partiallyAbsent.cells[0].absence_evidence.states[0].offset_parent = null;
+  partiallyAbsent.cells[0].absence_evidence.expected_states.push("mobile/default");
+  partiallyAbsent.cells[0].absence_evidence.states.push({
+    name: "mobile/default",
+    transition: "mobile viewport へ切り替える",
+    locator_match_count: 0,
+    bounding_box: null,
+    offset_parent: null,
+    hidden_by: null,
+  });
+  partiallyAbsent.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  partiallyAbsent.components[0].instances[0].applicable_states.items.push({
+    id: "mobile/default",
+    transition: "mobile viewport へ切り替える",
+  });
+  expect(reconcile(partiallyAbsent, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // locator が対象を一意に引けていない記録・矛盾した 0 件記録は未測定へ倒す
   for (const [mutate, pattern] of [
-    [(e) => (e.locator_match_count = 2), /locator_match_count/],
-    [(e) => delete e.locator_match_count, /locator_match_count/],
-    [(e) => (e.locator_match_state = "mobile/guest"), /locator_match_state/],
+    [(e) => (e.states[0].locator_match_count = 2), /一意に引けていない/],
+    [(e) => delete e.states[0].locator_match_count, /locator_match_count/],
+    [(e) => (e.states[0].locator_match_count = -1), /locator_match_count/],
+    // 0 件（DOM に無い）なのに矩形が残っている矛盾
+    [(e) => (e.states[0].locator_match_count = 0), /0 件なのに/],
+    // 全状態 0 件では locator の正しさを実証できていない
+    [
+      (e) => {
+        e.states[0].locator_match_count = 0;
+        e.states[0].bounding_box = null;
+        e.states[0].offset_parent = null;
+        e.states[0].hidden_by = null;
+      },
+      /どの状態でも 0 件/,
+    ],
   ]) {
     const badLocator = datagridCoverage();
     badLocator.cells[0] = structuredClone(cov.cells[0]);
@@ -382,6 +415,8 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
       method: "coordinate",
       detail: "page.mouse.click(x, y, { button: 'right' })",
       bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+      visible: true,
+      actionability_bypassed: false,
       hit_test_target: "getByTestId('grid-cell-1-1')",
       hit_test_is_target_or_descendant: true,
     },
@@ -408,6 +443,8 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
     [(e) => (e.action.bounding_box.width = 0), /幅・高さが正ではない/],
     [(e) => (e.action.hit_test_is_target_or_descendant = false), /hit-test/],
     [(e) => (e.fired.verified = false), /発火確認/],
+    [(e) => (e.action.visible = false), /action\.visible/],
+    [(e) => (e.action.actionability_bypassed = true), /actionability_bypassed/],
     [(e) => (e.observation = "  "), /observation/],
   ]) {
     const cov = base();
