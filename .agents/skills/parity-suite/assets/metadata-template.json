@@ -39,7 +39,7 @@
     "items": 0,
     "instances": 0,
     "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。被覆表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
-    "unmeasured": "<未測定セル数（value: unmeasured ＋ 行が無い組み合わせ ＋ present/absent なのに evidence が空 ＋ present なのに covered_by が空 ＋ 列挙できていないインスタンス）。1 以上なら parity-diff は収束させない>",
+    "unmeasured": "<未測定セル数。記録側の正本は parity-suite の references/coverage.md「部品被覆表」、数え直し側の正本は parity-diff の references/convergence.md。absent の経路別証拠・非描画経路の applicable_states manifest・hidden_by の検証済み関係・重複行まで含むため、条件をここへ書き写すと実際のゲートとずれる。概観用の宣言値で、判定側は被覆表の実体から数え直す。1 以上なら parity-diff は収束させない>",
     "profiles": [
       "<被覆表の components[].profile に現れたプロファイル id。適合プロファイルが無い部品は含めない（その部品は profile: null ＋ profile_absent_reason で未検証として残す）>"
     ],

@@ -31,13 +31,21 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
 
 /** 候補 id の区切り。軸値に含まれると id が衝突するため、列挙時に禁止する。 */
 const ID_SEPARATOR = "/";
+
+/**
+ * `instances[].applicable_states.source.kind` の語彙。
+ * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
+ * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
+ * parity-suite の coverage-expand.mjs と同じ集合を維持する。
+ */
+const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
 
 /**
  * 空でない文字列か。
@@ -93,6 +101,9 @@ function absentEvidenceProblem(row, label, stateManifest) {
     ![source.kind, source.ref, source.version, source.condition].every(nonEmptyString)
   ) {
     return `${label}: applicable_states の complete / source が不完全`;
+  }
+  if (!APPLICABLE_STATE_SOURCE_KINDS.includes(String(source.kind))) {
+    return `${label}: applicable_states.source.kind（${String(source.kind)}）が ${APPLICABLE_STATE_SOURCE_KINDS.join(" / ")} のいずれでもない`;
   }
   if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
     return `${label}: applicable_states.items が空`;

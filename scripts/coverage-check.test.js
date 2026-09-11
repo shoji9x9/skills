@@ -206,12 +206,26 @@ test("非描画 absent は独立した applicable_states manifest と一致し�
     (manifest) => manifest.items.push(structuredClone(manifest.items[0])),
     (manifest) => (manifest.items[0].transition = "別の遷移"),
     (manifest) => manifest.items.pop(),
+    // 語彙外の source.kind。空でないだけでは出所不明の manifest を収束させられる
+    (manifest) => (manifest.source.kind = "invented"),
+    (manifest) => (manifest.source.kind = "config"),
   ]) {
     const cov = full();
     cov.cells[1].absence_evidence = nonRenderableEvidence();
     cov.components[0].instances[1].applicable_states = applicableStates();
     mutate(cov.components[0].instances[1].applicable_states);
     expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 0, unmeasured: 1 });
+  }
+});
+
+test("applicable_states.source.kind はテンプレートの語彙 4 種だけを受理する", () => {
+  for (const kind of ["profile", "vendor-spec", "current-source", "app-ui"]) {
+    const cov = full();
+    cov.cells[1].evidence = "全到達状態で非描画";
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
+    cov.components[0].instances[1].applicable_states.source.kind = kind;
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
   }
 });
 

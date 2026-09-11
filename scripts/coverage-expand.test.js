@@ -281,6 +281,32 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     cov.components[0].instances[0].applicable_states,
   );
   expect(reconcile(unrelatedHidden, bundled).problems.join("\n")).toMatch(/検証済み関係/);
+
+  // 語彙外の source.kind は出所不明として未測定に倒す（非空判定だけでは通ってしまう）
+  for (const kind of ["invented", "config"]) {
+    const inventedSource = datagridCoverage();
+    inventedSource.cells[0] = structuredClone(cov.cells[0]);
+    inventedSource.cells[0].absence_evidence.states[0].offset_parent = null;
+    inventedSource.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    inventedSource.components[0].instances[0].applicable_states.source.kind = kind;
+    const r = reconcile(inventedSource, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(/applicable_states\.source\.kind/);
+  }
+
+  // 語彙内の 4 種はいずれも通る（allowlist を空にする変異で赤くなる）
+  for (const kind of ["profile", "vendor-spec", "current-source", "app-ui"]) {
+    const allowed = datagridCoverage();
+    allowed.cells[0] = structuredClone(cov.cells[0]);
+    allowed.cells[0].absence_evidence.states[0].offset_parent = null;
+    allowed.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    allowed.components[0].instances[0].applicable_states.source.kind = kind;
+    expect(reconcile(allowed, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+  }
 });
 
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
