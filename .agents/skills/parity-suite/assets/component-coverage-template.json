@@ -108,6 +108,22 @@
         "kind": "<absent のとき fired-without-response | non-renderable。present / unmeasured では null>",
         "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
         "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
+        "action": {
+          "_note": "fired-without-response のときだけ持つ。操作をどう送ったかの実測。",
+          "locator": "<操作用に引いた可視要素のロケータ（判定用と分ける場合は操作用の方）>",
+          "method": "<locator-api | coordinate。座標操作は重なった別要素の発火を誤認しうるため追加条件が要る>",
+          "detail": "<送った操作。例 locator.click({ button: 'right' }) / page.mouse.click(x, y, { button: 'right' })>",
+          "bounding_box": "<coordinate のとき必須。{ x, y, width, height } を数値のまま書く。幅・高さがともに正でなければ座標操作へ進めない>",
+          "hit_test_target": "<coordinate のとき必須。中心座標の hit-test が実際に指した要素のロケータ>",
+          "hit_test_is_target_or_descendant": "<coordinate のとき必須。hit-test が操作用要素またはその子孫を指したかの実測（true 以外は unmeasured）>"
+        },
+        "fired": {
+          "_note": "fired-without-response のときだけ持つ。操作が対象へ到達したことの別途確認。",
+          "signal": "<event-listener | dom-change | state-change>",
+          "detail": "<到達を確認した手段と結果。例 contextmenu リスナで受信した>",
+          "verified": true
+        },
+        "observation": "<fired-without-response のとき、操作後に期待した UI 応答が無かったことの観測結果>",
         "locator_match_count": "<non-renderable のとき、locator が実際に一致した要素数の実測値（数値のまま書く）。1 でなければ対象を一意に引けていないので absent にせず unmeasured>",
         "locator_match_state": "<locator_match_count を実測した状態名。states[].name のいずれかと一致させる>",
         "states_exhaustive": true,

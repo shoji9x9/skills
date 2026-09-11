@@ -61,13 +61,45 @@ function full() {
       cell("ctx-menu", "search", {
         value: "absent",
         evidence: "右クリックしてもメニューが出ない",
-        absence_evidence: { kind: "fired-without-response" },
+        absence_evidence: firedEvidence(),
         covered_by: [],
       }),
       cell("drag-reorder", "orders"),
       cell("drag-reorder", "search"),
     ],
   };
+}
+
+function firedEvidence(overrides = {}) {
+  return {
+    kind: "fired-without-response",
+    action: {
+      locator: "getByRole('row', { name: 'Order 1' })",
+      method: "locator-api",
+      detail: "locator.click({ button: 'right' })",
+    },
+    fired: {
+      signal: "event-listener",
+      detail: "contextmenu リスナで受信した",
+      verified: true,
+    },
+    observation: "メニューが開かず DOM も変化しなかった",
+    ...overrides,
+  };
+}
+
+/** 座標操作で発火を確認した場合の証拠。重なった別要素の発火と区別するため hit-test まで実測する。 */
+function firedCoordinateEvidence() {
+  return firedEvidence({
+    action: {
+      locator: "getByTestId('grid-cell-1-1')",
+      method: "coordinate",
+      detail: "page.mouse.click(x, y, { button: 'right' })",
+      bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+      hit_test_target: "getByTestId('grid-cell-1-1')",
+      hit_test_is_target_or_descendant: true,
+    },
+  });
 }
 
 /** 全到達状態で非描画だった absent の機械可読証拠。 */
@@ -271,6 +303,55 @@ test("id 欠落インスタンスは applicable_states の参照先にならな�
   const r = countCoverage(cov, "order-list");
   expect(r.absent).toBe(0);
   expect(r.problems.join("\n")).toMatch(/applicable_states が無い/);
+});
+
+test("座標操作で発火を確認した absent も、正の矩形と hit-test の実測が揃えば通る", () => {
+  const cov = full();
+  cov.cells[1].absence_evidence = firedCoordinateEvidence();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("fired-without-response は送り方・発火確認・観測結果が揃わなければ未測定", () => {
+  const mutations = [
+    (e) => delete e.action,
+    (e) => delete e.action.locator,
+    (e) => delete e.action.detail,
+    (e) => (e.action.method = "guess"),
+    (e) => delete e.fired,
+    (e) => (e.fired.signal = "assumed"),
+    (e) => (e.fired.verified = false),
+    (e) => delete e.fired.detail,
+    (e) => (e.observation = "  "),
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = firedEvidence();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r).toMatchObject({ absent: 0, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(/fired-without-response/);
+  }
+});
+
+test("座標操作は正の矩形と対象への hit-test を実測できない限り未測定", () => {
+  // 0 幅要素の中心座標で重なった別要素が発火した結果を、対象の発火として通さない
+  const mutations = [
+    (e) => delete e.action.bounding_box,
+    (e) => (e.action.bounding_box.width = 0),
+    (e) => (e.action.bounding_box.height = -1),
+    (e) => (e.action.bounding_box.x = Number.NaN),
+    (e) => delete e.action.hit_test_target,
+    (e) => (e.action.hit_test_is_target_or_descendant = false),
+    (e) => delete e.action.hit_test_is_target_or_descendant,
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = firedCoordinateEvidence();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r).toMatchObject({ absent: 0, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(/座標操作|bounding_box/);
+  }
 });
 
 test("absent の経路識別が無い・未知なら散文 evidence があっても未測定", () => {

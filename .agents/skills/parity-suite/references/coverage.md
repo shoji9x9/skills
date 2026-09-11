@@ -91,7 +91,11 @@
       これらを満たした場合だけ、操作を送らず `absent` とする。
       未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は `unmeasured` とする。一時点の非表示や 0 寸法だけで `absent` にすると、
       メニューを開く前、レスポンシブ切替前、仮想スクロール前、状態・権限の変更前に存在する操作を被覆から落とすためである。
-    操作可能な要素へ発火を確認する経路では `absence_evidence.kind: fired-without-response` を記録する。コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、
+    操作可能な要素へ発火を確認する経路では `absence_evidence.kind: fired-without-response` を記録する。
+    **送り方・発火確認・観測結果の 3 点は散文 `evidence` ではなく機械可読に残す**——`action`（`locator` / `method`（`locator-api` | `coordinate`）/ `detail`）、
+    `fired`（`signal`（`event-listener` | `dom-change` | `state-change`）/ `detail` / `verified: true`）、`observation`。
+    `method: coordinate` では加えて `bounding_box`（幅・高さがともに正）、`hit_test_target`、`hit_test_is_target_or_descendant: true` を実測値で記録する。
+    どれかが欠ける・`true` にならない場合は `absent` にせず `unmeasured` とする。コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、
     [`locator-mapping.md`](locator-mapping.md)「操作の実装差を吸収する層」に従い、
     判定用と操作用のロケータを分ける。操作用要素の `boundingBox()` が `null` でなく幅・高さがともに正で、中心座標の hit-test がその要素または子孫を指す状態まで `expect.poll` で自動リトライし、
     条件成立直後だけ中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送って再測定する。前提を満たさない座標へ操作を送ると重なった別要素の発火を誤認するため、座標操作へ進めない

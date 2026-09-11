@@ -374,6 +374,50 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
   }
 });
 
+test("候補由来の fired-without-response も送り方・発火確認・観測結果を構造化して検査する", () => {
+  const firedEvidence = () => ({
+    kind: "fired-without-response",
+    action: {
+      locator: "getByTestId('grid-cell-1-1')",
+      method: "coordinate",
+      detail: "page.mouse.click(x, y, { button: 'right' })",
+      bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+      hit_test_target: "getByTestId('grid-cell-1-1')",
+      hit_test_is_target_or_descendant: true,
+    },
+    fired: { signal: "event-listener", detail: "contextmenu リスナで受信した", verified: true },
+    observation: "メニューが開かず DOM も変化しなかった",
+  });
+  const base = () => {
+    const c = datagridCoverage();
+    c.cells[0] = {
+      ...c.cells[0],
+      value: "absent",
+      covered_by: [],
+      evidence: "右クリックしても応答が無い",
+      absence_evidence: firedEvidence(),
+    };
+    return c;
+  };
+  // 陽性コントロール: 実測が揃えば absent として通る
+  expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  for (const [mutate, pattern] of [
+    [(e) => delete e.action, /fired-without-response/],
+    [(e) => (e.action.method = "guess"), /action\.method/],
+    [(e) => (e.action.bounding_box.width = 0), /幅・高さが正ではない/],
+    [(e) => (e.action.hit_test_is_target_or_descendant = false), /hit-test/],
+    [(e) => (e.fired.verified = false), /発火確認/],
+    [(e) => (e.observation = "  "), /observation/],
+  ]) {
+    const cov = base();
+    mutate(cov.cells[0].absence_evidence);
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+});
+
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
   const cov = datagridCoverage();
   cov.components[0].instances[0].enumeration.complete = false;

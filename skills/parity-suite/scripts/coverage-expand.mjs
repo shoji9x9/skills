@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "6";
+export const VERSION = "7";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -65,6 +65,66 @@ function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
 }
 
+/** `absence_evidence.action.method`（操作の送り方）の語彙。 */
+const FIRED_ACTION_METHODS = ["locator-api", "coordinate"];
+
+/** `absence_evidence.fired.signal`（発火を確認した手段）の語彙。 */
+const FIRED_SIGNALS = ["event-listener", "dom-change", "state-change"];
+
+/**
+ * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
+ * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
+ * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ経路で通ってしまう。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|null}
+ */
+function firedEvidenceProblem(evidence, label) {
+  if (!isPlainObject(evidence.action)) {
+    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
+  }
+  const action = /** @type {Record<string, unknown>} */ (evidence.action);
+  if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
+    return `${label}: fired-without-response の action.locator / action.detail が空`;
+  }
+  if (!FIRED_ACTION_METHODS.includes(String(action.method))) {
+    return `${label}: fired-without-response の action.method が ${FIRED_ACTION_METHODS.join(" / ")} のいずれでもない`;
+  }
+  // 座標操作だけは、重なった別要素の発火を対象の発火と誤認しうる。正の矩形と hit-test の実測を要求する。
+  if (action.method === "coordinate") {
+    if (!isPlainObject(action.bounding_box)) {
+      return `${label}: 座標操作なのに action.bounding_box が JSON オブジェクトではない`;
+    }
+    const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
+    if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+      return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
+    }
+    if (!(Number(box.width) > 0) || !(Number(box.height) > 0)) {
+      return `${label}: 座標操作なのに action.bounding_box の幅・高さが正ではない`;
+    }
+    if (!nonEmptyString(action.hit_test_target)) {
+      return `${label}: 座標操作なのに action.hit_test_target が空（何が発火先だったか残らない）`;
+    }
+    if (action.hit_test_is_target_or_descendant !== true) {
+      return `${label}: 座標操作の hit-test が操作用要素または子孫を指した実測になっていない`;
+    }
+  }
+  if (!isPlainObject(evidence.fired)) {
+    return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
+  }
+  const fired = /** @type {Record<string, unknown>} */ (evidence.fired);
+  if (!FIRED_SIGNALS.includes(String(fired.signal))) {
+    return `${label}: fired-without-response の fired.signal が ${FIRED_SIGNALS.join(" / ")} のいずれでもない`;
+  }
+  if (!nonEmptyString(fired.detail) || fired.verified !== true) {
+    return `${label}: fired-without-response の発火確認（fired.detail / fired.verified）が実測になっていない`;
+  }
+  if (!nonEmptyString(evidence.observation)) {
+    return `${label}: fired-without-response の observation が空（期待した UI 応答が無かった観測結果が残らない）`;
+  }
+  return null;
+}
+
 /**
  * absent セルの経路別証拠を検査する。非描画経路は、全到達状態を測ったことを
  * parity-diff 側でも数え直せる機械可読な形に限定する。
@@ -78,7 +138,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
     return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
   }
   const evidence = /** @type {Record<string, unknown>} */ (row.absence_evidence);
-  if (evidence.kind === "fired-without-response") return null;
+  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
   if (evidence.kind !== "non-renderable") {
     return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
   }
