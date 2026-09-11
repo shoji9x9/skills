@@ -34,6 +34,22 @@
           "id": "<インスタンス id。cells から参照する。\"/\" を含めない（候補キー・同値クラスの members が切り分けられない）>",
           "page": "<metadata.json.capture_conditions.pages[].name と同じ語彙のページ名>",
           "locator": "<そのインスタンスを引く論理名（ロケータマッピングで解決できる名前）>",
+          "applicable_states": {
+            "_note": "non-renderable absent を使うインスタンスだけが持つ、セルとは独立した適用可能状態manifest。セル側の自己申告だけで網羅済みにしないため、absence_evidence.expected_states と機械照合する。",
+            "source": {
+              "kind": "<profile | vendor-spec | current-source | app-ui>",
+              "ref": "<状態を導出した機械可読manifest・資料・ソース・画面の所在>",
+              "version": "<導出元の版・commit SHA>",
+              "condition": "<どのトリガー・viewport・scroll・データ・権限軸を列挙したか>"
+            },
+            "complete": true,
+            "items": [
+              {
+                "id": "<一意な状態 id。absence_evidence.expected_states / states[].name と完全一致させる>",
+                "transition": "<状態へ到達させる操作・条件。states[].transition と一致させる>"
+              }
+            ]
+          },
           "enumeration": {
             "_note": "プロファイルを宣言した部品だけが持つ。候補の列挙元と抽出条件（来歴）。同じ部品でも画面ごとに構成が違うためインスタンスごとに列挙し、他インスタンスへ流用しない。",
             "source": {
@@ -87,7 +103,45 @@
       "item": "<項目 id（プロファイル由来なら候補 id）>",
       "instance": "<インスタンス id>",
       "value": "<present | absent | unmeasured>",
-      "evidence": "<測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果（present / absent はここが空だと未測定として数える。発火を確認できなければ absent にせず unmeasured）>",
+      "evidence": "<散文の要約。機械検査されるのは非空かどうかだけで、構造化値は読まれない。present または操作可能要素が在る absent: 測った操作、操作イベントの到達または操作に応じる DOM・状態変化による発火確認、観測結果。全到達状態で非描画の absent: 何をどう確かめたかの要約だけを書き、ロケータ・状態の導出源・状態ごとの矩形・offsetParent・非表示原因は必ず absence_evidence 側へ機械可読に入れる（ここへ入れても検査されず absence_evidence 欠落として未測定になる）。present / absent はここが空だと未測定として数える。非描画経路以外で発火を確認できなければ absent にせず unmeasured>",
+      "absence_evidence": {
+        "kind": "<absent のとき fired-without-response | non-renderable。present / unmeasured では null>",
+        "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
+        "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
+        "locator_includes_hidden": "<non-renderable のとき必須。上の locator が hidden 要素を含めて引く形（includeHidden: true または構造 locator）であることの実測（true 以外は unmeasured）。通常の getByRole は hidden を除外するため、これが無いと 0 件を DOM 不在と読み替えられる>",
+        "action": {
+          "_note": "fired-without-response のときだけ持つ。操作をどう送ったかの実測。",
+          "locator": "<操作用に引いた可視要素のロケータ（判定用と分ける場合は操作用の方）>",
+          "method": "<locator-api | coordinate。座標操作は重なった別要素の発火を誤認しうるため追加条件が要る>",
+          "detail": "<送った操作。例 locator.click({ button: 'right' }) / page.mouse.click(x, y, { button: 'right' })>",
+          "bounding_box": "<必須。{ x, y, width, height } を数値のまま書く。幅・高さがともに正でなければ可視要素への操作になっていない>",
+          "visible": "<必須。操作時に実測した可視性（true 以外は unmeasured）>",
+          "actionability_bypassed": "<必須。force / dispatchEvent 等で actionability を迂回したか。false 以外は可視要素への操作の証拠にならない>",
+          "hit_test_target": "<coordinate のとき必須。中心座標の hit-test が実際に指した要素のロケータ>",
+          "hit_test_is_target_or_descendant": "<coordinate のとき必須。hit-test が操作用要素またはその子孫を指したかの実測（true 以外は unmeasured）>"
+        },
+        "fired": {
+          "_note": "fired-without-response のときだけ持つ。操作が対象へ到達したことの別途確認。",
+          "signal": "<event-listener | dom-change | state-change>",
+          "detail": "<到達を確認した手段と結果。例 contextmenu リスナで受信した>",
+          "verified": true
+        },
+        "observation": "<fired-without-response のとき、操作後に期待した UI 応答が無かったことの観測結果>",
+        "states_exhaustive": true,
+        "expected_states": [
+          "<state_source から導出した状態 id。重複不可で states[].name と完全一致させる>"
+        ],
+        "states": [
+          {
+            "name": "<状態名>",
+            "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
+            "locator_match_count": "<この状態で locator が一致した要素数の実測値（0 以上の整数を数値のまま書く）。状態確定を別の assertion で先に立ててから toHaveCount(1) → toHaveCount(0) の順に試し、成立した方を記録する（件数を発見する API は無く、count() は expect.poll 内でも禁止）。どちらも成立しなければ一意に引けていないので値を書かずセルを unmeasured にする。2 以上は unmeasured。0 はその状態で DOM に無いことの実測で、このとき bounding_box / offset_parent / hidden_by は全て null にする。全状態が 0 だと locator の正しさを実証できないので unmeasured>",
+            "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
+            "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
+            "hidden_by": "<null または { target_locator, locator, relation: self | ancestor, relationship_verified: true, computed_style }。対象本人／祖先との関係を実測し、display: none または visibility: hidden | collapse を記録する。hidden_by がある状態の bounding_box は null>"
+          }
+        ]
+      },
       "covered_by": [
         "<present のとき、その操作を押さえた採取状態（metadata.json.capture_conditions.states の値）または assertion のスペックパス＋テスト名。空なら未測定として数える>"
       ],

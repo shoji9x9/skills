@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "10";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -55,6 +55,280 @@ const ID_SEPARATOR = "/";
 function nonEmptyString(v) {
   return typeof v === "string" && v.trim() !== "";
 }
+
+// ===== absence-evidence-contract:start =====
+// ここから contract:end までは、記録側（parity-suite の coverage-expand.mjs）と
+// 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
+// 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
+// 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
+// リポジトリの scripts/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
+
+/**
+ * `instances[].applicable_states.source.kind` の語彙。
+ * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
+ * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
+ */
+const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
+
+/** `absence_evidence.action.method`（操作の送り方）の語彙。 */
+const FIRED_ACTION_METHODS = ["locator-api", "coordinate"];
+
+/** `absence_evidence.fired.signal`（発火を確認した手段）の語彙。 */
+const FIRED_SIGNALS = ["event-listener", "dom-change", "state-change"];
+
+/**
+ * 語彙に含まれる文字列か。`String()` で潰してから比較すると `["coordinate"]` のような型崩れが
+ * allowlist を通り、後段の厳密比較（`=== "coordinate"`）だけ false になって、その分岐でしか
+ * 課されない必須検査（座標操作の hit-test 等）を回避できる。型を先に確かめる。
+ * @param {unknown} v
+ * @param {string[]} allowed
+ * @returns {boolean}
+ */
+function inAllowlist(v, allowed) {
+  return typeof v === "string" && allowed.includes(v);
+}
+
+/**
+ * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
+ * 散文 `evidence` の非空だけでは「送り方・発火確認・観測結果」の 3 点を測ったかを区別できず、
+ * 0 寸法要素の中心座標で**重なった別要素**が発火した結果も同じ経路で通ってしまう。
+ * @param {Record<string, unknown>} evidence
+ * @param {string} label
+ * @returns {string|null}
+ */
+function firedEvidenceProblem(evidence, label) {
+  if (!isPlainObject(evidence.action)) {
+    return `${label}: fired-without-response なのに action が JSON オブジェクトではない`;
+  }
+  const action = /** @type {Record<string, unknown>} */ (evidence.action);
+  if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
+    return `${label}: fired-without-response の action.locator / action.detail が空`;
+  }
+  if (!inAllowlist(action.method, FIRED_ACTION_METHODS)) {
+    return `${label}: fired-without-response の action.method が ${FIRED_ACTION_METHODS.join(" / ")} のいずれでもない`;
+  }
+  // この経路の前提は「操作可能な可視要素へ送った」こと。どちらの method でも正の矩形と可視性を実測させる。
+  // force / dispatchEvent のように actionability を迂回する送り方は、可視要素への操作の証拠にならない。
+  if (!isPlainObject(action.bounding_box)) {
+    return `${label}: fired-without-response なのに action.bounding_box が JSON オブジェクトではない`;
+  }
+  const box = /** @type {Record<string, unknown>} */ (action.bounding_box);
+  if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+    return `${label}: action.bounding_box の x / y / width / height が有限の数値ではない`;
+  }
+  if (!(Number(box.width) > 0) || !(Number(box.height) > 0)) {
+    return `${label}: action.bounding_box の幅・高さが正ではない（可視要素への操作になっていない）`;
+  }
+  if (action.visible !== true) {
+    return `${label}: action.visible が実測の true ではない（可視要素へ送った証拠が無い）`;
+  }
+  if (action.actionability_bypassed !== false) {
+    return `${label}: action.actionability_bypassed が実測の false ではない（force / dispatchEvent 等で actionability を迂回していないことを示せていない）`;
+  }
+  // 座標操作だけは、重なった別要素の発火を対象の発火と誤認しうる。hit-test の実測も要求する。
+  if (action.method === "coordinate") {
+    if (!nonEmptyString(action.hit_test_target)) {
+      return `${label}: 座標操作なのに action.hit_test_target が空（何が発火先だったか残らない）`;
+    }
+    if (action.hit_test_is_target_or_descendant !== true) {
+      return `${label}: 座標操作の hit-test が操作用要素または子孫を指した実測になっていない`;
+    }
+  }
+  if (!isPlainObject(evidence.fired)) {
+    return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
+  }
+  const fired = /** @type {Record<string, unknown>} */ (evidence.fired);
+  if (!inAllowlist(fired.signal, FIRED_SIGNALS)) {
+    return `${label}: fired-without-response の fired.signal が ${FIRED_SIGNALS.join(" / ")} のいずれでもない`;
+  }
+  if (!nonEmptyString(fired.detail) || fired.verified !== true) {
+    return `${label}: fired-without-response の発火確認（fired.detail / fired.verified）が実測になっていない`;
+  }
+  if (!nonEmptyString(evidence.observation)) {
+    return `${label}: fired-without-response の observation が空（期待した UI 応答が無かった観測結果が残らない）`;
+  }
+  return null;
+}
+
+/**
+ * absent セルの経路別証拠を検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、非描画経路は状態ごとの証拠を必須にする。
+ * @param {Record<string, unknown>} row
+ * @param {string} label
+ * @param {unknown} stateManifest - components[].instances[].applicable_states
+ * @returns {string|null}
+ */
+function absentEvidenceProblem(row, label, stateManifest) {
+  if (!isPlainObject(row.absence_evidence)) {
+    return `${label}: value: absent なのに absence_evidence が JSON オブジェクトではない`;
+  }
+  const evidence = /** @type {Record<string, unknown>} */ (row.absence_evidence);
+  if (evidence.kind === "fired-without-response") return firedEvidenceProblem(evidence, label);
+  if (evidence.kind !== "non-renderable") {
+    return `${label}: absence_evidence.kind が fired-without-response / non-renderable のいずれでもない`;
+  }
+  if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
+    return `${label}: non-renderable の locator / state_source が空`;
+  }
+  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
+  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
+  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
+  if (evidence.locator_includes_hidden !== true) {
+    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
+  }
+  if (evidence.states_exhaustive !== true) {
+    return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  if (!isPlainObject(stateManifest)) {
+    return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
+  }
+  const manifest = /** @type {Record<string, unknown>} */ (stateManifest);
+  const source = isPlainObject(manifest.source)
+    ? /** @type {Record<string, unknown>} */ (manifest.source)
+    : null;
+  if (
+    manifest.complete !== true ||
+    source === null ||
+    ![source.kind, source.ref, source.version, source.condition].every(nonEmptyString)
+  ) {
+    return `${label}: applicable_states の complete / source が不完全`;
+  }
+  if (!inAllowlist(source.kind, APPLICABLE_STATE_SOURCE_KINDS)) {
+    return `${label}: applicable_states.source.kind（${String(source.kind)}）が ${APPLICABLE_STATE_SOURCE_KINDS.join(" / ")} のいずれでもない`;
+  }
+  if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
+    return `${label}: applicable_states.items が空`;
+  }
+  /** @type {Map<string, string>} */
+  const manifestStates = new Map();
+  for (const [index, rawItem] of manifest.items.entries()) {
+    if (!isPlainObject(rawItem)) return `${label}: applicable_states.items[${index}] が不正`;
+    const item = /** @type {Record<string, unknown>} */ (rawItem);
+    if (!nonEmptyString(item.id) || !nonEmptyString(item.transition)) {
+      return `${label}: applicable_states.items[${index}] の id / transition が空`;
+    }
+    const id = String(item.id);
+    if (manifestStates.has(id)) return `${label}: applicable_states.items の id ${id} が重複`;
+    manifestStates.set(id, String(item.transition));
+  }
+  if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
+    return `${label}: non-renderable の states が空`;
+  }
+  if (
+    !Array.isArray(evidence.expected_states) ||
+    evidence.expected_states.length === 0 ||
+    evidence.expected_states.some((name) => !nonEmptyString(name))
+  ) {
+    return `${label}: non-renderable の expected_states が空または不正`;
+  }
+  const expectedStates = evidence.expected_states.map(String);
+  if (new Set(expectedStates).size !== expectedStates.length) {
+    return `${label}: non-renderable の expected_states が重複している`;
+  }
+  /** @type {Set<string>} */
+  const measuredStates = new Set();
+  // locator が 0 件だった状態数。全状態が 0 件なら locator の正しさを実証できていない。
+  let domAbsentStates = 0;
+  for (const [index, rawState] of evidence.states.entries()) {
+    const stateLabel = `${label}: non-renderable.states[${index}]`;
+    if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
+    const state = /** @type {Record<string, unknown>} */ (rawState);
+    if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
+      return `${stateLabel} の name / transition が空`;
+    }
+    const stateName = String(state.name);
+    if (measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
+    measuredStates.add(stateName);
+    if (manifestStates.get(stateName) !== String(state.transition)) {
+      return `${stateLabel} が applicable_states の id / transition と一致しない`;
+    }
+    // locator が対象を一意に引くことは状態ごとに変わる（開く前は 0 件、開くと 1 件など）。
+    // 1 状態だけの一致数では、別状態で 0 件／複数件の locator を非描画の証拠にできてしまう。
+    if (!Number.isInteger(state.locator_match_count) || Number(state.locator_match_count) < 0) {
+      return `${stateLabel}.locator_match_count が 0 以上の整数ではない（一致数を実測していない）`;
+    }
+    const matchCount = Number(state.locator_match_count);
+    if (matchCount > 1) {
+      return `${stateLabel}: locator が ${matchCount} 件に一致する（対象の操作要素を一意に引けていない）`;
+    }
+    if (matchCount === 0) {
+      // その状態では DOM に存在しない＝操作可能な要素が無い。矩形・非表示原因を持つのは矛盾。
+      if (state.bounding_box !== null || state.hidden_by !== null || state.offset_parent !== null) {
+        return `${stateLabel}: locator が 0 件なのに矩形・offset_parent・hidden_by が null ではない（矛盾）`;
+      }
+      domAbsentStates += 1;
+      continue;
+    }
+    if (!("bounding_box" in state) || !("offset_parent" in state)) {
+      return `${stateLabel} に bounding_box / offset_parent が無い`;
+    }
+    if (state.offset_parent !== null && !nonEmptyString(state.offset_parent)) {
+      return `${stateLabel}.offset_parent が null または空でない文字列ではない`;
+    }
+    let zeroArea = false;
+    if (state.bounding_box !== null) {
+      if (!isPlainObject(state.bounding_box)) {
+        return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
+      }
+      const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
+      if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+        return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
+      }
+      // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
+      if (Number(box.width) < 0 || Number(box.height) < 0) {
+        return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
+      }
+      zeroArea = box.width === 0 || box.height === 0;
+    }
+    let hiddenCause = false;
+    if (state.hidden_by !== null) {
+      if (!isPlainObject(state.hidden_by)) {
+        return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
+      }
+      const hidden = /** @type {Record<string, unknown>} */ (state.hidden_by);
+      const style = isPlainObject(hidden.computed_style)
+        ? /** @type {Record<string, unknown>} */ (hidden.computed_style)
+        : null;
+      hiddenCause =
+        nonEmptyString(hidden.locator) &&
+        hidden.relationship_verified === true &&
+        (hidden.relation === "self" || hidden.relation === "ancestor") &&
+        hidden.target_locator === evidence.locator &&
+        style !== null &&
+        (style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse");
+      if (!hiddenCause) {
+        return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
+      }
+      // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
+      // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
+      if (style !== null && style.display === "none" && state.offset_parent !== null) {
+        return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
+      }
+    }
+    if (hiddenCause && state.bounding_box !== null) {
+      return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
+    }
+    if (!zeroArea && !hiddenCause) {
+      return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
+    }
+  }
+  // 全状態で 0 件なら locator が正しいことを一度も実証できておらず、誤った locator と区別できない。
+  if (domAbsentStates === measuredStates.size) {
+    return `${label}: non-renderable の locator がどの状態でも 0 件（locator が対象を引けている実証が無い）`;
+  }
+  if (
+    measuredStates.size !== expectedStates.length ||
+    expectedStates.some((name) => !measuredStates.has(name)) ||
+    expectedStates.length !== manifestStates.size ||
+    expectedStates.some((name) => !manifestStates.has(name))
+  ) {
+    return `${label}: expected_states / states[].name / applicable_states.items[].id が完全一致しない`;
+  }
+  return null;
+}
+// ===== absence-evidence-contract:end =====
 
 /**
  * 現側 metadata.json の component_coverage 宣言を読む。返す状態は 3 つ:
@@ -206,9 +480,10 @@ function readJustifiedElementAbsences(raw) {
  * @param {boolean} duplicated
  * @param {string} label - 問題文に付けるセルの識別子
  * @param {string[]} problems
+ * @param {unknown} stateManifest
  * @returns {'present'|'absent'|'unmeasured'}
  */
-function gradeCell(row, duplicated, label, problems) {
+function gradeCell(row, duplicated, label, problems, stateManifest) {
   if (duplicated) {
     problems.push(`セル ${label}: 同じ組み合わせの行が複数ある（先勝ちにしない）`);
     return "unmeasured";
@@ -233,6 +508,11 @@ function gradeCell(row, duplicated, label, problems) {
       return "unmeasured";
     }
     return "present";
+  }
+  const absenceProblem = absentEvidenceProblem(row, label, stateManifest);
+  if (absenceProblem) {
+    problems.push(absenceProblem);
+    return "unmeasured";
   }
   return "absent";
 }
@@ -473,6 +753,7 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
         duplicated.has(key),
         `${label} / ${candidateId}`,
         problems,
+        inst.applicable_states,
       );
       if (graded === "present") present += 1;
       else if (graded === "absent") absent += 1;
@@ -639,6 +920,22 @@ export function countCoverage(coverage, slug) {
     // （rejected を 1 セルとして数えると、件数が定義より小さく出て収束レポートが過小になる）。
     const itemTotal = itemIds.length + itemRejected;
     const instanceTotal = instanceIds.length + instanceRejected;
+    // id→インスタンスの索引。collectIds が弾いた要素（id が空・重複）は索引にも入れない——
+    // String(undefined) が "undefined" と衝突すると、文字列 id "undefined" を持つ正規インスタンスの
+    // セルを id 欠落要素から読み、present / absent の集計まで誤る。
+    // 併せて 項目 × インスタンス ループ内の線形探索（O(items × instances²)）も避ける。
+    /** @type {Map<string, Record<string, unknown>>} */
+    const instanceById = new Map();
+    for (const entry of instances) {
+      if (!isPlainObject(entry)) continue;
+      const raw = /** @type {Record<string, unknown>} */ (entry).id;
+      if (!nonEmptyString(raw)) continue;
+      const id = String(raw);
+      // collectIds は重複 id の 2 件目以降を弾き 1 件目を残すため、索引も先勝ちで揃える。
+      if (!instanceById.has(id)) {
+        instanceById.set(id, /** @type {Record<string, unknown>} */ (entry));
+      }
+    }
     cells += itemTotal * instanceTotal;
     unmeasured += itemTotal * instanceTotal - itemIds.length * instanceIds.length;
     for (const iid of itemIds) {
@@ -646,7 +943,14 @@ export function countCoverage(coverage, slug) {
         const key = keyOf(cid, iid, nid);
         expected.add(key);
         // 採点規則はプロファイル経路と共有する（片方だけ緩めない）。
-        const graded = gradeCell(byKey.get(key), duplicated.has(key), key, problems);
+        const instance = instanceById.get(nid);
+        const graded = gradeCell(
+          byKey.get(key),
+          duplicated.has(key),
+          key,
+          problems,
+          instance === undefined ? undefined : instance.applicable_states,
+        );
         if (graded === "present") present += 1;
         else if (graded === "absent") absent += 1;
         else unmeasured += 1;

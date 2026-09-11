@@ -195,6 +195,347 @@ test("セルの未測定・証拠なし・対応付けなしは候補由来の�
   }
 });
 
+test("候補由来の非描画 absent も全状態の機械可読証拠を検査する", () => {
+  const cov = datagridCoverage();
+  cov.cells[0] = {
+    ...cov.cells[0],
+    value: "absent",
+    covered_by: [],
+    evidence: "全到達状態で非描画",
+    absence_evidence: {
+      kind: "non-renderable",
+      locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
+      state_source: "datagrid profile と現行 UI",
+      locator_includes_hidden: true,
+      states_exhaustive: true,
+      expected_states: ["desktop/default"],
+      states: [
+        {
+          name: "desktop/default",
+          transition: "右端までスクロールする",
+          locator_match_count: 1,
+          bounding_box: { x: 0, y: 0, width: 0, height: 20 },
+          offset_parent: null,
+          hidden_by: null,
+        },
+      ],
+    },
+  };
+  cov.components[0].instances[0].applicable_states = {
+    source: {
+      kind: "current-source",
+      ref: "src/grid/states.json",
+      version: "rev-abc123",
+      condition: "desktop の全状態",
+    },
+    complete: true,
+    items: [{ id: "desktop/default", transition: "右端までスクロールする" }],
+  };
+  expect(reconcile(cov, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  delete cov.cells[0].absence_evidence.states[0].offset_parent;
+  const invalid = reconcile(cov, bundled);
+  expect(invalid).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(invalid.problems.join("\n")).toMatch(/offset_parent/);
+
+  const visibleStyle = datagridCoverage();
+  visibleStyle.cells[0] = structuredClone(cov.cells[0]);
+  visibleStyle.cells[0].absence_evidence.states[0].offset_parent = null;
+  visibleStyle.cells[0].absence_evidence.states[0].bounding_box = {
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 20,
+  };
+  visibleStyle.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
+    locator: "#price",
+    relation: "self",
+    relationship_verified: true,
+    computed_style: { display: "block", color: "red" },
+  };
+  visibleStyle.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(visibleStyle, bundled).problems.join("\n")).toMatch(/非表示 CSS/);
+
+  const duplicateState = datagridCoverage();
+  duplicateState.cells[0] = structuredClone(cov.cells[0]);
+  duplicateState.cells[0].absence_evidence.states[0].offset_parent = null;
+  duplicateState.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  duplicateState.cells[0].absence_evidence.expected_states.push("desktop/default");
+  expect(reconcile(duplicateState, bundled).problems.join("\n")).toMatch(/expected_states が重複/);
+
+  const unrelatedHidden = datagridCoverage();
+  unrelatedHidden.cells[0] = structuredClone(cov.cells[0]);
+  unrelatedHidden.cells[0].absence_evidence.states[0].bounding_box = null;
+  unrelatedHidden.cells[0].absence_evidence.states[0].offset_parent = null;
+  unrelatedHidden.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "other-locator",
+    locator: "#other",
+    relation: "ancestor",
+    relationship_verified: true,
+    computed_style: { display: "none" },
+  };
+  unrelatedHidden.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(unrelatedHidden, bundled).problems.join("\n")).toMatch(/検証済み関係/);
+
+  // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
+  for (const [field, value, pattern] of [
+    ["width", -1, /負（実在しない矩形）/],
+    ["height", -0.5, /負（実在しない矩形）/],
+    ["x", Number.NaN, /有限の数値ではない/],
+    ["y", Number.POSITIVE_INFINITY, /有限の数値ではない/],
+  ]) {
+    const badBox = datagridCoverage();
+    badBox.cells[0] = structuredClone(cov.cells[0]);
+    badBox.cells[0].absence_evidence.states[0].offset_parent = null;
+    badBox.cells[0].absence_evidence.states[0].bounding_box[field] = value;
+    badBox.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    const r = reconcile(badBox, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+
+  // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
+  const displayNoneConflict = datagridCoverage();
+  displayNoneConflict.cells[0] = structuredClone(cov.cells[0]);
+  displayNoneConflict.cells[0].absence_evidence.states[0].bounding_box = null;
+  displayNoneConflict.cells[0].absence_evidence.states[0].offset_parent = "#visible-parent";
+  displayNoneConflict.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
+    locator: "#price",
+    relation: "self",
+    relationship_verified: true,
+    computed_style: { display: "none" },
+  };
+  displayNoneConflict.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(displayNoneConflict, bundled).problems.join("\n")).toMatch(
+    /display: none なのに offset_parent/,
+  );
+
+  // visibility 経路まで巻き込まない（offsetParent は残るため非 null が正当）
+  const visibilityHidden = structuredClone(displayNoneConflict);
+  visibilityHidden.cells[0].absence_evidence.states[0].hidden_by.computed_style = {
+    visibility: "hidden",
+  };
+  expect(reconcile(visibilityHidden, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // 新たに受理する入力クラス: 一部の状態で DOM に無い候補（1 件の状態が残っていれば通る）
+  const partiallyAbsent = datagridCoverage();
+  partiallyAbsent.cells[0] = structuredClone(cov.cells[0]);
+  partiallyAbsent.cells[0].absence_evidence.states[0].offset_parent = null;
+  partiallyAbsent.cells[0].absence_evidence.expected_states.push("mobile/default");
+  partiallyAbsent.cells[0].absence_evidence.states.push({
+    name: "mobile/default",
+    transition: "mobile viewport へ切り替える",
+    locator_match_count: 0,
+    bounding_box: null,
+    offset_parent: null,
+    hidden_by: null,
+  });
+  partiallyAbsent.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  partiallyAbsent.components[0].instances[0].applicable_states.items.push({
+    id: "mobile/default",
+    transition: "mobile viewport へ切り替える",
+  });
+  expect(reconcile(partiallyAbsent, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // locator が対象を一意に引けていない記録・矛盾した 0 件記録は未測定へ倒す
+  for (const [mutate, pattern] of [
+    [(e) => (e.states[0].locator_match_count = 2), /一意に引けていない/],
+    [(e) => delete e.states[0].locator_match_count, /locator_match_count/],
+    [(e) => (e.states[0].locator_match_count = -1), /locator_match_count/],
+    [(e) => delete e.locator_includes_hidden, /locator_includes_hidden/],
+    [(e) => (e.locator_includes_hidden = false), /locator_includes_hidden/],
+    // hidden_by のキーごとの省略は、明示的な null と区別して証拠の欠落として扱う
+    [(e) => delete e.states[0].hidden_by, /hidden_by が null または JSON オブジェクトではない/],
+    // 0 件（DOM に無い）なのに矩形が残っている矛盾
+    [(e) => (e.states[0].locator_match_count = 0), /0 件なのに/],
+    // 全状態 0 件では locator の正しさを実証できていない
+    [
+      (e) => {
+        e.states[0].locator_match_count = 0;
+        e.states[0].bounding_box = null;
+        e.states[0].offset_parent = null;
+        e.states[0].hidden_by = null;
+      },
+      /どの状態でも 0 件/,
+    ],
+  ]) {
+    const badLocator = datagridCoverage();
+    badLocator.cells[0] = structuredClone(cov.cells[0]);
+    badLocator.cells[0].absence_evidence.states[0].offset_parent = null;
+    badLocator.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    mutate(badLocator.cells[0].absence_evidence);
+    const r = reconcile(badLocator, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+
+  // 語彙外の source.kind は出所不明として未測定に倒す（非空判定だけでは通ってしまう）
+  for (const kind of ["invented", "config"]) {
+    const inventedSource = datagridCoverage();
+    inventedSource.cells[0] = structuredClone(cov.cells[0]);
+    inventedSource.cells[0].absence_evidence.states[0].offset_parent = null;
+    inventedSource.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    inventedSource.components[0].instances[0].applicable_states.source.kind = kind;
+    const r = reconcile(inventedSource, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(/applicable_states\.source\.kind/);
+  }
+
+  // 語彙内の 4 種はいずれも通る（allowlist を空にする変異で赤くなる）
+  for (const kind of ["profile", "vendor-spec", "current-source", "app-ui"]) {
+    const allowed = datagridCoverage();
+    allowed.cells[0] = structuredClone(cov.cells[0]);
+    allowed.cells[0].absence_evidence.states[0].offset_parent = null;
+    allowed.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    allowed.components[0].instances[0].applicable_states.source.kind = kind;
+    expect(reconcile(allowed, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+  }
+});
+
+test("候補由来の fired-without-response も送り方・発火確認・観測結果を構造化して検査する", () => {
+  const firedEvidence = () => ({
+    kind: "fired-without-response",
+    action: {
+      locator: "getByTestId('grid-cell-1-1')",
+      method: "coordinate",
+      detail: "page.mouse.click(x, y, { button: 'right' })",
+      bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+      visible: true,
+      actionability_bypassed: false,
+      hit_test_target: "getByTestId('grid-cell-1-1')",
+      hit_test_is_target_or_descendant: true,
+    },
+    fired: { signal: "event-listener", detail: "contextmenu リスナで受信した", verified: true },
+    observation: "メニューが開かず DOM も変化しなかった",
+  });
+  const base = () => {
+    const c = datagridCoverage();
+    c.cells[0] = {
+      ...c.cells[0],
+      value: "absent",
+      covered_by: [],
+      evidence: "右クリックしても応答が無い",
+      absence_evidence: firedEvidence(),
+    };
+    return c;
+  };
+  // 陽性コントロール: 実測が揃えば absent として通る
+  expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  for (const [mutate, pattern] of [
+    [(e) => delete e.action, /fired-without-response/],
+    [(e) => (e.action.method = "guess"), /action\.method/],
+    // 型崩れが allowlist を通ると、coordinate 専用の hit-test 検査を回避できる
+    [(e) => (e.action.method = ["coordinate"]), /action\.method/],
+    [(e) => (e.fired.signal = ["event-listener"]), /fired\.signal/],
+    [(e) => (e.action.bounding_box.width = 0), /幅・高さが正ではない/],
+    [(e) => (e.action.hit_test_is_target_or_descendant = false), /hit-test/],
+    [(e) => (e.fired.verified = false), /発火確認/],
+    [(e) => (e.action.visible = false), /action\.visible/],
+    [(e) => (e.action.actionability_bypassed = true), /actionability_bypassed/],
+    [(e) => (e.observation = "  "), /observation/],
+  ]) {
+    const cov = base();
+    mutate(cov.cells[0].absence_evidence);
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+});
+
+test("プロファイルを宣言しない部品のセルも候補経路と同じ規則で採点する", () => {
+  // 記録側だけ通る表を作らない。片方だけ検査すると conformance.ok を出した表を収束側が弾く
+  const generic = () => ({
+    feature: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "適合プロファイルが無い",
+        items: [{ id: "ctx-menu" }],
+        instances: [{ id: "orders" }],
+      },
+    ],
+    cells: [
+      {
+        component: "grid",
+        item: "ctx-menu",
+        instance: "orders",
+        value: "absent",
+        covered_by: [],
+        evidence: "全状態で非表示",
+        absence_evidence: { kind: "non-renderable" },
+      },
+    ],
+  });
+
+  const broken = reconcile(generic(), bundled);
+  expect(broken).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(broken.problems.join("\n")).toMatch(/non-renderable/);
+
+  for (const [mutate, pattern] of [
+    [(c) => (c.cells = []), /セルが無い/],
+    [(c) => (c.cells[0].evidence = "  "), /evidence が空/],
+    [(c) => c.cells.push(structuredClone(c.cells[0])), /セル行が複数ある/],
+    [
+      (c) => {
+        c.cells[0].value = "present";
+        c.cells[0].absence_evidence = null;
+      },
+      /covered_by が空/,
+    ],
+  ]) {
+    const cov = generic();
+    mutate(cov);
+    const r = reconcile(cov, bundled);
+    expect(r.ok).toBe(false);
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+
+  // 陽性コントロール: 正しく測れていれば通る（常に落とす実装を弾く）
+  const good = generic();
+  good.cells[0].value = "present";
+  good.cells[0].covered_by = ["e2e/parity/order-list.spec.ts > ctx menu"];
+  good.cells[0].absence_evidence = null;
+  expect(reconcile(good, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // id が空・重複の要素は黙って読み飛ばさず、その要素が関わるセルを未測定として数える
+  // （読み飛ばすと、識別できない要素があるのに conformance.ok: true を出せる）
+  for (const [mutate, pattern] of [
+    [(c) => c.components[0].items.push({ name: "id が無い" }), /items\[1\]: id が空/],
+    [(c) => c.components[0].items.push({ id: "ctx-menu" }), /items\[1\]: id ctx-menu が重複/],
+    [(c) => c.components[0].instances.push({ page: "id が無い" }), /instances\[1\]: id が空/],
+    [(c) => c.components[0].instances.push({ id: "orders" }), /instances\[1\]: id orders が重複/],
+  ]) {
+    const cov = structuredClone(good);
+    mutate(cov);
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false });
+    expect(r.unmeasured).toBeGreaterThan(0);
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+});
+
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
   const cov = datagridCoverage();
   cov.components[0].instances[0].enumeration.complete = false;
@@ -306,11 +647,20 @@ test("適合プロファイルが無い部品は理由付きで未検証とし�
         id: "chart",
         profile: null,
         profile_absent_reason: "Chart のプロファイルが未整備。gaps.md の未検証領域に記録した",
-        items: [],
-        instances: [],
+        items: [{ id: "zoom" }],
+        instances: [{ id: "dashboard" }],
       },
     ],
-    cells: [],
+    cells: [
+      {
+        component: "chart",
+        item: "zoom",
+        instance: "dashboard",
+        value: "present",
+        evidence: "ホイールで拡大できる",
+        covered_by: ["e2e/parity/dashboard.spec.ts > zoom"],
+      },
+    ],
   };
   const ok = reconcile(withReason, bundled);
   expect(ok.problems).toEqual([]);
@@ -319,6 +669,61 @@ test("適合プロファイルが無い部品は理由付きで未検証とし�
   const noReason = structuredClone(withReason);
   delete noReason.components[0].profile_absent_reason;
   expect(reconcile(noReason, bundled).problems.join("\n")).toMatch(/profile_absent_reason が空/);
+});
+
+test("列挙が空・部品 id の重複・宣言に無い行は記録側でも fail-closed にする", () => {
+  // いずれも判定側（coverage-check.mjs）が弾く条件。記録側だけ通ると conformance.ok が意味を失う。
+  const base = () => ({
+    slug: "order-list",
+    components: [
+      {
+        id: "chart",
+        profile: null,
+        profile_absent_reason: "未整備",
+        items: [{ id: "zoom" }],
+        instances: [{ id: "dashboard" }],
+      },
+    ],
+    cells: [
+      {
+        component: "chart",
+        item: "zoom",
+        instance: "dashboard",
+        value: "present",
+        evidence: "測った",
+        covered_by: ["spec > t"],
+      },
+    ],
+  });
+  // 陽性コントロール: 正しく測れていれば通る
+  expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  const emptyItems = base();
+  emptyItems.components[0].items = [];
+  emptyItems.cells = [];
+  const emptyResult = reconcile(emptyItems, bundled);
+  expect(emptyResult).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(emptyResult.problems.join("\n")).toMatch(/items または instances が空/);
+
+  const duplicated = base();
+  duplicated.components.push(structuredClone(duplicated.components[0]));
+  const dupResult = reconcile(duplicated, bundled);
+  expect(dupResult.ok).toBe(false);
+  expect(dupResult.unmeasured).toBeGreaterThan(0);
+  expect(dupResult.problems.join("\n")).toMatch(/id chart が重複している/);
+
+  const stale = base();
+  stale.cells.push({
+    component: "chart",
+    item: "removed-item",
+    instance: "dashboard",
+    value: "present",
+    evidence: "古い行",
+    covered_by: ["spec > t"],
+  });
+  const staleResult = reconcile(stale, bundled);
+  expect(staleResult.ok).toBe(false);
+  expect(staleResult.problems.join("\n")).toMatch(/components に無い 部品／項目／インスタンス/);
 });
 
 test("同値クラス: 束ねてよい軸・全候補の所属・根拠を検査する", () => {

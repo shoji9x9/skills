@@ -72,12 +72,45 @@
 - **インスタンスは「部品 × ページ」で数える。** 同じ部品を 2 画面で使っていればインスタンスは 2 つで、セルもそれぞれ測る。**片方で測った結果を共有部品の値として固定しない**
 - **値は 3 値**（`present` / `absent` / `unmeasured`）。**`absent` も測った結果として記録する**——「無いことを確かめた」と「測っていない」を同じ空欄にしない
   - `present`: 現行インスタンスにその操作が在り、**採取状態（`metadata.json.capture_conditions.states`）か assertion に落として押さえた**（落とし先を `covered_by` に書く）
-  - `absent`: 現行インスタンスにその操作が無いことを、次の 4 条件を一続きで満たして確かめた。
-    **(1)** 操作用に引いた可視要素へ操作を送る、**(2)** 操作イベントの到達または操作に応じる DOM・状態変化で発火を別途確認する、
-    **(3)** 送り方・発火確認・観測結果の 3 点を `evidence` に記録する、**(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
-    **`absent` に進める順序は「発火確認済み」→「期待する UI 応答なし」であり、発火自体を確認できない結果を `absent` と結論しない。**
-    コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、[`locator-mapping.md`](locator-mapping.md)「操作の実装差を吸収する層」に従い、
-    判定用と操作用のロケータを分け、可視要素の `boundingBox()` から求めた中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送って再測定する
+  - `absent`: 現行インスタンスにその操作が無いことを、次のどちらかの経路で確かめた。
+    - **操作可能な要素が在る:** **(1)** 操作用に引いた可視要素へ操作を送る、**(2)** 操作イベントの到達または操作に応じる DOM・状態変化で発火を別途確認する、
+      **(3)** 送り方・発火確認・観測結果の 3 点を**機械可読な `absence_evidence`（`action` / `fired` / `observation`）に記録する**（`evidence` は非空要約にしか使われず、構造化値を入れても検査されない）、
+      **(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
+      **この経路で `absent` に進める順序は「発火確認済み」→「期待する UI 応答なし」であり、発火自体を確認できない結果を `absent` と結論しない。**
+    - **どの到達状態にも操作可能な要素が無い:** 非表示確認用には `getByRole(..., { includeHidden: true })`、または同等に一意な構造ロケータを使い、対象の部品インスタンスの操作要素を一意に指すことを確認する（確認結果は後述の `locator_match_count` に実測値で残す。散文の確認だけでは検査されない）。
+      **hidden を含む引き方であることを `absence_evidence.locator_includes_hidden: true` に実測として残す**——通常の `getByRole` は hidden 要素を除外するため、
+      `display: none` の要素でも一致数は 0 になる。これを実証しないと、非表示の状態を DOM 不在と読み替えて `absent` に収束できてしまう。
+      通常の操作・表示判定に使う role ＋アクセシブルネームの原則は変えない。次に、被覆プロファイルの候補と導出源、現行 UI から、
+      その候補を表示しうる適用可能な状態と遷移（トリガー、ビューポート、スクロール、データ、権限等）を列挙して到達させ、すべての状態で要素または祖先が非表示、もしくは矩形の幅・高さの一方が 0 であることを実測する。
+      ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と `offsetParent`、非表示原因となった要素または祖先とその computed style は、
+      **`evidence` ではなく `absence_evidence` へ機械可読に記録する**（`evidence` は非空かどうかしか検査されない散文の要約で、構造化値を入れても読まれない）。
+      `offsetParent: null` だけを非表示の証拠にせず、矩形と非表示原因も突き合わせる。セルの `absence_evidence` は `kind: non-renderable`、`states_exhaustive: true` とし、
+      インスタンスの `applicable_states` に、セルとは独立した状態manifest（完全な source と `complete: true`、一意な `items[].id` と遷移）を置く。
+      `applicable_states.source.kind` は `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかで、それ以外は出所不明として `unmeasured` にする。`state_source` から導出した重複のない状態 id を
+      `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、**状態ごとに**実測した一致数を `states[].locator_match_count` として記録する。
+      2 件以上は一意に引けていないので `unmeasured`。0 件はその状態で DOM に無いことの実測として扱い、このとき矩形・`offset_parent`・`hidden_by` は全て `null` にする
+      測定手順は次のとおり。**`toHaveCount(n)` は期待値 `n` を先に渡す照合で件数を発見できず、`count()` は `expect.poll` で包んでも
+      [`locator-mapping.md`](locator-mapping.md) と `scripts/auto-wait-check.mjs` が禁止する**（実測）。そこで 0 / 1 の二値判定にする。
+      **(1)** その状態へ遷移し、状態が確定したことをその状態固有の assertion（開閉フラグの `toHaveAttribute`、一覧の `toHaveCount` など）で先に確立する。
+      **(2)** 確立後に `await expect(locator).toHaveCount(1)` を試し、成立すれば `locator_match_count: 1`。
+      **(3)** 成立しなければ `await expect(locator).toHaveCount(0)` を試し、成立すれば `locator_match_count: 0`。
+      **(4)** どちらも成立しなければ対象を一意に引けていないので、値を推測せずそのセルを `unmeasured` にする（2 以上を自己申告で書かない）。
+      （値が入っていれば矛盾として `unmeasured`）。全状態が 0 件だと `locator` が対象を引けている実証が一度も無く、誤った `locator` と区別できないため `unmeasured` とする。同じ証拠を `locator` / `state_source` /
+      `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by` は `target_locator`、`relation: self | ancestor`、`relationship_verified: true` で対象との関係を記録し、
+      `computed_style` が `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。`hidden_by` があるのに矩形が `null` でなければ矛盾として `unmeasured` にする。
+      これらを満たした場合だけ、操作を送らず `absent` とする。
+      未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は `unmeasured` とする。一時点の非表示や 0 寸法だけで `absent` にすると、
+      メニューを開く前、レスポンシブ切替前、仮想スクロール前、状態・権限の変更前に存在する操作を被覆から落とすためである。
+    操作可能な要素へ発火を確認する経路では `absence_evidence.kind: fired-without-response` を記録する。
+    **送り方・発火確認・観測結果の 3 点は散文 `evidence` ではなく機械可読に残す**——`action`（`locator` / `method`（`locator-api` | `coordinate`）/ `detail`）、
+    `fired`（`signal`（`event-listener` | `dom-change` | `state-change`）/ `detail` / `verified: true`）、`observation`。
+    この経路の前提は可視要素への操作なので、`method` に関わらず `bounding_box`（幅・高さがともに正）、`visible: true`、`actionability_bypassed: false` を実測値で記録する
+    （`force` や `dispatchEvent` で actionability を迂回した操作は可視要素への操作の証拠にならない）。`method: coordinate` では加えて `hit_test_target` と
+    `hit_test_is_target_or_descendant: true` も記録する。
+    どれかが欠ける・`true` にならない場合は `absent` にせず `unmeasured` とする。コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、
+    [`locator-mapping.md`](locator-mapping.md)「操作の実装差を吸収する層」に従い、
+    判定用と操作用のロケータを分ける。操作用要素の `boundingBox()` が `null` でなく幅・高さがともに正で、中心座標の hit-test がその要素または子孫を指す状態まで `expect.poll` で自動リトライし、
+    条件成立直後だけ中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送って再測定する。前提を満たさない座標へ操作を送ると重なった別要素の発火を誤認するため、座標操作へ進めない
   - `unmeasured`: 測っていない。`unmeasured_reason` に理由を書き、`gaps.md` にも残す
 - **行が無い組み合わせは `unmeasured` として数える**（fail-closed）。`present` / `absent` なのに `evidence` が空、`present` なのに `covered_by` が空のセルも同じ——測った証拠が無いものを測った扱いにしない
 - 期待セル数と未測定数を `metadata.json` の `component_coverage` に書く（期待セルはプロファイルを宣言していない部品なら 項目数 × インスタンス数、宣言した部品ならインスタンスごとの候補数の合計）。

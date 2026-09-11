@@ -350,6 +350,46 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
     **HEAD コミットの committedDate**（`git log -1 --format=%cI`）を下限として使う（`--amend`/force push を行わない前提で push はこれ以降）。
 
 - **一次シグナル（チェックラン）**: 現在の HEAD の未完了チェックに、別エージェントのレビューを示すものがないかを見る。
+  **`gh pr checks` だけで「進行中でない」と結論しない。** 同コマンドはレビュー bot の check-run を一覧に出さないことがあり（実測: `copilot-pull-request-reviewer` が
+  `in_progress` でも `gh pr checks` の pending に現れない）、**pending 0 件は不在の証拠にならない**。現 HEAD の commit check-runs endpoint を必ず併せて見る:
+
+  **check-run 名の扱いは `review_tool` で分かれるが、この経路自体をスキップしない。**
+  `copilot` は名前が固定（`copilot-pull-request-reviewer`・実測）なので完全一致で絞る。
+  mention 方式（`claude-code` / `codex`）は名前が固定でないため**単一の名前を推測して撃たない**が、
+  [`references/review-tool.md`](references/review-tool.md) が定めるとおり check-run はレビュー進行中の汎用シグナルであり、
+  **指摘 0 件のとき結果を check-run だけに載せることがある**（同ファイルの出典を参照）。照会自体を省くと、
+  bot コメントを伴わないレビューを不在と誤判定して同じ mention を重複投稿する。名前が固定でないツールでは
+  **現 HEAD の未完了 check-run を候補として取り、`app` / `name` / `output` の趣旨からレビューエージェントのものだと確認できたものだけ**を数える
+  （[`references/state-query.md`](references/state-query.md) の 2 段取得と同じ形）。確認できない候補は通常の CI として除外する。
+
+  ```bash
+  # copilot: 名前が固定なので完全一致で絞る。
+  gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
+    --jq '.check_runs[]
+          | select(.status != "completed")
+          | select(.name == "copilot-pull-request-reviewer")
+          | {name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
+
+  # claude-code / codex: 名前を固定できないので未完了の候補を列挙し、app / name / output で仕分ける。
+  # 絞り込みは gh の --jq 内で完結させる（外部 jq へパイプしない。前提ツールを増やさず、gh api の終了コードも保てる）。
+  gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
+    --jq '.check_runs[]
+          | select(.status != "completed")
+          | {name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
+  ```
+
+  **ここで数えるのはレビュー用 check-run だけにする。** この endpoint には通常の CI も入るため、未完了を無条件にレビュー進行中と読むと、
+  `gh pr checks` に pending として出ない無関係な run が再依頼を無期限に抑止する。**名前の部分一致で拾わない**——
+  `dependency-review` / `security-review` のような通常の CI まで進行中レビューに数えてしまう。設定した `review_tool` の check-run 名に完全一致させる。
+  **`output` の有無を条件にしない**——進行中の check-run は `output.title` / `output.summary` を持たないことがある（実測）。
+  出力は「到着したレビューが実際に行われたか」を確かめる材料であって、進行中判定の必須条件ではない。
+  **`gh api` が非 0 で終わったら空の結果を「進行中なし」の証拠にしない**（権限・ref 不正・一時的な API 失敗でも空になる）。
+  終了コードを確認し、失敗なら不在と判定せずに再取得へ回す（fail-closed）。
+  **「進行中なし」と結論できるのは、`gh pr checks` と上の check-run 照会の両方が成功したうえで、レビュー候補がゼロのときだけ**。
+  名前が固定でないツールでは「レビュー候補ゼロ」の判断に仕分けが要るため、依頼直後の空振りを不在と取り違えないよう、
+  「ポーリングと待機」の上限つきで**間隔を空けて数回**取り直し、いずれの回でも候補が出ないことと、補助シグナル（進行中の bot レビュー／コメント）も空であることを確かめてから結論する。
+  **待機上限の超過を根拠に再依頼へ進む前に、この二経路で進行中シグナルが本当に無いことを確かめる**——
+  上限は実測到着時間から決めた目安にすぎず、超過しただけではレビューが止まった証拠にならない。
 
   ```bash
   # review_tool: copilot のときは Copilot 自身のチェックを別エージェント判定から除外する。

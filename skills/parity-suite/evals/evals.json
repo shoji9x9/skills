@@ -233,8 +233,21 @@
       "assertions": [
         "メニューが出なかっただけでは absent にせず、操作の発火を確認できない現状は unmeasured として理由を残すと答えている",
         "判定用ロケータは role ＋アクセシブルネームを保ち、座標操作用には実際に描画されている要素を別に引くと答えている",
-        "locator.click({ button: 'right' }) で発火しない実装では、可視要素の boundingBox() の中心座標へ page.mouse.click(x, y, { button: 'right' }) を送る具体策を示している",
+        "locator.click({ button: 'right' }) で発火しない実装では、正の寸法と中心座標の hit-test を確認した可視要素に限り、boundingBox() の中心座標へ page.mouse.click(x, y, { button: 'right' }) を送る具体策を示している",
         "再試行後は操作イベントの到達、または操作に応じる DOM・状態変化で発火を別途確認し、その確認と観測結果を evidence に記録すると答えている"
+      ]
+    },
+    {
+      "id": 31,
+      "prompt": "部品被覆表でメニュー操作を測っている。menuitem はメニューを開く前だと display:none の祖先配下で、レスポンシブ操作は desktop だと幅 0 だけど mobile では表示される。別の候補は、仕様書と現行 UI から導出したトリガー・viewport・scroll・データ・権限の適用可能な状態を全部試しても幅 0 のままだった。表示されるケースの測定後の値と記録も含め、これらをどう扱う？ 非表示要素を一意に特定する方法と、描画切替中の競合を避けて座標クリックする待ち方も示して。0 幅要素の boundingBox の中心へ mouse.click すれば下の要素には届くから、それを発火確認に使ってよい？",
+      "assertions": [
+        "メニューを開く前だけ非表示の menuitem と desktop でだけ 0 幅のレスポンシブ操作を absent にせず、表示される到達状態で操作を測り、操作が存在すれば present として採取状態または assertion を covered_by に記録すると答えている",
+        "非表示確認用には includeHidden: true または同等に一意な構造ロケータで操作要素を特定し、候補の導出源から適用可能な状態と遷移を列挙して、全状態で非描画を実測した候補だけ操作を送らず absent にできると答えている",
+        "インスタンス側の完全な applicable_states manifest と、non-renderable の重複なし expected_states・states を状態 id と遷移まで完全一致させ、ロケータ、状態の導出源、各状態の矩形と offsetParent を機械可読に残すと示している",
+        "hidden_by は target_locator と本人／祖先の relation を検証済みとして記録し、display: none または visibility: hidden / collapse を持つ場合だけ証拠にし、正寸法との矛盾・offsetParent: null・表示中のstyleだけでは判定しないと示している",
+        "未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は unmeasured にすると答えている",
+        "座標操作は expect.poll で boundingBox が null でなく幅・高さがともに正、中心座標の hit-test が操作用要素または子孫を指す状態まで自動リトライし、条件成立直後だけ行うと答えている",
+        "0 幅の中心座標へ mouse.click して下の別要素に届いた発火を、対象操作の発火確認として使う案を退けている"
       ]
     },
     {

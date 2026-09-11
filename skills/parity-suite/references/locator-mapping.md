@@ -57,9 +57,12 @@
 **ロケータが移植可能でも、操作は移植可能ではない。** `getByRole('combobox')` が両実装で要素を見つけても、`selectOption()` はネイティブ `<select>` でない実装では落ちる、という類のずれが起きる。
 
 - **Select / Autocomplete / Date picker / Modal / Menu / Context menu（右クリック）は実装ごとの分岐が必須**。操作は論理名の裏に操作アダプタとして隠し、スイート本体は論理名と操作意図だけを書く
-- **右クリックは発火を観測して送り方を決める。** `locator.click({ button: 'right' })` で発火しない実装では、操作用ロケータで引いた可視要素の `boundingBox()` を取得し、
-  中心座標へ `page.mouse.click(x, y, { button: 'right' })` を送る（`button` は `left` / `right` / `middle`。出典: <https://playwright.dev/docs/api/class-mouse#mouse-click>）。
-  role が画面外のミラー要素に付く場合があるため、判定用ロケータの座標を流用しない
+- **右クリックは発火を観測して送り方を決める。** `locator.click({ button: 'right' })` で発火しない実装では、操作用ロケータで引いた可視要素の `boundingBox()` を取得する。
+  `expect.poll` で矩形が `null` でなく幅・高さがともに正、かつ中心座標の `document.elementFromPoint()` が操作用要素または子孫を返す状態まで自動リトライし、その条件を満たした直後だけ、
+  その座標へ `page.mouse.click(x, y, { button: 'right' })` を送る（出典: [Playwright `boundingBox`](https://playwright.dev/docs/api/class-locator#locator-bounding-box)・
+  [`mouse.click`](https://playwright.dev/docs/api/class-mouse#mouse-click)・[`expect.poll`](https://playwright.dev/docs/test-assertions#expectpoll)・
+  [CSSOM View `elementFromPoint`](https://drafts.csswg.org/cssom-view/#dom-document-elementfrompoint)）。
+  role が画面外のミラー要素に付く場合があるため判定用ロケータの座標を流用せず、hit-test が別要素を返す座標にも操作を送らない
 - **本スキルで最も工数を食う箇所**であり、見積もりで過小評価しない
 
 ## 配置の指針

@@ -61,10 +61,100 @@ function full() {
       cell("ctx-menu", "search", {
         value: "absent",
         evidence: "右クリックしてもメニューが出ない",
+        absence_evidence: firedEvidence(),
         covered_by: [],
       }),
       cell("drag-reorder", "orders"),
       cell("drag-reorder", "search"),
+    ],
+  };
+}
+
+function firedEvidence(overrides = {}) {
+  return {
+    kind: "fired-without-response",
+    action: {
+      locator: "getByRole('row', { name: 'Order 1' })",
+      method: "locator-api",
+      detail: "locator.click({ button: 'right' })",
+      bounding_box: { x: 10, y: 20, width: 200, height: 32 },
+      visible: true,
+      actionability_bypassed: false,
+    },
+    fired: {
+      signal: "event-listener",
+      detail: "contextmenu リスナで受信した",
+      verified: true,
+    },
+    observation: "メニューが開かず DOM も変化しなかった",
+    ...overrides,
+  };
+}
+
+/** 座標操作で発火を確認した場合の証拠。重なった別要素の発火と区別するため hit-test まで実測する。 */
+function firedCoordinateEvidence() {
+  return firedEvidence({
+    action: {
+      locator: "getByTestId('grid-cell-1-1')",
+      method: "coordinate",
+      detail: "page.mouse.click(x, y, { button: 'right' })",
+      bounding_box: { x: 10, y: 20, width: 120, height: 32 },
+      visible: true,
+      actionability_bypassed: false,
+      hit_test_target: "getByTestId('grid-cell-1-1')",
+      hit_test_is_target_or_descendant: true,
+    },
+  });
+}
+
+/** 全到達状態で非描画だった absent の機械可読証拠。 */
+function nonRenderableEvidence() {
+  return {
+    kind: "non-renderable",
+    locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
+    state_source: "vendor spec v2 と現行 UI",
+    locator_includes_hidden: true,
+    states_exhaustive: true,
+    expected_states: ["desktop/default", "mobile/admin"],
+    states: [
+      {
+        name: "desktop/default",
+        transition: "desktop viewport でメニューを開く",
+        locator_match_count: 1,
+        bounding_box: { x: 60, y: 0, width: 0, height: 20 },
+        offset_parent: null,
+        hidden_by: null,
+      },
+      {
+        name: "mobile/admin",
+        transition: "mobile viewport・admin 権限でメニューを開く",
+        locator_match_count: 1,
+        bounding_box: null,
+        offset_parent: null,
+        hidden_by: {
+          target_locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
+          locator: "#menu",
+          relation: "ancestor",
+          relationship_verified: true,
+          computed_style: { display: "none" },
+        },
+      },
+    ],
+  };
+}
+
+function applicableStates() {
+  return {
+    source: {
+      kind: "vendor-spec",
+      ref: "docs/grid-v2.json",
+      version: "v2",
+      condition: "viewport と権限の全組み合わせ",
+    },
+    complete: true,
+    items: [
+      { id: "desktop/default", transition: "desktop viewport でメニューを開く" },
+      { id: "mobile/admin", transition: "mobile viewport・admin 権限でメニューを開く" },
     ],
   };
 }
@@ -104,6 +194,227 @@ test("evidence が空なら present / absent でも未測定", () => {
   const r = countCoverage(cov, "order-list");
   expect(r.unmeasured).toBe(1);
   expect(r.problems.join("\n")).toMatch(/evidence/);
+});
+
+test("非描画 absent は全状態の機械可読証拠が揃った場合だけ通る", () => {
+  const cov = full();
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  cov.components[0].instances[1].applicable_states = applicableStates();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に倒す", () => {
+  const mutations = [
+    (e) => delete e.locator,
+    (e) => delete e.state_source,
+    // hidden を含む引き方であることを実証しないと、0 件を DOM 不在と読み替えられる
+    (e) => delete e.locator_includes_hidden,
+    (e) => (e.locator_includes_hidden = false),
+    (e) => (e.locator_includes_hidden = "true"),
+    (e) => (e.states_exhaustive = false),
+    (e) => (e.states = []),
+    (e) => (e.expected_states = []),
+    (e) => e.expected_states.push("desktop/default"),
+    (e) => (e.expected_states[0] = "desktop/other"),
+    (e) => (e.states[1].name = "desktop/default"),
+    (e) => delete e.states[0].bounding_box,
+    (e) => delete e.states[0].offset_parent,
+    (e) => (e.states[0].offset_parent = 3),
+    (e) => (e.states[0].bounding_box.width = "0"),
+    (e) => (e.states[0].bounding_box.width = 10),
+    // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
+    (e) => (e.states[0].bounding_box.width = -1),
+    (e) => (e.states[0].bounding_box.height = -0.5),
+    (e) => (e.states[0].bounding_box.x = Number.NaN),
+    (e) => (e.states[0].bounding_box.y = Number.POSITIVE_INFINITY),
+    // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
+    (e) => (e.states[1].offset_parent = "#visible-parent"),
+    // 状態ごとの一致数が実測されていない・一意でない
+    (e) => (e.states[0].locator_match_count = 2),
+    (e) => (e.states[0].locator_match_count = "1"),
+    (e) => (e.states[0].locator_match_count = 1.5),
+    (e) => (e.states[0].locator_match_count = -1),
+    (e) => delete e.states[0].locator_match_count,
+    // 0 件（DOM に無い）と矩形・offset_parent・hidden_by の矛盾
+    (e) => (e.states[0].locator_match_count = 0),
+    (e) => {
+      e.states[1].locator_match_count = 0;
+      e.states[1].hidden_by = null;
+      e.states[1].offset_parent = "#menu-root";
+    },
+    // 全状態が 0 件だと locator の正しさを一度も実証できていない
+    (e) => {
+      for (const st of e.states) {
+        st.locator_match_count = 0;
+        st.bounding_box = null;
+        st.offset_parent = null;
+        st.hidden_by = null;
+      }
+    },
+    (e) => (e.states[1].hidden_by.computed_style = {}),
+    // hidden_by は「非表示原因なし」を明示的な null で書く。キーごとの省略は証拠の欠落として扱う
+    (e) => delete e.states[0].hidden_by,
+    (e) => delete e.states[1].hidden_by,
+    (e) => {
+      e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
+      e.states[1].hidden_by.computed_style = { display: "block", color: "red" };
+    },
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r.absent).toBe(0);
+    expect(r.unmeasured).toBe(1);
+    expect(r.problems.join("\n")).toMatch(
+      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複|locator|includes_hidden/,
+    );
+  }
+});
+
+test("非描画 absent は独立した applicable_states manifest と一致しなければ未測定", () => {
+  for (const mutate of [
+    (manifest) => (manifest.complete = false),
+    (manifest) => delete manifest.source.version,
+    (manifest) => manifest.items.push(structuredClone(manifest.items[0])),
+    (manifest) => (manifest.items[0].transition = "別の遷移"),
+    (manifest) => manifest.items.pop(),
+    // 語彙外の source.kind。空でないだけでは出所不明の manifest を収束させられる
+    (manifest) => (manifest.source.kind = "invented"),
+    (manifest) => (manifest.source.kind = "config"),
+    (manifest) => (manifest.source.kind = ["vendor-spec"]),
+  ]) {
+    const cov = full();
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
+    mutate(cov.components[0].instances[1].applicable_states);
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 0, unmeasured: 1 });
+  }
+});
+
+test("applicable_states.source.kind はテンプレートの語彙 4 種だけを受理する", () => {
+  for (const kind of ["profile", "vendor-spec", "current-source", "app-ui"]) {
+    const cov = full();
+    cov.cells[1].evidence = "全到達状態で非描画";
+    cov.cells[1].absence_evidence = nonRenderableEvidence();
+    cov.components[0].instances[1].applicable_states = applicableStates();
+    cov.components[0].instances[1].applicable_states.source.kind = kind;
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+  }
+});
+
+test("一部の状態で DOM に無い候補も、1 件の状態が残っていれば非描画証拠として通る", () => {
+  // 候補ごとに適用可能な状態が違う場合（desktop では隠れて存在、mobile では描画されない）を測れるようにする
+  const cov = full();
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  cov.cells[1].absence_evidence.states[1].locator_match_count = 0;
+  cov.cells[1].absence_evidence.states[1].bounding_box = null;
+  cov.cells[1].absence_evidence.states[1].offset_parent = null;
+  cov.cells[1].absence_evidence.states[1].hidden_by = null;
+  cov.components[0].instances[1].applicable_states = applicableStates();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("visibility: hidden では offset_parent が非 null でも非描画証拠として通る", () => {
+  // display: none だけが offsetParent を必ず null にする。visibility 経路まで巻き込むと正当な証拠を落とす
+  const cov = full();
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  cov.cells[1].absence_evidence.states[1].hidden_by.computed_style = { visibility: "hidden" };
+  cov.cells[1].absence_evidence.states[1].offset_parent = "#visible-parent";
+  cov.components[0].instances[1].applicable_states = applicableStates();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("id 欠落インスタンスは applicable_states の参照先にならない", () => {
+  // String(undefined) が文字列 id "undefined" と衝突すると、別インスタンスの manifest を読んでしまう
+  const cov = full();
+  cov.components[0].instances = [
+    { page: "id の無いインスタンス", applicable_states: applicableStates() },
+    ...cov.components[0].instances,
+  ];
+  cov.components[0].instances[2].id = "undefined";
+  for (const c of cov.cells) if (c.instance === "search") c.instance = "undefined";
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  const r = countCoverage(cov, "order-list");
+  expect(r.absent).toBe(0);
+  expect(r.problems.join("\n")).toMatch(/applicable_states が無い/);
+});
+
+test("座標操作で発火を確認した absent も、正の矩形と hit-test の実測が揃えば通る", () => {
+  const cov = full();
+  cov.cells[1].absence_evidence = firedCoordinateEvidence();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("fired-without-response は送り方・発火確認・観測結果が揃わなければ未測定", () => {
+  const mutations = [
+    (e) => delete e.action,
+    (e) => delete e.action.locator,
+    (e) => delete e.action.detail,
+    (e) => (e.action.method = "guess"),
+    // 型崩れ。String() で潰して比較すると allowlist を通り、後段の厳密比較だけ false になって
+    // coordinate の hit-test 検査を回避できる
+    (e) => (e.action.method = ["locator-api"]),
+    (e) => (e.fired.signal = ["event-listener"]),
+    (e) => delete e.fired,
+    (e) => (e.fired.signal = "assumed"),
+    (e) => (e.fired.verified = false),
+    (e) => delete e.fired.detail,
+    (e) => (e.observation = "  "),
+    // 可視要素への操作という前提を実測で示せていない
+    (e) => delete e.action.bounding_box,
+    (e) => (e.action.bounding_box.width = 0),
+    (e) => (e.action.visible = false),
+    (e) => delete e.action.visible,
+    // force / dispatchEvent で actionability を迂回した操作は証拠にならない
+    (e) => (e.action.actionability_bypassed = true),
+    (e) => delete e.action.actionability_bypassed,
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = firedEvidence();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r).toMatchObject({ absent: 0, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(
+      /fired-without-response|action\.bounding_box|action\.visible|actionability_bypassed/,
+    );
+  }
+});
+
+test("座標操作は正の矩形と対象への hit-test を実測できない限り未測定", () => {
+  // 0 幅要素の中心座標で重なった別要素が発火した結果を、対象の発火として通さない
+  const mutations = [
+    (e) => delete e.action.bounding_box,
+    (e) => (e.action.bounding_box.width = 0),
+    (e) => (e.action.bounding_box.height = -1),
+    (e) => (e.action.bounding_box.x = Number.NaN),
+    (e) => delete e.action.hit_test_target,
+    (e) => (e.action.hit_test_is_target_or_descendant = false),
+    (e) => delete e.action.hit_test_is_target_or_descendant,
+  ];
+  for (const mutate of mutations) {
+    const cov = full();
+    cov.cells[1].absence_evidence = firedCoordinateEvidence();
+    mutate(cov.cells[1].absence_evidence);
+    const r = countCoverage(cov, "order-list");
+    expect(r).toMatchObject({ absent: 0, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(/座標操作|bounding_box/);
+  }
+});
+
+test("absent の経路識別が無い・未知なら散文 evidence があっても未測定", () => {
+  for (const absenceEvidence of [undefined, { kind: "unknown" }]) {
+    const cov = full();
+    cov.cells[1].absence_evidence = absenceEvidence;
+    expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 0, unmeasured: 1 });
+  }
 });
 
 test("同じ組み合わせの重複行は先勝ちにせず未測定として数える", () => {

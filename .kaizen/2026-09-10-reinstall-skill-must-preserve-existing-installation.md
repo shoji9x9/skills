@@ -15,6 +15,10 @@ session: codex
 `.claude/skills/kaizen` の symlink を削除し、一時的にインストール済みコピーが不整合になった。
 承認付きの sandbox 外実行で再実行すると同期は完了した。
 
+2026-09-11 に `scripts/reinstall-skill.sh parity-suite` でも再発した。複数コマンドをまとめた sandbox 内実行で
+`.agents/skills/parity-suite` の削除が書き込み拒否になった一方、先に `.claude/skills/parity-suite` が削除され、
+`check-skills-sync.js` が symlink 欠落と installed copy の drift を検出した。承認付きの単独再実行で復旧した。
+
 ## 根本原因
 
 1. なぜ一時的な不整合が残ったか → 再インストール処理が symlink を先に削除し、後続の `.agents` 更新で停止した。
