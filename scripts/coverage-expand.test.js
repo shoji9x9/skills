@@ -207,6 +207,8 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
       locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
       state_source: "datagrid profile と現行 UI",
       states_exhaustive: true,
+      locator_match_count: 1,
+      locator_match_state: "desktop/default",
       expected_states: ["desktop/default"],
       states: [
         {
@@ -281,6 +283,69 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     cov.components[0].instances[0].applicable_states,
   );
   expect(reconcile(unrelatedHidden, bundled).problems.join("\n")).toMatch(/検証済み関係/);
+
+  // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
+  for (const [field, value, pattern] of [
+    ["width", -1, /負（実在しない矩形）/],
+    ["height", -0.5, /負（実在しない矩形）/],
+    ["x", Number.NaN, /有限の数値ではない/],
+    ["y", Number.POSITIVE_INFINITY, /有限の数値ではない/],
+  ]) {
+    const badBox = datagridCoverage();
+    badBox.cells[0] = structuredClone(cov.cells[0]);
+    badBox.cells[0].absence_evidence.states[0].offset_parent = null;
+    badBox.cells[0].absence_evidence.states[0].bounding_box[field] = value;
+    badBox.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    const r = reconcile(badBox, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
+
+  // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
+  const displayNoneConflict = datagridCoverage();
+  displayNoneConflict.cells[0] = structuredClone(cov.cells[0]);
+  displayNoneConflict.cells[0].absence_evidence.states[0].bounding_box = null;
+  displayNoneConflict.cells[0].absence_evidence.states[0].offset_parent = "#visible-parent";
+  displayNoneConflict.cells[0].absence_evidence.states[0].hidden_by = {
+    target_locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
+    locator: "#price",
+    relation: "self",
+    relationship_verified: true,
+    computed_style: { display: "none" },
+  };
+  displayNoneConflict.components[0].instances[0].applicable_states = structuredClone(
+    cov.components[0].instances[0].applicable_states,
+  );
+  expect(reconcile(displayNoneConflict, bundled).problems.join("\n")).toMatch(
+    /display: none なのに offset_parent/,
+  );
+
+  // visibility 経路まで巻き込まない（offsetParent は残るため非 null が正当）
+  const visibilityHidden = structuredClone(displayNoneConflict);
+  visibilityHidden.cells[0].absence_evidence.states[0].hidden_by.computed_style = {
+    visibility: "hidden",
+  };
+  expect(reconcile(visibilityHidden, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // locator が対象を一意に引けていない記録は未測定へ倒す
+  for (const [mutate, pattern] of [
+    [(e) => (e.locator_match_count = 2), /locator_match_count/],
+    [(e) => delete e.locator_match_count, /locator_match_count/],
+    [(e) => (e.locator_match_state = "mobile/guest"), /locator_match_state/],
+  ]) {
+    const badLocator = datagridCoverage();
+    badLocator.cells[0] = structuredClone(cov.cells[0]);
+    badLocator.cells[0].absence_evidence.states[0].offset_parent = null;
+    badLocator.components[0].instances[0].applicable_states = structuredClone(
+      cov.components[0].instances[0].applicable_states,
+    );
+    mutate(badLocator.cells[0].absence_evidence);
+    const r = reconcile(badLocator, bundled);
+    expect(r).toMatchObject({ ok: false, unmeasured: 1 });
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
 
   // 語彙外の source.kind は出所不明として未測定に倒す（非空判定だけでは通ってしまう）
   for (const kind of ["invented", "config"]) {

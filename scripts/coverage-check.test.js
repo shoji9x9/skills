@@ -77,6 +77,8 @@ function nonRenderableEvidence() {
     locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
     state_source: "vendor spec v2 と現行 UI",
     states_exhaustive: true,
+    locator_match_count: 1,
+    locator_match_state: "desktop/default",
     expected_states: ["desktop/default", "mobile/admin"],
     states: [
       {
@@ -179,6 +181,21 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     (e) => (e.states[0].offset_parent = 3),
     (e) => (e.states[0].bounding_box.width = "0"),
     (e) => (e.states[0].bounding_box.width = 10),
+    // 実在しない矩形（負値・非有限）で 0 寸法判定を迂回させない
+    (e) => (e.states[0].bounding_box.width = -1),
+    (e) => (e.states[0].bounding_box.height = -0.5),
+    (e) => (e.states[0].bounding_box.x = Number.NaN),
+    (e) => (e.states[0].bounding_box.y = Number.POSITIVE_INFINITY),
+    // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null
+    (e) => (e.states[1].offset_parent = "#visible-parent"),
+    // locator が対象を一意に引けていない（複数一致・0 件・型崩れ・未記録）
+    (e) => (e.locator_match_count = 2),
+    (e) => (e.locator_match_count = 0),
+    (e) => (e.locator_match_count = "1"),
+    (e) => delete e.locator_match_count,
+    // 一致数を測った状態が、測定した状態のどれでもない
+    (e) => (e.locator_match_state = "mobile/guest"),
+    (e) => delete e.locator_match_state,
     (e) => (e.states[1].hidden_by.computed_style = {}),
     (e) => {
       e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
@@ -194,7 +211,7 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     expect(r.absent).toBe(0);
     expect(r.unmeasured).toBe(1);
     expect(r.problems.join("\n")).toMatch(
-      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複/,
+      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複|locator_match/,
     );
   }
 });
@@ -227,6 +244,33 @@ test("applicable_states.source.kind はテンプレートの語彙 4 種だけ�
     cov.components[0].instances[1].applicable_states.source.kind = kind;
     expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
   }
+});
+
+test("visibility: hidden では offset_parent が非 null でも非描画証拠として通る", () => {
+  // display: none だけが offsetParent を必ず null にする。visibility 経路まで巻き込むと正当な証拠を落とす
+  const cov = full();
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  cov.cells[1].absence_evidence.states[1].hidden_by.computed_style = { visibility: "hidden" };
+  cov.cells[1].absence_evidence.states[1].offset_parent = "#visible-parent";
+  cov.components[0].instances[1].applicable_states = applicableStates();
+  expect(countCoverage(cov, "order-list")).toMatchObject({ absent: 1, unmeasured: 0 });
+});
+
+test("id 欠落インスタンスは applicable_states の参照先にならない", () => {
+  // String(undefined) が文字列 id "undefined" と衝突すると、別インスタンスの manifest を読んでしまう
+  const cov = full();
+  cov.components[0].instances = [
+    { page: "id の無いインスタンス", applicable_states: applicableStates() },
+    ...cov.components[0].instances,
+  ];
+  cov.components[0].instances[2].id = "undefined";
+  for (const c of cov.cells) if (c.instance === "search") c.instance = "undefined";
+  cov.cells[1].evidence = "全到達状態で非描画";
+  cov.cells[1].absence_evidence = nonRenderableEvidence();
+  const r = countCoverage(cov, "order-list");
+  expect(r.absent).toBe(0);
+  expect(r.problems.join("\n")).toMatch(/applicable_states が無い/);
 });
 
 test("absent の経路識別が無い・未知なら散文 evidence があっても未測定", () => {

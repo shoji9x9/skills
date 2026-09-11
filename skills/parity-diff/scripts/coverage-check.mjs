@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -86,6 +86,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   if (evidence.states_exhaustive !== true) {
     return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  // locator が対象の操作要素を一意に引くことは散文の規約では担保できない。実測した一致数を要求し、
+  // 1 以外（複数要素に当たる・0 件で別候補を指している）は不在を証明できていないので未測定へ倒す。
+  if (evidence.locator_match_count !== 1) {
+    return `${label}: non-renderable の locator_match_count が 1 ではない（対象の操作要素を一意に引けていない）`;
   }
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
@@ -160,8 +165,12 @@ function absentEvidenceProblem(row, label, stateManifest) {
         return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
       }
       const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
-      if (![box.x, box.y, box.width, box.height].every((v) => typeof v === "number")) {
-        return `${stateLabel}.bounding_box の x / y / width / height が数値ではない`;
+      if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+        return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
+      }
+      // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
+      if (Number(box.width) < 0 || Number(box.height) < 0) {
+        return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
       }
       zeroArea = box.width === 0 || box.height === 0;
     }
@@ -186,6 +195,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!hiddenCause) {
         return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
       }
+      // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
+      // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
+      if (style !== null && style.display === "none" && state.offset_parent !== null) {
+        return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
+      }
     }
     if (hiddenCause && state.bounding_box !== null) {
       return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
@@ -193,6 +207,12 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (!zeroArea && !hiddenCause) {
       return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
     }
+  }
+  if (
+    !nonEmptyString(evidence.locator_match_state) ||
+    !measuredStates.has(String(evidence.locator_match_state))
+  ) {
+    return `${label}: non-renderable の locator_match_state が測定した状態のいずれでもない`;
   }
   if (
     measuredStates.size !== expectedStates.length ||
@@ -795,6 +815,22 @@ export function countCoverage(coverage, slug) {
     // （rejected を 1 セルとして数えると、件数が定義より小さく出て収束レポートが過小になる）。
     const itemTotal = itemIds.length + itemRejected;
     const instanceTotal = instanceIds.length + instanceRejected;
+    // id→インスタンスの索引。collectIds が弾いた要素（id が空・重複）は索引にも入れない——
+    // String(undefined) が "undefined" と衝突すると、文字列 id "undefined" を持つ正規インスタンスの
+    // セルを id 欠落要素から読み、present / absent の集計まで誤る。
+    // 併せて 項目 × インスタンス ループ内の線形探索（O(items × instances²)）も避ける。
+    /** @type {Map<string, Record<string, unknown>>} */
+    const instanceById = new Map();
+    for (const entry of instances) {
+      if (!isPlainObject(entry)) continue;
+      const raw = /** @type {Record<string, unknown>} */ (entry).id;
+      if (!nonEmptyString(raw)) continue;
+      const id = String(raw);
+      // collectIds は重複 id の 2 件目以降を弾き 1 件目を残すため、索引も先勝ちで揃える。
+      if (!instanceById.has(id)) {
+        instanceById.set(id, /** @type {Record<string, unknown>} */ (entry));
+      }
+    }
     cells += itemTotal * instanceTotal;
     unmeasured += itemTotal * instanceTotal - itemIds.length * instanceIds.length;
     for (const iid of itemIds) {
@@ -802,15 +838,13 @@ export function countCoverage(coverage, slug) {
         const key = keyOf(cid, iid, nid);
         expected.add(key);
         // 採点規則はプロファイル経路と共有する（片方だけ緩めない）。
-        const instance = instances.find(
-          (entry) => isPlainObject(entry) && String(entry.id) === nid,
-        );
+        const instance = instanceById.get(nid);
         const graded = gradeCell(
           byKey.get(key),
           duplicated.has(key),
           key,
           problems,
-          isPlainObject(instance) ? instance.applicable_states : undefined,
+          instance === undefined ? undefined : instance.applicable_states,
         );
         if (graded === "present") present += 1;
         else if (graded === "absent") absent += 1;

@@ -39,7 +39,7 @@
 
     未測定として数えるのは `value: unmeasured` のセル、期待セルの組み合わせのうち**行が無いもの**、
     `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、`absent` なのに `absence_evidence.kind` が無い・未知のもの、
-    `kind: non-renderable` なのに一意な locator・状態の導出源・`states_exhaustive: true`・インスタンス側の完全な `applicable_states` manifest
+    `kind: non-renderable` なのに一意な locator（`locator_match_count: 1` と測定状態 `locator_match_state` の実測記録）・状態の導出源・`states_exhaustive: true`・インスタンス側の完全な `applicable_states` manifest
     （`source.kind` が `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかであることを含む）・
     `expected_states` / `states[].name` / manifest 状態 id の一意な完全一致・遷移一致・1 件以上の状態別証拠（矩形、`offset_parent`、0 寸法または対象本人／祖先との検証済み関係を持つ非表示原因）が揃わないもの、
     **同じ組み合わせの重複行**（先勝ちにしない）。`kind: fired-without-response` は従来どおり散文 `evidence` の発火確認と観測結果を使う。

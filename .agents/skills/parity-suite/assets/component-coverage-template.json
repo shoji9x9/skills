@@ -108,6 +108,8 @@
         "kind": "<absent のとき fired-without-response | non-renderable。present / unmeasured では null>",
         "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
         "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
+        "locator_match_count": "<non-renderable のとき、locator が実際に一致した要素数の実測値（数値のまま書く）。1 でなければ対象を一意に引けていないので absent にせず unmeasured>",
+        "locator_match_state": "<locator_match_count を実測した状態名。states[].name のいずれかと一致させる>",
         "states_exhaustive": true,
         "expected_states": [
           "<state_source から導出した状態 id。重複不可で states[].name と完全一致させる>"

@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -87,6 +87,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   if (evidence.states_exhaustive !== true) {
     return `${label}: non-renderable の states_exhaustive が true ではない`;
+  }
+  // locator が対象の操作要素を一意に引くことは散文の規約では担保できない。実測した一致数を要求し、
+  // 1 以外（複数要素に当たる・0 件で別候補を指している）は不在を証明できていないので未測定へ倒す。
+  if (evidence.locator_match_count !== 1) {
+    return `${label}: non-renderable の locator_match_count が 1 ではない（対象の操作要素を一意に引けていない）`;
   }
   if (!isPlainObject(stateManifest)) {
     return `${label}: non-renderable なのにインスタンスの applicable_states が無い`;
@@ -161,8 +166,12 @@ function absentEvidenceProblem(row, label, stateManifest) {
         return `${stateLabel}.bounding_box が null または JSON オブジェクトではない`;
       }
       const box = /** @type {Record<string, unknown>} */ (state.bounding_box);
-      if (![box.x, box.y, box.width, box.height].every((v) => typeof v === "number")) {
-        return `${stateLabel}.bounding_box の x / y / width / height が数値ではない`;
+      if (![box.x, box.y, box.width, box.height].every((v) => Number.isFinite(v))) {
+        return `${stateLabel}.bounding_box の x / y / width / height が有限の数値ではない`;
+      }
+      // Playwright の矩形に負の幅・高さは無い。負値を通すと、実在しない矩形で 0 寸法判定を迂回できる。
+      if (Number(box.width) < 0 || Number(box.height) < 0) {
+        return `${stateLabel}.bounding_box の width / height が負（実在しない矩形）`;
       }
       zeroArea = box.width === 0 || box.height === 0;
     }
@@ -187,6 +196,11 @@ function absentEvidenceProblem(row, label, stateManifest) {
       if (!hiddenCause) {
         return `${stateLabel}.hidden_by が対象本人／祖先との検証済み関係と非表示 CSS を示さない`;
       }
+      // display: none の本人／祖先配下では実 DOM の offsetParent は必ず null。
+      // 非 null を通すと、実測していない値の組み合わせを非描画の証拠として収束させられる。
+      if (style !== null && style.display === "none" && state.offset_parent !== null) {
+        return `${stateLabel}: display: none なのに offset_parent が null ではない（矛盾）`;
+      }
     }
     if (hiddenCause && state.bounding_box !== null) {
       return `${stateLabel}: hidden_by があるのに bounding_box が null ではない（矛盾）`;
@@ -194,6 +208,12 @@ function absentEvidenceProblem(row, label, stateManifest) {
     if (!zeroArea && !hiddenCause) {
       return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
     }
+  }
+  if (
+    !nonEmptyString(evidence.locator_match_state) ||
+    !measuredStates.has(String(evidence.locator_match_state))
+  ) {
+    return `${label}: non-renderable の locator_match_state が測定した状態のいずれでもない`;
   }
   if (
     measuredStates.size !== expectedStates.length ||

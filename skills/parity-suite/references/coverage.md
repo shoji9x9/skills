@@ -76,7 +76,7 @@
     - **操作可能な要素が在る:** **(1)** 操作用に引いた可視要素へ操作を送る、**(2)** 操作イベントの到達または操作に応じる DOM・状態変化で発火を別途確認する、
       **(3)** 送り方・発火確認・観測結果の 3 点を `evidence` に記録する、**(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
       **この経路で `absent` に進める順序は「発火確認済み」→「期待する UI 応答なし」であり、発火自体を確認できない結果を `absent` と結論しない。**
-    - **どの到達状態にも操作可能な要素が無い:** 非表示確認用には `getByRole(..., { includeHidden: true })`、または同等に一意な構造ロケータを使い、対象の部品インスタンスの操作要素を一意に指すことを確認する。
+    - **どの到達状態にも操作可能な要素が無い:** 非表示確認用には `getByRole(..., { includeHidden: true })`、または同等に一意な構造ロケータを使い、対象の部品インスタンスの操作要素を一意に指すことを確認する（確認結果は後述の `locator_match_count` に実測値で残す。散文の確認だけでは検査されない）。
       通常の操作・表示判定に使う role ＋アクセシブルネームの原則は変えない。次に、被覆プロファイルの候補と導出源、現行 UI から、
       その候補を表示しうる適用可能な状態と遷移（トリガー、ビューポート、スクロール、データ、権限等）を列挙して到達させ、すべての状態で要素または祖先が非表示、もしくは矩形の幅・高さの一方が 0 であることを実測する。
       ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と `offsetParent`、非表示原因となった要素または祖先とその computed style は、
@@ -84,7 +84,8 @@
       `offsetParent: null` だけを非表示の証拠にせず、矩形と非表示原因も突き合わせる。セルの `absence_evidence` は `kind: non-renderable`、`states_exhaustive: true` とし、
       インスタンスの `applicable_states` に、セルとは独立した状態manifest（完全な source と `complete: true`、一意な `items[].id` と遷移）を置く。
       `applicable_states.source.kind` は `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかで、それ以外は出所不明として `unmeasured` にする。`state_source` から導出した重複のない状態 id を
-      `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。同じ証拠を `locator` / `state_source` /
+      `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、実測した一致数を `locator_match_count`（1 以外は `unmeasured`）、
+      それを測った状態を `locator_match_state`（`states[].name` のいずれか）として記録する。同じ証拠を `locator` / `state_source` /
       `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by` は `target_locator`、`relation: self | ancestor`、`relationship_verified: true` で対象との関係を記録し、
       `computed_style` が `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。`hidden_by` があるのに矩形が `null` でなければ矛盾として `unmeasured` にする。
       これらを満たした場合だけ、操作を送らず `absent` とする。
