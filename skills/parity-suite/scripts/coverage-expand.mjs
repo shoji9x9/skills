@@ -332,6 +332,42 @@ function absentEvidenceProblem(row, label, stateManifest) {
 // ===== absence-evidence-contract:end =====
 
 /**
+ * 期待セルの展開に使える id を集める。`coverage-check.mjs` の `collectIds` と同じ規則にする——
+ * id が空・重複の要素は識別できないので展開に使わず、その要素が関わるセルは未測定として数える。
+ * **黙って読み飛ばさない**（読み飛ばすと、識別できない要素があるのに conformance.ok: true になる）。
+ * @param {unknown[]} entries
+ * @param {string} label - 問題文に出す位置
+ * @param {string[]} problems - 問題の追記先
+ * @returns {{ids: string[], rejected: number}} rejected は展開に使えなかった要素数
+ */
+function collectGenericIds(entries, label, problems) {
+  /** @type {string[]} */
+  const ids = [];
+  /** @type {Set<string>} */
+  const seen = new Set();
+  let rejected = 0;
+  entries.forEach((entry, index) => {
+    const raw = isPlainObject(entry)
+      ? /** @type {Record<string, unknown>} */ (entry).id
+      : undefined;
+    if (!nonEmptyString(raw)) {
+      problems.push(`${label}[${index}]: id が空（識別できないので未測定として数える）`);
+      rejected += 1;
+      return;
+    }
+    const id = String(raw);
+    if (seen.has(id)) {
+      problems.push(`${label}[${index}]: id ${id} が重複している（先勝ちにしない）`);
+      rejected += 1;
+      return;
+    }
+    seen.add(id);
+    ids.push(id);
+  });
+  return { ids, rejected };
+}
+
+/**
  * 被覆表のセル 1 件を採点する。判定規則の正本は `references/coverage.md`「部品被覆表」。
  * **候補経路（プロファイル宣言あり）と汎用経路（`profile: null`）で同じ規則を使う**——
  * 片方だけ検査すると、記録側は conformance.ok を出すのに収束側（parity-diff の
@@ -1088,21 +1124,33 @@ export function reconcile(coverage, profiles) {
       }
       // プロファイルを宣言しない部品でも期待セルは 項目 × インスタンス で存在する。
       // 候補展開はしないが、セルの判定規則は候補経路と同じものを当てる（記録側だけ通る表を作らない）。
-      for (const rawItem of Array.isArray(c.items) ? c.items : []) {
-        const itemId = isPlainObject(rawItem)
-          ? /** @type {Record<string, unknown>} */ (rawItem).id
-          : undefined;
-        if (!nonEmptyString(itemId)) continue;
-        for (const rawInst of Array.isArray(c.instances) ? c.instances : []) {
-          if (!isPlainObject(rawInst)) continue;
-          const inst = /** @type {Record<string, unknown>} */ (rawInst);
-          if (!nonEmptyString(inst.id)) continue;
-          const key = keyOf(cid, String(itemId), String(inst.id));
+      const genericItems = Array.isArray(c.items) ? c.items : [];
+      const genericInstances = Array.isArray(c.instances) ? c.instances : [];
+      const itemIds = collectGenericIds(genericItems, `部品 ${cid} の items`, problems);
+      const instanceIds = collectGenericIds(genericInstances, `部品 ${cid} の instances`, problems);
+      // 期待セル数は「項目数 × インスタンス数」。id が空・重複の要素も項目／インスタンスとしては実在するので、
+      // その要素が関わるセルは全て期待セルであり、識別できない以上すべて未測定になる
+      // （読み飛ばすと、識別できない要素があるのに conformance.ok: true を出せる）。
+      const itemTotal = itemIds.ids.length + itemIds.rejected;
+      const instanceTotal = instanceIds.ids.length + instanceIds.rejected;
+      unmeasured += itemTotal * instanceTotal - itemIds.ids.length * instanceIds.ids.length;
+      /** @type {Map<string, Record<string, unknown>>} */
+      const instanceById = new Map();
+      for (const rawInst of genericInstances) {
+        if (!isPlainObject(rawInst)) continue;
+        const inst = /** @type {Record<string, unknown>} */ (rawInst);
+        if (!nonEmptyString(inst.id)) continue;
+        const id = String(inst.id);
+        if (!instanceById.has(id)) instanceById.set(id, inst);
+      }
+      for (const itemId of itemIds.ids) {
+        for (const instanceId of instanceIds.ids) {
+          const key = keyOf(cid, itemId, instanceId);
           const isUnmeasured = gradeCellRow(
             byKey.get(key),
             duplicated.has(key),
-            `部品 ${cid} / インスタンス ${String(inst.id)}: 項目 ${String(itemId)}`,
-            inst.applicable_states,
+            `部品 ${cid} / インスタンス ${instanceId}: 項目 ${itemId}`,
+            instanceById.get(instanceId)?.applicable_states,
             problems,
           );
           if (isUnmeasured) unmeasured += 1;

@@ -518,6 +518,22 @@ test("プロファイルを宣言しない部品のセルも候補経路と同�
   good.cells[0].covered_by = ["e2e/parity/order-list.spec.ts > ctx menu"];
   good.cells[0].absence_evidence = null;
   expect(reconcile(good, bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // id が空・重複の要素は黙って読み飛ばさず、その要素が関わるセルを未測定として数える
+  // （読み飛ばすと、識別できない要素があるのに conformance.ok: true を出せる）
+  for (const [mutate, pattern] of [
+    [(c) => c.components[0].items.push({ name: "id が無い" }), /items\[1\]: id が空/],
+    [(c) => c.components[0].items.push({ id: "ctx-menu" }), /items\[1\]: id ctx-menu が重複/],
+    [(c) => c.components[0].instances.push({ page: "id が無い" }), /instances\[1\]: id が空/],
+    [(c) => c.components[0].instances.push({ id: "orders" }), /instances\[1\]: id orders が重複/],
+  ]) {
+    const cov = structuredClone(good);
+    mutate(cov);
+    const r = reconcile(cov, bundled);
+    expect(r).toMatchObject({ ok: false });
+    expect(r.unmeasured).toBeGreaterThan(0);
+    expect(r.problems.join("\n")).toMatch(pattern);
+  }
 });
 
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {
