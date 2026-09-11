@@ -43,7 +43,7 @@ const ID_SEPARATOR = "/";
  * `instances[].applicable_states.source.kind` の語彙。
  * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
  * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
- * parity-suite の coverage-expand.mjs と同じ集合を維持する。
+ * parity-diff の coverage-check.mjs と同じ集合を維持する。
  */
 const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
 
