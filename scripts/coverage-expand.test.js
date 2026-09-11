@@ -647,11 +647,20 @@ test("適合プロファイルが無い部品は理由付きで未検証とし�
         id: "chart",
         profile: null,
         profile_absent_reason: "Chart のプロファイルが未整備。gaps.md の未検証領域に記録した",
-        items: [],
-        instances: [],
+        items: [{ id: "zoom" }],
+        instances: [{ id: "dashboard" }],
       },
     ],
-    cells: [],
+    cells: [
+      {
+        component: "chart",
+        item: "zoom",
+        instance: "dashboard",
+        value: "present",
+        evidence: "ホイールで拡大できる",
+        covered_by: ["e2e/parity/dashboard.spec.ts > zoom"],
+      },
+    ],
   };
   const ok = reconcile(withReason, bundled);
   expect(ok.problems).toEqual([]);
@@ -660,6 +669,61 @@ test("適合プロファイルが無い部品は理由付きで未検証とし�
   const noReason = structuredClone(withReason);
   delete noReason.components[0].profile_absent_reason;
   expect(reconcile(noReason, bundled).problems.join("\n")).toMatch(/profile_absent_reason が空/);
+});
+
+test("列挙が空・部品 id の重複・宣言に無い行は記録側でも fail-closed にする", () => {
+  // いずれも判定側（coverage-check.mjs）が弾く条件。記録側だけ通ると conformance.ok が意味を失う。
+  const base = () => ({
+    slug: "order-list",
+    components: [
+      {
+        id: "chart",
+        profile: null,
+        profile_absent_reason: "未整備",
+        items: [{ id: "zoom" }],
+        instances: [{ id: "dashboard" }],
+      },
+    ],
+    cells: [
+      {
+        component: "chart",
+        item: "zoom",
+        instance: "dashboard",
+        value: "present",
+        evidence: "測った",
+        covered_by: ["spec > t"],
+      },
+    ],
+  });
+  // 陽性コントロール: 正しく測れていれば通る
+  expect(reconcile(base(), bundled)).toMatchObject({ ok: true, unmeasured: 0 });
+
+  const emptyItems = base();
+  emptyItems.components[0].items = [];
+  emptyItems.cells = [];
+  const emptyResult = reconcile(emptyItems, bundled);
+  expect(emptyResult).toMatchObject({ ok: false, unmeasured: 1 });
+  expect(emptyResult.problems.join("\n")).toMatch(/items または instances が空/);
+
+  const duplicated = base();
+  duplicated.components.push(structuredClone(duplicated.components[0]));
+  const dupResult = reconcile(duplicated, bundled);
+  expect(dupResult.ok).toBe(false);
+  expect(dupResult.unmeasured).toBeGreaterThan(0);
+  expect(dupResult.problems.join("\n")).toMatch(/id chart が重複している/);
+
+  const stale = base();
+  stale.cells.push({
+    component: "chart",
+    item: "removed-item",
+    instance: "dashboard",
+    value: "present",
+    evidence: "古い行",
+    covered_by: ["spec > t"],
+  });
+  const staleResult = reconcile(stale, bundled);
+  expect(staleResult.ok).toBe(false);
+  expect(staleResult.problems.join("\n")).toMatch(/components に無い 部品／項目／インスタンス/);
 });
 
 test("同値クラス: 束ねてよい軸・全候補の所属・根拠を検査する", () => {

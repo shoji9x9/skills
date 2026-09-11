@@ -1100,6 +1100,12 @@ export function reconcile(coverage, profiles) {
     else byKey.set(key, r);
   }
 
+  // 期待セルのキー。宣言に無い行（古い項目・インスタンスの残骸）を最後に弾くために集める。
+  /** @type {Set<string>} */
+  const expectedKeys = new Set();
+  /** @type {Set<string>} */
+  const seenComponents = new Set();
+
   for (const [index, component] of components.entries()) {
     if (!isPlainObject(component)) {
       problems.push(`components[${index}]: JSON オブジェクトではない`);
@@ -1108,6 +1114,19 @@ export function reconcile(coverage, profiles) {
     const c = /** @type {Record<string, unknown>} */ (component);
     const cid = nonEmptyString(c.id) ? String(c.id) : `#${index}`;
     if (!nonEmptyString(c.id)) problems.push(`components[${index}]: id が空`);
+    // 部品 id の重複を先勝ちにしない（同じ部品を 2 回採点して ok を出せる）。
+    // 判定側（parity-diff の coverage-check.mjs）は宣言セル数を未測定として数える。
+    if (nonEmptyString(c.id)) {
+      if (seenComponents.has(cid)) {
+        const declaredCells =
+          (Array.isArray(c.items) ? c.items.length : 0) *
+          (Array.isArray(c.instances) ? c.instances.length : 0);
+        problems.push(`components[${index}]: id ${cid} が重複している（先勝ちにしない）`);
+        unmeasured += Math.max(declaredCells, 1);
+        continue;
+      }
+      seenComponents.add(cid);
+    }
 
     // profile キーの欠落を「汎用扱い」に倒さない。プロファイル無しを選ぶには理由が要る。
     if (!("profile" in c)) {
@@ -1126,6 +1145,19 @@ export function reconcile(coverage, profiles) {
       // 候補展開はしないが、セルの判定規則は候補経路と同じものを当てる（記録側だけ通る表を作らない）。
       const genericItems = Array.isArray(c.items) ? c.items : [];
       const genericInstances = Array.isArray(c.instances) ? c.instances : [];
+      if (genericItems.length === 0 || genericInstances.length === 0) {
+        // 空の列挙は期待セル 0 ＝ 未測定 0 に化けるので、fail-closed で 1 件の未測定として数える
+        // （判定側の coverage-check.mjs と同じ扱い）。
+        problems.push(`部品 ${cid}: items または instances が空（列挙が起きていない）`);
+        unmeasured += 1;
+        report.push({
+          component: cid,
+          profile: null,
+          judged: false,
+          reason: nonEmptyString(c.profile_absent_reason) ? String(c.profile_absent_reason) : null,
+        });
+        continue;
+      }
       const itemIds = collectGenericIds(genericItems, `部品 ${cid} の items`, problems);
       const instanceIds = collectGenericIds(genericInstances, `部品 ${cid} の instances`, problems);
       // 期待セル数は「項目数 × インスタンス数」。id が空・重複の要素も項目／インスタンスとしては実在するので、
@@ -1146,6 +1178,7 @@ export function reconcile(coverage, profiles) {
       for (const itemId of itemIds.ids) {
         for (const instanceId of instanceIds.ids) {
           const key = keyOf(cid, itemId, instanceId);
+          expectedKeys.add(key);
           const isUnmeasured = gradeCellRow(
             byKey.get(key),
             duplicated.has(key),
@@ -1334,6 +1367,7 @@ export function reconcile(coverage, profiles) {
 
         // セルの判定規則は coverage.md「部品被覆表」が正本。候補由来の期待セルへ同じ規則を当てる。
         const key = keyOf(cid, cand.id, iid);
+        expectedKeys.add(key);
         if (duplicated.has(key)) {
           problems.push(`${label}: 候補 ${cand.id} のセル行が複数ある（先勝ちにしない）`);
           unmeasured += 1;
@@ -1433,6 +1467,13 @@ export function reconcile(coverage, profiles) {
       instances: instanceReports,
       candidates: [...candidateIndex.keys()].length,
     });
+  }
+
+  // 宣言に無い行（古い項目・インスタンスの残骸）を残さない。判定側は expected キー照合で同じ行を弾く。
+  for (const key of byKey.keys()) {
+    if (!expectedKeys.has(key)) {
+      problems.push(`セル ${key}: components に無い 部品／項目／インスタンス を参照している`);
+    }
   }
 
   return {
