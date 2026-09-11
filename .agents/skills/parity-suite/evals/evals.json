@@ -243,7 +243,8 @@
       "assertions": [
         "メニューを開く前だけ非表示の menuitem と desktop でだけ 0 幅のレスポンシブ操作を absent にせず、表示される到達状態で操作を測り、操作が存在すれば present として採取状態または assertion を covered_by に記録すると答えている",
         "非表示確認用には includeHidden: true または同等に一意な構造ロケータで操作要素を特定し、候補の導出源から適用可能な状態と遷移を列挙して、全状態で非描画を実測した候補だけ操作を送らず absent にできると答えている",
-        "non-renderable の absence_evidence に states_exhaustive: true、ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と offsetParent、非表示原因の本人／祖先と computed style を機械可読に残し、offsetParent: null だけでは判定しないと示している",
+        "non-renderable の absence_evidence に states_exhaustive: true、重複のない expected_states と完全一致する states、ロケータ、状態の導出源、遷移、各状態の矩形と offsetParent を機械可読に残すと示している",
+        "hidden_by は非表示原因の本人／祖先と display: none または visibility: hidden / collapse を記録した場合だけ証拠にし、offsetParent: null や表示中の computed style だけでは判定しないと示している",
         "未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は unmeasured にすると答えている",
         "座標操作は expect.poll で boundingBox が null でなく幅・高さがともに正、中心座標の hit-test が操作用要素または子孫を指す状態まで自動リトライし、条件成立直後だけ行うと答えている",
         "0 幅の中心座標へ mouse.click して下の別要素に届いた発火を、対象操作の発火確認として使う案を退けている"

@@ -77,6 +77,7 @@ function nonRenderableEvidence() {
     locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
     state_source: "vendor spec v2 と現行 UI",
     states_exhaustive: true,
+    expected_states: ["desktop/default", "mobile/admin"],
     states: [
       {
         name: "desktop/default",
@@ -146,12 +147,20 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     (e) => delete e.state_source,
     (e) => (e.states_exhaustive = false),
     (e) => (e.states = []),
+    (e) => (e.expected_states = []),
+    (e) => e.expected_states.push("desktop/default"),
+    (e) => (e.expected_states[0] = "desktop/other"),
+    (e) => (e.states[1].name = "desktop/default"),
     (e) => delete e.states[0].bounding_box,
     (e) => delete e.states[0].offset_parent,
     (e) => (e.states[0].offset_parent = 3),
     (e) => (e.states[0].bounding_box.width = "0"),
     (e) => (e.states[0].bounding_box.width = 10),
     (e) => (e.states[1].hidden_by.computed_style = {}),
+    (e) => {
+      e.states[1].bounding_box = { x: 0, y: 0, width: 10, height: 20 };
+      e.states[1].hidden_by.computed_style = { display: "block", color: "red" };
+    },
   ];
   for (const mutate of mutations) {
     const cov = full();
@@ -161,7 +170,7 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     expect(r.absent).toBe(0);
     expect(r.unmeasured).toBe(1);
     expect(r.problems.join("\n")).toMatch(
-      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法/,
+      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複/,
     );
   }
 });

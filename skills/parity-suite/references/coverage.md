@@ -81,7 +81,9 @@
       その候補を表示しうる適用可能な状態と遷移（トリガー、ビューポート、スクロール、データ、権限等）を列挙して到達させ、すべての状態で要素または祖先が非表示、もしくは矩形の幅・高さの一方が 0 であることを実測する。
       `evidence` にはロケータ、状態の導出源、試した状態と遷移、各状態の矩形と `offsetParent`、非表示原因となった要素または祖先とその computed style を記録する。
       `offsetParent: null` だけを非表示の証拠にせず、矩形と非表示原因も突き合わせる。セルの `absence_evidence` は `kind: non-renderable`、`states_exhaustive: true` とし、
-      同じ証拠を `locator` / `state_source` / `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。これらを満たした場合だけ、操作を送らず `absent` とする。
+      `state_source` から導出した重複のない状態 id を `expected_states` に列挙し、`states[].name` の一意な集合と完全一致させる。同じ証拠を `locator` / `state_source` /
+      `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by.computed_style` は `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。
+      これらを満たした場合だけ、操作を送らず `absent` とする。
       未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は `unmeasured` とする。一時点の非表示や 0 寸法だけで `absent` にすると、
       メニューを開く前、レスポンシブ切替前、仮想スクロール前、状態・権限の変更前に存在する操作を被覆から落とすためである。
     操作可能な要素へ発火を確認する経路では `absence_evidence.kind: fired-without-response` を記録する。コンテキストメニューで `locator.click({ button: 'right' })` が発火しない場合は、

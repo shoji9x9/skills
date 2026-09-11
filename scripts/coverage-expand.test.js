@@ -207,6 +207,7 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
       locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
       state_source: "datagrid profile と現行 UI",
       states_exhaustive: true,
+      expected_states: ["desktop/default"],
       states: [
         {
           name: "desktop/default",
@@ -224,6 +225,27 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
   const invalid = reconcile(cov, bundled);
   expect(invalid).toMatchObject({ ok: false, unmeasured: 1 });
   expect(invalid.problems.join("\n")).toMatch(/offset_parent/);
+
+  const visibleStyle = datagridCoverage();
+  visibleStyle.cells[0] = structuredClone(cov.cells[0]);
+  visibleStyle.cells[0].absence_evidence.states[0].offset_parent = null;
+  visibleStyle.cells[0].absence_evidence.states[0].bounding_box = {
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 20,
+  };
+  visibleStyle.cells[0].absence_evidence.states[0].hidden_by = {
+    locator: "#price",
+    computed_style: { display: "block", color: "red" },
+  };
+  expect(reconcile(visibleStyle, bundled).problems.join("\n")).toMatch(/display: none/);
+
+  const duplicateState = datagridCoverage();
+  duplicateState.cells[0] = structuredClone(cov.cells[0]);
+  duplicateState.cells[0].absence_evidence.states[0].offset_parent = null;
+  duplicateState.cells[0].absence_evidence.expected_states.push("desktop/default");
+  expect(reconcile(duplicateState, bundled).problems.join("\n")).toMatch(/expected_states が重複/);
 });
 
 test("列挙が未完了なら候補ゼロで素通りせず、理由も必須", () => {

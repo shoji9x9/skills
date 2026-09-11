@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -81,6 +81,19 @@ function absentEvidenceProblem(row, label) {
   if (!Array.isArray(evidence.states) || evidence.states.length === 0) {
     return `${label}: non-renderable の states が空`;
   }
+  if (
+    !Array.isArray(evidence.expected_states) ||
+    evidence.expected_states.length === 0 ||
+    evidence.expected_states.some((name) => !nonEmptyString(name))
+  ) {
+    return `${label}: non-renderable の expected_states が空または不正`;
+  }
+  const expectedStates = evidence.expected_states.map(String);
+  if (new Set(expectedStates).size !== expectedStates.length) {
+    return `${label}: non-renderable の expected_states が重複している`;
+  }
+  /** @type {Set<string>} */
+  const measuredStates = new Set();
   for (const [index, rawState] of evidence.states.entries()) {
     const stateLabel = `${label}: non-renderable.states[${index}]`;
     if (!isPlainObject(rawState)) return `${stateLabel} が JSON オブジェクトではない`;
@@ -88,6 +101,9 @@ function absentEvidenceProblem(row, label) {
     if (!nonEmptyString(state.name) || !nonEmptyString(state.transition)) {
       return `${stateLabel} の name / transition が空`;
     }
+    const stateName = String(state.name);
+    if (measuredStates.has(stateName)) return `${stateLabel}.name ${stateName} が重複している`;
+    measuredStates.add(stateName);
     if (!("bounding_box" in state) || !("offset_parent" in state)) {
       return `${stateLabel} に bounding_box / offset_parent が無い`;
     }
@@ -111,15 +127,28 @@ function absentEvidenceProblem(row, label) {
         return `${stateLabel}.hidden_by が null または JSON オブジェクトではない`;
       }
       const hidden = /** @type {Record<string, unknown>} */ (state.hidden_by);
+      const style = isPlainObject(hidden.computed_style)
+        ? /** @type {Record<string, unknown>} */ (hidden.computed_style)
+        : null;
       hiddenCause =
         nonEmptyString(hidden.locator) &&
-        isPlainObject(hidden.computed_style) &&
-        Object.keys(hidden.computed_style).length > 0;
-      if (!hiddenCause) return `${stateLabel}.hidden_by の locator / computed_style が空`;
+        style !== null &&
+        (style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.visibility === "collapse");
+      if (!hiddenCause) {
+        return `${stateLabel}.hidden_by が display: none / visibility: hidden | collapse を示さない`;
+      }
     }
     if (!zeroArea && !hiddenCause) {
       return `${stateLabel} に 0 寸法の矩形または非表示原因の証拠が無い`;
     }
+  }
+  if (
+    measuredStates.size !== expectedStates.length ||
+    expectedStates.some((name) => !measuredStates.has(name))
+  ) {
+    return `${label}: non-renderable の expected_states と states[].name が完全一致しない`;
   }
   return null;
 }

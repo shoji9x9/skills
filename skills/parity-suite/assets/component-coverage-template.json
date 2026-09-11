@@ -93,13 +93,16 @@
         "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
         "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
         "states_exhaustive": true,
+        "expected_states": [
+          "<state_source から導出した状態 id。重複不可で states[].name と完全一致させる>"
+        ],
         "states": [
           {
             "name": "<状態名>",
             "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
             "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
             "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
-            "hidden_by": "<null または { locator, computed_style }。非表示原因となった本人／祖先と display・visibility 等の実測値>"
+            "hidden_by": "<null または { locator, computed_style }。非表示原因となった本人／祖先と display: none または visibility: hidden | collapse の実測値>"
           }
         ]
       },
