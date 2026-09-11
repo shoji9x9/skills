@@ -11,10 +11,15 @@
 | 要素 | 中身 | 用途 |
 |---|---|---|
 | スクリーンショット | 画面の画素 | 名前の付かない要素の見た目差を `parity-diff` の画素経路＋トリアージが扱う |
-| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius 等）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
+| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
 | 参考 aria スナップショット | 採取した aria | **参考資料であって assertion ではない**（assertion は手書き。[`coverage.md`](coverage.md)） |
 
 - **特性照合の対象は論理名付き要素に絞る。** 名前の付かない要素の見た目差はスクリーンショット（画素経路）が担う
+- **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
+  固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。プロパティ集合の正本は
+  [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる
+- **`FIXED_PROPERTIES` を変えたら現側・新側の両方を採り直す。** `parity-diff` の前提確認はツールの `VERSION` と `metadata.json` の記録値の一致を要求するため、
+  片側だけ採り直した成果物は比較に進めない（止まるのが正しい振る舞い）
 - 採取には同梱 [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定。コピー専用のサブディレクトリ。配置指針は [`locator-mapping.md`](locator-mapping.md)）へコピーして使う。
   何を採ったか（対象要素・プロパティ集合・状態）を `metadata.json` に残し、`parity-diff` が同一条件で照合できるようにする
 
