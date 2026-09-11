@@ -113,6 +113,7 @@ function nonRenderableEvidence() {
     kind: "non-renderable",
     locator: "getByRole('menuitem', { name: 'Back', includeHidden: true })",
     state_source: "vendor spec v2 と現行 UI",
+    locator_includes_hidden: true,
     states_exhaustive: true,
     expected_states: ["desktop/default", "mobile/admin"],
     states: [
@@ -207,6 +208,10 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
   const mutations = [
     (e) => delete e.locator,
     (e) => delete e.state_source,
+    // hidden を含む引き方であることを実証しないと、0 件を DOM 不在と読み替えられる
+    (e) => delete e.locator_includes_hidden,
+    (e) => (e.locator_includes_hidden = false),
+    (e) => (e.locator_includes_hidden = "true"),
     (e) => (e.states_exhaustive = false),
     (e) => (e.states = []),
     (e) => (e.expected_states = []),
@@ -265,7 +270,7 @@ test("非描画 absent の証拠の欠落・型崩れ・空配列は未測定に
     expect(r.absent).toBe(0);
     expect(r.unmeasured).toBe(1);
     expect(r.problems.join("\n")).toMatch(
-      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複|locator/,
+      /absence_evidence|non-renderable|bounding_box|offset_parent|hidden_by|0 寸法|expected_states|重複|locator|includes_hidden/,
     );
   }
 });

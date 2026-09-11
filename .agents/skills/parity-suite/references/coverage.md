@@ -74,9 +74,12 @@
   - `present`: 現行インスタンスにその操作が在り、**採取状態（`metadata.json.capture_conditions.states`）か assertion に落として押さえた**（落とし先を `covered_by` に書く）
   - `absent`: 現行インスタンスにその操作が無いことを、次のどちらかの経路で確かめた。
     - **操作可能な要素が在る:** **(1)** 操作用に引いた可視要素へ操作を送る、**(2)** 操作イベントの到達または操作に応じる DOM・状態変化で発火を別途確認する、
-      **(3)** 送り方・発火確認・観測結果の 3 点を `evidence` に記録する、**(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
+      **(3)** 送り方・発火確認・観測結果の 3 点を**機械可読な `absence_evidence`（`action` / `fired` / `observation`）に記録する**（`evidence` は非空要約にしか使われず、構造化値を入れても検査されない）、
+      **(4)** 1 つでも満たせなければ「無い」と判定せず `unmeasured` にする。
       **この経路で `absent` に進める順序は「発火確認済み」→「期待する UI 応答なし」であり、発火自体を確認できない結果を `absent` と結論しない。**
     - **どの到達状態にも操作可能な要素が無い:** 非表示確認用には `getByRole(..., { includeHidden: true })`、または同等に一意な構造ロケータを使い、対象の部品インスタンスの操作要素を一意に指すことを確認する（確認結果は後述の `locator_match_count` に実測値で残す。散文の確認だけでは検査されない）。
+      **hidden を含む引き方であることを `absence_evidence.locator_includes_hidden: true` に実測として残す**——通常の `getByRole` は hidden 要素を除外するため、
+      `display: none` の要素でも一致数は 0 になる。これを実証しないと、非表示の状態を DOM 不在と読み替えて `absent` に収束できてしまう。
       通常の操作・表示判定に使う role ＋アクセシブルネームの原則は変えない。次に、被覆プロファイルの候補と導出源、現行 UI から、
       その候補を表示しうる適用可能な状態と遷移（トリガー、ビューポート、スクロール、データ、権限等）を列挙して到達させ、すべての状態で要素または祖先が非表示、もしくは矩形の幅・高さの一方が 0 であることを実測する。
       ロケータ、状態の導出源、試した状態と遷移、各状態の矩形と `offsetParent`、非表示原因となった要素または祖先とその computed style は、
@@ -86,6 +89,8 @@
       `applicable_states.source.kind` は `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかで、それ以外は出所不明として `unmeasured` にする。`state_source` から導出した重複のない状態 id を
       `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、**状態ごとに**実測した一致数を `states[].locator_match_count` として記録する。
       2 件以上は一意に引けていないので `unmeasured`。0 件はその状態で DOM に無いことの実測として扱い、このとき矩形・`offset_parent`・`hidden_by` は全て `null` にする
+      （測定は `locator.count()` ではなく自動リトライ assertion の `await expect(locator).toHaveCount(n)` で行い、成立した `n` を記録する。
+      即時読み取りの `count()` は [`locator-mapping.md`](locator-mapping.md) と `scripts/auto-wait-check.mjs` が禁止しており、描画完了前の値を読む）
       （値が入っていれば矛盾として `unmeasured`）。全状態が 0 件だと `locator` が対象を引けている実証が一度も無く、誤った `locator` と区別できないため `unmeasured` とする。同じ証拠を `locator` / `state_source` /
       `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by` は `target_locator`、`relation: self | ancestor`、`relationship_verified: true` で対象との関係を記録し、
       `computed_style` が `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。`hidden_by` があるのに矩形が `null` でなければ矛盾として `unmeasured` にする。

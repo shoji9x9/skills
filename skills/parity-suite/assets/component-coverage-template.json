@@ -108,6 +108,7 @@
         "kind": "<absent のとき fired-without-response | non-renderable。present / unmeasured では null>",
         "locator": "<non-renderable のとき、対象インスタンスの操作要素を一意に引くロケータ。hidden 要素は getByRole(..., { includeHidden: true }) または同等に一意な構造 locator>",
         "state_source": "<non-renderable のとき、適用可能な状態を導出した被覆プロファイル・資料・現行 UI>",
+        "locator_includes_hidden": "<non-renderable のとき必須。上の locator が hidden 要素を含めて引く形（includeHidden: true または構造 locator）であることの実測（true 以外は unmeasured）。通常の getByRole は hidden を除外するため、これが無いと 0 件を DOM 不在と読み替えられる>",
         "action": {
           "_note": "fired-without-response のときだけ持つ。操作をどう送ったかの実測。",
           "locator": "<操作用に引いた可視要素のロケータ（判定用と分ける場合は操作用の方）>",
@@ -134,7 +135,7 @@
           {
             "name": "<状態名>",
             "transition": "<この状態へ到達させた操作・viewport・scroll・データ・権限条件>",
-            "locator_match_count": "<この状態で locator が一致した要素数の実測値（0 以上の整数を数値のまま書く）。2 以上は一意に引けていないので unmeasured。0 はその状態で DOM に無いことの実測で、このとき bounding_box / offset_parent / hidden_by は全て null にする。全状態が 0 だと locator の正しさを実証できないので unmeasured>",
+            "locator_match_count": "<この状態で locator が一致した要素数の実測値（0 以上の整数を数値のまま書く）。await expect(locator).toHaveCount(n) で成立させた n を記録する（即時読み取りの count() は禁止）。2 以上は一意に引けていないので unmeasured。0 はその状態で DOM に無いことの実測で、このとき bounding_box / offset_parent / hidden_by は全て null にする。全状態が 0 だと locator の正しさを実証できないので unmeasured>",
             "bounding_box": "<null または { x, y, width, height }。width / height の一方が 0 なら非描画証拠>",
             "offset_parent": "<offsetParent の一意な locator。null も実測値として記録するが、null 単独では非描画証拠にしない>",
             "hidden_by": "<null または { target_locator, locator, relation: self | ancestor, relationship_verified: true, computed_style }。対象本人／祖先との関係を実測し、display: none または visibility: hidden | collapse を記録する。hidden_by がある状態の bounding_box は null>"

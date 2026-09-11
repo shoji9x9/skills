@@ -171,6 +171,12 @@ function absentEvidenceProblem(row, label, stateManifest) {
   if (!nonEmptyString(evidence.locator) || !nonEmptyString(evidence.state_source)) {
     return `${label}: non-renderable の locator / state_source が空`;
   }
+  // 通常の getByRole は hidden 要素を除外するため、display: none の要素でも一致数は 0 になる。
+  // locator が hidden を含むことを実証しないまま 0 件を「DOM に無い」と読むと、非表示の状態を
+  // 不在として absent に収束できる。includeHidden または構造 locator であることを実測として要求する。
+  if (evidence.locator_includes_hidden !== true) {
+    return `${label}: non-renderable の locator_includes_hidden が実測の true ではない（hidden を含む locator である実証が無い）`;
+  }
   if (evidence.states_exhaustive !== true) {
     return `${label}: non-renderable の states_exhaustive が true ではない`;
   }

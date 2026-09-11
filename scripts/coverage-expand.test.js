@@ -206,6 +206,7 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
       kind: "non-renderable",
       locator: "getByRole('columnheader', { name: 'Price', includeHidden: true })",
       state_source: "datagrid profile と現行 UI",
+      locator_includes_hidden: true,
       states_exhaustive: true,
       expected_states: ["desktop/default"],
       states: [
@@ -355,6 +356,8 @@ test("候補由来の非描画 absent も全状態の機械可読証拠を検査
     [(e) => (e.states[0].locator_match_count = 2), /一意に引けていない/],
     [(e) => delete e.states[0].locator_match_count, /locator_match_count/],
     [(e) => (e.states[0].locator_match_count = -1), /locator_match_count/],
+    [(e) => delete e.locator_includes_hidden, /locator_includes_hidden/],
+    [(e) => (e.locator_includes_hidden = false), /locator_includes_hidden/],
     // hidden_by のキーごとの省略は、明示的な null と区別して証拠の欠落として扱う
     [(e) => delete e.states[0].hidden_by, /hidden_by が null または JSON オブジェクトではない/],
     // 0 件（DOM に無い）なのに矩形が残っている矛盾

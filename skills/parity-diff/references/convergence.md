@@ -39,7 +39,7 @@
 
     未測定として数えるのは `value: unmeasured` のセル、期待セルの組み合わせのうち**行が無いもの**、
     `present` / `absent` なのに `evidence` が空のもの、`present` なのに `covered_by` が空のもの、`absent` なのに `absence_evidence.kind` が無い・未知のもの、
-    `kind: non-renderable` で次のいずれかを欠くもの——一意な locator
+    `kind: non-renderable` で次のいずれかを欠くもの——`locator_includes_hidden: true`（hidden を含む引き方の実測。通常の `getByRole` は hidden を除外するため、これが無いと 0 件を DOM 不在と読み替えられる）、一意な locator
     （状態ごとの `locator_match_count` が 0 または 1 で、0 の状態は矩形・`offset_parent`・`hidden_by` が全て `null`、かつ 1 件の状態が 1 つ以上ある）、
     状態の導出源、`states_exhaustive: true`、インスタンス側の完全な `applicable_states` manifest
     （`source.kind` が `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかであることを含む）、
