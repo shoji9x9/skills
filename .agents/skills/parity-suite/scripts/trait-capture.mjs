@@ -100,12 +100,22 @@ function captureElement(el, props) {
   // なるので触らない（畳むと別ホストの資産どうしが同一視され、本物の差分を消す）。
   // 正規化できないとき（file:// 等で origin が "null"）は元の値のまま残す——偽の差分として
   // 目に見える側へ倒し、黙って一致させない。
+  //
+  // 置換は url() トークンの中身を取り出し、その URL 自体が自オリジンで始まるときだけ行う。
+  // 値全体への単純置換にすると、他オリジン URL のパス・クエリにたまたま自オリジンが現れた値
+  // （url("https://cdn.example/redirect/http://legacy.example:8811/x") 等）まで畳んで、
+  // 現・新で別物を指している外部参照を同値化し、本物の差分を消す。
   const origin = location.origin;
   const foldable = /^https?:\/\//.test(origin);
-  const foldOrigin = (value) =>
-    foldable && value.includes(origin + "/")
-      ? value.split(origin + "/").join("<same-origin>/")
-      : value;
+  const foldOrigin = (value) => {
+    if (!foldable || !value.includes("url(")) return value;
+    return value.replace(/url\(\s*("[^"]*"|'[^']*'|[^)]*)\s*\)/g, (whole, raw) => {
+      const quote = raw[0] === '"' || raw[0] === "'" ? raw[0] : "";
+      const url = quote ? raw.slice(1, -1) : raw.trim();
+      if (url !== origin && !url.startsWith(origin + "/")) return whole;
+      return `url(${quote}<same-origin>${url.slice(origin.length)}${quote})`;
+    });
+  };
 
   const pick = (pseudo) => {
     const style = getComputedStyle(el, pseudo);

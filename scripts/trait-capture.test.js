@@ -55,18 +55,27 @@ test("固定集合に重複が無い", () => {
   expect(new Set(FIXED_PROPERTIES).size).toBe(FIXED_PROPERTIES.length);
 });
 
-test("cursor の差は computed に現れる（画素に写らない差を特性照合へ渡す）", async () => {
-  const [legacy] = await captureTraits([
-    { name: "detail.save", locator: fakeLocator(allResolved({ cursor: "pointer" })) },
-  ]);
-  const [replacement] = await captureTraits([
-    { name: "detail.save", locator: fakeLocator(allResolved({ cursor: "default" })) },
-  ]);
+// 集合に名前があることだけを見るテストでは、captureElement のループが特定の名前を読み落とす
+// 変異を捕まえられない。3 プロパティとも computed へ入って差分になることを同じ形で確かめる。
+test.each([
+  ["cursor", "pointer", "default"],
+  ["user-select", "none", "auto"],
+  ["pointer-events", "none", "auto"],
+])(
+  "%s の差は computed に現れる（画素に写らない差を特性照合へ渡す）",
+  async (prop, before, after) => {
+    const [legacy] = await captureTraits([
+      { name: "detail.save", locator: fakeLocator(allResolved({ [prop]: before })) },
+    ]);
+    const [replacement] = await captureTraits([
+      { name: "detail.save", locator: fakeLocator(allResolved({ [prop]: after })) },
+    ]);
 
-  expect(legacy.computed.cursor).toBe("pointer");
-  expect(replacement.computed.cursor).toBe("default");
-  expect(legacy.computed.cursor).not.toBe(replacement.computed.cursor);
-});
+    expect(legacy.computed[prop]).toBe(before);
+    expect(replacement.computed[prop]).toBe(after);
+    expect(legacy.computed[prop]).not.toBe(replacement.computed[prop]);
+  },
+);
 
 test("擬似要素は content が none なら null になる", async () => {
   const [trait] = await captureTraits([
@@ -161,6 +170,14 @@ test.each([
   ["data URI", 'url("data:image/gif;base64,R0lGODlhAQABAAAAACw="), auto'],
   ["別オリジン", 'url("https://cdn.example.com/x.png"), auto'],
   ["自オリジンを前方一致で含む別ホスト", 'url("http://legacy.example:8811.evil/x.png"), auto'],
+  [
+    "他オリジン URL のパスに自オリジンが現れる値",
+    'url("https://cdn.example/redirect/http://legacy.example:8811/x.png"), auto',
+  ],
+  [
+    "url() の外に自オリジンが現れる値",
+    'url("https://cdn.example/x.png") http://legacy.example:8811/note, auto',
+  ],
 ])("%s の url() は畳まず原文のまま残す", async (_name, value) => {
   const [trait] = await captureTraits([
     {
