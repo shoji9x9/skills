@@ -14,6 +14,18 @@
 // 同様、画素経路＝スクリーンショット側に委ねる）。プロパティを足すときは、決定論的に採れ
 // （乱数・時刻・アニメーションに依存せず）、両実装で意味が保たれる項目に限る。
 //
+// 画素経路へ委ねられるのは「静止画に写る」プロパティだけ。写らないものを外すと、特性照合でも
+// 画素比較でも差が出ない＝どちらの経路にも現れない見た目になる（cursor の写し忘れが 12 状態 ×
+// 2 ロケールの照合と画素比較を全部緑で通り抜け、利用者が触って気づいた実例がある）。
+// 操作したときの手応えを決めるが静止画には出ない項目（cursor / user-select / pointer-events）は、
+// 委ねる先が無いのでこの集合に入れる。足す候補を検討するときは「決定論的か」「両実装で意味が
+// 保たれるか」に加えて「外したとき画素経路が拾えるか」を必ず問う。
+//
+// 計算値が url() を含みうる項目（cursor のカスタムカーソル等）は、相対 URL が自分のオリジンで
+// 絶対化されるため、そのままでは現・新のホスト違いが偽の差分になる。captureElement が同一
+// オリジンの url() だけを畳んで比較可能にしている（下記 foldOrigin）。url() を持ちうる項目を
+// 足すときは、この正規化で両側が揃うかを確かめる。
+//
 // 状態遷移（hover / focus / active / disabled 等）はこの関数の責務ではない。呼び出し側
 // （スイート）が状態へ遷移させたうえで captureTraits を呼ぶ。この関数は「今の状態」を採るだけ。
 //
@@ -25,7 +37,7 @@
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * 採取する computed style プロパティの固定集合（正本）。
@@ -66,6 +78,10 @@ export const FIXED_PROPERTIES = [
   "text-align",
   "display",
   "visibility",
+  // 以下は静止画に写らないため画素経路へ委ねられない（上の「何を採らないか」を参照）。
+  "cursor",
+  "user-select",
+  "pointer-events",
 ];
 
 /**
@@ -77,11 +93,52 @@ export const FIXED_PROPERTIES = [
  * @param {readonly string[]} props
  */
 function captureElement(el, props) {
+  // 同一オリジンの url() をオリジン非依存の印へ畳む。cursor: url(cur.png) のような相対 URL の
+  // 計算値は自分のオリジンで絶対化されるため（実測: 同じ CSS が :8811 と :8822 で別文字列になる）、
+  // 現・新がホストもポートも違う前提のパリティ比較では、同じ指定が偽の property 差分になる。
+  // 畳むのは自分のオリジンで始まる URL だけ。data: と他オリジンの URL は両側で同じ文字列に
+  // なるので触らない（畳むと別ホストの資産どうしが同一視され、本物の差分を消す）。
+  // 正規化できないとき（file:// 等で origin が "null"）は元の値のまま残す——偽の差分として
+  // 目に見える側へ倒し、黙って一致させない。
+  //
+  // 置換は url() トークンの中身を取り出し、その URL 自体が自オリジンで始まるときだけ行う。
+  // 値全体への単純置換にすると、他オリジン URL のパス・クエリにたまたま自オリジンが現れた値
+  // （url("https://cdn.example/redirect/http://legacy.example:8811/x") 等）まで畳んで、
+  // 現・新で別物を指している外部参照を同値化し、本物の差分を消す。
+  //
+  // 射程: 畳むのは URL 文字列までで、参照先の資産の中身は照合しない。現新が同じパスで
+  // 別バイトの資産を配信していると、その見た目差はこの経路にも画素にも現れない。
+  // 対象要素がある機能は gaps.md へ「採取値の射程外」として残す（確認済みにしない）。
+  const origin = location.origin;
+  const foldable = /^https?:\/\//.test(origin);
+  const foldOrigin = (value) => {
+    if (!foldable || !value.includes("url(")) return value;
+    return value.replace(/url\(\s*("[^"]*"|'[^']*'|[^)]*)\s*\)/g, (whole, raw) => {
+      const quote = raw[0] === '"' || raw[0] === "'" ? raw[0] : "";
+      const url = quote ? raw.slice(1, -1) : raw.trim();
+      if (url !== origin && !url.startsWith(origin + "/")) return whole;
+      return `url(${quote}<same-origin>${url.slice(origin.length)}${quote})`;
+    });
+  };
+
   const pick = (pseudo) => {
     const style = getComputedStyle(el, pseudo);
     if (pseudo && style.content === "none") return null;
     const out = {};
-    for (const prop of props) out[prop] = style.getPropertyValue(prop);
+    const unknown = [];
+    for (const prop of props) {
+      const value = style.getPropertyValue(prop);
+      // getPropertyValue はブラウザが知らないプロパティ名に空文字を返す。空のまま採ると
+      // 現・新の両側が同じ空文字になり「差が無い」と読めてしまう（集合に入れた意味が消える）。
+      // 検出できないことを黙って通さず、どの名前が解決しなかったかを付けて落とす。
+      if (value === "") unknown.push(prop);
+      out[prop] = foldOrigin(value);
+    }
+    if (unknown.length > 0) {
+      throw new Error(
+        `computed style did not resolve${pseudo ? ` for ${pseudo}` : ""}: ${unknown.join(", ")}`,
+      );
+    }
     return out;
   };
   const box = el.getBoundingClientRect();
@@ -106,10 +163,16 @@ function captureElement(el, props) {
  *     rect:   { x:number, y:number, width:number, height:number }
  *   }
  *
- * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした等）は、
+ * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした・
+ * FIXED_PROPERTIES の名前をブラウザが解決しなかった等）は、
  * どの論理名で失敗したかを付けたエラーで報告する（既採取分を黙って失うより、失敗箇所の特定を優先）。
  * したがって「失敗した名前だけ落として続行したい」呼び出し側（強度ゲートの故障注入）は、
  * entries を 1 件ずつ渡して呼び、成功分を連結する（まとめて渡すと最初の失敗で既採取分ごと失う）。
+ *
+ * ただし**失敗を要素の欠落へ変換してよいのはロケータが解決しなかった場合だけ**。メッセージに
+ * `computed style did not resolve` を含む失敗は FIXED_PROPERTIES の名前をそのブラウザが解決できない
+ * ツール・環境側の欠陥であり、要素の欠落ではない。欠落に変換すると trait-compare が全論理名を
+ * `missing`（＝赤）として出し、注入と無関係に「捕捉できた」に見える。この失敗は捕捉せず停止する。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
  * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number } }>>}
