@@ -1,5 +1,6 @@
 import { test, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { Script } from "node:vm";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -68,8 +69,16 @@ test.each(Object.keys(SOURCES))(
     for (const member of REQUIRED_MEMBERS) {
       expect(region, `${tool} に ${member} が無い`).toContain(member);
     }
-    // 末尾まで取れていること（最後の関数の閉じ括弧より後ろが切れていない）
-    expect(region.trimEnd().endsWith(END)).toBe(true);
+  },
+);
+
+test.each(Object.keys(SOURCES))(
+  "陽性コントロール: %s の契約領域が構文として閉じている（途中で切れた範囲を比較しない）",
+  (tool) => {
+    // 終了マーカーを関数本体の途中へ移すと、領域は同じ前半を共有したまま短くなる。
+    // 「END で終わるか」は contractRegion が END まで切り出す以上つねに真で何も示さない。
+    // コンパイルできるかで終端を検証する（実行はしない）。切り詰められた領域は必ず構文エラーになる。
+    expect(() => new Script(regions[tool], { filename: `${tool}-contract.js` })).not.toThrow();
   },
 );
 
