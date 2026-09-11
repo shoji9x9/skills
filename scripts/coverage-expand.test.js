@@ -442,6 +442,9 @@ test("候補由来の fired-without-response も送り方・発火確認・観�
   for (const [mutate, pattern] of [
     [(e) => delete e.action, /fired-without-response/],
     [(e) => (e.action.method = "guess"), /action\.method/],
+    // 型崩れが allowlist を通ると、coordinate 専用の hit-test 検査を回避できる
+    [(e) => (e.action.method = ["coordinate"]), /action\.method/],
+    [(e) => (e.fired.signal = ["event-listener"]), /fired\.signal/],
     [(e) => (e.action.bounding_box.width = 0), /幅・高さが正ではない/],
     [(e) => (e.action.hit_test_is_target_or_descendant = false), /hit-test/],
     [(e) => (e.fired.verified = false), /発火確認/],

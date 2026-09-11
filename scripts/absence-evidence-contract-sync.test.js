@@ -8,80 +8,72 @@ import { dirname, join } from "node:path";
 // 配布スキルは実行時に参照する成果物を自分の中に同梱する規約のため共有モジュールに
 // できず、実体が複製される。片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）
 // が起き、被覆表を作った側は conformance を得たのに収束できない状態になる。
-// ここで両者の契約部分がバイト単位で一致することを決定論的に検査する。
+//
+// 抽出はソースの構文解析ではなく**明示マーカーの探索**で行う。波括弧やセミコロンを
+// 数える方式は、文字列・テンプレートリテラル・正規表現・コメント内の同じ文字で
+// 途中終了しうる——そして両コピーが同じ前半を共有していれば、切り詰められた範囲だけを
+// 比較して「一致」と報告する（分岐した後半を黙って見逃す fail-open）。マーカー方式なら
+// 抽出範囲がソースの字句に依存しない。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+const START = "// ===== absence-evidence-contract:start =====";
+const END = "// ===== absence-evidence-contract:end =====";
 
 const SOURCES = {
   "coverage-check": join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs"),
   "coverage-expand": join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs"),
 };
 
-/** 契約を構成する関数（実装がそのまま検査規則）。 */
-const SHARED_FUNCTIONS = ["absentEvidenceProblem", "firedEvidenceProblem"];
-
-/** 契約の語彙（どちらか片方だけ広げると受理範囲がずれる）。 */
-const SHARED_CONSTANTS = ["APPLICABLE_STATE_SOURCE_KINDS", "FIRED_ACTION_METHODS", "FIRED_SIGNALS"];
+/** 契約領域に必ず含まれるはずの要素（抽出が空振り・切り詰めしていないことの陽性コントロール）。 */
+const REQUIRED_MEMBERS = [
+  "const APPLICABLE_STATE_SOURCE_KINDS =",
+  "const FIRED_ACTION_METHODS =",
+  "const FIRED_SIGNALS =",
+  "function inAllowlist(",
+  "function firedEvidenceProblem(",
+  "function absentEvidenceProblem(",
+];
 
 /**
- * 名前付き関数の本体を波括弧の対応で切り出す。行頭 "}" 決め打ちだと、
- * 本文中の文字列・テンプレートリテラルが増えたときに黙って短く切れる。
+ * マーカーで囲まれた契約領域を切り出す。マーカーが欠落・重複・逆順のときは、
+ * 「一致」へ倒さず投げる（検査が動いていない状態を合格にしない）。
  * @param {string} source
- * @param {string} name
+ * @param {string} tool
  * @returns {string}
  */
-function functionBody(source, name) {
-  const start = source.indexOf(`function ${name}(`);
-  if (start === -1) throw new Error(`関数 ${name} が見つからない`);
-  const open = source.indexOf("{", start);
-  if (open === -1) throw new Error(`関数 ${name} の本体が見つからない`);
-  let depth = 0;
-  for (let i = open; i < source.length; i += 1) {
-    if (source[i] === "{") depth += 1;
-    else if (source[i] === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1);
-    }
+function contractRegion(source, tool) {
+  const starts = source.split(START).length - 1;
+  const ends = source.split(END).length - 1;
+  if (starts !== 1 || ends !== 1) {
+    throw new Error(`${tool}: 契約マーカーが 1 組ではない（start=${starts} end=${ends}）`);
   }
-  throw new Error(`関数 ${name} の波括弧が閉じていない`);
+  const from = source.indexOf(START);
+  const to = source.indexOf(END);
+  if (to < from) throw new Error(`${tool}: 契約マーカーが逆順`);
+  return source.slice(from, to + END.length);
 }
 
-/**
- * `const NAME = ...;` の宣言行を切り出す。
- * @param {string} source
- * @param {string} name
- * @returns {string}
- */
-function constantDeclaration(source, name) {
-  const start = source.indexOf(`const ${name} =`);
-  if (start === -1) throw new Error(`定数 ${name} が見つからない`);
-  const end = source.indexOf(";", start);
-  if (end === -1) throw new Error(`定数 ${name} の宣言が閉じていない`);
-  return source.slice(start, end + 1);
-}
-
-const sources = Object.fromEntries(
-  Object.entries(SOURCES).map(([name, path]) => [name, readFileSync(path, "utf8")]),
+const regions = Object.fromEntries(
+  Object.entries(SOURCES).map(([tool, path]) => [
+    tool,
+    contractRegion(readFileSync(path, "utf8"), tool),
+  ]),
 );
 
-test("陽性コントロール: 契約の抽出が実体を捉えている（空振りで一致と報告しない）", () => {
-  for (const [tool, source] of Object.entries(sources)) {
-    for (const fn of SHARED_FUNCTIONS) {
-      const body = functionBody(source, fn);
-      expect(body.length, `${tool} の ${fn}`).toBeGreaterThan(500);
-      expect(body, `${tool} の ${fn}`).toContain("return null;");
+test.each(Object.keys(SOURCES))(
+  "陽性コントロール: %s の契約領域が実体を含む（空振り・切り詰めを一致と報告しない）",
+  (tool) => {
+    const region = regions[tool];
+    expect(region.length).toBeGreaterThan(5000);
+    for (const member of REQUIRED_MEMBERS) {
+      expect(region, `${tool} に ${member} が無い`).toContain(member);
     }
-    for (const name of SHARED_CONSTANTS) {
-      expect(constantDeclaration(source, name), `${tool} の ${name}`).toContain("[");
-    }
-  }
-});
+    // 末尾まで取れていること（最後の関数の閉じ括弧より後ろが切れていない）
+    expect(region.trimEnd().endsWith(END)).toBe(true);
+  },
+);
 
-test.each(SHARED_FUNCTIONS)("%s は両ゲートで同一実装である", (fn) => {
-  const [a, b] = Object.values(sources).map((source) => functionBody(source, fn));
-  expect(a).toBe(b);
-});
-
-test.each(SHARED_CONSTANTS)("%s は両ゲートで同一語彙である", (name) => {
-  const [a, b] = Object.values(sources).map((source) => constantDeclaration(source, name));
+test("absent 証拠スキーマの契約は両ゲートで同一である", () => {
+  const [a, b] = Object.values(regions);
   expect(a).toBe(b);
 });

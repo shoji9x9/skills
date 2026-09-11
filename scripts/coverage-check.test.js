@@ -280,6 +280,7 @@ test("非描画 absent は独立した applicable_states manifest と一致し�
     // 語彙外の source.kind。空でないだけでは出所不明の manifest を収束させられる
     (manifest) => (manifest.source.kind = "invented"),
     (manifest) => (manifest.source.kind = "config"),
+    (manifest) => (manifest.source.kind = ["vendor-spec"]),
   ]) {
     const cov = full();
     cov.cells[1].absence_evidence = nonRenderableEvidence();
@@ -352,6 +353,10 @@ test("fired-without-response は送り方・発火確認・観測結果が揃わ
     (e) => delete e.action.locator,
     (e) => delete e.action.detail,
     (e) => (e.action.method = "guess"),
+    // 型崩れ。String() で潰して比較すると allowlist を通り、後段の厳密比較だけ false になって
+    // coordinate の hit-test 検査を回避できる
+    (e) => (e.action.method = ["locator-api"]),
+    (e) => (e.fired.signal = ["event-listener"]),
     (e) => delete e.fired,
     (e) => (e.fired.signal = "assumed"),
     (e) => (e.fired.verified = false),

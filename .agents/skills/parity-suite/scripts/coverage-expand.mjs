@@ -40,14 +40,6 @@ const VALUES = ["present", "absent", "unmeasured"];
 const ID_SEPARATOR = "/";
 
 /**
- * `instances[].applicable_states.source.kind` の語彙。
- * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
- * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
- * parity-diff の coverage-check.mjs と同じ集合を維持する。
- */
-const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
-
-/**
  * 空でない文字列か。
  * @param {unknown} v
  * @returns {boolean}
@@ -65,11 +57,37 @@ function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
 }
 
+// ===== absence-evidence-contract:start =====
+// ここから contract:end までは、記録側（parity-suite の coverage-expand.mjs）と
+// 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
+// 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
+// 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
+// リポジトリの scripts/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
+
+/**
+ * `instances[].applicable_states.source.kind` の語彙。
+ * 正本は parity-suite の `assets/component-coverage-template.json`。空でないだけを通すと
+ * 出所不明の状態manifest（`kind: "invented"` 等）で `non-renderable` / `absent` を収束させられる。
+ */
+const APPLICABLE_STATE_SOURCE_KINDS = ["profile", "vendor-spec", "current-source", "app-ui"];
+
 /** `absence_evidence.action.method`（操作の送り方）の語彙。 */
 const FIRED_ACTION_METHODS = ["locator-api", "coordinate"];
 
 /** `absence_evidence.fired.signal`（発火を確認した手段）の語彙。 */
 const FIRED_SIGNALS = ["event-listener", "dom-change", "state-change"];
+
+/**
+ * 語彙に含まれる文字列か。`String()` で潰してから比較すると `["coordinate"]` のような型崩れが
+ * allowlist を通り、後段の厳密比較（`=== "coordinate"`）だけ false になって、その分岐でしか
+ * 課されない必須検査（座標操作の hit-test 等）を回避できる。型を先に確かめる。
+ * @param {unknown} v
+ * @param {string[]} allowed
+ * @returns {boolean}
+ */
+function inAllowlist(v, allowed) {
+  return typeof v === "string" && allowed.includes(v);
+}
 
 /**
  * 操作可能な要素へ発火を確認した absent（`kind: fired-without-response`）の証拠を検査する。
@@ -87,7 +105,7 @@ function firedEvidenceProblem(evidence, label) {
   if (!nonEmptyString(action.locator) || !nonEmptyString(action.detail)) {
     return `${label}: fired-without-response の action.locator / action.detail が空`;
   }
-  if (!FIRED_ACTION_METHODS.includes(String(action.method))) {
+  if (!inAllowlist(action.method, FIRED_ACTION_METHODS)) {
     return `${label}: fired-without-response の action.method が ${FIRED_ACTION_METHODS.join(" / ")} のいずれでもない`;
   }
   // この経路の前提は「操作可能な可視要素へ送った」こと。どちらの method でも正の矩形と可視性を実測させる。
@@ -121,7 +139,7 @@ function firedEvidenceProblem(evidence, label) {
     return `${label}: fired-without-response なのに fired が JSON オブジェクトではない`;
   }
   const fired = /** @type {Record<string, unknown>} */ (evidence.fired);
-  if (!FIRED_SIGNALS.includes(String(fired.signal))) {
+  if (!inAllowlist(fired.signal, FIRED_SIGNALS)) {
     return `${label}: fired-without-response の fired.signal が ${FIRED_SIGNALS.join(" / ")} のいずれでもない`;
   }
   if (!nonEmptyString(fired.detail) || fired.verified !== true) {
@@ -134,8 +152,8 @@ function firedEvidenceProblem(evidence, label) {
 }
 
 /**
- * absent セルの経路別証拠を検査する。非描画経路は、全到達状態を測ったことを
- * parity-diff 側でも数え直せる機械可読な形に限定する。
+ * absent セルの経路別証拠を検査する。散文 evidence の非空だけでは、全状態を測ったという
+ * 自己申告と実測の構造を区別できないため、非描画経路は状態ごとの証拠を必須にする。
  * @param {Record<string, unknown>} row
  * @param {string} label
  * @param {unknown} stateManifest - components[].instances[].applicable_states
@@ -170,7 +188,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   ) {
     return `${label}: applicable_states の complete / source が不完全`;
   }
-  if (!APPLICABLE_STATE_SOURCE_KINDS.includes(String(source.kind))) {
+  if (!inAllowlist(source.kind, APPLICABLE_STATE_SOURCE_KINDS)) {
     return `${label}: applicable_states.source.kind（${String(source.kind)}）が ${APPLICABLE_STATE_SOURCE_KINDS.join(" / ")} のいずれでもない`;
   }
   if (!Array.isArray(manifest.items) || manifest.items.length === 0) {
@@ -305,6 +323,7 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   return null;
 }
+// ===== absence-evidence-contract:end =====
 
 /**
  * プロファイルの形式を検査する。壊れたプロファイルを静かに無視すると、
