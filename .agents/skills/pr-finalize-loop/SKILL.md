@@ -350,6 +350,16 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
     **HEAD コミットの committedDate**（`git log -1 --format=%cI`）を下限として使う（`--amend`/force push を行わない前提で push はこれ以降）。
 
 - **一次シグナル（チェックラン）**: 現在の HEAD の未完了チェックに、別エージェントのレビューを示すものがないかを見る。
+  **`gh pr checks` だけで「進行中でない」と結論しない。** 同コマンドはレビュー bot の check-run を一覧に出さないことがあり（実測: `copilot-pull-request-reviewer` が
+  `in_progress` でも `gh pr checks` の pending に現れない）、**pending 0 件は不在の証拠にならない**。現 HEAD の commit check-runs endpoint を必ず併せて見る:
+
+  ```bash
+  gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
+    --jq '.check_runs[] | select(.status != "completed") | {name, app: .app.slug, status, started_at}'
+  ```
+
+  両方が空のときだけ「進行中なし」とする。**待機上限の超過を根拠に再依頼へ進む前に、この二経路で進行中シグナルが本当に無いことを確かめる**——
+  上限は実測到着時間から決めた目安にすぎず、超過しただけではレビューが止まった証拠にならない。
 
   ```bash
   # review_tool: copilot のときは Copilot 自身のチェックを別エージェント判定から除外する。
