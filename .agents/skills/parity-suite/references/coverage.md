@@ -89,8 +89,12 @@
       `applicable_states.source.kind` は `profile` / `vendor-spec` / `current-source` / `app-ui` のいずれかで、それ以外は出所不明として `unmeasured` にする。`state_source` から導出した重複のない状態 id を
       `expected_states` に列挙し、`applicable_states.items[].id`・`states[].name` の一意な集合と完全一致させ、遷移もmanifestと一致させる。`locator` が対象の操作要素へ一意に当たることは散文では担保されないため、**状態ごとに**実測した一致数を `states[].locator_match_count` として記録する。
       2 件以上は一意に引けていないので `unmeasured`。0 件はその状態で DOM に無いことの実測として扱い、このとき矩形・`offset_parent`・`hidden_by` は全て `null` にする
-      （測定は `locator.count()` ではなく自動リトライ assertion の `await expect(locator).toHaveCount(n)` で行い、成立した `n` を記録する。
-      即時読み取りの `count()` は [`locator-mapping.md`](locator-mapping.md) と `scripts/auto-wait-check.mjs` が禁止しており、描画完了前の値を読む）
+      測定手順は次のとおり。**`toHaveCount(n)` は期待値 `n` を先に渡す照合で件数を発見できず、`count()` は `expect.poll` で包んでも
+      [`locator-mapping.md`](locator-mapping.md) と `scripts/auto-wait-check.mjs` が禁止する**（実測）。そこで 0 / 1 の二値判定にする。
+      **(1)** その状態へ遷移し、状態が確定したことをその状態固有の assertion（開閉フラグの `toHaveAttribute`、一覧の `toHaveCount` など）で先に確立する。
+      **(2)** 確立後に `await expect(locator).toHaveCount(1)` を試し、成立すれば `locator_match_count: 1`。
+      **(3)** 成立しなければ `await expect(locator).toHaveCount(0)` を試し、成立すれば `locator_match_count: 0`。
+      **(4)** どちらも成立しなければ対象を一意に引けていないので、値を推測せずそのセルを `unmeasured` にする（2 以上を自己申告で書かない）。
       （値が入っていれば矛盾として `unmeasured`）。全状態が 0 件だと `locator` が対象を引けている実証が一度も無く、誤った `locator` と区別できないため `unmeasured` とする。同じ証拠を `locator` / `state_source` /
       `states[]`（状態名・遷移・矩形・`offset_parent`・`hidden_by`）へ機械可読に記録する。`hidden_by` は `target_locator`、`relation: self | ancestor`、`relationship_verified: true` で対象との関係を記録し、
       `computed_style` が `display: none` または `visibility: hidden | collapse` を含む場合だけ非表示原因とする。`hidden_by` があるのに矩形が `null` でなければ矛盾として `unmeasured` にする。

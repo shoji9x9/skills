@@ -354,11 +354,16 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   `in_progress` でも `gh pr checks` の pending に現れない）、**pending 0 件は不在の証拠にならない**。現 HEAD の commit check-runs endpoint を必ず併せて見る:
 
   ```bash
+  # <review-check-name> は設定した review_tool のレビュー用 check-run 名（copilot なら copilot-pull-request-reviewer・実測）。
   gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
-    --jq '.check_runs[] | select(.status != "completed") | {name, app: .app.slug, status, started_at}'
+    --jq '.check_runs[] | select(.status != "completed") | {name, app: .app.slug, status, started_at}' \
+    | jq -s '[.[] | select(.name == "<review-check-name>" or (.name | test("review"; "i")))]'
   ```
 
-  両方が空のときだけ「進行中なし」とする。**待機上限の超過を根拠に再依頼へ進む前に、この二経路で進行中シグナルが本当に無いことを確かめる**——
+  **ここで数えるのはレビュー用 check-run だけにする。** この endpoint には通常の CI も入るため、未完了を無条件にレビュー進行中と読むと、
+  `gh pr checks` に pending として出ない無関係な run が再依頼を無期限に抑止する。`gh pr checks` 側の一次シグナルと同じく、
+  名称・GitHub App・出力の趣旨からレビューエージェントのものだと確認できた候補だけを進行中シグナルに数え、通常の CI はこの判定から外す。
+  両経路ともレビュー候補が空のときだけ「進行中なし」とする。**待機上限の超過を根拠に再依頼へ進む前に、この二経路で進行中シグナルが本当に無いことを確かめる**——
   上限は実測到着時間から決めた目安にすぎず、超過しただけではレビューが止まった証拠にならない。
 
   ```bash
