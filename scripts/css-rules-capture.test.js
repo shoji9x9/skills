@@ -109,12 +109,19 @@ const ELEMENT_SELECTORS = new Set([
 
 function fakeElement(
   sheets,
-  { selectors = ELEMENT_SELECTORS, adopted = [], inline = null, inlineImportant = [] } = {},
+  {
+    selectors = ELEMENT_SELECTORS,
+    adopted = [],
+    inline = null,
+    inlineImportant = [],
+    shadowSheets = null,
+  } = {},
 ) {
   const ownerDocument = { styleSheets: sheets, adoptedStyleSheets: adopted };
+  const shadowRoot = shadowSheets ? { styleSheets: shadowSheets, adoptedStyleSheets: [] } : null;
   const el = {
     ownerDocument,
-    getRootNode: () => ownerDocument,
+    getRootNode: () => shadowRoot || ownerDocument,
     matches: (selector) => selectors.has(selector.trim()),
     style: inline ? decl(inline, inlineImportant) : decl({}),
   };
@@ -512,4 +519,114 @@ test("引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを�
   expect(hit.selector).toBe(TRICKY_SELECTOR);
   expect(hit.states).toEqual(["hover"]);
   expect(result.unresolved).toHaveLength(0);
+});
+
+// --- シャドウツリーの内と外 ---
+
+const shadowCapture = (overrides) =>
+  collectMatchedRules(fakeElement(overrides.sheets, overrides), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+
+test("シャドウツリー内の要素に外側 document の規則を当てない", () => {
+  // document のスタイルシートはカプセル化でシャドウツリーの中へ届かないが、
+  // el.matches(".btn") は true を返す。外側まで走ると、効いていない規則が
+  // 部品の基準として記録され、実装がそれを写して現行と食い違う。
+  const outer = {
+    href: MAIN_HREF,
+    cssRules: [styleRule(".btn", { color: "rgb(255, 0, 0)" })],
+  };
+  const inner = {
+    href: null,
+    cssRules: [styleRule(".btn", { color: "rgb(0, 128, 0)" })],
+  };
+  const result = shadowCapture({
+    sheets: [outer],
+    shadowSheets: [inner],
+    selectors: new Set([".btn"]),
+  });
+  expect(result.shadow_root).toBe(true);
+  expect(result.matched).toHaveLength(1);
+  expect(result.matched[0].href).toBe(null);
+  expect(result.matched[0].declarations[0].value).toBe("rgb(0, 128, 0)");
+  // 0 件を「外側に規則が無い」と読まないため、飛ばした数は残す。
+  expect(result.counts.outer_scope_skipped).toBe(1);
+});
+
+test("外側から届く ::part() は当たった側にも倒さず unresolved に残す", () => {
+  const outer = {
+    href: MAIN_HREF,
+    cssRules: [styleRule(".host::part(label)", { color: "rgb(1, 1, 1)" })],
+  };
+  const result = shadowCapture({
+    sheets: [outer],
+    shadowSheets: [{ href: null, cssRules: [] }],
+    selectors: new Set([".btn"]),
+  });
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("shadow-part-not-evaluated");
+  expect(result.counts.outer_scope_skipped).toBe(0);
+});
+
+test("シャドウでない要素では document を走査する", () => {
+  // 上の絞り込みが通常の要素まで巻き込んでいないことを確かめる（過剰修正の検知）。
+  const result = capture();
+  expect(result.shadow_root).toBe(false);
+  expect(result.counts.outer_scope_skipped).toBe(0);
+  expect(result.matched.length).toBeGreaterThan(0);
+});
+
+// --- 入れ子になった関数擬似クラスの中の状態 ---
+
+// 直下の引数しか見ない判定（修正前の実装と同じ深さ）。
+function naiveStateInside(selector, scan) {
+  for (const p of scan(selector)) {
+    if (!p.args) continue;
+    if (p.name !== "is" && p.name !== "where" && p.name !== "has") continue;
+    for (const inner of scan(p.args)) {
+      if (STATE_PSEUDO_CLASSES.includes(inner.name)) return true;
+    }
+  }
+  return false;
+}
+
+test("陽性コントロール: 直下しか見ない判定は :is(:has(:hover)) を取りこぼす", () => {
+  // scanPseudos はモジュール外へ出していないので、同じ規則の最小実装で深さだけを再現する。
+  const scan = (sel) => {
+    const out = [];
+    const m = /:([-\w]+)\((.*)\)$/.exec(sel.replace(/^[^:]*/, ""));
+    if (m) out.push({ name: m[1], args: m[2] });
+    return out;
+  };
+  expect(naiveStateInside(".card:is(:has(:hover))", scan)).toBe(false);
+});
+
+test("入れ子の関数引数に入った状態を unresolved に落とす", () => {
+  const selector = ".card:is(:has(:hover))";
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+  const result = collectMatchedRules(
+    fakeElement(sheets, { selectors: new Set([selector, ".card"]) }),
+    {
+      statePseudoClasses: STATE_PSEUDO_CLASSES,
+      structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+    },
+  );
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("state-inside-functional-pseudo");
+});
+
+test(":not() の中の状態は unresolved にしない", () => {
+  // 否定の中の状態は「その状態でないときに当たる」ので、当たっている規則として記録してよい。
+  // 再帰を入れた結果ここまで巻き込むと、実装の材料になる規則を毎回失う。
+  const selector = ".card:is(:not(:hover))";
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+  const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.unresolved).toHaveLength(0);
+  expect(result.matched).toHaveLength(1);
 });

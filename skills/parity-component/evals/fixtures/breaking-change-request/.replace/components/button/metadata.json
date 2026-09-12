@@ -1,8 +1,17 @@
 {
   "slug": "button",
   "component": "ボタン",
-  "target": { "name": "current-test", "ui_url": "http://localhost:8080", "commit": "none" },
-  "run": { "agent": "Claude Code", "model": "opus", "effort": "high", "skill_version": "1.0.0" },
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.0.0"
+  },
   "dataset_version": 3,
   "capture": {
     "complete": true,
@@ -21,20 +30,33 @@
       "id": "orders-search",
       "page": "/orders",
       "locator": "order.search-submit",
-      "data": { "dependent": false, "rows": null, "extract_path": null }
+      "data": {
+        "dependent": false,
+        "rows": null,
+        "extract_path": null
+      }
     },
     {
       "id": "users-create",
       "page": "/users",
       "locator": "user.create-submit",
-      "data": { "dependent": false, "rows": null, "extract_path": null }
+      "data": {
+        "dependent": false,
+        "rows": null,
+        "extract_path": null
+      }
     }
   ],
   "axes": {
     "path": ".replace/components/button/axes.json",
     "ok": true,
-    "variable": 4,
-    "fixed": 22
+    "variable": 10,
+    "fixed": 62,
+    "measured": 72,
+    "not_compared": []
   },
-  "capture_gaps": { "inaccessible_sheets": 0, "unresolved_selectors": 0 }
+  "capture_gaps": {
+    "inaccessible_sheets": 0,
+    "unresolved_selectors": 0
+  }
 }

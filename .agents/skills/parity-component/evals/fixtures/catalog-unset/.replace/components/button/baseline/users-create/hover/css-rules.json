@@ -29,7 +29,8 @@
     "import_rules": 0,
     "nested_declaration_rules": 0,
     "matched": 1,
-    "inline_declarations": 0
+    "inline_declarations": 0,
+    "outer_scope_skipped": 0
   },
   "shadow_root": false
 }

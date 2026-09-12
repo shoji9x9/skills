@@ -43,8 +43,13 @@
 
 /**
  * ツールのバージョン（正本）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
- * 2: `inline_declarations`（style 属性の宣言）を追加。1 で採った css-rules.json は
- *    インライン指定が「無い」のか「採っていない」のか区別できないので、再採取する。
+ * 2: `inline_declarations`（style 属性の宣言）と `counts.outer_scope_skipped` を追加し、
+ *    シャドウツリー内の要素では走査を自分の根に限定した（外側 document の規則は
+ *    カプセル化で当たらないため matched に入れず、`::part()` だけ unresolved に残す）。
+ *    1 で採った css-rules.json は、インライン指定が「無い」のか「採っていない」のか区別できず、
+ *    シャドウ部品では外側の規則を当たったものとして含んでいるので再採取する。
+ *    **2 の定義はこの PR がマージされた状態を指す**——版を上げてから同じ PR 内で 2 の形を
+ *    足しているが、2 が main へ出たことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
@@ -309,14 +314,24 @@ export function collectMatchedRules(el, options) {
     // `:is()` / `:where()` / `:has()` の引数に状態が入っていると、剥がさない限り matches() が
     // その状態でだけ true になる。ここで拾わないと「当たらない規則」として静かに落ちるので、
     // 判定せず unresolved に回す（`:not()` は状態を否定する側なので対象にしない）。
-    let stateInsideFunctional = false;
-    for (const p of scanPseudos(base)) {
-      if (!p.args) continue;
-      if (p.name !== "is" && p.name !== "where" && p.name !== "has") continue;
-      for (const inner of scanPseudos(p.args)) {
-        if (!inner.doubled && stateNames.has(inner.name)) stateInsideFunctional = true;
+    // 入れ子は 1 段とは限らない。`.card:is(:has(:hover))` は第 1 段に `:has` しか見えないので、
+    // 直下だけを見る実装では「状態は無い」と判定され、hover していない要素に対して
+    // matches() が false を返して規則が黙って消える。段数を決め打ちせず降りる。
+    // `:not()` は状態を否定する側なので降りない（否定の中の状態は、その状態でないときに当たる）。
+    const hasStateInsideFunctional = (selector) => {
+      for (const p of scanPseudos(selector)) {
+        if (!p.args || p.doubled) continue;
+        if (p.name === "not") continue;
+        if (p.name === "is" || p.name === "where" || p.name === "has") {
+          for (const inner of scanPseudos(p.args)) {
+            if (!inner.doubled && stateNames.has(inner.name)) return true;
+          }
+        }
+        if (hasStateInsideFunctional(p.args)) return true;
       }
-    }
+      return false;
+    };
+    const stateInsideFunctional = hasStateInsideFunctional(base);
     // 剥がしも許容もできない擬似クラスが残っていたら、当たる／当たらないを決めずに残す。
     const unknownPseudos = [];
     for (const p of scanPseudos(base)) {
@@ -343,7 +358,13 @@ export function collectMatchedRules(el, options) {
   const matched = [];
   const unresolved = [];
   const inaccessible = [];
-  const counts = { sheets: 0, style_rules: 0, import_rules: 0, nested_declaration_rules: 0 };
+  const counts = {
+    sheets: 0,
+    style_rules: 0,
+    import_rules: 0,
+    nested_declaration_rules: 0,
+    outer_scope_skipped: 0,
+  };
   const seenSheets = new Set();
   let order = 0;
 
@@ -352,6 +373,20 @@ export function collectMatchedRules(el, options) {
   function matchAndRecord(resolved, originalSelector, declarations, ctx) {
     const index = order++;
     for (const part of splitSelectorList(resolved)) {
+      // シャドウツリーの外の規則。`::part()` だけが中へ届くが、本ツールは part 名を解決しないので
+      // 当たる側にも当たらない側にも倒さず残す。それ以外の外側の規則はカプセル化で届かないので
+      // matched には入れず、数だけ残す（0 件を「外側に規則が無い」と読まないため）。
+      if (ctx.outerScope) {
+        if (part.includes("::part(")) {
+          unresolved.push({
+            selector: part,
+            original_selector: originalSelector,
+            href: ctx.href,
+            reason: "shadow-part-not-evaluated",
+          });
+        } else counts.outer_scope_skipped++;
+        continue;
+      }
       // @scope の中の規則は、セレクタが当たってもスコープ根・限界の外では適用されない。
       // 本ツールはスコープを評価しないので、当たった側へ倒さず判定不能として残す。
       if (ctx.scope) {
@@ -511,16 +546,25 @@ export function collectMatchedRules(el, options) {
       layers: (ctx && ctx.layers) || [],
       parentSelector: null,
       href,
+      outerScope: Boolean(ctx && ctx.outerScope),
     });
   }
 
-  const roots = [];
+  // 走査するのは**その要素の根**だけ。シャドウツリーの中の要素に対して外側の document の
+  // スタイルシートまで走ると、`el.matches(".btn")` は true を返すのに実際には
+  // カプセル化で当たらない規則を「当たっている」として記録し、部品の基準が偽になる。
+  // 外側から中へ届くのは `::part()` だけなので、それを黙って捨てず unresolved に残す。
   const root = el.getRootNode();
-  if (root && root !== el.ownerDocument && root.styleSheets) roots.push(root);
-  roots.push(el.ownerDocument);
-  for (const node of roots) {
-    for (const sheet of Array.from(node.styleSheets || [])) walkSheet(sheet, null);
-    for (const sheet of Array.from(node.adoptedStyleSheets || [])) walkSheet(sheet, null);
+  const inShadow = Boolean(root && root !== el.ownerDocument && root.styleSheets);
+  const ownRoot = inShadow ? root : el.ownerDocument;
+  for (const sheet of Array.from(ownRoot.styleSheets || [])) walkSheet(sheet, null);
+  for (const sheet of Array.from(ownRoot.adoptedStyleSheets || [])) walkSheet(sheet, null);
+  if (inShadow) {
+    const outer = el.ownerDocument;
+    for (const sheet of Array.from(outer.styleSheets || [])) walkSheet(sheet, { outerScope: true });
+    for (const sheet of Array.from(outer.adoptedStyleSheets || [])) {
+      walkSheet(sheet, { outerScope: true });
+    }
   }
 
   // style 属性の宣言はどのスタイルシートにも現れないので、上の走査では 1 件も採れない。
@@ -536,7 +580,7 @@ export function collectMatchedRules(el, options) {
     inaccessible,
     inline_declarations: inlineDeclarations,
     counts: { ...counts, matched: matched.length, inline_declarations: inlineDeclarations.length },
-    shadow_root: root !== el.ownerDocument,
+    shadow_root: inShadow,
   };
 }
 

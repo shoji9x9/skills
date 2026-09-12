@@ -3,7 +3,7 @@
 - 対象 slug: button
 - 新側 target: local-dev
 - 基準の採取条件: `.replace/components/button/metadata.json` の `capture_conditions`
-- 採取ツール版の一致: 一致（trait-capture 2 / css-rules-capture 1）
+- 採取ツール版の一致: 一致（trait-capture 2 / css-rules-capture 2）
 
 ## 照合結果
 

@@ -121,11 +121,6 @@ export function diffAxes(manifest) {
     }
     return names;
   });
-  const states = [...new Set(stateSets.flat())].sort();
-  // 突き合わせる状態が 1 つも残らないなら、比較は成立していない。
-  if (states.length === 0) {
-    problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
-  }
   // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
   // 宣言が無い欠落は採り忘れと区別できないので従来どおり問題にする（fail-closed は変えない）。
   const invalidUnreachable = [];
@@ -157,6 +152,29 @@ export function diffAxes(manifest) {
       `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が契約の形でない（{ state, reason } で reason は非空）`,
     );
   }
+  // 候補となる状態は「採れた状態 ∪ 契約の形で宣言された到達不能な状態」。
+  // 採取側の和集合だけで作ると、**全インスタンスで到達できない状態が候補から消える**——
+  // どのインスタンスにとっても「欠けている状態」でなくなるので not_compared に 1 件も残らず、
+  // 除外した組み合わせが成果物から追えない（宣言の typo も、突き合わせる候補が無いので誰も気付かない）。
+  const states = [
+    ...new Set([...stateSets.flat(), ...declaredUnreachable.flatMap((d) => [...d])]),
+  ].sort();
+  // 突き合わせる状態が 1 つも残らないなら、比較は成立していない。
+  if (states.length === 0) {
+    problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
+  }
+  // 全インスタンスが到達不能と宣言した状態は、比較の母集合が空になる。採取条件に載せるべきでない
+  // 状態か、状態名の typo のどちらかなので、除外として静かに通さない。
+  const unreachableEverywhere = states.filter(
+    (st) =>
+      !stateSets.some((set) => set.includes(st)) && declaredUnreachable.every((d) => d.has(st)),
+  );
+  if (unreachableEverywhere.length > 0) {
+    problems.push(
+      `どのインスタンスでも到達できない状態が宣言されている（${unreachableEverywhere.join(", ")}）——採取条件から外すか状態名を確かめる`,
+    );
+  }
+
   // 実際に採れている状態を「到達できない」と宣言している矛盾を落とす。
   // 母集合はこの宣言を引いて作るので、放置すると採取済みの基準が見本も照合も無いまま隠れる。
   declaredUnreachable.forEach((declared, i) => {
@@ -213,6 +231,16 @@ export function diffAxes(manifest) {
       const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
       if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
+      }
+      // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が契約。
+      // 形を見ずに flattenTraits へ渡すと、`before: "x"` が `::before/0 = "x"` という軸を、
+      // `after: []` が `::after/<present> = "true"` だけを作り、壊れた採取物が measured を稼いで
+      // ok: true に化ける（computed / rect と同じ fail-open で、擬似要素側だけが素通りしていた）。
+      for (const pseudo of ["before", "after"]) {
+        if (!(pseudo in entry.traits)) continue;
+        const captured = entry.traits[pseudo];
+        if (captured === null || isRecord(captured)) continue;
+        missing.push(`::${pseudo} の形（null かレコード）`);
       }
       if (missing.length > 0) {
         problems.push(

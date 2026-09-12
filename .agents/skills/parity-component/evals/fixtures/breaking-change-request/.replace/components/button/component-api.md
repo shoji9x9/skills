@@ -10,23 +10,23 @@
 
 | 引数 | 対応する軸（状態 / 軸名） | 値の集合 | 既定値 | 既定値の根拠 |
 |---|---|---|---|---|
-| `variant` | default / background-color, default / color | `primary`, `secondary` | `secondary` | users-create（orders-search は `primary`） |
+| `variant` | default / background-color, default / color, hover / background-color, hover / color, active / color, disabled / background-color | `primary`, `secondary` | `secondary` | users-create |
 | `disabled` | disabled / color, disabled / cursor | `true`, `false` | `false` | 両インスタンス |
 
 ## 引数にしなかった可変軸
 
 | 軸（状態 / 軸名） | 割れ方 | 扱い | 根拠 |
 |---|---|---|---|
-| default / rect/width | 文脈で決まる差 | 中身から決まる | 文言の長さに追従（「検索」36px / 「利用者を作成」112px） |
+| default / rect/width、hover / rect/width、active / rect/width、disabled / rect/width | 文脈で決まる差 | 中身から決まる | 文言の長さに追従（「検索」96px / 「利用者を作成」132px。全状態で同じ差） |
 
 ## 状態の落とし先
 
 | 採取した状態 | 落とし先 | 備考 |
 |---|---|---|
 | default | 基本のスタイル規則 | |
-| hover | スタイル規則（`:hover`） | 3 方向（背景・枠・文字色）が変わる |
+| hover | スタイル規則（`:hover`） | 背景色はインスタンスで割れる（可変軸。`variant` 経由で決まる） |
 | active | スタイル規則（`:active`） | |
-| disabled | 引数 `disabled` | |
+| disabled | 引数 `disabled` | `cursor` も `not-allowed` へ変わる |
 
 ## 実装方式の決定
 

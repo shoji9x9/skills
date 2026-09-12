@@ -48,7 +48,9 @@ parity-component build   [--component <slug>] [--target <name>]
     その `component-api.md` は実装の根拠にならないので、採取へ戻る。
     **`metadata.json` の宣言だけで通さない**——**比較の母集合**（下記）の全組み合わせについて
     **採取が必須とする成果物を漏れなく**確かめる——`baseline/<instance>/<state>/` の
-    **要素スクリーンショット・特性・当たっている CSS 規則**の 3 点と、slug 直下の `axes.json` / `component-api.md`。
+    **要素スクリーンショット（`element.png`）・特性（`traits.json`）・当たっている CSS 規則（`css-rules.json`）**の 3 点と、
+    slug 直下の `axes.json` / `component-api.md`（**ファイル名まで固定する**——名前を決めないと前提判定が機械的に行えず、
+    「在るはずのもの」を人の目で探すことになる）。
     **データ依存の部品（`.replace/components.md` の `データ依存: true`）は `baseline/<instance>/data.json` も必須**。
     一部だけ揃った採取を通すと、画素比較の入力やカタログへ注入するデータが無いまま `build` に入る。
     宣言は古い実行の残りでもありうるので、実体が無ければ比較対象が空のまま `build` に入る
@@ -153,8 +155,10 @@ parity-component build   [--component <slug>] [--target <name>]
 
 | 成果物 | 場所 | 正本テンプレート |
 |---|---|---|
-| 見た目の基準（インスタンス × 状態） | `.replace/components/<slug>/baseline/` | — |
+| 要素スクリーンショット | `.replace/components/<slug>/baseline/<instance>/<state>/element.png` | — |
+| 計算後スタイル | `.replace/components/<slug>/baseline/<instance>/<state>/traits.json` | — |
 | 当たっている CSS 規則 | `.replace/components/<slug>/baseline/<instance>/<state>/css-rules.json` | — |
+| データ依存部品の実データ | `.replace/components/<slug>/baseline/<instance>/data.json` | — |
 | 引数の設計（固定・可変の割り出し） | `.replace/components/<slug>/component-api.md` | [`assets/component-api-template.md`](assets/component-api-template.md) |
 | メタデータ・ノイズ基準値 | `.replace/components/<slug>/metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 照合と往復の記録 | `.replace/components/<slug>/parity.md` | [`assets/parity-template.md`](assets/parity-template.md) |

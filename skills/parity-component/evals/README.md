@@ -50,8 +50,8 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 | `single-instance-component` | 設定・features.md・dataset・components.md（`print-preview` のインスタンスが 1 件） | インスタンスが 2 件未満の部品を先に作らない |
 | `coverage-table-as-appearance` | 上記＋ `.replace/parity/order/component-coverage.json`（`unmeasured` 0・全セル `present`） | 被覆表を見た目の担保として扱わない |
 | `data-not-from-dataset` | 設定・features.md・components.md（データ依存の部品）＋ ゴールデンデータセットが**別 target**へ投入済み | 来歴を確認できないデータをカタログへ持ち込まない |
-| `catalog-unset` | 上記＋**採取成果物の実体**（`metadata.json` / `axes.json` / `component-api.md` / `gaps.md` / `baseline/`（2 インスタンス × 4 状態の特性と CSS 規則））。設定に `component_catalog` / `catalog_url`（`catalog_url_command` も）が無い | カタログ未宣言で `build` に入らず停止する |
-| `breaking-change-request` | カタログ宣言済み・`build` 完了済み（`component-api.md` / `parity.md` / `build-metadata.json`） | 破壊的変更を自分で決めず判断を求める |
+| `catalog-unset` | 上記＋**採取成果物の実体**（`metadata.json` / `axes.json` / `component-api.md` / `gaps.md` / `baseline/`（2 インスタンス × 4 状態の `element.png` / `traits.json` / `css-rules.json`））＋`references` が指す `docs/`。設定に `component_catalog` / `catalog_url`（`catalog_url_command` も）が無い | カタログ未宣言で `build` に入らず停止する |
+| `breaking-change-request` | カタログ宣言済み（`docs/component-catalog.md` の実体を含む）・採取成果物一式・`build` 完了済み（`component-api.md` / `parity.md` / `build-metadata.json`） | 破壊的変更を自分で決めず判断を求める |
 
 ## fixture の前段ゲート
 
@@ -64,6 +64,12 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 6 値としていたが、採取済みインスタンスは 2 件で、2 件から割り出せるのは高々 2 値である
 （「値の集合は採取物から列挙する」という本スキルの契約に反する）。実走した run がこの矛盾を指摘したため 2 値へ揃えた。
 
+**前段ゲートの見落としは 2 度目で、今回はレビュー指摘で見つかった。** `catalog-unset` / `breaking-change-request` はともに
+`references.architecture` 等が `docs/*.md` を指しているのに実体を同梱しておらず、`build` の手順 1 がそこで停止していた。
+さらに `catalog-unset` の `baseline/` には要素スクリーンショットが無く、`breaking-change-request` には `axes.json` と `baseline/` 自体が無かった。
+つまり**eval 5・6 はどちらも目的の分岐へ到達していなかった**。参照ドキュメントの実体・`element.png`・採取成果物一式を足して解消してある。
+併せて、前提判定が機械的に行えるよう **`baseline/<instance>/<state>/` のファイル名を `element.png` / `traits.json` / `css-rules.json` に固定**した（正本は `SKILL.md` と `references/capture.md`）。
+
 `catalog-unset` の `axes.json` は `axis-diff.mjs` を `baseline/` に対して実行した出力そのもの（手書きしない）。リポジトリのフォーマッタが JSON の空白を正規化するため整形は揃わないが、内容は実出力と一致する。`baseline/` を変えたら同じコマンドで取り直す。
 
 ## 実走の証拠の状態（この PR 時点）
@@ -73,8 +79,8 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 | 対象 | 状態 | 扱い |
 |---|---|---|
 | eval 1・2・4 に足した「停止の判断と矛盾する結論を述べていない」assertion | **未測定**。追加後に実走していない | **後退検知専用**として扱い、Delta の根拠にしない。到達性・弁別は次の実走で確かめる |
-| eval 5 の 6/6 | **fixture の是正前に測った結果**（コントラスト比の修正・`axes.json` の実出力への差し替えより前）。さらにレビュー対応で assertion 文言と `baseline/` の `css-rules.json`（採取スキーマ v2）を変えた | 現 fixture がカタログ未宣言の分岐へ到達する証拠にはならない。**再走するまで被覆として数えない** |
-| eval 6 の 5/5 | fixture 是正後に測定済みだが、レビュー対応で `build-metadata.json` を契約（`target.name` ＋ `catalog.base_url` / `catalog.stories`）へ揃えた | **入力が変わったので再走するまで被覆として数えない** |
+| eval 5 の 6/6 | **fixture が目的の分岐へ到達していなかった**（参照ドキュメントの実体と要素スクリーンショットが無く、手前のゲートで停止していた）。assertion 文言と採取スキーマ v2 の変更も入った | 到達しない fixture で測った結果なので**被覆として数えない**。前段ゲートを解消したので再走が要る |
+| eval 6 の 5/5 | 同上（`axes.json` / `baseline/` / 参照ドキュメントが無く、`build` の前提検証で停止していた）。`build-metadata.json` の契約整合と `parity.md` のツール版も直した | 同じく**再走するまで被覆として数えない** |
 | eval 3 | 弁別ゼロ（上記「eval 3 は Delta ではなく後退検知」） | 後退検知専用 |
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**

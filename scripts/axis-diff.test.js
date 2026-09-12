@@ -553,3 +553,76 @@ test("空白だけの状態名を弾く", () => {
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("状態名が不正な採取");
 });
+
+test("擬似要素の形が壊れた採取を軸に変えない", () => {
+  // `before: "x"` は flattenTraits が `::before/0 = "x"` という軸に変え、`after: []` は
+  // `<present> = true` だけを作る。computed / rect と同じ形の検証をしないと、
+  // 壊れた採取物が measured を稼いで ok: true に化ける。
+  for (const broken of ["x", [], 3, true]) {
+    const result = diffAxes({
+      component: "button",
+      instances: [
+        {
+          id: "a",
+          states: [{ state: "default", traits: { ...traits({ color: "x" }), before: broken } }],
+        },
+        { id: "b", states: [{ state: "default", traits: traits({ color: "y" }) }] },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain("::before の形");
+  }
+});
+
+test("擬似要素が null・レコード・キー無しなら通す", () => {
+  // 契約どおりの 3 値まで弾くと、正しい採取物が毎回落ちる（過剰修正の検知）。
+  for (const good of [{ before: null }, { before: { color: "x" } }, {}]) {
+    const result = diffAxes({
+      component: "button",
+      instances: [
+        { id: "a", states: [{ state: "default", traits: { ...traits({ color: "x" }), ...good } }] },
+        { id: "b", states: [{ state: "default", traits: { ...traits({ color: "y" }), ...good } }] },
+      ],
+    });
+    expect(result.problems.join("\n")).not.toContain("::before の形");
+  }
+});
+
+test("全インスタンスで到達できない状態の宣言を黙って通さない", () => {
+  // 採取側の和集合だけを候補にすると、この状態はどのインスタンスにとっても「欠け」ではなくなり、
+  // not_compared にも problems にも残らない（状態名の typo が誰にも気付かれない）。
+  const declared = [{ state: "hovr", reason: "その target では作れない" }];
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [state("default", traits({ color: "x" }))], unreachable_states: declared },
+      { id: "b", states: [state("default", traits({ color: "y" }))], unreachable_states: declared },
+    ],
+  });
+  expect(result.states).toContain("hovr");
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("どのインスタンスでも到達できない状態");
+});
+
+test("一部のインスタンスだけ到達できない状態は not_compared に残る", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [state("default", traits({ color: "x" }))],
+        unreachable_states: [{ state: "disabled", reason: "その画面では無効化できない" }],
+      },
+      {
+        id: "b",
+        states: [
+          state("default", traits({ color: "y" })),
+          state("disabled", traits({ color: "z" })),
+        ],
+      },
+    ],
+  });
+  expect(result.not_compared).toEqual([{ instance: "a", state: "disabled" }]);
+  expect(result.problems.join("\n")).not.toContain("どのインスタンスでも到達できない状態");
+  expect(result.ok).toBe(true);
+});
