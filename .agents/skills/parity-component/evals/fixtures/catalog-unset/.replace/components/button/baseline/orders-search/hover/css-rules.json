@@ -1,0 +1,33 @@
+{
+  "name": "button@orders-search",
+  "tool_version": "1",
+  "matched": [
+    {
+      "order": 0,
+      "selector": ".btn:hover",
+      "original_selector": ".btn",
+      "states": ["hover"],
+      "pseudo_element": null,
+      "conditions": [],
+      "layers": [],
+      "href": "http://localhost:8080/css/app.css",
+      "declarations": [
+        {
+          "property": "background-color",
+          "value": "rgb(0, 70, 130)",
+          "important": false
+        }
+      ]
+    }
+  ],
+  "unresolved": [],
+  "inaccessible": [],
+  "counts": {
+    "sheets": 1,
+    "style_rules": 1,
+    "import_rules": 0,
+    "nested_declaration_rules": 0,
+    "matched": 1
+  },
+  "shadow_root": false
+}

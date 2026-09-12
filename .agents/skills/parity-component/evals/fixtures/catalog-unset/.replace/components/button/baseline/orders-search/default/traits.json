@@ -1,0 +1,27 @@
+{
+  "name": "button@orders-search",
+  "computed": {
+    "font-family": "\"Noto Sans JP\", sans-serif",
+    "font-size": "13px",
+    "font-weight": "400",
+    "line-height": "20px",
+    "padding-top": "4px",
+    "padding-right": "12px",
+    "padding-bottom": "4px",
+    "padding-left": "12px",
+    "border-radius": "2px",
+    "cursor": "pointer",
+    "user-select": "none",
+    "pointer-events": "auto",
+    "background-color": "rgb(0, 90, 158)",
+    "color": "rgb(255, 255, 255)"
+  },
+  "before": null,
+  "after": null,
+  "rect": {
+    "x": 0,
+    "y": 0,
+    "width": 96,
+    "height": 28
+  }
+}

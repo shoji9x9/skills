@@ -1,0 +1,72 @@
+{
+  "slug": "order",
+  "measured_target": "current-test",
+  "components": [
+    {
+      "id": "button",
+      "name": "ボタン",
+      "version": "unknown",
+      "profile": null,
+      "profile_absent_reason": "汎用ボタンに適合する被覆プロファイルが同梱されていない",
+      "items": [
+        { "id": "click", "name": "クリックで送信される" },
+        { "id": "disabled", "name": "無効時は押せない" },
+        { "id": "keyboard", "name": "Enter / Space で発火する" }
+      ],
+      "instances": [
+        { "id": "orders-search", "page": "/orders", "locator": "order.search-submit" },
+        { "id": "users-create", "page": "/users", "locator": "user.create-submit" }
+      ]
+    }
+  ],
+  "cells": [
+    {
+      "component": "button",
+      "item": "click",
+      "instance": "orders-search",
+      "value": "present",
+      "evidence": "送信され一覧が更新されることを確認",
+      "covered_by": "e2e/parity/order/search.spec.ts"
+    },
+    {
+      "component": "button",
+      "item": "click",
+      "instance": "users-create",
+      "value": "present",
+      "evidence": "作成画面へ遷移することを確認",
+      "covered_by": "e2e/parity/user/create.spec.ts"
+    },
+    {
+      "component": "button",
+      "item": "disabled",
+      "instance": "orders-search",
+      "value": "present",
+      "evidence": "条件未入力時に押せないことを確認",
+      "covered_by": "capture_conditions.states.disabled"
+    },
+    {
+      "component": "button",
+      "item": "disabled",
+      "instance": "users-create",
+      "value": "present",
+      "evidence": "権限なしロールで押せないことを確認",
+      "covered_by": "capture_conditions.states.disabled"
+    },
+    {
+      "component": "button",
+      "item": "keyboard",
+      "instance": "orders-search",
+      "value": "present",
+      "evidence": "Enter で発火することを確認",
+      "covered_by": "e2e/parity/order/search.spec.ts"
+    },
+    {
+      "component": "button",
+      "item": "keyboard",
+      "instance": "users-create",
+      "value": "present",
+      "evidence": "Space で発火することを確認",
+      "covered_by": "e2e/parity/user/create.spec.ts"
+    }
+  ]
+}

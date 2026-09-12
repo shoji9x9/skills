@@ -1,0 +1,24 @@
+{
+  "slug": "order",
+  "mode": "feature",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "dataset_version": 3,
+  "suite": { "dir": "e2e/", "current_green": true },
+  "component_coverage": {
+    "declared": true,
+    "path": ".replace/parity/order/component-coverage.json",
+    "components": 1,
+    "items": 3,
+    "instances": 2,
+    "cells": 6,
+    "unmeasured": 0,
+    "profiles": [],
+    "conformance_ok": true,
+    "reason": null
+  }
+}

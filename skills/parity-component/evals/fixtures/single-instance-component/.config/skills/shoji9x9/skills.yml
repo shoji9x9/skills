@@ -1,0 +1,59 @@
+version: 1
+skills:
+  replace-strategy:
+    current:
+      repo: ./legacy-app
+      stack: [Java, JSP]
+      origin: managed
+    new:
+      repo: ./new-app
+      stack: [TypeScript, React]
+    targets:
+      - name: current-test
+        side: current
+        url: http://localhost:8080
+        db:
+          env_vars: [CURRENT_DB_URL]
+          seedable: true
+        auth:
+          roles:
+            admin:
+              user_name_env: CURRENT_ADMIN_USER
+              password_env: CURRENT_ADMIN_PASS
+        forbidden_actions: []
+        default: true
+      - name: local-dev
+        side: new
+        url: http://localhost:3000
+        db:
+          env_vars: [NEW_DB_URL]
+          seedable: true
+        forbidden_actions: []
+        default: true
+    secrets:
+      wrapper: ""
+    verification_commands:
+      full:
+        - npm run lint
+        - npm run typecheck
+      diff:
+        - npx eslint {changed_files}
+    parity_suite_dir: e2e/
+    dataset_tool_dir: seed/
+    dataset_mode: db
+    artifacts:
+      retention: latest
+      storage: local
+      size_threshold_mb: 50
+      overrides: {}
+    references:
+      architecture: docs/new-architecture.md
+      coding_conventions: docs/coding-conventions.md
+      ui_library: docs/ui-library.md
+      db_semantics: docs/db-semantics.md
+      env_setup: docs/env-setup.md
+      dependency_policy: none
+    intentional_diffs:
+      keep: []
+      may_change: []
+      pending: []

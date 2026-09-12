@@ -1,0 +1,107 @@
+{
+  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。",
+  "slug": "<.replace/components.md が採番した slug（自分で採番しない）>",
+  "component": "<部品の呼び名（components.md の表記）>",
+  "target": {
+    "name": "<選択した current target 名（設定 targets の side: current。変更は基準の陳腐化として扱う）>",
+    "ui_url": "<解決した UI の baseURL。target が url_command のときは解決値を書かず \"runtime\">",
+    "commit": "<現行リポジトリのコミット SHA。入手不可なら none>"
+  },
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<採取したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<parity-component のバージョン>"
+  },
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの来歴でもある。版が上がったら採取物と抽出データの両方が陳腐化する>",
+  "capture": {
+    "complete": "<採取が全インスタンス × 全状態で完了したか。build はこの値が true のときだけ進む。真偽値で書く>",
+    "states": [
+      "<採った状態名（default / hover / active / focus / disabled / checked 等）。全インスタンスで同じ集合にする>"
+    ],
+    "state_source": "<状態の導出源（component-catalog | vendor-spec | current-source | app-ui）。資料は列挙の生成源であって比較の正解ではない>",
+    "tools": {
+      "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
+      "traits_version": "<trait-capture.mjs の VERSION。比較時に一致しなければ両側を採り直す>",
+      "traits_property_set": "<trait-capture.mjs の FIXED_PROPERTIES（採取したプロパティ集合）>",
+      "css_rules_version": "<parity-component 同梱 css-rules-capture.mjs の VERSION（コピーせずスキル配下から実行する）>",
+      "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",
+      "pixel_differ": "<画素差分ツールと版（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
+    }
+  },
+  "instances": [
+    {
+      "id": "<インスタンス id（一意。成果物パス baseline/<id>/ と axis-diff の照合キーになる。採取前に確定させる）>",
+      "page": "<現行 target でのページ URL（到達できないページは対象から外し gaps.md に残す）>",
+      "locator": "<その部品インスタンスを指す論理名（role ＋アクセシブルネームで引ける名前。id・自動生成クラスをアンカーにしない）>",
+      "data": {
+        "dependent": "<描画がデータに左右される部品か。真偽値で書く>",
+        "rows": "<データ依存のとき、採取範囲に写した行数。見本にも同じ件数を与える>",
+        "extract_path": "<抽出した実データのパス（例: baseline/<id>/data.json）。データ依存でなければ null>"
+      },
+      "unreachable_states": [
+        {
+          "state": "<このインスタンスでは到達できない状態名>",
+          "reason": "<到達できない理由（例: この画面では常に活性）。同じ内容を gaps.md にも残す>"
+        }
+      ],
+      "ua_defaults": [
+        "<当たっている CSS 規則が無く、ブラウザ・OS の既定で決まっていると判定した項目。採取環境でだけ一致する穴になるため記録する>"
+      ]
+    }
+  ],
+  "capture_conditions": {
+    "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリーが何に解決されたかまで書く>",
+    "viewer_environment": "<想定利用者環境との一致。一致 | 乖離: <内容と gaps.md の該当箇所> | 未確認>",
+    "viewports": [
+      {
+        "width": 0,
+        "height": 0,
+        "label": "<例: desktop / mobile>"
+      }
+    ],
+    "animations": "disabled",
+    "element_screenshot": "<要素の矩形で撮ったこと（locator.screenshot）。ページ全体ではないため margin は写らない。真偽値で書く>",
+    "masks": [
+      "<認証情報・トークン・個人情報・揮発項目を成果物へ残さないための恒久マスク（parity-suite の references/auth.md の方針に従う）>"
+    ]
+  },
+  "noise_baseline": [
+    {
+      "instance": "<インスタンス id>",
+      "state": "<状態名>",
+      "viewport": "<ビューポートのラベル>",
+      "pixel": "<2 回撮った同士の画素差分量>",
+      "traits": "<2 回撮った同士の特性照合の差分件数>"
+    }
+  ],
+  "axes": {
+    "path": "<axis-diff.mjs の出力パス（例: .replace/components/<slug>/axes.json）>",
+    "ok": "<axis-diff.mjs が exit 0 で通ったか。false のまま build へ進まない。真偽値で書く>",
+    "variable": "<可変と割り出された軸の件数（概観用。判断の記録は component-api.md）>",
+    "fixed": "<固定と割り出された軸の件数（概観用）>"
+  },
+  "capture_gaps": {
+    "inaccessible_sheets": "<css-rules-capture.mjs が読めなかったスタイルシートの件数。非ゼロなら gaps.md に必須記録。0 件を『関係する規則が無い』と読まない>",
+    "unresolved_selectors": "<当たるか判定できなかったセレクタの件数。非ゼロなら gaps.md に必須記録>"
+  },
+  "catalog": {
+    "_note": "build が追記する。capture の時点では持たない（キーごと省略してよい）。",
+    "target": "<選択した new target 名>",
+    "base_url": "<解決したカタログの baseURL。catalog_url をコマンドで解決する target では \"runtime\">",
+    "stories": [
+      {
+        "instance": "<インスタンス id>",
+        "state": "<状態名>",
+        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（書き写さない）>"
+      }
+    ],
+    "missing_stories": "<採取物にあって見本が無い組み合わせの件数。1 以上なら build は完了しない>"
+  },
+  "artifacts_storage": {
+    "baseline": "<スクリーンショット等の保存先（local | git | git-lfs。既定 local）。設定 artifacts と overrides.<slug> に従う>",
+    "baseline_pointer": "<local を選んだ場合の実際の置き場所（足場であり切替後に残っている必要はない）>"
+  }
+}

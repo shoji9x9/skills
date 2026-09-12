@@ -1,0 +1,39 @@
+{
+  "slug": "button",
+  "target": { "name": "local-dev", "catalog_url": "http://localhost:6006" },
+  "new": {
+    "repo": "./new-app",
+    "commit": "3f1c9ab2d4e5f60718293a4b5c6d7e8f90a1b2c3",
+    "dirty": false
+  },
+  "run": { "agent": "Claude Code", "model": "opus", "effort": "high", "skill_version": "1.0.0" },
+  "issue": "#120",
+  "dependencies_recorded": true,
+  "review": {
+    "performed": true,
+    "reviewer": "サブエージェント",
+    "record": ".replace/components/button/review.md"
+  },
+  "verification": {
+    "column": "full",
+    "commands": [
+      { "command": "npm run lint", "result": "pass" },
+      { "command": "npm run typecheck", "result": "pass" }
+    ],
+    "unchecked": []
+  },
+  "parity": {
+    "instances": 2,
+    "states": 4,
+    "cells_compared": 8,
+    "missing_stories": 0,
+    "unexplained": 0,
+    "record": ".replace/components/button/parity.md"
+  },
+  "loop": {
+    "iterations": 2,
+    "changed_scope": "button 本体のスタイル規則",
+    "stopped_reason": "収束"
+  },
+  "gaps": 0
+}
