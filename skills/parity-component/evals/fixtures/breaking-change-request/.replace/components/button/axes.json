@@ -1,6 +1,6 @@
 {
   "component": "ボタン",
-  "tool_version": "1",
+  "tool_version": "2",
   "instances": 2,
   "states": ["active", "default", "disabled", "hover"],
   "fixed": [

@@ -10,11 +10,17 @@
 ## 割り出しの実行
 
 ```bash
-node <skill>/scripts/axis-diff.mjs <manifest.json> --out .replace/components/<slug>/axes.json
+node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out .replace/components/<slug>/axes.json
 ```
 
 - **コピーせずスキル配下のスクリプトをそのまま実行する**（`gh skill update` の自動更新を効かせる）
-- マニフェストは採取物から組み立てる。形はスクリプト冒頭のコメントが正本（`component` と `instances[].states[].traits`。`traits` は trait-capture.mjs の返り値の形をそのまま入れる）
+- **マニフェストは手で組まない。** `--baseline` が `metadata.json`（インスタンス・状態・宣言済みの `unreachable_states`）と
+  `baseline/<instance>/<state>/traits.json` だけを入力に決定論的に組み立てる。
+  手で組む余地を残すと、`axes.json` が採取物に対応している保証が無くなり、古い軸や手で直した軸が
+  そのまま引数設計へ渡る（`build` の前提検証はこの同じコマンドを再実行して記録済みの `axes.json` と突き合わせる）
+- 宣言の無い欠落は読みに行って失敗する（採り忘れを黙って除外しない）。宣言済みの到達不能な状態は読みに行かない
+- マニフェストを直接渡す形（`node <skill>/scripts/axis-diff.mjs <manifest.json>`）も残っているが、
+  **採取物から起こす経路は `--baseline` が正本**。形はスクリプト冒頭のコメントが正本（`component` と `instances[].states[].traits`）
 - **exit 0 になるまで採取へ戻る。** 落ちる条件は「インスタンスが 2 件未満」「状態集合が揃っていない」「一部インスタンスでしか採れていない軸」「id の欠落・重複」で、
   いずれも**未測定を固定側へ倒さないための停止**である。`problems` を残したまま `fixed` だけを読まない
 

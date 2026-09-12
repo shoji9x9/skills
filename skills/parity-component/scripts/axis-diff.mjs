@@ -24,13 +24,17 @@
 //   - インスタンスごとに採った状態集合が違うときも落とす。片方にしか無い状態は
 //     「その状態では割れない」ではなく「測っていない」なので、固定側へ倒さない。
 //
-// 使い方: node axis-diff.mjs <manifest.json> [--out <path>]
+// 使い方: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]
+//   採取物から起こす正本は `--baseline <部品の成果物ディレクトリ>`。metadata.json と
+//   baseline/<instance>/<state>/traits.json だけを入力に決定論的に組み立てるので、
+//   手で組んだマニフェストと採取物がずれることがない。
 
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** ツールのバージョン（正本）。出力スキーマを変えたら上げる。 */
-export const VERSION = "1";
+export const VERSION = "2";
 
 // 状態名と軸名を 1 つのキーに畳むときの区切り。空白やスラッシュは軸名（`::before/content` 等）に
 // 現れうるので、CSS のプロパティ名にも状態名にも現れない制御文字を使う。
@@ -76,6 +80,51 @@ export function flattenTraits(traits) {
  * @returns {{component: string|null, tool_version: string, instances: number, states: string[],
  *            fixed: object[], variable: object[], problems: string[], ok: boolean}}
  */
+/**
+ * 採取物のディレクトリ（`.replace/components/<slug>/`）からマニフェストを組み立てる。
+ *
+ * マニフェストを手で組む余地を残すと、`axes.json` が採取物と対応している保証が無くなる——
+ * 古い軸や手で直した軸がそのまま `build` の引数設計へ渡り、しかも出力からは分からない。
+ * 組み立ては `metadata.json`（インスタンス・状態・宣言済みの到達不能）と
+ * `baseline/<instance>/<state>/traits.json` だけを入力にし、決定論的に行う。
+ *
+ * @param {string} dir 部品の成果物ディレクトリ
+ * @returns {object} diffAxes に渡すマニフェスト
+ */
+export function assembleFromBaseline(dir) {
+  const meta = JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
+  const states = Array.isArray(meta && meta.capture && meta.capture.states)
+    ? meta.capture.states
+    : [];
+  if (states.length === 0) throw new Error("metadata.json の capture.states が空");
+  const instances = Array.isArray(meta && meta.instances) ? meta.instances : [];
+  if (instances.length === 0) throw new Error("metadata.json の instances が空");
+  return {
+    component: (meta && meta.component) || null,
+    instances: instances.map((inst) => {
+      const id = inst && inst.id;
+      if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
+      const unreachable = new Set(
+        (Array.isArray(inst.unreachable_states) ? inst.unreachable_states : [])
+          .map((u) => u && u.state)
+          .filter((st) => typeof st === "string" && st !== ""),
+      );
+      return {
+        id,
+        unreachable_states: inst.unreachable_states,
+        // 到達不能と宣言された状態は採取物が無いのが正しいので読みに行かない。
+        // 宣言の無い欠落は読みに行って失敗させる（採り忘れを黙って除外しない）。
+        states: states
+          .filter((st) => !unreachable.has(st))
+          .map((st) => ({
+            state: st,
+            traits: JSON.parse(readFileSync(join(dir, "baseline", id, st, "traits.json"), "utf8")),
+          })),
+      };
+    }),
+  };
+}
+
 export function diffAxes(manifest) {
   const problems = [];
   const instances = Array.isArray(manifest && manifest.instances) ? manifest.instances : [];
@@ -359,6 +408,7 @@ export function main(argv) {
   // 成果物を作らないまま標準出力へ書いて exit 0 になる（--out が軸成果物を生む前提の工程が、
   // ファイルが無いことに気付かないまま次へ進む）。知らないオプションは受理しない。
   const positionals = [];
+  let baseline = null;
   let out = null;
   let outSeen = false;
   let badOption = null;
@@ -366,6 +416,17 @@ export function main(argv) {
     const a = args[i];
     if (!a.startsWith("-") || a === "-") {
       positionals.push(a);
+      continue;
+    }
+    if (a === "--baseline") {
+      if (baseline !== null) badOption = badOption || "--baseline は 1 回だけ指定する";
+      const value = args[i + 1];
+      if (value === undefined || value.startsWith("-")) {
+        badOption = badOption || "--baseline には採取物のディレクトリを続ける";
+      } else {
+        baseline = value;
+        i++;
+      }
       continue;
     }
     if (a === "--out") {
@@ -383,21 +444,31 @@ export function main(argv) {
     badOption = badOption || `未知のオプション: ${a}`;
   }
   const input = positionals[0];
-  if (positionals.length !== 1 || badOption) {
-    process.stderr.write("usage: node axis-diff.mjs <manifest.json> [--out <path>]\n");
+  const expectedPositionals = baseline === null ? 1 : 0;
+  if (positionals.length !== expectedPositionals || badOption) {
+    process.stderr.write(
+      "usage: node axis-diff.mjs (<manifest.json> | --baseline <dir>) [--out <path>]\n",
+    );
     if (badOption) process.stderr.write(`error: ${badOption}\n`);
-    if (positionals.length > 1) {
+    if (baseline !== null && positionals.length > 0) {
+      process.stderr.write(
+        `error: --baseline とマニフェストは併用しない: ${positionals.join(", ")}\n`,
+      );
+    } else if (positionals.length > 1) {
       process.stderr.write(`error: マニフェストは 1 つだけ指定する: ${positionals.join(", ")}\n`);
+    } else if (positionals.length === 0) {
+      process.stderr.write("error: マニフェストか --baseline を指定する\n");
     }
-    if (positionals.length === 0) process.stderr.write("error: マニフェストを指定する\n");
     return 2;
   }
 
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(input, "utf8"));
+    manifest =
+      baseline === null ? JSON.parse(readFileSync(input, "utf8")) : assembleFromBaseline(baseline);
   } catch (e) {
-    process.stderr.write(`error: マニフェストを読めない: ${e && e.message ? e.message : e}\n`);
+    const what = baseline === null ? "マニフェスト" : "採取物";
+    process.stderr.write(`error: ${what}を読めない: ${e && e.message ? e.message : e}\n`);
     return 2;
   }
 

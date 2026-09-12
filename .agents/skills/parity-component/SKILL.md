@@ -36,7 +36,9 @@ parity-component build   [--component <slug>] [--target <name>]
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・差分器・撮影条件の**正本を `replace-strategy` / `parity-suite` に持つ**ため、単体では成立しない
 - **MCP**: 不要（現行アプリ・カタログの駆動は Playwright 自身が行う）
-- **Playwright（TypeScript）前提**。`parity-suite` が採ったノイズ基準値・撮影条件・差分器をそのまま当てるため、別ランナーでは同一条件を再現できない。使えないプロジェクトでは停止する
+- **Playwright（TypeScript）前提**。`parity-suite` の**撮影条件の規約と差分器・特性採取ツール**をそのまま当てるため、別ランナーでは同一条件を再現できない。使えないプロジェクトでは停止する。
+  **ノイズ基準値は待たない**——部品のノイズは `capture` の中で自分で測る（[`references/capture.md`](references/capture.md)「ノイズ基準値」）。
+  機能単位の `parity-suite` は部品より後に走るので、その実行結果を前提にすると先に作れなくなる
 - **部品カタログが要る**（`build` のみ）。実体は問わないが契約を満たすこと。契約と設定の解決は [`references/catalog.md`](references/catalog.md)
 - **前提の判定（無ければ停止し、該当スキルの実行を促す。捏造しない）**:
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
@@ -129,7 +131,7 @@ parity-component build   [--component <slug>] [--target <name>]
    比較の母集合と軸の割り出しの両方から外す（[`references/instances.md`](references/instances.md)）
 5. **採取**: インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
    撮影条件は `parity-suite` の `references/baseline.md` に従い、**同一条件で 2 回撮ってノイズ基準値を出す**（2 回目の採取物は基準値を記録したら削除する）。詳細: [`references/capture.md`](references/capture.md)
-6. **固定軸・可変軸の割り出し**: 採取物から `node <skill>/scripts/axis-diff.mjs <manifest> --out <path>` を **exit 0 まで通す**（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
+6. **固定軸・可変軸の割り出し**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out .replace/components/<slug>/axes.json` を **exit 0 まで通す**（マニフェストは手で組まず、この経路が採取物から決定論的に組み立てる）（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
    未採取・片側のみ・id 重複は問題として落ちるので、採取へ戻して埋める。**問題を残したまま「可変軸なし」を結論にしない**。詳細: [`references/component-api.md`](references/component-api.md)
 7. **成果物記録**: `component-api.md`（固定・可変の割り出しと引数の候補）・`metadata.json`（撮影条件・ノイズ基準値・ツール版・データセット版・`capture.complete`）・`gaps.md`（採れなかった箇所と理由）を書く。
    `inaccessible` / `unresolved` が非ゼロなら必ず `gaps.md` に残す
@@ -138,8 +140,12 @@ parity-component build   [--component <slug>] [--target <name>]
 
 1. **前提検証と着手**: `capture` 完了と `references.architecture` / `references.component_catalog` / `verification_commands.full` を実測し、欠ければ停止する。
    **採取物の陳腐化も併せて判定する**（宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる）:
-   - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `css_rules_version` / `axis_diff_version` / `traits_property_set` を、
-     いま使うツールの実際の版と突き合わせる。**違えば実装へ進まず `capture` からやり直す**（採取スキーマが違う基準は比較の入力にならない）
+   - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `css_rules_version` / `axis_diff_version` と、
+     集合として持つ `traits_property_set` を、いま使うツールの実際の版・集合と突き合わせる。
+     **違えば実装へ進まず `capture` からやり直す**（採取スキーマが違う基準は比較の入力にならない）
+   - **軸の再導出**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out <一時パス>` を実行し、
+     **exit 0 かつ記録済みの `axes.json` と一致すること**を確かめる。`metadata.json` の `axes.ok` と `axes.json` の実在だけでは、
+     採取物が変わった後の古い軸や手で直した軸がそのまま引数設計へ渡る（出力からは区別できない）
    - **データセット版**（データ依存の部品のみ）: `metadata.json` の `dataset_version` と現在の版の間の `changes[].affects` が、
      その部品の**実効参照テーブル**と交差するなら陳腐化。**版の数値が古いだけでは陳腐化にしない**（無関係なテーブルの変更で毎回の再採取を強いることになる）。
      導出規則と、導出できないときに停止する規律の正本は `golden-dataset` の [`references/versioning.md`](../golden-dataset/references/versioning.md)

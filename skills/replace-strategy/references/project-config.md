@@ -114,8 +114,8 @@ skills:
       size_threshold_mb: 50 # 超過時に警告する
       overrides: {} # 機能ごとの上書き（例: order: git-lfs）
     references: # 利用者が選ぶ知識の注入。パスだけを持つ（本文はファイル側）。setup が全キーを生成し、決まらないキーは空値で残す（下記「references（知識の注入）」）
-      architecture: "" # 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング／リリース構成・実行基盤と利用マネージドサービス）の決定記録。事前定義が前提で setup は下書きを作らない（parity-replace が実装工程の前に読む。下記「新側アーキテクチャ」）
-      coding_conventions: "" # 生成先リポジトリのコーディング規約（命名・エラー処理・テストの書き方・レビュー観点）。骨格の「上」の書き方であり architecture とは別（parity-replace / golden-dataset / parity-suite が生成物を書くときに読む。生成物ごとの引き先は下記「コーディング規約」）
+      architecture: "" # 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング／リリース構成・実行基盤と利用マネージドサービス）の決定記録。事前定義が前提で setup は下書きを作らない（parity-replace / parity-component が実装工程の前に読む。下記「新側アーキテクチャ」）
+      coding_conventions: "" # 生成先リポジトリのコーディング規約（命名・エラー処理・テストの書き方・レビュー観点）。骨格の「上」の書き方であり architecture とは別（parity-replace / parity-component / golden-dataset / parity-suite が生成物を書くときに読む。生成物ごとの引き先は下記「コーディング規約」）
       ui_library: "" # 新 UI ライブラリ設定と旧→新 design token マッピング（parity-replace / parity-diff / parity-component が読む）
       component_catalog: "" # 部品カタログの契約（実体・見本の書き方・URL の決まり方・データの注入経路）。共通部品を画面より先に作る方針のときだけ使う（parity-component の build が読む。下記「部品カタログ」）
       db_semantics: "" # 現行 DB → 新 DB の型マッピングと意味論の差、および移植時に踏む方言差の点検表（parity-replace が実装前に読み、golden-dataset / parity-suite / parity-diff が比較で読み、current-environment-bootstrap が整備済みのとき復元項目の突き合わせで読む。下記「DB 意味論」）
@@ -195,8 +195,8 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 
 | キー | 読むスキルと工程 | 未整備のときの挙動 |
 |---|---|---|
-| `architecture` | `parity-replace` の部品の採否・実装工程（手順 3 以降）、依存を決める全スキルのランタイム制約の判断 | `parity-replace` は部品の採否・実装に入らず**停止する**（骨格を推測すると全機能・全ページに波及し、後戻りが最も高くつく）。ただし新側リポジトリに骨格が既に実装されていれば、**実態から読み取った内容**を下書きとして提示し、ユーザーが確定させてから進める（既存実装の読み取りは記述であって決定ではない）。**依存を決める側**（`parity-suite` / `parity-diff` 等、実装工程を持たないスキル）は**停止しないが、実行基盤の制約を推測で埋めない**——ユーザーに確認してから候補を絞る（[`dependency-selection.md`](dependency-selection.md)「判断材料」の実行基盤の行） |
-| `coding_conventions` | 対象プロジェクト側にコードを書く全スキル——`parity-replace` の実装工程と敵対的レビュー、`golden-dataset` の投入ツール生成、`parity-suite` のスイート authoring、`current-environment-bootstrap` の再構築ツール・暫定起動データ投入ツール生成 | **停止しない**（規約を持たないリポジトリもあるため）。ただし**推測で自分の流儀を持ち込まず**、**生成先リポジトリ**（新側とは限らない。下記「コーディング規約」の対応表）の既存コードと基底ドキュメントから読み取れる範囲に従い、整備をユーザーに促す |
+| `architecture` | `parity-replace` の部品の採否・実装工程（手順 3 以降）、**`parity-component` の `build`（前提検証。共通部品の実装先が骨格の上に載るため）**、依存を決める全スキルのランタイム制約の判断 | `parity-replace` / `parity-component` は部品の採否・実装に入らず**停止する**（骨格を推測すると全機能・全ページに波及し、後戻りが最も高くつく）。ただし新側リポジトリに骨格が既に実装されていれば、**実態から読み取った内容**を下書きとして提示し、ユーザーが確定させてから進める（既存実装の読み取りは記述であって決定ではない）。**依存を決める側**（`parity-suite` / `parity-diff` 等、実装工程を持たないスキル）は**停止しないが、実行基盤の制約を推測で埋めない**——ユーザーに確認してから候補を絞る（[`dependency-selection.md`](dependency-selection.md)「判断材料」の実行基盤の行） |
+| `coding_conventions` | 対象プロジェクト側にコードを書く全スキル——`parity-replace` の実装工程と敵対的レビュー、**`parity-component` の `build`（部品の実装と見本）**、`golden-dataset` の投入ツール生成、`parity-suite` のスイート authoring、`current-environment-bootstrap` の再構築ツール・暫定起動データ投入ツール生成 | **停止しない**（規約を持たないリポジトリもあるため）。ただし**推測で自分の流儀を持ち込まず**、**生成先リポジトリ**（新側とは限らない。下記「コーディング規約」の対応表）の既存コードと基底ドキュメントから読み取れる範囲に従い、整備をユーザーに促す |
 | `ui_library` | `parity-replace` の「見た目の系統差を源流で縮める」工程、`parity-diff` の正規化（系統差の判断材料）、`parity-component` の `build`（同じテーマ寄せを部品に対して行う） | `parity-replace` / `parity-component` はテーマ寄せに入る前に整備を促す（系統差を源流で縮められず、宣言・未検証が膨らむ）。`parity-diff` は**停止しない**が、判断材料が無いまま「許容」へ寄せない |
 | `component_catalog` | `parity-component` の `build`（見本を置く前と、カタログを採取する前に読む） | `parity-component` は `build` に入らず**停止する**（カタログの実体・URL の決まり方・データの注入経路を推測で決めると、別のカタログへ移した時点で見本と採取スペックの両方を書き直すことになる）。`capture` は読まないので停止しない。下記「部品カタログ」 |
 | `db_semantics` | **`parity-replace` の実装（手順 4）——クエリ・データアクセスを書く前に移植時の点検表として読む**、`golden-dataset` のフェーズ B（新側への写像・現新一致検証）、`parity-suite` の並び順特性化、`parity-diff` の並び順差の判断、`current-environment-bootstrap` の復元項目の突き合わせ（整備済みのときだけ） | フェーズ B は**停止する**（写像の根拠が無い）。`parity-replace` は**停止しない**が、方言差を推測で埋めず、下記「DB 意味論」の点検項目を現行 DB／新 DB の一次ドキュメントで確認して結果を `porting.md` へ記録し、整備を促す。`parity-suite` / `parity-diff` も**停止しない**（実測で特性化し、整備を促す） |
@@ -347,7 +347,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
 
 ## コーディング規約（`references.coding_conventions`）
 
-本スキル群は**対象プロジェクト側にコードを生成する**——新側の実装（`parity-replace`）・投入ツール（`golden-dataset`）・パリティスイート（`parity-suite`）。
+本スキル群は**対象プロジェクト側にコードを生成する**——新側の実装（`parity-replace`）・共通部品の実装と見本（`parity-component`）・投入ツール（`golden-dataset`）・パリティスイート（`parity-suite`）。
 生成された時点からそれはプロジェクトのコードであり、リポジトリの規約から外れていればレビューでも保守でも負債になる。
 規約の本文は設定に持たず、**規約ドキュメントのパスを 1 つ持つ**（`references` の他キーと同じ「知識の注入」の形。ファイルはプロジェクトが書く）。
 
@@ -358,6 +358,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   | 生成物 | 置かれる先 | 規約を引くリポジトリ |
   |---|---|---|
   | 新側の実装（`parity-replace`） | `new.repo` | 新側 |
+  | 共通部品の実装と見本（`parity-component` の `build`） | `new.repo`（見本はカタログの契約が定める置き場。`references.component_catalog` を引く） | 新側 |
   | 投入ツール（`golden-dataset`、`dataset_tool_dir`） | ツールを置くリポジトリ（フェーズ A は現行側の受け皿を触るため現側になることが多い） | そのリポジトリ |
   | パリティスイート（`parity-suite`、`parity_suite_dir`） | スイートを置くリポジトリ | そのリポジトリ |
 

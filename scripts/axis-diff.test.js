@@ -8,7 +8,7 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -704,4 +704,50 @@ test("契約どおりの採取は値の検証で落とさない", () => {
   });
   expect(result.ok).toBe(true);
   expect(result.problems).toEqual([]);
+});
+
+test("--baseline は採取物から決定論的にマニフェストを組み立てる", () => {
+  // マニフェストを手で組む余地を残すと、axes.json が採取物に対応している保証が無くなる。
+  const repoFixture = join(
+    repoRoot,
+    "skills/parity-component/evals/fixtures/catalog-unset/.replace/components/button",
+  );
+  const r = spawnSync(process.execPath, [script, "--baseline", repoFixture], { encoding: "utf8" });
+  expect(r.status).toBe(0);
+  const generated = JSON.parse(r.stdout);
+  // 同梱の axes.json はこのコマンドの出力そのもの（手書きしない）。
+  const recorded = JSON.parse(readFileSync(join(repoFixture, "axes.json"), "utf8"));
+  expect(generated).toEqual(recorded);
+  expect(generated.measured).toBeGreaterThan(0);
+});
+
+test("--baseline は宣言の無い欠落を黙って除外しない", () => {
+  // 到達不能と宣言していない状態の traits.json が無ければ、読みに行って落ちる。
+  const dir = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const t = { computed: { color: "rgb(0, 0, 0)" }, rect: { x: 0, y: 0, width: 80, height: 32 } };
+  writeFileSync(
+    join(dir, "metadata.json"),
+    JSON.stringify({
+      component: "ボタン",
+      capture: { states: ["default", "hover"] },
+      instances: [{ id: "a" }, { id: "b" }],
+    }),
+  );
+  for (const inst of ["a", "b"]) {
+    mkdirSync(join(dir, "baseline", inst, "default"), { recursive: true });
+    writeFileSync(join(dir, "baseline", inst, "default", "traits.json"), JSON.stringify(t));
+  }
+  // hover を 1 件も置かないまま実行する。
+  const r = spawnSync(process.execPath, [script, "--baseline", dir], { encoding: "utf8" });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("採取物を読めない");
+});
+
+test("--baseline とマニフェストの併用を拒否する", () => {
+  const dir = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const path = join(dir, "manifest.json");
+  writeFileSync(path, JSON.stringify({ instances: [] }));
+  const r = spawnSync(process.execPath, [script, path, "--baseline", dir], { encoding: "utf8" });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("併用しない");
 });

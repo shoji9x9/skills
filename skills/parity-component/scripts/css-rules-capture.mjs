@@ -337,12 +337,20 @@ export function collectMatchedRules(el, options) {
     };
     const stateInsideFunctional = hasStateInsideFunctional(base);
     // 剥がしも許容もできない擬似クラスが残っていたら、当たる／当たらないを決めずに残す。
+    // **入れ子の中も見る**——`:is()` / `:not()` 等の引数に未知の動的擬似クラスが入っていると
+    // （`.card:is(.item:popover-open)`）、外側は構造擬似クラスとして許容され、内側は
+    // 状態集合にも構造集合にも無いまま matches() へ渡る。その状態でない要素では false が
+    // 返り、規則が matched にも unresolved にも残らずに消える。
     const unknownPseudos = [];
-    for (const p of scanPseudos(base)) {
-      if (p.doubled) continue;
-      if (stateNames.has(p.name) || structuralNames.has(p.name)) continue;
-      unknownPseudos.push(p.name);
-    }
+    const collectUnknown = (selector) => {
+      for (const p of scanPseudos(selector)) {
+        if (!p.doubled && !stateNames.has(p.name) && !structuralNames.has(p.name)) {
+          unknownPseudos.push(p.name);
+        }
+        if (p.args) collectUnknown(p.args);
+      }
+    };
+    collectUnknown(base);
     return { base, states, pseudoElement, stateInsideFunctional, unknownPseudos };
   }
 

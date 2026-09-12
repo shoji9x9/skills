@@ -773,3 +773,29 @@ test("スロットに割り当てられていない要素は slotted を立て�
   expect(result.slotted).toBe(false);
   expect(result.counts.slotted_scope_skipped).toBe(0);
 });
+
+test("入れ子の中の未知の擬似クラスも unresolved に落とす", () => {
+  // 外側が構造擬似クラスとして許容され、内側の未知の動的擬似クラスが素通りすると、
+  // その状態でない要素で matches() が false を返し、規則が matched にも unresolved にも残らない。
+  const selector = ".card:is(.item:popover-open)";
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+  const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("unknown-pseudo-class:popover-open");
+});
+
+test("入れ子が既知の構造擬似クラスだけなら unresolved にしない", () => {
+  // 再帰を入れた結果、既知の擬似クラスまで未知として落としていないことの確認。
+  const selector = ".card:is(.item:first-child)";
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+  const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.unresolved).toHaveLength(0);
+  expect(result.matched).toHaveLength(1);
+});

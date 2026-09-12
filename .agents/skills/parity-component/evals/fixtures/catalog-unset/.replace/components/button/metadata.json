@@ -21,8 +21,28 @@
     "tools": {
       "traits": "e2e/parity/lib/tools/vendor/trait-capture.mjs",
       "traits_version": "2",
+      "traits_property_set": [
+        "background-color",
+        "border-radius",
+        "border-width",
+        "box-shadow",
+        "color",
+        "cursor",
+        "font-family",
+        "font-size",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "opacity",
+        "padding-bottom",
+        "padding-left",
+        "padding-right",
+        "padding-top",
+        "text-align",
+        "text-transform"
+      ],
       "css_rules_version": "2",
-      "axis_diff_version": "1",
+      "axis_diff_version": "2",
       "pixel_differ": "pixelmatch@7.1.0"
     }
   },

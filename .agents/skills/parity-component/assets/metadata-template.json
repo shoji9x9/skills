@@ -28,7 +28,9 @@
     "tools": {
       "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
       "traits_version": "<trait-capture.mjs の VERSION。build の前提検証でいま使うツールの版と突き合わせ、一致しなければ実装へ進まず capture からやり直す>",
-      "traits_property_set": "<trait-capture.mjs の FIXED_PROPERTIES（採取したプロパティ集合）>",
+      "traits_property_set": [
+        "<trait-capture.mjs の FIXED_PROPERTIES の要素。配列で持つ（parity-suite の metadata の traits.property_set と同じ形。build が集合として突き合わせるため、文字列に畳まない）>"
+      ],
       "css_rules_version": "<parity-component 同梱 css-rules-capture.mjs の VERSION（コピーせずスキル配下から実行する）>",
       "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",
       "pixel_differ": "<画素差分ツールと版（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
