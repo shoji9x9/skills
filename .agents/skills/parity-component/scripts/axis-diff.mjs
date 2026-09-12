@@ -118,10 +118,23 @@ export function diffAxes(manifest) {
   if (states.length === 0) {
     problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
   }
+  // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
+  // 宣言が無い欠落は採り忘れと区別できないので従来どおり問題にする（fail-closed は変えない）。
+  const declaredUnreachable = instances.map((instance) => {
+    const declared = instance && instance.unreachable_states;
+    if (!Array.isArray(declared)) return new Set();
+    return new Set(declared.filter((d) => typeof d === "string" && d !== ""));
+  });
+  const notCompared = [];
   instances.forEach((instance, i) => {
     const missing = states.filter((s) => !stateSets[i].includes(s));
-    if (missing.length > 0) {
-      problems.push(`${ids[i] || `#${i}`}: 未採取の状態 ${missing.join(", ")}`);
+    const undeclared = missing.filter((s) => !declaredUnreachable[i].has(s));
+    if (undeclared.length > 0) {
+      problems.push(`${ids[i] || `#${i}`}: 未採取の状態 ${undeclared.join(", ")}`);
+    }
+    for (const s of missing) {
+      if (declaredUnreachable[i].has(s))
+        notCompared.push({ instance: ids[i] || `#${i}`, state: s });
     }
     const duplicatedStates = stateSets[i].filter((s, j) => stateSets[i].indexOf(s) !== j);
     if (duplicatedStates.length > 0) {
@@ -194,12 +207,20 @@ export function diffAxes(manifest) {
       fixed,
       variable,
       measured: 0,
+      not_compared: [],
       problems,
       ok: false,
     };
   }
+  // 軸の割り出しは「全インスタンスで到達できる状態」だけを対象にする。あるインスタンスで作れない状態は
+  // 突き合わせる相手が居ないので、固定とも可変とも言えない（照合の母集合からは外れない——その
+  // インスタンスの基準と見本は在り、parity-diff 相当の照合は行われる。正本は SKILL.md「比較の母集合」）。
+  const comparableStates = new Set(
+    states.filter((st) => instances.every((_, i) => stateSets[i].includes(st))),
+  );
   for (const [key, byInstance] of [...table.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
     const [state, axis] = key.split(SEPARATOR);
+    if (!comparableStates.has(state)) continue;
     // 全インスタンスで採れていない軸は、値が揃っていても固定と呼べない。
     if (byInstance.size !== instances.length) {
       problems.push(
@@ -236,6 +257,7 @@ export function diffAxes(manifest) {
     fixed,
     variable,
     measured,
+    not_compared: notCompared,
     problems,
     ok: problems.length === 0 && measured > 0,
   };

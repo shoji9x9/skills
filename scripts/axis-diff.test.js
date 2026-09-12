@@ -377,3 +377,45 @@ test("配列の traits を「レコード形」として通さない", () => {
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("computed が無い");
 });
+
+test("宣言された到達不能な状態は欠落ではなく除外として扱う", () => {
+  // そのインスタンスで作れない状態を宣言どおりマニフェストから外すと、
+  // 「全インスタンスで同じ状態集合」を要求する実装では build へ永久に進めなくなる。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [state("default", traits({ color: "x" })), state("hover", traits({ color: "h" }))],
+      },
+      {
+        id: "b",
+        unreachable_states: ["hover"],
+        states: [state("default", traits({ color: "y" }))],
+      },
+    ],
+  });
+  expect(result.ok).toBe(true);
+  expect(result.problems).toHaveLength(0);
+  expect(result.not_compared).toEqual([{ instance: "b", state: "hover" }]);
+  // 突き合わせる相手が居ない状態は、固定とも可変とも言わない。
+  expect(result.fixed.some((f) => f.state === "hover")).toBe(false);
+  expect(result.variable.some((v) => v.state === "hover")).toBe(false);
+  // 全インスタンスで到達できる状態は従来どおり割り出す。
+  expect(result.variable.some((v) => v.state === "default" && v.axis === "color")).toBe(true);
+});
+
+test("宣言の無い欠落は従来どおり問題にする", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [state("default", traits({ color: "x" })), state("hover", traits({ color: "h" }))],
+      },
+      { id: "b", states: [state("default", traits({ color: "y" }))] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("未採取の状態 hover");
+});

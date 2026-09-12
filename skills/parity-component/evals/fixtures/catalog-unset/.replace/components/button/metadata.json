@@ -52,7 +52,8 @@
     "ok": true,
     "variable": 10,
     "fixed": 62,
-    "measured": 72
+    "measured": 72,
+    "not_compared": []
   },
   "capture_gaps": {
     "inaccessible_sheets": 0,
