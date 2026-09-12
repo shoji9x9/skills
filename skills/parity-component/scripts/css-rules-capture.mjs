@@ -48,6 +48,8 @@
  *    カプセル化で当たらないため matched に入れず、`::part()` だけ unresolved に残す）。
  *    1 で採った css-rules.json は、インライン指定が「無い」のか「採っていない」のか区別できず、
  *    シャドウ部品では外側の規則を当たったものとして含んでいるので再採取する。
+ *    ホスト自身のシャドウルートは `:host` 系だけを unresolved に残し、残りを
+ *    `counts.host_scope_skipped` に数える（`shadow_host` で対象がホストだったかを出す）。
  *    **2 の定義はこの PR がマージされた状態を指す**——版を上げてから同じ PR 内で 2 の形を
  *    足しているが、2 が main へ出たことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
@@ -322,10 +324,12 @@ export function collectMatchedRules(el, options) {
       for (const p of scanPseudos(selector)) {
         if (!p.args || p.doubled) continue;
         if (p.name === "not") continue;
-        if (p.name === "is" || p.name === "where" || p.name === "has") {
-          for (const inner of scanPseudos(p.args)) {
-            if (!inner.doubled && stateNames.has(inner.name)) return true;
-          }
+        // セレクタを引数に取る擬似クラスは `:is()` / `:where()` / `:has()` だけではない——
+        // `:nth-child(2n of .item:hover)` / `:host(.foo:hover)` にも状態を置ける。
+        // 名前で絞ると、絞り漏れた擬似クラスの中の状態が base に残り、通常状態の matches() が
+        // false を返して規則が matched にも unresolved にも残らない。`:not()` 以外は一律に見る。
+        for (const inner of scanPseudos(p.args)) {
+          if (!inner.doubled && stateNames.has(inner.name)) return true;
         }
         if (hasStateInsideFunctional(p.args)) return true;
       }
@@ -364,8 +368,9 @@ export function collectMatchedRules(el, options) {
     import_rules: 0,
     nested_declaration_rules: 0,
     outer_scope_skipped: 0,
+    host_scope_skipped: 0,
   };
-  const seenSheets = new Set();
+  const seenSheets = new Map();
   let order = 0;
 
   // 解決済みセレクタリストを 1 件ずつ判定し、当たったものを matched へ、判定できないものを
@@ -376,6 +381,19 @@ export function collectMatchedRules(el, options) {
       // シャドウツリーの外の規則。`::part()` だけが中へ届くが、本ツールは part 名を解決しないので
       // 当たる側にも当たらない側にも倒さず残す。それ以外の外側の規則はカプセル化で届かないので
       // matched には入れず、数だけ残す（0 件を「外側に規則が無い」と読まないため）。
+      // ホスト自身のシャドウルートの規則。ホストに効くのは `:host` 系だけで、それ以外は
+      // シャドウの中の要素に当たる規則なのでホストの基準ではない。
+      if (ctx.hostScope) {
+        if (part.includes(":host")) {
+          unresolved.push({
+            selector: part,
+            original_selector: originalSelector,
+            href: ctx.href,
+            reason: "host-scope-not-evaluated",
+          });
+        } else counts.host_scope_skipped++;
+        continue;
+      }
       if (ctx.outerScope) {
         if (part.includes("::part(")) {
           unresolved.push({
@@ -526,8 +544,16 @@ export function collectMatchedRules(el, options) {
   }
 
   function walkSheet(sheet, ctx) {
-    if (!sheet || seenSheets.has(sheet)) return;
-    seenSheets.add(sheet);
+    if (!sheet) return;
+    // 重複排除はスコープ込みで行う。シート単位にすると、同じ CSSStyleSheet を
+    // `shadowRoot.adoptedStyleSheets` と document で共有している構成で、内側を先に走った時点で
+    // 既読になり、外側スコープの走査が丸ごと飛ぶ。`::part()` が unresolved に残らず
+    // `outer_scope_skipped` も増えない——「判定できない規則を黙って落とさない」契約に反する。
+    const scope = ctx && ctx.outerScope ? "outer" : ctx && ctx.hostScope ? "host" : "own";
+    const seen = seenSheets.get(scope) || new Set();
+    if (seen.has(sheet)) return;
+    seen.add(sheet);
+    seenSheets.set(scope, seen);
     counts.sheets++;
     const href = sheet.href || (ctx && ctx.href) || null;
     let rules;
@@ -547,6 +573,7 @@ export function collectMatchedRules(el, options) {
       parentSelector: null,
       href,
       outerScope: Boolean(ctx && ctx.outerScope),
+      hostScope: Boolean(ctx && ctx.hostScope),
     });
   }
 
@@ -566,6 +593,18 @@ export function collectMatchedRules(el, options) {
       walkSheet(sheet, { outerScope: true });
     }
   }
+  // 対象がカスタム要素のホストのとき、`getRootNode()` は document を返すので上の分岐に入らない。
+  // だがホストの見た目を決めているのは**そのホスト自身のシャドウルート**の `:host` 規則で、
+  // それを走らないと「CSS 規則が 1 件も当たっていない部品」という誤った基準が出る。
+  // `:host()` / `:host-context()` の引数解決は本ツールの射程外なので、当たった側へ倒さず残す。
+  if (el.shadowRoot && el.shadowRoot.styleSheets) {
+    for (const sheet of Array.from(el.shadowRoot.styleSheets || [])) {
+      walkSheet(sheet, { hostScope: true });
+    }
+    for (const sheet of Array.from(el.shadowRoot.adoptedStyleSheets || [])) {
+      walkSheet(sheet, { hostScope: true });
+    }
+  }
 
   // style 属性の宣言はどのスタイルシートにも現れないので、上の走査では 1 件も採れない。
   // 計算後スタイルは結果の値しか持たないため、ここを採らないと「その値がインスタンス固有の
@@ -579,6 +618,7 @@ export function collectMatchedRules(el, options) {
     unresolved,
     inaccessible,
     inline_declarations: inlineDeclarations,
+    shadow_host: Boolean(el.shadowRoot && el.shadowRoot.styleSheets),
     counts: { ...counts, matched: matched.length, inline_declarations: inlineDeclarations.length },
     shadow_root: inShadow,
   };

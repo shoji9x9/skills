@@ -626,3 +626,82 @@ test("一部のインスタンスだけ到達できない状態は not_compared 
   expect(result.problems.join("\n")).not.toContain("どのインスタンスでも到達できない状態");
   expect(result.ok).toBe(true);
 });
+
+test("計算後スタイルの値が非空の文字列でない採取を落とす", () => {
+  // `{}` は flattenTraits がそのまま軸の値にし、同一性比較で必ず「割れている」と判定されて
+  // **偽の可変軸**になる（引数として実装へ渡るところまで行く）。`""` も採取値ではない。
+  for (const broken of [{}, "", null, 3, []]) {
+    const result = diffAxes({
+      component: "button",
+      instances: [
+        { id: "a", states: [state("default", traits({ color: broken }))] },
+        { id: "b", states: [state("default", traits({ color: "y" }))] },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain("computed の値");
+  }
+});
+
+test("rect の値が有限の数値でない採取を落とす", () => {
+  // flattenTraits が String() で文字列化するので、壊れた値も "[object Object]" という
+  // 非空の文字列になって値の検証をすり抜ける。数値のまま見る必要がある。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [
+          {
+            state: "default",
+            traits: { computed: { color: "x" }, rect: { width: 80, height: 32, top: {} } },
+          },
+        ],
+      },
+      { id: "b", states: [state("default", traits({ color: "y" }))] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("rect の値");
+});
+
+test("空のレコードの擬似要素を採取として通さない", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [{ state: "default", traits: { ...traits({ color: "x" }), before: {} } }],
+      },
+      {
+        id: "b",
+        states: [{ state: "default", traits: { ...traits({ color: "y" }), before: {} } }],
+      },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("::before の形");
+});
+
+test("契約どおりの採取は値の検証で落とさない", () => {
+  // 値まで見る形にした結果、正しい採取物まで弾いていないことの確認（過剰修正の検知）。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [
+          { state: "default", traits: { ...traits({ color: "x" }), before: { content: '"a"' } } },
+        ],
+      },
+      {
+        id: "b",
+        states: [
+          { state: "default", traits: { ...traits({ color: "y" }), before: { content: '"a"' } } },
+        ],
+      },
+    ],
+  });
+  expect(result.ok).toBe(true);
+  expect(result.problems).toEqual([]);
+});

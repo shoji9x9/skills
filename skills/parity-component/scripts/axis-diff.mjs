@@ -221,9 +221,17 @@ export function diffAxes(manifest) {
       // `typeof [] === "object"` なので配列を明示的に弾く。`computed: ["x"]` は numeric key を
       // 軸として通ってしまい、壊れた採取物でも ok: true になりうる（どちらもレコード形が契約）。
       const isRecord = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+      // 値の型まで見る。trait-capture.mjs は計算後スタイルを**非空の文字列**で返すので、
+      // `{}` や `""` は採取物ではない。ここを通すと flattenTraits がそのまま軸の値にし、
+      // オブジェクトは同一性比較で必ず「割れている」と判定されて**偽の可変軸**になる
+      // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
+      const nonEmptyString = (v) => typeof v === "string" && v !== "";
+      const badValues = (record) => Object.values(record).filter((v) => !nonEmptyString(v)).length;
       const computed = entry.traits.computed;
       if (!isRecord(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
+      } else if (badValues(computed) > 0) {
+        missing.push(`computed の値（非空の文字列でないものが ${badValues(computed)} 件）`);
       }
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
       // `{ width: null }` のような壊れた採取が通り、軸を作って ok: true に化ける。
@@ -231,6 +239,10 @@ export function diffAxes(manifest) {
       const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
       if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
+      } else if (Object.values(rect).some((v) => !isFiniteNumber(v))) {
+        // rect は flattenTraits が String() で文字列化するので、壊れた値も
+        // `"[object Object]"` という非空の文字列になって検証をすり抜ける。数値のまま見る。
+        missing.push("rect の値（有限の数値でないものがある）");
       }
       // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が契約。
       // 形を見ずに flattenTraits へ渡すと、`before: "x"` が `::before/0 = "x"` という軸を、
@@ -239,8 +251,12 @@ export function diffAxes(manifest) {
       for (const pseudo of ["before", "after"]) {
         if (!(pseudo in entry.traits)) continue;
         const captured = entry.traits[pseudo];
-        if (captured === null || isRecord(captured)) continue;
-        missing.push(`::${pseudo} の形（null かレコード）`);
+        if (captured === null) continue;
+        if (!isRecord(captured) || Object.keys(captured).length === 0) {
+          missing.push(`::${pseudo} の形（null か非空のレコード）`);
+        } else if (badValues(captured) > 0) {
+          missing.push(`::${pseudo} の値（非空の文字列でないものがある）`);
+        }
       }
       if (missing.length > 0) {
         problems.push(

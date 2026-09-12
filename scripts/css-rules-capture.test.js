@@ -115,16 +115,21 @@ function fakeElement(
     inline = null,
     inlineImportant = [],
     shadowSheets = null,
+    shadowAdopted = [],
+    hostSheets = null,
   } = {},
 ) {
   const ownerDocument = { styleSheets: sheets, adoptedStyleSheets: adopted };
-  const shadowRoot = shadowSheets ? { styleSheets: shadowSheets, adoptedStyleSheets: [] } : null;
+  const shadowRoot = shadowSheets
+    ? { styleSheets: shadowSheets, adoptedStyleSheets: shadowAdopted }
+    : null;
   const el = {
     ownerDocument,
     getRootNode: () => shadowRoot || ownerDocument,
     matches: (selector) => selectors.has(selector.trim()),
     style: inline ? decl(inline, inlineImportant) : decl({}),
   };
+  if (hostSheets) el.shadowRoot = { styleSheets: hostSheets, adoptedStyleSheets: [] };
   return el;
 }
 
@@ -622,6 +627,84 @@ test(":not() の中の状態は unresolved にしない", () => {
   // 否定の中の状態は「その状態でないときに当たる」ので、当たっている規則として記録してよい。
   // 再帰を入れた結果ここまで巻き込むと、実装の材料になる規則を毎回失う。
   const selector = ".card:is(:not(:hover))";
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+  const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.unresolved).toHaveLength(0);
+  expect(result.matched).toHaveLength(1);
+});
+
+test("シャドウと document が同じシートを共有しても外側の走査を飛ばさない", () => {
+  // seenSheets をシート単位にすると、内側を先に走った時点で既読になり、外側スコープの
+  // 走査が丸ごと消える。::part() が unresolved に残らず outer_scope_skipped も増えない。
+  const shared = {
+    href: MAIN_HREF,
+    cssRules: [
+      styleRule(".host::part(label)", { color: "rgb(1, 1, 1)" }),
+      styleRule(".btn", { color: "rgb(255, 0, 0)" }),
+    ],
+  };
+  const result = shadowCapture({
+    sheets: [shared],
+    shadowSheets: [],
+    shadowAdopted: [shared],
+    selectors: new Set([".btn"]),
+  });
+  expect(result.unresolved.map((u) => u.reason)).toContain("shadow-part-not-evaluated");
+  expect(result.counts.outer_scope_skipped).toBe(1);
+});
+
+test("カスタム要素のホストでは自分のシャドウルートの :host 規則を残す", () => {
+  // getRootNode() は document を返すのでシャドウ判定に入らないが、ホストの見た目を
+  // 決めているのは自分のシャドウルートの :host 規則。走らないと「規則ゼロ」の誤った基準になる。
+  const hostSheet = {
+    href: null,
+    cssRules: [
+      styleRule(":host(.primary)", { color: "rgb(0, 0, 255)" }),
+      styleRule(".inner-label", { color: "rgb(9, 9, 9)" }),
+    ],
+  };
+  const result = collectMatchedRules(
+    fakeElement([], { hostSheets: [hostSheet], selectors: new Set([".btn"]) }),
+    {
+      statePseudoClasses: STATE_PSEUDO_CLASSES,
+      structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+    },
+  );
+  expect(result.shadow_host).toBe(true);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("host-scope-not-evaluated");
+  // シャドウの中の要素に当たる規則はホストの基準ではないので matched に入れず数だけ残す。
+  expect(result.counts.host_scope_skipped).toBe(1);
+  expect(result.matched).toHaveLength(0);
+});
+
+test("ホストでない要素は shadow_host を立てない", () => {
+  const result = capture();
+  expect(result.shadow_host).toBe(false);
+  expect(result.counts.host_scope_skipped).toBe(0);
+});
+
+test("selector を取る構造擬似クラスの中の状態も unresolved に落とす", () => {
+  // `:is` / `:where` / `:has` で名前を絞ると、`:nth-child(... of S:hover)` の中の状態が
+  // base に残り、hover していない要素で matched にも unresolved にも残らない。
+  for (const selector of [".list:nth-child(2n of .item:hover)", ".x:host(.foo:hover)"]) {
+    const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
+    const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
+      statePseudoClasses: STATE_PSEUDO_CLASSES,
+      structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+    });
+    expect(result.matched).toHaveLength(0);
+    expect(result.unresolved).toHaveLength(1);
+    expect(result.unresolved[0].reason).toBe("state-inside-functional-pseudo");
+  }
+});
+
+test("状態を含まない構造擬似クラスは unresolved にしない", () => {
+  // 一律に見る形にした結果、状態の無い `:nth-child(2n)` まで巻き込んでいないことの確認。
+  const selector = ".plain-rule:nth-child(2n)";
   const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "red" })] }];
   const result = collectMatchedRules(fakeElement(sheets, { selectors: new Set([selector]) }), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
