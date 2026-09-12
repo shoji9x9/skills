@@ -30,7 +30,7 @@ parity-component build   [--component <slug>] [--target <name>]
 
 ## 前提
 
-- **ツール**: `git`、Node.js（Playwright の実行環境）。`gh` は不要（本スキルは Issue を操作しない）
+- **ツール**: `git`、Node.js（Playwright の実行環境）。**`build` は `gh`（GitHub CLI）も要る**——手順 1 で `issue-start` へ委譲してブランチを作るため（`capture` は Issue を操作しないので不要）
 - **前提スキル**: `replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）、`parity-suite`（**同梱の差分器と撮影条件の正本を読むため。対象 slug の実行は不要**）。
   `build` は `issue-start`（ブランチ作成の委譲先）と `parity-replace`（敵対的レビューの手順の正本）も使う
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
@@ -42,7 +42,10 @@ parity-component build   [--component <slug>] [--target <name>]
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - **部品インベントリ** = `.replace/components.md` の存在と、対象 slug の行に**インスタンスが 2 つ以上**挙がっていること（[`references/instances.md`](references/instances.md)）
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在
-  - `build` の前提 = 対象 slug の `capture` 完了（`.replace/components/<slug>/metadata.json` の `capture.complete`）
+  - `build` の前提 = 対象 slug の `capture` 完了（`.replace/components/<slug>/metadata.json` の `capture.complete`）**かつ `axes.ok` が真**。
+    `capture.complete` だけでは足りない——全インスタンス × 全状態を採っていても、id の重複・未採取の状態・
+    片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。
+    その `component-api.md` は実装の根拠にならないので、採取へ戻る
 
 ## 厳守の制約（禁止事項）
 

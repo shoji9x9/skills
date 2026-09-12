@@ -158,7 +158,7 @@ replace-strategy status
    インベントリには部品ごとに **slug・インスタンス（ページ ＋ その部品を指す論理名）・データ依存の有無・採否**を書き、**インスタンスは手順 9 のページ一覧から導出する**。
    **インスタンスが 1 件しか無い部品は先に作る対象にしない**（固定と可変を区別できないため。「先に作らない部品」表へ理由付きで置き、その機能の実装時に `parity-replace` が作る）。
    採取・実装・照合は `parity-component` が担うので、**ここでは対象と slug を確定するだけで、見た目の採取は行わない**。
-   併せて**部品カタログの実体**（1 部品 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
+   併せて**部品カタログの実体**（1 インスタンス × 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
    カタログの baseURL を `side: new` の target の `catalog_url` に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
    **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る。従来のフローは変わらない）
 

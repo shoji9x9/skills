@@ -95,12 +95,29 @@ export function diffAxes(manifest) {
   }
 
   // 状態集合の一致を先に確かめる。片方に無い状態を「割れない」に倒すと未測定が固定軸に化ける。
-  const stateSets = instances.map((instance) =>
-    (Array.isArray(instance && instance.states) ? instance.states : [])
-      .map((s) => (s && typeof s.state === "string" ? s.state : ""))
-      .filter((s) => s !== ""),
-  );
+  // 名前が不正な採取（null・非文字列・空文字）は**黙って捨てず問題として数える**。捨ててから
+  // 突き合わせると、全インスタンスの状態名が壊れている入力が「状態 0 件・軸 0 件・問題 0 件」に
+  // なり、1 件も測っていないのに ok: true を返す（このツールが防ごうとしている fail-open そのもの）。
+  const stateSets = instances.map((instance, i) => {
+    const entries = Array.isArray(instance && instance.states) ? instance.states : [];
+    const names = [];
+    let invalid = 0;
+    for (const entry of entries) {
+      if (entry && typeof entry.state === "string" && entry.state !== "") names.push(entry.state);
+      else invalid++;
+    }
+    if (invalid > 0) {
+      problems.push(
+        `${ids[i] || `#${i}`}: 状態名が不正な採取が ${invalid} 件（null・非文字列・空文字）`,
+      );
+    }
+    return names;
+  });
   const states = [...new Set(stateSets.flat())].sort();
+  // 突き合わせる状態が 1 つも残らないなら、比較は成立していない。
+  if (states.length === 0) {
+    problems.push("採取された状態が 1 つも無い——固定と可変を突き合わせる対象が無い");
+  }
   instances.forEach((instance, i) => {
     const missing = states.filter((s) => !stateSets[i].includes(s));
     if (missing.length > 0) {

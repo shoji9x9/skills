@@ -117,8 +117,45 @@ export function collectMatchedRules(el, options) {
   function resolveSelector(selectorText, parentSelector) {
     if (!parentSelector) return selectorText;
     const parent = `:is(${parentSelector})`;
+    // `&` は文字列リテラルと属性セレクタの中にも現れる（`& [data-label="A&B"]`）。素朴な
+    // split("&").join(...) はその `&` まで置換し、属性値の中に `:is(...)` が入った不正な
+    // セレクタになる。matches() は throw せず false を返すので、当たるはずの規則が静かに落ちる。
+    // 置換するのは引用符・角括弧の外にある `&` だけにする。
+    const replaceNestingTokens = (part) => {
+      let out = "";
+      let depth = 0;
+      let quote = null;
+      let replaced = false;
+      for (let i = 0; i < part.length; i++) {
+        const c = part[i];
+        if (quote) {
+          out += c;
+          if (c === "\\") {
+            if (i + 1 < part.length) out += part[++i];
+          } else if (c === quote) quote = null;
+          continue;
+        }
+        if (c === '"' || c === "'") {
+          quote = c;
+          out += c;
+          continue;
+        }
+        if (c === "[") depth++;
+        else if (c === "]") depth--;
+        else if (c === "&" && depth === 0) {
+          out += parent;
+          replaced = true;
+          continue;
+        }
+        out += c;
+      }
+      return { text: out, replaced };
+    };
     return splitSelectorList(selectorText)
-      .map((part) => (part.includes("&") ? part.split("&").join(parent) : `${parent} ${part}`))
+      .map((part) => {
+        const r = replaceNestingTokens(part);
+        return r.replaced ? r.text : `${parent} ${part}`;
+      })
       .join(", ");
   }
 
@@ -225,6 +262,17 @@ export function collectMatchedRules(el, options) {
   function matchAndRecord(resolved, originalSelector, declarations, ctx) {
     const index = order++;
     for (const part of splitSelectorList(resolved)) {
+      // @scope の中の規則は、セレクタが当たってもスコープ根・限界の外では適用されない。
+      // 本ツールはスコープを評価しないので、当たった側へ倒さず判定不能として残す。
+      if (ctx.scope) {
+        unresolved.push({
+          selector: part,
+          original_selector: originalSelector,
+          href: ctx.href,
+          reason: `scope-not-evaluated:${ctx.scope}`,
+        });
+        continue;
+      }
       const analyzed = analyzeSelector(part);
       if (analyzed.stateInsideFunctional) {
         unresolved.push({
@@ -323,7 +371,15 @@ export function collectMatchedRules(el, options) {
         continue;
       }
 
-      // (5) それ以外のグループ（@scope 等、conditionText も name も持たないもの）。
+      // (5) @scope。子の規則はスコープ根と限界の中でしか当たらないが、本ツールはセレクタしか
+      //     見ないので、`@scope (.dialog) { .button {...} }` を .dialog の外の .button にも
+      //     当たったと報告してしまう（偽の根拠になる）。スコープを評価せず unresolved に回す。
+      if (rule.cssRules && (rule.start !== undefined || rule.end !== undefined)) {
+        walkRules(Array.from(rule.cssRules), { ...ctx, scope: rule.start || "(implicit)" });
+        continue;
+      }
+
+      // (6) それ以外のグループ（conditionText も name も start/end も持たないもの）。
       if (rule.cssRules) walkRules(Array.from(rule.cssRules), ctx);
     }
   }

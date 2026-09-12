@@ -257,3 +257,33 @@ test("CLI: 読めないマニフェストを成功に倒さない", () => {
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("マニフェストを読めない");
 });
+
+test("状態名が不正な採取を黙って捨てず問題として数える", () => {
+  // 全インスタンスの状態名が壊れていると、捨ててから突き合わせる実装では
+  // 「状態 0 件・軸 0 件・問題 0 件」になり、1 件も測っていないのに ok: true を返す。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: null, traits: traits({ color: "red" }) }] },
+      { id: "b", states: [{ state: "", traits: traits({ color: "blue" }) }] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("状態名が不正な採取");
+  expect(result.problems.join("\n")).toContain("採取された状態が 1 つも無い");
+});
+
+test("有効な状態がある場合でも、混ざった不正な採取を見逃さない", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      instance("a", [
+        state("default", traits({ color: "red" })),
+        { state: 42, traits: traits({ color: "x" }) },
+      ]),
+      instance("b", [state("default", traits({ color: "blue" }))]),
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("状態名が不正な採取が 1 件");
+});

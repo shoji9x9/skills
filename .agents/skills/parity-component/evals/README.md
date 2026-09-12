@@ -16,7 +16,7 @@ scripts/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component capture" \
   --out tests/parity-component/iteration-1/eval-1/with_skill/run-1 \
-  --model opus
+  --executor claude-code --model opus
 
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
 scripts/run-skill-eval.sh \
@@ -24,12 +24,13 @@ scripts/run-skill-eval.sh \
   --prompt "parity-component build --component button" \
   --fixture skills/parity-component/evals/fixtures/catalog-unset \
   --out tests/parity-component/iteration-1/eval-5/with_skill/run-1 \
-  --model opus
+  --executor claude-code --model opus
 ```
 
 - 使い捨てプロジェクトには `.replace/components.md`・設定が無いため、eval 1 は「捏造せず停止し `replace-strategy setup` を促す」パスを検証する
 - eval 2〜6 は fixture で前提を揃えたうえで、**停止すべき場面で停止するか**と**判断をユーザーへ上げるか**を見る
 - 採点は assertion のテキストで対応づける（位置で対応づけない）。出力内に矛盾があれば fail にする
+- **`--executor` を省略しない。** ランチャの引数省略時既定は後方互換用であり運用上の選択規則ではない。現在作業しているエージェントに合わせ（Claude Code なら `claude-code`、Codex なら `codex`）、`with_skill` と `without_skill` で同じ executor を使う（正本は `.agents/rules/eval-run-scope.md`）
 
 ## eval 3 は Delta ではなく後退検知
 

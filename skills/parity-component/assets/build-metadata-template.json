@@ -2,8 +2,7 @@
   "_note": "parity-component の build が .replace/components/<slug>/new/<target>/build-metadata.json として生成する（環境別。他の target の証跡を上書きしない）。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える。",
   "slug": "<.replace/components.md が採番した slug>",
   "target": {
-    "name": "<選択した new target 名（設定 targets の side: new）>",
-    "catalog_url": "<解決したカタログの baseURL。catalog_url をコマンドで解決する target では \"runtime\">"
+    "name": "<選択した new target 名（設定 targets の side: new）>"
   },
   "new": {
     "repo": "<新側リポジトリ（設定 new.repo）>",
@@ -50,5 +49,16 @@
     "changed_scope": "<最後の反復で描画に効く変更を入れた範囲（トークン・共有スタイル・部品本体のどれか）>",
     "stopped_reason": "<収束 | 反復上限 | ユーザーへエスカレーション（同じ箇所で 3 回以上往復した等）>"
   },
-  "gaps": "<.replace/components/<slug>/gaps.md の未検証件数。収束は止めないが、完了報告では収束と並べて示す>"
+  "gaps": "<.replace/components/<slug>/gaps.md の未検証件数。収束は止めないが、完了報告では収束と並べて示す>",
+  "catalog": {
+    "_note": "見本の対応表は target 別のこの証跡に置く（capture の metadata.json へ置くと、2 つ目の new target で走ったときに 1 つ目の対応表を上書きし、先の照合を後から追えなくなる）。",
+    "base_url": "<解決したカタログの baseURL。catalog_url をコマンドで解決する target では \"runtime\">",
+    "stories": [
+      {
+        "instance": "<インスタンス id（capture の metadata.json の instances[].id）>",
+        "state": "<状態名>",
+        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（書き写さない）>"
+      }
+    ]
+  }
 }

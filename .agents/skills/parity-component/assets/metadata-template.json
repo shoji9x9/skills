@@ -87,19 +87,6 @@
     "inaccessible_sheets": "<css-rules-capture.mjs が読めなかったスタイルシートの件数。非ゼロなら gaps.md に必須記録。0 件を『関係する規則が無い』と読まない>",
     "unresolved_selectors": "<当たるか判定できなかったセレクタの件数。非ゼロなら gaps.md に必須記録>"
   },
-  "catalog": {
-    "_note": "build が追記する。capture の時点では持たない（キーごと省略してよい）。",
-    "target": "<選択した new target 名>",
-    "base_url": "<解決したカタログの baseURL。catalog_url をコマンドで解決する target では \"runtime\">",
-    "stories": [
-      {
-        "instance": "<インスタンス id>",
-        "state": "<状態名>",
-        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（書き写さない）>"
-      }
-    ],
-    "missing_stories": "<採取物にあって見本が無い組み合わせの件数。1 以上なら build は完了しない>"
-  },
   "artifacts_storage": {
     "baseline": "<スクリーンショット等の保存先（local | git | git-lfs。既定 local）。設定 artifacts と overrides.<slug> に従う>",
     "baseline_pointer": "<local を選んだ場合の実際の置き場所（足場であり切替後に残っている必要はない）>"

@@ -346,3 +346,35 @@ test("captureMatchedRules は論理名とツール版を付けて返す", async 
   expect(captured.tool_version).toBe(VERSION);
   expect(captured.matched.length).toBeGreaterThan(0);
 });
+
+test("属性セレクタの中の & を入れ子セレクタとして置換しない", () => {
+  // `& [data-label="A&B"]` の引用符内の & まで置換すると、属性値に :is(...) が入った
+  // 不正なセレクタになる。matches() は throw せず false を返すので静かに落ちる。
+  const child = styleRule('& [data-label="A&B"]', { color: "red" });
+  const parent = styleRule(".card", { color: "blue" }, { children: [child] });
+  const sheets = [{ href: MAIN_HREF, cssRules: [parent] }];
+  const el = fakeElement(sheets, {
+    selectors: new Set([".card", ':is(.card) [data-label="A&B"]']),
+  });
+  const result = collectMatchedRules(el, { statePseudoClasses: STATE_PSEUDO_CLASSES });
+  const hit = result.matched.find((m) => m.original_selector === '& [data-label="A&B"]');
+  expect(hit).toBeDefined();
+  expect(hit.selector).toBe(':is(.card) [data-label="A&B"]');
+});
+
+test("@scope の中の規則はスコープを評価せず unresolved に残す", () => {
+  // セレクタだけを見ると当たるが、スコープ根の外では適用されない。
+  // 当たった側へ倒すと、その部品には効いていない規則を根拠として出すことになる。
+  const scopeRule = {
+    start: "(.dialog)",
+    end: null,
+    cssRules: [styleRule(".plain-rule", { padding: "9px" })],
+  };
+  const sheets = [{ href: MAIN_HREF, cssRules: [scopeRule] }];
+  const result = collectMatchedRules(fakeElement(sheets), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+  });
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("scope-not-evaluated:(.dialog)");
+});
