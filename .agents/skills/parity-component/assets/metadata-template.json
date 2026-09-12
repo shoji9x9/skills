@@ -22,6 +22,9 @@
       "<採った状態名（default / hover / active / focus / disabled / checked 等）。全インスタンスで同じ集合にする>"
     ],
     "state_source": "<状態の導出源（component-catalog | vendor-spec | current-source | app-ui）。資料は列挙の生成源であって比較の正解ではない>",
+    "auth_roles": [
+      "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の正本は parity-suite の references/auth.md>"
+    ],
     "tools": {
       "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
       "traits_version": "<trait-capture.mjs の VERSION。比較時に一致しなければ両側を採り直す>",
@@ -36,6 +39,7 @@
       "id": "<インスタンス id（一意。成果物パス baseline/<id>/ と axis-diff の照合キーになる。採取前に確定させる）>",
       "page": "<現行 target でのページ URL（到達できないページは対象から外し gaps.md に残す）>",
       "locator": "<その部品インスタンスを指す論理名（role ＋アクセシブルネームで引ける名前。id・自動生成クラスをアンカーにしない）>",
+      "auth_role": "<このインスタンスのページへ到達するのに使ったロール名。認証不要なら null。capture.auth_roles に含まれること>",
       "data": {
         "dependent": "<描画がデータに左右される部品か。真偽値で書く>",
         "rows": "<データ依存のとき、採取範囲に写した行数。見本にも同じ件数を与える>",

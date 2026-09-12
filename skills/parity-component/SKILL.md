@@ -33,7 +33,7 @@ parity-component build   [--component <slug>] [--target <name>]
 
 - **ツール**: `git`、Node.js（Playwright の実行環境）。**`build` は `gh`（GitHub CLI）も要る**——手順 1 で `issue-start` へ委譲してブランチを作るため（`capture` は Issue を操作しないので不要）
 - **前提スキル**: `replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）、`parity-suite`（**同梱の差分器と撮影条件の正本を読むため。対象 slug の実行は不要**）。
-  `build` は `issue-start`（ブランチ作成の委譲先）と `parity-replace`（敵対的レビューの手順の正本）も使う
+  `build` は `issue-start`（ブランチ作成の委譲先。`--branch-only` で呼ぶ）と `parity-replace`（敵対的レビューの手順の正本）も使う
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・差分器・撮影条件の**正本を `replace-strategy` / `parity-suite` に持つ**ため、単体では成立しない
 - **MCP**: 不要（現行アプリ・カタログの駆動は Playwright 自身が行う）
@@ -94,7 +94,7 @@ parity-component build   [--component <slug>] [--target <name>]
 |---|---|
 | `targets` | 実行対象環境。`capture` は `side: current`、`build` は `side: new` から `--target` で選ぶ。`pre_commands` / `start` / `check_urls` があれば起動・稼働確認に使う |
 | `targets[].catalog_url` / `targets[].catalog_url_command` | **新側 target の部品カタログの baseURL**（`build` でどちらか 1 つが必須）。固定文字列は `catalog_url`、実行ごとに変わる環境は `catalog_url_command`（`url` / `url_command` と同じ排他・解決規則）。両方あるのも、どちらも無いのも推測せず停止してユーザーに確認する（契約は [`references/catalog.md`](references/catalog.md)） |
-| `targets[].auth.roles` / `targets[].forbidden_actions` | 現行 target のロール別認証情報（環境変数の**名前**）と、実施しない操作。**`capture` も `forbidden_actions` を引く**——`checked` / `selected` / `error` の状態はクリック・送信でしか作れず、採取自体は読み取りでも**状態を作る操作は書き込みになりうる**。禁止された操作で作る状態は遷移させず `gaps.md` へ残す |
+| `targets[].auth.roles` / `targets[].forbidden_actions` | **選択した target の**ロール別認証情報（環境変数の**名前**）と、実施しない操作。**`capture`（現行 target）と `build`（新側 target のカタログ）の両方で引く**——保護されたカタログは認証を確立しないと見本へ到達できない。`storageState` の作り方・ロール名の扱いの正本は `parity-suite` の `references/auth.md`。**`capture` も `forbidden_actions` を引く**——`checked` / `selected` / `error` の状態はクリック・送信でしか作れず、採取自体は読み取りでも**状態を作る操作は書き込みになりうる**。禁止された操作で作る状態は遷移させず `gaps.md` へ残す |
 | `references.component_catalog` | **カタログの契約ドキュメントのパス**。実体（Storybook 等）・見本の書き方・データの注入経路・URL の決まり方を書く。**未整備なら `build` に入らず停止し、整備を促す**（カタログの実体をスキルが勝手に決めない） |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピング。**未整備なら `build` の手順 5（テーマ寄せ）に入らず停止する**（源流で系統差を縮められず、宣言と未検証が膨らむ）。**ゲートの位置は手順 5 の直前**であり手順 1 ではない——手順 1〜4（前提検証・引数設計・部品の採否・実装）はこのファイルを読まないので、そこで止めると必要のない停止になる。正本の手順は `parity-replace` の `references/theming.md` |
 | `references.architecture` | 新側アプリの骨格の決定記録。**未整備なら `build` に入らず停止する**（部品は骨格の上に載るため） |
@@ -115,7 +115,12 @@ parity-component build   [--component <slug>] [--target <name>]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: 上記「前提」を実測で判定し、欠ければ捏造せず停止して該当スキルの実行を促す。
-   `slug` を `.replace/components.md` と突き合わせ（無い slug は停止。自分で採番しない）、現行 target を確定して稼働を確認する（`check_urls` → 落ちていれば `pre_commands` → `start` → 再確認）
+   `slug` を `.replace/components.md` と突き合わせ（無い slug は停止。自分で採番しない）、現行 target を確定して稼働を確認する（`check_urls` → 落ちていれば `pre_commands` → `start` → 再確認）。
+   **稼働確認の次に認証を確立する**——選択した target が `auth.roles` を持つなら、`parity-suite` の [`references/auth.md`](../parity-suite/references/auth.md) に従って
+   **ロール単位の `storageState`** を用意し、そのロールで採る。ここを飛ばすと保護された画面で論理名が 1 件も解決せず、
+   「部品が無い」と「ログインしていない」を取り違える。使ったロール名は `metadata.json` の `capture.auth_roles` と
+   `instances[].auth_role` に記録する（ロール名は設定・成果物を通して同じ名前を使い、読み替えない）。
+   **認証が要るのに確立できないときは推測で先へ進まず停止する**
 2. **採取対象の確定**: `.replace/components.md` の対象行から**インスタンス（部品 × ページ）**と各インスタンスの論理名を引く。
    **インスタンスが 2 件未満、またはページ・論理名が空の行は採取へ進まない**（固定と可変を区別できないため）。不足は `replace-strategy` 側で埋めるようユーザーに促す。詳細: [`references/instances.md`](references/instances.md)
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（全部撮ってから保存できないと分かるのを避ける）
@@ -133,9 +138,10 @@ parity-component build   [--component <slug>] [--target <name>]
 ## 実行フロー（build）
 
 1. **前提検証と着手**: `capture` 完了と `references.architecture` / `references.component_catalog` / `verification_commands.full` を実測し、欠ければ停止する。
-   対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る（`--commit` / `--pr` は付けない）。未起票なら停止して `replace-strategy issues` を促す。
-   **使うのはブランチ作成・checkout までで、その後の調査・実装は `issue-start` に委ねず本スキルの実行フローとして進める**——
-   モード未指定の `issue-start` はそのまま実装へ進む契約なので、委ねると同じ Issue に対して実装が二重に走る
+   選択した新側 target が `auth.roles` を持つなら、カタログへ到達する前に `capture` と同じ規律で `storageState` を用意する（正本は `parity-suite` の `references/auth.md`）。
+   対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で **`issue-start <番号> --branch-only`** を実行してブランチを作る。未起票なら停止して `replace-strategy issues` を促す。
+   **`--branch-only` を外さない**——モード未指定の `issue-start` はブランチ作成の後そのまま実装へ進む契約なので、
+   委ねると同じ Issue に対して実装が二重に走る。実装は本スキルの手順 2 以降が持つ
 2. **引数の設計**: `component-api.md` の可変軸を**引数（props）へ、固定軸を実装の定数へ**割り付ける。状態を表す引数（`disabled` 等）も可変軸として扱う。
    **軸を引数にしない判断をしたら理由を書く**（インスタンス差が現行の不整合で、揃えることをユーザーが決めた場合など。その場合は `intentional_diffs.pending` へ回す）。詳細: [`references/component-api.md`](references/component-api.md)
 3. **部品の採否と依存の決定**: このフェーズで要る部品を**自前で書くか／どのパッケージを使うか**を実装に入る前に決め、`.replace/dependencies.md` へ**非破壊追記**する。

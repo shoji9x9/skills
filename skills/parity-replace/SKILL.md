@@ -127,8 +127,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: 前提（上記）を metadata.json の存在で判定し、欠ければ捏造せず停止して該当スキル（`replace-strategy setup` / `golden-dataset` / 対象 slug の `parity-suite`）の実行を促す。
-   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る
-   （`--commit` / `--pr` は付けない。ブランチ作成・checkout 後の調査・実装は issue-start に委ねず、本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す。
+   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で **`issue-start <番号> --branch-only`** を実行してブランチを作る
+   （`--branch-only` を外さない。モード未指定の issue-start はブランチ作成の後そのまま実装へ進む契約なので、委ねると同じ Issue に対して実装が二重に走る）。未起票なら停止して `replace-strategy issues` を促す。
    合わせて**新側 target を確定する**（`--target` の解決規則は上記「使い方」。旧キーを見つけたら移行手順を示して停止）
 2. **ページ分割とフェーズ構成**: 機能をページ単位のフェーズに分ける。**1 ページを作り切って比較してから次へ**。フェーズ内は読み取り経路 → 書き込み経路の順。api-resource / batch モードはページ分割せず該当モードで動く。詳細: [`references/paging.md`](references/paging.md)
 3. **部品の洗い出しと依存の決定**: **入る前に骨格（`references.architecture`）の未整備を検出し、未整備なら停止する**（挙動は上記キー表。骨格を自分で決めない）。
@@ -223,4 +223,6 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は投入対象の target のみ（対象外の target には投入しない）
 - **`parity-diff` と往復**: 本スキルで**選択した target に対して**新を green にした後、`parity-diff` を**同じ target** で実行して差分を検出し、差分があれば本スキルへ差し戻す。
   引き渡しは環境別ディレクトリ `.replace/parity/<slug>/new/<target>/`（本スキルが `replace-metadata.json` を書き、`parity-diff` がそれを読んで `diff.md` を書く）。終了条件・上限・再入手順は上記「往復ループ」
-- **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start`（モード未指定）を 1 回。実装は本スキルが行うため **`--commit` / `--pr`（実装を内包する）は使わず**、commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）
+- **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start <番号> --branch-only` を 1 回。
+  実装は本スキルが行うため**モード未指定・`--commit` / `--pr`（いずれも実装を内包する）は使わない**。
+  commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）
