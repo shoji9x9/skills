@@ -117,6 +117,7 @@ function fakeElement(
     shadowSheets = null,
     shadowAdopted = [],
     hostSheets = null,
+    slotSheets = null,
   } = {},
 ) {
   const ownerDocument = { styleSheets: sheets, adoptedStyleSheets: adopted };
@@ -130,6 +131,10 @@ function fakeElement(
     style: inline ? decl(inline, inlineImportant) : decl({}),
   };
   if (hostSheets) el.shadowRoot = { styleSheets: hostSheets, adoptedStyleSheets: [] };
+  if (slotSheets) {
+    const slotRoot = { styleSheets: slotSheets, adoptedStyleSheets: [] };
+    el.assignedSlot = { getRootNode: () => slotRoot };
+  }
   return el;
 }
 
@@ -712,4 +717,59 @@ test("状態を含まない構造擬似クラスは unresolved にしない", ()
   });
   expect(result.unresolved).toHaveLength(0);
   expect(result.matched).toHaveLength(1);
+});
+
+test("読み込めていない @import を黙って捨てない", () => {
+  // 失敗・未ロードの @import は styleSheet が null になる。真偽値で分岐すると
+  // どの分岐にも掛からず消え、「その @import の先に関係する規則が無い」と区別できなくなる。
+  const broken = { styleSheet: null, href: "http://legacy.example/missing.css" };
+  const sheets = [
+    { href: MAIN_HREF, cssRules: [broken, styleRule(".plain-rule", { padding: "1px" })] },
+  ];
+  const result = collectMatchedRules(fakeElement(sheets), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.counts.import_rules).toBe(1);
+  expect(result.inaccessible).toEqual([
+    { href: "http://legacy.example/missing.css", error: "ImportNotLoaded" },
+  ]);
+  // 同じシートの後続の規則は通常どおり採る（打ち切らない）。
+  expect(result.matched.some((m) => m.selector === ".plain-rule")).toBe(true);
+});
+
+test("読み込めている @import は従来どおり辿る", () => {
+  // 上の分岐を「in 判定」に変えた結果、正常な @import まで落としていないことの確認。
+  const result = capture();
+  expect(result.inaccessible.every((i) => i.error !== "ImportNotLoaded")).toBe(true);
+  expect(result.matched.some((m) => m.selector === ".marker-in-imported")).toBe(true);
+});
+
+test("スロットに割り当てられた要素では ::slotted() を残す", () => {
+  // ライト DOM の要素に効く ::slotted() 規則はスロット側のシャドウルートにある。
+  // getRootNode() は document を返すので、辿らないと 1 件も見えない。
+  const slotSheet = {
+    href: null,
+    cssRules: [
+      styleRule("::slotted(.btn)", { color: "rgb(3, 3, 3)" }),
+      styleRule(".inner", { color: "rgb(4, 4, 4)" }),
+    ],
+  };
+  const result = collectMatchedRules(
+    fakeElement([], { slotSheets: [slotSheet], selectors: new Set([".btn"]) }),
+    {
+      statePseudoClasses: STATE_PSEUDO_CLASSES,
+      structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+    },
+  );
+  expect(result.slotted).toBe(true);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("slotted-not-evaluated");
+  expect(result.counts.slotted_scope_skipped).toBe(1);
+});
+
+test("スロットに割り当てられていない要素は slotted を立てない", () => {
+  const result = capture();
+  expect(result.slotted).toBe(false);
+  expect(result.counts.slotted_scope_skipped).toBe(0);
 });

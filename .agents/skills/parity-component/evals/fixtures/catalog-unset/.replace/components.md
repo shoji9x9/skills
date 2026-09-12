@@ -5,9 +5,9 @@
 
 ## 部品一覧
 
-| slug | 部品 | インスタンス（ページ ＋ 論理名） | データ依存 | 採否 | Issue |
-|---|---|---|---|---|---|
-| button | ボタン | /orders `order.search-submit`、/users `user.create-submit` | false | 自前実装 | #120 |
+| slug | 部品 | インスタンス（ページ ＋ 論理名） | URL（パターンのページのみ） | データ依存 | 採否 | Issue |
+|---|---|---|---|---|---|---|
+| button | ボタン | /orders `order.search-submit`、/users `user.create-submit` | - | false | 自前実装 | #120 |
 
 ## 先に作らない部品
 

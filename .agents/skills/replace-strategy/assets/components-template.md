@@ -15,16 +15,19 @@
 
 <!-- slug: ASCII kebab-case・.replace/features.md の slug と同じ名前空間で一意（成果物パス .replace/components/<slug>/ になる）。 -->
 <!-- インスタンス: 「ページ ＋ その部品を指す論理名」。**2 件以上**挙げる（1 件では固定と可変を区別できず、共通部品として先に作る対象にならない）。 -->
-<!-- インスタンスは .replace/features.md の「ページ一覧」から導出する。導出できないページがあれば、先にページ一覧を埋める。 -->
-<!-- 論理名は role ＋アクセシブルネームで引ける名前にする（id・自動生成クラスをアンカーにしない）。 -->
+<!-- ページ一覧（.replace/features.md）は候補の生成源であって、インスタンスそのものではない。 -->
+<!-- ページ一覧が持つのはページパスと機能 slug だけで部品の論理名は無く、/orders/:id 等のパターンは開ける URL でもない。 -->
+<!-- 候補のページを現行アプリで実際に開き、role ＋アクセシブルネームで一意に引ける論理名を確かめて書く -->
+<!-- （id・自動生成クラスをアンカーにしない）。確かめずに書くと、採取側が推測するか採取を飛ばすことになる。 -->
+<!-- パラメータ付きページは「URL」列に具体 URL か、その値の解決規則（どのデータから採るか）を残す。 -->
 <!-- データ依存: 描画がデータに左右されるか（データグリッド等）。true なら parity-component が現行の可視行から実データを採る。 -->
 <!-- 採否: 自前実装 / 採用パッケージ名。判断材料と不採用理由は .replace/dependencies.md が正本で、ここには結論だけを書く。 -->
 
-| slug | 部品 | インスタンス（ページ ＋ 論理名） | データ依存 | 採否 | Issue |
-|---|---|---|---|---|---|
-| button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | false | 自前実装 | 未起票 |
-| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | true | （採用パッケージ名） | 未起票 |
-| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | false | 自前実装（現行は標準の input） | 未起票 |
+| slug | 部品 | インスタンス（ページ ＋ 論理名） | URL（パターンのページのみ） | データ依存 | 採否 | Issue |
+|---|---|---|---|---|---|---|
+| button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | /orders/:id → `/orders/1001`（データセットの orders 先頭行の id） | false | 自前実装 | 未起票 |
+| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | （採用パッケージ名） | 未起票 |
+| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 |
 
 ## 先に作らない部品
 

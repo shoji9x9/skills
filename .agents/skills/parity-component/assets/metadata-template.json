@@ -15,7 +15,7 @@
     "effort": "<エフォート。省略不可>",
     "skill_version": "<parity-component のバージョン>"
   },
-  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの来歴でもある。版が上がったら採取物と抽出データの両方が陳腐化する>",
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの来歴でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の正本は golden-dataset の references/versioning.md>",
   "capture": {
     "complete": "<採取が**比較の母集合**（instances × capture.states − 宣言済みの unreachable_states）で完了したか。全インスタンス × 全状態ではない——宣言済みの到達不能な組み合わせを数えると、正当な採取が永久に false のまま build を塞ぐ。build はこの値が true のときだけ進む。真偽値で書く>",
     "states": [
@@ -27,7 +27,7 @@
     ],
     "tools": {
       "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
-      "traits_version": "<trait-capture.mjs の VERSION。比較時に一致しなければ両側を採り直す>",
+      "traits_version": "<trait-capture.mjs の VERSION。build の前提検証でいま使うツールの版と突き合わせ、一致しなければ実装へ進まず capture からやり直す>",
       "traits_property_set": "<trait-capture.mjs の FIXED_PROPERTIES（採取したプロパティ集合）>",
       "css_rules_version": "<parity-component 同梱 css-rules-capture.mjs の VERSION（コピーせずスキル配下から実行する）>",
       "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",

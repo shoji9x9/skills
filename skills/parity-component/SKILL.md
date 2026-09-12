@@ -138,6 +138,12 @@ parity-component build   [--component <slug>] [--target <name>]
 ## 実行フロー（build）
 
 1. **前提検証と着手**: `capture` 完了と `references.architecture` / `references.component_catalog` / `verification_commands.full` を実測し、欠ければ停止する。
+   **採取物の陳腐化も併せて判定する**（宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる）:
+   - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `css_rules_version` / `axis_diff_version` / `traits_property_set` を、
+     いま使うツールの実際の版と突き合わせる。**違えば実装へ進まず `capture` からやり直す**（採取スキーマが違う基準は比較の入力にならない）
+   - **データセット版**（データ依存の部品のみ）: `metadata.json` の `dataset_version` と現在の版の間の `changes[].affects` が、
+     その部品の**実効参照テーブル**と交差するなら陳腐化。**版の数値が古いだけでは陳腐化にしない**（無関係なテーブルの変更で毎回の再採取を強いることになる）。
+     導出規則と、導出できないときに停止する規律の正本は `golden-dataset` の [`references/versioning.md`](../golden-dataset/references/versioning.md)
    選択した新側 target が `auth.roles` を持つなら、カタログへ到達する前に `capture` と同じ規律で `storageState` を用意する（正本は `parity-suite` の `references/auth.md`）。
    対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で **`issue-start <番号> --branch-only`** を実行してブランチを作る。未起票なら停止して `replace-strategy issues` を促す。
    **`--branch-only` を外さない**——モード未指定の `issue-start` はブランチ作成の後そのまま実装へ進む契約なので、
@@ -186,7 +192,10 @@ parity-component build   [--component <slug>] [--target <name>]
   **部品を画面より先に作らない方針のプロジェクトでは本スキルを使わない**（機能ごとに `parity-replace` が部品も作る）
 - **`replace-strategy` から受け取るもの**: `.replace/components.md`（部品 / slug / インスタンス / 採否 / データ依存の有無 / Issue 番号）。**本スキルはこのファイルを書かない**（Issue 番号の書き戻しは `replace-strategy issues` の担当）
 - **`parity-suite` から受け取るもの**: 特性採取ツールと差分器、撮影条件・ノイズ基準値の規約、状態網羅の導出源の規律。**対象 slug の `parity-suite` 実行は前提にしない**（部品の採取にページ単位のスイートは要らない）
-- **`parity-suite` へ渡すもの**: 無い。ただし機能の採取が始まったら、部品の基準は**そのインスタンスの現側ベースラインと同じ現行アプリ**を指しているので、データセットのバージョンが上がったら両方が陳腐化する（`metadata.json` の `dataset_version` で検出する）
+- **`parity-suite` へ渡すもの**: 無い。ただし機能の採取が始まったら、部品の基準は**そのインスタンスの現側ベースラインと同じ現行アプリ**を指している。
+  データセットの版が上がったときに陳腐化するかは、**版の数値だけでは決まらない**——記録した版から現在までの `changes[].affects` が
+  その部品の実効参照テーブルと**交差するときだけ**陳腐化する（正本は `golden-dataset` の `references/versioning.md`。
+  部品 slug の実効参照テーブルはインスタンスのページ → `features.md` のページ一覧 → 機能 slug → テーブルの和集合で導く）
 - **`parity-replace` との関係**: 機能の実装中に共通部品へ手を入れる必要が出たときの規律は [`references/amend.md`](references/amend.md) が正本で、`parity-replace` はそこへ委譲する。
   敵対的レビュー・テーマ寄せの手順は逆に `parity-replace` の references が正本で、本スキルが委譲する
 - **`parity-diff` との関係**: 本スキルの照合は**カタログ上の部品単体**が対象で、画面に載せた後の差分は `parity-diff` が見る。

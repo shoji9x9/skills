@@ -369,6 +369,7 @@ export function collectMatchedRules(el, options) {
     nested_declaration_rules: 0,
     outer_scope_skipped: 0,
     host_scope_skipped: 0,
+    slotted_scope_skipped: 0,
   };
   const seenSheets = new Map();
   let order = 0;
@@ -383,6 +384,19 @@ export function collectMatchedRules(el, options) {
       // matched には入れず、数だけ残す（0 件を「外側に規則が無い」と読まないため）。
       // ホスト自身のシャドウルートの規則。ホストに効くのは `:host` 系だけで、それ以外は
       // シャドウの中の要素に当たる規則なのでホストの基準ではない。
+      // スロット側のシャドウルートの規則。ライト DOM の要素へ届くのは `::slotted()` だけで、
+      // 引数の解決は本ツールの射程外なので、当たった側へ倒さず残す。
+      if (ctx.slottedScope) {
+        if (part.includes("::slotted(")) {
+          unresolved.push({
+            selector: part,
+            original_selector: originalSelector,
+            href: ctx.href,
+            reason: "slotted-not-evaluated",
+          });
+        } else counts.slotted_scope_skipped++;
+        continue;
+      }
       if (ctx.hostScope) {
         if (part.includes(":host")) {
           unresolved.push({
@@ -469,8 +483,19 @@ export function collectMatchedRules(el, options) {
       //     `@import url(x) layer(vendor) screen;` の layer / メディア条件は CSSImportRule 側
       //     （layerName / media）にしか無いので、ここで引き継がないと読み込んだ規則が
       //     「レイヤ無し・無条件」として記録される（落ちるのではなく誤った条件が付く）。
-      if (rule.styleSheet) {
+      if ("styleSheet" in rule) {
         counts.import_rules++;
+        // 読み込めていない `@import`（未ロード・404・解析失敗）は `styleSheet` が null になる。
+        // 真偽値で分岐すると、どの分岐にも掛からないまま静かに消え、「その @import の先に
+        // 関係する規則が無い」と区別できなくなる（本ツールが塞ごうとしている fail-open そのもの）。
+        // 規則の種別は `styleSheet` の**有無**で判定し、null は採れなかった事実として残す。
+        if (!rule.styleSheet) {
+          inaccessible.push({
+            href: (typeof rule.href === "string" && rule.href) || ctx.href || null,
+            error: "ImportNotLoaded",
+          });
+          continue;
+        }
         const mediaText = rule.media && rule.media.mediaText ? rule.media.mediaText : "";
         // `@import url(x) supports(display: grid) screen;` の supports 条件は supportsText にしか無い。
         // 引き継がないと、読み込んだ規則が「無条件」として記録され、なぜ効いているかを説明できなくなる。
@@ -549,7 +574,14 @@ export function collectMatchedRules(el, options) {
     // `shadowRoot.adoptedStyleSheets` と document で共有している構成で、内側を先に走った時点で
     // 既読になり、外側スコープの走査が丸ごと飛ぶ。`::part()` が unresolved に残らず
     // `outer_scope_skipped` も増えない——「判定できない規則を黙って落とさない」契約に反する。
-    const scope = ctx && ctx.outerScope ? "outer" : ctx && ctx.hostScope ? "host" : "own";
+    const scope =
+      ctx && ctx.outerScope
+        ? "outer"
+        : ctx && ctx.hostScope
+          ? "host"
+          : ctx && ctx.slottedScope
+            ? "slotted"
+            : "own";
     const seen = seenSheets.get(scope) || new Set();
     if (seen.has(sheet)) return;
     seen.add(sheet);
@@ -574,6 +606,7 @@ export function collectMatchedRules(el, options) {
       href,
       outerScope: Boolean(ctx && ctx.outerScope),
       hostScope: Boolean(ctx && ctx.hostScope),
+      slottedScope: Boolean(ctx && ctx.slottedScope),
     });
   }
 
@@ -597,6 +630,19 @@ export function collectMatchedRules(el, options) {
   // だがホストの見た目を決めているのは**そのホスト自身のシャドウルート**の `:host` 規則で、
   // それを走らないと「CSS 規則が 1 件も当たっていない部品」という誤った基準が出る。
   // `:host()` / `:host-context()` の引数解決は本ツールの射程外なので、当たった側へ倒さず残す。
+  // ライト DOM の要素がシャドウの `<slot>` に割り当てられているとき、その要素に効く
+  // `::slotted()` 規則は**スロット側のシャドウルート**にある。`getRootNode()` は document を
+  // 返すのでここまで辿らないと見えず、規則を 1 件も採らないまま基準が出る。
+  const slotRoot =
+    el.assignedSlot && el.assignedSlot.getRootNode ? el.assignedSlot.getRootNode() : null;
+  if (slotRoot && slotRoot !== el.ownerDocument && slotRoot.styleSheets) {
+    for (const sheet of Array.from(slotRoot.styleSheets || [])) {
+      walkSheet(sheet, { slottedScope: true });
+    }
+    for (const sheet of Array.from(slotRoot.adoptedStyleSheets || [])) {
+      walkSheet(sheet, { slottedScope: true });
+    }
+  }
   if (el.shadowRoot && el.shadowRoot.styleSheets) {
     for (const sheet of Array.from(el.shadowRoot.styleSheets || [])) {
       walkSheet(sheet, { hostScope: true });
@@ -619,6 +665,7 @@ export function collectMatchedRules(el, options) {
     inaccessible,
     inline_declarations: inlineDeclarations,
     shadow_host: Boolean(el.shadowRoot && el.shadowRoot.styleSheets),
+    slotted: Boolean(slotRoot && slotRoot !== el.ownerDocument && slotRoot.styleSheets),
     counts: { ...counts, matched: matched.length, inline_declarations: inlineDeclarations.length },
     shadow_root: inShadow,
   };

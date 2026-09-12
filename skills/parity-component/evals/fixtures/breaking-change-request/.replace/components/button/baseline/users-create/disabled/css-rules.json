@@ -24,6 +24,7 @@
   "inaccessible": [],
   "inline_declarations": [],
   "shadow_host": false,
+  "slotted": false,
   "counts": {
     "sheets": 1,
     "style_rules": 1,
@@ -32,7 +33,8 @@
     "matched": 1,
     "inline_declarations": 0,
     "outer_scope_skipped": 0,
-    "host_scope_skipped": 0
+    "host_scope_skipped": 0,
+    "slotted_scope_skipped": 0
   },
   "shadow_root": false
 }

@@ -5,9 +5,9 @@
 
 ## 部品一覧
 
-| slug | 部品 | インスタンス（ページ ＋ 論理名） | データ依存 | 採否 | Issue |
-|---|---|---|---|---|---|
-| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | true | 市販のグリッド部品 | #122 |
+| slug | 部品 | インスタンス（ページ ＋ 論理名） | URL（パターンのページのみ） | データ依存 | 採否 | Issue |
+|---|---|---|---|---|---|---|
+| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | 市販のグリッド部品 | #122 |
 
 ## 先に作らない部品
 
