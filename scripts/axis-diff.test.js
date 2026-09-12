@@ -299,7 +299,8 @@ test("空の traits から 0 軸しか取れない採取を fail-closed にす�
     ],
   });
   expect(result.ok).toBe(false);
-  expect(result.problems.join("\n")).toContain("軸が 1 つも取れない");
+  // 必須フィールドの検査が先に効くので、より具体的な理由で落ちる（ok: false は変わらない）。
+  expect(result.problems.join("\n")).toContain("採取に computed と rect が無い");
   expect(result.fixed).toHaveLength(0);
   expect(result.variable).toHaveLength(0);
 });
@@ -328,4 +329,32 @@ test("合格は問題の不在ではなく測れた件数で決める", () => {
   expect(none.ok).toBe(false);
   expect(none.measured).toBe(0);
   expect(none.problems.join("\n")).toContain("突き合わせられた軸が 0 件");
+});
+
+test("擬似要素の有無だけが立つ採取を「測れた」と数えない", () => {
+  // { before: null, after: null } は ::before/::after の <present> 軸を 2 本生むため、
+  // 「軸が 1 件以上」だけを条件にすると measured 2 / ok: true で通る。
+  // 本体のスタイルも幾何も測っていないので、採取ツールが必ず返すフィールドで弾く。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: "default", traits: { before: null, after: null } }] },
+      { id: "b", states: [{ state: "default", traits: { before: null, after: null } }] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.measured).toBe(0);
+  expect(result.problems.join("\n")).toContain("computed と rect が無い");
+});
+
+test("computed はあるが rect が無い採取も弾く", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: "default", traits: { computed: { color: "x" } } }] },
+      { id: "b", states: [{ state: "default", traits: { computed: { color: "y" } } }] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("rect が無い");
 });

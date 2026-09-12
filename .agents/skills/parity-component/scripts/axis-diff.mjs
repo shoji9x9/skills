@@ -140,6 +140,25 @@ export function diffAxes(manifest) {
         problems.push(`${ids[i] || `#${i}`} / ${entry.state}: traits が無い`);
         continue;
       }
+      // 採取物の形を、採取ツール（`parity-suite` の trait-capture.mjs）が必ず返すフィールドで検証する。
+      // 「軸が 1 件以上取れたか」だけを見ると、`{ before: null, after: null }` のように擬似要素の
+      // 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
+      // 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
+      const missing = [];
+      const computed = entry.traits.computed;
+      if (!computed || typeof computed !== "object" || Object.keys(computed).length === 0) {
+        missing.push("computed");
+      }
+      const rect = entry.traits.rect;
+      if (!rect || typeof rect !== "object" || !("width" in rect || "height" in rect)) {
+        missing.push("rect");
+      }
+      if (missing.length > 0) {
+        problems.push(
+          `${ids[i] || `#${i}`} / ${entry.state}: 採取に ${missing.join(" と ")} が無い（trait-capture.mjs は常に返す）`,
+        );
+        continue;
+      }
       const flat = Object.entries(flattenTraits(entry.traits));
       // 空の traits（`{}`・computed も rect も空）は 0 軸を返す。そのまま進めると表が空のまま
       // problems も空になり、比較対象が 1 つも無いのに ok: true を返す（`build` は axes.ok だけを

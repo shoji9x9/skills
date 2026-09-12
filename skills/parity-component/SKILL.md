@@ -46,7 +46,10 @@ parity-component build   [--component <slug>] [--target <name>]
   - `build` の前提 = 対象 slug の `capture` 完了（`.replace/components/<slug>/metadata.json` の `capture.complete`）**かつ `axes.ok` が真**。
     `capture.complete` だけでは足りない——全インスタンス × 全状態を採っていても、id の重複・未採取の状態・
     片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。
-    その `component-api.md` は実装の根拠にならないので、採取へ戻る
+    その `component-api.md` は実装の根拠にならないので、採取へ戻る。
+    **`metadata.json` の宣言だけで通さない**——`instances[]` × `capture.states` の全組み合わせについて
+    `baseline/<instance>/<state>/` の実体（特性と CSS 規則）と `axes.json` / `component-api.md` の実在を確かめる。
+    宣言は古い実行の残りでもありうるので、実体が無ければ比較対象が空のまま `build` に入る
 
 ## 厳守の制約（禁止事項）
 

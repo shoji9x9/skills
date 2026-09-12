@@ -47,8 +47,14 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 1. 現行のインスタンスで、**1 画面に収まる範囲の行**（先頭 N 件など、撮影範囲に全体が写る件数）を決める。N は `metadata.json` の `instances[].data.rows` に記録する
 2. その範囲が**画面に写った状態**でスクリーンショットと計算後スタイルを採る（写っていない行を後から足さない）
 3. 同じ範囲の**実データを DOM から抽出**し、`baseline/<instance>/data.json` に保存する。列の論理名と値の対応を持たせる（表示文字列だけでなく、書式の前の値が DOM から取れるならそれも）
-4. **来歴を確認する。** `.replace/dataset/metadata.json` の `version` を読み、**`golden-dataset` フェーズ A が投入したデータセットの上で採ったこと**を `metadata.json` の `dataset_version` に記録する。
-   確認できない場合（データセット投入前の環境で採った、投入対象でない target で採った）は**抽出データを見本に使わない**——来歴・利用許可が不明なデータを新側へ持ち込まない規律に触れる（正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）
+4. **来歴を確認する。** ファイルの実在だけでは足りない——`.replace/dataset/metadata.json` の
+   **`current.target` が採取対象の target（`--target` で選んだもの）と一致すること**を確かめる。
+   一致しなければ、そのデータセットは別の環境へ投入されており、いま採っている target は未投入である。
+   一致を確認したうえで `version` を `metadata.json` の `dataset_version` に記録する。
+   **一致しない・確認できない場合は抽出データを見本に使わない**——別 target の版を記録しながら未投入の環境の行を
+   カタログへ写すことになり、来歴・利用許可が不明なデータを新側へ持ち込まない規律に触れる
+   （正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）。
+   投入対象かどうかの契約（`dataset_mode` と `db.seedable`）は同スキルの `references/project-config.md` を引く
 5. 抽出データに**個人情報・シークレットが含まれていないこと**を確認する。含まれるなら見本に使わず、`golden-dataset` へ戻して比較に使えるデータを用意してもらう
 
 - データセットのバージョンが上がったら、**採取物と抽出データの両方が陳腐化する**。`metadata.json` の `dataset_version` と現在の版を突き合わせ、古ければ再採取を宣言する

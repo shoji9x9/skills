@@ -63,3 +63,5 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 同様に、fixture の値どうしは整合させる。`breaking-change-request` の `component-api.md` は当初 `variant` の値集合を
 6 値としていたが、採取済みインスタンスは 2 件で、2 件から割り出せるのは高々 2 値である
 （「値の集合は採取物から列挙する」という本スキルの契約に反する）。実走した run がこの矛盾を指摘したため 2 値へ揃えた。
+
+`catalog-unset` の `axes.json` は `axis-diff.mjs` を `baseline/` に対して実行した出力そのもの（手書きしない）。リポジトリのフォーマッタが JSON の空白を正規化するため整形は揃わないが、内容は実出力と一致する。`baseline/` を変えたら同じコマンドで取り直す。
