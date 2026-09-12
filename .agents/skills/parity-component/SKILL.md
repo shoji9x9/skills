@@ -47,7 +47,10 @@ parity-component build   [--component <slug>] [--target <name>]
     片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。
     その `component-api.md` は実装の根拠にならないので、採取へ戻る。
     **`metadata.json` の宣言だけで通さない**——**比較の母集合**（下記）の全組み合わせについて
-    `baseline/<instance>/<state>/` の実体（特性と CSS 規則）と `axes.json` / `component-api.md` の実在を確かめる。
+    **採取が必須とする成果物を漏れなく**確かめる——`baseline/<instance>/<state>/` の
+    **要素スクリーンショット・特性・当たっている CSS 規則**の 3 点と、slug 直下の `axes.json` / `component-api.md`。
+    **データ依存の部品（`.replace/components.md` の `データ依存: true`）は `baseline/<instance>/data.json` も必須**。
+    一部だけ揃った採取を通すと、画素比較の入力やカタログへ注入するデータが無いまま `build` に入る。
     宣言は古い実行の残りでもありうるので、実体が無ければ比較対象が空のまま `build` に入る
 - **比較の母集合**（採取・前提判定・見本・照合・完了判定がすべてこの 1 つの定義を使う）:
   **`instances[]` × `capture.states` から、そのインスタンスの `unreachable_states` に宣言された状態を除いた組み合わせ**。

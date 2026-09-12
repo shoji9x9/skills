@@ -465,3 +465,25 @@ test("理由の無い除外宣言を受理しない（唯一の緩和経路を�
     expect(result.problems.join("\n")).toContain("契約の形でない");
   }
 });
+
+test("採取済みの状態を到達不能と宣言している矛盾を落とす", () => {
+  // 母集合はこの宣言を引いて作るので、放置すると採取済みの基準が見本も照合も無いまま隠れる。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [state("default", traits({ color: "x" })), state("hover", traits({ color: "h" }))],
+      },
+      {
+        id: "b",
+        unreachable_states: [{ state: "hover", reason: "この画面では常に活性" }],
+        states: [state("default", traits({ color: "y" })), state("hover", traits({ color: "k" }))],
+      },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain(
+    "採取済みの状態を unreachable_states に宣言している",
+  );
+});

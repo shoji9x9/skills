@@ -149,6 +149,16 @@ export function diffAxes(manifest) {
       `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が契約の形でない（{ state, reason } で reason は非空）`,
     );
   }
+  // 実際に採れている状態を「到達できない」と宣言している矛盾を落とす。
+  // 母集合はこの宣言を引いて作るので、放置すると採取済みの基準が見本も照合も無いまま隠れる。
+  declaredUnreachable.forEach((declared, i) => {
+    const contradicted = [...declared].filter((st) => stateSets[i].includes(st));
+    if (contradicted.length > 0) {
+      problems.push(
+        `${ids[i] || `#${i}`}: 採取済みの状態を unreachable_states に宣言している（${contradicted.join(", ")}）`,
+      );
+    }
+  });
   const notCompared = [];
   instances.forEach((instance, i) => {
     const missing = states.filter((s) => !stateSets[i].includes(s));
