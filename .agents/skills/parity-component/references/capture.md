@@ -23,6 +23,12 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 `hover` / `active` / `focus` / `disabled` / `checked` などへ遷移させてから採る。
 
 - **遷移したことを、採る前にその状態固有の assertion で確かめる**（属性・クラス・可視要素の変化）。遷移できていないまま採ると、`default` の値が `hover` として記録される
+- **遷移の手段が書き込みになりうる場合は、選択した target の `forbidden_actions` を先に引く。**
+  `hover` / `focus` はポインタとキーボードの移動で作れるが、`checked` / `selected` / `error` は
+  クリック・送信といった**アプリへの操作**を要する。本スキルが「読み取りだけ」と言えるのは採取そのものの話で、
+  状態を作る操作までは含まない。禁止されている操作で作る状態は**遷移させず** `gaps.md` に
+  「その target では作れない状態」として残し、`metadata.json` の `instances[].unreachable_states` にも書く
+  （規律の正本は `parity-suite` の `references/data-discipline.md`）
 - 遷移できない状態の扱いは [`instances.md`](instances.md)「状態集合はインスタンス間で揃える」に従う
 
 ## 当たっている CSS 規則
@@ -47,10 +53,14 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 1. 現行のインスタンスで、**1 画面に収まる範囲の行**（先頭 N 件など、撮影範囲に全体が写る件数）を決める。N は `metadata.json` の `instances[].data.rows` に記録する
 2. その範囲が**画面に写った状態**でスクリーンショットと計算後スタイルを採る（写っていない行を後から足さない）
 3. 同じ範囲の**実データを DOM から抽出**し、`baseline/<instance>/data.json` に保存する。列の論理名と値の対応を持たせる（表示文字列だけでなく、書式の前の値が DOM から取れるならそれも）
-4. **来歴を確認する。** ファイルの実在だけでは足りない——`.replace/dataset/metadata.json` の
-   **`current.target` が採取対象の target（`--target` で選んだもの）と一致すること**を確かめる。
-   一致しなければ、そのデータセットは別の環境へ投入されており、いま採っている target は未投入である。
-   一致を確認したうえで `version` を `metadata.json` の `dataset_version` に記録する。
+4. **来歴を確認する。** ファイルの実在だけでは足りない。確認の仕方は `.replace/dataset/metadata.json` の
+   **`mode` で分かれる**（正本は `golden-dataset` の `assets/metadata-template.json`）。
+   - **`db`**: `current.target` が採取対象の target（`--target` で選んだもの）と**一致すること**を確かめる。
+     一致しなければ、そのデータセットは別の環境へ投入されており、いま採っている target は未投入である
+   - **`static`**: 投入先の環境を持たないため `current.target` は `null` になる。**target 名の照合はしない**
+     （`parity-suite` も `current.target` が `null` なら照合しない）。代わりに `current.fingerprint` が
+     記録されていること、およびリポジトリ内の静的データがその指紋と一致することを確かめる
+   どちらの場合も、確認できたうえで `version` を `metadata.json` の `dataset_version` に記録する。
    **一致しない・確認できない場合は抽出データを見本に使わない**——別 target の版を記録しながら未投入の環境の行を
    カタログへ写すことになり、来歴・利用許可が不明なデータを新側へ持ち込まない規律に触れる
    （正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）。

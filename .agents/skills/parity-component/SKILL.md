@@ -58,7 +58,7 @@ parity-component build   [--component <slug>] [--target <name>]
 - **採取ツールが「読めなかった」と報告した箇所を、無かったことにしない。** `inaccessible`（クロスオリジンのスタイルシート）・`unresolved`（判定できないセレクタ）が非ゼロなら `gaps.md` へ残す。**0 件を「差が無い」の根拠にしない**
 - **`component-coverage.json`（`parity-suite` の部品被覆表）を見た目の根拠にしない。** あれは操作と状態の**有無**を数える表で、色・寸法・余白は見ていない。機能が揃っていて見た目が全部違う部品も `present` で埋まる
 - **LLM に「差分があるか」を聞かない。** 検出は決定論的ツール（画素・特性照合）の仕事、LLM の仕事は分類（要対応／許容／環境ノイズ）。**「同じに見えます」を収束根拠にしない**
-- **現行アプリを変更・駆動の範囲を超えて触らない。** `capture` は読み取りだけで、現行アプリのコード・データを変更しない（正解の基準を動かさないため）
+- **現行アプリを変更・駆動の範囲を超えて触らない。** 現行アプリのコード・データを変更しない（正解の基準を動かさないため）。**状態を作る操作は「読み取りだけ」に含まれない**——選択した target の `forbidden_actions` を先に引き、禁止された操作で作る状態は遷移させず `gaps.md` へ残す
 - **現行から抜いたデータを、来歴を確かめずにカタログへ持ち込まない。** ゴールデンデータセット由来であることを確認できないデータは使わない（[`references/capture.md`](references/capture.md)「データ依存部品」）
 - **カタログ同士・カタログとベンダーの見本を突き合わせない。** 比較の相手は常に現行アプリから採った基準
 - **意図的差異レジストリに宣言の無い差を、引数の既定値や個別分岐で吸収しない**（宣言に無い差は `intentional_diffs.pending` へ回してユーザー確認）
@@ -74,7 +74,7 @@ parity-component build   [--component <slug>] [--target <name>]
 |---|---|
 | `targets` | 実行対象環境。`capture` は `side: current`、`build` は `side: new` から `--target` で選ぶ。`pre_commands` / `start` / `check_urls` があれば起動・稼働確認に使う |
 | `targets[].catalog_url` | **新側 target の部品カタログの baseURL**（`build` で必須）。`url_command` と同じくコマンドで解決する形も取れる。未宣言なら推測せず停止してユーザーに確認する（契約は [`references/catalog.md`](references/catalog.md)） |
-| `targets[].auth.roles` / `targets[].forbidden_actions` | 現行 target のロール別認証情報（環境変数の**名前**）と、実施しない操作。`capture` は読み取りのみのため書き込み操作を持たない |
+| `targets[].auth.roles` / `targets[].forbidden_actions` | 現行 target のロール別認証情報（環境変数の**名前**）と、実施しない操作。**`capture` も `forbidden_actions` を引く**——`checked` / `selected` / `error` の状態はクリック・送信でしか作れず、採取自体は読み取りでも**状態を作る操作は書き込みになりうる**。禁止された操作で作る状態は遷移させず `gaps.md` へ残す |
 | `references.component_catalog` | **カタログの契約ドキュメントのパス**。実体（Storybook 等）・見本の書き方・データの注入経路・URL の決まり方を書く。**未整備なら `build` に入らず停止し、整備を促す**（カタログの実体をスキルが勝手に決めない） |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピング。**未整備なら `build` の実装に入る前に整備を促す**（源流で系統差を縮められない。正本の手順は `parity-replace` の `references/theming.md`） |
 | `references.architecture` | 新側アプリの骨格の決定記録。**未整備なら `build` に入らず停止する**（部品は骨格の上に載るため） |
