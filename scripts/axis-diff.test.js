@@ -390,7 +390,7 @@ test("宣言された到達不能な状態は欠落ではなく除外として�
       },
       {
         id: "b",
-        unreachable_states: ["hover"],
+        unreachable_states: [{ state: "hover", reason: "この画面では常に活性" }],
         states: [state("default", traits({ color: "y" }))],
       },
     ],
@@ -440,4 +440,28 @@ test("契約どおりのオブジェクト形で宣言された到達不能状�
   expect(result.ok).toBe(true);
   expect(result.problems).toHaveLength(0);
   expect(result.not_compared).toEqual([{ instance: "b", state: "hover" }]);
+});
+
+test("理由の無い除外宣言を受理しない（唯一の緩和経路を広げない）", () => {
+  for (const declared of [["hover"], [{ state: "hover" }], [{ state: "hover", reason: "  " }]]) {
+    const result = diffAxes({
+      component: "button",
+      instances: [
+        {
+          id: "a",
+          states: [
+            state("default", traits({ color: "x" })),
+            state("hover", traits({ color: "h" })),
+          ],
+        },
+        {
+          id: "b",
+          unreachable_states: declared,
+          states: [state("default", traits({ color: "y" }))],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain("契約の形でない");
+  }
 });

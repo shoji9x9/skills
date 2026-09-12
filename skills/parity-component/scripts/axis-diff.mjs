@@ -120,17 +120,35 @@ export function diffAxes(manifest) {
   }
   // 宣言された到達不能な状態（そのインスタンスでは作れない状態）は、欠落ではなく既知の除外として扱う。
   // 宣言が無い欠落は採り忘れと区別できないので従来どおり問題にする（fail-closed は変えない）。
-  const declaredUnreachable = instances.map((instance) => {
+  const invalidUnreachable = [];
+  const declaredUnreachable = instances.map((instance, i) => {
     const declared = instance && instance.unreachable_states;
     if (!Array.isArray(declared)) return new Set();
     // 成果物の契約（metadata.json / references/instances.md）は `{ state, reason }` のオブジェクト形。
-    // 文字列だけを拾うと、契約どおりに宣言された除外が無視されて「未採取の状態」に化け、
-    // 正当な採取が build へ進めなくなる（この除外の仕組みが塞ごうとしているデッドロックそのもの）。
-    const names = declared
-      .map((d) => (typeof d === "string" ? d : d && typeof d.state === "string" ? d.state : ""))
-      .filter((d) => d !== "");
-    return new Set(names);
+    // **これは唯一の緩和経路**（欠落を比較対象から外す）なので、通す入力クラスを閉じた集合として
+    // 列挙する——`reason` を持つオブジェクト形だけを受理し、裸の文字列や理由の無い宣言は問題にする。
+    // 広く受けると、typo や理由なしの宣言でも欠落が `not_compared` として ok: true に化ける。
+    const names = new Set();
+    for (const d of declared) {
+      if (
+        d &&
+        typeof d.state === "string" &&
+        d.state !== "" &&
+        typeof d.reason === "string" &&
+        d.reason.trim() !== ""
+      ) {
+        names.add(d.state);
+        continue;
+      }
+      invalidUnreachable.push({ instance: i, value: d });
+    }
+    return names;
   });
+  for (const bad of invalidUnreachable) {
+    problems.push(
+      `${ids[bad.instance] || `#${bad.instance}`}: unreachable_states の宣言が契約の形でない（{ state, reason } で reason は非空）`,
+    );
+  }
   const notCompared = [];
   instances.forEach((instance, i) => {
     const missing = states.filter((s) => !stateSets[i].includes(s));
@@ -219,8 +237,8 @@ export function diffAxes(manifest) {
     };
   }
   // 軸の割り出しは「全インスタンスで到達できる状態」だけを対象にする。あるインスタンスで作れない状態は
-  // 突き合わせる相手が居ないので、固定とも可変とも言えない（照合の母集合からは外れない——その
-  // インスタンスの基準と見本は在り、parity-diff 相当の照合は行われる。正本は SKILL.md「比較の母集合」）。
+  // 突き合わせる相手が居ないので、固定とも可変とも言えない（その組み合わせは照合の母集合からも
+  // 外れる——到達できないので基準が無く見本も作らない。正本は SKILL.md「比較の母集合」）。
   const comparableStates = new Set(
     states.filter((st) => instances.every((_, i) => stateSets[i].includes(st))),
   );

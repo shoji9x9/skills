@@ -90,7 +90,7 @@ parity-component build   [--component <slug>] [--target <name>]
 | `targets[].catalog_url` | **新側 target の部品カタログの baseURL**（`build` で必須）。`url_command` と同じくコマンドで解決する形も取れる。未宣言なら推測せず停止してユーザーに確認する（契約は [`references/catalog.md`](references/catalog.md)） |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 現行 target のロール別認証情報（環境変数の**名前**）と、実施しない操作。**`capture` も `forbidden_actions` を引く**——`checked` / `selected` / `error` の状態はクリック・送信でしか作れず、採取自体は読み取りでも**状態を作る操作は書き込みになりうる**。禁止された操作で作る状態は遷移させず `gaps.md` へ残す |
 | `references.component_catalog` | **カタログの契約ドキュメントのパス**。実体（Storybook 等）・見本の書き方・データの注入経路・URL の決まり方を書く。**未整備なら `build` に入らず停止し、整備を促す**（カタログの実体をスキルが勝手に決めない） |
-| `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピング。**未整備なら `build` の実装に入る前に整備を促す**（源流で系統差を縮められない。正本の手順は `parity-replace` の `references/theming.md`） |
+| `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピング。**未整備なら `build` の手順 5（テーマ寄せ）に入らず停止する**（源流で系統差を縮められず、宣言と未検証が膨らむ）。**ゲートの位置は手順 5 の直前**であり手順 1 ではない——手順 1〜4（前提検証・引数設計・部品の採否・実装）はこのファイルを読まないので、そこで止めると必要のない停止になる。正本の手順は `parity-replace` の `references/theming.md` |
 | `references.architecture` | 新側アプリの骨格の決定記録。**未整備なら `build` に入らず停止する**（部品は骨格の上に載るため） |
 | `references.coding_conventions` | 部品・見本を書くときに従う規約。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る |
 | `references.dependency_policy` | 依存導入の方針（**三値**。`none` と欠落を同一視しない）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
@@ -132,7 +132,8 @@ parity-component build   [--component <slug>] [--target <name>]
    判断材料・順序・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従う。`setup` で決定済みの部品はここで再決定しない
 4. **実装と見本**: 現行のソースコードと採取物を一次情報源に実装し、**インスタンス × 状態ごとに見本（story 等）を置く**。見本は採取と同じ状態集合を持たせる——見本の無い状態は照合されない。
    データ依存部品は `capture` が採った実データを見本の入力にする。書き方は `references.coding_conventions` に従う。詳細: [`references/catalog.md`](references/catalog.md)
-5. **見た目の系統差を源流で縮める**: `references.ui_library` のトークンマッピングで旧 design token を新側テーマへ寄せる。テーマで消せない構造差の扱い（`component_diffs` 宣言か `gaps.md`）は `parity-replace` の `references/theming.md` が正本
+5. **見た目の系統差を源流で縮める**: **`references.ui_library` が未整備（キー欠落・空値・解決できないパス）ならここで停止し、整備を促す**（推測でライブラリを決めない）。
+   整備済みならトークンマッピングで旧 design token を新側テーマへ寄せる。テーマで消せない構造差の扱い（`component_diffs` 宣言か `gaps.md`）は `parity-replace` の `references/theming.md` が正本
 6. **敵対的レビュー**: **ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には判断の基準だけ（差分・現行コード・採取物・規約・レジストリ）を渡す。
    手順の正本は `parity-replace` の `references/adversarial-review.md`。**サブエージェントを起動できないことを省略の理由にしない**（差分だけを人間のレビュアーへ渡す代替を取る）
 7. **カタログ採取と照合**: カタログを現行と同一条件で採り、`parity-suite` 同梱の差分器（画素・特性照合）で基準と突き合わせる。
