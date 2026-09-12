@@ -41,7 +41,7 @@
 <!-- 実装した部品を単体・状態ごとに描画する場。実体は利用者が選ぶ（Storybook / Ladle / 自前のカタログページ等）。 -->
 <!-- 契約（1 インスタンス × 1 状態 = 1 固定 URL / Playwright 到達可 / 静的データ注入可 / アニメーション無効化可 / 外部サービス非依存）と -->
 <!-- 見本の書き方・URL の決まり方・データの注入経路は、設定 references.component_catalog が指すドキュメントに書く。 -->
-<!-- baseURL は設定 targets[].catalog_url（side: new）から解決する。 -->
+<!-- baseURL は設定 targets[].catalog_url（固定文字列）か targets[].catalog_url_command（実行ごとに変わる環境。排他）から解決する。side: new の target にだけ置く。 -->
 
 - カタログの実体: （選んだもの。未確定なら「未確定」と書き、`parity-component build` に入る前に確定させる）
 - 契約ドキュメント: （`references.component_catalog` が指すパス）

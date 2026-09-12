@@ -16,8 +16,9 @@
 - 実体の例（**既定を置かない**）: Storybook、Ladle、Histoire、アプリ内のカタログページ、採取専用の最小ルート
 - **`references.component_catalog` が未整備なら `build` に入らず停止する。** カタログの実体・見本の書き方・URL の決まり方・データの注入経路を推測で決めると、
   後から別のカタログへ移した時点で見本と採取スペックの両方を書き直すことになる
-- URL の baseURL は設定 `targets[].catalog_url`（`side: new` の target）から解決する。**`url_command` と同じくコマンドで解決する形も取れる**（実行ごとにポートが変わる環境向け）。
-  解決に失敗・空出力なら停止する（解決値は成果物に書かず `"runtime"` を記録する）
+- URL の baseURL は設定 `targets[].catalog_url`（固定文字列）または `targets[].catalog_url_command`（標準出力に URL を 1 行出すコマンド。実行ごとにポートが変わる環境向け）から解決する。
+  **この 2 つは排他で、両方あるのもどちらも無いのも停止する**（`url` / `url_command` と同じ形。同じキーに両形を入れると、開くのか実行するのかが決まらない）。
+  `catalog_url_command` の解決に失敗・空出力なら停止する（解決値は成果物に書かず `"runtime"` を記録する）
 
 ## 見本の粒度は採取の粒度に合わせる
 

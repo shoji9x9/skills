@@ -81,7 +81,8 @@ skills:
             admin:
               user_name_env: DEVELOP_ADMIN_USER
               password_env: DEVELOP_ADMIN_PASS
-        catalog_url: <URL | コマンド> # 任意（side: new のみ）。部品カタログの baseURL。固定文字列か、標準出力に URL を 1 行出すコマンド（url / url_command と同じ解決・記録規則に従う）。parity-component の build が読み、未宣言なら推測せず停止する
+        catalog_url: <URL> # 任意（side: new のみ・catalog_url_command と排他）。部品カタログの baseURL（固定文字列）。parity-component の build が読み、どちらも未宣言なら推測せず停止する
+        # catalog_url_command: <コマンド> # catalog_url と排他。標準出力に URL を 1 行出す（url_command と同じ解決・記録規則）
         commit_check: <コマンド> # 任意。稼働中の新側コミット SHA を標準出力に出す（start を持たない配信型 target の軽量経路判定に parity-replace が使う）
         on_diff: <path> # 任意。この target で要対応差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければ既定挙動）
       - name: preview # 例: ブランチ連動のプレビュー環境（URL がブランチ名に連動し固定文字列で書けない）
@@ -411,7 +412,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
 
 - **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
   実行順 `url_command` の解決 → `check_urls` で稼働判定 → 落ちているときだけ `pre_commands` → `start` → 再度 `check_urls`。最初の稼働判定の失敗は起動の合図で、それ以外の失敗は早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
-  本ファイルが定義するのは `side`・`api_url`・`catalog_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
+  本ファイルが定義するのは `side`・`api_url`・`catalog_url` / `catalog_url_command`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
 - **スキーマ不変条件**（各スキルは target 解決時に検証し、違反したら**停止**して設定修正を促す）:
   - `side` は必須（`current` | `new`。省略時の既定は無い——新側環境を追加するときの書き忘れが「正解＝現行」の原則を反転させるため）
@@ -425,7 +426,8 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   - `storage.seedable: true` の target は `storage.env_vars` と 1 つ以上の `storage.write_scope` を持つ（`db.seedable` と同じ fail-closed。欠ければ停止する）
   - `uses_storage` が `false`・欠落なのに `storage` を持つ target があれば停止する（宣言の矛盾を黙って解釈しない。使うなら `uses_storage: true` を書く）
   - `current.origin: received-assets` なら `current.received_assets` が 1 つ以上ある（受領資産の所在を知らずに再構築はできない。空・欠落は停止する）
-  - `catalog_url` を持てるのは `side: new` の target だけ（現行側に部品カタログは無い。`side: current` に付いていれば停止する——現行から採るべき基準をカタログから採る誤りになる）
+  - `catalog_url` / `catalog_url_command` を持てるのは `side: new` の target だけ（現行側に部品カタログは無い。`side: current` に付いていれば停止する——現行から採るべき基準をカタログから採る誤りになる）
+  - `catalog_url` と `catalog_url_command` は**どちらか一方だけ**（両方あれば停止する。`url` / `url_command` と同じ排他）
   - **`side: current` の target が `url: none` を持てるのは `current.origin: received-assets` かつ再構築が未完了の間だけ**（`current-environment-bootstrap` が引き渡し時に実 URL と `default: true` を埋める）。
     `origin: managed` で `url: none` の current target は停止する——測定対象が無いまま `setup` が測定へ進む
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
@@ -559,17 +561,19 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   ただし `uses_storage: true` なのに `storage` を宣言した target が 1 つも無い場合は、ストレージ依存の検証を**すべて未検証**として `gaps.md` に記録する（停止はしない）
 - ファイルの取得経路・形式別の扱い・アップロード操作・解析ツールの正本は [`file-io.md`](file-io.md)、対応範囲の一覧は [`scope.md`](scope.md)（ここへ転記しない）
 
-## 部品カタログ（`references.component_catalog` / `targets[].catalog_url`）
+## 部品カタログ（`references.component_catalog` / `targets[].catalog_url` / `targets[].catalog_url_command`）
 
 共通 UI 部品を画面より先に作る方針を採ったときだけ使う。**部品を単体・状態ごとに描画する場**の宣言で、実体はプロジェクトが選ぶ（スキルは固定しない）。
 
 - **`references.component_catalog`** はカタログの契約ドキュメントのパス。**実体・見本の書き方・URL の決まり方・データの注入経路**を書く。
   カタログが満たすべき契約（1 インスタンス × 1 状態が 1 つの固定 URL で開ける／Playwright で到達でき論理名で引ける／静的データを注入できる／アニメーションを無効化できる／描画が外部サービスに依存しない）の正本は
   `parity-component` の `references/catalog.md` で、**ここへ転記しない**
-- **`targets[].catalog_url`** はカタログの baseURL。**`side: new` の target にだけ置く**（現行側にカタログは無い）。
-  固定文字列か、標準出力に URL を 1 行出すコマンドを書く。**解決と記録の規則は `url_command` と同じ**（上記「URL の引き渡し」——解決に失敗・空出力なら停止し、コマンドで解決した値は成果物へ書かず `"runtime"` を記録する）
-- **どちらも未宣言なら `parity-component` の `build` は停止する。** スキルがカタログの実体を選ぶことも、URL を推測することもしない
-- **この 2 つは対で意味を持つ。** 契約ドキュメントだけあって `catalog_url` が無ければ採取先が決まらず、`catalog_url` だけあっても見本の置き方・URL の組み立て方が決まらない
+- **`targets[].catalog_url` / `targets[].catalog_url_command`** はカタログの baseURL。**`side: new` の target にだけ置く**（現行側にカタログは無い）。
+  **固定文字列とコマンドは別のキーに分ける**（`url` / `url_command` と同じ形）——同じスカラーに両方を入れると、値を開くのか実行するのかを読み手が決められず、
+  ポートが実行ごとに変わる環境で誤って URL として開く／固定 URL をコマンドとして実行する、のどちらにも倒れうる。**両方書けば停止する**。
+  `catalog_url_command` の**解決と記録の規則は `url_command` と同じ**（上記「URL の引き渡し」——解決に失敗・空出力なら停止し、解決した値は成果物へ書かず `"runtime"` を記録する）
+- **契約ドキュメントと baseURL のどちらかが未宣言なら `parity-component` の `build` は停止する。** スキルがカタログの実体を選ぶことも、URL を推測することもしない
+- **この 2 つは対で意味を持つ。** 契約ドキュメントだけあって baseURL が無ければ採取先が決まらず、baseURL だけあっても見本の置き方・URL の組み立て方が決まらない
 
 ## 依存導入の方針（`references.dependency_policy`）
 

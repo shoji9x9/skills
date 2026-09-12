@@ -107,12 +107,16 @@ const ELEMENT_SELECTORS = new Set([
   "*",
 ]);
 
-function fakeElement(sheets, { selectors = ELEMENT_SELECTORS, adopted = [] } = {}) {
+function fakeElement(
+  sheets,
+  { selectors = ELEMENT_SELECTORS, adopted = [], inline = null, inlineImportant = [] } = {},
+) {
   const ownerDocument = { styleSheets: sheets, adoptedStyleSheets: adopted };
   const el = {
     ownerDocument,
     getRootNode: () => ownerDocument,
     matches: (selector) => selectors.has(selector.trim()),
+    style: inline ? decl(inline, inlineImportant) : decl({}),
   };
   return el;
 }
@@ -442,4 +446,70 @@ test("@import の supports() 条件を引き継ぐ", () => {
   });
   expect(result.matched).toHaveLength(1);
   expect(result.matched[0].conditions).toEqual(["supports(display: grid)", "screen"]);
+});
+
+// --- style 属性（インライン宣言） ---
+
+test("style 属性の宣言を別の出所として採る", () => {
+  // インスタンス固有の値が style 属性で来ている部品では、規則走査だけだと出所も
+  // !important の優先度も残らず、計算後スタイルの結果値しか手掛かりが無くなる。
+  const el = fakeElement(buildSheets(), {
+    inline: { width: "240px", color: "rgb(9, 9, 9)" },
+    inlineImportant: ["color"],
+  });
+  const result = collectMatchedRules(el, {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.inline_declarations).toEqual([
+    { property: "width", value: "240px", important: false },
+    { property: "color", value: "rgb(9, 9, 9)", important: true },
+  ]);
+  expect(result.counts.inline_declarations).toBe(2);
+  // 規則ではないので matched へ混ぜない（セレクタの根拠と取り違える）。
+  expect(result.matched.every((m) => m.selector !== undefined)).toBe(true);
+});
+
+test("style 属性が空でも inline_declarations を空配列で出す", () => {
+  // キーごと落とすと「インライン指定が無い」と「採っていない（旧版の採取物）」が
+  // 同じ形になり、再採取の要否を判定できない。
+  const result = capture();
+  expect(result.inline_declarations).toEqual([]);
+  expect(result.counts.inline_declarations).toBe(0);
+});
+
+// --- 関数擬似クラスの引数の釣り合い ---
+
+// 素朴な括弧勘定（引用符・角括弧を見ない）。修正前の実装と同じ数え方。
+function naiveArgEnd(selector, open) {
+  let d = 1;
+  let j = open + 1;
+  while (j < selector.length && d > 0) {
+    if (selector[j] === "(") d++;
+    else if (selector[j] === ")") d--;
+    j++;
+  }
+  return j;
+}
+
+const TRICKY_SELECTOR = '.button:has([data-label="("]):hover';
+
+test("陽性コントロール: 素朴な括弧勘定は引用符内の ( で :hover まで食う", () => {
+  const open = TRICKY_SELECTOR.indexOf("(");
+  expect(naiveArgEnd(TRICKY_SELECTOR, open)).toBe(TRICKY_SELECTOR.length);
+});
+
+test("引用符・角括弧を跨ぐ関数引数でも状態擬似クラスを剥がす", () => {
+  const base = '.button:has([data-label="("])';
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(TRICKY_SELECTOR, { color: "red" })] }];
+  const el = fakeElement(sheets, { selectors: new Set([base]) });
+  const result = collectMatchedRules(el, {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  const hit = result.matched.find((m) => m.original_selector === TRICKY_SELECTOR);
+  expect(hit).toBeDefined();
+  expect(hit.selector).toBe(TRICKY_SELECTOR);
+  expect(hit.states).toEqual(["hover"]);
+  expect(result.unresolved).toHaveLength(0);
 });

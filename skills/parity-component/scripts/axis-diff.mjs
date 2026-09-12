@@ -310,19 +310,42 @@ export function diffAxes(manifest) {
 
 export function main(argv) {
   const args = argv.filter((a) => a !== "");
-  const outIndex = args.indexOf("--out");
-  const out = outIndex >= 0 ? args[outIndex + 1] : null;
-  // マニフェストは 1 つ。余った位置引数を黙って先勝ちで捨てると、渡したつもりの別ファイルが
-  // 読まれないまま exit 0 になる（どちらを読んだかが出力から分からない）。
-  const positionals = args.filter(
-    (a, i) => !a.startsWith("--") && (outIndex < 0 || i !== outIndex + 1),
-  );
+  // 受け付けるオプションは `--out <path>` だけ。`--` で始まるトークンを一括で読み飛ばすと、
+  // `--otu=result.json` のような綴り違いや `--out=path` の等号形が黙って捨てられ、
+  // 成果物を作らないまま標準出力へ書いて exit 0 になる（--out が軸成果物を生む前提の工程が、
+  // ファイルが無いことに気付かないまま次へ進む）。知らないオプションは受理しない。
+  const positionals = [];
+  let out = null;
+  let outSeen = false;
+  let badOption = null;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (!a.startsWith("-") || a === "-") {
+      positionals.push(a);
+      continue;
+    }
+    if (a === "--out") {
+      if (outSeen) badOption = badOption || "--out は 1 回だけ指定する";
+      outSeen = true;
+      const value = args[i + 1];
+      if (value === undefined || value.startsWith("-")) {
+        badOption = badOption || "--out には出力先パスを続ける";
+      } else {
+        out = value;
+        i++;
+      }
+      continue;
+    }
+    badOption = badOption || `未知のオプション: ${a}`;
+  }
   const input = positionals[0];
-  if (positionals.length !== 1 || (outIndex >= 0 && !out)) {
+  if (positionals.length !== 1 || badOption) {
     process.stderr.write("usage: node axis-diff.mjs <manifest.json> [--out <path>]\n");
+    if (badOption) process.stderr.write(`error: ${badOption}\n`);
     if (positionals.length > 1) {
       process.stderr.write(`error: マニフェストは 1 つだけ指定する: ${positionals.join(", ")}\n`);
     }
+    if (positionals.length === 0) process.stderr.write("error: マニフェストを指定する\n");
     return 2;
   }
 

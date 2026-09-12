@@ -53,7 +53,7 @@
       "fixture": "evals/fixtures/catalog-unset",
       "prompt": "parity-component build --component button",
       "assertions": [
-        "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url）が設定に無いことを検出している",
+        "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
         "実装・見本の作成へ進まず停止している",
         "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
         "カタログの宣言（契約ドキュメントのパスと新側 target の baseURL）を設定へ整備するよう促している",

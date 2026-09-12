@@ -8,7 +8,7 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -247,6 +247,44 @@ test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
   const r = spawnSync(process.execPath, [script, first, second], { encoding: "utf8" });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("マニフェストは 1 つだけ");
+});
+
+test("CLI: 知らないオプションを黙って捨てない", () => {
+  // `--` 始まりを一括で読み飛ばす実装では、綴り違いも等号形も静かに消える。
+  // --out が軸成果物を生む前提の工程が、ファイルが作られていないことに気付かないまま進む。
+  const manifest = {
+    component: "button",
+    instances: [
+      instance("a", [state("default", traits({ color: "x" }))]),
+      instance("b", [state("default", traits({ color: "y" }))]),
+    ],
+  };
+  for (const bad of [["--otu=out.json"], ["--out=out.json"], ["--verbose"]]) {
+    const r = runCli(manifest, bad);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("未知のオプション");
+    expect(r.stdout).toBe("");
+  }
+});
+
+test("CLI: --out は出力先パスを要求し、実際に書く", () => {
+  const manifest = {
+    component: "button",
+    instances: [
+      instance("a", [state("default", traits({ color: "x" }))]),
+      instance("b", [state("default", traits({ color: "y" }))]),
+    ],
+  };
+  const missing = runCli(manifest, ["--out"]);
+  expect(missing.status).toBe(2);
+  expect(missing.stderr).toContain("--out には出力先パス");
+
+  const dir = mkdtempSync(join(tmpdir(), "axis-diff-"));
+  const out = join(dir, "axes.json");
+  const ok = runCli(manifest, ["--out", out]);
+  expect(ok.status).toBe(0);
+  expect(ok.stdout).toBe("");
+  expect(JSON.parse(readFileSync(out, "utf8")).variable).toHaveLength(1);
 });
 
 test("CLI: 読めないマニフェストを成功に倒さない", () => {

@@ -52,7 +52,7 @@
   "gaps": "<.replace/components/<slug>/gaps.md の未検証件数。収束は止めないが、完了報告では収束と並べて示す>",
   "catalog": {
     "_note": "見本の対応表は target 別のこの証跡に置く（capture の metadata.json へ置くと、2 つ目の new target で走ったときに 1 つ目の対応表を上書きし、先の照合を後から追えなくなる）。",
-    "base_url": "<解決したカタログの baseURL。catalog_url をコマンドで解決する target では \"runtime\">",
+    "base_url": "<解決したカタログの baseURL。catalog_url_command で解決する target では \"runtime\">",
     "stories": [
       {
         "instance": "<インスタンス id（capture の metadata.json の instances[].id）>",

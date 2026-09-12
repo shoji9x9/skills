@@ -159,7 +159,7 @@ replace-strategy status
    **インスタンスが 1 件しか無い部品は先に作る対象にしない**（固定と可変を区別できないため。「先に作らない部品」表へ理由付きで置き、その機能の実装時に `parity-replace` が作る）。
    採取・実装・照合は `parity-component` が担うので、**ここでは対象と slug を確定するだけで、見た目の採取は行わない**。
    併せて**部品カタログの実体**（1 インスタンス × 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
-   カタログの baseURL を `side: new` の target の `catalog_url` に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
+   カタログの baseURL を `side: new` の target の `catalog_url`（固定文字列）または `catalog_url_command`（実行ごとに変わる環境。排他）に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
    **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る。従来のフローは変わらない）
 
 ## issues モード

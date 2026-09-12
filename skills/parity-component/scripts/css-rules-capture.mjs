@@ -7,6 +7,9 @@
 // 何を採るか: 論理名を付けた要素に当たりうる CSS 規則を、宣言（プロパティ・値・`!important`）・
 // 成立に必要な状態擬似クラス・擬似要素・条件（`@media` / `@supports` / `@container`）・
 // カスケードレイヤ・出所（スタイルシートの URL と規則の位置）付きで列挙する。
+// 併せて `style` 属性の宣言を `inline_declarations` として採る（どのスタイルシートにも現れず、
+// 規則走査だけでは 1 件も残らない。インスタンス固有の値がここで当たっている部品では、
+// 出所と `!important` の優先度が計算後スタイルから復元できない）。
 //
 // 何を採らないか: **どの宣言が勝つか（カスケードの解決結果）は採らない。** 勝者は計算後スタイルが
 // 持っており、それは `parity-suite` の trait-capture.mjs が採る。本ツールが埋めるのはその裏側——
@@ -40,10 +43,12 @@
 
 /**
  * ツールのバージョン（正本）。採取スキーマ（出力の形・状態擬似クラスの集合）を変えたら上げる。
+ * 2: `inline_declarations`（style 属性の宣言）を追加。1 で採った css-rules.json は
+ *    インライン指定が「無い」のか「採っていない」のか区別できないので、再採取する。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * 構造・関係を表す擬似クラスで、状態ではないもの（セレクタに残したまま matches() へ渡してよい）。
@@ -205,6 +210,39 @@ export function collectMatchedRules(el, options) {
       .join(", ");
   }
 
+  // `selector[open]` の `(` に対応する `)` の次の位置を返す。引用符・エスケープ・角括弧を
+  // 見ない素朴な括弧勘定だと、文字列や属性セレクタに入った括弧で釣り合いが崩れる——
+  // `.button:has([data-label="("]):hover` は `:hover` まで引数として食い、状態が剥がれないまま
+  // matches() へ渡って（hover していない要素では）規則が黙って落ちる。scanPseudos の
+  // トップレベル走査と同じ規則で数える。閉じないまま終端に達したら末尾を返す（呼び出し側の
+  // slice が壊れた引数を返し、未知の擬似クラス扱いで unresolved に落ちる）。
+  function skipBalanced(selector, open) {
+    let depth = 0;
+    let quote = null;
+    for (let i = open; i < selector.length; i++) {
+      const c = selector[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) quote = null;
+        continue;
+      }
+      if (c === "\\") {
+        i++;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        quote = c;
+        continue;
+      }
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") {
+        depth--;
+        if (depth === 0) return i + 1;
+      }
+    }
+    return selector.length;
+  }
+
   // トップレベル（括弧の外）の擬似クラス・擬似要素を切り出す。
   function scanPseudos(selector) {
     const found = [];
@@ -234,13 +272,8 @@ export function collectMatchedRules(el, options) {
         while (j < selector.length && /[-\w]/.test(selector[j])) name += selector[j++];
         let args = null;
         if (selector[j] === "(") {
-          let d = 1;
-          const argStart = ++j;
-          while (j < selector.length && d > 0) {
-            if (selector[j] === "(") d++;
-            else if (selector[j] === ")") d--;
-            j++;
-          }
+          const argStart = j + 1;
+          j = skipBalanced(selector, j);
           args = selector.slice(argStart, j - 1);
         }
         found.push({ start: i, end: j, name, doubled, args });
@@ -490,11 +523,19 @@ export function collectMatchedRules(el, options) {
     for (const sheet of Array.from(node.adoptedStyleSheets || [])) walkSheet(sheet, null);
   }
 
+  // style 属性の宣言はどのスタイルシートにも現れないので、上の走査では 1 件も採れない。
+  // 計算後スタイルは結果の値しか持たないため、ここを採らないと「その値がインスタンス固有の
+  // インライン指定で来ている」ことも `!important` の優先度も実装時に復元できない
+  // （インスタンス固有の幅を style で当てている現行部品が典型）。
+  // 規則ではないので matched へ混ぜず、別の出所として並べる。
+  const inlineDeclarations = el.style ? readDeclarations(el.style) : [];
+
   return {
     matched,
     unresolved,
     inaccessible,
-    counts: { ...counts, matched: matched.length },
+    inline_declarations: inlineDeclarations,
+    counts: { ...counts, matched: matched.length, inline_declarations: inlineDeclarations.length },
     shadow_root: root !== el.ownerDocument,
   };
 }

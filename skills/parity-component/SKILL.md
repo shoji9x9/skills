@@ -90,7 +90,7 @@ parity-component build   [--component <slug>] [--target <name>]
 | キー | 用途 |
 |---|---|
 | `targets` | 実行対象環境。`capture` は `side: current`、`build` は `side: new` から `--target` で選ぶ。`pre_commands` / `start` / `check_urls` があれば起動・稼働確認に使う |
-| `targets[].catalog_url` | **新側 target の部品カタログの baseURL**（`build` で必須）。`url_command` と同じくコマンドで解決する形も取れる。未宣言なら推測せず停止してユーザーに確認する（契約は [`references/catalog.md`](references/catalog.md)） |
+| `targets[].catalog_url` / `targets[].catalog_url_command` | **新側 target の部品カタログの baseURL**（`build` でどちらか 1 つが必須）。固定文字列は `catalog_url`、実行ごとに変わる環境は `catalog_url_command`（`url` / `url_command` と同じ排他・解決規則）。両方あるのも、どちらも無いのも推測せず停止してユーザーに確認する（契約は [`references/catalog.md`](references/catalog.md)） |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 現行 target のロール別認証情報（環境変数の**名前**）と、実施しない操作。**`capture` も `forbidden_actions` を引く**——`checked` / `selected` / `error` の状態はクリック・送信でしか作れず、採取自体は読み取りでも**状態を作る操作は書き込みになりうる**。禁止された操作で作る状態は遷移させず `gaps.md` へ残す |
 | `references.component_catalog` | **カタログの契約ドキュメントのパス**。実体（Storybook 等）・見本の書き方・データの注入経路・URL の決まり方を書く。**未整備なら `build` に入らず停止し、整備を促す**（カタログの実体をスキルが勝手に決めない） |
 | `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピング。**未整備なら `build` の手順 5（テーマ寄せ）に入らず停止する**（源流で系統差を縮められず、宣言と未検証が膨らむ）。**ゲートの位置は手順 5 の直前**であり手順 1 ではない——手順 1〜4（前提検証・引数設計・部品の採否・実装）はこのファイルを読まないので、そこで止めると必要のない停止になる。正本の手順は `parity-replace` の `references/theming.md` |
@@ -130,7 +130,9 @@ parity-component build   [--component <slug>] [--target <name>]
 ## 実行フロー（build）
 
 1. **前提検証と着手**: `capture` 完了と `references.architecture` / `references.component_catalog` / `verification_commands.full` を実測し、欠ければ停止する。
-   対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る（`--commit` / `--pr` は付けない。以降は本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す
+   対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る（`--commit` / `--pr` は付けない）。未起票なら停止して `replace-strategy issues` を促す。
+   **使うのはブランチ作成・checkout までで、その後の調査・実装は `issue-start` に委ねず本スキルの実行フローとして進める**——
+   モード未指定の `issue-start` はそのまま実装へ進む契約なので、委ねると同じ Issue に対して実装が二重に走る
 2. **引数の設計**: `component-api.md` の可変軸を**引数（props）へ、固定軸を実装の定数へ**割り付ける。状態を表す引数（`disabled` 等）も可変軸として扱う。
    **軸を引数にしない判断をしたら理由を書く**（インスタンス差が現行の不整合で、揃えることをユーザーが決めた場合など。その場合は `intentional_diffs.pending` へ回す）。詳細: [`references/component-api.md`](references/component-api.md)
 3. **部品の採否と依存の決定**: このフェーズで要る部品を**自前で書くか／どのパッケージを使うか**を実装に入る前に決め、`.replace/dependencies.md` へ**非破壊追記**する。
@@ -144,7 +146,7 @@ parity-component build   [--component <slug>] [--target <name>]
 7. **カタログ採取と照合**: カタログを現行と同一条件で採り、`parity-suite` 同梱の差分器（画素・特性照合）で基準と突き合わせる。
    差分は決定論的ツールが出し、LLM は 1 件ずつ分類（要対応／許容／環境ノイズ）する。要対応は手順 4 へ戻す。詳細: [`references/compare.md`](references/compare.md)
 8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **比較の母集合（上記「前提」）の全組み合わせに対応する見本があり、全件を照合した**こと。
-   実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う
+   実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う（`issue-start` の実装ステップへ再入しない）
 
 ## 成果物
 

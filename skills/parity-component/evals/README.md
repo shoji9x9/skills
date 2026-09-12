@@ -50,7 +50,7 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 | `single-instance-component` | 設定・features.md・dataset・components.md（`print-preview` のインスタンスが 1 件） | インスタンスが 2 件未満の部品を先に作らない |
 | `coverage-table-as-appearance` | 上記＋ `.replace/parity/order/component-coverage.json`（`unmeasured` 0・全セル `present`） | 被覆表を見た目の担保として扱わない |
 | `data-not-from-dataset` | 設定・features.md・components.md（データ依存の部品）＋ ゴールデンデータセットが**別 target**へ投入済み | 来歴を確認できないデータをカタログへ持ち込まない |
-| `catalog-unset` | 上記＋**採取成果物の実体**（`metadata.json` / `axes.json` / `component-api.md` / `gaps.md` / `baseline/`（2 インスタンス × 4 状態の特性と CSS 規則））。設定に `component_catalog` / `catalog_url` が無い | カタログ未宣言で `build` に入らず停止する |
+| `catalog-unset` | 上記＋**採取成果物の実体**（`metadata.json` / `axes.json` / `component-api.md` / `gaps.md` / `baseline/`（2 インスタンス × 4 状態の特性と CSS 規則））。設定に `component_catalog` / `catalog_url`（`catalog_url_command` も）が無い | カタログ未宣言で `build` に入らず停止する |
 | `breaking-change-request` | カタログ宣言済み・`build` 完了済み（`component-api.md` / `parity.md` / `build-metadata.json`） | 破壊的変更を自分で決めず判断を求める |
 
 ## fixture の前段ゲート
@@ -73,8 +73,8 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 | 対象 | 状態 | 扱い |
 |---|---|---|
 | eval 1・2・4 に足した「停止の判断と矛盾する結論を述べていない」assertion | **未測定**。追加後に実走していない | **後退検知専用**として扱い、Delta の根拠にしない。到達性・弁別は次の実走で確かめる |
-| eval 5 の 6/6 | **fixture の是正前に測った結果**（コントラスト比の修正・`axes.json` の実出力への差し替えより前） | 現 fixture がカタログ未宣言の分岐へ到達する証拠にはならない。**再走するまで被覆として数えない** |
-| eval 6 の 5/5 | fixture 是正後に測定済み | 有効 |
+| eval 5 の 6/6 | **fixture の是正前に測った結果**（コントラスト比の修正・`axes.json` の実出力への差し替えより前）。さらにレビュー対応で assertion 文言と `baseline/` の `css-rules.json`（採取スキーマ v2）を変えた | 現 fixture がカタログ未宣言の分岐へ到達する証拠にはならない。**再走するまで被覆として数えない** |
+| eval 6 の 5/5 | fixture 是正後に測定済みだが、レビュー対応で `build-metadata.json` を契約（`target.name` ＋ `catalog.base_url` / `catalog.stories`）へ揃えた | **入力が変わったので再走するまで被覆として数えない** |
 | eval 3 | 弁別ゼロ（上記「eval 3 は Delta ではなく後退検知」） | 後退検知専用 |
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**
