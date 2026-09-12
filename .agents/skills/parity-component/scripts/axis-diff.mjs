@@ -123,7 +123,13 @@ export function diffAxes(manifest) {
   const declaredUnreachable = instances.map((instance) => {
     const declared = instance && instance.unreachable_states;
     if (!Array.isArray(declared)) return new Set();
-    return new Set(declared.filter((d) => typeof d === "string" && d !== ""));
+    // 成果物の契約（metadata.json / references/instances.md）は `{ state, reason }` のオブジェクト形。
+    // 文字列だけを拾うと、契約どおりに宣言された除外が無視されて「未採取の状態」に化け、
+    // 正当な採取が build へ進めなくなる（この除外の仕組みが塞ごうとしているデッドロックそのもの）。
+    const names = declared
+      .map((d) => (typeof d === "string" ? d : d && typeof d.state === "string" ? d.state : ""))
+      .filter((d) => d !== "");
+    return new Set(names);
   });
   const notCompared = [];
   instances.forEach((instance, i) => {

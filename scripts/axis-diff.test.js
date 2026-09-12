@@ -419,3 +419,25 @@ test("宣言の無い欠落は従来どおり問題にする", () => {
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("未採取の状態 hover");
 });
+
+test("契約どおりのオブジェクト形で宣言された到達不能状態を受ける", () => {
+  // 成果物の契約（metadata.json / references/instances.md）は { state, reason } のオブジェクト形。
+  // 文字列だけを拾うと、正しく宣言された除外が「未採取の状態」に化けて build を塞ぐ。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [state("default", traits({ color: "x" })), state("hover", traits({ color: "h" }))],
+      },
+      {
+        id: "b",
+        unreachable_states: [{ state: "hover", reason: "この画面では常に活性" }],
+        states: [state("default", traits({ color: "y" }))],
+      },
+    ],
+  });
+  expect(result.ok).toBe(true);
+  expect(result.problems).toHaveLength(0);
+  expect(result.not_compared).toEqual([{ instance: "b", state: "hover" }]);
+});
