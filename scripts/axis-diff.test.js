@@ -287,3 +287,45 @@ test("有効な状態がある場合でも、混ざった不正な採取を見�
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("状態名が不正な採取が 1 件");
 });
+
+test("空の traits から 0 軸しか取れない採取を fail-closed にする", () => {
+  // traits: {} を 2 件渡すと軸が 1 つも立たず、表が空のまま problems も空になり
+  // 「比較対象が無いのに ok: true」を返していた（build は axes.ok だけを前提に進む）。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: "default", traits: {} }] },
+      { id: "b", states: [{ state: "default", traits: {} }] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("軸が 1 つも取れない");
+  expect(result.fixed).toHaveLength(0);
+  expect(result.variable).toHaveLength(0);
+});
+
+test("合格は問題の不在ではなく測れた件数で決める", () => {
+  // 退化した入力を 1 件ずつ塞ぐのではなく、突き合わせられた軸が 0 件なら合格にしない。
+  const ok = diffAxes({
+    component: "button",
+    instances: [
+      instance("a", [state("default", traits({ color: "x" }))]),
+      instance("b", [state("default", traits({ color: "y" }))]),
+    ],
+  });
+  expect(ok.ok).toBe(true);
+  expect(ok.measured).toBe(ok.fixed.length + ok.variable.length);
+  expect(ok.measured).toBeGreaterThan(0);
+
+  // rect も computed も空で、擬似要素キーも無い＝軸が 1 つも立たない
+  const none = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: "default", traits: { computed: {}, rect: {} } }] },
+      { id: "b", states: [{ state: "default", traits: { computed: {}, rect: {} } }] },
+    ],
+  });
+  expect(none.ok).toBe(false);
+  expect(none.measured).toBe(0);
+  expect(none.problems.join("\n")).toContain("突き合わせられた軸が 0 件");
+});

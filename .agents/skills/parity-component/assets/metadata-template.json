@@ -81,7 +81,8 @@
     "path": "<axis-diff.mjs の出力パス（例: .replace/components/<slug>/axes.json）>",
     "ok": "<axis-diff.mjs が exit 0 で通ったか。false のまま build へ進まない。真偽値で書く>",
     "variable": "<可変と割り出された軸の件数（概観用。判断の記録は component-api.md）>",
-    "fixed": "<固定と割り出された軸の件数（概観用）>"
+    "fixed": "<固定と割り出された軸の件数（概観用）>",
+    "measured": "<突き合わせられた軸の件数（fixed + variable）。0 件なら axis-diff.mjs は合格にしない——合否は問題の不在ではなく測れた件数で決まる>"
   },
   "capture_gaps": {
     "inaccessible_sheets": "<css-rules-capture.mjs が読めなかったスタイルシートの件数。非ゼロなら gaps.md に必須記録。0 件を『関係する規則が無い』と読まない>",

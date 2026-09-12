@@ -140,7 +140,17 @@ export function diffAxes(manifest) {
         problems.push(`${ids[i] || `#${i}`} / ${entry.state}: traits が無い`);
         continue;
       }
-      for (const [axis, value] of Object.entries(flattenTraits(entry.traits))) {
+      const flat = Object.entries(flattenTraits(entry.traits));
+      // 空の traits（`{}`・computed も rect も空）は 0 軸を返す。そのまま進めると表が空のまま
+      // problems も空になり、比較対象が 1 つも無いのに ok: true を返す（`build` は axes.ok だけを
+      // 前提に進むので、突き合わせていないベースラインが有効化される）。
+      if (flat.length === 0) {
+        problems.push(
+          `${ids[i] || `#${i}`} / ${entry.state}: traits から軸が 1 つも取れない（空の採取）`,
+        );
+        continue;
+      }
+      for (const [axis, value] of flat) {
         const key = `${entry.state}${SEPARATOR}${axis}`;
         if (!table.has(key)) table.set(key, new Map());
         table.get(key).set(ids[i] || `#${i}`, value);
@@ -161,6 +171,7 @@ export function diffAxes(manifest) {
       states,
       fixed,
       variable,
+      measured: 0,
       problems,
       ok: false,
     };
@@ -186,6 +197,15 @@ export function diffAxes(manifest) {
     }
   }
 
+  // 合格は「問題が無いこと」ではなく「測れたことの積極的な証拠」で定義する。
+  // problems の不在だけを見ると、退化した入力（インスタンス 1 件・状態名が全部不正・空の traits）が
+  // 「表が空 → 突き合わせる相手が無い → problems も空 → ok: true」で通る。実際このクラスの
+  // fail-open が 1 つのツールから 3 回出ている。個別の分岐を足し続けるのではなく式で閉じる。
+  const measured = fixed.length + variable.length;
+  if (measured === 0) {
+    problems.push("突き合わせられた軸が 0 件——測れたことの証拠が無いので合格にしない");
+  }
+
   return {
     component: (manifest && manifest.component) || null,
     tool_version: VERSION,
@@ -193,8 +213,9 @@ export function diffAxes(manifest) {
     states,
     fixed,
     variable,
+    measured,
     problems,
-    ok: problems.length === 0,
+    ok: problems.length === 0 && measured > 0,
   };
 }
 

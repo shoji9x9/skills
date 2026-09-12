@@ -51,7 +51,8 @@
     "path": ".replace/components/button/axes.json",
     "ok": true,
     "variable": 10,
-    "fixed": 62
+    "fixed": 62,
+    "measured": 72
   },
   "capture_gaps": {
     "inaccessible_sheets": 0,

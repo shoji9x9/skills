@@ -122,7 +122,7 @@ parity-component build   [--component <slug>] [--target <name>]
 7. **カタログ採取と照合**: カタログを現行と同一条件で採り、`parity-suite` 同梱の差分器（画素・特性照合）で基準と突き合わせる。
    差分は決定論的ツールが出し、LLM は 1 件ずつ分類（要対応／許容／環境ノイズ）する。要対応は手順 4 へ戻す。詳細: [`references/compare.md`](references/compare.md)
 8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **採取した全インスタンス × 全状態に対応する見本がある**こと。
-   実行した検証コマンドと結果、反復回数を `.replace/components/<slug>/build-metadata.json` へ記録する。commit / push / PR は `issue-start` が解決した規約に従う
+   実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う
 
 ## 成果物
 
