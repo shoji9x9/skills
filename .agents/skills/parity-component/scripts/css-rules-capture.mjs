@@ -46,6 +46,40 @@
 export const VERSION = "1";
 
 /**
+ * 構造・関係を表す擬似クラスで、状態ではないもの（セレクタに残したまま matches() へ渡してよい）。
+ * この集合にも STATE_PSEUDO_CLASSES にも無い擬似クラスは**未知**として unresolved に落とす——
+ * `:popover-open` / `:user-valid` / `:fullscreen` のような動的状態を知らないまま残すと、
+ * その状態でない要素に対して matches() が false を返し、当たるはずの規則が記録も警告も無く消える。
+ * 集合を増やすときは「その状態でなくても当たるか（構造）」「状態のときだけ当たるか（状態）」で分ける。
+ * @type {readonly string[]}
+ */
+export const STRUCTURAL_PSEUDO_CLASSES = [
+  "any-link",
+  "dir",
+  "empty",
+  "first-child",
+  "first-of-type",
+  "has",
+  "host",
+  "host-context",
+  "is",
+  "lang",
+  "last-child",
+  "last-of-type",
+  "matches",
+  "not",
+  "nth-child",
+  "nth-last-child",
+  "nth-last-of-type",
+  "nth-of-type",
+  "only-child",
+  "only-of-type",
+  "root",
+  "scope",
+  "where",
+];
+
+/**
  * 状態を表す擬似クラスの集合（正本）。
  * これらは「その状態のときだけ当たる」ことを意味するので、セレクタから剥がして
  * 残りで要素に当たるかを判定し、剥がした名前を `states` として記録する。
@@ -85,6 +119,7 @@ export const STATE_PSEUDO_CLASSES = [
  */
 export function collectMatchedRules(el, options) {
   const stateNames = new Set(options.statePseudoClasses);
+  const structuralNames = new Set(options.structuralPseudoClasses || []);
 
   // セレクタリストをトップレベルのカンマで割る（括弧・文字列の中のカンマは区切りにしない）。
   function splitSelectorList(text) {
@@ -249,7 +284,14 @@ export function collectMatchedRules(el, options) {
         if (!inner.doubled && stateNames.has(inner.name)) stateInsideFunctional = true;
       }
     }
-    return { base, states, pseudoElement, stateInsideFunctional };
+    // 剥がしも許容もできない擬似クラスが残っていたら、当たる／当たらないを決めずに残す。
+    const unknownPseudos = [];
+    for (const p of scanPseudos(base)) {
+      if (p.doubled) continue;
+      if (stateNames.has(p.name) || structuralNames.has(p.name)) continue;
+      unknownPseudos.push(p.name);
+    }
+    return { base, states, pseudoElement, stateInsideFunctional, unknownPseudos };
   }
 
   function readDeclarations(style) {
@@ -298,6 +340,15 @@ export function collectMatchedRules(el, options) {
         });
         continue;
       }
+      if (analyzed.unknownPseudos.length > 0) {
+        unresolved.push({
+          selector: part,
+          original_selector: originalSelector,
+          href: ctx.href,
+          reason: `unknown-pseudo-class:${analyzed.unknownPseudos.join(",")}`,
+        });
+        continue;
+      }
       let hit;
       try {
         hit = el.matches(analyzed.base);
@@ -335,12 +386,19 @@ export function collectMatchedRules(el, options) {
       if (rule.styleSheet) {
         counts.import_rules++;
         const mediaText = rule.media && rule.media.mediaText ? rule.media.mediaText : "";
+        // `@import url(x) supports(display: grid) screen;` の supports 条件は supportsText にしか無い。
+        // 引き継がないと、読み込んだ規則が「無条件」として記録され、なぜ効いているかを説明できなくなる。
+        const supportsText = typeof rule.supportsText === "string" ? rule.supportsText : "";
         walkSheet(rule.styleSheet, {
           ...ctx,
           // layerName は無名レイヤで ""、レイヤ無しで null。文字列である限り記録する。
           layers:
             typeof rule.layerName === "string" ? ctx.layers.concat(rule.layerName) : ctx.layers,
-          conditions: mediaText ? ctx.conditions.concat(mediaText) : ctx.conditions,
+          conditions: [
+            ...ctx.conditions,
+            ...(supportsText ? [`supports(${supportsText})`] : []),
+            ...(mediaText ? [mediaText] : []),
+          ],
         });
         continue;
       }
@@ -451,6 +509,7 @@ export function collectMatchedRules(el, options) {
 export async function captureMatchedRules(entries, options = {}) {
   const resolved = {
     statePseudoClasses: options.statePseudoClasses || STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: options.structuralPseudoClasses || STRUCTURAL_PSEUDO_CLASSES,
   };
   const results = [];
   for (const entry of entries) {

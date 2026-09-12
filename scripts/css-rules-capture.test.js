@@ -17,9 +17,13 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/css-rules-capture.mjs");
-const { VERSION, STATE_PSEUDO_CLASSES, collectMatchedRules, captureMatchedRules } = await import(
-  script
-);
+const {
+  VERSION,
+  STATE_PSEUDO_CLASSES,
+  STRUCTURAL_PSEUDO_CLASSES,
+  collectMatchedRules,
+  captureMatchedRules,
+} = await import(script);
 
 // CSSStyleDeclaration の最小実装（添字アクセス・length・getPropertyValue/Priority）。
 function decl(properties, important = []) {
@@ -116,6 +120,7 @@ function fakeElement(sheets, { selectors = ELEMENT_SELECTORS, adopted = [] } = {
 const capture = (overrides) =>
   collectMatchedRules(fakeElement(buildSheets(), overrides), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
 
 const findMatch = (result, predicate) => result.matched.find(predicate);
@@ -229,6 +234,7 @@ test(":is() の中の状態は判定せず unresolved に回す", () => {
   ];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   expect(result.matched).toHaveLength(0);
   expect(result.unresolved).toEqual([
@@ -242,14 +248,17 @@ test(":is() の中の状態は判定せず unresolved に回す", () => {
 });
 
 test("matches() が throw するセレクタを unresolved に残す", () => {
-  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(":bogus-pseudo", { color: "red" })] }];
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".plain-rule", { color: "red" })] }];
   const el = fakeElement(sheets);
   el.matches = () => {
     const e = new Error("bad selector");
     e.name = "SyntaxError";
     throw e;
   };
-  const result = collectMatchedRules(el, { statePseudoClasses: STATE_PSEUDO_CLASSES });
+  const result = collectMatchedRules(el, {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
   expect(result.unresolved).toHaveLength(1);
   expect(result.unresolved[0].reason).toBe("matches-threw:SyntaxError");
 });
@@ -258,6 +267,7 @@ test("状態だけのセレクタは全称に倒して判定する", () => {
   const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(":hover", { cursor: "pointer" })] }];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   expect(result.matched).toHaveLength(1);
   expect(result.matched[0].states).toEqual(["hover"]);
@@ -269,6 +279,7 @@ test("同じスタイルシートを 2 度辿らない（@import の循環で止
   a.cssRules = [importRule(b), styleRule(".plain-rule", { padding: "1px" })];
   const result = collectMatchedRules(fakeElement([a]), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   expect(result.counts.sheets).toBe(2);
   expect(findMatch(result, (m) => m.selector === ".plain-rule")).toBeDefined();
@@ -278,6 +289,7 @@ test("adoptedStyleSheets も走査する", () => {
   const adopted = [{ href: null, cssRules: [styleRule(".plain-rule", { padding: "2px" })] }];
   const result = collectMatchedRules(fakeElement([], { adopted }), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   expect(findMatch(result, (m) => m.selector === ".plain-rule")).toBeDefined();
 });
@@ -301,6 +313,7 @@ test("入れ子の途中に現れた裸の宣言（CSSNestedDeclarations）を�
   ];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   const hit = findMatch(result, (m) =>
     m.declarations.some((d) => d.property === "background" && d.value === "rgb(7, 7, 7)"),
@@ -325,6 +338,7 @@ test("@import の layer() とメディア条件を読み込んだ規則へ引き
   ];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   const hit = findMatch(result, (m) => m.selector === ".plain-rule");
   expect(hit).toBeDefined();
@@ -356,7 +370,10 @@ test("属性セレクタの中の & を入れ子セレクタとして置換し�
   const el = fakeElement(sheets, {
     selectors: new Set([".card", ':is(.card) [data-label="A&B"]']),
   });
-  const result = collectMatchedRules(el, { statePseudoClasses: STATE_PSEUDO_CLASSES });
+  const result = collectMatchedRules(el, {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
   const hit = result.matched.find((m) => m.original_selector === '& [data-label="A&B"]');
   expect(hit).toBeDefined();
   expect(hit.selector).toBe(':is(.card) [data-label="A&B"]');
@@ -373,6 +390,7 @@ test("@scope の中の規則はスコープを評価せず unresolved に残す"
   const sheets = [{ href: MAIN_HREF, cssRules: [scopeRule] }];
   const result = collectMatchedRules(fakeElement(sheets), {
     statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
   });
   expect(result.matched).toHaveLength(0);
   expect(result.unresolved).toHaveLength(1);
@@ -384,7 +402,44 @@ test("エスケープされた区切り文字でセレクタを分割しない",
   // 断片が無効セレクタになり、当たるはずの規則が静かに落ちる。
   const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".foo\\,bar", { color: "red" })] }];
   const el = fakeElement(sheets, { selectors: new Set([".foo\\,bar"]) });
-  const result = collectMatchedRules(el, { statePseudoClasses: STATE_PSEUDO_CLASSES });
+  const result = collectMatchedRules(el, {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
   expect(result.matched).toHaveLength(1);
   expect(result.matched[0].selector).toBe(".foo\\,bar");
+});
+
+test("知らない動的擬似クラスを黙って落とさず unresolved に残す", () => {
+  // `:popover-open` / `:user-valid` / `:fullscreen` を知らないまま base に残すと、
+  // その状態でない要素に matches() が false を返し、当たるはずの規則が記録も警告も無く消える。
+  const sheets = [
+    { href: MAIN_HREF, cssRules: [styleRule(".plain-rule:popover-open", { color: "red" })] },
+  ];
+  const result = collectMatchedRules(fakeElement(sheets), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("unknown-pseudo-class:popover-open");
+});
+
+test("@import の supports() 条件を引き継ぐ", () => {
+  const imported = {
+    href: IMPORTED_HREF,
+    cssRules: [styleRule(".plain-rule", { padding: "4px" })],
+  };
+  const main = {
+    href: MAIN_HREF,
+    cssRules: [
+      { styleSheet: imported, supportsText: "display: grid", media: { mediaText: "screen" } },
+    ],
+  };
+  const result = collectMatchedRules(fakeElement([main]), {
+    statePseudoClasses: STATE_PSEUDO_CLASSES,
+    structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+  });
+  expect(result.matched).toHaveLength(1);
+  expect(result.matched[0].conditions).toEqual(["supports(display: grid)", "screen"]);
 });

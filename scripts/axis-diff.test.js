@@ -487,3 +487,31 @@ test("採取済みの状態を到達不能と宣言している矛盾を落と�
     "採取済みの状態を unreachable_states に宣言している",
   );
 });
+
+test("rect の値が数値でない採取を弾く", () => {
+  // trait-capture.mjs は width / height を常に数値で返す。キーの有無だけを見ると
+  // { width: null } が通り、軸を作って ok: true に化ける。
+  for (const rect of [{ width: null, height: 1 }, { width: 1 }, { width: "1", height: "1" }]) {
+    const result = diffAxes({
+      component: "button",
+      instances: [
+        { id: "a", states: [{ state: "default", traits: { computed: { color: "x" }, rect } }] },
+        { id: "b", states: [{ state: "default", traits: { computed: { color: "y" }, rect } }] },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain("rect が無い");
+  }
+});
+
+test("空白だけの状態名を弾く", () => {
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      { id: "a", states: [{ state: "  ", traits: traits({ color: "x" }) }] },
+      { id: "b", states: [{ state: " default", traits: traits({ color: "y" }) }] },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("状態名が不正な採取");
+});

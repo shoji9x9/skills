@@ -103,8 +103,16 @@ export function diffAxes(manifest) {
     const names = [];
     let invalid = 0;
     for (const entry of entries) {
-      if (entry && typeof entry.state === "string" && entry.state !== "") names.push(entry.state);
-      else invalid++;
+      // 空白だけの名前も不正として弾く。`" "` は `!== ""` を通り、状態の和集合に入って
+      // 軸を作り ok: true に化ける（前後の空白も揺れの元なので同一視しない）。
+      if (
+        entry &&
+        typeof entry.state === "string" &&
+        entry.state.trim() === entry.state &&
+        entry.state !== ""
+      ) {
+        names.push(entry.state);
+      } else invalid++;
     }
     if (invalid > 0) {
       problems.push(
@@ -199,8 +207,11 @@ export function diffAxes(manifest) {
       if (!isRecord(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
       }
+      // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
+      // `{ width: null }` のような壊れた採取が通り、軸を作って ok: true に化ける。
       const rect = entry.traits.rect;
-      if (!isRecord(rect) || !("width" in rect || "height" in rect)) {
+      const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v);
+      if (!isRecord(rect) || !isFiniteNumber(rect.width) || !isFiniteNumber(rect.height)) {
         missing.push("rect");
       }
       if (missing.length > 0) {

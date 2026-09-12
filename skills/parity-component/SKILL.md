@@ -117,7 +117,9 @@ parity-component build   [--component <slug>] [--target <name>]
    **インスタンスが 2 件未満、またはページ・論理名が空の行は採取へ進まない**（固定と可変を区別できないため）。不足は `replace-strategy` 側で埋めるようユーザーに促す。詳細: [`references/instances.md`](references/instances.md)
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（全部撮ってから保存できないと分かるのを避ける）
 4. **状態の列挙**: 採る状態を部品の規範的な資料と現行 UI から列挙する。**資料は生成源であって正解ではない**（導出源の正本は `parity-suite` の `references/coverage.md`「状態網羅の導出源」）。
-   列挙した状態は**全インスタンスで同じ集合**にする——片方で採らなかった状態は「差が無い」ではなく「測っていない」になる
+   **列挙する候補の状態集合は全インスタンスで共通**にする——片方で採らなかった状態は「差が無い」ではなく「測っていない」になる。
+   **例外は到達できない状態だけ**。そのインスタンスで作れない状態は、禁止された遷移を試さず `unreachable_states` に理由付きで宣言し、
+   比較の母集合と軸の割り出しの両方から外す（[`references/instances.md`](references/instances.md)）
 5. **採取**: インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
    撮影条件は `parity-suite` の `references/baseline.md` に従い、**同一条件で 2 回撮ってノイズ基準値を出す**（2 回目の採取物は基準値を記録したら削除する）。詳細: [`references/capture.md`](references/capture.md)
 6. **固定軸・可変軸の割り出し**: 採取物から `node <skill>/scripts/axis-diff.mjs <manifest> --out <path>` を **exit 0 まで通す**（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
