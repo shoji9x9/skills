@@ -22,7 +22,9 @@
 ## 見本の粒度は採取の粒度に合わせる
 
 **見本は「インスタンス × 状態」ごとに置く。** 採取したのにその組み合わせの見本が無いと、その組み合わせは照合されない——
-`build` の完了判定が「採取した全インスタンス × 全状態に対応する見本がある」を要求するのはこのためである。
+`build` の完了判定が「**比較の母集合**の全組み合わせに対応する見本がある」を要求するのはこのためである
+（母集合の定義は `parity-component` の `SKILL.md`「前提」——`instances[]` × `capture.states` から
+宣言済みの `unreachable_states` を除いたもの。**そのインスタンスで作れない状態の見本は作らない**）。
 
 - 見本の識別子は**採取物のパスと機械的に対応づける**（`baseline/<instance>/<state>/` ↔ 見本 ID）。対応表は **target 別の `new/<target>/build-metadata.json` の `catalog.stories`** に書く
   （`build` は `side: new` の target ごとに走るので、slug 直下の採取 `metadata.json` へ置くと

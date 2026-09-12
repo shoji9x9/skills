@@ -358,3 +358,22 @@ test("computed はあるが rect が無い採取も弾く", () => {
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toContain("rect が無い");
 });
+
+test("配列の traits を「レコード形」として通さない", () => {
+  // typeof [] === "object" なので、配列は型検査を素通りし numeric key が軸になる。
+  const result = diffAxes({
+    component: "button",
+    instances: [
+      {
+        id: "a",
+        states: [{ state: "default", traits: { computed: ["x"], rect: { width: 1, height: 1 } } }],
+      },
+      {
+        id: "b",
+        states: [{ state: "default", traits: { computed: ["y"], rect: { width: 1, height: 1 } } }],
+      },
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("computed が無い");
+});

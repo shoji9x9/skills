@@ -46,9 +46,14 @@ parity-component build   [--component <slug>] [--target <name>]
     `capture.complete` だけでは足りない——全インスタンス × 全状態を採っていても、id の重複・未採取の状態・
     片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。
     その `component-api.md` は実装の根拠にならないので、採取へ戻る。
-    **`metadata.json` の宣言だけで通さない**——`instances[]` × `capture.states` の全組み合わせについて
+    **`metadata.json` の宣言だけで通さない**——**比較の母集合**（下記）の全組み合わせについて
     `baseline/<instance>/<state>/` の実体（特性と CSS 規則）と `axes.json` / `component-api.md` の実在を確かめる。
     宣言は古い実行の残りでもありうるので、実体が無ければ比較対象が空のまま `build` に入る
+- **比較の母集合**（採取・前提判定・見本・照合・完了判定がすべてこの 1 つの定義を使う）:
+  **`instances[]` × `capture.states` から、そのインスタンスの `unreachable_states` に宣言された状態を除いた組み合わせ**。
+  除外は**宣言が根拠**であり、`metadata.json` の `instances[].unreachable_states` に状態名と理由があり、
+  同じ内容が `gaps.md` にも残っていることを確かめる（[`references/instances.md`](references/instances.md)）。
+  **宣言の無い欠落は除外にしない**——採り忘れと区別できないので、母集合に含めたまま実体が無いものとして扱い、採取へ戻る
 
 ## 厳守の制約（禁止事項）
 
@@ -123,7 +128,7 @@ parity-component build   [--component <slug>] [--target <name>]
    手順の正本は `parity-replace` の `references/adversarial-review.md`。**サブエージェントを起動できないことを省略の理由にしない**（差分だけを人間のレビュアーへ渡す代替を取る）
 7. **カタログ採取と照合**: カタログを現行と同一条件で採り、`parity-suite` 同梱の差分器（画素・特性照合）で基準と突き合わせる。
    差分は決定論的ツールが出し、LLM は 1 件ずつ分類（要対応／許容／環境ノイズ）する。要対応は手順 4 へ戻す。詳細: [`references/compare.md`](references/compare.md)
-8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **採取した全インスタンス × 全状態に対応する見本がある**こと。
+8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **比較の母集合（上記「前提」）の全組み合わせに対応する見本があり、全件を照合した**こと。
    実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う
 
 ## 成果物

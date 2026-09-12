@@ -145,12 +145,15 @@ export function diffAxes(manifest) {
       // 有無だけが立つ採取が measured 2 を作って通る（本体のスタイルも幾何も測っていない）。
       // 数えた軸の**中身を問わない**条件は、退化形が新しく現れるたびに破られる。
       const missing = [];
+      // `typeof [] === "object"` なので配列を明示的に弾く。`computed: ["x"]` は numeric key を
+      // 軸として通ってしまい、壊れた採取物でも ok: true になりうる（どちらもレコード形が契約）。
+      const isRecord = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
       const computed = entry.traits.computed;
-      if (!computed || typeof computed !== "object" || Object.keys(computed).length === 0) {
+      if (!isRecord(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
       }
       const rect = entry.traits.rect;
-      if (!rect || typeof rect !== "object" || !("width" in rect || "height" in rect)) {
+      if (!isRecord(rect) || !("width" in rect || "height" in rect)) {
         missing.push("rect");
       }
       if (missing.length > 0) {

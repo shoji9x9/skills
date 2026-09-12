@@ -99,6 +99,12 @@ export function collectMatchedRules(el, options) {
         else if (c === quote) quote = null;
         continue;
       }
+      // 引用符の外のエスケープ（`.foo\\,bar` の `\\,` 等）は次の 1 文字ごと読み飛ばす。
+      // 飛ばさないとエスケープされた区切り文字で分割し、断片が無効セレクタになって静かに落ちる。
+      if (c === "\\") {
+        i++;
+        continue;
+      }
       if (c === '"' || c === "'") quote = c;
       else if (c === "(" || c === "[") depth++;
       else if (c === ")" || c === "]") depth--;
@@ -135,6 +141,11 @@ export function collectMatchedRules(el, options) {
           } else if (c === quote) quote = null;
           continue;
         }
+        if (c === "\\") {
+          out += c;
+          if (i + 1 < part.length) out += part[++i]; // エスケープされた `&` は入れ子の印ではない
+          continue;
+        }
         if (c === '"' || c === "'") {
           quote = c;
           out += c;
@@ -169,6 +180,10 @@ export function collectMatchedRules(el, options) {
       if (quote) {
         if (c === "\\") i++;
         else if (c === quote) quote = null;
+        continue;
+      }
+      if (c === "\\") {
+        i++; // 引用符の外のエスケープ（`\\:` 等）。飛ばさないと擬似クラスの開始と誤読する
         continue;
       }
       if (c === '"' || c === "'") {

@@ -378,3 +378,13 @@ test("@scope の中の規則はスコープを評価せず unresolved に残す"
   expect(result.unresolved).toHaveLength(1);
   expect(result.unresolved[0].reason).toBe("scope-not-evaluated:(.dialog)");
 });
+
+test("エスケープされた区切り文字でセレクタを分割しない", () => {
+  // `.foo\,bar` は 1 つのクラスセレクタ。エスケープを飛ばさずに分割すると
+  // 断片が無効セレクタになり、当たるはずの規則が静かに落ちる。
+  const sheets = [{ href: MAIN_HREF, cssRules: [styleRule(".foo\\,bar", { color: "red" })] }];
+  const el = fakeElement(sheets, { selectors: new Set([".foo\\,bar"]) });
+  const result = collectMatchedRules(el, { statePseudoClasses: STATE_PSEUDO_CLASSES });
+  expect(result.matched).toHaveLength(1);
+  expect(result.matched[0].selector).toBe(".foo\\,bar");
+});
