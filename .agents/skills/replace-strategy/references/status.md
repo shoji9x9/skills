@@ -7,7 +7,10 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | 情報源 | 読むもの |
 |---|---|
 | `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、Issue 番号（**番号だけ。旧版テンプレート由来の「状態」列があっても読まない**——下記「Issue 状態の取得」） |
+| `.replace/components.md` | 共通部品の一覧、slug、インスタンス、データ依存の有無、採否、Issue 番号（**画面より先に部品を作る方針のときだけ存在する。無いのは未着手ではなく「この方針を採っていない」**——`setup` 未実施として報告しない） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
+| `.replace/components/<slug>/metadata.json` | 部品の採取の状態（`capture.complete`・`axes.ok`・`capture_gaps`）と基準の陳腐化判定材料（`dataset_version`・`target.name`）（`parity-component` が生成。スキーマ正本は同スキル） |
+| `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
 | `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）（同上） |
@@ -86,7 +89,13 @@ done
    **節が「なし」（該当が無いと明記）なら「該当なし」として報告する**。節そのものが features.md に無い場合だけ「その他の Issue が未導出（テンプレート更新前の features.md）」として報告する——**節の不在を「該当なし」と読まない**
 6. **ページ単位の在席**: features.md のページ一覧から**複数機能が乗るページ**を抽出し、そのうち新側で未実装の機能（当該 slug の `new/<target>/replace-metadata.json` が無い、または `suite.new_green` でない）を列挙する。
    **在席チェックがスキップされたままの範囲**であり、そのページでセクションが丸ごと欠けていてもどのスイートも赤くならない（環境ごとに分かれる）。ページ一覧を持たない features.md では「在席が未導出」として報告する
-7. **ページ要素の帰属**: features.md の「ページ要素の帰属」表から、**配置の所有者が空欄の行**を未検証領域として列挙する——誰も配置しない要素は実装後の `parity-diff` まで説明できない差分として現れないため、着手前の確認事項として示す。
+7. **共通部品の現況**（`.replace/components.md` があるときだけ）: 部品 slug ごとに、Issue 状態（未起票／open／closed／判定不能）、採取の状態（`metadata.json` の `capture.complete` と `axes.ok`。
+   `axes.ok` が false なら「軸の割り出しに未解決の問題あり——採取へ戻す必要がある」）、基準の陳腐化（`dataset_version` より後の `changes[].affects` がその部品の描画に効くデータと交差するとき、および `target.name` が現在の current target と違うとき）、
+   照合の到達点（`new/<target>/build-metadata.json` の `parity.unexplained` と `parity.missing_stories`。`missing_stories` が 1 以上なら「見本が足りず未照合の組み合わせがある」）、
+   往復の状態（`loop.iterations` と `loop.stopped_reason`）を、**新側は target ごとに**示す。
+   **`.replace/components.md` が無いときは「共通部品を先に作る方針を採っていない」と報告し、未着手として数えない**（節の不在を未整備と読まない）。
+   合わせて `metadata.json.capture_gaps` の `inaccessible_sheets` / `unresolved_selectors` を未検証領域（項目 3）へ含める——**0 件を「差が無い」の根拠にしない**
+8. **ページ要素の帰属**: features.md の「ページ要素の帰属」表から、**配置の所有者が空欄の行**を未検証領域として列挙する——誰も配置しない要素は実装後の `parity-diff` まで説明できない差分として現れないため、着手前の確認事項として示す。
    **節が「なし」（該当が無いと明記）なら「該当なし」として報告する**。節そのものが features.md に無い場合だけ「要素の帰属が未導出（テンプレート更新前の features.md）」として報告する——**節の不在を「該当なし」と読まない**
 
 ## 報告

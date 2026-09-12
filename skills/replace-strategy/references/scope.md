@@ -29,6 +29,8 @@
 |---|---|---|---|
 | 画面の表示・操作・状態・権限差 | 対象 | — | `parity-suite` の `references/coverage.md` |
 | ドキュメントレベルの要素（`title` / favicon / `meta` / `html[lang]`） | 対象 | — | `parity-suite` の `references/coverage.md` |
+| 共通 UI 部品の見た目（部品カタログ上での単体照合） | 対象 | **共通部品を画面より先に作る方針のときだけ。** 部品カタログが契約を満たし、インスタンスが 2 件以上あること。**画面に載せたときの差**（親からの継承・周囲の余白・隣接要素との重なり）はここでは見ず `parity-diff` が見る | `parity-component` の `references/compare.md` |
+| 部品の操作・状態の**有無**（被覆表 `component-coverage.json`） | 対象 | **見た目は数えない。** 機能が揃っていて色・寸法・余白が全部違う部品も `present` になる。見た目の担保は上の行（`parity-component`）と画素・特性照合（`parity-diff`）が別に持つ | `parity-suite` の `references/coverage.md` |
 | API（応答・エラー・並び順・ページング・認可） | 対象 | — | `parity-suite` の `references/api-batch.md` |
 | バッチの出力（DB 状態・生成ファイル） | 対象 | 現行テスト環境のファイルシステムに到達できること | `parity-suite` の `references/api-batch.md`、[`file-io.md`](file-io.md) |
 | ファイル出力（CSV / Excel / 帳票・PDF） | 対象 | バイト列に到達できること（到達性は [`measurement.md`](measurement.md) で実測） | [`file-io.md`](file-io.md) |
@@ -74,6 +76,8 @@
 | IaC / CI-CD パイプラインの新規構築 | 対象外 | 事前条件。**スキル群の必須要件ではなく**、配信型 target（`develop` / `preview` 等）を `targets` に登録する場合にだけ「動いていること」が前提になる（ローカル target だけなら不要） | [`../SKILL.md`](../SKILL.md)「前提」 |
 | 既存 IaC への付随差分（テーブル追加・ルート追加等） | 対象 | 新側実装に付随する差分だけ。パリティスイートでは検証できないため、敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等、**認証情報・リモート state を要さない**機械検証）を通す | `parity-replace` の `SKILL.md`「厳守の制約」 |
 | 部品（ライブラリ・フォント等）の採否 | 対象 | 骨格の上に載るものだけ。判断材料・順序はリポジトリ方針（`references.dependency_policy`）に従う | [`dependency-selection.md`](dependency-selection.md) |
+| 共通 UI 部品の実装（画面より先に作る場合） | 対象 | 採取した基準に対して実装し、カタログ上で照合するところまで。**インスタンスが 1 件の部品は対象外**（その機能の実装時に `parity-replace` が作る） | `parity-component` の `SKILL.md` |
+| 部品カタログの用意（実体の選定・構築） | 対象外 | **事前条件型。** 実体はプロジェクトが選び、`references.component_catalog` と `targets[].catalog_url` で宣言する。スキルは契約を満たすかを確認して使うだけで、実体を決めも建てもしない | [`project-config.md`](project-config.md)「部品カタログ」 |
 | 本番環境への参照・投入 | 対象外 | 参照も投入もしない（テスト環境のみ） | `golden-dataset` の `SKILL.md`「厳守の制約」 |
 | 現行アプリの変更・駆動（`side: current`） | 対象外 | 正解の基準を動かさないため。指示されても実行せず停止してユーザーに上げる | `parity-replace` の `SKILL.md`「厳守の制約」 |
 | 成果物の外部保管（`local` / `git` / `git-lfs` 以外） | 対象外 | 選ぶ場合はユーザーがプロビジョニングし、スキルはポインタ記録のみで検証しない | [`project-config.md`](project-config.md)「成果物の保存先」 |

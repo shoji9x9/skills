@@ -40,6 +40,7 @@ version の範囲が妥当な場合だけ、`V < change.version <= C` の全 `af
 |---|---|---|
 | `parity-suite` | `.replace/parity/<slug>/metadata.json` の `dataset_version` | ベースライン採取後の変更がその slug に影響するときだけ再取得を宣言 |
 | `parity-diff` | 同上を参照 | 陳腐化したベースラインでの比較を避ける |
+| `parity-component` | `.replace/components/<slug>/metadata.json` の `dataset_version` | **データ依存の部品では、採取した基準と現行から抜いた実データの両方が陳腐化する**（抜いたデータを見本の入力に使うため。来歴の確認も同じ値で行う） |
 | `replace-strategy status` | 上記を集約 | 記録後の変更がその slug に影響するときだけ「要再取得」と報告 |
 
 **slug が読むデータを刷新すると、その変更より前に取得した視覚ベースラインと特性化結果は無効になる。** version は順序を、`changes[].affects` は影響範囲を機械的に検出させる。無関係なテーブルだけの変更や、実効参照テーブルが `-` の slug は再取得しない。

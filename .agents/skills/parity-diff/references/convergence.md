@@ -30,6 +30,8 @@
     **渡す `registries.json` は棚卸しの後の設定ファイルから組み立て直したもの**にする（正規化のときのスナップショットを使い回すと、人が `keep` / `may_change` へ移した要素が `pending` に残って見え、正しい記録が不整合として落ちる。組み立て方は [`normalize.md`](normalize.md)「registries.json の組み立て」）。
     終了コードは 0 ＝ 棚卸し済み、1 ＝ 未棚卸し・記録の不整合が残る、2 ＝ 使い方の誤り・型崩れ（設定ファイル側に `intentional_diffs.pending` が無い・配列でない場合を含む）。1 以上なら収束させず棚卸しを行う
   - **部品被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「部品被覆表」）。
+    **この項目が防ぐのは「測っていない操作が差分ゼロとして通る」ことだけで、部品の見た目の担保ではない**——被覆表は操作と状態の有無しか数えない。
+    見た目は下の画素・特性照合の項目が見る（画面より先に作った共通部品では `parity-component` が別に持つ）。**未測定 0 を見た目の一致の根拠にしない**。
     `.replace/parity/<slug>/metadata.json` の `component_coverage.declared` が `true` のときだけ判定に入り、
     数え直しは [`../scripts/coverage-check.mjs`](../scripts/coverage-check.mjs) が行う（**宣言された件数を信用せず被覆表から数え直す**。目視で数えない）:
 

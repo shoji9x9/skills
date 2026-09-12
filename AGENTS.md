@@ -213,11 +213,13 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 - `aws-architecture-diagram`: AWS 構成図を IaC（CDK/Terraform 等）や説明から spec に起こし SVG 生成する。作図ルール（交差最小・直交配線・軸整列）に従い、環境（prod/local 等）を単一ベース spec ＋ 変換で出し分け、PNG 化して目視確認しながら反復。初回は setup で対話導入、以降 update
 - `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK・追加ランタイム不要
 - `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能に分解して姉妹スキル
-  （current-environment-bootstrap / golden-dataset / parity-suite / parity-replace / parity-diff）へ振り分ける（自分では実装しない）。`setup` / `issues` / `status` の 3 モード。測定できなければ停止する
+  （current-environment-bootstrap / golden-dataset / parity-component / parity-suite / parity-replace / parity-diff）へ振り分ける（自分では実装しない）。`setup` / `issues` / `status` の 3 モード。測定できなければ停止する
 - `current-environment-bootstrap`: replace-strategy 姉妹。先方から受領した資産だけを起点に現行テスト環境（current target）を再構築する。
   資産の棚卸しと受領済み／導出可能／不足の分類、DB スキーマ・設定の復元、データ意味論の根拠収集、先方・SME 向け質問票、最小の暫定起動データ、起動・認証・到達の実測、空環境からの再実行検証。
   推測でドメイン値を確定せず来歴不明データは投入しない。`current.origin: received-assets` のとき setup が測定前に委譲
 - `golden-dataset`: replace-strategy 姉妹。現新比較用の共通データセットを冪等・決定論的な投入ツール（TypeScript / SQL）で構築（本番非参照）。2 フェーズ（A: 現行テスト環境へ投入検証、B: 新側スキーマへ写像・現新一致検証）、バージョンで陳腐化検出。setup 完了が前提
+- `parity-component`: replace-strategy 姉妹。共通 UI 部品を画面より先に作るときに、現行から部品インスタンス（部品 × ページ）単位で見た目の基準を採り（要素スクショ・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データ）、
+  インスタンス間で割れた軸を可変＝引数として決定論的に割り出し、実装してカタログ上で照合する。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に作らない方針なら使わない
 - `parity-suite`: replace-strategy 姉妹。新旧両実装に当てられる合否判定基準を Playwright で構築し故障注入で強度検証。論理名マッピング・寛容な aria スナップショット・API record/replay・視覚ベースライン/ノイズ基準を採取し parity-diff へ渡す。1 回で 1 機能。setup / golden-dataset(A) 前提
 - `parity-replace`: replace-strategy 姉妹。parity-suite の論理名に新側を実装する薄い層（ページ単位分割・マッピング例外充填・敵対的レビュー）。branch/commit/PR は issue-start へ委譲、suite が新で green＋静的解析通過で完了。前提: setup・golden-dataset(A)・対象 slug の parity-suite
 - `parity-diff`: replace-strategy 姉妹。現新差分を画素・特性照合・aria の 3 経路の差分器（強度検証済み）で検出し LLM は分類のみ。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロ＋未修正回帰ゼロ。前提: setup・golden-dataset・parity-suite・parity-replace の新側 green

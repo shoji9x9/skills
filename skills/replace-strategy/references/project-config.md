@@ -81,6 +81,7 @@ skills:
             admin:
               user_name_env: DEVELOP_ADMIN_USER
               password_env: DEVELOP_ADMIN_PASS
+        catalog_url: <URL | コマンド> # 任意（side: new のみ）。部品カタログの baseURL。固定文字列か、標準出力に URL を 1 行出すコマンド（url / url_command と同じ解決・記録規則に従う）。parity-component の build が読み、未宣言なら推測せず停止する
         commit_check: <コマンド> # 任意。稼働中の新側コミット SHA を標準出力に出す（start を持たない配信型 target の軽量経路判定に parity-replace が使う）
         on_diff: <path> # 任意。この target で要対応差分が出たときの対応手順を書いた Markdown のパス（下記「on_diff」。無ければ既定挙動）
       - name: preview # 例: ブランチ連動のプレビュー環境（URL がブランチ名に連動し固定文字列で書けない）
@@ -114,7 +115,8 @@ skills:
     references: # 利用者が選ぶ知識の注入。パスだけを持つ（本文はファイル側）。setup が全キーを生成し、決まらないキーは空値で残す（下記「references（知識の注入）」）
       architecture: "" # 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング／リリース構成・実行基盤と利用マネージドサービス）の決定記録。事前定義が前提で setup は下書きを作らない（parity-replace が実装工程の前に読む。下記「新側アーキテクチャ」）
       coding_conventions: "" # 生成先リポジトリのコーディング規約（命名・エラー処理・テストの書き方・レビュー観点）。骨格の「上」の書き方であり architecture とは別（parity-replace / golden-dataset / parity-suite が生成物を書くときに読む。生成物ごとの引き先は下記「コーディング規約」）
-      ui_library: "" # 新 UI ライブラリ設定と旧→新 design token マッピング（parity-replace / parity-diff が読む）
+      ui_library: "" # 新 UI ライブラリ設定と旧→新 design token マッピング（parity-replace / parity-diff / parity-component が読む）
+      component_catalog: "" # 部品カタログの契約（実体・見本の書き方・URL の決まり方・データの注入経路）。共通部品を画面より先に作る方針のときだけ使う（parity-component の build が読む。下記「部品カタログ」）
       db_semantics: "" # 現行 DB → 新 DB の型マッピングと意味論の差、および移植時に踏む方言差の点検表（parity-replace が実装前に読み、golden-dataset / parity-suite / parity-diff が比較で読み、current-environment-bootstrap が整備済みのとき復元項目の突き合わせで読む。下記「DB 意味論」）
       env_setup: "" # 環境変数の用意方法（全スキルが接続確認の失敗時に案内する）
       dependency_policy: <path | none> # 依存導入の方針（ライセンス・供給網・バンドルサイズ上限等）。無いことをユーザーに確認済みなら none（下記「依存導入の方針」）
@@ -180,6 +182,8 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 
 - **`setup` はパス型キー（`architecture` / `coding_conventions` / `ui_library` / `db_semantics` / `env_setup`）をキーごと生成する。** この時点でパスが決まらないキーは**空値（`""`）のまま置き**、コメントに「どのスキルがいつ読むか」を残す。
   枠を作るのは**未整備を `setup` 時点で可視化するため**であって、下流を止めなくするためではない——未整備で停止するのは正しい挙動である（キーごと存在しないと、下流のスキルが停止して初めて不足が分かる）
+- **`component_catalog` は、共通部品を画面より先に作る方針を採ったときだけ生成する。** 方針を採らないプロジェクトでは `parity-component` を使わないため、
+  枠を置いても読み手がいない（読み手のいない未整備の枠は、埋めるべきかどうかの判断そのものを増やす）
 - **`dependency_policy` は空値で生成しない。** このキーだけは**キーの有無そのものが「未確認」を表す三値**であり、空値の枠を置くと下流の「キー欠落＝未確認なら確認する」が二度と発火しない。
   `setup` はユーザーに方針の要否を確認し、**パスか `none` を書く**。確認まで至らなければ**キーごと書かない**（下記「依存導入の方針」）
 - **空値の references キーは「未設定の枠」であり、上記「作成・追記は非破壊」の言う既存値ではない。** 実パスが決まった時点で空値を実パスへ埋めるのは上書きに当たらない（非破壊が守るのは**実値**であって空の枠ではない）
@@ -192,10 +196,11 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 |---|---|---|
 | `architecture` | `parity-replace` の部品の採否・実装工程（手順 3 以降）、依存を決める全スキルのランタイム制約の判断 | `parity-replace` は部品の採否・実装に入らず**停止する**（骨格を推測すると全機能・全ページに波及し、後戻りが最も高くつく）。ただし新側リポジトリに骨格が既に実装されていれば、**実態から読み取った内容**を下書きとして提示し、ユーザーが確定させてから進める（既存実装の読み取りは記述であって決定ではない）。**依存を決める側**（`parity-suite` / `parity-diff` 等、実装工程を持たないスキル）は**停止しないが、実行基盤の制約を推測で埋めない**——ユーザーに確認してから候補を絞る（[`dependency-selection.md`](dependency-selection.md)「判断材料」の実行基盤の行） |
 | `coding_conventions` | 対象プロジェクト側にコードを書く全スキル——`parity-replace` の実装工程と敵対的レビュー、`golden-dataset` の投入ツール生成、`parity-suite` のスイート authoring、`current-environment-bootstrap` の再構築ツール・暫定起動データ投入ツール生成 | **停止しない**（規約を持たないリポジトリもあるため）。ただし**推測で自分の流儀を持ち込まず**、**生成先リポジトリ**（新側とは限らない。下記「コーディング規約」の対応表）の既存コードと基底ドキュメントから読み取れる範囲に従い、整備をユーザーに促す |
-| `ui_library` | `parity-replace` の「見た目の系統差を源流で縮める」工程、`parity-diff` の正規化（系統差の判断材料） | `parity-replace` はテーマ寄せに入る前に整備を促す（系統差を源流で縮められず、宣言・未検証が膨らむ）。`parity-diff` は**停止しない**が、判断材料が無いまま「許容」へ寄せない |
+| `ui_library` | `parity-replace` の「見た目の系統差を源流で縮める」工程、`parity-diff` の正規化（系統差の判断材料）、`parity-component` の `build`（同じテーマ寄せを部品に対して行う） | `parity-replace` / `parity-component` はテーマ寄せに入る前に整備を促す（系統差を源流で縮められず、宣言・未検証が膨らむ）。`parity-diff` は**停止しない**が、判断材料が無いまま「許容」へ寄せない |
+| `component_catalog` | `parity-component` の `build`（見本を置く前と、カタログを採取する前に読む） | `parity-component` は `build` に入らず**停止する**（カタログの実体・URL の決まり方・データの注入経路を推測で決めると、別のカタログへ移した時点で見本と採取スペックの両方を書き直すことになる）。`capture` は読まないので停止しない。下記「部品カタログ」 |
 | `db_semantics` | **`parity-replace` の実装（手順 4）——クエリ・データアクセスを書く前に移植時の点検表として読む**、`golden-dataset` のフェーズ B（新側への写像・現新一致検証）、`parity-suite` の並び順特性化、`parity-diff` の並び順差の判断、`current-environment-bootstrap` の復元項目の突き合わせ（整備済みのときだけ） | フェーズ B は**停止する**（写像の根拠が無い）。`parity-replace` は**停止しない**が、方言差を推測で埋めず、下記「DB 意味論」の点検項目を現行 DB／新 DB の一次ドキュメントで確認して結果を `porting.md` へ記録し、整備を促す。`parity-suite` / `parity-diff` も**停止しない**（実測で特性化し、整備を促す） |
 | `env_setup` | 全スキル。接続確認（現行 URL への疎通・環境変数の存在確認）が失敗したときの案内先 | 案内先が無いだけで停止はしない |
-| `dependency_policy` | 依存を決める全スキル（`replace-strategy` / `parity-suite` / `parity-replace` / `parity-diff`） | 三値のため下記「依存導入の方針」に従う（欠落＝未確認としてユーザーに要否を確認して記録する） |
+| `dependency_policy` | 依存を決める全スキル（`replace-strategy` / `parity-suite` / `parity-replace` / `parity-diff` / `parity-component`） | 三値のため下記「依存導入の方針」に従う（欠落＝未確認としてユーザーに要否を確認して記録する） |
 
 ### references の拡張（新しいキーを足すとき）
 
@@ -406,7 +411,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
 
 - **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
   実行順 `url_command` の解決 → `check_urls` で稼働判定 → 落ちているときだけ `pre_commands` → `start` → 再度 `check_urls`。最初の稼働判定の失敗は起動の合図で、それ以外の失敗は早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
-  本ファイルが定義するのは `side`・`api_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
+  本ファイルが定義するのは `side`・`api_url`・`catalog_url`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
 - **スキーマ不変条件**（各スキルは target 解決時に検証し、違反したら**停止**して設定修正を促す）:
   - `side` は必須（`current` | `new`。省略時の既定は無い——新側環境を追加するときの書き忘れが「正解＝現行」の原則を反転させるため）
@@ -420,6 +425,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   - `storage.seedable: true` の target は `storage.env_vars` と 1 つ以上の `storage.write_scope` を持つ（`db.seedable` と同じ fail-closed。欠ければ停止する）
   - `uses_storage` が `false`・欠落なのに `storage` を持つ target があれば停止する（宣言の矛盾を黙って解釈しない。使うなら `uses_storage: true` を書く）
   - `current.origin: received-assets` なら `current.received_assets` が 1 つ以上ある（受領資産の所在を知らずに再構築はできない。空・欠落は停止する）
+  - `catalog_url` を持てるのは `side: new` の target だけ（現行側に部品カタログは無い。`side: current` に付いていれば停止する——現行から採るべき基準をカタログから採る誤りになる）
   - **`side: current` の target が `url: none` を持てるのは `current.origin: received-assets` かつ再構築が未完了の間だけ**（`current-environment-bootstrap` が引き渡し時に実 URL と `default: true` を埋める）。
     `origin: managed` で `url: none` の current target は停止する——測定対象が無いまま `setup` が測定へ進む
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
@@ -552,6 +558,18 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
 - **キーが無いプロジェクトに `setup` の再実行を要求しない**（本キーの導入前に `setup` を終えたもの）。`uses_storage` の欠落は `false`、`targets[].storage` の欠落は未宣言として扱う。
   ただし `uses_storage: true` なのに `storage` を宣言した target が 1 つも無い場合は、ストレージ依存の検証を**すべて未検証**として `gaps.md` に記録する（停止はしない）
 - ファイルの取得経路・形式別の扱い・アップロード操作・解析ツールの正本は [`file-io.md`](file-io.md)、対応範囲の一覧は [`scope.md`](scope.md)（ここへ転記しない）
+
+## 部品カタログ（`references.component_catalog` / `targets[].catalog_url`）
+
+共通 UI 部品を画面より先に作る方針を採ったときだけ使う。**部品を単体・状態ごとに描画する場**の宣言で、実体はプロジェクトが選ぶ（スキルは固定しない）。
+
+- **`references.component_catalog`** はカタログの契約ドキュメントのパス。**実体・見本の書き方・URL の決まり方・データの注入経路**を書く。
+  カタログが満たすべき契約（1 部品 1 状態が 1 つの固定 URL で開ける／Playwright で到達でき論理名で引ける／静的データを注入できる／アニメーションを無効化できる／描画が外部サービスに依存しない）の正本は
+  `parity-component` の `references/catalog.md` で、**ここへ転記しない**
+- **`targets[].catalog_url`** はカタログの baseURL。**`side: new` の target にだけ置く**（現行側にカタログは無い）。
+  固定文字列か、標準出力に URL を 1 行出すコマンドを書く。**解決と記録の規則は `url_command` と同じ**（上記「URL の引き渡し」——解決に失敗・空出力なら停止し、コマンドで解決した値は成果物へ書かず `"runtime"` を記録する）
+- **どちらも未宣言なら `parity-component` の `build` は停止する。** スキルがカタログの実体を選ぶことも、URL を推測することもしない
+- **この 2 つは対で意味を持つ。** 契約ドキュメントだけあって `catalog_url` が無ければ採取先が決まらず、`catalog_url` だけあっても見本の置き方・URL の組み立て方が決まらない
 
 ## 依存導入の方針（`references.dependency_policy`）
 

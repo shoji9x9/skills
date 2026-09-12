@@ -67,6 +67,8 @@ parity-suite [--feature <slug>] [--target <name>]
   「確認待ち」または「確認したが確定できなかったもの」に残っている間は、**合否判定基準を作れない**（何が正解かが決まっていない）。推測でシナリオを埋めず、不足情報を報告して停止する
 - **同じ部品の 1 インスタンスで測った結果を、他のインスタンスの測定結果として流用しない。** 部品は画面ごとに設定が違うため、あるページで無効な操作が別のページでは有効でありうる。
   インスタンス（部品 × ページ）ごとに測り、`present` / `absent` / `unmeasured` の 3 値で被覆表に残す（[`references/coverage.md`](references/coverage.md)「部品被覆表」）
+- **被覆表を見た目の担保として扱わない。** 数えるのは操作と状態の**有無**だけで、色・寸法・余白・書体は見ていない（機能が揃っていて見た目が全部違う部品も全セルが `present` で埋まる）。
+  `unmeasured` 0 を「見た目が現行と合っている」の根拠にしない——見た目は画素比較と特性照合が持ち、**画面より先に作った共通部品では `parity-component`** が持つ（[`references/coverage.md`](references/coverage.md)「被覆表は見た目を見ていない」）
 - **測っていない部品の操作を、被覆表の空欄で済ませない。** 行が無い組み合わせ・`evidence` の空欄は `unmeasured` として数える（fail-closed）。
   `metadata.json` の `component_coverage` を**キーごと省略しない**——キーの欠落は旧成果物の意味になり、`parity-diff` が後方互換で判定を飛ばす経路に測らなかった事実が紛れる
 - **被覆表に載せる項目の粒度を自分の判断で決めない。** データグリッドのように構成要素ごとに操作可否が設定される部品は、
@@ -176,7 +178,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | 未検証領域 | `.replace/parity/<slug>/gaps.md` | `assets/gaps-template.md` |
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
-| 部品被覆表（feature モードのみ） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
+| 部品被覆表（feature モードのみ。**操作と状態の有無だけを数え、見た目は見ていない**） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
