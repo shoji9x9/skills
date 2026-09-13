@@ -39,6 +39,7 @@ if [[ "$args" == *EXPECT_EXECUTOR_AND_NORMALIZER_FAIL* ]]; then
   printf 'not-json\n'
   exit 7
 fi
+if [[ "$args" == *EXPECT_REVIEW_ENV_CLEARED* ]]; then test -z "\${SKILLS_REVIEW_TOOL+x}"; fi
 if [[ "$args" == *EXPECT_CREATE_FILE* ]]; then printf 'generated\n' >generated.txt; fi
 if [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
   if [ "$1" = "exec" ]; then test -f .agents/skills/box/SKILL.md; else test -f .claude/skills/box/SKILL.md; fi
@@ -125,6 +126,26 @@ function readJson(path) {
 }
 
 describe("run-skill-eval executor compatibility", () => {
+  test("does not leak an operator-local reviewer override into eval runs", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+    const previous = process.env.SKILLS_REVIEW_TOOL;
+    process.env.SKILLS_REVIEW_TOOL = "codex";
+    try {
+      runEval({
+        executor: "codex",
+        config: "with_skill",
+        prompt: "EXPECT_WITH_SKILL EXPECT_REVIEW_ENV_CLEARED",
+        output,
+        stub,
+      });
+    } finally {
+      if (previous === undefined) delete process.env.SKILLS_REVIEW_TOOL;
+      else process.env.SKILLS_REVIEW_TOOL = previous;
+    }
+    expect(readJson(join(output, "result.json")).status).toBe("succeeded");
+  });
+
   test.each([
     ["claude-code", "claude-code.json", "claude stub response", 17],
     ["codex", "codex.jsonl", "codex stub response", 20],
