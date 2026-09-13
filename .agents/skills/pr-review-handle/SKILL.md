@@ -197,8 +197,7 @@ mutation {
 ## レビュー対応後の再レビュー依頼
 
 レビュー対応（返信・解決）を終えたら、**設定したレビューツールへの再レビュー依頼の要否・タイミングをユーザーに確認する**。
-依頼先ツールの選択（`skills.common.review_tool`）と、ツールごとの依頼・成立確認の具体手順は
-[`references/review-tool.md`](references/review-tool.md) を参照する（既定 `copilot`）。
+依頼先ツールの解決規則と、ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
 GitHub 側の自動レビュー設定があっても push 後にレビューが始まらないことがあり、また
 push せず返信だけで閉じたスレッドも改めて見てほしいことがあるため、このスキルから明示的に依頼する。
 

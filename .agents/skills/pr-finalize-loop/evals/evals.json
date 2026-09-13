@@ -189,6 +189,28 @@
         "PR 著者自身のコメントをレビュー到着証跡から除外している",
         "有効な証跡が無いため現在 HEAD は未レビューと判定し、完了後の再評価または再レビュー依頼へ進む方針である"
       ]
+    },
+    {
+      "id": 17,
+      "prompt": "PR #6 の収束だけ AI レビューを止めたい。普段の一時設定は Codex、プロジェクトの共有既定は Copilot。共有ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
+      "expected_output": "今回だけ --review-tool none を使い、次回は一時環境設定の SKILLS_REVIEW_TOOL=codex が共有 YAML より優先される。共有 YAML は変更しない。",
+      "assertions": [
+        "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
+        "次回 CLI 指定が無ければ SKILLS_REVIEW_TOOL の codex を使うと説明している",
+        ".config/skills/shoji9x9/skills.yml を変更しない方針である",
+        "今回の CLI 指定が環境変数より優先し、次回は環境変数が共有 YAML より優先すると説明している"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "pr-finalize-loop 6（review_tool: codex）— @codex review の👀は消え、reviews[]は空。Codex botのトップレベルコメントは『指摘なし』とReviewed commit `abc123def0`を示し、PRのheadRefOidは`abc123def0456789012345678901234567890123`。この状態をどう判定する？",
+      "expected_output": "短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決し、headRefOidとの完全一致を確認できればCodexレビュー完了・指摘なしの証跡として認める。解決失敗や不一致ならレビュー済みにしない。",
+      "assertions": [
+        "Codexが指摘なしの場合にreviews[]を作らずトップレベルbotコメントだけを投稿する形を扱っている",
+        "Reviewed commitの短縮SHAを手で補完せずGitHub commits APIで完全SHAへ解決している",
+        "解決した完全SHAと現在のheadRefOidが一致した場合だけレビュー完了証跡として認めている",
+        "SHAの解決失敗またはheadRefOidとの不一致をレビュー済みに倒さない"
+      ]
     }
   ]
 }

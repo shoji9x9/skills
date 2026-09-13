@@ -31,7 +31,7 @@ branch や設定を変更する前に次を全件分完了する。
 1. Issue URL / 番号を正規化し、入力順を保持して重複を拒否する。
 2. current repository と全 Issue の owner/repo が一致することを確認する。新規着手は Issue が OPEN の場合だけ許可する。
    再開時は一意な linked PR が MERGED で、Issue がその merge により CLOSED、残作業が deployment / cleanup に限られることを実状態から確認できれば CLOSED を受理する。それ以外の CLOSED Issue は SKIPPED または BLOCKED。本文と全コメントを取得し、最新の決定を優先する。
-3. 規約文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、`skills.common.review_tool`、agent 固有のローカルレビュー機能と Kaizen の current transcript を解決する。
+3. 規約文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、agent 固有のローカルレビュー機能と Kaizen の current transcript を解決する。remote AI reviewer はここで固定せず pr-finalize-loop の解決規則へ委譲する。
    `--record-pending` が transcript を同定できない agent は候補ゼロを検証できないため変更前に BLOCKED。現状の Copilot はこの経路を使えない。
 4. local / remote branch、open / closed PR、worktree を列挙する。再開対象が一意なら再利用し、複数候補なら全体を停止する。
 5. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら v1 の対象外として開始前に停止する。
@@ -109,6 +109,7 @@ console、主要要素、Network / API、副作用のない操作を確認する
 ## pr-finalize-loop への handoff
 
 PR URL と解決済みの `max_pr_iterations` を `pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ `--wait-ci-before-review` を足す。
+レビューツールは pr-finalize-loop が解決するため、issue-batch は値を先に固定・転送しない。pr-finalize-loop の参照先を読めなければ handoff 前に停止する。
 
 CI、全 reviewer の thread / review body、再レビュー依頼は `pr-finalize-loop` が正本。issue-batch 自身から remote AI review を依頼しない。収束しなければ BLOCKED / FAILED とし、隔離可能なら方針に従って次 Issue へ進む。
 

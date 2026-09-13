@@ -111,6 +111,9 @@ skills:
 - `skills.common.conventions_doc`: ブランチ運用・commit 規約を記した**導入先に実在する**ドキュメント。上の `AGENTS.md` は例（盲目コピーしない）。未設定なら標準ドキュメント（`AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` / `CONTRIBUTING.md` 等）を探索し、解決できなければスキルがユーザーに確認する。
 - `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（既定）/ `claude-code` / `codex` / `none`。
   `copilot` は `requested_reviewers` API、`claude-code` / `codex` はトップレベル PR コメントの mention（`@claude review` / `@codex review`）で依頼する。`none` は再依頼をしない。未設定なら `copilot`。
+  このソースリポジトリでの一時的な個人設定は Git 管理外の `.env.local` に `SKILLS_REVIEW_TOOL=codex` のように書く。
+  ルートの `mise.toml` がこのファイルを読み込み、環境変数は共有設定より優先される。インストール先へルートの mise 設定は配布されないため、利用側では `export SKILLS_REVIEW_TOOL=codex` または利用側自身の環境管理へ設定する。
+  1 回だけ変える場合は `pr-finalize-loop 6 --review-tool <tool>` のように対象 PR も指定する。
 - `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（既定 `squash`）。
 - `skills.issue-batch.*`: 複数 Issue のローカルレビュー／PR 収束上限、CI 待機、BLOCKED 後の続行、merge、deployment 監視を定める。値は例を盲目コピーせず `issue-batch setup` で対話的に作成する（schema はスキルの `references/project-config.md`）。
 - `skills.dependabot-alert-issue.*`: dependabot-alert-issue が読む特別処理設定（リリース年齢のしきい値・無視・dismiss）。すべて任意。

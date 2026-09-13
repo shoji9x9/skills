@@ -4,11 +4,11 @@
 
 `.config/skills/shoji9x9/skills.yml` の `skills.issue-batch` を issue-batch 固有設定の正本とする。
 
-- **remote AI review の依頼先**は `skills.common.review_tool`
+- **remote AI review の依頼先**は pr-finalize-loop の解決規則に委譲する
 - browser environment は `skills.browser-test`
 - branch / commit 規約は `skills.common.conventions_doc` とその参照先
 
-`skills.common.review_tool` は `pr-finalize-loop` が PR 上で再レビューを依頼する相手であり、**ローカルレビューの実行主体ではない**。
+実効レビューツールは `pr-finalize-loop` が PR 上で再レビューを依頼する相手であり、**ローカルレビューの実行主体ではない**。
 ローカルレビューは設定値によらず常に現在利用中の agent 自身の機能で行う（`references/orchestration.md`「ローカルレビュー」）。
 同様に、Kaizen の `--record-pending` が BLOCKED になるのは**実行中の agent が current transcript を同定できない**場合であって、
 `review_tool: copilot` は reviewer の指定にすぎず BLOCKED 条件ではない。この 2 つを取り違えて正常系を停止させない。
@@ -47,7 +47,7 @@ skills:
 
 setup は設定だけを扱い、Issue / branch / PR / merge / deployment を操作しない。
 
-1. repository の許可済み merge method、branch protection / merge queue、規約文書、`skills.common.review_tool`、`skills.browser-test` を読む。
+1. repository の許可済み merge method、branch protection / merge queue、規約文書、`skills.browser-test` を読む。remote AI reviewer は handoff 先の pr-finalize-loop が解決する。
 2. merge mode、merge method、local review 上限、PR 収束上限、CI 待機、BLOCKED 後の続行方針を根拠付きで確認する。初期候補は merge mode `auto`（現行踏襲）、local 1、PR 5、CI 待機 false、続行 true。merge method は repository で許可された方式だけを提示し、`squash` を推奨候補にして回答を保存する。
    merge mode は次の 2 択で、**どちらを選んでも `--admin` と required check の迂回は使わない**。
 

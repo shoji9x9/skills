@@ -12,7 +12,7 @@ CI とレビューを繰り返し確認するとき、毎回 reviews・timeline�
 - reviewThreads: `isResolved == false` のスレッドと、その指摘本文
 - トップレベルコメント: 非著者分のID、author、createdAt、updatedAt、body文字数。`body` はまだ返さない
 - timeline: review request・review開始など、進行判定に必要なeventと時刻だけ
-- check-runs（`review_tool: claude-code`）: 現在の `headRefOid` を ref にしたレビュー用候補のID、name、head_sha、app、status、conclusion、started_at、completed_at。
+- check-runs（`review_tool: claude-code` / `codex`）: 現在の `headRefOid` を ref にしたレビュー用候補のID、name、head_sha、app、status、conclusion、started_at、completed_at。
   1段目では `output` を返さず、2段目で候補だけ `output.title` / `output.summary` を抽出する
 
 reviews と reviewThreads は pagination cursor が別なので、1つの `$endCursor` を共用せず別クエリで全ページを取得する。
@@ -78,7 +78,8 @@ indexを前回の取得状態と比較し、次に該当する本文だけを個
 3. 未処理のreview ID。自分の対応記録コメントにIDが無く、まだ妥当性判断していないもの
 4. 新規・更新された非著者トップレベルコメント
 5. 未解決review thread（1段目で本文取得済み）
-6. `review_tool: claude-code` でレビュー到着判定に使う現在HEADのcheck-run。候補だけ `output.title` / `output.summary` を取得し、正常完了か失敗・timeout・skip等かを判定する。トップレベルコメントを単独証跡にする場合は、本文に現在の完全な `headRefOid` があることも確認する
+6. `review_tool: claude-code` / `codex` でレビュー到着判定に使う現在HEADのcheck-run。候補だけ `output.title` / `output.summary` を取得し、正常完了か失敗・timeout・skip等かを判定する。
+   トップレベルコメントを単独証跡にする場合は、本文のreviewed commitをGitHub APIで完全SHAへ解決し、現在の`headRefOid`と一致することも確認する
 
 ```bash
 gh api repos/<owner>/<repo>/pulls/<number>/reviews/<review-database-id> \

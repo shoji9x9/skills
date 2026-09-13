@@ -1,7 +1,7 @@
 ---
 name: pr-finalize-loop
 description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/none）への再レビュー依頼を反復する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る。`--max-iterations`（既定 5）で無限ループを防ぐ。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
-argument-hint: "<PR URL> [--max-iterations <N>] [--wait-ci-before-review]"
+argument-hint: "<PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>]"
 license: MIT
 ---
 
@@ -16,15 +16,16 @@ license: MIT
 ## 使い方
 
 ```text
-pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
+pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>]
 ```
 
 - `<PR URL>`（必須）: `https://github.com/<owner>/<repo>/pull/<番号>`。番号だけが渡された場合は現在の repo の PR とみなす
 - `--max-iterations <N>`（任意, 既定 5）: ループの最大反復回数。無限ループ防止の安全弁。1 反復＝「状態取得 → CI/レビューを直す → commit/push → 再実行待ち」の 1 周
 - `--wait-ci-before-review`（任意, 既定オフ）: push 後の再レビュー依頼を、CI 再実行の完了を待ってから出す。**既定（オフ）では push 直後に CI 完了を待たず依頼し、CI とレビューを並行させる**（収束を速める。レビュー進行中＝設定ツールの自動レビュー・別エージェントとも＝は保留する）。壊れた HEAD にレビューを促したくない場合だけ指定する
+- `--review-tool <tool>`（任意）: この実行だけ `copilot` / `claude-code` / `codex` / `none` のいずれかを使う。共有設定を変更せず、一時的にクレジット状況などへ対応する
 - ループ中はユーザー確認を挟まず自律で進める（唯一の例外は後述「自律性ポリシー」の人間判断を要するレビュー指摘）
 
-例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3` / `pr-finalize-loop 6 --wait-ci-before-review`
+例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3` / `pr-finalize-loop 6 --review-tool codex`
 
 - 自然文でも発動する:「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」。
 
@@ -43,8 +44,8 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
 
 ## レビューツールの選択
 
-push 後などに再レビューを依頼する AI レビュアーは設定で選ぶ。設定キー（`skills.common.review_tool`、
-既定 `copilot`）とツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
+push 後などに再レビューを依頼する AI レビュアーは CLI・環境変数・共有設定から選ぶ。解決順と
+ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
 値は `copilot` / `claude-code` / `codex` / `none`。**`none` の場合は再レビュー依頼を一切行わず、収束・完了判定から
 「HEAD がレビュー済み」条件を外す**（CI 全成功・未解決スレッド無し・スレッド外の指摘対応済みで完了）。以降の本文で「レビュー依頼」と言うときは
 設定した `review_tool` への依頼を指す。
@@ -261,11 +262,13 @@ query($endCursor: String) {
 - **PR 著者（`pullRequest.author.login`）によるレビューは判定から除外する（必須）**。レビュースレッドへの返信は REST/GraphQL 上、著者の `state: COMMENTED` レビューとして記録され、その `commit.oid` が返信後の新しい HEAD を指し得る（実測）。
   除外しないと「修正 → 返信 → push」という本スキルの標準フローを回すたびに、誰にもレビューされていない新 HEAD が「レビュー済み」と誤判定され、レビュー再依頼が漏れる。
 - **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。
-- `review_tool: claude-code` では、指摘が 0 件だとレビュー結果がトップレベルコメントまたは check-run だけに載り、`reviews[]` にレコード自体が作られないことがある。次のどちらかもレビュー到着の証跡として認める:
+- `review_tool: claude-code` / `codex` では、指摘が 0 件だとレビュー結果がトップレベルコメントまたは check-run だけに載り、`reviews[]` にレコード自体が作られないことがある。次のどちらかもレビュー到着の証跡として認める:
   1. `headRefOid` を ref にして取得した check-run のうち、名称・GitHub App・出力の趣旨から Claude のレビュー用と確認でき、正常に完了したもの。
      `status: completed` だけでは足りず、`conclusion` と `output.title` / `output.summary` も読み、失敗・timeout・skip・spend cap 等でレビューが行われなかったものを除外する
-  2. PR 著者以外のレビューボットによるトップレベルコメントのうち、本文がレビュー完了またはレビュー結果を示し、現在の完全な `headRefOid` をレビュー対象として明示するもの。working 等の進行中、エラー・skip、無関係な bot コメントは除外する
-- コメントの `created_at` / `updated_at` が直近 push の基準時刻より後というだけでは、レビュー済みの証跡にしない。旧 HEAD で開始したレビューが新しい push の後に完了すると時刻条件を満たすためである。完全な `headRefOid` の明示が無い完了コメントは指摘収集とcheck-runの意味確認には使えるが、単独では現在 HEAD のレビュー到着を証明しない。
+  2. PR 著者以外のレビューボットによるトップレベルコメントのうち、本文がレビュー完了またはレビュー結果を示し、レビュー対象 commit が現在の `headRefOid` と一致するもの。
+     Codex は `Reviewed commit` を短縮 SHA で書く（実測）ため、値を手で補完せず `gh api repos/<owner>/<repo>/commits/<短縮SHA> --jq .sha` で完全 SHA に解決し、`headRefOid` と完全一致させる。
+     解決失敗・複数候補・不一致、working 等の進行中、エラー・skip、無関係な bot コメントは除外する
+- コメントの `created_at` / `updated_at` が直近 push の基準時刻より後というだけでは、レビュー済みの証跡にしない。旧 HEAD で開始したレビューが新しい push の後に完了すると時刻条件を満たすためである。本文の commit を完全 SHA へ解決できない完了コメントは指摘収集とcheck-runの意味確認には使えるが、単独では現在 HEAD のレビュー到着を証明しない。
 - check-run は GitHub の commit ref 用 endpoint で現在 HEAD に限定して取得する。既定の `filter=latest` は同名 check-run の古い再実行を畳むため、その HEAD の全 attempt を判定する必要があれば `filter=all` とページネーションを使う:
 
   ```bash
