@@ -185,7 +185,7 @@
 4. **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する。** `gh issue create` を実行せず、`issue-create` への委譲も行わない。
    起票は外部への副作用であり、承認なしに実行しない。非対話実行では候補・依存関係・本文ドラフトの提示（または保存）までで止め、承認待ちであることを明示する
 5. 承認後、**1 件ずつ `issue-create` スキルへ委譲する**（本文ドラフトは上記構成で本スキルが用意する）。依存順に起票し、後続の本文から先行 Issue 番号を参照できるようにする
-6. 起票された Issue 番号を `.replace/features.md` の**該当する表・ヘッダ項目**（機能一覧／横断 API／バッチ／その他の Issue／ヘッダのゴールデンデータセット Issue）へ書き戻す。
+6. 起票された Issue 番号を `.replace/features.md` の**該当する表・ヘッダ項目**（機能一覧／横断 API／バッチ／その他の Issue／ヘッダのゴールデンデータセット Issue）へ書き戻す。**共通部品 Issue だけは `.replace/components.md` の「部品一覧」表の Issue 列**へ書き戻す（上の表の「記録先」列）。
    起票していない行の Issue 列は「未起票」のまま変えない。書き戻しは上記「features.md の更新は非破壊」に従う（他の記述を巻き込んで再生成しない）
 7. 重複チェック（既存 Issue の確認）は**ページネーションに留意する**。issue-create 側の重複チェックが既定件数で打ち切る場合に備え、本モードでも起票前に全件を確認する:
 
@@ -194,4 +194,4 @@
      --jq '.[] | select(.pull_request | not) | [.number, .title] | @tsv'
    ```
 
-8. 完了時、起票した Issue の実施に必要な姉妹スキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）が未インストールなら `gh skill install` の手順を案内する
+8. 完了時、起票した Issue の実施に必要な姉妹スキル（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`。共通部品 Issue を起票したら `parity-component` も）が未インストールなら `gh skill install` の手順を案内する

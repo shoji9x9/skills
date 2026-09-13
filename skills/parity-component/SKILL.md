@@ -118,7 +118,7 @@ parity-component build   [--component <slug>] [--target <name>]
 
 1. **前提検証と早期失敗**: 上記「前提」を実測で判定し、欠ければ捏造せず停止して該当スキルの実行を促す。
    `slug` を `.replace/components.md` と突き合わせ（無い slug は停止。自分で採番しない）、現行 target を確定して稼働を確認する（`check_urls` → 落ちていれば `pre_commands` → `start` → 再確認）。
-   **稼働確認の次に認証を確立する**——選択した target が `auth.roles` を持つなら、`parity-suite` の [`references/auth.md`](../parity-suite/references/auth.md) に従って
+   **稼働確認の次に認証を確立する**——選択した target が `auth.roles` を持つなら、`parity-suite` の `references/auth.md` に従って
    **ロール単位の `storageState`** を用意し、そのロールで採る。ここを飛ばすと保護された画面で論理名が 1 件も解決せず、
    「部品が無い」と「ログインしていない」を取り違える。使ったロール名は `metadata.json` の `capture.auth_roles` と
    `instances[].auth_role` に記録する（ロール名は設定・成果物を通して同じ名前を使い、読み替えない）。
@@ -130,7 +130,8 @@ parity-component build   [--component <slug>] [--target <name>]
    **列挙する候補の状態集合は全インスタンスで共通**にする——片方で採らなかった状態は「差が無い」ではなく「測っていない」になる。
    **例外は到達できない状態だけ**。そのインスタンスで作れない状態は、禁止された遷移を試さず `unreachable_states` に理由付きで宣言し、
    比較の母集合と軸の割り出しの両方から外す（[`references/instances.md`](references/instances.md)）
-5. **採取**: インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
+5. **採取**: 先に `parity-suite` 同梱の特性採取ツールをプロジェクト側へ用意する（[`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」。用意できなければ停止する）。
+   インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
    撮影条件は `parity-suite` の `references/baseline.md` に従い、**同一条件で 2 回撮ってノイズ基準値を出す**（2 回目の採取物は基準値を記録したら削除する）。詳細: [`references/capture.md`](references/capture.md)
 6. **固定軸・可変軸の割り出し**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out .replace/components/<slug>/axes.json` を **exit 0 まで通す**（マニフェストは手で組まず、この経路が採取物から決定論的に組み立てる）（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
    未採取・片側のみ・id 重複は問題として落ちるので、採取へ戻して埋める。**問題を残したまま「可変軸なし」を結論にしない**。詳細: [`references/component-api.md`](references/component-api.md)
@@ -149,7 +150,7 @@ parity-component build   [--component <slug>] [--target <name>]
      採取物が変わった後の古い軸や手で直した軸がそのまま引数設計へ渡る（出力からは区別できない）
    - **データセット版**（データ依存の部品のみ）: `metadata.json` の `dataset_version` と現在の版の間の `changes[].affects` が、
      その部品の**実効参照テーブル**と交差するなら陳腐化。**版の数値が古いだけでは陳腐化にしない**（無関係なテーブルの変更で毎回の再採取を強いることになる）。
-     導出規則と、導出できないときに停止する規律の正本は `golden-dataset` の [`references/versioning.md`](../golden-dataset/references/versioning.md)
+     導出規則と、導出できないときに停止する規律の正本は `golden-dataset` の `references/versioning.md`
    選択した新側 target が `auth.roles` を持つなら、カタログへ到達する前に `capture` と同じ規律で `storageState` を用意する（正本は `parity-suite` の `references/auth.md`）。
    対象 slug に対応する `.replace/components.md` の **Issue 列の番号**で **`issue-start <番号> --branch-only`** を実行してブランチを作る。未起票なら停止して `replace-strategy issues` を促す。
    **`--branch-only` を外さない**——モード未指定の `issue-start` はブランチ作成の後そのまま実装へ進む契約なので、
@@ -189,7 +190,8 @@ parity-component build   [--component <slug>] [--target <name>]
 
 - テキスト成果物（特性 JSON・CSS 規則 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除する（正本: `parity-suite` の `references/baseline.md`）
-- **差分器・特性採取ツールは `parity-suite` 同梱を正本として使う**（本スキルで再実装しない）。実行時は `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーし、実際のパスを `metadata.json` に記録する
+- **差分器・特性採取ツールは `parity-suite` 同梱を正本として使う**（本スキルで再実装しない）。実行時は `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーし、実際のパスを `metadata.json` に記録する。
+  **機能単位の `parity-suite` より先に走るのでコピーが無いのが普通**——インストール済み `parity-suite` からの用意と、既存のコピーが同梱版と違うときに停止する規律は [`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」
 - **[`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs) と [`scripts/axis-diff.mjs`](scripts/axis-diff.mjs) はコピーしない。** スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）
 
 ## 姉妹スキルとの連携
