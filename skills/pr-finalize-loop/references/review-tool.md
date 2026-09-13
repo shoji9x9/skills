@@ -106,6 +106,8 @@ gh api --method POST \
 
 - Codex が `@codex review` を検出してフォーマルなレビューを投稿する（👀 リアクション後にレビュー）。
   **必ず `@codex review`**（`review` 以外の mention は cloud chat 起動など別動作になる）。`requested_reviewers` は使わない。
+- 指摘が無い場合、👀 リアクションを外し、`Reviewed commit` の短縮 SHA と「指摘なし」を含むトップレベル bot コメントだけを投稿して `reviews[]` を作らないことがある（実測）。
+  短縮 SHA はGitHub APIで完全 SHAへ解決して現在HEADと照合する。
 - claude-code と同じく `-f` で渡す。成立確認・進行中・到着判定は各 SKILL の汎用シグナルに従う。
 - 出典: Codex code review in GitHub <https://developers.openai.com/codex/integrations/github>
 

@@ -261,11 +261,13 @@ query($endCursor: String) {
 - **PR 著者（`pullRequest.author.login`）によるレビューは判定から除外する（必須）**。レビュースレッドへの返信は REST/GraphQL 上、著者の `state: COMMENTED` レビューとして記録され、その `commit.oid` が返信後の新しい HEAD を指し得る（実測）。
   除外しないと「修正 → 返信 → push」という本スキルの標準フローを回すたびに、誰にもレビューされていない新 HEAD が「レビュー済み」と誤判定され、レビュー再依頼が漏れる。
 - **著者以外**のレビューのいずれかの `commit.oid` が `headRefOid` と一致すれば、現在の HEAD はレビュー済み。
-- `review_tool: claude-code` では、指摘が 0 件だとレビュー結果がトップレベルコメントまたは check-run だけに載り、`reviews[]` にレコード自体が作られないことがある。次のどちらかもレビュー到着の証跡として認める:
+- `review_tool: claude-code` / `codex` では、指摘が 0 件だとレビュー結果がトップレベルコメントまたは check-run だけに載り、`reviews[]` にレコード自体が作られないことがある。次のどちらかもレビュー到着の証跡として認める:
   1. `headRefOid` を ref にして取得した check-run のうち、名称・GitHub App・出力の趣旨から Claude のレビュー用と確認でき、正常に完了したもの。
      `status: completed` だけでは足りず、`conclusion` と `output.title` / `output.summary` も読み、失敗・timeout・skip・spend cap 等でレビューが行われなかったものを除外する
-  2. PR 著者以外のレビューボットによるトップレベルコメントのうち、本文がレビュー完了またはレビュー結果を示し、現在の完全な `headRefOid` をレビュー対象として明示するもの。working 等の進行中、エラー・skip、無関係な bot コメントは除外する
-- コメントの `created_at` / `updated_at` が直近 push の基準時刻より後というだけでは、レビュー済みの証跡にしない。旧 HEAD で開始したレビューが新しい push の後に完了すると時刻条件を満たすためである。完全な `headRefOid` の明示が無い完了コメントは指摘収集とcheck-runの意味確認には使えるが、単独では現在 HEAD のレビュー到着を証明しない。
+  2. PR 著者以外のレビューボットによるトップレベルコメントのうち、本文がレビュー完了またはレビュー結果を示し、レビュー対象 commit が現在の `headRefOid` と一致するもの。
+     Codex は `Reviewed commit` を短縮 SHA で書く（実測）ため、値を手で補完せず `gh api repos/<owner>/<repo>/commits/<短縮SHA> --jq .sha` で完全 SHA に解決し、`headRefOid` と完全一致させる。
+     解決失敗・複数候補・不一致、working 等の進行中、エラー・skip、無関係な bot コメントは除外する
+- コメントの `created_at` / `updated_at` が直近 push の基準時刻より後というだけでは、レビュー済みの証跡にしない。旧 HEAD で開始したレビューが新しい push の後に完了すると時刻条件を満たすためである。本文の commit を完全 SHA へ解決できない完了コメントは指摘収集とcheck-runの意味確認には使えるが、単独では現在 HEAD のレビュー到着を証明しない。
 - check-run は GitHub の commit ref 用 endpoint で現在 HEAD に限定して取得する。既定の `filter=latest` は同名 check-run の古い再実行を畳むため、その HEAD の全 attempt を判定する必要があれば `filter=all` とページネーションを使う:
 
   ```bash
