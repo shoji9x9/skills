@@ -198,7 +198,7 @@
         "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
         "次回 CLI 指定が無ければ SKILLS_REVIEW_TOOL の codex を使うと説明している",
         ".config/skills/shoji9x9/skills.yml を変更しない方針である",
-        "CLI、SKILLS_REVIEW_TOOL、共有 YAML、既定 copilot の優先順位を示している"
+        "今回の CLI 指定が環境変数より優先し、次回は環境変数が共有 YAML より優先すると説明している"
       ]
     }
   ]
