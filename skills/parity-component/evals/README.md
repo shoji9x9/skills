@@ -72,17 +72,43 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 
 `catalog-unset` の `axes.json` は `axis-diff.mjs` を `baseline/` に対して実行した出力そのもの（手書きしない）。リポジトリのフォーマッタが JSON の空白を正規化するため整形は揃わないが、内容は実出力と一致する。`baseline/` を変えたら同じコマンドで取り直す。
 
-## 実走の証拠の状態（この PR 時点）
+## 実走の証拠の状態（iteration-2）
 
-**assertion の中には、まだ実走で裏取りしていないものがある。** 回帰テストとして扱う前にここを読む。
+**前段ゲートを解消したうえで全 6 eval を再走した**（`with_skill` / `without_skill` 各 1 run、executor `claude-code`、model `opus`）。
+1 run では分散を測れないので **Delta の数値は語らず、弁別が残っているかだけ**を見る（正本: `.agents/rules/eval-run-scope.md`）。
 
-| 対象 | 状態 | 扱い |
-|---|---|---|
-| eval 1・2・4 に足した「停止の判断と矛盾する結論を述べていない」assertion | **未測定**。追加後に実走していない | **後退検知専用**として扱い、Delta の根拠にしない。到達性・弁別は次の実走で確かめる |
-| eval 5 の 6/6 | **fixture が目的の分岐へ到達していなかった**（参照ドキュメントの実体と要素スクリーンショットが無く、手前のゲートで停止していた）。assertion 文言と採取スキーマ v2 の変更も入った | 到達しない fixture で測った結果なので**被覆として数えない**。前段ゲートを解消したので再走が要る |
-| eval 6 の 5/5 | 同上（`axes.json` / `baseline/` / 参照ドキュメントが無く、`build` の前提検証で停止していた）。`build-metadata.json` の契約整合と `parity.md` のツール版も直した | 同じく**再走するまで被覆として数えない** |
-| eval 3 | 弁別ゼロ（上記「eval 3 は Delta ではなく後退検知」） | 後退検知専用 |
+| eval | with | without | 弁別した assertion 数 |
+|---|---|---|---|
+| 1 前提未整備で停止 | 5/5 | 3/5 | 2 |
+| 2 インスタンス 1 件 | 6/6 | 3/6 | 3 |
+| 3 被覆表を見た目の根拠にしない | 4/4 | 4/4 | **0** |
+| 4 来歴を確認できないデータ | 5/5 | 4/5 | 1 |
+| 5 カタログ未宣言で停止 | 6/6 | 1/6 | **5** |
+| 6 破壊的変更の判断を上げる | 4/5 → **5/5**（iteration-3） | 2/5 | 2 → **3** |
+
+結果は `tests/parity-component/iteration-2/` にある。読み取れたことは 4 つ。
+
+- **eval 5 は目的の分岐へ到達し、最も強く弁別した。** `with_skill` はカタログの契約ドキュメントと baseURL の欠落を挙げて停止し、
+  併せて `build` の前提検証（採取物 8 組の実在確認・`--baseline` での軸の再導出と `axes.json` の一致・スクリプト版の突き合わせ）を実行している。
+  `without_skill` は停止せず**部品を実装して見本まで書いた**（1/6）。前段ゲートを解消したことで、この eval が測りたかった差がそのまま出た
+- **eval 3 は今回も弁別ゼロ**（上記「eval 3 は Delta ではなく後退検知」の再確認）。`without_skill` も被覆表が動作しか数えていないことを自力で述べた
+- **eval 6 は iteration-2 で 4/5 だったのを直して iteration-3 で 5/5 にした。**
+  落ちていたのは「引数を足して既定値を据え置く形で解けるか」という代替案（assertion 4）で、
+  原因はスキルの記述不足ではなく **`with_skill` が明示の依頼を承認とみなし、「判断を求めるときは 3 つを示す」手順ごと飛ばしていた**こと。
+  `references/amend.md` に「依頼を承認とみなさない（示したうえで改めて指示されたら従う）」を足したところ、
+  3 点すべてを示すようになり弁別も 2 → 3 になった。詳細は [`tests/parity-component/iteration-3/benchmark.md`](../../../tests/parity-component/iteration-3/benchmark.md)。
+  **以前記録していた 5/5・弁別 4 は到達しない fixture で測った値なので、これらと比較できない**
+- **eval 1・2・4 に足した「停止の判断と矛盾する結論を述べていない」assertion は、今回いずれも `with_skill` / `without_skill` の両方が満たした。**
+  否定形の assertion は停止した run では自動的に満たされやすく、弁別には寄与しない。**後退検知専用**として扱う
+
+### `without_skill` が見つけた fixture の欠陥（別 Issue へ）
+
+eval 5 の `without_skill` は停止せず実装まで進んだため、fixture の中身を実装の材料として読み、こちらが気付いていなかった不整合を 3 件挙げた。
+いずれも**採取物として不自然**で、`build` が採取物を材料にする以上は直す価値がある。**#354 で扱う。**
+
+- `css-rules.json` の内容が `traits.json` の計算値と食い違う（users-create の hover で規則は `rgb(0, 70, 130)`、計算値は `rgb(221, 221, 221)`）。disabled の規則に `:disabled` が付いていないのに `unresolved` は 0 件
+- `capture.tools.traits_property_set` に挙げた 6 プロパティ（`border-width` / `box-shadow` / `opacity` / `letter-spacing` / `text-align` / `text-transform`）が `computed` にも `axes.json` にも無い
+- `element.png` が実際のボタンの画像ではなくプレースホルダなので、画素比較の入力にはならない
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**
 `scripts/skill-eval-fingerprint.js` が assertions を含めて指紋を取るため、baseline の再利用も拒否される。
-上表が空になるまでは、eval の結果を「この PR で検証済み」と報告しない。
