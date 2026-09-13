@@ -1,24 +1,29 @@
 # レビューツールの選択と再レビュー依頼
 
-このスキルは、レビュー対応後に AI レビュアーへ再レビューを依頼する。どのツールに依頼するかは
-`.config/skills/shoji9x9/skills.yml` の `skills.common.review_tool` で選ぶ。姉妹スキル
-（pr-review-handle / pr-finalize-loop）は同じレビュアーを使う想定のため設定は `common` に置き、両者で共有する。
+このスキルは、レビュー対応後に AI レビュアーへ再レビューを依頼する。姉妹スキル
+（pr-review-handle / pr-finalize-loop）は同じ解決規則を使う。
 
 ## 設定の解決
 
-- `skills.common.review_tool` を読む。値は次の 4 つ:
+- 次の優先順位で最初に設定された値を使う。値は `copilot` / `claude-code` / `codex` / `none` の 4 つだけを受理し、未知値は黙って既定へ倒さず停止する:
+  1. pr-finalize-loop の `--review-tool <tool>`
+  2. 環境変数 `SKILLS_REVIEW_TOOL`
+  3. `.config/skills/shoji9x9/skills.yml` の `skills.common.review_tool`
+  4. 既定 `copilot`
+- 各値の意味は次のとおり:
   - `copilot`（**既定**）: GitHub Copilot。`requested_reviewers` API に bot login を渡して依頼する。
   - `claude-code`: Claude Code。トップレベル PR コメントの mention で依頼する。
   - `codex`: OpenAI Codex。トップレベル PR コメントの mention で依頼する。
   - `none`: AI レビュアーへの再依頼をしない（人間レビューのみのリポジトリ向け）。
-- **未設定なら `copilot` を既定として使い**、その旨をユーザーに通知する（次回以降のために設定作成を促してよい）。
+- **すべて未設定なら `copilot` を既定として使い**、その旨をユーザーに通知する。
+- pr-review-handle は CLI override を持たないが、環境変数以降の同じ優先順位を使う。
 - **作成・追記はユーザー了承のうえ非破壊で行う**（`references/conventions.md` の設定ファイルの扱いと同じ要領）:
   設定ファイルの新規作成・追記はファイル作成という副作用を伴うため、**通知 → 了承 → 作成/追記**の順を守る
   （設定が無いまま起動したときは既定 `copilot` で進めつつ設定作成の要否を確認し、勝手に書き込まない）。
   了承を得たら、ファイルが無ければ `.config/skills/shoji9x9/` ごと作成し、`skills.common.review_tool` だけを書く。
   既にあれば欠けたキーだけを `common` セクション（無ければ親も）に追記し、既存のキー・値・コメントは変更しない。
   値が既にあれば尊重し上書きしない。
-- 導入時に一度選ぶ想定。値を変えたいときはユーザーが正本の `.config/skills/shoji9x9/skills.yml` を直接編集する（このドキュメントではない）。
+- 共有既定を変える場合だけ正本の `.config/skills/shoji9x9/skills.yml` を編集する。一時的な切替には CLI または環境変数を使う。
 
 ```yaml
 version: 1

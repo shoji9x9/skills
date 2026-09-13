@@ -1,5 +1,5 @@
 ---
-argument-hint: <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
+argument-hint: <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>]
 description: 作成済み GitHub PR の CI エラー解消とレビュー指摘対応を、CI が成功しレビュー指摘が尽きるまで自律ループで回すスキル。PR URL を受け取り、CI 失敗の修正・レビュースレッドの返信/解決・commit/push・設定したレビューツール（Copilot/Claude Code/Codex/none）への再レビュー依頼を反復する。ループ中はユーザー確認を挟まず自律動作するが、人間判断を要する指摘だけは確認し、反映後にループへ戻る。`--max-iterations`（既定 5）で無限ループを防ぐ。レビュー対応単体は姉妹スキル pr-review-handle が担う。「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」「pr-finalize-loop」で必ず発動する。
 license: MIT
 name: pr-finalize-loop
@@ -15,15 +15,16 @@ name: pr-finalize-loop
 ## 使い方
 
 ```text
-pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
+pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--review-tool <tool>]
 ```
 
 - `<PR URL>`（必須）: `https://github.com/<owner>/<repo>/pull/<番号>`。番号だけが渡された場合は現在の repo の PR とみなす
 - `--max-iterations <N>`（任意, 既定 5）: ループの最大反復回数。無限ループ防止の安全弁。1 反復＝「状態取得 → CI/レビューを直す → commit/push → 再実行待ち」の 1 周
 - `--wait-ci-before-review`（任意, 既定オフ）: push 後の再レビュー依頼を、CI 再実行の完了を待ってから出す。**既定（オフ）では push 直後に CI 完了を待たず依頼し、CI とレビューを並行させる**（収束を速める。レビュー進行中＝設定ツールの自動レビュー・別エージェントとも＝は保留する）。壊れた HEAD にレビューを促したくない場合だけ指定する
+- `--review-tool <tool>`（任意）: この実行だけ `copilot` / `claude-code` / `codex` / `none` のいずれかを使う。共有設定を変更せず、一時的にクレジット状況などへ対応する
 - ループ中はユーザー確認を挟まず自律で進める（唯一の例外は後述「自律性ポリシー」の人間判断を要するレビュー指摘）
 
-例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3` / `pr-finalize-loop 6 --wait-ci-before-review`
+例: `pr-finalize-loop https://github.com/<owner>/<repo>/pull/6` / `pr-finalize-loop 6 --max-iterations 3` / `pr-finalize-loop 6 --review-tool codex`
 
 - 自然文でも発動する:「PR を最後まで解決して」「CI とレビュー指摘がなくなるまで回して」「PR の CI とレビューを収束させて」。
 
@@ -42,8 +43,8 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review]
 
 ## レビューツールの選択
 
-push 後などに再レビューを依頼する AI レビュアーは設定で選ぶ。設定キー（`skills.common.review_tool`、
-既定 `copilot`）とツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
+push 後などに再レビューを依頼する AI レビュアーは CLI・環境変数・共有設定から選ぶ。解決順と
+ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
 値は `copilot` / `claude-code` / `codex` / `none`。**`none` の場合は再レビュー依頼を一切行わず、収束・完了判定から
 「HEAD がレビュー済み」条件を外す**（CI 全成功・未解決スレッド無し・スレッド外の指摘対応済みで完了）。以降の本文で「レビュー依頼」と言うときは
 設定した `review_tool` への依頼を指す。
