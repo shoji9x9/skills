@@ -8,7 +8,7 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -940,4 +940,43 @@ test("--baseline で capture.states に無い状態を全インスタンスが�
   const r = runBaseline(dir);
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("どのインスタンスでも到達できない状態が宣言されている（focus）");
+});
+
+test("--baseline は baseline 配下のシンボリックリンクを辿って外を読まない", () => {
+  // 陽性コントロール: リンク先に正しい形の traits.json を置く。字句上の包含判定だけなら
+  // これを読んで exit 0 になり、外の値が axes.json に入る。
+  const { root, dir } = makeBaseline({
+    instances: [{ id: "escape" }, { id: "b" }],
+    files: {
+      "baseline/b/default/traits.json": validTraits("rgb(1, 1, 1)"),
+    },
+  });
+  const outside = join(root, "outside");
+  mkdirSync(join(outside, "default"), { recursive: true });
+  writeFileSync(
+    join(outside, "default", "traits.json"),
+    JSON.stringify(validTraits("rgb(66, 66, 66)")),
+  );
+  symlinkSync(outside, join(dir, "baseline", "escape"));
+  const r = runBaseline(dir);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("採取物のパスが baseline の外を指す");
+  expect(r.stdout).not.toContain("rgb(66, 66, 66)");
+});
+
+test("--baseline は部品ディレクトリ自体がシンボリックリンク経由でも通す", () => {
+  // 過剰修正の検知: 根と候補の片側だけを実パスに解決すると、リンク経由で渡した正当な
+  // 採取物を外と誤判定する。
+  const { root, dir } = makeBaseline({
+    instances: [{ id: "a" }, { id: "b" }],
+    files: {
+      "baseline/a/default/traits.json": validTraits("rgb(1, 1, 1)"),
+      "baseline/b/default/traits.json": validTraits("rgb(2, 2, 2)"),
+    },
+  });
+  const link = join(root, "linked-button");
+  symlinkSync(dir, link);
+  const r = runBaseline(link);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
 });

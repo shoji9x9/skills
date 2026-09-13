@@ -140,12 +140,19 @@ export function assembleFromBaseline(dir) {
         states: states
           .filter((st) => !unreachable.has(st))
           .map((st) => {
+            // 包含の判定は両辺を実パスに解決してから行う。字句上の resolve / relative だけだと、
+            // `baseline/<id>` がシンボリックリンクで外を指すとき判定を通り、readFileSync が
+            // リンクを辿って外のファイルを読む。片側だけ解決すると、baseline 自体がリンク経由の
+            // 正当な構成を外と誤判定するので、根と候補の両方を realpath に揃える。
+            // 実在しないパスは realpathSync が投げる（採取物の欠落として従来どおり読めない扱い）。
             const path = resolve(baselineRoot, id, st, "traits.json");
-            const rel = relative(baselineRoot, path);
-            if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-              throw new Error(`採取物のパスが baseline の外を指す: ${path}`);
+            const realRoot = realpathSync(baselineRoot);
+            const realPath = realpathSync(path);
+            const rel = relative(realRoot, realPath);
+            if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+              throw new Error(`採取物のパスが baseline の外を指す: ${path} → ${realPath}`);
             }
-            return { state: st, traits: JSON.parse(readFileSync(path, "utf8")) };
+            return { state: st, traits: JSON.parse(readFileSync(realPath, "utf8")) };
           }),
       };
     }),
