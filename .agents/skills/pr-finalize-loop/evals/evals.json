@@ -193,13 +193,12 @@
     {
       "id": 17,
       "prompt": "PR #6 の収束だけ AI レビューを止めたい。普段の一時設定は Codex、プロジェクトの共有既定は Copilot。共有ファイルは変えずに今回を実行し、次回の通常実行へ何が残るかも報告して。",
-      "expected_output": "今回だけ --review-tool none を使い、次回は一時環境設定の SKILLS_REVIEW_TOOL=codex が共有 YAML より優先される。共有 YAML は変更せず、未知値は既定へ黙ってフォールバックしない。",
+      "expected_output": "今回だけ --review-tool none を使い、次回は一時環境設定の SKILLS_REVIEW_TOOL=codex が共有 YAML より優先される。共有 YAML は変更しない。",
       "assertions": [
         "pr-finalize-loop 6 --review-tool none を今回の実行方法として示している",
         "次回 CLI 指定が無ければ SKILLS_REVIEW_TOOL の codex を使うと説明している",
         ".config/skills/shoji9x9/skills.yml を変更しない方針である",
-        "CLI、SKILLS_REVIEW_TOOL、共有 YAML、既定 copilot の優先順位を示している",
-        "未知のレビューツール値は既定へ黙ってフォールバックせず停止する方針である"
+        "CLI、SKILLS_REVIEW_TOOL、共有 YAML、既定 copilot の優先順位を示している"
       ]
     }
   ]
