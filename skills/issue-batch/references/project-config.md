@@ -4,7 +4,7 @@
 
 `.config/skills/shoji9x9/skills.yml` の `skills.issue-batch` を issue-batch 固有設定の正本とする。
 
-- **remote AI review の依頼先**は pr-finalize-loop の解決規則（CLI → `SKILLS_REVIEW_TOOL` → `skills.common.review_tool` → 既定 `copilot`）に委譲する
+- **remote AI review の依頼先**は pr-finalize-loop の解決規則に委譲する
 - browser environment は `skills.browser-test`
 - branch / commit 規約は `skills.common.conventions_doc` とその参照先
 

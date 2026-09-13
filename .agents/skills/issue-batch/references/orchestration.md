@@ -109,7 +109,7 @@ console、主要要素、Network / API、副作用のない操作を確認する
 ## pr-finalize-loop への handoff
 
 PR URL と解決済みの `max_pr_iterations` を `pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ `--wait-ci-before-review` を足す。
-レビューツールは pr-finalize-loop が CLI → `SKILLS_REVIEW_TOOL` → `skills.common.review_tool` → 既定 `copilot` の順で解決するため、issue-batch は値を先に固定・転送しない。
+レビューツールは pr-finalize-loop が解決するため、issue-batch は値を先に固定・転送しない。pr-finalize-loop の参照先を読めなければ handoff 前に停止する。
 
 CI、全 reviewer の thread / review body、再レビュー依頼は `pr-finalize-loop` が正本。issue-batch 自身から remote AI review を依頼しない。収束しなければ BLOCKED / FAILED とし、隔離可能なら方針に従って次 Issue へ進む。
 
