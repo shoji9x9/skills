@@ -2,6 +2,7 @@
 
 <!-- replace-strategy（setup）が共通部品を、parity-replace が機能固有・実装中に必要になった部品を追記する。 -->
 <!-- golden-dataset / parity-suite / parity-diff も、投入ツール・スイート・差分器に依存を足すときは同じ基準でここへ追記する。 -->
+<!-- parity-component も、共通部品の実装で足す依存を build の手順 3 で同じ基準で判断してここへ追記する。 -->
 <!-- 形式の正本は replace-strategy。判断材料・工程・確認手段の正本は replace-strategy の references/dependency-selection.md。 -->
 <!-- 追記は非破壊。既存の決定を書き換えず、差し替えたときは新しい決定を追記して前の決定に差し替え理由を書く。 -->
 <!-- 各行・各節は例。実際の部品・値で置き換える。 -->

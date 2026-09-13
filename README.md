@@ -23,6 +23,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [replace-strategy](./skills/replace-strategy/) | 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測（セマンティクス・DB 復元可否・コード入手性・副作用・既存テスト）して戦略を決め、機能に分解して姉妹スキルへ振り分ける。自分では実装しない。`setup` / `issues`（issue-create へ委譲）/ `status` の 3 モード。測定できなければ停止 |
 | [current-environment-bootstrap](./skills/current-environment-bootstrap/) | replace-strategy の姉妹スキル。先方から受領した資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を自社へ再構築する。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマと設定の復元、データ意味論の根拠収集、不足に対する先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再構築の再実行検証、current target の引き渡しまで。カラム名や型からの推測でドメイン値を確定せず、来歴・利用許可が不明なデータは投入しない。`current.origin: received-assets` のとき `replace-strategy setup` が測定の前に委譲する |
 | [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへ写像・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
+| [parity-component](./skills/parity-component/) | replace-strategy の姉妹スキル。共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出す。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に部品を作らない方針なら使わない（機能ごとに parity-replace が作る） |
 | [parity-suite](./skills/parity-suite/) | replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入で強度を検証。論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay・視覚ベースラインとノイズ基準値の採取まで。1 回の実行で 1 機能。replace-strategy setup / golden-dataset 未完了・Playwright 不可なら停止 |
 | [parity-replace](./skills/parity-replace/) | replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、スイートが新に対して green ＋ 静的解析で完了（差分ゼロは parity-diff との往復の終了条件）。1 回で 1 機能。前提未完了なら停止 |
 | [parity-diff](./skills/parity-diff/) | replace-strategy の姉妹スキル。現行と新側の差分を検出・分類する。検出は決定論的ツール（画素・特性照合・aria の 3 経路）が行い、LLM は分類（要対応／許容／環境ノイズ）のみを行う。1 回の実行で 1 機能。前提（replace-strategy setup / golden-dataset / 対象 slug の parity-suite 完了・parity-replace の新側 green）未完了なら停止 |
@@ -51,6 +52,7 @@ gh skill install shoji9x9/skills box
 gh skill install shoji9x9/skills replace-strategy
 gh skill install shoji9x9/skills current-environment-bootstrap
 gh skill install shoji9x9/skills golden-dataset
+gh skill install shoji9x9/skills parity-component
 gh skill install shoji9x9/skills parity-suite
 gh skill install shoji9x9/skills parity-replace
 gh skill install shoji9x9/skills parity-diff
@@ -65,7 +67,7 @@ gh skill update --all
 ## スキルの設定
 
 一部のスキル（issue-start / issue-batch / git-worktree / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test /
-replace-strategy / current-environment-bootstrap / golden-dataset / parity-suite / parity-replace / parity-diff）は、
+replace-strategy / current-environment-bootstrap / golden-dataset / parity-component / parity-suite / parity-replace / parity-diff）は、
 インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
 `<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。
 設定は、**設定を作成するスキル**（`replace-strategy setup` / `browser-test setup` や各スキルの規約解決フロー等）の実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、

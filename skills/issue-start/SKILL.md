@@ -1,7 +1,7 @@
 ---
 name: issue-start
-description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。「Issue から始める」「この issue に着手」「issue-start」や、`--plan` / `--commit` / `--pr` を伴う依頼で発動する。
-argument-hint: "<Issue URL | 番号> [--plan | --commit | --pr]"
+description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。ブランチを用意した時点で呼び出し元へ返す `--branch-only` があり、実装を自分で持つスキルからの委譲に使う。「Issue から始める」「この issue に着手」「issue-start」や、`--branch-only` / `--plan` / `--commit` / `--pr` を伴う依頼で発動する。
+argument-hint: "<Issue URL | 番号> [--branch-only | --plan | --commit | --pr]"
 license: MIT
 ---
 
@@ -12,17 +12,20 @@ GitHub Issue 起点の作業開始を `gh` で標準化する。ブランチ命�
 ## 使い方
 
 ```text
-issue-start <Issue URL | 番号> [--plan | --commit | --pr]
+issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
 ```
 
-- モード未指定（`--plan` / `--commit` / `--pr` なし）: ブランチ作成・checkout 後そのまま調査・実装へ進む。commit / push / PR はしない
+- モード未指定（`--branch-only` / `--plan` / `--commit` / `--pr` なし）: ブランチ作成・checkout 後そのまま調査・実装へ進む。commit / push / PR はしない
+- `--branch-only`: ブランチ作成・checkout（と基本フロー step 8 の現状検証）まで行い、**調査・実装へ進まずに返る**。
+  **実装を自分で持つスキルからの委譲用**——モード未指定で呼ぶと本スキルがそのまま実装へ進む契約なので、
+  呼び出し元が続けて実装すると同じ Issue に対して実装が二重に走る。散文で「実装は委ねない」と書いても契約は変わらないため、モードで区別する
 - `--plan`: 関連ファイルと Issue を確認し、必要なことだけ追加確認して詳細計画を作る。実装はユーザーの開始指示後に進める
 - `--commit`: 実装、必要な確認、関連ファイルだけの staging、論理単位の commit まで行う
 - `--pr`: 実装、必要な確認、commit、push、PR 作成まで行う
 
 `--commit` / `--pr` は、その段階までの実行をユーザーが明示的に委譲した合図。指定がない限り commit しない。
 
-例: `issue-start 220` / `issue-start 220 --plan` / `issue-start https://github.com/<owner>/<repo>/issues/220 --pr`
+例: `issue-start 220` / `issue-start 220 --plan` / `issue-start 220 --branch-only` / `issue-start https://github.com/<owner>/<repo>/issues/220 --pr`
 
 - 自然文でも発動する:「Issue から始める」「この issue に着手」。
 
@@ -125,7 +128,9 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
      - **縮小**（別 PR で解決済み・対象が削除済み）: 残っている作業だけを対象にする。全て解決済みなら実装せず Issue のクローズを相談する
      - **拡大**（記載外へ波及する・記載パスが現存しない）: 影響範囲を再定義し、Issue の更新・分割を相談する
    - 乖離が作業範囲や実装方針を変える規模なら、実装に進まずユーザーに確認する（「追加確認が必要な条件」）
-9. 選択されたモードに応じて後続へ進む（各モードの挙動は「使い方」を参照）
+9. 選択されたモードに応じて後続へ進む（各モードの挙動は「使い方」を参照）。
+   **`--branch-only` はここで終わる**——ブランチ名・checkout の有無・step 8 の現状検証の結果（乖離があればその分類）を報告して返す。
+   調査・実装・commit・push・PR のいずれも行わない
 10. **push する直前にリモートの PR ベースブランチの進行を確認する**（`--pr` のみ）
     - step 7 で規約から解決したベースブランチを、作成予定の PR のベースとして保持し、`git fetch origin '<PR ベースブランチ>'` を実行する。リポジトリのデフォルトブランチと同じだと仮定しない。既存 PR を継続する場合は `gh pr view --json baseRefName` で実際の PR ベースを再取得して使う
     - `git rev-list --count 'HEAD..origin/<PR ベースブランチ>'` で、現在の作業ブランチへ未取り込みの commit 数を確認する。fetch の失敗、PR ベースの解決失敗、remote ref の不在を「進行なし」に倒さず、push を止めて原因を解消する
@@ -150,6 +155,6 @@ issue-start <Issue URL | 番号> [--plan | --commit | --pr]
 - 要件のスコープが曖昧
 - 挙動の選択肢が複数あり、実装に大きく影響する
 - 既存ブランチが複数あり、どれを使うべきか判断できない
-- `--plan` で詳細計画を立てる前提条件が不足している
+- `--plan` で詳細計画を立てる前提条件が不足している（`--branch-only` では計画を立てないのでこの条件は当たらない）
 - 本文とコメントに齟齬があり、どの決定に従うか判断できない（特に `--plan`）
 - Issue 記載の影響範囲と現状が乖離し、作業範囲が変わる（記載対象が現存しない・別 PR で解決済み・記載外へ波及する）

@@ -1,0 +1,64 @@
+{
+  "_note": "parity-component の build が .replace/components/<slug>/new/<target>/build-metadata.json として生成する（環境別。他の target の証跡を上書きしない）。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える。",
+  "slug": "<.replace/components.md が採番した slug>",
+  "target": {
+    "name": "<選択した new target 名（設定 targets の side: new）>"
+  },
+  "new": {
+    "repo": "<新側リポジトリ（設定 new.repo）>",
+    "commit": "<実装のコミット SHA。取れなければ none（none はいかなる値とも一致しない）>",
+    "dirty": "<作業ツリーに未コミットの差分があるか。真偽値で書く。true の証跡は同一実装を保証しない>"
+  },
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<実装したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<parity-component のバージョン>"
+  },
+  "issue": "<.replace/components.md の Issue 番号（issue-start に渡したもの）>",
+  "dependencies_recorded": "<このフェーズで決めた部品の採否を .replace/dependencies.md へ非破壊追記したか。真偽値で書く>",
+  "review": {
+    "performed": "<敵対的レビューを実施したか。真偽値で書く。型検査・テストが通ったことを省略の理由にしない>",
+    "reviewer": "<サブエージェント | 人間（起動できない場合の代替）>",
+    "record": "<レビュー記録のパス（様式の正本は parity-replace の assets/review-template.md）>"
+  },
+  "verification": {
+    "column": "full",
+    "commands": [
+      {
+        "command": "<実行した検証コマンド（設定 verification_commands.full。固有のツール名は設定側に置く）>",
+        "result": "<pass | fail>"
+      }
+    ],
+    "unchecked": [
+      "<.replace/strategy.md「未検証領域の扱い」の機械検査の穴のうち、この部品に効くもの。該当が無ければ空配列>"
+    ]
+  },
+  "parity": {
+    "instances": "<照合したインスタンス数>",
+    "states": "<照合した状態数>",
+    "cells_compared": "<照合した インスタンス × 状態 の件数。採取物の件数と一致すること>",
+    "missing_stories": "<採取物にあって見本が無い組み合わせの件数。1 以上なら完了しない>",
+    "unexplained": "<未説明差分の件数。要対応が 0 件で、許容が全件宣言に紐づいているとき 0>",
+    "record": ".replace/components/<slug>/parity.md"
+  },
+  "loop": {
+    "iterations": "<照合と修正の反復回数>",
+    "changed_scope": "<最後の反復で描画に効く変更を入れた範囲（トークン・共有スタイル・部品本体のどれか）>",
+    "stopped_reason": "<収束 | 反復上限 | ユーザーへエスカレーション（同じ箇所で 3 回以上往復した等）>"
+  },
+  "gaps": "<.replace/components/<slug>/gaps.md の未検証件数。収束は止めないが、完了報告では収束と並べて示す>",
+  "catalog": {
+    "_note": "見本の対応表は target 別のこの証跡に置く（capture の metadata.json へ置くと、2 つ目の new target で走ったときに 1 つ目の対応表を上書きし、先の照合を後から追えなくなる）。",
+    "base_url": "<解決したカタログの baseURL。catalog_url_command で解決する target では \"runtime\">",
+    "stories": [
+      {
+        "instance": "<インスタンス id（capture の metadata.json の instances[].id）>",
+        "state": "<状態名>",
+        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（書き写さない）>"
+      }
+    ]
+  }
+}

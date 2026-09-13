@@ -1,0 +1,157 @@
+{
+  "slug": "button",
+  "component": "ボタン",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.0.0"
+  },
+  "dataset_version": 3,
+  "capture": {
+    "complete": true,
+    "states": ["default", "hover", "active", "disabled"],
+    "state_source": "app-ui",
+    "auth_roles": ["admin"],
+    "tools": {
+      "traits": "e2e/parity/lib/tools/vendor/trait-capture.mjs",
+      "traits_version": "2",
+      "traits_property_set": [
+        "background-color",
+        "border-radius",
+        "border-width",
+        "box-shadow",
+        "color",
+        "cursor",
+        "font-family",
+        "font-size",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "opacity",
+        "padding-bottom",
+        "padding-left",
+        "padding-right",
+        "padding-top",
+        "text-align",
+        "text-transform"
+      ],
+      "css_rules_version": "2",
+      "axis_diff_version": "2",
+      "pixel_differ": "pixelmatch@7.1.0"
+    }
+  },
+  "instances": [
+    {
+      "id": "orders-search",
+      "page": "/orders",
+      "locator": "order.search-submit",
+      "auth_role": "admin",
+      "data": {
+        "dependent": false,
+        "rows": null,
+        "extract_path": null
+      }
+    },
+    {
+      "id": "users-create",
+      "page": "/users",
+      "locator": "user.create-submit",
+      "auth_role": "admin",
+      "data": {
+        "dependent": false,
+        "rows": null,
+        "extract_path": null
+      }
+    }
+  ],
+  "axes": {
+    "path": ".replace/components/button/axes.json",
+    "ok": true,
+    "variable": 10,
+    "fixed": 62,
+    "measured": 72,
+    "not_compared": []
+  },
+  "capture_gaps": {
+    "inaccessible_sheets": 0,
+    "unresolved_selectors": 0
+  },
+  "capture_conditions": {
+    "environment": "Ubuntu 24.04 / Chromium 129 / DPR 1。system-ui は Noto Sans JP に解決",
+    "viewer_environment": "一致",
+    "viewports": [
+      {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      }
+    ],
+    "animations": "disabled",
+    "element_screenshot": true,
+    "masks": []
+  },
+  "noise_baseline": [
+    {
+      "instance": "orders-search",
+      "state": "default",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "orders-search",
+      "state": "hover",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "orders-search",
+      "state": "active",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "orders-search",
+      "state": "disabled",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "users-create",
+      "state": "default",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "users-create",
+      "state": "hover",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "users-create",
+      "state": "active",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    },
+    {
+      "instance": "users-create",
+      "state": "disabled",
+      "viewport": "desktop",
+      "pixel": 0,
+      "traits": 0
+    }
+  ]
+}

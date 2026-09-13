@@ -1,6 +1,6 @@
 ---
 name: replace-strategy
-description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル（golden-dataset / parity-suite / parity-replace / parity-diff）へ振り分けるスキル。自分では実装しない。setup（依存確認・現行環境の由来確認・対話セットアップ・測定・戦略決定・レジストリ・機能インベントリ・パッケージ選定。受領資産からの再構築は current-environment-bootstrap へ委譲）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル群へ振り分けるスキル。自分では実装しない。setup（依存確認・現行環境の由来確認・対話セットアップ・測定・戦略決定・レジストリ・機能インベントリ・パッケージ選定。受領資産からの再構築は current-environment-bootstrap へ委譲。共通部品を先に作る方針なら parity-component へ委譲）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
 argument-hint: "<setup | issues | status> [--feature <slug>...]"
 license: MIT
 ---
@@ -151,14 +151,31 @@ replace-strategy status
 10. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
    判断材料・確認手段・決める順序は [`references/dependency-selection.md`](references/dependency-selection.md)。
    **ライセンス方針・供給網ポリシーの有無はリポジトリごとに違うため、あればそれに従い、未確認なら方針の要否そのものをユーザーに確認**して結果を設定（`references.dependency_policy`）へ記録する（`none` ＝確認済みで方針なしは再確認しない）。
-   機能固有の部品は `parity-replace` が実装フェーズ前に同じ基準で決める（ここで全部を洗い出そうとしない）
+   機能固有の部品は `parity-replace` が実装フェーズ前に同じ基準で決める（ここで全部を洗い出そうとしない）。
+   **共通 UI 部品を画面より先に作る方針を採るかをここで確認し、採るなら `.replace/components.md` に部品インベントリを作る**（テンプレート: [`assets/components-template.md`](assets/components-template.md)）。
+   採否だけを記録して終えると、**部品を実装する側は「現行のどこを測れば実装の正解が分かるか」を自分で探すことになる**——
+   `dependencies.md` は採否の記録であって測定対象の一覧ではなく、`parity-suite` の被覆表は**ページができてから**作られるので、部品を先に作る時点ではどちらも対象を持たない。
+   インベントリには部品ごとに **slug・インスタンス（ページ ＋ その部品を指す論理名）・データ依存の有無・採否**を書く。
+   **ページ一覧は候補の生成源であって、インスタンスそのものではない**——ページ一覧が持つのはページパスと機能 slug だけで、
+   部品の論理名は入っておらず、`/orders/:id` のようなパターンは現行 target で開ける URL ではない。
+   手順 9 のページ一覧を候補に**現行アプリを実際に開いて確認する**: その部品を role ＋アクセシブルネームで一意に引ける論理名を確かめ、
+   パラメータ付きページは**具体 URL か、その値の解決規則**（どのデータから採るか）をインベントリに残す。
+   `parity-component` の採取は到達できる URL と一意に引ける論理名を前提にするので、ここを埋めないと採取側が推測するか採取を飛ばすことになる。
+   **インスタンスが 1 件しか無い部品は先に作る対象にしない**（固定と可変を区別できないため。「先に作らない部品」表へ理由付きで置き、その機能の実装時に `parity-replace` が作る）。
+   採取・実装・照合は `parity-component` が担うので、**ここでは対象と slug を確定するだけで、見た目の採取は行わない**。
+   併せて**部品カタログの実体**（1 インスタンス × 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
+   カタログの baseURL を `side: new` の target の `catalog_url`（固定文字列）または `catalog_url_command`（実行ごとに変わる環境。排他）に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
+   **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る。従来のフローは変わらない）
 
 ## issues モード
 
-`.replace/features.md` の未起票の機能・横断 API リソース・バッチから対象を選択し、Issue を起票して Issue 番号をインベントリへ書き戻す。
-手順・Issue 種類（ゴールデンデータセット／横断 API／機能／バッチの 4 種と、**4 種に還元できない作業のための「その他 Issue」**の計 5 種）・本文構成は [`references/features-issues.md`](references/features-issues.md) を参照する。
+`.replace/features.md` の未起票の機能・横断 API リソース・バッチと、**`.replace/components.md` の未起票の部品**から対象を選択し、Issue を起票して Issue 番号をインベントリへ書き戻す。
+手順・Issue 種類（ゴールデンデータセット／横断 API／機能／バッチの 4 種と、**4 種に還元できない作業のための「その他 Issue」**、
+および**`.replace/components.md` に住む共通部品 Issue** の計 6 種）・本文構成は [`references/features-issues.md`](references/features-issues.md) を参照する。
 
 - `.replace/features.md` が無い（`setup` 未完了）場合は起票せず停止し、`setup` の実行を促す
+- **`.replace/components.md` が無いのは未完了ではない**——共通部品を画面より先に作らない方針では作られないファイルなので、無ければ共通部品 Issue を候補に出さないだけでよい（`setup` の再実行を促さない）
+- **共通部品 Issue の書き戻し先は `.replace/components.md` の「部品一覧」表の Issue 列**（`.replace/features.md` ではない）。更新は同じく非破壊
 - **`.replace/features.md` の更新は非破壊**——テンプレートは初期生成の雛形であって更新時の項目の上限ではない。変える行・列だけを書き換え、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しない。4 種に当てはまらない Issue は「その他の Issue（4 種以外）」表へ置く（正本は [`references/features-issues.md`](references/features-issues.md)）
 - 起票は `issue-create` スキルへ委譲する。**候補・依存関係・各 Issue の本文ドラフトを提示して明示承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
 - 同じページに乗る機能はページ一覧から束ねて連続順を提案し、着手前に slug ごとの再実行回数・束の合計・最後にマスクが外れる全面比較を示す（実依存を逆転させない。数え方は [`references/features-issues.md`](references/features-issues.md)）
@@ -187,7 +204,8 @@ replace-strategy status
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）。更新は非破壊 |
-| 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` が機能固有・実装中の追加を非破壊追記する |
+| 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
+| 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
 ## 姉妹スキルと依存順
@@ -196,12 +214,14 @@ replace-strategy status
 |---|---|
 | `current-environment-bootstrap` | 受領資産から現行テスト環境（`side: current` target）を再構築する。**`current.origin: received-assets` のときだけ**、`setup` が測定の前に委譲する |
 | `golden-dataset` | 現行と新側に投入する共通テストデータの投入ツール（フェーズ A: 現行、フェーズ B: 新側）。全機能横断 |
+| `parity-component` | 共通 UI 部品の見た目の基準の採取・実装・カタログ上の照合。**画面より先に部品を作る方針のときだけ**、`.replace/components.md` を受けて機能の着手前に動く |
 | `parity-suite` | パリティスイート（新旧どちらにも当てられる実行可能な合否判定基準）の構築と強度検証 |
 | `parity-replace` | 新側実装の薄い層。ページ単位の分割・新側マッピングの充填・敵対的レビュー。実装フローは `issue-start` に委譲 |
 | `parity-diff` | 決定論的差分器（画素＋特性照合＋aria）→ LLM トリアージ |
 
 **全体の依存順**: `replace-strategy`（`setup` の由来確認）→ **必要時のみ `current-environment-bootstrap`** → `replace-strategy`（測定・戦略・機能インベントリ）
-→ `golden-dataset`（フェーズ A）→ 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）〕。横断 API Issue は機能 Issue より先。
+→ `golden-dataset`（フェーズ A）→ **画面より先に部品を作る方針なら部品ごとに `parity-component`（`capture` → `build`）** → 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）〕。
+共通部品 Issue は機能 Issue より先、横断 API Issue も機能 Issue より先。
 
 姉妹スキルが未インストールでも本スキル（測定・戦略・起票）は動くが、起票した Issue の実施には必要になる。`issues` モードの完了時に案内する。
 **例外は `current-environment-bootstrap`**——`current.origin: received-assets` のときは測定の前提そのものが揃わないため、未インストールなら導入手順を示して停止する（手順 2）。

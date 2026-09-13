@@ -77,6 +77,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   （事前条件。区分の正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）。付随の範囲を超えると判断したら停止してユーザーに上げる。
   **書いた付随差分は敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等）を通す**——パリティスイートは IaC を検証しないため、この 2 つだけが担保になる。
   `verification_commands` は**環境に依存しないコード検証**に限る規約なので、認証情報・リモート state・実環境への問い合わせを要するコマンド（`terraform plan` 等）はここに入れない
+- **既に作られた共通部品を、他の利用箇所への影響を測らずに直さない。** 目の前の画面を直す変更が別の画面の見た目を静かに変え、**その画面のスイートができるまで誰も赤くしない**。
+  切り分け・直し方・破壊的変更の判断の正本は `parity-component` の `references/amend.md`（同スキルを使っていないプロジェクトでは共通部品も機能ごとに作られるため、この規律は掛からない）
 - **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する）
 - **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
@@ -124,8 +126,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: 前提（上記）を metadata.json の存在で判定し、欠ければ捏造せず停止して該当スキル（`replace-strategy setup` / `golden-dataset` / 対象 slug の `parity-suite`）の実行を促す。
-   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で `issue-start <番号>` を実行してブランチを作る
-   （`--commit` / `--pr` は付けない。ブランチ作成・checkout 後の調査・実装は issue-start に委ねず、本スキルの実行フローとして進める）。未起票なら停止して `replace-strategy issues` を促す。
+   `slug` を features.md と突き合わせ、モードとパスは metadata.json から引く。着手時は slug に対応する features.md の **Issue 列の番号**で **`issue-start <番号> --branch-only`** を実行してブランチを作る
+   （`--branch-only` を外さない。モード未指定の issue-start はブランチ作成の後そのまま実装へ進む契約なので、委ねると同じ Issue に対して実装が二重に走る）。未起票なら停止して `replace-strategy issues` を促す。
    合わせて**新側 target を確定する**（`--target` の解決規則は上記「使い方」。旧キーを見つけたら移行手順を示して停止）
 2. **ページ分割とフェーズ構成**: 機能をページ単位のフェーズに分ける。**1 ページを作り切って比較してから次へ**。フェーズ内は読み取り経路 → 書き込み経路の順。api-resource / batch モードはページ分割せず該当モードで動く。詳細: [`references/paging.md`](references/paging.md)
 3. **部品の洗い出しと依存の決定**: **入る前に骨格（`references.architecture`）の未整備を検出し、未整備なら停止する**（挙動は上記キー表。骨格を自分で決めない）。
@@ -136,7 +138,14 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
    **クエリ・データアクセスを書く前に `references.db_semantics` の点検表を読む**（未整備でも停止せず、スキーマ文書「DB 意味論」の点検項目を一次ドキュメントで確認する）。点検結果は `porting.md` へ記録する。
    **書き方は新側リポジトリの規約（`references.coding_conventions`）に従う**（未整備でも自分の流儀を持ち込まず、基底ドキュメント・リント設定・既存コードから読み取る）。
-   推測せず、確信度を実装単位ごとに `porting.md` へ**常に**申告し、判断できない箇所は `TODO` で未解決を明示する。詳細: [`references/implementation.md`](references/implementation.md)
+   推測せず、確信度を実装単位ごとに `porting.md` へ**常に**申告し、判断できない箇所は `TODO` で未解決を明示する。詳細: [`references/implementation.md`](references/implementation.md)。
+   **画面より先に作られた共通部品に手を入れる必要が出たら、規律の正本は `parity-component` の `references/amend.md`** ——
+   **判定はファイルの有無ではなく、その部品が実際に先に作られているか**で行う——`.replace/components.md` は「先に作らない部品」も併記するので、
+   ファイルが在るだけでは対象の部品が既に作られている根拠にならない（作られていない部品を改修規律へ回すと、採取物も見本も無いまま「全見本を採り直して差分ゼロ」を求めることになる）。
+   対象を `components.md` の**部品一覧**の行に引き当て、その slug の `.replace/components/<slug>/new/<選択中の new target>/build-metadata.json` が在ることまで確かめる。
+   「先に作らない部品」表にある・一覧に無い・build 成果物が無い部品は、このフェーズで普通に実装する（改修規律は適用しない）。先に作られていた場合は——
+   直す前に「利用側の問題／部品の問題／採取の漏れ」を切り分け、足すのは新しい引数で既定値は改修前の挙動にし、**他の利用箇所への影響は目視ではなくその部品の全見本を採り直して差分ゼロで示す**。
+   破壊的変更（既存の引数の削除・改名・意味の変更、既定値の変更、既存の見本の出力が変わる変更）は自分で決めず、影響範囲・代替案・やらない場合に残るものを示してユーザーの判断を求める
 5. **新側ロケータマッピング・期待値の充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
    期待値解決層（`metadata.json` の `suite.expectations`）には**宣言済みの意図的差異に対応する新側の値だけ**を埋める。
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
@@ -202,7 +211,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（setup）→ `golden-dataset`（フェーズ A）→ 各機能で〔`parity-suite` → **`parity-replace`** → `golden-dataset`（フェーズ B）→ `parity-diff`（本スキルと往復）〕
+- **依存順**: `replace-strategy`（setup）→ `golden-dataset`（フェーズ A）→ **画面より先に部品を作る方針なら `parity-component`** → 各機能で〔`parity-suite` → **`parity-replace`** → `golden-dataset`（フェーズ B）→ `parity-diff`（本スキルと往復）〕
+- **`parity-component` との関係**: 共通部品が先に作られている場合、本スキルは**その部品を使う側**になる。実装中に部品へ手を入れる必要が出たときの規律（切り分け・影響の測り方・破壊的変更の判断）は
+  同スキルの `references/amend.md` が正本で、本スキルはそこへ委譲する。**部品を先に作っていないプロジェクトでは、共通部品も本スキルが機能ごとに作る**（従来どおり）
 - **`parity-suite` から引き継ぐもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、
   現側の値だけが埋まった期待値解決層（新側の値の充填は本スキル。[`references/new-mapping.md`](references/new-mapping.md)）、
   Playwright `projects` の `current` / `new` という名前（`new` の baseURL を選択した target から解決して渡すことと green 化は本スキルの担当。配線の正本は `parity-suite`）、脆弱マッピングを記録したマッピング層コメント。
@@ -211,4 +222,6 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は投入対象の target のみ（対象外の target には投入しない）
 - **`parity-diff` と往復**: 本スキルで**選択した target に対して**新を green にした後、`parity-diff` を**同じ target** で実行して差分を検出し、差分があれば本スキルへ差し戻す。
   引き渡しは環境別ディレクトリ `.replace/parity/<slug>/new/<target>/`（本スキルが `replace-metadata.json` を書き、`parity-diff` がそれを読んで `diff.md` を書く）。終了条件・上限・再入手順は上記「往復ループ」
-- **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start`（モード未指定）を 1 回。実装は本スキルが行うため **`--commit` / `--pr`（実装を内包する）は使わず**、commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）
+- **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start <番号> --branch-only` を 1 回。
+  実装は本スキルが行うため**モード未指定・`--commit` / `--pr`（いずれも実装を内包する）は使わない**。
+  commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）

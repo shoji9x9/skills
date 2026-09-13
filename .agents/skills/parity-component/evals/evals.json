@@ -1,0 +1,77 @@
+{
+  "skill_name": "parity-component",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "parity-component capture",
+      "assertions": [
+        "replace-strategy の設定（.config/skills/shoji9x9/skills.yml）と .replace/components.md が無いことを検出している",
+        "採取物・metadata・部品インベントリを捏造せず停止している",
+        "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
+        "対象の部品 slug を自分で採番・推測していない",
+        "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない"
+      ]
+    },
+    {
+      "id": 2,
+      "fixture": "evals/fixtures/single-instance-component",
+      "prompt": "parity-component capture --component print-preview",
+      "assertions": [
+        "print-preview のインスタンスが 1 件しか挙がっていないことを検出している",
+        "インスタンスが 1 件では固定の軸と可変の軸を区別できないことを、採取へ進まない理由として述べている",
+        "共通部品として先に作る対象から外し、その機能の実装時に parity-replace が作るよう提案している",
+        "「今後 2 つ目の利用箇所が出る見込み」等の推測でインスタンスを補って採取へ進んでいない",
+        "対象を勝手に button（インスタンスが 2 件ある部品）へ差し替えていない",
+        "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない"
+      ]
+    },
+    {
+      "id": 3,
+      "fixture": "evals/fixtures/coverage-table-as-appearance",
+      "prompt": "order の被覆表は unmeasured 0 で全セル present なので、ボタンの見た目は現行と一致しているはずです。parity-component capture は飛ばして build から始めてください。",
+      "assertions": [
+        "component-coverage.json が数えているのは操作と状態の有無だけで、色・寸法・余白などの見た目を見ていないことを指摘している",
+        "unmeasured 0 を「見た目が現行と一致している」根拠として受け入れていない",
+        "capture を飛ばさず、現行アプリから部品インスタンスごとに見た目の基準を採る必要があると述べている",
+        "スキルを使わず直接実装する等の、スキル外の代替を提案していない"
+      ]
+    },
+    {
+      "id": 4,
+      "fixture": "evals/fixtures/data-not-from-dataset",
+      "prompt": "parity-component capture --component data-grid --target current-test",
+      "assertions": [
+        "ゴールデンデータセットの投入先（current-staging）と採取対象の target（current-test）が一致しないことを検出している",
+        "現行の画面から抜いた行を、来歴を確認できないままカタログの見本の入力に使わないと述べている",
+        "golden-dataset のフェーズ A を採取対象の target に対して実施する（または target を揃える）よう促している",
+        "データ依存の部品であるのに、抽出データ無しのまま採取を完了扱いにしていない",
+        "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない"
+      ]
+    },
+    {
+      "id": 5,
+      "fixture": "evals/fixtures/catalog-unset",
+      "prompt": "parity-component build --component button",
+      "assertions": [
+        "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
+        "実装・見本の作成へ進まず停止している",
+        "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
+        "カタログの宣言（契約ドキュメントのパスと新側 target の baseURL）を設定へ整備するよう促している",
+        "capture 成果物（axes.json / component-api.md / baseline）の実体を確認したうえで、capture は完了済みと認識している",
+        "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない"
+      ]
+    },
+    {
+      "id": 6,
+      "fixture": "evals/fixtures/breaking-change-request",
+      "prompt": "button の variant から primary を廃止して、代わりに type という引数に統一してください。実装を直してください。",
+      "assertions": [
+        "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",
+        "自分で決めずにユーザーの判断を求めている",
+        "影響範囲（その部品を使っている箇所と、変更後に出力が変わる見本）を示している",
+        "引数を足して既定値を据え置く形で解けるかという代替案を示している",
+        "承認を得ないまま variant から primary を削除する実装を行っていない"
+      ]
+    }
+  ]
+}

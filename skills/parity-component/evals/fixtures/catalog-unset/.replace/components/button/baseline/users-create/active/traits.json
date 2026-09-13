@@ -1,0 +1,27 @@
+{
+  "name": "button@users-create",
+  "computed": {
+    "font-family": "\"Noto Sans JP\", sans-serif",
+    "font-size": "13px",
+    "font-weight": "400",
+    "line-height": "20px",
+    "padding-top": "4px",
+    "padding-right": "12px",
+    "padding-bottom": "4px",
+    "padding-left": "12px",
+    "border-radius": "2px",
+    "cursor": "pointer",
+    "user-select": "none",
+    "pointer-events": "auto",
+    "background-color": "rgb(0, 55, 105)",
+    "color": "rgb(51, 51, 51)"
+  },
+  "before": null,
+  "after": null,
+  "rect": {
+    "x": 0,
+    "y": 0,
+    "width": 132,
+    "height": 28
+  }
+}
