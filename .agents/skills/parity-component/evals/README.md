@@ -70,7 +70,12 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 つまり**eval 5・6 はどちらも目的の分岐へ到達していなかった**。参照ドキュメントの実体・`element.png`・採取成果物一式を足して解消してある。
 併せて、前提判定が機械的に行えるよう **`baseline/<instance>/<state>/` のファイル名を `element.png` / `traits.json` / `css-rules.json` に固定**した（正本は `SKILL.md` と `references/capture.md`）。
 
-`catalog-unset` の `axes.json` は `axis-diff.mjs` を `baseline/` に対して実行した出力そのもの（手書きしない）。リポジトリのフォーマッタが JSON の空白を正規化するため整形は揃わないが、内容は実出力と一致する。`baseline/` を変えたら同じコマンドで取り直す。
+**採取物（`baseline/`・`axes.json`・`metadata.json` のツール版とプロパティ集合・軸の件数）は手で書かない。** 手で作った採取物は、
+`traits_property_set` が実物の `FIXED_PROPERTIES` と違う・`css-rules.json` の宣言が `traits.json` の計算値と食い違う・`element.png` がプレースホルダ、という形で壊れていた（Issue #354）。
+`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/generate-parity-component-fixtures.js` が headless Chrome で最小のページに
+trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを当てて生成したもの（2 回採って一致を確かめている）。ツールや採取条件を変えたら同スクリプトで取り直し、`pnpm exec oxfmt` で整形する。
+生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は `scripts/parity-component-fixtures.test.js` が CI で検査する。
+`component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツール版）に合わせて手で揃える。
 
 ## 実走の証拠の状態（iteration-2）
 
@@ -101,10 +106,13 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 - **eval 1・2・4 に足した「停止の判断と矛盾する結論を述べていない」assertion は、今回いずれも `with_skill` / `without_skill` の両方が満たした。**
   否定形の assertion は停止した run では自動的に満たされやすく、弁別には寄与しない。**後退検知専用**として扱う
 
+- **iteration-4（#354）で採取物を作り直した後、eval 5・6 を再走した。** eval 5 は with 6/6・without 1/6、eval 6 は with 5/5・without 2/5 で、
+  どちらも目的の分岐へ到達した（`with_skill` は `axes.json` の再導出一致とツール版の一致を確かめたうえでカタログ未宣言で停止）。詳細は [`tests/parity-component/iteration-4/benchmark.md`](../../../tests/parity-component/iteration-4/benchmark.md)
+
 ### `without_skill` が見つけた fixture の欠陥（別 Issue へ）
 
 eval 5 の `without_skill` は停止せず実装まで進んだため、fixture の中身を実装の材料として読み、こちらが気付いていなかった不整合を 3 件挙げた。
-いずれも**採取物として不自然**で、`build` が採取物を材料にする以上は直す価値がある。**#354 で扱う。**
+いずれも**採取物として不自然**で、`build` が採取物を材料にする以上は直す価値がある。**#354 で、採取物を実物のツールの出力で作り直して解消した**（上記「fixture の前段ゲート」）。
 
 - `css-rules.json` の内容が `traits.json` の計算値と食い違う（users-create の hover で規則は `rgb(0, 70, 130)`、計算値は `rgb(221, 221, 221)`）。disabled の規則に `:disabled` が付いていないのに `unresolved` は 0 件
 - `capture.tools.traits_property_set` に挙げた 6 プロパティ（`border-width` / `box-shadow` / `opacity` / `letter-spacing` / `text-align` / `text-transform`）が `computed` にも `axes.json` にも無い

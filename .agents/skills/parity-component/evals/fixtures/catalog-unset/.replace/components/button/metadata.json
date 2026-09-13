@@ -23,25 +23,43 @@
       "traits_version": "2",
       "traits_property_set": [
         "background-color",
-        "border-radius",
-        "border-width",
-        "box-shadow",
+        "border-bottom-color",
+        "border-bottom-left-radius",
+        "border-bottom-right-radius",
+        "border-bottom-style",
+        "border-bottom-width",
+        "border-left-color",
+        "border-left-style",
+        "border-left-width",
+        "border-right-color",
+        "border-right-style",
+        "border-right-width",
+        "border-top-color",
+        "border-top-left-radius",
+        "border-top-right-radius",
+        "border-top-style",
+        "border-top-width",
         "color",
         "cursor",
+        "display",
         "font-family",
         "font-size",
         "font-weight",
-        "letter-spacing",
         "line-height",
-        "opacity",
+        "margin-bottom",
+        "margin-left",
+        "margin-right",
+        "margin-top",
         "padding-bottom",
         "padding-left",
         "padding-right",
         "padding-top",
+        "pointer-events",
         "text-align",
-        "text-transform"
+        "user-select",
+        "visibility"
       ],
-      "css_rules_version": "2",
+      "css_rules_version": "3",
       "axis_diff_version": "2",
       "pixel_differ": "pixelmatch@7.1.0"
     }
@@ -74,8 +92,8 @@
     "path": ".replace/components/button/axes.json",
     "ok": true,
     "variable": 10,
-    "fixed": 62,
-    "measured": 72,
+    "fixed": 150,
+    "measured": 160,
     "not_compared": []
   },
   "capture_gaps": {
@@ -83,7 +101,7 @@
     "unresolved_selectors": 0
   },
   "capture_conditions": {
-    "environment": "Ubuntu 24.04 / Chromium 129 / DPR 1。system-ui は Noto Sans JP に解決",
+    "environment": "Chrome/149.0.7827.155（headless）/ Linux / DPR 1",
     "viewer_environment": "一致",
     "viewports": [
       {

@@ -52,10 +52,13 @@
  *    `counts.host_scope_skipped` に数える（`shadow_host` で対象がホストだったかを出す）。
  *    **2 の定義はこの PR がマージされた状態を指す**——版を上げてから同じ PR 内で 2 の形を
  *    足しているが、2 が main へ出たことは一度も無いので、外に「別の 2」で採った成果物は存在しない。
+ * 3: 自分の根にある `::part()` / `::slotted()` の規則を matched に入れず unresolved に残す。
+ *    2 はそれを擬似要素として剥がして判定し、`.host::part(label)` をホストに、`::slotted(*)` を
+ *    任意の要素に当たった規則として記録していた（偽の根拠）。2 で採った css-rules.json は再採取する。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * 構造・関係を表す擬似クラスで、状態ではないもの（セレクタに残したまま matches() へ渡してよい）。
@@ -425,6 +428,25 @@ export function collectMatchedRules(el, options) {
             reason: "shadow-part-not-evaluated",
           });
         } else counts.outer_scope_skipped++;
+        continue;
+      }
+      // 自分の根（document か、自分が居るシャドウルート）の `::part()` / `::slotted()`。
+      // `::part()` が飾るのはホストのシャドウツリー内の部品、`::slotted()` が飾るのはスロットへ
+      // 割り当てられたライト DOM の要素で、**どちらもこの根にある要素そのものではない**。
+      // 下の analyzeSelector は両者を擬似要素として剥がすので、`.host::part(label)` は `.host` に、
+      // `::slotted(*)` は `*` になって matches() が真を返し、ホストや任意の要素の偽の根拠として
+      // matched に入る。当たった側へ倒さず判定不能として残す（外側・スロット側の分岐と同じ理由）。
+      const treeCrossing = scanPseudos(part).find(
+        (p) => p.doubled && (p.name === "part" || p.name === "slotted"),
+      );
+      if (treeCrossing) {
+        unresolved.push({
+          selector: part,
+          original_selector: originalSelector,
+          href: ctx.href,
+          reason:
+            treeCrossing.name === "part" ? "shadow-part-not-evaluated" : "slotted-not-evaluated",
+        });
         continue;
       }
       // @scope の中の規則は、セレクタが当たってもスコープ根・限界の外では適用されない。

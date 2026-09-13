@@ -17,7 +17,7 @@
 
 | 軸（状態 / 軸名） | 割れ方 | 扱い | 根拠 |
 |---|---|---|---|
-| default / rect/width、hover / rect/width、active / rect/width、disabled / rect/width | 文脈で決まる差 | 中身から決まる | 文言の長さに追従（「検索」96px / 「利用者を作成」132px。全状態で同じ差） |
+| default / rect/width、hover / rect/width、active / rect/width、disabled / rect/width | 文脈で決まる差 | 中身から決まる | 文言の長さに追従（「検索」50px / 「利用者を作成」102px。全状態で同じ差） |
 
 ## 状態の落とし先
 

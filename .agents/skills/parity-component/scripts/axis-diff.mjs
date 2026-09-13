@@ -30,7 +30,7 @@
 //   手で組んだマニフェストと採取物がずれることがない。
 
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** ツールのバージョン（正本）。出力スキーマを変えたら上げる。 */
@@ -99,11 +99,34 @@ export function assembleFromBaseline(dir) {
   if (states.length === 0) throw new Error("metadata.json の capture.states が空");
   const instances = Array.isArray(meta && meta.instances) ? meta.instances : [];
   if (instances.length === 0) throw new Error("metadata.json の instances が空");
+  // id と状態名はそのままパスの 1 セグメントになる。検証しないと `id: "../../outside"` や
+  // `state: "../secret"` が baseline の外のファイルを読み、その値が axes.json に入る。
+  // 区切り文字・`.`・`..`・空名を弾いたうえで、解決後のパスが baseline 配下にあることも確かめる。
+  const baselineRoot = resolve(dir, "baseline");
+  const segment = (value, what) => {
+    if (
+      typeof value !== "string" ||
+      value === "" ||
+      value === "." ||
+      value === ".." ||
+      /[/\\\0]/.test(value)
+    ) {
+      throw new Error(`${what} がパスの 1 セグメントとして不正: ${JSON.stringify(value)}`);
+    }
+    return value;
+  };
+  for (const st of states) segment(st, "capture.states[]");
+  // 採取ツールのプロパティ集合（記録されていれば）。計算後スタイルのキーと突き合わせて、
+  // 集合外の軸名（空文字・typo）や採り漏れを diffAxes の problems に落とす。
+  const propertySet =
+    meta && meta.capture && meta.capture.tools && meta.capture.tools.traits_property_set;
   return {
     component: (meta && meta.component) || null,
+    ...(propertySet === undefined ? {} : { property_set: propertySet }),
     instances: instances.map((inst) => {
       const id = inst && inst.id;
       if (typeof id !== "string" || id === "") throw new Error("instances[].id が無い");
+      segment(id, "instances[].id");
       const unreachable = new Set(
         (Array.isArray(inst.unreachable_states) ? inst.unreachable_states : [])
           .map((u) => u && u.state)
@@ -116,10 +139,14 @@ export function assembleFromBaseline(dir) {
         // 宣言の無い欠落は読みに行って失敗させる（採り忘れを黙って除外しない）。
         states: states
           .filter((st) => !unreachable.has(st))
-          .map((st) => ({
-            state: st,
-            traits: JSON.parse(readFileSync(join(dir, "baseline", id, st, "traits.json"), "utf8")),
-          })),
+          .map((st) => {
+            const path = resolve(baselineRoot, id, st, "traits.json");
+            const rel = relative(baselineRoot, path);
+            if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+              throw new Error(`採取物のパスが baseline の外を指す: ${path}`);
+            }
+            return { state: st, traits: JSON.parse(readFileSync(path, "utf8")) };
+          }),
       };
     }),
   };
@@ -253,6 +280,24 @@ export function diffAxes(manifest) {
     }
   });
 
+  // 採取ツールのプロパティ集合（`--baseline` では metadata.json の `capture.tools.traits_property_set`）。
+  // 渡されたときだけ、計算後スタイルと擬似要素のキーがこの集合と一致することを求める。
+  // 集合そのものが壊れていたら突き合わせの根拠にならないので、黙って照合を飛ばさず問題にする。
+  let propertySet = null;
+  if (manifest && manifest.property_set !== undefined) {
+    const declared = manifest.property_set;
+    if (
+      !Array.isArray(declared) ||
+      declared.length === 0 ||
+      declared.some((p) => typeof p !== "string" || p === "" || p.trim() !== p) ||
+      new Set(declared).size !== declared.length
+    ) {
+      problems.push(
+        "採取ツールのプロパティ集合（traits_property_set）が契約の形でない（重複の無い非空の文字列の配列）",
+      );
+    } else propertySet = new Set(declared);
+  }
+
   // 状態 × 軸名 → インスタンスごとの値。
   const table = new Map();
   instances.forEach((instance, i) => {
@@ -276,11 +321,34 @@ export function diffAxes(manifest) {
       // （引数として実装へ渡るところまで行く）。キーの有無だけを見る検証では止まらない。
       const nonEmptyString = (v) => typeof v === "string" && v !== "";
       const badValues = (record) => Object.values(record).filter((v) => !nonEmptyString(v)).length;
+      // 値だけでなく**キー（軸名）**も見る。`{ "": "x" }` は値の検証を通り、空の軸名が
+      // 可変軸として ok: true の axes.json に載る。CSS のプロパティ名は空白を含まないので、
+      // 空文字と空白を含む名前を弾く。集合が渡されていれば、その集合との一致まで求める。
+      const keyProblems = (record, label) => {
+        const keys = Object.keys(record);
+        const out = [];
+        const bad = keys.filter((k) => k === "" || /\s/.test(k));
+        if (bad.length > 0) out.push(`${label} の軸名（空・空白を含むものが ${bad.length} 件）`);
+        if (propertySet) {
+          const extra = keys.filter((k) => !propertySet.has(k) && !bad.includes(k));
+          const absent = [...propertySet].filter((p) => !(p in record));
+          if (extra.length > 0) {
+            out.push(`プロパティ集合と一致する ${label}（集合外: ${extra.join(", ")}）`);
+          }
+          if (absent.length > 0) {
+            out.push(`プロパティ集合と一致する ${label}（欠落: ${absent.join(", ")}）`);
+          }
+        }
+        return out;
+      };
       const computed = entry.traits.computed;
       if (!isRecord(computed) || Object.keys(computed).length === 0) {
         missing.push("computed");
-      } else if (badValues(computed) > 0) {
-        missing.push(`computed の値（非空の文字列でないものが ${badValues(computed)} 件）`);
+      } else {
+        if (badValues(computed) > 0) {
+          missing.push(`computed の値（非空の文字列でないものが ${badValues(computed)} 件）`);
+        }
+        missing.push(...keyProblems(computed, "computed"));
       }
       // trait-capture.mjs は x / y / width / height を常に数値で返す。キーの有無だけを見ると
       // `{ width: null }` のような壊れた採取が通り、軸を作って ok: true に化ける。
@@ -292,6 +360,10 @@ export function diffAxes(manifest) {
         // rect は flattenTraits が String() で文字列化するので、壊れた値も
         // `"[object Object]"` という非空の文字列になって検証をすり抜ける。数値のまま見る。
         missing.push("rect の値（有限の数値でないものがある）");
+      } else if (Object.keys(rect).some((k) => !["x", "y", "width", "height"].includes(k))) {
+        // trait-capture.mjs の rect は x / y / width / height だけ。それ以外のキー（空文字を含む）は
+        // `rect/<キー>` の軸になるので、キーの側でも閉じた集合で受ける。
+        missing.push("rect のキー（x / y / width / height 以外がある）");
       }
       // 擬似要素は「測っていない（キーが無い）」「無い（null）」「在る（レコード）」の 3 値が契約。
       // 形を見ずに flattenTraits へ渡すと、`before: "x"` が `::before/0 = "x"` という軸を、
@@ -303,8 +375,11 @@ export function diffAxes(manifest) {
         if (captured === null) continue;
         if (!isRecord(captured) || Object.keys(captured).length === 0) {
           missing.push(`::${pseudo} の形（null か非空のレコード）`);
-        } else if (badValues(captured) > 0) {
-          missing.push(`::${pseudo} の値（非空の文字列でないものがある）`);
+        } else {
+          if (badValues(captured) > 0) {
+            missing.push(`::${pseudo} の値（非空の文字列でないものがある）`);
+          }
+          missing.push(...keyProblems(captured, `::${pseudo}`));
         }
       }
       if (missing.length > 0) {
