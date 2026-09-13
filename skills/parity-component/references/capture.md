@@ -19,6 +19,7 @@
 
 1. **インストール済みの `parity-suite` を特定する。** 本スキルと同じインストール先にある `parity-suite/scripts/` に、使うツールが在ることを確かめる。
    見つからなければ推測で探し回らず停止し、`gh skill install shoji9x9/skills parity-suite` を促す
+   （引数の形 `gh skill install <repository> [<skill[@version]>]` の出典: <https://cli.github.com/manual/gh_skill_install>）
 2. **コピー先に無ければ、同梱版をそのままコピーする。** 修正・整形しない（コピーは修正しない規約）
 3. **コピー先に既に在れば、同梱版とバイト列で一致することを確かめる。** 一致しなければ**上書きせず停止してユーザーに確認する**——
    機能単位のスイートが古い版で採ったベースラインを持っている可能性があり、黙って差し替えると機能側の採取物と版がずれる
