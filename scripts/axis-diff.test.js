@@ -980,3 +980,35 @@ test("--baseline は部品ディレクトリ自体がシンボリックリンク
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
 });
+
+test("プロパティ集合の欠落はプロトタイプ上の名前でも自前のキーで判定する", () => {
+  // `p in record` はプロトタイプチェーンを辿るので、`constructor` / `toString` / `__proto__` を
+  // 集合に含むと、採れていないのに「在る」と判定されて ok: true に化ける。
+  for (const inherited of ["constructor", "toString", "__proto__"]) {
+    const result = diffAxes({
+      property_set: ["color", inherited],
+      instances: [
+        instance("a", [state("default", traits({ color: "rgb(1, 1, 1)" }))]),
+        instance("b", [state("default", traits({ color: "rgb(2, 2, 2)" }))]),
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain(`欠落: ${inherited}`);
+  }
+});
+
+test("JSON 由来の自前のキーとして在る __proto__ は欠落にしない", () => {
+  // 過剰修正の検知: 採取物は JSON.parse で読むので、`__proto__` も自前のキーとして在りうる。
+  const computed = (color) => JSON.parse(`{"color": "${color}", "__proto__": "x"}`);
+  const result = diffAxes({
+    property_set: ["color", "__proto__"],
+    instances: [
+      instance("a", [state("default", traits(computed("rgb(1, 1, 1)")))]),
+      instance("b", [state("default", traits(computed("rgb(2, 2, 2)")))]),
+    ],
+  });
+  expect(result.problems.join("\n")).not.toContain("欠落");
+  expect(result.ok).toBe(true);
+  expect(result.variable.map((v) => v.axis)).toContain("color");
+  expect(result.fixed.map((f) => f.axis)).toContain("__proto__");
+});

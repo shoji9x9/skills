@@ -89,7 +89,7 @@ function checkComponent(dir) {
       }
       rules.inline_declarations.forEach(add);
       for (const [property, values] of declared) {
-        if (!(property in traits.computed)) continue;
+        if (!Object.hasOwn(traits.computed, property)) continue;
         if (!values.includes(traits.computed[property])) {
           problems.push(
             `${where}: ${property} の計算値 ${traits.computed[property]} が当たっている宣言（${values.join(", ")}）に無い`,

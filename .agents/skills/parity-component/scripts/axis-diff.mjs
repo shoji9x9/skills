@@ -54,11 +54,13 @@ const SEPARATOR = String.fromCharCode(31);
  * @returns {Record<string, string>}
  */
 export function flattenTraits(traits) {
-  const flat = {};
+  // プロトタイプを持たない表にする。`{}` に `flat["__proto__"] = v` と書くと代入が黙って捨てられ、
+  // JSON 由来の `__proto__` キーが軸ごと消える（固定とも可変とも出ず、欠落の問題にもならない）。
+  const flat = Object.create(null);
   for (const [property, value] of Object.entries(traits.computed || {})) flat[property] = value;
   for (const pseudo of ["before", "after"]) {
     const prefix = `::${pseudo}/`;
-    if (!(pseudo in traits)) continue; // 測っていない——固定側へ倒さず軸を出さない
+    if (!Object.hasOwn(traits, pseudo)) continue; // 測っていない——固定側へ倒さず軸を出さない
     const captured = traits[pseudo];
     if (captured == null) {
       flat[`${prefix}<present>`] = "false";
@@ -338,7 +340,7 @@ export function diffAxes(manifest) {
         if (bad.length > 0) out.push(`${label} の軸名（空・空白を含むものが ${bad.length} 件）`);
         if (propertySet) {
           const extra = keys.filter((k) => !propertySet.has(k) && !bad.includes(k));
-          const absent = [...propertySet].filter((p) => !(p in record));
+          const absent = [...propertySet].filter((p) => !Object.hasOwn(record, p));
           if (extra.length > 0) {
             out.push(`プロパティ集合と一致する ${label}（集合外: ${extra.join(", ")}）`);
           }
@@ -377,7 +379,7 @@ export function diffAxes(manifest) {
       // `after: []` が `::after/<present> = "true"` だけを作り、壊れた採取物が measured を稼いで
       // ok: true に化ける（computed / rect と同じ fail-open で、擬似要素側だけが素通りしていた）。
       for (const pseudo of ["before", "after"]) {
-        if (!(pseudo in entry.traits)) continue;
+        if (!Object.hasOwn(entry.traits, pseudo)) continue;
         const captured = entry.traits[pseudo];
         if (captured === null) continue;
         if (!isRecord(captured) || Object.keys(captured).length === 0) {
