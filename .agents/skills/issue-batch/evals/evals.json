@@ -203,6 +203,7 @@
       "assertions": [
         "PR URL と解決済みの max_pr_iterations を pr-finalize-loop <PR URL> --max-iterations 5 に渡す",
         "CI・全 reviewer の thread / review body・再レビュー依頼は pr-finalize-loop が正本で、issue-batch 自身から review_tool への再レビュー依頼を出さない",
+        "レビューツールは pr-finalize-loop が CLI、SKILLS_REVIEW_TOOL、skills.common.review_tool、既定 copilot の順で解決し、issue-batch は先に固定しない",
         "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
         "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む"
       ]

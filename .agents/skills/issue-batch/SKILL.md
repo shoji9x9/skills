@@ -33,7 +33,7 @@ issue-batch run <Issue URL | 番号>... \
 
 - **ツール**: `gh`, `git` と現在のコーディングエージェントの非対話レビュー機能
 - **前提スキル**: `git-worktree`, `issue-start`, `kaizen`, `pr-finalize-loop`。画面影響がある場合は `browser-test`
-- **設定**: `.config/skills/shoji9x9/skills.yml` の `skills.issue-batch`。`skills.common.review_tool` と `skills.browser-test` は参照するが複製しない
+- **設定**: `.config/skills/shoji9x9/skills.yml` の `skills.issue-batch`。レビューツールの解決は pr-finalize-loop に委譲し、`skills.browser-test` は参照するが複製しない
 - **シェル**: bash。Windows では WSL / Git Bash 等を使う
 
 前提スキルを読めない、または設定が不足している場合は契約を推測せず停止する。`run` 中に設定質問を始めず、`issue-batch setup` を案内する。

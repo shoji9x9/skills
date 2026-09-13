@@ -206,11 +206,12 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 - `issue-batch`: 複数 Issue を入力順に隔離 worktree・独立 branch / PR で連続処理し、ローカルレビュー、検証、Kaizen、PR 収束、
   merge（GitHub の auto-merge／エージェントが PR の状況を実測して merge、を `merge_mode` で選択）、Issue close、deployment、branch cleanup まで追跡する。
   初回は `setup` で無人実行ポリシーとマージ方式を確定する
-- `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う。対応後の再レビュー依頼先は `skills.common.review_tool`（Copilot/Claude Code/Codex/none、既定 copilot）で選択する
+- `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う。対応後の再レビュー依頼先は `SKILLS_REVIEW_TOOL` → `skills.common.review_tool` → 既定 copilot の順で選択する
 - `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化する。PR 単体または `--all` で open な全 PR を処理。`>=1.0` の決定論的自動マージは `.github/workflows/dependabot-automerge.yml` が担い、本スキルは 0.x や自動マージ未設定リポジトリでの手動判断を受け持つ
 - `dependabot-alert-issue`: Dependabot alerts を確認し、解消するための Issue を作成する。着手可否で分類し severity・パッケージ単位でグルーピング、着手できないものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定できる。起票後の着手は `issue-start` に引き継ぐ
 - `pnpm-audit-alert-issue`: Dependabot の pnpm 11 対応（dependabot/dependabot-core#14794）完了までの private skill。`pnpm audit --json` を正規化し、`dependabot-alert-issue` の外部 audit findings mode で脆弱性対応 Issue を作る
-- `pr-finalize-loop`: 作成済み PR の CI エラー解消とレビュー対応を CI 成功＋未解決なしまで自律ループ（修正・返信/解決・commit/push・再レビュー依頼）。依頼先 `skills.common.review_tool`（既定 copilot）、`--max-iterations` 既定 5。単体対応は `pr-review-handle`
+- `pr-finalize-loop`: 作成済み PR の CI エラー解消とレビュー対応を CI 成功＋未解決なしまで自律ループ（修正・返信/解決・commit/push・再レビュー依頼）。
+  依頼先は `--review-tool` → `SKILLS_REVIEW_TOOL` → `skills.common.review_tool` → 既定 copilot の順で選択し、`--max-iterations` は既定 5。単体対応は `pr-review-handle`
 - `aws-architecture-diagram`: AWS 構成図を IaC（CDK/Terraform 等）や説明から spec に起こし SVG 生成する。作図ルール（交差最小・直交配線・軸整列）に従い、環境（prod/local 等）を単一ベース spec ＋ 変換で出し分け、PNG 化して目視確認しながら反復。初回は setup で対話導入、以降 update
 - `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK・追加ランタイム不要
 - `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能に分解して姉妹スキル
