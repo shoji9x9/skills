@@ -51,7 +51,7 @@
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
-| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured: null` の行にだけ `reason` がある・操作アダプタの開く関数が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
+| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・操作アダプタの開く関数名が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
 | `environment` | 現側の `environment`（自由記述）と照合できたか |
 
 - **`environment` は自由記述であり機械照合できない。** 原則 `"unverified: <理由>"`（例: `"unverified: 現側は記述のみで新側と機械照合できない"`）を記録し、
