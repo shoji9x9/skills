@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1360,12 +1360,19 @@ export function reconcile(coverage, profiles) {
       }
 
       candidateTotal += candidates.length;
+      // 候補ごとに未測定へ数えたかを覚える。下の instances[].candidates の記録漏れと同じ候補を二重に数えない。
+      /** @type {Set<string>} */
+      const unmeasuredCandidates = new Set();
+      const countCandidateUnmeasured = (/** @type {string} */ id) => {
+        unmeasured += 1;
+        unmeasuredCandidates.add(id);
+      };
       for (const cand of candidates) {
         candidateIndex.set(`${iid}${ID_SEPARATOR}${cand.id}`, { rule: cand.rule, axes: cand.axes });
         const item = itemById.get(cand.id);
         if (!item) {
           problems.push(`${label}: 候補 ${cand.id} に対応する項目が被覆表に無い（欠落）`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         const recorded = isPlainObject(item.candidate)
@@ -1402,18 +1409,18 @@ export function reconcile(coverage, profiles) {
         const key = keyOf(cid, cand.id, iid);
         expectedKeys.add(key);
         if (!recordMatches) {
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (duplicated.has(key)) {
           problems.push(`${label}: 候補 ${cand.id} のセル行が複数ある（先勝ちにしない）`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         const row = byKey.get(key);
         if (!row) {
           problems.push(`${label}: 候補 ${cand.id} のセルが無い（行の無い組み合わせは未測定）`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         const value = row.value;
@@ -1421,16 +1428,16 @@ export function reconcile(coverage, profiles) {
           problems.push(
             `${label}: 候補 ${cand.id}: value が ${VALUES.join(" / ")} のいずれでもない`,
           );
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (value === "unmeasured") {
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (!nonEmptyString(row.evidence)) {
           problems.push(`${label}: 候補 ${cand.id}: value: ${value} なのに evidence が空`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (value === "present") {
@@ -1441,7 +1448,7 @@ export function reconcile(coverage, profiles) {
             problems.push(
               `${label}: 候補 ${cand.id}: value: present なのに covered_by が空（assertion に落ちていない）`,
             );
-            unmeasured += 1;
+            countCandidateUnmeasured(cand.id);
           }
         } else {
           const absenceProblem = absentEvidenceProblem(
@@ -1451,7 +1458,7 @@ export function reconcile(coverage, profiles) {
           );
           if (absenceProblem) {
             problems.push(absenceProblem);
-            unmeasured += 1;
+            countCandidateUnmeasured(cand.id);
           }
         }
       }
@@ -1460,6 +1467,7 @@ export function reconcile(coverage, profiles) {
       // 判定側は instances[].candidates に記録された候補だけを期待セルとして数え、記録が空・無いインスタンスは
       // 1 件の未測定にする。記録から漏れた候補は判定側で採点されないので、記録側も未測定に数える
       // （空・無いときは判定側と同じ 1 件。一部だけ漏れたときは漏れた件数で、判定側の数え直し以上になる）。
+      // 候補ループで既に未測定へ数えた候補は足さない（セル行も記録も無い候補を 2 件に数えない）。
       if (Array.isArray(inst.candidates)) {
         const recorded = inst.candidates.filter(nonEmptyString).map(String);
         const expected = candidates.map((cand) => cand.id);
@@ -1469,7 +1477,10 @@ export function reconcile(coverage, profiles) {
           problems.push(
             `${label}: instances[].candidates に展開結果の候補が足りない（${missing.length} 件）`,
           );
-        unmeasured += recorded.length === 0 ? 1 : missing.length;
+        unmeasured +=
+          recorded.length === 0
+            ? Number(unmeasuredCandidates.size === 0)
+            : missing.filter((id) => !unmeasuredCandidates.has(id)).length;
         if (extra.length > 0)
           problems.push(
             `${label}: instances[].candidates に展開結果に無い候補がある（${extra.length} 件）`,
@@ -1478,7 +1489,7 @@ export function reconcile(coverage, profiles) {
         problems.push(
           `${label}: instances[].candidates が無い（parity-diff が数え直せない。--write で書き出す）`,
         );
-        unmeasured += 1;
+        unmeasured += Number(unmeasuredCandidates.size === 0);
       }
       instanceReports.push({ instance: iid, usable: true, candidates: candidates.length });
     }

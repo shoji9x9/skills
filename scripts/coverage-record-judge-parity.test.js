@@ -212,6 +212,31 @@ const CASES = [
     "eq",
     variant(profiled, (c) => orders(c).candidates.pop()),
   ],
+  // 同じ候補が 2 つの経路（候補ループのセル採点と candidates の記録漏れ）で欠けても 1 件に数える
+  [
+    "プロファイル: 同じ候補が candidates とセル行の両方から漏れた",
+    "eq",
+    variant(profiled, (c) => {
+      orders(c).candidates.pop();
+      c.cells.pop();
+    }),
+  ],
+  [
+    "プロファイル: instances[].candidates が空でセル行も 1 件欠ける",
+    "eq",
+    variant(profiled, (c) => {
+      orders(c).candidates = [];
+      c.cells.pop();
+    }),
+  ],
+  [
+    "プロファイル: instances[].candidates が無くセル行も 1 件欠ける",
+    "eq",
+    variant(profiled, (c) => {
+      delete orders(c).candidates;
+      c.cells.pop();
+    }),
+  ],
   [
     "プロファイル: 項目の candidate が無い",
     "eq",
