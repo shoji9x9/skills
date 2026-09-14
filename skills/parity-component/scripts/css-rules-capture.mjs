@@ -55,10 +55,13 @@
  * 3: 自分の根にある `::part()` / `::slotted()` の規則を matched に入れず unresolved に残す。
  *    2 はそれを擬似要素として剥がして判定し、`.host::part(label)` をホストに、`::slotted(*)` を
  *    任意の要素に当たった規則として記録していた（偽の根拠）。2 で採った css-rules.json は再採取する。
+ * 4: 擬似クラス・擬似要素の名前を大文字小文字を区別せずに判定し、`states` / `pseudo_element` には小文字で記録する。
+ *    3 は小文字の綴りしか認識せず、`.host::PART(label)` をホストに当たった規則として matched に入れ、
+ *    `:HOVER` を未知の擬似クラスとして unresolved に落としていた。3 で採った css-rules.json は再採取する。
  * metadata.json の `capture.tools.css_rules_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * 構造・関係を表す擬似クラスで、状態ではないもの（セレクタに残したまま matches() へ渡してよい）。
@@ -286,12 +289,30 @@ export function collectMatchedRules(el, options) {
           j = skipBalanced(selector, j);
           args = selector.slice(argStart, j - 1);
         }
-        found.push({ start: i, end: j, name, doubled, args });
+        // 擬似クラス・擬似要素の名前は ASCII の大文字小文字を区別しない（`:HOVER` は `:hover`、
+        // `::PART(label)` は `::part(label)`）。ここで正規化しないと、名前で引く判定がすべて
+        // 小文字の綴りだけを認識し、`.host::PART(label)` は擬似要素として剥がされて `.host` に当たり、
+        // `:HOVER` は未知の擬似クラスとして unresolved に落ちる。`[-\w]` は ASCII なので toLowerCase で足りる。
+        found.push({ start: i, end: j, name: name.toLowerCase(), doubled, args });
         i = j - 1;
       }
     }
     return found;
   }
+
+  // セレクタ（関数型擬似クラスの引数の中も含む）に条件を満たす擬似クラス・擬似要素があるか。
+  // 文字列の部分一致（`includes(":host")`）で判定すると、名前の大文字小文字を区別してしまい、
+  // 属性値の中の `"::part(x)"` にも当たる。名前は scanPseudos が正規化したものを見る。
+  function hasPseudo(selector, predicate) {
+    for (const p of scanPseudos(selector)) {
+      if (predicate(p)) return true;
+      if (p.args && hasPseudo(p.args, predicate)) return true;
+    }
+    return false;
+  }
+  const isSlotted = (p) => p.doubled && p.name === "slotted" && p.args !== null;
+  const isPart = (p) => p.doubled && p.name === "part" && p.args !== null;
+  const isHost = (p) => !p.doubled && (p.name === "host" || p.name === "host-context");
 
   // 状態擬似クラスと擬似要素を剥がし、残り（base）と剥がしたものを返す。
   function analyzeSelector(selector) {
@@ -398,7 +419,7 @@ export function collectMatchedRules(el, options) {
       // スロット側のシャドウルートの規則。ライト DOM の要素へ届くのは `::slotted()` だけで、
       // 引数の解決は本ツールの射程外なので、当たった側へ倒さず残す。
       if (ctx.slottedScope) {
-        if (part.includes("::slotted(")) {
+        if (hasPseudo(part, isSlotted)) {
           unresolved.push({
             selector: part,
             original_selector: originalSelector,
@@ -409,7 +430,7 @@ export function collectMatchedRules(el, options) {
         continue;
       }
       if (ctx.hostScope) {
-        if (part.includes(":host")) {
+        if (hasPseudo(part, isHost)) {
           unresolved.push({
             selector: part,
             original_selector: originalSelector,
@@ -420,7 +441,7 @@ export function collectMatchedRules(el, options) {
         continue;
       }
       if (ctx.outerScope) {
-        if (part.includes("::part(")) {
+        if (hasPseudo(part, isPart)) {
           unresolved.push({
             selector: part,
             original_selector: originalSelector,
@@ -436,9 +457,7 @@ export function collectMatchedRules(el, options) {
       // 下の analyzeSelector は両者を擬似要素として剥がすので、`.host::part(label)` は `.host` に、
       // `::slotted(*)` は `*` になって matches() が真を返し、ホストや任意の要素の偽の根拠として
       // matched に入る。当たった側へ倒さず判定不能として残す（外側・スロット側の分岐と同じ理由）。
-      const treeCrossing = scanPseudos(part).find(
-        (p) => p.doubled && (p.name === "part" || p.name === "slotted"),
-      );
+      const treeCrossing = scanPseudos(part).find((p) => isPart(p) || isSlotted(p));
       if (treeCrossing) {
         unresolved.push({
           selector: part,

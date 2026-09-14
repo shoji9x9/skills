@@ -882,3 +882,151 @@ test("シャドウツリー内の要素に自分の根の ::slotted() を当て�
   expect(result.unresolved).toHaveLength(1);
   expect(result.unresolved[0].reason).toBe("slotted-not-evaluated");
 });
+
+// --- 擬似クラス・擬似要素の名前の大文字小文字（Issue #357） ---
+//
+// CSS の擬似クラス・擬似要素の名前は ASCII の大文字小文字を区別しない。小文字の綴りしか
+// 認識しない判定は、例外を出さずに別の分岐へ落ちる（`::PART` は擬似要素として剥がされて
+// ホストに当たり、`:HOVER` は未知の擬似クラスとして unresolved に落ちる）。
+// 各ケースは小文字版と同じ結果になることを確かめる（小文字側が正しいことは上の各テストが固定している）。
+
+// セレクタ文字列以外の判定結果を取り出す（selector / original_selector は綴りのまま残るので比べない）。
+const verdict = (result) => ({
+  matched: result.matched.map((m) => [m.states, m.pseudo_element]),
+  unresolved: result.unresolved.map((u) => u.reason),
+  counts: result.counts,
+});
+
+// 1 つの根に 1 規則を置き、指定のスコープで採る。
+function captureOne(selector, scope, selectors) {
+  const sheet = [{ href: MAIN_HREF, cssRules: [styleRule(selector, { color: "rgb(1, 1, 1)" })] }];
+  const empty = [{ href: null, cssRules: [] }];
+  const options = { selectors: new Set(selectors) };
+  if (scope === "document") return collectMatchedRules(fakeElement(sheet, options), OPTIONS);
+  if (scope === "host-target")
+    return collectMatchedRules(fakeElement(sheet, { ...options, hostSheets: empty }), OPTIONS);
+  if (scope === "outer") return shadowCapture({ ...options, sheets: sheet, shadowSheets: empty });
+  if (scope === "host")
+    return collectMatchedRules(fakeElement([], { ...options, hostSheets: sheet }), OPTIONS);
+  if (scope === "slot")
+    return collectMatchedRules(fakeElement([], { ...options, slotSheets: sheet }), OPTIONS);
+  throw new Error(`unknown scope: ${scope}`);
+}
+
+test.each([
+  // [ラベル, 小文字, 大文字混じり, スコープ, 当たる base, 期待する判定]
+  [
+    "自分の根の ::part()",
+    ".host::part(label)",
+    ".host::PART(label)",
+    "host-target",
+    [".host"],
+    { unresolved: ["shadow-part-not-evaluated"] },
+  ],
+  [
+    "自分の根の ::slotted()",
+    "::slotted(*)",
+    "::Slotted(*)",
+    "outer-shadow-self",
+    ["*"],
+    { unresolved: ["slotted-not-evaluated"] },
+  ],
+  [
+    "状態擬似クラス",
+    ".btn:hover",
+    ".btn:HOVER",
+    "document",
+    [".btn"],
+    { matched: [[["hover"], null]] },
+  ],
+  [
+    "歴史的な単一コロンの擬似要素",
+    ".btn:before",
+    ".btn:BEFORE",
+    "document",
+    [".btn"],
+    { matched: [[[], ":before"]] },
+  ],
+  [
+    "構造擬似クラス",
+    ".btn:first-child",
+    ".btn:First-Child",
+    "document",
+    [".btn:first-child", ".btn:First-Child"],
+    { matched: [[[], null]] },
+  ],
+  [
+    ":not() の中の状態を状態として扱わない",
+    ".btn:not(:hover)",
+    ".btn:NOT(:HOVER)",
+    "document",
+    [".btn:not(:hover)", ".btn:NOT(:HOVER)"],
+    { matched: [[[], null]] },
+  ],
+  [
+    ":is() の中の状態",
+    ".btn:is(:hover)",
+    ".btn:IS(:Hover)",
+    "document",
+    [".btn:is(:hover)", ".btn:IS(:Hover)"],
+    { unresolved: ["state-inside-functional-pseudo"] },
+  ],
+  [
+    "外側から届く ::part()",
+    ".host::part(label)",
+    ".host::Part(label)",
+    "outer",
+    [".btn"],
+    { unresolved: ["shadow-part-not-evaluated"] },
+  ],
+  [
+    "ホスト自身のシャドウルートの :host()",
+    ":host(.primary)",
+    ":HOST(.primary)",
+    "host",
+    [".btn"],
+    { unresolved: ["host-scope-not-evaluated"] },
+  ],
+  [
+    "ホスト自身のシャドウルートの :host-context()",
+    ":host-context(.dark)",
+    ":Host-Context(.dark)",
+    "host",
+    [".btn"],
+    { unresolved: ["host-scope-not-evaluated"] },
+  ],
+  [
+    "スロット側の ::slotted()",
+    "::slotted(.btn)",
+    "::SLOTTED(.btn)",
+    "slot",
+    [".btn"],
+    { unresolved: ["slotted-not-evaluated"] },
+  ],
+])("%s を大文字小文字を区別せずに判定する", (_label, lower, mixed, scope, selectors, expected) => {
+  const run = (selector) =>
+    scope === "outer-shadow-self"
+      ? shadowCapture({
+          sheets: [],
+          shadowSheets: [{ href: null, cssRules: [styleRule(selector, { margin: "0px" })] }],
+          selectors: new Set(selectors),
+        })
+      : captureOne(selector, scope, selectors);
+  const lowerResult = verdict(run(lower));
+  expect(lowerResult).toMatchObject({ matched: [], unresolved: [], ...expected });
+  expect(verdict(run(mixed))).toEqual(lowerResult);
+});
+
+test("属性値の中の擬似クラス風の文字列はスコープの判定に使わない", () => {
+  // 文字列の部分一致で判定していた頃は、属性値の中の `:host` / `::part(` / `::slotted(` を
+  // 擬似クラスとして数え、飛ばすべき規則を unresolved に残していた。
+  const host = captureOne('.x[data-note=":host"]', "host", [".btn"]);
+  expect(host.unresolved).toHaveLength(0);
+  expect(host.counts.host_scope_skipped).toBe(1);
+  const outer = captureOne('.btn[data-note="::part(x)"]', "outer", [".btn"]);
+  expect(outer.unresolved).toHaveLength(0);
+  expect(outer.counts.outer_scope_skipped).toBe(1);
+  const slot = captureOne('.btn[data-note="::slotted(x)"]', "slot", [".btn"]);
+  expect(slot.unresolved).toHaveLength(0);
+  expect(slot.counts.slotted_scope_skipped).toBe(1);
+});
