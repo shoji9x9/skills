@@ -243,6 +243,20 @@ const CASES = [
     variant(profiled, (c) => delete grid(c).items[0].candidate),
   ],
   ["プロファイル: 候補に対応する項目が無い", "eq", variant(profiled, (c) => grid(c).items.shift())],
+  [
+    "プロファイル: 項目の candidate.axes が JSON オブジェクトでない",
+    "eq",
+    variant(profiled, (c) => (grid(c).items[0].candidate.axes = "column=price")),
+  ],
+  // 軸値の不一致は、判定側に「候補に現れない要素」を数えさせうる（その要素を持つ候補が 1 件だけのとき）
+  [
+    "プロファイル: 唯一の候補を持つ要素の candidate.axes の値が違う",
+    "ge",
+    variant(profiled, (c) => {
+      const item = grid(c).items.find((i) => i.candidate.rule === "context-menu-item");
+      for (const axisId of Object.keys(item.candidate.axes)) item.candidate.axes[axisId] = "bogus";
+    }),
+  ],
   // 候補の記録の不備とセルの不備は別の欠陥。判定側は両方を数えるので、記録側も 1 件に畳まない
   [
     "プロファイル: 項目の candidate とセル行の両方が無い",
@@ -363,4 +377,14 @@ test("Issue #349 の再現表: profile キー欠落（項目 2 × インスタ�
     record: 1,
     judge: 1,
   });
+});
+
+test("candidate.rule だけの不一致は両者とも未測定に数えず、記録側は問題として残す（過大計上しない）", () => {
+  // 判定側は candidate.axes だけで数え直すので、rule の誤りは判定側の件数を変えない。
+  // 記録側だけが未測定に数えると、conformance の要約が未解決を過大に見せる。
+  const make = variant(profiled, (c) => (grid(c).items[0].candidate.rule = "bogus"));
+  expect(counts(make)).toEqual({ record: 0, judge: 0 });
+  const result = reconcile(make(), profiles);
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toMatch(/candidate\.rule（bogus）が展開結果/);
 });

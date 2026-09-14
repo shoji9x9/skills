@@ -1414,12 +1414,16 @@ export function reconcile(coverage, profiles) {
             `${label}: 項目 ${cand.id} に candidate（ルール id と軸値）が記録されていない`,
           );
         } else {
+          // rule だけの不一致は問題として残すが未測定には数えない。判定側は candidate.axes だけで数え直すので、
+          // rule の誤りは判定側の件数を変えない（数えると記録側だけが未解決を過大に見せる）。
           if (String(recorded.rule) !== cand.rule) {
-            recordMatches = false;
             problems.push(
               `${label}: 項目 ${cand.id} の candidate.rule（${String(recorded.rule)}）が展開結果（${cand.rule}）と違う`,
             );
           }
+          // axes が無い形は判定側も 1 件数える。軸値が展開結果と違う形は判定側の要素照合を狂わせ、
+          // 候補に現れない要素を数えさせうる（記録側は展開結果で照合するので数えない）ため、記録側で 1 件数えて下回らないようにする。
+          if (!isPlainObject(recorded.axes)) recordMatches = false;
           const recordedAxes = isPlainObject(recorded.axes)
             ? /** @type {Record<string, unknown>} */ (recorded.axes)
             : {};
