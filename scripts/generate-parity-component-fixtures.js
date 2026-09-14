@@ -91,6 +91,28 @@ const STATES = ["default", "hover", "active", "disabled"];
 // 1 回の CDP 呼び出し・HTTP 取得に許す時間。全体の timeout で切ると、どの呼び出しで止まったかが
 // 出力に残らない（http へのナビゲーションが開始しない環境で実際に起きた）。呼び出しごとに切って名前を出す。
 const CALL_TIMEOUT_MS = 30000;
+// SIGTERM 後に Chrome の終了を待つ上限。固まった Chrome や SIGTERM を無視するラッパー（CHROME で指定）だと
+// 上限なしの待ちは終わらず、起動・ハンドシェイクの元のエラーも出ず、プロファイルも消えない。
+// 超えたら SIGKILL へ切り替える。テストで短くするためだけに環境変数で上書きできる。
+const SHUTDOWN_TIMEOUT_MS = Number(process.env.PARITY_FIXTURES_SHUTDOWN_TIMEOUT_MS) || 10000;
+
+// `exit` を ms 以内に待つ。来れば true、上限を超えたら false。
+const waitForExit = (proc, ms) =>
+  new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      resolve(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      proc.off("exit", onExit);
+      resolve(false);
+    }, ms);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    proc.once("exit", onExit);
+  });
 
 async function launchChrome() {
   const userDir = mkdtempSync(join(tmpdir(), "parity-component-fixtures-"));
@@ -114,12 +136,20 @@ async function launchChrome() {
   // 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
   const shutdown = async () => {
     if (ws) ws.close();
+    let stuck = false;
     if (proc.exitCode === null && proc.signalCode === null) {
-      const exited = new Promise((resolve) => proc.once("exit", resolve));
-      proc.kill();
-      await exited;
+      proc.kill("SIGTERM");
+      if (!(await waitForExit(proc, SHUTDOWN_TIMEOUT_MS))) {
+        console.error(
+          `Chrome が SIGTERM から ${SHUTDOWN_TIMEOUT_MS}ms 以内に終了しないので SIGKILL する`,
+        );
+        proc.kill("SIGKILL");
+        stuck = !(await waitForExit(proc, SHUTDOWN_TIMEOUT_MS));
+      }
     }
+    // 終了を確かめられなくてもプロファイルの削除は試みる（残すと一時ディレクトリが溜まる）。
     rmSync(userDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    if (stuck) throw new Error(`Chrome (pid ${proc.pid}) が SIGKILL 後も終了しない`);
   };
 
   try {
@@ -211,7 +241,12 @@ async function launchChrome() {
       });
     return { send, close: shutdown, browser };
   } catch (err) {
-    await shutdown();
+    // 片付けの失敗で元のエラーを上書きしない（原因が表面化しなくなる）。片付けの失敗は併記する。
+    try {
+      await shutdown();
+    } catch (cleanupErr) {
+      console.error(`片付けにも失敗した: ${cleanupErr.message}`);
+    }
     throw err;
   }
 }
@@ -271,6 +306,7 @@ const writeJson = (path, value) => {
 };
 
 const cdp = await launchChrome();
+let generationError = null;
 try {
   await cdp.send("Page.enable");
   await cdp.send("DOM.enable");
@@ -374,6 +410,14 @@ try {
       2,
     ),
   );
-} finally {
-  await cdp.close();
+} catch (err) {
+  generationError = err;
 }
+// 起動失敗の経路と同じく、片付けの失敗（SIGKILL 後も終了しない等）で生成の元のエラーを上書きしない。
+try {
+  await cdp.close();
+} catch (cleanupErr) {
+  if (!generationError) throw cleanupErr;
+  console.error(`片付けにも失敗した: ${cleanupErr.message}`);
+}
+if (generationError) throw generationError;
