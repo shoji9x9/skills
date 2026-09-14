@@ -63,6 +63,7 @@
   [`mouse.click`](https://playwright.dev/docs/api/class-mouse#mouse-click)・[`expect.poll`](https://playwright.dev/docs/test-assertions#expectpoll)・
   [CSSOM View `elementFromPoint`](https://drafts.csswg.org/cssom-view/#dom-document-elementfrompoint)）。
   role が画面外のミラー要素に付く場合があるため判定用ロケータの座標を流用せず、hit-test が別要素を返す座標にも操作を送らない
+- **撮影状態へ遷移する関数（`applyState`）は、撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す**（出現待ちで止めない。要件と実装例の正本は [`baseline.md`](baseline.md)「撮る対象が動かなくなるまで待つ」）
 - **本スキルで最も工数を食う箇所**であり、見積もりで過小評価しない
 
 ## 配置の指針

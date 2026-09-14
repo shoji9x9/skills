@@ -44,6 +44,7 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 `hover` / `active` / `focus` / `disabled` / `checked` などへ遷移させてから採る。
 
 - **遷移したことを、採る前にその状態固有の assertion で確かめる**（属性・クラス・可視要素の変化）。遷移できていないまま採ると、`default` の値が `hover` として記録される
+- **確かめたあと、撮る要素の矩形が 2 回続けて同じ値になるまで待ってから採る**（1 回目・ノイズ測定の 2 回目・カタログ側〈[`compare.md`](compare.md)〉の全てで同じ。出現直後に採ると 1 画素の揺れが 2 値に転ぶ。正本と実装例は `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）
 - **遷移の手段が書き込みになりうる場合は、選択した target の `forbidden_actions` を先に引く。**
   `hover` / `focus` はポインタとキーボードの移動で作れるが、`checked` / `selected` / `error` は
   クリック・送信といった**アプリへの操作**を要する。本スキルが「読み取りだけ」と言えるのは採取そのものの話で、
@@ -116,6 +117,7 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
 `parity-suite` と同じく**同一条件で 2 回採り**、画素差分と特性照合を 2 回分に対して回した差分量を `metadata.json.noise_baseline` に**インスタンス × 状態ごと**に記録する。
 
 - 2 回目の書き出し先は `.replace/components/<slug>/noise-pass2/`。**基準値を記録したら削除する**（どの工程も読まない。正本は `parity-suite` の `references/baseline.md`）
+- **2 回の一致は採取が決定論的である証明ではない。** 2 回とも上記「状態への遷移は呼び出し側が行う」の矩形の待ちを通して採る
 - 部品単体は画面全体より描画要素が少ないぶんノイズも小さくなりやすいが、**小さいことを前提に測定を省かない**——省くと、照合で出た差が回帰なのか揺れなのかを決める根拠が無くなる
 
 ## 採取環境と利用者環境の乖離

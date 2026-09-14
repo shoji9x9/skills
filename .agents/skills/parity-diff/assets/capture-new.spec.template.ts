@@ -142,7 +142,10 @@ for (const viewport of viewports) {
           mkdirSync(outDir, { recursive: true });
 
           await page.goto(pageDef.path);
-          // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）
+          // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。
+          // applyState は撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す契約
+          // （正本は parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」）。
+          // 出現直後に撮ると 1 画素の上下で結果が 2 値に転び、自己ノイズの 2 回撮りでは検出できない
           await applyState(page, state);
 
           // 撮影条件（アニメーション無効・マスク）は現側と同一。
