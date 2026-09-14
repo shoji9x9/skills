@@ -51,7 +51,7 @@
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
-| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・操作アダプタの開く関数名が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
+| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・器を開く呼び出し〈関数名 × 開く対象の論理名〉が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
 | `environment` | 現側の `environment`（自由記述）と照合できたか |
 
 - **`environment` は自由記述であり機械照合できない。** 原則 `"unverified: <理由>"`（例: `"unverified: 現側は記述のみで新側と機械照合できない"`）を記録し、
@@ -61,7 +61,8 @@
   同一条件の検証をもって「利用者環境でも一致」と読み替えない（正本: `parity-suite` の `references/baseline.md`「採取環境と利用者環境の乖離」）
 - **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（器の棚卸し）」）。
   `captured` が `states` に無い名前を指す行、`captured: null` なのに `reason` が空の行、`captured` を持つのに `reason` キーが無い・`null` でない行（両方を埋めた行を含む）があれば撮影せず停止し `parity-suite` へ戻す。
-  **操作アダプタ（`suite.interactions`。新側例外を含む）で器を開く関数を列挙し、全てが `opened_by` に現れることも確かめる**——現れない関数があれば、その器は数えられておらず撮られていないので停止し `parity-suite` へ戻す。
+  **操作アダプタ（`suite.interactions`。新側例外を含む）とスイートから器を開く呼び出しを「関数名 × 開く対象の論理名」の単位で列挙し、全てが `opened_by`（`<関数名>(<開く対象の論理名>)`）に現れることも確かめる**——
+  関数名だけで突き合わせると、引数で対象を変える関数の 1 行が他の呼び出しまで満たしてしまう。現れない呼び出しがあれば、その器は数えられておらず撮られていないので停止し `parity-suite` へ戻す。
   `captured: null` の行は `diff.md` の未検証領域へ転記する（撮っていない器は 3 経路のどれにも出ないため、差分ゼロを「画面が同じ」と読み替えない）
 - **`popup_inventory` のキーごと無い旧成果物は、静止待ちの導入前の採取として撮影せず停止し、`parity-suite` でベースラインとノイズ基準値の採り直しへ戻す。**
   古い「ノイズ 0」の基準値を正規化に使うと、2 値に転ぶ採取の揺れを吸収・誤分類しうるため、未検証の注記だけで進めない。
