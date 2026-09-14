@@ -29,6 +29,7 @@ const cssRules = await import(
 const axisDiff = await import(join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs"));
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+const TEMPLATE = readJson(join(repoRoot, "skills/parity-component/assets/metadata-template.json"));
 const sorted = (values) => [...values].sort();
 
 // PNG の IHDR から幅と高さを読む（署名 8 バイト → 長さ 4 → "IHDR" 4 → 幅 4 → 高さ 4）。
@@ -141,8 +142,21 @@ function checkComponent(dir) {
     conditions && Array.isArray(conditions.viewports)
       ? conditions.viewports.map((v) => v && v.label)
       : [];
+  // キーの集合はスキーマの正本（assets/metadata-template.json）から取る。検査する項目を手で選ぶと、
+  // 選び漏れた項目（viewer_environment / masks 等）の欠落・型崩れが合格する。
+  const sameKeys = (value, template) =>
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify(Object.keys(template).sort());
   if (
-    !conditions ||
+    !sameKeys(conditions, TEMPLATE.capture_conditions) ||
+    typeof conditions.viewer_environment !== "string" ||
+    !/^(一致|未確認|乖離: .+)$/.test(conditions.viewer_environment) ||
+    !Array.isArray(conditions.masks) ||
+    conditions.masks.some((m) => typeof m !== "string" || m === "") ||
+    !Array.isArray(conditions.viewports) ||
+    !conditions.viewports.every((v) => sameKeys(v, TEMPLATE.capture_conditions.viewports[0])) ||
     typeof conditions.environment !== "string" ||
     conditions.environment === "" ||
     viewportLabels.length === 0 ||
@@ -176,7 +190,7 @@ function checkComponent(dir) {
   const noiseRows = Array.isArray(meta.noise_baseline) ? meta.noise_baseline : [];
   const malformedNoise = noiseRows.filter(
     (n) =>
-      !n ||
+      !sameKeys(n, TEMPLATE.noise_baseline[0]) ||
       typeof n.instance !== "string" ||
       typeof n.state !== "string" ||
       typeof n.viewport !== "string" ||
@@ -434,4 +448,47 @@ test("陽性コントロール: 到達不能の宣言があるのに not_compare
   const problems = checkComponent(dir);
   expect(problems).not.toContain("axes.json が axis-diff --baseline の出力と一致しない");
   expect(problems).toContain("metadata.json の axes の要約が axes.json と一致しない");
+});
+
+test("陽性コントロール: capture_conditions の全項目の欠落・型崩れを検出する", () => {
+  const mutations = [
+    (c) => delete c.viewer_environment,
+    (c) => (c.viewer_environment = null),
+    (c) => (c.viewer_environment = "たぶん一致"),
+    (c) => delete c.masks,
+    (c) => (c.masks = null),
+    (c) => (c.masks = [""]),
+    (c) => (c.masks = "none"),
+    (c) => delete c.animations,
+    (c) => (c.unknown_field = true),
+    (c) => (c.viewports[0].dpr = 1),
+  ];
+  for (const mutate of mutations) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => mutate(m.capture_conditions));
+    expect(checkComponent(dir), String(mutate)).toContain(
+      "capture_conditions が採取の条件として埋まっていない",
+    );
+  }
+});
+
+test("capture_conditions の正当な値の変化は通す", () => {
+  // 過剰修正の検知: 契約が許す値（乖離の宣言・マスクの列挙）では落とさない。
+  for (const mutate of [
+    (c) => (c.viewer_environment = "乖離: 利用者は Windows 既定フォント（gaps.md 参照）"),
+    (c) => (c.viewer_environment = "未確認"),
+    (c) => (c.masks = ["[data-testid=timestamp]"]),
+  ]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => mutate(m.capture_conditions));
+    expect(checkComponent(dir), String(mutate)).toEqual([]);
+  }
+});
+
+test("陽性コントロール: ノイズ行の未知・欠落キーを検出する", () => {
+  for (const mutate of [(row) => (row.extra = 1), (row) => delete row.viewport]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => mutate(m.noise_baseline[0]));
+    expect(checkComponent(dir).join("\n"), String(mutate)).toContain("noise_baseline");
+  }
 });
