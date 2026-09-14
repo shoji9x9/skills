@@ -1,7 +1,7 @@
 ---
 date: 2026-09-13
 type: rule
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: codex
@@ -22,3 +22,23 @@ session: codex
 共有設定の解決規則を変えたら、commit 前に設定名・handoff 先・要約文を横断検索し、定義元だけでなく全消費側と配布境界を通した代表フローを突き合わせる。
 
 grep は新しい設定名だけでなく変更前の設定名と委譲先スキル名でも行う。ルート設定に依存する説明は、配布物へ同梱されるかを確認し、同梱されないならソースリポジトリ固有と利用側手順を分けて書く。
+
+## 再発（2026-09-14, claude-code, #361 / #360）
+
+### 再発の事象
+
+parity-diff の `references/capture-new.md` に「`popup_inventory` が不整合なら停止」という新ゲートを足したが、同じ条件を構造化して再掲する箇所
+（同ファイルの「5 キー」表・`assets/diff-metadata-template.json` の `capture_conditions_verified`・`assets/diff-template.md` の「5 項目」行・停止条件の総括文）と、
+待ちの契約を迂回しうる parity-replace の操作アダプタ分岐・parity-component の主採取経路が追随しなかった。コミット前の Sonnet サブエージェントレビューで 4 件検出し手戻り。
+
+### 再発の根本原因
+
+- なぜ漏れた? → 足した語（`popup_inventory`）でしか grep しなかった
+- なぜ既存要素名で grep しなかった? → `docs/skill-development.md` 整合パス項目 5 に書かれているが、実装完了を報告する前にパスを実行していない
+- なぜ実行しない? → 整合パスは rule から参照される散文で、完了報告の前に通過を示す強制点が無い ← 根本原因（規約止まり）
+
+### 再発への提案
+
+既存の条件リスト（停止条件・検証キー表）へ項目を足したら、足した語ではなく隣接する既存要素名（例: `masks / states`）で `skills/` 横断 grep し、
+テンプレート・表の件数（「N キー」「N 項目」）まで直してから完了報告する。
+強制点候補: issue-start の完了報告前に整合パス実行結果（grep した既存要素名とヒット件数）の提示を必須にする。
