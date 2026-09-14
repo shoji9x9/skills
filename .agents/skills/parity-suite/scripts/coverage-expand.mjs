@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1058,6 +1058,50 @@ export function checkEquivalenceClasses(classes, profile, candidateIndex, label)
 }
 
 /**
+ * 部品の宣言セル数（項目数 × インスタンス数）。採点せずに抜ける分岐が未測定として数える件数の定義で、
+ * 判定側（parity-diff の coverage-check.mjs）の declaredCells と同じ式にする。列挙が空・部品が JSON
+ * オブジェクトでないときに 0 へ落ちると「未測定 0」を主張できるため、fail-closed の下限として 1 を取る。
+ * @param {unknown} component
+ * @returns {number}
+ */
+function declaredCellCount(component) {
+  const c = isPlainObject(component) ? /** @type {Record<string, unknown>} */ (component) : {};
+  const items = Array.isArray(c.items) ? c.items.length : 0;
+  const instances = Array.isArray(c.instances) ? c.instances.length : 0;
+  return Math.max(items * instances, 1);
+}
+
+/**
+ * プロファイルを読めない部品の未測定の下限。記録側は候補を展開できないので採点しないが、判定側
+ * （parity-diff の coverage-check.mjs）はプロファイルを読まず、インスタンスごとに記録された候補から数え直す。
+ * 宣言セル数だけでは、items が欠けて候補だけ記録された被覆表で判定側を下回るため、判定側がその
+ * インスタンスで数えうる件数の上限も取る: 候補ごとのセル（重複を除く）＋ 軸値が引けない候補（記録の要素数ぶん）
+ * または列挙した要素のうち候補に現れないもの。どちらか一方しか数えないので大きい方を足す。下限は 1。
+ * @param {Record<string, unknown>} c
+ * @returns {number}
+ */
+function unscoredProfiledCellCount(c) {
+  const instances = Array.isArray(c.instances) ? c.instances : [];
+  let recordedBound = 0;
+  for (const instance of instances) {
+    const inst = isPlainObject(instance) ? /** @type {Record<string, unknown>} */ (instance) : {};
+    const recorded = (Array.isArray(inst.candidates) ? inst.candidates : []).filter(nonEmptyString);
+    const unique = new Set(recorded.map(String)).size;
+    const enumeration = isPlainObject(inst.enumeration)
+      ? /** @type {Record<string, unknown>} */ (inst.enumeration)
+      : {};
+    const elements = isPlainObject(enumeration.elements)
+      ? Object.values(/** @type {Record<string, unknown>} */ (enumeration.elements)).reduce(
+          (n, list) => n + (Array.isArray(list) ? list.length : 0),
+          0,
+        )
+      : 0;
+    recordedBound += Math.max(unique + Math.max(recorded.length, elements), 1);
+  }
+  return Math.max(declaredCellCount(c), recordedBound);
+}
+
+/**
  * 被覆表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
@@ -1109,30 +1153,34 @@ export function reconcile(coverage, profiles) {
   for (const [index, component] of components.entries()) {
     if (!isPlainObject(component)) {
       problems.push(`components[${index}]: JSON オブジェクトではない`);
+      unmeasured += declaredCellCount(component);
       continue;
     }
     const c = /** @type {Record<string, unknown>} */ (component);
     const cid = nonEmptyString(c.id) ? String(c.id) : `#${index}`;
-    if (!nonEmptyString(c.id)) problems.push(`components[${index}]: id が空`);
-    // 部品 id の重複を先勝ちにしない（同じ部品を 2 回採点して ok を出せる）。
+    // 部品 id が空・重複の部品は採点しない（重複は同じ部品を 2 回採点して ok を出せる）。
     // 判定側（parity-diff の coverage-check.mjs）は宣言セル数を未測定として数える。
-    if (nonEmptyString(c.id)) {
-      if (seenComponents.has(cid)) {
-        const declaredCells =
-          (Array.isArray(c.items) ? c.items.length : 0) *
-          (Array.isArray(c.instances) ? c.instances.length : 0);
-        problems.push(`components[${index}]: id ${cid} が重複している（先勝ちにしない）`);
-        unmeasured += Math.max(declaredCells, 1);
-        continue;
-      }
-      seenComponents.add(cid);
+    // 以下、部品を採点せずに抜ける分岐はすべて宣言セル数を未測定に足す（問題文だけ残して 0 件にしない。
+    // 記録側だけが「未測定 0」を主張すると conformance の要約と metadata が未解決領域を過小に見せる）。
+    // id が空のまま採点を続けると、未測定は候補数・インスタンス数単位になり宣言セル数を下回りうる。
+    if (!nonEmptyString(c.id)) {
+      problems.push(`components[${index}]: id が空`);
+      unmeasured += declaredCellCount(c);
+      continue;
     }
+    if (seenComponents.has(cid)) {
+      problems.push(`components[${index}]: id ${cid} が重複している（先勝ちにしない）`);
+      unmeasured += declaredCellCount(c);
+      continue;
+    }
+    seenComponents.add(cid);
 
     // profile キーの欠落を「汎用扱い」に倒さない。プロファイル無しを選ぶには理由が要る。
     if (!("profile" in c)) {
       problems.push(
         `部品 ${cid}: profile キーが無い（適合プロファイルが無いなら profile: null ＋ profile_absent_reason を書く。暗黙の汎用扱いにしない）`,
       );
+      unmeasured += declaredCellCount(c);
       continue;
     }
     if (c.profile === null) {
@@ -1199,12 +1247,15 @@ export function reconcile(coverage, profiles) {
     }
     if (!nonEmptyString(c.profile)) {
       problems.push(`部品 ${cid}: profile が空でない文字列でも null でもない`);
+      unmeasured += declaredCellCount(c);
       continue;
     }
     const profileId = String(c.profile);
     const profile = profiles.get(profileId);
     if (!profile) {
       problems.push(`部品 ${cid}: プロファイル ${profileId} が同梱ディレクトリに無い`);
+      // 候補を展開できないので採点していない。判定側は記録済みの候補から数え直せるが、記録側は検証していない。
+      unmeasured += unscoredProfiledCellCount(c);
       continue;
     }
     if (
@@ -1217,7 +1268,10 @@ export function reconcile(coverage, profiles) {
     }
 
     const instances = Array.isArray(c.instances) ? c.instances : [];
-    if (instances.length === 0) problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
+    if (instances.length === 0) {
+      problems.push(`部品 ${cid}: instances が空（列挙が起きていない）`);
+      unmeasured += 1;
+    }
 
     // 項目 id → 記録された candidate（余剰の検出に使う）。
     const items = Array.isArray(c.items) ? c.items : [];
@@ -1250,12 +1304,14 @@ export function reconcile(coverage, profiles) {
     for (const [i, instance] of instances.entries()) {
       if (!isPlainObject(instance)) {
         problems.push(`部品 ${cid}: instances[${i}] が JSON オブジェクトではない`);
+        unmeasured += 1;
         continue;
       }
       const inst = /** @type {Record<string, unknown>} */ (instance);
       const iid = nonEmptyString(inst.id) ? String(inst.id) : `#${i}`;
       if (!nonEmptyString(inst.id)) {
         problems.push(`部品 ${cid}: instances[${i}]: id が空`);
+        unmeasured += 1;
         continue;
       }
       // インスタンス id は候補キー（"<インスタンス id>/<候補 id>"）と同値クラスの members の前半になる。
@@ -1264,10 +1320,12 @@ export function reconcile(coverage, profiles) {
         problems.push(
           `部品 ${cid}: instances[${i}]: id ${iid} に "${ID_SEPARATOR}" を含む（候補キー・同値クラスの members が切り分けられない）`,
         );
+        unmeasured += 1;
         continue;
       }
       if (seenInstances.has(iid)) {
         problems.push(`部品 ${cid}: インスタンス id ${iid} が重複している（先勝ちにしない）`);
+        unmeasured += 1;
         continue;
       }
       seenInstances.add(iid);
@@ -1332,32 +1390,46 @@ export function reconcile(coverage, profiles) {
       }
 
       candidateTotal += candidates.length;
+      // 候補ごとに未測定へ数えたかを覚える。下の instances[].candidates の記録漏れと同じ候補を二重に数えない。
+      /** @type {Set<string>} */
+      const unmeasuredCandidates = new Set();
+      const countCandidateUnmeasured = (/** @type {string} */ id) => {
+        unmeasured += 1;
+        unmeasuredCandidates.add(id);
+      };
       for (const cand of candidates) {
         candidateIndex.set(`${iid}${ID_SEPARATOR}${cand.id}`, { rule: cand.rule, axes: cand.axes });
         const item = itemById.get(cand.id);
+        const recorded =
+          item && isPlainObject(item.candidate)
+            ? /** @type {Record<string, unknown>} */ (item.candidate)
+            : null;
+        // 判定側はプロファイルを読まず、この candidate.axes から軸ごとの要素集合を作って数え直す。
+        // 項目が無い・記録が無い・展開結果と違う候補は判定側の数え直しを成立させないので、セルの値に依らず 1 件を未測定に数える。
+        let recordMatches = recorded !== null;
         if (!item) {
           problems.push(`${label}: 候補 ${cand.id} に対応する項目が被覆表に無い（欠落）`);
-          unmeasured += 1;
-          continue;
-        }
-        const recorded = isPlainObject(item.candidate)
-          ? /** @type {Record<string, unknown>} */ (item.candidate)
-          : null;
-        if (!recorded) {
+        } else if (!recorded) {
           problems.push(
             `${label}: 項目 ${cand.id} に candidate（ルール id と軸値）が記録されていない`,
           );
         } else {
+          // rule だけの不一致は問題として残すが未測定には数えない。判定側は candidate.axes だけで数え直すので、
+          // rule の誤りは判定側の件数を変えない（数えると記録側だけが未解決を過大に見せる）。
           if (String(recorded.rule) !== cand.rule) {
             problems.push(
               `${label}: 項目 ${cand.id} の candidate.rule（${String(recorded.rule)}）が展開結果（${cand.rule}）と違う`,
             );
           }
+          // axes が無い形は判定側も 1 件数える。軸値が展開結果と違う形は判定側の要素照合を狂わせ、
+          // 候補に現れない要素を数えさせうる（記録側は展開結果で照合するので数えない）ため、記録側で 1 件数えて下回らないようにする。
+          if (!isPlainObject(recorded.axes)) recordMatches = false;
           const recordedAxes = isPlainObject(recorded.axes)
             ? /** @type {Record<string, unknown>} */ (recorded.axes)
             : {};
           for (const [axisId, value] of Object.entries(cand.axes)) {
             if (String(recordedAxes[axisId]) !== value) {
+              recordMatches = false;
               problems.push(
                 `${label}: 項目 ${cand.id} の candidate.axes.${axisId}（${String(recordedAxes[axisId])}）が展開結果（${value}）と違う`,
               );
@@ -1368,15 +1440,18 @@ export function reconcile(coverage, profiles) {
         // セルの判定規則は coverage.md「部品被覆表」が正本。候補由来の期待セルへ同じ規則を当てる。
         const key = keyOf(cid, cand.id, iid);
         expectedKeys.add(key);
+        // 記録の不備とセルの不備は別の欠陥として数える。判定側は軸値が引けない候補を 1 件数えたうえで、
+        // そのセルも採点するので、ここで 1 件に畳むと両方が欠けた候補で判定側を下回る。
+        if (!recordMatches) countCandidateUnmeasured(cand.id);
         if (duplicated.has(key)) {
           problems.push(`${label}: 候補 ${cand.id} のセル行が複数ある（先勝ちにしない）`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         const row = byKey.get(key);
         if (!row) {
           problems.push(`${label}: 候補 ${cand.id} のセルが無い（行の無い組み合わせは未測定）`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         const value = row.value;
@@ -1384,16 +1459,16 @@ export function reconcile(coverage, profiles) {
           problems.push(
             `${label}: 候補 ${cand.id}: value が ${VALUES.join(" / ")} のいずれでもない`,
           );
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (value === "unmeasured") {
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (!nonEmptyString(row.evidence)) {
           problems.push(`${label}: 候補 ${cand.id}: value: ${value} なのに evidence が空`);
-          unmeasured += 1;
+          countCandidateUnmeasured(cand.id);
           continue;
         }
         if (value === "present") {
@@ -1404,7 +1479,7 @@ export function reconcile(coverage, profiles) {
             problems.push(
               `${label}: 候補 ${cand.id}: value: present なのに covered_by が空（assertion に落ちていない）`,
             );
-            unmeasured += 1;
+            countCandidateUnmeasured(cand.id);
           }
         } else {
           const absenceProblem = absentEvidenceProblem(
@@ -1414,12 +1489,16 @@ export function reconcile(coverage, profiles) {
           );
           if (absenceProblem) {
             problems.push(absenceProblem);
-            unmeasured += 1;
+            countCandidateUnmeasured(cand.id);
           }
         }
       }
 
       // 記録された候補が展開結果とズレていたら、parity-diff 側の数え直しが別物になる。
+      // 判定側は instances[].candidates に記録された候補だけを期待セルとして数え、記録が空・無いインスタンスは
+      // 1 件の未測定にする。記録から漏れた候補は判定側で採点されないので、記録側も未測定に数える
+      // （空・無いときは判定側と同じ 1 件。一部だけ漏れたときは漏れた件数で、判定側の数え直し以上になる）。
+      // 候補ループで既に未測定へ数えた候補は足さない（セル行も記録も無い候補を 2 件に数えない）。
       if (Array.isArray(inst.candidates)) {
         const recorded = inst.candidates.filter(nonEmptyString).map(String);
         const expected = candidates.map((cand) => cand.id);
@@ -1429,6 +1508,10 @@ export function reconcile(coverage, profiles) {
           problems.push(
             `${label}: instances[].candidates に展開結果の候補が足りない（${missing.length} 件）`,
           );
+        unmeasured +=
+          recorded.length === 0
+            ? Number(unmeasuredCandidates.size === 0)
+            : missing.filter((id) => !unmeasuredCandidates.has(id)).length;
         if (extra.length > 0)
           problems.push(
             `${label}: instances[].candidates に展開結果に無い候補がある（${extra.length} 件）`,
@@ -1437,6 +1520,7 @@ export function reconcile(coverage, profiles) {
         problems.push(
           `${label}: instances[].candidates が無い（parity-diff が数え直せない。--write で書き出す）`,
         );
+        unmeasured += Number(unmeasuredCandidates.size === 0);
       }
       instanceReports.push({ instance: iid, usable: true, candidates: candidates.length });
     }
