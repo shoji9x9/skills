@@ -1072,6 +1072,36 @@ function declaredCellCount(component) {
 }
 
 /**
+ * プロファイルを読めない部品の未測定の下限。記録側は候補を展開できないので採点しないが、判定側
+ * （parity-diff の coverage-check.mjs）はプロファイルを読まず、インスタンスごとに記録された候補から数え直す。
+ * 宣言セル数だけでは、items が欠けて候補だけ記録された被覆表で判定側を下回るため、判定側がその
+ * インスタンスで数えうる件数の上限も取る: 候補ごとのセル（重複を除く）＋ 軸値が引けない候補（記録の要素数ぶん）
+ * または列挙した要素のうち候補に現れないもの。どちらか一方しか数えないので大きい方を足す。下限は 1。
+ * @param {Record<string, unknown>} c
+ * @returns {number}
+ */
+function unscoredProfiledCellCount(c) {
+  const instances = Array.isArray(c.instances) ? c.instances : [];
+  let recordedBound = 0;
+  for (const instance of instances) {
+    const inst = isPlainObject(instance) ? /** @type {Record<string, unknown>} */ (instance) : {};
+    const recorded = (Array.isArray(inst.candidates) ? inst.candidates : []).filter(nonEmptyString);
+    const unique = new Set(recorded.map(String)).size;
+    const enumeration = isPlainObject(inst.enumeration)
+      ? /** @type {Record<string, unknown>} */ (inst.enumeration)
+      : {};
+    const elements = isPlainObject(enumeration.elements)
+      ? Object.values(/** @type {Record<string, unknown>} */ (enumeration.elements)).reduce(
+          (n, list) => n + (Array.isArray(list) ? list.length : 0),
+          0,
+        )
+      : 0;
+    recordedBound += Math.max(unique + Math.max(recorded.length, elements), 1);
+  }
+  return Math.max(declaredCellCount(c), recordedBound);
+}
+
+/**
  * 被覆表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
@@ -1225,7 +1255,7 @@ export function reconcile(coverage, profiles) {
     if (!profile) {
       problems.push(`部品 ${cid}: プロファイル ${profileId} が同梱ディレクトリに無い`);
       // 候補を展開できないので採点していない。判定側は記録済みの候補から数え直せるが、記録側は検証していない。
-      unmeasured += declaredCellCount(c);
+      unmeasured += unscoredProfiledCellCount(c);
       continue;
     }
     if (

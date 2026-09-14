@@ -263,6 +263,34 @@ const CASES = [
     "ge",
     variant(profiled, (c) => (grid(c).profile = "no-such-profile")),
   ],
+  // プロファイルを読めない部品でも、判定側は記録された候補から数え直す。宣言セル数だけを下限にすると、
+  // items が欠けて候補だけ記録された表で判定側を下回る
+  [
+    "プロファイル: 同梱に無いプロファイルで items が 1 件だけ残る",
+    "ge",
+    variant(profiled, (c) => {
+      grid(c).profile = "no-such-profile";
+      grid(c).items = grid(c).items.slice(0, 1);
+    }),
+  ],
+  [
+    "プロファイル: 同梱に無いプロファイルで items が 1 件だけ残りセル行も無い",
+    "ge",
+    variant(profiled, (c) => {
+      grid(c).profile = "no-such-profile";
+      grid(c).items = grid(c).items.slice(0, 1);
+      c.cells = [];
+    }),
+  ],
+  [
+    "プロファイル: 同梱に無いプロファイルで candidate.axes もセル行も無い",
+    "ge",
+    variant(profiled, (c) => {
+      grid(c).profile = "no-such-profile";
+      for (const item of grid(c).items) delete item.candidate;
+      c.cells = [];
+    }),
+  ],
   [
     "プロファイル: 必須ルールの候補が 0 件",
     "ge",
