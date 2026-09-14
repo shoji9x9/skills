@@ -380,7 +380,11 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
   gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
     --jq '.check_runs[]
           | select(.status != "completed")
-          | {name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
+          | {id, head_sha, name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
+
+  # 未同定の候補は id を保持し、完了後も同じ run を id で取り直す（未完了だけの照会では完了した run が消えて追跡できない）。
+  gh api "repos/<owner>/<repo>/check-runs/<id>" \
+    --jq '{id, head_sha, name, app: .app.slug, status, conclusion, title: .output.title, summary: .output.summary}'
   ```
 
   **ここで数えるのはレビュー用 check-run だけにする。** この endpoint には通常の CI も入るため、未完了を無条件にレビュー進行中と読むと、
@@ -393,7 +397,10 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
     **レビューエージェントのものと積極的に同定できた候補だけ**を数える。名前に `review` を含むといった部分一致は同定の根拠にしない。
   - **同定できなかった未完了候補が残る間は、同定済み候補がゼロでも「進行中なし」と結論しない。** その候補が完了するか
     `app` / `name` / `output` から仕分けられるまで、「ポーリングと待機」の「進行中レビューの完了待ち」と同じ上限つきで待つ
-    （取り直しを重ねても曖昧さは解けないので、回数ではなく候補の完了・分類を待つ）。完了したらその出力でレビューか通常の CI かを判定する。
+    （取り直しを重ねても曖昧さは解けないので、回数ではなく候補の完了・分類を待つ）。**未同定の候補は run の `id` と `head_sha` を記録して保持し、完了・分類は同じ `id` を `check-runs/<id>` で取り直して判定する**
+    （未完了だけを返す照会では完了した run が一覧から消え、「候補が残っていない」と誤読して重複の mention を投稿しうる）。
+    `head_sha` が現在の `headRefOid` と一致することも確かめ、完了したらその出力でレビューか通常の CI かを判定する。
+    記録した候補は、完了・分類を確認するまで「残っている未同定候補」として数え続ける。
     **上限までに完了・分類しなければ、その反復では依頼しない**（mention は冪等でないので、未同定の run がレビューだった場合に重複起動する。
     後述「進行中レビューの完了待ち」の「無効とみなして依頼判断に戻る」はこの状態に当てない）。
     未同定の run 名と「依頼保留」を残作業として記録し、次反復の状態取得で再評価する（完了・分類されていれば通常どおり判定する）。
