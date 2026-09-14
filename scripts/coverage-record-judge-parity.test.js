@@ -243,6 +243,31 @@ const CASES = [
     variant(profiled, (c) => delete grid(c).items[0].candidate),
   ],
   ["プロファイル: 候補に対応する項目が無い", "eq", variant(profiled, (c) => grid(c).items.shift())],
+  // 候補の記録の不備とセルの不備は別の欠陥。判定側は両方を数えるので、記録側も 1 件に畳まない
+  [
+    "プロファイル: 項目の candidate とセル行の両方が無い",
+    "eq",
+    variant(profiled, (c) => {
+      delete grid(c).items[0].candidate;
+      c.cells = c.cells.filter((cell) => cell.item !== grid(c).items[0].id);
+    }),
+  ],
+  [
+    "プロファイル: 候補に対応する項目とセル行の両方が無い",
+    "eq",
+    variant(profiled, (c) => {
+      const [removed] = grid(c).items.splice(0, 1);
+      c.cells = c.cells.filter((cell) => cell.item !== removed.id);
+    }),
+  ],
+  [
+    "プロファイル: 項目の candidate が無くセルが unmeasured",
+    "eq",
+    variant(profiled, (c) => {
+      delete grid(c).items[0].candidate;
+      c.cells.find((cell) => cell.item === grid(c).items[0].id).value = "unmeasured";
+    }),
+  ],
   // セル行の採点（両者が同じ規則を当てる）
   ["プロファイル: セル行が無い", "eq", variant(profiled, (c) => c.cells.pop())],
   [

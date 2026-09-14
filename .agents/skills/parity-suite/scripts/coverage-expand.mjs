@@ -1400,18 +1400,16 @@ export function reconcile(coverage, profiles) {
       for (const cand of candidates) {
         candidateIndex.set(`${iid}${ID_SEPARATOR}${cand.id}`, { rule: cand.rule, axes: cand.axes });
         const item = itemById.get(cand.id);
+        const recorded =
+          item && isPlainObject(item.candidate)
+            ? /** @type {Record<string, unknown>} */ (item.candidate)
+            : null;
+        // 判定側はプロファイルを読まず、この candidate.axes から軸ごとの要素集合を作って数え直す。
+        // 項目が無い・記録が無い・展開結果と違う候補は判定側の数え直しを成立させないので、セルの値に依らず 1 件を未測定に数える。
+        let recordMatches = recorded !== null;
         if (!item) {
           problems.push(`${label}: 候補 ${cand.id} に対応する項目が被覆表に無い（欠落）`);
-          countCandidateUnmeasured(cand.id);
-          continue;
-        }
-        const recorded = isPlainObject(item.candidate)
-          ? /** @type {Record<string, unknown>} */ (item.candidate)
-          : null;
-        // 判定側はプロファイルを読まず、この candidate.axes から軸ごとの要素集合を作って数え直す。
-        // 記録が無い・展開結果と違う候補は判定側の数え直しを成立させないので、セルの値に依らず未測定に数える。
-        let recordMatches = recorded !== null;
-        if (!recorded) {
+        } else if (!recorded) {
           problems.push(
             `${label}: 項目 ${cand.id} に candidate（ルール id と軸値）が記録されていない`,
           );
@@ -1438,10 +1436,9 @@ export function reconcile(coverage, profiles) {
         // セルの判定規則は coverage.md「部品被覆表」が正本。候補由来の期待セルへ同じ規則を当てる。
         const key = keyOf(cid, cand.id, iid);
         expectedKeys.add(key);
-        if (!recordMatches) {
-          countCandidateUnmeasured(cand.id);
-          continue;
-        }
+        // 記録の不備とセルの不備は別の欠陥として数える。判定側は軸値が引けない候補を 1 件数えたうえで、
+        // そのセルも採点するので、ここで 1 件に畳むと両方が欠けた候補で判定側を下回る。
+        if (!recordMatches) countCandidateUnmeasured(cand.id);
         if (duplicated.has(key)) {
           problems.push(`${label}: 候補 ${cand.id} のセル行が複数ある（先勝ちにしない）`);
           countCandidateUnmeasured(cand.id);
