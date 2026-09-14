@@ -116,7 +116,7 @@ LLM eval は最初のデバッグ手段にしない。先に変更したラン�
 
 #### without-skill baseline の再利用
 
-prompt・対象 eval の assertion・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
+prompt・対象 eval の assertion と `requires_skills`・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
 既存の成功した `without_skill` run を再利用できる。`scripts/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
 再利用では assertion の欠落を防ぐため `--eval-id`、実行時の既定値変化を防ぐため `--model` と `--reasoning-effort` を明示し、executor の CLI version を取得できなければ停止する。
 
@@ -170,6 +170,13 @@ scripts/run-skill-eval.sh \
 fixture のルートに executable な `setup.sh` があれば、ハーネスはコピー後・executor 起動前に使い捨てプロジェクト内で実行する。
 Git 管理領域や local bare remote のように通常ファイルとして同梱できない前提状態はここで決定論的に構築する。
 setup が非 0 なら executor を起動せず eval を失敗させ、setup が生成したファイルは run 前の入力として扱う。
+
+**対象分岐が姉妹スキルの同梱物に依存する eval は、`evals.json` の当該 eval に `"requires_skills": ["<姉妹スキル名>"]` を宣言する。**
+ハーネスは `with_skill` のときだけ宣言したスキルを対象スキルの隣へ同じ形で設置する（`without_skill` は何も設置しない）。
+宣言が無いと、姉妹スキル不在の停止が対象分岐より手前に来て、到達が前提を調べる順序に依存する。姉妹スキルの成果物を fixture に手で置いて代替しない。
+
+- 宣言したスキルの同梱物は `without_skill` の汚染マーカーにも入り、`isolation.txt` の `required_skills:` と fingerprint の `required_skills` に記録される（宣言の無い eval の fingerprint は変わらない）
+- 配列でない・空・kebab-case でない・重複・対象スキル自身・`skills/<name>/SKILL.md` が無い、のいずれも executor を起動せずに失敗する
 
 - **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
   `run-skill-eval.sh` は**両 configuration** を `scripts/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、

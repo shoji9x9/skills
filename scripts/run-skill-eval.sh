@@ -209,8 +209,28 @@ if [ -z "${metadata_eval_id}" ]; then
 	esac
 fi
 
+# Sibling skills the eval declares in evals.json `requires_skills`. A with_skill
+# run installs them next to the subject; without them a skill that calls a
+# sibling's bundled tool stops on the missing sibling before the branch the eval
+# targets, and whether it reaches that branch depends on the order the agent checks
+# prerequisites in. Resolved before anything runs so a malformed declaration or a
+# missing sibling source fails the run instead of silently dropping the sibling.
+required_skills=()
+if [ -n "${metadata_eval_id}" ] && [ -f "${src}/evals/evals.json" ]; then
+	required_skills_list="$(node "${fingerprinter}" --required-skills-of "${skill}" --eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")" || exit 5
+	while IFS= read -r required_skill; do
+		[ -n "${required_skill}" ] || continue
+		[ -f "${repo}/skills/${required_skill}/SKILL.md" ] || {
+			echo "required skill source not found: ${repo}/skills/${required_skill}/SKILL.md" >&2
+			exit 1
+		}
+		required_skills+=("${required_skill}")
+	done <<<"${required_skills_list}"
+fi
+
 fingerprint_file="$(mktemp "/tmp/skill-eval-fingerprint-${skill}-XXXXXX.json")"
 fingerprint_args=(
+	--skill "${skill}"
 	--prompt "${prompt}"
 	--executor "${executor}"
 	--model "${model}"
@@ -320,10 +340,13 @@ if [ "${config}" = "with_skill" ]; then
 	codex) skill_home="${proj}/.agents/skills" ;;
 	esac
 	mkdir -p -- "${skill_home}"
-	mkdir -p -- "${skill_home}/${skill}"
-	for subject_part in SKILL.md references assets scripts; do
-		[ -e "${src}/${subject_part}" ] || continue
-		cp -R -- "${src}/${subject_part}" "${skill_home}/${skill}/"
+	for installed_skill in "${skill}" ${required_skills[@]+"${required_skills[@]}"}; do
+		installed_src="${repo}/skills/${installed_skill}"
+		mkdir -p -- "${skill_home}/${installed_skill}"
+		for subject_part in SKILL.md references assets scripts; do
+			[ -e "${installed_src}/${subject_part}" ] || continue
+			cp -R -- "${installed_src}/${subject_part}" "${skill_home}/${installed_skill}/"
+		done
 	done
 fi
 
@@ -339,6 +362,7 @@ cp -- "${fingerprint_file}" "${out}/eval-fingerprint.json"
 	echo "config: ${config}"
 	echo "isolation: ${isolation}"
 	echo "serialization: ${serialization}"
+	echo "required_skills: ${required_skills[*]-}"
 } >"${out}/isolation.txt"
 case "${isolation}" in
 UNISOLATED* | UNVERIFIED*) echo "warn: read isolation is ${isolation} (see ${out}/isolation.txt)" >&2 ;;
@@ -520,6 +544,13 @@ if [ "${config}" = "without_skill" ]; then
 	while IFS= read -r rel; do
 		[ -n "${rel}" ] && markers+=("${rel}")
 	done < <(cd "${src}" && find references assets scripts -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
+	# Required siblings are installed only for with_skill, so a baseline citing their
+	# bundle read it from a route the isolation missed, exactly like the subject's.
+	for required_skill in ${required_skills[@]+"${required_skills[@]}"}; do
+		while IFS= read -r rel; do
+			[ -n "${rel}" ] && markers+=("${rel}")
+		done < <(cd "${repo}/skills/${required_skill}" && find references assets scripts -mindepth 1 -maxdepth 1 -printf '%p\n' 2>/dev/null | sort -u)
+	done
 	# The bare source path `skills/<name>` is NOT a marker. A baseline that correctly
 	# reports the skill is absent routinely names where it would live ("install it at
 	# ~/.claude/skills/<name>/SKILL.md", "show me skills/<name>/ and I will retrace"),

@@ -47,18 +47,53 @@ export function hashFixture(directory) {
   return digest(`${JSON.stringify(entries)}\n`);
 }
 
-export function assertionsForEval(evalsPath, evalId) {
-  if (!evalId) return [];
+function findEval(evalsPath, evalId) {
   if (!evalsPath || !existsSync(evalsPath)) {
-    throw new Error(`eval assertions unavailable for eval ${evalId}`);
+    throw new Error(`eval definition unavailable for eval ${evalId}`);
   }
   const parsed = JSON.parse(readFileSync(evalsPath, "utf8"));
   const evaluation = parsed.evals?.find(({ id }) => String(id) === String(evalId));
   if (!evaluation) throw new Error(`eval ${evalId} not found in ${evalsPath}`);
+  return evaluation;
+}
+
+export function assertionsForEval(evalsPath, evalId) {
+  if (!evalId) return [];
+  const evaluation = findEval(evalsPath, evalId);
   if (!Array.isArray(evaluation.assertions)) {
     throw new Error(`eval ${evalId} has no assertions array`);
   }
   return evaluation.assertions;
+}
+
+// Sibling skills a with_skill run installs next to the subject skill. A skill whose
+// steps call a sibling's bundled tool (parity-component → parity-suite) cannot reach
+// the branch an eval targets when the disposable project holds only the subject, so
+// the eval declares the dependency instead of the fixture faking the sibling's files.
+// Every malformed shape fails: a dropped name would silently reintroduce that gap.
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+export function requiredSkillsForEval(evalsPath, evalId, subjectSkill) {
+  if (!evalId) return [];
+  const evaluation = findEval(evalsPath, evalId);
+  if (!Object.hasOwn(evaluation, "requires_skills")) return [];
+  const names = evaluation.requires_skills;
+  if (!Array.isArray(names) || names.length === 0) {
+    throw new Error(`eval ${evalId} requires_skills must be a non-empty array`);
+  }
+  const seen = new Set();
+  for (const name of names) {
+    if (typeof name !== "string" || !SKILL_NAME.test(name)) {
+      throw new Error(
+        `eval ${evalId} requires_skills has an invalid skill name: ${JSON.stringify(name)}`,
+      );
+    }
+    if (name === subjectSkill) {
+      throw new Error(`eval ${evalId} requires_skills lists the subject skill itself: ${name}`);
+    }
+    if (seen.has(name)) throw new Error(`eval ${evalId} requires_skills lists ${name} twice`);
+    seen.add(name);
+  }
+  return names;
 }
 
 export function createFingerprint(input) {
@@ -93,7 +128,19 @@ function main() {
     "cli-version",
     "harness-version",
   ];
+  if (args["required-skills-of"] !== undefined) {
+    // Print mode for the harness: one required skill per line, from the same parser
+    // the fingerprint uses, so installation and fingerprint cannot disagree.
+    for (const name of requiredSkillsForEval(
+      args.evals,
+      args["eval-id"],
+      args["required-skills-of"],
+    ))
+      process.stdout.write(`${name}\n`);
+    return;
+  }
   for (const name of required) if (!(name in args)) throw new Error(`missing --${name}`);
+  const requiredSkills = requiredSkillsForEval(args.evals, args["eval-id"], args.skill);
   const fingerprint = createFingerprint({
     assertions: assertionsForEval(args.evals, args["eval-id"]),
     eval_id: args["eval-id"] || null,
@@ -104,6 +151,10 @@ function main() {
     prompt: args.prompt,
     reasoning_effort: args["reasoning-effort"],
     cli_version: args["cli-version"],
+    // Only when declared, so fingerprints of evals without dependencies stay unchanged
+    // and their recorded baselines remain reusable. A baseline installs no skill, but
+    // its contamination markers include the required skills' bundles.
+    ...(requiredSkills.length > 0 ? { required_skills: requiredSkills } : {}),
   });
   process.stdout.write(`${JSON.stringify(fingerprint, null, 2)}\n`);
 }

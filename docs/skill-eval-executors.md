@@ -85,6 +85,7 @@ Codex の `item.type=error` / `turn.failed`、Claude Code の `is_error`、raw �
 
 - Claude Code: `with_skill` だけ使い捨て project の `.claude/skills/<name>` に bundle をコピーする。
 - Codex: `with_skill` だけ `.agents/skills/<name>` にコピーする。`SKILL.md` 本文の prompt 注入はしない。
+- 両 executor とも `with_skill` では、eval が宣言した `requires_skills` を同じ場所の隣へコピーする（宣言の契約は [`skill-development.md`](skill-development.md)「eval 実行の隔離（必須）」）。
 - `without_skill`: どちらも bundle をコピーしない。
 
 Codex は `--ephemeral --ignore-user-config --ignore-rules` で実行する。
