@@ -87,6 +87,10 @@ const INSTANCES = [
 ];
 const STATES = ["default", "hover", "active", "disabled"];
 
+// 1 回の CDP 呼び出し・HTTP 取得に許す時間。全体の timeout で切ると、どの呼び出しで止まったかが
+// 出力に残らない（http へのナビゲーションが開始しない環境で実際に起きた）。呼び出しごとに切って名前を出す。
+const CALL_TIMEOUT_MS = 30000;
+
 async function launchChrome() {
   const userDir = mkdtempSync(join(tmpdir(), "parity-component-fixtures-"));
   const proc = spawn(
@@ -103,48 +107,12 @@ async function launchChrome() {
     ],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
-  const wsUrl = await new Promise((resolve, reject) => {
-    let buf = "";
-    const timer = setTimeout(() => reject(new Error(`Chrome が起動しない: ${buf}`)), 20000);
-    proc.once("exit", (code) => reject(new Error(`Chrome が終了した (exit ${code}): ${buf}`)));
-    proc.stderr.on("data", (d) => {
-      buf += d;
-      const m = buf.match(/DevTools listening on (ws:\S+)/);
-      if (m) {
-        clearTimeout(timer);
-        resolve(m[1]);
-      }
-    });
-  });
-  const port = new URL(wsUrl).port;
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  const browser = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).Browser;
-  const ws = new WebSocket(targets.find((t) => t.type === "page").webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onerror = reject;
-  });
-  let nextId = 0;
-  const pending = new Map();
-  ws.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(`${msg.error.message} (${msg.error.code})`));
-      else resolve(msg.result);
-    }
-  };
-  const send = (method, params = {}) =>
-    new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject });
-      ws.send(JSON.stringify({ id, method, params }));
-    });
+  let ws = null;
   // Chrome は SIGTERM 後もしばらくプロファイルへ書くので、終了を待ってから消す
   // （待たずに消すと ENOTEMPTY で finally が throw し、成功した生成が非 0 終了に化ける）。
-  const close = async () => {
-    ws.close();
+  // 起動・ハンドシェイクの途中で失敗したときも同じ片付けを通す（通さないと Chrome とプロファイルが残る）。
+  const shutdown = async () => {
+    if (ws) ws.close();
     if (proc.exitCode === null && proc.signalCode === null) {
       const exited = new Promise((resolve) => proc.once("exit", resolve));
       proc.kill();
@@ -152,7 +120,99 @@ async function launchChrome() {
     }
     rmSync(userDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
-  return { send, close, browser };
+
+  try {
+    const wsUrl = await new Promise((resolve, reject) => {
+      let buf = "";
+      const timer = setTimeout(() => reject(new Error(`Chrome が起動しない: ${buf}`)), 20000);
+      proc.once("error", (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      proc.once("exit", (code) => {
+        clearTimeout(timer);
+        reject(new Error(`Chrome が終了した (exit ${code}): ${buf}`));
+      });
+      proc.stderr.on("data", (d) => {
+        buf += d;
+        const m = buf.match(/DevTools listening on (ws:\S+)/);
+        if (m) {
+          clearTimeout(timer);
+          resolve(m[1]);
+        }
+      });
+    });
+    const port = new URL(wsUrl).port;
+    const getJson = async (path) =>
+      (
+        await fetch(`http://127.0.0.1:${port}${path}`, {
+          signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+        })
+      ).json();
+    const targets = await getJson("/json");
+    const browser = (await getJson("/json/version")).Browser;
+    const page = targets.find((t) => t.type === "page");
+    if (!page) throw new Error("CDP のページターゲットが見つからない");
+    ws = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("CDP の WebSocket が開かない")),
+        CALL_TIMEOUT_MS,
+      );
+      ws.onopen = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("CDP の WebSocket の接続に失敗した"));
+      };
+    });
+
+    let nextId = 0;
+    let closedReason = null;
+    const pending = new Map();
+    // 接続が切れたら待っている呼び出しを全部落とす。応答メッセージだけを見ていると、
+    // Chrome が生きたまま接続だけ切れたときに send() が永久に解決せず、finally の片付けにも届かない。
+    const failAll = (reason) => {
+      closedReason = closedReason || reason;
+      for (const { reject, timer } of pending.values()) {
+        clearTimeout(timer);
+        reject(new Error(closedReason));
+      }
+      pending.clear();
+    };
+    ws.onclose = () => failAll("CDP の WebSocket が閉じた");
+    ws.onerror = () => failAll("CDP の WebSocket でエラーが起きた");
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.id && pending.has(msg.id)) {
+        const { resolve, reject, timer } = pending.get(msg.id);
+        clearTimeout(timer);
+        pending.delete(msg.id);
+        if (msg.error) reject(new Error(`${msg.error.message} (${msg.error.code})`));
+        else resolve(msg.result);
+      }
+    };
+    const send = (method, params = {}) =>
+      new Promise((resolve, reject) => {
+        if (closedReason) {
+          reject(new Error(`${method}: ${closedReason}`));
+          return;
+        }
+        const id = ++nextId;
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`${method}: ${CALL_TIMEOUT_MS}ms 以内に応答が無い`));
+        }, CALL_TIMEOUT_MS);
+        pending.set(id, { resolve, reject, timer });
+        ws.send(JSON.stringify({ id, method, params }));
+      });
+    return { send, close: shutdown, browser };
+  } catch (err) {
+    await shutdown();
+    throw err;
+  }
 }
 
 // Playwright の locator.evaluate(fn, arg) と同じ契約（関数を文字列化して要素と引数で呼ぶ）の最小実装。
