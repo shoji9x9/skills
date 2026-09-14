@@ -180,8 +180,9 @@ function checkComponent(dir) {
       typeof n.instance !== "string" ||
       typeof n.state !== "string" ||
       typeof n.viewport !== "string" ||
-      !Number.isFinite(n.pixel) ||
-      !Number.isFinite(n.traits),
+      // 画素差分量は 0 以上の数、特性照合の差分は 0 以上の件数（整数）
+      !(Number.isFinite(n.pixel) && n.pixel >= 0) ||
+      !(Number.isInteger(n.traits) && n.traits >= 0),
   );
   if (malformedNoise.length > 0) {
     problems.push(`noise_baseline に形の壊れた行が ${malformedNoise.length} 件ある`);
@@ -209,14 +210,18 @@ function checkComponent(dir) {
   if (JSON.stringify(readJson(join(dir, "axes.json"))) !== JSON.stringify(derived)) {
     problems.push("axes.json が axis-diff --baseline の出力と一致しない");
   }
-  const { variable, fixed, measured, ok } = meta.axes;
-  if (
-    ok !== derived.ok ||
-    variable !== derived.variable.length ||
-    fixed !== derived.fixed.length ||
-    measured !== derived.measured
-  ) {
-    problems.push("metadata.json の axes の件数が axes.json と一致しない");
+  // metadata.json の axes は要約の全体を再導出結果と突き合わせる。項目を個別に選ぶと、
+  // 選ばなかった項目（not_compared 等）が古いまま・空のまま合格する。
+  const expectedAxes = {
+    ok: derived.ok,
+    variable: derived.variable.length,
+    fixed: derived.fixed.length,
+    measured: derived.measured,
+    not_compared: derived.not_compared,
+  };
+  const { path: _path, ...recordedAxes } = meta.axes || {};
+  if (JSON.stringify(recordedAxes) !== JSON.stringify(expectedAxes)) {
+    problems.push("metadata.json の axes の要約が axes.json と一致しない");
   }
   return problems;
 }
@@ -389,4 +394,44 @@ test("陽性コントロール: 期待する行が揃っていても形の壊れ
     });
     expect(checkComponent(dir)).toContain("noise_baseline に形の壊れた行が 1 件ある");
   }
+});
+
+test("陽性コントロール: 負のノイズ値と整数でない特性差分件数を検出する", () => {
+  for (const patch of [{ pixel: -1 }, { traits: -1 }, { traits: 0.5 }]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => {
+      Object.assign(m.noise_baseline[0], patch);
+    });
+    expect(checkComponent(dir)).toContain("noise_baseline に形の壊れた行が 1 件ある");
+  }
+});
+
+test("陽性コントロール: 到達不能の宣言があるのに not_compared が空の要約を検出する", () => {
+  // 正当な宣言で not_compared が非空になる状態を作り、axes.json はそれに合わせて再導出、
+  // metadata.json の axes だけを古い（空の not_compared の）ままにする。
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => {
+    m.instances[0].unreachable_states = [
+      { state: "disabled", reason: "その画面では無効にできない" },
+    ];
+  });
+  const id = readJson(join(dir, "metadata.json")).instances[0].id;
+  rmSync(join(dir, "baseline", id, "disabled"), { recursive: true });
+  const derived = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
+  expect(derived.ok).toBe(true);
+  expect(derived.not_compared).toEqual([{ instance: id, state: "disabled" }]);
+  writeFileSync(join(dir, "axes.json"), JSON.stringify(derived));
+  edit(join(dir, "metadata.json"), (m) => {
+    m.axes = {
+      ...m.axes,
+      ok: derived.ok,
+      variable: derived.variable.length,
+      fixed: derived.fixed.length,
+      measured: derived.measured,
+      not_compared: [],
+    };
+  });
+  const problems = checkComponent(dir);
+  expect(problems).not.toContain("axes.json が axis-diff --baseline の出力と一致しない");
+  expect(problems).toContain("metadata.json の axes の要約が axes.json と一致しない");
 });
