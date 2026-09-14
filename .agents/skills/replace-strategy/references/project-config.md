@@ -11,7 +11,7 @@
 `shoji9x9/skills` 配布物がインストール先で参照するプロジェクト設定。**人間が確定させた方針の置き場所**であり、`gh skill update` は skill ディレクトリ外のこのファイルに触れないため設定は保持される。
 スキルが書くキーは限られる（下記「キーの書き手とライフサイクル」。作業中に件数が増え続ける台帳はここに置かない）。
 
-**このキーは姉妹スキル（`current-environment-bootstrap` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff`）が直接読む共有契約である。** キー名・構造を変える場合は姉妹スキル側の参照も併せて更新する。
+**このキーは姉妹スキル（`current-environment-bootstrap` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-diff` / `parity-component`）が直接読む共有契約である。** キー名・構造を変える場合は姉妹スキル側の参照も併せて更新する。
 
 ```yaml
 version: 1

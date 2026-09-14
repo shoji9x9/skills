@@ -799,3 +799,86 @@ test("入れ子が既知の構造擬似クラスだけなら unresolved にし�
   expect(result.unresolved).toHaveLength(0);
   expect(result.matched).toHaveLength(1);
 });
+
+// --- 自分の根にある ::part() / ::slotted()（Issue #354） ---
+
+const OPTIONS = {
+  statePseudoClasses: STATE_PSEUDO_CLASSES,
+  structuralPseudoClasses: STRUCTURAL_PSEUDO_CLASSES,
+};
+
+test("ホストを対象にしたとき document の ::part() をホストの根拠にしない", () => {
+  // `.host::part(label)` は擬似要素を剥がすと `.host` になり、ホストに対して matches() が真を返す。
+  // 飾っているのはシャドウツリー内の部品なので、matched に入るとホストの偽の根拠になる。
+  // selectors に `.host` を入れてあるので、分岐を外すと matched へ入る（陽性コントロールを兼ねる）。
+  const sheets = [
+    {
+      href: MAIN_HREF,
+      cssRules: [
+        styleRule(".host::part(label)", { color: "rgb(1, 1, 1)" }),
+        styleRule(".host::part(label):hover", { color: "rgb(2, 2, 2)" }),
+      ],
+    },
+  ];
+  const result = collectMatchedRules(
+    fakeElement(sheets, {
+      hostSheets: [{ href: null, cssRules: [] }],
+      selectors: new Set([".host"]),
+    }),
+    OPTIONS,
+  );
+  expect(result.shadow_host).toBe(true);
+  expect(result.matched).toHaveLength(0);
+  expect(result.unresolved.map((u) => u.reason)).toEqual([
+    "shadow-part-not-evaluated",
+    "shadow-part-not-evaluated",
+  ]);
+});
+
+test("ホストに当たる通常の規則と擬似要素の規則は ::part() の除外に巻き込まない", () => {
+  // 過剰修正の検知: `::part(` を含まない規則は従来どおり判定する。
+  const sheets = [
+    {
+      href: MAIN_HREF,
+      cssRules: [
+        styleRule(".host", { color: "rgb(3, 3, 3)" }),
+        styleRule(".host::before", { content: '"*"' }),
+        styleRule('.host[data-label="::part(x)"]', { color: "rgb(4, 4, 4)" }),
+      ],
+    },
+  ];
+  const result = collectMatchedRules(
+    fakeElement(sheets, {
+      hostSheets: [{ href: null, cssRules: [] }],
+      selectors: new Set([".host", '.host[data-label="::part(x)"]']),
+    }),
+    OPTIONS,
+  );
+  expect(result.unresolved).toHaveLength(0);
+  expect(result.matched.map((m) => [m.selector, m.pseudo_element])).toEqual([
+    [".host", null],
+    [".host::before", "::before"],
+    ['.host[data-label="::part(x)"]', null],
+  ]);
+});
+
+test("シャドウツリー内の要素に自分の根の ::slotted() を当てない", () => {
+  // `::slotted(*)` は剥がすと `*` になり、どの要素にも当たる。飾るのはスロットへ割り当てられた
+  // ライト DOM の要素で、同じシャドウツリーの要素ではない。
+  const result = shadowCapture({
+    sheets: [],
+    shadowSheets: [
+      {
+        href: null,
+        cssRules: [
+          styleRule("::slotted(*)", { margin: "0px" }),
+          styleRule(".btn", { color: "red" }),
+        ],
+      },
+    ],
+    selectors: new Set(["*", ".btn"]),
+  });
+  expect(result.matched.map((m) => m.selector)).toEqual([".btn"]);
+  expect(result.unresolved).toHaveLength(1);
+  expect(result.unresolved[0].reason).toBe("slotted-not-evaluated");
+});

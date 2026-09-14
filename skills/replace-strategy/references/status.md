@@ -28,10 +28,12 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 
 ## Issue 状態の取得
 
-features.md に記録された Issue 番号だけを個別取得する（リポジトリの全 Issue 一覧を取らない。対象は既知の番号なので全件走査は不要）:
+features.md と、**`.replace/components.md` があればその「部品一覧」表**に記録された Issue 番号だけを個別取得する（リポジトリの全 Issue 一覧を取らない。対象は既知の番号なので全件走査は不要）。
+**部品の番号も同じ集合に入れる**——共通部品 Issue の番号は `components.md` にしか無いので、features.md だけから集めると「共通部品の現況」（下記 7）の Issue 状態が常に判定不能になる。
+`components.md` が無いプロジェクトでは features.md の番号だけで取得する（部品の方針を採っていないだけで、取得漏れではない）:
 
 ```bash
-# $NUMBERS は features.md から抽出した Issue 番号の一覧。**`#` を外した数字だけ**にする
+# $NUMBERS は features.md（と、あれば components.md の部品一覧表）から抽出した Issue 番号の一覧。**`#` を外した数字だけ**にする
 # （features.md は `#103` の形で記録するため、そのまま渡すとパスが `issues/#103` になり
 #  404 で全件が判定不能に化ける。取得失敗と表記ミスが同じ出力になり区別できない）
 for n in $NUMBERS; do

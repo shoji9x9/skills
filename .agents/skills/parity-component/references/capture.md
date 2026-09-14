@@ -11,6 +11,21 @@
 | **当たっている CSS 規則** | 同梱の `scripts/css-rules-capture.mjs` | 計算値が見せない側（`:hover` の宣言・`!important` の競合・どの規則が効いているか） |
 | **データ依存部品の実データ** | 現行の可視行から抽出 | 見本に同じ入力を与えないと、データ由来の差と実装の差を分けられない |
 
+## `parity-suite` 同梱ツールの用意
+
+計算後スタイルの採取（trait-capture.mjs）と、`build` の照合で使う差分器（trait-compare.mjs）は `parity-suite` 同梱が正本で、
+プロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（置き場所の規約の正本は `parity-suite` の `references/locator-mapping.md`）。
+そこを埋めるのは通常 `parity-suite` の機能単位の採取だが、**本スキルは機能より先に走るので、コピーが無いのが普通**である。採取・照合の前に次を行う。
+
+1. **インストール済みの `parity-suite` を特定する。** 本スキルと同じインストール先にある `parity-suite/scripts/` に、使うツールが在ることを確かめる。
+   見つからなければ推測で探し回らず停止し、`gh skill install shoji9x9/skills parity-suite` を促す
+   （引数の形 `gh skill install <repository> [<skill[@version]>]` の出典: <https://cli.github.com/manual/gh_skill_install>）
+2. **コピー先に無ければ、同梱版をそのままコピーする。** 修正・整形しない（コピーは修正しない規約）
+3. **コピー先に既に在れば、同梱版とバイト列で一致することを確かめる。** 一致しなければ**上書きせず停止してユーザーに確認する**——
+   機能単位のスイートが古い版で採ったベースラインを持っている可能性があり、黙って差し替えると機能側の採取物と版がずれる
+4. 使ったコピー先のパスを `metadata.json` の `capture.tools.traits` に、ツールの `VERSION` と `FIXED_PROPERTIES`（集合）を
+   `traits_version` / `traits_property_set` に記録する。**値はコピーしたファイルから読み、手入力しない**
+
 ## 保存先はファイル名まで固定する
 
 インスタンス × 状態ごとに `baseline/<instance>/<state>/` を作り、**`element.png`（要素スクショ）・`traits.json`（計算後スタイル）・
@@ -88,7 +103,7 @@ trait-capture.mjs も css-rules-capture.mjs も「いまの状態」を採るだ
    **一致しない・確認できない場合は抽出データを見本に使わない**——別 target の版を記録しながら未投入の環境の行を
    カタログへ写すことになり、来歴・利用許可が不明なデータを新側へ持ち込まない規律に触れる
    （正本は `replace-strategy` の `references/scope.md`「スキルが行う作業の範囲」）。
-   投入対象かどうかの契約（`dataset_mode` と `db.seedable`）は同スキルの `references/project-config.md` を引く
+   投入対象かどうかの契約（`dataset_mode` と `db.seedable`）は `replace-strategy` の `references/project-config.md` を引く
 5. 抽出データに**個人情報・シークレットが含まれていないこと**を確認する。含まれるなら見本に使わず、`golden-dataset` へ戻して比較に使えるデータを用意してもらう
 
 - データセットの版が上がっても、**数値が古いことだけでは陳腐化にしない**。記録した版から現在までの `changes[].affects` が

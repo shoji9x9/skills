@@ -8,7 +8,7 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -750,4 +750,265 @@ test("--baseline とマニフェストの併用を拒否する", () => {
   const r = spawnSync(process.execPath, [script, path, "--baseline", dir], { encoding: "utf8" });
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("併用しない");
+});
+
+// --- Issue #354: --baseline のパス、軸名のキー、プロパティ集合、到達不能宣言 ---
+
+const validTraits = (color) => ({
+  computed: { color },
+  before: null,
+  after: null,
+  rect: { x: 0, y: 0, width: 80, height: 32 },
+});
+
+// metadata.json と baseline/<id>/<state>/traits.json を持つ採取物ディレクトリを作る。
+function makeBaseline({ states = ["default"], instances, tools, files = {} }) {
+  const root = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const dir = join(root, "components", "button");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, "metadata.json"),
+    JSON.stringify({ component: "ボタン", capture: { states, tools }, instances }),
+  );
+  for (const [rel, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), JSON.stringify(content));
+  }
+  return { root, dir };
+}
+
+const runBaseline = (dir) =>
+  spawnSync(process.execPath, [script, "--baseline", dir], { encoding: "utf8" });
+
+test("--baseline は id のパストラバーサルで baseline の外を読まない", () => {
+  // 陽性コントロール: トラバーサル先に traits.json を実際に置く。検証が無ければこれを読んで
+  // exit 0 で軸を作る（読み先が無いだけの失敗と区別できるようにする）。
+  const outside = validTraits("rgb(66, 66, 66)");
+  const { dir } = makeBaseline({
+    instances: [{ id: "../../outside" }, { id: "b" }],
+    files: {
+      "baseline/../../outside/default/traits.json": outside,
+      "baseline/b/default/traits.json": validTraits("rgb(1, 1, 1)"),
+    },
+  });
+  const r = runBaseline(dir);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("instances[].id がパスの 1 セグメントとして不正");
+  expect(r.stdout).not.toContain("rgb(66, 66, 66)");
+});
+
+test("--baseline は状態名のパストラバーサルで baseline の外を読まない", () => {
+  const { dir } = makeBaseline({
+    states: ["../secret"],
+    instances: [{ id: "a" }, { id: "b" }],
+    files: {
+      "baseline/a/../secret/traits.json": validTraits("rgb(66, 66, 66)"),
+      "baseline/b/../secret/traits.json": validTraits("rgb(66, 66, 66)"),
+    },
+  });
+  const r = runBaseline(dir);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("capture.states[] がパスの 1 セグメントとして不正");
+  expect(r.stdout).not.toContain("rgb(66, 66, 66)");
+});
+
+test("--baseline はドットを含むだけの id・状態名を拒否しない", () => {
+  // 過剰修正の検知: 区切り文字・`.`・`..` だけを弾き、`orders.search` や `..x` は通す。
+  const { dir } = makeBaseline({
+    states: ["focus-visible"],
+    instances: [{ id: "orders.search" }, { id: "..x" }],
+    files: {
+      "baseline/orders.search/focus-visible/traits.json": validTraits("rgb(1, 1, 1)"),
+      "baseline/..x/focus-visible/traits.json": validTraits("rgb(2, 2, 2)"),
+    },
+  });
+  const r = runBaseline(dir);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("空の軸名・空白を含む軸名の採取を ok: true にしない", () => {
+  for (const key of ["", " color", "back ground"]) {
+    const result = diffAxes({
+      instances: [
+        instance("a", [state("default", traits({ [key]: "x" }))]),
+        instance("b", [state("default", traits({ [key]: "y" }))]),
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.variable).toEqual([]);
+    expect(result.problems.join("\n")).toContain("computed の軸名");
+  }
+});
+
+test("擬似要素の空の軸名も弾く", () => {
+  const result = diffAxes({
+    instances: ["a", "b"].map((id) =>
+      instance(id, [
+        state("default", traits({ color: "rgb(0, 0, 0)" }, { before: { "": `"${id}"` } })),
+      ]),
+    ),
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("::before の軸名");
+});
+
+test("rect の未知のキーを軸にしない", () => {
+  const rect = { x: 0, y: 0, width: 80, height: 32 };
+  const result = diffAxes({
+    instances: [
+      instance("a", [state("default", traits({ color: "c" }, { rect: { ...rect, "": 1 } }))]),
+      instance("b", [state("default", traits({ color: "c" }, { rect: { ...rect, "": 2 } }))]),
+    ],
+  });
+  expect(result.ok).toBe(false);
+  expect(result.problems.join("\n")).toContain("rect のキー");
+});
+
+test("プロパティ集合が渡されたら計算後スタイルのキーとの一致を求める", () => {
+  const withSet = (propertySet, computed) =>
+    diffAxes({
+      property_set: propertySet,
+      instances: [
+        instance("a", [state("default", traits({ ...computed, color: "rgb(1, 1, 1)" }))]),
+        instance("b", [state("default", traits({ ...computed, color: "rgb(2, 2, 2)" }))]),
+      ],
+    });
+  // 一致すれば通る（過剰修正の検知）。
+  expect(withSet(["color", "cursor"], { cursor: "pointer" }).ok).toBe(true);
+  // 集合に無い軸名（採取ツールが返さない名前）。
+  const extra = withSet(["color"], { "box-shadow": "none" });
+  expect(extra.ok).toBe(false);
+  expect(extra.problems.join("\n")).toContain("集合外: box-shadow");
+  // 集合にあるのに採れていない軸名。
+  const absent = withSet(["color", "cursor", "display"], { cursor: "pointer" });
+  expect(absent.ok).toBe(false);
+  expect(absent.problems.join("\n")).toContain("欠落: display");
+  // 集合そのものが壊れていたら照合を飛ばさず問題にする。
+  for (const broken of [[], "color", ["color", "color"], ["color", ""]]) {
+    const r = withSet(broken, {});
+    expect(r.ok).toBe(false);
+    expect(r.problems.join("\n")).toContain("traits_property_set");
+  }
+});
+
+test("--baseline は metadata.json の traits_property_set で軸名を照合する", () => {
+  const files = {
+    "baseline/a/default/traits.json": validTraits("rgb(1, 1, 1)"),
+    "baseline/b/default/traits.json": validTraits("rgb(2, 2, 2)"),
+  };
+  const instances = [{ id: "a" }, { id: "b" }];
+  const matching = makeBaseline({ instances, files, tools: { traits_property_set: ["color"] } });
+  expect(runBaseline(matching.dir).status).toBe(0);
+  const mismatched = makeBaseline({
+    instances,
+    files,
+    tools: { traits_property_set: ["color", "box-shadow"] },
+  });
+  const r = runBaseline(mismatched.dir);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("欠落: box-shadow");
+});
+
+test("--baseline で capture.states に無い状態を一部のインスタンスだけ到達不能と宣言しても通さない", () => {
+  // 状態集合は capture.states から作るが、宣言した到達不能状態も diffAxes の候補に入る。
+  // 宣言していない側に「未採取」が立つので、typo の宣言が not_compared として黙って通らない。
+  const { dir } = makeBaseline({
+    instances: [{ id: "a", unreachable_states: [{ state: "focus", reason: "r" }] }, { id: "b" }],
+    files: {
+      "baseline/a/default/traits.json": validTraits("rgb(1, 1, 1)"),
+      "baseline/b/default/traits.json": validTraits("rgb(2, 2, 2)"),
+    },
+  });
+  const r = runBaseline(dir);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("b: 未採取の状態 focus");
+});
+
+test("--baseline で capture.states に無い状態を全インスタンスが到達不能と宣言しても通さない", () => {
+  const unreachable = [{ state: "focus", reason: "r" }];
+  const { dir } = makeBaseline({
+    instances: [
+      { id: "a", unreachable_states: unreachable },
+      { id: "b", unreachable_states: unreachable },
+    ],
+    files: {
+      "baseline/a/default/traits.json": validTraits("rgb(1, 1, 1)"),
+      "baseline/b/default/traits.json": validTraits("rgb(2, 2, 2)"),
+    },
+  });
+  const r = runBaseline(dir);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("どのインスタンスでも到達できない状態が宣言されている（focus）");
+});
+
+test("--baseline は baseline 配下のシンボリックリンクを辿って外を読まない", () => {
+  // 陽性コントロール: リンク先に正しい形の traits.json を置く。字句上の包含判定だけなら
+  // これを読んで exit 0 になり、外の値が axes.json に入る。
+  const { root, dir } = makeBaseline({
+    instances: [{ id: "escape" }, { id: "b" }],
+    files: {
+      "baseline/b/default/traits.json": validTraits("rgb(1, 1, 1)"),
+    },
+  });
+  const outside = join(root, "outside");
+  mkdirSync(join(outside, "default"), { recursive: true });
+  writeFileSync(
+    join(outside, "default", "traits.json"),
+    JSON.stringify(validTraits("rgb(66, 66, 66)")),
+  );
+  symlinkSync(outside, join(dir, "baseline", "escape"));
+  const r = runBaseline(dir);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("採取物のパスが baseline の外を指す");
+  expect(r.stdout).not.toContain("rgb(66, 66, 66)");
+});
+
+test("--baseline は部品ディレクトリ自体がシンボリックリンク経由でも通す", () => {
+  // 過剰修正の検知: 根と候補の片側だけを実パスに解決すると、リンク経由で渡した正当な
+  // 採取物を外と誤判定する。
+  const { root, dir } = makeBaseline({
+    instances: [{ id: "a" }, { id: "b" }],
+    files: {
+      "baseline/a/default/traits.json": validTraits("rgb(1, 1, 1)"),
+      "baseline/b/default/traits.json": validTraits("rgb(2, 2, 2)"),
+    },
+  });
+  const link = join(root, "linked-button");
+  symlinkSync(dir, link);
+  const r = runBaseline(link);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("プロパティ集合の欠落はプロトタイプ上の名前でも自前のキーで判定する", () => {
+  // `p in record` はプロトタイプチェーンを辿るので、`constructor` / `toString` / `__proto__` を
+  // 集合に含むと、採れていないのに「在る」と判定されて ok: true に化ける。
+  for (const inherited of ["constructor", "toString", "__proto__"]) {
+    const result = diffAxes({
+      property_set: ["color", inherited],
+      instances: [
+        instance("a", [state("default", traits({ color: "rgb(1, 1, 1)" }))]),
+        instance("b", [state("default", traits({ color: "rgb(2, 2, 2)" }))]),
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join("\n")).toContain(`欠落: ${inherited}`);
+  }
+});
+
+test("JSON 由来の自前のキーとして在る __proto__ は欠落にしない", () => {
+  // 過剰修正の検知: 採取物は JSON.parse で読むので、`__proto__` も自前のキーとして在りうる。
+  const computed = (color) => JSON.parse(`{"color": "${color}", "__proto__": "x"}`);
+  const result = diffAxes({
+    property_set: ["color", "__proto__"],
+    instances: [
+      instance("a", [state("default", traits(computed("rgb(1, 1, 1)")))]),
+      instance("b", [state("default", traits(computed("rgb(2, 2, 2)")))]),
+    ],
+  });
+  expect(result.problems.join("\n")).not.toContain("欠落");
+  expect(result.ok).toBe(true);
+  expect(result.variable.map((v) => v.axis)).toContain("color");
+  expect(result.fixed.map((f) => f.axis)).toContain("__proto__");
 });
