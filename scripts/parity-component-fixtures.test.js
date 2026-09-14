@@ -147,9 +147,17 @@ function checkComponent(dir) {
     conditions.environment === "" ||
     viewportLabels.length === 0 ||
     viewportLabels.some((l) => typeof l !== "string" || l === "") ||
+    // ラベルは noise_baseline と照合する側のキー。重複すると別寸法の 2 ビューポートを区別できない
+    new Set(viewportLabels).size !== viewportLabels.length ||
     conditions.viewports.some(
       (v) =>
-        !(Number.isFinite(v.width) && v.width > 0 && Number.isFinite(v.height) && v.height > 0),
+        !(
+          v &&
+          Number.isFinite(v.width) &&
+          v.width > 0 &&
+          Number.isFinite(v.height) &&
+          v.height > 0
+        ),
     ) ||
     conditions.animations !== "disabled" ||
     conditions.element_screenshot !== true
@@ -163,12 +171,25 @@ function checkComponent(dir) {
     })
     .flatMap(([id, st]) => viewportLabels.map((vp) => `${id}\u001f${st}\u001f${vp}`))
     .sort();
-  const recordedNoise = Array.isArray(meta.noise_baseline)
-    ? meta.noise_baseline
-        .filter((n) => n && Number.isFinite(n.pixel) && Number.isFinite(n.traits))
-        .map((n) => `${n.instance}\u001f${n.state}\u001f${n.viewport}`)
-        .sort()
-    : [];
+  // 形の壊れた行は捨てずに問題にする。除外してから突き合わせると、期待する行が揃っている限り
+  // 壊れた余分な行が metadata.json に残ったまま合格する。
+  const noiseRows = Array.isArray(meta.noise_baseline) ? meta.noise_baseline : [];
+  const malformedNoise = noiseRows.filter(
+    (n) =>
+      !n ||
+      typeof n.instance !== "string" ||
+      typeof n.state !== "string" ||
+      typeof n.viewport !== "string" ||
+      !Number.isFinite(n.pixel) ||
+      !Number.isFinite(n.traits),
+  );
+  if (malformedNoise.length > 0) {
+    problems.push(`noise_baseline に形の壊れた行が ${malformedNoise.length} 件ある`);
+  }
+  const recordedNoise = noiseRows
+    .filter((n) => !malformedNoise.includes(n))
+    .map((n) => `${n.instance}\u001f${n.state}\u001f${n.viewport}`)
+    .sort();
   if (
     JSON.stringify(recordedNoise) !== JSON.stringify(expectedNoise) ||
     expectedNoise.length === 0
@@ -344,4 +365,28 @@ test("陽性コントロール: component-api.md とデータ依存の data.json
   expect(problems).toContain(
     `${readJson(join(dir, "metadata.json")).instances[0].id}: データ依存なのに data.json が無い`,
   );
+});
+
+test("陽性コントロール: 重複したビューポートのラベルを検出する", () => {
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => {
+    const [vp] = m.capture_conditions.viewports;
+    m.capture_conditions.viewports = [vp, { ...vp, width: 390, height: 844 }];
+    // 同じラベルの行を 2 つずつ持たせ、ノイズ行の突き合わせだけでは弾けない状態にする
+    m.noise_baseline = m.noise_baseline.flatMap((row) => [row, { ...row }]);
+  });
+  expect(checkComponent(dir)).toContain("capture_conditions が採取の条件として埋まっていない");
+});
+
+test("陽性コントロール: 期待する行が揃っていても形の壊れた余分なノイズ行を検出する", () => {
+  for (const extra of [
+    null,
+    { instance: "orders-search", state: "default", viewport: "desktop", pixel: "0", traits: 0 },
+  ]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => {
+      m.noise_baseline.push(extra);
+    });
+    expect(checkComponent(dir)).toContain("noise_baseline に形の壊れた行が 1 件ある");
+  }
 });
