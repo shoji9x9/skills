@@ -46,7 +46,7 @@
 
 | モード | 追加で要求するもの | 欠けたときの差し戻し先 |
 |---|---|---|
-| feature | `metadata.json` の `noise_baseline[]` が対象 page/state/viewport 分ある・`artifacts_storage.baseline_pointer` の実体（`baseline/`）がある・下記「差分器バージョンの一致確認」 | `parity-suite`（ノイズ基準値の測定は現行アプリを駆動する `parity-suite` の仕事） |
+| feature | `metadata.json` の `capture_conditions.popup_inventory` がキーとして在る（無い旧成果物は静止待ち導入前の採取。承認済みの例外の扱いは [`capture-new.md`](capture-new.md)「条件一致の先行検証」）・`noise_baseline[]` が対象 page/state/viewport 分ある・`artifacts_storage.baseline_pointer` の実体（`baseline/`）がある・下記「差分器バージョンの一致確認」 | `parity-suite`（ノイズ基準値の測定は現行アプリを駆動する `parity-suite` の仕事） |
 | api-resource | 現行応答の record（`metadata.json.suite.specs` のスイートと録画）が実体としてある。比較は同梱 `json-normalize-diff.mjs` 系のみ | `parity-suite` |
 | batch | 現行バッチの出力ベースライン（DB 状態・生成ファイル）が実体としてある | `parity-suite` |
 
