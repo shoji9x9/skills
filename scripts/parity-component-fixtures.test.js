@@ -7,7 +7,15 @@
 // （CI にブラウザが無いので再生成はしない）。各検査は壊した写しで赤くなることを併せて確かめる。
 
 import { expect, test } from "vitest";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +57,21 @@ function checkComponent(dir) {
   }
   if (tools.axis_diff_version !== axisDiff.VERSION) {
     problems.push(`axis_diff_version ${tools.axis_diff_version} ≠ ${axisDiff.VERSION}`);
+  }
+  // `build` の前段ゲートを満たしていること自体も検査する。整合していても、採取未完了や
+  // 軸の割り出しが失敗した採取物は、eval を目的の分岐より手前で止める。
+  if (meta.capture.complete !== true) problems.push("capture.complete が true でない");
+  for (const name of ["axes.json", "component-api.md"]) {
+    if (!existsSync(join(dir, name))) problems.push(`${name} が無い`);
+  }
+  for (const inst of meta.instances) {
+    if (
+      inst.data &&
+      inst.data.dependent === true &&
+      !existsSync(join(dir, "baseline", inst.id, "data.json"))
+    ) {
+      problems.push(`${inst.id}: データ依存なのに data.json が無い`);
+    }
   }
   const expectedProperties = sorted(traitCapture.FIXED_PROPERTIES);
   if (JSON.stringify(sorted(tools.traits_property_set)) !== JSON.stringify(expectedProperties)) {
@@ -124,6 +147,10 @@ function checkComponent(dir) {
     conditions.environment === "" ||
     viewportLabels.length === 0 ||
     viewportLabels.some((l) => typeof l !== "string" || l === "") ||
+    conditions.viewports.some(
+      (v) =>
+        !(Number.isFinite(v.width) && v.width > 0 && Number.isFinite(v.height) && v.height > 0),
+    ) ||
     conditions.animations !== "disabled" ||
     conditions.element_screenshot !== true
   ) {
@@ -155,6 +182,9 @@ function checkComponent(dir) {
   }
 
   const derived = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
+  if (derived.ok !== true) {
+    problems.push(`axis-diff --baseline が ok でない: ${derived.problems.join(" / ")}`);
+  }
   if (JSON.stringify(readJson(join(dir, "axes.json"))) !== JSON.stringify(derived)) {
     problems.push("axes.json が axis-diff --baseline の出力と一致しない");
   }
@@ -252,5 +282,66 @@ test("陽性コントロール: 組み合わせが欠けたノイズ基準値を
   edit(join(dir, "metadata.json"), (m) => m.noise_baseline.pop());
   expect(checkComponent(dir)).toContain(
     "noise_baseline が比較の母集合 × ビューポートを 1 件ずつ覆っていない",
+  );
+});
+
+test("陽性コントロール: 採取未完了の fixture を検出する", () => {
+  for (const complete of [false, undefined]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => {
+      m.capture.complete = complete;
+    });
+    expect(checkComponent(dir)).toContain("capture.complete が true でない");
+  }
+});
+
+test("陽性コントロール: 寸法の無い・不正なビューポートを検出する", () => {
+  for (const viewport of [
+    { label: "desktop" },
+    { label: "desktop", width: 0, height: 800 },
+    { label: "desktop", width: 1280, height: -1 },
+    { label: "desktop", width: "1280", height: 800 },
+  ]) {
+    const dir = copyFixture();
+    edit(join(dir, "metadata.json"), (m) => {
+      m.capture_conditions.viewports = [viewport];
+    });
+    expect(checkComponent(dir)).toContain("capture_conditions が採取の条件として埋まっていない");
+  }
+});
+
+test("陽性コントロール: 失敗した軸の割り出しを整合して記録していても検出する", () => {
+  // axes.json と metadata.axes を同じ失敗結果に揃えると、一致の検査だけでは通ってしまう。
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => {
+    m.instances[0].unreachable_states = [{ state: "hover" }]; // reason の無い不正な宣言
+  });
+  const failed = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
+  expect(failed.ok).toBe(false);
+  writeFileSync(join(dir, "axes.json"), JSON.stringify(failed));
+  edit(join(dir, "metadata.json"), (m) => {
+    m.axes = {
+      ...m.axes,
+      ok: failed.ok,
+      variable: failed.variable.length,
+      fixed: failed.fixed.length,
+      measured: failed.measured,
+    };
+  });
+  const problems = checkComponent(dir);
+  expect(problems).not.toContain("axes.json が axis-diff --baseline の出力と一致しない");
+  expect(problems.join("\n")).toContain("axis-diff --baseline が ok でない");
+});
+
+test("陽性コントロール: component-api.md とデータ依存の data.json の欠落を検出する", () => {
+  const dir = copyFixture();
+  rmSync(join(dir, "component-api.md"));
+  edit(join(dir, "metadata.json"), (m) => {
+    m.instances[0].data = { dependent: true, rows: 3, extract_path: null };
+  });
+  const problems = checkComponent(dir);
+  expect(problems).toContain("component-api.md が無い");
+  expect(problems).toContain(
+    `${readJson(join(dir, "metadata.json")).instances[0].id}: データ依存なのに data.json が無い`,
   );
 });
