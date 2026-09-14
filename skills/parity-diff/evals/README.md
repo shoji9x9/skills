@@ -45,5 +45,8 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   21 は保留 0 件では棚卸しを理由に止めず**収束させる**（ただしゼロ件数の記録は残す）。
   20 だけでは「保留の話題が出たら常に止める」実装と区別できないため、21 が陽性コントロールになる。
   どちらのプロンプトにもキー名・スクリプト名・`cross-cutting` の語を書かない（書くとベースラインがそれを読んで assertion を満たす）
+- eval 22 は撮影状態の器の棚卸し（`capture_conditions.popup_inventory`。Issue #360 / #361）を撮影前に検査する契約の回帰。不整合な棚卸しを注記で済ませて撮影を進める案を持ち込み、
+  停止・開く関数と `opened_by` の突き合わせ・キーごと無い旧成果物を停止せず未検証として残すこと・`capture_conditions_verified` への記録を対象にする。
+  入力に既存のキー名が要るためプロンプトに `popup_inventory` / `captured` / `reason` は書くが、停止・未検証・記録先の判断は書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
