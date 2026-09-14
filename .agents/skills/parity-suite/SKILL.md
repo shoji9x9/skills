@@ -151,7 +151,8 @@ parity-suite [--feature <slug>] [--target <name>]
    feature モードでは、authoring 後に `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、走査対象が 1 件以上かつ待たない取得 API が 0 件になるまで修正する（スクリプトはコピーせずスキル配下から実行する）。
    **状態を変える工程（書き込み系スペック・ファイルアップロード・バッチ実行）は全モード共通で [`references/data-discipline.md`](references/data-discipline.md) の規律に従う**（復元 → 一意プレフィックス＋後始末 → 後始末できないなら承認を得て「hermetic でない」と明示）。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
-6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。詳細: [`references/baseline.md`](references/baseline.md)。
+6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。
+   撮影状態は見た目が変わる通常の状態（default / hover 等）に加え、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器を足して決め（棚卸しは通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
    **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
    同じ設定で **`current` / `new` の両プロジェクトから `new-only/`（`parity-diff` が新側採取スペックを置く場所）も除外し、採取用の `new-capture` プロジェクトを用意する**（この時点では空でよい）。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない

@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。",
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。capture_conditions.popup_inventory は操作で開く器の棚卸しで、撮る器も撮らない器も 1 要素ずつ書き、器が無い機能は空配列にする（キーを省かない。正本は parity-suite の references/baseline.md「撮影状態の決め方（器の棚卸し）」）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "target": {
@@ -90,7 +90,18 @@
         "reason": "<同じページに乗る機能が選択 target で未実装の間だけ比較から外す理由>"
       }
     ],
-    "states": ["<遷移させた状態: default | hover | focus | active | disabled | selected | error>"]
+    "states": [
+      "<遷移させた状態: default | hover | focus | active | disabled | selected | error、または popup_inventory[].captured が指す器を開いた状態の名前>"
+    ],
+    "popup_inventory": [
+      {
+        "name": "<器の名前（例: 列フィルタの吹き出し / 演算子の引き出し / 項目に指を乗せた状態）>",
+        "parent": "<この器を内側に持つ器の name。1 段目は null>",
+        "opened_by": "<開く操作を操作アダプタの呼び出しとして <関数名>(<開く対象の論理名>) の形で書く（引数なしは <関数名>()。関数名だけ・状態名での代用はしない。parity-diff が呼び出し単位の列挙と突き合わせる）>",
+        "captured": "<撮る状態名（states の要素）。撮らないなら null>",
+        "reason": "<captured が null のときだけ撮らない理由（gaps.md と同じ文言）。撮るなら null>"
+      }
+    ]
   },
   "traits": {
     "tool": "<プロジェクト側 trait-capture.mjs のパスと VERSION 値>",

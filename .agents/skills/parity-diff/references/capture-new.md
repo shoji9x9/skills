@@ -43,7 +43,7 @@
 ### `capture_conditions_verified` は項目ごとに記録する
 
 **「検証した」を 1 つの真偽値にまとめない**（照合できた項目と照合できなかった項目が混ざり、未検証が「検証済み」に化けるため）。
-`diff-metadata.json.capture_conditions_verified` は次の 5 キーのオブジェクトで記録する。
+`diff-metadata.json.capture_conditions_verified` は次のキーのオブジェクトで記録する（共同居住マスクの `cofeature_masks` は下記「共同居住機能の実行時マスク」）。
 
 | キー | 記録する内容 |
 |---|---|
@@ -51,6 +51,7 @@
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
+| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・器を開く呼び出し〈関数名 × 開く対象の論理名〉が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
 | `environment` | 現側の `environment`（自由記述）と照合できたか |
 
 - **`environment` は自由記述であり機械照合できない。** 原則 `"unverified: <理由>"`（例: `"unverified: 現側は記述のみで新側と機械照合できない"`）を記録し、
@@ -58,7 +59,17 @@
 - **現側 `capture_conditions.viewer_environment` が「乖離」「未確認」なら、その内容を `diff.md` の未検証領域へ転記する。** 現・新を同一条件で撮る統制は、
   **採取環境でだけ成立する一致**（総称ファミリーのフォントフォールバック先・システム UI 由来の既定値）を現・新の両側に等しく効かせるため、利用者環境でだけ壊れる差を差分ゼロとして通す。
   同一条件の検証をもって「利用者環境でも一致」と読み替えない（正本: `parity-suite` の `references/baseline.md`「採取環境と利用者環境の乖離」）
-- `viewports` / `animations` が不一致、`masks` が解決できない、または `states` の状態へ遷移できない場合は**差分報告せず停止する**（未検証・不一致のまま差分検出へ進まない。別状態のスクリーンショット同士を比較して偽の回帰を報告しないため）
+- **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（器の棚卸し）」）。
+  `captured` が `states` に無い名前を指す行、`captured: null` なのに `reason` が空の行、`captured` を持つのに `reason` キーが無い・`null` でない行（両方を埋めた行を含む）があれば撮影せず停止し `parity-suite` へ戻す。
+  **操作アダプタ（`suite.interactions`。新側例外を含む）とスイートから器を開く呼び出しを「関数名 × 開く対象の論理名」の単位で列挙し、全てが `opened_by`（`<関数名>(<開く対象の論理名>)`）に現れることも確かめる**——
+  関数名だけで突き合わせると、引数で対象を変える関数の 1 行が他の呼び出しまで満たしてしまう。現れない呼び出しがあれば、その器は数えられておらず撮られていないので停止し `parity-suite` へ戻す。
+  `captured: null` の行は `diff.md` の未検証領域へ転記する（撮っていない器は 3 経路のどれにも出ないため、差分ゼロを「画面が同じ」と読み替えない）
+- **`popup_inventory` のキーごと無い旧成果物は、静止待ちの導入前の採取として撮影せず停止し、`parity-suite` でベースラインとノイズ基準値の採り直しへ戻す。**
+  古い「ノイズ 0」の基準値を正規化に使うと、2 値に転ぶ採取の揺れを吸収・誤分類しうるため、未検証の注記だけで進めない。
+  **例外は、採り直せない理由（現行 target が撤去済み等）をユーザーに提示して承認を得た場合だけ**で、そのときは現側ノイズ基準値による吸収を適用せず（`diff-normalize.mjs` に `--noise` を渡さず、画素経路でも `noise_baseline` を差し引かない）、
+  承認の記録と「撮影状態の器の棚卸しが無く、撮っていない器の見た目は未検証」「ノイズ基準値は静止待ち導入前の採取のため吸収に使っていない」を `diff.md` の未検証領域へ残す。
+  **下記「新側の自己ノイズ測定」の現側 `noise_baseline` との対比ゲートもこの例外では適用しない**（古い「ノイズ 0」と比べると新側に少しでもノイズがあれば必ず止まり、例外が使えない。代わりのゲートは同節）
+- `viewports` / `animations` が不一致、`masks` が解決できない、`states` の状態へ遷移できない、または `popup_inventory` が不整合な場合は**差分報告せず停止する**（未検証・不一致のまま差分検出へ進まない。別状態のスクリーンショット同士を比較して偽の回帰を報告しないため）
 
 ## 共同居住機能の実行時マスク
 
@@ -109,11 +120,15 @@
 ノイズ基準値（`metadata.json.noise_baseline`）は**現側 1 環境の測定値**であり、新側の target にそのまま流用できるとは限らない（CDN・フォント読み込み等で環境ノイズは変わる）。
 
 - **同一条件で 2 回撮り**、新側だけの撮り直し差分（page × state × viewport ごとの `pixel_diff` / `trait_diffs`）を測る（測る組の決め方は下記「測定値の再利用」）
+- **2 回の一致は採取が決定論的である証明ではない**（2 値に転ぶ採取は 1/2 の確率でノイズ 0 になる）。両パスとも操作アダプタの「撮る対象の矩形が落ち着くまで待つ」を通して撮る
+  （正本: `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）。通したら `noise_measurement.fingerprint.settle_wait: true` を記録する。コードを変えずに撮り直した現新差分が回ごとに跳ねるなら、実装差を追う前にこの待ちを疑う
 - 測定結果を `diff-metadata.json.noise_baseline_new` に記録する（現側 `noise_baseline` と**同じ組**。項目は現側の値に `source` / `measured_at` を加えた形。再利用した組も含めて全組を書く）
 - **現側 `noise_baseline` との乖離が大きい場合は差分報告せず停止し、ユーザーへ上げる**——新側のノイズが現側より大きいまま比較すると、
   ノイズ基準値による吸収（[`normalize.md`](normalize.md) の残余への集計適用）が実回帰を黙って飲み込む。
   乖離の要因（フォント未読み込み・アニメーション残り・遅延描画等）を潰してから撮り直す
 - **判定は page × state × viewport の組ごと**に行い、`noise_baseline_new` の `pixel_diff` / `trait_diffs` が現側の同一組の値を超えた組があれば停止する（超えた組を挙げて報告する）
+- **旧成果物をユーザー承認の例外で続行した場合（上記「条件一致の先行検証」）は、現側との対比を行わない。** 現側のノイズで吸収しないので、実回帰を飲み込む経路自体が無いためである。
+  代わりに新側の自己ノイズは同じく組ごとに測って `noise_baseline_new` へ記録し、`pixel_diff` / `trait_diffs` が 0 でない組を `diff.md` の未検証領域へ挙げる（その組の差分は環境ノイズとして吸収せず、トリアージで 1 件ずつ分類する）
 - **現側の基準値を新側の実測値で上書きしない**（`metadata.json` は書き換えない。ノイズ基準値の測定は現行アプリを駆動する `parity-suite` の仕事）
 
 ### 2 回目の採取物は測定後に削除する
@@ -135,7 +150,7 @@
 
 - **再利用元は同じ target の `new/<target>/diff-metadata.json`** の `noise_baseline_new` と `noise_measurement`（前回実行の記録）。
   **この実行で同ファイルを書き出す前に読む**（この実行の成果物で上書きすると前回の記録は復元できない）。**他の target の測定値は使わない**（環境が違えばノイズも違う）
-- **ゲート判定（現側 `noise_baseline` との対比）は再利用した組でも毎回行う。** 省くのは撮影であって判定ではない
+- **ゲート判定（現側 `noise_baseline` との対比。承認済みの例外では自己ノイズが 0 でない組の未検証化）は再利用した組でも毎回行う。** 省くのは撮影であって判定ではない
 - 再利用の可否は下記「失効条件」で判定する。**判断材料が無い・読めない・判定が付かない場合は再利用しない**（安全側＝その組を測り直す）
 - 測った組と再利用した組の別を `diff-metadata.json.noise_measurement` と `diff.md` の前提確認表に記録する（どの値がいつの測定か追えるようにする）
 
@@ -147,8 +162,9 @@
 |---|---|---|
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
+| 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
 | 反復が進んでいない（差が 0）のに `new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同 `new.commit`（ループ外で新側を触っており変更範囲を辿れない） |

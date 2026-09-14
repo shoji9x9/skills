@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-14T11:39:55Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 55.102,
+        "tokens": 182675,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "2 種類の不整合はどちらも撮影せず停止し parity-suite へ戻す、注記で進めないと答えている"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
+          "passed": true,
+          "evidence": "操作アダプタ（新側例外を含む）で器を開く関数を洗い出し、opened_by に出てこなければ停止すると述べている"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域へ残すと答えている",
+          "passed": true,
+          "evidence": "キーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域に残すと答えている"
+        },
+        {
+          "text": "キーごと無い旧成果物では、ノイズ基準値が静止待ちの導入前に採られた可能性があり 2 標本の一致を安定の根拠にできないことも未検証として残す（parity-suite での採り直しを推奨する）と述べている",
+          "passed": true,
+          "evidence": "ノイズ基準値が静止待ち導入前の可能性があり 2 回の一致を安定の根拠にできない（parity-suite での採り直し推奨）ことも残すと述べている"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": true,
+          "evidence": "記録先として diff-metadata.json の capture_conditions_verified.popup_inventory を表に挙げている"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "不整合のまま差分検出へ進むという矛盾は無く「差分検出には進みません」と述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 67.716,
+        "tokens": 49856,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "注記して撮影を進めるのはやめ、直すまで保留と答えている"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
+          "passed": false,
+          "evidence": "網羅性は旧 UI の実ポップアップとの突き合わせで確認するとしており、操作アダプタの開く関数と opened_by の突き合わせは無い"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域へ残すと答えている",
+          "passed": false,
+          "evidence": "キーごと無い旧成果物も「止めるべき」と答えており、停止せず未検証として残す契約と逆"
+        },
+        {
+          "text": "キーごと無い旧成果物では、ノイズ基準値が静止待ちの導入前に採られた可能性があり 2 標本の一致を安定の根拠にできないことも未検証として残す（parity-suite での採り直しを推奨する）と述べている",
+          "passed": false,
+          "evidence": "ノイズ基準値が静止待ち導入前の可能性という観点は無い"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": false,
+          "evidence": "記録先は差分結果レポートの冒頭の節で、diff-metadata.json の capture_conditions_verified.popup_inventory ではない"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "不整合のまま差分検出へ進むという結論は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 55.102,
+        "stddev": 0.0,
+        "min": 55.102,
+        "max": 55.102
+      },
+      "tokens": {
+        "mean": 182675.0,
+        "stddev": 0.0,
+        "min": 182675,
+        "max": 182675
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0.0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 67.716,
+        "stddev": 0.0,
+        "min": 67.716,
+        "max": 67.716
+      },
+      "tokens": {
+        "mean": 49856.0,
+        "stddev": 0.0,
+        "min": 49856,
+        "max": 49856
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "-12.6",
+      "tokens": "+132819"
+    }
+  },
+  "notes": []
+}

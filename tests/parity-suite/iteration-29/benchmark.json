@@ -1,0 +1,263 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-14T11:39:55Z",
+    "evals_run": [32, 33],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 67.036,
+        "tokens": 122001,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じ条件で 2 回撮ってノイズ 0 だったことは採取が決定論的である証明にならない（2 値に転ぶ採取は一致しうる）と答え、新側の実装差として parity-replace へ戻さないと答えている",
+          "passed": true,
+          "evidence": "parity-replace に戻さないと結論し、2 回一致は 1/2 の確率で起きるので安定の証明にならないと述べている"
+        },
+        {
+          "text": "吹き出しが出たことを待つだけでは足りず、撮る対象の矩形（位置・大きさ）が 2 回続けて同じ値になるまで待ってから撮る形を示している",
+          "passed": true,
+          "evidence": "「開いている吹き出しが 1 つ以上」は出たことしか見ていないとし、矩形が 2 回続けて同じ値になるまで待つ waitForStableRect を示している"
+        },
+        {
+          "text": "待ちは固定時間の待機（waitForTimeout 等）ではなく、expect.poll 等の自動リトライで矩形を読み比べる形にすると述べている",
+          "passed": true,
+          "evidence": "waitForTimeout は禁止として expect.poll で読み比べるコードを示している"
+        },
+        {
+          "text": "待ちを状態遷移の操作アダプタ側に置き、新側の採取も同じ待ちを通るようにすると述べている",
+          "passed": true,
+          "evidence": "applyState の中で待ち、新側の採取も同じ操作アダプタを通るので両側に効くと述べている"
+        },
+        {
+          "text": "待っても位置が落ち着かない状態は、ノイズ基準値を記録せず撮影状態から外し、gaps.md に理由付きで残すと述べている",
+          "passed": true,
+          "evidence": "落ち着かない状態は states から外しノイズ基準値を記録せず、gaps.md に「撮影状態の対象外」として理由を書くと述べている"
+        },
+        {
+          "text": "待ちを入れた後にベースラインとノイズ基準値を採り直すと述べている",
+          "passed": true,
+          "evidence": "現側ベースラインとノイズ基準値（1 回目・2 回目とも待ち付き）を採り直すと列挙している"
+        },
+        {
+          "text": "回答内で「2 回一致したので採取は安定」「実装差として戻してよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "安定と判断した・実装差として戻してよいという矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 61.183,
+        "tokens": 122306,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品被覆表の present は操作の有無を数えるだけで、開いた中身の見た目を突き合わせたことにはならず、撮影状態に入れなかった器は画素・特性照合・aria のどの経路にも差として出ないと説明している",
+          "passed": true,
+          "evidence": "被覆表は操作と状態の有無だけを見るとし、states に入れなかった状態は画素・特性照合・aria の 3 経路のどれにも出ないと説明している"
+        },
+        {
+          "text": "操作で開く器を再帰的に数え、吹き出しの中で開く一覧（2 段目）と項目に指を乗せた状態まで降りると述べている",
+          "passed": true,
+          "evidence": "操作で開く器を下の段まで辿り、一覧（2 段目）と項目に指を乗せた状態まで降りると述べている"
+        },
+        {
+          "text": "数えた器を撮る器も撮らない器も metadata.json の capture_conditions.popup_inventory に 1 行ずつ残し、撮る器は captured に撮影状態名、撮らない器は captured: null と reason を書くと述べている",
+          "passed": true,
+          "evidence": "popup_inventory に name / parent / captured の行を示し、撮らない器は captured: null と reason を書くと述べている"
+        },
+        {
+          "text": "列を選ぶ吹き出しを何も書かずに外すことを退け、gaps.md に「撮影状態の対象外」として理由付きで残すと述べている",
+          "passed": true,
+          "evidence": "列を選ぶ吹き出しを黙って外すのは問題とし、gaps.md に種別「撮影状態の対象外」で同じ理由を残すと述べている"
+        },
+        {
+          "text": "操作アダプタで器を開く関数を列挙し、棚卸しの opened_by に全て現れるかを突き合わせて撮り漏れを見つけると述べている",
+          "passed": true,
+          "evidence": "操作アダプタ（suite.interactions）で器を開く関数を列挙し、すべてが opened_by に出るか突き合わせると述べている"
+        },
+        {
+          "text": "回答内で「被覆表が present なので撮影状態に入れなくてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "被覆表 present なので入れなくてよいという矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 60.332,
+        "tokens": 34316,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じ条件で 2 回撮ってノイズ 0 だったことは採取が決定論的である証明にならない（2 値に転ぶ採取は一致しうる）と答え、新側の実装差として parity-replace へ戻さないと答えている",
+          "passed": true,
+          "evidence": "まだ parity-replace に戻さないと結論し、2 回では少なすぎ 2 通りの状態が同じ側に当たりうると述べている"
+        },
+        {
+          "text": "吹き出しが出たことを待つだけでは足りず、撮る対象の矩形（位置・大きさ）が 2 回続けて同じ値になるまで待ってから撮る形を示している",
+          "passed": true,
+          "evidence": "吹き出しの位置とサイズが 2 フレーム続けて変わらないことを確認すると述べている"
+        },
+        {
+          "text": "待ちは固定時間の待機（waitForTimeout 等）ではなく、expect.poll 等の自動リトライで矩形を読み比べる形にすると述べている",
+          "passed": false,
+          "evidence": "waitForTimeout の禁止や expect.poll 等の自動リトライで矩形を読み比べる形への言及が無い"
+        },
+        {
+          "text": "待ちを状態遷移の操作アダプタ側に置き、新側の採取も同じ待ちを通るようにすると述べている",
+          "passed": false,
+          "evidence": "待ちを操作アダプタ側に置き新側採取も同じ待ちを通すという言及が無い"
+        },
+        {
+          "text": "待っても位置が落ち着かない状態は、ノイズ基準値を記録せず撮影状態から外し、gaps.md に理由付きで残すと述べている",
+          "passed": false,
+          "evidence": "落ち着かない状態の扱い（基準値を記録せず撮影状態から外し gaps.md に残す）が無い"
+        },
+        {
+          "text": "待ちを入れた後にベースラインとノイズ基準値を採り直すと述べている",
+          "passed": true,
+          "evidence": "ノイズを測り直し、ベースラインや差分の記録はすべて直した撮り方で取り直すと述べている"
+        },
+        {
+          "text": "回答内で「2 回一致したので採取は安定」「実装差として戻してよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1667,
+        "passed": 1,
+        "failed": 5,
+        "total": 6,
+        "time_seconds": 52.963,
+        "tokens": 32761,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品被覆表の present は操作の有無を数えるだけで、開いた中身の見た目を突き合わせたことにはならず、撮影状態に入れなかった器は画素・特性照合・aria のどの経路にも差として出ないと説明している",
+          "passed": false,
+          "evidence": "present は見た目を保証しないとは述べるが、撮っていない状態が画素・特性照合・aria のどの経路にも出ないという説明は無い（「撮っていない状態については何も言っていない」止まり）"
+        },
+        {
+          "text": "操作で開く器を再帰的に数え、吹き出しの中で開く一覧（2 段目）と項目に指を乗せた状態まで降りると述べている",
+          "passed": false,
+          "evidence": "プロンプトが挙げた 2 状態を撮るべきとは述べるが、器を再帰的に数える手順は無く、操作ごとに状態を挙げる形になっている"
+        },
+        {
+          "text": "数えた器を撮る器も撮らない器も metadata.json の capture_conditions.popup_inventory に 1 行ずつ残し、撮る器は captured に撮影状態名、撮らない器は captured: null と reason を書くと述べている",
+          "passed": false,
+          "evidence": "metadata.json の capture_conditions.popup_inventory と captured / reason の記録が無い（独自の状態一覧表）"
+        },
+        {
+          "text": "列を選ぶ吹き出しを何も書かずに外すことを退け、gaps.md に「撮影状態の対象外」として理由付きで残すと述べている",
+          "passed": false,
+          "evidence": "何も書かずに外すのは危ないとするが、記録先は独自の状態一覧で gaps.md の「撮影状態の対象外」ではない"
+        },
+        {
+          "text": "操作アダプタで器を開く関数を列挙し、棚卸しの opened_by に全て現れるかを突き合わせて撮り漏れを見つけると述べている",
+          "passed": false,
+          "evidence": "撮り漏れ検出を被覆表の操作と状態一覧の突き合わせで行うとしており、操作アダプタの開く関数と opened_by の突き合わせではない"
+        },
+        {
+          "text": "回答内で「被覆表が present なので撮影状態に入れなくてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 64.1095,
+        "stddev": 4.1387,
+        "min": 61.183,
+        "max": 67.036
+      },
+      "tokens": {
+        "mean": 122153.5,
+        "stddev": 215.6676,
+        "min": 122001,
+        "max": 122306
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.369,
+        "stddev": 0.2862,
+        "min": 0.1667,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 56.6475,
+        "stddev": 5.2107,
+        "min": 52.963,
+        "max": 60.332
+      },
+      "tokens": {
+        "mean": 33538.5,
+        "stddev": 1099.551,
+        "min": 32761,
+        "max": 34316
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.63",
+      "time_seconds": "+7.5",
+      "tokens": "+88615"
+    }
+  },
+  "notes": []
+}

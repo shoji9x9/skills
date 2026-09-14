@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-14T11:57:46Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 64.015,
+        "tokens": 112491,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "2 行とも不整合として撮影せず停止し parity-suite へ戻すと答えている"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
+          "passed": true,
+          "evidence": "操作アダプタ（新側例外を含む）の開く関数を洗い出し opened_by に出なければ停止すると述べている"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": true,
+          "evidence": "キーが無い旧成果物は静止待ち前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値を採り直すと答えている"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": true,
+          "evidence": "撤去済みで採り直せない場合はユーザーの明示承認がある場合だけ続行し、--noise を渡さず noise_baseline を差し引かず、diff.md 7 章に未検証として残すと述べている"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": true,
+          "evidence": "記録先に capture_conditions_verified.popup_inventory を挙げている"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "撤去済みと聞いただけでは承認の代わりにならず停止のままとしており、矛盾は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 66.567,
+        "tokens": 50058,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "撮影前に棚卸しを直すべきで注記で進めないと答えている"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
+          "passed": false,
+          "evidence": "漏れの確認は実画面のポップアップとの照合で、操作アダプタの開く関数と opened_by の突き合わせは無い"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": false,
+          "evidence": "旧環境があれば棚卸しをやり直すとは言うが、静止待ち導入前の採取としてノイズ基準値を採り直す観点が無い"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": false,
+          "evidence": "撤去済みの機能は根拠付きで「比較不能」とするが、ユーザー承認の例外やノイズ吸収を適用しない扱いは無い"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": false,
+          "evidence": "記録先は独自の棚卸しレポートで capture_conditions_verified.popup_inventory ではない"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "不整合のまま、または承認なしにノイズ吸収して進めるという結論は無い"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 64.015,
+        "stddev": 0.0,
+        "min": 64.015,
+        "max": 64.015
+      },
+      "tokens": {
+        "mean": 112491.0,
+        "stddev": 0.0,
+        "min": 112491,
+        "max": 112491
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0.0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 66.567,
+        "stddev": 0.0,
+        "min": 66.567,
+        "max": 66.567
+      },
+      "tokens": {
+        "mean": 50058.0,
+        "stddev": 0.0,
+        "min": 50058,
+        "max": 50058
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "-2.6",
+      "tokens": "+62433"
+    }
+  },
+  "notes": []
+}
