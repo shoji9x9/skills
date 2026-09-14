@@ -141,7 +141,10 @@ parity-component build   [--component <slug>] [--target <name>]
 ## 実行フロー（build）
 
 1. **前提検証と着手**: `capture` 完了と `references.architecture` / `references.component_catalog` / `verification_commands.full` を実測し、欠ければ停止する。
-   **採取物の陳腐化も併せて判定する**（宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる）:
+   **採取物の陳腐化も併せて判定する**（宣言だけを見ると、古い基準の上に実装して「一致した」と報告することになる）。
+   **判定は 2 段で行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば陳腐化（下の 3 項）へ進まず、見つけた欠落をすべて挙げて停止する**
+   ——この 2 つはプロジェクト内のファイルを読むだけで決まるが、陳腐化の判定は `parity-suite` 同梱ツール等の外部の実体に依存する。
+   順を決めないと、外部依存で先に止まった run が宣言の欠落を報告せず、利用者は直して再実行するたびに別の欠落へ当たる:
    - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `css_rules_version` / `axis_diff_version` と、
      集合として持つ `traits_property_set` を、いま使うツールの実際の版・集合と突き合わせる。
      **違えば実装へ進まず `capture` からやり直す**（採取スキーマが違う基準は比較の入力にならない）
