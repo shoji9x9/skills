@@ -51,7 +51,7 @@
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
-| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured: null` の行に `reason` がある）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は `"absent: 未検証として diff.md へ記録"`（不整合は停止） |
+| `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured: null` の行にだけ `reason` がある・操作アダプタの開く関数が全て `opened_by` に現れる）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は `"absent: 未検証として diff.md へ記録"`（不整合は停止） |
 | `environment` | 現側の `environment`（自由記述）と照合できたか |
 
 - **`environment` は自由記述であり機械照合できない。** 原則 `"unverified: <理由>"`（例: `"unverified: 現側は記述のみで新側と機械照合できない"`）を記録し、
@@ -60,8 +60,10 @@
   **採取環境でだけ成立する一致**（総称ファミリーのフォントフォールバック先・システム UI 由来の既定値）を現・新の両側に等しく効かせるため、利用者環境でだけ壊れる差を差分ゼロとして通す。
   同一条件の検証をもって「利用者環境でも一致」と読み替えない（正本: `parity-suite` の `references/baseline.md`「採取環境と利用者環境の乖離」）
 - **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（器の棚卸し）」）。
-  `captured` が `states` に無い名前を指す行、`captured: null` なのに `reason` が空の行があれば撮影せず停止し `parity-suite` へ戻す。
-  `captured: null` の行は `diff.md` の未検証領域へ転記する。**キーごと無い旧成果物は停止せず**、「撮影状態の器の棚卸しが無く、撮っていない器の見た目は未検証」と未検証領域へ残す
+  `captured` が `states` に無い名前を指す行、`captured: null` なのに `reason` が空の行、`captured` と `reason` の両方を埋めた行があれば撮影せず停止し `parity-suite` へ戻す。
+  **操作アダプタ（`suite.interactions`。新側例外を含む）で器を開く関数を列挙し、全てが `opened_by` に現れることも確かめる**——現れない関数があれば、その器は数えられておらず撮られていないので停止し `parity-suite` へ戻す。
+  `captured: null` の行は `diff.md` の未検証領域へ転記する。**キーごと無い旧成果物は停止せず**、「撮影状態の器の棚卸しが無く、撮っていない器の見た目は未検証」と、
+  「ノイズ基準値は静止待ちの導入前に採った可能性があり、2 標本の一致を安定の根拠にできない（`parity-suite` での採り直しを推奨）」の 2 点を未検証領域へ残す
   （撮っていない器は 3 経路のどれにも出ないため、差分ゼロを「画面が同じ」と読み替えない）
 - `viewports` / `animations` が不一致、`masks` が解決できない、`states` の状態へ遷移できない、または `popup_inventory` が不整合な場合は**差分報告せず停止する**（未検証・不一致のまま差分検出へ進まない。別状態のスクリーンショット同士を比較して偽の回帰を報告しないため）
 
