@@ -172,10 +172,11 @@ Git 管理領域や local bare remote のように通常ファイルとして同
 setup が非 0 なら executor を起動せず eval を失敗させ、setup が生成したファイルは run 前の入力として扱う。
 
 **対象分岐が姉妹スキルの同梱物に依存する eval は、`evals.json` の当該 eval に `"requires_skills": ["<姉妹スキル名>"]` を宣言する。**
-ハーネスは `with_skill` のときだけ宣言したスキルを対象スキルの隣へ同じ形で設置する（`without_skill` は何も設置しない）。
+ハーネスは宣言したスキルを**両 configuration** に同じ形で設置し、対象スキルだけを `with_skill` に足す（比較の差を対象スキルの有無だけに保つ。`with_skill` だけに併設すると姉妹スキルの指示の効果が対象スキルの Delta に混ざる）。
 宣言が無いと、姉妹スキル不在の停止が対象分岐より手前に来て、到達が前提を調べる順序に依存する。姉妹スキルの成果物を fixture に手で置いて代替しない。
 
-- 宣言したスキルの同梱物は `without_skill` の汚染マーカーにも入り、`isolation.txt` の `required_skills:` と fingerprint の `required_skills` に記録される（宣言の無い eval の fingerprint は変わらない）
+- `isolation.txt` の `required_skills:` と、fingerprint の `required_skills`（名前と設置した内容のハッシュ）に記録される。姉妹スキルを変えると baseline の再利用は拒否される（宣言の無い eval の fingerprint は変わらない）
+- `without_skill` の汚染マーカーは対象スキルの同梱物だけにし、姉妹スキルの同梱物に同じパスがあるもの・姉妹スキルの本文に現れるものは除く（baseline が設置済みの姉妹スキルから正当に読めるため）
 - 配列でない・空・kebab-case でない・重複・対象スキル自身・`skills/<name>/SKILL.md` が無い、のいずれも executor を起動せずに失敗する
 
 - **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。

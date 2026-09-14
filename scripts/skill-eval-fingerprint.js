@@ -47,6 +47,27 @@ export function hashFixture(directory) {
   return digest(`${JSON.stringify(entries)}\n`);
 }
 
+// The parts run-skill-eval.sh copies into the disposable project. A required sibling
+// is installed in BOTH configurations, so a baseline's behavior depends on this
+// content: fingerprint exactly what is installed, not the sibling's evals/.
+const INSTALLED_SKILL_PARTS = ["SKILL.md", "references", "assets", "scripts"];
+export function hashInstalledSkill(skillDirectory) {
+  const root = resolve(skillDirectory);
+  if (!existsSync(resolve(root, "SKILL.md"))) {
+    throw new Error(`required skill source not found: ${root}/SKILL.md`);
+  }
+  const entries = [];
+  for (const part of INSTALLED_SKILL_PARTS) {
+    const path = resolve(root, part);
+    if (!existsSync(path)) continue;
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) entries.push([part, "directory", hashFixture(path)]);
+    else if (stat.isFile()) entries.push([part, "file", digest(readFileSync(path))]);
+    else throw new Error(`unsupported skill entry: ${part}`);
+  }
+  return digest(`${JSON.stringify(entries)}\n`);
+}
+
 function findEval(evalsPath, evalId) {
   if (!evalsPath || !existsSync(evalsPath)) {
     throw new Error(`eval definition unavailable for eval ${evalId}`);
@@ -141,6 +162,9 @@ function main() {
   }
   for (const name of required) if (!(name in args)) throw new Error(`missing --${name}`);
   const requiredSkills = requiredSkillsForEval(args.evals, args["eval-id"], args.skill);
+  if (requiredSkills.length > 0 && !args["skills-root"]) {
+    throw new Error("requires_skills needs --skills-root to fingerprint the installed siblings");
+  }
   const fingerprint = createFingerprint({
     assertions: assertionsForEval(args.evals, args["eval-id"]),
     eval_id: args["eval-id"] || null,
@@ -152,9 +176,16 @@ function main() {
     reasoning_effort: args["reasoning-effort"],
     cli_version: args["cli-version"],
     // Only when declared, so fingerprints of evals without dependencies stay unchanged
-    // and their recorded baselines remain reusable. A baseline installs no skill, but
-    // its contamination markers include the required skills' bundles.
-    ...(requiredSkills.length > 0 ? { required_skills: requiredSkills } : {}),
+    // and their recorded baselines remain reusable. Siblings are installed in both
+    // configurations, so a changed sibling must invalidate a reused baseline.
+    ...(requiredSkills.length > 0
+      ? {
+          required_skills: requiredSkills.map((name) => ({
+            name,
+            sha256: hashInstalledSkill(resolve(args["skills-root"], name)),
+          })),
+        }
+      : {}),
   });
   process.stdout.write(`${JSON.stringify(fingerprint, null, 2)}\n`);
 }

@@ -843,6 +843,11 @@ describe("run-skill-eval required sibling skills", () => {
     mkdirSync(join(subject, "evals"));
     writeFileSync(join(subject, "SKILL.md"), "# subject\n", "utf8");
     writeFileSync(join(subject, "references", "subject-guide.md"), "guide\n", "utf8");
+    // A bundle path both skills ship: the baseline has the sibling's copy installed.
+    mkdirSync(join(subject, "assets"));
+    writeFileSync(join(subject, "assets", "shared-template.json"), "{}\n", "utf8");
+    // A subject path the sibling's own text names: the baseline can read it there.
+    writeFileSync(join(subject, "references", "handoff.md"), "handoff\n", "utf8");
     writeFileSync(
       join(subject, "evals", "evals.json"),
       `${JSON.stringify({ evals: [{ id: 1, prompt: "p", assertions: ["a"], ...evalDefinition }] })}\n`,
@@ -850,8 +855,14 @@ describe("run-skill-eval required sibling skills", () => {
     );
     const sibling = join(root, "skills", "sibling-skill");
     mkdirSync(join(sibling, "scripts"), { recursive: true });
-    writeFileSync(join(sibling, "SKILL.md"), "# sibling\n", "utf8");
+    writeFileSync(
+      join(sibling, "SKILL.md"),
+      "# sibling\n\nHand off to subject-skill's references/handoff.md.\n",
+      "utf8",
+    );
     writeFileSync(join(sibling, "scripts", "sibling-tool.mjs"), "export {};\n", "utf8");
+    mkdirSync(join(sibling, "assets"));
+    writeFileSync(join(sibling, "assets", "shared-template.json"), "{}\n", "utf8");
 
     const stub = join(root, "stub.sh");
     const installedLog = join(root, "installed");
@@ -861,13 +872,14 @@ describe("run-skill-eval required sibling skills", () => {
 set -euo pipefail
 { find .claude/skills -name SKILL.md 2>/dev/null || true; } | LC_ALL=C sort >${JSON.stringify(installedLog)}
 text="stub response"
-if [[ "$*" == *CITE_SIBLING* ]]; then text="ran scripts/sibling-tool.mjs"; fi
+if [[ "$*" == *CITE_SIBLING* ]]; then text="ran scripts/sibling-tool.mjs with assets/shared-template.json"; fi
+if [[ "$*" == *CITE_SUBJECT* ]]; then text="read references/subject-guide.md"; fi
 printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,"output_tokens":1}}\\n' "$text"
 `,
       "utf8",
     );
     chmodSync(stub, 0o755);
-    return { installedLog, root, stub };
+    return { installedLog, root, sibling, stub };
   }
 
   function run({ root, stub }, config, prompt = "PROMPT") {
@@ -900,7 +912,9 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     return { output, result };
   }
 
-  test("installs declared siblings next to the subject for with_skill only", () => {
+  test("installs declared siblings in both configurations and the subject for with_skill only", () => {
+    // The comparison must differ only by the subject skill: a sibling installed for
+    // with_skill alone would credit the sibling's instructions to the subject.
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
     const { output, result } = run(fixture, "with_skill");
 
@@ -911,13 +925,37 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     expect(readFileSync(join(output, "isolation.txt"), "utf8")).toMatch(
       /^required_skills: sibling-skill$/mu,
     );
-    expect(readJson(join(output, "eval-fingerprint.json")).inputs.required_skills).toEqual([
-      "sibling-skill",
-    ]);
+    const [recorded] = readJson(join(output, "eval-fingerprint.json")).inputs.required_skills;
+    expect(recorded).toMatchObject({ name: "sibling-skill" });
+    expect(recorded.sha256).toMatch(/^[0-9a-f]{64}$/u);
 
     const baseline = run(fixture, "without_skill");
     expect(baseline.result.status, baseline.result.stderr).toBe(0);
-    expect(readFileSync(fixture.installedLog, "utf8")).toBe("");
+    expect(readFileSync(fixture.installedLog, "utf8")).toBe(
+      ".claude/skills/sibling-skill/SKILL.md\n",
+    );
+    expect(readJson(join(baseline.output, "eval-fingerprint.json")).inputs.required_skills).toEqual(
+      [recorded],
+    );
+  });
+
+  test("changes the fingerprint when an installed sibling changes", () => {
+    // A reused baseline ran with the sibling's content; a changed sibling is a changed input.
+    const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
+    const before = run(fixture, "without_skill");
+    const beforeFingerprint = readJson(join(before.output, "eval-fingerprint.json")).fingerprint;
+    rmSync(before.output, { recursive: true, force: true });
+    writeFileSync(
+      join(fixture.sibling, "scripts", "sibling-tool.mjs"),
+      "export const v = 2;\n",
+      "utf8",
+    );
+    const after = run(fixture, "without_skill");
+
+    expect(after.result.status, after.result.stderr).toBe(0);
+    expect(readJson(join(after.output, "eval-fingerprint.json")).fingerprint).not.toBe(
+      beforeFingerprint,
+    );
   });
 
   test("installs only the subject and leaves the fingerprint unchanged without a declaration", () => {
@@ -933,14 +971,27 @@ printf '{"result":"%s","is_error":false,"num_turns":1,"usage":{"input_tokens":1,
     );
   });
 
-  test("flags a baseline that cites a required sibling's bundle as contaminated", () => {
+  test("does not flag a baseline that cites the installed sibling, including a path both skills ship", () => {
     const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
     const { output, result } = run(fixture, "without_skill", "CITE_SIBLING");
 
-    expect(result.status, readFileSync(join(output, "stderr.log"), "utf8")).toBe(4);
+    expect(result.status, readFileSync(join(output, "stderr.log"), "utf8")).toBe(0);
+    const verdict = readFileSync(join(output, "contamination.txt"), "utf8");
+    expect(verdict).toMatch(/^verdict: clean$/mu);
+    const markers = verdict.match(/^markers: (.*)$/mu)[1].split(" ");
+    expect(markers).toContain("references/subject-guide.md");
+    expect(markers).not.toContain("assets/shared-template.json");
+    expect(markers).not.toContain("references/handoff.md");
+  });
+
+  test("still flags a baseline that cites the subject's bundle when siblings are installed", () => {
+    const fixture = makeRepository({ requires_skills: ["sibling-skill"] });
+    const { output, result } = run(fixture, "without_skill", "CITE_SUBJECT");
+
+    expect(result.status).toBe(4);
     const verdict = readFileSync(join(output, "contamination.txt"), "utf8");
     expect(verdict).toMatch(/^verdict: CONTAMINATED$/mu);
-    expect(verdict).toMatch(/^scripts\/sibling-tool\.mjs\t/mu);
+    expect(verdict).toMatch(/^references\/subject-guide\.md\t/mu);
   });
 
   test.each([
