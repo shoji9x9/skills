@@ -79,7 +79,7 @@ trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを
 
 **`build` の前段には姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）はインストール済み `parity-suite` の同梱ツールを読むので、
 ハーネスが対象スキルしか設置しないと、先にそこで止まってカタログ未宣言を調べない run がスキルの記述に反せず出うる（Issue #357。iteration-4 の with は全部調べてから報告したので表面化しなかった）。
-eval 5・6 は `evals.json` の `requires_skills` で `parity-suite` を併設させ（ハーネス側の契約は `docs/skill-development.md`「eval 実行の隔離（必須）」）、
+eval 5・6 は `evals.json` の `requires_skills` で `parity-suite` を両 configuration に併設させ（ハーネス側の契約は `docs/skill-development.md`「eval 実行の隔離（必須）」）、
 `SKILL.md` の `build` 手順 1 に「宣言と採取物の実体を先に全部調べてから陳腐化へ進む」順序を定めてある。
 
 ## 実走の証拠の状態（iteration-2）
@@ -117,6 +117,8 @@ eval 5・6 は `evals.json` の `requires_skills` で `parity-suite` を併設�
 - **iteration-5（PR #358 のレビュー対応）で `metadata.json` の `null` だった撮影条件・ノイズ基準値を採取から埋めて再走した。** 得点は iteration-4 と同じ（eval 5: 6/6 vs 1/6、eval 6: 5/5 vs 2/5）。詳細は [`tests/parity-component/iteration-5/benchmark.md`](../../../tests/parity-component/iteration-5/benchmark.md)
 
 - **iteration-6（#357）で `requires_skills` による `parity-suite` の併設と `build` 手順 1 の判定順を入れ、カタログ記述を揃えて再走した。** 得点は同じ（eval 5: 6/6 vs 1/6、eval 6: 5/5 vs 2/5）。eval 5 は `parity-suite` 無しでもカタログ未宣言の分岐へ届いた。詳細は [`tests/parity-component/iteration-6/benchmark.md`](../../../tests/parity-component/iteration-6/benchmark.md)
+
+- **iteration-7（PR #362 のレビュー対応）で `parity-suite` を baseline にも設置して `without_skill` を取り直した。** eval 5: 6/6 vs 3/6（弁別 3）、eval 6: 5/5 vs 3/5（弁別 2）。iteration-6 の Delta の一部は姉妹スキルの有無によるものだった。詳細は [`tests/parity-component/iteration-7/benchmark.md`](../../../tests/parity-component/iteration-7/benchmark.md)
 
 ### `without_skill` が見つけた fixture の欠陥（別 Issue へ）
 
