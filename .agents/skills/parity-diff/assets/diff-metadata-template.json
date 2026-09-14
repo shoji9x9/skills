@@ -83,6 +83,7 @@
       "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations を正規化した文字列>",
       "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
       "dataset_version": "<測定時点の dataset_version（数値）。phase B との整合を免除した target では null>",
+      "settle_wait": "<1 回目・2 回目とも操作アダプタの静止待ち（撮る対象の矩形が 2 回続けて同じ値になるまで待つ）を通して測ったなら true（真偽値で書く）。キーが無い・true でない前回記録は再利用しない>",
       "pairs": [
         "<この実行終了時点で有効な測定値を持つ全組（noise_baseline_new と同一集合）を page|state|viewport で表した識別子（昇順）。この実行で測った組だけに絞らない>"
       ]

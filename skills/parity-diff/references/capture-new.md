@@ -117,7 +117,7 @@
 
 - **同一条件で 2 回撮り**、新側だけの撮り直し差分（page × state × viewport ごとの `pixel_diff` / `trait_diffs`）を測る（測る組の決め方は下記「測定値の再利用」）
 - **2 回の一致は採取が決定論的である証明ではない**（2 値に転ぶ採取は 1/2 の確率でノイズ 0 になる）。両パスとも操作アダプタの「撮る対象の矩形が落ち着くまで待つ」を通して撮る
-  （正本: `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）。コードを変えずに撮り直した現新差分が回ごとに跳ねるなら、実装差を追う前にこの待ちを疑う
+  （正本: `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）。通したら `noise_measurement.fingerprint.settle_wait: true` を記録する。コードを変えずに撮り直した現新差分が回ごとに跳ねるなら、実装差を追う前にこの待ちを疑う
 - 測定結果を `diff-metadata.json.noise_baseline_new` に記録する（現側 `noise_baseline` と**同じ組**。項目は現側の値に `source` / `measured_at` を加えた形。再利用した組も含めて全組を書く）
 - **現側 `noise_baseline` との乖離が大きい場合は差分報告せず停止し、ユーザーへ上げる**——新側のノイズが現側より大きいまま比較すると、
   ノイズ基準値による吸収（[`normalize.md`](normalize.md) の残余への集計適用）が実回帰を黙って飲み込む。
@@ -158,6 +158,7 @@
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
 | 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
+| 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
 | 反復が進んでいない（差が 0）のに `new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同 `new.commit`（ループ外で新側を触っており変更範囲を辿れない） |

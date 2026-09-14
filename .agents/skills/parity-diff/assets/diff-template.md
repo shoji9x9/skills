@@ -23,7 +23,7 @@
 | parity-suite 完了（suite.current_green・validated_by_strength_gate＋モード別の追加要求） | （値） | （OK／停止） |
 | parity-replace 新側 green（同 target の suite.new_green・new.target 一致） | （true／false） | （OK／停止） |
 | データセットバージョン三者整合（metadata / dataset changes / `phase_b.<slug>.<target>`） | （3 値と記録後に交差した affects。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （影響変更なし／免除／陳腐化→差し戻し先／整合不能→停止） |
-| 条件一致検証（viewports / animations / masks / states / popup_inventory / environment） | （項目ごとの結果。environment は原則 unverified） | （OK／停止） |
+| 条件一致検証（viewports / animations / masks / states / popup_inventory / environment） | （項目ごとの結果。environment は原則 unverified。popup_inventory のキーが無い旧成果物は absent） | （OK／未検証〈environment の unverified・popup_inventory の absent。7. へ転記〉／停止） |
 | 新側の自己ノイズ（noise_baseline_new と現側 noise_baseline の対比） | （組ごとの値と source＝measured／reused の別・その組の measured_at。再測定した組はその失効条件） | （OK／乖離→停止） |
 | 差分器バージョン一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |
 
@@ -107,11 +107,13 @@
 
 <!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・投入対象でない target のデータ依存差分・部品被覆表を判定しなかった場合。確認済みにしない。 -->
 
-| 箇所 | 種別（写らない／宣言できない構造差／アニメーション／撮影条件／データ依存／部品被覆表未判定） | 理由 |
+| 箇所 | 種別（写らない／宣言できない構造差／アニメーション／撮影条件／撮影状態の対象外／データ依存／部品被覆表未判定） | 理由 |
 |---|---|---|
 | （例: 保存ボタンのフォーカスリング） | 宣言できない構造差 | クラス/トークンのプロパティ差に還元できない |
 | （例: 一覧のフェードイン） | アニメーション | 停止させて比較するため扱えない |
 | （例: 撮影環境の一致） | 撮影条件 | capture_conditions.environment は自由記述で機械照合できない（unverified: 理由） |
+| （例: 列を選ぶ吹き出し） | 撮影状態の対象外 | 現側 `popup_inventory` で `captured: null`。理由は `popup_inventory[].reason` をそのまま転記（例: 同じ吹き出しを一覧機能のスイートで撮る）。撮っていない器の見た目は 3 経路のどれにも出ない |
+| （例: 操作で開く器全般） | 撮影状態の対象外 | 現側 `metadata.json` に `popup_inventory` が無い（旧成果物）。撮っていない器の見た目は未検証で、ノイズ基準値は静止待ち導入前の可能性がある（`parity-suite` での採り直し推奨） |
 | （例: 一覧の表示件数・並び） | データ依存 | 選択 target が投入対象外（db 無し／seedable 無し）でゴールデンデータ未投入。実装差かデータ差か判別できない |
 | （例: データグリッドが持つ操作の網羅） | 部品被覆表未判定 | 現側 `metadata.json` に `component_coverage` が無い（旧成果物）ため未測定を判定できない。採取状態の外にある操作の欠落は差分ゼロとして通る |
 
