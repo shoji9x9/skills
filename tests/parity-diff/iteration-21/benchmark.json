@@ -2,11 +2,11 @@
   "metadata": {
     "skill_name": "parity-diff",
     "skill_path": "<repo>/skills/parity-diff",
-    "executor_model": "<model-name>",
-    "analyzer_model": "<model-name>",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
     "timestamp": "2026-09-14T11:39:55Z",
     "evals_run": [22],
-    "runs_per_configuration": 3
+    "runs_per_configuration": 1
   },
   "runs": [
     {
@@ -25,34 +25,34 @@
       },
       "expectations": [
         {
-          "text": "captured \u304c states \u306b\u7121\u3044\u884c\u3084 captured \u3068 reason \u306e\u4e21\u65b9\u304c\u57cb\u307e\u3063\u305f\u884c\u304c\u3042\u308b\u306a\u3089\u3001\u6ce8\u8a18\u3057\u3066\u9032\u3081\u305a\u64ae\u5f71\u524d\u306b\u505c\u6b62\u3057 parity-suite \u3078\u623b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
           "passed": true,
-          "evidence": "2 \u7a2e\u985e\u306e\u4e0d\u6574\u5408\u306f\u3069\u3061\u3089\u3082\u64ae\u5f71\u305b\u305a\u505c\u6b62\u3057 parity-suite \u3078\u623b\u3059\u3001\u6ce8\u8a18\u3067\u9032\u3081\u306a\u3044\u3068\u7b54\u3048\u3066\u3044\u308b"
+          "evidence": "2 種類の不整合はどちらも撮影せず停止し parity-suite へ戻す、注記で進めないと答えている"
         },
         {
-          "text": "\u64cd\u4f5c\u30a2\u30c0\u30d7\u30bf\uff08\u65b0\u5074\u4f8b\u5916\u3092\u542b\u3080\uff09\u3067\u5668\u3092\u958b\u304f\u95a2\u6570\u3092\u5217\u6319\u3057\u3001\u5168\u3066\u304c opened_by \u306b\u73fe\u308c\u308b\u3053\u3068\u3082\u64ae\u5f71\u524d\u306b\u78ba\u304b\u3081\u3001\u73fe\u308c\u306a\u3044\u95a2\u6570\u304c\u3042\u308c\u3070\u505c\u6b62\u3059\u308b\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
           "passed": true,
-          "evidence": "\u64cd\u4f5c\u30a2\u30c0\u30d7\u30bf\uff08\u65b0\u5074\u4f8b\u5916\u3092\u542b\u3080\uff09\u3067\u5668\u3092\u958b\u304f\u95a2\u6570\u3092\u6d17\u3044\u51fa\u3057\u3001opened_by \u306b\u51fa\u3066\u3053\u306a\u3051\u308c\u3070\u505c\u6b62\u3059\u308b\u3068\u8ff0\u3079\u3066\u3044\u308b"
+          "evidence": "操作アダプタ（新側例外を含む）で器を開く関数を洗い出し、opened_by に出てこなければ停止すると述べている"
         },
         {
-          "text": "popup_inventory \u306e\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u306f\u505c\u6b62\u305b\u305a\u3001\u64ae\u3063\u3066\u3044\u306a\u3044\u5668\u306e\u898b\u305f\u76ee\u304c\u672a\u691c\u8a3c\u3067\u3042\u308b\u3053\u3068\u3092 diff.md \u306e\u672a\u691c\u8a3c\u9818\u57df\u3078\u6b8b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "text": "popup_inventory のキーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域へ残すと答えている",
           "passed": true,
-          "evidence": "\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u306f\u505c\u6b62\u305b\u305a\u3001\u64ae\u3063\u3066\u3044\u306a\u3044\u5668\u306e\u898b\u305f\u76ee\u304c\u672a\u691c\u8a3c\u3067\u3042\u308b\u3053\u3068\u3092 diff.md \u306e\u672a\u691c\u8a3c\u9818\u57df\u306b\u6b8b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b"
+          "evidence": "キーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域に残すと答えている"
         },
         {
-          "text": "\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u3067\u306f\u3001\u30ce\u30a4\u30ba\u57fa\u6e96\u5024\u304c\u9759\u6b62\u5f85\u3061\u306e\u5c0e\u5165\u524d\u306b\u63a1\u3089\u308c\u305f\u53ef\u80fd\u6027\u304c\u3042\u308a 2 \u6a19\u672c\u306e\u4e00\u81f4\u3092\u5b89\u5b9a\u306e\u6839\u62e0\u306b\u3067\u304d\u306a\u3044\u3053\u3068\u3082\u672a\u691c\u8a3c\u3068\u3057\u3066\u6b8b\u3059\uff08parity-suite \u3067\u306e\u63a1\u308a\u76f4\u3057\u3092\u63a8\u5968\u3059\u308b\uff09\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "キーごと無い旧成果物では、ノイズ基準値が静止待ちの導入前に採られた可能性があり 2 標本の一致を安定の根拠にできないことも未検証として残す（parity-suite での採り直しを推奨する）と述べている",
           "passed": true,
-          "evidence": "\u30ce\u30a4\u30ba\u57fa\u6e96\u5024\u304c\u9759\u6b62\u5f85\u3061\u5c0e\u5165\u524d\u306e\u53ef\u80fd\u6027\u304c\u3042\u308a 2 \u56de\u306e\u4e00\u81f4\u3092\u5b89\u5b9a\u306e\u6839\u62e0\u306b\u3067\u304d\u306a\u3044\uff08parity-suite \u3067\u306e\u63a1\u308a\u76f4\u3057\u63a8\u5968\uff09\u3053\u3068\u3082\u6b8b\u3059\u3068\u8ff0\u3079\u3066\u3044\u308b"
+          "evidence": "ノイズ基準値が静止待ち導入前の可能性があり 2 回の一致を安定の根拠にできない（parity-suite での採り直し推奨）ことも残すと述べている"
         },
         {
-          "text": "\u68da\u5378\u3057\u306e\u691c\u8a3c\u7d50\u679c\u3092 diff-metadata.json \u306e capture_conditions_verified.popup_inventory \u306b\u8a18\u9332\u3059\u308b\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
           "passed": true,
-          "evidence": "\u8a18\u9332\u5148\u3068\u3057\u3066 diff-metadata.json \u306e capture_conditions_verified.popup_inventory \u3092\u8868\u306b\u6319\u3052\u3066\u3044\u308b"
+          "evidence": "記録先として diff-metadata.json の capture_conditions_verified.popup_inventory を表に挙げている"
         },
         {
-          "text": "\u56de\u7b54\u5185\u3067\u3001\u4e0d\u6574\u5408\u306a\u68da\u5378\u3057\u306e\u307e\u307e\u5dee\u5206\u691c\u51fa\u3078\u9032\u3093\u3067\u3088\u3044\u3068\u77db\u76fe\u3059\u308b\u7d50\u8ad6\u3092\u4f75\u8a18\u3057\u3066\u3044\u306a\u3044",
+          "text": "回答内で、不整合な棚卸しのまま差分検出へ進んでよいと矛盾する結論を併記していない",
           "passed": true,
-          "evidence": "\u4e0d\u6574\u5408\u306e\u307e\u307e\u5dee\u5206\u691c\u51fa\u3078\u9032\u3080\u3068\u3044\u3046\u77db\u76fe\u306f\u7121\u304f\u300c\u5dee\u5206\u691c\u51fa\u306b\u306f\u9032\u307f\u307e\u305b\u3093\u300d\u3068\u8ff0\u3079\u3066\u3044\u308b"
+          "evidence": "不整合のまま差分検出へ進むという矛盾は無く「差分検出には進みません」と述べている"
         }
       ],
       "notes": []
@@ -73,34 +73,34 @@
       },
       "expectations": [
         {
-          "text": "captured \u304c states \u306b\u7121\u3044\u884c\u3084 captured \u3068 reason \u306e\u4e21\u65b9\u304c\u57cb\u307e\u3063\u305f\u884c\u304c\u3042\u308b\u306a\u3089\u3001\u6ce8\u8a18\u3057\u3066\u9032\u3081\u305a\u64ae\u5f71\u524d\u306b\u505c\u6b62\u3057 parity-suite \u3078\u623b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
           "passed": true,
-          "evidence": "\u6ce8\u8a18\u3057\u3066\u64ae\u5f71\u3092\u9032\u3081\u308b\u306e\u306f\u3084\u3081\u3001\u76f4\u3059\u307e\u3067\u4fdd\u7559\u3068\u7b54\u3048\u3066\u3044\u308b"
+          "evidence": "注記して撮影を進めるのはやめ、直すまで保留と答えている"
         },
         {
-          "text": "\u64cd\u4f5c\u30a2\u30c0\u30d7\u30bf\uff08\u65b0\u5074\u4f8b\u5916\u3092\u542b\u3080\uff09\u3067\u5668\u3092\u958b\u304f\u95a2\u6570\u3092\u5217\u6319\u3057\u3001\u5168\u3066\u304c opened_by \u306b\u73fe\u308c\u308b\u3053\u3068\u3082\u64ae\u5f71\u524d\u306b\u78ba\u304b\u3081\u3001\u73fe\u308c\u306a\u3044\u95a2\u6570\u304c\u3042\u308c\u3070\u505c\u6b62\u3059\u308b\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "操作アダプタ（新側例外を含む）で器を開く関数を列挙し、全てが opened_by に現れることも撮影前に確かめ、現れない関数があれば停止すると述べている",
           "passed": false,
-          "evidence": "\u7db2\u7f85\u6027\u306f\u65e7 UI \u306e\u5b9f\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u3068\u306e\u7a81\u304d\u5408\u308f\u305b\u3067\u78ba\u8a8d\u3059\u308b\u3068\u3057\u3066\u304a\u308a\u3001\u64cd\u4f5c\u30a2\u30c0\u30d7\u30bf\u306e\u958b\u304f\u95a2\u6570\u3068 opened_by \u306e\u7a81\u304d\u5408\u308f\u305b\u306f\u7121\u3044"
+          "evidence": "網羅性は旧 UI の実ポップアップとの突き合わせで確認するとしており、操作アダプタの開く関数と opened_by の突き合わせは無い"
         },
         {
-          "text": "popup_inventory \u306e\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u306f\u505c\u6b62\u305b\u305a\u3001\u64ae\u3063\u3066\u3044\u306a\u3044\u5668\u306e\u898b\u305f\u76ee\u304c\u672a\u691c\u8a3c\u3067\u3042\u308b\u3053\u3068\u3092 diff.md \u306e\u672a\u691c\u8a3c\u9818\u57df\u3078\u6b8b\u3059\u3068\u7b54\u3048\u3066\u3044\u308b",
+          "text": "popup_inventory のキーごと無い旧成果物は停止せず、撮っていない器の見た目が未検証であることを diff.md の未検証領域へ残すと答えている",
           "passed": false,
-          "evidence": "\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u3082\u300c\u6b62\u3081\u308b\u3079\u304d\u300d\u3068\u7b54\u3048\u3066\u304a\u308a\u3001\u505c\u6b62\u305b\u305a\u672a\u691c\u8a3c\u3068\u3057\u3066\u6b8b\u3059\u5951\u7d04\u3068\u9006"
+          "evidence": "キーごと無い旧成果物も「止めるべき」と答えており、停止せず未検証として残す契約と逆"
         },
         {
-          "text": "\u30ad\u30fc\u3054\u3068\u7121\u3044\u65e7\u6210\u679c\u7269\u3067\u306f\u3001\u30ce\u30a4\u30ba\u57fa\u6e96\u5024\u304c\u9759\u6b62\u5f85\u3061\u306e\u5c0e\u5165\u524d\u306b\u63a1\u3089\u308c\u305f\u53ef\u80fd\u6027\u304c\u3042\u308a 2 \u6a19\u672c\u306e\u4e00\u81f4\u3092\u5b89\u5b9a\u306e\u6839\u62e0\u306b\u3067\u304d\u306a\u3044\u3053\u3068\u3082\u672a\u691c\u8a3c\u3068\u3057\u3066\u6b8b\u3059\uff08parity-suite \u3067\u306e\u63a1\u308a\u76f4\u3057\u3092\u63a8\u5968\u3059\u308b\uff09\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "キーごと無い旧成果物では、ノイズ基準値が静止待ちの導入前に採られた可能性があり 2 標本の一致を安定の根拠にできないことも未検証として残す（parity-suite での採り直しを推奨する）と述べている",
           "passed": false,
-          "evidence": "\u30ce\u30a4\u30ba\u57fa\u6e96\u5024\u304c\u9759\u6b62\u5f85\u3061\u5c0e\u5165\u524d\u306e\u53ef\u80fd\u6027\u3068\u3044\u3046\u89b3\u70b9\u306f\u7121\u3044"
+          "evidence": "ノイズ基準値が静止待ち導入前の可能性という観点は無い"
         },
         {
-          "text": "\u68da\u5378\u3057\u306e\u691c\u8a3c\u7d50\u679c\u3092 diff-metadata.json \u306e capture_conditions_verified.popup_inventory \u306b\u8a18\u9332\u3059\u308b\u3068\u8ff0\u3079\u3066\u3044\u308b",
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
           "passed": false,
-          "evidence": "\u8a18\u9332\u5148\u306f\u5dee\u5206\u7d50\u679c\u30ec\u30dd\u30fc\u30c8\u306e\u5192\u982d\u306e\u7bc0\u3067\u3001diff-metadata.json \u306e capture_conditions_verified.popup_inventory \u3067\u306f\u306a\u3044"
+          "evidence": "記録先は差分結果レポートの冒頭の節で、diff-metadata.json の capture_conditions_verified.popup_inventory ではない"
         },
         {
-          "text": "\u56de\u7b54\u5185\u3067\u3001\u4e0d\u6574\u5408\u306a\u68da\u5378\u3057\u306e\u307e\u307e\u5dee\u5206\u691c\u51fa\u3078\u9032\u3093\u3067\u3088\u3044\u3068\u77db\u76fe\u3059\u308b\u7d50\u8ad6\u3092\u4f75\u8a18\u3057\u3066\u3044\u306a\u3044",
+          "text": "回答内で、不整合な棚卸しのまま差分検出へ進んでよいと矛盾する結論を併記していない",
           "passed": true,
-          "evidence": "\u4e0d\u6574\u5408\u306e\u307e\u307e\u5dee\u5206\u691c\u51fa\u3078\u9032\u3080\u3068\u3044\u3046\u7d50\u8ad6\u306f\u7121\u3044"
+          "evidence": "不整合のまま差分検出へ進むという結論は無い"
         }
       ],
       "notes": []
