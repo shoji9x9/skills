@@ -209,8 +209,30 @@ if [ -z "${metadata_eval_id}" ]; then
 	esac
 fi
 
+# Sibling skills the eval declares in evals.json `requires_skills`. Without them a
+# skill that calls a sibling's bundled tool stops on the missing sibling before the
+# branch the eval targets, and whether it reaches that branch depends on the order
+# the agent checks prerequisites in. They are installed in BOTH configurations: the
+# comparison must differ only by the subject skill, and installing siblings for
+# with_skill alone would credit the sibling's instructions to the subject. Resolved
+# before anything runs so a malformed declaration or a missing sibling source fails
+# the run instead of silently dropping the sibling.
+required_skills=()
+if [ -n "${metadata_eval_id}" ] && [ -f "${src}/evals/evals.json" ]; then
+	required_skills_list="$(node "${fingerprinter}" --required-skills-of "${skill}" --eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")" || exit 5
+	while IFS= read -r required_skill; do
+		[ -n "${required_skill}" ] || continue
+		[ -f "${repo}/skills/${required_skill}/SKILL.md" ] || {
+			echo "required skill source not found: ${repo}/skills/${required_skill}/SKILL.md" >&2
+			exit 1
+		}
+		required_skills+=("${required_skill}")
+	done <<<"${required_skills_list}"
+fi
+
 fingerprint_file="$(mktemp "/tmp/skill-eval-fingerprint-${skill}-XXXXXX.json")"
 fingerprint_args=(
+	--skill "${skill}"
 	--prompt "${prompt}"
 	--executor "${executor}"
 	--model "${model}"
@@ -220,6 +242,7 @@ fingerprint_args=(
 )
 [ -n "${metadata_eval_id}" ] && fingerprint_args+=(--eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")
 [ -n "${fixture}" ] && fingerprint_args+=(--fixture "${fixture}")
+fingerprint_args+=(--skills-root "${repo}/skills")
 node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || {
 	rm -f -- "${fingerprint_file}"
 	exit 5
@@ -314,16 +337,22 @@ if [ -n "${lock_mode}" ]; then
 	fi
 fi
 
-if [ "${config}" = "with_skill" ]; then
+installed_skills=()
+if [ "${config}" = "with_skill" ]; then installed_skills+=("${skill}"); fi
+installed_skills+=(${required_skills[@]+"${required_skills[@]}"})
+if [ "${#installed_skills[@]}" -gt 0 ]; then
 	case "${executor}" in
 	claude-code) skill_home="${proj}/.claude/skills" ;;
 	codex) skill_home="${proj}/.agents/skills" ;;
 	esac
 	mkdir -p -- "${skill_home}"
-	mkdir -p -- "${skill_home}/${skill}"
-	for subject_part in SKILL.md references assets scripts; do
-		[ -e "${src}/${subject_part}" ] || continue
-		cp -R -- "${src}/${subject_part}" "${skill_home}/${skill}/"
+	for installed_skill in "${installed_skills[@]}"; do
+		installed_src="${repo}/skills/${installed_skill}"
+		mkdir -p -- "${skill_home}/${installed_skill}"
+		for subject_part in SKILL.md references assets scripts; do
+			[ -e "${installed_src}/${subject_part}" ] || continue
+			cp -R -- "${installed_src}/${subject_part}" "${skill_home}/${installed_skill}/"
+		done
 	done
 fi
 
@@ -339,6 +368,7 @@ cp -- "${fingerprint_file}" "${out}/eval-fingerprint.json"
 	echo "config: ${config}"
 	echo "isolation: ${isolation}"
 	echo "serialization: ${serialization}"
+	echo "required_skills: ${required_skills[*]-}"
 } >"${out}/isolation.txt"
 case "${isolation}" in
 UNISOLATED* | UNVERIFIED*) echo "warn: read isolation is ${isolation} (see ${out}/isolation.txt)" >&2 ;;
@@ -537,6 +567,25 @@ if [ "${config}" = "without_skill" ]; then
 		if [ -n "${fixture}" ] && grep -rqIF -e "${m}" -- "${fixture}" 2>/dev/null; then
 			continue
 		fi
+		# Required siblings are installed in the baseline too, so a path that also
+		# exists in a sibling's bundle (parity-suite ships its own
+		# assets/metadata-template.json) or appears in a sibling's text reaches the
+		# baseline honestly, exactly like the fixture.
+		sibling_hit=0
+		for required_skill in ${required_skills[@]+"${required_skills[@]}"}; do
+			required_src="${repo}/skills/${required_skill}"
+			if [ -e "${required_src}/${m}" ]; then
+				sibling_hit=1
+				break
+			fi
+			for part in SKILL.md references assets scripts; do
+				if [ -e "${required_src}/${part}" ] && grep -rqIF -e "${m}" -- "${required_src}/${part}" 2>/dev/null; then
+					sibling_hit=1
+					break 2
+				fi
+			done
+		done
+		[ "${sibling_hit}" -eq 0 ] || continue
 		kept+=("${m}")
 	done
 

@@ -51,6 +51,7 @@
     {
       "id": 5,
       "fixture": "evals/fixtures/catalog-unset",
+      "requires_skills": ["parity-suite"],
       "prompt": "parity-component build --component button",
       "assertions": [
         "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
@@ -64,6 +65,7 @@
     {
       "id": 6,
       "fixture": "evals/fixtures/breaking-change-request",
+      "requires_skills": ["parity-suite"],
       "prompt": "button の variant から primary を廃止して、代わりに type という引数に統一してください。実装を直してください。",
       "assertions": [
         "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",

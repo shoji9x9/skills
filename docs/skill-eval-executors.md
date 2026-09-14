@@ -69,7 +69,7 @@ tests/<skill>/iteration-N/
 - `raw_trace`: run からの相対パス
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
-各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
+各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、`requires_skills`（名前と設置内容のハッシュ）、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
 `without_skill` の `--reuse-baseline` は fingerprint と成果物の健全性を検証し、再利用した run に `baseline-reuse.json` を追加する。
 `scripts/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
 `outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる executor だけに置く。Claude Code の final JSON から復元できない値を `0` で埋めない。
@@ -85,7 +85,8 @@ Codex の `item.type=error` / `turn.failed`、Claude Code の `is_error`、raw �
 
 - Claude Code: `with_skill` だけ使い捨て project の `.claude/skills/<name>` に bundle をコピーする。
 - Codex: `with_skill` だけ `.agents/skills/<name>` にコピーする。`SKILL.md` 本文の prompt 注入はしない。
-- `without_skill`: どちらも bundle をコピーしない。
+- `without_skill`: どちらも対象スキルの bundle をコピーしない。
+- eval が宣言した `requires_skills` は、両 executor・両 configuration で同じ場所へコピーする（宣言の契約は [`skill-development.md`](skill-development.md)「eval 実行の隔離（必須）」）。
 
 Codex は `--ephemeral --ignore-user-config --ignore-rules` で実行する。
 Bubblewrap は既定の `~/.codex` と、`CODEX_HOME` が指定する canonical state root の user config・履歴・global skills を隠す。選択した state root の read-only `bin/` と `auth.json` だけを戻す。

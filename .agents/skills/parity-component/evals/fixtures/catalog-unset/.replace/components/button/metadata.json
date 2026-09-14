@@ -59,7 +59,7 @@
         "user-select",
         "visibility"
       ],
-      "css_rules_version": "3",
+      "css_rules_version": "4",
       "axis_diff_version": "2",
       "pixel_differ": "pixelmatch@7.1.0"
     }
