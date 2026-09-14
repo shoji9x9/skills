@@ -111,6 +111,44 @@ function checkComponent(dir) {
     }
   }
 
+  // 撮影条件とノイズ基準値は `build` の照合が同一条件を再現する材料。`capture.complete: true` なのに
+  // null のまま（プレースホルダ）だと、比較へ進む前提が欠けたまま完了を名乗る。
+  const conditions = meta.capture_conditions;
+  const viewportLabels =
+    conditions && Array.isArray(conditions.viewports)
+      ? conditions.viewports.map((v) => v && v.label)
+      : [];
+  if (
+    !conditions ||
+    typeof conditions.environment !== "string" ||
+    conditions.environment === "" ||
+    viewportLabels.length === 0 ||
+    viewportLabels.some((l) => typeof l !== "string" || l === "") ||
+    conditions.animations !== "disabled" ||
+    conditions.element_screenshot !== true
+  ) {
+    problems.push("capture_conditions が採取の条件として埋まっていない");
+  }
+  const expectedNoise = meta.instances
+    .flatMap((inst) => {
+      const skipped = new Set((inst.unreachable_states || []).map((u) => u.state));
+      return meta.capture.states.filter((s) => !skipped.has(s)).map((s) => [inst.id, s]);
+    })
+    .flatMap(([id, st]) => viewportLabels.map((vp) => `${id}\u001f${st}\u001f${vp}`))
+    .sort();
+  const recordedNoise = Array.isArray(meta.noise_baseline)
+    ? meta.noise_baseline
+        .filter((n) => n && Number.isFinite(n.pixel) && Number.isFinite(n.traits))
+        .map((n) => `${n.instance}\u001f${n.state}\u001f${n.viewport}`)
+        .sort()
+    : [];
+  if (
+    JSON.stringify(recordedNoise) !== JSON.stringify(expectedNoise) ||
+    expectedNoise.length === 0
+  ) {
+    problems.push("noise_baseline が比較の母集合 × ビューポートを 1 件ずつ覆っていない");
+  }
+
   const gaps = meta.capture_gaps || {};
   if (gaps.unresolved_selectors !== unresolved || gaps.inaccessible_sheets !== inaccessible) {
     problems.push("capture_gaps が css-rules.json の件数と一致しない");
@@ -196,4 +234,23 @@ test("陽性コントロール: 採取物から導けない axes.json を検出�
   const dir = copyFixture();
   edit(join(dir, "axes.json"), (a) => a.fixed.pop());
   expect(checkComponent(dir)).toContain("axes.json が axis-diff --baseline の出力と一致しない");
+});
+
+test("陽性コントロール: null の撮影条件とノイズ基準値を検出する", () => {
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => {
+    m.capture_conditions = null;
+    m.noise_baseline = null;
+  });
+  const problems = checkComponent(dir);
+  expect(problems).toContain("capture_conditions が採取の条件として埋まっていない");
+  expect(problems).toContain("noise_baseline が比較の母集合 × ビューポートを 1 件ずつ覆っていない");
+});
+
+test("陽性コントロール: 組み合わせが欠けたノイズ基準値を検出する", () => {
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => m.noise_baseline.pop());
+  expect(checkComponent(dir)).toContain(
+    "noise_baseline が比較の母集合 × ビューポートを 1 件ずつ覆っていない",
+  );
 });

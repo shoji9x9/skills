@@ -101,7 +101,7 @@
     "unresolved_selectors": 0
   },
   "capture_conditions": {
-    "environment": "Chrome/149.0.7827.155（headless）/ Linux / DPR 1",
+    "environment": "Chrome/149.0.7827.155（headless）/ Linux / DPR 1。\"Noto Sans JP\", sans-serif は Noto Sans CJK JP に解決",
     "viewer_environment": "一致",
     "viewports": [
       {

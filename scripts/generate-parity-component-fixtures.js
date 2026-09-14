@@ -39,6 +39,7 @@ const FIXTURES = ["catalog-unset", "breaking-change-request"].map((name) =>
   join(repoRoot, "skills/parity-component/evals/fixtures", name, ".replace/components/button"),
 );
 const VIEWPORT = { width: 1280, height: 800 };
+const VIEWER_ENVIRONMENT = "一致";
 
 // 現行アプリの代わりのスタイルシート。2 つのバリアント（primary / secondary）が
 // 背景色・文字色で割れ、文言の長さで幅が割れる。値は計算値と同じ表記で書く
@@ -258,7 +259,10 @@ async function captureOnce(cdp, instance, state) {
     format: "png",
     clip: { x, y, width, height, scale: 1 },
   });
-  return { traits, rules, png: Buffer.from(shot.data, "base64") };
+  // 総称ファミリー（sans-serif）が実際に何のフォントで描かれたかを残す（撮影環境の記録に要る）。
+  const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+  const platformFonts = fonts.map((f) => f.familyName).sort();
+  return { traits, rules, png: Buffer.from(shot.data, "base64"), platformFonts };
 }
 
 const writeJson = (path, value) => {
@@ -314,19 +318,29 @@ try {
     const unresolved = captured.reduce((n, c) => n + c.rules.unresolved.length, 0);
     const inaccessible = captured.reduce((n, c) => n + c.rules.inaccessible.length, 0);
     meta.capture_gaps = { inaccessible_sheets: inaccessible, unresolved_selectors: unresolved };
-    if (meta.capture_conditions) {
-      meta.capture_conditions.environment = `${cdp.browser}（headless）/ Linux / DPR 1`;
-      meta.capture_conditions.viewports = [{ ...VIEWPORT, label: "desktop" }];
-    }
-    if (meta.noise_baseline) {
-      meta.noise_baseline = captured.map(({ instance, state }) => ({
-        instance: instance.id,
-        state,
-        viewport: "desktop",
-        pixel: 0,
-        traits: 0,
-      }));
-    }
+    // 撮影条件とノイズ基準値は、既存の値の有無（null のプレースホルダを含む）に依らず採取から書く。
+    // 真偽で分岐すると null の fixture が `capture.complete: true` のまま条件も基準値も持たず残り、
+    // `build` の照合が同一条件を再現できない。
+    const fontsUsed = [...new Set(captured.flatMap((c) => c.platformFonts))].sort();
+    if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
+    meta.capture_conditions = {
+      environment: `${cdp.browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
+      // 想定利用者環境との一致は採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
+      // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
+      viewer_environment: VIEWER_ENVIRONMENT,
+      viewports: [{ ...VIEWPORT, label: "desktop" }],
+      animations: "disabled",
+      element_screenshot: true,
+      masks: [],
+    };
+    // 2 回の採取が特性・画素とも一致しなければ上で停止しているので、ここに来た組み合わせの差分は 0。
+    meta.noise_baseline = captured.map(({ instance, state }) => ({
+      instance: instance.id,
+      state,
+      viewport: "desktop",
+      pixel: 0,
+      traits: 0,
+    }));
     // 軸の件数は axes.json から写す。先に metadata を書かないと --baseline がプロパティ集合を読めない。
     writeJson(metaPath, meta);
     const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));

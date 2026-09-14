@@ -109,6 +109,8 @@ trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを
 - **iteration-4（#354）で採取物を作り直した後、eval 5・6 を再走した。** eval 5 は with 6/6・without 1/6、eval 6 は with 5/5・without 2/5 で、
   どちらも目的の分岐へ到達した（`with_skill` は `axes.json` の再導出一致とツール版の一致を確かめたうえでカタログ未宣言で停止）。詳細は [`tests/parity-component/iteration-4/benchmark.md`](../../../tests/parity-component/iteration-4/benchmark.md)
 
+- **iteration-5（PR #358 のレビュー対応）で `metadata.json` の `null` だった撮影条件・ノイズ基準値を採取から埋めて再走した。** 得点は iteration-4 と同じ（eval 5: 6/6 vs 1/6、eval 6: 5/5 vs 2/5）。詳細は [`tests/parity-component/iteration-5/benchmark.md`](../../../tests/parity-component/iteration-5/benchmark.md)
+
 ### `without_skill` が見つけた fixture の欠陥（別 Issue へ）
 
 eval 5 の `without_skill` は停止せず実装まで進んだため、fixture の中身を実装の材料として読み、こちらが気付いていなかった不整合を 3 件挙げた。
