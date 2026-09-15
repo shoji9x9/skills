@@ -105,7 +105,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | `references.coding_conventions` | 部品・見本を書くときに従う規約。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る |
 | `references.dependency_policy` | 依存導入の方針（**三値**。`none` と欠落を同一視しない）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `new.stack` | 新側スタックの列挙。部品の候補がスタックと両立するかの判断に使う。空・欠落なら推測せずユーザーに確認し、結果を同キーへ非破壊追記する |
-| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。発見した差は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（`slug` は対象の部品 slug、`added_by: parity-component`、`added_at` に追記日）。`keep` / `may_change` へ移すのは人間 |
+| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。発見した差は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（`slug` は対象の部品 slug、`added_by: parity-component`、`added_at` に追記日）。`keep` / `may_change` へ移すのは人間。**例外は静的資産で「同等物を作る」を選んだときの宣言**で、ユーザー承認後に `may_change` へ非破壊追記する（`pending` を経由しない。正本は `replace-strategy` の `references/static-assets.md`） |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。**宣言の正本は `parity-replace`**（`references/theming.md`）。本スキルは**読んで照合の正規化に使うだけ**で、書くときは同じ手順（ユーザー確認）を通す |
 | `artifacts.{retention,storage,size_threshold_mb,overrides.<slug>}` | 大きなバイナリの保存先既定と部品ごとの上書き |
 | `verification_commands` | 実装・見本に通す検証コマンド。**通すのは `full`（全体走査）**。`full` キーが無いか、**`verification_commands` 自体の値がリスト**（旧形式＝走る範囲が未宣言）なら **`build` の完了判定が成立しないため停止する**。**`full` の値がコマンドのリストであるのは新形式であり正常**（`full` / `diff` の 2 列に分かれていれば移行済み。判別の正本はスキーマ文書「`verification_commands` の形の変更」） |
@@ -121,7 +121,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 - **対象の選択**（`--component` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug と target で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: 同梱ツールのコピー先が同梱版と一致しないときの扱い、
-  インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）
+  インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）、台帳に無い静的資産の方針
 - **保留に落としても進める工程**: 割れた軸の扱いが保留なら、その軸を含まない引数の設計・実装・見本の採取は進め、**その軸に依存する見本の照合は行わない**
 - **記録先**: `capture` は `.replace/components/<slug>/metadata.json`、`build` は `.replace/components/<slug>/new/<target>/build-metadata.json` の `pending_decisions[]` と `run.autonomous`。
   未解決の保留が残る間は `capture.complete` を `true` にせず、`build` は収束と報告しない（`loop.stopped_reason` に判断待ちを書く）
@@ -176,7 +176,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 2. **引数の設計**: `component-api.md` の可変軸を**引数（props）へ、固定軸を実装の定数へ**割り付ける。状態を表す引数（`disabled` 等）も可変軸として扱う。
    **軸を引数にしない判断をしたら理由を書く**（インスタンス差が現行の不整合で、揃えることをユーザーが決めた場合など。その場合は `intentional_diffs.pending` へ回す）。詳細: [`references/component-api.md`](references/component-api.md)
 3. **部品の採否と依存の決定**: このフェーズで要る部品を**自前で書くか／どのパッケージを使うか**を実装に入る前に決め、`.replace/dependencies.md` へ**非破壊追記**する。
-   判断材料・順序・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従う。`setup` で決定済みの部品はここで再決定しない
+   判断材料・順序・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従う。`setup` で決定済みの部品はここで再決定しない。
+   **部品が描く静的資産（アイコン・画像・書体）は `.replace/assets.md` の同じ種類の行に従い、部品の中で写すかを決めない**（台帳に無ければ方針空欄の行を追記してユーザーに確認し、決まるまでその資産に依存する実装を進めない。正本は `replace-strategy` の `references/static-assets.md`）
 4. **実装と見本**: 現行のソースコードと採取物を一次情報源に実装し、**インスタンス × 状態ごとに見本（story 等）を置く**。見本は採取と同じ状態集合を持たせる——見本の無い状態は照合されない。
    データ依存部品は `capture` が採った実データを見本の入力にする。書き方は `references.coding_conventions` に従う。詳細: [`references/catalog.md`](references/catalog.md)
 5. **見た目の系統差を源流で縮める**: **`references.ui_library` が未整備（キー欠落・空値・解決できないパス）ならここで停止し、整備を促す**（推測でライブラリを決めない）。
@@ -204,6 +205,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 完了証跡（**環境別**） | `.replace/components/<slug>/new/<target>/build-metadata.json` | [`assets/build-metadata-template.json`](assets/build-metadata-template.json) |
 | 未検証領域 | `.replace/components/<slug>/gaps.md` | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 実装・見本 | 新側リポジトリ（`references.architecture` の構成に従う） | — |
 
 - テキスト成果物（特性 JSON・CSS 規則 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
