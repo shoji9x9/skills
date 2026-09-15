@@ -369,6 +369,14 @@ function readTargets(metadata) {
   ) {
     throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
   }
+  // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで 2 つ目の測り漏れが通る）
+  const names = cc.pages.map((p) => /** @type {string} */ (p.name));
+  const duplicated = names.filter((n, i) => names.indexOf(n) !== i);
+  if (duplicated.length > 0) {
+    throw new UsageError(
+      `capture_conditions.pages[].name が重複している: ${[...new Set(duplicated)].join(", ")}`,
+    );
+  }
   return {
     traitElements: /** @type {string[]} */ (traits.elements),
     pages: cc.pages.map((p) => /** @type {string} */ (p.name)),
@@ -607,6 +615,12 @@ export function main(argv, deps = {}) {
   const [mode, ...rest] = argv;
   /** check --write の書き込み先。解決できた後の失敗（exit 2）も記録へ残すために外側で持つ */
   let checkWritePath = null;
+  // 引数の解析より先に書き込み先を拾う（後続の引数の不備で exit 2 になっても前回の合格を上書きできるように）
+  if (mode === "check") {
+    const i = rest.indexOf("--write");
+    const v = i >= 0 ? rest[i + 1] : undefined;
+    if (nonEmptyString(v) && !v.startsWith("--")) checkWritePath = resolve(cwd, v);
+  }
   /** @type {string | null} */
   let newSamplesText = null;
   /** @type {string | null} */
@@ -649,9 +663,6 @@ export function main(argv, deps = {}) {
         throw new UsageError(`不明な引数 ${a}`);
       }
     }
-    // metadata を読む前に解決する（metadata が読めない exit 2 でも前回の合格を上書きできるように）
-    if (mode === "check" && typeof opts.write === "string")
-      checkWritePath = resolve(cwd, opts.write);
     if (typeof opts.metadata !== "string") throw new UsageError("--metadata が無い");
     const metadataPath = resolve(cwd, opts.metadata);
     const metadata = JSON.parse(readFile(metadataPath));
