@@ -134,7 +134,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 - **判断待ち（保留に落とす）**: `current.feedback_calls` の候補の確定（設定への記録は越えない線）、ファイルストレージの `upload_route` が未宣言のときの経路、
   後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、`intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 読み取り系の特性化・ベースライン採取・保留に依存しない構成要素の強度検証。**保留に依存するスペック（例: 実行可否が保留の書き込み系）は書かず、`gaps.md` に判断待ちとして残す**（未検証を確認済みにしない）
-- **記録先**: `.replace/parity/<slug>/metadata.json` の `pending_decisions[]` と `run.autonomous`。
+- **記録先**: `.replace/parity/<slug>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **`metadata.json` には書かない**——`parity-replace` / `parity-diff` はその存在を本スキル完了の前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
   未解決の保留が 1 件でも残る間は `parity-replace` への引き渡しを報告しない。保留が強度ゲートに依存する範囲へ及ぶなら `differ.validated_by_strength_gate` も `true` にしない
 
 ## 実行フロー

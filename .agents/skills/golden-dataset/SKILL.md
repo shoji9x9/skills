@@ -116,7 +116,9 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
   投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
 - **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
-- **記録先**: `.replace/dataset/metadata.json` の `pending_decisions[]` と `run.autonomous`。未解決の保留が残る間は、そのフェーズを完了と報告せず `version` を上げない（投入していない版を記録しない）
+- **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
+  未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない
 
 ## 実行フロー
 

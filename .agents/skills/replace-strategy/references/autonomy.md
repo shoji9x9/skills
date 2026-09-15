@@ -68,6 +68,8 @@
 ## 記録の形（`pending_decisions[]`）
 
 各スキルの機械可読な成果物（どのファイルかは各スキルの「自律実行」節）に `pending_decisions` 配列として書く。**保留が無ければ空配列**を書く（無記録と区別する）。
+**下流スキルがファイルの存在を完了の証拠に使う成果物（`.replace/dataset/metadata.json`・`.replace/parity/<slug>/metadata.json`）には書かない。**
+保留を残すためにそのファイルを作ると、工程が終わっていないのに下流が完了とみなして進む。これらのスキルは同じディレクトリの `pending-decisions.json` に分けて書く。
 あわせて同じ成果物の `run.autonomous` に真偽値で自律実行だったかを残す。
 
 ```json
