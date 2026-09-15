@@ -85,6 +85,7 @@
 ```
 
 - `resolution` は答えを反映したら `{ "answer": "<答え>", "answered_at": "<ISO 8601>" }` にする。未解決は `null`
+- `replace-strategy` の保留は要素ごとに `mode`（`setup` / `issues`。その保留を立てた実行のモード）を持つ。持ち越しても書き換えない
 - `golden-dataset` の保留は要素ごとに `phase`（`a` / `b`）を持ち、`b` では `slugs`（影響するすべての slug の配列）と `target` も持つ（下記「下流の前提判定」で範囲を絞るため。複数 `--feature` に効く判断を 1 件にまとめても、影響する slug を漏らさない）
 - **次の実行は、成果物を上書きする前に前回の未解決の保留を読む。** 引数なしの実行では最初に確認し、自律実行では判断材料が今も有効かを確かめて持ち越す（前提が変わって不要になったものは理由を書いて外す）。黙って消さない
 - `replace-strategy status` が全成果物の未解決の保留を集め、「判断待ち」として報告する
@@ -108,7 +109,7 @@
 
 | 前提 | 未完了とみなす保留 |
 |---|---|
-| `replace-strategy setup` | `.replace/strategy-pending.json` の `mode: setup` の全要素 |
+| `replace-strategy setup` | `.replace/strategy-pending.json` の要素のうち `mode: setup` のもの（要素ごとの `mode` で絞る。ファイル直下の `mode` は最後に実行したモードなので使わない。要素の `mode` が欠落していれば setup のものとして止める） |
 | `golden-dataset` フェーズ A | `.replace/dataset/pending-decisions.json` の `phase: a` の要素 |
 | `golden-dataset` フェーズ B（slug × target） | 同ファイルの `phase: b` で `slugs` が対象 slug を含み `target` が一致する要素（他の slug・target の保留では止めない。`slugs` が欠落・空の要素は範囲を決められないので、同じ target のすべての slug を止める） |
 | `parity-suite`（slug） | `.replace/parity/<slug>/pending-decisions.json` の全要素 |
