@@ -667,16 +667,14 @@ test("fit: 全ての窓で表示されない要素は採取の失敗として ex
 });
 
 test("check: fits が 0 件（全軸 unfit）なら合格を名乗らず judged: false と unfit_to_note を返す", () => {
-  const m = fittedMetadata();
-  const dm = m.capture_conditions.dimension_model;
-  dm.unfit = dm.fits.map(({ page, element, property }) => ({
-    page,
-    element,
-    property,
-    residual: 3,
-    reason: "residual_exceeds_tolerance",
-  }));
-  dm.fits = [];
+  // 全要素・全軸が窓の幅 1500 を境に跳ぶ（ブレークポイントをまたいで式が読めない）
+  const jump = (w) => (w.width >= 1500 ? 400 : 0);
+  const layout = (w) => ({
+    button: { x: 10 + jump(w), y: 10 + jump(w), width: 90 + jump(w), height: 30 + jump(w) },
+    grid: { x: 20 + jump(w), y: 120 + jump(w), width: 500 + jump(w), height: 300 + jump(w) },
+  });
+  const m = fittedMetadata(layout);
+  expect(m.capture_conditions.dimension_model.fits).toEqual([]);
   const r = run(
     [
       "check",
@@ -689,11 +687,7 @@ test("check: fits が 0 件（全軸 unfit）なら合格を名乗らず judged:
       "--write",
       "r.json",
     ],
-    {
-      "/w/m.json": m,
-      "/w/n.json": samplesOf(formula),
-      "/w/r.json": {},
-    },
+    { "/w/m.json": m, "/w/n.json": samplesOf(layout), "/w/r.json": {} },
   );
   expect(r.code).toBe(0);
   expect(r.json.judged).toBe(false);
@@ -701,6 +695,30 @@ test("check: fits が 0 件（全軸 unfit）なら合格を名乗らず judged:
   expect(r.file("/w/r.json").dimension_check).toMatchObject({ judged: false, ok: null });
   expect(r.file("/w/r.json").dimension_check.unfit_to_note).toHaveLength(8);
 });
+
+test.each([
+  ["fit の後に offset を書き換えた", (dm) => (dm.fits[0].offset += 100)],
+  [
+    "fit の後に fits の軸を unfit へ移した",
+    (dm) => dm.unfit.push({ ...dm.fits.shift(), reason: "residual_exceeds_tolerance" }),
+  ],
+])(
+  "check: %s モデルは exit 2（現側 samples から当てはめ直した結果と突き合わせる）",
+  (_, mutate) => {
+    const m = fittedMetadata();
+    mutate(m.capture_conditions.dimension_model);
+    // 新側は書き換えた式どおりに作った想定でも通さない
+    const r = run(
+      ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
+      {
+        "/w/m.json": m,
+        "/w/n.json": samplesOf(formula),
+      },
+    );
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/当てはめ直した結果と一致しない/);
+  },
+);
 
 test.each([
   [

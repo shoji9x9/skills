@@ -164,7 +164,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    壊れる相手が変更集合の外にいるため差分限定では原理的に捕まらない（走る範囲の正本はスキーマ文書「走る範囲」）。
    そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**判断の基準だけ**（差分・現行コード・規約・DB 意味論の点検表・レジストリの `keep` / `may_change`）を渡し、実装意図・確信度は知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
 8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ **`verification_commands.full` が通る**（batch モードは実行可能スイートを持たないため**出力一致**＋ `full`。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
-   **feature モードでは寸法の決まり方の照合も完了判定に入れる**——`new` プロジェクトの `dimension/` を `PARITY_DIMENSION_CAPTURE=1 PARITY_NEW_TARGET=<選択中の new target>` 付きで回すと `new/<target>/dimension-samples.json` が書かれるので、**その直後に**
+   **feature モードでは寸法の決まり方の照合も完了判定に入れる**（機能の全ページのフェーズを終えた後に 1 回。ページのフェーズでは回さない。理由は [`references/paging.md`](references/paging.md)）
+   ——`new` プロジェクトの `dimension/` を `PARITY_DIMENSION_CAPTURE=1 PARITY_NEW_TARGET=<選択中の new target>` 付きで回すと `new/<target>/dimension-samples.json` が書かれるので、**その直後に**
    `node <parity-suite>/scripts/dimension-fit.mjs check --metadata <現側 metadata.json> --current-samples <現側 dimension-samples.json>`
    `--samples <新側 dimension-samples.json> --write <新側 replace-metadata.json>` を通す
    （パスは `.replace/parity/<slug>/` 直下と `.replace/parity/<slug>/new/<target>/` 配下。現側 samples は式の出所の照合に使う）

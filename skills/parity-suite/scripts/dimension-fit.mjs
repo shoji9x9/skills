@@ -557,9 +557,33 @@ export function checkModel(metadata, loadSamples, loadCurrentSamplesText) {
   if (loadCurrentSamplesText === undefined) {
     throw new UsageError("式の出所を照合するための現側 samples が渡されていない");
   }
-  if (fingerprint(loadCurrentSamplesText()) !== dm.samples_fingerprint) {
+  const currentSamplesText = loadCurrentSamplesText();
+  if (fingerprint(currentSamplesText) !== dm.samples_fingerprint) {
     throw new UsageError(
       "現側 dimension-samples.json が dimension_model.samples_fingerprint と一致しない（採り直した samples に fit を通していない）。parity-suite で fit --write を通し直す",
+    );
+  }
+  // 指紋は samples が変わっていないことしか示さない。記録された式そのものが samples から導かれたものかを、
+  // 同じ samples・同じ許容で当てはめ直して突き合わせる（fit の後に係数を手で書き換えたモデルで照合しない）
+  /** @type {ReturnType<typeof fitModel>} */
+  let recomputed;
+  try {
+    recomputed = fitModel(JSON.parse(currentSamplesText), {
+      viewports,
+      targets,
+      tolerance: /** @type {number} */ (dm.tolerance),
+      samplesText: currentSamplesText,
+    });
+  } catch (e) {
+    throw new UsageError(
+      `現側 dimension-samples.json から式を当てはめ直せない: ${e instanceof Error ? e.message : e}`,
+    );
+  }
+  const derived = (m) =>
+    JSON.stringify({ measured_at: m.measured_at, fits: m.fits, unfit: m.unfit });
+  if (derived(recomputed) !== derived(dm)) {
+    throw new UsageError(
+      "dimension_model の measured_at / fits / unfit が、現側 dimension-samples.json から当てはめ直した結果と一致しない（fit の後に書き換えられている）。parity-suite で fit --write を通し直す",
     );
   }
   const samples = loadSamples();
