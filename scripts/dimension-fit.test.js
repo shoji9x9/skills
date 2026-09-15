@@ -734,6 +734,17 @@ test.each([
   expect(r.stderr).toMatch(message);
 });
 
+test("fit: traits.elements の論理名の重複は exit 2（測る対象を黙って減らさない）", () => {
+  const m = metadataOf();
+  m.traits.elements = ["button", "button", "grid"];
+  const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {
+    "/w/s.json": samplesOf(formula),
+    "/w/m.json": m,
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(/traits\.elements が重複している: button/);
+});
+
 test("CLI: シンボリックリンクでなく実パスで起動して exit コードを返す", () => {
   const dir = mkdtempSync(join(tmpdir(), "dimension-fit-"));
   writeFileSync(join(dir, "s.json"), JSON.stringify(samplesOf(formula)));

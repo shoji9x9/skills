@@ -376,6 +376,14 @@ function readTargets(metadata) {
   ) {
     throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
   }
+  // 同じ論理名の重複を 1 つの集合要素へ潰さない（上書きされた論理名の分だけ測る対象が黙って減る）
+  const elementNames = /** @type {string[]} */ (traits.elements);
+  const duplicatedElements = elementNames.filter((n, i) => elementNames.indexOf(n) !== i);
+  if (duplicatedElements.length > 0) {
+    throw new UsageError(
+      `traits.elements が重複している: ${[...new Set(duplicatedElements)].join(", ")}`,
+    );
+  }
   // 同名のページを 1 つの集合キーへ潰さない（1 つ目のページを測っただけで 2 つ目の測り漏れが通る）
   const names = cc.pages.map((p) => /** @type {string} */ (p.name));
   const duplicated = names.filter((n, i) => names.indexOf(n) !== i);
