@@ -26,6 +26,8 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 
 成果物のスキーマ正本は各生産スキルにある。ファイルが無い場合は「未着手」として扱う（エラーにしない）。
 ただし `.replace/features.md` 自体が無い場合は `setup` 未実施として報告し、`setup` の実行を案内する（以降の導出は行わない）。
+**この場合も先に `.replace/strategy-pending.json` と `.replace/bootstrap/metadata.json` の未解決の保留（下記「導出する内容」9）を集めて報告する**——
+`setup --autonomous` は `features.md` を書く前に保留で止まることがあり、そのとき `setup` を続ける手がかりはこの保留だけにある
 
 ## Issue 状態の取得
 

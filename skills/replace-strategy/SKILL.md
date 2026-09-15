@@ -199,7 +199,7 @@ replace-strategy status
 
 自前の状態を持たず、**GitHub Issue の状態とリポジトリ内の成果物から毎回導出する**（ブランチのマージ後でも動くようにするため）。手順は [`references/status.md`](references/status.md) を参照する。
 
-- `.replace/features.md` が無ければ `setup` 未実施と報告し、`setup` の実行を案内する
+- `.replace/features.md` が無ければ `setup` 未実施と報告し、`setup` の実行を案内する（その前に `setup` の自律実行が残した未解決の保留を報告する。[`references/status.md`](references/status.md)）
 - Issue の状態は features.md に記録された番号を個別取得する。番号を列挙できない取得はページネーションを処理する（指定件数で打ち切らない）
 - **状態の根拠はトラッカーへの問い合わせだけ**。features.md は番号だけを持ち（旧版テンプレート由来の「状態」列があっても読まない）、取得できなかった番号は `判定不能` として示す（open / closed のどちらにも倒さない）
 - 機能ごとのパリティスイートの有無・強度・データセットバージョンの陳腐化・未検証領域（`gaps`）を導出する

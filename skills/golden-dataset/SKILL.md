@@ -112,7 +112,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
 **同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
 
-- **判断待ち（保留に落とす）**: 無指定で既存の `metadata.json` があるときの用途（フェーズ A 再実行かフェーズ B か）、投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
+- **対象の選択**（無指定で既存の `metadata.json` があるときの用途〈フェーズ A 再実行かフェーズ B か〉・既定の無い `--target`）は保留にせず、候補を示して停止する（正本の「宣言」）
+- **判断待ち（保留に落とす）**: 投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
   投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
 - **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない

@@ -118,7 +118,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
 **同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
 
-- **判断待ち（保留に落とす）**: `--component` 省略時の対象の選択、同梱ツールのコピー先が同梱版と一致しないときの扱い、
+- **対象の選択**（`--component` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug と target で決まるため。正本の「宣言」）
+- **判断待ち（保留に落とす）**: 同梱ツールのコピー先が同梱版と一致しないときの扱い、
   インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）
 - **保留に落としても進める工程**: 割れた軸の扱いが保留なら、その軸を含まない引数の設計・実装・見本の採取は進め、**その軸に依存する見本の照合は行わない**
 - **記録先**: `capture` は `.replace/components/<slug>/metadata.json`、`build` は `.replace/components/<slug>/new/<target>/build-metadata.json` の `pending_decisions[]` と `run.autonomous`。
