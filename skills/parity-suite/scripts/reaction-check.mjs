@@ -260,6 +260,14 @@ function noneProblem(r, windowMs, documents) {
     }
   }
   if (!nonEmptyString(obs.method)) return "observation.method が空";
+  // 新側が反応を足しても（遅れて出て消えるトースト等）静止画・特性照合には写らないので、不在もスイートで確かめる
+  if (
+    !Array.isArray(r.covered_by) ||
+    r.covered_by.length === 0 ||
+    !r.covered_by.every(nonEmptyString)
+  ) {
+    return "kind: none なのに covered_by が空（観測時間・文書にわたる不在をスイートの assertion に落としていない）";
+  }
   return null;
 }
 
@@ -339,7 +347,8 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, slug?: string | null, target?: string | null }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
   const {
@@ -348,6 +357,7 @@ export function checkReactions(table, opts = {}) {
     captureStates = null,
     slug = null,
     target = null,
+    targetCommit = undefined,
   } = opts;
   if (!isPlainObject(table)) throw new UsageError("反応の被覆表がオブジェクトでない");
   /** @type {string[]} */
@@ -549,6 +559,26 @@ export function checkReactions(table, opts = {}) {
       problems.push("feedback_calls.source.paths が空（走査範囲が無い）");
     } else if (!nonEmptyString(src.version)) {
       problems.push("feedback_calls.source.version が空（どの版を走査したか残らない）");
+    } else if (targetCommit !== undefined) {
+      // 走査した版が測定した現行の版と違えば、測定側にだけある呼び出しが走査に現れない
+      const measured =
+        nonEmptyString(targetCommit) && targetCommit !== "none" ? targetCommit : null;
+      const unverified = nonEmptyString(src.version_unverified_reason);
+      if (measured === null || src.version === "none") {
+        if (!unverified) {
+          problems.push(
+            "走査した版と metadata.json の target.commit を照合できない（どちらかが none）のに feedback_calls.source.version_unverified_reason が空",
+          );
+        }
+      } else if (src.version !== measured) {
+        problems.push(
+          `feedback_calls.source.version（${src.version}）が metadata.json の target.commit（${measured}）と違う（測定した版と別の版を走査している）`,
+        );
+      } else if (unverified) {
+        problems.push(
+          "走査した版が target.commit と一致しているのに version_unverified_reason が埋まっている",
+        );
+      }
     }
     callSummary.recorded = recordedSites.length;
     // ハンドラの来歴: 走査範囲がどの操作のハンドラを覆っているかを表に残させる（範囲の書き漏れを操作単位で見えるようにする）
@@ -715,7 +745,12 @@ export function main(argv, deps = {}) {
     }
     // declared: true の照合は撮影状態・slug・target を必須にする（欠落を照合スキップへ倒すと、存在しない状態名や取り違えた表が通る）
     const cc = metadata.capture_conditions;
-    if (!isPlainObject(cc) || !Array.isArray(cc.states) || !cc.states.every(nonEmptyString)) {
+    if (
+      !isPlainObject(cc) ||
+      !Array.isArray(cc.states) ||
+      cc.states.length === 0 ||
+      !cc.states.every(nonEmptyString)
+    ) {
       throw new UsageError(
         "metadata.json の capture_conditions.states が空でない文字列の配列でない（撮影状態を確定してから通す）",
       );
@@ -730,6 +765,7 @@ export function main(argv, deps = {}) {
       captureStates: new Set(cc.states),
       slug: metadata.slug,
       target: metadata.target.name,
+      targetCommit: metadata.target.commit ?? null,
     });
     const ok = result.unmeasured_operations === 0 && result.problems.length === 0;
     if (write) {

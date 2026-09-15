@@ -38,6 +38,7 @@ const noneReaction = () => ({
     documents: ["top", "共有ダイアログの iframe"],
     method: "全文書の DOM 変化を監視",
   },
+  covered_by: ["search.spec.ts: 検索で観測時間内にどの文書にも通知が出ない"],
 });
 
 const baseTable = () => ({
@@ -88,7 +89,7 @@ function run(table, opts = {}) {
   mkdirSync(join(dir, "empty"));
   const metadata = opts.metadata ?? {
     slug: "share",
-    target: { name: "current-test" },
+    target: { name: "current-test", commit: "abc123" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: { states: ["default", "copy-toast"] },
   };
@@ -201,6 +202,11 @@ test.each([
     "unmeasured（未観測）",
   ],
   ["操作 id の重複", (t) => (t.operations[1].id = "copy"), "重複している"],
+  [
+    "none の不在を assertion に落としていない",
+    (t) => delete t.operations[1].reactions[0].covered_by,
+    "kind: none なのに covered_by が空",
+  ],
   ["直後の状態が空", (t) => (t.operations[1].immediate_state = ""), "immediate_state"],
   [
     "none の観測に top が無い（iframe の中だけを見た）",
@@ -432,6 +438,49 @@ test("feedback_calls.declared: false ならハンドラの来歴は要求しな�
   expect(run(t).status).toBe(0);
 });
 
+test("走査した版が測定した版と違えば落とす", () => {
+  const r = run(mutated((t) => (t.feedback_calls.source.version = "def456")));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("target.commit（abc123）と違う");
+});
+
+test.each([
+  ["target.commit が none", { commit: "none" }, {}],
+  ["走査した版が none", {}, { version: "none" }],
+])(
+  "版を照合できないとき理由が無ければ落とし、理由があれば通す: %s",
+  (_n, targetPatch, sourcePatch) => {
+    const metadata = {
+      slug: "share",
+      target: { name: "current-test", commit: "abc123", ...targetPatch },
+      reaction_coverage: { declared: true, path: "reactions.json" },
+      capture_conditions: { states: ["default", "copy-toast"] },
+    };
+    const noReason = run(
+      mutated((t) => Object.assign(t.feedback_calls.source, sourcePatch)),
+      { metadata },
+    );
+    expect(noReason.status).toBe(1);
+    expect(noReason.stderr).toContain("version_unverified_reason が空");
+    const withReason = run(
+      mutated((t) =>
+        Object.assign(t.feedback_calls.source, sourcePatch, {
+          version_unverified_reason: "受領資産にコミット履歴が無く、受領日のアーカイブを走査した",
+        }),
+      ),
+      { metadata },
+    );
+    expect(withReason.stderr).toBe("");
+    expect(withReason.status).toBe(0);
+  },
+);
+
+test("版が一致しているのに照合不能の理由が埋まっていれば落とす", () => {
+  const r = run(mutated((t) => (t.feedback_calls.source.version_unverified_reason = "不明")));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("version_unverified_reason が埋まっている");
+});
+
 test("呼び出しが 0 件でも根拠があれば通す", () => {
   const t = mutated((x) => {
     x.feedback_calls.call_sites = [];
@@ -489,12 +538,13 @@ test("feedback_calls.declared: false は理由付きなら突き合わせを飛�
 
 test.each([
   ["撮影状態が配列でない", (m) => (m.capture_conditions = { states: "default" })],
+  ["撮影状態が空の配列", (m) => (m.capture_conditions = { states: [] })],
   ["slug が無い", (m) => delete m.slug],
   ["target.name が無い", (m) => (m.target = {})],
 ])("metadata.json の照合材料が欠けたら exit 2: %s", (_name, mutate) => {
   const metadata = {
     slug: "share",
-    target: { name: "current-test" },
+    target: { name: "current-test", commit: "abc123" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: { states: ["default", "copy-toast"] },
   };
