@@ -1,0 +1,27 @@
+{
+  "_note": "replace-strategy が --autonomous の実行で .replace/strategy-pending.json として生成する。setup / issues で人の判断待ちにした保留の記録。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く（無記録と区別する）。次の実行は上書きする前に未解決の保留（resolution: null）を読む。ファイル直下の mode は最後に実行したモード。保留の由来は要素ごとの mode（その保留を立てた実行のモード）に書き、別モードの実行で持ち越しても書き換えない。下流の setup 完了判定は要素の mode: setup で絞る（範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
+  "mode": "<setup | issues。最後に実行したモード。保留の由来は要素の mode を見る>",
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<検出したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<replace-strategy のバージョン>",
+    "autonomous": true
+  },
+  "pending_decisions": [
+    {
+      "id": "<成果物内で一意。例: pd-1>",
+      "mode": "<setup | issues。この保留を立てた実行のモード。持ち越しても書き換えない>",
+      "question": "<人に問う内容（1 文）>",
+      "cause": "<判断が必要になった原因。承認の粒度の単位>",
+      "options": ["<選択肢>"],
+      "recommendation": "<推奨案と理由。無ければ null。答えが来るまで適用しない>",
+      "evidence": ["<判断材料のパス・値>"],
+      "blocks": ["<この判断に依存して止めた工程。例: setup 手順 6（戦略の確定）>"],
+      "raised_at": "<ISO 8601>",
+      "resolution": null
+    }
+  ]
+}

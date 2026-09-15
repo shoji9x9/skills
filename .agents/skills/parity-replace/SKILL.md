@@ -1,5 +1,5 @@
 ---
-argument-hint: '[--feature <slug>] [--target <name>] [--max-iterations <n>]'
+argument-hint: '[--feature <slug>] [--target <name>] [--max-iterations <n>] [--autonomous]'
 description: 仕様を変えないアプリケーションリプレイスで、parity-suite が定義した論理名に対し新側を実装する replace-strategy の姉妹スキル。担うのは 3 つ——機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、パリティスイートが新に対して green かつ検証コマンドが通れば完了（差分ゼロは parity-diff との往復の終了条件）。対象環境は --target で選び、証跡は環境別に残す。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite 完了が前提で、未完了なら停止する。「新側を実装して」「parity-replace」や --feature / --target / --max-iterations を伴う依頼で発動する。
 license: MIT
 name: parity-replace
@@ -17,7 +17,7 @@ name: parity-replace
 ## 使い方
 
 ```text
-parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
+parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--autonomous]
 ```
 
 - **1 回の実行につき 1 機能。** ページをまたいで並行に実装しない（調査・実装・比較が浅くなり差異を見落とす）
@@ -26,6 +26,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - `--target <name>`（任意）: 実装・検証を行う新側の実行対象環境。設定 `targets` のうち **`side: new`** のものだけを候補にする（本スキルが対象とする側の宣言はここが正本）。
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - `--max-iterations <n>`（任意, 既定 5）: `parity-diff` との往復ループの反復上限。超えたら停止してユーザーに上げる
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 
 | モード | 起点 | 内容 |
 |---|---|---|
@@ -52,6 +53,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
   - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
+  - 上の setup・フェーズ A・`parity-suite` と下のフェーズ B（slug × target）は、未解決の保留があれば証拠があっても未完了として扱う（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
     `phase_b.<slug>.<target>.dataset_version` が存在し、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないこと。
     影響変更があれば `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。数値が古いだけなら再投入しない。
@@ -122,6 +124,22 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **旧キーはフォールバックとして読まない。** スキーマ正本の「移行」節に列挙された旧キーを見つけたら、同節の対応表を示して**停止する**（旧キーの値で暗黙に代替しない。検出対象の一覧をここへ転記しない）
 - **`verification_commands.full` が設定に無ければ停止する。** 完了判定（新側 green ＋検証コマンド）が成立しないため、勝手にコマンドを推測せずユーザーに確認して設定へ記録してもらう。
   **値がリスト（旧形式＝走る範囲が未宣言）のときも同じく停止する**——未宣言を「全体」に倒すと、差分限定の結果が「全体で通った」と名乗る。移行の正本はスキーマ文書「`verification_commands` の形の変更」
+
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **判断待ち（保留に落とす）**: 意図的差異レジストリに当てはまらない差異（`intentional_diffs.pending` への追記は行い、確認を保留にする）、`component_diffs` の宣言、
+  画面より先に作られた共通部品への破壊的変更、部品の依存の決定（`new.stack` が空のときを含む）、配信型 target で `commit_check` が無いときのデプロイ済み確認、
+  敵対的レビューでサブエージェントを起動できないときの人間のレビュアーへの受け渡し
+- **保留に落としても進める工程**: 保留に依存しないページのフェーズ・実装単位。依存する実装単位は `porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
+- **従来どおりの停止のまま**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
+- **委譲**: `issue-start --branch-only` のブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは `--autonomous` を引き継ぐ。commit / push / PR は越えない線の範囲でだけ行う
+- **記録先**: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **`replace-metadata.json` には書かない**——`parity-diff` はその存在と `suite.new_green` を前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
+  未解決の保留が残る間は本スキルの完了を報告せず、**保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）。
+  **再実行では、保留に依存する工程に入る前に、既存の `replace-metadata.json` に残る `suite.new_green: true` を `false` へ戻す**（前回の green 証跡を `parity-diff` に流用させない）
 
 ## 実行フロー
 

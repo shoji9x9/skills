@@ -31,6 +31,7 @@
 | replace-strategy setup | `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` の存在／`.replace/features.md` の存在 | `replace-strategy setup` |
 | slug の妥当性 | `slug` が `.replace/features.md` に載っている（自分で採番しない） | 停止（未採番なら `replace-strategy` へ） |
 | parity-suite 完了 | `.replace/parity/<slug>/metadata.json` の `suite.current_green: true`・`differ.validated_by_strength_gate: true` | 対象 slug の `parity-suite` |
+| 前提スキルの未解決の保留 | setup・`golden-dataset` フェーズ A・選択 target のフェーズ B・対象 slug の `parity-suite`・選択 target の `parity-replace` について、範囲の一致する `resolution: null` の保留が無い（**`.replace/parity/<slug>/new/<target>/pending-decisions.json` を含む**。ファイルが無いのは保留なし。見る記録先と範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」） | 保留を抱えたスキル |
 | parity-replace 新側 green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（**同じ `--target`** で新側 green にする） |
 | target 名の一致 | 同ファイルの `new.target` が解決した target 名と一致する | 停止（別環境の green 証跡を流用しない） |
 | Node.js と新側疎通 | Node.js が使える／選択 target の `url`（＝ `new.ui_url`）に疎通できる。api-resource モードは `api_url`（＝ `new.api_url`。省略時 `ui_url`）にも疎通できる。`url_command` の target は解決後の URL へ疎通する（`new.ui_url` の記録は `"runtime"`） | 停止（環境を整える） |

@@ -1,0 +1,30 @@
+{
+  "_note": "golden-dataset が --autonomous の実行で .replace/dataset/pending-decisions.json として生成する自律実行の保留の記録。.replace/dataset/metadata.json には保留を書かない（下流がその存在を完了の証拠に使うため、保留を残す目的で作ると未完了のまま後続が進む）。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。 要素ごとに phase を書き、phase: b では slugs（影響するすべての slug）と target も書く（下流は範囲が一致する保留だけで止まる。範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
+  "run": {
+    "started_at": "<ISO 8601 の開始日時>",
+    "finished_at": "<ISO 8601 の終了日時>",
+    "agent": "<検出したコーディングエージェント名>",
+    "model": "<モデル名>",
+    "effort": "<エフォート。省略不可>",
+    "skill_version": "<golden-dataset のバージョン>",
+    "autonomous": true
+  },
+  "pending_decisions": [
+    {
+      "id": "<成果物内で一意。例: pd-1>",
+      "phase": "<a | b。下流の前提判定の範囲に使う>",
+      "slugs": [
+        "<phase: b のとき、この判断が影響するすべての slug（複数 --feature の実行ではその全部）。phase: a なら []>"
+      ],
+      "target": "<phase: b のときの投入先 target 名。phase: a なら null>",
+      "question": "<人に問う内容（1 文）>",
+      "cause": "<判断が必要になった原因。承認の粒度の単位>",
+      "options": ["<選択肢>"],
+      "recommendation": "<推奨案と理由。無ければ null。答えが来るまで適用しない>",
+      "evidence": ["<判断材料のパス・値>"],
+      "blocks": ["<この判断に依存して止めた工程>"],
+      "raised_at": "<ISO 8601>",
+      "resolution": null
+    }
+  ]
+}

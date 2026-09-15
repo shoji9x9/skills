@@ -52,5 +52,9 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 23 は反応の被覆表（Issue #351）を収束条件に入れる契約の回帰。差分器の未説明ゼロと、parity-suite 側のスクリプトが見当たらないことを根拠に判定を飛ばして収束させる案を押し戻せるかを見る。
   インストール済みの `parity-suite` のスクリプトを記録済み照合で呼ぶこと・見つからなければ停止すること・照合後の手直しが表の指紋で落ちること・記録先を対象にする。
   入力に既存のキー名が要るためプロンプトに `declared` / `converged` は書くが、スクリプト名・判定の手段・記録先は書かない
+- eval 24 は自律実行（`--autonomous`。Issue #369）の parity-diff 固有の対応の回帰。規約の正本は `replace-strategy` の `references/autonomy.md` にあり `requires_skills` で**両 config に設置される**ため、
+  正本だけで答えられること（原因単位で保留を立てる・承認を省かない・未解決の保留があれば収束させない・終わりにまとめて聞く）は assertion にしない（iteration-25 で without_skill も到達し弁別しなかった）。
+  対象は parity-diff 側にだけある判断——要対応が残るときの収束状態（判断待ちではなく未収束）・承認前の候補を未説明に数えること・棚卸しを自律で `carried_over` にしないこと・記録先（`pending_decisions[]` と `diff.md` の節）。
+  プロンプトには状態名・スクリプト名・節名を書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

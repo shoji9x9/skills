@@ -1,5 +1,5 @@
 ---
-argument-hint: '[--phase <a|b>] [--feature <slug>...] [--target <name>]'
+argument-hint: '[--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]'
 description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（TypeScript か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの写像・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
 license: MIT
 name: golden-dataset
@@ -15,7 +15,7 @@ name: golden-dataset
 ## 使い方
 
 ```text
-golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
+golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]
 ```
 
 | モード | 起点 | 内容 |
@@ -32,6 +32,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
 - `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「ゴールデンデータセットを作って」「テストデータを投入して」
 
 ## 前提
@@ -44,6 +45,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 - **固定の技術スタック前提**: 投入ツールは TypeScript が既定。難しければ SQL（まとめてコミットできる形）
 
 設定（`skills.replace-strategy.*`）または `.replace/features.md` が無ければ、成果物を捏造せず停止して `replace-strategy setup` を促す。
+`.replace/strategy-pending.json` に `setup` の未解決の保留があるときも同じく停止する（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）。
 
 ## 厳守の制約（禁止事項）
 
@@ -105,6 +107,22 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
   `slug` は帰属できる機能があればその slug、無ければ `cross-cutting`。要素の形の正本はスキーマ文書の「`pending` 要素の形」）と、
   投入ツールに依存を足すときに `references.dependency_policy` が**キー欠落＝未確認**だった場合の確認結果を同キーへ追記すること
 
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **対象の選択**（無指定で既存の `metadata.json` があるときの用途〈フェーズ A 再実行かフェーズ B か〉・既定の無い `--target`）は保留にせず、候補を示して停止する（正本の「宣言」）
+- **判断待ち（保留に落とす）**: 投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
+  投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
+- **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
+- **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
+- **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **要素ごとに `phase` を書き、フェーズ B では `slugs`（その判断が影響するすべての slug）と `target` も書く**——下流は範囲が一致する保留だけで止まるので、書かないと無関係な機能まで止まる。
+  **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
+  未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない。
+  **再実行で既存の `metadata.json` が残っていても**、下流は `pending-decisions.json` の未解決の保留を見て未完了として止まる（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
+
 ## 実行フロー
 
 詳細は各 reference へ委譲する。番号順に進める。
@@ -146,7 +164,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
 
 1. **前提確認**: 対象 slug の新側の受け皿（`parity-replace` が実装したスキーマ／静的データ形式）と `references.db_semantics` を確認し、無ければ停止する（`db_semantics` は整備を促す）。
    投入先 target（`side: new`。`--target` で選択）は `dataset_mode: db` なら `db.seedable: true` と `db.env_vars` 接続を要求し、`static` なら `db` を要求せず `dataset_static_paths` の書き込み可否を確認する。
-   `.replace/dataset/metadata.json`（フェーズ A 完了）が無ければフェーズ A を先に実行するよう案内する
+   `.replace/dataset/metadata.json`（フェーズ A 完了）が無い、または `.replace/dataset/pending-decisions.json` にフェーズ A の未解決の保留があれば、フェーズ A を先に実行するよう案内する
 2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
 3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する。
    **ツールを更新したらフェーズ A と同じく規約（`references.coding_conventions`）に従い、設定の `verification_commands.full` を通す**（無ければ停止せず `verification.md` に記録して進む）

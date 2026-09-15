@@ -22,9 +22,12 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）、版ごとの影響範囲（`changes[].affects`。テーブル名、`dataset_mode: static` では静的データ単位）、新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」（`current.origin: received-assets` のときだけ。`golden-dataset` が生成。スキーマ正本は同スキル） |
 | `.replace/bootstrap/metadata.json` | 現行環境の再構築の状態（`status` / `blocked_on` / `semantics.pending_features`）（`current-environment-bootstrap` が生成。スキーマ正本は同スキル。`received-assets` のときだけ） |
+| 上記の各 JSON 成果物・`.replace/dataset/pending-decisions.json`・`.replace/parity/<slug>/pending-decisions.json`・`.replace/parity/<slug>/new/<target>/pending-decisions.json`・`.replace/strategy-pending.json` | 自律実行（`--autonomous`）で人の判断待ちにした保留（`pending_decisions[]`。形の正本は [`autonomy.md`](autonomy.md)「記録の形」）。`.replace/strategy-pending.json` は `replace-strategy` 自身が自律実行したときだけ存在する |
 
 成果物のスキーマ正本は各生産スキルにある。ファイルが無い場合は「未着手」として扱う（エラーにしない）。
 ただし `.replace/features.md` 自体が無い場合は `setup` 未実施として報告し、`setup` の実行を案内する（以降の導出は行わない）。
+**この場合も先に `.replace/strategy-pending.json` と `.replace/bootstrap/metadata.json` の未解決の保留（下記「導出する内容」9）を集めて報告する**——
+`setup --autonomous` は `features.md` を書く前に保留で止まることがあり、そのとき `setup` を続ける手がかりはこの保留だけにある
 
 ## Issue 状態の取得
 
@@ -101,8 +104,12 @@ done
 8. **ページ要素の帰属**: features.md の「ページ要素の帰属」表から、**配置の所有者が空欄の行**を未検証領域として列挙する——誰も配置しない要素は実装後の `parity-diff` まで説明できない差分として現れないため、着手前の確認事項として示す。
    **節が「なし」（該当が無いと明記）なら「該当なし」として報告する**。節そのものが features.md に無い場合だけ「要素の帰属が未導出（テンプレート更新前の features.md）」として報告する——**節の不在を「該当なし」と読まない**
 
+9. **判断待ちの保留**: 上記の全 JSON 成果物（slug × target を含む）・`pending-decisions.json`・`.replace/strategy-pending.json` から `resolution` が `null` の `pending_decisions[]` を集め、
+   成果物のパス・`question`・`blocks`・`raised_at` を**古い順**に列挙する。**保留は「止めている工程がある」ことを表す**ので、`converged: false` の「往復中」や未着手と混同せず区別して示す。
+   キーごと無い成果物は自律実行していない（または本ポリシー導入前の）成果物として数えない
+
 ## 報告
 
-- **その他の Issue（4 種以外）の状態**＋機能 × 状態の表＋**他機能待ちと解除済みの一覧**＋未検証領域の一覧＋影響範囲、の順で提示する（その他の Issue は他の Issue の前提になりうるため先に示す）
+- **判断待ちの保留**（人が答えれば進む工程があるため先頭に示す）＋**その他の Issue（4 種以外）の状態**＋機能 × 状態の表＋**他機能待ちと解除済みの一覧**＋未検証領域の一覧＋影響範囲、の順で提示する（その他の Issue は他の Issue の前提になりうるため先に示す）
 - 「Issue が closed」と「検証済み」は別。closed でも `gaps.md` に残る未検証領域は未検証として報告する
 - 数（機能数・gaps 件数）は部分ビューではなく完全出力で数える

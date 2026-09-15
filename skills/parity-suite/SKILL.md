@@ -1,7 +1,7 @@
 ---
 name: parity-suite
 description: 仕様を変えないアプリケーションリプレイスで、新旧どちらの実装にも当てられる実行可能な合否判定基準（パリティスイート）を現行アプリに対して構築し、故障注入で強度を検証する replace-strategy の姉妹スキル。論理名のロケータマッピング層と手書きの寛容な aria スナップショットで Playwright スイートを書き、API を record/replay で特性化し、視覚ベースライン（スクリーンショット・computed style・参考 aria スナップショット）とノイズ基準値を採取して parity-diff へ引き渡す。1 回で 1 機能（横断 API リソース・バッチも可）。replace-strategy setup と golden-dataset の完了が前提で、未完了・Playwright 不可なら停止する。「パリティスイートを作って」「現行アプリを特性化して」「parity-suite」や --feature <slug> / --target <name>（対象環境）を伴う依頼で発動する。
-argument-hint: "[--feature <slug>] [--target <name>]"
+argument-hint: "[--feature <slug>] [--target <name>] [--autonomous]"
 license: MIT
 ---
 
@@ -14,10 +14,11 @@ license: MIT
 ## 使い方
 
 ```text
-parity-suite [--feature <slug>] [--target <name>]
+parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 ```
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない（調査・特性化・強度検証が浅くなるため）
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
 - `--target <name>` は実行対象の現行環境。設定の `targets` のうち **`side: current` のものだけを候補**にする（本スキルが対象とする側の宣言はここが正本）。
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
@@ -125,11 +126,26 @@ parity-suite [--feature <slug>] [--target <name>]
 設定が無ければ `replace-strategy setup` を促して停止する。スキーマ文書の「移行」節に列挙された**旧キー**が残っていたら**フォールバックとして読まず**、同節を示して停止する
 （**一律停止はキー名が変わった旧キーだけ**。`verification_commands` がリストなど「キー名が変わらない移行」は上表の挙動に従う）。
 
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **対象の選択**（`--feature` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug で決まるため。正本の「宣言」）
+- **判断待ち（保留に落とす）**: `current.feedback_calls` の候補の確定（設定への記録は越えない線）、ファイルストレージの `upload_route` が未宣言のときの経路、
+  後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、`intentional_diffs.pending` へ追記した差異の確認
+- **保留に落としても進める工程**: 読み取り系の特性化・ベースライン採取・保留に依存しない構成要素の強度検証。**保留に依存するスペック（例: 実行可否が保留の書き込み系）は書かず、`gaps.md` に判断待ちとして残す**（未検証を確認済みにしない）
+- **記録先**: `.replace/parity/<slug>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **`metadata.json` には書かない**——`parity-replace` / `parity-diff` はその存在を本スキル完了の前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
+  未解決の保留が 1 件でも残る間は `parity-replace` への引き渡しを報告しない。保留が強度ゲートに依存する範囲へ及ぶなら `differ.validated_by_strength_gate` も `true` にしない
+
 ## 実行フロー
 
 詳細は各 reference へ委譲する。番号順に進める。
 
-1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。`.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
+1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。
+   `.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
+   **setup とフェーズ A は、未解決の保留があれば証拠があっても未完了として同じく停止する**（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」。フェーズ B の別 slug・別 target の保留では止めない）。
    Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。
    `--target` から現行環境を確定し（`url_command` の target はここで 1 回だけコマンドを実行して URL を解決する。失敗・空出力は停止し、以降は解決済みの値を再利用する）、
    その target を `check_urls`（省略時は `url`）で稼働判定し、落ちているときだけ `pre_commands` → `start` の順で起動して再確認する（稼働中なら `pre_commands` / `start` はどちらも実行しない。

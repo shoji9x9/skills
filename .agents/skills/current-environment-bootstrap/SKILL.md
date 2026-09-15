@@ -1,5 +1,5 @@
 ---
-argument-hint: '[--target <name>] [--resume]'
+argument-hint: '[--target <name>] [--resume] [--autonomous]'
 description: 仕様を変えないアプリケーションリプレイスで、先方から受領した現行アプリの資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を再構築する replace-strategy の姉妹スキル。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマ・設定の復元、データ意味論の根拠収集、先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再実行検証、current target の引き渡しを担う。型やカラム名からの推測でドメイン値を確定せず、来歴・利用許可が不明なデータは投入しない。replace-strategy setup が current.origin＝received-assets のときに委譲する。「受領資産から現行環境を再構築して」「現行テスト環境を建てて」「current-environment-bootstrap」で発動する。
 license: MIT
 name: current-environment-bootstrap
@@ -16,7 +16,7 @@ name: current-environment-bootstrap
 ## 使い方
 
 ```text
-current-environment-bootstrap [--target <name>] [--resume]
+current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 ```
 
 | 起動 | 起点 | 内容 |
@@ -30,6 +30,7 @@ current-environment-bootstrap [--target <name>] [--resume]
   **本スキルの実行時点では current target は `url: none`（＝`default: true` を持てない）ため、`--target` 省略時は候補が 1 つでも自動選択せずユーザーに確認する**——
   既定へ落ちる経路が構造的に存在しない（`default: true` は工程 9 の引き渡しで初めて付く）
 - **1 回の実行につき 1 つの current target。** 複数環境を並行して建てない
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「受領資産から現行環境を再構築して」「現行テスト環境を建てて」
 
 ## 前提
@@ -83,6 +84,19 @@ current-environment-bootstrap [--target <name>] [--resume]
 
 - **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する（**一律停止はキー名が変わった旧キーだけ**。`verification_commands` がリストなど「キー名が変わらない移行」は上表の挙動に従う）
 - **本スキルが設定へ書くのは引き渡しの 1 箇所だけ**——再構築が完了した current target の `url`（`none` → 実 URL）と `default: true` を、ユーザーに確認したうえで非破壊追記する（[`references/verification-handoff.md`](references/verification-handoff.md)）
+
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **対象の選択**（`--target` の省略。候補が 1 つでも自動選択しない）は保留にせず、候補を示して停止する（正本の「宣言」）
+- **判断待ち（保留に落とす）**: 既存の `metadata.json` がある実行を続きから進めてよいか（`--resume` が無いとき）、
+  暫定起動データ投入前の「テスト環境であることの確認」（自己申告ゲート）、来歴・利用許可が不明なデータの投入可否、引き渡し時の `url` と `default: true` の書き込み
+- **従来どおりの停止のまま**: 上記「停止と再開」の表の条件（資産の不足・スキーマの復元不能・DB 設定の判断不能・質問票への回答待ち・`seedable` の欠落）。
+  これらは先方・SME の回答や資産で埋まる**前提の欠落**で、実行中の利用者の判断では埋まらない
+- **記録先**: `metadata.json` の `pending_decisions[]` と `run.autonomous`。**未解決の保留が残る間は `status: handed-off` にしない**——`status: blocked` のまま `blocked_on` に`判断待ち: <id>`を載せる
+- **本スキルは設定へ書く 1 箇所（引き渡し）も越えない線に当たる**（人間が確定させる方針キー）。値は保留に記録し、答えが得られてから書く
 
 ## 実行フロー
 

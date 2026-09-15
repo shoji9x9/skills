@@ -1,7 +1,7 @@
 ---
 name: parity-component
 description: 仕様を変えないアプリケーションリプレイスで、共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する replace-strategy の姉妹スキル。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出し、実装後はカタログを同条件で採って parity-suite 同梱の差分器で照合する。1 回で 1 部品。replace-strategy setup と .replace/components.md が前提で、未整備なら停止する。「共通部品の見た目の基準を採って」「部品を先に作る」「parity-component」や capture / build を伴う依頼で発動する。
-argument-hint: "<capture | build> [--component <slug>] [--target <name>]"
+argument-hint: "<capture | build> [--component <slug>] [--target <name>] [--autonomous]"
 license: MIT
 ---
 
@@ -15,8 +15,8 @@ license: MIT
 ## 使い方
 
 ```text
-parity-component capture [--component <slug>] [--target <name>]
-parity-component build   [--component <slug>] [--target <name>]
+parity-component capture [--component <slug>] [--target <name>] [--autonomous]
+parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 ```
 
 | モード | 対象環境 | 内容 |
@@ -25,6 +25,7 @@ parity-component build   [--component <slug>] [--target <name>]
 | `build` | `side: new` | 割り出した軸から引数を設計して部品を実装し、カタログに状態ごとの見本を置き、同条件で採って照合し、差分ゼロまで往復する |
 
 - **1 回の実行につき 1 部品。** 複数部品を並行して進めない（採取・設計・照合が浅くなる）
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - `slug` は `.replace/components.md` が採番したもの。**自分で採番しない。** 省略時は未着手から対話選択する
 - `--target <name>` の選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）。`capture` は `side: current`、`build` は `side: new` だけを候補にする
 - 自然文でも発動する:「共通部品の見た目の基準を採って」「部品を先に作りたい」「この部品を現行と突き合わせて」
@@ -45,6 +46,7 @@ parity-component build   [--component <slug>] [--target <name>]
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - **部品インベントリ** = `.replace/components.md` の存在と、対象 slug の行に**インスタンスが 2 つ以上**挙がっていること（[`references/instances.md`](references/instances.md)）
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在
+  - 上の setup とフェーズ A は、未解決の保留があれば証拠があっても未完了として扱う（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `build` の前提 = 対象 slug の `capture` 完了（`.replace/components/<slug>/metadata.json` の `capture.complete`）**かつ `axes.ok` が真**。
     `capture.complete` だけでは足りない——全インスタンス × 全状態を採っていても、id の重複・未採取の状態・
     片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。
@@ -111,6 +113,19 @@ parity-component build   [--component <slug>] [--target <name>]
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 
 - **旧キーはフォールバックとして読まない。** スキーマ正本の「移行」節に列挙された旧キーを見つけたら、同節の対応表を示して停止する
+
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **対象の選択**（`--component` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug と target で決まるため。正本の「宣言」）
+- **判断待ち（保留に落とす）**: 同梱ツールのコピー先が同梱版と一致しないときの扱い、
+  インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）
+- **保留に落としても進める工程**: 割れた軸の扱いが保留なら、その軸を含まない引数の設計・実装・見本の採取は進め、**その軸に依存する見本の照合は行わない**
+- **記録先**: `capture` は `.replace/components/<slug>/metadata.json`、`build` は `.replace/components/<slug>/new/<target>/build-metadata.json` の `pending_decisions[]` と `run.autonomous`。
+  未解決の保留が残る間は `capture.complete` を `true` にせず、`build` は収束と報告しない（`loop.stopped_reason` に判断待ちを書く）
+- `build` の敵対的レビュー手順（`parity-replace` の `references/adversarial-review.md`）でサブエージェントを起動できない場合の「人間のレビュアーへ渡す」も判断待ちに落とす
 
 ## 実行フロー（capture）
 

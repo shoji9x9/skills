@@ -1,7 +1,7 @@
 ---
 name: parity-diff
 description: 仕様を変えないアプリケーションリプレイスで、parity-suite が採取したベースライン・ノイズ基準値・強度ゲートで検証済みの差分器を使い、現行と新側の差分を決定論的ツールで検出して分類する replace-strategy の姉妹スキル。検出は画素・特性照合・aria の 3 経路が担い、LLM には「差分があるか」を聞かず「この差分は重要か」だけを 1 件ずつ crop 対で聞いて要対応／許容／環境ノイズに分類する。新側環境は --target で選び成果物は環境別。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロかつ未修正回帰ゼロ。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite・parity-replace の新側 green が前提で、未完了なら捏造せず停止する。「現新の差分を検出して」「差分を分類して」「parity-diff」や --feature / --target を伴う依頼で発動する。
-argument-hint: "[--feature <slug>] [--target <name>] [--remeasure-noise]"
+argument-hint: "[--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomous]"
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ license: MIT
 ## 使い方
 
 ```text
-parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
+parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomous]
 ```
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない
@@ -26,6 +26,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
   **成果物は環境ごとに分かれる**（下記「成果物」）
 - `--remeasure-noise` は新側の自己ノイズを**全組で測り直す**（既定は前回実行の測定値を組単位で再利用する。再利用の可否・失効条件は [`references/capture-new.md`](references/capture-new.md)「測定値の再利用」が正本）
 - **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「現新の差分を検出して」「差分を分類して」「この画面の差を見て」
 
 | モード | 内容 |
@@ -121,6 +122,17 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 **旧スキーマ・旧レイアウトはフォールバックとして読まず**、見つけたら移行を案内して停止する。
 検出対象の旧キー・旧レイアウトの一覧と移行手順は `replace-strategy` の `references/project-config.md`「移行」を正本として参照する（本スキルで個別に列挙しない）。
 
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **判断待ち（保留に落とす）**: 「許容」の確定（原因単位。`diff.md` の分類は `許容候補（要確認）` のまま）、意図的差異の保留の棚卸しの処置、
+  旧成果物をユーザー承認の例外で続行するか、差分器・フォント解析ツールの導入、`on_diff` ドキュメントが指示する起票（越えない線）、`references.dependency_policy` の確認
+- **保留に落としても進める工程**: 要対応差分の `parity-replace` への差し戻し（同じ `--autonomous` を引き継ぐ）、他の候補のトリアージ、被覆表・反応の数え直し、`blocked_by` の検証、成果物の更新
+- **棚卸しの処置を自分で `carried_over` にしない**——理由の記録で通過できる処置なので、自律で書くと人の判断を経ずに棚卸しが通る。未記録のまま残し（`pending-triage-check.mjs` が exit 1 で未棚卸しとして落とす）、保留に記録する
+- **記録先**: `diff-metadata.json` の `pending_decisions[]` と `run.autonomous`、`diff.md` の「判断待ち」節。**未解決の保留が 1 件でも残る間は `converged` を `true` にしない**（収束の条件の 1 つ。[`references/convergence.md`](references/convergence.md)）
+
 ## 実行フロー
 
 詳細は各 reference へ委譲する。番号順に進める。
@@ -141,7 +153,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise]
 6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。**モデルに聞くのは要対応／許容／環境ノイズの 3 値**で、どれとも判断できない候補は未説明のまま残す（`diff.md` の分類欄には未説明も並ぶ）。
    「許容」の確定はユーザー承認で、**承認は原因単位**（同一原因の N インスタンスを 1 回で確定する。代表インスタンスの判断材料と件数 N を UI に載せる）。
    テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
-7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 3 つ（収束／**他機能待ち**／未収束）。
+7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 4 つ（収束／**他機能待ち**／**判断待ち**／未収束）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直す。
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
