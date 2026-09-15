@@ -22,6 +22,10 @@ skills:
       stack: [] # 現行のスタック（バックエンド言語・フロントフレームワーク）。測定・対話で判明した値を記録する
       origin: managed # 現行テスト環境の由来。managed（既存の管理済み環境。既定・キー欠落も managed）| received-assets（受領資産から自社で再構築する。下記「現行環境の由来」）
       received_assets: [] # origin: received-assets のとき必須（1 つ以上のパス）。受領資産の置き場所。current-environment-bootstrap が棚卸しの入力に読む
+      feedback_calls: # 移行元の利用者に見える副作用を出す呼び出しの一覧（下記「フィードバック呼び出し」）。キー欠落＝未確認（parity-suite が確認して 1 回記録する）
+        - id: toast # パターン id（一意）
+          regex: '\bshowMessage\s*\(' # 呼び出しの字面に当たる JavaScript の正規表現（1 行ずつ照合）
+          kind: toast # 利用者に見える副作用の種類（toast / script / dialog 等）
     new: # 新側アプリ（URL・DB・認証・禁止操作は targets の side: new が持つ）
       repo: <owner/repo | ローカルパス> # 骨格がスキャフォールド済みのリポジトリ（骨格の選定はスキル群の対象外。下記「新側アーキテクチャ」）
       stack: [] # 新側のスタック（フレームワーク・バックエンド構成・ORM 等）。事前に決定済みのものを setup の対話で記録する（current.stack と対称）
@@ -153,7 +157,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 
 | 区分 | キー | 書き込み |
 |---|---|---|
-| **人間が確定させる方針** | `current`（`origin` / `received_assets` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
+| **人間が確定させる方針** | `current`（`origin` / `received_assets` / `feedback_calls` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` / `current.feedback_calls` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
 | **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
 
 - **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が（`component` に glob を書けば）全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
@@ -230,6 +234,15 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 - **由来を推測で決めない。** 設定に現行アプリの URL を書けることは、その URL に到達できることの証拠ではない。`setup` の手順 2 でユーザーに確認して記録する
 - `current.received_assets` は 1 つ以上のパス。受領が複数回に分かれる場合は追記する（`current-environment-bootstrap` が棚卸しで全パスを走査する）
 - **再構築の実施は `current-environment-bootstrap` の担当**であり、`replace-strategy` は代行しない。同スキルの成果物（`.replace/bootstrap/`）とツール配置（`bootstrap_tool_dir`）の正本は同スキルにある
+
+## フィードバック呼び出し（`current.feedback_calls`）
+
+**移行元のプラットフォームで、利用者に見える副作用（トースト・画面を直接触るスクリプト・ダイアログの開閉等）を出す呼び出しの一覧。**
+`parity-suite` が移行元ソースを走査し、操作の反応の被覆表と突き合わせて**反応の欄の作り漏れ**を機械的に拾うために読む（使い方の正本は `parity-suite` の `references/coverage.md`「操作の反応」）。
+
+- 要素は `id`（一意）・`regex`（呼び出しの字面に当たる JavaScript の正規表現。1 行ずつ照合する）・`kind`（種類）。**スキルは固定の名前を持たない**——名前はプラットフォームで決まるため、ここで宣言する
+- **キー欠落は未確認。** `parity-suite` が移行元ソースから候補を挙げてユーザーに確認し、確定した値を 1 回記録する（人間が確定させる方針）。空リストは「フィードバックを出す呼び出しが無い」と確認済みの意味で、突き合わせは行わない
+- 移行元ソースを入手できない（`current.repo: none`）なら記録しない。`parity-suite` は突き合わせを省いた事実を成果物に残す
 
 ## 新側アーキテクチャ（`new.stack` / `references.architecture`）
 

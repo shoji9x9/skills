@@ -70,6 +70,9 @@ parity-suite [--feature <slug>] [--target <name>]
   `unmeasured` 0 を「見た目が現行と合っている」の根拠にしない——見た目は画素比較と特性照合が持ち、**画面より先に作った共通部品では `parity-component`** が持つ（[`references/coverage.md`](references/coverage.md)「被覆表は見た目を見ていない」）
 - **測っていない部品の操作を、被覆表の空欄で済ませない。** 行が無い組み合わせ・`evidence` の空欄は `unmeasured` として数える（fail-closed）。
   `metadata.json` の `component_coverage` を**キーごと省略しない**——キーの欠落は旧成果物の意味になり、`parity-diff` が後方互換で判定を飛ばす経路に測らなかった事実が紛れる
+- **操作の特性化を「押した直後の状態」で止めない。** 反応は遅れて出る・操作した器の外（親文書・別フレーム）に出る・自動で消えるため、直後のスナップショットでは取りこぼす。
+  操作ごとに反応の欄を反応の被覆表 `reactions.json` に持たせ（無ければ `kind: none` を実測で書く）、**出るまで待ち、消えるまでの時間を 2 回以上測って** assertion にし、
+  移行元ソースのフィードバック呼び出しと `scripts/reaction-check.mjs` で突き合わせる（[`references/coverage.md`](references/coverage.md)「操作の反応」）
 - **被覆表に載せる項目の粒度を自分の判断で決めない。** データグリッドのように構成要素ごとに操作可否が設定される部品は、
   代表列だけを測っても被覆表は満たせてしまう（登録しなかった列は期待セルにすら現れない）。
   **同梱の被覆プロファイルで候補集合を展開し、`scripts/coverage-expand.mjs` で被覆表と機械的に照合する**
@@ -107,6 +110,7 @@ parity-suite [--feature <slug>] [--target <name>]
 | `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した current target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。ファイル出力の捕捉・アップロードの特性化で**読む**（ゴールデンデータ投入はしないが、**テストがストレージへ直接書く・消す**〈後始末等〉場合の許可は `storage.seedable: true` ＋ `write_scope` 配下が前提。正本は [`references/data-discipline.md`](references/data-discipline.md)。アプリ経由のアップロードは `forbidden_actions` が律する）。`upload_route` が未宣言なら推測せずユーザーに確認し、`uses_storage: true` なのに宣言した target が無ければストレージ依存を `gaps.md` へ |
 | `intentional_diffs` | 意図的差異レジストリ。故障カタログの導出（[`references/strength-gate.md`](references/strength-gate.md)）と、side 別期待値の根拠（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）で**読む**。書くのは `pending` への非破壊追記だけ（宣言に無い差を見つけたとき。`keep` / `may_change` は人間が確定させるため書かない。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」）。**追記元が分かる形で書く**——`slug` は対象 slug、`added_by: parity-suite`、`added_at` に追記日（要素の形の正本はスキーマ文書の「`pending` 要素の形」）。確定させる時期は `parity-diff` の収束判定が要求する棚卸し（同文書「`pending` の棚卸し」） |
 | `current.origin` | 現行環境の由来（`managed` / `received-assets`。**キー欠落は `managed`**）。`received-assets` のときだけ、対象 slug の意味論が確定しているかを実行フロー 1 で確認する（意味論の正本はスキーマ文書の「現行環境の由来」） |
+| `current.feedback_calls` | 移行元の利用者に見える副作用を出す呼び出しの一覧（パターン id・正規表現・種類）。反応の被覆表で移行元ソースと突き合わせるために**読む**。**キー欠落＝未確認**のときだけ、移行元ソースから候補を挙げてユーザーに確認し、確定した値を同キーへ 1 回記録する（意味論の正本はスキーマ文書の「フィードバック呼び出し」） |
 | `references.db_semantics` | DB 意味論の差（並び順の特性化で読む）。**未整備（キー欠落・空値・解決できないパス）なら停止せず**、判断材料が無いまま推測せずに実測で特性化し、整備をユーザーに促す |
 | `verification_commands` | 書いたスイート・マッピング層・操作アダプタに通す検証コマンド。**通すのは `full`（全体走査の列）**で、`diff`（変更ファイルだけの列）は使わない。**`full` が無くても、値がリスト（旧形式＝走る範囲が未宣言）でも停止せず**、その旨を `gaps.md` に記録して進む（`parity-replace` の完了判定と違い、ここでは生成物の品質担保であってスイートの合否判定ではない。スイートの合否は現側 green と強度ゲートが見る。意味論の正本はスキーマ文書の「検証コマンド」） |
 | `references.coding_conventions` | スイート・マッピング層・操作アダプタを書くときに従うコーディング規約（**スイートは対象プロジェクト側のコード**であり、リポジトリの規約に従う。同梱ツールのコピーは修正しない規約のため対象外）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
@@ -145,6 +149,8 @@ parity-suite [--feature <slug>] [--target <name>]
    インスタンスごとに構成要素を来歴付きで列挙し、`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --write` で候補と適合結果を書き戻し（**コピーせずスキル配下のスクリプトをそのまま実行する**。プロファイルはスクリプトの位置から解決するので実行時の cwd は問わない）、
    欠落・未列挙・証拠なし・対応付けなしが 0 件になるまで測定へ戻る（[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
    **視覚採取を同値クラスで削減する場合も、E2E は全候補に要る**（削減してよいのはベースライン採取だけ）
+   **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
+   移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
@@ -162,6 +168,9 @@ parity-suite [--feature <slug>] [--target <name>]
    そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
    feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
    **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る。
+   同じく `metadata.json` の `reaction_coverage` を宣言し（操作を持たない機能だけ `declared: false` ＋理由。キーごと省略しない）、
+   `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --write` で exit 0 まで通す
+   （`capture` の状態名を `capture_conditions.states` と照合するため、撮影状態を確定した `metadata.json` を書いた後に通す。コピーせずスキル配下から実行する）。
    記録が無い・`ok: false` の被覆表は `parity-diff` が収束させない（`conformance` の欠落は旧成果物ではなく未実行として扱われる）。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
@@ -179,9 +188,10 @@ parity-suite [--feature <slug>] [--target <name>]
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
 | 部品被覆表（feature モードのみ。**操作と状態の有無だけを数え、見た目は見ていない**） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
+| 反応の被覆表（feature モードのみ。操作 → 反応） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
-- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物（`.replace/parity/<slug>/noise-pass2/`）は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/baseline.md`](references/baseline.md)）
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
@@ -190,6 +200,8 @@ parity-suite [--feature <slug>] [--target <name>]
   スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）。
   プロファイル（[`assets/coverage-profiles/`](assets/coverage-profiles/)）はスクリプトの位置から解決するので、
   実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
+- **[`scripts/reaction-check.mjs`](scripts/reaction-check.mjs) もコピーしない。** 照合結果は `reactions.json` の `conformance`（表の指紋付き）に残り、
+  `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ
 
 ## 姉妹スキルとの連携
 
@@ -199,5 +211,6 @@ parity-suite [--feature <slug>] [--target <name>]
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
 - **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
   プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
+  反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --recorded` で数え直す）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy status`** が `strength.md` / `gaps.md` / `metadata.json` を読んで現況を導出する

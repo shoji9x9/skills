@@ -64,6 +64,8 @@
 - **操作アダプタの状態遷移（`applyState`）は、状態固有の assertion で状態が確定したあと、撮る対象の器の矩形が 2 回続けて同じ値になるまで待ってから返す。**
   器を開かない状態（default / hover 等）は、状態の変化を受ける要素の矩形で待つ。新側（`parity-diff` の採取）も同じ操作アダプタを通るので、待ちは両側に効く
 - 固定時間の待機（`waitForTimeout`）は禁止（[`locator-mapping.md`](locator-mapping.md)）なので、`expect.poll` で矩形を読み比べる。落ち着かなければ例外にして撮らない
+- **自動で消える器（トースト等）は、撮り終えた後にもう一度出ていることを assertion で確かめる。** 待っている間に消えると、消えた後の画面を「その状態」として撮ってしまい、
+  **同じ操作で撮るたびに違う結論**になる。消えるまでの時間（[`coverage.md`](coverage.md)「操作の反応」の `dismissal.duration_ms_samples`）の内に撮り終えられなければ、その状態は撮らずに `gaps.md` へ「撮影状態の対象外」として残し、反応の被覆表の `capture` も `state: null` と理由へ切り替える
 
 ```ts
 import { expect, type Locator } from "@playwright/test";

@@ -78,7 +78,10 @@ scripts/run-skill-eval.sh \
 - eval 33 は撮影状態の器の棚卸し（Issue #360）の回帰。被覆表の present を根拠に 2 段目の器を撮影状態から外し、別機能で撮る器を何も書かずに外す案を押し戻せるかを見る。
   再帰的に数えること・撮る／撮らないの記録・`gaps.md` の種別・器を開く呼び出し（関数名 × 開く対象）との突き合わせを対象にする。プロンプトは複数の器を 1 つの引数付き関数で開く事実だけを置き（関数名だけの突き合わせを弾けるように）、
   iteration-31 では `without_skill` も呼び出し単位の考え方には到達した（assertion 5 は棚卸しの `opened_by` を記録先にしていないことで弁別している）。プロンプトには棚卸しのキー名・ファイル名を書かない
+- eval 34 は操作の反応の被覆（Issue #351）の回帰。押した直後のスナップショットと時間を置いた再観測を根拠に「トーストは無い」とし、反応が無い操作を書かずに完了とする案を押し戻せるかを見る。
+  最上位の文書と全フレームでの上限つき出現待ち・消える時間の複数標本と assertion 化・「反応なし」の実測記録・移行元ソースのフィードバック呼び出しとの突き合わせを対象にする。
+  出現待ちと再観測の不備は症状から一般的に演繹できるため、弁別は 3（消える時間を assertion に）・4（反応なしの実測記録）・5（設定の呼び出し一覧での突き合わせ）が担う。プロンプトには被覆表のキー名・ファイル名・ツール名を書かない
 - 被覆プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付き不在）は
-  リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）
+  リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）。反応の被覆表の照合（空欄・証拠の欠け・呼び出しの記録漏れ・表の指紋）は `scripts/reaction-check.test.js` が担う
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
