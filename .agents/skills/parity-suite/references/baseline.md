@@ -172,10 +172,18 @@ test("寸法の決まり方の採取", async ({ page }, testInfo) => {
       await page.goto(t.path);
       for (const name of t.elements) {
         const locator = resolveFor(side, page, name);
-        // 即時読み取り（isVisible）は描画前に false を返す。自動で待つ assertion を上限つきで通し、出なかった窓だけを null にする
+        // 即時読み取り（isVisible）は描画前に false を返す。自動で待つ assertion を上限つきで通し、
+        // 出なかった窓は toBeHidden で「見えない」を確かめてから null にする。ロケータの曖昧さ・ページのクローズ等は
+        // toBeHidden も失敗するので、その例外はそのまま投げて採取を止める（壊れた採取を hidden として記録しない）
         const visible = await expect(locator)
           .toBeVisible({ timeout: 5_000 })
-          .then(() => true, () => false);
+          .then(
+            () => true,
+            async () => {
+              await expect(locator).toBeHidden({ timeout: 1_000 });
+              return false;
+            },
+          );
         if (visible) await waitForStableRect(locator);
         // 出典: https://developer.mozilla.org/docs/Web/API/Element/getBoundingClientRect（ビューポート基準。スクロール量を足してページ座標にする）
         const rect = visible
@@ -212,9 +220,9 @@ node <skill>/scripts/dimension-fit.mjs fit \
   --metadata .replace/parity/<slug>/metadata.json --write
 ```
 
-- exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・撮影ページや `traits.elements` の測り漏れ・キーの欠落や重複・型崩れ）は採り直す
+- exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・撮影ページや `traits.elements` の測り漏れ・全ての窓で表示されない要素・キーの欠落や重複・型崩れ）は採り直す
 - `dimension-samples.json` はテキスト成果物として Git に入れる（`parity-replace` の照合は `metadata.json` の式を使い、samples は再当てはめの根拠）
-- **要素・窓を変えて採り直したら、`fit` も通し直す**（`dimension_model.samples_fingerprint` はどの samples から当てた式かの記録。採り直した samples とは一致しなくなる）
+- **要素・窓を変えて採り直したら、`fit` も通し直す**（`dimension_model.samples_fingerprint` はどの samples から当てた式かの記録。`parity-replace` の `check` は現側 `dimension-samples.json` とこの指紋を照合し、一致しなければ exit 2 で止まる）
 
 ### 採取環境と利用者環境の乖離
 

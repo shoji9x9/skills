@@ -47,7 +47,7 @@
 <!-- feature モードのみ。api-resource / batch は「該当なし（画面系工程なし）」と書く。 -->
 <!-- 位置・寸法は parity-suite の metadata.json の capture_conditions.dimension_model.fits の式で写す（撮影したビューポートの px を並べない）。 -->
 <!-- 照合は完了判定で dimension-fit.mjs check を通し、結果は replace-metadata.json の dimension_check に書かれる。 -->
-<!-- judged: false（not_measured・not_required）と unfit_to_note の軸は、写していない旨と理由をここに書いてから完了を名乗る。 -->
+<!-- judged: false（not_measured・not_required・照合できる式が 0 件）と unfit_to_note の軸は、写していない旨と理由をここに書いてから完了を名乗る。 -->
 <!-- 空欄にすると「写した」と「誰も見ていない」が区別できない。 -->
 
 | target | 照合結果（ok ／ 未完了 ／ 判定なし） | 写していない軸（page・論理名・軸） | 理由（not_measured の理由・式が読めない等）と対応 |

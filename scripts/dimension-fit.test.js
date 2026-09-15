@@ -54,8 +54,12 @@ const metadataOf = (viewports = [{ width: 1366, height: 768, label: "desktop" }]
 
 /** メモリ上のファイルで main を回す。 */
 function run(argv, files) {
+  // check が読む現側 samples は、明示しなければ直近の fittedMetadata が当てはめたもの
   const fs = new Map(
-    Object.entries(files).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]),
+    Object.entries({ "/w/s.json": currentSamplesText, ...files }).map(([k, v]) => [
+      k,
+      typeof v === "string" ? v : JSON.stringify(v),
+    ]),
   );
   let stdout = "";
   let stderr = "";
@@ -87,9 +91,13 @@ function run(argv, files) {
 }
 
 /** 現側で fit して dimension_model を書いた metadata.json を返す。 */
+/** 直近の fittedMetadata が当てはめに使った現側 samples の本文（check の --current-samples に渡す。指紋が一致する） */
+let currentSamplesText = "";
+
 function fittedMetadata(layout = formula) {
+  currentSamplesText = JSON.stringify(samplesOf(layout));
   const r = run(["fit", "--samples", "s.json", "--metadata", "m.json", "--write"], {
-    "/w/s.json": samplesOf(layout),
+    "/w/s.json": currentSamplesText,
     "/w/m.json": metadataOf(),
   });
   expect(r.code).toBe(0);
@@ -204,10 +212,13 @@ test.each([
 });
 
 test("check: 1 点の px を並べた新側は、撮影ビューポートでは合っていても exit 1", () => {
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json"], {
-    "/w/m.json": fittedMetadata(),
-    "/w/n.json": samplesOf(pinned),
-  });
+  const r = run(
+    ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
+    {
+      "/w/m.json": fittedMetadata(),
+      "/w/n.json": samplesOf(pinned),
+    },
+  );
   expect(r.code).toBe(1);
   expect(r.json.judged).toBe(true);
   expect(r.json.ok).toBe(false);
@@ -222,11 +233,24 @@ test("check: 1 点の px を並べた新側は、撮影ビューポートでは�
 });
 
 test("check: 式で写した新側は exit 0（陽性コントロール）", () => {
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json"], {
-    "/w/m.json": fittedMetadata(),
-    "/w/n.json": samplesOf(formula),
-    "/w/r.json": { slug: "order-list" },
-  });
+  const r = run(
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+    ],
+    {
+      "/w/m.json": fittedMetadata(),
+      "/w/n.json": samplesOf(formula),
+      "/w/r.json": { slug: "order-list" },
+    },
+  );
   expect(r.code).toBe(0);
   expect(r.json.ok).toBe(true);
   expect(r.json.checked).toBe(8 * WINDOWS.length);
@@ -241,10 +265,13 @@ test("check: 新側に要素が無い・一部の窓で消えるのは失敗", (
   const samples = samplesOf(formula);
   samples.elements = samples.elements.filter((e) => e.element !== "grid");
   samples.elements[0].rects[2].rect = null;
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json"], {
-    "/w/m.json": fittedMetadata(),
-    "/w/n.json": samples,
-  });
+  const r = run(
+    ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
+    {
+      "/w/m.json": fittedMetadata(),
+      "/w/n.json": samples,
+    },
+  );
   expect(r.code).toBe(1);
   expect(r.json.failures.filter((f) => f.reason === "not_sampled")).toHaveLength(4);
   expect(r.json.failures.filter((f) => f.reason === "hidden")).toHaveLength(4);
@@ -255,10 +282,13 @@ test("check: 式が読めなかった軸は unfit_to_note として返す", () =
     ...formula(w),
     button: { ...formula(w).button, x: w.width >= 1500 ? 800 : 400 },
   });
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json"], {
-    "/w/m.json": fittedMetadata(layout),
-    "/w/n.json": samplesOf(layout),
-  });
+  const r = run(
+    ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
+    {
+      "/w/m.json": fittedMetadata(layout),
+      "/w/n.json": samplesOf(layout),
+    },
+  );
   expect(r.code).toBe(0);
   expect(r.json.unfit_to_note).toEqual([
     { page: "list", element: "button", property: "x", reason: "residual_exceeds_tolerance" },
@@ -278,10 +308,13 @@ test("check: 残差が許容ぎりぎりの軸でも、現側と同一の新側�
   );
   expect(fit).toBeDefined();
   expect(fit.residual).toBeGreaterThan(0.499);
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json"], {
-    "/w/m.json": m,
-    "/w/n.json": samplesOf(layout),
-  });
+  const r = run(
+    ["check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
+    {
+      "/w/m.json": m,
+      "/w/n.json": samplesOf(layout),
+    },
+  );
   expect(r.code).toBe(0);
 });
 
@@ -399,7 +432,7 @@ test.each([
   const m = fittedMetadata();
   mutate(m);
   const files = { "/w/m.json": m };
-  const argv = ["check", "--metadata", "m.json"];
+  const argv = ["check", "--metadata", "m.json", "--current-samples", "s.json"];
   if (newSamples !== undefined) {
     files["/w/n.json"] = newSamples ?? samplesOf(formula);
     argv.push("--samples", "n.json");
@@ -411,18 +444,41 @@ test.each([
 
 test("check --write: exit 2 でも前回の合格を残さず error を書き、照合した式と samples の指紋を残す", () => {
   const m = fittedMetadata();
-  const ok = run(["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json"], {
-    "/w/m.json": m,
-    "/w/n.json": samplesOf(formula),
-    "/w/r.json": { slug: "order-list" },
-  });
+  const ok = run(
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+    ],
+    {
+      "/w/m.json": m,
+      "/w/n.json": samplesOf(formula),
+      "/w/r.json": { slug: "order-list" },
+    },
+  );
   expect(ok.code).toBe(0);
   const passed = ok.file("/w/r.json").dimension_check;
   expect(passed.model_fingerprint).toMatch(/^[0-9a-f]{64}$/);
   expect(passed.samples_fingerprint).toMatch(/^[0-9a-f]{64}$/);
 
   const broken = run(
-    ["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json"],
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+    ],
     {
       "/w/m.json": m,
       "/w/n.json": samplesOf(formula, WINDOWS.slice(1).concat([{ width: 1440, height: 700 }])),
@@ -488,18 +544,42 @@ test.each([
 });
 
 test("check --write: metadata が読めない exit 2 でも前回の合格を上書きする", () => {
-  const r = run(["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json"], {
-    "/w/m.json": "{ broken",
-    "/w/n.json": samplesOf(formula),
-    "/w/r.json": { dimension_check: { ok: true } },
-  });
+  const r = run(
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+    ],
+    {
+      "/w/m.json": "{ broken",
+      "/w/n.json": samplesOf(formula),
+      "/w/r.json": { dimension_check: { ok: true } },
+    },
+  );
   expect(r.code).toBe(2);
   expect(r.file("/w/r.json").dimension_check).toMatchObject({ ok: false });
 });
 
 test("check --write: 引数の不備（--write より後の不明な引数）の exit 2 でも前回の合格を上書きする", () => {
   const r = run(
-    ["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json", "--bogus"],
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+      "--bogus",
+    ],
     {
       "/w/m.json": fittedMetadata(),
       "/w/n.json": samplesOf(formula),
@@ -551,7 +631,20 @@ test("check --write: --write の重複は exit 2 で、どちらの書き込み�
 });
 
 test.each([
-  ["check", ["check", "--metadata", "m.json", "--metadata", "m.json", "--samples", "n.json"]],
+  [
+    "check",
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+    ],
+  ],
   ["fit", ["fit", "--samples", "s.json", "--metadata", "m.json", "--write", "--write"]],
 ])("%s: オプションの重複は後勝ちにせず exit 2", (_, argv) => {
   const r = run(argv, {
@@ -561,6 +654,84 @@ test.each([
   });
   expect(r.code).toBe(2);
   expect(r.stderr).toMatch(/重複している/);
+});
+
+test("fit: 全ての窓で表示されない要素は採取の失敗として exit 2（照合 0 件のモデルを作らない）", () => {
+  const layout = (w) => ({ ...formula(w), grid: null });
+  const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {
+    "/w/s.json": samplesOf(layout),
+    "/w/m.json": metadataOf(),
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(/\(list, grid\) が全ての窓で表示されていない/);
+});
+
+test("check: fits が 0 件（全軸 unfit）なら合格を名乗らず judged: false と unfit_to_note を返す", () => {
+  const m = fittedMetadata();
+  const dm = m.capture_conditions.dimension_model;
+  dm.unfit = dm.fits.map(({ page, element, property }) => ({
+    page,
+    element,
+    property,
+    residual: 3,
+    reason: "residual_exceeds_tolerance",
+  }));
+  dm.fits = [];
+  const r = run(
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--current-samples",
+      "s.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r.json",
+    ],
+    {
+      "/w/m.json": m,
+      "/w/n.json": samplesOf(formula),
+      "/w/r.json": {},
+    },
+  );
+  expect(r.code).toBe(0);
+  expect(r.json.judged).toBe(false);
+  expect(r.json.unfit_to_note).toHaveLength(8);
+  expect(r.file("/w/r.json").dimension_check).toMatchObject({ judged: false, ok: null });
+  expect(r.file("/w/r.json").dimension_check.unfit_to_note).toHaveLength(8);
+});
+
+test.each([
+  [
+    "現側 samples を採り直して fit を通していない",
+    (files) =>
+      (files["/w/s.json"] = samplesOf((w) => ({
+        ...formula(w),
+        button: { ...formula(w).button, x: w.width },
+      }))),
+    /samples_fingerprint と一致しない/,
+  ],
+  [
+    "--current-samples を渡さない",
+    (_files, argv) => argv.splice(argv.indexOf("--current-samples"), 2),
+    /--current-samples/,
+  ],
+])("check: %s は exit 2", (_, mutate, message) => {
+  const files = { "/w/m.json": fittedMetadata(), "/w/n.json": samplesOf(formula) };
+  const argv = [
+    "check",
+    "--metadata",
+    "m.json",
+    "--current-samples",
+    "s.json",
+    "--samples",
+    "n.json",
+  ];
+  mutate(files, argv);
+  const r = run(argv, files);
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(message);
 });
 
 test("CLI: シンボリックリンクでなく実パスで起動して exit コードを返す", () => {
@@ -580,7 +751,7 @@ test("CLI: シンボリックリンクでなく実パスで起動して exit コ
   writeFileSync(join(dir, "n.json"), JSON.stringify(samplesOf(pinned)));
   const check = spawnSync(
     process.execPath,
-    [script, "check", "--metadata", "m.json", "--samples", "n.json"],
+    [script, "check", "--metadata", "m.json", "--current-samples", "s.json", "--samples", "n.json"],
     {
       cwd: dir,
       encoding: "utf8",
