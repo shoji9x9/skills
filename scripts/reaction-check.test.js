@@ -43,13 +43,16 @@ const noneReaction = () => ({
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
+  documents: ["top", "共有ダイアログの iframe"],
   observation_window_ms: 3000,
   feedback_calls: {
     declared: true,
     reason: null,
     patterns: [{ id: "toast", regex: "\\bshowFeedback\\s*\\(" }],
     source: { paths: ["src"], version: "abc123" },
-    call_sites: [{ file: "src/share.js", line: 2, pattern: "toast", reaction: "copy/toast" }],
+    call_sites: [
+      { file: "src/share.js", line: 2, column: 3, pattern: "toast", reaction: "copy/toast" },
+    ],
   },
   operations: [
     {
@@ -196,6 +199,32 @@ test.each([
   ],
   ["操作 id の重複", (t) => (t.operations[1].id = "copy"), "重複している"],
   ["直後の状態が空", (t) => (t.operations[1].immediate_state = ""), "immediate_state"],
+  [
+    "none の観測に top が無い（iframe の中だけを見た）",
+    (t) => (t.operations[1].reactions[0].observation.documents = ["共有ダイアログの iframe"]),
+    "top（最上位の文書）が無い",
+  ],
+  [
+    "none の観測が棚卸しした文書を網羅していない",
+    (t) => (t.operations[1].reactions[0].observation.documents = ["top"]),
+    "見ていない文書: 共有ダイアログの iframe",
+  ],
+  [
+    "none の観測に棚卸しに無い文書がある",
+    (t) => t.operations[1].reactions[0].observation.documents.push("別のフレーム"),
+    "表の documents に無い文書",
+  ],
+  [
+    "文書の棚卸しに top が無い",
+    (t) => (t.documents = ["共有ダイアログの iframe"]),
+    "documents に top",
+  ],
+  ["文書の棚卸しが無い", (t) => delete t.documents, "documents が空でない文字列の配列でない"],
+  [
+    "出る先の文書が棚卸しに無い",
+    (t) => (t.operations[0].reactions[0].destination.document = "別のフレーム"),
+    "destination.document",
+  ],
   ["被覆表の slug が別機能", (t) => (t.slug = "other"), "slug（other）"],
   [
     "被覆表の測定 target が別環境",
@@ -271,6 +300,18 @@ test.each([
     "欠けた行がある",
   ],
   [
+    "呼び出し箇所の列が無い",
+    (t) => delete t.feedback_calls.call_sites[0].column,
+    "file / line / column / pattern",
+  ],
+  [
+    "同じ行の 2 つ目の呼び出しが記録されていない",
+    (t) => {
+      t.__source = "function copy() {\n  showFeedback('Copied'); showFeedback('Again');\n}\n";
+    },
+    "src/share.js:2:27:toast が被覆表に記録されていない",
+  ],
+  [
     "呼び出し箇所の重複",
     (t) => t.feedback_calls.call_sites.push({ ...t.feedback_calls.call_sites[0] }),
     "回重複している",
@@ -287,7 +328,10 @@ test.each([
     "declared: false なのに reason が空",
   ],
 ])("呼び出しの突き合わせで落とす: %s", (_name, mutate, message) => {
-  const r = run(mutated(mutate));
+  const t = mutated(mutate);
+  const source = t.__source;
+  delete t.__source;
+  const r = run(t, { source });
   expect(r.status).toBe(1);
   expect(JSON.parse(r.stdout).ok).toBe(false);
   expect(r.stderr).toContain(message);
@@ -303,11 +347,30 @@ function rerun(dir, args = []) {
   return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
+test("同じ行の複数の呼び出しを列で区別して記録すれば通す", () => {
+  const t = mutated((x) => {
+    x.feedback_calls.call_sites.push({
+      file: "src/share.js",
+      line: 2,
+      column: 27,
+      pattern: "toast",
+      reaction: null,
+      excluded_reason: "同じハンドラの別機能向け通知（slug: list）",
+    });
+  });
+  const r = run(t, {
+    source: "function copy() {\n  showFeedback('Copied'); showFeedback('Again');\n}\n",
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
 test("除外理由付きの呼び出しは通す（他機能の呼び出し）", () => {
   const t = mutated((x) => {
     x.feedback_calls.call_sites.push({
       file: "src/share.js",
       line: 5,
+      column: 3,
       pattern: "toast",
       reaction: null,
       excluded_reason: "一覧機能の保存（slug: list）",

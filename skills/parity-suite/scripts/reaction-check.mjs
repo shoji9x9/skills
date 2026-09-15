@@ -163,9 +163,10 @@ function collectIds(entries, label, problems) {
  * observed の反応の欠けを返す（無ければ null）。
  * @param {Record<string, unknown>} r
  * @param {Set<string> | null} captureStates - metadata.json の capture_conditions.states（渡されたときだけ照合）
+ * @param {Set<string> | null} documents - 表の documents（文書の棚卸し。不正なら null で、表側の問題として別に落ちる）
  * @returns {string | null}
  */
-function observedProblem(r, captureStates) {
+function observedProblem(r, captureStates, documents) {
   if (!nonEmptyString(r.description)) return "description が空";
   if (typeof r.visible !== "boolean") return "visible が真偽値でない";
   if (
@@ -183,6 +184,9 @@ function observedProblem(r, captureStates) {
   const dest = r.destination;
   if (!isPlainObject(dest) || !nonEmptyString(dest.document) || !nonEmptyString(dest.locator)) {
     return "destination の document / locator が空（出る先の文書と論理名を記録していない）";
+  }
+  if (documents && !documents.has(/** @type {string} */ (dest.document))) {
+    return `destination.document "${dest.document}" が表の documents に無い`;
   }
   const app = r.appearance;
   if (!isPlainObject(app) || !positiveNumber(app.wait_limit_ms))
@@ -224,9 +228,10 @@ function observedProblem(r, captureStates) {
  * none の反応の欠けを返す（無ければ null）。
  * @param {Record<string, unknown>} r
  * @param {number | null} windowMs - 表の observation_window_ms
+ * @param {Set<string> | null} documents - 表の documents（top と全フレーム）
  * @returns {string | null}
  */
-function noneProblem(r, windowMs) {
+function noneProblem(r, windowMs, documents) {
   const obs = r.observation;
   if (!isPlainObject(obs))
     return "kind: none なのに observation が無い（見ていないと無いを区別できない）";
@@ -241,6 +246,19 @@ function noneProblem(r, windowMs) {
   ) {
     return "observation.documents が空（どの文書を見たか記録していない）";
   }
+  // 操作した器（iframe 等）の中だけを見た none は、親文書や別フレームに出る反応を取りこぼす
+  if (!obs.documents.includes("top")) return "observation.documents に top（最上位の文書）が無い";
+  if (documents) {
+    const seen = new Set(obs.documents);
+    const missing = [...documents].filter((d) => !seen.has(d));
+    if (missing.length > 0) {
+      return `observation.documents が表の documents を網羅していない（見ていない文書: ${missing.join(", ")}）`;
+    }
+    const unknown = obs.documents.filter((d) => !documents.has(d));
+    if (unknown.length > 0) {
+      return `observation.documents に表の documents に無い文書がある: ${unknown.join(", ")}`;
+    }
+  }
   if (!nonEmptyString(obs.method)) return "observation.method が空";
   return null;
 }
@@ -250,7 +268,7 @@ function noneProblem(r, windowMs) {
  * @param {string} root
  * @param {string[]} paths
  * @param {{ id: string, re: RegExp }[]} patterns
- * @returns {{ files: number, sites: { file: string, line: number, pattern: string }[] }}
+ * @returns {{ files: number, sites: { file: string, line: number, column: number, pattern: string }[] }}
  */
 export function scanSources(root, paths, patterns) {
   const absRoot = resolve(root);
@@ -293,8 +311,12 @@ export function scanSources(root, paths, patterns) {
     const file = relative(absRoot, abs).split(sep).join("/");
     for (let i = 0; i < lines.length; i += 1) {
       for (const p of patterns) {
+        // 同じ行の複数の呼び出しを 1 件に潰さない（1 行に 2 つあると 2 つ目の記録漏れが見えなくなる）
         p.re.lastIndex = 0;
-        if (p.re.test(lines[i])) sites.push({ file, line: i + 1, pattern: p.id });
+        for (let m = p.re.exec(lines[i]); m !== null; m = p.re.exec(lines[i])) {
+          sites.push({ file, line: i + 1, column: m.index + 1, pattern: p.id });
+          if (m[0] === "") p.re.lastIndex += 1; // 空一致で止まらない
+        }
       }
     }
   }
@@ -327,6 +349,19 @@ export function checkReactions(table, opts = {}) {
     problems.push(
       `被覆表の measured_target（${String(table.measured_target)}）が metadata.json の target.name（${target}）と違う`,
     );
+  }
+  // 文書の棚卸し（最上位の文書 top と全フレーム）。none の観測範囲と出る先の照合に使う
+  const docs = table.documents;
+  /** @type {Set<string> | null} */
+  let documents = null;
+  if (!Array.isArray(docs) || docs.length === 0 || !docs.every(nonEmptyString)) {
+    problems.push("documents が空でない文字列の配列でない（top と全フレームを棚卸ししていない）");
+  } else if (new Set(docs).size !== docs.length) {
+    problems.push("documents に重複がある");
+  } else if (!docs.includes("top")) {
+    problems.push("documents に top（最上位の文書）が無い");
+  } else {
+    documents = new Set(/** @type {string[]} */ (docs));
   }
   const windowMs = positiveNumber(table.observation_window_ms)
     ? /** @type {number} */ (table.observation_window_ms)
@@ -384,7 +419,9 @@ export function checkReactions(table, opts = {}) {
         continue;
       }
       const p =
-        r.kind === "observed" ? observedProblem(r, captureStates) : noneProblem(r, windowMs);
+        r.kind === "observed"
+          ? observedProblem(r, captureStates, documents)
+          : noneProblem(r, windowMs, documents);
       if (p) fail(`${rLabel}: ${p}`);
       if (r.kind === "observed" && isPlainObject(r.appearance)) {
         const d = r.appearance.delay_ms_samples;
@@ -427,7 +464,7 @@ export function checkReactions(table, opts = {}) {
       try {
         compiled.push({
           id: /** @type {string} */ (p.id),
-          re: new RegExp(/** @type {string} */ (p.regex)),
+          re: new RegExp(/** @type {string} */ (p.regex), "g"),
         });
       } catch (e) {
         throw new UsageError(
@@ -437,7 +474,7 @@ export function checkReactions(table, opts = {}) {
     }
     const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
-    const keyOf = (s) => `${s.file}:${s.line}:${s.pattern}`;
+    const keyOf = (s) => `${s.file}:${s.line}:${s.column}:${s.pattern}`;
     /** @type {Map<string, number>} */
     const recordedCount = new Map();
     for (const s of recordedSites) {
@@ -445,9 +482,11 @@ export function checkReactions(table, opts = {}) {
         !isPlainObject(s) ||
         !nonEmptyString(s.file) ||
         !Number.isInteger(s.line) ||
+        !Number.isInteger(s.column) ||
+        s.column < 1 ||
         !nonEmptyString(s.pattern)
       ) {
-        problems.push("feedback_calls.call_sites: file / line / pattern が欠けた行がある");
+        problems.push("feedback_calls.call_sites: file / line / column / pattern が欠けた行がある");
         continue;
       }
       const key = keyOf(s);

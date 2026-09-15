@@ -2,6 +2,10 @@
   "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions を必ず持つ（空欄を許さず、反応が無ければ kind: none を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
+  "documents": [
+    "top",
+    "<対象ページの全フレームの論理名（操作で開くダイアログの iframe を含む）。top（最上位の文書）は必須。none の observation.documents はこれを全て含み、observed の destination.document はこの中から選ぶ>"
+  ],
   "observation_window_ms": "<正の数。kind: none を書くときに最低限見続ける時間（ミリ秒）。observed の delay_ms_samples の最大値より長くとる（以下なら落ちる）。none の observation.window_ms はこれ以上でなければ落ちる>",
   "feedback_calls": {
     "declared": "<真偽値。移行元ソースのフィードバック呼び出しと突き合わせたか。設定 current.feedback_calls があり移行元ソースを読めるなら true>",
@@ -22,8 +26,9 @@
     },
     "call_sites": [
       {
-        "file": "<走査で見つかった呼び出しのファイル（--root からの相対、/ 区切り）>",
+        "file": "<走査で見つかった呼び出しのファイル（--root からの相対、/ 区切り）。file・line・column（1 始まり）・pattern で 1 件を識別する——同じ行の複数の呼び出しは列で分けて全て記録する>",
         "line": 0,
+        "column": 0,
         "pattern": "<当たったパターン id>",
         "reaction": "<対応付けた反応 <操作 id>/<反応 id>。kind: observed の反応だけを指せる。除外するなら null>",
         "excluded_reason": "<reaction: null のときだけ、この機能の反応ではない理由（例: 別 slug の操作のハンドラ）。reaction を埋めたら null>"
@@ -79,7 +84,7 @@
           "observation": {
             "window_ms": "<正の数。observation_window_ms 以上見続けた時間>",
             "documents": [
-              "<見た文書（top と全フレーム）。操作した器の中だけを見て none と書かない>"
+              "<見た文書。top と表の documents の全てを含める（欠けると落ちる）。操作した器の中だけを見て none と書かない>"
             ],
             "method": "<どう見たか（例: 全文書の DOM 変化を監視）>"
           },
