@@ -461,17 +461,33 @@ export function checkReactions(table, opts = {}) {
         problems.push(`feedback_calls.patterns["${p.id}"]: regex が空`);
         continue;
       }
+      /** @type {RegExp} */
+      let re;
       try {
-        compiled.push({
-          id: /** @type {string} */ (p.id),
-          re: new RegExp(/** @type {string} */ (p.regex), "g"),
-        });
+        re = new RegExp(/** @type {string} */ (p.regex), "g");
       } catch (e) {
         throw new UsageError(
           `feedback_calls.patterns["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,
         );
       }
+      // 陽性コントロール: 実際の呼び出しの字面に一致しないパターンは、走査 0 件を「呼び出しが無い」と区別できない
+      if (!nonEmptyString(p.example)) {
+        problems.push(
+          `feedback_calls.patterns["${p.id}"]: example（一致すべき呼び出しの字面）が空`,
+        );
+        continue;
+      }
+      re.lastIndex = 0;
+      if (!re.test(/** @type {string} */ (p.example))) {
+        problems.push(
+          `feedback_calls.patterns["${p.id}"]: regex が example に一致しない（検出器が呼び出しを認識できない）`,
+        );
+        continue;
+      }
+      re.lastIndex = 0;
+      compiled.push({ id: /** @type {string} */ (p.id), re });
     }
+    const zeroReason = nonEmptyString(fc.zero_calls_reason);
     const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
     const keyOf = (s) => `${s.file}:${s.line}:${s.column}:${s.pattern}`;
@@ -519,6 +535,17 @@ export function checkReactions(table, opts = {}) {
       problems.push("feedback_calls.source.version が空（どの版を走査したか残らない）");
     }
     callSummary.recorded = recordedSites.length;
+    // 呼び出し 0 件は「本当に無い」と「走査が外れている」が同じ出力になるため、根拠付きでだけ通す
+    if (recordedSites.length === 0 && !zeroReason) {
+      problems.push(
+        "feedback_calls.call_sites が 0 件なのに zero_calls_reason が空（走査が外れていないことを示せない）",
+      );
+    }
+    if (recordedSites.length > 0 && zeroReason) {
+      problems.push(
+        "feedback_calls.call_sites があるのに zero_calls_reason が埋まっている（0 件の根拠と矛盾する）",
+      );
+    }
     if (!recorded && paths.length > 0 && paths.every(nonEmptyString) && compiled.length > 0) {
       const scan = scanSources(root, /** @type {string[]} */ (paths), compiled);
       callSummary.checked = true;

@@ -14,7 +14,8 @@
       {
         "id": "<パターン id（設定 current.feedback_calls[].id を転記）>",
         "regex": "<呼び出しの字面に当たる JavaScript の正規表現（設定 current.feedback_calls[].regex を転記）。1 行ずつ照合する>",
-        "kind": "<利用者に見える副作用の種類（設定から転記。例: toast / script / dialog）>"
+        "kind": "<利用者に見える副作用の種類（設定から転記。例: toast / script / dialog）>",
+        "example": "<regex が一致すべき実際の呼び出しの字面（設定 current.feedback_calls[].example を転記。移行元ソースから 1 つ写す）。一致しなければ落ちる——走査 0 件を「呼び出しが無い」と区別するための陽性コントロール>"
       }
     ],
     "source": {
@@ -24,6 +25,7 @@
       "version": "<走査した版（コミット SHA 等）>",
       "derivation": "<走査範囲をどう決めたか（どの画面・ハンドラから辿ったか）>"
     },
+    "zero_calls_reason": "<call_sites が 0 件のときだけ、呼び出しが無いことの根拠（例: 対象ハンドラ全体を読み、フィードバックを出す処理が無いことを確認）。0 件でこれが空なら落ちる。call_sites があるなら null>",
     "call_sites": [
       {
         "file": "<走査で見つかった呼び出しのファイル（--root からの相対、/ 区切り）。file・line・column（1 始まり）・pattern で 1 件を識別する——同じ行の複数の呼び出しは列で分けて全て記録する>",

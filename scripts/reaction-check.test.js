@@ -48,7 +48,7 @@ const baseTable = () => ({
   feedback_calls: {
     declared: true,
     reason: null,
-    patterns: [{ id: "toast", regex: "\\bshowFeedback\\s*\\(" }],
+    patterns: [{ id: "toast", regex: "\\bshowFeedback\\s*\\(", example: "showFeedback('Copied')" }],
     source: { paths: ["src"], version: "abc123" },
     call_sites: [
       { file: "src/share.js", line: 2, column: 3, pattern: "toast", reaction: "copy/toast" },
@@ -300,6 +300,29 @@ test.each([
     "欠けた行がある",
   ],
   [
+    "パターンに例が無い",
+    (t) => delete t.feedback_calls.patterns[0].example,
+    "example（一致すべき呼び出しの字面）が空",
+  ],
+  [
+    "パターンが例に一致しない（古いパターン）",
+    (t) => (t.feedback_calls.patterns[0].example = "notifyUser('Copied')"),
+    "regex が example に一致しない",
+  ],
+  [
+    "走査で 0 件なのに根拠が無い（走査範囲の誤り）",
+    (t) => {
+      t.__source = "function copy() {\n  navigator.clipboard.writeText(url);\n}\n";
+      t.feedback_calls.call_sites = [];
+    },
+    "zero_calls_reason が空",
+  ],
+  [
+    "呼び出しがあるのに 0 件の根拠が埋まっている",
+    (t) => (t.feedback_calls.zero_calls_reason = "呼び出しは無い"),
+    "0 件の根拠と矛盾する",
+  ],
+  [
     "呼び出し箇所の列が無い",
     (t) => delete t.feedback_calls.call_sites[0].column,
     "file / line / column / pattern",
@@ -318,7 +341,7 @@ test.each([
   ],
   [
     "パターン id の重複",
-    (t) => t.feedback_calls.patterns.push({ id: "toast", regex: "x" }),
+    (t) => t.feedback_calls.patterns.push({ id: "toast", regex: "x", example: "x" }),
     "重複している",
   ],
   ["走査した版が空", (t) => (t.feedback_calls.source.version = ""), "source.version が空"],
@@ -346,6 +369,17 @@ function rerun(dir, args = []) {
   });
   return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
+
+test("呼び出しが 0 件でも根拠があれば通す", () => {
+  const t = mutated((x) => {
+    x.feedback_calls.call_sites = [];
+    x.feedback_calls.zero_calls_reason =
+      "対象ハンドラはフィードバックを出さない（ハンドラ全体を読んで確認）";
+  });
+  const r = run(t, { source: "function copy() {\n  navigator.clipboard.writeText(url);\n}\n" });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
 
 test("同じ行の複数の呼び出しを列で区別して記録すれば通す", () => {
   const t = mutated((x) => {
