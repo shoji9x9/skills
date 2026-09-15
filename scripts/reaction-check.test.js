@@ -58,12 +58,14 @@ const baseTable = () => ({
     {
       id: "copy",
       trigger: "clickButton(コピー)",
+      handlers: [{ file: "src/share.js", symbol: "copy" }],
       immediate_state: "ダイアログが閉じる",
       reactions: [toast()],
     },
     {
       id: "search",
       trigger: "clickButton(検索)",
+      handlers: [{ file: "src/share.js", symbol: "search" }],
       immediate_state: "一覧が絞られる",
       reactions: [noneReaction()],
     },
@@ -78,9 +80,10 @@ const baseTable = () => ({
 function run(table, opts = {}) {
   const dir = mkdtempSync(join(tmpdir(), "reaction-check-"));
   mkdirSync(join(dir, "src"));
+  // 操作 search のハンドラは全ての source の末尾に置く（行番号を動かさない）
   writeFileSync(
     join(dir, "src/share.js"),
-    opts.source ?? "function copy() {\n  showFeedback('Copied');\n}\n",
+    `${opts.source ?? "function copy() {\n  showFeedback('Copied');\n}\n"}function search() {}\n`,
   );
   mkdirSync(join(dir, "empty"));
   const metadata = opts.metadata ?? {
@@ -369,6 +372,65 @@ function rerun(dir, args = []) {
   });
   return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
+
+test("改行をまたぐ呼び出しも検出する（記録が無ければ落ちる）", () => {
+  const t = mutated((x) => {
+    x.feedback_calls.call_sites = [];
+    x.feedback_calls.zero_calls_reason = "呼び出しは無い";
+  });
+  const r = run(t, { source: "function copy() {\n  showFeedback\n    ('Copied');\n}\n" });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("src/share.js:2:3:toast が被覆表に記録されていない");
+});
+
+test("改行をまたぐ呼び出しと CRLF でも名前の開始位置を行・列で記録すれば通す", () => {
+  const r = run(baseTable(), {
+    source: "function copy() {\r\n  showFeedback\r\n    ('Copied');\r\n}\r\n",
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  [
+    "ハンドラの記録が無い",
+    (t) => delete t.operations[1].handlers,
+    "handlers（file と symbol）が空",
+  ],
+  [
+    "ハンドラのファイルが走査範囲に無い（範囲の書き漏れ）",
+    (t) => (t.operations[1].handlers = [{ file: "src/list.js", symbol: "search" }]),
+    "ハンドラのファイル src/list.js が走査範囲に無い",
+  ],
+  [
+    "ハンドラのシンボルがファイルに無い",
+    (t) => (t.operations[1].handlers[0].symbol = "searchAll"),
+    "ハンドラ searchAll が src/share.js に見つからない",
+  ],
+])("ハンドラの来歴で落とす: %s", (_name, mutate, message) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("ハンドラが走査範囲外のファイルにあると、そこにある呼び出しの記録漏れが操作単位で見える", () => {
+  // Codex の再現例: ハンドラが a.js と b.js にあるのに paths が a.js だけ
+  const t = mutated((x) => {
+    x.feedback_calls.source.paths = ["src/share.js"];
+    x.operations[1].handlers = [{ file: "src/b.js", symbol: "search" }];
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("ハンドラのファイル src/b.js が走査範囲に無い");
+});
+
+test("feedback_calls.declared: false ならハンドラの来歴は要求しない", () => {
+  const t = mutated((x) => {
+    x.feedback_calls = { declared: false, reason: "移行元ソースを入手できない" };
+    delete x.operations[0].handlers;
+  });
+  expect(run(t).status).toBe(0);
+});
 
 test("呼び出しが 0 件でも根拠があれば通す", () => {
   const t = mutated((x) => {

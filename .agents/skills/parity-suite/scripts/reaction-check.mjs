@@ -268,7 +268,7 @@ function noneProblem(r, windowMs, documents) {
  * @param {string} root
  * @param {string[]} paths
  * @param {{ id: string, re: RegExp }[]} patterns
- * @returns {{ files: number, sites: { file: string, line: number, column: number, pattern: string }[] }}
+ * @returns {{ files: number, texts: Map<string, string>, sites: { file: string, line: number, column: number, pattern: string }[] }}
  */
 export function scanSources(root, paths, patterns) {
   const absRoot = resolve(root);
@@ -302,25 +302,38 @@ export function scanSources(root, paths, patterns) {
   }
   const unique = [...new Set(files)].sort();
   const sites = [];
+  /** @type {Map<string, string>} 走査したファイル（/ 区切りの相対パス）→ 本文。ハンドラの来歴の照合に使う */
+  const texts = new Map();
   let scanned = 0;
   for (const abs of unique) {
     const buf = readFileSync(abs);
     if (buf.includes(0)) continue; // バイナリは走査しない
     scanned += 1;
-    const lines = buf.toString("utf8").split(/\r?\n/);
+    const text = buf.toString("utf8");
+    // 行ごとに切ってから照合すると、改行をまたぐ呼び出し（名前と括弧が別の行）を検出できない。
+    // ファイル全体に照合し、一致位置から行・列を求める
+    const lineStarts = [0];
+    for (let i = 0; i < text.length; i += 1) {
+      if (text[i] === "\n") lineStarts.push(i + 1);
+    }
     const file = relative(absRoot, abs).split(sep).join("/");
-    for (let i = 0; i < lines.length; i += 1) {
-      for (const p of patterns) {
-        // 同じ行の複数の呼び出しを 1 件に潰さない（1 行に 2 つあると 2 つ目の記録漏れが見えなくなる）
-        p.re.lastIndex = 0;
-        for (let m = p.re.exec(lines[i]); m !== null; m = p.re.exec(lines[i])) {
-          sites.push({ file, line: i + 1, column: m.index + 1, pattern: p.id });
-          if (m[0] === "") p.re.lastIndex += 1; // 空一致で止まらない
+    texts.set(file, text);
+    for (const p of patterns) {
+      p.re.lastIndex = 0;
+      for (let m = p.re.exec(text); m !== null; m = p.re.exec(text)) {
+        let lo = 0;
+        let hi = lineStarts.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (lineStarts[mid] <= m.index) lo = mid;
+          else hi = mid - 1;
         }
+        sites.push({ file, line: lo + 1, column: m.index - lineStarts[lo] + 1, pattern: p.id });
+        if (m[0] === "") p.re.lastIndex += 1; // 空一致で止まらない
       }
     }
   }
-  return { files: scanned, sites };
+  return { files: scanned, texts, sites };
 }
 
 /**
@@ -384,6 +397,8 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
+  /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
+  const handlersByOp = new Map();
   for (const op of operations) {
     if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
     const label = `operations["${op.id}"]`;
@@ -393,6 +408,7 @@ export function checkReactions(table, opts = {}) {
     };
     if (!nonEmptyString(op.trigger)) fail("trigger（操作アダプタの呼び出し）が空");
     if (!nonEmptyString(op.immediate_state)) fail("immediate_state（直後の状態）が空");
+    handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
     if (reactions.length === 0) {
       fail("reactions が空（反応の欄が無い＝見ていない。無いなら kind: none を実測で書く）");
@@ -535,6 +551,25 @@ export function checkReactions(table, opts = {}) {
       problems.push("feedback_calls.source.version が空（どの版を走査したか残らない）");
     }
     callSummary.recorded = recordedSites.length;
+    // ハンドラの来歴: 走査範囲がどの操作のハンドラを覆っているかを表に残させる（範囲の書き漏れを操作単位で見えるようにする）
+    /** @type {{ opId: string, file: string, symbol: string }[]} */
+    const handlerRefs = [];
+    for (const [opId, handlers] of handlersByOp) {
+      if (
+        !Array.isArray(handlers) ||
+        handlers.length === 0 ||
+        !handlers.every(
+          (h) => isPlainObject(h) && nonEmptyString(h.file) && nonEmptyString(h.symbol),
+        )
+      ) {
+        problems.push(
+          `operations["${opId}"]: handlers（file と symbol）が空・欠けている（走査範囲が操作のハンドラを覆うか照合できない）`,
+        );
+        unmeasuredOps.add(opId);
+        continue;
+      }
+      for (const h of handlers) handlerRefs.push({ opId, file: h.file, symbol: h.symbol });
+    }
     // 呼び出し 0 件は「本当に無い」と「走査が外れている」が同じ出力になるため、根拠付きでだけ通す
     if (recordedSites.length === 0 && !zeroReason) {
       problems.push(
@@ -551,6 +586,23 @@ export function checkReactions(table, opts = {}) {
       callSummary.checked = true;
       callSummary.files = scan.files;
       callSummary.found = scan.sites.length;
+      for (const h of handlerRefs) {
+        const text = scan.texts.get(h.file);
+        if (text === undefined) {
+          problems.push(
+            `operations["${h.opId}"]: ハンドラのファイル ${h.file} が走査範囲に無い・読めていない`,
+          );
+          unmeasuredOps.add(h.opId);
+          continue;
+        }
+        const escaped = h.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (!new RegExp(`(^|[^\\w$])${escaped}([^\\w$]|$)`).test(text)) {
+          problems.push(
+            `operations["${h.opId}"]: ハンドラ ${h.symbol} が ${h.file} に見つからない`,
+          );
+          unmeasuredOps.add(h.opId);
+        }
+      }
       if (scan.files === 0)
         problems.push("走査対象のテキストファイルが 0 件（走査範囲が誤っている）");
       const foundKeys = new Set(scan.sites.map(keyOf));
