@@ -85,7 +85,7 @@
 ```
 
 - `resolution` は答えを反映したら `{ "answer": "<答え>", "answered_at": "<ISO 8601>" }` にする。未解決は `null`
-- `golden-dataset` の保留は要素ごとに `phase`（`a` / `b`）を持ち、`b` では `slug` と `target` も持つ（下記「下流の前提判定」で範囲を絞るため）
+- `golden-dataset` の保留は要素ごとに `phase`（`a` / `b`）を持ち、`b` では `slugs`（影響するすべての slug の配列）と `target` も持つ（下記「下流の前提判定」で範囲を絞るため。複数 `--feature` に効く判断を 1 件にまとめても、影響する slug を漏らさない）
 - **次の実行は、成果物を上書きする前に前回の未解決の保留を読む。** 引数なしの実行では最初に確認し、自律実行では判断材料が今も有効かを確かめて持ち越す（前提が変わって不要になったものは理由を書いて外す）。黙って消さない
 - `replace-strategy status` が全成果物の未解決の保留を集め、「判断待ち」として報告する
 
@@ -96,7 +96,7 @@
 
 | 完了の証拠（下流が読む） | 保留の記録先 | 保留が残る間の扱い |
 |---|---|---|
-| `.replace/features.md` と `.replace/components.md`（`replace-strategy setup` 完了） | `.replace/strategy-pending.json` | 作らず、`.replace/features.draft.md` / `.replace/components.draft.md` に下書きする。答えを反映したら正規の名前へ移す |
+| `.replace/features.md` と `.replace/components.md`（`replace-strategy setup` 完了） | `.replace/strategy-pending.json` | 作らず、`.replace/features.draft.md` / `.replace/components.draft.md` に下書きする。答えを反映したら `features.draft.md` は正規の名前へ移す。**`components.draft.md` は「共通部品を画面より先に作る」方針が採用されたときだけ移し**、不採用なら削除する（`components.md` の存在は方針の採用を意味する） |
 | `.replace/dataset/metadata.json`（`golden-dataset` フェーズ A・B） | `.replace/dataset/pending-decisions.json` | 該当フェーズの記録を作らない・更新しない |
 | `.replace/parity/<slug>/metadata.json`（`parity-suite`） | `.replace/parity/<slug>/pending-decisions.json` | 同上 |
 | `.replace/parity/<slug>/new/<target>/replace-metadata.json`（`parity-replace` の `suite.new_green`） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` | 同上。**再実行の開始時に既存の `suite.new_green: true` が残っていれば、保留に依存する工程に入る前に `false` へ戻す** |
@@ -110,7 +110,7 @@
 |---|---|
 | `replace-strategy setup` | `.replace/strategy-pending.json` の `mode: setup` の全要素 |
 | `golden-dataset` フェーズ A | `.replace/dataset/pending-decisions.json` の `phase: a` の要素 |
-| `golden-dataset` フェーズ B（slug × target） | 同ファイルの `phase: b` で `slug` と `target` が一致する要素（他の slug・target の保留では止めない） |
+| `golden-dataset` フェーズ B（slug × target） | 同ファイルの `phase: b` で `slugs` が対象 slug を含み `target` が一致する要素（他の slug・target の保留では止めない。`slugs` が欠落・空の要素は範囲を決められないので、同じ target のすべての slug を止める） |
 | `parity-suite`（slug） | `.replace/parity/<slug>/pending-decisions.json` の全要素 |
 | `parity-replace` の新側 green（slug × target） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` の全要素 |
 
