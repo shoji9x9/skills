@@ -46,12 +46,14 @@ export const assetProbe = () => {
     return rect.width > 0 && rect.height > 0;
   };
 
-  const urlsIn = (value) => {
+  // 計算後スタイルの url() は解決済みの絶対 URL で返るが、CSSOM の規則（@font-face の src 等）は書かれたままの相対 URL を返す。
+  // 相対 URL の基準はそのスタイルシートの URL なので、規則から読むときは base にシートの href を渡す。
+  const urlsIn = (value, base = document.baseURI) => {
     const out = [];
     const re = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
     let m;
     while ((m = re.exec(value || ""))) {
-      if (m[2]) out.push(new URL(m[2], document.baseURI).href);
+      if (m[2]) out.push(new URL(m[2], base).href);
     }
     return out;
   };
@@ -173,20 +175,20 @@ export const assetProbe = () => {
   // 読めなかったシートは件数とともに残す（「無い」と「読めない」を区別する）。
   const fontFaces = [];
   const unreadableSheets = [];
-  const walk = (rules, sheetHref) => {
+  const walk = (rules, sheetHref, base) => {
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.FONT_FACE_RULE) {
         fontFaces.push({
           family: rule.style.getPropertyValue("font-family").trim(),
           weight: rule.style.getPropertyValue("font-weight").trim() || null,
           style: rule.style.getPropertyValue("font-style").trim() || null,
-          src: urlsIn(rule.style.getPropertyValue("src")),
+          src: urlsIn(rule.style.getPropertyValue("src"), base),
           sheet: sheetHref,
         });
       } else if (rule.type === CSSRule.IMPORT_RULE && rule.styleSheet) {
         visit(rule.styleSheet);
       } else if (rule.cssRules) {
-        walk(rule.cssRules, sheetHref);
+        walk(rule.cssRules, sheetHref, base);
       }
     }
   };
@@ -202,7 +204,8 @@ export const assetProbe = () => {
       unreadableSheets.push(sheet.href || "(inline)");
       return;
     }
-    walk(rules, sheet.href || "(inline)");
+    // インライン・構築済みのシートは href を持たず、相対 URL は文書の URL を基準に解決される。
+    walk(rules, sheet.href || "(inline)", sheet.href || document.baseURI);
   };
   for (const root of roots) {
     for (const sheet of Array.from(root.styleSheets || [])) visit(sheet);
@@ -214,8 +217,13 @@ export const assetProbe = () => {
     .map((face) => ({ family: face.family, weight: face.weight, style: face.style }));
 
   const icons = Array.from(document.querySelectorAll("link[rel]"))
-    .filter((link) => /(^|\s)(icon|apple-touch-icon|mask-icon|manifest)(\s|$)/i.test(link.rel))
+    .filter((link) => /(^|\s)(icon|apple-touch-icon|mask-icon)(\s|$)/i.test(link.rel))
     .map((link) => ({ rel: link.rel, href: link.href, sizes: link.getAttribute("sizes") || null }));
+  // manifest の icons はページの描画では取得されず resources にも出ないことがある。プローブは manifest を開かないので、
+  // 参照だけを返す（中身の icons は読んでいない。manifest の URL をアイコンとして数えない）。
+  const manifests = Array.from(document.querySelectorAll("link[rel]"))
+    .filter((link) => /(^|\s)manifest(\s|$)/i.test(link.rel))
+    .map((link) => ({ href: link.href, iconsInspected: false }));
 
   const ASSET_EXT = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|bmp|cur)(\?|#|$)/i;
   const resourceEntries = performance.getEntriesByType
@@ -236,6 +244,7 @@ export const assetProbe = () => {
     fontFaces,
     loadedFonts,
     icons,
+    manifests,
     resources,
     resourcesMaybeTruncated,
     shadowRoots: roots.length - 1,

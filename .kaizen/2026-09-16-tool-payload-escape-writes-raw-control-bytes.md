@@ -1,7 +1,7 @@
 ---
 date: 2026-09-16
 type: hook
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -20,6 +20,9 @@ session: claude-code
 - 横断確認で NUL を含む追跡対象テキストファイルは 0 件（陽性コントロール付きで確認）。
   ただし最初の走査は `grep -lP '\x00'` で `-a` が無く、陽性コントロールすら検出できていなかった
 - **この学びファイル自体でも再発した**: 本文に `"\u0000"` を書いた箇所が生の NUL 2 個・生のタブ 1 個になり、確認 UI の preview でも `\u0000` が置換文字で表示された（手順を知っていても書き手の注意では防げない）
+- 3 度目: PR 本文を Bash の heredoc で書き出すコマンドに NUL のエスケープを含めたところ、ツール層で生の制御文字に復号され、「command contains control characters that would be hidden in the approval dialog」で拒否された。
+  この経路はツール側が止めたが、Write 経由では止まらない（同じセッションで 2 度黙って書き込まれた）。
+  文面に制御文字のエスケープを書かないという書き手の注意は、記録した直後でも守れなかった
 
 ## 根本原因
 

@@ -30,7 +30,8 @@
 | `glyphs` | 疑似要素（`::before` / `::after`）の `content` の文字・コードポイント・`font-family`。**`privateUse: true` はアイコン用の書体のグリフの目印** |
 | `urlRefs` | `background-image` 等の `url()` 参照（疑似要素を含む） |
 | `fontFaces` / `loadedFonts` | `@font-face` の `src` と、実際に読み込まれた書体 |
-| `icons` | favicon 等の `link[rel]` |
+| `icons` | favicon 等の `link[rel]`（`icon` / `apple-touch-icon` / `mask-icon`） |
+| `manifests` | `link[rel=manifest]` の参照だけ（`iconsInspected: false`）。**プローブは manifest の `icons` を読まない**——manifest を開いて `icons` の各画像を棚卸しに加え、開けなければ「未確認」と書く（インストール用アイコンは描画で取得されず `resources` にも出ないことがある） |
 | `resources` | 実際に取得された画像・書体ファイルの URL。**`resourcesMaybeTruncated: true` なら網羅ではない**（Resource Timing のバッファ既定 250 件を超えた取得は記録されない）——`fontFaces` / `urlRefs` と突き合わせ、埋まらなければ「未確認」と書く |
 | `shadowRoots` | 走査した open な shadow root の数（内側の要素・スタイルシートも上の各キーに含む）。closed な shadow root は読めないため、Web Components を使うページでは画面と突き合わせる |
 | `unreadableSheets` | `cssRules` を読めなかったスタイルシート。**1 件以上なら `fontFaces` は網羅ではない**——`resources` の書体ファイルと突き合わせ、埋まらなければ「未確認」と書く |
