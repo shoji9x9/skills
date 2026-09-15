@@ -89,6 +89,141 @@ export async function waitForStableRect(target: Locator): Promise<void> {
 }
 ```
 
+### 寸法の決まり方（窓への追従）
+
+**3 経路（画素・特性照合・aria）は `capture_conditions.viewports` に宣言した点でしか比べない。** ビューポートが 1 つだと、
+**その 1 点の実測 px を並べた新側の版組が 3 経路すべてで緑になる**。移行元が「割合 × 器の寸法 ＋ 定数」「窓の高さ − 定数」で決まっていれば、
+別の窓で数十 px ずれるが、スイートも差分器も最後まで緑のまま人が触るまで気づけない。
+
+**画素の比較点は増やさない。** 足すのは位置と寸法の式を読む工程だけで、`getBoundingClientRect()` の読み取りで済む。
+
+- **いつ要るか**: feature モードで `capture_conditions.dimension_model` を**キーごと省略しない**。ビューポートが 1 つなら `status: measured` か `not_measured`（理由付き）のどちらか。
+  ビューポートが 2 つ以上のときだけ `not_required`（理由付き）を選べる
+- **`not_measured` は `gaps.md` に書いて済ませない。** `gaps.md` に書けば通る形は同じ穴を機能ごとに再生産するため、未測定は `parity-replace` への**引き渡し条件**として `dimension_model` に残す
+  （`parity-replace` は完了判定で読み、写していない旨を `porting.md` に明示する。正本は `parity-replace` の `SKILL.md` 手順 8）
+- **測る要素**: `traits.elements` の論理名の全て（各論理名が在るページで、default 状態）。自分で選ばない——`scripts/dimension-fit.mjs` が samples に無い論理名を落とす
+- **測る窓**: 撮影したビューポートを含む **4 窓以上**を、**幅と高さを独立に動かして**選ぶ（縦横比が一定の窓だけでは幅と高さのどちらに追従しているかを分けられず、スクリプトが落とす）。
+  窓は撮影したビューポートと**同じブレークポイントの範囲内**に取る（ブレークポイントの導出は [`coverage.md`](coverage.md)「スクリーンサイズ」。またぐと式が変わるので当てはまらない）
+- **当てはめ**: `値 = ratio.width × 窓の幅 ＋ ratio.height × 窓の高さ ＋ offset` を要素 × 軸（x / y / width / height）ごとに最小二乗で当てる。
+  器（グリッド・パネル）が窓に対して線形なら、器に対して線形な要素も窓に対して線形になるので、器を選ぶ判断は要らない。
+  残差が許容（既定 0.5px）内なら `fits`、超える・一部の窓で表示されないなら `unfit`（**式が読めない**）として記録する。`unfit` は失敗ではなく記録であり、消さない
+
+採取は side 非依存の測定スペック `<parity_suite_dir>/parity/<slug>/dimension/` に置き、**`current` と `new` の両プロジェクトに含める**（`new-capture` は `testDir` が `new-only/` なので含まれない）。
+出力先を project 名で分けるので、side 専用スペックの除外（[`locator-mapping.md`](locator-mapping.md)）が防ぐ「相手側の証跡の上書き」は起きない:
+
+| project | 出力先 |
+|---|---|
+| `current` | `.replace/parity/<slug>/dimension-samples.json` |
+| `new` | `.replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json`（`PARITY_NEW_TARGET` 未設定なら例外にして書かない） |
+
+**書き出すのは `PARITY_DIMENSION_CAPTURE=1` を渡した実行だけ**で、それ以外はスキップする。強度ゲート（手順 7）は故障を注入した状態で同じ `current` を回し、
+ノイズ測定の 2 回目や green の再確認も同じスイートを回すため、無条件に書くと**崩れた矩形で samples を上書きし、その値に式を当てはめる**ことになる。
+採るのは本手順（`current`）と `parity-replace` の完了判定（`new`）の直前だけにし、採った直後に `fit` / `check` を通す:
+
+```bash
+PARITY_DIMENSION_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test --project current <parity_suite_dir>/parity/<slug>/dimension/
+```
+
+```ts
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative } from "node:path";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+// スペックは <parity_suite_dir>/parity/<slug>/dimension/ に置くので、共有ライブラリ（<parity_suite_dir>/parity/lib/）は 2 階層上
+import { waitForStableRect } from "../../lib/wait"; // 上記「撮る対象が動かなくなるまで待つ」の関数（実際のパスはスイートに合わせる）
+import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>"; // 実際のパスは metadata.json の suite.locator_map
+// 新側のロケータ例外（replace-metadata.json の suite.locator_map_new）。
+// 例外ゼロで parity-replace がファイルを作っていなければ、次の import を消し、代わりに
+// `const resolveNewException = (_page: Page, _name: string): Locator | undefined => undefined;` を置く（resolveFor はそのまま使える）
+import { resolveLocator as resolveNewException } from "../../lib/locator-map/<slug>.new";
+
+// 撮影ビューポートを含み、幅と高さを独立に動かした 4 窓以上（同じブレークポイントの範囲内）
+const WINDOWS = [
+  { width: 1366, height: 768 },
+  { width: 1600, height: 900 },
+  { width: 1280, height: 1024 },
+  { width: 1920, height: 800 },
+];
+// traits.elements の全論理名を、在るページごとに並べる（capture_conditions.pages[].name / path と同じ語彙）
+const TARGETS = [{ page: "<ページ名>", path: "<相対パス>", elements: ["<論理名>"] }];
+
+// 新側は「新側例外 → 現側マッピング」の順で解決し、両側で同じ論理名の要素を測る（parity-diff の新側採取雛形と同じ順）
+function resolveFor(side: string, page: Page, name: string): Locator {
+  return (side === "new" ? resolveNewException(page, name) : undefined) ?? resolveCurrent(page, name);
+}
+
+test("寸法の決まり方の採取", async ({ page }, testInfo) => {
+  // 採取を宣言した実行だけ書く（強度ゲート・ノイズ測定・green 確認で samples を上書きしない）
+  test.skip(process.env.PARITY_DIMENSION_CAPTURE !== "1", "PARITY_DIMENSION_CAPTURE=1 の実行でだけ採る");
+  const slug = "<slug>";
+  const side = testInfo.project.name;
+  if (side !== "current" && side !== "new") throw new Error(`current / new 以外の project で走った: ${side}`);
+  const root = join(process.cwd(), ".replace", "parity", slug);
+  const out =
+    side === "current" ? join(root, "dimension-samples.json") : join(root, "new", requireTarget(), "dimension-samples.json");
+  // slug・target に `..` や区切り文字が混じると .replace/parity/<slug>/ の外へ書く。書く前に落とす
+  const rel = relative(root, out);
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`出力先 ${out} が ${root} の外を指す`);
+  type Sample = { window: (typeof WINDOWS)[number]; rect: { x: number; y: number; width: number; height: number } | null };
+  const elements: { page: string; element: string; rects: Sample[] }[] = [];
+  for (const t of TARGETS) {
+    const rects = new Map<string, Sample[]>(t.elements.map((e): [string, Sample[]] => [e, []]));
+    for (const w of WINDOWS) {
+      await page.setViewportSize(w);
+      await page.goto(t.path);
+      for (const name of t.elements) {
+        const locator = resolveFor(side, page, name);
+        // 即時読み取り（isVisible）は描画前に false を返す。自動で待つ assertion を上限つきで通し、
+        // 出なかった窓は toBeHidden で「見えない」を確かめてから null にする。ロケータの曖昧さ・ページのクローズ等は
+        // toBeHidden も失敗するので、その例外はそのまま投げて採取を止める（壊れた採取を hidden として記録しない）
+        const visible = await expect(locator)
+          .toBeVisible({ timeout: 5_000 })
+          .then(
+            () => true,
+            async () => {
+              await expect(locator).toBeHidden({ timeout: 1_000 });
+              return false;
+            },
+          );
+        if (visible) await waitForStableRect(locator);
+        // 出典: https://developer.mozilla.org/docs/Web/API/Element/getBoundingClientRect（ビューポート基準。スクロール量を足してページ座標にする）
+        const rect = visible
+          ? await locator.evaluate((el) => {
+              const r = el.getBoundingClientRect();
+              return { x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height };
+            })
+          : null;
+        rects.get(name)!.push({ window: w, rect });
+      }
+    }
+    for (const [element, r] of rects) elements.push({ page: t.page, element, rects: r });
+  }
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, `${JSON.stringify({ windows: WINDOWS, elements }, null, 2)}\n`);
+});
+
+function requireTarget(): string {
+  const v = process.env.PARITY_NEW_TARGET;
+  if (!v) throw new Error("PARITY_NEW_TARGET が未設定（新側の出力先 new/<target>/ を決められない）");
+  // target 名は 1 つのディレクトリ名に限る（設定 targets の名前。`..`・区切り文字を通さない）
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v) || v.includes("..")) {
+    throw new Error(`PARITY_NEW_TARGET が target 名の形でない: ${v}`);
+  }
+  return v;
+}
+```
+
+採ったら、`traits.elements`・`capture_conditions.viewports`・`capture_conditions.pages` を書いた `metadata.json` に対して当てはめを通す（**コピーせずスキル配下から実行する**。手で転記しない）:
+
+```bash
+node <skill>/scripts/dimension-fit.mjs fit \
+  --samples .replace/parity/<slug>/dimension-samples.json \
+  --metadata .replace/parity/<slug>/metadata.json --write
+```
+
+- exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・撮影ページや `traits.elements` の測り漏れ・全ての窓で表示されない要素・キーの欠落や重複・型崩れ）は採り直す
+- `dimension-samples.json` はテキスト成果物として Git に入れる（`parity-replace` の照合は `metadata.json` の式を使い、samples は再当てはめの根拠）
+- **要素・窓を変えて採り直したら、`fit` も通し直す**（`dimension_model.samples_fingerprint` はどの samples から当てた式かの記録。`parity-replace` の `check` は現側 `dimension-samples.json` とこの指紋を照合し、一致しなければ exit 2 で止まる）
+
 ### 採取環境と利用者環境の乖離
 
 **採取環境でだけ成立する一致は、差分器では捉えられない。** 現・新を同じ環境で撮る統制は、その環境に固有の解決（フォントのフォールバック先、システム UI 由来の既定値）を現・新の両側に等しく効かせるため、**環境が変われば壊れる差を差分ゼロとして通してしまう**。

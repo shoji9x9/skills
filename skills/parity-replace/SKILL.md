@@ -84,6 +84,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 - **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
 - **モデルの「同じに見えます」を完了根拠にしない**
+- **撮影したビューポートで測った px を並べて版組を作らない。** 3 経路はその点でしか比べないため、1 点の px を並べた版組は全経路で緑のまま別の窓で崩れる。
+  位置・寸法は `parity-suite` が読んだ式（`metadata.json` の `capture_conditions.dimension_model.fits`）で写し、完了判定で `dimension-fit.mjs check` を通す（手順 8）
 - **振る舞い保存と品質改善を同じフェーズで狙わない。** レガシーの奇妙な挙動も再現する
 - **リントを off にして差異を回避しない**（ロケータマッピング層が現側の非セマンティックさを隔離しているため、新側を改善してもスイートは壊れない）
 - **タブ順の厳密一致を目標にしない**（ARIA APG 準拠で新の方が正しくてもタブ停止数が変わりうる）
@@ -163,6 +165,15 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    壊れる相手が変更集合の外にいるため差分限定では原理的に捕まらない（走る範囲の正本はスキーマ文書「走る範囲」）。
    そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**判断の基準だけ**（差分・現行コード・規約・DB 意味論の点検表・レジストリの `keep` / `may_change`）を渡し、実装意図・確信度は知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
 8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ **`verification_commands.full` が通る**（batch モードは実行可能スイートを持たないため**出力一致**＋ `full`。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
+   **feature モードでは寸法の決まり方の照合も完了判定に入れる**（機能の全ページのフェーズを終えた後に 1 回。ページのフェーズでは回さない。理由は [`references/paging.md`](references/paging.md)）
+   ——`new` プロジェクトの `dimension/` を `PARITY_DIMENSION_CAPTURE=1 PARITY_NEW_TARGET=<選択中の new target>` 付きで回すと `new/<target>/dimension-samples.json` が書かれるので、**その直後に**
+   `node <parity-suite>/scripts/dimension-fit.mjs check --metadata <現側 metadata.json> --current-samples <現側 dimension-samples.json>`
+   `--samples <新側 dimension-samples.json> --write <新側 replace-metadata.json>` を通す
+   （パスは `.replace/parity/<slug>/` 直下と `.replace/parity/<slug>/new/<target>/` 配下。現側 samples は式の出所の照合に使う）
+   （インストール済みの `parity-suite` から実行し、コピーしない）。**exit 1（式と合わない）は未完了**で、1 点の px ではなく式で写し直す。exit 2 は入力の不備で、判定していないので完了扱いにしない。
+   現側の `dimension_model` のキーが無い・4 軸の記録が欠けている・現側 samples が式の指紋と一致しないのも exit 2 で、`parity-suite` へ戻して記録させる（`dimension_check` にも `ok: false` と `error` が書かれ、前回の合格は残らない）。
+   **判定しなかった（`judged: false`。`not_measured`・`not_required`・照合できる式が 0 件）ときと、式が読めなかった軸（`unfit_to_note`）があるときは、写していない旨と理由を `porting.md`「寸法の決まり方」へ明示する**
+   ——書かずに完了を名乗らない（`not_measured` は `parity-suite` からの引き渡し条件であり、`gaps.md` で済ませない。形式の正本は `parity-suite` の `references/baseline.md`「寸法の決まり方（窓への追従）」）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
    合わせて、**他機能のスイートに置かれた在席チェックのうち自 slug を理由にスキップされているものを外し**、green を確認する（自機能のページを他機能と共有する場合。外して赤くなるなら、そのページでの自機能の在席が欠けている）。
@@ -199,6 +210,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | 実装 | プロジェクトの構成に従う（新側のコード） | — |
 | 新側ロケータマッピング | パリティスイートと同じ配置（例外のみ・操作差の分岐を含む） | — |
 | 期待値解決層の新側の値 | `metadata.json` の `suite.expectations` が指すパス（宣言済みの意図的差異に対応する項目のみ充填） | 層の正本: `parity-suite` の `references/locator-mapping.md` |
+| 寸法の採取値（feature モード。**環境別**） | `.replace/parity/<slug>/new/<target>/dimension-samples.json`（`dimension/` の測定スペックが `new` の実行で書く） | 形式の正本: `parity-suite` の `scripts/dimension-fit.mjs` |
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
@@ -206,7 +218,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
-- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
+- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
 - **green 証跡だけが環境別**: `replace-metadata.json` は `new/<target>/` 配下に置き、環境を切り替えても他の target の証跡を上書きしない。`porting.md` / `review.md` は環境非依存のため slug 直下に置く
 - 本スキルは実行時に固有の決定論的ツールを同梱しない（差分器・視覚ベースラインは `parity-suite` 同梱・`parity-diff` 担当）
 
