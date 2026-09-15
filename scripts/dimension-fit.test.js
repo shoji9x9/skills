@@ -48,7 +48,7 @@ const samplesOf = (layout, windows = WINDOWS) => ({
 
 const metadataOf = (viewports = [{ width: 1366, height: 768, label: "desktop" }]) => ({
   slug: "order-list",
-  capture_conditions: { viewports },
+  capture_conditions: { viewports, pages: [{ name: "list", path: "/orders" }] },
   traits: { elements: ["button", "grid"] },
 });
 
@@ -285,15 +285,17 @@ test("check: 残差が許容ぎりぎりの軸でも、現側と同一の新側�
   expect(r.code).toBe(0);
 });
 
-test("check: dimension_model が無い旧成果物・not_measured は判定しない（judged: false と理由）", () => {
+test("check: dimension_model のキーが無いのは免除にせず exit 2（前回の合格も上書きする）", () => {
   const legacy = run(["check", "--metadata", "m.json", "--write", "r.json"], {
     "/w/m.json": metadataOf(),
-    "/w/r.json": {},
+    "/w/r.json": { dimension_check: { ok: true } },
   });
-  expect(legacy.code).toBe(0);
-  expect(legacy.json.judged).toBe(false);
-  expect(legacy.file("/w/r.json").dimension_check).toMatchObject({ judged: false, ok: null });
+  expect(legacy.code).toBe(2);
+  expect(legacy.stderr).toMatch(/キーを省略したまま判定を免除しない/);
+  expect(legacy.file("/w/r.json").dimension_check).toMatchObject({ judged: false, ok: false });
+});
 
+test("check: not_measured は理由付きで判定しない（judged: false）", () => {
   const m = metadataOf();
   m.capture_conditions.dimension_model = {
     status: "not_measured",
@@ -369,6 +371,30 @@ test.each([
     null,
     /fits にも在る/,
   ],
+  [
+    "ある要素の軸を記録から消した",
+    (m) => {
+      const dm = m.capture_conditions.dimension_model;
+      dm.fits = dm.fits.filter((f) => !(f.element === "grid" && f.property !== "x"));
+    },
+    null,
+    /\(list, grid\) に軸 y, width, height/,
+  ],
+  [
+    "traits.elements の論理名が記録から丸ごと無い",
+    (m) => {
+      const dm = m.capture_conditions.dimension_model;
+      dm.fits = dm.fits.filter((f) => f.element !== "grid");
+    },
+    null,
+    /traits\.elements の論理名: grid/,
+  ],
+  [
+    "measured_at が撮影ビューポートを含まない",
+    (m) => (m.capture_conditions.viewports = [{ width: 1440, height: 700, label: "desktop" }]),
+    null,
+    /measured_at が capture_conditions\.viewports/,
+  ],
 ])("check: %s は exit 2", (_, mutate, newSamples, message) => {
   const m = fittedMetadata();
   mutate(m);
@@ -408,6 +434,67 @@ test("check --write: exit 2 でも前回の合格を残さず error を書き、
   expect(record.ok).toBe(false);
   expect(record.error).toMatch(/測定窓/);
   expect(record.samples_fingerprint).not.toBe(passed.samples_fingerprint);
+});
+
+test.each([
+  [
+    "窓の寸法が文字列",
+    (s) => (s.elements[0].rects[0].window = { width: "1366", height: "768" }),
+    /window の width \/ height が正の整数でない/,
+  ],
+  [
+    "撮影ページを測っていない",
+    (s) => s.elements.forEach((e) => (e.page = "detail")),
+    /capture_conditions\.pages に無いページ: detail/,
+  ],
+])("fit: %s は exit 2", (_, mutate, message) => {
+  const samples = samplesOf(formula);
+  mutate(samples);
+  const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {
+    "/w/s.json": samples,
+    "/w/m.json": metadataOf(),
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(message);
+});
+
+test("fit: 撮影ページの 1 つを測っていなければ exit 2（別ページの論理名で埋めない）", () => {
+  const m = metadataOf();
+  m.capture_conditions.pages.push({ name: "detail", path: "/orders/1" });
+  const r = run(["fit", "--samples", "s.json", "--metadata", "m.json"], {
+    "/w/s.json": samplesOf(formula),
+    "/w/m.json": m,
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(/測っていないページ: detail/);
+});
+
+test.each([
+  ["寸法が 0", [{ width: 0, height: 768, label: "desktop" }], /正の整数でない/],
+  [
+    "同じ寸法の重複で 2 つに見せる",
+    [
+      { width: 1366, height: 768, label: "desktop" },
+      { width: 1366, height: 768, label: "desktop-2" },
+    ],
+    /重複/,
+  ],
+])("check: ビューポートの%sは exit 2", (_, viewports, message) => {
+  const m = metadataOf(viewports);
+  m.capture_conditions.dimension_model = { status: "not_required", reason: "複数で撮る" };
+  const r = run(["check", "--metadata", "m.json"], { "/w/m.json": m });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(message);
+});
+
+test("check --write: metadata が読めない exit 2 でも前回の合格を上書きする", () => {
+  const r = run(["check", "--metadata", "m.json", "--samples", "n.json", "--write", "r.json"], {
+    "/w/m.json": "{ broken",
+    "/w/n.json": samplesOf(formula),
+    "/w/r.json": { dimension_check: { ok: true } },
+  });
+  expect(r.code).toBe(2);
+  expect(r.file("/w/r.json").dimension_check).toMatchObject({ ok: false });
 });
 
 test("CLI: シンボリックリンクでなく実パスで起動して exit コードを返す", () => {

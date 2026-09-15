@@ -126,10 +126,12 @@ PARITY_DIMENSION_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test --pro
 
 ```ts
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { test } from "@playwright/test";
+import { dirname, isAbsolute, join, relative } from "node:path";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { waitForStableRect } from "../lib/wait"; // 上記「撮る対象が動かなくなるまで待つ」の関数（実際のパスはスイートに合わせる）
-import { resolveLocator } from "../lib/locator-map"; // 論理名 → Locator（実際のパスは metadata.json の suite.locator_map）
+import { resolveLocator as resolveCurrent } from "../lib/locator-map/<slug>"; // 実際のパスは metadata.json の suite.locator_map
+// 新側のロケータ例外（replace-metadata.json の suite.locator_map_new）。例外ゼロで parity-replace がファイルを作らなければ import ごと外す
+import { resolveLocator as resolveNewException } from "../lib/locator-map/<slug>.new";
 
 // 撮影ビューポートを含み、幅と高さを独立に動かした 4 窓以上（同じブレークポイントの範囲内）
 const WINDOWS = [
@@ -141,14 +143,23 @@ const WINDOWS = [
 // traits.elements の全論理名を、在るページごとに並べる（capture_conditions.pages[].name / path と同じ語彙）
 const TARGETS = [{ page: "<ページ名>", path: "<相対パス>", elements: ["<論理名>"] }];
 
+// 新側は「新側例外 → 現側マッピング」の順で解決し、両側で同じ論理名の要素を測る（parity-diff の新側採取雛形と同じ順）
+function resolveFor(side: string, page: Page, name: string): Locator {
+  return (side === "new" ? resolveNewException(page, name) : undefined) ?? resolveCurrent(page, name);
+}
+
 test("寸法の決まり方の採取", async ({ page }, testInfo) => {
   // 採取を宣言した実行だけ書く（強度ゲート・ノイズ測定・green 確認で samples を上書きしない）
   test.skip(process.env.PARITY_DIMENSION_CAPTURE !== "1", "PARITY_DIMENSION_CAPTURE=1 の実行でだけ採る");
   const slug = "<slug>";
+  const side = testInfo.project.name;
+  if (side !== "current" && side !== "new") throw new Error(`current / new 以外の project で走った: ${side}`);
+  const root = join(process.cwd(), ".replace", "parity", slug);
   const out =
-    testInfo.project.name === "current"
-      ? `.replace/parity/${slug}/dimension-samples.json`
-      : `.replace/parity/${slug}/new/${requireTarget()}/dimension-samples.json`;
+    side === "current" ? join(root, "dimension-samples.json") : join(root, "new", requireTarget(), "dimension-samples.json");
+  // slug・target に `..` や区切り文字が混じると .replace/parity/<slug>/ の外へ書く。書く前に落とす
+  const rel = relative(root, out);
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`出力先 ${out} が ${root} の外を指す`);
   type Sample = { window: (typeof WINDOWS)[number]; rect: { x: number; y: number; width: number; height: number } | null };
   const elements: { page: string; element: string; rects: Sample[] }[] = [];
   for (const t of TARGETS) {
@@ -157,8 +168,11 @@ test("寸法の決まり方の採取", async ({ page }, testInfo) => {
       await page.setViewportSize(w);
       await page.goto(t.path);
       for (const name of t.elements) {
-        const locator = resolveLocator(page, name);
-        const visible = await locator.isVisible();
+        const locator = resolveFor(side, page, name);
+        // 即時読み取り（isVisible）は描画前に false を返す。自動で待つ assertion を上限つきで通し、出なかった窓だけを null にする
+        const visible = await expect(locator)
+          .toBeVisible({ timeout: 5_000 })
+          .then(() => true, () => false);
         if (visible) await waitForStableRect(locator);
         // 出典: https://developer.mozilla.org/docs/Web/API/Element/getBoundingClientRect（ビューポート基準。スクロール量を足してページ座標にする）
         const rect = visible
@@ -179,11 +193,15 @@ test("寸法の決まり方の採取", async ({ page }, testInfo) => {
 function requireTarget(): string {
   const v = process.env.PARITY_NEW_TARGET;
   if (!v) throw new Error("PARITY_NEW_TARGET が未設定（新側の出力先 new/<target>/ を決められない）");
+  // target 名は 1 つのディレクトリ名に限る（設定 targets の名前。`..`・区切り文字を通さない）
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v) || v.includes("..")) {
+    throw new Error(`PARITY_NEW_TARGET が target 名の形でない: ${v}`);
+  }
   return v;
 }
 ```
 
-採ったら、`traits.elements` と `capture_conditions.viewports` を書いた `metadata.json` に対して当てはめを通す（**コピーせずスキル配下から実行する**。手で転記しない）:
+採ったら、`traits.elements`・`capture_conditions.viewports`・`capture_conditions.pages` を書いた `metadata.json` に対して当てはめを通す（**コピーせずスキル配下から実行する**。手で転記しない）:
 
 ```bash
 node <skill>/scripts/dimension-fit.mjs fit \
@@ -191,7 +209,7 @@ node <skill>/scripts/dimension-fit.mjs fit \
   --metadata .replace/parity/<slug>/metadata.json --write
 ```
 
-- exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・測り漏れ・キーの欠落や重複）は採り直す
+- exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・撮影ページや `traits.elements` の測り漏れ・キーの欠落や重複・型崩れ）は採り直す
 - `dimension-samples.json` はテキスト成果物として Git に入れる（`parity-replace` の照合は `metadata.json` の式を使い、samples は再当てはめの根拠）
 - **要素・窓を変えて採り直したら、`fit` も通し直す**（`dimension_model.samples_fingerprint` はどの samples から当てた式かの記録。採り直した samples とは一致しなくなる）
 

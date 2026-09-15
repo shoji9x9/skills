@@ -96,6 +96,25 @@ function windowKey(w) {
 }
 
 /**
+ * 窓 1 つを検証する（キーを作る前に型を確かめる。"1366" のような文字列を実在の窓のキーへ化けさせない）。
+ * @param {unknown} w
+ * @param {string} at
+ * @returns {{ width: number, height: number }}
+ */
+function validateWindow(w, at) {
+  if (
+    !isPlainObject(w) ||
+    !Number.isInteger(w.width) ||
+    !Number.isInteger(w.height) ||
+    /** @type {number} */ (w.width) <= 0 ||
+    /** @type {number} */ (w.height) <= 0
+  ) {
+    throw new UsageError(`${at} の width / height が正の整数でない`);
+  }
+  return { width: /** @type {number} */ (w.width), height: /** @type {number} */ (w.height) };
+}
+
+/**
  * 窓の一覧を検証する（正の整数・重複なし・4 以上・一直線上に並ばない）。
  * @param {unknown} windows
  * @param {string} label
@@ -104,20 +123,12 @@ function windowKey(w) {
 export function validateWindows(windows, label) {
   if (!Array.isArray(windows)) throw new UsageError(`${label} が配列でない`);
   const seen = new Set();
-  const out = windows.map((w, i) => {
-    if (
-      !isPlainObject(w) ||
-      !Number.isInteger(w.width) ||
-      !Number.isInteger(w.height) ||
-      w.width <= 0 ||
-      w.height <= 0
-    ) {
-      throw new UsageError(`${label}[${i}] の width / height が正の整数でない`);
-    }
+  const out = windows.map((raw, i) => {
+    const w = validateWindow(raw, `${label}[${i}]`);
     const key = windowKey(w);
     if (seen.has(key)) throw new UsageError(`${label} に窓 ${key} が重複している`);
     seen.add(key);
-    return { width: w.width, height: w.height };
+    return w;
   });
   if (out.length < MIN_WINDOWS) {
     throw new UsageError(
@@ -206,7 +217,7 @@ function indexElements(elements, windows, label) {
       if (!isPlainObject(r) || !isPlainObject(r.window)) {
         throw new UsageError(`${at}.rects[${j}].window が無い`);
       }
-      const wk = windowKey(/** @type {{ width: number, height: number }} */ (r.window));
+      const wk = windowKey(validateWindow(r.window, `${at}.rects[${j}].window`));
       if (!windowKeys.has(wk))
         throw new UsageError(`${at}.rects[${j}] の窓 ${wk} が windows に無い`);
       if (rects.has(wk)) throw new UsageError(`${at}.rects に窓 ${wk} が重複している`);
@@ -244,7 +255,7 @@ function fingerprint(text) {
 /**
  * 現側の samples から dimension_model を作る。
  * @param {unknown} samples
- * @param {{ viewports: { width: number, height: number }[], traitElements: string[], tolerance: number, samplesText: string }} opts
+ * @param {{ viewports: { width: number, height: number }[], targets: { traitElements: string[], pages: string[] }, tolerance: number, samplesText: string }} opts
  */
 export function fitModel(samples, opts) {
   if (!isPlainObject(samples)) throw new UsageError("samples が JSON オブジェクトでない");
@@ -256,14 +267,8 @@ export function fitModel(samples, opts) {
     );
   }
   const index = indexElements(samples.elements, windows, "samples");
-  // 測る要素を自分で選ばせない: 特性を採った論理名は全て、どこかのページで窓を変えて読んでいること
-  const sampled = new Set([...index.values()].map((e) => e.element));
-  const unsampled = opts.traitElements.filter((name) => !sampled.has(name));
-  if (unsampled.length > 0) {
-    throw new UsageError(
-      `traits.elements のうち samples に無い論理名: ${unsampled.join(", ")}（そのページで窓を変えて読む）`,
-    );
-  }
+  // 測る対象を自分で選ばせない: 撮影ページは全て、特性を採った論理名は全てどこかのページで窓を変えて読んでいること
+  assertCoverage([...index.values()], opts.targets, "samples");
   const fits = [];
   const unfit = [];
   for (const { page, element, rects } of index.values()) {
@@ -325,12 +330,79 @@ function readViewports(metadata) {
   if (!isPlainObject(cc) || !Array.isArray(cc.viewports) || cc.viewports.length === 0) {
     throw new UsageError("metadata.json の capture_conditions.viewports が空でない配列でない");
   }
-  return cc.viewports.map((v, i) => {
-    if (!isPlainObject(v) || !Number.isInteger(v.width) || !Number.isInteger(v.height)) {
-      throw new UsageError(`capture_conditions.viewports[${i}] の width / height が整数でない`);
+  const seen = new Set();
+  return cc.viewports.map((raw, i) => {
+    const v = validateWindow(raw, `capture_conditions.viewports[${i}]`);
+    // 同じ寸法を 2 つ並べて「ビューポート 2 つ以上」の免除（not_required）を通させない
+    if (seen.has(windowKey(v))) {
+      throw new UsageError(`capture_conditions.viewports に ${windowKey(v)} が重複している`);
     }
-    return { width: v.width, height: v.height };
+    seen.add(windowKey(v));
+    return v;
   });
+}
+
+/**
+ * 特性を採った論理名と撮影ページ（fit / check 共通）。測る対象を自分で選ばせないための基準集合。
+ * @param {unknown} metadata
+ * @returns {{ traitElements: string[], pages: string[] }}
+ */
+function readTargets(metadata) {
+  const traits = isPlainObject(metadata) ? metadata.traits : undefined;
+  if (
+    !isPlainObject(traits) ||
+    !Array.isArray(traits.elements) ||
+    traits.elements.length === 0 ||
+    !traits.elements.every(nonEmptyString)
+  ) {
+    throw new UsageError(
+      "metadata.json の traits.elements が空でない文字列の配列でない（特性を採る論理名を確定してから通す）",
+    );
+  }
+  const cc = /** @type {Record<string, unknown>} */ (
+    /** @type {Record<string, unknown>} */ (metadata).capture_conditions
+  );
+  if (
+    !Array.isArray(cc.pages) ||
+    cc.pages.length === 0 ||
+    !cc.pages.every((p) => isPlainObject(p) && nonEmptyString(p.name))
+  ) {
+    throw new UsageError("metadata.json の capture_conditions.pages[].name が空でない配列でない");
+  }
+  return {
+    traitElements: /** @type {string[]} */ (traits.elements),
+    pages: cc.pages.map((p) => /** @type {string} */ (p.name)),
+  };
+}
+
+/**
+ * 記録（samples または fits ∪ unfit）が基準集合を覆っているか。page 単位で見る（ある page で測った論理名で別の page の欠けを埋めない）。
+ * @param {{ page: string, element: string }[]} entries
+ * @param {{ traitElements: string[], pages: string[] }} targets
+ * @param {string} label
+ */
+function assertCoverage(entries, targets, label) {
+  const declared = new Set(targets.pages);
+  const strayPages = [...new Set(entries.map((e) => e.page))].filter((p) => !declared.has(p));
+  if (strayPages.length > 0) {
+    throw new UsageError(
+      `${label} に capture_conditions.pages に無いページ: ${strayPages.join(", ")}`,
+    );
+  }
+  const pages = new Set(entries.map((e) => e.page));
+  const missingPages = targets.pages.filter((p) => !pages.has(p));
+  if (missingPages.length > 0) {
+    throw new UsageError(
+      `${label} に測っていないページ: ${missingPages.join(", ")}（ページごとに窓を変えて読む）`,
+    );
+  }
+  const elements = new Set(entries.map((e) => e.element));
+  const missingElements = targets.traitElements.filter((name) => !elements.has(name));
+  if (missingElements.length > 0) {
+    throw new UsageError(
+      `${label} に無い traits.elements の論理名: ${missingElements.join(", ")}（そのページで窓を変えて読む）`,
+    );
+  }
 }
 
 /**
@@ -343,12 +415,11 @@ export function checkModel(metadata, loadSamples) {
   const cc = /** @type {Record<string, unknown>} */ (
     /** @type {Record<string, unknown>} */ (metadata).capture_conditions
   );
+  // キーの欠落は免除にしない（判定しない経路は理由付きの not_measured / not_required に閉じる）
   if (!Object.hasOwn(cc, "dimension_model")) {
-    return {
-      judged: false,
-      reason:
-        "capture_conditions.dimension_model が無い（本契約より前の成果物、または未記録）。寸法の決まり方は写したと言えない",
-    };
+    throw new UsageError(
+      "capture_conditions.dimension_model が無い。parity-suite で fit を通すか、測れないなら status: not_measured と reason を書く（キーを省略したまま判定を免除しない）",
+    );
   }
   const dm = cc.dimension_model;
   if (!isPlainObject(dm) || !STATUSES.includes(/** @type {string} */ (dm.status))) {
@@ -375,6 +446,13 @@ export function checkModel(metadata, loadSamples) {
     throw new UsageError("dimension_model.tolerance が 0 以上の数でない");
   }
   const windows = validateWindows(dm.measured_at, "dimension_model.measured_at");
+  const measuredKeys = new Set(windows.map(windowKey));
+  if (!viewports.some((v) => measuredKeys.has(windowKey(v)))) {
+    throw new UsageError(
+      "dimension_model.measured_at が capture_conditions.viewports のどれも含まない（撮影したビューポートで照合されない）。parity-suite で採り直す",
+    );
+  }
+  const targets = readTargets(metadata);
   if (!Array.isArray(dm.fits) || !Array.isArray(dm.unfit)) {
     throw new UsageError("dimension_model.fits / unfit が配列でない");
   }
@@ -402,6 +480,47 @@ export function checkModel(metadata, loadSamples) {
       f
     );
   });
+  // unfit も fits と同じくキーの材料を検証する（崩れた記録を中身の無い note に化けさせない）
+  const seenUnfit = new Set();
+  const unfit = dm.unfit.map((u, i) => {
+    if (
+      !isPlainObject(u) ||
+      !nonEmptyString(u.page) ||
+      !nonEmptyString(u.element) ||
+      !PROPERTIES.includes(/** @type {string} */ (u.property)) ||
+      !nonEmptyString(u.reason)
+    ) {
+      throw new UsageError(`dimension_model.unfit[${i}] の形が崩れている`);
+    }
+    const key = JSON.stringify([u.page, u.element, u.property]);
+    if (seenUnfit.has(key)) throw new UsageError(`dimension_model.unfit[${i}] が重複している`);
+    if (seenFit.has(key)) {
+      throw new UsageError(
+        `dimension_model.unfit[${i}] が fits にも在る（式が読めたか読めないかが矛盾）`,
+      );
+    }
+    seenUnfit.add(key);
+    return { page: u.page, element: u.element, property: u.property, reason: u.reason };
+  });
+  // 記録された (page, element) は 4 軸すべてを fits か unfit のどちらかにちょうど 1 回持つこと
+  // （軸を消した記録で、消した軸の照合を黙って飛ばさない）
+  /** @type {Map<string, { page: string, element: string, properties: Set<string> }>} */
+  const byElement = new Map();
+  for (const e of [...fits, ...unfit]) {
+    const key = JSON.stringify([e.page, e.element]);
+    const entry = byElement.get(key) ?? { page: e.page, element: e.element, properties: new Set() };
+    entry.properties.add(e.property);
+    byElement.set(key, entry);
+  }
+  for (const e of byElement.values()) {
+    const lacking = PROPERTIES.filter((p) => !e.properties.has(p));
+    if (lacking.length > 0) {
+      throw new UsageError(
+        `dimension_model の (${e.page}, ${e.element}) に軸 ${lacking.join(", ")} が fits にも unfit にも無い（記録が欠けている。parity-suite で fit を通し直す）`,
+      );
+    }
+  }
+  assertCoverage([...byElement.values()], targets, "dimension_model");
   const samples = loadSamples();
   if (!isPlainObject(samples)) throw new UsageError("新側 samples が JSON オブジェクトでない");
   const sampleWindows = validateWindows(samples.windows, "新側 samples.windows");
@@ -457,28 +576,6 @@ export function checkModel(metadata, loadSamples) {
       }
     }
   }
-  // unfit も fits と同じくキーの材料を検証する（崩れた記録を中身の無い note に化けさせない）
-  const seenUnfit = new Set();
-  const unfit = dm.unfit.map((u, i) => {
-    if (
-      !isPlainObject(u) ||
-      !nonEmptyString(u.page) ||
-      !nonEmptyString(u.element) ||
-      !PROPERTIES.includes(/** @type {string} */ (u.property)) ||
-      !nonEmptyString(u.reason)
-    ) {
-      throw new UsageError(`dimension_model.unfit[${i}] の形が崩れている`);
-    }
-    const key = JSON.stringify([u.page, u.element, u.property]);
-    if (seenUnfit.has(key)) throw new UsageError(`dimension_model.unfit[${i}] が重複している`);
-    if (seenFit.has(key)) {
-      throw new UsageError(
-        `dimension_model.unfit[${i}] が fits にも在る（式が読めたか読めないかが矛盾）`,
-      );
-    }
-    seenUnfit.add(key);
-    return { page: u.page, element: u.element, property: u.property, reason: u.reason };
-  });
   return {
     judged: true,
     reason: null,
@@ -552,6 +649,9 @@ export function main(argv, deps = {}) {
         throw new UsageError(`不明な引数 ${a}`);
       }
     }
+    // metadata を読む前に解決する（metadata が読めない exit 2 でも前回の合格を上書きできるように）
+    if (mode === "check" && typeof opts.write === "string")
+      checkWritePath = resolve(cwd, opts.write);
     if (typeof opts.metadata !== "string") throw new UsageError("--metadata が無い");
     const metadataPath = resolve(cwd, opts.metadata);
     const metadata = JSON.parse(readFile(metadataPath));
@@ -565,21 +665,12 @@ export function main(argv, deps = {}) {
           throw new UsageError("--tolerance が 0 以上の数でない");
         }
       }
-      const traits = isPlainObject(metadata) ? metadata.traits : undefined;
-      if (
-        !isPlainObject(traits) ||
-        !Array.isArray(traits.elements) ||
-        traits.elements.length === 0 ||
-        !traits.elements.every(nonEmptyString)
-      ) {
-        throw new UsageError(
-          "metadata.json の traits.elements が空でない文字列の配列でない（特性を採る論理名を確定してから通す）",
-        );
-      }
+      const viewports = readViewports(metadata);
+      const targets = readTargets(metadata);
       const samplesText = readFile(resolve(cwd, opts.samples));
       const model = fitModel(JSON.parse(samplesText), {
-        viewports: readViewports(metadata),
-        traitElements: traits.elements,
+        viewports,
+        targets,
         tolerance,
         samplesText,
       });
@@ -591,7 +682,6 @@ export function main(argv, deps = {}) {
       return 0;
     }
 
-    if (typeof opts.write === "string") checkWritePath = resolve(cwd, opts.write);
     const cc = isPlainObject(metadata) ? metadata.capture_conditions : undefined;
     if (isPlainObject(cc) && Object.hasOwn(cc, "dimension_model")) {
       modelFingerprint = fingerprint(JSON.stringify(cc.dimension_model));
@@ -664,5 +754,6 @@ const invokedAsCli = (() => {
 })();
 
 if (invokedAsCli) {
-  process.exit(main(process.argv.slice(2)));
+  // process.exit は書き込み中の stdout を捨てる（パイプ越しに 64KB を超える JSON が切れる）。終了コードだけを設定して自然終了させる
+  process.exitCode = main(process.argv.slice(2));
 }

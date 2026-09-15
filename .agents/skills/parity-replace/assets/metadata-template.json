@@ -41,7 +41,7 @@
     "passed_at": "<verification_commands.full が全て通った日時（ISO 8601）>"
   },
   "dimension_check": {
-    "_note": "feature モードのみ。parity-suite の scripts/dimension-fit.mjs check --write が書く（手で転記しない）。judged: false（現側の dimension_model が無い・not_measured・not_required）と unfit_to_note は、写していない旨と理由を porting.md「寸法の決まり方」に明示してから完了を名乗る。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。model_fingerprint / samples_fingerprint は照合した現側の式と新側 samples の sha256 で、採り直した後の古い記録を見分けるために使う。",
+    "_note": "feature モードのみ。parity-suite の scripts/dimension-fit.mjs check --write が書く（手で転記しない）。judged: false（現側の dimension_model が not_measured・not_required。キーが無いのは exit 2）と unfit_to_note は、写していない旨と理由を porting.md「寸法の決まり方」に明示してから完了を名乗る。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。model_fingerprint / samples_fingerprint は照合した現側の式と新側 samples の sha256 で、採り直した後の古い記録を見分けるために使う。",
     "tool": "dimension-fit",
     "tool_version": "<dimension-fit.mjs の VERSION>",
     "judged": true,

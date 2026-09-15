@@ -167,8 +167,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>]
    **feature モードでは寸法の決まり方の照合も完了判定に入れる**——`new` プロジェクトの `dimension/` を `PARITY_DIMENSION_CAPTURE=1 PARITY_NEW_TARGET=<選択中の new target>` 付きで回すと `new/<target>/dimension-samples.json` が書かれるので、**その直後に**
    `node <parity-suite>/scripts/dimension-fit.mjs check --metadata <現側 metadata.json> --samples <新側 dimension-samples.json> --write <新側 replace-metadata.json>` を通す
    （パスは `.replace/parity/<slug>/metadata.json` と `.replace/parity/<slug>/new/<target>/` 配下）
-   （インストール済みの `parity-suite` から実行し、コピーしない）。**exit 1（式と合わない）は未完了**で、1 点の px ではなく式で写し直す。exit 2 は入力の不備で、判定していないので完了扱いにしない（`dimension_check` にも `ok: false` と `error` が書かれ、前回の合格は残らない）。
-   **判定しなかった（`judged: false`。`dimension_model` が無い・`not_measured`・`not_required`）ときと、式が読めなかった軸（`unfit_to_note`）があるときは、写していない旨と理由を `porting.md`「寸法の決まり方」へ明示する**
+   （インストール済みの `parity-suite` から実行し、コピーしない）。**exit 1（式と合わない）は未完了**で、1 点の px ではなく式で写し直す。exit 2 は入力の不備で、判定していないので完了扱いにしない。
+   現側の `dimension_model` のキーが無い・4 軸の記録が欠けているのも exit 2 で、`parity-suite` へ戻して記録させる（`dimension_check` にも `ok: false` と `error` が書かれ、前回の合格は残らない）。
+   **判定しなかった（`judged: false`。`not_measured`・`not_required`）ときと、式が読めなかった軸（`unfit_to_note`）があるときは、写していない旨と理由を `porting.md`「寸法の決まり方」へ明示する**
    ——書かずに完了を名乗らない（`not_measured` は `parity-suite` からの引き渡し条件であり、`gaps.md` で済ませない。形式の正本は `parity-suite` の `references/baseline.md`「寸法の決まり方（窓への追従）」）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
