@@ -514,6 +514,56 @@ test("ファイル名やパターン id に : があっても別の呼び出し�
   expect(r.stderr).toContain('["src/a",1,1,"2:toast"] が被覆表に記録されていない');
 });
 
+test("行頭アンカー付きのパターンでも 2 行目以降の呼び出しを検出する", () => {
+  const t = mutated((x) => {
+    x.feedback_calls.patterns = [
+      { id: "toast", regex: "^\\s*showFeedback\\s*\\(", example: "showFeedback('Copied')" },
+    ];
+    x.feedback_calls.call_sites = [];
+    x.feedback_calls.zero_calls_reason = "呼び出しは無い";
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('["src/share.js",2,1,"toast"] が被覆表に記録されていない');
+});
+
+test.each([
+  ["撮影状態に default 以外がある", { capture_conditions: { states: ["default", "copy-toast"] } }],
+  [
+    "器の棚卸しが空でない",
+    { capture_conditions: { states: ["default"], popup_inventory: [{ name: "x" }] } },
+  ],
+  [
+    "部品被覆表を宣言している",
+    { capture_conditions: { states: ["default"] }, component_coverage: { declared: true } },
+  ],
+])("操作の痕跡がある機能の declared: false は exit 2: %s", (_n, patch) => {
+  const metadata = {
+    mode: "feature",
+    reaction_coverage: { declared: false, reason: "操作が無い" },
+    ...patch,
+  };
+  const r = run(baseTable(), { metadata });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("操作の痕跡がある");
+});
+
+test.each([
+  [
+    "操作の痕跡が無い画面駆動の機能",
+    { mode: "feature", capture_conditions: { states: ["default"], popup_inventory: [] } },
+  ],
+  [
+    "api-resource モード",
+    { mode: "api-resource", capture_conditions: { states: ["default", "x"] } },
+  ],
+])("declared: false は理由付きなら通す: %s", (_n, patch) => {
+  const metadata = { reaction_coverage: { declared: false, reason: "操作を持たない" }, ...patch };
+  const r = run(baseTable(), { metadata });
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout)).toMatchObject({ judged: false });
+});
+
 test("呼び出しが 0 件でも根拠があれば通す", () => {
   const t = mutated((x) => {
     x.feedback_calls.call_sites = [];

@@ -80,7 +80,7 @@
     ```
 
     `--recorded` は移行元ソースを読まず、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。
-    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空（後方互換に倒さず現側の成果物を直す）。
+    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
 

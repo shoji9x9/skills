@@ -98,6 +98,30 @@ export function readDeclaration(metadata) {
         "reaction_coverage.declared: false なのに reason が空（免除の根拠が残らない）",
       );
     }
+    // 免除は「操作を持たない機能」だけ。理由の文字列だけで通すと、操作のある機能が反応の判定を飛ばして収束する。
+    // 画面駆動の機能で、成果物に操作の痕跡（default 以外の撮影状態・器の棚卸し・部品被覆表の宣言）があれば矛盾として落とす
+    if (metadata.mode !== "api-resource" && metadata.mode !== "batch") {
+      const cc = isPlainObject(metadata.capture_conditions) ? metadata.capture_conditions : {};
+      /** @type {string[]} */
+      const traces = [];
+      if (Array.isArray(cc.states) && cc.states.some((st) => st !== "default")) {
+        traces.push("capture_conditions.states に default 以外の状態がある");
+      }
+      if (Array.isArray(cc.popup_inventory) && cc.popup_inventory.length > 0) {
+        traces.push("capture_conditions.popup_inventory が空でない");
+      }
+      if (
+        isPlainObject(metadata.component_coverage) &&
+        metadata.component_coverage.declared === true
+      ) {
+        traces.push("component_coverage.declared が true");
+      }
+      if (traces.length > 0) {
+        throw new UsageError(
+          `reaction_coverage.declared: false は操作を持たない機能だけに使えるが、操作の痕跡がある（${traces.join(" / ")}）`,
+        );
+      }
+    }
     return { judged: false, reason: decl.reason };
   }
   if (!nonEmptyString(decl.path))
@@ -490,7 +514,8 @@ export function checkReactions(table, opts = {}) {
       /** @type {RegExp} */
       let re;
       try {
-        re = new RegExp(/** @type {string} */ (p.regex), "g");
+        // ファイル全体に照合するので、^ / $ が行頭・行末に効くよう複数行モードにする（行ごとに照合していたときの意味を保つ）
+        re = new RegExp(/** @type {string} */ (p.regex), "gm");
       } catch (e) {
         throw new UsageError(
           `feedback_calls.patterns["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,

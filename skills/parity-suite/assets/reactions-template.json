@@ -13,7 +13,7 @@
     "patterns": [
       {
         "id": "<パターン id（設定 current.feedback_calls[].id を転記）>",
-        "regex": "<呼び出しの字面に当たる JavaScript の正規表現（設定 current.feedback_calls[].regex を転記）。1 行ずつ照合する>",
+        "regex": "<呼び出しの字面に当たる JavaScript の正規表現（設定 current.feedback_calls[].regex を転記）。ファイル全体に複数行モードで照合し、^ / $ は行頭・行末に効く>",
         "kind": "<利用者に見える副作用の種類（設定から転記。例: toast / script / dialog）>",
         "example": "<regex が一致すべき実際の呼び出しの字面（設定 current.feedback_calls[].example を転記。移行元ソースから 1 つ写す）。一致しなければ落ちる——走査 0 件を「呼び出しが無い」と区別するための陽性コントロール>"
       }
