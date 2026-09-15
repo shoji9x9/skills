@@ -516,7 +516,8 @@ export function checkReactions(table, opts = {}) {
     const zeroReason = nonEmptyString(fc.zero_calls_reason);
     const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
-    const keyOf = (s) => `${s.file}:${s.line}:${s.column}:${s.pattern}`;
+    // 区切り文字の連結はファイル名・パターン id に ":" があると別の箇所が同じキーに潰れるため、組を JSON で符号化する
+    const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
     /** @type {Map<string, number>} */
     const recordedCount = new Map();
     for (const s of recordedSites) {
@@ -759,13 +760,19 @@ export function main(argv, deps = {}) {
     if (!isPlainObject(metadata.target) || !nonEmptyString(metadata.target.name)) {
       throw new UsageError("metadata.json の target.name が空");
     }
+    // 欠落を明示の none と同じ免除へ流さない（照合不能の理由さえ書けば任意の版を通せてしまう）
+    if (!nonEmptyString(metadata.target.commit)) {
+      throw new UsageError(
+        "metadata.json の target.commit が空（コミット SHA か、入手不可なら none を書く）",
+      );
+    }
     const result = checkReactions(table, {
       root,
       recorded,
       captureStates: new Set(cc.states),
       slug: metadata.slug,
       target: metadata.target.name,
-      targetCommit: metadata.target.commit ?? null,
+      targetCommit: metadata.target.commit,
     });
     const ok = result.unmeasured_operations === 0 && result.problems.length === 0;
     if (write) {

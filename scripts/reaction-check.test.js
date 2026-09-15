@@ -341,7 +341,7 @@ test.each([
     (t) => {
       t.__source = "function copy() {\n  showFeedback('Copied'); showFeedback('Again');\n}\n";
     },
-    "src/share.js:2:27:toast が被覆表に記録されていない",
+    '["src/share.js",2,27,"toast"] が被覆表に記録されていない',
   ],
   [
     "呼び出し箇所の重複",
@@ -386,7 +386,7 @@ test("改行をまたぐ呼び出しも検出する（記録が無ければ落�
   });
   const r = run(t, { source: "function copy() {\n  showFeedback\n    ('Copied');\n}\n" });
   expect(r.status).toBe(1);
-  expect(r.stderr).toContain("src/share.js:2:3:toast が被覆表に記録されていない");
+  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が被覆表に記録されていない');
 });
 
 test("改行をまたぐ呼び出しと CRLF でも名前の開始位置を行・列で記録すれば通す", () => {
@@ -481,6 +481,39 @@ test("版が一致しているのに照合不能の理由が埋まっていれ�
   expect(r.stderr).toContain("version_unverified_reason が埋まっている");
 });
 
+test("ファイル名やパターン id に : があっても別の呼び出しを 1 件に潰さない", () => {
+  // 連結キーでは ("src/a", 1, 1, "2:toast") と ("src/a:1", 1, 2, "toast") がどちらも "src/a:1:1:2:toast" になる
+  const dir = mkdtempSync(join(tmpdir(), "reaction-check-colon-"));
+  mkdirSync(join(dir, "src"));
+  writeFileSync(join(dir, "src/a"), "notify();\n");
+  writeFileSync(join(dir, "src/a:1"), " showFeedback('x');\n");
+  const t = mutated((x) => {
+    x.feedback_calls.patterns = [
+      { id: "toast", regex: "\\bshowFeedback\\s*\\(", example: "showFeedback('x')" },
+      { id: "2:toast", regex: "\\bnotify\\s*\\(", example: "notify()" },
+    ];
+    x.feedback_calls.source.paths = ["src"];
+    x.feedback_calls.call_sites = [
+      { file: "src/a:1", line: 1, column: 2, pattern: "toast", reaction: "copy/toast" },
+    ];
+    x.operations[0].handlers = [{ file: "src/a:1", symbol: "showFeedback" }];
+    x.operations[1].handlers = [{ file: "src/a", symbol: "notify" }];
+  });
+  writeFileSync(
+    join(dir, "metadata.json"),
+    JSON.stringify({
+      slug: "share",
+      target: { name: "current-test", commit: "abc123" },
+      reaction_coverage: { declared: true, path: "reactions.json" },
+      capture_conditions: { states: ["default", "copy-toast"] },
+    }),
+  );
+  writeFileSync(join(dir, "reactions.json"), JSON.stringify(t));
+  const r = rerun(dir);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('["src/a",1,1,"2:toast"] が被覆表に記録されていない');
+});
+
 test("呼び出しが 0 件でも根拠があれば通す", () => {
   const t = mutated((x) => {
     x.feedback_calls.call_sites = [];
@@ -539,6 +572,7 @@ test("feedback_calls.declared: false は理由付きなら突き合わせを飛�
 test.each([
   ["撮影状態が配列でない", (m) => (m.capture_conditions = { states: "default" })],
   ["撮影状態が空の配列", (m) => (m.capture_conditions = { states: [] })],
+  ["target.commit が無い", (m) => delete m.target.commit],
   ["slug が無い", (m) => delete m.slug],
   ["target.name が無い", (m) => (m.target = {})],
 ])("metadata.json の照合材料が欠けたら exit 2: %s", (_name, mutate) => {

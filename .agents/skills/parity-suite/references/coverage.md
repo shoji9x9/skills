@@ -110,7 +110,7 @@
   `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --write` を**exit 0 まで**通す
   （コピーせずスキル配下から実行する。`--root` の既定は cwd）。空欄・証拠の欠け・消える時間の単一標本・呼び出しの記録漏れ・走査対象 0 件・
   `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表は落ちる
-  （`metadata.json` にこれらと撮影状態が無ければ exit 2）。
+  （`metadata.json` にこれらと撮影状態・`target.commit`〈入手不可なら `none`〉が無ければ exit 2）。
   終了コードは 0 ＝ 通過、1 ＝ 未測定・不整合、2 ＝ 使い方の誤り・型崩れ
 - `metadata.json` の `reaction_coverage` に `declared: true` と `path` を書く。**操作を持たない機能だけ** `declared: false` ＋理由（`gaps.md` にも残す）。**キーごと省略しない**——欠落は旧成果物の意味になり、`parity-diff` が判定を飛ばす
 - `parity-diff` は同じスクリプトを `--recorded` で呼び（移行元ソースは読まず、`conformance.ok` と表の指紋を要求する）、未測定が残る間は収束させない。**照合後に表を手で直したら `--write` から通し直す**
