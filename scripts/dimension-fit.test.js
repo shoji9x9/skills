@@ -524,6 +524,45 @@ test("fit: 撮影ページ名の重複は exit 2（2 つ目のページの測り
   expect(r.stderr).toMatch(/pages\[\]\.name が重複している: list/);
 });
 
+test("check --write: --write の重複は exit 2 で、どちらの書き込み先にも前回の合格を残さない", () => {
+  const r = run(
+    [
+      "check",
+      "--metadata",
+      "m.json",
+      "--samples",
+      "n.json",
+      "--write",
+      "r1.json",
+      "--write",
+      "r2.json",
+      "--bogus",
+    ],
+    {
+      "/w/m.json": fittedMetadata(),
+      "/w/n.json": samplesOf(formula),
+      "/w/r1.json": { dimension_check: { ok: true } },
+      "/w/r2.json": { dimension_check: { ok: true } },
+    },
+  );
+  expect(r.code).toBe(2);
+  expect(r.file("/w/r1.json").dimension_check).toMatchObject({ ok: false });
+  expect(r.file("/w/r2.json").dimension_check).toMatchObject({ ok: false });
+});
+
+test.each([
+  ["check", ["check", "--metadata", "m.json", "--metadata", "m.json", "--samples", "n.json"]],
+  ["fit", ["fit", "--samples", "s.json", "--metadata", "m.json", "--write", "--write"]],
+])("%s: オプションの重複は後勝ちにせず exit 2", (_, argv) => {
+  const r = run(argv, {
+    "/w/m.json": fittedMetadata(),
+    "/w/n.json": samplesOf(formula),
+    "/w/s.json": samplesOf(formula),
+  });
+  expect(r.code).toBe(2);
+  expect(r.stderr).toMatch(/重複している/);
+});
+
 test("CLI: シンボリックリンクでなく実パスで起動して exit コードを返す", () => {
   const dir = mkdtempSync(join(tmpdir(), "dimension-fit-"));
   writeFileSync(join(dir, "s.json"), JSON.stringify(samplesOf(formula)));

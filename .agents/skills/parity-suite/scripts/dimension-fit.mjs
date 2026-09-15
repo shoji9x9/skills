@@ -613,21 +613,27 @@ export function main(argv, deps = {}) {
       `${JSON.stringify({ tool: "dimension-fit", version: VERSION, ...obj }, null, 2)}\n`,
     );
   const [mode, ...rest] = argv;
-  /** check --write の書き込み先。解決できた後の失敗（exit 2）も記録へ残すために外側で持つ */
-  let checkWritePath = null;
-  // 引数の解析より先に書き込み先を拾う（後続の引数の不備で exit 2 になっても前回の合格を上書きできるように）
+  /**
+   * check --write の書き込み先。引数の解析より先に全て拾う（後続の引数の不備で exit 2 になっても前回の合格を上書きできるように）。
+   * --write が複数あれば解析で exit 2 にするが、どれにも古い合格を残さないよう失敗の記録は全ての先へ書く。
+   * @type {string[]}
+   */
+  const checkWritePaths = [];
   if (mode === "check") {
-    const i = rest.indexOf("--write");
-    const v = i >= 0 ? rest[i + 1] : undefined;
-    if (nonEmptyString(v) && !v.startsWith("--")) checkWritePath = resolve(cwd, v);
+    rest.forEach((a, i) => {
+      const v = rest[i + 1];
+      if (a === "--write" && nonEmptyString(v) && !v.startsWith("--")) {
+        checkWritePaths.push(resolve(cwd, v));
+      }
+    });
   }
   /** @type {string | null} */
   let newSamplesText = null;
   /** @type {string | null} */
   let modelFingerprint = null;
   /** @param {Record<string, unknown>} record */
-  const writeCheck = (record) => {
-    const replaceMetadata = JSON.parse(readFile(checkWritePath));
+  const writeCheck = (record, path) => {
+    const replaceMetadata = JSON.parse(readFile(path));
     if (!isPlainObject(replaceMetadata)) {
       throw new UsageError("--write の先が JSON オブジェクトでない");
     }
@@ -639,7 +645,7 @@ export function main(argv, deps = {}) {
       model_fingerprint: modelFingerprint,
       samples_fingerprint: newSamplesText === null ? null : fingerprint(newSamplesText),
     };
-    writeFile(checkWritePath, `${JSON.stringify(replaceMetadata, null, 2)}\n`);
+    writeFile(path, `${JSON.stringify(replaceMetadata, null, 2)}\n`);
   };
   try {
     if (mode !== "fit" && mode !== "check") throw new UsageError("先頭に fit か check を書く");
@@ -653,10 +659,13 @@ export function main(argv, deps = {}) {
         a === "--tolerance" ||
         (a === "--write" && mode === "check");
       if (a === "--write" && mode === "fit") {
+        if (opts.write === true) throw new UsageError("--write が重複している");
         opts.write = true;
       } else if (takesValue) {
         const v = rest[i + 1];
         if (!nonEmptyString(v) || v.startsWith("--")) throw new UsageError(`${a} に値が無い`);
+        // 同じオプションの重複は後勝ちにしない（どちらの値で動いたかが曖昧になる）
+        if (Object.hasOwn(opts, a.slice(2))) throw new UsageError(`${a} が重複している`);
         opts[a.slice(2)] = v;
         i += 1;
       } else {
@@ -707,16 +716,19 @@ export function main(argv, deps = {}) {
       newSamplesText = readFile(resolve(cwd, opts.samples));
       return JSON.parse(newSamplesText);
     });
-    if (checkWritePath !== null) {
-      writeCheck({
-        judged: result.judged,
-        reason: result.reason,
-        ok: result.judged ? result.ok : null,
-        checked: result.judged ? result.checked : 0,
-        failures: result.judged ? result.failures.length : 0,
-        unfit_to_note: result.judged ? result.unfit_to_note : [],
-        error: null,
-      });
+    for (const path of checkWritePaths) {
+      writeCheck(
+        {
+          judged: result.judged,
+          reason: result.reason,
+          ok: result.judged ? result.ok : null,
+          checked: result.judged ? result.checked : 0,
+          failures: result.judged ? result.failures.length : 0,
+          unfit_to_note: result.judged ? result.unfit_to_note : [],
+          error: null,
+        },
+        path,
+      );
     }
     out({ mode, ...result });
     if (result.judged && !result.ok) {
@@ -731,20 +743,23 @@ export function main(argv, deps = {}) {
     const message = e instanceof Error ? e.message : String(e);
     process.stderr.write(`error: ${message}\n${usage}\n`);
     // 前回の ok: true を残したまま exit 2 で終わらせない（記録から古い合格と見分けられなくなる）
-    if (mode === "check" && checkWritePath !== null) {
+    for (const path of mode === "check" ? checkWritePaths : []) {
       try {
-        writeCheck({
-          judged: false,
-          reason: null,
-          ok: false,
-          checked: 0,
-          failures: 0,
-          unfit_to_note: [],
-          error: message,
-        });
+        writeCheck(
+          {
+            judged: false,
+            reason: null,
+            ok: false,
+            checked: 0,
+            failures: 0,
+            unfit_to_note: [],
+            error: message,
+          },
+          path,
+        );
       } catch (writeError) {
         process.stderr.write(
-          `error: 失敗の記録も書けない: ${writeError instanceof Error ? writeError.message : writeError}\n`,
+          `error: 失敗の記録も書けない（${path}）: ${writeError instanceof Error ? writeError.message : writeError}\n`,
         );
       }
     }

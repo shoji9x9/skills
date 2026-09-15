@@ -128,10 +128,13 @@ PARITY_DIMENSION_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test --pro
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { waitForStableRect } from "../lib/wait"; // 上記「撮る対象が動かなくなるまで待つ」の関数（実際のパスはスイートに合わせる）
-import { resolveLocator as resolveCurrent } from "../lib/locator-map/<slug>"; // 実際のパスは metadata.json の suite.locator_map
-// 新側のロケータ例外（replace-metadata.json の suite.locator_map_new）。例外ゼロで parity-replace がファイルを作らなければ import ごと外す
-import { resolveLocator as resolveNewException } from "../lib/locator-map/<slug>.new";
+// スペックは <parity_suite_dir>/parity/<slug>/dimension/ に置くので、共有ライブラリ（<parity_suite_dir>/parity/lib/）は 2 階層上
+import { waitForStableRect } from "../../lib/wait"; // 上記「撮る対象が動かなくなるまで待つ」の関数（実際のパスはスイートに合わせる）
+import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>"; // 実際のパスは metadata.json の suite.locator_map
+// 新側のロケータ例外（replace-metadata.json の suite.locator_map_new）。
+// 例外ゼロで parity-replace がファイルを作っていなければ、次の import を消し、代わりに
+// `const resolveNewException = (_page: Page, _name: string): Locator | undefined => undefined;` を置く（resolveFor はそのまま使える）
+import { resolveLocator as resolveNewException } from "../../lib/locator-map/<slug>.new";
 
 // 撮影ビューポートを含み、幅と高さを独立に動かした 4 窓以上（同じブレークポイントの範囲内）
 const WINDOWS = [
