@@ -54,6 +54,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
   - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
+  - 上の 2 つ（`golden-dataset` フェーズ A・`parity-suite`）は、同じディレクトリの `pending-decisions.json` に未解決の保留があれば未完了として扱う（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
     `phase_b.<slug>.<target>.dataset_version` が存在し、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないこと。
     影響変更があれば `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。数値が古いだけなら再投入しない。
@@ -136,7 +137,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **保留に落としても進める工程**: 保留に依存しないページのフェーズ・実装単位。依存する実装単位は `porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
 - **従来どおりの停止のまま**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
 - **委譲**: `issue-start --branch-only` のブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは `--autonomous` を引き継ぐ。commit / push / PR は越えない線の範囲でだけ行う
-- **記録先**: `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `pending_decisions[]` と `run.autonomous`。未解決の保留が残る間は本スキルの完了を報告しない
+- **記録先**: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **`replace-metadata.json` には書かない**——`parity-diff` はその存在と `suite.new_green` を前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
+  未解決の保留が残る間は本スキルの完了を報告せず、**保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）
 
 ## 実行フロー
 

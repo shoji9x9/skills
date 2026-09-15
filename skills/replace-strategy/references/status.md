@@ -22,7 +22,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/dataset/metadata.json` | 現在のデータセットバージョン（`version`）、版ごとの影響範囲（`changes[].affects`。テーブル名、`dataset_mode: static` では静的データ単位）、新側投入記録（`phase_b.<slug>.<target>`。target 別）（`golden-dataset` が生成） |
 | `.replace/dataset/verification.md` | 「意味論が未確定の機能」（`current.origin: received-assets` のときだけ。`golden-dataset` が生成。スキーマ正本は同スキル） |
 | `.replace/bootstrap/metadata.json` | 現行環境の再構築の状態（`status` / `blocked_on` / `semantics.pending_features`）（`current-environment-bootstrap` が生成。スキーマ正本は同スキル。`received-assets` のときだけ） |
-| 上記の各 JSON 成果物・`.replace/dataset/pending-decisions.json`・`.replace/parity/<slug>/pending-decisions.json`・`.replace/strategy-pending.json` | 自律実行（`--autonomous`）で人の判断待ちにした保留（`pending_decisions[]`。形の正本は [`autonomy.md`](autonomy.md)「記録の形」）。`.replace/strategy-pending.json` は `replace-strategy` 自身が自律実行したときだけ存在する |
+| 上記の各 JSON 成果物・`.replace/dataset/pending-decisions.json`・`.replace/parity/<slug>/pending-decisions.json`・`.replace/parity/<slug>/new/<target>/pending-decisions.json`・`.replace/strategy-pending.json` | 自律実行（`--autonomous`）で人の判断待ちにした保留（`pending_decisions[]`。形の正本は [`autonomy.md`](autonomy.md)「記録の形」）。`.replace/strategy-pending.json` は `replace-strategy` 自身が自律実行したときだけ存在する |
 
 成果物のスキーマ正本は各生産スキルにある。ファイルが無い場合は「未着手」として扱う（エラーにしない）。
 ただし `.replace/features.md` 自体が無い場合は `setup` 未実施として報告し、`setup` の実行を案内する（以降の導出は行わない）。

@@ -119,7 +119,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 - **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
 - **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
-  未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない
+  未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない。
+  **再実行で既存の `metadata.json` が残っていても**、下流は `pending-decisions.json` の未解決の保留を見て未完了として止まる（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
 
 ## 実行フロー
 
@@ -162,7 +163,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 1. **前提確認**: 対象 slug の新側の受け皿（`parity-replace` が実装したスキーマ／静的データ形式）と `references.db_semantics` を確認し、無ければ停止する（`db_semantics` は整備を促す）。
    投入先 target（`side: new`。`--target` で選択）は `dataset_mode: db` なら `db.seedable: true` と `db.env_vars` 接続を要求し、`static` なら `db` を要求せず `dataset_static_paths` の書き込み可否を確認する。
-   `.replace/dataset/metadata.json`（フェーズ A 完了）が無ければフェーズ A を先に実行するよう案内する
+   `.replace/dataset/metadata.json`（フェーズ A 完了）が無い、または `.replace/dataset/pending-decisions.json` にフェーズ A の未解決の保留があれば、フェーズ A を先に実行するよう案内する
 2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
 3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する。
    **ツールを更新したらフェーズ A と同じく規約（`references.coding_conventions`）に従い、設定の `verification_commands.full` を通す**（無ければ停止せず `verification.md` に記録して進む）

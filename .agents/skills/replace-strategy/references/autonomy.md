@@ -68,8 +68,16 @@
 ## 記録の形（`pending_decisions[]`）
 
 各スキルの機械可読な成果物（どのファイルかは各スキルの「自律実行」節）に `pending_decisions` 配列として書く。**保留が無ければ空配列**を書く（無記録と区別する）。
-**下流スキルがファイルの存在を完了の証拠に使う成果物（`.replace/dataset/metadata.json`・`.replace/parity/<slug>/metadata.json`）には書かない。**
+**下流スキルが前提の判定に使う成果物（`.replace/dataset/metadata.json`・`.replace/parity/<slug>/metadata.json`・`.replace/parity/<slug>/new/<target>/replace-metadata.json`）には書かない。**
 保留を残すためにそのファイルを作ると、工程が終わっていないのに下流が完了とみなして進む。これらのスキルは同じディレクトリの `pending-decisions.json` に分けて書く。
+
+### 下流の前提判定（自律実行かどうかを問わない）
+
+- **存在を完了の証拠にする前提**（`golden-dataset` フェーズ A ＝ `.replace/dataset/metadata.json`、`parity-suite` ＝ `.replace/parity/<slug>/metadata.json`）は、
+  **同じディレクトリの `pending-decisions.json` に `resolution: null` の要素が 1 件でもあれば未完了として停止する**（前提の欠落）。
+  再実行の保留も対象にする——前回の完了で作られた `metadata.json` が残っていても、再実行が保留を抱えている間は、その版のデータ・スイートが今の要求を満たす保証が無い
+- **値を完了の証拠にする前提**（`suite.new_green` / `capture.complete` / `status: handed-off` / `converged`）は、生産側が保留に依存する工程を終えるまでその値を完了側にしないことで守る（上記「保留に落としたとき」4）
+- `pending-decisions.json` が無いのは「保留なし」で、前提の判定を変えない（自律実行していない・保留が無かった）
 あわせて同じ成果物の `run.autonomous` に真偽値で自律実行だったかを残す。
 
 ```json
