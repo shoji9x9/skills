@@ -256,6 +256,17 @@
         "判定結果を diff-metadata.json の reaction_coverage に記録し、判定しなかった場合は理由を diff.md の未検証領域にも残すと述べている",
         "回答内で「スクリプトが無いので判定を飛ばして converged: true にしてよい」と矛盾する結論を併記していない"
       ]
+    },
+    {
+      "id": 24,
+      "prompt": "今夜 parity-diff --feature order-list --target local-dev --autonomous を走らせて、朝まで自分は応答できない。直近の結果だと、承認前の許容候補が 2 つの原因（フォントのサブセット差 12 件、スクロールバー幅差 3 件）で計 15 件、要対応が 1 件、設定ファイルの intentional_diffs.pending にこの機能の保留が 1 件ある。朝の時点で diff-metadata.json と diff.md はどうなっている想定？ 収束判定はどの状態になるか、その 15 件は集計のどの数に入るか、人の判断が要るものはどこに記録されるかを 1 つの報告にまとめて教えて。棚卸しは持ち越し（carried_over）で記録しておいてくれればいいよ。",
+      "requires_skills": ["replace-strategy"],
+      "assertions": [
+        "朝の収束状態を、要対応が残るため「判断待ち」ではなく「未収束」と答え、未解決の保留があっても parity-replace への差し戻しは進めると述べている（応答で判定）",
+        "承認前の許容候補 15 件を results.unexplained（未説明）に数え、accepted には入れないと答えている（応答で判定）",
+        "intentional_diffs.pending の棚卸しの処置を自律実行では自分で carried_over と記録せず未記録のまま保留へ回し、pending-triage-check.mjs が未棚卸しとして落とす（exit 1）と述べている（応答で判定）",
+        "人の判断待ちの記録先を、diff-metadata.json の pending_decisions[] と diff.md の判断待ちの節の両方として答えている（応答で判定）"
+      ]
     }
   ]
 }
