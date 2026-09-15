@@ -38,7 +38,7 @@
 | スクリーンサイズ | 対象ブレークポイントごとに確認する。**対象は現行アプリの実測（CSS のメディアクエリ・実 UI の表示切替点）から導出し**、採用したビューポートを `metadata.json` の撮影条件に記録する（実行ごとに場当たりで選ばない）。表示切替は aria スナップショットに現れる。余白・色は `parity-diff` に委ねる |
 | 検索・フィルター・ソート・ページネーション | 条件を変えたときの挙動。ページネーションは 2 ページ目があれば実遷移まで |
 | バリデーション | エラーメッセージの**文言**と**発火タイミング**（onChange / onBlur / onSubmit のどれか）、初回入力前は出さない等の UX パターン |
-| 状態表示 | 空データ、エラー、トースト、ダイアログ。**ローディングは明示的な loading UI がある場合のみ対象**とし、indicator が無い画面は対象外として記録する |
+| 状態表示 | 空データ、エラー、トースト、ダイアログ。**ローディングは明示的な loading UI がある場合のみ対象**とし、indicator が無い画面は対象外として記録する。**操作が返すトースト・ダイアログの開閉等は下記「操作の反応」の被覆表で押さえる** |
 | 権限による差異 | ロールごとに表示・操作が変わる箇所（[`auth.md`](auth.md)） |
 | ドキュメントレベルの要素 | `<head>` 側とドキュメント属性。**ページごとに 1 回**: `title`、favicon（`link[rel~="icon"]` の解決先 URL）、現行が持つ主要な `meta`（`description` / `viewport` / OGP 等）、`html[lang]`。いずれも決定論的に取れるため手書き assertion に向く |
 | ファイル入力（アップロード） | 選択・複数選択・選択解除、バリデーション（形式・サイズ上限）、成功／失敗表示、保存結果（バイト列・派生物・保存 path の規則）。**操作は書き込みであり [`data-discipline.md`](data-discipline.md) の規律に従う。** 操作手段・fixture の生成・検証対象の正本は `replace-strategy` の `references/file-io.md`（ドラッグ & ドロップは対象外） |
@@ -47,6 +47,74 @@
   （対象・対象外・条件付きの一覧は `replace-strategy` の `references/scope.md` が正本。本ファイルは各項目の**行動**を持つ）
 - **ページ本文の要素だけを対象にしない。** `<head>` 側は視覚ベースラインにも aria スナップショットにも写らないため、対象から外すとスイートでも差分器でも捕まらない
   （新側テンプレートの既定 favicon・既定 `title` のまま置き換わっても、誰も赤くならない）
+
+## 操作の反応（押した直後で止めない）
+
+**被覆の単位は「操作 → 直後の状態」ではなく「操作 → 反応」にする。** 操作が返す反応は、次の 3 つが重なると
+直後のスナップショットにも操作した要素の近くにも現れず、**被覆表が埋まったまま取りこぼされる**（未測定の欄すら立たない）。
+
+| 性質 | 取りこぼし方 |
+|---|---|
+| 遅れて出る | 往復のあとに出る（例: 押してから約 0.5 秒）。直後に見ると無い |
+| 操作した器の外に出る | ダイアログの中の操作で、トーストが**親文書**（iframe の外）の最上部に出る。操作対象の近傍を探しても見つからない |
+| 自動で消える | 出てから一定時間で消える。**測る時刻を外すと「無い」が返り、同じ操作で違う結論が出る** |
+
+塞ぐのは **反応の被覆表** `.replace/parity/<slug>/reactions.json`
+（正本テンプレート: [`../assets/reactions-template.json`](../assets/reactions-template.json)、照合: [`../scripts/reaction-check.mjs`](../scripts/reaction-check.mjs)）。feature モードのみ作る。
+
+- **操作は操作アダプタ（`suite.interactions`）とスイートの呼び出しから列挙する**（`trigger` に `<関数名>(<論理名>)` で書く）。1 操作につき `reactions` を必ず持たせる
+- **反応の欄は空にしない。** 反応が無いなら `kind: none` を**実測の結果として**書く——`observation` に見続けた時間（表の `observation_window_ms` 以上）と、
+  **見た文書**・見方を残す。見た文書は表の `documents`（対象ページの最上位の文書 `top` と全フレームの棚卸し）を全て含める（欠けると落ちる）。欄が無ければ「見ていない」と「無い」が同じ見え方になる。測れなければ `kind: unmeasured` と理由（`gaps.md` にも残す）
+  **「反応なし」もスイートの assertion にする**（`covered_by`）。新側が遅れて出て消える反応を足しても、静止画にも特性照合にも写らないため。
+  固定待機ではなく、全文書の変化を記録する監視を仕掛けてから操作し、`page.waitForFunction` が観測時間内に成立しない（タイムアウトする）ことで不在を確かめる
+- **観測は「出るまで待ち、消えるまで測る」。1 回のスナップショットで判定しない**
+  - 出現: 上限つきで待ち（`appearance.wait_limit_ms`）、操作から出るまでの時間を `delay_ms_samples` に残す。**操作した器の中だけでなく、最上位の文書と全フレームを探す**。出た先を `destination`（文書と論理名）に書く
+  - 消え方: 自動で消えるなら出現から消えるまでを **2 回以上**測って `duration_ms_samples` に残し、標本の幅以上の `tolerance_ms` を決める。
+    **消える時間を測らないと、新側が「出しっぱなし」でも静止画にも特性照合にも差が出ない**（どの経路にも現れない振る舞いになる）。消えないなら `mode: persistent` と確かめた記録。
+    **標本は下の assertion と同じ測り方（出現の assertion が解けた時刻から消える assertion が解けた時刻まで）で採る**——測り方が違うと、ポーリングの遅れの分だけ assertion が許容幅を外す
+  - 画面に出ない反応（クリップボードへの書き込み等）は `visible: false` と確かめ方（`observation`）
+- **観測した反応はスイートの assertion にする**（`covered_by`）。`parity-replace` が新側でスイートを green にする時点で反応のパリティも担保される。消える時間は固定待機（[`locator-mapping.md`](locator-mapping.md) が禁じる）ではなく自動リトライ assertion と経過時間で押さえる:
+
+  ```ts
+  // 出典: https://playwright.dev/docs/api/class-locatorassertions（toBeVisible / toBeHidden の timeout）
+  await trigger();
+  await expect(toast).toBeVisible({ timeout: waitLimitMs });
+  const shownAt = Date.now();
+  await expect(toast).toBeHidden({ timeout: durationMs + toleranceMs });
+  expect(Date.now() - shownAt).toBeGreaterThanOrEqual(durationMs - toleranceMs);
+  ```
+
+- **画面に出る反応は撮る／撮らないを `capture` に決める**（撮るなら `capture_conditions.states` の状態名、撮らないなら理由を書いて `gaps.md` へ「撮影状態の対象外」）。
+  自動で消える反応を撮るときの注意は [`baseline.md`](baseline.md)「撮る対象が動かなくなるまで待つ」
+
+### 移行元のフィードバック呼び出しと突き合わせる
+
+**反応の存在を知らなければ欄は作れない。** 利用者に見える副作用を出す呼び出し（トースト・画面を直接触るスクリプト・ダイアログの開閉等）は
+プラットフォームごとに決まった名前を持つので、**移行元ソースの字面から機械的に列挙して被覆表と突き合わせる**。
+
+- 呼び出しの一覧は設定 `current.feedback_calls`（パターン id・正規表現・種類。正本は `replace-strategy` の `references/project-config.md`「フィードバック呼び出し」）。
+  被覆表の `feedback_calls.patterns` へ転記し、対象 slug の操作のハンドラを含む範囲を `source.paths` に絞って走査する。
+  **走査する版は測定した現行の版に揃える**——`source.version` が `metadata.json` の `target.commit` と違えば落ち、どちらかが `none` なら `version_unverified_reason` が要る。
+  **操作ごとにハンドラ（`handlers[].file` / `symbol`）を記録する**——ファイルが走査範囲に無い・シンボルがファイルに無ければ落ちる。
+  走査範囲の書き漏れを操作単位で見えるようにするためで、**操作そのものの書き漏れまでは検出しない**（操作の列挙は上の「操作アダプタとスイートの呼び出しから」が担う）。
+  **転記が設定と一致しているかは照合スクリプトが検査しない（規約）**——設定を変えたら被覆表へ転記し直して `--write` から通し直す
+- 走査で見つかった呼び出しは**全て** `call_sites` に 1 行ずつ記録し（ファイル・行・列・パターンで 1 件。同じ行の複数の呼び出しも列で分けて全て）、観測した反応（`<操作 id>/<反応 id>`）へ対応付けるか、この機能の反応でない理由（`excluded_reason`）を書く。
+  **呼び出しがあるのに `none` の反応へ対応付けない**（ソースが反応を出すと言っているのに観測で見落としている）
+- **走査 0 件を「呼び出しが無い」と読まない。** パターンごとの `example`（実際の呼び出しの字面）に `regex` が一致することを照合で確かめ、それでも 0 件なら根拠を `zero_calls_reason` に書く（空なら落ちる）
+- 設定にキーが無い（未確認）ときは、移行元ソースから候補を挙げて**ユーザーに確認し、確定した値を設定へ 1 回記録する**。移行元ソースを読めない（`current.repo: none` 等）なら
+  `feedback_calls.declared: false` と理由を書き、`gaps.md` に残す（突き合わせを省いた事実を黙らない）。設定が空リスト（呼び出しが無いと確認済み）のときも `declared: false` とその旨を理由に書く
+
+### 照合と宣言
+
+- `metadata.json` に `reaction_coverage` と撮影状態（`capture_conditions.states`）を書いたら
+  `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --write` を**exit 0 まで**通す
+  （コピーせずスキル配下から実行する。`--root` の既定は cwd）。空欄・証拠の欠け・消える時間の単一標本・呼び出しの記録漏れ・走査対象 0 件・
+  `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表は落ちる
+  （`metadata.json` にこれらと撮影状態・`target.commit`〈入手不可なら `none`〉が無ければ exit 2）。
+  終了コードは 0 ＝ 通過、1 ＝ 未測定・不整合、2 ＝ 使い方の誤り・型崩れ
+- `metadata.json` の `reaction_coverage` に `declared: true` と `path` を書く。**操作を持たない機能だけ** `declared: false` ＋理由
+  （画面駆動の機能で `default` 以外の撮影状態・空でない `popup_inventory`・`component_coverage.declared: true` のいずれかがあれば、操作の痕跡との矛盾として exit 2）（`gaps.md` にも残す）。**キーごと省略しない**——欠落は旧成果物の意味になり、`parity-diff` が判定を飛ばす
+- `parity-diff` は同じスクリプトを `--recorded` で呼び（移行元ソースは読まず、`conformance.ok` と表の指紋を要求する）、未測定が残る間は収束させない。**照合後に表を手で直したら `--write` から通し直す**
 
 ## 状態網羅の導出源
 

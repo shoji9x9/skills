@@ -1,0 +1,130 @@
+{
+  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions を必ず持つ（空欄を許さず、反応が無ければ kind: none を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
+  "slug": "<features.md が採番した slug（自分で採番しない）>",
+  "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
+  "documents": [
+    "top",
+    "<対象ページの全フレームの論理名（操作で開くダイアログの iframe を含む）。top（最上位の文書）は必須。none の observation.documents はこれを全て含み、observed の destination.document はこの中から選ぶ>"
+  ],
+  "observation_window_ms": "<正の数。kind: none を書くときに最低限見続ける時間（ミリ秒）。observed の delay_ms_samples の最大値より長くとる（以下なら落ちる）。none の observation.window_ms はこれ以上でなければ落ちる>",
+  "feedback_calls": {
+    "declared": "<真偽値。移行元ソースのフィードバック呼び出しと突き合わせたか。設定 current.feedback_calls があり移行元ソースを読めるなら true>",
+    "reason": "<declared: false のときだけ、突き合わせない理由（例: current.repo: none で移行元ソースを入手できない）。同じ理由を gaps.md にも残す。declared: true では null>",
+    "patterns": [
+      {
+        "id": "<パターン id（設定 current.feedback_calls[].id を転記）>",
+        "regex": "<呼び出しの字面に当たる JavaScript の正規表現（設定 current.feedback_calls[].regex を転記）。ファイル全体に複数行モードで照合し、^ / $ は行頭・行末に効く>",
+        "kind": "<利用者に見える副作用の種類（設定から転記。例: toast / script / dialog）>",
+        "example": "<regex が一致すべき実際の呼び出しの字面（設定 current.feedback_calls[].example を転記。移行元ソースから 1 つ写す）。一致しなければ落ちる——走査 0 件を「呼び出しが無い」と区別するための陽性コントロール>"
+      }
+    ],
+    "source": {
+      "paths": [
+        "<走査する移行元ソースのパス（--root からの相対。対象 slug の操作のハンドラを含む範囲に絞る）>"
+      ],
+      "version": "<走査した版（コミット SHA 等）。metadata.json の target.commit と一致しなければ落ちる>",
+      "version_unverified_reason": "<target.commit か version が none で版を照合できないときだけ、走査した版をどう選んだか（例: 受領資産にコミット履歴が無く、受領日のアーカイブを走査した）。照合できるなら null>",
+      "derivation": "<走査範囲をどう決めたか（どの画面・ハンドラから辿ったか）>"
+    },
+    "zero_calls_reason": "<call_sites が 0 件のときだけ、呼び出しが無いことの根拠（例: 対象ハンドラ全体を読み、フィードバックを出す処理が無いことを確認）。0 件でこれが空なら落ちる。call_sites があるなら null>",
+    "call_sites": [
+      {
+        "file": "<走査で見つかった呼び出しのファイル（--root からの相対、/ 区切り）。file・line・column（1 始まり）・pattern で 1 件を識別する——同じ行の複数の呼び出しは列で分けて全て記録する。改行をまたぐ呼び出しは一致の開始位置の行・列>",
+        "line": 0,
+        "column": 0,
+        "pattern": "<当たったパターン id>",
+        "reaction": "<対応付けた反応 <操作 id>/<反応 id>。kind: observed の反応だけを指せる。除外するなら null>",
+        "excluded_reason": "<reaction: null のときだけ、この機能の反応ではない理由（例: 別 slug の操作のハンドラ）。reaction を埋めたら null>"
+      }
+    ]
+  },
+  "operations": [
+    {
+      "id": "<操作 id（\"/\" を含めない。call_sites の reaction から参照する）>",
+      "name": "<人が読む操作名（例: 共有ダイアログの Copy を押す）>",
+      "trigger": "<操作アダプタの呼び出し（<関数名>(<論理名>)）>",
+      "handlers": [
+        {
+          "file": "<移行元ソースでこの操作を処理するハンドラのファイル（--root からの相対、/ 区切り）。feedback_calls.source.paths の走査範囲に入っていなければ落ちる>",
+          "symbol": "<ハンドラの名前（関数名・アクション名等）。file の中に語として現れなければ落ちる。feedback_calls.declared: false では不要>"
+        }
+      ],
+      "immediate_state": "<操作の直後に確定する状態（例: 共有ダイアログが閉じる）。変化が無いならそう書く>",
+      "reactions": [
+        {
+          "id": "<反応 id（\"/\" を含めない）>",
+          "kind": "observed",
+          "description": "<反応の内容（例: 「Copied to clipboard」のトースト）>",
+          "visible": "<真偽値。画面に出る反応か。クリップボードへの書き込みのように画面に出ないものは false>",
+          "observation": "<visible: false のときだけ、どう確かめたか（例: クリップボードを読み取って文言を照合）>",
+          "destination": {
+            "document": "<出る先の文書（top ＝ 最上位の文書、またはフレームの論理名）。操作した要素と別の文書に出ることがある>",
+            "locator": "<出た要素を引く論理名>"
+          },
+          "appearance": {
+            "wait_limit_ms": "<正の数。出現を待つ上限（ミリ秒）>",
+            "delay_ms_samples": ["<操作から出現までの実測値（ミリ秒）。wait_limit_ms 以下>"]
+          },
+          "dismissal": {
+            "mode": "<auto（自動で消える）| manual（利用者が閉じる）| persistent（消えない）| not-applicable（画面に居続ける要素ではない）>",
+            "duration_ms_samples": [
+              "<auto のときだけ。出現から消えるまでの実測値（ミリ秒）を 2 標本以上>"
+            ],
+            "tolerance_ms": "<auto のときだけ。0 以上で、標本の幅（最大 − 最小）以上。スイートの assertion で消える時間の許容幅に使う>",
+            "evidence": "<auto 以外のときだけ、消え方を確かめた記録（例: 30 秒待っても表示が残った）>"
+          },
+          "covered_by": ["<この反応を押さえたスイートの assertion（スペックとテスト名）>"],
+          "capture": {
+            "state": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
+            "reason": "<撮らないなら理由（gaps.md の「撮影状態の対象外」と同じ文言）。撮るなら null>"
+          }
+        }
+      ]
+    },
+    {
+      "id": "<反応が無い操作の例>",
+      "name": "<例: 検索ボタンを押す>",
+      "trigger": "<操作アダプタの呼び出し>",
+      "immediate_state": "<例: 一覧が絞られる>",
+      "reactions": [
+        {
+          "id": "none",
+          "kind": "none",
+          "observation": {
+            "window_ms": "<正の数。observation_window_ms 以上見続けた時間>",
+            "documents": [
+              "<見た文書。top と表の documents の全てを含める（欠けると落ちる）。操作した器の中だけを見て none と書かない>"
+            ],
+            "method": "<どう見たか（例: 全文書の DOM 変化を監視）>"
+          },
+          "covered_by": [
+            "<観測時間・文書にわたって反応が出ないことを確かめたスイートの assertion（スペックとテスト名）。空なら落ちる——新側が反応を足しても静止画・特性照合には写らない>"
+          ],
+          "_note": "kind: none は同じ操作に他の反応と同居させない（無いと在るが同時に成立する）"
+        }
+      ]
+    },
+    {
+      "id": "<測れなかった操作の例>",
+      "name": "<人が読む操作名>",
+      "trigger": "<操作アダプタの呼び出し>",
+      "immediate_state": "<直後の状態>",
+      "reactions": [
+        {
+          "id": "<反応 id>",
+          "kind": "unmeasured",
+          "reason": "<測れなかった理由。gaps.md にも残す>"
+        }
+      ]
+    }
+  ],
+  "conformance": {
+    "_note": "reaction-check.mjs --write が書き戻す。手で書かない。table_fingerprint は conformance を除いた表の指紋で、照合後に表を書き換えると parity-diff の --recorded が落とす。",
+    "tool": "reaction-check",
+    "tool_version": "<スクリプトの VERSION>",
+    "ok": "<真偽値>",
+    "call_sites_checked": "<真偽値。移行元ソースを走査して突き合わせたか>",
+    "table_fingerprint": "<sha256>",
+    "problems": 0
+  }
+}

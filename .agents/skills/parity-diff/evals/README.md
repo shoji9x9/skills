@@ -49,5 +49,8 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   停止・器を開く呼び出し（関数名 × 開く対象の論理名）と `opened_by` の突き合わせ・キーごと無い旧成果物を停止して採り直しへ戻すこと・採り直せない場合のユーザー承認の例外（ノイズ吸収なし）・`capture_conditions_verified` への記録を対象にする。
   入力に既存のキー名が要るためプロンプトに `popup_inventory` / `captured` / `reason` は書くが、停止・未検証・記録先の判断は書かない。
   呼び出し単位の突き合わせ（assertion 2）へ到達させるため `openCombo(page, name)` の事実を置いたところ、iteration-23 で `without_skill` も自力で到達したため、assertion 2 は**後退検知**であり Delta には寄与しない
+- eval 23 は反応の被覆表（Issue #351）を収束条件に入れる契約の回帰。差分器の未説明ゼロと、parity-suite 側のスクリプトが見当たらないことを根拠に判定を飛ばして収束させる案を押し戻せるかを見る。
+  インストール済みの `parity-suite` のスクリプトを記録済み照合で呼ぶこと・見つからなければ停止すること・照合後の手直しが表の指紋で落ちること・記録先を対象にする。
+  入力に既存のキー名が要るためプロンプトに `declared` / `converged` は書くが、スクリプト名・判定の手段・記録先は書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

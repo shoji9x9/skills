@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-15T00:16:19Z",
+    "evals_run": [23],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 71.099,
+        "tokens": 159937,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分器の未説明ゼロだけでは収束させず、反応の被覆表の未測定が残っていないことも収束条件に入れると答えている（遅れて出る・自動で消える反応は採取に写らず差分ゼロとして通るため）",
+          "passed": true,
+          "evidence": "3 経路の未説明ゼロは反応の被覆の代わりにならず、収束条件 8 項目の 1 つとして反応の被覆表を判定すると答えている"
+        },
+        {
+          "text": "判定はインストール済みの parity-suite の reaction-check.mjs を --recorded で呼んで行い、スクリプトが見つからないなら判定を飛ばさず停止して parity-suite の導入を促すと答えている",
+          "passed": true,
+          "evidence": "インストール済みの parity-suite の reaction-check.mjs を --recorded で呼び、スクリプトが無ければ判定を飛ばさず停止して gh skill install を促すと答えている"
+        },
+        {
+          "text": "parity-suite で照合した後に表を手で直した場合は、記録された照合結果（表の指紋）と一致せず落ちるため、parity-suite で照合を通し直す必要があると述べている",
+          "passed": true,
+          "evidence": "手で直した表は表の指紋が合わず exit 1 になるため、parity-suite で照合をやり直すと述べている"
+        },
+        {
+          "text": "判定結果を diff-metadata.json の reaction_coverage に記録し、判定しなかった場合は理由を diff.md の未検証領域にも残すと述べている",
+          "passed": true,
+          "evidence": "diff-metadata.json の reaction_coverage にスクリプト出力を写し、判定できなかった事実と理由を diff.md の未検証領域に残すと述べている"
+        },
+        {
+          "text": "回答内で「スクリプトが無いので判定を飛ばして converged: true にしてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "スクリプトが無いので converged: true にしてよいという結論は併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 41.34,
+        "tokens": 48052,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "差分器の未説明ゼロだけでは収束させず、反応の被覆表の未測定が残っていないことも収束条件に入れると答えている（遅れて出る・自動で消える反応は採取に写らず差分ゼロとして通るため）",
+          "passed": true,
+          "evidence": "表の確認が収束の条件で、3 経路では操作への反応の違いが見えないため converged: true にしないと答えている"
+        },
+        {
+          "text": "判定はインストール済みの parity-suite の reaction-check.mjs を --recorded で呼んで行い、スクリプトが見つからないなら判定を飛ばさず停止して parity-suite の導入を促すと答えている",
+          "passed": false,
+          "evidence": "スクリプトが無い場合は手作業の確認を代替として示し、インストール済みの parity-suite を呼ぶ・無ければ停止する形になっていない"
+        },
+        {
+          "text": "parity-suite で照合した後に表を手で直した場合は、記録された照合結果（表の指紋）と一致せず落ちるため、parity-suite で照合を通し直す必要があると述べている",
+          "passed": false,
+          "evidence": "手直し後は再確認が必要と述べ digest の記録を提案するが、記録済みの照合結果（表の指紋）と一致せず落ちる仕組みには触れていない"
+        },
+        {
+          "text": "判定結果を diff-metadata.json の reaction_coverage に記録し、判定しなかった場合は理由を diff.md の未検証領域にも残すと述べている",
+          "passed": false,
+          "evidence": "記録先を metadata.json の独自キー（interaction_coverage）にしており、diff-metadata.json の reaction_coverage と diff.md の未検証領域ではない"
+        },
+        {
+          "text": "回答内で「スクリプトが無いので判定を飛ばして converged: true にしてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論は併記していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 71.099,
+        "stddev": 0.0,
+        "min": 71.099,
+        "max": 71.099
+      },
+      "tokens": {
+        "mean": 159937.0,
+        "stddev": 0.0,
+        "min": 159937,
+        "max": 159937
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0.0,
+        "min": 0.4,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 41.34,
+        "stddev": 0.0,
+        "min": 41.34,
+        "max": 41.34
+      },
+      "tokens": {
+        "mean": 48052.0,
+        "stddev": 0.0,
+        "min": 48052,
+        "max": 48052
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.60",
+      "time_seconds": "+29.8",
+      "tokens": "+111885"
+    }
+  },
+  "notes": []
+}
