@@ -54,7 +54,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
   - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
-  - 上の 2 つ（`golden-dataset` フェーズ A・`parity-suite`）は、同じディレクトリの `pending-decisions.json` に未解決の保留があれば未完了として扱う（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
+  - 上の setup・フェーズ A・`parity-suite` と下のフェーズ B（slug × target）は、未解決の保留があれば証拠があっても未完了として扱う（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
     `phase_b.<slug>.<target>.dataset_version` が存在し、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないこと。
     影響変更があれば `golden-dataset --phase b --feature <slug> --target <target>` を先に回す。数値が古いだけなら再投入しない。
@@ -139,7 +139,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **委譲**: `issue-start --branch-only` のブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは `--autonomous` を引き継ぐ。commit / push / PR は越えない線の範囲でだけ行う
 - **記録先**: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`replace-metadata.json` には書かない**——`parity-diff` はその存在と `suite.new_green` を前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
-  未解決の保留が残る間は本スキルの完了を報告せず、**保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）
+  未解決の保留が残る間は本スキルの完了を報告せず、**保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）。
+  **再実行では、保留に依存する工程に入る前に、既存の `replace-metadata.json` に残る `suite.new_green: true` を `false` へ戻す**（前回の green 証跡を `parity-diff` に流用させない）
 
 ## 実行フロー
 

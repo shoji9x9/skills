@@ -144,7 +144,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。
-   `.replace/dataset/metadata.json` が無い、または `.replace/dataset/pending-decisions.json` に未解決の保留があれば `golden-dataset`（フェーズ A）を促して停止（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）。
+   `.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
+   **setup とフェーズ A は、未解決の保留があれば証拠があっても未完了として同じく停止する**（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」。フェーズ B の別 slug・別 target の保留では止めない）。
    Playwright が使えない（Node が無い・導入不可）なら設計不成立を明示して停止。
    `--target` から現行環境を確定し（`url_command` の target はここで 1 回だけコマンドを実行して URL を解決する。失敗・空出力は停止し、以降は解決済みの値を再利用する）、
    その target を `check_urls`（省略時は `url`）で稼働判定し、落ちているときだけ `pre_commands` → `start` の順で起動して再確認する（稼働中なら `pre_commands` / `start` はどちらも実行しない。

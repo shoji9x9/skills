@@ -44,7 +44,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - **前提の判定（無ければ停止し、該当スキルの実行を促す。捏造しない）**:
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - **部品インベントリ** = `.replace/components.md` の存在と、対象 slug の行に**インスタンスが 2 つ以上**挙がっていること（[`references/instances.md`](references/instances.md)）
-  - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`.replace/dataset/pending-decisions.json` に未解決の保留があれば未完了。正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
+  - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在
+  - 上の setup とフェーズ A は、未解決の保留があれば証拠があっても未完了として扱う（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `build` の前提 = 対象 slug の `capture` 完了（`.replace/components/<slug>/metadata.json` の `capture.complete`）**かつ `axes.ok` が真**。
     `capture.complete` だけでは足りない——全インスタンス × 全状態を採っていても、id の重複・未採取の状態・
     片側でしか採れていない軸が残っていれば `axis-diff.mjs` は `ok: false` を返す。

@@ -68,16 +68,6 @@
 ## 記録の形（`pending_decisions[]`）
 
 各スキルの機械可読な成果物（どのファイルかは各スキルの「自律実行」節）に `pending_decisions` 配列として書く。**保留が無ければ空配列**を書く（無記録と区別する）。
-**下流スキルが前提の判定に使う成果物（`.replace/dataset/metadata.json`・`.replace/parity/<slug>/metadata.json`・`.replace/parity/<slug>/new/<target>/replace-metadata.json`）には書かない。**
-保留を残すためにそのファイルを作ると、工程が終わっていないのに下流が完了とみなして進む。これらのスキルは同じディレクトリの `pending-decisions.json` に分けて書く。
-
-### 下流の前提判定（自律実行かどうかを問わない）
-
-- **存在を完了の証拠にする前提**（`golden-dataset` フェーズ A ＝ `.replace/dataset/metadata.json`、`parity-suite` ＝ `.replace/parity/<slug>/metadata.json`）は、
-  **同じディレクトリの `pending-decisions.json` に `resolution: null` の要素が 1 件でもあれば未完了として停止する**（前提の欠落）。
-  再実行の保留も対象にする——前回の完了で作られた `metadata.json` が残っていても、再実行が保留を抱えている間は、その版のデータ・スイートが今の要求を満たす保証が無い
-- **値を完了の証拠にする前提**（`suite.new_green` / `capture.complete` / `status: handed-off` / `converged`）は、生産側が保留に依存する工程を終えるまでその値を完了側にしないことで守る（上記「保留に落としたとき」4）
-- `pending-decisions.json` が無いのは「保留なし」で、前提の判定を変えない（自律実行していない・保留が無かった）
 あわせて同じ成果物の `run.autonomous` に真偽値で自律実行だったかを残す。
 
 ```json
@@ -95,5 +85,34 @@
 ```
 
 - `resolution` は答えを反映したら `{ "answer": "<答え>", "answered_at": "<ISO 8601>" }` にする。未解決は `null`
+- `golden-dataset` の保留は要素ごとに `phase`（`a` / `b`）を持ち、`b` では `slug` と `target` も持つ（下記「下流の前提判定」で範囲を絞るため）
 - **次の実行は、成果物を上書きする前に前回の未解決の保留を読む。** 引数なしの実行では最初に確認し、自律実行では判断材料が今も有効かを確かめて持ち越す（前提が変わって不要になったものは理由を書いて外す）。黙って消さない
 - `replace-strategy status` が全成果物の未解決の保留を集め、「判断待ち」として報告する
+
+### 完了の証拠になる成果物には書かない
+
+**下流スキルが前提の判定に使う成果物には保留を書かず、保留に依存する工程が残る間は新規作成・更新もしない。**
+保留を残すためにそのファイルを作ると、工程が終わっていないのに下流が完了とみなして進む。
+
+| 完了の証拠（下流が読む） | 保留の記録先 | 保留が残る間の扱い |
+|---|---|---|
+| `.replace/features.md` と `.replace/components.md`（`replace-strategy setup` 完了） | `.replace/strategy-pending.json` | 作らず、`.replace/features.draft.md` / `.replace/components.draft.md` に下書きする。答えを反映したら正規の名前へ移す |
+| `.replace/dataset/metadata.json`（`golden-dataset` フェーズ A・B） | `.replace/dataset/pending-decisions.json` | 該当フェーズの記録を作らない・更新しない |
+| `.replace/parity/<slug>/metadata.json`（`parity-suite`） | `.replace/parity/<slug>/pending-decisions.json` | 同上 |
+| `.replace/parity/<slug>/new/<target>/replace-metadata.json`（`parity-replace` の `suite.new_green`） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` | 同上。**再実行の開始時に既存の `suite.new_green: true` が残っていれば、保留に依存する工程に入る前に `false` へ戻す** |
+
+### 下流の前提判定（自律実行かどうかを問わない）
+
+前提を判定するときは、完了の証拠に加えて**上表の保留の記録先を読み、次の範囲に入る `resolution: null` の要素が 1 件でもあれば、その前提は未完了として停止する**（前提の欠落）。
+前回の完了で作られた証拠が残っていても、再実行が保留を抱えている間は今の要求を満たす保証が無いので、証拠の存在より保留を優先する。
+
+| 前提 | 未完了とみなす保留 |
+|---|---|
+| `replace-strategy setup` | `.replace/strategy-pending.json` の `mode: setup` の全要素 |
+| `golden-dataset` フェーズ A | `.replace/dataset/pending-decisions.json` の `phase: a` の要素 |
+| `golden-dataset` フェーズ B（slug × target） | 同ファイルの `phase: b` で `slug` と `target` が一致する要素（他の slug・target の保留では止めない） |
+| `parity-suite`（slug） | `.replace/parity/<slug>/pending-decisions.json` の全要素 |
+| `parity-replace` の新側 green（slug × target） | `.replace/parity/<slug>/new/<target>/pending-decisions.json` の全要素 |
+
+- 記録先のファイルが無いのは「保留なし」で、前提の判定を変えない（自律実行していない・保留が無かった）
+- `capture.complete` / `status: handed-off` / `converged` のように、ファイルの中の値で完了を判定する前提は、生産側がその値を完了側にしないことで守る（上記「保留に落としたとき」4）

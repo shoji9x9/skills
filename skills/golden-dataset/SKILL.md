@@ -46,6 +46,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 - **固定の技術スタック前提**: 投入ツールは TypeScript が既定。難しければ SQL（まとめてコミットできる形）
 
 設定（`skills.replace-strategy.*`）または `.replace/features.md` が無ければ、成果物を捏造せず停止して `replace-strategy setup` を促す。
+`.replace/strategy-pending.json` に `setup` の未解決の保留があるときも同じく停止する（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）。
 
 ## 厳守の制約（禁止事項）
 
@@ -118,6 +119,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 - **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
 - **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
 - **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  **要素ごとに `phase` を書き、フェーズ B では `slug` と `target` も書く**——下流は範囲が一致する保留だけで止まるので、書かないと無関係な機能まで止まる。
   **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
   未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない。
   **再実行で既存の `metadata.json` が残っていても**、下流は `pending-decisions.json` の未解決の保留を見て未完了として止まる（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）

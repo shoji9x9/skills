@@ -88,6 +88,8 @@ replace-strategy status
 - **依存関係**: 手順 3 の値が設定に無い項目に依存する工程は止める（例: `targets` が未確定なら測定も止まる）。手順 6 が保留なら `.replace/strategy.md` を確定せず、戦略に依存しない測定（手順 5）・機能インベントリの下書き（手順 9）は進める
 - **`issues` モードは起票しない**（`issue-create` への委譲は越えない線）。候補・依存関係・本文ドラフトを作って保留に記録し、終わりにまとめて承認を聞く。承認が得られたら同じ実行で 1 件ずつ委譲する
 - **記録先**: `.replace/strategy-pending.json`（テンプレート: [`assets/strategy-pending-template.json`](assets/strategy-pending-template.json)）
+- **`setup` の保留が残る間は `.replace/features.md` / `.replace/components.md` を作らない**——下流はこの 2 つの存在を `setup` 完了とみなす。
+  機能インベントリ・部品インベントリは `.replace/features.draft.md` / `.replace/components.draft.md` に下書きし、答えを反映したら正規の名前へ移す（正本の「完了の証拠になる成果物には書かない」）
 - `setup` から `current-environment-bootstrap` へ委譲するときは `--autonomous` を引き継ぐ
 
 ## setup モード
