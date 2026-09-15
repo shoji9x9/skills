@@ -1,5 +1,5 @@
 {
-  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。loop.changed_scope は直近の反復で描画に効く変更を入れた範囲で、parity-diff が新側の自己ノイズ測定を再利用してよい組の判定に使う（pages は features.md のページ識別子で書く。global が真なら pages は空でよい。反復の +1 時に null へ戻し修正完了時に確定値を書く。判断が付かない・記録しない場合は null のまま＝parity-diff 側で全組再測定に倒れる。pages: [] は「描画に効く変更なし」の積極的な申告であり null と意味が違う）。",
+  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。loop.changed_scope は直近の反復で描画に効く変更を入れた範囲で、parity-diff が新側の自己ノイズ測定を再利用してよい組の判定に使う（pages は features.md のページ識別子で書く。global が真なら pages は空でよい。反復の +1 時に null へ戻し修正完了時に確定値を書く。判断が付かない・記録しない場合は null のまま＝parity-diff 側で全組再測定に倒れる。pages: [] は「描画に効く変更なし」の積極的な申告であり null と意味が違う）。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -8,7 +8,8 @@
     "agent": "<実装したコーディングエージェント名>",
     "model": "<モデル名>",
     "effort": "<エフォート。省略不可>",
-    "skill_version": "<parity-replace のバージョン>"
+    "skill_version": "<parity-replace のバージョン>",
+    "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
   "dataset_version": "<実装時に前提とした .replace/dataset/metadata.json の version（数値）。その版より後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として見直す。数値が古いだけなら有効>",
   "new": {
@@ -72,5 +73,18 @@
       ],
       "global": "<共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れたら true。真なら pages は空でよい。真偽値で書く>"
     }
-  }
+  },
+  "pending_decisions": [
+    {
+      "id": "<成果物内で一意。例: pd-1>",
+      "question": "<人に問う内容（1 文）>",
+      "cause": "<判断が必要になった原因。承認の粒度の単位>",
+      "options": ["<選択肢>"],
+      "recommendation": "<推奨案と理由。無ければ null。答えが来るまで適用しない>",
+      "evidence": ["<判断材料のパス・値>"],
+      "blocks": ["<この判断に依存して止めた工程>"],
+      "raised_at": "<ISO 8601>",
+      "resolution": null
+    }
+  ]
 }

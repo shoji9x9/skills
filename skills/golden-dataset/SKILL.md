@@ -1,7 +1,7 @@
 ---
 name: golden-dataset
 description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（TypeScript か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの写像・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
-argument-hint: "[--phase <a|b>] [--feature <slug>...] [--target <name>]"
+argument-hint: "[--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]"
 license: MIT
 ---
 
@@ -16,7 +16,7 @@ license: MIT
 ## 使い方
 
 ```text
-golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
+golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]
 ```
 
 | モード | 起点 | 内容 |
@@ -33,6 +33,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
 - `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「ゴールデンデータセットを作って」「テストデータを投入して」
 
 ## 前提
@@ -105,6 +106,17 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>]
   `intentional_diffs.pending` へ**追記元が分かる形で**追記してユーザー確認へ回すこと（`added_by: golden-dataset` ／ `added_at` ／
   `slug` は帰属できる機能があればその slug、無ければ `cross-cutting`。要素の形の正本はスキーマ文書の「`pending` 要素の形」）と、
   投入ツールに依存を足すときに `references.dependency_policy` が**キー欠落＝未確認**だった場合の確認結果を同キーへ追記すること
+
+## 自律実行（`--autonomous`）
+
+規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
+**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+
+- **判断待ち（保留に落とす）**: 無指定で既存の `metadata.json` があるときの用途（フェーズ A 再実行かフェーズ B か）、投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
+  投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
+- **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
+- **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
+- **記録先**: `.replace/dataset/metadata.json` の `pending_decisions[]` と `run.autonomous`。未解決の保留が残る間は、そのフェーズを完了と報告せず `version` を上げない（投入していない版を記録しない）
 
 ## 実行フロー
 

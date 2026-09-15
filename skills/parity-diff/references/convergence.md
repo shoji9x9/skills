@@ -20,6 +20,8 @@
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
+  - **`diff-metadata.json` の `pending_decisions[]` に未解決（`resolution: null`）の保留が無い**（自律実行で人の判断待ちにした保留。記録の形の正本は `replace-strategy` の `references/autonomy.md`。
+    本スキルは毎回このキーを書く——自律実行でない実行・保留の無い実行は空配列）
   - **意図的差異の保留（`intentional_diffs.pending`）の棚卸しが済んでいる**（下記「`intentional_diffs.pending` の棚卸し」）。
     数え直しは [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が行う（**記録された件数を信用せず設定ファイルの `pending` から数え直す**）:
 
@@ -108,6 +110,7 @@
 ### 処置
 
 **1 件ずつ人へ提示する**（まとめて「全部持ち越し」等の一括指示に従わない——内容を見ずに決めると棚卸しが素通りの儀式になる）。処置は 3 つのいずれか。
+**自律実行（`--autonomous`）では処置を記録せず `pending_decisions[]` に保留として残す**（`carried_over` を自分で書かない。理由の記録だけで通過できる処置なので、人の判断を経ずに棚卸しが通ってしまう）。
 
 | 処置（`disposition`） | 意味 | 必要な記録 |
 |---|---|---|
@@ -146,13 +149,14 @@
 - **差し戻さない**（その target では直せない）。`on_diff` の分岐にも入れず、停止してユーザーへ「依存先の実装待ち」として報告する。要対応が別にあればそちらは通常どおり差し戻す
 - 前回実行の `blocked_by` は**引き継がず毎回検証し直す**。依存先が `suite.new_green` になっていれば帰属を外し、その差分を通常の候補として再判定する
 
-### 収束状態は 3 つ（`converged` の 2 値では表せない）
+### 収束状態は 4 つ（`converged` の 2 値では表せない）
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」8 項目をすべて満たす） | 完了 |
-| 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
-| 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
+| 収束 | `converged: true`（上記「収束の条件」9 項目をすべて満たす） | 完了 |
+| 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ・未解決の保留がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
+| 判断待ち | `converged: false` かつ 要対応・`deviates_T` がゼロで、`pending_decisions[]` に未解決の保留が残り、残る未説明差分が**すべて**未解決の保留（原因単位の `許容候補（要確認）`）か `blocked_by` に帰属する（`blocked_by` が併存してもよい） | 終わりにまとめて聞く（`replace-strategy` の `references/autonomy.md`）。答えを反映して再判定 |
+| 未収束 | 上記以外（要対応が残る、または保留にも `blocked_by` にも帰属しない未説明差分が残る） | 下記「差し戻し」（未解決の保留があっても差し戻しは進める） |
 
 **再判定のトリガーは `replace-strategy status` が持つ**——依存先の同 target が `suite.new_green` になった slug を検出し、`blocked_by` で参照している側の `parity-diff` 再実行が必要だと列挙する（成果物から毎回導出する原則に沿う）。
 `parity-replace` は自分が green にした機能の依存元を知らないため、通知役を持たせない。
@@ -174,7 +178,7 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（8 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・反応の未測定・保留の未棚卸しを見落とす）
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（9 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・反応の未測定・保留の未棚卸し・未解決の判断待ちを見落とす）
 - `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）、
   `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）、`reaction_coverage`（判定の有無 / 操作数 / 未測定の操作数）、
   `intentional_diffs_pending`（棚卸しの対象内訳 / 確定件数 / 持ち越し件数と各件の処置）を記録する

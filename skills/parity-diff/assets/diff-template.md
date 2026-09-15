@@ -103,6 +103,15 @@
 |---|---|---|---|---|
 | （例: 5） | （slug） | （番号／無ければ none） | （例: `new/<target>/replace-metadata.json` が無い） | （例: 同じページに乗るセクションが新側に無く親要素の高さが変わる） |
 
+## 6a. 判断待ち（pending_decisions）
+
+<!-- --autonomous の実行で人の判断待ちにした保留。diff-metadata.json の pending_decisions と一致させる。記録の形の正本は replace-strategy の references/autonomy.md。 -->
+<!-- 暫定値で埋めない。「許容」の承認待ちは 5 の分類を 許容候補（要確認）のまま置き、ここに原因単位で 1 行立てる。自律実行でない・保留が無いなら「なし」と書く。 -->
+
+| id | 問い（question） | 原因（cause） | 止めた工程（blocks） | 判断材料（evidence） | 解決（answer / answered_at。未解決なら 未解決） |
+|---|---|---|---|---|---|
+| （例: pd-1） | （例: 見出しの字形差を許容してよいか） | （例: font-subset-weight600） | （例: 5 の記録先への追記・収束判定） | （例: crop 対のパス・件数 N と内訳） | 未解決 |
+
 ## 7. 未検証領域
 
 <!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・投入対象でない target のデータ依存差分・部品被覆表を判定しなかった場合。確認済みにしない。 -->
@@ -136,7 +145,7 @@
 ## 9. 収束判定
 
 <!-- 差分器の集計で判定する。converged は diff-metadata.json と一致させる。 -->
-<!-- 状態は 3 つ: 収束 / 他機能待ち（残る未説明がすべて blocked_by に帰属し要対応ゼロ）/ 未収束。 -->
+<!-- 状態は 4 つ: 収束 / 他機能待ち（残る未説明がすべて blocked_by に帰属し要対応ゼロ・未解決の保留ゼロ）/ 判断待ち（要対応ゼロで未解決の保留が残り、残る未説明がすべて保留か blocked_by に帰属）/ 未収束。 -->
 
 - 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属: （件数））
 - 未修正回帰（deviates_T / actionable）: （件数。ゼロが条件）
@@ -146,5 +155,6 @@
 - 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
 - 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
 - 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --recorded の ok と未測定の操作数。ok: true かつ未測定ゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
-- 収束状態: （収束／他機能待ち／未収束）と根拠
+- 未解決の判断待ち（pending_decisions の resolution: null）: （件数。ゼロが条件。diff-metadata.json の pending_decisions と一致させる）
+- 収束状態: （収束／他機能待ち／判断待ち／未収束）と根拠
 - 収束: （converged: true / false）

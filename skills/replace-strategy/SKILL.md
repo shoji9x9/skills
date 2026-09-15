@@ -1,7 +1,7 @@
 ---
 name: replace-strategy
 description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル群へ振り分けるスキル。自分では実装しない。setup（依存確認・現行環境の由来確認・対話セットアップ・測定・戦略決定・レジストリ・機能インベントリ・パッケージ選定。受領資産からの再構築は current-environment-bootstrap へ委譲。共通部品を先に作る方針なら parity-component へ委譲）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
-argument-hint: "<setup | issues | status> [--feature <slug>...]"
+argument-hint: "<setup | issues | status> [--feature <slug>...] [--autonomous]"
 license: MIT
 ---
 
@@ -14,8 +14,8 @@ license: MIT
 ## 使い方
 
 ```text
-replace-strategy setup
-replace-strategy issues [--feature <slug>...]
+replace-strategy setup [--autonomous]
+replace-strategy issues [--feature <slug>...] [--autonomous]
 replace-strategy status
 ```
 
@@ -27,6 +27,7 @@ replace-strategy status
 
 - `issues` は `--feature <slug>...` で対象機能を選択できる。省略時は未起票の機能から対話選択する
 - モード未指定時はどのモードかをユーザーに確認する（`setup` 未完了なら `setup` を提案する）
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」
 
 ## 前提
@@ -77,6 +78,17 @@ replace-strategy status
 設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` のスキーマと解決手順は [`references/project-config.md`](references/project-config.md) を参照する。
 
 設定は対象プロジェクトに 1 つで全スキルが読めるため、**下流スキル（姉妹スキル）はこのキーを直接読む**（転記しない）。
+
+## 自律実行（`--autonomous`）
+
+**置換系スキル群に共通する自律性ポリシーの正本は [`references/autonomy.md`](references/autonomy.md)**（宣言の仕方・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）。
+姉妹スキルはそれぞれの「自律実行」節で固有の対応だけを持ち、同ファイルを参照する。本スキル固有の対応:
+
+- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、`issues` モードの起票の承認
+- **依存関係**: 手順 3 の値が設定に無い項目に依存する工程は止める（例: `targets` が未確定なら測定も止まる）。手順 6 が保留なら `.replace/strategy.md` を確定せず、戦略に依存しない測定（手順 5）・機能インベントリの下書き（手順 9）は進める
+- **`issues` モードは起票しない**（`issue-create` への委譲は越えない線）。候補・依存関係・本文ドラフトを作って保留に記録し、終わりにまとめて承認を聞く。承認が得られたら同じ実行で 1 件ずつ委譲する
+- **記録先**: `.replace/strategy-pending.json`（テンプレート: [`assets/strategy-pending-template.json`](assets/strategy-pending-template.json)）
+- `setup` から `current-environment-bootstrap` へ委譲するときは `--autonomous` を引き継ぐ
 
 ## setup モード
 
@@ -179,7 +191,8 @@ replace-strategy status
 - **`.replace/features.md` の更新は非破壊**——テンプレートは初期生成の雛形であって更新時の項目の上限ではない。変える行・列だけを書き換え、テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しない。4 種に当てはまらない Issue は「その他の Issue（4 種以外）」表へ置く（正本は [`references/features-issues.md`](references/features-issues.md)）
 - 起票は `issue-create` スキルへ委譲する。**候補・依存関係・各 Issue の本文ドラフトを提示して明示承認を得てから 1 件ずつ委譲する**（issue-create は 1 件ずつ承認を得る設計のため、本モードで先にまとめて承認を得る）
 - 同じページに乗る機能はページ一覧から束ねて連続順を提案し、着手前に slug ごとの再実行回数・束の合計・最後にマスクが外れる全面比較を示す（実依存を逆転させない。数え方は [`references/features-issues.md`](references/features-issues.md)）
-- **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）
+- **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）。
+  `--autonomous` の実行ではドラフトを保留に記録してから終える（上記「自律実行」）
 - 重複チェックはページネーションに留意する（既定件数で打ち切らない）
 
 ## status モード
@@ -191,6 +204,7 @@ replace-strategy status
 - **状態の根拠はトラッカーへの問い合わせだけ**。features.md は番号だけを持ち（旧版テンプレート由来の「状態」列があっても読まない）、取得できなかった番号は `判定不能` として示す（open / closed のどちらにも倒さない）
 - 機能ごとのパリティスイートの有無・強度・データセットバージョンの陳腐化・未検証領域（`gaps`）を導出する
 - 横断 API に変更があった場合の影響範囲（利用側の機能一覧）を fan-out から導出する
+- 各成果物の未解決の保留（`pending_decisions[]`）を集め、「判断待ち」として報告する（記録の形の正本は [`references/autonomy.md`](references/autonomy.md)）
 - 「その他の Issue（4 種以外）」表の各行は Issue 状態と依存順・影響範囲を報告する（`.replace/parity/<slug>/` の成果物を持たないため、スイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別する）
 
 ## 成果物
@@ -206,6 +220,7 @@ replace-strategy status
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
 | 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
+| 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
 ## 姉妹スキルと依存順

@@ -1,5 +1,5 @@
 {
-  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。",
+  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。",
   "slug": "<.replace/components.md が採番した slug（自分で採番しない）>",
   "component": "<部品の呼び名（components.md の表記）>",
   "target": {
@@ -13,7 +13,8 @@
     "agent": "<採取したコーディングエージェント名>",
     "model": "<モデル名>",
     "effort": "<エフォート。省略不可>",
-    "skill_version": "<parity-component のバージョン>"
+    "skill_version": "<parity-component のバージョン>",
+    "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
   "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの来歴でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の正本は golden-dataset の references/versioning.md>",
   "capture": {
@@ -98,5 +99,18 @@
   "artifacts_storage": {
     "baseline": "<スクリーンショット等の保存先（local | git | git-lfs。既定 local）。設定 artifacts と overrides.<slug> に従う>",
     "baseline_pointer": "<local を選んだ場合の実際の置き場所（足場であり切替後に残っている必要はない）>"
-  }
+  },
+  "pending_decisions": [
+    {
+      "id": "<成果物内で一意。例: pd-1>",
+      "question": "<人に問う内容（1 文）>",
+      "cause": "<判断が必要になった原因。承認の粒度の単位>",
+      "options": ["<選択肢>"],
+      "recommendation": "<推奨案と理由。無ければ null。答えが来るまで適用しない>",
+      "evidence": ["<判断材料のパス・値>"],
+      "blocks": ["<この判断に依存して止めた工程>"],
+      "raised_at": "<ISO 8601>",
+      "resolution": null
+    }
+  ]
 }

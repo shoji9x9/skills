@@ -1,5 +1,5 @@
 {
-  "_note": "golden-dataset が .replace/dataset/metadata.json として生成する。形式の正本は golden-dataset が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。version / changes の運用（+1 の条件・影響範囲・フェーズ B で不変・陳腐化検出）の正本は references/versioning.md。changes は version ごとの変更履歴を欠番なく保持し、affects に変更したテーブル／静的データ単位を列挙する。全機能へ波及する変更だけ * を使う。mode は設定の dataset_mode（db | static）を写したもので、db では current.target がフェーズ A の投入先 current target 名（parity-suite がベースライン採取時に自分の選択 target と一致するか照合する）、static では投入先環境を持たないため current.target と current.seeded_at を null にし current.fingerprint を記録する（parity-suite は current.target が null なら照合しない）。phase_b は slug（.replace/features.md が採番したもの）をキーに、さらに投入先の new 側 target 名をキーとして { dataset_version: 新側へ投入した version（数値）, seeded_at: ISO 8601, verified_at: ISO 8601 } を持つ。フェーズ B 未実施の slug / target はキーを作らず、初回生成時は空オブジェクトのままにする。",
+  "_note": "golden-dataset が .replace/dataset/metadata.json として生成する。形式の正本は golden-dataset が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。version / changes の運用（+1 の条件・影響範囲・フェーズ B で不変・陳腐化検出）の正本は references/versioning.md。changes は version ごとの変更履歴を欠番なく保持し、affects に変更したテーブル／静的データ単位を列挙する。全機能へ波及する変更だけ * を使う。mode は設定の dataset_mode（db | static）を写したもので、db では current.target がフェーズ A の投入先 current target 名（parity-suite がベースライン採取時に自分の選択 target と一致するか照合する）、static では投入先環境を持たないため current.target と current.seeded_at を null にし current.fingerprint を記録する（parity-suite は current.target が null なら照合しない）。phase_b は slug（.replace/features.md が採番したもの）をキーに、さらに投入先の new 側 target 名をキーとして { dataset_version: 新側へ投入した version（数値）, seeded_at: ISO 8601, verified_at: ISO 8601 } を持つ。フェーズ B 未実施の slug / target はキーを作らず、初回生成時は空オブジェクトのままにする。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。",
   "version": 1,
   "changes": [
     {
@@ -21,12 +21,26 @@
     "agent": "<作業したコーディングエージェント名>",
     "model": "<モデル名>",
     "effort": "<エフォート。省略不可>",
-    "skill_version": "<golden-dataset のバージョン>"
+    "skill_version": "<golden-dataset のバージョン>",
+    "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
   "tool": {
     "dir": "<dataset_tool_dir。未指定時 seed/>",
     "entry": "<投入ツールのエントリ（削除→投入→検証を一度に走らせる入口）のパス>",
     "language": "<typescript | sql>"
   },
-  "phase_b": {}
+  "phase_b": {},
+  "pending_decisions": [
+    {
+      "id": "<成果物内で一意。例: pd-1>",
+      "question": "<人に問う内容（1 文）>",
+      "cause": "<判断が必要になった原因。承認の粒度の単位>",
+      "options": ["<選択肢>"],
+      "recommendation": "<推奨案と理由。無ければ null。答えが来るまで適用しない>",
+      "evidence": ["<判断材料のパス・値>"],
+      "blocks": ["<この判断に依存して止めた工程>"],
+      "raised_at": "<ISO 8601>",
+      "resolution": null
+    }
+  ]
 }
