@@ -52,6 +52,7 @@
     "pixel_crops": "<同梱 pixel-crops.mjs の VERSION>",
     "diff_normalize": "<同梱 diff-normalize.mjs の VERSION>",
     "coverage_check": "<同梱 coverage-check.mjs の VERSION（component_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
+    "reaction_check": "<インストール済み parity-suite の reaction-check.mjs の VERSION（reaction_coverage を判定したときだけ記録する。判定しなかったときは省略）>",
     "pending_triage_check": "<同梱 pending-triage-check.mjs の VERSION（棚卸しは常に判定するので常に記録する）>",
     "json_normalize_diff": "<同梱 json-normalize-diff.mjs の VERSION（api-resource / batch モードで使う。feature モードでは省略）>"
   },
@@ -115,6 +116,14 @@
     "source": "<judged: true のとき読んだ被覆表のパス。declared: true なのに無い・読めない・壊れているときはそのパスと読めなかった旨を書き、unmeasured は数え直せないので null にする（cells は 0。null を 0 と読み替えて合格に倒さない）。path も --coverage も無くて読みに行けなかったときは null>",
     "cells": 0,
     "unmeasured": 0
+  },
+  "reaction_coverage": {
+    "_note": "反応の被覆表の判定結果。現側 metadata.json の reaction_coverage.declared が true のときだけ、インストール済み parity-suite の scripts/reaction-check.mjs を --recorded で呼んで判定する（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。値はスクリプトの出力から写し、現側の記録を目視で数えない。unmeasured_operations が 1 以上、または ok が true でなければ converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。api-resource / batch モードでは省略する。",
+    "judged": false,
+    "reason": "<judged: false のときの理由（現側が declared: false ならその reason、reaction_coverage をキーごと持たない旧成果物ならその旨）。judged: true では null>",
+    "ok": "<judged: true のときスクリプト出力の ok。judged: false では null>",
+    "operations": 0,
+    "unmeasured_operations": 0
   },
   "intentional_diffs_pending": {
     "_note": "意図的差異の保留（設定ファイルの intentional_diffs.pending）の棚卸し結果。手順と収束条件への組み込みの正本は parity-diff の references/convergence.md「intentional_diffs.pending の棚卸し」、要素の形の正本は replace-strategy の references/project-config.md「pending 要素の形」。棚卸しの対象は 3 群——この機能に帰属する保留（slug 一致）・横断の保留（slug: cross-cutting。閉じる工程を持たないため毎回提示する）・帰属不明の保留（素の文字列の旧形式 / slug 欠落）。他の機能に帰属する保留は対象外（その機能の収束判定が扱う）。件数は数値のまま書き、対象 0 件でも entries: [] とゼロ件数を記録する（0 件と無記録を同じ出力にしない——キーごと無い場合は pending-triage-check.mjs が未実施として exit 1 で落とす）。件数は pending-triage-check.mjs が設定ファイルの pending から数え直すので、宣言値と食い違えば落ちる。keep / may_change へ移すのは人間で、本スキルは設定ファイルを書き換えない。",

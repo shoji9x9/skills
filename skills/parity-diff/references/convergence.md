@@ -70,6 +70,19 @@
     **`declared: true` なのに被覆表が無い・読めない・JSON として壊れているときは合格に倒さない**（スクリプトも `unmeasured: null` ＋ exit 1 を返す）。
     `declared: false` のとき、および `component_coverage` を**キーごと持たない旧成果物**のときは本項目を判定に入れない（後方互換）——
     ただし判定しなかった事実と理由を `diff-metadata.json` の `component_coverage`（`judged: false`）に記録し、`diff.md` の未検証領域にも残す（黙って合格にしない）
+  - **反応の被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「操作の反応」）。
+    差分器は採取した状態しか見ないため、**遅れて出る・別の文書に出る・自動で消える反応**の取りこぼしと、新側の「出しっぱなし」は差分ゼロとして通る。
+    `.replace/parity/<slug>/metadata.json` の `reaction_coverage.declared` が `true` のときだけ判定に入り、数え直しは**インストール済みの `parity-suite`**
+    （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
+
+    ```bash
+    node <parity-suite の skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --recorded
+    ```
+
+    `--recorded` は移行元ソースを読まず、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。
+    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空（後方互換に倒さず現側の成果物を直す）。
+    **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
+    `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
 
 ## `intentional_diffs.pending` の棚卸し
 
@@ -137,7 +150,7 @@
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」7 項目をすべて満たす） | 完了 |
+| 収束 | `converged: true`（上記「収束の条件」8 項目をすべて満たす） | 完了 |
 | 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
 | 未収束 | 上記以外（要対応が残る、または未帰属の未説明差分が残る） | 下記「差し戻し」 |
 
@@ -161,9 +174,9 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（7 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・保留の未棚卸しを見落とす）
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（8 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・反応の未測定・保留の未棚卸しを見落とす）
 - `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）、
-  `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）、
+  `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）、`reaction_coverage`（判定の有無 / 操作数 / 未測定の操作数）、
   `intentional_diffs_pending`（棚卸しの対象内訳 / 確定件数 / 持ち越し件数と各件の処置）を記録する
 
 ## 対象外・未検証の明示

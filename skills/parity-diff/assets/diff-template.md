@@ -115,6 +115,7 @@
 | （例: 列を選ぶ吹き出し） | 撮影状態の対象外 | 現側 `popup_inventory` で `captured: null`。理由は `popup_inventory[].reason` をそのまま転記（例: 同じ吹き出しを一覧機能のスイートで撮る）。撮っていない器の見た目は 3 経路のどれにも出ない |
 | （例: 操作で開く器全般） | 撮影状態の対象外 | 現側 `metadata.json` に `popup_inventory` が無い旧成果物を、採り直せない理由（例: 現行 target 撤去済み）のユーザー承認で続行。撮っていない器の見た目は未検証で、ノイズ基準値は静止待ち導入前の採取のため吸収に使っていない |
 | （例: 一覧の表示件数・並び） | データ依存 | 選択 target が投入対象外（db 無し／seedable 無し）でゴールデンデータ未投入。実装差かデータ差か判別できない |
+| （例: 操作が返すトースト・ダイアログの開閉） | 反応の被覆表未判定 | 現側 `metadata.json` に `reaction_coverage` が無い（旧成果物）ため未測定を判定できない。遅れて出る・別の文書に出る・自動で消える反応の欠落は差分ゼロとして通る |
 | （例: データグリッドが持つ操作の網羅） | 部品被覆表未判定 | 現側 `metadata.json` に `component_coverage` が無い（旧成果物）ため未測定を判定できない。採取状態の外にある操作の欠落は差分ゼロとして通る |
 
 ## 8. 意図的差異の保留（intentional_diffs.pending）の棚卸し
@@ -144,5 +145,6 @@
 - インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
 - 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
+- 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --recorded の ok と未測定の操作数。ok: true かつ未測定ゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
 - 収束状態: （収束／他機能待ち／未収束）と根拠
 - 収束: （converged: true / false）
