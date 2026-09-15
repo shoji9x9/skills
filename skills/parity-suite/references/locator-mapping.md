@@ -75,6 +75,7 @@
 | スペック（現・新の両方に当てるもの） | `<parity_suite_dir>/parity/<slug>/` |
 | **現側専用スペック**（ベースライン採取・ノイズ基準値測定・強度ゲート） | `<parity_suite_dir>/parity/<slug>/current-only/` |
 | **新側専用スペック**（新側ベースライン採取・新側の自己ノイズ測定。置くのは `parity-diff`。本スキルは場所・除外・`new-capture` プロジェクトだけ用意する） | `<parity_suite_dir>/parity/<slug>/new-only/` |
+| **寸法の決まり方の測定スペック**（side 非依存。`current` / `new` の両方で走り、project 名で出力先を分ける。正本は [`baseline.md`](baseline.md)「寸法の決まり方（窓への追従）」） | `<parity_suite_dir>/parity/<slug>/dimension/` |
 | 現側マッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
 | 期待値解決層 | `<parity_suite_dir>/parity/lib/expectations/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
@@ -118,6 +119,7 @@ projects: [
     name: 'new',
     use: { baseURL: process.env.PARITY_NEW_UI_URL },
     // parity-replace の green 検証用。採取スペックは走らせない（収集時に採取用の環境変数を要求するため）
+    // dimension/ は除外しない（PARITY_DIMENSION_CAPTURE=1 のときだけ新側の寸法を new/<PARITY_NEW_TARGET>/ へ採る）
     testIgnore: ['**/current-only/**', '**/new-only/**'],
   },
   {
@@ -140,3 +142,5 @@ PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --p
 ```
 
 `new` 側の target 選択と green 化は `parity-replace` 段階で行われるため、本スキルでは `PARITY_NEW_UI_URL` は未設定でよい。
+`dimension/` の測定スペックは `PARITY_DIMENSION_CAPTURE=1` の実行でだけ書き、`new` ではさらに `PARITY_NEW_TARGET`（選択した新側 target 名）で出力先 `new/<target>/` を決める（未設定なら書かずに落ちる。別 target の samples を上書きしないため）。
+通常の green 検証・強度ゲートでは `PARITY_DIMENSION_CAPTURE` を渡さない（スキップされる）。

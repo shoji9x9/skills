@@ -90,6 +90,9 @@ parity-suite [--feature <slug>] [--target <name>]
 - **side 専用スペックを相手側の project の実行対象に残さない。** `testIgnore` で両向きに除外する——現側専用（ベースライン採取・ノイズ測定・強度ゲート）を `new` に残すと新側の実行が現側の証跡を静かに上書きし、
   `parity-diff` が後から置く新側専用（`new-only/`）を `current` に残すと現行アプリの画面が新側ベースラインとして書き出され差分ゼロに化ける。
   新側専用は `new`（`parity-replace` の green 検証用）からも除外し、採取専用の `new-capture` プロジェクトで走らせる——`new` に残すと green 検証がテスト収集の時点で落ちる
+- **撮影したビューポートの 1 点で合うことを「寸法が合う」として扱わない。** 3 経路はその点でしか比べないため、1 点の実測 px を並べた新側の版組が全経路で緑になる。
+  feature モードでは窓を変えて位置と寸法の式を読み、`metadata.json` の `capture_conditions.dimension_model` を**キーごと省略しない**（ビューポートが 1 つなら `measured` か理由付きの `not_measured`）。
+  **未測定を `gaps.md` に書いて済ませない**——`parity-replace` への引き渡し条件として `dimension_model` に残す（[`references/baseline.md`](references/baseline.md)「寸法の決まり方（窓への追従）」）
 - **採取環境でだけ成立する一致を「一致」として扱わない。** 総称ファミリーのフォントフォールバック等は採取環境では差分ゼロになり、利用者環境でだけ壊れる（`viewer_environment` に記録し、乖離は `gaps.md` へ）
 - **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
@@ -158,6 +161,8 @@ parity-suite [--feature <slug>] [--target <name>]
    **状態を変える工程（書き込み系スペック・ファイルアップロード・バッチ実行）は全モード共通で [`references/data-discipline.md`](references/data-discipline.md) の規律に従う**（復元 → 一意プレフィックス＋後始末 → 後始末できないなら承認を得て「hermetic でない」と明示）。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。
+   **続けて寸法の決まり方を測る**——`traits.elements` の全論理名を、撮影したビューポートを含み幅と高さを独立に動かした 4 窓以上で読む
+   （`dimension/` の測定スペックを `PARITY_DIMENSION_CAPTURE=1` 付きで `current` に走らせ、`dimension-samples.json` を書く。手順 7 の強度ゲートなど他の実行では渡さず上書きさせない。当てはめは手順 8）。
    撮影状態は見た目が変わる通常の状態（default / hover 等）に加え、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器を足して決め（棚卸しは通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
    **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
    同じ設定で **`current` / `new` の両プロジェクトから `new-only/`（`parity-diff` が新側採取スペックを置く場所）も除外し、採取用の `new-capture` プロジェクトを用意する**（この時点では空でよい）。
@@ -168,6 +173,9 @@ parity-suite [--feature <slug>] [--target <name>]
    そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
    feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
    **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る。
+   `capture_conditions.dimension_model` は `node <skill>/scripts/dimension-fit.mjs fit --samples .replace/parity/<slug>/dimension-samples.json --metadata <metadata.json> --write` を exit 0 まで通して書かせる
+   （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。
+   測れなかったときだけ `not_measured` と理由、ビューポートが 2 つ以上で測らないときだけ `not_required` と理由を書き、キーごと省略しない。
    同じく `metadata.json` の `reaction_coverage` を宣言し（操作を持たない機能だけ `declared: false` ＋理由。キーごと省略しない）、
    `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --write` で exit 0 まで通す
    （`capture` の状態名を `capture_conditions.states` と照合するため、撮影状態を確定した `metadata.json` を書いた後に通す。コピーせずスキル配下から実行する）。
@@ -188,10 +196,11 @@ parity-suite [--feature <slug>] [--target <name>]
 | 視覚ベースライン | `.replace/parity/<slug>/baseline/` | — |
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
 | 部品被覆表（feature モードのみ。**操作と状態の有無だけを数え、見た目は見ていない**） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
+| 寸法の採取値（feature モードのみ。窓 × 論理名の矩形） | `.replace/parity/<slug>/dimension-samples.json` | 形式の正本: [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs)（手順は [`references/baseline.md`](references/baseline.md)） |
 | 反応の被覆表（feature モードのみ。操作 → 反応） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
-- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物（`.replace/parity/<slug>/noise-pass2/`）は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/baseline.md`](references/baseline.md)）
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
@@ -202,11 +211,14 @@ parity-suite [--feature <slug>] [--target <name>]
   実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
 - **[`scripts/reaction-check.mjs`](scripts/reaction-check.mjs) もコピーしない。** 照合結果は `reactions.json` の `conformance`（表の指紋付き）に残り、
   `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ
+- **[`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。** 本スキルは `fit` で式を `metadata.json` に書き、
+  `parity-replace` はインストール済みの本スキルから同じスクリプトを `check` で呼んで新側を照合する
 
 ## 姉妹スキルとの連携
 
 - **`golden-dataset` との往復**: フェーズ A 完了が前提。探索でシード不足（空リストしか確認できない・ページネーションが 1 ページ等）を見つけたら `gaps.md` に「データ不足」として記録し `golden-dataset` へ戻す。戻るとバージョンが上がり、影響を受けるベースラインを再取得する
 - **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、現側の値だけを埋めた期待値解決層（`metadata.json.suite.expectations`。新側の値の充填は `parity-replace`）、現側専用スペックの `testIgnore` 除外（`metadata.json.suite.current_only`）、
+  寸法の決まり方（`metadata.json.capture_conditions.dimension_model` と `dimension/` の測定スペック。`not_measured` も引き渡し条件としてそのまま渡す）、
   未実装機能の在席チェック（slug 付きでスキップ）、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
 - **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、撮影条件、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。

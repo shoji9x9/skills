@@ -31,6 +31,8 @@
 - Playwright の `projects` は `current` / `new` の 2 つを `parity-suite` が定義済み。**`new` の baseURL の解決・引き渡しと、新に対する green 化が本スキルの担当**
 - baseURL は選択した target（設定 `skills.replace-strategy.targets` の `side: new`）から解決し、環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に入れて渡す（`api_url` 省略時は `url`。
   `url_command` の target はコマンド実行で解決する——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」。配線の正本は `parity-suite`）
+- 寸法の採取（`parity-suite` の `dimension/` の測定スペック）は `PARITY_DIMENSION_CAPTURE=1` と `PARITY_NEW_TARGET`（選択した target 名）を渡した実行でだけ `new/<target>/dimension-samples.json` へ書く。
+  通常の green 化では渡さない（スキップされる）。採るのは完了判定の直前だけ（`SKILL.md` 手順 8）
 - green 化の前に target の稼働を確認する: `check_urls` で稼働判定し、落ちているときだけ `pre_commands` → `start` の順で起動して再確認する（稼働中なら `pre_commands` / `start` はどちらも実行しない）。
   **最初の稼働判定が落ちていることは停止条件ではなく起動の合図**で、`pre_commands` / `start` / 起動後の再確認の失敗は早期停止する
   （各項目の意味論と条件付き実行順の正本は `browser-test` の `references/project-config.md`）
