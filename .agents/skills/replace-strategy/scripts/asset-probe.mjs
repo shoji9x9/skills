@@ -11,12 +11,26 @@
 // 決定論的: 乱数・時刻に依存せず、document 順に走査する（resources だけは読み込み順）。
 
 export const assetProbe = () => {
+  // url() を取りうるプロパティ。allowlist なので、走査した一覧を urlPropsScanned で返して
+  // 「載っていないプロパティは見ていない」を台帳側で扱えるようにする（黙って落とさない）。
   const URL_PROPS = [
     "background-image",
     "list-style-image",
     "border-image-source",
     "mask-image",
     "-webkit-mask-image",
+    "mask-border-source",
+    "-webkit-mask-box-image-source",
+    "shape-outside",
+    "offset-path",
+    "clip-path",
+    "filter",
+    "backdrop-filter",
+    "fill",
+    "stroke",
+    "marker-start",
+    "marker-mid",
+    "marker-end",
     "cursor",
     "content",
   ];
@@ -263,6 +277,7 @@ export const assetProbe = () => {
     loadedFonts,
     icons,
     manifests,
+    urlPropsScanned: URL_PROPS,
     resources,
     unclassifiedResources,
     resourceEntryCount: resourceEntries.length,
