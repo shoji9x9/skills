@@ -1,6 +1,6 @@
 {
   "id": "datagrid",
-  "version": "1",
+  "version": "2",
   "name": "データグリッド",
   "applies_to": "1 つのインスタンスが多数の列を持ち、列ごとに表示可否・フィルター可否・ソート可否が設定される表形式部品。特定の製品に依存しない（自作・OSS・市販のいずれでも、この構造を持てば当てる）",
   "axes": [
@@ -59,43 +59,71 @@
       "id": "column-visible",
       "name": "初期表示の列が見えていること",
       "axes": ["column"],
-      "guard": { "column.initially_visible": true }
+      "guard": {
+        "column.initially_visible": true
+      },
+      "visual_states": [],
+      "no_visual_state_reason": "列が初期表示で見えていることの確認で、列そのものを操作しない（ヘッダへの操作は column-sort が持つ）"
     },
     {
       "id": "column-toggle",
       "name": "初期非表示の列を表示切替で出せること",
       "axes": ["column"],
-      "guard": { "column.toggleable": true }
+      "guard": {
+        "column.toggleable": true
+      },
+      "visual_states": ["opens-container"],
+      "no_visual_state_reason": null
     },
     {
       "id": "column-scroll-reach",
       "name": "横スクロールで到達する列に届くこと",
       "axes": ["column"],
-      "guard": { "column.requires_horizontal_scroll": true }
+      "guard": {
+        "column.requires_horizontal_scroll": true
+      },
+      "visual_states": [],
+      "no_visual_state_reason": "横スクロールで到達させるだけで、列の見た目の状態は変わらない"
     },
     {
       "id": "column-filter",
       "name": "列ごとのフィルター操作",
       "axes": ["column"],
-      "guard": { "column.filterable": true }
+      "guard": {
+        "column.filterable": true
+      },
+      "visual_states": ["opens-container"],
+      "no_visual_state_reason": null
     },
     {
       "id": "column-sort",
       "name": "列ごとのソート操作（昇順・降順・解除）",
       "axes": ["column", "sort-direction"],
-      "guard": { "column.sortable": true }
+      "guard": {
+        "column.sortable": true
+      },
+      "visual_states": ["hover", "focus", "active"],
+      "no_visual_state_reason": null
     },
     {
       "id": "context-menu-open",
       "name": "対象ごとの右クリックでメニューが開くこと",
       "axes": ["menu-target", "menu-condition"],
-      "guard": { "menu-target.has_context_menu": true }
+      "guard": {
+        "menu-target.has_context_menu": true
+      },
+      "visual_states": ["opens-container"],
+      "no_visual_state_reason": null
     },
     {
       "id": "context-menu-item",
       "name": "条件ごとのメニュー項目の在席と活性",
       "axes": ["menu-target", "menu-condition", "menu-item"],
-      "guard": { "menu-target.has_context_menu": true }
+      "guard": {
+        "menu-target.has_context_menu": true
+      },
+      "visual_states": ["hover", "focus", "disabled"],
+      "no_visual_state_reason": null
     }
   ],
   "required_rules": ["column-visible", "column-sort", "context-menu-open", "context-menu-item"],

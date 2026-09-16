@@ -388,3 +388,69 @@ test("candidate.rule だけの不一致は両者とも未測定に数えず、�
   expect(result.ok).toBe(false);
   expect(result.problems.join("\n")).toMatch(/candidate\.rule（bogus）が展開結果/);
 });
+
+// 撮影状態の要約の指紋は、記録側（coverage-expand）と判定側（coverage-check）が
+// 別ファイルに同じ計算を持つ。ずれると「記録側が書いた指紋を判定側が一致と認めない」
+// （またはその逆）が起きるので、実際に記録した値を判定側へ通して往復で固定する。
+test("撮影状態の指紋は記録側と判定側で一致する（別実装のずれを固定する）", async () => {
+  const expand = await import(join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs"));
+  const check = await import(join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs"));
+
+  const coverage = {
+    slug: SLUG,
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
+        items: [{ id: "filter", visual_states: ["opens-container"], no_visual_state_reason: null }],
+        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
+      },
+    ],
+    cells: [
+      {
+        component: "grid",
+        item: "filter",
+        instance: "orders",
+        value: "present",
+        evidence: "実 UI で開いた",
+        covered_by: ["e2e/order-list.spec.ts > filter"],
+      },
+    ],
+  };
+  const metadata = {
+    slug: SLUG,
+    capture_conditions: {
+      pages: [{ name: "受注一覧", path: "/orders" }],
+      states: ["default", "フィルタの吹き出しを開いた状態"],
+      popup_inventory: [
+        {
+          name: "フィルタ",
+          parent: null,
+          opened_by: "openFilter(orders.grid)",
+          captured: "フィルタの吹き出しを開いた状態",
+          reason: null,
+        },
+      ],
+    },
+  };
+
+  expand.fillVisualStateRows(coverage);
+  coverage.visual_state_coverage.rows[0].captured = "フィルタの吹き出しを開いた状態";
+  const conditions = expand.readCaptureConditions(metadata);
+  expect(conditions).not.toBeNull();
+  const result = expand.reconcile(coverage, profiles, conditions);
+  expect(result.problems).toEqual([]);
+  expand.recordConformance(coverage, result);
+
+  // 記録側が書いた 2 つの指紋を、判定側が自分の計算で一致と認める。
+  expect(coverage.conformance.visual_states.table_fingerprint).toBe(
+    check.coverageFingerprint(coverage),
+  );
+  expect(coverage.conformance.visual_states.capture_fingerprint).toBe(
+    check.readCaptureForFingerprint(metadata),
+  );
+  expect(
+    check.countCoverage(coverage, SLUG, check.readCaptureForFingerprint(metadata)).problems,
+  ).toEqual([]);
+});

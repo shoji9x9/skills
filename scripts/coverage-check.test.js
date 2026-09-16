@@ -17,10 +17,41 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
-const { countCoverage, readDeclaration } = await import(script);
+const {
+  captureFingerprint,
+  countCoverage: countCoverageRaw,
+  coverageFingerprint,
+  MIN_COVERAGE_EXPAND_VERSION,
+  readCaptureForFingerprint,
+  readDeclaration,
+} = await import(script);
+
+// 撮影状態の要約は記録時点の入力に結び付いている（指紋）。このファイルの被験対象は件数の数え直しなので、
+// 呼ぶ直前に「その表・その撮影条件で記録した」状態へ揃えてから数える。
+// 指紋そのものの検査は「撮影状態の要約は現在の入力と結び付いていなければ通さない」テストが持つ。
+const CAPTURE = { slug: "order-list", pageNames: [], states: [], popupStates: [] };
+function countCoverage(coverage, slug, captureNow = captureFingerprint(CAPTURE)) {
+  if (coverage && typeof coverage === "object" && !Array.isArray(coverage)) {
+    const conf = coverage.conformance;
+    if (conf && typeof conf === "object" && conf.visual_states) {
+      conf.visual_states = {
+        ...conf.visual_states,
+        table_fingerprint: coverageFingerprint(coverage),
+        capture_fingerprint: captureFingerprint(CAPTURE),
+      };
+    }
+  }
+  return countCoverageRaw(coverage, slug, captureNow);
+}
 
 /** coverage-expand が書き戻すプロファイル適合の記録（無い・ok: false は収束させない）。 */
-const conformance = { tool: "coverage-expand", tool_version: "1", ok: true };
+const conformance = {
+  tool: "coverage-expand",
+  // 撮影状態の要約は生成側の版が下限以上のときだけ信頼される（導出の意味論が変わった版）。
+  tool_version: String(MIN_COVERAGE_EXPAND_VERSION),
+  ok: true,
+  visual_states: { checked: true, rows: 0, undecided: 0, missing_states: [] },
+};
 
 /** 適合プロファイルが無い部品の宣言（profile キーの欠落＝暗黙の汎用扱いと区別する）。 */
 const noProfile = {
@@ -758,6 +789,32 @@ test("conformance が無い・ok: false は収束させない（プロファイ�
   );
 });
 
+// 撮る状態の集合が足りないぶんは「差 0 件」と同じ見え方になる（差分器は撮った 2 枚しか比べない）。
+// 照合していない記録・未決の残る記録を収束の根拠にしないことを確認する（Issue #389）。
+test("撮影状態の導出が未照合・未決なら収束させない", () => {
+  // 陽性コントロール: 照合済みで未決ゼロなら通る（常に落とす実装を弾く）。
+  expect(countCoverage(profiled(), "order-list").problems).toEqual([]);
+
+  for (const [mutate, pattern] of [
+    [(c) => delete c.conformance.visual_states, /conformance.visual_states が無い/],
+    [
+      (c) => (c.conformance.visual_states.checked = false),
+      /visual_states.checked が true ではない/,
+    ],
+    [(c) => (c.conformance.visual_states.undecided = 2), /undecided が 0 ではない/],
+    [(c) => delete c.conformance.visual_states.undecided, /undecided が 0 ではない/],
+    [
+      (c) => (c.conformance.visual_states.missing_states = ["hover", "focus"]),
+      /導いた撮影状態が撮影条件に無い（.*）: hover, focus/,
+    ],
+    [(c) => delete c.conformance.visual_states.missing_states, /missing_states が配列ではない/],
+  ]) {
+    const cov = structuredClone(profiled());
+    mutate(cov);
+    expect(countCoverage(cov, "order-list").problems.join("\n")).toMatch(pattern);
+  }
+});
+
 test("同値クラスを宣言したら全候補の所属が要る（削減した分だけの宣言で通さない）", () => {
   const cov = profiled();
   cov.components[0].equivalence_classes = [
@@ -884,7 +941,17 @@ function runCli(metadata, coverage) {
   const covPath = join(dir, "component-coverage.json");
   writeFileSync(metaPath, JSON.stringify(metadata));
   // null ＝ 被覆表を書かない（読めないケース）、undefined ＝ --coverage も渡さない。
-  if (coverage !== null && coverage !== undefined) writeFileSync(covPath, JSON.stringify(coverage));
+  if (coverage !== null && coverage !== undefined) {
+    // インプロセスの countCoverage ラッパと同じく、書き出す直前に指紋を現在の内容へ揃える。
+    if (coverage && typeof coverage === "object" && coverage.conformance?.visual_states) {
+      coverage.conformance.visual_states = {
+        ...coverage.conformance.visual_states,
+        table_fingerprint: coverageFingerprint(coverage),
+        capture_fingerprint: captureFingerprint(CAPTURE),
+      };
+    }
+    writeFileSync(covPath, JSON.stringify(coverage));
+  }
   const args = [script, "--metadata", metaPath];
   if (coverage !== undefined) args.push("--coverage", covPath);
   return spawnSync(process.execPath, args, { encoding: "utf8" });
@@ -892,6 +959,8 @@ function runCli(metadata, coverage) {
 
 const declared = {
   slug: "order-list",
+  // 撮影条件は CAPTURE と同じ内容にしておく（指紋の突き合わせを通すため。件数の数え直しが被験対象）。
+  capture_conditions: { pages: [], states: [], popup_inventory: [] },
   component_coverage: { declared: true, path: "component-coverage.json" },
 };
 
@@ -947,4 +1016,118 @@ test("CLI: 同じフラグの重複指定は後勝ちにせず exit 2", () => {
   });
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/複数回指定/);
+});
+
+// 要約は記録時点の入力についての主張でしかない。--write の後に表や撮影条件を書き換えても
+// 古い要約が通ると、必要な撮影状態が無いまま parity-diff が収束する（Issue #389 のレビュー指摘）。
+test("撮影状態の要約は現在の入力と結び付いていなければ通さない", () => {
+  const base = () => {
+    const cov = full();
+    cov.conformance = {
+      ...conformance,
+      visual_states: { ...conformance.visual_states, rows: 0 },
+    };
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+    return cov;
+  };
+  const now = captureFingerprint(CAPTURE);
+
+  // 陽性コントロール: 指紋が現在の入力と一致していれば通る（常に落とす実装を弾く）。
+  expect(countCoverageRaw(base(), "order-list", now).problems).toEqual([]);
+
+  // 表を書き換えたら落ちる（記録後に項目へ visual_states を足した等）。
+  const edited = base();
+  edited.components[0].items.push({ id: "追加された項目" });
+  expect(countCoverageRaw(edited, "order-list", now).problems.join("\n")).toMatch(
+    /table_fingerprint が被覆表の内容と一致しない/,
+  );
+
+  // 撮影条件を書き換えたら落ちる（撮る状態を metadata から消した等）。
+  const otherCapture = captureFingerprint({ ...CAPTURE, states: ["hover"] });
+  expect(countCoverageRaw(base(), "order-list", otherCapture).problems.join("\n")).toMatch(
+    /capture_fingerprint が metadata.json の撮影条件と一致しない/,
+  );
+
+  // 指紋そのものの欠落を「照合しない」に倒さない。
+  for (const [field, pattern] of [
+    ["table_fingerprint", /table_fingerprint が無い/],
+    ["capture_fingerprint", /capture_fingerprint が無い/],
+  ]) {
+    const missing = base();
+    delete missing.conformance.visual_states[field];
+    expect(countCoverageRaw(missing, "order-list", now).problems.join("\n")).toMatch(pattern);
+  }
+
+  // 撮影条件を読めない metadata では照合しない（読めたことにも倒さない）。
+  expect(readCaptureForFingerprint({ slug: "order-list" })).toBeNull();
+  expect(
+    readCaptureForFingerprint({
+      slug: "order-list",
+      capture_conditions: { pages: [], states: [], popup_inventory: [] },
+    }),
+  ).toBe(now);
+});
+
+test("いまの撮影条件を読めないときは照合済みに倒さない", () => {
+  // 記録が正常でも、metadata から capture_conditions を落としただけで
+  // 古い要約が収束を通してはいけない（checked: true は突き合わせたという主張）。
+  const cov = full();
+  cov.conformance = { ...conformance, visual_states: { ...conformance.visual_states, rows: 0 } };
+  cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+  cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+
+  // 陽性コントロール: 読めれば通る。
+  expect(countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE)).problems).toEqual([]);
+
+  // 読めない（null）を「比較しない」に倒さない。
+  const problems = countCoverageRaw(cov, "order-list", null).problems;
+  expect(problems.join("\n")).toMatch(
+    /撮影条件（capture_conditions の pages \/ states \/ popup_inventory）を読めない/,
+  );
+});
+
+// 指紋は「その表を忠実に写したか」しか言わない。壊れた導出規則で作られた要約も指紋は一致するので、
+// 生成側の版を見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける（Issue #389 のレビュー指摘）。
+test("撮影状態の要約は下限より古い導出規則で作られていたら通さない", () => {
+  const base = () => {
+    const cov = full();
+    cov.conformance = {
+      ...conformance,
+      visual_states: { ...conformance.visual_states, rows: 0 },
+    };
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+    return cov;
+  };
+  const now = captureFingerprint(CAPTURE);
+  const withVersion = (version) => {
+    const cov = base();
+    cov.conformance.tool_version = version;
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    return cov;
+  };
+
+  // 陽性コントロール: 下限ちょうど・それ以降は通る（常に落とす実装を弾く）。
+  for (const version of [MIN_COVERAGE_EXPAND_VERSION, MIN_COVERAGE_EXPAND_VERSION + 1]) {
+    expect(countCoverageRaw(withVersion(String(version)), "order-list", now).problems).toEqual([]);
+  }
+
+  // 下限より古い版・非数値・空は落とす（「判定しない」に倒さない）。
+  for (const version of [String(MIN_COVERAGE_EXPAND_VERSION - 1), "x", ""]) {
+    const problems = countCoverageRaw(withVersion(version), "order-list", now).problems;
+    expect(problems.join("\n")).toMatch(
+      new RegExp(`coverage-expand ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則`),
+    );
+  }
+
+  // 生成側が別ツール・空なら、誰が書いた要約か確かめられないので落とす。
+  for (const tool of ["other-tool", ""]) {
+    const cov = base();
+    cov.conformance.tool = tool;
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    expect(countCoverageRaw(cov, "order-list", now).problems.join("\n")).toMatch(
+      /conformance.tool が coverage-expand ではない/,
+    );
+  }
 });

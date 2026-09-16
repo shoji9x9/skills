@@ -84,6 +84,10 @@ scripts/run-skill-eval.sh \
 - eval 35 は寸法の決まり方（Issue #367）の回帰。撮影条件を 1 ビューポートにし、他の窓は `gaps.md` に一行書いて済ませ、その 1 点の px で新側を組ませる案を押し戻せるかを見る。
   3 経路が宣言した 1 点でしか比べないこと・未測定を `gaps.md` で免除しないこと・画素比較を増やさず式を測ること・窓の選び方・同梱ツールでの当てはめと新側の照合を対象にする。
   式の当てはめと照合の判定（窓の数・一直線上の配置・測り漏れ・予測値との偏差・exit 2 の記録）はユニットテスト `scripts/dimension-fit.test.js` が担う
+- eval 36 は撮影状態の導出（Issue #389）の回帰。被覆表が全て `present` なことを根拠に、思い付きで決めた 2 状態で足りるとし、不活性のメニュー項目を何も書かずに飛ばす案を押し戻せるかを見る。
+  被覆表の `present` から機械的に導くこと・5 種の語彙・`capture_conditions.states` との差の報告・撮れない理由の残し先・後から足すと現行側も採り直しになることを対象にする。
+  「思い付きをやめて被覆表から導く」までは `without_skill` も到達する（プロンプトが被覆表を手がかりとして含むため）ので、弁別は 2（5 種の語彙）・3（同梱ツールでの差の報告）・4（行の理由と `gaps.md` の種別）・5（現新 2 side の採り直し）・6（導出は下限）が担う。
+  行の粒度（要求元の操作ごとに分かれ、同じ種別を束ねない）と未決・未照合の fail-closed 判定は `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う。プロンプトにはツール名・キー名・種別の語彙を書かない
 - 被覆プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付き不在）は
   リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）。反応の被覆表の照合（空欄・証拠の欠け・呼び出しの記録漏れ・表の指紋）は `scripts/reaction-check.test.js` が担う
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す

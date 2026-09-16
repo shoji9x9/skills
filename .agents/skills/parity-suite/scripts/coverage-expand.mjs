@@ -22,6 +22,7 @@
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って展開する。
 // TypeScript 構文は使わない（型は JSDoc）。
 
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,10 +32,22 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "10";
+export const VERSION = "16";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
+
+// 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
+// capture_conditions.states の状態名そのものではない（名前は撮る側が決める）。
+// 導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は
+// 従来どおり手で states へ足す。
+const VISUAL_STATE_KINDS = ["opens-container", "hover", "focus", "active", "disabled"];
+
+// 撮影状態の行のうち、人／エージェントが埋める欄。導出は要求の集合だけを決めるので、
+// 書き戻し（fillVisualStateRows）はこの一覧を必ず引き継ぐ。
+// **欄を増やしたらここへ足す**——足し忘れると、その欄は必ず通る --write の側で消える。
+// 実際に shared_capture_reason で起き、根拠を書いても次の --write が消して逃げ道が死んだ。
+const HUMAN_DECIDED_ROW_FIELDS = ["captured", "reason", "shared_capture_reason"];
 
 /** 候補 id の区切り。軸値に含まれると id が衝突するため、列挙時に禁止する。 */
 const ID_SEPARATOR = "/";
@@ -55,6 +68,56 @@ function nonEmptyString(v) {
  */
 function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
+ * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/coverage-record-judge-parity.test.js。
+ * 様式は reaction-check.mjs の tableFingerprint と同じ。
+ * @param {Record<string, unknown>} table
+ * @returns {string}
+ */
+export function coverageFingerprint(table) {
+  const { conformance: _ignored, ...rest } = table;
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(rest)))
+    .digest("hex");
+}
+
+/**
+ * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・器の状態名）だけを取る。
+ * 配列は並びで指紋が変わらないよう整列する（内容が同じなら同じ指紋にする）。
+ * @param {{slug?: string, pageNames?: string[], states: string[], popupStates: string[]}} capture
+ * @returns {string}
+ */
+export function captureFingerprint(capture) {
+  const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        canonicalize({
+          slug: nonEmptyString(capture.slug) ? String(capture.slug) : null,
+          pageNames: sorted(capture.pageNames),
+          states: sorted(capture.states),
+          popupStates: sorted(capture.popupStates),
+        }),
+      ),
+    )
+    .digest("hex");
+}
+
+/** @param {unknown} v @returns {unknown} */
+function canonicalize(v) {
+  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isPlainObject(v)) {
+    return Object.fromEntries(
+      Object.keys(v)
+        .sort()
+        .map((k) => [k, canonicalize(v[k])]),
+    );
+  }
+  return v;
 }
 
 // ===== absence-evidence-contract:start =====
@@ -496,6 +559,29 @@ export function validateProfile(profile, source) {
     for (const axisId of ruleAxes) {
       if (!axisById.has(String(axisId)))
         at(`ルール ${rid}: 未定義の軸 ${String(axisId)} を参照している`);
+    }
+    // visual_states はキーごと省略させない。省略を「見た目が変わらない」に倒すと、
+    // 状態を書き忘れたルールが撮影状態の導出から静かに落ちる（撮られない＝差 0 件と同じ見え方になる）。
+    if (!Array.isArray(r.visual_states)) {
+      at(
+        `ルール ${rid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く）`,
+      );
+    } else {
+      /** @type {Set<string>} */
+      const seenKinds = new Set();
+      for (const kind of r.visual_states) {
+        const k = String(kind);
+        if (!VISUAL_STATE_KINDS.includes(k))
+          at(`ルール ${rid}: visual_states の ${k} は ${VISUAL_STATE_KINDS.join(" | ")} ではない`);
+        else if (seenKinds.has(k)) at(`ルール ${rid}: visual_states の ${k} が重複している`);
+        seenKinds.add(k);
+      }
+      if (r.visual_states.length === 0 && !nonEmptyString(r.no_visual_state_reason))
+        at(
+          `ルール ${rid}: visual_states が空なのに no_visual_state_reason が空（考えていないのと区別が付かない）`,
+        );
+      if (r.visual_states.length > 0 && nonEmptyString(r.no_visual_state_reason))
+        at(`ルール ${rid}: visual_states が非空なのに no_visual_state_reason が埋まっている`);
     }
     if (r.guard !== undefined) {
       if (!isPlainObject(r.guard)) {
@@ -1105,9 +1191,11 @@ function unscoredProfiledCellCount(c) {
  * 被覆表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
- * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number}}
+ * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
+ *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みに倒さない）。
+ * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
-export function reconcile(coverage, profiles) {
+export function reconcile(coverage, profiles, metadata = null) {
   /** @type {string[]} */
   const problems = [];
   /** @type {Array<Record<string, unknown>>} */
@@ -1121,6 +1209,7 @@ export function reconcile(coverage, profiles) {
       problems: ["被覆表が JSON オブジェクトではない"],
       candidates: 0,
       unmeasured: 1,
+      visualStates: { checked: false, rows: 0, undecided: 1, missing_states: [] },
     };
   }
   const cov = /** @type {Record<string, unknown>} */ (coverage);
@@ -1560,13 +1649,487 @@ export function reconcile(coverage, profiles) {
     }
   }
 
+  // 撮影状態の導出は候補の展開と独立に当てる（プロファイル無しの部品にも同じ規則が要る）。
+  const visual = checkVisualStates(cov, metadata);
+  problems.push(...visual.problems);
+
   return {
     ok: problems.length === 0 && unmeasured === 0,
     components: report,
     problems,
     candidates: candidateTotal,
     unmeasured,
+    visualStates: visual.summary,
   };
+}
+
+/**
+ * 撮影状態の行のキー。**要求元（`required_by`）を含める**——種別だけで束ねると、
+ * 同じ種別を要求する別の操作が 1 行へ潰れ、片方を撮るだけで門が通る。
+ * @param {Record<string, unknown>} row
+ * @returns {string}
+ */
+function visualRowKey(row) {
+  return JSON.stringify([
+    String(row.component),
+    String(row.instance),
+    String(row.required_by),
+    String(row.kind),
+  ]);
+}
+
+/**
+ * 撮影状態の必要集合を被覆表から導く（純関数）。
+ *
+ * 測った操作（value: present のセル）と、その項目が宣言した見た目の状態の種別（items[].visual_states）から
+ * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べないので、
+ * 集合が足りないぶんは「差 0 件」と区別が付かない。導出はその不足を撮る前に見えるようにする。
+ *
+ * 下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は手で states へ足す。
+ * @param {Record<string, unknown>} cov
+ * @returns {{rows: Array<Record<string, unknown>>, problems: string[]}}
+ */
+export function deriveVisualStateRows(cov) {
+  /** @type {string[]} */
+  const problems = [];
+  /** @type {Map<string, {component: string, instance: string, kind: string, requiredBy: Set<string>}>} */
+  const derived = new Map();
+  const components = Array.isArray(cov.components) ? cov.components : [];
+  const cells = Array.isArray(cov.cells) ? cov.cells : [];
+
+  // 部品 → "<インスタンス id>/<候補 id>" → 視覚採取する代表 "<インスタンス id>/<候補 id>"。
+  // 縮約してよい軸かどうか・所属の全体性・根拠・代表の妥当性は checkEquivalenceClasses が
+  // 同じ実行の reconcile で検査するので、ここは構造（members / representative）だけを読む
+  // （不正なクラスは problems が立って ok: false になるため、縮約が誤っても緑にはならない）。
+  // **プロファイルを宣言した部品だけ**を対象にする——reducible_axes を持たない部品には
+  // どの軸を縮約してよいかの宣言が無く、検証も走らないため。
+  /** @type {Map<string, Map<string, string>>} */
+  const representativeOf = new Map();
+  for (const component of components) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.id) || !nonEmptyString(c.profile)) continue;
+    const cid = String(c.id);
+    if (representativeOf.has(cid)) continue;
+    /** @type {Map<string, string>} */
+    const byMember = new Map();
+    for (const klass of Array.isArray(c.equivalence_classes) ? c.equivalence_classes : []) {
+      if (!isPlainObject(klass)) continue;
+      const k = /** @type {Record<string, unknown>} */ (klass);
+      if (!nonEmptyString(k.representative)) continue;
+      const representative = String(k.representative);
+      for (const member of Array.isArray(k.members) ? k.members : []) {
+        if (!nonEmptyString(member)) continue;
+        // 同じ候補が複数クラスに属する表は checkEquivalenceClasses が落とす。先勝ちにしない。
+        if (byMember.has(String(member))) byMember.set(String(member), "");
+        else byMember.set(String(member), representative);
+      }
+    }
+    representativeOf.set(cid, byMember);
+  }
+
+  // 部品 → 項目 id → その項目が要求する状態種別。id が空・重複の部品／項目は reconcile 側が落とすので、
+  // ここでは識別できるものだけを索引する（同じ問題を二重に報告しない）。
+  /** @type {Map<string, Map<string, {kinds: string[], requiredBy: string}>>} */
+  const itemsByComponent = new Map();
+  for (const component of components) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.id)) continue;
+    const cid = String(c.id);
+    if (itemsByComponent.has(cid)) continue;
+    /** @type {Map<string, {kinds: string[], requiredBy: string}>} */
+    const byItem = new Map();
+    for (const item of Array.isArray(c.items) ? c.items : []) {
+      if (!isPlainObject(item)) continue;
+      const it = /** @type {Record<string, unknown>} */ (item);
+      if (!nonEmptyString(it.id)) continue;
+      const iid = String(it.id);
+      if (byItem.has(iid)) continue;
+      // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**——
+      // ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸まで畳んでしまう
+      // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
+      // 縮約は宣言・検証済みの同値クラス経由でだけ行う（下の representativeOf）。
+      const requiredBy = iid;
+      if (!Array.isArray(it.visual_states)) {
+        problems.push(
+          `部品 ${cid}: 項目 ${iid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く。プロファイル宣言済みなら --write で書き戻す）`,
+        );
+        byItem.set(iid, { kinds: [], requiredBy });
+        continue;
+      }
+      /** @type {string[]} */
+      const kinds = [];
+      for (const kind of it.visual_states) {
+        const k = String(kind);
+        if (!VISUAL_STATE_KINDS.includes(k)) {
+          problems.push(
+            `部品 ${cid}: 項目 ${iid}: visual_states の ${k} は ${VISUAL_STATE_KINDS.join(" | ")} ではない`,
+          );
+          continue;
+        }
+        if (kinds.includes(k)) {
+          problems.push(`部品 ${cid}: 項目 ${iid}: visual_states の ${k} が重複している`);
+          continue;
+        }
+        kinds.push(k);
+      }
+      // 理由欄の要否は「宣言した長さ」で見る（誤記を弾いた後の kinds.length で見ると、
+      // 誤記だけの宣言が「空なのに理由が無い」に化けて原因が 2 つに割れる。validateProfile と同じ規則）。
+      if (it.visual_states.length === 0 && !nonEmptyString(it.no_visual_state_reason))
+        problems.push(
+          `部品 ${cid}: 項目 ${iid}: visual_states が空なのに no_visual_state_reason が空（考えていないのと区別が付かない）`,
+        );
+      if (it.visual_states.length > 0 && nonEmptyString(it.no_visual_state_reason))
+        problems.push(
+          `部品 ${cid}: 項目 ${iid}: visual_states が非空なのに no_visual_state_reason が埋まっている`,
+        );
+      byItem.set(iid, { kinds, requiredBy });
+    }
+    itemsByComponent.set(cid, byItem);
+  }
+
+  for (const cell of cells) {
+    if (!isPlainObject(cell)) continue;
+    const r = /** @type {Record<string, unknown>} */ (cell);
+    // 撮る必要が生まれるのは操作が在ると測れたときだけ。absent / unmeasured は状態を要求しない。
+    if (r.value !== "present") continue;
+    if (!nonEmptyString(r.component) || !nonEmptyString(r.item) || !nonEmptyString(r.instance))
+      continue;
+    const cid = String(r.component);
+    const iid = String(r.item);
+    const inst = String(r.instance);
+    const item = itemsByComponent.get(cid)?.get(iid);
+    // 宣言に無い部品・項目のセルは reconcile が余剰として落とす。
+    if (!item) continue;
+    // 同値クラスに属する候補は、視覚採取する代表の行へ寄せる（代表 1 件だけを撮る）。
+    // 寄せ先は代表のインスタンス——撮るのは代表が載っているページなので、
+    // 行の撮影単位も代表側で決まる。クラスに属さない候補は自分の行を持つ。
+    const representative = representativeOf.get(cid)?.get(`${inst}${ID_SEPARATOR}${iid}`);
+    let rowInstance = inst;
+    let rowRequiredBy = item.requiredBy;
+    if (nonEmptyString(representative)) {
+      const cut = String(representative).indexOf(ID_SEPARATOR);
+      // インスタンス id に区切り文字は入らない（reconcile が落とす）ので最初の "/" で割れる。
+      if (cut > 0) {
+        rowInstance = String(representative).slice(0, cut);
+        rowRequiredBy = String(representative).slice(cut + 1);
+      }
+    }
+    for (const kind of item.kinds) {
+      // 要求元をキーに含める。種別だけで束ねると、同じ種別を要求する別の操作
+      // （列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、
+      // 片方の状態名を書くだけで門が通る——撮られなかった方の差は「差 0 件」と同じ見え方になり、
+      // 本導出が塞ごうとした穴がそのまま残る。
+      const key = JSON.stringify([cid, rowInstance, rowRequiredBy, kind]);
+      derived.set(key, {
+        component: cid,
+        instance: rowInstance,
+        required_by: rowRequiredBy,
+        kind,
+      });
+    }
+  }
+
+  // 入力順ではなく安定な並びで出す（書き戻した被覆表が実行ごとに変わらないようにする）。
+  const rows = [...derived.values()]
+    .sort(
+      (a, b) =>
+        a.component.localeCompare(b.component) ||
+        a.instance.localeCompare(b.instance) ||
+        a.required_by.localeCompare(b.required_by) ||
+        VISUAL_STATE_KINDS.indexOf(a.kind) - VISUAL_STATE_KINDS.indexOf(b.kind),
+    )
+    .map((row) => ({
+      ...row,
+      ...Object.fromEntries(HUMAN_DECIDED_ROW_FIELDS.map((field) => [field, null])),
+    }));
+  return { rows, problems };
+}
+
+/**
+ * 導いた行を被覆表へ書き戻す。captured / reason は同じキー（部品・インスタンス・要求元・種別）の
+ * 既存行から引き継ぐ——導出は要求の集合だけを決め、撮る／撮らないの判断は人／エージェントが持つ。
+ * 要求が消えた行は落とす（測っていない操作の撮影判断が残り続けない）。
+ * @param {Record<string, unknown>} cov
+ * @returns {Record<string, unknown>}
+ */
+export function fillVisualStateRows(cov) {
+  const { rows } = deriveVisualStateRows(cov);
+  const previous = isPlainObject(cov.visual_state_coverage)
+    ? /** @type {Record<string, unknown>} */ (cov.visual_state_coverage)
+    : {};
+  /** @type {Map<string, Record<string, unknown>>} */
+  const prevByKey = new Map();
+  for (const row of Array.isArray(previous.rows) ? previous.rows : []) {
+    if (!isPlainObject(row)) continue;
+    const r = /** @type {Record<string, unknown>} */ (row);
+    if (
+      !nonEmptyString(r.component) ||
+      !nonEmptyString(r.instance) ||
+      !nonEmptyString(r.required_by) ||
+      !nonEmptyString(r.kind)
+    )
+      continue;
+    const key = visualRowKey(r);
+    // 同じキーの重複は先勝ちにせず、どちらの判断も引き継がない（黙って一方を採ると判断が消える）。
+    if (prevByKey.has(key)) prevByKey.set(key, {});
+    else prevByKey.set(key, r);
+  }
+  for (const row of rows) {
+    const kept = prevByKey.get(visualRowKey(row));
+    if (!kept) continue;
+    for (const field of HUMAN_DECIDED_ROW_FIELDS) {
+      if (nonEmptyString(kept[field])) row[field] = String(kept[field]);
+    }
+  }
+  cov.visual_state_coverage = { ...previous, rows };
+  return cov;
+}
+
+/**
+ * 記録された撮影状態の行を、導いた集合と metadata.json の撮影条件に照らして検査する。
+ *
+ * --metadata を渡さない実行では capture_conditions.states との差を取れないため checked: false にする
+ * （照合していない記録を「照合済み」に倒さない。parity-diff は checked: true を要求する）。
+ * @param {Record<string, unknown>} cov
+ * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} metadata
+ * @returns {{problems: string[], summary: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
+ */
+export function checkVisualStates(cov, metadata) {
+  const { rows: derivedRows, problems } = deriveVisualStateRows(cov);
+  const recordedBlock = isPlainObject(cov.visual_state_coverage)
+    ? /** @type {Record<string, unknown>} */ (cov.visual_state_coverage)
+    : null;
+  /** @type {Map<string, Record<string, unknown>>} */
+  const recorded = new Map();
+  if (!recordedBlock || !Array.isArray(recordedBlock.rows)) {
+    // キーの欠落を「行が無い＝要求が無い」に倒さない。導出を一度も走らせていない表を通さないため。
+    problems.push(
+      "visual_state_coverage.rows が無い（coverage-expand.mjs --write で撮影状態を導出する）",
+    );
+  } else {
+    for (const row of recordedBlock.rows) {
+      if (!isPlainObject(row)) {
+        problems.push("visual_state_coverage.rows に JSON オブジェクトでない行がある");
+        continue;
+      }
+      const r = /** @type {Record<string, unknown>} */ (row);
+      if (
+        !nonEmptyString(r.component) ||
+        !nonEmptyString(r.instance) ||
+        !nonEmptyString(r.required_by) ||
+        !nonEmptyString(r.kind)
+      ) {
+        problems.push(
+          "visual_state_coverage: component / instance / required_by / kind が空の行がある",
+        );
+        continue;
+      }
+      const key = visualRowKey(r);
+      if (recorded.has(key)) {
+        problems.push(
+          `visual_state_coverage: ${String(r.component)} / ${String(r.instance)} / ${String(r.required_by)} / ${String(r.kind)} の行が重複している（先勝ちにしない）`,
+        );
+        continue;
+      }
+      recorded.set(key, r);
+    }
+  }
+
+  const states = metadata ? new Set(metadata.states) : null;
+  const popupStates = metadata ? new Set(metadata.popupStates) : null;
+  // metadata を渡された以上、ページ名の集合も来ているはず（readCaptureConditions が必ず返す）。
+  // 「無ければ照合しない」に倒すと、呼び出し側が pageNames を落とすだけでページ名の検査が消える。
+  const pageNames =
+    metadata === null
+      ? null
+      : Array.isArray(metadata.pageNames)
+        ? new Set(metadata.pageNames)
+        : "unreadable";
+  /** @type {Set<string>} */
+  const missingStates = new Set();
+  let undecided = 0;
+
+  // 撮影の単位は ページ × 状態名 × ビューポートなので、同じページで状態名を使い回した行は
+  // 同じ 1 枚を指す。行のキーを要求元まで割っても、値が同じなら 1 回の撮影で複数の操作が満たされ、
+  // 撮られなかった側の差は「差 0 件」に戻る（キーの粒度と同じ故障が値の側に残る）。
+  // ページはこの撮影単位を決めるキーなので、欠けていたら狭いスコープへ倒さず落とす。
+  // 倒すと、同じページに載る別部品どうしが根拠なく状態名を使い回しても通る（fail-open）。
+  // 落とすのは撮影状態を要求する行を持つインスタンスだけ（要求が無ければ撮影単位も無い）。
+  /** @type {Map<string, string>} */
+  const scopeByInstance = new Map();
+  for (const component of Array.isArray(cov.components) ? cov.components : []) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.id)) continue;
+    for (const instance of Array.isArray(c.instances) ? c.instances : []) {
+      if (!isPlainObject(instance)) continue;
+      const inst = /** @type {Record<string, unknown>} */ (instance);
+      if (!nonEmptyString(inst.id)) continue;
+      const key = JSON.stringify([String(c.id), String(inst.id)]);
+      if (scopeByInstance.has(key)) continue;
+      if (nonEmptyString(inst.page)) scopeByInstance.set(key, String(inst.page));
+    }
+  }
+  /** @type {Map<string, Array<{label: string, row: Record<string, unknown>}>>} */
+  const capturedUses = new Map();
+
+  for (const derivedRow of derivedRows) {
+    const label = `${String(derivedRow.component)} / ${String(derivedRow.instance)} / ${String(derivedRow.required_by)} / ${String(derivedRow.kind)}`;
+    const key = visualRowKey(derivedRow);
+    const row = recorded.get(key);
+    if (!row) {
+      undecided += 1;
+      problems.push(
+        `撮影状態が導出から漏れている: ${label}（coverage-expand.mjs --write で行を起こす）`,
+      );
+      continue;
+    }
+    recorded.delete(key);
+    const captured = nonEmptyString(row.captured) ? String(row.captured) : null;
+    const reason = nonEmptyString(row.reason) ? String(row.reason) : null;
+    if (captured && reason) {
+      problems.push(
+        `撮影状態 ${label}: captured と reason が両方埋まっている（撮る・撮らないが同時に成立する）`,
+      );
+      continue;
+    }
+    if (!captured && !reason) {
+      undecided += 1;
+      problems.push(
+        `撮影状態が未決: ${label}（撮るなら capture_conditions.states の状態名を captured に、撮れないなら reason に理由を書いて gaps.md の「撮影状態の対象外」へ残す）`,
+      );
+      continue;
+    }
+    if (!captured) continue;
+    const page = scopeByInstance.get(
+      JSON.stringify([String(derivedRow.component), String(derivedRow.instance)]),
+    );
+    if (page === undefined) {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: インスタンス ${String(derivedRow.instance)} に page が無い（page が撮影単位を決めるキーなので、欠けたまま使い回しを判定できない。instances[].page を書く）`,
+      );
+      continue;
+    }
+    // ページ名が非空なだけでは足りない。採取は metadata の capture_conditions.pages を外側のループにして
+    // 回るので、宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
+    // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+    if (pageNames === "unreadable") {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: 撮影条件のページ名一覧を読めないので page「${page}」が宣言されているか照合できない（capture_conditions.pages を渡す）`,
+      );
+      continue;
+    }
+    if (pageNames && !pageNames.has(page)) {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: インスタンス ${String(derivedRow.instance)} の page「${page}」が metadata.json の capture_conditions.pages に無い（そのページは採取されないので撮られない。ページ名を合わせる）`,
+      );
+      continue;
+    }
+    const useKey = JSON.stringify([`page:${page}`, captured]);
+    const uses = capturedUses.get(useKey) ?? [];
+    uses.push({ label, row });
+    capturedUses.set(useKey, uses);
+    if (!states) continue;
+    if (!states.has(captured)) {
+      missingStates.add(captured);
+      problems.push(
+        `撮影状態 ${label}: captured の ${captured} が metadata.json の capture_conditions.states に無い`,
+      );
+      continue;
+    }
+    // 器を開く状態は popup_inventory にも行が要る。states にあるだけでは、
+    // 開く操作・親子・撮る判断が棚卸しされていないまま状態名だけが立つ。
+    if (derivedRow.kind === "opens-container" && popupStates && !popupStates.has(captured)) {
+      missingStates.add(captured);
+      problems.push(
+        `撮影状態 ${label}: captured の ${captured} が capture_conditions.popup_inventory[].captured に無い（器の棚卸しに行を足す）`,
+      );
+    }
+  }
+
+  // 同じ撮影単位で状態名を共有する行は、共有してよい根拠が全行に要る。
+  // 根拠の欄を置くのは、fail-closed を行き止まりにしないため（本当に同じ器を開く 2 操作がありうる）。
+  // 根拠なしの共有は、1 枚で複数の操作を満たした状態と区別が付かないので落とす。
+  for (const uses of capturedUses.values()) {
+    if (uses.length < 2) continue;
+    const missingReason = uses.filter((u) => !nonEmptyString(u.row.shared_capture_reason));
+    if (missingReason.length === 0) continue;
+    undecided += missingReason.length;
+    problems.push(
+      `撮影状態の使い回し: ${uses.map((u) => u.label).join(" / ")} が同じ状態名 ${String(uses[0].row.captured)} を指している` +
+        `（同じ撮影単位では 1 枚が複数の操作を満たしてしまう。別の状態名にするか、同じ器を開く操作であることを全行の shared_capture_reason に書く。` +
+        `根拠が空: ${missingReason.map((u) => u.label).join(" / ")}）`,
+    );
+  }
+
+  for (const leftover of recorded.values()) {
+    problems.push(
+      `visual_state_coverage: 要求の無い行 ${String(leftover.component)} / ${String(leftover.instance)} / ${String(leftover.required_by)} / ${String(leftover.kind)} が残っている（--write で導出し直す）`,
+    );
+  }
+
+  return {
+    problems,
+    summary: {
+      checked: metadata !== null,
+      // 判定側が要約を現在の入力と突き合わせられるように、照合に使った入力の指紋を残す。
+      // 指紋が無いと、--write の後に表や撮影条件を書き換えても古い要約がそのまま通る。
+      table_fingerprint: coverageFingerprint(cov),
+      capture_fingerprint: metadata === null ? null : captureFingerprint(metadata),
+      rows: derivedRows.length,
+      undecided,
+      missing_states: [...missingStates].sort(),
+    },
+  };
+}
+
+/**
+ * プロファイルを宣言した部品の items[].visual_states を candidate_rules から書き戻す。
+ * 撮影状態の種別は操作の性質なので、部品ごとに手で書かずプロファイルを正本にする。
+ * @param {Record<string, unknown>} coverage
+ * @param {Map<string, Record<string, unknown>>} profiles
+ * @returns {Record<string, unknown>}
+ */
+export function fillVisualStates(coverage, profiles) {
+  const components = Array.isArray(coverage.components) ? coverage.components : [];
+  for (const component of components) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.profile)) continue;
+    const profile = profiles.get(String(c.profile));
+    if (!profile) continue;
+    /** @type {Map<string, {kinds: string[], reason: string | null}>} */
+    const byRule = new Map();
+    for (const rule of Array.isArray(profile.candidate_rules) ? profile.candidate_rules : []) {
+      if (!isPlainObject(rule)) continue;
+      const r = /** @type {Record<string, unknown>} */ (rule);
+      if (!nonEmptyString(r.id) || !Array.isArray(r.visual_states)) continue;
+      byRule.set(String(r.id), {
+        kinds: r.visual_states.map(String),
+        reason: nonEmptyString(r.no_visual_state_reason) ? String(r.no_visual_state_reason) : null,
+      });
+    }
+    for (const item of Array.isArray(c.items) ? c.items : []) {
+      if (!isPlainObject(item)) continue;
+      const it = /** @type {Record<string, unknown>} */ (item);
+      const candidate = isPlainObject(it.candidate)
+        ? /** @type {Record<string, unknown>} */ (it.candidate)
+        : null;
+      // ルールを名乗らない項目は推測で埋めない（id の前半からの推測は別ルールの状態を写しうる）。
+      // 対応付けの欠落は reconcile が候補との突き合わせで落とす。
+      if (!candidate || !nonEmptyString(candidate.rule)) continue;
+      const declared = byRule.get(String(candidate.rule));
+      if (!declared) continue;
+      it.visual_states = [...declared.kinds];
+      it.no_visual_state_reason = declared.reason;
+    }
+  }
+  return coverage;
 }
 
 /**
@@ -1603,7 +2166,7 @@ export function fillCandidates(coverage, profiles) {
  * 照合結果を conformance として被覆表へ記録する。parity-diff はプロファイルを読まないため、
  * ここに残った ok が「展開ルールまで含めて適合したか」の唯一の記録になる。
  * @param {Record<string, unknown>} coverage
- * @param {{ok: boolean, problems: string[], candidates: number, unmeasured: number}} result
+ * @param {{ok: boolean, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}} result
  * @returns {Record<string, unknown>}
  */
 export function recordConformance(coverage, result) {
@@ -1613,14 +2176,60 @@ export function recordConformance(coverage, result) {
     ok: result.ok,
     candidates: result.candidates,
     unmeasured: result.unmeasured,
+    visual_states: result.visualStates,
     problems: result.problems,
   };
   return coverage;
 }
 
 /**
+ * metadata.json から撮影条件（撮影状態と器の棚卸し）と slug を読む。
+ *
+ * slug を返すのは、渡された metadata が同じ機能のものかを呼び出し側で照合するため。
+ * 照合しないと別機能の metadata で checked: true を記録でき、状態名が汎用（hover 等）だと
+ * 突き合わせも通る。parity-diff はこの conformance を信頼して比較をやり直さないので、
+ * 記録側で弾かないと誤った収束まで通る。
+ * @param {unknown} parsed
+ * @returns {{slug: string, pageNames: string[], states: string[], popupStates: string[]} | null} - 形が違えば null（読めたことにしない）
+ */
+export function readCaptureConditions(parsed) {
+  if (!isPlainObject(parsed)) return null;
+  const meta = /** @type {Record<string, unknown>} */ (parsed);
+  // slug の欠落は「照合しない」に倒さない（照合できない metadata を通すと上の穴がそのまま開く）。
+  if (!nonEmptyString(meta.slug)) return null;
+  if (!isPlainObject(meta.capture_conditions)) return null;
+  const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
+  if (!Array.isArray(cc.states)) return null;
+  // pages は撮影の外側のループ（parity-diff の採取スペックは pages × states × viewports で回す）。
+  // 宣言されたページ名の集合を返さないと、被覆表の instances[].page が実在するかを照合できない。
+  if (!Array.isArray(cc.pages)) return null;
+  // popup_inventory はキーの欠落と空配列を区別する（欠落は棚卸し未実施＝照合できない）。
+  if (!Array.isArray(cc.popup_inventory)) return null;
+  /** @type {string[]} */
+  const popupStates = [];
+  for (const row of cc.popup_inventory) {
+    if (!isPlainObject(row)) continue;
+    const r = /** @type {Record<string, unknown>} */ (row);
+    if (nonEmptyString(r.captured)) popupStates.push(String(r.captured));
+  }
+  /** @type {string[]} */
+  const pageNames = [];
+  for (const row of cc.pages) {
+    if (!isPlainObject(row)) continue;
+    const r = /** @type {Record<string, unknown>} */ (row);
+    if (nonEmptyString(r.name)) pageNames.push(String(r.name));
+  }
+  return {
+    slug: String(meta.slug),
+    pageNames,
+    states: cc.states.filter(nonEmptyString).map(String),
+    popupStates,
+  };
+}
+
+/**
  * CLI 本体。
- * `node coverage-expand.mjs --coverage <component-coverage.json> [--profiles <dir>] [--write]`
+ * `node coverage-expand.mjs --coverage <component-coverage.json> [--metadata <metadata.json>] [--profiles <dir>] [--write]`
  * `node coverage-expand.mjs --list-profiles [--profiles <dir>]`
  * 終了コード: 0 ＝ 適合／1 ＝ 欠落・未測定・不整合が残る／2 ＝ 使い方の誤り・読み込み失敗。
  * @param {string[]} argv - process.argv.slice(2)
@@ -1631,7 +2240,7 @@ export function main(argv, deps = {}) {
   const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
   const writeFile = deps.writeFile ?? ((p, s) => writeFileSync(p, s));
   const usage =
-    "usage: node coverage-expand.mjs --coverage <component-coverage.json> [--profiles <dir>] [--write]\n" +
+    "usage: node coverage-expand.mjs --coverage <component-coverage.json> [--metadata <metadata.json>] [--profiles <dir>] [--write]\n" +
     "       node coverage-expand.mjs --list-profiles [--profiles <dir>]\n";
   /** @type {Record<string, string>} */
   const opts = {};
@@ -1647,7 +2256,7 @@ export function main(argv, deps = {}) {
       list = true;
       continue;
     }
-    if (a === "--coverage" || a === "--profiles") {
+    if (a === "--coverage" || a === "--profiles" || a === "--metadata") {
       const v = argv[i + 1];
       if (v === undefined) {
         process.stderr.write(usage);
@@ -1722,8 +2331,52 @@ export function main(argv, deps = {}) {
   }
   // 書き戻しは照合の前に行う。候補の記録漏れを書き戻しで埋めたうえで、
   // 埋めても直らない欠落（項目・セルが無い、証拠が無い）だけを問題として残す。
-  if (write) fillCandidates(/** @type {Record<string, unknown>} */ (coverage), profiles);
-  const result = reconcile(coverage, profiles);
+  /** @type {{states: string[], popupStates: string[]} | null} */
+  let metadata = null;
+  if (opts.metadata !== undefined) {
+    /** @type {unknown} */
+    let parsed;
+    try {
+      parsed = JSON.parse(readFile(opts.metadata));
+    } catch (e) {
+      process.stderr.write(`error: metadata を読めない: ${opts.metadata}: ${String(e)}\n`);
+      return 2;
+    }
+    metadata = readCaptureConditions(parsed);
+    if (metadata !== null && isPlainObject(coverage)) {
+      // 別機能の metadata を黙って受理しない。状態名が汎用なら突き合わせも通ってしまい、
+      // parity-diff はこの conformance を信頼して比較をやり直さない。
+      const coverageSlug = /** @type {Record<string, unknown>} */ (coverage).slug;
+      if (!nonEmptyString(coverageSlug)) {
+        process.stderr.write(
+          `error: 被覆表に slug が無いので metadata と同じ機能か照合できない: ${opts.coverage}\n`,
+        );
+        return 2;
+      }
+      if (String(coverageSlug) !== metadata.slug) {
+        process.stderr.write(
+          `error: metadata の slug（${metadata.slug}）が被覆表の slug（${String(coverageSlug)}）と違う: ${opts.metadata}\n`,
+        );
+        return 2;
+      }
+    }
+    if (metadata === null) {
+      // 渡されたのに読めない metadata は「照合しない」に倒さない（黙って checked: false にすると、
+      // 撮影状態の差を見ていない成果物が通ってしまう）。
+      process.stderr.write(
+        `error: metadata に slug、または capture_conditions.states / capture_conditions.popup_inventory が配列で無い: ${opts.metadata}\n`,
+      );
+      return 2;
+    }
+  }
+
+  if (write) {
+    fillCandidates(/** @type {Record<string, unknown>} */ (coverage), profiles);
+    // 項目の状態種別をプロファイルから埋めてから行を導く（埋める前に導くと未宣言として落ちる）。
+    fillVisualStates(/** @type {Record<string, unknown>} */ (coverage), profiles);
+    fillVisualStateRows(/** @type {Record<string, unknown>} */ (coverage));
+  }
+  const result = reconcile(coverage, profiles, metadata);
   if (write) {
     recordConformance(/** @type {Record<string, unknown>} */ (coverage), result);
     try {
@@ -1745,6 +2398,7 @@ export function main(argv, deps = {}) {
         ok: result.ok,
         candidates: result.candidates,
         unmeasured: result.unmeasured,
+        visual_states: result.visualStates,
         components: result.components,
         problems: result.problems,
       },
@@ -1760,7 +2414,18 @@ export function main(argv, deps = {}) {
   }
   if (result.problems.length > 0) {
     process.stderr.write(
-      `error: プロファイル適合の問題 ${result.problems.length} 件（上の warn を参照）\n`,
+      `error: 照合の問題 ${result.problems.length} 件（プロファイル適合・撮影状態の導出。上の warn を参照）\n`,
+    );
+  }
+  if (result.visualStates.undecided > 0 || result.visualStates.missing_states.length > 0) {
+    process.stderr.write(
+      `error: 撮影状態の未決 ${result.visualStates.undecided} 件 / 撮影条件に無い状態名 ${result.visualStates.missing_states.length} 件` +
+        `${result.visualStates.missing_states.length > 0 ? `（${result.visualStates.missing_states.join(", ")}）` : ""} — 撮る前に決める（後から足すと現側も採り直しになる）\n`,
+    );
+  }
+  if (!result.visualStates.checked) {
+    process.stderr.write(
+      "warn: --metadata が無いため撮影状態を capture_conditions.states と照合していない（conformance.visual_states.checked: false のままでは parity-diff が収束させない）\n",
     );
   }
   return result.ok ? 0 : 1;

@@ -9,7 +9,9 @@ UI 部品ごとの確認軸を宣言するファイル群。契約は [`../../re
 ## 追加手順
 
 1. `<id>.json` を作り、`profile-schema.json` の形式で `axes` / `enumeration` / `candidate_rules` /
-   `required_rules` / `equivalence` を宣言する。`id` はファイル名（拡張子を除く）と一致させる
+   `required_rules` / `equivalence` を宣言する。`id` はファイル名（拡張子を除く）と一致させる。
+   **各ルールには `visual_states`（その操作で立つ見た目の状態。`opens-container` / `hover` / `focus` / `active` / `disabled`）も要る**——
+   空配列なら `no_visual_state_reason` を書く（キーごとの省略は「見た目が変わらない」と「考えていない」を同じ見え方にするので落ちる）
 2. `references/coverage-profiles.md`「同梱プロファイル」の表に 1 行足す
 3. `scripts/coverage-expand.mjs` と `references/coverage-profiles.md` の**契約部分は変更しない**。
    変更が要るなら共通処理の抽象が足りていない（部品固有の条件分岐を共通処理へ入れない）
