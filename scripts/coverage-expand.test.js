@@ -1046,6 +1046,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
     })),
   };
   const metadata = {
+    slug: "org-tree",
     capture_conditions: {
       states: ["default", "hover", "ノードを展開した状態"],
       popup_inventory: [
@@ -1403,6 +1404,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   const cov = datagridCoverage();
   const conditions = captureConditionsFor(cov);
   const metadata = {
+    slug: "order-list",
     capture_conditions: {
       states: conditions.states,
       popup_inventory: conditions.popupStates.map((state) => ({
@@ -1461,6 +1463,26 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   );
   expect(broken.status).toBe(2);
   expect(broken.stderr).toMatch(/capture_conditions.states \/ capture_conditions.popup_inventory/);
+
+  // 別機能の metadata を黙って受理しない（状態名が汎用なら突き合わせも通ってしまう）。
+  const otherFeature = runCli(
+    [
+      "--coverage",
+      "component-coverage.json",
+      "--metadata",
+      "metadata.json",
+      "--profiles",
+      bundledProfiles,
+    ],
+    {
+      files: {
+        "component-coverage.json": cov,
+        "metadata.json": { ...metadata, slug: "another-feature" },
+      },
+    },
+  );
+  expect(otherFeature.status).toBe(2);
+  expect(otherFeature.stderr).toMatch(/slug（another-feature）が被覆表の slug（order-list）と違う/);
 
   // --metadata 無しは通るが、照合していないことを黙らない。
   const unchecked = runCli(
@@ -1633,4 +1655,90 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
       popupStates: Object.values(names),
     }).problems,
   ).toEqual([]);
+});
+
+test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻しで消えない）", () => {
+  // shared_capture_reason を引き継がないと、手順 8 で必ず通す --write が根拠を消し、
+  // 同じ実行の照合が「根拠なしの使い回し」で落ちる——逃げ道が構造的に死ぬ。
+  const cov = {
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
+        items: [
+          { id: "filter-popup", visual_states: ["opens-container"], no_visual_state_reason: null },
+          { id: "ctx-menu", visual_states: ["opens-container"], no_visual_state_reason: null },
+        ],
+        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
+      },
+    ],
+    cells: ["filter-popup", "ctx-menu"].map((item) => ({
+      component: "grid",
+      item,
+      instance: "orders",
+      value: "present",
+      evidence: "実 UI で開いた",
+      covered_by: [`e2e/order-list.spec.ts > ${item}`],
+    })),
+  };
+  fillVisualStateRows(cov);
+  for (const row of cov.visual_state_coverage.rows) {
+    row.captured = "only-one-popup";
+    row.shared_capture_reason = "どちらの操作も同一の器を開くことを実 UI で確認した";
+    row.reason = null;
+  }
+  // 書き戻しても人の判断は残る。
+  fillVisualStateRows(cov);
+  expect(cov.visual_state_coverage.rows.map((r) => r.shared_capture_reason)).toEqual([
+    "どちらの操作も同一の器を開くことを実 UI で確認した",
+    "どちらの操作も同一の器を開くことを実 UI で確認した",
+  ]);
+  expect(
+    reconcile(cov, bundled, {
+      states: ["default", "only-one-popup"],
+      popupStates: ["only-one-popup"],
+    }).problems,
+  ).toEqual([]);
+});
+
+test("page が無いインスタンスは撮影単位を決められないので落とす（狭いスコープへ倒さない）", () => {
+  // page が撮影単位（ページ × 状態名 × ビューポート）を決めるキー。
+  // 欠落を「そのインスタンスだけの重複を見る」へ倒すと、同じページに載る別部品どうしが
+  // 根拠なく状態名を使い回しても通る（fail-open）。
+  const cov = {
+    slug: "order-list",
+    components: ["grid", "panel"].map((id) => ({
+      id,
+      profile: null,
+      profile_absent_reason: "自作",
+      items: [
+        { id: `${id}-popup`, visual_states: ["opens-container"], no_visual_state_reason: null },
+      ],
+      instances: [{ id: `${id}-inst`, locator: `${id}.root` }],
+    })),
+    cells: ["grid", "panel"].map((id) => ({
+      component: id,
+      item: `${id}-popup`,
+      instance: `${id}-inst`,
+      value: "present",
+      evidence: "実 UI で開いた",
+      covered_by: [`e2e/x.spec.ts > ${id}`],
+    })),
+  };
+  fillVisualStateRows(cov);
+  for (const row of cov.visual_state_coverage.rows) row.captured = "only-one-popup";
+  const conditions = { states: ["default", "only-one-popup"], popupStates: ["only-one-popup"] };
+  const bad = reconcile(cov, bundled, conditions);
+  expect(bad.ok).toBe(false);
+  expect(bad.problems.join("\n")).toMatch(/page が無い/);
+
+  // 陽性コントロール: page を書けば、同じページの別部品どうしの使い回しとして落ちる。
+  for (const component of cov.components) component.instances[0].page = "受注一覧";
+  expect(reconcile(cov, bundled, conditions).problems.join("\n")).toMatch(/撮影状態の使い回し/);
+
+  // 別ページなら通る（撮影単位が違う）。
+  cov.components[1].instances[0].page = "サイドパネルのページ";
+  expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
 });

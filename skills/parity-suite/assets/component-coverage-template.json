@@ -37,7 +37,7 @@
       "instances": [
         {
           "id": "<インスタンス id。cells から参照する。\"/\" を含めない（候補キー・同値クラスの members が切り分けられない）>",
-          "page": "<metadata.json.capture_conditions.pages[].name と同じ語彙のページ名>",
+          "page": "<metadata.json.capture_conditions.pages[].name と同じ語彙のページ名。撮影状態を要求する行を持つインスタンスでは必須——page が撮影単位（ページ × 状態名 × ビューポート）を決めるキーなので、欠けると状態名の使い回しを判定できず coverage-expand.mjs が落とす>",
           "locator": "<そのインスタンスを引く論理名（ロケータマッピングで解決できる名前）>",
           "applicable_states": {
             "_note": "non-renderable absent を使うインスタンスだけが持つ、セルとは独立した適用可能状態manifest。セル側の自己申告だけで網羅済みにしないため、absence_evidence.expected_states と機械照合する。",

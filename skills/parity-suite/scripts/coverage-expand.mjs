@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "12";
+export const VERSION = "13";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -41,6 +41,12 @@ const VALUES = ["present", "absent", "unmeasured"];
 // 導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は
 // 従来どおり手で states へ足す。
 const VISUAL_STATE_KINDS = ["opens-container", "hover", "focus", "active", "disabled"];
+
+// 撮影状態の行のうち、人／エージェントが埋める欄。導出は要求の集合だけを決めるので、
+// 書き戻し（fillVisualStateRows）はこの一覧を必ず引き継ぐ。
+// **欄を増やしたらここへ足す**——足し忘れると、その欄は必ず通る --write の側で消える。
+// 実際に shared_capture_reason で起き、根拠を書いても次の --write が消して逃げ道が死んだ。
+const HUMAN_DECIDED_ROW_FIELDS = ["captured", "reason", "shared_capture_reason"];
 
 /** 候補 id の区切り。軸値に含まれると id が衝突するため、列挙時に禁止する。 */
 const ID_SEPARATOR = "/";
@@ -1739,7 +1745,10 @@ export function deriveVisualStateRows(cov) {
         a.required_by.localeCompare(b.required_by) ||
         VISUAL_STATE_KINDS.indexOf(a.kind) - VISUAL_STATE_KINDS.indexOf(b.kind),
     )
-    .map((row) => ({ ...row, captured: null, reason: null }));
+    .map((row) => ({
+      ...row,
+      ...Object.fromEntries(HUMAN_DECIDED_ROW_FIELDS.map((field) => [field, null])),
+    }));
   return { rows, problems };
 }
 
@@ -1775,8 +1784,9 @@ export function fillVisualStateRows(cov) {
   for (const row of rows) {
     const kept = prevByKey.get(visualRowKey(row));
     if (!kept) continue;
-    if (nonEmptyString(kept.captured)) row.captured = String(kept.captured);
-    if (nonEmptyString(kept.reason)) row.reason = String(kept.reason);
+    for (const field of HUMAN_DECIDED_ROW_FIELDS) {
+      if (nonEmptyString(kept[field])) row[field] = String(kept[field]);
+    }
   }
   cov.visual_state_coverage = { ...previous, rows };
   return cov;
@@ -1841,8 +1851,9 @@ export function checkVisualStates(cov, metadata) {
   // 撮影の単位は ページ × 状態名 × ビューポートなので、同じページで状態名を使い回した行は
   // 同じ 1 枚を指す。行のキーを要求元まで割っても、値が同じなら 1 回の撮影で複数の操作が満たされ、
   // 撮られなかった側の差は「差 0 件」に戻る（キーの粒度と同じ故障が値の側に残る）。
-  // ページを解決できないインスタンスは、そのインスタンス自身を単位にする
-  // （同じページの別インスタンス間の使い回しは判定できない。狭い側＝そのインスタンス内の重複だけを見る）。
+  // ページはこの撮影単位を決めるキーなので、欠けていたら狭いスコープへ倒さず落とす。
+  // 倒すと、同じページに載る別部品どうしが根拠なく状態名を使い回しても通る（fail-open）。
+  // 落とすのは撮影状態を要求する行を持つインスタンスだけ（要求が無ければ撮影単位も無い）。
   /** @type {Map<string, string>} */
   const scopeByInstance = new Map();
   for (const component of Array.isArray(cov.components) ? cov.components : []) {
@@ -1855,10 +1866,7 @@ export function checkVisualStates(cov, metadata) {
       if (!nonEmptyString(inst.id)) continue;
       const key = JSON.stringify([String(c.id), String(inst.id)]);
       if (scopeByInstance.has(key)) continue;
-      scopeByInstance.set(
-        key,
-        nonEmptyString(inst.page) ? `page:${String(inst.page)}` : `instance:${key}`,
-      );
+      if (nonEmptyString(inst.page)) scopeByInstance.set(key, `page:${String(inst.page)}`);
     }
   }
   /** @type {Map<string, Array<{label: string, row: Record<string, unknown>}>>} */
@@ -1892,11 +1900,16 @@ export function checkVisualStates(cov, metadata) {
       continue;
     }
     if (!captured) continue;
-    const scope =
-      scopeByInstance.get(
-        JSON.stringify([String(derivedRow.component), String(derivedRow.instance)]),
-      ) ??
-      `instance:${JSON.stringify([String(derivedRow.component), String(derivedRow.instance)])}`;
+    const scope = scopeByInstance.get(
+      JSON.stringify([String(derivedRow.component), String(derivedRow.instance)]),
+    );
+    if (scope === undefined) {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: インスタンス ${String(derivedRow.instance)} に page が無い（page が撮影単位を決めるキーなので、欠けたまま使い回しを判定できない。instances[].page を書く）`,
+      );
+      continue;
+    }
     const useKey = JSON.stringify([scope, captured]);
     const uses = capturedUses.get(useKey) ?? [];
     uses.push({ label, row });
@@ -2046,13 +2059,20 @@ export function recordConformance(coverage, result) {
 }
 
 /**
- * metadata.json から撮影条件（撮影状態と器の棚卸し）を読む。
+ * metadata.json から撮影条件（撮影状態と器の棚卸し）と slug を読む。
+ *
+ * slug を返すのは、渡された metadata が同じ機能のものかを呼び出し側で照合するため。
+ * 照合しないと別機能の metadata で checked: true を記録でき、状態名が汎用（hover 等）だと
+ * 突き合わせも通る。parity-diff はこの conformance を信頼して比較をやり直さないので、
+ * 記録側で弾かないと誤った収束まで通る。
  * @param {unknown} parsed
- * @returns {{states: string[], popupStates: string[]} | null} - 形が違えば null（読めたことにしない）
+ * @returns {{slug: string, states: string[], popupStates: string[]} | null} - 形が違えば null（読めたことにしない）
  */
 export function readCaptureConditions(parsed) {
   if (!isPlainObject(parsed)) return null;
   const meta = /** @type {Record<string, unknown>} */ (parsed);
+  // slug の欠落は「照合しない」に倒さない（照合できない metadata を通すと上の穴がそのまま開く）。
+  if (!nonEmptyString(meta.slug)) return null;
   if (!isPlainObject(meta.capture_conditions)) return null;
   const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
   if (!Array.isArray(cc.states)) return null;
@@ -2065,7 +2085,11 @@ export function readCaptureConditions(parsed) {
     const r = /** @type {Record<string, unknown>} */ (row);
     if (nonEmptyString(r.captured)) popupStates.push(String(r.captured));
   }
-  return { states: cc.states.filter(nonEmptyString).map(String), popupStates };
+  return {
+    slug: String(meta.slug),
+    states: cc.states.filter(nonEmptyString).map(String),
+    popupStates,
+  };
 }
 
 /**
@@ -2184,11 +2208,28 @@ export function main(argv, deps = {}) {
       return 2;
     }
     metadata = readCaptureConditions(parsed);
+    if (metadata !== null && isPlainObject(coverage)) {
+      // 別機能の metadata を黙って受理しない。状態名が汎用なら突き合わせも通ってしまい、
+      // parity-diff はこの conformance を信頼して比較をやり直さない。
+      const coverageSlug = /** @type {Record<string, unknown>} */ (coverage).slug;
+      if (!nonEmptyString(coverageSlug)) {
+        process.stderr.write(
+          `error: 被覆表に slug が無いので metadata と同じ機能か照合できない: ${opts.coverage}\n`,
+        );
+        return 2;
+      }
+      if (String(coverageSlug) !== metadata.slug) {
+        process.stderr.write(
+          `error: metadata の slug（${metadata.slug}）が被覆表の slug（${String(coverageSlug)}）と違う: ${opts.metadata}\n`,
+        );
+        return 2;
+      }
+    }
     if (metadata === null) {
       // 渡されたのに読めない metadata は「照合しない」に倒さない（黙って checked: false にすると、
       // 撮影状態の差を見ていない成果物が通ってしまう）。
       process.stderr.write(
-        `error: metadata に capture_conditions.states / capture_conditions.popup_inventory が配列で無い: ${opts.metadata}\n`,
+        `error: metadata に slug、または capture_conditions.states / capture_conditions.popup_inventory が配列で無い: ${opts.metadata}\n`,
       );
       return 2;
     }
