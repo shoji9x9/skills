@@ -34,7 +34,7 @@
 | `fontFaces` / `loadedFonts` | `@font-face` の `src` と、実際に読み込まれた書体 |
 | `icons` | favicon 等の `link[rel]`（`icon` / `apple-touch-icon` / `mask-icon`） |
 | `manifests` | `link[rel=manifest]` の参照だけ（`iconsInspected: false`）。**プローブは manifest の `icons` を読まない**——manifest を開いて `icons` の各画像を棚卸しに加え、開けなければ「未確認」と書く（インストール用アイコンは描画で取得されず `resources` にも出ないことがある） |
-| `resources` | 実際に取得された画像・書体ファイルの URL（`matchedBy` は `extension` / `initiator`）。拡張子だけで選り分けない |
+| `resources` | 実際に取得された画像・書体ファイルの URL（`matchedBy` は `extension` / `initiator` / `corroborated`）。拡張子だけで選り分けず、`link` / `css` のように資産以外にも付く initiator は DOM・`@font-face`・計算後スタイル・アイコンで裏が取れたものだけを入れる（裏が取れないものは `unclassifiedResources`） |
 | `unclassifiedResources` | 拡張子にも `initiatorType` にも当たらなかった取得（`/assets/content?id=123` のような拡張子なしの配信）。**捨てずに中身を確かめる**——クロスオリジンのシートが読めない書体はここにしか出ないことがある |
 | `resourcesCompleteness` / `resourceEntryCount` | Resource Timing の網羅性は常に `unknown`（バッファ容量は API から読めず、`setResourceTimingBufferSize` で変わるため、溢れの有無を後から証明できない）。件数は目安として使い、**`resources` を「これで全部」の根拠にしない**——`fontFaces` / `urlRefs` / `unclassifiedResources` と突き合わせ、埋まらなければ「未確認」と書く |
 | `shadowRoots` | 走査した open な shadow root の数（内側の要素・スタイルシートも上の各キーに含む）。closed な shadow root は読めないため、Web Components を使うページでは画面と突き合わせる |

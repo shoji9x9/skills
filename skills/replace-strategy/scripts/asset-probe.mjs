@@ -64,14 +64,27 @@ export const assetProbe = () => {
   // 相対 URL の基準はそのスタイルシートの URL なので、規則から読むときは base にシートの href を渡す。
   // 同一文書内の断片参照（fill: url(#grad) 等）は外部資産ではない。base で解決すると文書自身の URL になり、
   // 台帳に「現在の HTML を写すか」という行が生まれるので、外部参照と分けて返す。
+  // 判定は生の文字列の先頭 "#" ではなく解決後の URL で行う（./page.html#grad や絶対 URL でも同じ参照になる）。
+  const docWithoutHash = (() => {
+    const u = new URL(document.baseURI);
+    u.hash = "";
+    return u.href;
+  })();
+  const resolveRef = (raw, base) => {
+    const u = new URL(raw, base);
+    const hash = u.hash;
+    u.hash = "";
+    // 断片を持ち、断片以外が現在の文書と同じなら同一文書内参照（文書 URL は資産ではないので落とす）。
+    if (hash && u.href === docWithoutHash) return { url: hash, localFragment: true };
+    return { url: new URL(raw, base).href, localFragment: false };
+  };
   const urlsIn = (value, base = document.baseURI) => {
     const out = [];
     const re = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
     let m;
     while ((m = re.exec(value || ""))) {
       if (!m[2]) continue;
-      if (m[2].startsWith("#")) out.push({ url: m[2], localFragment: true });
-      else out.push({ url: new URL(m[2], base).href, localFragment: false });
+      out.push(resolveRef(m[2], base));
     }
     return out;
   };
@@ -133,9 +146,19 @@ export const assetProbe = () => {
       if (src) bump(images, src, { src, kind: tag }, el, rendered);
     } else if (tag === "image" || tag === "use") {
       const href = el.getAttribute("href") || el.getAttribute("xlink:href") || "";
-      if (href && !href.startsWith("#")) {
-        const abs = new URL(href, document.baseURI).href;
-        bump(images, abs, { src: abs, kind: "svg-" + tag }, el, rendered);
+      if (href) {
+        const ref = resolveRef(href, document.baseURI);
+        if (ref.localFragment) {
+          bump(
+            localFragmentRefs,
+            JSON.stringify([tag, null, ref.url]),
+            { url: ref.url, property: tag, pseudo: null },
+            el,
+            rendered,
+          );
+        } else {
+          bump(images, ref.url, { src: ref.url, kind: "svg-" + tag }, el, rendered);
+        }
       }
     }
 
@@ -252,15 +275,14 @@ export const assetProbe = () => {
   // 拡張子は資産の十分条件でしかない（/assets/content?id=123 のような拡張子なしの配信がある）。
   // 拡張子にも initiatorType にも当たらない取得は捨てず unclassified として残す。
   const ASSET_EXT = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|bmp|cur)(\?|#|$)/i;
-  const ASSET_INITIATORS = new Set([
-    "img",
-    "image",
-    "css",
-    "link",
-    "font",
-    "input",
-    "video",
-    "track",
+  // initiatorType が資産だと言い切れるものだけを昇格させる。link / css はスタイルシート・スクリプトの
+  // preload にも付くため、DOM・@font-face・計算後スタイル・アイコンのいずれかで裏が取れた URL だけ資産とみなす。
+  const ASSET_INITIATORS = new Set(["img", "image", "font", "input", "video", "track"]);
+  const corroborated = new Set([
+    ...Array.from(images.values()).map((row) => row.src),
+    ...Array.from(urlRefs.values()).map((row) => row.url),
+    ...fontFaces.flatMap((face) => face.src),
+    ...icons.map((icon) => icon.href),
   ]);
   const resourceEntries = performance.getEntriesByType
     ? performance.getEntriesByType("resource")
@@ -272,6 +294,7 @@ export const assetProbe = () => {
     if (ASSET_EXT.test(entry.name)) resources.push({ ...row, matchedBy: "extension" });
     else if (ASSET_INITIATORS.has(entry.initiatorType))
       resources.push({ ...row, matchedBy: "initiator" });
+    else if (corroborated.has(entry.name)) resources.push({ ...row, matchedBy: "corroborated" });
     else unclassifiedResources.push(row);
   }
   // Resource Timing のバッファ容量は API から読めず（既定 250 件だが setResourceTimingBufferSize で変わる）、
