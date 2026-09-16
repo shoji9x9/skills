@@ -181,8 +181,10 @@
     "candidates": 0,
     "unmeasured": 0,
     "visual_states": {
-      "_note": "撮影状態の導出の記録。checked は --metadata を渡して capture_conditions.states / popup_inventory と照合したかで、parity-diff は checked: true を要求する（照合せずに書いた rows を収束の根拠にしない）。missing_states は導いた集合のうち states に無い状態名で、これが『足りない状態の一覧』になる。",
+      "_note": "撮影状態の導出の記録。checked は --metadata を渡して capture_conditions.states / popup_inventory と照合したかで、parity-diff は checked: true を要求する（照合せずに書いた rows を収束の根拠にしない）。missing_states は導いた集合のうち states に無い状態名で、これが『足りない状態の一覧』になる。2 つの指紋は要約を記録時点の入力へ固定するもので、--write の後に表・撮影条件を書き換えると parity-diff が落とす。",
       "checked": false,
+      "table_fingerprint": "<coverage-expand.mjs が書き戻す、conformance を除いた被覆表の sha256。判定側が「この要約はどの表についてのものか」を現在の内容と突き合わせる。照合後に表を書き換えたら通し直す>",
+      "capture_fingerprint": "<coverage-expand.mjs が書き戻す、照合に使った撮影条件（slug・ページ名・状態名・器の状態名）の sha256。--metadata 無しの実行では null。照合後に撮影条件を書き換えたら通し直す>",
       "rows": 0,
       "undecided": 0,
       "missing_states": [

@@ -68,6 +68,9 @@
     `checked: false` は `coverage-expand.mjs` を `--metadata` 無しで走らせた記録で、被覆表から導いた撮影状態を `capture_conditions.states` と突き合わせていない。
     **撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べない**ので、集合の不足を通すと素通りと見分けが付かない
     （導出の契約は `parity-suite` の `references/baseline.md`「撮影状態の決め方（1）被覆表から導く」）。
+    **要約は記録時点の入力についての主張でしかないので、`table_fingerprint` / `capture_fingerprint` で現在の入力と突き合わせる**——
+    欠落・不一致はいずれも落とす。指紋が無いと、`--write` の後に被覆表へ項目を足す・`metadata.json` から撮る状態を消す、といった変更が
+    古い要約のまま通り、必要な撮影が無いまま収束する（`reactions.json` の `conformance.table_fingerprint` と同じ形）。
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る、2 ＝ 使い方の誤り。1 件以上なら収束させず `parity-suite` へ戻して測らせる。
     **`metadata.json` や `component_coverage` の型崩れ**（オブジェクトでない・`declared` が真偽値でない・`path` が空でない文字列でない）と、
     **`declared: false` なのに `reason` が空**（免除の根拠が残らない）は、後方互換の「判定しない」に倒さず exit 2 で落ちる——

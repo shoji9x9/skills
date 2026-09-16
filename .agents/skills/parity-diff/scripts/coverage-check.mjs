@@ -31,6 +31,7 @@
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って数える。
 // TypeScript 構文は使わない（型は JSDoc）。
 
+import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -39,7 +40,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "11";
+export const VERSION = "12";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -331,6 +332,39 @@ function absentEvidenceProblem(row, label, stateManifest) {
 // ===== absence-evidence-contract:end =====
 
 /**
+ * metadata.json の撮影条件から、記録側と同じ形の指紋を取る。
+ * 撮影条件が読めない（キー欠落・型崩れ）ときは null を返し、「照合しない」と「一致した」を区別する。
+ * @param {unknown} metadata
+ * @returns {string|null}
+ */
+export function readCaptureForFingerprint(metadata) {
+  if (!isPlainObject(metadata)) return null;
+  const meta = /** @type {Record<string, unknown>} */ (metadata);
+  if (!isPlainObject(meta.capture_conditions)) return null;
+  const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
+  if (!Array.isArray(cc.states) || !Array.isArray(cc.pages) || !Array.isArray(cc.popup_inventory))
+    return null;
+  /** @type {string[]} */
+  const pageNames = [];
+  for (const row of cc.pages) {
+    if (isPlainObject(row) && nonEmptyString(/** @type {Record<string, unknown>} */ (row).name))
+      pageNames.push(String(/** @type {Record<string, unknown>} */ (row).name));
+  }
+  /** @type {string[]} */
+  const popupStates = [];
+  for (const row of cc.popup_inventory) {
+    if (isPlainObject(row) && nonEmptyString(/** @type {Record<string, unknown>} */ (row).captured))
+      popupStates.push(String(/** @type {Record<string, unknown>} */ (row).captured));
+  }
+  return captureFingerprint({
+    slug: nonEmptyString(meta.slug) ? String(meta.slug) : undefined,
+    pageNames,
+    states: cc.states.filter(nonEmptyString).map(String),
+    popupStates,
+  });
+}
+
+/**
  * 現側 metadata.json の component_coverage 宣言を読む。返す状態は 3 つ:
  * judged: true（判定に入れる）／judged: false（後方互換で判定に入れない。キー欠落 = 旧成果物、declared: false）／
  * malformed: true（型崩れ。後方互換に倒さず使い方の誤りとして扱う）。
@@ -418,6 +452,56 @@ function collectIds(entries, label, problems) {
  */
 function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
+ * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/coverage-record-judge-parity.test.js。
+ * 様式は reaction-check.mjs の tableFingerprint と同じ。
+ * @param {Record<string, unknown>} table
+ * @returns {string}
+ */
+export function coverageFingerprint(table) {
+  const { conformance: _ignored, ...rest } = table;
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(rest)))
+    .digest("hex");
+}
+
+/**
+ * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・器の状態名）だけを取る。
+ * 配列は並びで指紋が変わらないよう整列する（内容が同じなら同じ指紋にする）。
+ * @param {{slug?: string, pageNames?: string[], states: string[], popupStates: string[]}} capture
+ * @returns {string}
+ */
+export function captureFingerprint(capture) {
+  const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        canonicalize({
+          slug: nonEmptyString(capture.slug) ? String(capture.slug) : null,
+          pageNames: sorted(capture.pageNames),
+          states: sorted(capture.states),
+          popupStates: sorted(capture.popupStates),
+        }),
+      ),
+    )
+    .digest("hex");
+}
+
+/** @param {unknown} v @returns {unknown} */
+function canonicalize(v) {
+  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isPlainObject(v)) {
+    return Object.fromEntries(
+      Object.keys(v)
+        .sort()
+        .map((k) => [k, canonicalize(v[k])]),
+    );
+  }
+  return v;
 }
 
 /**
@@ -769,9 +853,12 @@ function countProfiledComponent(c, cid, byKey, duplicated, keyOf, expected, prob
  * 被覆表を数え直す。宣言された件数（metadata.json 側の cells / unmeasured）は参照しない。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {string|null} slug - 突き合わせる slug（metadata.json の slug）。null なら照合しない
+ * @param {string|null} [captureFingerprintNow] - いま読んだ metadata.json の撮影条件から取った指紋。
+ *   記録側が残した値と突き合わせて、--write の後に撮影条件が変わっていないことを確かめる。
+ *   null なら照合しない（撮影条件を読めなかった場合）。
  * @returns {{cells: number, present: number, absent: number, unmeasured: number, problems: string[]}}
  */
-export function countCoverage(coverage, slug) {
+export function countCoverage(coverage, slug, captureFingerprintNow = null) {
   /** @type {string[]} */
   const problems = [];
   // 配列は typeof で "object" を通るため明示的に弾く。通すと slug 不一致・components 空といった
@@ -834,6 +921,30 @@ export function countCoverage(coverage, slug) {
       } else if (missing.length > 0) {
         problems.push(
           `導いた撮影状態が撮影条件に無い（capture_conditions.states、opens-container は popup_inventory[].captured も）: ${missing.map(String).join(", ")}`,
+        );
+      }
+      // 要約は記録時点の入力についての主張でしかない。いま読んでいる表・撮影条件と結び付けないと、
+      // --write の後に表を書き換えても（項目に visual_states を足す、撮影状態を metadata から消す等）
+      // 古い要約がそのまま通る。指紋で「何を照合した要約か」を現在の入力へ固定する。
+      if (!nonEmptyString(visual.table_fingerprint)) {
+        problems.push(
+          "conformance.visual_states.table_fingerprint が無い（撮影状態の要約がどの表についてのものか確かめられない。coverage-expand.mjs を通し直す）",
+        );
+      } else if (String(visual.table_fingerprint) !== coverageFingerprint(cov)) {
+        problems.push(
+          "conformance.visual_states.table_fingerprint が被覆表の内容と一致しない（照合後に表が書き換えられた。coverage-expand.mjs を通し直す）",
+        );
+      }
+      if (!nonEmptyString(visual.capture_fingerprint)) {
+        problems.push(
+          "conformance.visual_states.capture_fingerprint が無い（撮影状態の要約がどの撮影条件についてのものか確かめられない。coverage-expand.mjs を --metadata 付きで通し直す）",
+        );
+      } else if (
+        captureFingerprintNow !== null &&
+        String(visual.capture_fingerprint) !== captureFingerprintNow
+      ) {
+        problems.push(
+          "conformance.visual_states.capture_fingerprint が metadata.json の撮影条件と一致しない（照合後に撮影条件が書き換えられた。coverage-expand.mjs を --metadata 付きで通し直す）",
         );
       }
     }
@@ -1102,7 +1213,10 @@ export function main(argv, deps = {}) {
     return 1;
   }
 
-  const counted = countCoverage(coverage, slug);
+  // いま読んでいる metadata の撮影条件から指紋を取り、記録側が残した値と突き合わせる。
+  // 撮影条件を読めない metadata では照合できないので null を渡す（読めたことにしない）。
+  const captureNow = readCaptureForFingerprint(metadata);
+  const counted = countCoverage(coverage, slug, captureNow);
   const ok = counted.unmeasured === 0 && counted.problems.length === 0;
   process.stdout.write(
     `${JSON.stringify({ tool: "coverage-check", version: VERSION, judged: true, reason: null, source, ...counted }, null, 2)}\n`,

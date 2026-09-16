@@ -83,6 +83,8 @@
 - **`--metadata` を渡した実行だけが `capture_conditions.states` との差を取れる。** 渡さない実行は
   `conformance.visual_states.checked: false` のままで、`parity-diff` はそれを収束の根拠にしない
   （照合していない記録を照合済みに倒さない）。**その照合は `metadata.json` を書いた手順 8 で通す**。
+  記録には被覆表と撮影条件の指紋が入るので、**通した後に表・撮影条件を書き換えたら `--write` から通し直す**
+  （書き換えたまま古い要約を残すと `parity-diff` が落とす）。
   `kind: opens-container` は `states` に在るだけでは足りず、次節の `popup_inventory` にも行が要る
 - **導出は下限であって上限ではない。** 操作から導けない状態（`selected` / `error` / 初期表示のバリアント）は
   従来どおり手で `states` へ足す。被覆表は**操作の有無を数える表**であり、開いた中身の見た目を突き合わせたかは見ていないので、

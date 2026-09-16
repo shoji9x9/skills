@@ -22,6 +22,7 @@
 // 決定論的: 乱数・現在時刻に依存しない。入力順を保って展開する。
 // TypeScript 構文は使わない（型は JSDoc）。
 
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,6 +68,56 @@ function nonEmptyString(v) {
  */
 function isPlainObject(v) {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
+ * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/coverage-record-judge-parity.test.js。
+ * 様式は reaction-check.mjs の tableFingerprint と同じ。
+ * @param {Record<string, unknown>} table
+ * @returns {string}
+ */
+export function coverageFingerprint(table) {
+  const { conformance: _ignored, ...rest } = table;
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(rest)))
+    .digest("hex");
+}
+
+/**
+ * 撮影条件の指紋。撮影状態の照合に実際に使った入力（slug・ページ名・状態名・器の状態名）だけを取る。
+ * 配列は並びで指紋が変わらないよう整列する（内容が同じなら同じ指紋にする）。
+ * @param {{slug?: string, pageNames?: string[], states: string[], popupStates: string[]}} capture
+ * @returns {string}
+ */
+export function captureFingerprint(capture) {
+  const sorted = (v) => [...(Array.isArray(v) ? v : [])].map(String).sort();
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        canonicalize({
+          slug: nonEmptyString(capture.slug) ? String(capture.slug) : null,
+          pageNames: sorted(capture.pageNames),
+          states: sorted(capture.states),
+          popupStates: sorted(capture.popupStates),
+        }),
+      ),
+    )
+    .digest("hex");
+}
+
+/** @param {unknown} v @returns {unknown} */
+function canonicalize(v) {
+  if (Array.isArray(v)) return v.map(canonicalize);
+  if (isPlainObject(v)) {
+    return Object.fromEntries(
+      Object.keys(v)
+        .sort()
+        .map((k) => [k, canonicalize(v[k])]),
+    );
+  }
+  return v;
 }
 
 // ===== absence-evidence-contract:start =====
@@ -1969,6 +2020,10 @@ export function checkVisualStates(cov, metadata) {
     problems,
     summary: {
       checked: metadata !== null,
+      // 判定側が要約を現在の入力と突き合わせられるように、照合に使った入力の指紋を残す。
+      // 指紋が無いと、--write の後に表や撮影条件を書き換えても古い要約がそのまま通る。
+      table_fingerprint: coverageFingerprint(cov),
+      capture_fingerprint: metadata === null ? null : captureFingerprint(metadata),
       rows: derivedRows.length,
       undecided,
       missing_states: [...missingStates].sort(),
