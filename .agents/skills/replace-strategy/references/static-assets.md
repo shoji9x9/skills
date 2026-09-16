@@ -32,7 +32,9 @@
 | `fontFaces` / `loadedFonts` | `@font-face` の `src` と、実際に読み込まれた書体 |
 | `icons` | favicon 等の `link[rel]`（`icon` / `apple-touch-icon` / `mask-icon`） |
 | `manifests` | `link[rel=manifest]` の参照だけ（`iconsInspected: false`）。**プローブは manifest の `icons` を読まない**——manifest を開いて `icons` の各画像を棚卸しに加え、開けなければ「未確認」と書く（インストール用アイコンは描画で取得されず `resources` にも出ないことがある） |
-| `resources` | 実際に取得された画像・書体ファイルの URL。**`resourcesMaybeTruncated: true` なら網羅ではない**（Resource Timing のバッファ既定 250 件を超えた取得は記録されない）——`fontFaces` / `urlRefs` と突き合わせ、埋まらなければ「未確認」と書く |
+| `resources` | 実際に取得された画像・書体ファイルの URL（`matchedBy` は `extension` / `initiator`）。拡張子だけで選り分けない |
+| `unclassifiedResources` | 拡張子にも `initiatorType` にも当たらなかった取得（`/assets/content?id=123` のような拡張子なしの配信）。**捨てずに中身を確かめる**——クロスオリジンのシートが読めない書体はここにしか出ないことがある |
+| `resourcesCompleteness` / `resourceEntryCount` | Resource Timing の網羅性は常に `unknown`（バッファ容量は API から読めず、`setResourceTimingBufferSize` で変わるため、溢れの有無を後から証明できない）。件数は目安として使い、**`resources` を「これで全部」の根拠にしない**——`fontFaces` / `urlRefs` / `unclassifiedResources` と突き合わせ、埋まらなければ「未確認」と書く |
 | `shadowRoots` | 走査した open な shadow root の数（内側の要素・スタイルシートも上の各キーに含む）。closed な shadow root は読めないため、Web Components を使うページでは画面と突き合わせる |
 | `unreadableSheets` | `cssRules` を読めなかったスタイルシート。**1 件以上なら `fontFaces` は網羅ではない**——`resources` の書体ファイルと突き合わせ、埋まらなければ「未確認」と書く |
 
@@ -58,7 +60,13 @@
 ### 「同等物を作る」は選んだ時点で宣言する
 
 **ラスタライズの差は実装では消せない。** 書体のラスタライズ（副画素の平滑化が乗る）と、輪郭を図形にした描画は、形と位置が合っていても**縁が一致しない**ので差分器に毎回出る。
-宣言を実装後に回すと、`parity-diff` の反復を 1 回余計に回してから人へ承認を求めることになる。
+宣言が無いまま実装すると、その差は差分器の出力に**説明の付かない差**として現れ、人は「実装の誤りか、資産を写さなかった結果か」を差分を見てから調べ直すことになる。
+着手前に宣言しておけば、`parity-diff` のトリアージが最初からその根拠で分類でき、同じ判断を機能ごとに繰り返さない。
+
+**ただし宣言だけでは画素経路の差は消えない。** `intentional_diffs` は分類の根拠としては全経路に効くが、
+画素経路の候補は**インスタンス単位の例外**（`.replace/parity/<slug>/component-diff-exceptions.json` の `property: pixel`）でしか吸収できず、
+それを書くのは差分が出た後の `parity-diff` である（正本は `parity-diff` の `references/normalize.md`「レジストリの適用対象」と「画素経路の例外の適用」）。
+**宣言は往復を無くすものではなく、承認の根拠を実装前に用意して分類を決定論的にするもの**として扱う。
 
 - ユーザーが「同等物を作る」を選んだら、**残る差を 1 文の宣言にして、ユーザーの承認を得てから** `intentional_diffs.may_change` へ非破壊追記する（承認済みの方針を 1 回記録するだけ。書き手区分の正本は [`project-config.md`](project-config.md)「キーの書き手とライフサイクル」）。
   台帳の「宣言」列に同じ文言を写す（照合キー）

@@ -225,16 +225,34 @@ export const assetProbe = () => {
     .filter((link) => /(^|\s)manifest(\s|$)/i.test(link.rel))
     .map((link) => ({ href: link.href, iconsInspected: false }));
 
+  // 拡張子は資産の十分条件でしかない（/assets/content?id=123 のような拡張子なしの配信がある）。
+  // 拡張子にも initiatorType にも当たらない取得は捨てず unclassified として残す。
   const ASSET_EXT = /\.(woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|bmp|cur)(\?|#|$)/i;
+  const ASSET_INITIATORS = new Set([
+    "img",
+    "image",
+    "css",
+    "link",
+    "font",
+    "input",
+    "video",
+    "track",
+  ]);
   const resourceEntries = performance.getEntriesByType
     ? performance.getEntriesByType("resource")
     : [];
-  // Resource Timing のバッファは既定 250 件で、溢れた以降の取得は記録されない（黙って欠ける）。
-  const RESOURCE_BUFFER_DEFAULT = 250;
-  const resourcesMaybeTruncated = resourceEntries.length >= RESOURCE_BUFFER_DEFAULT;
-  const resources = resourceEntries
-    .filter((entry) => ASSET_EXT.test(entry.name))
-    .map((entry) => ({ url: entry.name, initiatorType: entry.initiatorType }));
+  const resources = [];
+  const unclassifiedResources = [];
+  for (const entry of resourceEntries) {
+    const row = { url: entry.name, initiatorType: entry.initiatorType };
+    if (ASSET_EXT.test(entry.name)) resources.push({ ...row, matchedBy: "extension" });
+    else if (ASSET_INITIATORS.has(entry.initiatorType))
+      resources.push({ ...row, matchedBy: "initiator" });
+    else unclassifiedResources.push(row);
+  }
+  // Resource Timing のバッファ容量は API から読めず（既定 250 件だが setResourceTimingBufferSize で変わる）、
+  // 取得後に溢れの有無を証明する手段が無い。件数だけを返し、網羅性は unknown として扱わせる。
+  const resourcesCompleteness = "unknown";
 
   return {
     url: location.pathname,
@@ -246,7 +264,9 @@ export const assetProbe = () => {
     icons,
     manifests,
     resources,
-    resourcesMaybeTruncated,
+    unclassifiedResources,
+    resourceEntryCount: resourceEntries.length,
+    resourcesCompleteness,
     shadowRoots: roots.length - 1,
     unreadableSheets,
   };
