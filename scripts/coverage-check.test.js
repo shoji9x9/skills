@@ -21,6 +21,7 @@ const {
   captureFingerprint,
   countCoverage: countCoverageRaw,
   coverageFingerprint,
+  MIN_COVERAGE_EXPAND_VERSION,
   readCaptureForFingerprint,
   readDeclaration,
 } = await import(script);
@@ -46,7 +47,8 @@ function countCoverage(coverage, slug, captureNow = captureFingerprint(CAPTURE))
 /** coverage-expand が書き戻すプロファイル適合の記録（無い・ok: false は収束させない）。 */
 const conformance = {
   tool: "coverage-expand",
-  tool_version: "1",
+  // 撮影状態の要約は生成側の版が下限以上のときだけ信頼される（導出の意味論が変わった版）。
+  tool_version: String(MIN_COVERAGE_EXPAND_VERSION),
   ok: true,
   visual_states: { checked: true, rows: 0, undecided: 0, missing_states: [] },
 };
@@ -1083,4 +1085,49 @@ test("いまの撮影条件を読めないときは照合済みに倒さない",
   expect(problems.join("\n")).toMatch(
     /撮影条件（capture_conditions の pages \/ states \/ popup_inventory）を読めない/,
   );
+});
+
+// 指紋は「その表を忠実に写したか」しか言わない。壊れた導出規則で作られた要約も指紋は一致するので、
+// 生成側の版を見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける（Issue #389 のレビュー指摘）。
+test("撮影状態の要約は下限より古い導出規則で作られていたら通さない", () => {
+  const base = () => {
+    const cov = full();
+    cov.conformance = {
+      ...conformance,
+      visual_states: { ...conformance.visual_states, rows: 0 },
+    };
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+    return cov;
+  };
+  const now = captureFingerprint(CAPTURE);
+  const withVersion = (version) => {
+    const cov = base();
+    cov.conformance.tool_version = version;
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    return cov;
+  };
+
+  // 陽性コントロール: 下限ちょうど・それ以降は通る（常に落とす実装を弾く）。
+  for (const version of [MIN_COVERAGE_EXPAND_VERSION, MIN_COVERAGE_EXPAND_VERSION + 1]) {
+    expect(countCoverageRaw(withVersion(String(version)), "order-list", now).problems).toEqual([]);
+  }
+
+  // 下限より古い版・非数値・空は落とす（「判定しない」に倒さない）。
+  for (const version of [String(MIN_COVERAGE_EXPAND_VERSION - 1), "x", ""]) {
+    const problems = countCoverageRaw(withVersion(version), "order-list", now).problems;
+    expect(problems.join("\n")).toMatch(
+      new RegExp(`coverage-expand ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則`),
+    );
+  }
+
+  // 生成側が別ツール・空なら、誰が書いた要約か確かめられないので落とす。
+  for (const tool of ["other-tool", ""]) {
+    const cov = base();
+    cov.conformance.tool = tool;
+    cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+    expect(countCoverageRaw(cov, "order-list", now).problems.join("\n")).toMatch(
+      /conformance.tool が coverage-expand ではない/,
+    );
+  }
 });
