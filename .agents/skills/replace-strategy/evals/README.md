@@ -100,6 +100,8 @@ scripts/run-skill-eval.sh \
   fixture の features.md が空の「受け入れ条件」列を持つため、**列を埋めること自体は baseline にも誘導される**（列の存在は新テンプレート由来で、入力から外すと突き合わせの記録先が消える）。
   baseline が落ちたのは、横断の記述を**消費側のゲート**ではなく `#101` 自身の被覆不足として扱った点（assertion 4）と、
   列に Issue 本文の条件を散文で転記して番号・`未被覆`・`配線未達` の書き分けにしなかった点（assertion 6）。
-  1 run なので Delta の数値は語らず、assertion 1〜3 は**後退検知**の項目として残している
+  1 run なので Delta の数値は語らず、**baseline も通った assertion 1〜3・5 は後退検知**の項目として残している
+  （assertion 5 は「承認を得てから本文を追記する」で、baseline も `gh` が使えないことを理由に外向き操作を控えたため通った。
+  この eval の意味のある Delta は 4・6 の 2 本と数える）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
