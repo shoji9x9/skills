@@ -29,6 +29,7 @@
 | `images` | `img` / `input[type=image]` / SVG の `image`・`use` の参照先と、`rendered`（描かれている件数） |
 | `glyphs` | 疑似要素（`::before` / `::after`）の `content` の文字・コードポイント・`font-family`。**`privateUse: true` はアイコン用の書体のグリフの目印** |
 | `urlRefs` | `url()` 参照（疑似要素を含む）。走査したプロパティは `urlPropsScanned` が返す |
+| `localFragmentRefs` | 同一文書内の断片参照（`fill: url(#grad)` 等）。**外部資産ではないので台帳の行にしない**——文書内の SVG 定義の所在として、写す対象の画面を特定する手がかりに使う |
 | `urlPropsScanned` | `url()` を読んだプロパティの一覧（allowlist）。**ここに無いプロパティは見ていない**——現行の CSS に `url()` を取る別のプロパティがあれば、その資産は棚卸しに出ないので台帳に「未走査（プロパティ名）」と書く |
 | `fontFaces` / `loadedFonts` | `@font-face` の `src` と、実際に読み込まれた書体 |
 | `icons` | favicon 等の `link[rel]`（`icon` / `apple-touch-icon` / `mask-icon`） |

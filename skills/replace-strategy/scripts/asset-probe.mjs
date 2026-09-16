@@ -62,12 +62,16 @@ export const assetProbe = () => {
 
   // 計算後スタイルの url() は解決済みの絶対 URL で返るが、CSSOM の規則（@font-face の src 等）は書かれたままの相対 URL を返す。
   // 相対 URL の基準はそのスタイルシートの URL なので、規則から読むときは base にシートの href を渡す。
+  // 同一文書内の断片参照（fill: url(#grad) 等）は外部資産ではない。base で解決すると文書自身の URL になり、
+  // 台帳に「現在の HTML を写すか」という行が生まれるので、外部参照と分けて返す。
   const urlsIn = (value, base = document.baseURI) => {
     const out = [];
     const re = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
     let m;
     while ((m = re.exec(value || ""))) {
-      if (m[2]) out.push(new URL(m[2], base).href);
+      if (!m[2]) continue;
+      if (m[2].startsWith("#")) out.push({ url: m[2], localFragment: true });
+      else out.push({ url: new URL(m[2], base).href, localFragment: false });
     }
     return out;
   };
@@ -105,6 +109,8 @@ export const assetProbe = () => {
 
   const images = new Map();
   const urlRefs = new Map();
+  // 同一文書内の断片参照（外部資産ではないが、SVG 定義の所在として棚卸しの手がかりになる）。
+  const localFragmentRefs = new Map();
   const glyphs = new Map();
 
   // open な shadow root の内側も走査する（querySelectorAll は shadow 境界を越えないため、
@@ -158,11 +164,12 @@ export const assetProbe = () => {
           );
         }
         for (const prop of URL_PROPS) {
-          for (const url of urlsIn(style.getPropertyValue(prop))) {
+          for (const ref of urlsIn(style.getPropertyValue(prop))) {
+            const target = ref.localFragment ? localFragmentRefs : urlRefs;
             bump(
-              urlRefs,
-              JSON.stringify([prop, pseudo, url]),
-              { url, property: prop, pseudo },
+              target,
+              JSON.stringify([prop, pseudo, ref.url]),
+              { url: ref.url, property: prop, pseudo },
               el,
               pseudoRendered,
             );
@@ -171,11 +178,12 @@ export const assetProbe = () => {
       } else {
         for (const prop of URL_PROPS) {
           if (prop === "content") continue;
-          for (const url of urlsIn(style.getPropertyValue(prop))) {
+          for (const ref of urlsIn(style.getPropertyValue(prop))) {
+            const target = ref.localFragment ? localFragmentRefs : urlRefs;
             bump(
-              urlRefs,
-              JSON.stringify([prop, null, url]),
-              { url, property: prop, pseudo: null },
+              target,
+              JSON.stringify([prop, null, ref.url]),
+              { url: ref.url, property: prop, pseudo: null },
               el,
               rendered,
             );
@@ -196,7 +204,9 @@ export const assetProbe = () => {
           family: rule.style.getPropertyValue("font-family").trim(),
           weight: rule.style.getPropertyValue("font-weight").trim() || null,
           style: rule.style.getPropertyValue("font-style").trim() || null,
-          src: urlsIn(rule.style.getPropertyValue("src"), base),
+          src: urlsIn(rule.style.getPropertyValue("src"), base)
+            .filter((ref) => !ref.localFragment)
+            .map((ref) => ref.url),
           sheet: sheetHref,
         });
       } else if (rule.type === CSSRule.IMPORT_RULE && rule.styleSheet) {
@@ -272,6 +282,7 @@ export const assetProbe = () => {
     url: location.pathname,
     images: Array.from(images.values()),
     urlRefs: Array.from(urlRefs.values()),
+    localFragmentRefs: Array.from(localFragmentRefs.values()),
     glyphs: Array.from(glyphs.values()),
     fontFaces,
     loadedFonts,
