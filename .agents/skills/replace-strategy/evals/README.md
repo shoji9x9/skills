@@ -87,5 +87,19 @@ scripts/run-skill-eval.sh \
   スキル固有なのは「口ごとの根拠を機能一覧の列に残し、クエリの粒度を API の外部単位に短絡させない」ことで、そこだけが安定して Delta に出る。
   **assertion 2 の括弧書きは「根拠が同じ口をまとめてよい」という様式側の許可と矛盾しない形にしてある**——
   禁じているのは `GET` の根拠エントリに書き込み系の口を含めることであって、同一根拠の書き込み系どうしをまとめることではない
+- eval 30 の fixture（`issues-acceptance-coverage`）は**全行が起票済み**（Issue 列が全て埋まっている）インベントリを持たせ、
+  **起票の後に行と受け入れ条件を突き合わせる段**を検証する。`gh` が使えない環境のため各 Issue の受け入れ条件は prompt に貼って被覆集合の材料を与えている。
+  仕込んだ欠落は 2 つ——`notification-banner` は Issue 列に `#102` があるが `#102` の受け入れ条件には現れない（**Issue 列を被覆の根拠にすると見つからない**）、
+  `order`（`#102`）には横断 API `user` の配線の項が無い。**`report`（`#103`）には同じ配線の項がある**ので、
+  assertion 3 は「落ちた配線だけを挙げる」弁別（全 fan-out を無差別に挙げると fail）になる。
+  prompt の末尾で `.replace/features.md` への書き戻しを求めているのは assertion 6 の**到達**のため——
+  採点材料は `project-files/.replace/features.md` なので、報告だけで終わる run では真偽を測れない。
+  列名（`受け入れ条件`）・値の語彙（`未被覆` / 空欄の書き分け）は渡していないので弁別は残る。
+  **iteration-32 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 6/6・`without_skill` 4/6。
+  **弁別したのは assertion 4・6 だけ**——baseline も `notification-banner` の落ちた行（assertion 1・2）と `order` の落ちた配線（assertion 3）は自力で見つけた。
+  fixture の features.md が空の「受け入れ条件」列を持つため、**列を埋めること自体は baseline にも誘導される**（列の存在は新テンプレート由来で、入力から外すと突き合わせの記録先が消える）。
+  baseline が落ちたのは、横断の記述を**消費側のゲート**ではなく `#101` 自身の被覆不足として扱った点（assertion 4）と、
+  列に Issue 本文の条件を散文で転記して番号・`未被覆`・`配線未達` の書き分けにしなかった点（assertion 6）。
+  1 run なので Delta の数値は語らず、assertion 1〜3 は**後退検知**の項目として残している
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

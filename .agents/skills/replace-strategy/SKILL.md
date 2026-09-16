@@ -83,9 +83,11 @@ replace-strategy status
 **置換系スキル群に共通する自律性ポリシーの正本は [`references/autonomy.md`](references/autonomy.md)**（宣言の仕方・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）。
 姉妹スキルはそれぞれの「自律実行」節で固有の対応だけを持ち、同ファイルを参照する。本スキル固有の対応:
 
-- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、静的資産の方針と「同等物を作る」の宣言の承認（手順 11）、`issues` モードの起票の承認
+- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、静的資産の方針と「同等物を作る」の宣言の承認（手順 11）、`issues` モードの起票の承認と**落ちた行・落ちた配線を塞ぐ既存 Issue の本文追記の承認**
 - **依存関係**: 手順 3 の値が設定に無い項目に依存する工程は止める（例: `targets` が未確定なら測定も止まる）。手順 6 が保留なら `.replace/strategy.md` を確定せず、戦略に依存しない測定（手順 5）・機能インベントリの下書き（手順 9）は進める
-- **`issues` モードは起票しない**（`issue-create` への委譲は越えない線）。候補・依存関係・本文ドラフトを作って保留に記録し、終わりにまとめて承認を聞く。承認が得られたら同じ実行で 1 件ずつ委譲する
+- **`issues` モードは起票しない**（`issue-create` への委譲は越えない線）。候補・依存関係・本文ドラフトを作って保留に記録し、終わりにまとめて承認を聞く。承認が得られたら同じ実行で 1 件ずつ委譲する。
+  **既存 Issue の本文編集も越えない線**なので、突き合わせで見つけた落ちた行・落ちた配線の追記案も同じ扱い——追記する番号と差分を保留に記録し（`blocks` にその行の着手を挙げる）、承認が得られたら同じ実行で反映する。
+  突き合わせ自体（本文の取得と差分）は読み取りなので保留にせず進め、結果は「受け入れ条件」列へ書き戻す
 - **記録先**: `.replace/strategy-pending.json`（テンプレート: [`assets/strategy-pending-template.json`](assets/strategy-pending-template.json)）
 - **`setup` の保留が残る間は `.replace/features.md` / `.replace/components.md` を作らない**——下流はこの 2 つの存在を `setup` 完了とみなす。
   機能インベントリ・部品インベントリは `.replace/features.draft.md` / `.replace/components.draft.md` に下書きし、答えを反映したら正規の名前へ移す。
@@ -209,6 +211,9 @@ replace-strategy status
 - 同じページに乗る機能はページ一覧から束ねて連続順を提案し、着手前に slug ごとの再実行回数・束の合計・最後にマスクが外れる全面比較を示す（実依存を逆転させない。数え方は [`references/features-issues.md`](references/features-issues.md)）
 - **明示承認が得られない場合——利用者が不在（非対話実行）・無応答・応答が承認以外——は起票せず停止する**（`gh issue create` も `issue-create` への委譲も行わない）。
   `--autonomous` の実行ではドラフトを保留に記録してから終える（上記「自律実行」）
+- **起票したら、インベントリの全行と Issue の受け入れ条件を突き合わせる**——被覆の正本は Issue 本文の受け入れ条件であり、Issue 列が埋まっていることは被覆の根拠にならない。
+  母集合（全行の slug）と被覆集合（各 Issue の受け入れ条件に現れた slug）の差分で落ちた行・二重の行を出し、**横断 API の fan-out が消費側の受け入れ条件へ届いているか**も同じ段で見る。
+  結果は各表の「受け入れ条件」列へ書き戻す（`未被覆` と空欄＝未突き合わせを書き分ける）。既存 Issue の本文追記は外向きの副作用なので承認を得てから行う（正本は [`references/features-issues.md`](references/features-issues.md)）
 - 重複チェックはページネーションに留意する（既定件数で打ち切らない）
 
 ## status モード
@@ -233,10 +238,10 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）。更新は非破壊 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
 | 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体を写す／同等物を作る／写さない）・ファイルと出どころ・描き方と使われるページ・再配布の可否・同等物で残る差と宣言。本スキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針空欄で非破壊追記する。正本は [`references/static-assets.md`](references/static-assets.md) |
-| 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
+| 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号・受け入れ条件の被覆と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
 | 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 

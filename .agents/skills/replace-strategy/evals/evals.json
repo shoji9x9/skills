@@ -327,6 +327,19 @@
         "入口クエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
         "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）"
       ]
+    },
+    {
+      "id": 30,
+      "fixture": "evals/fixtures/issues-acceptance-coverage",
+      "prompt": "replace-strategy issues での起票は一通り終わった（ゴールデンデータセット #100・横断 API user #101・機能 #102 / #103）。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#101（横断 API user）: user の API スイートが新側で green・強度記録を残すこと。本文には「この API は全機能から使われる」と書いてある。\n#102（注文管理）: order のパリティスイートが新側で green・未説明差分ゼロ・verification_commands.full が通ること。\n#103（集計レポート）: report のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
+      "assertions": [
+        ".replace/features.md の Issue 列が埋まっていること（notification-banner の #102）を被覆の根拠にせず、各 Issue の受け入れ条件に現れた slug との差分で被覆を判定している",
+        "notification-banner がどの Issue の受け入れ条件にも現れない落ちた行だと名指しし、#102 の受け入れ条件へ足すか別 Issue を起こして塞ぐよう示している",
+        "横断 API user の fan-out のうち order（#102）の受け入れ条件に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、同項を持つ report（#103）は落ちた配線として挙げていない",
+        "横断 API Issue（#101）の「全機能から使われる」という記述は消費側のゲートにならず、消費側の受け入れ条件に入って初めて届くと説明している",
+        "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
+        "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未被覆（空欄＝未突き合わせと同じ表記にしていない）、report は被覆した Issue 番号、order は番号に落ちた配線の併記（配線未達: user）を添えている"
+      ]
     }
   ]
 }
