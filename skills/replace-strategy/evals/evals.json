@@ -314,6 +314,19 @@
         "方針を決めるのは人であり、再配布の可否・出どころ・同等物で残る差を推測で埋めず、確認できなければその種類の方針を確定させないと述べている",
         "同等物を作る（例: グリフの輪郭を図形にする）を選んだ場合、縁の平滑化などラスタライズの差は実装で消せないため、選んだ時点でユーザー承認を得て intentional_diffs.may_change へ宣言すると述べている"
       ]
+    },
+    {
+      "id": 29,
+      "fixture": "evals/fixtures/inventory-request-unit",
+      "prompt": "測定と戦略は完了済み（.replace/survey.md / .replace/strategy.md）。現行アプリの構成: ページは計画一覧 /plans と割当一覧 /assignments の 2 つ。テーブルは MST_PLAN, MST_MEMBER, REL_PLAN_MEMBER（REL_PLAN_MEMBER の主キーは plan_id, member_id）。どちらのページも REL_PLAN_MEMBER の行を更新・削除する。受領コードで読める入口クエリは /plans のものだけで、SELECT p.plan_id, p.plan_name, r.member_id FROM MST_PLAN p LEFT JOIN REL_PLAN_MEMBER r ON r.plan_id = p.plan_id WHERE p.archived = false ORDER BY p.plan_name。/assignments の入口クエリを含むモジュールは受領資産に無く、まだ読めていない。API は /plans が GET /api/plans と REL_PLAN_MEMBER の更新・削除、/assignments が GET /api/assignments と REL_PLAN_MEMBER の更新・削除で、いずれもその画面だけが使う。副作用出力なし。replace-strategy の機能インベントリ（.replace/features.md）を作成して",
+      "assertions": [
+        "/plans の GET について、入口クエリから母集合（MST_PLAN のうち archived = false）と問い合わせの行の単位（REL_PLAN_MEMBER への LEFT JOIN があるため計画 1 件ではなく（計画, メンバー）の組）を読み取って記録しつつ、それだけで API の外部単位が決まるとはしていない（応答への写像＝マッパー／シリアライザが未確認であることを残し、GET の要求単位を実測として確定していない）",
+        "/plans の REL_PLAN_MEMBER 更新・削除を GET とは別のエントリとして記録し、それぞれ要求単位が未確定であることを残している（GET の根拠エントリに書き込み系の口を含めていない。根拠が同じ書き込み系の口どうしを 1 エントリにまとめるのは契約上可）",
+        "/assignments の口の「要求単位の根拠」を推定として記録し、入口クエリが未読であることを残している（実測と書いていない・空欄で済ませていない）",
+        "REL_PLAN_MEMBER の同じ主キーを触ることを根拠に、/assignments の更新・削除 API の形（選んだ行を 1 要求でまとめて送るか、:id を経路に持つ子ごとに呼ぶか）を確定していない",
+        "入口クエリが読めないことを理由に機能インベントリの作成を止めず、推定として記録したうえで両機能の行を書いている",
+        "GET /api/plans と GET /api/assignments をそれぞれの機能行の新規実装 API に含め、横断 API 表に載せていない（どちらもその画面だけが使う）"
+      ]
     }
   ]
 }
