@@ -1549,6 +1549,7 @@ test("同じ種別を要求する別の操作を 1 行へ束ねない（片方�
   cov.visual_state_coverage.rows.find((r) => r.required_by === "filter-popup").captured =
     "フィルタの吹き出しを開いた状態";
   const partial = reconcile(cov, bundled, {
+    pageNames: ["受注一覧"],
     states: ["default", "フィルタの吹き出しを開いた状態"],
     popupStates: ["フィルタの吹き出しを開いた状態"],
   });
@@ -1562,6 +1563,7 @@ test("同じ種別を要求する別の操作を 1 行へ束ねない（片方�
   cov.visual_state_coverage.rows.find((r) => r.required_by === "ctx-menu").captured =
     "右クリックメニューを開いた状態";
   const both = reconcile(cov, bundled, {
+    pageNames: ["受注一覧"],
     states: ["default", "フィルタの吹き出しを開いた状態", "右クリックメニューを開いた状態"],
     popupStates: ["フィルタの吹き出しを開いた状態", "右クリックメニューを開いた状態"],
   });
@@ -1596,6 +1598,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
     })),
   });
   const onePopup = {
+    pageNames: ["受注一覧"],
     states: ["default", "only-one-popup"],
     popupStates: ["only-one-popup"],
   };
@@ -1619,6 +1622,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
   for (const row of distinct.visual_state_coverage.rows) row.captured = names[row.required_by];
   expect(
     reconcile(distinct, bundled, {
+      pageNames: ["受注一覧"],
       states: ["default", ...Object.values(names)],
       popupStates: Object.values(names),
     }).problems,
@@ -1662,6 +1666,7 @@ test("同じ撮影単位で状態名を使い回した行は根拠なしに通�
   for (const row of twoPages.visual_state_coverage.rows) row.captured = names[row.required_by];
   expect(
     reconcile(twoPages, bundled, {
+      pageNames: ["受注一覧", "受注履歴"],
       states: ["default", ...Object.values(names)],
       popupStates: Object.values(names),
     }).problems,
@@ -1708,6 +1713,7 @@ test("--write は人が埋める欄を全部引き継ぐ（逃げ道が書き戻
   ]);
   expect(
     reconcile(cov, bundled, {
+      pageNames: ["受注一覧"],
       states: ["default", "only-one-popup"],
       popupStates: ["only-one-popup"],
     }).problems,
@@ -1740,7 +1746,11 @@ test("page が無いインスタンスは撮影単位を決められないので
   };
   fillVisualStateRows(cov);
   for (const row of cov.visual_state_coverage.rows) row.captured = "only-one-popup";
-  const conditions = { states: ["default", "only-one-popup"], popupStates: ["only-one-popup"] };
+  const conditions = {
+    pageNames: ["受注一覧", "サイドパネルのページ"],
+    states: ["default", "only-one-popup"],
+    popupStates: ["only-one-popup"],
+  };
   const bad = reconcile(cov, bundled, conditions);
   expect(bad.ok).toBe(false);
   expect(bad.problems.join("\n")).toMatch(/page が無い/);
@@ -1835,4 +1845,39 @@ test("metadata に capture_conditions.pages が無ければ読めたことにし
   const noPages = structuredClone(withPages);
   delete noPages.capture_conditions.pages;
   expect(readCaptureConditions(noPages)).toBeNull();
+});
+
+test("撮影条件を渡したのにページ名一覧が無ければ照合しないに倒さない", () => {
+  // 「読めない」を「比較しない」に倒すと、呼び出し側が pageNames を落とすだけで
+  // ページ名の検査が消える（fail-open）。
+  const cov = {
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "自作",
+        items: [{ id: "filter", visual_states: ["opens-container"], no_visual_state_reason: null }],
+        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
+      },
+    ],
+    cells: [
+      {
+        component: "grid",
+        item: "filter",
+        instance: "orders",
+        value: "present",
+        evidence: "実 UI で開いた",
+        covered_by: ["e2e/order-list.spec.ts > filter"],
+      },
+    ],
+  };
+  fillVisualStateRows(cov);
+  cov.visual_state_coverage.rows[0].captured = "P";
+  const base = { states: ["default", "P"], popupStates: ["P"] };
+  const r = reconcile(cov, bundled, base);
+  expect(r.ok).toBe(false);
+  expect(r.problems.join("\n")).toMatch(/ページ名一覧を読めない/);
+  // 陽性コントロール: 渡せば通る（常に落とす実装を弾く）。
+  expect(reconcile(cov, bundled, { ...base, pageNames: ["受注一覧"] }).problems).toEqual([]);
 });

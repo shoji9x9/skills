@@ -40,7 +40,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "12";
+export const VERSION = "13";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -939,10 +939,14 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
         problems.push(
           "conformance.visual_states.capture_fingerprint が無い（撮影状態の要約がどの撮影条件についてのものか確かめられない。coverage-expand.mjs を --metadata 付きで通し直す）",
         );
-      } else if (
-        captureFingerprintNow !== null &&
-        String(visual.capture_fingerprint) !== captureFingerprintNow
-      ) {
+      } else if (captureFingerprintNow === null) {
+        // 「いまの撮影条件を読めない」を「比較しない」に倒さない。倒すと、記録が正常でも
+        // metadata から capture_conditions を落としただけで古い要約が収束を通す。
+        // checked: true は撮影条件と突き合わせたという主張なので、突き合わせる相手が読めない時点で成立しない。
+        problems.push(
+          "metadata.json の撮影条件（capture_conditions の pages / states / popup_inventory）を読めないので、conformance.visual_states.capture_fingerprint と突き合わせられない（checked: true の要約を照合せずに通さない）",
+        );
+      } else if (String(visual.capture_fingerprint) !== captureFingerprintNow) {
         problems.push(
           "conformance.visual_states.capture_fingerprint が metadata.json の撮影条件と一致しない（照合後に撮影条件が書き換えられた。coverage-expand.mjs を --metadata 付きで通し直す）",
         );

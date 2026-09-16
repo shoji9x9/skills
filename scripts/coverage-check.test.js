@@ -1066,3 +1066,21 @@ test("撮影状態の要約は現在の入力と結び付いていなければ�
     }),
   ).toBe(now);
 });
+
+test("いまの撮影条件を読めないときは照合済みに倒さない", () => {
+  // 記録が正常でも、metadata から capture_conditions を落としただけで
+  // 古い要約が収束を通してはいけない（checked: true は突き合わせたという主張）。
+  const cov = full();
+  cov.conformance = { ...conformance, visual_states: { ...conformance.visual_states, rows: 0 } };
+  cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+  cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+
+  // 陽性コントロール: 読めれば通る。
+  expect(countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE)).problems).toEqual([]);
+
+  // 読めない（null）を「比較しない」に倒さない。
+  const problems = countCoverageRaw(cov, "order-list", null).problems;
+  expect(problems.join("\n")).toMatch(
+    /撮影条件（capture_conditions の pages \/ states \/ popup_inventory）を読めない/,
+  );
+});

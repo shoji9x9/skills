@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "14";
+export const VERSION = "15";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1191,7 +1191,7 @@ function unscoredProfiledCellCount(c) {
  * 被覆表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
- * @param {{pageNames?: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
+ * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
  *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みに倒さない）。
  * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
@@ -1849,7 +1849,7 @@ export function fillVisualStateRows(cov) {
  * --metadata を渡さない実行では capture_conditions.states との差を取れないため checked: false にする
  * （照合していない記録を「照合済み」に倒さない。parity-diff は checked: true を要求する）。
  * @param {Record<string, unknown>} cov
- * @param {{pageNames?: string[], states: string[], popupStates: string[]} | null} metadata
+ * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} metadata
  * @returns {{problems: string[], summary: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
 export function checkVisualStates(cov, metadata) {
@@ -1895,8 +1895,14 @@ export function checkVisualStates(cov, metadata) {
 
   const states = metadata ? new Set(metadata.states) : null;
   const popupStates = metadata ? new Set(metadata.popupStates) : null;
+  // metadata を渡された以上、ページ名の集合も来ているはず（readCaptureConditions が必ず返す）。
+  // 「無ければ照合しない」に倒すと、呼び出し側が pageNames を落とすだけでページ名の検査が消える。
   const pageNames =
-    metadata && Array.isArray(metadata.pageNames) ? new Set(metadata.pageNames) : null;
+    metadata === null
+      ? null
+      : Array.isArray(metadata.pageNames)
+        ? new Set(metadata.pageNames)
+        : "unreadable";
   /** @type {Set<string>} */
   const missingStates = new Set();
   let undecided = 0;
@@ -1966,6 +1972,13 @@ export function checkVisualStates(cov, metadata) {
     // ページ名が非空なだけでは足りない。採取は metadata の capture_conditions.pages を外側のループにして
     // 回るので、宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
     // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+    if (pageNames === "unreadable") {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: 撮影条件のページ名一覧を読めないので page「${page}」が宣言されているか照合できない（capture_conditions.pages を渡す）`,
+      );
+      continue;
+    }
     if (pageNames && !pageNames.has(page)) {
       undecided += 1;
       problems.push(
