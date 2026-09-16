@@ -1535,3 +1535,102 @@ test("同じ種別を要求する別の操作を 1 行へ束ねない（片方�
   expect(both.problems).toEqual([]);
   expect(both.visualStates).toMatchObject({ checked: true, rows: 2, undecided: 0 });
 });
+
+test("同じ撮影単位で状態名を使い回した行は根拠なしに通さない（1 枚で複数操作を満たさせない）", () => {
+  // 行のキーを要求元まで割っても、captured の値が同じなら同じ 1 枚を指す。
+  // 撮影の単位は ページ × 状態名 × ビューポートなので、キーの粒度と同じ故障が値の側に残る。
+  const base = () => ({
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
+        items: [
+          { id: "filter-popup", visual_states: ["opens-container"], no_visual_state_reason: null },
+          { id: "ctx-menu", visual_states: ["opens-container"], no_visual_state_reason: null },
+        ],
+        instances: [{ id: "orders", page: "受注一覧", locator: "orders.grid" }],
+      },
+    ],
+    cells: ["filter-popup", "ctx-menu"].map((item) => ({
+      component: "grid",
+      item,
+      instance: "orders",
+      value: "present",
+      evidence: "実 UI で開いた",
+      covered_by: [`e2e/order-list.spec.ts > ${item}`],
+    })),
+  });
+  const onePopup = {
+    states: ["default", "only-one-popup"],
+    popupStates: ["only-one-popup"],
+  };
+
+  // 陰性: 2 操作が同じ状態名を指すと落ちる。
+  const shared = base();
+  fillVisualStateRows(shared);
+  for (const row of shared.visual_state_coverage.rows) row.captured = "only-one-popup";
+  const bad = reconcile(shared, bundled, onePopup);
+  expect(bad.ok).toBe(false);
+  expect(bad.visualStates.undecided).toBe(2);
+  expect(bad.problems.join("\n")).toMatch(/撮影状態の使い回し/);
+
+  // 陽性: 別の状態名にすれば通る（常に落とす実装を弾く）。
+  const distinct = base();
+  fillVisualStateRows(distinct);
+  const names = {
+    "filter-popup": "フィルタの吹き出しを開いた状態",
+    "ctx-menu": "右クリックメニューを開いた状態",
+  };
+  for (const row of distinct.visual_state_coverage.rows) row.captured = names[row.required_by];
+  expect(
+    reconcile(distinct, bundled, {
+      states: ["default", ...Object.values(names)],
+      popupStates: Object.values(names),
+    }).problems,
+  ).toEqual([]);
+
+  // fail-closed を行き止まりにしない: 同じ器を開く 2 操作は全行に根拠を書けば通る。
+  const justified = base();
+  fillVisualStateRows(justified);
+  for (const row of justified.visual_state_coverage.rows) {
+    row.captured = "only-one-popup";
+    row.shared_capture_reason = "どちらの操作も同一の器を開くことを実 UI で確認した";
+  }
+  expect(reconcile(justified, bundled, onePopup).problems).toEqual([]);
+
+  // 根拠が一部の行にしか無ければ通さない（書いた行だけで全体を免除しない）。
+  const partial = structuredClone(justified);
+  delete partial.visual_state_coverage.rows[0].shared_capture_reason;
+  expect(reconcile(partial, bundled, onePopup).problems.join("\n")).toMatch(/根拠が空/);
+
+  // --metadata 無しでも使い回しは検出する（構造の問題なので撮影条件に依らない）。
+  expect(reconcile(shared, bundled).problems.join("\n")).toMatch(/撮影状態の使い回し/);
+
+  // 別ページのインスタンス間では使い回してよい（撮影単位が違うので別の 1 枚になる）。
+  const twoPages = base();
+  twoPages.components[0].instances.push({
+    id: "archive",
+    page: "受注履歴",
+    locator: "archive.grid",
+  });
+  for (const item of ["filter-popup", "ctx-menu"]) {
+    twoPages.cells.push({
+      component: "grid",
+      item,
+      instance: "archive",
+      value: "present",
+      evidence: "実 UI で開いた",
+      covered_by: [`e2e/archive.spec.ts > ${item}`],
+    });
+  }
+  fillVisualStateRows(twoPages);
+  for (const row of twoPages.visual_state_coverage.rows) row.captured = names[row.required_by];
+  expect(
+    reconcile(twoPages, bundled, {
+      states: ["default", ...Object.values(names)],
+      popupStates: Object.values(names),
+    }).problems,
+  ).toEqual([]);
+});

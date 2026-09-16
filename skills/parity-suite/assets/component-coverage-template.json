@@ -154,7 +154,7 @@
     }
   ],
   "visual_state_coverage": {
-    "_note": "撮影状態の必要集合を被覆表から導いた結果。行の単位は「部品 × インスタンス × 要求元の操作 × 種別」。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は従来どおり手で states へ足す。",
+    "_note": "撮影状態の必要集合を被覆表から導いた結果。行の単位は「部品 × インスタンス × 要求元の操作 × 種別」。captured の値も同じ撮影単位の中で一意にする（重複は shared_capture_reason が全行にあるときだけ通る）。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は従来どおり手で states へ足す。",
     "rows": [
       {
         "component": "<部品 id>",
@@ -162,6 +162,7 @@
         "required_by": "<この状態を要求した項目 id（プロファイル由来なら候補ルール id）。coverage-expand.mjs が書き戻す。行のキーの一部——種別だけで束ねると、同じ種別を要求する別の操作（列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、片方の状態名を書くだけで門が通る>",
         "kind": "<opens-container | hover | focus | active | disabled>",
         "captured": "<撮るなら metadata.json の capture_conditions.states の状態名（kind: opens-container は capture_conditions.popup_inventory[].captured と同じ状態名）。撮らないなら null>",
+        "shared_capture_reason": "<同じ撮影単位（同じページ。ページを書いていなければ同じインスタンス）の別の行と captured を共有するときだけ、共有してよい根拠。別々の操作が本当に同じ器を開くことを実 UI で確かめた記録を書く。共有する全行に要る（片方だけでは通らない）。共有しないなら null。撮影は ページ × 状態名 × ビューポート の単位なので、根拠なく状態名を使い回すと 1 枚で複数の操作を満たしたことになり、撮られなかった側の差が「差 0 件」と同じ見え方に戻る>",
         "reason": "<captured が null のときだけ撮らない／撮れない理由（例: 押すと外部連携が起動する、不活性になる条件が現行に無い）。同じ文言を gaps.md「特性化できなかった箇所と理由」へ種別「撮影状態の対象外」として残す。撮るなら null>"
       }
     ]

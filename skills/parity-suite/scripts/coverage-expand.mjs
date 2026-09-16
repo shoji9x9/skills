@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "11";
+export const VERSION = "12";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1838,6 +1838,32 @@ export function checkVisualStates(cov, metadata) {
   const missingStates = new Set();
   let undecided = 0;
 
+  // 撮影の単位は ページ × 状態名 × ビューポートなので、同じページで状態名を使い回した行は
+  // 同じ 1 枚を指す。行のキーを要求元まで割っても、値が同じなら 1 回の撮影で複数の操作が満たされ、
+  // 撮られなかった側の差は「差 0 件」に戻る（キーの粒度と同じ故障が値の側に残る）。
+  // ページを解決できないインスタンスは、そのインスタンス自身を単位にする
+  // （同じページの別インスタンス間の使い回しは判定できない。狭い側＝そのインスタンス内の重複だけを見る）。
+  /** @type {Map<string, string>} */
+  const scopeByInstance = new Map();
+  for (const component of Array.isArray(cov.components) ? cov.components : []) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.id)) continue;
+    for (const instance of Array.isArray(c.instances) ? c.instances : []) {
+      if (!isPlainObject(instance)) continue;
+      const inst = /** @type {Record<string, unknown>} */ (instance);
+      if (!nonEmptyString(inst.id)) continue;
+      const key = JSON.stringify([String(c.id), String(inst.id)]);
+      if (scopeByInstance.has(key)) continue;
+      scopeByInstance.set(
+        key,
+        nonEmptyString(inst.page) ? `page:${String(inst.page)}` : `instance:${key}`,
+      );
+    }
+  }
+  /** @type {Map<string, Array<{label: string, row: Record<string, unknown>}>>} */
+  const capturedUses = new Map();
+
   for (const derivedRow of derivedRows) {
     const label = `${String(derivedRow.component)} / ${String(derivedRow.instance)} / ${String(derivedRow.required_by)} / ${String(derivedRow.kind)}`;
     const key = visualRowKey(derivedRow);
@@ -1866,6 +1892,15 @@ export function checkVisualStates(cov, metadata) {
       continue;
     }
     if (!captured) continue;
+    const scope =
+      scopeByInstance.get(
+        JSON.stringify([String(derivedRow.component), String(derivedRow.instance)]),
+      ) ??
+      `instance:${JSON.stringify([String(derivedRow.component), String(derivedRow.instance)])}`;
+    const useKey = JSON.stringify([scope, captured]);
+    const uses = capturedUses.get(useKey) ?? [];
+    uses.push({ label, row });
+    capturedUses.set(useKey, uses);
     if (!states) continue;
     if (!states.has(captured)) {
       missingStates.add(captured);
@@ -1882,6 +1917,21 @@ export function checkVisualStates(cov, metadata) {
         `撮影状態 ${label}: captured の ${captured} が capture_conditions.popup_inventory[].captured に無い（器の棚卸しに行を足す）`,
       );
     }
+  }
+
+  // 同じ撮影単位で状態名を共有する行は、共有してよい根拠が全行に要る。
+  // 根拠の欄を置くのは、fail-closed を行き止まりにしないため（本当に同じ器を開く 2 操作がありうる）。
+  // 根拠なしの共有は、1 枚で複数の操作を満たした状態と区別が付かないので落とす。
+  for (const uses of capturedUses.values()) {
+    if (uses.length < 2) continue;
+    const missingReason = uses.filter((u) => !nonEmptyString(u.row.shared_capture_reason));
+    if (missingReason.length === 0) continue;
+    undecided += missingReason.length;
+    problems.push(
+      `撮影状態の使い回し: ${uses.map((u) => u.label).join(" / ")} が同じ状態名 ${String(uses[0].row.captured)} を指している` +
+        `（同じ撮影単位では 1 枚が複数の操作を満たしてしまう。別の状態名にするか、同じ器を開く操作であることを全行の shared_capture_reason に書く。` +
+        `根拠が空: ${missingReason.map((u) => u.label).join(" / ")}）`,
+    );
   }
 
   for (const leftover of recorded.values()) {

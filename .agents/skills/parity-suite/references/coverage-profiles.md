@@ -120,7 +120,7 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
 | 証拠なし | `present` / `absent` なのに `evidence` が空 |
 | 対応付けなし | `present` なのに `covered_by` が空 |
 | 同値クラス | 下記の制約に反する |
-| 撮影状態 | 導いた行（**要求元の操作 × 種別**）の `captured` / `reason` がどちらも空、行が導出と過不足、`captured` が `capture_conditions.states`（`opens-container` は `popup_inventory` にも）に無い |
+| 撮影状態 | 導いた行（**要求元の操作 × 種別**）の `captured` / `reason` がどちらも空、行が導出と過不足、`captured` が `capture_conditions.states`（`opens-container` は `popup_inventory` にも）に無い、同じ撮影単位で `captured` を根拠なく使い回している |
 
 **未測定・証拠なし・対応付けなしの判定規則は [`coverage.md`](coverage.md)「部品被覆表」が正本**で、
 ここでは候補由来の期待セルに対して同じ規則を当てるとだけ決める（規則をここへ転記しない）。
