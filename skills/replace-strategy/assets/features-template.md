@@ -29,11 +29,15 @@
 <!-- slug: ASCII kebab-case・インベントリ全体で一意。日本語機能名は短い英語に要約（例: 注文一覧＋注文詳細 → order） -->
 <!-- 依存順: 横断 API → 依存の浅い機能 → 深い機能。副作用出力は所有者の行に記録する（対象／スコープ外の別も） -->
 <!-- Issue 列: 未起票なら「未起票」、起票済みなら番号（#12 等） -->
+<!-- 要求単位の根拠: 「新規実装 API」の形を何から決めたかを書く。書いた時点の事実なので、後から読んだときだけ「推定」→「実測」へ更新する（Issue 状態のような写しではない） -->
+<!-- 　　`実測: <読んだ入口の問い合わせ>（母集合=… / 1 行=…）` か `推定: <根拠にした slug> と同形と仮定・入口の問い合わせ未読` の形で書く。空欄にしない -->
+<!-- 　　同形とみなした slug が無いなら `推定: 同形の参照なし・入口の問い合わせ未読` と書く（書ける形が無いことを理由に空欄へ倒さない） -->
+<!-- 　　同じ表・同じ主キーを触ることは、要求の単位が同じ根拠にならない。推定のまま残った行は status モードが未検証領域として報告する（正本は replace-strategy の references/features-issues.md「API の形は要求単位を読んでから決める」） -->
 
-| slug | 機能名 | 依存順 | ページ | 新規実装 API | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue |
-|---|---|---|---|---|---|---|---|---|
-| order | 注文管理 | 2 | /orders, /orders/:id | GET /api/orders | user | orders, order_items | CSV 出力（対象）、確認メール（スコープ外） | 未起票 |
-| notification-banner | お知らせバナー | 1 | /orders | GET /api/notices | - | notices | - | 未起票 |
+| slug | 機能名 | 依存順 | ページ | 新規実装 API | 要求単位の根拠 | 依存する横断 API（リソース slug） | テーブル | 副作用出力 | Issue |
+|---|---|---|---|---|---|---|---|---|---|
+| order | 注文管理 | 2 | /orders, /orders/:id | GET /api/orders | 実測: /orders の入口 SELECT を読了（母集合=orders / 1 行=注文 1 件） | user | orders, order_items | CSV 出力（対象）、確認メール（スコープ外） | 未起票 |
+| notification-banner | お知らせバナー | 1 | /orders | GET /api/notices | 推定: order と同形と仮定・入口の問い合わせ未読 | - | notices | - | 未起票 |
 
 ## ページ一覧
 
@@ -69,10 +73,11 @@
 <!-- 参照テーブル: この横断 API が読み書きするテーブル。機能一覧の「テーブル」列に出てこないテーブルも必ずここに書く -->
 <!-- （横断 API からしか参照されないテーブルはこの列だけが置き場所であり、抜けると golden-dataset の対象から落ちる） -->
 <!-- 読むテーブルが本当に無い場合だけ `-` と書く。空欄は「未調査」として下流で確認待ちになる -->
+<!-- 要求単位の根拠: 機能一覧と同じ規則で「API」列の形の出どころを書く（正本は replace-strategy の references/features-issues.md「API の形は要求単位を読んでから決める」） -->
 
-| slug | リソース | API | fan-out（利用機能 slug） | 参照テーブル | Issue |
-|---|---|---|---|---|---|
-| user | ユーザー | GET /api/users, GET /api/users/:id | order, report | users, user_roles | 未起票 |
+| slug | リソース | API | 要求単位の根拠 | fan-out（利用機能 slug） | 参照テーブル | Issue |
+|---|---|---|---|---|---|---|
+| user | ユーザー | GET /api/users, GET /api/users/:id | 実測: 共通ヘッダの入口 SELECT を読了（母集合=users / 1 行=ユーザー 1 件） | order, report | users, user_roles | 未起票 |
 
 ## バッチ
 

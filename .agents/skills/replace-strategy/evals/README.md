@@ -71,5 +71,12 @@ scripts/run-skill-eval.sh \
   **差がある状態で確定を拒むこと・共通集約コマンドまたは必須 CI 上の乖離検査まで将来の drift 対策として要求すること**を測るためである
 - eval 28 は fixture 無しで、`setup` 手順 11 のプローブ結果（`rendered: 0` の `img`・私用領域のグリフ・本文用とアイコン用の `@font-face`）を与え、「出ない画像は写さない・書体は依存で決定済み・機能ごとに考える」という誘導に対して、
   疑似要素との突き合わせ、依存と別の台帳（`.replace/assets.md`）、書体の行の分離、実装前の一括決定、推測で埋めないこと、同等物を選んだ時点の `may_change` 宣言を検証する（Issue #368）
+- eval 29 の fixture（`inventory-request-unit`）は測定・戦略が完了した状態を持たせ、**同じ表・同じ主キー（`REL_PLAN_MEMBER`）を触る 2 画面のうち、入口クエリが読めるのは片方だけ**という構成で、
+  機能一覧の「要求単位の根拠」列に実測（母集合・1 行が表すもの）と推定を書き分けること、**主キーが同じことを根拠に未読側の API を同形として確定しない**ことを検証する。
+  推定のまま記録して進む（インベントリの作成自体は止めない）ことも測る。fixture・プロンプトのどちらにも「要求単位」という語も、未入手の範囲を推定と明記せよという指示も、2 画面の API を同形としてよいかの結論も書かない
+  （書くと baseline がそれを読んで assertion を満たす）。未読であることは survey の「未測定の項目」と「現行コードの入手性」に一次情報として置く（Issue #376）。
+  **弁別するのは assertion 1・2 だけ**（iteration-28 で実測: `with_skill` 5/5・`without_skill` 3/5）——baseline は入口クエリの `LEFT JOIN` を読んで NULL 行・1 計画 N 行まで分析し、
+  未入手の `/assignments` も自前の gaps 表に載せたため、**assertion 3（同形として確定しない）・4（止めない）・5（単一画面 API を横断 API にしない）は baseline も自力で到達する**。
+  この 3 本は Delta ではなく**後退検知**が目的の項目として残している。スキル固有なのは「行の根拠として `実測` / `推定` を機能一覧の列に残す」ことで、そこだけが Delta に出る
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
