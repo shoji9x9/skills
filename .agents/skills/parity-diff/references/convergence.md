@@ -64,6 +64,10 @@
     および被覆表の **`conformance` が無い・`ok` が `true` でない**（`parity-suite` の `coverage-expand.mjs` が未実行・未達）も落とす。
     `conformance` の欠落は「旧成果物」ではなく未実行として扱う——`declared: true` は被覆表の契約に乗ることの宣言だから
     （後方互換で判定を飛ばすのは `component_coverage` を**キーごと持たない**成果物だけ）。
+    **撮影状態の導出**（`conformance.visual_states`）も同じ扱いで、**キーが無い・`checked` が `true` でない・`undecided` が 0 でない・`missing_states` が空でない**は落とす——
+    `checked: false` は `coverage-expand.mjs` を `--metadata` 無しで走らせた記録で、被覆表から導いた撮影状態を `capture_conditions.states` と突き合わせていない。
+    **撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べない**ので、集合の不足を通すと素通りと見分けが付かない
+    （導出の契約は `parity-suite` の `references/baseline.md`「撮影状態の決め方（1）被覆表から導く」）。
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る、2 ＝ 使い方の誤り。1 件以上なら収束させず `parity-suite` へ戻して測らせる。
     **`metadata.json` や `component_coverage` の型崩れ**（オブジェクトでない・`declared` が真偽値でない・`path` が空でない文字列でない）と、
     **`declared: false` なのに `reason` が空**（免除の根拠が残らない）は、後方互換の「判定しない」に倒さず exit 2 で落ちる——

@@ -39,7 +39,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "10";
+export const VERSION = "11";
 
 /** 被覆表のセルが取りうる値。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -807,6 +807,35 @@ export function countCoverage(coverage, slug) {
       problems.push(
         `conformance.ok が true ではない（プロファイル適合が未達のまま。${nonEmptyString(conf.tool) ? String(conf.tool) : "coverage-expand"} の問題を解消する）`,
       );
+    }
+    // 撮影状態の導出は --metadata を渡した実行でしか capture_conditions.states と突き合わせられない。
+    // 照合していない記録（checked: false・キーの欠落）を合格に倒すと、撮る状態が足りない機能が
+    // 「差 0 件」のまま収束する——差分器は撮った 2 枚しか比べないので、不足は素通りと同じ見え方になる。
+    const visual = isPlainObject(conf.visual_states)
+      ? /** @type {Record<string, unknown>} */ (conf.visual_states)
+      : null;
+    if (!visual) {
+      problems.push(
+        "conformance.visual_states が無い（parity-suite の coverage-expand.mjs を --metadata 付きで実行し、被覆表から導いた撮影状態を capture_conditions.states と突き合わせる）",
+      );
+    } else if (visual.checked !== true) {
+      problems.push(
+        "conformance.visual_states.checked が true ではない（--metadata 無しの実行では撮影状態を capture_conditions.states と照合していない）",
+      );
+    } else {
+      if (typeof visual.undecided !== "number" || visual.undecided !== 0) {
+        problems.push(
+          `conformance.visual_states.undecided が 0 ではない（撮る／撮れない理由が未決の撮影状態が残っている: ${String(visual.undecided)}）`,
+        );
+      }
+      const missing = Array.isArray(visual.missing_states) ? visual.missing_states : null;
+      if (missing === null) {
+        problems.push("conformance.visual_states.missing_states が配列ではない");
+      } else if (missing.length > 0) {
+        problems.push(
+          `導いた撮影状態が撮影条件に無い（capture_conditions.states、opens-container は popup_inventory[].captured も）: ${missing.map(String).join(", ")}`,
+        );
+      }
     }
   }
 

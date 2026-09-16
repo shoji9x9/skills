@@ -20,7 +20,12 @@ const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
 const { countCoverage, readDeclaration } = await import(script);
 
 /** coverage-expand が書き戻すプロファイル適合の記録（無い・ok: false は収束させない）。 */
-const conformance = { tool: "coverage-expand", tool_version: "1", ok: true };
+const conformance = {
+  tool: "coverage-expand",
+  tool_version: "1",
+  ok: true,
+  visual_states: { checked: true, rows: 0, undecided: 0, missing_states: [] },
+};
 
 /** 適合プロファイルが無い部品の宣言（profile キーの欠落＝暗黙の汎用扱いと区別する）。 */
 const noProfile = {
@@ -756,6 +761,32 @@ test("conformance が無い・ok: false は収束させない（プロファイ�
   expect(countCoverage(failed, "order-list").problems.join("\n")).toMatch(
     /conformance.ok が true ではない/,
   );
+});
+
+// 撮る状態の集合が足りないぶんは「差 0 件」と同じ見え方になる（差分器は撮った 2 枚しか比べない）。
+// 照合していない記録・未決の残る記録を収束の根拠にしないことを確認する（Issue #389）。
+test("撮影状態の導出が未照合・未決なら収束させない", () => {
+  // 陽性コントロール: 照合済みで未決ゼロなら通る（常に落とす実装を弾く）。
+  expect(countCoverage(profiled(), "order-list").problems).toEqual([]);
+
+  for (const [mutate, pattern] of [
+    [(c) => delete c.conformance.visual_states, /conformance.visual_states が無い/],
+    [
+      (c) => (c.conformance.visual_states.checked = false),
+      /visual_states.checked が true ではない/,
+    ],
+    [(c) => (c.conformance.visual_states.undecided = 2), /undecided が 0 ではない/],
+    [(c) => delete c.conformance.visual_states.undecided, /undecided が 0 ではない/],
+    [
+      (c) => (c.conformance.visual_states.missing_states = ["hover", "focus"]),
+      /導いた撮影状態が撮影条件に無い（.*）: hover, focus/,
+    ],
+    [(c) => delete c.conformance.visual_states.missing_states, /missing_states が配列ではない/],
+  ]) {
+    const cov = structuredClone(profiled());
+    mutate(cov);
+    expect(countCoverage(cov, "order-list").problems.join("\n")).toMatch(pattern);
+  }
 });
 
 test("同値クラスを宣言したら全候補の所属が要る（削減した分だけの宣言で通さない）", () => {

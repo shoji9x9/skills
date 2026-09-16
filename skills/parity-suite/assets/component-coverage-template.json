@@ -22,6 +22,10 @@
           "id": "<項目 id。cells から参照する。プロファイルを宣言した部品では候補 id（<ルール id>/<軸値を \"/\" 連結>）と一致させる>",
           "category": "<機能表の分類（例: 行操作）。プロファイル由来なら候補ルール id>",
           "name": "<項目名（例: 右クリックのコンテキストメニュー）>",
+          "visual_states": [
+            "<この項目の操作で見た目が変わる状態の種別: opens-container | hover | focus | active | disabled（重複不可）。プロファイルを宣言した部品では coverage-expand.mjs --write が candidate_rules[].visual_states から書き戻すので手で書かない。プロファイル無しの部品では手で書く。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
+          ],
+          "no_visual_state_reason": "<visual_states が空配列のときだけ、この操作で見た目の状態が変わらない理由。空だと coverage-expand.mjs が落とす。非空なら null>",
           "candidate": {
             "rule": "<プロファイル由来の項目だけ。展開元の candidate_rules の id>",
             "axes": {
@@ -149,6 +153,19 @@
       "unmeasured_reason": "<unmeasured のときだけ、測れなかった理由（例: 該当データが無く行を選択できない）。present / absent では null>"
     }
   ],
+  "visual_state_coverage": {
+    "_note": "撮影状態の必要集合を被覆表から導いた結果。行の単位は「部品 × インスタンス × 要求元の操作 × 種別」。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は従来どおり手で states へ足す。",
+    "rows": [
+      {
+        "component": "<部品 id>",
+        "instance": "<インスタンス id>",
+        "required_by": "<この状態を要求した項目 id（プロファイル由来なら候補ルール id）。coverage-expand.mjs が書き戻す。行のキーの一部——種別だけで束ねると、同じ種別を要求する別の操作（列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、片方の状態名を書くだけで門が通る>",
+        "kind": "<opens-container | hover | focus | active | disabled>",
+        "captured": "<撮るなら metadata.json の capture_conditions.states の状態名（kind: opens-container は capture_conditions.popup_inventory[].captured と同じ状態名）。撮らないなら null>",
+        "reason": "<captured が null のときだけ撮らない／撮れない理由（例: 押すと外部連携が起動する、不活性になる条件が現行に無い）。同じ文言を gaps.md「特性化できなかった箇所と理由」へ種別「撮影状態の対象外」として残す。撮るなら null>"
+      }
+    ]
+  },
   "totals": {
     "cells": 0,
     "present": 0,
@@ -162,6 +179,17 @@
     "ok": false,
     "candidates": 0,
     "unmeasured": 0,
-    "problems": ["<残っている欠落・未列挙・未測定・証拠なし・対応付けなし・同値クラスの問題>"]
+    "visual_states": {
+      "_note": "撮影状態の導出の記録。checked は --metadata を渡して capture_conditions.states / popup_inventory と照合したかで、parity-diff は checked: true を要求する（照合せずに書いた rows を収束の根拠にしない）。missing_states は導いた集合のうち states に無い状態名で、これが『足りない状態の一覧』になる。",
+      "checked": false,
+      "rows": 0,
+      "undecided": 0,
+      "missing_states": [
+        "<captured に書かれているが capture_conditions.states / popup_inventory に無い状態名>"
+      ]
+    },
+    "problems": [
+      "<残っている欠落・未列挙・未測定・証拠なし・対応付けなし・同値クラス・撮影状態未決の問題>"
+    ]
   }
 }

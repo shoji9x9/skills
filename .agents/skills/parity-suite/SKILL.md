@@ -168,6 +168,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    インスタンスごとに構成要素を来歴付きで列挙し、`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --write` で候補と適合結果を書き戻し（**コピーせずスキル配下のスクリプトをそのまま実行する**。プロファイルはスクリプトの位置から解決するので実行時の cwd は問わない）、
    欠落・未列挙・証拠なし・対応付けなしが 0 件になるまで測定へ戻る（[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
    **視覚採取を同値クラスで削減する場合も、E2E は全候補に要る**（削減してよいのはベースライン採取だけ）
+   **被覆表が埋まったら、撮る前に撮影状態の必要集合を導く**——`value: present` のセルと項目の `visual_states`（プロファイル宣言済みなら `--write` が書き戻す）から
+   **器を開く・指を乗せる・焦点を当てる・押している最中・不活性**の 5 種を `visual_state_coverage.rows` へ起こし、撮るなら `capture_conditions.states` の状態名、撮れないなら理由（`gaps.md` の「撮影状態の対象外」）を埋める。
+   **この位置なのは、測った操作からしか導けず、かつ状態を後から足すと現行側もベースラインとノイズ基準値を採り直しになるため**（[`references/baseline.md`](references/baseline.md)「撮影状態の決め方（1）被覆表から導く」）
    **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
    移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
@@ -179,7 +182,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。
    **続けて寸法の決まり方を測る**——`traits.elements` の全論理名を、撮影したビューポートを含み幅と高さを独立に動かした 4 窓以上で読む
    （`dimension/` の測定スペックを `PARITY_DIMENSION_CAPTURE=1` 付きで `current` に走らせ、`dimension-samples.json` を書く。手順 7 の強度ゲートなど他の実行では渡さず上書きさせない。当てはめは手順 8）。
-   撮影状態は見た目が変わる通常の状態（default / hover 等）に加え、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器を足して決め（棚卸しは通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
+   撮影状態は**手順 5 で被覆表から導いた集合**（`visual_state_coverage.rows` の `captured`）を土台に、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器と、
+   操作から導けない状態（`selected` / `error` / 初期表示のバリアント）を足して決め（導出も棚卸しも通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
    **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
    同じ設定で **`current` / `new` の両プロジェクトから `new-only/`（`parity-diff` が新側採取スペックを置く場所）も除外し、採取用の `new-capture` プロジェクトを用意する**（この時点では空でよい）。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない
@@ -188,7 +192,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    （**`full` が無くても、値がリスト〈旧形式＝走る範囲が未宣言〉でも停止せず** `gaps.md` に記録して進む。検証コマンドがスイートのパスを対象に含んでいない場合も、含まれていないことを記録して範囲を勝手に広げない）。
    そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
    feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
-   **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る。
+   **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る
+   （`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --metadata <metadata.json> --write`）。
+   **`--metadata` を省かない**——省くと撮影状態を `capture_conditions.states` と照合しないまま `conformance.visual_states.checked: false` で通り、`parity-diff` が収束させない
+   （撮影状態を確定した `metadata.json` を書いた後に通す）。
    `capture_conditions.dimension_model` は `node <skill>/scripts/dimension-fit.mjs fit --samples .replace/parity/<slug>/dimension-samples.json --metadata <metadata.json> --write` を exit 0 まで通して書かせる
    （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。
    測れなかったときだけ `not_measured` と理由、ビューポートが 2 つ以上で測らないときだけ `not_required` と理由を書き、キーごと省略しない。

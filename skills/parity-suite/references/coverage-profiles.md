@@ -69,6 +69,21 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
   コンテキストメニューのように「列挙されなければ静かに 0 件になる」軸を、
   「その部品には無い」と区別できない形で通さないため
 
+### 操作が要求する撮影状態（`visual_states`）
+
+**ルールは「何を測るか」だけでなく「その操作でどの見た目の状態が立つか」も宣言する。**
+撮影状態を部品ごとに手で数えると、測った操作と撮った状態が結び付かず、
+撮っていない状態の差は「差 0 件」と同じ見え方になる（正本は `parity-suite` の [`baseline.md`](baseline.md)「撮影状態の決め方（1）被覆表から導く」）。
+
+- `candidate_rules[].visual_states` に 5 種の語彙から選んで書く——
+  `opens-container`（器を開く）・`hover`（指を乗せる）・`focus`（焦点を当てる）・`active`（押している最中）・`disabled`（不活性）
+- **見た目が変わらないルールは空配列と `no_visual_state_reason`。** キーごと省略すると
+  「見た目が変わらない」と「考えていない」が同じ見え方になるため、`validateProfile` が落とす
+- `coverage-expand.mjs --write` がこの宣言を被覆表の `items[].visual_states` へ書き戻し、
+  `value: present` のセルから **部品 × インスタンス × 要求元のルール × 種別**の行を `visual_state_coverage.rows` へ起こす
+  （種別だけで束ねると、同じ種別を要求する別のルールが 1 行へ潰れて片方だけ撮れば通る）。
+  撮る／撮れないの判断はプロファイルではなくインスタンスごとの実測なので、行の `captured` / `reason` は人／エージェントが埋める
+
 ### 「本当に無い」を主張する（`justified_absences`）
 
 **fail-closed を行き止まりにしない。** 右クリックメニューを持たないグリッドのように、
@@ -105,6 +120,7 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
 | 証拠なし | `present` / `absent` なのに `evidence` が空 |
 | 対応付けなし | `present` なのに `covered_by` が空 |
 | 同値クラス | 下記の制約に反する |
+| 撮影状態 | 導いた行（**要求元の操作 × 種別**）の `captured` / `reason` がどちらも空、行が導出と過不足、`captured` が `capture_conditions.states`（`opens-container` は `popup_inventory` にも）に無い |
 
 **未測定・証拠なし・対応付けなしの判定規則は [`coverage.md`](coverage.md)「部品被覆表」が正本**で、
 ここでは候補由来の期待セルに対して同じ規則を当てるとだけ決める（規則をここへ転記しない）。

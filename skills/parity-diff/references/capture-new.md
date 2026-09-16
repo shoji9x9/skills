@@ -59,7 +59,7 @@
 - **現側 `capture_conditions.viewer_environment` が「乖離」「未確認」なら、その内容を `diff.md` の未検証領域へ転記する。** 現・新を同一条件で撮る統制は、
   **採取環境でだけ成立する一致**（総称ファミリーのフォントフォールバック先・システム UI 由来の既定値）を現・新の両側に等しく効かせるため、利用者環境でだけ壊れる差を差分ゼロとして通す。
   同一条件の検証をもって「利用者環境でも一致」と読み替えない（正本: `parity-suite` の `references/baseline.md`「採取環境と利用者環境の乖離」）
-- **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（器の棚卸し）」）。
+- **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（2）器の棚卸し」）。
   `captured` が `states` に無い名前を指す行、`captured: null` なのに `reason` が空の行、`captured` を持つのに `reason` キーが無い・`null` でない行（両方を埋めた行を含む）があれば撮影せず停止し `parity-suite` へ戻す。
   **操作アダプタ（`suite.interactions`。新側例外を含む）とスイートから器を開く呼び出しを「関数名 × 開く対象の論理名」の単位で列挙し、全てが `opened_by`（`<関数名>(<開く対象の論理名>)`）に現れることも確かめる**——
   関数名だけで突き合わせると、引数で対象を変える関数の 1 行が他の呼び出しまで満たしてしまう。現れない呼び出しがあれば、その器は数えられておらず撮られていないので停止し `parity-suite` へ戻す。
