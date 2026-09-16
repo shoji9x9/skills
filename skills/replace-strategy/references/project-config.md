@@ -129,7 +129,7 @@ skills:
       # キーは追加できる（下記「references の拡張」の契約に従う）
     intentional_diffs: # 意図的差異レジストリ
       keep: [] # 変えない（例: テーブル名、項目名、API エンドポイント、関数名）
-      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異）
+      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異、静的資産を同等物で置き換えたときに残る差〈.replace/assets.md の宣言列と同じ文言〉）
       pending: [] # 保留（測定結果で決める）。setup では必ず空リストで作る（スキルが追記する記録なので初期値は空。キーだけ書いて値を省くと null になり、判定ツールが「配列でない」として落ちる）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す
         # 追記する要素は追記元が分かる形で書く（要素の形の正本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが帰属不明として扱われる
         # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（照合キー）
@@ -158,7 +158,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 
 | 区分 | キー | 書き込み |
 |---|---|---|
-| **人間が確定させる方針** | `current`（`origin` / `received_assets` / `feedback_calls` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` / `current.feedback_calls` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉。`setup` の再実行を待たずに追記する） |
+| **人間が確定させる方針** | `current`（`origin` / `received_assets` / `feedback_calls` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` / `current.feedback_calls` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉、静的資産で「同等物を作る」を選んだときの `intentional_diffs.may_change` へのユーザー承認済み宣言〈`replace-strategy` の `setup` / `parity-replace` / `parity-component` が非破壊追記。正本は [`static-assets.md`](static-assets.md)〉。`setup` の再実行を待たずに追記する） |
 | **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
 
 - **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が（`component` に glob を書けば）全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
@@ -692,7 +692,7 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 - 下流スキルが実装中に発見した差異は、勝手に判断せずこのレジストリへ追記してユーザーに確認する（`parity-replace` の規約）。コンポーネントライブラリ由来の系統差（クラス／トークン単位の宣言）は `component_diffs` キーで扱う。
   宣言者は `parity-replace`（テーマで消せない構造差をユーザー確認の上で宣言）、利用者は `parity-diff`（比較の正規化に使う）。
   T が引けないインスタンス単位の例外は**設定ファイルではなく** `.replace/parity/<slug>/component-diff-exceptions.json` で扱い、宣言者は `parity-diff`（ユーザー承認の上で追記。スキーマ正本は同スキルの `references/normalize.md`）。
-- **`pending` だけは書き手がスキル**である（`keep` / `may_change` は人間）。区分の正本は上記「キーの書き手とライフサイクル」。
+- **`pending` だけは書き手がスキル**である（`keep` / `may_change` は人間。静的資産で「同等物を作る」を選んだときの `may_change` の宣言は、人が承認した文言をスキルが 1 回記録するだけ）。区分の正本は上記「キーの書き手とライフサイクル」。
 
 ### `pending` 要素の形
 

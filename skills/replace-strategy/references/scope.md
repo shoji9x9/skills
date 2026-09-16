@@ -78,6 +78,7 @@
 | 新側アーキテクチャ（骨格）の選定 | 対象外 | 事前定義が前提。スキルは確認・記録・参照だけ。実行基盤・利用マネージドサービスを含む | [`project-config.md`](project-config.md)「新側アーキテクチャ」 |
 | IaC / CI-CD パイプラインの新規構築 | 対象外 | 事前条件。**スキル群の必須要件ではなく**、配信型 target（`develop` / `preview` 等）を `targets` に登録する場合にだけ「動いていること」が前提になる（ローカル target だけなら不要） | [`../SKILL.md`](../SKILL.md)「前提」 |
 | 既存 IaC への付随差分（テーブル追加・ルート追加等） | 対象 | 新側実装に付随する差分だけ。パリティスイートでは検証できないため、敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等、**認証情報・リモート state を要さない**機械検証）を通す | `parity-replace` の `SKILL.md`「厳守の制約」 |
+| 移行元の静的資産（画像・アイコン・favicon・ロゴ・図・書体）を新側へ写すかの方針 | 対象 | `setup` が実装前に種類ごとに決める（決めるのは人）。**比較の範囲とは別の軸**——`url()` 参照資産の中身が比較対象外でも、写さなければ画面に出ない。再配布の可否を確認できない資産は「実体を写す」を選ばない | [`static-assets.md`](static-assets.md) |
 | 部品（ライブラリ・フォント等）の採否 | 対象 | 骨格の上に載るものだけ。判断材料・順序はリポジトリ方針（`references.dependency_policy`）に従う | [`dependency-selection.md`](dependency-selection.md) |
 | 共通 UI 部品の実装（画面より先に作る場合） | 対象 | 採取した基準に対して実装し、カタログ上で照合するところまで。**インスタンスが 1 件の部品は対象外**（その機能の実装時に `parity-replace` が作る） | `parity-component` の `SKILL.md` |
 | 部品カタログの用意（実体の選定・構築） | 対象外 | **事前条件型。** 実体はプロジェクトが選び、`references.component_catalog` と `targets[].catalog_url` / `catalog_url_command` で宣言する。スキルは契約を満たすかを確認して使うだけで、実体を決めも建てもしない | [`project-config.md`](project-config.md)「部品カタログ」 |

@@ -43,5 +43,7 @@ scripts/run-skill-eval.sh \
   保留を散文 1 行で足さず追記元（`item` / `slug` / 追記スキル名 / 追記日）が分かる形で書くこと、`keep` へ移すのは人間でありスキルは移さないことを検証する（Issue #279。要素の形の正本は `replace-strategy` の `references/project-config.md`）
 - eval 17 は fixture 無しで、非同期の敵対的レビュー中に同じ対象の実装を続けたい場面を与える。
   レビュー対象を結果受領まで固定すること、待ち時間の作業を対象外へ限定すること、途中で対象を変更した場合は古い結果を採用せず変更・検証後の差分と未追跡ファイルを新しいラウンドへ渡すことを検証する（Issue #327）
+- eval 18 は fixture 無しで、実装中に台帳（`.replace/assets.md`）に無い静的資産（`display: none` の `img` の親が疑似要素のグリフで描くアイコン）に出会い、機能の中で同等物に決めて進めたい場面を与える。
+  台帳へ方針空欄で戻して確認すること、決まるまで依存する実装単位を進めないこと、`porting.md` に判断を書かないこと、同等物なら実装前に `may_change` へ宣言することを検証する（Issue #368）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

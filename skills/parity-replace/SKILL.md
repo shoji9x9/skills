@@ -83,6 +83,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **既に作られた共通部品を、他の利用箇所への影響を測らずに直さない。** 目の前の画面を直す変更が別の画面の見た目を静かに変え、**その画面のスイートができるまで誰も赤くしない**。
   切り分け・直し方・破壊的変更の判断の正本は `parity-component` の `references/amend.md`（同スキルを使っていないプロジェクトでは共通部品も機能ごとに作られるため、この規律は掛からない）
 - **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する）
+- **移行元の静的資産（画像・アイコン・favicon・ロゴ・図・書体）を写すかを機能の中で決めない。** `.replace/assets.md` の同じ種類で状態が `有効` の行に従い（`取り消し済み` の行は履歴なので従わない）、台帳に無ければ方針空欄の行を追記し、3 択（実体を写す／同等物を作る／写さない）とそれぞれの再配布の可否・残る差を添えてユーザーに確認し、
+  決まるまでその資産に依存する実装単位を進めない（`porting.md` に判断を書いて進まず、台帳の行を指す 1 行だけを残す）。
+  **`display: none` の `img` を「出ないから描かない」と決めない**——同じ場所を疑似要素のグリフが描いていることがある。棚卸し・判断・宣言の正本は `replace-strategy` の `references/static-assets.md`
 - **配布元の素性・ライセンスを確認しないまま依存を追加しない**（実装が進むほど差し替えコストが上がる）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
 - **モデルの「同じに見えます」を完了根拠にしない**
@@ -105,7 +108,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | キー | 用途 |
 |---|---|
 | `verification_commands` | 検証コマンド。**走る範囲で 2 列に分かれる**——`full`（全体走査）は**完了判定（手順 8）で常に走らせる**列、`diff`（変更ファイルだけ。`{changed_files}` を本スキルが展開する）は敵対的レビュー前の早期検出（手順 7）専用で完了判定には使わない。**固有のツール名は設定側に置く**（スキル本体に書かない）。意味論の正本はスキーマ文書の「検証コマンド」 |
-| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` が旧新 diff レビューを可能にする。発見した差異は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（**`pending` は設定ファイル上で唯一「スキルが書く作業中記録」**。`keep` / `may_change` へ移すのは人間。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」）。`slug` は対象 slug、`added_by: parity-replace`、`added_at` に追記日（要素の形の正本はスキーマ文書の「`pending` 要素の形」）。確定させる時期は `parity-diff` の収束判定が要求する棚卸し（同文書「`pending` の棚卸し」） |
+| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。`keep` が旧新 diff レビューを可能にする。発見した差異は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（**`pending` は設定ファイル上で唯一「スキルが書く作業中記録」**。`keep` / `may_change` へ移すのは人間。書き手区分の正本はスキーマ文書の「キーの書き手とライフサイクル」）。**例外は静的資産で「同等物を作る」を選んだときの宣言**で、ユーザー承認後に `may_change` へ非破壊追記する（`pending` を経由しない。正本は `replace-strategy` の `references/static-assets.md`）。`slug` は対象 slug、`added_by: parity-replace`、`added_at` に追記日（要素の形の正本はスキーマ文書の「`pending` 要素の形」）。確定させる時期は `parity-diff` の収束判定が要求する棚卸し（同文書「`pending` の棚卸し」） |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。本スキルがユーザー確認の上で宣言し、`parity-diff` が比較の正規化に使う。**T が引けないインスタンス例外は設定に置かない**（`parity-diff` の slug 成果物 `.replace/parity/<slug>/component-diff-exceptions.json`。本スキルは書かない。[`references/theming.md`](references/theming.md)） |
 | `references.architecture` | 新側アプリの骨格（レイヤ／ディレクトリ構成・API 設計方針・ホスティング構成）の決定記録のパス。**骨格は事前定義であり本スキルは決めない。** 未整備（キー欠落・空値・解決できないパス）なら**部品の採否・実装（手順 3 以降）に入らず停止する**（新側リポジトリに骨格が既に実装されていれば、実態から読み取った内容を下書きとして提示し、ユーザーが確定させてから進める。**確定した決定記録のパスは同キーへ書く**）。意味論の正本はスキーマ文書の「新側アーキテクチャ」 |
 | `new.stack` | 新側スタックの列挙。依存の候補が新側スタック（フレームワーク・ORM 等）と両立するかの判断に使う。空・欠落なら推測せずユーザーに確認し、**確認結果を同キーへ非破壊追記する**（記録しないと機能ごとに聞き直しになる）。骨格の未整備ゲートは `references.architecture` が担うため、これ単独では停止しない |
@@ -132,7 +135,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 **同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
 
 - **判断待ち（保留に落とす）**: 意図的差異レジストリに当てはまらない差異（`intentional_diffs.pending` への追記は行い、確認を保留にする）、`component_diffs` の宣言、
-  画面より先に作られた共通部品への破壊的変更、部品の依存の決定（`new.stack` が空のときを含む）、配信型 target で `commit_check` が無いときのデプロイ済み確認、
+  画面より先に作られた共通部品への破壊的変更、台帳に無い静的資産の方針（方針空欄の行の追記は行う）、部品の依存の決定（`new.stack` が空のときを含む）、配信型 target で `commit_check` が無いときのデプロイ済み確認、
   敵対的レビューでサブエージェントを起動できないときの人間のレビュアーへの受け渡し
 - **保留に落としても進める工程**: 保留に依存しないページのフェーズ・実装単位。依存する実装単位は `porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
 - **従来どおりの停止のまま**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
@@ -155,7 +158,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    部品は骨格の上に載るため、骨格が未確定のまま採否を決めると差し替えになり、非破壊追記した決定記録も残り続ける。
    このフェーズの実装に要る部品（UI 部品・データ処理・フォント等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装に入る前に決める。
    判断材料・決める順序（要件 → 素性・ライセンス → 詳細比較）・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従い、決定を `.replace/dependencies.md` へ**非破壊追記**する。
-   `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かったものも、そのまま自前実装で進めず同じ基準で判断して同じファイルへ追記する**（`porting.md` の該当実装単位にも一行残す）
+   `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かった部品も、そのまま自前実装で進めず同じ基準で判断して `.replace/dependencies.md` へ追記する**（`porting.md` の該当実装単位にも一行残す）。
+   **合わせてこのフェーズのページが描く静的資産を `.replace/assets.md` と突き合わせる**（台帳に無い資産は機能の中で決めず台帳へ戻す。手順の正本は `replace-strategy` の `references/static-assets.md`「実装時に台帳に無い資産に出会ったら」）。
+   台帳が無い（本工程の導入前に `setup` を終えた）プロジェクトではテンプレートから作り、このフェーズで出会った資産を方針空欄で追記して確認する
 4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
    **クエリ・データアクセスを書く前に `references.db_semantics` の点検表を読む**（未整備でも停止せず、スキーマ文書「DB 意味論」の点検項目を一次ドキュメントで確認する）。点検結果は `porting.md` へ記録する。
    **書き方は新側リポジトリの規約（`references.coding_conventions`）に従う**（未整備でも自分の流儀を持ち込まず、基底ドキュメント・リント設定・既存コードから読み取る）。
@@ -234,6 +239,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
 - テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）

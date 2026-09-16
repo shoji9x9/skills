@@ -20,7 +20,7 @@ replace-strategy status
 
 | モード | 内容 | 実行タイミング |
 |---|---|---|
-| `setup` | 依存確認 → **現行環境の由来の確認** → 対話セットアップ → **現行環境の再構築（受領資産のときだけ）** → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 | 最初に 1 回 |
+| `setup` | 依存確認 → **現行環境の由来の確認** → 対話セットアップ → **現行環境の再構築（受領資産のときだけ）** → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 → 静的資産の方針決定 | 最初に 1 回 |
 | `issues` | 対象機能を選択して Issue 起票。未起票の機能だけが候補に出る | 何度でも |
 | `status` | Issue の状態とリポジトリ内の成果物から現況を導出し、未検証領域の一覧を出す | 何度でも。切替判断の前に |
 
@@ -83,7 +83,7 @@ replace-strategy status
 **置換系スキル群に共通する自律性ポリシーの正本は [`references/autonomy.md`](references/autonomy.md)**（宣言の仕方・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）。
 姉妹スキルはそれぞれの「自律実行」節で固有の対応だけを持ち、同ファイルを参照する。本スキル固有の対応:
 
-- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、`issues` モードの起票の承認
+- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、静的資産の方針と「同等物を作る」の宣言の承認（手順 11）、`issues` モードの起票の承認
 - **依存関係**: 手順 3 の値が設定に無い項目に依存する工程は止める（例: `targets` が未確定なら測定も止まる）。手順 6 が保留なら `.replace/strategy.md` を確定せず、戦略に依存しない測定（手順 5）・機能インベントリの下書き（手順 9）は進める
 - **`issues` モードは起票しない**（`issue-create` への委譲は越えない線）。候補・依存関係・本文ドラフトを作って保留に記録し、終わりにまとめて承認を聞く。承認が得られたら同じ実行で 1 件ずつ委譲する
 - **記録先**: `.replace/strategy-pending.json`（テンプレート: [`assets/strategy-pending-template.json`](assets/strategy-pending-template.json)）
@@ -94,7 +94,7 @@ replace-strategy status
 
 ## setup モード
 
-依存確認 → 現行環境の由来の確認 → 対話セットアップ → 現行環境の再構築（必要時のみ）→ 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定、の順に進める。
+依存確認 → 現行環境の由来の確認 → 対話セットアップ → 現行環境の再構築（必要時のみ）→ 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 → 静的資産の方針決定、の順に進める。
 
 1. **依存の確認**: 前提スキル（`issue-create` / `browser-test`）のインストール状況と chrome-devtools MCP の有効性を確認する。未導入・無効なら導入手順（`gh skill install shoji9x9/skills <name>`、MCP の設定）を示す。**MCP が無いままでは測定できないため、手順を示したうえで停止する**
 2. **現行環境の由来の確認**: 測定対象になる現行テスト環境が次のどちらかを確認し、`current.origin` へ記録する（意味論の正本は [`references/project-config.md`](references/project-config.md) の「現行環境の由来」）。
@@ -180,6 +180,14 @@ replace-strategy status
    併せて**部品カタログの実体**（1 インスタンス × 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
    カタログの baseURL を `side: new` の target の `catalog_url`（固定文字列）または `catalog_url_command`（実行ごとに変わる環境。排他）に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
    **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る。従来のフローは変わらない）
+11. **移行元の静的資産の方針決定**: 移行元が配信している画像・アイコン・favicon・ロゴ・図・書体を、**新側へ写すか**を実装が始まる前に**種類ごとに一括で**決めて `.replace/assets.md` に記録する
+    （テンプレート: [`assets/assets-template.md`](assets/assets-template.md)。棚卸し・判断・記録の正本は [`references/static-assets.md`](references/static-assets.md)）。
+    **手順 10 の依存とは別に決める**——依存は「自前か／どのパッケージか」で、資産は移行元の配信物そのものなので、依存選定の表に「本文フォント」の行があってもアイコン用の書体や画像を写すかは決まっていない。
+    決めないと各機能の `parity-replace` が実装順に 1 人ずつ決め、同じ種類の資産に逆向きの判断が付く。
+    - **棚卸しの起点は 2 つ**: 配信物・受領資産の中のファイルと、現行画面が実際に描いているもの（同梱の [`scripts/asset-probe.mjs`](scripts/asset-probe.mjs)。`img` だけでなく疑似要素の `content`・`background-image`・`document.fonts` を同じ走査で読む）。
+      **`display: none` の `img` を「出ないから写さない」と決めない**（同じ場所を疑似要素のグリフが描いていることがある）
+    - **3 択（実体を写す／同等物を作る／写さない）を人が決める。** 「本文の書体」と「アイコン用の書体」は別の行にする。再配布の可否・出どころ・残る差を推測で埋めない
+    - **「同等物を作る」を選んだら、残る差をユーザー承認の上でこの時点で `intentional_diffs.may_change` へ宣言する**（ラスタライズの差は実装で消せないため、宣言が無いと説明の付かない差として現れる。宣言しても画素経路の吸収には `parity-diff` のインスタンス例外が要るので、往復が無くなるわけではない）
 
 ## issues モード
 
@@ -211,7 +219,7 @@ replace-strategy status
 
 ## 成果物
 
-すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
+すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md`・`assets.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
 下流スキルの成果物（`.replace/parity/<slug>/` や `.replace/dataset/`、`.replace/bootstrap/` の形式）は各スキルが定義する。同じ形式を複数スキルで重複定義しない。
 
 | 成果物 | 場所 | 内容 |
@@ -221,6 +229,7 @@ replace-strategy status
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）。更新は非破壊 |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
+| 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体を写す／同等物を作る／写さない）・ファイルと出どころ・描き方と使われるページ・再配布の可否・同等物で残る差と宣言。本スキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針空欄で非破壊追記する。正本は [`references/static-assets.md`](references/static-assets.md) |
 | 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
 | 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |

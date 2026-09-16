@@ -69,5 +69,7 @@ scripts/run-skill-eval.sh \
   prompt には同名 job・matrix 展開・check run 未生成を一次情報として置き、context 文字列から job を推測せず一意な実測対応ができるまで確定しない分岐へ到達させる。
   既知の `Test` / required workflow 欠落を prompt に明示するのは診断当てではなく、
   **差がある状態で確定を拒むこと・共通集約コマンドまたは必須 CI 上の乖離検査まで将来の drift 対策として要求すること**を測るためである
+- eval 28 は fixture 無しで、`setup` 手順 11 のプローブ結果（`rendered: 0` の `img`・私用領域のグリフ・本文用とアイコン用の `@font-face`）を与え、「出ない画像は写さない・書体は依存で決定済み・機能ごとに考える」という誘導に対して、
+  疑似要素との突き合わせ、依存と別の台帳（`.replace/assets.md`）、書体の行の分離、実装前の一括決定、推測で埋めないこと、同等物を選んだ時点の `may_change` 宣言を検証する（Issue #368）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
