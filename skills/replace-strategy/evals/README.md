@@ -77,8 +77,12 @@ scripts/run-skill-eval.sh \
   （書くと baseline がそれを読んで assertion を満たす）。未読であることは survey の「未測定の項目」と「現行コードの入手性」に一次情報として置く（Issue #376）。
   **1 画面（`/plans`）の中に読める `GET` と要求単位が決まらない更新・削除が同居する構成にしてある**ため、根拠を行に 1 つだけ書く実装では
   「`GET` が実測だから行は実測」となって未確定の口が落ちる——assertion 2 がここを測る（PR #379 の codex レビュー P1 で顕在化した欠陥）。
-  **弁別するのは assertion 1・2・3**（iteration-29 で実測: `with_skill` 6/6・`without_skill` 3/6）——baseline は入口クエリの `LEFT JOIN` を読んで NULL 行・1 計画 N 行まで分析し、
+  **fixture は入口クエリだけを与え、応答への写像（マッパー／シリアライザ）を与えない**ので、assertion 1 は
+  「クエリの母集合・行の単位は記録しつつ、それだけで API の外部単位を確定しない」を測る（同 P1 第 3 ラウンド。`(計画, メンバー)` の複数行が `{計画, メンバー: []}` へ畳まれうる）。
+  **弁別するのは assertion 1・2**（iteration-30 で実測: `with_skill` 6/6・`without_skill` 4/6）——baseline は入口クエリの `LEFT JOIN` を読んで NULL 行まで分析し、
   未入手の `/assignments` も自前の gaps 表に載せたため、**assertion 4（同形として確定しない）・5（止めない）・6（単一画面 API を横断 API にしない）は baseline も自力で到達する**。
-  この 3 本は Delta ではなく**後退検知**が目的の項目として残している。スキル固有なのは「口ごとの根拠として `実測` / `推定` を機能一覧の列に残す」ことで、そこだけが Delta に出る
+  **assertion 3（`/assignments` を推定として記録）は run 間でぶれる**——iteration-29 の baseline は根拠に相当する列を作らず fail したが、iteration-30 の baseline は独自の「根拠」列を作り
+  `推定（入口クエリ未入手）` と書いて pass した。安定して弁別するのは 1・2 だけで、3〜6 は Delta ではなく**後退検知**が目的の項目として残している。
+  スキル固有なのは「口ごとの根拠を機能一覧の列に残し、クエリの粒度を API の外部単位に短絡させない」ことで、そこだけが安定して Delta に出る
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
