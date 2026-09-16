@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "13";
+export const VERSION = "14";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1140,7 +1140,7 @@ function unscoredProfiledCellCount(c) {
  * 被覆表とプロファイルを照合する。
  * @param {unknown} coverage - component-coverage.json をパースしたもの
  * @param {Map<string, Record<string, unknown>>} profiles
- * @param {{states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
+ * @param {{pageNames?: string[], states: string[], popupStates: string[]} | null} [metadata] - metadata.json の撮影条件。
  *   渡さない実行では撮影状態の照合を checked: false にする（照合していない記録を照合済みに倒さない）。
  * @returns {{ok: boolean, components: Array<Record<string, unknown>>, problems: string[], candidates: number, unmeasured: number, visualStates: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
@@ -1798,7 +1798,7 @@ export function fillVisualStateRows(cov) {
  * --metadata を渡さない実行では capture_conditions.states との差を取れないため checked: false にする
  * （照合していない記録を「照合済み」に倒さない。parity-diff は checked: true を要求する）。
  * @param {Record<string, unknown>} cov
- * @param {{states: string[], popupStates: string[]} | null} metadata
+ * @param {{pageNames?: string[], states: string[], popupStates: string[]} | null} metadata
  * @returns {{problems: string[], summary: {checked: boolean, rows: number, undecided: number, missing_states: string[]}}}
  */
 export function checkVisualStates(cov, metadata) {
@@ -1844,6 +1844,8 @@ export function checkVisualStates(cov, metadata) {
 
   const states = metadata ? new Set(metadata.states) : null;
   const popupStates = metadata ? new Set(metadata.popupStates) : null;
+  const pageNames =
+    metadata && Array.isArray(metadata.pageNames) ? new Set(metadata.pageNames) : null;
   /** @type {Set<string>} */
   const missingStates = new Set();
   let undecided = 0;
@@ -1866,7 +1868,7 @@ export function checkVisualStates(cov, metadata) {
       if (!nonEmptyString(inst.id)) continue;
       const key = JSON.stringify([String(c.id), String(inst.id)]);
       if (scopeByInstance.has(key)) continue;
-      if (nonEmptyString(inst.page)) scopeByInstance.set(key, `page:${String(inst.page)}`);
+      if (nonEmptyString(inst.page)) scopeByInstance.set(key, String(inst.page));
     }
   }
   /** @type {Map<string, Array<{label: string, row: Record<string, unknown>}>>} */
@@ -1900,17 +1902,27 @@ export function checkVisualStates(cov, metadata) {
       continue;
     }
     if (!captured) continue;
-    const scope = scopeByInstance.get(
+    const page = scopeByInstance.get(
       JSON.stringify([String(derivedRow.component), String(derivedRow.instance)]),
     );
-    if (scope === undefined) {
+    if (page === undefined) {
       undecided += 1;
       problems.push(
         `撮影状態 ${label}: インスタンス ${String(derivedRow.instance)} に page が無い（page が撮影単位を決めるキーなので、欠けたまま使い回しを判定できない。instances[].page を書く）`,
       );
       continue;
     }
-    const useKey = JSON.stringify([scope, captured]);
+    // ページ名が非空なだけでは足りない。採取は metadata の capture_conditions.pages を外側のループにして
+    // 回るので、宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
+    // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+    if (pageNames && !pageNames.has(page)) {
+      undecided += 1;
+      problems.push(
+        `撮影状態 ${label}: インスタンス ${String(derivedRow.instance)} の page「${page}」が metadata.json の capture_conditions.pages に無い（そのページは採取されないので撮られない。ページ名を合わせる）`,
+      );
+      continue;
+    }
+    const useKey = JSON.stringify([`page:${page}`, captured]);
     const uses = capturedUses.get(useKey) ?? [];
     uses.push({ label, row });
     capturedUses.set(useKey, uses);
@@ -2066,7 +2078,7 @@ export function recordConformance(coverage, result) {
  * 突き合わせも通る。parity-diff はこの conformance を信頼して比較をやり直さないので、
  * 記録側で弾かないと誤った収束まで通る。
  * @param {unknown} parsed
- * @returns {{slug: string, states: string[], popupStates: string[]} | null} - 形が違えば null（読めたことにしない）
+ * @returns {{slug: string, pageNames: string[], states: string[], popupStates: string[]} | null} - 形が違えば null（読めたことにしない）
  */
 export function readCaptureConditions(parsed) {
   if (!isPlainObject(parsed)) return null;
@@ -2076,6 +2088,9 @@ export function readCaptureConditions(parsed) {
   if (!isPlainObject(meta.capture_conditions)) return null;
   const cc = /** @type {Record<string, unknown>} */ (meta.capture_conditions);
   if (!Array.isArray(cc.states)) return null;
+  // pages は撮影の外側のループ（parity-diff の採取スペックは pages × states × viewports で回す）。
+  // 宣言されたページ名の集合を返さないと、被覆表の instances[].page が実在するかを照合できない。
+  if (!Array.isArray(cc.pages)) return null;
   // popup_inventory はキーの欠落と空配列を区別する（欠落は棚卸し未実施＝照合できない）。
   if (!Array.isArray(cc.popup_inventory)) return null;
   /** @type {string[]} */
@@ -2085,8 +2100,16 @@ export function readCaptureConditions(parsed) {
     const r = /** @type {Record<string, unknown>} */ (row);
     if (nonEmptyString(r.captured)) popupStates.push(String(r.captured));
   }
+  /** @type {string[]} */
+  const pageNames = [];
+  for (const row of cc.pages) {
+    if (!isPlainObject(row)) continue;
+    const r = /** @type {Record<string, unknown>} */ (row);
+    if (nonEmptyString(r.name)) pageNames.push(String(r.name));
+  }
   return {
     slug: String(meta.slug),
+    pageNames,
     states: cc.states.filter(nonEmptyString).map(String),
     popupStates,
   };

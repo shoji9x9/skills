@@ -23,6 +23,7 @@ const {
   fillVisualStateRows,
   fillVisualStates,
   loadProfiles,
+  readCaptureConditions,
   readEnumeration,
   reconcile,
   validateProfile,
@@ -46,10 +47,18 @@ function resolveVisualStates(
   return coverage;
 }
 
-/** 導いた行が要求する撮影状態名をそのまま metadata の撮影条件にしたもの。 */
+/** 導いた行が要求する撮影状態名とページ名をそのまま metadata の撮影条件にしたもの。 */
 function captureConditionsFor(coverage) {
   const rows = coverage.visual_state_coverage?.rows ?? [];
+  const pageNames = [
+    ...new Set(
+      (coverage.components ?? []).flatMap((c) =>
+        (c.instances ?? []).map((i) => i.page).filter(Boolean),
+      ),
+    ),
+  ];
   return {
+    pageNames,
     states: [...new Set(["default", ...rows.map((r) => r.captured).filter(Boolean)])],
     popupStates: [
       ...new Set(
@@ -1048,6 +1057,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
   const metadata = {
     slug: "org-tree",
     capture_conditions: {
+      pages: [{ name: "組織", path: "/org" }],
       states: ["default", "hover", "ノードを展開した状態"],
       popup_inventory: [
         {
@@ -1406,6 +1416,7 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
   const metadata = {
     slug: "order-list",
     capture_conditions: {
+      pages: conditions.pageNames.map((name) => ({ name, path: `/${name}` })),
       states: conditions.states,
       popup_inventory: conditions.popupStates.map((state) => ({
         name: state,
@@ -1741,4 +1752,87 @@ test("page が無いインスタンスは撮影単位を決められないので
   // 別ページなら通る（撮影単位が違う）。
   cov.components[1].instances[0].page = "サイドパネルのページ";
   expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
+});
+
+test("インスタンスの page は宣言されたページ名でなければ通さない（非空なだけで受理しない）", () => {
+  // 採取は metadata の capture_conditions.pages を外側のループにして回るので、
+  // 宣言に無いページ名（誤記・旧称）を書いた行はどのページでも撮られない。
+  // 誤記は使い回しの判定単位も割るため、共有すべきスコープが黙って分かれる。
+  const cov = {
+    slug: "order-list",
+    components: [
+      {
+        id: "grid",
+        profile: null,
+        profile_absent_reason: "自作グリッドで適合プロファイルが無い",
+        items: [{ id: "filter", visual_states: ["opens-container"], no_visual_state_reason: null }],
+        instances: [{ id: "orders", page: "TYPO", locator: "orders.grid" }],
+      },
+    ],
+    cells: [
+      {
+        component: "grid",
+        item: "filter",
+        instance: "orders",
+        value: "present",
+        evidence: "実 UI で開いた",
+        covered_by: ["e2e/order-list.spec.ts > filter"],
+      },
+    ],
+  };
+  fillVisualStateRows(cov);
+  cov.visual_state_coverage.rows[0].captured = "フィルタの吹き出しを開いた状態";
+  const conditions = {
+    pageNames: ["受注一覧"],
+    states: ["default", "フィルタの吹き出しを開いた状態"],
+    popupStates: ["フィルタの吹き出しを開いた状態"],
+  };
+  const bad = reconcile(cov, bundled, conditions);
+  expect(bad.ok).toBe(false);
+  expect(bad.problems.join("\n")).toMatch(
+    /page「TYPO」が metadata.json の capture_conditions.pages に無い/,
+  );
+
+  // 陽性コントロール: 宣言されたページ名なら通る（常に落とす実装を弾く）。
+  cov.components[0].instances[0].page = "受注一覧";
+  expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
+
+  // 誤記でスコープが割れないこと: 同じページの 2 部品が同じ状態名を使えば使い回しとして落ちる。
+  const twoComponents = structuredClone(cov);
+  twoComponents.components.push({
+    id: "panel",
+    profile: null,
+    profile_absent_reason: "自作",
+    items: [{ id: "menu", visual_states: ["opens-container"], no_visual_state_reason: null }],
+    instances: [{ id: "side", page: "受注一覧", locator: "side.panel" }],
+  });
+  twoComponents.cells.push({
+    component: "panel",
+    item: "menu",
+    instance: "side",
+    value: "present",
+    evidence: "実 UI で開いた",
+    covered_by: ["e2e/order-list.spec.ts > menu"],
+  });
+  fillVisualStateRows(twoComponents);
+  for (const row of twoComponents.visual_state_coverage.rows)
+    row.captured = "フィルタの吹き出しを開いた状態";
+  expect(reconcile(twoComponents, bundled, conditions).problems.join("\n")).toMatch(
+    /撮影状態の使い回し/,
+  );
+});
+
+test("metadata に capture_conditions.pages が無ければ読めたことにしない", () => {
+  const withPages = {
+    slug: "order-list",
+    capture_conditions: { pages: [{ name: "受注一覧" }], states: ["default"], popup_inventory: [] },
+  };
+  expect(readCaptureConditions(withPages)).toMatchObject({
+    slug: "order-list",
+    pageNames: ["受注一覧"],
+  });
+  // pages キーの欠落を「照合しない」に倒さない。
+  const noPages = structuredClone(withPages);
+  delete noPages.capture_conditions.pages;
+  expect(readCaptureConditions(noPages)).toBeNull();
 });
