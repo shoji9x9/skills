@@ -648,6 +648,9 @@ test("要素が候補にならないことも根拠付きでだけ通す（要�
   cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
   inst.candidates = inst.candidates.filter(keep);
   cov.cells = cov.cells.filter((c) => keep(c.item));
+  // 測る候補を削ったので撮影状態の要求も変わる。導出し直さないと古い行が余剰として残り、
+  // このテストの被験対象（要素スコープの免除）と無関係な problem が混ざる。
+  resolveVisualStates(cov);
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(/要素 name がどの候補にも現れない/);
   inst.enumeration.justified_absences = [
     {
@@ -1004,25 +1007,17 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
   };
   const coverage = {
     slug: "org-tree",
+    // 行は候補ごとに立つ（同値クラスを宣言していないので縮約しない）。
+    // 同じインスタンスでは状態名も一意なので、候補ごとに別の名前を振る。
     visual_state_coverage: {
-      rows: [
-        {
-          component: "tree",
-          instance: "org",
-          kind: "opens-container",
-          required_by: "node-expand",
-          captured: "ノードを展開した状態",
-          reason: null,
-        },
-        {
-          component: "tree",
-          instance: "org",
-          kind: "hover",
-          required_by: "node-select",
-          captured: "hover",
-          reason: null,
-        },
-      ],
+      rows: candidates.map((id) => ({
+        component: "tree",
+        instance: "org",
+        kind: visualStates[id.split("/")[0]][0],
+        required_by: id,
+        captured: `状態:${id}`,
+        reason: null,
+      })),
     },
     components: [
       {
@@ -1058,16 +1053,16 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
     slug: "org-tree",
     capture_conditions: {
       pages: [{ name: "組織", path: "/org" }],
-      states: ["default", "hover", "ノードを展開した状態"],
-      popup_inventory: [
-        {
-          name: "ノードの子",
+      states: ["default", ...candidates.map((id) => `状態:${id}`)],
+      popup_inventory: candidates
+        .filter((id) => visualStates[id.split("/")[0]][0] === "opens-container")
+        .map((id) => ({
+          name: `器:${id}`,
           parent: null,
-          opened_by: "expandNode(org.tree)",
-          captured: "ノードを展開した状態",
+          opened_by: `expandNode(org.tree, ${id})`,
+          captured: `状態:${id}`,
           reason: null,
-        },
-      ],
+        })),
     },
   };
   const ok = runCli(
@@ -1090,7 +1085,7 @@ test("新しい仮想部品のプロファイルを、共通処理と中心ド�
     ok: true,
     candidates: 4,
     unmeasured: 0,
-    visual_states: { checked: true, rows: 2, undecided: 0, missing_states: [] },
+    visual_states: { checked: true, rows: candidates.length, undecided: 0, missing_states: [] },
   });
 
   // 陰性コントロール: 同じ仮想部品でノードを 1 つ落とすと失敗する（常に通す実装を弾く）。
@@ -1173,20 +1168,30 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
   expect(new Set(kinds)).toEqual(
     new Set(["opens-container", "hover", "focus", "active", "disabled"]),
   );
-  // 行は要求元の操作ごとに分かれる。種別だけで束ねると、同じ opens-container を要求する
+  // 行は要求元の候補ごとに分かれる。種別だけで束ねると、同じ opens-container を要求する
   // 列フィルタの吹き出しと右クリックメニューが 1 行へ潰れ、片方を撮るだけで門が通る。
   // column-toggle はこの列挙に toggleable な列が無いため候補が立たず、行も立たない。
-  expect(
-    cov.visual_state_coverage.rows
-      .filter((r) => r.kind === "opens-container")
-      .map((r) => r.required_by),
-  ).toEqual(["column-filter", "context-menu-open"]);
+  const opensBy = cov.visual_state_coverage.rows
+    .filter((r) => r.kind === "opens-container")
+    .map((r) => r.required_by);
+  expect(opensBy).toEqual([...opensBy].sort());
+  expect(opensBy.some((id) => id.startsWith("column-filter/"))).toBe(true);
+  expect(opensBy.some((id) => id.startsWith("context-menu-open/"))).toBe(true);
+  expect(opensBy.some((id) => id.startsWith("column-toggle/"))).toBe(false);
   expect(cov.visual_state_coverage.rows[0]).toMatchObject({
     component: "grid",
     instance: "orders",
   });
-  // 要求元はルール id でまとまる（列が 40 本あっても行が読める大きさに収まる）。
-  expect(cov.visual_state_coverage.rows).toHaveLength(8);
+  // **ルール id でまとめない**——ルールは複数の軸の直積へ展開されるので、まとめると
+  // 縮約してはいけない軸（datagrid では sort-direction）まで畳んでしまう。
+  const sortActive = cov.visual_state_coverage.rows.filter(
+    (r) => r.kind === "active" && r.required_by.startsWith("column-sort/"),
+  );
+  const sortCandidates = cov.components[0].items.filter((i) => i.candidate.rule === "column-sort");
+  expect(sortActive).toHaveLength(sortCandidates.length);
+  expect(sortActive.map((r) => r.required_by).sort()).toEqual(
+    sortCandidates.map((i) => i.id).sort(),
+  );
   // 項目の種別はプロファイルから書き戻される（部品ごとに手で書かない）。
   const sortItem = cov.components[0].items.find((i) => i.candidate.rule === "column-sort");
   expect(sortItem.visual_states).toEqual(["hover", "focus", "active"]);
@@ -1218,7 +1223,7 @@ test("撮影状態の未決は「足りない状態の一覧」として報告�
   expect(r.ok).toBe(false);
   expect(r.visualStates.undecided).toBe(1);
   expect(r.problems.join("\n")).toMatch(
-    /撮影状態が未決: grid \/ orders \/ context-menu-item \/ disabled/,
+    /撮影状態が未決: grid \/ orders \/ context-menu-item\/[^ ]* \/ disabled/,
   );
   // 撮れないなら理由で通る（gaps.md の「撮影状態の対象外」へ回す形）。
   row.reason = "不活性になる条件が現行に無い（全ロールで項目が活性）";
@@ -1238,15 +1243,19 @@ test("導いた状態が capture_conditions.states に無ければ差として�
   // 陽性コントロール: 揃っていれば通る。
   expect(reconcile(cov, bundled, conditions).problems).toEqual([]);
 
+  // 状態名は実データから引く（ルール id ではなく候補 id が要求元になる）。
+  const anySortHover = cov.visual_state_coverage.rows.find(
+    (row) => row.kind === "hover" && row.required_by.startsWith("column-sort/"),
+  ).captured;
   const missingHover = {
     ...conditions,
-    states: conditions.states.filter((s) => s !== "column-sort:hover"),
+    states: conditions.states.filter((s) => s !== anySortHover),
   };
   const r = reconcile(cov, bundled, missingHover);
   expect(r.ok).toBe(false);
-  expect(r.visualStates.missing_states).toEqual(["column-sort:hover"]);
+  expect(r.visualStates.missing_states).toEqual([anySortHover]);
   expect(r.problems.join("\n")).toMatch(
-    /captured の column-sort:hover が metadata.json の capture_conditions/,
+    new RegExp(`captured の ${anySortHover} が metadata.json の capture_conditions`),
   );
 
   // 器を開く状態は states に在るだけでは足りない。器の棚卸しにも行が要る。
@@ -1271,8 +1280,8 @@ test("記録された行は導いた集合と過不足なく一致していな�
     component: "grid",
     instance: "orders",
     kind: "hover",
-    required_by: "column-sort",
-    captured: "column-sort:hover",
+    required_by: stale.visual_state_coverage.rows.find((row) => row.kind === "hover").required_by,
+    captured: stale.visual_state_coverage.rows.find((row) => row.kind === "hover").captured,
     reason: null,
   });
   expect(reconcile(stale, bundled, captureConditionsFor(stale)).problems.join("\n")).toMatch(
@@ -1284,20 +1293,20 @@ test("記録された行は導いた集合と過不足なく一致していな�
     (r) => r.kind !== "focus",
   );
   expect(reconcile(dropped, bundled, captureConditionsFor(dropped)).problems.join("\n")).toMatch(
-    /撮影状態が導出から漏れている: grid \/ orders \/ column-sort \/ focus/,
+    /撮影状態が導出から漏れている: grid \/ orders \/ column-sort\/[^ ]* \/ focus/,
   );
 
+  // 余剰行: 導出が要求しなくなった行が残っているケース。メニュー項目の測定を落とすと
+  // disabled を要求する候補が無くなるので、記録済みの行が余剰になる。
   const leftover = datagridCoverage();
-  leftover.cells = leftover.cells.filter((c) => !c.item.startsWith("context-menu-item/"));
-  leftover.components[0].items = leftover.components[0].items.filter(
-    (i) => !i.id.startsWith("context-menu-item/"),
-  );
-  leftover.components[0].instances[0].candidates =
-    leftover.components[0].instances[0].candidates.filter(
-      (id) => !id.startsWith("context-menu-item/"),
-    );
+  for (const cell of leftover.cells) {
+    if (!cell.item.startsWith("context-menu-item/")) continue;
+    cell.value = "unmeasured";
+    cell.covered_by = [];
+    cell.unmeasured_reason = "該当ロールの利用者を用意できない";
+  }
   expect(reconcile(leftover, bundled, captureConditionsFor(leftover)).problems.join("\n")).toMatch(
-    /要求の無い行 grid \/ orders \/ context-menu-item \/ disabled/,
+    /要求の無い行 grid \/ orders \/ context-menu-item\/[^ ]* \/ disabled/,
   );
 
   const noKey = datagridCoverage();
@@ -1443,8 +1452,11 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
 
   // 陰性コントロール: 撮影条件から状態を 1 つ落とすと落ちる（常に通す実装を弾く）。
   const short = structuredClone(metadata);
+  const droppedState = cov.visual_state_coverage.rows.find(
+    (row) => row.kind === "focus" && row.required_by.startsWith("column-sort/"),
+  ).captured;
   short.capture_conditions.states = short.capture_conditions.states.filter(
-    (s) => s !== "column-sort:focus",
+    (s) => s !== droppedState,
   );
   const bad = runCli(
     [
@@ -1458,7 +1470,9 @@ test("CLI: --metadata を渡すと撮影状態まで照合し、読めない met
     { files: { "component-coverage.json": cov, "metadata.json": short } },
   );
   expect(bad.status).toBe(1);
-  expect(bad.stderr).toMatch(/撮影条件に無い状態名 1 件（column-sort:focus）/);
+  expect(bad.stderr).toMatch(
+    new RegExp(`撮影条件に無い状態名 1 件（${droppedState.replace(/\//g, "\\/")}）`),
+  );
 
   // capture_conditions を持たない metadata は「照合しない」に倒さず使い方の誤りにする。
   const broken = runCli(
@@ -1880,4 +1894,61 @@ test("撮影条件を渡したのにページ名一覧が無ければ照合し�
   expect(r.problems.join("\n")).toMatch(/ページ名一覧を読めない/);
   // 陽性コントロール: 渡せば通る（常に落とす実装を弾く）。
   expect(reconcile(cov, bundled, { ...base, pageNames: ["受注一覧"] }).problems).toEqual([]);
+});
+
+test("要求元はルール id でまとめない（縮約は宣言・検証済みの同値クラス経由だけ）", () => {
+  // datagrid の column-sort は column × sort-direction へ展開されるが、
+  // sort-direction は reducible_axes に無く「代表 1 件では差分が見えなくなる」と制約が明示している。
+  // ルール id でまとめると、その軸をクラス宣言も根拠もなしに畳んでしまう。
+  const cov = datagridCoverage();
+  const sortCandidates = cov.components[0].items
+    .filter((i) => i.candidate.rule === "column-sort")
+    .map((i) => i.id);
+  expect(sortCandidates.length).toBeGreaterThan(1);
+  const activeRows = cov.visual_state_coverage.rows.filter(
+    (r) => r.kind === "active" && r.required_by.startsWith("column-sort/"),
+  );
+  expect(activeRows.map((r) => r.required_by).sort()).toEqual([...sortCandidates].sort());
+
+  // 縮約してよい軸（column）で同値クラスを宣言すれば代表へ寄る。
+  const byDirection = new Map();
+  for (const item of cov.components[0].items) {
+    if (item.candidate.rule !== "column-sort") continue;
+    const dir = item.candidate.axes["sort-direction"];
+    if (!byDirection.has(dir)) byDirection.set(dir, []);
+    byDirection.get(dir).push(item.id);
+  }
+  const grouped = datagridCoverage();
+  grouped.components[0].equivalence_classes = [...byDirection].map(([dir, ids]) => ({
+    id: `sort-${dir}`,
+    axis: "column",
+    rationale: "両列とも同じセルレンダラ・同じ書式で描画されることを実 UI で確認した",
+    members: ids.map((id) => `orders/${id}`),
+    representative: `orders/${ids[0]}`,
+  }));
+  fillVisualStateRows(grouped);
+  const groupedActive = grouped.visual_state_coverage.rows.filter(
+    (r) => r.kind === "active" && r.required_by.startsWith("column-sort/"),
+  );
+  // 方向ごとに 1 行（代表）へ寄り、方向そのものは畳まれない。
+  expect(groupedActive).toHaveLength(byDirection.size);
+  expect(groupedActive.map((r) => r.required_by).sort()).toEqual(
+    [...byDirection.values()].map((ids) => ids[0]).sort(),
+  );
+
+  // 縮約してはいけない軸で束ねたら、導出は寄せても reconcile が落とす（緑にはならない）。
+  const illegal = datagridCoverage();
+  illegal.components[0].equivalence_classes = [
+    {
+      id: "dir",
+      axis: "sort-direction",
+      rationale: "方向は同じに見える",
+      members: sortCandidates.map((id) => `orders/${id}`),
+      representative: `orders/${sortCandidates[0]}`,
+    },
+  ];
+  resolveVisualStates(illegal);
+  const r = reconcile(illegal, bundled, captureConditionsFor(illegal));
+  expect(r.ok).toBe(false);
+  expect(r.problems.join("\n")).toMatch(/軸 sort-direction は reducible_axes にない/);
 });

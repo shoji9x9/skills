@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "15";
+export const VERSION = "16";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -1697,6 +1697,37 @@ export function deriveVisualStateRows(cov) {
   const components = Array.isArray(cov.components) ? cov.components : [];
   const cells = Array.isArray(cov.cells) ? cov.cells : [];
 
+  // 部品 → "<インスタンス id>/<候補 id>" → 視覚採取する代表 "<インスタンス id>/<候補 id>"。
+  // 縮約してよい軸かどうか・所属の全体性・根拠・代表の妥当性は checkEquivalenceClasses が
+  // 同じ実行の reconcile で検査するので、ここは構造（members / representative）だけを読む
+  // （不正なクラスは problems が立って ok: false になるため、縮約が誤っても緑にはならない）。
+  // **プロファイルを宣言した部品だけ**を対象にする——reducible_axes を持たない部品には
+  // どの軸を縮約してよいかの宣言が無く、検証も走らないため。
+  /** @type {Map<string, Map<string, string>>} */
+  const representativeOf = new Map();
+  for (const component of components) {
+    if (!isPlainObject(component)) continue;
+    const c = /** @type {Record<string, unknown>} */ (component);
+    if (!nonEmptyString(c.id) || !nonEmptyString(c.profile)) continue;
+    const cid = String(c.id);
+    if (representativeOf.has(cid)) continue;
+    /** @type {Map<string, string>} */
+    const byMember = new Map();
+    for (const klass of Array.isArray(c.equivalence_classes) ? c.equivalence_classes : []) {
+      if (!isPlainObject(klass)) continue;
+      const k = /** @type {Record<string, unknown>} */ (klass);
+      if (!nonEmptyString(k.representative)) continue;
+      const representative = String(k.representative);
+      for (const member of Array.isArray(k.members) ? k.members : []) {
+        if (!nonEmptyString(member)) continue;
+        // 同じ候補が複数クラスに属する表は checkEquivalenceClasses が落とす。先勝ちにしない。
+        if (byMember.has(String(member))) byMember.set(String(member), "");
+        else byMember.set(String(member), representative);
+      }
+    }
+    representativeOf.set(cid, byMember);
+  }
+
   // 部品 → 項目 id → その項目が要求する状態種別。id が空・重複の部品／項目は reconcile 側が落とすので、
   // ここでは識別できるものだけを索引する（同じ問題を二重に報告しない）。
   /** @type {Map<string, Map<string, {kinds: string[], requiredBy: string}>>} */
@@ -1715,12 +1746,11 @@ export function deriveVisualStateRows(cov) {
       if (!nonEmptyString(it.id)) continue;
       const iid = String(it.id);
       if (byItem.has(iid)) continue;
-      // プロファイル由来の項目は候補 id（<ルール id>/<軸値>）なので、要求元はルール id でまとめる。
-      // 列が 40 本あっても「column-sort が要求した」の 1 件になり、行が読める大きさに収まる。
-      const candidate = isPlainObject(it.candidate)
-        ? /** @type {Record<string, unknown>} */ (it.candidate)
-        : null;
-      const requiredBy = candidate && nonEmptyString(candidate.rule) ? String(candidate.rule) : iid;
+      // 要求元は項目 id（プロファイル由来なら候補 id）そのもの。**ルール id でまとめない**——
+      // ルールは複数の軸の直積へ展開されるので、まとめると縮約してはいけない軸まで畳んでしまう
+      // （datagrid の column-sort は sort-direction へ展開されるが、その軸は reducible_axes に無い）。
+      // 縮約は宣言・検証済みの同値クラス経由でだけ行う（下の representativeOf）。
+      const requiredBy = iid;
       if (!Array.isArray(it.visual_states)) {
         problems.push(
           `部品 ${cid}: 項目 ${iid}: visual_states が配列ではない（見た目が変わらないなら空配列と no_visual_state_reason を書く。プロファイル宣言済みなら --write で書き戻す）`,
@@ -1772,16 +1802,30 @@ export function deriveVisualStateRows(cov) {
     const item = itemsByComponent.get(cid)?.get(iid);
     // 宣言に無い部品・項目のセルは reconcile が余剰として落とす。
     if (!item) continue;
+    // 同値クラスに属する候補は、視覚採取する代表の行へ寄せる（代表 1 件だけを撮る）。
+    // 寄せ先は代表のインスタンス——撮るのは代表が載っているページなので、
+    // 行の撮影単位も代表側で決まる。クラスに属さない候補は自分の行を持つ。
+    const representative = representativeOf.get(cid)?.get(`${inst}${ID_SEPARATOR}${iid}`);
+    let rowInstance = inst;
+    let rowRequiredBy = item.requiredBy;
+    if (nonEmptyString(representative)) {
+      const cut = String(representative).indexOf(ID_SEPARATOR);
+      // インスタンス id に区切り文字は入らない（reconcile が落とす）ので最初の "/" で割れる。
+      if (cut > 0) {
+        rowInstance = String(representative).slice(0, cut);
+        rowRequiredBy = String(representative).slice(cut + 1);
+      }
+    }
     for (const kind of item.kinds) {
       // 要求元をキーに含める。種別だけで束ねると、同じ種別を要求する別の操作
       // （列フィルタの吹き出しと右クリックメニューはどちらも opens-container）が 1 行へ潰れ、
       // 片方の状態名を書くだけで門が通る——撮られなかった方の差は「差 0 件」と同じ見え方になり、
       // 本導出が塞ごうとした穴がそのまま残る。
-      const key = JSON.stringify([cid, inst, item.requiredBy, kind]);
+      const key = JSON.stringify([cid, rowInstance, rowRequiredBy, kind]);
       derived.set(key, {
         component: cid,
-        instance: inst,
-        required_by: item.requiredBy,
+        instance: rowInstance,
+        required_by: rowRequiredBy,
         kind,
       });
     }
