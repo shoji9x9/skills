@@ -106,14 +106,10 @@ scripts/run-skill-eval.sh \
   prompt の末尾で `.replace/features.md` への書き戻しを求めているのは assertion 6 の**到達**のため——
   採点材料は `project-files/.replace/features.md` なので、報告だけで終わる run では真偽を測れない。
   列名（`受け入れ条件`）・値の語彙（`未被覆` / 空欄の書き分け）は渡していないので弁別は残る。
-  **iteration-32 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 6/6・`without_skill` 4/6。
-  **弁別したのは assertion 4・6 だけ**——baseline も `notification-banner` の落ちた行（assertion 1・2）と `order` の落ちた配線（assertion 3）は自力で見つけた。
-  fixture の features.md が空の「受け入れ条件」列を持つため、**列を埋めること自体は baseline にも誘導される**（列の存在は新テンプレート由来で、入力から外すと突き合わせの記録先が消える）。
-  baseline が落ちたのは、横断の記述を**消費側のゲート**ではなく `#101` 自身の被覆不足として扱った点（assertion 4）と、
-  列に Issue 本文の条件を散文で転記して番号・`未被覆`・`配線未達` の書き分けにしなかった点（assertion 6）。
-  1 run なので Delta の数値は語らず、**baseline も通った assertion 1〜3・5 は後退検知**の項目として残している
-  （assertion 5 は「承認を得てから本文を追記する」で、baseline も `gh` が使えないことを理由に外向き操作を控えたため通った。
-  この eval の意味のある Delta は 4・6 の 2 本と数える）
+  **（以下は assertion 2 を狭め 7 を追加する前＝6 assertion 版の履歴。現行の評価は上の iteration-36 を見る。この段落を現行 eval の根拠に使わない）**
+  iteration-32: `with_skill` 6/6・`without_skill` 4/6、弁別は当時の assertion 4・6 のみ。
+  当時から変わらない観察は 2 つ——fixture の features.md が空の「受け入れ条件」列を持つため**列を埋めること自体は baseline にも誘導される**こと、
+  baseline は横断の記述を**消費側のゲート**ではなく `#101` 自身の被覆不足として扱いがちなこと。
 - eval 31 の fixture（`issues-acceptance-part-coverage`）は**全行が起票済みで、受け入れ条件が行の一部しか名指ししていない状態**を持たせ、
   eval 30 が作らない 3 つの分岐を検証する——**部分（ページ ＋ 新規実装 API の口）の集合差分**・**否定の言及を被覆に数えない**・**配線の欠落**。
   仕込みは 3 つ: `#210` は `order` の `/orders` と `GET /api/orders` しか名指ししておらず `/orders/:id` と `GET /api/orders/:id` が落ちた部分、
