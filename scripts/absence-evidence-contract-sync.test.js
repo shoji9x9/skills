@@ -33,6 +33,13 @@ const REQUIRED_MEMBERS = [
   "function inAllowlist(",
   "function firedEvidenceProblem(",
   "function absentEvidenceProblem(",
+  // 集合の来歴と完全性（Issue #392 / #393）。記録側・判定側が同じ語彙と同じ強さの順序で見る。
+  "const SET_SOURCE_KINDS =",
+  "const ITEM_SOURCE_KINDS =",
+  "function strongerSourceProblems(",
+  "function setInventoryProblems(",
+  "function itemSourceProblems(",
+  "function enumerationSourceProblems(",
 ];
 
 /**

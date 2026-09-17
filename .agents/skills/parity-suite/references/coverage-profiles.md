@@ -51,6 +51,15 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
 - **ソースを読めない場合は確認済みにしない。** `complete: false` ＋ `incomplete_reason` に
   「実 UI からの列挙手順」と「不足しているもの」を書く。`complete: false` は
   `coverage-expand.mjs` / `coverage-check.mjs` の双方で未測定に倒れる（fail-closed）
+- **`enumeration.sources` は強い順**（`current-source` → `config` → `app-ui`）**に宣言する。**
+  順序のない集合として扱うと、**いちばん弱い情報源だけで `complete: true` が通る**——
+  `fail_closed` が要求するのは「ソースを読めないとき」の `complete: false` だけなので、
+  **読めたのに読まなかった場合は何も残らない**。並びが強い順でない・語彙外・重複は `validateProfile` が落とす
+- **一次情報源（`current-source`）以外で列挙したら `stronger_source_unavailable_reason` に理由を書く**
+  （未受領・難読化・動的生成で追えない等）。これが `fail_closed` の**裏側**の経路で、
+  記録側・判定側の双方が要求する。**一次情報源で列挙したのに理由が残っていれば効いていない免除として落とす**。
+  部品・インスタンスの集合側の同じ宣言（`component_inventory` / `instance_inventory`）は
+  [`coverage.md`](coverage.md)「3 つの集合に来歴と完全性を要求する」が正本
 - 非表示要素・横スクロールしないと到達しない要素は**列挙から落ちやすい**。
   プロファイルの `enumeration.pitfalls` がその部品で落ちやすい経路を列挙するので、
   列挙時に一つずつ潰したことを `condition` に残す
@@ -116,6 +125,7 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
 |---|---|
 | 欠落 | 候補に対応する項目・セルが無い |
 | 未列挙 | `enumeration` が無い・`complete: false`・`required_rules` が 0 件 |
+| 来歴 | 集合の来歴（`component_inventory` / `instance_inventory` / `components[].source` / `enumeration.source`）の欠落・語彙外の `kind`・完全性の未宣言・一次情報源を使わなかった理由の欠落 |
 | 余剰 | 候補集合に無い項目が `candidate` 付きで載っている（列挙とズレている） |
 | 未測定 | セルが `unmeasured`、または行が無い |
 | 証拠なし | `present` / `absent` なのに `evidence` が空 |

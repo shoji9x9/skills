@@ -1,6 +1,7 @@
 import { test, expect } from "vitest";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fillSetProvenance } from "./lib/coverage-set-provenance-fixture.js";
 
 // 被覆表の未測定は、記録側（parity-suite の coverage-expand.mjs の reconcile）と
 // 判定側（parity-diff の coverage-check.mjs の countCoverage）が独立に数える。
@@ -13,12 +14,25 @@ import { fileURLToPath } from "node:url";
 // - ge: 記録側だけがプロファイルを読んで展開し直せる分岐。記録側が判定側より多く数えてよいが、少なくはしない
 // どちらでも「判定側が未測定を数えるのに記録側が 0 件」は落ちる。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const { expandCandidates, loadProfiles, readEnumeration, reconcile } = await import(
-  join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs")
-);
-const { countCoverage } = await import(
+const {
+  expandCandidates,
+  loadProfiles,
+  readEnumeration,
+  reconcile: reconcileRaw,
+} = await import(join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs"));
+const { countCoverage: countCoverageRaw } = await import(
   join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs")
 );
+
+// 集合の来歴（component_inventory / instance_inventory / components[].source）は、
+// このファイルの被験対象（件数の関係）ではないので、宣言が無い fixture にだけ補う。
+// 両側へ同じオブジェクトを渡すため、補うのは片方の呼び出しの前で足りる。
+function reconcile(coverage, profiles, metadata = null) {
+  return reconcileRaw(fillSetProvenance(coverage), profiles, metadata);
+}
+function countCoverage(coverage, slug, captureNow) {
+  return countCoverageRaw(fillSetProvenance(coverage), slug, captureNow);
+}
 const { profiles } = loadProfiles(join(repoRoot, "skills/parity-suite/assets/coverage-profiles"));
 
 const SLUG = "order-list";
@@ -343,6 +357,61 @@ const CASES = [
       for (const key of Object.keys(flags)) flags[key] = false;
     }),
   ],
+  // 集合の来歴と完全性（Issue #392 / #393）。fillSetProvenance は「無いときだけ」補うので、
+  // null を置いた欠落はそのまま両側へ渡る（delete だと補完ラッパが埋めてしまう）。
+  [
+    "集合: component_inventory が無い",
+    "eq",
+    variant(generic, (c) => (c.component_inventory = null)),
+  ],
+  [
+    "集合: instance_inventory が無い",
+    "eq",
+    variant(generic, (c) => (grid(c).instance_inventory = null)),
+  ],
+  ["集合: components[].source が無い", "eq", variant(generic, (c) => (grid(c).source = null))],
+  [
+    "集合: 一次情報源以外で列挙したのに理由が無い",
+    "eq",
+    variant(generic, (c) => {
+      fillSetProvenance(c);
+      c.component_inventory.source.kind = "app-ui";
+    }),
+  ],
+  [
+    "集合: 完全性を宣言していない",
+    "eq",
+    variant(generic, (c) => {
+      fillSetProvenance(c);
+      delete grid(c).instance_inventory.complete;
+    }),
+  ],
+  [
+    "集合: complete: true なのに incomplete_reason が残っている",
+    "eq",
+    variant(generic, (c) => {
+      fillSetProvenance(c);
+      c.component_inventory.incomplete_reason = "数え切れていない（古い記録）";
+    }),
+  ],
+  [
+    "プロファイル: enumeration.source.kind が語彙外",
+    "eq",
+    variant(profiled, (c) => (orders(c).enumeration.source.kind = "vendor-spec")),
+  ],
+  [
+    "プロファイル: enumeration が実 UI からの列挙なのに理由が無い",
+    "eq",
+    variant(profiled, (c) => (orders(c).enumeration.source.kind = "app-ui")),
+  ],
+  [
+    "プロファイル: enumeration が complete: true なのに incomplete_reason が残る",
+    "eq",
+    variant(
+      profiled,
+      (c) => (orders(c).enumeration.incomplete_reason = "読み切れていない（残り）"),
+    ),
+  ],
 ];
 
 const counts = (make) => ({
@@ -435,6 +504,8 @@ test("撮影状態の指紋は記録側と判定側で一致する（別実装�
     },
   };
 
+  // 指紋は表の内容から取るので、集合の来歴を補うのは行を起こす前（＝記録側に渡す前）にする。
+  fillSetProvenance(coverage);
   expand.fillVisualStateRows(coverage);
   coverage.visual_state_coverage.rows[0].captured = "フィルタの吹き出しを開いた状態";
   const conditions = expand.readCaptureConditions(metadata);

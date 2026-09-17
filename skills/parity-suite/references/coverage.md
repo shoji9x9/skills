@@ -204,6 +204,43 @@
 - **部品を使っていない、または資料にも実 UI にも到達できず列挙を起こせない場合は `declared: false` と理由を書き、同じ理由を `gaps.md` に残す。理由は必須で、空だと `parity-diff` 側が落とす。キーごと省略しない**——キーの欠落は「旧版の `parity-suite` が作った成果物」の意味で、`parity-diff` が後方互換のため判定を飛ばす経路になる（測らなかった事実がそこへ紛れる）
 - 被覆表は現側の測定結果なので **slug 直下に 1 つ**（環境別に分けない）。`api-resource` / `batch` モードは画面部品を持たないため作らない
 
+#### 3 つの集合に来歴と完全性を要求する
+
+**被覆表は 3 つの集合の上に立つ**——**部品の集合**（`components[]`）・**インスタンスの集合**（`components[].instances[]`）・
+**軸の要素**（`instances[].enumeration` と `applicable_states`）。**列挙しなかった要素は期待セルにも現れない**ので、
+**来歴と完全性を宣言させない集合は、測り漏れが `unmeasured` 0 のまま収束する**（「載せなかった」と「本当に無い」が同じ見え方になる）。
+**どの集合も同じ形**（`source` の `kind` / `ref` / `version` / `condition` ＋ `complete` ＋ `false` のときの `incomplete_reason`）で宣言する。
+
+| 集合 | 宣言する場所 |
+|---|---|
+| 部品 | `component_inventory`（表の直下。この機能の画面に載っている部品の全体） |
+| インスタンス | `components[].instance_inventory`（その部品をどの画面に何個置いたか） |
+| 項目 | `components[].source`（`kind` は `vendor-feature-list` / `vendor-test-spec` / `official-sample` / `current-source` / `app-ui`） |
+| 軸の要素 | `instances[].enumeration.source` |
+| 適用可能状態 | `instances[].applicable_states.source`（`kind` の語彙は前述の非描画 `absent` の規定に従う。**強い順の語彙と `stronger_source_unavailable_reason` は当てない**） |
+
+- **集合の来歴の `kind` は強い順に `current-source` → `config` → `app-ui`**（`component_inventory` / `instance_inventory` / `enumeration.source` の 3 つ。
+  項目集合の `components[].source` と適用可能状態は上の表の語彙を使う）**。** 先頭の**受領した現行ソースが一次情報源**で、
+  **読めるなら、そこから部品の配置を静的に列挙してから画面を開く**——サーバー側テンプレート（`.aspx` / `.ascx` / `.jsp` 等）や
+  部品定義には「どの画面にどの部品を何個置いたか」がそのまま並ぶ。**画面は期待値の確定に使い、集合の列挙には使わない**
+- **実 UI の歩行（`app-ui`）が拾えるのは、その画面がその時描いたものだけ。** **本体の周りに置かれた部品**
+  （ページャ・設定の保存と復元・右クリックの器）は**本体の軸には現れず**、**集合の側で落ちると誰も数えない**
+- **一次情報源以外で列挙したときは `stronger_source_unavailable_reason` に理由を書く**（未受領・難読化・動的生成で追えない等）。
+  **「読めなかった」と「実 UI から起こした」は別の事実**で、機械には区別できないため申告させる。
+  これは `complete: false`（読めないときの fail-closed）の**裏側**——**読めるのに読まなかった**——を残す欄で、
+  一次情報源で列挙したのに理由が書かれている場合は**効いていない免除**として落とす
+- **効いていない免除はどの欄でも落とす**（集合の来歴とインスタンスの `enumeration` の両方）。
+  `complete: true` なのに `incomplete_reason` が残っている記録も同じ扱い——
+  機械は収束させるのに、成果物を読む側には「まだ読み切れていない集合」と見え、`gaps.md` の行も同じ文言で残り続ける。
+  `complete: true` にしたら `incomplete_reason` は `null` にする
+- **`components[].source.kind` に `current-source` がある**のは、受領ソースから起こした項目集合を `app-ui` に倒さないため——
+  倒すと**静的に全部読んだのか、画面に出ていたものを数えたのか**が後から区別できない
+- 検査するのは記録側 `coverage-expand.mjs` と判定側 `coverage-check.mjs` の**両方**（`SET_SOURCE_KINDS` / `ITEM_SOURCE_KINDS` は
+  両スクリプトで同一に保つ契約領域に置く）。欠落・語彙外・完全性の未宣言・理由の欠落は**未測定**として数え、
+  粒度は宣言の置き場所に揃える——`component_inventory` は表全体で 1 件、`instance_inventory` と `components[].source` は**その部品で合算して 1 件**
+- **この宣言をツールが自動で埋めることはしない**（来歴は捏造できない）。既存の被覆表には人／エージェントが追記し、
+  追記するまでは未測定として残る——`--write` が黙って埋めると、どこから列挙したかを誰も測っていない表が収束する
+
 ### 項目集合そのものを導出する（被覆プロファイル）
 
 **被覆表は登録された項目しか数えない。** データグリッドで代表列だけを操作して「フィルターあり」「ソートあり」の
