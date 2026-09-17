@@ -78,12 +78,14 @@ const UNRESOLVED_MESSAGES = {
  * 曖昧なときは除算に倒す——正規表現を除算と誤れば引用符が残って終端不明の例外（fail-closed）になるが、
  * 除算を正規表現と誤ると実コードを潰して違反が静かに消える。
  */
+// `in` / `of` は contextual keyword で、ふつうの識別子にもなれる（`const of = 2; of / d`）。
+// 一方この位置で正規表現が来る形（`for (const r of /re/.exec(s))`）は実在しないため、
+// 識別子側の誤りだけが残る。誤って除算を潰すと違反が静かに消えるので、集合に入れない。
+// 予約語（`return` 等）は識別子になれないので同じ問題は起きない。
 const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "return",
   "typeof",
   "instanceof",
-  "in",
-  "of",
   "new",
   "delete",
   "void",
@@ -595,13 +597,20 @@ function resolveReceiver(segments, receivers) {
     // 戻り値注釈で解決した名前は「呼ばれている区間」だけに当てる。呼ばれていない同名の
     // プロパティに当てると、`function page(…): Locator` があるファイルで
     // `screen.page.waitForTimeout()` の Page 判定を Locator へ上書きし、page 専用規則が静かに外れる。
-    const callableKind = segment.called
-      ? receivers.locatorCallables.has(segment.name)
-        ? "locator"
-        : receivers.pageCallables.has(segment.name)
-          ? "page"
-          : null
-      : null;
+    // 同名が両方の集合に入るなら（別宣言が別の型を返す）どちらとも決められない。先に並べた側を
+    // 採ると、その名前を持つ無関係な宣言 1 つで判定が反転する。解決に使わず、他の区間・
+    // 呼び出しの判定不能に委ねる。
+    const isLocatorCallable = receivers.locatorCallables.has(segment.name);
+    const isPageCallable = receivers.pageCallables.has(segment.name);
+    const ambiguousCallable = isLocatorCallable && isPageCallable;
+    const callableKind =
+      segment.called && !ambiguousCallable
+        ? isLocatorCallable
+          ? "locator"
+          : isPageCallable
+            ? "page"
+            : null
+        : null;
     if (receivers.locator.has(segment.name) || callableKind === "locator") {
       kind = "locator";
     } else if (receivers.page.has(segment.name) || callableKind === "page") {

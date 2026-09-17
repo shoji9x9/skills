@@ -376,6 +376,24 @@ test.each([
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test.each([
+  // contextual keyword は識別子にもなれる。綴りだけで位置を決めると除算を潰す。
+  ["of", "const of = 2; const x = of / d; const value = locator.textContent(); const y = a / e;"],
+  ["in", "const _in = 2; const x = _in / d; const value = locator.count(); const y = a / e;"],
+])("識別子として使える語（%s）の後の / を正規表現として潰さない", (_name, source) => {
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("同名が両方の callable 集合に入るときは受け側の解決に使わない", () => {
+  // 無関係な宣言 1 つで Page 判定が Locator へ反転し、page 専用規則が静かに外れるのを防ぐ。
+  const source = [
+    "declare const screen: Page & { page(): Page };",
+    "function page(view: Page): Locator { return view.locator('.x'); }",
+    "await screen.page().waitForTimeout(10);",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
+});
+
 test("戻り値注釈で解決した名前は呼ばれていないプロパティに当てない", () => {
   // `page` を返す関数が同一ファイルにあっても、`screen.page` の Page 判定を上書きしない
   // （上書きすると page 専用規則の fixed-wait が静かに外れる）。
