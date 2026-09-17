@@ -18,12 +18,53 @@
   `page.$` / `page.$$`、`elementHandle()` / `elementHandles()`、要素が揃うのを待たない `locator.all()`、assertion を通さない
   `textContent()` / `innerText()` / `inputValue()` / `getAttribute()` / `count()` / `isVisible()` 等の即時読み取り、`waitForTimeout()` による固定待機は禁止する。
   現行のサーバー描画で安定しても、新側のクライアント描画では描画完了前の値を読むためである（Locator と assertion の自動待機: <https://playwright.dev/docs/actionability#assertions>、`locator.all()` は待たない: <https://playwright.dev/docs/api/class-locator#locator-all>）。
-  authoring 後は `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、対象ファイル数が 1 件以上かつ違反 0 件であることを確認する
+  authoring 後は `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、対象ファイル数が 1 件以上・違反 0 件・判定不能 0 件であることを確認する（検査の届く範囲と免除は下の「検査が受け側を解決できる書き方」）
 - **判定用と操作用のロケータを分けてよい。** データグリッド等は `role="columnheader"` を画面外のミラー要素に付けることがあり、role では意味を判定できても、
   その要素の `boundingBox()` を使ったポインター操作は画面外へ送られる。判定は role ＋アクセシブルネームを保ち、座標を使う操作は実際に描画されている要素を操作アダプタで引く
   （`boundingBox()` は要素の座標を返す。出典: <https://playwright.dev/docs/api/class-locator#locator-bounding-box>）
 - **id / name をアンカーにしない。** 自動生成された id は変更対象になりうるうえ、比較の足がかりにすると id を変更できなくなる
 - **例外率を決めてかからない。** role ＋アクセシブルネームで引ける割合は `replace-strategy` のセマンティクス測定が実測で出す。実測では過半が無改造で両実装に解決したが、割合は現行アプリの実装次第であり、例外が大半を占めることもありうる
+
+### 検査が受け側を解決できる書き方
+
+`auto-wait-check.mjs` は**受け側**（禁止 API を呼んでいるオブジェクト）を解決してから違反を判定する。
+解決は同一ファイル内の情報だけで行うため、**解決できたか否かを出力に出す**——
+`ok:` / `error:` の行が `走査 N ファイル / 禁止 API の呼び出し N 件 / 受け側を解決 N 件 / 判定不能 N 件 / 採取スペックで免除 N 件` を必ず示す。
+**違反 0 件は「検査が届いた」ことの証拠にならない**ので、件数と合わせて読む。
+
+解決できる形:
+
+| 形 | 例 | 解決の根拠 |
+|---|---|---|
+| 引数・変数の `page` / `locator` | `page.getByRole(…)` | 名前と `: Page` / `: Locator` の型注釈 |
+| メンバー式（Page Object・画面オブジェクト） | `this.page.locator(…)` / `screen.page.waitForTimeout(…)` | チェーンの**各区間**の名前を照合する（起点が `this` や未知のオブジェクトでも、途中の `page` / `locator` で解決する） |
+| 束ねた別名 | `const row = this.page.locator("tr")` の `row` | 代入の右辺の**先頭チェーンの各区間**を照合する（起点だけを見ると `this` で止まる） |
+| 同一ファイル内の関数・メソッド | `pagerValue(view).innerText()` / `this.gridRows().count()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>` / クラス・オブジェクトのメソッド `f(…): Locator {`。型引数 `f<T>(…)` と関数型の引数があっても読む）。**呼ばれている区間にだけ当てる**ので、同名の未呼び出しプロパティは影響しない |
+| 括弧で包んだ await | `(await pagerValue(view)).innerText()` | 括弧の中身の末尾を受け側として辿る（`Promise<Locator>` を返す関数はこれが型的に正しい呼び方） |
+
+**名前で解決できない形が混じっていて、どの区間も `page` / `locator` に解決しなかったときは
+`unresolved-receiver` として報告し、非ゼロ終了する（fail-closed）。** 黙って違反 0 件へ倒さないための分岐で、
+理由ごとに直し方を出し分ける。
+
+| 理由 | 例 | 直し方 |
+|---|---|---|
+| 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` | その関数の戻り値へ `Locator` / `Page` の型注釈を付ける（別ファイルの関数なら、そのファイルに注釈があっても読めないので呼ぶ側で束ね直す） |
+| 束ねた変数の由来を追えない | `const rows = importedHelper();` / `const rows = model.rows;` の `rows` | 右辺の関数の戻り値、またはプロパティへ型注釈を付ける（`{ rows: Locator }`）。**ローカル変数へ束ねても消えない**——束ねれば検査から外れる抜け道は作っていない |
+| 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | プロパティ名で引いた値をローカル変数へ束ねる（`const page = this.page;`） |
+| 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | `Page` / `Locator` に解決する式から引く |
+
+**逆に、チェーンのどこかが `page` / `locator` に解決すれば、同じ形でも判定不能にはしない**
+（`page["x"].locator("a").count()` は解決する）。**解決できた受け側は、規則の要求と合わなくても
+`受け側を解決 N 件` に数える**——合致だけを数えると「解決できた」と「規則が当たった」が区別できず、
+件数が測れた量を示さなくなる。
+
+抑止フラグは用意しない——検査から外す道を作ると、外したことが出力に現れない。
+
+**`current-only/` の採取スペックだけは `immediate-read` を免除する。** 採取は値を記録するための読み取りで、
+置き換える assertion を持たない（`SKILL.md` は採取物を参考資料と位置づけ、assertion にしないことを定めている）。
+免除は**この 1 規則・この 1 ディレクトリに閉じる**——同じ場所でも `waitForTimeout()` による固定待機・
+`locator.all()`・`page.$` / `elementHandle()` は免除しない（採取したベースラインが不完全・非決定的になる）。
+免除した件数は `採取スペックで免除 N 件` として出力に出る。
 
 ### マッピングは片側ずつ埋まる
 
