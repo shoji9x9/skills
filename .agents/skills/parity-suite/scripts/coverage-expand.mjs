@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "16";
+export const VERSION = "17";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -392,6 +392,172 @@ function absentEvidenceProblem(row, label, stateManifest) {
   }
   return null;
 }
+/**
+ * 集合の来歴（`component_inventory` / `components[].instance_inventory`）と
+ * `instances[].enumeration.source` で使う情報源の kind の語彙。
+ * **並びは強い順**で、先頭が一次情報源（静的に読み切れる受領ソース）。実 UI の歩行はその画面がその時
+ * 描いたものしか拾えないため、弱い情報源で列挙したときは一次情報源が使えなかった理由を要求する。
+ * 正本は parity-suite の `assets/component-coverage-template.json`。
+ */
+const SET_SOURCE_KINDS = ["current-source", "config", "app-ui"];
+
+/**
+ * `components[].source.kind`（項目集合の列挙元）の語彙。受領ソースから起こした項目集合を
+ * `app-ui` へ倒さずに書けるよう `current-source` を持つ——`app-ui` に倒すと、静的に全部読んだのか
+ * 画面に出ていたものを数えたのかが後から区別できない。
+ */
+const ITEM_SOURCE_KINDS = [
+  "vendor-feature-list",
+  "vendor-test-spec",
+  "official-sample",
+  "current-source",
+  "app-ui",
+];
+
+/**
+ * 一次情報源（`SET_SOURCE_KINDS[0]`）以外で列挙したときに、その情報源が使えなかった理由の申告を要求する。
+ * `fail_closed`（ソースを読めないときの `complete: false`）の裏側——**読めるのに読まなかった**——には
+ * それまで経路が無く、いちばん弱い情報源だけで `complete: true` が通っていた。
+ * 「読めなかった」のか「実 UI から起こした」のかは機械では区別できないので、申告を残させる。
+ * 強さの判定は記録側（coverage-expand）・判定側（coverage-check）のどちらも同じ語彙で行う
+ * （片側だけ厳しいと「記録は通るが収束しない表」が作れる）。
+ * @param {Record<string, unknown>} block - `source` と `stronger_source_unavailable_reason` を持つブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function strongerSourceProblems(block, label) {
+  /** @type {string[]} */
+  const problems = [];
+  const source = isPlainObject(block.source)
+    ? /** @type {Record<string, unknown>} */ (block.source)
+    : null;
+  // 語彙の外・source ごとの欠落は呼び出し側が報告する（ここで二重に出さない）。
+  if (source === null || !inAllowlist(source.kind, SET_SOURCE_KINDS)) return problems;
+  const primary = SET_SOURCE_KINDS[0];
+  const reason = block.stronger_source_unavailable_reason;
+  if (source.kind === primary) {
+    // 効いていない免除は失敗させる。一次情報源で列挙したのに理由が残っていると、
+    // 後から読む側はその集合を弱い情報源から起こしたものと誤読する。
+    if (reason !== null && reason !== undefined) {
+      problems.push(
+        `${label}: ${primary} で列挙したのに stronger_source_unavailable_reason が書かれている（効いていない免除。使ったなら null にする）`,
+      );
+    }
+  } else if (!nonEmptyString(reason)) {
+    problems.push(
+      `${label}: ${String(source.kind)} で列挙したのに stronger_source_unavailable_reason が空（${primary} が使えなかった理由を書く。「読めなかった」と「実 UI から起こした」は別）`,
+    );
+  }
+  return problems;
+}
+
+/**
+ * 集合の来歴＋完全性のブロックを検査する（部品の集合とインスタンスの集合で同じ形を使う）。
+ * 列挙しなかった部品・インスタンスは期待セルにも現れないため、宣言が無いと「測り漏れ」と
+ * 「本当に無い」が同じ見え方（未測定 0 で収束）になる。軸の要素・適用可能状態が既に持っている
+ * `source` ＋ `complete` と同じ形を、集合の側にも当てる。
+ * @param {unknown} raw - 検査するブロック（`source` / `complete` / `incomplete_reason` / `stronger_source_unavailable_reason`）
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function setInventoryProblems(raw, label) {
+  /** @type {string[]} */
+  const problems = [];
+  if (!isPlainObject(raw)) {
+    problems.push(
+      `${label} が無い（集合をどこから起こしたか・読み切れたかが残らないので、列挙しなかった要素が未測定 0 で収束する）`,
+    );
+    return problems;
+  }
+  const block = /** @type {Record<string, unknown>} */ (raw);
+  const source = isPlainObject(block.source)
+    ? /** @type {Record<string, unknown>} */ (block.source)
+    : null;
+  if (source === null) {
+    problems.push(`${label}.source が無い（どの版のどこから何を条件に列挙したか残らない）`);
+  } else {
+    for (const key of ["kind", "ref", "version", "condition"]) {
+      if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
+    }
+    if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
+      problems.push(
+        `${label}.source.kind（${String(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+      );
+    }
+    problems.push(...strongerSourceProblems(block, label));
+  }
+  // complete: false は「列挙元を読み切れなかった」の記録。未列挙として扱い、確認済みにしない。
+  // 真偽値でないときも合格に倒さない（未設定を「完全」と読まない）。
+  if (block.complete !== true) {
+    if (block.complete === false) {
+      if (!nonEmptyString(block.incomplete_reason)) {
+        problems.push(
+          `${label}: complete: false なのに incomplete_reason が空（不足と列挙手順が残らない）`,
+        );
+      } else {
+        problems.push(
+          `${label}: 列挙が未完了（${String(block.incomplete_reason)}）— 確認済みにしない`,
+        );
+      }
+    } else {
+      problems.push(`${label}.complete が true ではない（未設定を「完全」と読まない）`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * 項目集合の来歴（`components[].source`）を検査する。語彙の外の値・キーごとの欠落を
+ * 報告しないと、来歴の欄が「書けたことが効いている証拠」にならない。
+ * @param {unknown} raw - `components[].source`
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function itemSourceProblems(raw, label) {
+  /** @type {string[]} */
+  const problems = [];
+  if (!isPlainObject(raw)) {
+    problems.push(`${label}.source が無い（項目集合をどこから起こしたか残らない）`);
+    return problems;
+  }
+  const source = /** @type {Record<string, unknown>} */ (raw);
+  for (const key of ["kind", "ref", "retrieved_at"]) {
+    if (!nonEmptyString(source[key])) problems.push(`${label}.source.${key} が空`);
+  }
+  if (!inAllowlist(source.kind, ITEM_SOURCE_KINDS)) {
+    problems.push(
+      `${label}.source.kind（${String(source.kind)}）が ${ITEM_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+    );
+  }
+  return problems;
+}
+
+/**
+ * インスタンスの列挙（`instances[].enumeration`）の来歴のうち、語彙と一次情報源の申告を検査する。
+ * 記録側は加えてプロファイルの `enumeration.sources` に属することも見るが、
+ * 強さの判定はどちらの側も `SET_SOURCE_KINDS` で行う。
+ * @param {Record<string, unknown>} en - `instances[].enumeration`
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function enumerationSourceProblems(en, label) {
+  /** @type {string[]} */
+  const problems = [];
+  const source = isPlainObject(en.source)
+    ? /** @type {Record<string, unknown>} */ (en.source)
+    : null;
+  // source ごとの欠落は呼び出し側が報告する（それぞれ別の未測定の数え方を持つ）。
+  if (source === null) return problems;
+  if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
+    problems.push(
+      `${label}: enumeration.source.kind（${String(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+    );
+    return problems;
+  }
+  problems.push(...strongerSourceProblems(en, `${label}: enumeration`));
+  return problems;
+}
+
 // ===== absence-evidence-contract:end =====
 
 /**
@@ -633,6 +799,22 @@ export function validateProfile(profile, source) {
     if (sources.length === 0) {
       at("enumeration.sources が空（列挙元の kind を検査できず、どの値でも通る）");
     }
+    // sources は**強い順**（SET_SOURCE_KINDS の並び）で宣言する。順序のない集合として扱うと、
+    // いちばん弱い情報源だけで complete: true が通り、一次情報源を使わなかったことが残らない。
+    const unknownSources = sources.filter((s) => !SET_SOURCE_KINDS.includes(s));
+    if (unknownSources.length > 0) {
+      at(
+        `enumeration.sources に語彙外の値がある（${unknownSources.join(" / ")}）。使えるのは ${SET_SOURCE_KINDS.join(" / ")}`,
+      );
+    }
+    const ranks = sources
+      .filter((s) => SET_SOURCE_KINDS.includes(s))
+      .map((s) => SET_SOURCE_KINDS.indexOf(s));
+    if (ranks.some((rank, i) => i > 0 && rank <= ranks[i - 1])) {
+      at(
+        `enumeration.sources が強い順（${SET_SOURCE_KINDS.join(" → ")}）に並んでいない、または重複している: ${sources.join(" / ")}`,
+      );
+    }
     for (const key of ["procedure", "fail_closed"]) {
       if (!nonEmptyString(enumeration[key])) at(`enumeration.${key} が空`);
     }
@@ -747,6 +929,10 @@ export function readEnumeration(enumeration, profile, label) {
         `${label}: enumeration.source.kind（${String(source.kind)}）がプロファイルの sources にない`,
       );
     }
+    // 語彙と「一次情報源を使わなかった理由」は判定側（coverage-check.mjs）と同じ関数で見る。
+    // プロファイルの sources は所属だけを決める集合なので、いちばん弱い情報源だけで
+    // complete: true が通る（読めるのに読んでいない場合に何も残らない）。
+    problems.push(...enumerationSourceProblems(en, label));
   }
 
   // complete: false は「ソースを読めなかった」の記録。候補を展開せず未列挙として扱う（fail-closed）。
@@ -1216,6 +1402,14 @@ export function reconcile(coverage, profiles, metadata = null) {
   const components = Array.isArray(cov.components) ? cov.components : [];
   if (components.length === 0) problems.push("components が空");
 
+  // 部品の集合の来歴と完全性。列挙しなかった部品は期待セルにも現れないため、宣言が無いと
+  // 「載せなかった部品」が未測定 0 のまま収束する（判定側の coverage-check.mjs と同じ扱い）。
+  const inventoryProblems = setInventoryProblems(cov.component_inventory, "component_inventory");
+  if (inventoryProblems.length > 0) {
+    problems.push(...inventoryProblems);
+    unmeasured += 1;
+  }
+
   // セル行を 部品／項目／インスタンス で索引する（キーは JSON 配列にして区切り文字の衝突を避ける）。
   const rows = Array.isArray(cov.cells) ? cov.cells : [];
   /** @type {Map<string, Record<string, unknown>>} */
@@ -1263,6 +1457,17 @@ export function reconcile(coverage, profiles, metadata = null) {
       continue;
     }
     seenComponents.add(cid);
+
+    // インスタンスの集合（この部品をどの画面に何個置いたか）の来歴と完全性と、項目集合の来歴
+    // （components[].source）の語彙・キー欠落。判定側（coverage-check.mjs）と同じ検査を当てる。
+    const setProblems = [
+      ...setInventoryProblems(c.instance_inventory, `部品 ${cid} の instance_inventory`),
+      ...itemSourceProblems(c.source, `部品 ${cid}`),
+    ];
+    if (setProblems.length > 0) {
+      problems.push(...setProblems);
+      unmeasured += 1;
+    }
 
     // profile キーの欠落を「汎用扱い」に倒さない。プロファイル無しを選ぶには理由が要る。
     if (!("profile" in c)) {

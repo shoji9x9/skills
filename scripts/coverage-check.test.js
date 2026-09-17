@@ -14,6 +14,11 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  fillSetProvenance,
+  itemSource,
+  setInventory,
+} from "./lib/coverage-set-provenance-fixture.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
@@ -31,6 +36,9 @@ const {
 // 指紋そのものの検査は「撮影状態の要約は現在の入力と結び付いていなければ通さない」テストが持つ。
 const CAPTURE = { slug: "order-list", pageNames: [], states: [], popupStates: [] };
 function countCoverage(coverage, slug, captureNow = captureFingerprint(CAPTURE)) {
+  // 集合の来歴（component_inventory / instance_inventory / components[].source）は
+  // 宣言が無い fixture にだけ補う。宣言そのものを見るテストは countCoverageRaw を直接呼ぶ。
+  fillSetProvenance(coverage);
   if (coverage && typeof coverage === "object" && !Array.isArray(coverage)) {
     const conf = coverage.conformance;
     if (conf && typeof conf === "object" && conf.visual_states) {
@@ -63,10 +71,15 @@ const noProfile = {
 const skeleton = {
   slug: "order-list",
   conformance,
+  // 3 つの集合（部品・インスタンス・項目）の来歴と完全性。専任のテストが別に見るので、
+  // 骨格では妥当な宣言を持たせておく。
+  component_inventory: setInventory(),
   components: [
     {
       id: "grid",
       ...noProfile,
+      instance_inventory: setInventory(),
+      source: itemSource(),
       items: [{ id: "ctx-menu" }, { id: "drag-reorder" }],
       instances: [{ id: "orders" }, { id: "search" }],
     },
@@ -942,7 +955,8 @@ function runCli(metadata, coverage) {
   writeFileSync(metaPath, JSON.stringify(metadata));
   // null ＝ 被覆表を書かない（読めないケース）、undefined ＝ --coverage も渡さない。
   if (coverage !== null && coverage !== undefined) {
-    // インプロセスの countCoverage ラッパと同じく、書き出す直前に指紋を現在の内容へ揃える。
+    // インプロセスの countCoverage ラッパと同じく、集合の来歴を補ってから指紋を現在の内容へ揃える。
+    fillSetProvenance(coverage);
     if (coverage && typeof coverage === "object" && coverage.conformance?.visual_states) {
       coverage.conformance.visual_states = {
         ...coverage.conformance.visual_states,
@@ -1130,4 +1144,211 @@ test("撮影状態の要約は下限より古い導出規則で作られてい�
       /conformance.tool が coverage-expand ではない/,
     );
   }
+});
+
+// --- 集合の来歴と完全性（Issue #392 / #393）: 判定側 ---
+//
+// 被覆表は 3 つの集合（部品・インスタンス・軸の要素）の上に立つ。来歴と完全性を宣言させないと、
+// 列挙しなかった部品・インスタンスは期待セルにも現れず unmeasured 0 で収束する
+// （実測: データグリッドの設定を保存・復元・リセットする 3 部品が集合から落ち、実装からも落ちた）。
+// 指紋の再計算を挟まない生の countCoverageRaw で呼ぶ——補完ラッパは宣言を埋めてしまう。
+
+/** 集合の宣言だけを差し替えられる、未測定 0 の被覆表。 */
+function withSets({ componentInventory, instanceInventory, source } = {}) {
+  const cov = full();
+  if (componentInventory === undefined) cov.component_inventory = setInventory();
+  else if (componentInventory === null) delete cov.component_inventory;
+  else cov.component_inventory = componentInventory;
+  if (instanceInventory === undefined) cov.components[0].instance_inventory = setInventory();
+  else if (instanceInventory === null) delete cov.components[0].instance_inventory;
+  else cov.components[0].instance_inventory = instanceInventory;
+  if (source === undefined) cov.components[0].source = itemSource();
+  else if (source === null) delete cov.components[0].source;
+  else cov.components[0].source = source;
+  cov.conformance = {
+    ...conformance,
+    visual_states: { ...conformance.visual_states, rows: 0 },
+  };
+  cov.conformance.visual_states.table_fingerprint = coverageFingerprint(cov);
+  cov.conformance.visual_states.capture_fingerprint = captureFingerprint(CAPTURE);
+  return cov;
+}
+
+const countSets = (cov) => countCoverageRaw(cov, "order-list", captureFingerprint(CAPTURE));
+
+test("陽性コントロール: 3 つの集合の来歴と完全性が揃っていれば未測定 0 で通る", () => {
+  const r = countSets(withSets());
+  expect(r.problems).toEqual([]);
+  expect(r).toMatchObject({ cells: 4, unmeasured: 0 });
+});
+
+test("部品・インスタンスの集合の宣言が無ければ 1 件ずつ未測定として数える", () => {
+  const missingBoth = countSets(withSets({ componentInventory: null, instanceInventory: null }));
+  expect(missingBoth.problems.join("\n")).toMatch(/component_inventory が無い/);
+  expect(missingBoth.problems.join("\n")).toMatch(/部品 grid の instance_inventory が無い/);
+  // 期待セル 4 ＋ 集合 2 件ぶんの未測定。欠落を「問題文だけ」で通すと収束が止まらない。
+  expect(missingBoth).toMatchObject({ cells: 6, unmeasured: 2 });
+
+  // 片方だけでも収束させない。
+  for (const key of ["componentInventory", "instanceInventory"]) {
+    const r = countSets(withSets({ [key]: null }));
+    expect(r.unmeasured).toBe(1);
+  }
+
+  // 数え方の粒度は宣言の置き場所に揃える。同じ部品の instance_inventory と source が
+  // 両方欠けても、その部品で 1 件（件数の定義は references/coverage.md と convergence.md が正本）。
+  const bothOnSameComponent = countSets(withSets({ instanceInventory: null, source: null }));
+  expect(bothOnSameComponent.problems.join("\n")).toMatch(/instance_inventory が無い/);
+  expect(bothOnSameComponent.problems.join("\n")).toMatch(/部品 grid.source が無い/);
+  expect(bothOnSameComponent.unmeasured).toBe(1);
+});
+
+test("集合の来歴の欄が欠けている・語彙の外なら報告する（書けたことを効かせる）", () => {
+  // Issue #393 の実測: source.kind に語彙外の値を書いても、キーごと無くても報告されなかった。
+  const cases = [
+    [{ ...setInventory(), source: undefined }, /component_inventory.source が無い/],
+    [
+      { ...setInventory(), source: { ...setInventory().source, kind: "invented" } },
+      /component_inventory.source.kind（invented）が current-source \/ config \/ app-ui のいずれでもない/,
+    ],
+    [
+      { ...setInventory(), source: { ...setInventory().source, version: "" } },
+      /component_inventory.source.version が空/,
+    ],
+    [
+      { ...setInventory(), source: { ...setInventory().source, condition: "  " } },
+      /component_inventory.source.condition が空/,
+    ],
+  ];
+  for (const [componentInventory, pattern] of cases) {
+    const r = countSets(withSets({ componentInventory }));
+    expect(r.problems.join("\n")).toMatch(pattern);
+    expect(r.unmeasured).toBeGreaterThan(0);
+  }
+});
+
+test("集合の完全性は未設定を「完全」と読まず、false は理由を要求する", () => {
+  const notDeclared = countSets(
+    withSets({ componentInventory: { ...setInventory(), complete: undefined } }),
+  );
+  expect(notDeclared.problems.join("\n")).toMatch(
+    /component_inventory.complete が true ではない（未設定を「完全」と読まない）/,
+  );
+  expect(notDeclared.unmeasured).toBe(1);
+
+  // complete: false は「読み切れなかった」の記録。理由が無ければ不足が残らない。
+  const noReason = countSets(
+    withSets({ componentInventory: { ...setInventory(), complete: false } }),
+  );
+  expect(noReason.problems.join("\n")).toMatch(/complete: false なのに incomplete_reason が空/);
+
+  // 理由があっても確認済みにはしない（部品を落としたまま収束させない）。
+  const withReason = countSets(
+    withSets({
+      componentInventory: {
+        ...setInventory(),
+        complete: false,
+        incomplete_reason: "受領ソースに共通ブロックが含まれておらず、配置を数え切れていない",
+      },
+    }),
+  );
+  expect(withReason.problems.join("\n")).toMatch(/列挙が未完了/);
+  expect(withReason.unmeasured).toBe(1);
+});
+
+test("一次情報源以外で列挙したら理由を要求し、使ったのに理由が残っていれば落とす", () => {
+  const appUi = (extra = {}) => ({
+    ...setInventory(),
+    source: { ...setInventory().source, kind: "app-ui", ref: "受注一覧を歩いた" },
+    ...extra,
+  });
+
+  // 実 UI の歩行だけで列挙したのに理由が無い（fail_closed の裏側＝読めるのに読んでいない）。
+  const noReason = countSets(withSets({ componentInventory: appUi() }));
+  expect(noReason.problems.join("\n")).toMatch(
+    /app-ui で列挙したのに stronger_source_unavailable_reason が空/,
+  );
+  expect(noReason.unmeasured).toBe(1);
+
+  // 陽性コントロール: 理由を書けば通る（「読めなかった」を残せる形にする）。
+  const withReason = countSets(
+    withSets({
+      componentInventory: appUi({
+        stronger_source_unavailable_reason: "現行ソースは未受領で、画面しか参照できない",
+      }),
+    }),
+  );
+  expect(withReason.problems).toEqual([]);
+  expect(withReason.unmeasured).toBe(0);
+
+  // 効いていない免除は落とす（一次情報源で列挙したのに理由が残っている）。
+  const stale = countSets(
+    withSets({
+      componentInventory: {
+        ...setInventory(),
+        stronger_source_unavailable_reason: "未受領（過去の記録が残ったまま）",
+      },
+    }),
+  );
+  expect(stale.problems.join("\n")).toMatch(
+    /current-source で列挙したのに stronger_source_unavailable_reason が書かれている/,
+  );
+  expect(stale.unmeasured).toBe(1);
+});
+
+test("項目集合の来歴は current-source を受け付け、語彙外・欠落は報告する", () => {
+  // 陽性コントロール: 受領ソースから起こした項目集合を app-ui に倒さずに書ける（Issue #392）。
+  const fromSource = countSets({
+    ...withSets({
+      source: itemSource({ kind: "current-source", ref: "src/pages/OrderList.ascx" }),
+    }),
+  });
+  expect(fromSource.problems).toEqual([]);
+
+  for (const [source, pattern] of [
+    [null, /部品 grid.source が無い（項目集合をどこから起こしたか残らない）/],
+    [
+      itemSource({ kind: "invented" }),
+      /部品 grid.source.kind（invented）が vendor-feature-list \/ vendor-test-spec \/ official-sample \/ current-source \/ app-ui のいずれでもない/,
+    ],
+    [itemSource({ retrieved_at: "" }), /部品 grid.source.retrieved_at が空/],
+  ]) {
+    const r = countSets(withSets({ source }));
+    expect(r.problems.join("\n")).toMatch(pattern);
+    expect(r.unmeasured).toBe(1);
+  }
+});
+
+test("インスタンスの列挙の来歴も語彙と一次情報源の理由を要求する（プロファイル経路）", () => {
+  const base = () => {
+    const cov = profiled();
+    cov.component_inventory = setInventory();
+    cov.components[0].instance_inventory = setInventory();
+    cov.components[0].source = itemSource();
+    return cov;
+  };
+  const count = (cov) => countCoverage(cov, "order-list");
+
+  // 陽性コントロール: current-source で列挙した表は通る（候補 3 件がすべて測れている）。
+  expect(count(base()).problems).toEqual([]);
+
+  const outsideVocabulary = base();
+  outsideVocabulary.components[0].instances[0].enumeration.source.kind = "vendor-spec";
+  expect(count(outsideVocabulary).problems.join("\n")).toMatch(
+    /enumeration.source.kind（vendor-spec）が current-source \/ config \/ app-ui のいずれでもない/,
+  );
+  expect(count(outsideVocabulary).unmeasured).toBeGreaterThan(0);
+
+  const walkedUi = base();
+  walkedUi.components[0].instances[0].enumeration.source.kind = "app-ui";
+  expect(count(walkedUi).problems.join("\n")).toMatch(
+    /enumeration: app-ui で列挙したのに stronger_source_unavailable_reason が空/,
+  );
+
+  // 陽性コントロール: 理由を書けば通る。
+  const declared = base();
+  declared.components[0].instances[0].enumeration.source.kind = "app-ui";
+  declared.components[0].instances[0].enumeration.stronger_source_unavailable_reason =
+    "グリッド定義が動的生成で、ソースからは列を追えない";
+  expect(count(declared).problems).toEqual([]);
 });

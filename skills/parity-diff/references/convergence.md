@@ -53,8 +53,19 @@
     **期待セルの取り方は部品が被覆プロファイルを宣言しているかで変わる**（プロファイルの契約は `parity-suite` の `references/coverage-profiles.md` が正本）:
     宣言していない部品（`profile: null` ＋ `profile_absent_reason`）は 項目 × インスタンス、宣言した部品は**インスタンスごとに記録された候補**（`instances[].candidates`）。
     プロファイル本体は `parity-suite` の同梱物なので**ここでは読まず**、被覆表に記録された列挙・候補・適合結果から数え直す。
-    プロファイル経路で追加で落とすのは次の 4 つ——
+    **集合の来歴と完全性も数え直しの対象**（正本は `parity-suite` の `references/coverage.md`「3 つの集合に来歴と完全性を要求する」）——
+    **`component_inventory`（部品の集合）と `components[].instance_inventory`（インスタンスの集合）が無い・`source` の
+    `kind` / `ref` / `version` / `condition` が空・`kind` が `current-source` / `config` / `app-ui` のいずれでもない・
+    `complete` が `true` でない**（`false` は `incomplete_reason` 必須）、および
+    **一次情報源（`current-source`）以外で列挙したのに `stronger_source_unavailable_reason` が空**（逆に一次情報源で列挙したのに理由が書かれている＝効いていない免除）は、
+    未測定として数える。**数え方の粒度は宣言の置き場所に揃える**——`component_inventory` の不備は表全体で 1 件、
+    `components[].instance_inventory` と `components[].source` の不備は**その部品で合算して 1 件**（同じ部品の 2 つの宣言が両方欠けても 2 件にはしない）。
+    **列挙しなかった部品・インスタンスは期待セルにも現れない**ため、集合の側で宣言させない限り測り漏れは `unmeasured` 0 で収束する。
+    **`components[].source`（項目集合の来歴）も同じく検査する**——`kind` / `ref` / `retrieved_at` の非空と、
+    `kind` が `vendor-feature-list` / `vendor-test-spec` / `official-sample` / `current-source` / `app-ui` のいずれかであること。
+    プロファイル経路で追加で落とすのは次の 5 つ——
     **`enumeration` が無い・`complete` が `true` でない・`source` が無い**（列挙の来歴が残らない）、
+    **`enumeration.source.kind` が語彙外**、または**一次情報源以外で列挙したのに `stronger_source_unavailable_reason` が空**（読めるのに読んでいない側の経路）、
     **`candidates` が空**（展開が記録されていない）、
     **`enumeration.elements` に列挙した要素がどの候補にも現れない**（「40 列を列挙したが候補は代表 1 列だけ」。
     突き合わせは `items[].candidate.axes` で**軸ごと**に行い、軸値を引けない候補は和集合へフォールバックせず未測定にする。

@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fillSetProvenance } from "./lib/coverage-set-provenance-fixture.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
@@ -25,9 +26,20 @@ const {
   loadProfiles,
   readCaptureConditions,
   readEnumeration,
-  reconcile,
+  reconcile: reconcileRaw,
   validateProfile,
 } = await import(script);
+
+/**
+ * 集合の来歴（component_inventory / instance_inventory / components[].source）を、
+ * 宣言が無い fixture にだけ補ってから照合する。宣言そのものを見るテストは reconcileRaw を直接呼ぶ。
+ * @param {unknown} coverage
+ * @param {Map<string, Record<string, unknown>>} profiles
+ * @param {{pageNames: string[], states: string[], popupStates: string[]} | null} [metadata]
+ */
+function reconcile(coverage, profiles, metadata = null) {
+  return reconcileRaw(fillSetProvenance(coverage), profiles, metadata);
+}
 
 /**
  * 撮影状態の導出を「決め済み」にしてから返す。撮影状態の未決はこのファイルの被験対象ではないので、
@@ -933,7 +945,12 @@ function runCli(args, { profiles = {}, files = {} } = {}) {
   for (const [name, content] of Object.entries(profiles)) write(profilesDir, name, content);
   /** @type {Record<string, string>} */
   const paths = {};
-  for (const [name, content] of Object.entries(files)) paths[name] = write(root, name, content);
+  for (const [name, content] of Object.entries(files)) {
+    // インプロセスの reconcile ラッパと同じく、被覆表には集合の来歴を補ってから書き出す
+    // （宣言そのものを見るテストは自分で書いた値を持つので上書きされない）。
+    if (name === "component-coverage.json") fillSetProvenance(content);
+    paths[name] = write(root, name, content);
+  }
   const resolved = args.map((a) => paths[a] ?? (a === "@profiles" ? profilesDir : a));
   return {
     root,
@@ -1951,4 +1968,119 @@ test("要求元はルール id でまとめない（縮約は宣言・検証済�
   const r = reconcile(illegal, bundled, captureConditionsFor(illegal));
   expect(r.ok).toBe(false);
   expect(r.problems.join("\n")).toMatch(/軸 sort-direction は reducible_axes にない/);
+});
+
+// --- 集合の来歴と完全性（Issue #392 / #393）: 記録側 ---
+//
+// 判定側（coverage-check.mjs）と同じ検査を authoring 時にも当てる。片側だけが厳しいと
+// 「記録側は conformance を出すのに判定側が収束させない」表が作れる。
+// 補完ラッパを通さない reconcileRaw で呼ぶ（ラッパは宣言を埋めてしまう）。
+
+test("記録側も 3 つの集合の来歴と完全性を要求する（宣言が無ければ未測定へ数える）", () => {
+  // 陽性コントロール: 宣言が揃っていれば適合する（常に落とす実装を弾く）。
+  const ok = reconcileRaw(fillSetProvenance(datagridCoverage()), bundled);
+  expect(ok.problems).toEqual([]);
+  expect(ok).toMatchObject({ ok: true, unmeasured: 0 });
+
+  // 宣言が無い表は問題文だけでなく未測定として数える（記録側だけ未測定 0 を主張しない）。
+  const bare = reconcileRaw(datagridCoverage(), bundled);
+  expect(bare.ok).toBe(false);
+  expect(bare.problems.join("\n")).toMatch(/component_inventory が無い/);
+  expect(bare.problems.join("\n")).toMatch(/部品 grid の instance_inventory が無い/);
+  expect(bare.problems.join("\n")).toMatch(/部品 grid.source が無い/);
+  expect(bare.unmeasured).toBeGreaterThanOrEqual(2);
+
+  // 語彙外の kind・完全性の未宣言も落とす。
+  const invented = fillSetProvenance(datagridCoverage());
+  invented.component_inventory.source.kind = "invented";
+  expect(reconcileRaw(invented, bundled).problems.join("\n")).toMatch(
+    /component_inventory.source.kind（invented）が current-source \/ config \/ app-ui のいずれでもない/,
+  );
+
+  const notDeclared = fillSetProvenance(datagridCoverage());
+  delete notDeclared.components[0].instance_inventory.complete;
+  expect(reconcileRaw(notDeclared, bundled).problems.join("\n")).toMatch(
+    /instance_inventory.complete が true ではない/,
+  );
+
+  // 一次情報源以外で列挙したら理由を要求する（読めるのに読んでいない側の経路）。
+  const walked = fillSetProvenance(datagridCoverage());
+  walked.component_inventory.source.kind = "app-ui";
+  expect(reconcileRaw(walked, bundled).problems.join("\n")).toMatch(
+    /app-ui で列挙したのに stronger_source_unavailable_reason が空/,
+  );
+  walked.component_inventory.stronger_source_unavailable_reason =
+    "現行ソースは未受領で、画面しか参照できない";
+  expect(reconcileRaw(walked, bundled).problems).toEqual([]);
+});
+
+test("列挙の来歴も一次情報源を使わなかった理由を要求する（readEnumeration）", () => {
+  const profile = bundled.get("datagrid");
+
+  // 陽性コントロール: current-source で列挙した記録は使える。
+  expect(readEnumeration(enumeration(), profile, "t").usable).toBe(true);
+
+  const walked = enumeration();
+  walked.source.kind = "app-ui";
+  walked.source.ref = "受注一覧を歩いた";
+  const noReason = readEnumeration(walked, profile, "t");
+  expect(noReason.usable).toBe(false);
+  expect(noReason.problems.join("\n")).toMatch(
+    /app-ui で列挙したのに stronger_source_unavailable_reason が空/,
+  );
+
+  // 理由を書けば使える（「読めなかった」を残せる形にする）。
+  const declared = {
+    ...walked,
+    stronger_source_unavailable_reason: "グリッド定義が動的生成で追えない",
+  };
+  expect(readEnumeration(declared, profile, "t").usable).toBe(true);
+
+  // 一次情報源を使ったのに理由が残っていれば効いていない免除として落とす。
+  const stale = { ...enumeration(), stronger_source_unavailable_reason: "未受領（古い記録）" };
+  const staleResult = readEnumeration(stale, profile, "t");
+  expect(staleResult.usable).toBe(false);
+  expect(staleResult.problems.join("\n")).toMatch(
+    /current-source で列挙したのに stronger_source_unavailable_reason が書かれている/,
+  );
+});
+
+test("プロファイルの形式検査: enumeration.sources は強い順に並んでいなければ落とす", () => {
+  const base = {
+    id: "z2",
+    version: "1",
+    applies_to: "テスト用",
+    axes: [{ id: "a", kind: "element", flags: ["on"] }],
+    enumeration: {
+      sources: ["current-source", "config", "app-ui"],
+      procedure: "定義から a を抜く",
+      pitfalls: ["隠れている a を落とす"],
+      fail_closed: "読めなければ complete: false",
+    },
+    candidate_rules: [{ id: "r", axes: ["a"], guard: { "a.on": true }, visual_states: ["hover"] }],
+    required_rules: ["r"],
+    equivalence: { reducible_axes: ["a"] },
+  };
+  // 陽性コントロール: 強い順・部分集合はどちらも通る。
+  expect(validateProfile(base, "z2.json")).toEqual([]);
+  const subset = structuredClone(base);
+  subset.enumeration.sources = ["current-source", "app-ui"];
+  expect(validateProfile(subset, "z2.json")).toEqual([]);
+
+  // 弱い情報源を先に書くと、いちばん弱いものだけで complete: true が通る形になる。
+  const reversed = structuredClone(base);
+  reversed.enumeration.sources = ["app-ui", "current-source"];
+  expect(validateProfile(reversed, "z2.json").join("\n")).toMatch(
+    /enumeration.sources が強い順（current-source → config → app-ui）に並んでいない、または重複している/,
+  );
+
+  const duplicated = structuredClone(base);
+  duplicated.enumeration.sources = ["current-source", "current-source"];
+  expect(validateProfile(duplicated, "z2.json").join("\n")).toMatch(/強い順/);
+
+  const unknown = structuredClone(base);
+  unknown.enumeration.sources = ["current-source", "vendor-spec"];
+  expect(validateProfile(unknown, "z2.json").join("\n")).toMatch(
+    /enumeration.sources に語彙外の値がある（vendor-spec）/,
+  );
 });
