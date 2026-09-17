@@ -293,3 +293,26 @@ test("候補の id は上限を上げても振り直されない", () => {
     expect(same.bbox).toEqual(region.bbox);
   }
 });
+
+test("候補の id は下限を下げても振り直されない（採番は両フィルタの前）", () => {
+  // 入力の並びは (y, x) 昇順と違える。1 画素の成分は既定の下限では落ちるが、id は全体の並びで決まる。
+  const components = [
+    { pixels: 40, bbox: { x: 0, y: 30, width: 4, height: 4 } },
+    { pixels: 1, bbox: { x: 0, y: 5, width: 1, height: 1 } },
+  ];
+
+  const strict = mergeThenFilter(components, 4, 8);
+  const loose = mergeThenFilter(components, 1, 8);
+
+  expect(strict.kept.map((r) => r.id)).toEqual(["s2"]);
+  expect(strict.droppedClusters).toBe(1);
+  expect(loose.kept.map((r) => r.id)).toEqual(["s1", "s2"]);
+
+  const strictIds = selectStrictRegions(strict.kept, 10).map((r) => [r.id, r.pixels]);
+  const looseIds = selectStrictRegions(loose.kept, 10).map((r) => [r.id, r.pixels]);
+  expect(strictIds).toEqual([["s2", 40]]);
+  expect(looseIds).toEqual([
+    ["s1", 1],
+    ["s2", 40],
+  ]);
+});

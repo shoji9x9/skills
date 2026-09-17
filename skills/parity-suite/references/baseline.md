@@ -319,7 +319,15 @@ node <skill>/scripts/dimension-fit.mjs fit \
 - **画素は 2 本とも記録する。** `pixel_diff`（記録済みツールのしきい値つき）だけでなく、`pixel_diff_strict` / `pixel_diff_strict_only`
   （しきい値なしの画素数と、そのうちツールがマークしなかった分）も記録する。`parity-diff` は現新差を**同じ軸の基準値**と対比するため、
   しきい値つきの値しか無いと strict の実測が必ず超過になり、通常の描画揺れまで要対応に化ける
-  （値の出どころは `parity-diff` 同梱 `pixel-crops.mjs` の `summary`。項目の意味の正本は同スキルの `references/detect.md`）
+- **strict の 2 本は同梱 [`../scripts/pixel-strict-count.mjs`](../scripts/pixel-strict-count.mjs) で数える**（スキルディレクトリ内から直接実行する。プロジェクトへコピーしない）:
+
+  ```text
+  node <スキルディレクトリ>/scripts/pixel-strict-count.mjs <baseline の PNG> <noise-pass2 の PNG> [--diff <記録済みツールの差分画像>]
+  ```
+
+  `--diff` を渡すと `strict_only_pixels`（しきい値の内側に隠れた分）も出る。渡さなければ `null`（0 と区別する）。
+  `pngjs` に依存する（無ければ導入をユーザーに確認する。本スキルは勝手にインストールしない）。
+  `parity-diff` の `scripts/pixel-crops.mjs` にも同じ計数があるが、**インストール先が別なので互いを import しない**（規則を変えたら両方直す）
 - **2 回目の書き出し先は `.replace/parity/<slug>/noise-pass2/`**（1 回目＝`baseline/` と対称のレイアウト。同じ場所へ撮ると 1 回目を上書きして比較相手が消える）
 - **2 標本の一致は採取が決定論的である証明ではない。** 2 値のどちらかに転ぶ採取は 1/2 の確率で「ノイズ 0」になる。
   上記「撮る対象が動かなくなるまで待つ」を 1 回目・2 回目の両方で満たしたうえで測る（標本を増やしても、待たずに撮る限り転ぶ採取は残る）。

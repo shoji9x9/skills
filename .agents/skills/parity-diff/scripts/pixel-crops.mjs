@@ -213,21 +213,20 @@ export function buildStrictOnlyMask(thresholdMask, strictMask) {
 /**
  * strict-only のクラスタから出力する領域を決定論的に選ぶ。
  *
- * **id は上限を掛ける前の全体の並び（(y, x) 昇順）から決める。** 選抜後の位置で採番すると、
- * 警告に従って `--strict-max-regions` を上げたときに、前は出ていなかった手前の領域が割り込んで
- * 既存の候補が採番し直される——同じ `crop-sN-*` が別の bbox を指し、記録済みのトリアージが
- * 別の crop に貼り付く。
+ * **id は採番しない**（`mergeThenFilter` が下限・上限のどちらも掛ける前に振ってある）。
+ * ここで採番すると、`--strict-min-cluster` を下げたときも `--strict-max-regions` を上げたときも
+ * 既存の候補が採番し直され、同じ `crop-sN-*` が別の bbox を指す。
  *
- * 選抜自体は画素数の多い順（同数なら y, x 昇順）で上限 max 件、出力は (y, x) 昇順。
+ * 選抜は画素数の多い順（同数なら y, x 昇順）で上限 max 件、出力は (y, x) 昇順。
  * 上限で落とした分は呼び出し側が総数と併せて報告する（黙って捨てない）。
- * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
+ * @param {Array<{ id?:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
  * @param {number} max
  * @returns {Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>}
  */
 export function selectStrictRegions(regions, max) {
   const ordered = [...regions]
     .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)
-    .map((r, index) => ({ ...r, id: `s${index + 1}` }));
+    .map((r, index) => ({ ...r, id: r.id ?? `s${index + 1}` }));
   const ranked = [...ordered].sort(
     (a, b) => b.pixels - a.pixels || a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x,
   );
@@ -353,7 +352,13 @@ function unionBbox(a, b) {
  *             droppedClusters:number, droppedPixels:number }}
  */
 export function mergeThenFilter(components, minCluster, pad) {
-  const merged = filterAndMerge(components, 1, pad);
+  // id は**どちらのフィルタも掛ける前**のマージ済み全体の並び（(y, x) 昇順）から決める。
+  // 下限で絞った後に採番すると、警告に従って --strict-min-cluster を下げたときに
+  // 手前の小さな成分が s1 になり、既存の s1 が s2 へずれる（記録済みのトリアージが別の crop に貼り付く）。
+  const merged = filterAndMerge(components, 1, pad).map((r, index) => ({
+    ...r,
+    id: `s${index + 1}`,
+  }));
   const kept = merged.filter((r) => r.pixels >= minCluster);
   const dropped = merged.filter((r) => r.pixels < minCluster);
   return {
