@@ -376,6 +376,71 @@ test.each([
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test("TypeScript の後置 ! の後の / を正規表現として潰さない", () => {
+  // 前置の否定（`!/re/.test(x)`）は正規表現、後置の非 null は値で終わるので除算。
+  const source =
+    "const x = value! / denom; const value2 = locator.textContent(); const y = a / divisor;";
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("前置の ! の後は正規表現として潰す", () => {
+  const source = [
+    "if (!/it's/.test(x)) { }",
+    "const value = await locator.count();",
+    "// isn't",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("generic なメソッドの戻り値注釈も読む", () => {
+  // `<T>` がメソッド名と `(` の間に入ると読めず、注釈を付けても解除できないゲートになる。
+  const source = [
+    "class P {",
+    "  rows<T>(): Locator { return this.page.locator('tr'); }",
+    "  async r() { return await this.rows().count(); }",
+    "}",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  // 戻り値注釈は呼ばれている区間だけに当てる。未呼び出しプロパティに当てると、同名の関数宣言
+  // 1 つで無関係な変数が Locator に化けて誤検出になる。
+  [
+    "未呼び出しプロパティは誤検出しない（判定不能に倒す）",
+    "const snapshot = model.rows;",
+    "unresolved-receiver",
+  ],
+  ["呼ばれている別名は解決する", "const snapshot = rows();", "immediate-read"],
+])("別名の右辺で callable を当てるのは呼び出しだけ（%s）", (_name, binding, rule) => {
+  const source = [
+    "function rows(): Locator { return page.locator('tr'); }",
+    binding,
+    "const n = snapshot.count();",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual([rule]);
+});
+
+test("別名の右辺で page 側の callable も呼び出しだけに当てる", () => {
+  // 未呼び出しプロパティに当てると、hasPage が立って「由来を追えない別名」の記録が
+  // 抑止され、受け側が解決も判定不能もされないまま静かに素通りする。
+  const source = [
+    "function view(x: Locator): Page { return x.page(); }",
+    "const p = model.view;",
+    "await p.waitForTimeout(10);",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["unresolved-receiver"]);
+});
+
+test("プロパティの型注釈があれば束ねた別名を解決する", () => {
+  const source = [
+    "declare const model: { rows: Locator };",
+    "const snapshot = model.rows;",
+    "const n = snapshot.count();",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
 test.each([
   // contextual keyword は識別子にもなれる。綴りだけで位置を決めると除算を潰す。
   ["of", "const of = 2; const x = of / d; const value = locator.textContent(); const y = a / e;"],

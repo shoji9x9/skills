@@ -67,7 +67,7 @@ const UNRESOLVED_MESSAGES = {
   computed:
     "受け側を解決できない（添字アクセスでプロパティ名が読めない）。プロパティ名で引いた値をローカル変数へ束ねる",
   alias:
-    "受け側を解決できない（束ねた変数の由来を追えない）。右辺の関数の戻り値へ Page / Locator の型注釈を付ける",
+    "受け側を解決できない（束ねた変数の由来を追えない）。右辺の関数の戻り値、またはプロパティへ Page / Locator の型注釈を付ける",
   opaque:
     "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から引く",
 };
@@ -133,6 +133,9 @@ function regexAllowedAfter(lastToken) {
     // `{…}` の閉じなら値で終わるので除算（`<A x={1} /><B y={…} />` を正規表現と読むと
     // 2 つの `/` に挟まれた実コードが静かに潰れる）。
     if (lastToken.value === "}") return lastToken.blockClose === true;
+    // TypeScript の非 null は後置。`value! / denom` は値で終わるので除算、前置の否定
+    // （`!/re/.test(x)`）は値で終わらないので正規表現。
+    if (lastToken.value === "!") return lastToken.postfix !== true;
     return !DIVISION_AFTER_PUNCTUATORS.has(lastToken.value);
   }
   // プロパティ名はキーワードにならない。`obj.return / x / y` の `return` をキーワードと読むと
@@ -151,6 +154,16 @@ function braceOpensBlock(lastToken) {
     return lastToken.member || !OBJECT_BRACE_AFTER_KEYWORDS.has(lastToken.value);
   }
   return false;
+}
+
+/** 直前のトークンが値で終わるか（＝続く `!` が後置の非 null 演算子か）。 */
+function endsWithValue(lastToken) {
+  if (lastToken === null) return false;
+  if (lastToken.type === "word") return true;
+  if (lastToken.type === "number" || lastToken.type === "literal") return true;
+  if (lastToken.type !== "punct") return false;
+  if (lastToken.value === ")" || lastToken.value === "]") return true;
+  return lastToken.value === "}" && lastToken.blockClose !== true;
 }
 
 /** 直前のトークンが、プロパティ名でない素の制御構文キーワードか。 */
@@ -343,6 +356,11 @@ export function maskNonCode(source) {
         i += 1;
         continue;
       }
+      if (c === "!") {
+        lastToken = { type: "punct", value: "!", postfix: endsWithValue(lastToken) };
+        i += 1;
+        continue;
+      }
       lastToken = { type: "punct", value: c };
       i += 1;
       continue;
@@ -501,10 +519,13 @@ function playwrightReceivers(code) {
   // 引数列は括弧を 1 段まで含められる（`pick: (r: Locator) => Locator` のような関数型の引数。
   // 括弧無しに限ると、注釈を付けても解決せず「注釈を付けろ」と言い続ける）。
   const params = String.raw`(?:[^()]|\([^()]*\))*`;
+  // generic なメソッド・関数（`rows<T>(): Locator`）。型引数を読み飛ばさないと注釈を
+  // 付けても解決せず、「注釈を付けろ」と言い続けるゲートになる。入れ子は 1 段まで。
+  const typeParams = String.raw`(?:\s*<(?:[^<>()]|<[^<>()]*>)*>)?`;
   const returnAnnotation = String.raw`\)\s*:\s*(?:Promise\s*<\s*)?(Page|Locator)\b`;
   for (const match of code.matchAll(
     new RegExp(
-      String.raw`\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(${params}${returnAnnotation}`,
+      String.raw`\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)${typeParams}\s*\(${params}${returnAnnotation}`,
       "g",
     ),
   )) {
@@ -512,7 +533,7 @@ function playwrightReceivers(code) {
   }
   for (const match of code.matchAll(
     new RegExp(
-      String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?\(${params}${returnAnnotation}`,
+      String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?${typeParams}\s*\(${params}${returnAnnotation}`,
       "g",
     ),
   )) {
@@ -522,16 +543,22 @@ function playwrightReceivers(code) {
   // 戻り値の型注釈は宣言の位置にしか書けないので、呼び出し側と誤って一致することはない。
   // これを読まないと「注釈を付ける」も「ローカル変数へ束ねる」も解決に至らない。
   for (const match of code.matchAll(
-    new RegExp(String.raw`([A-Za-z_$][\w$]*)\s*\(${params}${returnAnnotation}`, "g"),
+    new RegExp(String.raw`([A-Za-z_$][\w$]*)${typeParams}\s*\(${params}${returnAnnotation}`, "g"),
   )) {
     (match[2] === "Page" ? pageCallables : locatorCallables).add(match[1]);
   }
 
   /** 代入の右辺の先頭にあるメンバーチェーン（引数より前）を区間に分けて返す。 */
+  // 末尾の区間が呼ばれているか（直後が `(`）も返す。戻り値注釈で解決した名前は呼ばれている
+  // 区間にだけ当てる——`const snapshot = model.rows` の未呼び出しプロパティに当てると、
+  // 同名の関数宣言 1 つで無関係な変数が Locator に化け、誤検出でスイートを止める。
   const leadingChain = (rhs) => {
     const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
     if (head === null) return null;
-    return head[1].split(".").map((part) => part.trim());
+    const names = head[1].split(".").map((part) => part.trim());
+    const rest = rhs.slice(head[0].length);
+    const calledIndex = /^\s*\(/.test(rest) ? names.length - 1 : null;
+    return { names, calledIndex };
   };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
   /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
@@ -548,15 +575,21 @@ function playwrightReceivers(code) {
       const rhsStatement = rhs.split(/[;\n]/, 1)[0].trim();
       // 起点だけでなくチェーンの各区間を見る。`const row = this.page.locator('tr')` は
       // 起点が `this` なので、起点だけを見ると別名がどこにも登録されず静かに素通りする。
-      const hasLocator = chain.some((name) => locators.has(name) || locatorCallables.has(name));
-      const hasPage = chain.some((name) => pages.has(name) || pageCallables.has(name));
+      const hasLocator = chain.names.some(
+        (name, index) =>
+          locators.has(name) || (index === chain.calledIndex && locatorCallables.has(name)),
+      );
+      const hasPage = chain.names.some(
+        (name, index) =>
+          pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
+      );
       const isLocatorExpression =
         hasLocator || (hasPage && /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0]));
       if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
         opaqueAliases.delete(target);
         changed = true;
-      } else if (hasPage && !pages.has(target) && rhsStatement === chain[0]) {
+      } else if (hasPage && !pages.has(target) && rhsStatement === chain.names[0]) {
         pages.add(target);
         opaqueAliases.delete(target);
         changed = true;
