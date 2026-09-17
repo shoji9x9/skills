@@ -96,9 +96,10 @@ scripts/run-skill-eval.sh \
   機能行が Issue 番号を共有しない規則を足したため assertion 2 を「別 Issue を起こす」へ狭め、番号共有の検出を assertion 7 として追加した。
   **assertion を変えたので既存 run は再利用せず取り直す**（`docs/skill-development.md`「without-skill baseline の再利用」）——
   旧 run はその規則を持たない版のスキルで走っており、読み直して採点すると旧仕様を固定することになる。
-  **iteration-36 で取り直したが `with_skill` の 7/7 だけ**——`without_skill` は nested executor の**週次上限**
-  （`You've hit your weekly limit · resets Sep 21, 2pm (Asia/Tokyo)`）で exit 1 になり成果物が無い。
-  **assertion 2・7 の弁別は未測定**で、7/7 は到達性の確認に留まる（上限解除後に baseline を取る）。
+  **iteration-36 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 7/7・`without_skill` 4/7。
+  baseline は contamination: clean / isolation: sandboxed。**弁別したのは assertion 2・6・7**。
+  baseline は `#102` への相乗りを見つけながら「**原因は相乗りそのものではなく、相乗り先の受け入れ条件が主機能の slug 名で書かれている点**」と書き、
+  「案 B: 相乗り維持」を実行可能な選択肢として残した（assertion 2・7 が赤くなった理由）。assertion 1・3・4・5 は baseline も到達する。
   実測で見えた揺れ: `with_skill` は受け入れ条件列へ `被覆（#102）／配線未記載: user` と書き、
   正本が定める値の形（`#102（配線未達: user）`）とは違う独自表記になった。書き分け自体は満たすが、
   **値の形を正本どおりに書かせるには記述か assertion を締める必要がある**（未対応）。
@@ -126,9 +127,19 @@ scripts/run-skill-eval.sh \
   **弁別したのは assertion 5 だけ**——baseline も 3 つの穴（落ちた行・落ちた部分・落ちた配線）を自力で挙げ、正常側も挙げなかった。
   落ちたのは記録の形で、受け入れ条件列に Issue 本文の条件文と `⚠ …（取りこぼし B）` の注記を書き、
   `notification-banner` の **Issue 列**まで `未割当` に書き換えている。
-  **assertion 1〜4 を「後退検知になる」とは言えない。** baseline が prompt の情報だけで 3 つの穴を導けている以上、
-  スキル側の判定記述を失っても green のままになりうる——**判定行を無効化した変異で赤くなることを実測していない**
-  （`.agents/rules/state-space-and-mutation-proof.md`）。現時点で言えるのは**到達性**（新設した 3 軸の分岐に届く入力である）までで、
-  ガードとして数えるには**軸ごとに判定記述を落とした変異 run**（`with_skill` × 3 軸）が要る。未実施の宿題として残す。
+  **assertion 1〜4 はガードではない——変異 run で実証した**（iteration-38・`with_skill` × 3 軸）。
+  各軸の判定記述を `SKILL.md` / `references/features-issues.md` / `references/status.md` の**全出現から削除**したスキルで同じ入力を走らせた結果:
+
+  | 変異した軸 | 赤くなった assertion |
+  |---|---|
+  | 引き受け判定（出現ではなく引き受けの形だけを数える） | **0 本**（5/5 のまま） |
+  | 部分の集合差分 | **assertion 5 のみ**（列の `（未被覆: …）` 併記が消えた。判断自体は語彙を変えて到達） |
+  | 配線の検査 | **0 本**（5/5 のまま） |
+
+  つまりこの eval が測れているのは**到達性**と**記録の形**（assertion 5）だけで、判定記述の有無は結論を変えない——
+  prompt に貼った受け入れ条件から、モデルが同じ欠落を自力で導いてしまう。
+  **1 回目の変異（iteration-37）は `features-issues.md` の 1 箇所しか消しておらず、同じ判断が他ファイルに残っていたため無効**として破棄した
+  （変異は軸ごとに全出現を消し、残存を grep で確認してから走らせる）。
+  判断そのものをガードしたいなら、**prompt から結論の材料を減らす**か、**決定論的な検査器**（インベントリと Issue 本文を読んで差分を出すスクリプト）へ上げる必要がある。
   iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
