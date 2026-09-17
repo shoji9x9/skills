@@ -463,6 +463,24 @@ function strongerSourceProblems(block, label) {
 }
 
 /**
+ * 読み切れた（`complete: true`）のに `incomplete_reason` が残っている記録を落とす。
+ * 効いていない免除は `stronger_source_unavailable_reason` と同じ扱いにする——機械は収束させるのに、
+ * 成果物を読む側には「まだ読み切れていない集合」と見え、`gaps.md` の行も同じ文言で残り続ける。
+ * 集合の来歴（`component_inventory` / `instance_inventory`）とインスタンスの列挙（`enumeration`）の
+ * **両方**へ当てる（片方だけに当てると、同じ表の中で「完全」と「未完了」を同時に主張できる）。
+ * @param {Record<string, unknown>} block - `complete` と `incomplete_reason` を持つブロック
+ * @param {string} label - エラーメッセージ用のラベル
+ * @returns {string[]}
+ */
+function staleIncompleteReasonProblems(block, label) {
+  if (block.complete !== true) return [];
+  if (block.incomplete_reason === null || block.incomplete_reason === undefined) return [];
+  return [
+    `${label}: complete: true なのに incomplete_reason が書かれている（効いていない免除。読み切れたなら null にする）`,
+  ];
+}
+
+/**
  * 集合の来歴＋完全性のブロックを検査する（部品の集合とインスタンスの集合で同じ形を使う）。
  * 列挙しなかった部品・インスタンスは期待セルにも現れないため、宣言が無いと「測り漏れ」と
  * 「本当に無い」が同じ見え方（未測定 0 で収束）になる。軸の要素・適用可能状態が既に持っている
@@ -513,13 +531,8 @@ function setInventoryProblems(raw, label) {
     } else {
       problems.push(`${label}.complete が true ではない（未設定を「完全」と読まない）`);
     }
-  } else if (block.incomplete_reason !== null && block.incomplete_reason !== undefined) {
-    // 効いていない免除は失敗させる（stronger_source_unavailable_reason と同じ扱い）。
-    // complete: false から true へ直したときに理由が残ると、機械は収束させるのに
-    // 成果物を読む側には「まだ読み切れていない集合」と見え、gaps.md の行も同じ文言で残り続ける。
-    problems.push(
-      `${label}: complete: true なのに incomplete_reason が書かれている（効いていない免除。読み切れたなら null にする）`,
-    );
+  } else {
+    problems.push(...staleIncompleteReasonProblems(block, label));
   }
   return problems;
 }
@@ -984,6 +997,9 @@ export function readEnumeration(enumeration, profile, label) {
     }
     return { elements, problems, usable: false };
   }
+  // 読み切れたのに理由が残っている記録は、同じ表の中で「完全」と「未完了」を同時に主張する。
+  // 集合の来歴（setInventoryProblems）と同じ扱いで落とす（判定側も同じ関数で見る）。
+  problems.push(...staleIncompleteReasonProblems(en, label));
 
   const axes = Array.isArray(profile.axes) ? profile.axes : [];
   const raw = isPlainObject(en.elements)

@@ -229,7 +229,8 @@
   **「読めなかった」と「実 UI から起こした」は別の事実**で、機械には区別できないため申告させる。
   これは `complete: false`（読めないときの fail-closed）の**裏側**——**読めるのに読まなかった**——を残す欄で、
   一次情報源で列挙したのに理由が書かれている場合は**効いていない免除**として落とす
-- **効いていない免除はどの欄でも落とす。** `complete: true` なのに `incomplete_reason` が残っている記録も同じ扱い——
+- **効いていない免除はどの欄でも落とす**（集合の来歴とインスタンスの `enumeration` の両方）。
+  `complete: true` なのに `incomplete_reason` が残っている記録も同じ扱い——
   機械は収束させるのに、成果物を読む側には「まだ読み切れていない集合」と見え、`gaps.md` の行も同じ文言で残り続ける。
   `complete: true` にしたら `incomplete_reason` は `null` にする
 - **`components[].source.kind` に `current-source` がある**のは、受領ソースから起こした項目集合を `app-ui` に倒さないため——

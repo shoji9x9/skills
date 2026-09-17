@@ -404,6 +404,14 @@ const CASES = [
     "eq",
     variant(profiled, (c) => (orders(c).enumeration.source.kind = "app-ui")),
   ],
+  [
+    "プロファイル: enumeration が complete: true なのに incomplete_reason が残る",
+    "eq",
+    variant(
+      profiled,
+      (c) => (orders(c).enumeration.incomplete_reason = "読み切れていない（残り）"),
+    ),
+  ],
 ];
 
 const counts = (make) => ({

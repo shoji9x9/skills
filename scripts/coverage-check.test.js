@@ -1373,4 +1373,20 @@ test("インスタンスの列挙の来歴も語彙と一次情報源の理由�
   declared.components[0].instances[0].enumeration.stronger_source_unavailable_reason =
     "グリッド定義が動的生成で、ソースからは列を追えない";
   expect(count(declared).problems).toEqual([]);
+
+  // 列挙側の効いていない免除（complete: true なのに incomplete_reason が残る）も未測定に数える。
+  // 集合の来歴だけに当てると、同じ表の中で「完全」と「未完了」を同時に主張できる。
+  const staleReason = base();
+  staleReason.components[0].instances[0].enumeration.incomplete_reason =
+    "列定義が動的生成で読み切れない（complete を true へ直したときの残り）";
+  const staleResult = count(staleReason);
+  expect(staleResult.problems.join("\n")).toMatch(
+    /complete: true なのに incomplete_reason が書かれている/,
+  );
+  expect(staleResult.unmeasured).toBeGreaterThan(0);
+
+  // 陽性コントロール: null なら通る（常に落とす実装を弾く）。
+  const nulled = base();
+  nulled.components[0].instances[0].enumeration.incomplete_reason = null;
+  expect(count(nulled).problems).toEqual([]);
 });

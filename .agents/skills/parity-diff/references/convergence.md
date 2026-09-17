@@ -64,7 +64,9 @@
     **`components[].source`（項目集合の来歴）も同じく検査する**——`kind` / `ref` / `retrieved_at` の非空と、
     `kind` が `vendor-feature-list` / `vendor-test-spec` / `official-sample` / `current-source` / `app-ui` のいずれかであること。
     プロファイル経路で追加で落とすのは次の 5 つ——
-    **`enumeration` が無い・`complete` が `true` でない・`source` が無い**（列挙の来歴が残らない）、
+    **`enumeration` が無い・`complete` が `true` でない・`source` が無い**（列挙の来歴が残らない）。
+    `complete: true` なのに `incomplete_reason` が残っている記録も集合の来歴と同じ扱いで落とす（効いていない免除。
+    同じ表の中で「完全」と「未完了」を同時に主張させない）、
     **`enumeration.source.kind` が語彙外**、または**一次情報源以外で列挙したのに `stronger_source_unavailable_reason` が空**（読めるのに読んでいない側の経路）、
     **`candidates` が空**（展開が記録されていない）、
     **`enumeration.elements` に列挙した要素がどの候補にも現れない**（「40 列を列挙したが候補は代表 1 列だけ」。

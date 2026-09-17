@@ -2050,6 +2050,23 @@ test("列挙の来歴も一次情報源を使わなかった理由を要求す�
   expect(staleResult.problems.join("\n")).toMatch(
     /current-source で列挙したのに stronger_source_unavailable_reason が書かれている/,
   );
+
+  // complete: true なのに incomplete_reason が残る記録も同じ扱い（同じ表の中で「完全」と「未完了」を
+  // 同時に主張させない）。集合の来歴だけに当てて列挙側を素通りさせない。
+  const staleReason = {
+    ...enumeration(),
+    incomplete_reason: "列定義が動的生成で読み切れない（complete を true へ直したときの残り）",
+  };
+  const staleReasonResult = readEnumeration(staleReason, profile, "t");
+  expect(staleReasonResult.usable).toBe(false);
+  expect(staleReasonResult.problems.join("\n")).toMatch(
+    /complete: true なのに incomplete_reason が書かれている/,
+  );
+
+  // 陽性コントロール: null / キー無しは通る（常に落とす実装を弾く）。
+  expect(readEnumeration({ ...enumeration(), incomplete_reason: null }, profile, "t").usable).toBe(
+    true,
+  );
 });
 
 test("プロファイルの形式検査: enumeration.sources は強い順に並んでいなければ落とす", () => {
