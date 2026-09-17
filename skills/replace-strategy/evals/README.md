@@ -92,6 +92,16 @@ scripts/run-skill-eval.sh \
   仕込んだ欠落は 2 つ——`notification-banner` は Issue 列に `#102` があるが `#102` の受け入れ条件には現れない（**Issue 列を被覆の根拠にすると見つからない**）、
   `order`（`#102`）には横断 API `user` の配線の項が無い。**`report`（`#103`）には同じ配線の項がある**ので、
   assertion 3 は「落ちた配線だけを挙げる」弁別（全 fan-out を無差別に挙げると fail）になる。
+  **iteration-32 の実測は assertion 2 の変更前のもの**（塞ぎ方を「#102 へ足す / 別 Issue」の両可としていた）。
+  機能行が Issue 番号を共有しない規則を足したため assertion 2 を「別 Issue を起こす」へ狭め、番号共有の検出を assertion 7 として追加した。
+  **assertion を変えたので既存 run は再利用せず取り直す**（`docs/skill-development.md`「without-skill baseline の再利用」）——
+  旧 run はその規則を持たない版のスキルで走っており、読み直して採点すると旧仕様を固定することになる。
+  **iteration-36 で取り直したが `with_skill` の 7/7 だけ**——`without_skill` は nested executor の**週次上限**
+  （`You've hit your weekly limit · resets Sep 21, 2pm (Asia/Tokyo)`）で exit 1 になり成果物が無い。
+  **assertion 2・7 の弁別は未測定**で、7/7 は到達性の確認に留まる（上限解除後に baseline を取る）。
+  実測で見えた揺れ: `with_skill` は受け入れ条件列へ `被覆（#102）／配線未記載: user` と書き、
+  正本が定める値の形（`#102（配線未達: user）`）とは違う独自表記になった。書き分け自体は満たすが、
+  **値の形を正本どおりに書かせるには記述か assertion を締める必要がある**（未対応）。
   prompt の末尾で `.replace/features.md` への書き戻しを求めているのは assertion 6 の**到達**のため——
   採点材料は `project-files/.replace/features.md` なので、報告だけで終わる run では真偽を測れない。
   列名（`受け入れ条件`）・値の語彙（`未被覆` / 空欄の書き分け）は渡していないので弁別は残る。
@@ -116,6 +126,9 @@ scripts/run-skill-eval.sh \
   **弁別したのは assertion 5 だけ**——baseline も 3 つの穴（落ちた行・落ちた部分・落ちた配線）を自力で挙げ、正常側も挙げなかった。
   落ちたのは記録の形で、受け入れ条件列に Issue 本文の条件文と `⚠ …（取りこぼし B）` の注記を書き、
   `notification-banner` の **Issue 列**まで `未割当` に書き換えている。
-  **assertion 1〜4 は後退検知**として残す——弁別は薄いが、スキル側が 3 軸（行・部分・配線）の検査を失ったときに赤くなる。
+  **assertion 1〜4 を「後退検知になる」とは言えない。** baseline が prompt の情報だけで 3 つの穴を導けている以上、
+  スキル側の判定記述を失っても green のままになりうる——**判定行を無効化した変異で赤くなることを実測していない**
+  （`.agents/rules/state-space-and-mutation-proof.md`）。現時点で言えるのは**到達性**（新設した 3 軸の分岐に届く入力である）までで、
+  ガードとして数えるには**軸ごとに判定記述を落とした変異 run**（`with_skill` × 3 軸）が要る。未実施の宿題として残す。
   iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
