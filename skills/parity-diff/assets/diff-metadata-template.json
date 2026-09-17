@@ -41,7 +41,7 @@
       }
     ],
     "states": "<現側 capture_conditions.states の各状態へ操作アダプタで新側でも遷移できたかの確認結果。遷移できない状態があれば停止しているはず>",
-    "popup_inventory": "<現側 popup_inventory の整合確認結果（captured が全て states の要素・captured を持つ行は reason: null・captured: null の行は空でない reason・器を開く呼び出し〈関数名 × 開く対象の論理名〉が全て opened_by に現れる）と diff.md の未検証領域へ転記した captured: null の器。キーごと無い旧成果物は停止しているはずで、ユーザー承認の例外で続行したときだけ absent: 承認済みの例外。ノイズ吸収なしで続行。不整合なら停止しているはず>",
+    "popup_inventory": "<現側 popup_inventory の整合確認結果（captured が全て states の要素・captured を持つ行は reason: null・captured: null の行は空でない reason・器を開く呼び出し〈親の器 × 関数名 × 開く対象の論理名〉が全て同じ parent の行の opened_by に現れる・opened_by が空でなく行内に重複が無く同じ parent × 同じ呼び出し／同じ parent × 同じ name が 2 行に現れない。単一の文字列の opened_by は旧形式として 1 要素の配列と同義に読む）と diff.md の未検証領域へ転記した captured: null の器。キーごと無い旧成果物は停止しているはずで、ユーザー承認の例外で続行したときだけ absent: 承認済みの例外。ノイズ吸収なしで続行。不整合なら停止しているはず>",
     "environment": "<機械照合できない自由記述のため原則 'unverified: <理由>'。diff.md の未検証領域にも転記する>"
   },
   "differ_versions": {
@@ -86,7 +86,7 @@
     "measured_at_commit": "<測定時点の新側コミット SHA。変化そのものは単独の失効条件にしない（往復ループでは毎反復変わるため）が、反復が進んでいない（loop.iterations の差が 0）のに変わっていればループ外の変更として全組を再測定する>",
     "loop_iteration": "<測定時点の同 target の replace-metadata.json の loop.iterations（数値）>",
     "fingerprint": {
-      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations / popup_inventory（name・parent・opened_by・captured の対応）を正規化した文字列>",
+      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations / popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
       "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
       "dataset_version": "<測定時点の dataset_version（数値）。phase B との整合を免除した target では null>",
       "settle_wait": "<1 回目・2 回目とも操作アダプタの静止待ち（撮る対象の矩形が 2 回続けて同じ値になるまで待つ）を通して測ったなら true（真偽値で書く）。キーが無い・true でない前回記録は再利用しない>",
