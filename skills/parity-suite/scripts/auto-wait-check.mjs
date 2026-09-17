@@ -159,7 +159,12 @@ function braceOpensBlock(lastToken) {
 /** 直前のトークンが値で終わるか（＝続く `!` が後置の非 null 演算子か）。 */
 function endsWithValue(lastToken) {
   if (lastToken === null) return false;
-  if (lastToken.type === "word") return true;
+  // 値を待つキーワード（`return` / `throw` / `typeof` …）は値で終わらない。ここを一律 true にすると
+  // `return !/re/.test(x)` の `!` を後置の非 null と読み、続く正規表現をマスクせず素通りさせる
+  // （引用符を含む正規表現なら未終端の文字列として走査ごと落ちる）。プロパティ名は識別子なので値で終わる。
+  if (lastToken.type === "word") {
+    return lastToken.member || !REGEX_ALLOWED_AFTER_KEYWORDS.has(lastToken.value);
+  }
   if (lastToken.type === "number" || lastToken.type === "literal") return true;
   if (lastToken.type !== "punct") return false;
   if (lastToken.value === ")" || lastToken.value === "]") return true;
@@ -555,7 +560,9 @@ function playwrightReceivers(code) {
   const leadingChain = (rhs) => {
     const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
     if (head === null) return null;
-    const names = head[1].split(".").map((part) => part.trim());
+    // `?.` も区切りとして落とす。`split(".")` だと `page?.getByRole` が `["page?", …]` になり、
+    // どの区間も名前で照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+    const names = head[1].split(/\s*\??\.\s*/).map((part) => part.trim());
     const rest = rhs.slice(head[0].length);
     const calledIndex = /^\s*\(/.test(rest) ? names.length - 1 : null;
     return { names, calledIndex };
@@ -585,11 +592,20 @@ function playwrightReceivers(code) {
       );
       const isLocatorExpression =
         hasLocator || (hasPage && /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0]));
+      // 呼び出しも添字も含まない純粋なプロパティ経路で、末尾が Page に解決する形（`const p = page;`
+      // `const p = this.page;`）を Page として束ねる。末尾で見るのは、`const url = page.url` のように
+      // Page から取り出した別の値まで Page に化けさせないため。
+      // 束ねないと page 専用規則（`waitForTimeout` / `page.$`）が静かに外れる——チェーンに `page` を
+      // 含むので opaqueAliases にも入らず、違反 0 件でも判定不能 0 件でもない黙った素通りになる。
+      const isPagePath =
+        hasPage &&
+        /^[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*$/.test(rhsStatement) &&
+        pages.has(chain.names[chain.names.length - 1]);
       if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
         opaqueAliases.delete(target);
         changed = true;
-      } else if (hasPage && !pages.has(target) && rhsStatement === chain.names[0]) {
+      } else if (isPagePath && !pages.has(target)) {
         pages.add(target);
         opaqueAliases.delete(target);
         changed = true;

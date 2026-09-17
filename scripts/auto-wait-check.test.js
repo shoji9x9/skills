@@ -392,6 +392,19 @@ test("前置の ! の後は正規表現として潰す", () => {
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test.each([["return"], ["throw"], ["typeof"], ["case"]])(
+  "値を待つキーワード（%s）の直後の ! は前置なので、続く正規表現を潰す",
+  (keyword) => {
+    // キーワードを「値で終わる」と読むと `!` を後置の非 null と誤り、正規表現をマスクせず素通りさせる。
+    // 引用符を含む正規表現ならそのまま未終端の文字列として走査ごと落ちる（違反 0 件と区別できない）。
+    const source = [
+      `const f = (s) => { ${keyword} !/['"]/.test(s); };`,
+      "const value = await locator.count();",
+    ].join("\n");
+    expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+  },
+);
+
 test("generic なメソッドの戻り値注釈も読む", () => {
   // `<T>` がメソッド名と `(` の間に入ると読めず、注釈を付けても解除できないゲートになる。
   const source = [
@@ -486,6 +499,9 @@ test.each([
   // 別の判定を通るので両方当てる。
   ["locator 経由", "const row = this.page.locator('tr');", "row.textContent()"],
   ["page 経由", "const row = this.page.getByRole('row');", "row.textContent()"],
+  // optional chaining を挟んでも同じ。区間を `split(".")` で切ると `this?` が残って
+  // どの区間も照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+  ["optional chaining", "const row = this?.page?.getByRole('row');", "row.textContent()"],
 ])("メンバー式から束ねた別名（%s）を受け側として解決する", (_name, binding, usage) => {
   const source = [
     "class P {",
@@ -512,6 +528,24 @@ test.each([
     "}",
   ].join("\n");
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  ["this 経由", "const p = this.page;"],
+  ["fixture 経由", "const p = ctx.page;"],
+  ["optional chaining", "const p = ctx?.page;"],
+])("プロパティ経路で束ねた Page の別名（%s）にも page 専用規則を当てる", (_name, binding) => {
+  // チェーンに `page` を含むため opaqueAliases にも入らない。束ね直しを解決しないと
+  // 違反 0 件でも判定不能 0 件でもない「黙った素通り」になり、出力から取りこぼしが読めない。
+  const source = [binding, "await p.waitForTimeout(100);"].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
+});
+
+test("Page から取り出した別の値は Page として束ねない", () => {
+  // 束ねるかどうかは末尾の区間で決める。`page.` で始まるだけで Page に化けさせると、
+  // page 専用規則（fixed-wait）が Page でない受け側に当たって誤検出になる。
+  const source = ["const timers = page.clock;", "await timers.waitForTimeout(100);"].join("\n");
+  expect(scanSource(source)).toEqual([]);
 });
 
 test("由来を追えない別名はローカル変数へ束ねても判定不能にする", () => {
