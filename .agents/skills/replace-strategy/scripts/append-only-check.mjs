@@ -21,8 +21,11 @@
 //     積み上げた要素（changes[] / component_diff_exceptions[]）は消せない。
 //     要素の同一性を深い等価で取るので、2 つの要素の間でフィールドを入れ替える書き換え
 //     （どの例外を誰がいつ承認したかの付け替え）も縮小として落ちる。
-//     key を指定した配列は代わりにその項目の値を同一性にする——正本が要素の中身の更新を認めている場合
-//     （unmeasured.entries の disposition: blocking → accepted）に、正規の遷移を縮小に化けさせないため
+//     key を指定した配列は鍵で要素を対応づけ、フィールドごとに突き合わせる。既定は「鍵以外は不変」で、
+//     正本が更新を認めている項目だけを fill_only（空 → 非空だけ。既に入っている値の差し替えは落とす）と
+//     transitions（明示した <変更前>-><変更後> だけ。unmeasured.entries の blocking->accepted）で開ける。
+//     markdown-structure の表の行も同様に、鍵（先頭セル）だけでなく行 × 列のセルを単位にし、
+//     正本がその場の更新を定めている列だけ mutable_columns で外す（鍵だけだと残りのセルが自由に書き換わる）
 //
 // 行の突き合わせは空白を畳んで（連続する空白を 1 つに、前後を除去して）から行う——
 // Markdown の表はフォーマッタが桁を詰め直すため、素の文字列比較では整形だけで落ちる。
@@ -44,7 +47,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -187,13 +190,20 @@ function tableCells(line) {
 /**
  * Markdown の構造単位を数える。
  *
- * 落とさせない相手は「節・列・行・箇条書きの鍵・散文」で、セルと箇条書きの値ではない——
- * 正本が Issue 列や状態列や最終更新をその場で更新すると定めており、値まで固定すると
- * 正規の更新が縮小に化ける。行の同一性は先頭セル（slug・種類・箇所などの鍵）で見る。
+ * 落とさせない相手は「節・列・行・行の決定内容・箇条書きの鍵・散文」。
+ * 行の同一性は先頭セル（slug・種類・箇所などの鍵）で見るが、**鍵だけを残すと残りのセルが
+ * 自由に書き換えられる**（決定の出どころ・方針・理由を丸ごと差し替えても行は在る）。
+ * そこで行 × 列のセルも単位にし、正本がその場の更新を定めている列だけ mutableColumns で外す。
+ * 列を足す非破壊更新は新しい単位が増えるだけなので落ちない。
+ * 箇条書きの値と散文は従来どおり——箇条書きは鍵、散文は行そのもの。
  * @param {string} text
+ * @param {string[]} [mutableColumns] 値の更新を正本が認めている列名
  * @returns {Map<string, number>} 単位 → 出現回数
  */
-export function markdownUnits(text) {
+export function markdownUnits(text, mutableColumns = []) {
+  const mutable = new Set(mutableColumns.map((c) => c.trim()));
+  // "*" は「セルの中身は契約の対象外」（一覧の requirement が節・列・行だけを守ると定めている成果物）。
+  const allCellsMutable = mutable.has("*");
   /** @type {Map<string, number>} */
   const counts = new Map();
   /** @param {string} key */
@@ -201,6 +211,8 @@ export function markdownUnits(text) {
 
   /** @type {string[]} */
   const headings = [];
+  /** @type {string[]} */
+  let columns = [];
   let tableIndex = -1;
   let inTable = false;
   for (const raw of text.split("\n")) {
@@ -227,10 +239,20 @@ export function markdownUnits(text) {
       if (!inTable) {
         inTable = true;
         tableIndex += 1;
+        columns = cells;
         for (const cell of cells) add(`C:${path}#${tableIndex}|${cell}`);
         continue;
       }
-      add(`R:${path}#${tableIndex}|${cells[0] ?? ""}`);
+      const rowKey = cells[0] ?? "";
+      add(`R:${path}#${tableIndex}|${rowKey}`);
+      if (!allCellsMutable) {
+        for (const [i, cell] of cells.entries()) {
+          if (i === 0) continue; // 先頭セルは鍵そのもの
+          const column = columns[i] ?? `#${i}`;
+          if (mutable.has(column)) continue; // 正本がその場の更新を定めている列
+          add(`R:${path}#${tableIndex}|${rowKey}|${column}=${cell}`);
+        }
+      }
       continue;
     }
     inTable = false;
@@ -320,14 +342,134 @@ export function jsonArrayUnits(text, paths, label, key = null) {
 }
 
 /**
+ * JSON の指定した配列を鍵で対応づけ、フィールド単位で突き合わせる。
+ *
+ * 鍵だけを同一性にすると、鍵以外のフィールドが自由に書き換えられる（承認済みの項目の
+ * 理由・承認者・承認日時を差し替えても鍵は残る）。そこで既定は「鍵以外は不変」にし、
+ * 正本が更新を定めている項目だけを fill_only（空 → 非空だけ）と transitions（明示した値の遷移だけ）で開ける。
+ * @param {string} beforeText
+ * @param {string} afterText
+ * @param {{ arrays: string[], key: string, fillOnly: string[], transitions: Record<string, string[]> }} artifact
+ * @param {{ before: string, after: string }} labels
+ * @returns {string[]} findings
+ */
+export function compareKeyedArrays(beforeText, afterText, artifact, labels) {
+  /** @type {string[]} */
+  const findings = [];
+  const fillOnly = new Set(artifact.fillOnly);
+  for (const path of artifact.arrays) {
+    const before = keyedElements(beforeText, path, artifact.key, labels.before);
+    const after = keyedElements(afterText, path, artifact.key, labels.after);
+    for (const [key, baseList] of before) {
+      const nowList = after.get(key) ?? [];
+      if (nowList.length < baseList.length) {
+        findings.push(
+          `${path} の要素が失われている（${artifact.key}=${key}: 比較元 ${baseList.length} 件 → 現在 ${nowList.length} 件）`,
+        );
+      }
+      // 同じ鍵が複数ある場合は並び順で対応づける（追記専用なので既存の並びは変わらない）。
+      for (const [i, baseElement] of baseList.entries()) {
+        const nowElement = nowList[i];
+        if (nowElement === undefined) continue; // 件数の減少は上で数えた
+        for (const field of Object.keys(baseElement)) {
+          const from = baseElement[field];
+          const to = nowElement[field];
+          if (canonicalJson(from) === canonicalJson(to)) continue;
+          const allowed = artifact.transitions[field];
+          if (allowed !== undefined) {
+            if (allowed.includes(`${stringify(from)}->${stringify(to)}`)) continue;
+            findings.push(
+              `${path} の ${field} が宣言に無い遷移で書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
+            );
+            continue;
+          }
+          if (fillOnly.has(field)) {
+            // 空 → 非空（記録の充填）だけ許す。既に入っている値の差し替えは決定の書き換え。
+            if (!nonEmptyValue(from)) continue;
+            findings.push(
+              `${path} の ${field} が空でない値から書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
+            );
+            continue;
+          }
+          findings.push(
+            `${path} の ${field} が書き換えられている（${artifact.key}=${key}: ${stringify(from)} → ${stringify(to)}）`,
+          );
+        }
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * 表示用に値を短く文字列化する。
+ * @param {unknown} v
+ * @returns {string}
+ */
+function stringify(v) {
+  const s = typeof v === "string" ? v : canonicalJson(v);
+  return s.length > 60 ? `${s.slice(0, 57)}...` : s;
+}
+
+/**
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function nonEmptyValue(v) {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
+
+/**
+ * 配列を鍵ごとの要素リストにする。
+ * @param {string} text
+ * @param {string} path
+ * @param {string} key
+ * @param {string} label
+ * @returns {Map<string, Record<string, unknown>[]>}
+ */
+function keyedElements(text, path, key, label) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    throw new UsageError(
+      `JSON として読めないため追記であることを確かめられない: ${label}（${e instanceof Error ? e.message : String(e)}）`,
+    );
+  }
+  /** @type {Map<string, Record<string, unknown>[]>} */
+  const out = new Map();
+  const value = atPath(parsed, path);
+  if (value === undefined || value === null) return out;
+  if (!Array.isArray(value))
+    throw new UsageError(`一覧が配列と宣言した ${path} が配列でない: ${label}`);
+  for (const element of value) {
+    if (!isPlainObject(element) || !nonEmptyString(element[key])) {
+      throw new UsageError(
+        `一覧が key: ${key} と宣言した ${path} の要素に、空でない文字列の ${key} が無い: ${label}`,
+      );
+    }
+    const k = String(element[key]).trim();
+    const list = out.get(k);
+    if (list === undefined) out.set(k, [element]);
+    else list.push(element);
+  }
+  return out;
+}
+
+/**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
- * @param {{ unit: string, arrays: string[], key?: string | null }} artifact
+ * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[] }} artifact
  * @param {string} label
  * @returns {Map<string, number>}
  */
 export function unitsOf(text, artifact, label) {
-  if (artifact.unit === "markdown-structure") return markdownUnits(text);
+  if (artifact.unit === "markdown-structure") {
+    return markdownUnits(text, artifact.mutableColumns ?? []);
+  }
   if (artifact.unit === "json-arrays") {
     return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
   }
@@ -352,7 +494,7 @@ function git(root, args) {
 /**
  * 一覧を読む。
  * @param {string} manifestPath
- * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, requirement: string, source: string }[]}
+ * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], requirement: string, source: string }[]}
  */
 export function readManifest(manifestPath) {
   if (!existsSync(manifestPath)) throw new UsageError(`一覧が無い: ${manifestPath}`);
@@ -383,6 +525,12 @@ export function readManifest(manifestPath) {
     let arrays = [];
     /** @type {string | null} */
     let key = null;
+    /** @type {string[]} */
+    let fillOnly = [];
+    /** @type {Record<string, string[]>} */
+    const transitions = {};
+    /** @type {string[]} */
+    let mutableColumns = [];
     if (unit === "json-arrays") {
       if (!Array.isArray(a.arrays) || a.arrays.length === 0) {
         throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
@@ -395,12 +543,67 @@ export function readManifest(manifestPath) {
         if (!nonEmptyString(a.key)) throw new UsageError(`artifacts[${i}].key が空`);
         key = String(a.key).trim();
       }
+      if (a.fill_only !== undefined && a.fill_only !== null) {
+        if (key === null)
+          throw new UsageError(`artifacts[${i}] は key が無いのに fill_only がある`);
+        if (!Array.isArray(a.fill_only))
+          throw new UsageError(`artifacts[${i}].fill_only が配列でない`);
+        for (const f of a.fill_only) {
+          if (!nonEmptyString(f))
+            throw new UsageError(`artifacts[${i}].fill_only に空の要素がある`);
+        }
+        fillOnly = a.fill_only.map((x) => String(x).trim());
+      }
+      if (a.transitions !== undefined && a.transitions !== null) {
+        if (key === null)
+          throw new UsageError(`artifacts[${i}] は key が無いのに transitions がある`);
+        if (!isPlainObject(a.transitions)) {
+          throw new UsageError(`artifacts[${i}].transitions がオブジェクトでない`);
+        }
+        for (const [field, list] of Object.entries(a.transitions)) {
+          if (!Array.isArray(list) || list.length === 0) {
+            throw new UsageError(`artifacts[${i}].transitions.${field} が空の配列`);
+          }
+          for (const t of list) {
+            // 「<変更前>-><変更後>」だけを受ける。曖昧な表記を黙って通さない。
+            if (!nonEmptyString(t) || !/^[^>]+->[^>]+$/.test(String(t).trim())) {
+              throw new UsageError(
+                `artifacts[${i}].transitions.${field} の要素が <変更前>-><変更後> の形でない: ${JSON.stringify(t)}`,
+              );
+            }
+          }
+          transitions[field] = list.map((x) => String(x).trim());
+        }
+      }
+      if (a.mutable_columns !== undefined && a.mutable_columns !== null) {
+        throw new UsageError(
+          `artifacts[${i}] の unit が json-arrays なのに mutable_columns がある`,
+        );
+      }
     } else {
       if (a.arrays !== undefined && a.arrays !== null) {
         throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに arrays がある`);
       }
       if (a.key !== undefined && a.key !== null) {
         throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに key がある`);
+      }
+      if (a.fill_only !== undefined || a.transitions !== undefined) {
+        throw new UsageError(
+          `artifacts[${i}] の unit が ${unit} なのに fill_only / transitions がある`,
+        );
+      }
+      if (a.mutable_columns !== undefined && a.mutable_columns !== null) {
+        if (unit !== "markdown-structure") {
+          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_columns がある`);
+        }
+        if (!Array.isArray(a.mutable_columns)) {
+          throw new UsageError(`artifacts[${i}].mutable_columns が配列でない`);
+        }
+        for (const c of a.mutable_columns) {
+          if (!nonEmptyString(c))
+            throw new UsageError(`artifacts[${i}].mutable_columns に空の要素がある`);
+        }
+        mutableColumns = a.mutable_columns.map((x) => String(x).trim());
       }
     }
     return {
@@ -409,6 +612,9 @@ export function readManifest(manifestPath) {
       unit: String(unit),
       arrays,
       key,
+      fillOnly,
+      transitions,
+      mutableColumns,
       requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
       source: nonEmptyString(a.source) ? String(a.source).trim() : "",
     };
@@ -480,11 +686,11 @@ export function check(opts) {
     return files;
   };
 
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null }>} */
+  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }>} */
   const byFile = new Map();
   /**
    * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null }} artifact
+   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }} artifact
    */
   const assign = (file, artifact) => {
     const prev = byFile.get(file);
@@ -496,7 +702,10 @@ export function check(opts) {
     if (
       prev.unit !== artifact.unit ||
       prev.arrays.join(",") !== artifact.arrays.join(",") ||
-      prev.key !== artifact.key
+      prev.key !== artifact.key ||
+      prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
+      canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
+      prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",")
     ) {
       // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
       throw new UsageError(
@@ -524,7 +733,7 @@ export function check(opts) {
   let checked = 0;
   for (const file of targets) {
     const artifact =
-      /** @type {{ id: string, unit: string, arrays: string[], key: string | null }} */ (
+      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }} */ (
         byFile.get(file)
       );
     const inBase = trackedSet.has(file);
@@ -545,8 +754,25 @@ export function check(opts) {
       findings.push(`追記専用の成果物が消えている: ${file}（比較元 ${base} には在る）`);
       continue;
     }
+    const afterText = readFileSync(abs, "utf8");
+    if (artifact.unit === "json-arrays" && artifact.key !== null) {
+      // 鍵で対応づけてフィールドごとに見る（多重集合では「鍵以外の書き換え」を表現できない）。
+      const keyed = compareKeyedArrays(
+        before.stdout,
+        afterText,
+        {
+          arrays: artifact.arrays,
+          key: artifact.key,
+          fillOnly: artifact.fillOnly,
+          transitions: artifact.transitions,
+        },
+        { before: `${file}@${base}`, after: file },
+      );
+      for (const finding of keyed) findings.push(`${finding}: ${file}`);
+      continue;
+    }
     const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`);
-    const afterUnits = unitsOf(readFileSync(abs, "utf8"), artifact, file);
+    const afterUnits = unitsOf(afterText, artifact, file);
     /** @type {string[]} */
     const lost = [];
     let lostCount = 0;

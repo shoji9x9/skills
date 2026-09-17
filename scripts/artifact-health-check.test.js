@@ -9,13 +9,15 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
+// 期待値はスクリプトと同じ関数から取る（テスト側で計算規則を複製すると、両方が同時に間違っても緑になる）。
+const { suiteFingerprint } = await import(pathToFileURL(script).href);
 
 const XLSX_BODY = "row-a\nrow-b\n";
 const xlsxSha = createHash("sha256").update(XLSX_BODY).digest("hex");
@@ -689,7 +691,7 @@ test("new.commit が none なら反復回数だけで判定する", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("new.dirty: true なら SHA が一致しても同一性の弱さを残す", () => {
+test("new.dirty: true なら SHA が一致しても通さない（判定不能を合格に倒さない）", () => {
   const { root, slugDir, metadataPath } = makeProject();
   writeStage(
     slugDir,
@@ -700,8 +702,8 @@ test("new.dirty: true なら SHA が一致しても同一性の弱さを残す",
     },
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/new\.dirty が true/);
-  expect(r.status).toBe(0);
+  expect(r.stdout).toMatch(/新側の版を特定できない.*new\.dirty: true/);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -712,5 +714,101 @@ test("対応づけの記録を片側が持たない旧成果物は判定しな�
   expect(r.stdout).toMatch(/new\.commit を片側が持たないため/);
   expect(r.stdout).toMatch(/iteration \/ loop\.iterations を片側が持たないため/);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+/**
+ * 状態を変えるスイートを 2 回緑で回した metadata を作る。
+ * @param {string | null} fingerprint 記録する指紋（null なら記録しない＝旧成果物）
+ * @returns {Record<string, unknown>}
+ */
+function mutatingSuite(fingerprint) {
+  const runs = [
+    { started_at: "2026-09-17T01:00:00Z", result: "green" },
+    { started_at: "2026-09-17T02:00:00Z", result: "green" },
+  ];
+  if (fingerprint !== null) for (const r of runs) r.suite_fingerprint = fingerprint;
+  return {
+    current_green: true,
+    specs: "e2e/parity/order-list",
+    state_mutating: true,
+    repeat_run: { cleanup_in_suite: true, runs, reason: null },
+  };
+}
+
+test("陽性コントロール: スイートの指紋が記録と一致すれば通す", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("placeholder");
+  });
+  const fp = suiteFingerprint({ specs: "e2e/parity/order-list" }, root).fingerprint;
+  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
+  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/スイートの指紋が記録と一致/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("2 回緑を記録した後にスペックを変えたら落ちる（記録が今のスイートのものでない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("placeholder");
+  });
+  const fp = suiteFingerprint({ specs: "e2e/parity/order-list" }, root).fingerprint;
+  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
+  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  // 記録した後に後始末を外す（スペックの中身が変わる）。
+  writeFileSync(
+    join(root, "e2e/parity/order-list/orders.spec.ts"),
+    "// orders.default.desktop.png と orders.xlsx.json を読む（後始末を外した）\n",
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("連続する 2 回で指紋が違えば落ちる", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("placeholder");
+    m.suite.repeat_run.runs[0].suite_fingerprint = "sha256:aaa";
+    m.suite.repeat_run.runs[1].suite_fingerprint = "sha256:bbb";
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite_fingerprint が違う/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("片方だけ指紋を持てば落ちる", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("placeholder");
+    delete m.suite.repeat_run.runs[1].suite_fingerprint;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/片方だけ suite_fingerprint を持つ/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("指紋を持たない旧成果物はこの軸を判定しない（後方互換）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite(null);
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite_fingerprint を持たない旧成果物/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("宣言したスイートの実体が無ければ合格に倒さない", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("sha256:aaa");
+    m.suite.specs = "e2e/parity/does-not-exist";
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*実体が無い/);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

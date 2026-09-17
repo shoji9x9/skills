@@ -100,6 +100,20 @@ const PARITY_METADATA = `${JSON.stringify(
   2,
 )}\n`;
 
+const ASSETS = [
+  "# 移行元の静的資産の台帳（assets）",
+  "",
+  "- 最終更新: 2026-09-01T00:00:00Z",
+  "",
+  "## 方針",
+  "",
+  "| 種類 | ファイル・出どころ | 方針 | 状態 | 決定日・決めた工程 | 理由 |",
+  "|---|---|---|---|---|---|",
+  "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+  "| 本文の書体 | `body.woff2` | 実体を写す | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+  "",
+].join("\n");
+
 const GAPS = [
   "# 未検証領域",
   "",
@@ -130,6 +144,7 @@ function makeRepo(opts = {}) {
   mkdirSync(join(root, ".replace/dataset"), { recursive: true });
   writeFileSync(join(root, ".replace/features.md"), FEATURES);
   writeFileSync(join(root, ".replace/parity/order-list/gaps.md"), GAPS);
+  writeFileSync(join(root, ".replace/assets.md"), ASSETS);
   writeFileSync(join(root, ".replace/dataset/metadata.json"), DATASET);
   writeFileSync(
     join(root, ".replace/parity/order-list/component-diff-exceptions.json"),
@@ -552,8 +567,9 @@ test("未測定の項目を消すと落ちる（gaps.md を触らなくても捕
   doc.unmeasured.entries = doc.unmeasured.entries.filter((e) => e.item !== "モバイル幅");
   writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
   const r = run(root);
-  expect(r.stdout).toMatch(/1 件（unit: json-arrays）が失われている/);
-  expect(r.stdout).toMatch(/item=モバイル幅/);
+  expect(r.stdout).toMatch(
+    /unmeasured\.entries の要素が失われている（item=モバイル幅: 比較元 1 件 → 現在 0 件）/,
+  );
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -592,6 +608,118 @@ test("unit が json-arrays でないのに key があれば合格に倒さない
   ]);
   const r = run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/unit が markdown-structure なのに key がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残す書き換えを通さない）", () => {
+  const root = makeRepo();
+  writeFileSync(
+    join(root, ".replace/assets.md"),
+    ASSETS.replace(
+      "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+      "| ロゴ | `logo.svg` | 同等物を作る | 有効 | 2026-09-17・order | 再配布不可のため |",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
+  expect(r.stdout).toMatch(/ロゴ\|/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("assets.md の 状態 列は正本が更新を定めているので通す（mutable_columns）", () => {
+  const root = makeRepo();
+  writeFileSync(
+    join(root, ".replace/assets.md"),
+    ASSETS.replace(
+      "| ロゴ | `logo.png` | 実体を写す | 有効 |",
+      "| ロゴ | `logo.png` | 実体を写す | 取り消し済み（2026-09-17 → 下の行） |",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("承認済みの未測定項目の承認日時を差し替えると落ちる（fill_only は空 → 非空だけ）", () => {
+  const root = makeRepo();
+  const path = join(root, ".replace/parity/order-list/metadata.json");
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  const entry = doc.unmeasured.entries[1];
+  entry.disposition = "accepted";
+  entry.approved_by = "user";
+  entry.approved_at = "2026-09-17T00:00:00Z";
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const g = (args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  g(["commit", "-qam", "approve"]);
+  // ここまでが正規の遷移。以降は承認記録の差し替え。
+  entry.approved_by = "someone-else";
+  entry.approved_at = "2026-01-01T00:00:00Z";
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = run(root);
+  expect(r.stdout).toMatch(/approved_by が空でない値から書き換えられている/);
+  expect(r.stdout).toMatch(/approved_at が空でない値から書き換えられている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("未測定項目の理由を書き換えると落ちる（鍵以外は既定で不変）", () => {
+  const root = makeRepo();
+  const path = join(root, ".replace/parity/order-list/metadata.json");
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  doc.unmeasured.entries[0].reason = "別の理由に差し替えた";
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = run(root);
+  expect(r.stdout).toMatch(/reason が書き換えられている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("宣言に無い disposition の遷移は落ちる", () => {
+  const root = makeRepo();
+  const path = join(root, ".replace/parity/order-list/metadata.json");
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  doc.unmeasured.entries[0].disposition = "measured";
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  const r = run(root);
+  expect(r.stdout).toMatch(/disposition が宣言に無い遷移で書き換えられている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("transitions の表記が <変更前>-><変更後> でなければ合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "parity-unmeasured",
+      pattern: ".replace/parity/*/metadata.json",
+      unit: "json-arrays",
+      arrays: ["unmeasured.entries"],
+      key: "item",
+      transitions: { disposition: ["blocking accepted"] },
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/<変更前>-><変更後> の形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("key が無いのに fill_only を宣言したら合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "dataset",
+      pattern: ".replace/dataset/metadata.json",
+      unit: "json-arrays",
+      arrays: ["changes"],
+      fill_only: ["affects"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/key が無いのに fill_only がある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });

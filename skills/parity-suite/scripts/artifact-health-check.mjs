@@ -9,6 +9,8 @@
 //      baseline_dir に在るのに entries に無いファイルは未宣言として落とす（宣言の無いものだけを落とす）。
 //   2. 反復実行（suite.state_mutating / suite.repeat_run）: 状態を変えるスイートは 2 回続けて緑であることを求める。
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
+//      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける——
+//      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
 //   4. 工程の成果物（--target）: suite.new_green が真なら同じ場所に diff-metadata.json が在り、
 //      それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
@@ -33,7 +35,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -347,10 +349,59 @@ export function checkArtifacts(metadata, ctx) {
   return { judged: true, findings, notes };
 }
 
+/** 反復実行の記録が指す「スイートそのもの」を構成する metadata.suite のキー。 */
+const SUITE_SOURCE_KEYS = ["specs", "locator_map", "interactions"];
+
+/**
+ * 現在のスイートの指紋を計算する。
+ *
+ * 2 回緑を記録した後にスペックを書き換えたり後始末を外したりしても、記録だけを見る検査は緑のまま通る。
+ * 記録が「どの版のスイートを 2 回回したか」を持たないためで、指紋を記録・照合して初めて
+ * 「いまのスイートが 2 回続けて回った」と言える。
+ *
+ * 列挙は宣言されたパス（suite.specs / locator_map / interactions）から行い、
+ * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
+ * @param {Record<string, unknown>} suiteObj
+ * @param {string} root
+ * @returns {{ fingerprint: string | null, files: number, missing: string[] }}
+ */
+export function suiteFingerprint(suiteObj, root) {
+  /** @type {string[]} */
+  const missing = [];
+  /** @type {string[]} */
+  const files = [];
+  let declared = 0;
+  for (const key of SUITE_SOURCE_KEYS) {
+    const value = suiteObj[key];
+    if (!nonEmptyString(value)) continue;
+    declared += 1;
+    const rel = String(value).trim();
+    const abs = resolveInside(root, rel);
+    if (abs === null || !existsSync(abs)) {
+      missing.push(rel);
+      continue;
+    }
+    if (statSync(abs).isDirectory()) files.push(...listFiles(abs).map((f) => `${rel}/${f}`));
+    else files.push(rel);
+  }
+  if (declared === 0 || missing.length > 0) return { fingerprint: null, files: 0, missing };
+  files.sort();
+  const digest = createHash("sha256");
+  for (const rel of files) {
+    const abs = resolveInside(root, rel);
+    if (abs === null || !existsSync(abs)) return { fingerprint: null, files: 0, missing: [rel] };
+    digest.update(rel);
+    digest.update("\0");
+    digest.update(sha256File(abs));
+    digest.update("\n");
+  }
+  return { fingerprint: `sha256:${digest.digest("hex")}`, files: files.length, missing: [] };
+}
+
 /**
  * 状態を変えるスイートの反復実行を数え直す。
  * @param {Record<string, unknown>} metadata
- * @param {{ artifactHealthPresent: boolean }} ctx
+ * @param {{ artifactHealthPresent: boolean, root: string }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkRepeatRun(metadata, ctx) {
@@ -449,11 +500,42 @@ export function checkRepeatRun(metadata, ctx) {
       }
     }
   }
-  return {
-    judged: true,
-    findings,
-    notes: [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`],
-  };
+  /** @type {string[]} */
+  const notes = [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`];
+
+  // 記録を「いまのスイート」に結びつける。指紋が無い旧成果物はこの軸を判定しない（理由は残す）。
+  const prints = tail.map((run) => (isPlainObject(run) ? run.suite_fingerprint : undefined));
+  if (prints.every((p) => p === undefined || p === null)) {
+    notes.push(
+      "runs[].suite_fingerprint を持たない旧成果物のため、記録が現在のスイートのものかは判定しない",
+    );
+  } else if (!prints.every((p) => nonEmptyString(p))) {
+    findings.push(
+      "連続する 2 回のうち片方だけ suite_fingerprint を持つ（どの版のスイートを回したか対応づかない）",
+    );
+  } else {
+    const recorded = prints.map((p) => String(p).trim());
+    if (recorded[0] !== recorded[1]) {
+      findings.push(
+        `連続する 2 回で suite_fingerprint が違う（同じスイートを 2 回続けて回していない）: ${recorded.join(" / ")}`,
+      );
+    } else {
+      const current = suiteFingerprint(suiteObj, ctx.root);
+      if (current.fingerprint === null) {
+        findings.push(
+          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `実体が無い ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+        );
+      } else if (current.fingerprint !== recorded[0]) {
+        findings.push(
+          `記録した 2 回は現在のスイートのものでない（suite_fingerprint ${recorded[0]} ≠ 実測 ${current.fingerprint}）。スイートを変えたら 2 回続けて回し直す`,
+        );
+      } else {
+        notes.push(`スイートの指紋が記録と一致（${current.files} ファイル）`);
+      }
+    }
+  }
+
+  return { judged: true, findings, notes };
 }
 
 /**
@@ -655,8 +737,10 @@ export function checkStage(ctx) {
         `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
       );
     } else if (replaceNew !== null && replaceNew.dirty === true) {
-      notes.push(
-        `new.commit は一致するが replace-metadata.json の new.dirty が true（未コミット変更があるので SHA の一致は同一性を保証しない）: ${diffPath}`,
+      // SHA が一致しても、未コミット変更がある木では「差分を採った実装」を特定できない。
+      // 判定不能を合格に倒さない（note で通すと、同じ SHA・同じ反復のまま中身だけ変わった実装が素通りする）。
+      findings.push(
+        `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので SHA の一致は同一性を保証しない）: ${diffPath}`,
       );
     }
   } else {
@@ -831,6 +915,7 @@ export function run(argv, io) {
 
   const repeat = checkRepeatRun(metadata, {
     artifactHealthPresent: "artifact_health" in metadata,
+    root,
   });
   findings.push(...repeat.findings);
   notes.push(...repeat.notes);

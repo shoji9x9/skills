@@ -34,12 +34,13 @@
     "current_green": true,
     "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
     "repeat_run": {
-      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
+      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "runs": [
         {
           "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）>",
-          "result": "<green | red。連続する 2 回とも green であることを求める>"
+          "result": "<green | red。連続する 2 回とも green であることを求める>",
+          "suite_fingerprint": "<その回に回したスイートの指紋（sha256:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / interactions の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。手で計算せずスクリプトの suiteFingerprint を使う。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"

@@ -211,7 +211,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
 9. **採取物と工程の健全性の記録**: `metadata.json` に `artifact_health`（採取物ごとの読むスペックと「何から作ったか」）・
-   `suite.state_mutating` / `suite.repeat_run`（状態を変えるスイートは 2 回続けて緑）・`unmeasured`（未測定の機械可読な宣言）を書き、
+   `suite.state_mutating` / `suite.repeat_run`（状態を変えるスイートは 2 回続けて緑。各回に `suite_fingerprint` を記録し、
+   **スイートを変えたら 2 回続けて回し直す**——記録を版に結びつけないと、後からスペックや後始末を変えても古い記録で通る）・
+   `unmeasured`（未測定の機械可読な宣言）を書き、
    **視覚採取物を持たない機能（`api-resource` 等）でも `artifact_health.declared: false` ＋理由で済ませるのはこの節だけ**——
    `suite.state_mutating` は書き込み系こそ要る側なので必ず書く（書かないと未検証として落ちる）、
    `node <skill>/scripts/artifact-health-check.mjs --metadata <metadata.json> --stage suite` を **exit 0 まで通す**（コピーせずスキル配下から実行する）。
