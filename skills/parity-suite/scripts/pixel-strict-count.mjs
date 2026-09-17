@@ -140,9 +140,13 @@ export async function main(argv) {
     "usage: node pixel-strict-count.mjs <pass1.png> <pass2.png> [--diff <diff.png>] [--diff-color <hex>]\n";
   const positionals = [];
   let diffPath;
+  // 「--diff を渡していない」と「--diff の値が空」を区別する。区別しないと、値が空に展開された呼び出しが
+  // strict_only_pixels: null のまま exit 0 で通り、基準値を埋められないまま 2 回目の採取物が消える。
+  let diffRequested = false;
   let diffColor = "ff0000";
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--diff") {
+      diffRequested = true;
       diffPath = argv[i + 1];
       i += 1;
     } else if (argv[i] === "--diff-color") {
@@ -154,6 +158,10 @@ export async function main(argv) {
   }
   if (positionals.length !== 2) {
     process.stderr.write(usage);
+    return 2;
+  }
+  if (diffRequested && (diffPath === undefined || String(diffPath).trim() === "")) {
+    process.stderr.write("error: --diff requires a path to the recorded tool's diff image\n");
     return 2;
   }
   const target = hexToRgb(diffColor);

@@ -170,11 +170,19 @@ function captureElement(el, props) {
   if (box.width > 0 && box.height > 0) {
     // 参照はすべて素のグローバル（scrollX / innerWidth / document）で書く。ブラウザでは window と
     // 同じものを指し、locator.evaluate へ文字列化して渡るこの関数を差し替え無しで単体検査できる。
+    //
+    // ビューポートに掛かっている要素は、文書座標を見るまでもなく描かれている。先に通すのは
+    // RTL の横スクロール文書で `scrollX` が負になり、見えている矩形でも
+    // `docX + width <= 0` が成り立ちうるため（例: rect.x=10 / width=50 / scrollX=-100）。
+    const intersectsViewport =
+      box.x < innerWidth && box.x + box.width > 0 && box.y < innerHeight && box.y + box.height > 0;
     const docX = box.x + scrollX;
     const docY = box.y + scrollY;
     const docWidth = Math.max(document.documentElement.scrollWidth, innerWidth);
     const docHeight = Math.max(document.documentElement.scrollHeight, innerHeight);
-    if (docX + box.width <= 0 || docY + box.height <= 0 || docX >= docWidth || docY >= docHeight) {
+    const outsideDocument =
+      docX + box.width <= 0 || docY + box.height <= 0 || docX >= docWidth || docY >= docHeight;
+    if (!intersectsViewport && outsideDocument) {
       throw new Error(
         `element is outside the document: rect=(${box.x}, ${box.y}, ${box.width}, ${box.height}) ` +
           `scroll=(${scrollX}, ${scrollY}) document=(${docWidth}, ${docHeight}). ` +

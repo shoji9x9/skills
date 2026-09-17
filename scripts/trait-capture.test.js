@@ -291,6 +291,16 @@ test.each([
       documentSize: { width: 1280, height: 2400 },
     },
   ],
+  // RTL の横スクロール文書では scrollX が負になり、見えている矩形でも
+  // docX + width <= 0 が成り立つ。ビューポートに掛かっていれば文書座標を見るまでもなく描かれている。
+  [
+    "scrollX が負の文書（RTL の横スクロール）でビューポートに掛かる要素",
+    {
+      rect: { x: 10, y: 10, width: 50, height: 32 },
+      scroll: { x: -100, y: 0 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
 ])("%s は描かれている扱いで採れる（陽性コントロール）", async (_name, options) => {
   const [trait] = await captureTraits([
     { name: "list.cell", locator: fakeLocator(allResolved(), options) },

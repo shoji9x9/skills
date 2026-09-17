@@ -74,3 +74,30 @@ test("parity-diff の pixel-crops.mjs と同じ画素数・最大チャンネル
   expect(mine.strict_pixels).toBe(theirs.count);
   expect(mine.strict_max_channel_delta).toBe(theirs.maxChannelDelta);
 });
+
+// 終了コードだけを見ると弁別できない——この環境には pngjs が無く、検査を外しても
+// 「pngjs is not installed」で同じ exit 2 になる。落ちた理由（stderr）まで固定する。
+async function runCapturingStderr(argv) {
+  const written = [];
+  const original = process.stderr.write;
+  process.stderr.write = (chunk) => {
+    written.push(String(chunk));
+    return true;
+  };
+  try {
+    const code = await counter.main(argv);
+    return { code, stderr: written.join("") };
+  } finally {
+    process.stderr.write = original;
+  }
+}
+
+test.each([
+  ["値が無い", ["a.png", "b.png", "--diff"]],
+  ["値が空白だけ", ["a.png", "b.png", "--diff", "   "]],
+])("--diff の%sなら、その理由で落ちる（基準値を埋め損ねたまま通さない）", async (_name, argv) => {
+  const { code, stderr } = await runCapturingStderr(argv);
+
+  expect(code).toBe(2);
+  expect(stderr).toMatch(/--diff requires a path/);
+});
