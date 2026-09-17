@@ -133,7 +133,7 @@ skills:
       pending: [] # 保留（測定結果で決める）。setup では必ず空リストで作る（スキルが追記する記録なので初期値は空。キーだけ書いて値を省くと null になり、判定ツールが「配列でない」として落ちる）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す
         # 追記する要素は追記元が分かる形で書く（要素の形の正本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが帰属不明として扱われる
         # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（照合キー）
-        #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting
+        #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting（部品 slug は書かない。parity-component は必ず cross-cutting）
         #   added_by: <golden-dataset | parity-suite | parity-replace | parity-component>
         #   added_at: <YYYY-MM-DD>
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
@@ -708,8 +708,13 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 | キー | 必須 | 値 |
 |---|---|---|
 | `item` | 必須 | 散文の宣言。**照合キー**であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
-| `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける** |
+| `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける**。**機能 slug 以外の名前空間の slug を書かない**（部品 slug は下記の箇条を参照） |
 | `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown` |
+
+- **`parity-component` の追記は必ず `slug: cross-cutting` にする。** 部品は複数の機能にまたがるため機能へ帰属させられず、
+  **部品 slug（`.replace/components.md`）は機能 slug（`.replace/features.md`）と別の名前空間**である。
+  部品 slug を書くと、どの機能の収束判定でも「別機能に帰属する要素」として対象外になり——形の不備も `warn:` で済むため——
+  **永久に棚卸しされない**。`pending-triage-check.mjs` はこの取り違えを検出し、帰属不明として全機能の棚卸し対象へ倒す
 | `added_at` | 必須 | 追記日（`YYYY-MM-DD`）。旧形式からの移行で復元できないものだけ `unknown`（推測の日付を書かない） |
 
 - **`cross-cutting` は予約語**である。機能 slug に使わない（使うと横断の追記と機能の追記が区別できなくなる）

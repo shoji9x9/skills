@@ -35,10 +35,17 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.pending_triage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 機能に帰属しない追記を表す予約語（正本は replace-strategy の references/project-config.md）。 */
 export const CROSS_CUTTING = "cross-cutting";
+
+/**
+ * slug に機能 slug を書けないスキル（追記は必ず CROSS_CUTTING）。
+ * 部品 slug は機能 slug と別の名前空間なので、書かれると inScope がどの機能でも偽になり永久に棚卸しされない。
+ * 正本は replace-strategy の references/project-config.md「pending 要素の形」。
+ */
+const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component"]);
 
 /** 棚卸しで記録できる処置。 */
 const DISPOSITIONS = ["keep", "may_change", "carried_over"];
@@ -101,6 +108,8 @@ function isPlainObject(v) {
  * registries.json の intentional_diffs.pending を正規化する。
  *
  * 素の文字列は旧形式として読むが帰属不明にする（slug: null）。
+ * 機能 slug を書けないスキル（CROSS_CUTTING_ONLY_WRITERS）が cross-cutting 以外を書いた要素も、
+ * どの機能の inScope にも入らないため帰属不明へ倒して全機能の対象にする。
  * オブジェクトは item / slug / added_by / added_at を検証し、欠けていれば不整合として数える
  * （帰属が読めない追記は棚卸しの対象を決められないため、黙って帰属不明へ倒さない）。
  *
@@ -185,7 +194,23 @@ export function normalizePending(entries) {
       items.push({ key, slug: null, index });
       return;
     }
-    items.push({ key, slug: String(rec.slug).trim(), index });
+    const entrySlug = String(rec.slug).trim();
+    // 機能 slug を書けないスキルが機能 slug 以外（＝部品 slug 等）を書いた要素は、どの機能の inScope にも入らず
+    // 永久に棚卸しされない。帰属不明（slug: null）へ倒して全機能の対象にする（合格に倒さない）。
+    if (
+      nonEmptyString(rec.added_by) &&
+      CROSS_CUTTING_ONLY_WRITERS.has(String(rec.added_by).trim()) &&
+      entrySlug !== CROSS_CUTTING
+    ) {
+      issues.push({
+        index,
+        slug: null,
+        message: `intentional_diffs.pending[${index}]: added_by が ${String(rec.added_by).trim()} なのに slug が ${CROSS_CUTTING} でない（${key}）— 機能 slug の名前空間ではないため帰属不明として全機能の棚卸し対象になる`,
+      });
+      items.push({ key, slug: null, index });
+      return;
+    }
+    items.push({ key, slug: entrySlug, index });
   });
   return { items, problems: issues.map((issue) => issue.message), issues };
 }
