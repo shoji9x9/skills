@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T06:59:50.769Z",
+    "evals_run": [38],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 136.898,
+        "tokens": 164212,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "「特性照合が見るのは論理名を付けた要素そのものだけ。緑は computed style が揃っている証拠になっていません」と述べている"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のための写しを別の木に作った合図だと説明している",
+          "passed": true,
+          "evidence": "採取物の rect を jq で抜き、y が -32000 のような値なら写しだと説明し、baseline.md の実測（列見出し 9 件）を引用している"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": true,
+          "evidence": "原因はロケータマッピングだとし、判定用と操作用を分けて実際に描画されている要素を引く形へ直すと述べている"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": true,
+          "evidence": "VERSION 3 の採取ツールが文書の外の要素で失敗させることに触れ、強度ゲートでは element is outside the document を欠落へ変換しない規約だと述べている"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": true,
+          "evidence": "「child_inline_styles を読む（フォントへ行く前の必須手順）」として、子の inline style が見た目を変えている形と実測（34 プロパティ全一致・画素差 62）を挙げている"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残った写しからの採取物を使い続けない）",
+          "passed": true,
+          "evidence": "「マッピングを直してから採り直す」と述べ、写しからの採取物を使い続けないとしている"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "fontTools へ進むのを止め、1〜4 を潰して採り直しても差が残る場合だけ妥当になると述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 152.774,
+        "tokens": 40812,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "「特性照合が緑」から「computed style は揃っている」は出てこないと述べ、固定集合の外を挙げている"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のための写しを別の木に作った合図だと説明している",
+          "passed": false,
+          "evidence": "Step 3 で rect を浮動小数のまま比べるとは述べるが、画面の外へ置かれた写し（y = -32000 等）という形に触れていない"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": false,
+          "evidence": "論理名の解決先が描かれている要素かという観点が無く、集合外プロパティ・書体解決・撮影タイミングを原因候補にしている"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": false,
+          "evidence": "採取ツールの失敗（文書の外）にも欠落へ変換しない規約にも触れていない"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": false,
+          "evidence": "子の inline style を読む手順が無い"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残った写しからの採取物を使い続けない）",
+          "passed": false,
+          "evidence": "マッピング修正後の採り直しに触れていない"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "「head 読みはまだ早い」とし、差分の形の確認・実フェイスの取得・撮影の非決定性の確認を先に置いている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 136.898,
+        "stddev": 0.0,
+        "min": 136.898,
+        "max": 136.898
+      },
+      "tokens": {
+        "mean": 164212.0,
+        "stddev": 0.0,
+        "min": 164212,
+        "max": 164212
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2857,
+        "stddev": 0.0,
+        "min": 0.2857,
+        "max": 0.2857
+      },
+      "time_seconds": {
+        "mean": 152.774,
+        "stddev": 0.0,
+        "min": 152.774,
+        "max": 152.774
+      },
+      "tokens": {
+        "mean": 40812.0,
+        "stddev": 0.0,
+        "min": 40812,
+        "max": 40812
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.71",
+      "time_seconds": "-15.9",
+      "tokens": "+123400"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "iteration-36 は同じ eval の初版で走らせた。prompt に固定プロパティ集合の件数（34）を書いていたため、with_skill が「集合は現行 36 なので採取が古い」という筋へ寄った。件数を prompt から外し、child_inline_styles の assertion を足して取り直したのがこの iteration。"
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T07:00:33.006Z",
+    "evals_run": [19],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 179.139,
+        "tokens": 149009,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "display のような「箱の作り方」を変える宣言は箱の寸法・中身の配置・匿名ボックスの生成を同時に変えるため、1 つの次元の一致を他の次元の一致の根拠にしないと述べている",
+          "passed": true,
+          "evidence": "宣言ごとに変える次元を表にし、匿名 table-cell ボックスの生成まで挙げて「文字の位置の一致は箱の高さの一致の根拠にならない」と述べている"
+        },
+        {
+          "text": "文字の位置だけでなく箱の寸法（getBoundingClientRect の高さと getComputedStyle().height）を現・新の両側で測って並べるよう求めている",
+          "passed": true,
+          "evidence": "getBoundingClientRect の width / height / top と getComputedStyle().height を両方、現・新それぞれで測って並べるとしている"
+        },
+        {
+          "text": "display: table は高さが中身で決まるため block の新側と寸法が食い違いうると述べている",
+          "passed": true,
+          "evidence": "theming.md の実測（31.0156px / 31px、display: table は中身で高さが決まる）を引用している"
+        },
+        {
+          "text": "この形の差は特性照合（測れない要素がある）・画素（差が小さい）・aria（寸法を見ない）の 3 経路のどれにも出ないことがあり、人が数値を見るまで出ないと述べている",
+          "passed": true,
+          "evidence": "A〜F の表で特性照合・画素・dimension-fit・レビュー・parity-diff・利用者を並べ、theming.md の「3 経路のどれにも出ないことがある」を引いたうえで、確実なのは利用者が画面で見つける経路だと述べている"
+        },
+        {
+          "text": "写さない結論と矛盾しない観測ではなく、結論が誤りなら違う値になる観測を選ぶと述べている",
+          "passed": true,
+          "evidence": "「その結論と矛盾しない観測ではなく、その結論が誤りなら違う値になる観測を選ぶ」を引用し、5px はその前者だと説明している"
+        },
+        {
+          "text": "測った結果と判断を porting.md の「移行元の宣言を写さないと決めた箇所」へ記録する（該当なしも書く）と述べている",
+          "passed": true,
+          "evidence": "porting.md「移行元の宣言を写さないと決めた箇所」へ次元と両側の実測値を書き、該当なしも書くと述べている"
+        },
+        {
+          "text": "測らないまま写さない判断を確定して次のページへ進むと答えていない",
+          "passed": true,
+          "evidence": "測定条件 2 つを満たしてからでないと写さない判断は根拠を持たないとし、次ページへ進む段ではないと結論している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 86.842,
+        "tokens": 37406,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "display のような「箱の作り方」を変える宣言は箱の寸法・中身の配置・匿名ボックスの生成を同時に変えるため、1 つの次元の一致を他の次元の一致の根拠にしないと述べている",
+          "passed": true,
+          "evidence": "table-layout: fixed は別軸で未検証、th の display: table は無名セルに包まれ列幅の配分が変わり得ると述べ、幅も測るよう求めている"
+        },
+        {
+          "text": "文字の位置だけでなく箱の寸法（getBoundingClientRect の高さと getComputedStyle().height）を現・新の両側で測って並べるよう求めている",
+          "passed": false,
+          "evidence": "下端からの距離・幅の 1 点測定は挙げるが、箱の高さを getBoundingClientRect と getComputedStyle().height の両方で両側から並べる指示が無い"
+        },
+        {
+          "text": "display: table は高さが中身で決まるため block の新側と寸法が食い違いうると述べている",
+          "passed": false,
+          "evidence": "display: table の高さが中身で決まるため新側の block と食い違うという説明が無い"
+        },
+        {
+          "text": "この形の差は特性照合（測れない要素がある）・画素（差が小さい）・aria（寸法を見ない）の 3 経路のどれにも出ないことがあり、人が数値を見るまで出ないと述べている",
+          "passed": false,
+          "evidence": "diff・テスト・ビルド・VRT・実データという一般的な経路を挙げるが、特性照合・画素・aria の 3 経路に触れていない"
+        },
+        {
+          "text": "写さない結論と矛盾しない観測ではなく、結論が誤りなら違う値になる観測を選ぶと述べている",
+          "passed": true,
+          "evidence": "「規則が効いている世界と効いていない世界を区別できない値」と述べ、効く条件を作って測るよう求めている"
+        },
+        {
+          "text": "測った結果と判断を porting.md の「移行元の宣言を写さないと決めた箇所」へ記録する（該当なしも書く）と述べている",
+          "passed": false,
+          "evidence": "「パリティログに残す」とだけ述べ、porting.md の該当節・該当なしの記録に触れていない"
+        },
+        {
+          "text": "測らないまま写さない判断を確定して次のページへ進むと答えていない",
+          "passed": true,
+          "evidence": "「まだ確定しないほうがいい」とし、検証してから決めるよう求めている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 179.139,
+        "stddev": 0.0,
+        "min": 179.139,
+        "max": 179.139
+      },
+      "tokens": {
+        "mean": 149009.0,
+        "stddev": 0.0,
+        "min": 149009,
+        "max": 149009
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0.0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 86.842,
+        "stddev": 0.0,
+        "min": 86.842,
+        "max": 86.842
+      },
+      "tokens": {
+        "mean": 37406.0,
+        "stddev": 0.0,
+        "min": 37406,
+        "max": 37406
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "+92.3",
+      "tokens": "+111603"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。",
+    "iteration-19 は同じ eval の初版。「3 経路のどれにも出ない」という assertion を引き出す問いが prompt に無く、with_skill でも 6/7 だった。prompt に「どの経路で気づけるのか」を足して取り直したのがこの iteration。"
+  ]
+}

@@ -1,4 +1,5 @@
 // 静止画に写らない computed style を固定集合に入れ、解決しない名前で fail closed する回帰テスト（Issue #342）。
+// 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -12,25 +13,55 @@ const { FIXED_PROPERTIES, captureTraits } = await import(script);
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
 function fakeLocator(
   styles,
-  { pseudoContent = "none", pseudoStyles = styles, origin = "http://legacy.example:8811" } = {},
+  {
+    pseudoContent = "none",
+    pseudoStyles = styles,
+    origin = "http://legacy.example:8811",
+    rect = { x: 1, y: 2, width: 3, height: 4 },
+    scroll = { x: 0, y: 0 },
+    viewport = { width: 1280, height: 800 },
+    documentSize = { width: 1280, height: 800 },
+    children = [],
+  } = {},
 ) {
   return {
     evaluate(fn, props) {
       const el = {
-        getBoundingClientRect: () => ({ x: 1, y: 2, width: 3, height: 4 }),
+        getBoundingClientRect: () => rect,
+        children: children.map((child) => ({
+          tagName: (child.tag ?? "span").toUpperCase(),
+          getAttribute: (name) => (name === "style" ? (child.style ?? null) : null),
+        })),
       };
       const previousStyle = globalThis.getComputedStyle;
       const previousLocation = globalThis.location;
+      const previousDocument = globalThis.document;
+      const previousScrollX = globalThis.scrollX;
+      const previousScrollY = globalThis.scrollY;
+      const previousInnerWidth = globalThis.innerWidth;
+      const previousInnerHeight = globalThis.innerHeight;
       globalThis.getComputedStyle = (_element, pseudo) => ({
         content: pseudo ? pseudoContent : "normal",
         getPropertyValue: (prop) => (pseudo ? pseudoStyles : styles)[prop] ?? "",
       });
       globalThis.location = { origin };
+      globalThis.document = {
+        documentElement: { scrollWidth: documentSize.width, scrollHeight: documentSize.height },
+      };
+      globalThis.scrollX = scroll.x;
+      globalThis.scrollY = scroll.y;
+      globalThis.innerWidth = viewport.width;
+      globalThis.innerHeight = viewport.height;
       try {
         return Promise.resolve(fn(el, props));
       } finally {
         globalThis.getComputedStyle = previousStyle;
         globalThis.location = previousLocation;
+        globalThis.document = previousDocument;
+        globalThis.scrollX = previousScrollX;
+        globalThis.scrollY = previousScrollY;
+        globalThis.innerWidth = previousInnerWidth;
+        globalThis.innerHeight = previousInnerHeight;
       }
     },
   };
@@ -201,4 +232,113 @@ test.each([
     { name: "detail.save", locator: fakeLocator(allResolved({ cursor: value }), { origin }) },
   ]);
   expect(trait.computed.cursor).toBe(value);
+});
+
+// --- 採った対象が「画面に描かれているもの」か（Issue #386 形 2） ---
+
+// 実測（2026-09-14）: 市販のデータグリッド（Wijmo FlexGrid 5.20261）は列見出しを 2 つの木に作り、
+// getByRole("columnheader") が返すのは y = -32000 に置かれた支援技術のための写しだった。
+// 写しから採った 34 プロパティは全部一致し、画素だけが差を出した。
+test("文書の外に置かれた写しからの採取は論理名付きで落ちる", async () => {
+  await expect(
+    captureTraits([
+      {
+        name: "list.columnheader",
+        locator: fakeLocator(allResolved(), {
+          rect: { x: 0, y: -32000, width: 120, height: 32 },
+          documentSize: { width: 1280, height: 2400 },
+        }),
+      },
+    ]),
+  ).rejects.toThrow(/list\.columnheader[\s\S]*outside the document/);
+});
+
+test.each([
+  [
+    "折り返しの下にある要素（full_page 撮影では写る）",
+    {
+      rect: { x: 10, y: 1800, width: 120, height: 32 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
+  [
+    "スクロールで視野の上へ出た要素",
+    {
+      rect: { x: 10, y: -100, width: 120, height: 32 },
+      scroll: { x: 0, y: 500 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
+  [
+    "面積 0 の矩形（display: none 等の状態）",
+    { rect: { x: 0, y: 0, width: 0, height: 0 }, documentSize: { width: 1280, height: 2400 } },
+  ],
+  // ガード（box.width > 0 && box.height > 0）が効いていることの陽性コントロール。
+  // 文書の外の座標かつ面積 0 なので、ガードを外すと判定に掛かって落ちる（＝この行が赤くなる）。
+  // 素通りするのは仕様——面積 0 は display: none を正当に採るための除外で、その射程は
+  // skills/parity-suite/references/baseline.md に限界として書いてある。
+  [
+    "文書の外に置かれた面積 0 の矩形（判定の射程外）",
+    {
+      rect: { x: 0, y: -32000, width: 0, height: 0 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
+  [
+    "文書の右端に接する要素",
+    {
+      rect: { x: 1160, y: 10, width: 120, height: 32 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
+  // RTL の横スクロール文書では scrollX が負になり、見えている矩形でも
+  // docX + width <= 0 が成り立つ。ビューポートに掛かっていれば文書座標を見るまでもなく描かれている。
+  [
+    "scrollX が負の文書（RTL の横スクロール）でビューポートに掛かる要素",
+    {
+      rect: { x: 10, y: 10, width: 50, height: 32 },
+      scroll: { x: -100, y: 0 },
+      documentSize: { width: 1280, height: 2400 },
+    },
+  ],
+])("%s は描かれている扱いで採れる（陽性コントロール）", async (_name, options) => {
+  const [trait] = await captureTraits([
+    { name: "list.cell", locator: fakeLocator(allResolved(), options) },
+  ]);
+  expect(trait.rect).toEqual(options.rect);
+});
+
+// --- 子の inline style（Issue #386 形 1） ---
+
+// 実測: 共通ヘッダーの Back が <a><span style="font-weight: bold;">Back</span></a> の形で、
+// a の 34 プロパティは全一致（a 自身は font-weight: 400）のまま画素だけ 62 画素の差を出した。
+test("1 段下の子の inline style を記録する（装飾がどこに乗っているかを残す）", async () => {
+  const [trait] = await captureTraits([
+    {
+      name: "header.back",
+      locator: fakeLocator(allResolved(), {
+        children: [
+          { tag: "span", style: "font-weight: bold;" },
+          { tag: "span" },
+          { tag: "i", style: "   " },
+          { tag: "em", style: " color: red; " },
+        ],
+      }),
+    },
+  ]);
+
+  expect(trait.child_inline_styles).toEqual([
+    { index: 0, tag: "span", style: "font-weight: bold;" },
+    { index: 3, tag: "em", style: "color: red;" },
+  ]);
+});
+
+test("子に inline style が無ければ空配列になる（キーの欠落と区別する）", async () => {
+  const [trait] = await captureTraits([
+    {
+      name: "header.back",
+      locator: fakeLocator(allResolved(), { children: [{ tag: "span" }] }),
+    },
+  ]);
+  expect(trait.child_inline_styles).toEqual([]);
 });

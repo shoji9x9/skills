@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T06:59:30.941Z",
+    "evals_run": [26],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 117.074,
+        "tokens": 163829,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "本経路の外で撮った 2 枚には side・locale・viewport 等の撮影条件の照合が無く、別の画面から撮った 2 枚は部品が同じでも画素差を出すと述べている",
+          "passed": true,
+          "evidence": "現＝一覧 / 新＝詳細は禁止事項に反するとし、capture-new.md の条件一致の先行検証に照らして差分報告をせず停止すると述べている"
+        },
+        {
+          "text": "使い捨ての 2 枚をそのまま結論の根拠にせず、本経路と同じ条件（ページ・状態・ビューポート・side）で撮り直してから判断すると述べている",
+          "passed": true,
+          "evidence": "正しい進め方として、一覧なら一覧で同一ページ・同一状態・同一 viewport で新側を撮り直すとしている"
+        },
+        {
+          "text": "器の位置の小数部が違うと 1 画素ずれて切り出されることに触れ、同じ画面どうしで撮り直して差が残るかを先に確かめると述べている",
+          "passed": true,
+          "evidence": "別ページでは要素の実サイズ・親のフォントサイズ・スクロール位置・crop 矩形の原点が違い得ると述べ、条件を揃えた撮り直しを先に置いている"
+        },
+        {
+          "text": "本経路の結果と食い違ったらまず自分の測り方を疑うと述べ、利用者の指摘を測り方の正しさの保証として扱っていない",
+          "passed": true,
+          "evidence": "強度ゲートを通っていない crop は差し戻しの入力にならないとし、本経路の未検出を 3 通りに切り分けている"
+        },
+        {
+          "text": "border-radius の値の違いを原因と決めつけて parity-replace へ差し戻していない",
+          "passed": true,
+          "evidence": "border-radius のクランプ規則から描画差を否定し、差し戻さないと結論している"
+        },
+        {
+          "text": "条件をそろえた再現が取れるまで、この箇所を要対応として diff.md に書かないと述べている（未説明のまま残す、または条件不一致として差分報告の前で止める）",
+          "passed": true,
+          "evidence": "「条件不一致で無効化された観測」として差分報告の前で止め、要対応として diff.md に書いていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 77.639,
+        "tokens": 35789,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "本経路の外で撮った 2 枚には side・locale・viewport 等の撮影条件の照合が無く、別の画面から撮った 2 枚は部品が同じでも画素差を出すと述べている",
+          "passed": true,
+          "evidence": "現側は一覧、新側は詳細から切り出している時点で 116 画素の由来を分離できないと述べている"
+        },
+        {
+          "text": "使い捨ての 2 枚をそのまま結論の根拠にせず、本経路と同じ条件（ページ・状態・ビューポート・side）で撮り直してから判断すると述べている",
+          "passed": true,
+          "evidence": "再検証の 1 番目に「同じ画面同士で撮り直す（DPR・viewport・zoom を揃える）」を置いている"
+        },
+        {
+          "text": "器の位置の小数部が違うと 1 画素ずれて切り出されることに触れ、同じ画面どうしで撮り直して差が残るかを先に確かめると述べている",
+          "passed": true,
+          "evidence": "1px のサブピクセル位置ずれやアンチエイリアスだけで 3 桁は出ると述べ、撮り直しを先に置いている"
+        },
+        {
+          "text": "本経路の結果と食い違ったらまず自分の測り方を疑うと述べ、利用者の指摘を測り方の正しさの保証として扱っていない",
+          "passed": true,
+          "evidence": "「本経路の見落としを疑う前に、使い捨てスクリプト側の欠陥を疑う順序」と述べている"
+        },
+        {
+          "text": "border-radius の値の違いを原因と決めつけて parity-replace へ差し戻していない",
+          "passed": true,
+          "evidence": "border-radius は無実の可能性が高いとし、差し戻さないよう結論している"
+        },
+        {
+          "text": "条件をそろえた再現が取れるまで、この箇所を要対応として diff.md に書かないと述べている（未説明のまま残す、または条件不一致として差分報告の前で止める）",
+          "passed": false,
+          "evidence": "成果物（diff.md）への書き方・分類の扱いに触れず、別建ての改善提案として出す案を示している"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 117.074,
+        "stddev": 0.0,
+        "min": 117.074,
+        "max": 117.074
+      },
+      "tokens": {
+        "mean": 163829.0,
+        "stddev": 0.0,
+        "min": 163829,
+        "max": 163829
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0.0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 77.639,
+        "stddev": 0.0,
+        "min": 77.639,
+        "max": 77.639
+      },
+      "tokens": {
+        "mean": 35789.0,
+        "stddev": 0.0,
+        "min": 35789,
+        "max": 35789
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.17",
+      "time_seconds": "+39.4",
+      "tokens": "+128040"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。iteration-27 の eval 26 初版の assertion を直して取り直したもの。",
+    "弁別は 1 件だけ。without_skill も CSS の知識から「条件が揃っていないので差し戻さない」へ自力で到達するため、この eval は主に後退検知として扱う。"
+  ]
+}

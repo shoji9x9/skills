@@ -31,11 +31,19 @@
 
 <!-- feature モードは画素／特性／aria。api-resource / batch は API／バッチの構造・バイト比較。 -->
 
-| 経路 | 適用したノイズ基準値（page/state/viewport） | 検出件数 | 備考 |
-|---|---|---|---|
-| 画素 | （基準値） | （件数） | 名前無し要素の見た目差 |
-| 特性照合 | （基準値） | （件数） | 論理名付き要素の computed style・相対幾何 |
-| aria | — | （件数） | テーブル/フォームの内容パリティ（補助経路） |
+<!-- 画素の量は 2 本書く。しきい値つき（記録済み pixel_tool）だけを書くと、許容の内側に隠れた差が「ほぼ一致」と読まれる。 -->
+<!-- 値は pixel-crops.mjs の summary から写す（threshold_pixels / threshold_ratio・strict_pixels / strict_ratio・strict_only_pixels）。 -->
+<!-- 最大チャンネル差は全体（strict_max_channel_delta）ではなく、しきい値の内側だけの値（strict_only_max_channel_delta）を書く。 -->
+
+| 経路 | 適用したノイズ基準値（page/state/viewport） | 検出件数 | 画素数（しきい値つき／しきい値なし） | 備考 |
+|---|---|---|---|---|
+| 画素 | （基準値。strict は同じ軸の基準値と対比したか） | （件数。しきい値つきの領域＋ strict_only_regions） | （例: 756 画素 0.0569% ／ 4,120 画素 0.3102%〈うちしきい値の内側 3,364・最大チャンネル差 1・候補 3 件〉） | 名前無し要素の見た目差 |
+| 特性照合 | （基準値） | （件数） | — | 論理名付き要素の computed style・相対幾何 |
+| aria | — | （件数） | — | テーブル/フォームの内容パリティ（補助経路） |
+
+<!-- しきい値の内側の差（strict_only_pixels）が非ゼロなら、差分領域 0 件でも「一致」と書かない。 -->
+<!-- 対比する相手は同じ軸の基準値（noise_baseline[].pixel_diff_strict / pixel_diff_strict_only）。strict の基準値が無い組はノイズと断定せず要確認で残す。 -->
+<!-- strict_only_regions（しきい値の内側にだけ差がある領域）は crop 対を持つ候補なので、件数を検出件数へ含め、下の差分一覧にも 1 件ずつ並べる。 -->
 
 ## 3. 差分一覧
 
