@@ -11,10 +11,20 @@
 | 要素 | 中身 | 用途 |
 |---|---|---|
 | スクリーンショット | 画面の画素 | 名前の付かない要素の見た目差を `parity-diff` の画素経路＋トリアージが扱う |
-| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
+| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）＋1 段下の子の inline style（`child_inline_styles`。診断材料であり照合には使わない）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
 | 参考 aria スナップショット | 採取した aria | **参考資料であって assertion ではない**（assertion は手書き。[`coverage.md`](coverage.md)） |
 
 - **特性照合の対象は論理名付き要素に絞る。** 名前の付かない要素の見た目差はスクリーンショット（画素経路）が担う
+- **論理名は「画面に描かれている要素」に付ける。** `getByRole` が返す要素が描かれているとは限らない——**市販部品は aria のための木を別に作る**ことがあり、
+  そちらは画面の外（`y = -32000` 等）に置かれる。描かれていない写しから採ると**固定プロパティは全一致のまま緑になり、画素だけが差を出す**（実測: 列見出し 9 件を写しから採っていた）。
+  採取ツールは矩形を文書座標へ直して**文書の外に丸ごと出ている要素で採取を失敗させる**ので、この失敗はロケータマッピングを直してから採り直す
+  （**要素の欠落へ変換しない**。強度ゲートでの扱いは [`strength-gate.md`](strength-gate.md)）
+- **この判定は「面積 0 の写し」を捕まえない。** 面積 0 の矩形は `display: none` 等を正当に採るため判定から外してあるので、
+  **`width: 0; height: 0` で置かれた写しは素通りする**（判定が捕まえるのは `y = -32000` のように**文書の外へ動かした**写しだけ）。
+  論理名が写しを指している疑いが残るなら、採取物の `rect` が面積 0 でないことも併せて確かめる
+- **子に inline style が乗っている差は、名前を付けた要素の計算値には出ない。** 採取ツールは 1 段下の子の inline style だけを `child_inline_styles` に記録する
+  （子の計算値は採らない）。**照合には使わない診断材料**で、読むのは「計算値が全一致なのに画素だけ差が出た」ときに**装飾がどこに乗っているかを先に確かめる**ため
+  （実測: `<a><span style="font-weight: bold;">` の形で 34 プロパティが全一致し、画素差 62 だけが出た。読む手順の正本は `parity-diff` の `references/font-diff.md`）
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
   固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。プロパティ集合の正本は
   [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる
@@ -23,7 +33,7 @@
   このため**現新が同じパスで別バイトの資産を配信していると、その見た目差は特性照合にも画素にも現れない**（カスタムカーソルの画像が該当する）。
   対象要素があれば `gaps.md` の「特性化できなかった箇所と理由」へ種別「採取値の射程外」として残し、確認済みにしない。
   強度ゲートで注入しても特性照合が赤にならないので、`strength.md` の「未検証の故障種別」にも同じ理由で残す
-- **`FIXED_PROPERTIES` を変えたら現側・新側の両方を採り直す。** `parity-diff` の前提確認はツールの `VERSION` と `metadata.json` の記録値の一致を要求するため、
+- **採取スキーマ（`FIXED_PROPERTIES` と採取形状。ツールの `VERSION` が上がる変更）を変えたら現側・新側の両方を採り直す。** `parity-diff` の前提確認はツールの `VERSION` と `metadata.json` の記録値の一致を要求するため、
   片側だけ採り直した成果物は比較に進めない（止まるのが正しい振る舞い）
 - 採取には同梱 [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) をプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定。コピー専用のサブディレクトリ。配置指針は [`locator-mapping.md`](locator-mapping.md)）へコピーして使う。
   何を採ったか（対象要素・プロパティ集合・状態）を `metadata.json` に残し、`parity-diff` が同一条件で照合できるようにする

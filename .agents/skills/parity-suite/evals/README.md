@@ -90,5 +90,9 @@ scripts/run-skill-eval.sh \
   行の粒度（要求元の操作ごとに分かれ、同じ種別を束ねない）と未決・未照合の fail-closed 判定は `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う。プロンプトにはツール名・キー名・種別の語彙を書かない
 - 被覆プロファイルの機械的な照合（候補の展開・欠落・同値クラス・新しい仮想部品の追加・根拠付き不在）は
   リポジトリ側のユニットテスト `scripts/coverage-expand.test.js` と `scripts/coverage-check.test.js` が担う（会話の eval では弁別できないため）。反応の被覆表の照合（空欄・証拠の欠け・呼び出しの記録漏れ・表の指紋）は `scripts/reaction-check.test.js` が担う
+- eval 37 は採取対象が「画面に描かれているもの」かの回帰（Issue #386）。固定プロパティ集合が全一致で緑なのに画素だけ差が出る状況から、書体の版・ヒンティングの切り分けへ進む案を押し戻せるかを見る。
+  採取した要素の矩形の確認・画面の外へ置かれた写し・論理名の付け直し・同梱ツールが文書の外の要素で採取を失敗させること（欠落へ変換しない）・`child_inline_styles`・マッピング修正後の採り直しを対象にする。
+  プロンプトには固定プロパティ集合の件数を書かない（初版で書いたところ、件数が現行と合わないことを手がかりに「採取が古い」という別の筋へ寄った。iteration-36）。
+  矩形の判定そのもの（文書の外で落ちる・折り返し下やスクロール外は通る・面積 0 は判定から外す）と子の inline style の記録は `scripts/trait-capture.test.js` が担う
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

@@ -7,8 +7,20 @@
 //
 // 何を採るか: 論理名（ロケータマッピングの契約名）を付けた要素について、
 // 固定プロパティ集合の computed style ＋ 擬似要素（::before / ::after）の computed style ＋
-// getBoundingClientRect() を採る。相対幾何（要素対の関係）は絶対座標ではなく
-// この rect から trait-compare.mjs 側で導出する。
+// getBoundingClientRect() ＋ 1 段下の子の inline style（child_inline_styles）を採る。
+// 相対幾何（要素対の関係）は絶対座標ではなくこの rect から trait-compare.mjs 側で導出する。
+//
+// 採った対象が「画面に描かれているもの」かを、採取の中で 1 度だけ確かめる。特性照合は
+// 「論理名を付けた要素そのもの」の固定プロパティ集合しか見ないため、名前が描かれていない要素へ
+// 解決していると、全プロパティ一致のまま緑になり画素だけが差を出す（差が出ない形なので、
+// 緑を根拠に先へ進める）。2 つの形を塞ぐ:
+//   - 支援技術のための写し: 市販部品は aria のための木を別に作り、getByRole が返す要素が
+//     画面の外（y = -32000 等）に置かれていることがある。矩形が文書の外なら採取を失敗させる
+//     （下記 captureElement。getBoundingClientRect() は相対幾何のために既に読んでいる）
+//   - 装飾が子ノードに乗っている: 名前を付けた要素の計算値は一致するのに、子の inline style が
+//     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録して、
+//     画素の差をフォントの版・ヒンティングの切り分けへ持っていかずに済むようにする
+//     （照合には使わない診断材料。正本の説明は references/baseline.md）
 //
 // 何を採らないか: box-shadow・opacity・letter-spacing 等はこの集合に含めない（名前無し要素の見た目差と
 // 同様、画素経路＝スクリーンショット側に委ねる）。プロパティを足すときは、決定論的に採れ
@@ -37,7 +49,7 @@
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * 採取する computed style プロパティの固定集合（正本）。
@@ -86,8 +98,9 @@ export const FIXED_PROPERTIES = [
 
 /**
  * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
- * el と props を受け取り、computed / before / after / rect を返す。
+ * el と props を受け取り、computed / before / after / rect / child_inline_styles を返す。
  * 擬似要素は content が "none"（＝生成コンテンツ無し）のとき null を返し、省略できるようにする。
+ * 矩形が文書の外に丸ごと出ている要素（支援技術のための写し）はここで失敗させる。
  * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない（props で受け取る）。
  * @param {Element} el
  * @param {readonly string[]} props
@@ -142,11 +155,56 @@ function captureElement(el, props) {
     return out;
   };
   const box = el.getBoundingClientRect();
+
+  // 描かれているかの判定は、ビューポートではなく**文書**の矩形に対して行う。ビューポートで測ると
+  // 折り返し下の要素（full_page 撮影では正当に写る）やスクロールで外へ出た要素まで落ちる。
+  // 文書座標へ直したうえで「文書の外側に丸ごと出ている」ものだけを失敗にする——
+  // 支援技術のための写しは y = -32000 のような座標に置かれるので、この判定で捕まる。
+  // 面積 0 の矩形（display: none 等）はこの判定から外す。描かれていないのは同じだが、
+  // 状態として正当に採る対象であり、写しの合図ではない。
+  // 射程: この除外のぶん、width: 0; height: 0 で置かれた写しは素通りする（捕まえるのは
+  // 文書の外へ動かした写しだけ）。限界は references/baseline.md に書いてある。
+  // なお内側にスクロール領域を持つ部品（横スクロールするデータグリッド等）では、正当な要素でも
+  // 器の外へ出た位置に矩形が出て文書の外と判定されうる。写しとは原因が違うので、失敗メッセージには
+  // どちらの可能性も出す（採り直す前に対象を器の中へスクロールさせる）。
+  if (box.width > 0 && box.height > 0) {
+    // 参照はすべて素のグローバル（scrollX / innerWidth / document）で書く。ブラウザでは window と
+    // 同じものを指し、locator.evaluate へ文字列化して渡るこの関数を差し替え無しで単体検査できる。
+    const docX = box.x + scrollX;
+    const docY = box.y + scrollY;
+    const docWidth = Math.max(document.documentElement.scrollWidth, innerWidth);
+    const docHeight = Math.max(document.documentElement.scrollHeight, innerHeight);
+    if (docX + box.width <= 0 || docY + box.height <= 0 || docX >= docWidth || docY >= docHeight) {
+      throw new Error(
+        `element is outside the document: rect=(${box.x}, ${box.y}, ${box.width}, ${box.height}) ` +
+          `scroll=(${scrollX}, ${scrollY}) document=(${docWidth}, ${docHeight}). ` +
+          `the logical name likely resolves to an off-screen copy (accessibility mirror), not the drawn element; ` +
+          `if the element instead sits in an inner scroll container, scroll it into view before capturing`,
+      );
+    }
+  }
+
+  // 1 段下の子の inline style だけを読む（孫は見ない・子の計算値も採らない）。
+  // 「子に inline style がある」ことが記録に残れば、名前を付けた要素の計算値が全一致のまま
+  // 画素だけ差が出たときに、装飾がどこに乗っているかを採取物から読める。
+  const childInlineStyles = [];
+  for (let i = 0; i < el.children.length; i += 1) {
+    const child = el.children[i];
+    const inline = child.getAttribute("style");
+    if (inline === null || inline.trim() === "") continue;
+    childInlineStyles.push({
+      index: i,
+      tag: child.tagName.toLowerCase(),
+      style: inline.trim(),
+    });
+  }
+
   return {
     computed: pick(null),
     before: pick("::before"),
     after: pick("::after"),
     rect: { x: box.x, y: box.y, width: box.width, height: box.height },
+    child_inline_styles: childInlineStyles,
   };
 }
 
@@ -160,7 +218,8 @@ function captureElement(el, props) {
  *     computed: Record<string,string>,        // FIXED_PROPERTIES の computed 値
  *     before: Record<string,string> | null,   // ::before（content が none なら null）
  *     after:  Record<string,string> | null,   // ::after（content が none なら null）
- *     rect:   { x:number, y:number, width:number, height:number }
+ *     rect:   { x:number, y:number, width:number, height:number },
+ *     child_inline_styles: { index:number, tag:string, style:string }[]  // 1 段下の子の inline style（診断材料）
  *   }
  *
  * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした・
@@ -173,9 +232,12 @@ function captureElement(el, props) {
  * `computed style did not resolve` を含む失敗は FIXED_PROPERTIES の名前をそのブラウザが解決できない
  * ツール・環境側の欠陥であり、要素の欠落ではない。欠落に変換すると trait-compare が全論理名を
  * `missing`（＝赤）として出し、注入と無関係に「捕捉できた」に見える。この失敗は捕捉せず停止する。
+ * `element is outside the document` も同じ扱いで、**論理名が描かれていない要素（支援技術のための写し）へ
+ * 解決している**というマッピング側の欠陥である。欠落に変換すると、注入と無関係に赤が出るうえ、
+ * 写しから採り続ける状態が残る。この失敗も捕捉せず停止し、ロケータマッピングを直してから採り直す。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
- * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number } }>>}
+ * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[] }>>}
  */
 export async function captureTraits(entries) {
   const results = [];

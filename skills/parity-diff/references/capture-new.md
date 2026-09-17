@@ -102,6 +102,8 @@
 - 採取ツールは**プロジェクト側コピー** `metadata.json.suite.tools` の `trait-capture.mjs` を使う（スキル間参照ではなくプロジェクト側コピー。インストール独立性のため。正本は `parity-suite` 同梱）
 - 採る対象・プロパティ集合・状態は現行と同一にする（`metadata.json.traits.property_set` / `traits.elements` / `capture_conditions.states`）
 - 相対幾何は `getBoundingClientRect()` から要素対の関係を導出して比較する（絶対座標は比較しない。導出は `trait-compare.mjs` 側）
+- **採取が `element is outside the document` で失敗したら、新側の論理名が描かれていない要素（支援技術のための写し）へ解決している。**
+  欠落として先へ進めず、`suite.locator_map_new` の例外を直して採り直す（差し戻し先は `parity-replace` の新側マッピング。判定の正本は `parity-suite` の `references/baseline.md`）
 
 ## aria スナップショット
 
