@@ -33,7 +33,7 @@
       "commands": [
         "<手順 7 で実行した verification_commands.diff のコマンド（{changed_files} 展開後）。diff 列が無い・対象 0 件で回さなかった場合は空配列>"
       ],
-      "escalated_to_full": "<削除・改名を含むため手順 7 で full へ前倒ししたかを真偽値で記録する>",
+      "escalated_to_full": "<変更集合の外の判定を変える変更（ファイル・定義元の削除・改名、共有された型・スキーマへの必須プロパティ／分岐の追加）を含むため手順 7 で full へ前倒ししたかを真偽値で記録する>",
       "not_run_reason": "<回さなかった場合の理由（例: diff 列が未設定 / 変更ファイル 0 件）。回した場合は null>"
     },
     "unchecked": [
