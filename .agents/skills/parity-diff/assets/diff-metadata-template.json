@@ -41,7 +41,7 @@
       }
     ],
     "states": "<現側 capture_conditions.states の各状態へ操作アダプタで新側でも遷移できたかの確認結果。遷移できない状態があれば停止しているはず>",
-    "popup_inventory": "<現側 popup_inventory の整合確認結果（captured が全て states の要素・captured を持つ行は reason: null・captured: null の行は空でない reason・器を開く呼び出し〈親の器 × 関数名 × 開く対象の論理名〉が全て同じ parent の行の opened_by に現れる・opened_by が空でなく行内に重複が無く同じ parent × 同じ呼び出し／同じ parent × 同じ name が 2 行に現れない。単一の文字列の opened_by は旧形式として 1 要素の配列と同義に読む）と diff.md の未検証領域へ転記した captured: null の器。キーごと無い旧成果物は停止しているはずで、ユーザー承認の例外で続行したときだけ absent: 承認済みの例外。ノイズ吸収なしで続行。不整合なら停止しているはず>",
+    "popup_inventory": "<現側 popup_inventory の整合確認結果（captured が全て states の要素・captured を持つ行は reason: null・captured: null の行は空でない reason・器を開く呼び出し〈親の器 × 関数名 × 開く対象の論理名〉が全て同じ parent の行の opened_by に現れる・opened_by が空でなく行内に重複が無く同じ parent × 同じ呼び出しが 2 行に現れない・同じ name の行が 2 つ以上無い〈name は機能の棚卸し全体で一意〉。単一の文字列の opened_by は旧形式として 1 要素の配列と同義に読む）と diff.md の未検証領域へ転記した captured: null の器。キーごと無い旧成果物は停止しているはずで、ユーザー承認の例外で続行したときだけ absent: 承認済みの例外。ノイズ吸収なしで続行。不整合なら停止しているはず>",
     "environment": "<機械照合できない自由記述のため原則 'unverified: <理由>'。diff.md の未検証領域にも転記する>"
   },
   "differ_versions": {
