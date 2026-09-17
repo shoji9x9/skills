@@ -27,6 +27,8 @@
 // | parity-component | 部品 slug       | 帰属不明へ倒す（全機能の対象。未棚卸しで exit 1）|
 // | parity-component | cross-cutting   | 従来どおり対象（正しい形。棚卸し済みなら exit 0）|
 // | parity-suite 等  | 別機能の slug   | 倒さない（従来どおり対象外。exit 0）           |
+// | 欠落 / unknown / 未知の名前 | 任意の slug | 帰属不明へ倒す（名前空間を確認できない）   |
+// | 欠落 / unknown / 未知の名前 | cross-cutting | 倒さない（書き手に依らず全機能の対象）   |
 //
 // 変異による検出能力の実証（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）:
 //   1. countTriage の `if (inScope(issue, slug))` を `if (true)` に → 2 件 fail
@@ -39,6 +41,8 @@
 //      （部品 slug の 2 ケース。名前空間の検出が効いている）
 //   6. 同じ位置を `true` に（全スキルへ広げる）→ 5 件 fail
 //      （別機能に帰属する要素を倒してしまうケース群。倒す範囲が広すぎないことを測れている）
+//   7. normalizePending の `namespaceVerified` を `true` に（slug を常に信用する＝修正前の挙動）→ 5 件 fail
+//   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が効いていることを測れている）
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -298,4 +302,52 @@ test("他のスキルが別機能の slug を書いた要素は、この検査�
   const parsed = JSON.parse(stdout);
   expect(parsed.in_scope).toBe(0);
   expect(parsed.unattributed).toBe(0);
+});
+
+// 書き手が読めない要素の帰属（レビュー指摘。PR #397 の 2 巡目）。
+// added_by が読めないと slug がどの名前空間のものか確認できず、「別機能に帰属すると読めている」条件を満たさない。
+// 信用したまま対象外にすると、形の不備が全機能で warn になり、空の棚卸し記録で exit 0 のまま閉じられる。
+
+test.each([
+  ["added_by が無い", { item: "由来不明の保留", slug: "button-primary" }],
+  [
+    "added_by が unknown",
+    { item: "由来不明の保留", slug: "button-primary", added_by: "unknown", added_at: "unknown" },
+  ],
+  [
+    "added_by が未知のスキル名",
+    {
+      item: "由来不明の保留",
+      slug: "button-primary",
+      added_by: "some-tool",
+      added_at: "2026-09-01",
+    },
+  ],
+])("%s の要素は slug を信用せず帰属不明として全機能の対象にする", (_name, entry) => {
+  const { status, stderr, stdout } = run({ pending: [entry] });
+  expect(status).toBe(1);
+  expect(stderr).toContain("slug の名前空間を確認できない");
+  expect(stderr).toContain("error: 未棚卸し 1 件");
+  const parsed = JSON.parse(stdout);
+  expect(parsed.in_scope).toBe(1);
+  expect(parsed.out_of_scope_problems).toEqual([]);
+});
+
+test("書き手が読めない要素は cross-cutting なら従来どおり対象（陰性コントロール）", () => {
+  const { status, stderr } = run({
+    pending: [
+      { item: "横断の保留", slug: "cross-cutting", added_by: "unknown", added_at: "unknown" },
+    ],
+    entries: [
+      {
+        item: "横断の保留",
+        slug: "cross-cutting",
+        disposition: "carried_over",
+        reason: "確認待ち",
+      },
+    ],
+  });
+  // cross-cutting は書き手に依らず全機能の対象なので、名前空間の確認は要らない。
+  expect(status).toBe(0);
+  expect(stderr).not.toContain("slug の名前空間を確認できない");
 });

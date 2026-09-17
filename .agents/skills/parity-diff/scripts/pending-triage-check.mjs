@@ -47,6 +47,13 @@ export const CROSS_CUTTING = "cross-cutting";
  */
 const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component"]);
 
+/**
+ * slug に機能 slug を書けるスキル（正本は replace-strategy の references/project-config.md）。
+ * 帰属を信用してよいのは書き手が読めていてこの集合にいるときだけで、書き手が読めない
+ * （欠落・unknown・未知の名前）要素の slug は名前空間を確認できないため帰属不明として扱う。
+ */
+const FEATURE_SLUG_WRITERS = new Set(["golden-dataset", "parity-suite", "parity-replace"]);
+
 /** 棚卸しで記録できる処置。 */
 const DISPOSITIONS = ["keep", "may_change", "carried_over"];
 
@@ -108,7 +115,8 @@ function isPlainObject(v) {
  * registries.json の intentional_diffs.pending を正規化する。
  *
  * 素の文字列は旧形式として読むが帰属不明にする（slug: null）。
- * 機能 slug を書けないスキル（CROSS_CUTTING_ONLY_WRITERS）が cross-cutting 以外を書いた要素も、
+ * slug の名前空間を確認できない要素——書き手が読めない（added_by の欠落・unknown・未知の名前）、
+ * または機能 slug を書けないスキル（CROSS_CUTTING_ONLY_WRITERS）が cross-cutting 以外を書いた——も、
  * どの機能の inScope にも入らないため帰属不明へ倒して全機能の対象にする。
  * オブジェクトは item / slug / added_by / added_at を検証し、欠けていれば不整合として数える
  * （帰属が読めない追記は棚卸しの対象を決められないため、黙って帰属不明へ倒さない）。
@@ -151,8 +159,19 @@ export function normalizePending(entries) {
     }
     const rec = /** @type {Record<string, unknown>} */ (entry);
     const key = matchKey(intentionalEntryText(entry));
-    // 形の不備を報告するときの帰属。slug が読めない要素は帰属不明（＝全機能の棚卸し対象）として扱う。
-    const attribution = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
+    const writer = nonEmptyString(rec.added_by) ? String(rec.added_by).trim() : null;
+    const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
+    // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書ける場合だけ。
+    // 書き手が読めない要素（added_by の欠落・unknown・未知の名前）は slug がどの名前空間のものか
+    // 確認できず、別機能に帰属すると読めていることにならない。cross-cutting は書き手に依らず
+    // 帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
+    const namespaceVerified =
+      rawSlug === null ||
+      rawSlug === CROSS_CUTTING ||
+      (writer !== null && FEATURE_SLUG_WRITERS.has(writer));
+    // 形の不備を報告するときの帰属。slug が読めない・名前空間を確認できない要素は
+    // 帰属不明（＝全機能の棚卸し対象）として扱う。
+    const attribution = namespaceVerified ? rawSlug : null;
     if (key === "") {
       issues.push({
         index,
@@ -195,17 +214,17 @@ export function normalizePending(entries) {
       return;
     }
     const entrySlug = String(rec.slug).trim();
-    // 機能 slug を書けないスキルが機能 slug 以外（＝部品 slug 等）を書いた要素は、どの機能の inScope にも入らず
-    // 永久に棚卸しされない。帰属不明（slug: null）へ倒して全機能の対象にする（合格に倒さない）。
-    if (
-      nonEmptyString(rec.added_by) &&
-      CROSS_CUTTING_ONLY_WRITERS.has(String(rec.added_by).trim()) &&
-      entrySlug !== CROSS_CUTTING
-    ) {
+    // 名前空間を確認できない slug は、どの機能の inScope にも入らず永久に棚卸しされない。
+    // 帰属不明（slug: null）へ倒して全機能の対象にする（合格に倒さない）。
+    if (!namespaceVerified) {
+      const reason =
+        writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)
+          ? `added_by が ${writer} なのに slug が ${CROSS_CUTTING} でない`
+          : `slug の名前空間を確認できない（${writer === null ? "added_by が無い" : `added_by が ${writer}`}）`;
       issues.push({
         index,
         slug: null,
-        message: `intentional_diffs.pending[${index}]: added_by が ${String(rec.added_by).trim()} なのに slug が ${CROSS_CUTTING} でない（${key}）— 機能 slug の名前空間ではないため帰属不明として全機能の棚卸し対象になる`,
+        message: `intentional_diffs.pending[${index}]: ${reason}（${key}）— 機能 slug と読めないため帰属不明として全機能の棚卸し対象になる`,
       });
       items.push({ key, slug: null, index });
       return;
