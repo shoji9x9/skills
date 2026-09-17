@@ -249,6 +249,17 @@ replace-strategy status
 | 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
+- **追記専用（非破壊追記）の成果物は機械可読な一覧を正本にする**——[`assets/append-only-manifest.json`](assets/append-only-manifest.json)。
+  散文の中にあるかぎり書き手が読み落としても何も起きず、**積み上げた文書を丸ごと書き直しても、現在の内容が整合していればどの検査も通る**
+  （失われるのは過去の決定——なぜこの差分を許容したのか・いつ誰が承認したのか）。
+  縮んでいないことの検査は同梱の [`scripts/append-only-check.mjs`](scripts/append-only-check.mjs) が git の履歴と突き合わせて行う（**コピーせずスキル配下から実行する**）:
+
+  ```bash
+  node <skill>/scripts/append-only-check.mjs --root . --base <比較元の版>
+  ```
+
+  `parity-diff` が機能を閉じる工程（収束判定）でこれを呼ぶ。プロジェクト側の置き場所が既定と違うなら一覧をプロジェクトへコピーして書き換え、`--manifest` で渡す（スキル内の正本は書き換えない）
+
 ## 姉妹スキルと依存順
 
 | スキル | 役割 |

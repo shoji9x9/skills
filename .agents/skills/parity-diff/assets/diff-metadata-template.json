@@ -130,6 +130,22 @@
     "operations": 0,
     "unmeasured_operations": 0
   },
+  "artifact_health": {
+    "_note": "採取物と工程の健全性の判定結果。インストール済み parity-suite の scripts/artifact-health-check.mjs を --metadata <現側 metadata.json> --target <target> --stage diff で呼んで判定する（--stage は既定 diff。suite を渡すと未測定の blocking を素通りさせるので収束判定では渡さない）。値はスクリプトの出力から写し、現側の記録を目視で数えない。findings が 1 件でも残れば converged を true にしない。現側が artifact_health / unmeasured / suite.state_mutating をキーごと持たない旧成果物は当該の節を判定しない（後方互換）——その事実と理由を judged: false ＋ reason に残し、diff.md の未検証領域にも残す（黙って合格にしない）。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。契約の正本は parity-suite の references/baseline.md「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と references/coverage.md「未測定を機械可読にする」。",
+    "judged": false,
+    "reason": "<judged: false のときの理由（現側が artifact_health をキーごと持たない旧成果物ならその旨、declared: false ならその reason）。judged: true では null>",
+    "tool_version": "<インストール済み parity-suite の artifact-health-check.mjs の VERSION（判定したときだけ記録する）>",
+    "findings": 0,
+    "unmeasured_blocking": "<unmeasured.entries のうち blocking として数えた件数。unmeasured を判定しなかったときは null>",
+    "stage_checked": "<--target を渡して工程の成果物（replace-metadata.json の suite.new_green → diff-metadata.json の在否と dataset_version）まで判定したなら true。suite.new_green が真でない・replace-metadata.json が無いときは false>"
+  },
+  "append_only": {
+    "_note": "追記専用（非破壊追記）の成果物が縮んでいないことの判定結果。インストール済み replace-strategy の scripts/append-only-check.mjs を --root <リポジトリルート> --base <比較元の版> で呼んで判定する。findings が 1 件でも残れば converged を true にしない（過去の決定が失われている）。exit 2（git が使えない・比較元の版を読めない・対象 0 件）も合格に倒さず、原因を解消してから判定し直す。一覧の正本は replace-strategy の assets/append-only-manifest.json。",
+    "base": "<比較元として渡した版（既定は HEAD。機能の着手時点まで遡ったならその SHA）>",
+    "tool_version": "<インストール済み replace-strategy の append-only-check.mjs の VERSION>",
+    "checked": "<比較元にも在り突き合わせた成果物の件数（0 件は合格に倒さない）>",
+    "findings": 0
+  },
   "intentional_diffs_pending": {
     "_note": "意図的差異の保留（設定ファイルの intentional_diffs.pending）の棚卸し結果。手順と収束条件への組み込みの正本は parity-diff の references/convergence.md「intentional_diffs.pending の棚卸し」、要素の形の正本は replace-strategy の references/project-config.md「pending 要素の形」。棚卸しの対象は 3 群——この機能に帰属する保留（slug 一致）・横断の保留（slug: cross-cutting。閉じる工程を持たないため毎回提示する）・帰属不明の保留（素の文字列の旧形式 / slug 欠落）。他の機能に帰属する保留は対象外（その機能の収束判定が扱う）。件数は数値のまま書き、対象 0 件でも entries: [] とゼロ件数を記録する（0 件と無記録を同じ出力にしない——キーごと無い場合は pending-triage-check.mjs が未実施として exit 1 で落とす）。件数は pending-triage-check.mjs が設定ファイルの pending から数え直すので、宣言値と食い違えば落ちる。keep / may_change へ移すのは人間で、本スキルは設定ファイルを書き換えない。",
     "attributed": 0,

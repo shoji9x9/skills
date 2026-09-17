@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:27:13.901Z",
+    "evals_run": [27],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 211.226,
+        "tokens": 259996,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": true,
+          "evidence": "表で『現側 metadata.json の unmeasured.entries[]』を『機械が数える正本』と位置づけている"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": true,
+          "evidence": "『在って disposition: blocking なら artifact-health-check.mjs --stage diff は exit 1 のはず』、--stage suite を渡すと blocking を素通りさせると警告している"
+        },
+        {
+          "text": "測らないことを承認したものだけ判定から外せるとし、承認記録が空なら blocking として数える（fail-closed）と述べている",
+          "passed": true,
+          "evidence": "『記録が欠けていたらどう数えるか——すべて blocking に倒します』『accepted なのに approved_by / approved_at / reason のいずれかが空 → blocking 1 件』"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": true,
+          "evidence": "『unmeasured をキーごと持たない旧成果物は判定しない（既存の後方互換規則そのまま）』『既に converged: true で閉じた成果物を遡って false にしない』、judged: false ＋ reason を残すと述べている"
+        },
+        {
+          "text": "gaps.md は人向けの説明としてそのまま残し、判定に入れる項目だけを unmeasured へ写すと述べている（散文を廃止・生成物へ降格させない）",
+          "passed": true,
+          "evidence": "『gaps.md はゲートにせず、台帳への片方向対応を要求する』とし、散文はそのまま残して id を添える形にしている"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『converged: true にしてはいけない。ただし理由は「gaps.md が収束条件に無いから」ではない』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 128.618,
+        "tokens": 38234,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": false,
+          "evidence": "自前の『免除行 / 免除台帳』スキーマを提案しており、metadata.json の unmeasured には触れていない"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": false,
+          "evidence": "『未承認の免除として blocked_by に載せる』とし、disposition: blocking という契約では述べていない"
+        },
+        {
+          "text": "測らないことを承認したものだけ判定から外せるとし、承認記録が空なら blocking として数える（fail-closed）と述べている",
+          "passed": false,
+          "evidence": "承認が取れないものは blocked_by へ載せるとし、承認記録の欠落を blocking として数える形では述べていない"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": false,
+          "evidence": "schema: 1 の残存件数を報告に出す移行案で substance は近いが、キーごと無い旧成果物の後方互換という契約では述べていない"
+        },
+        {
+          "text": "gaps.md は人向けの説明としてそのまま残し、判定に入れる項目だけを unmeasured へ写すと述べている（散文を廃止・生成物へ降格させない）",
+          "passed": true,
+          "evidence": "『gaps.md は散文のまま残し、各段落に id を添えさせる』『gaps.md は権威ではなく読み物になり』——散文を降格させていない（iteration-30 の baseline は「生成物に降格してよい」と述べており、この assertion の弁別は run 間で揺れる）"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『今の規則の文面では converged: true にできます。でもすべきではありません』"
+        }
+      ],
+      "notes": null
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 211.226,
+        "stddev": 0,
+        "min": 211.226,
+        "max": 211.226
+      },
+      "tokens": {
+        "mean": 259996,
+        "stddev": 0,
+        "min": 259996,
+        "max": 259996
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 128.618,
+        "stddev": 0,
+        "min": 128.618,
+        "max": 128.618
+      },
+      "tokens": {
+        "mean": 38234,
+        "stddev": 0,
+        "min": 38234,
+        "max": 38234
+      }
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "eval 27 の assertion 3 の粒度修正後の取り直し。iteration-29/30 では approved_by / approved_at というキー名を要求していたが、その正本は parity-suite の metadata-template.json にあり、with_skill には対象スキルの成果物しかコピーされないため原理的に到達できない（.agents/rules/eval-assertion-discrimination.md「到達」が名指ししている失敗）。parity-diff の convergence.md で読める粒度（承認記録が空なら blocking）へ直した。",
+    "iteration-29 で空振りしていた強度ゲートの assertion は削除し、「gaps.md は人向けの説明としてそのまま残す（降格させない）」へ差し替えた。ただし iteration-30 の baseline は gaps.md の生成物への降格を提案し、iteration-31 の baseline は散文のまま残すと答えた——この assertion の弁別は run 間で揺れる。1 run では分散を測れないので、弁別の根拠を この 1 本に置かない。"
+  ]
+}

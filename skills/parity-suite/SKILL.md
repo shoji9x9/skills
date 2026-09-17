@@ -210,6 +210,19 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    記録が無い・`ok: false` の被覆表は `parity-diff` が収束させない（`conformance` の欠落は旧成果物ではなく未実行として扱われる）。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
+9. **採取物と工程の健全性の記録**: `metadata.json` に `artifact_health`（採取物ごとの読むスペックと「何から作ったか」）・
+   `suite.state_mutating` / `suite.repeat_run`（状態を変えるスイートは 2 回続けて緑）・`unmeasured`（未測定の機械可読な宣言）を書き、
+   `node <skill>/scripts/artifact-health-check.mjs --metadata <metadata.json> --stage suite` を **exit 0 まで通す**（コピーせずスキル配下から実行する）。
+   **`--stage suite` を省かない**——既定は `diff`（`parity-diff` の収束判定）で、`unmeasured` の `disposition: blocking` を落とす。
+   blocking は「測るまで**機能を閉じさせない**」記録であって**本スキルが書く出力そのもの**なので、本スキルの完了は止めない（受け取るのは `parity-diff` の収束判定）。
+   `--stage suite` でも**記録の不備は落ちる**（`item` の空・重複・`reason` の空・語彙外の `disposition`・承認記録の無い `accepted`）——測定待ちと壊れた記録は別物。
+   **exit 0 を作るために項目を消したり承認の無い `accepted` にしたりしない**（Issue #278 で塞いだ穴が戻る）。
+   **採取物は工程の出力であり次の工程の入力**なので、読まれていない採取物・元が採り直されたのに古い加工物・後始末が効いていないスイート・
+   測っていない項目は、どれも**緑のまま抜ける**（[`references/baseline.md`](references/baseline.md)「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」、
+   [`references/coverage.md`](references/coverage.md)「未測定を機械可読にする」）。
+   **`unmeasured` へ写すのは `gaps.md` に残した未検証のうち「測るまで機能を閉じさせないもの」**で、`item` / `reason` は `gaps.md` の該当行と同じ文言にする。
+   **測らないことをユーザーが承認したものだけ `accepted` にでき、`approved_by` / `approved_at` が要る**（承認記録が空なら `blocking` として数えられる）。
+   **この手順は成果物を書いた後に置く**——検査は `metadata.json` の宣言と `baseline_dir` の実体・スペックの字面を突き合わせるため、両方が揃ってからでないと通せない
 
 ## 成果物
 
@@ -241,6 +254,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
   `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ
 - **[`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。** 本スキルは `fit` で式を `metadata.json` に書き、
   `parity-replace` はインストール済みの本スキルから同じスクリプトを `check` で呼んで新側を照合する
+- **[`scripts/artifact-health-check.mjs`](scripts/artifact-health-check.mjs) もコピーしない。** 本スキルは手順 9 で `metadata.json` を検査し、
+  `parity-diff` はインストール済みの本スキルから同じスクリプトを `--target` 付きで呼んで収束判定に入れる（採取物・反復実行・未測定・工程の成果物の 4 群）
 
 ## 姉妹スキルとの連携
 

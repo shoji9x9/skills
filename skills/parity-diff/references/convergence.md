@@ -112,6 +112,51 @@
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
+  - **採取物と工程の健全性に未検証が残っていない**（正本は `parity-suite` の `references/baseline.md`「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と
+    `references/coverage.md`「未測定を機械可読にする」）。**採取物は工程の出力であり次の工程の入力**なので、
+    読まれていない採取物・古い加工物・回っていない工程・後始末が効いていないスイート・未測定の宣言は、どれも**緑のまま抜ける**。
+    数え直しは**インストール済みの `parity-suite`**（本スキルと同じインストール先の `parity-suite/scripts/`）の `artifact-health-check.mjs` を呼んで行う（検査規則を 2 スキルに複製しない）:
+
+    ```bash
+    node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff
+    ```
+
+    落とすのは 4 群——**採取物**（`read_by` も `unread_reason` も無い・`baseline_dir` に在るのに宣言が無い・宣言の実体が無い・
+    `read_by` の指すスペックに採取物の名前が現れない〈字面の照合〉・`kind: derived` の `derived_from` の `sha256` が元の実体と一致しない
+    〈加工物が古い〉・`derived_from` も `freshness_unverified_reason` も無い）、
+    **反復実行**（`suite.state_mutating: true` なのに `repeat_run.cleanup_in_suite` が真でない・連続する 2 回の記録が無い・
+    末尾 2 件が緑でない・`started_at` が同じか逆順）、
+    **未測定**（`unmeasured.entries` に `disposition: blocking` が残る。語彙外・承認記録の空は `blocking` として数える）、
+    **工程の成果物**（`new/<target>/replace-metadata.json` の `suite.new_green` が真なのに同じ場所に `diff-metadata.json` が無い、
+    またはその `dataset_version` が現在のデータセットの版と一致しない）。
+    **`converged` が偽でも落とさない**——偽は「まだ直っていない」の記録であって隠す相手ではなく、落とすのは「無い」と「古い」だけ。
+    **`--stage diff` は既定なので省いてもよいが、明示する**——`parity-suite` は自分の完了判定を `--stage suite` で通しており（`blocking` はあちらが書く出力なので落とさない）、
+    どちらの工程のゲートかを読み手が取り違えると、収束判定で `suite` を渡して未測定を素通りさせる。
+    終了コードは 0 ＝ 条件を満たす（判定しない節を含む）、1 ＝ 未検証・不整合が残る、2 ＝ 使い方の誤り・型崩れ。
+    **この検査は `diff-metadata.json` に結果を書いた後に通す**——工程の節は「`suite.new_green` が真なのに `diff-metadata.json` が無い／古い」を見るので、
+    まだ書いていない時点で通すと自分の未記録で落ちる（`converged` を真にする直前の最後のゲートとして置く）。
+    **この節が本当に捕まえるのは工程の外**——`parity-diff` を一度も回していない・途中で止めた slug × target が、
+    `replace-metadata.json` の `suite.new_green: true` だけを残して「済んだ」ように見える状態で、
+    `replace-strategy status` の「green 済み・差分検出は未実施」を機械可読にしたものにあたる。
+    **`artifact_health` / `unmeasured` / `suite.state_mutating` をキーごと持たない旧成果物はその節を判定しない**（後方互換）が、
+    判定しなかった事実と理由を `diff-metadata.json` の `artifact_health`（`judged: false`）と `diff.md` の未検証領域に残す。
+    **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す
+  - **追記専用の成果物が縮んでいない**（正本は `replace-strategy` の `assets/append-only-manifest.json`）。
+    決定を積み上げる成果物（設定ファイル・`features.md` / `components.md` / `assets.md` / `dependencies.md`・
+    インスタンス例外の台帳とその根拠・`gaps.md`・データセットの版の記録）は**非破壊追記**と定められているが、
+    追記であることを確かめないと**丸ごと書き直しても現在の状態が整合していれば全部通る**。
+    失われるのは**過去の決定**（なぜこの差分を許容したのか・いつ誰が承認したのか）で、
+    **収束の判定は現在の状態しか見ないため `converged: true` になりうる**。数え直しは**インストール済みの `replace-strategy`** のスクリプトが行う:
+
+    ```bash
+    node <replace-strategy の skill>/scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>
+    ```
+
+    終了コードは 0 ＝ 縮んでいない、1 ＝ 行が失われている・成果物が消えている・**比較元に在る成果物が 0 件**（突き合わせが 1 件も成立していない）、
+    2 ＝ 使い方の誤り・判定不能・**作業ツリーに対象が 0 件**（**どちらの 0 件も合格に倒さない**——機能を閉じる時点で追記専用の成果物は在り、コミットもされている）。
+    突き合わせは空白を畳んだ行の多重度で行うので、フォーマッタの桁詰めでは落ちない。
+    **`--base` には機能に着手した時点の版を渡す**——既定の `HEAD` は作業ツリーと直近のコミットの比較なので、
+    **書き直しを commit した後は差が無く、何も失われていなくても素通りする**（着手時点の版は `git merge-base` や機能の branch の分岐点から取る）
 
 ## `intentional_diffs.pending` の棚卸し
 
@@ -180,7 +225,7 @@
 
 | 状態 | 導出 | 次の行き先 |
 |---|---|---|
-| 収束 | `converged: true`（上記「収束の条件」9 項目をすべて満たす） | 完了 |
+| 収束 | `converged: true`（上記「収束の条件」11 項目をすべて満たす） | 完了 |
 | 他機能待ち | `converged: false` かつ 残る未説明差分が**すべて** `blocked_by` に帰属し、要対応・`deviates_T` がゼロ・未解決の保留がゼロ | 停止してユーザーへ。依存先の実装後に再実行 |
 | 判断待ち | `converged: false` かつ 要対応・`deviates_T` がゼロで、`pending_decisions[]` に未解決の保留が残り、残る未説明差分が**すべて**未解決の保留（原因単位の `許容候補（要確認）`）か `blocked_by` に帰属する（`blocked_by` が併存してもよい） | 終わりにまとめて聞く（`replace-strategy` の `references/autonomy.md`）。答えを反映して再判定 |
 | 未収束 | 上記以外（要対応が残る、または保留にも `blocked_by` にも帰属しない未説明差分が残る） | 下記「差し戻し」（未解決の保留があっても差し戻しは進める） |
@@ -205,7 +250,7 @@
 
 ## 収束したとき
 
-- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（9 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・反応の未測定・保留の未棚卸し・未解決の判断待ちを見落とす）
+- `diff-metadata.json` の `converged: true` にする。条件は上記「収束の定義」の**収束の条件**（11 項目）**すべて**——ここへ転記しない（転記した抜粋で判定すると `blocked_by` 残存・承認前の分類残存・例外台帳の不整合・被覆表の未測定・反応の未測定・保留の未棚卸し・未解決の判断待ち・採取物と工程の健全性・追記専用の成果物の縮小を見落とす）
 - `results`（total / actionable / accepted / noise / unexplained / unverified）と `accepted_exceptions`（原因数 / インスタンス数 / 不整合数）、
   `component_coverage`（判定の有無 / 数え直した期待セル数 / 未測定数）、`reaction_coverage`（判定の有無 / 操作数 / 未測定の操作数）、
   `intentional_diffs_pending`（棚卸しの対象内訳 / 確定件数 / 持ち越し件数と各件の処置）を記録する

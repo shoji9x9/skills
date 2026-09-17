@@ -7,6 +7,11 @@
 - 対象 slug: （features.md の slug）
 - 実施日時: （ISO 8601）
 
+<!-- このファイルは人向けの散文であり、収束判定の入力ではない。「測るまで機能を閉じさせない」項目は -->
+<!-- metadata.json の unmeasured へ同じ文言（item / reason）で写す——写さないと、ここに正しく「測っていない」と -->
+<!-- 書いてあっても parity-diff は converged: true にできる。正本は parity-suite の references/coverage.md「未測定を機械可読にする」。 -->
+<!-- 測らないことをユーザーが承認したものだけ disposition: accepted にでき、approved_by / approved_at が要る。 -->
+
 ## 特性化できなかった箇所と理由
 
 <!-- 種別: データ不足（→ golden-dataset へ戻す）/ 認証範囲不明 / スコープ外の副作用（メール・外部連携）/ ローディング indicator 無し / 採取環境依存 / 採取値の射程外 / 撮影状態の対象外 / 出力に到達不可 / ストレージ投入スコープ外 /

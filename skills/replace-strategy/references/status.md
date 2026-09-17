@@ -68,7 +68,8 @@ done
    `phase_b.<slug>.<target>.dataset_version` より後の変更がその slug に影響するなら「その環境の新側データが陳腐化・要再投入」。数値が古くても影響変更が無ければ再投入不要として記録 version は書き換えない。
    ただし**投入対象でない target は対象にしない**——`dataset_mode: db`（既定）では `db` 未定義の target と、`db.env_vars` はあるが `seedable` が無い読み取り専用の target が該当する。
    `dataset_mode: static` では**全 target が投入対象**なので免除は起きず、どの target もフェーズ B の状態を見る〈契約の正本は [`project-config.md`](project-config.md)〉）、
-   新側の到達点（`replace-metadata.json` の `suite.new_green` が true なのに `new/<target>/diff.md` が無ければ「**green 済み・差分検出は未実施**」として区別する。`parity-diff` の未実行が「未着手」に埋もれるのを防ぐ）、
+   新側の到達点（`replace-metadata.json` の `suite.new_green` が true なのに `new/<target>/diff.md` が無ければ「**green 済み・差分検出は未実施**」として区別する。`parity-diff` の未実行が「未着手」に埋もれるのを防ぐ。
+   同じ判定を機械可読で取るなら `parity-suite` の `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` を使う——`diff-metadata.json` の**不在と鮮度**まで見る）、
    差し戻しループの状態（`loop.iterations` と `loop.max_iterations`。1 以上で未収束なら「往復中（n 反復目）」、`loop.iterations` が `max_iterations` に達していれば「上限到達・人手の判断待ち」）、
    `parity-diff` の進捗（`new/<target>/diff.md` の分類を集計した「要対応」の残数。収束判定そのものは `parity-diff` が担い、本モードは集計値の報告に留める）。
    **新側の進捗は target（環境）ごとに分かれる**ため、同じ slug でも環境別に状態を示す（例: local-dev は収束済み・preview は未実施）。`new/` 配下に無い target は「その環境では未実施」として扱う
@@ -89,6 +90,11 @@ done
    合わせて**意図的差異の保留（`intentional_diffs.pending`）の滞留**を示す——設定ファイルの `pending` を全件数え、`slug` ごとの内訳（機能に帰属 / `cross-cutting` / 帰属不明）と**最も古い `added_at`** を報告する。
    保留は機能をまたいで積み上がるため、**件数と滞留期間が「判断の先送り」のシグナル**になる（棚卸しを要求するのは `parity-diff` の収束判定で、本モードは横断の集計に留める。要素の形の正本は [`project-config.md`](project-config.md)「`pending` 要素の形」）。
    **素の文字列の要素は帰属不明として数え、`added_at` が読めないことも report する**（黙って 0 件へ丸めない）
+   合わせて**未測定の機械可読な宣言**を示す——`metadata.json.unmeasured` が `declared: true` なら `disposition: blocking` の件数を
+   （`parity-diff` はこれが 1 件でも残る間は収束させない。数え直しは `parity-suite` の `scripts/artifact-health-check.mjs`）、
+   `declared: false` ならその理由、**キーごと無ければ「未測定が未宣言（旧版 `parity-suite` の成果物で、`gaps.md` の散文しか無い）」**として区別する
+   （`gaps.md` の散文は人向けの説明であって収束判定の入力ではない。正本は `parity-suite` の `references/coverage.md`「未測定を機械可読にする」）。
+   **`gaps.md` の行を目視で数えて blocking 件数の代わりにしない**——散文には承認済みの未検証も測るべき未測定も混ざっている
 4. **横断 API の影響範囲**: 横断 API に手が入ったら利用側の全機能を再検証する必要がある。features.md の fan-out から「このリソースを使う機能一覧」を導出し、横断 API Issue の状態変化（再オープン・変更）に対して**再検証が必要な機能**を列挙する
 5. **その他の Issue（4 種以外）の状態**: 「その他の Issue」表の各行について、Issue 状態（未起票／open／closed／判定不能）と依存順・影響範囲を報告する。
    **`.replace/parity/<slug>/` の成果物は持たない**ため、スイート強度・ベースライン・フェーズ B・差分の列は導出せず「対象外」として示す（未着手と混同しない）。

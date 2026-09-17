@@ -1,0 +1,253 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:28:03.471Z",
+    "evals_run": [27, 28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 170.101,
+        "tokens": 271082,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": true,
+          "evidence": "『gaps.md は追記専用台帳なので永久に空になりません』とし、判定の正本は metadata.json の unmeasured.entries[] だと表で示している"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": true,
+          "evidence": "『blocking が残れば artifact-health-check が exit 1 → 収束しない』"
+        },
+        {
+          "text": "測らないことをユーザーが承認したものだけ accepted にでき、approved_by / approved_at が空なら blocking として数える（fail-closed）と述べている",
+          "passed": false,
+          "evidence": "『承認記録付きの免除』とは述べたが、approved_by / approved_at と『空なら blocking として数える』には触れていない"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": true,
+          "evidence": "unmeasured.declared: true のときだけ判定・キーごと無い旧成果物は judged: false で記録・『宣言を入れた機能から順に厳しくなります』"
+        },
+        {
+          "text": "強度ゲートの素通り 0 件を、採っていない状態まで含めた網の広さの証拠として扱っていない",
+          "passed": true,
+          "evidence": "強度ゲートに言及していない（prompt も触れていないため無条件 pass。測れていない）"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『「一覧に無いから無視してよい」は成り立たない』とし、免除は人の判断なので自律実行中は pending_decisions へ落とし converged は false と述べている"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 129.741,
+        "tokens": 54064,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": false,
+          "evidence": "criteria_version / scope という自前スキーマを提案しており、unmeasured への宣言は述べていない（『フィールド名は提案』と明記）"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": false,
+          "evidence": "『未測定 … ブロックする』と substance は到達。disposition: blocking という契約では述べていない"
+        },
+        {
+          "text": "測らないことをユーザーが承認したものだけ accepted にでき、approved_by / approved_at が空なら blocking として数える（fail-closed）と述べている",
+          "passed": false,
+          "evidence": "『承認者・理由・承認日・失効日を必須にする』と substance は近いが、approved_by / approved_at と fail-closed の数え方は述べていない"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": false,
+          "evidence": "criteria_version でゲートを切り v1 は今日何も変わらない、と substance は到達。キーごと無い旧成果物の後方互換という契約では述べていない"
+        },
+        {
+          "text": "強度ゲートの素通り 0 件を、採っていない状態まで含めた網の広さの証拠として扱っていない",
+          "passed": true,
+          "evidence": "強度ゲートに言及していない（prompt も触れていないため無条件 pass。測れていない）"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『今のままで converged: true にはしない方がいい』『正しいのは gaps.md の方です』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 90.426,
+        "tokens": 202872,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "『追記専用の成果物が縮んだ状態で converged: true にしない』を引用し、消えたのは「なぜ許容したのか・いつ誰が承認したのか」だと述べている"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『収束判定は現在の状態しか見ないので、丸ごと書き直しても整合していれば通ります。それが通ってしまうことこそがこのルールの存在理由です』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": true,
+          "evidence": "append-only-check.mjs --root . --base <着手時点の SHA> を git merge-base 付きで示し、既定の HEAD では素通りする理由まで述べている"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": false,
+          "evidence": "一覧（append-only-manifest.json）が正本であることには触れていない"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": true,
+          "evidence": "『どちらの 0 件も合格に倒さない（機能を閉じる時点で追記専用の成果物は在るはずなので、0 件は異常です）』"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "git show <base>:<path> で旧版を取り出して統合する手順を示し、復元・再判定が済むまで converged: true の可否を判断しないと述べている"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 96.984,
+        "tokens": 97747,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "却下・取り消しの記録、条件付き承認の条件部分、承認者と日付が失われると述べている"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『検査は通るように作られた状態を検査している』『検査が異常を検出する能力そのものが失われています』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": false,
+          "evidence": "『収束判定スクリプトの実装を実際に読む』に留まり、append-only-check.mjs には触れていない"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": false,
+          "evidence": "追記専用の成果物の一覧という概念に触れていない"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": false,
+          "evidence": "対象 0 件の扱いに触れていない"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "git restore / git checkout <sha>^ -- <path> で戻す手順を示し、『順序として、確認が先です』と述べている"
+        }
+      ],
+      "notes": null
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 130.2635,
+        "stddev": 39.8375,
+        "min": 90.426,
+        "max": 170.101
+      },
+      "tokens": {
+        "mean": 236977,
+        "stddev": 34105,
+        "min": 202872,
+        "max": 271082
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4166,
+        "stddev": 0.0834,
+        "min": 0.3333,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 113.3625,
+        "stddev": 16.3785,
+        "min": 96.984,
+        "max": 129.741
+      },
+      "tokens": {
+        "mean": 75905.5,
+        "stddev": 21841.5,
+        "min": 54064,
+        "max": 97747
+      }
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "**この iteration の eval 27 / 28 は、以後 prompt と assertion を変えた版に置き換わっている**（run 時点の prompt / assertion は各 run の eval_metadata.json と本ファイルの expectations[].text が正本）。取り直しは eval 28 が iteration-30、eval 27 が iteration-31。",
+    "eval 27: assertion 5（強度ゲートの素通り 0 件を網の広さの証拠にしない）が空振りした——prompt が強度ゲートに触れないため、両 config とも「言及しない＝扱っていない」で無条件 pass する。測れていない。assertion 3（accepted の承認記録が空なら blocking）は姉妹スキル parity-suite 側にしか正本の無いキー名を要求しており、with_skill には対象スキルの成果物しかコピーされないため原理的に到達できなかった。",
+    "eval 28: with_skill が assertion 4（一覧 append-only-manifest.json が正本）に到達しなかった。prompt の「どう確かめて」では一覧の所在まで引き出せていない。"
+  ]
+}

@@ -1,0 +1,493 @@
+// parity-suite の採取物・工程の健全性チェッカ（artifact-health-check.mjs）の回帰テスト（Issue #382 / #278）。
+//
+// 採取物は工程の出力であり次の工程の入力なのに、「読まれたか」「いま正しいか」を数える段が無いと
+// 4 つの形で緑のまま抜ける——読み手のいない採取物・古い加工物・回っていない工程・1 回だけ回した状態変更スイート。
+// 加えて、gaps.md の散文は収束判定の入力ではないため、未測定と書いてあっても収束する（#278）。
+//
+// 陽性コントロール（健全な成果物が exit 0、旧成果物は判定しない）を置く——これが無いと「常に落とす」実装と区別できない。
+
+import { test, expect } from "vitest";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
+
+const XLSX_BODY = "row-a\nrow-b\n";
+const xlsxSha = createHash("sha256").update(XLSX_BODY).digest("hex");
+
+/** 健全な metadata.json（4 節すべてが条件を満たす）。 */
+const baseMetadata = () => ({
+  slug: "order-list",
+  suite: {
+    current_green: true,
+    state_mutating: false,
+    repeat_run: {
+      cleanup_in_suite: false,
+      runs: [],
+      reason: "読み取りだけの機能で書き込み操作を持たない",
+    },
+  },
+  unmeasured: { declared: true, entries: [], reason: null },
+  artifact_health: {
+    declared: true,
+    baseline_dir: ".replace/parity/order-list/baseline",
+    entries: [
+      {
+        path: "orders.default.desktop.png",
+        kind: "captured",
+        read_by: ["e2e/parity/order-list/orders.spec.ts"],
+        unread_reason: null,
+        derived_from: null,
+        freshness_unverified_reason: null,
+      },
+      {
+        path: "orders.xlsx",
+        kind: "captured",
+        read_by: [],
+        unread_reason: "実体は展開結果の元であり、スペックは展開結果だけを読む",
+        derived_from: null,
+        freshness_unverified_reason: null,
+      },
+      {
+        path: "orders.xlsx.json",
+        kind: "derived",
+        read_by: ["e2e/parity/order-list/orders.spec.ts"],
+        unread_reason: null,
+        derived_from: { path: "orders.xlsx", sha256: xlsxSha },
+        freshness_unverified_reason: null,
+      },
+    ],
+    reason: null,
+  },
+});
+
+/**
+ * プロジェクトの雛形を作る。
+ * @param {(m: ReturnType<typeof baseMetadata>) => void} [mutate] metadata の書き換え
+ * @param {{ xlsxBody?: string, extraBaselineFile?: string, specBody?: string }} [opts]
+ */
+function makeProject(mutate, opts = {}) {
+  const root = mkdtempSync(join(tmpdir(), "artifact-health-"));
+  const slugDir = join(root, ".replace/parity/order-list");
+  mkdirSync(join(slugDir, "baseline"), { recursive: true });
+  mkdirSync(join(slugDir, "new/local-dev"), { recursive: true });
+  mkdirSync(join(root, ".replace/dataset"), { recursive: true });
+  mkdirSync(join(root, "e2e/parity/order-list"), { recursive: true });
+
+  writeFileSync(join(slugDir, "baseline/orders.xlsx"), opts.xlsxBody ?? XLSX_BODY);
+  writeFileSync(join(slugDir, "baseline/orders.xlsx.json"), '{"rows":["row-a","row-b"]}\n');
+  writeFileSync(join(slugDir, "baseline/orders.default.desktop.png"), "PNG\n");
+  if (opts.extraBaselineFile !== undefined) {
+    writeFileSync(join(slugDir, "baseline", opts.extraBaselineFile), "stray\n");
+  }
+  writeFileSync(
+    join(root, "e2e/parity/order-list/orders.spec.ts"),
+    opts.specBody ?? "// orders.default.desktop.png と orders.xlsx.json を読む\n",
+  );
+  writeFileSync(join(root, ".replace/dataset/metadata.json"), JSON.stringify({ version: 7 }));
+
+  const metadata = baseMetadata();
+  if (mutate) mutate(metadata);
+  const metadataPath = join(slugDir, "metadata.json");
+  writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+  return { root, slugDir, metadataPath };
+}
+
+/**
+ * @param {string} metadataPath
+ * @param {string[]} [extra]
+ */
+function run(metadataPath, extra = []) {
+  const r = spawnSync(process.execPath, [script, "--metadata", metadataPath, ...extra], {
+    encoding: "utf8",
+  });
+  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+test("陽性コントロール: 健全な成果物は exit 0", () => {
+  const { root, metadataPath } = makeProject();
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("読み手も unread_reason も無い採取物を落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[1].unread_reason = null;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/読み手が宣言されておらず unread_reason も空/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("baseline_dir に在るのに宣言が無いファイルを落とす", () => {
+  const { root, metadataPath } = makeProject(undefined, { extraBaselineFile: "stray.aria.yml" });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/採取物が宣言されていない.*stray\.aria\.yml/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("元の実体が採り直された加工物（sha256 不一致）を落とす", () => {
+  const { root, metadataPath } = makeProject(undefined, { xlsxBody: "row-a\nrow-b\nrow-c\n" });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/加工物が古い（元の実体の sha256 が宣言と一致しない）/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("read_by が指すスペックに採取物の名前が現れなければ落とす（字面の照合）", () => {
+  const { root, metadataPath } = makeProject(undefined, { specBody: "// 何も読まない\n" });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/字面の照合で不一致/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("derived_from も freshness_unverified_reason も無い加工物を落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[2].derived_from = null;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/derived_from が無く freshness_unverified_reason も空/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("freshness_unverified_reason を書けば未検証として残して通す", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[2].derived_from = null;
+    m.artifact_health.entries[2].freshness_unverified_reason =
+      "展開は別ツールで、元のハッシュを取れない";
+  });
+  const r = run(metadataPath);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("状態を変えるスイートの実行記録が 1 件なら落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite.state_mutating = true;
+    m.suite.repeat_run = {
+      cleanup_in_suite: true,
+      runs: [{ started_at: "2026-09-17T01:00:00Z", result: "green" }],
+      reason: null,
+    };
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/実行記録が 1 件/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("2 回続けて緑なら通す", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite.state_mutating = true;
+    m.suite.repeat_run = {
+      cleanup_in_suite: true,
+      runs: [
+        { started_at: "2026-09-17T01:00:00Z", result: "green" },
+        { started_at: "2026-09-17T01:20:00Z", result: "green" },
+      ],
+      reason: null,
+    };
+  });
+  const r = run(metadataPath);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("2 回の started_at が同じなら落とす（1 回の記録の写しと区別が付かない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite.state_mutating = true;
+    m.suite.repeat_run = {
+      cleanup_in_suite: true,
+      runs: [
+        { started_at: "2026-09-17T01:00:00Z", result: "green" },
+        { started_at: "2026-09-17T01:00:00Z", result: "green" },
+      ],
+      reason: null,
+    };
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/started_at が同じ/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("後始末がスイートの外なら落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite.state_mutating = true;
+    m.suite.repeat_run = {
+      cleanup_in_suite: false,
+      runs: [
+        { started_at: "2026-09-17T01:00:00Z", result: "green" },
+        { started_at: "2026-09-17T01:20:00Z", result: "green" },
+      ],
+      reason: null,
+    };
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/cleanup_in_suite が true でない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("artifact_health.declared: true なのに state_mutating が無ければ落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    delete m.suite.state_mutating;
+    delete m.suite.repeat_run;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.state_mutating が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("blocking の未測定が残れば落とす（#278）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "blocking",
+        approved_by: null,
+        approved_at: null,
+      },
+    ];
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/未測定が残っている（disposition: blocking）/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("accepted でも承認記録が空なら blocking として数える", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "accepted",
+        approved_by: null,
+        approved_at: null,
+      },
+    ];
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/approved_by \/ approved_at が空のため blocking として数える/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("語彙外の disposition は blocking として数える（fail-closed）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "later",
+        approved_by: null,
+        approved_at: null,
+      },
+    ];
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/disposition が語彙外/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("承認記録のある accepted は通す", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "accepted",
+        approved_by: "user",
+        approved_at: "2026-09-17T02:00:00Z",
+      },
+    ];
+  });
+  const r = run(metadataPath);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.new_green が真なのに diff-metadata.json が無ければ落とす", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeFileSync(
+    join(slugDir, "new/local-dev/replace-metadata.json"),
+    JSON.stringify({ suite: { new_green: true } }),
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/diff-metadata\.json が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("diff-metadata.json の dataset_version が古ければ落とす", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeFileSync(
+    join(slugDir, "new/local-dev/replace-metadata.json"),
+    JSON.stringify({ suite: { new_green: true } }),
+  );
+  writeFileSync(
+    join(slugDir, "new/local-dev/diff-metadata.json"),
+    JSON.stringify({ dataset_version: 6, converged: true }),
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/diff-metadata\.json が古い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("converged: false でも版が一致していれば落とさない", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeFileSync(
+    join(slugDir, "new/local-dev/replace-metadata.json"),
+    JSON.stringify({ suite: { new_green: true } }),
+  );
+  writeFileSync(
+    join(slugDir, "new/local-dev/diff-metadata.json"),
+    JSON.stringify({ dataset_version: 7, converged: false }),
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite.new_green が真でなければ工程の節を判定しない", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeFileSync(
+    join(slugDir, "new/local-dev/replace-metadata.json"),
+    JSON.stringify({ suite: { new_green: false } }),
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/suite\.new_green が真でないため工程の節を判定しない/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("後方互換: artifact_health / unmeasured をキーごと持たない旧成果物は判定しない", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    delete m.artifact_health;
+    delete m.unmeasured;
+    delete m.suite.state_mutating;
+    delete m.suite.repeat_run;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/artifact_health をキーごと持たない旧成果物/);
+  expect(r.stdout).toMatch(/unmeasured をキーごと持たない旧成果物/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("declared: false で reason が空なら型崩れ（exit 2）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health = { declared: false, reason: "" };
+  });
+  const r = run(metadataPath);
+  expect(r.stderr).toMatch(/reason が空/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("宣言も実体も 0 件なら合格に倒さない", () => {
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries = [];
+  });
+  rmSync(join(slugDir, "baseline"), { recursive: true, force: true });
+  mkdirSync(join(slugDir, "baseline"), { recursive: true });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/採取物が 0 件/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--stage suite では blocking の未測定を落とさない（書いた本人のゲートを止めない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "blocking",
+        approved_by: null,
+        approved_at: null,
+      },
+    ];
+  });
+  const r = run(metadataPath, ["--stage", "suite"]);
+  expect(r.stdout).toMatch(/stage: suite のため blocking 1 件は落とさない/);
+  expect(r.status).toBe(0);
+  // 既定（diff）では同じ記録で落ちる——工程の指定だけが挙動を変えていることの対照。
+  const strict = run(metadataPath);
+  expect(strict.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--stage suite でも記録の不備は落とす（測定待ちと壊れた記録を分ける）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.unmeasured.entries = [
+      {
+        item: "一覧の空状態",
+        reason: "このパターンのシードが無い",
+        disposition: "accepted",
+        approved_by: null,
+        approved_at: null,
+      },
+    ];
+  });
+  const r = run(metadataPath, ["--stage", "suite"]);
+  expect(r.stdout).toMatch(/approved_by \/ approved_at が空のため blocking として数える/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--stage の語彙外は型崩れ（exit 2）", () => {
+  const { root, metadataPath } = makeProject();
+  const r = run(metadataPath, ["--stage", "replace"]);
+  expect(r.stderr).toMatch(/--stage は diff \| suite のいずれか/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite キーごと無い旧成果物は反復実行の節を判定しない（型崩れに倒さない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    delete m.suite;
+    delete m.artifact_health;
+    delete m.unmeasured;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.state_mutating をキーごと持たない旧成果物/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite キーが無くても artifact_health を宣言していれば未検証として落とす（fail-open にしない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    delete m.suite;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite\.state_mutating が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("suite が配列など型崩れなら exit 2", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = [];
+  });
+  const r = run(metadataPath);
+  expect(r.stderr).toMatch(/suite がオブジェクトでない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});

@@ -86,6 +86,16 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
 - **反応の被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `reaction_coverage.declared` が `true` なら、
   インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直し、exit 0 以外なら `parity-suite` へ戻す
   （遅れて出る・別の文書に出る・自動で消える反応は差分器の採取に写らない。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
+- **採取物と工程の健全性に未検証が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
+  `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す
+  （読まれていない採取物・元が採り直されたのに古い加工物・後始末が効いていないスイート・`blocking` の未測定・
+  `suite.new_green` が真なのに無い／古い `diff-metadata.json` は、どれも**緑のまま抜ける**。
+  **`converged` が偽でも落とさない**——落とすのは「無い」と「古い」だけ。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
+- **追記専用の成果物が縮んだ状態で `converged: true` にしない。** インストール済みの `replace-strategy` の
+  `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて過去の決定を復元する
+  （**既定の `HEAD` を使わない**——書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何も失われていなくても素通りする）
+  （収束の判定は現在の状態しか見ないため、積み上げた文書を丸ごと書き直しても「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
+  **対象 0 件は合格に倒さない**。一覧の正本は `replace-strategy` の `assets/append-only-manifest.json`）
 - **被覆プロファイルを宣言した部品の期待セルを 項目 × インスタンス で数えない。** 宣言した部品はインスタンスごとの候補（`instances[].candidates`）が期待セルで、
   列挙した要素が候補に現れない・`conformance` が無い／`ok: false` なら収束させない（プロファイル本体は `parity-suite` の同梱物なので読まない）
 - **被覆表を判定しなかったことを黙って合格にしない。** `declared: false` と `component_coverage` を持たない旧成果物は判定に入れない（後方互換）が、
@@ -157,6 +167,9 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直す。
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
+   **採取物と工程の健全性**（採取物の読み手・加工物の鮮度・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の在否と鮮度）も収束条件に入れ、
+   インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す（**`diff-metadata.json` に結果を書いた後**に通す——工程の節は自分が書く成果物の在否を見るため。`--stage suite` を渡すと未測定の `blocking` を素通りさせる）。
+   **追記専用の成果物が縮んでいないこと**も収束条件に入れ、インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
    他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
    ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
 

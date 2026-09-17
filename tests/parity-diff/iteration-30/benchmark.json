@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:27:13.901Z",
+    "evals_run": [28],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 102.684,
+        "tokens": 168805,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "『失われるのは過去の決定——なぜこの差分を許容したのか・いつ誰が承認したのか』"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『収束の判定は現在の状態しか見ません。だから台帳を丸ごと書き直しても、現在の JSON と整合してさえいれば全部通ります』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": true,
+          "evidence": "append-only-check.mjs --root . --base <着手時点の版> を git merge-base 付きで示し、既定 HEAD は commit 後に常に緑になると説明している"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": true,
+          "evidence": "『正本は replace-strategy の assets/append-only-manifest.json』『parity-diff の SKILL.md も convergence.md もそれを参照するだけで、一覧を持っていません』"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": true,
+          "evidence": "exit コード表に『0 件は合格に倒さない』を明示し、exit 1 / exit 2 の 0 件をそれぞれ書き分けている"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『着手時点の版から全文を復元する（git show <base>:<path> > <path>）』『復元後に --base <着手時点の版> で再実行し exit 0 を確認』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 94.664,
+        "tokens": 107281,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "『後から誰かが「なぜこの例外が許されたのか」を遡って確認するときに読まれます』『読まれる頻度がゼロに見えるのは正常な状態』"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『挙げられている根拠は2つとも「現在の状態」しか見ていない検査です』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": false,
+          "evidence": "『そのファイルが追記専用と定められているかを、プロジェクトの規約文書で確認する』と grep を提案するに留まり、append-only-check.mjs には触れていない"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": false,
+          "evidence": "規約文書を grep する手順を示すのみで、機械可読な一覧が正本であることに触れていない（『もしどこにも書かれていなかったら、それ自体が今回いちばん重要な発見です』）"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": false,
+          "evidence": "対象 0 件の扱いに触れていない"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『git show <commit>:<path> > /tmp/old.md で退避してから復元』『可読性の改善は…削除しなくても達成できます』"
+        }
+      ],
+      "notes": null
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 102.684,
+        "stddev": 0,
+        "min": 102.684,
+        "max": 102.684
+      },
+      "tokens": {
+        "mean": 168805,
+        "stddev": 0,
+        "min": 168805,
+        "max": 168805
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 94.664,
+        "stddev": 0,
+        "min": 94.664,
+        "max": 94.664
+      },
+      "tokens": {
+        "mean": 107281,
+        "stddev": 0,
+        "min": 107281,
+        "max": 107281
+      }
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "iteration-29 で with_skill が到達しなかった assertion 4（一覧 append-only-manifest.json が正本）を引き出すため、prompt に「そもそもどのファイルが追記専用なのかは、どこで決まっている？」を足した版。with_skill は 6/6 に到達。",
+    "同じ iteration で eval 27 も回したが、assertion 3 が姉妹スキル（parity-suite）側にしか正本の無いキー名を要求しており原理的に到達不能だったため、粒度を直して iteration-31 で取り直した。この iteration には eval 28 の結果だけを残す。"
+  ]
+}
