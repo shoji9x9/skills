@@ -19,7 +19,7 @@
   ],
   "enumeration": {
     "sources": [
-      "<候補の列挙に使ってよい情報源の kind: current-source | config | app-ui。ソース・設定は候補集合の抽出に使い、UI 操作の期待値は動作中の現行アプリで確定する>"
+      "<候補の列挙に使ってよい情報源の kind: current-source | config | app-ui。**強い順に並べる**（先頭が一次情報源）。順序が無いと、いちばん弱い情報源だけで complete: true が通り「読めるのに読んでいない」が残らない。並びが強い順でない・語彙外・重複は coverage-expand.mjs が落とす。被覆表側は一次情報源以外で列挙したとき stronger_source_unavailable_reason を要求される。ソース・設定は候補集合の抽出に使い、UI 操作の期待値は動作中の現行アプリで確定する>"
     ],
     "procedure": "<列挙の手順。どのファイル・設定・画面から何を抜くか>",
     "pitfalls": [
