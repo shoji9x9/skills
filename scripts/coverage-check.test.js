@@ -1219,6 +1219,13 @@ test("集合の来歴の欄が欠けている・語彙の外なら報告する�
       { ...setInventory(), source: { ...setInventory().source, condition: "  " } },
       /component_inventory.source.condition が空/,
     ],
+    // 型崩れした kind は語彙内の文字列へ潰さずに示す。`String(["current-source"])` を埋めると
+    // 「current-source が current-source / … のいずれでもない」という自己矛盾した指摘になり、
+    // 直す側が本当の欠陥（配列で書いた）に辿り着けない。
+    [
+      { ...setInventory(), source: { ...setInventory().source, kind: ["current-source"] } },
+      /component_inventory\.source\.kind（\["current-source"\]）が current-source \/ config \/ app-ui のいずれでもない/,
+    ],
   ];
   for (const [componentInventory, pattern] of cases) {
     const r = countSets(withSets({ componentInventory }));
@@ -1254,6 +1261,21 @@ test("集合の完全性は未設定を「完全」と読まず、false は理�
   );
   expect(withReason.problems.join("\n")).toMatch(/列挙が未完了/);
   expect(withReason.unmeasured).toBe(1);
+
+  // 効いていない免除は落とす（complete: false → true へ直したのに理由が残っている）。
+  // 通すと、機械は収束させるのに成果物を読む側には「まだ読み切れていない集合」と見える。
+  const stale = countSets(
+    withSets({
+      componentInventory: {
+        ...setInventory(),
+        incomplete_reason: "共通ブロックを数え切れていない（読み切った後も残ったまま）",
+      },
+    }),
+  );
+  expect(stale.problems.join("\n")).toMatch(
+    /component_inventory: complete: true なのに incomplete_reason が書かれている/,
+  );
+  expect(stale.unmeasured).toBe(1);
 });
 
 test("一次情報源以外で列挙したら理由を要求し、使ったのに理由が残っていれば落とす", () => {

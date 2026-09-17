@@ -415,6 +415,17 @@ const ITEM_SOURCE_KINDS = [
 ];
 
 /**
+ * 語彙外の `kind` をメッセージへ埋める。`String()` で潰すと `["current-source"]` のような型崩れが
+ * `current-source` と表示され、「current-source が current-source / … のいずれでもない」という
+ * 自己矛盾した指摘になって、直す側が本当の欠陥（型）に辿り着けない。文字列以外は JSON で示す。
+ * @param {unknown} v
+ * @returns {string}
+ */
+function showKind(v) {
+  return typeof v === "string" ? v : (JSON.stringify(v) ?? String(v));
+}
+
+/**
  * 一次情報源（`SET_SOURCE_KINDS[0]`）以外で列挙したときに、その情報源が使えなかった理由の申告を要求する。
  * `fail_closed`（ソースを読めないときの `complete: false`）の裏側——**読めるのに読まなかった**——には
  * それまで経路が無く、いちばん弱い情報源だけで `complete: true` が通っていた。
@@ -481,7 +492,7 @@ function setInventoryProblems(raw, label) {
     }
     if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
       problems.push(
-        `${label}.source.kind（${String(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+        `${label}.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
       );
     }
     problems.push(...strongerSourceProblems(block, label));
@@ -502,6 +513,13 @@ function setInventoryProblems(raw, label) {
     } else {
       problems.push(`${label}.complete が true ではない（未設定を「完全」と読まない）`);
     }
+  } else if (block.incomplete_reason !== null && block.incomplete_reason !== undefined) {
+    // 効いていない免除は失敗させる（stronger_source_unavailable_reason と同じ扱い）。
+    // complete: false から true へ直したときに理由が残ると、機械は収束させるのに
+    // 成果物を読む側には「まだ読み切れていない集合」と見え、gaps.md の行も同じ文言で残り続ける。
+    problems.push(
+      `${label}: complete: true なのに incomplete_reason が書かれている（効いていない免除。読み切れたなら null にする）`,
+    );
   }
   return problems;
 }
@@ -526,7 +544,7 @@ function itemSourceProblems(raw, label) {
   }
   if (!inAllowlist(source.kind, ITEM_SOURCE_KINDS)) {
     problems.push(
-      `${label}.source.kind（${String(source.kind)}）が ${ITEM_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+      `${label}.source.kind（${showKind(source.kind)}）が ${ITEM_SOURCE_KINDS.join(" / ")} のいずれでもない`,
     );
   }
   return problems;
@@ -550,7 +568,7 @@ function enumerationSourceProblems(en, label) {
   if (source === null) return problems;
   if (!inAllowlist(source.kind, SET_SOURCE_KINDS)) {
     problems.push(
-      `${label}: enumeration.source.kind（${String(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
+      `${label}: enumeration.source.kind（${showKind(source.kind)}）が ${SET_SOURCE_KINDS.join(" / ")} のいずれでもない`,
     );
     return problems;
   }

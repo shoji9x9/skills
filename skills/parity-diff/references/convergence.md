@@ -56,7 +56,7 @@
     **集合の来歴と完全性も数え直しの対象**（正本は `parity-suite` の `references/coverage.md`「3 つの集合に来歴と完全性を要求する」）——
     **`component_inventory`（部品の集合）と `components[].instance_inventory`（インスタンスの集合）が無い・`source` の
     `kind` / `ref` / `version` / `condition` が空・`kind` が `current-source` / `config` / `app-ui` のいずれでもない・
-    `complete` が `true` でない**（`false` は `incomplete_reason` 必須）、および
+    `complete` が `true` でない**（`false` は `incomplete_reason` 必須。逆に `true` なのに `incomplete_reason` が残っていれば効いていない免除）、および
     **一次情報源（`current-source`）以外で列挙したのに `stronger_source_unavailable_reason` が空**（逆に一次情報源で列挙したのに理由が書かれている＝効いていない免除）は、
     未測定として数える。**数え方の粒度は宣言の置き場所に揃える**——`component_inventory` の不備は表全体で 1 件、
     `components[].instance_inventory` と `components[].source` の不備は**その部品で合算して 1 件**（同じ部品の 2 つの宣言が両方欠けても 2 件にはしない）。

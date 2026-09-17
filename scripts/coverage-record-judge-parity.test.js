@@ -387,6 +387,14 @@ const CASES = [
     }),
   ],
   [
+    "集合: complete: true なのに incomplete_reason が残っている",
+    "eq",
+    variant(generic, (c) => {
+      fillSetProvenance(c);
+      c.component_inventory.incomplete_reason = "数え切れていない（古い記録）";
+    }),
+  ],
+  [
     "プロファイル: enumeration.source.kind が語彙外",
     "eq",
     variant(profiled, (c) => (orders(c).enumeration.source.kind = "vendor-spec")),

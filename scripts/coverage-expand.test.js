@@ -2003,6 +2003,13 @@ test("記録側も 3 つの集合の来歴と完全性を要求する（宣言�
     /instance_inventory.complete が true ではない/,
   );
 
+  // 効いていない免除（complete: true なのに incomplete_reason が残っている）も判定側と同じく落とす。
+  const staleReason = fillSetProvenance(datagridCoverage());
+  staleReason.components[0].instance_inventory.incomplete_reason = "数え切れていない（古い記録）";
+  expect(reconcileRaw(staleReason, bundled).problems.join("\n")).toMatch(
+    /instance_inventory: complete: true なのに incomplete_reason が書かれている/,
+  );
+
   // 一次情報源以外で列挙したら理由を要求する（読めるのに読んでいない側の経路）。
   const walked = fillSetProvenance(datagridCoverage());
   walked.component_inventory.source.kind = "app-ui";
