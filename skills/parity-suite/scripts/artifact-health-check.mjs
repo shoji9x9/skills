@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -723,6 +723,34 @@ export function checkStage(ctx) {
   // 対応づけは両成果物が既に持っている識別子で取る——新側のコミット SHA と反復回数。
   const replaceNew = isPlainObject(replaceMeta.new) ? replaceMeta.new : null;
   const diffNew = isPlainObject(diffMeta.new) ? diffMeta.new : null;
+
+  // 環境の対応づけ。同じコミット・同じ反復は環境をまたいで一致しうるので、
+  // 両成果物が記録している target 名を --target と突き合わせる
+  // （別 target のディレクトリへ写しただけの成果物が、その環境で差分を採らずに通るのを塞ぐ）。
+  for (const [label, value] of /** @type {[string, unknown][]} */ ([
+    ["replace-metadata.json", replaceNew === null ? undefined : replaceNew.target],
+    ["diff-metadata.json", diffNew === null ? undefined : diffNew.target],
+  ])) {
+    if (!nonEmptyString(value)) {
+      notes.push(`${label} が new.target を持たないため環境の対応を判定しない（旧成果物）`);
+      continue;
+    }
+    if (String(value).trim() !== ctx.target) {
+      findings.push(
+        `${label} が別の環境の成果物（new.target ${String(value).trim()} ≠ --target ${ctx.target}）: ${stageDir}`,
+      );
+    }
+  }
+
+  // 未コミット変更のある木では「差分を採った実装」を特定できない。
+  // コミットの比較方法（一致 / none / 片側欠落）を選ぶ前に落とす——
+  // none の枝へ入ると dirty の判定へ到達せず、同じ反復のまま中身だけ変わった実装が素通りする。
+  if (replaceNew !== null && replaceNew.dirty === true) {
+    findings.push(
+      `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので版の同一性を確かめられない）: ${diffPath}`,
+    );
+  }
+
   const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
   const diffCommit = diffNew === null ? undefined : diffNew.commit;
   if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
@@ -735,12 +763,6 @@ export function checkStage(ctx) {
     } else if (wanted !== recordedCommit) {
       findings.push(
         `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
-      );
-    } else if (replaceNew !== null && replaceNew.dirty === true) {
-      // SHA が一致しても、未コミット変更がある木では「差分を採った実装」を特定できない。
-      // 判定不能を合格に倒さない（note で通すと、同じ SHA・同じ反復のまま中身だけ変わった実装が素通りする）。
-      findings.push(
-        `新側の版を特定できない（replace-metadata.json の new.dirty: true。未コミット変更があるので SHA の一致は同一性を保証しない）: ${diffPath}`,
       );
     }
   } else {
@@ -772,11 +794,20 @@ export function checkStage(ctx) {
     throw new UsageError("diff-metadata.json の dataset_version_exempt が文字列でも null でもない");
   }
   if (nonEmptyString(exempt)) {
-    notes.push(`dataset_version を免除して判定（理由: ${String(exempt).trim()}）: ${diffPath}`);
-    notes.push(
-      `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
-    );
-    return { judged: true, findings, notes };
+    // 免除は「dataset_version: null ＋ 理由」という閉じた対（正本の定める形）。
+    // 理由が残っているだけで版の検査を飛ばすと、投入対象の target に古い免除文字列が残ったまま
+    // 鮮度の判定が丸ごと外れる。対になっていなければ免除ではなく記録の不整合として落とす。
+    if (diffMeta.dataset_version !== null) {
+      findings.push(
+        `dataset_version_exempt があるのに dataset_version が null でない（免除は null と対の記録。現在 ${JSON.stringify(diffMeta.dataset_version)}）: ${diffPath}`,
+      );
+    } else {
+      notes.push(`dataset_version を免除して判定（理由: ${String(exempt).trim()}）: ${diffPath}`);
+      notes.push(
+        `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
+      );
+      return { judged: true, findings, notes };
+    }
   }
 
   const datasetPath = join(ctx.root, ".replace", "dataset", "metadata.json");

@@ -25,7 +25,8 @@
 //     正本が更新を認めている項目だけを fill_only（空 → 非空だけ。既に入っている値の差し替えは落とす）と
 //     transitions（明示した <変更前>-><変更後> だけ。unmeasured.entries の blocking->accepted）で開ける。
 //     markdown-structure の表の行も同様に、鍵（先頭セル）だけでなく行 × 列のセルを単位にし、
-//     正本がその場の更新を定めている列だけ mutable_columns で外す（鍵だけだと残りのセルが自由に書き換わる）
+//     正本がその場の更新を定めている列だけ mutable_columns で外す（鍵だけだと残りのセルが自由に書き換わる）。
+//     同じ鍵の行は出現順で区別する（区別しないと、同じ鍵の 2 行の間でセルを入れ替えても単位が変わらない）
 //
 // 行の突き合わせは空白を畳んで（連続する空白を 1 つに、前後を除去して）から行う——
 // Markdown の表はフォーマッタが桁を詰め直すため、素の文字列比較では整形だけで落ちる。
@@ -47,7 +48,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -213,6 +214,8 @@ export function markdownUnits(text, mutableColumns = []) {
   const headings = [];
   /** @type {string[]} */
   let columns = [];
+  /** @type {Map<string, number>} 同じ鍵の行が何度目か */
+  const rowOccurrences = new Map();
   let tableIndex = -1;
   let inTable = false;
   for (const raw of text.split("\n")) {
@@ -245,12 +248,19 @@ export function markdownUnits(text, mutableColumns = []) {
       }
       const rowKey = cells[0] ?? "";
       add(`R:${path}#${tableIndex}|${rowKey}`);
+      // 同じ鍵の行は出現順で区別する。区別しないと列ごとの多重集合になり、
+      // 同じ鍵を持つ 2 行の間でセルを入れ替えても単位が変わらない
+      // （assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ——正本が想定する形）。
+      // 追記専用の台帳なので既存行の並びは変わらず、出現順は安定した識別子になる。
+      const seenKey = `${path}#${tableIndex}|${rowKey}`;
+      const occurrence = rowOccurrences.get(seenKey) ?? 0;
+      rowOccurrences.set(seenKey, occurrence + 1);
       if (!allCellsMutable) {
         for (const [i, cell] of cells.entries()) {
           if (i === 0) continue; // 先頭セルは鍵そのもの
           const column = columns[i] ?? `#${i}`;
           if (mutable.has(column)) continue; // 正本がその場の更新を定めている列
-          add(`R:${path}#${tableIndex}|${rowKey}|${column}=${cell}`);
+          add(`R:${seenKey}@${occurrence}|${column}=${cell}`);
         }
       }
       continue;

@@ -812,3 +812,74 @@ test("宣言したスイートの実体が無ければ合格に倒さない", ()
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("new.commit が none でも dirty なら落とす（コミットの比較方法を選ぶ前に見る）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none", dirty: true }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/新側の版を特定できない.*new\.dirty: true/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("別の環境の成果物を写しただけなら落とす（new.target と --target の照合）", () => {
+  // 同じコミット・同じ反復は環境をまたいで一致しうるので、版だけでは写しを見分けられない。
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      ...CORRELATED.diff,
+      new: { target: "preview", commit: "a".repeat(40) },
+      dataset_version: 7,
+      converged: true,
+    },
+    { ...CORRELATED.replace, new: { target: "preview", commit: "a".repeat(40), dirty: false } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(
+    /replace-metadata\.json が別の環境の成果物（new\.target preview ≠ --target local-dev）/,
+  );
+  expect(r.stdout).toMatch(/diff-metadata\.json が別の環境の成果物/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("new.target を持たない旧成果物は環境の対応を判定しない", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { new: { commit: "a".repeat(40) }, iteration: 3, dataset_version: 7, converged: true },
+    { new: { commit: "a".repeat(40), dirty: false }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/new\.target を持たないため環境の対応を判定しない/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("免除理由があっても dataset_version が null でなければ落とす（免除は対の記録）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      ...CORRELATED.diff,
+      dataset_version: 3,
+      dataset_version_exempt: "古い免除文字列が残っている",
+      converged: true,
+    },
+    CORRELATED.replace,
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/dataset_version_exempt があるのに dataset_version が null でない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});

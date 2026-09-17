@@ -623,7 +623,7 @@ test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残�
   );
   const r = run(root);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
-  expect(r.stdout).toMatch(/ロゴ\|/);
+  expect(r.stdout).toMatch(/ロゴ@0\|/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -721,5 +721,31 @@ test("key が無いのに fill_only を宣言したら合格に倒さない（ex
   const r = run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/key が無いのに fill_only がある/);
   expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複鍵で対応を失わない）", () => {
+  // assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ（正本が想定する形）。
+  const root = makeRepo();
+  const rowA = "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
+  const rowB = "| ロゴ | `logo.svg` | 同等物を作る | 有効 | 2026-09-10・order | 再配布不可のため |";
+  const base = ASSETS.replace(
+    "| 本文の書体 | `body.woff2` | 実体を写す | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+    rowB,
+  );
+  writeFileSync(join(root, ".replace/assets.md"), base);
+  spawnSync("git", ["-C", root, "commit", "-qam", "two-logo-rows"], { encoding: "utf8" });
+  // 行の中身だけを入れ替える（どちらの行も「ロゴ」のまま＝鍵は不変、決定の帰属だけが変わる）。
+  const swapped = base.split("\n");
+  const a = swapped.indexOf(rowA);
+  const b = swapped.indexOf(rowB);
+  expect(a).toBeGreaterThan(-1);
+  expect(b).toBeGreaterThan(-1);
+  swapped[a] = rowB;
+  swapped[b] = rowA;
+  writeFileSync(join(root, ".replace/assets.md"), swapped.join("\n"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
