@@ -11,7 +11,10 @@
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
 //   4. 工程の成果物（--target）: suite.new_green が真なら同じ場所に diff-metadata.json が在り、
-//      その dataset_version が現在のデータセットの版と一致することを求める（converged が偽でも落とさない）。
+//      それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
+//      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない——陳腐化の正本は
+//      golden-dataset の references/versioning.md で、交差を見るまでもなく確定する形だけをここで落とす。
+//      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
 //
@@ -30,7 +33,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -141,6 +144,28 @@ function readJson(path, label) {
  */
 function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/**
+ * スペックの本文に採取物の名前が「ファイル名として」現れるかを見る。
+ * 素の部分文字列一致にすると orders.xlsx が orders.xlsx.json にも当たり、
+ * 実際には読まれていない採取物が読み手ありとして素通りする。
+ * 前後がファイル名を構成しうる文字（英数・. _ -）でないことまで確かめる。
+ * @param {string} text
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function includesAsName(text, name) {
+  const namePart = /[A-Za-z0-9._-]/;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(name, from);
+    if (at === -1) return false;
+    const before = at === 0 ? "" : text[at - 1];
+    const after = text[at + name.length] ?? "";
+    if (!namePart.test(before) && !namePart.test(after)) return true;
+    from = at + 1;
+  }
 }
 
 /**
@@ -270,7 +295,7 @@ export function checkArtifacts(metadata, ctx) {
           );
           continue;
         }
-        if (!text.includes(name)) {
+        if (!includesAsName(text, name)) {
           findings.push(
             `read_by が指すスペックに採取物の名前が現れない（字面の照合で不一致）: ${name} ∉ ${String(reader).trim()}`,
           );
@@ -325,7 +350,7 @@ export function checkArtifacts(metadata, ctx) {
 /**
  * 状態を変えるスイートの反復実行を数え直す。
  * @param {Record<string, unknown>} metadata
- * @param {{ artifactsDeclared: boolean }} ctx
+ * @param {{ artifactHealthPresent: boolean }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkRepeatRun(metadata, ctx) {
@@ -338,9 +363,12 @@ export function checkRepeatRun(metadata, ctx) {
   // artifact_health を宣言していれば下の分岐が未検証として落とすので、後方互換は fail-open にならない。
   const suiteObj = isPlainObject(suite) ? suite : {};
   if (!("state_mutating" in suiteObj)) {
-    if (ctx.artifactsDeclared) {
+    // 判定の根拠は artifact_health の「宣言の有無」ではなく「キーの有無」。
+    // declared: false は視覚採取物を持たない成果物（api-resource 等）の免除であって旧成果物ではなく、
+    // 書き込み系 API のスイートこそ 2 回続けての緑を要る側なので、ここで外さない。
+    if (ctx.artifactHealthPresent) {
       findings.push(
-        "artifact_health.declared: true なのに suite.state_mutating が無い（状態を変えるかどうかが決まらない）",
+        "artifact_health を持つ成果物なのに suite.state_mutating が無い（状態を変えるかどうかが決まらない）",
       );
       return { judged: true, findings, notes: [] };
     }
@@ -519,6 +547,50 @@ export function checkUnmeasured(metadata, ctx) {
 }
 
 /**
+ * 整数として読める値に直す（数値・数字だけの文字列を受ける）。版と反復回数の両方で使う。
+ * @param {unknown} v
+ * @returns {number | null}
+ */
+function toInteger(v) {
+  if (typeof v === "number") return Number.isInteger(v) ? v : null;
+  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number.parseInt(v.trim(), 10);
+  return null;
+}
+
+/**
+ * 記録済みの版 V より後、現在の版 C までの changes[].affects を集める。
+ * 履歴が壊れている（欠番・重複・affects が配列でない）ときは null を返す——
+ * 正本（golden-dataset の references/versioning.md）が「影響なしへ倒さない」と定めているため、
+ * 呼び出し側はこれを陳腐化として扱う。
+ * @param {unknown} changes
+ * @param {number} v
+ * @param {number} c
+ * @returns {string[] | null}
+ */
+export function affectsBetween(changes, v, c) {
+  if (!Array.isArray(changes)) return null;
+  /** @type {Map<number, string[]>} */
+  const byVersion = new Map();
+  for (const change of changes) {
+    if (!isPlainObject(change)) return null;
+    const ver = toInteger(change.version);
+    if (ver === null || ver < 1) return null;
+    if (byVersion.has(ver)) return null;
+    if (!Array.isArray(change.affects)) return null;
+    for (const a of change.affects) if (!nonEmptyString(a)) return null;
+    byVersion.set(
+      ver,
+      change.affects.map((a) => String(a).trim()),
+    );
+  }
+  for (let i = 1; i <= c; i += 1) if (!byVersion.has(i)) return null;
+  /** @type {string[]} */
+  const out = [];
+  for (let i = v + 1; i <= c; i += 1) out.push(.../** @type {string[]} */ (byVersion.get(i)));
+  return [...new Set(out)];
+}
+
+/**
  * 工程が残す成果物の在否と鮮度を数え直す（--target のときだけ）。
  * @param {{ root: string, slugDir: string, target: string }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
@@ -526,6 +598,8 @@ export function checkUnmeasured(metadata, ctx) {
 export function checkStage(ctx) {
   /** @type {string[]} */
   const findings = [];
+  /** @type {string[]} */
+  const notes = [];
   const stageDir = join(ctx.slugDir, "new", ctx.target);
   const replacePath = join(stageDir, "replace-metadata.json");
   if (!existsSync(replacePath)) {
@@ -556,17 +630,77 @@ export function checkStage(ctx) {
     findings.push(
       `suite.new_green: true なのに diff-metadata.json が無い（工程の完了が記憶に委ねられている）: ${diffPath}`,
     );
-    return { judged: true, findings, notes: [] };
+    return { judged: true, findings, notes };
   }
   const diffMeta = readJson(diffPath, "diff-metadata.json");
   if (!isPlainObject(diffMeta)) throw new UsageError("diff-metadata.json がオブジェクトでない");
+
+  // 同じ target の diff-metadata.json が「いまの新側」に対応しているかを見る。
+  // dataset_version だけを鮮度にすると、データセットを変えずに parity-replace が作り直した実装に対して、
+  // 前の反復で収束した古い diff-metadata.json がそのままこのゲートを満たす（差分を採り直していないのに「済んだ」に見える）。
+  // 対応づけは両成果物が既に持っている識別子で取る——新側のコミット SHA と反復回数。
+  const replaceNew = isPlainObject(replaceMeta.new) ? replaceMeta.new : null;
+  const diffNew = isPlainObject(diffMeta.new) ? diffMeta.new : null;
+  const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
+  const diffCommit = diffNew === null ? undefined : diffNew.commit;
+  if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
+    const wanted = String(replaceCommit).trim();
+    const recordedCommit = String(diffCommit).trim();
+    if (wanted === "none" || recordedCommit === "none") {
+      notes.push(
+        `new.commit が none（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
+      );
+    } else if (wanted !== recordedCommit) {
+      findings.push(
+        `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
+      );
+    } else if (replaceNew !== null && replaceNew.dirty === true) {
+      notes.push(
+        `new.commit は一致するが replace-metadata.json の new.dirty が true（未コミット変更があるので SHA の一致は同一性を保証しない）: ${diffPath}`,
+      );
+    }
+  } else {
+    notes.push(
+      "new.commit を片側が持たないため新側の版の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
+    );
+  }
+
+  const loop = isPlainObject(replaceMeta.loop) ? replaceMeta.loop : null;
+  const iterations = toInteger(loop === null ? undefined : loop.iterations);
+  const recordedIteration = toInteger(diffMeta.iteration);
+  if (iterations !== null && recordedIteration !== null) {
+    if (recordedIteration !== iterations) {
+      findings.push(
+        `diff-metadata.json が前の反復のもの（iteration ${recordedIteration} ≠ replace-metadata.json の loop.iterations ${iterations}）: ${diffPath}`,
+      );
+    }
+  } else {
+    notes.push(
+      "iteration / loop.iterations を片側が持たないため反復の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
+    );
+  }
+
+  // 投入対象でない target（db を持たない／seedable の無い読み取り専用）は phase B との整合を免除できる。
+  // 正本: parity-diff の references/preflight.md と assets/diff-metadata-template.json の dataset_version_exempt。
+  // 免除は dataset_version: null と対で書かれるので、空の判定より先に見る（正規の記録を落とさない）。
+  const exempt = diffMeta.dataset_version_exempt;
+  if (exempt !== undefined && exempt !== null && typeof exempt !== "string") {
+    throw new UsageError("diff-metadata.json の dataset_version_exempt が文字列でも null でもない");
+  }
+  if (nonEmptyString(exempt)) {
+    notes.push(`dataset_version を免除して判定（理由: ${String(exempt).trim()}）: ${diffPath}`);
+    notes.push(
+      `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
+    );
+    return { judged: true, findings, notes };
+  }
 
   const datasetPath = join(ctx.root, ".replace", "dataset", "metadata.json");
   if (!existsSync(datasetPath)) {
     findings.push(
       `データセットの版を読めないため鮮度を判定できない（判定不能を合格に倒さない）: ${datasetPath}`,
     );
-    return { judged: true, findings, notes: [] };
+    return { judged: true, findings, notes };
   }
   const datasetMeta = readJson(datasetPath, "dataset/metadata.json");
   if (!isPlainObject(datasetMeta))
@@ -575,27 +709,55 @@ export function checkStage(ctx) {
   const recorded = diffMeta.dataset_version;
   if (current === undefined || current === null || String(current).trim() === "") {
     findings.push(`データセットの version が空のため鮮度を判定できない: ${datasetPath}`);
-    return { judged: true, findings, notes: [] };
+    return { judged: true, findings, notes };
   }
   if (recorded === undefined || recorded === null || String(recorded).trim() === "") {
     findings.push(
-      `diff-metadata.json の dataset_version が空（古いかどうかを判定できない）: ${diffPath}`,
+      `diff-metadata.json の dataset_version が空で dataset_version_exempt も空（古いかどうかを判定できない）: ${diffPath}`,
     );
-    return { judged: true, findings, notes: [] };
+    return { judged: true, findings, notes };
   }
-  if (String(recorded).trim() !== String(current).trim()) {
+
+  // 数値が古いだけでは陳腐化にしない。正本は golden-dataset の references/versioning.md——
+  // 記録済み V・現在 C として 1 <= V <= C を確かめ、V < change.version <= C の affects が
+  // slug の実効参照テーブルと交差するときだけ陳腐化する。実効参照テーブルは .replace/features.md から
+  // 導くもので導出規則の正本は golden-dataset 側にあるため、ここで 2 つ目の実装を作らない。
+  // ここで落とすのは、交差を見るまでもなく陳腐化が確定する形（版が読めない・区間に * がある・履歴が壊れている）だけ。
+  const v = toInteger(recorded);
+  const c = toInteger(current);
+  if (v === null || c === null) {
     findings.push(
-      `diff-metadata.json が古い（dataset_version ${String(recorded).trim()} ≠ 現在のデータセット ${String(current).trim()}）: ${diffPath}`,
+      `dataset_version が整数として読めない（記録 ${JSON.stringify(recorded)} / 現在 ${JSON.stringify(current)}）: ${diffPath}`,
     );
+    return { judged: true, findings, notes };
+  }
+  if (v < 1 || v > c) {
+    findings.push(
+      `dataset_version の範囲が不正（記録 ${v} / 現在 ${c}。1 <= 記録 <= 現在 を満たさない）: ${diffPath}`,
+    );
+    return { judged: true, findings, notes };
+  }
+  if (v < c) {
+    const affects = affectsBetween(datasetMeta.changes, v, c);
+    if (affects === null) {
+      findings.push(
+        `dataset の changes 履歴が壊れている（欠番・重複・affects が配列でない）ため影響なしに倒さない（記録 ${v} / 現在 ${c}）: ${datasetPath}`,
+      );
+    } else if (affects.includes("*")) {
+      findings.push(
+        `記録後の変更が全機能に影響する（changes[].affects に * がある。記録 ${v} / 現在 ${c}）: ${diffPath}`,
+      );
+    } else {
+      notes.push(
+        `dataset_version は記録 ${v} / 現在 ${c}。区間の affects（${affects.join(", ") || "なし"}）と slug の実効参照テーブルの交差判定は golden-dataset の references/versioning.md が正本のためここでは数えない`,
+      );
+    }
   }
   // converged が偽でも落とさない——偽は「まだ直っていない」の記録であり、隠す相手ではない。
-  return {
-    judged: true,
-    findings,
-    notes: [
-      `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
-    ],
-  };
+  notes.push(
+    `工程の成果物を判定（converged: ${JSON.stringify(diffMeta.converged)} は判定に入れない）`,
+  );
+  return { judged: true, findings, notes };
 }
 
 /**
@@ -667,7 +829,9 @@ export function run(argv, io) {
   findings.push(...artifacts.findings);
   notes.push(...artifacts.notes);
 
-  const repeat = checkRepeatRun(metadata, { artifactsDeclared: artifacts.judged });
+  const repeat = checkRepeatRun(metadata, {
+    artifactHealthPresent: "artifact_health" in metadata,
+  });
   findings.push(...repeat.findings);
   notes.push(...repeat.notes);
 

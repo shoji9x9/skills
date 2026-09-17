@@ -110,7 +110,8 @@ scripts/run-skill-eval.sh \
   iteration-39 で `without_skill` は「参照の有無まででは意味がありません」として摂動で赤くなるテスト名まで見よと答え、
   `with_skill` は「字面で足ります」「assertion に使っているかまでは見ません」と答えて依存の実在は強度ゲートが持つと段を分けた（7/7 対 1/7）。
   初版（iteration-38）は skill 固有の宣言と汎用の grep 発想を 1 本の assertion に同居させており、`without_skill` のほうが先に
-  「ファイル名を spec 全体に grep」へ到達していたので 2 本へ割った。検査そのもの（未宣言・sha256 不一致・字面の不一致・0 件の扱い）は `scripts/artifact-health-check.test.js` が担う
+  「ファイル名を spec 全体に grep」へ到達していたので 2 本へ割った。検査そのもの（未宣言・sha256 不一致・字面の不一致・0 件の扱い・
+  名前の境界で一致を取ること〈`orders.xlsx` は `orders.xlsx.json` に一致しない。PR #398 のレビューで実測〉）は `scripts/artifact-health-check.test.js` が担う
 - eval 40 は状態を変えるスイートの反復実行（Issue #382）の回帰。後始末を外のコマンドで流し、1 回の緑と強度ゲートの素通り 0 件で
   完了とする案を押し戻せるかを見る。2 回続けての緑・1 回目に後始末の有無が現れないこと・戻す操作をスイートの中に置くこと・
   壊れ方が「現行が変わった」と同じ見え方になること・`artifact-health-check.mjs` の反復実行の節（`--stage suite` でも免除されない）・

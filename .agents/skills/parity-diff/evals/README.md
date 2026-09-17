@@ -78,6 +78,10 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   `append-only-check.mjs` と `append-only-manifest.json`・対象 0 件を合格に倒さないこと・git の履歴からの復元を対象にする。
   初版（iteration-29）では `with_skill` が一覧の所在（`append-only-manifest.json` が正本）に到達しなかったため、
   prompt に「そもそもどのファイルが追記専用なのかは、どこで決まっている？」を足した（iteration-30 で `with_skill` 6/6）。
-  検査そのもの（行の喪失・消失・整形だけでは落ちない・多重度・サブディレクトリ root）は `scripts/append-only-check.test.js` が担う
+  検査そのもの（単位の喪失・消失・整形だけでは落ちない・多重度・サブディレクトリ root・`unit` 別の突き合わせ）は
+  `scripts/append-only-check.test.js` が担う。
+  **PR #398 のレビューで、行の多重集合が正本の求めるその場の更新（版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・
+  空配列への最初の追記）を「失われた行」に化けさせることが実測された**——一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で
+  突き合わせの単位を分け、誤検出で収束が止まらないようにした（回帰はテスト側の陽性・陰性コントロール両方で押さえている）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

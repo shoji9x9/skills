@@ -69,7 +69,7 @@ const baseMetadata = () => ({
 /**
  * プロジェクトの雛形を作る。
  * @param {(m: ReturnType<typeof baseMetadata>) => void} [mutate] metadata の書き換え
- * @param {{ xlsxBody?: string, extraBaselineFile?: string, specBody?: string }} [opts]
+ * @param {{ xlsxBody?: string, extraBaselineFile?: string, specBody?: string, dataset?: unknown }} [opts]
  */
 function makeProject(mutate, opts = {}) {
   const root = mkdtempSync(join(tmpdir(), "artifact-health-"));
@@ -89,7 +89,15 @@ function makeProject(mutate, opts = {}) {
     join(root, "e2e/parity/order-list/orders.spec.ts"),
     opts.specBody ?? "// orders.default.desktop.png と orders.xlsx.json を読む\n",
   );
-  writeFileSync(join(root, ".replace/dataset/metadata.json"), JSON.stringify({ version: 7 }));
+  writeFileSync(
+    join(root, ".replace/dataset/metadata.json"),
+    JSON.stringify(
+      opts.dataset ?? {
+        version: 7,
+        changes: Array.from({ length: 7 }, (_, i) => ({ version: i + 1, affects: ["orders"] })),
+      },
+    ),
+  );
 
   const metadata = baseMetadata();
   if (mutate) mutate(metadata);
@@ -123,6 +131,21 @@ test("読み手も unread_reason も無い採取物を落とす", () => {
   });
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/読み手が宣言されておらず unread_reason も空/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("read_by の字面照合は名前の一部が一致する別ファイルに当たらない", () => {
+  const { root, metadataPath } = makeProject(
+    (m) => {
+      // 展開結果（orders.xlsx.json）だけを読むスペックに、元の orders.xlsx の読み手を主張させる。
+      m.artifact_health.entries[1].read_by = ["e2e/parity/order-list/orders.spec.ts"];
+      m.artifact_health.entries[1].unread_reason = null;
+    },
+    { specBody: "// orders.default.desktop.png と orders.xlsx.json を読む\n" },
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/字面の照合で不一致.*orders\.xlsx /);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -251,6 +274,18 @@ test("artifact_health.declared: true なのに state_mutating が無ければ落
   rmSync(root, { recursive: true, force: true });
 });
 
+test("artifact_health.declared: false でも state_mutating が無ければ落とす（免除は旧成果物ではない）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health = { declared: false, reason: "視覚採取物を持たない api-resource のスイート" };
+    delete m.suite.state_mutating;
+    delete m.suite.repeat_run;
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/artifact_health を持つ成果物なのに suite\.state_mutating が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("blocking の未測定が残れば落とす（#278）", () => {
   const { root, metadataPath } = makeProject((m) => {
     m.unmeasured.entries = [
@@ -334,19 +369,118 @@ test("suite.new_green が真なのに diff-metadata.json が無ければ落と�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("diff-metadata.json の dataset_version が古ければ落とす", () => {
-  const { root, slugDir, metadataPath } = makeProject();
+/**
+ * 新側の工程が回った状態（replace-metadata.json ＋ diff-metadata.json）を作る。
+ * @param {string} slugDir
+ * @param {Record<string, unknown>} diffMeta
+ * @param {Record<string, unknown>} [replaceExtra] replace-metadata.json へ足す記録
+ */
+function writeStage(slugDir, diffMeta, replaceExtra = {}) {
   writeFileSync(
     join(slugDir, "new/local-dev/replace-metadata.json"),
-    JSON.stringify({ suite: { new_green: true } }),
+    JSON.stringify({ suite: { new_green: true }, ...replaceExtra }),
   );
-  writeFileSync(
-    join(slugDir, "new/local-dev/diff-metadata.json"),
-    JSON.stringify({ dataset_version: 6, converged: true }),
-  );
+  writeFileSync(join(slugDir, "new/local-dev/diff-metadata.json"), JSON.stringify(diffMeta));
+}
+
+/** 新側の版と反復を両成果物に記録した状態（対応づけの陽性コントロールの土台）。 */
+const CORRELATED = {
+  replace: {
+    new: { target: "local-dev", commit: "a".repeat(40), dirty: false },
+    loop: { iterations: 3 },
+  },
+  diff: { new: { target: "local-dev", commit: "a".repeat(40) }, iteration: 3 },
+};
+
+test("記録後の changes[].affects に * があれば陳腐化として落とす", () => {
+  const { root, slugDir, metadataPath } = makeProject(undefined, {
+    dataset: {
+      version: 7,
+      changes: [
+        ...Array.from({ length: 6 }, (_, i) => ({ version: i + 1, affects: ["orders"] })),
+        { version: 7, affects: ["*"] },
+      ],
+    },
+  });
+  writeStage(slugDir, { dataset_version: 6, converged: true });
   const r = run(metadataPath, ["--target", "local-dev"]);
-  expect(r.stdout).toMatch(/diff-metadata\.json が古い/);
+  expect(r.stdout).toMatch(/記録後の変更が全機能に影響する/);
   expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("版が古いだけで区間の affects に * が無ければ落とさない（交差判定は golden-dataset が正本）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, { dataset_version: 6, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/交差判定は golden-dataset の references\/versioning\.md が正本/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("changes 履歴が欠けていれば影響なしに倒さない", () => {
+  const { root, slugDir, metadataPath } = makeProject(undefined, { dataset: { version: 7 } });
+  writeStage(slugDir, { dataset_version: 6, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/changes 履歴が壊れている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("changes に欠番があれば影響なしに倒さない", () => {
+  const { root, slugDir, metadataPath } = makeProject(undefined, {
+    dataset: {
+      version: 7,
+      changes: [
+        { version: 1, affects: ["orders"] },
+        { version: 7, affects: ["orders"] },
+      ],
+    },
+  });
+  writeStage(slugDir, { dataset_version: 6, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/changes 履歴が壊れている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("投入対象でない target は dataset_version: null ＋ 免除理由で通す", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, {
+    dataset_version: null,
+    dataset_version_exempt: "選択 target に db が無いため phase B との整合を免除",
+    converged: true,
+  });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/dataset_version を免除して判定/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("dataset_version が空で免除理由も空なら落とす", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, { dataset_version: null, dataset_version_exempt: null, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/dataset_version が空で dataset_version_exempt も空/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("記録済みの版が現在より新しければ落とす（巻き戻し・破損）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, { dataset_version: 8, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/dataset_version の範囲が不正/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("dataset_version_exempt が文字列でも null でもなければ型崩れ（exit 2）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, { dataset_version: null, dataset_version_exempt: 1, converged: true });
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stderr).toMatch(/dataset_version_exempt が文字列でも null でもない/);
+  expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -489,5 +623,94 @@ test("suite が配列など型崩れなら exit 2", () => {
   const r = run(metadataPath);
   expect(r.stderr).toMatch(/suite がオブジェクトでない/);
   expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("陽性コントロール: 新側の版と反復が対応していれば工程の節を通す", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { ...CORRELATED.diff, dataset_version: 7, converged: true },
+    CORRELATED.replace,
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("前の反復の diff-metadata.json は工程の成果物として通さない", () => {
+  // データセットを変えずに parity-replace が作り直すと、dataset_version だけでは古さが出ない。
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { ...CORRELATED.diff, iteration: 2, dataset_version: 7, converged: true },
+    CORRELATED.replace,
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/前の反復のもの（iteration 2 ≠ .*loop\.iterations 3）/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("新側のコミットが変わった diff-metadata.json は通さない", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      ...CORRELATED.diff,
+      new: { target: "local-dev", commit: "b".repeat(40) },
+      dataset_version: 7,
+      converged: true,
+    },
+    CORRELATED.replace,
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("new.commit が none なら反復回数だけで判定する", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none" }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/new\.commit が none/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("new.dirty: true なら SHA が一致しても同一性の弱さを残す", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { ...CORRELATED.diff, dataset_version: 7, converged: true },
+    {
+      new: { target: "local-dev", commit: "a".repeat(40), dirty: true },
+      loop: { iterations: 3 },
+    },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/new\.dirty が true/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("対応づけの記録を片側が持たない旧成果物は判定しない（後方互換）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(slugDir, { dataset_version: 7, converged: true }, CORRELATED.replace);
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/new\.commit を片側が持たないため/);
+  expect(r.stdout).toMatch(/iteration \/ loop\.iterations を片側が持たないため/);
+  expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });

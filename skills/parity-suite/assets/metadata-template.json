@@ -67,7 +67,7 @@
     "reason": "<declared: false のときだけ、宣言しない理由（操作を持たない機能だけ）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "unmeasured": {
-    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素を消さない。検査は replace-strategy の scripts/append-only-check.mjs）。正本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
+    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う——同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。正本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
     "declared": true,
     "entries": [
       {
@@ -218,7 +218,7 @@
         "path": "<baseline_dir からの相対パス（例: orders.default.desktop.png）>",
         "kind": "<captured | derived。captured は採取そのもの、derived は採取物から作った加工物（実体を展開した JSON 等）。語彙外・欠落は未検証として数える>",
         "read_by": [
-          "<この採取物を読むスペックのパス（リポジトリルートからの相対）。検査は字面の照合で行う——そのファイルの中に path の basename が現れるかだけを見る（assertion に使っているかまでは見ない）>"
+          "<この採取物を読むスペックのパス（リポジトリルートからの相対）。検査は字面の照合で行う——そのファイルの中に path の basename がファイル名として現れるかだけを見る（前後がファイル名を構成する文字なら別ファイル扱い。orders.xlsx は orders.xlsx.json に一致しない。assertion に使っているかまでは見ない）>"
         ],
         "unread_reason": "<read_by が空のときだけ、読み手がいない理由（補助資料・決定論性を見るだけの記録など）。空だと未検証として数える。read_by があるときは null>",
         "derived_from": {
@@ -228,6 +228,6 @@
         "freshness_unverified_reason": "<kind: derived で derived_from を書けないときだけ、書けない理由。『古いかもしれない』を未検証として残す記録であり、空だと未検証として数える。derived_from があるときは null>"
       }
     ],
-    "reason": "<declared: false のときだけ、宣言しない理由（例: api-resource モードで視覚採取物を持たない）。declared: false で空だと artifact-health-check.mjs が exit 2 で落とす。declared: true では null>"
+    "reason": "<declared: false のときだけ、宣言しない理由（例: api-resource モードで視覚採取物を持たない）。declared: false で空だと artifact-health-check.mjs が exit 2 で落とす。declared: true では null。declared: false が免除するのはこの節だけで、suite.state_mutating の宣言は免除しない（artifact_health キーを持つ成果物は必ず書く）>"
   }
 }

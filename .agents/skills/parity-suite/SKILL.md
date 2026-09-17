@@ -211,6 +211,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    データ不足があれば `golden-dataset` へ戻す案内をする
 9. **採取物と工程の健全性の記録**: `metadata.json` に `artifact_health`（採取物ごとの読むスペックと「何から作ったか」）・
    `suite.state_mutating` / `suite.repeat_run`（状態を変えるスイートは 2 回続けて緑）・`unmeasured`（未測定の機械可読な宣言）を書き、
+   **視覚採取物を持たない機能（`api-resource` 等）でも `artifact_health.declared: false` ＋理由で済ませるのはこの節だけ**——
+   `suite.state_mutating` は書き込み系こそ要る側なので必ず書く（書かないと未検証として落ちる）、
    `node <skill>/scripts/artifact-health-check.mjs --metadata <metadata.json> --stage suite` を **exit 0 まで通す**（コピーせずスキル配下から実行する）。
    **`--stage suite` を省かない**——既定は `diff`（`parity-diff` の収束判定）で、`unmeasured` の `disposition: blocking` を落とす。
    blocking は「測るまで**機能を閉じさせない**」記録であって**本スキルが書く出力そのもの**なので、本スキルの完了は止めない（受け取るのは `parity-diff` の収束判定）。
