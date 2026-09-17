@@ -1,7 +1,7 @@
 ---
 date: 2026-09-17
 type: skill
-priority: medium
+priority: high
 status: pending
 applied-to: []
 session: claude-code
@@ -16,6 +16,11 @@ worktree へ移動したセッションで、次の 3 つの Bash 呼び出し�
 - heredoc でファイルを書いて `wc -l` まで繋げた複合コマンド
 - `S=<dir>` を定義して `node $S/swap-block.mjs ...` と引数を変数で組み立てた呼び出し
 - `for c in with_skill without_skill; do ... node -e ... done` のループ
+
+**同一セッションで 4 件目（記録後の再発）**: `pr-finalize-loop` のレビュー到着待ちで
+`until [ "$(gh api ... )" != "0" ] || ...; do sleep 30; done` を背景実行しようとして拒否された。
+この記録を書いた後に、同じ形（コマンド置換＋複合コマンド）を書いている——散文の記録だけでは止まらない。
+スクリプトファイルへ書き出して絶対パスで実行する形に直して通した。
 
 いずれも「git 操作が worktree の外を向いていないことを静的に確認できない」という理由で
 実行されずに戻り、絶対パスの素のコマンドへ書き直す・Write ツールへ迂回して通した（3 回の手戻り）。
@@ -33,7 +38,9 @@ worktree へ移動したセッションで、次の 3 つの Bash 呼び出し�
 
 worktree 隔離セッションでは Bash 呼び出しを 1 コマンドずつ絶対パスの素の形で書き、プログラム名と引数を変数・複合コマンド・ループで組み立てない（組み立てが必要な処理はスクリプトファイルへ書いてから絶対パスで実行する）。
 
-- 反映先: `skills/git-worktree/references/isolation.md` の「破ってはいけない前提」に 1 項目追加する
+- 反映先: `skills/git-worktree/references/isolation.md` の「破ってはいけない前提」に 1 項目追加する。
+  **散文だけでは同一セッション内でも再発した**（記録後に 4 件目）ので、待機・ポーリングを要する手順
+  （`pr-finalize-loop` のレビュー待ち等）には「スクリプトファイルへ書いて絶対パスで実行する」形の例を置く
 - 呼び出し側（`issue-start` / `issue-batch`）へは複製しない（`isolation.md` を正本にする）
 - 横断スコープ: 同じ制約は worktree を使う全フロー（`issue-batch` の連続処理・レビュー系）に効くので、
   検証コマンドを書く規律の側（基底ドキュメントの「パイプ越しの成否判定」等）にも隔離セッションでの
