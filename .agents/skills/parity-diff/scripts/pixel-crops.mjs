@@ -16,8 +16,14 @@
 // 3,364 画素あった）。そこで current / new を**しきい値なしで**突き合わせた数
 // （strict_pixels・そのうちマークされていない strict_only_pixels・最大チャンネル差は全体
 // strict_max_channel_delta と内側だけ strict_only_max_channel_delta の 2 本）を summary に併記する。
-// これは検出のやり直しではなく、既に読んでいる 2 枚の画素を数えるだけ（クラスタリング・crop は
-// 記録済みツールの出力に対して従来どおり行う）。
+// これは検出のやり直しではなく、既に読んでいる 2 枚の画素を数えるだけ。
+//
+// しきい値の内側にだけ差がある画素（strict-only）は、記録済みツールの差分画像に出ないため
+// 従来の経路ではクラスタも crop 対も作られず、**数だけ報告されて分類できない**状態になる。
+// トリアージは候補ごとの crop 対を入力にするので、数だけでは差し戻しにも分類にも進めない。
+// そこで strict-only のマスクも同じクラスタリングに掛け、crop 対を持つ候補として出す
+// （`--strict-min-cluster` 未満の孤立画素は落とし、件数は `--strict-max-regions` で上限を付けて
+// 総数も報告する。黙って捨てない）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。連結成分はラスタ走査順に発見し、最終 bbox は
 // (y, x) 昇順に整列するため入力が同じなら出力は常に同じ。
@@ -34,7 +40,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.pixel_crops に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * 差分色判定のチャンネル許容差（既定）。赤 (255,0,0) と、アンチエイリアス色として使われがちな
@@ -182,6 +188,36 @@ export function summarizePixels(
     threshold_ratio: ratio(thresholdPixels),
     strict_ratio: ratio(strictPixels),
   };
+}
+
+/**
+ * しきい値の内側にだけ差がある画素（記録済みツールがマークしなかった差）のマスクを作る。
+ * @param {Uint8Array} thresholdMask
+ * @param {Uint8Array} strictMask
+ * @returns {Uint8Array}
+ */
+export function buildStrictOnlyMask(thresholdMask, strictMask) {
+  const mask = new Uint8Array(thresholdMask.length);
+  for (let i = 0; i < mask.length; i += 1) {
+    mask[i] = strictMask[i] === 1 && thresholdMask[i] === 0 ? 1 : 0;
+  }
+  return mask;
+}
+
+/**
+ * strict-only のクラスタから出力する領域を決定論的に選ぶ。
+ * 画素数の多い順（同数なら y, x 昇順）で上限 max 件を選び、選んだものは (y, x) 昇順へ並べ直す。
+ * 上限で落とした分は呼び出し側が総数と併せて報告する（黙って捨てない）。
+ * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
+ * @param {number} max
+ */
+export function selectStrictRegions(regions, max) {
+  const ranked = [...regions].sort(
+    (a, b) => b.pixels - a.pixels || a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x,
+  );
+  const picked = ranked.slice(0, max);
+  picked.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
+  return picked;
 }
 
 /**
@@ -360,21 +396,25 @@ async function loadPng() {
 /**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
- * stdout は `{ summary, regions }`（summary はしきい値つき／なしの画素数、regions は crop 対）。
- * 差分領域があれば exit 1、無ければ exit 0、入力エラーは exit 2
- * （しきい値の内側にだけ差があるときは exit 0 のまま summary と stderr の警告で出す）。
+ * stdout は `{ summary, regions, strict_only_regions }`（summary はしきい値つき／なしの画素数、
+ * regions は記録済みツールが出した差分領域の crop 対、strict_only_regions はしきい値の内側にだけ
+ * 差がある領域の crop 対）。
+ * 分類すべき候補（どちらかの領域）があれば exit 1、無ければ exit 0、入力エラーは exit 2。
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
  */
 export async function main(argv) {
   const usage =
-    "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]\n";
+    "usage: node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>] [--strict-min-cluster <count>] [--strict-max-regions <count>]\n";
   const positionals = [];
   let out;
   let minCluster = 1;
   let pad = 8;
   let cropMargin = 24;
   let diffColor = "ff0000";
+  // strict-only はアンチエイリアスの孤立画素まで拾うため、既定のクラスタ下限を threshold 側より高くする。
+  let strictMinCluster = 4;
+  let strictMaxRegions = 20;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--out") {
@@ -391,6 +431,12 @@ export async function main(argv) {
       i += 1;
     } else if (a === "--diff-color") {
       diffColor = argv[i + 1];
+      i += 1;
+    } else if (a === "--strict-min-cluster") {
+      strictMinCluster = Number(argv[i + 1]);
+      i += 1;
+    } else if (a === "--strict-max-regions") {
+      strictMaxRegions = Number(argv[i + 1]);
       i += 1;
     } else {
       positionals.push(a);
@@ -411,6 +457,15 @@ export async function main(argv) {
     process.stderr.write(
       "error: --min-cluster must be >= 1, --pad and --crop-margin must be >= 0\n",
     );
+    return 2;
+  }
+  if (
+    !Number.isFinite(strictMinCluster) ||
+    strictMinCluster < 1 ||
+    !Number.isFinite(strictMaxRegions) ||
+    strictMaxRegions < 1
+  ) {
+    process.stderr.write("error: --strict-min-cluster and --strict-max-regions must be >= 1\n");
     return 2;
   }
   const target = hexToRgb(diffColor);
@@ -489,20 +544,70 @@ export async function main(argv) {
       crop_new: cropNewPath,
     });
   }
+  // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
+  // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
+  const strictOnlyMask = buildStrictOnlyMask(mask, strict.mask);
+  const strictClusters = filterAndMerge(
+    clusterComponents(strictOnlyMask, diff.width, diff.height),
+    strictMinCluster,
+    pad,
+  );
+  const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
+  const strictResult = [];
+  for (let i = 0; i < strictSelected.length; i += 1) {
+    const id = `s${i + 1}`;
+    const cropCurrentPath = join(out, `crop-${id}-current.png`);
+    const cropNewPath = join(out, `crop-${id}-new.png`);
+    try {
+      writeFileSync(
+        cropCurrentPath,
+        PNG.sync.write(cropImage(current, strictSelected[i].bbox, cropMargin, PNG)),
+      );
+      writeFileSync(
+        cropNewPath,
+        PNG.sync.write(cropImage(next, strictSelected[i].bbox, cropMargin, PNG)),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`error: cannot write crops: ${message}\n`);
+      return 2;
+    }
+    strictResult.push({
+      id,
+      bbox: strictSelected[i].bbox,
+      strict_pixels: strictSelected[i].pixels,
+      crop_current: cropCurrentPath,
+      crop_new: cropNewPath,
+    });
+  }
+  summary.strict_only_regions_total = strictClusters.length;
+  summary.strict_only_regions_emitted = strictResult.length;
+  summary.strict_min_cluster = strictMinCluster;
+
   // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
   // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
-  // 終了コードは差分領域の有無のままにする（自己ノイズでも strict は非ゼロになりやすく、
-  // ここを非 0 にすると常時 1 になって差分領域の有無という信号が消える）。
   if (summary.strict_only_pixels > 0) {
     process.stderr.write(
       `warning: ${summary.strict_only_pixels} pixels differ below the recorded threshold ` +
         `(max channel delta among them ${summary.strict_only_max_channel_delta}, ` +
         `overall ${summary.strict_max_channel_delta}); ` +
-        `report both numbers and compare the strict count with the noise baseline\n`,
+        `${strictClusters.length} cluster(s) >= ${strictMinCluster}px, ` +
+        `${strictResult.length} emitted as candidates; ` +
+        `report both numbers and compare the strict counts with the noise baseline\n`,
     );
   }
-  process.stdout.write(JSON.stringify({ summary, regions: result }, null, 2) + "\n");
-  return result.length > 0 ? 1 : 0;
+  if (strictClusters.length > strictResult.length) {
+    process.stderr.write(
+      `warning: ${strictClusters.length - strictResult.length} strict-only cluster(s) were not ` +
+        `emitted (--strict-max-regions ${strictMaxRegions}); raise the limit to triage them\n`,
+    );
+  }
+  process.stdout.write(
+    JSON.stringify({ summary, regions: result, strict_only_regions: strictResult }, null, 2) + "\n",
+  );
+  // 終了コードは「分類すべき候補があるか」を表す。strict-only の候補も候補なので 1 を返す
+  // （孤立画素は --strict-min-cluster で落としてあるため、自己ノイズだけで常時 1 にはならない）。
+  return result.length > 0 || strictResult.length > 0 ? 1 : 0;
 }
 
 // CLI エントリ判定は両辺を実パスに解決してから突き合わせる。

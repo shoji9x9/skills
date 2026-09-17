@@ -63,6 +63,8 @@
       "state": "<状態>",
       "viewport": "<viewport label>",
       "pixel_diff": 0,
+      "pixel_diff_strict": 0,
+      "pixel_diff_strict_only": 0,
       "trait_diffs": 0
     }
   ],
@@ -72,6 +74,8 @@
       "state": "<状態>",
       "viewport": "<viewport label>",
       "pixel_diff": 0,
+      "pixel_diff_strict": 0,
+      "pixel_diff_strict_only": 0,
       "trait_diffs": 0,
       "source": "<measured（この実行で 2 回撮って測った） | reused（前回実行の測定値を再利用した）>",
       "measured_at": "<この組を実際に測った日時（ISO 8601）。reused の組は前回値をそのまま引き継ぐ（他の組を測り直しても更新しない）>"

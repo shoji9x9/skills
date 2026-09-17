@@ -23,8 +23,11 @@
 
   - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
-  - 出力は `{ summary, regions }`。`regions[]` は従来どおり `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
-  - 終了コード 0=差分領域なし / 1=差分領域あり / 2=入力エラー。**しきい値の内側にだけ差があるときは exit 0 のまま**（自己ノイズでも厳密比較は非ゼロになりやすく、ここを非 0 にすると差分領域の有無という信号が消える）。代わりに summary と stderr の警告で出す
+  - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は従来どおり `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
+  - `strict_only_regions[]` は**しきい値の内側にだけ差がある領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
+    孤立画素は `--strict-min-cluster`（既定 4）で落とし、件数は `--strict-max-regions`（既定 20）で上限を付ける。
+    落とした分は `summary.strict_only_regions_total` と stderr の警告に残る（**黙って捨てない**。総数が上限を超えたら上限を上げて取り直す）
+  - 終了コード 0=分類すべき候補なし / 1=候補あり（`regions` か `strict_only_regions` のどちらか）/ 2=入力エラー
   - `pngjs` に依存する。記録ツールが `pixelmatch` ならプロジェクトに入っていることが多い。無ければ導入をユーザーに確認する（本スキルは勝手にインストールしない）
 
 ### 画素の量は 2 本で報告する（しきい値つき／しきい値なし）
@@ -37,8 +40,13 @@
   `strict_pixels` / `strict_ratio`（しきい値なし）、そのうちマークされていない `strict_only_pixels`、最大チャンネル差 2 本
   （差がある画素全体の `strict_max_channel_delta` と、しきい値の内側だけの `strict_only_max_channel_delta`）
 - **`diff.md` の経路別サマリに両方の数を書く**（様式は [`../assets/diff-template.md`](../assets/diff-template.md)）。片方だけを書かない
-- **`strict_only_pixels` が非ゼロなら「差分領域なし」を「一致」と読まない。** ノイズ基準値（`metadata.json.noise_baseline` の該当 page/state/viewport）と対比し、
-  基準値を超える分は候補として [`triage.md`](triage.md) の分類へ回す（対比できる基準値が無い組はノイズと断定せず未確認として残す）
+- **`strict_only_pixels` が非ゼロなら「差分領域なし」を「一致」と読まない。** 対比する相手は**同じ軸の基準値**——
+  `metadata.json.noise_baseline` の該当 page/state/viewport の `pixel_diff_strict` / `pixel_diff_strict_only` であって、しきい値つきの `pixel_diff` ではない
+  （しきい値つきの値はほぼ 0 になるため、strict の実測をそれと比べると通常の描画揺れが必ず超過になる）
+- **strict の基準値を持たない成果物（この項目の導入前に測った `noise_baseline`）では、strict の差をノイズと断定しない。**
+  `parity-suite` に基準値を測り直させるか、その組の候補を未確認として [`triage.md`](triage.md) の分類へ回す（fail-closed）
+- **`strict_only_regions[]` は crop 対を持つ候補としてトリアージへ渡す。** 数だけを報告して終えない——
+  [`triage.md`](triage.md) の入力は候補ごとの crop 対なので、crop が無い候補は分類も差し戻しもできない
 - **判断材料にも両方を渡す**（承認 UI・差し戻し）。**隠れた差の大きさを読むのは `strict_only_max_channel_delta`**——これが 1 なら「色が 1/255 違う」という形が読み取れる
   （`strict_max_channel_delta` は差がある画素全体の最大値なので、別の場所に本物の差があると 255 等になり、隠れた差の大きさとしては読めない）
 

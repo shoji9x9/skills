@@ -121,16 +121,18 @@
 
 ノイズ基準値（`metadata.json.noise_baseline`）は**現側 1 環境の測定値**であり、新側の target にそのまま流用できるとは限らない（CDN・フォント読み込み等で環境ノイズは変わる）。
 
-- **同一条件で 2 回撮り**、新側だけの撮り直し差分（page × state × viewport ごとの `pixel_diff` / `trait_diffs`）を測る（測る組の決め方は下記「測定値の再利用」）
+- **同一条件で 2 回撮り**、新側だけの撮り直し差分（page × state × viewport ごとの `pixel_diff` / `pixel_diff_strict` / `pixel_diff_strict_only` / `trait_diffs`）を測る（測る組の決め方は下記「測定値の再利用」）。
+  **画素は現側と同じ 2 本を測る**——しきい値つきだけだと、現新比較で使う strict の値に対比できる基準が無くなる（[`detect.md`](detect.md)「画素の量は 2 本で報告する」）
 - **2 回の一致は採取が決定論的である証明ではない**（2 値に転ぶ採取は 1/2 の確率でノイズ 0 になる）。両パスとも操作アダプタの「撮る対象の矩形が落ち着くまで待つ」を通して撮る
   （正本: `parity-suite` の `references/baseline.md`「撮る対象が動かなくなるまで待つ」）。通したら `noise_measurement.fingerprint.settle_wait: true` を記録する。コードを変えずに撮り直した現新差分が回ごとに跳ねるなら、実装差を追う前にこの待ちを疑う
 - 測定結果を `diff-metadata.json.noise_baseline_new` に記録する（現側 `noise_baseline` と**同じ組**。項目は現側の値に `source` / `measured_at` を加えた形。再利用した組も含めて全組を書く）
 - **現側 `noise_baseline` との乖離が大きい場合は差分報告せず停止し、ユーザーへ上げる**——新側のノイズが現側より大きいまま比較すると、
   ノイズ基準値による吸収（[`normalize.md`](normalize.md) の残余への集計適用）が実回帰を黙って飲み込む。
   乖離の要因（フォント未読み込み・アニメーション残り・遅延描画等）を潰してから撮り直す
-- **判定は page × state × viewport の組ごと**に行い、`noise_baseline_new` の `pixel_diff` / `trait_diffs` が現側の同一組の値を超えた組があれば停止する（超えた組を挙げて報告する）
+- **判定は page × state × viewport の組ごと**に行い、`noise_baseline_new` の `pixel_diff` / `pixel_diff_strict` / `pixel_diff_strict_only` / `trait_diffs` が現側の同一組の値を超えた組があれば停止する（超えた組と超えた項目を挙げて報告する）。
+  **現側に strict の値が無い成果物（項目の導入前に測った `noise_baseline`）では strict の対比を行わず**、その組を `diff.md` の未検証領域へ挙げる（無い値を 0 と読んで必ず超過にしない）
 - **旧成果物をユーザー承認の例外で続行した場合（上記「条件一致の先行検証」）は、現側との対比を行わない。** 現側のノイズで吸収しないので、実回帰を飲み込む経路自体が無いためである。
-  代わりに新側の自己ノイズは同じく組ごとに測って `noise_baseline_new` へ記録し、`pixel_diff` / `trait_diffs` が 0 でない組を `diff.md` の未検証領域へ挙げる（その組の差分は環境ノイズとして吸収せず、トリアージで 1 件ずつ分類する）
+  代わりに新側の自己ノイズは同じく組ごとに測って `noise_baseline_new` へ記録し、`pixel_diff` / `pixel_diff_strict` / `pixel_diff_strict_only` / `trait_diffs` が 0 でない組を `diff.md` の未検証領域へ挙げる（その組の差分は環境ノイズとして吸収せず、トリアージで 1 件ずつ分類する）
 - **現側の基準値を新側の実測値で上書きしない**（`metadata.json` は書き換えない。ノイズ基準値の測定は現行アプリを駆動する `parity-suite` の仕事）
 
 ### 2 回目の採取物は測定後に削除する

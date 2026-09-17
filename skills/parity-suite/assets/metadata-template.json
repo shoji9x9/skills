@@ -173,6 +173,8 @@
       "state": "<状態>",
       "viewport": "<ビューポート label>",
       "pixel_diff": 0,
+      "pixel_diff_strict": 0,
+      "pixel_diff_strict_only": 0,
       "trait_diffs": 0
     }
   ],

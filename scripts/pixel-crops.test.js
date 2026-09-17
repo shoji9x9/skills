@@ -8,9 +8,17 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/pixel-crops.mjs");
-const { buildStrictMask, summarizePixels, countInBbox, buildDiffMask, hexToRgb } = await import(
-  script
-);
+const {
+  buildStrictMask,
+  summarizePixels,
+  countInBbox,
+  buildDiffMask,
+  hexToRgb,
+  buildStrictOnlyMask,
+  selectStrictRegions,
+  clusterComponents,
+  filterAndMerge,
+} = await import(script);
 
 // RGBA バッファを作る。pixels は [r,g,b,a] の配列。
 const rgba = (pixels) => Uint8Array.from(pixels.flat());
@@ -141,4 +149,61 @@ test("crop の bbox ごとに、しきい値の内側の差を含む画素数を
   expect(countInBbox(strict.mask, 2, { x: 0, y: 0, width: 1, height: 1 })).toBe(1);
   expect(countInBbox(strict.mask, 2, { x: 1, y: 1, width: 1, height: 1 })).toBe(1);
   expect(countInBbox(strict.mask, 2, { x: 0, y: 0, width: 2, height: 2 })).toBe(2);
+});
+
+// --- strict-only の候補生成（PR #395 の codex レビュー P1）---
+// 数だけ報告すると、トリアージが入力にする crop 対が無く分類も差し戻しもできない。
+
+test("しきい値の内側だけの差もクラスタになり、候補として出せる", () => {
+  // 4x2。左上 2x2 がしきい値の内側で 1/255 違う。差分画像は 1 画素も出さない。
+  const w = 4;
+  const h = 2;
+  const cur = new Uint8Array(w * h * 4);
+  const next = new Uint8Array(w * h * 4);
+  for (let i = 0; i < w * h; i += 1) {
+    cur.set([162, 101, 36, 255], i * 4);
+    next.set([162, 101, 36, 255], i * 4);
+  }
+  for (const idx of [0, 1, 4, 5]) next[idx * 4 + 1] = 102; // 緑だけ 1/255 違う
+
+  const thresholdMask = new Uint8Array(w * h);
+  const strict = buildStrictMask(cur, next, w * h);
+  const strictOnly = buildStrictOnlyMask(thresholdMask, strict.mask);
+
+  expect([...strictOnly]).toEqual([1, 1, 0, 0, 1, 1, 0, 0]);
+
+  const clusters = filterAndMerge(clusterComponents(strictOnly, w, h), 4, 8);
+  expect(clusters).toHaveLength(1);
+  expect(clusters[0].pixels).toBe(4);
+  expect(clusters[0].bbox).toEqual({ x: 0, y: 0, width: 2, height: 2 });
+});
+
+test("しきい値でマークされた画素は strict-only から外れる", () => {
+  const thresholdMask = Uint8Array.from([1, 0, 0, 0]);
+  const strictMask = Uint8Array.from([1, 1, 0, 0]);
+
+  expect([...buildStrictOnlyMask(thresholdMask, strictMask)]).toEqual([0, 1, 0, 0]);
+});
+
+test("孤立画素は --strict-min-cluster で落ちる（アンチエイリアスで候補が溢れない）", () => {
+  const w = 4;
+  const h = 2;
+  const strictOnly = new Uint8Array(w * h);
+  strictOnly[3] = 1; // 1 画素だけ
+
+  expect(filterAndMerge(clusterComponents(strictOnly, w, h), 4, 8)).toHaveLength(0);
+  expect(filterAndMerge(clusterComponents(strictOnly, w, h), 1, 8)).toHaveLength(1);
+});
+
+test("上限を超えた候補は画素数の多い順に選ばれ、出力は (y, x) 昇順で決定論的", () => {
+  const regions = [
+    { pixels: 5, bbox: { x: 10, y: 40, width: 2, height: 2 } },
+    { pixels: 40, bbox: { x: 0, y: 30, width: 4, height: 4 } },
+    { pixels: 20, bbox: { x: 5, y: 10, width: 3, height: 3 } },
+  ];
+  const picked = selectStrictRegions(regions, 2);
+
+  expect(picked.map((r) => r.pixels)).toEqual([20, 40]); // 選抜は 40/20、並びは y 昇順
+  expect(picked.map((r) => r.bbox.y)).toEqual([10, 30]);
+  expect(selectStrictRegions(regions, 10)).toHaveLength(3);
 });
