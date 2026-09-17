@@ -351,6 +351,68 @@ test("引数に関数型を持つ宣言でも戻り値の型注釈を読む", ()
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test("export default の後の正規表現を潰す", () => {
+  // `default` を許可位置から落とすと、正規表現内のアポストロフィが文字列開始に化け、
+  // 次のアポストロフィまで（行をまたいで）潰れて違反ごと消える。
+  const source = [
+    "export default /won't/;",
+    "const value = await locator.textContent();",
+    "const other = /can't/;",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  // 右辺の起点は `this` なので、起点だけを見るとこの別名はどこにも登録されず静かに素通りする。
+  // locator 経由（チェーン中の `locator`）と page 経由（チェーン中の `page` ＋ getBy 呼び出し）は
+  // 別の判定を通るので両方当てる。
+  ["locator 経由", "const row = this.page.locator('tr');", "row.textContent()"],
+  ["page 経由", "const row = this.page.getByRole('row');", "row.textContent()"],
+])("メンバー式から束ねた別名（%s）を受け側として解決する", (_name, binding, usage) => {
+  const source = [
+    "class P {",
+    "  constructor(page) { this.page = page; }",
+    "  async r() {",
+    `    ${binding}`,
+    `    return await ${usage};`,
+    "  }",
+    "}",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  ["直接呼ぶ", "return await this.gridRows().count();"],
+  ["ローカル変数へ束ねる", "const rows = this.gridRows();\n    return await rows.count();"],
+])("戻り値注釈を持つクラスメソッド（%s）を受け側として解決する", (_name, usage) => {
+  const source = [
+    "class P {",
+    "  gridRows(): Locator { return this.page.locator('tr'); }",
+    "  async r() {",
+    `    ${usage}`,
+    "  }",
+    "}",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("由来を追えない別名はローカル変数へ束ねても判定不能にする", () => {
+  // ローカル変数へ束ねれば検査から消える、という抜け道を残さない。
+  const source = "const rows = importedHelper();\nconst value = await rows.count();";
+  const [finding] = scanSource(source);
+  expect(finding).toMatchObject({ rule: "unresolved-receiver" });
+  expect(finding.message).toMatch(/束ねた変数の由来を追えない/);
+});
+
+test("リテラル・算術を束ねた変数は判定不能にしない", () => {
+  const source = [
+    "const limit = 3;",
+    "const total = limit + 1;",
+    "const size = total.count();",
+  ].join("\n");
+  expect(scanSource(source)).toEqual([]);
+});
+
 test.each([
   ["閉じタグ 2 つ", "const ui = <A></A><B>{await locator.textContent()}</B>;"],
   ["閉じタグ 1 つ", "const ui = <A>{await locator.textContent()}</A>;"],

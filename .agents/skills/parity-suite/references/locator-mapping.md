@@ -36,9 +36,10 @@
 
 | 形 | 例 | 解決の根拠 |
 |---|---|---|
-| 引数・変数の `page` / `locator` | `page.getByRole(…)` | 名前と `: Page` / `: Locator` の型注釈、`const` / `let` / `var` の代入チェーン |
+| 引数・変数の `page` / `locator` | `page.getByRole(…)` | 名前と `: Page` / `: Locator` の型注釈 |
 | メンバー式（Page Object・画面オブジェクト） | `this.page.locator(…)` / `screen.page.waitForTimeout(…)` | チェーンの**各区間**の名前を照合する（起点が `this` や未知のオブジェクトでも、途中の `page` / `locator` で解決する） |
-| 同一ファイル内の関数呼び出し | `pagerValue(view).innerText()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>`。引数に関数型があっても読む） |
+| 束ねた別名 | `const row = this.page.locator("tr")` の `row` | 代入の右辺の**先頭チェーンの各区間**を照合する（起点だけを見ると `this` で止まる） |
+| 同一ファイル内の関数・メソッド | `pagerValue(view).innerText()` / `this.gridRows().count()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>` / クラス・オブジェクトのメソッド `f(…): Locator {`。引数に関数型があっても読む） |
 | 括弧で包んだ await | `(await pagerValue(view)).innerText()` | 括弧の中身の末尾を受け側として辿る（`Promise<Locator>` を返す関数はこれが型的に正しい呼び方） |
 
 **名前で解決できない形が混じっていて、どの区間も `page` / `locator` に解決しなかったときは
@@ -47,9 +48,10 @@
 
 | 理由 | 例 | 直し方 |
 |---|---|---|
-| 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` / `this.gridRows().count()` | 戻り値へ `Locator` / `Page` の型注釈を付ける（クラスのメソッドは読まないので、その場合はローカル変数へ束ねる） |
-| 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | 受け側をローカル変数へ束ねる（`const page = this.page;`） |
-| 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | 同上 |
+| 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` | その関数の戻り値へ `Locator` / `Page` の型注釈を付ける（別ファイルの関数なら、そのファイルに注釈があっても読めないので呼ぶ側で束ね直す） |
+| 束ねた変数の由来を追えない | `const rows = importedHelper();` の `rows` | 同上。**ローカル変数へ束ねても消えない**——束ねれば検査から外れる抜け道は作っていない |
+| 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | プロパティ名で引いた値をローカル変数へ束ねる（`const page = this.page;`） |
+| 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | `Page` / `Locator` に解決する式から引く |
 
 **逆に、チェーンのどこかが `page` / `locator` に解決すれば、同じ形でも判定不能にはしない**
 （`page["x"].locator("a").count()` は解決する）。**解決できた受け側は、規則の要求と合わなくても

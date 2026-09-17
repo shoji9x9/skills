@@ -63,10 +63,13 @@ const RULES = [
 const UNRESOLVED_RULE = "unresolved-receiver";
 /** 判定不能の理由ごとの直し方。理由を混ぜると直す側がどちらを試すか分からない。 */
 const UNRESOLVED_MESSAGES = {
-  call: "受け側を解決できない（関数呼び出しの戻り値が経路に混じる）。戻り値へ Page / Locator の型注釈を付けるか、受け側をローカル変数へ束ねる",
+  call: "受け側を解決できない（関数呼び出しの戻り値が経路に混じる）。その関数の戻り値へ Page / Locator の型注釈を付ける",
   computed:
-    "受け側を解決できない（添字アクセスでプロパティ名が読めない）。受け側をローカル変数へ束ねる",
-  opaque: "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。受け側をローカル変数へ束ねる",
+    "受け側を解決できない（添字アクセスでプロパティ名が読めない）。プロパティ名で引いた値をローカル変数へ束ねる",
+  alias:
+    "受け側を解決できない（束ねた変数の由来を追えない）。右辺の関数の戻り値へ Page / Locator の型注釈を付ける",
+  opaque:
+    "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から引く",
 };
 
 /**
@@ -90,6 +93,8 @@ const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "else",
   "yield",
   "await",
+  // `export default /re/;` も正規表現を開始できる位置。
+  "default",
 ]);
 /** 値で終わる句読点。この直後の `/` は除算である（`)` は下で個別に判定する）。 */
 const DIVISION_AFTER_PUNCTUATORS = new Set(["]", "++", "--"]);
@@ -493,29 +498,64 @@ function playwrightReceivers(code) {
   )) {
     (match[2] === "Page" ? pageCallables : locatorCallables).add(match[1]);
   }
+  // クラス・オブジェクトのメソッド宣言（`gridRows(view: Page): Locator {`）。
+  // 戻り値の型注釈は宣言の位置にしか書けないので、呼び出し側と誤って一致することはない。
+  // これを読まないと「注釈を付ける」も「ローカル変数へ束ねる」も解決に至らない。
+  for (const match of code.matchAll(
+    new RegExp(String.raw`([A-Za-z_$][\w$]*)\s*\(${params}${returnAnnotation}`, "g"),
+  )) {
+    (match[2] === "Page" ? pageCallables : locatorCallables).add(match[1]);
+  }
+
+  /** 代入の右辺の先頭にあるメンバーチェーン（引数より前）を区間に分けて返す。 */
+  const leadingChain = (rhs) => {
+    const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
+    if (head === null) return null;
+    return head[1].split(".").map((part) => part.trim());
+  };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
+  /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
+  const opaqueAliases = new Set();
   let changed = true;
   while (changed) {
     changed = false;
     for (const match of assignments) {
       const rhsStart = match.index + match[0].length;
       const rhs = code.slice(rhsStart);
-      const root = rhs.match(/^([A-Za-z_$][\w$]*)/)?.[1];
-      if (!root) continue;
+      const chain = leadingChain(rhs);
+      if (chain === null) continue;
       const target = match[1];
       const rhsStatement = rhs.split(/[;\n]/, 1)[0].trim();
+      // 起点だけでなくチェーンの各区間を見る。`const row = this.page.locator('tr')` は
+      // 起点が `this` なので、起点だけを見ると別名がどこにも登録されず静かに素通りする。
+      const hasLocator = chain.some((name) => locators.has(name) || locatorCallables.has(name));
+      const hasPage = chain.some((name) => pages.has(name) || pageCallables.has(name));
       const isLocatorExpression =
-        locators.has(root) || (pages.has(root) && /^\w+\s*\.(?:locator|getBy\w+)\s*\(/.test(rhs));
+        hasLocator || (hasPage && /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0]));
       if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
+        opaqueAliases.delete(target);
         changed = true;
-      } else if (pages.has(root) && !pages.has(target) && rhsStatement === root) {
+      } else if (hasPage && !pages.has(target) && rhsStatement === chain[0]) {
         pages.add(target);
+        opaqueAliases.delete(target);
+        changed = true;
+      } else if (
+        !hasLocator &&
+        !hasPage &&
+        !locators.has(target) &&
+        !pages.has(target) &&
+        !opaqueAliases.has(target) &&
+        // member / call / 添字のいずれかを含む右辺だけを対象にする（リテラル・算術は除く）。
+        /^\s*(?:await\s+)?[A-Za-z_$][\w$]*\s*(?:\??\.|\(|\[)/.test(rhs)
+      ) {
+        // 由来を追えない別名。ローカル変数へ束ねれば検査から消える、という抜け道を作らない。
+        opaqueAliases.add(target);
         changed = true;
       }
     }
   }
-  return { page: pages, locator: locators, pageCallables, locatorCallables };
+  return { page: pages, locator: locators, pageCallables, locatorCallables, opaqueAliases };
 }
 
 /**
@@ -531,6 +571,7 @@ function resolveReceiver(segments, receivers) {
   let kind = null;
   let hasUnknownCall = false;
   let hasComputedAccess = false;
+  let hasOpaqueAlias = false;
   for (const segment of segments) {
     if (segment.computed) hasComputedAccess = true;
     if (receivers.locator.has(segment.name) || receivers.locatorCallables.has(segment.name)) {
@@ -539,12 +580,15 @@ function resolveReceiver(segments, receivers) {
       kind = "page";
     } else if (segment.called) {
       hasUnknownCall = true;
+    } else if (receivers.opaqueAliases.has(segment.name)) {
+      // 由来を追えない別名。ローカル変数へ束ねると静かに消える、という形を残さない。
+      hasOpaqueAlias = true;
     }
   }
   return {
     kind,
-    undecidable: kind === null && (hasUnknownCall || hasComputedAccess),
-    reason: hasUnknownCall ? "call" : "computed",
+    undecidable: kind === null && (hasUnknownCall || hasComputedAccess || hasOpaqueAlias),
+    reason: hasUnknownCall ? "call" : hasOpaqueAlias ? "alias" : "computed",
   };
 }
 
