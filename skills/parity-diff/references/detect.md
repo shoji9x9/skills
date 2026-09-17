@@ -25,9 +25,12 @@
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
   - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は従来どおり `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
   - `strict_only_regions[]` は**しきい値の内側にだけ差がある領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
-    孤立画素は `--strict-min-cluster`（既定 4）で落とし、件数は `--strict-max-regions`（既定 20）で上限を付ける。
-    落とした分は `summary.strict_only_regions_total` と stderr の警告に残る（**黙って捨てない**。総数が上限を超えたら上限を上げて取り直す）
-  - 終了コード 0=分類すべき候補なし / 1=候補あり（`regions` か `strict_only_regions` のどちらか）/ 2=入力エラー
+    **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
+    先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
+  - 件数の上限は `--strict-max-regions`（既定 20）。**上限で出せなかった分も、マージ後に下限へ届かなかった分も、数を残す**
+    （`summary.strict_only_regions_total` / `strict_only_dropped_clusters` / `strict_only_dropped_pixels` ＋ stderr の警告。**黙って捨てない**）
+  - 終了コード 0=分類すべき候補なし / 1=候補あり / 2=入力エラー。**下限に届かず捨てた分が残るときも 1**（候補を出せていない＝分類できていない状態を「差が無い」と読ませない）。
+    下限を下げて候補にするか、strict 側のノイズ基準値との対比で説明を付ける
   - `pngjs` に依存する。記録ツールが `pixelmatch` ならプロジェクトに入っていることが多い。無ければ導入をユーザーに確認する（本スキルは勝手にインストールしない）
 
 ### 画素の量は 2 本で報告する（しきい値つき／しきい値なし）

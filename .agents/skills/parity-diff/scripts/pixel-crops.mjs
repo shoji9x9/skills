@@ -321,6 +321,33 @@ function unionBbox(a, b) {
 }
 
 /**
+ * **先に pad 以内でマージしてから** minCluster 未満を落とす。結果は (y, x) 昇順。
+ *
+ * strict-only はこちらを使う。`filterAndMerge`（落としてからマージ）だと、
+ * **1〜3 画素の連結成分に散る差**（細いグリフのヒンティング差・点線装飾の差など）が
+ * 近接する箱と合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロ・exit 0 になる
+ * （この PR が塞ごうとしている fail-open そのもの）。
+ *
+ * マージ後も下限に満たなかった分は捨てるが、**件数と画素数を返して呼び出し側に報告させる**
+ * （黙って捨てない）。
+ * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} components
+ * @param {number} minCluster
+ * @param {number} pad
+ * @returns {{ kept: Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>,
+ *             droppedClusters:number, droppedPixels:number }}
+ */
+export function mergeThenFilter(components, minCluster, pad) {
+  const merged = filterAndMerge(components, 1, pad);
+  const kept = merged.filter((r) => r.pixels >= minCluster);
+  const dropped = merged.filter((r) => r.pixels < minCluster);
+  return {
+    kept,
+    droppedClusters: dropped.length,
+    droppedPixels: dropped.reduce((sum, r) => sum + r.pixels, 0),
+  };
+}
+
+/**
  * minCluster 未満の成分を落とし、pad 以内で近接する bbox をマージする。結果は (y, x) 昇順。
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} components
  * @param {number} minCluster
@@ -547,11 +574,12 @@ export async function main(argv) {
   // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
   // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
   const strictOnlyMask = buildStrictOnlyMask(mask, strict.mask);
-  const strictClusters = filterAndMerge(
+  const strictClustered = mergeThenFilter(
     clusterComponents(strictOnlyMask, diff.width, diff.height),
     strictMinCluster,
     pad,
   );
+  const strictClusters = strictClustered.kept;
   const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
   const strictResult = [];
   for (let i = 0; i < strictSelected.length; i += 1) {
@@ -582,6 +610,8 @@ export async function main(argv) {
   }
   summary.strict_only_regions_total = strictClusters.length;
   summary.strict_only_regions_emitted = strictResult.length;
+  summary.strict_only_dropped_clusters = strictClustered.droppedClusters;
+  summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
   summary.strict_min_cluster = strictMinCluster;
 
   // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
@@ -602,12 +632,22 @@ export async function main(argv) {
         `emitted (--strict-max-regions ${strictMaxRegions}); raise the limit to triage them\n`,
     );
   }
+  if (strictClustered.droppedClusters > 0) {
+    process.stderr.write(
+      `warning: ${strictClustered.droppedClusters} strict-only cluster(s) ` +
+        `(${strictClustered.droppedPixels} pixels) stayed below --strict-min-cluster ` +
+        `${strictMinCluster} after merging; lower the limit to turn them into candidates\n`,
+    );
+  }
   process.stdout.write(
     JSON.stringify({ summary, regions: result, strict_only_regions: strictResult }, null, 2) + "\n",
   );
-  // 終了コードは「分類すべき候補があるか」を表す。strict-only の候補も候補なので 1 を返す
-  // （孤立画素は --strict-min-cluster で落としてあるため、自己ノイズだけで常時 1 にはならない）。
-  return result.length > 0 || strictResult.length > 0 ? 1 : 0;
+  // 終了コードは「分類すべき候補があるか」を表す。strict-only の候補も候補なので 1 を返す。
+  // 下限で捨てた分が残るときも 0 を返さない——候補を出せていない＝分類できていない状態であり、
+  // ここで 0 にすると「差が無い」と読める（この PR が塞ごうとしている fail-open に戻る）。
+  // 説明は summary の数と stderr の警告に出ているので、ノイズ基準値（strict 側）との対比で片付ける。
+  const hasCandidate = result.length > 0 || strictResult.length > 0;
+  return hasCandidate || strictClustered.droppedClusters > 0 ? 1 : 0;
 }
 
 // CLI エントリ判定は両辺を実パスに解決してから突き合わせる。

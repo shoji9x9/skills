@@ -18,6 +18,7 @@ const {
   selectStrictRegions,
   clusterComponents,
   filterAndMerge,
+  mergeThenFilter,
 } = await import(script);
 
 // RGBA バッファを作る。pixels は [r,g,b,a] の配列。
@@ -206,4 +207,37 @@ test("上限を超えた候補は画素数の多い順に選ばれ、出力は (
   expect(picked.map((r) => r.pixels)).toEqual([20, 40]); // 選抜は 40/20、並びは y 昇順
   expect(picked.map((r) => r.bbox.y)).toEqual([10, 30]);
   expect(selectStrictRegions(regions, 10)).toHaveLength(3);
+});
+
+// --- 下限未満の strict-only を黙って捨てない（PR #395 の codex レビュー 2 巡目 P1）---
+// 落としてからマージすると、1〜3 画素に散った差が合流する前に全部消え、
+// strict_only_pixels > 0 なのに候補ゼロ・exit 0 という fail-open に戻る。
+
+test("近接した 1 画素の成分は、先にマージしてから下限に掛ける", () => {
+  const components = [
+    { pixels: 1, bbox: { x: 0, y: 0, width: 1, height: 1 } },
+    { pixels: 1, bbox: { x: 3, y: 0, width: 1, height: 1 } },
+    { pixels: 1, bbox: { x: 6, y: 0, width: 1, height: 1 } },
+    { pixels: 1, bbox: { x: 9, y: 0, width: 1, height: 1 } },
+  ];
+
+  const merged = mergeThenFilter(components, 4, 8);
+  expect(merged.kept).toHaveLength(1);
+  expect(merged.kept[0].pixels).toBe(4);
+  expect(merged.droppedClusters).toBe(0);
+
+  // 同じ入力を「落としてからマージ」に掛けると 1 件も残らない（旧実装の失敗）。
+  expect(filterAndMerge(components, 4, 8)).toHaveLength(0);
+});
+
+test("マージしても下限に届かない分は件数と画素数で報告する（黙って捨てない）", () => {
+  const components = [
+    { pixels: 1, bbox: { x: 0, y: 0, width: 1, height: 1 } },
+    { pixels: 2, bbox: { x: 200, y: 200, width: 2, height: 1 } },
+  ];
+
+  const merged = mergeThenFilter(components, 4, 8);
+  expect(merged.kept).toHaveLength(0);
+  expect(merged.droppedClusters).toBe(2);
+  expect(merged.droppedPixels).toBe(3);
 });
