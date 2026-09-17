@@ -2090,4 +2090,24 @@ test("プロファイルの形式検査: enumeration.sources は強い順に並�
   expect(validateProfile(unknown, "z2.json").join("\n")).toMatch(
     /enumeration.sources に語彙外の値がある（vendor-spec）/,
   );
+
+  // 型崩れを filter で落としてから検査すると、残った要素だけが語彙・順序の検査を通り、
+  // 壊れた宣言が「適合」として配布される（実測: 42 / "" / ["app-ui"] / null はいずれも problems 0 だった）。
+  for (const [malformed, pattern] of [
+    [["current-source", 42, "app-ui"], /空でない文字列でない要素がある（42）/],
+    [["current-source", "", "app-ui"], /空でない文字列でない要素がある（""）/],
+    [["current-source", ["app-ui"]], /空でない文字列でない要素がある（\["app-ui"\]）/],
+    [["current-source", null, "app-ui"], /空でない文字列でない要素がある（null）/],
+  ]) {
+    const broken = structuredClone(base);
+    broken.enumeration.sources = malformed;
+    expect(validateProfile(broken, "z2.json").join("\n")).toMatch(pattern);
+  }
+
+  // 配列でない sources は「空」ではなく型の問題として報告する（原因を取り違えさせない）。
+  const notArray = structuredClone(base);
+  notArray.enumeration.sources = "current-source";
+  expect(validateProfile(notArray, "z2.json").join("\n")).toMatch(
+    /enumeration.sources が配列ではない/,
+  );
 });

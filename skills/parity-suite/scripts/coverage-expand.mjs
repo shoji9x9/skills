@@ -811,10 +811,21 @@ export function validateProfile(profile, source) {
   if (!enumeration) {
     at("enumeration が無い（列挙元・手順・fail-closed の扱いが宣言されていない）");
   } else {
-    const sources = Array.isArray(enumeration.sources)
-      ? enumeration.sources.filter(nonEmptyString)
-      : [];
-    if (sources.length === 0) {
+    // 型崩れ（非文字列・空文字・入れ子）を filter で落としてから検査すると、残った要素だけが
+    // 語彙・順序の検査を通り、壊れた宣言が「適合」として配布される（fail-open）。先に生の要素を見る。
+    const rawSources = Array.isArray(enumeration.sources) ? enumeration.sources : null;
+    if (rawSources === null) {
+      at("enumeration.sources が配列ではない（列挙元の kind を検査できず、どの値でも通る）");
+    }
+    const malformedSources = (rawSources ?? []).filter((v) => !nonEmptyString(v));
+    if (malformedSources.length > 0) {
+      at(
+        // 空文字と未定義を見分けられるよう、型を問わず JSON で示す（showKind は文字列をそのまま返す）。
+        `enumeration.sources に空でない文字列でない要素がある（${malformedSources.map((v) => JSON.stringify(v) ?? String(v)).join(" / ")}）`,
+      );
+    }
+    const sources = (rawSources ?? []).filter(nonEmptyString).map(String);
+    if (sources.length === 0 && rawSources !== null) {
       at("enumeration.sources が空（列挙元の kind を検査できず、どの値でも通る）");
     }
     // sources は**強い順**（SET_SOURCE_KINDS の並び）で宣言する。順序のない集合として扱うと、
