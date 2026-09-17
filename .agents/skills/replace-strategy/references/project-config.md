@@ -134,7 +134,7 @@ skills:
         # 追記する要素は追記元が分かる形で書く（要素の形の正本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが帰属不明として扱われる
         # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（照合キー）
         #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting
-        #   added_by: <golden-dataset | parity-suite | parity-replace>
+        #   added_by: <golden-dataset | parity-suite | parity-replace | parity-component>
         #   added_at: <YYYY-MM-DD>
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
