@@ -565,7 +565,10 @@ function playwrightReceivers(code) {
     const names = head[1].split(/\s*\??\.\s*/).map((part) => part.trim());
     const rest = rhs.slice(head[0].length);
     const calledIndex = /^\s*\(/.test(rest) ? names.length - 1 : null;
-    return { names, calledIndex };
+    // チェーンが呼び出し・添字で途切れたか。途切れた先は名前で追えないので、分類できなければ
+    // 「追えなかった」側（判定不能）へ倒す材料にする（純粋なプロパティ取り出しと区別する）。
+    const truncated = /^\s*[([]/.test(rest);
+    return { names, calledIndex, truncated };
   };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
   /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
@@ -590,8 +593,16 @@ function playwrightReceivers(code) {
         (name, index) =>
           pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
       );
+      // 呼ばれている区間の名前で見る経路を先に置く。テキスト照合は最初の物理行しか見ないので、
+      // 整形で折られたチェーン（`const cell = page\n  .getByRole(...)`）を取りこぼす。
+      // 区間はチェーン走査が改行をまたいで拾っているため、名前で見れば折り返しに依存しない。
+      const callsLocatorFactory =
+        chain.calledIndex !== null &&
+        /^(?:locator|frameLocator|getBy\w+)$/.test(chain.names[chain.calledIndex]);
       const isLocatorExpression =
-        hasLocator || (hasPage && /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0]));
+        hasLocator ||
+        (hasPage &&
+          (callsLocatorFactory || /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0])));
       // 呼び出しも添字も含まない純粋なプロパティ経路で、末尾が Page に解決する形（`const p = page;`
       // `const p = this.page;`）を Page として束ねる。末尾で見るのは、`const url = page.url` のように
       // Page から取り出した別の値まで Page に化けさせないため。
@@ -610,8 +621,12 @@ function playwrightReceivers(code) {
         opaqueAliases.delete(target);
         changed = true;
       } else if (
-        !hasLocator &&
-        !hasPage &&
+        // Page / Locator を含むチェーンでも、**呼び出し・添字で途切れていて**上の 2 つに当たらなければ
+        // ここへ落とす（`const cell = page.frames()[0].getByRole(...)` 等）。除外すると
+        // 「違反 0 件・判定不能 0 件」で黙って捨てられ、fail-closed のはずのゲートがその形だけ素通りする。
+        // 途切れていない純粋なプロパティ取り出し（`const timers = page.clock`）は Page でも Locator でも
+        // ない値なので、従来どおり対象外にする（判定不能にすると注釈を強いる誤検出になる）。
+        (chain.truncated || (!hasLocator && !hasPage)) &&
         !locators.has(target) &&
         !pages.has(target) &&
         !opaqueAliases.has(target) &&

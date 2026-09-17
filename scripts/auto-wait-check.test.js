@@ -541,6 +541,27 @@ test.each([
   expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
 });
 
+test.each([
+  ["locator", "const cell = page\n  .locator('table')\n  .locator('td')\n  .nth(2);"],
+  ["getBy", "const cell = page\n  .getByRole('table')\n  .getByRole('cell')\n  .nth(2);"],
+])("整形で折り返した %s チェーンの別名も Locator として解決する", (_name, binding) => {
+  // 分類をテキスト照合だけに任せると、見るのが最初の物理行（`const cell = page`）に限られ、
+  // 折り返した `.getByRole(` を取りこぼす。チェーンに `page` を含むため opaqueAliases にも入らず、
+  // 「違反 0 件・判定不能 0 件」の黙った素通りになる。
+  const source = [binding, "const text = await cell.textContent();"].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("呼び出し・添字で途切れて分類できないチェーンは判定不能にする（黙って捨てない）", () => {
+  // `frames()` の先は名前で追えない。Locator とも Page とも言えないが、**追えなかった**ことは
+  // 出力に残す——捨てると出力の件数からも取りこぼしが読めない。
+  const source = [
+    "const cell = page\n  .frames()[0]\n  .getByRole('cell')\n  .nth(1);",
+    "const text = await cell.textContent();",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["unresolved-receiver"]);
+});
+
 test("Page から取り出した別の値は Page として束ねない", () => {
   // 束ねるかどうかは末尾の区間で決める。`page.` で始まるだけで Page に化けさせると、
   // page 専用規則（fixed-wait）が Page でない受け側に当たって誤検出になる。
