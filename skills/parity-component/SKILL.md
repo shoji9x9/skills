@@ -105,7 +105,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | `references.coding_conventions` | 部品・見本を書くときに従う規約。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る |
 | `references.dependency_policy` | 依存導入の方針（**三値**。`none` と欠落を同一視しない）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
 | `new.stack` | 新側スタックの列挙。部品の候補がスタックと両立するかの判断に使う。空・欠落なら推測せずユーザーに確認し、結果を同キーへ非破壊追記する |
-| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。発見した差は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（`slug` は対象の部品 slug、`added_by: parity-component`、`added_at` に追記日）。`keep` / `may_change` へ移すのは人間。**例外は静的資産で「同等物を作る」を選んだときの宣言**で、ユーザー承認後に `may_change` へ非破壊追記する（`pending` を経由しない。正本は `replace-strategy` の `references/static-assets.md`） |
+| `intentional_diffs.{keep,may_change,pending}` | 意図的差異レジストリ。発見した差は `pending` へ**追記元が分かる形で**非破壊追記しユーザー確認（差異の文言は **`item`**〈照合キー〉、`slug` は対象の部品 slug、`added_by: parity-component`、`added_at` に追記日の 4 キー。`item` を別のキー名で書くと追記時は通り、数工程あとの `parity-diff` の棚卸しで「`item` が空」として現れる）。`keep` / `may_change` へ移すのは人間。**例外は静的資産で「同等物を作る」を選んだときの宣言**で、ユーザー承認後に `may_change` へ非破壊追記する（`pending` を経由しない。正本は `replace-strategy` の `references/static-assets.md`） |
 | `component_diffs` | テーマで消せない構造差の系統差レジストリ。**宣言の正本は `parity-replace`**（`references/theming.md`）。本スキルは**読んで照合の正規化に使うだけ**で、書くときは同じ手順（ユーザー確認）を通す |
 | `artifacts.{retention,storage,size_threshold_mb,overrides.<slug>}` | 大きなバイナリの保存先既定と部品ごとの上書き |
 | `verification_commands` | 実装・見本に通す検証コマンド。**通すのは `full`（全体走査）**。`full` キーが無いか、**`verification_commands` 自体の値がリスト**（旧形式＝走る範囲が未宣言）なら **`build` の完了判定が成立しないため停止する**。**`full` の値がコマンドのリストであるのは新形式であり正常**（`full` / `diff` の 2 列に分かれていれば移行済み。判別の正本はスキーマ文書「`verification_commands` の形の変更」） |

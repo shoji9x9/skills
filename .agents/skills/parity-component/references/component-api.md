@@ -69,4 +69,4 @@ node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out 
 
 - 引数ごとに「対応する軸」「値の集合」「既定値」「既定値の根拠となったインスタンス」を書く
 - **引数にしなかった `variable` の軸は、理由とともに全件残す**（後から「なぜこの差を吸収したのか」を追えるようにする）
-- ユーザー確認へ回した差は `intentional_diffs.pending` の追記と対応づける（`slug` / `added_by` / `added_at` の形は `replace-strategy` の `references/project-config.md` が正本）
+- ユーザー確認へ回した差は `intentional_diffs.pending` の追記と対応づける（差異の文言は照合キーの `item` に書く。`item` / `slug` / `added_by` / `added_at` の形は `replace-strategy` の `references/project-config.md` が正本）

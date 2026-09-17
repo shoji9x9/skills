@@ -159,7 +159,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 | 区分 | キー | 書き込み |
 |---|---|---|
 | **人間が確定させる方針** | `current`（`origin` / `received_assets` / `feedback_calls` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` / `current.feedback_calls` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉、静的資産で「同等物を作る」を選んだときの `intentional_diffs.may_change` へのユーザー承認済み宣言〈`replace-strategy` の `setup` / `parity-replace` / `parity-component` が非破壊追記。正本は [`static-assets.md`](static-assets.md)〉。`setup` の再実行を待たずに追記する） |
-| **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
+| **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` / `parity-component` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
 
 - **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が（`component` に glob を書けば）全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
   slug ごとに分けると同じ宣言が slug 数だけ複製されるため、slug 成果物側へ移さない
@@ -703,7 +703,7 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 |---|---|---|
 | `item` | 必須 | 散文の宣言。**照合キー**であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
 | `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける** |
-| `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace`）。旧形式からの移行で復元できないものだけ `unknown` |
+| `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown` |
 | `added_at` | 必須 | 追記日（`YYYY-MM-DD`）。旧形式からの移行で復元できないものだけ `unknown`（推測の日付を書かない） |
 
 - **`cross-cutting` は予約語**である。機能 slug に使わない（使うと横断の追記と機能の追記が区別できなくなる）
