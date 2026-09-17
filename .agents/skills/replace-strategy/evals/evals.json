@@ -340,6 +340,18 @@
         "既存 Issue の本文追記は外向きの副作用なので差分を提示して承認を得てから行うとし、承認の無いまま gh issue edit を実行していない",
         "突き合わせの結果を features.md の「受け入れ条件」列へ書き分けている——notification-banner は 未被覆（空欄＝未突き合わせと同じ表記にしていない）、report は被覆した Issue 番号、order は番号に落ちた配線の併記（配線未達: user）を添えている"
       ]
+    },
+    {
+      "id": 31,
+      "fixture": "evals/fixtures/issues-acceptance-split-row",
+      "prompt": "replace-strategy issues での起票は一通り終わった。注文管理はページ単位で 2 本に割ってある（#210 が /orders、#211 が /orders/:id）。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#201（横断 API user）: user の API スイートが新側で green・強度記録を残すこと。\n#210（注文管理 フェーズ 1）: order の /orders のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。なお notification-banner は対象外（別途扱う）。\n#211（注文管理 フェーズ 2）: order の /orders/:id のパリティスイートが新側で green・未説明差分ゼロ。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
+      "assertions": [
+        "order が #210 と #211 の両方に現れることを二重として 1 つへ減らさず、意図した分割として両方の Issue 番号を残している",
+        "分割の確認を slug の一致で済ませず、ページ（/orders と /orders/:id）を部分の母集合として集合差分を取り、両方が引き受けられているため覆われない部分は無いと判定している",
+        "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を被覆に数えず落ちた行（未被覆）として名指ししている",
+        "横断 API user の配線を部分ごとに見て、/orders/:id を引き受ける #211 に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、配線項のある #210 は落ちた配線として挙げていない",
+        "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は両番号に落ちた配線の併記（例 #210, #211（配線未達: user））、notification-banner は 未被覆、user は #201"
+      ]
     }
   ]
 }

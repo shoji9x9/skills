@@ -103,5 +103,14 @@ scripts/run-skill-eval.sh \
   1 run なので Delta の数値は語らず、**baseline も通った assertion 1〜3・5 は後退検知**の項目として残している
   （assertion 5 は「承認を得てから本文を追記する」で、baseline も `gh` が使えないことを理由に外向き操作を控えたため通った。
   この eval の意味のある Delta は 4・6 の 2 本と数える）
+- eval 31 の fixture（`issues-acceptance-split-row`）は**1 行を複数 Issue へ割った状態**を持たせ、eval 30 が作らない 3 つの分岐を検証する——
+  **意図した分割を重複として潰さない**・**部分（ページ）単位の集合差分**・**否定の言及を被覆に数えない**。
+  仕込みは 3 つ: `order` は #210（/orders）と #211（/orders/:id）に割ってあり**部分は覆えている**（ここを落ちた行にすると fail）、
+  `#211` には横断 API `user` の配線項が無い（**#210 にはある**ので、配線を行単位で見ると穴が消える）、
+  `notification-banner` は `#210` の受け入れ条件に「対象外」として**現れるだけ**（出現を被覆に数えると落ちた行が消える）。
+  assertion 2・4 は正常な側（覆えている部分・配線のある #210）を挙げないことまで見る弁別になっている。
+  **iteration-33 で `with_skill` のみ実測**（claude-code / opus）: 5/5。**`without_skill` は未実走**——
+  同 iteration の baseline run が nested executor の利用上限（`You've hit your session limit`）で exit 1 になり成果物を得ていない。
+  **この eval の Delta は未測定**で、5/5 は到達性（新設した 3 分岐に届くか）の確認に留まる。baseline は上限解除後に取り直す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
