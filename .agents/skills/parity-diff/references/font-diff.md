@@ -14,6 +14,16 @@
 
 出典: [head](https://learn.microsoft.com/en-us/typography/opentype/spec/head) / [prep](https://learn.microsoft.com/en-us/typography/opentype/spec/prep)（OpenType spec）
 
+## フォントの話へ入る前に確かめること
+
+**幅の差が 0.1px 前後だと、書体の版とヒンティングの切り分けへ進みたくなる。** その前に、差が**フォント以外**で説明できないかを 2 つだけ見る（どちらも採取物を読むだけで済む）。
+
+- **名前を付けた要素の差なら、採取物の `child_inline_styles`（`parity-suite` の trait-capture.mjs が採る 1 段下の子の inline style）を読む。**
+  **要素自身の計算値が全一致でも、子の inline style が見た目を変えている**ことがある（実測: `<a><span style="font-weight: bold;">Back</span></a>` で 34 プロパティが全一致のまま画素差 62・要素の幅 71.125px / 71px）。
+  現・新で `child_inline_styles` が食い違うなら、それは**フォント差ではなく装飾の乗り場所の差**で、切り分けへ進まず `parity-replace` へ差し戻す
+- **本経路（`metadata.json.differ` に記録した手段による検出）の外で撮った 2 枚を根拠にしていないか確かめる。** 撮影条件が揃っていない 2 枚は、部品が同じでも画素差を出す
+  （正本は [`triage.md`](triage.md)「本経路の外で撮って比べるときは撮影条件を先に並べる」）
+
 ## 切り分けの手順
 
 1. **現・新が実際に読み込んだフォントファイルを特定する。** ベースラインに含めたネットワークログ（`parity-suite` の 3 点セットの補助）と、必要なら `document.fonts` の解決結果を使う。CSS のフォントスタック宣言だけで判断しない（実際に解決されたファイルが正）

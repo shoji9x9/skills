@@ -56,5 +56,11 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   正本だけで答えられること（原因単位で保留を立てる・承認を省かない・未解決の保留があれば収束させない・終わりにまとめて聞く）は assertion にしない（iteration-25 で without_skill も到達し弁別しなかった）。
   対象は parity-diff 側にだけある判断——要対応が残るときの収束状態（判断待ちではなく未収束）・承認前の候補を未説明に数えること・棚卸しを自律で `carried_over` にしないこと・記録先（`pending_decisions[]` と `diff.md` の節）。
   プロンプトには状態名・スクリプト名・節名を書かない
+- eval 25 は画素の量の報告（Issue #384）の回帰。しきい値つきの数だけを見て「ほぼ一致」と要約し収束扱いにする案を押し戻せるかを見る。
+  しきい値の内側に差が隠れること・しきい値なしの数の併記・`diff.md` への両方の記載・ノイズ基準値との対比・他 2 経路が色の微差を見ないことを対象にする。
+  しきい値つき／なしの計数そのものは `scripts/pixel-crops.test.js` が担う
+- eval 26 は本経路の外で撮った 2 枚の扱い（Issue #384）の回帰。別々の画面から切り出した 2 枚の画素差を根拠に差し戻す案を押し戻せるかを見る。
+  **弁別は 1 件（条件が揃うまで要対応として `diff.md` に書かない）だけで、主に後退検知**——`without_skill` も CSS のクランプ規則と撮影条件の不一致から同じ結論へ自力で到達する（iteration-28）。
+  初版の assertion は「両側の矩形を並べて出す」「`child_inline_styles` を読む」を要求しており、**本経路で撮り直すという正しい答えが不合格になる**形だったので直した（前者は撮り直しでも通る形へ、後者は `parity-suite` の eval 37 へ移した）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

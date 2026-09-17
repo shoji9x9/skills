@@ -10,6 +10,15 @@
 // ツール出力のクラスタリングと crop 切り出しだけを行う（差分器を再実装しない）。
 // これは「検出は決定論的ツールの仕事、モデルの仕事は分類だけ」の設計を、画素経路で担保する足場。
 //
+// ただし**画素の量は 2 本で報告する**。記録済みツールのしきい値（pixelmatch の threshold 等）は
+// 許容の内側の差を**総量にも件数にも出さない**ため、その 1 本だけを報告すると
+// 小さな数が「ほぼ一致」と読まれる（実測: 報告 756 画素・0.0569% の裏に、緑が 1/255 違う画素が
+// 3,364 画素あった）。そこで current / new を**しきい値なしで**突き合わせた数
+// （strict_pixels・そのうちマークされていない strict_only_pixels・最大チャンネル差は全体
+// strict_max_channel_delta と内側だけ strict_only_max_channel_delta の 2 本）を summary に併記する。
+// これは検出のやり直しではなく、既に読んでいる 2 枚の画素を数えるだけ（クラスタリング・crop は
+// 記録済みツールの出力に対して従来どおり行う）。
+//
 // 決定論的: 乱数・現在時刻に依存しない。連結成分はラスタ走査順に発見し、最終 bbox は
 // (y, x) 昇順に整列するため入力が同じなら出力は常に同じ。
 // PNG デコード/エンコードは pngjs を使う（pixel_tool が pixelmatch ならプロジェクトに入っていることが多い。
@@ -25,7 +34,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.pixel_crops に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * 差分色判定のチャンネル許容差（既定）。赤 (255,0,0) と、アンチエイリアス色として使われがちな
@@ -80,6 +89,116 @@ export function buildDiffMask(data, width, height, target, tol) {
     mask[i] = isDiffPixel(data[o], data[o + 1], data[o + 2], target, tol) ? 1 : 0;
   }
   return mask;
+}
+
+/**
+ * current / new の RGBA バッファを**しきい値なしで**突き合わせ、厳密差分マスクと最大チャンネル差を返す。
+ * 記録済みツールのしきい値が飲んだ差（許容の内側）はこちらにだけ現れる。
+ *
+ * 最大チャンネル差は**全体**（`maxChannelDelta`）と**しきい値の内側だけ**（`maxStrictOnlyChannelDelta`）の
+ * 2 本を返す。全体の 1 本だけだと、別の場所に本物の差（チャンネル差 255 等）があるときその値が
+ * 「しきい値の内側に隠れた差の大きさ」として読まれる（隠れた差は 1/255 なのに 255 と報告される）。
+ * `thresholdMask` を渡さない呼び出しでは内側の集合が定まらないため `null` を返す。
+ *
+ * @param {Uint8Array | Buffer} currentData - 長さ width*height*4 の RGBA
+ * @param {Uint8Array | Buffer} nextData - 同上
+ * @param {number} pixels - width*height
+ * @param {Uint8Array | null} [thresholdMask] - 差分画像から作ったマスク（しきい値の内側を切り分けるため）
+ * @returns {{ mask: Uint8Array, count: number, maxChannelDelta: number, maxStrictOnlyChannelDelta: (number|null) }}
+ */
+export function buildStrictMask(currentData, nextData, pixels, thresholdMask = null) {
+  const mask = new Uint8Array(pixels);
+  let count = 0;
+  let maxChannelDelta = 0;
+  let maxStrictOnlyChannelDelta = 0;
+  for (let i = 0; i < pixels; i += 1) {
+    const o = i * 4;
+    let pixelDelta = 0;
+    for (let c = 0; c < 4; c += 1) {
+      const delta = Math.abs(currentData[o + c] - nextData[o + c]);
+      if (delta > pixelDelta) pixelDelta = delta;
+    }
+    const differs = pixelDelta > 0 ? 1 : 0;
+    mask[i] = differs;
+    count += differs;
+    if (differs === 1) {
+      if (pixelDelta > maxChannelDelta) maxChannelDelta = pixelDelta;
+      if (
+        thresholdMask !== null &&
+        thresholdMask[i] === 0 &&
+        pixelDelta > maxStrictOnlyChannelDelta
+      ) {
+        maxStrictOnlyChannelDelta = pixelDelta;
+      }
+    }
+  }
+  return {
+    mask,
+    count,
+    maxChannelDelta,
+    maxStrictOnlyChannelDelta: thresholdMask === null ? null : maxStrictOnlyChannelDelta,
+  };
+}
+
+/**
+ * しきい値つき（記録済みツールの差分画像）としきい値なし（厳密比較）の画素数を並べた summary を返す。
+ * `strict_only_pixels` が**許容の内側に隠れた差**——ここが非ゼロなら、差分領域が 0 件でも
+ * 「一致」とは読めない（ノイズ基準値と対比して分類する。判断は呼び出し側＝トリアージが行う）。
+ * @param {Uint8Array} thresholdMask - 差分画像から作ったマスク
+ * @param {Uint8Array} strictMask - 厳密比較のマスク
+ * @param {number} maxChannelDelta - 差がある画素**全体**の最大チャンネル差
+ * @param {number|null} [maxStrictOnlyChannelDelta] - **しきい値の内側だけ**の最大チャンネル差
+ *   （`buildStrictMask` に `thresholdMask` を渡した呼び出しでのみ定まる。渡していなければ null）
+ * @returns {{ total_pixels:number, threshold_pixels:number, strict_pixels:number,
+ *             strict_only_pixels:number, strict_max_channel_delta:number,
+ *             strict_only_max_channel_delta:(number|null),
+ *             threshold_ratio:number, strict_ratio:number }}
+ */
+export function summarizePixels(
+  thresholdMask,
+  strictMask,
+  maxChannelDelta,
+  maxStrictOnlyChannelDelta = null,
+) {
+  const total = thresholdMask.length;
+  let thresholdPixels = 0;
+  let strictPixels = 0;
+  let strictOnly = 0;
+  for (let i = 0; i < total; i += 1) {
+    if (thresholdMask[i] === 1) thresholdPixels += 1;
+    if (strictMask[i] === 1) {
+      strictPixels += 1;
+      if (thresholdMask[i] === 0) strictOnly += 1;
+    }
+  }
+  const ratio = (n) => (total === 0 ? 0 : Number(((n / total) * 100).toFixed(4)));
+  return {
+    total_pixels: total,
+    threshold_pixels: thresholdPixels,
+    strict_pixels: strictPixels,
+    strict_only_pixels: strictOnly,
+    strict_max_channel_delta: maxChannelDelta,
+    strict_only_max_channel_delta: maxStrictOnlyChannelDelta,
+    threshold_ratio: ratio(thresholdPixels),
+    strict_ratio: ratio(strictPixels),
+  };
+}
+
+/**
+ * bbox の内側で mask が立っている画素数を数える。
+ * @param {Uint8Array} mask
+ * @param {number} width
+ * @param {{ x:number, y:number, width:number, height:number }} bbox
+ * @returns {number}
+ */
+export function countInBbox(mask, width, bbox) {
+  let count = 0;
+  for (let y = bbox.y; y < bbox.y + bbox.height; y += 1) {
+    for (let x = bbox.x; x < bbox.x + bbox.width; x += 1) {
+      if (mask[y * width + x] === 1) count += 1;
+    }
+  }
+  return count;
 }
 
 /**
@@ -241,7 +360,9 @@ async function loadPng() {
 /**
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
- * 差分領域があれば exit 1、無ければ exit 0、入力エラーは exit 2。
+ * stdout は `{ summary, regions }`（summary はしきい値つき／なしの画素数、regions は crop 対）。
+ * 差分領域があれば exit 1、無ければ exit 0、入力エラーは exit 2
+ * （しきい値の内側にだけ差があるときは exit 0 のまま summary と stderr の警告で出す）。
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
  */
@@ -328,6 +449,13 @@ export async function main(argv) {
     return 2;
   }
   const mask = buildDiffMask(diff.data, diff.width, diff.height, target, DEFAULT_COLOR_TOLERANCE);
+  const strict = buildStrictMask(current.data, next.data, current.width * current.height, mask);
+  const summary = summarizePixels(
+    mask,
+    strict.mask,
+    strict.maxChannelDelta,
+    strict.maxStrictOnlyChannelDelta,
+  );
   const regions = filterAndMerge(clusterComponents(mask, diff.width, diff.height), minCluster, pad);
   try {
     mkdirSync(out, { recursive: true });
@@ -356,11 +484,24 @@ export async function main(argv) {
       id,
       bbox: regions[i].bbox,
       pixels: regions[i].pixels,
+      strict_pixels: countInBbox(strict.mask, current.width, regions[i].bbox),
       crop_current: cropCurrentPath,
       crop_new: cropNewPath,
     });
   }
-  process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
+  // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
+  // 終了コードは差分領域の有無のままにする（自己ノイズでも strict は非ゼロになりやすく、
+  // ここを非 0 にすると常時 1 になって差分領域の有無という信号が消える）。
+  if (summary.strict_only_pixels > 0) {
+    process.stderr.write(
+      `warning: ${summary.strict_only_pixels} pixels differ below the recorded threshold ` +
+        `(max channel delta among them ${summary.strict_only_max_channel_delta}, ` +
+        `overall ${summary.strict_max_channel_delta}); ` +
+        `report both numbers and compare the strict count with the noise baseline\n`,
+    );
+  }
+  process.stdout.write(JSON.stringify({ summary, regions: result }, null, 2) + "\n");
   return result.length > 0 ? 1 : 0;
 }
 

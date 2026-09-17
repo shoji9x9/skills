@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T06:51:54.993Z",
+    "evals_run": [25],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 25,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 76.941,
+        "tokens": 208007,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "しきい値つきの比較器が返す数は許容の内側の差を総量にも件数にも出さないため、その 1 本だけを「差の量」として報告しないと述べている",
+          "passed": true,
+          "evidence": "「pixelmatch の threshold 0.1 つきの計数。しきい値の内側の差は総量にも件数にも出ないので、1 本だけ書くと小さな数が『ほぼ一致』と読まれます」と述べ、detect.md の実測例を引用している"
+        },
+        {
+          "text": "しきい値なしで数えた画素数（pixel-crops.mjs の summary の strict_pixels / strict_only_pixels 等）を併記し、diff.md の経路別サマリに両方の数を書くと述べている",
+          "passed": true,
+          "evidence": "「pixel-crops.mjs の summary から両方を写すこと — threshold_pixels / threshold_ratio と strict_pixels / strict_ratio / strict_only_pixels」、進め方 4 で「diff.md の経路別サマリには両方の数を書き」と述べている"
+        },
+        {
+          "text": "しきい値の内側にだけ差がある場合は差分領域 0 件でも「一致」と読まず、ノイズ基準値と対比して分類へ回すと述べている",
+          "passed": true,
+          "evidence": "「strict_only_pixels が非ゼロなら差分領域 0 件でも『一致』と書かず、noise_baseline の該当 page/state/viewport と対比します」"
+        },
+        {
+          "text": "「ほぼ一致」という要約をそのままユーザーへ渡さず、判断材料には両方の数を渡すと述べている",
+          "passed": true,
+          "evidence": "「『ほぼ一致』『もう同じに見える』というモデル／人の読みは根拠になりません」とし、判定は差分器に出させ両方の数を報告すると述べている"
+        },
+        {
+          "text": "色が 1/255 違う程度の差は特性照合（論理名の無い要素は見ない）にも手書きの aria（色を見ない）にも出ないため、この経路で数えないと誰も見ないことに触れている",
+          "passed": true,
+          "evidence": "detect.md の実測例を引いて「枠色の緑が 1/255 違う画素が別に 3,364 画素あり、特性照合〈その要素に論理名が無い〉も手書きの aria〈色を見ない〉も見ていなかった」と説明し、他 2 経路の結果も揃える必要を述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 25,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 84.846,
+        "tokens": 78289,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "しきい値つきの比較器が返す数は許容の内側の差を総量にも件数にも出さないため、その 1 本だけを「差の量」として報告しないと述べている",
+          "passed": false,
+          "evidence": "% の分母が大きいことと includeAA の既定を論点にし、しきい値の内側に差が隠れる性質には触れていない（逆に 756px を実差分寄りと読んでいる）"
+        },
+        {
+          "text": "しきい値なしで数えた画素数（pixel-crops.mjs の summary の strict_pixels / strict_only_pixels 等）を併記し、diff.md の経路別サマリに両方の数を書くと述べている",
+          "passed": false,
+          "evidence": "提案する記載項目は手法・差分画素・crop 件数・分類で、しきい値なしの計数は出てこない"
+        },
+        {
+          "text": "しきい値の内側にだけ差がある場合は差分領域 0 件でも「一致」と読まず、ノイズ基準値と対比して分類へ回すと述べている",
+          "passed": false,
+          "evidence": "ノイズ基準値との対比に言及がなく、補助指標として最大連結成分のサイズを提案している"
+        },
+        {
+          "text": "「ほぼ一致」という要約をそのままユーザーへ渡さず、判断材料には両方の数を渡すと述べている",
+          "passed": false,
+          "evidence": "「『ほぼ一致』という主観語は避けたい」とは述べるが、渡す数は 1 本（threshold つき）のままで両方の数に触れていない"
+        },
+        {
+          "text": "色が 1/255 違う程度の差は特性照合（論理名の無い要素は見ない）にも手書きの aria（色を見ない）にも出ないため、この経路で数えないと誰も見ないことに触れている",
+          "passed": false,
+          "evidence": "3 経路の分担に触れず、crop の目視分類（cosmetic / structural）で判定する案を出している"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 76.941,
+        "stddev": 0.0,
+        "min": 76.941,
+        "max": 76.941
+      },
+      "tokens": {
+        "mean": 208007.0,
+        "stddev": 0.0,
+        "min": 208007,
+        "max": 208007
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "time_seconds": {
+        "mean": 84.846,
+        "stddev": 0.0,
+        "min": 84.846,
+        "max": 84.846
+      },
+      "tokens": {
+        "mean": 78289.0,
+        "stddev": 0.0,
+        "min": 78289,
+        "max": 78289
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "-7.9",
+      "tokens": "+129718"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。",
+    "同じ iteration で eval 26 の初版も走らせたが、assertion 2 件が場面と噛み合わず（本経路で撮り直す答えが不合格になる形）with 4/6・without 4/6 で弁別 0 だった。assertion を直して iteration-28 で取り直している。"
+  ]
+}
