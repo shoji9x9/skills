@@ -689,22 +689,36 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
 //
 // | 直前              | 判定           |
 // |-------------------|----------------|
-// | `await` / `yield`（素の語） | 走査不能（例外） |
+// | `await` / `yield`（素の語）＋ 次が `/` | 走査不能（例外）＝唯一の曖昧形 |
+// | `await` / `yield`（素の語）＋ 次が被演算子 | 前置の否定（キーワード）。止めない |
+// | `await` / `yield`（素の語）＋ 次がコメント | 演算子でないので止めない |
 // | `obj.await`（プロパティ名） | 従来どおり後置扱い |
 // | `await` の通常利用（`!` を伴わない） | 従来どおりキーワード |
 //
-// 変異による検出能力の実証: `CONTEXTUAL_VALUE_KEYWORDS.has(...)` を `false`（＝修正前の挙動）に戻すと 3 件 fail。
-// 修正前は `const x = await! / d; const v = locator.textContent(); const y = a / e;` が違反 0 件・判定不能 0 件で
-// exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
+// 変異による検出能力の実証:
+//   - `CONTEXTUAL_VALUE_KEYWORDS.has(...)` を `false`（＝修正前の挙動）に戻すと 3 件 fail。
+//     修正前は `const x = await! / d; const v = locator.textContent(); const y = a / e;` が違反 0 件・判定不能 0 件で
+//     exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
+//   - `startsAmbiguousSlash(...)` を `true`（曖昧形を絞らず常に止める）にすると 3 件 fail、
+//     `false`（止めない）にすると 3 件 fail。止める範囲が広すぎず狭すぎないことを両側から測れている。
 
 test.each([["await"], ["yield"]])(
-  "%s の直後の `!` は前置とも後置とも読めるので走査を止める",
+  "%s の直後の `!` に `/` が続く形は正規表現とも除算とも読めるので走査を止める",
   (keyword) => {
     const source = `const locator = page.locator('.x');\nconst x = ${keyword}! / d; const v = locator.textContent(); const y = a / e;\n`;
     // 倒すと textContent の読み取りがマスクに飲まれて「違反 0 件」になる。
-    expect(() => scanSource(source)).toThrow(/前置の否定とも後置の非 null とも読める/);
+    expect(() => scanSource(source)).toThrow(/正規表現の開始.+除算/);
   },
 );
+
+test.each([
+  ["被演算子が続く前置の否定", "const ready = await !Promise.resolve(false);"],
+  ["括弧が続く前置の否定", "const ready = await !(flag && other);"],
+  ["行コメントが続く", "const ready = await! // 末尾コメント\n"],
+])("%s は曖昧でないので走査を止めない", (_name, line) => {
+  const source = `const locator = page.locator('.x');\n${line}\nconst v = await expect(locator).toBeVisible();\n`;
+  expect(() => scanSource(source)).not.toThrow();
+});
 
 test("プロパティ名の await は従来どおり値として扱う（走査を止めない）", () => {
   const source = `const locator = page.locator('.x');\nconst x = opts.await! / d; const v = locator.textContent(); const y = a / e;\n`;
@@ -731,5 +745,5 @@ test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる
   const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
   expect(result.status).toBe(2);
   expect(result.stderr).toMatch(/走査不能/);
-  expect(result.stderr).toMatch(/前置の否定とも後置の非 null とも読める/);
+  expect(result.stderr).toMatch(/正規表現の開始.+除算/);
 });

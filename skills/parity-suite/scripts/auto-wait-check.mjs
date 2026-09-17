@@ -217,6 +217,24 @@ function regexLiteralEnd(source, start) {
 }
 
 /**
+ * `from` 以降の最初の非空白が、正規表現とも除算とも読める `/` か。
+ *
+ * 文脈依存キーワード（`await` / `yield`）の直後の `!` は、続くトークンの形で前置・後置が決まる
+ * （被演算子が続けば前置の否定、演算子が続けば後置の非 null）。唯一決まらないのが `/` で、
+ * 前置なら正規表現の開始、後置なら除算になる。コメントの `//` `/*` は演算子ではないので除く。
+ * @param {string} source
+ * @param {number} from
+ * @returns {boolean}
+ */
+function startsAmbiguousSlash(source, from) {
+  let k = from;
+  while (k < source.length && /\s/.test(source[k])) k += 1;
+  if (source[k] !== "/") return false;
+  const next = source[k + 1];
+  return next !== "/" && next !== "*";
+}
+
+/**
  * コメント・文字列・テンプレート文字列・正規表現リテラルを空白へ置換し、行・桁位置を保つ。
  * 判定不能な終端はエラーにする（走査できなかったファイルを違反 0 件へ倒さない）。
  */
@@ -368,17 +386,20 @@ export function maskNonCode(source) {
       }
       if (c === "!") {
         // `await` / `yield` は文脈依存キーワードで、script / CommonJS では識別子にもなる。
-        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かはここでは決められず、
-        // 前置に倒すと続く `/` から次の `/` までがマスクされて、その間の違反が黙って消える。
-        // 走査できないファイルとして落とす（判定不能を違反 0 件へ倒さない）。
+        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かは、**次のトークンの形**で決まる:
+        // 被演算子が続けば前置（`await !Promise.resolve(x)`）、演算子が続けば後置（`await! / d`）。
+        // 曖昧なのは次が `/` のときだけ——前置なら正規表現の開始、後置なら除算で、
+        // 前置に倒すと次の `/` までがマスクされてその間の違反が黙って消える。
+        // そこだけ走査できないファイルとして落とす（判定不能を違反 0 件へ倒さない）。
         if (
           lastToken !== null &&
           lastToken.type === "word" &&
           !lastToken.member &&
-          CONTEXTUAL_VALUE_KEYWORDS.has(lastToken.value)
+          CONTEXTUAL_VALUE_KEYWORDS.has(lastToken.value) &&
+          startsAmbiguousSlash(source, i + 1)
         ) {
           throw new Error(
-            `${lastToken.value} の直後の \`!\` は前置の否定とも後置の非 null とも読める（${lastToken.value} を識別子に使わないか、括弧で区切る）`,
+            `${lastToken.value} の直後の \`!\` と \`/\` は「正規表現の開始」とも「非 null の後の除算」とも読める（${lastToken.value} を識別子に使わないか、括弧で区切る）`,
           );
         }
         lastToken = { type: "punct", value: "!", postfix: endsWithValue(lastToken) };
