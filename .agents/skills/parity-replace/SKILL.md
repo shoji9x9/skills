@@ -181,7 +181,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    除外されていなければ回す前に設定する——**新側の実行が現側の証跡を静かに上書きする**（配置と設定の正本は `parity-suite` の `references/locator-mapping.md`）。
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
 6. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
-   テーマで消せない構造差はクラス/トークン単位の系統差として `component_diffs` へユーザー確認の上で宣言し、宣言できない構造差は `gaps.md` へ追記する（比較の正規化であって仕様変更ではない）。詳細: [`references/theming.md`](references/theming.md)
+   テーマで消せない構造差はクラス/トークン単位の系統差として `component_diffs` へユーザー確認の上で宣言し、宣言できない構造差は `gaps.md` へ追記する（比較の正規化であって仕様変更ではない）。
+   **移行元の宣言を「写さない」と決めるなら、その宣言が変える次元を全部測ってから決め**、結果を `porting.md` へ記録する（1 つの次元の一致は他の次元の一致の根拠にならない）。詳細: [`references/theming.md`](references/theming.md)
 7. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンドを通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
    ここで回すのは `verification_commands.diff`（無ければ `full`）でよいが、**変更集合がファイルの削除・改名（`git diff --name-status` の `D` / `R`）か定義元（design token・共有定数・設定値・型・エクスポート）の削除・改名を含むなら `full` へ前倒しする**——
    壊れる相手が変更集合の外にいるため差分限定では原理的に捕まらない（走る範囲の正本はスキーマ文書「走る範囲」）。
@@ -196,6 +197,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    現側の `dimension_model` のキーが無い・4 軸の記録が欠けている・現側 samples が式の指紋と一致しないのも exit 2 で、`parity-suite` へ戻して記録させる（`dimension_check` にも `ok: false` と `error` が書かれ、前回の合格は残らない）。
    **判定しなかった（`judged: false`。`not_measured`・`not_required`・照合できる式が 0 件）ときと、式が読めなかった軸（`unfit_to_note`）があるときは、写していない旨と理由を `porting.md`「寸法の決まり方」へ明示する**
    ——書かずに完了を名乗らない（`not_measured` は `parity-suite` からの引き渡し条件であり、`gaps.md` で済ませない。形式の正本は `parity-suite` の `references/baseline.md`「寸法の決まり方（窓への追従）」）。
+   **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
    合わせて、**他機能のスイートに置かれた在席チェックのうち自 slug を理由にスキップされているものを外し**、green を確認する（自機能のページを他機能と共有する場合。外して赤くなるなら、そのページでの自機能の在席が欠けている）。

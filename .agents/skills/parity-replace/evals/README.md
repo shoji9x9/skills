@@ -45,5 +45,8 @@ scripts/run-skill-eval.sh \
   レビュー対象を結果受領まで固定すること、待ち時間の作業を対象外へ限定すること、途中で対象を変更した場合は古い結果を採用せず変更・検証後の差分と未追跡ファイルを新しいラウンドへ渡すことを検証する（Issue #327）
 - eval 18 は fixture 無しで、実装中に台帳（`.replace/assets.md`）に無い静的資産（`display: none` の `img` の親が疑似要素のグリフで描くアイコン）に出会い、機能の中で同等物に決めて進めたい場面を与える。
   台帳へ方針空欄で戻して確認すること、決まるまで依存する実装単位を進めないこと、`porting.md` に判断を書かないこと、同等物なら実装前に `may_change` へ宣言することを検証する（Issue #368）
+- eval 19 は fixture 無しで、移行元の CSS の宣言を「当てる相手が無いから写さない」と決め、根拠に文字の位置だけを測った場面を与える（Issue #385）。
+  箱の作り方を変える宣言が複数の次元を同時に変えること・箱の寸法を両側で並べて測ること・結論が誤りなら違う値になる観測を選ぶこと・`porting.md` への記録を検証する。
+  「どの経路で気づけるのか」は prompt で問う（初版では問わず、`with_skill` でも 3 経路の assertion に到達しなかった。iteration-19）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
