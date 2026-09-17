@@ -48,7 +48,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -196,15 +196,20 @@ function tableCells(line) {
  * 自由に書き換えられる**（決定の出どころ・方針・理由を丸ごと差し替えても行は在る）。
  * そこで行 × 列のセルも単位にし、正本がその場の更新を定めている列だけ mutableColumns で外す。
  * 列を足す非破壊更新は新しい単位が増えるだけなので落ちない。
- * 箇条書きの値と散文は従来どおり——箇条書きは鍵、散文は行そのもの。
+ * 箇条書きも鍵と値の両方を守り、正本が更新を定めている項目だけ mutableBullets で外す。散文は行そのもの。
  * @param {string} text
- * @param {string[]} [mutableColumns] 値の更新を正本が認めている列名
+ * @param {string[]} [mutableColumns] 値の更新を正本が認めている列名（"*" でセルを契約の対象外）
+ * @param {string[]} [mutableBullets] 値の更新を正本が認めている箇条書きの鍵（"*" で値を契約の対象外）
  * @returns {Map<string, number>} 単位 → 出現回数
  */
-export function markdownUnits(text, mutableColumns = []) {
+export function markdownUnits(text, mutableColumns = [], mutableBullets = []) {
   const mutable = new Set(mutableColumns.map((c) => c.trim()));
-  // "*" は「セルの中身は契約の対象外」（一覧の requirement が節・列・行だけを守ると定めている成果物）。
+  const mutableBullet = new Set(mutableBullets.map((c) => c.trim()));
+  // "*" は「中身は契約の対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
   const allCellsMutable = mutable.has("*");
+  const allBulletsMutable = mutableBullet.has("*");
+  /** @type {Map<string, number>} 同じ鍵の箇条書きが何度目か */
+  const bulletOccurrences = new Map();
   /** @type {Map<string, number>} */
   const counts = new Map();
   /** @param {string} key */
@@ -266,9 +271,19 @@ export function markdownUnits(text, mutableColumns = []) {
       continue;
     }
     inTable = false;
-    const bullet = /^[-*+]\s+([^:：]{1,80})[:：]/.exec(line);
+    const bullet = /^[-*+]\s+([^:：]{1,80})[:：](.*)$/.exec(line);
     if (bullet !== null) {
-      add(`B:${path}|${bullet[1].trim()}`);
+      // 鍵は強調・コードの記号を落として安定させる（`- **インスタンス件数**:` と `- インスタンス件数:` を同じ鍵にする）。
+      const bulletKey = bullet[1].trim().replace(/^[*`\s]+|[*`\s]+$/g, "");
+      add(`B:${path}|${bulletKey}`);
+      if (!allBulletsMutable && !mutableBullet.has(bulletKey)) {
+        // 鍵だけを守ると値（決定の中身）が自由に書き換わる。
+        // 正本がその場の更新を定めている項目だけ mutable_bullets で外す。
+        const seenBullet = `${path}|${bulletKey}`;
+        const n = bulletOccurrences.get(seenBullet) ?? 0;
+        bulletOccurrences.set(seenBullet, n + 1);
+        add(`B:${seenBullet}@${n}=${bullet[2].trim()}`);
+      }
       continue;
     }
     add(`L:${line}`);
@@ -472,13 +487,13 @@ function keyedElements(text, path, key, label) {
 /**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
- * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[] }} artifact
+ * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], mutableBullets?: string[] }} artifact
  * @param {string} label
  * @returns {Map<string, number>}
  */
 export function unitsOf(text, artifact, label) {
   if (artifact.unit === "markdown-structure") {
-    return markdownUnits(text, artifact.mutableColumns ?? []);
+    return markdownUnits(text, artifact.mutableColumns ?? [], artifact.mutableBullets ?? []);
   }
   if (artifact.unit === "json-arrays") {
     return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
@@ -541,6 +556,8 @@ export function readManifest(manifestPath) {
     const transitions = {};
     /** @type {string[]} */
     let mutableColumns = [];
+    /** @type {string[]} */
+    let mutableBullets = [];
     if (unit === "json-arrays") {
       if (!Array.isArray(a.arrays) || a.arrays.length === 0) {
         throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
@@ -585,9 +602,9 @@ export function readManifest(manifestPath) {
           transitions[field] = list.map((x) => String(x).trim());
         }
       }
-      if (a.mutable_columns !== undefined && a.mutable_columns !== null) {
+      if (a.mutable_columns !== undefined || a.mutable_bullets !== undefined) {
         throw new UsageError(
-          `artifacts[${i}] の unit が json-arrays なのに mutable_columns がある`,
+          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / mutable_bullets がある`,
         );
       }
     } else {
@@ -615,6 +632,19 @@ export function readManifest(manifestPath) {
         }
         mutableColumns = a.mutable_columns.map((x) => String(x).trim());
       }
+      if (a.mutable_bullets !== undefined && a.mutable_bullets !== null) {
+        if (unit !== "markdown-structure") {
+          throw new UsageError(`artifacts[${i}] の unit が ${unit} なのに mutable_bullets がある`);
+        }
+        if (!Array.isArray(a.mutable_bullets)) {
+          throw new UsageError(`artifacts[${i}].mutable_bullets が配列でない`);
+        }
+        for (const c of a.mutable_bullets) {
+          if (!nonEmptyString(c))
+            throw new UsageError(`artifacts[${i}].mutable_bullets に空の要素がある`);
+        }
+        mutableBullets = a.mutable_bullets.map((x) => String(x).trim());
+      }
     }
     return {
       id: String(a.id).trim(),
@@ -625,6 +655,7 @@ export function readManifest(manifestPath) {
       fillOnly,
       transitions,
       mutableColumns,
+      mutableBullets,
       requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
       source: nonEmptyString(a.source) ? String(a.source).trim() : "",
     };
@@ -696,11 +727,11 @@ export function check(opts) {
     return files;
   };
 
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }>} */
+  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[] }>} */
   const byFile = new Map();
   /**
    * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }} artifact
+   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[] }} artifact
    */
   const assign = (file, artifact) => {
     const prev = byFile.get(file);
@@ -715,7 +746,8 @@ export function check(opts) {
       prev.key !== artifact.key ||
       prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
       canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
-      prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",")
+      prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",") ||
+      prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",")
     ) {
       // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
       throw new UsageError(
@@ -743,7 +775,7 @@ export function check(opts) {
   let checked = 0;
   for (const file of targets) {
     const artifact =
-      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[] }} */ (
+      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[] }} */ (
         byFile.get(file)
       );
     const inBase = trackedSet.has(file);

@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -350,7 +350,7 @@ export function checkArtifacts(metadata, ctx) {
 }
 
 /** 反復実行の記録が指す「スイートそのもの」を構成する metadata.suite のキー。 */
-const SUITE_SOURCE_KEYS = ["specs", "locator_map", "interactions"];
+const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions", "tools"];
 
 /**
  * 現在のスイートの指紋を計算する。

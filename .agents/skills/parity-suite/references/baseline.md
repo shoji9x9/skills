@@ -395,7 +395,7 @@ node <skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>
 **記録は「どの版のスイートを回したか」に結びつける。** 2 回緑を記録した後にスペックを書き換えたり後始末を外したりしても、
 実行結果と時刻だけを見る検査は緑のまま通る——**いまのスイートは 1 度も 2 回続けて回っていない**のに、
 後始末の壊れたスイートが現行アプリを書き換え続ける。
-`runs[]` に `suite_fingerprint`（`suite.specs` / `locator_map` / `interactions` の宣言パスから計算した `sha256:`）を記録し、
+`runs[]` に `suite_fingerprint`（`suite.specs` / `locator_map` / `expectations` / `interactions` / `tools` の宣言パスから計算した `sha256:`）を記録し、
 連続する 2 回で同じ値であること、かつ現在のスイートから再計算した値と一致することを
 [`../scripts/artifact-health-check.mjs`](../scripts/artifact-health-check.mjs) が確かめる。
 **スイートを変えたら 2 回続けて回し直す。**

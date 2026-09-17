@@ -91,6 +91,11 @@ function makeProject(mutate, opts = {}) {
     join(root, "e2e/parity/order-list/orders.spec.ts"),
     opts.specBody ?? "// orders.default.desktop.png と orders.xlsx.json を読む\n",
   );
+  mkdirSync(join(root, "e2e/parity/lib"), { recursive: true });
+  writeFileSync(
+    join(root, "e2e/parity/lib/expectations.ts"),
+    "export const expected = { total: 3 };\n",
+  );
   writeFileSync(
     join(root, ".replace/dataset/metadata.json"),
     JSON.stringify(
@@ -731,6 +736,7 @@ function mutatingSuite(fingerprint) {
   return {
     current_green: true,
     specs: "e2e/parity/order-list",
+    expectations: "e2e/parity/lib/expectations.ts",
     state_mutating: true,
     repeat_run: { cleanup_in_suite: true, runs, reason: null },
   };
@@ -740,7 +746,10 @@ test("陽性コントロール: スイートの指紋が記録と一致すれば
   const { root, metadataPath } = makeProject((m) => {
     m.suite = mutatingSuite("placeholder");
   });
-  const fp = suiteFingerprint({ specs: "e2e/parity/order-list" }, root).fingerprint;
+  const fp = suiteFingerprint(
+    { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
+    root,
+  ).fingerprint;
   const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
@@ -754,7 +763,10 @@ test("2 回緑を記録した後にスペックを変えたら落ちる（記録
   const { root, metadataPath } = makeProject((m) => {
     m.suite = mutatingSuite("placeholder");
   });
-  const fp = suiteFingerprint({ specs: "e2e/parity/order-list" }, root).fingerprint;
+  const fp = suiteFingerprint(
+    { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
+    root,
+  ).fingerprint;
   const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
@@ -880,6 +892,28 @@ test("免除理由があっても dataset_version が null でなければ落と
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/dataset_version_exempt があるのに dataset_version が null でない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("期待値解決層を書き換えても指紋が変わらなければ素通りする、を塞ぐ", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("placeholder");
+  });
+  const fp = suiteFingerprint(
+    { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" },
+    root,
+  ).fingerprint;
+  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
+  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+  // 記録した後に期待値だけを変える（スペックには触らない）。
+  writeFileSync(
+    join(root, "e2e/parity/lib/expectations.ts"),
+    "export const expected = { total: 4 };\n",
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

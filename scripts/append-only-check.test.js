@@ -107,10 +107,23 @@ const ASSETS = [
   "",
   "## 方針",
   "",
-  "| 種類 | ファイル・出どころ | 方針 | 状態 | 決定日・決めた工程 | 理由 |",
-  "|---|---|---|---|---|---|",
-  "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
-  "| 本文の書体 | `body.woff2` | 実体を写す | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+  "| 種類 | ファイル・出どころ | 方針 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
+  "|---|---|---|---|---|---|---|",
+  "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+  "| 本文の書体 | `body.woff2` | 実体を写す | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+  "",
+].join("\n");
+
+const DEPENDENCIES = [
+  "# 依存パッケージの決定記録（dependencies）",
+  "",
+  "- 最終更新: 2026-09-01T00:00:00Z",
+  "- 方針の所在: 未確認",
+  "",
+  "## 本文フォント: example-font@1.2.3",
+  "",
+  "- 要件（現行と一致させる条件）: 版とヒンティング命令の有無が一致すること",
+  "- ライセンス: MIT",
   "",
 ].join("\n");
 
@@ -145,6 +158,7 @@ function makeRepo(opts = {}) {
   writeFileSync(join(root, ".replace/features.md"), FEATURES);
   writeFileSync(join(root, ".replace/parity/order-list/gaps.md"), GAPS);
   writeFileSync(join(root, ".replace/assets.md"), ASSETS);
+  writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCIES);
   writeFileSync(join(root, ".replace/dataset/metadata.json"), DATASET);
   writeFileSync(
     join(root, ".replace/parity/order-list/component-diff-exceptions.json"),
@@ -617,8 +631,8 @@ test("決定行の非鍵セルを書き換えると落ちる（鍵だけを残�
   writeFileSync(
     join(root, ".replace/assets.md"),
     ASSETS.replace(
-      "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
-      "| ロゴ | `logo.svg` | 同等物を作る | 有効 | 2026-09-17・order | 再配布不可のため |",
+      "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |",
+      "| ロゴ | `logo.svg` | 同等物を作る | - | 有効 | 2026-09-17・order | 再配布不可のため |",
     ),
   );
   const r = run(root);
@@ -727,10 +741,12 @@ test("key が無いのに fill_only を宣言したら合格に倒さない（ex
 test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複鍵で対応を失わない）", () => {
   // assets.md は方針を覆した行と現在の行が同じ「種類」で 2 行並ぶ（正本が想定する形）。
   const root = makeRepo();
-  const rowA = "| ロゴ | `logo.png` | 実体を写す | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
-  const rowB = "| ロゴ | `logo.svg` | 同等物を作る | 有効 | 2026-09-10・order | 再配布不可のため |";
+  const rowA =
+    "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
+  const rowB =
+    "| ロゴ | `logo.svg` | 同等物を作る | - | 有効 | 2026-09-10・order | 再配布不可のため |";
   const base = ASSETS.replace(
-    "| 本文の書体 | `body.woff2` | 実体を写す | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+    "| 本文の書体 | `body.woff2` | 実体を写す | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
     rowB,
   );
   writeFileSync(join(root, ".replace/assets.md"), base);
@@ -747,5 +763,82 @@ test("同じ鍵の 2 行の間でセルを入れ替えると落ちる（重複�
   const r = run(root);
   expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
   expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("方針を覆す正規の手順（状態・宣言・理由を更新して新しい行を追記）は通す", () => {
+  // 正本: replace-strategy の references/static-assets.md「覆したときの手順」。
+  const root = makeRepo();
+  const old =
+    "| ロゴ | `logo.png` | 実体を写す | - | 有効 | 2026-09-01・setup | 再配布可を確認済み |";
+  const revoked =
+    "| ロゴ | `logo.png` | 実体を写す | 取り消し済み | 取り消し済み（2026-09-18 → 下の行） | 2026-09-01・setup | 再配布の可否を確認できず方針を覆した |";
+  const appended =
+    "| ロゴ | `logo.svg` | 同等物を作る | ロゴを図形で描き直す（縁と曲線の差は残る） | 有効 | 2026-09-18・order | 再配布不可のため |";
+  writeFileSync(join(root, ".replace/assets.md"), ASSETS.replace(old, `${revoked}\n${appended}`));
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("決定の中身にあたる箇条書きの値を書き換えると落ちる", () => {
+  const root = makeRepo();
+  writeFileSync(
+    join(root, ".replace/dependencies.md"),
+    DEPENDENCIES.replace("- ライセンス: MIT", "- ライセンス: GPL"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/（unit: markdown-structure）が失われている/);
+  expect(r.stdout).toMatch(/ライセンス/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("正本が更新を定めている箇条書き（最終更新・方針の所在）は通す", () => {
+  const root = makeRepo();
+  writeFileSync(
+    join(root, ".replace/dependencies.md"),
+    DEPENDENCIES.replace(
+      "- 最終更新: 2026-09-01T00:00:00Z",
+      "- 最終更新: 2026-09-18T00:00:00Z",
+    ).replace("- 方針の所在: 未確認", "- 方針の所在: 無し（ユーザー確認済み・2026-09-18）"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が json-arrays なのに mutable_bullets があれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "dataset",
+      pattern: ".replace/dataset/metadata.json",
+      unit: "json-arrays",
+      arrays: ["changes"],
+      mutable_bullets: ["最終更新"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/json-arrays なのに mutable_columns \/ mutable_bullets がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が lines なのに mutable_bullets があれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_bullets: ["最終更新"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/unit が lines なのに mutable_bullets がある/);
+  expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
