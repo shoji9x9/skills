@@ -120,9 +120,15 @@ export function buildStrictMask(currentData, nextData, pixels, thresholdMask = n
   for (let i = 0; i < pixels; i += 1) {
     const o = i * 4;
     let pixelDelta = 0;
-    for (let c = 0; c < 4; c += 1) {
-      const delta = Math.abs(currentData[o + c] - nextData[o + c]);
-      if (delta > pixelDelta) pixelDelta = delta;
+    // 両方が完全な透明なら、隠れている RGB が違っても画面には同じものが出る。
+    // 生の 4 チャンネル比較のままだと見た目が同じ画素を strict の差として数え、
+    // 見分けの付かない crop 対を候補にしてしまう（マスクした領域・要素切り出しで起きる）。
+    const bothTransparent = currentData[o + 3] === 0 && nextData[o + 3] === 0;
+    if (!bothTransparent) {
+      for (let c = 0; c < 4; c += 1) {
+        const delta = Math.abs(currentData[o + c] - nextData[o + c]);
+        if (delta > pixelDelta) pixelDelta = delta;
+      }
     }
     const differs = pixelDelta > 0 ? 1 : 0;
     mask[i] = differs;
@@ -206,13 +212,23 @@ export function buildStrictOnlyMask(thresholdMask, strictMask) {
 
 /**
  * strict-only のクラスタから出力する領域を決定論的に選ぶ。
- * 画素数の多い順（同数なら y, x 昇順）で上限 max 件を選び、選んだものは (y, x) 昇順へ並べ直す。
+ *
+ * **id は上限を掛ける前の全体の並び（(y, x) 昇順）から決める。** 選抜後の位置で採番すると、
+ * 警告に従って `--strict-max-regions` を上げたときに、前は出ていなかった手前の領域が割り込んで
+ * 既存の候補が採番し直される——同じ `crop-sN-*` が別の bbox を指し、記録済みのトリアージが
+ * 別の crop に貼り付く。
+ *
+ * 選抜自体は画素数の多い順（同数なら y, x 昇順）で上限 max 件、出力は (y, x) 昇順。
  * 上限で落とした分は呼び出し側が総数と併せて報告する（黙って捨てない）。
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
  * @param {number} max
+ * @returns {Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>}
  */
 export function selectStrictRegions(regions, max) {
-  const ranked = [...regions].sort(
+  const ordered = [...regions]
+    .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)
+    .map((r, index) => ({ ...r, id: `s${index + 1}` }));
+  const ranked = [...ordered].sort(
     (a, b) => b.pixels - a.pixels || a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x,
   );
   const picked = ranked.slice(0, max);
@@ -583,7 +599,7 @@ export async function main(argv) {
   const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
   const strictResult = [];
   for (let i = 0; i < strictSelected.length; i += 1) {
-    const id = `s${i + 1}`;
+    const id = strictSelected[i].id;
     const cropCurrentPath = join(out, `crop-${id}-current.png`);
     const cropNewPath = join(out, `crop-${id}-new.png`);
     try {

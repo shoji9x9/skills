@@ -241,3 +241,55 @@ test("マージしても下限に届かない分は件数と画素数で報告�
   expect(merged.droppedClusters).toBe(2);
   expect(merged.droppedPixels).toBe(3);
 });
+
+// --- 3 巡目の codex レビュー（P2 2 件）---
+
+test("両方が完全な透明なら、隠れている RGB が違っても差にしない", () => {
+  const current = rgba([
+    [10, 20, 30, 0],
+    [1, 2, 3, 255],
+  ]);
+  const next = rgba([
+    [90, 80, 70, 0],
+    [1, 2, 3, 255],
+  ]);
+
+  const strict = buildStrictMask(current, next, 2);
+  expect(strict.count).toBe(0);
+  expect(strict.maxChannelDelta).toBe(0);
+});
+
+test("片側だけ透明なら差として残る（透明化そのものは見た目の差）", () => {
+  const current = rgba([[10, 20, 30, 255]]);
+  const next = rgba([[10, 20, 30, 0]]);
+
+  expect(buildStrictMask(current, next, 1).count).toBe(1);
+});
+
+test("候補の id は上限を上げても振り直されない", () => {
+  // 入力の並びは (y, x) 昇順と違える——入力順で採番する実装だと、この順序差で id がずれる。
+  const regions = [
+    { pixels: 20, bbox: { x: 0, y: 50, width: 3, height: 3 } },
+    { pixels: 5, bbox: { x: 0, y: 10, width: 2, height: 2 } },
+    { pixels: 40, bbox: { x: 0, y: 30, width: 4, height: 4 } },
+  ];
+
+  const capped = selectStrictRegions(regions, 2);
+  const raised = selectStrictRegions(regions, 3);
+
+  // 上限 2 では画素数の多い 2 件（40 / 20）が出る。id は全体の (y, x) 並びから決まる。
+  expect(capped.map((r) => [r.id, r.pixels])).toEqual([
+    ["s2", 40],
+    ["s3", 20],
+  ]);
+  // 上限を上げると手前の領域が s1 として増えるだけで、既存の id は同じ bbox を指したまま。
+  expect(raised.map((r) => [r.id, r.pixels])).toEqual([
+    ["s1", 5],
+    ["s2", 40],
+    ["s3", 20],
+  ]);
+  for (const region of capped) {
+    const same = raised.find((r) => r.id === region.id);
+    expect(same.bbox).toEqual(region.bbox);
+  }
+});
