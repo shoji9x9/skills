@@ -22,12 +22,14 @@
 <!-- パラメータ付きページは「URL」列に具体 URL か、その値の解決規則（どのデータから採るか）を残す。 -->
 <!-- データ依存: 描画がデータに左右されるか（データグリッド等）。true なら parity-component が現行の可視行から実データを採る。 -->
 <!-- 採否: 自前実装 / 採用パッケージ名。判断材料と不採用理由は .replace/dependencies.md が正本で、ここには結論だけを書く。 -->
+<!-- 受け入れ条件: 起票後の突き合わせの出力。この行を受け入れ条件に持つ Issue 番号 / 未被覆（起票済みなのに受け入れ条件に現れない）/ 未起票 / 判定不能 / 空欄（未突き合わせ）を書き分ける（正本は replace-strategy の references/features-issues.md「起票の後に行と受け入れ条件を突き合わせる」）。 -->
+<!-- 　　slug の照合は完全一致で取る（一方が他方の部分文字列になる slug があると、長いほうの記述が短いほうを被覆したことに化ける）。 -->
 
-| slug | 部品 | インスタンス（ページ ＋ 論理名） | URL（パターンのページのみ） | データ依存 | 採否 | Issue |
-|---|---|---|---|---|---|---|
-| button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | /orders/:id → `/orders/1001`（データセットの orders 先頭行の id） | false | 自前実装 | 未起票 |
-| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | （採用パッケージ名） | 未起票 |
-| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 |
+| slug | 部品 | インスタンス（ページ ＋ 論理名） | URL（パターンのページのみ） | データ依存 | 採否 | Issue | 受け入れ条件 |
+|---|---|---|---|---|---|---|---|
+| button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | /orders/:id → `/orders/1001`（データセットの orders 先頭行の id） | false | 自前実装 | 未起票 | |
+| data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | （採用パッケージ名） | 未起票 | |
+| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 | |
 
 ## 先に作らない部品
 

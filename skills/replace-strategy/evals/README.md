@@ -87,5 +87,55 @@ scripts/run-skill-eval.sh \
   スキル固有なのは「口ごとの根拠を機能一覧の列に残し、クエリの粒度を API の外部単位に短絡させない」ことで、そこだけが安定して Delta に出る。
   **assertion 2 の括弧書きは「根拠が同じ口をまとめてよい」という様式側の許可と矛盾しない形にしてある**——
   禁じているのは `GET` の根拠エントリに書き込み系の口を含めることであって、同一根拠の書き込み系どうしをまとめることではない
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
+- eval 30 の fixture（`issues-acceptance-coverage`）は**全行が起票済み**（Issue 列が全て埋まっている）インベントリを持たせ、
+  **起票の後に行と受け入れ条件を突き合わせる段**を検証する。`gh` が使えない環境のため各 Issue の受け入れ条件は prompt に貼って被覆集合の材料を与えている。
+  仕込んだ欠落は 2 つ——`notification-banner` は Issue 列に `#102` があるが `#102` の受け入れ条件には現れない（**Issue 列を被覆の根拠にすると見つからない**）、
+  `order`（`#102`）には横断 API `user` の配線の項が無い。**`report`（`#103`）には同じ配線の項がある**ので、
+  assertion 3 は「落ちた配線だけを挙げる」弁別（全 fan-out を無差別に挙げると fail）になる。
+  **iteration-32 の実測は assertion 2 の変更前のもの**（塞ぎ方を「#102 へ足す / 別 Issue」の両可としていた）。
+  機能行が Issue 番号を共有しない規則を足したため assertion 2 を「別 Issue を起こす」へ狭め、番号共有の検出を assertion 7 として追加した。
+  **assertion を変えたので既存 run は再利用せず取り直す**（`docs/skill-development.md`「without-skill baseline の再利用」）——
+  旧 run はその規則を持たない版のスキルで走っており、読み直して採点すると旧仕様を固定することになる。
+  **iteration-36 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 7/7・`without_skill` 4/7。
+  baseline は contamination: clean / isolation: sandboxed。**弁別したのは assertion 2・6・7**。
+  baseline は `#102` への相乗りを見つけながら「**原因は相乗りそのものではなく、相乗り先の受け入れ条件が主機能の slug 名で書かれている点**」と書き、
+  「案 B: 相乗り維持」を実行可能な選択肢として残した（assertion 2・7 が赤くなった理由）。assertion 1・3・4・5 は baseline も到達する。
+  実測で見えた揺れ: `with_skill` は受け入れ条件列へ `被覆（#102）／配線未記載: user` と書き、
+  正本が定める値の形（`#102（配線未達: user）`）とは違う独自表記になった。書き分け自体は満たすが、
+  **値の形を正本どおりに書かせるには記述か assertion を締める必要がある**（未対応）。
+  prompt の末尾で `.replace/features.md` への書き戻しを求めているのは assertion 6 の**到達**のため——
+  採点材料は `project-files/.replace/features.md` なので、報告だけで終わる run では真偽を測れない。
+  列名（`受け入れ条件`）・値の語彙（`未被覆` / 空欄の書き分け）は渡していないので弁別は残る。
+  **（以下は assertion 2 を狭め 7 を追加する前＝6 assertion 版の履歴。現行の評価は上の iteration-36 を見る。この段落を現行 eval の根拠に使わない）**
+  iteration-32: `with_skill` 6/6・`without_skill` 4/6、弁別は当時の assertion 4・6 のみ。
+  当時から変わらない観察は 2 つ——fixture の features.md が空の「受け入れ条件」列を持つため**列を埋めること自体は baseline にも誘導される**こと、
+  baseline は横断の記述を**消費側のゲート**ではなく `#101` 自身の被覆不足として扱いがちなこと。
+- eval 31 の fixture（`issues-acceptance-part-coverage`）は**全行が起票済みで、受け入れ条件が行の一部しか名指ししていない状態**を持たせ、
+  eval 30 が作らない 3 つの分岐を検証する——**部分（ページ ＋ 新規実装 API の口）の集合差分**・**否定の言及を被覆に数えない**・**配線の欠落**。
+  仕込みは 3 つ: `#210` は `order` の `/orders` と `GET /api/orders` しか名指ししておらず `/orders/:id` と `GET /api/orders/:id` が落ちた部分、
+  `#212`（`report`）には横断 API `user` の配線項が無い（**#210 にはある**）、
+  `notification-banner` は `#210` の受け入れ条件に「対象外」として**現れるだけ**（出現を被覆に数えると落ちた行が消える）。
+  assertion 2・4 は正常な側（部分を覆えている `report`・配線のある `#210`）を挙げないことまで見る弁別になっている。
+  **fixture は契約に適合する状態にする**——横断 API 表は 2 つ以上の機能が使うリソースだけを載せる規則なので、
+  `user` の fan-out は `order` と `report` の 2 件にしてある。起票の単位は行（ページ単位の分割は Issue 内のフェーズ）なので、
+  **1 行に複数の Issue 番号を置く fixture は作らない**（`parity-replace` は行の Issue 番号 1 つでブランチを作る契約）。
+  **iteration-35 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 4/5。
+  **弁別したのは assertion 5 だけ**——baseline も 3 つの穴（落ちた行・落ちた部分・落ちた配線）を自力で挙げ、正常側も挙げなかった。
+  落ちたのは記録の形で、受け入れ条件列に Issue 本文の条件文と `⚠ …（取りこぼし B）` の注記を書き、
+  `notification-banner` の **Issue 列**まで `未割当` に書き換えている。
+  **assertion 1〜4 はガードではない——変異 run で実証した**（iteration-38・`with_skill` × 3 軸）。
+  各軸の判定記述を `SKILL.md` / `references/features-issues.md` / `references/status.md` の**全出現から削除**したスキルで同じ入力を走らせた結果:
+
+  | 変異した軸 | 赤くなった assertion |
+  |---|---|
+  | 引き受け判定（出現ではなく引き受けの形だけを数える） | **0 本**（5/5 のまま） |
+  | 部分の集合差分 | **assertion 5 のみ**（列の `（未被覆: …）` 併記が消えた。判断自体は語彙を変えて到達） |
+  | 配線の検査 | **0 本**（5/5 のまま） |
+
+  つまりこの eval が測れているのは**到達性**と**記録の形**（assertion 5）だけで、判定記述の有無は結論を変えない——
+  prompt に貼った受け入れ条件から、モデルが同じ欠落を自力で導いてしまう。
+  **1 回目の変異（iteration-37）は `features-issues.md` の 1 箇所しか消しておらず、同じ判断が他ファイルに残っていたため無効**として破棄した
+  （変異は軸ごとに全出現を消し、残存を grep で確認してから走らせる）。
+  判断そのものをガードしたいなら、**prompt から結論の材料を減らす**か、**決定論的な検査器**（インベントリと Issue 本文を読んで差分を出すスクリプト）へ上げる必要がある。
+  iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
