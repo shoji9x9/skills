@@ -177,6 +177,8 @@
       2 件以上は一意に引けていないので `unmeasured`。0 件はその状態で DOM に無いことの実測として扱い、このとき矩形・`offset_parent`・`hidden_by` は全て `null` にする
       測定手順は次のとおり。**`toHaveCount(n)` は期待値 `n` を先に渡す照合で件数を発見できず、`count()` は `expect.poll` で包んでも
       [`locator-mapping.md`](locator-mapping.md) と `scripts/auto-wait-check.mjs` が禁止する**（実測）。そこで 0 / 1 の二値判定にする。
+      **このセルを `current-only/` で測る場合も `count()` は使わない**——検査は採取スペックの `immediate-read` を免除するが、
+      免除は報告を止めるだけで待たないことは変わらず、描画完了前の件数を `locator_match_count` に書くと誤った `locator` と区別できなくなる。
       **(1)** その状態へ遷移し、状態が確定したことをその状態固有の assertion（開閉フラグの `toHaveAttribute`、一覧の `toHaveCount` など）で先に確立する。
       **(2)** 確立後に `await expect(locator).toHaveCount(1)` を試し、成立すれば `locator_match_count: 1`。
       **(3)** 成立しなければ `await expect(locator).toHaveCount(0)` を試し、成立すれば `locator_match_count: 0`。
