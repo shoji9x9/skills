@@ -103,19 +103,19 @@ scripts/run-skill-eval.sh \
   1 run なので Delta の数値は語らず、**baseline も通った assertion 1〜3・5 は後退検知**の項目として残している
   （assertion 5 は「承認を得てから本文を追記する」で、baseline も `gh` が使えないことを理由に外向き操作を控えたため通った。
   この eval の意味のある Delta は 4・6 の 2 本と数える）
-- eval 31 の fixture（`issues-acceptance-split-row`）は**1 行を複数 Issue へ割った状態**を持たせ、eval 30 が作らない 3 つの分岐を検証する——
-  **意図した分割を重複として潰さない**・**部分（ページ）単位の集合差分**・**否定の言及を被覆に数えない**。
-  仕込みは 3 つ: `order` は #210（/orders）と #211（/orders/:id）に割ってあり**部分はページ・API とも覆えている**（ここを落ちた行にすると fail）、
-  `#211` には横断 API `user` の配線項が無い（**#210 と #212 にはある**ので、配線を行単位で見ると穴が消える）、
+- eval 31 の fixture（`issues-acceptance-part-coverage`）は**全行が起票済みで、受け入れ条件が行の一部しか名指ししていない状態**を持たせ、
+  eval 30 が作らない 3 つの分岐を検証する——**部分（ページ ＋ 新規実装 API の口）の集合差分**・**否定の言及を被覆に数えない**・**配線の欠落**。
+  仕込みは 3 つ: `#210` は `order` の `/orders` と `GET /api/orders` しか名指ししておらず `/orders/:id` と `GET /api/orders/:id` が落ちた部分、
+  `#212`（`report`）には横断 API `user` の配線項が無い（**#210 にはある**）、
   `notification-banner` は `#210` の受け入れ条件に「対象外」として**現れるだけ**（出現を被覆に数えると落ちた行が消える）。
-  assertion 2・4 は正常な側（覆えている部分・配線のある #210 / #212）を挙げないことまで見る弁別になっている。
+  assertion 2・4 は正常な側（部分を覆えている `report`・配線のある `#210`）を挙げないことまで見る弁別になっている。
   **fixture は契約に適合する状態にする**——横断 API 表は 2 つ以上の機能が使うリソースだけを載せる規則なので、
-  `user` の fan-out は `order` と `report` の 2 件にしてある（1 件だと適合インベントリが作れない状態を測ることになる）。
-  **iteration-34 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 3/5。
-  **弁別したのは assertion 4・5**——baseline も分割を潰さず（1）、ページと API の両軸で判定し（2）、否定の言及を落ちた行として挙げた（3）。
-  baseline が落ちたのは 2 点。**`#211` の配線欠落に気づいたうえで「fan-out order→user は #210 が担保しているので行としては充足」と行単位で結論した**（4。
-  欠落自体は「足しておくと確実」という軽微な注意点に留めた）、受け入れ条件列に Issue 本文の条件文を転記し、さらに `notification-banner` の **Issue 列**を書き換えた（5）。
-  iteration-33 は fixture の横断 API が fan-out 1 件で契約に適合していなかったため、適合させた fixture と prompt で取り直したのが iteration-34
-  （iteration-33 の baseline は 1 度目が nested executor の利用上限で exit 1 になり、上限解除後に取り直している）
-- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
+  `user` の fan-out は `order` と `report` の 2 件にしてある。起票の単位は行（ページ単位の分割は Issue 内のフェーズ）なので、
+  **1 行に複数の Issue 番号を置く fixture は作らない**（`parity-replace` は行の Issue 番号 1 つでブランチを作る契約）。
+  **iteration-35 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 4/5。
+  **弁別したのは assertion 5 だけ**——baseline も 3 つの穴（落ちた行・落ちた部分・落ちた配線）を自力で挙げ、正常側も挙げなかった。
+  落ちたのは記録の形で、受け入れ条件列に Issue 本文の条件文と `⚠ …（取りこぼし B）` の注記を書き、
+  `notification-banner` の **Issue 列**まで `未割当` に書き換えている。
+  **assertion 1〜4 は後退検知**として残す——弁別は薄いが、スキル側が 3 軸（行・部分・配線）の検査を失ったときに赤くなる。
+  iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

@@ -343,14 +343,14 @@
     },
     {
       "id": 31,
-      "fixture": "evals/fixtures/issues-acceptance-split-row",
-      "prompt": "replace-strategy issues での起票は一通り終わった。注文管理はページ単位で 2 本に割ってある（#210 が /orders、#211 が /orders/:id）。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#201（横断 API user）: user の API スイートが新側で green・強度記録を残すこと（GET /api/users と GET /api/users/:id、参照テーブル users / user_roles を含む）。\n#210（注文管理 フェーズ 1）: order の /orders と GET /api/orders のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。なお notification-banner は対象外（別途扱う）。\n#211（注文管理 フェーズ 2）: order の /orders/:id と GET /api/orders/:id のパリティスイートが新側で green・未説明差分ゼロ。\n#212（集計レポート）: report の /report と GET /api/reports のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
+      "fixture": "evals/fixtures/issues-acceptance-part-coverage",
+      "prompt": "replace-strategy issues での起票は一通り終わった。この環境から gh は使えないので、取得済みの各 Issue の受け入れ条件を貼る。\n#201（横断 API user）: user の API スイートが新側で green・強度記録を残すこと（GET /api/users と GET /api/users/:id、参照テーブル users / user_roles を含む）。\n#210（注文管理）: order の /orders と GET /api/orders のパリティスイートが新側で green・未説明差分ゼロ・この機能から user を呼ぶこと。なお notification-banner は対象外（別途扱う）。\n#212（集計レポート）: report の /report と GET /api/reports のパリティスイートが新側で green・未説明差分ゼロ。\nインベントリの行のうち、実装されないまま落ちるものが無いか確かめて。落ちているなら直す手順も教えて。確かめた結果は .replace/features.md にも残して。",
       "assertions": [
-        "order が #210 と #211 の両方に現れることを二重として 1 つへ減らさず、意図した分割として両方の Issue 番号を残している",
-        "分割の確認を slug の一致で済ませず、部分の集合差分を取っている。母集合をページだけに絞らず新規実装 API の口も含め、ページ（/orders・/orders/:id）と API（GET /api/orders・GET /api/orders/:id）のどちらも引き受けられているため覆われない部分は無いと判定している",
+        "被覆の判定を slug の一致で終わらせず、行が所有する部分の集合差分も取っている。母集合をページだけに絞らず新規実装 API の口も含め、#210 が名指ししていない /orders/:id と GET /api/orders/:id を落ちた部分として挙げている",
+        "部分が覆えている report（/report・GET /api/reports は #212 が名指し）を落ちた部分として挙げていない",
         "notification-banner が #210 に「対象外」として現れるだけで引き受けられていないため、出現を被覆に数えず落ちた行（未被覆）として名指ししている",
-        "横断 API user の配線を部分ごとに見て、/orders/:id を引き受ける #211 に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、配線項のある #210 と #212（report）は落ちた配線として挙げていない",
-        "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は両番号に落ちた配線の併記（例 #210, #211（配線未達: user））、notification-banner は 未被覆、report は #212、user は #201"
+        "横断 API user の fan-out のうち #212（report）に「この機能から user を呼ぶ」項が無いことを落ちた配線として検出し、配線項のある #210（order）は落ちた配線として挙げていない",
+        "突き合わせの結果を .replace/features.md の「受け入れ条件」列へ書き分けている——order は #210 に覆われない部分の併記（例 #210（未被覆: /orders/:id, GET /api/orders/:id））、report は #212 に配線未達の併記、notification-banner は 未被覆、user は #201"
       ]
     }
   ]
