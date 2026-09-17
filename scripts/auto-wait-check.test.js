@@ -351,6 +351,43 @@ test("引数に関数型を持つ宣言でも戻り値の型注釈を読む", ()
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test.each([
+  ["閉じタグ 2 つ", "const ui = <A></A><B>{await locator.textContent()}</B>;"],
+  ["閉じタグ 1 つ", "const ui = <A>{await locator.textContent()}</A>;"],
+  ["自己閉じタグ 2 つ", "const el = <A x={1} /><B y={await locator.textContent()} />;"],
+])("JSX / TSX の %s を正規表現として潰さない", (_name, source) => {
+  // `</` の `/` を正規表現の開始と読むと、次の閉じタグの `/` までを潰して違反ごと消える。
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("空白を挟む比較の後の正規表現は潰す（JSX 閉じタグと弁別する）", () => {
+  const source = [
+    "const ok = a < /it's/.source.length;",
+    "const value = await locator.textContent();",
+    "// isn't relevant",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  // `Promise<Locator>` を返す関数は `(await f()).x()` が型的に正しい呼び方。
+  ["outer await なし", "const total = (await pagerValue(view)).innerText();"],
+  ["outer await あり", "const total = await (await pagerValue(view)).innerText();"],
+])("括弧で包んだ await の受け側（%s）を中身から解決する", (_name, call) => {
+  const declaration =
+    "async function pagerValue(view: Page): Promise<Locator> { return view.locator('.x'); }";
+  expect(scanSource(`${declaration}\n${call}`).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("括弧の中身が何にも解決しなければ判定不能のまま（中身を見たぶんを fail-open にしない）", () => {
+  expect(scanSource("const total = (a + b).count();").map((v) => v.rule)).toEqual([
+    "unresolved-receiver",
+  ]);
+  expect(scanSource("const total = (await rows()).count();").map((v) => v.rule)).toEqual([
+    "unresolved-receiver",
+  ]);
+});
+
 test("添字アクセスがあっても既知の page / locator が混じれば解決する", () => {
   const source = "const total = await page['x'].locator('a').count();";
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);

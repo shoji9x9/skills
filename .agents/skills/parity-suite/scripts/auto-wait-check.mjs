@@ -218,7 +218,12 @@ export function maskNonCode(source) {
         i = close + 2;
         continue;
       }
-      if (c === "/" && regexAllowedAfter(lastToken)) {
+      // `</` は JSX / TSX の閉じタグ。`<` は値で終わらないので正規表現が許される位置だが、
+      // ここを正規表現の開始と読むと次の閉じタグの `/` までを潰し、間の実コードごと違反が消える。
+      // 空白を挟む比較（`a < /re/`）は隣接しないので区別できる。空白なしの `a</re/` は
+      // 正規表現として読まれずマスクされないが、その場合は終端不明の例外（fail-closed）に倒れる。
+      const jsxClosingTag = c === "/" && i > 0 && source[i - 1] === "<";
+      if (c === "/" && !jsxClosingTag && regexAllowedAfter(lastToken)) {
         const end = regexLiteralEnd(source, i);
         if (end !== -1) {
           blankRange(i, end);
@@ -372,6 +377,22 @@ export function maskNonCode(source) {
   return out.join("");
 }
 
+/** 受け側になれないキーワード。これが起点に出たら、直前の括弧の中身を受け側として辿り直す。 */
+const NON_RECEIVER_KEYWORDS = new Set([
+  "await",
+  "return",
+  "typeof",
+  "new",
+  "void",
+  "yield",
+  "delete",
+  "throw",
+  "case",
+  "in",
+  "of",
+  "instanceof",
+]);
+
 /**
  * 呼び出し直前の式を逆向きにたどり、プロパティチェーンの各区間を root 側から並べて返す。
  * 区間ごとに「直後が呼び出しだったか」「添字アクセスだったか」を持つ——どちらも名前で解決できない形なので、
@@ -389,13 +410,19 @@ function receiverChain(code, dotIndex) {
     i -= 1;
     skipSpace();
   }
+  let fromGroupInterior = false;
   while (i >= 0) {
     let called = false;
     let computed = false;
+    // 直前に読んだ丸括弧グループの中身の末尾。`(await f()).x()` のように括弧が受け側になる形で、
+    // 中身を辿り直すために保持する（複数グループを飛ばしたときは最も左のグループのもの）。
+    let groupInteriorEnd = null;
     while (code[i] === ")" || code[i] === "]") {
       const close = code[i];
-      if (close === ")") called = true;
-      else computed = true;
+      if (close === ")") {
+        called = true;
+        groupInteriorEnd = i - 1;
+      } else computed = true;
       const open = close === ")" ? "(" : "[";
       let depth = 1;
       i -= 1;
@@ -409,8 +436,19 @@ function receiverChain(code, dotIndex) {
     }
     const end = i + 1;
     while (i >= 0 && /[\w$]/.test(code[i])) i -= 1;
-    if (end === i + 1) return null;
-    segments.push({ name: code.slice(i + 1, end), called, computed });
+    const name = end === i + 1 ? null : code.slice(i + 1, end);
+    // 括弧の前に識別子が無い（`(await f()).x()`）か、受け側になれないキーワードが来る
+    // （`await (await f()).x()`）なら、括弧の中身の末尾から受け側を辿り直す。
+    // `Promise<Locator>` を返す関数は `(await f()).x()` が型的に正しい呼び方なので、
+    // この形を解決できないと戻り値注釈の対応が実質使えない。
+    if (groupInteriorEnd !== null && (name === null || NON_RECEIVER_KEYWORDS.has(name))) {
+      i = groupInteriorEnd;
+      fromGroupInterior = true;
+      skipSpace();
+      continue;
+    }
+    if (name === null) return null;
+    segments.push({ name, called, computed });
     skipSpace();
     if (code[i] !== ".") break;
     i -= 1;
@@ -419,7 +457,7 @@ function receiverChain(code, dotIndex) {
     skipSpace();
   }
   if (segments.length === 0) return null;
-  return segments.reverse();
+  return { segments: segments.reverse(), fromGroupInterior };
 }
 
 /**
@@ -529,9 +567,9 @@ export function scanSourceWithStats(source, file = "<source>") {
     const pattern = new RegExp(`\\.\\s*(?:${methodPattern})\\s*\\(`, "g");
     for (const match of code.matchAll(pattern)) {
       stats.callSites += 1;
-      const segments = receiverChain(code, match.index);
-      // 起点を確定できない形（括弧で包んだ式・リテラル起点）も判定不能として残す。
-      if (segments === null) {
+      const chain = receiverChain(code, match.index);
+      // 起点を確定できない形（リテラル起点・括弧の対応が取れない等）は判定不能として残す。
+      if (chain === null) {
         stats.undecidable += 1;
         findings.push({
           ...position(match.index),
@@ -541,14 +579,16 @@ export function scanSourceWithStats(source, file = "<source>") {
         });
         continue;
       }
-      const { kind, undecidable, reason } = resolveReceiver(segments, receivers);
-      if (undecidable) {
+      const { kind, undecidable, reason } = resolveReceiver(chain.segments, receivers);
+      // 括弧の中身から辿った区間が何にも解決しなければ、括弧で包んだ式（`(a + b).count()` 等）
+      // と区別できないので判定不能に倒す。中身を見に行ったぶんを fail-open にしない。
+      if (undecidable || (kind === null && chain.fromGroupInterior)) {
         stats.undecidable += 1;
         findings.push({
           ...position(match.index),
           file,
           rule: UNRESOLVED_RULE,
-          message: UNRESOLVED_MESSAGES[reason],
+          message: UNRESOLVED_MESSAGES[undecidable ? reason : "opaque"],
         });
         continue;
       }

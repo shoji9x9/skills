@@ -38,7 +38,8 @@
 |---|---|---|
 | 引数・変数の `page` / `locator` | `page.getByRole(…)` | 名前と `: Page` / `: Locator` の型注釈、`const` / `let` / `var` の代入チェーン |
 | メンバー式（Page Object・画面オブジェクト） | `this.page.locator(…)` / `screen.page.waitForTimeout(…)` | チェーンの**各区間**の名前を照合する（起点が `this` や未知のオブジェクトでも、途中の `page` / `locator` で解決する） |
-| 同一ファイル内の関数呼び出し | `pagerValue(view).innerText()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>` / `Promise<Locator>`。引数に関数型があっても読む） |
+| 同一ファイル内の関数呼び出し | `pagerValue(view).innerText()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>`。引数に関数型があっても読む） |
+| 括弧で包んだ await | `(await pagerValue(view)).innerText()` | 括弧の中身の末尾を受け側として辿る（`Promise<Locator>` を返す関数はこれが型的に正しい呼び方） |
 
 **名前で解決できない形が混じっていて、どの区間も `page` / `locator` に解決しなかったときは
 `unresolved-receiver` として報告し、非ゼロ終了する（fail-closed）。** 黙って違反 0 件へ倒さないための分岐で、
@@ -48,7 +49,7 @@
 |---|---|---|
 | 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` / `this.gridRows().count()` | 戻り値へ `Locator` / `Page` の型注釈を付ける（クラスのメソッドは読まないので、その場合はローカル変数へ束ねる） |
 | 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | 受け側をローカル変数へ束ねる（`const page = this.page;`） |
-| 起点が確定できない（括弧で包んだ式・リテラル） | `(await rows()).count()` | 同上 |
+| 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | 同上 |
 
 **逆に、チェーンのどこかが `page` / `locator` に解決すれば、同じ形でも判定不能にはしない**
 （`page["x"].locator("a").count()` は解決する）。**解決できた受け側は、規則の要求と合わなくても
