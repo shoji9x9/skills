@@ -23,8 +23,38 @@
 
   - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
-  - 終了コード 0=差分領域なし / 1=差分領域あり / 2=入力エラー
+  - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は従来どおり `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
+  - `strict_only_regions[]` は**しきい値の内側にだけ差がある領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
+    **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
+    先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
+  - **`id` は上限を掛ける前の全体の並び（`(y, x)` 昇順）から決まる**ので、警告に従って上限を上げても既存候補の採番は変わらない
+    （選抜後の位置で採番すると、割り込んだ手前の領域で `crop-sN-*` が別の bbox を指し、記録済みのトリアージが別の crop に貼り付く）
+  - **画素の比較は見えている色で行う**——両側とも完全な透明な画素は、隠れている RGB が違っても差にしない（マスクした領域・要素切り出しで起きる）
+  - 件数の上限は `--strict-max-regions`（既定 20）。**上限で出せなかった分も、マージ後に下限へ届かなかった分も、数を残す**
+    （`summary.strict_only_regions_total` / `strict_only_dropped_clusters` / `strict_only_dropped_pixels` ＋ stderr の警告。**黙って捨てない**）
+  - 終了コード 0=分類すべき候補なし / 1=候補あり / 2=入力エラー。**下限に届かず捨てた分が残るときも 1**（候補を出せていない＝分類できていない状態を「差が無い」と読ませない）。
+    下限を下げて候補にするか、strict 側のノイズ基準値との対比で説明を付ける
   - `pngjs` に依存する。記録ツールが `pixelmatch` ならプロジェクトに入っていることが多い。無ければ導入をユーザーに確認する（本スキルは勝手にインストールしない）
+
+### 画素の量は 2 本で報告する（しきい値つき／しきい値なし）
+
+**しきい値つきの比較器の結果を「差の量」として単独で報告しない。** `pixel_tool` のしきい値（`pixel_threshold`）は
+**許容の内側の差を総量にも件数にも出さない**ため、1 本だけだと小さな数が「ほぼ一致」と読まれる
+（実測: 報告は 756 画素・0.0569%。枠色の緑が 1/255 違う画素が別に 3,364 画素あり、特性照合〈その要素に論理名が無い〉も手書きの aria〈色を見ない〉も見ていなかった）。
+
+- `pixel-crops.mjs` の `summary` に**両方**が出る: `threshold_pixels` / `threshold_ratio`（記録済みツールのしきい値つき）と
+  `strict_pixels` / `strict_ratio`（しきい値なし）、そのうちマークされていない `strict_only_pixels`、最大チャンネル差 2 本
+  （差がある画素全体の `strict_max_channel_delta` と、しきい値の内側だけの `strict_only_max_channel_delta`）
+- **`diff.md` の経路別サマリに両方の数を書く**（様式は [`../assets/diff-template.md`](../assets/diff-template.md)）。片方だけを書かない
+- **`strict_only_pixels` が非ゼロなら「差分領域なし」を「一致」と読まない。** 対比する相手は**同じ軸の基準値**——
+  `metadata.json.noise_baseline` の該当 page/state/viewport の `pixel_diff_strict` / `pixel_diff_strict_only` であって、しきい値つきの `pixel_diff` ではない
+  （しきい値つきの値はほぼ 0 になるため、strict の実測をそれと比べると通常の描画揺れが必ず超過になる）
+- **strict の基準値を持たない成果物（この項目の導入前に測った `noise_baseline`）では、strict の差をノイズと断定しない。**
+  `parity-suite` に基準値を測り直させるか、その組の候補を未確認として [`triage.md`](triage.md) の分類へ回す（fail-closed）
+- **`strict_only_regions[]` は crop 対を持つ候補としてトリアージへ渡す。** 数だけを報告して終えない——
+  [`triage.md`](triage.md) の入力は候補ごとの crop 対なので、crop が無い候補は分類も差し戻しもできない
+- **判断材料にも両方を渡す**（承認 UI・差し戻し）。**隠れた差の大きさを読むのは `strict_only_max_channel_delta`**——これが 1 なら「色が 1/255 違う」という形が読み取れる
+  （`strict_max_channel_delta` は差がある画素全体の最大値なので、別の場所に本物の差があると 255 等になり、隠れた差の大きさとしては読めない）
 
 ## 特性照合経路
 
