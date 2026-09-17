@@ -680,3 +680,56 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/判定不能 0 件/);
 });
+
+// --- 文脈依存キーワードの直後の `!`（レビュー指摘。PR #397） ---
+//
+// `await` / `yield` は module では常にキーワードだが、script / CommonJS では識別子にもなる。
+// 直後の `!` を前置の否定に倒すと、続く `/` から次の `/` までがマスクされ、その間の違反が黙って消える。
+// 状態空間（直前のトークン × `!` の後に `/` が来るか）:
+//
+// | 直前              | 判定           |
+// |-------------------|----------------|
+// | `await` / `yield`（素の語） | 走査不能（例外） |
+// | `obj.await`（プロパティ名） | 従来どおり後置扱い |
+// | `await` の通常利用（`!` を伴わない） | 従来どおりキーワード |
+//
+// 変異による検出能力の実証: `CONTEXTUAL_VALUE_KEYWORDS.has(...)` を `false`（＝修正前の挙動）に戻すと 3 件 fail。
+// 修正前は `const x = await! / d; const v = locator.textContent(); const y = a / e;` が違反 0 件・判定不能 0 件で
+// exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
+
+test.each([["await"], ["yield"]])(
+  "%s の直後の `!` は前置とも後置とも読めるので走査を止める",
+  (keyword) => {
+    const source = `const locator = page.locator('.x');\nconst x = ${keyword}! / d; const v = locator.textContent(); const y = a / e;\n`;
+    // 倒すと textContent の読み取りがマスクに飲まれて「違反 0 件」になる。
+    expect(() => scanSource(source)).toThrow(/前置の否定とも後置の非 null とも読める/);
+  },
+);
+
+test("プロパティ名の await は従来どおり値として扱う（走査を止めない）", () => {
+  const source = `const locator = page.locator('.x');\nconst x = opts.await! / d; const v = locator.textContent(); const y = a / e;\n`;
+  // `!` は後置なので `/ d; ... /` は除算どうしであり、間の読み取りは走査対象として残る。
+  expect(scanSource(source)).toEqual([expect.objectContaining({ rule: "immediate-read" })]);
+});
+
+test("await の通常利用は走査を止めない", () => {
+  const source = `
+    const save = page.getByRole('button');
+    await expect(save).toBeVisible();
+    const hidden = !(await save.isHidden());
+  `;
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる", () => {
+  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-contextual-"));
+  const spec = join(dir, "contextual.spec.ts");
+  writeFileSync(
+    spec,
+    "const locator = page.locator('.x');\nconst x = await! / d; const v = locator.textContent(); const y = a / e;\n",
+  );
+  const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  expect(result.status).toBe(2);
+  expect(result.stderr).toMatch(/走査不能/);
+  expect(result.stderr).toMatch(/前置の否定とも後置の非 null とも読める/);
+});

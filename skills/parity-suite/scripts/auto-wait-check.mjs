@@ -102,6 +102,11 @@ const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "continue",
   "debugger",
 ]);
+/**
+ * 文脈依存キーワード。module では常にキーワードだが、script / CommonJS では識別子にもなる。
+ * 直後に `!` が来ると前置の否定と後置の非 null が静的に区別できないため、そこで走査を止める。
+ */
+const CONTEXTUAL_VALUE_KEYWORDS = new Set(["await", "yield"]);
 /** 値で終わる句読点。この直後の `/` は除算である（`)` は下で個別に判定する）。 */
 const DIVISION_AFTER_PUNCTUATORS = new Set(["]", "++", "--"]);
 /** 頭を括弧で囲む制御構文。閉じ括弧は値で終わらないため、その直後の `/` は正規表現である。 */
@@ -362,6 +367,20 @@ export function maskNonCode(source) {
         continue;
       }
       if (c === "!") {
+        // `await` / `yield` は文脈依存キーワードで、script / CommonJS では識別子にもなる。
+        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かはここでは決められず、
+        // 前置に倒すと続く `/` から次の `/` までがマスクされて、その間の違反が黙って消える。
+        // 走査できないファイルとして落とす（判定不能を違反 0 件へ倒さない）。
+        if (
+          lastToken !== null &&
+          lastToken.type === "word" &&
+          !lastToken.member &&
+          CONTEXTUAL_VALUE_KEYWORDS.has(lastToken.value)
+        ) {
+          throw new Error(
+            `${lastToken.value} の直後の \`!\` は前置の否定とも後置の非 null とも読める（${lastToken.value} を識別子に使わないか、括弧で区切る）`,
+          );
+        }
         lastToken = { type: "punct", value: "!", postfix: endsWithValue(lastToken) };
         i += 1;
         continue;
