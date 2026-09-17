@@ -351,6 +351,41 @@ test("引数に関数型を持つ宣言でも戻り値の型注釈を読む", ()
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test.each([
+  // ASI で改行が文末になるため、次の行は文の位置から始まる。
+  ["break", "while (x) { break\n/won't/.test(x); }"],
+  ["continue", "while (x) { continue\n/won't/.test(x); }"],
+])("文を終える語（%s）の後の正規表現を潰す", (_name, head) => {
+  const source = [head, "const value = locator.textContent();", "const other = /can't/;"].join(
+    "\n",
+  );
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  // プロパティ名はキーワードにならない。同一行に 2 つの `/` があると間の実コードが潰れる。
+  [
+    "制御構文名",
+    "const r = obj.if(x) / denom; const value = await locator.textContent(); const q = a / d;",
+  ],
+  [
+    "文の位置の語",
+    "const r = obj.return / x; const value = await locator.count(); const q = a / d;",
+  ],
+])("プロパティ名の %s をキーワードとして読まない", (_name, source) => {
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("戻り値注釈で解決した名前は呼ばれていないプロパティに当てない", () => {
+  // `page` を返す関数が同一ファイルにあっても、`screen.page` の Page 判定を上書きしない
+  // （上書きすると page 専用規則の fixed-wait が静かに外れる）。
+  const source = [
+    "function page(view: Page): Locator { return view.locator('.x'); }",
+    "await screen.page.waitForTimeout(10);",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
+});
+
 test("export default の後の正規表現を潰す", () => {
   // `default` を許可位置から落とすと、正規表現内のアポストロフィが文字列開始に化け、
   // 次のアポストロフィまで（行をまたいで）潰れて違反ごと消える。

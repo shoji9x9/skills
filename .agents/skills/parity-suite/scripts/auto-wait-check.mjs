@@ -95,6 +95,10 @@ const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "await",
   // `export default /re/;` も正規表現を開始できる位置。
   "default",
+  // 文を終える語。ASI で改行が文末になり、次の行は文の位置から始まる（`break\n/re/.test(x)`）。
+  "break",
+  "continue",
+  "debugger",
 ]);
 /** 値で終わる句読点。この直後の `/` は除算である（`)` は下で個別に判定する）。 */
 const DIVISION_AFTER_PUNCTUATORS = new Set(["]", "++", "--"]);
@@ -129,7 +133,11 @@ function regexAllowedAfter(lastToken) {
     if (lastToken.value === "}") return lastToken.blockClose === true;
     return !DIVISION_AFTER_PUNCTUATORS.has(lastToken.value);
   }
-  if (lastToken.type === "word") return REGEX_ALLOWED_AFTER_KEYWORDS.has(lastToken.value);
+  // プロパティ名はキーワードにならない。`obj.return / x / y` の `return` をキーワードと読むと
+  // 除算を正規表現として潰し、間の実コードごと違反が消える。
+  if (lastToken.type === "word") {
+    return !lastToken.member && REGEX_ALLOWED_AFTER_KEYWORDS.has(lastToken.value);
+  }
   return false;
 }
 
@@ -137,8 +145,20 @@ function regexAllowedAfter(lastToken) {
 function braceOpensBlock(lastToken) {
   if (lastToken === null) return true;
   if (lastToken.type === "punct") return BLOCK_BRACE_AFTER_PUNCTUATORS.has(lastToken.value);
-  if (lastToken.type === "word") return !OBJECT_BRACE_AFTER_KEYWORDS.has(lastToken.value);
+  if (lastToken.type === "word") {
+    return lastToken.member || !OBJECT_BRACE_AFTER_KEYWORDS.has(lastToken.value);
+  }
   return false;
+}
+
+/** 直前のトークンが、プロパティ名でない素の制御構文キーワードか。 */
+function isControlHeadKeyword(lastToken) {
+  return (
+    lastToken !== null &&
+    lastToken.type === "word" &&
+    !lastToken.member &&
+    CONTROL_HEAD_KEYWORDS.has(lastToken.value)
+  );
 }
 
 /**
@@ -276,7 +296,9 @@ export function maskNonCode(source) {
       if (/[A-Za-z_$]/.test(c)) {
         let end = i + 1;
         while (end < source.length && /[\w$]/.test(source[end])) end += 1;
-        lastToken = { type: "word", value: source.slice(i, end) };
+        // `.` の直後ならプロパティ名。キーワードとしての意味を持たない。
+        const member = lastToken !== null && lastToken.type === "punct" && lastToken.value === ".";
+        lastToken = { type: "word", value: source.slice(i, end), member };
         i = end;
         continue;
       }
@@ -297,11 +319,7 @@ export function maskNonCode(source) {
         continue;
       }
       if (c === "(") {
-        const head =
-          lastToken !== null &&
-          lastToken.type === "word" &&
-          CONTROL_HEAD_KEYWORDS.has(lastToken.value);
-        parenHeads.push(head);
+        parenHeads.push(isControlHeadKeyword(lastToken));
         lastToken = { type: "punct", value: "(" };
         i += 1;
         continue;
@@ -574,9 +592,19 @@ function resolveReceiver(segments, receivers) {
   let hasOpaqueAlias = false;
   for (const segment of segments) {
     if (segment.computed) hasComputedAccess = true;
-    if (receivers.locator.has(segment.name) || receivers.locatorCallables.has(segment.name)) {
+    // 戻り値注釈で解決した名前は「呼ばれている区間」だけに当てる。呼ばれていない同名の
+    // プロパティに当てると、`function page(…): Locator` があるファイルで
+    // `screen.page.waitForTimeout()` の Page 判定を Locator へ上書きし、page 専用規則が静かに外れる。
+    const callableKind = segment.called
+      ? receivers.locatorCallables.has(segment.name)
+        ? "locator"
+        : receivers.pageCallables.has(segment.name)
+          ? "page"
+          : null
+      : null;
+    if (receivers.locator.has(segment.name) || callableKind === "locator") {
       kind = "locator";
-    } else if (receivers.page.has(segment.name) || receivers.pageCallables.has(segment.name)) {
+    } else if (receivers.page.has(segment.name) || callableKind === "page") {
       kind = "page";
     } else if (segment.called) {
       hasUnknownCall = true;
