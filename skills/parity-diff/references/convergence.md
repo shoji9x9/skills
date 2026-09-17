@@ -26,9 +26,13 @@
     数え直しは [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が行う（**記録された件数を信用せず設定ファイルの `pending` から数え直す**）:
 
     ```bash
-    node <skill>/scripts/pending-triage-check.mjs --registries <registries.json> --metadata .replace/parity/<slug>/new/<target>/diff-metadata.json
+    node <skill>/scripts/pending-triage-check.mjs --registries <registries.json> --metadata .replace/parity/<slug>/new/<target>/diff-metadata.json --features .replace/features.md
     ```
 
+    **`--features` は必ず渡す。** 機能インベントリが無いと slug の実在を確認できないため、
+    スクリプトは「別機能に帰属する要素は報告だけ」の緩和を**適用せず全件を対象にする**（fail-closed。その旨を `note:` に出す）。
+    渡したファイルに slug 列の表が無い、または対象 slug がその表に無い場合は exit 2 で落ちる
+    （綴り違いの slug を放置すると、全ての帰属が「別機能」に見えて対象 0 件で閉じられる）。
     **渡す `registries.json` は棚卸しの後の設定ファイルから組み立て直したもの**にする（正規化のときのスナップショットを使い回すと、人が `keep` / `may_change` へ移した要素が `pending` に残って見え、正しい記録が不整合として落ちる。組み立て方は [`normalize.md`](normalize.md)「registries.json の組み立て」）。
     終了コードは 0 ＝ 棚卸し済み、1 ＝ 未棚卸し・記録の不整合が残る、2 ＝ 使い方の誤り・型崩れ（設定ファイル側に `intentional_diffs.pending` が無い・配列でない場合を含む）。1 以上なら収束させず棚卸しを行う
   - **部品被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「部品被覆表」）。
@@ -164,6 +168,9 @@
   どこでも落ちない要素になる。**`warn:` と `note:` の件数がその唯一の回収経路**なので、0 件でない限り読み飛ばさず、
   帰属先の機能の担当へ戻す（この緩和で増えたのは検査の走る回数ではなく、止める範囲の狭さである）。
   **`slug` を読めない要素——`slug` が無い・空／文字列でない・素の空文字列・文字列でもオブジェクトでもない——は帰属不明として全機能の対象**なので、従来どおり落ちる（対象を決められないものは合格に倒さない）。
+  **`slug` が機能インベントリ（`.replace/features.md`）に実在することも確かめる**——綴り違いや部品 slug は「担当する機能」が現れないまま
+  どの機能の対象にもならないので、帰属不明として全機能の対象へ倒す。`--features` を渡していない実行では実在を確認できないため、
+  この緩和自体を適用しない（全件を対象にする）。
   **帰属を信用できるのは `added_by` が読めていて、その書き手が機能 slug を書けるとき（`golden-dataset` / `parity-suite` / `parity-replace`）だけ**である——
   `added_by` が無い・`unknown`・未知の名前の要素は `slug` がどの名前空間のものか確認できず、「別機能に帰属すると読めている」条件を満たさないので帰属不明として全機能の対象にする。
   **`parity-component` は機能 slug を書けない**（部品は複数機能にまたがる）ので、その追記は `cross-cutting` でなければ同じく帰属不明へ倒す。

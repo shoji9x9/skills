@@ -711,6 +711,8 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 | `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける**。**機能 slug 以外の名前空間の slug を書かない**（部品 slug は下記の箇条を参照） |
 | `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown` |
 
+- **`slug` は機能インベントリに実在するものだけ。** 綴り違い・採番し直した slug は「担当する機能」が現れないため、
+  `pending-triage-check.mjs` が `.replace/features.md` と突き合わせて**帰属不明へ倒す**（全機能の棚卸し対象になる）
 - **帰属を信用できるのは `added_by` が読めているときだけ。** `added_by` が無い・`unknown`・未知のスキル名の要素は、
   `slug` がどの名前空間のものか確認できないため、`pending-triage-check.mjs` が**帰属不明として全機能の棚卸し対象へ倒す**
   （`cross-cutting` は書き手に依らず全機能の対象なので対象外）。旧形式からの移行で `added_by: unknown` を書いた要素は、

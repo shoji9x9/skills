@@ -29,6 +29,8 @@
 // | parity-suite 等  | 別機能の slug   | 倒さない（従来どおり対象外。exit 0）           |
 // | 欠落 / unknown / 未知の名前 | 任意の slug | 帰属不明へ倒す（名前空間を確認できない）   |
 // | 欠落 / unknown / 未知の名前 | cross-cutting | 倒さない（書き手に依らず全機能の対象）   |
+// | parity-suite 等  | 実在しない slug | 帰属不明へ倒す（担当機能が現れない）       |
+// | （インベントリ未提示） | 任意の slug | 緩和を適用しない（全件対象。fail-closed） |
 //
 // 変異による検出能力の実証（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）:
 //   1. countTriage の `if (inScope(issue, slug))` を `if (true)` に → 2 件 fail
@@ -43,6 +45,8 @@
 //      （別機能に帰属する要素を倒してしまうケース群。倒す範囲が広すぎないことを測れている）
 //   7. normalizePending の `namespaceVerified` を `true` に（slug を常に信用する＝修正前の挙動）→ 5 件 fail
 //   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が効いていることを測れている）
+//   9. normalizePending の `slugInInventory` を `true` に（実在を検証しない＝修正前）→ 2 件 fail
+//  10. 同じ位置を `false` に（常に不在扱い）→ 7 件 fail
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -58,12 +62,22 @@ const SLUG = "my-feature";
 
 /**
  * pending の要素と棚卸し記録を書いてスクリプトを 1 回走らせる。
- * @param {{pending: unknown[], entries?: unknown[], keep?: string[], may_change?: string[]}} input
+ * @param {{pending: unknown[], entries?: unknown[], keep?: string[], may_change?: string[], slugs?: string[], features?: false}} input
  */
 function run(input) {
   const work = mkdtempSync(join(tmpdir(), "pending-triage-"));
   const registries = join(work, "registries.json");
   const metadata = join(work, "diff-metadata.json");
+  const features = join(work, "features.md");
+  writeFileSync(
+    features,
+    [
+      "| slug | \u6a5f\u80fd\u540d |",
+      "|---|---|",
+      ...(input.slugs ?? [SLUG, "other-feature"]).map((s) => `| ${s} | x |`),
+      "",
+    ].join("\n"),
+  );
   writeFileSync(
     registries,
     JSON.stringify({
@@ -78,13 +92,9 @@ function run(input) {
     metadata,
     JSON.stringify({ slug: SLUG, intentional_diffs_pending: { entries: input.entries ?? [] } }),
   );
-  const result = spawnSync(
-    process.execPath,
-    [script, "--registries", registries, "--metadata", metadata],
-    {
-      encoding: "utf8",
-    },
-  );
+  const args = [script, "--registries", registries, "--metadata", metadata];
+  if (input.features !== false) args.push("--features", features);
+  const result = spawnSync(process.execPath, args, { encoding: "utf8" });
   return { status: result.status, stderr: result.stderr, stdout: result.stdout };
 }
 
@@ -331,6 +341,72 @@ test.each([
   const parsed = JSON.parse(stdout);
   expect(parsed.in_scope).toBe(1);
   expect(parsed.out_of_scope_problems).toEqual([]);
+});
+
+// 機能インベントリとの照合（レビュー指摘。PR #397 の 3 巡目）。
+// 書き手が正規でも、slug が実在しなければその「担当機能」は現れず、永久に棚卸しされない。
+
+test("実在しない slug は、書き手が正規でも帰属不明として全機能の対象になる", () => {
+  const { status, stderr, stdout } = run({
+    pending: [
+      {
+        item: "綴り違いの保留",
+        slug: "typo-feature",
+        added_by: "parity-suite",
+        added_at: "2026-09-01",
+      },
+    ],
+  });
+  expect(status).toBe(1);
+  expect(stderr).toContain("slug が機能インベントリに無い");
+  expect(stderr).toContain("error: 未棚卸し 1 件");
+  const parsed = JSON.parse(stdout);
+  expect(parsed.in_scope).toBe(1);
+  expect(parsed.out_of_scope_problems).toEqual([]);
+});
+
+test("--features を渡さないと別機能への緩和を適用しない（fail-closed）", () => {
+  const { status, stderr, stdout } = run({
+    pending: [{ ...otherFeature, added_at: "2026-09-01" }],
+    features: false,
+  });
+  // 同じ入力でも --features 付きなら対象 0 件・exit 0（下の陽性コントロール）。
+  expect(status).toBe(1);
+  expect(stderr).toContain("--features を渡していないので");
+  expect(JSON.parse(stdout).in_scope).toBe(1);
+
+  const withInventory = run({ pending: [{ ...otherFeature, added_at: "2026-09-01" }] });
+  expect(withInventory.status).toBe(0);
+  expect(JSON.parse(withInventory.stdout).in_scope).toBe(0);
+});
+
+test("slug 表の無い features.md は読めないものとして exit 2 で落ちる", () => {
+  const work = mkdtempSync(join(tmpdir(), "pending-triage-features-"));
+  const registries = join(work, "registries.json");
+  const metadata = join(work, "diff-metadata.json");
+  const features = join(work, "features.md");
+  writeFileSync(
+    registries,
+    JSON.stringify({ intentional_diffs: { keep: [], may_change: [], pending: [] } }),
+  );
+  writeFileSync(
+    metadata,
+    JSON.stringify({ slug: SLUG, intentional_diffs_pending: { entries: [] } }),
+  );
+  writeFileSync(features, "# 機能インベントリ\n\n表はまだ無い。\n");
+  const result = spawnSync(
+    process.execPath,
+    [script, "--registries", registries, "--metadata", metadata, "--features", features],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(2);
+  expect(result.stderr).toContain("slug 列の表が無い");
+});
+
+test("対象 slug 自体がインベントリに無ければ、比較の基準が壊れているので落ちる", () => {
+  const { status, stderr } = run({ pending: [], slugs: ["other-feature"] });
+  expect(status).toBe(2);
+  expect(stderr).toContain("対象 slug が機能インベントリに無い");
 });
 
 test("書き手が読めない要素は cross-cutting なら従来どおり対象（陰性コントロール）", () => {

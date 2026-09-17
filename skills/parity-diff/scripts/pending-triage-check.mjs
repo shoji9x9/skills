@@ -112,6 +112,56 @@ function isPlainObject(v) {
 }
 
 /**
+ * 機能インベントリ（`.replace/features.md`）から slug の集合を読む。
+ *
+ * slug は機能・横断 API・バッチ・その他 Issue で**同じ名前空間**を共有し（正本は replace-strategy の
+ * `assets/features-template.md`）、いずれも 1 列目が `slug` の表に並ぶ。ここではその表だけを読む。
+ * **slug 表が 1 つも無いファイルは読めなかったものとして null を返す**——空集合を返すと
+ * 「インベントリに 1 件も無い」と区別が付かない。
+ * @param {string} markdown
+ * @returns {Set<string>|null}
+ */
+export function parseFeatureSlugs(markdown) {
+  /** @param {string} line */
+  const cellsOf = (line) =>
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim());
+  const slugs = new Set();
+  let sawSlugTable = false;
+  let inSlugTable = false;
+  let sawSeparator = false;
+  for (const rawLine of markdown.split("\n")) {
+    const line = rawLine.trim();
+    if (!line.startsWith("|")) {
+      inSlugTable = false;
+      sawSeparator = false;
+      continue;
+    }
+    const cells = cellsOf(line);
+    if (!inSlugTable) {
+      if (cells[0]?.toLowerCase() === "slug") {
+        inSlugTable = true;
+        sawSlugTable = true;
+        sawSeparator = false;
+      }
+      continue;
+    }
+    if (!sawSeparator) {
+      // 区切り行が無い表はヘッダと本体を区別できないので読まない。
+      if (/^:?-{2,}:?$/.test(cells[0] ?? "")) sawSeparator = true;
+      else inSlugTable = false;
+      continue;
+    }
+    const slug = cells[0] ?? "";
+    if (slug !== "") slugs.add(slug);
+  }
+  return sawSlugTable ? slugs : null;
+}
+
+/**
  * registries.json の intentional_diffs.pending を正規化する。
  *
  * 素の文字列は旧形式として読むが帰属不明にする（slug: null）。
@@ -128,9 +178,10 @@ function isPlainObject(v) {
  * slug が無い／空／文字列でない要素——は帰属不明として全機能の対象なので落ちる。
  * item が読めなくても slug が読めるなら、その slug の機能の棚卸しが落とす）。
  * @param {unknown[]} entries
+ * @param {Set<string>|null} knownSlugs 機能インベントリの slug 集合（読めなければ null ＝何も検証できない）
  * @returns {{ items: {key:string, slug:(string|null), index:number}[], problems: string[], issues: {index:number, slug:(string|null), message:string}[] }}
  */
-export function normalizePending(entries) {
+export function normalizePending(entries, knownSlugs = null) {
   /** @type {{key:string, slug:(string|null), index:number}[]} */
   const items = [];
   /** @type {{index:number, slug:(string|null), message:string}[]} */
@@ -161,14 +212,16 @@ export function normalizePending(entries) {
     const key = matchKey(intentionalEntryText(entry));
     const writer = nonEmptyString(rec.added_by) ? String(rec.added_by).trim() : null;
     const rawSlug = nonEmptyString(rec.slug) ? String(rec.slug).trim() : null;
-    // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書ける場合だけ。
-    // 書き手が読めない要素（added_by の欠落・unknown・未知の名前）は slug がどの名前空間のものか
-    // 確認できず、別機能に帰属すると読めていることにならない。cross-cutting は書き手に依らず
-    // 帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
+    // 帰属を信用できるのは、書き手が読めていてその書き手が機能 slug を書け、かつその slug が
+    // 機能インベントリに実在する場合だけ。書き手が読めない要素（added_by の欠落・unknown・未知の名前）も、
+    // 実在しない slug（綴り違い・部品 slug）も、別機能に帰属すると読めていることにならない
+    // ——どちらもその「担当機能」が現れないまま永久に棚卸しされない。
+    // インベントリを読めていない（knownSlugs が null）ときは何も検証できないので緩和を適用しない。
+    // cross-cutting は書き手に依らず帰属不明と同じ範囲（全機能）なのでそのまま信用してよい。
+    const writerWritesFeatureSlug = writer !== null && FEATURE_SLUG_WRITERS.has(writer);
+    const slugInInventory = knownSlugs !== null && rawSlug !== null && knownSlugs.has(rawSlug);
     const namespaceVerified =
-      rawSlug === null ||
-      rawSlug === CROSS_CUTTING ||
-      (writer !== null && FEATURE_SLUG_WRITERS.has(writer));
+      rawSlug === null || rawSlug === CROSS_CUTTING || (writerWritesFeatureSlug && slugInInventory);
     // 形の不備を報告するときの帰属。slug が読めない・名前空間を確認できない要素は
     // 帰属不明（＝全機能の棚卸し対象）として扱う。
     const attribution = namespaceVerified ? rawSlug : null;
@@ -217,10 +270,16 @@ export function normalizePending(entries) {
     // 名前空間を確認できない slug は、どの機能の inScope にも入らず永久に棚卸しされない。
     // 帰属不明（slug: null）へ倒して全機能の対象にする（合格に倒さない）。
     if (!namespaceVerified) {
-      const reason =
-        writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)
-          ? `added_by が ${writer} なのに slug が ${CROSS_CUTTING} でない`
-          : `slug の名前空間を確認できない（${writer === null ? "added_by が無い" : `added_by が ${writer}`}）`;
+      let reason;
+      if (writer !== null && CROSS_CUTTING_ONLY_WRITERS.has(writer)) {
+        reason = `added_by が ${writer} なのに slug が ${CROSS_CUTTING} でない`;
+      } else if (!writerWritesFeatureSlug) {
+        reason = `slug の名前空間を確認できない（${writer === null ? "added_by が無い" : `added_by が ${writer}`}）`;
+      } else if (knownSlugs === null) {
+        reason = "機能インベントリを読めていないので slug の実在を確認できない";
+      } else {
+        reason = "slug が機能インベントリに無い";
+      }
       issues.push({
         index,
         slug: null,
@@ -275,9 +334,10 @@ function targetKeys(registry, group) {
  * @param {unknown} registries registries.json の内容
  * @param {unknown} record diff-metadata.json の intentional_diffs_pending
  * @param {string} slug 対象機能の slug
+ * @param {Set<string>|null} knownSlugs 機能インベントリの slug 集合（読めなければ null）
  * @returns {{attributed:number, cross_cutting:number, unattributed:number, resolved:number, carried_over:number, in_scope:number, untriaged:number, problems:string[], registry_problems:string[], record_problems:string[], out_of_scope_problems:string[]}}
  */
-export function countTriage(registries, record, slug) {
+export function countTriage(registries, record, slug, knownSlugs = null) {
   /** @type {string[]} */
   const problems = [];
   /** @type {string[]} 登録簿（設定ファイル）側の不整合で、棚卸しの対象範囲に入るもの */
@@ -304,6 +364,7 @@ export function countTriage(registries, record, slug) {
   }
   const { items, issues: shapeIssues } = normalizePending(
     Array.isArray(rawPending) ? rawPending : [],
+    knownSlugs,
   );
   for (const issue of shapeIssues) {
     problems.push(issue.message);
@@ -507,12 +568,12 @@ export function countTriage(registries, record, slug) {
 export function main(argv, deps = {}) {
   const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
   const usage =
-    "usage: node pending-triage-check.mjs --registries <registries.json> --metadata <diff-metadata.json>\n";
+    "usage: node pending-triage-check.mjs --registries <registries.json> --metadata <diff-metadata.json> --features <features.md>\n";
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--registries" || a === "--metadata") {
+    if (a === "--registries" || a === "--metadata" || a === "--features") {
       const v = argv[i + 1];
       if (v === undefined) {
         process.stderr.write(usage);
@@ -533,6 +594,29 @@ export function main(argv, deps = {}) {
   if (!opts.registries || !opts.metadata) {
     process.stderr.write(usage);
     return 2;
+  }
+
+  // 機能インベントリ。渡されなければ何も検証できないので、別機能への緩和を適用しない（fail-closed）。
+  /** @type {Set<string>|null} */
+  let knownSlugs = null;
+  if (opts.features) {
+    /** @type {string} */
+    let featuresText;
+    try {
+      featuresText = readFile(opts.features);
+    } catch (e) {
+      process.stderr.write(`error: features.md を読めない: ${opts.features}: ${String(e)}\n`);
+      return 2;
+    }
+    knownSlugs = parseFeatureSlugs(featuresText);
+    if (knownSlugs === null) {
+      // 読めたのに slug 表が無いのは、別のファイルを渡したか形式が変わったかのどちらか。
+      // 黙って fail-closed へ倒すと、緩和が効かない理由が出力から分からない。
+      process.stderr.write(
+        `error: features.md に slug 列の表が無い（機能インベントリとして読めない）: ${opts.features}\n`,
+      );
+      return 2;
+    }
   }
 
   /** @type {unknown} */
@@ -607,7 +691,15 @@ export function main(argv, deps = {}) {
     return 2;
   }
 
-  const counted = countTriage(registries, record, slug);
+  // 対象機能の slug 自体がインベントリに無いなら、比較の基準が壊れている（綴り違いなら
+  // 全ての帰属が「別機能」に見え、対象 0 件で閉じられる）。合格に倒さず成果物の不整合として落とす。
+  if (knownSlugs !== null && !knownSlugs.has(slug)) {
+    process.stderr.write(
+      `error: 対象 slug が機能インベントリに無い（${slug}）: ${opts.features}\n`,
+    );
+    return 2;
+  }
+  const counted = countTriage(registries, record, slug, knownSlugs);
   // 終了コードへ入れるのは棚卸しの対象範囲だけ（未棚卸し・登録簿側の対象内の不整合・棚卸し記録の不整合）。
   // 別機能に帰属すると読めている要素の形の不備は warn として出すが、この機能の収束は妨げない。
   const ok =
@@ -629,6 +721,12 @@ export function main(argv, deps = {}) {
     // 数を出さないと「対象外だから見なくてよい」と「検査が動いていない」が同じ見え方になる。
     process.stderr.write(
       `note: 別機能に帰属する pending の形の不備 ${counted.out_of_scope_problems.length} 件は warn のみ（その機能の棚卸しが落とす）: ${opts.registries}\n`,
+    );
+  }
+  if (knownSlugs === null) {
+    // 緩和が効かない理由を出す（--features 無しは「別機能へ回す」判断ができない状態）。
+    process.stderr.write(
+      "note: --features を渡していないので、別機能に帰属する要素の緩和を適用していない（slug の実在を確認できないため全件を対象にした）\n",
     );
   }
   if (counted.untriaged > 0) {
