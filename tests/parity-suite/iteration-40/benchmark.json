@@ -1,0 +1,179 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:00:18.983Z",
+    "evals_run": [33],
+    "runs_per_configuration": 1
+  },
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 191.294,
+        "stddev": 0,
+        "min": 191.294,
+        "max": 191.294
+      },
+      "tokens": {
+        "mean": 371110,
+        "stddev": 0,
+        "min": 371110,
+        "max": 371110
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 130.154,
+        "stddev": 0,
+        "min": 130.154,
+        "max": 130.154
+      },
+      "tokens": {
+        "mean": 42273,
+        "stddev": 0,
+        "min": 42273,
+        "max": 42273
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "Issue #364 で eval 33 の prompt に「開き方が 2 つある器を 2 行に分けるつもり」「同じ openPopup(page, 演算子) を 2 つの親から呼んでいる」を足し、assertion 6・7 を追加した iteration。",
+    "弁別: assertion 3・4・5・6 が without_skill で落ちる。特に 6（器 1 つにつき 1 行・opened_by は配列）は without_skill が「2 行にするのは正しい」と逆の結論を出したので、新規 assertion として弁別している。",
+    "後退検知: assertion 1・2・7・8 は without_skill も到達した。7（parent × 呼び出しの単位）は「容器が違えば 2 行・2 枚」と自力で到達するため Delta には寄与しない。",
+    "契約の表記ゆれを 1 件検出: with_skill が opened_by の要素を openPopup(演算子) と書き、prompt のアダプタ（openPopup(page, name)）から page を落として正規化した。baseline.md は <関数名>(<開く対象の論理名>) と書く一方で例に openCombo(page, name) を挙げており、page のような非論理名の引数を書くかが読み手に委ねられている。"
+  ],
+  "runs": [
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 191.294,
+        "tokens": 371110,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "部品被覆表の present は操作の有無を数えるだけで、開いた中身の見た目を突き合わせたことにはならず、撮影状態に入れなかった器は画素・特性照合・aria のどの経路にも差として出ないと説明している",
+          "passed": true,
+          "evidence": "「被覆表が数えているのは操作と状態の有無だけ」「撮っていない状態のぶんは 3 経路のどれにも現れず、差 0 件と素通りが同じ見え方になる」と説明している"
+        },
+        {
+          "text": "操作で開く器を再帰的に数え、吹き出しの中で開く一覧（2 段目）と項目に指を乗せた状態まで降りると述べている",
+          "passed": true,
+          "evidence": "「列フィルタの吹き出しを 1 段目として数えた以上、その中のコンボの一覧と項目の hover は再帰の続き」と述べ、2 段目と hover まで降ろしている"
+        },
+        {
+          "text": "数えた器を撮る器も撮らない器も metadata.json の capture_conditions.popup_inventory に 1 行ずつ残し、撮る器は captured に撮影状態名と reason: null、撮らない器は captured: null と reason を書き、両方を埋めた行は不整合だと述べている",
+          "passed": true,
+          "evidence": "popup_inventory に撮る／撮らない両方を 1 行ずつ残し、captured に状態名＋reason: null、撮らないなら captured: null ＋ reason と書いている"
+        },
+        {
+          "text": "列を選ぶ吹き出しを何も書かずに外すことを退け、gaps.md に「撮影状態の対象外」として理由付きで残すと述べている",
+          "passed": true,
+          "evidence": "行を残して captured: null ＋ reason を書き、同じ文言を gaps.md「特性化できなかった箇所と理由」へ種別「撮影状態の対象外」として残すと述べている"
+        },
+        {
+          "text": "器を開く呼び出しを関数名だけでなく開く対象（引数の論理名）ごとに列挙し、棚卸しの opened_by を関数名＋開く対象の形で書いて全て現れるかを突き合わせる（openPopup の 1 行で他の器まで満たしたことにしない）と述べている",
+          "passed": true,
+          "evidence": "「アダプタとスイートの呼び出しを全部この単位に正規化して列挙し、同じ parent を持つ行の opened_by に全部現れることを確認します」と述べている"
+        },
+        {
+          "text": "1 つの器を複数の操作で開ける場合は行を分けず、opened_by を配列にして開き方を全て並べる（棚卸しの単位は器 1 つにつき 1 行で、同じ parent × 同じ name の行が 2 つあるのは不整合）と述べている",
+          "passed": true,
+          "evidence": "「行の単位は器 1 つにつき 1 行で、開き方を足すために分けません」「同じ parent × 同じ name の行が 2 つ以上で不整合として止まります」と述べ、opened_by に 2 要素を並べた例を示している"
+        },
+        {
+          "text": "同じ openPopup(page, 演算子) でも呼ぶ文脈（親の器）が違えば別の呼び出しとして扱い、列挙も突き合わせも parent × 呼び出しの単位で行う（文脈を落とすと別の親から呼ぶ同じ呼び出しが 1 つに潰れる）と述べている",
+          "passed": true,
+          "evidence": "「照合の単位は parent × opened_by の要素で、同じ openPopup(演算子) でも、親の器が違えば別の呼び出し」と述べ、parent 別に 2 行を示している"
+        },
+        {
+          "text": "回答内で「被覆表が present なので撮影状態に入れなくてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "全体を通して「present だから撮らなくてよい」を否定しており、矛盾する結論の併記は無い"
+        }
+      ]
+    },
+    {
+      "eval_id": 33,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 4,
+        "failed": 4,
+        "total": 8,
+        "time_seconds": 130.154,
+        "tokens": 42273,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "部品被覆表の present は操作の有無を数えるだけで、開いた中身の見た目を突き合わせたことにはならず、撮影状態に入れなかった器は画素・特性照合・aria のどの経路にも差として出ないと説明している",
+          "passed": true,
+          "evidence": "「共用度の高いアダプタほど present は弱い指標」「撮っていない集合については無情報」と説明している"
+        },
+        {
+          "text": "操作で開く器を再帰的に数え、吹き出しの中で開く一覧（2 段目）と項目に指を乗せた状態まで降りると述べている",
+          "passed": true,
+          "evidence": "「演算子一覧の展開、項目ホバー、いずれも撮影状態に入れてください」と、2 段目の器と hover の双方を撮影対象に含めている"
+        },
+        {
+          "text": "数えた器を撮る器も撮らない器も metadata.json の capture_conditions.popup_inventory に 1 行ずつ残し、撮る器は captured に撮影状態名と reason: null、撮らない器は captured: null と reason を書き、両方を埋めた行は不整合だと述べている",
+          "passed": false,
+          "evidence": "記録先を独自の YAML（shot-here / covered-by / waived）で設計しており、metadata.json の capture_conditions.popup_inventory も captured / reason の排他も述べていない"
+        },
+        {
+          "text": "列を選ぶ吹き出しを何も書かずに外すことを退け、gaps.md に「撮影状態の対象外」として理由付きで残すと述べている",
+          "passed": false,
+          "evidence": "「何も書かずに外す」は退けたが、残す先は独自の棚卸し行であり、gaps.md の種別「撮影状態の対象外」には触れていない"
+        },
+        {
+          "text": "器を開く呼び出しを関数名だけでなく開く対象（引数の論理名）ごとに列挙し、棚卸しの opened_by を関数名＋開く対象の形で書いて全て現れるかを突き合わせる（openPopup の 1 行で他の器まで満たしたことにしない）と述べている",
+          "passed": false,
+          "evidence": "アダプタ名では数え落とすとは述べたが、突き合わせ先は独自キーの entry であり、棚卸しの opened_by を記録先にしていない"
+        },
+        {
+          "text": "1 つの器を複数の操作で開ける場合は行を分けず、opened_by を配列にして開き方を全て並べる（棚卸しの単位は器 1 つにつき 1 行で、同じ parent × 同じ name の行が 2 つあるのは不整合）と述べている",
+          "passed": false,
+          "evidence": "「棚卸しを 2 行にするのは正しい」「1 状態 : N 経路 を棚卸しの標準形にします」と、器 1 行の契約と逆の結論を述べている"
+        },
+        {
+          "text": "同じ openPopup(page, 演算子) でも呼ぶ文脈（親の器）が違えば別の呼び出しとして扱い、列挙も突き合わせも parent × 呼び出しの単位で行う（文脈を落とすと別の親から呼ぶ同じ呼び出しが 1 つに潰れる）と述べている",
+          "passed": true,
+          "evidence": "「キーはアダプタ呼び出しではなく着地点です。容器が違えば 2 行・2 枚」と、親の器で区別している"
+        },
+        {
+          "text": "回答内で「被覆表が present なので撮影状態に入れなくてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "被覆表 present を根拠に撮らなくてよいとする結論は併記していない"
+        }
+      ]
+    }
+  ]
+}

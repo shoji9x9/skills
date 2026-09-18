@@ -103,8 +103,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 - **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する（**一律停止はキー名が変わった旧キーだけ**。`verification_commands` がリストなど「キー名が変わらない移行」は上表の挙動に従う）
 - **本スキルは設定を生成しない**（読むだけ）。例外は**非破壊追記の 2 つ**——フェーズ B で見つかった新規の意図的差異を
-  `intentional_diffs.pending` へ**追記元が分かる形で**追記してユーザー確認へ回すこと（`added_by: golden-dataset` ／ `added_at` ／
-  `slug` は帰属できる機能があればその slug、無ければ `cross-cutting`。要素の形の正本はスキーマ文書の「`pending` 要素の形」）と、
+  `intentional_diffs.pending` へ**追記元が分かる形で**追記してユーザー確認へ回すこと（差異の文言は **`item`**〈照合キー〉／ `added_by: golden-dataset` ／ `added_at` ／
+  `slug` は帰属できる機能があればその slug、無ければ `cross-cutting` の 4 キー。`item` を別のキー名で書くと追記時は通り、数工程あとの `parity-diff` の棚卸しで「`item` が空」として現れる。要素の形の正本はスキーマ文書の「`pending` 要素の形」）と、
   投入ツールに依存を足すときに `references.dependency_policy` が**キー欠落＝未確認**だった場合の確認結果を同キーへ追記すること
 
 ## 自律実行（`--autonomous`）
