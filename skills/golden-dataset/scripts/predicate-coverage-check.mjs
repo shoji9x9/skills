@@ -737,7 +737,11 @@ export function checkPredicateCoverage(input) {
   }
 
   // 6. 投入後の実測件数（渡されたときだけ）
-  if (typeof input.verificationMarkdown === "string" && input.verificationMarkdown !== "") {
+  //
+  // **「渡していない」と「渡した中身が空」を書き分ける。** 空文字も分岐へ入れて表の不在として落とす——
+  // 空を未指定に丸めると、verification.md を空で作った（あるいは書き出しに失敗した）場合に
+  // 6 節の検査が丸ごと飛び、「実測していない」が「実測して問題なし」と同じ見え方になる。
+  if (typeof input.verificationMarkdown === "string") {
     const verificationTables = parseTables(input.verificationMarkdown);
     const measured = findTable(verificationTables, "述語ごとの該当行数", [
       "述語 id",
@@ -875,7 +879,14 @@ export function main(argv, deps = {}) {
     ["features", featuresPath],
     ["design", designPath],
   ];
-  if (verificationPath) inputs.push(["verification", verificationPath]);
+  // `--verification` は任意だが、**値が空のときは未指定へ丸めない**——丸めると 6 節の検査が飛び、
+  // 指定したつもりの利用者に「実測して問題なし」と同じ出力を返す。
+  if (verificationPath !== undefined) {
+    if (verificationPath.trim() === "") {
+      return fail("--verification に空の値が渡っている（省略するか、実在するパスを渡す）");
+    }
+    inputs.push(["verification", verificationPath]);
+  }
   for (const [key, path] of inputs) {
     try {
       sources[key] = readFile(resolve(cwd, path));

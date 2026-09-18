@@ -206,7 +206,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    `.replace/parity/<slug>/new/<target>/component-comparison.json` に書き（**環境別**。様式の正本は `parity-suite` の
    `assets/component-comparison-template.json`）、**入口・当たり判定・完了**の 3 点を観測して記録する。
    突き合わせられないセルは理由を書き、**突き合わせないことを選ぶなら利用者の承認**（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
-   **記録には新側の版（`new_implementation.commit` ＝ そのときの `new.commit`）も書く**——書かないと、記録の後に実装を変えても古い証拠が通る
+   **記録には新側の版（`new_implementation.commit` ＝ そのときの `new.commit`、`dirty: false`）も書く**——書かないと、記録の後に実装を変えても古い証拠が通る
    （当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。
    記録したらインストール済みの `parity-suite` の
    `node <parity-suite>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json>`

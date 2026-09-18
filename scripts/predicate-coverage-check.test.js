@@ -244,6 +244,28 @@ test("陽性コントロール: 実測が設計と一致する verification も 
   expect(code).toBe(0);
 });
 
+test("空の verification は「渡していない」に丸めない（検査ごと飛ばさない）", () => {
+  // 空に丸めると、verification.md を空で作った実行が「実測して問題なし」と同じ出力になる。
+  expect(
+    checkPredicateCoverage({
+      featuresMarkdown: FEATURES,
+      designMarkdown: designOf(),
+      verificationMarkdown: "",
+    }).findings.map((f) => f.code),
+  ).toContain("verification-table-missing");
+  // 渡していない場合は 6 節に入らない（陰性コントロール。空とは書き分ける）。
+  expect(codesOf()).not.toContain("verification-table-missing");
+  // CLI 側でも、空の値を未指定へ丸めず使い方の誤りとして落とす
+  // （読める空ファイルを置いて、ENOENT ではなく空の値そのもので落ちることを見る）。
+  expect(
+    run(["--features", "f.md", "--design", "d.md", "--verification", " "], {
+      "/w/f.md": FEATURES,
+      "/w/d.md": designOf(),
+      "/w/ ": "",
+    }).code,
+  ).toBe(2);
+});
+
 test("写しが 1 slug 落ちると落ちる（役割が「読み取りだけ」へ倒れる前に拾う）", () => {
   const codes = codesOf({
     design: designOf({

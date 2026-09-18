@@ -130,7 +130,7 @@
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
+        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積で、noise_baseline にもここにも無い組は #not-captured の穴として数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
         "viewport": "<ビューポート label>",
@@ -163,7 +163,7 @@
     "capture_scope_exemptions": [
       {
         "_note": "撮る範囲の穴のうち、範囲を広げずに対象外とするものの宣言。対応する穴が無い宣言は効かない宣言として落ちる（古い宣言が残ると範囲を狭めても静かに通る）。",
-        "id": "<穴の id: <page>|<state>|<viewport>#below-fold | #beyond-right | #scroll:<器の名前> | #offscreen:<論理名>>",
+        "id": "<穴の id: <page>|<state>|<viewport>#below-fold | #beyond-right | #scroll:<器の名前> | #offscreen:<論理名> | #not-captured（撮影条件が宣言した組を採っていない）>",
         "reason": "<範囲を広げられない理由>",
         "gaps_ref": "<gaps.md「特性化できなかった箇所と理由」の該当箇所（種別「撮影範囲の対象外」）>"
       }

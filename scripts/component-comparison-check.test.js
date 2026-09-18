@@ -108,11 +108,15 @@ function run(argv, files) {
   return { code, result: output === "" ? null : JSON.parse(output) };
 }
 
-/** @param {{coverage?: unknown, comparison?: unknown, target?: string|null}} [input] */
+/** 現在の新側の版（`--replace-metadata` が読む形）。突き合わせ表の記録と同じ commit・clean。 */
+const REPLACE_METADATA = { new: { commit: "abc123", dirty: false } };
+
+/** @param {{coverage?: unknown, comparison?: unknown, target?: string|null, replaceMetadata?: unknown}} [input] */
 const codesOf = (input = {}) =>
   checkComponentComparison({
     coverage: input.coverage ?? COVERAGE,
     comparison: "comparison" in input ? input.comparison : comparisonOf(),
+    replaceMetadata: "replaceMetadata" in input ? input.replaceMetadata : REPLACE_METADATA,
     target: input.target ?? null,
   }).findings.map((f) => f.code);
 
@@ -157,10 +161,20 @@ test("区切り文字を含む材料からは鍵を作らない（別の操作�
 
 test("陽性コントロール: 3 点の揃った突き合わせは exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(
-    ["--coverage", "c.json", "--comparison", "n.json", "--target", "preview"],
+    [
+      "--coverage",
+      "c.json",
+      "--comparison",
+      "n.json",
+      "--replace-metadata",
+      "r.json",
+      "--target",
+      "preview",
+    ],
     {
       "/w/c.json": JSON.stringify(COVERAGE),
       "/w/n.json": JSON.stringify(comparisonOf()),
+      "/w/r.json": JSON.stringify(REPLACE_METADATA),
     },
   );
   expect(result.findings).toEqual([]);
@@ -171,9 +185,19 @@ test("陽性コントロール: 3 点の揃った突き合わせは exit 0（常
 
 test("突き合わせ表が無ければ未突合として落ちる（在席の記録では収束させない）", () => {
   const { code, result } = run(
-    ["--coverage", "c.json", "--comparison", "n.json", "--target", "preview"],
+    [
+      "--coverage",
+      "c.json",
+      "--comparison",
+      "n.json",
+      "--replace-metadata",
+      "r.json",
+      "--target",
+      "preview",
+    ],
     {
       "/w/c.json": JSON.stringify(COVERAGE),
+      "/w/r.json": JSON.stringify(REPLACE_METADATA),
     },
   );
   expect(code).toBe(1);
@@ -198,6 +222,7 @@ test("入口・当たり判定・完了のどれかが欠けたら突き合わ�
     const result = checkComponentComparison({
       coverage: COVERAGE,
       comparison: comparisonOf({ cells }),
+      replaceMetadata: REPLACE_METADATA,
     });
     expect(result.findings.map((f) => f.code)).toContain("evidence-axis-missing");
     expect(result.counts.blocking).toBe(1);
@@ -237,6 +262,7 @@ test("承認記録のある accepted だけが未突合を通す", () => {
   const result = checkComponentComparison({
     coverage: COVERAGE,
     comparison: comparisonOf({ cells: approved }),
+    replaceMetadata: REPLACE_METADATA,
   });
   expect(result.findings).toEqual([]);
   expect(result.counts.accepted).toBe(1);
@@ -335,10 +361,20 @@ test("同じセルの行が 2 つあれば落ちる", () => {
 
 test("被覆表が読めなければ exit 2（合格に倒さない）", () => {
   const { code, result } = run(
-    ["--coverage", "c.json", "--comparison", "n.json", "--target", "preview"],
+    [
+      "--coverage",
+      "c.json",
+      "--comparison",
+      "n.json",
+      "--replace-metadata",
+      "r.json",
+      "--target",
+      "preview",
+    ],
     {
       "/w/c.json": JSON.stringify({ slug: "order-list" }),
       "/w/n.json": JSON.stringify(comparisonOf()),
+      "/w/r.json": JSON.stringify(REPLACE_METADATA),
     },
   );
   expect(code).toBe(2);
@@ -350,6 +386,7 @@ test("被覆表に同じ present セルが 2 つあれば落ちる（1 セルを
   const result = checkComponentComparison({
     coverage,
     comparison: comparisonOf(),
+    replaceMetadata: REPLACE_METADATA,
     target: null,
   });
   expect(result.findings.map((f) => f.code)).toContain("coverage-cell-duplicated");
@@ -363,12 +400,63 @@ test("--target を省いた実行・空白だけの値は exit 2（別環境の�
   const files = {
     "/w/c.json": JSON.stringify(COVERAGE),
     "/w/n.json": JSON.stringify(comparisonOf()),
+    "/w/r.json": JSON.stringify(REPLACE_METADATA),
   };
   expect(run(["--coverage", "c.json", "--comparison", "n.json"], files).code).toBe(2);
   // 空白だけの値は CLI の truthy 判定を通るが、判定側は非空文字列でないと target 照合を飛ばす。
   expect(run(["--coverage", "c.json", "--comparison", "n.json", "--target", " "], files).code).toBe(
     2,
   );
+});
+
+test("--replace-metadata を省いた実行・空白だけの値は exit 2（鮮度の照合相手を省けなくする）", () => {
+  // 省けると comparison-implementation-stale が一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
+  const files = {
+    "/w/c.json": JSON.stringify(COVERAGE),
+    "/w/n.json": JSON.stringify(comparisonOf()),
+    "/w/r.json": JSON.stringify(REPLACE_METADATA),
+  };
+  expect(
+    run(["--coverage", "c.json", "--comparison", "n.json", "--target", "preview"], files).code,
+  ).toBe(2);
+  expect(
+    run(
+      [
+        "--coverage",
+        "c.json",
+        "--comparison",
+        "n.json",
+        "--replace-metadata",
+        " ",
+        "--target",
+        "preview",
+      ],
+      files,
+    ).code,
+  ).toBe(2);
+});
+
+test("replace-metadata が new オブジェクトを持たなければ鮮度を検査できたことにしない", () => {
+  // 型崩れ・プリミティブを免除にすると、鮮度の分岐ごと飛んで古い記録が通る。
+  for (const broken of [undefined, null, 3, "x", [], {}, { new: 3 }, { new: [] }]) {
+    expect(codesOf({ replaceMetadata: broken })).toContain("replace-metadata-unusable");
+  }
+  // 陽性コントロール: new オブジェクトが揃っていればこの finding は出ない。
+  expect(codesOf()).not.toContain("replace-metadata-unusable");
+});
+
+test("版の記録は dirty: false まで求める（未コミットの作業ツリーは commit が版を指さない）", () => {
+  for (const dirty of [undefined, true, "false", null]) {
+    const comparison = comparisonOf({ new_implementation: { commit: "abc123", dirty } });
+    expect(codesOf({ comparison })).toContain("comparison-implementation-dirty");
+    expect(codesOf({ replaceMetadata: { new: { commit: "abc123", dirty } } })).toContain(
+      "replace-metadata-dirty",
+    );
+  }
+  // 陽性コントロール: どちらも false なら出ない。
+  const clean = codesOf();
+  expect(clean).not.toContain("comparison-implementation-dirty");
+  expect(clean).not.toContain("replace-metadata-dirty");
 });
 
 test("引数の誤り・読めない被覆表は exit 2", () => {

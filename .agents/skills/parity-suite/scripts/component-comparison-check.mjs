@@ -160,27 +160,55 @@ export function checkComponentComparison(input) {
         "突き合わせ表に new_implementation.commit が無い（どの版の新側を操作した記録か決まらず、実装を変えても古い証拠が通る）",
     });
   }
+  // **記録した版が「汚れていない」ことまで求める。** commit だけを鍵にすると、未コミットの変更を
+  // 抱えた作業ツリーで操作した記録が同じ commit の記録として通り、鍵が版を指さなくなる。
+  // 欠落・非真偽値は「調べていない」なので false 以外を落とす（fail-closed）。
+  const observedDirty =
+    observed && typeof observed === "object"
+      ? /** @type {Record<string, any>} */ (observed).dirty
+      : undefined;
+  if (observedDirty !== false) {
+    findings.push({
+      code: "comparison-implementation-dirty",
+      message: `突き合わせ表の new_implementation.dirty が false でない（${observedDirty === undefined ? "欠落" : JSON.stringify(observedDirty)}）。未コミットの変更を抱えた作業ツリーで操作した記録は、commit で版を特定できない`,
+    });
+  }
+  // **`--replace-metadata` は省略を許さない。** 照合相手が無いと鮮度の検査そのものが飛び、
+  // 「記録の後に実装が変わっていない」ことを一度も確かめないまま収束する
+  // （`comparison-implementation-stale` は相手が渡されたときにしか効かない）。
   const replaceMetadata = /** @type {Record<string, any> | undefined} */ (input.replaceMetadata);
-  if (replaceMetadata && typeof replaceMetadata === "object") {
-    const current =
-      replaceMetadata.new && typeof replaceMetadata.new === "object" ? replaceMetadata.new : {};
-    if (!nonEmptyString(current.commit)) {
+  const replaceNew =
+    replaceMetadata &&
+    typeof replaceMetadata === "object" &&
+    !Array.isArray(replaceMetadata) &&
+    replaceMetadata.new &&
+    typeof replaceMetadata.new === "object" &&
+    !Array.isArray(replaceMetadata.new)
+      ? /** @type {Record<string, any>} */ (replaceMetadata.new)
+      : null;
+  if (!replaceNew) {
+    findings.push({
+      code: "replace-metadata-unusable",
+      message:
+        "replace-metadata.json を new オブジェクトを持つ形で読めない（現在の新側の版が分からず、突き合わせの鮮度を確かめられない。省略・型崩れを免除にしない）",
+    });
+  } else {
+    if (!nonEmptyString(replaceNew.commit)) {
       findings.push({
         code: "replace-metadata-commit-missing",
         message:
           "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
       });
-    } else if (nonEmptyString(observedCommit) && observedCommit !== current.commit) {
+    } else if (nonEmptyString(observedCommit) && observedCommit !== replaceNew.commit) {
       findings.push({
         code: "comparison-implementation-stale",
-        message: `突き合わせ表の new_implementation.commit「${String(observedCommit)}」が現在の新側「${String(current.commit)}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+        message: `突き合わせ表の new_implementation.commit「${String(observedCommit)}」が現在の新側「${String(replaceNew.commit)}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
       });
     }
-    if (current.dirty === true) {
+    if (replaceNew.dirty !== false) {
       findings.push({
         code: "replace-metadata-dirty",
-        message:
-          "replace-metadata.json の new.dirty が true（未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない）",
+        message: `replace-metadata.json の new.dirty が false でない（${replaceNew.dirty === undefined ? "欠落" : JSON.stringify(replaceNew.dirty)}）。未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない`,
       });
     }
   }
@@ -338,7 +366,7 @@ export function main(argv, deps = {}) {
   const write = deps.write ?? ((s) => process.stdout.write(s));
   const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
   const usage =
-    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> [--metadata <metadata.json>] [--replace-metadata <new/<target>/replace-metadata.json>]";
+    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>]";
   /**
    * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
    * @param {string} message
@@ -376,6 +404,13 @@ export function main(argv, deps = {}) {
   }
   if (!args["--coverage"]) {
     return fail("--coverage は必須");
+  }
+  // **鮮度の照合相手を省けるようにしない**——省くと `comparison-implementation-stale` が
+  // 一度も評価されず、記録の後に新側を変えても古い証拠で収束する。
+  if (!args["--replace-metadata"] || args["--replace-metadata"].trim() === "") {
+    return fail(
+      "--replace-metadata は必須（空白だけの値も不可。現在の新側の版と突き合わせないと、記録の鮮度を確かめられない）",
+    );
   }
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る
   // （`comparison-target-mismatch` は照合相手が渡されたときにしか効かない）。

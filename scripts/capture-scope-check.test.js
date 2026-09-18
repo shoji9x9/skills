@@ -16,7 +16,10 @@ import {
 
 /**
  * 穴の無い metadata を組み立てる。差し替えたい部分だけ渡す。
- * @param {{ scope?: unknown, exemptions?: unknown, noise?: unknown }} [override]
+ *
+ * 期待値（撮るはずの組）は `capture_conditions` の 3 軸の直積なので、
+ * 1 組だけを対象にするテストは `states` 等の軸も同時に狭める（狭めないと「採っていない組」が増える）。
+ * @param {{ scope?: unknown, exemptions?: unknown, noise?: unknown, pages?: unknown, states?: unknown, viewports?: unknown }} [override]
  */
 function metadataOf(override = {}) {
   return {
@@ -24,9 +27,12 @@ function metadataOf(override = {}) {
     mode: "mode" in override ? override.mode : "feature",
     capture_conditions: {
       full_page: true,
-      viewports: [{ width: 1366, height: 768, label: "desktop" }],
-      pages: [{ name: "list", path: "/orders" }],
-      states: ["default", "hover"],
+      viewports:
+        "viewports" in override
+          ? override.viewports
+          : [{ width: 1366, height: 768, label: "desktop" }],
+      pages: "pages" in override ? override.pages : [{ name: "list", path: "/orders" }],
+      states: "states" in override ? override.states : ["default", "hover"],
       capture_scope: override.scope ?? [
         {
           page: "list",
@@ -110,6 +116,7 @@ test("撮影領域より文書が大きい組は、下・右の切れを穴と�
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(holeIdsOf(metadata)).toEqual([
@@ -138,6 +145,7 @@ test("内部スクロール器の外は穴になる（画素にも特性にも�
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#scroll:グリッド本体"]);
@@ -156,6 +164,7 @@ test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つで�
         named_elements_outside: ["フッタの件数表示", "フッタの件数表示"],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(codesOf(metadata)).toContain("named-element-duplicated");
@@ -176,6 +185,7 @@ test("撮影領域の外にある論理名は穴になる", () => {
         named_elements_outside: ["フッタの件数表示"],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
@@ -194,6 +204,7 @@ test("理由と gaps への参照が揃った宣言は穴を通す（範囲を�
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
     exemptions: [
       {
@@ -219,6 +230,7 @@ test("宣言に reason / gaps_ref が無ければ落ちる", () => {
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
     exemptions: [{ id: "list|default|desktop#below-fold" }],
   });
@@ -267,6 +279,7 @@ test("noise_baseline に同じ組が 2 行あれば落ちる（Set が黙って�
 
 test("撮っていない組の実測が混ざっていれば落ちる", () => {
   const metadata = metadataOf({
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(codesOf(metadata)).toContain("scope-entry-unknown");
@@ -283,6 +296,7 @@ test("scroll_containers / named_elements_outside のキー欠落は未測定と�
         captured: { width: 1366, height: 3200 },
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   const codes = codesOf(metadata);
@@ -336,6 +350,7 @@ test("穴の id の材料に区切り文字が入っていれば落とす（1 �
         named_elements_outside: ["フッタ#scroll:x"],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   const codes = codesOf(metadata);
@@ -411,6 +426,7 @@ test("テンプレートのプレースホルダ（寸法 0）は測っていな
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   const result = checkCaptureScope(metadata);
@@ -437,6 +453,7 @@ test("内部スクロール器の寸法 0 も測っていない扱いにする",
         named_elements_outside: [],
       },
     ],
+    states: ["default"],
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(codesOf(metadata)).toContain("scroll-container-size-unreadable");
@@ -478,6 +495,58 @@ test("feature モードは判定に入る（judged: true）", () => {
   const { code, result } = run(["--metadata", "m.json"], { "/w/m.json": JSON.stringify(metadata) });
   expect(code).toBe(0);
   expect(result.judged).toBe(true);
+});
+
+test("宣言した組を採っていなければ穴として数える（採った組の一覧を期待値にしない）", () => {
+  // noise_baseline だけを突き合わせ相手にすると、組ごと落とした範囲が期待値からも消えて穴が 0 件になる。
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 1366, height: 3200 },
+        captured: { width: 1366, height: 3200 },
+        scroll_containers: [],
+        named_elements_outside: [],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+  });
+  // states は既定の [default, hover] のままなので hover の組が採られていない。
+  expect(holeIdsOf(metadata)).toEqual(["list|hover|desktop#not-captured"]);
+  expect(codesOf(metadata)).toContain("hole-unexempted");
+
+  // 理由付きの宣言なら通る（他の穴と同じ出口）。
+  const exempted = metadataOf({
+    scope: metadata.capture_conditions.capture_scope,
+    noise: metadata.noise_baseline,
+    exemptions: [
+      {
+        id: "list|hover|desktop#not-captured",
+        reason: "この機能に hover 状態の器が無い",
+        gaps_ref: "gaps.md の撮影範囲の対象外「一覧の hover」",
+      },
+    ],
+  });
+  expect(codesOf(exempted)).toEqual([]);
+});
+
+test("撮影条件の軸が空・区切り文字入り・重複なら落とす（期待値を作れないことを合格に倒さない）", () => {
+  const base = metadataOf();
+  expect(codesOf(metadataOf({ states: [] }))).toContain("declared-axis-missing");
+  expect(codesOf(metadataOf({ pages: [{ path: "/orders" }] }))).toContain(
+    "declared-axis-value-unusable",
+  );
+  expect(codesOf(metadataOf({ viewports: [{ label: "desk|top" }] }))).toContain(
+    "declared-axis-value-unusable",
+  );
+  expect(codesOf(metadataOf({ states: ["default", "hover", "hover"] }))).toContain(
+    "declared-axis-value-duplicated",
+  );
+  // 陽性コントロール: 3 軸が揃った宣言ではこれらは出ない。
+  expect(codesOf(base)).toEqual([]);
+  expect(checkCaptureScope(base).counts.declared).toBe(2);
 });
 
 test("capture_conditions が無い・JSON が壊れている入力は exit 2", () => {

@@ -247,6 +247,83 @@ export function deriveHoles(entry) {
 }
 
 /**
+ * 撮影条件が宣言した組（ページ × 状態 × ビューポート）を列挙する。
+ *
+ * **突き合わせ相手を `noise_baseline` だけにしない**——採った組の一覧を期待値にすると、
+ * 宣言した組を採らずに落とした場合に「採っていない組」が一覧から消え、
+ * 穴が 1 つも出ないまま通る（範囲の狭さが差分 0 件と同じ見え方になる、というこの検査の前提そのもの）。
+ * 期待値は `capture_conditions` の 3 軸から作り、採った側・測った側の双方と突き合わせる。
+ *
+ * 軸の材料に区切り文字が入ると別々の組が同じ鍵に潰れるため、`keyPartsAreSafe` と同じ規律で材料の側を弾く。
+ * @param {Record<string, unknown>} conditions
+ * @returns {{ keys: string[], findings: {code:string, message:string}[] }}
+ */
+export function declaredCombinations(conditions) {
+  /** @type {{code:string, message:string}[]} */
+  const findings = [];
+  /**
+   * @param {unknown} value
+   * @param {string} axis
+   * @param {(element: unknown) => unknown} pick
+   * @returns {string[]}
+   */
+  const axisValues = (value, axis, pick) => {
+    if (!Array.isArray(value) || value.length === 0) {
+      findings.push({
+        code: "declared-axis-missing",
+        message: `capture_conditions.${axis} が空（撮るはずの組を列挙できない。採った組の一覧を期待値にすると、採らなかった組が期待値からも消える）`,
+      });
+      return [];
+    }
+    /** @type {string[]} */
+    const names = [];
+    const seen = new Set();
+    for (const element of value) {
+      const name = pick(element);
+      if (!idPartIsSafe(name)) {
+        findings.push({
+          code: "declared-axis-value-unusable",
+          message: `capture_conditions.${axis} に使えない値がある（空、または区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む）: ${name === undefined ? "（欠落）" : JSON.stringify(name)}`,
+        });
+        continue;
+      }
+      const text = /** @type {string} */ (name);
+      if (seen.has(text)) {
+        findings.push({
+          code: "declared-axis-value-duplicated",
+          message: `capture_conditions.${axis} に ${text} が 2 つ以上ある（同じ組が 2 回期待され、片方の実測がもう片方を満たす）`,
+        });
+        continue;
+      }
+      seen.add(text);
+      names.push(text);
+    }
+    return names;
+  };
+  const pages = axisValues(conditions.pages, "pages", (element) =>
+    element && typeof element === "object"
+      ? /** @type {{name?: unknown}} */ (element).name
+      : undefined,
+  );
+  const states = axisValues(conditions.states, "states", (element) => element);
+  const viewports = axisValues(conditions.viewports, "viewports", (element) =>
+    element && typeof element === "object"
+      ? /** @type {{label?: unknown}} */ (element).label
+      : undefined,
+  );
+  /** @type {string[]} */
+  const keys = [];
+  for (const page of pages) {
+    for (const state of states) {
+      for (const viewport of viewports) {
+        keys.push(combinationKey({ page, state, viewport }));
+      }
+    }
+  }
+  return { keys, findings };
+}
+
+/**
  * `metadata.json` の内容から撮る範囲の穴を数える。
  *
  * `judged: false` は「視覚採取物を持たないモードなので判定に入れない」の意味で、合格とは別物
@@ -314,6 +391,10 @@ export function checkCaptureScope(metadata) {
       judged: true,
     };
   }
+  const declared = declaredCombinations(
+    /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (conditions)),
+  );
+  findings.push(...declared.findings);
   const noiseBaseline = meta.noise_baseline;
   if (!Array.isArray(noiseBaseline) || noiseBaseline.length === 0) {
     findings.push({
@@ -332,7 +413,11 @@ export function checkCaptureScope(metadata) {
     return {
       findings,
       holes,
-      counts: { combinations: Array.isArray(noiseBaseline) ? noiseBaseline.length : 0, holes: 0 },
+      counts: {
+        declared: declared.keys.length,
+        combinations: Array.isArray(noiseBaseline) ? noiseBaseline.length : 0,
+        holes: 0,
+      },
       structural: false,
       judged: true,
     };
@@ -413,6 +498,18 @@ export function checkCaptureScope(metadata) {
       });
     }
   }
+  // **宣言した組を採らなかった場合は穴として数える。**
+  // 採った組の一覧（`noise_baseline`）だけを突き合わせ相手にすると、組ごと落とした範囲が
+  // 期待値からも消えて穴が 0 件になる。対象外にするなら他の穴と同じく理由付きで宣言させる。
+  for (const key of declared.keys) {
+    if (!shot.has(key) && !scopeByKey.has(key)) {
+      holes.push({
+        id: `${key}#not-captured`,
+        kind: "not-captured",
+        detail: `撮影条件が宣言した組 ${key} を採っていない（noise_baseline にも capture_scope にも無い）`,
+      });
+    }
+  }
   for (const key of scopeByKey.keys()) {
     if (shot.size > 0 && !shot.has(key)) {
       findings.push({
@@ -436,7 +533,7 @@ export function checkCaptureScope(metadata) {
     return {
       findings,
       holes,
-      counts: { combinations: shot.size, holes: holes.length },
+      counts: { declared: declared.keys.length, combinations: shot.size, holes: holes.length },
       structural: false,
       judged: true,
     };
@@ -497,7 +594,7 @@ export function checkCaptureScope(metadata) {
   return {
     findings,
     holes,
-    counts: { combinations: shot.size, holes: holes.length },
+    counts: { declared: declared.keys.length, combinations: shot.size, holes: holes.length },
     structural: false,
     judged: true,
   };
