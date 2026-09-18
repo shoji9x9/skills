@@ -419,6 +419,28 @@ test("未知のフラグはファイル名として飲み込まず exit 2 で拒
   }
 });
 
+// フラグは第 1 引数とは限らない。位置ごとに 1 件ずつ入力を置く。
+// 位置: 先頭（上のケース） / 2 番目 / 3 番目以降
+test.each([
+  ["2 番目", ["old-low", "--dry-run"]],
+  ["3 番目", ["old-low", "old-medium", "--auto"]],
+])("2 番目以降の未知フラグも、何も書き換える前に拒否する: %s", (_label, args) => {
+  // 第 1 引数しか見ないと、先行するノートを忘却したうえで「skip (not a file)」を出し
+  // exit 0 で返る——一部は書き換わっているのに成功として報告される。
+  const dir = makeProject(CANDIDATES);
+  try {
+    const files = args.map((a) => (a.startsWith("-") ? a : join(dir, ".kaizen", `${a}.md`)));
+    const { status, stderr } = run(dir, files);
+    expect(stderr).toContain("unknown option: ");
+    expect(status).toBe(2);
+    // 先行する引数が書き換わっていないこと（「一部だけ適用」を検出する）。
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    expect(statusOf(dir, "old-medium")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("書き戻せないノートは忘却済みとして報告しない", () => {
   // `rewrite_status` は `if` から呼ばれるため関数本文で set -e が効かない。書き込み失敗を
   // 握り潰すと、status が pending のままなのに stdout へ忘却済みとして出る。

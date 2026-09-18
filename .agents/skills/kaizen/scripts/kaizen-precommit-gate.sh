@@ -897,9 +897,22 @@ fi
 # 警告（rc 0）も出す。ここは lifecycle 検査の唯一の自動実行経路なので、非 0 のときしか
 # 出さないと「commit のたびに気づける」はずの警告が誰にも届かない（Issue #341 の
 # doc だけで閉じた対策の警告がこれに当たる）。commit は止めない。
-if [ -n "${status_output}" ]; then
-	printf '%s\n' "${status_output}" >&2
+#
+# **stderr へ書くだけでは表示されない。** PreToolUse フックの stderr が出るのは非 0 で
+# 終えたときだけで、素通りの `exit 0` では捨てられる（他セッションの警告が
+# ${warn_exit_code} を使っているのと同じ理由。`references/setup.md` に出典付きで書いてある）。
+# 警告を保持しておき、素通りする出口だけ終了コードを上げる（exit_pass）。
+# ブロック（exit 2）の出口では stderr がそのまま出るので、ここで 1 回書けば足りる。
+lifecycle_warning=${status_output}
+if [ -n "${lifecycle_warning}" ]; then
+	printf '%s\n' "${lifecycle_warning}" >&2
 fi
+
+# 「止めないが警告はある」を表す出口。警告が無ければ従来どおり 0 で素通りする。
+exit_pass() {
+	[ -n "${lifecycle_warning}" ] && exit "${warn_exit_code}"
+	exit 0
+}
 
 # 案内・コマンドへ載せる値の健全性検査。センチネルの中身は自分のフックが書いたものだが、
 # 壊れた値や引用符を含む値をそのまま貼れるコマンドとして出さない。
@@ -1199,7 +1212,7 @@ resolve_foreign_sentinels() {
 unresolved=()
 collect_unresolved
 if [ "${#unresolved[@]}" -eq 0 ]; then
-	exit 0
+	exit_pass
 fi
 
 # 走査より先に、保持期間を過ぎた他セッションのセンチネルを回収する（回収できたぶんは走査予算を使わない）。
@@ -1207,7 +1220,7 @@ resolve_retention_days
 sweep_expired_foreign_sentinels
 collect_unresolved
 if [ "${#unresolved[@]}" -eq 0 ]; then
-	exit 0
+	exit_pass
 fi
 
 # 自セッションのセンチネルが未解決のときだけ transcript を走査する。他セッションのものしか
@@ -1315,7 +1328,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		done < <(kaizen_worktree_kaizen_dirs "${project_root}")
 		collect_unresolved
 		if [ "${#unresolved[@]}" -eq 0 ]; then
-			exit 0
+			exit_pass
 		fi
 		own_resolved=1
 	fi
@@ -1328,7 +1341,7 @@ if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && command -v 
 	resolve_foreign_sentinels
 	collect_unresolved
 	if [ "${#unresolved[@]}" -eq 0 ]; then
-		exit 0
+		exit_pass
 	fi
 fi
 
@@ -1387,7 +1400,7 @@ if [ "${own_blocking}" -eq 0 ]; then
 	# （Claude Code: https://code.claude.com/docs/en/hooks 、Codex: https://learn.chatgpt.com/docs/hooks）。
 	# Copilot だけは非 0 がすべて deny なので、警告の終了コードは ${warn_exit_code}（$1 で切り替え）。
 	warn_foreign_sentinels
-	[ "${#foreign_unresolved[@]}" -gt 0 ] || exit 0
+	[ "${#foreign_unresolved[@]}" -gt 0 ] || exit_pass
 	exit "${warn_exit_code}"
 fi
 
@@ -1413,7 +1426,9 @@ print_sentinel_recovery "${own_unresolved[@]}"
 		echo "上の <transcript> だけを、そのセンチネルを立てたセッションの transcript パスに置き換えてください。"
 		echo "--sentinel-suffix / --session-id は表示された値のまま使う（自分のセッションの値に置き換えない）。"
 	fi
-	echo "その後、git commit を再実行してください。"
+	# 抽出は忘却の掃引も走らせる（追跡対象の .kaizen/*.md を書き換える）。新しい記録だけを
+	# パス指定で stage すると、その差分が未ステージで残り clean 確認を持つ工程が止まる。
+	echo "その後、git add .kaizen/ で記録と忘却の差分をまとめて stage し、git commit を再実行してください。"
 } >&2
 warn_foreign_sentinels
 exit 2

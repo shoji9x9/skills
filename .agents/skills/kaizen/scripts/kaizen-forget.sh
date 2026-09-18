@@ -248,6 +248,20 @@ if [ "${mode}" != "explicit" ] && [ "$#" -gt 0 ]; then
 	exit 2
 fi
 
+# **フラグの検査は第 1 引数だけでは足りない。** 位置が 2 番目以降でも同じ打ち間違いは起きる。
+# 上の case を通り抜けると `kaizen-forget.sh note.md --dry-run` が note を忘却したうえで
+# 「skip (not a file): --dry-run」を出して exit 0 で返る——**一部は書き換わっているのに成功**。
+# 書き換えの前に全引数を検査し、1 つでもフラグがあれば何もせずに落とす。
+for arg in "$@"; do
+	case "${arg}" in
+	-*)
+		echo "kaizen-forget: unknown option: ${arg}" >&2
+		print_usage
+		exit 2
+		;;
+	esac
+done
+
 # 日付を日数へ変換できない＝共通ライブラリを読めていない。この状態で候補を数えると
 # 全件が「材料を読めない」で外れ、**「閾値に当てはまるものが無い」と同じ出力**になる。
 # 検査できなかったことを 0 件と区別できるよう、別の診断と非 0 終了で返す。

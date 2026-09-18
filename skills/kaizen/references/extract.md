@@ -176,6 +176,11 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    （同じ範囲を再抽出せず、かつ**この後に積まれた活動は次の commit で検査させる**ため。同一セッションで複数 commit しても取りこぼさない）:
    `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" --agent "<agent>" --session-id "<session id>" [transcript_path]`
    **transcript_path を省略しない。** 省略すると処理位置を記録できず、代わりに書かれる抽出完了マーカー `.kaizen/.extract-done.<session key>` が**セッション全体**を抽出済みにするため、以降の commit が素通りする（恒久ブロッカーを避けるための fail safe であって、通常の経路ではない）。
+
+   **このスクリプトは忘却の掃引も行う（`status: forgotten` への書き換え）。** 掃引した件数は stderr に出る。
+   忘却は追跡対象の `.kaizen/*.md` を書き換えるので、**新しい記録だけをパス指定で stage すると忘却の差分が未ステージで残る**
+   （clean 確認を持つ工程——`git-worktree` の後片付け、`issue-batch` の収束——がそこで止まる）。
+   commit を再実行する前に `.kaizen/` をまとめて stage する（`git add .kaizen/`）。掃引が 0 件でも害は無い。
    このとき既存の checkpoint も落ちるので、次のセッションはその transcript を全走査することになる。
    （`<スキル>` はインストール先。suffix は Claude Code が空文字、Codex は `-codex`、Copilot は `-copilot`。ゲートが表示したコマンドをそのまま使う）
    `--sentinel-suffix` と `--session-id` を省略しない。省略時は旧設定との後方互換のため agent 単位の名前になり、両方省略すると `rm -f .kaizen/.pending-extract*` で**全セッションのセンチネルを削除**してしまう（他エージェント・他セッションの未処理シグナルまで完了扱いになる）。
