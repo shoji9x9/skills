@@ -10,6 +10,7 @@ import {
   appendFileSync,
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -689,6 +690,31 @@ describe("ゲートの commit 検出", () => {
     ['echo "Bash(git commit *)" # matcher', 0],
     // コメント本文の中だけにある `git commit` は実行されない。
     ["# git commit -m x\ngit status", 0],
+    // 二重引用符の**内側**でも、コマンド置換（`$( )` / `` ` ` ``）はシェルが展開する領域で、
+    // 中身は実行されるコマンドである（Issue #345）。引用の内側を一律にリテラル扱いして潰すと
+    // ここの `git commit` が検出から消え、**実際に実行されるコミットが素通りする**。
+    // マスクからコマンド置換の扱いを外すと下の 5 件が exit 0 になることを実測して弁別性を確認した。
+    ['echo "$(git commit -m x)"', 2],
+    ['echo "`git commit -m x`"', 2],
+    ['echo "$(echo "$(git commit -m x)")"', 2],
+    ['echo "prefix $(cd {P} && git commit -m x) suffix"', 2],
+    ["X=$(git commit -m x)", 2],
+    // 引用の内側のコマンド置換を写しても、その中の**引用された**文字列は実行されない
+    // （過剰ブロックの回帰。写した中身をそのまま区切り扱いしないこと）。
+    [`echo "$(printf %s 'git commit')"`, 0],
+    [`echo "$(echo ")" )"; echo ok`, 0],
+    // 対応する `)` / `` ` `` を数え切れない形は heredoc と同じく判定不能で fail closed。
+    ['echo "$(git commit -m x"', 2],
+    ['echo "`git commit -m x"', 2],
+    // コマンド置換の中のコメントは行末まで。**コメント内の `)` は対応にならない**ので、
+    // 素通りさせると早く閉じてしまい、その後ろに置かれた本物の `git commit` がマスク側で
+    // 潰されて素通りする（fail open。cmdsub_span の `#` 分岐を外すと exit 0 になることを実測）。
+    ['echo "$( # note )\ngit commit -m x\n)"', 2],
+    // 対応する `)` がコメントに飲まれて行末が無い形は判定不能で、マスクせず元の文字列で判定する
+    // （fail closed）。元の文字列に見える `git commit` は従来どおり捕捉する。
+    ['git commit -m "$( # note "', 2],
+    // 語中の `#` はコメントではない（コメント扱いにして残りを飲むと逆に取りこぼす）。
+    ["echo \"$(printf %s 'a#b')\"; git commit -m x", 2],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {
@@ -1077,5 +1103,141 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
     expect(gate.stderr).toMatch(/transcript を指定せず次のコマンドで解消してください/);
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
+  });
+});
+
+// 制御ファイル（センチネル・checkpoint・抽出完了マーカー）の置き場は作業ディレクトリから決まる。
+// セッションが共有ツリーで始まって git worktree で続くと、センチネルを立てたツリーと `git commit`
+// を実行するツリーが分かれ、自分のツリーの `.kaizen/` しか見ない形では **worktree の commit が
+// 素通りする**（Issue #344）。素通りは出力にも終了コードにも現れないので、決定論的に押さえる。
+describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
+  const SESSION = "00000000-1111-2222-3333-444444444444";
+
+  /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
+  function makeRepoWithWorktree() {
+    const root = mkdtempSync(join(tmpdir(), "kaizen-wt-"));
+    const main = join(root, "main");
+    mkdirSync(main);
+    const git = (args, cwd = main) => {
+      const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+      expect(r.status, r.stderr).toBe(0);
+      return r;
+    };
+    git(["init", "-q", "."]);
+    git(["config", "user.email", "r@example.com"]);
+    git(["config", "user.name", "repro"]);
+    writeFileSync(join(main, "seed"), "");
+    git(["add", "seed"]);
+    git(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"]);
+    mkdirSync(join(main, ".kaizen"));
+    const worktree = join(root, "wt");
+    git(["worktree", "add", "-q", "-b", "wtbranch", worktree]);
+    return { main, worktree };
+  }
+
+  function writeSentinel(dir) {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kaizen", `.pending-extract.${SESSION}`),
+      `2026-09-11T12:27:31Z\n\nclaude-code\n${SESSION}\n`,
+    );
+  }
+
+  // CLAUDE_PROJECT_DIR は共有ツリーのまま（セッションの起点）にし、payload の cwd だけを
+  // worktree にする＝Issue #344 が報告した実際の並びを作る。
+  function runGateAt(cwd, projectDir) {
+    const input = JSON.stringify({
+      session_id: SESSION,
+      cwd,
+      tool_input: { command: "git commit -m x" },
+    });
+    return spawnSync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+      cwd,
+      input,
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    });
+  }
+
+  test("共有ツリーに立ったセンチネルは worktree からの commit も止める", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(main);
+    expect(runGateAt(main, main).status).toBe(2);
+    expect(runGateAt(worktree, main).status).toBe(2);
+  });
+
+  test("worktree に立ったセンチネルは共有ツリーからの commit も止める", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    expect(runGateAt(worktree, main).status).toBe(2);
+    expect(runGateAt(main, main).status).toBe(2);
+  });
+
+  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査が常時ブロックへ倒れない）", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    expect(runGateAt(worktree, main).status).toBe(0);
+    expect(runGateAt(main, main).status).toBe(0);
+  });
+
+  test("別ツリーの抽出完了マーカーはセンチネルを覆う（探索だけ広げてマーカーを取り残さない）", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(main);
+    mkdirSync(join(worktree, ".kaizen"), { recursive: true });
+    writeFileSync(join(worktree, ".kaizen", `.extract-done.${SESSION}`), "2026-09-11T12:30:00Z\n");
+    expect(runGateAt(worktree, main).status).toBe(0);
+    expect(runGateAt(main, main).status).toBe(0);
+  });
+
+  // マーカーを全ツリーから探して覆わせる以上、**失効も全ツリーで**行わないと、別ツリーに
+  // 残ったマーカーがセッション境界を越えて生き残り、このセッションの commit が素通りする。
+  // 素通りは出力にも終了コードにも現れないので、SessionStart を挟んだ形で押さえる。
+  test("SessionStart は別ツリーの抽出完了マーカーも失効させる", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    mkdirSync(join(main, ".kaizen"), { recursive: true });
+    const stale = join(main, ".kaizen", `.extract-done.${SESSION}`);
+    writeFileSync(stale, "2026-09-11T12:30:00Z\n");
+    // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと弁別する）。
+    expect(runGateAt(worktree, main).status).toBe(0);
+    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      cwd: worktree,
+      input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+    });
+    expect(inject.status, inject.stderr).toBe(0);
+    expect(existsSync(stale)).toBe(false);
+    expect(runGateAt(worktree, main).status).toBe(2);
+  });
+
+  // `git worktree list` は解決済み（物理）のパスを返す。base をシンボリックリンク越しに受け取ると
+  // 文字列比較では一致せず、**同じ `.kaizen/` を 2 回**返す——同一のセンチネルが二重に数えられ、
+  // 案内も他セッションの走査予算も二重に消費される。件数で押さえる。
+  test("シンボリックリンク越しの project root でも .kaizen/ を重複して数えない", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const link = join(dirname(main), "link-main");
+    symlinkSync(main, link);
+    const gate = runGateAt(link, link);
+    expect(gate.status).toBe(2);
+    const listed = gate.stderr.split("\n").filter((l) => l.includes(".pending-extract"));
+    expect(listed).toHaveLength(1);
+  });
+
+  // `source: compact` は同一セッションの継続なので、そのときだけマーカーを残す（広げた範囲でも同じ）。
+  test("source: compact では別ツリーのマーカーも残す", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    mkdirSync(join(main, ".kaizen"), { recursive: true });
+    const marker = join(main, ".kaizen", `.extract-done.${SESSION}`);
+    writeFileSync(marker, "2026-09-11T12:30:00Z\n");
+    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      cwd: worktree,
+      input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "compact" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+    });
+    expect(inject.status, inject.stderr).toBe(0);
+    expect(existsSync(marker)).toBe(true);
   });
 });

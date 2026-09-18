@@ -169,7 +169,33 @@ else
 	done_path=".kaizen/.extract-done"
 fi
 
-mkdir -p .kaizen
+# 制御ファイルは**このセッションのものが既に在るツリー**へ書く。置き場は作業ディレクトリから
+# 決まるため、同じセッションが共有ツリーと git worktree にまたがって続くと、センチネルと
+# checkpoint が別のツリーに散る（Issue #344）。散ったままだと、ゲートは片方しか見つけられず
+# 「抽出済みの範囲を再検出してブロックし続ける」か「未抽出を素通りする」のどちらかに倒れる。
+# 既存の制御ファイルが見つからなければ従来どおり自分のツリー（cwd）へ書く。
+#
+# **探索順は checkpoint → 抽出完了マーカー → センチネル**。センチネルは Stop フックが
+# **そのターンの作業ツリー**へ立て直すため、置き場が cwd に従って動く。センチネルを先に見ると
+# checkpoint の置き場までそれに引きずられ、共有ツリーと worktree に**別々の offset を持つ
+# checkpoint が 1 つずつ残る**（実測）。ゲートは自分のツリーのものを先に読むので、古い方を
+# 掴んだ側は抽出済みの範囲を再検出して止まり続ける。置き場を決めるのは、セッションを跨いで
+# 残り連続性が要る checkpoint（次点でマーカー）にする。
+control_dir=".kaizen"
+if declare -f kaizen_find_control_file >/dev/null 2>&1; then
+	control_found=$(kaizen_find_control_file "" "${checkpoint_path#.kaizen/}" 2>/dev/null) ||
+		control_found=$(kaizen_find_control_file "" "${done_path#.kaizen/}" 2>/dev/null) ||
+		control_found=$(kaizen_find_control_file "" "${sentinel_path#.kaizen/}" 2>/dev/null) ||
+		control_found=""
+	if [ -n "${control_found}" ]; then
+		control_dir=${control_found%/*}
+	fi
+fi
+sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
+checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
+done_path="${control_dir}/${done_path#.kaizen/}"
+
+mkdir -p "${control_dir}"
 
 # checkpoint を記録できたか。transcript を渡されない呼び出しでは下のブロックに入らないため、
 # `set -u` に落ちないようここで初期化する（0 のままなら「差分走査の起点が無い」を意味する）。
@@ -185,7 +211,7 @@ if [ -n "${transcript}" ] && [ -r "${transcript}" ]; then
 	# mktemp が無い／失敗する環境でも、この後のセンチネル削除と .extract-done 記録まで
 	# 必ず到達させる。ここで set -e に中断されるとゲートを解除する手段が無くなり、
 	# commit が永久に止まる（ゲート解除はこのスクリプトだけが行う）。
-	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp=".kaizen/.extract-checkpoint.tmp.$$"
+	checkpoint_tmp=$(mktemp 2>/dev/null) || checkpoint_tmp="${control_dir}/.extract-checkpoint.tmp.$$"
 	trap 'rm -f "${checkpoint_tmp}"' EXIT
 	# checkpoint の様式:
 	#   1 行目 transcript パス / 2 行目 バイト位置 / 3 行目 エージェント（空可）/ 4 行目 行数
@@ -246,12 +272,40 @@ if [ "${mode}" = "complete" ]; then
 		rm -f "${checkpoint_path}"
 	fi
 fi
-if [ "${sentinel_suffix_set}" -eq 1 ]; then
-	rm -f "${sentinel_path}"
-else
-	# 引数なしの既存利用は後方互換のため全センチネルを完了扱いにする。他エージェント・
-	# 他セッションのシグナルまで消すため、マルチエージェント／複数セッション環境では
-	# --sentinel-suffix と --session-id を必ず使う（ゲートの案内は常に両方を含める）。
-	rm -f .kaizen/.pending-extract*
+# センチネルの削除は**リポジトリの全作業ツリー**に対して行う。ゲートも全ツリーを見て遮断するので
+# （Issue #344）、自分のツリーだけ消すと別ツリーに残ったセンチネルでブロックが続く。
+kaizen_dirs=()
+if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
+	while IFS= read -r kaizen_dir; do
+		[ -n "${kaizen_dir}" ] || continue
+		kaizen_dirs+=("${kaizen_dir}")
+	done < <(kaizen_worktree_kaizen_dirs "")
+fi
+[ "${#kaizen_dirs[@]}" -gt 0 ] || kaizen_dirs=(".kaizen")
+
+removed=0
+sentinel_name=${sentinel_path##*/}
+for kaizen_dir in "${kaizen_dirs[@]}"; do
+	if [ "${sentinel_suffix_set}" -eq 1 ]; then
+		targets=("${kaizen_dir}/${sentinel_name}")
+	else
+		# 引数なしの既存利用は後方互換のため全センチネルを完了扱いにする。他エージェント・
+		# 他セッションのシグナルまで消すため、マルチエージェント／複数セッション環境では
+		# --sentinel-suffix と --session-id を必ず使う（ゲートの案内は常に両方を含める）。
+		targets=("${kaizen_dir}"/.pending-extract*)
+	fi
+	for target in "${targets[@]}"; do
+		[ -e "${target}" ] || continue
+		rm -f "${target}" || continue
+		removed=$((removed + 1))
+	done
+done
+
+# **空振りを成功と区別する。** `rm -f` は対象が無くても正常終了するため、終了コードでは
+# 「解消した」と「解消するものが無かった」が同じ値になる（Issue #344）。空振りに気づけないと、
+# 抽出したつもりでセンチネルが別の場所に残ったまま進むことになる。
+if [ "${removed}" -eq 0 ]; then
+	printf 'kaizen-extract-done: 警告: 削除対象のセンチネルがありませんでした（%s を起点に %s 個の .kaizen/ を確認。既に解消済みか、--sentinel-suffix / --session-id が立てた本人と違う可能性があります）\n' \
+		"$(pwd)" "${#kaizen_dirs[@]}" >&2
 fi
 exit 0

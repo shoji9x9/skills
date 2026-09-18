@@ -64,6 +64,13 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		local base=${1##*/}
 		printf '%s' "${base#.pending-extract}"
 	}
+	# 縮退版は自分のツリーだけを見る（Issue #344 以前の挙動）。worktree を跨いだセンチネルは
+	# 見つからないが、遮断条件は緩めない。
+	kaizen_worktree_kaizen_dirs() { printf '%s\n' "$(pwd)/.kaizen"; }
+	kaizen_find_control_file() {
+		[ -n "${2:-}" ] && [ -e ".kaizen/$2" ] || return 1
+		printf '%s' ".kaizen/$2"
+	}
 fi
 
 # Hook 入力から command と transcript_path を取り出す。jq が無い／壊れている環境では
@@ -152,16 +159,135 @@ project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 #   - heredoc（`<<`）: 本文の開始位置は区切り語に依存し、この関数では追えない。判定不能として
 #     **fail closed**（呼び出し側に元の文字列を使わせる）に倒す。
 #
+# **逆に、引用の内側にも例外がある**。「二重引用符の内側は全部リテラル」は成り立たない——
+# シェルは二重引用符の内側でも `$( )` と `` ` ` `` を展開する（[POSIX Shell Command Language:
+# Double-Quotes](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_02_03)）。
+# あの中は引用されたリテラルではなく**実行されるコマンド**なので、潰すと
+# `echo "$(git commit -m wip)"` の `git commit` が検出から消え、**実際に実行されるコミットが
+# ゲートを素通りする**（fail open。Issue #345）。したがって:
+#   - 二重引用符の内側の `$( )` と `` ` ` ``: 中身を潰さず**そのまま写す**（`$( )` は入れ子の
+#     対応を数える）。写すので長さは保たれ、位置の対応もそのまま使える。
+#   - 対応する `)` / `` ` `` を見つけられない場合: heredoc と同じく判定不能で **fail closed**。
+# `$VAR` / `${...}` はコマンドではなく値の展開なので、従来どおり潰す。
+#
 # 引用が閉じていないコマンドも同じく判定不能で fail closed。ここを fail open にすると
 # `git commit "` のような形で検出そのものを外せてしまう。
 #
 # 走査は 1 文字ずつではなく「次の特殊文字までの塊」単位で進める。コマンドは本文を書く形で
 # 数十 KB になり、1 文字ずつ削ると残り全体のコピーが毎回走って O(n^2) になる
 # （実測: 50KB の入力でゲート全体が 0.17 秒 → 20.5 秒）。
+# `$(` で始まる文字列を受け取り、**対応する `)` までの範囲**（両端を含む）を返す。
+# 中身の引用（`'...'` / `"..."` / `\<文字>`）を跨いで数えるので、`$(echo ')')` のように
+# 引用の内側に現れる `)` では閉じない。対応を取り切れない（閉じていない）場合は非 0 を返し、
+# 呼び出し側を判定不能＝fail closed へ倒す。
+# 走査は mask_quoted と同じく「次の特殊文字までの塊」単位で進める（1 文字ずつだと O(n^2)）。
+cmdsub_span() { # $1: `$(` で始まる文字列
+	local s="${1:-}" rest="${1:2}" taken=2 depth=1 chunk body c closed line at_word_start=1
+	# `(` `)` の対応と、対応を跨がせないための引用・エスケープ・コメント。
+	local sub_pat="[\\\\'\"()#]*" dq_pat='[\\"]*'
+	while [ -n "${rest}" ]; do
+		# パターンとして展開させたいので意図的に非引用（SC2295）。
+		# shellcheck disable=SC2295
+		chunk=${rest%%$sub_pat}
+		if [ -n "${chunk}" ]; then
+			taken=$((taken + ${#chunk}))
+			rest=${rest:${#chunk}}
+			# 次の `#` が語頭かどうかは直前の文字で決まる（mask_quoted と同じ判定）。
+			case "${chunk: -1}" in
+			[[:space:]] | ';' | '&' | '|' | '<' | '>') at_word_start=1 ;;
+			*) at_word_start=0 ;;
+			esac
+			continue
+		fi
+		c=${rest:0:1}
+		case "${c}" in
+		'#')
+			# 語頭の `#` は行末までコメント。**コメント内の `)` は対応にならない**ので、
+			# ここを素通りさせると `$( # x` の次の `)` で早く閉じ、その後ろに置かれた
+			# 本物の `git commit` がマスク側で潰されて**素通りする**（fail open。実測）。
+			if [ "${at_word_start}" -eq 1 ]; then
+				case "${rest}" in
+				# 行末が無い＝対応する `)` はコメントに飲まれている。判定不能（fail closed）。
+				*$'\n'*) line=${rest%%$'\n'*} ;;
+				*) return 1 ;;
+				esac
+				taken=$((taken + ${#line}))
+				rest=${rest:${#line}}
+			else
+				taken=$((taken + 1))
+				rest=${rest:1}
+			fi
+			at_word_start=0
+			;;
+		"\\")
+			[ "${#rest}" -ge 2 ] || return 1
+			taken=$((taken + 2))
+			rest=${rest:2}
+			at_word_start=0
+			;;
+		"'")
+			rest=${rest:1}
+			case "${rest}" in
+			*"'"*) ;;
+			*) return 1 ;;
+			esac
+			body=${rest%%\'*}
+			taken=$((taken + 2 + ${#body}))
+			rest=${rest:$((${#body} + 1))}
+			at_word_start=0
+			;;
+		'"')
+			rest=${rest:1}
+			taken=$((taken + 1))
+			closed=0
+			while [ -n "${rest}" ]; do
+				# shellcheck disable=SC2295
+				chunk=${rest%%$dq_pat}
+				if [ -n "${chunk}" ]; then
+					taken=$((taken + ${#chunk}))
+					rest=${rest:${#chunk}}
+					continue
+				fi
+				if [ "${rest:0:1}" = "\\" ]; then
+					[ "${#rest}" -ge 2 ] || return 1
+					taken=$((taken + 2))
+					rest=${rest:2}
+					continue
+				fi
+				taken=$((taken + 1))
+				rest=${rest:1}
+				closed=1
+				break
+			done
+			[ "${closed}" -eq 1 ] || return 1
+			at_word_start=0
+			;;
+		'(')
+			depth=$((depth + 1))
+			taken=$((taken + 1))
+			rest=${rest:1}
+			at_word_start=1
+			;;
+		')')
+			depth=$((depth - 1))
+			taken=$((taken + 1))
+			rest=${rest:1}
+			at_word_start=0
+			if [ "${depth}" -eq 0 ]; then
+				printf '%s' "${s:0:${taken}}"
+				return 0
+			fi
+			;;
+		esac
+	done
+	return 1
+}
+
 mask_quoted() { # $1: コマンド文字列
-	local s="${1:-}" out="" c chunk body pad closed line at_word_start=1
+	local s="${1:-}" out="" c chunk body pad closed bq_closed line span at_word_start=1
 	# 引用の外で意味を持つ文字。ここまでをまとめて写して走査を進める。
-	local outer_pat="[\\\\'\"#]*" inner_pat="[\\\\\"]*"
+	# 引用の内側では、リテラルではない領域（コマンド置換 `$( )` / `` ` ` ``）の開始も区切りに含める。
+	local outer_pat="[\\\\'\"#]*" inner_pat='[\\"$`]*' bq_pat='[\\`]*'
 	# heredoc の本文はシェルの引用規則の外にあり、この関数では範囲を確定できない。
 	case "${s}" in
 	*'<<'*) return 1 ;;
@@ -210,6 +336,47 @@ mask_quoted() { # $1: コマンド文字列
 					[ "${#s}" -ge 2 ] || return 1
 					out+='__'
 					s=${s:2}
+					;;
+				'$')
+					# `$(` はコマンド置換＝実行される領域なので潰さずに写す。それ以外の `$`
+					# （`$VAR` / `${...}`）は値の展開でコマンドではないため従来どおり潰す。
+					if [ "${s:1:1}" = '(' ]; then
+						span=$(cmdsub_span "${s}") || return 1
+						out+=${span}
+						s=${s:${#span}}
+					else
+						out+='_'
+						s=${s:1}
+					fi
+					;;
+				'`')
+					# 旧形式のコマンド置換。次の `` ` `` までが中身で、`` \` `` では閉じない。
+					# 中身は実行されるので潰さずに写す。閉じが無ければ判定不能（fail closed）。
+					# 閉じたかどうかは専用の変数で持つ——外側の二重引用符が使う `closed` を
+					# 共有すると、`"` で閉じていないのに閉じた扱いになる（fail open）。
+					s=${s:1}
+					out+='`'
+					bq_closed=0
+					while [ -n "${s}" ]; do
+						# shellcheck disable=SC2295
+						chunk=${s%%$bq_pat}
+						if [ -n "${chunk}" ]; then
+							out+=${chunk}
+							s=${s:${#chunk}}
+							continue
+						fi
+						if [ "${s:0:1}" = "\\" ]; then
+							[ "${#s}" -ge 2 ] || return 1
+							out+=${s:0:2}
+							s=${s:2}
+							continue
+						fi
+						out+='`'
+						s=${s:1}
+						bq_closed=1
+						break
+					done
+					[ "${bq_closed}" -eq 1 ] || return 1
 					;;
 				*)
 					out+='"'
@@ -292,16 +459,20 @@ gitoptval='((\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"'|\\\\.|\
 # 値側は空白区切りのオプションと同じ `${gitoptval}` で 1 トークンとして取る。
 gitoptval_opt='(-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--attr-source)'
 gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}|-[^[:space:]]+)[[:space:]]+)*"
+# 区切りには `` ` `` も含める。旧形式のコマンド置換の直後はコマンドの先頭であり、
+# `` echo "`git commit -m wip`" `` は実際にコミットを実行する（Issue #345）。
+# 誤ブロックにはならない——リテラルとして書かれた `` ` `` はシングルクォートの内側か
+# heredoc の中にしか現れず、前者は mask_quoted が潰し、後者は判定不能で fail closed になる。
 if [ "${extracted}" -eq 1 ]; then
-	commit_re=$'(^|[;&|(\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
+	commit_re=$'(^|[;&|(`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
 	# 生 JSON 経路でも区切りの後ろの `git commit` を捕捉する。command の値の先頭だけに錨を打つと
 	# `cd /tmp && git commit -m x` のような複合コマンドを取りこぼす（fail open。実測）。
 	# 区切りまでの前置きは `dqbody`（`([^"\\]|\\.)*`）で表す。これはエスケープされていない `"` を
 	# 跨がないため、走査は command の値の中に閉じる（値の外の別フィールドを拾わない）。
-	# JSON では改行が `\n` の 2 文字として現れるので、リテラルの区切り `;&|(` に加えてその形も区切りに含める。
-	raw_sep='([;&|(]|\\[nr])'
+	# JSON では改行が `\n` の 2 文字として現れるので、リテラルの区切り ``;&|(` `` に加えてその形も区切りに含める。
+	raw_sep='([;&|(`]|\\[nr])'
 	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
 # 引用の内側の区切り文字で誤発火しないよう、判定はマスク済みのコピーに対して行う。
@@ -840,17 +1011,31 @@ sweep_expired_foreign_sentinels() {
 # 遮断の判断はゲート側にも置く——古いマーカーが残っていても取りこぼさない）。
 # key を持たない旧形式は対象外にする。key 無しの checkpoint は単一ファイルで、そのセンチネルの
 # transcript を指しているとは限らず、「新しい活動がある」の根拠にできない（従来どおりマーカーが覆う）。
+#
+# 走査は**リポジトリの全作業ツリー**（本体＋git worktree）へ広げる。センチネルを立てたツリーと
+# `git commit` を実行するツリーが分かれると、自分のツリーの `.kaizen/` だけを見る形では
+# **worktree の commit が素通りする**（Issue #344）。マーカー・checkpoint の探索も同じ範囲にする
+# ——片方だけ広げると、別ツリーのセンチネルを見つけた直後に「マーカーが無い」と読んで
+# 解消済みのセッションで再びブロックする。
 collect_unresolved() {
 	unresolved=()
-	local sentinel key
-	for sentinel in .kaizen/.pending-extract*; do
-		[ -e "${sentinel}" ] || continue
-		key=$(kaizen_sentinel_key_of "${sentinel}")
-		if [ -f "$(kaizen_done_path "${key}")" ]; then
-			[ -n "${key}" ] && [ -f "$(kaizen_checkpoint_path "${key}")" ] || continue
-		fi
-		unresolved+=("${sentinel}")
-	done
+	local dir sentinel key done_name checkpoint_name
+	while IFS= read -r dir; do
+		for sentinel in "${dir}"/.pending-extract*; do
+			[ -e "${sentinel}" ] || continue
+			key=$(kaizen_sentinel_key_of "${sentinel}")
+			done_name=$(kaizen_done_path "${key}")
+			done_name=${done_name#.kaizen/}
+			checkpoint_name=$(kaizen_checkpoint_path "${key}")
+			checkpoint_name=${checkpoint_name#.kaizen/}
+			if kaizen_find_control_file "${project_root}" "${done_name}" >/dev/null 2>&1; then
+				if [ -z "${key}" ] || ! kaizen_find_control_file "${project_root}" "${checkpoint_name}" >/dev/null 2>&1; then
+					continue
+				fi
+			fi
+			unresolved+=("${sentinel}")
+		done
+	done < <(kaizen_worktree_kaizen_dirs "${project_root}")
 }
 
 # 他セッションの未解決センチネルを、そのセンチネルが記録している transcript で差分走査し、
@@ -867,7 +1052,7 @@ collect_unresolved() {
 # （黙って諦めると「全部見た上でブロックしている」ように読めてしまう）。
 foreign_scan_budget=24
 resolve_foreign_sentinels() {
-	local sentinel key suffix f_transcript f_agent f_session out rc agent bytes lines line slice started
+	local sentinel key suffix f_transcript f_agent f_session f_checkpoint out rc agent bytes lines line slice started
 	for sentinel in "${unresolved[@]}"; do
 		[ -e "${sentinel}" ] || continue
 		key=$(kaizen_sentinel_key_of "${sentinel}")
@@ -902,7 +1087,12 @@ resolve_foreign_sentinels() {
 		[ "${foreign_scan_budget}" -lt "${slice}" ] && slice=${foreign_scan_budget}
 		started=${SECONDS}
 		set +e
-		out=$(timeout "${slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${f_transcript}" "$(kaizen_checkpoint_path "${key}")" 2>&1)
+		# checkpoint も全作業ツリーから探す（センチネルと同じ範囲。Issue #344）。
+		# 見つからなければ自分のツリーのパスを渡す＝不在扱いで offset 0（従来どおり）。
+		f_checkpoint=$(kaizen_checkpoint_path "${key}")
+		f_checkpoint=$(kaizen_find_control_file "${project_root}" "${f_checkpoint#.kaizen/}" 2>/dev/null) ||
+			f_checkpoint=$(kaizen_checkpoint_path "${key}")
+		out=$(timeout "${slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${f_transcript}" "${f_checkpoint}" 2>&1)
 		rc=$?
 		set -e
 		# 予算は実際に使った秒数だけ減らす（一律 slice を引くと、速い走査の後で残りを不当に削る）。
@@ -971,10 +1161,22 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 	# 上書きされない。session 単位化より前の単一 checkpoint は、それが同じ transcript を
 	# 指しているときだけ読み取りに使う（アップグレード直後の全走査を避ける）。書き込みは
 	# kaizen-extract-done.sh が session 単位のパスへ行う。
+	# 自分のツリーに無ければ他の作業ツリーからも探す。同じセッションが共有ツリーと worktree に
+	# またがって続くと、checkpoint は片方にしか無い（Issue #344）。見つからないまま全走査へ倒すと、
+	# 抽出済みの範囲を再検出して commit が止まり続ける。
 	checkpoint_path=$(kaizen_checkpoint_path "${session_key}")
-	if [ ! -e "${checkpoint_path}" ] && [ -r .kaizen/.extract-checkpoint ] &&
-		[ "$(sed -n '1p' .kaizen/.extract-checkpoint 2>/dev/null || true)" = "${transcript}" ]; then
-		checkpoint_path=.kaizen/.extract-checkpoint
+	if [ ! -e "${checkpoint_path}" ]; then
+		checkpoint_path=$(kaizen_find_control_file "${project_root}" "${checkpoint_path#.kaizen/}" 2>/dev/null) ||
+			checkpoint_path=$(kaizen_checkpoint_path "${session_key}")
+	fi
+	if [ ! -e "${checkpoint_path}" ]; then
+		# session 単位化より前の単一 checkpoint は、それが同じ transcript を指しているときだけ
+		# 読み取りに使う（アップグレード直後の全走査を避ける）。
+		legacy_checkpoint=$(kaizen_find_control_file "${project_root}" ".extract-checkpoint" 2>/dev/null) || legacy_checkpoint=""
+		if [ -n "${legacy_checkpoint}" ] && [ -r "${legacy_checkpoint}" ] &&
+			[ "$(sed -n '1p' "${legacy_checkpoint}" 2>/dev/null || true)" = "${transcript}" ]; then
+			checkpoint_path=${legacy_checkpoint}
+		fi
 	fi
 	set +e
 	if command -v timeout >/dev/null 2>&1; then
@@ -1027,7 +1229,15 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		# 特定できない。いま同じ agent の transcript を候補ゼロで検証できたので、session 単位化
 		# 前と同じ判断でこれを失効させる（アップグレード直後の一度きり。現行の Stop フックは
 		# key 付きのセンチネルしか作らない）。
-		rm -f "$(kaizen_sentinel_path "${sentinel_suffix}" "")"
+		# collect_unresolved は key を持たないセンチネルを**全作業ツリー**から拾い、持ち主を
+		# 特定できないぶんは自分側＝遮断として扱う（Issue #344）。失効も同じ範囲で行わないと、
+		# 別ツリーに残った旧形式のセンチネルをこの経路では二度と消せず、ブロックが続く。
+		legacy_sentinel_name=$(kaizen_sentinel_path "${sentinel_suffix}" "")
+		legacy_sentinel_name=${legacy_sentinel_name#.kaizen/}
+		while IFS= read -r legacy_dir; do
+			[ -n "${legacy_dir}" ] || continue
+			rm -f "${legacy_dir}/${legacy_sentinel_name}"
+		done < <(kaizen_worktree_kaizen_dirs "${project_root}")
 		collect_unresolved
 		if [ "${#unresolved[@]}" -eq 0 ]; then
 			exit 0

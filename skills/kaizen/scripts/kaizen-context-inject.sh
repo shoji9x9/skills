@@ -62,13 +62,38 @@ fi
 # 継続なので、そのときだけマーカーを残す（消すと、まさに対象の長時間自律ループで commit が
 # ゲートに再ブロックされる）。source は stdin の JSON から取り出す。取り出せない・無い場合は
 # 削除側（ブロックが増える安全側）に倒す。
-if ! printf '%s' "$input" | grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"'; then
+# パイプで渡さない——`grep -q` は一致した時点で抜けるため、書き手（`printf`）がまだ書き終えて
+# いなければ `write` が EPIPE で SIGPIPE になり、pipefail 下ではパイプライン全体が非 0 になる。
+# 一致しているのに「一致しなかった」と読む形（下の `sed ... | head -n 1` と同じ機構）で、
+# ここでは source: compact なのにマーカーを消す側＝長時間の自律ループが再ブロックされる側へ倒れる。
+# herestring なら書き手のプロセスが無いのでこの経路が消える（末尾の改行が増えるが `grep` は行単位）。
+# 失効させる範囲は**リポジトリの全作業ツリー**にする。ゲートはマーカーを全ツリーから探して
+# センチネルを覆わせるため（Issue #344）、自分のツリーだけ消すと別ツリーに残ったマーカーが
+# このセッションのセンチネルを覆い続け、**commit が素通りする**（fail open。実測）。
+# マーカーの置き場は kaizen-extract-done.sh が「制御ファイルが既に在るツリー」で決めるので、
+# セッションが共有ツリーと worktree にまたがると自分のツリー以外へ書かれ得る。
+if ! grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"' <<<"$input"; then
+	done_name=""
 	if declare -f kaizen_done_path >/dev/null 2>&1; then
-		rm -f "$(kaizen_done_path "${session_key}")"
+		done_name=$(kaizen_done_path "${session_key}")
+		done_name=${done_name#.kaizen/}
 	fi
-	# session 単位化より前に書かれた（key を持たない）マーカーは、同じく key を持たない
-	# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
-	rm -f .kaizen/.extract-done
+	expire_dirs=()
+	if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
+		while IFS= read -r expire_dir; do
+			[ -n "${expire_dir}" ] || continue
+			expire_dirs+=("${expire_dir}")
+		done < <(kaizen_worktree_kaizen_dirs "")
+	fi
+	[ "${#expire_dirs[@]}" -gt 0 ] || expire_dirs=(".kaizen")
+	for expire_dir in "${expire_dirs[@]}"; do
+		if [ -n "${done_name}" ]; then
+			rm -f "${expire_dir}/${done_name}"
+		fi
+		# session 単位化より前に書かれた（key を持たない）マーカーは、同じく key を持たない
+		# センチネルだけを覆う共有マーカー。持ち主を特定できないので従来どおりここで失効させる。
+		rm -f "${expire_dir}/.extract-done"
+	done
 fi
 
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
@@ -80,6 +105,11 @@ fi
 # `sed ... | head -n 1` は使わない——大きなノートでは head が先に閉じて sed が SIGPIPE で死に、
 # pipefail 下でスクリプトごと 141 で落ちる（実測: 5.7MB のノートで再現）。awk なら自前で exit
 # するのでパイプが要らず、読めないファイルは `|| true` で空文字に倒せる。
+# 機構は `head` に限らない: **早く抜ける読み手 × pipefail × 終了コードを真偽値として読む**形は
+# すべて当たる（`grep -q` / `grep -Eq` も一致した時点で抜ける）。読み手が抜けた後に書き手が
+# 書けば EPIPE → SIGPIPE で 141 になり、**一致しているのに「一致しなかった」と読む。**
+# 落ちるかどうかは書き手の出力に内側の改行があるかに依るため、いま落ちないことを根拠にしない。
+# 真偽を読むならパイプを使わず herestring（`<<<`）かプロセス置換で渡す。
 # 本文中の `priority:` 等を拾わないよう、走査は frontmatter 内に限る。
 frontmatter_field() {
 	awk -v key="$2" '
@@ -166,7 +196,9 @@ while IFS=$'\t' read -r _rank _date f; do
 	# （kaizen-archive.sh の INDEX 生成と同じ方針。python 等の追加ランタイムには依存しない）。
 	# 長さ判定を先に置く。ロケール判定は `locale` と `grep` のプロセス起動を伴うので、
 	# 切り詰めが要らない短い要約（大半）ではそこまで到達させない。
-	if [ "${#summary}" -gt 120 ] && locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8'; then
+	# パイプで渡さない（上の source 判定と同じ理由。`grep -q` が先に抜けると pipefail が
+	# 一致を非 0 に化けさせ、UTF-8 なのに切り詰めない側へ倒れる）。
+	if [ "${#summary}" -gt 120 ] && grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 		summary="${summary:0:119}…"
 	fi
 	echo "- \`${f}\` — ${meta}— ${summary}"

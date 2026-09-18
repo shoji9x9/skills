@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -78,4 +78,48 @@ test("非 UTF-8 ロケールでは切り詰めずに要約を保つ", () => {
 
   expect(isValidUtf8(stdout), stdout.toString("latin1")).toBe(true);
   expect(summaryOf(stdout)).toBe(summary);
+});
+
+// `pipefail` の下でパイプラインの終了コードを**真偽値として読む**形は、読み手（`grep -q` /
+// `head`）が一致した時点で抜けたときに書き手が SIGPIPE で死に、パイプライン全体が非 0 になる
+// ——**一致しているのに「一致しなかった」と読む**（Issue #343）。発火は書き手の出力の形に依る
+// 確率的な事象なので実行では固定できない。形そのものを固定する。
+// `||`（論理和）や `head=` のような変数代入に当たらないよう、単一の `|` と command 位置だけを見る。
+const PIPED_TRUTH_READ = /(?<!\|)\|(?!\|)\s*(grep\s+(?:-\S+\s+)*-\S*q\S*|head(?=\s|$))/;
+
+test("kaizen のスクリプトはパイプラインの真偽を読まない（herestring で渡す）", () => {
+  const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
+  const offenders = [];
+  for (const name of readdirSync(scriptsDir)) {
+    if (!name.endsWith(".sh")) continue;
+    const lines = readFileSync(join(scriptsDir, name), "utf8").split("\n");
+    lines.forEach((line, i) => {
+      // コメント行は対象外（この落とし穴を説明している注記がある）。
+      if (/^\s*#/.test(line)) return;
+      if (PIPED_TRUTH_READ.test(line)) {
+        offenders.push(`${name}:${i + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  expect(offenders).toEqual([]);
+});
+
+// 陽性コントロール: 検出器が実際に当たることを、既知の違反形で確かめる。
+test.each([
+  ["grep -q", `if ! printf '%s' "$x" | grep -Eq 'pat'; then`],
+  ["grep -qi", `locale charmap 2>/dev/null | grep -qi 'utf-8'`],
+  ["head", `value=$(sed -n '2p' "$f" | head -n 1)`],
+])("パイプ越しの真偽読みを検出できる（%s）", (_label, line) => {
+  expect(PIPED_TRUTH_READ.test(line)).toBe(true);
+});
+
+// 陰性コントロール: 修正後の形（herestring）は検出されない。
+test.each([
+  [`if ! grep -Eq 'pat' <<<"$x"; then`],
+  [`grep -qi 'utf-8' <<<"$(locale charmap 2>/dev/null)"`],
+  // `||`（論理和）と `head` という名前の変数代入は対象外。
+  ['[ -n "${head}" ] || head=/'],
+  ["x=$(cmd) || head=fallback"],
+])("herestring 形・非パイプは検出しない（%s）", (line) => {
+  expect(PIPED_TRUTH_READ.test(line)).toBe(false);
 });

@@ -5,6 +5,7 @@
 #   - Hook の stdin JSON から文字列フィールドを取り出す（jq/python3 に依存しない）
 #   - session id を制御ファイル名に使える key へ正規化する
 #   - `.kaizen/` を解決するプロジェクトルートを決める（worktree 対応）
+#   - リポジトリの全作業ツリーの `.kaizen/` を列挙し、制御ファイルをそこから探す（Issue #344）
 #   - センチネル / checkpoint / 抽出完了マーカーのパス組み立てと、名前からの復号
 #
 # 制御ファイルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで
@@ -149,6 +150,62 @@ kaizen_resolve_project_root() {
 		return 0
 	fi
 	pwd
+}
+
+# このリポジトリの**全作業ツリー**（本体＋git worktree）の `.kaizen` ディレクトリを、
+# $1 のツリーを先頭にして絶対パスで 1 行ずつ返す。
+#
+# 制御ファイル（センチネル / checkpoint / 抽出完了マーカー）の置き場は**作業ディレクトリから
+# 決まる**ため、センチネルを立てたツリーと `git commit` を実行するツリーが分かれると、
+# ゲートは自分のツリーの `.kaizen/` しか見ず、**worktree の commit が素通りする**（Issue #344）。
+# 素通りは出力にも終了コードにも現れないので、「未抽出の学びが無い」と「センチネルが別のツリーに
+# ある」を区別できない。
+#
+# 置き場そのものを 1 箇所へ移すと、既存インストールの制御ファイルが迷子になる（移行の途中で
+# 両方が有効になり、片方が見えないまま素通りする）。**置き場は変えず、探索と解消をリポジトリ
+# 全体へ広げる**——`git worktree list --porcelain` は本体と全 worktree を返す。
+#
+# git を起動できない・worktree を列挙できない場合は自分のツリーだけを返す（縮退。機能が
+# 落ちるだけで、Issue #344 以前の挙動に戻る）。
+kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
+	local base="${1:-}" base_phys line path
+	[ -n "${base}" ] || base=$(pwd)
+	[ -d "${base}" ] || return 0
+	base=$(cd "${base}" 2>/dev/null && pwd) || return 0
+	# `git worktree list` は**解決済み（物理）のパス**を返す。base をシンボリックリンク越しに
+	# 受け取っていると論理パスとは文字列が一致せず、**同じ `.kaizen/` を 2 回返す**——同一の
+	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
+	# 突き合わせて弾く。
+	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}
+	printf '%s\n' "${base}/.kaizen"
+	command -v git >/dev/null 2>&1 || return 0
+	while IFS= read -r line; do
+		case "${line}" in
+		'worktree '*) ;;
+		*) continue ;;
+		esac
+		path=${line#worktree }
+		[ -n "${path}" ] || continue
+		if [ "${path}" = "${base}" ] || [ "${path}" = "${base_phys}" ]; then
+			continue
+		fi
+		[ -d "${path}" ] || continue
+		printf '%s\n' "${path}/.kaizen"
+	done < <(git -C "${base}" worktree list --porcelain 2>/dev/null || true)
+}
+
+# 制御ファイルをリポジトリの全作業ツリーから探し、最初に見つかった絶対パスを返す。
+# 見つからなければ非 0（呼び出し側は自分のツリーのパスへ倒す）。
+# $2 は `.kaizen/` を含まない**ファイル名**（例: `.extract-checkpoint.<session key>`）。
+kaizen_find_control_file() { # $1: 基準のツリー $2: 制御ファイル名
+	local dir name="${2:-}"
+	[ -n "${name}" ] || return 1
+	while IFS= read -r dir; do
+		[ -e "${dir}/${name}" ] || continue
+		printf '%s' "${dir}/${name}"
+		return 0
+	done < <(kaizen_worktree_kaizen_dirs "${1:-}")
+	return 1
 }
 
 # 制御ファイルのパス。key が空なら Issue #218 以前の agent 単位の名前（後方互換）になる。
