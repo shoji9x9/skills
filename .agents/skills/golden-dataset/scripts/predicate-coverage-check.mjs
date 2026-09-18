@@ -510,8 +510,16 @@ export function checkPredicateCoverage(input) {
       const slug = normalizeCell(row["機能／リソース slug"]);
       const tableName = normalizeCell(row["テーブル"]);
       const filters = splitList(row["絞り込み列・条件"]);
-      if (slug === "" || tableName === "") continue;
       if (filters.kind !== "items") continue;
+      // **鍵が欠けた行を黙って飛ばさない**——絞り込みが書いてあるのに slug / テーブルが空だと、
+      // 「数える相手が決まらない行」と「絞り込みの無い行」が同じ（findings 0 件）に見える。
+      if (slug === "" || tableName === "") {
+        findings.push({
+          code: "param-row-unkeyed",
+          message: `消費側パラメータに絞り込み「${filters.items.join(", ")}」があるのに ${slug === "" ? "機能／リソース slug" : "テーブル"} が空（どの分岐を数えるか決まらない）`,
+        });
+        continue;
+      }
       const rows =
         predicatesByTable
           .get(tableName)

@@ -387,6 +387,23 @@ test("陽性コントロール: 並んだ絞り込みそれぞれに述語行が
   expect(codes).toEqual([]);
 });
 
+test("絞り込みがあるのに slug / テーブルが空の行は黙って飛ばさない", () => {
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "|  | orders | status | ordered_at DESC | 20 | 実測 |",
+        "| order | orders | status | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(codes).toContain("param-row-unkeyed");
+});
+
 test("列名の突き合わせは識別子境界で行う（owner_id は id を満たさない）", () => {
   const codes = codesOf({
     design: designOf({

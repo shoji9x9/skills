@@ -284,6 +284,56 @@ test("noise_baseline が空なら合格に倒さない", () => {
   expect(codesOf(metadata)).toContain("noise-baseline-missing");
 });
 
+test("穴の id の材料に区切り文字が入っていれば落とす（1 つの宣言が 2 つの穴を黙らせる）", () => {
+  // ビューポート `v#scroll:x` の below-fold と、ビューポート `v` の器 `x#below-fold` は
+  // どちらも p|s|v#scroll:x#below-fold になり、1 つの宣言で両方が消える。
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 1366, height: 3200 },
+        captured: { width: 1366, height: 3200 },
+        scroll_containers: [
+          {
+            name: "グリッド#below-fold",
+            client: { width: 1200, height: 600 },
+            scroll: { width: 1200, height: 2400 },
+          },
+        ],
+        named_elements_outside: ["フッタ#scroll:x"],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+  });
+  const codes = codesOf(metadata);
+  expect(codes).toContain("scroll-container-name-unsafe");
+  expect(codes).toContain("named-element-name-unsafe");
+  // 区切りを含む名前からは穴の id を作らない（作ると衝突した id が宣言で消える）。
+  expect(holeIdsOf(metadata)).toEqual([]);
+});
+
+test("ビューポート label に id の区切りが入っていても落とす", () => {
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop#scroll:x",
+        document: { width: 1366, height: 3200 },
+        captured: { width: 1366, height: 768 },
+        scroll_containers: [],
+        named_elements_outside: [],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop#scroll:x", pixel_diff: 0 }],
+  });
+  const codes = codesOf(metadata);
+  expect(codes).toContain("scope-entry-key-unsafe");
+  expect(codes).toContain("noise-entry-key-unsafe");
+});
+
 test("鍵の材料に区切り文字が入っていれば落とす（別々の組が同じ鍵に潰れる）", () => {
   // ("a|b", "c", "d") と ("a", "b|c", "d") はどちらも a|b|c|d になり、
   // 1 つの範囲の実測が 2 つの撮影組を満たしたことになる。

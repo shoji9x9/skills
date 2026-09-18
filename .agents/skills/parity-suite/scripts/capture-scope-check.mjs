@@ -37,6 +37,28 @@ export const MODES = ["feature", "api-resource", "batch"];
 /** 撮影組の鍵の区切り。ページ名・状態名・ビューポート label にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
 
+/** 穴の id の区切り（`<鍵>#<種別>:<名前>`）。鍵の材料・器の名前・論理名にこの文字は使えない。 */
+export const ID_SEPARATOR = "#";
+
+/**
+ * id の材料として安全か（区切り文字を含まない非空の文字列）。
+ *
+ * **id は利用者が `capture_scope_exemptions` へ書き写す**ので、符号化で逃げず材料の側で弾く。
+ * 区切りを含めると別々の穴が同じ id になり、**1 つの宣言が 2 つの穴を黙らせる**
+ * （ビューポート `v#scroll:x` の below-fold と、ビューポート `v` の器 `x#below-fold` は
+ * どちらも `p|s|v#scroll:x#below-fold` になる）。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function idPartIsSafe(value) {
+  return (
+    typeof value === "string" &&
+    value.trim() !== "" &&
+    !value.includes(KEY_SEPARATOR) &&
+    !value.includes(ID_SEPARATOR)
+  );
+}
+
 /**
  * 撮影組の鍵。`noise_baseline` と `capture_scope` を突き合わせる単位。
  * @param {{page?: unknown, state?: unknown, viewport?: unknown}} entry
@@ -57,9 +79,7 @@ export function combinationKey(entry) {
  * @returns {boolean}
  */
 export function keyPartsAreSafe(entry) {
-  return [entry.page, entry.state, entry.viewport].every(
-    (part) => typeof part === "string" && !part.includes(KEY_SEPARATOR),
-  );
+  return [entry.page, entry.state, entry.viewport].every((part) => idPartIsSafe(part));
 }
 
 /**
@@ -151,6 +171,13 @@ export function deriveHoles(entry) {
         });
         continue;
       }
+      if (!idPartIsSafe(name)) {
+        findings.push({
+          code: "scroll-container-name-unsafe",
+          message: `${key} の scroll_containers[${String(name)}] に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になり、1 つの宣言が 2 つの穴を黙らせる）`,
+        });
+        continue;
+      }
       if (seen.has(name)) {
         findings.push({
           code: "scroll-container-duplicated",
@@ -188,6 +215,13 @@ export function deriveHoles(entry) {
         findings.push({
           code: "named-element-name-missing",
           message: `${key} の named_elements_outside に空の要素がある`,
+        });
+        continue;
+      }
+      if (!idPartIsSafe(name)) {
+        findings.push({
+          code: "named-element-name-unsafe",
+          message: `${key} の named_elements_outside の ${String(name)} に区切り文字（${KEY_SEPARATOR} / ${ID_SEPARATOR}）が入っている（別々の穴が同じ id になる）`,
         });
         continue;
       }

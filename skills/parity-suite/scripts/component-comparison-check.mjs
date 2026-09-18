@@ -29,6 +29,9 @@ import { fileURLToPath } from "node:url";
  */
 export const VERSION = "1";
 
+/** セルの鍵の区切り。`component` / `item` / `instance` にこの文字は使えない。 */
+export const KEY_SEPARATOR = "|";
+
 /** 突き合わせの証拠の 3 点（正本）。ケースの文面に出てこない軸をここで固定する。 */
 export const EVIDENCE_AXES = ["entry", "hit_area", "completion"];
 
@@ -43,8 +46,13 @@ export const DISPOSITIONS = ["blocking", "accepted"];
  */
 export function cellKey(cell) {
   const parts = [cell.component, cell.item, cell.instance];
-  if (!parts.every((p) => typeof p === "string" && p.trim() !== "")) return null;
-  return parts.map((p) => String(p)).join("|");
+  // **区切り文字を含む材料も鍵を作らない**——`("a|b","c","d")` と `("a","b|c","d")` は
+  // どちらも `a|b|c|d` になり、別の操作の記録が別のセルの証拠として通る
+  // （指紋も同じ潰れた鍵を数えるので一致してしまう）。
+  if (!parts.every((p) => typeof p === "string" && p.trim() !== "" && !p.includes(KEY_SEPARATOR))) {
+    return null;
+  }
+  return parts.map((p) => String(p)).join(KEY_SEPARATOR);
 }
 
 /**
@@ -104,8 +112,7 @@ export function checkComponentComparison(input) {
     if (!key) {
       findings.push({
         code: "coverage-cell-unkeyed",
-        message:
-          "被覆表に component / item / instance の揃っていない present セルがある（突き合わせの鍵を作れない）",
+        message: `被覆表に component / item / instance の揃っていない、または区切り文字（${KEY_SEPARATOR}）を含む present セルがある（突き合わせの鍵を作れない）`,
       });
       continue;
     }
@@ -170,7 +177,7 @@ export function checkComponentComparison(input) {
     if (!key) {
       findings.push({
         code: "comparison-row-unkeyed",
-        message: "突き合わせ表に component / item / instance の揃っていない行がある",
+        message: `突き合わせ表に component / item / instance の揃っていない、または区切り文字（${KEY_SEPARATOR}）を含む行がある`,
       });
       continue;
     }

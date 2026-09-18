@@ -120,6 +120,37 @@ test("セルの鍵は材料が 1 つでも欠けたら作らない（undefined �
   expect(cellKey({ component: "grid", item: "", instance: "grid@list" })).toBeNull();
 });
 
+test("区切り文字を含む材料からは鍵を作らない（別の操作の記録が証拠に化ける）", () => {
+  // ("a|b","c","d") と ("a","b|c","d") はどちらも a|b|c|d になり、
+  // 別セルの突き合わせ記録が present セルの証拠として通る（指紋も同じ鍵を数えるので一致する）。
+  expect(cellKey({ component: "a|b", item: "c", instance: "d" })).toBeNull();
+  expect(cellKey({ component: "a", item: "b|c", instance: "d" })).toBeNull();
+
+  const coverage = {
+    slug: "order-list",
+    cells: [{ component: "a|b", item: "c", instance: "d", value: "present", evidence: "読了" }],
+  };
+  const comparison = {
+    slug: "order-list",
+    target: "preview",
+    source_coverage: { path: "x", fingerprint: fingerprintOf([]) },
+    cells: [
+      {
+        component: "a",
+        item: "b|c",
+        instance: "d",
+        compared: true,
+        evidence: { entry: "a", hit_area: "b", completion: "c" },
+      },
+    ],
+  };
+  const codes = checkComponentComparison({ coverage, comparison, target: "preview" }).findings.map(
+    (f) => f.code,
+  );
+  expect(codes).toContain("coverage-cell-unkeyed");
+  expect(codes).toContain("comparison-row-unkeyed");
+});
+
 test("陽性コントロール: 3 点の揃った突き合わせは exit 0（常に落とす実装ではない）", () => {
   const { code, result } = run(
     ["--coverage", "c.json", "--comparison", "n.json", "--target", "preview"],

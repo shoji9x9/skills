@@ -157,6 +157,8 @@
     --metadata .replace/parity/<slug>/metadata.json --target <target>
   ```
 
+- **`component` / `item` / `instance` の id に `|` を使わない。** 突き合わせの鍵（`<component>|<item>|<instance>`）の区切りなので、
+  含めると別のセルの記録が別のセルの証拠として通る（被覆表の指紋も同じ潰れた鍵を数えるため一致してしまう）
 - **セルの値は動かさない。** 新側で突き合わせていないことを理由に `present` を `unmeasured` へ落とすと、
   移行元で測った操作が未測定として数えられ、移行元側の被覆が読めなくなる（見た目の穴と同じ扱い）
 
