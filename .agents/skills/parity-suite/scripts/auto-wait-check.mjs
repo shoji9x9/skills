@@ -217,21 +217,42 @@ function regexLiteralEnd(source, start) {
 }
 
 /**
- * `from` 以降の最初の非空白が、正規表現とも除算とも読める `/` か。
+ * `from` 以降の最初の**意味を持つ**トークンが、正規表現とも除算とも読める `/` か。
  *
  * 文脈依存キーワード（`await` / `yield`）の直後の `!` は、続くトークンの形で前置・後置が決まる
  * （被演算子が続けば前置の否定、演算子が続けば後置の非 null）。唯一決まらないのが `/` で、
- * 前置なら正規表現の開始、後置なら除算になる。コメントの `//` `/*` は演算子ではないので除く。
+ * 前置なら正規表現の開始、後置なら除算になる。
+ *
+ * **空白だけでなくコメントも読み飛ばす。** コメントは意味を持つトークンではないので、
+ * 非 null の後ろにブロックコメントを挟んでから除算する形の曖昧さは、挟まない形と同じである。
+ * コメントの `/` で「曖昧でない」と打ち切ると、その先の本物の `/` が正規表現の開始として扱われ、
+ * 次の `/` までの違反が黙って消える。
+ * 終端まで意味を持つトークンが無い場合は曖昧でない（続く式が無い。未終端コメント自体は
+ * maskNonCode が別途エラーにする）。
  * @param {string} source
  * @param {number} from
  * @returns {boolean}
  */
 function startsAmbiguousSlash(source, from) {
   let k = from;
-  while (k < source.length && /\s/.test(source[k])) k += 1;
-  if (source[k] !== "/") return false;
-  const next = source[k + 1];
-  return next !== "/" && next !== "*";
+  for (;;) {
+    while (k < source.length && /\s/.test(source[k])) k += 1;
+    if (source[k] !== "/") return false;
+    const next = source[k + 1];
+    if (next === "/") {
+      const end = source.indexOf("\n", k + 2);
+      if (end === -1) return false;
+      k = end + 1;
+      continue;
+    }
+    if (next === "*") {
+      const end = source.indexOf("*/", k + 2);
+      if (end === -1) return false;
+      k = end + 2;
+      continue;
+    }
+    return true;
+  }
 }
 
 /**

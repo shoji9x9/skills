@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** ブロックコメントの literal。このファイル自身のコメントを閉じないよう組み立てる。 */
+const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
 const { maskNonCode, scanSource, scanSourceWithStats } = await import(script);
@@ -691,7 +694,8 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
 // |-------------------|----------------|
 // | `await` / `yield`（素の語）＋ 次が `/` | 走査不能（例外）＝唯一の曖昧形 |
 // | `await` / `yield`（素の語）＋ 次が被演算子 | 前置の否定（キーワード）。止めない |
-// | `await` / `yield`（素の語）＋ 次がコメント | 演算子でないので止めない |
+// | `await` / `yield`（素の語）＋ コメントの先が `/` | 走査不能（コメントは意味を持つトークンでない） |
+// | `await` / `yield`（素の語）＋ コメントの先が被演算子 | 止めない |
 // | `obj.await`（プロパティ名） | 従来どおり後置扱い |
 // | `await` の通常利用（`!` を伴わない） | 従来どおりキーワード |
 //
@@ -701,6 +705,9 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
 //     exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
 //   - `startsAmbiguousSlash(...)` を `true`（曖昧形を絞らず常に止める）にすると 3 件 fail、
 //     `false`（止めない）にすると 3 件 fail。止める範囲が広すぎず狭すぎないことを両側から測れている。
+//   - コメントの読み飛ばしを外す（コメントの `/` で「曖昧でない」と打ち切る＝修正前）と 3 件 fail。
+//     修正前は `const x = await! /* c */ / d; const v = locator.textContent(); const y = a / e;` が
+//     違反 0 件で exit 0 になることを実測した。
 
 test.each([["await"], ["yield"]])(
   "%s の直後の `!` に `/` が続く形は正規表現とも除算とも読めるので走査を止める",
@@ -715,9 +722,21 @@ test.each([
   ["被演算子が続く前置の否定", "const ready = await !Promise.resolve(false);"],
   ["括弧が続く前置の否定", "const ready = await !(flag && other);"],
   ["行コメントが続く", "const ready = await! // 末尾コメント\n"],
+  ["ブロックコメントの後が被演算子", `const ready = await! ${BLOCK_COMMENT} flag;`],
 ])("%s は曖昧でないので走査を止めない", (_name, line) => {
   const source = `const locator = page.locator('.x');\n${line}\nconst v = await expect(locator).toBeVisible();\n`;
   expect(() => scanSource(source)).not.toThrow();
+});
+
+// コメントは意味を持つトークンではないので、`!` と `/` の間に挟まっても曖昧さは消えない。
+// コメントの `/` で打ち切ると、その先の本物の `/` が正規表現の開始になり、次の `/` までの違反が消える。
+test.each([
+  ["ブロックコメント", `const x = await! ${BLOCK_COMMENT} / d;`],
+  ["行コメント（改行をまたぐ）", "const x = await! // 注釈\n  / d;"],
+  ["コメントが 2 つ続く", `const x = await! ${BLOCK_COMMENT} ${BLOCK_COMMENT} / d;`],
+])("%s を挟んだ `/` も曖昧なので走査を止める", (_name, line) => {
+  const source = `const locator = page.locator('.x');\n${line} const v = locator.textContent(); const y = a / e;\n`;
+  expect(() => scanSource(source)).toThrow(/正規表現の開始.+除算/);
 });
 
 test("プロパティ名の await は従来どおり値として扱う（走査を止めない）", () => {
