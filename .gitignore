@@ -16,3 +16,8 @@ tests/*/iteration-*/review.html
 
 # scheduled tasks のロックファイル
 .claude/scheduled_tasks.lock
+
+# git-worktree スキルの worktree 置き場（リポジトリ内配置）。
+# 末尾スラッシュを付けない——git はシンボリックリンクをディレクトリとして見ないため、
+# `/.claude/worktrees/` だとリンクを運び込んだ場合に一致せず未追跡として現れる。
+/.claude/worktrees
