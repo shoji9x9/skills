@@ -86,6 +86,12 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
 - **反応の被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `reaction_coverage.declared` が `true` なら、
   インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直し、exit 0 以外なら `parity-suite` へ戻す
   （遅れて出る・別の文書に出る・自動で消える反応は差分器の採取に写らない。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
+- **被覆表の `present` を新側で突き合わせていない状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら、
+  インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <新側突き合わせ表> --metadata <現側 metadata.json> --target <target>` で数え直し、
+  exit 0 以外なら `parity-replace` へ戻す（**被覆表の 3 値は移行元側の測定**で、入口・当たり判定・完了のどこかで止まる欠落は示さない。判定の正本は [`references/convergence.md`](references/convergence.md)）
+- **撮る範囲に宣言されていない穴が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
+  `scripts/capture-scope-check.mjs --metadata <現側 metadata.json>` で数え直し、exit 0 以外なら `parity-suite` へ戻す
+  （撮影領域の外・内部スクロール器の中・領域外に出た論理名は**差分ゼロとして通る**。`capture_scope` を持たない現側成果物は後方互換に倒さず範囲の実測から採り直す。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **採取物と工程の健全性に未検証が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
   `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す
   （読まれていない採取物・元が採り直されたのに古い加工物・後始末が効いていないスイート・`blocking` の未測定・
@@ -167,6 +173,9 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直す。
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
+   現側 `metadata.json.component_coverage` が `declared: true` なら**新側での突き合わせ**（`present` セルごとの入口・当たり判定・完了）も収束条件に入れ、
+   インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
+   **撮る範囲の穴**（撮影領域の外・内部スクロール器の中・領域外に出た論理名）も収束条件に入れ、インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
    **採取物と工程の健全性**（採取物の読み手・加工物の鮮度・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の在否と鮮度）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す（**`diff-metadata.json` に結果を書いた後**に通す——工程の節は自分が書く成果物の在否を見るため。`--stage suite` を渡すと未測定の `blocking` を素通りさせる）。
    **追記専用の成果物が縮んでいないこと**も収束条件に入れ、インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
@@ -203,7 +212,9 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
   部品被覆表（`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読み、未測定が残れば収束させず `parity-suite` へ戻す。様式・被覆プロファイルの正本は `parity-suite`）、
   反応の被覆表（`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --recorded` で判定し、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`suite.new_only`）。すべて `.replace/parity/<slug>/metadata.json` 経由
-- **`parity-replace` から引き継ぐもの**: 新側 green の証拠（`suite.new_green`）・target 名と新側 URL（`new.{target,ui_url,api_url}`。`url_command` の target は `"runtime"` が記録されるため target 設定から再解決する）・新側マッピング例外・実装時に前提としたデータセットバージョン（`dataset_version`）。
+- **`parity-replace` から引き継ぐもの**: 新側の部品突き合わせ（`component_coverage.declared: true` のとき `new/<target>/component-comparison.json`。
+  `parity-suite` の `component-comparison-check.mjs` で判定し、未突合が残れば収束させず `parity-replace` へ戻す。様式の正本は `parity-suite`）、
+  新側 green の証拠（`suite.new_green`）・target 名と新側 URL（`new.{target,ui_url,api_url}`。`url_command` の target は `"runtime"` が記録されるため target 設定から再解決する）・新側マッピング例外・実装時に前提としたデータセットバージョン（`dataset_version`）。
   すべて選択 target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` から推測せず引く（スイートは再実行しない）。
   データセットバージョンの**陳腐化判定はこの値では行わない**——判定は [`references/preflight.md`](references/preflight.md) の三者整合（`metadata.json` / dataset の `changes` / `phase_b.<slug>.<target>`）で行う
 - **`parity-replace` へ差し戻すもの**: 要対応差分が残り、target の `on_diff` が無い（既定）か、そのドキュメントが修正を指示するなら `diff.md` を差し戻し入力として**同じ target** で渡す。

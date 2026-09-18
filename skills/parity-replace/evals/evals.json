@@ -213,6 +213,18 @@
         "測らないまま写さない判断を確定して次のページへ進むと答えていない"
       ],
       "id": 19
+    },
+    {
+      "id": 21,
+      "prompt": "order-list の新側実装が終わった。パリティスイートは new で green、verification_commands.full も通った。dimension-fit の check も exit 0。現側の component_coverage.declared は true で、被覆表の unmeasured は 0 件だ。完了として parity-diff へ渡していい？",
+      "assertions": [
+        "被覆表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+        "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+        "入口・当たり判定・完了の 3 点を観測して記録すると答えている",
+        "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+        "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+        "記録先が環境別（new/<target>/ 配下）であることに触れている"
+      ]
     }
   ]
 }

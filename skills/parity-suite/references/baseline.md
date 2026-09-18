@@ -158,6 +158,85 @@
 - 器が 1 つも無い機能は `popup_inventory: []` と書く（キーの欠落は「数えていない」と区別できない）
 - **`popup_inventory` を持たない既存の `metadata.json` は、この節と次節の導入より前の採取として扱い、ベースラインとノイズ基準値を採り直す**（待たずに撮った 2 標本の「ノイズ 0」が残り続けるため）
 
+### 撮る範囲の決め方（穴は採取の段で数える）
+
+**範囲の狭さは「差分 0 件」と同じ見え方になる。** 差分器は撮った 2 枚しか比べないので、撮らなかった領域は
+**永久に差が出ない**。足りないことは工程の外——利用者が画面を見るか、実装した側が気づくか——でしか見つからず、
+**見つかった時点で現側から撮り直す**ことになる（反復が 1 つ増える。狭い範囲で採る → 実装 → 範囲外の差分が出る →
+範囲を広げて採り直す → 直す、というループの原価がこれ）。**だから撮る段で穴を数える。**
+
+**既定は全画面（`capture_conditions.full_page: true`）。** ビューポート内で撮るのは、全画面で撮れない理由があるときだけにする
+（理由は下記の宣言に残す）。「1 画面に収まっているはず」を根拠にしない——収まっているなら穴は 0 件として数えられるので、宣言は要らない。
+
+**撮影組（ページ × 状態 × ビューポート）ごとに範囲を実測して `capture_conditions.capture_scope` に残す**（様式の正本は
+[`../assets/metadata-template.json`](../assets/metadata-template.json)）。突き合わせ相手は `noise_baseline`——
+**ノイズ基準値を採った組に範囲の実測が無ければ「測っていない」**として落とす（穴が無い組と同じ見え方にしない）。
+
+| 穴の種別（id） | 何が撮れていないか |
+|---|---|
+| `below-fold` / `beyond-right` | 文書（`scrollWidth` / `scrollHeight`）が撮影領域より大きい。`full_page: false` で下・右が切れている |
+| `scroll:<器の名前>` | 内部スクロール器の中身が可視部より大きい（仮想スクロール・固定高のグリッド）。**画素にも特性にも出ない** |
+| `offscreen:<論理名>` | 論理名付き要素が撮影領域の外にある。特性は採れても画素には写らない |
+
+実測は撮る直前に 1 回で採る（`full_page: true` なら撮影領域は文書と同じ寸法になるので、穴は 0 件として数えられる）。
+
+```ts
+// 出典: https://playwright.dev/docs/api/class-page#page-screenshot（fullPage は文書全体を撮る）、
+//       https://developer.mozilla.org/docs/Web/API/Element/scrollHeight（scrollHeight と clientHeight の差が隠れている分）
+const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
+  const root = document.documentElement;
+  const doc = { width: root.scrollWidth, height: root.scrollHeight };
+  const captured = fullPage ? doc : { width: window.innerWidth, height: window.innerHeight };
+  const scroll_containers = [...document.querySelectorAll("*")]
+    .filter((el) => {
+      const style = getComputedStyle(el);
+      const scrollable = /(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`);
+      return scrollable && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+    })
+    .map((el) => ({
+      // name は書き手が付ける（論理名で引ける器はその論理名。hint は名前を決めるための手がかりで、記録には残さない）
+      hint: `${el.tagName.toLowerCase()}.${el.className}`,
+      client: { width: el.clientWidth, height: el.clientHeight },
+      scroll: { width: el.scrollWidth, height: el.scrollHeight },
+    }));
+  const outside = Object.entries(namedSelectors).filter(([, selector]) => {
+    const el = document.querySelector(selector);
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    // 撮影領域の原点に合わせて比べる。full_page では文書座標（左上が原点）、ビューポート内では
+    // **撮るのは今見えている矩形**なので viewport 座標のまま比べる（scrollY を足すと、下へスクロールした
+    // 状態で撮った組の可視要素まで領域外に化ける）。上・左へはみ出した分も数える（負の側も領域外）。
+    const top = fullPage ? rect.top + window.scrollY : rect.top;
+    const left = fullPage ? rect.left + window.scrollX : rect.left;
+    return (
+      top < 0 || left < 0 || top + rect.height > captured.height || left + rect.width > captured.width
+    );
+  });
+  return {
+    document: doc,
+    captured,
+    scroll_containers,
+    named_elements_outside: outside.map(([name]) => name),
+  };
+}, { fullPage, namedSelectors });
+```
+
+- **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない
+- **器が 1 つも無い組は `scroll_containers: []` と書く**（キーの欠落は「数えていない」と区別できない。`named_elements_outside` も同じ）
+
+**穴は消すか、対象外として宣言する。** 消すのは範囲を広げること（`full_page: true` にする、器の中身を段階的に撮る状態を足す、
+論理名の要素が入る位置で撮る）。広げられないなら `capture_conditions.capture_scope_exemptions` に
+**穴の id・理由・`gaps.md` の該当箇所**を書き、同じ内容を `gaps.md`「特性化できなかった箇所と理由」へ種別「撮影範囲の対象外」として残す。
+**対応する穴の無い宣言は落とす**——古い宣言が残ると、範囲を狭めても静かに通る。
+
+```bash
+node <skill>/scripts/capture-scope-check.mjs --metadata .replace/parity/<slug>/metadata.json
+```
+
+終了コードは 0 ＝ 条件を満たす、1 ＝ 穴・不整合が残る（採取へ戻す）、2 ＝ 使い方の誤り・型崩れ。
+**`capture_scope` をキーごと持たない成果物も落ちる**——この節より前に採った成果物は範囲を測っていないので、
+範囲の実測を足して（必要なら撮り直して）から先へ進む。
+
 ### 撮る対象が動かなくなるまで待つ
 
 **「出た」は「位置が確定した」ではない。** 中身を後から組む器や、大きさが決まってから位置を詰め直す実装（`ResizeObserver` 等）では、出現直後に撮ると 1 画素の上下で 2 つの結果に転ぶ。

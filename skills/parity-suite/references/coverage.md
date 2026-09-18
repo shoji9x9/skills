@@ -137,6 +137,46 @@
 塞ぐのは**インスタンス単位の被覆表**。`.replace/parity/<slug>/component-coverage.json` に
 **機能表の項目 × 部品インスタンス（ページ）** の表を持つ（正本テンプレート: [`../assets/component-coverage-template.json`](../assets/component-coverage-template.json)）。
 
+#### 被覆表は移行元側の測定である（新側の欠落は示さない）
+
+**3 値が数えるのは「移行元でその操作が在るか」だけ**で、「新側で同じ操作を実施して移行元と差が無いか」は数えていない。
+**この 2 つは別の測定**であり、**欠落を見つけるのは後者だけ**——**前者をいくら積んでも新側の欠落は 1 件も示されない**（移行元の記録だから）。
+
+- `evidence` / `covered_by` にも**どちら側で測ったかを書く欄は無い**。`covered_by` が指す採取状態（`metadata.json.capture_conditions.states`）は
+  **測定対象（current target）に紐づく 1 つ**で、`measured_target` も `components[]` の直下に 1 つ。**1 つの被覆表は 1 つの測定対象のもの**である
+- したがって**`unmeasured` 0 は「新側で操作を完了できる」を意味しない。** 新側の突き合わせは別の成果物
+  `new/<target>/component-comparison.json` が持ち（様式の正本: [`../assets/component-comparison-template.json`](../assets/component-comparison-template.json)）、
+  **`value: present` のセル 1 つにつき 1 行**を要求する。書くのは `parity-replace`（新側を操作する工程）で、
+  読むのは `parity-diff` の収束判定（未突合が残る間は収束させない）。検査は同梱の
+  [`../scripts/component-comparison-check.mjs`](../scripts/component-comparison-check.mjs):
+
+  ```bash
+  node <skill>/scripts/component-comparison-check.mjs \
+    --coverage .replace/parity/<slug>/component-coverage.json \
+    --comparison .replace/parity/<slug>/new/<target>/component-comparison.json \
+    --metadata .replace/parity/<slug>/metadata.json --target <target>
+  ```
+
+- **セルの値は動かさない。** 新側で突き合わせていないことを理由に `present` を `unmeasured` へ落とすと、
+  移行元で測った操作が未測定として数えられ、移行元側の被覆が読めなくなる（見た目の穴と同じ扱い）
+
+##### 突き合わせの証拠は入口・当たり判定・完了に分ける
+
+**ケースの一覧では拾えない。** 実測された欠落——**下位を持つ項目を押すとメニューが閉じて下位が出ない**・
+**下位を示す三角が押せる要素の外にあり `cursor` も変わらない**・**並び替えの印が省略された文字に重なる**——は、
+どれも「機能は在る」が「操作を最後まで完了できない」形で、**ケースの文面（「エクスポート」「列のソート」）には出てこない**。
+そこで**ケースに依らない 3 つの軸**で観測する（3 点すべてが揃うまで突き合わせ済みにしない）。
+
+| 軸 | 何を見るか |
+|---|---|
+| **入口**（`entry`） | 新側でその操作を**始められる**か（操作を送れる要素へ到達し、反応が起きる） |
+| **当たり判定**（`hit_area`） | **押せる範囲**と `cursor` が移行元と同じか（印が `::after` で行全体が 1 項目なのか、別要素なのか） |
+| **完了**（`completion`） | 操作が**最後まで通る**か（下位が開く・並び替えが反映される・器が閉じない） |
+
+- **重なりと省略も完了の側で見る**——絶対配置の印は、余白を宣言していても幅が足りなければ文字に乗る（省略が切るのは文字の領域の端）
+- **市販部品のクラスの意味は確かめてから読み替える**（名前が近くても条件が違う）
+- 突き合わせで差が出たら `parity-replace` の実装へ戻す。**突き合わせないことを選ぶなら利用者の承認**（`disposition: accepted` ＋ `approved_by` / `approved_at`）が要る
+
 #### 被覆表は見た目を見ていない
 
 **この表が数えるのは操作と状態の「有無」だけで、色・寸法・余白・書体は 1 つも見ていない。**

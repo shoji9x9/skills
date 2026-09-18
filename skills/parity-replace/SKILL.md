@@ -200,6 +200,17 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    現側の `dimension_model` のキーが無い・4 軸の記録が欠けている・現側 samples が式の指紋と一致しないのも exit 2 で、`parity-suite` へ戻して記録させる（`dimension_check` にも `ok: false` と `error` が書かれ、前回の合格は残らない）。
    **判定しなかった（`judged: false`。`not_measured`・`not_required`・照合できる式が 0 件）ときと、式が読めなかった軸（`unfit_to_note`）があるときは、写していない旨と理由を `porting.md`「寸法の決まり方」へ明示する**
    ——書かずに完了を名乗らない（`not_measured` は `parity-suite` からの引き渡し条件であり、`gaps.md` で済ませない。形式の正本は `parity-suite` の `references/baseline.md`「寸法の決まり方（窓への追従）」）。
+   **feature モードでは部品被覆表の新側突き合わせも完了判定に入れる**——**移行元の被覆表の 3 値は移行元側の測定**なので、
+   `present` をいくら積んでも新側の欠落は 1 件も示されない（スイートが green でも、下位を持つ項目を押すとメニューが閉じる・
+   印が押せる範囲の外にある・並び替えの印が文字に重なる、といった「操作を最後まで完了できない」欠落は残る）。
+   現側 `metadata.json` の `component_coverage.declared` が `true` なら、`value: present` のセル 1 つにつき 1 行を
+   `.replace/parity/<slug>/new/<target>/component-comparison.json` に書き（**環境別**。様式の正本は `parity-suite` の
+   `assets/component-comparison-template.json`）、**入口・当たり判定・完了**の 3 点を観測して記録する。
+   突き合わせられないセルは理由を書き、**突き合わせないことを選ぶなら利用者の承認**（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
+   記録したらインストール済みの `parity-suite` の
+   `node <parity-suite>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> --target <選択中の new target>`
+   を **exit 0 まで通す**（コピーせずスキル配下から実行する。`source_coverage.fingerprint` は手で書かず検査が出す期待値を写す）。
+   **`parity-diff` の収束判定も同じスクリプトを呼ぶ**ので、ここで通しておかないと差分の工程で差し戻される。
    **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
@@ -240,13 +251,15 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 寸法の採取値（feature モード。**環境別**） | `.replace/parity/<slug>/new/<target>/dimension-samples.json`（`dimension/` の測定スペックが `new` の実行で書く） | 形式の正本: `parity-suite` の `scripts/dimension-fit.mjs` |
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
+| 部品被覆表の新側突き合わせ（feature モードで `component_coverage.declared: true` のとき。**環境別**） | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 様式・検査の正本: `parity-suite` の `assets/component-comparison-template.json` と `scripts/component-comparison-check.mjs` |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
-- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
+- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/component-comparison.json` /
+  `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
 - **green 証跡だけが環境別**: `replace-metadata.json` は `new/<target>/` 配下に置き、環境を切り替えても他の target の証跡を上書きしない。`porting.md` / `review.md` は環境非依存のため slug 直下に置く
 - 本スキルは実行時に固有の決定論的ツールを同梱しない（差分器・視覚ベースラインは `parity-suite` 同梱・`parity-diff` 担当）
 
