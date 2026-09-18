@@ -791,6 +791,18 @@ describe("ゲートの commit 検出", () => {
     // 予約語も引数として書かれたときは倒さない（過剰ブロックの回帰）。
     ['echo "$(printf %s then)" "; git commit -m x"', 0],
     ['echo "$(printf %s then case)" "; git commit -m x"', 0],
+    // **判定は `case` の「位置」ではなく「構文」で行う。** コマンド位置は記号の区切りにも
+    // 予約語の直後にも**関数宣言子の直後**にも現れ、位置の列挙は 4 ラウンドで 10 形破られた。
+    // 不均衡な `)` を持ち込むのは `case WORD in` という構文そのものなので、そちらを直接見る。
+    ['echo "$(f() case x in x) git commit -m x;; esac; f)"', 2],
+    ['echo "$(function f() case x in x) git commit -m x;; esac; f)"', 2],
+    // `in` が続かない `case` は構文ではないので倒さない（過剰ブロックの回帰）。
+    ['echo "$(printf %s case)" "; git commit -m x"', 0],
+    ['echo "$(printf %s testcase)" "; git commit -m x"', 0],
+    // 引用の内側は別の分岐が消費するのでこの検査に渡らない。
+    ['echo "$(printf %s \'case x in\')" "; git commit -m x"', 0],
+    // `for .. in` は `case` を持たないので当たらない。
+    ['echo "$(for i in 1 2; do echo $i; done)"', 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {

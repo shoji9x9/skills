@@ -237,12 +237,13 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 	# `(` `)` の対応と、対応を跨がせないための引用・エスケープ・コメント。
 	local sub_pat="[\\\\'\"()#]*" dq_pat='[\\"]*'
 	# 引用した右辺は `=~` でリテラル扱いになるため、正規表現は変数に入れて非引用で渡す。
-	# コマンド位置は記号の区切りだけではない。**予約語の直後もコマンドの先頭**で、
-	# `if true; then case x in x) ... ;; esac; fi` も `while case ...` も実際に実行される（実測）。
-	# 予約語は連なれる（`; then while case ...`）ので、繰り返し可能な前置きとして表す。
-	local case_rw='(then|else|elif|do|if|while|until|time|!)'
-	local case_head_re="^[[:space:]]*(${case_rw}[[:space:]]+)*case([^A-Za-z0-9_]|$)"
-	local case_after_sep_re=$'[;&|{(\n][[:space:]]*'"(${case_rw}[[:space:]]+)*case([^A-Za-z0-9_]|\$)"
+	# **`case` の「位置」ではなく「構文」で見る。** コマンド位置は記号の区切りにも予約語の
+	# 直後にも関数宣言子の直後（`f() case x in ...`）にも現れ、列挙は繰り返し破られた
+	# （実測で 4 ラウンド、10 形）。不均衡な `)` を持ち込むのは `case WORD in` という
+	# 構文そのものなので、そちらを直接見る——予約語としての `case` の後に `in` が来る形。
+	# `printf %s case` のように引数として書かれただけなら `in` が続かないので倒れない。
+	# 引用の内側は別の分岐が消費するため、この検査には渡らない（`printf %s 'case x in'` は素通り）。
+	local case_construct_re='(^|[^A-Za-z0-9_])case[[:space:]]+[^;&|()]*[[:space:]]+in([^A-Za-z0-9_]|$)'
 	while [ -n "${rest}" ]; do
 		# パターンとして展開させたいので意図的に非引用（SC2295）。
 		# shellcheck disable=SC2295
@@ -254,10 +255,7 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 			# `; git commit` が実行されるコマンドとして読まれ、誤ブロックになる（実測）。
 			# 予約語はコマンド位置（行頭・`;` `&` `|` `(` `{` ・改行の直後）にしか置けないので、
 			# チャンクの先頭がコマンド位置のときと、チャンク内の区切りの直後だけを見る。
-			if [ "${at_word_start}" -eq 1 ] && [[ ${chunk} =~ ${case_head_re} ]]; then
-				return 1
-			fi
-			if [[ ${chunk} =~ ${case_after_sep_re} ]]; then
+			if [[ ${chunk} =~ ${case_construct_re} ]]; then
 				return 1
 			fi
 			taken=$((taken + ${#chunk}))
