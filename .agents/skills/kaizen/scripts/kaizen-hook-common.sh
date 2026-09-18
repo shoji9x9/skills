@@ -5,6 +5,7 @@
 #   - Hook の stdin JSON から文字列フィールドを取り出す（jq/python3 に依存しない）
 #   - session id を制御ファイル名に使える key へ正規化する
 #   - `.kaizen/` を解決するプロジェクトルートを決める（worktree 対応）
+#   - リポジトリの全作業ツリーの `.kaizen/` を列挙し、制御ファイルをそこから探す（Issue #344）
 #   - センチネル / checkpoint / 抽出完了マーカーのパス組み立てと、名前からの復号
 #
 # 制御ファイルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで
@@ -149,6 +150,92 @@ kaizen_resolve_project_root() {
 		return 0
 	fi
 	pwd
+}
+
+# このリポジトリの**全作業ツリー**（本体＋git worktree）の `.kaizen` ディレクトリを、
+# $1 のツリーを先頭にして絶対パスで 1 行ずつ返す。
+#
+# 制御ファイル（センチネル / checkpoint / 抽出完了マーカー）の置き場は**作業ディレクトリから
+# 決まる**ため、センチネルを立てたツリーと `git commit` を実行するツリーが分かれると、
+# ゲートは自分のツリーの `.kaizen/` しか見ず、**worktree の commit が素通りする**（Issue #344）。
+# 素通りは出力にも終了コードにも現れないので、「未抽出の学びが無い」と「センチネルが別のツリーに
+# ある」を区別できない。
+#
+# 置き場そのものを 1 箇所へ移すと、既存インストールの制御ファイルが迷子になる（移行の途中で
+# 両方が有効になり、片方が見えないまま素通りする）。**置き場は変えず、探索と解消をリポジトリ
+# 全体へ広げる**——`git worktree list --porcelain` は本体と全 worktree を返す。
+#
+# git を起動できない・worktree を列挙できない場合は自分のツリーだけを返す（縮退。機能が
+# 落ちるだけで、Issue #344 以前の挙動に戻る）。
+#
+# **列挙は `-z`（NUL 区切り）で読む。** POSIX ではパスに改行を含められ、行区切りの
+# `--porcelain` だとパスが複数行へ割れて先頭部分しか取れない。その worktree は
+# 「存在しないディレクトリ」として落ち、そこに立ったセンチネルが見えないまま commit が
+# 素通りする（実測。git 2.47.3 で改行入り worktree を作って確認した）。
+# `-z` は `git worktree list -h` に「terminate records with a NUL character」と記載があり、
+# 属性ごとに NUL、レコード間は空フィールドで区切られる（実測）。
+# `-z` を持たない古い git では列挙が失敗するので、行区切りへ縮退する。
+#
+# **返す側も NUL 区切りにする。** 改行を含むパスを取れても、改行区切りで返した時点で
+# 消費側が 1 件を 2 行に読み、そのどちらも存在しないディレクトリとして落とす（実測）。
+# 呼び出し側は `while IFS= read -r -d '' dir` で読む。
+kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
+	local base="${1:-}" base_phys line path seen
+	[ -n "${base}" ] || base=$(pwd)
+	[ -d "${base}" ] || return 0
+	base=$(cd "${base}" 2>/dev/null && pwd) || return 0
+	# `git worktree list` は**解決済み（物理）のパス**を返す。base をシンボリックリンク越しに
+	# 受け取っていると論理パスとは文字列が一致せず、**同じ `.kaizen/` を 2 回返す**——同一の
+	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
+	# 突き合わせて弾く。
+	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}
+	printf '%s\0' "${base}/.kaizen"
+	command -v git >/dev/null 2>&1 || return 0
+	emit_worktree_dir() { # $1: `worktree <path>` 形式のレコード
+		case "$1" in
+		'worktree '*) ;;
+		*) return 0 ;;
+		esac
+		path=${1#worktree }
+		[ -n "${path}" ] || return 0
+		if [ "${path}" = "${base}" ] || [ "${path}" = "${base_phys}" ]; then
+			return 0
+		fi
+		[ -d "${path}" ] || return 0
+		printf '%s\0' "${path}/.kaizen"
+	}
+	# **NUL 区切りの出力を変数へ溜めない。** `$( )` は NUL を落とすので、溜めた時点で
+	# レコードの区切りが消える（実測: 改行入り worktree が 1 件も取れなくなる）。
+	# プロセス置換から直接読む。
+	seen=0
+	while IFS= read -r -d '' line; do
+		case "${line}" in
+		'worktree '*) seen=$((seen + 1)) ;;
+		esac
+		emit_worktree_dir "${line}"
+	done < <(git -C "${base}" worktree list --porcelain -z 2>/dev/null)
+	# レコードが 1 件も無い＝`-z` を持たない古い git（リポジトリなら本体は必ず 1 件返る）。
+	# 改行を含むパスは取りこぼすが、それ以外は従来どおり拾う。
+	if [ "${seen}" -eq 0 ]; then
+		while IFS= read -r line; do
+			emit_worktree_dir "${line}"
+		done < <(git -C "${base}" worktree list --porcelain 2>/dev/null || true)
+	fi
+	unset -f emit_worktree_dir
+}
+
+# 制御ファイルをリポジトリの全作業ツリーから探し、最初に見つかった絶対パスを返す。
+# 見つからなければ非 0（呼び出し側は自分のツリーのパスへ倒す）。
+# $2 は `.kaizen/` を含まない**ファイル名**（例: `.extract-checkpoint.<session key>`）。
+kaizen_find_control_file() { # $1: 基準のツリー $2: 制御ファイル名
+	local dir name="${2:-}"
+	[ -n "${name}" ] || return 1
+	while IFS= read -r -d '' dir; do
+		[ -e "${dir}/${name}" ] || continue
+		printf '%s' "${dir}/${name}"
+		return 0
+	done < <(kaizen_worktree_kaizen_dirs "${1:-}")
+	return 1
 }
 
 # 制御ファイルのパス。key が空なら Issue #218 以前の agent 単位の名前（後方互換）になる。

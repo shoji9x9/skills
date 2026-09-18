@@ -10,6 +10,7 @@ import {
   appendFileSync,
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -689,6 +690,119 @@ describe("ゲートの commit 検出", () => {
     ['echo "Bash(git commit *)" # matcher', 0],
     // コメント本文の中だけにある `git commit` は実行されない。
     ["# git commit -m x\ngit status", 0],
+    // 二重引用符の**内側**でも、コマンド置換（`$( )` / `` ` ` ``）はシェルが展開する領域で、
+    // 中身は実行されるコマンドである（Issue #345）。引用の内側を一律にリテラル扱いして潰すと
+    // ここの `git commit` が検出から消え、**実際に実行されるコミットが素通りする**。
+    // マスクからコマンド置換の扱いを外すと下の 5 件が exit 0 になることを実測して弁別性を確認した。
+    ['echo "$(git commit -m x)"', 2],
+    ['echo "`git commit -m x`"', 2],
+    ['echo "$(echo "$(git commit -m x)")"', 2],
+    ['echo "prefix $(cd {P} && git commit -m x) suffix"', 2],
+    ["X=$(git commit -m x)", 2],
+    // 引用の内側のコマンド置換を写しても、その中の**引用された**文字列は実行されない
+    // （過剰ブロックの回帰。写した中身をそのまま区切り扱いしないこと）。
+    [`echo "$(printf %s 'git commit')"`, 0],
+    [`echo "$(echo ")" )"; echo ok`, 0],
+    // 対応する `)` / `` ` `` を数え切れない形は heredoc と同じく判定不能で fail closed。
+    ['echo "$(git commit -m x"', 2],
+    ['echo "`git commit -m x"', 2],
+    // コマンド置換の中のコメントは行末まで。**コメント内の `)` は対応にならない**ので、
+    // 素通りさせると早く閉じてしまい、その後ろに置かれた本物の `git commit` がマスク側で
+    // 潰されて素通りする（fail open。cmdsub_span の `#` 分岐を外すと exit 0 になることを実測）。
+    ['echo "$( # note )\ngit commit -m x\n)"', 2],
+    // 対応する `)` がコメントに飲まれて行末が無い形は判定不能で、マスクせず元の文字列で判定する
+    // （fail closed）。元の文字列に見える `git commit` は従来どおり捕捉する。
+    ['git commit -m "$( # note "', 2],
+    // 語中の `#` はコメントではない（コメント扱いにして残りを飲むと逆に取りこぼす）。
+    ["echo \"$(printf %s 'a#b')\"; git commit -m x", 2],
+    // **コマンドの先頭は `;&|(` の直後だけではない。** `case` のパターンの `)` と複合コマンドの
+    // `{` の直後もコマンド位置で、どれも実際にコミットを実行する（実測）。
+    // `case` のパターンの `)` は対応する `(` を持たないので cmdsub_span の深さ計算では弁別できず、
+    // そこで閉じたと読むと残りがマスクされて素通りする。mask_quoted 側を fail closed に倒し、
+    // 区切りクラスにも `)` `{` を足す——**片側だけでは塞がらない**（fail closed が使わせるのは
+    // 元の文字列で、それを判定するのがこの正規表現のため）。
+    ['echo "$(case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$(case x in a|b) echo hi;; *) git commit -m x;; esac)"', 2],
+    ["case x in x) git commit -m x;; esac", 2],
+    ['echo "$(f() { git commit -m x; }; f)"', 2],
+    ["f() { git commit -m x; }; f", 2],
+    ["{ git commit -m x; }", 2],
+    // `)` が現れる他の文法は `(` と対になるので深さ計算で扱える（取りこぼしの回帰）。
+    ['echo "$(( 1 + 2 ))"; git commit -m x', 2],
+    ['echo "$( (git commit -m x) )"', 2],
+    ["cat <(git commit -m x)", 2],
+    // 過剰ブロックの回帰: `case` を含んでも commit が無ければ通る（fail closed は元の文字列を
+    // 使わせるだけで、区切りの直後に commit が無ければ一致しない）。
+    ['echo "$(case x in x) echo hi;; esac)"', 0],
+    // 語境界で見るので `lowercase` / `testcase` では fail closed に倒さない。
+    ['echo "$(echo lowercase)"', 0],
+    ['echo "$(echo testcase)"', 0],
+    ['echo "$(( 1 + 2 ))"', 0],
+    ['echo "$(f() { echo hi; }; f)"', 0],
+    // 置換の中身は「実行されるコマンド」だが、**その中の引用とコメントは実行されない**。
+    // 丸写しにすると、リテラルに書かれた区切り文字を本物の区切りと読んで誤ブロックする
+    // （実測: 下の 3 件はいずれも commit を実行しないのに exit 2 になっていた）。
+    // 中身へ同じ規則を再帰で当て、実行される部分だけを残す。
+    ["echo \"$(printf %s '; git commit -m x')\"", 0],
+    ['echo "$(printf %s "; git commit -m x")"', 0],
+    ['echo "$(echo hi # ; git commit -m x\n)"', 0],
+    // 逆側の回帰: 再帰マスクで**実行される** commit を潰さない。
+    ['echo "$(cd /tmp && git commit -m x)"', 2],
+    ['echo "$(echo "$(git commit -m x)")"', 2],
+    // **行継続（`\` + 改行）はシェルが解析の前に取り除く。** 残したまま走査すると、トークンが
+    // 継続で割れた形はどの正規表現にも当たらず素通りする（実測）。`git` / `commit` 自体が割れると
+    // 生 JSON の prefilter（`*git*commit*`）でも落ちるので、**prefilter と走査の両方**を
+    // 直さないと塞がらない。
+    ["ca\\\nse x in x) git commit -m x;; esac", 2],
+    ['echo "$(ca\\\nse x in x) git commit -m x;; esac)"', 2],
+    ["gi\\\nt commit -m x", 2],
+    ["git com\\\nmit -m x", 2],
+    ["gi\\\nt com\\\nmit -m x", 2],
+    ["echo hi \\\n&& git commit -m x", 2],
+    // `\\` + 改行は継続ではない（エスケープされた `\` の直後の改行）。落とすと次のコマンドが
+    // 前のコマンドと繋がって区切り判定から外れる（fail open）。
+    ["echo a\\\\\ngit commit -m x", 2],
+    // 過剰ブロックの回帰: 継続があっても commit が無ければ通る。
+    ["echo a \\\n b", 0],
+    ['echo "a\\\nb"', 0],
+    ["ec\\\nho hello", 0],
+    // **`case` は予約語として現れたときだけ弁別不能にする。** 語として含むかどうかで倒すと、
+    // 引数に書かれた `case` でも倒れ、マスクを丸ごと捨てた結果、同じコマンド行の引用された
+    // `; git commit -m x` が実行されるものとして読まれて誤ブロックになる（実測）。
+    ['echo "$(printf %s case)" "; git commit -m x"', 0],
+    ['echo "$(printf %s \'case\')" "; git commit -m x"', 0],
+    ['echo "$(printf %s lowercase)" "; git commit -m x"', 0],
+    // 予約語が置ける位置（行頭・`;` `(` `{` ・改行の直後）はいずれも倒す。
+    ['echo "$(echo hi; case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$( (case x in x) git commit -m x;; esac) )"', 2],
+    ['echo "$({ case x in x) git commit -m x;; esac; })"', 2],
+    ['echo "$(echo hi\ncase x in x) git commit -m x;; esac)"', 2],
+    // **コマンド位置は記号の区切りだけではない。** 予約語（`then` / `else` / `elif` / `do` /
+    // `while` / `until` / `!` …）の直後もコマンドの先頭で、いずれも実際に実行される（実測）。
+    // 予約語は連なれるので、繰り返し可能な前置きとして扱う。
+    ['echo "$(if true; then case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(if false; then :; else case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(if false; then :; elif true; then case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(for i in 1; do case x in x) git commit -m x;; esac; done)"', 2],
+    ['echo "$(while case x in x) git commit -m x;; esac; do break; done)"', 2],
+    ['echo "$(until case x in x) git commit -m x;; esac; do break; done)"', 2],
+    ['echo "$(! case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$(true && while case x in x) git commit -m x;; esac; do break; done)"', 2],
+    // 予約語も引数として書かれたときは倒さない（過剰ブロックの回帰）。
+    ['echo "$(printf %s then)" "; git commit -m x"', 0],
+    ['echo "$(printf %s then case)" "; git commit -m x"', 0],
+    // **判定は `case` の「位置」ではなく「構文」で行う。** コマンド位置は記号の区切りにも
+    // 予約語の直後にも**関数宣言子の直後**にも現れ、位置の列挙は 4 ラウンドで 10 形破られた。
+    // 不均衡な `)` を持ち込むのは `case WORD in` という構文そのものなので、そちらを直接見る。
+    ['echo "$(f() case x in x) git commit -m x;; esac; f)"', 2],
+    ['echo "$(function f() case x in x) git commit -m x;; esac; f)"', 2],
+    // `in` が続かない `case` は構文ではないので倒さない（過剰ブロックの回帰）。
+    ['echo "$(printf %s case)" "; git commit -m x"', 0],
+    ['echo "$(printf %s testcase)" "; git commit -m x"', 0],
+    // 引用の内側は別の分岐が消費するのでこの検査に渡らない。
+    ['echo "$(printf %s \'case x in\')" "; git commit -m x"', 0],
+    // `for .. in` は `case` を持たないので当たらない。
+    ['echo "$(for i in 1 2; do echo $i; done)"', 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {
@@ -739,6 +853,13 @@ describe("コミット先のスコープ判定", () => {
     `git -c user.name=A*B -C ${FIXTURE} commit -m a`,
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
     `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
+    // **区切りの集合は commit_re と git_head_re で揃える。** commit_re 側だけ広げると、
+    // 広げた区切りで一致した形をスコープ判定が解析できず、外部宛ての免除が効かないまま
+    // 誤ブロックになる（実測。`)` と `{` は直後に空白が入るので従来の `[[:space:]]` で
+    // 拾えていたが、`` ` `` は空白を挟まないので拾えなかった）。
+    `echo "\`git -C ${FIXTURE} commit -m x\`"`,
+    `case x in x) git -C ${FIXTURE} commit -m x;; esac`,
+    `{ git -C ${FIXTURE} commit -m x; }`,
   ];
 
   test.each(external)("外部宛て: %s => exit 0", (command) => {
@@ -1077,5 +1198,141 @@ describe("未抽出センチネルの復旧案内は「記録なし」と「記�
     expect(gate.stderr).not.toMatch(/センチネルが記録した transcript を読めません/);
     expect(gate.stderr).toMatch(/transcript を指定せず次のコマンドで解消してください/);
     expect(gate.stderr).not.toMatch(/<transcript> だけを.*置き換えてください/);
+  });
+});
+
+// 制御ファイル（センチネル・checkpoint・抽出完了マーカー）の置き場は作業ディレクトリから決まる。
+// セッションが共有ツリーで始まって git worktree で続くと、センチネルを立てたツリーと `git commit`
+// を実行するツリーが分かれ、自分のツリーの `.kaizen/` しか見ない形では **worktree の commit が
+// 素通りする**（Issue #344）。素通りは出力にも終了コードにも現れないので、決定論的に押さえる。
+describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る", () => {
+  const SESSION = "00000000-1111-2222-3333-444444444444";
+
+  /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
+  function makeRepoWithWorktree() {
+    const root = mkdtempSync(join(tmpdir(), "kaizen-wt-"));
+    const main = join(root, "main");
+    mkdirSync(main);
+    const git = (args, cwd = main) => {
+      const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+      expect(r.status, r.stderr).toBe(0);
+      return r;
+    };
+    git(["init", "-q", "."]);
+    git(["config", "user.email", "r@example.com"]);
+    git(["config", "user.name", "repro"]);
+    writeFileSync(join(main, "seed"), "");
+    git(["add", "seed"]);
+    git(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"]);
+    mkdirSync(join(main, ".kaizen"));
+    const worktree = join(root, "wt");
+    git(["worktree", "add", "-q", "-b", "wtbranch", worktree]);
+    return { main, worktree };
+  }
+
+  function writeSentinel(dir) {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kaizen", `.pending-extract.${SESSION}`),
+      `2026-09-11T12:27:31Z\n\nclaude-code\n${SESSION}\n`,
+    );
+  }
+
+  // CLAUDE_PROJECT_DIR は共有ツリーのまま（セッションの起点）にし、payload の cwd だけを
+  // worktree にする＝Issue #344 が報告した実際の並びを作る。
+  function runGateAt(cwd, projectDir) {
+    const input = JSON.stringify({
+      session_id: SESSION,
+      cwd,
+      tool_input: { command: "git commit -m x" },
+    });
+    return spawnSync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh")], {
+      cwd,
+      input,
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    });
+  }
+
+  test("共有ツリーに立ったセンチネルは worktree からの commit も止める", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(main);
+    expect(runGateAt(main, main).status).toBe(2);
+    expect(runGateAt(worktree, main).status).toBe(2);
+  });
+
+  test("worktree に立ったセンチネルは共有ツリーからの commit も止める", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    expect(runGateAt(worktree, main).status).toBe(2);
+    expect(runGateAt(main, main).status).toBe(2);
+  });
+
+  test("センチネルがどのツリーにも無ければ従来どおり通す（全ツリー走査が常時ブロックへ倒れない）", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    expect(runGateAt(worktree, main).status).toBe(0);
+    expect(runGateAt(main, main).status).toBe(0);
+  });
+
+  test("別ツリーの抽出完了マーカーはセンチネルを覆う（探索だけ広げてマーカーを取り残さない）", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(main);
+    mkdirSync(join(worktree, ".kaizen"), { recursive: true });
+    writeFileSync(join(worktree, ".kaizen", `.extract-done.${SESSION}`), "2026-09-11T12:30:00Z\n");
+    expect(runGateAt(worktree, main).status).toBe(0);
+    expect(runGateAt(main, main).status).toBe(0);
+  });
+
+  // マーカーを全ツリーから探して覆わせる以上、**失効も全ツリーで**行わないと、別ツリーに
+  // 残ったマーカーがセッション境界を越えて生き残り、このセッションの commit が素通りする。
+  // 素通りは出力にも終了コードにも現れないので、SessionStart を挟んだ形で押さえる。
+  test("SessionStart は別ツリーの抽出完了マーカーも失効させる", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    mkdirSync(join(main, ".kaizen"), { recursive: true });
+    const stale = join(main, ".kaizen", `.extract-done.${SESSION}`);
+    writeFileSync(stale, "2026-09-11T12:30:00Z\n");
+    // 覆っていることを先に確かめる（この後の 0 → 2 の変化が SessionStart によるものだと弁別する）。
+    expect(runGateAt(worktree, main).status).toBe(0);
+    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      cwd: worktree,
+      input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "resume" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+    });
+    expect(inject.status, inject.stderr).toBe(0);
+    expect(existsSync(stale)).toBe(false);
+    expect(runGateAt(worktree, main).status).toBe(2);
+  });
+
+  // `git worktree list` は解決済み（物理）のパスを返す。base をシンボリックリンク越しに受け取ると
+  // 文字列比較では一致せず、**同じ `.kaizen/` を 2 回**返す——同一のセンチネルが二重に数えられ、
+  // 案内も他セッションの走査予算も二重に消費される。件数で押さえる。
+  test("シンボリックリンク越しの project root でも .kaizen/ を重複して数えない", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    const link = join(dirname(main), "link-main");
+    symlinkSync(main, link);
+    const gate = runGateAt(link, link);
+    expect(gate.status).toBe(2);
+    const listed = gate.stderr.split("\n").filter((l) => l.includes(".pending-extract"));
+    expect(listed).toHaveLength(1);
+  });
+
+  // `source: compact` は同一セッションの継続なので、そのときだけマーカーを残す（広げた範囲でも同じ）。
+  test("source: compact では別ツリーのマーカーも残す", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    writeSentinel(worktree);
+    mkdirSync(join(main, ".kaizen"), { recursive: true });
+    const marker = join(main, ".kaizen", `.extract-done.${SESSION}`);
+    writeFileSync(marker, "2026-09-11T12:30:00Z\n");
+    const inject = spawnSync("bash", [join(scriptsDir, "kaizen-context-inject.sh")], {
+      cwd: worktree,
+      input: JSON.stringify({ session_id: SESSION, cwd: worktree, source: "compact" }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: main },
+    });
+    expect(inject.status, inject.stderr).toBe(0);
+    expect(existsSync(marker)).toBe(true);
   });
 });

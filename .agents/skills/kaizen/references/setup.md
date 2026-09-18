@@ -72,7 +72,13 @@ AGENTS.md を持たない下流（`CLAUDE.md` のみ／`.github/copilot-instruct
 これらのスクリプトは `.kaizen/` を**いま作業している作業ツリーの root** 基準で解決するため、フックがサブディレクトリ cwd で起動しても迷子のセンチネルや取り違えが起きない。
 解決順は、Hook payload の `cwd` から辿った git root → プロセスの cwd から辿った git root → `$CLAUDE_PROJECT_DIR` → cwd。
 git root を採用するのは `$CLAUDE_PROJECT_DIR` と同じリポジトリ（本体かその worktree）だと共有 git ディレクトリの一致で確かめられたときだけで、ネストした別リポジトリへ cd した状態でフックが起動しても、そこへは書かない。
-git worktree で作業している場合も**コミット対象のリポジトリ側**の `.kaizen/` を見る（セッションの起点が worktree の外でも、ゲートと抽出側の参照先が分かれない）。
+git worktree で作業している場合も**コミット対象のリポジトリ側**の `.kaizen/` に書く（セッションの起点が worktree の外でも、ゲートと抽出側の書き込み先が分かれない）。
+
+**制御ファイル（センチネル・checkpoint・抽出完了マーカー）の探索と解消は、リポジトリの全作業ツリーに広げてある。**
+置き場は作業ディレクトリから決まるため、セッションが共有ツリーで始まって worktree で続くと、センチネルを立てたツリーと `git commit` を実行するツリーが分かれる。
+自分のツリーの `.kaizen/` しか見ない形だと、**worktree の commit がゲートを素通りし、それは出力にも終了コードにも現れない**（Issue #344）。
+ゲートは `git worktree list` が返す全ツリーの `.kaizen/` からセンチネル・マーカー・checkpoint を探し、`kaizen-extract-done.sh` は同じ範囲からセンチネルを消す。
+**`kaizen-extract-done.sh` は削除が空振りしたら stderr に警告を出す**——`rm -f` は対象が無くても正常終了するので、終了コードだけでは「解消した」と「解消するものが無かった」を区別できない。警告が出たら、抽出が対象にしたセッションと `--session-id` / `--sentinel-suffix` が一致しているかを確かめる。
 
 **まず kaizen scripts ディレクトリを特定する。** `<KAIZEN_SCRIPTS_DIR>` は、いま読み込んでいる kaizen スキル本体（この `setup.md` の 1 階層上＝`../`）直下の `scripts/`（＝`../scripts/`）の絶対パス。
 インストール先（エージェント・スコープ）により場所が異なるため、下のスニペットで主要な配置を確認し、最初に存在したパスを `<KAIZEN_SCRIPTS_DIR>` として下記 JSON の該当箇所を実際のパスへ置き換える。

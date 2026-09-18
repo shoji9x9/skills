@@ -72,6 +72,56 @@ config/secrets.local.json
 **絶対パスの dir 型シンボリックリンク**を張る。
 絶対パス・`..` を含むエントリは拒否され、ソースが存在しないエントリはスキップされる。
 
+### リンク対象は `.gitignore` に**末尾スラッシュ無し**で書く
+
+**git はシンボリックリンクをディレクトリではなくファイルとして見る。** そのため `.gitignore` の
+**末尾スラッシュ付きパターン**（`/node_modules/`）は**リンクに一致しない**。共有ツリーでは無視されて
+いたディレクトリが、worktree では**未追跡として `git status` に現れる**。
+
+**症状は「静かに違う状態」**——検査は 1 つも落ちないので、`git status` を読むまで気づけない。
+
+末尾スラッシュを外すと**実体ディレクトリも引き続き無視される**ので、共有ツリーと worktree の
+両方で成立する書き方は**末尾スラッシュ無しだけ**である。
+
+**注釈を同じ行に書かない。** git がコメントとして扱うのは**行頭が `#` の行だけ**なので、
+`/node_modules   # ...` と書くと空白と `#` 以降までパターンの一部になり、何にも一致しなくなる
+（[gitignore の pattern format](https://git-scm.com/docs/gitignore#_pattern_format)。
+実測: この形では `git check-ignore -v node_modules` が exit 1 で、リンクは `?? node_modules` のまま）。
+
+```gitignore
+/node_modules
+```
+
+上が正しい形で、実体ディレクトリにもリンクにも効く。
+`/node_modules/`（末尾スラッシュあり）は実体ディレクトリにしか効かず、worktree では
+`?? node_modules` になる。
+
+**先頭の `/` は残す。** これを外すと、配下の同名ディレクトリ（`packages/x/node_modules` 等）まで
+無視対象になる。
+
+実測（git 2.47.3。2.51.1 でも同じ結果が報告されている）:
+
+| `.gitignore` | 実体ディレクトリ | シンボリックリンク |
+| --- | --- | --- |
+| `/linked/` | 無視される | **`?? linked`（一致しない）** |
+| `/linked` | 無視される | 無視される |
+
+```bash
+root=$(mktemp -d); mkdir -p "$root/real/inner" "$root/repo"
+echo payload > "$root/real/inner/file.txt"
+cd "$root/repo" && git init --quiet .
+printf '/linked/\n' > .gitignore
+git add .gitignore && git commit --quiet -m "add gitignore"
+mkdir -p linked/inner && git status --short   # → 空（実体は無視される）
+rm -rf linked && ln -s "$root/real" linked
+git status --short                            # → ?? linked（リンクは一致しない）
+printf '/linked\n' > .gitignore
+git status --short                            # → .gitignore の変更だけ（リンクも無視される）
+```
+
+`carry-in.md` は「実際に `.gitignore` の対象になっているファイルだけ」が運搬の候補になると述べている。
+**リンクが `.gitignore` に一致しなければ候補にもならない**ので、この書き方は運搬そのものの前提でもある。
+
 ## リンクは読み取り専用ではない（**書けます**）
 
 読むために設定するが、**リンク越しに実体へ書ける・消せる**。
