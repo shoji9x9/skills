@@ -1,10 +1,28 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  buildSkillUsage,
   normalizeTrace,
   parseClaudeTrace,
   parseCodexTrace,
 } from "./normalize-skill-eval-result.js";
+
+function claudeStream(events) {
+  return `${events.map((event) => JSON.stringify(event)).join("\n")}\n`;
+}
+
+const RESULT_EVENT = {
+  type: "result",
+  subtype: "success",
+  result: "claude response",
+  is_error: false,
+  num_turns: 2,
+  usage: { input_tokens: 1, output_tokens: 1 },
+};
+
+function assistantToolUse(name, input) {
+  return { type: "assistant", message: { content: [{ type: "tool_use", name, input }] } };
+}
 
 describe("skill eval result normalization", () => {
   test("normalizes Claude Code final JSON and cache token fields", () => {
@@ -66,6 +84,263 @@ describe("skill eval result normalization", () => {
     expect(parsed.usage.cached_input_tokens).toBe(60);
     expect(parsed.toolCalls).toEqual({ command_execution: 1 });
     expect(parsed.totalToolCalls).toBe(1);
+  });
+
+  test("reads the same final fields from a stream-json trace as from the legacy object", () => {
+    const parsed = parseClaudeTrace(
+      claudeStream([
+        { type: "system", subtype: "init", skills: ["box"] },
+        assistantToolUse("Read", { file_path: "/tmp/p/.claude/skills/box/references/api.md" }),
+        RESULT_EVENT,
+      ]),
+    );
+
+    expect(parsed.finalResponse).toBe("claude response");
+    expect(parsed.totalSteps).toBe(2);
+    expect(parsed.totalToolCalls).toBe(1);
+    expect(parsed.toolCalls).toEqual({ Read: 1 });
+    expect(parsed.skillEvidence.visibleSkills).toEqual(["box"]);
+  });
+
+  test("rejects a stream trace that never reached a result event", () => {
+    expect(() =>
+      parseClaudeTrace(claudeStream([{ type: "system", subtype: "init", skills: [] }])),
+    ).toThrow(/no result event/u);
+  });
+
+  // `--output-format json` emits this exact object, so line count cannot separate it
+  // from a stream; only the absence of other events can.
+  test("treats a lone result object as carrying no tool record", () => {
+    const parsed = parseClaudeTrace(claudeStream([RESULT_EVENT]));
+
+    expect(parsed.finalResponse).toBe("claude response");
+    expect(parsed.toolCalls).toBeNull();
+    expect(parsed.totalToolCalls).toBeNull();
+    expect(parsed.skillEvidence).toEqual({
+      visibleSkills: null,
+      invokedSkills: null,
+      toolInputTexts: null,
+    });
+  });
+
+  describe("skill read detection", () => {
+    const evidenceFor = (rawText, executor = "claude-code") =>
+      (executor === "codex" ? parseCodexTrace(rawText) : parseClaudeTrace(rawText)).skillEvidence;
+
+    test("counts an explicit Skill invocation as read", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Skill", { skill: "box" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ visible: true, invoked: true, read: true, invalid_run: false });
+    });
+
+    test("counts a shell read of the skill directory as read", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ invoked: false, read: true, invalid_run: false });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+    });
+
+    test("marks a with_skill run that never touched the skill as invalid", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "ls ." }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({
+        visible: true,
+        invoked: false,
+        read: false,
+        invalid_run: true,
+      });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test("does not let a sibling skill's path count as the subject being read", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box", "issue-start"] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/issue-start/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+    });
+
+    test("does not let a skill whose name extends the subject's count as the subject", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/boxes/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    // A baseline that correctly reports the skill is absent routinely writes where it
+    // would live. Authored bodies must not count as evidence of opening it, or a clean
+    // baseline reads as contaminated and a with_skill run that only names the path
+    // escapes invalid_run.
+    test("does not count a path the agent wrote into a file body as a read", () => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Write", {
+              file_path: "report.md",
+              content: "install it at .claude/skills/box/SKILL.md",
+            }),
+            assistantToolUse("Edit", {
+              file_path: "report.md",
+              old_string: ".agents/skills/box/SKILL.md",
+              new_string: ".claude/skills/box/references/api.md",
+            }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test("still counts the located file when the same call also authors content", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Edit", {
+              file_path: ".claude/skills/box/SKILL.md",
+              old_string: "a",
+              new_string: "b",
+            }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+    });
+
+    test("never turns an empty Codex trace into a measured 'not read'", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor("", "codex"),
+      });
+
+      expect(usage).toMatchObject({ read: null, invalid_run: null });
+      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read"]);
+    });
+
+    test("leaves Codex's offered and invoked axes undeterminable while still reading paths", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          [
+            {
+              type: "item.completed",
+              item: {
+                type: "command_execution",
+                command: "/bin/bash -lc 'cat .agents/skills/box/SKILL.md'",
+                exit_code: 0,
+              },
+            },
+            { type: "item.completed", item: { type: "agent_message", text: "done" } },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+          "codex",
+        ),
+      });
+
+      expect(usage).toMatchObject({
+        visible: null,
+        invoked: null,
+        read: true,
+        invalid_run: false,
+        undeterminable: ["visible", "invoked"],
+      });
+      expect(usage.files_read).toEqual([".agents/skills/box/SKILL.md"]);
+    });
+
+    test("never turns an unreadable trace into a measured 'not read'", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          JSON.stringify({ result: "legacy", is_error: false, num_turns: 1, usage: {} }),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: null, invalid_run: null });
+      expect(usage.undeterminable).toEqual(["visible", "invoked", "files_read"]);
+    });
+
+    test("reports a baseline that reached the skill as an unexpected read", () => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command: "cat ../.claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({
+        visible: false,
+        read: true,
+        invalid_run: false,
+        unexpected_read: true,
+      });
+    });
   });
 
   test("fails closed when a successful executor trace has no final response", () => {

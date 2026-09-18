@@ -46,19 +46,136 @@ function normalizeUsage(executor, usage = {}) {
   };
 }
 
-export function parseClaudeTrace(rawText) {
-  const payload = JSON.parse(rawText);
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    throw new Error("Claude trace must be a JSON object");
+// Evidence a run read the subject skill. `null` means the executor's trace cannot
+// answer that question at all — never conflate it with a measured "no" (that is
+// what made a 0-count read as "the agent did not do it"; see #377).
+function emptySkillEvidence() {
+  return { visibleSkills: null, invokedSkills: null, toolInputTexts: null };
+}
+
+// Tool-input fields that carry text the agent AUTHORS, not text that names what it
+// opened. A baseline routinely writes "install it at .claude/skills/<name>/SKILL.md"
+// into its report file; counting that body as evidence would turn a clean baseline
+// into an `unexpected_read`, and would let a with_skill run that merely *mentions*
+// the path pass as having read the skill. The same false positive was already
+// observed on the contamination markers (run-skill-eval.sh "BASELINE INTEGRITY").
+// `file_path` / `command` and the other locating fields are still collected.
+const AUTHORED_INPUT_KEYS = new Set([
+  "content",
+  "new_source",
+  "new_str",
+  "new_string",
+  "old_str",
+  "old_string",
+]);
+
+function collectToolInputText(input, sink) {
+  if (typeof input === "string") {
+    sink.push(input);
+    return;
   }
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      collectToolInputText(item, sink);
+    }
+    return;
+  }
+  if (typeof input === "object" && input !== null) {
+    for (const [key, value] of Object.entries(input)) {
+      if (AUTHORED_INPUT_KEYS.has(key)) {
+        continue;
+      }
+      collectToolInputText(value, sink);
+    }
+  }
+}
+
+// `--output-format json` writes one object; `--output-format stream-json --verbose`
+// writes one event per line and ends with the same `result` object. Both are accepted
+// so traces captured before the stream-json switch still normalize.
+export function parseClaudeTrace(rawText) {
+  const lines = rawText.split(/\r?\n/u).filter((line) => line.trim() !== "");
+  if (lines.length === 0) {
+    throw new Error("Claude trace is empty");
+  }
+
+  const events = lines.map((line, index) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch (error) {
+      // Say WHICH line, like the Codex parser does: a stream has thousands of them
+      // and "Unexpected token" alone cannot be traced back to one.
+      throw new Error(`Claude trace line ${index + 1} is not JSON: ${error.message}`);
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error(`Claude trace line ${index + 1} must be a JSON object`);
+    }
+    return parsed;
+  });
+
+  // `--output-format json` emits the very same `{"type":"result"}` object that ends a
+  // stream, so the number of lines cannot tell the two apart. What separates them is
+  // whether anything *besides* the result was recorded: with only the result object
+  // there is no tool record, and the skill axes must stay undeterminable rather than
+  // be computed as an empty list — an empty list would read as a measured "not read".
+  let resultEvent = null;
+  let visibleSkills = null;
+  const invokedSkills = [];
+  const toolInputTexts = [];
+  const toolCalls = {};
+  let totalToolCalls = 0;
+
+  let sawNonResultEvent = false;
+  for (const event of events) {
+    if (event.type === "result") {
+      resultEvent = event;
+      continue;
+    }
+    sawNonResultEvent = true;
+    if (event.type === "system" && event.subtype === "init" && Array.isArray(event.skills)) {
+      visibleSkills = event.skills.filter((name) => typeof name === "string");
+      continue;
+    }
+    if (event.type !== "assistant" || !Array.isArray(event.message?.content)) {
+      continue;
+    }
+    for (const block of event.message.content) {
+      if (typeof block !== "object" || block === null || block.type !== "tool_use") {
+        continue;
+      }
+      const name = typeof block.name === "string" ? block.name : "unknown";
+      totalToolCalls += 1;
+      toolCalls[name] = (toolCalls[name] ?? 0) + 1;
+      if (name === "Skill" && typeof block.input?.skill === "string") {
+        invokedSkills.push(block.input.skill);
+      }
+      collectToolInputText(block.input, toolInputTexts);
+    }
+  }
+
+  // Tolerate the pre-stream-json shape, which had no `type` at all.
+  if (resultEvent === null && events.length === 1 && events[0].type === undefined) {
+    resultEvent = events[0];
+    sawNonResultEvent = false;
+  }
+  if (resultEvent === null) {
+    throw new Error("Claude trace has no result event");
+  }
+
   return {
-    finalResponse: typeof payload.result === "string" ? payload.result : "",
-    usage: normalizeUsage("claude-code", payload.usage),
-    toolCalls: null,
-    totalToolCalls: null,
-    totalSteps: numberOrZero(payload.num_turns),
-    errors: payload.is_error === true ? 1 : 0,
-    fatalErrors: payload.is_error === true ? 1 : 0,
+    finalResponse: typeof resultEvent.result === "string" ? resultEvent.result : "",
+    usage: normalizeUsage("claude-code", resultEvent.usage),
+    toolCalls: sawNonResultEvent ? toolCalls : null,
+    totalToolCalls: sawNonResultEvent ? totalToolCalls : null,
+    totalSteps: numberOrZero(resultEvent.num_turns),
+    errors: resultEvent.is_error === true ? 1 : 0,
+    fatalErrors: resultEvent.is_error === true ? 1 : 0,
+    // The init event lists what was offered, so an absent list is "not stated",
+    // not "nothing was offered".
+    skillEvidence: sawNonResultEvent
+      ? { visibleSkills, invokedSkills, toolInputTexts }
+      : emptySkillEvidence(),
   };
 }
 
@@ -77,6 +194,7 @@ export function parseCodexTrace(rawText) {
   let finalResponse = "";
   let usage = normalizeUsage("codex");
   const toolCalls = {};
+  const toolInputTexts = [];
   let totalToolCalls = 0;
   let totalSteps = 0;
   let errors = 0;
@@ -106,13 +224,126 @@ export function parseCodexTrace(rawText) {
     if (event.item.type === "command_execution") {
       totalToolCalls += 1;
       toolCalls.command_execution = (toolCalls.command_execution ?? 0) + 1;
+      // Codex emits item.started and item.completed for the same command; only the
+      // completed side is counted here, so the command text is collected once too.
+      if (typeof event.item.command === "string") {
+        toolInputTexts.push(event.item.command);
+      }
       if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {
         errors += 1;
       }
     }
   }
 
-  return { finalResponse, usage, toolCalls, totalToolCalls, totalSteps, errors, fatalErrors };
+  return {
+    finalResponse,
+    usage,
+    toolCalls,
+    totalToolCalls,
+    totalSteps,
+    errors,
+    fatalErrors,
+    // Codex has no init event listing offered skills and no skill-invocation tool;
+    // it reads a skill through the shell. Those two axes stay undeterminable.
+    // A trace with no events at all recorded nothing, so an empty command list there
+    // is "not measured", not "ran no command" — the same distinction the claude side
+    // draws with `sawNonResultEvent`.
+    skillEvidence: {
+      visibleSkills: null,
+      invokedSkills: null,
+      toolInputTexts: events.length > 0 ? toolInputTexts : null,
+    },
+  };
+}
+
+// The harness installs the subject skill under one of these, by executor
+// (run-skill-eval.sh `skill_home`). Both are matched regardless of executor so a
+// run that reaches for the other layout is still counted as having read it.
+const SKILL_HOME_PATTERN = String.raw`(?:\.claude|\.agents)/skills/`;
+
+function escapeForRegExp(value) {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+}
+
+// `dir:name` and `plugin:name` are how a scoped skill is listed; the bare name is
+// what the eval project installs.
+function matchesSkillName(entry, skill) {
+  return entry === skill || entry.endsWith(`:${skill}`);
+}
+
+function collectSkillPaths(texts, skill) {
+  // The name must end where the directory name ends, or `box` matches `boxes/`.
+  const pattern = new RegExp(
+    `${SKILL_HOME_PATTERN}${escapeForRegExp(skill)}(?![\\w-])(?:/[^\\s"'\`,;:)\\]}]*)?`,
+    "gu",
+  );
+  const found = new Set();
+  for (const text of texts) {
+    for (const match of text.matchAll(pattern)) {
+      found.add(match[0]);
+    }
+  }
+  return [...found].sort();
+}
+
+// Answers "did this run actually read the subject skill?" so a with_skill run that
+// never opened it can be excluded from the comparison instead of silently scoring
+// as if the skill were weak (#377). Every axis is tri-state: true / false / null,
+// where null means this executor's trace cannot answer it.
+export function buildSkillUsage({ config, skill, evidence }) {
+  if (!skill || !config) {
+    return null;
+  }
+
+  const undeterminable = [];
+  let visible = null;
+  if (Array.isArray(evidence?.visibleSkills)) {
+    visible = evidence.visibleSkills.some((entry) => matchesSkillName(entry, skill));
+  } else {
+    undeterminable.push("visible");
+  }
+
+  let invoked = null;
+  if (Array.isArray(evidence?.invokedSkills)) {
+    invoked = evidence.invokedSkills.some((entry) => matchesSkillName(entry, skill));
+  } else {
+    undeterminable.push("invoked");
+  }
+
+  let filesRead = null;
+  if (Array.isArray(evidence?.toolInputTexts)) {
+    filesRead = collectSkillPaths(evidence.toolInputTexts, skill);
+  } else {
+    undeterminable.push("files_read");
+  }
+
+  // `invoked === false` alone never settles this: a shell-only read leaves no Skill
+  // call. Only a complete tool-input list can turn the answer negative.
+  let read = null;
+  if (invoked === true || (filesRead !== null && filesRead.length > 0)) {
+    read = true;
+  } else if (filesRead !== null) {
+    read = false;
+  }
+
+  const usage = {
+    schema_version: SCHEMA_VERSION,
+    config,
+    skill,
+    visible,
+    invoked,
+    files_read: filesRead,
+    read,
+    undeterminable,
+  };
+  if (config === "with_skill") {
+    usage.invalid_run = read === null ? null : read === false;
+  } else {
+    // The mirror case: a baseline that reached the skill is contaminated, not invalid.
+    usage.invalid_run = false;
+    usage.unexpected_read = read === null ? null : read === true;
+  }
+  return usage;
 }
 
 export function normalizeTrace({
@@ -128,6 +359,8 @@ export function normalizeTrace({
   startedAt,
   endedAt,
   filesCreated,
+  skill,
+  config,
 }) {
   let parsed;
   let normalizationError = null;
@@ -143,6 +376,8 @@ export function normalizeTrace({
       totalSteps: 0,
       errors: 1,
       fatalErrors: 1,
+      // An unparsable trace answers nothing about the skill; it must not read as "not read".
+      skillEvidence: emptySkillEvidence(),
     };
   }
 
@@ -171,6 +406,10 @@ export function normalizeTrace({
     usage: parsed.usage,
     raw_trace: rawTrace,
   };
+  const skillUsage = buildSkillUsage({ config, skill, evidence: parsed.skillEvidence });
+  if (skillUsage !== null) {
+    result.skill_usage = skillUsage;
+  }
   if (normalizationError !== null) {
     result.normalization_error = normalizationError;
   }
@@ -298,6 +537,14 @@ function main() {
   if (!new Set(["claude-code", "codex"]).has(args.executor)) {
     throw new Error(`unsupported executor: ${args.executor}`);
   }
+  // Half a pair would emit no skill_usage at all, which reads the same as "this run
+  // was not measured" — fail instead of degrading silently.
+  if ((args.skill === undefined) !== (args.config === undefined)) {
+    throw new Error("--skill and --config must be provided together");
+  }
+  if (args.config !== undefined && !new Set(["with_skill", "without_skill"]).has(args.config)) {
+    throw new Error(`unsupported config: ${args.config}`);
+  }
 
   const rawText = readFileSync(args.raw, "utf8");
   if ((args["project-files"] === undefined) !== (args["initial-files"] === undefined)) {
@@ -321,6 +568,8 @@ function main() {
     startedAt: args["started-at"],
     endedAt: args["ended-at"],
     filesCreated,
+    skill: args.skill,
+    config: args.config,
   });
 
   atomicWrite(args.result, `${JSON.stringify(normalized.result, null, 2)}\n`);

@@ -54,7 +54,21 @@ if [ "$1" = "exec" ]; then
   printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"codex stub response"}}'
   printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"cache_write_input_tokens":0,"output_tokens":3,"reasoning_output_tokens":1}}'
 else
-  printf '%s\n' '{"result":"claude stub response","is_error":false,"num_turns":1,"usage":{"input_tokens":8,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}'
+  [[ " $args " == *" --output-format stream-json "* ]]
+  [[ " $args " == *" --verbose "* ]]
+  if [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
+    printf '%s\n' '{"type":"system","subtype":"init","skills":["box"]}'
+  else
+    printf '%s\n' '{"type":"system","subtype":"init","skills":[]}'
+  fi
+  if [[ "$args" == *EXPECT_SKILL_SHELL_READ* ]]; then
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cat .claude/skills/box/SKILL.md"}}]}}'
+  elif [[ "$args" == *EXPECT_SKILL_UNREAD* ]]; then
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls ."}}]}}'
+  elif [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"box"}}]}}'
+  fi
+  printf '%s\n' '{"type":"result","subtype":"success","result":"claude stub response","is_error":false,"num_turns":1,"usage":{"input_tokens":8,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}'
 fi
 `,
     "utf8",
@@ -147,7 +161,7 @@ describe("run-skill-eval executor compatibility", () => {
   });
 
   test.each([
-    ["claude-code", "claude-code.json", "claude stub response", 17],
+    ["claude-code", "claude-code.jsonl", "claude stub response", 17],
     ["codex", "codex.jsonl", "codex stub response", 20],
   ])("emits the common run contract for %s", (executor, rawName, response, totalTokens) => {
     const { claudeMarker, directory, stub } = makeStub();
@@ -167,7 +181,7 @@ describe("run-skill-eval executor compatibility", () => {
         model: "model-stub",
         reasoning_effort: "low",
         cli_version: `${executor} stub-version`,
-        harness_version: "run-skill-eval/2",
+        harness_version: "run-skill-eval/3",
       },
       status: "succeeded",
       exit_code: 0,
@@ -180,10 +194,28 @@ describe("run-skill-eval executor compatibility", () => {
     expect(readJson(join(output, "eval_metadata.json"))).toEqual(metadata);
     expect(metrics.files_created).toEqual([]);
     if (executor === "claude-code") {
-      expect(metrics).not.toHaveProperty("tool_calls");
-      expect(metrics).not.toHaveProperty("total_tool_calls");
+      // stream-json carries per-tool records, so claude-code now reports them too.
+      expect(metrics).toMatchObject({ tool_calls: { Skill: 1 }, total_tool_calls: 1 });
+      expect(result.skill_usage).toMatchObject({
+        config: "with_skill",
+        skill: "box",
+        visible: true,
+        invoked: true,
+        read: true,
+        invalid_run: false,
+        undeterminable: [],
+      });
     } else {
       expect(metrics).toMatchObject({ tool_calls: {}, total_tool_calls: 0 });
+      // Codex cannot answer "was it offered" or "was it invoked"; it must say so
+      // rather than report a measured false.
+      expect(result.skill_usage).toMatchObject({
+        config: "with_skill",
+        skill: "box",
+        visible: null,
+        invoked: null,
+        undeterminable: ["visible", "invoked"],
+      });
     }
     expect(readFileSync(join(output, "project-tree.txt"), "utf8")).not.toMatch(
       /\.(?:agents|claude)\/skills/u,
@@ -191,6 +223,46 @@ describe("run-skill-eval executor compatibility", () => {
     if (executor === "codex") {
       expect(existsSync(claudeMarker)).toBe(false);
     }
+  });
+
+  // The three ways a with_skill run can relate to the subject skill. Only the third
+  // may be dropped from a comparison, so each one has to be distinguishable in the
+  // artifact rather than inferred from the score (#377).
+  test.each([
+    // An invocation names the skill, not a path, so files_read stays empty while read holds.
+    ["EXPECT_WITH_SKILL", true, true, [], false],
+    ["EXPECT_WITH_SKILL EXPECT_SKILL_SHELL_READ", false, true, ["SKILL.md"], false],
+    ["EXPECT_WITH_SKILL EXPECT_SKILL_UNREAD", false, false, [], true],
+  ])("records skill reads for %s", (prompt, invoked, read, expectedPaths, invalidRun) => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "with_skill", "run-1");
+
+    runEval({ executor: "claude-code", config: "with_skill", prompt, output, stub });
+
+    const usage = readJson(join(output, "result.json")).skill_usage;
+    expect(usage).toMatchObject({ visible: true, invoked, read, invalid_run: invalidRun });
+    expect(usage.files_read).toEqual(expectedPaths.map((name) => `.claude/skills/box/${name}`));
+  });
+
+  test("a baseline that reached the skill is reported as an unexpected read", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+
+    runEval({
+      executor: "claude-code",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL",
+      output,
+      stub,
+    });
+
+    expect(readJson(join(output, "result.json")).skill_usage).toMatchObject({
+      config: "without_skill",
+      visible: false,
+      read: false,
+      invalid_run: false,
+      unexpected_read: false,
+    });
   });
 
   test("Codex baseline stays uninstalled and writes a fail-closed contamination verdict", () => {
@@ -213,7 +285,7 @@ describe("run-skill-eval executor compatibility", () => {
         executor: "codex",
         model: "model-stub",
         reasoning_effort: "low",
-        harness_version: "run-skill-eval/2",
+        harness_version: "run-skill-eval/3",
       },
     });
   });
@@ -266,7 +338,7 @@ describe("run-skill-eval executor compatibility", () => {
       executor: "codex",
       model: "model-stub",
       reasoning_effort: "low",
-      harness_version: "run-skill-eval/2",
+      harness_version: "run-skill-eval/3",
     });
     expect(readJson(join(target, "eval-fingerprint.json"))).toEqual(
       readJson(join(source, "eval-fingerprint.json")),

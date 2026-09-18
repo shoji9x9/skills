@@ -198,7 +198,12 @@ fi
 	echo "baseline reuse rejected: executor CLI version could not be determined; run a new without_skill evaluation" >&2
 	exit 6
 }
-harness_version="run-skill-eval/2"
+# Bump this whenever a harness change alters what a run records. It is part of the
+# eval fingerprint, and `--reuse-baseline` only accepts a baseline whose fingerprint
+# matches — /3 is the stream-json switch (raw/claude-code.jsonl + per-tool records +
+# result.json `skill_usage`), so a baseline captured under /2 can no longer be paired
+# with a with_skill run that has those fields.
+harness_version="run-skill-eval/3"
 
 metadata_eval_id="${eval_id}"
 eval_dir="$(dirname -- "$(dirname -- "${out}")")"
@@ -393,8 +398,13 @@ raw_trace=""
 executor_args=()
 case "${executor}" in
 claude-code)
-	raw_trace="${out}/raw/claude-code.json"
-	executor_args=(-p "${prompt}" --output-format json --dangerously-skip-permissions)
+	# stream-json (not plain json) is what leaves a per-tool record in raw/: the plain
+	# form writes only the final result + usage, so "the agent never ran X" could not be
+	# shown from raw, and a with_skill run that never opened the skill was indistinguishable
+	# from one that did (#377). The trailing `result` event carries the same fields as the
+	# plain form, so result/usage/num_turns extraction is unchanged.
+	raw_trace="${out}/raw/claude-code.jsonl"
+	executor_args=(-p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions)
 	[ -n "${model}" ] && executor_args+=(--model "${model}")
 	[ -n "${reasoning_effort}" ] && executor_args+=(--effort "${reasoning_effort}")
 	;;
@@ -442,6 +452,8 @@ normalizer_args=(
 	--cli-version "${cli_version}"
 	--model "${model}"
 	--reasoning-effort "${reasoning_effort}"
+	--skill "${skill}"
+	--config "${config}"
 )
 if [ -n "${metadata_eval_id}" ]; then
 	normalizer_args+=(
