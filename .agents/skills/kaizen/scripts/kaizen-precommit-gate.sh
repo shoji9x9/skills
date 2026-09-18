@@ -299,7 +299,7 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 }
 
 mask_quoted() { # $1: コマンド文字列
-	local s="${1:-}" out="" c chunk body pad closed bq_closed line span at_word_start=1
+	local s="${1:-}" out="" c chunk body pad closed bq_closed line span inner masked_inner at_word_start=1
 	# 引用の外で意味を持つ文字。ここまでをまとめて写して走査を進める。
 	# 引用の内側では、リテラルではない領域（コマンド置換 `$( )` / `` ` ` ``）の開始も区切りに含める。
 	local outer_pat="[\\\\'\"#]*" inner_pat='[\\"$`]*' bq_pat='[\\`]*'
@@ -355,9 +355,19 @@ mask_quoted() { # $1: コマンド文字列
 				'$')
 					# `$(` はコマンド置換＝実行される領域なので潰さずに写す。それ以外の `$`
 					# （`$VAR` / `${...}`）は値の展開でコマンドではないため従来どおり潰す。
+					#
+					# **丸写しにはしない。** 置換の中身は「実行されるコマンド」だが、その中にも
+					# 引用とコメントがあり、そこに書かれた区切り文字は実行されない。丸写しすると
+					# `echo "$(printf %s '; git commit -m x')"` のように**実行されないリテラル**の
+					# `;` を本物の区切りと読んで誤ブロックする（実測）。中身へ同じ規則を
+					# 再帰で当て、実行される部分は残しつつ引用・コメントだけを潰す。
+					# mask_quoted は長さを保つので、`$(` と `)` を足した全体の長さも変わらない。
 					if [ "${s:1:1}" = '(' ]; then
 						span=$(cmdsub_span "${s}") || return 1
-						out+=${span}
+						inner=${span:2:$((${#span} - 3))}
+						# `$( )` は出力末尾の改行を落とすので番兵を付けて剥がす。
+						masked_inner=$(mask_quoted "${inner}" && printf 'x') || return 1
+						out+="\$(${masked_inner%x})"
 						s=${s:${#span}}
 					else
 						out+='_'
@@ -369,29 +379,32 @@ mask_quoted() { # $1: コマンド文字列
 					# 中身は実行されるので潰さずに写す。閉じが無ければ判定不能（fail closed）。
 					# 閉じたかどうかは専用の変数で持つ——外側の二重引用符が使う `closed` を
 					# 共有すると、`"` で閉じていないのに閉じた扱いになる（fail open）。
+					# `$( )` と同じく、中身は実行されるが内側の引用・コメントは実行されない。
+					# 本文をいったん集めてから同じ規則を再帰で当てる（丸写しにしない）。
 					s=${s:1}
-					out+='`'
+					body=''
 					bq_closed=0
 					while [ -n "${s}" ]; do
 						# shellcheck disable=SC2295
 						chunk=${s%%$bq_pat}
 						if [ -n "${chunk}" ]; then
-							out+=${chunk}
+							body+=${chunk}
 							s=${s:${#chunk}}
 							continue
 						fi
 						if [ "${s:0:1}" = "\\" ]; then
 							[ "${#s}" -ge 2 ] || return 1
-							out+=${s:0:2}
+							body+=${s:0:2}
 							s=${s:2}
 							continue
 						fi
-						out+='`'
 						s=${s:1}
 						bq_closed=1
 						break
 					done
 					[ "${bq_closed}" -eq 1 ] || return 1
+					masked_inner=$(mask_quoted "${body}" && printf 'x') || return 1
+					out+="\`${masked_inner%x}\`"
 					;;
 				*)
 					out+='"'

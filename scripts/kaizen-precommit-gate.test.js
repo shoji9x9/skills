@@ -739,6 +739,16 @@ describe("ゲートの commit 検出", () => {
     ['echo "$(echo testcase)"', 0],
     ['echo "$(( 1 + 2 ))"', 0],
     ['echo "$(f() { echo hi; }; f)"', 0],
+    // 置換の中身は「実行されるコマンド」だが、**その中の引用とコメントは実行されない**。
+    // 丸写しにすると、リテラルに書かれた区切り文字を本物の区切りと読んで誤ブロックする
+    // （実測: 下の 3 件はいずれも commit を実行しないのに exit 2 になっていた）。
+    // 中身へ同じ規則を再帰で当て、実行される部分だけを残す。
+    ["echo \"$(printf %s '; git commit -m x')\"", 0],
+    ['echo "$(printf %s "; git commit -m x")"', 0],
+    ['echo "$(echo hi # ; git commit -m x\n)"', 0],
+    // 逆側の回帰: 再帰マスクで**実行される** commit を潰さない。
+    ['echo "$(cd /tmp && git commit -m x)"', 2],
+    ['echo "$(echo "$(git commit -m x)")"', 2],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {
