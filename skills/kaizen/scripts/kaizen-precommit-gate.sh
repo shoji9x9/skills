@@ -74,7 +74,7 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 	}
 	# 縮退版は自分のツリーだけを見る（Issue #344 以前の挙動）。worktree を跨いだセンチネルは
 	# 見つからないが、遮断条件は緩めない。
-	kaizen_worktree_kaizen_dirs() { printf '%s\n' "$(pwd)/.kaizen"; }
+	kaizen_worktree_kaizen_dirs() { printf '%s\0' "$(pwd)/.kaizen"; }
 	kaizen_find_control_file() {
 		[ -n "${2:-}" ] && [ -e ".kaizen/$2" ] || return 1
 		printf '%s' ".kaizen/$2"
@@ -236,16 +236,26 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 	local s="${1:-}" rest="${1:2}" taken=2 depth=1 chunk body c closed line at_word_start=1
 	# `(` `)` の対応と、対応を跨がせないための引用・エスケープ・コメント。
 	local sub_pat="[\\\\'\"()#]*" dq_pat='[\\"]*'
-	# 語として現れる `case` を含むなら弁別不能。前後を空白で埋めて語境界を見る
-	# （`lowercase` / `testcase` のような部分一致では倒さない）。
-	case " ${s} " in
-	*[!A-Za-z0-9_]case[!A-Za-z0-9_]*) return 1 ;;
-	esac
+	# 引用した右辺は `=~` でリテラル扱いになるため、正規表現は変数に入れて非引用で渡す。
+	local case_head_re='^[[:space:]]*case([^A-Za-z0-9_]|$)'
+	local case_after_sep_re=$'[;&|{\n][[:space:]]*case([^A-Za-z0-9_]|$)'
 	while [ -n "${rest}" ]; do
 		# パターンとして展開させたいので意図的に非引用（SC2295）。
 		# shellcheck disable=SC2295
 		chunk=${rest%%$sub_pat}
 		if [ -n "${chunk}" ]; then
+			# **`case` は予約語として現れたときだけ弁別不能にする。** 語として含むかどうかで
+			# 倒すと、`printf %s case` のように**引数**として書かれた `case` でも倒れ、
+			# 呼び出し側がマスクを丸ごと捨てる。その結果、同じコマンド行の引用された
+			# `; git commit` が実行されるコマンドとして読まれ、誤ブロックになる（実測）。
+			# 予約語はコマンド位置（行頭・`;` `&` `|` `(` `{` ・改行の直後）にしか置けないので、
+			# チャンクの先頭がコマンド位置のときと、チャンク内の区切りの直後だけを見る。
+			if [ "${at_word_start}" -eq 1 ] && [[ ${chunk} =~ ${case_head_re} ]]; then
+				return 1
+			fi
+			if [[ ${chunk} =~ ${case_after_sep_re} ]]; then
+				return 1
+			fi
 			taken=$((taken + ${#chunk}))
 			rest=${rest:${#chunk}}
 			# 次の `#` が語頭かどうかは直前の文字で決まる（mask_quoted と同じ判定）。
@@ -322,6 +332,7 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 			depth=$((depth + 1))
 			taken=$((taken + 1))
 			rest=${rest:1}
+			at_word_start=1
 			at_word_start=1
 			;;
 		')')
@@ -1106,7 +1117,7 @@ sweep_expired_foreign_sentinels() {
 collect_unresolved() {
 	unresolved=()
 	local dir sentinel key done_name checkpoint_name
-	while IFS= read -r dir; do
+	while IFS= read -r -d '' dir; do
 		for sentinel in "${dir}"/.pending-extract*; do
 			[ -e "${sentinel}" ] || continue
 			key=$(kaizen_sentinel_key_of "${sentinel}")
@@ -1320,7 +1331,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		# 別ツリーに残った旧形式のセンチネルをこの経路では二度と消せず、ブロックが続く。
 		legacy_sentinel_name=$(kaizen_sentinel_path "${sentinel_suffix}" "")
 		legacy_sentinel_name=${legacy_sentinel_name#.kaizen/}
-		while IFS= read -r legacy_dir; do
+		while IFS= read -r -d '' legacy_dir; do
 			[ -n "${legacy_dir}" ] || continue
 			rm -f "${legacy_dir}/${legacy_sentinel_name}"
 		done < <(kaizen_worktree_kaizen_dirs "${project_root}")

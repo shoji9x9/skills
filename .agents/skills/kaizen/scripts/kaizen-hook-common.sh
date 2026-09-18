@@ -167,8 +167,20 @@ kaizen_resolve_project_root() {
 #
 # git を起動できない・worktree を列挙できない場合は自分のツリーだけを返す（縮退。機能が
 # 落ちるだけで、Issue #344 以前の挙動に戻る）。
+#
+# **列挙は `-z`（NUL 区切り）で読む。** POSIX ではパスに改行を含められ、行区切りの
+# `--porcelain` だとパスが複数行へ割れて先頭部分しか取れない。その worktree は
+# 「存在しないディレクトリ」として落ち、そこに立ったセンチネルが見えないまま commit が
+# 素通りする（実測。git 2.47.3 で改行入り worktree を作って確認した）。
+# `-z` は `git worktree list -h` に「terminate records with a NUL character」と記載があり、
+# 属性ごとに NUL、レコード間は空フィールドで区切られる（実測）。
+# `-z` を持たない古い git では列挙が失敗するので、行区切りへ縮退する。
+#
+# **返す側も NUL 区切りにする。** 改行を含むパスを取れても、改行区切りで返した時点で
+# 消費側が 1 件を 2 行に読み、そのどちらも存在しないディレクトリとして落とす（実測）。
+# 呼び出し側は `while IFS= read -r -d '' dir` で読む。
 kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
-	local base="${1:-}" base_phys line path
+	local base="${1:-}" base_phys line path seen
 	[ -n "${base}" ] || base=$(pwd)
 	[ -d "${base}" ] || return 0
 	base=$(cd "${base}" 2>/dev/null && pwd) || return 0
@@ -177,21 +189,39 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 	# センチネルが二重に数えられ、案内も他セッションの走査予算も二重に消費される。物理パスでも
 	# 突き合わせて弾く。
 	base_phys=$(cd "${base}" 2>/dev/null && pwd -P) || base_phys=${base}
-	printf '%s\n' "${base}/.kaizen"
+	printf '%s\0' "${base}/.kaizen"
 	command -v git >/dev/null 2>&1 || return 0
-	while IFS= read -r line; do
-		case "${line}" in
+	emit_worktree_dir() { # $1: `worktree <path>` 形式のレコード
+		case "$1" in
 		'worktree '*) ;;
-		*) continue ;;
+		*) return 0 ;;
 		esac
-		path=${line#worktree }
-		[ -n "${path}" ] || continue
+		path=${1#worktree }
+		[ -n "${path}" ] || return 0
 		if [ "${path}" = "${base}" ] || [ "${path}" = "${base_phys}" ]; then
-			continue
+			return 0
 		fi
-		[ -d "${path}" ] || continue
-		printf '%s\n' "${path}/.kaizen"
-	done < <(git -C "${base}" worktree list --porcelain 2>/dev/null || true)
+		[ -d "${path}" ] || return 0
+		printf '%s\0' "${path}/.kaizen"
+	}
+	# **NUL 区切りの出力を変数へ溜めない。** `$( )` は NUL を落とすので、溜めた時点で
+	# レコードの区切りが消える（実測: 改行入り worktree が 1 件も取れなくなる）。
+	# プロセス置換から直接読む。
+	seen=0
+	while IFS= read -r -d '' line; do
+		case "${line}" in
+		'worktree '*) seen=$((seen + 1)) ;;
+		esac
+		emit_worktree_dir "${line}"
+	done < <(git -C "${base}" worktree list --porcelain -z 2>/dev/null)
+	# レコードが 1 件も無い＝`-z` を持たない古い git（リポジトリなら本体は必ず 1 件返る）。
+	# 改行を含むパスは取りこぼすが、それ以外は従来どおり拾う。
+	if [ "${seen}" -eq 0 ]; then
+		while IFS= read -r line; do
+			emit_worktree_dir "${line}"
+		done < <(git -C "${base}" worktree list --porcelain 2>/dev/null || true)
+	fi
+	unset -f emit_worktree_dir
 }
 
 # 制御ファイルをリポジトリの全作業ツリーから探し、最初に見つかった絶対パスを返す。
@@ -200,7 +230,7 @@ kaizen_worktree_kaizen_dirs() { # $1: 基準のツリー（省略時は cwd）
 kaizen_find_control_file() { # $1: 基準のツリー $2: 制御ファイル名
 	local dir name="${2:-}"
 	[ -n "${name}" ] || return 1
-	while IFS= read -r dir; do
+	while IFS= read -r -d '' dir; do
 		[ -e "${dir}/${name}" ] || continue
 		printf '%s' "${dir}/${name}"
 		return 0

@@ -766,6 +766,17 @@ describe("ゲートの commit 検出", () => {
     ["echo a \\\n b", 0],
     ['echo "a\\\nb"', 0],
     ["ec\\\nho hello", 0],
+    // **`case` は予約語として現れたときだけ弁別不能にする。** 語として含むかどうかで倒すと、
+    // 引数に書かれた `case` でも倒れ、マスクを丸ごと捨てた結果、同じコマンド行の引用された
+    // `; git commit -m x` が実行されるものとして読まれて誤ブロックになる（実測）。
+    ['echo "$(printf %s case)" "; git commit -m x"', 0],
+    ['echo "$(printf %s \'case\')" "; git commit -m x"', 0],
+    ['echo "$(printf %s lowercase)" "; git commit -m x"', 0],
+    // 予約語が置ける位置（行頭・`;` `(` `{` ・改行の直後）はいずれも倒す。
+    ['echo "$(echo hi; case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$( (case x in x) git commit -m x;; esac) )"', 2],
+    ['echo "$({ case x in x) git commit -m x;; esac; })"', 2],
+    ['echo "$(echo hi\ncase x in x) git commit -m x;; esac)"', 2],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {

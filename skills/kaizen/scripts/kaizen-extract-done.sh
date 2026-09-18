@@ -276,7 +276,7 @@ fi
 # （Issue #344）、自分のツリーだけ消すと別ツリーに残ったセンチネルでブロックが続く。
 kaizen_dirs=()
 if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
-	while IFS= read -r kaizen_dir; do
+	while IFS= read -r -d '' kaizen_dir; do
 		[ -n "${kaizen_dir}" ] || continue
 		kaizen_dirs+=("${kaizen_dir}")
 	done < <(kaizen_worktree_kaizen_dirs "")

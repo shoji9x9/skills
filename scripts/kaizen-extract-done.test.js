@@ -15,8 +15,8 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
 const SESSION = "00000000-1111-2222-3333-444444444444";
 
-/** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
-function makeRepoWithWorktree() {
+/** 本体 ＋ worktree を 1 つ持つリポジトリを作る。`name` に改行を含めてもよい。*/
+function makeRepoWithWorktree(name = "wt") {
   const root = mkdtempSync(join(tmpdir(), "kaizen-extract-done-"));
   const main = join(root, "main");
   mkdirSync(main);
@@ -32,7 +32,7 @@ function makeRepoWithWorktree() {
   git(["add", "seed"]);
   git(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed"]);
   mkdirSync(join(main, ".kaizen"));
-  const worktree = join(root, "wt");
+  const worktree = join(root, name);
   git(["worktree", "add", "-q", "-b", "wtbranch", worktree]);
   return { main, worktree };
 }
@@ -155,5 +155,29 @@ describe("削除の空振りは成功と区別できる", () => {
     const second = runExtractDone(worktree, main);
     expect(second.status).toBe(0);
     expect(second.stderr).toMatch(noopWarning);
+  });
+});
+
+// POSIX ではパスに改行を含められる。`git worktree list --porcelain` を**行区切り**で読むと
+// パスが複数行へ割れて先頭部分しか取れず、その worktree は「存在しないディレクトリ」として
+// 落ちる。そこに立ったセンチネルは見えないまま commit が素通りする（実測）。
+// `-z`（NUL 区切り）で読み、**返す側も NUL 区切り**にして初めて塞がる——片方だけでは、
+// 取れたパスを消費側が 1 件 2 行として読み直してしまう。
+describe("改行を含む worktree のパスを取りこぼさない", () => {
+  test("改行入り worktree に立ったセンチネルを本体から解消できる", () => {
+    const { main, worktree } = makeRepoWithWorktree("a\nb");
+    writeSentinel(worktree);
+    const run = runExtractDone(main, main);
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(sentinelPath(worktree))).toBe(false);
+    expect(run.stderr).not.toMatch(noopWarning);
+  });
+
+  test("改行入り worktree があっても通常の worktree のセンチネルは解消できる", () => {
+    const { main, worktree } = makeRepoWithWorktree("a\nb");
+    writeSentinel(main);
+    const run = runExtractDone(worktree, main);
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(sentinelPath(main))).toBe(false);
   });
 });

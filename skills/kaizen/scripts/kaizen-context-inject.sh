@@ -80,7 +80,7 @@ if ! grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"' <<<"$input"; then
 	fi
 	expire_dirs=()
 	if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
-		while IFS= read -r expire_dir; do
+		while IFS= read -r -d '' expire_dir; do
 			[ -n "${expire_dir}" ] || continue
 			expire_dirs+=("${expire_dir}")
 		done < <(kaizen_worktree_kaizen_dirs "")
