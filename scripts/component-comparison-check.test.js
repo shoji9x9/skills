@@ -322,12 +322,16 @@ test("被覆表に同じ present セルが 2 つあれば落ちる（1 セルを
   expect(result.counts.compared).toBe(PRESENT_KEYS.length);
 });
 
-test("--target を省いた実行は exit 2（別環境の記録を黙って通さない）", () => {
-  const { code } = run(["--coverage", "c.json", "--comparison", "n.json"], {
+test("--target を省いた実行・空白だけの値は exit 2（別環境の記録を黙って通さない）", () => {
+  const files = {
     "/w/c.json": JSON.stringify(COVERAGE),
     "/w/n.json": JSON.stringify(comparisonOf()),
-  });
-  expect(code).toBe(2);
+  };
+  expect(run(["--coverage", "c.json", "--comparison", "n.json"], files).code).toBe(2);
+  // 空白だけの値は CLI の truthy 判定を通るが、判定側は非空文字列でないと target 照合を飛ばす。
+  expect(run(["--coverage", "c.json", "--comparison", "n.json", "--target", " "], files).code).toBe(
+    2,
+  );
 });
 
 test("引数の誤り・読めない被覆表は exit 2", () => {

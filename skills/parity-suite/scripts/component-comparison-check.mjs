@@ -341,8 +341,12 @@ export function main(argv, deps = {}) {
   // `--target` を省ける形にすると、別環境で採った突き合わせ表がそのまま通る
   // （`comparison-target-mismatch` は照合相手が渡されたときにしか効かない）。
   // 突き合わせは環境別の記録なので、判定対象の target を必ず受け取る。
-  if (!args["--target"]) {
-    return fail("--target は必須（突き合わせ表は環境別の記録なので、別 target の記録を通さない）");
+  // **空白だけの値を通さない**——CLI の truthy 判定は通るのに、判定側は非空文字列でないと
+  // 「渡されていない」として target 照合を飛ばすため、別環境の記録が通る。
+  if (!args["--target"] || args["--target"].trim() === "") {
+    return fail(
+      "--target は必須（空白だけの値も不可。突き合わせ表は環境別の記録なので、別 target の記録を通さない）",
+    );
   }
   /** @type {Record<string, unknown>} */
   const parsed = {};

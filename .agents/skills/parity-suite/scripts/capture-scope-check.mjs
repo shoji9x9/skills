@@ -210,6 +210,7 @@ export function deriveHoles(entry) {
       message: `${key} に named_elements_outside が無い（撮影領域の外に出た論理名を数えていない。無ければ空配列を書く）`,
     });
   } else {
+    const seenOutside = new Set();
     for (const name of outside) {
       if (!nonEmptyString(name)) {
         findings.push({
@@ -225,6 +226,16 @@ export function deriveHoles(entry) {
         });
         continue;
       }
+      // **同じ論理名が 2 つあると同じ id の穴が 2 つできる**——1 つの宣言で両方が消えるので、
+      // 器の名前と同じく重複の側で落とす（棚卸しが潰れたまま exit 0 にしない）。
+      if (seenOutside.has(name)) {
+        findings.push({
+          code: "named-element-duplicated",
+          message: `${key} の named_elements_outside に ${String(name)} が 2 つ以上ある（同じ id の穴が 2 つでき、1 つの宣言で両方が消える）`,
+        });
+        continue;
+      }
+      seenOutside.add(name);
       holes.push({
         id: `${key}#offscreen:${String(name)}`,
         kind: "offscreen-named-element",

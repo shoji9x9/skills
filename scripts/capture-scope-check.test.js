@@ -143,6 +143,26 @@ test("内部スクロール器の外は穴になる（画素にも特性にも�
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#scroll:グリッド本体"]);
 });
 
+test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つできる）", () => {
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 1366, height: 3200 },
+        captured: { width: 1366, height: 3200 },
+        scroll_containers: [],
+        named_elements_outside: ["フッタの件数表示", "フッタの件数表示"],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+  });
+  expect(codesOf(metadata)).toContain("named-element-duplicated");
+  // 重複した分から穴を作らない（1 つの宣言が 2 つの穴を消すのを防ぐ）。
+  expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#offscreen:フッタの件数表示"]);
+});
+
 test("撮影領域の外にある論理名は穴になる", () => {
   const metadata = metadataOf({
     scope: [

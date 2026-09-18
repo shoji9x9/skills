@@ -404,6 +404,87 @@ test("絞り込みがあるのに slug / テーブルが空の行は黙って飛
   expect(codes).toContain("param-row-unkeyed");
 });
 
+test("1 行の述語が 2 つの列を兼ねていたら落ちる（列ごとに別の行が要る）", () => {
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status, owner_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+      predicates: [
+        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+      ],
+    }),
+  });
+  expect(codes).toContain("predicate-filter-shares-row");
+});
+
+test("1 対 1 の割り当てが存在すれば通す（先着順の貪欲だと偽陽性になる並び）", () => {
+  // status は 2 行（結合条件・単独）に現れ、owner_id は結合条件の行だけに現れる。
+  // 先着順だと status が結合条件の行を取り、owner_id が余らず偽陽性になる。
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status, owner_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+      predicates: [
+        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status IN ('pending','canceled') | 5 | 36 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+      ],
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
+test("括弧つきの絞り込みからも列名を読む（読めなければ落とす）", () => {
+  const paramsWith = (first) => [
+    first,
+    "| order | order_items | order_id | id ASC | - | 実測 |",
+    "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+    "| user | users | active | id ASC | - | 実測 |",
+    "| user | roles | role | id ASC | - | 実測 |",
+    "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+  ];
+  // `(status = 'shipped')` は列名を読めるので、述語行があれば通る。
+  expect(
+    codesOf({
+      design: designOf({
+        params: paramsWith(
+          "| order | orders | (status = 'shipped') | ordered_at DESC | 20 | 実測 |",
+        ),
+      }),
+    }),
+  ).toEqual([]);
+
+  // 列名で始まらない条件は「読めない」として落とす（黙って飛ばさない）。
+  expect(
+    codesOf({
+      design: designOf({
+        params: paramsWith("| order | orders | = 'shipped' | ordered_at DESC | 20 | 実測 |"),
+      }),
+    }),
+  ).toContain("predicate-filter-unreadable");
+});
+
 test("列名の突き合わせは識別子境界で行う（owner_id は id を満たさない）", () => {
   const codes = codesOf({
     design: designOf({

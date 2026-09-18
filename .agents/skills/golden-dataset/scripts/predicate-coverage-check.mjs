@@ -171,6 +171,56 @@ export function namesColumn(predicateText, column) {
 }
 
 /**
+ * 絞り込みの記述から列名を取り出す。読めなければ null。
+ *
+ * 先頭の括弧・引用符は剥がしてから読む（`(owner_id = :me)` のような形で
+ * 先頭トークンが空になると、その列の分岐が黙って数えられなくなる）。
+ * @param {string} filter
+ * @returns {string | null}
+ */
+export function filterColumn(filter) {
+  const stripped = normalizeCell(filter).replace(/^[\s(（「『"'`]+/, "");
+  const column = stripped.split(/[\s=<>!(）(,]/)[0];
+  return column === "" ? null : column;
+}
+
+/**
+ * 列と述語行を 1 対 1 で対応づける（二部マッチング。Kuhn の増加路法）。
+ *
+ * **行の再利用を許さない**——1 行が複数の列の文面を含むと、その 1 行で複数の絞り込みを
+ * 満たしたことになり、真・偽の行数は結合した条件のものしか表さない。
+ * 貪欲だと「後の列が使える行を先の列が取る」形で取りこぼすので、増加路で全体の最大マッチングを取る。
+ * @param {string[]} columns
+ * @param {string[]} predicateTexts
+ * @returns {number[]} 列ごとの割り当て先 index（未割り当ては -1）
+ */
+export function matchColumnsToRows(columns, predicateTexts) {
+  /** @type {number[]} */
+  const rowToColumn = Array.from({ length: predicateTexts.length }, () => -1);
+  const tryAssign = (columnIndex, visited) => {
+    for (let rowIndex = 0; rowIndex < predicateTexts.length; rowIndex += 1) {
+      if (visited.has(rowIndex)) continue;
+      if (!namesColumn(predicateTexts[rowIndex], columns[columnIndex])) continue;
+      visited.add(rowIndex);
+      if (rowToColumn[rowIndex] === -1 || tryAssign(rowToColumn[rowIndex], visited)) {
+        rowToColumn[rowIndex] = columnIndex;
+        return true;
+      }
+    }
+    return false;
+  };
+  columns.forEach((_column, columnIndex) => {
+    tryAssign(columnIndex, new Set());
+  });
+  /** @type {number[]} */
+  const assignment = Array.from({ length: columns.length }, () => -1);
+  rowToColumn.forEach((columnIndex, rowIndex) => {
+    if (columnIndex !== -1) assignment[columnIndex] = rowIndex;
+  });
+  return assignment;
+}
+
+/**
  * 件数セルを読む。数値でなければ null（型崩れとして扱う）。
  * @param {string} cell
  * @returns {number | null}
@@ -555,17 +605,41 @@ export function checkPredicateCoverage(input) {
       // 残りの列の分岐は「数えていない」まま 0 件と同じ見え方になる。列ごとに述語を要求する。
       // 突き合わせは述語の文面に列名が現れるかで行うため、`status = 'shipped'` のように**列名を書く**必要がある
       // （列名を書かない式は数えられていないものとして落ちる）。
+      /** @type {string[]} */
+      const columns = [];
       for (const filter of filters.items) {
-        const column = filter.split(/[\s=<>!(）(]/)[0];
-        if (column === "") continue;
-        const named = rows.some((r) => namesColumn(normalizeCell(r["述語（列・条件）"]), column));
-        if (!named) {
+        const column = filterColumn(filter);
+        if (column === null) {
+          // **読めない絞り込みを飛ばさない**——括弧つきの条件（`(owner_id = :me)`）で
+          // 先頭のトークンが空になる形を黙って捨てると、その列の分岐が数えられないまま通る。
           findings.push({
-            code: "predicate-filter-not-enumerated",
-            message: `消費側パラメータの ${slug} × ${tableName} の絞り込み「${filter}」に対応する述語行が無い（述語の文面に列 ${column} が現れない。1 行に複数の絞り込みが並ぶとき、1 本の述語で全部を満たしたことにしない）`,
+            code: "predicate-filter-unreadable",
+            message: `消費側パラメータの ${slug} × ${tableName} の絞り込み「${filter}」から列名を読めない（列名で始まる形で書く）`,
           });
+          continue;
         }
+        columns.push(column);
       }
+      // **列ごとに別の述語行を要する**——`status = 'shipped' AND owner_id = :me` の 1 行は
+      // 2 つの列の文面を含むので、行の再利用を許すと 1 行で複数の絞り込みを満たしたことになり、
+      // 真・偽の行数は結合した条件のものしか表さない（1 列 1 行の契約が崩れる）。
+      const predicateTexts = rows.map((r) => normalizeCell(r["述語（列・条件）"]));
+      const assignment = matchColumnsToRows(columns, predicateTexts);
+      columns.forEach((column, index) => {
+        if (assignment[index] !== -1) return;
+        const namedAnywhere = predicateTexts.some((text) => namesColumn(text, column));
+        findings.push(
+          namedAnywhere
+            ? {
+                code: "predicate-filter-shares-row",
+                message: `消費側パラメータの ${slug} × ${tableName} の列 ${column} に、他の列と共有していない述語行が無い（1 行が複数の絞り込みを兼ねると、真・偽の行数が結合条件のものになる）`,
+              }
+            : {
+                code: "predicate-filter-not-enumerated",
+                message: `消費側パラメータの ${slug} × ${tableName} の絞り込み「${column}」に対応する述語行が無い（述語の文面に列 ${column} が現れない。1 行に複数の絞り込みが並ぶとき、1 本の述語で全部を満たしたことにしない）`,
+              },
+        );
+      });
     }
   }
 
