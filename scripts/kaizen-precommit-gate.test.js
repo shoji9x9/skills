@@ -1118,6 +1118,103 @@ describe("lifecycle 検査", () => {
       if (stderrPattern) expect(check.stderr).toMatch(stderrPattern);
     },
   );
+
+  // 警告（rc 0）はゲートの出力から落ちやすい。ゲートは検査の出力を変数へ取り込むうえ、
+  // **PreToolUse フックの stderr は非 0 で終えたときしか表示されない**ので、素通りの
+  // exit 0 のまま stderr へ書いても誰にも届かない（`references/setup.md` に出典付きで
+  // 書いてある仕様。他セッションの警告が warn_exit_code を使っているのと同じ理由）。
+  // 状態空間: 検査の rc × 出力の有無 × ゲートの出口
+  //   rc 2 × 出力あり            → 出す・exit 2（既存の appliedToCases が押さえている）
+  //   rc 0 × 出力あり × 素通り   → 出す・exit 1（表示される非 0）  ← ここ
+  //   rc 0 × 出力なし × 素通り   → 何も足さない・exit 0            ← ここ
+  //   rc 0 × 出力あり × -copilot → 出す・exit 0（非 0 が deny に化けるため）← ここ
+  test("lifecycle 検査の警告は commit を止めずに出る", () => {
+    const cwd = makeProject();
+    // type は機構（hook）なのに applied-to がドキュメントだけ = Issue #341 の警告。
+    writeNote(
+      cwd,
+      "2026-08-10-docs-only.md",
+      '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
+    );
+
+    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    expect(check.status).toBe(0);
+    expect(check.stderr).toMatch(/warning: type is hook/);
+
+    // exit 1 = 「ブロックしない失敗」。これでフックランナーが stderr を表示する。
+    // 0 のままだと、この assertion が見ている stderr は子プロセスから直接読めても
+    // 利用者には届かない。
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(1);
+    expect(gate.stderr).toMatch(/warning: type is hook/);
+  });
+
+  test("検査と無関係な stderr は警告として扱わない", () => {
+    // status_output は 2>&1 なので子プロセスの無関係な stderr も入る。非空で判定すると
+    // 警告 0 件でも非 0 になり、ロケールの壊れた環境では毎コミットが恒久的に非 0 になる。
+    const cwd = makeProject();
+    writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
+
+    // 陽性コントロール: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
+    // 出ていなければ、この後の exit 0 は「雑音を無視できた」の証拠にならない。
+    const noise = spawnSync("bash", ["-c", "true"], {
+      encoding: "utf8",
+      env: { ...process.env, LC_ALL: "xx_YY.UTF-8" },
+    });
+    expect(noise.stderr).toMatch(/setlocale/);
+
+    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).not.toMatch(/kaizen-status-check:/);
+  });
+
+  test("雑音に混ざっていても警告は拾う", () => {
+    // 上の裏返し。雑音を落とす実装が、警告まで落としていないことを確かめる。
+    const cwd = makeProject();
+    writeNote(
+      cwd,
+      "2026-08-10-docs-only.md",
+      '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
+    );
+
+    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    expect(gate.status).toBe(1);
+    expect(gate.stderr).toMatch(/warning: type is hook/);
+  });
+
+  test("Copilot では警告でも exit 0 にする", () => {
+    // Copilot の preToolUse は exit 2 以外の非 0 をすべて deny にするため、警告の
+    // 終了コードを 1 にすると commit そのものが拒否される（しかも理由が hook errored）。
+    const cwd = makeProject();
+    writeNote(
+      cwd,
+      "2026-08-10-docs-only.md",
+      '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
+    );
+
+    const input = JSON.stringify({ tool_input: { command: "git commit -m x" } });
+    const gate = spawnSync("bash", [join(scriptsDir, "kaizen-precommit-gate.sh"), "-copilot"], {
+      cwd,
+      input,
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
+    });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).toMatch(/warning: type is hook/);
+  });
+
+  test("警告が無ければゲートは検査の出力を足さない", () => {
+    const cwd = makeProject();
+    writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
+
+    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    expect(check.status).toBe(0);
+    expect(check.stderr).toBe("");
+
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).toBe("");
+  });
 });
 
 // transcript を「一度も記録していない」センチネル（`/compact` 専用の隠しセッションのように

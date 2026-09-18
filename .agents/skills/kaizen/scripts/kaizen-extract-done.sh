@@ -25,6 +25,10 @@
 # 積まれても同一セッション内の commit が素通りしてしまうため。次の commit では checkpoint
 # 以降の未処理範囲だけが再走査される。
 #
+# 抽出完了の記録が済んだ後、適用されないまま閾値を過ぎた pending を `status: forgotten` にする
+# （Issue #339。同梱の kaizen-forget.sh へ委譲）。ここに置くのは、書き込む瞬間を「リポジトリを
+# 変更する意思が確定した時点」に揃えるため——詳細は該当箇所のコメント。
+#
 # インラインの rm / リダイレクトは cwd 相対のため迷子ファイルを生み得る
 #（kaizen-stop-mark.sh の注記参照）。このスクリプトでプロジェクトルート基準に統一する。
 set -euo pipefail
@@ -34,6 +38,8 @@ set -euo pipefail
 # cwd 基準に縮退する（他の kaizen スクリプトと同じ縮退）。ただしこのスクリプトの場合、
 # ゲートが見る .kaizen/ と別の場所へマーカーを書くとゲート解除が効かないため、
 # 縮退したことを stderr に警告して気づけるようにする（exit 0 のまま続行はする）。
+# cd する前に解決する（BASH_SOURCE は起動時の cwd 相対になり得るため）。
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
@@ -325,4 +331,51 @@ if [ "${removed}" -eq 0 ]; then
 	printf 'kaizen-extract-done: 警告: 削除対象のセンチネルがありませんでした（%s を起点に %s 個の .kaizen/ を確認。既に解消済みか、--sentinel-suffix / --session-id が立てた本人と違う可能性があります）\n' \
 		"$(pwd)" "${#kaizen_dirs[@]}" >&2
 fi
+
+# 適用されないまま古くなった pending を自動で忘却する（Issue #339）。
+#
+# **発火点をここに置く理由は、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に
+# 揃えるため。** SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも
+# 追跡ファイルが書き換わり、しかもその差分は未ステージで残るので、clean 確認を持つ工程
+# （`git-worktree` の後片付け、`issue-batch` の収束）がそこで止まる。
+# ここは「学びを 1 件記録し終えた直後」で、呼び出し側はこの後 `.kaizen/` を stage して
+# commit を再実行する——忘却の差分も新しいノートと同じ commit に収まり、ツリーは clean に戻る。
+# 台帳へ 1 件足した瞬間に反対側から 1 件落ちる、という対称性も自然。
+#
+# **センチネル解消の後に置く。** 掃引が失敗しても抽出完了の記録は済んでいる必要がある
+# （ここで止めると、抽出したのにゲートが解除されず commit できない恒久ブロッカーになる）。
+# 同じ理由で失敗はすべて握り潰し、exit 0 を維持する。
+#
+# **`complete` に限る。** `--checkpoint-only` はゲートが `git commit` の PreToolUse で
+# 「候補ゼロを検証できた」ことを記録するために呼ぶ経路で、学びは 1 件も記録されていない。
+# ここで掃引すると、ユーザーが `git add` を済ませた状態の追跡ファイルを書き換えて
+# **未ステージ差分を残す**——この発火点が避けようとした dirty tree そのものになる。
+# しかもゲートは出力を変数へ取り込んで非 0 のときしか出さないので、何を忘れたかも伝わらない。
+if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
+	# **終了コードは握り潰すが、診断は捨てない。** 忘却側は「0 件」と「判定不能・書き込み失敗」を
+	# 区別するために stderr へ理由を出す（`今日の日付を〜`、`skip (could not write the note)`）。
+	# `2>/dev/null` で捨てると、掃引が恒久的に失敗していても 0 件成功と見分けが付かない。
+	forget_stderr=$(mktemp) || forget_stderr=""
+	if [ -n "${forget_stderr}" ]; then
+		forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto 2>"${forget_stderr}" || true)
+		[ -s "${forget_stderr}" ] && cat "${forget_stderr}" >&2
+		rm -f "${forget_stderr}"
+	else
+		forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto || true)
+	fi
+	if [ -n "${forgotten_notes}" ]; then
+		# 黙って忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、
+		# 戻す判断（閾値の調整・status を pending へ戻す）ができない。
+		{
+			printf 'kaizen-extract-done: 適用されないまま閾値を過ぎた学びを忘却しました（status: forgotten。以降は SessionStart 注入に載りません）:\n'
+			while IFS= read -r forgotten_note; do
+				[ -n "${forgotten_note}" ] || continue
+				printf '  %s\n' "${forgotten_note}"
+			done <<<"${forgotten_notes}"
+			printf '本文は残るので KEDB 照合では見つかります。再発したら status を pending へ戻してください。\n'
+			printf '閾値は .kaizen/config の forget_after_days / forget_max_priority、停止は forget_auto=off です。\n'
+		} >&2
+	fi
+fi
+
 exit 0

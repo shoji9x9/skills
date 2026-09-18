@@ -6,7 +6,14 @@
 
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -225,5 +232,166 @@ describe("散った制御ファイルは全作業ツリーで整理する", () =
     for (const tree of [main, worktree]) {
       expect(existsSync(join(tree, ".kaizen", `.extract-done.${SESSION}`))).toBe(false);
     }
+  });
+});
+
+// --- 忘却の自動掃引（Issue #339） ---
+//
+// 掃引の発火点をここに置いたのは、**書き込む瞬間を「リポジトリを変更する意思が確定した時点」に
+// 揃えるため**。SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも
+// 追跡ファイルが書き換わり、その差分が未ステージで残って clean 確認を持つ工程を止める。
+//
+// 固定する契約は 3 つ:
+//   1. 掃引が走り、閾値を満たす pending だけが forgotten になる
+//   2. 掃引はセンチネル解消の**後**に走る（掃引が失敗しても抽出完了の記録は残る。ここで止めると
+//      抽出したのにゲートが解除されず commit できない恒久ブロッカーになる）
+//   3. 何を忘れたかを stderr に出す（黙って忘れると、注入から消えたことに気づけず戻せない）
+//
+// 変異による検出能力の実証（実測した結果をそのまま記録する）:
+//   1. 掃引の呼び出しを `forgotten_notes=""` へ置き換える → 1 件 fail（「閾値を過ぎた pending だけを忘却し…」）
+//   2. 掃引ブロックをセンチネル解消より前へ移すだけ → **green のまま**。`|| true` が失敗を吸うので、
+//      位置を変えただけでは観測できない（この変異は検出能力の証拠にならない）
+//   3. 掃引ブロックを前へ移し、**かつ** `|| true` を外す → 1 件 fail（「掃引が失敗してもセンチネルは
+//      解消される」）。センチネル解消が掃引の成否に左右されない、という契約はこの形でだけ測れる
+function staleNote(daysOld, priority = "low") {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - daysOld);
+  const date = d.toISOString().slice(0, 10);
+  return `---\ndate: ${date}\ntype: doc\npriority: ${priority}\nstatus: pending\napplied-to: []\n---\n\n# stale\n\n## 事象\n\n本文。\n`;
+}
+
+function statusOf(dir, name) {
+  return /^status: (.*)$/m.exec(readFileSync(join(dir, ".kaizen", name), "utf8"))?.[1] ?? "";
+}
+
+describe("忘却の自動掃引", () => {
+  test("閾値を過ぎた pending だけを忘却し、何を忘れたかを出す", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+    // 陰性コントロール: 閾値内・高優先度は触らない（「全部忘れる」への退化を検出する）。
+    writeFileSync(join(main, ".kaizen", "fresh.md"), staleNote(1));
+    writeFileSync(join(main, ".kaizen", "high.md"), staleNote(200, "high"));
+
+    const result = runExtractDone(main, main);
+    expect(result.status).toBe(0);
+    expect(statusOf(main, "stale.md")).toBe("forgotten");
+    expect(statusOf(main, "fresh.md")).toBe("pending");
+    expect(statusOf(main, "high.md")).toBe("pending");
+    expect(result.stderr).toContain("忘却しました");
+    expect(result.stderr).toContain("stale.md");
+    // 戻し方と止め方を案内する（気づいても直せないと意味がない）。
+    expect(result.stderr).toContain("forget_auto=off");
+  });
+
+  test("忘却する候補が無ければ何も出さない", () => {
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "fresh.md"), staleNote(1));
+
+    const result = runExtractDone(main, main);
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain("忘却しました");
+    expect(statusOf(main, "fresh.md")).toBe("pending");
+  });
+
+  test("checkpoint-only（ゲートの候補ゼロ自動通過）では掃引しない", () => {
+    // このモードはゲートが `git commit` の PreToolUse で呼ぶ。学びは 1 件も記録されて
+    // いないのに追跡ファイルを書き換えると、`git add` 済みのユーザーに未ステージ差分を
+    // 残す——発火点を SessionStart から移した理由そのものを壊す。
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, '{"type":"user"}\n');
+
+    const result = runExtractDone(main, main, [
+      "--checkpoint-only",
+      "--scanned-bytes",
+      String(readFileSync(transcript).length),
+      "--scanned-lines",
+      "1",
+      transcript,
+    ]);
+    expect(result.status).toBe(0);
+    // 陽性コントロール: 同じノート・同じ経過日数が complete では忘却される（下の complete
+    // ケースと同じ入力）。ここで pending のままなのはモード判定が効いているから。
+    expect(statusOf(main, "stale.md")).toBe("pending");
+    expect(result.stderr).not.toContain("忘却しました");
+  });
+
+  test("忘却側の診断を捨てない", () => {
+    // 忘却側は「0 件」と「判定不能・書き込み失敗」を区別するために stderr へ理由を出す。
+    // 呼び出し側が 2>/dev/null で捨てると、掃引が恒久的に失敗していても 0 件成功と
+    // 見分けが付かない（終了コードは意図的に握り潰しているので、そこにも現れない）。
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+
+    const stubDir = mkdtempSync(join(tmpdir(), "kaizen-extract-done-diag-"));
+    for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
+      copyFileSync(join(scriptsDir, name), join(stubDir, name));
+    }
+    // 実際の失敗（読み取り専用ノート）と同じ形: stdout は空、stderr に理由、exit は非 0。
+    writeFileSync(
+      join(stubDir, "kaizen-forget.sh"),
+      "#!/usr/bin/env bash\necho 'kaizen-forget: skip (could not write the note): .kaizen/stale.md' >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+
+    const result = spawnSync(
+      "bash",
+      [
+        join(stubDir, "kaizen-extract-done.sh"),
+        "--sentinel-suffix",
+        "",
+        "--agent",
+        "claude-code",
+        "--session-id",
+        SESSION,
+      ],
+      { cwd: main, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: main } },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("could not write the note");
+    // 失敗した掃引を「忘却しました」と報告しない。
+    expect(result.stderr).not.toContain("忘却しました");
+  });
+
+  test("掃引が失敗してもセンチネルは解消される", () => {
+    // 抽出完了の記録は掃引より重い契約。ここで止めると、抽出したのにゲートが解除されず
+    // commit できない恒久ブロッカーになる。
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+
+    // スクリプト一式を写し、忘却スクリプトだけを常に失敗するスタブへ差し替える。
+    const stubDir = mkdtempSync(join(tmpdir(), "kaizen-extract-done-stub-"));
+    for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
+      copyFileSync(join(scriptsDir, name), join(stubDir, name));
+    }
+    writeFileSync(join(stubDir, "kaizen-forget.sh"), "#!/usr/bin/env bash\nexit 1\n", {
+      mode: 0o755,
+    });
+
+    const result = spawnSync(
+      "bash",
+      [
+        join(stubDir, "kaizen-extract-done.sh"),
+        "--sentinel-suffix",
+        "",
+        "--agent",
+        "claude-code",
+        "--session-id",
+        SESSION,
+      ],
+      { cwd: main, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: main } },
+    );
+    expect(result.status).toBe(0);
+    // センチネルは消えている（掃引の失敗に巻き込まれない）。
+    expect(existsSync(sentinelPath(main))).toBe(false);
+    expect(result.stderr).not.toMatch(noopWarning);
+    // スタブが効いていることの陽性コントロール（忘却は起きていない）。
+    expect(statusOf(main, "stale.md")).toBe("pending");
   });
 });

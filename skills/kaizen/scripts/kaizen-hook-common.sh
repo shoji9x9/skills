@@ -7,6 +7,8 @@
 #   - `.kaizen/` を解決するプロジェクトルートを決める（worktree 対応）
 #   - リポジトリの全作業ツリーの `.kaizen/` を列挙し、制御ファイルをそこから探す（Issue #344）
 #   - センチネル / checkpoint / 抽出完了マーカーのパス組み立てと、名前からの復号
+#   - `.kaizen/config`（`KEY=VALUE` 形式のプロジェクト設定）から値を読む
+#   - 暦日を 1970-01-01 からの日数へ変換する（保持期間・忘却の閾値判定で使う）
 #
 # 制御ファイルは **session 単位**にする。agent 単位のままだと、同じプロジェクトで
 # 同じ agent のセッションを 2 つ動かしたときに、片方の抽出完了が他方の未抽出シグナルを
@@ -278,4 +280,65 @@ kaizen_sentinel_key_of() { # $1: センチネルのパス
 	*.*) printf '%s' "${rest#*.}" ;;
 	*) printf '' ;;
 	esac
+}
+
+# `.kaizen/config` から設定値を読む。`KEY=VALUE` の 1 行 1 設定で、`#` から行末はコメント、
+# キー・値の前後の空白は落とす。同じキーが複数あれば**最後の定義**を採る（先勝ちにすると、
+# 追記で上書きしたつもりの値が黙って無視される）。定義が無ければ 1 を返し、呼び出し側が既定へ倒す。
+#
+# YAML ではなくこの形式にしているのは、読み手がコミット前ゲート・lifecycle 検査という
+# bash だけで動くフックであり、`yq` / `jq` 無しでも設定を読める必要があるため
+# （`jq` はセンチネル走査の前提だが、設定の読み取りまで依存させない）。
+#
+# パスは相対。呼び出し側は先にプロジェクトルートへ cd している前提（全 kaizen スクリプト共通）。
+kaizen_config_value() { # $1: キー名
+	local config=.kaizen/config line key value found="" found_any=""
+	[ -r "${config}" ] || return 1
+	# 最終行に改行が無くても読み落とさない。
+	while IFS= read -r line || [ -n "${line}" ]; do
+		line=${line%%#*}
+		case "${line}" in
+		*=*) ;;
+		*) continue ;;
+		esac
+		key=${line%%=*}
+		value=${line#*=}
+		key=${key#"${key%%[![:space:]]*}"}
+		key=${key%"${key##*[![:space:]]}"}
+		value=${value#"${value%%[![:space:]]*}"}
+		value=${value%"${value##*[![:space:]]}"}
+		[ "${key}" = "$1" ] || continue
+		found=${value}
+		found_any=1
+	done <"${config}"
+	[ -n "${found_any}" ] || return 1
+	printf '%s' "${found}"
+}
+
+# 民生暦 (y, m, d) を 1970-01-01 からの日数へ変換する（Howard Hinnant の days_from_civil）。
+# `date -d` / `date -j -f` は GNU と BSD で意味が違うため、算術だけで求めて実装差を持ち込まない。
+# 引数は 10 進の整数（呼び出し側が `10#` で先頭 0 を潰してから渡す）。
+kaizen_days_from_civil() { # $1: 年 $2: 月 $3: 日
+	local y=$1 m=$2 d=$3 era yoe doy doe
+	y=$((y - (m <= 2 ? 1 : 0)))
+	era=$(((y >= 0 ? y : y - 399) / 400))
+	yoe=$((y - era * 400))
+	doy=$(((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1))
+	doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
+	printf '%s' $((era * 146097 + doe - 719468))
+}
+
+# `YYYY-MM-DD` を 1970-01-01 からの日数へ変換する。形式が違えば 1 を返す。
+# **判定不能を「古い」に倒さない**——忘却も回収も「消える側」の操作なので、
+# 読めない日付で古い側へ倒すと、まだ新しい学びまで忘れることになる。
+kaizen_days_from_date() { # $1: YYYY-MM-DD
+	local y mo d
+	[[ "${1:-}" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]] || return 1
+	# 先頭 0 を 8 進として解釈させない（`08` / `09` は算術エラーになる）。
+	y=$((10#${BASH_REMATCH[1]}))
+	mo=$((10#${BASH_REMATCH[2]}))
+	d=$((10#${BASH_REMATCH[3]}))
+	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
+	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
+	kaizen_days_from_civil "${y}" "${mo}" "${d}"
 }

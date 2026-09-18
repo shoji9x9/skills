@@ -1,7 +1,7 @@
 ---
 name: kaizen
-description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」などで発動。
-argument-hint: "[extract|apply|archive] [--current | --all] [--record-pending]"
+description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは抽出時に自動で忘却し、セッション開始時の注入を軽く保つ。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」などで発動。
+argument-hint: "[extract|apply|forget|archive] [--current | --all] [--record-pending]"
 license: MIT
 ---
 
@@ -16,18 +16,20 @@ license: MIT
 /kaizen extract --current --record-pending
                                       最重要候補を最大 1 件、承認確認なしで pending 記録（オーケストレーション専用）
 /kaizen apply                           pending の学びを成果物（ルール / doc / hook 等）へ適用
+/kaizen forget [--list | --auto | 対象ファイル...]  適用されないまま古くなった pending を忘れる（status: forgotten。3 つは排他）
 /kaizen archive [対象フラグ]             .kaizen を整理 = アーカイブ（既定・非破壊。.kaizen/archive/ へ移動）
 /kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
 
 対象フラグ（archive / delete 共通・省略時は対象を対話で確認）:
-  --applied | --rejected | --applied-and-rejected | --all
+  --applied | --rejected | --applied-and-rejected | --forgotten | --all
 
 初回のみ: /kaizen setup（インストール後の hooks 等のセットアップ。「Step 3」参照）
 ```
 
-例: `/kaizen --all` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
+例: `/kaizen --all` / `/kaizen forget --list` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
 
-- 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
+- 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「忘れて」「古い学びを整理して」= forget /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
+- **忘却は既定で自動**: 学びを 1 件記録し終えた時点（`kaizen-extract-done.sh`）で、適用されないまま閾値の日数が過ぎ優先度も上がらなかった pending を `status: forgotten` にする。台帳へ 1 件足した瞬間に反対側から 1 件落ちる形で、調査だけのセッションでは 1 バイトも書かない。手動の `/kaizen forget` は閾値に関わらず忘れたいときだけ使う（`references/housekeeping.md`「忘却」）。
 - `--record-pending` は `extract --current` と同時指定した場合だけ受理する。通常抽出の承認フローを変えず、apply / archive / delete は行わない。
 - **抽出はコミット前ゲートからも駆動される**: 未抽出の活動があり transcript に候補が見つかる、または安全に判定できないと、PreToolUse ゲートが `git commit` をブロックして `kaizen --current` を促す。候補ゼロを検証できた場合は自動通過する。コミットの既定クリティカルパスは抽出・記録までで、apply はユーザーが今すぐ適用すると選んだ場合だけ続ける。
 
@@ -50,7 +52,7 @@ license: MIT
 
 ### Step 1: 操作の特定
 
-「使い方」のコマンドまたは自然文から、**抽出 / 適用 / 整理（アーカイブ・削除）/ セットアップ**のいずれかを判定する。判定できないときは AskUserQuestion で確認する。整理の対象フラグ（`--applied` 等）が省略されたときは、対象を AskUserQuestion で確認する。
+「使い方」のコマンドまたは自然文から、**抽出 / 適用 / 忘却 / 整理（アーカイブ・削除）/ セットアップ**のいずれかを判定する。判定できないときは AskUserQuestion で確認する。整理の対象フラグ（`--applied` 等）が省略されたときは、対象を AskUserQuestion で確認する。
 
 ### Step 2: コンポーネントの実行
 
@@ -58,7 +60,7 @@ license: MIT
 
 - 学び抽出 → `references/extract.md`
 - 学び適用 → `references/apply.md`
-- 整理（アーカイブ・削除）→ `references/housekeeping.md`
+- 忘却・整理（アーカイブ・削除）→ `references/housekeeping.md`
 - セットアップ → `references/setup.md`
 
 コンポーネントファイルは SKILL.md と同じディレクトリの `references/` 配下にある。インストール先に応じて以下を試みる:

@@ -428,3 +428,162 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
     rmSync(dir, { recursive: true, force: true });
   }
 });
+// --- 機構と宣言したのに doc だけで閉じたノートの警告（Issue #341） ---
+//
+// `status: applied` は「対策が済んだ」宣言だが、`applied-to` にパスが 1 つでもあれば通るため、
+// 機構（lint / hook / script / CI）で解決すべきノートでもドキュメントへ 1 行足すだけで閉じられた。
+// 症状は同じ学びの再発としてしか現れない。
+//
+// **判定材料は提案の文面ではなく frontmatter の `type`。** 文面から採る案（lint / hook / 検査 等の
+// 語を「## 提案」に照合する）は実装して実データで測ったが、applied 131 件のうち一致 16 件はすべて
+// `検査` / `ゲート` / `スクリプト` の 3 語で、どれも「提案が何について述べているか」を指すだけだった。
+// 適用先に機構が入ったノートへの一致 38%、doc だけのノートへの一致 33% で、2 クラスを分離しない。
+//
+// これは **exit 0 のままの警告**にする。意図してドキュメントへ寄せる判断は実在するので、
+// 遮断すると通せなくなる。したがってテストは「終了コードが 0 のまま」と「警告の有無」を
+// 別々に固定する——どちらか片方だけだと、遮断へ倒す実装も黙る実装も通ってしまう。
+//
+// 状態空間（type × applied-to の種類 × status × 置き場）。各セルに 1 検体:
+//
+// | type \ applied-to | `.md` だけ | 機構を含む | `#<Issue>` | 空              |
+// |-------------------|------------|------------|------------|-----------------|
+// | hook              | 警告       | 黙る       | 黙る       | exit 2（別検査）|
+// | doc / rule / 無し | 黙る       | 黙る       | 黙る       | exit 2（別検査）|
+//
+// | status \ 判定 | applied | pending | rejected | forgotten | archive 配下 |
+// |---------------|---------|---------|----------|-----------|--------------|
+// | 警告するか    | する    | しない（applied-to は空が正） | しない | しない | しない（履歴） |
+//
+// 変異による検出能力の実証（このファイルを書いた時点で 3 通り実施し、いずれも赤くなることを実測した）:
+//   1. `mechanism_types="hook"` を `mechanism_types="hook doc rule"` に広げる → 6 件 fail
+//      （doc / rule / skill の検体と、type を問わず鳴ることで巻き込まれる検体）
+//   2. `applied_to_is_docs_only` の `*.md) found=1 ;;` を `*) found=1 ;;` に広げる → 2 件 fail
+//      （「機構を含む」「Issue へ委譲」。`.md` かどうかで弁別できている）
+//   3. 警告分岐の `[ "${status}" = "applied" ]` を消す → 2 件 fail（pending / forgotten）
+const WARNING_MESSAGE = "applied-to lists documents only";
+
+const FRONTMATTER_TYPED = (type, status, appliedTo) => `---
+date: 2026-01-01
+type: ${type}
+priority: high
+status: ${status}
+applied-to: ${appliedTo}
+session: claude-code
+---
+
+# 学びのタイトル
+
+## 事象
+
+何かが起きた。
+
+## 提案
+
+対策を書く。
+`;
+
+function runCheckTyped({
+  type = "hook",
+  status = "applied",
+  appliedTo = '["docs/a.md"]',
+  archived = false,
+}) {
+  const dir = mkdtempSync(join(tmpdir(), "kaizen-docs-only-"));
+  try {
+    const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
+    mkdirSync(noteDir, { recursive: true });
+    writeFileSync(join(noteDir, "2026-01-01-note.md"), FRONTMATTER_TYPED(type, status, appliedTo));
+    if (archived) {
+      writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
+    }
+    const result = spawnSync("bash", [script], {
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+      encoding: "utf8",
+    });
+    return { status: result.status, stderr: result.stderr ?? "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// 警告しなければならない検体（陽性コントロール）。
+const WARNED = [
+  { name: "type: hook × .md だけ", note: {} },
+  {
+    name: "ディレクトリの無い .md（AGENTS.md 形式・引用符なし）",
+    note: { appliedTo: "[AGENTS.md]" },
+  },
+  {
+    name: "ブロックシーケンスで .md だけ",
+    note: { appliedTo: '\n  - "docs/a.md"\n  - "docs/b.md"' },
+  },
+];
+
+// 黙らなければならない検体（陰性コントロール）。片側だけだと「常に警告する」実装も通る。
+const NOT_WARNED = [
+  { name: "機構を含む（.sh）", note: { appliedTo: '["scripts/a.sh", "docs/a.md"]' } },
+  { name: "Issue へ委譲（#123）", note: { appliedTo: '["#123"]' } },
+  { name: "type: doc は対象外", note: { type: "doc" } },
+  { name: "type: rule は対象外", note: { type: "rule" } },
+  {
+    name: "type: skill は対象外（SKILL.md は .md なので一律に鳴らさない）",
+    note: { type: "skill" },
+  },
+  {
+    name: "rejected は対象外",
+    note: { status: "rejected", appliedTo: '["rejected: 見送る"]' },
+  },
+  { name: "archive 配下は履歴なので対象外", note: { archived: true } },
+];
+
+test("警告側と沈黙側の両方の検体を持つ", () => {
+  expect(WARNED.length).toBeGreaterThan(0);
+  expect(NOT_WARNED.length).toBeGreaterThan(0);
+});
+
+test.each(WARNED)("機構と宣言して doc だけで閉じたら警告する: $name", ({ note }) => {
+  const { status: exitCode, stderr } = runCheckTyped(note);
+  expect(stderr).toContain(WARNING_MESSAGE);
+  expect(stderr).toContain("type is hook");
+  // 警告は遮断しない。ここが 2 になると、意図してドキュメントへ寄せる判断を通せなくなる。
+  expect(exitCode).toBe(0);
+});
+
+test.each(NOT_WARNED)("警告しない: $name", ({ note }) => {
+  const { status: exitCode, stderr } = runCheckTyped(note);
+  expect(stderr).not.toContain(WARNING_MESSAGE);
+  expect(exitCode).toBe(0);
+});
+
+test.each(["pending", "forgotten"])("applied 以外の status では警告しない: %s", (status) => {
+  // applied-to に値を入れて doc 判定へ到達させる（空だと判定の手前で外れ、status の条件が
+  // 効いているかを測れない）。この形は lifecycle の不整合なので別の検査が exit 2 で落とす——
+  // そこへ警告を重ねても直す先が増えるだけなので、警告は出さないことを固定する。
+  const { status: exitCode, stderr } = runCheckTyped({ status, appliedTo: '["docs/a.md"]' });
+  expect(stderr).toContain(`applied-to is set but status is ${status}`);
+  expect(stderr).not.toContain(WARNING_MESSAGE);
+  expect(exitCode).toBe(2);
+});
+
+// --- status: forgotten（Issue #339） ---
+//
+// 忘却は「適用しないまま一旦終わりにする」決着なので、pending と同じく適用先を持たない。
+// 未知の status として弾くと自動忘却が commit を止め、逆に何でも受理すると
+// `applied-to` を持ったまま forgotten にした取り違えを見逃す。両側を固定する。
+test("forgotten は applied-to が空なら通す", () => {
+  const { status: exitCode, stderr } = runCheck(note("forgotten", " []"));
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("forgotten なのに applied-to があれば止める", () => {
+  const { status: exitCode, stderr } = runCheck(note("forgotten", ' ["a.md"]'));
+  expect(stderr).toContain("applied-to is set but status is forgotten");
+  expect(exitCode).toBe(2);
+});
+
+test("未知の status は依然として止める（受理集合を広げすぎていない）", () => {
+  const { status: exitCode, stderr } = runCheck(note("forgoten", " []"));
+  expect(stderr).toContain("unknown status: forgoten");
+  expect(exitCode).toBe(2);
+});

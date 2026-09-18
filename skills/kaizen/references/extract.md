@@ -66,6 +66,7 @@ RCA の有効性は LLM エージェント研究でも裏付けられている�
 
 新しい事象を記録する前に、バンドルされた `kaizen-kedb-match.sh` で既存の学びと照合する。過去事例を参照すると分析精度が上がる（参考文献の RAG 知見）。
 照合先は 2 つに分ける。**top-level（`.kaizen/*.md`）は本文を照合**し、**アーカイブ（`.kaizen/archive/`）はサマリー索引 `INDEX.md` だけを照合**する。
+忘却済み（`status: forgotten`）のノートは top-level に残るので、**本文照合の対象に含まれる**（忘却は注入から外すだけで、再発の検出力は落とさない）。
 archive の本文はコンテキスト圧迫を避けるため走査しない。サマリーがヒットしたら、そのファイル 1 つだけを開いて確認する。
 
 ```bash
@@ -80,6 +81,9 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
 
 - 同種の学びが既にある場合: その事象が**繰り返し発生している**と判断する。既存ファイルの `status` で扱いを変える:
   - `status: pending`（未適用）: 新規作成せず既存ファイルを更新する（優先度を上げ、新しい事象・提案を追記）。参照注入で次セッションへ供給される。
+  - `status: forgotten`（忘却済み）: **忘却の前提が崩れた**——適用されないまま古くなり再発もしていない、という判定で注入から外したノートに、いま再発が当たった。
+    `status: pending` へ戻し、新しい事象を「## 事象」へ追記して `priority` を上げる（上の pending と同じ扱いになる）。
+    優先度が上がるので同じ閾値では再び忘却されない。忘却の条件と閾値は `references/housekeeping.md`「忘却」を参照。
   - `status: applied`（適用済み）: **applied ファイルへ追記しない**。参照注入フック（`kaizen-context-inject.sh`）は `status: pending` のみを供給するため、追記は次セッションに届かず死蔵する。
     - 代わりに、その学びが**適用された恒久的な置き場（rule / doc / hook / スキル本体）を直接更新**して再発防止を強化する（適用先は元ファイルの「提案」を参照）。
     - `.kaizen` に痕跡を残すなら、恒久側を更新した旨だけ新規 pending ファイルに簡潔に書く（applied ファイルは書き換えない）。
@@ -172,6 +176,11 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    （同じ範囲を再抽出せず、かつ**この後に積まれた活動は次の commit で検査させる**ため。同一セッションで複数 commit しても取りこぼさない）:
    `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" --agent "<agent>" --session-id "<session id>" [transcript_path]`
    **transcript_path を省略しない。** 省略すると処理位置を記録できず、代わりに書かれる抽出完了マーカー `.kaizen/.extract-done.<session key>` が**セッション全体**を抽出済みにするため、以降の commit が素通りする（恒久ブロッカーを避けるための fail safe であって、通常の経路ではない）。
+
+   **このスクリプトは忘却の掃引も行う（`status: forgotten` への書き換え）。** 掃引した件数は stderr に出る。
+   忘却は追跡対象の `.kaizen/*.md` を書き換えるので、**新しい記録だけをパス指定で stage すると忘却の差分が未ステージで残る**
+   （clean 確認を持つ工程——`git-worktree` の後片付け、`issue-batch` の収束——がそこで止まる）。
+   commit を再実行する前に `.kaizen/` をまとめて stage する（`git add .kaizen/`）。掃引が 0 件でも害は無い。
    このとき既存の checkpoint も落ちるので、次のセッションはその transcript を全走査することになる。
    （`<スキル>` はインストール先。suffix は Claude Code が空文字、Codex は `-codex`、Copilot は `-copilot`。ゲートが表示したコマンドをそのまま使う）
    `--sentinel-suffix` と `--session-id` を省略しない。省略時は旧設定との後方互換のため agent 単位の名前になり、両方省略すると `rm -f .kaizen/.pending-extract*` で**全セッションのセンチネルを削除**してしまう（他エージェント・他セッションの未処理シグナルまで完了扱いになる）。

@@ -3,6 +3,10 @@
 #
 # 学びの適用先宣言（applied-to）と status、アーカイブ索引の整合を検査する。
 # 不整合は exit 2 + stderr で返し、kaizen-precommit-gate.sh から commit を止める。
+#
+# 加えて「機構で解決すると宣言した（`type: hook`）のにドキュメントだけで閉じた」ノートを**警告**する（Issue #341）。
+# こちらは exit 0 のまま出す——意図してドキュメントへ寄せる判断は実在する（検査にできない形の
+# 学びは文書に置くしかない）ので、止めるとその判断を通せなくなる。
 set -euo pipefail
 
 # cd する前に解決する（BASH_SOURCE は起動時の cwd 相対になり得るため）。
@@ -24,18 +28,44 @@ fi
 [ -d .kaizen ] || exit 0
 
 errors=0
+warnings=0
 
 frontmatter_state() {
 	awk '
 		# 空配列は `[]` だけでなく `[ ]` のような空白入りでも、フォーマッタによる折り返しでも
 		# 書かれる。内部の空白を落とし、折り返し分を連結してから判定しないと、pending は
 		# 誤ブロック（空なのに「適用先あり」）、applied / rejected は検査漏れ（空なのに素通り）になる。
-		function emit(  merged) {
+		# 4 つ目のフィールドは applied-to の要素を `,` で連ねたもの（括弧と引用符は落とす）。
+		# 「空か否か」だけでは、決定論的な対策を提案したノートが doc だけで閉じられたことを
+		# 判定できない（Issue #341）。要素は read の最後の変数へ丸ごと渡すため `|` を含んでも
+		# 前 3 フィールドはずれない。
+		function emit(  merged, body, n, i, parts, item, out) {
 			merged = applied_value
 			if (merged != "" && merged != "[]" && merged != "null" && merged != "~") nonempty = 1
-			printf "%s|%s|%s\n", status, present, nonempty
+			body = merged
+			sub(/^\[/, "", body)
+			sub(/\]$/, "", body)
+			out = ""
+			n = split(body, parts, ",")
+			for (i = 1; i <= n; i++) {
+				item = parts[i]
+				gsub(/^["'"'"']+|["'"'"']+$/, "", item)
+				if (item == "" || item == "null" || item == "~") continue
+				out = (out == "" ? item : out "," item)
+			}
+			printf "%s|%s|%s|%s|%s\n", status, present, nonempty, type, out
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; in_applied = 0; applied_value = "" }
+		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
+		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
+		function collect_item(line,  item) {
+			item = line
+			sub(/^[[:space:]]*-[[:space:]]*/, "", item)
+			sub(/[[:space:]]+#.*$/, "", item)
+			gsub(/[[:space:]]/, "", item)
+			if (item == "") return
+			applied_value = (applied_value == "" ? item : applied_value "," item)
+		}
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -53,6 +83,16 @@ frontmatter_state() {
 			in_applied = 0
 			next
 		}
+		# type は「その学びが何で解決されるべきか」の宣言。`hook` は機構を要求する type なので、
+		# 適用先がドキュメントだけなら宣言と結果が食い違っている（Issue #341）。
+		/^type:[[:space:]]*/ {
+			type = $0
+			sub(/^type:[[:space:]]*/, "", type)
+			sub(/[[:space:]]+#.*$/, "", type)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
+			in_applied = 0
+			next
+		}
 		/^applied-to:[[:space:]]*/ {
 			present = 1
 			value = $0
@@ -63,12 +103,20 @@ frontmatter_state() {
 			in_applied = 1
 			next
 		}
-		in_applied && /^[[:space:]]+-[[:space:]]*[^[:space:]]/ { nonempty = 1; next }
+		in_applied && /^[[:space:]]+-[[:space:]]*[^[:space:]]/ {
+			nonempty = 1
+			collect_item($0)
+			next
+		}
 		# ブロックシーケンスは親キーと同じ桁 0 に置いても正しい YAML で、フォーマッタ次第で
 		# その形で書かれる。桁 0 というだけで値の終わりに倒すと、非空の applied-to が空と
 		# 読まれ、applied / rejected は誤ブロック、pending は検査漏れ（fail open）になる（実測）。
 		# 閉じ `---` は先頭のルールが先に next するのでここへは来ない。
-		in_applied && /^-[[:space:]]+[^[:space:]]/ { nonempty = 1; next }
+		in_applied && /^-[[:space:]]+[^[:space:]]/ {
+			nonempty = 1
+			collect_item($0)
+			next
+		}
 		# 折り返された flow 配列（`applied-to:` の次行以降にインデントで続く値）を拾う。
 		# Markdown フォーマッタを .kaizen/*.md に掛けていると applied-to が長いだけで折り返される。
 		in_applied && /^[[:space:]]+[^[:space:]#]/ {
@@ -125,6 +173,36 @@ section_lead_state() {
 	' "$2" || printf 'error\n'
 }
 
+# 機構（lint / hook / script / CI）で解決すべきだと宣言している type。
+#
+# 判定材料を提案の文面から採らないのは、実データで分離できないと測れたため（Issue #341）。
+# このリポジトリの applied 131 件で語（lint / hook / script / CI / 検査 / 起票 …）を照合すると、
+# 一致 16 件はすべて `検査` / `ゲート` / `スクリプト` の 3 語で、どれも「提案が何について
+# 述べているか」を指すだけだった。適用先に機構が入ったノートへの一致は 38%、doc だけの
+# ノートへの一致は 33% で、2 つのクラスをほとんど分離していない。
+# 一方 `type` は書き手が明示的に宣言した値で、`hook` は機構 6 件 / doc だけ 1 件に分かれる。
+mechanism_types="hook"
+
+# applied-to の要素がドキュメント（`.md`）だけか。要素が 1 つも無ければ偽
+# （空の applied-to は別の検査が exit 2 で落とすので、こちらで二重に鳴らさない）。
+#
+# 判定は拡張子だけで足りる。`.md` 以外の要素——スクリプト・設定・CI のパスも、
+# `#<Issue 番号>` も、「ドキュメントで閉じていない」という点では同じ扱いでよい
+# （Issue への切り出しは追跡可能な委譲なので、`references/apply.md` はこれを許している）。
+applied_to_is_docs_only() { # $1: `,` 区切りの要素
+	local entry found=""
+	[ -n "$1" ] || return 1
+	IFS=',' read -r -a entry_list <<<"$1"
+	for entry in "${entry_list[@]}"; do
+		[ -n "${entry}" ] || continue
+		case "${entry}" in
+		*.md) found=1 ;;
+		*) return 1 ;;
+		esac
+	done
+	[ -n "${found}" ]
+}
+
 for note in .kaizen/*.md .kaizen/archive/*.md; do
 	[ -e "${note}" ] || continue
 	[ "$(basename "${note}")" = "INDEX.md" ] && continue
@@ -139,10 +217,11 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		errors=$((errors + 1))
 		continue
 	fi
-	IFS='|' read -r status present nonempty <<<"${state}"
+	# entries は最後の変数なので、要素に `|` が含まれても前 3 フィールドはずれない。
+	IFS='|' read -r status present nonempty type entries <<<"${state}"
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
-	# status: pending）に揃える。archive と applied / rejected は注入されないので、
+	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、
 	# 過去の書き方を理由に commit を止めない。
 	case "${note}" in
 	.kaizen/archive/*) ;;
@@ -171,6 +250,16 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 				;;
 			esac
 		fi
+		# 機構で解決すると宣言した（`type: hook`）のにドキュメントだけで閉じたノートを知らせる
+		# （Issue #341）。`status: applied` は「対策が済んだ」宣言なので、ここで言わないと
+		# 機構が作られないまま閉じ、症状は同じ学びの再発としてしか現れない
+		# （実例: 2026-09-08 の `type: hook` なノートが `.md` 3 本で閉じられ、8 日後に
+		# 同じ系統が再発して別ノートとして起票された）。
+		# archive 配下は履歴なので対象外にする（もう直せない指摘を毎コミット出しても雑音になる）。
+		if [ "${status}" = "applied" ] && [[ " ${mechanism_types} " == *" ${type} "* ]] && applied_to_is_docs_only "${entries}"; then
+			echo "kaizen-status-check: ${note}: warning: type is ${type} (a mechanism) but applied-to lists documents only; build the mechanism, or change type to match what was actually done" >&2
+			warnings=$((warnings + 1))
+		fi
 		;;
 	esac
 
@@ -178,20 +267,22 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 	# 宣言したノートだけを厳密に検査する。
 	[ "${present}" = "1" ] || continue
 	# applied-to を宣言したノートは新形式なので status も必須。status 行が無い／読めないと
-	# pending / applied / rejected のどれにも一致せず、以降の検査を素通りしてしまう。
+	# pending / applied / rejected / forgotten のどれにも一致せず、以降の検査を素通りしてしまう。
 	if [ -z "${status}" ]; then
 		echo "kaizen-status-check: ${note}: applied-to is declared but status is missing" >&2
 		errors=$((errors + 1))
-	elif [ "${status}" = "pending" ] && [ "${nonempty}" = "1" ]; then
-		echo "kaizen-status-check: ${note}: applied-to is set but status is pending" >&2
+	elif { [ "${status}" = "pending" ] || [ "${status}" = "forgotten" ]; } && [ "${nonempty}" = "1" ]; then
+		# forgotten は「適用しないまま一旦忘れる」なので、pending と同じく適用先を持たない。
+		# 値があるなら applied / rejected のどれかであるべきで、status の取り違えを示す。
+		echo "kaizen-status-check: ${note}: applied-to is set but status is ${status}" >&2
 		errors=$((errors + 1))
 	elif { [ "${status}" = "applied" ] || [ "${status}" = "rejected" ]; } && [ "${nonempty}" = "0" ]; then
 		echo "kaizen-status-check: ${note}: status is ${status} but applied-to is empty" >&2
 		errors=$((errors + 1))
-	elif [ "${status}" != "pending" ] && [ "${status}" != "applied" ] && [ "${status}" != "rejected" ]; then
+	elif [ "${status}" != "pending" ] && [ "${status}" != "applied" ] && [ "${status}" != "rejected" ] && [ "${status}" != "forgotten" ]; then
 		# 未知の status は非空なのでどの分岐にも当たらず、全検査を素通りしていた。
-		# applied-to を宣言した時点で新形式なので、定義済みの 3 値だけを受け付ける。
-		echo "kaizen-status-check: ${note}: unknown status: ${status} (expected pending, applied or rejected)" >&2
+		# applied-to を宣言した時点で新形式なので、定義済みの 4 値だけを受け付ける。
+		echo "kaizen-status-check: ${note}: unknown status: ${status} (expected pending, applied, rejected or forgotten)" >&2
 		errors=$((errors + 1))
 	fi
 done
@@ -229,6 +320,12 @@ if [ -d "${archive_dir}" ]; then
 			fi
 		done <<<"${index_entries}"
 	fi
+fi
+
+if [ "${warnings}" -gt 0 ]; then
+	# 警告は終了コードに入れない（Issue #341: 止めるとドキュメントへ寄せる判断を通せなくなる）。
+	# 件数だけは出す——1 件ずつの行は他の出力に紛れるので、総数が無いと見落とす。
+	echo "kaizen-status-check: ${warnings} warning(s); see the notes above" >&2
 fi
 
 if [ "${errors}" -gt 0 ]; then

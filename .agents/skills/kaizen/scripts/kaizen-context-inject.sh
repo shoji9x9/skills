@@ -72,7 +72,11 @@ fi
 # このセッションのセンチネルを覆い続け、**commit が素通りする**（fail open。実測）。
 # マーカーの置き場は kaizen-extract-done.sh が「制御ファイルが既に在るツリー」で決めるので、
 # セッションが共有ツリーと worktree にまたがると自分のツリー以外へ書かれ得る。
-if ! grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"' <<<"$input"; then
+is_compact=0
+if grep -Eq '"source"[[:space:]]*:[[:space:]]*"compact"' <<<"$input"; then
+	is_compact=1
+fi
+if [ "${is_compact}" -eq 0 ]; then
 	done_name=""
 	if declare -f kaizen_done_path >/dev/null 2>&1; then
 		done_name=$(kaizen_done_path "${session_key}")
@@ -139,7 +143,7 @@ trap 'rm -f "${pending_index}"' EXIT
 for f in .kaizen/*.md; do
 	[ -e "${f}" ] || continue
 	# status も frontmatter 限定で判定する。全文 grep だと本文やコードブロックの
-	# `status: pending` を拾い、frontmatter が applied / rejected のノートまで注入してしまう。
+	# `status: pending` を拾い、frontmatter が applied / rejected / forgotten のノートまで注入してしまう。
 	[ "$(frontmatter_field "${f}" status)" = "pending" ] || continue
 	priority=$(frontmatter_field "${f}" priority)
 	case "${priority}" in

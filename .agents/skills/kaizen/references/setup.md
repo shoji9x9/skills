@@ -198,6 +198,13 @@ PreToolUse をブロックするのは `2` だけで、他の非 0 は「ブロ�
 警告の exit 1 がそのまま commit の拒否に化け、しかも理由が hook errored になって案内が届かないため、Copilot のフックには第 1 引数 `-copilot` を渡し、ゲートは警告を exit 0 で返す（`kaizen-stop-mark.sh` と同じサフィックス規約）。
 key を持たない旧形式のセンチネルは持ち主を特定できないため、従来どおり自分側として扱う（遮断する）。
 
+**Copilot では lifecycle 検査の警告が届かない（既知の制約）。** 警告は非 0 で終えることで表示させる仕組みなので、
+非 0 がすべて deny に化ける Copilot では `-copilot` で exit 0 に倒さざるを得ず、その結果 stderr も表示されない。
+遮断（exit 2）は Copilot でも効くため、`applied-to` の不整合など**止める側の検査は従来どおり働く**。
+届かないのは「止めないが知らせたい」警告だけで、現状これは Issue #341 の
+「`type` が機構なのに `applied-to` がドキュメントだけ」の 1 種類。
+Copilot を主に使うプロジェクトでは、`kaizen-status-check.sh` を lefthook / CI からも実行して警告の表示経路を別に確保する。
+
 自セッション分がブロック要因でなくなったら、**他セッションの未解決センチネルも同じ差分走査に掛ける**（センチネルが transcript パスと session id を持ち、そのセッションの checkpoint も残っているため）。候補ゼロを検証できたものはそこで解消する。
 走査には合計時間の上限があり、打ち切った分はそのまま残して打ち切った旨を出す（黙って諦めると「全部見た上で報告している」と読めてしまうため）。
 
@@ -332,6 +339,8 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で再びブロックされる。
 ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
+**このフックは追跡ファイルを書き換えない**（読み取りとマーカー削除だけ）。注入が肥大しないよう古い pending を忘却する掃引は、**`kaizen-extract-done.sh`（抽出完了時）**が担う——リポジトリを変更するつもりのない調査だけのセッションで作業ツリーを dirty にしないため。詳細は下記「忘却の自動掃引」。
+
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout を context へ注入する。
 > Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
@@ -410,6 +419,34 @@ Codex の非 managed command Hook は、定義を設定ファイルへ追加し�
 
 詳細は [Codex Hooks ドキュメント「Review and trust hooks」](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) を参照すること。
 
+#### 4-5. 忘却の自動掃引（Hook 配線は不要）
+
+`kaizen-extract-done.sh`（抽出完了時にエージェントが呼ぶ）は、センチネルを解消した後に
+`kaizen-forget.sh --auto` を走らせ、適用されないまま閾値の日数が過ぎ優先度も上がらなかった
+pending を `status: forgotten` にする。以降その学びは SessionStart 注入に載らない。
+
+**Hook の追加配線は不要**——4-1〜4-3 の 3 つの Hook はそのままでよく、既存のインストールでも
+スクリプトを更新すれば有効になる。掃引はファイルを動かさず frontmatter の `status` を 1 行
+書き換えるだけで、忘却したノートは stderr に一覧で出る。
+
+**発火点をここに置くのは、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に揃えるため。**
+SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも追跡ファイルが
+書き換わり、その差分が未ステージで残って clean 確認を持つ工程（`git-worktree` の後片付け、
+`issue-batch` の収束）を止める。抽出完了時なら、呼び出し側はこの後 `.kaizen/` を stage して
+commit を再実行するので、忘却の差分も新しいノートと同じ commit に収まる。
+
+判定条件・呼び戻しの手順は `references/housekeeping.md`「忘却」が正本。閾値はプロジェクトの
+`.kaizen/config` で変えられる:
+
+```ini
+# 自動忘却の有効・無効。既定 on。
+forget_auto = on
+# 記録からこの日数が過ぎた pending を候補にする。既定 30。
+forget_after_days = 30
+# この優先度までを候補にする（low | medium | high）。既定 medium。
+forget_max_priority = medium
+```
+
 ### 5. `.gitignore` に制御ファイルを追加する
 
 kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マーカー記録）は、`.kaizen/` 直下に一時的な制御ファイルを作る。これらはコミット対象ではないため、プロジェクトの `.gitignore` に以下を追加する（既にあれば何もしない）:
@@ -423,7 +460,7 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 ```
 
 `.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 3 種の制御ファイルだけ。
-`.kaizen/config`（コミット前ゲートの設定。「他セッションのセンチネルは保持期間で回収する」参照）はプロジェクト設定なので除外せずコミットする。
+`.kaizen/config`（コミット前ゲートのセンチネル保持期間・自動忘却の閾値を置くプロジェクト設定）は除外せずコミットする。
 `.extract-checkpoint.<session key>` は処理済み transcript のパス（1 行目）・バイト位置（2 行目）・識別済みエージェント（3 行目、空可）・処理済み行数（4 行目）を保持し、セッションをまたいで差分走査を成立させる。
 **session 単位のファイルにするのは、同じプロジェクトで同じエージェントのセッションを 2 つ動かしたときに走査位置を上書きし合わないため**（session key を取れない環境では単一ファイルへ縮退する）。
 2 行目・4 行目は**走査器が実際に検査し終えた終端**（`kaizen-candidate-scan.sh` が検証済みゼロのときに出力する `scanned-bytes` / `scanned-lines`）を記録する。

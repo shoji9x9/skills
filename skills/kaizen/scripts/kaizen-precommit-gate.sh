@@ -79,6 +79,10 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		[ -n "${2:-}" ] && [ -e ".kaizen/$2" ] || return 1
 		printf '%s' ".kaizen/$2"
 	}
+	# 設定リーダも共通ライブラリ側にある。読めないときは「定義なし」を返し、呼び出し側の
+	# 既定値へ倒す（`.kaizen/config` で調整した値は効かなくなるが、既定は安全側なので
+	# 遮断条件は緩まない）。
+	kaizen_config_value() { return 1; }
 fi
 
 # Hook 入力から command と transcript_path を取り出す。jq が無い／壊れている環境では
@@ -890,6 +894,39 @@ if [ "${status_rc}" -ne 0 ]; then
 	printf '%s\n' "${status_output}" >&2
 	exit 2
 fi
+# 警告（rc 0）も出す。ここは lifecycle 検査の唯一の自動実行経路なので、非 0 のときしか
+# 出さないと「commit のたびに気づける」はずの警告が誰にも届かない（Issue #341 の
+# doc だけで閉じた対策の警告がこれに当たる）。commit は止めない。
+#
+# **stderr へ書くだけでは表示されない。** PreToolUse フックの stderr が出るのは非 0 で
+# 終えたときだけで、素通りの `exit 0` では捨てられる（他セッションの警告が
+# ${warn_exit_code} を使っているのと同じ理由。`references/setup.md` に出典付きで書いてある）。
+# 警告を保持しておき、素通りする出口だけ終了コードを上げる（exit_pass）。
+# ブロック（exit 2）の出口では stderr がそのまま出るので、ここで 1 回書けば足りる。
+#
+# **出力の非空を警告の有無に使わない。** `status_output` は `2>&1` で子プロセスの stderr を
+# まるごと拾うので、検査と無関係な行（ロケール未設定時の `bash: warning: setlocale: ...` 等）が
+# 混ざる。非空で判定すると警告 0 件でも非 0 で返り、ロケールの壊れたコンテナや CI では
+# 毎コミットが恒久的に非 0 になる（実測: `LC_ALL=xx_YY.UTF-8` で rc 0 → 1）。
+# 検査自身が名乗る接頭辞だけを抜き出して判定・表示する。
+# **抽出に外部コマンドを使わない。** ここは縮退 PATH（jq / python3 が無い環境）でも通る経路で、
+# `grep` を足すと `command not found` で fail closed 側へ落ちる（実測でテストが赤くなった）。
+lifecycle_warning=""
+while IFS= read -r status_line; do
+	case "${status_line}" in
+	"kaizen-status-check: "*) lifecycle_warning="${lifecycle_warning}${status_line}"$'\n' ;;
+	esac
+done <<<"${status_output}"
+lifecycle_warning=${lifecycle_warning%$'\n'}
+if [ -n "${lifecycle_warning}" ]; then
+	printf '%s\n' "${lifecycle_warning}" >&2
+fi
+
+# 「止めないが警告はある」を表す出口。警告が無ければ従来どおり 0 で素通りする。
+exit_pass() {
+	[ -n "${lifecycle_warning}" ] && exit "${warn_exit_code}"
+	exit 0
+}
 
 # 案内・コマンドへ載せる値の健全性検査。センチネルの中身は自分のフックが書いたものだが、
 # 壊れた値や引用符を含む値をそのまま貼れるコマンドとして出さない。
@@ -983,48 +1020,6 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 	done
 }
 
-# `.kaizen/config` から設定値を読む。`KEY=VALUE` の 1 行 1 設定で、`#` から行末はコメント、
-# キー・値の前後の空白は落とす。同じキーが複数あれば**最後の定義**を採る（先勝ちにすると、
-# 追記で上書きしたつもりの値が黙って無視される）。定義が無ければ 1 を返し、呼び出し側が既定へ倒す。
-#
-# YAML ではなくこの形式にしているのは、このゲートが bash だけで動く hook で、`yq` / `jq` 無しでも
-# 設定を読める必要があるため（`jq` はセンチネル走査の前提だが、設定の読み取りまで依存させない）。
-kaizen_config_value() { # $1: キー名
-	local config=.kaizen/config line key value found="" found_any=""
-	[ -r "${config}" ] || return 1
-	# 最終行に改行が無くても読み落とさない。
-	while IFS= read -r line || [ -n "${line}" ]; do
-		line=${line%%#*}
-		case "${line}" in
-		*=*) ;;
-		*) continue ;;
-		esac
-		key=${line%%=*}
-		value=${line#*=}
-		key=${key#"${key%%[![:space:]]*}"}
-		key=${key%"${key##*[![:space:]]}"}
-		value=${value#"${value%%[![:space:]]*}"}
-		value=${value%"${value##*[![:space:]]}"}
-		[ "${key}" = "$1" ] || continue
-		found=${value}
-		found_any=1
-	done <"${config}"
-	[ -n "${found_any}" ] || return 1
-	printf '%s' "${found}"
-}
-
-# 民生暦 (y, m, d) を 1970-01-01 からの日数へ変換する（Howard Hinnant の days_from_civil）。
-# `date -d` / `date -j -f` は GNU と BSD で意味が違うため、算術だけで求めて実装差を持ち込まない。
-days_from_civil() { # $1: 年 $2: 月 $3: 日（いずれも 10 進の整数）
-	local y=$1 m=$2 d=$3 era yoe doy doe
-	y=$((y - (m <= 2 ? 1 : 0)))
-	era=$(((y >= 0 ? y : y - 399) / 400))
-	yoe=$((y - era * 400))
-	doy=$(((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1))
-	doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
-	printf '%s' $((era * 146097 + doe - 719468))
-}
-
 # `YYYY-MM-DDTHH:MM:SSZ`（センチネル 1 行目・`date -u` の出力）を UTC 秒へ変換する。
 # 形式が違えば 1 を返す——**判定不能を「古い」に倒さない**（回収は削除なので、
 # 読めない値で削除側へ倒すと、実際には持ち主が生きているセンチネルまで消す）。
@@ -1041,7 +1036,15 @@ epoch_from_stamp() { # $1: タイムスタンプ
 	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
 	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
 	[ "${hh}" -le 23 ] && [ "${mi}" -le 59 ] && [ "${ss}" -le 60 ] || return 1
-	printf '%s' $(($(days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
+	# 暦の計算は共通ライブラリ（kaizen-hook-common.sh）が持つ。読めない縮退環境では
+	# タイムスタンプを「判定不能」として返す——回収は削除なので、算術を握り潰して
+	# 0 を返すと 1970 年扱いになり、生きているセンチネルまで古いと見なして消す。
+	# **縮退版へ暦を足しても回収は動かない。** 縮退版の `kaizen_sentinel_key_of` は空を返し、
+	# 持ち主を特定できないセンチネルは sweep_expired_foreign_sentinels が一律で対象外にする
+	# （自分側として扱う）。回収が成立するのはライブラリを読めた構成だけで、これは暦を
+	# ライブラリへ移す前から変わらない（両構成・新旧 2 版の 4 通りを実測して確認した）。
+	declare -f kaizen_days_from_civil >/dev/null 2>&1 || return 1
+	printf '%s' $(($(kaizen_days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
 }
 
 # 他セッションのセンチネルを回収するまでの日数。既定 7 日、`never` で回収しない。
@@ -1223,7 +1226,7 @@ resolve_foreign_sentinels() {
 unresolved=()
 collect_unresolved
 if [ "${#unresolved[@]}" -eq 0 ]; then
-	exit 0
+	exit_pass
 fi
 
 # 走査より先に、保持期間を過ぎた他セッションのセンチネルを回収する（回収できたぶんは走査予算を使わない）。
@@ -1231,7 +1234,7 @@ resolve_retention_days
 sweep_expired_foreign_sentinels
 collect_unresolved
 if [ "${#unresolved[@]}" -eq 0 ]; then
-	exit 0
+	exit_pass
 fi
 
 # 自セッションのセンチネルが未解決のときだけ transcript を走査する。他セッションのものしか
@@ -1339,7 +1342,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		done < <(kaizen_worktree_kaizen_dirs "${project_root}")
 		collect_unresolved
 		if [ "${#unresolved[@]}" -eq 0 ]; then
-			exit 0
+			exit_pass
 		fi
 		own_resolved=1
 	fi
@@ -1352,7 +1355,7 @@ if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && command -v 
 	resolve_foreign_sentinels
 	collect_unresolved
 	if [ "${#unresolved[@]}" -eq 0 ]; then
-		exit 0
+		exit_pass
 	fi
 fi
 
@@ -1411,7 +1414,7 @@ if [ "${own_blocking}" -eq 0 ]; then
 	# （Claude Code: https://code.claude.com/docs/en/hooks 、Codex: https://learn.chatgpt.com/docs/hooks）。
 	# Copilot だけは非 0 がすべて deny なので、警告の終了コードは ${warn_exit_code}（$1 で切り替え）。
 	warn_foreign_sentinels
-	[ "${#foreign_unresolved[@]}" -gt 0 ] || exit 0
+	[ "${#foreign_unresolved[@]}" -gt 0 ] || exit_pass
 	exit "${warn_exit_code}"
 fi
 
@@ -1437,7 +1440,9 @@ print_sentinel_recovery "${own_unresolved[@]}"
 		echo "上の <transcript> だけを、そのセンチネルを立てたセッションの transcript パスに置き換えてください。"
 		echo "--sentinel-suffix / --session-id は表示された値のまま使う（自分のセッションの値に置き換えない）。"
 	fi
-	echo "その後、git commit を再実行してください。"
+	# 抽出は忘却の掃引も走らせる（追跡対象の .kaizen/*.md を書き換える）。新しい記録だけを
+	# パス指定で stage すると、その差分が未ステージで残り clean 確認を持つ工程が止まる。
+	echo "その後、git add .kaizen/ で記録と忘却の差分をまとめて stage し、git commit を再実行してください。"
 } >&2
 warn_foreign_sentinels
 exit 2
