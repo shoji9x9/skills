@@ -123,5 +123,15 @@ scripts/run-skill-eval.sh \
   **初版（iteration-38）は弁別がほぼ消えていた**（`without_skill` 5/6）——prompt の「何をどこに記録すればいいかも教えて」が判断軸ごと渡していた。
   これを外して「この状態を機械的に止めるものが何かあるのか」に差し替えたところ、iteration-39 の `without_skill` は
   「おそらく今は何もありません」と答えて 4/7 へ落ち、弁別が回復した（`with_skill` は `checkRepeatRun` の判定内容まで述べて 7/7）
+- eval 41 は fixture 無しで、**撮影状態は揃っているが撮る範囲が狭い採取**（`full_page: false` の長いページ＋固定高のグリッド）を与える（Issue #239）。
+  状態の網羅を範囲の根拠にしないこと・撮った組ごとに範囲を実測すること・既定を全画面にすること・広げられない穴を宣言で残すこと・
+  `capture-scope-check.mjs` を通すことを検証する。prompt には「穴がある」「差分ゼロとして通る」という結論を書かない。
+  **「対応する穴の無い古い宣言も落ちる」は assertion から外した**——prompt に古い宣言が出てこないので 3 run とも到達しなかった（iteration-42）。
+  その規律を測るなら、宣言が残っている状態を与える別 eval にする
+- eval 42 は fixture 無しで、**移行元側だけで埋まった被覆表（`unmeasured` 0）と新側 green** を与え、「新側で操作を完了できると言えるか」を問う（Issue #337）。
+  3 値が移行元側の測定であること・新側の突き合わせを別の成果物に持たせること・入口・当たり判定・完了の 3 点で観測すること・
+  `present` を `unmeasured` へ落とさないことを検証する。プロンプトには「言えない」という結論も、3 点の軸の名前も書かない。
+  **`unmeasured` へ落とす案を prompt で問うている**——問わない初版では 3 run とも到達しなかった（iteration-42）。
+  読み手（`parity-diff` の収束判定）の分担は prompt が下流工程に触れないため assertion から外し、書き手と検査までに絞った
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

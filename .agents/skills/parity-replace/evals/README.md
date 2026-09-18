@@ -51,5 +51,8 @@ scripts/run-skill-eval.sh \
 - eval 19 は fixture 無しで、移行元の CSS の宣言を「当てる相手が無いから写さない」と決め、根拠に文字の位置だけを測った場面を与える（Issue #385）。
   箱の作り方を変える宣言が複数の次元を同時に変えること・箱の寸法を両側で並べて測ること・結論が誤りなら違う値になる観測を選ぶこと・`porting.md` への記録を検証する。
   「どの経路で気づけるのか」は prompt で問う（初版では問わず、`with_skill` でも 3 経路の assertion に到達しなかった。iteration-19）
+- eval 21 は fixture 無しで、**新側 green ＋ `full` 通過 ＋ 被覆表 `unmeasured` 0** の完了直前を与え、`parity-diff` へ渡してよいかを問う（Issue #337）。
+  被覆表が移行元側の測定であること・`present` セルごとの新側突き合わせを本スキルが書くこと・入口・当たり判定・完了の 3 点・
+  承認が要る未突合・`component-comparison-check.mjs` の通過を検証する。prompt には「まだ足りない」という結論を書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

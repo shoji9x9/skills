@@ -116,6 +116,43 @@
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
+  - **部品被覆表の `present` を新側で突き合わせてある**（正本は `parity-suite` の `references/coverage.md`「被覆表は移行元側の測定である」）。
+    **被覆表の 3 値は移行元側の測定**なので、`unmeasured` 0 は「新側で操作を完了できる」を意味しない——
+    スイートが green でも、**入口・当たり判定・完了のどこかで止まる欠落**（下位を持つ項目を押すとメニューが閉じる・印が押せる範囲の外にある・
+    並び替えの印が省略された文字に重なる）は移行元側の記録では 1 件も示されない。
+    現側 `metadata.json` の `component_coverage.declared` が `true` のときだけ判定に入り、数え直しは**インストール済みの `parity-suite`** の
+    `component-comparison-check.mjs` を呼んで行う（検査規則を 2 スキルに複製しない）:
+
+    ```bash
+    node <parity-suite の skill>/scripts/component-comparison-check.mjs \
+      --coverage .replace/parity/<slug>/component-coverage.json \
+      --comparison .replace/parity/<slug>/new/<target>/component-comparison.json \
+      --metadata .replace/parity/<slug>/metadata.json \
+      --replace-metadata .replace/parity/<slug>/new/<target>/replace-metadata.json --target <target>
+    ```
+
+    落とすのは、**`present` なのに突き合わせの行が無い**・`compared: true` なのに入口・当たり判定・完了の観測が欠ける・
+    **突き合わせを取った新側の版（`new_implementation.commit`）が無い／現在の `replace-metadata.json` の `new.commit` と違う**（記録の後に実装が変わっている）・
+    **どちらかの `dirty` が `false` でない**（未コミットの変更を抱えた作業ツリーの記録は commit で版を特定できない。欠落・非真偽値も落とす）・
+    **`--replace-metadata` を渡していない**（照合相手が無いと鮮度の検査そのものが飛ぶので、この引数は省けない）・
+    `new.dirty: true`（未コミットの変更があると版に紐づかない）・
+    `compared: false` の理由が無い・**承認記録の無い `accepted`**・被覆表の指紋と合わない古い記録・別 target の記録・被覆表に無いセルの記録・
+    被覆表と突き合わせ表のどちらかに同じ鍵（`component|item|instance`）の行が 2 つ以上ある（1 セルが 2 回数えられる）。
+    終了コードは 0 ＝ 条件を満たす、1 ＝ 未突合・不整合が残る（収束させず `parity-replace` へ戻す）、2 ＝ 型崩れ（被覆表が読めない）。
+    **突き合わせ表が無いことは「まだ突き合わせていない」として exit 1 で落とす**（型崩れに倒して判定を飛ばさない）。
+    **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す
+  - **撮る範囲に宣言されていない穴が残っていない**（正本は `parity-suite` の `references/baseline.md`「撮る範囲の決め方（穴は採取の段で数える）」）。
+    **差分器は撮った 2 枚しか比べない**ので、撮影領域の外・内部スクロール器の中・領域外に出た論理名は**差分ゼロとして通る**。
+    数え直しは**インストール済みの `parity-suite`**（本スキルと同じインストール先の `parity-suite/scripts/`）の `capture-scope-check.mjs` を呼んで行う（検査規則を 2 スキルに複製しない）:
+
+    ```bash
+    node <parity-suite の skill>/scripts/capture-scope-check.mjs --metadata .replace/parity/<slug>/metadata.json
+    ```
+
+    終了コードは 0 ＝ 条件を満たす、1 ＝ 穴・不整合が残る（収束させず `parity-suite` へ戻して範囲を広げるか対象外を宣言させる）、2 ＝ 使い方の誤り・型崩れ。
+    **`capture_conditions.capture_scope` をキーごと持たない現側成果物は後方互換に倒さない**——この節の導入より前の採取は範囲を測っていないので、
+    `popup_inventory` と同じく**範囲の実測を足して（必要なら撮り直して）から**収束判定に入る。**スクリプトが見つからないときは判定を飛ばさず停止し**、
+    `gh skill install shoji9x9/skills parity-suite` を促す。視覚採取物を持たない機能（`api-resource` / `batch`）は `capture_conditions` を持たないため判定に入れない
   - **採取物と工程の健全性に未検証が残っていない**（正本は `parity-suite` の `references/baseline.md`「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と
     `references/coverage.md`「未測定を機械可読にする」）。**採取物は工程の出力であり次の工程の入力**なので、
     読まれていない採取物・古い加工物・回っていない工程・後始末が効いていないスイート・未測定の宣言は、どれも**緑のまま抜ける**。
