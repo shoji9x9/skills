@@ -1,6 +1,6 @@
 ---
 date: 2026-02-01
-type: doc
+type: hook
 priority: high
 status: applied
 applied-to: [AGENTS.md]

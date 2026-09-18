@@ -4,7 +4,7 @@
 # 学びの適用先宣言（applied-to）と status、アーカイブ索引の整合を検査する。
 # 不整合は exit 2 + stderr で返し、kaizen-precommit-gate.sh から commit を止める。
 #
-# 加えて「決定論的な対策を提案したのにドキュメントだけで閉じた」ノートを**警告**する（Issue #341）。
+# 加えて「機構で解決すると宣言した（`type: hook`）のにドキュメントだけで閉じた」ノートを**警告**する（Issue #341）。
 # こちらは exit 0 のまま出す——意図してドキュメントへ寄せる判断は実在する（検査にできない形の
 # 学びは文書に置くしかない）ので、止めるとその判断を通せなくなる。
 set -euo pipefail
@@ -53,7 +53,7 @@ frontmatter_state() {
 				if (item == "" || item == "null" || item == "~") continue
 				out = (out == "" ? item : out "," item)
 			}
-			printf "%s|%s|%s|%s\n", status, present, nonempty, out
+			printf "%s|%s|%s|%s|%s\n", status, present, nonempty, type, out
 		}
 		# ブロックシーケンスの 1 項目を flow 配列と同じ表記へ畳み込む。要素の分類にしか
 		# 使わないので、flow 側と同じく内部の空白は落とす（値の復元には使わない）。
@@ -65,7 +65,7 @@ frontmatter_state() {
 			if (item == "") return
 			applied_value = (applied_value == "" ? item : applied_value "," item)
 		}
-		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; in_applied = 0; applied_value = "" }
+		BEGIN { fm = 0; present = 0; nonempty = 0; status = ""; type = ""; in_applied = 0; applied_value = "" }
 		/^---[[:space:]]*$/ {
 			fm++
 			if (fm == 2) {
@@ -80,6 +80,16 @@ frontmatter_state() {
 			sub(/^status:[[:space:]]*/, "", status)
 			sub(/[[:space:]]+#.*$/, "", status)
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
+			in_applied = 0
+			next
+		}
+		# type は「その学びが何で解決されるべきか」の宣言。`hook` は機構を要求する type なので、
+		# 適用先がドキュメントだけなら宣言と結果が食い違っている（Issue #341）。
+		/^type:[[:space:]]*/ {
+			type = $0
+			sub(/^type:[[:space:]]*/, "", type)
+			sub(/[[:space:]]+#.*$/, "", type)
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", type)
 			in_applied = 0
 			next
 		}
@@ -163,50 +173,15 @@ section_lead_state() {
 	' "$2" || printf 'error\n'
 }
 
-# 見出し `$1` の節の本文を 1 つの文字列として返す（次の見出しまで）。節が無ければ空。
-# 決定論的な対策の語を探すのは**提案の節だけ**にする。全文を対象にすると、事象の説明で
-# 「lint が落ちた」と書いただけのノートが「lint を足す提案」と読まれる（偽陽性）。
-section_text() { # $1: 見出し $2: ノート
-	awk -v h="$1" '
-		index($0, h) == 1 { in_sec = 1; next }
-		in_sec && /^#/ { exit }
-		in_sec { print }
-	' "$2" 2>/dev/null || true
-}
-
-# 決定論的な対策を指す語。ここが正本で、採用先は `.kaizen/config` の
-# `deterministic_measure_words` に**追加**できる（置換ではない。置換にすると採用先ごとに
-# 判定がずれ、上流が語を足しても届かない）。
+# 機構（lint / hook / script / CI）で解決すべきだと宣言している type。
 #
-# ASCII の語は `grep -Eiw` で語境界を要求する——`ci` を部分一致にすると `decision` /
-# `efficiency` に当たって警告が埋まる（実測で確認した偽陽性）。日本語の語は語境界の概念が
-# 効かない（UTF-8 ロケールでは仮名・漢字が [[:alnum:]] に入るため `-w` が常に偽になる）ので
-# 固定文字列の部分一致にする。
-deterministic_words=(lint hook script CI pre-commit 検査 起票 スクリプト フック リンタ ゲート)
-if declare -f kaizen_config_value >/dev/null 2>&1; then
-	if extra_words=$(kaizen_config_value deterministic_measure_words); then
-		# 区切りは空白かカンマ。空の設定値は「語を足さない」であって既定を消す指示ではない。
-		extra_words=${extra_words//,/ }
-		for word in ${extra_words}; do
-			[ -n "${word}" ] && deterministic_words+=("${word}")
-		done
-	fi
-fi
-
-# 提案に決定論的な対策の語があるか。
-proposes_mechanism() { # $1: ノート
-	local text word
-	text=$(section_text "## 提案" "$1")
-	[ -n "${text}" ] || return 1
-	for word in "${deterministic_words[@]}"; do
-		if [[ "${word}" =~ ^[A-Za-z0-9._-]+$ ]]; then
-			grep -Eiqw -- "${word}" <<<"${text}" && return 0
-		else
-			grep -Fq -- "${word}" <<<"${text}" && return 0
-		fi
-	done
-	return 1
-}
+# 判定材料を提案の文面から採らないのは、実データで分離できないと測れたため（Issue #341）。
+# このリポジトリの applied 131 件で語（lint / hook / script / CI / 検査 / 起票 …）を照合すると、
+# 一致 16 件はすべて `検査` / `ゲート` / `スクリプト` の 3 語で、どれも「提案が何について
+# 述べているか」を指すだけだった。適用先に機構が入ったノートへの一致は 38%、doc だけの
+# ノートへの一致は 33% で、2 つのクラスをほとんど分離していない。
+# 一方 `type` は書き手が明示的に宣言した値で、`hook` は機構 6 件 / doc だけ 1 件に分かれる。
+mechanism_types="hook"
 
 # applied-to の要素がドキュメント（`.md`）だけか。要素が 1 つも無ければ偽
 # （空の applied-to は別の検査が exit 2 で落とすので、こちらで二重に鳴らさない）。
@@ -243,7 +218,7 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 		continue
 	fi
 	# entries は最後の変数なので、要素に `|` が含まれても前 3 フィールドはずれない。
-	IFS='|' read -r status present nonempty entries <<<"${state}"
+	IFS='|' read -r status present nonempty type entries <<<"${state}"
 
 	# 折り返し検査の対象は、参照注入が実際に読む集合（archive を除く `.kaizen/*.md` のうち
 	# status: pending）に揃える。archive と applied / rejected / forgotten は注入されないので、
@@ -275,13 +250,14 @@ for note in .kaizen/*.md .kaizen/archive/*.md; do
 				;;
 			esac
 		fi
-		# 決定論的な対策を提案したのにドキュメントだけで閉じたノートを知らせる（Issue #341）。
-		# `status: applied` は「対策が済んだ」宣言なので、ここで言わないと提案の 2 つ目以降が
-		# 未実施のまま閉じ、症状は同じ学びの再発としてしか現れない。
+		# 機構で解決すると宣言した（`type: hook`）のにドキュメントだけで閉じたノートを知らせる
+		# （Issue #341）。`status: applied` は「対策が済んだ」宣言なので、ここで言わないと
+		# 機構が作られないまま閉じ、症状は同じ学びの再発としてしか現れない
+		# （実例: 2026-09-08 の `type: hook` なノートが `.md` 3 本で閉じられ、8 日後に
+		# 同じ系統が再発して別ノートとして起票された）。
 		# archive 配下は履歴なので対象外にする（もう直せない指摘を毎コミット出しても雑音になる）。
-		# 判定の順は安い方から——要素の分類は文字列操作だけで済むが、提案の走査はノートを読む。
-		if [ "${status}" = "applied" ] && applied_to_is_docs_only "${entries}" && proposes_mechanism "${note}"; then
-			echo "kaizen-status-check: ${note}: warning: the proposal names a deterministic measure (lint / hook / script / CI) but applied-to lists documents only; apply it to a mechanism, or record where it will be done" >&2
+		if [ "${status}" = "applied" ] && [[ " ${mechanism_types} " == *" ${type} "* ]] && applied_to_is_docs_only "${entries}"; then
+			echo "kaizen-status-check: ${note}: warning: type is ${type} (a mechanism) but applied-to lists documents only; build the mechanism, or change type to match what was actually done" >&2
 			warnings=$((warnings + 1))
 		fi
 		;;
@@ -349,7 +325,7 @@ fi
 if [ "${warnings}" -gt 0 ]; then
 	# 警告は終了コードに入れない（Issue #341: 止めるとドキュメントへ寄せる判断を通せなくなる）。
 	# 件数だけは出す——1 件ずつの行は他の出力に紛れるので、総数が無いと見落とす。
-	echo "kaizen-status-check: ${warnings} warning(s); add the deterministic words your project uses to deterministic_measure_words in .kaizen/config" >&2
+	echo "kaizen-status-check: ${warnings} warning(s); see the notes above" >&2
 fi
 
 if [ "${errors}" -gt 0 ]; then

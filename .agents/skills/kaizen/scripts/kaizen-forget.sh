@@ -177,11 +177,37 @@ rewrite_status() { # $1: ノート
 		rm -f "${tmp}"
 		return 1
 	}
-	cat "${tmp}" >"${note}"
+	# 書き戻しの失敗を握り潰さない。この関数は `if rewrite_status ...` から呼ばれるため
+	# 関数本文では `set -e` が効かず、`cat` が失敗しても最後の `rm -f` の終了コード（0）が
+	# 返る——読み取り専用のノートや書き込み失敗で、**書き換わっていないのに「忘却した」と
+	# 報告する**（そのぶんが注入から消えたと誤解される）。
+	# 返す値で理由を分ける（1 = status 行が無い / 2 = 書き戻せなかった）。同じ 1 にすると
+	# 書き込み権限の問題が「新形式ではない」と案内され、直しようがなくなる。
+	if ! cat "${tmp}" >"${note}"; then
+		rm -f "${tmp}"
+		return 2
+	fi
 	rm -f "${tmp}"
 }
 
+# 忘却できなかった理由を出す。$1 = rewrite_status の戻り値、$2 = 表示するノート。
+report_rewrite_failure() { # $1: 戻り値 $2: ノート
+	if [ "$1" -eq 2 ]; then
+		echo "kaizen-forget: skip (could not write the note): $2" >&2
+	else
+		echo "kaizen-forget: skip (no status line in frontmatter): $2" >&2
+	fi
+}
+
 # --- モードの分岐 -----------------------------------------------------------
+print_usage() {
+	{
+		echo "usage: kaizen-forget.sh --list     # list forget candidates (no changes)"
+		echo "       kaizen-forget.sh --auto     # forget the candidates (used by the SessionStart hook)"
+		echo "       kaizen-forget.sh FILE...    # forget the given notes regardless of the thresholds"
+	} >&2
+}
+
 mode=""
 case "${1:-}" in
 --list)
@@ -193,11 +219,14 @@ case "${1:-}" in
 	shift
 	;;
 "")
-	{
-		echo "usage: kaizen-forget.sh --list     # list forget candidates (no changes)"
-		echo "       kaizen-forget.sh --auto     # forget the candidates (used by the SessionStart hook)"
-		echo "       kaizen-forget.sh FILE...    # forget the given notes regardless of the thresholds"
-	} >&2
+	print_usage
+	exit 2
+	;;
+-*)
+	# 未知のフラグをファイル名として飲み込まない。飲み込むと `--dry-run` のような打ち間違いが
+	# 「skip (not a file)」＋ exit 0 になり、**1 件も忘却していないのに成功**として返る。
+	echo "kaizen-forget: unknown option: $1" >&2
+	print_usage
 	exit 2
 	;;
 *)
@@ -210,8 +239,18 @@ if [ "${mode}" != "explicit" ] && [ "$#" -gt 0 ]; then
 	exit 2
 fi
 
+# 日付を日数へ変換できない＝共通ライブラリを読めていない。この状態で候補を数えると
+# 全件が「材料を読めない」で外れ、**「閾値に当てはまるものが無い」と同じ出力**になる。
+# 検査できなかったことを 0 件と区別できるよう、別の診断と非 0 終了で返す。
+require_today_days() {
+	[ -n "${today_days}" ] && return 0
+	echo "kaizen-forget: 今日の日付を日数へ変換できませんでした（共通ライブラリ kaizen-hook-common.sh を読めていない可能性があります）。候補の判定ができないので何もしません。" >&2
+	return 1
+}
+
 case "${mode}" in
 list)
+	require_today_days || exit 1
 	candidates=$(list_candidates)
 	if [ -z "${candidates}" ]; then
 		# 対象 0 件を黙って成功にしない。閾値が効いているのか材料が読めていないのかを
@@ -226,14 +265,17 @@ auto)
 		echo "kaizen-forget: 自動忘却は無効です（.kaizen/config の forget_auto=off）" >&2
 		exit 0
 	fi
+	require_today_days || exit 1
 	forgotten=0
 	while IFS=$'\t' read -r note _date _priority _age; do
 		[ -n "${note}" ] || continue
-		if rewrite_status "${note}"; then
+		rc=0
+		rewrite_status "${note}" || rc=$?
+		if [ "${rc}" -eq 0 ]; then
 			printf '%s\n' "${note}"
 			forgotten=$((forgotten + 1))
 		else
-			echo "kaizen-forget: skip (no status line in frontmatter): ${note}" >&2
+			report_rewrite_failure "${rc}" "${note}"
 		fi
 	done <<<"$(list_candidates)"
 	echo "kaizen-forget: forgot ${forgotten} note(s)" >&2
@@ -261,11 +303,13 @@ explicit)
 			continue
 			;;
 		esac
-		if rewrite_status "${f}"; then
+		rc=0
+		rewrite_status "${f}" || rc=$?
+		if [ "${rc}" -eq 0 ]; then
 			printf '%s\n' "${f}"
 			forgotten=$((forgotten + 1))
 		else
-			echo "kaizen-forget: skip (no status line in frontmatter): ${arg}" >&2
+			report_rewrite_failure "${rc}" "${arg}"
 		fi
 	done
 	echo "kaizen-forget: forgot ${forgotten} note(s)" >&2

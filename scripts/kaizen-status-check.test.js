@@ -428,47 +428,71 @@ test("折り返し検査が実行できなかったら素通りさせない", ()
     rmSync(dir, { recursive: true, force: true });
   }
 });
-
-// --- 決定論的な対策が提案されたのに doc だけで閉じたノートの警告（Issue #341） ---
+// --- 機構と宣言したのに doc だけで閉じたノートの警告（Issue #341） ---
 //
 // `status: applied` は「対策が済んだ」宣言だが、`applied-to` にパスが 1 つでもあれば通るため、
-// 「## 提案」に lint / hook / 検査 といった決定論的な対策が残っていてもドキュメントへ 1 行
-// 足すだけで閉じられた。症状は同じ学びの再発としてしか現れない。
+// 機構（lint / hook / script / CI）で解決すべきノートでもドキュメントへ 1 行足すだけで閉じられた。
+// 症状は同じ学びの再発としてしか現れない。
+//
+// **判定材料は提案の文面ではなく frontmatter の `type`。** 文面から採る案（lint / hook / 検査 等の
+// 語を「## 提案」に照合する）は実装して実データで測ったが、applied 131 件のうち一致 16 件はすべて
+// `検査` / `ゲート` / `スクリプト` の 3 語で、どれも「提案が何について述べているか」を指すだけだった。
+// 適用先に機構が入ったノートへの一致 38%、doc だけのノートへの一致 33% で、2 クラスを分離しない。
 //
 // これは **exit 0 のままの警告**にする。意図してドキュメントへ寄せる判断は実在するので、
 // 遮断すると通せなくなる。したがってテストは「終了コードが 0 のまま」と「警告の有無」を
 // 別々に固定する——どちらか片方だけだと、遮断へ倒す実装も黙る実装も通ってしまう。
 //
-// 状態空間（提案の語 × applied-to の種類 × status）。各セルに 1 検体:
+// 状態空間（type × applied-to の種類 × status × 置き場）。各セルに 1 検体:
 //
-// | 提案の語 \ applied-to | `.md` だけ | 機構を含む | `#<Issue>` | 空        |
-// |-----------------------|------------|------------|------------|-----------|
-// | 決定論的な語あり      | 警告       | 黙る       | 黙る       | exit 2（別検査）|
-// | 決定論的な語なし      | 黙る       | 黙る       | 黙る       | exit 2（別検査）|
+// | type \ applied-to | `.md` だけ | 機構を含む | `#<Issue>` | 空              |
+// |-------------------|------------|------------|------------|-----------------|
+// | hook              | 警告       | 黙る       | 黙る       | exit 2（別検査）|
+// | doc / rule / 無し | 黙る       | 黙る       | 黙る       | exit 2（別検査）|
 //
 // | status \ 判定 | applied | pending | rejected | forgotten | archive 配下 |
 // |---------------|---------|---------|----------|-----------|--------------|
 // | 警告するか    | する    | しない（applied-to は空が正） | しない | しない | しない（履歴） |
 //
 // 変異による検出能力の実証（このファイルを書いた時点で 3 通り実施し、いずれも赤くなることを実測した）:
-//   1. `applied_to_is_docs_only` の `*.md) found=1 ;;` を `*) found=1 ;;` に広げる
-//      → 「機構を含む（.sh）」「Issue へ委譲」が 2 件 fail（`.md` かどうかで弁別できている）
-//   2. `proposes_mechanism` の `section_text "## 提案"` を `section_text "##"` に広げる
-//      → 「事象にだけ決定論的な語」が 1 件 fail（節スコープが効いていることを測れている）
-//   3. ASCII 語の `grep -Eiqw` から `-w` を外す → 「decision / efficiency」が 1 件 fail
+//   1. `mechanism_types="hook"` を `mechanism_types="hook doc rule"` に広げる → 6 件 fail
+//      （doc / rule / skill の検体と、type を問わず鳴ることで巻き込まれる検体）
+//   2. `applied_to_is_docs_only` の `*.md) found=1 ;;` を `*) found=1 ;;` に広げる → 2 件 fail
+//      （「機構を含む」「Issue へ委譲」。`.md` かどうかで弁別できている）
+//   3. 警告分岐の `[ "${status}" = "applied" ]` を消す → 2 件 fail（pending / forgotten）
 const WARNING_MESSAGE = "applied-to lists documents only";
 
-function runCheckOnNote({
+const FRONTMATTER_TYPED = (type, status, appliedTo) => `---
+date: 2026-01-01
+type: ${type}
+priority: high
+status: ${status}
+applied-to: ${appliedTo}
+session: claude-code
+---
+
+# 学びのタイトル
+
+## 事象
+
+何かが起きた。
+
+## 提案
+
+対策を書く。
+`;
+
+function runCheckTyped({
+  type = "hook",
   status = "applied",
   appliedTo = '["docs/a.md"]',
-  body,
   archived = false,
 }) {
   const dir = mkdtempSync(join(tmpdir(), "kaizen-docs-only-"));
   try {
     const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
     mkdirSync(noteDir, { recursive: true });
-    writeFileSync(join(noteDir, "2026-01-01-note.md"), FRONTMATTER(status, appliedTo) + body);
+    writeFileSync(join(noteDir, "2026-01-01-note.md"), FRONTMATTER_TYPED(type, status, appliedTo));
     if (archived) {
       writeFileSync(join(dir, ".kaizen", "archive", "INDEX.md"), "- `2026-01-01-note.md` — 学び\n");
     }
@@ -482,60 +506,34 @@ function runCheckOnNote({
   }
 }
 
-const MECHANISM_PROPOSAL = "\n## 事象\n\n何かが起きた。\n\n## 提案\n\nlint の対象集合を広げる。\n";
-const PROSE_PROPOSAL = "\n## 事象\n\n何かが起きた。\n\n## 提案\n\n手順を 1 行書き足す。\n";
-
 // 警告しなければならない検体（陽性コントロール）。
 const WARNED = [
-  {
-    name: "ASCII の語（lint）× .md だけ",
-    note: { body: MECHANISM_PROPOSAL },
-  },
-  {
-    name: "日本語の語（検査）× .md だけ",
-    note: { body: "\n## 提案\n\n静的検査を 1 本足す。\n" },
-  },
+  { name: "type: hook × .md だけ", note: {} },
   {
     name: "ディレクトリの無い .md（AGENTS.md 形式・引用符なし）",
-    note: { appliedTo: "[AGENTS.md]", body: MECHANISM_PROPOSAL },
+    note: { appliedTo: "[AGENTS.md]" },
   },
   {
     name: "ブロックシーケンスで .md だけ",
-    note: { appliedTo: '\n  - "docs/a.md"\n  - "docs/b.md"', body: MECHANISM_PROPOSAL },
+    note: { appliedTo: '\n  - "docs/a.md"\n  - "docs/b.md"' },
   },
 ];
 
 // 黙らなければならない検体（陰性コントロール）。片側だけだと「常に警告する」実装も通る。
 const NOT_WARNED = [
+  { name: "機構を含む（.sh）", note: { appliedTo: '["scripts/a.sh", "docs/a.md"]' } },
+  { name: "Issue へ委譲（#123）", note: { appliedTo: '["#123"]' } },
+  { name: "type: doc は対象外", note: { type: "doc" } },
+  { name: "type: rule は対象外", note: { type: "rule" } },
   {
-    name: "機構を含む（.sh）",
-    note: { appliedTo: '["scripts/a.sh", "docs/a.md"]', body: MECHANISM_PROPOSAL },
-  },
-  {
-    name: "Issue へ委譲（#123）",
-    note: { appliedTo: '["#123"]', body: MECHANISM_PROPOSAL },
-  },
-  {
-    name: "提案に決定論的な語が無い",
-    note: { body: PROSE_PROPOSAL },
-  },
-  {
-    name: "事象にだけ決定論的な語（節スコープ）",
-    note: { body: "\n## 事象\n\nlint が落ちた。\n\n## 提案\n\n手順を 1 行書き足す。\n" },
-  },
-  {
-    // `ci` を部分一致にすると decision / efficiency に当たって警告が埋まる。
-    name: "decision / efficiency（ASCII 語の語境界）",
-    note: { body: "\n## 提案\n\nこの decision は efficiency を上げる。\n" },
+    name: "type: skill は対象外（SKILL.md は .md なので一律に鳴らさない）",
+    note: { type: "skill" },
   },
   {
     name: "rejected は対象外",
-    note: { status: "rejected", appliedTo: '["rejected: 見送る"]', body: MECHANISM_PROPOSAL },
+    note: { status: "rejected", appliedTo: '["rejected: 見送る"]' },
   },
-  {
-    name: "archive 配下は履歴なので対象外",
-    note: { archived: true, body: MECHANISM_PROPOSAL },
-  },
+  { name: "archive 配下は履歴なので対象外", note: { archived: true } },
 ];
 
 test("警告側と沈黙側の両方の検体を持つ", () => {
@@ -543,55 +541,28 @@ test("警告側と沈黙側の両方の検体を持つ", () => {
   expect(NOT_WARNED.length).toBeGreaterThan(0);
 });
 
-test.each(WARNED)("決定論的な提案が doc だけで閉じたら警告する: $name", ({ note }) => {
-  const { status: exitCode, stderr } = runCheckOnNote(note);
+test.each(WARNED)("機構と宣言して doc だけで閉じたら警告する: $name", ({ note }) => {
+  const { status: exitCode, stderr } = runCheckTyped(note);
   expect(stderr).toContain(WARNING_MESSAGE);
+  expect(stderr).toContain("type is hook");
   // 警告は遮断しない。ここが 2 になると、意図してドキュメントへ寄せる判断を通せなくなる。
   expect(exitCode).toBe(0);
 });
 
 test.each(NOT_WARNED)("警告しない: $name", ({ note }) => {
-  const { status: exitCode, stderr } = runCheckOnNote(note);
+  const { status: exitCode, stderr } = runCheckTyped(note);
   expect(stderr).not.toContain(WARNING_MESSAGE);
   expect(exitCode).toBe(0);
 });
 
-test("採用先は .kaizen/config で語を追加できる（既定の語は消えない）", () => {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-words-"));
-  try {
-    mkdirSync(join(dir, ".kaizen"), { recursive: true });
-    const note = join(dir, ".kaizen", "2026-01-01-note.md");
-    const body = "\n## 提案\n\nテレメトリの閾値を下げる。\n";
-    writeFileSync(note, FRONTMATTER("applied", '["docs/a.md"]') + body);
-
-    // 陰性コントロール: 設定前は既定の語に当たらないので黙る（＝この検体が設定で動くと言える）。
-    const before = spawnSync("bash", [script], {
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
-    expect(before.stderr ?? "").not.toContain(WARNING_MESSAGE);
-
-    writeFileSync(
-      join(dir, ".kaizen", "config"),
-      "deterministic_measure_words = テレメトリ, alerting\n",
-    );
-    const after = spawnSync("bash", [script], {
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
-    expect(after.stderr ?? "").toContain(WARNING_MESSAGE);
-    expect(after.status).toBe(0);
-
-    // 既定の語は消えない（置換にすると上流が語を足しても採用先へ届かない）。
-    writeFileSync(note, FRONTMATTER("applied", '["docs/a.md"]') + MECHANISM_PROPOSAL);
-    const builtin = spawnSync("bash", [script], {
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-      encoding: "utf8",
-    });
-    expect(builtin.stderr ?? "").toContain(WARNING_MESSAGE);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test.each(["pending", "forgotten"])("applied 以外の status では警告しない: %s", (status) => {
+  // applied-to に値を入れて doc 判定へ到達させる（空だと判定の手前で外れ、status の条件が
+  // 効いているかを測れない）。この形は lifecycle の不整合なので別の検査が exit 2 で落とす——
+  // そこへ警告を重ねても直す先が増えるだけなので、警告は出さないことを固定する。
+  const { status: exitCode, stderr } = runCheckTyped({ status, appliedTo: '["docs/a.md"]' });
+  expect(stderr).toContain(`applied-to is set but status is ${status}`);
+  expect(stderr).not.toContain(WARNING_MESSAGE);
+  expect(exitCode).toBe(2);
 });
 
 // --- status: forgotten（Issue #339） ---

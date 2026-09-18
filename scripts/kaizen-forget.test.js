@@ -1,6 +1,15 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -384,3 +393,75 @@ test("忘却したノートは kaizen-status-check.sh を通る", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// --- レビューで新設した分岐（未知フラグ / 書き戻し失敗 / ライブラリ欠落） ---
+//
+// いずれも「何もしていないのに成功に見える」形なので、終了コードと診断の両方を固定する。
+// 終了コードだけだと理由が分からず、診断だけだと呼び出し側（SessionStart フック・人）が
+// 失敗を拾えない。
+//
+// 変異による検出能力の実証（3 通り実施し、いずれも赤くなることを実測した）:
+//   1. `-*)` の分岐を削る → 「未知のフラグ」が fail（ファイル名として飲み込まれ exit 0 になる）
+//   2. `rewrite_status` の `return 2` を `return 0` に → 「書き戻せないノート」が fail
+//   3. `require_today_days` の `return 1` を `return 0` に → 「ライブラリ欠落」が fail
+test("未知のフラグはファイル名として飲み込まず exit 2 で拒否する", () => {
+  // 飲み込むと `--dry-run` のような打ち間違いが「skip (not a file)」＋ exit 0 になり、
+  // 1 件も忘却していないのに成功として返る。
+  const dir = makeProject(CANDIDATES);
+  try {
+    const { status, stderr } = run(dir, ["--dry-run"]);
+    expect(stderr).toContain("unknown option: --dry-run");
+    expect(stderr).toContain("usage:");
+    expect(status).toBe(2);
+    expect(statusOf(dir, "old-low")).toBe("pending");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("書き戻せないノートは忘却済みとして報告しない", () => {
+  // `rewrite_status` は `if` から呼ばれるため関数本文で set -e が効かない。書き込み失敗を
+  // 握り潰すと、status が pending のままなのに stdout へ忘却済みとして出る。
+  const dir = makeProject(CANDIDATES);
+  try {
+    chmodSync(join(dir, ".kaizen", "old-low.md"), 0o444);
+    const { status, stdout, stderr } = run(dir, ["--auto"]);
+    expect(stderr).toContain("could not write the note");
+    // 理由を「status 行が無い」と混同しない（書き込み権限の問題が旧形式と案内されると直せない）。
+    expect(stderr).not.toContain("no status line");
+    expect(stdout).not.toContain("old-low.md");
+    expect(statusOf(dir, "old-low")).toBe("pending");
+    // 書けない 1 件で SessionStart フックを落とさない（他の候補は処理される）。
+    expect(statusOf(dir, "old-medium")).toBe("forgotten");
+    expect(status).toBe(0);
+  } finally {
+    chmodSync(join(dir, ".kaizen", "old-low.md"), 0o644);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test.each(["--list", "--auto"])(
+  "共通ライブラリを読めないときは 0 件と区別して止まる: %s",
+  (mode) => {
+    // 日付を日数へ変換できないと全件が「材料を読めない」で外れ、閾値で 0 件だったときと
+    // 同じ出力になる。縮退したことを終了コードと診断で区別できるようにする。
+    const dir = makeProject(CANDIDATES);
+    const lonely = mkdtempSync(join(tmpdir(), "kaizen-forget-nolib-"));
+    try {
+      copyFileSync(script, join(lonely, "kaizen-forget.sh"));
+      const result = spawnSync("bash", [join(lonely, "kaizen-forget.sh"), mode], {
+        cwd: dir,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
+        encoding: "utf8",
+      });
+      expect(result.stderr ?? "").toContain("共通ライブラリ kaizen-hook-common.sh");
+      // 「忘却候補はありません」に倒さない（検査できなかったことが消える）。
+      expect(result.stderr ?? "").not.toContain("忘却候補はありません");
+      expect(result.status).toBe(1);
+      expect(statusOf(dir, "old-low")).toBe("pending");
+    } finally {
+      rmSync(lonely, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
