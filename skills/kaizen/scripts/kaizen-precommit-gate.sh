@@ -181,10 +181,25 @@ project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 # 引用の内側に現れる `)` では閉じない。対応を取り切れない（閉じていない）場合は非 0 を返し、
 # 呼び出し側を判定不能＝fail closed へ倒す。
 # 走査は mask_quoted と同じく「次の特殊文字までの塊」単位で進める（1 文字ずつだと O(n^2)）。
+#
+# **`case` のパターンの `)` は対応する `(` を持たない**（`case x in x) ... ;; esac`）。深さを
+# 数える方式ではこれを区別できず、パターンの `)` で置換が閉じたと読んで残り——実行される
+# `git commit` を含む範囲——をマスクしてしまう（fail open。実測: `echo "$(case x in x)
+# git commit -m x;; esac)"` はコミットを実行するのにゲートが exit 0）。文法を弁別できない以上、
+# heredoc と同じく**判定不能として fail closed** に倒す（呼び出し側は元の文字列で判定する）。
+# これは過剰ブロックにはなりにくい——fail closed は元の文字列を使わせるだけなので、
+# 区切りの直後に `git commit` を持たない `case` 入りのコマンドは従来どおり通る。
+# 他に `)` が現れる文法（`$(( ))` / 部分シェル `( )` / 関数定義 `f()` / プロセス置換 `<( )` /
+# extglob `@( )`）はいずれも `(` と対になるため深さ計算で扱える。
 cmdsub_span() { # $1: `$(` で始まる文字列
 	local s="${1:-}" rest="${1:2}" taken=2 depth=1 chunk body c closed line at_word_start=1
 	# `(` `)` の対応と、対応を跨がせないための引用・エスケープ・コメント。
 	local sub_pat="[\\\\'\"()#]*" dq_pat='[\\"]*'
+	# 語として現れる `case` を含むなら弁別不能。前後を空白で埋めて語境界を見る
+	# （`lowercase` / `testcase` のような部分一致では倒さない）。
+	case " ${s} " in
+	*[!A-Za-z0-9_]case[!A-Za-z0-9_]*) return 1 ;;
+	esac
 	while [ -n "${rest}" ]; do
 		# パターンとして展開させたいので意図的に非引用（SC2295）。
 		# shellcheck disable=SC2295
@@ -463,8 +478,15 @@ gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}
 # `` echo "`git commit -m wip`" `` は実際にコミットを実行する（Issue #345）。
 # 誤ブロックにはならない——リテラルとして書かれた `` ` `` はシングルクォートの内側か
 # heredoc の中にしか現れず、前者は mask_quoted が潰し、後者は判定不能で fail closed になる。
+#
+# `)` と `{` も**コマンドの先頭が来る位置**なので区切りに含める。
+#   - `case x in x) git commit -m x;; esac` —— case のパターンの `)` の直後
+#   - `f() { git commit -m x; }; f` / `{ git commit -m x; }` —— 複合コマンドの `{` の直後
+# どちらも実際にコミットを実行するのに、`;&|(` だけの区切りでは到達できず素通りしていた
+# （実測）。`case` は mask_quoted 側で fail closed に倒すが、倒した先の元文字列を判定するのは
+# この正規表現なので、区切りを広げないと結局素通りする（片側だけでは塞がらない）。
 if [ "${extracted}" -eq 1 ]; then
-	commit_re=$'(^|[;&|(`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
+	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
 	# 生 JSON 経路でも区切りの後ろの `git commit` を捕捉する。command の値の先頭だけに錨を打つと
@@ -472,7 +494,7 @@ else
 	# 区切りまでの前置きは `dqbody`（`([^"\\]|\\.)*`）で表す。これはエスケープされていない `"` を
 	# 跨がないため、走査は command の値の中に閉じる（値の外の別フィールドを拾わない）。
 	# JSON では改行が `\n` の 2 文字として現れるので、リテラルの区切り ``;&|(` `` に加えてその形も区切りに含める。
-	raw_sep='([;&|(`]|\\[nr])'
+	raw_sep='([;&|(){`]|\\[nr])'
 	commit_re='"command"[[:space:]]*:[[:space:]]*"('"${dqbody}${raw_sep}"')?[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|"|$)'
 fi
 # 引用の内側の区切り文字で誤発火しないよう、判定はマスク済みのコピーに対して行う。

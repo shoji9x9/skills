@@ -715,6 +715,30 @@ describe("ゲートの commit 検出", () => {
     ['git commit -m "$( # note "', 2],
     // 語中の `#` はコメントではない（コメント扱いにして残りを飲むと逆に取りこぼす）。
     ["echo \"$(printf %s 'a#b')\"; git commit -m x", 2],
+    // **コマンドの先頭は `;&|(` の直後だけではない。** `case` のパターンの `)` と複合コマンドの
+    // `{` の直後もコマンド位置で、どれも実際にコミットを実行する（実測）。
+    // `case` のパターンの `)` は対応する `(` を持たないので cmdsub_span の深さ計算では弁別できず、
+    // そこで閉じたと読むと残りがマスクされて素通りする。mask_quoted 側を fail closed に倒し、
+    // 区切りクラスにも `)` `{` を足す——**片側だけでは塞がらない**（fail closed が使わせるのは
+    // 元の文字列で、それを判定するのがこの正規表現のため）。
+    ['echo "$(case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$(case x in a|b) echo hi;; *) git commit -m x;; esac)"', 2],
+    ["case x in x) git commit -m x;; esac", 2],
+    ['echo "$(f() { git commit -m x; }; f)"', 2],
+    ["f() { git commit -m x; }; f", 2],
+    ["{ git commit -m x; }", 2],
+    // `)` が現れる他の文法は `(` と対になるので深さ計算で扱える（取りこぼしの回帰）。
+    ['echo "$(( 1 + 2 ))"; git commit -m x', 2],
+    ['echo "$( (git commit -m x) )"', 2],
+    ["cat <(git commit -m x)", 2],
+    // 過剰ブロックの回帰: `case` を含んでも commit が無ければ通る（fail closed は元の文字列を
+    // 使わせるだけで、区切りの直後に commit が無ければ一致しない）。
+    ['echo "$(case x in x) echo hi;; esac)"', 0],
+    // 語境界で見るので `lowercase` / `testcase` では fail closed に倒さない。
+    ['echo "$(echo lowercase)"', 0],
+    ['echo "$(echo testcase)"', 0],
+    ['echo "$(( 1 + 2 ))"', 0],
+    ['echo "$(f() { echo hi; }; f)"', 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {
