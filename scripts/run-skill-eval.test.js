@@ -61,12 +61,17 @@ else
   else
     printf '%s\n' '{"type":"system","subtype":"init","skills":[]}'
   fi
+  # Evidence counts only when the matching tool_result comes back without an error,
+  # so the stub emits the call/result pair the real stream emits.
   if [[ "$args" == *EXPECT_SKILL_SHELL_READ* ]]; then
-    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"cat .claude/skills/box/SKILL.md"}}]}}'
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cat .claude/skills/box/SKILL.md"}}]}}'
+    printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"name: box"}]}}'
   elif [[ "$args" == *EXPECT_SKILL_UNREAD* ]]; then
-    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls ."}}]}}'
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls ."}}]}}'
+    printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"generated.txt"}]}}'
   elif [[ "$args" == *EXPECT_WITH_SKILL* ]]; then
-    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"box"}}]}}'
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Skill","input":{"skill":"box"}}]}}'
+    printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"skill loaded"}]}}'
   fi
   printf '%s\n' '{"type":"result","subtype":"success","result":"claude stub response","is_error":false,"num_turns":1,"usage":{"input_tokens":8,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}'
 fi

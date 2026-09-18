@@ -192,6 +192,9 @@ export function parseClaudeTrace(rawText) {
   const toolInputTexts = [];
   const toolCalls = {};
   let totalToolCalls = 0;
+  // tool_use id -> evidence awaiting its result. Anything still here at the end was
+  // issued but never completed, so it is dropped.
+  const pendingEvidence = new Map();
 
   let sawNonResultEvent = false;
   for (const event of events) {
@@ -202,6 +205,26 @@ export function parseClaudeTrace(rawText) {
     sawNonResultEvent = true;
     if (event.type === "system" && event.subtype === "init" && Array.isArray(event.skills)) {
       visibleSkills = event.skills.filter((name) => typeof name === "string");
+      continue;
+    }
+    // A call's evidence counts only once its result comes back without an error.
+    // `cat <absent path>` and `false && cat <path>` both name the path in a reading
+    // segment but never return its contents, and crediting them marks a clean
+    // baseline contaminated.
+    if (event.type === "user" && Array.isArray(event.message?.content)) {
+      for (const block of event.message.content) {
+        if (typeof block !== "object" || block === null || block.type !== "tool_result") {
+          continue;
+        }
+        const pending = pendingEvidence.get(block.tool_use_id);
+        if (pending === undefined) {
+          continue;
+        }
+        pendingEvidence.delete(block.tool_use_id);
+        if (block.is_error !== true) {
+          toolInputTexts.push(...pending);
+        }
+      }
       continue;
     }
     if (event.type !== "assistant" || !Array.isArray(event.message?.content)) {
@@ -217,7 +240,16 @@ export function parseClaudeTrace(rawText) {
       if (name === "Skill" && typeof block.input?.skill === "string") {
         invokedSkills.push(block.input.skill);
       }
-      collectReadEvidence(name, block.input, toolInputTexts);
+      const candidate = [];
+      collectReadEvidence(name, block.input, candidate);
+      if (candidate.length === 0) {
+        continue;
+      }
+      // Without an id the result cannot be correlated, so the call never becomes
+      // evidence — an uncorrelated call is exactly the case this guard exists for.
+      if (typeof block.id === "string") {
+        pendingEvidence.set(block.id, candidate);
+      }
     }
   }
 
@@ -293,9 +325,11 @@ export function parseCodexTrace(rawText) {
       toolCalls.command_execution = (toolCalls.command_execution ?? 0) + 1;
       // Codex emits item.started and item.completed for the same command; only the
       // completed side is counted here, so the command text is collected once too.
-      // Same rule as the claude side: only the segments that run a content-reading
-      // utility are evidence, so an existence check or a mention is not a read.
-      if (typeof event.item.command === "string") {
+      // Same rule as the claude side, plus the same success requirement: only a
+      // command that ran a content-reading utility AND exited zero is evidence.
+      // `cat` of a path a baseline expects to be absent exits nonzero and must not
+      // count as having read it.
+      if (typeof event.item.command === "string" && event.item.exit_code === 0) {
         toolInputTexts.push(...shellSegmentsReadingFiles(event.item.command));
       }
       if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {

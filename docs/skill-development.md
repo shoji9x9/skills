@@ -238,6 +238,10 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
   `invalid_run: null` の run は自動で外さず、`raw/` を見て人が判断する。
 - **パスを名指しただけの run を read に数えない。** baseline が `test ! -e <スキル配下>` で不在を確かめる、報告文にパスを書く、`echo` する、といった操作は読み取りではない。
   証拠に採るのは中身を返す操作だけで、`ls` / `stat` / `find` / `rm` / `Glob`（名前を返すだけ）・`Write` / `Edit`（書く側）は除外する。
+- **成功した呼び出しだけを証拠にする。** コマンド文字列は「読もうとした」ことしか示さない。
+  claude-code は `tool_result` を `tool_use` の id で突き合わせて `is_error` でないものだけ、codex は `exit_code` が 0 のものだけを採る。
+  スキルが存在しない baseline の `cat <スキル配下>` は失敗するので汚染にならず、結果が返らなかった呼び出しも数えない。
+  **逆向きの取りこぼしは許容する** —— 読んだが非 0 で終わる形（一致なしの `grep`）は read にならない。これは run を 1 つ落とすだけで、汚染を捏造しない側の誤りだから。
 - `without_skill` 側の対称な signal は `unexpected_read`（ベースラインがスキルに触れた＝汚染）。`contamination.txt` と併せて見る。
 
 ### eval 環境の前提（runtime / repo / 非対話）

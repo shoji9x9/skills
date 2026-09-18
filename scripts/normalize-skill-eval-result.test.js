@@ -8,7 +8,10 @@ import {
 } from "./normalize-skill-eval-result.js";
 
 function claudeStream(events) {
-  return `${events.map((event) => JSON.stringify(event)).join("\n")}\n`;
+  return `${events
+    .flat()
+    .map((event) => JSON.stringify(event))
+    .join("\n")}\n`;
 }
 
 const RESULT_EVENT = {
@@ -20,8 +23,35 @@ const RESULT_EVENT = {
   usage: { input_tokens: 1, output_tokens: 1 },
 };
 
-function assistantToolUse(name, input) {
-  return { type: "assistant", message: { content: [{ type: "tool_use", name, input }] } };
+let toolUseSeq = 0;
+
+// A call plus the result that came back for it. Evidence only counts once the result
+// arrives without an error, so the default pair is a successful call; `outcome` covers
+// the failing and never-completed cases.
+function assistantToolUse(name, input, outcome = "ok") {
+  toolUseSeq += 1;
+  const id = `toolu_${toolUseSeq}`;
+  const call = {
+    type: "assistant",
+    message: { content: [{ type: "tool_use", id, name, input }] },
+  };
+  if (outcome === "no-result") {
+    return [call];
+  }
+  const result = {
+    type: "user",
+    message: {
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: id,
+          ...(outcome === "error" ? { is_error: true } : {}),
+          content: outcome === "error" ? "command failed" : "ok",
+        },
+      ],
+    },
+  };
+  return [call, result];
 }
 
 describe("skill eval result normalization", () => {
@@ -293,6 +323,86 @@ describe("skill eval result normalization", () => {
       });
 
       expect(usage).toMatchObject({ read: false, invalid_run: true });
+    });
+
+    // The command text says a read was attempted; only the result says it happened.
+    test.each([
+      ["the read failed", "error"],
+      ["the call never completed", "no-result"],
+    ])("does not count a reading command when %s", (_label, outcome) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/box/SKILL.md" }, outcome),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test("does not call a baseline contaminated when its cat of the absent skill fails", () => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/box/SKILL.md" }, "error"),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+    });
+
+    test("does not count a codex command that exited nonzero", () => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          [
+            {
+              type: "item.completed",
+              item: {
+                type: "command_execution",
+                command: "/bin/bash -lc 'cat .agents/skills/box/SKILL.md'",
+                exit_code: 1,
+              },
+            },
+            { type: "item.completed", item: { type: "agent_message", text: "absent" } },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+          "codex",
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+    });
+
+    test("does not let a failed read in one call cancel a successful read in another", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "cat .claude/skills/box/MISSING.md" }, "error"),
+            assistantToolUse("Bash", { command: "cat .claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
     });
 
     test("does not let a sibling skill's path count as the subject being read", () => {
