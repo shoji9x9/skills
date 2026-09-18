@@ -213,8 +213,18 @@ export function collectConsumers(featuresMarkdown) {
     }
     for (const row of rowsAsRecords(table)) {
       const slug = normalizeCell(row.slug);
-      if (slug === "") continue;
       const list = splitList(row[source.column]);
+      // **テーブルを挙げているのに slug が空の行を黙って捨てない**——その参照が突き合わせに入らず、
+      // design.md からそのテーブルが丸ごと落ちていても写し漏れとして出なくなる。
+      if (slug === "") {
+        if (list.kind === "items") {
+          findings.push({
+            code: "features-slug-missing",
+            message: `${source.label} に [${list.items.join(", ")}] を挙げている行があるが slug が空（どの消費側の参照か決まらず、写し漏れの突き合わせに入らない）`,
+          });
+        }
+        continue;
+      }
       if (list.kind === "blank") {
         findings.push({
           code: "features-reference-blank",
@@ -510,6 +520,16 @@ export function checkPredicateCoverage(input) {
       const slug = normalizeCell(row["機能／リソース slug"]);
       const tableName = normalizeCell(row["テーブル"]);
       const filters = splitList(row["絞り込み列・条件"]);
+      // **空欄と `-` を書き分ける**（features.md の参照テーブル列と同じ規律）。
+      // 空欄は「まだ調べていない」なので、絞り込みが無い行（`-`）と同じに扱うと、
+      // 未調査のテーブルに述語行が無くても findings 0 件で通る。
+      if (filters.kind === "blank") {
+        findings.push({
+          code: "param-filters-blank",
+          message: `消費側パラメータの ${slug || "（slug 空欄）"} × ${tableName || "（テーブル空欄）"} の絞り込み列・条件が空欄（未調査。絞り込みが無いなら - と書く）`,
+        });
+        continue;
+      }
       if (filters.kind !== "items") continue;
       // **鍵が欠けた行を黙って飛ばさない**——絞り込みが書いてあるのに slug / テーブルが空だと、
       // 「数える相手が決まらない行」と「絞り込みの無い行」が同じ（findings 0 件）に見える。

@@ -258,6 +258,15 @@ test("指紋の欄そのものが無い記録も落ちる", () => {
   expect(codesOf({ comparison })).toContain("coverage-fingerprint-missing");
 });
 
+test("別機能から写した突き合わせ表は --metadata なしでも落ちる", () => {
+  // --metadata は任意なので、metadata があるときだけ slug を見ると、target と鍵が一致するだけで通る。
+  const codes = codesOf({
+    comparison: comparisonOf({ slug: "order-detail" }),
+    target: "preview",
+  });
+  expect(codes).toContain("comparison-slug-mismatch");
+});
+
 test("別 target の記録では収束させない", () => {
   expect(codesOf({ target: "staging" })).toContain("comparison-target-mismatch");
 });

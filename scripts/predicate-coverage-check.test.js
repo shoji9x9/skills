@@ -542,3 +542,40 @@ test("verification の述語 id が重複していれば落ちる（後勝ちで
   });
   expect(codes).toContain("verification-predicate-duplicated");
 });
+
+test("features.md の行がテーブルを挙げているのに slug が空なら落ちる", () => {
+  const codes = codesOf({
+    features: FEATURES.replace(
+      "| report | レポート | reports | 未起票 |",
+      "|  | レポート | reports | 未起票 |",
+    ),
+  });
+  expect(codes).toContain("features-slug-missing");
+});
+
+test("消費側パラメータの絞り込みが空欄なら未調査として落ちる（`-` とは書き分ける）", () => {
+  const paramsWith = (first) => [
+    first,
+    "| order | order_items | order_id | id ASC | - | 実測 |",
+    "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+    "| user | users | active | id ASC | - | 実測 |",
+    "| user | roles | role | id ASC | - | 実測 |",
+    "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+  ];
+  expect(
+    codesOf({
+      design: designOf({
+        params: paramsWith("| order | orders |  | ordered_at DESC | 20 | 実測 |"),
+      }),
+    }),
+  ).toContain("param-filters-blank");
+
+  // `-`（調べた結果ゼロ件）は従来どおり対象外。
+  expect(
+    codesOf({
+      design: designOf({
+        params: paramsWith("| order | orders | - | ordered_at DESC | 20 | 実測 |"),
+      }),
+    }),
+  ).not.toContain("param-filters-blank");
+});

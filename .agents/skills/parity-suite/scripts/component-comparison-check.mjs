@@ -145,6 +145,14 @@ export function checkComponentComparison(input) {
       message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(input.target)}」と違う（別環境の記録で収束させない）`,
     });
   }
+  // **slug の照合は被覆表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
+  // 別機能から写した突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
+  if (nonEmptyString(coverage.slug) && comparison.slug !== coverage.slug) {
+    findings.push({
+      code: "comparison-slug-mismatch",
+      message: `突き合わせ表の slug「${String(comparison.slug)}」が被覆表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
+    });
+  }
   const metadata = /** @type {Record<string, any> | undefined} */ (input.metadata);
   if (metadata && typeof metadata === "object" && nonEmptyString(metadata.slug)) {
     if (comparison.slug !== metadata.slug) {
