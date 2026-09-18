@@ -1,0 +1,279 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-18T10:06:29Z",
+    "evals_run": [41, 42],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 41,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 31.577,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮影領域の外（下に切れている分）とグリッド本体の可視部より大きい中身が、画素にも特性照合にも出ないまま差分ゼロとして通ると指摘している",
+          "passed": true,
+          "evidence": "below-fold と scroll 器の中身が差分器から見えず差分 0 件と区別できないと指摘"
+        },
+        {
+          "text": "撮影状態の集合が揃っていることを撮る範囲が足りている根拠にしていない",
+          "passed": true,
+          "evidence": "被覆表から導いた 5 状態を土台にすぎないとし、範囲の根拠にしていない"
+        },
+        {
+          "text": "撮った組ごとに文書と撮影領域の寸法・内部スクロール器・撮影領域の外にある論理名を実測して capture_conditions.capture_scope に残すと答えている",
+          "passed": true,
+          "evidence": "撮った組ごとに capture_scope を実測して記録する手順を示している"
+        },
+        {
+          "text": "既定を全画面（full_page: true）にし、ビューポート内で撮るのは撮れない理由があるときだけだと答えている",
+          "passed": true,
+          "evidence": "既定は full_page: true で、ビューポート内は撮れない理由があるときだけとしている"
+        },
+        {
+          "text": "広げられない穴は capture_scope_exemptions に穴の id・理由・gaps.md の該当箇所を書いて対象外として宣言すると答えている",
+          "passed": true,
+          "evidence": "capture_scope_exemptions と gaps.md に理由を書いて対象外にすると答えている"
+        },
+        {
+          "text": "scripts/capture-scope-check.mjs を exit 0 まで通すと述べ、対応する穴の無い古い宣言も落ちることに触れている",
+          "passed": false,
+          "evidence": "capture-scope-check.mjs の exit 0 には触れたが、効かない宣言が落ちることに触れていない"
+        },
+        {
+          "text": "範囲の狭さは実装後に範囲外の差分が出てから現側ごと撮り直すループになるため、採取の段で数えると説明している",
+          "passed": true,
+          "evidence": "実装後に差が出た時点で現側から撮り直しになるため採取の段で数えると説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 69.141,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "被覆表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": true,
+          "evidence": "被覆表は移行元側の測定でどれだけ積んでも新側の欠落は示さないと答えている"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "「言えること／言えないこと」を分け、unmeasured 0 を新側の根拠にしていない"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": true,
+          "evidence": "new/<target>/component-comparison.json に present セル 1 つにつき 1 行と答えている"
+        },
+        {
+          "text": "突き合わせの証拠を入口・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": true,
+          "evidence": "入口・当たり判定・完了の 3 点を観測すると答えている"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": true,
+          "evidence": "実測された 3 件の欠落がケースの文面に出てこない形だと説明している"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": false,
+          "evidence": "新側未突合を理由に present を unmeasured へ落とさない、という規律には触れていない"
+        },
+        {
+          "text": "記録を書くのは parity-replace、収束判定で読むのは parity-diff だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": false,
+          "evidence": "component-comparison-check.mjs には触れたが、書き手（parity-replace）と読み手（parity-diff）の分担を示していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 41,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 28.707,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮影領域の外（下に切れている分）とグリッド本体の可視部より大きい中身が、画素にも特性照合にも出ないまま差分ゼロとして通ると指摘している",
+          "passed": true,
+          "evidence": "下の行の差を検出できず「パリティが取れた」の根拠が無くなると指摘"
+        },
+        {
+          "text": "撮影状態の集合が揃っていることを撮る範囲が足りている根拠にしていない",
+          "passed": true,
+          "evidence": "5 状態を撮ったこと自体は問題ないが先頭数行しか見えていないと指摘"
+        },
+        {
+          "text": "撮った組ごとに文書と撮影領域の寸法・内部スクロール器・撮影領域の外にある論理名を実測して capture_conditions.capture_scope に残すと答えている",
+          "passed": false,
+          "evidence": "撮影条件への明記は求めるが、組ごとの範囲の実測記録という形にはしていない"
+        },
+        {
+          "text": "既定を全画面（full_page: true）にし、ビューポート内で撮るのは撮れない理由があるときだけだと答えている",
+          "passed": true,
+          "evidence": "full_page: false にする理由ではなく true にする理由だと述べている"
+        },
+        {
+          "text": "広げられない穴は capture_scope_exemptions に穴の id・理由・gaps.md の該当箇所を書いて対象外として宣言すると答えている",
+          "passed": false,
+          "evidence": "対象外の宣言（id・理由・gaps への記録）という形を示していない"
+        },
+        {
+          "text": "scripts/capture-scope-check.mjs を exit 0 まで通すと述べ、対応する穴の無い古い宣言も落ちることに触れている",
+          "passed": false,
+          "evidence": "機械検査に触れていない"
+        },
+        {
+          "text": "範囲の狭さは実装後に範囲外の差分が出てから現側ごと撮り直すループになるため、採取の段で数えると説明している",
+          "passed": false,
+          "evidence": "撮り直しループの原価に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 45.808,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "被覆表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": false,
+          "evidence": "移行元側の測定という区別ではなく、観測不足・差分テストの提案に留まる"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "unmeasured 0 件は項目リストの範囲内の話だと指摘している"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": false,
+          "evidence": "新側の突き合わせを別成果物に持たせる形を示していない"
+        },
+        {
+          "text": "突き合わせの証拠を入口・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": false,
+          "evidence": "入口・当たり判定・完了の軸を示していない"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": false,
+          "evidence": "行の粒度には触れるが、ケースの文面に出ない完了不能の欠落という観点は無い"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": false,
+          "evidence": "present と unmeasured の扱いに触れていない"
+        },
+        {
+          "text": "記録を書くのは parity-replace、収束判定で読むのは parity-diff だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": false,
+          "evidence": "書き手・読み手の分担にも機械検査にも触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.7857,
+        "stddev": 0.101,
+        "min": 0.7143,
+        "max": 0.8571
+      },
+      "time_seconds": {
+        "mean": 50.359,
+        "stddev": 26.5618,
+        "min": 31.577,
+        "max": 69.141
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2858,
+        "stddev": 0.202,
+        "min": 0.1429,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 37.2575,
+        "stddev": 12.0922,
+        "min": 28.707,
+        "max": 45.808
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+13.1",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "Issue #239（eval 41: 撮る範囲の穴）と Issue #337（eval 42: 被覆表は移行元側の測定）で追加した eval の初回実走。",
+    "弁別: 41 は assertion 3（組ごとの範囲の実測）・5（対象外の宣言）・6（機械検査）・7（撮り直しループの原価）、42 は assertion 1・3・4・5 が without_skill で落ちる。",
+    "後退検知: 41 の assertion 1・2・4（既定を全画面に）は without_skill も自力到達する。42 の assertion 2（unmeasured 0 を根拠にしない）も到達した。",
+    "with_skill の取りこぼし 3 件: 41 の assertion 6 は「効かない宣言も落ちる」に触れず、42 の assertion 6（未突合を理由に present を unmeasured へ落とさない）・7（書き手 parity-replace / 読み手 parity-diff の分担）に到達しなかった。いずれも記述はあるので、1 run では出力のばらつきと導線の弱さを切り分けられない。"
+  ]
+}

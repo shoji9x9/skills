@@ -1,0 +1,249 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-18T10:06:24Z",
+    "evals_run": [20, 21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 38.912,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "§1 で user が roles を読む消費側であり `-` は写し漏れだと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "§2 で JOIN / FROM は役割を変えず、消費側 slug があれば投入するとしている"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "§3 で 1 行だと絞り込みを外しても結果が変わらず新側の欠落が緑で通ると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "直し方は「足す」のみで、gaps に記録する選択肢と判断材料を示していない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": true,
+          "evidence": "末尾で行を足すと version が上がり採取物が陳腐化する機序に触れている"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs を exit 0 まで通す手順を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 34.22,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "通った検証が数えているのは入れたものが入ったかであり、入れたもので消費側のどの分岐が踏めるかは数えていないと指摘している",
+          "passed": true,
+          "evidence": "4 つの検証は「入れたものが正しく入ったか」で分岐を踏めるかは別だと指摘"
+        },
+        {
+          "text": "status の絞り込みについて、真の側と偽の側それぞれの該当行数を数える段を設計と検証に置くと答えている",
+          "passed": true,
+          "evidence": "status の述語について真・偽の行数を設計と検証の両方に置く手順を示している"
+        },
+        {
+          "text": "shipped 以外が 0 件だと絞り込みで外れる行が無く、新側が絞り込みを落としても現行と一致したまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "全行 shipped だと絞り込み未実装でも一致し緑で通ると説明"
+        },
+        {
+          "text": "投入後に述語ごとの該当行数を verification へ残し、0 件・1 件が報告に出る形にすると答えている",
+          "passed": true,
+          "evidence": "投入後に述語ごとの行数を verification.md の「述語ごとの該当行数」へ残すと答えている"
+        },
+        {
+          "text": "parity-suite へ進んでから不足が分かるとベースラインを採り終えた後の差し戻しになり、version が上がって採取物が陳腐化すると説明している",
+          "passed": true,
+          "evidence": "ベースラインを採った後に足すと version が上がり採取物が陳腐化すると説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 28.437,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "§1 で features.md の user が roles を挙げているため `-` にできないと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": false,
+          "evidence": "「読み取りだけという分類自体は問題なし」とし、役割の判定を消費で決めていない"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "§3 で 1 行だとフィルタが壊れても結果が変わらずすり抜けると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "足す／gaps に記録の選択にも判断材料にも触れていない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "version の上昇と採取物の陳腐化に触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": false,
+          "evidence": "機械検査（predicate-coverage-check.mjs）に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 22.922,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "通った検証が数えているのは入れたものが入ったかであり、入れたもので消費側のどの分岐が踏めるかは数えていないと指摘している",
+          "passed": true,
+          "evidence": "「データが正しく入った」と「比較テストができる状態か」を区別している"
+        },
+        {
+          "text": "status の絞り込みについて、真の側と偽の側それぞれの該当行数を数える段を設計と検証に置くと答えている",
+          "passed": false,
+          "evidence": "GROUP BY で status の種類を数える案までで、述語ごとの真・偽の行数を数える段は置いていない"
+        },
+        {
+          "text": "shipped 以外が 0 件だと絞り込みで外れる行が無く、新側が絞り込みを落としても現行と一致したまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "絞り込みが効いていなくても 40 件になりバグを見つけられないと説明"
+        },
+        {
+          "text": "投入後に述語ごとの該当行数を verification へ残し、0 件・1 件が報告に出る形にすると答えている",
+          "passed": false,
+          "evidence": "検証への追加は status の種類の網羅確認で、述語ごとの該当行数ではない"
+        },
+        {
+          "text": "parity-suite へ進んでから不足が分かるとベースラインを採り終えた後の差し戻しになり、version が上がって採取物が陳腐化すると説明している",
+          "passed": false,
+          "evidence": "ベースライン陳腐化・version の上昇に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9166,
+        "stddev": 0.1179,
+        "min": 0.8333,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 36.566,
+        "stddev": 3.3177,
+        "min": 34.22,
+        "max": 38.912
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3667,
+        "stddev": 0.0472,
+        "min": 0.3333,
+        "max": 0.4
+      },
+      "time_seconds": {
+        "mean": 25.6795,
+        "stddev": 3.8997,
+        "min": 22.922,
+        "max": 28.437
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.55",
+      "time_seconds": "+10.9",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "Issue #388 で追加した eval 20・21 の初回実走。20 は写し漏れ・役割（JOIN / FROM で決めない）・1 件の参照表、21 は投入後に述語ごとの行数を数える段を見る。",
+    "弁別: 20 は assertion 2（役割を消費で決める）・4（足す／gaps に記録の選択）・5（version と陳腐化）・6（機械検査）、21 は assertion 2・4（述語ごとの真偽の行数を設計と検証に置く）・5 が without_skill で落ちる。",
+    "後退検知: 20 の assertion 1（写し漏れ）・3（1 件では観測できない）と 21 の assertion 1・3 は without_skill も自力到達する。",
+    "with_skill の取りこぼし 1 件: 20 の assertion 4（踏めない分岐を「足す」か「gaps に記録」かで選ぶ）に到達せず、直し方が「足す」だけになった。同じ規律は 21 では到達しているので、1 run では記述の不足と出力のばらつきを切り分けられない。"
+  ]
+}
