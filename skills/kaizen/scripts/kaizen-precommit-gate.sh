@@ -903,7 +903,21 @@ fi
 # ${warn_exit_code} を使っているのと同じ理由。`references/setup.md` に出典付きで書いてある）。
 # 警告を保持しておき、素通りする出口だけ終了コードを上げる（exit_pass）。
 # ブロック（exit 2）の出口では stderr がそのまま出るので、ここで 1 回書けば足りる。
-lifecycle_warning=${status_output}
+#
+# **出力の非空を警告の有無に使わない。** `status_output` は `2>&1` で子プロセスの stderr を
+# まるごと拾うので、検査と無関係な行（ロケール未設定時の `bash: warning: setlocale: ...` 等）が
+# 混ざる。非空で判定すると警告 0 件でも非 0 で返り、ロケールの壊れたコンテナや CI では
+# 毎コミットが恒久的に非 0 になる（実測: `LC_ALL=xx_YY.UTF-8` で rc 0 → 1）。
+# 検査自身が名乗る接頭辞だけを抜き出して判定・表示する。
+# **抽出に外部コマンドを使わない。** ここは縮退 PATH（jq / python3 が無い環境）でも通る経路で、
+# `grep` を足すと `command not found` で fail closed 側へ落ちる（実測でテストが赤くなった）。
+lifecycle_warning=""
+while IFS= read -r status_line; do
+	case "${status_line}" in
+	"kaizen-status-check: "*) lifecycle_warning="${lifecycle_warning}${status_line}"$'\n' ;;
+	esac
+done <<<"${status_output}"
+lifecycle_warning=${lifecycle_warning%$'\n'}
 if [ -n "${lifecycle_warning}" ]; then
 	printf '%s\n' "${lifecycle_warning}" >&2
 fi

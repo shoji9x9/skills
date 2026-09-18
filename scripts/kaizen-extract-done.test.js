@@ -320,6 +320,44 @@ describe("忘却の自動掃引", () => {
     expect(result.stderr).not.toContain("忘却しました");
   });
 
+  test("忘却側の診断を捨てない", () => {
+    // 忘却側は「0 件」と「判定不能・書き込み失敗」を区別するために stderr へ理由を出す。
+    // 呼び出し側が 2>/dev/null で捨てると、掃引が恒久的に失敗していても 0 件成功と
+    // 見分けが付かない（終了コードは意図的に握り潰しているので、そこにも現れない）。
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+
+    const stubDir = mkdtempSync(join(tmpdir(), "kaizen-extract-done-diag-"));
+    for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
+      copyFileSync(join(scriptsDir, name), join(stubDir, name));
+    }
+    // 実際の失敗（読み取り専用ノート）と同じ形: stdout は空、stderr に理由、exit は非 0。
+    writeFileSync(
+      join(stubDir, "kaizen-forget.sh"),
+      "#!/usr/bin/env bash\necho 'kaizen-forget: skip (could not write the note): .kaizen/stale.md' >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+
+    const result = spawnSync(
+      "bash",
+      [
+        join(stubDir, "kaizen-extract-done.sh"),
+        "--sentinel-suffix",
+        "",
+        "--agent",
+        "claude-code",
+        "--session-id",
+        SESSION,
+      ],
+      { cwd: main, encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: main } },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("could not write the note");
+    // 失敗した掃引を「忘却しました」と報告しない。
+    expect(result.stderr).not.toContain("忘却しました");
+  });
+
   test("掃引が失敗してもセンチネルは解消される", () => {
     // 抽出完了の記録は掃引より重い契約。ここで止めると、抽出したのにゲートが解除されず
     // commit できない恒久ブロッカーになる。

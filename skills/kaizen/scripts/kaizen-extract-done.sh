@@ -352,7 +352,17 @@ fi
 # **未ステージ差分を残す**——この発火点が避けようとした dirty tree そのものになる。
 # しかもゲートは出力を変数へ取り込んで非 0 のときしか出さないので、何を忘れたかも伝わらない。
 if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
-	forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto 2>/dev/null || true)
+	# **終了コードは握り潰すが、診断は捨てない。** 忘却側は「0 件」と「判定不能・書き込み失敗」を
+	# 区別するために stderr へ理由を出す（`今日の日付を〜`、`skip (could not write the note)`）。
+	# `2>/dev/null` で捨てると、掃引が恒久的に失敗していても 0 件成功と見分けが付かない。
+	forget_stderr=$(mktemp) || forget_stderr=""
+	if [ -n "${forget_stderr}" ]; then
+		forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto 2>"${forget_stderr}" || true)
+		[ -s "${forget_stderr}" ] && cat "${forget_stderr}" >&2
+		rm -f "${forget_stderr}"
+	else
+		forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto || true)
+	fi
 	if [ -n "${forgotten_notes}" ]; then
 		# 黙って忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、
 		# 戻す判断（閾値の調整・status を pending へ戻す）ができない。

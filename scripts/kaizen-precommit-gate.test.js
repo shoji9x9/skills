@@ -1149,6 +1149,39 @@ describe("lifecycle 検査", () => {
     expect(gate.stderr).toMatch(/warning: type is hook/);
   });
 
+  test("検査と無関係な stderr は警告として扱わない", () => {
+    // status_output は 2>&1 なので子プロセスの無関係な stderr も入る。非空で判定すると
+    // 警告 0 件でも非 0 になり、ロケールの壊れた環境では毎コミットが恒久的に非 0 になる。
+    const cwd = makeProject();
+    writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
+
+    // 陽性コントロール: この環境変数で bash が実際に stderr へ警告を出すことを確かめる。
+    // 出ていなければ、この後の exit 0 は「雑音を無視できた」の証拠にならない。
+    const noise = spawnSync("bash", ["-c", "true"], {
+      encoding: "utf8",
+      env: { ...process.env, LC_ALL: "xx_YY.UTF-8" },
+    });
+    expect(noise.stderr).toMatch(/setlocale/);
+
+    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).not.toMatch(/kaizen-status-check:/);
+  });
+
+  test("雑音に混ざっていても警告は拾う", () => {
+    // 上の裏返し。雑音を落とす実装が、警告まで落としていないことを確かめる。
+    const cwd = makeProject();
+    writeNote(
+      cwd,
+      "2026-08-10-docs-only.md",
+      '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
+    );
+
+    const gate = runGate("git commit -m x", { cwd, env: { LC_ALL: "xx_YY.UTF-8" } });
+    expect(gate.status).toBe(1);
+    expect(gate.stderr).toMatch(/warning: type is hook/);
+  });
+
   test("Copilot では警告でも exit 0 にする", () => {
     // Copilot の preToolUse は exit 2 以外の非 0 をすべて deny にするため、警告の
     // 終了コードを 1 にすると commit そのものが拒否される（しかも理由が hook errored）。

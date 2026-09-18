@@ -15,7 +15,7 @@ name: kaizen
 /kaizen extract --current --record-pending
                                       最重要候補を最大 1 件、承認確認なしで pending 記録（オーケストレーション専用）
 /kaizen apply                           pending の学びを成果物（ルール / doc / hook 等）へ適用
-/kaizen forget [--list] [対象ファイル...]  適用されないまま古くなった pending を忘れる（status: forgotten）
+/kaizen forget [--list | --auto | 対象ファイル...]  適用されないまま古くなった pending を忘れる（status: forgotten。3 つは排他）
 /kaizen archive [対象フラグ]             .kaizen を整理 = アーカイブ（既定・非破壊。.kaizen/archive/ へ移動）
 /kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
 
