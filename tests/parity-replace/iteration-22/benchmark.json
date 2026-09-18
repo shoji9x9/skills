@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-18T10:06:35Z",
+    "evals_run": [21],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 28.563,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "被覆表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": true,
+          "evidence": "unmeasured 0 は移行元で測った結果で新側の欠落の証明にならないと指摘"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": true,
+          "evidence": "present セルごとに new/<target>/component-comparison.json へ書くのが本スキルの担当と答えている"
+        },
+        {
+          "text": "入口・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": true,
+          "evidence": "入口・当たり判定・完了の 3 点を新側で観測すると答えている"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": true,
+          "evidence": "未突合は理由、突き合わせないなら disposition: accepted と承認記録が要ると答えている"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": true,
+          "evidence": "component-comparison-check.mjs を exit 0 まで通し、通さないと parity-diff で差し戻されると説明"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": true,
+          "evidence": "記録先が環境別（new/<target>/）であることに触れている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0,
+        "passed": 0,
+        "failed": 6,
+        "total": 6,
+        "time_seconds": 26.055,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "被覆表は移行元側の測定なので、スイートの green と unmeasured 0 だけでは新側で操作を完了できる証拠にならないと指摘している",
+          "passed": false,
+          "evidence": "declared が申告である点は突くが、被覆表が移行元側の測定である論点は出ていない"
+        },
+        {
+          "text": "value: present のセルごとに new/<target>/component-comparison.json へ突き合わせを書くのが本スキルの担当だと答えている",
+          "passed": false,
+          "evidence": "突き合わせ表という成果物を示していない"
+        },
+        {
+          "text": "入口・当たり判定・完了の 3 点を観測して記録すると答えている",
+          "passed": false,
+          "evidence": "入口・当たり判定・完了の軸を示していない"
+        },
+        {
+          "text": "突き合わせられないセルは理由を書き、突き合わせないことを選ぶなら利用者の承認（approved_by / approved_at）が要ると答えている",
+          "passed": false,
+          "evidence": "未突合の理由・承認記録に触れていない"
+        },
+        {
+          "text": "インストール済みの parity-suite の component-comparison-check.mjs を exit 0 まで通すと述べ、parity-diff の収束判定も同じスクリプトを呼ぶため通していないと差し戻されると説明している",
+          "passed": false,
+          "evidence": "機械検査に触れていない"
+        },
+        {
+          "text": "記録先が環境別（new/<target>/ 配下）であることに触れている",
+          "passed": false,
+          "evidence": "環境別の記録に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 28.563,
+        "stddev": 0,
+        "min": 28.563,
+        "max": 28.563
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      },
+      "time_seconds": {
+        "mean": 26.055,
+        "stddev": 0,
+        "min": 26.055,
+        "max": 26.055
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+1.00",
+      "time_seconds": "+2.5",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "Issue #337 で追加した eval 21 の初回実走。新側 green ＋ full 通過 ＋ 被覆表 unmeasured 0 の完了直前を与え、突き合わせ表を完了判定に入れるかを見る。",
+    "弁別: 6 assertion すべてが without_skill で落ちた（baseline はスイートの妥当性とリビジョン一致を疑う方向へ行き、突き合わせ表という成果物には到達しない）。"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "_note": "新側で操作を突き合わせた記録。parity-replace が .replace/parity/<slug>/new/<target>/component-comparison.json として生成し、parity-diff が収束判定で読む（形式の正本は parity-suite）。部品被覆表（component-coverage.json）の 3 値は移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さない。この表は被覆表の value: present のセル 1 つにつき 1 行を持ち、行の無いセルは未突合として数える。突き合わせの証拠は入口・当たり判定・完了の 3 点に分ける——「機能は在る」が「操作を最後まで完了できない」欠落はケースの文面（エクスポート・列のソート）に出てこないため。検査は parity-suite の scripts/component-comparison-check.mjs が行う。",
+  "slug": "<features.md の slug。metadata.json の slug と一致させる>",
+  "target": "<新側 target 名。replace-metadata.json の new.target と一致させる（別環境の記録で収束させない）>",
+  "measured_at": "<ISO 8601。突き合わせを行った日時>",
+  "new_implementation": {
+    "_note": "この突き合わせを取ったときの新側の版。target・slug・被覆表の指紋だけで縛ると、記録の後に新側を変えても古い証拠が通る（当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。component-comparison-check.mjs は --replace-metadata（必須）の replace-metadata.json の new.commit と突き合わせ、違えば comparison-implementation-stale で落とす。dirty はどちらの側も false でなければ落とす（欠落・非真偽値は「調べていない」として扱う）。",
+    "commit": "<突き合わせを行ったときの新側リポジトリのコミット SHA（replace-metadata.json の new.commit と同じ値。無ければ none）>",
+    "dirty": "<そのとき新側の作業ツリーに未コミットの変更があったか（真偽値）。false でなければ落ちる——未コミットの変更を抱えた作業ツリーで操作した記録は commit で版を特定できない>"
+  },
+  "source_coverage": {
+    "path": "<読んだ被覆表のパス（例: .replace/parity/<slug>/component-coverage.json）>",
+    "fingerprint": "<被覆表の present セルの鍵（component|item|instance）を昇順に改行連結した sha256。component-comparison-check.mjs が同じ規則で数え直す。手で書かず、検査が出す期待値を写す>"
+  },
+  "cells": [
+    {
+      "component": "<部品 id。被覆表の cells[].component と同じ>",
+      "item": "<項目 id。被覆表の cells[].item と同じ>",
+      "instance": "<インスタンス id。被覆表の cells[].instance と同じ>",
+      "compared": "<true = 新側で同じ操作を実施し、移行元と差が無いことを確かめた。false = まだ突き合わせていない（真偽値で書く）>",
+      "evidence": {
+        "_note": "compared: true のときだけ 3 点すべてが要る。1 点でも空なら突き合わせ済みにしない。",
+        "entry": "<入口: 新側でその操作を始められたことの観測（送った操作と到達した要素）。例: 右クリックでメニューが開いた>",
+        "hit_area": "<当たり判定: 押せる範囲・cursor が移行元と同じことの観測。例: 下位を示す三角が項目自身の ::after で、行全体が 1 つの項目>",
+        "completion": "<完了: 操作が最後まで完了し、結果が移行元と同じことの観測。例: 親項目を押すと下位が開き、親メニューは閉じない>"
+      },
+      "not_compared_reason": "<compared: false のとき必須。何が突き合わせを止めているか（新側が未実装・到達手段が無い等）。true では null>",
+      "disposition": "<compared: false のときの扱い: blocking（既定。収束させない） | accepted（突き合わせないことを利用者が承認した）。true では null>",
+      "approved_by": "<accepted のとき必須。承認した人>",
+      "approved_at": "<accepted のとき必須。ISO 8601>"
+    }
+  ]
+}

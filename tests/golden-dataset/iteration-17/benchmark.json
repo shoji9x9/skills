@@ -1,0 +1,162 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-18T10:40:41Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 36.755,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "横断 API 行の slug から roles の消費側は user だとして写し漏れを指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "役割は引き方ではなく消費する slug の有無で決まると明言"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "1 行だと絞り込みを外しても結果が変わらず 0 件より危険と説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": true,
+          "evidence": "guest を外すなら「gaps に記録」を選び根拠を書く、判断基準は消費側が本当に使うかだと答えた"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "version の上昇と採取物の陳腐化に触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs を exit 0 まで通すと示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 27.335,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "features.md の user が roles を参照テーブルに持つので `-` は誤りと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": false,
+          "evidence": "「読み取りだけに分類すること自体は正しい」とし、役割を消費で決めていない"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "admin 1 行だけでは条件が無くても同じ結果になり区別できないと説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "gaps に記録という選択肢も判断材料も示していない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "version の上昇と採取物の陳腐化に触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": false,
+          "evidence": "機械検査に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 36.755,
+        "stddev": 0,
+        "min": 36.755,
+        "max": 36.755
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 27.335,
+        "stddev": 0,
+        "min": 27.335,
+        "max": 27.335
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+9.4",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "iteration-16 で assertion 4（足す／gaps に記録の選択）が 3 run 中 1 run しか到達しなかったため、prompt に「どの画面・API からも参照されない guest 行」を足して選択が live になる材料を与えた iteration。",
+    "結果: assertion 4 は with_skill で到達（「外すなら gaps に記録を選び根拠を書く。判断基準は消費側が本当に使うか」）。without_skill は到達しないままで弁別も残る。",
+    "assertion 5（version と陳腐化）はこの run で落ちた（iteration-16 では 3 run 中 2 run 到達）。ばらつきの範囲として扱う。"
+  ]
+}

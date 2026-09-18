@@ -1,0 +1,259 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5",
+    "timestamp": "2026-09-18T10:24:23Z",
+    "evals_run": [20],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 30.37,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "features.md の user が roles を読むため `-` は写し漏れと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "役割は消費する slug の有無で決まり JOIN / FROM は関係ないと明言"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "偽の側が 0 行になり新側が絞り込みを落としても通ると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "「足す」を選ぶ判断材料は述べたが、gaps に記録という選択肢を示していない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": true,
+          "evidence": "version 1 の設計段階なので今足してもベースラインは古くならないと説明"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs を exit 0 まで通す手順を示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 29.54,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "3 表の写しとして roles の消費側は user と書く必要があると指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "「JOIN で引くか FROM の母集合として引くかは役割を変えない」を引用"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "真 1 / 偽 0 で踏めない判定になり緑のまま通ると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "扱いを `-` と埋めるに留まり、足す／gaps に記録の選択に触れていない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": true,
+          "evidence": "後で気づくと version が上がり order / report の採取物が陳腐化すると説明"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs を exit 0 まで通すと示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 3,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 35.24,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "`-` にすると役割が読み取りだけへ倒れ行数の検討から外れると指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "役割は使う slug の有無で決まり JOIN / FROM は関係ないと明言"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "絞り込みを外しても結果が変わらず新側の欠落が通ると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": true,
+          "evidence": "「扱いは『gaps に記録』ではなく『足す』」と選択の形で答え、消費側が使う分岐だからと根拠を示した"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "version の上昇と採取物の陳腐化に触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs の exit 0 を確認してから次へ進むと示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 28.437,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "§1 で features.md の user が roles を挙げているため `-` にできないと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": false,
+          "evidence": "「読み取りだけという分類自体は問題なし」とし、役割の判定を消費で決めていない"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "§3 で 1 行だとフィルタが壊れても結果が変わらずすり抜けると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": false,
+          "evidence": "足す／gaps に記録の選択にも判断材料にも触れていない"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "version の上昇と採取物の陳腐化に触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": false,
+          "evidence": "機械検査（predicate-coverage-check.mjs）に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.8333,
+        "stddev": 0,
+        "min": 0.8333,
+        "max": 0.8333
+      },
+      "time_seconds": {
+        "mean": 31.7167,
+        "stddev": 3.0794,
+        "min": 29.54,
+        "max": 35.24
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 28.437,
+        "stddev": 0,
+        "min": 28.437,
+        "max": 28.437
+      },
+      "tokens": {
+        "mean": 0,
+        "stddev": 0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "+3.3",
+      "tokens": "+0"
+    }
+  },
+  "notes": [
+    "切り分け目的の with_skill 3 run。without_skill は iteration-15 の run を --reuse-baseline で再利用（LLM 未起動。baseline-reuse.json に fingerprint と CLI / harness version を記録）。executor claude-code / claude-opus-5 / effort high。",
+    "問い: iteration-15 で落ちた assertion 4（踏めない分岐を「足す」か「gaps に記録」かで選ぶ）が出力のばらつきか、導線の弱さか。",
+    "結果: 3 run 中 1 run だけ到達（run-3 が「扱いは『gaps に記録』ではなく『足す』」と選択の形で答えた）。残り 2 run は判断材料を述べつつ「足す」へ直行した。",
+    "読み取り: この prompt は消費側が実際に使う分岐なので「足す」が正解で、gaps の選択肢を口に出す必然が無い。assertion 4 は prompt に材料の無い規律を要求している（到達性の問題）。規律自体は eval 21 で 1/1 到達している。",
+    "assertion 5（version と陳腐化）は 3 run 中 2 run が到達。run-3 だけ落ちたのでばらつきの範囲。"
+  ]
+}
