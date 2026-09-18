@@ -124,7 +124,7 @@ bash <スキル>/scripts/kaizen-status-check.sh
 ## 適用しないまま古くなった学び（忘却）
 
 適用されないまま閾値の日数が過ぎ、優先度も上がらなかった（＝再発していない）pending は、`status: forgotten` にして SessionStart 注入から外す。
-**既定で SessionStart フックが自動的に行う**ため、apply フローがこれを実行する必要はない。本文は残るので KEDB 照合では見つかり、再発したら pending へ戻す。
+**既定で抽出完了時（`kaizen-extract-done.sh`）に自動で行う**ため、apply フローがこれを実行する必要はない。本文は残るので KEDB 照合では見つかり、再発したら pending へ戻す。
 判定条件・閾値の設定・呼び戻しの手順は `references/housekeeping.md`「忘却」を参照する。
 
 ## クリーンアップ（整理）

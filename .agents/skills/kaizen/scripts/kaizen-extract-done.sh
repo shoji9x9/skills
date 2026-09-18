@@ -345,7 +345,13 @@ fi
 # **センチネル解消の後に置く。** 掃引が失敗しても抽出完了の記録は済んでいる必要がある
 # （ここで止めると、抽出したのにゲートが解除されず commit できない恒久ブロッカーになる）。
 # 同じ理由で失敗はすべて握り潰し、exit 0 を維持する。
-if [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
+#
+# **`complete` に限る。** `--checkpoint-only` はゲートが `git commit` の PreToolUse で
+# 「候補ゼロを検証できた」ことを記録するために呼ぶ経路で、学びは 1 件も記録されていない。
+# ここで掃引すると、ユーザーが `git add` を済ませた状態の追跡ファイルを書き換えて
+# **未ステージ差分を残す**——この発火点が避けようとした dirty tree そのものになる。
+# しかもゲートは出力を変数へ取り込んで非 0 のときしか出さないので、何を忘れたかも伝わらない。
+if [ "${mode}" = "complete" ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
 	forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto 2>/dev/null || true)
 	if [ -n "${forgotten_notes}" ]; then
 		# 黙って忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、

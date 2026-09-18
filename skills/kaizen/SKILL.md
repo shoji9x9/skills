@@ -21,7 +21,7 @@ license: MIT
 /kaizen delete  [対象フラグ]             .kaizen を整理 = 物理削除（破壊的・明示時のみ）
 
 対象フラグ（archive / delete 共通・省略時は対象を対話で確認）:
-  --applied | --rejected | --applied-and-rejected | --all
+  --applied | --rejected | --applied-and-rejected | --forgotten | --all
 
 初回のみ: /kaizen setup（インストール後の hooks 等のセットアップ。「Step 3」参照）
 ```

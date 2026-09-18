@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -465,3 +465,37 @@ test.each(["--list", "--auto"])(
     }
   },
 );
+
+// 書き戻しの一時ファイルは固定名にしない。掃引は抽出完了時に走るので、同じリポジトリで
+// 2 セッションが同時に commit を通せば同じ tmp を書き合い、`cat tmp >note` が途中の内容を
+// 書き戻してノートを壊す（rc 0 なので「忘却した」と報告される）。
+// 状態空間: tmp の残骸 × 名前
+//   残骸なし            → 忘却できる（既存ケースが押さえている）
+//   残骸あり（固定名）  → 固定名だと衝突する。ユニーク名なら影響を受けない  ← ここ
+//   中断                → 残骸を残さない                                    ← ここ
+describe("書き戻しの一時ファイル", () => {
+  test("固定名の残骸があっても忘却は壊れない", () => {
+    const dir = makeProject(CANDIDATES);
+    // 旧実装が使っていた固定名を先に占有しておく。ユニーク名ならこれを読み書きしない。
+    const squatter = join(dir, ".kaizen", "old-low.md.kaizen-forget-tmp");
+    writeFileSync(squatter, "他セッションが書きかけの内容\n");
+
+    const result = run(dir, ["--auto"]);
+    expect(result.status).toBe(0);
+    expect(statusOf(dir, "old-low")).toBe("forgotten");
+    // ノートの本文が居座りの内容で上書きされていない。
+    expect(readFileSync(join(dir, ".kaizen", "old-low.md"), "utf8")).toContain("## 事象");
+    expect(readFileSync(join(dir, ".kaizen", "old-low.md"), "utf8")).not.toContain("書きかけ");
+    // 他人のファイルには触らない。
+    expect(readFileSync(squatter, "utf8")).toBe("他セッションが書きかけの内容\n");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("忘却後に一時ファイルの残骸を残さない", () => {
+    const dir = makeProject(CANDIDATES);
+    expect(run(dir, ["--auto"]).status).toBe(0);
+    const leftovers = readdirSync(join(dir, ".kaizen")).filter((n) => n.includes("kaizen-forget-"));
+    expect(leftovers).toEqual([]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});

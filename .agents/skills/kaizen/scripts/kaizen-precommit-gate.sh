@@ -894,6 +894,12 @@ if [ "${status_rc}" -ne 0 ]; then
 	printf '%s\n' "${status_output}" >&2
 	exit 2
 fi
+# 警告（rc 0）も出す。ここは lifecycle 検査の唯一の自動実行経路なので、非 0 のときしか
+# 出さないと「commit のたびに気づける」はずの警告が誰にも届かない（Issue #341 の
+# doc だけで閉じた対策の警告がこれに当たる）。commit は止めない。
+if [ -n "${status_output}" ]; then
+	printf '%s\n' "${status_output}" >&2
+fi
 
 # 案内・コマンドへ載せる値の健全性検査。センチネルの中身は自分のフックが書いたものだが、
 # 壊れた値や引用符を含む値をそのまま貼れるコマンドとして出さない。
@@ -1006,6 +1012,10 @@ epoch_from_stamp() { # $1: タイムスタンプ
 	# 暦の計算は共通ライブラリ（kaizen-hook-common.sh）が持つ。読めない縮退環境では
 	# タイムスタンプを「判定不能」として返す——回収は削除なので、算術を握り潰して
 	# 0 を返すと 1970 年扱いになり、生きているセンチネルまで古いと見なして消す。
+	# **縮退版へ暦を足しても回収は動かない。** 縮退版の `kaizen_sentinel_key_of` は空を返し、
+	# 持ち主を特定できないセンチネルは sweep_expired_foreign_sentinels が一律で対象外にする
+	# （自分側として扱う）。回収が成立するのはライブラリを読めた構成だけで、これは暦を
+	# ライブラリへ移す前から変わらない（両構成・新旧 2 版の 4 通りを実測して確認した）。
 	declare -f kaizen_days_from_civil >/dev/null 2>&1 || return 1
 	printf '%s' $(($(kaizen_days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
 }

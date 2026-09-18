@@ -1118,6 +1118,43 @@ describe("lifecycle 検査", () => {
       if (stderrPattern) expect(check.stderr).toMatch(stderrPattern);
     },
   );
+
+  // 警告（rc 0）はゲートの出力から落ちやすい。ゲートは検査の出力を変数へ取り込むので、
+  // 非 0 のときだけ出す書き方だと、唯一の自動実行経路で警告が誰にも届かない。
+  // 状態空間: 検査の rc × 出力の有無
+  //   rc 2 × 出力あり → 出す・commit を止める（既存の appliedToCases が押さえている）
+  //   rc 0 × 出力あり（警告）→ 出す・commit は止めない  ← ここ
+  //   rc 0 × 出力なし       → 何も足さない              ← ここ
+  test("lifecycle 検査の警告は commit を止めずに出る", () => {
+    const cwd = makeProject();
+    // type は機構（hook）なのに applied-to がドキュメントだけ = Issue #341 の警告。
+    writeNote(
+      cwd,
+      "2026-08-10-docs-only.md",
+      '---\ndate: 2026-08-10\ntype: hook\nstatus: applied\npriority: high\napplied-to: ["AGENTS.md"]\n---\n\n# note\n',
+    );
+
+    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    expect(check.status).toBe(0);
+    expect(check.stderr).toMatch(/warning: type is hook/);
+
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).toMatch(/warning: type is hook/);
+  });
+
+  test("警告が無ければゲートは検査の出力を足さない", () => {
+    const cwd = makeProject();
+    writeNote(cwd, "2026-08-10-note.md", note("applied", ' ["AGENTS.md"]'));
+
+    const check = runScript("kaizen-status-check.sh", [], { cwd });
+    expect(check.status).toBe(0);
+    expect(check.stderr).toBe("");
+
+    const gate = runGate("git commit -m x", { cwd });
+    expect(gate.status).toBe(0);
+    expect(gate.stderr).toBe("");
+  });
 });
 
 // transcript を「一度も記録していない」センチネル（`/compact` 専用の隠しセッションのように

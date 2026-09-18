@@ -4,12 +4,12 @@
 # 適用されないまま古くなった pending の学びを `status: forgotten` にする（Issue #339）。
 #
 #   kaizen-forget.sh --list        忘却候補を一覧する（何も変更しない）
-#   kaizen-forget.sh --auto        条件を満たす候補を忘却する（SessionStart フックから呼ぶ既定経路）
+#   kaizen-forget.sh --auto        条件を満たす候補を忘却する（抽出完了時に kaizen-extract-done.sh が呼ぶ既定経路）
 #   kaizen-forget.sh FILE...       指定したノートを条件に関わらず忘却する（明示指示）
 #
 # **忘却はファイルを動かさない。** frontmatter の `status` を 1 行書き換えるだけにする——
-# 自動で走る経路なので、`git mv` を含めるとセッション開始のたびに勝手にステージされた差分が
-# 生まれる。狙いである「SessionStart 注入の肥大」は status だけで解ける
+# 自動で走る経路なので、`git mv` を含めると勝手にステージされた差分が生まれる。
+# 狙いである「SessionStart 注入の肥大」は status だけで解ける
 # （kaizen-context-inject.sh は `status: pending` しか注入しない）。
 # 本文は top-level に残るので KEDB 照合（kaizen-kedb-match.sh）は従来どおり全文を照合し、
 # **同じ事象が再発すればヒットする**。そこで pending へ戻せる（`references/extract.md`）。
@@ -164,7 +164,13 @@ list_candidates() {
 # （kaizen-archive.sh のリンク補正と同じ手順）。
 rewrite_status() { # $1: ノート
 	local note="$1" tmp
-	tmp="${note}.kaizen-forget-tmp"
+	# **固定名にしない。** 掃引は抽出完了時に走るので、同じリポジトリで 2 セッションが
+	# 同時に commit を通せば両方が同じ tmp を書き合い、`cat tmp >note` が途中の内容を
+	# 書き戻してノートを壊す（rc 0 なので「忘却した」と報告される）。
+	tmp=$(mktemp "${note}.kaizen-forget-XXXXXX") || return 2
+	# 中断（Ctrl-C・SIGTERM）で untracked の残骸を残さない。残ると clean 確認を持つ工程が
+	# そこで止まる。EXIT だけでは kill に届かないのでシグナルも拾う。
+	trap 'rm -f "${tmp}"' EXIT INT TERM
 	awk '
 		BEGIN { fm = 0; done = 0 }
 		/^---[[:space:]]*$/ { fm++; print; next }
@@ -175,6 +181,7 @@ rewrite_status() { # $1: ノート
 		# frontmatter に status 行が無いノートは新形式ではない。書き換えると
 		# 「忘却した」と「status を持たない」が区別できなくなるので触らない。
 		rm -f "${tmp}"
+		trap - EXIT INT TERM
 		return 1
 	}
 	# 書き戻しの失敗を握り潰さない。この関数は `if rewrite_status ...` から呼ばれるため
@@ -185,9 +192,11 @@ rewrite_status() { # $1: ノート
 	# 書き込み権限の問題が「新形式ではない」と案内され、直しようがなくなる。
 	if ! cat "${tmp}" >"${note}"; then
 		rm -f "${tmp}"
+		trap - EXIT INT TERM
 		return 2
 	fi
 	rm -f "${tmp}"
+	trap - EXIT INT TERM
 }
 
 # 忘却できなかった理由を出す。$1 = rewrite_status の戻り値、$2 = 表示するノート。
@@ -203,7 +212,7 @@ report_rewrite_failure() { # $1: 戻り値 $2: ノート
 print_usage() {
 	{
 		echo "usage: kaizen-forget.sh --list     # list forget candidates (no changes)"
-		echo "       kaizen-forget.sh --auto     # forget the candidates (used by the SessionStart hook)"
+		echo "       kaizen-forget.sh --auto     # forget the candidates (used by kaizen-extract-done.sh)"
 		echo "       kaizen-forget.sh FILE...    # forget the given notes regardless of the thresholds"
 	} >&2
 }

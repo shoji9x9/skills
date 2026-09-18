@@ -295,6 +295,31 @@ describe("忘却の自動掃引", () => {
     expect(statusOf(main, "fresh.md")).toBe("pending");
   });
 
+  test("checkpoint-only（ゲートの候補ゼロ自動通過）では掃引しない", () => {
+    // このモードはゲートが `git commit` の PreToolUse で呼ぶ。学びは 1 件も記録されて
+    // いないのに追跡ファイルを書き換えると、`git add` 済みのユーザーに未ステージ差分を
+    // 残す——発火点を SessionStart から移した理由そのものを壊す。
+    const { main } = makeRepoWithWorktree();
+    writeSentinel(main);
+    writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
+    const transcript = join(main, "transcript.jsonl");
+    writeFileSync(transcript, '{"type":"user"}\n');
+
+    const result = runExtractDone(main, main, [
+      "--checkpoint-only",
+      "--scanned-bytes",
+      String(readFileSync(transcript).length),
+      "--scanned-lines",
+      "1",
+      transcript,
+    ]);
+    expect(result.status).toBe(0);
+    // 陽性コントロール: 同じノート・同じ経過日数が complete では忘却される（下の complete
+    // ケースと同じ入力）。ここで pending のままなのはモード判定が効いているから。
+    expect(statusOf(main, "stale.md")).toBe("pending");
+    expect(result.stderr).not.toContain("忘却しました");
+  });
+
   test("掃引が失敗してもセンチネルは解消される", () => {
     // 抽出完了の記録は掃引より重い契約。ここで止めると、抽出したのにゲートが解除されず
     // commit できない恒久ブロッカーになる。
