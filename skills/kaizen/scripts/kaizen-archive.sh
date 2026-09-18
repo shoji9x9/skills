@@ -125,7 +125,10 @@ regenerate_index() {
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
 			# 非 UTF-8 ロケールではバイト単位になり UTF-8 を壊しうるため、UTF-8 のときだけ切り詰める。
 			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では切り詰めず安全側に倒す。
-			if locale charmap 2>/dev/null | grep -qi 'utf-\{0,1\}8' && [ "${#summary}" -gt 80 ]; then
+			# パイプで渡さない——`grep -q` は一致した時点で抜けるので、pipefail 下では書き手の
+			# SIGPIPE でパイプライン全体が非 0 になり、UTF-8 なのに切り詰めない側へ倒れうる
+			# （kaizen-context-inject.sh の `head` に関する注記と同じ機構）。
+			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)" && [ "${#summary}" -gt 80 ]; then
 				summary=${summary:0:79}…
 			fi
 			echo "- \`$(basename "${f}")\` — ${meta}— ${summary}"
