@@ -79,6 +79,10 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		[ -n "${2:-}" ] && [ -e ".kaizen/$2" ] || return 1
 		printf '%s' ".kaizen/$2"
 	}
+	# 設定リーダも共通ライブラリ側にある。読めないときは「定義なし」を返し、呼び出し側の
+	# 既定値へ倒す（`.kaizen/config` で調整した値は効かなくなるが、既定は安全側なので
+	# 遮断条件は緩まない）。
+	kaizen_config_value() { return 1; }
 fi
 
 # Hook 入力から command と transcript_path を取り出す。jq が無い／壊れている環境では
@@ -983,48 +987,6 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 	done
 }
 
-# `.kaizen/config` から設定値を読む。`KEY=VALUE` の 1 行 1 設定で、`#` から行末はコメント、
-# キー・値の前後の空白は落とす。同じキーが複数あれば**最後の定義**を採る（先勝ちにすると、
-# 追記で上書きしたつもりの値が黙って無視される）。定義が無ければ 1 を返し、呼び出し側が既定へ倒す。
-#
-# YAML ではなくこの形式にしているのは、このゲートが bash だけで動く hook で、`yq` / `jq` 無しでも
-# 設定を読める必要があるため（`jq` はセンチネル走査の前提だが、設定の読み取りまで依存させない）。
-kaizen_config_value() { # $1: キー名
-	local config=.kaizen/config line key value found="" found_any=""
-	[ -r "${config}" ] || return 1
-	# 最終行に改行が無くても読み落とさない。
-	while IFS= read -r line || [ -n "${line}" ]; do
-		line=${line%%#*}
-		case "${line}" in
-		*=*) ;;
-		*) continue ;;
-		esac
-		key=${line%%=*}
-		value=${line#*=}
-		key=${key#"${key%%[![:space:]]*}"}
-		key=${key%"${key##*[![:space:]]}"}
-		value=${value#"${value%%[![:space:]]*}"}
-		value=${value%"${value##*[![:space:]]}"}
-		[ "${key}" = "$1" ] || continue
-		found=${value}
-		found_any=1
-	done <"${config}"
-	[ -n "${found_any}" ] || return 1
-	printf '%s' "${found}"
-}
-
-# 民生暦 (y, m, d) を 1970-01-01 からの日数へ変換する（Howard Hinnant の days_from_civil）。
-# `date -d` / `date -j -f` は GNU と BSD で意味が違うため、算術だけで求めて実装差を持ち込まない。
-days_from_civil() { # $1: 年 $2: 月 $3: 日（いずれも 10 進の整数）
-	local y=$1 m=$2 d=$3 era yoe doy doe
-	y=$((y - (m <= 2 ? 1 : 0)))
-	era=$(((y >= 0 ? y : y - 399) / 400))
-	yoe=$((y - era * 400))
-	doy=$(((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1))
-	doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
-	printf '%s' $((era * 146097 + doe - 719468))
-}
-
 # `YYYY-MM-DDTHH:MM:SSZ`（センチネル 1 行目・`date -u` の出力）を UTC 秒へ変換する。
 # 形式が違えば 1 を返す——**判定不能を「古い」に倒さない**（回収は削除なので、
 # 読めない値で削除側へ倒すと、実際には持ち主が生きているセンチネルまで消す）。
@@ -1041,7 +1003,11 @@ epoch_from_stamp() { # $1: タイムスタンプ
 	[ "${mo}" -ge 1 ] && [ "${mo}" -le 12 ] || return 1
 	[ "${d}" -ge 1 ] && [ "${d}" -le 31 ] || return 1
 	[ "${hh}" -le 23 ] && [ "${mi}" -le 59 ] && [ "${ss}" -le 60 ] || return 1
-	printf '%s' $(($(days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
+	# 暦の計算は共通ライブラリ（kaizen-hook-common.sh）が持つ。読めない縮退環境では
+	# タイムスタンプを「判定不能」として返す——回収は削除なので、算術を握り潰して
+	# 0 を返すと 1970 年扱いになり、生きているセンチネルまで古いと見なして消す。
+	declare -f kaizen_days_from_civil >/dev/null 2>&1 || return 1
+	printf '%s' $(($(kaizen_days_from_civil "${y}" "${mo}" "${d}") * 86400 + hh * 3600 + mi * 60 + ss))
 }
 
 # 他セッションのセンチネルを回収するまでの日数。既定 7 日、`never` で回収しない。

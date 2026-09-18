@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# kaizen forget helper
+#
+# 適用されないまま古くなった pending の学びを `status: forgotten` にする（Issue #339）。
+#
+#   kaizen-forget.sh --list        忘却候補を一覧する（何も変更しない）
+#   kaizen-forget.sh --auto        条件を満たす候補を忘却する（SessionStart フックから呼ぶ既定経路）
+#   kaizen-forget.sh FILE...       指定したノートを条件に関わらず忘却する（明示指示）
+#
+# **忘却はファイルを動かさない。** frontmatter の `status` を 1 行書き換えるだけにする——
+# 自動で走る経路なので、`git mv` を含めるとセッション開始のたびに勝手にステージされた差分が
+# 生まれる。狙いである「SessionStart 注入の肥大」は status だけで解ける
+# （kaizen-context-inject.sh は `status: pending` しか注入しない）。
+# 本文は top-level に残るので KEDB 照合（kaizen-kedb-match.sh）は従来どおり全文を照合し、
+# **同じ事象が再発すればヒットする**。そこで pending へ戻せる（`references/extract.md`）。
+# 物理的な移動は従来どおり明示の `kaizen archive` が担う。
+#
+# 判定材料:
+#   - `status: pending`（applied / rejected / forgotten は対象外）
+#   - `priority` が閾値以下（既定は low のみ。KEDB 照合で再発が見つかったノートは
+#     `references/extract.md` の契約により優先度が上がるので、low のままは「再発していない」証跡）
+#   - `date` から閾値日数以上が経過している（日付を読めないノートは対象外＝忘れない）
+#
+# 設定（`.kaizen/config` の `KEY=VALUE`。既定値はこのスクリプトが持つ）:
+#   forget_auto=on|off              --auto の有効・無効（既定 on）
+#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補（既定 90）
+#   forget_max_priority=low|medium|high  この優先度までを候補にする（既定 low）
+#
+# 詳細手順は references/housekeeping.md を参照。
+set -euo pipefail
+
+orig_pwd=$(pwd)
+orig_pwd=${orig_pwd%/}
+kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
+# 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
+# shellcheck source=./kaizen-hook-common.sh disable=SC1091
+[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+# `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
+if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
+	project_root=$(kaizen_resolve_project_root "")
+else
+	project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+fi
+if [ -n "${project_root}" ]; then
+	cd "${project_root}" || {
+		echo "kaizen-forget: failed to cd to project root: ${project_root}" >&2
+		exit 1
+	}
+fi
+
+resolve_path() {
+	case "$1" in
+	/*) printf '%s' "$1" ;;
+	*) printf '%s/%s' "${orig_pwd}" "$1" ;;
+	esac
+}
+
+# frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。
+# 本文中の `status:` / `priority:` を拾わないよう範囲を frontmatter に限る
+# （kaizen-context-inject.sh の frontmatter_field と同じ契約）。
+frontmatter_field() { # $1: ノート $2: キー
+	awk -v key="$2" '
+		BEGIN { fm = 0 }
+		/^---[[:space:]]*$/ {
+			fm++
+			if (fm == 2) exit
+			next
+		}
+		fm == 1 && index($0, key ":") == 1 {
+			value = substr($0, length(key) + 2)
+			sub(/^[[:space:]]+/, "", value)
+			sub(/[[:space:]]+$/, "", value)
+			print value
+			exit
+		}
+	' "$1" 2>/dev/null || true
+}
+
+config_value() { # $1: キー名
+	declare -f kaizen_config_value >/dev/null 2>&1 || return 1
+	kaizen_config_value "$1"
+}
+
+# --- 設定の解決 -------------------------------------------------------------
+# 不正値は既定へ倒し、黙って倒さずに stderr へ出す（設定したつもりの閾値で動いていると
+# 読めてしまうため。kaizen-precommit-gate.sh の resolve_retention_days と同じ方針）。
+forget_auto=on
+if raw=$(config_value forget_auto); then
+	case "${raw}" in
+	on | off) forget_auto=${raw} ;;
+	*) printf 'kaizen-forget: .kaizen/config の forget_auto が不正です（%q）。既定の %s を使います。\n' "${raw:0:40}" "${forget_auto}" >&2 ;;
+	esac
+fi
+
+forget_after_days=90
+if raw=$(config_value forget_after_days); then
+	if [[ "${raw}" =~ ^[0-9]{1,6}$ ]]; then
+		forget_after_days=$((10#${raw}))
+	else
+		printf 'kaizen-forget: .kaizen/config の forget_after_days が不正です（%q）。既定の %s 日を使います。\n' "${raw:0:40}" "${forget_after_days}" >&2
+	fi
+fi
+
+# priority の順位。数が大きいほど低い優先度（kaizen-context-inject.sh の rank と揃える）。
+priority_rank() { # $1: priority
+	case "$1" in
+	high) printf '0' ;;
+	medium) printf '1' ;;
+	low) printf '2' ;;
+	# 未知・未設定の priority は**忘却の対象外**にする。注入側は末尾へ回すだけだが、
+	# こちらは「消える側」の操作なので、読めない値を最も低い優先度に倒すと
+	# priority を書き忘れただけの学びが自動で忘れられる。
+	*) return 1 ;;
+	esac
+}
+
+forget_max_rank=2
+if raw=$(config_value forget_max_priority); then
+	if rank=$(priority_rank "${raw}"); then
+		forget_max_rank=${rank}
+	else
+		printf 'kaizen-forget: .kaizen/config の forget_max_priority が不正です（%q）。既定の low を使います。\n' "${raw:0:40}" >&2
+	fi
+fi
+
+# --- 候補判定 ---------------------------------------------------------------
+today_days=""
+if declare -f kaizen_days_from_date >/dev/null 2>&1; then
+	today_days=$(kaizen_days_from_date "$(date -u '+%Y-%m-%d' 2>/dev/null || true)") || today_days=""
+fi
+
+# 候補なら 0、そうでなければ 1 を返す。判定できない材料は候補から外す（忘れない側へ倒す）。
+is_candidate() { # $1: ノート
+	local note="$1" status priority rank note_days age
+	status=$(frontmatter_field "${note}" status)
+	[ "${status}" = "pending" ] || return 1
+	priority=$(frontmatter_field "${note}" priority)
+	rank=$(priority_rank "${priority}") || return 1
+	[ "${rank}" -ge "${forget_max_rank}" ] || return 1
+	[ -n "${today_days}" ] || return 1
+	note_days=$(kaizen_days_from_date "$(frontmatter_field "${note}" date)") || return 1
+	age=$((today_days - note_days))
+	[ "${age}" -ge "${forget_after_days}" ] || return 1
+	return 0
+}
+
+# 候補の一覧を stdout へ（1 行 1 ファイル、タブ区切りで判断材料も出す）。
+list_candidates() {
+	local note age note_days
+	for note in .kaizen/*.md; do
+		[ -e "${note}" ] || continue
+		[ "$(basename "${note}")" = "INDEX.md" ] && continue
+		is_candidate "${note}" || continue
+		note_days=$(kaizen_days_from_date "$(frontmatter_field "${note}" date)") || continue
+		age=$((today_days - note_days))
+		printf '%s\t%s\t%s\t%s\n' "${note}" "$(frontmatter_field "${note}" date)" "$(frontmatter_field "${note}" priority)" "${age}"
+	done
+}
+
+# frontmatter の `status:` 行だけを書き換える。本文の `status:` には触らない。
+# 一時ファイルへ書いてから内容を戻すことで、元ファイルの mode とシンボリックリンクを保つ
+# （kaizen-archive.sh のリンク補正と同じ手順）。
+rewrite_status() { # $1: ノート
+	local note="$1" tmp
+	tmp="${note}.kaizen-forget-tmp"
+	awk '
+		BEGIN { fm = 0; done = 0 }
+		/^---[[:space:]]*$/ { fm++; print; next }
+		fm == 1 && !done && index($0, "status:") == 1 { print "status: forgotten"; done = 1; next }
+		{ print }
+		END { exit(done ? 0 : 1) }
+	' "${note}" >"${tmp}" || {
+		# frontmatter に status 行が無いノートは新形式ではない。書き換えると
+		# 「忘却した」と「status を持たない」が区別できなくなるので触らない。
+		rm -f "${tmp}"
+		return 1
+	}
+	cat "${tmp}" >"${note}"
+	rm -f "${tmp}"
+}
+
+# --- モードの分岐 -----------------------------------------------------------
+mode=""
+case "${1:-}" in
+--list)
+	mode=list
+	shift
+	;;
+--auto)
+	mode=auto
+	shift
+	;;
+"")
+	{
+		echo "usage: kaizen-forget.sh --list     # list forget candidates (no changes)"
+		echo "       kaizen-forget.sh --auto     # forget the candidates (used by the SessionStart hook)"
+		echo "       kaizen-forget.sh FILE...    # forget the given notes regardless of the thresholds"
+	} >&2
+	exit 2
+	;;
+*)
+	mode=explicit
+	;;
+esac
+
+if [ "${mode}" != "explicit" ] && [ "$#" -gt 0 ]; then
+	echo "kaizen-forget: ${mode} mode takes no file arguments" >&2
+	exit 2
+fi
+
+case "${mode}" in
+list)
+	candidates=$(list_candidates)
+	if [ -z "${candidates}" ]; then
+		# 対象 0 件を黙って成功にしない。閾値が効いているのか材料が読めていないのかを
+		# 呼び出し側が区別できるよう、使った閾値まで出す。
+		echo "kaizen-forget: 忘却候補はありません（status: pending / priority <= ${forget_max_rank} / ${forget_after_days} 日以上）" >&2
+		exit 0
+	fi
+	printf '%s\n' "${candidates}"
+	;;
+auto)
+	if [ "${forget_auto}" = "off" ]; then
+		echo "kaizen-forget: 自動忘却は無効です（.kaizen/config の forget_auto=off）" >&2
+		exit 0
+	fi
+	forgotten=0
+	while IFS=$'\t' read -r note _date _priority _age; do
+		[ -n "${note}" ] || continue
+		if rewrite_status "${note}"; then
+			printf '%s\n' "${note}"
+			forgotten=$((forgotten + 1))
+		else
+			echo "kaizen-forget: skip (no status line in frontmatter): ${note}" >&2
+		fi
+	done <<<"$(list_candidates)"
+	echo "kaizen-forget: forgot ${forgotten} note(s)" >&2
+	;;
+explicit)
+	forgotten=0
+	for arg in "$@"; do
+		f=$(resolve_path "${arg}")
+		if [ ! -f "${f}" ]; then
+			echo "kaizen-forget: skip (not a file): ${arg}" >&2
+			continue
+		fi
+		status=$(frontmatter_field "${f}" status)
+		case "${status}" in
+		pending) ;;
+		forgotten)
+			echo "kaizen-forget: skip (already forgotten): ${arg}" >&2
+			continue
+			;;
+		*)
+			# applied / rejected は「対策が済んだ」「見送ると決めた」宣言で、適用先を持つ。
+			# forgotten は適用先を持たない状態なので、書き換えると applied-to と矛盾して
+			# kaizen-status-check.sh が exit 2 で落ちる。整理したいなら archive を使う。
+			echo "kaizen-forget: skip (status is ${status:-unset}; forget only applies to pending — use kaizen archive instead): ${arg}" >&2
+			continue
+			;;
+		esac
+		if rewrite_status "${f}"; then
+			printf '%s\n' "${f}"
+			forgotten=$((forgotten + 1))
+		else
+			echo "kaizen-forget: skip (no status line in frontmatter): ${arg}" >&2
+		fi
+	done
+	echo "kaizen-forget: forgot ${forgotten} note(s)" >&2
+	;;
+esac
+
+exit 0

@@ -332,6 +332,20 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で再びブロックされる。
 ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
+このスクリプトはさらに、**注入の前に忘却の自動掃引**（`kaizen-forget.sh --auto`）を走らせる。適用されないまま閾値の日数が過ぎ優先度も上がらなかった pending を `status: forgotten` にして、注入が際限なく肥大するのを防ぐ。
+**追加の Hook 配線は不要**——同じ SessionStart フックの中で走るので、既存のインストールでもスクリプトを更新すれば有効になる。
+掃引はファイルを動かさず frontmatter の `status` を 1 行書き換えるだけで、忘却したノートは注入テキストの冒頭に一覧で出る。`compact` では走らせない（同一セッションの継続中にファイルが書き換わるのを避けるため）。
+判定条件・呼び戻しの手順は `references/housekeeping.md`「忘却」が正本。閾値はプロジェクトの `.kaizen/config` で変えられる:
+
+```ini
+# 自動忘却の有効・無効。既定 on。
+forget_auto = on
+# 記録からこの日数が過ぎた pending を候補にする。既定 90。
+forget_after_days = 90
+# この優先度までを候補にする（low | medium | high）。既定 low。
+forget_max_priority = low
+```
+
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout を context へ注入する。
 > Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
@@ -423,7 +437,7 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 ```
 
 `.kaizen/` ディレクトリそのものはコミット対象（学びの共有・履歴追跡のため。`references/apply.md`「`.kaizen/` の Git 管理」参照）で、除外するのはこの 3 種の制御ファイルだけ。
-`.kaizen/config`（コミット前ゲートの設定。「他セッションのセンチネルは保持期間で回収する」参照）はプロジェクト設定なので除外せずコミットする。
+`.kaizen/config`（コミット前ゲートのセンチネル保持期間・自動忘却の閾値・`deterministic_measure_words` を置くプロジェクト設定）は除外せずコミットする。
 `.extract-checkpoint.<session key>` は処理済み transcript のパス（1 行目）・バイト位置（2 行目）・識別済みエージェント（3 行目、空可）・処理済み行数（4 行目）を保持し、セッションをまたいで差分走査を成立させる。
 **session 単位のファイルにするのは、同じプロジェクトで同じエージェントのセッションを 2 つ動かしたときに走査位置を上書きし合わないため**（session key を取れない環境では単一ファイルへ縮退する）。
 2 行目・4 行目は**走査器が実際に検査し終えた終端**（`kaizen-candidate-scan.sh` が検証済みゼロのときに出力する `scanned-bytes` / `scanned-lines`）を記録する。

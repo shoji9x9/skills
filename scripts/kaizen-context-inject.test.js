@@ -123,3 +123,76 @@ test.each([
 ])("herestring 形・非パイプは検出しない（%s）", (line) => {
   expect(PIPED_TRUTH_READ.test(line)).toBe(false);
 });
+
+// --- 忘却の自動掃引（Issue #339） ---
+//
+// SessionStart フックは注入の**前に** `kaizen-forget.sh --auto` を走らせる。順序が逆だと
+// 忘却したノートがそのセッションにだけ注入され、以降は消える（同じ入力で結果が変わる）。
+// 掃引はファイルを書き換えるので、走る条件（compact では走らない）も固定する。
+//
+// 変異による検出能力の実証（このファイルを書いた時点で 2 通り実施し、いずれも赤くなることを実測した）:
+//   1. 掃引の呼び出しを `forgotten_notes=""` へ置き換える（no-op 化）→ 2 件 fail
+//      （行ごと削ると `if` の本体が空になり構文エラーで全件 fail する。それは検出能力の証拠にならない）
+//   2. 掃引の条件から `[ "${is_compact}" -eq 0 ]` を外す → 1 件 fail（「compact では掃引しない」）
+function staleNote(daysOld) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - daysOld);
+  const date = d.toISOString().slice(0, 10);
+  return `---\ndate: ${date}\ntype: doc\npriority: low\nstatus: pending\napplied-to: []\n---\n\n# stale\n\n## 提案\n\n古い学び。\n`;
+}
+
+function injectRaw(dir, input) {
+  const result = spawnSync("bash", [script], {
+    cwd: dir,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+    input,
+    encoding: "utf8",
+  });
+  return { status: result.status, stdout: result.stdout ?? "" };
+}
+
+function statusOf(dir, name) {
+  return /^status: (.*)$/m.exec(readFileSync(join(dir, ".kaizen", name), "utf8"))?.[1] ?? "";
+}
+
+test("古い pending を忘却して注入から外し、忘れたことを報告する", () => {
+  const dir = createRepo("新しい学び。");
+  writeFileSync(join(dir, ".kaizen", "2026-01-01-stale.md"), staleNote(200));
+
+  const { status, stdout } = injectRaw(dir, '{"session_id":"s1","source":"startup"}');
+  expect(status).toBe(0);
+  // 掃引が注入より先に走るので、忘却したノートはこのセッションのダイジェストに載らない。
+  expect(stdout).toContain("自動で忘却した学び（1 件）");
+  expect(stdout).toContain("2026-01-01-stale.md");
+  expect(stdout).toContain("未適用の学び（1 件）");
+  expect(stdout).toContain("2026-09-01-note.md");
+  expect(statusOf(dir, "2026-01-01-stale.md")).toBe("forgotten");
+  // 候補でないノートは触らない（掃引が注入対象を巻き込んでいないことの陰性コントロール）。
+  expect(statusOf(dir, "2026-09-01-note.md")).toBe("pending");
+});
+
+test("compact では掃引しない（同一セッションの継続中にファイルを書き換えない）", () => {
+  const dir = createRepo("新しい学び。");
+  writeFileSync(join(dir, ".kaizen", "2026-01-01-stale.md"), staleNote(200));
+
+  const { status, stdout } = injectRaw(dir, '{"session_id":"s1","source":"compact"}');
+  expect(status).toBe(0);
+  expect(stdout).not.toContain("自動で忘却した学び");
+  expect(statusOf(dir, "2026-01-01-stale.md")).toBe("pending");
+  // 掃引していないので、まだ pending として注入される。
+  expect(stdout).toContain("未適用の学び（2 件）");
+});
+
+test("全 pending が忘却されても報告だけ出して正常終了する", () => {
+  // 掃引後に pending が 0 件だと注入は早期 exit する。報告をその前に出していないと、
+  // 「黙って全部消えた」状態になる。
+  const dir = mkdtempSync(join(tmpdir(), "kaizen-context-inject-"));
+  workdirs.push(dir);
+  mkdirSync(join(dir, ".kaizen"));
+  writeFileSync(join(dir, ".kaizen", "2026-01-01-stale.md"), staleNote(200));
+
+  const { status, stdout } = injectRaw(dir, '{"session_id":"s1","source":"startup"}');
+  expect(status).toBe(0);
+  expect(stdout).toContain("自動で忘却した学び（1 件）");
+  expect(stdout).not.toContain("未適用の学び");
+});
