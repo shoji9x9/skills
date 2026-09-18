@@ -93,6 +93,19 @@
         "branch を作りたくないなら `--detach` を付けるか、既存の commit-ish / branch を引数で渡すと述べている",
         "作られた branch は後片付けの対象として残ることに触れ、`git worktree add` が成功したことを「branch を作っていない」根拠にしていない"
       ]
+    },
+    {
+      "id": 11,
+      "prompt": "`.claude/settings.json` の `worktree.symlinkDirectories` に `node_modules` を入れて worktree を作ったら、共有ツリーでは何も出ないのに worktree の `git status` に `?? node_modules` が出る。`.gitignore` には `/node_modules/` と書いてある。何が起きているのかと、どう直すのかを説明して。あわせて、この worktree で `node_modules` を一度消して作り直したいときに何に注意するかも示して。",
+      "assertions": [
+        "`worktree.symlinkDirectories` が張るのはシンボリックリンクで、git はリンクをディレクトリではなくファイルとして見るため、末尾スラッシュ付きの `.gitignore` パターンが一致しないと説明している",
+        "`.gitignore` の該当行から末尾のスラッシュを外す（`/node_modules/` → `/node_modules`）と直ると示している",
+        "末尾スラッシュを外しても実体ディレクトリは引き続き無視されるので、共有ツリーと worktree の両方で成立する唯一の書き方だと説明している",
+        "先頭の `/` は残す（外すと `packages/x/node_modules` のような配下の同名ディレクトリまで無視対象になる）と注意している",
+        "検査は 1 つも落ちず `git status` を読むまで気づけない静かな症状だと説明している",
+        "作り直すときの注意として、`rm -rf node_modules/` のように**末尾スラッシュを付ける**とリンクを辿って共有ツリーの実体の中身が消え、しかも終了コードは 0 で成功に見えると警告している",
+        "末尾スラッシュ無しの `rm -rf node_modules` ならリンクだけが消えて実体は残ると区別している"
+      ]
     }
   ]
 }
