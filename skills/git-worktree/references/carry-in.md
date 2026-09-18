@@ -83,10 +83,18 @@ config/secrets.local.json
 末尾スラッシュを外すと**実体ディレクトリも引き続き無視される**ので、共有ツリーと worktree の
 両方で成立する書き方は**末尾スラッシュ無しだけ**である。
 
+**注釈を同じ行に書かない。** git がコメントとして扱うのは**行頭が `#` の行だけ**なので、
+`/node_modules   # ...` と書くと空白と `#` 以降までパターンの一部になり、何にも一致しなくなる
+（[gitignore の pattern format](https://git-scm.com/docs/gitignore#_pattern_format)。
+実測: この形では `git check-ignore -v node_modules` が exit 1 で、リンクは `?? node_modules` のまま）。
+
 ```gitignore
-/node_modules   # ← 実体ディレクトリにもリンクにも効く
-/node_modules/  # ← 実体ディレクトリにしか効かない（worktree で `?? node_modules` になる）
+/node_modules
 ```
+
+上が正しい形で、実体ディレクトリにもリンクにも効く。
+`/node_modules/`（末尾スラッシュあり）は実体ディレクトリにしか効かず、worktree では
+`?? node_modules` になる。
 
 **先頭の `/` は残す。** これを外すと、配下の同名ディレクトリ（`packages/x/node_modules` 等）まで
 無視対象になる。
