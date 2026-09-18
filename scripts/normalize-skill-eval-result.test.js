@@ -182,6 +182,119 @@ describe("skill eval result normalization", () => {
       expect(usage.files_read).toEqual([]);
     });
 
+    // Naming a path is not opening it. The excluded side needs its own cases, or the
+    // detector counts an existence check and a mention as reads (PR #400 review).
+    test.each([
+      ["an existence check", "test ! -e .claude/skills/box/SKILL.md"],
+      ["a bracket test", "[ -e .claude/skills/box/SKILL.md ] && echo missing"],
+      ["a directory listing", "ls -la .claude/skills/box/"],
+      ["a mention", "echo .claude/skills/box/SKILL.md"],
+      ["a stat", "stat .claude/skills/box/SKILL.md"],
+      ["a removal", "rm -f .claude/skills/box/SKILL.md"],
+      ["a find", "find .claude/skills/box -name '*.md'"],
+    ])("does not count %s as reading the skill", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test.each([
+      ["cat", "cat .claude/skills/box/SKILL.md"],
+      ["head", "head -n 40 .claude/skills/box/SKILL.md"],
+      ["sed", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
+      ["grep", "grep -n description .claude/skills/box/SKILL.md"],
+      ["a piped read", "cat .claude/skills/box/SKILL.md | head -n 5"],
+      ["a read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
+    ])("counts %s as reading the skill", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+    });
+
+    test("does not let a baseline's absence check read as an unexpected read", () => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command: "test ! -e .claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+    });
+
+    test("counts a Read tool call on the skill but not a Glob that only locates it", () => {
+      const read = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Read", { file_path: "/p/.claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+      const located = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Glob", { pattern: "**/*.md", path: "/p/.claude/skills/box" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(read).toMatchObject({ read: true, invalid_run: false });
+      expect(located).toMatchObject({ read: false, invalid_run: true });
+    });
+
+    test("does not count a Write into the skill directory as having read it", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Write", {
+              file_path: "/p/.claude/skills/box/SKILL.md",
+              content: "overwritten",
+            }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+    });
+
     test("does not let a sibling skill's path count as the subject being read", () => {
       const usage = buildSkillUsage({
         config: "with_skill",
@@ -244,8 +357,10 @@ describe("skill eval result normalization", () => {
       expect(usage.files_read).toEqual([]);
     });
 
-    test("still counts the located file when the same call also authors content", () => {
-      const usage = buildSkillUsage({
+    // An edit is a write. The Read it requires is its own call, and that is what counts,
+    // so the pair must land on read: true through the Read alone.
+    test("counts the Read that precedes an edit, not the edit itself", () => {
+      const editOnly = buildSkillUsage({
         config: "with_skill",
         skill: "box",
         evidence: evidenceFor(
@@ -260,9 +375,51 @@ describe("skill eval result normalization", () => {
           ]),
         ),
       });
+      const readThenEdit = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Read", { file_path: ".claude/skills/box/SKILL.md" }),
+            assistantToolUse("Edit", {
+              file_path: ".claude/skills/box/SKILL.md",
+              old_string: "a",
+              new_string: "b",
+            }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
 
-      expect(usage).toMatchObject({ read: true, invalid_run: false });
-      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+      expect(editOnly).toMatchObject({ read: false, invalid_run: true });
+      expect(readThenEdit).toMatchObject({ read: true, invalid_run: false });
+      expect(readThenEdit.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+    });
+
+    test("unwraps the `bash -lc` form codex uses to run every command", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          [
+            {
+              type: "item.completed",
+              item: {
+                type: "command_execution",
+                command: "/bin/bash -lc 'test ! -e .agents/skills/box/SKILL.md'",
+                exit_code: 0,
+              },
+            },
+            { type: "item.completed", item: { type: "agent_message", text: "absent" } },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+          "codex",
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
     });
 
     test("never turns an empty Codex trace into a measured 'not read'", () => {

@@ -53,40 +53,107 @@ function emptySkillEvidence() {
   return { visibleSkills: null, invokedSkills: null, toolInputTexts: null };
 }
 
-// Tool-input fields that carry text the agent AUTHORS, not text that names what it
-// opened. A baseline routinely writes "install it at .claude/skills/<name>/SKILL.md"
-// into its report file; counting that body as evidence would turn a clean baseline
-// into an `unexpected_read`, and would let a with_skill run that merely *mentions*
-// the path pass as having read the skill. The same false positive was already
-// observed on the contamination markers (run-skill-eval.sh "BASELINE INTEGRITY").
-// `file_path` / `command` and the other locating fields are still collected.
-const AUTHORED_INPUT_KEYS = new Set([
-  "content",
-  "new_source",
-  "new_str",
-  "new_string",
-  "old_str",
-  "old_string",
+// Evidence is restricted to operations that RETURN a file's contents. Naming a path
+// is not reading it: a baseline legitimately runs `test ! -e .claude/skills/<n>/SKILL.md`
+// to confirm the skill is absent, and an agent can write the path into a report or
+// `echo` it. Counting any mention would mark that baseline `unexpected_read` and let a
+// with_skill run that only mentions the path escape `invalid_run` — corrupting the very
+// comparison this records. So each tool contributes named fields, and a shell command
+// contributes only when a content-reading utility is what runs.
+const READ_TOOL_FIELDS = new Map([
+  ["Read", ["file_path", "notebook_path"]],
+  ["NotebookRead", ["notebook_path", "file_path"]],
+  // Grep returns matching lines, so a hit is content. Glob returns names only and is
+  // deliberately absent: locating a file is not opening it.
+  ["Grep", ["path"]],
+]);
+const SHELL_TOOLS = new Set(["Bash", "BashOutput"]);
+
+// Utilities whose normal output is the file's contents. The excluded side is the point:
+// test / [ / ls / stat / find answer "does it exist", echo / printf only repeat the
+// path, and rm / touch / mkdir / cp / mv act on it without showing it.
+const READ_UTILITIES = new Set([
+  "awk",
+  "bat",
+  "cat",
+  "cut",
+  "diff",
+  "egrep",
+  "fgrep",
+  "grep",
+  "head",
+  "less",
+  "more",
+  "nl",
+  "od",
+  "rg",
+  "sed",
+  "strings",
+  "tail",
+  "view",
+  "xxd",
 ]);
 
-function collectToolInputText(input, sink) {
-  if (typeof input === "string") {
-    sink.push(input);
-    return;
-  }
-  if (Array.isArray(input)) {
-    for (const item of input) {
-      collectToolInputText(item, sink);
+// Split on the separators that start a new command, then take each segment's first
+// word. `cat a | grep b && test -e c` yields cat / grep / test, so the test segment
+// cannot borrow the cat segment's verdict.
+const SHELL_BINARIES = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
+
+function shellSegmentsReadingFiles(command, depth = 0) {
+  const segments = command.split(/\||&&|\|\||;|\n/u);
+  const reading = [];
+  for (const segment of segments) {
+    const words = segment.trim().split(/\s+/u).filter(Boolean);
+    // Skip leading env assignments and `sudo`-style prefixes to find the utility.
+    let index = 0;
+    while (index < words.length && (/^\w+=/u.test(words[index]) || words[index] === "sudo")) {
+      index += 1;
     }
-    return;
-  }
-  if (typeof input === "object" && input !== null) {
-    for (const [key, value] of Object.entries(input)) {
-      if (AUTHORED_INPUT_KEYS.has(key)) {
-        continue;
+    const utility = (words[index] ?? "").split("/").pop();
+    if (READ_UTILITIES.has(utility)) {
+      reading.push(segment);
+      continue;
+    }
+    // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
+    // unwrapping the inner script no codex run would ever count as a read.
+    if (depth < 2 && SHELL_BINARIES.has(utility) && words.slice(index + 1).some(isShellCFlag)) {
+      const inner = stripOuterQuotes(segment.slice(segment.indexOf(words[index])));
+      if (inner !== null) {
+        reading.push(...shellSegmentsReadingFiles(inner, depth + 1));
       }
-      collectToolInputText(value, sink);
     }
+  }
+  return reading;
+}
+
+function isShellCFlag(word) {
+  return /^-[a-z]*c[a-z]*$/u.test(word);
+}
+
+// Return the text inside the first single- or double-quoted run, which is where a
+// `-c` script lives. Splitting on `|` above can cut a quoted script, so the opening
+// quote without a closing one still yields its remainder.
+function stripOuterQuotes(text) {
+  const opening = text.search(/['"]/u);
+  if (opening === -1) {
+    return null;
+  }
+  const quote = text[opening];
+  const closing = text.indexOf(quote, opening + 1);
+  return closing === -1 ? text.slice(opening + 1) : text.slice(opening + 1, closing);
+}
+
+function collectReadEvidence(toolName, input, sink) {
+  if (typeof input !== "object" || input === null) {
+    return;
+  }
+  for (const field of READ_TOOL_FIELDS.get(toolName) ?? []) {
+    if (typeof input[field] === "string") {
+      sink.push(input[field]);
+    }
+  }
+  if (SHELL_TOOLS.has(toolName) && typeof input.command === "string") {
+    sink.push(...shellSegmentsReadingFiles(input.command));
   }
 }
 
@@ -150,7 +217,7 @@ export function parseClaudeTrace(rawText) {
       if (name === "Skill" && typeof block.input?.skill === "string") {
         invokedSkills.push(block.input.skill);
       }
-      collectToolInputText(block.input, toolInputTexts);
+      collectReadEvidence(name, block.input, toolInputTexts);
     }
   }
 
@@ -226,8 +293,10 @@ export function parseCodexTrace(rawText) {
       toolCalls.command_execution = (toolCalls.command_execution ?? 0) + 1;
       // Codex emits item.started and item.completed for the same command; only the
       // completed side is counted here, so the command text is collected once too.
+      // Same rule as the claude side: only the segments that run a content-reading
+      // utility are evidence, so an existence check or a mention is not a read.
       if (typeof event.item.command === "string") {
-        toolInputTexts.push(event.item.command);
+        toolInputTexts.push(...shellSegmentsReadingFiles(event.item.command));
       }
       if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {
         errors += 1;

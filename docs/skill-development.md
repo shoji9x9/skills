@@ -228,7 +228,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 | --- | --- | --- |
 | `visible` | 対象スキルが提示されていたか（claude-code の `system`/`init` の `skills`） | executor が提示一覧を出さない（codex） |
 | `invoked` | Skill として起動したか | 起動の仕組みが無い（codex はシェルで読む） |
-| `files_read` | 触れたスキル配下のパス（`Read` の引数・シェルコマンド本文の双方から拾う） | ツール記録が無い trace |
+| `files_read` | **中身を返す操作**で開いたスキル配下のパス（`Read` / `Grep` の引数、`cat` / `head` / `sed` 等のシェル片） | ツール記録が無い trace |
 | `read` | 起動したか、またはスキル配下のパスに触れたか | 上記がどちらも判定不能 |
 | `invalid_run` | `with_skill` なのに `read` が false | `read` が判定不能 |
 
@@ -236,6 +236,8 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
   同じ条件で追加 run を取る。
 - **`null` を false として扱わない。** `undeterminable` に列挙された軸は「測れなかった」であり「起きなかった」ではない。
   `invalid_run: null` の run は自動で外さず、`raw/` を見て人が判断する。
+- **パスを名指しただけの run を read に数えない。** baseline が `test ! -e <スキル配下>` で不在を確かめる、報告文にパスを書く、`echo` する、といった操作は読み取りではない。
+  証拠に採るのは中身を返す操作だけで、`ls` / `stat` / `find` / `rm` / `Glob`（名前を返すだけ）・`Write` / `Edit`（書く側）は除外する。
 - `without_skill` 側の対称な signal は `unexpected_read`（ベースラインがスキルに触れた＝汚染）。`contamination.txt` と併せて見る。
 
 ### eval 環境の前提（runtime / repo / 非対話）
