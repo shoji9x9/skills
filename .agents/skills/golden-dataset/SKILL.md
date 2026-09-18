@@ -37,7 +37,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 ## 前提
 
-- **ツール**: `git`。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
+- **ツール**: `git`、`node`（同梱スクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) の実行に使う。依存パッケージは不要）。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
 - **前提スキル**: `replace-strategy`（`setup` 完了）。`current.origin: received-assets` のプロジェクトではさらに `current-environment-bootstrap` の引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
   本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
@@ -142,13 +142,20 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)。
    **`current.origin: received-assets` では加えて `.replace/bootstrap/semantics.md` を読む**——「確定済み」の意味論だけを設計の根拠に使い、「確認待ち」の行は根拠にしない（禁止事項 14）。
    `handoff.boot_requirements` に挙がった**起動要件（認証ユーザー・マスタ・コード表等）を必ず設計に含める**——本フェーズの投入は暫定起動データを事前削除で置き換えるため、
-   含めないと投入後に現行アプリが起動しなくなる。確認待ちのために設計できなかった機能は手順 6 で「意味論が未確定の機能」として記録する
+   含めないと投入後に現行アプリが起動しなくなる。確認待ちのために設計できなかった機能は手順 6 で「意味論が未確定の機能」として記録する。
+   **設計の段で参照表の役割と行数を消費側から決める**——3 表の写しを `design.md`「対象テーブル」へ落として役割（`投入する` / `読み取りだけ`）を付け、
+   述語ごとに真・偽の両側を踏める行数を「述語ごとの分岐被覆」へ数え、踏めない分岐は「足す」「gaps に記録」のどちらかを選ぶ。
+   突き合わせは `node <skill>/scripts/predicate-coverage-check.mjs --features .replace/features.md --design .replace/dataset/design.md` を**exit 0 まで**通す
+   （踏めない分岐を下流で見つけると、ベースラインを採り終えた後に version が上がって採取物が陳腐化する）
 3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。
    書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成後に設定の `verification_commands.full` を通す（無ければ停止せず記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
 4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
    **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
 5. **投入**: `db` は選択した `side: current` の target へ投入し、`static` は `dataset_static_paths` 配下へ生成する（新側の受け皿はまだ存在しないため新側へは投入しない）
 6. **検証**: `db` は FK 整合・必須項目・件数、`static` は形式妥当性（必須フィールド・型・参照整合）・件数を検査し、カバレッジ（どのテーブル／どの静的データのどのパターンを含んだか）を報告する。
+   **加えて、design.md の述語を 1 つずつ実行して該当行数を数え、`verification.md` の「述語ごとの該当行数」に残す**——
+   ここで数えるのは「入れたものが入ったか」ではなく「入れたもので消費側のどの分岐が踏めるか」で、**0 件と 1 件が報告に出る**。
+   突き合わせは同じスクリプトを `--verification .replace/dataset/verification.md` 付きで**exit 0 まで**通す。
    **`current.origin: received-assets` では、未確定の意味論（「確認待ち」と「確認したが確定できなかったもの」の両方）のせいで最低限のシナリオを確定できなかった機能を
    `verification.md` の「意味論が未確定の機能」へ slug 単位で記録する**
    （`parity-suite` がこの記録を読んで開始可否を判断する。**捏造で埋めて「確認済み」にしない**）
