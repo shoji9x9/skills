@@ -223,6 +223,9 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
 
 - **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない
 - **器が 1 つも無い組は `scroll_containers: []` と書く**（キーの欠落は「数えていない」と区別できない。`named_elements_outside` も同じ）
+- **寸法は実測値（正の数）で埋める。** テンプレートの `0` を残した組は「測っていない」として落ちる——
+  0×0 のまま比較すると穴が 1 つも出ず、**測っていない組が穴の無い組と同じ見え方**になる
+- **`metadata.json` の `mode` も要る**（`feature` / `api-resource` / `batch`）。欠落・語彙外は `feature` に倒さず落ちる
 
 **穴は消すか、対象外として宣言する。** 消すのは範囲を広げること（`full_page: true` にする、器の中身を段階的に撮る状態を足す、
 論理名の要素が入る位置で撮る）。広げられないなら `capture_conditions.capture_scope_exemptions` に

@@ -485,13 +485,31 @@ export function checkPredicateCoverage(input) {
       const filters = splitList(row["絞り込み列・条件"]);
       if (slug === "" || tableName === "") continue;
       if (filters.kind !== "items") continue;
-      const rows = predicatesByTable.get(tableName) ?? [];
-      const covered = rows.some((r) => splitList(r["消費側 slug"]).items.includes(slug));
-      if (!covered) {
+      const rows =
+        predicatesByTable
+          .get(tableName)
+          ?.filter((r) => splitList(r["消費側 slug"]).items.includes(slug)) ?? [];
+      if (rows.length === 0) {
         findings.push({
           code: "predicate-not-enumerated",
           message: `消費側パラメータの ${slug} × ${tableName} に絞り込みがあるのに、述語ごとの分岐被覆に対応する行が無い（数えていない分岐は 0 件と同じ見え方になる）`,
         });
+        continue;
+      }
+      // **絞り込み列は 1 行に複数並ぶ**（`status, owner_id`）。1 本でも述語行があれば足りると数えると、
+      // 残りの列の分岐は「数えていない」まま 0 件と同じ見え方になる。列ごとに述語を要求する。
+      // 突き合わせは述語の文面に列名が現れるかで行うため、`status = 'shipped'` のように**列名を書く**必要がある
+      // （列名を書かない式は数えられていないものとして落ちる）。
+      for (const filter of filters.items) {
+        const column = filter.split(/[\s=<>!(）(]/)[0];
+        if (column === "") continue;
+        const named = rows.some((r) => normalizeCell(r["述語（列・条件）"]).includes(column));
+        if (!named) {
+          findings.push({
+            code: "predicate-filter-not-enumerated",
+            message: `消費側パラメータの ${slug} × ${tableName} の絞り込み「${filter}」に対応する述語行が無い（述語の文面に列 ${column} が現れない。1 行に複数の絞り込みが並ぶとき、1 本の述語で全部を満たしたことにしない）`,
+          });
+        }
       }
     }
   }

@@ -130,7 +130,7 @@
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。",
+        "_note": "撮った組ごとの範囲の実測。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
         "viewport": "<ビューポート label>",

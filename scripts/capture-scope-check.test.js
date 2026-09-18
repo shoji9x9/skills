@@ -21,6 +21,7 @@ import {
 function metadataOf(override = {}) {
   return {
     slug: "order-list",
+    mode: "mode" in override ? override.mode : "feature",
     capture_conditions: {
       full_page: true,
       viewports: [{ width: 1366, height: 768, label: "desktop" }],
@@ -287,6 +288,64 @@ test("撮影組の鍵はページ・状態・ビューポートで作る", () =>
   expect(combinationKey({ page: "list", state: "hover", viewport: "mobile" })).toBe(
     "list|hover|mobile",
   );
+});
+
+test("テンプレートのプレースホルダ（寸法 0）は測っていない組として落ちる", () => {
+  // assets/metadata-template.json は寸法を 0 で置いてある。0 を通すと文書も撮影領域も 0×0 になり、
+  // 穴が 1 つも出ないまま exit 0（「測っていない組」が「穴の無い組」に化ける）。
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 0, height: 0 },
+        captured: { width: 0, height: 0 },
+        scroll_containers: [],
+        named_elements_outside: [],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+  });
+  const result = checkCaptureScope(metadata);
+  expect(result.holes).toEqual([]);
+  expect(result.findings.map((f) => f.code)).toContain("scope-size-unreadable");
+});
+
+test("内部スクロール器の寸法 0 も測っていない扱いにする", () => {
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 1366, height: 3200 },
+        captured: { width: 1366, height: 3200 },
+        scroll_containers: [
+          {
+            name: "グリッド本体",
+            client: { width: 0, height: 0 },
+            scroll: { width: 0, height: 0 },
+          },
+        ],
+        named_elements_outside: [],
+      },
+    ],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+  });
+  expect(codesOf(metadata)).toContain("scroll-container-size-unreadable");
+});
+
+test("mode の欠落・非文字列は feature に倒さず exit 2", () => {
+  for (const mode of [undefined, null, 3, ""]) {
+    const metadata = metadataOf({ mode });
+    if (mode === undefined) delete metadata.mode;
+    const { code, result } = run(["--metadata", "m.json"], {
+      "/w/m.json": JSON.stringify(metadata),
+    });
+    expect(code).toBe(2);
+    expect(result.findings.map((f) => f.code)).toContain("mode-unknown");
+  }
 });
 
 test("視覚採取物を持たないモードは判定に入れない（合格ではなく judged: false）", () => {

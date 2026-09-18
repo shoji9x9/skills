@@ -31,6 +31,9 @@ import { fileURLToPath } from "node:url";
  */
 export const VERSION = "1";
 
+/** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
+export const MODES = ["feature", "api-resource", "batch"];
+
 /**
  * 撮影組の鍵。`noise_baseline` と `capture_scope` を突き合わせる単位。
  * @param {{page?: unknown, state?: unknown, viewport?: unknown}} entry
@@ -41,12 +44,12 @@ export function combinationKey(entry) {
 }
 
 /**
- * 非負の有限数か。
+ * 正の有限数か（寸法の実測値はここを通す）。
  * @param {unknown} value
  * @returns {boolean}
  */
-function nonNegativeNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+function positiveNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 /**
@@ -59,14 +62,18 @@ function nonEmptyString(value) {
 }
 
 /**
- * 寸法（`{width, height}`）を検証して返す。型崩れなら null。
+ * 寸法（`{width, height}`）を検証して返す。型崩れ・0 以下なら null。
+ *
+ * **0 を通さない**——同梱テンプレートは寸法を `0` で置いてあるので、
+ * プレースホルダのまま書いた組は文書も撮影領域も 0×0 になり、寸法の比較では穴が 1 つも出ない。
+ * 「測っていない組」が「穴の無い組」と同じ見え方になるため、実測値は正の数だけを受ける。
  * @param {unknown} value
  * @returns {{width:number, height:number} | null}
  */
 function readSize(value) {
   if (!value || typeof value !== "object") return null;
   const size = /** @type {{width?: unknown, height?: unknown}} */ (value);
-  if (!nonNegativeNumber(size.width) || !nonNegativeNumber(size.height)) return null;
+  if (!positiveNumber(size.width) || !positiveNumber(size.height)) return null;
   return { width: /** @type {number} */ (size.width), height: /** @type {number} */ (size.height) };
 }
 
@@ -203,27 +210,29 @@ export function checkCaptureScope(metadata) {
   // 視覚採取物を持たないモード（api-resource / batch）は撮影条件そのものを持たないので判定に入れない。
   // **通すのはこの閉じた集合だけ**で、mode が読めない・知らない値のときは判定を飛ばさず落とす
   // （緩和経路を「壊れている入力」全部に広げない）。
-  if (typeof meta.mode === "string" && meta.mode !== "feature") {
-    if (meta.mode === "api-resource" || meta.mode === "batch") {
-      return {
-        findings,
-        holes,
-        counts: { combinations: 0, holes: 0 },
-        structural: false,
-        judged: false,
-      };
-    }
+  // **欠落・非文字列も同じ**——分岐の外へ落として feature 扱いにすると、壊れた metadata が
+  // 「撮影条件が読めた feature」として判定を通りうる。mode は語彙の中の文字列であることを先に確かめる。
+  if (typeof meta.mode !== "string" || !MODES.includes(meta.mode)) {
     return {
       findings: [
         {
           code: "mode-unknown",
-          message: `mode「${meta.mode}」は語彙外（feature / api-resource / batch）。判定を飛ばさない`,
+          message: `mode「${meta.mode === undefined ? "（欠落）" : String(meta.mode)}」が語彙外（${MODES.join(" / ")}）。判定を飛ばさない`,
         },
       ],
       holes,
       counts: { combinations: 0, holes: 0 },
       structural: true,
       judged: true,
+    };
+  }
+  if (meta.mode !== "feature") {
+    return {
+      findings,
+      holes,
+      counts: { combinations: 0, holes: 0 },
+      structural: false,
+      judged: false,
     };
   }
   const conditions = meta.capture_conditions;

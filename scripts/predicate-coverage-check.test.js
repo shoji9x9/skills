@@ -343,6 +343,50 @@ test("絞り込みがあるのに述語行が無い消費側は落ちる（数�
   expect(codes).toContain("predicate-not-enumerated");
 });
 
+test("1 行に複数の絞り込みが並ぶとき、述語 1 本で全部を満たしたことにしない", () => {
+  // order × orders の絞り込みを status と owner_id の 2 本にする。述語は status しか無いので、
+  // owner_id の分岐は数えられていない（1 本でも述語行があれば足りる、と数えると素通りする）。
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status, owner_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(codes).toContain("predicate-filter-not-enumerated");
+  expect(codes).not.toContain("predicate-not-enumerated");
+});
+
+test("陽性コントロール: 並んだ絞り込みそれぞれに述語行があれば通る", () => {
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status, owner_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+      predicates: [
+        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-owner | orders | order | owner_id = :me | 5 | 36 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+      ],
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
 test("投入後も踏めない分岐と、設計値とのズレは verification の突き合わせで落ちる", () => {
   const codes = codesOf({
     verification: VERIFICATION.replace(
