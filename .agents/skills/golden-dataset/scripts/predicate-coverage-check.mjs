@@ -146,12 +146,58 @@ export function splitList(cell) {
   const value = normalizeCell(cell);
   if (value === "") return { kind: "blank", items: [] };
   if (value === NONE_SENTINEL) return { kind: "none", items: [] };
-  const items = value
-    .split(/[,、／/]/)
+  const items = splitTopLevel(value)
     .map((v) => normalizeCell(v))
     .filter((v) => v !== "" && v !== NONE_SENTINEL);
   if (items.length === 0) return { kind: "blank", items: [] };
   return { kind: "items", items };
+}
+
+/**
+ * 区切り（`,` `、` `／` `/`）で分けるが、**引用符・括弧の内側では分けない**。
+ *
+ * 条件の中の区切りで割ると、`status IN ('pending','canceled')` が 2 件の絞り込みに化け、
+ * 正しく列挙した設計が「述語行が無い」として落ちる（exit 0 に到達できない偽陽性）。
+ * @param {string} value
+ * @returns {string[]}
+ */
+export function splitTopLevel(value) {
+  /** @type {string[]} */
+  const parts = [];
+  let current = "";
+  let depth = 0;
+  /** @type {string | null} */
+  let quote = null;
+  for (const char of value) {
+    if (quote !== null) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === "(" || char === "（") {
+      depth += 1;
+      current += char;
+      continue;
+    }
+    if (char === ")" || char === "）") {
+      if (depth > 0) depth -= 1;
+      current += char;
+      continue;
+    }
+    if (depth === 0 && (char === "," || char === "、" || char === "／" || char === "/")) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  parts.push(current);
+  return parts;
 }
 
 /**

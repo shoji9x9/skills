@@ -156,6 +156,32 @@ test("一覧セルは空欄（未調査）と `-`（ゼロ件）を書き分け�
   expect(splitList("orders, order_items").items).toEqual(["orders", "order_items"]);
 });
 
+test("区切りは引用符・括弧の外だけで効く（条件の中のカンマで割らない）", () => {
+  expect(splitList("status IN ('pending','canceled')").items).toEqual([
+    "status IN ('pending','canceled')",
+  ]);
+  expect(splitList("COALESCE(owner_id, assignee_id) = :me").items).toEqual([
+    "COALESCE(owner_id, assignee_id) = :me",
+  ]);
+  expect(splitList("status, owner_id").items).toEqual(["status", "owner_id"]);
+});
+
+test("条件の中にカンマがある絞り込みでも、述語行があれば通る", () => {
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | status IN ('pending','canceled') | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
 test("消費側は 3 表すべてから集める（1 表しか読まないと写し漏れを検出できない）", () => {
   const { consumers, structural } = collectConsumers(FEATURES);
   expect(structural).toBe(false);
