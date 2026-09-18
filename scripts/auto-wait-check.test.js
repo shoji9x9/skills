@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** ブロックコメントの literal。このファイル自身のコメントを閉じないよう組み立てる。 */
+const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
 const { maskNonCode, scanSource, scanSourceWithStats } = await import(script);
@@ -392,6 +395,19 @@ test("前置の ! の後は正規表現として潰す", () => {
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
 });
 
+test.each([["return"], ["throw"], ["typeof"], ["case"]])(
+  "値を待つキーワード（%s）の直後の ! は前置なので、続く正規表現を潰す",
+  (keyword) => {
+    // キーワードを「値で終わる」と読むと `!` を後置の非 null と誤り、正規表現をマスクせず素通りさせる。
+    // 引用符を含む正規表現ならそのまま未終端の文字列として走査ごと落ちる（違反 0 件と区別できない）。
+    const source = [
+      `const f = (s) => { ${keyword} !/['"]/.test(s); };`,
+      "const value = await locator.count();",
+    ].join("\n");
+    expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+  },
+);
+
 test("generic なメソッドの戻り値注釈も読む", () => {
   // `<T>` がメソッド名と `(` の間に入ると読めず、注釈を付けても解除できないゲートになる。
   const source = [
@@ -486,6 +502,9 @@ test.each([
   // 別の判定を通るので両方当てる。
   ["locator 経由", "const row = this.page.locator('tr');", "row.textContent()"],
   ["page 経由", "const row = this.page.getByRole('row');", "row.textContent()"],
+  // optional chaining を挟んでも同じ。区間を `split(".")` で切ると `this?` が残って
+  // どの区間も照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+  ["optional chaining", "const row = this?.page?.getByRole('row');", "row.textContent()"],
 ])("メンバー式から束ねた別名（%s）を受け側として解決する", (_name, binding, usage) => {
   const source = [
     "class P {",
@@ -512,6 +531,45 @@ test.each([
     "}",
   ].join("\n");
   expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test.each([
+  ["this 経由", "const p = this.page;"],
+  ["fixture 経由", "const p = ctx.page;"],
+  ["optional chaining", "const p = ctx?.page;"],
+])("プロパティ経路で束ねた Page の別名（%s）にも page 専用規則を当てる", (_name, binding) => {
+  // チェーンに `page` を含むため opaqueAliases にも入らない。束ね直しを解決しないと
+  // 違反 0 件でも判定不能 0 件でもない「黙った素通り」になり、出力から取りこぼしが読めない。
+  const source = [binding, "await p.waitForTimeout(100);"].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["fixed-wait"]);
+});
+
+test.each([
+  ["locator", "const cell = page\n  .locator('table')\n  .locator('td')\n  .nth(2);"],
+  ["getBy", "const cell = page\n  .getByRole('table')\n  .getByRole('cell')\n  .nth(2);"],
+])("整形で折り返した %s チェーンの別名も Locator として解決する", (_name, binding) => {
+  // 分類をテキスト照合だけに任せると、見るのが最初の物理行（`const cell = page`）に限られ、
+  // 折り返した `.getByRole(` を取りこぼす。チェーンに `page` を含むため opaqueAliases にも入らず、
+  // 「違反 0 件・判定不能 0 件」の黙った素通りになる。
+  const source = [binding, "const text = await cell.textContent();"].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("呼び出し・添字で途切れて分類できないチェーンは判定不能にする（黙って捨てない）", () => {
+  // `frames()` の先は名前で追えない。Locator とも Page とも言えないが、**追えなかった**ことは
+  // 出力に残す——捨てると出力の件数からも取りこぼしが読めない。
+  const source = [
+    "const cell = page\n  .frames()[0]\n  .getByRole('cell')\n  .nth(1);",
+    "const text = await cell.textContent();",
+  ].join("\n");
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["unresolved-receiver"]);
+});
+
+test("Page から取り出した別の値は Page として束ねない", () => {
+  // 束ねるかどうかは末尾の区間で決める。`page.` で始まるだけで Page に化けさせると、
+  // page 専用規則（fixed-wait）が Page でない受け側に当たって誤検出になる。
+  const source = ["const timers = page.clock;", "await timers.waitForTimeout(100);"].join("\n");
+  expect(scanSource(source)).toEqual([]);
 });
 
 test("由来を追えない別名はローカル変数へ束ねても判定不能にする", () => {
@@ -624,4 +682,87 @@ test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", (
   result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
   expect(result.status).toBe(0);
   expect(result.stdout).toMatch(/判定不能 0 件/);
+});
+
+// --- 文脈依存キーワードの直後の `!`（レビュー指摘。PR #397） ---
+//
+// `await` / `yield` は module では常にキーワードだが、script / CommonJS では識別子にもなる。
+// 直後の `!` を前置の否定に倒すと、続く `/` から次の `/` までがマスクされ、その間の違反が黙って消える。
+// 状態空間（直前のトークン × `!` の後に `/` が来るか）:
+//
+// | 直前              | 判定           |
+// |-------------------|----------------|
+// | `await` / `yield`（素の語）＋ 次が `/` | 走査不能（例外）＝唯一の曖昧形 |
+// | `await` / `yield`（素の語）＋ 次が被演算子 | 前置の否定（キーワード）。止めない |
+// | `await` / `yield`（素の語）＋ コメントの先が `/` | 走査不能（コメントは意味を持つトークンでない） |
+// | `await` / `yield`（素の語）＋ コメントの先が被演算子 | 止めない |
+// | `obj.await`（プロパティ名） | 従来どおり後置扱い |
+// | `await` の通常利用（`!` を伴わない） | 従来どおりキーワード |
+//
+// 変異による検出能力の実証:
+//   - `CONTEXTUAL_VALUE_KEYWORDS.has(...)` を `false`（＝修正前の挙動）に戻すと 3 件 fail。
+//     修正前は `const x = await! / d; const v = locator.textContent(); const y = a / e;` が違反 0 件・判定不能 0 件で
+//     exit 0 になることを実測した（読み取りがマスクに飲まれる黙った素通り）。
+//   - `startsAmbiguousSlash(...)` を `true`（曖昧形を絞らず常に止める）にすると 3 件 fail、
+//     `false`（止めない）にすると 3 件 fail。止める範囲が広すぎず狭すぎないことを両側から測れている。
+//   - コメントの読み飛ばしを外す（コメントの `/` で「曖昧でない」と打ち切る＝修正前）と 3 件 fail。
+//     修正前は `const x = await! /* c */ / d; const v = locator.textContent(); const y = a / e;` が
+//     違反 0 件で exit 0 になることを実測した。
+
+test.each([["await"], ["yield"]])(
+  "%s の直後の `!` に `/` が続く形は正規表現とも除算とも読めるので走査を止める",
+  (keyword) => {
+    const source = `const locator = page.locator('.x');\nconst x = ${keyword}! / d; const v = locator.textContent(); const y = a / e;\n`;
+    // 倒すと textContent の読み取りがマスクに飲まれて「違反 0 件」になる。
+    expect(() => scanSource(source)).toThrow(/正規表現の開始.+除算/);
+  },
+);
+
+test.each([
+  ["被演算子が続く前置の否定", "const ready = await !Promise.resolve(false);"],
+  ["括弧が続く前置の否定", "const ready = await !(flag && other);"],
+  ["行コメントが続く", "const ready = await! // 末尾コメント\n"],
+  ["ブロックコメントの後が被演算子", `const ready = await! ${BLOCK_COMMENT} flag;`],
+])("%s は曖昧でないので走査を止めない", (_name, line) => {
+  const source = `const locator = page.locator('.x');\n${line}\nconst v = await expect(locator).toBeVisible();\n`;
+  expect(() => scanSource(source)).not.toThrow();
+});
+
+// コメントは意味を持つトークンではないので、`!` と `/` の間に挟まっても曖昧さは消えない。
+// コメントの `/` で打ち切ると、その先の本物の `/` が正規表現の開始になり、次の `/` までの違反が消える。
+test.each([
+  ["ブロックコメント", `const x = await! ${BLOCK_COMMENT} / d;`],
+  ["行コメント（改行をまたぐ）", "const x = await! // 注釈\n  / d;"],
+  ["コメントが 2 つ続く", `const x = await! ${BLOCK_COMMENT} ${BLOCK_COMMENT} / d;`],
+])("%s を挟んだ `/` も曖昧なので走査を止める", (_name, line) => {
+  const source = `const locator = page.locator('.x');\n${line} const v = locator.textContent(); const y = a / e;\n`;
+  expect(() => scanSource(source)).toThrow(/正規表現の開始.+除算/);
+});
+
+test("プロパティ名の await は従来どおり値として扱う（走査を止めない）", () => {
+  const source = `const locator = page.locator('.x');\nconst x = opts.await! / d; const v = locator.textContent(); const y = a / e;\n`;
+  // `!` は後置なので `/ d; ... /` は除算どうしであり、間の読み取りは走査対象として残る。
+  expect(scanSource(source)).toEqual([expect.objectContaining({ rule: "immediate-read" })]);
+});
+
+test("await の通常利用は走査を止めない", () => {
+  const source = `
+    const save = page.getByRole('button');
+    await expect(save).toBeVisible();
+    const hidden = !(await save.isHidden());
+  `;
+  expect(scanSource(source).map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる", () => {
+  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-contextual-"));
+  const spec = join(dir, "contextual.spec.ts");
+  writeFileSync(
+    spec,
+    "const locator = page.locator('.x');\nconst x = await! / d; const v = locator.textContent(); const y = a / e;\n",
+  );
+  const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  expect(result.status).toBe(2);
+  expect(result.stderr).toMatch(/走査不能/);
+  expect(result.stderr).toMatch(/正規表現の開始.+除算/);
 });

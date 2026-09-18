@@ -133,8 +133,8 @@ skills:
       pending: [] # 保留（測定結果で決める）。setup では必ず空リストで作る（スキルが追記する記録なので初期値は空。キーだけ書いて値を省くと null になり、判定ツールが「配列でない」として落ちる）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す
         # 追記する要素は追記元が分かる形で書く（要素の形の正本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが帰属不明として扱われる
         # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（照合キー）
-        #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting
-        #   added_by: <golden-dataset | parity-suite | parity-replace>
+        #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting（部品 slug は書かない。parity-component は必ず cross-cutting）
+        #   added_by: <golden-dataset | parity-suite | parity-replace | parity-component>
         #   added_at: <YYYY-MM-DD>
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
@@ -159,7 +159,7 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 | 区分 | キー | 書き込み |
 |---|---|---|
 | **人間が確定させる方針** | `current`（`origin` / `received_assets` / `feedback_calls` を含む） / `new` / `targets` / `secrets` / `parity_suite_dir` / `dataset_tool_dir` / `bootstrap_tool_dir` / `dataset_mode` / `dataset_static_paths` / `uses_storage` / `verification_commands` / `artifacts` / `references`（パス型キー） / `intentional_diffs.{keep,may_change}` / `component_diffs` | `setup` の対話、または人間が直接編集する。スキルが代筆する場合も**人間が決めた値を 1 回記録するだけ**（`references.dependency_policy` / `new.stack` / `references.architecture` / `current.feedback_calls` の確認結果、`current-environment-bootstrap` が引き渡し時に埋める現行 target の `url` と `default: true`〈ユーザー確認済みの実測値を 1 回記録する〉、`component_diffs` のユーザー承認済み宣言〈`parity-replace` / `parity-diff` が非破壊追記〉、静的資産で「同等物を作る」を選んだときの `intentional_diffs.may_change` へのユーザー承認済み宣言〈`replace-strategy` の `setup` / `parity-replace` / `parity-component` が非破壊追記。正本は [`static-assets.md`](static-assets.md)〉。`setup` の再実行を待たずに追記する） |
-| **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
+| **スキルが作業中に追記する記録** | `intentional_diffs.pending` | `golden-dataset` / `parity-suite` / `parity-replace` / `parity-component` が宣言に無い差異を見つけたとき**追記元が分かる形で**非破壊追記し（要素の形は下記「意図的差異レジストリ」の「`pending` 要素の形」）、ユーザー確認を経て**人間が** `keep` / `may_change` へ移す。**設定ファイルに残る唯一の作業中記録**。移す時期は下記「`pending` の棚卸し」——機能を閉じる工程（`parity-diff` の収束判定）が棚卸しを要求する |
 
 - **`component_diffs` を設定側に残す根拠**: 要素が `component` × `property` で**slug 横断**に効き、1 回の宣言が（`component` に glob を書けば）全 slug・全インスタンスに効く（`parity-diff` の適用順序 2）。
   slug ごとに分けると同じ宣言が slug 数だけ複製されるため、slug 成果物側へ移さない
@@ -311,6 +311,12 @@ PR の diff で「環境設定の変更」と「作業中に見つけた差異�
 - **`diff` を回す工程でも、変更集合が次のいずれかを含むなら `full` へ前倒しする**（差分限定では原理的に捕まらないため、レビュー往復の前に安価に落とす）:
   - ファイルの**削除・改名**（`git diff --name-status` / `git status --porcelain` の `D` / `R`）
   - 定義元（design token・共有定数・設定値・型・エクスポート）の**削除・改名**（削除行に定義の宣言が含まれる変更）
+  - 共有された定義に対する、**変更集合の外の利用側が満たさなくなる追加**——型・スキーマ・インターフェースへの**必須プロパティ／必須要素の追加**、
+    網羅的に扱う共用体・列挙への**分岐の追加**など（その型のリテラルを書いている別ディレクトリ・別パッケージが、変更集合に入らないままプロパティ不足で型検査に落ちる）
+- **前倒しの条件を操作名（削除・改名・追加）で覚えない。** 判断は機構で行う——**その変更が、変更集合の外にあるファイルの判定を変えるか**。
+  変えるなら前倒しする（差分限定で穴が開くのは**判定が他ファイルに依存する検査**〈型検査・未使用エクスポート検出・参照解決〉であり、操作名はその機構の例示にすぎない）。
+  **利用側のテストが緑であることを前倒し不要の根拠にしない**——スタブに足りないプロパティが `undefined` になり、
+  応答の形を `toStrictEqual` で固定した assertion が古い形を通すなど、テストは型の不足を見ないことがある
 - **実行した列を証跡へ記録する。** どちらを回したかが残らないと、後から「全体で通ったのか」を検証できない
 - **どちらの列にも「書き換える起動形」を置かない。** 検証コマンドは**判定**であって整形作業ではない。
   auto-fix 付きの起動形（フォーマッタの書き込みモード・リンタの `--fix`）を置くと、**対象を黙って直したうえで必ず成功する**ため、
@@ -702,8 +708,19 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 | キー | 必須 | 値 |
 |---|---|---|
 | `item` | 必須 | 散文の宣言。**照合キー**であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
-| `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける** |
-| `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace`）。旧形式からの移行で復元できないものだけ `unknown` |
+| `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける**。**機能 slug 以外の名前空間の slug を書かない**（部品 slug は下記の箇条を参照） |
+| `added_by` | 必須 | 追記したスキル名（`golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown` |
+
+- **`slug` は機能インベントリに実在するものだけ。** 綴り違い・採番し直した slug は「担当する機能」が現れないため、
+  `pending-triage-check.mjs` が `.replace/features.md` と突き合わせて**帰属不明へ倒す**（全機能の棚卸し対象になる）
+- **帰属を信用できるのは `added_by` が読めているときだけ。** `added_by` が無い・`unknown`・未知のスキル名の要素は、
+  `slug` がどの名前空間のものか確認できないため、`pending-triage-check.mjs` が**帰属不明として全機能の棚卸し対象へ倒す**
+  （`cross-cutting` は書き手に依らず全機能の対象なので対象外）。旧形式からの移行で `added_by: unknown` を書いた要素は、
+  どの機能の棚卸しにも出続けるので、早めに `keep` / `may_change` へ移すか書き手を復元する
+- **`parity-component` の追記は必ず `slug: cross-cutting` にする。** 部品は複数の機能にまたがるため機能へ帰属させられず、
+  **部品 slug（`.replace/components.md`）は機能 slug（`.replace/features.md`）と別の名前空間**である。
+  部品 slug を書くと、どの機能の収束判定でも「別機能に帰属する要素」として対象外になり——形の不備も `warn:` で済むため——
+  **永久に棚卸しされない**。`pending-triage-check.mjs` はこの取り違えを検出し、帰属不明として全機能の棚卸し対象へ倒す
 | `added_at` | 必須 | 追記日（`YYYY-MM-DD`）。旧形式からの移行で復元できないものだけ `unknown`（推測の日付を書かない） |
 
 - **`cross-cutting` は予約語**である。機能 slug に使わない（使うと横断の追記と機能の追記が区別できなくなる）

@@ -102,6 +102,11 @@ const REGEX_ALLOWED_AFTER_KEYWORDS = new Set([
   "continue",
   "debugger",
 ]);
+/**
+ * 文脈依存キーワード。module では常にキーワードだが、script / CommonJS では識別子にもなる。
+ * 直後に `!` が来ると前置の否定と後置の非 null が静的に区別できないため、そこで走査を止める。
+ */
+const CONTEXTUAL_VALUE_KEYWORDS = new Set(["await", "yield"]);
 /** 値で終わる句読点。この直後の `/` は除算である（`)` は下で個別に判定する）。 */
 const DIVISION_AFTER_PUNCTUATORS = new Set(["]", "++", "--"]);
 /** 頭を括弧で囲む制御構文。閉じ括弧は値で終わらないため、その直後の `/` は正規表現である。 */
@@ -159,7 +164,12 @@ function braceOpensBlock(lastToken) {
 /** 直前のトークンが値で終わるか（＝続く `!` が後置の非 null 演算子か）。 */
 function endsWithValue(lastToken) {
   if (lastToken === null) return false;
-  if (lastToken.type === "word") return true;
+  // 値を待つキーワード（`return` / `throw` / `typeof` …）は値で終わらない。ここを一律 true にすると
+  // `return !/re/.test(x)` の `!` を後置の非 null と読み、続く正規表現をマスクせず素通りさせる
+  // （引用符を含む正規表現なら未終端の文字列として走査ごと落ちる）。プロパティ名は識別子なので値で終わる。
+  if (lastToken.type === "word") {
+    return lastToken.member || !REGEX_ALLOWED_AFTER_KEYWORDS.has(lastToken.value);
+  }
   if (lastToken.type === "number" || lastToken.type === "literal") return true;
   if (lastToken.type !== "punct") return false;
   if (lastToken.value === ")" || lastToken.value === "]") return true;
@@ -204,6 +214,45 @@ function regexLiteralEnd(source, start) {
     i += 1;
   }
   return -1;
+}
+
+/**
+ * `from` 以降の最初の**意味を持つ**トークンが、正規表現とも除算とも読める `/` か。
+ *
+ * 文脈依存キーワード（`await` / `yield`）の直後の `!` は、続くトークンの形で前置・後置が決まる
+ * （被演算子が続けば前置の否定、演算子が続けば後置の非 null）。唯一決まらないのが `/` で、
+ * 前置なら正規表現の開始、後置なら除算になる。
+ *
+ * **空白だけでなくコメントも読み飛ばす。** コメントは意味を持つトークンではないので、
+ * 非 null の後ろにブロックコメントを挟んでから除算する形の曖昧さは、挟まない形と同じである。
+ * コメントの `/` で「曖昧でない」と打ち切ると、その先の本物の `/` が正規表現の開始として扱われ、
+ * 次の `/` までの違反が黙って消える。
+ * 終端まで意味を持つトークンが無い場合は曖昧でない（続く式が無い。未終端コメント自体は
+ * maskNonCode が別途エラーにする）。
+ * @param {string} source
+ * @param {number} from
+ * @returns {boolean}
+ */
+function startsAmbiguousSlash(source, from) {
+  let k = from;
+  for (;;) {
+    while (k < source.length && /\s/.test(source[k])) k += 1;
+    if (source[k] !== "/") return false;
+    const next = source[k + 1];
+    if (next === "/") {
+      const end = source.indexOf("\n", k + 2);
+      if (end === -1) return false;
+      k = end + 1;
+      continue;
+    }
+    if (next === "*") {
+      const end = source.indexOf("*/", k + 2);
+      if (end === -1) return false;
+      k = end + 2;
+      continue;
+    }
+    return true;
+  }
 }
 
 /**
@@ -357,6 +406,23 @@ export function maskNonCode(source) {
         continue;
       }
       if (c === "!") {
+        // `await` / `yield` は文脈依存キーワードで、script / CommonJS では識別子にもなる。
+        // 直後の `!` が前置の否定（キーワード）か後置の非 null（識別子）かは、**次のトークンの形**で決まる:
+        // 被演算子が続けば前置（`await !Promise.resolve(x)`）、演算子が続けば後置（`await! / d`）。
+        // 曖昧なのは次が `/` のときだけ——前置なら正規表現の開始、後置なら除算で、
+        // 前置に倒すと次の `/` までがマスクされてその間の違反が黙って消える。
+        // そこだけ走査できないファイルとして落とす（判定不能を違反 0 件へ倒さない）。
+        if (
+          lastToken !== null &&
+          lastToken.type === "word" &&
+          !lastToken.member &&
+          CONTEXTUAL_VALUE_KEYWORDS.has(lastToken.value) &&
+          startsAmbiguousSlash(source, i + 1)
+        ) {
+          throw new Error(
+            `${lastToken.value} の直後の \`!\` と \`/\` は「正規表現の開始」とも「非 null の後の除算」とも読める（${lastToken.value} を識別子に使わないか、括弧で区切る）`,
+          );
+        }
         lastToken = { type: "punct", value: "!", postfix: endsWithValue(lastToken) };
         i += 1;
         continue;
@@ -555,10 +621,15 @@ function playwrightReceivers(code) {
   const leadingChain = (rhs) => {
     const head = rhs.match(/^\s*(?:await\s+)?([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)/);
     if (head === null) return null;
-    const names = head[1].split(".").map((part) => part.trim());
+    // `?.` も区切りとして落とす。`split(".")` だと `page?.getByRole` が `["page?", …]` になり、
+    // どの区間も名前で照合できず、解決できる式が「由来を追えない別名」に化けて誤検出になる。
+    const names = head[1].split(/\s*\??\.\s*/).map((part) => part.trim());
     const rest = rhs.slice(head[0].length);
     const calledIndex = /^\s*\(/.test(rest) ? names.length - 1 : null;
-    return { names, calledIndex };
+    // チェーンが呼び出し・添字で途切れたか。途切れた先は名前で追えないので、分類できなければ
+    // 「追えなかった」側（判定不能）へ倒す材料にする（純粋なプロパティ取り出しと区別する）。
+    const truncated = /^\s*[([]/.test(rest);
+    return { names, calledIndex, truncated };
   };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
   /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
@@ -583,19 +654,40 @@ function playwrightReceivers(code) {
         (name, index) =>
           pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
       );
+      // 呼ばれている区間の名前で見る経路を先に置く。テキスト照合は最初の物理行しか見ないので、
+      // 整形で折られたチェーン（`const cell = page\n  .getByRole(...)`）を取りこぼす。
+      // 区間はチェーン走査が改行をまたいで拾っているため、名前で見れば折り返しに依存しない。
+      const callsLocatorFactory =
+        chain.calledIndex !== null &&
+        /^(?:locator|frameLocator|getBy\w+)$/.test(chain.names[chain.calledIndex]);
       const isLocatorExpression =
-        hasLocator || (hasPage && /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0]));
+        hasLocator ||
+        (hasPage &&
+          (callsLocatorFactory || /\.\s*(?:locator|getBy\w+)\s*\(/.test(rhs.split(/[;\n]/, 1)[0])));
+      // 呼び出しも添字も含まない純粋なプロパティ経路で、末尾が Page に解決する形（`const p = page;`
+      // `const p = this.page;`）を Page として束ねる。末尾で見るのは、`const url = page.url` のように
+      // Page から取り出した別の値まで Page に化けさせないため。
+      // 束ねないと page 専用規則（`waitForTimeout` / `page.$`）が静かに外れる——チェーンに `page` を
+      // 含むので opaqueAliases にも入らず、違反 0 件でも判定不能 0 件でもない黙った素通りになる。
+      const isPagePath =
+        hasPage &&
+        /^[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*$/.test(rhsStatement) &&
+        pages.has(chain.names[chain.names.length - 1]);
       if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
         opaqueAliases.delete(target);
         changed = true;
-      } else if (hasPage && !pages.has(target) && rhsStatement === chain.names[0]) {
+      } else if (isPagePath && !pages.has(target)) {
         pages.add(target);
         opaqueAliases.delete(target);
         changed = true;
       } else if (
-        !hasLocator &&
-        !hasPage &&
+        // Page / Locator を含むチェーンでも、**呼び出し・添字で途切れていて**上の 2 つに当たらなければ
+        // ここへ落とす（`const cell = page.frames()[0].getByRole(...)` 等）。除外すると
+        // 「違反 0 件・判定不能 0 件」で黙って捨てられ、fail-closed のはずのゲートがその形だけ素通りする。
+        // 途切れていない純粋なプロパティ取り出し（`const timers = page.clock`）は Page でも Locator でも
+        // ない値なので、従来どおり対象外にする（判定不能にすると注釈を強いる誤検出になる）。
+        (chain.truncated || (!hasLocator && !hasPage)) &&
         !locators.has(target) &&
         !pages.has(target) &&
         !opaqueAliases.has(target) &&

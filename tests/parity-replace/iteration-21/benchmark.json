@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "skill_name": "parity-replace",
+    "skill_path": "<repo>/skills/parity-replace",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:00:18.985Z",
+    "evals_run": [20],
+    "runs_per_configuration": 1
+  },
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 90.791,
+        "stddev": 0,
+        "min": 90.791,
+        "max": 90.791
+      },
+      "tokens": {
+        "mean": 138221,
+        "stddev": 0,
+        "min": 138221,
+        "max": 138221
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8,
+        "stddev": 0,
+        "min": 0.8,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 81.927,
+        "stddev": 0,
+        "min": 81.927,
+        "max": 81.927
+      },
+      "tokens": {
+        "mean": 76630,
+        "stddev": 0,
+        "min": 76630,
+        "max": 76630
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.20"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "Issue #329 で新設した eval 20（前倒し条件の追加側。削除側の eval 15 と対）の初回。",
+    "弁別は assertion 4（replace-metadata.json の verification.diff_run.escalated_to_full に記録する）だけ。1・2・3・5 は without_skill も到達したため後退検知であり Delta には寄与しない。",
+    "到達した理由は fixture の skills.yml にある——diff 列が oxlint / oxfmt だけで typecheck を持たないことが読めるため、baseline が『型を見ない列だけを回した緑』へ自力で到達する。判断の一次情報であって結論ではないので fixture からは外さず、弁別が 1 本であることを記録に残す。"
+  ],
+  "runs": [
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 90.791,
+        "tokens": 138221,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "共有された型への必須プロパティの追加は、その型のリテラルを書いている変更集合の外のファイルを壊すため、敵対的レビュー前（手順 7）でも verification_commands.full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「必須プロパティを 4 つ足した時点で、その型のリテラルを書いている全箇所が型を満たさなくなり、その箇所は変更集合の外にあるので差分限定では原理的に見えません」と述べ、手順 7 で full を回すとしている"
+        },
+        {
+          "text": "前倒しの判断を操作名（削除・改名）の一覧ではなく、変更集合の外にあるファイルの判定を変えるか（型検査など判定が他ファイルに依存する検査）で行うと述べている",
+          "passed": true,
+          "evidence": "「前倒しの条件を操作名ではなく『変更集合の外の判定を変えるか』で決める」とスキルの規定を引いて判断している"
+        },
+        {
+          "text": "別パッケージのテストが緑であることを前倒し不要の根拠にせず、スタブに足りないプロパティが undefined になって古い形の assertion が通りうると述べている",
+          "passed": true,
+          "evidence": "「テストランナーは transpile-only で型を落として実行するのが普通」「欠落が現れるのは tsc を通したときだけ」と述べている"
+        },
+        {
+          "text": "前倒しして full を回したことを replace-metadata.json の検証証跡（escalated_to_full と実行した列）に記録すると述べている",
+          "passed": true,
+          "evidence": "replace-metadata.json の verification に scope: full・diff_run.commands・escalated_to_full: true・passed_at を書く JSON 例を示している"
+        },
+        {
+          "text": "回答内で、削除・改名が無いので差分限定のまま敵対的レビューへ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "「削除も改名もしていないは免除の根拠になりません」と一貫しており、矛盾する結論の併記は無い"
+        }
+      ]
+    },
+    {
+      "eval_id": 20,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 81.927,
+        "tokens": 76630,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "共有された型への必須プロパティの追加は、その型のリテラルを書いている変更集合の外のファイルを壊すため、敵対的レビュー前（手順 7）でも verification_commands.full へ前倒しすると述べている",
+          "passed": true,
+          "evidence": "「共有型への必須プロパティ追加は、定義上その型を組み立てている箇所すべてを壊します」「壊れた場所が差分の外にあるので、差分限定の列では原理的に見えません」"
+        },
+        {
+          "text": "前倒しの判断を操作名（削除・改名）の一覧ではなく、変更集合の外にあるファイルの判定を変えるか（型検査など判定が他ファイルに依存する検査）で行うと述べている",
+          "passed": true,
+          "evidence": "「削除・改名は full が要る理由の一例であって、基準そのものではありません。基準は変更の影響が変更ファイルの集合の外に出るかどうか」"
+        },
+        {
+          "text": "別パッケージのテストが緑であることを前倒し不要の根拠にせず、スタブに足りないプロパティが undefined になって古い形の assertion が通りうると述べている",
+          "passed": true,
+          "evidence": "「テストランナーが esbuild / swc / Vite などのトランスパイル専用経路で動いていれば、型は消されるだけで検査されません」"
+        },
+        {
+          "text": "前倒しして full を回したことを replace-metadata.json の検証証跡（escalated_to_full と実行した列）に記録すると述べている",
+          "passed": false,
+          "evidence": "証跡は metadata.json の流儀に合わせた独自の 8 項目リストを提案しており、replace-metadata.json の verification.diff_run.escalated_to_full に触れていない"
+        },
+        {
+          "text": "回答内で、削除・改名が無いので差分限定のまま敵対的レビューへ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "前倒しが要るという結論で一貫しており、差分限定のまま進んでよいとは述べていない"
+        }
+      ]
+    }
+  ]
+}
