@@ -62,5 +62,26 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 26 は本経路の外で撮った 2 枚の扱い（Issue #384）の回帰。別々の画面から切り出した 2 枚の画素差を根拠に差し戻す案を押し戻せるかを見る。
   **弁別は 1 件（条件が揃うまで要対応として `diff.md` に書かない）だけで、主に後退検知**——`without_skill` も CSS のクランプ規則と撮影条件の不一致から同じ結論へ自力で到達する（iteration-28）。
   初版の assertion は「両側の矩形を並べて出す」「`child_inline_styles` を読む」を要求しており、**本経路で撮り直すという正しい答えが不合格になる**形だったので直した（前者は撮り直しでも通る形へ、後者は `parity-suite` の eval 37 へ移した）
+- eval 27 は未測定の機械可読な宣言（Issue #278）の回帰。`gaps.md` に「測っていない」と正しく書いてある状態で、
+  散文は収束条件の一覧に無いことを根拠に `converged: true` にする案を押し戻せるかを見る。`unmeasured` への宣言・
+  `disposition: blocking` の扱い・承認記録が空なら `blocking`（fail-closed）・キーごと無い旧成果物の後方互換・
+  `gaps.md` を人向けの説明としてそのまま残すことを対象にする。
+  **assertion は 2 度直している**——初版（iteration-29）の強度ゲートの assertion は prompt が強度ゲートに触れないため
+  両 config が無条件 pass する空振りだったので削除し、2 版目（iteration-30）で要求していた `approved_by` / `approved_at` というキー名は
+  **正本が `parity-suite` の `metadata-template.json` にあり、`with_skill` には対象スキルの成果物しかコピーされないため原理的に到達できない**
+  （`.agents/rules/eval-assertion-discrimination.md`「到達」が名指ししている失敗）。本スキルの `references/convergence.md` で読める粒度
+  （承認記録が空なら `blocking`）へ直して iteration-31 で取り直し、`with_skill` 6/6 / `without_skill` 2/6。
+  **ただし「`gaps.md` を降格させない」の弁別は run 間で揺れる**——iteration-30 の baseline は `gaps.md` の生成物への降格を提案し、
+  iteration-31 の baseline は散文のまま残すと答えた。1 run では分散を測れないので、弁別の根拠をこの 1 本に置かない
+- eval 28 は追記専用の成果物の縮小（Issue #310）の回帰。承認記録を「いま有効な分だけ」に書き直しても検査が全部通る状態から、
+  そのまま収束させる案を押し戻せるかを見る。過去の決定の喪失・収束判定が現在の状態しか見ないこと・
+  `append-only-check.mjs` と `append-only-manifest.json`・対象 0 件を合格に倒さないこと・git の履歴からの復元を対象にする。
+  初版（iteration-29）では `with_skill` が一覧の所在（`append-only-manifest.json` が正本）に到達しなかったため、
+  prompt に「そもそもどのファイルが追記専用なのかは、どこで決まっている？」を足した（iteration-30 で `with_skill` 6/6）。
+  検査そのもの（単位の喪失・消失・整形だけでは落ちない・多重度・サブディレクトリ root・`unit` 別の突き合わせ）は
+  `scripts/append-only-check.test.js` が担う。
+  **PR #398 のレビューで、行の多重集合が正本の求めるその場の更新（版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・
+  空配列への最初の追記）を「失われた行」に化けさせることが実測された**——一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で
+  突き合わせの単位を分け、誤検出で収束が止まらないようにした（回帰はテスト側の陽性・陰性コントロール両方で押さえている）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

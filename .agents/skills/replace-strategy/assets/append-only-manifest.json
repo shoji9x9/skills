@@ -1,0 +1,93 @@
+{
+  "_note": "追記専用（非破壊追記）の成果物の一覧（正本）。replace-strategy の scripts/append-only-check.mjs が読む。散文の中にある限り書き手が読み落としても何も起きないため、機械可読にしてここへ集約する。パターンは .replace / .config を起点にしたリポジトリルートからの相対パスで、* は 1 階層、** は複数階層に一致する。unit は突き合わせの単位（省略時は lines）。lines = 空白を畳んだ行の多重集合（書き換えず積み上げるだけの台帳）、markdown-structure = 見出し・表の列名・表の行（先頭セルが鍵）・定義箇条書きの鍵・それ以外の散文行（セルと箇条書きの値は正本がその場の更新を求めるので固定しない）、json-arrays = arrays に挙げた配列の要素（深い等価。version のようなスカラは更新してよい。要素間でフィールドを入れ替える書き換えも縮小として落ちる）。json-arrays に key を添えると、鍵で要素を対応づけてフィールドごとに突き合わせる（既定は鍵以外が不変。fill_only は空 → 非空だけ許し、transitions は明示した <変更前>-><変更後> だけ許す。鍵が引けない要素は exit 2）。markdown-structure は表の行 × 列のセルも単位にするので、正本がその場の更新を定めている列だけ mutable_columns へ書く（requirement が節・列・行だけを守ると定めている成果物は \"*\" でセルを契約の対象外にする）。定義箇条書き（`- <鍵>: <値>`）も鍵と値の両方を守るので、値の更新を正本が定めている項目だけ mutable_bullets へ書く（同じく \"*\" で値を契約の対象外にできる）。プロジェクト側の置き場所が既定と違う場合はこのファイルをプロジェクトへコピーして書き換え、--manifest で渡す（スキル内の正本は書き換えない）。",
+  "version": "4",
+  "artifacts": [
+    {
+      "id": "project-config",
+      "pattern": ".config/skills/*/skills.yml",
+      "unit": "lines",
+      "requirement": "既にあれば欠けたキーだけを追記し、既存のキー・値・コメントは変更しない",
+      "source": "replace-strategy の references/project-config.md"
+    },
+    {
+      "id": "features",
+      "pattern": ".replace/features.md",
+      "unit": "markdown-structure",
+      "mutable_columns": ["*"],
+      "mutable_bullets": ["*"],
+      "requirement": "非破壊更新で節・列を追加して埋める。テンプレートに無いヘッダ項目・節・列・行を書き直しで削除しない",
+      "source": "replace-strategy の references/features-issues.md"
+    },
+    {
+      "id": "components",
+      "pattern": ".replace/components.md",
+      "unit": "markdown-structure",
+      "mutable_columns": ["*"],
+      "mutable_bullets": ["*"],
+      "requirement": "既存の行・ヘッダ項目・テンプレートに無い追記も、書き直しで落とさない",
+      "source": "replace-strategy の assets/components-template.md"
+    },
+    {
+      "id": "assets",
+      "pattern": ".replace/assets.md",
+      "unit": "markdown-structure",
+      "mutable_columns": ["状態", "宣言", "理由"],
+      "mutable_bullets": ["最終更新", "走査したページ", "未走査・未確認"],
+      "requirement": "既存の決定を書き換えず、覆すときは新しい決定を追記して前の決定に覆した理由を書く",
+      "source": "replace-strategy の references/static-assets.md"
+    },
+    {
+      "id": "dependencies",
+      "pattern": ".replace/dependencies.md",
+      "unit": "markdown-structure",
+      "mutable_bullets": ["最終更新", "方針の所在"],
+      "requirement": "既存の決定を書き換えない。差し替えたときは新しい決定を追記し、前の決定に差し替え理由を書く",
+      "source": "replace-strategy の references/dependency-selection.md"
+    },
+    {
+      "id": "dataset-metadata",
+      "pattern": ".replace/dataset/metadata.json",
+      "unit": "json-arrays",
+      "arrays": ["changes"],
+      "requirement": "版ごとの changes[] は非破壊で追加する。過去版の記録を推測で書き換えない",
+      "source": "golden-dataset の references/versioning.md"
+    },
+    {
+      "id": "component-diff-exceptions",
+      "pattern": ".replace/parity/*/component-diff-exceptions.json",
+      "unit": "json-arrays",
+      "arrays": ["component_diff_exception_causes", "component_diff_exceptions"],
+      "requirement": "インスタンス例外の台帳。承認済みの例外を非破壊追記する（過去の承認を消さない）",
+      "source": "parity-diff の references/triage.md"
+    },
+    {
+      "id": "component-diff-exceptions-rationale",
+      "pattern": ".replace/parity/*/component-diff-exceptions.md",
+      "unit": "markdown-structure",
+      "mutable_bullets": ["最終更新", "インスタンス件数"],
+      "requirement": "承認の根拠（いつ誰が何件を覆って承認したか）を非破壊追記する。収束判定が承認済み件数をここから数える",
+      "source": "parity-diff の references/triage.md"
+    },
+    {
+      "id": "parity-unmeasured",
+      "pattern": ".replace/parity/*/metadata.json",
+      "unit": "json-arrays",
+      "arrays": ["unmeasured.entries"],
+      "key": "item",
+      "fill_only": ["approved_by", "approved_at"],
+      "transitions": {
+        "disposition": ["blocking->accepted"]
+      },
+      "requirement": "未測定の宣言（gaps.md の対）。項目（item）を消さない。disposition の blocking → accepted（承認の追記）は正規の遷移なので要素の中身は固定せず item だけを同一性にする",
+      "source": "parity-suite の references/coverage.md「未測定を機械可読にする」"
+    },
+    {
+      "id": "gaps",
+      "pattern": ".replace/parity/*/gaps.md",
+      "unit": "markdown-structure",
+      "mutable_bullets": ["実施日時"],
+      "requirement": "未検証領域の記録。測れなかった事情を消さずに残す（確認済みにしない）",
+      "source": "parity-suite の assets/gaps-template.md"
+    }
+  ]
+}

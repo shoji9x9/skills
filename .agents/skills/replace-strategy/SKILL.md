@@ -248,6 +248,27 @@ replace-strategy status
 | 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
+- **追記専用（非破壊追記）の成果物は機械可読な一覧を正本にする**——[`assets/append-only-manifest.json`](assets/append-only-manifest.json)。
+  散文の中にあるかぎり書き手が読み落としても何も起きず、**積み上げた文書を丸ごと書き直しても、現在の内容が整合していればどの検査も通る**
+  （失われるのは過去の決定——なぜこの差分を許容したのか・いつ誰が承認したのか）。
+  縮んでいないことの検査は同梱の [`scripts/append-only-check.mjs`](scripts/append-only-check.mjs) が git の履歴と突き合わせて行う（**コピーせずスキル配下から実行する**）:
+
+  ```bash
+  node <skill>/scripts/append-only-check.mjs --root . --base <比較元の版>
+  ```
+
+  一覧の各項目は `unit` で**突き合わせの単位**を持つ（`lines` ＝ 空白を畳んだ行、`markdown-structure` ＝ 見出し・表の列名・表の行〈先頭セルが鍵〉・
+  行 × 列のセル・定義箇条書きの鍵・それ以外の散文行、`json-arrays` ＝ `arrays` に挙げた配列の要素〈深い等価〉）。
+  **鍵だけを同一性にしない**——表の行は先頭セルだけ残せば中身を丸ごと差し替えられ、`key` つきの配列も鍵以外が自由に書き換わる。
+  正本が更新を定めている箇所だけ `mutable_columns`（列名。`"*"` でセルを契約の対象外）・`mutable_bullets`（定義箇条書きの鍵）・`fill_only`（空 → 非空だけ）・
+  `transitions`（明示した `<変更前>-><変更後>` だけ）で開ける。
+  同じ鍵の行は**出現順で区別する**（`assets.md` は方針を覆した行と現在の行が同じ「種類」で並ぶので、
+  区別しないと 2 行の間でセルを入れ替えても単位が変わらない）。
+  **全部を行として比べない**——正本が明示的に求めるその場の更新（版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・最終更新の日時・
+  空配列への最初の追記）が「失われた行」に化け、決定を 1 つも捨てていない成果物で収束が止まるため。守るのは行・列・節・配列の要素で、セルと箇条書きの**値**ではない。
+
+  `parity-diff` が機能を閉じる工程（収束判定）でこれを呼ぶ。プロジェクト側の置き場所が既定と違うなら一覧をプロジェクトへコピーして書き換え、`--manifest` で渡す（スキル内の正本は書き換えない）
+
 ## 姉妹スキルと依存順
 
 | スキル | 役割 |

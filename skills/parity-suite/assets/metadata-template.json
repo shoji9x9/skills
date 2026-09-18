@@ -31,7 +31,20 @@
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
     ],
-    "current_green": true
+    "current_green": true,
+    "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
+    "repeat_run": {
+      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
+      "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
+      "runs": [
+        {
+          "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）>",
+          "result": "<green | red。連続する 2 回とも green であることを求める>",
+          "suite_fingerprint": "<その回に回したスイートの指紋（sha256:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。手で計算せずスクリプトの suiteFingerprint を使う。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+        }
+      ],
+      "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
+    }
   },
   "component_coverage": {
     "_note": "部品被覆表（component-coverage.json）の宣言。parity-diff はこのキーがあるときだけ被覆表を収束判定に入れ、キーごと無い旧成果物は現状どおり収束させる（後方互換）。feature モードのみ持つ。件数は概観用で、parity-diff は被覆表の実体から数え直す（宣言値を信用しない）。",
@@ -53,6 +66,20 @@
     "declared": true,
     "path": ".replace/parity/<slug>/reactions.json",
     "reason": "<declared: false のときだけ、宣言しない理由（操作を持たない機能だけ）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"
+  },
+  "unmeasured": {
+    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う——同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。正本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
+    "declared": true,
+    "entries": [
+      {
+        "item": "<未測定の項目名。gaps.md の該当行と同じ文言にする（成果物の片側だけに残さない）>",
+        "reason": "<測れなかった事情。gaps.md の理由と同じ文言>",
+        "disposition": "<blocking | accepted。blocking は「測るまで収束させない」、accepted は「測らないことをユーザーが承認した」。語彙外・欠落は blocking として数える>",
+        "approved_by": "<accepted のときだけ、承認した人。blocking では null>",
+        "approved_at": "<accepted のときだけ、承認日時（ISO 8601）。blocking では null>"
+      }
+    ],
+    "reason": "<declared: false のときだけ、宣言しない理由。declared: false で空だと artifact-health-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "capture_conditions": {
     "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
@@ -182,5 +209,26 @@
     "selected": "<local | git | git-lfs。既定は設定の storage、overrides.<slug> で上書き>",
     "size_threshold_mb": 0,
     "baseline_pointer": "<ベースライン（.replace/parity/<slug>/baseline/）の保存先ポインタ>"
+  },
+  "artifact_health": {
+    "_note": "採取物ごとの「読むスペック」と「何から作ったか」の宣言。採取物は工程の出力であり次の工程の入力なので、読まれていない採取物と古い加工物を数える段をここに置く。検査は parity-suite の scripts/artifact-health-check.mjs（parity-diff が収束判定で同じスクリプトを呼ぶ）。キーごと無い旧成果物は判定しない（後方互換）。正本は parity-suite の references/baseline.md「採取物の健全性」。",
+    "declared": true,
+    "baseline_dir": "<採取物の置き場所（リポジトリルートからの相対パス。既定 .replace/parity/<slug>/baseline/）。この直下を再帰的に列挙し、entries に現れないファイルは未宣言として数える>",
+    "entries": [
+      {
+        "path": "<baseline_dir からの相対パス（例: orders.default.desktop.png）>",
+        "kind": "<captured | derived。captured は採取そのもの、derived は採取物から作った加工物（実体を展開した JSON 等）。語彙外・欠落は未検証として数える>",
+        "read_by": [
+          "<この採取物を読むスペックのパス（リポジトリルートからの相対）。検査は字面の照合で行う——そのファイルの中に path の basename がファイル名として現れるかだけを見る（前後がファイル名を構成する文字なら別ファイル扱い。orders.xlsx は orders.xlsx.json に一致しない。assertion に使っているかまでは見ない）>"
+        ],
+        "unread_reason": "<read_by が空のときだけ、読み手がいない理由（補助資料・決定論性を見るだけの記録など）。空だと未検証として数える。read_by があるときは null>",
+        "derived_from": {
+          "path": "<kind: derived のときだけ、元の実体の baseline_dir からの相対パス（entries にも現れること）>",
+          "sha256": "<その元の実体の sha256。検査は元を読み直して数え直す（一致しなければ加工物が古い）>"
+        },
+        "freshness_unverified_reason": "<kind: derived で derived_from を書けないときだけ、書けない理由。『古いかもしれない』を未検証として残す記録であり、空だと未検証として数える。derived_from があるときは null>"
+      }
+    ],
+    "reason": "<declared: false のときだけ、宣言しない理由（例: api-resource モードで視覚採取物を持たない）。declared: false で空だと artifact-health-check.mjs が exit 2 で落とす。declared: true では null。declared: false が免除するのはこの節だけで、suite.state_mutating の宣言は免除しない（artifact_health キーを持つ成果物は必ず書く）>"
   }
 }
