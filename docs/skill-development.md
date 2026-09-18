@@ -247,6 +247,10 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 - **逆向きの取りこぼしは許容する** —— 実際に読んだが非 0 で終わる形（一致なしの `grep`）や複合コマンド内の読み取り（`cat X | head`）は read にならない。
   これは run を 1 つ `invalid_run` として落とすだけで、**汚染を捏造しない側**の誤りだから。落ちた run は目に見えるので追加 run を取れる。
 - `without_skill` 側の対称な signal は `unexpected_read`（ベースラインがスキルに触れた＝汚染）。`contamination.txt` と併せて見る。
+  **claude-code の `raw/` はマーカー走査の対象外**にしてある —— stream-json には中間メッセージとツール入力が入り、
+  マーカーを口にしただけの baseline が CONTAMINATED（exit 4）になって正当な測定が捨てられるため（実測）。
+  読み取りの signal は `skill_usage.unexpected_read` が担う（成功した読み取りから導くので、名前を挙げただけでは立たない）。
+  codex の `raw/` は従来からイベント列で走査対象のまま。
 
 ### eval 環境の前提（runtime / repo / 非対話）
 

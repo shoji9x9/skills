@@ -142,21 +142,35 @@ function shellReadTarget(command, depth = 0) {
     return [];
   }
 
-  // Only the file operands are evidence. A flag's own value is dropped with it, and
-  // the utility's leading non-file operand (a pattern or a script) is skipped.
+  // Only the file operands are evidence. An option's VALUE goes with the option:
+  // `diff --label <skill path> a b` exits zero having read only a and b, and dropping
+  // just the `--label` token would leave its value looking like a file. Knowing each
+  // option's arity means shipping a table per utility, so the token after an option is
+  // treated as its value — over-consuming there only ever drops evidence.
+  const rest = words.slice(index + 1);
   const operands = [];
   let endOfFlags = false;
-  for (const word of words.slice(index + 1)) {
+  let consumedOptionValue = false;
+  for (let cursor = 0; cursor < rest.length; cursor += 1) {
+    const word = rest[cursor];
     if (!endOfFlags && word === "--") {
       endOfFlags = true;
       continue;
     }
     if (!endOfFlags && word.startsWith("-") && word !== "-") {
+      const next = rest[cursor + 1];
+      if (next !== undefined && next !== "--" && !next.startsWith("-")) {
+        cursor += 1;
+        consumedOptionValue = true;
+      }
       continue;
     }
     operands.push(stripQuotes(word));
   }
-  return operands.slice(NON_FILE_LEADING_OPERANDS.get(utility) ?? 0);
+  // grep/sed/awk name their pattern or script in the first operand. When an option
+  // already swallowed it, skipping again would eat the file itself.
+  const leadingNonFile = NON_FILE_LEADING_OPERANDS.get(utility) ?? 0;
+  return operands.slice(consumedOptionValue ? Math.max(leadingNonFile - 1, 0) : leadingNonFile);
 }
 
 function stripQuotes(word) {

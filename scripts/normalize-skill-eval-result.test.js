@@ -492,6 +492,48 @@ describe("skill eval result normalization", () => {
       expect(usage.files_read).toEqual([]);
     });
 
+    // An option's value is not a file it opened. `diff --label X a b` reads a and b.
+    test.each([
+      ["a display label", "diff --label .claude/skills/box/SKILL.md a b"],
+      ["a short option value", "head -c .claude/skills/box/SKILL.md a"],
+    ])("does not treat %s as a file it read", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test.each([
+      ["head with a count", "head -n 40 .claude/skills/box/SKILL.md"],
+      ["sed with a script", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
+      ["grep with a flag and pattern", "grep -n name .claude/skills/box/SKILL.md"],
+    ])("still counts %s", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+    });
+
     test("still reads the file operand that follows a pattern", () => {
       const usage = buildSkillUsage({
         config: "with_skill",

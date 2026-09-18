@@ -603,7 +603,17 @@ if [ "${config}" = "without_skill" ]; then
 
 	scan_directories=()
 	[ -d "${snapshot_dir}" ] && scan_directories+=("${snapshot_dir}")
-	[ -d "${out}/raw" ] && scan_directories+=("${out}/raw")
+	# Only codex's raw is scanned. Its trace has always been an event stream, so this
+	# is the surface it has always had. claude-code's raw used to be the final result
+	# object alone — the same text as result.json — and stream-json added intermediate
+	# messages and tool inputs, which are mentions, not reads: a baseline whose only
+	# tool call was `echo references/oauth-setup.md` was reported CONTAMINATED and the
+	# run discarded (measured). Read evidence for claude-code now lives in
+	# result.json `skill_usage` (`unexpected_read`), which is derived from successful
+	# reads rather than from any text that names a marker.
+	case "${executor}" in
+	codex) [ -d "${out}/raw" ] && scan_directories+=("${out}/raw") ;;
+	esac
 	scan_roots=()
 	[ -e "${out}/result.json" ] && scan_roots+=("${out}/result.json")
 	scan_roots+=("${scan_directories[@]}")

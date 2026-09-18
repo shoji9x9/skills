@@ -66,6 +66,9 @@ else
   if [[ "$args" == *EXPECT_SKILL_SHELL_READ* ]]; then
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cat .claude/skills/box/SKILL.md"}}]}}'
     printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"name: box"}]}}'
+  elif [[ "$args" == *EXPECT_MARKER_MENTION* ]]; then
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"echo references/oauth-setup.md"}}]}}'
+    printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"references/oauth-setup.md"}]}}'
   elif [[ "$args" == *EXPECT_SKILL_UNREAD* ]]; then
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls ."}}]}}'
     printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"generated.txt"}]}}'
@@ -247,6 +250,28 @@ describe("run-skill-eval executor compatibility", () => {
     const usage = readJson(join(output, "result.json")).skill_usage;
     expect(usage).toMatchObject({ visible: true, invoked, read, invalid_run: invalidRun });
     expect(usage.files_read).toEqual(expectedPaths.map((name) => `.claude/skills/box/${name}`));
+  });
+
+  // stream-json put intermediate messages and tool inputs into raw/. Scanning that for
+  // contamination markers turns a mention into a discarded baseline, so claude-code's
+  // raw is out of the scan and the read evidence in skill_usage carries the signal.
+  test("does not call a claude baseline contaminated for merely naming a marker", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+
+    runEval({
+      executor: "claude-code",
+      config: "without_skill",
+      prompt: "EXPECT_WITHOUT_SKILL EXPECT_MARKER_MENTION",
+      output,
+      stub,
+    });
+
+    expect(readFileSync(join(output, "contamination.txt"), "utf8")).toMatch(/^verdict: clean$/mu);
+    expect(readJson(join(output, "result.json")).skill_usage).toMatchObject({
+      read: false,
+      unexpected_read: false,
+    });
   });
 
   test("a baseline that reached the skill is reported as an unexpected read", () => {
