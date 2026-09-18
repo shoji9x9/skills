@@ -127,10 +127,13 @@
     node <parity-suite の skill>/scripts/component-comparison-check.mjs \
       --coverage .replace/parity/<slug>/component-coverage.json \
       --comparison .replace/parity/<slug>/new/<target>/component-comparison.json \
-      --metadata .replace/parity/<slug>/metadata.json --target <target>
+      --metadata .replace/parity/<slug>/metadata.json \
+      --replace-metadata .replace/parity/<slug>/new/<target>/replace-metadata.json --target <target>
     ```
 
     落とすのは、**`present` なのに突き合わせの行が無い**・`compared: true` なのに入口・当たり判定・完了の観測が欠ける・
+    **突き合わせを取った新側の版（`new_implementation.commit`）が無い／現在の `replace-metadata.json` の `new.commit` と違う**（記録の後に実装が変わっている）・
+    `new.dirty: true`（未コミットの変更があると版に紐づかない）・
     `compared: false` の理由が無い・**承認記録の無い `accepted`**・被覆表の指紋と合わない古い記録・別 target の記録・被覆表に無いセルの記録・
     被覆表と突き合わせ表のどちらかに同じ鍵（`component|item|instance`）の行が 2 つ以上ある（1 セルが 2 回数えられる）。
     終了コードは 0 ＝ 条件を満たす、1 ＝ 未突合・不整合が残る（収束させず `parity-replace` へ戻す）、2 ＝ 型崩れ（被覆表が読めない）。

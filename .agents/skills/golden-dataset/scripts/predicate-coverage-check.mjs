@@ -74,8 +74,31 @@ export function parseTables(markdown) {
   let heading = "";
   let i = 0;
   const splitRow = (line) => {
-    const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-    return trimmed.split("|").map((c) => normalizeCell(c));
+    // **エスケープされたパイプ（`\|`）はセルの区切りではない**——境界として割ると列がずれ、
+    // 正当な設計が「件数が読めない」等の無関係な finding で落ちる。
+    const trimmed = line
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/(?<!\\)\|$/, "");
+    /** @type {string[]} */
+    const cells = [];
+    let current = "";
+    for (let i = 0; i < trimmed.length; i += 1) {
+      const char = trimmed[i];
+      if (char === "\\" && trimmed[i + 1] === "|") {
+        current += "|";
+        i += 1;
+        continue;
+      }
+      if (char === "|") {
+        cells.push(current);
+        current = "";
+        continue;
+      }
+      current += char;
+    }
+    cells.push(current);
+    return cells.map((c) => normalizeCell(c));
   };
   const isSeparator = (line) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-");
   while (i < lines.length) {
@@ -686,6 +709,30 @@ export function checkPredicateCoverage(input) {
               },
         );
       });
+    }
+  }
+
+  // 5b. features.md が宣言した (slug, テーブル) の組に、消費側パラメータの行が在るか
+  // **行が無い組はループが 0 回になる**ので、「絞り込みを調べていない」と「絞り込みが無い」が
+  // 同じ（findings 0 件）に見える。調べた結果が無ければ `-` の行を置かせる。
+  if (paramTable) {
+    /** @type {Set<string>} */
+    const paramPairs = new Set();
+    for (const row of rowsAsRecords(paramTable)) {
+      const slug = normalizeCell(row["機能／リソース slug"]);
+      const tableName = normalizeCell(row["テーブル"]);
+      if (slug === "" || tableName === "") continue;
+      paramPairs.add(`${slug}\u0000${tableName}`);
+    }
+    for (const [tableName, slugs] of consumers) {
+      if (!declared.has(tableName)) continue;
+      for (const slug of [...slugs].sort()) {
+        if (paramPairs.has(`${slug}\u0000${tableName}`)) continue;
+        findings.push({
+          code: "param-row-missing",
+          message: `features.md では ${slug} が ${tableName} を読むのに、消費側パラメータにその組の行が無い（絞り込みを調べていないことが、絞り込みが無いことと同じ見え方になる。調べて無ければ絞り込み列・条件に - と書く）`,
+        });
+      }
     }
   }
 

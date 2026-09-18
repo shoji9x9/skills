@@ -182,6 +182,42 @@ test("条件の中にカンマがある絞り込みでも、述語行があれ�
   expect(codes).toEqual([]);
 });
 
+test("エスケープされたパイプはセルの区切りにしない（列がずれて無関係な finding になる）", () => {
+  const tables = parseTables("## 見出し\n\n| a | b |\n|---|---|\n| status = 'x\\|y' | 2 |\n");
+  expect(tables[0].rows).toEqual([["status = 'x|y'", "2"]]);
+});
+
+test("features.md の (slug, テーブル) に消費側パラメータの行が無ければ落ちる", () => {
+  // 行が無いとループが 0 回になり、「絞り込みを調べていない」が「絞り込みが無い」に見える。
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(codes).toContain("param-row-missing");
+
+  // 調べた結果として `-` を書いた行があれば通る（行そのものは要る）。
+  const withSentinel = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | - | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(withSentinel).not.toContain("param-row-missing");
+});
+
 test("消費側は 3 表すべてから集める（1 表しか読まないと写し漏れを検出できない）", () => {
   const { consumers, structural } = collectConsumers(FEATURES);
   expect(structural).toBe(false);

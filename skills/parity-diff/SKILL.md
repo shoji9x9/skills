@@ -87,7 +87,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
   インストール済みの `parity-suite` の `scripts/reaction-check.mjs --recorded` で数え直し、exit 0 以外なら `parity-suite` へ戻す
   （遅れて出る・別の文書に出る・自動で消える反応は差分器の採取に写らない。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **被覆表の `present` を新側で突き合わせていない状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら、
-  インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <新側突き合わせ表> --metadata <現側 metadata.json> --target <target>` で数え直し、
+  インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <新側突き合わせ表>`
+  `--metadata <現側 metadata.json> --replace-metadata <replace-metadata.json> --target <target>` で数え直し、
   exit 0 以外なら `parity-replace` へ戻す（**被覆表の 3 値は移行元側の測定**で、入口・当たり判定・完了のどこかで止まる欠落は示さない。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **撮る範囲に宣言されていない穴が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
   `scripts/capture-scope-check.mjs --metadata <現側 metadata.json>` で数え直し、exit 0 以外なら `parity-suite` へ戻す

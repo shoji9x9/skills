@@ -207,8 +207,11 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    `.replace/parity/<slug>/new/<target>/component-comparison.json` に書き（**環境別**。様式の正本は `parity-suite` の
    `assets/component-comparison-template.json`）、**入口・当たり判定・完了**の 3 点を観測して記録する。
    突き合わせられないセルは理由を書き、**突き合わせないことを選ぶなら利用者の承認**（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
+   **記録には新側の版（`new_implementation.commit` ＝ そのときの `new.commit`）も書く**——書かないと、記録の後に実装を変えても古い証拠が通る
+   （当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。
    記録したらインストール済みの `parity-suite` の
-   `node <parity-suite>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> --target <選択中の new target>`
+   `node <parity-suite>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json>`
+   `--replace-metadata <new/<target>/replace-metadata.json> --target <選択中の new target>`
    を **exit 0 まで通す**（コピーせずスキル配下から実行する。`source_coverage.fingerprint` は手で書かず検査が出す期待値を写す）。
    **`parity-diff` の収束判定も同じスクリプトを呼ぶ**ので、ここで通しておかないと差分の工程で差し戻される。
    **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。

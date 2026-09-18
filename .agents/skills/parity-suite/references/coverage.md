@@ -154,7 +154,8 @@
   node <skill>/scripts/component-comparison-check.mjs \
     --coverage .replace/parity/<slug>/component-coverage.json \
     --comparison .replace/parity/<slug>/new/<target>/component-comparison.json \
-    --metadata .replace/parity/<slug>/metadata.json --target <target>
+    --metadata .replace/parity/<slug>/metadata.json \
+    --replace-metadata .replace/parity/<slug>/new/<target>/replace-metadata.json --target <target>
   ```
 
 - **`component` / `item` / `instance` の id に `|` を使わない。** 突き合わせの鍵（`<component>|<item>|<instance>`）の区切りなので、

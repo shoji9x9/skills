@@ -57,6 +57,10 @@ function comparisonOf(override = {}) {
       path: ".replace/parity/order-list/component-coverage.json",
       fingerprint: override.fingerprint ?? fingerprintOf(PRESENT_KEYS),
     },
+    new_implementation:
+      "new_implementation" in override
+        ? override.new_implementation
+        : { commit: "abc123", dirty: false },
     cells: override.cells ?? [
       {
         component: "grid",
@@ -256,6 +260,39 @@ test("指紋の欄そのものが無い記録も落ちる", () => {
   const comparison = comparisonOf();
   delete comparison.source_coverage.fingerprint;
   expect(codesOf({ comparison })).toContain("coverage-fingerprint-missing");
+});
+
+test("突き合わせは新側の版に紐づける（記録後に実装が変わったら落ちる）", () => {
+  // target・slug・被覆表の指紋だけでは、記録の後に新側を変えても古い証拠が通る。
+  const stale = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf(),
+    replaceMetadata: { new: { commit: "def456", dirty: false } },
+    target: "preview",
+  }).findings.map((f) => f.code);
+  expect(stale).toContain("comparison-implementation-stale");
+
+  // 同じ版なら通る（陽性コントロール）。
+  const fresh = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf(),
+    replaceMetadata: { new: { commit: "abc123", dirty: false } },
+    target: "preview",
+  }).findings;
+  expect(fresh).toEqual([]);
+
+  // 版を記録していない突き合わせ表と、未コミットの新側は落とす。
+  expect(codesOf({ comparison: comparisonOf({ new_implementation: undefined }) })).toContain(
+    "comparison-implementation-unrecorded",
+  );
+  expect(
+    checkComponentComparison({
+      coverage: COVERAGE,
+      comparison: comparisonOf(),
+      replaceMetadata: { new: { commit: "abc123", dirty: true } },
+      target: "preview",
+    }).findings.map((f) => f.code),
+  ).toContain("replace-metadata-dirty");
 });
 
 test("被覆表に slug が無いことを免除にしない", () => {

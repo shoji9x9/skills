@@ -3,6 +3,11 @@
   "slug": "<features.md の slug。metadata.json の slug と一致させる>",
   "target": "<新側 target 名。replace-metadata.json の new.target と一致させる（別環境の記録で収束させない）>",
   "measured_at": "<ISO 8601。突き合わせを行った日時>",
+  "new_implementation": {
+    "_note": "この突き合わせを取ったときの新側の版。target・slug・被覆表の指紋だけで縛ると、記録の後に新側を変えても古い証拠が通る（当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。component-comparison-check.mjs は --replace-metadata を渡された実行で replace-metadata.json の new.commit と突き合わせ、違えば comparison-implementation-stale で落とす。",
+    "commit": "<突き合わせを行ったときの新側リポジトリのコミット SHA（replace-metadata.json の new.commit と同じ値。無ければ none）>",
+    "dirty": "<そのとき新側の作業ツリーに未コミットの変更があったか（真偽値）。true の記録は版に紐づかない>"
+  },
   "source_coverage": {
     "path": "<読んだ被覆表のパス（例: .replace/parity/<slug>/component-coverage.json）>",
     "fingerprint": "<被覆表の present セルの鍵（component|item|instance）を昇順に改行連結した sha256。component-comparison-check.mjs が同じ規則で数え直す。手で書かず、検査が出す期待値を写す>"

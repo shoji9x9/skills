@@ -80,7 +80,7 @@ export function fingerprintOf(keys) {
 
 /**
  * 被覆表と突き合わせ表を突き合わせる。
- * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, target?: string | null }} input
+ * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null }} input
  * @returns {{ findings: {code:string, message:string}[], counts: Record<string, number>, structural: boolean, judged: boolean }}
  */
 export function checkComponentComparison(input) {
@@ -144,6 +144,45 @@ export function checkComponentComparison(input) {
       code: "comparison-target-mismatch",
       message: `突き合わせ表の target「${String(comparison.target)}」が判定対象の target「${String(input.target)}」と違う（別環境の記録で収束させない）`,
     });
+  }
+  // **突き合わせは新側の実装の版に紐づく**——target・slug・被覆表の指紋だけで縛ると、
+  // 記録した後に新側を変えても古い証拠が通る。当たり判定・完了の退行はスイートの green に
+  // 出ないので、この工程が唯一の網になる。
+  const observed = comparison.new_implementation;
+  const observedCommit =
+    observed && typeof observed === "object"
+      ? /** @type {Record<string, any>} */ (observed).commit
+      : undefined;
+  if (!nonEmptyString(observedCommit)) {
+    findings.push({
+      code: "comparison-implementation-unrecorded",
+      message:
+        "突き合わせ表に new_implementation.commit が無い（どの版の新側を操作した記録か決まらず、実装を変えても古い証拠が通る）",
+    });
+  }
+  const replaceMetadata = /** @type {Record<string, any> | undefined} */ (input.replaceMetadata);
+  if (replaceMetadata && typeof replaceMetadata === "object") {
+    const current =
+      replaceMetadata.new && typeof replaceMetadata.new === "object" ? replaceMetadata.new : {};
+    if (!nonEmptyString(current.commit)) {
+      findings.push({
+        code: "replace-metadata-commit-missing",
+        message:
+          "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
+      });
+    } else if (nonEmptyString(observedCommit) && observedCommit !== current.commit) {
+      findings.push({
+        code: "comparison-implementation-stale",
+        message: `突き合わせ表の new_implementation.commit「${String(observedCommit)}」が現在の新側「${String(current.commit)}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+      });
+    }
+    if (current.dirty === true) {
+      findings.push({
+        code: "replace-metadata-dirty",
+        message:
+          "replace-metadata.json の new.dirty が true（未コミットの変更があると、突き合わせをどの版に紐づけたか決まらない）",
+      });
+    }
   }
   // **slug の照合は被覆表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
   // 別機能から写した突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
@@ -299,7 +338,7 @@ export function main(argv, deps = {}) {
   const write = deps.write ?? ((s) => process.stdout.write(s));
   const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
   const usage =
-    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> [--metadata <metadata.json>]";
+    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> [--metadata <metadata.json>] [--replace-metadata <new/<target>/replace-metadata.json>]";
   /**
    * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
    * @param {string} message
@@ -330,7 +369,7 @@ export function main(argv, deps = {}) {
     args[key] = value;
     i += 1;
   }
-  const known = ["--coverage", "--comparison", "--metadata", "--target"];
+  const known = ["--coverage", "--comparison", "--metadata", "--replace-metadata", "--target"];
   const unknown = Object.keys(args).filter((k) => !known.includes(k));
   if (unknown.length > 0) {
     return fail(`不明な引数: ${unknown.join(", ")}`);
@@ -350,7 +389,7 @@ export function main(argv, deps = {}) {
   }
   /** @type {Record<string, unknown>} */
   const parsed = {};
-  for (const key of ["--coverage", "--comparison", "--metadata"]) {
+  for (const key of ["--coverage", "--comparison", "--metadata", "--replace-metadata"]) {
     const path = args[key];
     if (!path) continue;
     try {
@@ -369,6 +408,7 @@ export function main(argv, deps = {}) {
     coverage: parsed["--coverage"],
     comparison: parsed["--comparison"] ?? null,
     metadata: parsed["--metadata"],
+    replaceMetadata: parsed["--replace-metadata"],
     target: args["--target"] ?? null,
   });
   if (result.structural) {
