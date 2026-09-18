@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "skill_name": "parity-diff",
+    "skill_path": "<repo>/skills/parity-diff",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T13:13:34.507Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 96.672,
+        "stddev": 0,
+        "min": 96.672,
+        "max": 96.672
+      },
+      "tokens": {
+        "mean": 168044,
+        "stddev": 0,
+        "min": 168044,
+        "max": 168044
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2222,
+        "stddev": 0,
+        "min": 0.2222,
+        "max": 0.2222
+      },
+      "time_seconds": {
+        "mean": 122.424,
+        "stddev": 0,
+        "min": 122.424,
+        "max": 122.424
+      },
+      "tokens": {
+        "mean": 37485,
+        "stddev": 0,
+        "min": 37485,
+        "max": 37485
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.78"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。baseline は sandboxed・contamination verdict は clean。",
+    "レビュー指摘（PR #397）への対応で eval 22 の入力を触った iteration。iteration-32 で「プロンプトが状態を作っていない」と記録していた条件——同じ parent の中で 2 行が同じ呼び出しを持つ棚卸し——をプロンプトへ足し、assertion 6 を 6（空の opened_by / 同じ parent × 同じ name）と 7（同じ parent × 同じ呼び出し）へ分割した。",
+    "弁別: assertion 1・2・3・4・5・6・9 が without_skill で落ちた。without_skill は不整合を偽陽性／偽陰性に二分し、captured が states に無い行と captured / reason 併記を前者へ入れて撮影を止めなかった。",
+    "後退検知: assertion 7・8 は without_skill も到達した。新設した 7 は弁別しない（同じ parent × 同じ呼び出しの曖昧さは正本を読まなくても導ける）が、プロンプトが状態を作るようになったので規則の復唱ではなく到達の測定になっている。",
+    "iteration-32（8 assertion / with 8・without 2）との比較は assertion 数が違うため件数ではなく内訳で見る。without_skill で新たに落ちたのは assertion 2（呼び出しの列挙と opened_by の突き合わせ）で、iteration-32 では到達していた（run 間のばらつきの範囲。1 run のため平均としては扱わない）。"
+  ],
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 9,
+        "failed": 0,
+        "total": 9,
+        "time_seconds": 96.672,
+        "tokens": 168044,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": true,
+          "evidence": "§1 の表で両方を「停止」と判定し、「修正は parity-suite の仕事です。metadata.json を自分で書き換えて先へ進めないでください」と差し戻している"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）とスイートから器を開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
+          "passed": true,
+          "evidence": "§4 で「関数名だけで突き合わせない」「列挙側は opened_by と同じ正規化に揃えてから突き合わせる」と述べ、§3 で「両方の parent の行の opened_by に当該呼び出しが現れることを確認する」、§5 の表で popup_inventory の不一致時は停止としている"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": true,
+          "evidence": "§2「撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すのが既定」「未検証の注記だけで進めてはいけません」"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": true,
+          "evidence": "§2 で「採り直せない理由を提示してユーザー承認を得た場合に限り」続行とし、--noise を渡さない・noise_baseline を差し引かない・diff.md の未検証領域に承認と 2 つの注記を残すと述べている"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": true,
+          "evidence": "§2 と §6 で diff-metadata.json.capture_conditions_verified.popup_inventory を記録先に挙げ、「検証した」を 1 つの真偽値にまとめないとも述べている"
+        },
+        {
+          "text": "opened_by が空の行と、1 つの器を 2 行に分けた行（同じ parent × 同じ name）は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
+          "passed": true,
+          "evidence": "§3 の表で空配列を「停止」、クリックとキーボードの 2 行分割を「停止／行を分けず 1 行の opened_by に両方を並べるのが正」としている"
+        },
+        {
+          "text": "列フィルタの吹き出しの中の 2 行が同じ openCombo(演算子) を持つ棚卸しも、その呼び出しでどちらの器が開くか決まらない不整合として撮影前に停止し、開く対象の論理名を器ごとに分けて書くと述べている",
+          "passed": true,
+          "evidence": "§3 の表の 4 行目で「停止｜同じ parent × 同じ呼び出しが 2 行＝どちらの器がその呼び出しで開くか決まらない。値候補側の実際の呼び出し（別の論理名）に直す必要がある」としている"
+        },
+        {
+          "text": "器を開く呼び出しの列挙と opened_by の突き合わせを、親の器（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親の器から呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
+          "passed": true,
+          "evidence": "§3 冒頭で「突き合わせの単位は親の器（1 段目は null）× 関数名 × 開く対象の論理名」とし、表の 3 行目で parent 違いを「正常。2 行のままが正しい」「parent を落として突き合わせると 2 つが 1 つに潰れる」と述べている"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "「今回の 6 件のうち撮影に進めるものはありません」で一貫し、承認なしの続行・不整合のままの撮影を否定している"
+        }
+      ]
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2222,
+        "passed": 2,
+        "failed": 7,
+        "total": 9,
+        "time_seconds": 122.424,
+        "tokens": 37485,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
+          "passed": false,
+          "evidence": "§1「新側の撮影を進めるのは構いません」・§2「実在確認 → 片方を消す、を撮影前に」で、まとめでも「そのまま撮って進めてよいのは 1・2 だけ」と停止も parity-suite への差し戻しもしていない"
+        },
+        {
+          "text": "操作アダプタ（新側例外を含む）とスイートから器を開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
+          "passed": false,
+          "evidence": "確認項目は states ↔ popup_inventory の参照整合とセレクタのドライランで、操作アダプタ・スイート側の呼び出しを関数名 × 開く対象の論理名の単位で列挙して opened_by と突き合わせる検査には到達していない"
+        },
+        {
+          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
+          "passed": false,
+          "evidence": "§3「環境があるなら今のうちに棚卸しし」とだけ述べ、撮影前の停止にも parity-suite でのベースライン・ノイズ基準値の採り直しにも触れていない"
+        },
+        {
+          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
+          "passed": false,
+          "evidence": "§4 は unknown / unverifiable 相当のステータスと理由を書いて別掲する案で、ユーザー承認の条件もノイズ基準値による吸収の停止も述べていない"
+        },
+        {
+          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
+          "passed": false,
+          "evidence": "記録先として独自の popup_inventory_audit.md と inventory_status を提案しており、capture_conditions_verified.popup_inventory に触れていない"
+        },
+        {
+          "text": "opened_by が空の行と、1 つの器を 2 行に分けた行（同じ parent × 同じ name）は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
+          "passed": false,
+          "evidence": "空の opened_by は「撮らずに未検証に倒す」で撮影自体は止めず、2 行分割も「撮れる画像が違えば別 state として id を分ける」を正当な選択肢として併記しており、1 行 1 器の不整合として扱っていない"
+        },
+        {
+          "text": "列フィルタの吹き出しの中の 2 行が同じ openCombo(演算子) を持つ棚卸しも、その呼び出しでどちらの器が開くか決まらない不整合として撮影前に停止し、開く対象の論理名を器ごとに分けて書くと述べている",
+          "passed": true,
+          "evidence": "§8「値候補が演算子と同じ開き方で開くはずがないので、片方はコピペ誤り」「このまま撮ると値候補の一覧は実質ゼロカバレッジのまま緑」「7 と同じ理由で、修正してから撮影」と、撮影前の停止と呼び出しの取り違えの修正に到達している"
+        },
+        {
+          "text": "器を開く呼び出しの列挙と opened_by の突き合わせを、親の器（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親の器から呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
+          "passed": true,
+          "evidence": "§7 で同じ呼び出しが 2 箇所から呼ばれると「どちらが引かれるかが不定」「運が悪いと両方の行が同じポップアップを撮り、差分は緑になります」とし、スコープを渡して 1 件に一意解決させると述べて 2 つを潰していない"
+        },
+        {
+          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
+          "passed": false,
+          "evidence": "「そのまま撮って進めてよいのは 1・2 だけ」と、captured が states に無い行・captured と reason の両方が埋まった行を抱えたまま撮影へ進んでよい結論を併記している"
+        }
+      ]
+    }
+  ]
+}

@@ -4,176 +4,250 @@
     "skill_path": "<repo>/skills/parity-diff",
     "executor_model": "claude-opus-5",
     "analyzer_model": "manual",
-    "timestamp": "2026-09-17T12:00:18.985Z",
-    "evals_run": [22],
+    "timestamp": "2026-09-17T12:28:03.471Z",
+    "evals_run": [27, 28],
     "runs_per_configuration": 1
   },
+  "runs": [
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 170.101,
+        "tokens": 271082,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": true,
+          "evidence": "『gaps.md は追記専用台帳なので永久に空になりません』とし、判定の正本は metadata.json の unmeasured.entries[] だと表で示している"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": true,
+          "evidence": "『blocking が残れば artifact-health-check が exit 1 → 収束しない』"
+        },
+        {
+          "text": "測らないことをユーザーが承認したものだけ accepted にでき、approved_by / approved_at が空なら blocking として数える（fail-closed）と述べている",
+          "passed": false,
+          "evidence": "『承認記録付きの免除』とは述べたが、approved_by / approved_at と『空なら blocking として数える』には触れていない"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": true,
+          "evidence": "unmeasured.declared: true のときだけ判定・キーごと無い旧成果物は judged: false で記録・『宣言を入れた機能から順に厳しくなります』"
+        },
+        {
+          "text": "強度ゲートの素通り 0 件を、採っていない状態まで含めた網の広さの証拠として扱っていない",
+          "passed": true,
+          "evidence": "強度ゲートに言及していない（prompt も触れていないため無条件 pass。測れていない）"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『「一覧に無いから無視してよい」は成り立たない』とし、免除は人の判断なので自律実行中は pending_decisions へ落とし converged は false と述べている"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 27,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 2,
+        "failed": 4,
+        "total": 6,
+        "time_seconds": 129.741,
+        "tokens": 54064,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "gaps.md の散文は収束判定の入力ではないため、未測定を現側 metadata.json の unmeasured に機械可読で宣言して収束判定に入れると述べている",
+          "passed": false,
+          "evidence": "criteria_version / scope という自前スキーマを提案しており、unmeasured への宣言は述べていない（『フィールド名は提案』と明記）"
+        },
+        {
+          "text": "disposition: blocking が 1 件でも残る間は converged: true にしないと述べている",
+          "passed": false,
+          "evidence": "『未測定 … ブロックする』と substance は到達。disposition: blocking という契約では述べていない"
+        },
+        {
+          "text": "測らないことをユーザーが承認したものだけ accepted にでき、approved_by / approved_at が空なら blocking として数える（fail-closed）と述べている",
+          "passed": false,
+          "evidence": "『承認者・理由・承認日・失効日を必須にする』と substance は近いが、approved_by / approved_at と fail-closed の数え方は述べていない"
+        },
+        {
+          "text": "unmeasured をキーごと持たない旧成果物は判定しない後方互換にし、宣言を持つ成果物から順に厳しくすると述べている（既存の全機能が一斉に未収束へ転じるのを避ける）",
+          "passed": false,
+          "evidence": "criteria_version でゲートを切り v1 は今日何も変わらない、と substance は到達。キーごと無い旧成果物の後方互換という契約では述べていない"
+        },
+        {
+          "text": "強度ゲートの素通り 0 件を、採っていない状態まで含めた網の広さの証拠として扱っていない",
+          "passed": true,
+          "evidence": "強度ゲートに言及していない（prompt も触れていないため無条件 pass。測れていない）"
+        },
+        {
+          "text": "gaps.md に正しく書いてあることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "『今のままで converged: true にはしない方がいい』『正しいのは gaps.md の方です』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 28,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 90.426,
+        "tokens": 202872,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "『追記専用の成果物が縮んだ状態で converged: true にしない』を引用し、消えたのは「なぜ許容したのか・いつ誰が承認したのか」だと述べている"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『収束判定は現在の状態しか見ないので、丸ごと書き直しても整合していれば通ります。それが通ってしまうことこそがこのルールの存在理由です』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": true,
+          "evidence": "append-only-check.mjs --root . --base <着手時点の SHA> を git merge-base 付きで示し、既定の HEAD では素通りする理由まで述べている"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": false,
+          "evidence": "一覧（append-only-manifest.json）が正本であることには触れていない"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": true,
+          "evidence": "『どちらの 0 件も合格に倒さない（機能を閉じる時点で追記専用の成果物は在るはずなので、0 件は異常です）』"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "git show <base>:<path> で旧版を取り出して統合する手順を示し、復元・再判定が済むまで converged: true の可否を判断しないと述べている"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 28,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 96.984,
+        "tokens": 97747,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "承認記録は非破壊追記の成果物であり、書き直すと過去の決定（なぜ許容したのか・いつ誰が承認したのか）が失われると述べている",
+          "passed": true,
+          "evidence": "却下・取り消しの記録、条件付き承認の条件部分、承認者と日付が失われると述べている"
+        },
+        {
+          "text": "収束の判定は現在の状態しか見ないため、書き直しても検査は全部通ってしまう（失われたものに気づく経路が無い）と説明している",
+          "passed": true,
+          "evidence": "『検査は通るように作られた状態を検査している』『検査が異常を検出する能力そのものが失われています』"
+        },
+        {
+          "text": "replace-strategy の scripts/append-only-check.mjs で git の履歴と突き合わせ、追記専用の成果物が縮んでいないことを収束条件に入れると述べている",
+          "passed": false,
+          "evidence": "『収束判定スクリプトの実装を実際に読む』に留まり、append-only-check.mjs には触れていない"
+        },
+        {
+          "text": "追記専用の成果物の一覧は replace-strategy の assets/append-only-manifest.json が正本だと述べている",
+          "passed": false,
+          "evidence": "追記専用の成果物の一覧という概念に触れていない"
+        },
+        {
+          "text": "対象 0 件を合格に倒さないと述べている",
+          "passed": false,
+          "evidence": "対象 0 件の扱いに触れていない"
+        },
+        {
+          "text": "git の履歴から消した記録を復元するよう述べ、現在の内容が整合していることを根拠に converged: true にしていない",
+          "passed": true,
+          "evidence": "git restore / git checkout <sha>^ -- <path> で戻す手順を示し、『順序として、確認が先です』と述べている"
+        }
+      ],
+      "notes": null
+    }
+  ],
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 1,
+        "mean": 0.8333,
         "stddev": 0,
-        "min": 1,
-        "max": 1
+        "min": 0.8333,
+        "max": 0.8333
       },
       "time_seconds": {
-        "mean": 122.007,
-        "stddev": 0,
-        "min": 122.007,
-        "max": 122.007
+        "mean": 130.2635,
+        "stddev": 39.8375,
+        "min": 90.426,
+        "max": 170.101
       },
       "tokens": {
-        "mean": 251651,
-        "stddev": 0,
-        "min": 251651,
-        "max": 251651
+        "mean": 236977,
+        "stddev": 34105,
+        "min": 202872,
+        "max": 271082
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.25,
-        "stddev": 0,
-        "min": 0.25,
-        "max": 0.25
+        "mean": 0.4166,
+        "stddev": 0.0834,
+        "min": 0.3333,
+        "max": 0.5
       },
       "time_seconds": {
-        "mean": 166.934,
-        "stddev": 0,
-        "min": 166.934,
-        "max": 166.934
+        "mean": 113.3625,
+        "stddev": 16.3785,
+        "min": 96.984,
+        "max": 129.741
       },
       "tokens": {
-        "mean": 42831,
-        "stddev": 0,
-        "min": 42831,
-        "max": 42831
+        "mean": 75905.5,
+        "stddev": 21841.5,
+        "min": 54064,
+        "max": 97747
       }
-    },
-    "delta": {
-      "pass_rate": "+0.75"
     }
   },
   "notes": [
-    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
-    "Issue #364 で eval 22 の prompt に「空の opened_by」「2 行に分けた器」「別の親から呼ぶ同じ openCombo(page, 演算子)」を足し、assertion 6・7 を追加した iteration。",
-    "弁別: assertion 1・3・4・5・6・8 が without_skill で落ちた。without_skill は不整合を「帳簿の誤り（撮影前に直す必要なし）」と「数え落とし（撮影前に必要）」に二分し、2 行分割と captured/reason 併記を前者へ入れて撮影を止めなかった。",
-    "後退検知: assertion 2・7（呼び出しを親の器 × 関数名 × 論理名の単位で扱う）は without_skill も到達した。",
-    "assertion 6 の第 3 節「同じ parent × 同じ呼び出しを持つ 2 行」は prompt がその状態を作っていないため、この run では規則の復唱として通っている（evals/README.md に記録済み）。次に eval 22 の入力を触るときに状態を足すか節を落とす。"
-  ],
-  "runs": [
-    {
-      "eval_id": 22,
-      "configuration": "with_skill",
-      "run_number": 1,
-      "result": {
-        "pass_rate": 1,
-        "passed": 8,
-        "failed": 0,
-        "total": 8,
-        "time_seconds": 122.007,
-        "tokens": 251651,
-        "tool_calls": 0,
-        "errors": 1
-      },
-      "expectations": [
-        {
-          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
-          "passed": true,
-          "evidence": "表で両方を「不整合／撮影せず停止 → parity-suite」と判定し、注記で通してよいのは captured: null の行だけだと述べている"
-        },
-        {
-          "text": "操作アダプタ（新側例外を含む）とスイートから器を開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
-          "passed": true,
-          "evidence": "「操作アダプタ（suite.interactions。新側例外を含む）とスイートから呼び出しをこの単位で全列挙し、いずれかが該当 parent の行の opened_by に現れなければ…停止 → parity-suite」"
-        },
-        {
-          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
-          "passed": true,
-          "evidence": "「撮影せず停止 → parity-suite でベースラインとノイズ基準値の採り直し。未検証注記だけで進めない」"
-        },
-        {
-          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
-          "passed": true,
-          "evidence": "承認が取れた場合に限り続行とし、--noise を渡さず noise_baseline も差し引かない・diff.md の未検証領域へ承認と 2 つの注記を残すと述べている"
-        },
-        {
-          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
-          "passed": true,
-          "evidence": "「diff-metadata.json の capture_conditions_verified.popup_inventory に \"absent: 承認済みの例外。ノイズ吸収なしで続行\"」と記録先を明示している"
-        },
-        {
-          "text": "opened_by が空の行・1 つの器を 2 行に分けた行（同じ parent × 同じ name）・同じ parent × 同じ呼び出しを持つ 2 行は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
-          "passed": true,
-          "evidence": "#5「空配列は不整合で停止」、#6「同じ parent × 同じ name が 2 行＝1 つの器を 2 回数えている。正しくは 1 行の opened_by 配列に両方を並べる」と述べている"
-        },
-        {
-          "text": "器を開く呼び出しの列挙と opened_by の突き合わせを、親の器（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親の器から呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
-          "passed": true,
-          "evidence": "「突き合わせの単位は『どの器の中から呼ぶか（1 段目は null）× 関数名 × 開く対象の論理名』」とし、親違いを同一視するのも不整合だと述べている"
-        },
-        {
-          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
-          "passed": true,
-          "evidence": "承認なしの続行・不整合のままの撮影を一貫して否定しており、矛盾する結論の併記は無い"
-        }
-      ]
-    },
-    {
-      "eval_id": 22,
-      "configuration": "without_skill",
-      "run_number": 1,
-      "result": {
-        "pass_rate": 0.25,
-        "passed": 2,
-        "failed": 6,
-        "total": 8,
-        "time_seconds": 166.934,
-        "tokens": 42831,
-        "tool_calls": 0,
-        "errors": 1
-      },
-      "expectations": [
-        {
-          "text": "captured が states に無い行や captured と reason の両方が埋まった行があるなら、注記して進めず撮影前に停止し parity-suite へ戻すと答えている",
-          "passed": false,
-          "evidence": "captured が states に無い行は「帳簿の誤りなら撮影は止めなくてよい」、両方埋まった行は「撮影集合は変わらないので並行修正で構わない」と、撮影前の停止を否定している"
-        },
-        {
-          "text": "操作アダプタ（新側例外を含む）とスイートから器を開く呼び出しを関数名 × 開く対象の論理名の単位で列挙し、関数名だけの一致で済ませず全てが opened_by に現れることを撮影前に確かめ、現れない呼び出しがあれば停止すると述べている",
-          "passed": true,
-          "evidence": "「アダプタ関数は行のキーになりません。1 関数 N ポップアップなので、関数名で数えると必ず数え落とします」と呼び出し単位へ到達している"
-        },
-        {
-          "text": "popup_inventory のキーごと無い旧成果物は、静止待ち導入前の採取として撮影せず停止し、parity-suite でベースラインとノイズ基準値の採り直しへ戻すと答えている",
-          "passed": false,
-          "evidence": "「遡って棚卸しを実施してからキーを書く」とは述べたが、ベースラインとノイズ基準値の採り直しには触れていない"
-        },
-        {
-          "text": "撮り直せない機能を続行するのは、採り直せない理由をユーザーに提示して承認を得た場合だけとし、そのときは現側ノイズ基準値による吸収を適用せず、未検証として diff.md に残すと述べている",
-          "passed": false,
-          "evidence": "静的情報から棚卸しを再構成して続行する案を示し、ユーザー承認の条件もノイズ基準値による吸収の停止も述べていない"
-        },
-        {
-          "text": "棚卸しの検証結果を diff-metadata.json の capture_conditions_verified.popup_inventory に記録すると述べている",
-          "passed": false,
-          "evidence": "capture_conditions_verified.popup_inventory という記録先に触れていない（独自のメタデータ項目を提案している）"
-        },
-        {
-          "text": "opened_by が空の行・1 つの器を 2 行に分けた行（同じ parent × 同じ name）・同じ parent × 同じ呼び出しを持つ 2 行は不整合として撮影前に停止し、複数の開き方は 1 行の opened_by（配列）に並べると述べている",
-          "passed": false,
-          "evidence": "2 行分割を「帳簿の誤り＝撮影前に直す必要なし」に分類しており、撮影前の停止にしていない"
-        },
-        {
-          "text": "器を開く呼び出しの列挙と opened_by の突き合わせを、親の器（1 段目は null）× 関数名 × 開く対象の論理名の単位で行い、別の親の器から呼ぶ同じ openCombo(page, 演算子) を 1 つに潰さないと述べている",
-          "passed": true,
-          "evidence": "「行のキーは (画面・親コンテキスト, コンボボックス識別子) にしてください」と、親の器を含む単位で区別している"
-        },
-        {
-          "text": "回答内で、不整合な棚卸しのまま、または承認なしに旧成果物のノイズ基準値で吸収して差分検出へ進んでよいと矛盾する結論を併記していない",
-          "passed": false,
-          "evidence": "「数え過ぎ／帳簿の誤り」は撮影前に直す必要がなく並行で直せばよい、と不整合な棚卸しのまま撮影へ進んでよい結論を併記している"
-        }
-      ]
-    }
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "**この iteration の eval 27 / 28 は、以後 prompt と assertion を変えた版に置き換わっている**（run 時点の prompt / assertion は各 run の eval_metadata.json と本ファイルの expectations[].text が正本）。取り直しは eval 28 が iteration-30、eval 27 が iteration-31。",
+    "eval 27: assertion 5（強度ゲートの素通り 0 件を網の広さの証拠にしない）が空振りした——prompt が強度ゲートに触れないため、両 config とも「言及しない＝扱っていない」で無条件 pass する。測れていない。assertion 3（accepted の承認記録が空なら blocking）は姉妹スキル parity-suite 側にしか正本の無いキー名を要求しており、with_skill には対象スキルの成果物しかコピーされないため原理的に到達できなかった。",
+    "eval 28: with_skill が assertion 4（一覧 append-only-manifest.json が正本）に到達しなかった。prompt の「どう確かめて」では一覧の所在まで引き出せていない。"
   ]
 }

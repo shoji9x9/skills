@@ -1,0 +1,273 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "manual",
+    "timestamp": "2026-09-17T12:27:13.897Z",
+    "evals_run": [39, 40],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 39,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 113.186,
+        "tokens": 188247,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "採取物ごとに読むスペックを metadata.json の artifact_health に宣言させると述べている",
+          "passed": true,
+          "evidence": "『採取物ごとに読むスペックを metadata.json の artifact_health に宣言』し、baseline_dir に在って entries に無いファイルは未宣言として落ちると述べている"
+        },
+        {
+          "text": "読み手の検査は字面の照合（そのスペックの中に採取物の名前が現れるか）で足りると述べ、assertion に使っているかまで見なくてもこの事象は止まると説明している",
+          "passed": true,
+          "evidence": "節を立てて『字面で足ります。read_by が指すスペックのファイル中に採取物の basename が現れるか、それだけです』『assertion に使っているかまでは見ません』と述べ、依存の実在は強度ゲートが持つと段を分けて説明している"
+        },
+        {
+          "text": "読み手のいない採取物は在りえるので unread_reason で宣言の口を持たせ、宣言の無いものだけを落とすと述べている（採っただけのファイルを黙って通さない）",
+          "passed": true,
+          "evidence": "『read_by: [] ＋ unread_reason（例: 参考資料として採取）で宣言すれば通ります』『entries に現れないファイルは未宣言として落ちる』"
+        },
+        {
+          "text": "ベースラインは採る実行の中で最終形まで作るか、分けるなら加工物に derived_from（元の実体のパスと sha256）を書かせて古さを検出すると述べている",
+          "passed": true,
+          "evidence": "『第一選択は今日の xlsx から展開し直すこと』『分けたままにするなら kind: derived と derived_from: {path, sha256}』『sha256 は宣言値ではなく実体から採る』"
+        },
+        {
+          "text": "derived_from を書けないときは freshness_unverified_reason で『古いかもしれない』を未検証として残すと述べている",
+          "passed": true,
+          "evidence": "『どうしても書けないときだけ freshness_unverified_reason に「古いかもしれない」を未検証として残す。黙って通さない』"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs を exit 0 まで通してから完了にすると述べている",
+          "passed": true,
+          "evidence": "実行順の 5 番目に artifact-health-check.mjs --metadata … --stage suite を exit 0 まで通すと述べている"
+        },
+        {
+          "text": "差分器の全経路が緑であることを、採取物が読まれている・加工物が新しいことの根拠として扱っていない",
+          "passed": true,
+          "evidence": "『「差分器が全経路緑」「スイートが現に対して green」は手順 8 までの話で、完了判定は手順 9 が別にある』『古いものを古いまま比べた緑』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 39,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1429,
+        "passed": 1,
+        "failed": 6,
+        "total": 7,
+        "time_seconds": 85.638,
+        "tokens": 35733,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "採取物ごとに読むスペックを metadata.json の artifact_health に宣言させると述べている",
+          "passed": false,
+          "evidence": "出所記録（MANIFEST）を提案しているが metadata.json / artifact_health への宣言は述べていない"
+        },
+        {
+          "text": "読み手の検査は字面の照合（そのスペックの中に採取物の名前が現れるか）で足りると述べ、assertion に使っているかまで見なくてもこの事象は止まると説明している",
+          "passed": false,
+          "evidence": "『ご指摘のとおり、参照の有無まででは意味がありません』とし 3 段目（摂動して赤くなるテスト名まで見る）を要求——契約とは逆の結論"
+        },
+        {
+          "text": "読み手のいない採取物は在りえるので unread_reason で宣言の口を持たせ、宣言の無いものだけを落とすと述べている（採っただけのファイルを黙って通さない）",
+          "passed": false,
+          "evidence": "『今スペックに繋ぐか、消すか、どちらかです』とし、宣言の口を持たせる設計を述べていない"
+        },
+        {
+          "text": "ベースラインは採る実行の中で最終形まで作るか、分けるなら加工物に derived_from（元の実体のパスと sha256）を書かせて古さを検出すると述べている",
+          "passed": false,
+          "evidence": "出所記録に『どのコマンドで・どの版の対象から・いつ採ったか』を求めるが、元の実体の sha256 と derived_from は述べていない"
+        },
+        {
+          "text": "derived_from を書けないときは freshness_unverified_reason で『古いかもしれない』を未検証として残すと述べている",
+          "passed": false,
+          "evidence": "freshness_unverified_reason に相当する『書けないときは未検証として残す』の記述が無い"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs を exit 0 まで通してから完了にすると述べている",
+          "passed": false,
+          "evidence": "artifact-health-check.mjs への言及なし"
+        },
+        {
+          "text": "差分器の全経路が緑であることを、採取物が読まれている・加工物が新しいことの根拠として扱っていない",
+          "passed": true,
+          "evidence": "『効く検査は肯定側（今一致するか）ではなく否定側（壊したら赤くなるか）』『今あるのは肯定側の緑だけ』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 40,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 97.648,
+        "tokens": 261426,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "状態を変えるスイートは 2 回続けて回して両方緑であることを求めると述べている",
+          "passed": true,
+          "evidence": "『2 回続けて実行し、suite.repeat_run に cleanup_in_suite と 2 件の runs を記録』"
+        },
+        {
+          "text": "初期状態から始まる 1 回目には後始末の有無が結果に現れないため、1 回の緑は後始末が効いた証拠にならないと説明している",
+          "passed": true,
+          "evidence": "『初期状態から始まる 1 回目には、後始末の有無が結果に現れない』を引用し『「1 回回して緑」は後始末について何も証明していません』"
+        },
+        {
+          "text": "戻す操作をスイートの中に置くよう述べ、外の道具に頼ると回した人が忘れた時点で次の実行が壊れると説明している",
+          "passed": true,
+          "evidence": "baseline.md を引用し『戻す操作はスイートの中に置く』『外の道具に頼ると回した人が忘れた時点で次の実行が壊れる』"
+        },
+        {
+          "text": "後始末が効いていない壊れ方は「現行が変わった」と同じ見え方になることに触れている",
+          "passed": true,
+          "evidence": "同じ引用に『壊れ方が「現行が変わった」と同じ見え方になる』を含め、今回が外の道具に当たると名指ししている"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs の反復実行の節が cleanup_in_suite: true でないこと・runs が 2 件未満であることを未検証として exit 1 にすると述べ、--stage suite でも免除されないことに触れている",
+          "passed": true,
+          "evidence": "checkRepeatRun の行番号付きで cleanup_in_suite !== true・runs 2 件未満を finding と述べ、『--stage suite は unmeasured の blocking を見逃すだけで、反復実行の節はそのまま落ちます』"
+        },
+        {
+          "text": "記録先が metadata.json の suite.state_mutating と suite.repeat_run（cleanup_in_suite・2 回分の runs）だと述べ、2 回の started_at は別の日時にすると説明している",
+          "passed": true,
+          "evidence": "『suite.repeat_run に cleanup_in_suite と 2 件の runs（別々の started_at、昇順）』、同一値は『1 回の記録の写し』として弾かれると述べている"
+        },
+        {
+          "text": "1 回の緑と強度ゲートの素通り 0 件を根拠に完了にしていない",
+          "passed": true,
+          "evidence": "『verification_commands.full は静的解析・型検査であってスイートの合否でも後始末の検証でもない』『素通り 0 件は…「緑＝強い」ではなく「反例が見つからなかっただけ」』"
+        }
+      ],
+      "notes": null
+    },
+    {
+      "eval_id": 40,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5714,
+        "passed": 4,
+        "failed": 3,
+        "total": 7,
+        "time_seconds": 96.614,
+        "tokens": 77042,
+        "tool_calls": 0,
+        "errors": 1
+      },
+      "expectations": [
+        {
+          "text": "状態を変えるスイートは 2 回続けて回して両方緑であることを求めると述べている",
+          "passed": true,
+          "evidence": "『書き込み系で意味がある最小の証拠は、クリーンアップを挟まずに連続 2 回』"
+        },
+        {
+          "text": "初期状態から始まる 1 回目には後始末の有無が結果に現れないため、1 回の緑は後始末が効いた証拠にならないと説明している",
+          "passed": true,
+          "evidence": "『1 回目が緑なのは、たまたま環境がクリーンだったことの帰結でしかありません』"
+        },
+        {
+          "text": "戻す操作をスイートの中に置くよう述べ、外の道具に頼ると回した人が忘れた時点で次の実行が壊れると説明している",
+          "passed": true,
+          "evidence": "『後片付けをスペック内の teardown に移す。これが本命の修正です』『失敗時・中断時に後片付けが走りません』"
+        },
+        {
+          "text": "後始末が効いていない壊れ方は「現行が変わった」と同じ見え方になることに触れている",
+          "passed": false,
+          "evidence": "『緑のまま通るが残骸が積み上がる → もっと悪い』と述べるが、壊れ方が「現行が変わった」と同じ見え方になるとは述べていない"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs の反復実行の節が cleanup_in_suite: true でないこと・runs が 2 件未満であることを未検証として exit 1 にすると述べ、--stage suite でも免除されないことに触れている",
+          "passed": false,
+          "evidence": "『おそらく今は何もありません。そしてそれ自体が、このレビューで一番大きな所見です』——同梱スクリプトの判定に到達していない"
+        },
+        {
+          "text": "記録先が metadata.json の suite.state_mutating と suite.repeat_run（cleanup_in_suite・2 回分の runs）だと述べ、2 回の started_at は別の日時にすると説明している",
+          "passed": false,
+          "evidence": "記録先として verification_commands・CI ジョブ・強度ゲートのルール追加を挙げ、suite.state_mutating / suite.repeat_run には触れていない"
+        },
+        {
+          "text": "1 回の緑と強度ゲートの素通り 0 件を根拠に完了にしていない",
+          "passed": true,
+          "evidence": "『0 件は null result であって pass ではありません』『verification_commands.full が通ったことも同様で、それは手動で掃除された後の状態で 1 回走っただけ』"
+        }
+      ],
+      "notes": null
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 105.417,
+        "stddev": 7.769,
+        "min": 97.648,
+        "max": 113.186
+      },
+      "tokens": {
+        "mean": 224836.5,
+        "stddev": 36589.5,
+        "min": 188247,
+        "max": 261426
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3572,
+        "stddev": 0.2143,
+        "min": 0.1429,
+        "max": 0.5714
+      },
+      "time_seconds": {
+        "mean": 91.126,
+        "stddev": 5.488,
+        "min": 85.638,
+        "max": 96.614
+      },
+      "tokens": {
+        "mean": 56387.5,
+        "stddev": 20654.5,
+        "min": 35733,
+        "max": 77042
+      }
+    }
+  },
+  "notes": [
+    "変更確認スコープ（with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。",
+    "iteration-38 で見つかった 2 件の eval 欠陥への対応後の版。eval 39 は assertion 1 の混線（skill 固有の宣言と汎用の grep 発想が 1 本に同居）を 2 本へ割り、prompt に「読み手の検査はどこまで見れば足りる？」を足した——あえて契約と反対の答えを示唆する形にしてある。",
+    "eval 39: 逆方向の cue が効いた。without_skill は『参照の有無まででは意味がありません』として摂動で赤くなるテスト名まで見よと答え、with_skill は『字面で足ります』『assertion に使っているかまでは見ません』と答えて依存の実在は強度ゲートが持つと段を分けた。7/7 対 1/7。",
+    "eval 40: iteration-38 で弁別がほぼ消えていた（without 5/6）。判断軸ごと渡していた「何をどこに記録すればいいかも教えて」を外し、「この状態を機械的に止めるものが何かあるのか」に差し替えた結果、without_skill は『おそらく今は何もありません』と答え 4/7 へ落ちた。with_skill は checkRepeatRun の判定と --stage suite が反復実行の節を免除しないことまで述べて 7/7。弁別は回復している。"
+  ]
+}
