@@ -284,6 +284,31 @@ test("noise_baseline が空なら合格に倒さない", () => {
   expect(codesOf(metadata)).toContain("noise-baseline-missing");
 });
 
+test("鍵の材料に区切り文字が入っていれば落とす（別々の組が同じ鍵に潰れる）", () => {
+  // ("a|b", "c", "d") と ("a", "b|c", "d") はどちらも a|b|c|d になり、
+  // 1 つの範囲の実測が 2 つの撮影組を満たしたことになる。
+  const metadata = metadataOf({
+    scope: [
+      {
+        page: "a|b",
+        state: "c",
+        viewport: "d",
+        document: { width: 1366, height: 768 },
+        captured: { width: 1366, height: 768 },
+        scroll_containers: [],
+        named_elements_outside: [],
+      },
+    ],
+    noise: [
+      { page: "a|b", state: "c", viewport: "d", pixel_diff: 0 },
+      { page: "a", state: "b|c", viewport: "d", pixel_diff: 0 },
+    ],
+  });
+  const codes = codesOf(metadata);
+  expect(codes).toContain("scope-entry-key-unsafe");
+  expect(codes).toContain("noise-entry-key-unsafe");
+});
+
 test("撮影組の鍵はページ・状態・ビューポートで作る", () => {
   expect(combinationKey({ page: "list", state: "hover", viewport: "mobile" })).toBe(
     "list|hover|mobile",

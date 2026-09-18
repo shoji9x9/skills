@@ -226,6 +226,8 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
 - **寸法は実測値（正の数）で埋める。** テンプレートの `0` を残した組は「測っていない」として落ちる——
   0×0 のまま比較すると穴が 1 つも出ず、**測っていない組が穴の無い組と同じ見え方**になる
 - **`metadata.json` の `mode` も要る**（`feature` / `api-resource` / `batch`）。欠落・語彙外は `feature` に倒さず落ちる
+- **ページ名・状態名・ビューポート label に `|` を使わない。** 撮影組の鍵（`<page>|<state>|<viewport>`。穴の id にも入る）の区切りなので、
+  含めると別々の組が同じ鍵に潰れ、**1 つの範囲の実測が 2 つの組を満たしたことになる**（検査は名前の側で弾く）
 
 **穴は消すか、対象外として宣言する。** 消すのは範囲を広げること（`full_page: true` にする、器の中身を段階的に撮る状態を足す、
 論理名の要素が入る位置で撮る）。広げられないなら `capture_conditions.capture_scope_exemptions` に

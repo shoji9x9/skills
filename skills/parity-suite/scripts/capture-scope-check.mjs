@@ -34,13 +34,32 @@ export const VERSION = "1";
 /** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
 
+/** 撮影組の鍵の区切り。ページ名・状態名・ビューポート label にこの文字は使えない。 */
+export const KEY_SEPARATOR = "|";
+
 /**
  * 撮影組の鍵。`noise_baseline` と `capture_scope` を突き合わせる単位。
  * @param {{page?: unknown, state?: unknown, viewport?: unknown}} entry
  * @returns {string}
  */
 export function combinationKey(entry) {
-  return `${String(entry.page)}|${String(entry.state)}|${String(entry.viewport)}`;
+  return [entry.page, entry.state, entry.viewport].map((part) => String(part)).join(KEY_SEPARATOR);
+}
+
+/**
+ * 鍵の材料に区切り文字が入っていないか。
+ *
+ * **入っていると別々の組が同じ鍵に潰れる**——`("a|b", "c", "d")` と `("a", "b|c", "d")` はどちらも
+ * `a|b|c|d` になり、1 つの範囲の実測が 2 つの撮影組を満たしたことになって穴が消える。
+ * 鍵は穴の id にも入る（利用者が `capture_scope_exemptions` に書き写す）ので、
+ * 符号化で回避せず**材料の側で弾く**。
+ * @param {{page?: unknown, state?: unknown, viewport?: unknown}} entry
+ * @returns {boolean}
+ */
+export function keyPartsAreSafe(entry) {
+  return [entry.page, entry.state, entry.viewport].every(
+    (part) => typeof part === "string" && !part.includes(KEY_SEPARATOR),
+  );
 }
 
 /**
@@ -289,6 +308,13 @@ export function checkCaptureScope(metadata) {
       });
       continue;
     }
+    if (!keyPartsAreSafe(entry)) {
+      findings.push({
+        code: "scope-entry-key-unsafe",
+        message: `capture_scope の要素に区切り文字「${KEY_SEPARATOR}」を含む名前がある（別々の組が同じ鍵に潰れ、1 つの実測が 2 つの組を満たす）`,
+      });
+      continue;
+    }
     const key = combinationKey(entry);
     if (scopeByKey.has(key)) {
       findings.push({
@@ -311,6 +337,13 @@ export function checkCaptureScope(metadata) {
         findings.push({
           code: "noise-entry-unkeyed",
           message: "noise_baseline に page / state / viewport の揃っていない要素がある",
+        });
+        continue;
+      }
+      if (!keyPartsAreSafe(entry)) {
+        findings.push({
+          code: "noise-entry-key-unsafe",
+          message: `noise_baseline の要素に区切り文字「${KEY_SEPARATOR}」を含む名前がある（別々の組が同じ鍵に潰れる）`,
         });
         continue;
       }

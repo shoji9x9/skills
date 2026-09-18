@@ -155,6 +155,22 @@ export function splitList(cell) {
 }
 
 /**
+ * 述語の文面が指定の列を**識別子として**含むか。
+ *
+ * **部分文字列で見ない**——`owner_id = :me` は `id` を部分文字列として含むので、
+ * `id, owner_id` のように一方が他方の一部になる列名の組では、片方の分岐が数えられていなくても通る。
+ * 前後が識別子を構成しない文字（英数字・`_` 以外）であることまで確かめる。
+ * @param {string} predicateText
+ * @param {string} column
+ * @returns {boolean}
+ */
+export function namesColumn(predicateText, column) {
+  if (column === "") return false;
+  const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^A-Za-z0-9_])${escaped}($|[^A-Za-z0-9_])`).test(predicateText);
+}
+
+/**
  * 件数セルを読む。数値でなければ null（型崩れとして扱う）。
  * @param {string} cell
  * @returns {number | null}
@@ -436,6 +452,17 @@ export function checkPredicateCoverage(input) {
       });
       continue;
     }
+    // **真・偽はその表の行を分けたもの**なので、合計が表の件数を超えることはない
+    // （三値論理で真でも偽でもない行〈NULL〉はありうるので、等号は求めない）。
+    // 超えている行を通すと、1 件の表に「真 1 / 偽 1」と書いて踏める判定を作り、
+    // 表の件数 0 / 1 の検査を扱いで黙らせる、という形で被覆を捏造できる。
+    const tableCount = declared.get(tableName)?.count ?? null;
+    if (tableCount !== null && trueCount + falseCount > tableCount) {
+      findings.push({
+        code: "predicate-partition-exceeds-table",
+        message: `述語 ${id} の真 ${trueCount} 件 ＋ 偽 ${falseCount} 件が ${tableName} の件数 ${tableCount} を超える（真・偽はその表の行を分けたもの。超える数はその表から出ない）`,
+      });
+    }
     const steppable = trueCount >= 1 && falseCount >= 1;
     const expected = steppable ? "踏める" : "踏めない";
     if (verdict !== expected) {
@@ -503,7 +530,7 @@ export function checkPredicateCoverage(input) {
       for (const filter of filters.items) {
         const column = filter.split(/[\s=<>!(）(]/)[0];
         if (column === "") continue;
-        const named = rows.some((r) => normalizeCell(r["述語（列・条件）"]).includes(column));
+        const named = rows.some((r) => namesColumn(normalizeCell(r["述語（列・条件）"]), column));
         if (!named) {
           findings.push({
             code: "predicate-filter-not-enumerated",
@@ -571,10 +598,14 @@ export function checkPredicateCoverage(input) {
             message: `述語 ${id} の実測（真 ${measuredTrue} / 偽 ${measuredFalse}）が設計（真 ${designedTrue} / 偽 ${designedFalse}）と違う`,
           });
         }
-        if (measuredTrue === 0 || measuredFalse === 0) {
+        // **設計の段で「gaps に記録」と決めた分岐は、投入後も踏めないのが正しい姿**。
+        // 0 件を無条件に落とすと、設計が受理した扱いを検証が覆し、
+        // 「足す」を選ばない限り exit 0 にできなくなる（記録して進む経路が閉じる）。
+        const disposition = normalizeCell(row["扱い"]);
+        if ((measuredTrue === 0 || measuredFalse === 0) && disposition !== "gaps に記録") {
           findings.push({
             code: "verification-branch-unreachable",
-            message: `述語 ${id} は投入後も踏めない（真 ${measuredTrue} 件 / 偽 ${measuredFalse} 件）`,
+            message: `述語 ${id} は投入後も踏めない（真 ${measuredTrue} 件 / 偽 ${measuredFalse} 件）。足すか、設計の扱いを「gaps に記録」にして根拠を書く`,
           });
         }
       }

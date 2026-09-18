@@ -387,6 +387,80 @@ test("陽性コントロール: 並んだ絞り込みそれぞれに述語行が
   expect(codes).toEqual([]);
 });
 
+test("列名の突き合わせは識別子境界で行う（owner_id は id を満たさない）", () => {
+  const codes = codesOf({
+    design: designOf({
+      params: [
+        "| order | orders | id, owner_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+      predicates: [
+        "| orders-owner | orders | order | owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+      ],
+    }),
+  });
+  // `owner_id = :me` は部分文字列として id を含むが、列 id の分岐は数えられていない。
+  expect(codes.filter((c) => c === "predicate-filter-not-enumerated")).toHaveLength(1);
+});
+
+test("真・偽の合計が表の件数を超える述語は落ちる（捏造した被覆を通さない）", () => {
+  // 1 件の表に「真 1 / 偽 1」と書くと踏める判定になり、件数 0 / 1 の検査も扱いで黙らせられる。
+  const codes = codesOf({
+    design: designOf({
+      targets: [
+        "| orders | order, monthly-summary | 41 | 投入する | FK 親 |",
+        "| order_items | order | 80 | 投入する | orders の子 |",
+        "| reports | report | 6 | 投入する | - |",
+        "| users | user | 4 | 投入する | - |",
+        "| roles | user | 1 | 投入する | - |",
+      ],
+      predicates: [
+        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 1 | 1 | 踏める | - | 読了 |",
+      ],
+    }),
+  });
+  expect(codes).toContain("predicate-partition-exceeds-table");
+});
+
+test("「gaps に記録」と決めた分岐は、投入後 0 件でも verification を落とさない", () => {
+  const design = designOf({
+    predicates: [
+      "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
+      "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
+      "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
+      "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
+      "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+      "| roles-admin | roles | user | role = 'admin' | 3 | 0 | 踏めない | gaps に記録 | 現行 UI にこの分岐が無い |",
+    ],
+  });
+  const verification = VERIFICATION.replace(
+    "| roles-admin | 1 | 2 | 踏める | count(*) |",
+    "| roles-admin | 3 | 0 | 踏めない | count(*) |",
+  );
+  expect(codesOf({ design, verification })).toEqual([]);
+
+  // 扱いを決めていない（踏める想定の）分岐が 0 件なら従来どおり落ちる。
+  const undecided = VERIFICATION.replace(
+    "| users-active | 3 | 1 | 踏める | count(*) |",
+    "| users-active | 3 | 0 | 踏めない | count(*) |",
+  );
+  expect(codesOf({ verification: undecided })).toContain("verification-branch-unreachable");
+});
+
 test("投入後も踏めない分岐と、設計値とのズレは verification の突き合わせで落ちる", () => {
   const codes = codesOf({
     verification: VERIFICATION.replace(
