@@ -1,6 +1,6 @@
 ---
 name: kaizen
-description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは自動で忘却し、セッション開始時の注入を軽く保つ。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」などで発動。
+description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは抽出時に自動で忘却し、セッション開始時の注入を軽く保つ。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」などで発動。
 argument-hint: "[extract|apply|forget|archive] [--current | --all] [--record-pending]"
 license: MIT
 ---
@@ -29,7 +29,7 @@ license: MIT
 例: `/kaizen --all` / `/kaizen forget --list` / `/kaizen archive` / `/kaizen archive --rejected` / `/kaizen delete --applied`
 
 - 自然文でも発動する:「振り返って」「kaizen」= 抽出 /「学びを適用して」= apply /「忘れて」「古い学びを整理して」= forget /「整理して」「アーカイブして」「クリーンアップして」= archive /「削除して」「消して」= delete /「セットアップして」「hooks を設定して」= setup。
-- **忘却は既定で自動**: SessionStart フックが、適用されないまま閾値の日数が過ぎ優先度も上がらなかった pending を `status: forgotten` にする。手動の `/kaizen forget` は閾値に関わらず忘れたいときだけ使う（`references/housekeeping.md`「忘却」）。
+- **忘却は既定で自動**: 学びを 1 件記録し終えた時点（`kaizen-extract-done.sh`）で、適用されないまま閾値の日数が過ぎ優先度も上がらなかった pending を `status: forgotten` にする。台帳へ 1 件足した瞬間に反対側から 1 件落ちる形で、調査だけのセッションでは 1 バイトも書かない。手動の `/kaizen forget` は閾値に関わらず忘れたいときだけ使う（`references/housekeeping.md`「忘却」）。
 - `--record-pending` は `extract --current` と同時指定した場合だけ受理する。通常抽出の承認フローを変えず、apply / archive / delete は行わない。
 - **抽出はコミット前ゲートからも駆動される**: 未抽出の活動があり transcript に候補が見つかる、または安全に判定できないと、PreToolUse ゲートが `git commit` をブロックして `kaizen --current` を促す。候補ゼロを検証できた場合は自動通過する。コミットの既定クリティカルパスは抽出・記録までで、apply はユーザーが今すぐ適用すると選んだ場合だけ続ける。
 

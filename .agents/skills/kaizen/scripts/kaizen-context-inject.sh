@@ -26,8 +26,6 @@ if [ ! -t 0 ]; then
 	input=$(cat 2>/dev/null || true)
 fi
 
-# cd する前に解決する（BASH_SOURCE は起動時の cwd 相対になり得るため）。
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
@@ -105,38 +103,6 @@ fi
 # .kaizen/ が無ければ何も出さずに正常終了（初期化前のプロジェクト）。
 if [ ! -d .kaizen ]; then
 	exit 0
-fi
-
-# 適用されないまま古くなった pending を自動で忘却する（Issue #339）。
-# **注入の前に走らせる**——掃引の結果をこのセッションのダイジェストへ反映させるため。
-# ファイルは動かさず frontmatter の `status` を 1 行書き換えるだけなので、
-# セッション開始のたびにステージされた差分が生まれることはない（詳細は kaizen-forget.sh）。
-#
-# 自動圧縮（source: compact）では走らせない。圧縮は同一セッションの継続であり、
-# 作業の途中でファイルが書き換わるのは驚きになる。閾値は日単位なので、
-# 次のセッション開始まで待って困ることはない。
-#
-# このフックはベストエフォート（常に exit 0）。掃引が失敗しても注入は続ける。
-forgotten_notes=""
-if [ "${is_compact}" -eq 0 ] && [ -n "${script_dir}" ] && [ -r "${script_dir}/kaizen-forget.sh" ]; then
-	forgotten_notes=$(bash "${script_dir}/kaizen-forget.sh" --auto 2>/dev/null || true)
-fi
-if [ -n "${forgotten_notes}" ]; then
-	# 黙って忘れない。何を忘れたかを出しておかないと、注入から消えたことに気づけず、
-	# 戻す判断（`kaizen-forget.sh` の閾値調整・status を pending へ戻す）ができない。
-	# パイプで渡さない（このファイルの他の判定と同じ理由。herestring なら書き手のプロセスが無い）。
-	forgotten_count=$(grep -c '^' <<<"${forgotten_notes}" || true)
-	echo "## kaizen: 自動で忘却した学び（${forgotten_count} 件）"
-	echo ""
-	echo "以下は適用されないまま閾値の日数が過ぎ、優先度も上がらなかった（＝再発していない）学びです。"
-	echo "\`status: forgotten\` にしたので以降は注入されません。本文は残っているため KEDB 照合では見つかり、"
-	echo "再発したら \`status: pending\` へ戻せます。閾値は \`.kaizen/config\` の forget_after_days / forget_max_priority で変えられます。"
-	echo ""
-	while IFS= read -r forgotten_note; do
-		[ -n "${forgotten_note}" ] || continue
-		echo "- \`${forgotten_note}\`"
-	done <<<"${forgotten_notes}"
-	echo ""
 fi
 
 # frontmatter（最初の `---` ブロック）の 1 フィールドを取り出す。

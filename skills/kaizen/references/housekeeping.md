@@ -4,7 +4,7 @@
 
 | 動作 | 対象 | 何をするか | 駆動 |
 |------|------|-----------|------|
-| 忘却 | `status: pending` | frontmatter の `status` を `forgotten` にする。**ファイルは動かさない** | **既定で自動**（SessionStart フック）。`kaizen forget` で明示実行も可 |
+| 忘却 | `status: pending` | frontmatter の `status` を `forgotten` にする。**ファイルは動かさない** | **既定で自動**（抽出完了時）。`kaizen forget` で明示実行も可 |
 | アーカイブ | `applied` / `rejected` / `forgotten` | 対象ファイルを `.kaizen/archive/` へ**移動**する（`git mv`）。本文は消さない | ユーザーの明示指示のみ |
 | 削除 | 同上 | 対象ファイルを**物理削除**する | ユーザーの明示指示のみ（破壊的） |
 
@@ -38,7 +38,7 @@
 
 ### 設定（`.kaizen/config`）
 
-`KEY=VALUE` の 1 行 1 設定（コミット前ゲートの `foreign_sentinel_retention_days` と同じファイル）。YAML にしないのは、読み手が bash の SessionStart フックで `yq` に依存させられないため。
+`KEY=VALUE` の 1 行 1 設定（コミット前ゲートの `foreign_sentinel_retention_days` と同じファイル）。YAML にしないのは、読み手が bash のフック・スクリプトで `yq` に依存させられないため。
 
 ```ini
 forget_auto=on              # 自動忘却の有効・無効（既定 on）
@@ -53,12 +53,16 @@ forget_max_priority=medium  # この優先度までを候補にする（low | me
 ```bash
 # <スキル> はインストール先（~/.claude/skills/kaizen / .claude/skills/kaizen / .agents/skills/kaizen のいずれか）。
 bash <スキル>/scripts/kaizen-forget.sh --list        # 候補を一覧する（変更しない）
-bash <スキル>/scripts/kaizen-forget.sh --auto        # 候補を忘却する（SessionStart フックが呼ぶ経路）
+bash <スキル>/scripts/kaizen-forget.sh --auto        # 候補を忘却する（kaizen-extract-done.sh が呼ぶ経路）
 bash <スキル>/scripts/kaizen-forget.sh <対象ファイル...>  # 閾値に関わらず明示的に忘却する
 ```
 
-- **自動忘却は SessionStart フックが `--auto` で呼ぶ**（配線は `references/setup.md`）。忘却したノートは注入テキストの冒頭に一覧で出るので、忘れられたことに気づける。
-- 自動圧縮（`source: compact`）では走らない。同一セッションの継続中にファイルが書き換わるのを避けるため。
+- **自動忘却は `kaizen-extract-done.sh` が `--auto` で呼ぶ**——学びを 1 件記録し終えた直後、センチネルを解消した後。忘却したノートは stderr に一覧で出るので、忘れられたことに気づける。
+- **この位置に置くのは、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に揃えるため。**
+  SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも追跡ファイルが書き換わり、
+  その差分は未ステージで残るので、clean 確認を持つ工程（`git-worktree` の後片付け、`issue-batch` の収束）がそこで止まる。
+  抽出完了時なら、呼び出し側はこの後 `.kaizen/` を stage して commit を再実行するので、**忘却の差分も新しいノートと同じ commit に収まる**。
+- 掃引はセンチネル解消の**後**に走り、失敗しても抽出完了の記録は残る（ここで止めると、抽出したのにゲートが解除されず commit できなくなる）。
 - ユーザーが「忘れて」と指示した場合は、対象ファイルを引数に渡す。**明示指示でも対象は pending だけ**——applied / rejected を `forgotten` にすると `applied-to` と矛盾して `kaizen-status-check.sh` が exit 2 で落ちる。それらを片付けたいならアーカイブを使う。
 
 ### 忘れた学びを呼び戻す

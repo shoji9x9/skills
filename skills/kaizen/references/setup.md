@@ -332,19 +332,7 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 他セッションのマーカーは消さない——消すと、まだ生きている別セッションが抽出済みの活動で再びブロックされる。
 ただし stdin の `source` が `compact`（自動圧縮。同一セッションの継続）のときはマーカーを残す。source を取り出せない場合は削除側（ブロックが増える安全側）に倒す。
 
-このスクリプトはさらに、**注入の前に忘却の自動掃引**（`kaizen-forget.sh --auto`）を走らせる。適用されないまま閾値の日数が過ぎ優先度も上がらなかった pending を `status: forgotten` にして、注入が際限なく肥大するのを防ぐ。
-**追加の Hook 配線は不要**——同じ SessionStart フックの中で走るので、既存のインストールでもスクリプトを更新すれば有効になる。
-掃引はファイルを動かさず frontmatter の `status` を 1 行書き換えるだけで、忘却したノートは注入テキストの冒頭に一覧で出る。`compact` では走らせない（同一セッションの継続中にファイルが書き換わるのを避けるため）。
-判定条件・呼び戻しの手順は `references/housekeeping.md`「忘却」が正本。閾値はプロジェクトの `.kaizen/config` で変えられる:
-
-```ini
-# 自動忘却の有効・無効。既定 on。
-forget_auto = on
-# 記録からこの日数が過ぎた pending を候補にする。既定 30。
-forget_after_days = 30
-# この優先度までを候補にする（low | medium | high）。既定 medium。
-forget_max_priority = medium
-```
+**このフックは追跡ファイルを書き換えない**（読み取りとマーカー削除だけ）。注入が肥大しないよう古い pending を忘却する掃引は、**`kaizen-extract-done.sh`（抽出完了時）**が担う——リポジトリを変更するつもりのない調査だけのセッションで作業ツリーを dirty にしないため。詳細は下記「忘却の自動掃引」。
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
 > Claude Code の `SessionStart` は stdout を context へ注入する。
@@ -423,6 +411,34 @@ Codex の非 managed command Hook は、定義を設定ファイルへ追加し�
 プロジェクトの永続セットアップを完了させる代わりには使わない。
 
 詳細は [Codex Hooks ドキュメント「Review and trust hooks」](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) を参照すること。
+
+#### 4-5. 忘却の自動掃引（Hook 配線は不要）
+
+`kaizen-extract-done.sh`（抽出完了時にエージェントが呼ぶ）は、センチネルを解消した後に
+`kaizen-forget.sh --auto` を走らせ、適用されないまま閾値の日数が過ぎ優先度も上がらなかった
+pending を `status: forgotten` にする。以降その学びは SessionStart 注入に載らない。
+
+**Hook の追加配線は不要**——4-1〜4-3 の 3 つの Hook はそのままでよく、既存のインストールでも
+スクリプトを更新すれば有効になる。掃引はファイルを動かさず frontmatter の `status` を 1 行
+書き換えるだけで、忘却したノートは stderr に一覧で出る。
+
+**発火点をここに置くのは、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に揃えるため。**
+SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも追跡ファイルが
+書き換わり、その差分が未ステージで残って clean 確認を持つ工程（`git-worktree` の後片付け、
+`issue-batch` の収束）を止める。抽出完了時なら、呼び出し側はこの後 `.kaizen/` を stage して
+commit を再実行するので、忘却の差分も新しいノートと同じ commit に収まる。
+
+判定条件・呼び戻しの手順は `references/housekeeping.md`「忘却」が正本。閾値はプロジェクトの
+`.kaizen/config` で変えられる:
+
+```ini
+# 自動忘却の有効・無効。既定 on。
+forget_auto = on
+# 記録からこの日数が過ぎた pending を候補にする。既定 30。
+forget_after_days = 30
+# この優先度までを候補にする（low | medium | high）。既定 medium。
+forget_max_priority = medium
+```
 
 ### 5. `.gitignore` に制御ファイルを追加する
 
