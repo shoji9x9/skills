@@ -7,3 +7,8 @@ skills:
     review_tool: copilot # pr-review-handle / pr-finalize-loop の再レビュー依頼先。copilot | claude-code | codex | none
   dependabot-merge:
     merge_method: squash # squash | merge | rebase
+  git-worktree:
+    location: .claude/worktrees # 置き場所はリポジトリ内。除外は .gitignore の `/.claude/worktrees` 1 行で足りる
+    # （markdownlint-cli2 / oxlint / oxfmt は `.claude/**` を既に除外済み、
+    #   check-skills-sync.js / check-js-extensions.js は固定の最上位ルートしか読まない）
+    carry_in: manual # node_modules は worktree 内で `pnpm install --frozen-lockfile`、.env.local と .claude/settings.local.json は手でコピー
