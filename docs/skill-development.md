@@ -203,13 +203,54 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
   拡張子を持たない設定ファイルは `.gitignore` / `.gitattributes` だけを名前で対象に含める。
   **これ以外は最初から対象外**で skipped にも載らないため、その判定には `project-tree.txt`（全パスを列挙）を使う。
   **内容を検査する assertion を書くときは、その成果物がこの対象に入っているかを先に確かめる**（入っていなければ対象へ追加するか、`project-tree.txt` で測れる形へ assertion を変える）。
-- **`result.json` の `result` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採点用の応答には含まれない。executor 固有の全 trace は `raw/` に残るが、共通の採点・集計を raw schema へ依存させない。
+- **`result.json` の `result` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採点用の応答には含まれない。executor 固有の trace は `raw/` に残るが、共通の採点・集計を raw schema へ依存させない。
+  **`raw/` の粒度は executor で違う。** claude-code は `raw/claude-code.jsonl`（`--output-format stream-json --verbose`）で、
+  `system`/`init`・`assistant` の `tool_use`・末尾の `result` を含むイベント列。codex は `raw/codex.jsonl`（`exec --json`）で
+  `command_execution` を含むイベント列（同じコマンドが `item.started` と `item.completed` の 2 行に出る）。
+- **「エージェントが X を実行していない」を raw の 0 件で示さない。** 抽出器が対象を拾えていない場合も 0 件になる。
+  副作用の不在（`project-tree.txt` / `project-files/`）・`permission_denials`・環境条件（認証・実在しない対象）・応答の記述で示し、
+  raw から判定できない executor ではその旨を `grading.json` に明記する。
   プロンプトが**作業の実行を誘発**すると回答が複数メッセージに分かれ、前半に書かれた根拠（実行した終了コード・引用した実装）が採取物から落ちて採点不能になる。
   eval プロンプトは「実行してから報告させる」のではなく**1 つの報告にまとめさせる**形にし、`〜した後に` のような完了を前提とする言い回しを避ける。
 
 `grading.json` は集計スクリプト／ビューアが実際に読むスキーマで生成する（後段の集計が 0.0% や「No runs found」になるのを防ぐ）。
 必須フィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text` / `passed` / `evidence`。
 ビューアを使う場合は run 配下のレイアウト（`outputs/` と `eval_metadata.json`）も揃える。正本は skill-creator の `references/schemas.md`（インストール先の skill-creator 配下。無い場合は skill-creator のドキュメントを参照）を参照する。
+
+### 対象スキルを読まなかった run を集計から外す
+
+`with_skill` の run でも、スキルが見えているだけで発動せず、スキルなしと同じ答えを返すことがある。
+これを混ぜると Delta が「スキルの中身が足りない」のか「読まなかった」のか区別できなくなるため、**採点前に分ける**。
+
+判定は `result.json` の `skill_usage` にある（`run-skill-eval.sh` が run ごとに書く）。
+
+| フィールド | 意味 | `null` のとき |
+| --- | --- | --- |
+| `visible` | 対象スキルが提示されていたか（claude-code の `system`/`init` の `skills`） | executor が提示一覧を出さない（codex） |
+| `invoked` | Skill として起動したか | 起動の仕組みが無い（codex はシェルで読む） |
+| `files_read` | **中身を返す操作**で開いたスキル配下のパス（`Read` / `Grep` の引数、`cat` / `head` / `sed` 等のシェル片） | ツール記録が無い trace |
+| `read` | 起動したか、またはスキル配下のパスに触れたか | 上記がどちらも判定不能 |
+| `invalid_run` | `with_skill` なのに `read` が false | `read` が判定不能 |
+
+- **`invalid_run: true` の run は採点・集計から外す**（汚染 run と同じ扱い）。除外した件数と run のパスを `benchmark.json` の備考に残し、
+  同じ条件で追加 run を取る。
+- **`null` を false として扱わない。** `undeterminable` に列挙された軸は「測れなかった」であり「起きなかった」ではない。
+  `invalid_run: null` の run は自動で外さず、`raw/` を見て人が判断する。
+- **パスを名指しただけの run を read に数えない。** baseline が `test ! -e <スキル配下>` で不在を確かめる、報告文にパスを書く、`echo` する、といった操作は読み取りではない。
+  証拠に採るのは中身を返す操作だけで、`ls` / `stat` / `find` / `rm` / `Glob`（名前を返すだけ）・`Write` / `Edit`（書く側）は除外する。
+- **成功した呼び出しだけを証拠にする。** コマンド文字列は「読もうとした」ことしか示さない。
+  claude-code は `tool_result` を `tool_use` の id で突き合わせて `is_error` でないものだけ、codex は `exit_code` が 0 のものだけを採る。
+  スキルが存在しない baseline の `cat <スキル配下>` は失敗するので汚染にならず、結果が返らなかった呼び出しも数えない。**Skill 起動も同じ扱い**で、結果がエラー・未達なら `invoked` にしない。
+- **複合コマンドからは証拠を採らない。** コマンド全体が 1 つの素の読み取り呼び出しのときだけ採る。
+  `test -f X && cat X || echo absent` は X が無くても終了コード 0 になり、`printf '%s' 'note; cat X'` は引用符の中に区切りがある ——
+  どの枝が走ったかはシェルを実際に解析しないと決まらないため、`|` `&&` `||` `;` `` ` `` `$( )` 等を含むコマンドは不採用にする。
+- **逆向きの取りこぼしは許容する** —— 実際に読んだが非 0 で終わる形（一致なしの `grep`）や複合コマンド内の読み取り（`cat X | head`）は read にならない。
+  これは run を 1 つ `invalid_run` として落とすだけで、**汚染を捏造しない側**の誤りだから。落ちた run は目に見えるので追加 run を取れる。
+- `without_skill` 側の対称な signal は `unexpected_read`（ベースラインがスキルに触れた＝汚染）。`contamination.txt` と併せて見る。
+  **claude-code の `raw/` はマーカー走査の対象外**にしてある —— stream-json には中間メッセージとツール入力が入り、
+  マーカーを口にしただけの baseline が CONTAMINATED（exit 4）になって正当な測定が捨てられるため（実測）。
+  読み取りの signal は `skill_usage.unexpected_read` が担う（成功した読み取りから導くので、名前を挙げただけでは立たない）。
+  codex の `raw/` は従来からイベント列で走査対象のまま。
 
 ### eval 環境の前提（runtime / repo / 非対話）
 
@@ -233,6 +274,7 @@ Codex 単体で評価可能だったと差し戻された記録がある。後�
 
 1. **`raw/` の trace で最終的な失敗を確認する。** `result.json` の途中報告は run の停止原因とは限らない
    （`turn.failed` の理由・利用上限・sandbox 制約は raw 側にしか出ない）。
+   claude-code では末尾の `result` イベントの `stop_reason` / `terminal_reason` / `is_error` / `permission_denials` / `usage` を読む。
 2. **そのスキルの executor 契約**（Codex-only 等）を確認する。契約があるなら executor は固定で、
    直すのは fixture かハーネス側。
 3. **sandbox 内で使える非書き込みの代替**を探す。例: Codex の `.git` 保護下で到達性を測るなら、

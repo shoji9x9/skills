@@ -45,7 +45,7 @@ tests/<skill>/iteration-N/
     │   ├── outputs/
     │   │   ├── response.md
     │   │   └── metrics.json
-    │   ├── raw/<executor>.<json|jsonl>
+    │   ├── raw/<executor>.jsonl      # 両 executor ともイベント列
     │   ├── result.json
     │   ├── timing.json
     │   ├── grading.json             # 採点工程が生成
@@ -67,12 +67,14 @@ tests/<skill>/iteration-N/
 - `result`: 最終アシスタントメッセージ
 - `usage.{input_tokens,cached_input_tokens,cache_write_input_tokens,output_tokens,reasoning_output_tokens,total_tokens}`
 - `raw_trace`: run からの相対パス
+- `skill_usage`: 対象スキルを読んだかの判定（`visible` / `invoked` / `files_read` / `read` / `invalid_run` / `undeterminable`）。
+  各軸は true / false / `null`（この executor では測れない）の 3 値。除外の運用は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」を参照する
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
 各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、`requires_skills`（名前と設置内容のハッシュ）、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
 `without_skill` の `--reuse-baseline` は fingerprint と成果物の健全性を検証し、再利用した run に `baseline-reuse.json` を追加する。
 `scripts/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
-`outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる executor だけに置く。Claude Code の final JSON から復元できない値を `0` で埋めない。
+`outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる run だけに置く。ツール記録を持たない trace（`result` イベント 1 つだけの旧 `--output-format json`）では `0` で埋めず省略する。
 `files_created` は run 前の fixture file manifest と、run 後に `project-files/` へ保存できた artifact の差分で生成する。既存 fixture、size cap 等で保存されなかったファイルは含めない。
 
 raw trace は調査・deterministic grading 用であり、集計・viewer は raw の vendor 固有 schema に依存しない。
