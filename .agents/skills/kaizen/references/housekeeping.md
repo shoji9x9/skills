@@ -33,17 +33,17 @@
 | 条件 | 既定 | 根拠 |
 |------|------|------|
 | `status: pending` | — | applied / rejected は決着済み、forgotten は忘却済み |
-| `priority` が閾値以下 | `low` のみ | KEDB 照合で再発が見つかった pending は `references/extract.md` の契約により**優先度を上げて追記**される。low のままであることが「再発していない」証跡になる |
-| `date` からの経過日数が閾値以上 | 90 日 | 適用する機会が十分あったと見なす期間 |
+| `priority` が閾値以下 | `medium` 以下（low / medium） | KEDB 照合で再発が見つかった pending は `references/extract.md` の契約により**優先度を上げて追記**される。high へ上がっていないことが「繰り返し起きてはいない」証跡になる |
+| `date` からの経過日数が閾値以上 | 30 日 | 適用する機会が十分あったと見なす期間 |
 
 ### 設定（`.kaizen/config`）
 
 `KEY=VALUE` の 1 行 1 設定（コミット前ゲートの `foreign_sentinel_retention_days` と同じファイル）。YAML にしないのは、読み手が bash の SessionStart フックで `yq` に依存させられないため。
 
 ```ini
-forget_auto=on            # 自動忘却の有効・無効（既定 on）
-forget_after_days=90      # 記録からこの日数が過ぎたら候補（既定 90）
-forget_max_priority=low   # この優先度までを候補にする（low | medium | high。既定 low）
+forget_auto=on              # 自動忘却の有効・無効（既定 on）
+forget_after_days=30        # 記録からこの日数が過ぎたら候補（既定 30）
+forget_max_priority=medium  # この優先度までを候補にする（low | medium | high。既定 medium）
 ```
 
 不正値は既定へ倒し、倒したことを stderr に出す（設定したつもりの閾値で動いていると読めてしまうため）。

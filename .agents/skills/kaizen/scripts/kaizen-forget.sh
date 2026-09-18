@@ -17,14 +17,14 @@
 #
 # 判定材料:
 #   - `status: pending`（applied / rejected / forgotten は対象外）
-#   - `priority` が閾値以下（既定は low のみ。KEDB 照合で再発が見つかったノートは
+#   - `priority` が閾値以下（既定は medium まで。KEDB 照合で再発が見つかったノートは
 #     `references/extract.md` の契約により優先度が上がるので、low のままは「再発していない」証跡）
 #   - `date` から閾値日数以上が経過している（日付を読めないノートは対象外＝忘れない）
 #
 # 設定（`.kaizen/config` の `KEY=VALUE`。既定値はこのスクリプトが持つ）:
 #   forget_auto=on|off              --auto の有効・無効（既定 on）
-#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補（既定 90）
-#   forget_max_priority=low|medium|high  この優先度までを候補にする（既定 low）
+#   forget_after_days=<整数>        記録からこの日数が過ぎたら候補（既定 30）
+#   forget_max_priority=low|medium|high  この優先度までを候補にする（既定 medium）
 #
 # 詳細手順は references/housekeeping.md を参照。
 set -euo pipefail
@@ -92,7 +92,7 @@ if raw=$(config_value forget_auto); then
 	esac
 fi
 
-forget_after_days=90
+forget_after_days=30
 if raw=$(config_value forget_after_days); then
 	if [[ "${raw}" =~ ^[0-9]{1,6}$ ]]; then
 		forget_after_days=$((10#${raw}))
@@ -114,12 +114,14 @@ priority_rank() { # $1: priority
 	esac
 }
 
-forget_max_rank=2
+forget_max_priority=medium
+forget_max_rank=1
 if raw=$(config_value forget_max_priority); then
 	if rank=$(priority_rank "${raw}"); then
 		forget_max_rank=${rank}
+		forget_max_priority=${raw}
 	else
-		printf 'kaizen-forget: .kaizen/config の forget_max_priority が不正です（%q）。既定の low を使います。\n' "${raw:0:40}" >&2
+		printf 'kaizen-forget: .kaizen/config の forget_max_priority が不正です（%q）。既定の %s を使います。\n' "${raw:0:40}" "${forget_max_priority}" >&2
 	fi
 fi
 
@@ -214,7 +216,7 @@ list)
 	if [ -z "${candidates}" ]; then
 		# 対象 0 件を黙って成功にしない。閾値が効いているのか材料が読めていないのかを
 		# 呼び出し側が区別できるよう、使った閾値まで出す。
-		echo "kaizen-forget: 忘却候補はありません（status: pending / priority <= ${forget_max_rank} / ${forget_after_days} 日以上）" >&2
+		echo "kaizen-forget: 忘却候補はありません（status: pending / priority ${forget_max_priority} 以下 / ${forget_after_days} 日以上）" >&2
 		exit 0
 	fi
 	printf '%s\n' "${candidates}"

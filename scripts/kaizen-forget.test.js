@@ -15,8 +15,8 @@ import { dirname, join } from "node:path";
 // | 軸        | 候補になる     | 候補にならない                                   |
 // |-----------|----------------|--------------------------------------------------|
 // | status    | pending        | applied / rejected / forgotten                   |
-// | priority  | 閾値以下（既定 low） | high / medium（既定） / 未知の値 / 未設定  |
-// | date      | 閾値以上（既定 90 日） | 閾値未満 / 不正な形式 / 未設定             |
+// | priority  | 閾値以下（既定 medium。low / medium） | high / 未知の値 / 未設定    |
+// | date      | 閾値以上（既定 30 日） | 閾値未満 / 不正な形式 / 未設定             |
 //
 // **読めない材料は候補にしない**（忘れない側へ倒す）。忘却は「消える側」の操作なので、
 // priority や date を書き忘れただけの学びが自動で忘れられてはならない。
@@ -27,7 +27,7 @@ import { dirname, join } from "node:path";
 // モードの軸: `--list`（変更しない） / `--auto`（閾値で掃引） / 明示（閾値に関わらず忘却）。
 //
 // 変異による検出能力の実証（このファイルを書いた時点で 4 通り実施し、いずれも赤くなることを実測した）:
-//   1. `[ "${rank}" -ge "${forget_max_rank}" ] || return 1` を削る → 3 件 fail（medium / high が候補に入る）
+//   1. `[ "${rank}" -ge "${forget_max_rank}" ] || return 1` を削る → 3 件 fail（high が候補に入る）
 //   2. `[ "${age}" -ge "${forget_after_days}" ] || return 1` を削る → 3 件 fail（新しいノートが候補に入る）
 //   3. `[ "${status}" = "pending" ] || return 1` を削る → 4 件 fail
 //      （applied / rejected が候補に入り、status-check との整合検査も落ちる＝下流への影響まで測れている）
@@ -99,9 +99,9 @@ function statusOf(dir, name) {
 // 片側だけだと「常に忘れる」「1 件も忘れない」のどちらへ退化しても気づけない。
 const CANDIDATES = {
   "old-low": note({}),
+  "old-medium": note({ priority: "medium" }),
 };
 const NON_CANDIDATES = {
-  "old-medium": note({ priority: "medium" }),
   "old-high": note({ priority: "high" }),
   "old-unknown-priority": note({ priority: "urgent" }),
   "old-no-priority": note({ priority: null }),
@@ -129,9 +129,9 @@ test("--list は候補だけを挙げ、何も書き換えない", () => {
       .split("\n")
       .filter(Boolean)
       .map((line) => line.split("\t")[0]);
-    expect(listed).toEqual([".kaizen/old-low.md"]);
+    expect(listed.sort()).toEqual([".kaizen/old-low.md", ".kaizen/old-medium.md"]);
     // 一覧は判断材料（日付・優先度・経過日数）を添える。ファイル名だけだと承認できない。
-    expect(stdout).toMatch(/\t\d{4}-\d{2}-\d{2}\tlow\t\d+$/m);
+    expect(stdout).toMatch(/\t\d{4}-\d{2}-\d{2}\t(low|medium)\t\d+$/m);
     // 何も書き換えていないことは、実行前後の全文を突き合わせて確かめる
     // （status だけを見ると、本文を壊す変更を見逃す）。
     expect(snapshot(dir)).toEqual(before);
@@ -145,10 +145,13 @@ test("--auto は候補だけを forgotten にし、他は触らない", () => {
   try {
     const { status, stdout, stderr } = run(dir, ["--auto"]);
     expect(status).toBe(0);
-    expect(stdout.trim()).toBe(".kaizen/old-low.md");
-    expect(stderr).toContain("forgot 1 note(s)");
+    expect(stdout.trim().split("\n").sort()).toEqual([
+      ".kaizen/old-low.md",
+      ".kaizen/old-medium.md",
+    ]);
+    expect(stderr).toContain("forgot 2 note(s)");
     expect(statusOf(dir, "old-low")).toBe("forgotten");
-    expect(statusOf(dir, "old-medium")).toBe("pending");
+    expect(statusOf(dir, "old-medium")).toBe("forgotten");
     expect(statusOf(dir, "old-high")).toBe("pending");
     expect(statusOf(dir, "old-unknown-priority")).toBe("pending");
     expect(statusOf(dir, "old-no-priority")).toBe("pending");
@@ -167,7 +170,7 @@ test("--auto は冪等（2 回目は 0 件）", () => {
   // SessionStart のたびに走るので、同じノートを何度も「忘れた」と報告してはならない。
   const dir = makeProject(CANDIDATES);
   try {
-    run(dir, ["--auto"]);
+    expect(run(dir, ["--auto"]).stderr).toContain("forgot 2 note(s)");
     const second = run(dir, ["--auto"]);
     expect(second.stdout.trim()).toBe("");
     expect(second.stderr).toContain("forgot 0 note(s)");
@@ -239,11 +242,11 @@ test("forget_auto=off で自動忘却を止める", () => {
 });
 
 test("forget_after_days で閾値を変えられる", () => {
-  const dir = makeProject({ "mid-low": note({ date: daysAgo(40) }) });
+  const dir = makeProject({ "mid-low": note({ date: daysAgo(20) }) });
   try {
-    // 既定 90 日では候補にならない（陰性コントロール。設定で動いたと言えるようにする）。
+    // 既定 30 日では候補にならない（陰性コントロール。設定で動いたと言えるようにする）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
-    writeFileSync(join(dir, ".kaizen", "config"), "forget_after_days = 30\n");
+    writeFileSync(join(dir, ".kaizen", "config"), "forget_after_days = 10\n");
     expect(run(dir, ["--list"]).stdout).toContain(".kaizen/mid-low.md");
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -251,14 +254,13 @@ test("forget_after_days で閾値を変えられる", () => {
 });
 
 test("forget_max_priority で対象の優先度を広げられる", () => {
-  const dir = makeProject({ "old-medium": note({ priority: "medium" }) });
+  const dir = makeProject({ "old-high": note({ priority: "high" }) });
   try {
+    // 既定 medium では high は候補にならない（陰性コントロール）。
     expect(run(dir, ["--list"]).stdout.trim()).toBe("");
-    writeFileSync(join(dir, ".kaizen", "config"), "forget_max_priority = medium\n");
-    expect(run(dir, ["--list"]).stdout).toContain(".kaizen/old-medium.md");
-    // high まで広げても high は対象外にならない、ではなく対象に入る（境界の向きを固定する）。
+    // high まで広げると high も対象に入る（境界の向きを固定する）。
     writeFileSync(join(dir, ".kaizen", "config"), "forget_max_priority = high\n");
-    expect(run(dir, ["--list"]).stdout).toContain(".kaizen/old-medium.md");
+    expect(run(dir, ["--list"]).stdout).toContain(".kaizen/old-high.md");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

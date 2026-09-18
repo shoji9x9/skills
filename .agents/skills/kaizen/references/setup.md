@@ -340,10 +340,10 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 ```ini
 # 自動忘却の有効・無効。既定 on。
 forget_auto = on
-# 記録からこの日数が過ぎた pending を候補にする。既定 90。
-forget_after_days = 90
-# この優先度までを候補にする（low | medium | high）。既定 low。
-forget_max_priority = low
+# 記録からこの日数が過ぎた pending を候補にする。既定 30。
+forget_after_days = 30
+# この優先度までを候補にする（low | medium | high）。既定 medium。
+forget_max_priority = medium
 ```
 
 > **注入可否の但し書き**（PreToolUse ゲートの stderr 注入と同じ）:
