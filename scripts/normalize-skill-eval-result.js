@@ -94,53 +94,57 @@ const READ_UTILITIES = new Set([
   "xxd",
 ]);
 
-// Split on the separators that start a new command, then take each segment's first
-// word. `cat a | grep b && test -e c` yields cat / grep / test, so the test segment
-// cannot borrow the cat segment's verdict.
 const SHELL_BINARIES = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 
-function shellSegmentsReadingFiles(command, depth = 0) {
-  const segments = command.split(/\||&&|\|\||;|\n/u);
-  const reading = [];
-  for (const segment of segments) {
-    const words = segment.trim().split(/\s+/u).filter(Boolean);
-    // Skip leading env assignments and `sudo`-style prefixes to find the utility.
-    let index = 0;
-    while (index < words.length && (/^\w+=/u.test(words[index]) || words[index] === "sudo")) {
-      index += 1;
-    }
-    const utility = (words[index] ?? "").split("/").pop();
-    if (READ_UTILITIES.has(utility)) {
-      reading.push(segment);
-      continue;
-    }
-    // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
-    // unwrapping the inner script no codex run would ever count as a read.
-    if (depth < 2 && SHELL_BINARIES.has(utility) && words.slice(index + 1).some(isShellCFlag)) {
-      const inner = stripOuterQuotes(segment.slice(segment.indexOf(words[index])));
-      if (inner !== null) {
-        reading.push(...shellSegmentsReadingFiles(inner, depth + 1));
-      }
-    }
+// Anything that makes one part's execution conditional on another's, or that can hide
+// a separator inside a quoted word.
+const SHELL_CONTROL_FLOW = /[|&;\n`()<>]|\$\(/u;
+
+// A command is evidence only when the WHOLE command is one plain invocation of a
+// reading utility. Splitting a compound command and judging the pieces reads a branch
+// that never ran as executed: `test -f X && cat X || echo absent` exits zero when X is
+// absent, yet the `cat X` piece is still in the text, and a separator inside quotes
+// (`printf '%s' 'note; cat X'`) splits the same way. Knowing which branch ran needs a
+// real shell parse; short of that, a compound command yields nothing.
+//
+// This under-counts a genuine read written as `cat X | head -5`, which costs one run
+// marked invalid_run — visible, and never a fabricated contamination.
+function shellReadTarget(command, depth = 0) {
+  const trimmed = command.trim();
+  const words = trimmed.split(/\s+/u).filter(Boolean);
+  // Skip leading env assignments and `sudo`-style prefixes to find the utility.
+  let index = 0;
+  while (index < words.length && (/^\w+=/u.test(words[index]) || words[index] === "sudo")) {
+    index += 1;
   }
-  return reading;
+  const utility = (words[index] ?? "").split("/").pop();
+
+  // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
+  // unwrapping the inner script no codex run would ever count as a read.
+  if (depth < 2 && SHELL_BINARIES.has(utility) && words.slice(index + 1).some(isShellCFlag)) {
+    const inner = stripOuterQuotes(trimmed);
+    return inner === null ? [] : shellReadTarget(inner, depth + 1);
+  }
+
+  if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
+    return [];
+  }
+  return [trimmed];
 }
 
 function isShellCFlag(word) {
   return /^-[a-z]*c[a-z]*$/u.test(word);
 }
 
-// Return the text inside the first single- or double-quoted run, which is where a
-// `-c` script lives. Splitting on `|` above can cut a quoted script, so the opening
-// quote without a closing one still yields its remainder.
+// Return the text between the first quote and the last matching one, which is where a
+// `-c` script lives.
 function stripOuterQuotes(text) {
   const opening = text.search(/['"]/u);
   if (opening === -1) {
     return null;
   }
-  const quote = text[opening];
-  const closing = text.indexOf(quote, opening + 1);
-  return closing === -1 ? text.slice(opening + 1) : text.slice(opening + 1, closing);
+  const closing = text.lastIndexOf(text[opening]);
+  return closing <= opening ? null : text.slice(opening + 1, closing);
 }
 
 function collectReadEvidence(toolName, input, sink) {
@@ -153,7 +157,7 @@ function collectReadEvidence(toolName, input, sink) {
     }
   }
   if (SHELL_TOOLS.has(toolName) && typeof input.command === "string") {
-    sink.push(...shellSegmentsReadingFiles(input.command));
+    sink.push(...shellReadTarget(input.command));
   }
 }
 
@@ -222,7 +226,10 @@ export function parseClaudeTrace(rawText) {
         }
         pendingEvidence.delete(block.tool_use_id);
         if (block.is_error !== true) {
-          toolInputTexts.push(...pending);
+          toolInputTexts.push(...pending.texts);
+          if (pending.invoked !== null) {
+            invokedSkills.push(pending.invoked);
+          }
         }
       }
       continue;
@@ -237,18 +244,21 @@ export function parseClaudeTrace(rawText) {
       const name = typeof block.name === "string" ? block.name : "unknown";
       totalToolCalls += 1;
       toolCalls[name] = (toolCalls[name] ?? 0) + 1;
-      if (name === "Skill" && typeof block.input?.skill === "string") {
-        invokedSkills.push(block.input.skill);
-      }
       const candidate = [];
+      let invoked = null;
+      // An invocation that errored or never returned did not hand the skill over
+      // either, so it waits on its result exactly like a file read does.
+      if (name === "Skill" && typeof block.input?.skill === "string") {
+        invoked = block.input.skill;
+      }
       collectReadEvidence(name, block.input, candidate);
-      if (candidate.length === 0) {
+      if (candidate.length === 0 && invoked === null) {
         continue;
       }
       // Without an id the result cannot be correlated, so the call never becomes
       // evidence — an uncorrelated call is exactly the case this guard exists for.
       if (typeof block.id === "string") {
-        pendingEvidence.set(block.id, candidate);
+        pendingEvidence.set(block.id, { texts: candidate, invoked });
       }
     }
   }
@@ -330,7 +340,7 @@ export function parseCodexTrace(rawText) {
       // `cat` of a path a baseline expects to be absent exits nonzero and must not
       // count as having read it.
       if (typeof event.item.command === "string" && event.item.exit_code === 0) {
-        toolInputTexts.push(...shellSegmentsReadingFiles(event.item.command));
+        toolInputTexts.push(...shellReadTarget(event.item.command));
       }
       if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {
         errors += 1;

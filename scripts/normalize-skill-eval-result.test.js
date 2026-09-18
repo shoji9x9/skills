@@ -244,8 +244,6 @@ describe("skill eval result normalization", () => {
       ["head", "head -n 40 .claude/skills/box/SKILL.md"],
       ["sed", "sed -n '1,20p' .claude/skills/box/SKILL.md"],
       ["grep", "grep -n description .claude/skills/box/SKILL.md"],
-      ["a piped read", "cat .claude/skills/box/SKILL.md | head -n 5"],
-      ["a read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
     ])("counts %s as reading the skill", (_label, command) => {
       const usage = buildSkillUsage({
         config: "with_skill",
@@ -360,6 +358,56 @@ describe("skill eval result normalization", () => {
       });
 
       expect(usage).toMatchObject({ read: false, unexpected_read: false });
+    });
+
+    // A zero exit for the whole command does not mean every part of it ran, and a
+    // separator inside quotes is not a separator. Deciding that needs a real shell
+    // parse, so a compound command yields nothing — including the two forms below
+    // that do read the skill. That costs an invalid_run, never a false contamination.
+    test.each([
+      ["a branch that did not run", "test -f x && cat .claude/skills/box/SKILL.md || echo absent"],
+      ["a separator inside quotes", "printf '%s' 'note; cat .claude/skills/box/SKILL.md'"],
+      ["a command substitution", "echo $(cat .claude/skills/box/SKILL.md)"],
+      ["a genuine piped read", "cat .claude/skills/box/SKILL.md | head -n 5"],
+      // Leading word IS a read utility here, so only the control-flow guard can
+      // reject these; the cases above are already stopped by the utility check.
+      ["a read utility followed by a branch", "cat .claude/skills/box/SKILL.md && echo done"],
+      ["a read utility before a semicolon", "cat .claude/skills/box/SKILL.md; echo done"],
+      ["a genuine read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
+    ])("takes no evidence from %s", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test.each([
+      ["errored", "error"],
+      ["never returned", "no-result"],
+    ])("does not record a Skill invocation whose result %s", (_label, outcome) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Skill", { skill: "box" }, outcome),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ invoked: false, read: false, invalid_run: true });
     });
 
     test("does not count a codex command that exited nonzero", () => {
