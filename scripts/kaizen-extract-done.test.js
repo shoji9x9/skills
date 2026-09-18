@@ -181,3 +181,49 @@ describe("改行を含む worktree のパスを取りこぼさない", () => {
     expect(existsSync(sentinelPath(main))).toBe(false);
   });
 });
+
+// 既存インストールでは同じ session の checkpoint が本体と worktree に散っていることがある
+// （この変更が直そうとしている状態そのもの）。1 ツリーぶんだけ消すと、残ったほうをゲートが
+// 見つけて `.extract-done` の fail safe を無効化し、commit が止まり続ける（実測）。
+describe("散った制御ファイルは全作業ツリーで整理する", () => {
+  function writeCheckpoint(dir, transcript) {
+    mkdirSync(join(dir, ".kaizen"), { recursive: true });
+    writeFileSync(
+      join(dir, ".kaizen", `.extract-checkpoint.${SESSION}`),
+      `${transcript}\n10\nclaude-code\n1\n`,
+    );
+  }
+
+  test("checkpoint が両ツリーにあると、fail safe の際に両方落とす", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    const transcript = join(main, "t.jsonl");
+    writeFileSync(transcript, "{}\n");
+    writeCheckpoint(main, transcript);
+    writeCheckpoint(worktree, transcript);
+    writeSentinel(main);
+    writeSentinel(worktree);
+    // transcript を渡さない＝checkpoint を記録できない経路。`.extract-done` を書き、
+    // 古い checkpoint を落として整合させる。
+    const run = runExtractDone(main, main);
+    expect(run.status, run.stderr).toBe(0);
+    for (const tree of [main, worktree]) {
+      expect(existsSync(join(tree, ".kaizen", `.extract-checkpoint.${SESSION}`))).toBe(false);
+    }
+  });
+
+  test("checkpoint を記録できたときは、両ツリーの古いマーカーを落とす", () => {
+    const { main, worktree } = makeRepoWithWorktree();
+    const transcript = join(main, "t.jsonl");
+    writeFileSync(transcript, "{}\n");
+    for (const tree of [main, worktree]) {
+      mkdirSync(join(tree, ".kaizen"), { recursive: true });
+      writeFileSync(join(tree, ".kaizen", `.extract-done.${SESSION}`), "2026-09-11T00:00:00Z\n");
+    }
+    writeSentinel(main);
+    const run = runExtractDone(main, main, [transcript]);
+    expect(run.status, run.stderr).toBe(0);
+    for (const tree of [main, worktree]) {
+      expect(existsSync(join(tree, ".kaizen", `.extract-done.${SESSION}`))).toBe(false);
+    }
+  });
+});

@@ -237,8 +237,12 @@ cmdsub_span() { # $1: `$(` で始まる文字列
 	# `(` `)` の対応と、対応を跨がせないための引用・エスケープ・コメント。
 	local sub_pat="[\\\\'\"()#]*" dq_pat='[\\"]*'
 	# 引用した右辺は `=~` でリテラル扱いになるため、正規表現は変数に入れて非引用で渡す。
-	local case_head_re='^[[:space:]]*case([^A-Za-z0-9_]|$)'
-	local case_after_sep_re=$'[;&|{\n][[:space:]]*case([^A-Za-z0-9_]|$)'
+	# コマンド位置は記号の区切りだけではない。**予約語の直後もコマンドの先頭**で、
+	# `if true; then case x in x) ... ;; esac; fi` も `while case ...` も実際に実行される（実測）。
+	# 予約語は連なれる（`; then while case ...`）ので、繰り返し可能な前置きとして表す。
+	local case_rw='(then|else|elif|do|if|while|until|time|!)'
+	local case_head_re="^[[:space:]]*(${case_rw}[[:space:]]+)*case([^A-Za-z0-9_]|$)"
+	local case_after_sep_re=$'[;&|{(\n][[:space:]]*'"(${case_rw}[[:space:]]+)*case([^A-Za-z0-9_]|\$)"
 	while [ -n "${rest}" ]; do
 		# パターンとして展開させたいので意図的に非引用（SC2295）。
 		# shellcheck disable=SC2295

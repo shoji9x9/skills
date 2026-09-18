@@ -777,6 +777,20 @@ describe("ゲートの commit 検出", () => {
     ['echo "$( (case x in x) git commit -m x;; esac) )"', 2],
     ['echo "$({ case x in x) git commit -m x;; esac; })"', 2],
     ['echo "$(echo hi\ncase x in x) git commit -m x;; esac)"', 2],
+    // **コマンド位置は記号の区切りだけではない。** 予約語（`then` / `else` / `elif` / `do` /
+    // `while` / `until` / `!` …）の直後もコマンドの先頭で、いずれも実際に実行される（実測）。
+    // 予約語は連なれるので、繰り返し可能な前置きとして扱う。
+    ['echo "$(if true; then case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(if false; then :; else case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(if false; then :; elif true; then case x in x) git commit -m x;; esac; fi)"', 2],
+    ['echo "$(for i in 1; do case x in x) git commit -m x;; esac; done)"', 2],
+    ['echo "$(while case x in x) git commit -m x;; esac; do break; done)"', 2],
+    ['echo "$(until case x in x) git commit -m x;; esac; do break; done)"', 2],
+    ['echo "$(! case x in x) git commit -m x;; esac)"', 2],
+    ['echo "$(true && while case x in x) git commit -m x;; esac; do break; done)"', 2],
+    // 予約語も引数として書かれたときは倒さない（過剰ブロックの回帰）。
+    ['echo "$(printf %s then)" "; git commit -m x"', 0],
+    ['echo "$(printf %s then case)" "; git commit -m x"', 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {

@@ -195,6 +195,20 @@ sentinel_path="${control_dir}/${sentinel_path#.kaizen/}"
 checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
+# 制御ファイルを**全作業ツリー**から消す。名前は `.kaizen/` を含まないファイル名で渡す。
+# 1 ツリーだけ消すと、散った複製が残ってゲートの判定を狂わせる（Issue #344）。
+remove_control_file_everywhere() { # $1: 制御ファイル名
+	local name="${1:-}" dir
+	[ -n "${name}" ] || return 0
+	if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
+		while IFS= read -r -d '' dir; do
+			rm -f "${dir}/${name}" || true
+		done < <(kaizen_worktree_kaizen_dirs "")
+	else
+		rm -f ".kaizen/${name}" || true
+	fi
+}
+
 mkdir -p "${control_dir}"
 
 # checkpoint を記録できたか。transcript を渡されない呼び出しでは下のブロックに入らないため、
@@ -261,7 +275,7 @@ if [ "${mode}" = "complete" ]; then
 	if [ "${checkpoint_written}" -eq 1 ]; then
 		# 同一セッションで先に checkpoint 無しの完了があった場合の古いマーカーを失効させる。
 		# 残すとゲート側が素通りへ倒れ、いま記録した checkpoint 以降の活動を取りこぼす。
-		rm -f "${done_path}" || true
+		remove_control_file_everywhere "${done_path##*/}"
 	else
 		date -u '+%Y-%m-%dT%H:%M:%SZ' >"${done_path}"
 		# 古い checkpoint を残すとゲートがマーカーを尊重せず（「checkpoint がある間は覆わない」）、
@@ -269,7 +283,10 @@ if [ "${mode}" = "complete" ]; then
 		# 抽出をやり直しても checkpoint を記録できない限り同じ状態に戻るため、fail safe が
 		# 効かないまま commit が止まり続ける。上の警告どおり「次回は全走査」に倒すため、
 		# マーカーを書けた後に差分走査の起点も落として整合させる。
-		rm -f "${checkpoint_path}"
+		# **落とすのは全作業ツリーぶん。** 既存インストールでは同じ key の checkpoint が
+		# 本体と worktree に散っていることがあり（この変更が直そうとしている状態そのもの）、
+		# 1 つだけ消すと残ったほうをゲートが見つけて fail safe を無効化する（実測）。
+		remove_control_file_everywhere "${checkpoint_path##*/}"
 	fi
 fi
 # センチネルの削除は**リポジトリの全作業ツリー**に対して行う。ゲートも全ツリーを見て遮断するので
