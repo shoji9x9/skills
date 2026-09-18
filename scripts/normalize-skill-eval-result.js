@@ -109,6 +109,18 @@ const SHELL_CONTROL_FLOW = /[|&;\n`()<>]|\$\(/u;
 //
 // This under-counts a genuine read written as `cat X | head -5`, which costs one run
 // marked invalid_run — visible, and never a fabricated contamination.
+// How many leading non-flag operands are NOT files. `grep PATTERN file` and
+// `sed SCRIPT file` name the skill path in that first operand without opening it,
+// so the evidence is the operands after it, never the whole command.
+const NON_FILE_LEADING_OPERANDS = new Map([
+  ["awk", 1],
+  ["egrep", 1],
+  ["fgrep", 1],
+  ["grep", 1],
+  ["rg", 1],
+  ["sed", 1],
+]);
+
 function shellReadTarget(command, depth = 0) {
   const trimmed = command.trim();
   const words = trimmed.split(/\s+/u).filter(Boolean);
@@ -129,7 +141,26 @@ function shellReadTarget(command, depth = 0) {
   if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
     return [];
   }
-  return [trimmed];
+
+  // Only the file operands are evidence. A flag's own value is dropped with it, and
+  // the utility's leading non-file operand (a pattern or a script) is skipped.
+  const operands = [];
+  let endOfFlags = false;
+  for (const word of words.slice(index + 1)) {
+    if (!endOfFlags && word === "--") {
+      endOfFlags = true;
+      continue;
+    }
+    if (!endOfFlags && word.startsWith("-") && word !== "-") {
+      continue;
+    }
+    operands.push(stripQuotes(word));
+  }
+  return operands.slice(NON_FILE_LEADING_OPERANDS.get(utility) ?? 0);
+}
+
+function stripQuotes(word) {
+  return word.replaceAll(/^['"]|['"]$/gu, "");
 }
 
 function isShellCFlag(word) {
@@ -385,9 +416,12 @@ function matchesSkillName(entry, skill) {
 }
 
 function collectSkillPaths(texts, skill) {
-  // The name must end where the directory name ends, or `box` matches `boxes/`.
+  // The name must be a whole directory segment: `/` or the end of the path has to
+  // follow it. A lookahead that only rejects word characters still matches `box`
+  // inside `box.old/` and `box@backup/`, because `.` and `@` are neither.
+  const pathTail = "[^\\s\"'`,;:)\\]}]";
   const pattern = new RegExp(
-    `${SKILL_HOME_PATTERN}${escapeForRegExp(skill)}(?![\\w-])(?:/[^\\s"'\`,;:)\\]}]*)?`,
+    `${SKILL_HOME_PATTERN}${escapeForRegExp(skill)}(?:/${pathTail}*)?(?!${pathTail})`,
     "gu",
   );
   const found = new Set();

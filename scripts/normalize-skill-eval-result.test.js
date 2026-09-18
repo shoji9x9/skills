@@ -469,6 +469,68 @@ describe("skill eval result normalization", () => {
       expect(usage).toMatchObject({ read: false, invalid_run: true });
     });
 
+    // A recognized utility does not make every argument a file it opened.
+    test.each([
+      ["a grep pattern", "grep .claude/skills/box/SKILL.md report.txt"],
+      ["an rg pattern", "rg .claude/skills/box/SKILL.md report.txt"],
+      ["a sed script", "sed .claude/skills/box/SKILL.md report.txt"],
+      ["an awk program", "awk .claude/skills/box/SKILL.md report.txt"],
+    ])("does not treat %s as a file it read", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, unexpected_read: false });
+      expect(usage.files_read).toEqual([]);
+    });
+
+    test("still reads the file operand that follows a pattern", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "grep -n name .claude/skills/box/SKILL.md" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
+    });
+
+    // The subject must be a whole directory segment; `.` and `@` are not boundaries.
+    test.each([
+      ["a dotted suffix", "cat .claude/skills/box.old/SKILL.md"],
+      ["an at suffix", "cat .claude/skills/box@backup/SKILL.md"],
+      ["a dashed suffix", "cat .claude/skills/box-2/SKILL.md"],
+    ])("does not match the subject inside %s", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: false, invalid_run: true });
+      expect(usage.files_read).toEqual([]);
+    });
+
     test("does not let a skill whose name extends the subject's count as the subject", () => {
       const usage = buildSkillUsage({
         config: "with_skill",
