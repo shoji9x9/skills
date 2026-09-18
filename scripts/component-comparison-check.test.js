@@ -258,6 +258,12 @@ test("指紋の欄そのものが無い記録も落ちる", () => {
   expect(codesOf({ comparison })).toContain("coverage-fingerprint-missing");
 });
 
+test("被覆表に slug が無いことを免除にしない", () => {
+  const coverage = { ...COVERAGE };
+  delete coverage.slug;
+  expect(codesOf({ coverage })).toContain("coverage-slug-missing");
+});
+
 test("別機能から写した突き合わせ表は --metadata なしでも落ちる", () => {
   // --metadata は任意なので、metadata があるときだけ slug を見ると、target と鍵が一致するだけで通る。
   const codes = codesOf({

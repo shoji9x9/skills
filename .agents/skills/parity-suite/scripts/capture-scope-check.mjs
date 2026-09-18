@@ -381,7 +381,17 @@ export function checkCaptureScope(metadata) {
         });
         continue;
       }
-      shot.add(combinationKey(entry));
+      const noiseKey = combinationKey(entry);
+      // **同じ組が 2 行あると Set が黙って畳む**——parity-diff の突き合わせは先に当たった行を使うので、
+      // しきい値の大きい行が選ばれると実差がノイズとして分類されうる。畳む前に落とす。
+      if (shot.has(noiseKey)) {
+        findings.push({
+          code: "noise-entry-duplicated",
+          message: `noise_baseline に ${noiseKey} の行が 2 つ以上ある（どの基準値が有効か決まらない）`,
+        });
+        continue;
+      }
+      shot.add(noiseKey);
     }
   }
   for (const key of shot) {

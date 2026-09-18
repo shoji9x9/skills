@@ -234,6 +234,17 @@ test("撮ったのに範囲を測っていない組は落ちる（測ってい�
   expect(codes).toContain("scope-entry-missing");
 });
 
+test("noise_baseline に同じ組が 2 行あれば落ちる（Set が黙って畳む前に）", () => {
+  const metadata = metadataOf({
+    noise: [
+      { page: "list", state: "default", viewport: "desktop", pixel_diff: 0, trait_diffs: 0 },
+      { page: "list", state: "default", viewport: "desktop", pixel_diff: 0, trait_diffs: 12 },
+      { page: "list", state: "hover", viewport: "desktop", pixel_diff: 0 },
+    ],
+  });
+  expect(codesOf(metadata)).toContain("noise-entry-duplicated");
+});
+
 test("撮っていない組の実測が混ざっていれば落ちる", () => {
   const metadata = metadataOf({
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],

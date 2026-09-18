@@ -147,7 +147,15 @@ export function checkComponentComparison(input) {
   }
   // **slug の照合は被覆表との間で常に行う**——`--metadata` は任意なので、metadata があるときだけ見ると、
   // 別機能から写した突き合わせ表が「target と鍵がたまたま一致する」だけで通る（指紋は鍵しか数えない）。
-  if (nonEmptyString(coverage.slug) && comparison.slug !== coverage.slug) {
+  if (!nonEmptyString(coverage.slug)) {
+    // **被覆表に slug が無いことを免除にしない**——照合相手が消えるだけで、
+    // 別機能から写した突き合わせ表が「鍵と target が一致する」だけで通る。
+    findings.push({
+      code: "coverage-slug-missing",
+      message:
+        "被覆表に slug が無い（どの機能の測定か決まらず、突き合わせ表との帰属を照合できない）",
+    });
+  } else if (comparison.slug !== coverage.slug) {
     findings.push({
       code: "comparison-slug-mismatch",
       message: `突き合わせ表の slug「${String(comparison.slug)}」が被覆表の slug「${String(coverage.slug)}」と違う（別機能の記録で収束させない）`,
