@@ -749,6 +749,23 @@ describe("ゲートの commit 検出", () => {
     // 逆側の回帰: 再帰マスクで**実行される** commit を潰さない。
     ['echo "$(cd /tmp && git commit -m x)"', 2],
     ['echo "$(echo "$(git commit -m x)")"', 2],
+    // **行継続（`\` + 改行）はシェルが解析の前に取り除く。** 残したまま走査すると、トークンが
+    // 継続で割れた形はどの正規表現にも当たらず素通りする（実測）。`git` / `commit` 自体が割れると
+    // 生 JSON の prefilter（`*git*commit*`）でも落ちるので、**prefilter と走査の両方**を
+    // 直さないと塞がらない。
+    ["ca\\\nse x in x) git commit -m x;; esac", 2],
+    ['echo "$(ca\\\nse x in x) git commit -m x;; esac)"', 2],
+    ["gi\\\nt commit -m x", 2],
+    ["git com\\\nmit -m x", 2],
+    ["gi\\\nt com\\\nmit -m x", 2],
+    ["echo hi \\\n&& git commit -m x", 2],
+    // `\\` + 改行は継続ではない（エスケープされた `\` の直後の改行）。落とすと次のコマンドが
+    // 前のコマンドと繋がって区切り判定から外れる（fail open）。
+    ["echo a\\\\\ngit commit -m x", 2],
+    // 過剰ブロックの回帰: 継続があっても commit が無ければ通る。
+    ["echo a \\\n b", 0],
+    ['echo "a\\\nb"', 0],
+    ["ec\\\nho hello", 0],
   ];
 
   test.each(cases)("%s => exit %i", (command, expected) => {
@@ -799,6 +816,13 @@ describe("コミット先のスコープ判定", () => {
     `git -c user.name=A*B -C ${FIXTURE} commit -m a`,
     // `-C` の繰り返しは累積して相対解決される（/tmp + 相対 = プロジェクト外）。
     `git -C ${dirname(FIXTURE)} -C ${basename(FIXTURE)} commit -m x`,
+    // **区切りの集合は commit_re と git_head_re で揃える。** commit_re 側だけ広げると、
+    // 広げた区切りで一致した形をスコープ判定が解析できず、外部宛ての免除が効かないまま
+    // 誤ブロックになる（実測。`)` と `{` は直後に空白が入るので従来の `[[:space:]]` で
+    // 拾えていたが、`` ` `` は空白を挟まないので拾えなかった）。
+    `echo "\`git -C ${FIXTURE} commit -m x\`"`,
+    `case x in x) git -C ${FIXTURE} commit -m x;; esac`,
+    `{ git -C ${FIXTURE} commit -m x; }`,
   ];
 
   test.each(external)("外部宛て: %s => exit 0", (command) => {
