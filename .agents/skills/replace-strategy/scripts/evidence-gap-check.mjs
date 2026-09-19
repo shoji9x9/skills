@@ -236,7 +236,7 @@ export function parseEvidenceEntries(cell) {
  * 表の種別を見出しから 1 回だけ同定する。行ごとの分岐をこの種別に閉じることで、
  * 条件の入れ子が増えるたびに非対称な穴が開くのを防ぐ。
  * @param {string[]} headers
- * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "malformed-endpoint" | "malformed-evidence", headers?: string[], missingEvidence?: boolean }}
+ * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "missing-endpoint-column" | "malformed-endpoint" | "malformed-evidence", headers?: string[], missingEvidence?: boolean }}
  */
 export function classifyTable(headers) {
   const hasEndpoint = headers.some((header) => ENDPOINT_HEADERS.includes(header));
@@ -253,8 +253,13 @@ export function classifyTable(headers) {
       ? { kind: "malformed-evidence", headers: evidenceish }
       : { kind: "legacy" };
   }
-  if (hasEvidence)
-    return { kind: "malformed-endpoint", headers: endpointish, missingEvidence: false };
+  if (hasEvidence) {
+    // 口の列らしい見出しが 1 つも無いなら、直す対象は「名前」ではなく「列そのものの不在」。
+    // 改名を案内すると存在しない見出しを探すことになる（対称な根拠列側と同じ扱いにする）。
+    return endpointish.length > 0
+      ? { kind: "malformed-endpoint", headers: endpointish, missingEvidence: false }
+      : { kind: "missing-endpoint-column" };
+  }
   // 口の列も根拠列も無い表は 3 通り——設計上どちらも持たないバッチ・「その他の Issue」、
   // 列の導入前の機能一覧、そして列名がずれた表。
   // **バッチの同定を最初に見る**——見出しに `API` を含むバッチ表（`比較する出力（API レスポンス…）`）が
@@ -297,6 +302,12 @@ export function readRow(text, slug) {
       }
       if (kind.kind === "not-applicable") {
         nonEndpointRows += 1;
+        continue;
+      }
+      if (kind.kind === "missing-endpoint-column") {
+        malformed.push(
+          `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列を追加する（改名ではない）`,
+        );
         continue;
       }
       if (kind.kind === "malformed-endpoint") {
@@ -361,7 +372,7 @@ export function readRow(text, slug) {
  * parity-suite の metadata.json から宣言済みの口を取り出す。
  * @param {string} text
  * @param {string} path
- * @returns {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number }}
+ * @returns {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number, invalidEntries: number, emptyEndpoints: number }}
  */
 export function readDeclaredEndpoints(text, path) {
   /** @type {unknown} */
@@ -378,7 +389,13 @@ export function readDeclaredEndpoints(text, path) {
     // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
     // 判定不能（exit 3）へ倒すと消費側が完了を止めず、推定の口が残ったまま通過する——
     // 「判定できない」ではなく「宣言ゼロ」が事実なので、未宣言として数える。
-    return { declared: new Set(), legacyArtifact: true, invalidEndpoints: 0 };
+    return {
+      declared: new Set(),
+      legacyArtifact: true,
+      invalidEndpoints: 0,
+      invalidEntries: 0,
+      emptyEndpoints: 0,
+    };
   }
   if (typeof unmeasured !== "object" || unmeasured === null || Array.isArray(unmeasured)) {
     throw new UsageError(`${path} の unmeasured が object でない`);
@@ -392,18 +409,38 @@ export function readDeclaredEndpoints(text, path) {
       `${path} の unmeasured.declared が真偽値でない（parity-suite の成果物として不備）`,
     );
   }
-  if (!declaredFlag) return { declared: new Set(), legacyArtifact: false, invalidEndpoints: 0 };
+  if (!declaredFlag)
+    return {
+      declared: new Set(),
+      legacyArtifact: false,
+      invalidEndpoints: 0,
+      invalidEntries: 0,
+      emptyEndpoints: 0,
+    };
   const entries = /** @type {Record<string, unknown>} */ (unmeasured).entries;
   if (entries === undefined)
-    return { declared: new Set(), legacyArtifact: false, invalidEndpoints: 0 };
+    return {
+      declared: new Set(),
+      legacyArtifact: false,
+      invalidEndpoints: 0,
+      invalidEntries: 0,
+      emptyEndpoints: 0,
+    };
   if (!Array.isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
   /** @type {Set<string>} */
   const declared = new Set();
   // 型が違う endpoint は宣言に数えないが、黙って捨てない——`artifact-health-check.mjs` は
   // このキーを検査しないので、捨てた件数を出さないと「宣言したのに未宣言と言われる」が読めない。
   let invalidEndpoints = 0;
+  // 捨てる理由は 3 つあり、症状（exit 1・未宣言扱い）は同じ。種別を分けて数えないと
+  // 「宣言したのに未宣言と言われる」の切り分け材料が出ない。
+  let invalidEntries = 0;
+  let emptyEndpoints = 0;
   for (const entry of entries) {
-    if (typeof entry !== "object" || entry === null) continue;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      invalidEntries += 1;
+      continue;
+    }
     const endpoint = /** @type {Record<string, unknown>} */ (entry).endpoint;
     if (endpoint === undefined || endpoint === null) continue;
     if (typeof endpoint !== "string") {
@@ -411,9 +448,13 @@ export function readDeclaredEndpoints(text, path) {
       continue;
     }
     const normalized = collapse(endpoint);
-    if (normalized.length > 0) declared.add(normalized);
+    if (normalized.length === 0) {
+      emptyEndpoints += 1;
+      continue;
+    }
+    declared.add(normalized);
   }
-  return { declared, legacyArtifact: false, invalidEndpoints };
+  return { declared, legacyArtifact: false, invalidEndpoints, invalidEntries, emptyEndpoints };
 }
 
 /**
@@ -468,10 +509,14 @@ export function check(input) {
       `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）——宣言ゼロとして数える`,
     );
   }
-  if (declaration !== null && declaration.invalidEndpoints > 0) {
-    notes.push(
-      `unmeasured.entries の endpoint が文字列でない要素が ${declaration.invalidEndpoints} 件ある——宣言に数えていない`,
-    );
+  for (const [count, label] of /** @type {[number, string][]} */ ([
+    [declaration?.invalidEndpoints ?? 0, "endpoint が文字列でない要素"],
+    [declaration?.invalidEntries ?? 0, "オブジェクトでない要素"],
+    [declaration?.emptyEndpoints ?? 0, "endpoint が空文字の要素"],
+  ])) {
+    if (count > 0) {
+      notes.push(`unmeasured.entries の${label}が ${count} 件ある——宣言に数えていない`);
+    }
   }
 
   /** @type {string[]} */
@@ -598,7 +643,12 @@ export function main(argv) {
       process.stderr.write(`error: ${e.message}\n${usage}\n`);
       return 2;
     }
-    throw e;
+    // errno を持たない想定外の例外も同じ理由で exit 2（判定していない）に倒す——
+    // 投げ直すと Node の未捕捉例外が exit 1 になり、消費側が「書き戻し漏れがある」と読んで
+    // 存在しない口を探すことになる。原因を追えるようスタックはそのまま出す。
+    const detail = e instanceof Error ? (e.stack ?? e.message) : String(e);
+    process.stderr.write(`error: 判定できない例外で終了した: ${detail}\n${usage}\n`);
+    return 2;
   }
 }
 

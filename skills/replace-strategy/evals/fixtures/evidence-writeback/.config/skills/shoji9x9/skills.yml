@@ -2,7 +2,7 @@ version: 1
 skills:
   replace-strategy:
     current:
-      repo: none
+      repo: ./current-app
       stack: [TypeScript, React]
     new:
       repo: ./new-app

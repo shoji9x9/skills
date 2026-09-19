@@ -150,7 +150,9 @@ scripts/run-skill-eval.sh \
   `POST` は要求の組み立てとハンドラの両方が読めており**そのまま昇格する**、`PATCH` は**画面側しか読めていない**ので昇格させてはならない、
   `DELETE` は両方読めているが**確定した単位（複数件を 1 要求・全戻し）が `:id` を経路に持つ口では再現できない**ため、根拠の更新ではなく口の見直しへ回す必要がある。
   `assignment` 行と横断 API 行を**触ってはいけない対照**として置いてあるので、セル単位・行単位でまとめて昇格させる実装は assertion 1 で落ちる。
-  **iteration-39 で実測**（変更確認・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5。baseline は contamination: clean / isolation: sandboxed。
+  **fixture の `current.repo` は実在するパス**にしてある——`none`（現行コードを入手できない）のままだと、
+  「現行コードを読んだ」という prompt の前提と設定が矛盾し、設定を読むスキルが前提を問い返して assertion に到達しない。
+  **iteration-39 で実測**（変更確認・各 config 1 run・claude-code / opus。`current.repo` を直す前の入力での測定）: `with_skill` 5/5・`without_skill` 2/5。baseline は contamination: clean / isolation: sandboxed。
   **弁別したのは assertion 1・3・5**——baseline は `DELETE` の食い違いをセルの本文に書きながら、**その根拠を `実測` へ昇格させた**（口の形が再現できないことを認めたうえで確定扱いにした）。
   `PATCH` を推定のまま残すこと（assertion 2）と口の見直しへ回すこと（assertion 4）は baseline も自力で到達するので、この 2 つは Delta ではなく後退検知の項目として残す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す

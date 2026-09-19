@@ -677,6 +677,58 @@ test("endpoint が文字列でない宣言は件数を残して捨てる（黙�
   });
 });
 
+test("根拠列はあるが口の列そのものが無い表は、改名ではなく列の追加を案内する", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | ページ | 要求単位の根拠 |",
+      "|---|---|---|",
+      "| plan | /plans | GET /api/plans → 推定: 要求単位は未確定 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("列を追加する（改名ではない）");
+    expect(r.stderr).not.toContain("口の列らしい見出し（）");
+  });
+});
+
+test("捨てた宣言は種別ごとに件数を出す（オブジェクトでない・空文字も）", () => {
+  withDir((dir) => {
+    const r = run(
+      dir,
+      {
+        "features.md": ONE_ESTIMATED,
+        "metadata.json": JSON.stringify({
+          unmeasured: {
+            declared: true,
+            entries: [
+              "POST /api/plans",
+              { item: "x", reason: "y", endpoint: "", disposition: "blocking" },
+              { item: "z", reason: "w", endpoint: 42, disposition: "blocking" },
+            ],
+          },
+        }),
+      },
+      ["--features", "features.md", "--slug", "plan", "--unmeasured", "metadata.json"],
+    );
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("オブジェクトでない要素が 1 件");
+    expect(r.stdout).toContain("endpoint が空文字の要素が 1 件");
+    expect(r.stdout).toContain("endpoint が文字列でない要素が 1 件");
+  });
+});
+
+test("想定外の例外も exit 2（判定していない）に倒す", () => {
+  withDir((dir) => {
+    // features.md をディレクトリにすると readFileSync が EISDIR を投げる（errno あり）。
+    // errno を持たない例外は到達させにくいので、ここでは exit 1 へ化けないことだけを確かめる。
+    const r = run(dir, {}, ["--features", ".", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);
