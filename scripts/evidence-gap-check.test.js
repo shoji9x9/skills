@@ -587,6 +587,39 @@ test("全角の見出し（新規実装ＡＰＩ）も口の列らしいもの�
   });
 });
 
+test("根拠列の列名がずれている表は入力の不備（exit 2）——判定不能へ倒さない", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装 API | 要求単位の根拠(改) |",
+      "|---|---|---|",
+      "| plan | GET /api/plans | GET /api/plans → 推定: 要求単位は未確定 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("根拠列らしい見出し");
+    expect(r.stderr).not.toContain("undecidable:");
+  });
+});
+
+test("口の列も根拠列も無い機能一覧は、バッチ表と名乗らず判定不能（exit 3）に倒す", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 機能名 | ページ | テーブル | Issue |",
+      "|---|---|---|---|---|",
+      "| plan | 計画管理 | /plans | MST_PLAN | #210 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(3);
+    expect(r.stderr).not.toContain("バッチ");
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);
@@ -639,9 +672,9 @@ test("「その他の Issue」表の行も対象外（exit 4）", () => {
     const text = [
       "## その他の Issue（4 種以外）",
       "",
-      "| slug | 内容 | 依存順 | 影響範囲 | Issue |",
-      "|---|---|---|---|---|",
-      "| schema | 新側スキーマを先に作る | 先頭 | 全テーブル | #221 |",
+      "| slug | 内容 | 依存順 | 4 種に当てはまらない理由 | 影響範囲 | Issue |",
+      "|---|---|---|---|---|---|",
+      "| schema | 新側スキーマを先に作る | 先頭 | 全テーブルにまたがる | 全テーブル | #221 |",
       "",
     ].join("\n");
     const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "schema"]);

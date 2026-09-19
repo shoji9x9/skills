@@ -239,7 +239,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      `unmeasured` への宣言（`endpoint` に口を書く）を `parity-suite` へ戻して依頼する——**本スキルは features.md も `unmeasured` も書かない**
      （書き手の正本は `replace-strategy` の `references/evidence.md` と `parity-suite` の `references/coverage.md`「未測定を機械可読にする」）
    - **exit 2 は入力の不備**（slug が無い・口が重複している等）。判定していないので完了扱いにせず、インベントリを直す
-   - **exit 4 は対象外**（その slug の行が**口の列も根拠列も持たない**表＝バッチ・「その他の Issue」にある）。**batch モードは常にこれになる**——
+   - **exit 4 は対象外**（その slug の行がバッチ・「その他の Issue」の表にあると見出しから同定できた）。**batch モードは常にこれになる**——
      バッチ行は口を持たないので検査対象が無く、本ゲートは通過とする（インベントリを直す話ではないので exit 2 と混同しない）。
      根拠列はあるのに口の列だけ無い表は列名のずれとして exit 2 になるので、exit 4 を「口の列が無ければ通過」と読み替えない。
      **`--unmeasured` に渡すパスが未生成でも exit 4 になる**（行の分類を先に済ませる実装）ので、batch モードの exit 2 は引数の不足ではなく

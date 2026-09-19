@@ -73,10 +73,39 @@ const VERDICT_PATTERNS = [
 /** 口の欄に「無い」と書くときの語（口として数えない）。 */
 const NO_ENDPOINT_MARKERS = new Set(["-", "‐", "–", "—", "ー", "なし", "無し"]);
 
+/** バッチ表・「その他の Issue」表の見出しに現れる目印（対象外の陽性同定用）。 */
+const NON_ENDPOINT_TABLE_MARKERS = ["バッチ名", "比較する出力", "4種に当てはまらない理由"];
+
 /** 空白を全て落とした見出し（列名のずれの検出用）。 */
 const ENDPOINT_HEADERS_SQUEEZED = new Set(
   ENDPOINT_HEADERS.map((header) => header.normalize("NFKC").replace(/\s+/gu, "")),
 );
+
+/**
+ * バッチ表・「その他の Issue」表を陽性に同定する見出しか。
+ * 対象外（exit 4）はこの同定が取れたときだけ名乗る——取れないまま対象外にすると、
+ * 列の導入前の機能一覧まで「バッチ表にある」という事実と違う記録で通過する。
+ * @param {string} header
+ * @returns {boolean}
+ */
+export function looksLikeNonEndpointTableHeader(header) {
+  const squeezed = collapse(header).normalize("NFKC").replace(/\s+/gu, "");
+  return NON_ENDPOINT_TABLE_MARKERS.some((marker) => squeezed.includes(marker));
+}
+
+/**
+ * 根拠列「らしい」見出しか。完全一致しないが根拠列のつもりで書かれた見出しを拾う。
+ * 根拠列の不在を「列の導入前」（exit 3）に倒すと完了判定を止めないので、
+ * 列名がずれただけの現役インベントリはここで拾って入力の不備（exit 2）へ倒す。
+ * @param {string} header
+ * @returns {boolean}
+ */
+export function looksLikeEvidenceHeader(header) {
+  const squeezed = collapse(header).normalize("NFKC").replace(/\s+/gu, "");
+  if (squeezed.length === 0) return false;
+  if (squeezed === EVIDENCE_HEADER.normalize("NFKC").replace(/\s+/gu, "")) return true;
+  return squeezed.includes("根拠");
+}
 
 /**
  * 口の列「らしい」見出しか。完全一致しないが口の列のつもりで書かれた見出しを拾う。
@@ -233,14 +262,20 @@ export function readRow(text, slug) {
     for (const row of table.rows) {
       if (collapse(row[slugIndex] ?? "") !== slug) continue;
       if (endpointIndex < 0) {
-        // 口の列も根拠列も無い表＝バッチ・「その他の Issue」。設計上どちらの列も持たない。
-        // 根拠列はあるのに口の列だけ無いのは列名のずれ（規約外の見出し）なので対象外にしない——
-        // そこを対象外へ倒すと、推定の口が残る機能行が exit 4 で完了判定を通る（fail-open）。
-        // 根拠列も無い旧インベントリでも、口の列**らしい**見出し（空白違い・API を含む名前）が
-        // あれば同じ理由で対象外にしない。対象外は「口の列が無い」ではなく
-        // 「口の列らしい見出しが 1 つも無い」で決める。
-        if (evidenceIndex < 0 && !table.headers.some(looksLikeEndpointHeader)) {
-          nonEndpointRows += 1;
+        // 口の列も根拠列も無い表は 2 通りある——設計上どちらも持たないバッチ・「その他の Issue」と、
+        // 列の導入前に作られた機能一覧。**対象外（exit 4）を名乗れるのは前者だけ**で、
+        // 後者まで対象外にすると「バッチ表にある」という事実と違う記録が porting.md に残る。
+        // 前者は表の見出しで陽性に同定し、同定できなければ判別不能として legacy 側（exit 3）へ倒す
+        // （どちらも完了は止めないので、外れても工程は詰まらない）。
+        // 口の列・根拠列**らしい**見出し（空白違い・全角・規約外の名前）がある表は、
+        // どちらでもなく列名のずれ（exit 2）——対象外・判定不能へ倒すと完了判定が通る。
+        if (
+          evidenceIndex < 0 &&
+          !table.headers.some(looksLikeEndpointHeader) &&
+          !table.headers.some(looksLikeEvidenceHeader)
+        ) {
+          if (table.headers.some(looksLikeNonEndpointTableHeader)) nonEndpointRows += 1;
+          else legacyRows += 1;
           continue;
         }
         // 2 つの経路を 1 つのメッセージに畳まない——直す場所が違う（前者は口の列の名前、
@@ -253,6 +288,14 @@ export function readRow(text, slug) {
         continue;
       }
       if (evidenceIndex < 0) {
+        // 根拠列らしい見出しがあるのに完全一致しないのは列名のずれ。判定不能（exit 3）へ倒すと
+        // 完了判定を止めないため、推定の口が残る現役インベントリが素通りする。
+        if (table.headers.some(looksLikeEvidenceHeader)) {
+          malformed.push(
+            `slug ${slug} の行の表は根拠列らしい見出し（${table.headers.filter(looksLikeEvidenceHeader).join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない——見出しを規約名に揃える`,
+          );
+          continue;
+        }
         legacyRows += 1;
         continue;
       }
@@ -539,5 +582,7 @@ const invokedAsCli = (() => {
 })();
 
 if (invokedAsCli) {
-  process.exit(main(process.argv.slice(2)));
+  // process.exit は書き込み中の stdout を捨てるため、終了コードだけ設定して自然終了させる
+  // （判定の根拠は measured: 行なので、パイプ出力で欠けると判定そのものが読めなくなる）。
+  process.exitCode = main(process.argv.slice(2));
 }
