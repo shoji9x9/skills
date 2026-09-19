@@ -1,6 +1,14 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -193,6 +201,26 @@ describe("縮退（共通ライブラリを読めない）", () => {
   test("config がそもそも無ければ尊重する設定が無いので進む", () => {
     withProject({ notes: { a: {} }, degraded: true }, (p) => {
       expect(run(p, ["config"]).settings.skip).toBe("false");
+    });
+  });
+
+  // ライブラリが読めても `.kaizen/config` 自体が読めなければ同じ穴になる。
+  // kaizen_config_value は「読めない」と「キーが無い」を同じ 1 で返すため、
+  // 区別しないと schedule_enabled=off を読み落として fail-open する。
+  test("config がパーミッションで読めないときも停止側へ倒す", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+      const configPath = join(p.dir, ".kaizen", "config");
+      chmodSync(configPath, 0o000);
+      // root で走ると 000 でも読めてしまい、この分岐へ到達しない（到達しない実行を緑にしない）。
+      let readable = true;
+      try {
+        readFileSync(configPath);
+      } catch {
+        readable = false;
+      }
+      expect(readable).toBe(false);
+      expect(run(p, ["config"]).settings.skip).toBe("true");
+      chmodSync(configPath, 0o600);
     });
   });
 });

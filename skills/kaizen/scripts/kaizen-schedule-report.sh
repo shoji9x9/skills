@@ -12,9 +12,15 @@
 #
 # 設定の解決順（上が優先）。**どの層の値を採ったかを stderr に出す**ので、
 # 「設定したつもりの値で動いていない」を実行ログから切り分けられる。
-#   1. 環境変数 KAIZEN_SCHEDULE_*（workflow_dispatch の入力・リポジトリ変数）= 一時的な上書き
+#   1. 環境変数 KAIZEN_SCHEDULE_* = 一時的な上書き
 #   2. `.kaizen/config` の schedule_* キー = リポジトリの意思（コミットされる）
 #   3. 既定値
+#
+# 同梱ワークフローが第 1 層へ流すのは、`workflow_dispatch` の入力（mode / agent / model /
+# effort）と、リポジトリ変数 `vars.KAIZEN_SCHEDULE_SKIP` だけ。**`inputs.*` は schedule
+# イベントでは常に空**なので、定期実行で効く上書きは KAIZEN_SCHEDULE_SKIP に限られる。
+# mode / agent / model / effort を定期実行にも効かせたいなら `.kaizen/config` へ書く
+# （リポジトリ変数を増やすと `.kaizen/config` とスコープが重なるため足していない）。
 #
 # 不正値は既定へ倒し、倒したことを stderr に出す（`.kaizen/config` 既存キーと同じ方針）。
 set -euo pipefail
@@ -30,13 +36,20 @@ fi
 # 読み落とすと「止めたはずのリポジトリが毎週動く」側へ倒れる（凍結プロジェクト・
 # レートリミット接近時という、この停止スイッチの存在理由そのものを裏切る）。
 # 設定ファイルが在るのに読めないときだけ停止し、そもそも無いなら尊重する設定が無いので進む。
+#
+# 「読めない」経路はライブラリ欠落だけではない。`kaizen_config_value` は設定ファイルを
+# 読めないときもキーが無いときも同じ 1 を返すため、**パーミッション等でファイル自体が
+# 読めない場合も同じ穴**になる。どちらも「在るのに読めない」として扱う。
 config_unreadable=""
+if [ -e .kaizen/config ] && [ ! -r .kaizen/config ]; then
+	config_unreadable=".kaizen/config が在るのに読めない（パーミッション等）"
+fi
 if ! declare -f kaizen_config_value >/dev/null 2>&1; then
 	# 縮退したことを黙らせない（縮退した run と本番構成の run を出力で区別できるようにする）。
 	echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため .kaizen/config を読めない" >&2
 	kaizen_config_value() { return 1; }
-	if [ -e .kaizen/config ]; then
-		config_unreadable=1
+	if [ -e .kaizen/config ] && [ -z "${config_unreadable}" ]; then
+		config_unreadable=".kaizen/config が在るのに読めない（共通ライブラリの欠落）"
 	fi
 fi
 
@@ -155,7 +168,7 @@ resolve_config() {
 
 	if [ -n "${config_unreadable}" ]; then
 		skip="true"
-		skip_reason=".kaizen/config が在るのに読めない（共通ライブラリの欠落）。停止側へ倒した"
+		skip_reason="${config_unreadable}。停止側へ倒した"
 		warn "${skip_reason}"
 	fi
 
@@ -299,8 +312,10 @@ cmd_prompt() {
 1. `.kaizen/` 配下の未適用（frontmatter が `status: pending`）のノートを読む。対象は末尾に列挙してある。
 2. 同じ根本原因・同じ `type`・同じ適用先になるものをグループにまとめる。
 3. 各グループについて、**どこへ何を書けば再発を止められるか**を提案する。
-   判断基準はスキル本体のガイド（`.claude/skills/kaizen/references/apply.md`、無ければ
-   `.agents/skills/kaizen/references/apply.md`）の「記述先（適用先）の選び方」に従う。
+   判断基準はスキル本体のガイド `references/apply.md` の「記述先（適用先）の選び方」に従う。
+   置き場はインストール形態で変わるので、次の順に最初に読めたものを使う:
+   `.claude/skills/kaizen/references/apply.md` / `.agents/skills/kaizen/references/apply.md` /
+   `.github/skills/kaizen/references/apply.md` / `skills/kaizen/references/apply.md`。
    特に「決定性で選ぶ」——散文（rule / doc）で閉じる対策と、lint / hook / スクリプトなど
    機構へ寄せるべき対策を区別し、機構へ寄せるべきものはそう書く。
 4. 優先して着手すべきグループを上位 3 つまで挙げ、理由を添える。

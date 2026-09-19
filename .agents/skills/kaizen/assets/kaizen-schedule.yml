@@ -180,8 +180,12 @@ jobs:
 
       # `node-version` を省くと setup-node は何も入れず、ランナーの既定 Node に依存する。
       # Copilot CLI は Node 22 以上を要求するので明示する。
+      # `continue-on-error` を落とさない。カスタム `if:` でも暗黙の `success() &&` は外れないので、
+      # ここが落ちるとジョブが失敗状態になり、後続の Issue 更新まで丸ごと skip される
+      # ——pending 一覧はできているのに、その週の追跡 Issue が作成も更新もクローズもされない。
       - name: Set up Node.js
         if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'copilot'
+        continue-on-error: true
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"

@@ -493,11 +493,19 @@ pending の学びは、コミット前ゲートが抽出を促す一方で**適�
 
 ```bash
 # <スキル> はコピー元のインストール先（ユーザースコープからコピーしてもよい）。
-# コピー後、スクリプト本体がリポジトリ内に在ることを確かめる。
 mkdir -p .github/workflows
 cp <スキル>/assets/kaizen-schedule.yml .github/workflows/kaizen-schedule.yml
-ls -d .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
-      .github/skills/kaizen/scripts 2>/dev/null || echo "スキル本体がリポジトリに無い"
+
+# コピー後、スクリプト本体がリポジトリ内に在ることを確かめる。探索先はワークフローと同じ順。
+# `ls -d A B C` は使わない——1 つでも欠けると非 0 で終わるため、正常な単一エージェント
+# インストールでも必ず誤警告する（実測: 3 つ中 1 つ在る状態で exit 2）。
+for d in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
+         .github/skills/kaizen/scripts skills/kaizen/scripts; do
+  if [ -r "$d/kaizen-schedule-report.sh" ]; then
+    echo "OK: $d"
+    break
+  fi
+done
 ```
 
 **このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を
@@ -565,8 +573,12 @@ skip した run は Issue を作らず、理由を step summary に出して成�
 
 - **資格情報が無い**: エージェントを起動せず `notify` へ倒し、Issue に「未設定のため通知のみ」と書く
 - **pending が 0 件**: `agent` を指定していても `notify` へ倒す（エージェントへ渡す材料が無い）。既存の Issue は閉じる
-- **エージェントが失敗した／空を出した**: ジョブは落とさず、Issue に run へのリンク付きでその旨を書く
-  （成否は `continue-on-error` の結果ではなく**出力ファイルの実在と非空**で判定する）
+- **エージェントが失敗した／空を出した**: ジョブは落とさず、Issue に run へのリンク付きでその旨を書く。
+  判定は**二段**で、まずステップの `outcome`、通っていれば出力ファイルの非空を見る。
+  片方だけでは足りない——`copilot` は CLI の stdout がそのままレポートになるため、
+  レート制限等で途中終了した run の**部分出力**が非空になり、非空だけを見ると未完成の
+  レポートを完成品として転記する。逆に非空を見ないと、正常終了して何も出さなかった run を
+  失敗と区別できない。Issue にはこの 2 つが別の文言で出る
 - **`kaizen-schedule-report.sh` が見つからない**: ここだけは落とす。材料を作れないまま先へ進むと、
   空の Issue が「異常なし」として出てしまう
 
