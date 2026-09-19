@@ -903,3 +903,14 @@ test("受け側そのものを別の型へアサートした形は従来どお�
   ).stats;
   expect(stats.undecidable).toBe(1);
 });
+
+// 1 文に複数の宣言子があるとき、後ろの宣言子の `as` を先頭の別名のものとして読まない。
+test("複数宣言子の後ろの型アサーションを先頭の別名に当てない", () => {
+  const r = scanSourceWithStats(
+    `function f(raw, other) {\n  const a = raw, b = other as Locator;\n  return a.textContent();\n}`,
+    "spec.ts",
+  );
+  // `a` は `raw`（由来不明）なので Locator として解決してはいけない。
+  expect(r.stats.resolved).toBe(0);
+  expect(r.findings.map((x) => x.rule)).not.toContain("immediate-read");
+});

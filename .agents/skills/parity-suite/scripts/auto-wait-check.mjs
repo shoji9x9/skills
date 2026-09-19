@@ -655,8 +655,10 @@ function playwrightReceivers(code, file = "<source>") {
   // `const el = <span>use as reference</span>;` の本文が `as reference` のアサーションに見える
   // （`maskNonCode` は JSX テキストを潰さない）。角括弧アサーションと違い `as` はどの拡張子でも
   // 書けるので、拡張子で止めるのではなく区切りで止める。
+  // **`,` / `=` も跨がない**——1 文に複数の宣言子を書くと（`const a = raw, b = other as Locator;`）、
+  // `assignments` が拾うのは先頭の `a` なのに、後ろの宣言子の `as` を `a` のものとして読む。
   const TRAILING_ASSERTION =
-    /^[^([{<>]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
+    /^[^([{<>,=]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
   /**
    * @param {string} statement 右辺の最初の文
    * @returns {"page" | "locator" | "other" | null}
