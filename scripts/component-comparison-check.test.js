@@ -465,3 +465,94 @@ test("引数の誤り・読めない被覆表は exit 2", () => {
   expect(run(["--coverage", "c.json", "--nope", "x"], {}).code).toBe(2);
   expect(run(["--coverage", "missing.json"], {}).code).toBe(2);
 });
+
+// Issue #408: new.commit が "none"（新側が git 管理を持たない）のとき、素の文字列比較は
+// 常に一致するので comparison-implementation-stale が一度も発火せず、実装を変えても
+// 古い突き合わせ記録が鮮度検査を素通りしていた。artifact-health-check.mjs と同じく反復回数へ退く。
+const noneReplaceMetadata = (iterations) => ({
+  new: { commit: "none", dirty: false },
+  ...(iterations === undefined ? {} : { loop: { iterations } }),
+});
+
+test("new.commit が none なら反復回数で鮮度を判定する", () => {
+  // 記録した反復回数と現在の反復回数がずれていれば落ちる（旧実装ではここが素通りしていた）。
+  expect(
+    codesOf({
+      comparison: comparisonOf({
+        new_implementation: { commit: "none", dirty: false, iteration: 2 },
+      }),
+      replaceMetadata: noneReplaceMetadata(3),
+    }),
+  ).toContain("comparison-implementation-stale");
+  // 一致していれば通る（陽性コントロール。常に落とす実装ではない）。
+  expect(
+    codesOf({
+      comparison: comparisonOf({
+        new_implementation: { commit: "none", dirty: false, iteration: 3 },
+      }),
+      replaceMetadata: noneReplaceMetadata(3),
+    }),
+  ).toEqual([]);
+});
+
+test.each([
+  ["記録側の iteration が無い", { commit: "none", dirty: false }, 3],
+  ["現在側の loop.iterations が無い", { commit: "none", dirty: false, iteration: 3 }, undefined],
+  ["iteration が整数でない", { commit: "none", dirty: false, iteration: "3" }, 3],
+])("none なのに退き先が読めなければ合格に倒さない: %s", (_label, implementation, iterations) => {
+  expect(
+    codesOf({
+      comparison: comparisonOf({ new_implementation: implementation }),
+      replaceMetadata: noneReplaceMetadata(iterations),
+    }),
+  ).toContain("comparison-implementation-unversionable");
+});
+
+// 片側だけが none なら必要な直し方は「同じ版で取り直す」なので stale だけを出す。
+// 反復回数の検査まで進めると、契約上 iteration を書く義務が無い SHA 記録に対して
+// unversionable（「iteration を書き足せ」と読める）が併発し、案内と実際の直し方がずれる。
+test("片側だけが none なら stale だけを出し、iteration の欠落は問わない", () => {
+  const codes = codesOf({
+    comparison: comparisonOf({ new_implementation: { commit: "abc123", dirty: false } }),
+    replaceMetadata: noneReplaceMetadata(3),
+  });
+  expect(codes).toContain("comparison-implementation-stale");
+  expect(codes).not.toContain("comparison-implementation-unversionable");
+});
+
+test("commit が実在の SHA なら従来どおり文字列で判定する（対照）", () => {
+  expect(codesOf()).toEqual([]);
+  expect(
+    codesOf({
+      comparison: comparisonOf({ new_implementation: { commit: "def456", dirty: false } }),
+    }),
+  ).toContain("comparison-implementation-stale");
+});
+
+// 片側だけが none のとき、反復回数がたまたま一致しただけで合格に倒さない。
+// `none` と実在の SHA は同じ版を指さないので、反復回数の検査とは別に必ず落とす。
+test.each([
+  ["記録が SHA・現在が none", { commit: "abc123", dirty: false, iteration: 3 }, "none", 3],
+  ["記録が none・現在が SHA", { commit: "none", dirty: false, iteration: 3 }, "abc123", 3],
+])(
+  "片側だけ none で反復回数が一致しても合格に倒さない: %s",
+  (_label, implementation, now, iterations) => {
+    expect(
+      codesOf({
+        comparison: comparisonOf({ new_implementation: implementation }),
+        replaceMetadata: { new: { commit: now, dirty: false }, loop: { iterations } },
+      }),
+    ).toContain("comparison-implementation-stale");
+  },
+);
+
+test("両側とも none で反復回数も一致すれば通る（陽性コントロール。常に落とす実装ではない）", () => {
+  expect(
+    codesOf({
+      comparison: comparisonOf({
+        new_implementation: { commit: "none", dirty: false, iteration: 3 },
+      }),
+      replaceMetadata: noneReplaceMetadata(3),
+    }),
+  ).toEqual([]);
+});

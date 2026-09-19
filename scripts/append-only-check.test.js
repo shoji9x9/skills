@@ -842,3 +842,73 @@ test("unit が lines なのに mutable_bullets があれば合格に倒さない
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
+
+// Issue #404: 同じ id を持つ項目が同じファイルに当たると、突き合わせ方が割れていても
+// 先勝ちで無音に決まっていた（`assign` の id 一致による早期 return が整合性検査を飛ばしていた）。
+test("一覧の id が重複していれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    // 緩い方（Issue 列を書き換えてよい）を先に置く。先勝ちだとこちらが無音で採られる。
+    {
+      id: "shared",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_columns: ["Issue"],
+    },
+    {
+      id: "shared",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_columns: [],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/artifacts\[1\] の id が一覧の中で重複している: shared/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("id が違えば突き合わせ方の食い違いは従来どおり落ちる（対照）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "weak-rule",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_columns: ["Issue"],
+    },
+    {
+      id: "strict-rule",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_columns: [],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/同じファイルに突き合わせ方の違う一覧の項目が当たっている/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("id が一意で突き合わせ方も同じなら、同じファイルに 2 項目が当たっても通る（陽性コントロール）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "features-a",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_columns: ["Issue"],
+    },
+    {
+      id: "features-b",
+      pattern: ".replace/*.md",
+      unit: "markdown-structure",
+      mutable_columns: ["Issue"],
+    },
+  ]);
+  appendFileSync(join(root, ".replace/features.md"), "| order-detail | 注文詳細 | 未 | 未起票 |\n");
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});

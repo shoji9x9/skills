@@ -28,14 +28,14 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "7";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -54,6 +54,21 @@ const STAGES = ["diff", "suite"];
 
 /** 反復実行で緑と数える結果。 */
 const GREEN = "green";
+
+/** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
+const NO_COMMIT = "none";
+
+/**
+ * 反復回数を整数として読む。**数字列は受けない**——同じ `loop.iterations` を読む
+ * component-comparison-check.mjs は数値だけを受けるので、片方だけ緩めると 2 つの検査器が
+ * 同じ記録に矛盾した判定（片方合格・片方 unversionable）を出す。正本のテンプレートも数値。
+ * dataset の版（`toInteger`）とは入力の出所が違うので共有しない。
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function toIterationCount(value) {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -78,16 +93,55 @@ function isPlainObject(v) {
 }
 
 /**
+ * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
+ *
+ * **まだ存在しないパスでも実パスで判定できるようにする**——存在しないことを理由に
+ * 文字列のまま扱うと、途中のディレクトリがシンボリックリンクでも閉じ込めを確かめられない。
+ * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外でない」ではないので、
+ * 合格に倒さず null を返す（fail-closed）。
+ * @param {string} p
+ * @returns {string | null}
+ */
+function realPathOf(p) {
+  let current = resolve(p);
+  /** @type {string[]} */
+  const tail = [];
+  for (;;) {
+    try {
+      const real = realpathSync(current);
+      return tail.length === 0 ? real : join(real, ...tail);
+    } catch (e) {
+      if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") return null;
+    }
+    const parent = dirname(current);
+    // ルートまで遡っても解けない（存在しないドライブ等）。文字列のまま通さない。
+    if (parent === current) return null;
+    tail.unshift(basename(current));
+    current = parent;
+  }
+}
+
+/**
  * 相対パスが基準ディレクトリの外へ出ないことを確かめてから解決する。
+ *
+ * **文字列の比較だけでは閉じ込められない**——`baseline_dir` の直下に外を指すシンボリックリンクを
+ * 置くと `resolve()` / `relative()` は中に見え、その後の `readFileSync` はリンクを解いて
+ * ルートの外のファイルを読み、そのハッシュを検証に使う（何の finding も出さずに）。
+ * 同じファイルの CLI 自己起動判定が `realpathSync` で両辺を実パスに揃えているのと同じ扱いにする。
  * @param {string} baseDir
  * @param {string} relPath
- * @returns {string | null} 基準の外・絶対パスなら null
+ * @returns {string | null} 基準の外・絶対パス・実パスを解けないなら null
  */
 function resolveInside(baseDir, relPath) {
   if (typeof relPath !== "string" || relPath.trim() === "" || isAbsolute(relPath)) return null;
   const resolved = resolve(baseDir, relPath);
   const rel = relative(baseDir, resolved);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
+  const realBase = realPathOf(baseDir);
+  const realTarget = realPathOf(resolved);
+  if (realBase === null || realTarget === null) return null;
+  const realRel = relative(realBase, realTarget);
+  if (realRel === "" || realRel.startsWith("..") || isAbsolute(realRel)) return null;
   return resolved;
 }
 
@@ -211,7 +265,7 @@ export function checkArtifacts(metadata, ctx) {
   const baselineDir = resolveInside(ctx.root, String(health.baseline_dir));
   if (baselineDir === null)
     throw new UsageError(
-      `artifact_health.baseline_dir がルートの外を指している: ${String(health.baseline_dir)}`,
+      `artifact_health.baseline_dir がルートの外を指しているか実パスを解決できない: ${String(health.baseline_dir)}`,
     );
   if (!Array.isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
 
@@ -251,7 +305,7 @@ export function checkArtifacts(metadata, ctx) {
   for (const [p, entry] of byPath) {
     const target = resolveInside(baselineDir, p);
     if (target === null) {
-      findings.push(`採取物のパスが baseline_dir の外を指している: ${p}`);
+      findings.push(`採取物のパスが baseline_dir の外を指しているか実パスを解決できない: ${p}`);
       continue;
     }
     if (!existsSync(target)) {
@@ -284,7 +338,15 @@ export function checkArtifacts(metadata, ctx) {
           continue;
         }
         const specPath = resolveInside(ctx.root, String(reader).trim());
-        if (specPath === null || !existsSync(specPath)) {
+        // **閉じ込め拒否と不在を同じ文言にしない**——リンク越しにルート外を指す宣言は実体が在るのに
+        // ここで null になるため、「無い」と報告すると原因（閉じ込め拒否）に辿り着けない。
+        if (specPath === null) {
+          findings.push(
+            `read_by が指すスペックがルートの外を指しているか実パスを解決できない: ${String(reader).trim()}（採取物 ${p}）`,
+          );
+          continue;
+        }
+        if (!existsSync(specPath)) {
           findings.push(`read_by が指すスペックが無い: ${String(reader).trim()}（採取物 ${p}）`);
           continue;
         }
@@ -330,7 +392,13 @@ export function checkArtifacts(metadata, ctx) {
         continue;
       }
       const srcPath = resolveInside(baselineDir, srcRel);
-      if (srcPath === null || !existsSync(srcPath)) {
+      if (srcPath === null) {
+        findings.push(
+          `derived_from の実体が baseline_dir の外を指しているか実パスを解決できない: ${srcRel}（加工物 ${p}）`,
+        );
+        continue;
+      }
+      if (!existsSync(srcPath)) {
         findings.push(`derived_from の実体が無い: ${srcRel}（加工物 ${p}）`);
         continue;
       }
@@ -377,8 +445,12 @@ export function suiteFingerprint(suiteObj, root) {
     declared += 1;
     const rel = String(value).trim();
     const abs = resolveInside(root, rel);
-    if (abs === null || !existsSync(abs)) {
-      missing.push(rel);
+    if (abs === null) {
+      missing.push(`${rel}（ルートの外を指しているか実パスを解決できない）`);
+      continue;
+    }
+    if (!existsSync(abs)) {
+      missing.push(`${rel}（実体が無い）`);
       continue;
     }
     if (statSync(abs).isDirectory()) files.push(...listFiles(abs).map((f) => `${rel}/${f}`));
@@ -389,7 +461,13 @@ export function suiteFingerprint(suiteObj, root) {
   const digest = createHash("sha256");
   for (const rel of files) {
     const abs = resolveInside(root, rel);
-    if (abs === null || !existsSync(abs)) return { fingerprint: null, files: 0, missing: [rel] };
+    if (abs === null)
+      return {
+        fingerprint: null,
+        files: 0,
+        missing: [`${rel}（ルートの外を指しているか実パスを解決できない）`],
+      };
+    if (!existsSync(abs)) return { fingerprint: null, files: 0, missing: [`${rel}（実体が無い）`] };
     digest.update(rel);
     digest.update("\0");
     digest.update(sha256File(abs));
@@ -523,7 +601,7 @@ export function checkRepeatRun(metadata, ctx) {
       const current = suiteFingerprint(suiteObj, ctx.root);
       if (current.fingerprint === null) {
         findings.push(
-          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `実体が無い ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
         );
       } else if (current.fingerprint !== recorded[0]) {
         findings.push(
@@ -753,12 +831,20 @@ export function checkStage(ctx) {
 
   const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
   const diffCommit = diffNew === null ? undefined : diffNew.commit;
+  // commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
+  // 委ねた先も読めないときに合格へ倒さないための材料（下の反復回数の判定で使う）。
+  let versionDelegatedToIteration = false;
   if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
     const wanted = String(replaceCommit).trim();
     const recordedCommit = String(diffCommit).trim();
-    if (wanted === "none" || recordedCommit === "none") {
+    // **反復回数へ委ねるのは両側とも `${NO_COMMIT}` のときだけ**——片側だけが `none` なら
+    // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さないので、反復回数が
+    // たまたま一致しただけで合格に倒すと、git 管理の有無が変わった新側で古い成果物が通る
+    // （component-comparison-check.mjs と同じ規則。正本は references/coverage.md）。
+    if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
+      versionDelegatedToIteration = true;
       notes.push(
-        `new.commit が none（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
+        `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
       );
     } else if (wanted !== recordedCommit) {
       findings.push(
@@ -772,14 +858,22 @@ export function checkStage(ctx) {
   }
 
   const loop = isPlainObject(replaceMeta.loop) ? replaceMeta.loop : null;
-  const iterations = toInteger(loop === null ? undefined : loop.iterations);
-  const recordedIteration = toInteger(diffMeta.iteration);
+  const iterations = toIterationCount(loop === null ? undefined : loop.iterations);
+  const recordedIteration = toIterationCount(diffMeta.iteration);
   if (iterations !== null && recordedIteration !== null) {
     if (recordedIteration !== iterations) {
       findings.push(
         `diff-metadata.json が前の反復のもの（iteration ${recordedIteration} ≠ replace-metadata.json の loop.iterations ${iterations}）: ${diffPath}`,
       );
     }
+  } else if (versionDelegatedToIteration) {
+    // **委譲した先が読めないことを合格に倒さない**——commit が `none` の枝は版の対応を
+    // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が
+    // 版の検査を 1 つも通らずに素通りする（component-comparison-check.mjs の
+    // comparison-implementation-unversionable と同じ扱いにする）。
+    findings.push(
+      `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${diffPath}`,
+    );
   } else {
     notes.push(
       "iteration / loop.iterations を片側が持たないため反復の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",

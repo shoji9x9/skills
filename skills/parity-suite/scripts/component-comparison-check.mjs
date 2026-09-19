@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** セルの鍵の区切り。`component` / `item` / `instance` にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
@@ -62,6 +62,18 @@ export function cellKey(cell) {
  */
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
+}
+
+/** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
+const NO_COMMIT = "none";
+
+/**
+ * 整数として読む。読めなければ null（「記録が無い」と「0 回」を混ぜない）。
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function toInteger(value) {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
 /**
@@ -199,11 +211,59 @@ export function checkComponentComparison(input) {
         message:
           "replace-metadata.json の new.commit が無い（現在の新側の版が読めないので、突き合わせの鮮度を確かめられない）",
       });
-    } else if (nonEmptyString(observedCommit) && observedCommit !== replaceNew.commit) {
-      findings.push({
-        code: "comparison-implementation-stale",
-        message: `突き合わせ表の new_implementation.commit「${String(observedCommit)}」が現在の新側「${String(replaceNew.commit)}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
-      });
+    } else if (nonEmptyString(observedCommit)) {
+      const wanted = String(replaceNew.commit).trim();
+      const recorded = String(observedCommit).trim();
+      if (wanted === NO_COMMIT || recorded === NO_COMMIT) {
+        // **`none` センチネルを素の文字列として比べない**——新側が git 管理を持たないと両側とも
+        // `none` になり、実装をいくら変えても `none !== none` は常に偽で、古い記録が鮮度検査を
+        // 永久に素通りする。artifact-health-check.mjs の checkStage と同じく反復回数へ退く。
+        // **退き先が無いことを合格に倒さない**——材料（どちらかの反復回数）が読めなければ落とす。
+        // **片側だけが `none` なら、その時点で記録と現在は別の版**——記録した SHA と現在の `none`
+        // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格に倒すと、
+        // git 管理の有無が変わった新側で古い記録が無音で通る。ここで落とし、反復回数の検査へは進まない——
+        // 進めると、契約上 `iteration` を書く義務が無い SHA 記録に対して
+        // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が併発し、
+        // 実際に必要な直し方（同じ版で取り直す）と案内がずれる。
+        if (recorded !== wanted) {
+          findings.push({
+            code: "comparison-implementation-stale",
+            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で取り直す）`,
+          });
+        } else {
+          // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
+          const recordedIteration = toInteger(
+            observed && typeof observed === "object"
+              ? /** @type {Record<string, any>} */ (observed).iteration
+              : undefined,
+          );
+          const loop =
+            replaceMetadata &&
+            typeof replaceMetadata === "object" &&
+            replaceMetadata.loop &&
+            typeof replaceMetadata.loop === "object" &&
+            !Array.isArray(replaceMetadata.loop)
+              ? /** @type {Record<string, any>} */ (replaceMetadata.loop)
+              : null;
+          const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
+          if (recordedIteration === null || wantedIteration === null) {
+            findings.push({
+              code: "comparison-implementation-unversionable",
+              message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
+            });
+          } else if (recordedIteration !== wantedIteration) {
+            findings.push({
+              code: "comparison-implementation-stale",
+              message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で取り直す）`,
+            });
+          }
+        }
+      } else if (recorded !== wanted) {
+        findings.push({
+          code: "comparison-implementation-stale",
+          message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+        });
+      }
     }
     if (replaceNew.dirty !== false) {
       findings.push({

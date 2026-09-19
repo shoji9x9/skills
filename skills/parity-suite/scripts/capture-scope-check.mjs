@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -446,11 +446,18 @@ export function checkCaptureScope(metadata) {
       continue;
     }
     const key = combinationKey(entry);
+    // **後勝ちで上書きしない**——`deriveHoles` は鍵ごとに最後に残った要素しか評価しないので、
+    // 本物の実測の後にプレースホルダーが続くと、警告は出るのに穴そのものが消える。
+    // noise_baseline の重複と同じく先勝ちで残す。
+    // **先勝ちにしても `holes` の中身は並び順で変わる**（どちらの重複を読むかが入れ替わるだけ）。
+    // 並び順に依らないのは合否のほうで、重複そのものが必ず `scope-entry-duplicated` で落ちるため、
+    // 消えた実測に気づかないまま収束することはない。
     if (scopeByKey.has(key)) {
       findings.push({
         code: "scope-entry-duplicated",
         message: `capture_scope に ${key} の要素が 2 つ以上ある（どちらの実測が有効か決まらない）`,
       });
+      continue;
     }
     scopeByKey.set(key, entry);
   }

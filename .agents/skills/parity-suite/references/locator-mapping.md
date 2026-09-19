@@ -41,6 +41,7 @@
 | 束ねた別名 | `const row = this.page.locator("tr")` の `row` | 代入の右辺の**先頭チェーンの各区間**を照合する（起点だけを見ると `this` で止まる） |
 | 同一ファイル内の関数・メソッド | `pagerValue(view).innerText()` / `this.gridRows().count()` | 戻り値の型注釈（`function f(…): Locator` / `const f = (…): Locator =>` / クラス・オブジェクトのメソッド `f(…): Locator {`。型引数 `f<T>(…)` と関数型の引数があっても読む）。**呼ばれている区間にだけ当てる**ので、同名の未呼び出しプロパティは影響しない |
 | 括弧で包んだ await | `(await pagerValue(view)).innerText()` | 括弧の中身の末尾を受け側として辿る（`Promise<Locator>` を返す関数はこれが型的に正しい呼び方） |
+| 型アサーション | `const row = raw as Locator` / `const row = <Locator>raw`（`.ts` / `.mts` / `.cts` のみ） | **型注釈と同じ宣言**として読む。角括弧の形は JSX を持ちうる `.tsx` では TypeScript 自身が禁じているので読まない（`const el = <div>…</div>` を誤読しないため）。`as` が括弧・角括弧・波括弧の**内側**にある形（`helper(x as Locator)`）は別名の宣言ではないので読まない |
 
 **名前で解決できない形が混じっていて、どの区間も `page` / `locator` に解決しなかったときは
 `unresolved-receiver` として報告し、非ゼロ終了する（fail-closed）。** 黙って違反 0 件へ倒さないための分岐で、
@@ -50,6 +51,7 @@
 |---|---|---|
 | 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` | その関数の戻り値へ `Locator` / `Page` の型注釈を付ける（別ファイルの関数なら、そのファイルに注釈があっても読めないので呼ぶ側で束ね直す） |
 | 束ねた変数の由来を追えない | `const rows = importedHelper();` / `const rows = model.rows;` の `rows` | 右辺の関数の戻り値、またはプロパティへ型注釈を付ける（`{ rows: Locator }`）。**ローカル変数へ束ねても消えない**——束ねれば検査から外れる抜け道は作っていない |
+| `Page` / `Locator` 以外へ型アサーションした別名 | `const row = raw as Foo;` / `const row = <Foo>raw;` の `row` | アサート先を `Locator` / `Page` にするか、右辺の由来へ型注釈を付ける。**型アサーションを挟んでも消えない**——挟めば検査から外れる抜け道は作っていない |
 | 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | プロパティ名で引いた値をローカル変数へ束ねる（`const page = this.page;`） |
 | 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | `Page` / `Locator` に解決する式から引く |
 

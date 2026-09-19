@@ -766,3 +766,151 @@ test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる
   expect(result.stderr).toMatch(/走査不能/);
   expect(result.stderr).toMatch(/正規表現の開始.+除算/);
 });
+
+// Issue #406: TS の型アサーション（`x as T` / `<T>x`）を挟んだ別名は、locators にも pages にも
+// opaqueAliases にも入らず、「解決済み」でも「判定不能」でもないまま消えていた（数えられない）。
+test.each([
+  ["as 構文", "const loc = x as Foo;"],
+  ["角括弧構文", "const loc = <Foo>x;"],
+  ["起点が Page でも追えない型へのアサーション", "const loc = page as Foo;"],
+])("型アサーションを挟んだ由来不明の別名は判定不能に数える: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(x, page) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.callSites).toBe(1);
+  expect(stats.undecidable).toBe(1);
+});
+
+test.each([
+  ["as Locator", "const loc = x as Locator;"],
+  ["<Locator>", "const loc = <Locator>x;"],
+])("Locator へのアサーションは型注釈と同じく解決する: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(x) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("as const は右辺の解決を奪わない（誤って判定不能にしない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const ROLE = 'button' as const;\n  const loc = page.locator(ROLE) as const;\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("tsx の JSX を型アサーションと読み違えない（角括弧の形は .ts でだけ読む）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const el = <div>hi</div>;\n  return page.locator('a').count();\n}`,
+    "spec.tsx",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("引数の中の型アサーションを別名のものと読まない（無関係な変数を Locator に化けさせない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(x) {\n  const n = helper(x as Locator);\n  return n.count();\n}`,
+    "spec.ts",
+  ).stats;
+  // 由来は追えないままなので判定不能。Locator として解決してはいけない。
+  expect(stats.resolved).toBe(0);
+  expect(stats.undecidable).toBe(1);
+});
+
+test.each([
+  ["呼び出しの結果", "const loc = helper() as Locator;"],
+  ["添字アクセスの結果", "const loc = rows[0] as Locator;"],
+])(
+  "アサート対象に括弧・添字を含む形は解決せず判定不能に残る（網を緩めない）: %s",
+  (_label, decl) => {
+    const stats = scanSourceWithStats(
+      `function f(rows) {\n  ${decl}\n  return loc.count();\n}`,
+      "spec.ts",
+    ).stats;
+    expect(stats.resolved).toBe(0);
+    expect(stats.undecidable).toBe(1);
+  },
+);
+
+// 二重アサーション（`x as unknown as T` / `x as any as T`）。区切りの走査が遅延一致だと
+// 最初の `as`（`unknown` / `any`）を拾い、Locator へアサートしているのに判定不能へ落ちていた。
+test.each([
+  ["as unknown as Locator", "const loc = raw as unknown as Locator;"],
+  ["as any as Locator", "const loc = raw as any as Locator;"],
+])("二重アサーションは最後の型で解決する: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(raw) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("二重アサーションの行き先が Page / Locator でなければ従来どおり判定不能（網を緩めない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(raw) {\n  const loc = raw as unknown as Foo;\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(0);
+  expect(stats.undecidable).toBe(1);
+});
+
+// 角括弧アサーションが書ける `.ts` 系は、generic なアロー関数が同じ形に見える拡張子でもある。
+test("generic なアロー関数を角括弧アサーションと読み違えない", () => {
+  const stats = scanSourceWithStats(
+    `const pick = <T>(x: T) => x;\nfunction f() {\n  return pick.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.undecidable).toBe(0);
+});
+
+// `as` はどの拡張子でも書けるので、拡張子ではなく区切り（`<` / `>`）で JSX を止める。
+test.each([
+  ["as を含まない JSX", "const el = <span>hello</span>;"],
+  ["as を含む JSX テキスト", "const el = <span>use as reference</span>;"],
+])(".tsx の JSX 本文を型アサーションと読み違えない: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f() {\n  ${decl}\n  return el.count();\n}`,
+    "spec.tsx",
+  ).stats;
+  expect(stats.undecidable).toBe(0);
+});
+
+// 純粋なプロパティ取り出しは Page でも Locator でもない値として従来から対象外。
+// アサーションを足しただけで免除が外れると「注釈を強いる誤検出」が復活する。
+test("純粋なプロパティ取り出しの免除は型アサーションで外れない", () => {
+  const bare = scanSourceWithStats(
+    `function f(page) {\n  const timers = page.clock;\n  return timers.count();\n}`,
+    "spec.ts",
+  ).stats;
+  const asserted = scanSourceWithStats(
+    `function f(page) {\n  const timers = page.clock as Clock;\n  return timers.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(bare.undecidable).toBe(0);
+  expect(asserted.undecidable).toBe(0);
+});
+
+test("受け側そのものを別の型へアサートした形は従来どおり判定不能（網を緩めない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const p = page as Foo;\n  return p.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.undecidable).toBe(1);
+});
+
+// 1 文に複数の宣言子があるとき、後ろの宣言子の `as` を先頭の別名のものとして読まない。
+test("複数宣言子の後ろの型アサーションを先頭の別名に当てない", () => {
+  const r = scanSourceWithStats(
+    `function f(raw, other) {\n  const a = raw, b = other as Locator;\n  return a.textContent();\n}`,
+    "spec.ts",
+  );
+  // `a` は `raw`（由来不明）なので Locator として解決してはいけない。
+  expect(r.stats.resolved).toBe(0);
+  expect(r.findings.map((x) => x.rule)).not.toContain("immediate-read");
+});

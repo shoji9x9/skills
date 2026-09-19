@@ -208,6 +208,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    突き合わせられないセルは理由を書き、**突き合わせないことを選ぶなら利用者の承認**（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
    **記録には新側の版（`new_implementation.commit` ＝ そのときの `new.commit`、`dirty: false`）も書く**——書かないと、記録の後に実装を変えても古い証拠が通る
    （当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。
+   **`new.commit` が `none`（新側が git 管理を持たない）なら `new_implementation.iteration` にそのときの `loop.iterations` も書く**——
+   `none` どうしの比較は常に一致するので、書かないと鮮度検査が一度も効かない（検査は `comparison-implementation-unversionable` で落とす）。
    記録したらインストール済みの `parity-suite` の
    `node <parity-suite>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json>`
    `--replace-metadata <new/<target>/replace-metadata.json> --target <選択中の new target>`

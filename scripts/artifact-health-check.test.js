@@ -9,7 +9,7 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -820,7 +820,7 @@ test("宣言したスイートの実体が無ければ合格に倒さない", ()
     m.suite.specs = "e2e/parity/does-not-exist";
   });
   const r = run(metadataPath);
-  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*実体が無い/);
+  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*読めない .*（実体が無い）/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -914,6 +914,174 @@ test("期待値解決層を書き換えても指紋が変わらなければ素�
   );
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// Issue #405: resolveInside が文字列の解決だけで閉じ込めを判定していたため、baseline_dir に
+// 置いた外向きのシンボリックリンクが finding を 1 件も出さずに通り、--root の外のファイルの
+// 内容が sha256 照合に使われていた。
+test("baseline_dir の外を指すシンボリックリンクを落とす（実パスで閉じ込める）", () => {
+  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  writeFileSync(join(outside, "secret.png"), "SECRET-CONTENT-OUTSIDE-SANDBOX");
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries.push({
+      path: "linked.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "リンクの検査だけが目的",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
+  });
+  symlinkSync(join(outside, "secret.png"), join(slugDir, "baseline/linked.png"));
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(
+    /採取物のパスが baseline_dir の外を指しているか実パスを解決できない: linked\.png/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(outside, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("baseline_dir の中を指すシンボリックリンクは落とさない（陽性コントロール）", () => {
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries.push({
+      path: "linked.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "リンクの検査だけが目的",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
+  });
+  symlinkSync(
+    join(slugDir, "baseline/orders.default.desktop.png"),
+    join(slugDir, "baseline/linked.png"),
+  );
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).not.toMatch(/baseline_dir の外を指している/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 閉じ込め拒否（実パスがルート外）と不在は原因が違う。同じ文言にすると、
+// 実体が在るのに「無い」と報告され、書き手は閉じ込め拒否に辿り着けない。
+test("read_by がルート外を指すリンクのとき、不在と別の理由で落とす", () => {
+  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  writeFileSync(
+    join(outside, "linked.spec.ts"),
+    "// orders.default.desktop.png と orders.xlsx.json を読む\n",
+  );
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[0].read_by = ["e2e/parity/order-list/linked.spec.ts"];
+  });
+  symlinkSync(join(outside, "linked.spec.ts"), join(root, "e2e/parity/order-list/linked.spec.ts"));
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(
+    /read_by が指すスペックがルートの外を指しているか実パスを解決できない: e2e\/parity\/order-list\/linked\.spec\.ts/,
+  );
+  expect(r.stdout).not.toMatch(/read_by が指すスペックが無い/);
+  expect(r.status).toBe(1);
+  rmSync(outside, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("read_by が本当に無いときは従来どおり「無い」と報告する（対照）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[0].read_by = ["e2e/parity/order-list/missing.spec.ts"];
+  });
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(
+    /read_by が指すスペックが無い: e2e\/parity\/order-list\/missing\.spec\.ts/,
+  );
+  expect(r.stdout).not.toMatch(/ルートの外を指しているか実パスを解決できない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// new.commit が none の枝は版の対応を反復回数へ委ねている。委ねた先も読めないと、
+// 版の検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格に倒さない）。
+test.each([
+  ["記録側の iteration が無い", undefined, { iterations: 3 }],
+  ["現在側の loop.iterations が無い", 3, {}],
+  // テンプレートを置き換え忘れた形（プレースホルダ文字列）。数字列は toInteger が受けるので対象外。
+  [
+    "iteration がテンプレートのまま",
+    "<replace-metadata.json の loop.iterations（数値）>",
+    { iterations: 3 },
+  ],
+])("new.commit が none なのに反復回数も読めなければ落とす: %s", (_label, iteration, loop) => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      ...(iteration === undefined ? {} : { iteration }),
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none", dirty: false }, loop },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い（new\.commit が none なのに/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("commit が実在の SHA なら反復回数の片側欠落は従来どおり旧成果物として扱う（対照）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { new: { target: "local-dev", commit: "a".repeat(40) }, dataset_version: 7, converged: true },
+    { new: { target: "local-dev", commit: "a".repeat(40), dirty: false }, loop: {} },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/反復の対応を判定しない（旧成果物）/);
+  expect(r.stdout).not.toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 反復回数へ委ねてよいのは両側とも none のときだけ。片側だけ none は別の版なので、
+// 反復回数が一致しても合格に倒さない（component-comparison-check.mjs と同じ規則）。
+test.each([
+  ["記録が none・現在が SHA", "none", "a".repeat(40)],
+  ["記録が SHA・現在が none", "a".repeat(40), "none"],
+])("片側だけ none で反復回数が一致しても合格に倒さない: %s", (_label, recorded, now) => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: recorded },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: now, dirty: false }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 同じ loop.iterations を読む component-comparison-check.mjs は数値だけを受ける。
+// 片方だけ数字列を受けると、同じ記録に 2 つの検査器が矛盾した判定を出す。
+test("反復回数は数字列を受けない（姉妹の検査器と判定を揃える）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      iteration: "3",
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none", dirty: false }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

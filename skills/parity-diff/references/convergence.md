@@ -133,6 +133,9 @@
 
     落とすのは、**`present` なのに突き合わせの行が無い**・`compared: true` なのに入口・当たり判定・完了の観測が欠ける・
     **突き合わせを取った新側の版（`new_implementation.commit`）が無い／現在の `replace-metadata.json` の `new.commit` と違う**（記録の後に実装が変わっている）・
+    **`new.commit` が `none`（新側が git 管理を持たない）のときは `new_implementation.iteration` と `loop.iterations` が違う**
+    （両側 `none` の文字列比較は常に一致するので、鮮度は反復回数が担う）・
+    **そのどちらかが読めない**（`comparison-implementation-unversionable`。退き先が無いことを合格に倒さない。規則の正本は `parity-suite` の `references/coverage.md`）・
     **どちらかの `dirty` が `false` でない**（未コミットの変更を抱えた作業ツリーの記録は commit で版を特定できない。欠落・非真偽値も落とす）・
     **`--replace-metadata` を渡していない**（照合相手が無いと鮮度の検査そのものが飛ぶので、この引数は省けない）・
     `new.dirty: true`（未コミットの変更があると版に紐づかない）・

@@ -556,10 +556,23 @@ gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}
 # どちらも実際にコミットを実行するのに、`;&|(` だけの区切りでは到達できず素通りしていた
 # （実測）。`case` は mask_quoted 側で fail closed に倒すが、倒した先の元文字列を判定するのは
 # この正規表現なので、区切りを広げないと結局素通りする（片側だけでは塞がらない）。
+# 生 JSON 経路では行継続を取り除いた**写し**も同じ式で判定する（`extracted` が 1 の経路では空のまま）。
+cmd_continuation_stripped=""
 if [ "${extracted}" -eq 1 ]; then
 	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
+	# **縮退経路でも行継続で割れたトークンを捕まえる**（Issue #409）。`gi\<改行>t commit` はシェルが
+	# 継続を取り除いてから実行するのに、生 JSON には `git` も `commit` も揃って現れず素通りしていた（実測）。
+	# この経路はコマンド行を構造として取り出せていないので `strip_line_continuations` を当てられない。
+	# JSON では継続が `\\` ＋ `\n`（4 文字）として現れるので、その並びを取り除いた写しを作り、
+	# **元と写しのどちらかが当たればブロックする**。
+	# 写しだけを見ないのは、継続でない `\\` ＋ 改行（エスケープされた `\` の直後の改行）まで詰めると、
+	# そこで区切られる次のコマンドが前のコマンドと繋がって区切り判定から外れるため（fail open）。
+	# 両方を見れば、詰めて当たる形も詰めずに当たる形もどちらも落ちない。
+	json_continuation='\\\n'
+	cmd_continuation_stripped=${cmd//"${json_continuation}"/}
+	[ "${cmd_continuation_stripped}" = "${cmd}" ] && cmd_continuation_stripped=""
 	# 生 JSON 経路でも区切りの後ろの `git commit` を捕捉する。command の値の先頭だけに錨を打つと
 	# `cd /tmp && git commit -m x` のような複合コマンドを取りこぼす（fail open。実測）。
 	# 区切りまでの前置きは `dqbody`（`([^"\\]|\\.)*`）で表す。これはエスケープされていない `"` を
@@ -589,7 +602,10 @@ if [ "${extracted}" -eq 1 ]; then
 	fi
 fi
 if [[ ! "${cmd_masked}" =~ ${commit_re} ]]; then
-	exit 0
+	# 写しが空＝継続を含まない（または構造として取り出せた経路）。そのときだけ通す。
+	if [ -z "${cmd_continuation_stripped}" ] || [[ ! "${cmd_continuation_stripped}" =~ ${commit_re} ]]; then
+		exit 0
+	fi
 fi
 
 # コマンド行から**コミット先がプロジェクト外のリポジトリだと分かる**呼び出しは、ゲートの対象に
