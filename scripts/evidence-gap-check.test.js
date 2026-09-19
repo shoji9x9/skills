@@ -463,6 +463,23 @@ test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）�
   });
 });
 
+test("根拠列はあるのに口の列名がずれている表は入力の不備（exit 2）——対象外へ倒さない", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装API | 要求単位の根拠 |",
+      "|---|---|---|",
+      "| plan | GET /api/plans | GET /api/plans → 推定: 要求単位は未確定 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("列名が規約とずれている");
+    expect(r.stderr).not.toContain("not-applicable:");
+  });
+});
+
 test("「その他の Issue」表の行も対象外（exit 4）", () => {
   withDir((dir) => {
     const text = [

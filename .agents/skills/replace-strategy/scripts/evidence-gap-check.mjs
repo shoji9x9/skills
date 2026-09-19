@@ -195,6 +195,9 @@ export function readRow(text, slug) {
   // 持たないので、「行が無い」（exit 2）でも「列が未導入」（exit 3）でもなく対象外（exit 4）。
   // 3 つを同じ終了コードへ畳むと、バッチ slug を渡した呼び出し側が入力を直しようがないまま詰まる。
   let nonEndpointRows = 0;
+  // 根拠列はあるのに口の列が無い表の行。列名が規約（新規実装 API / API）とずれている入力の不備で、
+  // 「列の導入前」（exit 3）でも「対象外」（exit 4）でもない——どちらへ倒しても完了判定が通ってしまう。
+  let malformedRows = 0;
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
     if (slugIndex < 0) continue;
@@ -203,7 +206,14 @@ export function readRow(text, slug) {
     for (const row of table.rows) {
       if (collapse(row[slugIndex] ?? "") !== slug) continue;
       if (endpointIndex < 0) {
-        nonEndpointRows += 1;
+        // 口の列も根拠列も無い表＝バッチ・「その他の Issue」。設計上どちらの列も持たない。
+        // 根拠列はあるのに口の列だけ無いのは列名のずれ（規約外の見出し）なので対象外にしない——
+        // そこを対象外へ倒すと、推定の口が残る機能行が exit 4 で完了判定を通る（fail-open）。
+        if (evidenceIndex < 0) {
+          nonEndpointRows += 1;
+          continue;
+        }
+        malformedRows += 1;
         continue;
       }
       if (evidenceIndex < 0) {
@@ -216,10 +226,15 @@ export function readRow(text, slug) {
       });
     }
   }
-  const total = matched.length + legacyRows + nonEndpointRows;
+  const total = matched.length + legacyRows + nonEndpointRows + malformedRows;
   if (total > 1) {
     throw new UsageError(
       `slug ${slug} の行が ${total} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
+    );
+  }
+  if (matched.length === 0 && malformedRows > 0) {
+    throw new UsageError(
+      `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列名が規約とずれている。対象外にも判定不能にも倒さない`,
     );
   }
   if (matched.length === 0 && nonEndpointRows > 0) {
