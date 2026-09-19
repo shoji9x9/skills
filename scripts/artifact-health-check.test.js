@@ -1042,3 +1042,46 @@ test("commit が実在の SHA なら反復回数の片側欠落は従来どお�
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
+
+// 反復回数へ委ねてよいのは両側とも none のときだけ。片側だけ none は別の版なので、
+// 反復回数が一致しても合格に倒さない（component-comparison-check.mjs と同じ規則）。
+test.each([
+  ["記録が none・現在が SHA", "none", "a".repeat(40)],
+  ["記録が SHA・現在が none", "a".repeat(40), "none"],
+])("片側だけ none で反復回数が一致しても合格に倒さない: %s", (_label, recorded, now) => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: recorded },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: now, dirty: false }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 同じ loop.iterations を読む component-comparison-check.mjs は数値だけを受ける。
+// 片方だけ数字列を受けると、同じ記録に 2 つの検査器が矛盾した判定を出す。
+test("反復回数は数字列を受けない（姉妹の検査器と判定を揃える）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      iteration: "3",
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none", dirty: false }, loop: { iterations: 3 } },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});

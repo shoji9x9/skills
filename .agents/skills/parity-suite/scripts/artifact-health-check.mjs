@@ -58,6 +58,18 @@ const GREEN = "green";
 /** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
 const NO_COMMIT = "none";
 
+/**
+ * 反復回数を整数として読む。**数字列は受けない**——同じ `loop.iterations` を読む
+ * component-comparison-check.mjs は数値だけを受けるので、片方だけ緩めると 2 つの検査器が
+ * 同じ記録に矛盾した判定（片方合格・片方 unversionable）を出す。正本のテンプレートも数値。
+ * dataset の版（`toInteger`）とは入力の出所が違うので共有しない。
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+function toIterationCount(value) {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
 
@@ -825,7 +837,11 @@ export function checkStage(ctx) {
   if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
     const wanted = String(replaceCommit).trim();
     const recordedCommit = String(diffCommit).trim();
-    if (wanted === NO_COMMIT || recordedCommit === NO_COMMIT) {
+    // **反復回数へ委ねるのは両側とも `${NO_COMMIT}` のときだけ**——片側だけが `none` なら
+    // 記録した SHA と現在の `none`（またはその逆）は同じ版を指さないので、反復回数が
+    // たまたま一致しただけで合格に倒すと、git 管理の有無が変わった新側で古い成果物が通る
+    // （component-comparison-check.mjs と同じ規則。正本は references/coverage.md）。
+    if (wanted === NO_COMMIT && recordedCommit === NO_COMMIT) {
       versionDelegatedToIteration = true;
       notes.push(
         `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
@@ -842,8 +858,8 @@ export function checkStage(ctx) {
   }
 
   const loop = isPlainObject(replaceMeta.loop) ? replaceMeta.loop : null;
-  const iterations = toInteger(loop === null ? undefined : loop.iterations);
-  const recordedIteration = toInteger(diffMeta.iteration);
+  const iterations = toIterationCount(loop === null ? undefined : loop.iterations);
+  const recordedIteration = toIterationCount(diffMeta.iteration);
   if (iterations !== null && recordedIteration !== null) {
     if (recordedIteration !== iterations) {
       findings.push(
