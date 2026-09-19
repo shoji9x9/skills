@@ -647,7 +647,7 @@ function playwrightReceivers(code, file = "<source>") {
   // ここで解決しない。** 深さ 0 の `as` を数えれば拾えるが、それは解決できる別名を増やす＝
   // fail-closed の網を緩める向きの変更なので採らない。これらは従来どおりチェーンが途切れた
   // 別名として判定不能に落ち、書き手には戻り値注釈を付ける直し方が出る（挙動は本修正の前後で同じ）。
-  const TRAILING_ASSERTION = /^[^([{]*?\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
+  const TRAILING_ASSERTION = /^[^([{]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
   /**
    * @param {string} statement 右辺の最初の文
    * @returns {"page" | "locator" | "other" | null}

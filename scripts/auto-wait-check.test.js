@@ -836,3 +836,26 @@ test.each([
     expect(stats.undecidable).toBe(1);
   },
 );
+
+// 二重アサーション（`x as unknown as T` / `x as any as T`）。区切りの走査が遅延一致だと
+// 最初の `as`（`unknown` / `any`）を拾い、Locator へアサートしているのに判定不能へ落ちていた。
+test.each([
+  ["as unknown as Locator", "const loc = raw as unknown as Locator;"],
+  ["as any as Locator", "const loc = raw as any as Locator;"],
+])("二重アサーションは最後の型で解決する: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(raw) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("二重アサーションの行き先が Page / Locator でなければ従来どおり判定不能（網を緩めない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(raw) {\n  const loc = raw as unknown as Foo;\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(0);
+  expect(stats.undecidable).toBe(1);
+});
