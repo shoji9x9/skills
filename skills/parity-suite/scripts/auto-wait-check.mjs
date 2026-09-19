@@ -573,9 +573,12 @@ function receiverChain(code, dotIndex) {
  * Page / Locator と確認できる名前を、型注釈・代入チェーン・戻り値注釈から閉包として導出する。
  * 識別子（`page` / `this.page` の `page`）と、Page / Locator を返す同一ファイル内の関数名を分けて持つ。
  */
-function playwrightReceivers(code) {
+function playwrightReceivers(code, file = "<source>") {
   const pages = new Set(["page"]);
   const locators = new Set(["locator"]);
+  // 角括弧の型アサーション（`<Locator>x`）は JSX を持ちうる拡張子では書けない（TypeScript が禁じる）。
+  // 区別せずに読むと `const el = <div>…</div>` を型アサーションとして扱い、無関係な別名を判定不能にする。
+  const angleAssertionAllowed = /\.(?:ts|mts|cts)$/.test(file);
   const pageCallables = new Set();
   const locatorCallables = new Set();
   for (const match of code.matchAll(/\b([A-Za-z_$][\w$]*)\s*:\s*(Page|Locator)\b/g)) {
@@ -631,6 +634,32 @@ function playwrightReceivers(code) {
     const truncated = /^\s*[([]/.test(rest);
     return { names, calledIndex, truncated };
   };
+  // TS の型アサーション（`x as Locator` / `<Locator>x`）。**注釈（`loc: Locator`）と同じ宣言**なので
+  // 同じ強さで受け側を決め（対象が識別子チェーンの形に限る。下の TRAILING_ASSERTION を参照）、
+  // Page / Locator 以外へアサートした別名は由来を追えないものとして扱う。
+  // 読まないと `leadingChain` の後段の条件（`ident` の直後が `.` / `(` / `[`）に当たらず、
+  // locators にも pages にも opaqueAliases にも入らないまま——違反 0 件でも判定不能 0 件でもなく——静かに消える。
+  const ANGLE_ASSERTION =
+    /^\s*<\s*([A-Za-z_$][\w$.]*)(?:\s*<[^<>]*>)?(?:\[\])?\s*>\s*(?=[A-Za-z_$({[])/;
+  // **引数の中のアサーションを別名のものと読まない**——`const n = helper(x as Locator)` の `as` を
+  // 拾うと、無関係な `n` が Locator に化ける。括弧が開く前に現れる形（`x as Locator`）だけを見る。
+  // **そのぶん、アサート対象に括弧・添字を含む形（`helper() as Locator` / `rows[0] as Locator`）は
+  // ここで解決しない。** 深さ 0 の `as` を数えれば拾えるが、それは解決できる別名を増やす＝
+  // fail-closed の網を緩める向きの変更なので採らない。これらは従来どおりチェーンが途切れた
+  // 別名として判定不能に落ち、書き手には戻り値注釈を付ける直し方が出る（挙動は本修正の前後で同じ）。
+  const TRAILING_ASSERTION = /^[^([{]*?\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
+  /**
+   * @param {string} statement 右辺の最初の文
+   * @returns {"page" | "locator" | "other" | null}
+   */
+  const assertionKind = (statement) => {
+    const angle = angleAssertionAllowed ? statement.match(ANGLE_ASSERTION) : null;
+    const name = (angle ?? statement.match(TRAILING_ASSERTION))?.[1] ?? null;
+    if (name === null) return null;
+    if (name === "Page") return "page";
+    if (name === "Locator") return "locator";
+    return "other";
+  };
   const assignments = [...code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g)];
   /** 右辺が member / call 式なのに何にも解決しなかった別名。使われたら判定不能にする。 */
   const opaqueAliases = new Set();
@@ -639,25 +668,36 @@ function playwrightReceivers(code) {
     changed = false;
     for (const match of assignments) {
       const rhsStart = match.index + match[0].length;
-      const rhs = code.slice(rhsStart);
+      const rawRhs = code.slice(rhsStart);
+      const rhsStatement = rawRhs.split(/[;\n]/, 1)[0].trim();
+      const asserted = assertionKind(rhsStatement);
+      // 角括弧の型アサーションは右辺の先頭に付く。落としてからでないとチェーンを 1 区間も読めない。
+      const rhs =
+        angleAssertionAllowed && ANGLE_ASSERTION.test(rawRhs)
+          ? rawRhs.replace(ANGLE_ASSERTION, "")
+          : rawRhs;
       const chain = leadingChain(rhs);
-      if (chain === null) continue;
+      if (chain === null && asserted === null) continue;
       const target = match[1];
-      const rhsStatement = rhs.split(/[;\n]/, 1)[0].trim();
       // 起点だけでなくチェーンの各区間を見る。`const row = this.page.locator('tr')` は
       // 起点が `this` なので、起点だけを見ると別名がどこにも登録されず静かに素通りする。
-      const hasLocator = chain.names.some(
-        (name, index) =>
-          locators.has(name) || (index === chain.calledIndex && locatorCallables.has(name)),
-      );
-      const hasPage = chain.names.some(
-        (name, index) =>
-          pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
-      );
+      const hasLocator =
+        chain !== null &&
+        chain.names.some(
+          (name, index) =>
+            locators.has(name) || (index === chain.calledIndex && locatorCallables.has(name)),
+        );
+      const hasPage =
+        chain !== null &&
+        chain.names.some(
+          (name, index) =>
+            pages.has(name) || (index === chain.calledIndex && pageCallables.has(name)),
+        );
       // 呼ばれている区間の名前で見る経路を先に置く。テキスト照合は最初の物理行しか見ないので、
       // 整形で折られたチェーン（`const cell = page\n  .getByRole(...)`）を取りこぼす。
       // 区間はチェーン走査が改行をまたいで拾っているため、名前で見れば折り返しに依存しない。
       const callsLocatorFactory =
+        chain !== null &&
         chain.calledIndex !== null &&
         /^(?:locator|frameLocator|getBy\w+)$/.test(chain.names[chain.calledIndex]);
       const isLocatorExpression =
@@ -673,7 +713,17 @@ function playwrightReceivers(code) {
         hasPage &&
         /^[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*$/.test(rhsStatement) &&
         pages.has(chain.names[chain.names.length - 1]);
-      if (isLocatorExpression && !locators.has(target)) {
+      if (asserted === "locator" && !locators.has(target)) {
+        // 型注釈と同じ宣言として扱う。解決できる式の判定より先に置くと `as const` 等で
+        // 本来解決できる右辺まで奪うので、Page / Locator へのアサーションだけをここで受ける。
+        locators.add(target);
+        opaqueAliases.delete(target);
+        changed = true;
+      } else if (asserted === "page" && !pages.has(target)) {
+        pages.add(target);
+        opaqueAliases.delete(target);
+        changed = true;
+      } else if (isLocatorExpression && !locators.has(target)) {
         locators.add(target);
         opaqueAliases.delete(target);
         changed = true;
@@ -682,11 +732,22 @@ function playwrightReceivers(code) {
         opaqueAliases.delete(target);
         changed = true;
       } else if (
+        // Page / Locator 以外へアサートした別名。右辺がどちらにも解決しない以上、由来は追えない。
+        // 型アサーションを挟めば検査から消える、という抜け道を残さない（fail-closed）。
+        asserted === "other" &&
+        !locators.has(target) &&
+        !pages.has(target) &&
+        !opaqueAliases.has(target)
+      ) {
+        opaqueAliases.add(target);
+        changed = true;
+      } else if (
         // Page / Locator を含むチェーンでも、**呼び出し・添字で途切れていて**上の 2 つに当たらなければ
         // ここへ落とす（`const cell = page.frames()[0].getByRole(...)` 等）。除外すると
         // 「違反 0 件・判定不能 0 件」で黙って捨てられ、fail-closed のはずのゲートがその形だけ素通りする。
         // 途切れていない純粋なプロパティ取り出し（`const timers = page.clock`）は Page でも Locator でも
         // ない値なので、従来どおり対象外にする（判定不能にすると注釈を強いる誤検出になる）。
+        chain !== null &&
         (chain.truncated || (!hasLocator && !hasPage)) &&
         !locators.has(target) &&
         !pages.has(target) &&
@@ -760,7 +821,7 @@ function isCaptureSpec(file) {
 
 export function scanSourceWithStats(source, file = "<source>") {
   const code = maskNonCode(source);
-  const receivers = playwrightReceivers(code);
+  const receivers = playwrightReceivers(code, file);
   const captureSpec = isCaptureSpec(file);
   const findings = [];
   const stats = { callSites: 0, resolved: 0, undecidable: 0, exempted: 0 };

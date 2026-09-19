@@ -766,3 +766,73 @@ test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる
   expect(result.stderr).toMatch(/走査不能/);
   expect(result.stderr).toMatch(/正規表現の開始.+除算/);
 });
+
+// Issue #406: TS の型アサーション（`x as T` / `<T>x`）を挟んだ別名は、locators にも pages にも
+// opaqueAliases にも入らず、「解決済み」でも「判定不能」でもないまま消えていた（数えられない）。
+test.each([
+  ["as 構文", "const loc = x as Foo;"],
+  ["角括弧構文", "const loc = <Foo>x;"],
+  ["起点が Page でも追えない型へのアサーション", "const loc = page as Foo;"],
+])("型アサーションを挟んだ由来不明の別名は判定不能に数える: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(x, page) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.callSites).toBe(1);
+  expect(stats.undecidable).toBe(1);
+});
+
+test.each([
+  ["as Locator", "const loc = x as Locator;"],
+  ["<Locator>", "const loc = <Locator>x;"],
+])("Locator へのアサーションは型注釈と同じく解決する: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f(x) {\n  ${decl}\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("as const は右辺の解決を奪わない（誤って判定不能にしない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const ROLE = 'button' as const;\n  const loc = page.locator(ROLE) as const;\n  return loc.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("tsx の JSX を型アサーションと読み違えない（角括弧の形は .ts でだけ読む）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const el = <div>hi</div>;\n  return page.locator('a').count();\n}`,
+    "spec.tsx",
+  ).stats;
+  expect(stats.resolved).toBe(1);
+  expect(stats.undecidable).toBe(0);
+});
+
+test("引数の中の型アサーションを別名のものと読まない（無関係な変数を Locator に化けさせない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(x) {\n  const n = helper(x as Locator);\n  return n.count();\n}`,
+    "spec.ts",
+  ).stats;
+  // 由来は追えないままなので判定不能。Locator として解決してはいけない。
+  expect(stats.resolved).toBe(0);
+  expect(stats.undecidable).toBe(1);
+});
+
+test.each([
+  ["呼び出しの結果", "const loc = helper() as Locator;"],
+  ["添字アクセスの結果", "const loc = rows[0] as Locator;"],
+])(
+  "アサート対象に括弧・添字を含む形は解決せず判定不能に残る（網を緩めない）: %s",
+  (_label, decl) => {
+    const stats = scanSourceWithStats(
+      `function f(rows) {\n  ${decl}\n  return loc.count();\n}`,
+      "spec.ts",
+    ).stats;
+    expect(stats.resolved).toBe(0);
+    expect(stats.undecidable).toBe(1);
+  },
+);
