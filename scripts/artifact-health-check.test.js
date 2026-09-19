@@ -820,7 +820,7 @@ test("宣言したスイートの実体が無ければ合格に倒さない", ()
     m.suite.specs = "e2e/parity/does-not-exist";
   });
   const r = run(metadataPath);
-  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*実体が無い/);
+  expect(r.stdout).toMatch(/現在のスイートの指紋を計算できない.*読めない .*（実体が無い）/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -962,5 +962,40 @@ test("baseline_dir の中を指すシンボリックリンクは落とさない�
   const r = run(metadataPath, ["--root", root]);
   expect(r.stdout).not.toMatch(/baseline_dir の外を指している/);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 閉じ込め拒否（実パスがルート外）と不在は原因が違う。同じ文言にすると、
+// 実体が在るのに「無い」と報告され、書き手は閉じ込め拒否に辿り着けない。
+test("read_by がルート外を指すリンクのとき、不在と別の理由で落とす", () => {
+  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  writeFileSync(
+    join(outside, "linked.spec.ts"),
+    "// orders.default.desktop.png と orders.xlsx.json を読む\n",
+  );
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[0].read_by = ["e2e/parity/order-list/linked.spec.ts"];
+  });
+  symlinkSync(join(outside, "linked.spec.ts"), join(root, "e2e/parity/order-list/linked.spec.ts"));
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(
+    /read_by が指すスペックがルートの外を指しているか実パスを解決できない: e2e\/parity\/order-list\/linked\.spec\.ts/,
+  );
+  expect(r.stdout).not.toMatch(/read_by が指すスペックが無い/);
+  expect(r.status).toBe(1);
+  rmSync(outside, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("read_by が本当に無いときは従来どおり「無い」と報告する（対照）", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries[0].read_by = ["e2e/parity/order-list/missing.spec.ts"];
+  });
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(
+    /read_by が指すスペックが無い: e2e\/parity\/order-list\/missing\.spec\.ts/,
+  );
+  expect(r.stdout).not.toMatch(/ルートの外を指しているか実パスを解決できない/);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

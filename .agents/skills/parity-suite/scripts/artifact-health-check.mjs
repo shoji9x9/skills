@@ -323,7 +323,15 @@ export function checkArtifacts(metadata, ctx) {
           continue;
         }
         const specPath = resolveInside(ctx.root, String(reader).trim());
-        if (specPath === null || !existsSync(specPath)) {
+        // **閉じ込め拒否と不在を同じ文言にしない**——リンク越しにルート外を指す宣言は実体が在るのに
+        // ここで null になるため、「無い」と報告すると原因（閉じ込め拒否）に辿り着けない。
+        if (specPath === null) {
+          findings.push(
+            `read_by が指すスペックがルートの外を指しているか実パスを解決できない: ${String(reader).trim()}（採取物 ${p}）`,
+          );
+          continue;
+        }
+        if (!existsSync(specPath)) {
           findings.push(`read_by が指すスペックが無い: ${String(reader).trim()}（採取物 ${p}）`);
           continue;
         }
@@ -369,7 +377,13 @@ export function checkArtifacts(metadata, ctx) {
         continue;
       }
       const srcPath = resolveInside(baselineDir, srcRel);
-      if (srcPath === null || !existsSync(srcPath)) {
+      if (srcPath === null) {
+        findings.push(
+          `derived_from の実体が baseline_dir の外を指しているか実パスを解決できない: ${srcRel}（加工物 ${p}）`,
+        );
+        continue;
+      }
+      if (!existsSync(srcPath)) {
         findings.push(`derived_from の実体が無い: ${srcRel}（加工物 ${p}）`);
         continue;
       }
@@ -416,8 +430,12 @@ export function suiteFingerprint(suiteObj, root) {
     declared += 1;
     const rel = String(value).trim();
     const abs = resolveInside(root, rel);
-    if (abs === null || !existsSync(abs)) {
-      missing.push(rel);
+    if (abs === null) {
+      missing.push(`${rel}（ルートの外を指しているか実パスを解決できない）`);
+      continue;
+    }
+    if (!existsSync(abs)) {
+      missing.push(`${rel}（実体が無い）`);
       continue;
     }
     if (statSync(abs).isDirectory()) files.push(...listFiles(abs).map((f) => `${rel}/${f}`));
@@ -428,7 +446,13 @@ export function suiteFingerprint(suiteObj, root) {
   const digest = createHash("sha256");
   for (const rel of files) {
     const abs = resolveInside(root, rel);
-    if (abs === null || !existsSync(abs)) return { fingerprint: null, files: 0, missing: [rel] };
+    if (abs === null)
+      return {
+        fingerprint: null,
+        files: 0,
+        missing: [`${rel}（ルートの外を指しているか実パスを解決できない）`],
+      };
+    if (!existsSync(abs)) return { fingerprint: null, files: 0, missing: [`${rel}（実体が無い）`] };
     digest.update(rel);
     digest.update("\0");
     digest.update(sha256File(abs));
@@ -562,7 +586,7 @@ export function checkRepeatRun(metadata, ctx) {
       const current = suiteFingerprint(suiteObj, ctx.root);
       if (current.fingerprint === null) {
         findings.push(
-          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `実体が無い ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+          `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
         );
       } else if (current.fingerprint !== recorded[0]) {
         findings.push(
