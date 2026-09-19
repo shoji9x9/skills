@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "6";
+export const VERSION = "7";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -54,6 +54,9 @@ const STAGES = ["diff", "suite"];
 
 /** 反復実行で緑と数える結果。 */
 const GREEN = "green";
+
+/** 新側リポジトリがコミットを持たないことを表す語彙上のセンチネル（リポジトリ共通）。 */
+const NO_COMMIT = "none";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -816,12 +819,16 @@ export function checkStage(ctx) {
 
   const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
   const diffCommit = diffNew === null ? undefined : diffNew.commit;
+  // commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
+  // 委ねた先も読めないときに合格へ倒さないための材料（下の反復回数の判定で使う）。
+  let versionDelegatedToIteration = false;
   if (nonEmptyString(replaceCommit) && nonEmptyString(diffCommit)) {
     const wanted = String(replaceCommit).trim();
     const recordedCommit = String(diffCommit).trim();
-    if (wanted === "none" || recordedCommit === "none") {
+    if (wanted === NO_COMMIT || recordedCommit === NO_COMMIT) {
+      versionDelegatedToIteration = true;
       notes.push(
-        `new.commit が none（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
+        `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
       );
     } else if (wanted !== recordedCommit) {
       findings.push(
@@ -843,6 +850,14 @@ export function checkStage(ctx) {
         `diff-metadata.json が前の反復のもの（iteration ${recordedIteration} ≠ replace-metadata.json の loop.iterations ${iterations}）: ${diffPath}`,
       );
     }
+  } else if (versionDelegatedToIteration) {
+    // **委譲した先が読めないことを合格に倒さない**——commit が `none` の枝は版の対応を
+    // 反復回数へ委ねている。その反復回数も読めないと、実装を変えても古い成果物が
+    // 版の検査を 1 つも通らずに素通りする（component-comparison-check.mjs の
+    // comparison-implementation-unversionable と同じ扱いにする）。
+    findings.push(
+      `新側の版を対応づける指標が無い（new.commit が ${NO_COMMIT} なのに iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / loop.iterations: ${iterations === null ? "読めない" : iterations}）: ${diffPath}`,
+    );
   } else {
     notes.push(
       "iteration / loop.iterations を片側が持たないため反復の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",

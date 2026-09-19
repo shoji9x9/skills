@@ -999,3 +999,46 @@ test("read_by が本当に無いときは従来どおり「無い」と報告す
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
+
+// new.commit が none の枝は版の対応を反復回数へ委ねている。委ねた先も読めないと、
+// 版の検査を 1 つも通らないまま古い成果物が素通りする（委譲先が無いことを合格に倒さない）。
+test.each([
+  ["記録側の iteration が無い", undefined, { iterations: 3 }],
+  ["現在側の loop.iterations が無い", 3, {}],
+  // テンプレートを置き換え忘れた形（プレースホルダ文字列）。数字列は toInteger が受けるので対象外。
+  [
+    "iteration がテンプレートのまま",
+    "<replace-metadata.json の loop.iterations（数値）>",
+    { iterations: 3 },
+  ],
+])("new.commit が none なのに反復回数も読めなければ落とす: %s", (_label, iteration, loop) => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    {
+      new: { target: "local-dev", commit: "none" },
+      ...(iteration === undefined ? {} : { iteration }),
+      dataset_version: 7,
+      converged: true,
+    },
+    { new: { target: "local-dev", commit: "none", dirty: false }, loop },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/新側の版を対応づける指標が無い（new\.commit が none なのに/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("commit が実在の SHA なら反復回数の片側欠落は従来どおり旧成果物として扱う（対照）", () => {
+  const { root, slugDir, metadataPath } = makeProject();
+  writeStage(
+    slugDir,
+    { new: { target: "local-dev", commit: "a".repeat(40) }, dataset_version: 7, converged: true },
+    { new: { target: "local-dev", commit: "a".repeat(40), dirty: false }, loop: {} },
+  );
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/反復の対応を判定しない（旧成果物）/);
+  expect(r.stdout).not.toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
