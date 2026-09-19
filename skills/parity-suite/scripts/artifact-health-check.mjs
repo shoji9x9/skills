@@ -28,14 +28,14 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -78,16 +78,55 @@ function isPlainObject(v) {
 }
 
 /**
+ * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
+ *
+ * **まだ存在しないパスでも実パスで判定できるようにする**——存在しないことを理由に
+ * 文字列のまま扱うと、途中のディレクトリがシンボリックリンクでも閉じ込めを確かめられない。
+ * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外でない」ではないので、
+ * 合格に倒さず null を返す（fail-closed）。
+ * @param {string} p
+ * @returns {string | null}
+ */
+function realPathOf(p) {
+  let current = resolve(p);
+  /** @type {string[]} */
+  const tail = [];
+  for (;;) {
+    try {
+      const real = realpathSync(current);
+      return tail.length === 0 ? real : join(real, ...tail);
+    } catch (e) {
+      if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") return null;
+    }
+    const parent = dirname(current);
+    // ルートまで遡っても解けない（存在しないドライブ等）。文字列のまま通さない。
+    if (parent === current) return null;
+    tail.unshift(basename(current));
+    current = parent;
+  }
+}
+
+/**
  * 相対パスが基準ディレクトリの外へ出ないことを確かめてから解決する。
+ *
+ * **文字列の比較だけでは閉じ込められない**——`baseline_dir` の直下に外を指すシンボリックリンクを
+ * 置くと `resolve()` / `relative()` は中に見え、その後の `readFileSync` はリンクを解いて
+ * ルートの外のファイルを読み、そのハッシュを検証に使う（何の finding も出さずに）。
+ * 同じファイルの CLI 自己起動判定が `realpathSync` で両辺を実パスに揃えているのと同じ扱いにする。
  * @param {string} baseDir
  * @param {string} relPath
- * @returns {string | null} 基準の外・絶対パスなら null
+ * @returns {string | null} 基準の外・絶対パス・実パスを解けないなら null
  */
 function resolveInside(baseDir, relPath) {
   if (typeof relPath !== "string" || relPath.trim() === "" || isAbsolute(relPath)) return null;
   const resolved = resolve(baseDir, relPath);
   const rel = relative(baseDir, resolved);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
+  const realBase = realPathOf(baseDir);
+  const realTarget = realPathOf(resolved);
+  if (realBase === null || realTarget === null) return null;
+  const realRel = relative(realBase, realTarget);
+  if (realRel === "" || realRel.startsWith("..") || isAbsolute(realRel)) return null;
   return resolved;
 }
 

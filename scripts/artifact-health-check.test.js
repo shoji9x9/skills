@@ -9,7 +9,7 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -915,5 +915,50 @@ test("期待値解決層を書き換えても指紋が変わらなければ素�
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
   expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// Issue #405: resolveInside が文字列の解決だけで閉じ込めを判定していたため、baseline_dir に
+// 置いた外向きのシンボリックリンクが finding を 1 件も出さずに通り、--root の外のファイルの
+// 内容が sha256 照合に使われていた。
+test("baseline_dir の外を指すシンボリックリンクを落とす（実パスで閉じ込める）", () => {
+  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  writeFileSync(join(outside, "secret.png"), "SECRET-CONTENT-OUTSIDE-SANDBOX");
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries.push({
+      path: "linked.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "リンクの検査だけが目的",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
+  });
+  symlinkSync(join(outside, "secret.png"), join(slugDir, "baseline/linked.png"));
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).toMatch(/採取物のパスが baseline_dir の外を指している: linked\.png/);
+  expect(r.status).toBe(1);
+  rmSync(outside, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("baseline_dir の中を指すシンボリックリンクは落とさない（陽性コントロール）", () => {
+  const { root, slugDir, metadataPath } = makeProject((m) => {
+    m.artifact_health.entries.push({
+      path: "linked.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "リンクの検査だけが目的",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
+  });
+  symlinkSync(
+    join(slugDir, "baseline/orders.default.desktop.png"),
+    join(slugDir, "baseline/linked.png"),
+  );
+  const r = run(metadataPath, ["--root", root]);
+  expect(r.stdout).not.toMatch(/baseline_dir の外を指している/);
+  expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
