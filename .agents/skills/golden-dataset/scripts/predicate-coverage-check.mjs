@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * 役割の語彙（正本）。
@@ -244,12 +244,16 @@ export function namesColumn(predicateText, column) {
  *
  * 先頭の括弧・引用符は剥がしてから読む（`(owner_id = :me)` のような形で
  * 先頭トークンが空になると、その列の分岐が黙って数えられなくなる）。
+ *
+ * **区切りは先頭で剥がす記号と対称に持つ。** 開き側だけを区切りにすると、
+ * 囲んだ形（`(status)` / `「status」` / `"status"`）で閉じ側が列名の一部として残り、
+ * 実在しない列名で述語行を探すことになる（半角の `)` が欠けていた。Issue #410）。
  * @param {string} filter
  * @returns {string | null}
  */
 export function filterColumn(filter) {
   const stripped = normalizeCell(filter).replace(/^[\s(（「『"'`]+/, "");
-  const column = stripped.split(/[\s=<>!(）(,]/)[0];
+  const column = stripped.split(/[\s=<>!,()（）「」『』"'`]/)[0];
   return column === "" ? null : column;
 }
 

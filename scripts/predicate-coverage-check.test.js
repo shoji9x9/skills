@@ -13,6 +13,7 @@ import {
   splitList,
   collectConsumers,
   checkPredicateCoverage,
+  filterColumn,
 } from "../skills/golden-dataset/scripts/predicate-coverage-check.mjs";
 
 /** 欠陥の無い features.md（3 表とも在り、参照テーブルが埋まっている）。 */
@@ -743,4 +744,26 @@ test("消費側パラメータの絞り込みが空欄なら未調査として�
       }),
     }),
   ).not.toContain("param-filters-blank");
+});
+
+// Issue #410: 区切り文字クラスに半角の閉じ括弧 `)` が無く、`(status)` が `status)` になっていた
+// （開き括弧は先頭で剥がされるため、末尾だけが列名に残る）。剥がす記号と対称に持つ。
+test.each([
+  ["半角括弧", "(status)"],
+  ["全角括弧", "（status）"],
+  ["かぎ括弧", "「status」"],
+  ["二重かぎ括弧", "『status』"],
+  ["二重引用符", '"status"'],
+  ["単一引用符", "'status'"],
+  ["バッククォート", "`status`"],
+])("囲んだ列名から閉じ側の記号が残らない: %s", (_label, filter) => {
+  expect(filterColumn(filter)).toBe("status");
+});
+
+test("囲まれていない形・読めない形は従来どおり（対照）", () => {
+  expect(filterColumn("status")).toBe("status");
+  expect(filterColumn("status = :me")).toBe("status");
+  expect(filterColumn("(owner_id = :me)")).toBe("owner_id");
+  expect(filterColumn("()")).toBeNull();
+  expect(filterColumn("")).toBeNull();
 });
