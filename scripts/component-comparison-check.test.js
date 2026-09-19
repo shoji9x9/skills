@@ -508,13 +508,16 @@ test.each([
   ).toContain("comparison-implementation-unversionable");
 });
 
-test("片側だけが none でも反復回数で判定する（版を特定できないのは同じ）", () => {
-  expect(
-    codesOf({
-      comparison: comparisonOf({ new_implementation: { commit: "abc123", dirty: false } }),
-      replaceMetadata: noneReplaceMetadata(3),
-    }),
-  ).toContain("comparison-implementation-unversionable");
+// 片側だけが none なら必要な直し方は「同じ版で取り直す」なので stale だけを出す。
+// 反復回数の検査まで進めると、契約上 iteration を書く義務が無い SHA 記録に対して
+// unversionable（「iteration を書き足せ」と読める）が併発し、案内と実際の直し方がずれる。
+test("片側だけが none なら stale だけを出し、iteration の欠落は問わない", () => {
+  const codes = codesOf({
+    comparison: comparisonOf({ new_implementation: { commit: "abc123", dirty: false } }),
+    replaceMetadata: noneReplaceMetadata(3),
+  });
+  expect(codes).toContain("comparison-implementation-stale");
+  expect(codes).not.toContain("comparison-implementation-unversionable");
 });
 
 test("commit が実在の SHA なら従来どおり文字列で判定する（対照）", () => {

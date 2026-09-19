@@ -221,37 +221,42 @@ export function checkComponentComparison(input) {
         // **退き先が無いことを合格に倒さない**——材料（どちらかの反復回数）が読めなければ落とす。
         // **片側だけが `none` なら、その時点で記録と現在は別の版**——記録した SHA と現在の `none`
         // （またはその逆）は同じ版を指さない。反復回数がたまたま一致しただけで合格に倒すと、
-        // git 管理の有無が変わった新側で古い記録が無音で通る。反復回数の検査とは別に必ず落とす。
+        // git 管理の有無が変わった新側で古い記録が無音で通る。ここで落とし、反復回数の検査へは進まない——
+        // 進めると、契約上 `iteration` を書く義務が無い SHA 記録に対して
+        // `comparison-implementation-unversionable`（「iteration を書き足せ」と読める）が併発し、
+        // 実際に必要な直し方（同じ版で取り直す）と案内がずれる。
         if (recorded !== wanted) {
           findings.push({
             code: "comparison-implementation-stale",
             message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（片側だけが ${NO_COMMIT} なので、反復回数が一致しても同じ版を指さない。同じ版で取り直す）`,
           });
-        }
-        const recordedIteration = toInteger(
-          observed && typeof observed === "object"
-            ? /** @type {Record<string, any>} */ (observed).iteration
-            : undefined,
-        );
-        const loop =
-          replaceMetadata &&
-          typeof replaceMetadata === "object" &&
-          replaceMetadata.loop &&
-          typeof replaceMetadata.loop === "object" &&
-          !Array.isArray(replaceMetadata.loop)
-            ? /** @type {Record<string, any>} */ (replaceMetadata.loop)
-            : null;
-        const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
-        if (recordedIteration === null || wantedIteration === null) {
-          findings.push({
-            code: "comparison-implementation-unversionable",
-            message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
-          });
-        } else if (recordedIteration !== wantedIteration) {
-          findings.push({
-            code: "comparison-implementation-stale",
-            message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で取り直す）`,
-          });
+        } else {
+          // 両側とも `none`。文字列の比較は常に一致するので、鮮度は反復回数だけが担う。
+          const recordedIteration = toInteger(
+            observed && typeof observed === "object"
+              ? /** @type {Record<string, any>} */ (observed).iteration
+              : undefined,
+          );
+          const loop =
+            replaceMetadata &&
+            typeof replaceMetadata === "object" &&
+            replaceMetadata.loop &&
+            typeof replaceMetadata.loop === "object" &&
+            !Array.isArray(replaceMetadata.loop)
+              ? /** @type {Record<string, any>} */ (replaceMetadata.loop)
+              : null;
+          const wantedIteration = toInteger(loop === null ? undefined : loop.iterations);
+          if (recordedIteration === null || wantedIteration === null) {
+            findings.push({
+              code: "comparison-implementation-unversionable",
+              message: `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）なのに反復回数で版を対応づけられない（突き合わせ表の new_implementation.iteration: ${recordedIteration === null ? "読めない" : recordedIteration} / replace-metadata.json の loop.iterations: ${wantedIteration === null ? "読めない" : wantedIteration}）。どちらの鮮度指標も無いと、実装を変えても古い記録が通る`,
+            });
+          } else if (recordedIteration !== wantedIteration) {
+            findings.push({
+              code: "comparison-implementation-stale",
+              message: `突き合わせ表の new_implementation.iteration「${recordedIteration}」が現在の新側の反復回数「${wantedIteration}」と違う（new.commit が ${NO_COMMIT} なので反復回数で判定する。記録の後に実装が変わっている。同じ版で取り直す）`,
+            });
+          }
         }
       } else if (recorded !== wanted) {
         findings.push({
