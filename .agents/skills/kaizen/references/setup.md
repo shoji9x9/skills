@@ -499,13 +499,22 @@ cp <スキル>/assets/kaizen-schedule.yml .github/workflows/kaizen-schedule.yml
 # コピー後、スクリプト本体がリポジトリ内に在ることを確かめる。探索先はワークフローと同じ順。
 # `ls -d A B C` は使わない——1 つでも欠けると非 0 で終わるため、正常な単一エージェント
 # インストールでも必ず誤警告する（実測: 3 つ中 1 つ在る状態で exit 2）。
+# **一致 0 件を成功に倒さない**——この検査が存在する理由そのものの状態（どこにも無い）を
+# 無出力・exit 0 で通すと、毎週 run が赤くなる構成を「確認済み」と読んでコミットしてしまう。
+found=""
 for d in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
          .github/skills/kaizen/scripts skills/kaizen/scripts; do
   if [ -r "$d/kaizen-schedule-report.sh" ]; then
-    echo "OK: $d"
+    found="$d"
     break
   fi
 done
+if [ -n "$found" ]; then
+  echo "OK: $found"
+else
+  echo "NG: スキル本体がリポジトリに無い。リポジトリスコープへインストールしてコミットする" >&2
+  false
+fi
 ```
 
 **このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を

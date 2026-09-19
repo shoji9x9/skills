@@ -60,6 +60,28 @@ jobs:
         with:
           persist-credentials: false
 
+      # 一時停止スイッチだけは**スクリプトの所在確認より前**に評価する。後ろに置くと、
+      # スクリプトが見つからないリポジトリでは `Locate` の exit 1 が先に立ち、
+      # 「止めたい状況でノイズになる」まさにその場合に停止スイッチが効かない。
+      #
+      # ここで見るのはリポジトリ変数だけ。`.kaizen/config` の `schedule_enabled` は
+      # スクリプトが読む（設定の読み取り実装を 2 つに増やさないため）ので、そちらを効かせるには
+      # スキル本体がリポジトリに在る必要がある。スクリプトごと欠けている構成を止めたいときは
+      # このリポジトリ変数を使う。
+      #
+      # 受理する真値はスクリプトの `parse_bool` と同じ集合。それ以外（不正値を含む）は
+      # ここでは止めず、スクリプト側の正本の判定へ委ねる（警告もそちらが出す）。
+      - name: Check pause switch
+        id: pause
+        env:
+          KAIZEN_SCHEDULE_SKIP: ${{ vars.KAIZEN_SCHEDULE_SKIP }}
+        run: |
+          skip=false
+          case "$(printf '%s' "${KAIZEN_SCHEDULE_SKIP:-}" | tr '[:upper:]' '[:lower:]')" in
+            on | true | yes | 1) skip=true ;;
+          esac
+          echo "skip=$skip" >>"$GITHUB_OUTPUT"
+
       # kaizen スクリプトの置き場はインストール形態で変わる。見つからなければ**落とす**
       # ——レポートの材料を作れないまま先へ進むと、空の Issue を「異常なし」として出す。
       #
@@ -73,6 +95,7 @@ jobs:
       # **スキル本体がリポジトリにコミットされていること**がこのワークフローの前提になる。
       - name: Locate kaizen scripts
         id: locate
+        if: steps.pause.outputs.skip != 'true'
         run: |
           for dir in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
                      .github/skills/kaizen/scripts skills/kaizen/scripts; do
@@ -87,6 +110,7 @@ jobs:
 
       - name: Resolve settings
         id: settings
+        if: steps.pause.outputs.skip != 'true'
         env:
           KAIZEN_SCHEDULE_SKIP: ${{ vars.KAIZEN_SCHEDULE_SKIP }}
           KAIZEN_SCHEDULE_MODE: ${{ inputs.mode }}
@@ -99,9 +123,12 @@ jobs:
       # 理由は `.kaizen/config` / リポジトリ変数に由来する外部入力。`${{ }}` で run へ
       # 直挿しすると値がシェルとして解釈されるので、env 経由で渡して展開させない。
       - name: Report skip
-        if: steps.settings.outputs.skip == 'true'
+        if: steps.pause.outputs.skip == 'true' || steps.settings.outputs.skip == 'true'
         env:
-          SKIP_REASON: ${{ steps.settings.outputs.skip_reason }}
+          SKIP_REASON: >-
+            ${{ steps.pause.outputs.skip == 'true' &&
+            'リポジトリ変数 KAIZEN_SCHEDULE_SKIP による一時停止' ||
+            steps.settings.outputs.skip_reason }}
         run: |
           {
             echo "## Kaizen schedule: skip"
@@ -109,20 +136,21 @@ jobs:
             echo "理由: $SKIP_REASON"
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # 以降は skip でないときだけ走る。
+      # 以降は settings が走って skip=false と答えたときだけ動かす。`!= 'true'` にすると、
+      # 一時停止で settings 自体が skip されたときに出力が空になり、条件を満たしてしまう。
       - name: Build notify body
-        if: steps.settings.outputs.skip != 'true'
+        if: steps.settings.outputs.skip == 'false'
         run: bash "${{ steps.locate.outputs.script }}" issue >"$BODY_FILE"
 
       - name: Build agent prompt
-        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
         run: bash "${{ steps.locate.outputs.script }}" prompt >"$PROMPT_FILE"
 
       # 資格情報の有無を先に測る。無いまま起動すると失敗ログだけが残り、
       # 「エージェントが何も見つけなかった」と区別が付かない（notify へ倒す判断材料にする）。
       - name: Check agent credential
         id: cred
-        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -218,7 +246,7 @@ jobs:
       # エージェント実行の成否を**成果物**で判定する。`continue-on-error` を付けた
       # ステップの結果だけでは、起動したが空を書いた場合を拾えない。
       - name: Append agent report
-        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        if: steps.settings.outputs.skip == 'false' && steps.settings.outputs.mode == 'agent'
         env:
           AGENT: ${{ steps.settings.outputs.agent }}
           MODEL: ${{ steps.settings.outputs.model }}
@@ -261,7 +289,7 @@ jobs:
       # 作成・更新・クローズを 1 ステップに置く。追跡 Issue を引く処理が同じなので、
       # 分けると同じ関数を 2 箇所に持つことになり、片方だけ直る余地ができる。
       - name: Update tracking issue
-        if: steps.settings.outputs.skip != 'true'
+        if: steps.settings.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}

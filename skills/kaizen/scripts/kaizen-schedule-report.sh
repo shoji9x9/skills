@@ -181,7 +181,9 @@ resolve_config() {
 		case "${bool_status}" in
 		0)
 			skip="true"
-			skip_reason="環境変数 KAIZEN_SCHEDULE_SKIP=${skip_raw}"
+			# 追記にする。上書きにすると、先に立った理由（fail-closed の発動等）が
+			# step summary からも要約からも消え、停止の実態と表示がずれる。
+			skip_reason="${skip_reason:+${skip_reason} / }環境変数 KAIZEN_SCHEDULE_SKIP=${skip_raw}"
 			;;
 		1) : ;;
 		*) warn "KAIZEN_SCHEDULE_SKIP=${skip_raw} は真偽値として読めない。skip しない側へ倒す" ;;

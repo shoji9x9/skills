@@ -180,6 +180,31 @@ describe("skip（どちらかが立てば止まる）", () => {
     });
   });
 
+  // 理由は step summary と要約に出る唯一の手がかり。上書きにすると、先に立った理由
+  // （fail-closed の発動など）が消えて「停止の実態」と「表示された理由」がずれる。
+  //
+  // 判別できるのは **config_unreadable が先に立ったとき**だけ。`schedule_enabled` 側は
+  // env より後に評価されるので、env を上書きにしても後勝ちで両方残ってしまい、
+  // この分岐へ到達しない（最初に書いたテストがまさにそれで、変異で赤くならなかった）。
+  test("先に立った fail-closed の理由が env skip で消えない", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+      const configPath = join(p.dir, ".kaizen", "config");
+      chmodSync(configPath, 0o000);
+      let readable = true;
+      try {
+        readFileSync(configPath);
+      } catch {
+        readable = false;
+      }
+      expect(readable).toBe(false);
+      const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "true" });
+      chmodSync(configPath, 0o600);
+      expect(settings.skip).toBe("true");
+      expect(settings.skip_reason).toContain("読めない");
+      expect(settings.skip_reason).toContain("KAIZEN_SCHEDULE_SKIP");
+    });
+  });
+
   test("真偽値として読めない値は skip しない側へ倒す", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
       const { settings, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "perhaps" });
