@@ -25,6 +25,8 @@
 //   （parity-suite の artifact-health-check.mjs はその節を判定しないため、読むと誰も効かせていない宣言で通る）。
 //
 // fail-closed: 列が無い・宣言の有無を判定できない・入力が壊れているものを合格に倒さない。
+// 対象外（バッチ・「その他の Issue」の行）は不合格ではないが exit 0 とも分ける——
+// 口を持たない行と「口はあるが未確認 0 件」を同じ出口にすると、表を置き間違えた行が合格に化ける。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
 
@@ -40,6 +42,13 @@ export class UsageError extends Error {}
 
 /** 判定不能（exit 3）。合格にも不合格にも倒さない。 */
 export class UndecidableError extends Error {}
+
+/**
+ * 対象外（exit 4）。口を持たない表の行（バッチ・「その他の Issue」）。
+ * 検査すべき口が存在しないので不合格ではないが、「検査した結果 0 件」とも区別する
+ * （exit 0 に畳むと、口を持つ行が表を間違えて置かれたときに合格へ化ける）。
+ */
+export class NotApplicableError extends Error {}
 
 /** 根拠列の見出し（features.md の正本）。 */
 const EVIDENCE_HEADER = "要求単位の根拠";
@@ -182,13 +191,21 @@ export function readRow(text, slug) {
   // 及んでいない状態を「行が無い」（exit 2）で片付けると、旧インベントリと同じ
   // 判定不能（exit 3）が入力の不備に化ける。
   let legacyRows = 0;
+  // 口の列そのものを持たない表（バッチ・「その他の Issue」）の行。これらは設計上 API の口を
+  // 持たないので、「行が無い」（exit 2）でも「列が未導入」（exit 3）でもなく対象外（exit 4）。
+  // 3 つを同じ終了コードへ畳むと、バッチ slug を渡した呼び出し側が入力を直しようがないまま詰まる。
+  let nonEndpointRows = 0;
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
+    if (slugIndex < 0) continue;
     const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
-    if (slugIndex < 0 || endpointIndex < 0) continue;
     const evidenceIndex = table.headers.indexOf(EVIDENCE_HEADER);
     for (const row of table.rows) {
       if (collapse(row[slugIndex] ?? "") !== slug) continue;
+      if (endpointIndex < 0) {
+        nonEndpointRows += 1;
+        continue;
+      }
       if (evidenceIndex < 0) {
         legacyRows += 1;
         continue;
@@ -199,9 +216,15 @@ export function readRow(text, slug) {
       });
     }
   }
-  if (matched.length + legacyRows > 1) {
+  const total = matched.length + legacyRows + nonEndpointRows;
+  if (total > 1) {
     throw new UsageError(
-      `slug ${slug} の行が ${matched.length + legacyRows} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
+      `slug ${slug} の行が ${total} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
+    );
+  }
+  if (matched.length === 0 && nonEndpointRows > 0) {
+    throw new NotApplicableError(
+      `slug ${slug} の行は API の口を持たない表（バッチ・「その他の Issue」）にある——要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
     );
   }
   if (matched.length === 0 && legacyRows > 0) {
@@ -382,6 +405,7 @@ const usage = [
   "  --unmeasured  .replace/parity/<slug>/metadata.json（省略すると宣言を考慮せず、未確認の口があれば落とす）",
   "exit: 0 = 未確認の口が無い、または全て unmeasured に宣言済み / 1 = 宣言の無い未確認の口がある（書き戻しか宣言の漏れ）",
   "      2 = 使い方の誤り・入力の不備 / 3 = 判定不能（根拠列が無い・unmeasured キーが無い）",
+  "      4 = 対象外（口を持たない表の行＝バッチ・その他の Issue。検査対象が無い）",
 ].join("\n");
 
 /**
@@ -412,6 +436,10 @@ export function main(argv) {
     process.stdout.write(`ok: 書き戻しの漏れは無い（evidence-gap-check ${VERSION}）\n`);
     return 0;
   } catch (e) {
+    if (e instanceof NotApplicableError) {
+      process.stderr.write(`not-applicable: ${e.message}\n`);
+      return 4;
+    }
     if (e instanceof UndecidableError) {
       process.stderr.write(`undecidable: ${e.message}\n`);
       return 3;

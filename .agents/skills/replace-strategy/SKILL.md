@@ -251,7 +251,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
     --unmeasured .replace/parity/<slug>/metadata.json
   ```
 
-  exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備／3 = 判定不能（根拠列・`unmeasured` キーが無い旧成果物）。**2 と 3 を合格に倒さない**
+  exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備／3 = 判定不能（根拠列・`unmeasured` キーが無い旧成果物）／
+  4 = 対象外（バッチ・「その他の Issue」の行は口を持たない）。**2 と 3 を合格に倒さず、4 を「検査して 0 件」と混同しない**
 - `parity-suite`（特性化で確定）と `parity-replace`（実装で確定）はこのモードへ委譲する。**両スキルは features.md を自分では書かない**——書き戻しの経路をここに 1 本だけ持つことで、昇格の条件が 3 スキルに分かれて緩まないようにする
 
 ## 成果物

@@ -140,8 +140,12 @@ done
       どちらも放置すると `status` がその口を永久に未確認として報告し続ける（経路の正本は [`evidence.md`](evidence.md)）
     - **`unmeasured` をキーごと持たない成果物**（旧版 `parity-suite`）では宣言の有無を判定できないので、「宣言の有無が判定不能」として書き分ける（宣言済みにも漏れにも倒さない）
 
-    **同じ判定は slug ごとに機械可読で取れる**——`node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> --unmeasured .replace/parity/<slug>/metadata.json`
-    （exit 1 = 未宣言の未確認の口がある、exit 3 = 判定不能。手順の正本は [`evidence.md`](evidence.md)）。**セルを目視で数えず**このツールの `measured:` 行を根拠にする
+    **同じ判定は slug ごとに機械可読で取れる**——`node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug>`。
+    **`--unmeasured .replace/parity/<slug>/metadata.json` を付けるのは、そのファイルが在るときだけ**にする——
+    特性化前の slug には無く、渡すと読めずに exit 2 で落ちて `measured:` 行が 1 行も出ない（採番直後は大半の slug がこれに当たる）。
+    省略した実行は宣言を考慮しないので、未確認の口をそのまま列挙する（＝上の「まだ着手していない推定」の一覧になる）。
+    exit は 1 = 未宣言の未確認の口がある、2 = 入力の不備、3 = 判定不能、4 = 対象外（バッチ・「その他の Issue」の行は口を持たない）。
+    手順の正本は [`evidence.md`](evidence.md)。**セルを目視で数えず**このツールの `measured:` 行を根拠にする
 
 12. **受け入れ条件に現れない行**: インベントリの全行の slug（機能一覧・横断 API・バッチ・その他の Issue と、`.replace/components.md` があれば部品一覧）を母集合に、
     **記録された Issue 番号の本文の受け入れ条件が引き受けていると読める slug** を被覆集合として差分を取り、**どの Issue にも引き受けられていない行**を未検証領域として列挙する

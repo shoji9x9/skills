@@ -441,6 +441,63 @@ test("引数の不備は exit 2 で使い方を出す", () => {
   });
 });
 
+test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）にも判定不能（exit 3）にも倒さない", () => {
+  withDir((dir) => {
+    const text = [
+      "## バッチ",
+      "",
+      "| slug | バッチ名 | 入力 | 比較する出力 | 参照テーブル | Issue |",
+      "|---|---|---|---|---|---|",
+      "| monthly-summary | 月次集計 | ゴールデンデータセット | summaries | MST_PLAN | #220 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "monthly-summary",
+    ]);
+    expect(r.status).toBe(4);
+    expect(r.stderr).toContain("not-applicable:");
+    expect(r.stderr).toContain("API の口を持たない表");
+  });
+});
+
+test("「その他の Issue」表の行も対象外（exit 4）", () => {
+  withDir((dir) => {
+    const text = [
+      "## その他の Issue（4 種以外）",
+      "",
+      "| slug | 内容 | 依存順 | 影響範囲 | Issue |",
+      "|---|---|---|---|---|",
+      "| schema | 新側スキーマを先に作る | 先頭 | 全テーブル | #221 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "schema"]);
+    expect(r.status).toBe(4);
+  });
+});
+
+test("口を持つ表と持たない表の両方に同じ slug があれば重複として exit 2（対象外へ倒さない）", () => {
+  withDir((dir) => {
+    const text = [
+      features({
+        api: "GET /api/plans",
+        evidence: "GET /api/plans → 実測: 読了（母集合=MST_PLAN / 1 行=計画 1 件）",
+      }),
+      "## バッチ",
+      "",
+      "| slug | バッチ名 | 入力 | 比較する出力 | 参照テーブル | Issue |",
+      "|---|---|---|---|---|---|",
+      "| plan | 計画集計 | ゴールデンデータセット | summaries | MST_PLAN | #220 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("2 件ある");
+  });
+});
+
 test("features.md が無ければ exit 2（合格に倒さない）", () => {
   withDir((dir) => {
     const r = run(dir, {}, ["--features", "missing.md", "--slug", "plan"]);
