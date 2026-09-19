@@ -30,7 +30,7 @@
 
 | slug | リソース | API | 要求単位の根拠 | fan-out（利用機能 slug） | 参照テーブル | Issue | 受け入れ条件 |
 |---|---|---|---|---|---|---|---|
-| user | ユーザー | GET /api/users, GET /api/users/:id | 両方 → 実測: 共通ヘッダの入口 SELECT と応答への写像を読了（母集合=users / 1 行=ユーザー 1 件） | order, report | users, user_roles | #101 | |
+| user | ユーザー | GET /api/users, GET /api/users/:id | GET /api/users, GET /api/users/:id → 実測: 共通ヘッダの入口 SELECT と応答への写像を読了（母集合=users / 1 行=ユーザー 1 件） | order, report | users, user_roles | #101 | |
 
 ## バッチ
 

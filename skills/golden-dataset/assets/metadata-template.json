@@ -27,7 +27,14 @@
   "tool": {
     "dir": "<dataset_tool_dir。未指定時 seed/>",
     "entry": "<投入ツールのエントリ（削除→投入→検証を一度に走らせる入口）のパス>",
-    "language": "<typescript | sql>"
+    "language": "<typescript | sql>",
+    "lock": {
+      "_note": "同じ投入先への同時実行を止める排他の記録。正本は golden-dataset の references/seeding-tool.md「同時実行の排他（ロック）」。",
+      "kind": "<advisory | file。投入先 DB のセッション単位の排他か、O_EXCL で作るロックファイルか>",
+      "scope": "<ロックの鍵。dataset_mode: db は解決した接続先（target 名ではない）、static は dataset_static_paths を持つリポジトリ>",
+      "location": "<アドバイザリロックのキー、またはロックファイルのパス>",
+      "verified_at": "<保持中に 2 つ目を起動して 1 行も書かずに非 0 で終えることを実測した日時（ISO 8601）。未実測なら null>"
+    }
   },
   "phase_b": {}
 }

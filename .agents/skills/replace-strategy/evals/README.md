@@ -98,6 +98,10 @@ scripts/run-skill-eval.sh \
   旧 run はその規則を持たない版のスキルで走っており、読み直して採点すると旧仕様を固定することになる。
   **iteration-36 で実測**（変更確認スコープ・各 config 1 run・claude-code / opus）: `with_skill` 7/7・`without_skill` 4/7。
   baseline は contamination: clean / isolation: sandboxed。**弁別したのは assertion 2・6・7**。
+  **iteration-39 で再実測**（fixture の横断 API 行の根拠を口の明示列挙へ変えたため。同スコープ）: `with_skill` 7/7・`without_skill` 3/7。
+  **弁別は assertion 4・5・6・7**——baseline は落ちた行・落ちた配線までは自力で挙げるが、
+  「全機能から使われる」が消費側のゲートにならない理由・本文追記の承認・受け入れ条件列の書き分け・番号共有の帰結には届かない。
+  iteration-36 で pass した assertion 2 は今回も pass で、差の出どころは run 間でぶれる（1 run なので Delta の数値は語らない）。
   baseline は `#102` への相乗りを見つけながら「**原因は相乗りそのものではなく、相乗り先の受け入れ条件が主機能の slug 名で書かれている点**」と書き、
   「案 B: 相乗り維持」を実行可能な選択肢として残した（assertion 2・7 が赤くなった理由）。assertion 1・3・4・5 は baseline も到達する。
   実測で見えた揺れ: `with_skill` は受け入れ条件列へ `被覆（#102）／配線未記載: user` と書き、
@@ -124,6 +128,8 @@ scripts/run-skill-eval.sh \
   落ちたのは記録の形で、受け入れ条件列に Issue 本文の条件文と `⚠ …（取りこぼし B）` の注記を書き、
   `notification-banner` の **Issue 列**まで `未割当` に書き換えている。
   **assertion 1〜4 はガードではない——変異 run で実証した**（iteration-38・`with_skill` × 3 軸）。
+  **iteration-39 で再実測**（fixture の根拠列を「両方 →」から口の明示列挙へ変えたため。変更確認・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 4/5 で iteration-35 と同じ。
+  弁別も assertion 5 のままで、baseline は再び受け入れ条件列へ条件本文を転記し **Issue 列**を書き換えた（記録の形だけが安定した Delta である、という読みが 2 回の実測で一致した）。
   各軸の判定記述を `SKILL.md` / `references/features-issues.md` / `references/status.md` の**全出現から削除**したスキルで同じ入力を走らせた結果:
 
   | 変異した軸 | 赤くなった assertion |
@@ -137,5 +143,19 @@ scripts/run-skill-eval.sh \
   **1 回目の変異（iteration-37）は `features-issues.md` の 1 箇所しか消しておらず、同じ判断が他ファイルに残っていたため無効**として破棄した
   （変異は軸ごとに全出現を消し、残存を grep で確認してから走らせる）。
   判断そのものをガードしたいなら、**prompt から結論の材料を減らす**か、**決定論的な検査器**（インベントリと Issue 本文を読んで差分を出すスクリプト）へ上げる必要がある。
-  iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
+  iteration-33 / 34 は「1 行を複数 Issue へ割る」前提の fixture で、その前提を正本から外したため作り直した
+- eval 32 の fixture（`evidence-writeback`）は**起票済みで実装に入る直前**のインベントリを持たせ、`evidence` モード（確定した要求単位の根拠の書き戻し）を検証する。
+  `plan` の 4 口のうち `GET` だけが `実測` で、`POST` / `PATCH` / `DELETE` が `推定` として並んでいる。prompt は実装者が現行コードを読んだ報告だけを与え、
+  **どれを昇格させてよいか・どれが口の見直しに当たるかは書かない**（書くと baseline がそれを読んで assertion を満たす）。仕込んだ弁別は 3 つ——
+  `POST` は要求の組み立てとハンドラの両方が読めており**そのまま昇格する**、`PATCH` は**画面側しか読めていない**ので昇格させてはならない、
+  `DELETE` は両方読めているが**確定した単位（複数件を 1 要求・全戻し）が `:id` を経路に持つ口では再現できない**ため、根拠の更新ではなく口の見直しへ回す必要がある。
+  `assignment` 行と横断 API 行を**触ってはいけない対照**として置いてあるので、セル単位・行単位でまとめて昇格させる実装は assertion 1 で落ちる。
+  **fixture の `current.repo` は実在するパス**にしてある——`none`（現行コードを入手できない）のままだと、
+  「現行コードを読んだ」という prompt の前提と設定が矛盾し、設定を読むスキルが前提を問い返して assertion に到達しない。
+  **iteration-40 で再実測**（`current.repo` を直した後の入力。変更確認・各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5 で、
+  iteration-39（修正前の入力）と同じ。**弁別も同じ assertion 1・3・5** で、baseline は再び `DELETE` の食い違いをセル本文に書きながら根拠を `実測` へ昇格させた。
+  設定の矛盾は baseline の到達性に効いていなかったことになる（前提を問い返さずに答えていた）。baseline は contamination: clean / isolation: sandboxed。
+  **弁別したのは assertion 1・3・5**——baseline は `DELETE` の食い違いをセルの本文に書きながら、**その根拠を `実測` へ昇格させた**（口の形が再現できないことを認めたうえで確定扱いにした）。
+  `PATCH` を推定のまま残すこと（assertion 2）と口の見直しへ回すこと（assertion 4）は baseline も自力で到達するので、この 2 つは Delta ではなく後退検知の項目として残す
+- 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

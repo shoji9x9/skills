@@ -172,6 +172,12 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    「先に作らない部品」表にある・一覧に無い・build 成果物が無い部品は、このフェーズで普通に実装する（改修規律は適用しない）。先に作られていた場合は——
    直す前に「利用側の問題／部品の問題／採取の漏れ」を切り分け、足すのは新しい引数で既定値は改修前の挙動にし、**他の利用箇所への影響は目視ではなくその部品の全見本を採り直して差分ゼロで示す**。
    破壊的変更（既存の引数の削除・改名・意味の変更、既定値の変更、既存の見本の出力が変わる変更）は自分で決めず、影響範囲・代替案・やらない場合に残るものを示してユーザーの判断を求める
+   **現行コードを読んで口の要求単位を確定したら、その場で `replace-strategy evidence --feature <slug> --endpoint <口> --evidence <根拠>` へ委譲して `.replace/features.md` の「要求単位の根拠」列を `推定` → `実測` へ更新する**
+   （**本スキルは features.md を自分では書かない**。経路・昇格条件の正本は `replace-strategy` の `references/evidence.md`）。
+   実装のために読む範囲と確定に要る範囲は同じ——読み取りの口は入口の問い合わせ**と応答への写像**、書き込みの口は要求の組み立て**とハンドラの受け取り・トランザクション境界**なので、
+   実装できた口は原則として確定している。**確定したのに書き戻さないと、`status` はその口を永久に未確認として報告する**。
+   確定した要求単位が features.md の API 列の口と食い違うときは根拠だけ直さず、口の見直しへ回す（同 `references/evidence.md` 手順 4）。
+   **`replace-strategy` が未インストールで委譲先に到達できないときは、自分で features.md を書かず**、確定した口と根拠を報告して導入を促す
 5. **新側ロケータマッピング・期待値の充填**（feature モード）: **既定は「不要」**。role ＋アクセシブルネームで同じ論理名が解決する。**書くのは解決できない例外だけ。** Select / Autocomplete / Date picker / Modal / Menu は操作アダプタに実装ごとの分岐が必須。
    期待値解決層（`metadata.json` の `suite.expectations`）には**宣言済みの意図的差異に対応する新側の値だけ**を埋める。
    現側の脆弱マッピングが不要になったかを確認し `porting.md` へ記録。詳細: [`references/new-mapping.md`](references/new-mapping.md)。
@@ -223,7 +229,32 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    対象は**注記の機械的な目印**（既定は `presence:<slug>`）でスイート全体を検索して見つける（自然文の読み取りで探さない）。
    在席チェックの置き方の正本は `parity-suite` の `references/coverage.md`「同じページに乗る他機能の在席」。
    証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（**環境別**。他の target の証跡を上書きしない）。
-   **`parity-diff` の差分ゼロは含めない**（循環回避。理由の正本: [`references/diff-loop.md`](references/diff-loop.md)）。実装フロー（commit / push / PR）は `issue-start` に委ねる
+   **`parity-diff` の差分ゼロは含めない**（循環回避。理由の正本: [`references/diff-loop.md`](references/diff-loop.md)）。実装フロー（commit / push / PR）は `issue-start` に委ねる。
+   **合わせて「要求単位の根拠」の取りこぼしを完了判定に入れる**——インストール済みの `replace-strategy` から
+   `node <replace-strategy>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> --unmeasured .replace/parity/<slug>/metadata.json`
+   を通す（コピーせずスキル配下から実行する）。数えるのは**自 slug の行で未確認のまま `unmeasured` にも宣言されていない口**で、
+   これは「確定できなかった」と「確定したのに書き戻していない」を区別するためのゲートである
+   （`推定` を残すこと自体は正常で、**宣言の無い `推定` だけ**が未完了。区別が付かないまま閉じると `status` はその口を永久に未確認として報告し続ける）。
+   - **exit 1（未宣言の口がある）は未完了**。確定しているなら `replace-strategy evidence` で書き戻し、確定できなかったなら
+     `unmeasured` への宣言（`endpoint` に口を書く）を `parity-suite` へ戻して依頼する——**本スキルは features.md も `unmeasured` も書かない**
+     （書き手の正本は `replace-strategy` の `references/evidence.md` と `parity-suite` の `references/coverage.md`「未測定を機械可読にする」）
+   - **exit 2 は入力の不備**（slug が無い・口が重複している等）。判定していないので完了扱いにせず、インベントリを直す
+   - **exit 4 は対象外**（その slug の行がバッチ・「その他の Issue」の表にあると見出しから同定できた）。**batch モードは常にこれになる**——
+     バッチ行は口を持たないので検査対象が無く、本ゲートは通過とする（インベントリを直す話ではないので exit 2 と混同しない）。
+     **対象外は見出しからの陽性同定だけが名乗る**ので、「口の列が無ければ通過」とは読み替えない——
+     バッチ・「その他の Issue」と同定できない表（列名のずれ・列の導入前の機能一覧）は exit 2 か exit 3 に落ちる。
+     **`--unmeasured` に渡すパスが未生成でも exit 4 になる**（行の分類を先に済ませる実装）ので、batch モードの exit 2 は引数の不足ではなく
+     **メッセージが名指しする原因**で切り分ける——`行がインベントリに無い`（バッチ表が `なし` のまま着手した等）と `行が N 件ある` はインベントリ側、
+     `列名が規約とずれている` / `見出しを規約名に揃える` は列名側。**exit 4 も「検査した」ではないので、対象外だった事実と slug を `porting.md` へ残す**
+     （口の列らしい見出しを持たない表は対象外に倒れるため、口の列を規約外の名前で書いた台帳はここを素通りしうる）
+   - **exit 3 は判定不能**。原因は 1 つだけ——**その slug の行の表に「要求単位の根拠」列が無い**（列の導入前のインベントリ、または表の種別を同定できない）。
+     **ここだけは完了を止めない**——列を持たない台帳では `推定` を記録する場所自体が無く、止めると導入前に作られた全機能が一斉に閉じられなくなるため。
+     **`metadata.json` に `unmeasured` キーが無い旧成果物は exit 3 にならない**（宣言ゼロとして数え、未確認の口が残れば exit 1 で落ちる）——
+     あちらは「判定できない」ではなく「1 つも宣言されていない」が事実なので、後方互換の対象にすると推定の口が残ったまま通過する。
+     **合格の証拠にはならない**ので、判定不能だった事実と対象 slug を `porting.md` へ必ず記録し、列の追加を `replace-strategy` 側で行うよう促す
+     （「合格に倒さない」の意味は `replace-strategy` の `references/evidence.md`「漏れを数える」を参照）
+   - **スクリプトに到達できない**（`replace-strategy` が未インストール）ときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills replace-strategy`）を示す——
+     委譲先の実在を確かめずに緩めると、書き戻しも宣言もされていない状態が黙って通る
 9. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。
    対象 target の `on_diff` ドキュメントがあればそれに従って修正・反映・再テストを進め（無ければ修正して対象 target で再テストする）、反復回数と**その反復で描画に効く変更を入れた範囲**（`loop.changed_scope`。`parity-diff` の自己ノイズ再測定判定に使う）を `new/<target>/replace-metadata.json` に記録する。
    `on_diff` の解釈手順・終了条件・反復上限（`--max-iterations` 既定 5）の正本: [`references/diff-loop.md`](references/diff-loop.md)
@@ -281,6 +312,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
   **本スキルの完了後ではなく、新側スキーマ確定後・green 化（完了ゲート）前の工程**。対象は投入対象の target のみ（対象外の target には投入しない）
 - **`parity-diff` と往復**: 本スキルで**選択した target に対して**新を green にした後、`parity-diff` を**同じ target** で実行して差分を検出し、差分があれば本スキルへ差し戻す。
   引き渡しは環境別ディレクトリ `.replace/parity/<slug>/new/<target>/`（本スキルが `replace-metadata.json` を書き、`parity-diff` がそれを読んで `diff.md` を書く）。終了条件・上限・再入手順は上記「往復ループ」
+- **`replace-strategy evidence` へ委譲**: 実装で現行の要求単位を確定したら、その口の「要求単位の根拠」の書き戻し（`推定` → `実測`）をこのモードで行う（実行フロー手順 4）。
+  **本スキルは `.replace/features.md` を書かない。** 確定できなかった口の `unmeasured` 宣言は `parity-suite` へ戻す。完了判定はこの 2 つの取りこぼしを拾う（手順 8）
 - **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start <番号> --branch-only` を 1 回。
   実装は本スキルが行うため**モード未指定・`--commit` / `--pr`（いずれも実装を内包する）は使わない**。
   commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）

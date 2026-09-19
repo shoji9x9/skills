@@ -77,6 +77,12 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 14. **確認待ちの意味論を確定扱いにしない。** `.replace/bootstrap/semantics.md` の「確認待ち」行と「確認したが確定できなかったもの」行の値を、推測・多数決・LLM の一般論で確定させない
     （後者は確認済みだが**確定していない**——「確認待ちに無いから確定済み」と読み替えない）。
     確定できないまま必要になった場合は、その機能のデータを捏造せず**未確定として記録し `verification.md` の「意味論が未確定の機能」へ回す**（その機能の `parity-suite` は開始できない）
+15. **同じ投入先へ 2 つの実行を同時に入れない。** 投入は削除 → 投入の構造なので、**途中では対象テーブル（`static` では生成先）が空**である。
+    同じ target へ別の実行が重なると、片方が空を読んで**落ちるか、落ちずに空を正解として通す**。**冪等性はこれを守らない**（「繰り返しても同じ状態」と「同時に入っても壊れない」は別）。
+    機能ごとに別ブランチ・別 worktree で並列に進めること自体は禁じないので、**投入ツールに排他（ロック）を実装し**、取得できなければ待たずに投入せず非 0 で終える
+    （単位・手段・効くことの実測は [`references/seeding-tool.md`](references/seeding-tool.md)「同時実行の排他（ロック）」）。
+    **ロックが止めるのは投入どうしの衝突だけ**なので、**同じ投入先を読むテスト（`parity-suite` / `parity-diff` の実行）を投入中に走らせない**ことは運用で守る——
+    守れなかったことは検出できない（空を読んだテストは落ちるとは限らない）。並列に進めるなら投入先そのものを分ける（target を分ける）
 
 ## プロジェクト設定の解決
 
@@ -149,6 +155,8 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
    突き合わせは `node <skill>/scripts/predicate-coverage-check.mjs --features .replace/features.md --design .replace/dataset/design.md` を**exit 0 まで**通す
    （踏めない分岐を下流で見つけると、ベースラインを採り終えた後に version が上がって採取物が陳腐化する）
 3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。
+   **同じ投入先への同時実行を止める排他（ロック）もツールに実装する**（禁止事項 15）——投入の途中は投入先が空なので、これが無いと並列に進める別機能のテストが空を読む。
+   **効くことを実測してから使う**（ロックを保持したまま 2 つ目を起動し、1 行も書かずに非 0 で終えること）。実測日時は `metadata.json` の `tool.lock.verified_at` に残す。
    書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成後に設定の `verification_commands.full` を通す（無ければ停止せず記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
 4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
    **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない

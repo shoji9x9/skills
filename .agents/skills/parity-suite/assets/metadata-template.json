@@ -74,6 +74,7 @@
       {
         "item": "<未測定の項目名。gaps.md の該当行と同じ文言にする（成果物の片側だけに残さない）>",
         "reason": "<測れなかった事情。gaps.md の理由と同じ文言>",
+        "endpoint": "<API の要求単位を確定できなかった項目のときだけ、features.md の API 列に書いた口をそのまま書く（例 PATCH /api/plans/:id）。それ以外の未測定では null。replace-strategy の scripts/evidence-gap-check.mjs はこの値の完全一致だけを宣言として数える（item の散文に口が含まれることは宣言に数えない——部分一致は別の口を宣言済みに化けさせる）>",
         "disposition": "<blocking | accepted。blocking は「測るまで収束させない」、accepted は「測らないことをユーザーが承認した」。語彙外・欠落は blocking として数える>",
         "approved_by": "<accepted のときだけ、承認した人。blocking では null>",
         "approved_at": "<accepted のときだけ、承認日時（ISO 8601）。blocking では null>"

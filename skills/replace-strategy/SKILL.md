@@ -1,7 +1,7 @@
 ---
 name: replace-strategy
-description: 仕様を変えないアプリケーションリプレイスの入口として、現行アプリを実測して戦略を決め、機能に分解して姉妹スキル群へ振り分けるスキル。自分では実装しない。setup（依存確認・現行環境の由来確認・対話セットアップ・測定・戦略決定・レジストリ・機能インベントリ・パッケージ選定。受領資産からの再構築は current-environment-bootstrap へ委譲。共通部品を先に作る方針なら parity-component へ委譲）／issues（対象機能を選択して GitHub Issue を起票。issue-create へ委譲）／status（Issue とリポジトリ内成果物から現況と未検証領域を導出）の 3 モードを持つ。測定できない場合は戦略へ進まず停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「replace-strategy」や、setup / issues / status・--feature を伴う依頼で発動する。
-argument-hint: "<setup | issues | status> [--feature <slug>...] [--autonomous]"
+description: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能に分解して姉妹スキル群へ振り分ける（自分では実装しない）。setup（測定・戦略決定・機能インベントリ。受領資産からの再構築は current-environment-bootstrap、共通部品優先なら parity-component へ委譲）／issues（対象機能の GitHub Issue を起票。issue-create へ委譲）／status（Issue と成果物から現況と未検証領域を導出）／evidence（確定した API の要求単位の根拠を機能インベントリへ非破壊で書き戻す。parity 姉妹からの委譲先）の 4 モードを持つ。測定できない場合は停止する。「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「要求単位を書き戻して」「replace-strategy」や、setup / issues / status / evidence を伴う依頼で発動する。
+argument-hint: "<setup | issues | status | evidence> [--feature <slug>...] [--endpoint <口> --evidence <根拠>]... [--autonomous]"
 license: MIT
 ---
 
@@ -17,6 +17,7 @@ license: MIT
 replace-strategy setup [--autonomous]
 replace-strategy issues [--feature <slug>...] [--autonomous]
 replace-strategy status
+replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>)... [--autonomous]
 ```
 
 | モード | 内容 | 実行タイミング |
@@ -24,11 +25,14 @@ replace-strategy status
 | `setup` | 依存確認 → **現行環境の由来の確認** → 対話セットアップ → **現行環境の再構築（受領資産のときだけ）** → 測定 → 戦略決定 → レジストリ作成 → 機能インベントリ → 共通部品の依存決定 → 静的資産の方針決定 | 最初に 1 回 |
 | `issues` | 対象機能を選択して Issue 起票。未起票の機能だけが候補に出る | 何度でも |
 | `status` | Issue の状態とリポジトリ内の成果物から現況を導出し、未検証領域の一覧を出す | 何度でも。切替判断の前に |
+| `evidence` | 確定した API の要求単位の根拠を `.replace/features.md` の「要求単位の根拠」列へ非破壊で書き戻す（`推定` → `実測`） | 口の要求単位を確定したとき。`parity-suite` / `parity-replace` からの委譲でも呼ばれる |
 
 - `issues` は `--feature <slug>...` で対象機能を選択できる。省略時は未起票の機能から対話選択する
+- `evidence` は `--feature` を 1 つだけ取り、`--endpoint` と `--evidence` を**対で**繰り返して複数の口を一度に書き戻す。
+  **口を省略した一括昇格はできない**（行に 1 つでも `実測` があると行全体が実測に見える、という列を作った理由そのものが失われる）
 - モード未指定時はどのモードかをユーザーに確認する（`setup` 未完了なら `setup` を提案する）
 - `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
-- 自然文でも発動する:「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」
+- 自然文でも発動する:「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「要求単位を確定したので書き戻して」
 
 ## 前提
 
@@ -232,6 +236,31 @@ replace-strategy status
 - 各成果物の未解決の保留（`pending_decisions[]`）を集め、「判断待ち」として報告する（記録の形の正本は [`references/autonomy.md`](references/autonomy.md)）
 - 「その他の Issue（4 種以外）」表の各行は Issue 状態と依存順・影響範囲を報告する（`.replace/parity/<slug>/` の成果物を持たないため、スイート強度・ベースライン・フェーズ B・差分は「対象外」として未着手と区別する）
 
+## evidence モード
+
+確定した API の要求単位の根拠を `.replace/features.md` の「要求単位の根拠」列へ**非破壊で書き戻す唯一の経路**。手順は [`references/evidence.md`](references/evidence.md) を参照する。
+
+- **止まる範囲は口単位と実行全体で分かれる**（正本は [`references/evidence.md`](references/evidence.md)「「停止する」の粒度」）。
+  **実行全体を止めるのは前提検証だけ**（features.md が無い・根拠列が無い・`--endpoint` と `--evidence` の対応が取れない）で、
+  下の 2 つで止まるのは**当たった口だけ**。他の口の書き戻しは進め、止めた口と理由を報告に載せる——1 口の曖昧さで実行全体を捨てると、同じ実行で確定した他の口まで台帳へ戻らない
+- **書き戻すのは根拠だけ。** 確定した要求単位が「新規実装 API」列・横断 API 表の「API」列に書いた口と違っていたら、根拠だけ直して済ませず**その口を書かずに残す**——口の変更は Issue 本文・パリティスイート・新側実装へ波及するため、`issues` の再突き合わせとスイートの見直しへ回す
+- **口は完全一致で引く**（`GET /api/orders` と `GET /api/orders/:id` のように一方が他方の部分文字列になる口を取り違えない）。候補 0 件・複数件はどちらも**その口を書かずに残して**報告する（曖昧なまま先勝ちで書かない）
+- **昇格の条件はその口の要求単位を確定したこと**——読み取りの口は応答への写像まで、書き込みの口は要求の組み立てとハンドラの受け取り・トランザクション境界まで。入口の問い合わせを読んだだけでは `実測` へ上げない（正本は [`references/features-issues.md`](references/features-issues.md)「API の形は要求単位を読んでから決める」）
+- **確定できなかった口は `推定` のまま残す。** 「測るまで機能を閉じさせない」ものは `parity-suite` が `.replace/parity/<slug>/metadata.json` の `unmeasured` へ宣言する（正本は `parity-suite` の `references/coverage.md`「未測定を機械可読にする」）
+- **「要求単位の根拠」列を持たない features.md では書き戻さず停止する**——列の追加はその行の口を全て埋める作業（`setup` / `issues` の非破壊更新）であり、1 口だけ埋めた列は「列を足しただけ」と区別が付かない
+- **書き戻しの漏れは同梱の [`scripts/evidence-gap-check.mjs`](scripts/evidence-gap-check.mjs) が数える**（未確認のまま `parity-suite` の `unmeasured` にも宣言されていない口。`parity-replace` の完了判定が呼ぶ）:
+
+  ```bash
+  node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> \
+    --unmeasured .replace/parity/<slug>/metadata.json
+  ```
+
+  exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備（列名のずれを含む）／3 = 判定不能（その行の表に根拠列が無い）／
+  4 = 対象外（**口の列も根拠列も持たない**バッチ・「その他の Issue」の行）。
+  **2・3・4 のいずれも「検査して 0 件」（exit 0）と読み替えない**——3 つとも口を数えていない。
+  消費側が 3 を完了の妨げにしないのは旧インベントリのための後方互換であって、合格の証拠にしたわけではない（[`references/evidence.md`](references/evidence.md)）
+- `parity-suite`（特性化で確定）と `parity-replace`（実装で確定）はこのモードへ委譲する。**両スキルは features.md を自分では書かない**——書き戻しの経路をここに 1 本だけ持つことで、昇格の条件が 3 スキルに分かれて緩まないようにする
+
 ## 成果物
 
 すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md`・`assets.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
@@ -242,11 +271,11 @@ replace-strategy status
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
-| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊 |
+| 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊。**「要求単位の根拠」列の `推定` → `実測` は `evidence` モードだけが書く** |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
 | 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体を写す／同等物を作る／写さない）・ファイルと出どころ・描き方と使われるページ・再配布の可否・同等物で残る差と宣言。本スキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針空欄で非破壊追記する。正本は [`references/static-assets.md`](references/static-assets.md) |
 | 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号・受け入れ条件の被覆と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
-| 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。形の正本は [`references/autonomy.md`](references/autonomy.md) |
+| 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` / `evidence` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。要素ごとの `mode` で由来を書き分ける（`setup` 完了の前提判定は `mode: setup` だけで絞るため、`evidence` の保留が下流を止めない）。形の正本は [`references/autonomy.md`](references/autonomy.md) |
 | Issue | GitHub | 選択した機能分（`issues` モード） |
 
 - **追記専用（非破壊追記）の成果物は機械可読な一覧を正本にする**——[`assets/append-only-manifest.json`](assets/append-only-manifest.json)。

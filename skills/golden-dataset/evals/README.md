@@ -62,5 +62,16 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
 - eval 21 は fixture 無しで、**整合性検査が全部通った投入後の状態**と、絞り込みの片側にしか行が無いデータを与える。
   「入れたものが入ったか」と「入れたもので消費側のどの分岐が踏めるか」を区別し、述語ごとの該当行数を検証にも残すかを見る。
   0 件の側があると新側が絞り込みを落としても緑のままになる、という帰結はプロンプトに書かない（Issue #388）
+- eval 22 は fixture 無しで、**投入先が 1 つしか無い状態で機能ごとに worktree を分けて並行に進めている**状況と、
+  「2 回連続実行で冪等性を確かめる予定」という設計を与える。冪等性と同時実行の別、削除 → 投入の途中で投入先が空になること、
+  ツール自身への排他の実装、取得失敗時に待たず非 0 で終えること、排他が効くことの陽性コントロール、
+  ロックが読み手との衝突までは止めないことを検証する（Issue #328）。
+  プロンプトには「排他」「ロック」「同時実行」という語も、2 回連続実行では足りないという結論も書かない
+  （書くと baseline がそれを読んで assertion を満たす）。**並行して同じ投入先を読むテストが回る**ことだけを材料として置き、
+  最後の assertion（読み手との衝突）が到達可能になるようにしてある。
+  **iteration-18 で実測**（変更確認・各 config 1 run・claude-code / opus）: `with_skill` 6/6・`without_skill` 3/6。baseline は contamination: clean / isolation: sandboxed。
+  **弁別したのは assertion 2・4・5**——baseline は「DB を worktree ごとに分ける」を主対策に置き、ロックは**待って直列化する**代替として挙げるため、
+  取得できないときに待たず非 0 で終える形にも、排他が効くことの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
+  **空を正解として緑で通る**形は説明しない。冪等性と同時実行の区別（assertion 1）と読み手との衝突（assertion 6）は baseline も自力で到達するので後退検知の項目として残す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
