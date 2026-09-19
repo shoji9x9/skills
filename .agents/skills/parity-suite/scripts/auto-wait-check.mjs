@@ -639,15 +639,24 @@ function playwrightReceivers(code, file = "<source>") {
   // Page / Locator 以外へアサートした別名は由来を追えないものとして扱う。
   // 読まないと `leadingChain` の後段の条件（`ident` の直後が `.` / `(` / `[`）に当たらず、
   // locators にも pages にも opaqueAliases にも入らないまま——違反 0 件でも判定不能 0 件でもなく——静かに消える。
+  // **続きが識別子で始まる形だけを角括弧アサーションと読む**——`(` を許すと、`.ts` で
+  // generic なアロー関数（`const pick = <T>(x: T) => x;`）が `<T>` のアサーションに見え、
+  // 関数の別名が opaqueAliases へ入る。角括弧アサーションが書けるのは `.ts` 系だけなので、
+  // 誤読が起きるのはまさにその拡張子に限られる。
   const ANGLE_ASSERTION =
-    /^\s*<\s*([A-Za-z_$][\w$.]*)(?:\s*<[^<>]*>)?(?:\[\])?\s*>\s*(?=[A-Za-z_$({[])/;
+    /^\s*<\s*([A-Za-z_$][\w$.]*)(?:\s*<[^<>]*>)?(?:\[\])?\s*>\s*(?=[A-Za-z_$])/;
   // **引数の中のアサーションを別名のものと読まない**——`const n = helper(x as Locator)` の `as` を
   // 拾うと、無関係な `n` が Locator に化ける。括弧が開く前に現れる形（`x as Locator`）だけを見る。
   // **そのぶん、アサート対象に括弧・添字を含む形（`helper() as Locator` / `rows[0] as Locator`）は
   // ここで解決しない。** 深さ 0 の `as` を数えれば拾えるが、それは解決できる別名を増やす＝
   // fail-closed の網を緩める向きの変更なので採らない。これらは従来どおりチェーンが途切れた
   // 別名として判定不能に落ち、書き手には戻り値注釈を付ける直し方が出る（挙動は本修正の前後で同じ）。
-  const TRAILING_ASSERTION = /^[^([{]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
+  // **`<` / `>` も跨がない**——`.tsx` では JSX のテキストが右辺に来る。跨ぐと
+  // `const el = <span>use as reference</span>;` の本文が `as reference` のアサーションに見える
+  // （`maskNonCode` は JSX テキストを潰さない）。角括弧アサーションと違い `as` はどの拡張子でも
+  // 書けるので、拡張子で止めるのではなく区切りで止める。
+  const TRAILING_ASSERTION =
+    /^[^([{<>]*\b(?:as|satisfies)\s+(?:Promise\s*<\s*)?([A-Za-z_$][\w$.]*)/;
   /**
    * @param {string} statement 右辺の最初の文
    * @returns {"page" | "locator" | "other" | null}
@@ -735,6 +744,16 @@ function playwrightReceivers(code, file = "<source>") {
         // Page / Locator 以外へアサートした別名。右辺がどちらにも解決しない以上、由来は追えない。
         // 型アサーションを挟めば検査から消える、という抜け道を残さない（fail-closed）。
         asserted === "other" &&
+        // **純粋なプロパティ取り出しの免除をアサーションで外さない**——`const timers = page.clock;` は
+        // Page でも Locator でもない値として下の枝が従来から対象外にしている。`as Clock` を足しただけで
+        // 判定不能へ倒すと、その枝が避けている「注釈を強いる誤検出」がアサーション経由で復活する。
+        // ただし**受け側そのもの**（末尾が Page / Locator に解決する形。`page as Foo`）は、
+        // アサートした先で受け側でなくなったことを追えないので従来どおり倒す。
+        (chain === null ||
+          chain.truncated ||
+          (!hasLocator && !hasPage) ||
+          pages.has(chain.names[chain.names.length - 1]) ||
+          locators.has(chain.names[chain.names.length - 1])) &&
         !locators.has(target) &&
         !pages.has(target) &&
         !opaqueAliases.has(target)

@@ -859,3 +859,47 @@ test("二重アサーションの行き先が Page / Locator でなければ従�
   expect(stats.resolved).toBe(0);
   expect(stats.undecidable).toBe(1);
 });
+
+// 角括弧アサーションが書ける `.ts` 系は、generic なアロー関数が同じ形に見える拡張子でもある。
+test("generic なアロー関数を角括弧アサーションと読み違えない", () => {
+  const stats = scanSourceWithStats(
+    `const pick = <T>(x: T) => x;\nfunction f() {\n  return pick.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.undecidable).toBe(0);
+});
+
+// `as` はどの拡張子でも書けるので、拡張子ではなく区切り（`<` / `>`）で JSX を止める。
+test.each([
+  ["as を含まない JSX", "const el = <span>hello</span>;"],
+  ["as を含む JSX テキスト", "const el = <span>use as reference</span>;"],
+])(".tsx の JSX 本文を型アサーションと読み違えない: %s", (_label, decl) => {
+  const stats = scanSourceWithStats(
+    `function f() {\n  ${decl}\n  return el.count();\n}`,
+    "spec.tsx",
+  ).stats;
+  expect(stats.undecidable).toBe(0);
+});
+
+// 純粋なプロパティ取り出しは Page でも Locator でもない値として従来から対象外。
+// アサーションを足しただけで免除が外れると「注釈を強いる誤検出」が復活する。
+test("純粋なプロパティ取り出しの免除は型アサーションで外れない", () => {
+  const bare = scanSourceWithStats(
+    `function f(page) {\n  const timers = page.clock;\n  return timers.count();\n}`,
+    "spec.ts",
+  ).stats;
+  const asserted = scanSourceWithStats(
+    `function f(page) {\n  const timers = page.clock as Clock;\n  return timers.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(bare.undecidable).toBe(0);
+  expect(asserted.undecidable).toBe(0);
+});
+
+test("受け側そのものを別の型へアサートした形は従来どおり判定不能（網を緩めない）", () => {
+  const stats = scanSourceWithStats(
+    `function f(page) {\n  const p = page as Foo;\n  return p.count();\n}`,
+    "spec.ts",
+  ).stats;
+  expect(stats.undecidable).toBe(1);
+});
