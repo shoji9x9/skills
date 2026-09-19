@@ -48,7 +48,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -534,11 +534,23 @@ export function readManifest(manifestPath) {
   if (!isPlainObject(parsed) || !Array.isArray(parsed.artifacts)) {
     throw new UsageError(`一覧に artifacts 配列が無い: ${manifestPath}`);
   }
+  /** @type {Set<string>} */
+  const seenIds = new Set();
   return parsed.artifacts.map((a, i) => {
     if (!isPlainObject(a)) throw new UsageError(`artifacts[${i}] がオブジェクトでない`);
     if (!nonEmptyString(a.id) || !nonEmptyString(a.pattern)) {
       throw new UsageError(`artifacts[${i}] の id / pattern が空`);
     }
+    // **id は一覧の中で一意**——重複を許すと「同じ id なら同じ項目」という前提が崩れ、
+    // 同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まる
+    // （緩い規則＝mutable_columns の多い方が先に来ると、厳しい規則が守るはずの列への破壊的編集が検出から外れる）。
+    const id = String(a.id).trim();
+    if (seenIds.has(id)) {
+      throw new UsageError(
+        `artifacts[${i}] の id が一覧の中で重複している: ${id}（突き合わせ方の食い違いが無音で先勝ちに決まる）`,
+      );
+    }
+    seenIds.add(id);
     // unit を持たない旧い一覧は lines（このツールの初版の突き合わせ方）として読む。
     const unit = a.unit === undefined || a.unit === null ? "lines" : a.unit;
     if (!UNITS.includes(/** @type {string} */ (unit))) {
@@ -739,7 +751,9 @@ export function check(opts) {
       byFile.set(file, artifact);
       return;
     }
-    if (prev.id === artifact.id) return;
+    // **同じ項目を 2 度見たときだけ飛ばす**（作業ツリーと比較元の両方から同じ file が来る）。
+    // id で飛ばすと、id が重なった別項目の突き合わせ方の食い違いが下の検査に届かず無音で先勝ちになる。
+    if (prev === artifact) return;
     if (
       prev.unit !== artifact.unit ||
       prev.arrays.join(",") !== artifact.arrays.join(",") ||
