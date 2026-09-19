@@ -433,6 +433,77 @@ test("読めない入力（ディレクトリ）は exit 2（漏れありの exi
   });
 });
 
+test("GFM の短い区切り（|-|-|）でも表として読む", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装 API | 要求単位の根拠 |",
+      "|-|-|-|",
+      "| plan | GET /api/plans | GET /api/plans → 推定: 要求単位は未確定 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toContain("undecidable:");
+  });
+});
+
+test("行頭・行末の | が無い表も読む（exit 3 の誤判定に倒さない）", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "slug | 新規実装 API | 要求単位の根拠",
+      "--- | --- | ---",
+      "plan | GET /api/plans | GET /api/plans → 推定: 要求単位は未確定",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toContain("undecidable:");
+  });
+});
+
+test("API 列が空欄は未調査（exit 2）——明示の「なし」（exit 0）と分ける", () => {
+  withDir((dir) => {
+    const blank = features({ api: "", evidence: "" });
+    const r = run(dir, { "features.md": blank }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("空欄");
+
+    const none = features({
+      api: "なし",
+      evidence: "なし → 実測: 口を持たない画面（根拠: UI の実動作）",
+    });
+    const r2 = run(dir, { "features.md": none }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r2.status).toBe(0);
+  });
+});
+
+test("対象外の判定は --unmeasured の読み取りより先（未生成でも exit 4）", () => {
+  withDir((dir) => {
+    const text = [
+      "## バッチ",
+      "",
+      "| slug | バッチ名 | 入力 | 比較する出力 | 参照テーブル | Issue |",
+      "|---|---|---|---|---|---|",
+      "| monthly-summary | 月次集計 | ゴールデンデータセット | summaries | MST_PLAN | #220 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "monthly-summary",
+      "--unmeasured",
+      "missing-metadata.json",
+    ]);
+    expect(r.status).toBe(4);
+    expect(r.stderr).not.toContain("ENOENT");
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);

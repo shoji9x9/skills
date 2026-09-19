@@ -105,8 +105,8 @@ export function parseTables(text) {
     const header = splitRow(lines[i]);
     if (header === null) continue;
     const delimiter = splitRow(lines[i + 1]);
-    if (delimiter === null || !delimiter.every((cell) => /^:?-{3,}:?$/u.test(cell.trim())))
-      continue;
+    // 区切り行のハイフンは GFM では 1 個以上。3 個以上を要求すると `|-|-|` の表を読み落とす。
+    if (delimiter === null || !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim()))) continue;
     if (delimiter.length !== header.length) continue;
     /** @type {string[][]} */
     const rows = [];
@@ -140,9 +140,14 @@ function fenceOf(line) {
  */
 function splitRow(line) {
   if (line === undefined) return null;
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("|") || !trimmed.endsWith("|") || trimmed.length < 2) return null;
-  return trimmed.slice(1, -1).split("|");
+  let trimmed = line.trim();
+  if (!trimmed.includes("|")) return null;
+  // GFM は行頭・行末の `|` を必須にしない。必須にすると、外側の `|` を省いた正当な
+  // インベントリが「表が無い」と読まれ、exit 3（列の導入前）に化ける——
+  // parity-replace 手順 8 は exit 3 で完了を止めないので、推定の口が残る台帳が黙って通る。
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+  return trimmed.split("|");
 }
 
 /**
@@ -181,11 +186,11 @@ export function parseEvidenceEntries(cell) {
  * features.md から対象 slug の口と根拠を取り出す。
  * @param {string} text
  * @param {string} slug
- * @returns {{ endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
+ * @returns {{ endpointCell: string, endpoints: string[], entries: { endpoints: string[], verdict: string, raw: string }[] }}
  */
 export function readRow(text, slug) {
   const tables = parseTables(text);
-  /** @type {{ endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
+  /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
   // 根拠列を持たない表にその slug の行があるかも数える——列の追加が一部の表にしか
   // 及んでいない状態を「行が無い」（exit 2）で片付けると、旧インベントリと同じ
@@ -221,6 +226,7 @@ export function readRow(text, slug) {
         continue;
       }
       matched.push({
+        endpointCell: collapse(row[endpointIndex] ?? ""),
         endpoints: parseEndpoints(row[endpointIndex] ?? ""),
         entries: parseEvidenceEntries(row[evidenceIndex] ?? ""),
       });
@@ -254,6 +260,11 @@ export function readRow(text, slug) {
   }
   if (matched.length === 0) throw new UsageError(`slug ${slug} の行がインベントリに無い`);
   const row = matched[0];
+  if (row.endpointCell.length === 0) {
+    throw new UsageError(
+      `slug ${slug} の API 列が空欄——口が無いことを確かめたなら \`-\` か \`なし\` と書く。空欄は未調査であり、口 0 件（合格）に倒さない`,
+    );
+  }
   const seen = new Set();
   for (const endpoint of row.endpoints) {
     if (seen.has(endpoint)) throw new UsageError(`口 ${endpoint} が API 列に重複している`);
@@ -314,15 +325,18 @@ export function readDeclaredEndpoints(text, path) {
 
 /**
  * 判定する。
- * @param {{ featuresText: string, slug: string, unmeasured?: { text: string, path: string } }} input
+ * @param {{ featuresText: string, slug: string, unmeasuredPath?: string | null }} input
  * @returns {{ findings: string[], notes: string[], counts: Record<string, number> }}
  */
 export function check(input) {
+  // 行の分類を先に済ませる——`--unmeasured` を先に読むと、metadata.json が未生成の
+  // バッチ slug が対象外（exit 4）ではなく ENOENT（exit 2）になり、
+  // 「インベントリを直す」という誤った直し方へ案内してしまう。
   const row = readRow(input.featuresText, input.slug);
   const declared =
-    input.unmeasured === undefined
+    input.unmeasuredPath === undefined || input.unmeasuredPath === null
       ? null
-      : readDeclaredEndpoints(input.unmeasured.text, input.unmeasured.path);
+      : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
 
   /** @type {Map<string, Set<string>>} 口 → 対応づいた根拠の語彙 */
   const verdicts = new Map();
@@ -431,11 +445,11 @@ export function main(argv) {
   try {
     const args = parseArgs(argv);
     const featuresText = readFileSync(args.features, "utf8");
-    const unmeasured =
-      args.unmeasured === null
-        ? undefined
-        : { text: readFileSync(args.unmeasured, "utf8"), path: args.unmeasured };
-    const { findings, notes, counts } = check({ featuresText, slug: args.slug, unmeasured });
+    const { findings, notes, counts } = check({
+      featuresText,
+      slug: args.slug,
+      unmeasuredPath: args.unmeasured,
+    });
     for (const note of notes) process.stdout.write(`note: ${note}\n`);
     for (const finding of findings) process.stdout.write(`warn: ${finding}\n`);
     process.stdout.write(
