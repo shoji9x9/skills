@@ -229,15 +229,16 @@ test("根拠列を持たない features.md は判定不能（exit 3）で、合�
   });
 });
 
-test("unmeasured キーの無い旧成果物は判定不能（exit 3）", () => {
+test("unmeasured キーの無い旧成果物は宣言ゼロとして数える（判定不能で素通りさせない）", () => {
   withDir((dir) => {
     const r = run(
       dir,
       { "features.md": ONE_ESTIMATED, "metadata.json": metadata([], { omitUnmeasured: true }) },
       ["--features", "features.md", "--slug", "plan", "--unmeasured", "metadata.json"],
     );
-    expect(r.status).toBe(3);
-    expect(r.stderr).toContain("unmeasured");
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("宣言ゼロとして数える");
+    expect(r.stdout).toContain("POST /api/plans");
   });
 });
 
@@ -549,7 +550,8 @@ test("列名のずれは経路ごとに違う理由を出す（直す場所が�
       "plan",
     ]);
     expect(a.status).toBe(2);
-    expect(a.stderr).toContain("列を持つのに口の列");
+    expect(a.stderr).toContain("口の列らしい見出し（新規実装API）");
+    expect(a.stderr).not.toContain("列の追加も要る");
 
     const withoutEvidence = [
       "## 機能一覧",
@@ -567,7 +569,7 @@ test("列名のずれは経路ごとに違う理由を出す（直す場所が�
     ]);
     expect(b.status).toBe(2);
     expect(b.stderr).toContain("見出しを規約名に揃える");
-    expect(b.stderr).not.toContain("列を持つのに口の列");
+    expect(b.stderr).toContain("列の追加も要る");
   });
 });
 
@@ -620,6 +622,61 @@ test("口の列も根拠列も無い機能一覧は、バッチ表と名乗ら�
   });
 });
 
+test("バッチ表の列名に API が入っていても対象外のまま（exit 4）", () => {
+  withDir((dir) => {
+    const text = [
+      "## バッチ",
+      "",
+      "| slug | バッチ名 | 入力 | 比較する出力（API レスポンス・DB 状態） | 参照テーブル |",
+      "|---|---|---|---|---|",
+      "| monthly-summary | 月次集計 | ゴールデンデータセット | summaries | MST_PLAN |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "monthly-summary",
+    ]);
+    expect(r.status).toBe(4);
+    expect(r.stderr).not.toContain("見出しを規約名に揃える");
+  });
+});
+
+test("根拠列らしい見出しだけの表は、根拠列用のメッセージを出す（空の括弧にしない）", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 要求単位の根拠(改) |",
+      "|---|---|",
+      "| plan | GET /api/plans → 推定: 要求単位は未確定 |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("根拠列らしい見出し（要求単位の根拠(改)）");
+    expect(r.stderr).not.toContain("口の列らしい見出し");
+  });
+});
+
+test("endpoint が文字列でない宣言は件数を残して捨てる（黙って落とさない）", () => {
+  withDir((dir) => {
+    const r = run(
+      dir,
+      {
+        "features.md": ONE_ESTIMATED,
+        "metadata.json": metadata([
+          { item: "x", reason: "y", endpoint: 42, disposition: "blocking" },
+        ]),
+      },
+      ["--features", "features.md", "--slug", "plan", "--unmeasured", "metadata.json"],
+    );
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain("endpoint が文字列でない要素が 1 件");
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);
@@ -646,7 +703,7 @@ test("バッチ表の行は対象外（exit 4）で、行が無い（exit 2）�
     ]);
     expect(r.status).toBe(4);
     expect(r.stderr).toContain("not-applicable:");
-    expect(r.stderr).toContain("API の口を持たない表");
+    expect(r.stderr).toContain("バッチ・「その他の Issue」の表にある");
   });
 });
 
@@ -662,7 +719,7 @@ test("根拠列はあるのに口の列名がずれている表は入力の不�
     ].join("\n");
     const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
     expect(r.status).toBe(2);
-    expect(r.stderr).toContain("列名が規約とずれている");
+    expect(r.stderr).toContain("口の列らしい見出し");
     expect(r.stderr).not.toContain("not-applicable:");
   });
 });

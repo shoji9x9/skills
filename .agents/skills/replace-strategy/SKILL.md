@@ -254,7 +254,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
     --unmeasured .replace/parity/<slug>/metadata.json
   ```
 
-  exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備（列名のずれを含む）／3 = 判定不能（根拠列・`unmeasured` キーが無い旧成果物）／
+  exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備（列名のずれを含む）／3 = 判定不能（その行の表に根拠列が無い）／
   4 = 対象外（**口の列も根拠列も持たない**バッチ・「その他の Issue」の行）。
   **2・3・4 のいずれも「検査して 0 件」（exit 0）と読み替えない**——3 つとも口を数えていない。
   消費側が 3 を完了の妨げにしないのは旧インベントリのための後方互換であって、合格の証拠にしたわけではない（[`references/evidence.md`](references/evidence.md)）

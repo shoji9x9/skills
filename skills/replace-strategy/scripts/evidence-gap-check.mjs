@@ -233,6 +233,43 @@ export function parseEvidenceEntries(cell) {
 }
 
 /**
+ * 表の種別を見出しから 1 回だけ同定する。行ごとの分岐をこの種別に閉じることで、
+ * 条件の入れ子が増えるたびに非対称な穴が開くのを防ぐ。
+ * @param {string[]} headers
+ * @returns {{ kind: "feature" | "legacy" | "not-applicable" | "malformed-endpoint" | "malformed-evidence", headers?: string[], missingEvidence?: boolean }}
+ */
+export function classifyTable(headers) {
+  const hasEndpoint = headers.some((header) => ENDPOINT_HEADERS.includes(header));
+  const hasEvidence = headers.includes(EVIDENCE_HEADER);
+  const endpointish = headers.filter(looksLikeEndpointHeader);
+  const evidenceish = headers.filter(looksLikeEvidenceHeader);
+  const batchMarker = headers.some(looksLikeNonEndpointTableHeader);
+
+  if (hasEndpoint && hasEvidence) return { kind: "feature" };
+  if (hasEndpoint) {
+    // 根拠列らしい見出しがあるのに完全一致しないのは列名のずれ。判定不能（exit 3）へ倒すと
+    // 完了判定を止めないため、推定の口が残る現役インベントリが素通りする。
+    return evidenceish.length > 0
+      ? { kind: "malformed-evidence", headers: evidenceish }
+      : { kind: "legacy" };
+  }
+  if (hasEvidence)
+    return { kind: "malformed-endpoint", headers: endpointish, missingEvidence: false };
+  // 口の列も根拠列も無い表は 3 通り——設計上どちらも持たないバッチ・「その他の Issue」、
+  // 列の導入前の機能一覧、そして列名がずれた表。
+  // **バッチの同定を最初に見る**——見出しに `API` を含むバッチ表（`比較する出力（API レスポンス…）`）が
+  // あるので、口の列らしさの判定を先に置くと正当なバッチ表が列名のずれ（exit 2）に化け、
+  // batch モードの完了判定が通らなくなる。
+  if (batchMarker) return { kind: "not-applicable" };
+  if (endpointish.length > 0)
+    return { kind: "malformed-endpoint", headers: endpointish, missingEvidence: true };
+  if (evidenceish.length > 0) return { kind: "malformed-evidence", headers: evidenceish };
+  // どれとも同定できない表は対象外を名乗らず判定不能へ倒す（対象外にすると、列の導入前の
+  // 機能一覧まで「バッチ表にある」という事実と違う記録で通過する）。
+  return { kind: "legacy" };
+}
+
+/**
  * features.md から対象 slug の口と根拠を取り出す。
  * @param {string} text
  * @param {string} slug
@@ -242,63 +279,43 @@ export function readRow(text, slug) {
   const tables = parseTables(text);
   /** @type {{ endpointCell: string, endpoints: string[], entries: ReturnType<typeof parseEvidenceEntries> }[]} */
   const matched = [];
-  // 根拠列を持たない表にその slug の行があるかも数える——列の追加が一部の表にしか
-  // 及んでいない状態を「行が無い」（exit 2）で片付けると、旧インベントリと同じ
-  // 判定不能（exit 3）が入力の不備に化ける。
+  // 判定できない行は理由の別で数える。同じ終了コードへ畳むと、呼び出し側が
+  // 直す場所（列名・列の追加・表の置き場所）を取り違える。
   let legacyRows = 0;
-  // 口の列そのものを持たない表（バッチ・「その他の Issue」）の行。これらは設計上 API の口を
-  // 持たないので、「行が無い」（exit 2）でも「列が未導入」（exit 3）でもなく対象外（exit 4）。
-  // 3 つを同じ終了コードへ畳むと、バッチ slug を渡した呼び出し側が入力を直しようがないまま詰まる。
   let nonEndpointRows = 0;
-  // 根拠列はあるのに口の列が無い表の行。列名が規約（新規実装 API / API）とずれている入力の不備で、
-  // 「列の導入前」（exit 3）でも「対象外」（exit 4）でもない——どちらへ倒しても完了判定が通ってしまう。
   /** @type {string[]} 列名のずれで判定できない行の理由（経路ごとに書き分ける）。 */
   const malformed = [];
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
     if (slugIndex < 0) continue;
-    const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
-    const evidenceIndex = table.headers.indexOf(EVIDENCE_HEADER);
+    const kind = classifyTable(table.headers);
     for (const row of table.rows) {
       if (collapse(row[slugIndex] ?? "") !== slug) continue;
-      if (endpointIndex < 0) {
-        // 口の列も根拠列も無い表は 2 通りある——設計上どちらも持たないバッチ・「その他の Issue」と、
-        // 列の導入前に作られた機能一覧。**対象外（exit 4）を名乗れるのは前者だけ**で、
-        // 後者まで対象外にすると「バッチ表にある」という事実と違う記録が porting.md に残る。
-        // 前者は表の見出しで陽性に同定し、同定できなければ判別不能として legacy 側（exit 3）へ倒す
-        // （どちらも完了は止めないので、外れても工程は詰まらない）。
-        // 口の列・根拠列**らしい**見出し（空白違い・全角・規約外の名前）がある表は、
-        // どちらでもなく列名のずれ（exit 2）——対象外・判定不能へ倒すと完了判定が通る。
-        if (
-          evidenceIndex < 0 &&
-          !table.headers.some(looksLikeEndpointHeader) &&
-          !table.headers.some(looksLikeEvidenceHeader)
-        ) {
-          if (table.headers.some(looksLikeNonEndpointTableHeader)) nonEndpointRows += 1;
-          else legacyRows += 1;
-          continue;
-        }
-        // 2 つの経路を 1 つのメッセージに畳まない——直す場所が違う（前者は口の列の名前、
-        // 後者は根拠列の不在）ので、畳むと存在しない列を探すことになる。
-        malformed.push(
-          evidenceIndex < 0
-            ? `slug ${slug} の行の表は口の列らしい見出し（${table.headers.filter(looksLikeEndpointHeader).join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致せず「${EVIDENCE_HEADER}」列も無い——見出しを規約名に揃える`
-            : `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列名が規約とずれている`,
-        );
-        continue;
-      }
-      if (evidenceIndex < 0) {
-        // 根拠列らしい見出しがあるのに完全一致しないのは列名のずれ。判定不能（exit 3）へ倒すと
-        // 完了判定を止めないため、推定の口が残る現役インベントリが素通りする。
-        if (table.headers.some(looksLikeEvidenceHeader)) {
-          malformed.push(
-            `slug ${slug} の行の表は根拠列らしい見出し（${table.headers.filter(looksLikeEvidenceHeader).join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない——見出しを規約名に揃える`,
-          );
-          continue;
-        }
+      if (kind.kind === "legacy") {
         legacyRows += 1;
         continue;
       }
+      if (kind.kind === "not-applicable") {
+        nonEndpointRows += 1;
+        continue;
+      }
+      if (kind.kind === "malformed-endpoint") {
+        malformed.push(
+          `slug ${slug} の行の表は口の列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致しない——見出しを規約名に揃える` +
+            (kind.missingEvidence
+              ? `（「${EVIDENCE_HEADER}」列も無いので、列名を揃えた後に列の追加も要る）`
+              : ""),
+        );
+        continue;
+      }
+      if (kind.kind === "malformed-evidence") {
+        malformed.push(
+          `slug ${slug} の行の表は根拠列らしい見出し（${kind.headers.join(" / ")}）を持つが、規約名（${EVIDENCE_HEADER}）と一致しない——見出しを規約名に揃える`,
+        );
+        continue;
+      }
+      const endpointIndex = table.headers.findIndex((header) => ENDPOINT_HEADERS.includes(header));
+      const evidenceIndex = table.headers.indexOf(EVIDENCE_HEADER);
       matched.push({
         endpointCell: collapse(row[endpointIndex] ?? ""),
         endpoints: parseEndpoints(row[endpointIndex] ?? ""),
@@ -317,17 +334,12 @@ export function readRow(text, slug) {
   }
   if (matched.length === 0 && nonEndpointRows > 0) {
     throw new NotApplicableError(
-      `slug ${slug} の行は API の口を持たない表（バッチ・「その他の Issue」）にある——要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
+      `slug ${slug} の行はバッチ・「その他の Issue」の表にある（見出しから同定）——要求単位の根拠は口ごとの記録なので、この行に検査対象は無い`,
     );
   }
   if (matched.length === 0 && legacyRows > 0) {
     throw new UndecidableError(
       `slug ${slug} の行の表に「${EVIDENCE_HEADER}」列が無い（列の導入前に作られたインベントリ）——列の追加は replace-strategy の setup / issues が行う`,
-    );
-  }
-  if (matched.length === 0 && !tables.some((table) => table.headers.includes(EVIDENCE_HEADER))) {
-    throw new UndecidableError(
-      `「${EVIDENCE_HEADER}」列を持つ表が無い（列の導入前に作られたインベントリ）——列の追加は replace-strategy の setup / issues が行う`,
     );
   }
   if (matched.length === 0) throw new UsageError(`slug ${slug} の行がインベントリに無い`);
@@ -349,7 +361,7 @@ export function readRow(text, slug) {
  * parity-suite の metadata.json から宣言済みの口を取り出す。
  * @param {string} text
  * @param {string} path
- * @returns {Set<string>}
+ * @returns {{ declared: Set<string>, legacyArtifact: boolean, invalidEndpoints: number }}
  */
 export function readDeclaredEndpoints(text, path) {
   /** @type {unknown} */
@@ -363,9 +375,10 @@ export function readDeclaredEndpoints(text, path) {
     throw new UsageError(`${path} が object でない`);
   const unmeasured = /** @type {Record<string, unknown>} */ (parsed).unmeasured;
   if (unmeasured === undefined) {
-    throw new UndecidableError(
-      `${path} に unmeasured キーが無い（旧版 parity-suite の成果物）——宣言の有無を判定できない`,
-    );
+    // 宣言の置き場所そのものが無い成果物なので、未確認の口は 1 つも宣言されていない。
+    // 判定不能（exit 3）へ倒すと消費側が完了を止めず、推定の口が残ったまま通過する——
+    // 「判定できない」ではなく「宣言ゼロ」が事実なので、未宣言として数える。
+    return { declared: new Set(), legacyArtifact: true, invalidEndpoints: 0 };
   }
   if (typeof unmeasured !== "object" || unmeasured === null || Array.isArray(unmeasured)) {
     throw new UsageError(`${path} の unmeasured が object でない`);
@@ -379,20 +392,28 @@ export function readDeclaredEndpoints(text, path) {
       `${path} の unmeasured.declared が真偽値でない（parity-suite の成果物として不備）`,
     );
   }
-  if (!declaredFlag) return new Set();
+  if (!declaredFlag) return { declared: new Set(), legacyArtifact: false, invalidEndpoints: 0 };
   const entries = /** @type {Record<string, unknown>} */ (unmeasured).entries;
-  if (entries === undefined) return new Set();
+  if (entries === undefined)
+    return { declared: new Set(), legacyArtifact: false, invalidEndpoints: 0 };
   if (!Array.isArray(entries)) throw new UsageError(`${path} の unmeasured.entries が配列でない`);
   /** @type {Set<string>} */
   const declared = new Set();
+  // 型が違う endpoint は宣言に数えないが、黙って捨てない——`artifact-health-check.mjs` は
+  // このキーを検査しないので、捨てた件数を出さないと「宣言したのに未宣言と言われる」が読めない。
+  let invalidEndpoints = 0;
   for (const entry of entries) {
     if (typeof entry !== "object" || entry === null) continue;
     const endpoint = /** @type {Record<string, unknown>} */ (entry).endpoint;
-    if (typeof endpoint !== "string") continue;
+    if (endpoint === undefined || endpoint === null) continue;
+    if (typeof endpoint !== "string") {
+      invalidEndpoints += 1;
+      continue;
+    }
     const normalized = collapse(endpoint);
     if (normalized.length > 0) declared.add(normalized);
   }
-  return declared;
+  return { declared, legacyArtifact: false, invalidEndpoints };
 }
 
 /**
@@ -436,10 +457,22 @@ export function check(input) {
     const bucket = verdicts.get(endpoint) ?? new Set();
     return !(bucket.size === 1 && bucket.has(MEASURED));
   });
-  const declared =
+  const declaration =
     !hasUnresolved || input.unmeasuredPath === undefined || input.unmeasuredPath === null
       ? null
       : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
+  const declared = declaration === null ? null : declaration.declared;
+
+  if (declaration !== null && declaration.legacyArtifact) {
+    notes.push(
+      `${input.unmeasuredPath} に unmeasured キーが無い（列の導入前の parity-suite 成果物）——宣言ゼロとして数える`,
+    );
+  }
+  if (declaration !== null && declaration.invalidEndpoints > 0) {
+    notes.push(
+      `unmeasured.entries の endpoint が文字列でない要素が ${declaration.invalidEndpoints} 件ある——宣言に数えていない`,
+    );
+  }
 
   /** @type {string[]} */
   const findings = [];
