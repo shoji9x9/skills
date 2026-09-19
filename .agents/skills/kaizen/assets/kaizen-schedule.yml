@@ -1,0 +1,264 @@
+# kaizen の定期レビュー。
+#
+# 正本は kaizen スキルに同梱された `skills/kaizen/assets/kaizen-schedule.yml` で、
+# このファイルはその**バイト単位の複製**（`scripts/kaizen-schedule-workflow-sync.test.js` が検査）。
+# 片方だけ直すと、配布先へ配られるテンプレートと本リポの実物が食い違う。両方を同じ内容で更新する。
+#
+# 設定・skip・モード・エージェントの選び方は kaizen の `references/setup.md`「定期実行」を参照。
+name: Kaizen schedule
+
+on:
+  schedule:
+    # 毎週月曜 01:00 UTC (10:00 JST)。outdated.yml（00:00 UTC）とずらす。
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "notify（通知 Issue のみ） | agent（エージェントに分析させる）。空なら .kaizen/config → 既定 notify"
+        required: false
+        default: ""
+      agent:
+        description: "claude | codex | copilot。空なら .kaizen/config → 既定 claude"
+        required: false
+        default: ""
+      model:
+        description: "エージェントへ渡すモデル ID。空ならエージェント側の既定"
+        required: false
+        default: ""
+      effort:
+        description: "推論エフォート。codex のみ対応（他のエージェントでは無視される）"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ISSUE_TITLE: "kaizen: 未適用の学び"
+  REPORT_FILE: kaizen-agent-report.md
+  PROMPT_FILE: kaizen-agent-prompt.md
+  BODY_FILE: kaizen-issue-body.md
+
+jobs:
+  kaizen-schedule:
+    name: Review pending kaizen notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # kaizen スクリプトの置き場はインストール形態で変わる。見つからなければ**落とす**
+      # ——レポートの材料を作れないまま先へ進むと、空の Issue を「異常なし」として出す。
+      #
+      # 実行ビットは見ない（`-x` にしない）。`gh skill install` が配るコピーは 100644 で、
+      # `.claude/` / `.agents/` 配下のインストール済みスクリプトは実行可能にならない。
+      # kaizen の Hook と同じく `bash <path>` で起動するので読めれば足りる。
+      - name: Locate kaizen scripts
+        id: locate
+        run: |
+          for dir in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts skills/kaizen/scripts; do
+            if [ -r "$dir/kaizen-schedule-report.sh" ]; then
+              echo "script=$dir/kaizen-schedule-report.sh" >>"$GITHUB_OUTPUT"
+              echo "found: $dir/kaizen-schedule-report.sh"
+              exit 0
+            fi
+          done
+          echo "kaizen-schedule-report.sh が見つからない（kaizen をインストールしたか確認する）" >&2
+          exit 1
+
+      - name: Resolve settings
+        id: settings
+        env:
+          KAIZEN_SCHEDULE_SKIP: ${{ vars.KAIZEN_SCHEDULE_SKIP }}
+          KAIZEN_SCHEDULE_MODE: ${{ inputs.mode }}
+          KAIZEN_SCHEDULE_AGENT: ${{ inputs.agent }}
+          KAIZEN_SCHEDULE_MODEL: ${{ inputs.model }}
+          KAIZEN_SCHEDULE_EFFORT: ${{ inputs.effort }}
+        run: |
+          bash "${{ steps.locate.outputs.script }}" config | tee -a "$GITHUB_OUTPUT"
+
+      # 理由は `.kaizen/config` / リポジトリ変数に由来する外部入力。`${{ }}` で run へ
+      # 直挿しすると値がシェルとして解釈されるので、env 経由で渡して展開させない。
+      - name: Report skip
+        if: steps.settings.outputs.skip == 'true'
+        env:
+          SKIP_REASON: ${{ steps.settings.outputs.skip_reason }}
+        run: |
+          {
+            echo "## Kaizen schedule: skip"
+            echo
+            echo "理由: $SKIP_REASON"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      # 以降は skip でないときだけ走る。
+      - name: Build notify body
+        if: steps.settings.outputs.skip != 'true'
+        run: bash "${{ steps.locate.outputs.script }}" issue >"$BODY_FILE"
+
+      - name: Build agent prompt
+        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        run: bash "${{ steps.locate.outputs.script }}" prompt >"$PROMPT_FILE"
+
+      # 資格情報の有無を先に測る。無いまま起動すると失敗ログだけが残り、
+      # 「エージェントが何も見つけなかった」と区別が付かない（notify へ倒す判断材料にする）。
+      - name: Check agent credential
+        id: cred
+        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          AGENT: ${{ steps.settings.outputs.agent }}
+        run: |
+          # 終了コードを決める位置に条件式を置かない（`A && B || C` は空値で非 0 を返し、
+          # `bash -e` の下では「資格情報が無い」だけでステップごと落ちる）。
+          credential=""
+          case "$AGENT" in
+            claude) credential="${ANTHROPIC_API_KEY}${CLAUDE_CODE_OAUTH_TOKEN}" ;;
+            codex) credential="$OPENAI_API_KEY" ;;
+            copilot) credential="$COPILOT_GITHUB_TOKEN" ;;
+          esac
+          if [ -n "$credential" ]; then
+            present=true
+          else
+            present=false
+          fi
+          echo "present=$present" >>"$GITHUB_OUTPUT"
+          if [ "$present" != true ]; then
+            echo "agent=$AGENT の資格情報が未設定。通知のみへ倒す" >&2
+          fi
+
+      - name: Run Claude Code
+        id: run-claude
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'claude'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            以下の指示ファイルを読み、その指示に従ってレポートを作成し、
+            リポジトリルートの ${{ env.REPORT_FILE }} に Markdown で書き出してください。
+            指示ファイル: ${{ env.PROMPT_FILE }}
+          claude_args: >-
+            --allowed-tools Read,Grep,Glob,Write
+            ${{ steps.settings.outputs.model && format('--model {0}', steps.settings.outputs.model) || '' }}
+
+      - name: Run Codex
+        id: run-codex
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'codex'
+        continue-on-error: true
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1.12
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ env.PROMPT_FILE }}
+          output-file: ${{ env.REPORT_FILE }}
+          permission-profile: ":read-only"
+          model: ${{ steps.settings.outputs.model }}
+          effort: ${{ steps.settings.outputs.effort }}
+
+      # `node-version` を省くと setup-node は何も入れず、ランナーの既定 Node に依存する。
+      # Copilot CLI は Node 22 以上を要求するので明示する。
+      - name: Set up Node.js
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'copilot'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Run Copilot CLI
+        id: run-copilot
+        if: steps.cred.outputs.present == 'true' && steps.settings.outputs.agent == 'copilot'
+        continue-on-error: true
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          MODEL: ${{ steps.settings.outputs.model }}
+        run: |
+          # メジャーを固定する。`uses:` の SHA pin と違い、インライン install は pinact も
+          # Dependabot も見ないため、完全固定にすると更新経路が無いまま古い CLI が配布先へ
+          # 残り、その版が unpublish されると install ごと落ちる。メジャー範囲なら破壊的変更を
+          # 避けつつ修正は入る。2026-09-19 時点の最新は 1.0.86（`npm view @github/copilot version`）。
+          npm install -g "@github/copilot@^1"
+          model_args=()
+          if [ -n "$MODEL" ]; then
+            model_args+=("--model=$MODEL")
+          fi
+          # stdin を明示的に閉じる。引数でプロンプトを渡していても stdin も読む CLI は
+          # 珍しくなく、非対話の runner では即 EOF にならず無限待機に化ける。
+          copilot -p "$(cat "$PROMPT_FILE")" \
+            "${model_args[@]}" \
+            --allow-tool=read \
+            --no-ask-user \
+            -s >"$REPORT_FILE" </dev/null
+
+      # エージェント実行の成否を**成果物**で判定する。`continue-on-error` を付けた
+      # ステップの結果だけでは、起動したが空を書いた場合を拾えない。
+      - name: Append agent report
+        if: steps.settings.outputs.skip != 'true' && steps.settings.outputs.mode == 'agent'
+        env:
+          AGENT: ${{ steps.settings.outputs.agent }}
+          MODEL: ${{ steps.settings.outputs.model }}
+          EFFORT: ${{ steps.settings.outputs.effort }}
+          CRED_PRESENT: ${{ steps.cred.outputs.present }}
+        run: |
+          {
+            echo
+            echo "---"
+            echo
+            echo "## エージェントによる分析"
+            echo
+            echo "- エージェント: \`$AGENT\`${MODEL:+ / モデル: \`$MODEL\`}${EFFORT:+ / エフォート: \`$EFFORT\`}"
+            echo "- 実行: [ワークフロー run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+            echo
+            if [ "$CRED_PRESENT" != true ]; then
+              echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに倒しました。"
+            elif [ -s "$REPORT_FILE" ]; then
+              cat "$REPORT_FILE"
+            else
+              echo "> エージェントはレポートを出力しませんでした。上記 run のログを確認してください。"
+            fi
+          } >>"$BODY_FILE"
+
+      # 作成・更新・クローズを 1 ステップに置く。追跡 Issue を引く処理が同じなので、
+      # 分けると同じ関数を 2 箇所に持つことになり、片方だけ直る余地ができる。
+      - name: Update tracking issue
+        if: steps.settings.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}
+        run: |
+          # 追跡 Issue は 1 本だけ。`gh issue list` の既定は 30 件までなので、open Issue の
+          # 多いリポジトリでは既定のままだと取りこぼして毎週新しい Issue を作る。タイトルで
+          # 検索して母数を絞り、完全一致は jq で取る（`--search` は部分一致のため）。
+          # `| head -n1` は使わない——書き手より先に読み手が閉じると pipefail が
+          # 「見つからなかった」に化ける。`first // empty` なら不在は空文字・exit 0 になる。
+          # タイトルは jq の `env` 経由で渡し、引用符を含む値でも壊れないようにする。
+          # pagination-ok: 完全一致する Issue は高々 1 件で、--search が母数を絞る。
+          number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --limit 100 \
+            --json number,title \
+            --jq '[.[] | select(.title == env.ISSUE_TITLE) | .number] | first // empty')"
+          if [ "$PENDING_COUNT" = 0 ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "未適用の学びはありません。自動クローズします。"
+            else
+              echo "未適用の学びは 0 件。追跡 Issue も無いので何もしない"
+            fi
+          elif [ -n "$number" ]; then
+            gh issue edit "$number" --body-file "$BODY_FILE"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$BODY_FILE"
+          fi

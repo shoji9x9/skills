@@ -72,6 +72,7 @@ license: MIT
 ### Step 3: セットアップ（インストール後・初回のみ）
 
 `references/setup.md` を Read ツールで読み込み手順に従う。kaizen を「自動で回る」状態にする 3 つの Hook（終了時センチネル記録・コミット前 PreToolUse ゲート・セッション開始時の参照注入）、基底ドキュメント（`AGENTS.md` 等）への自己設定制約追記、`.gitignore` への一時ファイル除外、`multiagent-setup` 依存をまとめている。
+任意で、pending の棚卸しを週次で Issue にする**定期実行**（GitHub Actions。同梱テンプレート `assets/kaizen-schedule.yml`）も同ガイドにある。
 
 ---
 
