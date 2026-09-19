@@ -4,7 +4,7 @@
   "target": "<新側 target 名。replace-metadata.json の new.target と一致させる（別環境の記録で収束させない）>",
   "measured_at": "<ISO 8601。突き合わせを行った日時>",
   "new_implementation": {
-    "_note": "この突き合わせを取ったときの新側の版。target・slug・被覆表の指紋だけで縛ると、記録の後に新側を変えても古い証拠が通る（当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。component-comparison-check.mjs は --replace-metadata（必須）の replace-metadata.json の new.commit と突き合わせ、違えば comparison-implementation-stale で落とす。commit が none（新側リポジトリが git 管理を持たない）のときは文字列の比較が常に一致して鮮度検査が効かないので、iteration と replace-metadata.json の loop.iterations で判定する（どちらも読めなければ comparison-implementation-unversionable で落とす）。dirty はどちらの側も false でなければ落とす（欠落・非真偽値は「調べていない」として扱う）。",
+    "_note": "この突き合わせを取ったときの新側の版。target・slug・被覆表の指紋だけで縛ると、記録の後に新側を変えても古い証拠が通る（当たり判定・完了の退行はスイートの green に出ないので、この工程が唯一の網になる）。component-comparison-check.mjs は --replace-metadata（必須）の replace-metadata.json の new.commit と突き合わせ、違えば comparison-implementation-stale で落とす。commit が none（新側リポジトリが git 管理を持たない）のときは文字列の比較が常に一致して鮮度検査が効かないので、iteration と replace-metadata.json の loop.iterations で判定する（どちらかが読めなければ comparison-implementation-unversionable で落とす）。dirty はどちらの側も false でなければ落とす（欠落・非真偽値は「調べていない」として扱う）。",
     "commit": "<突き合わせを行ったときの新側リポジトリのコミット SHA（replace-metadata.json の new.commit と同じ値。無ければ none）>",
     "iteration": "<そのときの replace-metadata.json の loop.iterations（整数）。commit が none のときの鮮度指標なので、none を使うなら必ず書く>",
     "dirty": "<そのとき新側の作業ツリーに未コミットの変更があったか（真偽値）。false でなければ落ちる——未コミットの変更を抱えた作業ツリーで操作した記録は commit で版を特定できない>"
