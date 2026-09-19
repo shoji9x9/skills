@@ -936,7 +936,9 @@ test("baseline_dir の外を指すシンボリックリンクを落とす（実�
   });
   symlinkSync(join(outside, "secret.png"), join(slugDir, "baseline/linked.png"));
   const r = run(metadataPath, ["--root", root]);
-  expect(r.stdout).toMatch(/採取物のパスが baseline_dir の外を指している: linked\.png/);
+  expect(r.stdout).toMatch(
+    /採取物のパスが baseline_dir の外を指しているか実パスを解決できない: linked\.png/,
+  );
   expect(r.status).toBe(1);
   rmSync(outside, { recursive: true, force: true });
   rmSync(root, { recursive: true, force: true });

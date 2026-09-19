@@ -448,7 +448,10 @@ export function checkCaptureScope(metadata) {
     const key = combinationKey(entry);
     // **後勝ちで上書きしない**——`deriveHoles` は鍵ごとに最後に残った要素しか評価しないので、
     // 本物の実測の後にプレースホルダーが続くと、警告は出るのに穴そのものが消える。
-    // noise_baseline の重複と同じく先勝ちで残す（並び順で判定が変わらない方へ倒す）。
+    // noise_baseline の重複と同じく先勝ちで残す。
+    // **先勝ちにしても `holes` の中身は並び順で変わる**（どちらの重複を読むかが入れ替わるだけ）。
+    // 並び順に依らないのは合否のほうで、重複そのものが必ず `scope-entry-duplicated` で落ちるため、
+    // 消えた実測に気づかないまま収束することはない。
     if (scopeByKey.has(key)) {
       findings.push({
         code: "scope-entry-duplicated",

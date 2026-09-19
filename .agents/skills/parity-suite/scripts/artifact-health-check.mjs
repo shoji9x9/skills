@@ -250,7 +250,7 @@ export function checkArtifacts(metadata, ctx) {
   const baselineDir = resolveInside(ctx.root, String(health.baseline_dir));
   if (baselineDir === null)
     throw new UsageError(
-      `artifact_health.baseline_dir がルートの外を指している: ${String(health.baseline_dir)}`,
+      `artifact_health.baseline_dir がルートの外を指しているか実パスを解決できない: ${String(health.baseline_dir)}`,
     );
   if (!Array.isArray(health.entries)) throw new UsageError("artifact_health.entries が配列でない");
 
@@ -290,7 +290,7 @@ export function checkArtifacts(metadata, ctx) {
   for (const [p, entry] of byPath) {
     const target = resolveInside(baselineDir, p);
     if (target === null) {
-      findings.push(`採取物のパスが baseline_dir の外を指している: ${p}`);
+      findings.push(`採取物のパスが baseline_dir の外を指しているか実パスを解決できない: ${p}`);
       continue;
     }
     if (!existsSync(target)) {

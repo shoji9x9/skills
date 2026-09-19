@@ -589,7 +589,9 @@ test("capture_scope の重複要素は先勝ちで残り、本物の穴が消え
   expect(holeIdsOf(metadata)).toContain("list|default|desktop#below-fold");
 });
 
-test("順序を入れ替えても判定が変わらない（先に来た実測だけを見る）", () => {
+// 先勝ちにしても `holes` の中身は並び順で変わる（読む重複が入れ替わるだけ）。
+// 並び順に依らないのは合否で、重複そのものが必ず落ちる。両方を 1 件ずつ固定する。
+test("holes の中身は先に来た実測で決まり、合否は並び順に依らない", () => {
   const withHole = {
     page: "list",
     state: "default",
@@ -604,11 +606,11 @@ test("順序を入れ替えても判定が変わらない（先に来た実測�
     captured: { width: 1366, height: 3200 },
   };
   const noise = [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }];
-  // 穴の無い方を先に置いたときは、後ろの穴は（先勝ちなので）採らない。
+  // 穴の無い方を先に置いたときは、後ろの穴は（先勝ちなので）採らない＝ holes は並び順で変わる。
   expect(
     holeIdsOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise })),
   ).not.toContain("list|default|desktop#below-fold");
-  // どちらの順でも重複そのものは必ず報告される（無音で決まらない）。
+  // 一方で合否は並び順に依らない——どちらの順でも重複そのものが必ず報告される（無音で決まらない）。
   expect(codesOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise }))).toContain(
     "scope-entry-duplicated",
   );
