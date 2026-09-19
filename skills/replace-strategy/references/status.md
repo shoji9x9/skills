@@ -14,7 +14,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
-| `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）・反応の被覆表の宣言（`reaction_coverage`。同）（同上） |
+| `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）・反応の被覆表の宣言（`reaction_coverage`。同）・**未測定の宣言（`unmeasured`。同）**（同上） |
 | `.replace/parity/<slug>/component-coverage.json` | 部品被覆表（項目 × 部品インスタンス〈ページ〉の 3 値。被覆プロファイルを宣言した部品ではインスタンスごとの候補が期待セル。`parity-suite` が生成。スキーマ・プロファイルの正本は同スキル）。現側の測定結果のため slug 直下に 1 つ |
 | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 部品被覆表の `present` を新側で突き合わせた記録（`cells[].compared` と入口・当たり判定・完了の観測。`parity-replace` が生成。様式・検査の正本は `parity-suite`）。**被覆表の 3 値は移行元側の測定**なので、未突合が残る機能は「新側で操作を完了できる」と報告しない。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/component-diff-exceptions.json` | 承認済みインスタンス例外の規模（`component_diff_exception_causes[]` の原因数と `component_diff_exceptions[]` のインスタンス数。`parity-diff` が生成。スキーマ正本は同スキル）。環境非依存のため slug 直下に 1 つ |
@@ -129,6 +129,19 @@ done
     採番は特性化より先に来るためこの列は未実測の画面についても埋まっており、未確認の口は**実装のほぼ最後まで「決まっている形」として読まれる**（着手時に確定すべき口が残っている、というシグナル）。
     **列そのものが無い features.md では「要求単位の根拠が未導出（テンプレート更新前の features.md）」と報告する**——列の不在を「全て実測済み」と読まない。
     **空欄のセル、および口に対応づかないエントリだけのセルは、その行の全ての口を未確認として数える**（`実測` に倒さない）
+
+    **列挙した口は、さらに「まだ着手していないので推定のまま」と「着手済みなのに未確定のまま」に分けて示す。**
+    前者は採番が特性化より先に来る以上そうなるのが正常で、後者は**書き戻しか未測定の宣言が落ちた**シグナルである（同じ `推定` でも読み手の次の行動が違う）。
+    分け方は、その slug の成果物の到達段階と `unmeasured` の宣言で決める（口の単位で見る）。
+    - **`.replace/parity/<slug>/metadata.json` が無い**（特性化前）: まだ着手していない
+    - **特性化済み、または `new/<target>/replace-metadata.json` の `suite.new_green: true`** なのに `推定` が残る:
+      その口が `metadata.json` の `unmeasured.entries` に宣言されていれば「未測定として宣言済み」（`disposition` を添える）、
+      **宣言も無ければ「書き戻し漏れの疑い」として名指しする**——確定したのに `replace-strategy evidence` を通していないか、確定できなかったのに宣言していないかのどちらかで、
+      どちらも放置すると `status` がその口を永久に未確認として報告し続ける（経路の正本は [`evidence.md`](evidence.md)）
+    - **`unmeasured` をキーごと持たない成果物**（旧版 `parity-suite`）では宣言の有無を判定できないので、「宣言の有無が判定不能」として書き分ける（宣言済みにも漏れにも倒さない）
+
+    **同じ判定は slug ごとに機械可読で取れる**——`node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> --unmeasured .replace/parity/<slug>/metadata.json`
+    （exit 1 = 未宣言の未確認の口がある、exit 3 = 判定不能。手順の正本は [`evidence.md`](evidence.md)）。**セルを目視で数えず**このツールの `measured:` 行を根拠にする
 
 12. **受け入れ条件に現れない行**: インベントリの全行の slug（機能一覧・横断 API・バッチ・その他の Issue と、`.replace/components.md` があれば部品一覧）を母集合に、
     **記録された Issue 番号の本文の受け入れ条件が引き受けていると読める slug** を被覆集合として差分を取り、**どの Issue にも引き受けられていない行**を未検証領域として列挙する

@@ -327,7 +327,8 @@
   - 注記は `parity-replace` が**機械的に引ける形**にする（例: 注記に `presence:<slug>` を含め、その文字列で検索して外す）。自然文だけだと外す対象を見つけられない。
     **`<slug>` に入れるのは上の 2 つが決める**——機能単位の在席チェックは対象機能の slug、要素単位の在席チェックは**配置の所有者**の slug（要素の内容を提供する機能ではない）
 - ページ一覧に無いページ・在席を確認できない機能は `gaps.md` に残す（確認済みにしない）
-- **ページ一覧を持たない `.replace/features.md`**（更新前のインベントリ）では、機能一覧の「ページ」列から逆引きできる範囲で在席チェックを置き、ページ一覧の追加を `replace-strategy` 側で行うようユーザーに促す（本スキルは features.md を書かない）
+- **ページ一覧を持たない `.replace/features.md`**（更新前のインベントリ）では、機能一覧の「ページ」列から逆引きできる範囲で在席チェックを置き、ページ一覧の追加を `replace-strategy` 側で行うようユーザーに促す（本スキルは features.md を書かない）。
+  **唯一の例外も「自分で書く」ではなく委譲**で、要求単位の根拠の書き戻しは `replace-strategy evidence` が行う（[`api-batch.md`](api-batch.md)「要求単位を確定したら features.md へ書き戻す」）
 - **「ページ要素の帰属」表を持たない `.replace/features.md`**（この節を持たない版のインベントリ）では、要素の所有者を推測で埋めない。所有者不明の要素を `gaps.md` に残し、表の追加を `replace-strategy` 側で行うようユーザーに促す
   - 表はあるが**所有者が空欄の行**（`replace-strategy` が確認待ちにした行）も同じ扱いにする。空欄を自分で埋めず、その要素の在席を確認済みにせず `gaps.md` に残す
 
@@ -359,6 +360,10 @@
 - **`disposition: blocking` が 1 件でも残る間は `parity-diff` を収束させない**（数え直しは [`../scripts/artifact-health-check.mjs`](../scripts/artifact-health-check.mjs)）。
   **止まるのは `parity-diff` だけ**——本スキルの完了判定は `--stage suite` で通すので、blocking を書いたこと自体が自分のゲートを止めることはない
   （書き手が記録を消す方向のインセンティブを作らない）
+- **API の要求単位を確定できなかった項目は `endpoint` に口を書く**——`.replace/features.md` の API 列に書いた口をそのまま完全一致で入れる。
+  `replace-strategy` の `scripts/evidence-gap-check.mjs` が**この値の完全一致だけを宣言として数える**ので、
+  `item` の散文に口が含まれるだけでは宣言にならない（部分一致を許すと、別の口が宣言済みに化ける）。
+  書かないと、その口は `parity-replace` の完了判定で「書き戻しの漏れ」として落ちる（口に紐づかない未測定では `null`）
 - **`accepted` は「測らないことをユーザーが承認した」記録**で、`approved_by` / `approved_at` が要る。
   **語彙外・欠落・承認記録が空のものは `blocking` として数える**（fail-closed）
 - **後方互換のため、既定は現状維持**——`unmeasured` を**キーごと持たない**成果物は判定に入れない。
