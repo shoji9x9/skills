@@ -312,6 +312,11 @@ jobs:
             fi
           elif [ -n "$number" ]; then
             gh issue edit "$number" --body-file "$BODY_FILE"
+            # **本文の更新だけでは誰にも通知が飛ばない。** 追跡 Issue は pending が 0 に
+            # なるまで閉じないので、コメントを足さないと 2 週目以降のレポートが届かず、
+            # 「適用のきっかけを作る」というこの仕組みの目的が 1 週目でしか成立しない。
+            gh issue comment "$number" --body \
+              "今週の棚卸し: 未適用 ${PENDING_COUNT} 件。本文を更新しました（[run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)）。"
           else
             gh issue create --title "$ISSUE_TITLE" --body-file "$BODY_FILE"
           fi

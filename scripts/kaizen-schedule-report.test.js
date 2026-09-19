@@ -313,6 +313,31 @@ describe("pending の数え方と並び", () => {
     );
   });
 
+  // Issue 本文は 65,536 文字が上限。超えると `gh issue create/edit` が失敗し、
+  // その週のレポートが 1 件も届かない。切った分は件数と参照先を明示する
+  // （黙って落とすと「表に無い＝存在しない」と読まれる）。
+  test("表は上限行数で切り、残件数を明示する", () => {
+    const notes = {};
+    for (let i = 0; i < 65; i += 1) {
+      notes[`n${String(i).padStart(3, "0")}`] = { date: "2026-09-01" };
+    }
+    withProject({ notes }, (p) => {
+      const body = run(p, ["issue"]).stdout;
+      expect(body).toContain("**65 件**");
+      const rows = [...body.matchAll(/^\| medium \| rule \|/gm)].length;
+      expect(rows).toBe(60);
+      expect(body).toContain("残り 5 件");
+      // 切った側のノートは表に出ない（上限が効いている陰性コントロール）。
+      expect(body).not.toContain(".kaizen/n064.md");
+    });
+  });
+
+  test("上限以下なら切り詰めの注記を出さない", () => {
+    withProject({ notes: { a: {}, b: {} } }, (p) => {
+      expect(run(p, ["issue"]).stdout).not.toContain("残り");
+    });
+  });
+
   test("prompt 出力は対象ノートのパスを列挙する", () => {
     withProject({ notes: { a: {}, b: {} } }, (p) => {
       const out = run(p, ["prompt"]).stdout;

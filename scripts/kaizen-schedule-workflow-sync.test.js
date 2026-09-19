@@ -16,29 +16,33 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CANON = "skills/kaizen/assets/kaizen-schedule.yml";
 const WIRED = ".github/workflows/kaizen-schedule.yml";
 
-// `uses:` の SHA だけは両側がずれうる。Dependabot（`package-ecosystem: github-actions`）も
-// lefthook の `pinact` も `.github/workflows/` しか書き換えないため、週次の actions 更新 PR で
-// 片側の SHA が 1 行変わる。ここを完全一致で縛ると、その PR のたびに必須チェックが赤くなり、
-// 自動マージも止まる。そこで **pin の値だけを正規化して比較し、pin の健全性と
-// アクションの並びは別 assertion で固定する**（差分を見逃すのではなく、軸を分ける）。
-const PIN = /(uses:\s*\S+?)@[0-9a-f]{40}(?:\s*#.*)?$/gm;
-const normalizePins = (yaml) => yaml.replace(PIN, "$1@<PIN>");
-const usesLines = (yaml) => [...yaml.matchAll(/^\s*uses:\s*(\S+?)@(\S+)/gm)].map((m) => m[1]);
-const pins = (yaml) => [...yaml.matchAll(/^\s*uses:\s*\S+?@(\S+)/gm)].map((m) => m[1]);
+// **pin を含めた完全一致に戻した。** 前の版は `uses:` の SHA とバージョンコメントを
+// 正規化して比較していたが、それだと配布テンプレートの pin が**恒久的に古いまま**になり、
+// どの検査にも掛からない（`pinact run --check` は SHA とコメントの整合を見るだけで、
+// そのバージョンが最新かは見ない）。
+//
+// 完全一致にする代わり、Dependabot が `.github/workflows/` 側だけを上げた PR では
+// この検査が赤くなる。**silent な陳腐化より visible な 1 コマンドの手戻りを選ぶ**
+// ——失敗メッセージに同期コマンドを書いてあり、その PR は `dependabot-merge` が
+// どのみち人の目を通す。CI 側の pin 検査（`ci.yml` の "Pin check (distributed workflow
+// templates)"）は、テンプレートが未 pin・コメント不整合になることを別途落とす。
+const SYNC_HINT =
+  "正本と配線がずれている。`cp .github/workflows/kaizen-schedule.yml " +
+  "skills/kaizen/assets/kaizen-schedule.yml` で同期し、" +
+  "`scripts/reinstall-skill.sh kaizen` を実行する。";
 
-test("配布テンプレートと本リポのワークフローが pin を除いて一致する", () => {
+test("配布テンプレートと本リポのワークフローがバイト単位で一致する", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
   const wired = readFileSync(join(repoRoot, WIRED), "utf8");
-  expect(normalizePins(wired)).toBe(normalizePins(canon));
+  expect(wired, SYNC_HINT).toBe(canon);
 });
 
-test("両側とも同じアクションを同じ順で使い、すべて 40 桁 SHA で固定している", () => {
+test("すべての uses: を 40 桁 SHA で固定している", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
-  const wired = readFileSync(join(repoRoot, WIRED), "utf8");
+  const pins = [...canon.matchAll(/^\s*uses:\s*\S+?@(\S+)/gm)].map((m) => m[1]);
   // 0 件を合格に倒さない（正規表現が空振りしただけの緑を根拠にしない）。
-  expect(usesLines(canon).length).toBeGreaterThan(0);
-  expect(usesLines(wired)).toStrictEqual(usesLines(canon));
-  for (const pin of [...pins(canon), ...pins(wired)]) {
+  expect(pins.length).toBeGreaterThan(0);
+  for (const pin of pins) {
     expect(pin).toMatch(/^[0-9a-f]{40}$/);
   }
 });

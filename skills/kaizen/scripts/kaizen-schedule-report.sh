@@ -56,6 +56,13 @@ fi
 readonly DEFAULT_MODE=notify
 readonly DEFAULT_AGENT=claude
 
+# Issue 本文に載せる表の最大行数。GitHub の Issue 本文は 65,536 文字が上限で、
+# 超えると `gh issue create/edit` が失敗し、その週のレポートが 1 件も届かない。
+# 1 行は要約（最大 120 文字）込みで最大およそ 400 文字なので、60 行で 24,000 文字。
+# 前後の説明を足しても上限の半分に収まる。切った分は件数と参照先を明示する
+# （黙って落とすと「表に無い＝存在しない」と読まれる）。
+readonly MAX_TABLE_ROWS=60
+
 warn() { echo "kaizen-schedule-report: $*" >&2; }
 
 # 値を「環境変数 → .kaizen/config → 既定」の順で解決し、採った層を stderr に出す。
@@ -274,7 +281,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local index count rank sort_key date_value priority type_value f
+	local index count rank sort_key date_value priority type_value f shown
 	resolve_config
 	index=$(build_pending_index)
 	count=$(wc -l <"${index}")
@@ -294,14 +301,22 @@ cmd_issue() {
 
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
+	shown=0
 	while IFS=$'\t' read -r rank sort_key date_value priority type_value f; do
 		[ -n "${f}" ] || continue
+		[ "${shown}" -lt "${MAX_TABLE_ROWS}" ] || break
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
 		printf '| %s | %s | %s | `%s` | %s |\n' \
 			"${priority}" "${type_value}" "${date_value}" "${f}" "$(summary_of "${f}")"
+		shown=$((shown + 1))
 	done <"${index}"
 	rm -f "${index}"
+	if [ "${count}" -gt "${shown}" ]; then
+		echo
+		echo "> 優先度の高い ${shown} 件だけを載せています（Issue 本文の文字数上限を超えないため）。"
+		echo "> 残り $((count - shown)) 件は \`.kaizen/\` を直接参照してください。"
+	fi
 }
 
 cmd_prompt() {
