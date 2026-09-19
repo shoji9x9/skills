@@ -1029,6 +1029,16 @@ describe("生 JSON へ縮退した経路の commit 検出", () => {
     ["cd /tmp; git --no-pager commit -m x", 2],
     // JSON では改行が `\n` の 2 文字として現れる。リテラルの区切りだけを見ていると取りこぼす。
     ["cd /tmp\ngit commit -m x", 2],
+    // 行継続（`\` ＋ 改行）で割れたトークン（Issue #409）。シェルは継続を取り除いてから実行するのに、
+    // 生 JSON には `git` も `commit` も揃って現れず、この経路だけ素通りしていた（実測）。
+    ["gi\\\nt commit -m x", 2],
+    ["git com\\\nmit -m x", 2],
+    ["cd /tmp && gi\\\nt commit -m x", 2],
+    // 継続でない `\\` ＋ 改行（エスケープされた `\` の直後の改行）。改行は本物の区切りなので、
+    // 詰めた写しだけを見ていると区切りが消えて素通りする——元の入力側で捕まえる。
+    ["echo a\\\\\ngit commit -m x", 2],
+    // 継続で `git` と繋がって別の語になる形は commit ではない（過剰ブロックへ倒さない）。
+    ["echo a\\\ngit log", 0],
     // 先頭の commit（従来から捕捉できていた形）。
     ["git commit -m x", 2],
     ["git -C /tmp commit -m x", 2],
