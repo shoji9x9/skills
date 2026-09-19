@@ -43,7 +43,9 @@ pre-commit:
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
           - name: gha-pinact
-            glob: ".github/workflows/*.{yml,yaml}"
+            # 配布スキル同梱のワークフローテンプレートも対象にする。`.github/workflows/` 側だけ
+            # 固定すると、配布先へ配られるテンプレートの SHA だけが古いまま残る。
+            glob: "{.github/workflows,skills/*/assets}/*.{yml,yaml}"
             run: pinact run {staged_files}
             stage_fixed: true
     - name: lint

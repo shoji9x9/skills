@@ -85,6 +85,21 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: pinact run --check
+      # 引数なしの `pinact run --check` は `.github/workflows/**` しか見ない（実測: 未 pin の
+      # probe を `skills/*/assets/` に置いても exit 0）。配布スキルに同梱するワークフロー
+      # テンプレートは配布先でそのまま使われるので、明示して同じ基準で検査する。
+      - name: Pin check (distributed workflow templates)
+        run: |
+          shopt -s nullglob
+          templates=(skills/*/assets/*.yml skills/*/assets/*.yaml)
+          # 対象 0 件を成功に倒さない（glob が空振りしただけの緑を根拠にしない）。
+          if [ "${#templates[@]}" -eq 0 ]; then
+            echo "配布テンプレートが 1 件も見つからない（glob を確認する）" >&2
+            exit 1
+          fi
+          printf '検査対象 %s 件:\n' "${#templates[@]}"
+          printf '  %s\n' "${templates[@]}"
+          pinact run --check "${templates[@]}"
       - run: actionlint
       - name: Policy lint (ghalint)
         run: ghalint run

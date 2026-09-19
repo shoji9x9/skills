@@ -478,6 +478,119 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 gh skill install shoji9x9/skills multiagent-setup --agent <利用するエージェント>
 ```
 
+### 7. 定期実行（任意・GitHub Actions）
+
+pending の学びは、コミット前ゲートが抽出を促す一方で**適用されるきっかけが無い**。
+閾値に達すれば自動忘却が拾うが、忘却は「適用せずに終わりにする」決着なので、
+適用の機会そのものを作るために週次で棚卸しを回す。
+
+**前提: kaizen スキル本体がリポジトリにコミットされていること。** ワークフローは checkout した作業ツリーの中だけを探し
+（`.claude/` / `.agents/` / `.github/` 配下の各 `skills/kaizen/scripts/`）、見つからなければ意図的に `exit 1` する。
+`~/.claude/skills/kaizen` のようなユーザースコープにだけ入れている場合、ランナーにはそれが存在しないので
+**先にリポジトリスコープへインストールしてコミットする**（そうしないと毎週 run が赤くなり続ける）。
+
+同梱テンプレート `assets/kaizen-schedule.yml` をリポジトリの `.github/workflows/` へコピーする:
+
+```bash
+# <スキル> はコピー元のインストール先（ユーザースコープからコピーしてもよい）。
+mkdir -p .github/workflows
+cp <スキル>/assets/kaizen-schedule.yml .github/workflows/kaizen-schedule.yml
+
+# コピー後、スクリプト本体がリポジトリ内に在ることを確かめる。探索先はワークフローと同じ順。
+# `ls -d A B C` は使わない——1 つでも欠けると非 0 で終わるため、正常な単一エージェント
+# インストールでも必ず誤警告する（実測: 3 つ中 1 つ在る状態で exit 2）。
+# **一致 0 件を成功に倒さない**——この検査が存在する理由そのものの状態（どこにも無い）を
+# 無出力・exit 0 で通すと、毎週 run が赤くなる構成を「確認済み」と読んでコミットしてしまう。
+found=""
+for d in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
+         .github/skills/kaizen/scripts skills/kaizen/scripts; do
+  if [ -r "$d/kaizen-schedule-report.sh" ]; then
+    found="$d"
+    break
+  fi
+done
+if [ -n "$found" ]; then
+  echo "OK: $found"
+else
+  echo "NG: スキル本体がリポジトリに無い。リポジトリスコープへインストールしてコミットする" >&2
+  false
+fi
+```
+
+**このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を
+1 本の Issue にまとめ、同じタイトルの Issue があれば本文を更新する。pending が 0 件になればその Issue を閉じる。
+適用（`/kaizen apply`）は人が開いたセッションで行う——`references/apply.md` はグループごとにユーザー承認を要求する設計で、
+承認点を無人化すると「適用したことにする」経路ができるため。
+
+#### 2 つのモード
+
+| mode | 何をするか | 必要なもの |
+|------|-----------|-----------|
+| `notify`（既定） | pending の一覧表だけを Issue にする | なし（LLM を動かさない） |
+| `agent` | エージェントに pending を読ませ、グルーピング・根本原因・適用先の提案までさせて Issue に載せる | 選んだエージェントの資格情報（secret） |
+
+`agent` でも**エージェントは読み取りだけ**を行う。レポートはワークフローが Issue へ転記する。
+
+#### エージェントの選択
+
+| agent | 実行方法 | 資格情報（secret） | model | effort |
+|-------|---------|------------------|-------|--------|
+| `claude`（既定） | [`anthropics/claude-code-action`](https://github.com/anthropics/claude-code-action) | `ANTHROPIC_API_KEY` または `CLAUDE_CODE_OAUTH_TOKEN` | `claude_args` の `--model` へ渡す | 対応する入力が無いため無視 |
+| `codex` | [`openai/codex-action`](https://github.com/openai/codex-action) | `OPENAI_API_KEY` | `model` 入力 | `effort` 入力 |
+| `copilot` | [Copilot CLI をプログラム的に実行](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/automate-with-actions) | `COPILOT_GITHUB_TOKEN`（Copilot を使える PAT） | `--model` | 対応する入力が無いため無視 |
+
+**`effort` を受け取るのは codex だけ。** 他のエージェントに指定した場合は捨てたことを stderr に出す
+（黙って無視すると、エフォートを効かせたつもりの run と既定の run を出力で区別できない）。
+検証日 2026-09-19 時点の各 action の `action.yml`（入力名）と Copilot CLI の
+[プログラム実行リファレンス](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference)（`-p` / `--model` / `-s` / `--allow-tool` / `--no-ask-user`）で確認した。
+バージョンを上げるときは入力名を同じ一次情報で取り直す。
+
+#### 設定（優先順位つき 3 層）
+
+上が優先。**どの層の値を採ったかは実行ログ（stderr）に 1 行ずつ出る**ので、
+「設定したつもりの値で動いていない」を run のログだけで切り分けられる。
+
+1. **`workflow_dispatch` の入力**（`mode` / `agent` / `model` / `effort`）— その 1 回だけの上書き。手で試すとき用
+2. **`.kaizen/config` の `schedule_*` キー** — リポジトリの意思。コミットされてレビューを通る
+3. **既定値** — `mode=notify` / `agent=claude` / model・effort はエージェント側の既定
+
+```ini
+schedule_enabled=on       # 定期実行の有効・無効（既定 on）
+schedule_mode=notify      # notify | agent（既定 notify）
+schedule_agent=claude     # claude | codex | copilot（既定 claude）
+schedule_model=           # 空ならエージェント側の既定モデル
+schedule_effort=          # codex のみ有効
+```
+
+不正値は既定へ倒し、倒したことを stderr に出す（`.kaizen/config` の他のキーと同じ方針）。
+
+#### skip（凍結プロジェクト・レートリミット接近時）
+
+止め方は 2 つあり、**どちらかが立てば止まる**（一時停止は上書きではなく追加の安全弁）。
+
+- **リポジトリ変数 `KAIZEN_SCHEDULE_SKIP`**（`true` / `on` / `1` 等）— コミットを伴わない一時停止。
+  `gh variable set KAIZEN_SCHEDULE_SKIP --body true` で立て、`gh variable delete KAIZEN_SCHEDULE_SKIP` で戻す
+- **`.kaizen/config` の `schedule_enabled=off`** — 凍結プロジェクトなど、止めた状態をリポジトリに残したいとき
+
+skip した run は Issue を作らず、理由を step summary に出して成功で終わる
+（失敗にすると通知が飛び、止めたい状況でノイズになる）。
+
+#### 取りこぼさないための fail-safe
+
+「エージェントが動かなかった」と「エージェントが何も見つけなかった」は、放っておくと同じ出力になる。
+そこで次の分岐を持たせている。
+
+- **資格情報が無い**: エージェントを起動せず `notify` へ倒し、Issue に「未設定のため通知のみ」と書く
+- **pending が 0 件**: `agent` を指定していても `notify` へ倒す（エージェントへ渡す材料が無い）。既存の Issue は閉じる
+- **エージェントが失敗した／空を出した**: ジョブは落とさず、Issue に run へのリンク付きでその旨を書く。
+  判定は**二段**で、まずステップの `outcome`、通っていれば出力ファイルの非空を見る。
+  片方だけでは足りない——`copilot` は CLI の stdout がそのままレポートになるため、
+  レート制限等で途中終了した run の**部分出力**が非空になり、非空だけを見ると未完成の
+  レポートを完成品として転記する。逆に非空を見ないと、正常終了して何も出さなかった run を
+  失敗と区別できない。Issue にはこの 2 つが別の文言で出る
+- **`kaizen-schedule-report.sh` が見つからない**: ここだけは落とす。材料を作れないまま先へ進むと、
+  空の Issue が「異常なし」として出てしまう
+
 ## 使わない方式
 
 - **echo による行動リマインダー（Stop / sessionEnd / SessionStart）**: 「コミット前に kaizen を実行せよ」のような**行動を促す散文**は、エージェントの行動を確定的に変えられず見落とされる。特に Stop / sessionEnd の stdout はセッション終了後で context に渡らない。
