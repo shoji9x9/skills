@@ -16,10 +16,31 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CANON = "skills/kaizen/assets/kaizen-schedule.yml";
 const WIRED = ".github/workflows/kaizen-schedule.yml";
 
-test("配布テンプレートと本リポのワークフローがバイト単位で一致する", () => {
+// `uses:` の SHA だけは両側がずれうる。Dependabot（`package-ecosystem: github-actions`）も
+// lefthook の `pinact` も `.github/workflows/` しか書き換えないため、週次の actions 更新 PR で
+// 片側の SHA が 1 行変わる。ここを完全一致で縛ると、その PR のたびに必須チェックが赤くなり、
+// 自動マージも止まる。そこで **pin の値だけを正規化して比較し、pin の健全性と
+// アクションの並びは別 assertion で固定する**（差分を見逃すのではなく、軸を分ける）。
+const PIN = /(uses:\s*\S+?)@[0-9a-f]{40}(?:\s*#.*)?$/gm;
+const normalizePins = (yaml) => yaml.replace(PIN, "$1@<PIN>");
+const usesLines = (yaml) => [...yaml.matchAll(/^\s*uses:\s*(\S+?)@(\S+)/gm)].map((m) => m[1]);
+const pins = (yaml) => [...yaml.matchAll(/^\s*uses:\s*\S+?@(\S+)/gm)].map((m) => m[1]);
+
+test("配布テンプレートと本リポのワークフローが pin を除いて一致する", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
   const wired = readFileSync(join(repoRoot, WIRED), "utf8");
-  expect(wired).toBe(canon);
+  expect(normalizePins(wired)).toBe(normalizePins(canon));
+});
+
+test("両側とも同じアクションを同じ順で使い、すべて 40 桁 SHA で固定している", () => {
+  const canon = readFileSync(join(repoRoot, CANON), "utf8");
+  const wired = readFileSync(join(repoRoot, WIRED), "utf8");
+  // 0 件を合格に倒さない（正規表現が空振りしただけの緑を根拠にしない）。
+  expect(usesLines(canon).length).toBeGreaterThan(0);
+  expect(usesLines(wired)).toStrictEqual(usesLines(canon));
+  for (const pin of [...pins(canon), ...pins(wired)]) {
+    expect(pin).toMatch(/^[0-9a-f]{40}$/);
+  }
 });
 
 test("正本が定期実行スキルの前提（cron・skip・エージェント選択）を保っている", () => {

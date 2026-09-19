@@ -49,7 +49,8 @@ function note({
 }) {
   return [
     "---",
-    `date: ${date}`,
+    // date に空文字を渡したら行ごと落とす（frontmatter に date が無いノートの再現）。
+    ...(date ? [`date: ${date}`] : []),
     `type: ${type}`,
     `priority: ${priority}`,
     `status: ${status}`,
@@ -292,6 +293,24 @@ describe("pending の数え方と並び", () => {
       expect(body).toContain("**0 件**");
       expect(body).not.toContain("| 優先度 |");
     });
+  });
+
+  // ソート用のセンチネル（末尾へ回すための 9999-99-99）を表示へ流用しない。
+  // priority / type は `unknown` に倒れるのに date だけありもしない日付が出ると、
+  // Issue の読み手はそれを記録日として読む。
+  test("date が無いノートはソート用センチネルではなく unknown と表示する", () => {
+    withProject(
+      { notes: { hi: { priority: "high", date: "2026-09-03" }, nodate: { date: "" } } },
+      (p) => {
+        // 日付の無いノートは末尾へ回りつつ、表示は unknown になる。
+        const body = run(p, ["issue"]).stdout;
+        expect(body).toContain(".kaizen/nodate.md");
+        expect(body).not.toContain("9999-99-99");
+        // 列は `優先度 | 種別 | 記録日`。記録日だけが unknown になる。
+        expect(body).toMatch(/\| medium \| rule \| unknown \|/);
+        expect(body.indexOf(".kaizen/hi.md")).toBeLessThan(body.indexOf(".kaizen/nodate.md"));
+      },
+    );
   });
 
   test("prompt 出力は対象ノートのパスを列挙する", () => {

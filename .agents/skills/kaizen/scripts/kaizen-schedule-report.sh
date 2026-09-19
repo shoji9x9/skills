@@ -115,9 +115,13 @@ first_line_under() {
 }
 
 # pending なノートを priority 降順・日付昇順に並べた索引を一時ファイルへ作り、パスを返す。
-# 各行は `rank <TAB> date <TAB> priority <TAB> type <TAB> path`。
+# 各行は `rank <TAB> sort key <TAB> date <TAB> priority <TAB> type <TAB> path`。
+#
+# **ソート用のセンチネルと表示値を兼用しない。** 日付が無いノートを末尾へ回すための
+# `9999-99-99` をそのまま表示に使うと、Issue の「記録日」列にありもしない日付が出る
+# （priority / type は `unknown` に倒れるのに date だけ嘘の値になる）。列を分ける。
 build_pending_index() {
-	local index f priority date_value type_value rank
+	local index f priority date_value type_value rank sort_key
 	index=$(mktemp)
 	[ -d .kaizen ] || {
 		printf '%s' "${index}"
@@ -137,11 +141,13 @@ build_pending_index() {
 		esac
 		date_value=$(frontmatter_field "${f}" date)
 		type_value=$(frontmatter_field "${f}" type)
-		printf '%s\t%s\t%s\t%s\t%s\n' \
-			"${rank}" "${date_value:-9999-99-99}" "${priority:-unknown}" "${type_value:-unknown}" "${f}" \
+		sort_key=${date_value:-9999-99-99}
+		printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+			"${rank}" "${sort_key}" "${date_value:-unknown}" \
+			"${priority:-unknown}" "${type_value:-unknown}" "${f}" \
 			>>"${index}"
 	done
-	sort -t $'\t' -k1,1n -k2,2 -k5,5 "${index}" -o "${index}"
+	sort -t $'\t' -k1,1n -k2,2 -k6,6 "${index}" -o "${index}"
 	printf '%s' "${index}"
 }
 
@@ -268,7 +274,7 @@ cmd_config() {
 }
 
 cmd_issue() {
-	local index count rank date_value priority type_value f
+	local index count rank sort_key date_value priority type_value f
 	resolve_config
 	index=$(build_pending_index)
 	count=$(wc -l <"${index}")
@@ -288,7 +294,7 @@ cmd_issue() {
 
 	echo "| 優先度 | 種別 | 記録日 | ノート | 提案の要約 |"
 	echo "| --- | --- | --- | --- | --- |"
-	while IFS=$'\t' read -r rank date_value priority type_value f; do
+	while IFS=$'\t' read -r rank sort_key date_value priority type_value f; do
 		[ -n "${f}" ] || continue
 		# SC2016: 表のセルを囲むバックティックはリテラル。展開させない意図で単一引用符が正しい。
 		# shellcheck disable=SC2016
@@ -357,7 +363,7 @@ EOS
 	fi
 
 	echo
-	while IFS=$'\t' read -r _rank _date priority type_value f; do
+	while IFS=$'\t' read -r _rank _sort_key _date priority type_value f; do
 		[ -n "${f}" ] || continue
 		# shellcheck disable=SC2016
 		printf -- '- `%s`（priority: %s / type: %s）\n' "${f}" "${priority}" "${type_value}"
