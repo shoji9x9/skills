@@ -66,10 +66,16 @@ jobs:
       # 実行ビットは見ない（`-x` にしない）。`gh skill install` が配るコピーは 100644 で、
       # `.claude/` / `.agents/` 配下のインストール済みスクリプトは実行可能にならない。
       # kaizen の Hook と同じく `bash <path>` で起動するので読めれば足りる。
+      #
+      # 探索先は `references/setup.md` が正規配置として列挙するリポジトリ内のパス全部
+      # （Copilot 向けの `.github/skills/...` を含む）＋本リポのソース配置。
+      # `$HOME` 配下のユーザースコープは checkout に無いので探さない——そのため
+      # **スキル本体がリポジトリにコミットされていること**がこのワークフローの前提になる。
       - name: Locate kaizen scripts
         id: locate
         run: |
-          for dir in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts skills/kaizen/scripts; do
+          for dir in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
+                     .github/skills/kaizen/scripts skills/kaizen/scripts; do
             if [ -r "$dir/kaizen-schedule-report.sh" ]; then
               echo "script=$dir/kaizen-schedule-report.sh" >>"$GITHUB_OUTPUT"
               echo "found: $dir/kaizen-schedule-report.sh"
@@ -214,7 +220,17 @@ jobs:
           MODEL: ${{ steps.settings.outputs.model }}
           EFFORT: ${{ steps.settings.outputs.effort }}
           CRED_PRESENT: ${{ steps.cred.outputs.present }}
+          OUTCOME_CLAUDE: ${{ steps.run-claude.outcome }}
+          OUTCOME_CODEX: ${{ steps.run-codex.outcome }}
+          OUTCOME_COPILOT: ${{ steps.run-copilot.outcome }}
         run: |
+          # 起動したエージェントのステップの結果を取る（他の 2 つは skipped）。
+          outcome=""
+          case "$AGENT" in
+            claude) outcome="$OUTCOME_CLAUDE" ;;
+            codex) outcome="$OUTCOME_CODEX" ;;
+            copilot) outcome="$OUTCOME_COPILOT" ;;
+          esac
           {
             echo
             echo "---"
@@ -226,6 +242,11 @@ jobs:
             echo
             if [ "$CRED_PRESENT" != true ]; then
               echo "> 資格情報（\`$AGENT\` 用の secret）が未設定のため、通知のみに倒しました。"
+            elif [ "$outcome" != success ]; then
+              # 非空だけで成否を測らない。copilot は CLI の stdout がそのまま
+              # レポートになるため、レート制限等で途中終了した run の**部分出力**が
+              # 非空になり、未完成のレポートを完成品として転記してしまう。
+              echo "> エージェントの実行が失敗しました（outcome: \`${outcome:-unknown}\`）。上記 run のログを確認してください。"
             elif [ -s "$REPORT_FILE" ]; then
               cat "$REPORT_FILE"
             else

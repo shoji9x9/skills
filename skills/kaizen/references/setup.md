@@ -484,12 +484,20 @@ pending の学びは、コミット前ゲートが抽出を促す一方で**適�
 閾値に達すれば自動忘却が拾うが、忘却は「適用せずに終わりにする」決着なので、
 適用の機会そのものを作るために週次で棚卸しを回す。
 
+**前提: kaizen スキル本体がリポジトリにコミットされていること。** ワークフローは checkout した作業ツリーの中だけを探し
+（`.claude/` / `.agents/` / `.github/` 配下の各 `skills/kaizen/scripts/`）、見つからなければ意図的に `exit 1` する。
+`~/.claude/skills/kaizen` のようなユーザースコープにだけ入れている場合、ランナーにはそれが存在しないので
+**先にリポジトリスコープへインストールしてコミットする**（そうしないと毎週 run が赤くなり続ける）。
+
 同梱テンプレート `assets/kaizen-schedule.yml` をリポジトリの `.github/workflows/` へコピーする:
 
 ```bash
-# <スキル> はインストール先（~/.claude/skills/kaizen / .claude/skills/kaizen / .agents/skills/kaizen のいずれか）。
+# <スキル> はコピー元のインストール先（ユーザースコープからコピーしてもよい）。
+# コピー後、スクリプト本体がリポジトリ内に在ることを確かめる。
 mkdir -p .github/workflows
 cp <スキル>/assets/kaizen-schedule.yml .github/workflows/kaizen-schedule.yml
+ls -d .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
+      .github/skills/kaizen/scripts 2>/dev/null || echo "スキル本体がリポジトリに無い"
 ```
 
 **このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を

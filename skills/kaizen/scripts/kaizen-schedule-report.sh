@@ -25,10 +25,19 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
 fi
+# 共通ライブラリを読めないときの縮退。**停止スイッチだけは fail-closed に倒す**——
+# mode / agent が既定へ倒れるのは「動き方が変わる」だけだが、`schedule_enabled=off` を
+# 読み落とすと「止めたはずのリポジトリが毎週動く」側へ倒れる（凍結プロジェクト・
+# レートリミット接近時という、この停止スイッチの存在理由そのものを裏切る）。
+# 設定ファイルが在るのに読めないときだけ停止し、そもそも無いなら尊重する設定が無いので進む。
+config_unreadable=""
 if ! declare -f kaizen_config_value >/dev/null 2>&1; then
 	# 縮退したことを黙らせない（縮退した run と本番構成の run を出力で区別できるようにする）。
-	echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため .kaizen/config を無視する" >&2
+	echo "kaizen-schedule-report: kaizen-hook-common.sh を読めないため .kaizen/config を読めない" >&2
 	kaizen_config_value() { return 1; }
+	if [ -e .kaizen/config ]; then
+		config_unreadable=1
+	fi
 fi
 
 readonly DEFAULT_MODE=notify
@@ -143,6 +152,12 @@ resolve_config() {
 
 	skip="false"
 	skip_reason=""
+
+	if [ -n "${config_unreadable}" ]; then
+		skip="true"
+		skip_reason=".kaizen/config が在るのに読めない（共通ライブラリの欠落）。停止側へ倒した"
+		warn "${skip_reason}"
+	fi
 
 	# 一時停止（環境変数 KAIZEN_SCHEDULE_SKIP）とリポジトリの意思（schedule_enabled）は
 	# 別の軸。**どちらかが止めれば止まる**——一時停止は上書きではなく追加の安全弁なので、
