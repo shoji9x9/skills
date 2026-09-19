@@ -75,7 +75,7 @@ const NO_ENDPOINT_MARKERS = new Set(["-", "‐", "–", "—", "ー", "なし", 
 
 /** 空白を全て落とした見出し（列名のずれの検出用）。 */
 const ENDPOINT_HEADERS_SQUEEZED = new Set(
-  ENDPOINT_HEADERS.map((header) => header.replace(/\s+/gu, "")),
+  ENDPOINT_HEADERS.map((header) => header.normalize("NFKC").replace(/\s+/gu, "")),
 );
 
 /**
@@ -86,7 +86,9 @@ const ENDPOINT_HEADERS_SQUEEZED = new Set(
  * @returns {boolean}
  */
 export function looksLikeEndpointHeader(header) {
-  const squeezed = collapse(header).replace(/\s+/gu, "");
+  // NFKC で全角を畳む——`ＡＰＩ` のような表記を拾えないと、口の列を持つ機能行が
+  // 対象外（exit 4）で素通りする。
+  const squeezed = collapse(header).normalize("NFKC").replace(/\s+/gu, "");
   if (squeezed.length === 0) return false;
   if (ENDPOINT_HEADERS_SQUEEZED.has(squeezed)) return true;
   return /api/iu.test(squeezed);
@@ -221,7 +223,8 @@ export function readRow(text, slug) {
   let nonEndpointRows = 0;
   // 根拠列はあるのに口の列が無い表の行。列名が規約（新規実装 API / API）とずれている入力の不備で、
   // 「列の導入前」（exit 3）でも「対象外」（exit 4）でもない——どちらへ倒しても完了判定が通ってしまう。
-  let malformedRows = 0;
+  /** @type {string[]} 列名のずれで判定できない行の理由（経路ごとに書き分ける）。 */
+  const malformed = [];
   for (const table of tables) {
     const slugIndex = table.headers.indexOf("slug");
     if (slugIndex < 0) continue;
@@ -240,7 +243,13 @@ export function readRow(text, slug) {
           nonEndpointRows += 1;
           continue;
         }
-        malformedRows += 1;
+        // 2 つの経路を 1 つのメッセージに畳まない——直す場所が違う（前者は口の列の名前、
+        // 後者は根拠列の不在）ので、畳むと存在しない列を探すことになる。
+        malformed.push(
+          evidenceIndex < 0
+            ? `slug ${slug} の行の表は口の列らしい見出し（${table.headers.filter(looksLikeEndpointHeader).join(" / ")}）を持つが、規約名（${ENDPOINT_HEADERS.join(" / ")}）と一致せず「${EVIDENCE_HEADER}」列も無い——見出しを規約名に揃える`
+            : `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列名が規約とずれている`,
+        );
         continue;
       }
       if (evidenceIndex < 0) {
@@ -254,16 +263,14 @@ export function readRow(text, slug) {
       });
     }
   }
-  const total = matched.length + legacyRows + nonEndpointRows + malformedRows;
+  const total = matched.length + legacyRows + nonEndpointRows + malformed.length;
   if (total > 1) {
     throw new UsageError(
       `slug ${slug} の行が ${total} 件ある（slug はインベントリ全体で一意。どちらが正かを決めるまで判定しない）`,
     );
   }
-  if (matched.length === 0 && malformedRows > 0) {
-    throw new UsageError(
-      `slug ${slug} の行の表は「${EVIDENCE_HEADER}」列を持つのに口の列（${ENDPOINT_HEADERS.join(" / ")}）が無い——列名が規約とずれている。対象外にも判定不能にも倒さない`,
-    );
+  if (matched.length === 0 && malformed.length > 0) {
+    throw new UsageError(`${malformed[0]}。対象外にも判定不能にも倒さない`);
   }
   if (matched.length === 0 && nonEndpointRows > 0) {
     throw new NotApplicableError(

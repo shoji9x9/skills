@@ -532,6 +532,61 @@ test("口の列らしい見出しがあれば、根拠列が無くても対象�
   });
 });
 
+test("列名のずれは経路ごとに違う理由を出す（直す場所が違う）", () => {
+  withDir((dir) => {
+    const withEvidence = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装API | 要求単位の根拠 |",
+      "|---|---|---|",
+      "| plan | GET /api/plans | GET /api/plans → 推定: 未確定 |",
+      "",
+    ].join("\n");
+    const a = run(dir, { "features.md": withEvidence }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "plan",
+    ]);
+    expect(a.status).toBe(2);
+    expect(a.stderr).toContain("列を持つのに口の列");
+
+    const withoutEvidence = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装API |",
+      "|---|---|",
+      "| plan | GET /api/plans |",
+      "",
+    ].join("\n");
+    const b = run(dir, { "features.md": withoutEvidence }, [
+      "--features",
+      "features.md",
+      "--slug",
+      "plan",
+    ]);
+    expect(b.status).toBe(2);
+    expect(b.stderr).toContain("見出しを規約名に揃える");
+    expect(b.stderr).not.toContain("列を持つのに口の列");
+  });
+});
+
+test("全角の見出し（新規実装ＡＰＩ）も口の列らしいものとして拾う", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装ＡＰＩ |",
+      "|---|---|",
+      "| plan | GET /api/plans |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).not.toContain("not-applicable:");
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);
