@@ -243,8 +243,10 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
      バッチ行は口を持たないので検査対象が無く、本ゲートは通過とする（インベントリを直す話ではないので exit 2 と混同しない）。
      根拠列はあるのに口の列だけ無い表は列名のずれとして exit 2 になるので、exit 4 を「口の列が無ければ通過」と読み替えない。
      **`--unmeasured` に渡すパスが未生成でも exit 4 になる**（行の分類を先に済ませる実装）ので、batch モードで exit 2 が出たらインベントリではなく引数・列名を疑う
-   - **exit 3 は判定不能**（「要求単位の根拠」列の無い旧インベントリ・`unmeasured` キーの無い旧成果物）。ここだけは完了を止めず、
-     理由を `porting.md` へ記録し、列・キーの追加を `replace-strategy` / `parity-suite` 側で行うよう促す
+   - **exit 3 は判定不能**（「要求単位の根拠」列の無い旧インベントリ）。**ここだけは完了を止めない**——列を持たない台帳では `推定` を記録する場所自体が無く、
+     止めると導入前に作られた全機能が一斉に閉じられなくなるため（`parity-suite` の `unmeasured` を「キーごと無い旧成果物は判定に入れない」とするのと同じ後方互換）。
+     **合格の証拠にはならない**ので、判定不能だった事実と対象 slug を `porting.md` へ必ず記録し、列の追加を `replace-strategy` 側で行うよう促す
+     （「合格に倒さない」の意味は `replace-strategy` の `references/evidence.md`「漏れを数える」を参照）
    - **スクリプトに到達できない**（`replace-strategy` が未インストール）ときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills replace-strategy`）を示す——
      委譲先の実在を確かめずに緩めると、書き戻しも宣言もされていない状態が黙って通る
 9. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。

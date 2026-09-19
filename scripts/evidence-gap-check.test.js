@@ -504,6 +504,34 @@ test("対象外の判定は --unmeasured の読み取りより先（未生成で
   });
 });
 
+test("全ての口が実測なら、unmeasured キーの無い旧成果物でも exit 0（判定不能に倒さない）", () => {
+  withDir((dir) => {
+    const r = run(
+      dir,
+      { "features.md": MEASURED_BOTH, "metadata.json": metadata([], { omitUnmeasured: true }) },
+      ["--features", "features.md", "--slug", "plan", "--unmeasured", "metadata.json"],
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain("undecidable:");
+  });
+});
+
+test("口の列らしい見出しがあれば、根拠列が無くても対象外（exit 4）に倒さない", () => {
+  withDir((dir) => {
+    const text = [
+      "## 機能一覧",
+      "",
+      "| slug | 新規実装API |",
+      "|---|---|",
+      "| plan | GET /api/plans |",
+      "",
+    ].join("\n");
+    const r = run(dir, { "features.md": text }, ["--features", "features.md", "--slug", "plan"]);
+    expect(r.status).toBe(2);
+    expect(r.stderr).not.toContain("not-applicable:");
+  });
+});
+
 test("引数の不備は exit 2 で使い方を出す", () => {
   withDir((dir) => {
     const r = run(dir, { "features.md": ONE_ESTIMATED }, ["--features", "features.md"]);

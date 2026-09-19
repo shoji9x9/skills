@@ -137,7 +137,10 @@ done
     分け方は、その slug の成果物の到達段階と `unmeasured` の宣言で決める（口の単位で見る）。
     - **`.replace/parity/<slug>/metadata.json` が無い**（特性化前）: まだ着手していない
     - **特性化済み、または `new/<target>/replace-metadata.json` の `suite.new_green: true`** なのに `推定` が残る:
-      その口が `metadata.json` の `unmeasured.entries` に宣言されていれば「未測定として宣言済み」（`disposition` を添える）、
+      その口が `metadata.json` の `unmeasured.entries` に宣言されていれば「未測定として宣言済み」（`disposition` を添える）。
+      **宣言と認めるのは `entries[].endpoint` が口と完全一致する要素だけ**で、`item` の散文に口が含まれるだけのものは数えない（部分一致は別の口を宣言済みに化けさせる）。
+      **`declared: false` の成果物は `entries` を読まない**（`parity-suite` の `artifact-health-check.mjs` がその節を判定しないので、読むと誰も効かせていない宣言で「宣言済み」に倒れる）。
+      機械検査（[`evidence.md`](evidence.md)「漏れを数える」）も同じ規則なので、ここを緩めると人手の導出とツールで判定が割れる。
       **宣言も無ければ「書き戻し漏れの疑い」として名指しする**——確定したのに `replace-strategy evidence` を通していないか、確定できなかったのに宣言していないかのどちらかで、
       どちらも放置すると `status` がその口を永久に未確認として報告し続ける（経路の正本は [`evidence.md`](evidence.md)）
     - **`unmeasured` をキーごと持たない成果物**（旧版 `parity-suite`）では宣言の有無を判定できないので、「宣言の有無が判定不能」として書き分ける（宣言済みにも漏れにも倒さない）

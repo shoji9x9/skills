@@ -73,6 +73,25 @@ const VERDICT_PATTERNS = [
 /** 口の欄に「無い」と書くときの語（口として数えない）。 */
 const NO_ENDPOINT_MARKERS = new Set(["-", "‐", "–", "—", "ー", "なし", "無し"]);
 
+/** 空白を全て落とした見出し（列名のずれの検出用）。 */
+const ENDPOINT_HEADERS_SQUEEZED = new Set(
+  ENDPOINT_HEADERS.map((header) => header.replace(/\s+/gu, "")),
+);
+
+/**
+ * 口の列「らしい」見出しか。完全一致しないが口の列のつもりで書かれた見出しを拾う。
+ * 対象外（exit 4）を「口の列が無い」で決めると、列名がずれた機能行が痕跡なく通過するため、
+ * ここで拾って入力の不備（exit 2）へ倒す。
+ * @param {string} header
+ * @returns {boolean}
+ */
+export function looksLikeEndpointHeader(header) {
+  const squeezed = collapse(header).replace(/\s+/gu, "");
+  if (squeezed.length === 0) return false;
+  if (ENDPOINT_HEADERS_SQUEEZED.has(squeezed)) return true;
+  return /api/iu.test(squeezed);
+}
+
 /**
  * 空白を 1 つに畳み、前後を除く（Markdown の表はフォーマッタが桁を詰め直すため素の比較では揺れる）。
  * @param {string} value
@@ -214,7 +233,10 @@ export function readRow(text, slug) {
         // 口の列も根拠列も無い表＝バッチ・「その他の Issue」。設計上どちらの列も持たない。
         // 根拠列はあるのに口の列だけ無いのは列名のずれ（規約外の見出し）なので対象外にしない——
         // そこを対象外へ倒すと、推定の口が残る機能行が exit 4 で完了判定を通る（fail-open）。
-        if (evidenceIndex < 0) {
+        // 根拠列も無い旧インベントリでも、口の列**らしい**見出し（空白違い・API を含む名前）が
+        // あれば同じ理由で対象外にしない。対象外は「口の列が無い」ではなく
+        // 「口の列らしい見出しが 1 つも無い」で決める。
+        if (evidenceIndex < 0 && !table.headers.some(looksLikeEndpointHeader)) {
           nonEndpointRows += 1;
           continue;
         }
@@ -333,11 +355,9 @@ export function check(input) {
   // バッチ slug が対象外（exit 4）ではなく ENOENT（exit 2）になり、
   // 「インベントリを直す」という誤った直し方へ案内してしまう。
   const row = readRow(input.featuresText, input.slug);
-  const declared =
-    input.unmeasuredPath === undefined || input.unmeasuredPath === null
-      ? null
-      : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
-
+  // 宣言を読むのは未確認の口が 1 つでもあるときだけ。全て `実測` の行では宣言が判定に
+  // 寄与しないので、旧成果物（unmeasured キーが無い）でも exit 3 にしない——
+  // 判定不能が日常化すると、消費側が exit 3 を無視する運用に倒れる。
   /** @type {Map<string, Set<string>>} 口 → 対応づいた根拠の語彙 */
   const verdicts = new Map();
   for (const endpoint of row.endpoints) verdicts.set(endpoint, new Set());
@@ -358,6 +378,18 @@ export function check(input) {
       if (bucket !== undefined) bucket.add(entry.verdict);
     }
   }
+
+  // 未確認の口が 1 つも無いなら宣言は判定に寄与しないので読まない——旧成果物
+  // （unmeasured キーが無い）でも全て `実測` の行は exit 0 にする。判定不能が
+  // 日常化すると、消費側が exit 3 を無視する運用に倒れる。
+  const hasUnresolved = row.endpoints.some((endpoint) => {
+    const bucket = verdicts.get(endpoint) ?? new Set();
+    return !(bucket.size === 1 && bucket.has(MEASURED));
+  });
+  const declared =
+    !hasUnresolved || input.unmeasuredPath === undefined || input.unmeasuredPath === null
+      ? null
+      : readDeclaredEndpoints(readFileSync(input.unmeasuredPath, "utf8"), input.unmeasuredPath);
 
   /** @type {string[]} */
   const findings = [];
