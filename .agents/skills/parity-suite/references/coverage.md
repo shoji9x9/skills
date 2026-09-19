@@ -161,6 +161,11 @@
 - **`--replace-metadata` は必須。** 省けるようにすると、記録の後に新側を変えても鮮度の照合（`comparison-implementation-stale`）が
   一度も評価されず古い証拠で収束する。突き合わせ表の `new_implementation.commit` は `replace-metadata.json` の `new.commit` と一致し、
   **両方の `dirty` が `false`** であることまで求める（未コミットの変更を抱えた作業ツリーの記録は commit で版を特定できない）
+- **`new.commit` が `none`（新側が git 管理を持たない）なら反復回数で判定する。** 文字列の比較は両側 `none` で常に一致し、
+  実装を変えても古い記録が鮮度検査を永久に素通りするため、`new_implementation.iteration` と `replace-metadata.json` の
+  `loop.iterations` を突き合わせる。**どちらも読めなければ合格に倒さず** `comparison-implementation-unversionable` で落とす。
+  **片側だけが `none`** のとき（git 管理の有無が記録の後に変わった）は、反復回数が一致しても
+  `comparison-implementation-stale` で落とす——`none` と実在の SHA は同じ版を指さない
 - **`component` / `item` / `instance` の id に `|` を使わない。** 突き合わせの鍵（`<component>|<item>|<instance>`）の区切りなので、
   含めると別のセルの記録が別のセルの証拠として通る（被覆表の指紋も同じ潰れた鍵を数えるため一致してしまう）
 - **セルの値は動かさない。** 新側で突き合わせていないことを理由に `present` を `unmeasured` へ落とすと、
