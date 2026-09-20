@@ -50,6 +50,11 @@ while [ "$#" -gt 0 ]; do
 			usage
 			exit 64
 		}
+		[ -n "$2" ] || {
+			echo "error: --config の値が空" >&2
+			usage
+			exit 64
+		}
 		config_path="$2"
 		config_explicit="1"
 		shift 2
@@ -67,7 +72,9 @@ while [ "$#" -gt 0 ]; do
 done
 
 # --config が無ければリポジトリルート基準の既定パスを使う。git の外なら cwd 相対へ倒す。
-if [ -z "${config_path}" ]; then
+# 判定は「値が空か」ではなく「--config が渡されたか」で行う（空文字は上で弾いてあるが、
+# 空かどうかで分けると `--config ""` のような入力が黙って既定へ化ける形に戻りやすい）。
+if [ -z "${config_explicit}" ]; then
 	repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 	if [ -n "${repo_root}" ]; then
 		config_path="${repo_root}/${CONFIG_REL}"
@@ -133,10 +140,14 @@ else
 	else
 		value="${DEFAULT_TOOL}"
 		source="default"
-		# 既定パスで解決したときだけ、どこを見たかを残す（`--config` は呼び出し側が
-		# パスを知っているので不要）。「設定が無かった」と「見に行った場所が違った」を
-		# 報告で区別できるようにする。
-		[ -n "${config_explicit}" ] || echo "note: 共有設定に review_tool が無いため既定を使う（参照: ${config_path}）" >&2
+		# 既定へ倒した理由と参照先を必ず残す。`--config` 指定時も出す——
+		# パスを渡し間違えたときこそ「ファイルが無い」と「キーが無い」が同じ
+		# `source=default` に潰れ、誤ったパスを黙って受け入れることになる。
+		if [ -f "${config_path}" ]; then
+			echo "note: 共有設定に review_tool が無いため既定を使う（参照: ${config_path}）" >&2
+		else
+			echo "note: 共有設定が見つからないため既定を使う（参照: ${config_path}）" >&2
+		fi
 	fi
 fi
 

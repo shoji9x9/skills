@@ -97,8 +97,29 @@ for (const script of SCRIPTS) {
     const r = run(script, { config: join(tmpdir(), "does-not-exist.yml") });
     expect(r.status).toBe(0);
     expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
-    // 設定ファイルが無いのは正常系なので、解析器のエラーを stderr へ漏らさない。
-    expect(r.stderr).toBe("");
+    // 設定ファイルが無いのは正常系なので、解析器のエラーは漏らさない。
+    expect(r.stderr).not.toMatch(/awk|error:/);
+    // ただし黙らない——`--config` のパスを渡し間違えたときこそ、既定へ倒した理由と
+    // 参照先が残らないと「ファイルが無い」と「キーが無い」が同じ default に潰れる。
+    expect(r.stderr).toMatch(/見つからないため既定を使う（参照: .*does-not-exist\.yml）/);
+  });
+
+  test(`${name}: ファイルはあるがキーが無い場合は「見つからない」と区別して残す`, () => {
+    withConfig("version: 1\nskills:\n  common:\n    conventions_doc: AGENTS.md\n", (path) => {
+      const r = run(script, { config: path });
+      expect(r.status).toBe(0);
+      expect(parse(r.stdout).source).toBe("default");
+      expect(r.stderr).toMatch(/review_tool が無いため既定を使う/);
+      expect(r.stderr).not.toMatch(/見つからない/);
+    });
+  });
+
+  test(`${name}: --config の値が空なら既定へ化けさせず usage エラーで落ちる`, () => {
+    // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが黙ってリポジトリルートの
+    // 既定へ差し替わり、source=default を正しい解決結果として報告してしまう。
+    const r = run(script, { args: ["--config", ""] });
+    expect(r.status).toBe(64);
+    expect(r.stderr).toMatch(/--config の値が空/);
   });
 
   test(`${name}: common に review_tool が無ければ別セクションを拾わず既定へ`, () => {
