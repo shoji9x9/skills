@@ -50,6 +50,15 @@ const PASSING = [
   // 引用された代入値は「文章」であってコマンド位置ではない。閉じ引用符まで飛ばさずに
   // 「次の空白まで」で切ると、値の途中の語がコマンド位置へ繰り上がって誤検知になる。
   ["二重引用符の代入値に現れる gh api は通す", 'note="see gh api --body-file note"'],
+  // 単引用符の中は展開されない＝データ。コマンド置換の形をしていても実行されない。
+  ["単引用符のコマンド置換はデータなので通す", "TPL='$(gh api x --body-file b)'"],
+  ["echo の引数に書いた注意書きは通す", 'echo "gh api --body-file は無い"'],
+  // ルール 2 も同じ扱いにする——「話題にしているだけ」の呼び出しを止めない。
+  ["コミットメッセージで pkill に言及するだけなら通す", 'git commit -m "docs: never use pkill -f"'],
+  ["echo で pkill に言及するだけなら通す", "echo 'avoid pkill -f patterns'"],
+  ["grep のパターンに pkill と書くだけなら通す", "cat AGENTS.md | grep -- 'pkill -f'"],
+  // 引用符の中の ; はセグメント境界にしない（切ると後半だけが実行文に見える）。
+  ["引用符の中の ; で切らない", 'git commit -m "fix; pkill -f x"'],
   ["単引用符の代入値に現れる gh api は通す", "note='see gh api --body-file note'"],
   ["正規表現の途中に置いた文字クラスは通す", "pkill -f 'node .*[d]ump-dom'"],
   ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
@@ -142,6 +151,17 @@ test.each([
     "TAB 区切りの do の後",
     "for r in 1 2; do\tgh api repos/o/r/pulls/1 --body-file /tmp/b.md; done",
   ],
+  // 二重引用符の中のコマンド置換は**値の先頭とは限らない**。
+  ["引用値の途中のコマンド置換", 'out="prefix $(gh api repos/o/r/pulls/1 --body-file /tmp/b.md)"'],
+  [
+    "引用値に 2 つ目のコマンド置換",
+    'out="$(date) $(gh api repos/o/r/pulls/1 --body-file /tmp/b.md)"',
+  ],
+  ["バッククォートのコマンド置換", "out=`gh api repos/o/r/pulls/1 --body-file /tmp/b.md`"],
+  // ラッパーにフラグが付いても実行されるのは同じ。
+  ["sudo のフラグ付き", "sudo -u me gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["env のフラグ付き", "env -i gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["timeout のフラグ付き", "timeout -k 5 30 gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
 ])("コマンド位置の gh api を %s でも止める", (_name, command) => {
   const r = guard(command);
   expect(r.status).toBe(2);

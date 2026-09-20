@@ -77,70 +77,77 @@ fi
 
 violations=""
 
-# セグメント先頭から「コマンド位置に立てる前置き」を剥ぐ。
-# 剥いだ結果の先頭語が、そのセグメントで実行されるコマンド。
-# 剥ぐのは:
-#   - 空白（TAB を含む。区切りを ' ' 固定にすると TAB 区切りで剥ぎ残す）
-#   - `(` `{` `!` と、コマンド置換の口 `$(` / `` ` ``（前に引用符が付く形も含む）
-#   - 制御構文の語（do then else elif if while until）
-#   - ラッパーコマンド（time env command exec builtin nohup sudo timeout xargs）とその数値引数
-#   - env 代入（VAR=value）。**値が引用されていれば閉じ引用符まで飛ばす**——
-#     「次の空白まで」で切ると、多語の代入値の途中がコマンド位置へ繰り上がって誤検知になり
-#     （note="see gh api ..." を止めた）、逆に FOO="a b" gh api ... は剥ぎ足りずに素通りする。
-strip_command_prefix() {
-	local s="$1" prev="" rest=""
-	while [ "${s}" != "${prev}" ]; do
-		prev="${s}"
-		s="${s#"${s%%[![:space:]]*}"}"
-		# コマンド置換の口。引用符付き（out="$(...)"）も同じく中身が実行される。
-		case "${s}" in
-		\"\$\(* | \'\$\(* | \"\`* | \'\`*) s="${s#?}" ;;
-		esac
-		case "${s}" in
-		\$\(*) s="${s#?}" ;;
-		\`*) s="${s#?}" ;;
-		esac
-		case "${s}" in
-		'('* | '{'* | '!'*) s="${s#?}" ;;
-		do | do[[:space:]]* | then | then[[:space:]]* | else | else[[:space:]]* | elif | elif[[:space:]]* | if | if[[:space:]]* | while | while[[:space:]]* | until | until[[:space:]]*)
-			s="${s#*[[:space:]]}"
-			;;
-		time | time[[:space:]]* | env | env[[:space:]]* | command | command[[:space:]]* | exec | exec[[:space:]]* | builtin | builtin[[:space:]]* | nohup | nohup[[:space:]]* | sudo | sudo[[:space:]]* | timeout | timeout[[:space:]]* | xargs | xargs[[:space:]]*)
-			s="${s#*[[:space:]]}"
-			;;
-		# ラッパーの数値引数（timeout 30 gh api ...）。
-		[0-9]*[[:space:]]*)
-			s="${s#*[[:space:]]}"
-			;;
-		[A-Za-z_]*=*)
-			case "${s%%=*}" in
-			*[!A-Za-z0-9_]*) break ;;
-			esac
-			rest="${s#*=}"
-			case "${rest}" in
-			# 代入値がコマンド置換なら、その中身が実行されるので中を見る（out=$(gh api ...)）。
-			# 引用符付き（out="$(...)"、推奨形）も同じ。**引用値の分岐より先に**置く——
-			# 後ろに置くと「閉じ引用符まで飛ばす」に食われて中身が検査されない。
-			\$\(* | \`*) s="${rest}" ;;
-			\"\$\(* | \'\$\(* | \"\`* | \'\`*) s="${rest#?}" ;;
-			# 引用された値は閉じ引用符まで飛ばす（値の中の語をコマンド位置に上げない）。
-			\"*)
-				rest="${rest#?}"
-				rest="${rest#*\"}"
-				s="${rest}"
-				;;
-			\'*)
-				rest="${rest#?}"
-				rest="${rest#*\'}"
-				s="${rest}"
-				;;
-			# 通常の env 代入（GH_TOKEN=x gh api ...）は次の語へ進む。
-			*) s="${s#*[[:space:]]}" ;;
-			esac
-			;;
-		esac
-	done
-	printf '%s' "${s}"
+# セグメントへの分割と「コードとして実行される部分」の抽出を、同じ引用状態の解釈で行う。
+#
+# 判定の土台を「前置きを剥いで先頭語を見る」から変えた理由——
+# 前置き（制御構文・env 代入・ラッパー・コマンド置換）は列挙しても尽きず、
+# 4 巡のレビューで毎回どちらかの方向へ穴が出た（正当な呼び出しを止める／実行される形を通す）。
+# 実際に効くのは「その文字列がコードとして実行されるか、引用符の中のデータか」だけなので、
+# そこだけを解釈する。
+#
+#   - 単引用符の中は**データ**（$( ) も展開されない）。丸ごと落とす
+#   - 二重引用符の中もデータだが、`$( ... )` と `` ` ` `` の中は**コード**なので拾う
+#   - 引用符の外はコード
+#   - 区切り（; & | 改行）は**コード状態のときだけ**セグメント境界にする
+#     （`git commit -m "fix; pkill ..."` のような引用内の ; で切らない）
+#
+# 各セグメントについて 2 行を出す: コード部分（#C#）と元の全文（#F#）。
+# ルール 1・2 の**発動**はコード部分で見る。ルール 2 の**免除**（文字クラス）は
+# パターン本体＝引用の中に書かれるので全文で見る。
+split_segments() {
+	awk '
+	BEGIN { RS = "\0" }
+	{
+		n = length($0); code = ""; full = ""; state = 0; depth = 0
+		for (i = 1; i <= n; i++) {
+			c = substr($0, i, 1)
+			nx = substr($0, i + 1, 1)
+			if (state == 0) {                      # コード
+				if (c == "\\") { full = full nx; code = code nx; i++; continue }
+				if (c == "\047") { state = 1; full = full c; continue }
+				if (c == "\"") { state = 2; full = full c; continue }
+				if (c == "`") { state = 4; full = full c; continue }
+				if (c == ";" || c == "&" || c == "|" || c == "\n") { emit(); continue }
+				code = code c; full = full c; continue
+			}
+			if (state == 1) {                      # 単引用符の中（データ。展開されない）
+				full = full c
+				if (c == "\047") state = 0
+				continue
+			}
+			if (state == 2) {                      # 二重引用符の中（データ。ただし $( ) と ` はコード）
+				full = full c
+				if (c == "\\") { full = full nx; i++; continue }
+				if (c == "\"") { state = 0; continue }
+				if (c == "$" && nx == "(") { state = 3; depth = 0; i++; code = code " "; continue }
+				if (c == "`") { state = 5; code = code " "; continue }
+				continue
+			}
+			if (state == 3) {                      # 二重引用符の中のコマンド置換
+				full = full c
+				if (c == "(") { depth++; code = code c; continue }
+				if (c == ")") { if (depth == 0) { state = 2; code = code " "; continue } depth--; code = code c; continue }
+				code = code c; continue
+			}
+			if (state == 4) {                      # コード中のバッククォート（中身もコード）
+				full = full c
+				if (c == "`") { state = 0; continue }
+				code = code c; continue
+			}
+			if (state == 5) {                      # 二重引用符の中のバッククォート
+				full = full c
+				if (c == "`") { state = 2; code = code " "; continue }
+				code = code c; continue
+			}
+		}
+		emit()
+	}
+	function emit() {
+		gsub(/\n/, " ", code); gsub(/\n/, " ", full)
+		if (full ~ /[^[:space:]]/) { print "#C#" code; print "#F#" full }
+		code = ""; full = ""
+	}
+	'
 }
 # 免除の目印は **1 文字の文字クラス**（`[d]`）だけにする。
 # 範囲クラス（`[0-9]`）や複数文字（`[cC]`）は、括弧の中の文字が自分のコマンドライン上に
@@ -150,23 +157,26 @@ strip_command_prefix() {
 class_escape_re='\[[^][[:space:]]\]'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
-# セグメントへ分割する。区切りは改行と、&& || ; | の各演算子。
-segments="$(printf '%s' "${command_text}" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e 's/|/\n/g' -e 's/;/\n/g')"
+# 分割は split_segments に委ねる（区切りの解釈と引用状態の解釈を 1 箇所にまとめる）。
+segments="$(printf '%s\0' "${command_text}" | split_segments)"
 
-while IFS= read -r segment; do
-	[ -n "${segment}" ] || continue
+seg_code=""
+while IFS= read -r line; do
+	case "${line}" in
+	'#C#'*)
+		seg_code="${line#\#C\#}"
+		continue
+		;;
+	'#F#'*) segment="${line#\#F\#}" ;;
+	*) continue ;;
+	esac
 
 	# 1. gh api と --body-file が同じセグメントにある。
-	#    `gh api` が**コマンド位置**にあるときだけ見る。引数の中にこのゲート自身の話題
-	#    （`gh` の別サブコマンドに関する文章）が入っただけで正当な呼び出しを止めないため。
-	#    「セグメントの先頭」に限ると狭すぎる——`for ...; do gh api ...; done` の `do` の後、
-	#    `then` の後、`out=$(gh api ...)` のコマンド置換の中、`GH_TOKEN=x gh api ...` の
-	#    env 代入の後はどれも先頭ではないが、実行されるのは同じ形（実測で 6 形が素通りした）。
-	#    コマンド位置に立てる前置き（制御構文の語・env 代入・`(`・`$(`・`{`）を剥いでから見る。
-	trimmed="$(strip_command_prefix "${segment}")"
-	case "${trimmed}" in
-	"gh api "* | "gh api")
-		case "${segment}" in
+	#    コード部分で見るので、引用符の中の文章（このゲート自身の話題を書いた --title 等）では
+	#    発動せず、実行される形（制御構文の後・ラッパー越し・コマンド置換の中）は位置に依らず拾う。
+	case "${seg_code}" in
+	*"gh api"*)
+		case "${seg_code}" in
 		*--body-file*)
 			add_violation "gh api に --body-file は無い（unknown flag で落ちる）。-F body=@<path> か --input <path> を使う: ${segment}"
 			;;
@@ -174,18 +184,15 @@ while IFS= read -r segment; do
 		;;
 	esac
 
-	# 2. pkill / killall をパターン（-f）で撃っている
-	case "${segment}" in
+	# 2. pkill / killall をパターン（-f）で撃っている。
+	#    発動はコード部分で見る（コミットメッセージや echo で**話題にしているだけ**の
+	#    呼び出しを止めないため。ルール 1 と同じ扱いに揃える）。
+	case "${seg_code}" in
 	*pkill* | *killall*)
-		case "${segment}" in
+		case "${seg_code}" in
 		*-f*)
-			# 文字クラス（[d]ump-dom）で自分のコマンドラインを避けている形は通す。
-			# 免除の判定は**パターン本体に文字クラスがあるか**で行う。
-			# 位置（語頭かどうか）で決めると、`"node .*[d]ump-dom"` や `"^[c]hrome"`、
-			# `"my-[s]erver"` のような正しい回避形まで落ちる（ブロック時の指示に
-			# 従った形が通らない）。一方「どこかに [ ] があれば通す」だと、配列添字
-			# `"${procs[0]}"` や行コメントの `[notes]` で素通りする。
-			# そこで **${...} 展開と行コメントを取り除いてから**文字クラスの有無を見る。
+			# 免除（文字クラス）はパターン本体＝引用の中に書かれるので**全文**で見る。
+			# 配列添字 ${...} と行コメントは取り除いてから見る（免除に数えない）。
 			scan="$(printf '%s' "${segment}" | sed -e 's/\${[^}]*}//g' -e 's/[[:space:]]#.*$//')"
 			if [[ ${scan} =~ ${class_escape_re} ]]; then
 				:
