@@ -70,6 +70,18 @@ const PASSING = [
     "コマンド置換を閉じた後はコード文脈へ戻る",
     "out=$(date); gh pr create --body-file b  # gh api では使えない",
   ],
+  // 文脈はスタックで持つ。単一変数で戻り先を覚えると、入れ子で内側が外側を壊し、
+  // 閉じたのに未閉じ扱い→fail-safe で正当な呼び出しが落ちる。
+  [
+    "入れ子のコマンド置換と引用を正しく閉じる",
+    `gh pr create --body-file "$(dirname "$0")/b.md" --title 'gh api の話'`,
+  ],
+  // 委譲セグメントでもコメントはデータのまま（全文へ戻すとコメントが検査対象に復活する）。
+  [
+    "委譲コマンドの行コメントでは発動しない",
+    "ssh host uptime  # gh api では --body-file は使えない",
+  ],
+  ["eval の行コメントでも発動しない", "eval $CMD  # pkill -f chrome は避ける"],
   ["単引用符の代入値に現れる gh api は通す", "note='see gh api --body-file note'"],
   ["正規表現の途中に置いた文字クラスは通す", "pkill -f 'node .*[d]ump-dom'"],
   ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
@@ -201,12 +213,42 @@ test.each([
   expect(guard(command).status).toBe(2);
 });
 
+// 二重引用符の中のバッククォートもコードとして実行される。
+test.each([
+  ["プロセス終了側", 'echo "`pkill -f chrome`"'],
+  ["gh api 側", 'echo "`gh api x --body-file b`"'],
+])("二重引用符の中のバッククォートを検査する（%s）", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+// 委譲の検出はリテラル "sh -c" の部分一致では足りない（短オプションを束ねた形を取りこぼす）。
+test.each([
+  ["bash -lc", 'bash -lc "pkill -f chrome"'],
+  ["sh -xc", 'sh -xc "pkill -f chrome"'],
+])("オプションを束ねたシェル委譲（%s）も検査する", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+test("区切り文字はどちらのセグメントにも混ぜない", () => {
+  // 次セグメントの先頭へ混ぜると、打っていないコマンド（`| pkill ...`）を引用する。
+  const r = guard("git status | pkill -f chrome");
+  expect(r.status).toBe(2);
+  expect(r.stderr).not.toMatch(/[|;&]\s*pkill/);
+});
+
 test("引用が閉じていない入力は解釈せず fail-safe に倒す", () => {
   // ヒアドキュメント本文のアポストロフィ 1 個で以降が全部データ扱いになり、
   // 黙って最強の免除になっていた（実測）。解釈できない入力は検査側へ倒す。
   const r = guard("echo it's ok; gh api repos/o/r/pulls/1 --body-file /tmp/b.md");
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/unknown flag/);
+});
+
+test("fail-safe に倒したとき、同じ違反を重複して出さない", () => {
+  // 通常セグメントと全文の両方を出すと、同一の違反が 2 行に増えて読み手を混乱させる。
+  const r = guard("gh api x --body-file b; echo it's ok");
+  expect(r.status).toBe(2);
+  expect(r.stderr.split("\n").filter((l) => l.startsWith("  - "))).toHaveLength(1);
 });
 
 test("コマンド置換の中の引用された ) で早く閉じない", () => {

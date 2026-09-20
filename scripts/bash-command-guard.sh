@@ -102,104 +102,112 @@ split_segments() {
 	# paragraph mode に倒れうる。実装差で走査単位が変わる）。行を貯めて END で 1 回処理する。
 	{ buf = buf $0 "\n" }
 	END {
-		raw = buf; sub(/\n$/, "", raw); n = length(raw); code = ""; full = ""; state = 0; depth = 0; nseg = 0; sret = 0; qret = 0
+		raw = buf; sub(/\n$/, "", raw); n = length(raw)
+		# 文脈は**スタック**で持つ。単一の変数で「戻り先」を覚えると、入れ子
+		# （"$(dirname "$0")/x" のような日常的な形）で内側が外側の戻り先を壊し、
+		# 閉じたのに閉じていない扱いになる。
+		#   CODE = 引用の外 / SUB = $( ) の中 / BT = ` ` の中 … コードとして実行される
+		#   SQ   = 単引用符の中 / DQ = 二重引用符の中 … データ
+		sp = 0; stack[0] = "CODE"
+		code = ""; full = ""; nfull = ""; nseg = 0
 		for (i = 1; i <= n; i++) {
-			c = substr(raw, i, 1)
-			nx = substr(raw, i + 1, 1)
-			if (state == 0 || state == 3 || state == 4) {   # コードとして実行される文脈
-				if (c == "\\") { full = full nx; code = code nx; i++; continue }
-				if (c == "\047") { qret = state; state = 6; full = full c; continue }
-				if (c == "\"") { qret = state; state = 7; full = full c; continue }
-				if (state == 0 && c == "`") { state = 4; full = full c; continue }
-				if (state == 4 && c == "`") { state = 0; full = full c; continue }
-				if (state != 4 && c == "$" && nx == "(") {
-					# 戻り先を覚える。常に state 2 へ戻すと、引用符の**外**の $( ... ) を
-					# 閉じた後が二重引用符の中に化け、以降が未閉じ扱いになる。
-					if (state == 3) depth++
-					else { sret = state; state = 3; depth = 0 }
-					full = full c "("; code = code " "; i++; continue
-				}
-				if (state == 3 && c == ")") {
-					full = full c
-					if (depth == 0) { state = sret; code = code " " } else { depth--; code = code c }
+			c = substr(raw, i, 1); nx = substr(raw, i + 1, 1)
+			cur = stack[sp]
+			if (cur == "CODE" || cur == "SUB" || cur == "BT") {
+				if (c == "\\") { addfull(nx); code = code nx; i++; continue }
+				if (c == "\047") { push("SQ"); addfull(c); continue }
+				if (c == "\"") { push("DQ"); addfull(c); continue }
+				if (c == "`") {
+					addfull(c); code = code " "
+					if (cur == "BT") pop(); else push("BT")
 					continue
 				}
+				if (c == "$" && nx == "(") { push("SUB"); addfull(c); addfull("("); code = code " "; i++; continue }
+				if (c == ")" && cur == "SUB") { pop(); addfull(c); code = code " "; continue }
 				# 行コメントはデータ。コード側へ入れると、注意書きの文章で発動する。
+				# full には残すが nfull（コメント抜き）には入れない——シェルへ委譲する形では
+				# 全文をコード扱いにするので、そこでコメントが復活しないようにする。
 				if (c == "#" && (code == "" || substr(code, length(code), 1) ~ /[[:space:]]/)) {
 					while (i <= n && substr(raw, i, 1) != "\n") { full = full substr(raw, i, 1); i++ }
 					i--
 					continue
 				}
-				if (c == ";" || c == "&" || c == "|" || c == "\n") { emit(); full = full c; continue }
-				code = code c; full = full c; continue
+				# 区切りはセグメント境界。どちらのセグメントにも積まない
+				# （次の先頭へ混ぜると、打っていないコマンドを引用することになる）。
+				if (c == ";" || c == "&" || c == "|" || c == "\n") { emit(); continue }
+				code = code c; addfull(c); continue
 			}
-			if (state == 2) {                      # 二重引用符の中（データ。ただし $( ) と ` はコード）
-				full = full c
-				if (c == "\\") { full = full nx; i++; continue }
-				if (c == "\"") { state = 0; continue }
-				if (c == "$" && nx == "(") { sret = state; state = 3; depth = 0; full = full "("; code = code " "; i++; continue }
-				if (c == "`") { state = 4; code = code " "; continue }
-				continue
-			}
-			if (state == 6) {                      # コード文脈の中の単引用符（データ）
-				full = full c
-				if (c == "\047") state = qret
-				continue
-			}
-			if (state == 7) {                      # コード文脈の中の二重引用符
-				full = full c
-				if (c == "\\") { full = full nx; i++; continue }
-				if (c == "\"") { state = qret; continue }
-				if (c == "$" && nx == "(") { sret = state; state = 3; depth = 0; full = full "("; code = code " "; i++; continue }
+			if (cur == "SQ") { addfull(c); if (c == "\047") pop(); continue }
+			if (cur == "DQ") {
+				addfull(c)
+				if (c == "\\") { addfull(nx); i++; continue }
+				if (c == "\"") { pop(); continue }
+				if (c == "$" && nx == "(") { push("SUB"); addfull("("); code = code " "; i++; continue }
+				if (c == "`") { push("BT"); code = code " "; continue }
 				continue
 			}
 		}
 		emit()
-		if (state != 0) {
-			# 引用が閉じていない＝この解釈は信用できない。全文をコードとして 1 セグメントで出す。
-			print "#C#" collapse(raw); print "#F#" collapse(raw)
-			nseg = -1
+		if (sp != 0) {
+			# 引用が閉じていない＝この解釈は信用できない。全文をコードとして 1 セグメントだけ出す
+			# （通常分は捨てる。両方出すと同じ違反が 2 行重複する）。
+			one = collapse(raw)
+			printf "#C#%s\n#F#%s\n#N#%s\n", one, one, one
+		} else {
+			for (j = 1; j <= nseg; j++) printf "#C#%s\n#F#%s\n#N#%s\n", segc[j], segf[j], segn[j]
 		}
 	}
+	function push(s) { sp++; stack[sp] = s }
+	function pop() { if (sp > 0) sp-- }
+	function addfull(s) { full = full s; nfull = nfull s }
 	function collapse(t) { gsub(/\n/, " ", t); return t }
 	function emit() {
-		gsub(/\n/, " ", code); gsub(/\n/, " ", full)
-		if (full ~ /[^[:space:]]/) { print "#C#" code; print "#F#" full; nseg++ }
-		code = ""; full = ""
+		gsub(/\n/, " ", code); gsub(/\n/, " ", full); gsub(/\n/, " ", nfull)
+		if (full ~ /[^[:space:]]/) { nseg++; segc[nseg] = code; segf[nseg] = full; segn[nseg] = nfull }
+		code = ""; full = ""; nfull = ""
 	}
 	'
 }
+
 # 免除の目印は **1 文字の文字クラス**（`[d]`）だけにする。
 # 範囲クラス（`[0-9]`）や複数文字（`[cC]`）は、括弧の中の文字が自分のコマンドライン上に
 # そのまま現れるため、パターンが**自分自身に一致する**（`chrome.*[0-9]+` は
 # 引数リテラルの `0` に一致する。実測）。自爆を避けられない形を免除にはできない。
 # 配列添字は ${...} を取り除いた時点で消えているので、ここで位置は問わない。
 class_escape_re='\[[^][[:space:]]\]'
+# 引用文字列をそのままシェルへ渡すコマンド（中身がコードとして実行される）。
+# `-lc` / `-xc` のようにオプションを束ねた形も拾う。
+delegate_re='(^|[[:space:]])(ba|z|k|da|a)?sh[[:space:]]+-[A-Za-z]*c([[:space:]]|$)|(^|[[:space:]])(ssh|eval)([[:space:]]|$)'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
 # 分割は split_segments に委ねる（区切りの解釈と引用状態の解釈を 1 箇所にまとめる）。
 segments="$(printf '%s\n' "${command_text}" | split_segments)"
 
 seg_code=""
+segment=""
 while IFS= read -r line; do
 	case "${line}" in
 	'#C#'*)
 		seg_code="${line#\#C\#}"
 		continue
 		;;
-	'#F#'*) segment="${line#\#F\#}" ;;
+	'#F#'*)
+		segment="${line#\#F\#}"
+		continue
+		;;
+	'#N#'*) seg_nocomment="${line#\#N\#}" ;;
 	*) continue ;;
 	esac
 
 	# 引用文字列をそのままシェルへ渡すコマンドは、その引数が**コードとして実行される**。
 	# 引用の中を一律データにすると、ゲートが止めるために作られた形そのものが素通りする
 	# （`bash -c "pkill -f chrome"` / `ssh host 'pkill -f node'`。実測）。
-	case "${seg_code}" in
-	# `sh -c` は bash -c / zsh -c も覆う（部分一致なので個別に並べない）。
-	*"sh -c"* | *"ssh "* | *"eval "*)
-		seg_code="${segment}"
-		;;
-	esac
+	# リテラル "sh -c" の部分一致では、短オプションを束ねた `bash -lc` / `sh -xc` を取りこぼす。
+	# 委譲したら**コメントを除いた全文**をコードとして扱う（`${segment}` にするとコメント本文が
+	# 検査対象へ戻り、同じ commit で入れた「行コメントはデータ」を取り消してしまう）。
+	if [[ ${seg_code} =~ ${delegate_re} ]]; then
+		seg_code="${seg_nocomment}"
+	fi
 
 	# 1. gh api と --body-file が同じセグメントにある。
 	#    コード部分で見るので、引用符の中の文章（このゲート自身の話題を書いた --title 等）では
@@ -223,7 +231,7 @@ while IFS= read -r line; do
 		*-f*)
 			# 免除（文字クラス）はパターン本体＝引用の中に書かれるので**全文**で見る。
 			# 配列添字 ${...} と行コメントは取り除いてから見る（免除に数えない）。
-			scan="$(printf '%s' "${segment}" | sed -e 's/\${[^}]*}//g' -e 's/[[:space:]]#.*$//')"
+			scan="$(printf '%s' "${seg_nocomment}" | sed -e 's/\${[^}]*}//g')"
 			if [[ ${scan} =~ ${class_escape_re} ]]; then
 				:
 			else
