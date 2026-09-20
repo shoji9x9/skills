@@ -14,6 +14,24 @@
 # 詳細手順は references/housekeeping.md を参照。
 set -euo pipefail
 
+# 索引の内容が**呼び出し元のロケールで変わらない**ようにする。
+# 切り詰めは文字単位で行う必要があり（バイト境界で切ると多バイト文字が壊れる）、
+# bash のパラメータ展開が文字単位になるのは UTF-8 ロケールのときだけ。
+# 非 UTF-8 のまま生成すると、同じ入力から切り詰めのない別の INDEX.md ができ、
+# C ロケールの環境（CI コンテナ・cron）で再生成するたびに commit 済みの索引が書き換わる。
+# 利用できる UTF-8 ロケールがあればそれへ寄せ、無ければ「要約ごと落とす」縮退にする。
+# パイプで渡さない——`grep -q` は一致時点で抜けるので、pipefail 下では書き手の SIGPIPE で
+# パイプライン全体が非 0 になり、判定が意図と逆へ倒れうる（同ファイル後段の注記と同じ機構）。
+if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+	for _cand in C.UTF-8 C.utf8 en_US.UTF-8; do
+		if grep -qix "${_cand}" <<<"$(locale -a 2>/dev/null)"; then
+			export LC_ALL="${_cand}"
+			break
+		fi
+	done
+	unset _cand
+fi
+
 # .kaizen/ はプロジェクトルート直下に置く前提。サブディレクトリで実行されても、その cwd 配下に
 # 別の .kaizen/ を作ってしまわないよう、ルートへ移動してから .kaizen/ を解決する。
 # アンカーは姉妹スクリプト（kaizen-context-inject.sh / kaizen-precommit-gate.sh）と揃える。

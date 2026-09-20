@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,17 @@ function writeNote(dir, name, summary, body = "") {
 
 function archive(dir, ...files) {
   return archiveIn(dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, ...files);
+}
+
+// `locale` が無い／使えない環境（最小コンテナ）を作る。UTF-8 ロケールへ寄せる経路が
+// 使えないので、スクリプトは「切らずに要約を落とす」縮退へ入る。
+function withoutLocaleCommand(dir) {
+  const shim = join(dir, "shim-bin");
+  mkdirSync(shim, { recursive: true });
+  const locale = join(shim, "locale");
+  writeFileSync(locale, "#!/bin/sh\nexit 1\n");
+  chmodSync(locale, 0o755);
+  return { PATH: `${shim}:${process.env.PATH}` };
 }
 
 function archiveIn(dir, localeEnv, ...files) {
@@ -211,7 +222,7 @@ test("非 UTF-8 ロケールでも行長規約を満たす（切らずに要約�
   const longName = "2026-09-18-relaxation-by-delegation-needs-a-verified-delegate-long.md";
   const note = writeNote(dir, longName, "あ".repeat(160));
 
-  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C" }, note);
+  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
 
   expect(result.status, result.stderr).toBe(0);
   const line = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
@@ -221,6 +232,30 @@ test("非 UTF-8 ロケールでも行長規約を満たす（切らずに要約�
   expect(line).toContain(longName);
   // 切ったのではなく落としたので、壊れた多バイト文字（U+FFFD）は現れない。
   expect(line).not.toContain("�");
+  // 縮退経路に入った証拠——UTF-8 へ寄せられていれば「切り詰めた要約＋…」になる。
+  expect(line).not.toContain("あ");
+  expect(line).not.toContain("…");
+});
+
+test("ロケールが違っても同じ索引を生成する", () => {
+  // 切り詰めが UTF-8 分岐にしか無いと、同じ入力から切り詰めの有無が違う索引ができ、
+  // C ロケールの環境で再生成するたびに commit 済みの INDEX.md が書き換わる。
+  const summary = "あ".repeat(120);
+  const name = "2026-09-01-locale-stable.md";
+
+  const utf8Dir = createRepo();
+  expect(
+    archiveIn(utf8Dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, writeNote(utf8Dir, name, summary))
+      .status,
+  ).toBe(0);
+  const cDir = createRepo();
+  expect(archiveIn(cDir, { LANG: "C", LC_ALL: "C" }, writeNote(cDir, name, summary)).status).toBe(
+    0,
+  );
+
+  const read = (dir) => readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  expect(read(cDir)).toBe(read(utf8Dir));
+  expect(read(cDir)).toContain("…");
 });
 
 test("非 UTF-8 ロケールでも 200 文字以内の要約は残す（バイト長で判定しない）", () => {
@@ -232,7 +267,7 @@ test("非 UTF-8 ロケールでも 200 文字以内の要約は残す（バイ�
   const summary = "あ".repeat(60);
   const note = writeNote(dir, "2026-09-01-short-enough.md", summary);
 
-  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C" }, note);
+  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
 
   expect(result.status, result.stderr).toBe(0);
   const line = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
@@ -260,8 +295,10 @@ test.each([
   // pre-commit が落ちる（行長だけを見るテストでは緑のまま通る）。
   const dir = createRepo();
   const note = writeNote(dir, name, summary);
+  // 非 UTF-8 側は UTF-8 ロケールへ寄せる経路を塞いで、要約を落とす分岐へ入れる。
+  const env = localeEnv.LC_ALL === "C" ? { ...localeEnv, ...withoutLocaleCommand(dir) } : localeEnv;
 
-  const result = archiveIn(dir, localeEnv, note);
+  const result = archiveIn(dir, env, note);
 
   expect(result.status, result.stderr).toBe(0);
   const line = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
