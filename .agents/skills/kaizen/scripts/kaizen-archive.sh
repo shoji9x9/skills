@@ -98,6 +98,14 @@ lead_paragraph() {
 }
 
 # archive/*.md の frontmatter と要約から INDEX.md を作り直す。
+# UTF-8 の継続バイト（0x80-0xBF）を落としてから数えると、ロケールに依らず文字数になる。
+# 非 UTF-8 ロケールでは ${#} がバイト長になるため、行長（MD013 は文字数で数える）の判定に使う。
+char_len() {
+	local stripped
+	stripped="$(printf '%s' "$1" | tr -d '\200-\277')"
+	printf '%s' "${#stripped}"
+}
+
 regenerate_index() {
 	mkdir -p "${archive_dir}"
 	{
@@ -147,15 +155,24 @@ regenerate_index() {
 				elif [ "${#summary}" -gt "${budget}" ]; then
 					summary=${summary:0:$((budget - 1))}…
 				fi
-			elif [ $((${#prefix} + ${#summary})) -gt 200 ]; then
+			elif [ "$(char_len "${prefix}${summary}")" -gt 200 ]; then
 				# 非 UTF-8 ロケールでは ${#} も slice もバイト単位なので、途中で切ると
 				# 多バイト文字を壊す。それでも MD013（行長）は満たす必要があるので、
-				# 切らずに要約ごと落とす（バイト数 >= 文字数なので判定は安全側）。
-				# ここを素通りさせると、非 UTF-8 の環境でだけ 200 文字超の INDEX.md が
-				# 生成され、直後の commit が MD013 で落ちる。
+				# 切らずに要約ごと落とす。
+				# **判定には ${#} を使わない**——バイト長で測ると日本語の行はほぼ全部 200 を超え、
+				# 実測で 178 行中 174 行の要約が消えた（200 *文字* 超は 0 行）。
+				# INDEX.md の行全体は kaizen-kedb-match.sh の照合対象なので、
+				# 要約が消えると archive がファイル名でしか引けなくなる。
 				summary=""
 			fi
-			echo "${prefix}${summary}"
+			# 要約を落とした行は、接頭辞末尾の "— " がそのまま行末スペースになり
+			# MD009（no-trailing-spaces）で落ちる。区切りごと落として締める。
+			if [ -n "${summary}" ]; then
+				echo "${prefix}${summary}"
+			else
+				line="${prefix%— }"
+				echo "${line%"${line##*[![:space:]]}"}"
+			fi
 		done
 	} >"${archive_dir}/INDEX.md"
 }
