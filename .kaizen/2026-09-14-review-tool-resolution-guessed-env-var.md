@@ -2,8 +2,8 @@
 date: 2026-09-14
 type: skill
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/pr-finalize-loop/scripts/resolve-review-tool.sh, skills/pr-review-handle/scripts/resolve-review-tool.sh, skills/pr-finalize-loop/references/review-tool.md, skills/pr-review-handle/references/review-tool.md, scripts/resolve-review-tool.test.js]
 session: claude-code
 ---
 

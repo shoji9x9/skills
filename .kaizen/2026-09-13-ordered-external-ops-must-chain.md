@@ -3,7 +3,8 @@ name: ordered-external-ops-must-chain
 date: 2026-09-13
 type: rule
 priority: high
-status: pending
+status: applied
+applied-to: [AGENTS.md]
 ---
 
 # 順序依存のある外向き操作は && で連鎖する

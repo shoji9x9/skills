@@ -2,8 +2,8 @@
 date: 2026-09-10
 type: other
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/reinstall-skill.sh]
 session: codex
 ---
 

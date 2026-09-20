@@ -2,8 +2,8 @@
 date: 2026-09-11
 type: doc
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, scripts/bash-command-guard.sh, scripts/bash-command-guard.test.js]
 session: claude-code
 ---
 

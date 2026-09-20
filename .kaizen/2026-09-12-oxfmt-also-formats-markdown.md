@@ -3,7 +3,8 @@ name: oxfmt-also-formats-markdown
 date: 2026-09-12
 type: doc
 priority: high
-status: pending
+status: applied
+applied-to: [AGENTS.md, scripts/generate-parity-component-fixtures.js, skills/parity-component/evals/README.md]
 ---
 
 # oxfmt にディレクトリを渡すと Markdown の表まで整形される

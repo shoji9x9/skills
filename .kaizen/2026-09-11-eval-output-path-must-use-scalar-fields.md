@@ -2,8 +2,8 @@
 date: 2026-09-11
 type: rule
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/eval-run-scope.md]
 session: codex
 ---
 

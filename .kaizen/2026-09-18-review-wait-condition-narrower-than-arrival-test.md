@@ -2,8 +2,8 @@
 date: 2026-09-18
 type: skill
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/pr-finalize-loop/SKILL.md]
 session: claude-code
 ---
 

@@ -2,8 +2,8 @@
 date: 2026-09-08
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/check-rule-symlinks.js, scripts/check-rule-symlinks.test.js, lefthook.yml, .github/workflows/ci.yml, AGENTS.md]
 session: claude-code
 ---
 

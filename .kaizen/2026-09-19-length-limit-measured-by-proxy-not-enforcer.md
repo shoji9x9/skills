@@ -2,8 +2,8 @@
 date: 2026-09-19
 type: doc
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [AGENTS.md, docs/skill-development.md]
 session: claude-code
 ---
 

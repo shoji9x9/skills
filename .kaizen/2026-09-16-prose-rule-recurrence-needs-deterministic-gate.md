@@ -2,8 +2,8 @@
 date: 2026-09-16
 type: hook
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/bash-command-guard.sh, scripts/bash-command-guard.test.js, .claude/settings.json, .codex/hooks.json, .github/hooks/kaizen-session.json]
 session: claude-code
 ---
 

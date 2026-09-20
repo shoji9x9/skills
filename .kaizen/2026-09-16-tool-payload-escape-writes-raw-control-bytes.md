@@ -2,8 +2,8 @@
 date: 2026-09-16
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/check-control-chars.js, scripts/check-control-chars.test.js, lefthook.yml, .github/workflows/ci.yml]
 session: claude-code
 ---
 

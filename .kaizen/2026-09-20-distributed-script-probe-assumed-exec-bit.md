@@ -2,8 +2,8 @@
 date: 2026-09-20
 type: rule
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [.agents/rules/distributed-skill-bundle-artifacts.md]
 session: claude-code
 ---
 

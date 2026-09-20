@@ -2,8 +2,8 @@
 date: 2026-09-17
 type: doc
 priority: low
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/references/extract.md]
 session: claude-code
 ---
 

@@ -2,8 +2,8 @@
 date: 2026-09-16
 type: hook
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/check-eval-reachability.js, scripts/check-eval-reachability.test.js, scripts/eval-reachability-backlog.json, lefthook.yml, .github/workflows/ci.yml, .agents/rules/eval-assertion-discrimination.md, docs/skill-development.md]
 session: claude-code
 ---
 

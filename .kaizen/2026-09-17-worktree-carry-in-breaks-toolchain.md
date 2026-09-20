@@ -2,8 +2,8 @@
 date: 2026-09-17
 type: skill
 priority: high
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/git-worktree/references/carry-in.md, skills/git-worktree/SKILL.md]
 session: claude-code
 ---
 

@@ -2,8 +2,8 @@
 date: 2026-09-18
 type: skill
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [skills/kaizen/scripts/kaizen-status-check.sh, scripts/kaizen-degraded-warning.test.js, AGENTS.md]
 session: claude-code
 ---
 
