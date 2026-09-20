@@ -56,14 +56,33 @@ fi
 readonly DEFAULT_MODE=notify
 readonly DEFAULT_AGENT=claude
 
-# Issue 本文に載せる表の最大行数。GitHub の Issue 本文は 65,536 文字が上限で、
-# 超えると `gh issue create/edit` が失敗し、その週のレポートが 1 件も届かない。
-# 1 行は要約（最大 120 文字）込みで最大およそ 400 文字なので、60 行で 24,000 文字。
-# 前後の説明を足しても上限の半分に収まる。切った分は件数と参照先を明示する
+# Issue 本文に載せる表の最大行数と、1 行の要約の最大文字数。
+# GitHub の Issue 本文は 65,536 文字が上限で、超えると `gh issue create/edit` が失敗し、
+# その週のレポートが 1 件も届かない。
+#
+# **予算はコメントで宣言するだけでなく実装で強制する。** 要約を切らずに「1 行およそ
+# 400 文字」と書いていた版は、実データで既に 439 文字の行を出していた（実測）。
+# 1 行 = 要約 120 + パス・優先度・種別・記録日・区切り およそ 150 で 270 文字、
+# 60 行で 16,200 文字。切った分は件数と参照先を明示する
 # （黙って落とすと「表に無い＝存在しない」と読まれる）。
 readonly MAX_TABLE_ROWS=60
+readonly MAX_SUMMARY_CHARS=120
 
 warn() { echo "kaizen-schedule-report: $*" >&2; }
+
+# 要約の切り詰めは文字単位で行う必要があるため、ロケールを 1 回だけ判定して使い回す
+# （`summary_of` はノートごとに呼ばれるので、毎回 `locale` を起動しない）。
+# bash のパラメータ展開は UTF-8 ロケールでは文字単位、非 UTF-8 ではバイト単位になる。
+# 後者で切ると日本語が文字の途中で割れるので切らず、代わりに警告を出す。
+# GitHub Actions のランナーは UTF-8（`C.UTF-8`）なので、CI では常に切り詰めが効く。
+# パイプで渡さない——`grep -q` は一致した時点で抜けるため、書き手がまだ書き終えていないと
+# EPIPE → SIGPIPE でパイプライン全体が非 0 になり、**UTF-8 なのに非 UTF-8 と読む**
+# （`kaizen-context-inject.sh` と同じ機構。repo の検査もこの形を弾く）。herestring なら
+# 書き手のプロセスが無いのでこの経路が消える。
+utf8_locale=0
+if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+	utf8_locale=1
+fi
 
 # 値を「環境変数 → .kaizen/config → 既定」の順で解決し、採った層を stderr に出す。
 # $1: 環境変数名 $2: config キー名 $3: 既定値 $4: 表示名
@@ -168,6 +187,21 @@ summary_of() {
 	summary=$(printf '%s' "${summary}" | sed -E 's/^- +//; s/^`type:[^`]*`。?[[:space:]]*//' || true)
 	# 表のセルに入れるので `|` と改行を落とす。
 	summary=${summary//|/｜}
+	# 予算どおりに切り詰める。`cut -c` は使わない——GNU coreutils ではバイト単位で切るため
+	# 日本語が文字の途中で割れる（kaizen-context-inject.sh と同じ理由・同じ方式）。
+	# bash のパラメータ展開は UTF-8 ロケールでは文字単位なので割れない。非 UTF-8 では
+	# バイト単位に戻るので切らず、割れた文字を出さない側へ倒す（CI のランナーは UTF-8）。
+	# 長さ判定を先に置き、大半の短い要約ではロケール判定のプロセス起動まで到達させない。
+	if [ "${#summary}" -gt "${MAX_SUMMARY_CHARS}" ]; then
+		if [ "${utf8_locale}" = 1 ]; then
+			summary="${summary:0:$((MAX_SUMMARY_CHARS - 1))}…"
+		else
+			# 縮退を黙らせない。非 UTF-8 では予算が効かないので、本文が上限へ近づいても
+			# 「切ったはず」と読めてしまう（このリポジトリの縮退方針: 縮退した run と
+			# 本番構成の run を出力で区別できるようにする）。
+			warn "ロケールが UTF-8 でないため要約を切り詰めない（文字が割れるため）: ${f}"
+		fi
+	fi
 	printf '%s' "${summary}"
 }
 

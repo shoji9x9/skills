@@ -46,6 +46,7 @@ function note({
   type = "rule",
   date = "2026-09-01",
   body = "",
+  proposal = null,
 }) {
   return [
     "---",
@@ -61,7 +62,7 @@ function note({
     "",
     "## 提案",
     "",
-    `${slug} の提案行。`,
+    proposal ?? `${slug} の提案行。`,
     body,
     "",
   ].join("\n");
@@ -96,7 +97,9 @@ function run({ dir, target }, args, env = {}) {
     encoding: "utf8",
     // 呼び出し側が渡さない変数は「未設定」であって空文字ではない。継承した値が
     // 紛れ込むと env 層のテストが本来の層を測らなくなるので、明示したものだけを渡す。
-    env: { PATH: process.env.PATH, HOME: dir, ...env },
+    // ロケールだけは明示する——最小 env は C ロケールになり、要約の切り詰めが
+    // 縮退経路へ落ちる。CI のランナー（UTF-8）と違う条件で測らないよう既定を揃える。
+    env: { PATH: process.env.PATH, HOME: dir, LC_ALL: "C.UTF-8", ...env },
   });
   const settings = Object.fromEntries(
     res.stdout
@@ -329,6 +332,40 @@ describe("pending の数え方と並び", () => {
       expect(body).toContain("残り 5 件");
       // 切った側のノートは表に出ない（上限が効いている陰性コントロール）。
       expect(body).not.toContain(".kaizen/n064.md");
+    });
+  });
+
+  // 予算をコメントで宣言するだけでは守られない（`.kaizen/2026-09-19-length-limit-
+  // measured-by-proxy-not-enforcer.md`）。実装で切り、切ったことが分かる形にする。
+  test("長い要約は 120 文字で切り、切ったと分かる印を付ける", () => {
+    // 日本語で 300 文字。バイト単位で切る実装なら文字の途中で割れる。
+    const long = "あ".repeat(300);
+    withProject({ notes: { long: { proposal: long }, short: {} } }, (p) => {
+      const body = run(p, ["issue"]).stdout;
+      const rows = body.split("\n").filter((l) => l.startsWith("| ") && l.includes(".kaizen/"));
+      expect(rows).toHaveLength(2);
+      const cell = (slug) =>
+        rows
+          .find((r) => r.includes(`${slug}.md`))
+          .split(" | ")[4]
+          .replace(/ \|$/, "");
+      expect(cell("long")).toHaveLength(120);
+      expect(cell("long").endsWith("\u2026")).toBe(true);
+      // 壊れた文字（置換文字）を出さない＝文字単位で切れている。
+      expect(cell("long")).not.toContain("\uFFFD");
+      // 上限以下の要約はそのまま（切り詰めが無差別に効いていない陰性コントロール）。
+      expect(cell("short").endsWith("\u2026")).toBe(false);
+    });
+  });
+
+  // 非 UTF-8 ロケールではバイト単位になり文字が割れるので切らない。黙って縮退すると
+  // 「切ったはず」と読めてしまうので、縮退した run を出力で区別できることまで固定する。
+  test("非 UTF-8 ロケールでは切り詰めず、縮退したと分かる警告を出す", () => {
+    const long = "あ".repeat(300);
+    withProject({ notes: { long: { proposal: long } } }, (p) => {
+      const { stdout, stderr } = run(p, ["issue"], { LC_ALL: "C" });
+      expect(stderr).toContain("ロケールが UTF-8 でないため要約を切り詰めない");
+      expect(stdout).not.toContain("…");
     });
   });
 

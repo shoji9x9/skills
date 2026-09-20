@@ -37,6 +37,17 @@ test("配布テンプレートと本リポのワークフローがバイト単�
   expect(wired, SYNC_HINT).toBe(canon);
 });
 
+// エージェントのレポートは Issue 本文へそのまま載る。無制限に `cat` すると、
+// 表を 60 行で切って守っている本文の文字数予算がエージェント経由で破られ、
+// `gh issue edit/create` が落ちてその週の Issue が作成も更新もされない。
+test("エージェントのレポートを無制限に cat しない", () => {
+  const canon = readFileSync(join(repoRoot, CANON), "utf8");
+  expect(canon).toContain("MAX_REPORT_CHARS");
+  expect(canon).toMatch(/awk -v max="\$MAX_REPORT_CHARS"/);
+  // 予算を通さない生の `cat "$REPORT_FILE"` が戻っていないこと。
+  expect(canon).not.toMatch(/^\s*cat "\$REPORT_FILE"\s*$/m);
+});
+
 test("すべての uses: を 40 桁 SHA で固定している", () => {
   const canon = readFileSync(join(repoRoot, CANON), "utf8");
   const pins = [...canon.matchAll(/^\s*uses:\s*\S+?@(\S+)/gm)].map((m) => m[1]);

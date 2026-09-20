@@ -43,6 +43,9 @@ defaults:
 
 env:
   ISSUE_TITLE: "kaizen: 未適用の学び"
+  # エージェントのレポートを Issue 本文へ載せるときの上限。本文全体の上限 65,536 文字に対し、
+  # 表（最大 60 行 = およそ 16,200 文字）と前後の説明を足しても半分以下に収まる予算。
+  MAX_REPORT_CHARS: "30000"
   REPORT_FILE: kaizen-agent-report.md
   PROMPT_FILE: kaizen-agent-prompt.md
   BODY_FILE: kaizen-issue-body.md
@@ -280,7 +283,19 @@ jobs:
               # 非空になり、未完成のレポートを完成品として転記してしまう。
               echo "> エージェントの実行が失敗しました（outcome: \`${outcome:-unknown}\`）。上記 run のログを確認してください。"
             elif [ -s "$REPORT_FILE" ]; then
-              cat "$REPORT_FILE"
+              # 表は 60 行で切って本文の文字数予算を守っているのに、ここが無制限だと
+              # 同じ故障（`gh issue edit/create` が上限超過で落ち、その週の Issue が
+              # 作成も更新もされない）がエージェント経由で再現する。行の境界で切る
+              # ——バイト数で切ると日本語が文字の途中で割れる。
+              awk -v max="$MAX_REPORT_CHARS" '
+                { n += length($0) + 1 }
+                n > max {
+                  print ""
+                  print "> レポートが長いため以降を省略しました（run のログに全文があります）。"
+                  exit
+                }
+                { print }
+              ' "$REPORT_FILE"
             else
               echo "> エージェントはレポートを出力しませんでした。上記 run のログを確認してください。"
             fi
