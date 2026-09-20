@@ -327,14 +327,28 @@ jobs:
           # `| head -n1` は使わない——書き手より先に読み手が閉じると pipefail が
           # 「見つからなかった」に化ける。タイトルは jq の `env` 経由で渡し、引用符や
           # 正規表現のメタ文字を含む値でも壊れないようにする（接頭辞側は文字列比較）。
-          # pagination-ok: 一致する Issue は高々数件で、--search が母数を絞る。
-          matched="$(gh issue list --state open --search "$ISSUE_TITLE_PREFIX in:title" --limit 100 \
-            --json number,title \
-            --jq '[ .[]
-                    | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
-                    | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
-                             | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
-                    | .number ] | sort | .[]')"
+          #
+          # **0 件なら `--search` 無しでもう一度引く。** 検索インデックスは結果整合なので、
+          # Issue を作成・リネームした直後に workflow_dispatch で再実行すると未反映で
+          # 「無い」と答え、2 本目を立ててしまう（一覧 API は即時反映）。追加の 1 往復は
+          # 新規作成へ進む直前だけなので、通常の週次実行では走らない。
+          # pagination-ok: --search が母数を絞り、フォールバックも --limit 100 で母数を明示する。
+          find_tracking_issues() {
+            gh issue list --state open --limit 100 "$@" \
+              --json number,title \
+              --jq '[ .[]
+                      | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
+                      | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
+                               | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
+                      | .number ] | sort | .[]'
+          }
+          matched="$(find_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title")"
+          if [ -z "$matched" ]; then
+            matched="$(find_tracking_issues)"
+            if [ -n "$matched" ]; then
+              echo "検索インデックス未反映のため --search 無しで再取得した（#${matched//$'\n'/ #}）" >&2
+            fi
+          fi
           numbers=()
           while IFS= read -r line; do
             [ -n "$line" ] || continue
@@ -343,15 +357,20 @@ jobs:
           number="${numbers[0]-}"
           # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず、最も古い 1 本
           # （＝追跡され続けてきた本体）を選んだことと、他が残っていることを出す。
+          # 更新するのはこの 1 本だけだが、閉じるときは一致した全部を閉じる（下の分岐）。
           if [ "${#numbers[@]}" -gt 1 ]; then
-            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。最も古い #${number} を更新する" >&2
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新は最も古い #${number} のみ" >&2
           fi
 
           if [ "$PENDING_COUNT" = 0 ]; then
-            if [ -n "$number" ]; then
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              # **一致した全部を閉じる。** 最古の 1 本だけ閉じると、残りが「未適用の学びが
+              # あります」という本文のまま open で残り、一覧に矛盾した追跡 Issue が並ぶ。
               # クローズ時はリネームしない。閉じた Issue のタイトルは「最後に棚卸しした日」
               # のまま残し、その本文がいつの内容かを示す（閉じた日ではない）。
-              gh issue close "$number" --comment "未適用の学びはありません。自動クローズします。"
+              for n in "${numbers[@]}"; do
+                gh issue close "$n" --comment "未適用の学びはありません。自動クローズします。"
+              done
             else
               echo "未適用の学びは 0 件。追跡 Issue も無いので何もしない"
             fi

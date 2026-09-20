@@ -522,18 +522,33 @@ fi
 ワークフローを置いた／配られただけで「入れた覚えのない定期実行」が始まらないようにするため:
 
 ```bash
-# `.kaizen/` がまだ無いリポジトリでも通す。既存ファイルの最終行に改行が無いまま追記すると
-# 前の行と連結して**そのキーと schedule_enabled の両方**が壊れるので、先に改行を補う
-# （`kaizen_config_value` は行単位で読み、同じキーは後勝ちなので既存の off も上書きできる）。
+# `.kaizen/` がまだ無いリポジトリでも通す。
 mkdir -p .kaizen
-if [ -s .kaizen/config ] && [ -n "$(tail -c1 .kaizen/config)" ]; then
-  printf '\n' >>.kaizen/config
+
+# **既存の値を無条件に上書きしない。** 意図して `schedule_enabled=off` で凍結している
+# リポジトリで追記すると（同じキーは後勝ちなので）無言で解除される。再実行のたびに
+# 同じ行も増える。既にキーがあるなら人が読んで決める。
+if grep -q '^[[:space:]]*schedule_enabled[[:space:]]*=' .kaizen/config 2>/dev/null; then
+  echo "既に schedule_enabled がある。値を確認して手で直す:" >&2
+  grep -n '^[[:space:]]*schedule_enabled[[:space:]]*=' .kaizen/config >&2
+else
+  # 最終行に改行が無いまま追記すると前の行と連結して**そのキーと schedule_enabled の
+  # 両方**が壊れる（`kaizen_config_value` は行単位で読む）ので、先に改行を補う。
+  if [ -s .kaizen/config ] && [ -n "$(tail -c1 .kaizen/config)" ]; then
+    printf '\n' >>.kaizen/config
+  fi
+  printf 'schedule_enabled=on\n' >>.kaizen/config
 fi
-printf 'schedule_enabled=on\n' >>.kaizen/config
 ```
 
 書いていないリポジトリでは run は成功で終わり、step summary に
 `.kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）` と理由が出る。
+
+> **既にこのワークフローを導入済みのリポジトリへスキルを更新するときは、同じ 1 行が要る。**
+> `schedule_enabled` の既定は以前 `on` だったため、キーを書かずに動いていたリポジトリは
+> スキル更新後の最初の月曜から**無言で止まる**（run は成功で終わり、理由は skip した run の
+> step summary にしか出ないので、Issue が更新されなくなって初めて気づく）。
+> 更新時は先に `.kaizen/config` へ `schedule_enabled=on` を入れてコミットする。
 
 **このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を
 1 本の Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になればその Issue を閉じる。
