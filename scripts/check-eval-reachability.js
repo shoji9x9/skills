@@ -58,13 +58,21 @@ export function checkEvalFile(path, source, backlog, label = path) {
     return { evals: 0, violations: [`${label}: JSON として読めない: ${error.message}`], keys };
   }
 
+  // トップレベルの形を先に確かめる。`null` や配列を素通りさせると `parsed.skill_name` が
+  // TypeError で落ち、違反として報告されずに検査そのものが停止する（免除の鍵に skill_name が
+  // 要るので、配列形式はそもそも受理できない）。
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    violations.push(`${label}: トップレベルが { "skill_name", "evals" } のオブジェクトでない`);
+    return { evals: 0, violations, keys };
+  }
+
   const skill = parsed.skill_name;
   if (typeof skill !== "string" || skill === "" || skill.includes(":")) {
     violations.push(`${label}: skill_name が文字列でないか ":" を含む（backlog の鍵が潰れる）`);
     return { evals: 0, violations, keys };
   }
 
-  const evals = Array.isArray(parsed) ? parsed : parsed.evals;
+  const evals = parsed.evals;
   if (!Array.isArray(evals)) {
     violations.push(`${label}: evals が配列でない`);
     return { evals: 0, violations, keys };
@@ -191,13 +199,26 @@ export function checkEvalFile(path, source, backlog, label = path) {
 export function loadBacklog(root) {
   const path = join(root, BACKLOG_PATH);
   if (!existsSync(path)) return { exempt: {}, missing: true };
-  const parsed = JSON.parse(readFileSync(path, "utf8"));
+  // 不在を違反として扱う以上、壊れている場合も違反にする。素の JSON.parse だと
+  // （merge 衝突の残骸などで）スタックトレースごと検査が止まり、pre-commit / CI が
+  // 「検査した結果」ではなくクラッシュで落ちる。
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    return { exempt: {}, missing: false, error: error.message };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { exempt: {}, missing: false, error: "トップレベルがオブジェクトでない" };
+  }
   return { exempt: parsed.exempt ?? {}, missing: false };
 }
 
 export function checkAll(root, files, { fullScan = true } = {}) {
-  const { exempt, missing } = loadBacklog(root);
-  const violations = missing ? [`${BACKLOG_PATH}: 宣言ファイルが無い（免除の正本が読めない）`] : [];
+  const { exempt, missing, error } = loadBacklog(root);
+  const violations = [];
+  if (missing) violations.push(`${BACKLOG_PATH}: 宣言ファイルが無い（免除の正本が読めない）`);
+  else if (error) violations.push(`${BACKLOG_PATH}: 宣言ファイルを読めない: ${error}`);
   let evals = 0;
   const keys = [];
   for (const file of files) {

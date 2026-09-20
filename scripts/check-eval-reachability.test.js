@@ -250,6 +250,32 @@ test("backlog が無ければ免除の正本が読めないので落とす", () 
   rmSync(root, { recursive: true, force: true });
 });
 
+test("backlog が壊れていても、クラッシュせず違反として落とす", () => {
+  // 不在を違反にしている以上、壊れている場合も違反にする（素の JSON.parse だと merge 衝突の
+  // 残骸でスタックトレースごと検査が止まり、「検査した結果」ではなくクラッシュで落ちる）。
+  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  const evalsPath = join(root, "skills/demo/evals/evals.json");
+  writeFileSync(evalsPath, file());
+  writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": { "demo:1": ');
+  expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない/);
+  // トップレベルが配列の宣言ファイルも同じ扱い（exempt を読めないのは同じ）。
+  writeFileSync(join(root, BACKLOG_PATH), "[]");
+  expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["null", "null"],
+  ["配列", '[{ "id": 1 }]'],
+  ["数値", "42"],
+])("トップレベルが %s の evals.json はクラッシュせず違反にする", (_name, source) => {
+  const violations = check(source);
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/トップレベルが/);
+});
+
 test("CLI: 対象 0 件は成功に倒さず exit 1", () => {
   const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
   const r = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });

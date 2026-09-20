@@ -93,6 +93,23 @@ test("陰性コントロール（実データ）: 実リポジトリの追跡テ
   expect(checkFiles(files, repoRoot)).toEqual([]);
 });
 
+test("読めないファイルはクラッシュさせず、走査できていないこととして報告する", () => {
+  // git ls-files は index を読むので、作業ツリーから消えた追跡ファイルや壊れた symlink が
+  // 入りうる。素の readFileSync だとスタックトレースごと検査が止まり、「走査できていない」が
+  // 検査結果として残らない。
+  const dir = mkdtempSync(join(tmpdir(), "control-chars-"));
+  try {
+    const violations = checkFiles(["missing.md"], dir);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatch(/missing\.md: 読めないため走査できていない/);
+    // 陰性コントロール: 実在するファイルは通常どおり判定される（読めない扱いに倒れない）。
+    writeFileSync(join(dir, "ok.md"), "本文\n");
+    expect(checkFiles(["ok.md"], dir)).toEqual([]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報告する", () => {
   const dir = mkdtempSync(join(tmpdir(), "control-chars-"));
   writeFileSync(join(dir, "bad.md"), `# 見出し\n本文${NUL}\n`);

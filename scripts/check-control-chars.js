@@ -71,7 +71,17 @@ export function trackedTextFiles(cwd = process.cwd()) {
 export function checkFiles(files, cwd = process.cwd()) {
   const violations = [];
   for (const file of files) {
-    const hits = findControlBytes(readFileSync(join(cwd, file)));
+    // 追跡はされているのに読めない（作業ツリーから消えている・symlink が壊れている）ファイルは、
+    // 素の readFileSync だとスタックトレースごと検査を止める。検査結果として報告し、
+    // 「走査できていない」を成功に倒さない。
+    let buffer;
+    try {
+      buffer = readFileSync(join(cwd, file));
+    } catch (error) {
+      violations.push(`${file}: 読めないため走査できていない: ${error.code ?? error.message}`);
+      continue;
+    }
+    const hits = findControlBytes(buffer);
     for (const { line, col, byte } of hits) {
       const name = byte === 0 ? "NUL" : `0x${byte.toString(16).padStart(2, "0")}`;
       violations.push(`${file}:${line}:${col}: 制御バイト ${name}`);
