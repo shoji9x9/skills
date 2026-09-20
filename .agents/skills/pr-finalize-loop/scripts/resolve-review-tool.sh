@@ -140,6 +140,12 @@ elif [ -n "${SKILLS_REVIEW_TOOL:-}" ]; then
 	value="${SKILLS_REVIEW_TOOL}"
 	source="env"
 else
+	# env を「設定したのに空」で通り過ぎると、指定したつもりの層と報告される層がずれる。
+	# ただし `SKILLS_REVIEW_TOOL= cmd` は env 層を無効化する常套手段なので、CLI の空値
+	# （exit 64）とは扱いを分け、飛ばしたことを出力に残したうえで下の層へ進む。
+	if [ "${SKILLS_REVIEW_TOOL+set}" = "set" ]; then
+		echo "note: SKILLS_REVIEW_TOOL が空のため env 層を飛ばす（無効化として扱う）" >&2
+	fi
 	config_value="$(read_config || true)"
 	if [ -n "${config_value}" ]; then
 		value="${config_value}"

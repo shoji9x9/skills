@@ -114,6 +114,17 @@ for (const script of SCRIPTS) {
     });
   });
 
+  test(`${name}: SKILLS_REVIEW_TOOL が空なら env 層を飛ばしたことを残す`, () => {
+    // `VAR= cmd` は env 層の無効化として使われるので落とさない。ただし黙って下の層へ
+    // 進むと、指定したつもりの層と報告される層がずれたことに気づけない。
+    withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
+      const r = run(script, { config: path, env: { SKILLS_REVIEW_TOOL: "" } });
+      expect(r.status).toBe(0);
+      expect(parse(r.stdout)).toEqual({ value: "codex", source: "config" });
+      expect(r.stderr).toMatch(/SKILLS_REVIEW_TOOL が空のため env 層を飛ばす/);
+    });
+  });
+
   test(`${name}: --review-tool の値が空なら下の層へ落とさず usage エラーで落ちる`, () => {
     // 空文字を「未指定」と同じに扱うと、CLI 指定が黙って env / config へ落ち、
     // 指定したつもりの層と報告される層がずれる（実測で source=config になった）。
