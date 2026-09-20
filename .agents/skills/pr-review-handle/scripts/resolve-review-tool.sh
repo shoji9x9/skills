@@ -41,6 +41,13 @@ while [ "$#" -gt 0 ]; do
 			usage
 			exit 64
 		}
+		# 空文字は「未指定」と同じ扱いになり、CLI 指定が黙って下の層（env / config）へ
+		# 落ちる。指定したつもりの層と報告される層がずれるので、ここで落とす。
+		[ -n "$2" ] || {
+			echo "error: --review-tool の値が空" >&2
+			usage
+			exit 64
+		}
 		cli_value="$2"
 		shift 2
 		;;

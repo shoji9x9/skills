@@ -114,6 +114,16 @@ for (const script of SCRIPTS) {
     });
   });
 
+  test(`${name}: --review-tool の値が空なら下の層へ落とさず usage エラーで落ちる`, () => {
+    // 空文字を「未指定」と同じに扱うと、CLI 指定が黙って env / config へ落ち、
+    // 指定したつもりの層と報告される層がずれる（実測で source=config になった）。
+    withConfig("version: 1\nskills:\n  common:\n    review_tool: codex\n", (path) => {
+      const r = run(script, { config: path, args: ["--review-tool", ""] });
+      expect(r.status).toBe(64);
+      expect(r.stderr).toMatch(/--review-tool の値が空/);
+    });
+  });
+
   test(`${name}: --config の値が空なら既定へ化けさせず usage エラーで落ちる`, () => {
     // 空文字を「未指定」と同じに扱うと、渡したつもりのパスが黙ってリポジトリルートの
     // 既定へ差し替わり、source=default を正しい解決結果として報告してしまう。
