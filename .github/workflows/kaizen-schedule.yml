@@ -42,7 +42,10 @@ defaults:
     shell: bash
 
 env:
-  ISSUE_TITLE: "kaizen: 未適用の学び"
+  # 追跡 Issue のタイトルは「接頭辞 + 更新日」。実行のたびにリネームするので、open な 1 本は
+  # 常に「最後に棚卸しした日」を示し、閉じたものは当時の日付のまま残る。固定タイトルにすると、
+  # 手動でクローズするたびに同名の Issue が open / closed に並び、一覧で世代を区別できない。
+  ISSUE_TITLE_PREFIX: "kaizen: 未適用の学び"
   # エージェントのレポートを Issue 本文へ載せるときの上限。本文全体の上限 65,536 文字に対し、
   # 表（最大 60 行 = およそ 16,200 文字）と前後の説明を足しても半分以下に収まる予算。
   MAX_REPORT_CHARS: "30000"
@@ -309,29 +312,56 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}
         run: |
-          # 追跡 Issue は 1 本だけ。`gh issue list` の既定は 30 件までなので、open Issue の
-          # 多いリポジトリでは既定のままだと取りこぼして毎週新しい Issue を作る。タイトルで
-          # 検索して母数を絞り、完全一致は jq で取る（`--search` は部分一致のため）。
+          # 日付は UTC で採る。cron は 01:00 UTC なので JST でも同じ日付になり、
+          # 手動実行でもランナーのタイムゾーンに依存しない値になる。
+          title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
+
+          # 追跡 Issue は 1 本だけ。タイトルへ更新日が入るので完全一致では引けない。
+          # **素の前方一致にはしない**——「kaizen: 未適用の学びについて相談」のような
+          # 無関係な Issue まで拾い、それを毎週上書きしてしまう。接頭辞を外した残りが
+          # 「空」か「 (YYYY-MM-DD)」であることまで確かめる。空を受理するのは、日付を
+          # 入れる前に作られた既存の追跡 Issue を引き継いでリネームするため。
+          #
+          # `gh issue list` の既定は 30 件までなので、open Issue の多いリポジトリでは
+          # 既定のままだと取りこぼして毎週新しい Issue を作る。`--search` で母数を絞る。
           # `| head -n1` は使わない——書き手より先に読み手が閉じると pipefail が
-          # 「見つからなかった」に化ける。`first // empty` なら不在は空文字・exit 0 になる。
-          # タイトルは jq の `env` 経由で渡し、引用符を含む値でも壊れないようにする。
-          # pagination-ok: 完全一致する Issue は高々 1 件で、--search が母数を絞る。
-          number="$(gh issue list --state open --search "$ISSUE_TITLE in:title" --limit 100 \
+          # 「見つからなかった」に化ける。タイトルは jq の `env` 経由で渡し、引用符や
+          # 正規表現のメタ文字を含む値でも壊れないようにする（接頭辞側は文字列比較）。
+          # pagination-ok: 一致する Issue は高々数件で、--search が母数を絞る。
+          matched="$(gh issue list --state open --search "$ISSUE_TITLE_PREFIX in:title" --limit 100 \
             --json number,title \
-            --jq '[.[] | select(.title == env.ISSUE_TITLE) | .number] | first // empty')"
+            --jq '[ .[]
+                    | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
+                    | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
+                             | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
+                    | .number ] | sort | .[]')"
+          numbers=()
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            numbers+=("$line")
+          done <<<"$matched"
+          number="${numbers[0]-}"
+          # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず、最も古い 1 本
+          # （＝追跡され続けてきた本体）を選んだことと、他が残っていることを出す。
+          if [ "${#numbers[@]}" -gt 1 ]; then
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。最も古い #${number} を更新する" >&2
+          fi
+
           if [ "$PENDING_COUNT" = 0 ]; then
             if [ -n "$number" ]; then
+              # クローズ時はリネームしない。閉じた Issue のタイトルは「最後に棚卸しした日」
+              # のまま残し、その本文がいつの内容かを示す（閉じた日ではない）。
               gh issue close "$number" --comment "未適用の学びはありません。自動クローズします。"
             else
               echo "未適用の学びは 0 件。追跡 Issue も無いので何もしない"
             fi
           elif [ -n "$number" ]; then
-            gh issue edit "$number" --body-file "$BODY_FILE"
+            gh issue edit "$number" --title "$title" --body-file "$BODY_FILE"
             # **本文の更新だけでは誰にも通知が飛ばない。** 追跡 Issue は pending が 0 に
             # なるまで閉じないので、コメントを足さないと 2 週目以降のレポートが届かず、
             # 「適用のきっかけを作る」というこの仕組みの目的が 1 週目でしか成立しない。
             gh issue comment "$number" --body \
               "今週の棚卸し: 未適用 ${PENDING_COUNT} 件。本文を更新しました（[run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)）。"
           else
-            gh issue create --title "$ISSUE_TITLE" --body-file "$BODY_FILE"
+            gh issue create --title "$title" --body-file "$BODY_FILE"
           fi

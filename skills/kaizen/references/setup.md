@@ -517,8 +517,33 @@ else
 fi
 ```
 
+**コピーしただけでは動かない。定期実行は opt-in。** `.kaizen/config` に
+`schedule_enabled=on` を書いて初めて週次で走る（既定は `off`）。
+ワークフローを置いた／配られただけで「入れた覚えのない定期実行」が始まらないようにするため:
+
+```bash
+# `.kaizen/` がまだ無いリポジトリでも通す。既存ファイルの最終行に改行が無いまま追記すると
+# 前の行と連結して**そのキーと schedule_enabled の両方**が壊れるので、先に改行を補う
+# （`kaizen_config_value` は行単位で読み、同じキーは後勝ちなので既存の off も上書きできる）。
+mkdir -p .kaizen
+if [ -s .kaizen/config ] && [ -n "$(tail -c1 .kaizen/config)" ]; then
+  printf '\n' >>.kaizen/config
+fi
+printf 'schedule_enabled=on\n' >>.kaizen/config
+```
+
+書いていないリポジトリでは run は成功で終わり、step summary に
+`.kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）` と理由が出る。
+
 **このワークフローはリポジトリを変更しない。** pending の一覧（と、エージェントを使う場合はその分析）を
-1 本の Issue にまとめ、同じタイトルの Issue があれば本文を更新する。pending が 0 件になればその Issue を閉じる。
+1 本の Issue にまとめ、既存の追跡 Issue があれば本文を更新する。pending が 0 件になればその Issue を閉じる。
+
+追跡 Issue のタイトルは `kaizen: 未適用の学び (YYYY-MM-DD)` で、**実行のたびに更新日へリネームする**。
+open な 1 本は常に「最後に棚卸しした日」を示し、閉じたものは当時の日付のまま残るので、Issue 一覧で世代を区別できる
+（固定タイトルだと、手動でクローズするたびに同名の Issue が open / closed に並ぶ）。
+既存 Issue は接頭辞 `kaizen: 未適用の学び` ＋ 末尾が空か半角空白つきの `(YYYY-MM-DD)` のものだけを引く——
+素の前方一致だと「kaizen: 未適用の学びについて相談」のような無関係な Issue を毎週上書きしてしまう。
+末尾が空も受理するのは、日付を入れる前に作られた追跡 Issue を引き継いでリネームするため。
 適用（`/kaizen apply`）は人が開いたセッションで行う——`references/apply.md` はグループごとにユーザー承認を要求する設計で、
 承認点を無人化すると「適用したことにする」経路ができるため。
 
@@ -552,10 +577,10 @@ fi
 
 1. **`workflow_dispatch` の入力**（`mode` / `agent` / `model` / `effort`）— その 1 回だけの上書き。手で試すとき用
 2. **`.kaizen/config` の `schedule_*` キー** — リポジトリの意思。コミットされてレビューを通る
-3. **既定値** — `mode=notify` / `agent=claude` / model・effort はエージェント側の既定
+3. **既定値** — `schedule_enabled=off`（opt-in）/ `mode=notify` / `agent=claude` / model・effort はエージェント側の既定
 
 ```ini
-schedule_enabled=on       # 定期実行の有効・無効（既定 on）
+schedule_enabled=on       # 定期実行の有効・無効（**既定 off**。この 1 行が無いと走らない）
 schedule_mode=notify      # notify | agent（既定 notify）
 schedule_agent=claude     # claude | codex | copilot（既定 claude）
 schedule_model=           # 空ならエージェント側の既定モデル
@@ -563,6 +588,8 @@ schedule_effort=          # codex のみ有効
 ```
 
 不正値は既定へ倒し、倒したことを stderr に出す（`.kaizen/config` の他のキーと同じ方針）。
+`schedule_enabled` は既定が `off` なので、**キーが無い場合も不正値の場合も止まる**
+（typo した設定が「有効化した証拠」になってしまうのを避ける）。
 
 #### skip（凍結プロジェクト・レートリミット接近時）
 
@@ -570,7 +597,11 @@ schedule_effort=          # codex のみ有効
 
 - **リポジトリ変数 `KAIZEN_SCHEDULE_SKIP`**（`true` / `on` / `1` 等）— コミットを伴わない一時停止。
   `gh variable set KAIZEN_SCHEDULE_SKIP --body true` で立て、`gh variable delete KAIZEN_SCHEDULE_SKIP` で戻す
-- **`.kaizen/config` の `schedule_enabled=off`** — 凍結プロジェクトなど、止めた状態をリポジトリに残したいとき
+- **`.kaizen/config` の `schedule_enabled=off`**（または行ごと消す）— 凍結プロジェクトなど、
+  止めた状態をリポジトリに残したいとき。既定が `off` なので、行を消すだけでも止まる
+
+`schedule_skip` のような**逆極性のキーは足していない**——`schedule_enabled=off` と併存すると
+二重の否定になり、どちらが効いているかを読み違える。止めるのは `schedule_enabled` 側で一本化する。
 
 skip した run は Issue を作らず、理由を step summary に出して成功で終わる
 （失敗にすると通知が飛び、止めたい状況でノイズになる）。

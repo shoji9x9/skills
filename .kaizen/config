@@ -1,0 +1,6 @@
+# kaizen のプロジェクト設定（`KEY=VALUE`。`#` 以降はコメント）。
+# 正本の説明は kaizen スキルの `references/setup.md`。
+
+# 定期実行（.github/workflows/kaizen-schedule.yml）を有効にする。
+# 既定は off（opt-in）なので、この 1 行が無いと週次の棚卸しは skip される。
+schedule_enabled=on
