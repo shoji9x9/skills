@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import yaml from "js-yaml";
 import { fileURLToPath } from "node:url";
@@ -33,15 +33,80 @@ import { dirname, join } from "node:path";
 //   K. 分岐前の通知へ「更新は…のみ」を戻す        → 分岐前断定テストが fail
 //   L. 警告をクローズ分岐にも置く（偽陽性の再現）   → 警告配置テストが fail
 //   M. 走査件数を別 API で引き直す                 → 同テストが fail
+//   N. 照会を `read_matches "$(find_tracking_issues ...)"` へ戻す → fail-closed テストが fail
+//      （`$( )` の失敗は**関数の引数**では伝播しない。実際に走らせて測る）
 //      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
 //        読みかけた。当たったことを diff で確かめてから走らせ直した）
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // 同じパターンを持つワークフローの一覧。片方だけ直る余地を残さないため一括で検査する。
 const WORKFLOWS = [
-  { path: ".github/workflows/kaizen-schedule.yml", prefix: "kaizen: 未適用の学び" },
-  { path: ".github/workflows/outdated.yml", prefix: "mise outdated tool versions" },
+  {
+    path: ".github/workflows/kaizen-schedule.yml",
+    prefix: "kaizen: 未適用の学び",
+    // 追跡 Issue が 1 件も見つからず、新規作成へ進む条件。
+    createEnv: { PENDING_COUNT: "3" },
+  },
+  {
+    path: ".github/workflows/outdated.yml",
+    prefix: "mise outdated tool versions",
+    createEnv: { HAS_OUTDATED: "true" },
+  },
 ];
+
+// `gh issue list` を失敗させるスタブ。変更系の呼び出しは GH_LOG へ記録する。
+const GH_FAILING = `#!/usr/bin/env bash
+set -euo pipefail
+if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
+  echo "gh: HTTP 403: You have exceeded a secondary rate limit" >&2
+  exit 1
+fi
+printf 'CALL: %s\\n' "$*" >>"$GH_LOG"
+`;
+
+// 一致 0 件を正常に返すスタブ（陽性コントロール: 新規作成の分岐へ到達することを示す）。
+const GH_EMPTY = `#!/usr/bin/env bash
+set -euo pipefail
+if [ "\${1-}" = issue ] && [ "\${2-}" = list ]; then
+  echo "scanned=0"
+  exit 0
+fi
+printf 'CALL: %s\\n' "$*" >>"$GH_LOG"
+`;
+
+/** ステップの run を、差し替えた `gh` で実際に走らせる。 */
+function runStep(wfPath, ghScript, env) {
+  const dir = mkdtempSync(join(tmpdir(), "tracking-step-"));
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin, { recursive: true });
+    const gh = join(bin, "gh");
+    writeFileSync(gh, ghScript);
+    chmodSync(gh, 0o755);
+    const script = join(dir, "step.sh");
+    writeFileSync(script, trackingStep(wfPath));
+    const log = join(dir, "gh.log");
+    writeFileSync(log, "");
+    const res = spawnSync("bash", ["-eo", "pipefail", script], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        PATH: `${bin}:${process.env.PATH}`,
+        HOME: dir,
+        LC_ALL: "C.UTF-8",
+        GH_LOG: log,
+        GITHUB_SERVER_URL: "https://github.com",
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_RUN_ID: "1",
+        BODY_FILE: join(dir, "body.md"),
+        ...env,
+      },
+    });
+    return { ...res, calls: readFileSync(log, "utf8") };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const STEP_NAME = "Update tracking issue";
 
@@ -89,7 +154,7 @@ function branches(run) {
   };
 }
 
-describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }) => {
+describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, createEnv }) => {
   const run = () => trackingStep(path);
 
   test("env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける", () => {
@@ -117,6 +182,22 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
     expect(create).toContain('--title "$title"');
   });
 
+  // **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を代入に置けば `set -e` が
+  // 拾うが、関数の引数に置くと終了コードが捨てられる（実測）。捨てると secondary rate
+  // limit や 5xx を踏んだ週に「0 件」と読み、既存 Issue を残したまま 2 本目を作って緑で終わる。
+  // 静的な文字列検査では書き方を変えた瞬間に素通りするので、**実際に走らせて**測る。
+  test("gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）", () => {
+    const failed = runStep(path, GH_FAILING, createEnv);
+    expect(failed.status, "gh が失敗したのにステップが成功した").not.toBe(0);
+    expect(failed.calls, "失敗した週に Issue を作成・更新・クローズした").toBe("");
+
+    // 陽性コントロール: 同じ入力で `gh` が正常なら新規作成まで到達する
+    // （到達していない経路で「触らなかった」を測っても何も実証しない）。
+    const ok = runStep(path, GH_EMPTY, createEnv);
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.calls).toContain("issue create");
+  });
+
   test("クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）", () => {
     const { close } = branches(run());
     expect(close).toContain("gh issue close");
@@ -131,11 +212,11 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
   // 「無い」と答え、2 本目を立てる（一覧 API は即時反映）。0 件なら --search 無しで引き直す。
   test("検索が 0 件なら --search 無しで引き直してから新規作成へ進む", () => {
     const r = run();
-    expect(r).toContain('read_matches "$(find_tracking_issues --search');
+    expect(r).toContain("query_tracking_issues --search");
     // フォールバックは 0 件のときだけ。無条件の 2 度引きになっていないこと。
     const fallback = r.match(/^if \[ "\$\{#numbers\[@\]\}" -eq 0 \]; then$\n([\s\S]*?)^fi$/m);
     expect(fallback, "0 件ガード付きのフォールバックが無い").not.toBeNull();
-    expect(fallback[1]).toContain('read_matches "$(find_tracking_issues)"');
+    expect(fallback[1]).toMatch(/^ *query_tracking_issues$/m);
   });
 
   // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。

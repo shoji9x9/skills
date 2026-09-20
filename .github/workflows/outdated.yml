@@ -149,10 +149,23 @@ jobs:
               esac
             done <<<"$1"
           }
-          read_matches "$(find_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title")"
+          # **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を**代入**に置けば
+          # `set -e` が拾うが、**関数の引数**に置くとその終了コードは捨てられる（実測）。
+          # 捨てると、secondary rate limit（403）や 5xx を踏んだ週に「0 件」と読んで
+          # 既存 Issue を残したまま 2 本目を作り、run は緑で終わる。
+          # 出力と終了コードを分けて受け、非 0 はここで落とす（fail-closed）。
+          query_tracking_issues() {
+            local out
+            if ! out="$(find_tracking_issues "$@")"; then
+              echo "gh issue list が失敗した。追跡 Issue を取り違えないようジョブを落とす" >&2
+              return 1
+            fi
+            read_matches "$out"
+          }
+          query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title"
           fallback_scanned=""
           if [ "${#numbers[@]}" -eq 0 ]; then
-            read_matches "$(find_tracking_issues)"
+            query_tracking_issues
             fallback_scanned="$scanned"
             if [ "${#numbers[@]}" -gt 0 ]; then
               echo "検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）" >&2
