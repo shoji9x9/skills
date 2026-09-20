@@ -45,6 +45,16 @@ const PASSING = [
     "危険語を含まない通常のコマンドは通す",
     "git status --short && node scripts/check-rule-symlinks.js",
   ],
+  // `gh api` を部分一致で拾うと、引数の中にこのゲート自身の話題が入っただけで
+  // 正当な呼び出しが止まる（このゲートを説明する Issue / PR を書く作業で必ず踏む）。
+  [
+    "引数の文章に gh api が現れる gh issue create は通す",
+    "gh issue create --title 'gh api の --body-file について' --body-file /tmp/b.md",
+  ],
+  [
+    "gh pr create も同じく引数の文章では止めない",
+    "gh pr create --title 'gh api メモ' --body-file /tmp/b.md",
+  ],
 ];
 
 for (const [name, command] of PASSING) {
@@ -98,6 +108,20 @@ test("2 クラスが同時にあれば両方報告する", () => {
   expect(r.status).toBe(2);
   const lines = r.stderr.split("\n").filter((l) => l.trim().startsWith("-"));
   expect(lines).toHaveLength(2);
+});
+
+// 免除は「語の先頭に現れる [...]」だけ。セグメントのどこかに [ と ] があれば通す書き方だと、
+// 配列添字を含むだけの素の -f 実行が素通りする（実測した偽陰性）。
+test("配列添字の [] は文字クラスの免除に数えない", () => {
+  const r = guard('pkill -f "${procs[0]}"');
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+test("パス区切りの直後に置いた文字クラスは免除する", () => {
+  const r = guard('pkill -f "$dir/[d]ump-dom"');
+  expect(r.status).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
 });
 
 // --- 入力の退化形 ---

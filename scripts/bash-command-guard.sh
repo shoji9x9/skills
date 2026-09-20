@@ -76,6 +76,8 @@ if [ -z "${command_text}" ]; then
 fi
 
 violations=""
+# 語の先頭（行頭・空白・引用符・= / ( の直後）に現れる `[...]` だけを文字クラスの免除にする。
+class_escape_re='(^|[[:space:]"'"'"'=/(])\[[^][]+\]'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
 # セグメントへ分割する。区切りは改行と、&& || ; | の各演算子。
@@ -84,9 +86,13 @@ segments="$(printf '%s' "${command_text}" | sed -e 's/&&/\n/g' -e 's/||/\n/g' -e
 while IFS= read -r segment; do
 	[ -n "${segment}" ] || continue
 
-	# 1. gh api と --body-file が同じセグメントにある
-	case "${segment}" in
-	*"gh api"*)
+	# 1. gh api と --body-file が同じセグメントにある。
+	#    `gh api` は**セグメントの先頭コマンド**のときだけ見る。部分一致で拾うと、
+	#    引数の中にこのゲート自身の話題（`gh` の別サブコマンドに関する文章）が入っただけで
+	#    正当な呼び出しまで止まる。`gh issue` / `gh pr` 側のフラグは正当なので通す必要がある。
+	trimmed="${segment#"${segment%%[![:space:]]*}"}"
+	case "${trimmed}" in
+	"gh api "* | "gh api")
 		case "${segment}" in
 		*--body-file*)
 			add_violation "gh api に --body-file は無い（unknown flag で落ちる）。-F body=@<path> か --input <path> を使う: ${segment}"
@@ -101,12 +107,14 @@ while IFS= read -r segment; do
 		case "${segment}" in
 		*-f*)
 			# 文字クラス（[d]ump-dom）で自分のコマンドラインを避けている形は通す。
-			case "${segment}" in
-			*\[*\]*) ;;
-			*)
+			# **語の先頭に現れる `[...]` だけ**を免除にする。セグメントのどこかに
+			# `[` と `]` があれば通す書き方だと、配列添字 `"${procs[0]}"` を含む
+			# 素の -f 実行まで素通りする（実測した偽陰性）。
+			if [[ ${segment} =~ ${class_escape_re} ]]; then
+				:
+			else
 				add_violation "pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと落ちる）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${segment}"
-				;;
-			esac
+			fi
 			;;
 		esac
 		;;
