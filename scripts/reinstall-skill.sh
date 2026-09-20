@@ -47,9 +47,16 @@ reinstall_one() {
 		# `[ -e ]` のときだけ検査すると、未作成の更新先では何も検査されず、
 		# rm -rf の後の mkdir が落ちて半インストールになる（preflight が防ぐはずの形）。
 		probe="${target}"
-		while [ ! -e "${probe}" ] && [ "${probe}" != "." ] && [ "${probe}" != "/" ]; do
+		# `[ -e ]` は壊れた symlink で偽になるため、`-L` も見る。見ないと探索が
+		# 壊れた symlink を通り越して親で PASS し、rm -rf の後の mkdir -p が
+		# File exists で落ちる（preflight が防ぐはずの半インストール）。
+		while [ ! -e "${probe}" ] && [ ! -L "${probe}" ] && [ "${probe}" != "." ] && [ "${probe}" != "/" ]; do
 			probe="$(dirname "${probe}")"
 		done
+		if [ -L "${probe}" ] && [ ! -e "${probe}" ]; then
+			echo "Preflight failed: ${probe} が壊れた symlink（既存のインストールは触っていない）" >&2
+			return 1
+		fi
 		if [ ! -w "${probe}" ]; then
 			echo "Preflight failed: ${probe} へ書き込めない（既存のインストールは触っていない）" >&2
 			return 1
