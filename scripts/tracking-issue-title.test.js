@@ -39,6 +39,9 @@ import { dirname, join } from "node:path";
 //      （最初の版は runStep が接頭辞を渡しておらず、**空の接頭辞で走ったまま緑**だった）
 //   P. 閾値を `-ge 100` の数値リテラルへ戻す          → 上限の単一化テストが fail
 //   Q. 検索側の打ち切り警告を外す                    → 検索打ち切りテストが fail
+//   R. `PENDING_COUNT` の検証を外す                  → ゲート入力テストが fail
+//   S. 更新分岐から打ち切り警告を外す                → 警告配置テストが fail
+//   T. フォールバック後の打ち切り判定を外す          → 判定位置テストが fail
 //      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
 //        読みかけた。当たったことを diff で確かめてから走らせ直した）
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,11 +53,16 @@ const WORKFLOWS = [
     prefix: "kaizen: 未適用の学び",
     // 追跡 Issue が 1 件も見つからず、新規作成へ進む条件。
     createEnv: { PENDING_COUNT: "3" },
+    // ステップの挙動を決める入力。空・仕様外の値で gh を呼ばずに落ちること（fail-closed）。
+    gateVar: "PENDING_COUNT",
+    badValues: ["", "3件", "-1"],
   },
   {
     path: ".github/workflows/outdated.yml",
     prefix: "mise outdated tool versions",
     createEnv: { HAS_OUTDATED: "true" },
+    gateVar: "HAS_OUTDATED",
+    badValues: ["", "TRUE", "1"],
   },
 ];
 
@@ -175,181 +183,211 @@ function branches(run) {
   };
 }
 
-describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, createEnv }) => {
-  const run = () => trackingStep(path);
+describe.each(WORKFLOWS)(
+  "$path の追跡 Issue タイトル",
+  ({ path, prefix, createEnv, gateVar, badValues }) => {
+    const run = () => trackingStep(path);
 
-  test("env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける", () => {
-    expect(declaredPrefix(path)).toBe(prefix);
-    // 固定タイトルへ戻っていないこと。`date -u` でランナーの TZ に依存させない。
-    expect(run()).toContain('title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"');
-  });
+    test("env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける", () => {
+      expect(declaredPrefix(path)).toBe(prefix);
+      // 固定タイトルへ戻っていないこと。`date -u` でランナーの TZ に依存させない。
+      expect(run()).toContain('title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"');
+    });
 
-  test("完全一致の検索へ戻っていない（戻ると毎週新しい Issue が立つ）", () => {
-    expect(run()).not.toMatch(/select\(\s*\.title\s*==\s*env\./);
-    expect(run()).toContain("startswith(env.ISSUE_TITLE_PREFIX)");
-  });
+    test("完全一致の検索へ戻っていない（戻ると毎週新しい Issue が立つ）", () => {
+      expect(run()).not.toMatch(/select\(\s*\.title\s*==\s*env\./);
+      expect(run()).toContain("startswith(env.ISSUE_TITLE_PREFIX)");
+    });
 
-  test("既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる", () => {
-    const { update, create } = branches(run());
-    // 分岐へ到達していることの陽性コントロール（空文字を検査しても常に緑になる）。
-    expect(update).toContain("gh issue edit");
-    expect(create).toContain("gh issue create");
-    // 本 PR の主目的。`run` 全体へ当てると create 側だけで満たされてしまうので分岐ごとに当てる。
-    expect(update).toContain('--title "$title"');
-    expect(create).toContain('--title "$title"');
-  });
+    test("既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる", () => {
+      const { update, create } = branches(run());
+      // 分岐へ到達していることの陽性コントロール（空文字を検査しても常に緑になる）。
+      expect(update).toContain("gh issue edit");
+      expect(create).toContain("gh issue create");
+      // 本 PR の主目的。`run` 全体へ当てると create 側だけで満たされてしまうので分岐ごとに当てる。
+      expect(update).toContain('--title "$title"');
+      expect(create).toContain('--title "$title"');
+    });
 
-  // **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を代入に置けば `set -e` が
-  // 拾うが、関数の引数に置くと終了コードが捨てられる（実測）。捨てると secondary rate
-  // limit や 5xx を踏んだ週に「0 件」と読み、既存 Issue を残したまま 2 本目を作って緑で終わる。
-  // 静的な文字列検査では書き方を変えた瞬間に素通りするので、**実際に走らせて**測る。
-  test("gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）", () => {
-    const failed = runStep(path, GH_FAILING, createEnv);
-    expect(failed.status, "gh が失敗したのにステップが成功した").not.toBe(0);
-    expect(failed.calls, "失敗した週に Issue を作成・更新・クローズした").toBe("");
+    // **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を代入に置けば `set -e` が
+    // 拾うが、関数の引数に置くと終了コードが捨てられる（実測）。捨てると secondary rate
+    // limit や 5xx を踏んだ週に「0 件」と読み、既存 Issue を残したまま 2 本目を作って緑で終わる。
+    // 静的な文字列検査では書き方を変えた瞬間に素通りするので、**実際に走らせて**測る。
+    test("gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）", () => {
+      const failed = runStep(path, GH_FAILING, createEnv);
+      expect(failed.status, "gh が失敗したのにステップが成功した").not.toBe(0);
+      expect(failed.calls, "失敗した週に Issue を作成・更新・クローズした").toBe("");
 
-    // 陽性コントロール: 同じ入力で `gh` が正常なら新規作成まで到達する
-    // （到達していない経路で「触らなかった」を測っても何も実証しない）。
-    const ok = runStep(path, GH_EMPTY, createEnv);
-    expect(ok.status, ok.stderr).toBe(0);
-    expect(ok.calls).toContain("issue create");
-    // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
-    // 走っていても「作成へ到達した」だけで緑になる。
-    const today = new Date().toISOString().slice(0, 10);
-    expect(ok.calls).toContain(`--title ${prefix} (${today})`);
-  });
+      // 陽性コントロール: 同じ入力で `gh` が正常なら新規作成まで到達する
+      // （到達していない経路で「触らなかった」を測っても何も実証しない）。
+      const ok = runStep(path, GH_EMPTY, createEnv);
+      expect(ok.status, ok.stderr).toBe(0);
+      expect(ok.calls).toContain("issue create");
+      // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
+      // 走っていても「作成へ到達した」だけで緑になる。
+      const today = new Date().toISOString().slice(0, 10);
+      expect(ok.calls).toContain(`--title ${prefix} (${today})`);
+    });
 
-  test("クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）", () => {
-    const { close } = branches(run());
-    expect(close).toContain("gh issue close");
-    expect(close).not.toContain("--title");
-  });
+    // ステップの挙動を決める入力は、空・仕様外の値で**黙って片側へ倒れる**。
+    // `[ "$PENDING_COUNT" = 0 ]` は文字列比較なので、空文字は「未適用あり」側へ倒れ、
+    // 件数の抜けたコメントを投稿しつつ Issue を更新した（実測）。gh を呼ぶ前に落とす。
+    test.each(badValues)(`${gateVar}="%s" なら Issue を触らずに落ちる`, (bad) => {
+      const res = runStep(path, GH_EMPTY, { ...createEnv, [gateVar]: bad });
+      expect(res.status, `${gateVar}="${bad}" で成功した`).not.toBe(0);
+      expect(res.calls, `${gateVar}="${bad}" で Issue を触った`).toBe("");
+    });
 
-  test("既定 30 件で打ち切らない（open Issue が多いと取りこぼして新規が乱立する）", () => {
-    const r = run();
-    expect(r).toContain('--limit "$list_limit"');
-    // 上限そのものが 30 件の既定より大きいこと（変数化で値が緩んでいないか見る）。
-    const decl = r.match(/^list_limit=(\d+)$/m);
-    expect(decl).not.toBeNull();
-    expect(Number(decl[1])).toBeGreaterThan(30);
-  });
+    test("クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）", () => {
+      const { close } = branches(run());
+      expect(close).toContain("gh issue close");
+      expect(close).not.toContain("--title");
+    });
 
-  // 検索インデックスは結果整合。作成・リネーム直後の workflow_dispatch で未反映だと
-  // 「無い」と答え、2 本目を立てる（一覧 API は即時反映）。0 件なら --search 無しで引き直す。
-  test("検索が 0 件なら --search 無しで引き直してから新規作成へ進む", () => {
-    const r = run();
-    expect(r).toContain("query_tracking_issues --search");
-    // フォールバックは 0 件のときだけ。無条件の 2 度引きになっていないこと。
-    const fallback = r.match(/^if \[ "\$\{#numbers\[@\]\}" -eq 0 \]; then$\n([\s\S]*?)^fi$/m);
-    expect(fallback, "0 件ガード付きのフォールバックが無い").not.toBeNull();
-    expect(fallback[1]).toMatch(/^ *query_tracking_issues$/m);
-  });
+    test("既定 30 件で打ち切らない（open Issue が多いと取りこぼして新規が乱立する）", () => {
+      const r = run();
+      expect(r).toContain('--limit "$list_limit"');
+      // 上限そのものが 30 件の既定より大きいこと（変数化で値が緩んでいないか見る）。
+      const decl = r.match(/^list_limit=(\d+)$/m);
+      expect(decl).not.toBeNull();
+      expect(Number(decl[1])).toBeGreaterThan(30);
+    });
 
-  // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。
-  // ただし警告は**新規作成の分岐だけ**に置く。取りこぼしが害になるのは重複を作る経路だけで、
-  // 何もしない分岐（追跡 Issue 無し × 対象 0 件）で鳴らすと正常な定常状態で毎週ノイズが出る。
-  // 走査件数は照会と同じ呼び出しから採る（別 API で引き直すと 2 回の間に open 数が動く）。
-  test("上限到達の警告は新規作成の分岐にだけ置く", () => {
-    const r = run();
-    expect(r).toContain('"scanned=" + (length | tostring)');
-    expect(r).toContain('fallback_scanned="$scanned"');
-    const { create, close, update } = branches(r);
-    expect(create).toContain('[ "$fallback_scanned" -ge "$list_limit" ]');
-    expect(create).toContain("::warning::");
-    // 他の分岐では鳴らさない（偽陽性の陰性コントロール）。
-    expect(close).not.toContain("::warning::");
-    expect(update).not.toContain("::warning::");
-  });
+    // 検索インデックスは結果整合。作成・リネーム直後の workflow_dispatch で未反映だと
+    // 「無い」と答え、2 本目を立てる（一覧 API は即時反映）。0 件なら --search 無しで引き直す。
+    test("検索が 0 件なら --search 無しで引き直してから新規作成へ進む", () => {
+      const r = run();
+      expect(r).toContain("query_tracking_issues --search");
+      // フォールバックは 0 件のときだけ。無条件の 2 度引きになっていないこと。
+      const fallback = r.match(/^if \[ "\$\{#numbers\[@\]\}" -eq 0 \]; then$\n([\s\S]*?)^fi$/m);
+      expect(fallback, "0 件ガード付きのフォールバックが無い").not.toBeNull();
+      expect(fallback[1]).toMatch(/^ *query_tracking_issues$/m);
+    });
 
-  // 取得上限と打ち切り判定の閾値を別リテラルにすると、片方だけ上げたときに
-  // 誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
-  test("取得上限は 1 箇所で決め、閾値もそこから引く", () => {
-    const r = run();
-    const decl = r.match(/^list_limit=(\d+)$/m);
-    expect(decl, "list_limit の宣言が無い").not.toBeNull();
-    expect(r).toContain('--limit "$list_limit"');
-    // 閾値側に数値リテラルが残っていないこと。
-    expect(r).not.toMatch(/-ge 100\b/);
-  });
+    // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。
+    // ただし警告は**新規作成の分岐だけ**に置く。取りこぼしが害になるのは重複を作る経路だけで、
+    // 何もしない分岐（追跡 Issue 無し × 対象 0 件）で鳴らすと正常な定常状態で毎週ノイズが出る。
+    // 走査件数は照会と同じ呼び出しから採る（別 API で引き直すと 2 回の間に open 数が動く）。
+    // 打ち切りの害は**照会ごと**ではなく**動いた分岐ごと**に出る:
+    //   作成 → 重複を作る / 更新 → 別の Issue を更新する / クローズ → 閉じ残す
+    // 一方、何もしない分岐では害が無いので鳴らさない（追跡 Issue が無い正常な定常状態で
+    // 毎週ノイズになる）。どちらの照会が打ち切られても同じ flag に畳む。
+    test("打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない", () => {
+      const r = run();
+      expect(r).toContain('"scanned=" + (length | tostring)');
+      // 2 つの照会のどちらの打ち切りも同じ flag へ畳んでいる。
+      expect([...r.matchAll(/^ *truncated=true$/gm)]).toHaveLength(2);
+      const { create, close, update } = branches(r);
+      for (const [name, branch] of [
+        ["create", create],
+        ["update", update],
+        ["close", close],
+      ]) {
+        expect(branch, `${name} 分岐に打ち切り警告が無い`).toContain("warn_if_truncated ");
+      }
+      // 何もしない側（追跡 Issue が 1 件も無い）では鳴らさない。
+      const doNothing = close.slice(close.indexOf("\nelse\n"));
+      expect(doNothing).not.toContain("warn_if_truncated");
+      // 警告文は `scanned` の実体（照会が返した件数）に合わせる。接頭辞一致の件数ではない。
+      expect(r).toContain("::warning::open Issue の照会が ${list_limit} 件で打ち切られた。");
+    });
 
-  // 検索側が打ち切られると、本物の追跡 Issue が窓の外に落ちて別の Issue を毎週更新しうる。
-  // この経路は新規作成を通らないので、作成直前の警告では拾えない。分岐に関わらず鳴らす。
-  test("検索側の打ち切りは分岐に関わらず警告する", () => {
-    const r = run();
-    const branch = branches(r);
-    const head = r.slice(0, r.indexOf(branch.close));
-    expect(head).toContain('[ "$scanned" -ge "$list_limit" ]');
-    expect(head).toContain("::warning::");
-  });
+    // 取得上限と打ち切り判定の閾値を別リテラルにすると、片方だけ上げたときに
+    // 誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
+    test("取得上限は 1 箇所で決め、閾値もそこから引く", () => {
+      const r = run();
+      const decl = r.match(/^list_limit=(\d+)$/m);
+      expect(decl, "list_limit の宣言が無い").not.toBeNull();
+      expect(r).toContain('--limit "$list_limit"');
+      // 閾値側に数値リテラルが残っていないこと。
+      expect(r).not.toMatch(/-ge 100\b/);
+    });
 
-  // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。
-  // 分岐前の行で「何をするか」を断定すると run ログが実挙動と食い違う。
-  test("複数一致の通知は分岐前で挙動を断定しない", () => {
-    const r = run();
-    const notice = r.match(/^ *echo "追跡 Issue が[^"]*" >&2$/m);
-    expect(notice, "複数一致の通知が見つからない").not.toBeNull();
-    expect(notice[0]).not.toContain("更新");
-    expect(notice[0]).not.toContain("閉じ");
-    // 何をしたかは分岐の中で出す。
-    const { close, update } = branches(r);
-    expect(update).toContain("更新するのは最も古い");
-    expect(close).toContain("閉じた: #");
-  });
+    // 打ち切り判定は両方の照会の後に置く（検索側だけ見ると、フォールバックで別の Issue を
+    // 拾った経路が無警告で毎週更新される）。
+    test("打ち切り判定は検索とフォールバックの両方の後に置く", () => {
+      const r = run();
+      const head = r.slice(0, r.indexOf(branches(r).close));
+      const checks = [...head.matchAll(/^ *if \[ "\$scanned" -ge "\$list_limit" \]; then$/gm)];
+      expect(checks, "打ち切り判定が 2 箇所無い").toHaveLength(2);
+      // 2 つ目はフォールバック照会より後にあること。
+      const fb = head.indexOf("query_tracking_issues\n");
+      expect(fb).toBeGreaterThan(-1);
+      expect(checks[1].index).toBeGreaterThan(fb);
+    });
 
-  // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
-  // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
-  test("クローズは一致した全件に当てる（更新は最古 1 本だけ）", () => {
-    const { close, update } = branches(run());
-    expect(close).toContain('for n in "${numbers[@]}"');
-    expect(close).toContain('gh issue close "$n"');
-    // 更新側は 1 本だけ（ループになっていないこと＝過剰一般化の陰性コントロール）。
-    expect(update).not.toContain('for n in "${numbers[@]}"');
-    expect(update).toContain('gh issue edit "$number"');
-  });
+    // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。
+    // 分岐前の行で「何をするか」を断定すると run ログが実挙動と食い違う。
+    test("複数一致の通知は分岐前で挙動を断定しない", () => {
+      const r = run();
+      const notice = r.match(/^ *echo "追跡 Issue が[^"]*" >&2$/m);
+      expect(notice, "複数一致の通知が見つからない").not.toBeNull();
+      expect(notice[0]).not.toContain("更新");
+      expect(notice[0]).not.toContain("閉じ");
+      // 何をしたかは分岐の中で出す。
+      const { close, update } = branches(r);
+      expect(update).toContain("更新するのは最も古い");
+      expect(close).toContain("閉じた: #");
+    });
 
-  // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で弁別を測る。
-  test("jq 式が世代違いだけを拾い、接頭辞で始まるだけの Issue は拾わない", () => {
-    const probe = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" });
-    // jq が無い環境を「該当なし＝合格」に倒さない。
-    expect(probe.status, "jq が必要（このテストは jq 式を実行して弁別を測る）").toBe(0);
+    // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
+    // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
+    test("クローズは一致した全件に当てる（更新は最古 1 本だけ）", () => {
+      const { close, update } = branches(run());
+      expect(close).toContain('for n in "${numbers[@]}"');
+      expect(close).toContain('gh issue close "$n"');
+      // 更新側は 1 本だけ（ループになっていないこと＝過剰一般化の陰性コントロール）。
+      expect(update).not.toContain('for n in "${numbers[@]}"');
+      expect(update).toContain('gh issue edit "$number"');
+    });
 
-    const cases = [
-      { title: prefix, number: 1, hit: true, why: "日付を入れる前の既存追跡 Issue" },
-      { title: `${prefix} (2026-09-14)`, number: 2, hit: true, why: "通常の世代" },
-      { title: `${prefix} (2026-09-21)`, number: 3, hit: true, why: "別の世代" },
-      { title: `${prefix} について相談`, number: 4, hit: false, why: "接頭辞で始まるだけ" },
-      { title: `${prefix} (2026-9-1)`, number: 5, hit: false, why: "日付の桁が足りない" },
-      { title: `${prefix}(2026-09-21)`, number: 6, hit: false, why: "空白が無い" },
-      { title: `x ${prefix} (2026-09-21)`, number: 7, hit: false, why: "接頭辞で始まらない" },
-      {
-        title: `${prefix} (2026-09-21) 追記`,
-        number: 8,
-        hit: false,
-        why: "日付の後ろに続きがある",
-      },
-    ];
-    // 両側に検体があることを確かめる（片側だけだと弁別を測れない）。
-    expect(cases.some((c) => c.hit)).toBe(true);
-    expect(cases.some((c) => !c.hit)).toBe(true);
+    // 実式をそのまま jq へ通し、拾うべき検体と拾ってはいけない検体で弁別を測る。
+    test("jq 式が世代違いだけを拾い、接頭辞で始まるだけの Issue は拾わない", () => {
+      const probe = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" });
+      // jq が無い環境を「該当なし＝合格」に倒さない。
+      expect(probe.status, "jq が必要（このテストは jq 式を実行して弁別を測る）").toBe(0);
 
-    const dir = mkdtempSync(join(tmpdir(), "tracking-issue-"));
-    try {
-      const fixture = join(dir, "issues.json");
-      writeFileSync(fixture, JSON.stringify(cases.map(({ number, title }) => ({ number, title }))));
-      const res = spawnSync("jq", ["-r", jqFilter(run()), fixture], {
-        encoding: "utf8",
-        env: { ...process.env, ISSUE_TITLE_PREFIX: prefix },
-      });
-      expect(res.stderr).toBe("");
-      expect(res.status).toBe(0);
-      const lines = res.stdout.split("\n").filter(Boolean);
-      // 先頭行は走査件数。件数まで含めて確かめる（絞り込み前の母数が変わったら気づける）。
-      expect(lines[0]).toBe(`scanned=${cases.length}`);
-      const got = lines.slice(1).map(Number);
-      const want = cases.filter((c) => c.hit).map((c) => c.number);
-      expect(got).toStrictEqual(want);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
+      const cases = [
+        { title: prefix, number: 1, hit: true, why: "日付を入れる前の既存追跡 Issue" },
+        { title: `${prefix} (2026-09-14)`, number: 2, hit: true, why: "通常の世代" },
+        { title: `${prefix} (2026-09-21)`, number: 3, hit: true, why: "別の世代" },
+        { title: `${prefix} について相談`, number: 4, hit: false, why: "接頭辞で始まるだけ" },
+        { title: `${prefix} (2026-9-1)`, number: 5, hit: false, why: "日付の桁が足りない" },
+        { title: `${prefix}(2026-09-21)`, number: 6, hit: false, why: "空白が無い" },
+        { title: `x ${prefix} (2026-09-21)`, number: 7, hit: false, why: "接頭辞で始まらない" },
+        {
+          title: `${prefix} (2026-09-21) 追記`,
+          number: 8,
+          hit: false,
+          why: "日付の後ろに続きがある",
+        },
+      ];
+      // 両側に検体があることを確かめる（片側だけだと弁別を測れない）。
+      expect(cases.some((c) => c.hit)).toBe(true);
+      expect(cases.some((c) => !c.hit)).toBe(true);
+
+      const dir = mkdtempSync(join(tmpdir(), "tracking-issue-"));
+      try {
+        const fixture = join(dir, "issues.json");
+        writeFileSync(
+          fixture,
+          JSON.stringify(cases.map(({ number, title }) => ({ number, title }))),
+        );
+        const res = spawnSync("jq", ["-r", jqFilter(run()), fixture], {
+          encoding: "utf8",
+          env: { ...process.env, ISSUE_TITLE_PREFIX: prefix },
+        });
+        expect(res.stderr).toBe("");
+        expect(res.status).toBe(0);
+        const lines = res.stdout.split("\n").filter(Boolean);
+        // 先頭行は走査件数。件数まで含めて確かめる（絞り込み前の母数が変わったら気づける）。
+        expect(lines[0]).toBe(`scanned=${cases.length}`);
+        const got = lines.slice(1).map(Number);
+        const want = cases.filter((c) => c.hit).map((c) => c.number);
+        expect(got).toStrictEqual(want);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  },
+);

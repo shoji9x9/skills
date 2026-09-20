@@ -312,6 +312,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PENDING_COUNT: ${{ steps.settings.outputs.pending_count }}
         run: |
+          # `settings` は必ず 10 進の件数を書く。空や非数値のまま進むと、`= 0` は文字列比較
+          # なので「未適用あり」側へ倒れ、件数の抜けたコメントを投稿しつつ Issue を更新する
+          # （実測）。`outdated.yml` の `has_outdated` 検証と同じく、gh を呼ぶ前に落とす。
+          case "$PENDING_COUNT" in
+          '' | *[!0-9]*)
+            echo "pending_count=\"$PENDING_COUNT\" が 10 進の件数でない。追跡 Issue を触らずに落とす" >&2
+            exit 1
+            ;;
+          esac
+
           # 日付は UTC で採る。cron は 01:00 UTC なので JST でも同じ日付になり、
           # 手動実行でもランナーのタイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
@@ -386,21 +396,29 @@ jobs:
             read_matches "$out"
           }
           query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title"
-          # **検索側の打ち切りも見る。** 一致が返ってきても、接頭辞を含む open Issue が
-          # 上限を超えていれば本物の追跡 Issue が窓の外に落ちている可能性がある。その場合は
-          # 別の Issue を毎週リネーム・更新し、本物は古い本文のまま残る——新規作成もしないので
-          # 下の「取りこぼし警告」には掛からない。分岐に関わらずここで鳴らす。
+          # **どちらの照会が打ち切られても、窓の外に本物が残りうる。** 1 本の flag にまとめる。
+          # `scanned` は照会が返した件数であって接頭辞一致の件数ではない（接頭辞の判定は jq 側）
+          # ——警告文でもそう書く。
+          truncated=false
           if [ "$scanned" -ge "$list_limit" ]; then
-            echo "::warning::接頭辞に一致する open Issue が ${list_limit} 件以上あり、検索結果が打ち切られた（別の Issue を追跡している可能性がある）"
+            truncated=true
           fi
-          fallback_scanned=""
           if [ "${#numbers[@]}" -eq 0 ]; then
             query_tracking_issues
-            fallback_scanned="$scanned"
+            if [ "$scanned" -ge "$list_limit" ]; then
+              truncated=true
+            fi
             if [ "${#numbers[@]}" -gt 0 ]; then
               echo "検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）" >&2
             fi
           fi
+          # **鳴らすのは「実際に Issue を触った分岐」だけ。** 何もしない分岐で鳴らすと、
+          # 追跡 Issue が無い正常な定常状態で毎週ノイズになる（害が出るのは触ったときだけ）。
+          warn_if_truncated() {
+            if [ "$truncated" = true ]; then
+              echo "::warning::open Issue の照会が ${list_limit} 件で打ち切られた。$1"
+            fi
+          }
           number="${numbers[0]-}"
           # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
           # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、
@@ -415,6 +433,7 @@ jobs:
               # あります」という本文のまま open で残り、一覧に矛盾した追跡 Issue が並ぶ。
               # クローズ時はリネームしない。閉じた Issue のタイトルは「最後に棚卸しした日」
               # のまま残し、その本文がいつの内容かを示す（閉じた日ではない）。
+              warn_if_truncated "窓の外に閉じ残した追跡 Issue がある可能性がある"
               for n in "${numbers[@]}"; do
                 gh issue close "$n" --comment "未適用の学びはありません。自動クローズします。"
                 echo "閉じた: #${n}" >&2
@@ -426,6 +445,7 @@ jobs:
             if [ "${#numbers[@]}" -gt 1 ]; then
               echo "更新するのは最も古い #${number} のみ（他は手で確認する）" >&2
             fi
+            warn_if_truncated "本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある"
             gh issue edit "$number" --title "$title" --body-file "$BODY_FILE"
             # **本文の更新だけでは誰にも通知が飛ばない。** 追跡 Issue は pending が 0 に
             # なるまで閉じないので、コメントを足さないと 2 週目以降のレポートが届かず、
@@ -433,11 +453,6 @@ jobs:
             gh issue comment "$number" --body \
               "今週の棚卸し: 未適用 ${PENDING_COUNT} 件。本文を更新しました（[run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)）。"
           else
-            # 「見つからなかった」が重複に化ける唯一の経路。フォールバックが先頭 100 件に
-            # 張り付いていたなら、取りこぼした可能性を run ログに残してから作る。
-            # 境界は保守側に倒す（ちょうど上限ちょうどのときは打ち切っていないが鳴る）。
-            if [ -n "$fallback_scanned" ] && [ "$fallback_scanned" -ge "$list_limit" ]; then
-              echo "::warning::open Issue が ${list_limit} 件以上あり、既存の追跡 Issue を取りこぼした可能性がある（重複して作成しうる）"
-            fi
+            warn_if_truncated "既存の追跡 Issue を取りこぼして重複を作った可能性がある"
             gh issue create --title "$title" --body-file "$BODY_FILE"
           fi
