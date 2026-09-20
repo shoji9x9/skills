@@ -24,12 +24,12 @@ const SCRIPTS = [
   "skills/pr-review-handle/scripts/resolve-review-tool.sh",
 ];
 
-function run(scriptRel, { args = [], env = {}, config } = {}) {
+function run(scriptRel, { args = [], env = {}, config, cwd = repoRoot } = {}) {
   const argv = [join(repoRoot, scriptRel), ...args];
   if (config !== undefined) argv.push("--config", config);
   return spawnSync("bash", argv, {
     encoding: "utf8",
-    cwd: repoRoot,
+    cwd,
     // 呼び出し側の SKILLS_REVIEW_TOOL に左右されないよう、毎回明示的に組み立てる。
     env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
   });
@@ -146,6 +146,31 @@ for (const script of SCRIPTS) {
   test(`${name}: 引数不正は exit 64`, () => {
     expect(run(script, { args: ["--review-tool"] }).status).toBe(64);
     expect(run(script, { args: ["--nope"] }).status).toBe(64);
+  });
+
+  // 既定の共有設定パスは cwd 相対だと、サブディレクトリから起動しただけで config 層が
+  // 黙って飛ばされ `source=default` を正しい解決結果として報告する（誤報そのもの）。
+  // リポジトリルート基準で解決していることを、ルートとサブディレクトリの両方で測る。
+  test.each([
+    ["リポジトリルート", repoRoot],
+    ["サブディレクトリ", join(repoRoot, "docs")],
+    ["深いサブディレクトリ", join(repoRoot, "skills/pr-finalize-loop/scripts")],
+  ])(`${name}: --config 無しでも %s から同じ層を読む`, (_where, cwd) => {
+    const r = run(script, { cwd });
+    expect(r.status, r.stderr).toBe(0);
+    expect(parse(r.stdout).source).toBe("config");
+  });
+
+  test(`${name}: git の外では既定へ倒すが、参照したパスを stderr に残す`, () => {
+    const dir = mkdtempSync(join(tmpdir(), "review-tool-nogit-"));
+    try {
+      const r = run(script, { cwd: dir });
+      expect(r.status, r.stderr).toBe(0);
+      expect(parse(r.stdout)).toEqual({ value: "copilot", source: "default" });
+      expect(r.stderr).toMatch(/参照: .*skills\.yml/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test(`${name}: 陰性コントロール（実データ）: リポジトリの実設定を解決できる`, () => {

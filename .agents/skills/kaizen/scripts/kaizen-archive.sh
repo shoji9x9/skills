@@ -128,7 +128,8 @@ regenerate_index() {
 			# 80 文字に切り詰め。bash のパラメータ展開は UTF-8 ロケールでは文字単位なので
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
 			# 非 UTF-8 ロケールではバイト単位になり UTF-8 を壊しうるため、UTF-8 のときだけ切り詰める。
-			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では切り詰めず安全側に倒す。
+			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では**切らずに要約ごと落とす**
+			# （行長規約はロケールに依らず満たす必要があるので、素通りはさせない）。
 			# パイプで渡さない——`grep -q` は一致した時点で抜けるので、pipefail 下では書き手の
 			# SIGPIPE でパイプライン全体が非 0 になり、UTF-8 なのに切り詰めない側へ倒れうる
 			# （kaizen-context-inject.sh の `head` に関する注記と同じ機構）。
@@ -146,6 +147,13 @@ regenerate_index() {
 				elif [ "${#summary}" -gt "${budget}" ]; then
 					summary=${summary:0:$((budget - 1))}…
 				fi
+			elif [ $((${#prefix} + ${#summary})) -gt 200 ]; then
+				# 非 UTF-8 ロケールでは ${#} も slice もバイト単位なので、途中で切ると
+				# 多バイト文字を壊す。それでも MD013（行長）は満たす必要があるので、
+				# 切らずに要約ごと落とす（バイト数 >= 文字数なので判定は安全側）。
+				# ここを素通りさせると、非 UTF-8 の環境でだけ 200 文字超の INDEX.md が
+				# 生成され、直後の commit が MD013 で落ちる。
+				summary=""
 			fi
 			echo "${prefix}${summary}"
 		done

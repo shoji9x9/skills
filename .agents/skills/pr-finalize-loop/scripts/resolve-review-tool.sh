@@ -9,6 +9,9 @@
 # 使い方:
 #   resolve-review-tool.sh [--review-tool <tool>] [--config <path>]
 #
+# `--config` を省いた既定の共有設定パスは、cwd ではなく `git rev-parse --show-toplevel` 基準で
+# 解決する（どこから起動しても同じ層を読む）。
+#
 # 出力（key=value の 2 行。パースして使う）:
 #   value=<copilot|claude-code|codex|none>
 #   source=<cli|env|config|default>
@@ -18,7 +21,12 @@ set -euo pipefail
 
 ACCEPTED="copilot claude-code codex none"
 DEFAULT_TOOL="copilot"
-config_path=".config/skills/shoji9x9/skills.yml"
+# 共有設定の既定パスは**リポジトリルート基準**で解決する。cwd 相対のままだと、
+# サブディレクトリから起動しただけで config 層が黙って飛ばされ、`source=default` を
+# 正しい解決結果として報告してしまう（このスクリプトが防ぐはずの誤報そのもの）。
+CONFIG_REL=".config/skills/shoji9x9/skills.yml"
+config_path=""
+config_explicit=""
 cli_value=""
 
 usage() {
@@ -43,6 +51,7 @@ while [ "$#" -gt 0 ]; do
 			exit 64
 		}
 		config_path="$2"
+		config_explicit="1"
 		shift 2
 		;;
 	-h | --help)
@@ -56,6 +65,16 @@ while [ "$#" -gt 0 ]; do
 		;;
 	esac
 done
+
+# --config が無ければリポジトリルート基準の既定パスを使う。git の外なら cwd 相対へ倒す。
+if [ -z "${config_path}" ]; then
+	repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+	if [ -n "${repo_root}" ]; then
+		config_path="${repo_root}/${CONFIG_REL}"
+	else
+		config_path="${CONFIG_REL}"
+	fi
+fi
 
 is_accepted() {
 	local candidate="$1" accepted
@@ -114,6 +133,10 @@ else
 	else
 		value="${DEFAULT_TOOL}"
 		source="default"
+		# 既定パスで解決したときだけ、どこを見たかを残す（`--config` は呼び出し側が
+		# パスを知っているので不要）。「設定が無かった」と「見に行った場所が違った」を
+		# 報告で区別できるようにする。
+		[ -n "${config_explicit}" ] || echo "note: 共有設定に review_tool が無いため既定を使う（参照: ${config_path}）" >&2
 	fi
 fi
 

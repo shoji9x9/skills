@@ -32,9 +32,13 @@ function writeNote(dir, name, summary, body = "") {
 }
 
 function archive(dir, ...files) {
+  return archiveIn(dir, { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, ...files);
+}
+
+function archiveIn(dir, localeEnv, ...files) {
   return spawnSync("bash", [script, ...files], {
     cwd: dir,
-    env: { ...process.env, CLAUDE_PROJECT_DIR: "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+    env: { ...process.env, CLAUDE_PROJECT_DIR: "", ...localeEnv },
     encoding: "utf8",
   });
 }
@@ -196,6 +200,26 @@ test("行全体が 200 文字を超えないよう、接頭辞の長さを差し
   expect(lines[0].length).toBeLessThanOrEqual(200);
   expect(lines[0]).toContain(longName);
   expect(lines[0]).toMatch(/…$/);
+});
+
+test("非 UTF-8 ロケールでも行長規約を満たす（切らずに要約を落とす）", () => {
+  // 切り詰めを UTF-8 の分岐にだけ置くと、`LC_ALL=C` の環境（CI コンテナ・cron）でだけ
+  // 200 文字超の INDEX.md が生成され、直後の commit が MD013 で落ちる。
+  // 陽性コントロール: UTF-8 では同じ入力が「切り詰めて 200 以内」に収まること（下の行）。
+  const dir = createRepo();
+  const longName = "2026-09-18-relaxation-by-delegation-needs-a-verified-delegate-long.md";
+  const note = writeNote(dir, longName, "あ".repeat(80));
+
+  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C" }, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  const line = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
+    .split("\n")
+    .find((l) => l.startsWith("- "));
+  expect(line.length).toBeLessThanOrEqual(200);
+  expect(line).toContain(longName);
+  // 切ったのではなく落としたので、壊れた多バイト文字（U+FFFD）は現れない。
+  expect(line).not.toContain("�");
 });
 
 test("接頭辞だけで予算を使い切る場合は要約を落とす（ファイル名は切らない）", () => {
