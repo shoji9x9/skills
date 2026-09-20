@@ -223,7 +223,17 @@ export function checkAll(root, files, { fullScan = true } = {}) {
   const keys = [];
   for (const file of files) {
     const label = relative(root, file) || file;
-    const r = checkEvalFile(file, readFileSync(file, "utf8"), exempt, label);
+    // 読めない入力は違反として報告する（check-control-chars.js と同じ扱い）。
+    // 素の readFileSync だと、消えたファイル・壊れた symlink でスタックトレース終了になり、
+    // 「検査した結果」ではなくクラッシュで pre-commit / CI が落ちる。
+    let source;
+    try {
+      source = readFileSync(file, "utf8");
+    } catch (error) {
+      violations.push(`${label}: 読めないため検査できていない: ${error.code ?? error.message}`);
+      continue;
+    }
+    const r = checkEvalFile(file, source, exempt, label);
     evals += r.evals;
     violations.push(...r.violations);
     keys.push(...r.keys);

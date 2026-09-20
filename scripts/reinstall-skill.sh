@@ -41,10 +41,17 @@ reinstall_one() {
 		return 1
 	fi
 	# 2. Writability of every update target, checked before the first removal.
-	local target
+	local target probe
 	for target in ".agents/skills" ".claude/skills"; do
-		if [ -e "${target}" ] && [ ! -w "${target}" ]; then
-			echo "Preflight failed: ${target} へ書き込めない（既存のインストールは触っていない）" >&2
+		# 未作成なら `mkdir -p` が作るので、直近の**実在する祖先**の書き込み可否を見る。
+		# `[ -e ]` のときだけ検査すると、未作成の更新先では何も検査されず、
+		# rm -rf の後の mkdir が落ちて半インストールになる（preflight が防ぐはずの形）。
+		probe="${target}"
+		while [ ! -e "${probe}" ] && [ "${probe}" != "." ] && [ "${probe}" != "/" ]; do
+			probe="$(dirname "${probe}")"
+		done
+		if [ ! -w "${probe}" ]; then
+			echo "Preflight failed: ${probe} へ書き込めない（既存のインストールは触っていない）" >&2
 			return 1
 		fi
 	done

@@ -88,8 +88,9 @@ pre-commit:
             run: node scripts/check-rule-symlinks.js
           - name: control-chars
             # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。
+            # 整形用の除外（*agent-copies）は流用しない。CI は全走査するので、
+            # ここだけ .agents/** を外すと commit 時に未検査のまま CI で初めて落ちる。
             glob: "*.{md,js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml,sh,txt}"
-            exclude: *agent-copies
             run: node scripts/check-control-chars.js {staged_files}
           - name: eval-reachability
             # eval の assertion に、それを引き出す prompt の文（reachability）が併記されているか。
