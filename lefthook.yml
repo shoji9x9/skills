@@ -82,6 +82,19 @@ pre-commit:
           - name: js-extensions
             # Enforce the JS extension policy (skills/ => .mjs, scripts/ => .js).
             run: node scripts/check-js-extensions.js
+          - name: rule-symlinks
+            # rule の多エージェント配線（.agents/rules → .claude/rules / .github/instructions）。
+            # 配線漏れは「ドキュメント上は適用される」状態と見分けが付かないので毎コミット検査する。
+            run: node scripts/check-rule-symlinks.js
+          - name: control-chars
+            # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。
+            glob: "*.{md,js,mjs,cjs,jsx,ts,tsx,mts,cts,json,yml,yaml,sh,txt}"
+            exclude: *agent-copies
+            run: node scripts/check-control-chars.js {staged_files}
+          - name: eval-reachability
+            # eval の assertion に、それを引き出す prompt の文（reachability）が併記されているか。
+            glob: "skills/*/evals/evals.json"
+            run: node scripts/check-eval-reachability.js {staged_files}
           - name: skill-frontmatter
             # SKILL.md frontmatter を検査（YAML 妥当性・description<=1024B・name 形式）。
             # 配布スキル（skills/*/SKILL.md）に加え private skill（.agents/skills/*/SKILL.md）も
