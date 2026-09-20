@@ -27,6 +27,37 @@ reinstall_one() {
 		return 1
 	fi
 
+	# Preflight before anything destructive. This script removes the installed copy and
+	# the symlink first, so a failure *after* that point leaves the skill half-installed
+	# (it happened 3 times: twice on read-only targets, once on invalid frontmatter).
+	# The stopping point has to be in front of the removal for the checks to protect the
+	# existing installation at all.
+	#
+	# 1. Input validity. check-skill-frontmatter.js otherwise only runs in pre-commit/CI,
+	#    but reinstall is what you hit first after editing a skill, and `gh skill install`
+	#    rejects invalid frontmatter *after* the removal.
+	if ! node scripts/check-skill-frontmatter.js "${source_dir}/SKILL.md"; then
+		echo "Preflight failed: ${source_dir}/SKILL.md の frontmatter が不正（既存のインストールは触っていない）" >&2
+		return 1
+	fi
+	# 2. Writability of every update target, checked before the first removal.
+	local target
+	for target in ".agents/skills" ".claude/skills"; do
+		if [ -e "${target}" ] && [ ! -w "${target}" ]; then
+			echo "Preflight failed: ${target} へ書き込めない（既存のインストールは触っていない）" >&2
+			return 1
+		fi
+	done
+	if [ -e "${installed_dir}" ]; then
+		local unwritable
+		# `-writable` は GNU find の拡張なので、POSIX の -exec test -w で書く。
+		unwritable="$(find "${installed_dir}" -type d ! -exec test -w {} \; -print -quit)"
+		if [ -n "${unwritable}" ]; then
+			echo "Preflight failed: ${unwritable} へ書き込めない（既存のインストールは触っていない）" >&2
+			return 1
+		fi
+	fi
+
 	# Remove the installed copy first so renamed/deleted files (e.g. moving component
 	# files into references/) don't linger as stale leftovers after reinstall.
 	rm -rf -- "${installed_dir}" "${claude_link}"

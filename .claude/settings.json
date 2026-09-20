@@ -37,6 +37,15 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/scripts/bash-command-guard.sh\""
+          }
+        ]
+      },
+      {
         "matcher": "EnterWorktree|Bash",
         "hooks": [
           {

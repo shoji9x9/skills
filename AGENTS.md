@@ -40,6 +40,10 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   `scripts/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
   `scripts/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/check-skills-sync.js` / `scripts/check-js-extensions.js` /
   `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js`。
+- **実行前ゲート（PreToolUse）**: `scripts/bash-command-guard.sh` が、文章規約で防げず再発した 2 形を Bash 実行前に止める——
+  `gh api` と同じセグメントの `--body-file`（`gh api` にこのフラグは無い。`gh pr` / `gh issue` の `--body-file` は通す）と、
+  文字クラスで自分を避けていない `pkill -f` / `killall -f`（照合対象が full command line なので自分のシェルに一致する）。
+  3 エージェントぶん配線してある（`.claude/settings.json` / `.codex/hooks.json` / `.github/hooks/kaizen-session.json`）。
 - **シークレット走査**: `gitleaks` で行う。pre-commit はステージ差分（`gitleaks git --staged`）、CI はリポジトリ全体・全履歴（`Secret scan` ジョブ・`fetch-depth: 0`）を走査する。
 - **整形の割り当ての正本は `lefthook.yml` の glob と `package.json` の `format:*`**。上表はその要約であって、ツールが扱える範囲の上限ではない。
   フォーマッタを当てる前に、そのファイル種別がそのフォーマッタに**割り当てられているか**を正本で確かめる。
