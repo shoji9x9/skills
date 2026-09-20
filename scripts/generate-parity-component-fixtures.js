@@ -17,11 +17,12 @@
 // そのためスタイルシートは `<style>` 要素で、css-rules.json の `href` は null になる。
 //
 // 前提: ローカルに Chrome（既定 /usr/bin/google-chrome。CHROME で上書き）があること。
-// CI では走らせない（ブラウザが無い）。生成後は `pnpm exec oxfmt` で JSON を整形する。
+// CI では走らせない（ブラウザが無い）。書き出した JSON の整形はこのスクリプトが自分で行う
+// （対象ファイルを列挙して oxfmt へ渡す。ディレクトリを渡すと Markdown まで整形されるため）。
 //
 // 使い方: node scripts/generate-parity-component-fixtures.js
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -300,9 +301,32 @@ async function captureOnce(cdp, instance, state) {
   return { traits, rules, png: Buffer.from(shot.data, "base64"), platformFonts };
 }
 
+// 整形は「このスクリプトが書いた JSON」だけに当てる。手順書で人に `oxfmt <ディレクトリ>` を
+// 実行させると、oxfmt は渡された Markdown も整形するので fixture の表が巻き込まれる（4 回踏んだ）。
+const writtenJson = [];
+
 const writeJson = (path, value) => {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+  if (!writtenJson.includes(path)) writtenJson.push(path);
+};
+
+// 書いた JSON をリポジトリの整形規約（lefthook の oxfmt-json）へ揃える。
+// 0 件で oxfmt を起動すると引数なし実行になり対象が広がるので、その場合は何もしない。
+const formatWrittenJson = () => {
+  if (writtenJson.length === 0) {
+    console.error("整形対象の JSON が 0 件のため oxfmt を起動しない");
+    return;
+  }
+  const result = spawnSync("pnpm", ["exec", "oxfmt", ...writtenJson], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`oxfmt が失敗した (exit ${result.status}): ${writtenJson.length} 件`);
+  }
+  console.log(`formatted ${writtenJson.length} json files`);
 };
 
 const cdp = await launchChrome();
@@ -410,6 +434,7 @@ try {
       2,
     ),
   );
+  formatWrittenJson();
 } catch (err) {
   generationError = err;
 }
