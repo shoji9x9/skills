@@ -23,6 +23,9 @@
 # （リポジトリ変数を増やすと `.kaizen/config` とスコープが重なるため足していない）。
 #
 # 不正値は既定へ倒し、倒したことを stderr に出す（`.kaizen/config` 既存キーと同じ方針）。
+#
+# **定期実行そのものは opt-in**（`schedule_enabled` の既定は off）。有効化するには
+# `.kaizen/config` に `schedule_enabled=on` を書く。理由は `DEFAULT_SCHEDULE_ENABLED` の注記。
 set -euo pipefail
 
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
@@ -35,7 +38,9 @@ fi
 # mode / agent が既定へ倒れるのは「動き方が変わる」だけだが、`schedule_enabled=off` を
 # 読み落とすと「止めたはずのリポジトリが毎週動く」側へ倒れる（凍結プロジェクト・
 # レートリミット接近時という、この停止スイッチの存在理由そのものを裏切る）。
-# 設定ファイルが在るのに読めないときだけ停止し、そもそも無いなら尊重する設定が無いので進む。
+# 設定ファイルが在るのに読めないときは、この fail-closed が停止させる。**そもそも無い場合は
+# ここでは扱わない**——`schedule_enabled` の既定が off（opt-in）なので、下の `resolve_config` が
+# 「キーが無い」として停止させる（「読めない」と理由を重ねないため）。
 #
 # 「読めない」経路はライブラリ欠落だけではない。`kaizen_config_value` は設定ファイルを
 # 読めないときもキーが無いときも同じ 1 を返すため、**パーミッション等でファイル自体が
@@ -55,6 +60,11 @@ fi
 
 readonly DEFAULT_MODE=notify
 readonly DEFAULT_AGENT=claude
+# 定期実行は **opt-in**。`schedule_enabled` を書いていないリポジトリは動かさない。
+# 既定を on にすると、テンプレートを `.github/workflows/` へ置いた（あるいは置かれた）
+# だけで週次実行が始まり、配布先は「入れた覚えのない定期実行」に驚く。
+# 逆極性のキー（`schedule_skip` 等）は足さない——二重の否定になって読み違えやすい。
+readonly DEFAULT_SCHEDULE_ENABLED=off
 
 # Issue 本文に載せる表の最大行数と、1 行の要約の最大文字数。
 # GitHub の Issue 本文は 65,536 文字が上限で、超えると `gh issue create/edit` が失敗し、
@@ -208,7 +218,7 @@ summary_of() {
 # ---- 設定解決 ----------------------------------------------------------------
 
 resolve_config() {
-	local enabled_raw skip_raw mode agent model effort bool_status
+	local enabled_raw enabled_source skip_raw mode agent model effort bool_status
 
 	skip="false"
 	skip_reason=""
@@ -237,16 +247,32 @@ resolve_config() {
 		esac
 	fi
 
-	if enabled_raw=$(kaizen_config_value schedule_enabled) && [ -n "${enabled_raw}" ]; then
-		parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
-		case "${bool_status}" in
-		0) : ;;
-		1)
+	# **判定点は 1 つだけ。** 「値の決定（どの層から採ったか）」と「その値で止めるか」を分け、
+	# 既定値は他の層と同じく `enabled_raw` へ入れてから同じ判定へ通す。
+	# 分岐ごとに `skip="true"` を書くと `DEFAULT_SCHEDULE_ENABLED` が実際の既定を決めなくなり、
+	# 定数を on にしても挙動は止まったまま**メッセージだけが「既定 on」と嘘をつく**（実測）。
+	#
+	# 設定ファイルを読めないケースは上で既に停止済みなので、理由を重ねない
+	# （「読めない」のに「キーが無い」とは言えない）。
+	if [ -z "${config_unreadable}" ]; then
+		if enabled_raw=$(kaizen_config_value schedule_enabled) && [ -n "${enabled_raw}" ]; then
+			enabled_source=".kaizen/config の schedule_enabled=${enabled_raw}"
+			parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
+			if [ "${bool_status}" = 2 ]; then
+				# 不正値を有効側へ倒すと、typo した `.kaizen/config` が opt-in の証拠になってしまう。
+				warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} へ倒す"
+				enabled_source="${enabled_source} を真偽値として読めない（既定 ${DEFAULT_SCHEDULE_ENABLED}）"
+				enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
+			fi
+		else
+			# キーが無い＝既定。既定が off なのでここで止まる（opt-in）。
+			enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
+			enabled_source=".kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）"
+		fi
+		if ! parse_bool "${enabled_raw}"; then
 			skip="true"
-			skip_reason="${skip_reason:+${skip_reason} / }.kaizen/config の schedule_enabled=${enabled_raw}"
-			;;
-		*) warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 on へ倒す" ;;
-		esac
+			skip_reason="${skip_reason:+${skip_reason} / }${enabled_source}"
+		fi
 	fi
 
 	mode=$(resolve_value KAIZEN_SCHEDULE_MODE schedule_mode "${DEFAULT_MODE}" mode)

@@ -23,7 +23,7 @@ import { dirname, join } from "node:path";
 // | 軸          | 値                                                              |
 // |-------------|-----------------------------------------------------------------|
 // | skip(env)   | true / false / 不正 / 未設定                                     |
-// | skip(config)| on / off / 不正 / 未設定                                         |
+// | skip(config)| on / off / 不正 / キーなし / ファイルなし                          |
 // | mode        | notify / agent / 不正 / 未設定                                   |
 // | agent       | claude / codex / copilot / 不正 / 未設定                          |
 // | model       | 妥当 / 不正（空白入り） / 未設定                                  |
@@ -31,10 +31,16 @@ import { dirname, join } from "node:path";
 // | pending     | 0 件 / 1 件 / 複数件（priority 降順・日付昇順）                    |
 // | 縮退        | 共通ライブラリ欠落 × .kaizen/config あり / なし                    |
 //
-// 変異による検出能力の実証（このファイルを書いた時点で 3 通り実施し、いずれも赤くなることを実測した）:
-//   1. `config_unreadable` の skip 代入を消す → 1 件 fail（縮退時に fail-open へ戻る）
-//   2. schedule_enabled の `1)` 分岐から skip 代入を消す → 2 件 fail（config での停止が効かない）
+// **`schedule_enabled` の既定は off（opt-in）。** 書いていないリポジトリは止まる。
+// 既定が on へ戻ると、テンプレートを置いただけの配布先が週次で走り出す（Issue #417）。
+// 縮退・パーミッションの検体は `schedule_enabled=on` で採る——`off` だと「fail-closed が
+// 効いた」のか「既定 off に倒れただけ」なのかを区別できず、変異で赤くならない。
+//
+// 変異による検出能力の実証（実測。いずれも狙った assertion が落ちることを確認した）:
+//   1. `config_unreadable` の skip 代入を消す → 縮退・パーミッションの各 fail-closed が fail
+//   2. schedule_enabled の `1)` 分岐から skip 代入を消す → config での停止が効かず fail
 //   3. pending 0 件での `resolved_mode=notify` への倒しを消す → 1 件 fail
+//   4. キーなしの `else` 分岐から skip 代入を消す → opt-in の既定が fail
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptDir = join(repoRoot, "skills/kaizen/scripts");
 const script = join(scriptDir, "kaizen-schedule-report.sh");
@@ -111,8 +117,8 @@ function run({ dir, target }, args, env = {}) {
 }
 
 describe("設定解決（層・既定倒し）", () => {
-  test("config も env も無ければ既定（notify / claude）で動く", () => {
-    withProject({ notes: { a: {} } }, (p) => {
+  test("有効化済みで他の指定が無ければ既定（notify / claude）で動く", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { status, settings } = run(p, ["config"]);
       expect(status).toBe(0);
       expect(settings).toMatchObject({
@@ -161,9 +167,77 @@ describe("設定解決（層・既定倒し）", () => {
   });
 });
 
+// 定期実行は opt-in。ワークフローを置いた（配られた）だけで週次実行が始まらないよう、
+// `schedule_enabled` を書いていないリポジトリは止める。理由まで固定するのは、
+// 「止まった」と「そもそも動かなかった」を step summary で区別させるため。
+describe("opt-in（schedule_enabled の既定は off）", () => {
+  test("config がそもそも無ければ止まり、opt-in であることを理由に出す", () => {
+    withProject({ notes: { a: {} } }, (p) => {
+      const { settings } = run(p, ["config"]);
+      expect(settings.skip).toBe("true");
+      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
+    });
+  });
+
+  test("config はあっても schedule_enabled が無ければ止まる", () => {
+    withProject({ notes: { a: {} }, config: "schedule_mode=agent\n" }, (p) => {
+      const { settings } = run(p, ["config"]);
+      expect(settings.skip).toBe("true");
+      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
+    });
+  });
+
+  test("schedule_enabled=on を書けば動く（陰性コントロール）", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
+      const { settings } = run(p, ["config"]);
+      expect(settings.skip).toBe("false");
+      expect(settings.skip_reason).toBe("");
+    });
+  });
+
+  // **既定は定数が決める。** 分岐ごとに `skip="true"` を直書きすると、定数を on にしても
+  // 挙動は止まったままメッセージだけが「既定 on」と嘘をつく（実測でこの状態だった）。
+  // 定数を差し替えた複製を走らせ、既定が本当に反転することで判定点の単一性を測る。
+  test("DEFAULT_SCHEDULE_ENABLED が実際の既定を決める（メッセージだけではない）", () => {
+    const flipped = readFileSync(script, "utf8").replace(
+      /^readonly DEFAULT_SCHEDULE_ENABLED=off$/m,
+      "readonly DEFAULT_SCHEDULE_ENABLED=on",
+    );
+    // 置換が当たったことの陽性コントロール（空振りだと既定 off のまま測ってしまう）。
+    expect(flipped).toContain("readonly DEFAULT_SCHEDULE_ENABLED=on");
+    const dir = mkdtempSync(join(tmpdir(), "kaizen-sched-default-"));
+    try {
+      mkdirSync(join(dir, ".kaizen"), { recursive: true });
+      writeFileSync(join(dir, ".kaizen", "a.md"), note({ slug: "a" }));
+      const target = join(dir, "kaizen-schedule-report.sh");
+      // 共通ライブラリも一緒に置く（縮退経路で測らないため）。
+      copyFileSync(join(scriptDir, "kaizen-hook-common.sh"), join(dir, "kaizen-hook-common.sh"));
+      writeFileSync(target, flipped);
+      // 既定が on になるので、キーが無くても走る側へ反転する。
+      expect(run({ dir, target }, ["config"]).settings.skip).toBe("false");
+      // 明示的な off は既定に関わらず止まる（既定の反転が上書きに化けていないこと）。
+      writeFileSync(join(dir, ".kaizen", "config"), "schedule_enabled=off\n");
+      expect(run({ dir, target }, ["config"]).settings.skip).toBe("true");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // 不正値を有効側へ倒すと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
+  test("schedule_enabled が真偽値として読めなければ既定 off へ倒して止まる", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
+      const { settings, stderr } = run(p, ["config"]);
+      expect(settings.skip).toBe("true");
+      expect(stderr).toContain("真偽値として読めない");
+      expect(stderr).toContain("既定 off へ倒す");
+      expect(settings.skip_reason).toContain("schedule_enabled=maybe");
+    });
+  });
+});
+
 describe("skip（どちらかが立てば止まる）", () => {
   test("env の一時停止で止まる", () => {
-    withProject({ notes: { a: {} } }, (p) => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { settings } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "true" });
       expect(settings.skip).toBe("true");
       expect(settings.skip_reason).toContain("KAIZEN_SCHEDULE_SKIP");
@@ -191,7 +265,9 @@ describe("skip（どちらかが立てば止まる）", () => {
   // env より後に評価されるので、env を上書きにしても後勝ちで両方残ってしまい、
   // この分岐へ到達しない（最初に書いたテストがまさにそれで、変異で赤くならなかった）。
   test("先に立った fail-closed の理由が env skip で消えない", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+    // 検体は `on`。`off` だと「読めないので止めた」のか「既定 off に倒れた」のかを
+    // 区別できず、fail-closed を消す変異で赤くならない。
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const configPath = join(p.dir, ".kaizen", "config");
       chmodSync(configPath, 0o000);
       let readable = true;
@@ -209,8 +285,10 @@ describe("skip（どちらかが立てば止まる）", () => {
     });
   });
 
-  test("真偽値として読めない値は skip しない側へ倒す", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {
+  // 一時停止レバーの既定は「止めない」。こちらは opt-in の軸と逆なので、不正値を
+  // 止める側へ倒すと、typo したリポジトリ変数が無言の停止に化ける。
+  test("KAIZEN_SCHEDULE_SKIP が真偽値として読めなければ一時停止しない", () => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const { settings, stderr } = run(p, ["config"], { KAIZEN_SCHEDULE_SKIP: "perhaps" });
       expect(settings.skip).toBe("false");
       expect(stderr).toContain("真偽値として読めない");
@@ -219,17 +297,24 @@ describe("skip（どちらかが立てば止まる）", () => {
 });
 
 describe("縮退（共通ライブラリを読めない）", () => {
+  // 検体は `on`。有効化したつもりのリポジトリを、読めないという理由で止める経路を測る。
+  // `off` だと既定 off に倒れただけでも緑になり、fail-closed を消しても赤くならない。
   test("config が在るのに読めないなら停止側へ倒す（fail-closed）", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n", degraded: true }, (p) => {
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n", degraded: true }, (p) => {
       const { settings } = run(p, ["config"]);
       expect(settings.skip).toBe("true");
       expect(settings.skip_reason).toContain("読めない");
+      // 読めない以上「キーが無い」とは言えないので、opt-in の理由を重ねない。
+      expect(settings.skip_reason).not.toContain("schedule_enabled=on が無い");
     });
   });
 
-  test("config がそもそも無ければ尊重する設定が無いので進む", () => {
+  test("config がそもそも無ければ opt-in の既定で止まる（縮退が理由ではない）", () => {
     withProject({ notes: { a: {} }, degraded: true }, (p) => {
-      expect(run(p, ["config"]).settings.skip).toBe("false");
+      const { settings } = run(p, ["config"]);
+      expect(settings.skip).toBe("true");
+      expect(settings.skip_reason).toContain("schedule_enabled=on が無い");
+      expect(settings.skip_reason).not.toContain("読めない");
     });
   });
 
@@ -237,7 +322,8 @@ describe("縮退（共通ライブラリを読めない）", () => {
   // kaizen_config_value は「読めない」と「キーが無い」を同じ 1 で返すため、
   // 区別しないと schedule_enabled=off を読み落として fail-open する。
   test("config がパーミッションで読めないときも停止側へ倒す", () => {
-    withProject({ notes: { a: {} }, config: "schedule_enabled=off\n" }, (p) => {
+    // 同じ理由で検体は `on`（`off` では既定 off との弁別ができない）。
+    withProject({ notes: { a: {} }, config: "schedule_enabled=on\n" }, (p) => {
       const configPath = join(p.dir, ".kaizen", "config");
       chmodSync(configPath, 0o000);
       // root で走ると 000 でも読めてしまい、この分岐へ到達しない（到達しない実行を緑にしない）。
@@ -248,7 +334,9 @@ describe("縮退（共通ライブラリを読めない）", () => {
         readable = false;
       }
       expect(readable).toBe(false);
-      expect(run(p, ["config"]).settings.skip).toBe("true");
+      const { settings } = run(p, ["config"]);
+      expect(settings.skip).toBe("true");
+      expect(settings.skip_reason).toContain("読めない");
       chmodSync(configPath, 0o600);
     });
   });
