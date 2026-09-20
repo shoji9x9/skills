@@ -35,6 +35,10 @@ import { dirname, join } from "node:path";
 //   M. 走査件数を別 API で引き直す                 → 同テストが fail
 //   N. 照会を `read_matches "$(find_tracking_issues ...)"` へ戻す → fail-closed テストが fail
 //      （`$( )` の失敗は**関数の引数**では伝播しない。実際に走らせて測る）
+//   O. `env:` の `ISSUE_TITLE_PREFIX` 宣言を落とす    → 実行テストが fail
+//      （最初の版は runStep が接頭辞を渡しておらず、**空の接頭辞で走ったまま緑**だった）
+//   P. 閾値を `-ge 100` の数値リテラルへ戻す          → 上限の単一化テストが fail
+//   Q. 検索側の打ち切り警告を外す                    → 検索打ち切りテストが fail
 //      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
 //        読みかけた。当たったことを diff で確かめてから走らせ直した）
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -99,6 +103,9 @@ function runStep(wfPath, ghScript, env) {
         GITHUB_REPOSITORY: "o/r",
         GITHUB_RUN_ID: "1",
         BODY_FILE: join(dir, "body.md"),
+        // ステップは workflow-level の `env:` に依存する。`run` だけ取り出すこのヘルパには
+        // 届かないので、宣言から読んで明示的に渡す（渡さないと空の接頭辞で走る）。
+        ISSUE_TITLE_PREFIX: declaredPrefix(wfPath),
         ...env,
       },
     });
@@ -119,6 +126,20 @@ function trackingStep(wfPath) {
   // 0 件・複数件を合格に倒さない（ステップ名を変えたら検査が空振りするだけになる）。
   expect(matched, `${wfPath}: "${STEP_NAME}" ステップ`).toHaveLength(1);
   return matched[0].run;
+}
+
+/**
+ * ワークフローが `env:` で宣言している接頭辞を返す。
+ * **実行テストへはこの値を渡す**——ハードコードした期待値を渡すと、宣言を落とす変異で
+ * テストが緑のまま通り、ステップが空の接頭辞で走っていることに気づけない（実測）。
+ */
+function declaredPrefix(wfPath) {
+  const doc = yaml.load(readFileSync(join(repoRoot, wfPath), "utf8"));
+  const envs = [doc.env ?? {}, ...Object.values(doc.jobs).map((j) => j.env ?? {})];
+  const found = envs.map((e) => e.ISSUE_TITLE_PREFIX).filter(Boolean);
+  // 宣言は 1 箇所だけ（`run` へ直書きすると照合と表示でずれる）。0 件も複数件も落とす。
+  expect(found, `${wfPath}: env の ISSUE_TITLE_PREFIX 宣言`).toHaveLength(1);
+  return found[0];
 }
 
 /** `--jq '<式>'` の中身を取り出す。 */
@@ -158,11 +179,7 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, 
   const run = () => trackingStep(path);
 
   test("env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける", () => {
-    const doc = yaml.load(readFileSync(join(repoRoot, path), "utf8"));
-    // 接頭辞は env に 1 箇所だけ置く（`run` へ直書きすると照合と表示でずれる）。
-    const envs = [doc.env ?? {}, ...Object.values(doc.jobs).map((j) => j.env ?? {})];
-    const declared = envs.map((e) => e.ISSUE_TITLE_PREFIX).filter(Boolean);
-    expect(declared).toStrictEqual([prefix]);
+    expect(declaredPrefix(path)).toBe(prefix);
     // 固定タイトルへ戻っていないこと。`date -u` でランナーの TZ に依存させない。
     expect(run()).toContain('title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"');
   });
@@ -196,6 +213,10 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, 
     const ok = runStep(path, GH_EMPTY, createEnv);
     expect(ok.status, ok.stderr).toBe(0);
     expect(ok.calls).toContain("issue create");
+    // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
+    // 走っていても「作成へ到達した」だけで緑になる。
+    const today = new Date().toISOString().slice(0, 10);
+    expect(ok.calls).toContain(`--title ${prefix} (${today})`);
   });
 
   test("クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）", () => {
@@ -205,7 +226,12 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, 
   });
 
   test("既定 30 件で打ち切らない（open Issue が多いと取りこぼして新規が乱立する）", () => {
-    expect(run()).toContain("--limit 100");
+    const r = run();
+    expect(r).toContain('--limit "$list_limit"');
+    // 上限そのものが 30 件の既定より大きいこと（変数化で値が緩んでいないか見る）。
+    const decl = r.match(/^list_limit=(\d+)$/m);
+    expect(decl).not.toBeNull();
+    expect(Number(decl[1])).toBeGreaterThan(30);
   });
 
   // 検索インデックスは結果整合。作成・リネーム直後の workflow_dispatch で未反映だと
@@ -228,11 +254,32 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix, 
     expect(r).toContain('"scanned=" + (length | tostring)');
     expect(r).toContain('fallback_scanned="$scanned"');
     const { create, close, update } = branches(r);
-    expect(create).toContain('[ "$fallback_scanned" -ge 100 ]');
+    expect(create).toContain('[ "$fallback_scanned" -ge "$list_limit" ]');
     expect(create).toContain("::warning::");
     // 他の分岐では鳴らさない（偽陽性の陰性コントロール）。
     expect(close).not.toContain("::warning::");
     expect(update).not.toContain("::warning::");
+  });
+
+  // 取得上限と打ち切り判定の閾値を別リテラルにすると、片方だけ上げたときに
+  // 誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
+  test("取得上限は 1 箇所で決め、閾値もそこから引く", () => {
+    const r = run();
+    const decl = r.match(/^list_limit=(\d+)$/m);
+    expect(decl, "list_limit の宣言が無い").not.toBeNull();
+    expect(r).toContain('--limit "$list_limit"');
+    // 閾値側に数値リテラルが残っていないこと。
+    expect(r).not.toMatch(/-ge 100\b/);
+  });
+
+  // 検索側が打ち切られると、本物の追跡 Issue が窓の外に落ちて別の Issue を毎週更新しうる。
+  // この経路は新規作成を通らないので、作成直前の警告では拾えない。分岐に関わらず鳴らす。
+  test("検索側の打ち切りは分岐に関わらず警告する", () => {
+    const r = run();
+    const branch = branches(r);
+    const head = r.slice(0, r.indexOf(branch.close));
+    expect(head).toContain('[ "$scanned" -ge "$list_limit" ]');
+    expect(head).toContain("::warning::");
   });
 
   // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。

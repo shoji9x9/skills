@@ -124,10 +124,13 @@ jobs:
           #
           # 追加の 1 往復が走るのは一致 0 件のとき——つまり追跡 Issue が無い期間の定常 run でも
           # 毎回走る。1 回の GET なので許容する。
-          # pagination-ok: --search が母数を絞る。フォールバックは --limit 100 で母数を明示し、
-          # 上限に張り付いたまま 0 件なら新規作成の直前に警告する（打ち切りを成功へ倒さない）。
+          # 取得上限は 1 箇所で決める。打ち切り判定の閾値と別リテラルにすると、片方だけ
+          # 上げたときに誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
+          list_limit=100
+          # pagination-ok: --search が母数を絞る。フォールバックは --limit で母数を明示し、
+          # 上限に張り付いたら警告する（打ち切りを成功へ倒さない）。
           find_tracking_issues() {
-            gh issue list --state open --limit 100 "$@" \
+            gh issue list --state open --limit "$list_limit" "$@" \
               --json number,title \
               --jq '(["scanned=" + (length | tostring)]
                      + ([ .[]
@@ -163,6 +166,13 @@ jobs:
             read_matches "$out"
           }
           query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title"
+          # **検索側の打ち切りも見る。** 一致が返ってきても、接頭辞を含む open Issue が
+          # 上限を超えていれば本物の追跡 Issue が窓の外に落ちている可能性がある。その場合は
+          # 別の Issue を毎週リネーム・更新し、本物は古い本文のまま残る——新規作成もしないので
+          # 下の「取りこぼし警告」には掛からない。分岐に関わらずここで鳴らす。
+          if [ "$scanned" -ge "$list_limit" ]; then
+            echo "::warning::接頭辞に一致する open Issue が ${list_limit} 件以上あり、検索結果が打ち切られた（別の Issue を追跡している可能性がある）"
+          fi
           fallback_scanned=""
           if [ "${#numbers[@]}" -eq 0 ]; then
             query_tracking_issues
@@ -196,12 +206,18 @@ jobs:
             if [ "${#numbers[@]}" -gt 1 ]; then
               echo "更新するのは最も古い #${number} のみ（他は手で確認する）" >&2
             fi
+            # **kaizen 側と違い、更新のたびのコメント通知は付けない。** kaizen の追跡 Issue は
+            # 適用されるまで閉じないので、コメントを足さないと 2 週目以降のレポートが誰にも
+            # 届かない。こちらは `mise upgrade` を当てた週に自動で閉じる短命な Issue で、
+            # 内容も表の数行。毎週コメントを足すと購読者への通知だけが増える。
+            # 更新日はタイトルに乗るので、鮮度は一覧から読める。
             gh issue edit "$number" --title "$title" --body-file /tmp/issue-body.md
           else
             # 「見つからなかった」が重複に化ける唯一の経路。フォールバックが先頭 100 件に
             # 張り付いていたなら、取りこぼした可能性を run ログに残してから作る。
-            if [ -n "$fallback_scanned" ] && [ "$fallback_scanned" -ge 100 ]; then
-              echo "::warning::open Issue が 100 件以上あり、既存の追跡 Issue を取りこぼした可能性がある（重複して作成しうる）"
+            # 境界は保守側に倒す（ちょうど上限ちょうどのときは打ち切っていないが鳴る）。
+            if [ -n "$fallback_scanned" ] && [ "$fallback_scanned" -ge "$list_limit" ]; then
+              echo "::warning::open Issue が ${list_limit} 件以上あり、既存の追跡 Issue を取りこぼした可能性がある（重複して作成しうる）"
             fi
             gh issue create --title "$title" --body-file /tmp/issue-body.md
           fi
