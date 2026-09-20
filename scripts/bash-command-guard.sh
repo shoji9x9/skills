@@ -32,13 +32,28 @@ case "${input}" in
 *) exit 0 ;;
 esac
 
+# Hook payload の形はエージェントごとに違う。Claude Code は `tool_input.command`、Codex は
+# `toolArgs`（オブジェクトのことも JSON 文字列のこともある）、Copilot は `input.command` /
+# 素の `command`。`.tool_input.command` だけを読むと、他 2 エージェントでは command が空になり、
+# **JSON は読めているので警告も出ないまま全件素通り**する（3 エージェントへ配線したのに
+# 効くのは 1 つだけ、という形で実測した）。同居する kaizen-precommit-gate.sh と同じ集合を読む。
 extract_command() {
 	if command -v jq >/dev/null 2>&1; then
-		printf '%s' "${input}" | jq -r '.tool_input.command // empty' 2>/dev/null && return 0
+		# 各取り出しに `?` を付ける——`.toolArgs.command` は toolArgs が**文字列**のとき
+		# 「Cannot index string with string」で filter ごと失敗し、jq 経路が丸ごと落ちる
+		# （実測: jq 1.8.2 で rc=5）。node が居れば後段が拾うので症状が出ないが、
+		# jq だけの環境では Codex の JSON 文字列形が検査されないまま通る。
+		# 候補を順に並べ、文字列のものだけを残して先頭を採る（優先順位は並び順）。
+		printf '%s' "${input}" | jq -r '
+			[ .tool_input.command?, .toolArgs.command?,
+			  (.toolArgs | fromjson? | .command?),
+			  .command?, .input.command? ]
+			| map(select(type == "string" and . != "")) | first // empty
+		' 2>/dev/null && return 0
 	fi
 	if command -v node >/dev/null 2>&1; then
 		printf '%s' "${input}" |
-			node -e 'let s="";process.stdin.on("data",(d)=>{s+=d;}).on("end",()=>{try{process.stdout.write(JSON.parse(s)?.tool_input?.command??"");}catch{process.exit(3);}});' &&
+			node -e 'let s="";process.stdin.on("data",(d)=>{s+=d;}).on("end",()=>{let d;try{d=JSON.parse(s);}catch{process.exit(3);}const pick=(o)=>o&&typeof o==="object"&&typeof o.command==="string"?o.command:"";let c=pick(d?.tool_input)||pick(d?.toolArgs);if(!c&&typeof d?.toolArgs==="string"){try{c=pick(JSON.parse(d.toolArgs));}catch{c="";}}if(!c&&typeof d?.command==="string")c=d.command;if(!c)c=pick(d?.input);process.stdout.write(c);});' &&
 			return 0
 	fi
 	return 3
@@ -52,7 +67,13 @@ if ! command_text="$(extract_command)"; then
 	exit 0
 fi
 
-[ -n "${command_text}" ] || exit 0
+# ここまで来た入力は hot path で危険語を含むと判定済みなので、command が取れないのは
+# 「危険語が command 以外の場所にある」か「payload の形を読めていない」のどちらか。
+# 後者を黙って通すと 0 件と未実行が同じ見え方になるので、理由を残して通す。
+if [ -z "${command_text}" ]; then
+	echo "bash-command-guard: 危険語を含む入力から command を取り出せなかったため検査していない（payload の形が未対応）" >&2
+	exit 0
+fi
 
 violations=""
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }

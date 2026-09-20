@@ -14,6 +14,7 @@
 // 陽性だけのゲートは「全部落とす実装」と区別が付かない。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -115,4 +116,67 @@ test("壊れた JSON は通すが、検査していないことを stderr に残
   const r = run('{ "tool_input": { "command": "pkill -f x" ');
   expect(r.status).toBe(0);
   expect(r.stderr).toMatch(/検査していない/);
+});
+
+// --- payload の形（エージェントごとに違う） ---
+//
+// このゲートは 3 エージェント（Claude Code / Codex / Copilot）へ配線してある。
+// `.tool_input.command` だけを読むと残り 2 つでは command が空になり、JSON 自体は読めるので
+// 警告も出ないまま全件素通りする（配線済みに見えて 1 つしか効かない）。
+// 陽性コントロールは各形に同じ違反コマンドを載せて取る。
+const OFFENDING = "pkill -f dump-dom";
+
+test.each([
+  ["Claude Code: tool_input.command", { tool_name: "Bash", tool_input: { command: OFFENDING } }],
+  ["Codex: toolArgs.command", { tool_name: "Bash", toolArgs: { command: OFFENDING } }],
+  [
+    "Codex: toolArgs が JSON 文字列",
+    { tool_name: "Bash", toolArgs: JSON.stringify({ command: OFFENDING }) },
+  ],
+  ["Copilot: input.command", { tool_name: "Bash", input: { command: OFFENDING } }],
+  ["素の command", { tool_name: "Bash", command: OFFENDING }],
+])("payload の形 %s でも判定する", (_name, payload) => {
+  const r = run(JSON.stringify(payload));
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+test("危険語はあるが command を取り出せない payload は、検査していないことを stderr に残す", () => {
+  // 未知の形（command がどのフィールドにも無い）。通すが、黙って合格にはしない。
+  const r = run(JSON.stringify({ tool_name: "Bash", args: { script: OFFENDING } }));
+  expect(r.status).toBe(0);
+  expect(r.stderr).toMatch(/検査していない/);
+});
+
+// --- jq 単独経路（node が無い環境） ---
+//
+// 上の「payload の形」テストは node フォールバックが拾うため、jq の filter が落ちていても緑になる。
+// 実際 `.toolArgs.command` は toolArgs が文字列のとき jq がエラー終了し（実測: jq 1.8.2 で rc=5）、
+// node の無い環境では Codex の JSON 文字列形が検査されないまま通っていた。
+// そこでスクリプトから filter を取り出し、jq に直接当てて経路ごとに検証する。
+const guardSource = readFileSync(script, "utf8");
+const jqFilter = guardSource.match(/jq -r '([\s\S]*?)'\s*2>\/dev\/null/)?.[1];
+
+test("スクリプトから jq filter を取り出せる（取り出せなければ以降の検証は無意味）", () => {
+  expect(jqFilter).toBeTruthy();
+});
+
+test.each([
+  ["tool_input.command", { tool_name: "Bash", tool_input: { command: OFFENDING } }],
+  ["toolArgs.command", { tool_name: "Bash", toolArgs: { command: OFFENDING } }],
+  [
+    "toolArgs が JSON 文字列",
+    { tool_name: "Bash", toolArgs: JSON.stringify({ command: OFFENDING }) },
+  ],
+  ["input.command", { tool_name: "Bash", input: { command: OFFENDING } }],
+  ["素の command", { tool_name: "Bash", command: OFFENDING }],
+])("jq 単独でも %s から command を取り出す", (_name, payload) => {
+  const r = spawnSync("jq", ["-r", jqFilter], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+  });
+  // jq が無い環境ではこの検証は成立しない。黙って緑にせず落とす。
+  expect(r.error, "jq が必要（この検証は jq 経路の回帰テスト）").toBeUndefined();
+  expect(r.status).toBe(0);
+  expect(r.stdout.trim()).toBe(OFFENDING);
 });
