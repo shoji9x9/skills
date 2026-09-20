@@ -76,8 +76,44 @@ if [ -z "${command_text}" ]; then
 fi
 
 violations=""
-# 語の先頭（行頭・空白・引用符・= / ( の直後）に現れる `[...]` だけを文字クラスの免除にする。
-class_escape_re='(^|[[:space:]"'"'"'=/(])\[[^][]+\]'
+
+# セグメント先頭から「コマンド位置に立てる前置き」を剥ぐ。
+# 剥ぐのは: 空白 / `(` `{` `$(` ` / 制御構文の語（do then else elif if while until time !）/
+# env 代入（VAR=value）。剥いだ結果の先頭語が、そのセグメントで実行されるコマンド。
+strip_command_prefix() {
+	local s="$1" prev="" rest=""
+	while [ "${s}" != "${prev}" ]; do
+		prev="${s}"
+		s="${s#"${s%%[![:space:]]*}"}"
+		# コマンド置換の口（リテラルの $( と `）を剥ぐ。$ を落とすと次の case が ( を剥ぐ。
+		case "${s}" in
+		\$\(*) s="${s#?}" ;;
+		\`*) s="${s#?}" ;;
+		esac
+		case "${s}" in
+		'('* | '{'* | '!'*) s="${s#?}" ;;
+		do | do\ * | then | then\ * | else | else\ * | elif | elif\ * | if | if\ * | while | while\ * | until | until\ * | time | time\ *)
+			s="${s#* }"
+			;;
+		[A-Za-z_]*=*)
+			case "${s%%=*}" in
+			*[!A-Za-z0-9_]*) break ;;
+			esac
+			rest="${s#*=}"
+			case "${rest}" in
+			# 代入値がコマンド置換なら、その中身が実行されるので中を見る（out=$(gh api ...)）。
+			\$\(* | \`*) s="${rest}" ;;
+			# 通常の env 代入（GH_TOKEN=x gh api ...）は次の語へ進む。
+			*) s="${s#* }" ;;
+			esac
+			;;
+		esac
+	done
+	printf '%s' "${s}"
+}
+# 文字クラス（`[d]` のような、空白を含まない非空の括弧）を免除の目印にする。
+# 配列添字は ${...} を取り除いた時点で消えているので、ここで位置は問わない。
+class_escape_re='\[[^][[:space:]]+\]'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
 # セグメントへ分割する。区切りは改行と、&& || ; | の各演算子。
@@ -87,10 +123,13 @@ while IFS= read -r segment; do
 	[ -n "${segment}" ] || continue
 
 	# 1. gh api と --body-file が同じセグメントにある。
-	#    `gh api` は**セグメントの先頭コマンド**のときだけ見る。部分一致で拾うと、
-	#    引数の中にこのゲート自身の話題（`gh` の別サブコマンドに関する文章）が入っただけで
-	#    正当な呼び出しまで止まる。`gh issue` / `gh pr` 側のフラグは正当なので通す必要がある。
-	trimmed="${segment#"${segment%%[![:space:]]*}"}"
+	#    `gh api` が**コマンド位置**にあるときだけ見る。引数の中にこのゲート自身の話題
+	#    （`gh` の別サブコマンドに関する文章）が入っただけで正当な呼び出しを止めないため。
+	#    「セグメントの先頭」に限ると狭すぎる——`for ...; do gh api ...; done` の `do` の後、
+	#    `then` の後、`out=$(gh api ...)` のコマンド置換の中、`GH_TOKEN=x gh api ...` の
+	#    env 代入の後はどれも先頭ではないが、実行されるのは同じ形（実測で 6 形が素通りした）。
+	#    コマンド位置に立てる前置き（制御構文の語・env 代入・`(`・`$(`・`{`）を剥いでから見る。
+	trimmed="$(strip_command_prefix "${segment}")"
 	case "${trimmed}" in
 	"gh api "* | "gh api")
 		case "${segment}" in
@@ -107,10 +146,14 @@ while IFS= read -r segment; do
 		case "${segment}" in
 		*-f*)
 			# 文字クラス（[d]ump-dom）で自分のコマンドラインを避けている形は通す。
-			# **語の先頭に現れる `[...]` だけ**を免除にする。セグメントのどこかに
-			# `[` と `]` があれば通す書き方だと、配列添字 `"${procs[0]}"` を含む
-			# 素の -f 実行まで素通りする（実測した偽陰性）。
-			if [[ ${segment} =~ ${class_escape_re} ]]; then
+			# 免除の判定は**パターン本体に文字クラスがあるか**で行う。
+			# 位置（語頭かどうか）で決めると、`"node .*[d]ump-dom"` や `"^[c]hrome"`、
+			# `"my-[s]erver"` のような正しい回避形まで落ちる（ブロック時の指示に
+			# 従った形が通らない）。一方「どこかに [ ] があれば通す」だと、配列添字
+			# `"${procs[0]}"` や行コメントの `[notes]` で素通りする。
+			# そこで **${...} 展開と行コメントを取り除いてから**文字クラスの有無を見る。
+			scan="$(printf '%s' "${segment}" | sed -e 's/\${[^}]*}//g' -e 's/[[:space:]]#.*$//')"
+			if [[ ${scan} =~ ${class_escape_re} ]]; then
 				:
 			else
 				add_violation "pkill/killall -f の照合対象は full command line で、この呼び出し自身にも一致する（シェルごと落ちる）。PID 指定（kill \"\$PID\"）にするか、パターンを [d]ump-dom の形にする: ${segment}"

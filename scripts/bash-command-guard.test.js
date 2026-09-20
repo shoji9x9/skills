@@ -45,6 +45,12 @@ const PASSING = [
     "危険語を含まない通常のコマンドは通す",
     "git status --short && node scripts/check-rule-symlinks.js",
   ],
+  // 文字クラスによる回避は語頭とは限らない。位置で免除を決めると、ブロック時の指示に
+  // 従った形（`[d]ump-dom` を含むパターン）が落ちる。
+  ["正規表現の途中に置いた文字クラスは通す", "pkill -f 'node .*[d]ump-dom'"],
+  ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
+  ["行頭アンカーの後の文字クラスは通す", "pkill -f '^[c]hrome'"],
+  ["任意文字の後の文字クラスは通す", "pkill -f 'chrome.[d]ump'"],
   // `gh api` を部分一致で拾うと、引数の中にこのゲート自身の話題が入っただけで
   // 正当な呼び出しが止まる（このゲートを説明する Issue / PR を書く作業で必ず踏む）。
   [
@@ -110,15 +116,36 @@ test("2 クラスが同時にあれば両方報告する", () => {
   expect(lines).toHaveLength(2);
 });
 
-// 免除は「語の先頭に現れる [...]」だけ。セグメントのどこかに [ と ] があれば通す書き方だと、
-// 配列添字を含むだけの素の -f 実行が素通りする（実測した偽陰性）。
+// `gh api` は先頭に限らない。制御構文の後・env 代入の後・コマンド置換の中でも実行される。
+// 「セグメントの先頭」に限定すると、これらが素通りする（実測した退行）。
+test.each([
+  ["do の後", "for r in 1 2; do gh api repos/o/r/pulls/1 --body-file /tmp/b.md; done"],
+  ["then の後", "then gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["env 代入の後", "GH_TOKEN=x gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["コマンド置換の中", "out=$(gh api repos/o/r/pulls/1 --body-file /tmp/b.md)"],
+  ["サブシェルの中", "( gh api repos/o/r/pulls/1 --body-file /tmp/b.md )"],
+  ["time の後", "time gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+])("コマンド位置の gh api を %s でも止める", (_name, command) => {
+  const r = guard(command);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/unknown flag/);
+});
+
+test("行コメントの中の [] は文字クラスの免除に数えない", () => {
+  const r = guard("pkill -f chrome # see [notes]");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
+});
+
+// 免除は「${...} 展開と行コメントを除いた部分に文字クラスがあるか」で決める。
+// 取り除かずに見ると、配列添字を含むだけの素の -f 実行が素通りする（実測した偽陰性）。
 test("配列添字の [] は文字クラスの免除に数えない", () => {
   const r = guard('pkill -f "${procs[0]}"');
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/full command line/);
 });
 
-test("パス区切りの直後に置いた文字クラスは免除する", () => {
+test("変数展開と併用した文字クラスは免除する", () => {
   const r = guard('pkill -f "$dir/[d]ump-dom"');
   expect(r.status).toBe(0);
   expect(r.stderr).not.toMatch(/実行前に止めた/);
