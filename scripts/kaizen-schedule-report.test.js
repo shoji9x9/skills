@@ -195,6 +195,34 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
     });
   });
 
+  // **既定は定数が決める。** 分岐ごとに `skip="true"` を直書きすると、定数を on にしても
+  // 挙動は止まったままメッセージだけが「既定 on」と嘘をつく（実測でこの状態だった）。
+  // 定数を差し替えた複製を走らせ、既定が本当に反転することで判定点の単一性を測る。
+  test("DEFAULT_SCHEDULE_ENABLED が実際の既定を決める（メッセージだけではない）", () => {
+    const flipped = readFileSync(script, "utf8").replace(
+      /^readonly DEFAULT_SCHEDULE_ENABLED=off$/m,
+      "readonly DEFAULT_SCHEDULE_ENABLED=on",
+    );
+    // 置換が当たったことの陽性コントロール（空振りだと既定 off のまま測ってしまう）。
+    expect(flipped).toContain("readonly DEFAULT_SCHEDULE_ENABLED=on");
+    const dir = mkdtempSync(join(tmpdir(), "kaizen-sched-default-"));
+    try {
+      mkdirSync(join(dir, ".kaizen"), { recursive: true });
+      writeFileSync(join(dir, ".kaizen", "a.md"), note({ slug: "a" }));
+      const target = join(dir, "kaizen-schedule-report.sh");
+      // 共通ライブラリも一緒に置く（縮退経路で測らないため）。
+      copyFileSync(join(scriptDir, "kaizen-hook-common.sh"), join(dir, "kaizen-hook-common.sh"));
+      writeFileSync(target, flipped);
+      // 既定が on になるので、キーが無くても走る側へ反転する。
+      expect(run({ dir, target }, ["config"]).settings.skip).toBe("false");
+      // 明示的な off は既定に関わらず止まる（既定の反転が上書きに化けていないこと）。
+      writeFileSync(join(dir, ".kaizen", "config"), "schedule_enabled=off\n");
+      expect(run({ dir, target }, ["config"]).settings.skip).toBe("true");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // 不正値を有効側へ倒すと、typo した `.kaizen/config` が「有効化した証拠」になってしまう。
   test("schedule_enabled が真偽値として読めなければ既定 off へ倒して止まる", () => {
     withProject({ notes: { a: {} }, config: "schedule_enabled=maybe\n" }, (p) => {

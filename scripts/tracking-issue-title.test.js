@@ -29,6 +29,8 @@ import { dirname, join } from "node:path";
 //   F. 検索 0 件時のフォールバックを外す          → フォールバックテストが fail
 //   G. クローズを最古 1 本だけに戻す              → 全件クローズテストが fail
 //   H. 更新側も全件ループにする（過剰一般化）     → 同テストの陰性コントロールが fail
+//   J. 上限到達の確認（`open_count`）を外す        → 取りこぼし警告テストが fail
+//   K. 分岐前の通知へ「更新は…のみ」を戻す        → 分岐前断定テストが fail
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // 同じパターンを持つワークフローの一覧。片方だけ直る余地を残さないため一括で検査する。
@@ -134,6 +136,28 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
 
   // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
   // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
+  // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。
+  test("フォールバックも空なら、上限到達を確かめて警告を出す", () => {
+    const r = run();
+    expect(r).toContain("open_count=");
+    expect(r).toContain('[ "$open_count" -ge 100 ]');
+    expect(r).toContain("::warning::");
+  });
+
+  // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。
+  // 分岐前の行で「何をするか」を断定すると run ログが実挙動と食い違う。
+  test("複数一致の通知は分岐前で挙動を断定しない", () => {
+    const r = run();
+    const notice = r.match(/^ *echo "追跡 Issue が[^"]*" >&2$/m);
+    expect(notice, "複数一致の通知が見つからない").not.toBeNull();
+    expect(notice[0]).not.toContain("更新");
+    expect(notice[0]).not.toContain("閉じ");
+    // 何をしたかは分岐の中で出す。
+    const { close, update } = branches(r);
+    expect(update).toContain("更新するのは最も古い");
+    expect(close).toContain("閉じた: #");
+  });
+
   test("クローズは一致した全件に当てる（更新は最古 1 本だけ）", () => {
     const { close, update } = branches(run());
     expect(close).toContain('for n in "${numbers[@]}"');

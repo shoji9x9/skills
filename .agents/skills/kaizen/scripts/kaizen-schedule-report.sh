@@ -218,7 +218,7 @@ summary_of() {
 # ---- 設定解決 ----------------------------------------------------------------
 
 resolve_config() {
-	local enabled_raw skip_raw mode agent model effort bool_status
+	local enabled_raw enabled_source skip_raw mode agent model effort bool_status
 
 	skip="false"
 	skip_reason=""
@@ -247,29 +247,32 @@ resolve_config() {
 		esac
 	fi
 
-	# 既定が off なので、**キーが無い場合も止める**。不正値も同じ既定へ倒す
-	# （不正値を有効側へ倒すと、typo した `.kaizen/config` が opt-in の証拠になってしまう）。
+	# **判定点は 1 つだけ。** 「値の決定（どの層から採ったか）」と「その値で止めるか」を分け、
+	# 既定値は他の層と同じく `enabled_raw` へ入れてから同じ判定へ通す。
+	# 分岐ごとに `skip="true"` を書くと `DEFAULT_SCHEDULE_ENABLED` が実際の既定を決めなくなり、
+	# 定数を on にしても挙動は止まったまま**メッセージだけが「既定 on」と嘘をつく**（実測）。
+	#
 	# 設定ファイルを読めないケースは上で既に停止済みなので、理由を重ねない
 	# （「読めない」のに「キーが無い」とは言えない）。
-	if [ -n "${config_unreadable}" ]; then
-		:
-	elif enabled_raw=$(kaizen_config_value schedule_enabled) && [ -n "${enabled_raw}" ]; then
-		parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
-		case "${bool_status}" in
-		0) : ;;
-		1)
+	if [ -z "${config_unreadable}" ]; then
+		if enabled_raw=$(kaizen_config_value schedule_enabled) && [ -n "${enabled_raw}" ]; then
+			enabled_source=".kaizen/config の schedule_enabled=${enabled_raw}"
+			parse_bool "${enabled_raw}" && bool_status=0 || bool_status=$?
+			if [ "${bool_status}" = 2 ]; then
+				# 不正値を有効側へ倒すと、typo した `.kaizen/config` が opt-in の証拠になってしまう。
+				warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} へ倒す"
+				enabled_source="${enabled_source} を真偽値として読めない（既定 ${DEFAULT_SCHEDULE_ENABLED}）"
+				enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
+			fi
+		else
+			# キーが無い＝既定。既定が off なのでここで止まる（opt-in）。
+			enabled_raw=${DEFAULT_SCHEDULE_ENABLED}
+			enabled_source=".kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）"
+		fi
+		if ! parse_bool "${enabled_raw}"; then
 			skip="true"
-			skip_reason="${skip_reason:+${skip_reason} / }.kaizen/config の schedule_enabled=${enabled_raw}"
-			;;
-		*)
-			warn "schedule_enabled=${enabled_raw} は真偽値として読めない。既定 ${DEFAULT_SCHEDULE_ENABLED} へ倒す"
-			skip="true"
-			skip_reason="${skip_reason:+${skip_reason} / }.kaizen/config の schedule_enabled=${enabled_raw} を真偽値として読めない（既定 ${DEFAULT_SCHEDULE_ENABLED}）"
-			;;
-		esac
-	else
-		skip="true"
-		skip_reason="${skip_reason:+${skip_reason} / }.kaizen/config に schedule_enabled=on が無い（定期実行は opt-in）"
+			skip_reason="${skip_reason:+${skip_reason} / }${enabled_source}"
+		fi
 	fi
 
 	mode=$(resolve_value KAIZEN_SCHEDULE_MODE schedule_mode "${DEFAULT_MODE}" mode)

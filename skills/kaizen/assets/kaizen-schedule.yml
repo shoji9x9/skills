@@ -330,9 +330,18 @@ jobs:
           #
           # **0 件なら `--search` 無しでもう一度引く。** 検索インデックスは結果整合なので、
           # Issue を作成・リネームした直後に workflow_dispatch で再実行すると未反映で
-          # 「無い」と答え、2 本目を立ててしまう（一覧 API は即時反映）。追加の 1 往復は
-          # 新規作成へ進む直前だけなので、通常の週次実行では走らない。
-          # pagination-ok: --search が母数を絞り、フォールバックも --limit 100 で母数を明示する。
+          # 「無い」と答え、2 本目を立ててしまう（一覧 API は即時反映）。
+          #
+          # フォールバックが埋めるのは**この未反映の窓だけ**。その窓では対象が最も新しい
+          # Issue なので、作成日降順の先頭 100 件に必ず入る。一方、古い追跡 Issue を検索が
+          # 返さないケース（インデックス障害等）は、open Issue が 100 件を超えるリポジトリでは
+          # フォールバックでも拾えない。**そこは黙って新規作成へ倒さず警告を出す**
+          # （このステップは Issue を 1 本作るだけなので、落とさず run ログに残す）。
+          #
+          # 追加の 1 往復が走るのは一致 0 件のとき——つまり追跡 Issue が無い期間の定常 run でも
+          # 毎回走る。1 回の GET なので許容する。
+          # pagination-ok: --search が母数を絞る。フォールバックは --limit 100 で母数を明示し、
+          # 上限に張り付いたら下で警告する（打ち切りを成功へ倒さない）。
           find_tracking_issues() {
             gh issue list --state open --limit 100 "$@" \
               --json number,title \
@@ -347,6 +356,12 @@ jobs:
             matched="$(find_tracking_issues)"
             if [ -n "$matched" ]; then
               echo "検索インデックス未反映のため --search 無しで再取得した（#${matched//$'\n'/ #}）" >&2
+            else
+              # 先頭 100 件で打ち切られていたなら「無い」と言い切れない。
+              open_count="$(gh issue list --state open --limit 100 --json number --jq 'length')" # pagination-ok: 100 件到達だけを見る
+              if [ "$open_count" -ge 100 ]; then
+                echo "::warning::open Issue が 100 件以上あり、追跡 Issue を取りこぼした可能性がある（新規作成すると重複しうる）"
+              fi
             fi
           fi
           numbers=()
@@ -355,11 +370,11 @@ jobs:
             numbers+=("$line")
           done <<<"$matched"
           number="${numbers[0]-}"
-          # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず、最も古い 1 本
-          # （＝追跡され続けてきた本体）を選んだことと、他が残っていることを出す。
-          # 更新するのはこの 1 本だけだが、閉じるときは一致した全部を閉じる（下の分岐）。
+          # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
+          # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、
+          # クローズは全件）ので、この位置で断定すると run ログが実挙動と食い違う。
           if [ "${#numbers[@]}" -gt 1 ]; then
-            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新は最も古い #${number} のみ" >&2
+            echo "追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）" >&2
           fi
 
           if [ "$PENDING_COUNT" = 0 ]; then
@@ -370,11 +385,15 @@ jobs:
               # のまま残し、その本文がいつの内容かを示す（閉じた日ではない）。
               for n in "${numbers[@]}"; do
                 gh issue close "$n" --comment "未適用の学びはありません。自動クローズします。"
+                echo "閉じた: #${n}" >&2
               done
             else
               echo "未適用の学びは 0 件。追跡 Issue も無いので何もしない"
             fi
           elif [ -n "$number" ]; then
+            if [ "${#numbers[@]}" -gt 1 ]; then
+              echo "更新するのは最も古い #${number} のみ（他は手で確認する）" >&2
+            fi
             gh issue edit "$number" --title "$title" --body-file "$BODY_FILE"
             # **本文の更新だけでは誰にも通知が飛ばない。** 追跡 Issue は pending が 0 に
             # なるまで閉じないので、コメントを足さないと 2 週目以降のレポートが届かず、
