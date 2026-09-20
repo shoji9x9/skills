@@ -20,17 +20,31 @@ set -euo pipefail
 # 非 UTF-8 のまま生成すると、同じ入力から切り詰めのない別の INDEX.md ができ、
 # C ロケールの環境（CI コンテナ・cron）で再生成するたびに commit 済みの索引が書き換わる。
 # 利用できる UTF-8 ロケールがあればそれへ寄せ、無ければ「要約ごと落とす」縮退にする。
+# 寄せるのは **LC_CTYPE だけ**にする。LC_ALL で寄せると LC_COLLATE も変わり、
+# 索引の行順を決める glob 順がロケール依存に戻る（en_US.UTF-8 ではハイフン等を無視して
+# 照合するため、a-b / a_b / ab / aB の順が入れ替わる）。行順は内容の一部なので C に固定する。
 # パイプで渡さない——`grep -q` は一致時点で抜けるので、pipefail 下では書き手の SIGPIPE で
 # パイプライン全体が非 0 になり、判定が意図と逆へ倒れうる（同ファイル後段の注記と同じ機構）。
+if [ -n "${LC_ALL:-}" ]; then
+	# LC_ALL は個別カテゴリを上書きするので、実効値を LC_CTYPE へ移してから外す。
+	export LC_CTYPE="${LC_ALL}"
+	unset LC_ALL
+fi
 if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 	for _cand in C.UTF-8 C.utf8 en_US.UTF-8; do
 		if grep -qix "${_cand}" <<<"$(locale -a 2>/dev/null)"; then
-			export LC_ALL="${_cand}"
+			export LC_CTYPE="${_cand}"
 			break
 		fi
 	done
 	unset _cand
+	if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+		# 縮退した run と本番構成の run を出力で区別できるようにする（黙って結果を変えない）。
+		printf '%s: UTF-8 ロケールが無いため要約を切り詰めずに落とします（索引の情報量が減ります）\n' \
+			"$(basename "${BASH_SOURCE[0]}")" >&2
+	fi
 fi
+export LC_COLLATE=C
 
 # .kaizen/ はプロジェクトルート直下に置く前提。サブディレクトリで実行されても、その cwd 配下に
 # 別の .kaizen/ を作ってしまわないよう、ルートへ移動してから .kaizen/ を解決する。

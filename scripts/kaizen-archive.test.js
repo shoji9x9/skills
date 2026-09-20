@@ -278,6 +278,47 @@ test("非 UTF-8 ロケールでも 200 文字以内の要約は残す（バイ�
 });
 
 test.each([
+  ["C ロケール", { LANG: "C", LC_ALL: "C" }],
+  ["UTF-8 ロケール", { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }],
+])("%s でも索引の行順を照合順に依存させない", (_name, localeEnv) => {
+  // UTF-8 へ寄せるのに LC_ALL を使うと LC_COLLATE も変わり、行順を決める glob 順が
+  // ロケール依存に戻る（en_US.UTF-8 はハイフン等を無視して照合する）。行順は内容の一部。
+  const dir = createRepo();
+  const names = ["a-b", "aB", "a_b", "ab"];
+  const notes = names.map((n) => writeNote(dir, `2026-09-01-${n}.md`, `要約 ${n}`));
+
+  expect(archiveIn(dir, localeEnv, ...notes).status).toBe(0);
+
+  const order = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8")
+    .split("\n")
+    .filter((l) => l.startsWith("- "))
+    .map((l) => l.match(/2026-09-01-(.+)\.md/)[1]);
+  // バイト順（C）: '-'(0x2d) < 'B'(0x42) < '_'(0x5f) < 'b'(0x62)
+  expect(order).toEqual(["a-b", "aB", "a_b", "ab"]);
+});
+
+test("照合順を固定する指定がソースにある（挙動テストでは弁別できない部分）", () => {
+  // 上の行順テストは、非 C 照合の UTF-8 ロケール（en_US.UTF-8 等）が入っていない環境では
+  // 通ってしまう（C.utf8 の照合はバイト順で C と同じ）。つまり「LC_COLLATE を固定しない」
+  // 変異を挙動から落とせない。落とせない部分は指定そのものを検査する。
+  const source = readFileSync(script, "utf8");
+  expect(source).toMatch(/export LC_COLLATE=C/);
+  // UTF-8 へ寄せるのに LC_ALL を使うと、LC_COLLATE ごと上書きして照合順が戻る。
+  expect(source).not.toMatch(/export LC_ALL=/);
+});
+
+test("UTF-8 ロケールが無いときは縮退した旨を stderr に残す", () => {
+  // 縮退した run と本番構成の run を出力で区別できるようにする（黙って要約を落とさない）。
+  const dir = createRepo();
+  const note = writeNote(dir, "2026-09-01-degraded.md", "あ".repeat(60));
+
+  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withoutLocaleCommand(dir) }, note);
+
+  expect(result.status).toBe(0);
+  expect(result.stderr).toMatch(/UTF-8 ロケールが無いため/);
+});
+
+test.each([
   [
     "非 UTF-8 で要約ごと落とした行",
     { LANG: "C", LC_ALL: "C" },
