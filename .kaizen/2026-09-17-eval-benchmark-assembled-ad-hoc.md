@@ -46,3 +46,5 @@ eval の採点集計は書き捨てスクリプトで組み立てず、assertion
 - キー集合の不一致・件数の不一致で exit 2
 - `scripts/build-skill-eval-benchmark.test.js` で境界を固定し、判定行を無効化する変異で赤くなることを実証する
 - `docs/skill-development.md` の集計手順をこのスクリプトへ差し替える
+
+別作業へ切り出した（Issue #421）。Issue #416 の apply では、本 PR の範囲外として pending のまま残している。

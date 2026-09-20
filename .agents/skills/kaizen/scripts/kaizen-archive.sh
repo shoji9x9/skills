@@ -132,10 +132,22 @@ regenerate_index() {
 			# パイプで渡さない——`grep -q` は一致した時点で抜けるので、pipefail 下では書き手の
 			# SIGPIPE でパイプライン全体が非 0 になり、UTF-8 なのに切り詰めない側へ倒れうる
 			# （kaizen-context-inject.sh の `head` に関する注記と同じ機構）。
-			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)" && [ "${#summary}" -gt 80 ]; then
-				summary=${summary:0:79}…
+			prefix="- \`$(basename "${f}")\` — ${meta}— "
+			# 切り詰めの予算は**行全体**で決める。要約だけを 80 文字に切っても、接頭辞
+			# （ファイル名＋meta）が長いと行が 200 文字を超え、markdownlint の MD013 で
+			# 落ちる（INDEX.md はコミット対象の生成物なので、生成側が規約を満たす）。
+			# 200 は markdownlint 既定の line_length。接頭辞だけで予算を使い切る場合は
+			# 要約を落とす（行を切らずに壊すより、要約が無い方が索引として読める）。
+			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+				budget=$((200 - ${#prefix}))
+				[ "${budget}" -gt 80 ] && budget=80
+				if [ "${budget}" -le 1 ]; then
+					summary=""
+				elif [ "${#summary}" -gt "${budget}" ]; then
+					summary=${summary:0:$((budget - 1))}…
+				fi
 			fi
-			echo "- \`$(basename "${f}")\` — ${meta}— ${summary}"
+			echo "${prefix}${summary}"
 		done
 	} >"${archive_dir}/INDEX.md"
 }

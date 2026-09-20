@@ -177,6 +177,42 @@ test("連結後に 80 文字を超えたら … を付けて切り詰める", ()
   expect(indexedSummary).toBe(`${"あ".repeat(60)}${"い".repeat(19)}…`);
 });
 
+test("行全体が 200 文字を超えないよう、接頭辞の長さを差し引いて切り詰める", () => {
+  // INDEX.md はコミット対象の生成物なので、生成側が markdownlint の MD013（既定 200）を満たす。
+  // 要約だけを 80 文字に切っても、ファイル名と meta が長いと行が 200 文字を超えて commit が落ちる
+  // （実測: 176 件をアーカイブしたとき 25 行が 203〜213 文字になり pre-commit で止まった）。
+  const dir = createRepo();
+  // 実在するノート名の最長級（60 文字強）で、要約を切らないと 200 を超える組み合わせ。
+  const longName = "2026-09-18-relaxation-by-delegation-needs-a-verified-delegate-long.md";
+  const note = writeNote(dir, longName, "あ".repeat(80));
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  const lines = index.split("\n").filter((l) => l.startsWith("- "));
+  expect(lines).toHaveLength(1);
+  // markdownlint は文字数で数えるので、JS の length（BMP では文字数と一致）で突き合わせる。
+  expect(lines[0].length).toBeLessThanOrEqual(200);
+  expect(lines[0]).toContain(longName);
+  expect(lines[0]).toMatch(/…$/);
+});
+
+test("接頭辞だけで予算を使い切る場合は要約を落とす（ファイル名は切らない）", () => {
+  // ファイル名は KEDB 照合の鍵なので切り詰めない。要約を落としてもなお 200 を超える
+  // 異常に長いノート名は、名前自体を短くするしかない（生成側では直せない）。
+  const dir = createRepo();
+  const note = writeNote(dir, `2026-09-01-${"y".repeat(180)}.md`, "あ".repeat(70));
+
+  const result = archive(dir, note);
+
+  expect(result.status, result.stderr).toBe(0);
+  const index = readFileSync(join(dir, ".kaizen/archive/INDEX.md"), "utf8");
+  const line = index.split("\n").find((l) => l.startsWith("- "));
+  expect(line).not.toContain("あ");
+  expect(line).toContain("y".repeat(180));
+});
+
 test("見出しが無いノートのフォールバックでも先頭段落を連結する", () => {
   const dir = createRepo();
   const path = join(dir, ".kaizen", "2026-09-01-no-heading.md");
