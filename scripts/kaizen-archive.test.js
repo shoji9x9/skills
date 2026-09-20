@@ -46,6 +46,31 @@ function withoutLocaleCommand(dir) {
   return { PATH: `${shim}:${process.env.PATH}` };
 }
 
+// `locale -a` が glibc 流の名前（en_US.utf8。ハイフン無し・小文字）だけを返す環境を作る。
+// charmap は LC_CTYPE の値に応じて答えるので、候補を拾えたかどうかが出力に現れる。
+function withGlibcStyleLocales(dir) {
+  const shim = join(dir, "shim-glibc");
+  mkdirSync(shim, { recursive: true });
+  const locale = join(shim, "locale");
+  writeFileSync(
+    locale,
+    [
+      "#!/bin/sh",
+      'if [ "$1" = "-a" ]; then',
+      '  printf "C\\nPOSIX\\nen_US.utf8\\n"',
+      "  exit 0",
+      "fi",
+      'case "${LC_CTYPE:-}" in',
+      '*utf8* | *UTF-8* | *utf-8*) echo "UTF-8" ;;',
+      '*) echo "ANSI_X3.4-1968" ;;',
+      "esac",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(locale, 0o755);
+  return { PATH: `${shim}:${process.env.PATH}` };
+}
+
 function archiveIn(dir, localeEnv, ...files) {
   return spawnSync("bash", [script, ...files], {
     cwd: dir,
@@ -305,6 +330,18 @@ test("照合順を固定する指定がソースにある（挙動テストで�
   expect(source).toMatch(/export LC_COLLATE=C/);
   // UTF-8 へ寄せるのに LC_ALL を使うと、LC_COLLATE ごと上書きして照合順が戻る。
   expect(source).not.toMatch(/export LC_ALL=/);
+});
+
+test("glibc 流の名前（en_US.utf8）しか無い環境でも UTF-8 ロケールを見つける", () => {
+  // 候補名を決め打ちで完全一致させると、glibc の `locale -a` は `en_US.utf8` と
+  // ハイフン無し・小文字で出すため一度も一致せず、使える UTF-8 があるのに縮退する。
+  const dir = createRepo();
+  const note = writeNote(dir, "2026-09-01-glibc-names.md", "あ".repeat(60));
+
+  const result = archiveIn(dir, { LANG: "C", LC_ALL: "C", ...withGlibcStyleLocales(dir) }, note);
+
+  expect(result.status).toBe(0);
+  expect(result.stderr).not.toMatch(/UTF-8 ロケールが無いため/);
 });
 
 test("UTF-8 ロケールが無いときは縮退した旨を stderr に残す", () => {

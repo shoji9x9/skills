@@ -31,16 +31,21 @@ if [ -n "${LC_ALL:-}" ]; then
 	unset LC_ALL
 fi
 if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
-	for _cand in C.UTF-8 C.utf8 en_US.UTF-8; do
-		if grep -qix "${_cand}" <<<"$(locale -a 2>/dev/null)"; then
-			export LC_CTYPE="${_cand}"
-			break
-		fi
-	done
-	unset _cand
+	# 候補名を決め打ちで完全一致させない——glibc の `locale -a` は `en_US.utf8` と
+	# ハイフン無し・小文字で出すため、`en_US.UTF-8` は一度も一致しない（実測）。
+	# 使える UTF-8 ロケールを一覧から拾う。C 系を優先し、無ければ最初の UTF-8 を使う。
+	# パイプで渡さない（`head` の早期終了で書き手が SIGPIPE を受け、pipefail 下では
+	# 代入自体が非 0 になって set -e で落ちる）。awk 内で「最初の一致」まで済ませる。
+	_avail="$(locale -a 2>/dev/null || true)"
+	_cand="$(awk '{ l = tolower($0) } l ~ /^(c|posix)\.utf-?8$/ { print; exit }' <<<"${_avail}")"
+	[ -n "${_cand}" ] || _cand="$(awk '{ l = tolower($0) } l ~ /utf-?8$/ { print; exit }' <<<"${_avail}")"
+	if [ -n "${_cand}" ]; then
+		export LC_CTYPE="${_cand}"
+	fi
+	unset _cand _avail
 	if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
 		# 縮退した run と本番構成の run を出力で区別できるようにする（黙って結果を変えない）。
-		printf '%s: UTF-8 ロケールが無いため要約を切り詰めずに落とします（索引の情報量が減ります）\n' \
+		printf '%s: UTF-8 ロケールが無いため、200 文字を超える行の要約は切り詰めず落とします\n' \
 			"$(basename "${BASH_SOURCE[0]}")" >&2
 	fi
 fi
