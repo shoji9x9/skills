@@ -29,8 +29,12 @@ import { dirname, join } from "node:path";
 //   F. 検索 0 件時のフォールバックを外す          → フォールバックテストが fail
 //   G. クローズを最古 1 本だけに戻す              → 全件クローズテストが fail
 //   H. 更新側も全件ループにする（過剰一般化）     → 同テストの陰性コントロールが fail
-//   J. 上限到達の確認（`open_count`）を外す        → 取りこぼし警告テストが fail
+//   J. 上限到達の警告を新規作成分岐から外す        → 警告配置テストが fail
 //   K. 分岐前の通知へ「更新は…のみ」を戻す        → 分岐前断定テストが fail
+//   L. 警告をクローズ分岐にも置く（偽陽性の再現）   → 警告配置テストが fail
+//   M. 走査件数を別 API で引き直す                 → 同テストが fail
+//      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
+//        読みかけた。当たったことを diff で確かめてから走らせ直した）
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // 同じパターンを持つワークフローの一覧。片方だけ直る余地を残さないため一括で検査する。
@@ -127,21 +131,27 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
   // 「無い」と答え、2 本目を立てる（一覧 API は即時反映）。0 件なら --search 無しで引き直す。
   test("検索が 0 件なら --search 無しで引き直してから新規作成へ進む", () => {
     const r = run();
-    expect(r).toContain('matched="$(find_tracking_issues --search');
+    expect(r).toContain('read_matches "$(find_tracking_issues --search');
     // フォールバックは 0 件のときだけ。無条件の 2 度引きになっていないこと。
-    const fallback = r.match(/^if \[ -z "\$matched" \]; then$\n([\s\S]*?)^fi$/m);
+    const fallback = r.match(/^if \[ "\$\{#numbers\[@\]\}" -eq 0 \]; then$\n([\s\S]*?)^fi$/m);
     expect(fallback, "0 件ガード付きのフォールバックが無い").not.toBeNull();
-    expect(fallback[1]).toContain('matched="$(find_tracking_issues)"');
+    expect(fallback[1]).toContain('read_matches "$(find_tracking_issues)"');
   });
 
-  // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
-  // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
   // 100 件上限に張り付いたまま「無い」と結論すると、取りこぼしが黙って新規作成に化ける。
-  test("フォールバックも空なら、上限到達を確かめて警告を出す", () => {
+  // ただし警告は**新規作成の分岐だけ**に置く。取りこぼしが害になるのは重複を作る経路だけで、
+  // 何もしない分岐（追跡 Issue 無し × 対象 0 件）で鳴らすと正常な定常状態で毎週ノイズが出る。
+  // 走査件数は照会と同じ呼び出しから採る（別 API で引き直すと 2 回の間に open 数が動く）。
+  test("上限到達の警告は新規作成の分岐にだけ置く", () => {
     const r = run();
-    expect(r).toContain("open_count=");
-    expect(r).toContain('[ "$open_count" -ge 100 ]');
-    expect(r).toContain("::warning::");
+    expect(r).toContain('"scanned=" + (length | tostring)');
+    expect(r).toContain('fallback_scanned="$scanned"');
+    const { create, close, update } = branches(r);
+    expect(create).toContain('[ "$fallback_scanned" -ge 100 ]');
+    expect(create).toContain("::warning::");
+    // 他の分岐では鳴らさない（偽陽性の陰性コントロール）。
+    expect(close).not.toContain("::warning::");
+    expect(update).not.toContain("::warning::");
   });
 
   // 一致が複数のときの扱いは分岐で違う（更新は最古 1 本、クローズは全件）。
@@ -158,6 +168,8 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
     expect(close).toContain("閉じた: #");
   });
 
+  // 最古の 1 本だけ閉じると、残りが「未対応がある」という本文のまま open で残り、
+  // 一覧に矛盾した追跡 Issue が並ぶ。閉じるときは一致した全部を閉じる。
   test("クローズは一致した全件に当てる（更新は最古 1 本だけ）", () => {
     const { close, update } = branches(run());
     expect(close).toContain('for n in "${numbers[@]}"');
@@ -202,7 +214,10 @@ describe.each(WORKFLOWS)("$path の追跡 Issue タイトル", ({ path, prefix }
       });
       expect(res.stderr).toBe("");
       expect(res.status).toBe(0);
-      const got = res.stdout.split("\n").filter(Boolean).map(Number);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      // 先頭行は走査件数。件数まで含めて確かめる（絞り込み前の母数が変わったら気づける）。
+      expect(lines[0]).toBe(`scanned=${cases.length}`);
+      const got = lines.slice(1).map(Number);
       const want = cases.filter((c) => c.hit).map((c) => c.number);
       expect(got).toStrictEqual(want);
     } finally {

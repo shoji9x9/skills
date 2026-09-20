@@ -115,40 +115,49 @@ jobs:
           # フォールバックが埋めるのは**この未反映の窓だけ**。その窓では対象が最も新しい
           # Issue なので、作成日降順の先頭 100 件に必ず入る。一方、古い追跡 Issue を検索が
           # 返さないケース（インデックス障害等）は、open Issue が 100 件を超えるリポジトリでは
-          # フォールバックでも拾えない。**そこは黙って新規作成へ倒さず警告を出す**
-          # （このステップは Issue を 1 本作るだけなので、落とさず run ログに残す）。
+          # フォールバックでも拾えない。その可能性は**新規作成する分岐でだけ**警告する
+          # （取りこぼしが害になるのは重複を作る経路だけ。何もしない分岐で鳴らすと、
+          # 追跡 Issue が無い正常な定常状態で毎週ノイズが出る）。
+          #
+          # 走査件数は同じ呼び出しの中で `scanned=N` として先頭行に出す。件数を別の API で
+          # 引き直すと、2 回の呼び出しの間に open 数が動いて判定と根拠がずれる。
           #
           # 追加の 1 往復が走るのは一致 0 件のとき——つまり追跡 Issue が無い期間の定常 run でも
           # 毎回走る。1 回の GET なので許容する。
           # pagination-ok: --search が母数を絞る。フォールバックは --limit 100 で母数を明示し、
-          # 上限に張り付いたら下で警告する（打ち切りを成功へ倒さない）。
+          # 上限に張り付いたまま 0 件なら新規作成の直前に警告する（打ち切りを成功へ倒さない）。
           find_tracking_issues() {
             gh issue list --state open --limit 100 "$@" \
               --json number,title \
-              --jq '[ .[]
-                      | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
-                      | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
-                               | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
-                      | .number ] | sort | .[]'
+              --jq '(["scanned=" + (length | tostring)]
+                     + ([ .[]
+                          | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
+                          | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
+                                   | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
+                          | .number ] | sort | map(tostring)))
+                    | .[]'
           }
-          matched="$(find_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title")"
-          if [ -z "$matched" ]; then
-            matched="$(find_tracking_issues)"
-            if [ -n "$matched" ]; then
-              echo "検索インデックス未反映のため --search 無しで再取得した（#${matched//$'\n'/ #}）" >&2
-            else
-              # 先頭 100 件で打ち切られていたなら「無い」と言い切れない。
-              open_count="$(gh issue list --state open --limit 100 --json number --jq 'length')" # pagination-ok: 100 件到達だけを見る
-              if [ "$open_count" -ge 100 ]; then
-                echo "::warning::open Issue が 100 件以上あり、追跡 Issue を取りこぼした可能性がある（新規作成すると重複しうる）"
-              fi
+          # 先頭行の `scanned=N` と、それ以降の Issue 番号を分けて読む。
+          read_matches() {
+            scanned=0
+            numbers=()
+            while IFS= read -r line; do
+              case "$line" in
+              "") continue ;;
+              scanned=*) scanned="${line#scanned=}" ;;
+              *) numbers+=("$line") ;;
+              esac
+            done <<<"$1"
+          }
+          read_matches "$(find_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title")"
+          fallback_scanned=""
+          if [ "${#numbers[@]}" -eq 0 ]; then
+            read_matches "$(find_tracking_issues)"
+            fallback_scanned="$scanned"
+            if [ "${#numbers[@]}" -gt 0 ]; then
+              echo "検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）" >&2
             fi
           fi
-          numbers=()
-          while IFS= read -r line; do
-            [ -n "$line" ] || continue
-            numbers+=("$line")
-          done <<<"$matched"
           number="${numbers[0]-}"
           # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
           # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、
@@ -176,5 +185,10 @@ jobs:
             fi
             gh issue edit "$number" --title "$title" --body-file /tmp/issue-body.md
           else
+            # 「見つからなかった」が重複に化ける唯一の経路。フォールバックが先頭 100 件に
+            # 張り付いていたなら、取りこぼした可能性を run ログに残してから作る。
+            if [ -n "$fallback_scanned" ] && [ "$fallback_scanned" -ge 100 ]; then
+              echo "::warning::open Issue が 100 件以上あり、既存の追跡 Issue を取りこぼした可能性がある（重複して作成しうる）"
+            fi
             gh issue create --title "$title" --body-file /tmp/issue-body.md
           fi
