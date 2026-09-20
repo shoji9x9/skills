@@ -16,7 +16,7 @@
 // 陰性コントロールは実リポジトリ全体（修正後は 0 件）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,10 +71,13 @@ test("対象拡張子の判定: テキストだけを拾う", () => {
 });
 
 test("陽性コントロール（実データ）: 混入していた版を入力にすると検出する", () => {
-  const notePath = join(
-    repoRoot,
-    ".kaizen/2026-09-18-control-characters-rejected-in-tool-arguments.md",
+  // ノートは適用後に .kaizen/archive/ へ移るので、両方の置き場を見る。
+  // 見つからないときは skip せず落とす（陽性コントロールが消えたまま緑になるのを防ぐ）。
+  const NOTE = "2026-09-18-control-characters-rejected-in-tool-arguments.md";
+  const notePath = [join(repoRoot, ".kaizen", NOTE), join(repoRoot, ".kaizen/archive", NOTE)].find(
+    (p) => existsSync(p),
   );
+  expect(notePath, `${NOTE} が .kaizen/ にも .kaizen/archive/ にも無い`).toBeDefined();
   const fixed = readFileSync(notePath, "utf8");
   // 修正で `U+0000` という表記へ置き換えた箇所を、混入していた当時の生バイトへ戻す。
   expect(fixed).toContain("U+0000");
