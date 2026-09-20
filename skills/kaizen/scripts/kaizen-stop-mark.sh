@@ -54,7 +54,11 @@ fi
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
-[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+if [ -r "${kaizen_lib}" ]; then
+	. "${kaizen_lib}"
+else
+	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+fi
 
 session_id=""
 transcript=""

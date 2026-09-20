@@ -73,7 +73,8 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 **採取物（`baseline/`・`axes.json`・`metadata.json` のツール版とプロパティ集合・軸の件数）は手で書かない。** 手で作った採取物は、
 `traits_property_set` が実物の `FIXED_PROPERTIES` と違う・`css-rules.json` の宣言が `traits.json` の計算値と食い違う・`element.png` がプレースホルダ、という形で壊れていた（Issue #354）。
 `catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/generate-parity-component-fixtures.js` が headless Chrome で最小のページに
-trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを当てて生成したもの（2 回採って一致を確かめている）。ツールや採取条件を変えたら同スクリプトで取り直し、`pnpm exec oxfmt` で整形する。
+trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを当てて生成したもの（2 回採って一致を確かめている）。ツールや採取条件を変えたら同スクリプトで取り直す。
+書き出した JSON の整形は同スクリプトが対象ファイルを列挙して行うので、手で `oxfmt` を当てない（`oxfmt` に `.md` やディレクトリを渡すと fixture の Markdown の表が桁揃えされる）。
 生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は `scripts/parity-component-fixtures.test.js` が CI で検査する。
 `component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツール版）に合わせて手で揃える。
 

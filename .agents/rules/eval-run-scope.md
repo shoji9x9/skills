@@ -13,6 +13,11 @@ eval の実走はコストを伴うため、**起動前に目的とスコープ�
 
 LLM run 前の決定論的検証と `without_skill` baseline 再利用は、下記の正本にある preflight と fingerprint gate を通す。
 
+**複数 eval をまとめて起動する前に、対象一覧と出力先を preflight で検証する。**
+構造化 spec から出力パスを組み立てるときは **scalar field だけ**を使い（オブジェクトをテンプレートリテラルへ展開すると
+`tests/[object Object]/iteration-N` のようなパスが黙って通る）、全パスが**期待ルート配下**・**相互に一意**・
+**`[object Object]` を含まない**ことを起動前に確かめる。承認を伴う外向き実行では、ここで止まると承認の取り直しになる。
+
 executor は invocation ごとの `--executor` 指定だけで決まる。**運用上の既定は現在作業しているエージェントと同じ executor** とし、
 Codex は `codex`、Claude Code は `claude-code` を省略せず指定する（ランチャの引数省略時既定は後方互換用であり、運用上の選択規則ではない）。
 ユーザー指定・スキル固有契約を優先し、対応 executor が無いエージェントではユーザーに確認する。**実走中の executor 切り替えは人が決める**（利用上限到達は executor 非対応の証拠ではない）。

@@ -14,6 +14,43 @@
 # 詳細手順は references/housekeeping.md を参照。
 set -euo pipefail
 
+# 索引の内容が**呼び出し元のロケールで変わらない**ようにする。
+# 切り詰めは文字単位で行う必要があり（バイト境界で切ると多バイト文字が壊れる）、
+# bash のパラメータ展開が文字単位になるのは UTF-8 ロケールのときだけ。
+# 非 UTF-8 のまま生成すると、同じ入力から切り詰めのない別の INDEX.md ができ、
+# C ロケールの環境（CI コンテナ・cron）で再生成するたびに commit 済みの索引が書き換わる。
+# 利用できる UTF-8 ロケールがあればそれへ寄せ、無ければ「要約ごと落とす」縮退にする。
+# 寄せるのは **LC_CTYPE だけ**にする。LC_ALL で寄せると LC_COLLATE も変わり、
+# 索引の行順を決める glob 順がロケール依存に戻る（en_US.UTF-8 ではハイフン等を無視して
+# 照合するため、a-b / a_b / ab / aB の順が入れ替わる）。行順は内容の一部なので C に固定する。
+# パイプで渡さない——`grep -q` は一致時点で抜けるので、pipefail 下では書き手の SIGPIPE で
+# パイプライン全体が非 0 になり、判定が意図と逆へ倒れうる（同ファイル後段の注記と同じ機構）。
+if [ -n "${LC_ALL:-}" ]; then
+	# LC_ALL は個別カテゴリを上書きするので、実効値を LC_CTYPE へ移してから外す。
+	export LC_CTYPE="${LC_ALL}"
+	unset LC_ALL
+fi
+if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+	# 候補名を決め打ちで完全一致させない——glibc の `locale -a` は `en_US.utf8` と
+	# ハイフン無し・小文字で出すため、`en_US.UTF-8` は一度も一致しない（実測）。
+	# 使える UTF-8 ロケールを一覧から拾う。C 系を優先し、無ければ最初の UTF-8 を使う。
+	# パイプで渡さない（`head` の早期終了で書き手が SIGPIPE を受け、pipefail 下では
+	# 代入自体が非 0 になって set -e で落ちる）。awk 内で「最初の一致」まで済ませる。
+	_avail="$(locale -a 2>/dev/null || true)"
+	_cand="$(awk '{ l = tolower($0) } l ~ /^(c|posix)\.utf-?8$/ { print; exit }' <<<"${_avail}")"
+	[ -n "${_cand}" ] || _cand="$(awk '{ l = tolower($0) } l ~ /utf-?8$/ { print; exit }' <<<"${_avail}")"
+	if [ -n "${_cand}" ]; then
+		export LC_CTYPE="${_cand}"
+	fi
+	unset _cand _avail
+	if ! grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+		# 縮退した run と本番構成の run を出力で区別できるようにする（黙って結果を変えない）。
+		printf '%s: UTF-8 ロケールが無いため、200 文字を超える行の要約は切り詰めず落とします\n' \
+			"$(basename "${BASH_SOURCE[0]}")" >&2
+	fi
+fi
+export LC_COLLATE=C
+
 # .kaizen/ はプロジェクトルート直下に置く前提。サブディレクトリで実行されても、その cwd 配下に
 # 別の .kaizen/ を作ってしまわないよう、ルートへ移動してから .kaizen/ を解決する。
 # アンカーは姉妹スクリプト（kaizen-context-inject.sh / kaizen-precommit-gate.sh）と揃える。
@@ -23,7 +60,11 @@ orig_pwd=${orig_pwd%/} # 末尾スラッシュ（cwd が / のとき）を除き
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
-[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+if [ -r "${kaizen_lib}" ]; then
+	. "${kaizen_lib}"
+else
+	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
 # 別の `.kaizen/` を見てしまう（Issue #218）。
@@ -94,6 +135,14 @@ lead_paragraph() {
 }
 
 # archive/*.md の frontmatter と要約から INDEX.md を作り直す。
+# UTF-8 の継続バイト（0x80-0xBF）を落としてから数えると、ロケールに依らず文字数になる。
+# 非 UTF-8 ロケールでは ${#} がバイト長になるため、行長（MD013 は文字数で数える）の判定に使う。
+char_len() {
+	local stripped
+	stripped="$(printf '%s' "$1" | tr -d '\200-\277')"
+	printf '%s' "${#stripped}"
+}
+
 regenerate_index() {
 	mkdir -p "${archive_dir}"
 	{
@@ -124,14 +173,43 @@ regenerate_index() {
 			# 80 文字に切り詰め。bash のパラメータ展開は UTF-8 ロケールでは文字単位なので
 			# 日本語をバイト境界で割らない（mawk の substr / cut -c はバイト単位で割れる）。
 			# 非 UTF-8 ロケールではバイト単位になり UTF-8 を壊しうるため、UTF-8 のときだけ切り詰める。
-			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では切り詰めず安全側に倒す。
+			# python 等の追加ランタイムには依存しない方針なので、非 UTF-8 では**切らずに要約ごと落とす**
+			# （行長規約はロケールに依らず満たす必要があるので、素通りはさせない）。
 			# パイプで渡さない——`grep -q` は一致した時点で抜けるので、pipefail 下では書き手の
 			# SIGPIPE でパイプライン全体が非 0 になり、UTF-8 なのに切り詰めない側へ倒れうる
 			# （kaizen-context-inject.sh の `head` に関する注記と同じ機構）。
-			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)" && [ "${#summary}" -gt 80 ]; then
-				summary=${summary:0:79}…
+			prefix="- \`$(basename "${f}")\` — ${meta}— "
+			# 切り詰めの予算は**行全体**で決める。要約だけを 80 文字に切っても、接頭辞
+			# （ファイル名＋meta）が長いと行が 200 文字を超え、markdownlint の MD013 で
+			# 落ちる（INDEX.md はコミット対象の生成物なので、生成側が規約を満たす）。
+			# 200 は markdownlint 既定の line_length。接頭辞だけで予算を使い切る場合は
+			# 要約を落とす（行を切らずに壊すより、要約が無い方が索引として読める）。
+			if grep -qi 'utf-\{0,1\}8' <<<"$(locale charmap 2>/dev/null)"; then
+				budget=$((200 - ${#prefix}))
+				[ "${budget}" -gt 80 ] && budget=80
+				if [ "${budget}" -le 1 ]; then
+					summary=""
+				elif [ "${#summary}" -gt "${budget}" ]; then
+					summary=${summary:0:$((budget - 1))}…
+				fi
+			elif [ "$(char_len "${prefix}${summary}")" -gt 200 ]; then
+				# 非 UTF-8 ロケールでは ${#} も slice もバイト単位なので、途中で切ると
+				# 多バイト文字を壊す。それでも MD013（行長）は満たす必要があるので、
+				# 切らずに要約ごと落とす。
+				# **判定には ${#} を使わない**——バイト長で測ると日本語の行はほぼ全部 200 を超え、
+				# 実測で 178 行中 174 行の要約が消えた（200 *文字* 超は 0 行）。
+				# INDEX.md の行全体は kaizen-kedb-match.sh の照合対象なので、
+				# 要約が消えると archive がファイル名でしか引けなくなる。
+				summary=""
 			fi
-			echo "- \`$(basename "${f}")\` — ${meta}— ${summary}"
+			# 要約を落とした行は、接頭辞末尾の "— " がそのまま行末スペースになり
+			# MD009（no-trailing-spaces）で落ちる。区切りごと落として締める。
+			if [ -n "${summary}" ]; then
+				echo "${prefix}${summary}"
+			else
+				line="${prefix%— }"
+				echo "${line%"${line##*[![:space:]]}"}"
+			fi
 		done
 	} >"${archive_dir}/INDEX.md"
 }

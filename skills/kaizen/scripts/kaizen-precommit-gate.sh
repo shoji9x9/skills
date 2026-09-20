@@ -56,7 +56,11 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 kaizen_lib="${script_dir}/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
-[ -n "${script_dir}" ] && [ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+if [ -n "${script_dir}" ] && [ -r "${kaizen_lib}" ]; then
+	. "${kaizen_lib}"
+else
+	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+fi
 # 共通ライブラリを読めない（配布物の欠落・部分展開）ときは、Issue #218 以前の agent 単位の
 # 名前だけを扱う縮退版を定義する。ゲートの判定を止めないためのシムであり、複数セッションの
 # 分離は失われる（従来どおり奪い合う）が、遮断条件は緩めない。

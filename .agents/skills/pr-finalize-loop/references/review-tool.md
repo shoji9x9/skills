@@ -32,6 +32,21 @@ skills:
     review_tool: copilot # copilot | claude-code | codex | none
 ```
 
+### 解決は同梱スクリプトで行う（値と出所を表示してから使う）
+
+多層の解決順を頭で引くと、正本を読む前に環境変数名を推測して「未設定」と判定する事故が起きる
+（実際に別のツールへ 3 回依頼した）。着手時に同梱スクリプトを実行し、**値と出所の層**を報告してから使う。
+
+```bash
+# インストール先に応じてどちらかのパスで実行する（--review-tool は pr-finalize-loop のみ）
+bash .agents/skills/<skill>/scripts/resolve-review-tool.sh [--review-tool <tool>]
+bash ~/.claude/skills/<skill>/scripts/resolve-review-tool.sh [--review-tool <tool>]
+```
+
+出力は `value=<tool>` と `source=<cli|env|config|default>` の 2 行。
+受理しない値は黙って既定へ倒さず exit 2 で停止する（出所の層を添えて報告する）。
+`source=default` だったときは、上記のとおり既定を使う旨をユーザーに通知する。
+
 ## ツール別の再レビュー依頼
 
 依頼を出す条件・タイミング・依頼後の待機（上限つきポーリング）・進行中レビューの扱いは各 SKILL の

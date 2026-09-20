@@ -68,6 +68,12 @@ jobs:
         run: node scripts/check-skills-sync.js
       - name: JS extensions (skills/ => .mjs, scripts/ => .js)
         run: node scripts/check-js-extensions.js
+      - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
+        run: node scripts/check-rule-symlinks.js
+      - name: Control characters in tracked text files
+        run: node scripts/check-control-chars.js
+      - name: Eval assertion reachability
+        run: node scripts/check-eval-reachability.js
       - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)

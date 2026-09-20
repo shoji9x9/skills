@@ -33,6 +33,8 @@ kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
 if [ -r "${kaizen_lib}" ]; then
 	. "${kaizen_lib}"
+else
+	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
 # 共通ライブラリを読めないときの縮退。**停止スイッチだけは fail-closed に倒す**——
 # mode / agent が既定へ倒れるのは「動き方が変わる」だけだが、`schedule_enabled=off` を

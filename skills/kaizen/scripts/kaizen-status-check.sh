@@ -14,7 +14,11 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 kaizen_lib="$(dirname "${BASH_SOURCE[0]}")/kaizen-hook-common.sh"
 # 共通ライブラリは同梱物。source 先を静的追跡できない旨の SC1091 は仕様どおりなので抑止する。
 # shellcheck source=./kaizen-hook-common.sh disable=SC1091
-[ -r "${kaizen_lib}" ] && . "${kaizen_lib}"
+if [ -r "${kaizen_lib}" ]; then
+	. "${kaizen_lib}"
+else
+	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
+fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
 # 別の `.kaizen/` を見てしまう（Issue #218）。

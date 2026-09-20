@@ -199,6 +199,7 @@ mutation {
 
 レビュー対応（返信・解決）を終えたら、**設定したレビューツールへの再レビュー依頼の要否・タイミングをユーザーに確認する**。
 依頼先ツールの解決規則と、ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
+**解決は同梱スクリプト `scripts/resolve-review-tool.sh` で行い、値と出所の層（cli / env / config / default）を報告してから使う**（推測で「未設定」と判定して別ツールへ依頼した事故がある。手順は [`references/review-tool.md`](references/review-tool.md)）。
 GitHub 側の自動レビュー設定があっても push 後にレビューが始まらないことがあり、また
 push せず返信だけで閉じたスレッドも改めて見てほしいことがあるため、このスキルから明示的に依頼する。
 

@@ -21,6 +21,9 @@
 
 1. **同一成果物内の自己整合**: 外部由来の語（API 値・enum・フラグ名）はドキュメント内で 1 表記に統一する。
    散文の説明と直後のコード例を突き合わせる。編集した概念のキーワードで対象ファイルを `grep` し、別表記・矛盾記述が残っていないか確認する。
+   **文字数・バイト数・書式のような「数えれば分かる」規約の合否は、それを強制する実装をそのまま実行して取る**（自前の近似を書かない）。
+   単位（バイト / 文字 / 表示幅）は強制する実装ごとに違うため、近似は偽陽性・偽陰性を出す——commit message は `pnpm exec commitlint --edit <file>`、
+   Markdown は `pnpm exec markdownlint-cli2 <path>`、`SKILL.md` の frontmatter は `node scripts/check-skill-frontmatter.js <path>` で測る。
 2. **複製ボイラープレートの横断適用**: スキル間で複製されたファイル（`evals/README.md` 等）は、修正対象の文字列で `grep -rn <キーワード> skills/` を実行し、全複製に同じ修正を適用する。
 3. **ルール記述 ↔ 強制ゲートの実在とスコープ一致**: まず**強制点が実在するか**を確かめる——「この規律を破ろうとしたとき、どのコード / lint / hook が落とすか」を 1 つ名指しできない規律は、
    「仕組みで縛った」ではなく規約である（散文に書いた箇所数は強度ではない。効くのは強制点だけ）。名指しできないなら強制点を実装するか、規約であることを明記する。
@@ -88,6 +91,14 @@ scripts/reinstall-skill.sh <name>
 ## 回帰テストを実行する
 
 各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
+
+**新規・変更した eval には `reachability` を書く。** 各 assertion を引き出す prompt の文を
+`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` として並べる。
+`scripts/check-eval-reachability.js` が pre-commit と CI で、対応要素の欠落・空の引用・prompt に無い引用・
+assertions に無い assertion を落とす（対応づけは位置ではなくテキスト）。
+既存 eval は `scripts/eval-reachability-backlog.json` の宣言で段階適用にしてあり、
+項目は eval の指紋（prompt + assertions のハッシュ）を持つ——**その eval を書き換えると免除が外れて
+`reachability` が必須になる**ので、触った eval から順に埋まる。新規 eval を backlog へ足さない。
 
 ### 実走の既定スコープ（変更確認と benchmark を分ける）
 
