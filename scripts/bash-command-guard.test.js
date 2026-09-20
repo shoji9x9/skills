@@ -59,6 +59,17 @@ const PASSING = [
   ["grep のパターンに pkill と書くだけなら通す", "cat AGENTS.md | grep -- 'pkill -f'"],
   // 引用符の中の ; はセグメント境界にしない（切ると後半だけが実行文に見える）。
   ["引用符の中の ; で切らない", 'git commit -m "fix; pkill -f x"'],
+  // 行コメントはデータ。コード側に入れると注意書きの文章で発動する。
+  ["行コメントの注意書きでは発動しない", "gh pr create --body-file b  # gh api では使えない"],
+  // コマンド置換の中の ; は本物の区切り。潰して 1 セグメントにすると別コマンドの引数が混ざる。
+  ["コマンド置換の中は区切りで分ける", 'out="$(gh api x > f; gh pr create --body-file b)"'],
+  ["バッククォートの中も区切りで分ける", "out=`gh api x > f; gh pr create --body-file b`"],
+  // 引用符の**外**の $( ) を閉じた後は引用符の外に戻る。常に二重引用符へ戻すと、
+  // 以降が引用内扱い→未閉じ扱いになり、fail-safe 経由でコメントの文章まで検査対象になる。
+  [
+    "コマンド置換を閉じた後はコード文脈へ戻る",
+    "out=$(date); gh pr create --body-file b  # gh api では使えない",
+  ],
   ["単引用符の代入値に現れる gh api は通す", "note='see gh api --body-file note'"],
   ["正規表現の途中に置いた文字クラスは通す", "pkill -f 'node .*[d]ump-dom'"],
   ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
@@ -178,6 +189,40 @@ test.each([
   const r = guard(command);
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/full command line/);
+});
+
+// 引用文字列をそのままシェルへ渡すコマンドは、その引数がコードとして実行される。
+// 引用の中を一律データにすると、ゲートが止めるために作られた形そのものが素通りする。
+test.each([
+  ["bash -c", 'bash -c "pkill -f chrome"'],
+  ["ssh", "ssh host 'pkill -f node'"],
+  ["sh -c（gh api 側）", 'sh -c "gh api x --body-file b"'],
+])("シェルへ委譲した %s の中身も検査する", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+test("引用が閉じていない入力は解釈せず fail-safe に倒す", () => {
+  // ヒアドキュメント本文のアポストロフィ 1 個で以降が全部データ扱いになり、
+  // 黙って最強の免除になっていた（実測）。解釈できない入力は検査側へ倒す。
+  const r = guard("echo it's ok; gh api repos/o/r/pulls/1 --body-file /tmp/b.md");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/unknown flag/);
+});
+
+test("コマンド置換の中の引用された ) で早く閉じない", () => {
+  const r = guard(`out="$(grep -c ')' f && gh api x --body-file b)"`);
+  expect(r.status).toBe(2);
+});
+
+test.each([
+  ["引用符の外のコマンド置換", "out=$(gh api x --body-file b)"],
+  ["引用符の中のコマンド置換", 'out="$(gh api x --body-file b)"'],
+])("ブロックメッセージは打っていないコマンドを引用しない（%s）", (_name, command) => {
+  // $( の ( を落として full を組むと、存在しない `$gh api ... )` を引用して読み手を誤導する。
+  // 経路は 2 つ（コード文脈と二重引用符の中）あるので、両方を固定する。
+  const r = guard(command);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(command);
 });
 
 test("行コメントの中の [] は文字クラスの免除に数えない", () => {

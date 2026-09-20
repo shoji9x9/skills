@@ -81,70 +81,88 @@ violations=""
 #
 # 判定の土台を「前置きを剥いで先頭語を見る」から変えた理由——
 # 前置き（制御構文・env 代入・ラッパー・コマンド置換）は列挙しても尽きず、
-# 4 巡のレビューで毎回どちらかの方向へ穴が出た（正当な呼び出しを止める／実行される形を通す）。
+# レビュー 4 巡で毎回どちらかの方向へ穴が出た（正当な呼び出しを止める／実行される形を通す）。
 # 実際に効くのは「その文字列がコードとして実行されるか、引用符の中のデータか」だけなので、
 # そこだけを解釈する。
 #
 #   - 単引用符の中は**データ**（$( ) も展開されない）。丸ごと落とす
 #   - 二重引用符の中もデータだが、`$( ... )` と `` ` ` `` の中は**コード**なので拾う
-#   - 引用符の外はコード
-#   - 区切り（; & | 改行）は**コード状態のときだけ**セグメント境界にする
-#     （`git commit -m "fix; pkill ..."` のような引用内の ; で切らない）
+#   - コマンド置換の中も引用を追跡する（中の `)` で早く閉じない）
+#   - 引用符の外はコード。`#` から行末はコメント＝データ
+#   - 区切り（; & | 改行）は**コードとして実行される文脈**でだけセグメント境界にする
+#     （`git commit -m "fix; pkill ..."` の引用内では切らず、`$( a; b )` の中では切る）
 #
-# 各セグメントについて 2 行を出す: コード部分（#C#）と元の全文（#F#）。
-# ルール 1・2 の**発動**はコード部分で見る。ルール 2 の**免除**（文字クラス）は
-# パターン本体＝引用の中に書かれるので全文で見る。
+# **引用が閉じていない入力は解釈できないので、fail-safe に倒す**（全文をコードとして扱う）。
+# ヒアドキュメント本文のアポストロフィ 1 個で以降が全部データ扱いになり、
+# 黙って最強の免除になっていた（実測）。誤検知側に倒れるが、その場合は
+# ファイル編集ツールへ迂回する（AGENTS.md に手順あり）。
 split_segments() {
 	awk '
 	BEGIN { RS = "\0" }
 	{
-		n = length($0); code = ""; full = ""; state = 0; depth = 0
+		raw = $0; n = length(raw); code = ""; full = ""; state = 0; depth = 0; nseg = 0; sret = 0; qret = 0
 		for (i = 1; i <= n; i++) {
-			c = substr($0, i, 1)
-			nx = substr($0, i + 1, 1)
-			if (state == 0) {                      # コード
+			c = substr(raw, i, 1)
+			nx = substr(raw, i + 1, 1)
+			if (state == 0 || state == 3 || state == 4) {   # コードとして実行される文脈
 				if (c == "\\") { full = full nx; code = code nx; i++; continue }
-				if (c == "\047") { state = 1; full = full c; continue }
-				if (c == "\"") { state = 2; full = full c; continue }
-				if (c == "`") { state = 4; full = full c; continue }
-				if (c == ";" || c == "&" || c == "|" || c == "\n") { emit(); continue }
+				if (c == "\047") { qret = state; state = 6; full = full c; continue }
+				if (c == "\"") { qret = state; state = 7; full = full c; continue }
+				if (state == 0 && c == "`") { state = 4; full = full c; continue }
+				if (state == 4 && c == "`") { state = 0; full = full c; continue }
+				if (state != 4 && c == "$" && nx == "(") {
+					# 戻り先を覚える。常に state 2 へ戻すと、引用符の**外**の $( ... ) を
+					# 閉じた後が二重引用符の中に化け、以降が未閉じ扱いになる。
+					if (state == 3) depth++
+					else { sret = state; state = 3; depth = 0 }
+					full = full c "("; code = code " "; i++; continue
+				}
+				if (state == 3 && c == ")") {
+					full = full c
+					if (depth == 0) { state = sret; code = code " " } else { depth--; code = code c }
+					continue
+				}
+				# 行コメントはデータ。コード側へ入れると、注意書きの文章で発動する。
+				if (c == "#" && (code == "" || substr(code, length(code), 1) ~ /[[:space:]]/)) {
+					while (i <= n && substr(raw, i, 1) != "\n") { full = full substr(raw, i, 1); i++ }
+					i--
+					continue
+				}
+				if (c == ";" || c == "&" || c == "|" || c == "\n") { emit(); full = full c; continue }
 				code = code c; full = full c; continue
-			}
-			if (state == 1) {                      # 単引用符の中（データ。展開されない）
-				full = full c
-				if (c == "\047") state = 0
-				continue
 			}
 			if (state == 2) {                      # 二重引用符の中（データ。ただし $( ) と ` はコード）
 				full = full c
 				if (c == "\\") { full = full nx; i++; continue }
 				if (c == "\"") { state = 0; continue }
-				if (c == "$" && nx == "(") { state = 3; depth = 0; i++; code = code " "; continue }
-				if (c == "`") { state = 5; code = code " "; continue }
+				if (c == "$" && nx == "(") { sret = state; state = 3; depth = 0; full = full "("; code = code " "; i++; continue }
+				if (c == "`") { state = 4; code = code " "; continue }
 				continue
 			}
-			if (state == 3) {                      # 二重引用符の中のコマンド置換
+			if (state == 6) {                      # コード文脈の中の単引用符（データ）
 				full = full c
-				if (c == "(") { depth++; code = code c; continue }
-				if (c == ")") { if (depth == 0) { state = 2; code = code " "; continue } depth--; code = code c; continue }
-				code = code c; continue
+				if (c == "\047") state = qret
+				continue
 			}
-			if (state == 4) {                      # コード中のバッククォート（中身もコード）
+			if (state == 7) {                      # コード文脈の中の二重引用符
 				full = full c
-				if (c == "`") { state = 0; continue }
-				code = code c; continue
-			}
-			if (state == 5) {                      # 二重引用符の中のバッククォート
-				full = full c
-				if (c == "`") { state = 2; code = code " "; continue }
-				code = code c; continue
+				if (c == "\\") { full = full nx; i++; continue }
+				if (c == "\"") { state = qret; continue }
+				if (c == "$" && nx == "(") { sret = state; state = 3; depth = 0; full = full "("; code = code " "; i++; continue }
+				continue
 			}
 		}
 		emit()
+		if (state != 0) {
+			# 引用が閉じていない＝この解釈は信用できない。全文をコードとして 1 セグメントで出す。
+			print "#C#" collapse(raw); print "#F#" collapse(raw)
+			nseg = -1
+		}
 	}
+	function collapse(t) { gsub(/\n/, " ", t); return t }
 	function emit() {
 		gsub(/\n/, " ", code); gsub(/\n/, " ", full)
-		if (full ~ /[^[:space:]]/) { print "#C#" code; print "#F#" full }
+		if (full ~ /[^[:space:]]/) { print "#C#" code; print "#F#" full; nseg++ }
 		code = ""; full = ""
 	}
 	'
@@ -169,6 +187,16 @@ while IFS= read -r line; do
 		;;
 	'#F#'*) segment="${line#\#F\#}" ;;
 	*) continue ;;
+	esac
+
+	# 引用文字列をそのままシェルへ渡すコマンドは、その引数が**コードとして実行される**。
+	# 引用の中を一律データにすると、ゲートが止めるために作られた形そのものが素通りする
+	# （`bash -c "pkill -f chrome"` / `ssh host 'pkill -f node'`。実測）。
+	case "${seg_code}" in
+	# `sh -c` は bash -c / zsh -c も覆う（部分一致なので個別に並べない）。
+	*"sh -c"* | *"ssh "* | *"eval "*)
+		seg_code="${segment}"
+		;;
 	esac
 
 	# 1. gh api と --body-file が同じセグメントにある。
