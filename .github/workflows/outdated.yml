@@ -129,11 +129,16 @@ jobs:
           list_limit=100
           # pagination-ok: --search が母数を絞る。フォールバックは --limit で母数を明示し、
           # 上限に張り付いたら警告する（打ち切りを成功へ倒さない）。
+          # **`state` は返ってきた値で確かめる。** `--search` の `is:open` はインデックス側の
+          # 評価なので、閉じた直後の Issue が open として返る（結果整合は偽陰性だけでなく
+          # 偽陽性にも振れる）。素通りさせると closed な Issue にリネームとコメントを当て、
+          # その週のレポートが閉じた Issue へ積まれる（`gh` はどちらも成功する）。
           find_tracking_issues() {
             gh issue list --state open --limit "$list_limit" "$@" \
-              --json number,title \
+              --json number,title,state \
               --jq '(["scanned=" + (length | tostring)]
                      + ([ .[]
+                          | select(.state == "OPEN")
                           | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
                           | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
                                    | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))

@@ -31,8 +31,12 @@ import { dirname, join } from "node:path";
 //   H. 更新側も全件ループにする（過剰一般化）     → 同テストの陰性コントロールが fail
 //   J. 上限到達の警告を新規作成分岐から外す        → 警告配置テストが fail
 //   K. 分岐前の通知へ「更新は…のみ」を戻す        → 分岐前断定テストが fail
-//   L. 警告をクローズ分岐にも置く（偽陽性の再現）   → 警告配置テストが fail
+//   L. 何もしない分岐へ警告を挿す（偽陽性の再現）   → 警告配置テストが fail
+//      （`indexOf("\nelse\n")` で切り出す版は**赤くならなかった**。入れ子の字下げで -1 が
+//        返り、検査対象が改行 1 文字になっていた。字下げを許す正規表現へ直して再実証）
 //   M. 走査件数を別 API で引き直す                 → 同テストが fail
+//      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
+//        読みかけた。当たったことを diff で確かめてから走らせ直した）
 //   N. 照会を `read_matches "$(find_tracking_issues ...)"` へ戻す → fail-closed テストが fail
 //      （`$( )` の失敗は**関数の引数**では伝播しない。実際に走らせて測る）
 //   O. `env:` の `ISSUE_TITLE_PREFIX` 宣言を落とす    → 実行テストが fail
@@ -42,8 +46,12 @@ import { dirname, join } from "node:path";
 //   R. `PENDING_COUNT` の検証を外す                  → ゲート入力テストが fail
 //   S. 更新分岐から打ち切り警告を外す                → 警告配置テストが fail
 //   T. フォールバック後の打ち切り判定を外す          → 判定位置テストが fail
-//      （最初の M はインデント違いで**変異が当たっておらず**、20 passed を「実証」と
-//        読みかけた。当たったことを diff で確かめてから走らせ直した）
+//   U. `select(.state == "OPEN")` を外す              → 弁別テストが fail
+//      （検索インデックスは偽陰性だけでなく**偽陽性**にも振れる。閉じた直後の Issue を
+//        open として返すと、closed な Issue にリネームとコメントを当てる）
+//
+// **変異は当たったことを diff で確かめてから結果を読む。** 当たらないと「偽の生存」になり、
+// 効いていない assertion を効いていると読む（L と M で実際に踏んだ）。
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // 同じパターンを持つワークフローの一覧。片方だけ直る余地を残さないため一括で検査する。
@@ -220,13 +228,20 @@ describe.each(WORKFLOWS)(
 
       // 陽性コントロール: 同じ入力で `gh` が正常なら新規作成まで到達する
       // （到達していない経路で「触らなかった」を測っても何も実証しない）。
+      // 日付は**ステップ実行の前後**で採る。後で 1 回だけ採ると、シェルの `date -u` が先・
+      // JS が後という並びのため UTC の日跨ぎで期待値だけ翌日になって落ちる。
+      const before = new Date().toISOString().slice(0, 10);
       const ok = runStep(path, GH_EMPTY, createEnv);
+      const after = new Date().toISOString().slice(0, 10);
       expect(ok.status, ok.stderr).toBe(0);
       expect(ok.calls).toContain("issue create");
       // 接頭辞と日付が実際にタイトルへ乗っていること。ここを見ないと、空の接頭辞で
       // 走っていても「作成へ到達した」だけで緑になる。
-      const today = new Date().toISOString().slice(0, 10);
-      expect(ok.calls).toContain(`--title ${prefix} (${today})`);
+      const titles = [...new Set([before, after])].map((d) => `--title ${prefix} (${d})`);
+      expect(
+        titles.some((t) => ok.calls.includes(t)),
+        ok.calls,
+      ).toBe(true);
     });
 
     // ステップの挙動を決める入力は、空・仕様外の値で**黙って片側へ倒れる**。
@@ -286,8 +301,14 @@ describe.each(WORKFLOWS)(
         expect(branch, `${name} 分岐に打ち切り警告が無い`).toContain("warn_if_truncated ");
       }
       // 何もしない側（追跡 Issue が 1 件も無い）では鳴らさない。
-      const doNothing = close.slice(close.indexOf("\nelse\n"));
-      expect(doNothing).not.toContain("warn_if_truncated");
+      // **`indexOf("\nelse\n")` で切らない**——`yaml.load` の字下げ剥がしの後もこの `else` は
+      // 入れ子のぶん字下げされており、-1 が返って検査対象が改行 1 文字になる。素通りして、
+      // 何もしない分岐へ警告を挿す変異が緑のまま通った（実測）。
+      const doNothing = close.match(/[\s\S]*\n *else\n([\s\S]*)$/);
+      expect(doNothing, "何もしない分岐を切り出せない").not.toBeNull();
+      // 切り出せた中身が本当に「何もしない」側であることの陽性コントロール。
+      expect(doNothing[1]).toContain("何もしない");
+      expect(doNothing[1]).not.toContain("warn_if_truncated");
       // 警告文は `scanned` の実体（照会が返した件数）に合わせる。接頭辞一致の件数ではない。
       expect(r).toContain("::warning::open Issue の照会が ${list_limit} 件で打ち切られた。");
     });
@@ -351,6 +372,15 @@ describe.each(WORKFLOWS)(
         { title: prefix, number: 1, hit: true, why: "日付を入れる前の既存追跡 Issue" },
         { title: `${prefix} (2026-09-14)`, number: 2, hit: true, why: "通常の世代" },
         { title: `${prefix} (2026-09-21)`, number: 3, hit: true, why: "別の世代" },
+        // `--search` の `is:open` はインデックス側評価で、閉じた直後の Issue が open として
+        // 返る（結果整合は偽陰性だけでなく偽陽性にも振れる）。返ってきた `state` で落とす。
+        {
+          title: `${prefix} (2026-09-07)`,
+          number: 9,
+          hit: false,
+          state: "CLOSED",
+          why: "閉じた直後でインデックスが追いついていない",
+        },
         { title: `${prefix} について相談`, number: 4, hit: false, why: "接頭辞で始まるだけ" },
         { title: `${prefix} (2026-9-1)`, number: 5, hit: false, why: "日付の桁が足りない" },
         { title: `${prefix}(2026-09-21)`, number: 6, hit: false, why: "空白が無い" },
@@ -371,7 +401,9 @@ describe.each(WORKFLOWS)(
         const fixture = join(dir, "issues.json");
         writeFileSync(
           fixture,
-          JSON.stringify(cases.map(({ number, title }) => ({ number, title }))),
+          JSON.stringify(
+            cases.map(({ number, title, state }) => ({ number, title, state: state ?? "OPEN" })),
+          ),
         );
         const res = spawnSync("jq", ["-r", jqFilter(run()), fixture], {
           encoding: "utf8",
