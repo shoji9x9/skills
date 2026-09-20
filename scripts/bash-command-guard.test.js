@@ -47,6 +47,10 @@ const PASSING = [
   ],
   // 文字クラスによる回避は語頭とは限らない。位置で免除を決めると、ブロック時の指示に
   // 従った形（`[d]ump-dom` を含むパターン）が落ちる。
+  // 引用された代入値は「文章」であってコマンド位置ではない。閉じ引用符まで飛ばさずに
+  // 「次の空白まで」で切ると、値の途中の語がコマンド位置へ繰り上がって誤検知になる。
+  ["二重引用符の代入値に現れる gh api は通す", 'note="see gh api --body-file note"'],
+  ["単引用符の代入値に現れる gh api は通す", "note='see gh api --body-file note'"],
   ["正規表現の途中に置いた文字クラスは通す", "pkill -f 'node .*[d]ump-dom'"],
   ["語中に置いた文字クラスは通す", "pkill -f 'my-[s]erver'"],
   ["行頭アンカーの後の文字クラスは通す", "pkill -f '^[c]hrome'"],
@@ -125,10 +129,35 @@ test.each([
   ["コマンド置換の中", "out=$(gh api repos/o/r/pulls/1 --body-file /tmp/b.md)"],
   ["サブシェルの中", "( gh api repos/o/r/pulls/1 --body-file /tmp/b.md )"],
   ["time の後", "time gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  // 引用符付きのコマンド置換（推奨形）も中身が実行される。
+  ["引用符付きコマンド置換の中", 'out="$(gh api repos/o/r/pulls/1 --body-file /tmp/b.md)"'],
+  // 引用された代入値の**後ろ**は、飛ばし過ぎても足りなくてもコマンド位置を見失う。
+  ["引用された代入値の後", 'FOO="a b" gh api repos/o/r/pulls/1 --body-file /tmp/b.md'],
+  ["env の後", "env GH_TOKEN=x gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["timeout と数値引数の後", "timeout 30 gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["command の後", "command gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  ["xargs の後", "xargs gh api repos/o/r/pulls/1 --body-file /tmp/b.md"],
+  // 区切りが TAB でも剥ぐ（' ' 固定だと剥ぎ残す）。
+  [
+    "TAB 区切りの do の後",
+    "for r in 1 2; do\tgh api repos/o/r/pulls/1 --body-file /tmp/b.md; done",
+  ],
 ])("コマンド位置の gh api を %s でも止める", (_name, command) => {
   const r = guard(command);
   expect(r.status).toBe(2);
   expect(r.stderr).toMatch(/unknown flag/);
+});
+
+// 免除にできるのは **1 文字のクラス**だけ。範囲や複数文字は、括弧の中の文字が
+// 自分のコマンドライン上にそのまま現れるので、パターンが自分自身に一致する
+// （`chrome.*[0-9]+` は引数リテラルの `0` に、`[cC]hrome` は `Chrome` に一致する）。
+test.each([
+  ["範囲クラス", 'pkill -f "chrome.*[0-9]+"'],
+  ["複数文字のクラス", "pkill -f '[cC]hrome'"],
+])("自分自身に一致する %s は免除しない", (_name, command) => {
+  const r = guard(command);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toMatch(/full command line/);
 });
 
 test("行コメントの中の [] は文字クラスの免除に数えない", () => {

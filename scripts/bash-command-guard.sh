@@ -78,22 +78,39 @@ fi
 violations=""
 
 # セグメント先頭から「コマンド位置に立てる前置き」を剥ぐ。
-# 剥ぐのは: 空白 / `(` `{` `$(` ` / 制御構文の語（do then else elif if while until time !）/
-# env 代入（VAR=value）。剥いだ結果の先頭語が、そのセグメントで実行されるコマンド。
+# 剥いだ結果の先頭語が、そのセグメントで実行されるコマンド。
+# 剥ぐのは:
+#   - 空白（TAB を含む。区切りを ' ' 固定にすると TAB 区切りで剥ぎ残す）
+#   - `(` `{` `!` と、コマンド置換の口 `$(` / `` ` ``（前に引用符が付く形も含む）
+#   - 制御構文の語（do then else elif if while until）
+#   - ラッパーコマンド（time env command exec builtin nohup sudo timeout xargs）とその数値引数
+#   - env 代入（VAR=value）。**値が引用されていれば閉じ引用符まで飛ばす**——
+#     「次の空白まで」で切ると、多語の代入値の途中がコマンド位置へ繰り上がって誤検知になり
+#     （note="see gh api ..." を止めた）、逆に FOO="a b" gh api ... は剥ぎ足りずに素通りする。
 strip_command_prefix() {
 	local s="$1" prev="" rest=""
 	while [ "${s}" != "${prev}" ]; do
 		prev="${s}"
 		s="${s#"${s%%[![:space:]]*}"}"
-		# コマンド置換の口（リテラルの $( と `）を剥ぐ。$ を落とすと次の case が ( を剥ぐ。
+		# コマンド置換の口。引用符付き（out="$(...)"）も同じく中身が実行される。
+		case "${s}" in
+		\"\$\(* | \'\$\(* | \"\`* | \'\`*) s="${s#?}" ;;
+		esac
 		case "${s}" in
 		\$\(*) s="${s#?}" ;;
 		\`*) s="${s#?}" ;;
 		esac
 		case "${s}" in
 		'('* | '{'* | '!'*) s="${s#?}" ;;
-		do | do\ * | then | then\ * | else | else\ * | elif | elif\ * | if | if\ * | while | while\ * | until | until\ * | time | time\ *)
-			s="${s#* }"
+		do | do[[:space:]]* | then | then[[:space:]]* | else | else[[:space:]]* | elif | elif[[:space:]]* | if | if[[:space:]]* | while | while[[:space:]]* | until | until[[:space:]]*)
+			s="${s#*[[:space:]]}"
+			;;
+		time | time[[:space:]]* | env | env[[:space:]]* | command | command[[:space:]]* | exec | exec[[:space:]]* | builtin | builtin[[:space:]]* | nohup | nohup[[:space:]]* | sudo | sudo[[:space:]]* | timeout | timeout[[:space:]]* | xargs | xargs[[:space:]]*)
+			s="${s#*[[:space:]]}"
+			;;
+		# ラッパーの数値引数（timeout 30 gh api ...）。
+		[0-9]*[[:space:]]*)
+			s="${s#*[[:space:]]}"
 			;;
 		[A-Za-z_]*=*)
 			case "${s%%=*}" in
@@ -102,18 +119,35 @@ strip_command_prefix() {
 			rest="${s#*=}"
 			case "${rest}" in
 			# 代入値がコマンド置換なら、その中身が実行されるので中を見る（out=$(gh api ...)）。
+			# 引用符付き（out="$(...)"、推奨形）も同じ。**引用値の分岐より先に**置く——
+			# 後ろに置くと「閉じ引用符まで飛ばす」に食われて中身が検査されない。
 			\$\(* | \`*) s="${rest}" ;;
+			\"\$\(* | \'\$\(* | \"\`* | \'\`*) s="${rest#?}" ;;
+			# 引用された値は閉じ引用符まで飛ばす（値の中の語をコマンド位置に上げない）。
+			\"*)
+				rest="${rest#?}"
+				rest="${rest#*\"}"
+				s="${rest}"
+				;;
+			\'*)
+				rest="${rest#?}"
+				rest="${rest#*\'}"
+				s="${rest}"
+				;;
 			# 通常の env 代入（GH_TOKEN=x gh api ...）は次の語へ進む。
-			*) s="${s#* }" ;;
+			*) s="${s#*[[:space:]]}" ;;
 			esac
 			;;
 		esac
 	done
 	printf '%s' "${s}"
 }
-# 文字クラス（`[d]` のような、空白を含まない非空の括弧）を免除の目印にする。
+# 免除の目印は **1 文字の文字クラス**（`[d]`）だけにする。
+# 範囲クラス（`[0-9]`）や複数文字（`[cC]`）は、括弧の中の文字が自分のコマンドライン上に
+# そのまま現れるため、パターンが**自分自身に一致する**（`chrome.*[0-9]+` は
+# 引数リテラルの `0` に一致する。実測）。自爆を避けられない形を免除にはできない。
 # 配列添字は ${...} を取り除いた時点で消えているので、ここで位置は問わない。
-class_escape_re='\[[^][[:space:]]+\]'
+class_escape_re='\[[^][[:space:]]\]'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
 # セグメントへ分割する。区切りは改行と、&& || ; | の各演算子。
