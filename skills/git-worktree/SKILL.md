@@ -95,6 +95,10 @@ worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）
 5. 移動を実測で確認する: `git rev-parse --show-toplevel` と `git branch --show-current` が期待値であること。
 6. 運搬が必要なファイルを [`references/carry-in.md`](references/carry-in.md) に従って揃える。**エージェントの自動運搬は新規作成時にしか走らない**ため、既存 worktree に入った場合は手で運ぶ。
 7. 運搬したファイルが検査対象に入っていないことを確認する（`.env` の**実物の資格情報**がシークレット走査に載る）。
+8. **パスで信頼・承認を判定するツールの信頼を通す**（mise の trust 等）。worktree は新しいパスなので、
+   共有ツリーで通した信頼は引き継がれない（`mise ERROR ... are not trusted` で `node -e` すら落ちる）。
+9. **ツールチェーンの生存を実測する。** 入った直後に検証コマンドを 1 つ回し（例: lint か test を 1 本）、
+   通ることを確認してから作業へ進む。運搬や信頼の不備は、作業を進めてから「全ツールが回らない」形で出る。
 
 ### cleanup
 

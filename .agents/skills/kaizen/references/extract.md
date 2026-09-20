@@ -172,6 +172,11 @@ bash <スキル>/scripts/kaizen-kedb-match.sh "<事象語>" "<ツール名また
    1 つ特定し、書いた記録に当たる形で通す。**入口が見つからないリポジトリではこの段を飛ばしてよい**
    （無いものを探し続けてブロック解除を遅らせない）。
    一般化すると 1 行——**検査の直前にファイルを生成する手順は、その検査の入口を手順の中に含める。**
+
+   **`## 提案` の冒頭は 1 物理行の段落にする**（詳細は次の行以降の箇条書きへ置く）。
+   セッション開始の注入が要約として読むのはこの**冒頭 1 行だけ**なので、冒頭を箇条書きから始めたり
+   途中で折り返したりすると、注入される要約が切れて意味を成さない。
+   同じ制約は `kaizen-status-check.sh` が検査し、直し方も示す。
 8. 抽出が完了したら、バンドルされた `kaizen-extract-done.sh` でセンチネル削除と処理位置 `.kaizen/.extract-checkpoint.<session key>` の記録を行う
    （同じ範囲を再抽出せず、かつ**この後に積まれた活動は次の commit で検査させる**ため。同一セッションで複数 commit しても取りこぼさない）:
    `bash <スキル>/scripts/kaizen-extract-done.sh --sentinel-suffix "<suffix>" --agent "<agent>" --session-id "<session id>" [transcript_path]`

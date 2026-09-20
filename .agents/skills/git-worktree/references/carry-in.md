@@ -59,7 +59,7 @@ config/secrets.local.json
 ```json
 {
   "worktree": {
-    "symlinkDirectories": ["node_modules", ".cache"]
+    "symlinkDirectories": [".cache"]
   }
 }
 ```
@@ -67,6 +67,17 @@ config/secrets.local.json
 **例に挙げるのは再生成できるディレクトリだけにする。** 受領物・ベンダー配布物は下の
 「リンクは読み取り専用ではない」の理由からリンクの対象にしないため、設定例にも書かない
 （設定例はコピー&ペーストされる）。
+
+### `node_modules` はリンクで運ばない（worktree 内で install する）
+
+**pnpm / npm の `node_modules` を `symlinkDirectories` に入れてはいけない。**
+pnpm はプロジェクトルートの外を指す `node_modules` を拒否し（`ERR_PNPM_UNSAFE_MODULES_DIR: Refusing to
+remove the modules directory ... because its resolved target is not a strict subdirectory of the project root`。
+pnpm 11.23.0 で実測）、`pnpm exec` 経由の lint / format / test が **1 つも回せなくなる**。
+「再生成できるものはリンクしてよい」はリンク越しの書き込み事故という観点だけの規則で、
+**パッケージマネージャ自身がリンクを拒否する**という軸を含んでいない。
+
+worktree 内で `pnpm install --frozen-lockfile` する（実測 3.4 秒）。lockfile があるので再現性は保たれる。
 
 各エントリについて `<worktree>/<エントリ>` から `<リポジトリルート>/<エントリ>` へ、
 **絶対パスの dir 型シンボリックリンク**を張る。
@@ -148,7 +159,7 @@ rm -rf "$S/wt/linked/"                     # 末尾スラッシュあり
 
 **したがって: 復元経路が外部にしかないディレクトリ（先方受領物・ベンダー配布物）はリンクしない。**
 どうしてもリンクするなら、この注意を作業指示に明示し、リンク名を末尾スラッシュ付きで書かない。
-`node_modules` のように再生成できるものはリンクしてよい。
+再生成できるキャッシュ類はリンクしてよい（ただし `node_modules` は上記のとおり除く）。
 
 なお `git worktree remove` 自体はリンクを辿らない（Windows でも、worktree 内のリンクはリンクだけを消して
 指し先のフォルダを残す）。危険なのは**手で書いた `rm` や編集コマンド**の方である。
