@@ -98,9 +98,11 @@ violations=""
 # ファイル編集ツールへ迂回する（AGENTS.md に手順あり）。
 split_segments() {
 	awk '
-	BEGIN { RS = "\0" }
-	{
-		raw = $0; n = length(raw); code = ""; full = ""; state = 0; depth = 0; nseg = 0; sret = 0; qret = 0
+	# RS で入力全体を 1 レコードにしない（`RS="\0"` は POSIX / busybox awk では空文字＝
+	# paragraph mode に倒れうる。実装差で走査単位が変わる）。行を貯めて END で 1 回処理する。
+	{ buf = buf $0 "\n" }
+	END {
+		raw = buf; sub(/\n$/, "", raw); n = length(raw); code = ""; full = ""; state = 0; depth = 0; nseg = 0; sret = 0; qret = 0
 		for (i = 1; i <= n; i++) {
 			c = substr(raw, i, 1)
 			nx = substr(raw, i + 1, 1)
@@ -176,7 +178,7 @@ class_escape_re='\[[^][[:space:]]\]'
 add_violation() { violations="${violations}${violations:+$'\n'}  - $1"; }
 
 # 分割は split_segments に委ねる（区切りの解釈と引用状態の解釈を 1 箇所にまとめる）。
-segments="$(printf '%s\0' "${command_text}" | split_segments)"
+segments="$(printf '%s\n' "${command_text}" | split_segments)"
 
 seg_code=""
 while IFS= read -r line; do
