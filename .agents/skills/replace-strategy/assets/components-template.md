@@ -13,6 +13,8 @@
 
 ## 部品一覧
 
+<!-- 部品の洗い出しは replace-strategy の references/dependency-selection.md「洗い出しの網羅（共通 UI プリミティブ）」の種類を 1 つずつページで確かめて行う -->
+<!-- （該当が無いと確かめた種類は .replace/dependencies.md に「該当なし」で残す）。 -->
 <!-- slug: ASCII kebab-case・.replace/features.md の slug と同じ名前空間で一意（成果物パス .replace/components/<slug>/ になる）。 -->
 <!-- インスタンス: 「ページ ＋ その部品を指す論理名」。**2 件以上**挙げる（1 件では固定と可変を区別できず、共通部品として先に作る対象にならない）。 -->
 <!-- ページ一覧（.replace/features.md）は候補の生成源であって、インスタンスそのものではない。 -->
@@ -29,7 +31,7 @@
 |---|---|---|---|---|---|---|---|
 | button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | /orders/:id → `/orders/1001`（データセットの orders 先頭行の id） | false | 自前実装 | 未起票 | |
 | data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | （採用パッケージ名） | 未起票 | |
-| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 | |
+| checkbox | チェックボックス | /settings `setting.mail-optin`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 | |
 
 ## 先に作らない部品
 

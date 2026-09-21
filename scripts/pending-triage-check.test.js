@@ -26,6 +26,8 @@
 // |------------------|-----------------|-----------------------------------------------|
 // | parity-component | 部品 slug       | 帰属不明へ倒す（全機能の対象。未棚卸しで exit 1）|
 // | parity-component | cross-cutting   | 従来どおり対象（正しい形。棚卸し済みなら exit 0）|
+// | replace-strategy | 機能 slug     | 帰属不明へ倒す（採番より前の工程なので機能 slug を書けない）|
+// | replace-strategy | cross-cutting   | 従来どおり対象（正しい形。棚卸し済みなら exit 0）|
 // | parity-suite 等  | 別機能の slug   | 倒さない（従来どおり対象外。exit 0）           |
 // | 欠落 / unknown / 未知の名前 | 任意の slug | 帰属不明へ倒す（名前空間を確認できない）   |
 // | 欠落 / unknown / 未知の名前 | cross-cutting | 倒さない（書き手に依らず全機能の対象）   |
@@ -47,6 +49,12 @@
 //   8. 同じ位置を `false` に（帰属を一切信用しない）→ 8 件 fail（#347 の緩和が効いていることを測れている）
 //   9. normalizePending の `slugInInventory` を `true` に（実在を検証しない＝修正前）→ 2 件 fail
 //  10. 同じ位置を `false` に（常に不在扱い）→ 7 件 fail
+//  11. CROSS_CUTTING_ONLY_WRITERS から `replace-strategy` を外す（Issue #419 の修正前）→ 1 件 fail
+//      （「replace-strategy が機能 slug を書いた…」が「名前空間を確認できない」の診断に戻る。倒す先は同じなので差は診断の表現だけ）
+//  12. `replace-strategy` を FEATURE_SLUG_WRITERS へ入れる（分類を間違える）→ 1 件 fail
+//      （同じテストが in_scope 0 件で落ちる。採番前の推測 slug を信用して対象外へ倒す退行を測れている）
+//      cross-cutting のケースは 11 ・12 のいずれでも赤くならない（cross-cutting は書き手に依らず信用されるため）。
+//      したがって許可値を増やす修正が変えるのは、機能 slug を書いたときの**診断の表現**であって、正しい形の扱いではない
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
@@ -302,6 +310,53 @@ test("parity-component が cross-cutting で書いた要素は従来どおり通
   expect(status).toBe(0);
   expect(stderr).not.toContain("error:");
   expect(stderr).not.toContain("warn:");
+});
+
+// replace-strategy の帰属（Issue #419）。意図的差異レジストリを作る工程（setup の手順 8）は
+// 機能 slug の採番（同 手順 9）より前なので、機能 slug を書けない。
+// 許可値に無いままだと「未知のスキル名」として帰属不明へ倒れ、機能に帰属する保留が閉じられない。
+
+test("replace-strategy が cross-cutting で書いた要素は従来どおり通る（陰性コントロール）", () => {
+  const { status, stderr } = run({
+    pending: [
+      {
+        item: "新 DB の NULL の並び順は測定後に決める",
+        slug: "cross-cutting",
+        added_by: "replace-strategy",
+        added_at: "2026-09-01",
+      },
+    ],
+    entries: [
+      {
+        item: "新 DB の NULL の並び順は測定後に決める",
+        slug: "cross-cutting",
+        disposition: "carried_over",
+        reason: "フェーズ B の一致検証待ち",
+      },
+    ],
+  });
+  expect(status).toBe(0);
+  expect(stderr).not.toContain("error:");
+  expect(stderr).not.toContain("warn:");
+});
+
+test("replace-strategy が機能 slug を書いた要素は帰属不明として全機能の対象になる", () => {
+  const { status, stderr, stdout } = run({
+    pending: [
+      {
+        item: "採番前に機能 slug を推測で書いた保留",
+        slug: "other-feature",
+        added_by: "replace-strategy",
+        added_at: "2026-09-01",
+      },
+    ],
+  });
+  expect(status).toBe(1);
+  expect(stderr).toContain("added_by が replace-strategy なのに slug が cross-cutting でない");
+  expect(stderr).toContain("error: 未棚卸し 1 件");
+  const parsed = JSON.parse(stdout);
+  expect(parsed.in_scope).toBe(1);
+  expect(parsed.out_of_scope_problems).toEqual([]);
 });
 
 test("他のスキルが別機能の slug を書いた要素は、この検査で帰属不明に倒されない", () => {
