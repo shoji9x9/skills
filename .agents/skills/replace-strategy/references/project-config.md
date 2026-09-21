@@ -152,6 +152,8 @@ skills:
       #   **比較元（commit 済みの版）に閉じていないコンテナがあると、どう直しても通らない**——
       #   検査はその旨を出すので、表記を直したうえで内容を人が確認して通す。
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
+    # ↑ component_diffs も要素ごとの単位へ展開されるので、フロー形式の書き方は intentional_diffs と同じ制約に従う
+    #   （1 行で書く。折り返すなら閉じ括弧までを同じキーのブロックに収める。上の注記を参照）
     # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```
 

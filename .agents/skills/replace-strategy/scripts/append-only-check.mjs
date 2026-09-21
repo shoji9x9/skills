@@ -368,12 +368,36 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       // 配下は外すが、**キーが在り続けること自体は単位に残す**——行ごと外すと、キーを丸ごと消した破壊が
       // 「外した領域」に紛れて通る。ただし行そのものを残すと表現の揺れ（`pending: []` ⇄ `pending:`）で落ちる。
       // 棚卸しは要素が増える方向にも減る方向にも動くので、**鍵だけの単位へ畳む**。
-      excludeIndent = indent;
       kept.push(`${MUTABLE_BLOCK_PREFIX}${path}>`);
+      // 折り返したフロー値は**配下ごと消費する**——閉じ括弧の行は鍵と同じインデントに置けるので
+      // インデントによる除外が先に閉じ、1 行へ畳んだだけでその行（`] # c`）の単位が失われる。
+      // 外すのは配下の要素なので、要素行の行末注記は単位にしない（独立したコメント行と閉じる行の注記は残す。
+      // 除外中の空行・コメント行を単位に残す既存の扱いと揃う）。
+      const { code, comment } = splitTrailingComment(trimmed);
+      const flowValue = code.slice(key.length + 1).trim();
+      const wrappedFlow =
+        flowValue !== "" && scanFlow(flowValue).reason === "unclosed"
+          ? readNamedFlow(
+              srcLines,
+              li,
+              trimmed,
+              key,
+              path,
+              indent,
+              wrappedOut,
+              [`${MUTABLE_BLOCK_PREFIX}${path}>`],
+              { keepItemComments: false },
+            )
+          : null;
+      if (wrappedFlow !== null && wrappedFlow.items !== null) {
+        for (const c of wrappedFlow.comments) kept.push(c);
+        li = wrappedFlow.last;
+        continue;
+      }
+      excludeIndent = indent;
       // 行末コメントは畳まず単位に残す——一覧の requirement は「既存のキー・値・コメントは変更しない」で、
       // 外すのは配下の**要素**だけ。畳むとキー行に付いた注記だけが黙って消せるようになる
       // （別行のコメントは守られるので、残さないと同じファイルの中で非対称になる）。
-      const { comment } = splitTrailingComment(trimmed);
       if (comment !== "") kept.push(comment);
       continue;
     }
@@ -491,7 +515,9 @@ function nextStructuralLine(lines, li) {
  * @param {number} keyIndent 鍵の行のインデント
  * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときの帰属判定に使う
  * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[],
- *   last: number } | null} `items` = 連結して読めた要素、`comments` = 要素行の**行末**の注記、
+ *   last: number } | "trailing" | null} `null` = 閉じないまま兄弟の構造へ出た・文書が終わった、
+ *   `"trailing"` = 閉じた後に余りがある（案内の文面が変わるので区別する）。
+ *   `items` = 連結して読めた要素、`comments` = 要素行の**行末**の注記、
  *   `lineComments` = 独立したコメント行、`closing` = 閉じる行の注記（＝鍵の注記）、
  *   `last` = 消費した最後の行の添字
  */
@@ -540,7 +566,8 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
       };
     }
     if (split.comment !== "") comments.push(split.comment);
-    if (flow.reason !== "unclosed") return null;
+    // 閉じた後に余りがある（`[a] b`）。**閉じてはいる**ので「閉じていない」とは案内しない。
+    if (flow.reason !== "unclosed") return "trailing";
   }
   return null;
 }
@@ -592,8 +619,10 @@ function readNamedFlow(
   /** @type {string[]} 読みに行った行（鍵の行を含む）。読めなかったときの帰属判定に使う。 */
   const scanned = [normalizeLine(trimmed)];
   const joined = joinWrappedFlow(lines, li, first.code, keyIndent, scanned);
-  if (joined === null) {
-    wrappedOut.push({ path, prefixes: unitPrefixes, lines: scanned });
+  if (joined === null || joined === "trailing") {
+    // 「閉じていないので 1 行で閉じる」と案内できるのは**閉じていない**ときだけ。
+    // `trailing` は閉じた後に余りがある形で、1 行へ畳んでも同じく読めないので、その案内は指示にならない。
+    if (joined === null) wrappedOut.push({ path, prefixes: unitPrefixes, lines: scanned });
     return { items: null, comments, last: li, block: false };
   }
   return {

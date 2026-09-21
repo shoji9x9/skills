@@ -2494,3 +2494,70 @@ test("現在側だけが読めないときは 1 行への書き直しを案内�
   expect(r.stdout).not.toMatch(/判定できない/);
   rmSync(root, { recursive: true, force: true });
 });
+
+/** 読めないコンテナとして記録されたキーパス（案内の材料）。 */
+function wrappedPathsOf(src) {
+  /** @type {{ path: string }[]} */
+  const out = [];
+  stripYamlBlocks(src, [], ["a.keep"], [], out);
+  return out.map((w) => w.path);
+}
+
+test("閉じた後に余りがある形は「閉じていない」と案内しない", () => {
+  // `[a] b` は**閉じてはいる**。1 行へ畳んでも同じく読めないので、その案内は指示にならない。
+  expect(wrappedPathsOf('a:\n  keep: [\n    "x"\n  ],\n')).toEqual([]);
+  // 陽性コントロール: 閉じないまま兄弟のキーへ出る形は記録する。
+  expect(wrappedPathsOf("a:\n  keep: [\n  other: 1\n")).toEqual(["a.keep"]);
+});
+
+test("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", () => {
+  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
+    ),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", () => {
+  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(root, readConfig(root).replace(`${wrapped}\n`, ""));
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/mutable-block/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
