@@ -140,7 +140,8 @@ skills:
       # 既知: 空の pending: [] に最初の要素を足すとこの行が消えるため、append-only-check.mjs（unit: lines）は
       #   「1 件が失われている（例: pending: []）」として exit 1 を出す（実測）。要素は増えているので決定は失われていない。
       #   これは本キーの書き手すべてに共通する検査側の既知の限界で、**[] を復元してはならない**（記録した保留が消える）。
-      #   同じ実行で保留を書き出す場合は [] を経由せず最初からブロック形式で書く。
+      #   そのため setup が同じ実行で保留を書き出す場合は、[] を書いてから差し替えるのではなく最初からブロック形式で書く
+      #   （上の「キーを必ず空リストとして作る」は保留が 0 件のときの形。0 件でないなら初期値を経由しない）。検査側の恒久対応は Issue #426。
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
     # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```

@@ -9,7 +9,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、**API の「要求単位の根拠」列（`実測` / `推定`）**、Issue 番号（**番号だけ。旧版テンプレート由来の「状態」列と、突き合わせの出力である「受け入れ条件」列は読まない**——下記「Issue 状態の取得」「導出する内容」12） |
 | `.replace/components.md` | 共通部品の一覧、slug、インスタンス、データ依存の有無、採否、Issue 番号（**画面より先に部品を作る方針のときだけ存在する。無いのは未着手ではなく「この方針を採っていない」**——`setup` 未実施として報告しない） |
 | `.replace/assets.md` | 静的資産の種類ごとの方針（空欄＝未決）と未走査・未確認の記録（`replace-strategy` の `setup` が作る。形式の正本は [`static-assets.md`](static-assets.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクト**——`setup` 未実施として報告しない） |
-| `.replace/dependencies.md` | 共通部品の決定（`決定` 列）。`未確認`（状態を作れず確かめられなかった種類）と `機能固有`（採否を `parity-replace` へ送った種類）を読む（形式の正本は [`../assets/dependencies-template.md`](../assets/dependencies-template.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクト**——`setup` 未実施として報告しない） |
+| `.replace/dependencies.md` | 共通部品の決定（`決定` 列）。`未確認`（状態を作れず確かめられなかった種類）と `機能固有`（採否を `parity-replace` へ送った種類）を読む（形式の正本は [`../assets/dependencies-template.md`](../assets/dependencies-template.md)。**無ければ手順 10 が未実施**——`setup` は手順 10 でこのファイルを作るので、不在を「導入前」に倒さず手順 10 未実施として報告する〈下記手順 10〉） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/components/<slug>/metadata.json` | 部品の採取の状態（`capture.complete`・`axes.ok`・`capture_gaps`）と基準の陳腐化判定材料（`dataset_version`・`target.name`）（`parity-component` が生成。スキーマ正本は同スキル） |
 | `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
@@ -122,7 +122,7 @@ done
       **同じ部品（用途）に複数の行があれば最後の行の `決定` で判定する**——このファイルは append-only で可変列を持たないため、
       解決は**差し替え行の追記**で行われる（正本は [`../assets/append-only-manifest.json`](../assets/append-only-manifest.json) と
       [`dependency-selection.md`](dependency-selection.md)）。最初の行だけを見ると、解決済みの未決を恒久的に列挙し続ける。
-      **突き合わせは `部品（用途）` セルの完全一致で取る**（差し替え行はこのセルを逐語で写す。規約は [`dependency-selection.md`](dependency-selection.md)）——
+      **突き合わせは `部品（用途）` セルの一致で取り、空白は畳んで比べる**（`append-only-check.mjs` が行の鍵に使う正規化と同じ。差し替え行はこのセルを逐語で写す。規約は [`dependency-selection.md`](dependency-selection.md)）——
       差し替えで用途の括弧を補うと鍵が割れ、`append-only-check.mjs` も行を先頭セルで鍵付けするため検出されない。
       前者は洗い出しが終わっていない印、後者は `parity-replace` が実装フェーズ前に決める申し送りで、**どちらも空欄と違って「読む先がある記録」**なので落とさず出す
       （規則は [`dependency-selection.md`](dependency-selection.md)「洗い出しの網羅（共通 UI プリミティブ）」）。
