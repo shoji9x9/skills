@@ -169,7 +169,9 @@ scripts/run-skill-eval.sh \
   **assertion 4 の弁別は「行選択チェックボックス」という語では取れていない**——共用 fixture の `survey.md` が unnamed の代表例として
   この語を既に持っており（`dependency-decision/.replace/survey.md`）、baseline も実際にそれを引いた。弁別しているのは語ではなく扱い
   （内蔵として単体の部品と二重に作らない・内蔵判定は新側の候補で決まるので採否確定後に当て直す）で、baseline はその語をロケータ方針の文脈で使って assertion 4 に到達していない。
-  この eval を触るときは、assertion 4 を語の一致で採点しない（fixture 側にある語なので、一致だけでは skill の寄与にならない）
+  この eval を触るときは、assertion 4 を語の一致で採点しない（fixture 側にある語なので、一致だけでは skill の寄与にならない）。
+  **未被覆**: PR #424 のレビューで足した「初期表示に出ない種類は状態を作ってから判定する」「1 機能でしか使わない種類は `機能固有` として `parity-replace` へ送る」
+  「状態を作れなければ `未確認`」は assertion に入っていない（iteration-41 の実測を別入力の数字にしないため、この PR では assertion を増やさなかった）。次にこの eval を触るときの候補
 - eval 34（Issue #419）は手順 8 で `intentional_diffs.pending` を書くときの**帰属の形**を測る。fixture（`pending-writer-at-setup`）は測定・戦略が完了し
   **`features.md` が無い**（slug 未採番）状態と、`references.db_semantics` の下書き（点検項目 5 節のうち NULL の並び順と照合順序だけが新 DB 側「未実測」）を持たせる——
   この 2 つが揃っていないと「採番前だから `cross-cutting`」と「未実測だから保留」のどちらも材料が無く判定できない。fixture には `pending` の書き方も許可値も書かない。
