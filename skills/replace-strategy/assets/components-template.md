@@ -14,7 +14,8 @@
 ## 部品一覧
 
 <!-- 部品の洗い出しは replace-strategy の references/dependency-selection.md「洗い出しの網羅（共通 UI プリミティブ）」の種類を 1 つずつページで確かめて行う -->
-<!-- （ライブラリ内蔵と分かったものは単体の行にしない。該当が無いと確かめた種類は .replace/dependencies.md に「該当なし」、 -->
+<!-- （ライブラリ内蔵と分かったものは部品一覧の行にせず「先に作らない部品」表へ理由「内蔵（<ライブラリ名>）」で置く -->
+<!-- 　——採否が覆れば内蔵でなくなるので、消すのではなく戻せる形で残す。該当が無いと確かめた種類は .replace/dependencies.md に「該当なし」、 -->
 <!-- 　状態を作れず確かめられなかった種類は「未確認」、1 機能でしか使わない種類は「機能固有」で残す）。 -->
 <!-- slug: ASCII kebab-case・.replace/features.md の slug と同じ名前空間で一意（成果物パス .replace/components/<slug>/ になる）。 -->
 <!-- インスタンス: 「ページ ＋ その部品を指す論理名」。**2 件以上**挙げる（1 件では固定と可変を区別できず、共通部品として先に作る対象にならない）。 -->
@@ -32,7 +33,7 @@
 |---|---|---|---|---|---|---|---|
 | button | ボタン | /orders `order.search-submit`、/users `user.create-submit`、/orders/:id `order.detail-save` | /orders/:id → `/orders/1001`（データセットの orders 先頭行の id） | false | 自前実装 | 未起票 | |
 | data-grid | データグリッド | /orders `order.list-grid`、/users `user.list-grid` | - | true | （採用パッケージ名） | 未起票 | |
-| checkbox | チェックボックス | /orders `order.select-all`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 | |
+| checkbox | チェックボックス | /settings `setting.mail-optin`、/users `user.active-filter` | - | false | 自前実装（現行は標準の input） | 未起票 | |
 
 ## 先に作らない部品
 
@@ -43,6 +44,7 @@
 | 部品 | インスタンス | 先に作らない理由 |
 |---|---|---|
 | （例: 印刷プレビュー） | /orders/:id のみ | インスタンスが 1 件で、固定と可変を区別できない |
+| （例: 行選択チェックボックス） | /orders `order.list-grid` 内、/users `user.list-grid` 内 | 内蔵（example-table@4.5.6）。採否が覆ったら部品一覧へ戻す |
 
 ## 部品カタログ
 

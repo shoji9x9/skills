@@ -24,7 +24,7 @@
 | 本文フォント | パッケージ採用 | example-font@1.2.3 | 全機能 | setup |
 | 表コンポーネント | パッケージ採用 | example-table@4.5.6 | order | order の実装前 |
 | 金額の丸め | 自前実装 | — | order | order の実装中 |
-| ページネーション（一覧のページ送り） | 内蔵 | example-table@4.5.6 | 全機能 | setup |
+| ページネーション（一覧のページ送り） | 内蔵 | example-table@4.5.6 | order | order の実装前 |
 | トースト通知 | 該当なし | — | — | setup |
 | 印刷プレビュー | 機能固有 | — | report | report の実装前（parity-replace） |
 | 読み込み中の表示 | 未確認 | — | — | 遅い応答を再現できたら判定する（現行テスト環境では即時応答で出ない） |
