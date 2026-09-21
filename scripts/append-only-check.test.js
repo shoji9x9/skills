@@ -1820,6 +1820,49 @@ test("フロー形式で照合キーの値を差し替えれば落ちる", () =>
   rmSync(root, { recursive: true, force: true });
 });
 
+const QUOTED_COMMA_PENDING =
+  '      pending: [{item: "順序は id, 名前の順", slug: cross-cutting}] # 保留（測定結果で決める）\n';
+
+/** 引用符の中にカンマを持つフロー形式のマッピング要素を比較元にする。 */
+function makeConfigRepoWithQuotedFlowPending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      pending: [] # 保留（測定結果で決める）\n",
+      QUOTED_COMMA_PENDING,
+    ),
+  );
+  commit(root, "pending に引用符つきカンマを含む要素");
+  return root;
+}
+
+test("マッピングの値の引用符も開く（値の中のカンマでペアを割らない）", () => {
+  const root = makeConfigRepoWithQuotedFlowPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(QUOTED_COMMA_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
+      .replace(
+        'keep: ["テーブル名を保つ"] #',
+        'keep: ["テーブル名を保つ", "順序は id, 名前の順"] #',
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符の中にカンマを持つ文言の差し替えは無音で通らない", () => {
+  const root = makeConfigRepoWithQuotedFlowPending();
+  writeConfig(root, readConfig(root).replace("名前の順", "逆順に変更"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 順序は id, 名前の順/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("入れ子になったキーパスを 2 つのオプションに書けば合格に倒さない（祖先が配下を丸ごと外す）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [

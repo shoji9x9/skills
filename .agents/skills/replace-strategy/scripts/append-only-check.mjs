@@ -56,7 +56,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "8";
+export const VERSION = "9";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -468,8 +468,11 @@ export function flowItems(raw) {
       if (ch === quote) quote = null;
       continue;
     }
-    // 引用符は**要素の先頭**でだけ開く（上記 opensQuoteAt と同じ規則。`don't` のアポストロフィは値の一部）。
-    if ((ch === '"' || ch === "'") && cur.trim() === "") {
+    // 引用符は**値の開始**でだけ開く。`opensQuoteAt` と同じ判定を同じ実装（`opensQuoteAfter`）で行う——
+    // 「要素の先頭」に狭めると、マッピングの値（`{item: "…"}`）では引用符が直前の `item:` に阻まれて開かず、
+    // 値の中のカンマがペアの区切りに化ける（`registryItemValue` が単位を `"順序は id` のような断片へ畳み、
+    // 棚卸しが落ち、文言の差し替えが無音で通る）。`don't` のアポストロフィは値の途中なので今までどおり値の一部。
+    if ((ch === '"' || ch === "'") && opensQuoteAfter(cur)) {
       quote = ch;
       cur += ch;
       continue;
@@ -576,8 +579,20 @@ export function splitTrailingComment(line) {
  * @returns {boolean}
  */
 function opensQuoteAt(line, i) {
-  for (let j = i - 1; j >= 0; j -= 1) {
-    const c = line[j];
+  return opensQuoteAfter(line.slice(0, i));
+}
+
+/**
+ * 直前までのテキストを見て、次に来る引用符が**値の開始**かを判定する（`opensQuoteAt` と `flowItems` の共通の正本）。
+ *
+ * 2 箇所で同じ規則だと書きながら別々に実装していたために、片方（`flowItems`）だけが「要素の先頭」に狭まり、
+ * マッピングの値の引用符が開かなくなっていた。**判定を共有して規則が 1 つであることを実装で保証する。**
+ * @param {string} before
+ * @returns {boolean}
+ */
+function opensQuoteAfter(before) {
+  for (let j = before.length - 1; j >= 0; j -= 1) {
+    const c = before[j];
     if (c === " ") continue;
     return c === ":" || c === "," || c === "[" || c === "{";
   }

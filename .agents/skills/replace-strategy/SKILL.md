@@ -286,7 +286,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 | 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊。**「要求単位の根拠」列の `推定` → `実測` は `evidence` モードだけが書く** |
-| 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（自前実装／採用パッケージ）と判断材料・代替候補・不採用理由。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
+| 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（`パッケージ採用` / `自前実装` / `該当なし` / `内蔵` / `機能固有` / `未確認` の 6 値）と状態（`有効` / `取り消し済み`）・判断材料・代替候補・不採用理由・理由／引き取り手。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
 | 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体を写す／同等物を作る／写さない）・ファイルと出どころ・描き方と使われるページ・再配布の可否・同等物で残る差と宣言。本スキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針空欄で非破壊追記する。正本は [`references/static-assets.md`](references/static-assets.md) |
 | 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号・受け入れ条件の被覆と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
 | 自律実行の保留（**`--autonomous` の実行だけ**） | `.replace/strategy-pending.json` | `setup` / `issues` / `evidence` の実行で人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。要素ごとの `mode` で由来を書き分ける（`setup` 完了の前提判定は `mode: setup` だけで絞るため、`evidence` の保留が下流を止めない）。形の正本は [`references/autonomy.md`](references/autonomy.md) |
