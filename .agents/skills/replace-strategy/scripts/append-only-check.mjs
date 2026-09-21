@@ -387,7 +387,10 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         path,
         indent,
         wrappedOut,
-        [`${REGISTRY_PREFIX}${path}>`, `${REGISTRY_ITEM_PREFIX}${registryId}>`],
+        // **要素の接頭辞（`<registry-item: <グループ id>>`）は渡さない**——鍵をまたぐ移動を許すため
+        // グループ共通で、鍵を弁別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
+        // 読めなくなると鍵の単位（`<registry: パス>`）が失われるので、真の陽性はそちらで拾える。
+        [`${REGISTRY_PREFIX}${path}>`],
       );
       // 読めない値・スカラは展開せず行のまま（厳しい側へ倒す）。
       if (items === null) {
@@ -451,6 +454,24 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
 }
 
 /**
+ * 次の構造行（空行・コメント行を飛ばした最初の行）を返す。無ければ空文字。
+ *
+ * 開き括弧が次の行にある形の判定に使う。**1 行だけ見ると、鍵と `[` の間に空行・コメント行が
+ * 1 行入っただけでブロック形式に倒れ、#430 の誤検出が案内も出ないまま残る**
+ * （`joinWrappedFlow` は途中の空行・コメント行をまたぐので、そちらとも非対称になる）。
+ * @param {string[]} lines
+ * @param {number} li 鍵の行の添字
+ * @returns {string}
+ */
+function nextStructuralLine(lines, li) {
+  for (let i = li + 1; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    if (trimmed !== "" && !trimmed.startsWith("#")) return trimmed;
+  }
+  return "";
+}
+
+/**
  * 折り返されたフロー形式のコンテナを、続きの行を連結して 1 つの値として読む。
  *
  * **連結するのは名指しした鍵（`growable_containers` / `registry_groups`）の値だけ。**
@@ -477,15 +498,18 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     const line = lines[i];
     const trimmed = line.trim();
     const indent = line.length - line.trimStart().length;
-    scannedOut.push(normalizeLine(trimmed));
     // 空行は値の途中に書ける（単位にはならない）。コメント行は単位として残す。
     if (trimmed === "") continue;
     if (trimmed.startsWith("#")) {
+      scannedOut.push(normalizeLine(trimmed));
       comments.push(trimmed);
       continue;
     }
     // 鍵のブロックを抜けた（閉じないまま次の構造へ出た）。閉じ括弧は鍵と同じインデントに置けるので除く。
+    // **打ち切らせた行は `scannedOut` に入れない**——コンテナの外にある次の構造行なので、
+    // 帰属材料に混ぜるとその行を消しただけで「復元せず表記を直す」が付く（無関係な鍵の正規の削除に当たる）。
     if (indent <= keyIndent && !trimmed.startsWith("]") && !trimmed.startsWith("}")) return null;
+    scannedOut.push(normalizeLine(trimmed));
     const split = splitTrailingComment(trimmed);
     joined = `${joined} ${split.code}`;
     if (split.comment !== "") comments.push(split.comment);
@@ -526,7 +550,7 @@ function readNamedFlow(lines, li, trimmed, key, path, keyIndent, wrappedOut, uni
   // 1 行に収まらないコンテナをこの形へ畳む）と、ブロック形式（`- …`）。前者をブロック形式として
   // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小に化けるうえ `wrappedOut` にも
   // 積まれないので「復元せず表記を直す」案内すら出ない（#430 と同じ害が残る）。
-  const openedNext = value === "" && /^[[{]/.test((lines[li + 1] ?? "").trim());
+  const openedNext = value === "" && /^[[{]/.test(nextStructuralLine(lines, li));
   if (value === "" && !openedNext) return { items: [], comments, last: li, block: true };
   const flow = value === "" ? { items: null, reason: "unclosed" } : scanFlow(value);
   if (flow.reason !== "unclosed") return { items: flow.items, comments, last: li, block: false };

@@ -2299,3 +2299,59 @@ test("陽性コントロール: 読めないコンテナ由来の消失には案
   );
   rmSync(root, { recursive: true, force: true });
 });
+
+test("連結を打ち切らせた行（コンテナの外）の削除には案内を出さない", () => {
+  // 打ち切らせた行を帰属材料に入れると、コンテナの外にある行を消しただけで案内が付く。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      note_line: 無関係なメモ\n"),
+  );
+  writeConfig(root, readConfig(root).replace("      note_line: 無関係なメモ\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/note_line/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("registry のグループ共通の単位が消えても、別の鍵の読めないコンテナに帰属させない", () => {
+  // <registry-item: <グループ id>> は鍵をまたぐ移動を許すためグループ共通で、鍵を弁別できない。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/一覧の並び順が変わる/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("鍵と開き括弧の間に空行・コメント行があっても読む（joinWrappedFlow と対称）", () => {
+  const wrapped = [
+    "      keep:",
+    "        # 注記",
+    "        [",
+    '          "テーブル名を保つ"',
+    "        ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '          "テーブル名を保つ"\n',
+      '          "テーブル名を保つ",\n          "項目名を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
