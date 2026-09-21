@@ -137,10 +137,11 @@ skills:
         #   added_by: <replace-strategy | golden-dataset | parity-suite | parity-replace | parity-component>
         #   added_at: <YYYY-MM-DD>
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
-      # append-only-check.mjs の同梱の一覧は本キーの配下を突き合わせの単位から外す（mutable_blocks）。
-      #   棚卸しで人が keep / may_change へ文言を移すと要素が減るのが正規の運用で、行で見ると縮小に化けるため。
-      #   キーそのものは守られるので、pending ごと消せば落ちる。要素の消失を数えるのは parity-diff の棚卸しと pending-triage-check.mjs。
-      #   **一覧をプロジェクトへコピーして --manifest で渡している場合は、コピー側にも同じ mutable_blocks を入れる**
+      # append-only-check.mjs の同梱の一覧は keep / may_change / pending を 1 つのグループとして
+      #   要素の単位へ展開する（registry_groups。照合キーは item）。棚卸しで人が pending の文言を
+      #   keep / may_change へ移すのは通り、**どの鍵にも無くなった要素は落ちる**（黙って消せない）。
+      #   キーごと消しても落ちる。追随フィールド（slug / added_by / added_at）は移動先に無いので単位から外れる。
+      #   **一覧をプロジェクトへコピーして --manifest で渡している場合は、コピー側にも同じ registry_groups を入れる**
       #   （入っていないと棚卸しのたびに exit 1 になる）。そのときも **[] を復元してはならない**——
       #   復元すると記録した保留が消える。検査の指摘を報告して先へ進み、一覧のコピーを直す。
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）

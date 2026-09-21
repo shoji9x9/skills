@@ -823,7 +823,7 @@ test("unit が json-arrays なのに mutable_bullets があれば合格に倒さ
   ]);
   const r = run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(
-    /json-arrays なのに mutable_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers がある/,
+    /json-arrays なのに mutable_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers \/ registry_groups がある/,
   );
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -1064,11 +1064,25 @@ test("pending の要素の中身を書き換えても通る（配下は単位か
   rmSync(root, { recursive: true, force: true });
 });
 
-test("pending をキーごと消せば落ちる（外すのは配下だけ）", () => {
+test("pending をキーごと消せば落ちる（鍵の存在は別の単位で守る）", () => {
   const root = makeConfigRepoWithPending();
   writeConfig(root, readConfig(root).replace(PENDING_BLOCK, ""));
   const r = run(root);
-  expect(r.stdout).toMatch(/<mutable-block: skills\.replace-strategy\.intentional_diffs\.pending>/);
+  expect(r.stdout).toMatch(/<registry: skills\.replace-strategy\.intentional_diffs\.pending>/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("棚卸しを経ずに pending の要素を消せば落ちる（削除の検出主体を検査が持つ）", () => {
+  // 配下を単位から外すだけだと、keep へ移さず丸ごと消した編集が通る。
+  // pending-triage-check.mjs は「現在の pending」を母集合にするので、消えた要素は対象にならない。
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 一覧の並び順が変わる/);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
@@ -1631,5 +1645,47 @@ test("growable の鍵の注記を消せば落ちる", () => {
   const r = run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("キーパスに `-` だけのセグメントを書けば合格に倒さない（exit 2）", () => {
+  // `-` は stripYamlBlocks がリスト要素へ積むマーカーと同じ綴り。名指しできると全リスト要素が
+  // 同じ鍵を共有し、兄弟を区別できなくなる（片方から要素を消しても通る穴が設定次第で戻る）。
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      growable_containers: ["skills.replace-strategy.targets.-.forbidden_actions"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/growable_containers の要素がキーパスの形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符つきの要素がある行へ、引用符の無い要素を足しても通る", () => {
+  // 引用符を「閉じなければ無視して取り直す」形にすると、同じ値でも同じ行の別の要素次第で
+  // 読み方が変わり、比較元と現在で別モードが選ばれる（要素を足しただけで縮小に見える）。
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    intentional_diffs:",
+      '      keep: ["a, b"] # 変えない',
+      "      may_change: []",
+      "      pending: []",
+      "",
+    ].join("\n"),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace('      keep: ["a, b"] #', '      keep: ["a, b", don\'t] #'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
