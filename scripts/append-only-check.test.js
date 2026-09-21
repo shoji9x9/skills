@@ -822,7 +822,9 @@ test("unit が json-arrays なのに mutable_bullets があれば合格に倒さ
     },
   ]);
   const r = run(root, ["--manifest", manifest]);
-  expect(r.stderr).toMatch(/json-arrays なのに mutable_columns \/ mutable_bullets がある/);
+  expect(r.stderr).toMatch(
+    /json-arrays なのに mutable_columns \/ mutable_bullets \/ mutable_blocks がある/,
+  );
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
@@ -910,5 +912,377 @@ test("id が一意で突き合わせ方も同じなら、同じファイルに 2
   const r = run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 設定ファイル（project-config）の可変領域（Issue #426）
+//
+// intentional_diffs.pending は設定ファイル上で唯一スキルが追記する記録で、棚卸しで人が
+// keep / may_change へ文言を移す。行の多重集合で見ると、この正規の運用が「行が失われた」に化け、
+// 指示どおり復元すると記録した保留が消える（データを失う方向へ誘導される）。
+// 緩和が効きすぎていないことを陽性コントロールで測る——キーごと消す・keep の要素を落とす・
+// 要素を別物へ差し替える、はいずれも落ちなければならない。
+// ---------------------------------------------------------------------------
+
+// **実在する設定ファイルの入れ子で測る**（`skills.<スキル名>.…`。正本は replace-strategy の
+// references/project-config.md）——mutable_blocks はルートからの完全なパスで引くので、
+// 平らな YAML の fixture では「外せているか」を一度も実証できない（平らな fixture では
+// パスが一致せず検査が厳しい側へ倒れるだけなので、緩和のテストが全部素通りする）。
+const CONFIG = [
+  "skills:",
+  "  replace-strategy:",
+  "    new:",
+  "      stack: [typescript]",
+  "    intentional_diffs:",
+  '      keep: ["テーブル名を保つ"]',
+  "      may_change: []",
+  "      pending: []",
+  "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）",
+  "    component_diffs: []",
+  "",
+].join("\n");
+
+const PENDING_BLOCK = [
+  "      pending:",
+  "        - item: 一覧の並び順が変わる",
+  "          slug: cross-cutting",
+  "          added_by: replace-strategy",
+  '          added_at: "2026-09-21"',
+  "",
+].join("\n");
+
+/**
+ * @param {string} root
+ * @param {string} message
+ */
+function commit(root, message) {
+  for (const args of [
+    ["add", "-A"],
+    ["commit", "-qm", message],
+  ]) {
+    const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
+  }
+}
+
+/** @param {string} root */
+function configPath(root) {
+  return join(root, ".config/skills/acme/skills.yml");
+}
+
+/** @param {string} root */
+function readConfig(root) {
+  return readFileSync(configPath(root), "utf8");
+}
+
+/**
+ * @param {string} root
+ * @param {string} text
+ */
+function writeConfig(root, text) {
+  writeFileSync(configPath(root), text);
+}
+
+/**
+ * 設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。
+ * @param {string} [text]
+ */
+function makeConfigRepo(text = CONFIG) {
+  const root = makeRepo();
+  mkdirSync(join(root, ".config/skills/acme"), { recursive: true });
+  writeConfig(root, text);
+  commit(root, "config");
+  return root;
+}
+
+/** pending に 1 件積んだ状態を比較元にする。 */
+function makeConfigRepoWithPending() {
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace("      pending: []\n", PENDING_BLOCK));
+  commit(root, "pending に 1 件");
+  return root;
+}
+
+test("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace("      pending: []\n", PENDING_BLOCK));
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式のコンテナへ要素を足した行の書き換えは縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      may_change: []", '      may_change: ["新しい宣言"]'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/フロー形式のコンテナが育ったものとして数えなかった/);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("棚卸しで pending の要素を keep へ移しても縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        '      keep: ["テーブル名を保つ"]',
+        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"]',
+      )
+      .replace(PENDING_BLOCK, "      pending: []\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("pending の要素の中身を書き換えても通る（配下は単位から外れている）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root).replace("added_by: replace-strategy", "added_by: parity-suite"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("pending をキーごと消せば落ちる（外すのは配下だけ）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(root, readConfig(root).replace(PENDING_BLOCK, ""));
+  const r = run(root);
+  expect(r.stdout).toMatch(/<mutable-block: skills\.replace-strategy\.intentional_diffs\.pending>/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", () => {
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace('      keep: ["テーブル名を保つ"]', "      keep: []"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("keep の要素を別物へ差し替えれば落ちる", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace('      keep: ["テーブル名を保つ"]', '      keep: ["別の宣言"]'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("外した領域の後ろに続くコメントを消せば落ちる（守るのはキーと注記）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）\n",
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 行の単位はインデントを畳むので、同じ鍵のフロー形式のコンテナが複数あると 1 行に潰れる。
+// 1 件でも育っていれば緩める形にすると、育った兄弟の陰で別の兄弟から要素を消せる。
+const TWO_TARGETS = [
+  "skills:",
+  "  replace-strategy:",
+  "    targets:",
+  "      - name: current-test",
+  "        forbidden_actions: [delete]",
+  "      - name: new-dev",
+  "        forbidden_actions: [delete]",
+  "    intentional_diffs:",
+  "      keep: []",
+  "      may_change: []",
+  "      pending: []",
+  "",
+].join("\n");
+
+test("同じ鍵のコンテナが片方だけ育っても、もう片方の要素の削除は落ちる", () => {
+  const root = makeConfigRepo(TWO_TARGETS);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        "      - name: current-test\n        forbidden_actions: [delete]",
+        "      - name: current-test\n        forbidden_actions: [delete, update]",
+      )
+      .replace(
+        "      - name: new-dev\n        forbidden_actions: [delete]",
+        "      - name: new-dev\n        forbidden_actions: []",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ鍵のコンテナが両方とも育てば縮小に数えない", () => {
+  const root = makeConfigRepo(TWO_TARGETS);
+  writeConfig(
+    root,
+    readConfig(root).replaceAll(
+      "forbidden_actions: [delete]",
+      "forbidden_actions: [delete, update]",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks がキーパスの形でなければ合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["intentional_diffs."],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/mutable_blocks の要素がキーパスの形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が markdown-structure なのに mutable_blocks があれば合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "features",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_blocks: ["intentional_diffs.pending"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/markdown-structure なのに mutable_blocks がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 依存台帳の決定を覆す（Issue #428）
+//
+// 決定が覆ったら行を消さず「状態」列を 取り消し済み にして新しい行を追記する。
+// 状態列だけが mutable_columns なので、それ以外の列の書き換えと行の削除は落ちる。
+// ---------------------------------------------------------------------------
+
+const DEPENDENCY_TABLE = [
+  "# 依存パッケージの決定記録（dependencies）",
+  "",
+  "- 最終更新: 2026-09-01T00:00:00Z",
+  "- 方針の所在: 未確認",
+  "",
+  "## 一覧",
+  "",
+  "| 部品（用途） | 決定 | 採用したもの | 適用範囲 | 状態 | 決定時期 | 理由・引き取り手 |",
+  "|---|---|---|---|---|---|---|",
+  "| データグリッド | パッケージ採用 | example-grid@4.5.0 | 全機能 | 有効 | setup | - |",
+  "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |",
+  "",
+].join("\n");
+
+const OVERTURNED_ROW =
+  "| 確認ダイアログ | 未確認 | — | — | 取り消し済み（2026-09-21 → 下の行） | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |";
+
+/** 依存台帳（表つき）を比較元に持つプロジェクトを作る。 */
+function makeDependencyRepo() {
+  const root = makeRepo();
+  writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCY_TABLE);
+  commit(root, "dependencies 台帳");
+  return root;
+}
+
+/** @param {string} root */
+function readDependencies(root) {
+  return readFileSync(join(root, ".replace/dependencies.md"), "utf8");
+}
+
+/**
+ * @param {string} root
+ * @param {string} text
+ */
+function writeDependencies(root, text) {
+  writeFileSync(join(root, ".replace/dependencies.md"), text);
+}
+
+test("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通る（Issue #428）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |",
+      `${OVERTURNED_ROW}\n| 確認ダイアログ | 自前実装 | — | 全機能 | 有効 | order-list の実装前 | 承認を得て現行で確かめ在ることを確認した |`,
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("覆った行を消せば落ちる（状態列に倒して残す契約）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |\n",
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("決定列をその場で書き換えれば落ちる（mutable なのは状態列だけ）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace("| 確認ダイアログ | 未確認 |", "| 確認ダイアログ | 自前実装 |"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/決定=未確認/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("理由・引き取り手列をその場で書き換えれば落ちる", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "削除ボタンでしか出せず現行 target で削除が禁止されている",
+      "別の理由に差し替えた",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

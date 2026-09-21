@@ -54,5 +54,15 @@ scripts/run-skill-eval.sh \
 - eval 21 は fixture 無しで、**新側 green ＋ `full` 通過 ＋ 被覆表 `unmeasured` 0** の完了直前を与え、`parity-diff` へ渡してよいかを問う（Issue #337）。
   被覆表が移行元側の測定であること・`present` セルごとの新側突き合わせを本スキルが書くこと・入口・当たり判定・完了の 3 点・
   承認が要る未突合・`component-comparison-check.mjs` の通過を検証する。prompt には「まだ足りない」という結論を書かない
+- eval 22（Issue #428）は手順 3 で、`.replace/dependencies.md` に**採否に至っていない 3 つの値**（内蔵・機能固有・未確認）の行がある台帳を読む側を測る。
+  fixture（`dependency-ledger-states`）はその 3 行と、内蔵の根拠になるデータグリッドの `パッケージ採用` 行を持たせる。
+  fixture には「単体では実装しない」「このフェーズで決める」といった結論を書かず、事実（どのパッケージが描くか・どのページでしか使わないか・なぜ出せなかったか）だけを置く。
+  仕込んだ弁別は 3 つ——内蔵の部品を**単体で実装しない**こと（assertion 1）、覆りを**既存行の書き換えではなく状態列 ＋ 追記**で表すこと（assertion 3・4）、
+  新しい行の `決定時期` を `setup` と書き分けること（assertion 5）。
+  **iteration-23 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 3/5。**弁別したのは assertion 2・4**——
+  baseline は内蔵を単体実装しないこと（1）・末尾への追記（3）・決定時期の書き分け（5）には自力で到達するが、
+  `機能固有` を「台帳は更新不要。機能の内側に手書きする」と読んで**このフェーズが採否を決める対象と認識せず**、
+  覆した行の状態に正本の語彙ではない `失効` を発明した（読む側の「有効／取り消し済み」の判定に掛からない）。
+  assertion 1・3・5 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

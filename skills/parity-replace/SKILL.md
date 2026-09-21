@@ -159,6 +159,10 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    このフェーズの実装に要る部品（UI 部品・データ処理・フォント等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装に入る前に決める。
    判断材料・決める順序（要件 → 素性・ライセンス → 詳細比較）・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従い、決定を `.replace/dependencies.md` へ**非破壊追記**する。
    `setup` で決定済みの共通部品はここで再決定しない。**実装中に必要と分かった部品も、そのまま自前実装で進めず同じ基準で判断して `.replace/dependencies.md` へ追記する**（`porting.md` の該当実装単位にも一行残す）。
+   **台帳は `状態` が `有効` の行だけを読む**（`取り消し済み` は履歴。同じ部品で `有効` が 2 行あれば進まず確認する）。
+   採否に至っていない値はこのフェーズが引き取る——`内蔵` は**単体で実装せず**「採用したもの」列のパッケージを実際に採ったかを確かめ、
+   `機能固有` で「適用範囲」がこの機能の行・`未確認` の行・この機能で必要になった `該当なし` の行は、ここで確かめて採否を決める。
+   決定が覆ったら**古い行の `状態` を `取り消し済み` にしてから新しい行を追記する**（値の意味・覆り方・読む側の規則の正本は `replace-strategy` の `references/dependency-selection.md`「洗い出しの 6 値」）。
    **合わせてこのフェーズのページが描く静的資産を `.replace/assets.md` と突き合わせる**（台帳に無い資産は機能の中で決めず台帳へ戻す。手順の正本は `replace-strategy` の `references/static-assets.md`「実装時に台帳に無い資産に出会ったら」）。
    台帳が無い（本工程の導入前に `setup` を終えた）プロジェクトではテンプレートから作り、このフェーズで出会った資産を方針空欄で追記して確認する
 4. **実装（フェーズごと）**: 現行コードをフロント・バック**いずれもロジックの一次情報源として読む**。照合単位を振り分ける（バックエンド＝旧新を並べた diff、フロントエンド＝スイート green か `parity-diff` 差分ゼロ）。
@@ -290,7 +294,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 部品被覆表の新側突き合わせ（feature モードで `component_coverage.declared: true` のとき。**環境別**） | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 様式・検査の正本: `parity-suite` の `assets/component-comparison-template.json` と `scripts/component-comparison-check.mjs` |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
-| 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成）。`内蔵` / `機能固有` / `未確認` / `該当なし` を引き取って決めた結果も、古い行の `状態` を `取り消し済み` にして新しい行を追記する | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
