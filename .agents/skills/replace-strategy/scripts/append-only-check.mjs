@@ -56,7 +56,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -231,14 +231,16 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     for (const path of group.paths) registryPaths.set(path.trim(), group.id);
   }
   /**
-   * @type {{ id: string, indent: number, itemKey: string, current: string[] | null } | null}
-   * ブロック形式のレジストリを読み進めている状態（`current` は読みかけの要素の行）
+   * @type {{ id: string, indent: number, itemKey: string,
+   *   current: { body: string[], raw: string[] } | null } | null}
+   * ブロック形式のレジストリを読み進めている状態（`current` は読みかけの要素の行。
+   * `body` は畳んだ行＝照合キーを探す対象、`raw` は読めなかったときに単位へ戻す元の行）
    */
   let registry = null;
   /** 読みかけの要素を確定して単位へ落とす。 */
   const flushRegistryItem = () => {
     if (registry === null || registry.current === null) return;
-    const lines = registry.current;
+    const { body: lines, raw: rawLines } = registry.current;
     registry.current = null;
     const prefix = `${registry.itemKey}:`;
     /** @type {string | null} */
@@ -255,6 +257,16 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     if (value === null) {
       const { code } = splitTrailingComment(lines[0] ?? "");
       value = code;
+    }
+    // **1 行に収まっていない値は読めたことにしない。** 照合キーの値が空（次行以降へ続くプレーンな多行スカラー）・
+    // ブロックスカラー指示子（`|` / `>`）・閉じない引用符のとき、`code.slice(prefix.length)` は本文を取りこぼす。
+    // 畳むと本文が単位から消え、**要素を丸ごと消しても文言を正反対へ差し替えても通る**（実測: main は exit 1、
+    // 畳むと exit 0 の fail-open）。要素の行は `kept` へ戻らないので、行としても残らない。
+    // ここだけ緩い側（単位ゼロ）へ倒れていたので、他の解釈不能ケースと同じく**集めた行をそのまま単位へ戻す**。
+    // 厳しい側なので棚卸しの移動は通らなくなるが、`pending` 要素の形の正本は 1 行のスカラ鍵 4 つである。
+    if (!isSingleLineScalar(value)) {
+      for (const line of rawLines) kept.push(line);
+      return;
     }
     if (value !== "") kept.push(`${REGISTRY_ITEM_PREFIX}${registry.id}> ${unquote(value)}`);
   };
@@ -303,12 +315,16 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       if (!closes) {
         if (listItem) {
           flushRegistryItem();
-          registry.current = [trimmed === "-" ? "" : trimmed.slice(2).trim()];
+          registry.current = {
+            body: [trimmed === "-" ? "" : trimmed.slice(2).trim()],
+            raw: [raw],
+          };
         } else if (registry.current !== null) {
           // 要素の追随行。**照合キーは 1 行目とは限らない**（YAML のキー順は自由）ので、
           // 要素の全行を集めてから探す。追随フィールド（`slug` / `added_by` 等）は
           // 棚卸しの移動先に無いので単位にはしない。
-          registry.current.push(trimmed);
+          registry.current.body.push(trimmed);
+          registry.current.raw.push(raw);
         } else {
           // リストではない構造（マッピング等）。解釈できないので**行のまま単位に残す**
           // （捨てると配下を丸ごと消しても通る。他の解釈不能ケースと同じく厳しい側へ倒す）。
@@ -526,6 +542,23 @@ function registryItemValue(raw, itemKey) {
     return unquote(pair.slice(sep + 1));
   }
   return t;
+}
+
+/**
+ * その値が**1 行に収まったスカラ**かを見る（`kept` へ畳んでよいか）。
+ *
+ * YAML のパーサを持たないので、1 行を超える値は読めない。読めない値を畳むと本文が単位から消えるため、
+ * この判定が false のものは畳まず行のまま残す（厳しい側へ倒す）。
+ * @param {string} value 行末コメントを切った後の値
+ * @returns {boolean}
+ */
+function isSingleLineScalar(value) {
+  // 空 = 値が次行以降へ続くプレーンな多行スカラー。`|` / `>` = ブロックスカラー（本文は次行以降）。
+  if (value === "" || value.startsWith("|") || value.startsWith(">")) return false;
+  const quote = value[0];
+  // 閉じない引用符も 1 行に収まっていない（`flowItems` が未終端を読めたことにしないのと同じ規則）。
+  if (quote === '"' || quote === "'") return value.length >= 2 && value.endsWith(quote);
+  return true;
 }
 
 /**

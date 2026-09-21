@@ -1820,6 +1820,91 @@ test("フロー形式で照合キーの値を差し替えれば落ちる", () =>
   rmSync(root, { recursive: true, force: true });
 });
 
+// 1 行に収まらない照合キーの値（PR #429 のレビュー指摘・8 巡目）
+// ---------------------------------------------------------------------------
+
+const MULTILINE_PENDING = [
+  "      pending: # 保留（測定結果で決める）",
+  "        - item:",
+  "            合計の丸めが現行と違う",
+  "          slug: cross-cutting",
+  "          added_by: replace-strategy",
+  "        - item: >-",
+  "            確認ダイアログを出さない",
+  "          slug: cross-cutting",
+  "          added_by: parity-diff",
+  "",
+].join("\n");
+
+/** 照合キーの値が 1 行に収まらない要素（プレーン多行スカラー・ブロックスカラー）を比較元にする。 */
+function makeConfigRepoWithMultilinePending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MULTILINE_PENDING),
+  );
+  commit(root, "pending に 1 行に収まらない値の要素");
+  return root;
+}
+
+test("プレーン多行スカラーの要素を丸ごと消せば落ちる（畳んで単位ゼロにしない）", () => {
+  const root = makeConfigRepoWithMultilinePending();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      [
+        "        - item:",
+        "            合計の丸めが現行と違う",
+        "          slug: cross-cutting",
+        "          added_by: replace-strategy",
+        "",
+      ].join("\n"),
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("ブロックスカラーの本文を差し替えれば落ちる（本文を単位から落とさない）", () => {
+  const root = makeConfigRepoWithMultilinePending();
+  writeConfig(
+    root,
+    readConfig(root).replace("確認ダイアログを出さない", "確認ダイアログを必ず出す"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("閉じない引用符の値の続きの行も単位から落とさない", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      pending: [] # 保留（測定結果で決める）\n",
+      [
+        "      pending: # 保留（測定結果で決める）",
+        '        - item: "閉じていない',
+        "            引用符の続きの行",
+        "          slug: cross-cutting",
+        "",
+      ].join("\n"),
+    ),
+  );
+  commit(root, "pending に閉じない引用符");
+  // 畳むと単位は `"閉じていない` だけになり、続きの行は kept へ戻らないので差し替えが無音で通る。
+  writeConfig(root, readConfig(root).replace("引用符の続きの行", "別物へ差し替えた"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
 const QUOTED_COMMA_PENDING =
   '      pending: [{item: "順序は id, 名前の順", slug: cross-cutting}] # 保留（測定結果で決める）\n';
 
