@@ -15,8 +15,9 @@
 // その場の更新（版の +1・状態列の 未→済・Issue 列の 未起票→番号・最終更新の日時）が
 // 「失われた行」に化け、決定を 1 つも捨てていない成果物で収束が止まる:
 //   - lines（既定）: 空白を畳んだ行の多重集合。書き換えず積み上げるだけの台帳に使う。
-//     正本が**削除を定めている**領域（設定ファイルの intentional_diffs.pending は棚卸しで人が
-//     keep / may_change へ文言を移す）は mutable_blocks にキーパスを挙げて単位から外す
+//     正本が**移動を定めている**領域（設定ファイルの intentional_diffs は棚卸しで人が pending の文言を
+//     keep / may_change へ移す）は registry_groups に鍵のグループを挙げて要素の単位へ展開する。
+//     mutable_blocks（配下を単位から外す）は、その削除を誰も数えなくてよい領域にだけ使う
 //   - markdown-structure: 見出し・表の列名・表の行（先頭セルを鍵にする）・定義箇条書きの鍵・
 //     それ以外の散文行。セルの値と箇条書きの値はその場で更新してよいが、行・列・節は消せない
 //   - json-arrays: arrays に挙げた配列の要素（深い等価）。version のようなスカラは更新してよいが、
@@ -55,7 +56,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -190,8 +191,13 @@ function listFiles(root, startRel) {
  * 落ちたあと指示どおり復元すると、記録した保留が消える（データを失う方向へ誘導される）。
  * そこで一覧の mutable_blocks に挙げたキーパスの**配下**だけを単位から外し、キー行は鍵だけの単位
  * （`<mutable-block: <パス>>`）へ畳む——キーを丸ごと消した破壊は落ち、表現の揺れ（`pending: []` ⇄ `pending:`。
- * 棚卸しは要素が増える方向にも減る方向にも動く）では落ちない。外した領域の要素の消失を数える工程は別に持つ
- * （`pending` は `parity-diff` の棚卸しと pending-triage-check.mjs が数える）。
+ * 棚卸しは要素が増える方向にも減る方向にも動く）では落ちない。
+ *
+ * **外した領域の要素の消失には検出主体が無い。** `pending-triage-check.mjs` は**現在の** `pending` を母集合にするので、
+ * 棚卸しを経ずに丸ごと消された要素はそもそも対象にならない（`parity-diff` の棚卸しも同じ母集合を読む）。
+ * 「別の工程が数える」に委ねると、保留の記録を黙って消せる状態になる——だから `intentional_diffs.pending` は
+ * このオプションではなく `registry_groups` で扱う（鍵をまたぐ移動は通し、どの鍵にも無くなったときだけ落ちる）。
+ * `mutable_blocks` を使ってよいのは、**配下の削除を誰も数えなくてよいと正本が定めている**領域だけ。
  *
  * あわせて `growable_containers` に挙げたキーパスのフロー形式コンテナを**要素ごとの単位へ展開する**
  * （`keep: ["a", "b"] # c` → 鍵の単位 1 つと要素の単位 2 つ）。要素を足すと単位が増えるだけなので通り、
@@ -367,7 +373,10 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       // どの鍵にも無くなった（黙って消された）ときだけ単位が失われるようにする。
       kept.push(`${REGISTRY_PREFIX}${path}>`);
       if (comment !== "") kept.push(comment);
-      for (const item of items) kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${item}`);
+      const flowItemKey = registryItemKeys.get(registryId) ?? "item";
+      for (const item of items) {
+        kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${registryItemValue(item, flowItemKey)}`);
+      }
       if (value === "") {
         registry = {
           id: registryId,
@@ -486,6 +495,34 @@ export function flowItems(raw) {
       return quoted ? t.slice(1, -1) : t;
     })
     .filter((x) => x !== "");
+}
+
+/**
+ * フロー形式の登録要素から照合キーの値を取り出す。
+ *
+ * ブロック形式は flushRegistryItem が `item_key:` の行を探すが、フロー形式
+ * （`pending: [{item: <文言>, slug: …}]`）は 1 要素が 1 つの文字列として返るので、同じ抜き出しをここで行う。
+ * 行わないとマッピング全文が単位になり、追随フィールド（`slug` / `added_by` / `added_at`）ごと突き合わせることになって、
+ * 棚卸しで鍵をまたいで移した要素（移動先に追随フィールドは無い）が「失われた」に化ける——
+ * ブロック形式で通る棚卸しが表記を変えただけで落ちる非対称が残り、#426 の誤検出がフロー表記のまま生き残る。
+ * @param {string} raw 要素のテキスト（flowItems が引用符を剥がした後）
+ * @param {string} itemKey 照合キー
+ * @returns {string} 単位にする値
+ */
+function registryItemValue(raw, itemKey) {
+  const t = raw.trim();
+  if (!t.startsWith("{") || !t.endsWith("}")) return unquote(t);
+  const pairs = flowItems(t);
+  // 読めないマッピング・照合キーの無いマッピングは**全文を単位に残す**（他の解釈不能ケースと同じく厳しい側へ倒す。
+  // 鍵をまたぐ移動は追随フィールドまで一致したときだけ通る）。
+  if (pairs === null) return t;
+  for (const pair of pairs) {
+    const sep = pair.indexOf(":");
+    if (sep === -1) continue;
+    if (unquote(pair.slice(0, sep)) !== itemKey) continue;
+    return unquote(pair.slice(sep + 1));
+  }
+  return t;
 }
 
 /**
@@ -1145,24 +1182,34 @@ export function readManifest(manifestPath) {
         mutableBullets = a.mutable_bullets.map((x) => String(x).trim());
       }
     }
-    // **3 つのオプションの間でもパスは重ならない。** 重なると同じキーに 2 通りの単位が当たり、
-    // 実装の分岐順で先勝ちが決まる（緩い方が勝つと、検出できていたはずの削除が無音で通る）。
-    // グループ内・グループ間の重複を exit 2 にしているのと同じ理由で、ここも落とす。
-    /** @type {Map<string, string>} パス → 由来のオプション名 */
-    const pathOwners = new Map();
+    // **3 つのオプションの間でパスは重ならない。完全一致だけでなく祖先・子孫の重なりも落とす。**
+    // 重なると同じキーに 2 通りの単位が当たり、実装の分岐順で先勝ちが決まる（緩い方が勝つと、
+    // 検出できていたはずの削除が無音で通る）。祖先の側はとくに危ない——`mutable_blocks` は配下を丸ごと
+    // 単位から外すので、子孫に書いた `growable_containers` / `registry_groups` の展開はそこへ到達せず、
+    // **その配下の削除がすべて通る**（実測: `a.b` を外した状態で `a.b.c` を空にし `a.b.d` を消しても失われた単位 0）。
+    // 一覧をコピーして `--manifest` で渡す運用でコピー側に祖先を足した瞬間に成立するため、使い方の誤りとして落とす。
+    // グループ内・グループ間の重複を exit 2 にしているのと同じ理由。
+    /** @type {{ path: string, option: string }[]} 既に見たパスと由来のオプション名 */
+    const pathOwners = [];
     for (const [option, paths] of [
       ["mutable_blocks", mutableBlocks],
       ["growable_containers", growableContainers],
       ["registry_groups", registryGroups.flatMap((g) => g.paths)],
     ]) {
       for (const path of /** @type {string[]} */ (paths)) {
-        const prev = pathOwners.get(path);
-        if (prev !== undefined) {
+        for (const prev of pathOwners) {
+          // 祖先・子孫は「一方がもう一方 + `.` で始まる」で判定する（`a.b` と `a.bc` は重ならない）。
+          const overlaps =
+            prev.path === path ||
+            path.startsWith(`${prev.path}.`) ||
+            prev.path.startsWith(`${path}.`);
+          if (!overlaps) continue;
+          const how = prev.path === path ? "同じキーパス" : "入れ子になったキーパス";
           throw new UsageError(
-            `artifacts[${i}] の同じキーパスが ${prev} と ${option} の両方にある: ${path}`,
+            `artifacts[${i}] の${how}が ${prev.option} と ${option} の両方にある: ${prev.path} / ${path}`,
           );
         }
-        pathOwners.set(path, /** @type {string} */ (option));
+        pathOwners.push({ path, option: /** @type {string} */ (option) });
       }
     }
     return {

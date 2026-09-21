@@ -1767,6 +1767,93 @@ test("registry の鍵の配下がリストでなければ行のまま守る（�
   rmSync(root, { recursive: true, force: true });
 });
 
+// ---------------------------------------------------------------------------
+// フロー形式の registry 要素・オプション間の入れ子（PR #429 のレビュー指摘・6 巡目）
+// ---------------------------------------------------------------------------
+
+const FLOW_PENDING =
+  "      pending: [{item: 合計の丸め, slug: cross-cutting, added_by: replace-strategy}] # 保留（測定結果で決める）\n";
+
+/** pending にフロー形式のマッピング要素を 1 件積んだ状態を比較元にする。 */
+function makeConfigRepoWithFlowPending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", FLOW_PENDING),
+  );
+  commit(root, "pending にフロー形式で 1 件");
+  return root;
+}
+
+test("フロー形式のマッピング要素も照合キーで棚卸しできる（追随フィールドを単位にしない）", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
+      .replace("      may_change: [] #", "      may_change: [合計の丸め] #"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式のマッピング要素を棚卸しせず消せば落ちる", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(
+    root,
+    readConfig(root).replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 合計の丸め/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式で照合キーの値を差し替えれば落ちる", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(root, readConfig(root).replace("item: 合計の丸め", "item: 別物へ差し替えた"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("入れ子になったキーパスを 2 つのオプションに書けば合格に倒さない（祖先が配下を丸ごと外す）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs"],
+      growable_containers: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/入れ子になったキーパスが .+ と .+ の両方にある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.b と a.bc）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.bare_list"],
+      growable_containers: ["skills.replace-strategy.bare_listing"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("同じキーパスを 2 つのオプションに書けば合格に倒さない（exit 2）", () => {
   const root = makeConfigRepo();
   const manifest = writeManifest(root, [
