@@ -39,6 +39,9 @@
 // 空リストとして作られるキーへ最初の要素を足す書き手は必ずこの形を通り（intentional_diffs.pending /
 // keep / may_change / component_diffs）、棚卸しで pending から keep へ移した文言も keep の行の書き換えになる。
 // 緩めるのは元の要素がすべて現在側にも在るときだけで、要素を 1 つでも落とせば落ちる。
+// フロー形式のコンテナは**1 行で閉じているものだけ**を読む。折り返されたものは読めたことにせず行のまま突き合わせ、
+// 落ちたときに「復元せず 1 行へ書き直す」と案内する（読めたことにすると、折り返しの中身が空に見えて
+// 追記が縮小に化ける）。
 //
 // 何をしないか: 追記の中身の妥当性は見ない。消えていないことだけを数える。
 //
@@ -56,7 +59,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "10";
+export const VERSION = "11";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -215,9 +218,11 @@ function listFiles(root, startRel) {
  * @param {string[]} blocks 単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く——
  *   部分一致・末尾一致では引かないので、実在の入れ子（例: skills.replace-strategy.intentional_diffs.pending）を書く
  * @param {string[]} [growable] 要素ごとの単位へ展開するキーパス（同じくルートからの完全なパス）
+ * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 鍵をまたぐ移動を許すグループ
+ * @param {string[]} [wrappedOut] 1 行で閉じていないフロー形式のコンテナのキーパスを積む先（診断用）
  * @returns {string} 変換後の行を改行で連結したもの
  */
-export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []) {
+export function stripYamlBlocks(text, blocks, growable = [], registryGroups = [], wrappedOut = []) {
   if (blocks.length === 0 && growable.length === 0 && registryGroups.length === 0) return text;
   // 実在の行と衝突しない形にする（YAML のキーにこの綴りは現れない）。
   const targets = new Set(blocks.map((b) => b.trim()));
@@ -278,7 +283,9 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
   let excludeIndent = null;
   /** @type {number | null} ブロックスカラーの本文を飛ばす基準インデント */
   let scalarIndent = null;
-  for (const raw of text.split("\n")) {
+  const srcLines = text.split("\n");
+  for (let li = 0; li < srcLines.length; li += 1) {
+    const raw = srcLines[li];
     const trimmed = raw.trim();
     const indent = raw.length - raw.trimStart().length;
     // 空行・コメントは構造に属さないので**ブロックを閉じない**——閉じると、間にコメントを挟んだだけで
@@ -371,29 +378,33 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     }
     const registryId = registryPaths.get(path);
     if (registryId !== undefined) {
-      const { code, comment } = splitTrailingComment(trimmed);
-      const value = code.slice(key.length + 1).trim();
-      const items =
-        value === ""
-          ? []
-          : value.startsWith("[") || value.startsWith("{")
-            ? flowItems(value)
-            : null;
+      const { items, comments, last, block } = readNamedFlow(
+        srcLines,
+        li,
+        trimmed,
+        key,
+        path,
+        indent,
+        wrappedOut,
+      );
       // 読めない値・スカラは展開せず行のまま（厳しい側へ倒す）。
       if (items === null) {
         kept.push(raw);
         continue;
       }
+      li = last;
       // 鍵の存在は鍵ごとの単位で守り、要素は**グループ共通の単位**にする——
       // 棚卸しで `pending` の文言が `keep` / `may_change` へ移るのは正規の運用なので鍵をまたいで同じ単位にし、
       // どの鍵にも無くなった（黙って消された）ときだけ単位が失われるようにする。
       kept.push(`${REGISTRY_PREFIX}${path}>`);
-      if (comment !== "") kept.push(comment);
+      for (const c of comments) kept.push(c);
       const flowItemKey = registryItemKeys.get(registryId) ?? "item";
       for (const item of items) {
         kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${registryItemValue(item, flowItemKey)}`);
       }
-      if (value === "") {
+      // ブロック形式（`- …`）のときだけ要素の収集へ移る。開き括弧が次の行にあるフロー形式は
+      // readNamedFlow が連結して読み切っているので、ここで収集に入ると同じ要素を二重に数える。
+      if (block) {
         registry = {
           id: registryId,
           indent,
@@ -404,21 +415,23 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       continue;
     }
     if (growableTargets.has(path)) {
-      const { code, comment } = splitTrailingComment(trimmed);
-      const value = code.slice(key.length + 1).trim();
-      const items =
-        value.startsWith("[") || value.startsWith("{")
-          ? flowItems(value)
-          : value === ""
-            ? []
-            : null;
+      const { items, comments, last } = readNamedFlow(
+        srcLines,
+        li,
+        trimmed,
+        key,
+        path,
+        indent,
+        wrappedOut,
+      );
       if (items !== null) {
+        li = last;
         // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
         // 落とすと単位が失われて落ちる。値がフロー形式でない（ブロック形式・スカラ）ときは展開せず行のまま。
         kept.push(`${GROWABLE_PREFIX}${path}>`);
         // 行末コメントは**鍵の単位に連結せず独立した単位にする**——連結すると、同じ注記を上の行へ
         // 出しただけの編集が「単位の消失」になり、mutable_blocks 側（独立した単位）と非対称になる。
-        if (comment !== "") kept.push(comment);
+        for (const c of comments) kept.push(c);
         for (const item of items) kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
         continue;
       }
@@ -435,10 +448,93 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
 }
 
 /**
+ * 折り返されたフロー形式のコンテナを、続きの行を連結して 1 つの値として読む。
+ *
+ * **連結するのは名指しした鍵（`growable_containers` / `registry_groups`）の値だけ。**
+ * 折り返しを読めないままにすると、比較元の折り返し行がそのまま単位になり、
+ * 要素を足した編集も 1 行へ畳んだ編集も「行が失われた」に化ける（#430。旧版・修正版の両方で実測）。
+ * 自由度を広げるのはこの 1 軸——**名指しした鍵の値が何行に渡るか**——に限り、
+ * 鍵のブロックを抜けても閉じなければ今までどおり読めなかったことにする（fail-closed）。
+ * @param {string[]} lines 文書の全行
+ * @param {number} start 鍵の行の添字
+ * @param {string} head 鍵の行（行末コメントを切った後）
+ * @param {number} keyIndent 鍵の行のインデント
+ * @returns {{ items: string[], comments: string[], last: number } | null}
+ *   `items` = 連結して読めた要素、`last` = 消費した最後の行の添字
+ */
+function joinWrappedFlow(lines, start, head, keyIndent) {
+  let joined = head;
+  /** @type {string[]} 途中の行に付いていた行末コメント（単位として残す）。 */
+  const comments = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const indent = line.length - line.trimStart().length;
+    // 空行・コメント行はフロー値の途中に書けるが、読み方が増えるだけなので受理しない（厳しい側へ倒す）。
+    if (trimmed === "" || trimmed.startsWith("#")) return null;
+    // 鍵のブロックを抜けた（閉じないまま次の構造へ出た）。閉じ括弧は鍵と同じインデントに置けるので除く。
+    if (indent <= keyIndent && !trimmed.startsWith("]") && !trimmed.startsWith("}")) return null;
+    const split = splitTrailingComment(trimmed);
+    joined = `${joined} ${split.code}`;
+    if (split.comment !== "") comments.push(split.comment);
+    const flow = scanFlow(joined.slice(joined.indexOf(":") + 1).trim());
+    // 読めた要素はここで返す。呼び出し側で連結後の文字列を取り直して読み直すと、値の切り出し方が
+    // 2 箇所に分かれて片方だけ直る余地が残るので、読み方はこの 1 箇所に閉じる。
+    if (flow.items !== null) return { items: flow.items, comments, last: i };
+    if (flow.reason !== "unclosed") return null;
+  }
+  return null;
+}
+
+/**
+ * 名指しした鍵の値をフロー形式のコンテナとして読む。読めなければ `items` が `null`
+ * （呼び出し側は行のまま単位に残す）。
+ *
+ * 連結しても閉じないコンテナは `wrappedOut` へキーパスを積む——行のまま突き合わせると、
+ * 要素を足した編集が**直前の要素の行に付くカンマ**の書き換えとして縮小に見えるので、
+ * 落ちたときに「復元ではなく表記を直す」と案内するための材料（#430）。
+ * @param {string[]} lines 文書の全行
+ * @param {number} li 鍵の行の添字
+ * @param {string} trimmed 鍵の行（前後の空白を除いたもの）
+ * @param {string} key 鍵
+ * @param {string} path 鍵パス
+ * @param {number} keyIndent 鍵の行のインデント
+ * @param {string[]} wrappedOut
+ * @returns {{ items: string[] | null, comments: string[], last: number, block: boolean }}
+ *   `block` = 鍵の行に値が無く、フロー形式でもない（ブロック形式として読む）
+ */
+function readNamedFlow(lines, li, trimmed, key, path, keyIndent, wrappedOut) {
+  const first = splitTrailingComment(trimmed);
+  const comments = first.comment === "" ? [] : [first.comment];
+  const value = first.code.slice(key.length + 1).trim();
+  // 鍵の行に値が無い形は 2 つある。**開き括弧が次の行にあるフロー形式**（YAML のフォーマッタは
+  // 1 行に収まらないコンテナをこの形へ畳む）と、ブロック形式（`- …`）。前者をブロック形式として
+  // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小に化けるうえ `wrappedOut` にも
+  // 積まれないので「復元せず表記を直す」案内すら出ない（#430 と同じ害が残る）。
+  const openedNext = value === "" && /^[[{]/.test((lines[li + 1] ?? "").trim());
+  if (value === "" && !openedNext) return { items: [], comments, last: li, block: true };
+  const flow = value === "" ? { items: null, reason: "unclosed" } : scanFlow(value);
+  if (flow.reason !== "unclosed") return { items: flow.items, comments, last: li, block: false };
+  const joined = joinWrappedFlow(lines, li, first.code, keyIndent);
+  if (joined === null) {
+    wrappedOut.push(path);
+    return { items: null, comments, last: li, block: false };
+  }
+  return {
+    items: joined.items,
+    comments: [...comments, ...joined.comments],
+    last: joined.last,
+    block: false,
+  };
+}
+
+/**
  * 行を突き合わせ用に正規化する（空白を畳む。空行は落とす）。
  * @param {string} text
  * @param {string[]} [mutableBlocks] 単位から外す YAML のキーパス（上記 stripYamlBlocks）
  * @param {string[]} [growableContainers] 要素ごとの単位へ展開する YAML のキーパス（同上）
+ * @param {{ id: string, itemKey: string, paths: string[] }[]} [registryGroups] 同上
+ * @param {string[]} [wrappedOut] 1 行で閉じていないフロー形式のコンテナのキーパスを積む先（診断用）
  * @returns {Map<string, number>} 正規化した行 → 出現回数
  */
 export function normalizeLines(
@@ -446,11 +542,12 @@ export function normalizeLines(
   mutableBlocks = [],
   growableContainers = [],
   registryGroups = [],
+  wrappedOut = [],
 ) {
   const src =
     mutableBlocks.length === 0 && growableContainers.length === 0 && registryGroups.length === 0
       ? text
-      : stripYamlBlocks(text, mutableBlocks, growableContainers, registryGroups);
+      : stripYamlBlocks(text, mutableBlocks, growableContainers, registryGroups, wrappedOut);
   /** @type {Map<string, number>} */
   const counts = new Map();
   for (const raw of src.split("\n")) {
@@ -470,15 +567,34 @@ export function normalizeLines(
  * @returns {string[] | null}
  */
 export function flowItems(raw) {
-  const inner = raw.slice(1, -1).trim();
-  if (inner === "") return [];
+  return scanFlow(raw).items;
+}
+
+/**
+ * フロー形式のコンテナを読む（`flowItems` と折り返し検出の共通の正本）。
+ *
+ * **閉じ括弧の位置まで見る。** 以前は `raw.slice(1, -1)` で末尾 1 文字を閉じ括弧と決め打ちしていたため、
+ * 1 行に収まっていないコンテナ（フォーマッタや長い値で折り返されたもの）を「読めた」ことにしていた——
+ * `[` は空コンテナ（`[]`）、`[ "a",` は要素 1 件の完全な読みとして返り、
+ * 要素を足しただけの編集が縮小に化けた（#430）。読めない形は `null` へ倒し、呼び出し側は行のまま突き合わせる。
+ * @param {string} raw
+ * @returns {{ items: string[] | null, reason: null | "not-flow" | "unclosed" | "trailing" }}
+ *   `unclosed` = 同じ行で閉じていない（折り返されたコンテナ）、`trailing` = 閉じた後に余りがある
+ */
+function scanFlow(raw) {
+  const text = raw.trim();
+  const open = text[0];
+  if (open !== "[" && open !== "{") return { items: null, reason: "not-flow" };
+  const close = open === "[" ? "]" : "}";
   /** @type {string[]} */
   const items = [];
   let depth = 0;
   /** @type {string | null} */
   let quote = null;
   let cur = "";
-  for (const ch of inner) {
+  let closedAt = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
     if (quote !== null) {
       cur += ch;
       if (ch === quote) quote = null;
@@ -493,27 +609,47 @@ export function flowItems(raw) {
       cur += ch;
       continue;
     }
-    if (ch === "[" || ch === "{") depth += 1;
-    else if (ch === "]" || ch === "}") depth -= 1;
-    else if (ch === "," && depth === 0) {
+    if (ch === "[" || ch === "{") {
+      depth += 1;
+      // 外側の開き括弧は要素のテキストに入れない（入れ子の括弧は要素の一部なので入れる）。
+      if (depth > 1) cur += ch;
+      continue;
+    }
+    if (ch === "]" || ch === "}") {
+      depth -= 1;
+      if (depth > 0) {
+        cur += ch;
+        continue;
+      }
+      // 外側が閉じた。開き括弧と種類が合わない閉じ方（`[a}`）は読めたことにしない。
+      if (ch !== close) return { items: null, reason: "unclosed" };
+      closedAt = i;
+      break;
+    }
+    if (ch === "," && depth === 1) {
       items.push(cur);
       cur = "";
       continue;
     }
     cur += ch;
   }
-  // 引用符・括弧が閉じていない（1 行に収まっていない値）。読めたことにしない。
-  if (quote !== null || depth !== 0) return null;
+  // 引用符・括弧が同じ行で閉じていない（折り返されたコンテナ）。読めたことにしない。
+  if (quote !== null || closedAt === -1) return { items: null, reason: "unclosed" };
+  // 閉じた後に余りがある（`[a] b`）。1 行に収まったコンテナとしては読めない。
+  if (closedAt !== text.length - 1) return { items: null, reason: "trailing" };
   items.push(cur);
-  return items
-    .map((v) => {
-      const t = v.trim();
-      const quoted =
-        t.length >= 2 &&
-        ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
-      return quoted ? t.slice(1, -1) : t;
-    })
-    .filter((x) => x !== "");
+  return {
+    items: items
+      .map((v) => {
+        const t = v.trim();
+        const quoted =
+          t.length >= 2 &&
+          ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
+        return quoted ? t.slice(1, -1) : t;
+      })
+      .filter((x) => x !== ""),
+    reason: null,
+  };
 }
 
 /**
@@ -954,9 +1090,10 @@ function keyedElements(text, path, key, label) {
  * @param {string} text
  * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[] }} artifact
  * @param {string} label
+ * @param {string[]} [wrappedOut] 1 行で閉じていないフロー形式のコンテナのキーパスを積む先（診断用）
  * @returns {Map<string, number>}
  */
-export function unitsOf(text, artifact, label) {
+export function unitsOf(text, artifact, label, wrappedOut = []) {
   if (artifact.unit === "markdown-structure") {
     return markdownUnits(text, artifact.mutableColumns ?? [], artifact.mutableBullets ?? []);
   }
@@ -968,6 +1105,7 @@ export function unitsOf(text, artifact, label) {
     artifact.mutableBlocks ?? [],
     artifact.growableContainers ?? [],
     artifact.registryGroups ?? [],
+    wrappedOut,
   );
 }
 
@@ -1435,8 +1573,10 @@ export function check(opts) {
       for (const finding of keyed) findings.push(`${finding}: ${file}`);
       continue;
     }
-    const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`);
-    const afterUnits = unitsOf(afterText, artifact, file);
+    /** @type {string[]} 1 行で閉じていないフロー形式のコンテナ（比較元・現在の両方から集める）。 */
+    const wrapped = [];
+    const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`, wrapped);
+    const afterUnits = unitsOf(afterText, artifact, file, wrapped);
     /** @type {string[]} */
     const lost = [];
     let lostCount = 0;
@@ -1447,8 +1587,16 @@ export function check(opts) {
       if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
     }
     if (lostCount > 0) {
+      // 折り返されたコンテナがあると、要素を足しただけの編集も**直前の要素の行に付くカンマ**の
+      // 書き換えとして縮小に見える。指示どおり復元すると記録した決定が消えるので、
+      // 書き直す方向を名指しで案内する（#430）。
+      const hint =
+        wrapped.length === 0
+          ? ""
+          : `\n      閉じていないフロー形式のコンテナがある: ${[...new Set(wrapped)].join(" / ")}` +
+            " — 復元せず表記を直す（フロー形式は同じ行で閉じる）";
       findings.push(
-        `追記専用の成果物から ${lostCount} 件（unit: ${artifact.unit}）が失われている: ${file}（例: ${lost.join(" / ")}）`,
+        `追記専用の成果物から ${lostCount} 件（unit: ${artifact.unit}）が失われている: ${file}（例: ${lost.join(" / ")}）${hint}`,
       );
     }
   }

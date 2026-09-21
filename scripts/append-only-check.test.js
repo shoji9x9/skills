@@ -12,6 +12,10 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  flowItems,
+  stripYamlBlocks,
+} from "../skills/replace-strategy/scripts/append-only-check.mjs";
+import {
   appendFileSync,
   mkdirSync,
   mkdtempSync,
@@ -2003,4 +2007,212 @@ test("同じキーパスを 2 つのオプションに書けば合格に倒さ�
   expect(r.stderr).toMatch(/同じキーパスが .+ と .+ の両方にある/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
+});
+
+// --- 1 行で閉じないフロー形式のコンテナ（#430） ---
+//
+// `flowItems` は `raw.slice(1, -1)` で末尾 1 文字を閉じ括弧と決め打ちしていたため、折り返された
+// コンテナを「読めた」ことにしていた（`[` は空、`[ "a",` は要素 1 件）。読めたことにすると
+// 折り返しの中身が空に見え、要素を足しただけの編集が縮小に化ける。
+
+test("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
+  // 折り返しの各形。`[` を空コンテナ（`[]`）、`[ "a",` を要素 1 件と読んだのが #430 の直接の原因。
+  expect(flowItems("[")).toBeNull();
+  expect(flowItems("{")).toBeNull();
+  expect(flowItems('[ "a",')).toBeNull();
+  expect(flowItems("{item: a")).toBeNull();
+  expect(flowItems('["a"')).toBeNull();
+  // 開き括弧と閉じ方の種類が合わない。
+  expect(flowItems("[a}")).toBeNull();
+  // 閉じた後に余りがある。
+  expect(flowItems('["a"] trailing')).toBeNull();
+});
+
+test("陽性コントロール: 1 行で閉じるコンテナは今までどおり読める", () => {
+  expect(flowItems("[]")).toEqual([]);
+  expect(flowItems("[ ]")).toEqual([]);
+  expect(flowItems("{}")).toEqual([]);
+  expect(flowItems('["a", "b"]')).toEqual(["a", "b"]);
+  // 引用符の中のカンマは区切りにしない。入れ子の括弧は要素の一部として残す。
+  expect(flowItems('["a, b", c]')).toEqual(["a, b", "c"]);
+  expect(flowItems('[{item: "a"}]')).toEqual(['{item: "a"}']);
+});
+
+/** keep を折り返した形で書いた設定ファイル。 */
+const WRAPPED_KEEP = [
+  "      keep: [",
+  '        "テーブル名を保つ",',
+  '        "項目名を保つ"',
+  "      ] # 変えない（例: テーブル名、項目名）",
+].join("\n");
+
+/** @param {string} root */
+function makeWrappedConfigRepo() {
+  return makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      WRAPPED_KEEP,
+    ),
+  );
+}
+
+test("折り返したコンテナへ追記しただけなら通る（#430 の再現手順）", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '        "項目名を保つ"\n',
+      '        "項目名を保つ",\n        "並び順を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返したコンテナを 1 行へ書き直せば、要素を足していても通る", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      WRAPPED_KEEP,
+      '      keep: ["テーブル名を保つ", "項目名を保つ", "並び順を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返したコンテナから要素を消せば、1 行へ書き直しても落ちる", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      WRAPPED_KEEP,
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/項目名を保つ/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("1 行のコンテナを折り返しても通る（折り返し ⇄ 1 行の相互変換）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      [
+        "      keep: [",
+        '        "テーブル名を保つ"',
+        "      ] # 変えない（例: テーブル名、項目名）",
+      ].join("\n"),
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("連結しても閉じないコンテナは読めたことにせず、表記を直すよう案内する", () => {
+  const root = makeConfigRepo();
+  // 閉じ括弧が無いまま次の鍵へ出る。連結は鍵のブロックを抜けた時点で打ち切る（fail-closed）。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 折り返しが無ければ案内を出さない", () => {
+  const root = makeConfigRepo();
+  // 1 行のコンテナから要素を消す（同じ「縮小」でも折り返しは関係しない）。
+  writeConfig(root, readConfig(root).replace('"テーブル名を保つ"', ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  // 実際に出る文言と同じ綴りで照合する（別の綴りにすると常に不一致になり、案内が出ていても通る）。
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 折り返しの連結は「名指しした鍵の値が何行に渡るか」の 1 軸だけを受理する。受理する側と
+// 読めなかったことにする側を同じ数だけ並べ、境界（閉じ括弧の位置・途中の行の種類・文書の終わり）を固定する。
+/** @param {string} src */
+function keepUnits(src) {
+  return stripYamlBlocks(src, [], ["a.keep"], [])
+    .split("\n")
+    .filter((l) => l.trim() !== "");
+}
+
+test("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", () => {
+  expect(keepUnits('a:\n  keep: [\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
+  ]);
+  // 閉じ括弧が鍵より深くても読む。
+  expect(keepUnits('a:\n  keep: [\n    "x"\n    ] # c\n')).toContain("<item: a.keep> x");
+  // 途中の行に付いた行末コメントも単位として残す（別行へ移しただけの編集を落とさない）。
+  expect(keepUnits('a:\n  keep: [\n    "x", # 注記\n    "y"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# 注記",
+    "# c",
+    "<item: a.keep> x",
+    "<item: a.keep> y",
+  ]);
+  // 入れ子のマッピングが複数行に渡っても 1 要素として読む。
+  expect(keepUnits('a:\n  keep: [\n    {item: "x",\n     slug: s}\n  ] # c\n')).toContain(
+    '<item: a.keep> {item: "x", slug: s}',
+  );
+});
+
+test("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", () => {
+  // YAML のフォーマッタは 1 行に収まらないコンテナを `key:` と `[` に分けて畳む。ブロック形式として
+  // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小に化ける（#430 と同じ害）。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
+    "<item: a.keep> y",
+  ]);
+  // 1 行の形と同じ単位になる（表記を変えただけの編集が通る）。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual(
+    keepUnits('a:\n  keep: ["x", "y"] # c\n'),
+  );
+  // 弁別: 要素を落とせば単位が減る。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x"\n    ] # c\n')).not.toContain("<item: a.keep> y");
+  // 次の行が開き括弧でなければ今までどおりブロック形式として扱う（行のまま残す）。
+  expect(keepUnits('a:\n  keep:\n    - "x"\n')).toEqual(["a:", "<container: a.keep>", '    - "x"']);
+});
+
+test("折り返しの連結: 読めない形は行のまま突き合わせる（fail-closed）", () => {
+  // 途中の空行・コメント行は受理しない（読み方が増えるだけなので厳しい側へ倒す）。
+  expect(keepUnits('a:\n  keep: [\n\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "  keep: [",
+    '    "x"',
+    "  ] # c",
+  ]);
+  expect(keepUnits('a:\n  keep: [\n    # note\n    "x"\n  ] # c\n')).toContain("  keep: [");
+  // 閉じないまま文書が終わる。
+  expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
+  // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
+  expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
 });

@@ -144,6 +144,10 @@ skills:
       #   **一覧をプロジェクトへコピーして --manifest で渡している場合は、コピー側にも同じ registry_groups を入れる**
       #   （入っていないと棚卸しのたびに exit 1 になる）。そのときも **[] を復元してはならない**——
       #   復元すると記録した保留が消える。検査の指摘を報告して先へ進み、一覧のコピーを直す。
+      #   フロー形式のコンテナ（[...] / {...}）は **1 行で書く**。折り返す場合も閉じ括弧までを同じキーの
+      #   ブロックに収める（読み手が続きの行を連結するのは名指しした鍵の値だけで、途中に空行・コメント行が
+      #   入ると読めない）。読めないと行のまま突き合わせるので、**要素を足しただけの編集が縮小に化ける**。
+      #   そう指摘されたときも **[] を復元せず、表記を 1 行へ直す**。
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
     # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```
