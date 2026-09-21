@@ -54,5 +54,18 @@ scripts/run-skill-eval.sh \
 - eval 21 は fixture 無しで、**新側 green ＋ `full` 通過 ＋ 被覆表 `unmeasured` 0** の完了直前を与え、`parity-diff` へ渡してよいかを問う（Issue #337）。
   被覆表が移行元側の測定であること・`present` セルごとの新側突き合わせを本スキルが書くこと・入口・当たり判定・完了の 3 点・
   承認が要る未突合・`component-comparison-check.mjs` の通過を検証する。prompt には「まだ足りない」という結論を書かない
+- eval 22（Issue #428）は手順 3 で、`.replace/dependencies.md` に**採否に至っていない 3 つの値**（内蔵・機能固有・未確認）の行がある台帳を読む側を測る。
+  fixture（`dependency-ledger-states`）はその 3 行と、内蔵の根拠になるデータグリッドの `パッケージ採用` 行を持たせる。
+  fixture には「単体では実装しない」「このフェーズで決める」といった結論を書かず、事実（どのパッケージが描くか・どのページでしか使わないか・なぜ出せなかったか）だけを置く。
+  仕込んだ弁別は 3 つ——内蔵の部品を**単体で実装しない**こと（assertion 1）、覆りを**既存行の書き換えではなく状態列 ＋ 追記**で表すこと（assertion 3・4）、
+  新しい行の `決定時期` を `setup` と書き分けること（assertion 5）。
+  **iteration-24 で実測**（各 config 1 run・claude-code / opus。fixture の矛盾を直した後）: `with_skill` 5/5・`without_skill` 3/5。
+  **弁別したのは assertion 1・4**——baseline は `内蔵` の行に「据え置きが自然」と書きながら**指示どおり 3 件とも自前実装で進める**表を作り、
+  覆した行は「状態列は触らず理由欄で失効を表現する」とした（正本の `取り消し済み` に至らない）。
+  assertion 2・3・5 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed。
+  **iteration-23（fixture が矛盾していた版）との違いを残す**: あのときの弁別は assertion 2・4 で、baseline は `機能固有` を
+  「台帳は更新不要」と読んで採否の決定そのものを回避していた。fixture の `適用範囲: order-list` と理由 `/orders/:id でしか使わない` の
+  食い違いが「このフェーズの対象外」への逃げ道になっていたためで、**矛盾を消したら assertion 2 は baseline も到達した**。
+  fixture の矛盾が弁別を作っていた実例なので、Delta の内訳は fixture の整合と合わせて読む
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

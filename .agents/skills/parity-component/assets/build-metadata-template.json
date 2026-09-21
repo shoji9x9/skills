@@ -19,7 +19,7 @@
     "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
   "issue": "<.replace/components.md の Issue 番号（issue-start に渡したもの）>",
-  "dependencies_recorded": "<このフェーズで決めた部品の採否を .replace/dependencies.md へ非破壊追記したか。真偽値で書く>",
+  "dependencies_recorded": "<このフェーズで決めた部品の採否を .replace/dependencies.md へ非破壊追記したか（覆りは古い行の状態を 取り消し済み にして新しい行を追記）。真偽値で書く>",
   "review": {
     "performed": "<敵対的レビューを実施したか。真偽値で書く。型検査・テストが通ったことを省略の理由にしない>",
     "reviewer": "<サブエージェント | 人間（起動できない場合の代替）>",

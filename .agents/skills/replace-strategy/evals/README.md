@@ -186,5 +186,17 @@ scripts/run-skill-eval.sh \
   baseline は `pending` へ 2 件に分けて置くこと（assertion 1）と確定を実測後の人の判断に委ねること（assertion 5）には自力で到達するが、
   要素を `id` / `ref` / `current` / `new` / `resolve_by` / `impact` / `gate` の**自作スキーマ**で書き、`added_by` も `slug` も持たない（「キー名はスキル定義に合わせてください」と断っている）。
   assertion 1・5 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
+- eval 35（Issue #428）は手順 10 の洗い出しで**採否に至らない 3 つの結果**（内蔵・機能固有・未確認）の記録先を測る。
+  fixture（`component-primitive-states`）は測定・戦略・インベントリが完了し、**データグリッドの採用が決まった `.replace/dependencies.md`** を持たせる——
+  「採る候補が決まっている」状態が無いと `内蔵` の判定材料が揃わない。現行 target の `forbidden_actions` に削除・更新を置いて、確認ダイアログを出せない状態を作る。
+  fixture には値の語彙も列の意味のコメントも書かない（書くとベースラインが読んで埋める）。
+  仕込んだ弁別は 3 つ——3 件とも**台帳の行として残す**こと（assertion 4。報告だけで済ませる回答が落ちる）、
+  確かめられなかった種類を `該当なし` に倒さないこと（assertion 1）、`--autonomous` でも**保留に落とさず `setup` を完了できる**こと（assertion 5。
+  保留に落とす回答は下流を全部止める）。
+  **iteration-42 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 1/5。**弁別したのは assertion 2・3・4・5**——
+  baseline は確認ダイアログを `該当なし` に倒さない（assertion 1）ところまでは自力で到達するが、
+  行選択チェックボックスは**行を作らず**データグリッドの節へ追記し（「独立行を立てると二重計上」）、印刷プレビューは「自前実装なら自律的に確定してよい」とし、
+  確認ダイアログは `pending_decisions` へ落として「保留 2 件を setup 完了報告に列挙する」と締めた。
+  assertion 1 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

@@ -176,6 +176,10 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    **軸を引数にしない判断をしたら理由を書く**（インスタンス差が現行の不整合で、揃えることをユーザーが決めた場合など。その場合は `intentional_diffs.pending` へ回す）。詳細: [`references/component-api.md`](references/component-api.md)
 3. **部品の採否と依存の決定**: このフェーズで要る部品を**自前で書くか／どのパッケージを使うか**を実装に入る前に決め、`.replace/dependencies.md` へ**非破壊追記**する。
    判断材料・順序・リポジトリ方針の扱いは `replace-strategy` の `references/dependency-selection.md` に従う。`setup` で決定済みの部品はここで再決定しない。
+   **台帳は `状態` が `有効` の行だけを読む**（`取り消し済み` は履歴。同じ部品で `有効` が 2 行あれば進まず確認する）。
+   **`内蔵` の行の部品は単体で実装しない**——「採用したもの」列のパッケージに含まれるので、そのパッケージを採ったことを確かめて使う（採らないことになっていたら覆りとして扱い、決め直す）。
+   `機能固有` の行はこのスキルの対象外（機能の実装時に `parity-replace` が決める）。決定が覆ったら**古い行の `状態` を `取り消し済み` にしてから新しい行を追記する**
+   （値の意味・覆り方・読む側の規則の正本は `replace-strategy` の `references/dependency-selection.md`「洗い出しの 6 値」）。
    **部品が描く静的資産（アイコン・画像・書体）は `.replace/assets.md` の同じ種類で状態が `有効` の行に従い（`取り消し済み` の行は履歴）、部品の中で写すかを決めない**（台帳に無ければ方針空欄の行を追記してユーザーに確認し、決まるまでその資産に依存する実装を進めない。正本は `replace-strategy` の `references/static-assets.md`）
 4. **実装と見本**: 現行のソースコードと採取物を一次情報源に実装し、**インスタンス × 状態ごとに見本（story 等）を置く**。見本は採取と同じ状態集合を持たせる——見本の無い状態は照合されない。
    データ依存部品は `capture` が採った実データを見本の入力にする。書き方は `references.coding_conventions` に従う。詳細: [`references/catalog.md`](references/catalog.md)

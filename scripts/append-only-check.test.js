@@ -822,7 +822,9 @@ test("unit が json-arrays なのに mutable_bullets があれば合格に倒さ
     },
   ]);
   const r = run(root, ["--manifest", manifest]);
-  expect(r.stderr).toMatch(/json-arrays なのに mutable_columns \/ mutable_bullets がある/);
+  expect(r.stderr).toMatch(
+    /json-arrays なのに mutable_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers \/ registry_groups がある/,
+  );
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });
@@ -910,5 +912,1095 @@ test("id が一意で突き合わせ方も同じなら、同じファイルに 2
   const r = run(root, ["--manifest", manifest]);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 設定ファイル（project-config）の可変領域（Issue #426）
+//
+// intentional_diffs.pending は設定ファイル上で唯一スキルが追記する記録で、棚卸しで人が
+// keep / may_change へ文言を移す。行の多重集合で見ると、この正規の運用が「行が失われた」に化け、
+// 指示どおり復元すると記録した保留が消える（データを失う方向へ誘導される）。
+// 緩和が効きすぎていないことを陽性コントロールで測る——キーごと消す・keep の要素を落とす・
+// 要素を別物へ差し替える、はいずれも落ちなければならない。
+// ---------------------------------------------------------------------------
+
+// **実在する設定ファイルの入れ子で測る**（`skills.<スキル名>.…`。正本は replace-strategy の
+// references/project-config.md）——mutable_blocks はルートからの完全なパスで引くので、
+// 平らな YAML の fixture では「外せているか」を一度も実証できない（平らな fixture では
+// パスが一致せず検査が厳しい側へ倒れるだけなので、緩和のテストが全部素通りする）。
+const CONFIG = [
+  "skills:",
+  "  replace-strategy:",
+  "    new:",
+  "      stack: [typescript]",
+  "    intentional_diffs:",
+  '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+  "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+  "      pending: [] # 保留（測定結果で決める）",
+  "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）",
+  "    component_diffs: []",
+  "    bare_list: []",
+  "",
+].join("\n");
+
+const PENDING_BLOCK = [
+  "      pending: # 保留（測定結果で決める）",
+  "        - item: 一覧の並び順が変わる",
+  "          slug: cross-cutting",
+  "          added_by: replace-strategy",
+  '          added_at: "2026-09-21"',
+  "",
+].join("\n");
+
+/**
+ * @param {string} root
+ * @param {string} message
+ */
+function commit(root, message) {
+  for (const args of [
+    ["add", "-A"],
+    ["commit", "-qm", message],
+  ]) {
+    const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr}`);
+  }
+}
+
+/** @param {string} root */
+function configPath(root) {
+  return join(root, ".config/skills/acme/skills.yml");
+}
+
+/** @param {string} root */
+function readConfig(root) {
+  return readFileSync(configPath(root), "utf8");
+}
+
+/**
+ * @param {string} root
+ * @param {string} text
+ */
+function writeConfig(root, text) {
+  writeFileSync(configPath(root), text);
+}
+
+/**
+ * 設定ファイルを持つプロジェクトを作る（比較元にも在る状態で commit 済み）。
+ * @param {string} [text]
+ */
+function makeConfigRepo(text = CONFIG) {
+  const root = makeRepo();
+  mkdirSync(join(root, ".config/skills/acme"), { recursive: true });
+  writeConfig(root, text);
+  commit(root, "config");
+  return root;
+}
+
+/** pending に 1 件積んだ状態を比較元にする。 */
+function makeConfigRepoWithPending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  commit(root, "pending に 1 件");
+  return root;
+}
+
+test("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式のコンテナへ要素を足した行の書き換えは縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["新しい宣言"] # 変えてよい（例: ディレクトリ・ファイル名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("棚卸しで pending の要素を keep へ移しても縮小に数えない（Issue #426）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] # 変えない（例: テーブル名、項目名）',
+      )
+      .replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("pending の要素の中身を書き換えても通る（配下は単位から外れている）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root).replace("added_by: replace-strategy", "added_by: parity-suite"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("pending をキーごと消せば落ちる（鍵の存在は別の単位で守る）", () => {
+  const root = makeConfigRepoWithPending();
+  writeConfig(root, readConfig(root).replace(PENDING_BLOCK, ""));
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry: skills\.replace-strategy\.intentional_diffs\.pending>/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("棚卸しを経ずに pending の要素を消せば落ちる（削除の検出主体を検査が持つ）", () => {
+  // 配下を単位から外すだけだと、keep へ移さず丸ごと消した編集が通る。
+  // pending-triage-check.mjs は「現在の pending」を母集合にするので、消えた要素は対象にならない。
+  const root = makeConfigRepoWithPending();
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 一覧の並び順が変わる/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [] # 変えない（例: テーブル名、項目名）",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("keep の要素を別物へ差し替えれば落ちる", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      '      keep: ["別の宣言"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("外した領域の後ろに続くコメントを消せば落ちる（守るのはキーと注記）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）\n",
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 行の単位はインデントを畳むので、同じ鍵のフロー形式のコンテナが複数あると 1 行に潰れる。
+// 1 件でも育っていれば緩める形にすると、育った兄弟の陰で別の兄弟から要素を消せる。
+const TWO_TARGETS = [
+  "skills:",
+  "  replace-strategy:",
+  "    targets:",
+  "      - name: current-test",
+  "        forbidden_actions: [delete]",
+  "      - name: new-dev",
+  "        forbidden_actions: [delete]",
+  "    intentional_diffs:",
+  "      keep: []",
+  "      may_change: []",
+  "      pending: []",
+  "",
+].join("\n");
+
+test("同じ鍵のコンテナが片方だけ育っても、もう片方の要素の削除は落ちる", () => {
+  const root = makeConfigRepo(TWO_TARGETS);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        "      - name: current-test\n        forbidden_actions: [delete]",
+        "      - name: current-test\n        forbidden_actions: [delete, update]",
+      )
+      .replace(
+        "      - name: new-dev\n        forbidden_actions: [delete]",
+        "      - name: new-dev\n        forbidden_actions: []",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("名指ししていない鍵は、同名の兄弟が両方とも育っても落ちる", () => {
+  // 緩和は growable_containers に挙げた鍵だけに効く。行の多重集合は同名の兄弟を 1 つの鍵へ畳むので、
+  // 名指しせずに「育った」を判定すると、兄弟の間で要素が移動しただけの編集まで通ってしまう。
+  const root = makeConfigRepo(TWO_TARGETS);
+  writeConfig(
+    root,
+    readConfig(root).replaceAll(
+      "forbidden_actions: [delete]",
+      "forbidden_actions: [delete, update]",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks がキーパスの形でなければ合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["intentional_diffs."],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/mutable_blocks の要素がキーパスの形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が markdown-structure なのに mutable_blocks があれば合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "features",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      mutable_blocks: ["intentional_diffs.pending"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/markdown-structure なのに mutable_blocks がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 依存台帳の決定を覆す（Issue #428）
+//
+// 決定が覆ったら行を消さず「状態」列を 取り消し済み にして新しい行を追記する。
+// 状態列だけが mutable_columns なので、それ以外の列の書き換えと行の削除は落ちる。
+// ---------------------------------------------------------------------------
+
+const DEPENDENCY_TABLE = [
+  "# 依存パッケージの決定記録（dependencies）",
+  "",
+  "- 最終更新: 2026-09-01T00:00:00Z",
+  "- 方針の所在: 未確認",
+  "",
+  "## 一覧",
+  "",
+  "| 部品（用途） | 決定 | 採用したもの | 適用範囲 | 状態 | 決定時期 | 理由・引き取り手 |",
+  "|---|---|---|---|---|---|---|",
+  "| データグリッド | パッケージ採用 | example-grid@4.5.0 | 全機能 | 有効 | setup | - |",
+  "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |",
+  "",
+].join("\n");
+
+const OVERTURNED_ROW =
+  "| 確認ダイアログ | 未確認 | — | — | 取り消し済み（2026-09-21 → 下の行） | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |";
+
+/** 依存台帳（表つき）を比較元に持つプロジェクトを作る。 */
+function makeDependencyRepo() {
+  const root = makeRepo();
+  writeFileSync(join(root, ".replace/dependencies.md"), DEPENDENCY_TABLE);
+  commit(root, "dependencies 台帳");
+  return root;
+}
+
+/** @param {string} root */
+function readDependencies(root) {
+  return readFileSync(join(root, ".replace/dependencies.md"), "utf8");
+}
+
+/**
+ * @param {string} root
+ * @param {string} text
+ */
+function writeDependencies(root, text) {
+  writeFileSync(join(root, ".replace/dependencies.md"), text);
+}
+
+test("決定を覆すとき状態列の更新 ＋ 新しい行の追記なら通る（Issue #428）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |",
+      `${OVERTURNED_ROW}\n| 確認ダイアログ | 自前実装 | — | 全機能 | 有効 | order-list の実装前 | 承認を得て現行で確かめ在ることを確認した |`,
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("覆った行を消せば落ちる（状態列に倒して残す契約）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "| 確認ダイアログ | 未確認 | — | — | 有効 | setup | 削除ボタンでしか出せず現行 target で削除が禁止されている |\n",
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("決定列をその場で書き換えれば落ちる（mutable なのは状態列だけ）", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace("| 確認ダイアログ | 未確認 |", "| 確認ダイアログ | 自前実装 |"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/決定=未確認/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("理由・引き取り手列をその場で書き換えれば落ちる", () => {
+  const root = makeDependencyRepo();
+  writeDependencies(
+    root,
+    readDependencies(root).replace(
+      "削除ボタンでしか出せず現行 target で削除が禁止されている",
+      "別の理由に差し替えた",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 行末コメントと兄弟コンテナ（PR #429 のレビュー指摘）
+//
+// 正本の設定ファイルは `keep: [] # 変えない（…）` のようにコメント付きで書く。
+// 行末が `]` であることを要求すると、実プロジェクトでは緩和が一度も発動せず、
+// 合否がコメントの有無で割れる。コメント自体も契約の対象（「既存のキー・値・コメントは変更しない」）。
+// 兄弟コンテナは中身が違うと別の正規化行になるため、失われた行ごとに独立へ判定すると
+// 同じ 1 件の育ったコンテナを複数の兄弟が根拠にできる。
+// ---------------------------------------------------------------------------
+
+test("行末コメント付きの空コンテナへ最初の要素を足しても縮小に数えない", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["HTML の id"] # 変えてよい（例: ディレクトリ・ファイル名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable_containers に挙げていないキーは、要素を足しただけでも落ちる", () => {
+  // 緩和は鍵を名指ししたものだけに効く（名指ししないと、同名の兄弟の間で要素が移動しただけの
+  // 編集まで通る）。名指ししていないキーは一覧の requirement どおり「値を変更しない」が掛かる。
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace("    bare_list: []", '    bare_list: ["x"]'));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("要素を足すついでに行末コメントを消せば落ちる（コメントも単位）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["HTML の id"]',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks で外したキー行の行末コメントを消せば落ちる", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）", "      pending: []"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+const TWO_TARGETS_DIFFERENT = [
+  "skills:",
+  "  replace-strategy:",
+  "    targets:",
+  "      - name: current-test",
+  "        forbidden_actions: [delete]",
+  "      - name: current-staging",
+  "        forbidden_actions: [delete, update]",
+  "    intentional_diffs:",
+  "      keep: []",
+  "      may_change: []",
+  "      pending: []",
+  "",
+].join("\n");
+
+test("中身の違う兄弟でも、育った側を根拠に別の兄弟から要素を消せない", () => {
+  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+  // current-test が [delete, update] へ育ち、current-staging から delete が消える。
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace("        forbidden_actions: [delete]", "        forbidden_actions: [delete, update]")
+      .replace(
+        "        forbidden_actions: [delete, update]\n    intentional_diffs:",
+        "        forbidden_actions: [update]\n    intentional_diffs:",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("兄弟の間で要素が移動しただけの編集も落ちる（PR #429 の退行の回帰）", () => {
+  // current-test を空にして new-dev へ移す。鍵ごとの多重集合で判定すると、その鍵の下には
+  // 要素が残っているので通ってしまう（現行環境の禁止操作の宣言が黙って空にできる）。
+  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace("        forbidden_actions: [delete]\n", "        forbidden_actions: []\n")
+      .replace(
+        "        forbidden_actions: [delete, update]\n    intentional_diffs:",
+        "        forbidden_actions: [delete, update, create]\n    intentional_diffs:",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（件数も見る）", () => {
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    targets:",
+      "      - name: current-test",
+      "        forbidden_actions: []",
+      "      - name: current-staging",
+      "        forbidden_actions: []",
+      "    intentional_diffs:",
+      "      keep: []",
+      "      may_change: []",
+      "      pending: []",
+      "",
+    ].join("\n"),
+  );
+  // 片方から禁止操作の宣言だけを消す（name 行は残すので、失われるのは forbidden_actions の行だけ）。
+  // 要素の多重集合は空のまま等しいため、同じ鍵のコンテナ行の件数を見ないと通ってしまう。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      - name: current-staging\n        forbidden_actions: []\n",
+      "      - name: current-staging\n        side: current\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 一覧の突き合わせ方の食い違い・パス解決の穴（PR #429 のレビュー指摘・2 巡目）
+// ---------------------------------------------------------------------------
+
+test("同じファイルに当たる 2 項目で mutable_blocks だけ違えば合格に倒さない（exit 2）", () => {
+  // 比較に入っていないと、一覧の並び順で外す範囲が変わる＝ fail-closed なゲートが並び順で fail-open する。
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config-a",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.pending"],
+    },
+    {
+      id: "project-config-b",
+      pattern: ".config/skills/acme/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じファイルに当たる 2 項目で growable_containers だけ違えば合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config-a",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      growable_containers: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+    {
+      id: "project-config-b",
+      pattern: ".config/skills/acme/skills.yml",
+      unit: "lines",
+      growable_containers: ["skills.replace-strategy.intentional_diffs.may_change"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/突き合わせ方の違う一覧の項目が当たっている/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable_containers がキーパスの形でなければ合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      growable_containers: ["intentional_diffs..keep"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/growable_containers の要素がキーパスの形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("リスト要素の配下にある同名キーは外れない（パスが親を継がない）", () => {
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    intentional_diffs:",
+      "      - name: a",
+      "        pending:",
+      "          - 消してはいけない記録",
+      "      - name: b",
+      "",
+    ].join("\n"),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "        pending:\n          - 消してはいけない記録\n",
+      "        pending:\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// プレーンスカラーの引用符・コメントの置き場所（PR #429 のレビュー指摘・3 巡目）
+// ---------------------------------------------------------------------------
+
+const PLAIN_APOSTROPHE = [
+  "skills:",
+  "  replace-strategy:",
+  "    intentional_diffs:",
+  "      keep: [don't rename tables] # 変えない（例: テーブル名、項目名）",
+  "      may_change: []",
+  "      pending: []",
+  "    component_diffs: [] # コンポーネント系統差レジストリ",
+  "",
+].join("\n");
+
+test("プレーンスカラーのアポストロフィがあっても要素を足せる（引用符として読まない）", () => {
+  // YAML では `[don't rename]` のアポストロフィは引用符ではない。開き引用符として読むと行末まで
+  // 閉じず、コメントも値も読めないまま緩和が無音で外れ、正しい追記が「決定が失われている」になる。
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      keep: [don't rename tables] #",
+      "      keep: [don't rename tables, keep api paths] #",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("アポストロフィ入りの要素を消せば落ちる（緩めすぎていない）", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace("      keep: [don't rename tables] #", "      keep: [] #"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符つきの値の中のカンマで要素を分割しない", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      keep: [don't rename tables] #",
+      '      keep: [don\'t rename tables, "a, b"] #',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable の鍵の注記を上の行へ移しても通る（mutable_blocks 側と対称）", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [] # コンポーネント系統差レジストリ\n",
+      "    # コンポーネント系統差レジストリ\n    component_diffs: []\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable の鍵の注記を消せば落ちる", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [] # コンポーネント系統差レジストリ\n",
+      "    component_diffs: []\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("キーパスに `-` だけのセグメントを書けば合格に倒さない（exit 2）", () => {
+  // `-` は stripYamlBlocks がリスト要素へ積むマーカーと同じ綴り。名指しできると全リスト要素が
+  // 同じ鍵を共有し、兄弟を区別できなくなる（片方から要素を消しても通る穴が設定次第で戻る）。
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      growable_containers: ["skills.replace-strategy.targets.-.forbidden_actions"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/growable_containers の要素がキーパスの形でない/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符つきの要素がある行へ、引用符の無い要素を足しても通る", () => {
+  // 引用符を「閉じなければ無視して取り直す」形にすると、同じ値でも同じ行の別の要素次第で
+  // 読み方が変わり、比較元と現在で別モードが選ばれる（要素を足しただけで縮小に見える）。
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    intentional_diffs:",
+      '      keep: ["a, b"] # 変えない',
+      "      may_change: []",
+      "      pending: []",
+      "",
+    ].join("\n"),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace('      keep: ["a, b"] #', '      keep: ["a, b", don\'t] #'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// registry 要素の読み取り（PR #429 のレビュー指摘・5 巡目）
+// ---------------------------------------------------------------------------
+
+const KEY_ORDER_PENDING = [
+  "skills:",
+  "  replace-strategy:",
+  "    intentional_diffs:",
+  "      keep: [] # 変えない",
+  "      may_change: []",
+  "      pending: # 保留",
+  "        - slug: cross-cutting",
+  "          item: キー順が違う要素",
+  "          added_by: replace-strategy",
+  '        - added_at: "2026-09-21"',
+  "          added_by: parity-diff",
+  "          item: 先頭が added_at の要素",
+  "",
+].join("\n");
+
+const KEY_ORDER_ITEM = [
+  "        - slug: cross-cutting",
+  "          item: キー順が違う要素",
+  "          added_by: replace-strategy",
+  "",
+].join("\n");
+
+test("照合キーが 1 行目に無い要素も棚卸しで移せる（要素の全行から探す）", () => {
+  const root = makeConfigRepo(KEY_ORDER_PENDING);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(KEY_ORDER_ITEM, "")
+      .replace("keep: [] #", 'keep: ["キー順が違う要素"] #'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("照合キーが 1 行目に無い要素の文言を差し替えれば落ちる", () => {
+  const root = makeConfigRepo(KEY_ORDER_PENDING);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "          item: 先頭が added_at の要素",
+      "          item: 別物へ差し替えた",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("registry の鍵の配下がリストでなければ行のまま守る（解釈できないものを捨てない）", () => {
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    intentional_diffs:",
+      "      keep: []",
+      "      may_change: []",
+      "      pending: # 保留",
+      "        a: 1",
+      "        b: 2",
+      "",
+    ].join("\n"),
+  );
+  writeConfig(root, readConfig(root).replace("        a: 1\n        b: 2\n", "        a: 1\n"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// フロー形式の registry 要素・オプション間の入れ子（PR #429 のレビュー指摘・6 巡目）
+// ---------------------------------------------------------------------------
+
+const FLOW_PENDING =
+  "      pending: [{item: 合計の丸め, slug: cross-cutting, added_by: replace-strategy}] # 保留（測定結果で決める）\n";
+
+/** pending にフロー形式のマッピング要素を 1 件積んだ状態を比較元にする。 */
+function makeConfigRepoWithFlowPending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", FLOW_PENDING),
+  );
+  commit(root, "pending にフロー形式で 1 件");
+  return root;
+}
+
+test("フロー形式のマッピング要素も照合キーで棚卸しできる（追随フィールドを単位にしない）", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
+      .replace("      may_change: [] #", "      may_change: [合計の丸め] #"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式のマッピング要素を棚卸しせず消せば落ちる", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(
+    root,
+    readConfig(root).replace(FLOW_PENDING, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 合計の丸め/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("フロー形式で照合キーの値を差し替えれば落ちる", () => {
+  const root = makeConfigRepoWithFlowPending();
+  writeConfig(root, readConfig(root).replace("item: 合計の丸め", "item: 別物へ差し替えた"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 1 行に収まらない照合キーの値（PR #429 のレビュー指摘・8 巡目）
+// ---------------------------------------------------------------------------
+
+const MULTILINE_PENDING = [
+  "      pending: # 保留（測定結果で決める）",
+  "        - item:",
+  "            合計の丸めが現行と違う",
+  "          slug: cross-cutting",
+  "          added_by: replace-strategy",
+  "        - item: >-",
+  "            確認ダイアログを出さない",
+  "          slug: cross-cutting",
+  "          added_by: parity-diff",
+  "",
+].join("\n");
+
+/** 照合キーの値が 1 行に収まらない要素（プレーン多行スカラー・ブロックスカラー）を比較元にする。 */
+function makeConfigRepoWithMultilinePending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MULTILINE_PENDING),
+  );
+  commit(root, "pending に 1 行に収まらない値の要素");
+  return root;
+}
+
+test("プレーン多行スカラーの要素を丸ごと消せば落ちる（畳んで単位ゼロにしない）", () => {
+  const root = makeConfigRepoWithMultilinePending();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      [
+        "        - item:",
+        "            合計の丸めが現行と違う",
+        "          slug: cross-cutting",
+        "          added_by: replace-strategy",
+        "",
+      ].join("\n"),
+      "",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("ブロックスカラーの本文を差し替えれば落ちる（本文を単位から落とさない）", () => {
+  const root = makeConfigRepoWithMultilinePending();
+  writeConfig(
+    root,
+    readConfig(root).replace("確認ダイアログを出さない", "確認ダイアログを必ず出す"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("閉じない引用符の値の続きの行も単位から落とさない", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      pending: [] # 保留（測定結果で決める）\n",
+      [
+        "      pending: # 保留（測定結果で決める）",
+        '        - item: "閉じていない',
+        "            引用符の続きの行",
+        "          slug: cross-cutting",
+        "",
+      ].join("\n"),
+    ),
+  );
+  commit(root, "pending に閉じない引用符");
+  // 畳むと単位は `"閉じていない` だけになり、続きの行は kept へ戻らないので差し替えが無音で通る。
+  writeConfig(root, readConfig(root).replace("引用符の続きの行", "別物へ差し替えた"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+const QUOTED_COMMA_PENDING =
+  '      pending: [{item: "順序は id, 名前の順", slug: cross-cutting}] # 保留（測定結果で決める）\n';
+
+/** 引用符の中にカンマを持つフロー形式のマッピング要素を比較元にする。 */
+function makeConfigRepoWithQuotedFlowPending() {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      pending: [] # 保留（測定結果で決める）\n",
+      QUOTED_COMMA_PENDING,
+    ),
+  );
+  commit(root, "pending に引用符つきカンマを含む要素");
+  return root;
+}
+
+test("マッピングの値の引用符も開く（値の中のカンマでペアを割らない）", () => {
+  const root = makeConfigRepoWithQuotedFlowPending();
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(QUOTED_COMMA_PENDING, "      pending: [] # 保留（測定結果で決める）\n")
+      .replace(
+        'keep: ["テーブル名を保つ"] #',
+        'keep: ["テーブル名を保つ", "順序は id, 名前の順"] #',
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符の中にカンマを持つ文言の差し替えは無音で通らない", () => {
+  const root = makeConfigRepoWithQuotedFlowPending();
+  writeConfig(root, readConfig(root).replace("名前の順", "逆順に変更"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/<registry-item: intentional-diffs> 順序は id, 名前の順/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("入れ子になったキーパスを 2 つのオプションに書けば合格に倒さない（祖先が配下を丸ごと外す）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs"],
+      growable_containers: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/入れ子になったキーパスが .+ と .+ の両方にある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("接頭辞が重なるだけの兄弟キーは入れ子と数えない（a.b と a.bc）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.bare_list"],
+      growable_containers: ["skills.replace-strategy.bare_listing"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じキーパスを 2 つのオプションに書けば合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.pending"],
+      registry_groups: [
+        {
+          id: "intentional-diffs",
+          item_key: "item",
+          paths: ["skills.replace-strategy.intentional_diffs.pending"],
+        },
+      ],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/同じキーパスが .+ と .+ の両方にある/);
+  expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });

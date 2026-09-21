@@ -1,12 +1,24 @@
 {
-  "_note": "追記専用（非破壊追記）の成果物の一覧（正本）。replace-strategy の scripts/append-only-check.mjs が読む。散文の中にある限り書き手が読み落としても何も起きないため、機械可読にしてここへ集約する。パターンは .replace / .config を起点にしたリポジトリルートからの相対パスで、* は 1 階層、** は複数階層に一致する。id は一覧の中で一意にする（重複すると、同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まり、厳しい方の規則が黙って外れる。重複は exit 2 で落ちる）。unit は突き合わせの単位（省略時は lines）。lines = 空白を畳んだ行の多重集合（書き換えず積み上げるだけの台帳）、markdown-structure = 見出し・表の列名・表の行（先頭セルが鍵）・定義箇条書きの鍵・それ以外の散文行（セルと箇条書きの値は正本がその場の更新を求めるので固定しない）、json-arrays = arrays に挙げた配列の要素（深い等価。version のようなスカラは更新してよい。要素間でフィールドを入れ替える書き換えも縮小として落ちる）。json-arrays に key を添えると、鍵で要素を対応づけてフィールドごとに突き合わせる（既定は鍵以外が不変。fill_only は空 → 非空だけ許し、transitions は明示した <変更前>-><変更後> だけ許す。鍵が引けない要素は exit 2）。markdown-structure は表の行 × 列のセルも単位にするので、正本がその場の更新を定めている列だけ mutable_columns へ書く（requirement が節・列・行だけを守ると定めている成果物は \"*\" でセルを契約の対象外にする）。定義箇条書き（`- <鍵>: <値>`）も鍵と値の両方を守るので、値の更新を正本が定めている項目だけ mutable_bullets へ書く（同じく \"*\" で値を契約の対象外にできる）。プロジェクト側の置き場所が既定と違う場合はこのファイルをプロジェクトへコピーして書き換え、--manifest で渡す（スキル内の正本は書き換えない）。",
-  "version": "5",
+  "_note": "追記専用（非破壊追記）の成果物の一覧（正本）。replace-strategy の scripts/append-only-check.mjs が読む。散文の中にある限り書き手が読み落としても何も起きないため、機械可読にしてここへ集約する。パターンは .replace / .config を起点にしたリポジトリルートからの相対パスで、* は 1 階層、** は複数階層に一致する。id は一覧の中で一意にする（重複すると、同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まり、厳しい方の規則が黙って外れる。重複は exit 2 で落ちる）。unit は突き合わせの単位（省略時は lines）。lines = 空白を畳んだ行の多重集合（書き換えず積み上げるだけの台帳）、markdown-structure = 見出し・表の列名・表の行（先頭セルが鍵）・定義箇条書きの鍵・それ以外の散文行（セルと箇条書きの値は正本がその場の更新を求めるので固定しない）、json-arrays = arrays に挙げた配列の要素（深い等価。version のようなスカラは更新してよい。要素間でフィールドを入れ替える書き換えも縮小として落ちる）。json-arrays に key を添えると、鍵で要素を対応づけてフィールドごとに突き合わせる（既定は鍵以外が不変。fill_only は空 → 非空だけ許し、transitions は明示した <変更前>-><変更後> だけ許す。鍵が引けない要素は exit 2）。markdown-structure は表の行 × 列のセルも単位にするので、正本がその場の更新を定めている列だけ mutable_columns へ書く（requirement が節・列・行だけを守ると定めている成果物は \"*\" でセルを契約の対象外にする）。定義箇条書き（`- <鍵>: <値>`）も鍵と値の両方を守るので、値の更新を正本が定めている項目だけ mutable_bullets へ書く（同じく \"*\" で値を契約の対象外にできる）。lines には鍵を名指しする 3 つのオプションがある。キーパスはいずれも**ルートからの完全なパス**（ドット区切り。部分一致・末尾一致では引かず、`-` だけのセグメントはリスト要素のマーカーと衝突するので exit 2）。**3 つのオプションの間でパスが重なる一覧も exit 2 で落ちる**——完全一致だけでなく祖先・子孫の入れ子も含む（祖先を mutable_blocks に書くと配下の展開がそこへ到達せず、その配下の削除がすべて無音で通る）。registry_groups は、鍵をまたいで要素が移動する台帳（intentional_diffs の keep / may_change / pending は棚卸しで人が文言を移す）を **グループ共通の要素の単位**へ展開する。鍵ごとの存在は別の単位で守るのでキーを丸ごと消せば落ち、要素はグループ内のどの鍵に在っても同じ単位なので移動は通り、**どの鍵にも無くなったときだけ落ちる**（外して「別の工程が数える」に委ねると、削除を検出する主体が実在しないまま通ってしまう）。item_key は要素がオブジェクトのときの照合キーで、追随フィールド（slug / added_by / added_at 等）は移動先に無いので単位から外す。mutable_blocks は挙げたキーパスの配下を単位から外す（キー行は鍵だけの単位へ畳む）。growable_containers は、挙げたキーパス（同じくルートからの完全なパス）のフロー形式コンテナを要素ごとの単位へ展開する。空リストへ最初の要素を足す書き手は必ず行の書き換えを通り（key: [] → key: [\"a\"]）、棚卸しで pending から keep へ移した文言も keep の行の書き換えになるため、行のままでは正しい追記が縮小に化ける。展開すると要素を足すのは単位の増加、落とすのは単位の消失になる。鍵の行末コメントは独立した単位として守るので、消せば落ちる。緩和するキーを名指しするのは、行の多重集合が同名の兄弟（targets[].forbidden_actions 等）を 1 つの鍵に畳むためで、名指ししないと兄弟の間で要素が移動しただけの編集まで通る（片方を空にしてもう片方へ足す形）。プロジェクト側の置き場所が既定と違う場合はこのファイルをプロジェクトへコピーして書き換え、--manifest で渡す（スキル内の正本は書き換えない）。",
+  "version": "6",
   "artifacts": [
     {
       "id": "project-config",
       "pattern": ".config/skills/*/skills.yml",
       "unit": "lines",
-      "requirement": "既にあれば欠けたキーだけを追記し、既存のキー・値・コメントは変更しない",
+      "registry_groups": [
+        {
+          "id": "intentional-diffs",
+          "item_key": "item",
+          "paths": [
+            "skills.replace-strategy.intentional_diffs.keep",
+            "skills.replace-strategy.intentional_diffs.may_change",
+            "skills.replace-strategy.intentional_diffs.pending"
+          ]
+        }
+      ],
+      "growable_containers": ["skills.replace-strategy.component_diffs"],
+      "requirement": "既にあれば欠けたキーだけを追記し、既存のキー・値・コメントは変更しない。例外は 2 つ。intentional_diffs の keep / may_change / pending は 1 つのグループとして要素の単位へ展開し、鍵をまたぐ移動（棚卸しで人が pending の文言を keep / may_change へ移す）だけを許す——どの鍵にも無くなった要素は落ちる。component_diffs は要素ごとの単位へ展開し追記だけを許す。どちらも要素の差し替え・行末コメントの削除・キーごとの削除は落ちる",
       "source": "replace-strategy の references/project-config.md"
     },
     {
@@ -40,8 +52,9 @@
       "id": "dependencies",
       "pattern": ".replace/dependencies.md",
       "unit": "markdown-structure",
+      "mutable_columns": ["状態"],
       "mutable_bullets": ["最終更新", "方針の所在"],
-      "requirement": "既存の決定を書き換えない。差し替えたときは新しい決定を追記し、前の決定に差し替え理由を書く",
+      "requirement": "既存の決定を書き換えない。覆ったときは古い行の状態列だけを 有効 → 取り消し済み にし、新しい行を追記してそこへ覆した理由を書く（古い行の他のセルは書き換えない。状態だけがその場の更新を許される列）",
       "source": "replace-strategy の references/dependency-selection.md"
     },
     {
