@@ -66,6 +66,12 @@ export const UNITS = ["lines", "markdown-structure", "json-arrays"];
 /** mutable_blocks で外したキーを鍵だけの単位へ畳むときの接頭辞（実在の行と衝突しない綴り）。 */
 const MUTABLE_BLOCK_PREFIX = "<mutable-block: ";
 
+/** growable_containers の鍵の単位の接頭辞。 */
+const GROWABLE_PREFIX = "<container: ";
+
+/** growable_containers の要素の単位の接頭辞。 */
+const GROWABLE_ITEM_PREFIX = "<item: ";
+
 /** 使い方の誤り・型崩れ・判定不能（exit 2）。 */
 export class UsageError extends Error {}
 
@@ -174,19 +180,29 @@ function listFiles(root, startRel) {
  * 棚卸しは要素が増える方向にも減る方向にも動く）では落ちない。外した領域の要素の消失を数える工程は別に持つ
  * （`pending` は `parity-diff` の棚卸しと pending-triage-check.mjs が数える）。
  *
+ * あわせて `growable_containers` に挙げたキーパスのフロー形式コンテナを**要素ごとの単位へ展開する**
+ * （`keep: ["a", "b"] # c` → 鍵の単位 1 つと要素の単位 2 つ）。要素を足すと単位が増えるだけなので通り、
+ * 要素を落とせば単位が失われて落ちる。**緩和を鍵で名指しするのはここだけ**——
+ * 行の多重集合は同名の兄弟（`targets[].forbidden_actions` 等）を 1 つの鍵に畳むので、
+ * 鍵を名指しせずに「育った」を判定すると、**兄弟の間で要素が移動しただけの編集**（片方を空にして
+ * もう片方へ足す）まで通る。名指ししたパスは文書内で一意なので、この取り違えが起きない。
+ *
  * **YAML のパーサは持たない**（配布スキルに依存を増やさないため）。インデントでブロックを切るので、
- * 意図的に見ていないものがある: ブロックスカラー（`|` / `>`）は本文をキー行として読まないよう配下ごと飛ばすが、
+ * 意図的に見ていないものがある: ブロックスカラー（`|` / `>`）は本文をキー行として読まないよう配下ごと飛ばし、
+ * リスト要素（`- …`）は配下のキーが親のパスを継がないようマーカーを積むが、
  * アンカー・別名・複数文書（`---`）・フロー形式の入れ子（`{ a: { b: [] } }`）は解釈しない。
- * **外し損ねれば検査は厳しい側（行が単位のまま）へ倒れる**ので、誤って緩むことはない。
+ * 解釈できなかったパスは対象に一致しないので、**検査は厳しい側（行が単位のまま）へ倒れる**。
  * @param {string} text
  * @param {string[]} blocks 単位から外すキーパス。**ルート（文書の先頭）からの完全なパス**で書く——
  *   部分一致・末尾一致では引かないので、実在の入れ子（例: skills.replace-strategy.intentional_diffs.pending）を書く
- * @returns {string} 残った行を改行で連結したもの
+ * @param {string[]} [growable] 要素ごとの単位へ展開するキーパス（同じくルートからの完全なパス）
+ * @returns {string} 変換後の行を改行で連結したもの
  */
-export function stripYamlBlocks(text, blocks) {
-  if (blocks.length === 0) return text;
+export function stripYamlBlocks(text, blocks, growable = []) {
+  if (blocks.length === 0 && growable.length === 0) return text;
   // 実在の行と衝突しない形にする（YAML のキーにこの綴りは現れない）。
   const targets = new Set(blocks.map((b) => b.trim()));
+  const growableTargets = new Set(growable.map((b) => b.trim()));
   /** @type {{ indent: number, key: string }[]} 現在のキーパス */
   const stack = [];
   /** @type {string[]} */
@@ -228,8 +244,15 @@ export function stripYamlBlocks(text, blocks) {
     }
     while (stack.length > 0 && stack[stack.length - 1].indent >= indent) stack.pop();
     const m = /^([A-Za-z0-9_.-]+):(\s.*|)$/.exec(trimmed);
-    // リスト要素の中のキー（`- item: x`）は親のパスに属さないので積まない。
-    if (m === null || trimmed.startsWith("-")) {
+    // リスト要素（`- …`）は**マーカーを積む**。積まないと、その配下のキーが親のパスを継ぎ、
+    // `intentional_diffs:` がリストだった場合の `- name: a` 配下の `pending:` が
+    // `intentional_diffs.pending` として外れる（外しすぎ）。`-` はキーに現れないので衝突しない。
+    if (trimmed === "-" || trimmed.startsWith("- ")) {
+      stack.push({ indent, key: "-" });
+      kept.push(raw);
+      continue;
+    }
+    if (m === null) {
       kept.push(raw);
       continue;
     }
@@ -249,7 +272,28 @@ export function stripYamlBlocks(text, blocks) {
       if (comment !== "") kept.push(comment);
       continue;
     }
-    if (/^[|>][-+]?\d*$/.test(m[2].trim())) scalarIndent = indent;
+    if (growableTargets.has(path)) {
+      const { code, comment } = splitTrailingComment(trimmed);
+      const value = code.slice(key.length + 1).trim();
+      const items =
+        value.startsWith("[") || value.startsWith("{")
+          ? flowItems(value)
+          : value === ""
+            ? []
+            : null;
+      if (items !== null) {
+        // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
+        // 落とすと単位が失われて落ちる。値がフロー形式でない（ブロック形式・スカラ）ときは展開せず行のまま。
+        kept.push(`${GROWABLE_PREFIX}${path}>${comment === "" ? "" : ` ${comment}`}`);
+        for (const item of items) kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
+        continue;
+      }
+    }
+    // ブロックスカラー指示子は `|2-` / `|-2` のようにインデント指示子とチョップ指示子が任意の順に付く。
+    // 取りこぼしても**外れる側には倒れない**——本文はスカラのキーの配下にあるので、本文行をキーとして
+    // 読んでもパスにそのキー名（`note.` 等）が入り、対象のキーパスとは一致しないため
+    // （実測で再現を作れなかったので回帰テストは置いていない。ここは仕様への準拠として直してある）。
+    if (/^[|>](?:[-+]?\d*|\d*[-+]?)$/.test(m[2].trim())) scalarIndent = indent;
     kept.push(raw);
   }
   return kept.join("\n");
@@ -259,10 +303,14 @@ export function stripYamlBlocks(text, blocks) {
  * 行を突き合わせ用に正規化する（空白を畳む。空行は落とす）。
  * @param {string} text
  * @param {string[]} [mutableBlocks] 単位から外す YAML のキーパス（上記 stripYamlBlocks）
+ * @param {string[]} [growableContainers] 要素ごとの単位へ展開する YAML のキーパス（同上）
  * @returns {Map<string, number>} 正規化した行 → 出現回数
  */
-export function normalizeLines(text, mutableBlocks = []) {
-  const src = mutableBlocks.length === 0 ? text : stripYamlBlocks(text, mutableBlocks);
+export function normalizeLines(text, mutableBlocks = [], growableContainers = []) {
+  const src =
+    mutableBlocks.length === 0 && growableContainers.length === 0
+      ? text
+      : stripYamlBlocks(text, mutableBlocks, growableContainers);
   /** @type {Map<string, number>} */
   const counts = new Map();
   for (const raw of src.split("\n")) {
@@ -347,98 +395,6 @@ export function splitTrailingComment(line) {
     }
   }
   return { code: line, comment: "" };
-}
-
-/**
- * 正規化済みの 1 行を「フロー形式のコンテナ」か「ブロック開始」として読む。
- *
- * **行末コメントを切ってから読む**——正本の設定ファイルは `keep: [] # 変えない（…）` のように
- * コメント付きで書く（`references/project-config.md`）。行末が `]` であることを要求すると、
- * 実プロジェクトの設定では緩和が一度も発動せず、合否がコメントの有無で割れる。
- * コメント自体は契約の対象（「既存のキー・値・コメントは変更しない」）なので、
- * **鍵の一部として扱う**——コメントを消した行は別の鍵になり、緩和の対象から外れて落ちる。
- * @param {string} unit 正規化済みの 1 行
- * @returns {{ key: string, comment: string, items: string[] | null, blockStart: boolean } | null}
- */
-export function parseContainerLine(unit) {
-  const { code, comment } = splitTrailingComment(unit);
-  if (code.endsWith(":")) {
-    const key = code.slice(0, -1);
-    if (key === "" || key.includes(": ")) return null;
-    return { key, comment, items: [], blockStart: true };
-  }
-  const sep = code.indexOf(": ");
-  if (sep < 0) return null;
-  const key = code.slice(0, sep);
-  const rest = code.slice(sep + 2);
-  const open = rest[0];
-  const close = rest[rest.length - 1];
-  if (!((open === "[" && close === "]") || (open === "{" && close === "}"))) return null;
-  return { key, comment, items: flowItems(rest), blockStart: false };
-}
-
-/**
- * 鍵（＋行末コメント）ごとに、フロー形式コンテナの件数と要素の多重集合を集める。
- * @param {Map<string, number>} units
- * @returns {Map<string, { count: number, items: Map<string, number> | null }>}
- */
-export function collectContainers(units) {
-  /** @type {Map<string, { count: number, items: Map<string, number> | null }>} */
-  const out = new Map();
-  for (const [line, times] of units) {
-    const parsed = parseContainerLine(line);
-    if (parsed === null) continue;
-    const id = `${parsed.key}\u0000${parsed.comment}`;
-    let entry = out.get(id);
-    if (entry === undefined) {
-      entry = { count: 0, items: new Map() };
-      out.set(id, entry);
-    }
-    entry.count += times;
-    // 読み切れない値が 1 つでもあれば、その鍵は判定不能として厳しい側へ倒す。
-    if (parsed.items === null) {
-      entry.items = null;
-      continue;
-    }
-    if (entry.items === null) continue;
-    for (const item of parsed.items) entry.items.set(item, (entry.items.get(item) ?? 0) + times);
-  }
-  return out;
-}
-
-/**
- * 失われた行を「フロー形式のコンテナが育った」ものとして数えてよいかを、**鍵ごとの多重集合**で判定する。
- *
- * 空リストとして作られるキーへ**最初の要素を足す書き手は必ずこの形を通り**（`intentional_diffs.pending` /
- * `keep` / `may_change` / `component_diffs`）、棚卸しで `pending` から `keep` へ移した文言も
- * `keep: ["a"]` → `keep: ["a", "b"]` の行の書き換えとして現れる。どちらも要素は増えているのに、
- * 行の多重集合では元の行が失われたように見える。
- *
- * **失われた行ごとに独立へ判定しない**——行の単位はインデントを畳むので同じ鍵の行が複数ありうる
- * （`targets[].forbidden_actions` 等）。1 行ずつ「育った兄弟が在るか」を見ると、**中身の違う兄弟が
- * 同じ 1 件の育ったコンテナを重複して根拠にできる**（`[delete]` → `[delete, update]` と
- * `[delete, update]` → `[update]` を同時に行うと、後者から `delete` が消えたまま通る）。
- * そこで鍵ごとに (i) コンテナ行の件数が減っていないこと（キーごと・兄弟ごと消していない）と
- * (ii) 要素の多重集合が現在側に全部残っていること、の両方を求める。
- * @param {string} unit 失われた単位（正規化済みの行）
- * @param {Map<string, { count: number, items: Map<string, number> | null }>} beforeContainers
- * @param {Map<string, { count: number, items: Map<string, number> | null }>} afterContainers
- * @returns {boolean}
- */
-export function containerPreserved(unit, beforeContainers, afterContainers) {
-  const parsed = parseContainerLine(unit);
-  // ブロック開始行（`key:`）は要素を同じ単位で追えないので、緩和の対象にしない。
-  if (parsed === null || parsed.blockStart) return false;
-  const id = `${parsed.key}\u0000${parsed.comment}`;
-  const before = beforeContainers.get(id);
-  const after = afterContainers.get(id);
-  if (before === undefined || after === undefined) return false;
-  if (before.items === null || after.items === null) return false;
-  if (after.count < before.count) return false;
-  for (const [item, times] of before.items) {
-    if ((after.items.get(item) ?? 0) < times) return false;
-  }
-  return true;
 }
 
 /**
@@ -772,7 +728,7 @@ export function unitsOf(text, artifact, label) {
   if (artifact.unit === "json-arrays") {
     return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
   }
-  return normalizeLines(text, artifact.mutableBlocks ?? []);
+  return normalizeLines(text, artifact.mutableBlocks ?? [], artifact.growableContainers ?? []);
 }
 
 /**
@@ -793,7 +749,7 @@ function git(root, args) {
 /**
  * 一覧を読む。
  * @param {string} manifestPath
- * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], requirement: string, source: string }[]}
+ * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], requirement: string, source: string }[]}
  */
 export function readManifest(manifestPath) {
   if (!existsSync(manifestPath)) throw new UsageError(`一覧が無い: ${manifestPath}`);
@@ -846,6 +802,8 @@ export function readManifest(manifestPath) {
     let mutableBullets = [];
     /** @type {string[]} */
     let mutableBlocks = [];
+    /** @type {string[]} */
+    let growableContainers = [];
     if (unit === "json-arrays") {
       if (!Array.isArray(a.arrays) || a.arrays.length === 0) {
         throw new UsageError(`artifacts[${i}] の unit が json-arrays なのに arrays が空`);
@@ -893,10 +851,11 @@ export function readManifest(manifestPath) {
       if (
         a.mutable_columns !== undefined ||
         a.mutable_bullets !== undefined ||
-        a.mutable_blocks !== undefined
+        a.mutable_blocks !== undefined ||
+        a.growable_containers !== undefined
       ) {
         throw new UsageError(
-          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / mutable_bullets / mutable_blocks がある`,
+          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / mutable_bullets / mutable_blocks / growable_containers がある`,
         );
       }
     } else {
@@ -923,6 +882,26 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].mutable_columns に空の要素がある`);
         }
         mutableColumns = a.mutable_columns.map((x) => String(x).trim());
+      }
+      if (a.growable_containers !== undefined && a.growable_containers !== null) {
+        if (unit !== "lines") {
+          throw new UsageError(
+            `artifacts[${i}] の unit が ${unit} なのに growable_containers がある`,
+          );
+        }
+        if (!Array.isArray(a.growable_containers)) {
+          throw new UsageError(`artifacts[${i}].growable_containers が配列でない`);
+        }
+        for (const b of a.growable_containers) {
+          if (!nonEmptyString(b))
+            throw new UsageError(`artifacts[${i}].growable_containers に空の要素がある`);
+          if (!/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/.test(String(b).trim())) {
+            throw new UsageError(
+              `artifacts[${i}].growable_containers の要素がキーパスの形でない: ${JSON.stringify(b)}`,
+            );
+          }
+        }
+        growableContainers = a.growable_containers.map((x) => String(x).trim());
       }
       if (a.mutable_blocks !== undefined && a.mutable_blocks !== null) {
         if (unit !== "lines") {
@@ -969,6 +948,7 @@ export function readManifest(manifestPath) {
       mutableColumns,
       mutableBullets,
       mutableBlocks,
+      growableContainers,
       requirement: nonEmptyString(a.requirement) ? String(a.requirement).trim() : "",
       source: nonEmptyString(a.source) ? String(a.source).trim() : "",
     };
@@ -1040,11 +1020,11 @@ export function check(opts) {
     return files;
   };
 
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[] }>} */
+  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[] }>} */
   const byFile = new Map();
   /**
    * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[] }} artifact
+   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[] }} artifact
    */
   const assign = (file, artifact) => {
     const prev = byFile.get(file);
@@ -1062,7 +1042,9 @@ export function check(opts) {
       prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
       canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
       prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",") ||
-      prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",")
+      prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",") ||
+      prev.mutableBlocks.join(",") !== artifact.mutableBlocks.join(",") ||
+      prev.growableContainers.join(",") !== artifact.growableContainers.join(",")
     ) {
       // 先勝ちにすると一覧の並び替えで判定が変わる。突き合わせ方が割れたら止める。
       throw new UsageError(
@@ -1090,7 +1072,7 @@ export function check(opts) {
   let checked = 0;
   for (const file of targets) {
     const artifact =
-      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[] }} */ (
+      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[] }} */ (
         byFile.get(file)
       );
     const inBase = trackedSet.has(file);
@@ -1130,33 +1112,14 @@ export function check(opts) {
     }
     const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`);
     const afterUnits = unitsOf(afterText, artifact, file);
-    // 行が単位のときだけ効く緩和（markdown-structure / json-arrays は要素で見るのでこの形が起きない）。
-    const beforeContainers = artifact.unit === "lines" ? collectContainers(beforeUnits) : null;
-    const afterContainers = artifact.unit === "lines" ? collectContainers(afterUnits) : null;
     /** @type {string[]} */
     const lost = [];
-    /** @type {string[]} フロー形式のコンテナが育ったものとして数えなかった単位 */
-    const exempted = [];
     let lostCount = 0;
     for (const [unit, count] of beforeUnits) {
       const now = afterUnits.get(unit) ?? 0;
       if (now >= count) continue;
-      if (
-        beforeContainers !== null &&
-        afterContainers !== null &&
-        containerPreserved(unit, beforeContainers, afterContainers)
-      ) {
-        exempted.push(unit);
-        continue;
-      }
       lostCount += count - now;
       if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
-    }
-    // 緩めたことは黙って握り潰さない（外した理由を読めるようにする）。
-    if (exempted.length > 0) {
-      notes.push(
-        `フロー形式のコンテナが育ったものとして数えなかった ${exempted.length} 件: ${file}（${exempted.slice(0, 3).join(" / ")}）`,
-      );
     }
     if (lostCount > 0) {
       findings.push(

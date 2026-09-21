@@ -221,10 +221,10 @@
     **突き合わせの単位は一覧の `unit` が決める**（`lines` / `markdown-structure` / `json-arrays`）。
     全部を行として比べると、正本が明示的に求めるその場の更新（版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・最終更新の日時）が
     「失われた行」に化け、決定を 1 つも捨てていない成果物で収束が止まる。
-    `lines` では**フロー形式のコンテナが育った**ことによる行の書き換え（`keep: [] # 変えない（…）` → `keep: ["…"] # 変えない（…）`。
-    判定は鍵ごとの多重集合で行い、行末コメントは鍵の一部として扱う）を縮小に数えず、
-    正本が**削除を定めている**領域は一覧の `mutable_blocks`（YAML のキーパス）で単位から外す
-    （`intentional_diffs.pending` の配下。下記「`intentional_diffs.pending` の棚卸し」で人が `keep` / `may_change` へ文言を移すため）。
+    `lines` では、追記だけを許す鍵を一覧の `growable_containers`（YAML のキーパス）で名指しし、要素ごとの単位へ展開する
+    （`intentional_diffs.keep` / `may_change` と `component_diffs`。`keep: [] # 変えない（…）` → `keep: ["…"] # 変えない（…）` が通り、
+    要素の削除・行末コメントの削除は落ちる）。正本が**削除を定めている**領域は `mutable_blocks` で配下を単位から外す
+    （`intentional_diffs.pending`。下記「`intentional_diffs.pending` の棚卸し」で人が `keep` / `may_change` へ文言を移すため）。
     どちらもキーごと消せば落ちる。
     Markdown は**見出し・表の列名・表の行（先頭セルが鍵）・行 × 列のセル・定義箇条書きの鍵・それ以外の散文行**を守る。
     **鍵だけを残すと残りのセルが自由に書き換わる**（決定の出どころ・方針・理由を丸ごと差し替えても行は在る）ので、
