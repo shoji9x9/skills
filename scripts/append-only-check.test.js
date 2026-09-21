@@ -2202,17 +2202,100 @@ test("折り返しの連結: 開き括弧が次の行にあっても読む（フ
   expect(keepUnits('a:\n  keep:\n    - "x"\n')).toEqual(["a:", "<container: a.keep>", '    - "x"']);
 });
 
-test("折り返しの連結: 読めない形は行のまま突き合わせる（fail-closed）", () => {
-  // 途中の空行・コメント行は受理しない（読み方が増えるだけなので厳しい側へ倒す）。
+test("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", () => {
+  // ここで打ち切ると、比較元の折り返し行がそのまま単位になり、案内どおり 1 行へ書き直しても落ちる。
   expect(keepUnits('a:\n  keep: [\n\n    "x"\n  ] # c\n')).toEqual([
     "a:",
-    "  keep: [",
-    '    "x"',
-    "  ] # c",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
   ]);
-  expect(keepUnits('a:\n  keep: [\n    # note\n    "x"\n  ] # c\n')).toContain("  keep: [");
+  // コメント行は単位として残す（黙って消せるようにしない）。
+  expect(keepUnits('a:\n  keep: [\n    # note\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# note",
+    "# c",
+    "<item: a.keep> x",
+  ]);
+});
+
+test("折り返しの連結: 読めない形は行のまま突き合わせる（fail-closed）", () => {
   // 閉じないまま文書が終わる。
   expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
   // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
   expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
+});
+
+test("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る（案内どおり直せば通る）", () => {
+  const wrapped = [
+    "      keep: [",
+    "",
+    '        "テーブル名を保つ"',
+    "      ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  // 追記だけ。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '        "テーブル名を保つ"\n',
+      '        "テーブル名を保つ",\n        "項目名を保つ"\n',
+    ),
+  );
+  const added = run(root);
+  expect(added.stdout).toMatch(/^ok: /m);
+  expect(added.status).toBe(0);
+  // 案内が指す「1 行へ書き直す」。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const rewritten = run(root);
+  expect(rewritten.stdout).toMatch(/^ok: /m);
+  expect(rewritten.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 案内はファイル単位で出さない。読めないコンテナと無関係な鍵の削除に「復元せず表記を直す」が付くと、
+// 記録した決定を消させないというツールの目的と逆向きの指示になる。
+/** 閉じないコンテナ（比較元・現在で不変）と、別の鍵の育つコンテナを持つ設定。 */
+const UNREADABLE_CONFIG = CONFIG.replace(
+  "    component_diffs: []",
+  "    component_diffs: [{component: grid, property: color}]",
+).replace('      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）', "      keep: [");
+
+test("読めないコンテナがあっても、無関係な鍵の削除には案内を出さない", () => {
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [{component: grid, property: color}]",
+      "    component_diffs: []",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/component_diffs/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("陽性コントロール: 読めないコンテナ由来の消失には案内を出す", () => {
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
+  );
+  rmSync(root, { recursive: true, force: true });
 });
