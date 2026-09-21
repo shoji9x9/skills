@@ -391,6 +391,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         // グループ共通で、鍵を弁別できない（`keep` が読めないだけで `pending` の削除にまで案内が付く）。
         // 読めなくなると鍵の単位（`<registry: パス>`）が失われるので、真の陽性はそちらで拾える。
         [`${REGISTRY_PREFIX}${path}>`],
+        { keepItemComments: false },
       );
       // 読めない値・スカラは展開せず行のまま（厳しい側へ倒す）。
       if (items === null) {
@@ -428,7 +429,9 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         path,
         indent,
         wrappedOut,
+        // 育つコンテナは行末コメントの削除も落とす要求なので、要素行の注記も単位に残す。
         [`${GROWABLE_PREFIX}${path}>`, `${GROWABLE_ITEM_PREFIX}${path}>`],
+        { keepItemComments: true },
       );
       if (items !== null) {
         li = last;
@@ -487,8 +490,9 @@ function nextStructuralLine(lines, li) {
  * @param {string} head 鍵の行（行末コメントを切った後）
  * @param {number} keyIndent 鍵の行のインデント
  * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときの帰属判定に使う
- * @returns {{ items: string[], comments: string[], last: number } | null}
- *   `items` = 連結して読めた要素、`last` = 消費した最後の行の添字
+ * @returns {{ items: string[], comments: string[], closing: string[], last: number } | null}
+ *   `items` = 連結して読めた要素、`comments` = 要素行の注記、`closing` = 閉じる行の注記（＝鍵の注記）、
+ *   `last` = 消費した最後の行の添字
  */
 function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
   let joined = head;
@@ -501,7 +505,9 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     // 空行は値の途中に書ける（単位にはならない）。コメント行は単位として残す。
     if (trimmed === "") continue;
     if (trimmed.startsWith("#")) {
-      scannedOut.push(normalizeLine(trimmed));
+      // **帰属材料には入れない**——連結が失敗したときは閉じ括弧が無いので、この注記がコンテナの
+      // 内にあったのか外（次の構造行の手前）にあったのかを区別できない。入れると、外の注記を
+      // 消しただけで「復元せず表記を直す」が付く（1 行へ直しても注記は戻らないので行き止まりの指示）。
       comments.push(trimmed);
       continue;
     }
@@ -512,11 +518,19 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
     scannedOut.push(normalizeLine(trimmed));
     const split = splitTrailingComment(trimmed);
     joined = `${joined} ${split.code}`;
-    if (split.comment !== "") comments.push(split.comment);
     const flow = scanFlow(joined.slice(joined.indexOf(":") + 1).trim());
     // 読めた要素はここで返す。呼び出し側で連結後の文字列を取り直して読み直すと、値の切り出し方が
     // 2 箇所に分かれて片方だけ直る余地が残るので、読み方はこの 1 箇所に閉じる。
-    if (flow.items !== null) return { items: flow.items, comments, last: i };
+    // **閉じる行の注記は鍵の注記**（1 行で書けば鍵の行末に来る）なので、要素行の注記と分けて返す。
+    if (flow.items !== null) {
+      return {
+        items: flow.items,
+        comments,
+        closing: split.comment === "" ? [] : [split.comment],
+        last: i,
+      };
+    }
+    if (split.comment !== "") comments.push(split.comment);
     if (flow.reason !== "unclosed") return null;
   }
   return null;
@@ -539,10 +553,22 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
  * @param {number} keyIndent 鍵の行のインデント
  * @param {{ path: string, prefixes: string[], lines: string[] }[]} wrappedOut
  * @param {string[]} unitPrefixes このコンテナの要素が作る単位の接頭辞（帰属判定に使う）
+ * @param {{ keepItemComments: boolean }} options `keepItemComments` = 折り返した要素行の行末コメントを
+ *   単位にするか（鍵の行の注記は常に単位にする）
  * @returns {{ items: string[] | null, comments: string[], last: number, block: boolean }}
  *   `block` = 鍵の行に値が無く、フロー形式でもない（ブロック形式として読む）
  */
-function readNamedFlow(lines, li, trimmed, key, path, keyIndent, wrappedOut, unitPrefixes) {
+function readNamedFlow(
+  lines,
+  li,
+  trimmed,
+  key,
+  path,
+  keyIndent,
+  wrappedOut,
+  unitPrefixes,
+  options,
+) {
   const first = splitTrailingComment(trimmed);
   const comments = first.comment === "" ? [] : [first.comment];
   const value = first.code.slice(key.length + 1).trim();
@@ -563,7 +589,12 @@ function readNamedFlow(lines, li, trimmed, key, path, keyIndent, wrappedOut, uni
   }
   return {
     items: joined.items,
-    comments: [...comments, ...joined.comments],
+    // 要素行の注記を単位にするかは成果物の要求で分かれる。**registry は単位にしない**——
+    // `flushRegistryItem` がブロック形式で同じ判断をしており（移動先に置き場所が無く #426 の誤検出になる）、
+    // フロー形式だけが守ると、正規の棚卸し（pending の文言を keep へ移す）が表記を変えただけで落ちる。
+    comments: options.keepItemComments
+      ? [...comments, ...joined.comments, ...joined.closing]
+      : [...comments, ...joined.closing],
     last: joined.last,
     block: false,
   };

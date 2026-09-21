@@ -2355,3 +2355,69 @@ test("鍵と開き括弧の間に空行・コメント行があっても読む�
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("読めないコンテナの後ろにあるコメント行の削除には案内を出さない", () => {
+  // 連結が失敗したときは閉じ括弧が無く、その注記が内にあったか外にあったかを区別できない。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      # 無関係な注記\n"),
+  );
+  writeConfig(root, readConfig(root).replace("      # 無関係な注記\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/無関係な注記/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// registry は鍵をまたぐ移動（棚卸し）を許すので、要素行の注記は単位にしない（移動先に置き場所が無い。
+// ブロック形式の flushRegistryItem と同じ判断）。閉じる行の注記は鍵の注記なので単位に残す。
+const WRAPPED_PENDING = [
+  "      pending: [",
+  "        {item: 一覧の並び順が変わる, slug: cross-cutting}, # 注記",
+  "      ] # 保留（測定結果で決める）",
+].join("\n");
+
+test("折り返した registry の要素行の注記は単位にしない（棚卸しが表記で割れない）", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
+  );
+  // 正規の棚卸し: pending の文言を keep へ移す。
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(WRAPPED_PENDING, "      pending: [] # 保留（測定結果で決める）")
+      .replace(
+        '      keep: ["テーブル名を保つ"] #',
+        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] #',
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返した registry でも、閉じる行の注記（鍵の注記）を消せば落ちる", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
+  );
+  writeConfig(root, readConfig(root).replace("      ] # 保留（測定結果で決める）", "      ]"));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/保留（測定結果で決める）/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", () => {
+  const wrapped = [
+    "    component_diffs: [",
+    "      {component: grid, property: color}, # 注記",
+    "    ]",
+  ].join("\n");
+  const root = makeConfigRepo(CONFIG.replace("    component_diffs: []", wrapped));
+  writeConfig(root, readConfig(root).replace(", property: color}, # 注記", ", property: color},"));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/注記/);
+  rmSync(root, { recursive: true, force: true });
+});
