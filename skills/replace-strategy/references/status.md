@@ -121,7 +121,9 @@ done
     - **共通部品の未決も同じ扱いで列挙する**: `.replace/dependencies.md` の `決定` が `未確認` の行（確かめるのに要る条件を添える）と、`機能固有` の行（`適用範囲` の slug を添える）。
       **同じ部品（用途）に複数の行があれば最後の行の `決定` で判定する**——このファイルは append-only で可変列を持たないため、
       解決は**差し替え行の追記**で行われる（正本は [`../assets/append-only-manifest.json`](../assets/append-only-manifest.json) と
-      [`dependency-selection.md`](dependency-selection.md)）。最初の行だけを見ると、解決済みの未決を恒久的に列挙し続ける
+      [`dependency-selection.md`](dependency-selection.md)）。最初の行だけを見ると、解決済みの未決を恒久的に列挙し続ける。
+      **突き合わせは `部品（用途）` セルの完全一致で取る**（差し替え行はこのセルを逐語で写す。規約は [`dependency-selection.md`](dependency-selection.md)）——
+      差し替えで用途の括弧を補うと鍵が割れ、`append-only-check.mjs` も行を先頭セルで鍵付けするため検出されない。
       前者は洗い出しが終わっていない印、後者は `parity-replace` が実装フェーズ前に決める申し送りで、**どちらも空欄と違って「読む先がある記録」**なので落とさず出す
       （規則は [`dependency-selection.md`](dependency-selection.md)「洗い出しの網羅（共通 UI プリミティブ）」）。
       **ファイルが無ければ「共通部品の洗い出しが未実施（`setup` 手順 10 未実施）」と報告する**——無いことを「共通部品が無い」と読まない

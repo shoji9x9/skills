@@ -28,7 +28,7 @@
 | 金額の丸め | 自前実装 | — | order | order の実装中 |
 | ページネーション（一覧のページ送り） | 内蔵 | example-table@4.5.6 | order | order の実装前 |
 | トースト通知 | 該当なし | — | — | setup |
-| 印刷プレビュー | 機能固有 | — | report | report の実装前（parity-replace） |
+| 印刷プレビュー | 機能固有 | — | report | report の実装前 |
 | 読み込み中の表示 | 未確認 | — | — | setup |
 
 ## 本文フォント: example-font@1.2.3
