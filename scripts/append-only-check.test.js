@@ -935,16 +935,17 @@ const CONFIG = [
   "    new:",
   "      stack: [typescript]",
   "    intentional_diffs:",
-  '      keep: ["テーブル名を保つ"]',
-  "      may_change: []",
-  "      pending: []",
+  '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+  "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+  "      pending: [] # 保留（測定結果で決める）",
   "      # ↑ 外した領域の後ろに続く注記（構造行ではないのでブロックを閉じない）",
   "    component_diffs: []",
+  "    bare_list: []",
   "",
 ].join("\n");
 
 const PENDING_BLOCK = [
-  "      pending:",
+  "      pending: # 保留（測定結果で決める）",
   "        - item: 一覧の並び順が変わる",
   "          slug: cross-cutting",
   "          added_by: replace-strategy",
@@ -999,14 +1000,20 @@ function makeConfigRepo(text = CONFIG) {
 /** pending に 1 件積んだ状態を比較元にする。 */
 function makeConfigRepoWithPending() {
   const root = makeConfigRepo();
-  writeConfig(root, readConfig(root).replace("      pending: []\n", PENDING_BLOCK));
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
   commit(root, "pending に 1 件");
   return root;
 }
 
 test("空リストのキーへ最初の要素をブロック形式で足しても縮小に数えない（Issue #426）", () => {
   const root = makeConfigRepo();
-  writeConfig(root, readConfig(root).replace("      pending: []\n", PENDING_BLOCK));
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
   const r = run(root);
   expect(r.stdout).toMatch(/^ok: /m);
   expect(r.status).toBe(0);
@@ -1017,7 +1024,10 @@ test("フロー形式のコンテナへ要素を足した行の書き換えは�
   const root = makeConfigRepo();
   writeConfig(
     root,
-    readConfig(root).replace("      may_change: []", '      may_change: ["新しい宣言"]'),
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["新しい宣言"] # 変えてよい（例: ディレクトリ・ファイル名）',
+    ),
   );
   const r = run(root);
   expect(r.stdout).toMatch(/フロー形式のコンテナが育ったものとして数えなかった/);
@@ -1032,10 +1042,10 @@ test("棚卸しで pending の要素を keep へ移しても縮小に数えな�
     root,
     readConfig(root)
       .replace(
-        '      keep: ["テーブル名を保つ"]',
-        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"]',
+        '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] # 変えない（例: テーブル名、項目名）',
       )
-      .replace(PENDING_BLOCK, "      pending: []\n"),
+      .replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
   );
   const r = run(root);
   expect(r.stdout).toMatch(/^ok: /m);
@@ -1066,7 +1076,13 @@ test("pending をキーごと消せば落ちる（外すのは配下だけ）", 
 
 test("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", () => {
   const root = makeConfigRepo();
-  writeConfig(root, readConfig(root).replace('      keep: ["テーブル名を保つ"]', "      keep: []"));
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [] # 変えない（例: テーブル名、項目名）",
+    ),
+  );
   const r = run(root);
   expect(r.stdout).toMatch(/失われている/);
   expect(r.status).toBe(1);
@@ -1077,7 +1093,10 @@ test("keep の要素を別物へ差し替えれば落ちる", () => {
   const root = makeConfigRepo();
   writeConfig(
     root,
-    readConfig(root).replace('      keep: ["テーブル名を保つ"]', '      keep: ["別の宣言"]'),
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      '      keep: ["別の宣言"] # 変えない（例: テーブル名、項目名）',
+    ),
   );
   const r = run(root);
   expect(r.stdout).toMatch(/失われている/);
@@ -1279,6 +1298,152 @@ test("理由・引き取り手列をその場で書き換えれば落ちる", ()
     readDependencies(root).replace(
       "削除ボタンでしか出せず現行 target で削除が禁止されている",
       "別の理由に差し替えた",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 行末コメントと兄弟コンテナ（PR #429 のレビュー指摘）
+//
+// 正本の設定ファイルは `keep: [] # 変えない（…）` のようにコメント付きで書く。
+// 行末が `]` であることを要求すると、実プロジェクトでは緩和が一度も発動せず、
+// 合否がコメントの有無で割れる。コメント自体も契約の対象（「既存のキー・値・コメントは変更しない」）。
+// 兄弟コンテナは中身が違うと別の正規化行になるため、失われた行ごとに独立へ判定すると
+// 同じ 1 件の育ったコンテナを複数の兄弟が根拠にできる。
+// ---------------------------------------------------------------------------
+
+test("行末コメント付きの空コンテナへ最初の要素を足しても縮小に数えない", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["HTML の id"] # 変えてよい（例: ディレクトリ・ファイル名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/フロー形式のコンテナが育ったものとして数えなかった/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("コメントの無い空コンテナでも同じく通る（合否がコメントの有無で割れない）", () => {
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace("    bare_list: []", '    bare_list: ["x"]'));
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("要素を足すついでに行末コメントを消せば落ちる（コメントは鍵の一部）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）",
+      '      may_change: ["HTML の id"]',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks で外したキー行の行末コメントを消せば落ちる", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）", "      pending: []"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+const TWO_TARGETS_DIFFERENT = [
+  "skills:",
+  "  replace-strategy:",
+  "    targets:",
+  "      - name: current-test",
+  "        forbidden_actions: [delete]",
+  "      - name: current-staging",
+  "        forbidden_actions: [delete, update]",
+  "    intentional_diffs:",
+  "      keep: []",
+  "      may_change: []",
+  "      pending: []",
+  "",
+].join("\n");
+
+test("中身の違う兄弟でも、育った側を根拠に別の兄弟から要素を消せない", () => {
+  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+  // current-test が [delete, update] へ育ち、current-staging から delete が消える。
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace("        forbidden_actions: [delete]", "        forbidden_actions: [delete, update]")
+      .replace(
+        "        forbidden_actions: [delete, update]\n    intentional_diffs:",
+        "        forbidden_actions: [update]\n    intentional_diffs:",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("中身の違う兄弟が両方育てば通る", () => {
+  const root = makeConfigRepo(TWO_TARGETS_DIFFERENT);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        "        forbidden_actions: [delete]\n",
+        "        forbidden_actions: [delete, update]\n",
+      )
+      .replace(
+        "        forbidden_actions: [delete, update]\n    intentional_diffs:",
+        "        forbidden_actions: [delete, update, create]\n    intentional_diffs:",
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ鍵の空コンテナが 2 つあり片方を消せば落ちる（件数も見る）", () => {
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    targets:",
+      "      - name: current-test",
+      "        forbidden_actions: []",
+      "      - name: current-staging",
+      "        forbidden_actions: []",
+      "    intentional_diffs:",
+      "      keep: []",
+      "      may_change: []",
+      "      pending: []",
+      "",
+    ].join("\n"),
+  );
+  // 片方から禁止操作の宣言だけを消す（name 行は残すので、失われるのは forbidden_actions の行だけ）。
+  // 要素の多重集合は空のまま等しいため、同じ鍵のコンテナ行の件数を見ないと通ってしまう。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      - name: current-staging\n        forbidden_actions: []\n",
+      "      - name: current-staging\n        side: current\n",
     ),
   );
   const r = run(root);

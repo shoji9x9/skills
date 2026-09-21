@@ -242,6 +242,11 @@ export function stripYamlBlocks(text, blocks) {
       // 棚卸しは要素が増える方向にも減る方向にも動くので、**鍵だけの単位へ畳む**。
       excludeIndent = indent;
       kept.push(`${MUTABLE_BLOCK_PREFIX}${path}>`);
+      // 行末コメントは畳まず単位に残す——一覧の requirement は「既存のキー・値・コメントは変更しない」で、
+      // 外すのは配下の**要素**だけ。畳むとキー行に付いた注記だけが黙って消せるようになる
+      // （別行のコメントは守られるので、残さないと同じファイルの中で非対称になる）。
+      const { comment } = splitTrailingComment(trimmed);
+      if (comment !== "") kept.push(comment);
       continue;
     }
     if (/^[|>][-+]?\d*$/.test(m[2].trim())) scalarIndent = indent;
@@ -319,48 +324,121 @@ export function flowItems(raw) {
     .filter((x) => x !== "");
 }
 
-/** フロー形式のコンテナの行（`key: [a, b]` / `key: {}`）を鍵と中身へ割る。 */
-const FLOW_CONTAINER = /^(.+?): (\[.*\]|\{.*\})$/;
+/**
+ * 行末コメント（YAML の ` # …`）を切り離す。引用符の中の `#` はコメントにしない。
+ * @param {string} line 正規化済みの 1 行
+ * @returns {{ code: string, comment: string }}
+ */
+export function splitTrailingComment(line) {
+  /** @type {string | null} */
+  let quote = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "#" && (i === 0 || line[i - 1] === " ")) {
+      return { code: line.slice(0, i).trimEnd(), comment: line.slice(i).trim() };
+    }
+  }
+  return { code: line, comment: "" };
+}
 
 /**
- * 失われた行を「フロー形式のコンテナが育った」ものとして数えないでよい件数を返す。
+ * 正規化済みの 1 行を「フロー形式のコンテナ」か「ブロック開始」として読む。
+ *
+ * **行末コメントを切ってから読む**——正本の設定ファイルは `keep: [] # 変えない（…）` のように
+ * コメント付きで書く（`references/project-config.md`）。行末が `]` であることを要求すると、
+ * 実プロジェクトの設定では緩和が一度も発動せず、合否がコメントの有無で割れる。
+ * コメント自体は契約の対象（「既存のキー・値・コメントは変更しない」）なので、
+ * **鍵の一部として扱う**——コメントを消した行は別の鍵になり、緩和の対象から外れて落ちる。
+ * @param {string} unit 正規化済みの 1 行
+ * @returns {{ key: string, comment: string, items: string[] | null, blockStart: boolean } | null}
+ */
+export function parseContainerLine(unit) {
+  const { code, comment } = splitTrailingComment(unit);
+  if (code.endsWith(":")) {
+    const key = code.slice(0, -1);
+    if (key === "" || key.includes(": ")) return null;
+    return { key, comment, items: [], blockStart: true };
+  }
+  const sep = code.indexOf(": ");
+  if (sep < 0) return null;
+  const key = code.slice(0, sep);
+  const rest = code.slice(sep + 2);
+  const open = rest[0];
+  const close = rest[rest.length - 1];
+  if (!((open === "[" && close === "]") || (open === "{" && close === "}"))) return null;
+  return { key, comment, items: flowItems(rest), blockStart: false };
+}
+
+/**
+ * 鍵（＋行末コメント）ごとに、フロー形式コンテナの件数と要素の多重集合を集める。
+ * @param {Map<string, number>} units
+ * @returns {Map<string, { count: number, items: Map<string, number> | null }>}
+ */
+export function collectContainers(units) {
+  /** @type {Map<string, { count: number, items: Map<string, number> | null }>} */
+  const out = new Map();
+  for (const [line, times] of units) {
+    const parsed = parseContainerLine(line);
+    if (parsed === null) continue;
+    const id = `${parsed.key}\u0000${parsed.comment}`;
+    let entry = out.get(id);
+    if (entry === undefined) {
+      entry = { count: 0, items: new Map() };
+      out.set(id, entry);
+    }
+    entry.count += times;
+    // 読み切れない値が 1 つでもあれば、その鍵は判定不能として厳しい側へ倒す。
+    if (parsed.items === null) {
+      entry.items = null;
+      continue;
+    }
+    if (entry.items === null) continue;
+    for (const item of parsed.items) entry.items.set(item, (entry.items.get(item) ?? 0) + times);
+  }
+  return out;
+}
+
+/**
+ * 失われた行を「フロー形式のコンテナが育った」ものとして数えてよいかを、**鍵ごとの多重集合**で判定する。
  *
  * 空リストとして作られるキーへ**最初の要素を足す書き手は必ずこの形を通り**（`intentional_diffs.pending` /
  * `keep` / `may_change` / `component_diffs`）、棚卸しで `pending` から `keep` へ移した文言も
  * `keep: ["a"]` → `keep: ["a", "b"]` の行の書き換えとして現れる。どちらも要素は増えているのに、
  * 行の多重集合では元の行が失われたように見える。
  *
- * 緩めるのは**元の要素がすべて現在側にも在る**ときだけ。要素を 1 つでも落とせば縮小として落ちる。
- * ブロック形式へ移った場合（現在側が `key:`）は配下の要素を同じ単位で追えないので、**元が空のときだけ**数える。
- *
- * **件数で返すのは、行の単位がインデントを畳むため同じ鍵の行が複数あるから**（`targets[].forbidden_actions` /
- * `current.stack` と `new.stack` 等）。1 件でも育っていれば緩める形にすると、**育った兄弟の陰で別の兄弟から
- * 要素を消せる**（`forbidden_actions: [delete]` が 2 件あり、片方が `[delete, update]` へ育ち、
- * もう片方が `[]` になる形が通ってしまう）。呼び出し側は失われた件数と突き合わせる。
+ * **失われた行ごとに独立へ判定しない**——行の単位はインデントを畳むので同じ鍵の行が複数ありうる
+ * （`targets[].forbidden_actions` 等）。1 行ずつ「育った兄弟が在るか」を見ると、**中身の違う兄弟が
+ * 同じ 1 件の育ったコンテナを重複して根拠にできる**（`[delete]` → `[delete, update]` と
+ * `[delete, update]` → `[update]` を同時に行うと、後者から `delete` が消えたまま通る）。
+ * そこで鍵ごとに (i) コンテナ行の件数が減っていないこと（キーごと・兄弟ごと消していない）と
+ * (ii) 要素の多重集合が現在側に全部残っていること、の両方を求める。
  * @param {string} unit 失われた単位（正規化済みの行）
- * @param {Map<string, number>} afterUnits 現在側の単位
- * @returns {number} 元の要素をすべて含む現在側のコンテナの件数（多重度を含む）
+ * @param {Map<string, { count: number, items: Map<string, number> | null }>} beforeContainers
+ * @param {Map<string, { count: number, items: Map<string, number> | null }>} afterContainers
+ * @returns {boolean}
  */
-export function containerGrowthCount(unit, afterUnits) {
-  const m = FLOW_CONTAINER.exec(unit);
-  if (m === null) return 0;
-  const key = m[1];
-  const before = flowItems(m[2]);
-  if (before === null) return 0;
-  let grown = 0;
-  for (const [line, times] of afterUnits) {
-    if (line === `${key}:`) {
-      if (before.length === 0) grown += times;
-      continue;
-    }
-    const n = FLOW_CONTAINER.exec(line);
-    if (n === null || n[1] !== key) continue;
-    const after = flowItems(n[2]);
-    // 読み切れない値は「育った」に数えない（厳しい側＝縮小へ倒す）。
-    if (after === null) continue;
-    if (before.every((x) => after.includes(x))) grown += times;
+export function containerPreserved(unit, beforeContainers, afterContainers) {
+  const parsed = parseContainerLine(unit);
+  // ブロック開始行（`key:`）は要素を同じ単位で追えないので、緩和の対象にしない。
+  if (parsed === null || parsed.blockStart) return false;
+  const id = `${parsed.key}\u0000${parsed.comment}`;
+  const before = beforeContainers.get(id);
+  const after = afterContainers.get(id);
+  if (before === undefined || after === undefined) return false;
+  if (before.items === null || after.items === null) return false;
+  if (after.count < before.count) return false;
+  for (const [item, times] of before.items) {
+    if ((after.items.get(item) ?? 0) < times) return false;
   }
-  return grown;
+  return true;
 }
 
 /**
@@ -1052,6 +1130,9 @@ export function check(opts) {
     }
     const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`);
     const afterUnits = unitsOf(afterText, artifact, file);
+    // 行が単位のときだけ効く緩和（markdown-structure / json-arrays は要素で見るのでこの形が起きない）。
+    const beforeContainers = artifact.unit === "lines" ? collectContainers(beforeUnits) : null;
+    const afterContainers = artifact.unit === "lines" ? collectContainers(afterUnits) : null;
     /** @type {string[]} */
     const lost = [];
     /** @type {string[]} フロー形式のコンテナが育ったものとして数えなかった単位 */
@@ -1060,9 +1141,11 @@ export function check(opts) {
     for (const [unit, count] of beforeUnits) {
       const now = afterUnits.get(unit) ?? 0;
       if (now >= count) continue;
-      // 行が単位のときだけ効く緩和（markdown-structure / json-arrays は要素で見るのでこの形が起きない）。
-      // 失われた分（count - now）がすべて「育ったコンテナ」で説明できるときだけ外す。
-      if (artifact.unit === "lines" && containerGrowthCount(unit, afterUnits) >= count) {
+      if (
+        beforeContainers !== null &&
+        afterContainers !== null &&
+        containerPreserved(unit, beforeContainers, afterContainers)
+      ) {
         exempted.push(unit);
         continue;
       }
