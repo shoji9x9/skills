@@ -48,7 +48,7 @@
       "unit": "markdown-structure",
       "mutable_columns": ["状態"],
       "mutable_bullets": ["最終更新", "方針の所在"],
-      "requirement": "既存の決定を書き換えない。差し替えたときは新しい決定を追記し、前の決定に差し替え理由を書く。覆った決定は行を消さず状態列を 有効 → 取り消し済み にするので、状態だけがその場の更新を許される列",
+      "requirement": "既存の決定を書き換えない。覆ったときは古い行の状態列だけを 有効 → 取り消し済み にし、新しい行を追記してそこへ覆した理由を書く（古い行の他のセルは書き換えない。状態だけがその場の更新を許される列）",
       "source": "replace-strategy の references/dependency-selection.md"
     },
     {

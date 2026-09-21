@@ -1343,7 +1343,7 @@ test("growable_containers に挙げていないキーは、要素を足しただ
   rmSync(root, { recursive: true, force: true });
 });
 
-test("要素を足すついでに行末コメントを消せば落ちる（コメントは鍵の一部）", () => {
+test("要素を足すついでに行末コメントを消せば落ちる（コメントも単位）", () => {
   const root = makeConfigRepo();
   writeConfig(
     root,
@@ -1537,6 +1537,95 @@ test("リスト要素の配下にある同名キーは外れない（パスが�
     readConfig(root).replace(
       "        pending:\n          - 消してはいけない記録\n",
       "        pending:\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// プレーンスカラーの引用符・コメントの置き場所（PR #429 のレビュー指摘・3 巡目）
+// ---------------------------------------------------------------------------
+
+const PLAIN_APOSTROPHE = [
+  "skills:",
+  "  replace-strategy:",
+  "    intentional_diffs:",
+  "      keep: [don't rename tables] # 変えない（例: テーブル名、項目名）",
+  "      may_change: []",
+  "      pending: []",
+  "    component_diffs: [] # コンポーネント系統差レジストリ",
+  "",
+].join("\n");
+
+test("プレーンスカラーのアポストロフィがあっても要素を足せる（引用符として読まない）", () => {
+  // YAML では `[don't rename]` のアポストロフィは引用符ではない。開き引用符として読むと行末まで
+  // 閉じず、コメントも値も読めないまま緩和が無音で外れ、正しい追記が「決定が失われている」になる。
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      keep: [don't rename tables] #",
+      "      keep: [don't rename tables, keep api paths] #",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("アポストロフィ入りの要素を消せば落ちる（緩めすぎていない）", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace("      keep: [don't rename tables] #", "      keep: [] #"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("引用符つきの値の中のカンマで要素を分割しない", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "      keep: [don't rename tables] #",
+      '      keep: [don\'t rename tables, "a, b"] #',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable の鍵の注記を上の行へ移しても通る（mutable_blocks 側と対称）", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [] # コンポーネント系統差レジストリ\n",
+      "    # コンポーネント系統差レジストリ\n    component_diffs: []\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("growable の鍵の注記を消せば落ちる", () => {
+  const root = makeConfigRepo(PLAIN_APOSTROPHE);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [] # コンポーネント系統差レジストリ\n",
+      "    component_diffs: []\n",
     ),
   );
   const r = run(root);

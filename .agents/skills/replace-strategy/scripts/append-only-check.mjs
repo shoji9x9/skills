@@ -284,7 +284,10 @@ export function stripYamlBlocks(text, blocks, growable = []) {
       if (items !== null) {
         // 鍵（＋行末コメント）と要素を別々の単位にする。要素を足すと単位が増えるだけで通り、
         // 落とすと単位が失われて落ちる。値がフロー形式でない（ブロック形式・スカラ）ときは展開せず行のまま。
-        kept.push(`${GROWABLE_PREFIX}${path}>${comment === "" ? "" : ` ${comment}`}`);
+        kept.push(`${GROWABLE_PREFIX}${path}>`);
+        // 行末コメントは**鍵の単位に連結せず独立した単位にする**——連結すると、同じ注記を上の行へ
+        // 出しただけの編集が「単位の消失」になり、mutable_blocks 側（独立した単位）と非対称になる。
+        if (comment !== "") kept.push(comment);
         for (const item of items) kept.push(`${GROWABLE_ITEM_PREFIX}${path}> ${item}`);
         continue;
       }
@@ -330,6 +333,18 @@ export function normalizeLines(text, mutableBlocks = [], growableContainers = []
  * @returns {string[] | null}
  */
 export function flowItems(raw) {
+  // YAML のプレーンスカラーでは引用符は特別扱いされない（`[don't rename]` は 1 要素）。
+  // 引用符を尊重した走査が閉じないまま終わったら、引用符を無視して取り直す——
+  // ここで null に倒すと、緩和が無音で外れて正しい追記が「決定が失われている」になる。
+  return scanFlowItems(raw, true) ?? scanFlowItems(raw, false);
+}
+
+/**
+ * @param {string} raw
+ * @param {boolean} respectQuotes
+ * @returns {string[] | null} 引用符・括弧が閉じないまま終わったら null
+ */
+function scanFlowItems(raw, respectQuotes) {
   const inner = raw.slice(1, -1).trim();
   if (inner === "") return [];
   /** @type {string[]} */
@@ -344,7 +359,7 @@ export function flowItems(raw) {
       if (ch === quote) quote = null;
       continue;
     }
-    if (ch === '"' || ch === "'") {
+    if (respectQuotes && (ch === '"' || ch === "'")) {
       quote = ch;
       cur += ch;
       continue;
@@ -378,23 +393,34 @@ export function flowItems(raw) {
  * @returns {{ code: string, comment: string }}
  */
 export function splitTrailingComment(line) {
-  /** @type {string | null} */
-  let quote = null;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (quote !== null) {
-      if (ch === quote) quote = null;
-      continue;
+  /**
+   * @param {boolean} respectQuotes
+   * @returns {{ code: string, comment: string } | null} 引用符が閉じないまま行末に達したら null
+   */
+  const scan = (respectQuotes) => {
+    /** @type {string | null} */
+    let quote = null;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (quote !== null) {
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (respectQuotes && (ch === '"' || ch === "'")) {
+        quote = ch;
+        continue;
+      }
+      if (ch === "#" && (i === 0 || line[i - 1] === " ")) {
+        return { code: line.slice(0, i).trimEnd(), comment: line.slice(i).trim() };
+      }
     }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === "#" && (i === 0 || line[i - 1] === " ")) {
-      return { code: line.slice(0, i).trimEnd(), comment: line.slice(i).trim() };
-    }
-  }
-  return { code: line, comment: "" };
+    return quote === null ? { code: line, comment: "" } : null;
+  };
+  // YAML のプレーンスカラーでは引用符は特別扱いされないので、`keep: [don't rename] # …` の
+  // アポストロフィを開き引用符と読むと行末まで閉じず、**コメントを切れないまま値を読み損ねる**
+  // （緩和が無音で外れ、要素を 1 つ足しただけの正しい追記が「決定が失われている」になる）。
+  // 閉じなかったら引用符を無視して取り直す。
+  return scan(true) ?? scan(false) ?? { code: line, comment: "" };
 }
 
 /**
