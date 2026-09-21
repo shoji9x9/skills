@@ -224,8 +224,34 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     registryItemKeys.set(group.id, group.itemKey);
     for (const path of group.paths) registryPaths.set(path.trim(), group.id);
   }
-  /** @type {{ id: string, indent: number, itemKey: string } | null} ブロック形式のレジストリを読み進めている状態 */
+  /**
+   * @type {{ id: string, indent: number, itemKey: string, current: string[] | null } | null}
+   * ブロック形式のレジストリを読み進めている状態（`current` は読みかけの要素の行）
+   */
   let registry = null;
+  /** 読みかけの要素を確定して単位へ落とす。 */
+  const flushRegistryItem = () => {
+    if (registry === null || registry.current === null) return;
+    const lines = registry.current;
+    registry.current = null;
+    const prefix = `${registry.itemKey}:`;
+    /** @type {string | null} */
+    let value = null;
+    for (const line of lines) {
+      const { code } = splitTrailingComment(line);
+      if (value === null && code.startsWith(prefix)) value = code.slice(prefix.length).trim();
+    }
+    // **要素の行末コメントは単位にしない**（キー行のコメントは守るのと非対称）。
+    // 要素は鍵をまたいで移動する設計で、移動先（`keep: ["<文言>"]`）に注記の置き場所が無い。
+    // 守ると、注記の付いた要素を棚卸ししただけで縮小に化ける（#426 の誤検出が再発し、
+    // 指示どおり復元すると保留の記録が消える）。注記を消せることと引き換えに、正規の棚卸しを通す。
+    // 照合キーが見つからない要素は素のスカラ（`- <文言>`）として読む。
+    if (value === null) {
+      const { code } = splitTrailingComment(lines[0] ?? "");
+      value = code;
+    }
+    if (value !== "") kept.push(`${REGISTRY_ITEM_PREFIX}${registry.id}> ${unquote(value)}`);
+  };
   /** @type {{ indent: number, key: string }[]} 現在のキーパス */
   const stack = [];
   /** @type {string[]} */
@@ -270,16 +296,21 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       const closes = indent < registry.indent || (indent === registry.indent && !listItem);
       if (!closes) {
         if (listItem) {
-          const body = trimmed === "-" ? "" : trimmed.slice(2).trim();
-          const { code } = splitTrailingComment(body);
-          const prefix = `${registry.itemKey}:`;
-          const value = code.startsWith(prefix) ? code.slice(prefix.length).trim() : code;
-          if (value !== "") kept.push(`${REGISTRY_ITEM_PREFIX}${registry.id}> ${unquote(value)}`);
+          flushRegistryItem();
+          registry.current = [trimmed === "-" ? "" : trimmed.slice(2).trim()];
+        } else if (registry.current !== null) {
+          // 要素の追随行。**照合キーは 1 行目とは限らない**（YAML のキー順は自由）ので、
+          // 要素の全行を集めてから探す。追随フィールド（`slug` / `added_by` 等）は
+          // 棚卸しの移動先に無いので単位にはしない。
+          registry.current.push(trimmed);
+        } else {
+          // リストではない構造（マッピング等）。解釈できないので**行のまま単位に残す**
+          // （捨てると配下を丸ごと消しても通る。他の解釈不能ケースと同じく厳しい側へ倒す）。
+          kept.push(raw);
         }
-        // 要素の追随行（`slug` / `added_by` / `added_at` 等）は単位から外す——棚卸しで
-        // 文言だけが別の鍵へ移るとき、これらは移動先に無いので残すと正しい棚卸しが落ちる。
         continue;
       }
+      flushRegistryItem();
       registry = null;
     }
     if (!structural) {
@@ -338,7 +369,12 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       if (comment !== "") kept.push(comment);
       for (const item of items) kept.push(`${REGISTRY_ITEM_PREFIX}${registryId}> ${item}`);
       if (value === "") {
-        registry = { id: registryId, indent, itemKey: registryItemKeys.get(registryId) ?? "item" };
+        registry = {
+          id: registryId,
+          indent,
+          itemKey: registryItemKeys.get(registryId) ?? "item",
+          current: null,
+        };
       }
       continue;
     }
@@ -369,6 +405,7 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
     if (/^[|>](?:[-+]?\d*|\d*[-+]?)$/.test(m[2].trim())) scalarIndent = indent;
     kept.push(raw);
   }
+  flushRegistryItem();
   return kept.join("\n");
 }
 
@@ -1106,6 +1143,26 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].mutable_bullets に空の要素がある`);
         }
         mutableBullets = a.mutable_bullets.map((x) => String(x).trim());
+      }
+    }
+    // **3 つのオプションの間でもパスは重ならない。** 重なると同じキーに 2 通りの単位が当たり、
+    // 実装の分岐順で先勝ちが決まる（緩い方が勝つと、検出できていたはずの削除が無音で通る）。
+    // グループ内・グループ間の重複を exit 2 にしているのと同じ理由で、ここも落とす。
+    /** @type {Map<string, string>} パス → 由来のオプション名 */
+    const pathOwners = new Map();
+    for (const [option, paths] of [
+      ["mutable_blocks", mutableBlocks],
+      ["growable_containers", growableContainers],
+      ["registry_groups", registryGroups.flatMap((g) => g.paths)],
+    ]) {
+      for (const path of /** @type {string[]} */ (paths)) {
+        const prev = pathOwners.get(path);
+        if (prev !== undefined) {
+          throw new UsageError(
+            `artifacts[${i}] の同じキーパスが ${prev} と ${option} の両方にある: ${path}`,
+          );
+        }
+        pathOwners.set(path, /** @type {string} */ (option));
       }
     }
     return {

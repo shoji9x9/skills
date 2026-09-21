@@ -1689,3 +1689,103 @@ test("引用符つきの要素がある行へ、引用符の無い要素を足�
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// registry 要素の読み取り（PR #429 のレビュー指摘・5 巡目）
+// ---------------------------------------------------------------------------
+
+const KEY_ORDER_PENDING = [
+  "skills:",
+  "  replace-strategy:",
+  "    intentional_diffs:",
+  "      keep: [] # 変えない",
+  "      may_change: []",
+  "      pending: # 保留",
+  "        - slug: cross-cutting",
+  "          item: キー順が違う要素",
+  "          added_by: replace-strategy",
+  '        - added_at: "2026-09-21"',
+  "          added_by: parity-diff",
+  "          item: 先頭が added_at の要素",
+  "",
+].join("\n");
+
+const KEY_ORDER_ITEM = [
+  "        - slug: cross-cutting",
+  "          item: キー順が違う要素",
+  "          added_by: replace-strategy",
+  "",
+].join("\n");
+
+test("照合キーが 1 行目に無い要素も棚卸しで移せる（要素の全行から探す）", () => {
+  const root = makeConfigRepo(KEY_ORDER_PENDING);
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(KEY_ORDER_ITEM, "")
+      .replace("keep: [] #", 'keep: ["キー順が違う要素"] #'),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("照合キーが 1 行目に無い要素の文言を差し替えれば落ちる", () => {
+  const root = makeConfigRepo(KEY_ORDER_PENDING);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "          item: 先頭が added_at の要素",
+      "          item: 別物へ差し替えた",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("registry の鍵の配下がリストでなければ行のまま守る（解釈できないものを捨てない）", () => {
+  const root = makeConfigRepo(
+    [
+      "skills:",
+      "  replace-strategy:",
+      "    intentional_diffs:",
+      "      keep: []",
+      "      may_change: []",
+      "      pending: # 保留",
+      "        a: 1",
+      "        b: 2",
+      "",
+    ].join("\n"),
+  );
+  writeConfig(root, readConfig(root).replace("        a: 1\n        b: 2\n", "        a: 1\n"));
+  const r = run(root);
+  expect(r.stdout).toMatch(/失われている/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じキーパスを 2 つのオプションに書けば合格に倒さない（exit 2）", () => {
+  const root = makeConfigRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.pending"],
+      registry_groups: [
+        {
+          id: "intentional-diffs",
+          item_key: "item",
+          paths: ["skills.replace-strategy.intentional_diffs.pending"],
+        },
+      ],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/同じキーパスが .+ と .+ の両方にある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
