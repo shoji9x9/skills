@@ -490,14 +490,17 @@ function nextStructuralLine(lines, li) {
  * @param {string} head 鍵の行（行末コメントを切った後）
  * @param {number} keyIndent 鍵の行のインデント
  * @param {string[]} scannedOut 読みに行った行（正規化済み）を積む先。読めなかったときの帰属判定に使う
- * @returns {{ items: string[], comments: string[], closing: string[], last: number } | null}
- *   `items` = 連結して読めた要素、`comments` = 要素行の注記、`closing` = 閉じる行の注記（＝鍵の注記）、
+ * @returns {{ items: string[], comments: string[], lineComments: string[], closing: string[],
+ *   last: number } | null} `items` = 連結して読めた要素、`comments` = 要素行の**行末**の注記、
+ *   `lineComments` = 独立したコメント行、`closing` = 閉じる行の注記（＝鍵の注記）、
  *   `last` = 消費した最後の行の添字
  */
 function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
   let joined = head;
-  /** @type {string[]} 途中の行に付いていた行末コメント（単位として残す）。 */
+  /** @type {string[]} 要素行に付いていた**行末**の注記（registry では単位にしない）。 */
   const comments = [];
+  /** @type {string[]} 独立したコメント行（**常に単位にする**。消えたら落とす）。 */
+  const lineComments = [];
   for (let i = start + 1; i < lines.length; i += 1) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -508,13 +511,18 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
       // **帰属材料には入れない**——連結が失敗したときは閉じ括弧が無いので、この注記がコンテナの
       // 内にあったのか外（次の構造行の手前）にあったのかを区別できない。入れると、外の注記を
       // 消しただけで「復元せず表記を直す」が付く（1 行へ直しても注記は戻らないので行き止まりの指示）。
-      comments.push(trimmed);
+      lineComments.push(trimmed);
       continue;
     }
-    // 鍵のブロックを抜けた（閉じないまま次の構造へ出た）。閉じ括弧は鍵と同じインデントに置けるので除く。
-    // **打ち切らせた行は `scannedOut` に入れない**——コンテナの外にある次の構造行なので、
+    // 鍵のブロックを抜けた＝**兄弟の構造**（新しい鍵・リスト要素）が同じか浅いインデントに現れた。
+    // インデントだけでは打ち切らない——フロー形式の要素は鍵と同じインデントに置けて、それは妥当な YAML
+    // （`a:\n  keep: [\n  "x"\n  ]` は js-yaml で `{"a":{"keep":["x"]}}`）。打ち切ると #430 の誤検出が
+    // そのまま残るうえ、打ち切らせた行は帰属材料に入らないので案内すら出ない。
+    // **打ち切らせた行は `scannedOut` に入れない**——コンテナの外にある兄弟の構造行なので、
     // 帰属材料に混ぜるとその行を消しただけで「復元せず表記を直す」が付く（無関係な鍵の正規の削除に当たる）。
-    if (indent <= keyIndent && !trimmed.startsWith("]") && !trimmed.startsWith("}")) return null;
+    const sibling =
+      /^[A-Za-z0-9_.-]+:(\s|$)/.test(trimmed) || trimmed === "-" || trimmed.startsWith("- ");
+    if (indent <= keyIndent && sibling) return null;
     scannedOut.push(normalizeLine(trimmed));
     const split = splitTrailingComment(trimmed);
     joined = `${joined} ${split.code}`;
@@ -526,6 +534,7 @@ function joinWrappedFlow(lines, start, head, keyIndent, scannedOut) {
       return {
         items: flow.items,
         comments,
+        lineComments,
         closing: split.comment === "" ? [] : [split.comment],
         last: i,
       };
@@ -592,9 +601,12 @@ function readNamedFlow(
     // 要素行の注記を単位にするかは成果物の要求で分かれる。**registry は単位にしない**——
     // `flushRegistryItem` がブロック形式で同じ判断をしており（移動先に置き場所が無く #426 の誤検出になる）、
     // フロー形式だけが守ると、正規の棚卸し（pending の文言を keep へ移す）が表記を変えただけで落ちる。
+    // 独立したコメント行（`joined.lineComments`）は**どちらの成果物でも単位にする**——
+    // 要素に付いた注記と違って移動先の問題が無く、落とすと折り返したコンテナの中の注記だけが
+    // 黙って消せるようになる（main では落ちていた形を通す fail-open）。
     comments: options.keepItemComments
-      ? [...comments, ...joined.comments, ...joined.closing]
-      : [...comments, ...joined.closing],
+      ? [...comments, ...joined.lineComments, ...joined.comments, ...joined.closing]
+      : [...comments, ...joined.lineComments, ...joined.closing],
     last: joined.last,
     block: false,
   };
@@ -1652,16 +1664,21 @@ export function check(opts) {
     }
     /**
      * @type {{ path: string, prefixes: string[], lines: string[] }[]}
-     * 連結しても閉じないフロー形式のコンテナ（比較元・現在の両方から集める）。
+     * 連結しても閉じないフロー形式のコンテナ。**比較元と現在で分けて集める**——
+     * 比較元側にあると、比較元の行がそのまま単位なので**どう直しても通らない**（案内の指示が実行できない）。
      * `lines` / `prefixes` は、失われた単位をそのコンテナへ帰属させるための材料。
      */
-    const wrapped = [];
-    const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`, wrapped);
-    const afterUnits = unitsOf(afterText, artifact, file, wrapped);
+    const wrappedBefore = [];
+    /** @type {{ path: string, prefixes: string[], lines: string[] }[]} */
+    const wrappedAfter = [];
+    const beforeUnits = unitsOf(before.stdout, artifact, `${file}@${base}`, wrappedBefore);
+    const afterUnits = unitsOf(afterText, artifact, file, wrappedAfter);
     /** @type {string[]} */
     const lost = [];
-    /** @type {Set<string>} 失われた単位を帰属できた、読めないコンテナのキーパス。 */
-    const blamed = new Set();
+    /** @type {Set<string>} 失われた単位を帰属できた、比較元の読めないコンテナのキーパス。 */
+    const blamedBefore = new Set();
+    /** @type {Set<string>} 同じく現在側。 */
+    const blamedAfter = new Set();
     let lostCount = 0;
     for (const [unit, count] of beforeUnits) {
       const now = afterUnits.get(unit) ?? 0;
@@ -1670,9 +1687,14 @@ export function check(opts) {
       if (lost.length < 3) lost.push(unit.length > 120 ? `${unit.slice(0, 117)}...` : unit);
       // その消失が読めなかったコンテナ由来か（読みに行った行そのもの、またはそのコンテナの
       // 要素が作る単位）を見る。ファイル単位で案内を出すと無関係な鍵の削除にまで付く。
-      for (const w of wrapped) {
-        if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
-          blamed.add(w.path);
+      for (const [list, blamed] of [
+        [wrappedBefore, blamedBefore],
+        [wrappedAfter, blamedAfter],
+      ]) {
+        for (const w of list) {
+          if (w.lines.includes(unit) || w.prefixes.some((prefix) => unit.startsWith(prefix))) {
+            blamed.add(w.path);
+          }
         }
       }
     }
@@ -1680,11 +1702,16 @@ export function check(opts) {
       // 折り返されたコンテナがあると、要素を足しただけの編集も**直前の要素の行に付くカンマ**の
       // 書き換えとして縮小に見える。指示どおり復元すると記録した決定が消えるので、
       // 書き直す方向を名指しで案内する（#430）。
+      // 比較元側に読めないコンテナがあると、比較元の行がそのまま単位なので**どの編集でも通らない**。
+      // 「直せば通る」と読める案内を出さず、人の確認で通す経路を示す。
       const hint =
-        blamed.size === 0
-          ? ""
-          : `\n      閉じていないフロー形式のコンテナがある: ${[...blamed].join(" / ")}` +
-            " — 復元せず表記を直す（フロー形式は同じ行で閉じる）";
+        blamedBefore.size > 0
+          ? `\n      比較元 ${base} に閉じていないフロー形式のコンテナがある: ${[...blamedBefore].join(" / ")}` +
+            " — この検査では縮んだか判定できない（表記を直しても通らない）。内容を人が確認して通す"
+          : blamedAfter.size === 0
+            ? ""
+            : `\n      閉じていないフロー形式のコンテナがある: ${[...blamedAfter].join(" / ")}` +
+              " — 復元せず表記を直す（フロー形式は同じ行で閉じる）";
       findings.push(
         `追記専用の成果物から ${lostCount} 件（unit: ${artifact.unit}）が失われている: ${file}（例: ${lost.join(" / ")}）${hint}`,
       );

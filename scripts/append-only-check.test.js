@@ -2421,3 +2421,76 @@ test("弁別: 育つコンテナは折り返した要素行の注記も単位に
   expect(r.stdout).toMatch(/注記/);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("折り返したコンテナの中の独立したコメント行は、registry でも単位に残す", () => {
+  // 要素に付いた注記と違って移動先の問題が無い。落とすと中の注記だけ黙って消せる（main では落ちていた）。
+  const wrapped = [
+    "      pending: [",
+    "        # 大事な注記",
+    "        {item: 一覧の並び順が変わる, slug: cross-cutting},",
+    "      ] # 保留（測定結果で決める）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", wrapped),
+  );
+  writeConfig(root, readConfig(root).replace("        # 大事な注記\n", ""));
+  const r = run(root);
+  expect(r.stdout).toMatch(/大事な注記/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml で妥当な YAML）", () => {
+  const wrapped = [
+    "      keep: [",
+    '      "テーブル名を保つ"',
+    "      ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      "テーブル名を保つ"\n',
+      '      "テーブル名を保つ",\n      "項目名を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("比較元に読めないコンテナがあるときは「直せば通る」と案内しない", () => {
+  // 比較元の行がそのまま単位なので、どの編集でも exit 0 に到達しない。実行できない指示を出さない。
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(
+    root,
+    readConfig(root).replace("      keep: [\n", '      keep: ["テーブル名を保つ"] # 変えない\n'),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある/);
+  expect(r.stdout).toMatch(/判定できない/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("現在側だけが読めないときは 1 行への書き直しを案内する", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/復元せず表記を直す/);
+  expect(r.stdout).not.toMatch(/判定できない/);
+  rmSync(root, { recursive: true, force: true });
+});
