@@ -100,8 +100,6 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
   **`converged` が偽でも落とさない**——落とすのは「無い」と「古い」だけ。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
 - **追記専用の成果物が縮んだ状態で `converged: true` にしない。** インストール済みの `replace-strategy` の
   `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて過去の決定を復元する
-  （**例外**: 失われた行が YAML の空リスト（`key: []`）で、同じキーがブロック形式の要素を持つようになった場合は**復元しない**——要素は増えており決定は失われていないため、
-  復元すると記録した要素が消える。この形だけは報告して先へ進む。検査側の恒久対応は Issue #426）
   （**既定の `HEAD` を使わない**——書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何も失われていなくても素通りする）
   （収束の判定は現在の状態しか見ないため、積み上げた文書を丸ごと書き直しても「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
   **対象 0 件は合格に倒さない**。一覧の正本は `replace-strategy` の `assets/append-only-manifest.json`）

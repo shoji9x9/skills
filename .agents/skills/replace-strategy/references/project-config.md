@@ -140,8 +140,7 @@ skills:
       # 既知: 空の pending: [] に最初の要素を足すとこの行が消えるため、append-only-check.mjs（unit: lines）は
       #   「1 件が失われている（例: pending: []）」として exit 1 を出す（実測）。要素は増えているので決定は失われていない。
       #   これは本キーの書き手すべてに共通する検査側の既知の限界で、**[] を復元してはならない**（記録した保留が消える）。
-      #   そのため setup が同じ実行で保留を書き出す場合は、[] を書いてから差し替えるのではなく最初からブロック形式で書く
-      #   （上の「キーを必ず空リストとして作る」は保留が 0 件のときの形。0 件でないなら初期値を経由しない）。検査側の恒久対応は Issue #426。
+      #   [] を復元すると記録した保留が消えるので復元しない（報告して先へ進む）。検査側の恒久対応は Issue #426。
     component_diffs: [] # コンポーネント系統差レジストリ。クラス/トークン×プロパティ単位の系統差 T（旧値→新側で期待される値）。parity-replace がテーマで消せない構造差をユーザー確認の上で宣言し、parity-diff が比較の正規化に使う（特性照合経路にのみ効く。適用対象の正本は parity-diff の references/normalize.md）。要素の形の正本は本ファイル: { component, property, current, new, reason }。component は照合キーで、対象要素の論理名（`*` を含めれば glob）を書く。欠落・空は wildcard ではなく不一致として扱われ照合に使われない（照合方法の正本は parity-diff の references/normalize.md）
     # T が引けない箇所のインスタンス単位例外は設定ファイルに置かない（slug スコープの台帳のため .replace/parity/<slug>/component-diff-exceptions.json へ。スキーマ正本は parity-diff の references/normalize.md）
 ```
@@ -714,7 +713,7 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 |---|---|---|
 | `item` | 必須 | 散文の宣言。**照合キー**であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
 | `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける**。**機能 slug 以外の名前空間の slug を書かない**（部品 slug は下記の箇条を参照） |
-| `added_by` | 必須 | 追記したスキル名（`replace-strategy` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown`。**この一覧に無い名を書くのも、書き手が分かっているのに `unknown` と書くのも帰属不明へ倒れる**ので、新しい書き手を増やすときはこの行と `pending-triage-check.mjs` の集合を同時に更新する |
+| `added_by` | 必須 | 追記したスキル名（`replace-strategy` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown`。**この一覧に無い名を書くのも、書き手が分かっているのに `unknown` と書くのも帰属不明へ倒れる**ので、新しい書き手を増やすときはこの行と `pending-triage-check.mjs` の集合を同時に更新する（機能 slug を書ける書き手は `FEATURE_SLUG_WRITERS`、`cross-cutting` だけを書く書き手は `CROSS_CUTTING_ONLY_WRITERS`。**両方には入れない**——後者は診断文言にだけ効き、強制するのは前者に入っていないことである） |
 | `added_at` | 必須 | 追記日（`YYYY-MM-DD`）。旧形式からの移行で復元できないものだけ `unknown`（推測の日付を書かない） |
 
 - **`slug` は機能インベントリに実在するものだけ。** 綴り違い・採番し直した slug は「担当する機能」が現れないため、
@@ -728,7 +727,8 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
   部品 slug を書くと、どの機能の収束判定でも「別機能に帰属する要素」として対象外になり——形の不備も `warn:` で済むため——
   **永久に棚卸しされない**。`pending-triage-check.mjs` はこの取り違えを検出し、帰属不明として全機能の棚卸し対象へ倒す
 - **`replace-strategy` の追記も必ず `slug: cross-cutting` にする。** 意図的差異レジストリを作るのは `setup` の手順 8 で、**機能 slug の採番は手順 9**なので、追記の時点で書ける機能 slug がまだ無い
-  （順序の根拠は `SKILL.md` の `setup` の手順）。採番後に機能へ帰属させられると分かった保留は、**人が** `keep` / `may_change` へ移すか、その機能を担当するスキル（`golden-dataset` / `parity-suite` / `parity-replace`）が機能 slug で書き直す
+  （順序の根拠は `SKILL.md` の `setup` の手順）。採番後に機能へ帰属させられると分かっても、`cross-cutting` のまま**人が** `keep` / `may_change` へ移す
+  （帰属の書き換えは既存の値の変更なので追記専用の検査に当たる。`cross-cutting` は書き手に依らず全機能の棚卸し対象なので、帰属を直さなくても取りこぼしは起きない）
 
 - **`cross-cutting` は予約語**である。機能 slug に使わない（使うと横断の追記と機能の追記が区別できなくなる）
 - **素の文字列の要素も読める**（この形式より前に書かれたもの）。ただし**帰属不明**として扱い、`slug` を問わず**どの機能の棚卸しでも提示する**——

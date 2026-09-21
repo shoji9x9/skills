@@ -46,6 +46,11 @@ export const CROSS_CUTTING = "cross-cutting";
  * 永久に棚卸しされない。replace-strategy は意図的差異レジストリを作る工程（setup の手順 8）が
  * 機能 slug の採番（同 手順 9）より前なので、追記の時点で書ける機能 slug がまだ無い。
  * 正本は replace-strategy の references/project-config.md「pending 要素の形」。
+ *
+ * **この集合が変えるのは診断文言だけ**である。cross-cutting を強制しているのは FEATURE_SLUG_WRITERS に
+ * 入っていないこと（= namespaceVerified が偽になる）であって、この集合は namespaceVerified の判定に入らない。
+ * したがって書き手を両方の集合に入れると、この集合に入れたままでも cross-cutting の強制は外れる。
+ * 新しい書き手を足すときは、どちらの集合に入れるかで挙動が決まる（両方には入れない）。
  */
 const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component", "replace-strategy"]);
 
