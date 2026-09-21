@@ -159,6 +159,9 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 8. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**。
    **`db_semantics` の下書きは移植時の点検項目（NULL の並び順・暗黙の型変換と失敗時の値・照合順序・連結時の NULL・書式のロケール依存）を節として立て、現行 DB／新 DB の既定を埋める形にする**——
    このキーは `parity-replace` が実装前に読む点検表でもあり、節が無い項目は「差が無い」ではなく「誰も見ていない」になる。正本は [`references/project-config.md`](references/project-config.md) の「DB 意味論」
+   **「保留（測定結果で決める）」に落とした項目は `intentional_diffs.pending` へ 4 キー形式で書く**（`item` に照合キーの文言、`added_by: replace-strategy`、`added_at` に追記日、**`slug` は `cross-cutting`**——機能 slug の採番は次の手順 9 なのでこの時点で書ける機能 slug が無い）。
+   `added_by` を空ける・`unknown` と書く・採番前の slug を推測で書くのはいずれも帰属不明へ倒れ、全機能の棚卸しに出続ける
+   （検査は `parity-diff` の `pending-triage-check.mjs`。要素の形の正本は [`references/project-config.md`](references/project-config.md) の「`pending` 要素の形」）
 9. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
    **API の口を書く前に、その口の要求単位を現行ソースコードから読み出し、根拠を「要求単位の根拠」列へ口ごとに `実測` / `推定` で記録する**——
@@ -175,8 +178,11 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    **`current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列へ非破壊で書き戻す**——
    同ファイルは `.replace/features.md` が存在しない時点で書かれるため機能の呼び名しか持てず、書き戻さないと `golden-dataset` / `parity-suite` が確認待ちの意味論を slug で引けない
    （正本は `current-environment-bootstrap` の `references/data-semantics.md`）
-10. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
+10. **共通部品の依存決定**: 複数機能で使う部品（UI ライブラリ・フォント・状態管理・日付処理等の基盤と、ボタン・セレクト・モーダルダイアログ等の個々の UI プリミティブの両方）を洗い出し、**自前で書くか／どのパッケージを使うか**を実装が始まる前に決めて `.replace/dependencies.md` に記録する。
    判断材料・確認手段・決める順序は [`references/dependency-selection.md`](references/dependency-selection.md)。
+   **洗い出しは同ファイルの「洗い出しの網羅（共通 UI プリミティブ）」の種類を 1 つずつページで確かめて行い、該当なしも記録する**——
+   上の括弧に挙げた基盤の 4 例（UI ライブラリ・フォント・状態管理・日付処理）はライブラリの種類なので、
+   そこだけを手がかりにするとライブラリの外側にある個々の UI プリミティブ（セレクト・ページネーション・トースト通知等）が漏れる。
    **ライセンス方針・供給網ポリシーの有無はリポジトリごとに違うため、あればそれに従い、未確認なら方針の要否そのものをユーザーに確認**して結果を設定（`references.dependency_policy`）へ記録する（`none` ＝確認済みで方針なしは再確認しない）。
    機能固有の部品は `parity-replace` が実装フェーズ前に同じ基準で決める（ここで全部を洗い出そうとしない）。
    **共通 UI 部品を画面より先に作る方針を採るかをここで確認し、採るなら `.replace/components.md` に部品インベントリを作る**（テンプレート: [`assets/components-template.md`](assets/components-template.md)）。

@@ -291,7 +291,7 @@
   この緩和自体を適用しない（全件を対象にする）。
   **帰属を信用できるのは `added_by` が読めていて、その書き手が機能 slug を書けるとき（`golden-dataset` / `parity-suite` / `parity-replace`）だけ**である——
   `added_by` が無い・`unknown`・未知の名前の要素は `slug` がどの名前空間のものか確認できず、「別機能に帰属すると読めている」条件を満たさないので帰属不明として全機能の対象にする。
-  **`parity-component` は機能 slug を書けない**（部品は複数機能にまたがる）ので、その追記は `cross-cutting` でなければ同じく帰属不明へ倒す。
+  **`parity-component` と `replace-strategy` は機能 slug を書けない**（部品は複数機能にまたがる、`replace-strategy` の追記は slug 採番より前の工程）ので、その追記は `cross-cutting` でなければ同じく帰属不明へ倒す。
   `cross-cutting` は書き手に依らず全機能の対象なので、この確認の対象外。
   `item` が読めない要素も、`slug` が読めればその機能の棚卸しが落とす（帰属で範囲が決まるのは他の不備と同じ）
 - **`error:` は壊れている場所で分かれる。** 設定ファイルの登録簿の不備は

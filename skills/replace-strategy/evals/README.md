@@ -157,5 +157,30 @@ scripts/run-skill-eval.sh \
   設定の矛盾は baseline の到達性に効いていなかったことになる（前提を問い返さずに答えていた）。baseline は contamination: clean / isolation: sandboxed。
   **弁別したのは assertion 1・3・5**——baseline は `DELETE` の食い違いをセルの本文に書きながら、**その根拠を `実測` へ昇格させた**（口の形が再現できないことを認めたうえで確定扱いにした）。
   `PATCH` を推定のまま残すこと（assertion 2）と口の見直しへ回すこと（assertion 4）は baseline も自力で到達するので、この 2 つは Delta ではなく後退検知の項目として残す
+- eval 33（Issue #414）は手順 10 の**洗い出しの網羅**を測る。fixture は eval 10 と同じ `dependency-decision`（測定・戦略・インベントリまで完了）を使う——
+  fixture 無しでは「`setup` 未完了」で早期停止して洗い出しの進め方に到達しない（eval 10 と同じ理由）。prompt は「共通で使う部品を洗い出したい」「ソースの grep で十分だよね？」だけを与え、
+  **assertion 1 が求める種類名（セレクト・ページネーション・モーダルダイアログ・トースト通知）を 1 つも書かない**（書くと baseline がそれを読み上げて assertion を満たす）。
+  prompt に置いた種類名は新側で採る候補の「データグリッド」だけで、これは assertion 4（内蔵部品の二重作成）の材料として意図的に与えている。仕込んだ弁別は 3 つ——
+  基盤の種類だけでなく個々のプリミティブを列挙すること（assertion 1）、ページを実際に開いて確認しソースの grep で済ませないこと（assertion 2）、
+  該当なしを空欄にせず記録すること（assertion 3）。候補のデータグリッドを置いてあるので、内蔵部品を単独の行として二重に作る回答は assertion 4 で落ちる。
+  **iteration-41 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 0/5 で**全 assertion が弁別した**。
+  baseline は洗い出しを npm の依存（`package.json` / lock・推移依存・env 変数・外部 API）の棚卸しとして組み立て、UI プリミティブの区分・種類を 1 つも挙げなかった——
+  grep だけでは足りないとは述べるが、代替が「マニフェスト起点で列挙 → grep で裏取り」で、ページを開く経路へ移らない。baseline は contamination: clean / isolation: sandboxed。
+  **assertion 4 の弁別は「行選択チェックボックス」という語では取れていない**——共用 fixture の `survey.md` が unnamed の代表例として
+  この語を既に持っており（`dependency-decision/.replace/survey.md`）、baseline も実際にそれを引いた。弁別しているのは語ではなく扱い
+  （内蔵として単体の部品と二重に作らない・内蔵判定は新側の候補で決まるので採否確定後に当て直す）で、baseline はその語をロケータ方針の文脈で使って assertion 4 に到達していない。
+  この eval を触るときは、assertion 4 を語の一致で採点しない（fixture 側にある語なので、一致だけでは skill の寄与にならない）
+- eval 34（Issue #419）は手順 8 で `intentional_diffs.pending` を書くときの**帰属の形**を測る。fixture（`pending-writer-at-setup`）は測定・戦略が完了し
+  **`features.md` が無い**（slug 未採番）状態と、`references.db_semantics` の下書き（点検項目 5 節のうち NULL の並び順と照合順序だけが新 DB 側「未実測」）を持たせる——
+  この 2 つが揃っていないと「採番前だから `cross-cutting`」と「未実測だから保留」のどちらも材料が無く判定できない。fixture には `pending` の書き方も許可値も書かない。
+  `references` はこの eval の判断に要る `db_semantics` だけを置いてある（`setup` が本来キーごと生成する残りのパス型キーは省いた最小構成で、姉妹 fixture の `inventory-multi-page` も `references` を持たない）——
+  **fixture を他の eval へ流用するときは、そのキーの有無が判断材料になる eval には使えない**。
+  prompt は「機能インベントリはこの後の手順なのでまだ無い」状態を明示し、
+  **`added_by` / `slug` / `cross-cutting` の語も許可値も書かない**。仕込んだ弁別は 2 つ——書き手として自分の名前を書くこと（assertion 3。空欄・`unknown`・下流のスキル名はいずれも帰属不明へ倒れる）と、
+  採番前なので `cross-cutting` にすること（assertion 4。採番前の slug を推測で書く回答が落ちる）。
+  **iteration-41 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5。**弁別したのは assertion 2・3・4**——
+  baseline は `pending` へ 2 件に分けて置くこと（assertion 1）と確定を実測後の人の判断に委ねること（assertion 5）には自力で到達するが、
+  要素を `id` / `ref` / `current` / `new` / `resolve_by` / `impact` / `gate` の**自作スキーマ**で書き、`added_by` も `slug` も持たない（「キー名はスキル定義に合わせてください」と断っている）。
+  assertion 1・5 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）

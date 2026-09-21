@@ -42,10 +42,12 @@ export const CROSS_CUTTING = "cross-cutting";
 
 /**
  * slug に機能 slug を書けないスキル（追記は必ず CROSS_CUTTING）。
- * 部品 slug は機能 slug と別の名前空間なので、書かれると inScope がどの機能でも偽になり永久に棚卸しされない。
+ * parity-component は部品 slug が機能 slug と別の名前空間なので、書かれると inScope がどの機能でも偽になり
+ * 永久に棚卸しされない。replace-strategy は意図的差異レジストリを作る工程（setup の手順 8）が
+ * 機能 slug の採番（同 手順 9）より前なので、追記の時点で書ける機能 slug がまだ無い。
  * 正本は replace-strategy の references/project-config.md「pending 要素の形」。
  */
-const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component"]);
+const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component", "replace-strategy"]);
 
 /**
  * slug に機能 slug を書けるスキル（正本は replace-strategy の references/project-config.md）。
