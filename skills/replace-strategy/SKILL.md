@@ -160,6 +160,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    **`db_semantics` の下書きは移植時の点検項目（NULL の並び順・暗黙の型変換と失敗時の値・照合順序・連結時の NULL・書式のロケール依存）を節として立て、現行 DB／新 DB の既定を埋める形にする**——
    このキーは `parity-replace` が実装前に読む点検表でもあり、節が無い項目は「差が無い」ではなく「誰も見ていない」になる。正本は [`references/project-config.md`](references/project-config.md) の「DB 意味論」
    **「保留（測定結果で決める）」に落とした項目は `intentional_diffs.pending` へ 4 キー形式で書く**（`item` に照合キーの文言、`added_by: replace-strategy`、`added_at` に追記日、**`slug` は `cross-cutting`**——機能 slug の採番は次の手順 9 なのでこの時点で書ける機能 slug が無い）。
+   **書く前に既存の `pending` を読み、同じ `item` の要素があれば追記しない**——`setup` の再実行（`--resume` を含む）で同じ文言が 2 件になると
+   `pending-triage-check.mjs` が「同じ文言が複数ある」として落ち、重複を消すのは既存の値の削除なので追記専用の検査にも当たる（どちらの契約も破らずには直せない）。
    `added_by` を空ける・`unknown` と書く・採番前の slug を推測で書くのはいずれも帰属不明へ倒れ、全機能の棚卸しに出続ける
    （検査は `parity-diff` の `pending-triage-check.mjs`。要素の形の正本は [`references/project-config.md`](references/project-config.md) の「`pending` 要素の形」）
 9. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
