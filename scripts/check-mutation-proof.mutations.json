@@ -78,6 +78,17 @@
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） --only でどの変異も選ばれなければ exit 2"
       ]
+    },
+    {
+      "id": "LOCK-READ",
+      "why": "ロックの読み取りを try/catch から外す（一過性の失敗が未処理例外になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      let pid = NaN;\n      try {\n        pid = Number(readFileSync(lockPath, \"utf8\").trim());\n      } catch (readErr) {\n        if (readErr.code !== \"ENOENT\") {\n          die(`ロック（${lockPath}）を読めない: ${readErr.message}`);\n        }\n      }\n",
+      "replace": "      const pid = Number(readFileSync(lockPath, \"utf8\").trim());\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） ロックの読み取りが ENOENT 以外で失敗したら exit 2（stack trace にしない）"
+      ]
     }
   ]
 }

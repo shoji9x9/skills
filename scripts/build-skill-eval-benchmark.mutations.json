@@ -178,6 +178,28 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["受理しない入力（exit 2） eval_id がディレクトリ名と食い違えば落とす"]
+    },
+    {
+      "id": "EMPTY-PAIR",
+      "why": "採点済み 0 件の eval × configuration を突き合わせから外す（--ungraded skip の穴）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const emptyPairs = [...perPair].filter(([, n]) => n === 0).map(([k]) => k);",
+      "replace": "  const emptyPairs = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 採点済み 0 件の eval × configuration は --ungraded skip でも落とす"
+      ]
+    },
+    {
+      "id": "ASSERTION-SET",
+      "why": "run 間の assertion 集合の突き合わせを外す（分母の違う混合平均を通す）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (byShape.size > 1) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 同じ eval の run が違う assertion 集合を採点していれば落とす"
+      ]
     }
   ]
 }

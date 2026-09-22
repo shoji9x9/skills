@@ -474,6 +474,81 @@ describe("受理しない入力（exit 2）", () => {
     expect(b.metadata.runs_per_configuration).toBe(1);
   });
 
+  // **`--ungraded skip` の穴**: ある eval × configuration の run が**全部**未採点だと採点済み 0 件に
+  // なり、0 を突き合わせから外すと「揃っている」に倒れて Delta が別母集団の比較になる（実測）。
+  test("採点済み 0 件の eval × configuration は --ungraded skip でも落とす", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
+    writeRun(root, { evalDir: "eval-2", evalId: 2, configuration: "with_skill" });
+    writeRun(root, {
+      evalDir: "eval-2",
+      evalId: 2,
+      configuration: "without_skill",
+      omitGrading: true,
+    });
+    const res = run(root, ["--ungraded", "skip"]);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("採点済みの run が 1 件も無い eval × configuration がある");
+    expect(res.out).toContain("eval-2/without_skill");
+
+    // 陽性コントロール: 余分な run だけが未採点なら（採点済みが残るので）skip で通る。
+    const ok = makeIteration();
+    writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
+    writeRun(ok, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "with_skill",
+      runNumber: 2,
+      omitGrading: true,
+    });
+    const passed = run(ok, ["--ungraded", "skip"]);
+    expect(passed.status, passed.out).toBe(0);
+    expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
+  });
+
+  // run の合間に assertion を変えると、各 run は自分の宣言と整合したまま分母が変わり、
+  // mean / stddev / delta が別の採点基準の混合平均になる。
+  test("同じ eval の run が違う assertion 集合を採点していれば落とす", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(root, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "with_skill",
+      runNumber: 2,
+      assertions: [...ASSERTIONS, "run 2 で足した assertion"],
+      passed: [true, true, true, true],
+    });
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
+    writeRun(root, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "without_skill",
+      runNumber: 2,
+    });
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("違う assertion 集合を採点している");
+    expect(res.out).toContain("with_skill/run-2");
+
+    // 陰性コントロール: 全 run が同じ集合なら通る（テキストの並び順は問わない）。
+    const ok = makeIteration();
+    writeRun(ok, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(ok, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "with_skill",
+      runNumber: 2,
+      assertions: [...ASSERTIONS].reverse(),
+      passed: [true, true, true],
+    });
+    const passed = run(ok);
+    expect(passed.status, passed.out).toBe(0);
+    expect(JSON.parse(passed.stdout).runs).toHaveLength(2);
+  });
+
   test("executor / model が混ざっていれば落とす（母集団を分ける）", () => {
     const root = completeIteration();
     writeRun(root, {

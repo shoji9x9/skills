@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
@@ -47,6 +55,16 @@ const GUARD = `  if [ -z "$X" ]; then
 `;
 
 let dirs = [];
+
+// **残骸を次の run へ持ち込まない。** fixture は vitest の include（`scripts/**/*.test.js`）に
+// 入っていないと runner の子 vitest が 1 件も走らないため `scripts/` 配下に作る。その代わり
+// SIGKILL・timeout・ジョブ打ち切りで `afterEach` が走らないと `fixture.test.js` が残り、
+// 次の `pnpm test` がそれを収集する（lint / format の対象にもなる）。起動時に掃く。
+for (const name of readdirSync(join(repoRoot, "scripts"))) {
+  if (name.startsWith("mutation-proof-fixture-") || name.startsWith("mutation-proof-lock-")) {
+    rmSync(join(repoRoot, "scripts", name), { recursive: true, force: true });
+  }
+}
 // ロックは `scripts/` の外（OS の一時領域）へ置く。`scripts/` 配下に作ると、
 // テストを絞った run（`-t`）や中断で作業ツリーに残骸が残る。
 const lockDir = mkdtempSync(join(tmpdir(), "mutation-proof-lock-"));
@@ -239,6 +257,32 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.status, res.out).toBe(0);
     expect(res.out).toContain("PASS G");
     expect(existsSync(lock), "終了時にロックを外していない").toBe(false);
+  });
+
+  // ロックの読み取りも失敗しうる（EEXIST を受けた直後に持ち主が unlink する窓）。
+  // 読めないロックを残骸として扱わないと、一過性の競合が未処理例外で exit 1 になり、
+  // 「実証できない変異がある」（この検査の exit 1 の意味）と区別できなくなる。
+  test("pid を読めないロックは残骸として奪う", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "empty.lock");
+    writeFileSync(lock, "");
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("PASS G");
+    expect(existsSync(lock), "終了時にロックを外していない").toBe(false);
+  });
+
+  test("ロックの読み取りが ENOENT 以外で失敗したら exit 2（stack trace にしない）", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    // ディレクトリをロックのパスに置くと open は EEXIST、read は EISDIR になる。
+    const lock = join(lockDir, "dir.lock");
+    mkdirSync(lock, { recursive: true });
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("を読めない");
+    expect(res.out).not.toContain("Error: EISDIR");
   });
 
   test("--only でどの変異も選ばれなければ exit 2", () => {

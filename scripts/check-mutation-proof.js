@@ -65,7 +65,18 @@ function takeLock() {
       return;
     } catch (err) {
       if (err.code !== "EEXIST") die(`ロックを作れない（${lockPath}）: ${err.message}`);
-      const pid = Number(readFileSync(lockPath, "utf8").trim());
+      // **読み取りも失敗しうる。** EEXIST を受けてから持ち主が `releaseLock()` で unlink する窓に
+      // 入ると ENOENT を投げ、`catch` の中なので誰も受けず未処理例外になる（終了コード 1 は
+      // 「実証できない変異がある」の意味なので、一過性の競合が実証の失敗に化ける）。
+      // 読めなかったロックは残骸として扱い、次の試行へ落とす。
+      let pid = NaN;
+      try {
+        pid = Number(readFileSync(lockPath, "utf8").trim());
+      } catch (readErr) {
+        if (readErr.code !== "ENOENT") {
+          die(`ロック（${lockPath}）を読めない: ${readErr.message}`);
+        }
+      }
       if (Number.isInteger(pid) && pid > 0 && alive(pid)) {
         die(
           `別の実行（pid ${pid}）が作業ツリーへ変異を当てている最中。` +

@@ -271,6 +271,7 @@ function loadRun(runDir, configuration, evalDir) {
 
   return {
     runDir,
+    assertions,
     executor: timing.executor ?? null,
     run: {
       eval_id: evalId,
@@ -378,8 +379,18 @@ function main() {
     );
   }
 
+  // **採点済み 0 件の pair を 0 のまま捨てない。** `--ungraded skip` で片側の run が全部
+  // 未採点になった pair は `graded` が 0 になり、その 0 を集合から消すと run 数の突き合わせを
+  // 素通りする（ディレクトリは在るので上の configuration 検査も通る）。実測で、with_skill が
+  // 2 eval・without_skill が 1 eval のまま `delta` が出た。除外の判断は人が下すので落とす。
+  const emptyPairs = [...perPair].filter(([, n]) => n === 0).map(([k]) => k);
+  if (emptyPairs.length > 0) {
+    die(
+      `採点済みの run が 1 件も無い eval × configuration がある（${emptyPairs.join(", ")}）。` +
+        "取り直すか、その eval を iteration から外す（--ungraded skip は余分な run の除外にしか使えない）",
+    );
+  }
   const counts = new Set(perPair.values());
-  counts.delete(0);
   if (counts.size !== 1) {
     die(
       "eval × configuration ごとの run 数が揃っていない（" +
@@ -388,6 +399,31 @@ function main() {
     );
   }
   const runsPerConfiguration = [...counts][0];
+
+  // **同じ eval の run が同じ assertion 集合を採点していることを確かめる。** run の合間に
+  // `evals.json` を編集すると、各 run は自分の宣言と整合したまま assertion 数が変わり、
+  // `pass_rate` の分母が run 間で違う（mean / stddev / delta が別の採点基準の混合平均になる）。
+  // eval_id とディレクトリ名・executor の混在と同じ「母集団を混ぜない」検査。
+  const assertionSets = new Map();
+  for (const r of loaded) {
+    const key = r.run.eval_id;
+    const set = JSON.stringify([...r.assertions].sort());
+    if (!assertionSets.has(key)) assertionSets.set(key, new Map());
+    const byShape = assertionSets.get(key);
+    if (!byShape.has(set)) byShape.set(set, []);
+    byShape.get(set).push(`${r.run.configuration}/run-${r.run.run_number}`);
+  }
+  for (const [evalId, byShape] of assertionSets) {
+    if (byShape.size > 1) {
+      die(
+        `eval ${evalId} の run が違う assertion 集合を採点している（` +
+          [...byShape]
+            .map(([set, runs]) => `${runs.join(" ")}: ${JSON.parse(set).length} 件`)
+            .join(" / ") +
+          "）。run の合間に assertion を変えた iteration は分ける",
+      );
+    }
+  }
 
   const runs = loaded.map((r) => r.run);
   const evalsRun = [...new Set(runs.map((r) => r.eval_id))].sort((a, b) => a - b);
