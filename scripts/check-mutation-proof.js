@@ -23,10 +23,10 @@
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   existsSync,
   linkSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -50,17 +50,17 @@ function die(message) {
 // **この検査は作業ツリーを書き換えて戻す。** 並行して走らせる（別の mutation-proof、
 // 同時に走るテスト）と、相手が変異を当てている最中のファイルを読んで**無関係な赤**が出る
 // （実測: 並行実行中に集計器のテストが 1 本落ちた）。単一実行をロックで担保する。
-// キーは repoRoot **全体**のハッシュ。末尾だけを見ると、worktree を並べる運用で末尾が同じパス
-// （`wt-issue-420-benchmark-scripts` / `wt-issue-421-benchmark-scripts`）が同じロックを取り合う。
-const lockPath =
-  process.env.MUTATION_PROOF_LOCK ??
-  join(
-    tmpdir(),
-    `mutation-proof-${createHash("sha256").update(repoRoot).digest("hex").slice(0, 32)}.lock`,
-  );
+// **状態ファイルは `/tmp` に置かない。** `os.tmpdir()`（1777）は同一ホストの別ユーザーも書けるうえ、
+// パスは repoRoot から決定論的に導けるので**先に作っておける**。ロックを先取りされれば実行を止められ、
+// 復元情報を植え付けられれば次回起動が任意のファイルを上書きしてしまう（実測で確認された経路）。
+// 作業ツリー内の自分が所有するディレクトリ（`node_modules/.cache/`。`pnpm exec` を使う以上必ず在る）へ置く。
+// worktree ごとに `node_modules` が分かれるので、ハッシュで取り合う問題も起きない。
+const stateDir = join(repoRoot, "node_modules", ".cache", "mutation-proof");
+const lockPath = process.env.MUTATION_PROOF_LOCK ?? join(stateDir, "lock");
 let lockHeld = false;
 
 function takeLock() {
+  mkdirSync(dirname(lockPath), { recursive: true });
   // **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
   // 作成直後の窓ではロックが**空**で、そこに入った 2 本目が「pid が読めない＝残骸」と判定して
   // 生きている持ち主のロックを奪える（`Number("")` は NaN ではなく 0 なので `pid > 0` が false）。
@@ -145,8 +145,9 @@ const tempDirs = new Set();
 // 復元が走らなかった場合に、**次回起動で作業ツリーを元へ戻す**ための記録。
 const recoveryPath = `${lockPath}.recovery.json`;
 
-function writeRecovery(target, content) {
-  writeFileSync(recoveryPath, JSON.stringify({ file: target, content }));
+function writeRecovery(target, before, after) {
+  mkdirSync(dirname(recoveryPath), { recursive: true });
+  writeFileSync(recoveryPath, JSON.stringify({ file: target, before, after }));
 }
 
 function clearRecovery() {
@@ -168,15 +169,32 @@ function recoverFromInterrupted() {
       `前回の中断の復元情報を読めない（${recoveryPath}）: ${err.message}。手で作業ツリーを確かめる`,
     );
   }
-  if (typeof saved?.file !== "string" || typeof saved?.content !== "string") {
+  if (
+    typeof saved?.file !== "string" ||
+    typeof saved?.before !== "string" ||
+    typeof saved?.after !== "string"
+  ) {
     die(`前回の中断の復元情報が壊れている（${recoveryPath}）。手で作業ツリーを確かめる`);
   }
-  const current = existsSync(saved.file) ? readFileSync(saved.file, "utf8") : null;
-  if (current === saved.content) {
-    console.error(`mutation-proof: 前回の中断で残った変異は無かった（${saved.file}）`);
+  // **書き戻し先はリポジトリ内に限る**（宣言の `file` と同じ扱い）。植え付けられた記録で
+  // リポジトリ外のファイルを上書きしない。
+  const target = resolve(saved.file);
+  if (!target.startsWith(repoRoot + "/")) {
+    die(`復元情報の書き戻し先がリポジトリ外（${target}）。植え付けを疑い、記録を消して調べる`);
+  }
+  const current = existsSync(target) ? readFileSync(target, "utf8") : null;
+  if (current === saved.before) {
+    console.error(`mutation-proof: 前回の中断で残った変異は無かった（${target}）`);
+  } else if (current === saved.after) {
+    // **変異後の内容と一致したときだけ戻す。** 「変異が残っている」と「人が直してさらに編集した」を
+    // 区別せず上書きすると、無関係な編集を消して「変異を戻した」と事実でないログを出す（実測）。
+    writeFileSync(target, saved.before);
+    console.error(`mutation-proof: 前回の中断で残っていた変異を戻した（${target}）`);
   } else {
-    writeFileSync(saved.file, saved.content);
-    console.error(`mutation-proof: 前回の中断で残っていた変異を戻した（${saved.file}）`);
+    die(
+      `復元情報と作業ツリーが食い違う（${target}）。中断後に編集された可能性があるので自動で戻さない。` +
+        `内容を確かめてから ${recoveryPath} を消す`,
+    );
   }
   clearRecovery();
 }
@@ -410,19 +428,23 @@ function proveMutation(mutation, testFile) {
   let run;
   try {
     pending = { path: mutation.target, content: original };
-    writeRecovery(mutation.target, original);
+    writeRecovery(mutation.target, original, mutated);
     writeFileSync(mutation.target, mutated);
     run = runTests(testFile);
   } finally {
     writeFileSync(mutation.target, original);
     pending = null;
-    clearRecovery();
     // 復元を実測する（ここが崩れると、以降の変異も本来の版で測れていない）。
+    // **検証を通ってから復元情報を消す**——先に消すと、記録が要るまさにその場合
+    //（書き戻したのに内容が一致しない）に次回起動が回収できない。
     const restored = readFileSync(mutation.target, "utf8");
     if (restored !== original) {
-      console.error(`mutation-proof: ${mutation.target} を復元できなかった。手で戻す`);
+      console.error(
+        `mutation-proof: ${mutation.target} を復元できなかった。手で戻す（復元情報: ${recoveryPath}）`,
+      );
       process.exit(2);
     }
+    clearRecovery();
   }
   if (!run.ran) return { ok: false, reason: run.reason };
   const expected = new Set(mutation.expect);

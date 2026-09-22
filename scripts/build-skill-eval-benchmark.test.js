@@ -1,6 +1,14 @@
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -815,6 +823,25 @@ describe("受理しない入力（exit 2）", () => {
       },
       "verdicts と expectations の両方がある",
     );
+  });
+
+  // `withFileTypes` の `isDirectory()` はリンク自体の型を見るので、リンクの eval が
+  // 不明エントリとしても報告されずに消えていた（実測）。`statSync` で辿る。
+  test("シンボリックリンクの eval ディレクトリも集計に入る", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
+    const real = mkdtempSync(join(tmpdir(), "benchmark-linked-"));
+    dirs.push(real);
+    for (const configuration of ["with_skill", "without_skill"]) {
+      writeRun(real, { evalDir: "eval-2", evalId: 2, configuration });
+    }
+    symlinkSync(join(real, "eval-2"), join(root, "eval-2"), "dir");
+    const res = run(root);
+    expect(res.status, res.out).toBe(0);
+    const b = JSON.parse(res.stdout);
+    expect(b.metadata.evals_run, "リンクの eval が黙って落ちた").toStrictEqual([1, 2]);
+    expect(b.runs).toHaveLength(4);
   });
 
   test("eval ディレクトリが無ければ落とす（対象 0 件を成功に倒さない）", () => {

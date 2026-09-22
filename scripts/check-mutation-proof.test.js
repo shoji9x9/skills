@@ -346,11 +346,12 @@ test("guard", () => {
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
     const lock = join(lockDir, "recover.lock");
     // 中断された run の状態を作る: 復元情報が残っていて、対象は変異したまま。
+    const mutated = FIXTURE_TARGET.replace(GUARD, "");
     writeFileSync(
       `${lock}.recovery.json`,
-      JSON.stringify({ file: fx.target, content: FIXTURE_TARGET }),
+      JSON.stringify({ file: fx.target, before: FIXTURE_TARGET, after: mutated }),
     );
-    writeFileSync(fx.target, FIXTURE_TARGET.replace(GUARD, ""));
+    writeFileSync(fx.target, mutated);
 
     const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
     expect(res.status, res.out).toBe(0);
@@ -359,6 +360,49 @@ test("guard", () => {
     expect(res.out).toContain("PASS G");
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
     expect(existsSync(`${lock}.recovery.json`), "復元情報を消していない").toBe(false);
+  });
+
+  // 変異後の内容と一致したときだけ戻す。人が直してさらに編集した状態を上書きしない。
+  test("復元情報と作業ツリーが食い違えば自動で戻さず exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "conflict.lock");
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({
+        file: fx.target,
+        before: FIXTURE_TARGET,
+        after: FIXTURE_TARGET.replace(GUARD, ""),
+      }),
+    );
+    // 中断後に人が直してさらに編集した状態（before でも after でもない）。
+    const edited = `${FIXTURE_TARGET}# 人が足した行\n`;
+    writeFileSync(fx.target, edited);
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("復元情報と作業ツリーが食い違う");
+    // **編集を消していないこと**（この検査の主目的）。
+    expect(readFileSync(fx.target, "utf8")).toBe(edited);
+    expect(existsSync(`${lock}.recovery.json`), "記録を消してしまった").toBe(true);
+  });
+
+  // 復元情報は他ユーザーが置けるパスに在りうる（`/tmp` を避けたが env で上書きもできる）。
+  // 書き戻し先がリポジトリ外なら植え付けを疑って落とす。
+  test("復元情報の書き戻し先がリポジトリ外なら exit 2", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "outside.lock");
+    const outside = join(lockDir, "planted.txt");
+    writeFileSync(outside, "元の内容\n");
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({ file: outside, before: "植え付けた内容\n", after: "何か\n" }),
+    );
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("リポジトリ外");
+    // 書き換えていないこと。
+    expect(readFileSync(outside, "utf8")).toBe("元の内容\n");
   });
 
   test("復元情報が壊れていれば exit 2（黙って続けない）", () => {

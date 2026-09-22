@@ -212,10 +212,25 @@ function verdictsFromGrading(grading, where) {
   return map;
 }
 
+/**
+ * `parent` 直下でディレクトリとして扱えるエントリ名を返す（`prefix` で絞る）。
+ *
+ * **`withFileTypes` の `isDirectory()` を使わない。** リンク自体の型を見るので、ディレクトリを指す
+ * シンボリックリンクに false を返し、`eval-*` がリンクだと**不明エントリとしても報告されずに**
+ * 集計から消える（実測: exit 0 のまま eval が 1 つ減った）。`statSync` はリンクを辿るので
+ * 「黙って捨てない」という設計目標と揃う。辿れないリンク（壊れている）は false のまま残し、
+ * 呼び出し側の不明エントリ検査で報告させる。
+ */
 function listDirs(parent, prefix) {
-  return readdirSync(parent, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && e.name.startsWith(prefix))
-    .map((e) => e.name)
+  return readdirSync(parent)
+    .filter((name) => {
+      if (!name.startsWith(prefix)) return false;
+      try {
+        return statSync(join(parent, name)).isDirectory();
+      } catch {
+        return false;
+      }
+    })
     .sort();
 }
 

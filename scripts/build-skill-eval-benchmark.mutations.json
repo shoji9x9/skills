@@ -340,6 +340,17 @@
       "expect_failing": [
         "受理しない入力（exit 2） 同じ run が 2 つのディレクトリから来ていれば落とす"
       ]
+    },
+    {
+      "id": "SYMLINK-DIRS",
+      "why": "listDirs をリンクを辿らない判定へ戻す（リンクの eval が黙って落ちる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "        return statSync(join(parent, name)).isDirectory();",
+      "replace": "        return readdirSync(parent, { withFileTypes: true }).some((e) => e.name === name && e.isDirectory());",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） シンボリックリンクの eval ディレクトリも集計に入る"
+      ]
     }
   ]
 }

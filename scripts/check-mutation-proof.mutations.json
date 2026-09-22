@@ -143,18 +143,42 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） 前回の中断で残った変異を次回起動で戻す",
-        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）"
+        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報と作業ツリーが食い違えば自動で戻さず exit 2",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2"
       ]
     },
     {
       "id": "RECOVERY-SHAPE",
       "why": "復元情報の形を検査しない（壊れた記録で黙って続ける）",
       "file": "scripts/check-mutation-proof.js",
-      "find": "  if (typeof saved?.file !== \"string\" || typeof saved?.content !== \"string\") {",
-      "replace": "  if (false) {",
+      "find": "    typeof saved?.file !== \"string\" ||\n    typeof saved?.before !== \"string\" ||\n    typeof saved?.after !== \"string\"\n",
+      "replace": "    false\n",
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）"
+      ]
+    },
+    {
+      "id": "RECOVERY-MATCH",
+      "why": "変異後の内容と一致しなくても戻す（中断後の編集を上書きする）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  } else if (current === saved.after) {",
+      "replace": "  } else if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報と作業ツリーが食い違えば自動で戻さず exit 2"
+      ]
+    },
+    {
+      "id": "RECOVERY-BOUNDARY",
+      "why": "書き戻し先の repoRoot 境界検査を外す（植え付けた記録で任意のファイルを上書き）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (!target.startsWith(repoRoot + \"/\")) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2"
       ]
     }
   ]
