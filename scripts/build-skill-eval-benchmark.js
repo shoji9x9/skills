@@ -234,6 +234,20 @@ function listDirs(parent, prefix) {
     .sort();
 }
 
+/**
+ * `parent` 直下で `names` に含まれるのに**ディレクトリとして辿れない**エントリ名を返す。
+ *
+ * `listDirs` はこれを false で落とすだけなので、**呼び出し側がここで報告しないと黙って消える**
+ * ——実測で、壊れたリンクの `eval-9` が警告も無く集計から外れて exit 0 になった。
+ * **「ディレクトリでない全エントリ」を返さない**——eval 直下には `eval_metadata.json` のような
+ * ファイルが正当に在り、それを不明扱いにすると実データの iteration が落ちる（実測で踏んだ）。
+ */
+function undirNamed(parent, names) {
+  const dirs = new Set(listDirs(parent, ""));
+  const present = new Set(readdirSync(parent));
+  return names.filter((name) => present.has(name) && !dirs.has(name)).sort();
+}
+
 /** run 1 件を読み、集計に使う形へ正規化する。 */
 function loadRun(runDir, configuration, evalDir) {
   const metaPath = join(runDir, "eval_metadata.json");
@@ -387,6 +401,17 @@ function runNumber(runDir) {
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   const evalDirs = listDirs(opts.dir, "eval-");
+  // **iteration 直下の `eval-*` も「辿れないから消える」を作らない。** 壊れたリンクやファイルは
+  // `listDirs` が落とすだけなので、ここで報告して落とす（実測: 壊れたリンクの eval が無警告で消えた）。
+  const badEvalEntries = readdirSync(opts.dir)
+    .filter((name) => name.startsWith("eval-") && !evalDirs.includes(name))
+    .sort();
+  if (badEvalEntries.length > 0) {
+    die(
+      `eval-* なのにディレクトリとして辿れないエントリがある（${badEvalEntries.join(", ")}）。` +
+        "壊れたリンクなら直すか、iteration から外す",
+    );
+  }
   if (evalDirs.length === 0)
     die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功に倒さない）`);
 
@@ -397,6 +422,12 @@ function main() {
   for (const evalDir of evalDirs) {
     for (const name of listDirs(join(opts.dir, evalDir), "")) {
       if (!CONFIGURATIONS.includes(name)) unknownDirs.push(`${evalDir}/${name}`);
+    }
+    // configuration が壊れたリンクだと `existsSync` が false になって黙って飛ばされ、
+    // 全 eval が同じ形なら「片側だけの iteration」として通る。**configuration 名のエントリが
+    // 在るのにディレクトリとして辿れない**ものだけを不明扱いにする（他のファイルは正当）。
+    for (const name of undirNamed(join(opts.dir, evalDir), CONFIGURATIONS)) {
+      unknownDirs.push(`${evalDir}/${name}`);
     }
   }
   if (unknownDirs.length > 0) {

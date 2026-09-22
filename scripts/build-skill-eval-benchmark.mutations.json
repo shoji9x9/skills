@@ -265,7 +265,8 @@
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "受理しない入力（exit 2） configuration に使えないディレクトリがあれば落とす"
+        "受理しない入力（exit 2） configuration に使えないディレクトリがあれば落とす",
+        "受理しない入力（exit 2） 壊れたリンクの configuration があれば落とす"
       ]
     },
     {
@@ -351,6 +352,24 @@
       "expect_failing": [
         "受理しない入力（exit 2） シンボリックリンクの eval ディレクトリも集計に入る"
       ]
+    },
+    {
+      "id": "BROKEN-EVAL-LINK",
+      "why": "iteration 直下の辿れない eval-* を報告しない（黙って集計から消える）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (badEvalEntries.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） 壊れたリンクの eval があれば落とす"]
+    },
+    {
+      "id": "BROKEN-CONFIG-LINK",
+      "why": "eval 直下の辿れないエントリを不明扱いにしない（片側 iteration として通る）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    for (const name of undirNamed(join(opts.dir, evalDir), CONFIGURATIONS)) {\n      unknownDirs.push(`${evalDir}/${name}`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） 壊れたリンクの configuration があれば落とす"]
     }
   ]
 }

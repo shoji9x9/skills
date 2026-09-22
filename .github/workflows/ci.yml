@@ -84,7 +84,7 @@ jobs:
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
-      # 変異実証（検査の検出能力の再実行）。**差分に当たる宣言だけ**を測る——全件は手元実測 956 秒で、
+      # 変異実証（検査の検出能力の再実行）。**差分に当たる宣言だけ**を測る——全件は手元実測 962 秒で、
       # その 7 割が実行器自身の宣言（テストが入れ子で runner を起動する）だった。対象も検査も
       # 変わっていない宣言は前回の実証がそのまま有効なので、PR では測り直さない。
       # **全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。

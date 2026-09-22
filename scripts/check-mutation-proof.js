@@ -37,6 +37,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   unlinkSync,
   writeFileSync,
@@ -114,11 +115,16 @@ function takeLock() {
             `終わるまで待つ（この検査は同時に走らせられない）。ロック: ${lockPath}`,
         );
       }
-      // 生きていないプロセスのロックは残骸。奪って続ける（2 度目の EEXIST は競合なので落とす）。
+      // 生きていないプロセスのロックは残骸。**奪うのは `renameSync` で行う**——`unlinkSync` だと、
+      // 同じ残骸を読んだ 2 本が「先に貼り直した側の**生きた**ロック」を消してしまい、両方が同時に
+      // 作業ツリーへ変異を当てる（ロックが防ぐはずの状態そのもの）。rename は勝者が 1 本に決まり、
+      // 負けた側は ENOENT で次の試行へ落ちる。
       try {
-        unlinkSync(lockPath);
+        const stale = `${lockPath}.stale.${process.pid}`;
+        renameSync(lockPath, stale);
+        unlinkSync(stale);
       } catch {
-        /* 別の実行が同時に奪った場合は次の試行で EEXIST になる */
+        /* 別の実行が先に奪った（ENOENT）。次の試行で EEXIST か取得成功になる */
       }
     }
   }

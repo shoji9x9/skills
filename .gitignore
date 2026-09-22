@@ -6,7 +6,8 @@ node_modules/
 # テスト実行結果の詳細は除外、サマリーは保持
 tests/*/iteration-*/eval-*/
 
-# check-mutation-proof.test.js の使い捨て fixture（異常終了時の残骸。ロックは tmpdir 配下なので対象外）
+# check-mutation-proof.test.js の使い捨て fixture（異常終了時の残骸）。
+# ロックと復元情報は node_modules/.cache/mutation-proof/ 配下（node_modules ごと除外済み）。
 scripts/mutation-proof-fixture-*/
 
 # eval ビューアが生成する閲覧用 HTML（run 出力を埋め込んだ数百 KB の生成物。サマリーではない）

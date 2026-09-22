@@ -844,6 +844,29 @@ describe("受理しない入力（exit 2）", () => {
     expect(b.runs).toHaveLength(4);
   });
 
+  // 辿れないエントリは `listDirs` が落とすだけなので、**呼び出し側で報告しないと黙って消える**
+  // （実測: 壊れたリンクの eval が無警告で集計から外れて exit 0 になった）。
+  test("壊れたリンクの eval があれば落とす", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
+    symlinkSync(join(root, "no-such-target"), join(root, "eval-9"), "dir");
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("eval-* なのにディレクトリとして辿れないエントリがある");
+    expect(res.out).toContain("eval-9");
+  });
+
+  test("壊れたリンクの configuration があれば落とす", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    symlinkSync(join(root, "no-such-target"), join(root, "eval-1", "without_skill"), "dir");
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("configuration に使えないディレクトリがある");
+    expect(res.out).toContain("eval-1/without_skill");
+  });
+
   test("eval ディレクトリが無ければ落とす（対象 0 件を成功に倒さない）", () => {
     const res = run(makeIteration());
     expect(res.status, res.out).toBe(2);

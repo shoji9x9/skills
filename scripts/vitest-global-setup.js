@@ -13,7 +13,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-// ロックは `tmpdir()` 配下に作るのでここには現れない（`scripts/` 配下に残るのは fixture だけ）。
+// ロックと復元情報は `node_modules/.cache/mutation-proof/` に置く（`check-mutation-proof.js` が
+// 「状態ファイルは `/tmp` に置かない」理由つきでそう決めている）。`scripts/` 配下に残るのは fixture だけ。
 const STALE_PREFIXES = ["mutation-proof-fixture-"];
 
 export function setup() {
