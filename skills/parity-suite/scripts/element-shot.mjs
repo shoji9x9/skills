@@ -51,10 +51,11 @@ import { dirname } from "node:path";
  * ツールのバージョン（正本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
  * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
  * 4: `path` は Playwright へ渡さず、検査を通ってから自分で書く（拒否した PNG を残さない）。
+ * 5: 撮る前に生きているアニメーションを数え、`animations: "disabled"` なら撮らずに失敗させる。
  * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /**
  * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
@@ -118,6 +119,18 @@ export function planElementClip(rect, viewport) {
  */
 function readRectAndViewport(el) {
   const box = el.getBoundingClientRect();
+  // 生きているアニメーションを数える。`animations: "disabled"` は**撮影の中で**有限のものを
+  // 完了まで早送りし、無限のものを初期状態へ戻してから撮り、撮り終えたら元の時刻へ復帰させる。
+  // そのため撮影の前後で測った矩形が同じでも、PNG は別の幾何で撮られている（一時停止した無限
+  // アニメーションが典型）。撮る前に件数を見て、生きているなら clip を信用しない。
+  let liveAnimations = null;
+  try {
+    liveAnimations = el
+      .getAnimations({ subtree: true })
+      .filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+  } catch {
+    liveAnimations = null; // getAnimations を持たない環境では数えられない（判定しない）
+  }
   const view = el.ownerDocument.defaultView;
   let topFrame;
   try {
@@ -129,6 +142,7 @@ function readRectAndViewport(el) {
     rect: { x: box.x, y: box.y, width: box.width, height: box.height },
     viewport: { width: view.innerWidth, height: view.innerHeight },
     top_frame: topFrame,
+    live_animations: liveAnimations,
   };
 }
 
@@ -174,6 +188,21 @@ export async function captureElementShot(page, locator, options = {}) {
         "frame, but page.screenshot({ clip }) is relative to the top-level viewport, so the crop " +
         "would silently land on the wrong region. open the frame's own URL as a page " +
         "(Storybook: /iframe.html?id=<story>) and capture the element there",
+    );
+  }
+  // 生きているアニメーションがあるなら、撮影中に幾何が変わっても前後の測定は同じ値になりうる
+  // （撮影後の測り直しでは捕まえられない）。撮る前に落とす。
+  if (
+    animations === "disabled" &&
+    typeof measured.live_animations === "number" &&
+    measured.live_animations > 0
+  ) {
+    throw new Error(
+      `element clip: ${measured.live_animations} live animation(s) on the element or its subtree. ` +
+        `animations: "disabled" fast-forwards or resets them inside page.screenshot() and restores them ` +
+        `afterwards, so the clip measured before the capture can describe a different geometry than the PNG ` +
+        `(the post-capture rect check cannot see this). quiesce animations and transitions at the page level ` +
+        `before capturing, or pass animations: "allow" and record that the capture condition differs`,
     );
   }
   const clip = planElementClip(measured.rect, measured.viewport);

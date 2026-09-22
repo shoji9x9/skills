@@ -17,8 +17,14 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/cascade-resolve.mjs");
-const { VERSION, resolveCascade, specificity, compareSpecificity, UndecidableSelector } =
-  await import(script);
+const {
+  VERSION,
+  resolveCascade,
+  specificity,
+  compareSpecificity,
+  statesOutsideSubject,
+  UndecidableSelector,
+} = await import(script);
 
 /** css-rules-capture.mjs 相当の入力を組む（tool_version は実物の対応版に合わせる）。 */
 function doc({ matched = [], inline = [], unresolved = [], inaccessible = [] } = {}) {
@@ -837,4 +843,64 @@ test("`all` しか宣言が無い採取物を --all で 0 件合格にしない"
   // 陽性コントロール: `all` が無ければ候補ゼロの採取物は結果も 0 件のまま（番兵を無条件に足さない）。
   const empty = resolveCascade(doc(), { states: ["default"], properties: null });
   expect(empty.results).toEqual([]);
+});
+
+// --- codex レビュー #435 の 6 ラウンド目 -------------------------------------
+
+test("インラインの `all` もワイルドカードとして扱う", () => {
+  const input = doc({ inline: [decl("color", "red"), decl("all", "unset")] });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/`all` declaration/);
+
+  // 陽性コントロール: `all` が先なら後の宣言が勝って resolved（何でも undecidable にしない）。
+  const before = doc({ inline: [decl("all", "unset"), decl("color", "red")] });
+  expect(resolve(before, "color").winner.value).toBe("red");
+});
+
+test("インライン同士は style 属性の並び順で決まる", () => {
+  const input = doc({ inline: [decl("color", "red"), decl("color", "blue")] });
+  expect(resolve(input, "color").winner.value).toBe("blue");
+});
+
+test("主語の外に付いた状態は成立と扱わない（隣の要素の hover）", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".target", declarations: [decl("color", "blue")] },
+      {
+        order: 2,
+        selector: ".trigger:hover + .target",
+        states: ["hover"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color", ["hover"]);
+  expect(result.status).toBe("undecidable");
+  expect(result.state_unknown).toHaveLength(1);
+
+  // 陽性コントロール: 主語に付いた hover なら従来どおり成立して勝つ。
+  const subject = doc({
+    matched: [
+      { order: 1, selector: ".target", declarations: [decl("color", "blue")] },
+      {
+        order: 2,
+        selector: ".target:hover",
+        states: ["hover"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  expect(resolve(subject, "color", ["hover"]).winner.value).toBe("green");
+  // default の採取では従来どおり不成立で落ちる。
+  expect(resolve(subject, "color", ["default"]).winner.value).toBe("blue");
+});
+
+test("statesOutsideSubject は主語の内外を弁別する", () => {
+  expect(statesOutsideSubject(".trigger:hover + .target", ["hover"])).toEqual(["hover"]);
+  expect(statesOutsideSubject(".a:hover .b:hover", ["hover"])).toEqual(["hover"]);
+  expect(statesOutsideSubject(":is(.a:hover) .b", ["hover"])).toEqual(["hover"]);
+  expect(statesOutsideSubject(".btn:hover", ["hover"])).toEqual([]);
+  expect(statesOutsideSubject(".a .b:hover", ["hover"])).toEqual([]);
+  expect(statesOutsideSubject(".a .b", [])).toEqual([]);
 });

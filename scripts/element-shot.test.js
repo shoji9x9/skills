@@ -27,7 +27,7 @@ function enclosingIntRect(rect) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("4");
+  expect(VERSION).toBe("5");
 });
 
 // 実測された 4 例（Issue #434 の再現手順 2）。いずれも width / height は整数だが原点が小数。
@@ -203,7 +203,7 @@ function shotSpy(rect = { x: 0, y: 0, width: 10, height: 10 }) {
   const calls = [];
   const locator = {
     scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => ({ rect, viewport: VIEWPORT, top_frame: true }),
+    evaluate: async () => ({ rect, viewport: VIEWPORT, top_frame: true, live_animations: 0 }),
   };
   const page = {
     screenshot: async (options) => {
@@ -254,6 +254,7 @@ function movingSpy(before, after) {
       rect: rects[Math.min(call++, rects.length - 1)],
       viewport: VIEWPORT,
       top_frame: true,
+      live_animations: 0,
     }),
   };
   const page = {
@@ -312,4 +313,55 @@ test("既存の基準ファイルを、落ちた run が上書きしない", asy
   writeFileSync(target, "previous");
   await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow();
   expect(readFileSync(target).toString()).toBe("previous");
+});
+
+// --- 生きているアニメーションの検出 -----------------------------------------
+//
+// animations: "disabled" は撮影の中で有限のものを早送りし、無限のものを初期状態へ戻して撮り、
+// 撮り終えたら元の時刻へ復帰させる。一時停止した無限アニメーションでは、撮影の前後で測った矩形が
+// どちらも同じ（停止時の幾何）なのに PNG だけ初期状態の幾何になる。事後の測り直しでは捕まらない。
+
+function animatedSpy(liveAnimations, rect = { x: 0, y: 0, width: 10, height: 10 }) {
+  const calls = [];
+  const locator = {
+    scrollIntoViewIfNeeded: async () => {},
+    evaluate: async () => ({
+      rect,
+      viewport: VIEWPORT,
+      top_frame: true,
+      live_animations: liveAnimations,
+    }),
+  };
+  const page = {
+    screenshot: async (options) => {
+      calls.push(options);
+      return Buffer.from("png");
+    },
+  };
+  return { calls, locator, page };
+}
+
+test("生きているアニメーションがあれば撮らずに失敗する", async () => {
+  const { calls, locator, page } = animatedSpy(2);
+  await expect(captureElementShot(page, locator)).rejects.toThrow(/live animation/);
+  expect(calls).toEqual([]); // 撮る前に落とす（事後検査ではない）
+});
+
+test("アニメーションが無ければ従来どおり撮る", async () => {
+  const { calls, locator, page } = animatedSpy(0);
+  await captureElementShot(page, locator);
+  expect(calls).toHaveLength(1);
+});
+
+test('animations: "allow" なら生きていても撮る（呼び出し側が選んだ条件）', async () => {
+  const { calls, locator, page } = animatedSpy(3);
+  const out = await captureElementShot(page, locator, { animations: "allow" });
+  expect(calls).toHaveLength(1);
+  expect(out.animations).toBe("allow");
+});
+
+test("数えられない環境（getAnimations 無し）では判定しない", async () => {
+  const { calls, locator, page } = animatedSpy(null);
+  await captureElementShot(page, locator);
+  expect(calls).toHaveLength(1);
 });

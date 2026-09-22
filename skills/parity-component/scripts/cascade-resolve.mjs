@@ -327,6 +327,45 @@ export function specificity(selector) {
 }
 
 /**
+ * 状態擬似クラスが**主語（最後の複合セレクタ）以外**に付いているかを見る。
+ *
+ * `css-rules-capture.mjs` は状態擬似クラスをセレクタから剥がして `states` に名前だけ記録するため、
+ * `.trigger:hover + .target` は `states: ["hover"]` になる。名前だけで「いまその状態か」を判定すると、
+ * `.target` を hover した採取に対してこの規則を成立と扱ってしまう——**隣の要素が hover されているか**は
+ * 採取ディレクトリ名からは分からない。主語の外に状態が付いていたら成否を決めず undecidable に回す。
+ *
+ * @param {string} selector - 規則のセレクタ（状態擬似クラスを含む形）
+ * @param {readonly string[]} states - その規則が要求する状態擬似クラスの名前
+ * @returns {string[]} 主語の外に現れた状態の名前（空なら主語だけに付いている）
+ */
+export function statesOutsideSubject(selector, states) {
+  if (typeof selector !== "string" || states.length === 0) return [];
+  // トップレベルの結合子で分割し、最後の断片を主語とする（括弧・文字列の中では分割しない）。
+  let depth = 0;
+  let lastBreak = -1;
+  for (let i = 0; i < selector.length; i += 1) {
+    const ch = selector[i];
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    if (ch === "(" || ch === "[") depth += 1;
+    else if (ch === ")" || ch === "]") depth -= 1;
+    else if (depth === 0 && (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~"))
+      lastBreak = i;
+  }
+  if (lastBreak < 0) return []; // 結合子が無い＝主語だけのセレクタ
+  const outside = selector.slice(0, lastBreak + 1);
+  const found = [];
+  for (const state of states) {
+    // 名前は小文字で記録されるが、セレクタ側の綴りは大小どちらもありうる。
+    const re = new RegExp(`:${state.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    if (re.test(outside)) found.push(state);
+  }
+  return found;
+}
+
+/**
  * 詳細度を比較する（a が強ければ正）。
  * @param {[number,number,number]} a
  * @param {[number,number,number]} b
@@ -470,11 +509,19 @@ export function resolveCascade(document, options) {
     // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
     // ディレクトリ名から成否が決まらないので、不成立に倒さず「不明」として持つ。
     const inactive = states.filter((state) => !active.has(state));
+    // 主語の外に付いた状態は、名前が一致しても「いまその状態か」を採取ディレクトリ名が決めない
+    // （`.trigger:hover + .target` の `hover` は隣の要素の話）。不成立にも成立にも倒さず不明にする。
+    const foreign = statesOutsideSubject(String(rule.selector ?? ""), states);
     // 渡された状態と共起しうる一時的な状態は「不成立」に倒さない（下記 CO_OCCURRING_STATES）。
-    const gated = inactive.some((state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state));
-    const unknownStates = inactive.filter(
-      (state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state),
+    const gated = inactive.some(
+      (state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state) && !foreign.includes(state),
     );
+    const unknownStates = [
+      ...new Set([
+        ...inactive.filter((state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state)),
+        ...foreign,
+      ]),
+    ];
     let spec = null;
     let specError = null;
     try {
@@ -521,11 +568,10 @@ export function resolveCascade(document, options) {
     }
   }
 
-  for (const decl of inline) {
+  for (let i = 0; i < inline.length; i += 1) {
+    const decl = inline[i];
     if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
-    // インラインは擬似要素に効かないので、要素自身のバケットにだけ入れる。
-    const entry = bucket(null, decl.property);
-    entry.applying.push({
+    const candidate = {
       source: "inline",
       selector: null,
       origin: "style attribute",
@@ -534,9 +580,21 @@ export function resolveCascade(document, options) {
       specificity: null,
       specificity_error: null,
       order: null,
+      // `style` 属性の中も後に書いた宣言が勝つ。規則側と同じく並び順を持たせる
+      // （持たせないと `style="color: red; all: unset"` が同点になる）。
+      declaration_index: i,
       layers: [],
       conditions: [],
-    });
+    };
+    // インラインの `all` も規則側と同じくワイルドカードとして扱う
+    // （プロパティ名で振り分けると、後続の `all` が個別宣言を reset するのを見落とす）。
+    if (decl.property === "all") {
+      if (!wildcards.has("")) wildcards.set("", []);
+      wildcards.get("").push({ ...candidate, unknown_states: [] });
+      continue;
+    }
+    // インラインは擬似要素に効かないので、要素自身のバケットにだけ入れる。
+    bucket(null, decl.property).applying.push(candidate);
   }
 
   const requested = options.properties ?? null;
@@ -732,10 +790,16 @@ function decide(entry, wildcard = []) {
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
   const tierRank = tiers.findIndex((t) => t.name === winningTier);
   const couldOutrank = (c) => {
-    const rank = c.important ? 1 : 3;
+    // 段（tiers）の並びに合わせて候補の段を決める。候補が規則である前提で書くと、
+    // インラインの候補（インラインの `all` 等）が常に下の段と判定されて追い越しを見落とす。
+    const rank = c.source === "inline" ? (c.important ? 0 : 2) : c.important ? 1 : 3;
     if (rank < tierRank) return true;
     if (rank > tierRank) return false;
-    if (winner.source === "inline") return true;
+    // 同じ段でインライン同士なら、`style` 属性の中の並び順で決まる（詳細度もレイヤも無い）。
+    if (c.source === "inline" && winner.source === "inline") {
+      return (c.declaration_index ?? 0) > (winner.declaration_index ?? 0);
+    }
+    if (winner.source === "inline" || c.source === "inline") return true;
     if (JSON.stringify(c.layers) !== JSON.stringify(winner.layers)) return true;
     if (c.specificity === null) return true;
     const bySpec = compareSpecificity(c.specificity, winner.specificity);
