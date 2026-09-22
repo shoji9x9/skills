@@ -46,10 +46,11 @@
 
 /**
  * ツールのバージョン（正本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
+ * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
  * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
@@ -140,7 +141,9 @@ function readRectAndViewport(el) {
  *   animations は既定 `"disabled"`——Playwright の既定は `"allow"` で、アニメーション・トランジションの
  *   途中フレームがそのまま PNG になり run ごとに揺れる。採取条件は `animations: disabled` として
  *   記録される運用なので、記録と実体が食い違わないよう既定で止める
- *   （出典: <https://playwright.dev/docs/api/class-page#page-screenshot>）
+ *   （出典: <https://playwright.dev/docs/api/class-page#page-screenshot>）。
+ *   clip は撮影前の矩形から決まる一方で `animations` は撮影時に効くため、**撮影後にもう一度矩形を測り、
+ *   変わっていたら失敗させる**（早送りで動いた要素を古い矩形で切った PNG を基準にしない）
  * @returns {Promise<{ buffer: Buffer, clip: { x:number, y:number, width:number, height:number },
  *                     rect: { x:number, y:number, width:number, height:number }, tool_version: string }>}
  * @throws {Error} 要素が最上位フレームに無い（clip の座標系が食い違う）場合
@@ -173,5 +176,27 @@ export async function captureElementShot(page, locator, options = {}) {
   const shot = { clip, animations };
   if (path !== undefined) shot.path = path;
   const buffer = await page.screenshot(shot);
+
+  // clip は撮影**前**に測った矩形から決まるが、`animations: "disabled"` は撮影のときに効く
+  // （有限のアニメーションは完了まで早送りされ、無限のものは初期状態へ戻る）。その早送りで
+  // 要素の位置・寸法が変われば、古い矩形で切った PNG が別の領域を写したまま残る。
+  // 撮った後にもう一度測って、変わっていたら失敗させる——撮影条件を記録しながら
+  // 中身が条件と食い違う成果物を基準にしない。
+  const after = await locator.evaluate(readRectAndViewport);
+  const moved =
+    after.rect.x !== measured.rect.x ||
+    after.rect.y !== measured.rect.y ||
+    after.rect.width !== measured.rect.width ||
+    after.rect.height !== measured.rect.height;
+  if (moved) {
+    throw new Error(
+      `element clip: the element's box changed while capturing ` +
+        `(${measured.rect.width}x${measured.rect.height} at ${measured.rect.x},${measured.rect.y} -> ` +
+        `${after.rect.width}x${after.rect.height} at ${after.rect.x},${after.rect.y}). ` +
+        `the clip was computed before the screenshot applied animations: "${animations}", so the PNG may ` +
+        `show a different region. quiesce animations and transitions at the page level (or wait until the ` +
+        `rect is stable across two reads) before capturing`,
+    );
+  }
   return { buffer, clip, rect: measured.rect, animations, tool_version: VERSION };
 }

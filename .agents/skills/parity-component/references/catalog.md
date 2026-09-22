@@ -51,6 +51,9 @@ node <skill>/scripts/cascade-resolve.mjs \
   **同時に成立しうる一時的な状態も不成立に倒さない**——`:active` を作ればポインタは要素の上にあるので
   `:hover` も当たっている。`--state active` だけを渡した採取では `:hover` の宣言が「不明」になるので、
   成立していたなら `--state active --state hover` と渡す
+- **`all` の宣言があると個別プロパティの勝者を確定しない。** ブラウザは `margin` / `background` / `font` を
+  longhand へ展開して採取物へ届けるが、**`all` は展開しない**（Chrome 149 で実測）。そのため `all` が勝ちうる場面では
+  `undecidable` になる。現行の CSS を直接読んで、その要素に `all` が何を与えているかを確定する
 - **採取が不完全なら止まる。** `css-rules.json` の `inaccessible`（見えていないスタイルシート）や
   `unresolved`（当たるか判定していないセレクタ）が非ゼロだと、そこに `matched` の全候補より強い宣言が
   隠れていても分からない。既定では解決せず停止するので、採り直すか現行の CSS を直接読んで確定する。

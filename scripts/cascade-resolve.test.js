@@ -687,3 +687,68 @@ test(":link / :visited / :target は一時的な状態に数えない（要素�
     expect(result.state_unknown, state).toHaveLength(1);
   }
 });
+
+test("shorthand は longhand へ展開されて届く（実ブラウザの形を回帰で固定する）", () => {
+  // Chrome 149 実測: `.x { margin: 20px }` は margin-top/right/bottom/left の 4 宣言として届く。
+  // したがって「longhand の後に shorthand」も order だけで正しく解ける。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("margin-top", "10px")] },
+      {
+        order: 2,
+        selector: ".x",
+        declarations: [
+          decl("margin-top", "20px"),
+          decl("margin-right", "20px"),
+          decl("margin-bottom", "20px"),
+          decl("margin-left", "20px"),
+        ],
+      },
+    ],
+  });
+  const result = resolve(input, "margin-top");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("20px");
+});
+
+test("`all` は展開されないので、勝ちうるなら undecidable にする", () => {
+  // Chrome 149 実測: margin / background / font は展開されるが `all: unset` は `all` のまま届く。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("color", "blue")] },
+      { order: 2, selector: ".x", declarations: [decl("all", "unset")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/`all` declaration/);
+  expect(result.wildcard).toHaveLength(1);
+});
+
+test("`all` が負ける側なら従来どおり解決する", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("all", "unset")] },
+      { order: 2, selector: "#main .x", declarations: [decl("color", "blue", true)] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("blue");
+});
+
+test("`all` があるとき、宣言の無いプロパティを absent にしない", () => {
+  const input = doc({
+    matched: [{ order: 1, selector: ".x", declarations: [decl("all", "unset")] }],
+  });
+  const result = resolve(input, "box-shadow");
+  expect(result.status).toBe("undecidable");
+  expect(result.wildcard).toHaveLength(1);
+});
+
+test("`all` が無ければ宣言の無いプロパティは従来どおり absent", () => {
+  const input = doc({
+    matched: [{ order: 1, selector: ".x", declarations: [decl("color", "blue")] }],
+  });
+  expect(resolve(input, "box-shadow").status).toBe("absent");
+});

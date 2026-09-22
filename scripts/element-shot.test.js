@@ -25,7 +25,7 @@ function enclosingIntRect(rect) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("2");
+  expect(VERSION).toBe("3");
 });
 
 // 実測された 4 例（Issue #434 の再現手順 2）。いずれも width / height は整数だが原点が小数。
@@ -231,4 +231,48 @@ test("animations に未知の値を渡したら撮らずに失敗する", async 
     /animations must be/,
   );
   expect(calls).toEqual([]);
+});
+
+// --- 撮影中に要素が動いていないかの検査 -------------------------------------
+//
+// clip は撮影前の矩形から決まるが、animations: "disabled" は撮影のときに効く
+// （有限のアニメーションは完了まで早送りされる）。早送りで動いた要素を古い矩形で切ると、
+// 別の領域を写した PNG がエラー無しで残る。
+
+function movingSpy(before, after) {
+  const rects = [before, after];
+  let call = 0;
+  const calls = [];
+  const locator = {
+    scrollIntoViewIfNeeded: async () => {},
+    evaluate: async () => ({
+      rect: rects[Math.min(call++, rects.length - 1)],
+      viewport: VIEWPORT,
+      top_frame: true,
+    }),
+  };
+  const page = {
+    screenshot: async (options) => {
+      calls.push(options);
+      return Buffer.alloc(0);
+    },
+  };
+  return { calls, locator, page };
+}
+
+test("撮影中に矩形が変わったら失敗する", async () => {
+  const { calls, locator, page } = movingSpy(
+    { x: 10, y: 10, width: 40, height: 20 },
+    { x: 10, y: 34, width: 40, height: 20 },
+  );
+  await expect(captureElementShot(page, locator)).rejects.toThrow(/box changed while capturing/);
+  // 撮影自体は走っている（検知は事後）。撮れた PNG を基準にしないことが目的。
+  expect(calls).toHaveLength(1);
+});
+
+test("矩形が変わらなければ従来どおり返す（何でも失敗させない）", async () => {
+  const rect = { x: 10, y: 10, width: 40, height: 20 };
+  const { locator, page } = movingSpy(rect, { ...rect });
+  const out = await captureElementShot(page, locator);
+  expect(out.clip).toEqual({ x: 10, y: 10, width: 40, height: 20 });
 });

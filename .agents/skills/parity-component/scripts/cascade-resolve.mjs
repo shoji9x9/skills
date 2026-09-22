@@ -424,6 +424,14 @@ export function resolveCascade(document, options) {
   }
   /** @type {Map<string, any>} key = `${pseudo}\u0000${property}` */
   const buckets = new Map();
+  /**
+   * `all` の宣言（擬似要素ごと）。**ブラウザは `all` を longhand へ展開しない**
+   * （Chrome 149 で実測: `margin` / `background` / `font` は展開されるが `all: unset` は `all` のまま）。
+   * そのためプロパティ名で振り分けるだけでは、`all` が勝つ場面でも個別プロパティの宣言を勝者にしてしまう。
+   * どのプロパティにも効きうる候補として別に持ち、勝ちうるなら undecidable にする。
+   * @type {Map<string, any[]>}
+   */
+  const wildcards = new Map();
   const bucket = (pseudo, property) => {
     const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
     let entry = buckets.get(key);
@@ -465,9 +473,11 @@ export function resolveCascade(document, options) {
     }
     for (const decl of declarations) {
       if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
-      const entry = bucket(rule.pseudo_element ?? null, decl.property);
+      // `all` はプロパティ名の振り分けに載せない（どのプロパティにも効きうるので別に持つ）。
+      const wildcard = decl.property === "all";
+      const entry = wildcard ? null : bucket(rule.pseudo_element ?? null, decl.property);
       if (gated) {
-        entry.state_gated += 1;
+        if (entry !== null) entry.state_gated += 1;
         continue;
       }
       const candidate = {
@@ -482,6 +492,12 @@ export function resolveCascade(document, options) {
         layers,
         conditions,
       };
+      if (wildcard) {
+        const key = rule.pseudo_element ?? "";
+        if (!wildcards.has(key)) wildcards.set(key, []);
+        wildcards.get(key).push({ ...candidate, unknown_states: unknownStates });
+        continue;
+      }
       if (conditions.length > 0) entry.conditional.push(candidate);
       else if (unknownStates.length > 0) {
         entry.state_unknown.push({ ...candidate, unknown_states: unknownStates });
@@ -513,12 +529,32 @@ export function resolveCascade(document, options) {
   for (const key of keys) {
     const entry = buckets.get(key);
     if (requested !== null && !requested.includes(entry.property)) continue;
-    results.push(decide(entry));
+    results.push(decide(entry, wildcards.get(entry.pseudo_element ?? "") ?? []));
   }
   if (requested !== null) {
     const seen = new Set(results.map((r) => r.property));
     for (const property of requested) {
       if (seen.has(property)) continue;
+      // `all` があるなら「宣言が無い」とは言えない（all が値を与える）。
+      const wildcardsForOwn = wildcards.get("") ?? [];
+      if (wildcardsForOwn.length > 0) {
+        results.push({
+          property,
+          pseudo_element: null,
+          status: "undecidable",
+          winner: null,
+          losers: [],
+          conditional: [],
+          state_unknown: [],
+          wildcard: wildcardsForOwn,
+          state_gated: 0,
+          reasons: [
+            "no declaration names this property, but an `all` declaration applies to every property " +
+              "and browsers do not expand `all` into longhands (measured in Chrome 149), so the value is not settled here",
+          ],
+        });
+        continue;
+      }
       results.push({
         property,
         pseudo_element: null,
@@ -550,7 +586,7 @@ export function resolveCascade(document, options) {
  * 1 バケット（プロパティ × 擬似要素）の勝者を決める。
  * @param {any} entry
  */
-function decide(entry) {
+function decide(entry, wildcard = []) {
   const reasons = [...entry.reasons];
   const out = {
     property: entry.property,
@@ -560,10 +596,18 @@ function decide(entry) {
     losers: [],
     conditional: entry.conditional,
     state_unknown: entry.state_unknown,
+    wildcard,
     state_gated: entry.state_gated,
     reasons,
   };
   if (entry.applying.length === 0) {
+    if (wildcard.length > 0) {
+      reasons.push(
+        "an `all` declaration applies to every property and browsers do not expand it into longhands " +
+          "(measured in Chrome 149), so no individual declaration settles this property",
+      );
+      return out;
+    }
     if (entry.conditional.length > 0) {
       reasons.push(
         "only conditional (@media / @supports / @container) declarations remain; " +
@@ -668,6 +712,13 @@ function decide(entry) {
     reasons.push(
       "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
         "condition holds; css-rules-capture does not evaluate conditions, so this cannot be decided here",
+    );
+    return out;
+  }
+  if (wildcard.some(couldOutrank)) {
+    reasons.push(
+      "an `all` declaration would outrank the winner; browsers do not expand `all` into longhands " +
+        "(measured in Chrome 149), so which value this property ends up with is not settled here",
     );
     return out;
   }
