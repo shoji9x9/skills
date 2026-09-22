@@ -48,8 +48,8 @@
       "id": "P",
       "why": "打ち切り判定の閾値を数値リテラルへ戻す（上限と別リテラルにする）",
       "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
-      "find": "-ge \"$list_limit\" ]",
-      "replace": "-ge 100 ]",
+      "find": "if [ \"$scanned\" -ge \"$list_limit\" ]; then",
+      "replace": "if [ \"$scanned\" -ge 100 ]; then",
       "occurrences": 2,
       "expect_failing": [
         "照会の正本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
@@ -63,7 +63,8 @@
       "replace": "\t\tscanned=*) ;;\n",
       "occurrences": 1,
       "expect_failing": [
-        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない",
+        "照会の正本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）"
       ]
     },
     {
@@ -477,6 +478,17 @@
       "occurrences": 2,
       "expect_failing": [
         "照会の正本（tracking-issue-lib.sh） errexit が効かない文脈でも照会の失敗を戻り値で伝える"
+      ]
+    },
+    {
+      "id": "SCANNED-DIGITS",
+      "why": "走査件数の 10 進検査を外す（打ち切り判定が fail-open に戻る）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\tcase \"$scanned\" in\n\t'' | *[!0-9]*)\n",
+      "replace": "\tcase \"$scanned\" in\n\tSKIP-THIS-PATTERN)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） 走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）"
       ]
     }
   ]

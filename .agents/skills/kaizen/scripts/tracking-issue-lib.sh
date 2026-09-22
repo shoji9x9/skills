@@ -57,6 +57,11 @@ find_tracking_issues() {
 }
 
 # 先頭行の `scanned=N` と、それ以降の Issue 番号を分けて読む。
+#
+# **`scanned` が 10 進でなければ落とす。** 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は
+# `if` の条件なので `set -e` が効かず、非数値だと bash が `integer expression expected` を出して
+# 非 0 を返したぶんが `truncated=false` として通過する（＝打ち切りを黙って成功へ倒す。実測）。
+# 判定の手前で入力を検証して fail-closed にする（接頭辞が空のときと同じ扱い）。
 read_matches() {
 	scanned=0
 	numbers=()
@@ -67,6 +72,12 @@ read_matches() {
 		*) numbers+=("$line") ;;
 		esac
 	done <<<"$1"
+	case "$scanned" in
+	'' | *[!0-9]*)
+		echo "照会が返した走査件数が 10 進でない（scanned=\"$scanned\"）。打ち切りを判定できないので落とす" >&2
+		return 1
+		;;
+	esac
 }
 
 # **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を**代入**に置けば

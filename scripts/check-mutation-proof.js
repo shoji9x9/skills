@@ -198,6 +198,11 @@ function loadSpec(specPath) {
   } catch (err) {
     die(`${specPath} を読めない: ${err.message}`);
   }
+  // 壊れた宣言は「実証できない変異がある」（exit 1）ではなく前提の誤り（exit 2）。
+  // 素通りさせると後続の参照が TypeError になり、CI では本物の実証失敗と同じ赤に見える。
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    die(`${specPath} が JSON オブジェクトでない（${Array.isArray(raw) ? "配列" : String(raw)}）`);
+  }
   const testFile = asString(raw.test_file, `${specPath}: test_file`);
   const testPath = resolve(repoRoot, testFile);
   if (!existsSync(testPath)) die(`${specPath}: test_file が実在しない: ${testPath}`);
@@ -274,8 +279,20 @@ function runTests(testFile) {
       return { ran: false, reason: `vitest の結果を読めない: ${err.message}` };
     }
     const results = new Map();
+    const duplicated = [];
     for (const file of report.testResults ?? []) {
-      for (const a of file.assertionResults ?? []) results.set(a.fullName, a.status);
+      for (const a of file.assertionResults ?? []) {
+        // **名前をキーにする設計なので、名前の一意性が前提。** 同名（`test.each` の展開が
+        // 同じ文字列になる等）があると後の状態が前を上書きし、「1 件目だけ落ちた」変異が
+        // 「落ちなかった」に化ける（逆向きなら効いていない assertion が PASS になる）。
+        if (results.has(a.fullName)) duplicated.push(a.fullName);
+        results.set(a.fullName, a.status);
+      }
+    }
+    if (duplicated.length > 0) {
+      die(
+        `テスト名が重複している（名前で合否を判定できない）: ${[...new Set(duplicated)].join(" / ")}`,
+      );
     }
     if (results.size === 0) {
       return {

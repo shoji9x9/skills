@@ -76,12 +76,29 @@ function parseArgs(argv) {
   return opts;
 }
 
-function readJson(path) {
+/** `--notes-file` の JSON（文字列配列）を読む。成果物の JSON とは形が違うので別扱い。 */
+function parseNotesJson(path, raw) {
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(raw);
   } catch (err) {
     die(`${path} を読めない: ${err.message}`);
   }
+}
+
+function readJson(path) {
+  let value;
+  try {
+    value = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    die(`${path} を読めない: ${err.message}`);
+  }
+  // **形も宣言済みの出口へ寄せる。** run が途中で落ちた成果物は `null` やスカラーになりうる。
+  // 素通りさせると後続のプロパティ参照が TypeError（exit 1）になり、このスクリプトが
+  // 宣言していない出口で落ちる（0 = 生成した / 2 = 入力・整合性の誤り）。
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    die(`${path} が JSON オブジェクトでない（${Array.isArray(value) ? "配列" : String(value)}）`);
+  }
+  return value;
 }
 
 /** Python の `round(x, n)`（偶数丸め）に合わせる。既存の benchmark.json と数値を揃えるため。 */
@@ -295,7 +312,12 @@ function loadRun(runDir, configuration, evalDir) {
       configuration,
       run_number: runNumber(runDir),
       result: {
-        pass_rate: summary.pass_rate,
+        // **導出値を書く。** `pass_rate` は `passed / total` から一意に決まるので、採点者が
+        // 丸めて保存した値を載せると benchmark が採点内訳と違う数字を報告する
+        // （0.7 と保存された 2/3 が平均・Delta まで 0.7 として流れる。実測）。
+        // 保存値は上の整合検査の入力に留める。既存記録（iteration-13 / 24）の再生成は
+        // 保存値＝導出値なので一致したままであることを実測済み。
+        pass_rate: computedRate,
         passed,
         failed,
         total: expectations.length,
@@ -479,8 +501,9 @@ function main() {
     const path = resolve(opts.notesFile);
     if (!existsSync(path)) die(`--notes-file が無い: ${path}`);
     const raw = readFileSync(path, "utf8");
+    // notes は**文字列配列**なので `readJson`（plain object を要求する）は通さない。
     notes = path.endsWith(".json")
-      ? readJson(path)
+      ? parseNotesJson(path, raw)
       : raw
           .split("\n")
           .map((l) => l.trim())

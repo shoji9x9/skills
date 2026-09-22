@@ -271,6 +271,17 @@ describe("集計（揃った iteration）", () => {
     expect(b.notes).toStrictEqual(["1 行目の備考", "2 行目の備考"]);
   });
 
+  // notes は**文字列配列**。成果物の JSON（plain object を要求する）と同じ読み方をすると、
+  // 配列が「JSON オブジェクトでない」で落ちる（実際に一度そう壊した）。
+  test("notes は JSON の文字列配列でも受け取れる", () => {
+    const root = completeIteration();
+    const notes = join(root, "notes.json");
+    writeFileSync(notes, JSON.stringify(["1 件目の備考", "2 件目の備考"]));
+    const res = run(root, ["--notes-file", notes]);
+    expect(res.status, res.out).toBe(0);
+    expect(JSON.parse(res.stdout).notes).toStrictEqual(["1 件目の備考", "2 件目の備考"]);
+  });
+
   test("既定の出力先は iteration 直下で、既存ファイルは --force なしに上書きしない", () => {
     const root = completeIteration();
     const out = join(root, "benchmark.json");
@@ -456,9 +467,46 @@ describe("受理しない入力（exit 2）", () => {
     });
     const res = run(root);
     expect(res.status, res.out).toBe(0);
-    // 出力には採点者が保存した値をそのまま載せる（既存記録の再生成が一致する形）。
-    expect(JSON.parse(res.stdout).runs[0].result.pass_rate).toBe(0.56);
+    // **出力は採点内訳から導いた値**（保存値を載せると benchmark が採点と違う数字を報告する）。
+    expect(JSON.parse(res.stdout).runs[0].result.pass_rate).toBe(0.5556);
   });
+
+  // 桁の下限クランプ（1 桁）の範囲では保存値と内訳がずれたまま受理されるので、
+  // **そのずれを出力・統計へ持ち込まない**ことを固定する（0.7 と保存された 2/3）。
+  test("保存値と内訳がずれていても統計は内訳から作る", () => {
+    const root = makeIteration();
+    const three = ["a1", "a2", "a3"];
+    for (const configuration of ["with_skill", "without_skill"]) {
+      writeRun(root, {
+        evalDir: "eval-1",
+        evalId: 1,
+        configuration,
+        assertions: three,
+        grading: {
+          summary: { pass_rate: 0.7, passed: 2, failed: 1, total: 3 },
+          expectations: three.map((text, i) => ({ text, passed: i < 2, evidence: "e" })),
+        },
+      });
+    }
+    const res = run(root);
+    expect(res.status, res.out).toBe(0);
+    const b = JSON.parse(res.stdout);
+    expect(b.runs[0].result.pass_rate).toBe(0.6667);
+    expect(b.run_summary.with_skill.pass_rate.mean).toBe(0.6667);
+  });
+
+  test.each(["null", "[]", '"文字列"'])(
+    "成果物の JSON が %s なら exit 2（stack trace にしない）",
+    (json) => {
+      const root = makeIteration();
+      const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+      writeFileSync(join(dir, "timing.json"), json);
+      const res = run(root);
+      expect(res.status, res.out).toBe(2);
+      expect(res.out).toContain("JSON オブジェクトでない");
+      expect(res.out).not.toContain("TypeError");
+    },
+  );
 
   test("桁を丸めても説明できない pass_rate は落とす", () => {
     reject(

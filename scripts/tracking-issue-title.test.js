@@ -376,6 +376,27 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(below.stdout).not.toContain("::warning::");
   });
 
+  // 打ち切り判定 `[ "$scanned" -ge "$list_limit" ]` は `if` の条件なので `set -e` が効かない。
+  // 非数値だと bash が `integer expression expected` を出して非 0 を返すが、その非 0 は
+  // `truncated=false` として通過する（＝打ち切りを黙って成功へ倒す）。入力の側で落とす。
+  test("走査件数が 10 進でなければ落ちる（打ち切り判定を fail-open にしない）", () => {
+    const res = runLib('resolve_tracking_issues; echo "REACHED-END"', GH_LOGGING, {
+      ISSUE_TITLE_PREFIX: "p",
+      LIST_OUT: "scanned=NaN\n7",
+    });
+    expect(res.status, "非数値の走査件数で成功した").not.toBe(0);
+    expect(res.stdout).not.toContain("REACHED-END");
+    expect(res.stderr).toContain("走査件数が 10 進でない");
+
+    // 陽性コントロール: 10 進なら通る（この検査が常に落とすだけの形になっていないこと）。
+    const ok = runLib('resolve_tracking_issues; echo "REACHED-END"', GH_LOGGING, {
+      ISSUE_TITLE_PREFIX: "p",
+      LIST_OUT: "scanned=1\n7",
+    });
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.stdout).toContain("REACHED-END");
+  });
+
   test("既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める", () => {
     const src = libSource();
     expect(src).toContain('--limit "$list_limit"');

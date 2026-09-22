@@ -222,6 +222,32 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out).toContain(message);
   });
 
+  test.each(["null", "[]", '"文字列"'])("宣言が %s なら exit 2（stack trace にしない）", (json) => {
+    const fx = makeFixture();
+    const spec = join(fx.dir, "broken.mutations.json");
+    writeFileSync(spec, json);
+    const res = runRunner(spec);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("JSON オブジェクトでない");
+    expect(res.out).not.toContain("TypeError");
+  });
+
+  // 名前で合否を判定する設計なので、名前の一意性が前提。重複したら前提が破れたことを出す。
+  test("テスト名が重複していたら exit 2", () => {
+    const fx = makeFixture({
+      testBody: `${FIXTURE_TEST}
+test("guard", () => {
+  expect(1).toBe(1);
+});
+`,
+    });
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("テスト名が重複している");
+    expect(res.out).toContain("guard");
+  });
+
   test("mutations が空なら exit 2（0 件を成功に倒さない）", () => {
     const fx = makeFixture();
     const spec = fx.spec([]);
@@ -337,7 +363,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
   });
 });
 
-// ロック用の使い捨てディレクトリを外す（`scripts/` 配下に残すと次の pnpm test が拾う）。
+// ロック用の使い捨てディレクトリ（`tmpdir()` 配下）を外す。
 test("片付け", () => {
   rmSync(lockDir, { recursive: true, force: true });
   expect(existsSync(lockDir)).toBe(false);

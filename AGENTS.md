@@ -41,7 +41,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   `scripts/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/check-skills-sync.js` / `scripts/check-js-extensions.js` /
   `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js`。
 - **変異実証（CI 専任）**: `scripts/check-mutation-proof.js` が `scripts/*.mutations.json` の宣言を再実行し、
-  各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる（手元実測 約 6 分 20 秒 / 70 変異。62 変異時の CI 実測は 177 秒）。
+  各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる（手元実測 約 7 分 40 秒 / 76 変異。70 変異時の CI 実測は 279 秒）。
   検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
   pre-commit には入れない（実行中に対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違える）。
   **並行して走らせない**——同時実行はロックで弾くが、無関係な `pnpm test` と重ねると変異中の中間状態を読んで無関係に赤くなる（実測）。

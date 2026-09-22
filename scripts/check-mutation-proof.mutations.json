@@ -111,6 +111,28 @@
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） 子 vitest の掃引を止めるので、使用中の fixture が消えない"
       ]
+    },
+    {
+      "id": "SPEC-SHAPE",
+      "why": "宣言ファイルの形を検査しない（壊れた宣言が exit 1 =実証失敗に化ける）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (typeof raw !== \"object\" || raw === null || Array.isArray(raw)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 宣言が \"文字列\" なら exit 2（stack trace にしない）",
+        "宣言と前提の検証（走らせる前に落とす） 宣言が [] なら exit 2（stack trace にしない）",
+        "宣言と前提の検証（走らせる前に落とす） 宣言が null なら exit 2（stack trace にしない）"
+      ]
+    },
+    {
+      "id": "DUP-NAMES",
+      "why": "テスト名の重複を検出しない（名前で合否を判定する前提が黙って破れる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (duplicated.length > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） テスト名が重複していたら exit 2"]
     }
   ]
 }

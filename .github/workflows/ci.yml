@@ -39,7 +39,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     # 変異実証を足したぶん実測で伸びた。この PR の run（ubuntu-latest / 2 vCPU）は
-    # ジョブ全体 265 秒（うち変異実証 177 秒・vitest 37 秒）。上限 10 分だと余裕が 2 倍弱しかなく、
+    # 直近の run はジョブ全体 374 秒（うち変異実証 279 秒・vitest 41 秒）。上限 10 分だと余裕が 2 倍弱しかなく、
     # 変異を増やすほど「上限で打ち切られた」が「実証に失敗した」と同じ赤で出る。実測の 2 倍以上を取る。
     timeout-minutes: 20
     permissions:
@@ -81,7 +81,7 @@ jobs:
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
-      # 変異実証（検査の検出能力の再実行）。**pre-commit には入れない**——CI 実測で 177 秒（62 変異時。手元は 70 変異で約 6 分 20 秒）かかり、
+      # 変異実証（検査の検出能力の再実行）。**pre-commit には入れない**——CI 実測で 279 秒（70 変異時。手元は 76 変異で約 7 分 40 秒）かかり、
       # 実行中は対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違えが起きる。
       - name: Mutation proof (scripts/*.mutations.json)
         run: node scripts/check-mutation-proof.js

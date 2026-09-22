@@ -13,7 +13,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const STALE_PREFIXES = ["mutation-proof-fixture-", "mutation-proof-lock-"];
+// ロックは `tmpdir()` 配下に作るのでここには現れない（`scripts/` 配下に残るのは fixture だけ）。
+const STALE_PREFIXES = ["mutation-proof-fixture-"];
 
 export function setup() {
   // **runner が起動した子 vitest では掃かない。** 子は `scripts/mutation-proof-fixture-*` の
