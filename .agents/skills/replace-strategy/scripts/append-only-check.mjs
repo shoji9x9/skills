@@ -373,25 +373,24 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
       // インデントによる除外が先に閉じ、1 行へ畳んだだけでその行（`] # c`）の単位が失われる。
       // 外すのは配下の要素なので、要素行の行末注記は単位にしない（独立したコメント行と閉じる行の注記は残す。
       // 除外中の空行・コメント行を単位に残す既存の扱いと揃う）。
-      const { code, comment } = splitTrailingComment(trimmed);
-      const flowValue = code.slice(key.length + 1).trim();
-      const wrappedFlow =
-        flowValue !== "" && scanFlow(flowValue).reason === "unclosed"
-          ? readNamedFlow(
-              srcLines,
-              li,
-              trimmed,
-              key,
-              path,
-              indent,
-              wrappedOut,
-              [`${MUTABLE_BLOCK_PREFIX}${path}>`],
-              { keepItemComments: false },
-            )
-          : null;
-      if (wrappedFlow !== null && wrappedFlow.items !== null) {
-        for (const c of wrappedFlow.comments) kept.push(c);
-        li = wrappedFlow.last;
+      const { comment } = splitTrailingComment(trimmed);
+      // **値の形で門番しない**——`flowValue !== ""` で絞ると、開き括弧が次の行にある形
+      // （フォーマッタが畳む形）がブロック形式の側に落ち、閉じ括弧の行が素の行として単位になる。
+      // 形の判定は `readNamedFlow` が一手に持ち、ここは「フロー形式として読めたか（`block` でないか）」だけを見る。
+      const flow = readNamedFlow(
+        srcLines,
+        li,
+        trimmed,
+        key,
+        path,
+        indent,
+        wrappedOut,
+        [`${MUTABLE_BLOCK_PREFIX}${path}>`],
+        { keepItemComments: false },
+      );
+      if (flow.items !== null && !flow.block) {
+        for (const c of flow.comments) kept.push(c);
+        li = flow.last;
         continue;
       }
       excludeIndent = indent;

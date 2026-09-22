@@ -2561,3 +2561,60 @@ test("mutable_blocks の折り返しでも、キーごと消せば落ちる（�
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で門番しない）", () => {
+  const wrapped = [
+    "      keep:",
+    "      [",
+    '        "テーブル名を保つ"',
+    "      ] # 変えない",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
+    ),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks のブロック形式は今までどおり配下を外す（消費へ倒れていない）", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.pending"],
+    },
+  ]);
+  // 配下の要素は単位から外れているので、消しても落ちない。
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
