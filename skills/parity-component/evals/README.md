@@ -7,7 +7,8 @@
 実アプリ・ブラウザ（Playwright）・部品カタログ・ゴールデンデータセットを要する全フロー（採取 〜 実装 〜 照合）は
 使い捨てプロジェクト（空・非対話）では回せない。そのため本スキルの evals は、**前提が無い環境での停止パス**
 （`replace-strategy setup` 未完了、部品カタログ未宣言）と、**禁止事項の拒否挙動**
-（インスタンス 1 件で先に作らない・被覆表を見た目の根拠にしない・来歴未確認のデータを持ち込まない・破壊的変更を自分で決めない）を対象にしている。
+（インスタンス 1 件で先に作らない・被覆表を見た目の根拠にしない・来歴未確認のデータを持ち込まない・破壊的変更を自分で決めない）、
+および**採取物から結論を導く判断**（カスケードを解いて勝っている宣言を確定する）を対象にしている。
 
 ## 実行例
 
@@ -29,8 +30,34 @@ scripts/run-skill-eval.sh \
 
 - 使い捨てプロジェクトには `.replace/components.md`・設定が無いため、eval 1 は「捏造せず停止し `replace-strategy setup` を促す」パスを検証する
 - eval 2〜6 は fixture で前提を揃えたうえで、**停止すべき場面で停止するか**と**判断をユーザーへ上げるか**を見る
+- eval 7（`cascade-conflict`）だけは停止パスではなく**実装の判断**を見る。`css-rules.json` に競合する宣言を仕込んであり、
+  インラインの非 `!important` が `!important` 付き規則に負ける形と、後から読み込まれるスタイルシートが同じセレクタ・
+  同じプロパティを再宣言して上書きする形の 2 つを、勝者まで確定できるかを測る（Issue #433）。
+  競合させたのは `width` と `letter-spacing` で、どちらも `trait-capture.mjs` の `FIXED_PROPERTIES` に**無い**——
+  集合にあるプロパティで競合を作ると `traits.json` の `computed` が勝者をそのまま持ってしまい、
+  「カスケードを解いたか」ではなく「計算値を写せたか」を測ることになる。
+  **ただし `width` は結果が `traits.json` の `rect.width`（60）に出る**ので、60px という値だけなら採取物から読める。
+  この eval の弁別は値そのものではなく、**負ける側（インラインの 10px・先に現れる 40px）を採らない理由を述べているか**と、
+  `rect` に出ない `letter-spacing` の勝者（1px）を当てられるかで取る
 - 採点は assertion のテキストで対応づける（位置で対応づけない）。出力内に矛盾があれば fail にする
 - **`--executor` を省略しない。** ランチャの引数省略時既定は後方互換用であり運用上の選択規則ではない。現在作業しているエージェントに合わせ（Claude Code なら `claude-code`、Codex なら `codex`）、`with_skill` と `without_skill` で同じ executor を使う（正本は `.agents/rules/eval-run-scope.md`）
+
+## eval 7 も Delta ではなく後退検知
+
+**eval 7（カスケードの競合）は弁別しなかった。** iteration-8 の実走（`claude-code` / `opus`、各 1 run）で
+`with_skill` 8/8・`without_skill` 8/8。`without_skill` も `css-rules.json` を自分で開き、
+「重要度 → 出所 → 詳細度 → 文書順」を明示して `width: 60px` と `letter-spacing: 1px` を当てた。
+
+**カスケードの解き方は LLM の一般知識**で、スキルが足しているのは「解け」という指示と
+`cascade-resolve.mjs` へ出させる経路であって、解ける／解けないの能力差ではない。
+この fixture の競合は 1 プロパティあたり 2〜3 宣言と小さく、baseline も同じ結論へ届く。
+
+Issue #433 が報告した実際の失敗（`feedback-message` / `pagination` / `radio-button`）は、
+**基礎 → テーマ層 → 個別テーマの 3 層に散った再宣言のうち最初の 1 件を採る**形で、
+規則数が多く争点が一覧で見えない状態が failure mode だった。合成 fixture で再現するには実アプリ規模のスタイルシートが要る。
+そのためこの eval は **Delta に寄与せず、後退検知専用**として維持し、
+手順の効果は `scripts/cascade-resolve.test.js`（実測 3 件を回帰ケースにしてある）で担保する。
+詳細は [`tests/parity-component/iteration-8/benchmark.md`](../../../tests/parity-component/iteration-8/benchmark.md)。
 
 ## eval 3 は Delta ではなく後退検知
 

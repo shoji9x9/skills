@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
-const { FIXED_PROPERTIES, captureTraits } = await import(script);
+const { FIXED_PROPERTIES, VERSION, captureTraits } = await import(script);
 
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
@@ -75,12 +75,36 @@ function allResolved(overrides = {}) {
   return Object.fromEntries(FIXED_PROPERTIES.map((prop) => [prop, overrides[prop] ?? "0px"]));
 }
 
-test.each(["cursor", "user-select", "pointer-events"])(
-  "静止画に写らない %s が固定集合に入っている",
-  (prop) => {
-    expect(FIXED_PROPERTIES).toContain(prop);
-  },
-);
+test.each([
+  // 操作の手応えを決めるが静止画に出ない
+  "cursor",
+  "user-select",
+  "pointer-events",
+  // 要素が「どこに置かれるか」を決めるが、切り出しが要素についてくるので矩形の中に出ない（Issue #434）
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  // 矩形の外に描かれる／下地に依存して弁別できない（Issue #434）
+  "box-shadow",
+  "opacity",
+  // 折り返し・省略を決めるが、採取時の文字列が短ければ静止画に差として出ない（Issue #434）
+  "white-space",
+  "overflow-x",
+  "overflow-y",
+  "text-overflow",
+  "word-break",
+])("要素の矩形を撮った静止画に写らない %s が固定集合に入っている", (prop) => {
+  expect(FIXED_PROPERTIES).toContain(prop);
+});
+
+// 集合の中身が変わったら version を上げる契約（parity-diff は property_set を正とする）。
+// 陳腐化判定はこの版でしか働かないので、集合だけ変えて版を据え置く変異をここで落とす。
+test("固定集合の要素数と VERSION が対応している", () => {
+  expect(FIXED_PROPERTIES).toHaveLength(48);
+  expect(VERSION).toBe("4");
+});
 
 test("固定集合に重複が無い", () => {
   expect(new Set(FIXED_PROPERTIES).size).toBe(FIXED_PROPERTIES.length);
@@ -92,6 +116,12 @@ test.each([
   ["cursor", "pointer", "default"],
   ["user-select", "none", "auto"],
   ["pointer-events", "none", "auto"],
+  ["top", "5px", "0px"],
+  ["left", "2px", "0px"],
+  ["box-shadow", "none", "rgb(204, 204, 204) 0px 0px 0px 1px inset"],
+  ["opacity", "0.5", "1"],
+  ["white-space", "nowrap", "normal"],
+  ["text-overflow", "ellipsis", "clip"],
 ])(
   "%s の差は computed に現れる（画素に写らない差を特性照合へ渡す）",
   async (prop, before, after) => {

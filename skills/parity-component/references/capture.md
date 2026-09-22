@@ -6,14 +6,14 @@
 
 | 採るもの | 手段 | なぜ要るか |
 |---|---|---|
-| 要素のスクリーンショット | Playwright の `locator.screenshot()` | 名前の付かない内部要素の見た目差を画素経路が拾う |
+| 要素のスクリーンショット | `parity-suite` 同梱の element-shot.mjs（`locator.screenshot()` は使わない） | 名前の付かない内部要素の見た目差を画素経路が拾う |
 | 計算後スタイル | `parity-suite` 同梱の trait-capture.mjs | 決定論的に比較できる値。状態ごとに採る。採取が `element is outside the document` で失敗したら、引いた要素が画面に描かれていない（市販部品が支援技術のための写しを別の木に作っている）ので、セレクタを描かれている要素へ直して採り直す |
 | **当たっている CSS 規則** | 同梱の `scripts/css-rules-capture.mjs` | 計算値が見せない側（`:hover` の宣言・`!important` の競合・どの規則が効いているか） |
 | **データ依存部品の実データ** | 現行の可視行から抽出 | 見本に同じ入力を与えないと、データ由来の差と実装の差を分けられない |
 
 ## `parity-suite` 同梱ツールの用意
 
-計算後スタイルの採取（trait-capture.mjs）と、`build` の照合で使う差分器（trait-compare.mjs）は `parity-suite` 同梱が正本で、
+計算後スタイルの採取（trait-capture.mjs）と、要素スクショの撮影（element-shot.mjs）と、`build` の照合で使う差分器（trait-compare.mjs）は `parity-suite` 同梱が正本で、
 プロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーして使う（置き場所の規約の正本は `parity-suite` の `references/locator-mapping.md`）。
 そこを埋めるのは通常 `parity-suite` の機能単位の採取だが、**本スキルは機能より先に走るので、コピーが無いのが普通**である。採取・照合の前に次を行う。
 
@@ -24,7 +24,8 @@
 3. **コピー先に既に在れば、同梱版とバイト列で一致することを確かめる。** 一致しなければ**上書きせず停止してユーザーに確認する**——
    機能単位のスイートが古い版で採ったベースラインを持っている可能性があり、黙って差し替えると機能側の採取物と版がずれる
 4. 使ったコピー先のパスを `metadata.json` の `capture.tools.traits` に、ツールの `VERSION` と `FIXED_PROPERTIES`（集合）を
-   `traits_version` / `traits_property_set` に記録する。**値はコピーしたファイルから読み、手入力しない**
+   `traits_version` / `traits_property_set` に、element-shot.mjs の `VERSION` を `element_shot_version` に記録する。
+   **値はコピーしたファイルから読み、手入力しない**
 
 ## 保存先はファイル名まで固定する
 
@@ -34,9 +35,40 @@
 
 ## ページ全体ではなく要素を撮る
 
+**`locator.screenshot()` で撮らない。`parity-suite` 同梱の element-shot.mjs（`captureElementShot(page, locator, { path })`）で撮る。**
+`locator.screenshot()` は要素の矩形を**外接**整数矩形へ広げてから撮るため（Playwright v1.56.1 の
+`helper.enclosingIntRect`。出典: <https://github.com/microsoft/playwright/blob/v1.56.1/packages/playwright-core/src/server/helper.ts>）、
+絶対座標が小数だと**要素自身の寸法とは無関係に PNG が軸ごと最大 1px 大きくなる**。
+現行が小数座標・新側（カタログ）が整数座標という組み合わせは普通に起きるため、同じ寸法の部品でも PNG が食い違い、
+寸法一致を要求する画素比較が**全件実行不能**になる（`button` の 84/84 セルで実測。Issue #434）。
+element-shot.mjs は矩形を最近接へ丸めた寸法で `page.screenshot({ clip })` を撮るので、両側が同じ整数寸法になる。
+
+- **カタログ側も同じツールで撮る**（[`compare.md`](compare.md)）。片側だけ差し替えると外接の 1px がそのまま寸法差として残る
 - 撮る前に**対象要素が一意に引けること**を確かめる（複数一致のまま撮ると、どのインスタンスを撮ったか後から決められない）
 - **要素スクショは要素の矩形で切られるので、外側の余白（`margin`）は写らない。** 余白は計算後スタイルと相対幾何が持つ
+- **要素の矩形の外に出る見た目も写らない。** 外側に落ちる `box-shadow` が典型で、画素経路では拾えないので
+  計算後スタイルの固定集合が持つ（trait-capture.mjs の `FIXED_PROPERTIES`）。`position` / `top` / `left` も、
+  切り出しが要素についてくるぶん矩形の中には出ないので同じ扱い
 - `position` や親の `overflow` で要素が切れる場合は、切れた状態のまま撮って**切れていることを `gaps.md` に記録する**（親ごと撮って範囲を広げると、比較対象が部品でなくなる）
+- **element-shot.mjs は最上位フレームの要素しか撮れない。** `page.screenshot({ clip })` の clip は最上位フレームの
+  ビューポート座標として解釈されるのに対し、`getBoundingClientRect()` はその要素が居るフレームの座標なので、
+  iframe の中の要素を撮ると**別の場所を切り出した PNG が黙って残る**（はみ出し判定もフレーム側の寸法で通ってしまう）。
+  ツールは最上位フレーム以外を撮る前に失敗させるので、カタログが iframe で描く場合（Storybook 等）は
+  その iframe の URL 自体をページとして開いて撮る（`/iframe.html?id=<story>`）
+- element-shot.mjs は**撮る前に生きているアニメーションを数え、あれば撮らずに失敗する**。
+  `animations: "disabled"` は撮影の中で有限のものを早送りし、無限のものを初期状態へ戻してから撮り、
+  撮り終えたら元の時刻へ戻すため、一時停止した無限アニメーションでは**前後の矩形が同じなのに PNG だけ別の幾何**になる
+  （事後の測り直しでは捕まえられない）。ページ側で止めてから撮る
+- element-shot.mjs は**撮影後にもう一度矩形を測り、撮影中に動いていたら失敗する**。clip は撮影前の矩形から
+  決まる一方で `animations: "disabled"` は撮影時に効くため（有限のアニメーションは完了まで早送りされる）、
+  早送りで動いた要素を古い矩形で切った PNG がエラー無しで残りうる。失敗したら、ページ側でアニメーションを
+  止めてから撮る（矩形が 2 回続けて同じ値になるまで待つ規律は「状態への遷移は呼び出し側が行う」）
+- element-shot.mjs は**既定でアニメーション・トランジションを止めて撮る**（`animations: "disabled"`）。
+  Playwright の既定は `"allow"` なので、止めないとトランジション中の途中フレームが PNG になり run ごとに揺れる
+  （撮影条件は `animations: disabled` として記録されるので、記録と実体が食い違う）
+- element-shot.mjs は、丸めた clip がビューポートからはみ出すとき・面積 0 のときは**撮らずに失敗する**。
+  Playwright は clip をビューポートへ黙って切り詰めるため、失敗させないと部品の一部だけを撮った PNG が基準として残る。
+  ビューポートを広げる（撮影条件の記録も更新する）か、撮れないことを `gaps.md` に残す
 
 ## 状態への遷移は呼び出し側が行う
 

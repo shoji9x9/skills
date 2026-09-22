@@ -31,6 +31,28 @@
 
 - **未判別を「現行の不整合」に倒さない。** 用途の違いを見つけられていないだけのことがある
 
+## 勝っている宣言（カスケード解決）
+
+<!-- cascade-resolve.mjs で確定した勝者。競合があった軸だけ書く（競合の無い軸は書かない）。 -->
+<!-- 手順の正本は parity-component の references/catalog.md「勝っている宣言を確定してから写す」。 -->
+
+- 実行した確定コマンドと exit: （`cascade-resolve.mjs --css-rules <path> --state <state> --all` の exit。1 なら下の未確定表に全件並べる）
+- 採取の完全性: （出力の `capture_completeness`。`inaccessible` / `unresolved` が非ゼロなら `--allow-incomplete` で免除した理由も書く。免除していなければ「完全（0 / 0）」）
+
+| 軸（状態 / プロパティ） | 勝った宣言（出所 / セレクタ / `!important`） | 値 | 負けた宣言 |
+|---|---|---|---|
+| （例: default / width） | （`style` 属性ではなく `.SearchBoxButton` / `!important` あり） | （25px） | （インライン `width: 10px`） |
+| （例: default / box-shadow） | （LiverpoolTheme/Theme.LiverpoolTheme.css / `.radio-outer`） | （none） | （Theme.Patterns_SilkUI.css の inset の影） |
+
+### 機械的に決められなかったもの（`undecidable`）
+
+<!-- 詳細度を読めないセレクタ・レイヤをまたぐ競合・条件付き（@media 等）の候補。 -->
+<!-- 現行の CSS を直接読んで確定し、読んだ箇所と結論をここに残す（空欄のまま実装へ進まない）。 -->
+
+| 軸（状態 / プロパティ） | 理由（ツールの `reasons`） | 直接読んだ箇所 | 採った値 |
+|---|---|---|---|
+| （例: default / color） | （競合が別のカスケードレイヤにある） | （現行 CSS のパスと行） | （値） |
+
 ## 状態の落とし先
 
 <!-- 採取した状態のうち、実装のどこにも落ちていないものが無いことを確かめる表。空欄を残さない。 -->

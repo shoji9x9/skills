@@ -221,6 +221,7 @@
   },
   "traits": {
     "tool": "<プロジェクト側 trait-capture.mjs のパスと VERSION 値>",
+    "element_shot": "<プロジェクト側 element-shot.mjs のパスと VERSION 値。要素単位のスクショはこのツールで撮る（locator.screenshot() の外接整数矩形の丸めで寸法が食い違い、画素比較が実行不能になる）>",
     "property_set": ["<採取した FIXED_PROPERTIES の集合。ツールのスキーマを変えたら更新する>"],
     "elements": ["<採取対象の論理名の一覧>"]
   },
