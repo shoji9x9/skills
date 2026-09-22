@@ -38,10 +38,11 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    # 変異実証は差分に当たる宣言だけを測るので、ジョブは実測 130〜400 秒の幅に収まる
-    # （全件は手元実測 956 秒。定期実行の mutation-proof.yml が全件を持つ）。
-    # 上限は最悪ケース（実行器を触った PR = 全件）が入る値を取る。
-    timeout-minutes: 20
+    # 変異実証は差分に当たる宣言だけを測るので、通常の PR ではジョブが数分で終わる。
+    # 上限は**最悪ケース**（実行器を触った PR は全宣言へ広がる）で決める——その CI 実測は
+    # ジョブ 1020 秒・うち変異実証 891 秒（ubuntu-latest / 2 vCPU）。20 分だと余裕が 3 分しかない。
+    # 全件を毎回測るのは定期実行（mutation-proof.yml）の役目で、ここは PR の最悪ケースを通す。
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:

@@ -27,7 +27,7 @@ jobs:
   mutation-proof:
     name: All mutations
     runs-on: ubuntu-latest
-    # 全件は手元実測 956 秒（93 変異）。CI は 2 vCPU なので伸びる前提で、実測の 2 倍前後を取る。
+    # 全件は CI 実測 891 秒（93 変異。手元は 956 秒）。変異が増える前提で実測の 2 倍以上を取る。
     timeout-minutes: 40
     permissions:
       contents: read
