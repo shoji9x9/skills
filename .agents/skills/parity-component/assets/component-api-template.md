@@ -37,6 +37,7 @@
 <!-- 手順の正本は parity-component の references/catalog.md「勝っている宣言を確定してから写す」。 -->
 
 - 実行した確定コマンドと exit: （`cascade-resolve.mjs --css-rules <path> --state <state> --all` の exit。1 なら下の未確定表に全件並べる）
+- 採取の完全性: （出力の `capture_completeness`。`inaccessible` / `unresolved` が非ゼロなら `--allow-incomplete` で免除した理由も書く。免除していなければ「完全（0 / 0）」）
 
 | 軸（状態 / プロパティ） | 勝った宣言（出所 / セレクタ / `!important`） | 値 | 負けた宣言 |
 |---|---|---|---|

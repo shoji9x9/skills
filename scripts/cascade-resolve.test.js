@@ -21,7 +21,7 @@ const { VERSION, resolveCascade, specificity, compareSpecificity, UndecidableSel
   await import(script);
 
 /** css-rules-capture.mjs 相当の入力を組む（tool_version は実物の対応版に合わせる）。 */
-function doc({ matched = [], inline = [] } = {}) {
+function doc({ matched = [], inline = [], unresolved = [], inaccessible = [] } = {}) {
   return {
     name: "component@instance",
     tool_version: "4",
@@ -36,8 +36,8 @@ function doc({ matched = [], inline = [] } = {}) {
       href: rule.href ?? null,
       declarations: rule.declarations,
     })),
-    unresolved: [],
-    inaccessible: [],
+    unresolved,
+    inaccessible,
     inline_declarations: inline,
     shadow_host: false,
     slotted: false,
@@ -577,4 +577,113 @@ test("エスケープの誤読が勝者を変えていたことを回帰で固�
   expect(result.status).toBe("resolved");
   // 同詳細度なので後勝ち＝ blue。誤読していると green（型セレクタぶん強い）になる。
   expect(result.winner.value).toBe("blue");
+});
+
+// --- codex レビュー #435 の 2 ラウンド目 -------------------------------------
+
+test("採取が不完全（inaccessible / unresolved が非ゼロ）なら解決しない", () => {
+  const base = { matched: [{ order: 1, selector: ".btn", declarations: [decl("color", "blue")] }] };
+  for (const [label, extra] of [
+    [
+      "inaccessible",
+      { inaccessible: [{ href: "https://cdn.example/theme.css", error: "SecurityError" }] },
+    ],
+    ["unresolved", { unresolved: [{ selector: ".btn::part(x)", reason: "part-not-evaluated" }] }],
+  ]) {
+    expect(
+      () =>
+        resolveCascade(doc({ ...base, ...extra }), { states: ["default"], properties: ["color"] }),
+      label,
+    ).toThrow(/incomplete capture/);
+  }
+});
+
+test("--allow-incomplete で免除でき、免除したことが出力に残る", () => {
+  const input = doc({
+    matched: [{ order: 1, selector: ".btn", declarations: [decl("color", "blue")] }],
+    inaccessible: [{ href: "https://cdn.example/theme.css", error: "SecurityError" }],
+  });
+  const report = resolveCascade(input, {
+    states: ["default"],
+    properties: ["color"],
+    allowIncomplete: true,
+  });
+  expect(report.results[0].winner.value).toBe("blue");
+  expect(report.capture_completeness).toEqual({ inaccessible: 1, unresolved: 0, waived: true });
+});
+
+test("採取が完全なら waived: false で通す（何でも止める実装と区別する）", () => {
+  const report = resolveCascade(
+    doc({ matched: [{ order: 1, selector: ".btn", declarations: [decl("color", "blue")] }] }),
+    { states: ["default"], properties: ["color"] },
+  );
+  expect(report.capture_completeness).toEqual({ inaccessible: 0, unresolved: 0, waived: false });
+  expect(report.results[0].status).toBe("resolved");
+});
+
+test("共起しうる一時的な状態は不成立に倒さない（:active の採取で :hover が効いている）", () => {
+  const input = doc({
+    matched: [
+      {
+        order: 1,
+        selector: ".btn:active",
+        states: ["active"],
+        declarations: [decl("color", "blue")],
+      },
+      {
+        order: 2,
+        selector: ".btn:hover",
+        states: ["hover"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color", ["active"]);
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/persistent state|would outrank/);
+
+  // 陽性コントロール: :hover も成立していたと分かっているなら明示して解決できる。
+  expect(resolve(input, "color", ["active", "hover"]).winner.value).toBe("green");
+});
+
+test("共起しない一時的な状態は従来どおり不成立（:hover の採取で :active は当たらない）", () => {
+  const input = doc({
+    matched: [
+      {
+        order: 1,
+        selector: ".btn:hover",
+        states: ["hover"],
+        declarations: [decl("color", "blue")],
+      },
+      {
+        order: 2,
+        selector: ".btn:active",
+        states: ["active"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color", ["hover"]);
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("blue");
+  expect(result.state_gated).toBe(1);
+});
+
+test(":link / :visited / :target は一時的な状態に数えない（要素と履歴の性質）", () => {
+  for (const state of ["link", "visited", "target"]) {
+    const input = doc({
+      matched: [
+        { order: 1, selector: ".a", declarations: [decl("color", "blue")] },
+        {
+          order: 2,
+          selector: `.a:${state}`,
+          states: [state],
+          declarations: [decl("color", "green")],
+        },
+      ],
+    });
+    const result = resolve(input, "color");
+    expect(result.status, state).toBe("undecidable");
+    expect(result.state_unknown, state).toHaveLength(1);
+  }
 });

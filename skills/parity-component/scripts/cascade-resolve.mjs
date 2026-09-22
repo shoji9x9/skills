@@ -29,6 +29,9 @@
 //     要素の性質であって採取ディレクトリ名からは決まらない（下記 TRANSIENT_STATES）
 //   - 競合が**無名レイヤ**にある。無名 `@layer` の名前は空文字で記録されるため、別々のレイヤが
 //     同じパスに見える
+//   - 採取が**不完全**（`inaccessible` / `unresolved` が非ゼロ）。見えていないスタイルシートや
+//     判定していないセレクタに、`matched` の全候補より強い宣言がありうる。見えている部分集合の
+//     勝者を確定しても、それは全体の勝者ではない（`--allow-incomplete` で明示的に免除できる）
 //
 // 状態は入力から決まらない: `css-rules.json` は状態ごとに別ファイルだが、ファイル自身は
 // どの状態で採ったかを持たない（`baseline/<instance>/<state>/` のディレクトリ名が持つ）。
@@ -44,9 +47,8 @@ import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
-
-* ツールのバージョン（正本）。優先順位の規則・出力形状・fail-closed の条件を変えたら上げる。
-* @type {string}
+ * ツールのバージョン（正本）。優先順位の規則・出力形状・fail-closed の条件を変えたら上げる。
+ * @type {string}
  */
 export const VERSION = "1";
 
@@ -66,7 +68,10 @@ const ZERO_SPECIFICITY = new Set(["where"]);
  * ポインタ・キーボード・遷移で作る**一時的な**状態擬似クラス（正本）。
  * これらは「いま作っていなければ当たっていない」と言い切れるので、`--state` に無ければ確実に不成立。
  *
- * 逆に、ここに無い状態擬似クラス（`:enabled` / `:valid` / `:read-only` 等）は**要素の性質**であって、
+ * `:link` / `:visited` / `:target` はここに入れない——採取で作るものではなく、
+ * 要素と履歴・URL の性質（`<a href>` は既定で `:link` に当たる）なので、下の恒常状態と同じ扱いにする。
+ *
+ * 逆に、ここに無い状態擬似クラス（`:enabled` / `:valid` / `:read-only` / `:link` 等）は**要素の性質**であって、
  * 採取ディレクトリ名からは成否が決まらない。`css-rules-capture.mjs` の `STATE_PSEUDO_CLASSES` は
  * 両者を区別せず `states` に記録するため、ディレクトリ名だけで不成立に倒すと
  * **採取時に実際に効いていた宣言を落として、負けるはずの宣言を勝者として exit 0 で返す**。
@@ -74,16 +79,25 @@ const ZERO_SPECIFICITY = new Set(["where"]);
  * 成否が分かっているなら `--state <name>` で明示的に渡す。
  * @type {ReadonlySet<string>}
  */
-const TRANSIENT_STATES = new Set([
-  "active",
-  "focus",
-  "focus-visible",
-  "focus-within",
-  "hover",
-  "link",
-  "target",
-  "visited",
-]);
+const TRANSIENT_STATES = new Set(["active", "focus", "focus-visible", "focus-within", "hover"]);
+
+/**
+ * 同時に成立しうる一時的な状態（正本）。鍵の状態を `--state` で渡したとき、値の側は
+ * **不成立と言い切れない**ので不明として扱う。
+ *
+ * ポインタで `:active` を作れば同じポインタが要素の上にあるので `:hover` も当たっている。
+ * `:focus-visible` は `:focus` の部分集合で、`:focus` の要素は祖先の `:focus-within` も立てる。
+ * 採取ディレクトリ名は 1 つしか持てないため、この共起を無視すると**採取時に効いていた宣言を
+ * 落として、負けるはずの宣言を勝者として exit 0 で返す**。
+ * @type {Readonly<Record<string, readonly string[]>>}
+ */
+const CO_OCCURRING_STATES = {
+  active: ["hover"],
+  focus: ["focus-within"],
+  "focus-visible": ["focus", "focus-within"],
+  "focus-within": [],
+  hover: [],
+};
 
 class UsageError extends Error {}
 
@@ -91,11 +105,10 @@ class UsageError extends Error {}
 export class UndecidableSelector extends Error {}
 
 /**
-
-* セレクタ文字列の詳細度 [id, class, type] を数える。
-* 決められない形は `UndecidableSelector` を投げる（推測で数えない）。
-* @param {string} selector
-* @returns {[number, number, number]}
+ * セレクタ文字列の詳細度 [id, class, type] を数える。
+ * 決められない形は `UndecidableSelector` を投げる（推測で数えない）。
+ * @param {string} selector
+ * @returns {[number, number, number]}
  */
 export function specificity(selector) {
   if (typeof selector !== "string" || selector.trim() === "") {
@@ -314,11 +327,10 @@ export function specificity(selector) {
 }
 
 /**
-
-* 詳細度を比較する（a が強ければ正）。
-* @param {[number,number,number]} a
-* @param {[number,number,number]} b
-* @returns {number}
+ * 詳細度を比較する（a が強ければ正）。
+ * @param {[number,number,number]} a
+ * @param {[number,number,number]} b
+ * @returns {number}
  */
 export function compareSpecificity(a, b) {
   for (let i = 0; i < 3; i += 1) {
@@ -328,10 +340,9 @@ export function compareSpecificity(a, b) {
 }
 
 /**
-
-* 候補を 1 件に畳む（同じ段・同じレイヤの中での勝者）。詳細度 → order の後勝ち。
-* @param {any[]} candidates
-* @returns {any}
+ * 候補を 1 件に畳む（同じ段・同じレイヤの中での勝者）。詳細度 → order の後勝ち。
+ * @param {any[]} candidates
+ * @returns {any}
  */
 function strongest(candidates) {
   let best = candidates[0];
@@ -350,15 +361,15 @@ function strongest(candidates) {
 }
 
 /**
-
-* `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
-*
-* @param {any} document - css-rules.json をパースしたもの
-* @param {{ states: string[], properties?: string[]|null, source?: string }} options
-* states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同義）
-* properties: 解決するプロパティ名（省略時は候補に現れる全プロパティ）
-* @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
-*             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
+ * `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
+ *
+ * @param {any} document - css-rules.json をパースしたもの
+ * @param {{ states: string[], properties?: string[]|null, source?: string, allowIncomplete?: boolean }} options
+ * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同義）
+ * properties: 解決するプロパティ名（省略時は候補に現れる全プロパティ）
+ * allowIncomplete: `inaccessible` / `unresolved` が非ゼロでも解決する（既定は停止）
+ * @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
+ *             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
 
  */
 export function resolveCascade(document, options) {
@@ -375,6 +386,27 @@ export function resolveCascade(document, options) {
         `(supported: ${SUPPORTED_CSS_RULES_VERSIONS.join(", ")}); re-capture with the bundled css-rules-capture.mjs`,
     );
   }
+  // 採取が不完全なら、見えている部分集合から勝者を確定しない。
+  // `inaccessible` は「そのスタイルシートの規則が 1 件も見えていない」、
+  // `unresolved` は「そのセレクタが当たるかを判定していない」の実測で、
+  // どちらも matched の全候補より強い宣言を隠しうる（0 件を「関係する規則が無い」と読まない規律と同じ）。
+  const inaccessible = Array.isArray(document.inaccessible) ? document.inaccessible.length : null;
+  const unresolved = Array.isArray(document.unresolved) ? document.unresolved.length : null;
+  if (inaccessible === null || unresolved === null) {
+    throw new UsageError(
+      "css-rules.json must carry `inaccessible` and `unresolved` arrays; re-capture with the bundled css-rules-capture.mjs",
+    );
+  }
+  const incomplete = inaccessible > 0 || unresolved > 0;
+  if (incomplete && options.allowIncomplete !== true) {
+    throw new UsageError(
+      `css-rules.json records an incomplete capture (inaccessible: ${inaccessible}, unresolved: ${unresolved}); ` +
+        "a declaration stronger than every matched candidate can hide there, so the visible subset does not " +
+        "settle the winner. resolve them (re-capture, read the current CSS directly) or pass --allow-incomplete " +
+        "to waive it explicitly and record the waiver in component-api.md",
+    );
+  }
+
   const inline = Array.isArray(document.inline_declarations) ? document.inline_declarations : null;
   if (inline === null) {
     throw new UsageError(
@@ -383,6 +415,13 @@ export function resolveCascade(document, options) {
   }
 
   const active = new Set(options.states.filter((s) => s !== "default"));
+  // 渡された状態から共起しうる一時的な状態を導く（渡されていなくても不成立とは言えない側）。
+  const coOccurring = new Set();
+  for (const state of active) {
+    for (const other of CO_OCCURRING_STATES[state] ?? []) {
+      if (!active.has(other)) coOccurring.add(other);
+    }
+  }
   /** @type {Map<string, any>} key = `${pseudo}\u0000${property}` */
   const buckets = new Map();
   const bucket = (pseudo, property) => {
@@ -411,8 +450,11 @@ export function resolveCascade(document, options) {
     // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
     // ディレクトリ名から成否が決まらないので、不成立に倒さず「不明」として持つ。
     const inactive = states.filter((state) => !active.has(state));
-    const gated = inactive.some((state) => TRANSIENT_STATES.has(state));
-    const unknownStates = inactive.filter((state) => !TRANSIENT_STATES.has(state));
+    // 渡された状態と共起しうる一時的な状態は「不成立」に倒さない（下記 CO_OCCURRING_STATES）。
+    const gated = inactive.some((state) => TRANSIENT_STATES.has(state) && !coOccurring.has(state));
+    const unknownStates = inactive.filter(
+      (state) => !TRANSIENT_STATES.has(state) || coOccurring.has(state),
+    );
     let spec = null;
     let specError = null;
     try {
@@ -497,6 +539,7 @@ export function resolveCascade(document, options) {
     source: options.source ?? null,
     tool_version: toolVersion,
     cascade_resolve_version: VERSION,
+    capture_completeness: { inaccessible, unresolved, waived: incomplete ? true : false },
     active_states: [...active].sort(),
     results,
     counts,
@@ -504,9 +547,8 @@ export function resolveCascade(document, options) {
 }
 
 /**
-
-* 1 バケット（プロパティ × 擬似要素）の勝者を決める。
-* @param {any} entry
+ * 1 バケット（プロパティ × 擬似要素）の勝者を決める。
+ * @param {any} entry
  */
 function decide(entry) {
   const reasons = [...entry.reasons];
@@ -657,15 +699,17 @@ const USAGE = [
   "  --property   解決するプロパティ（繰り返し可）。省略時は --all が要る。",
   "               CSS カスタムプロパティ（--brand-color 等）もそのまま渡せる",
   "  --all        候補に現れる全プロパティを解決する",
+  "  --allow-incomplete",
+  "               inaccessible / unresolved が非ゼロでも解決する。既定は停止（見えていない規則に",
+  "               より強い宣言がありうるため）。免除したことは component-api.md に残す",
   "",
   "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",
 ].join("\n");
 
 /**
-
-* CLI エントリ。
-* @param {string[]} argv - process.argv.slice(2)
-* @returns {number} exit code
+ * CLI エントリ。
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {number} exit code
  */
 export function main(argv) {
   try {
@@ -674,6 +718,7 @@ export function main(argv) {
     const states = [];
     const properties = [];
     let all = false;
+    let allowIncomplete = false;
     for (let i = 0; i < argv.length; i += 1) {
       const arg = argv[i];
       const need = (name) => {
@@ -695,6 +740,7 @@ export function main(argv) {
       else if (arg === "--state") states.push(need(arg));
       else if (arg === "--property") properties.push(need(arg));
       else if (arg === "--all") all = true;
+      else if (arg === "--allow-incomplete") allowIncomplete = true;
       else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
     }
     if (cssRules === null) throw new UsageError("--css-rules is required");
@@ -722,6 +768,7 @@ export function main(argv) {
       states,
       properties: all ? null : properties,
       source: cssRules,
+      allowIncomplete,
     });
     process.stdout.write(JSON.stringify(report, null, 2) + "\n");
     return report.counts.undecidable > 0 ? 1 : 0;

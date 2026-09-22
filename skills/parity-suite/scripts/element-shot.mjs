@@ -45,25 +45,23 @@
 // TypeScript 構文は使わない（型は JSDoc）。
 
 /**
-
-* ツールのバージョン（正本）。clip の算出規則・失敗条件を変えたら上げる。
-* metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
-* @type {string}
+ * ツールのバージョン（正本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
+ * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
+ * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
-
-* 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
-*
-* 丸めは `Math.round` で行い、**外接（floor / ceil）にしない**——外接は要素の寸法に無関係な
-* 1px を足すので、同じ CSS box でも両側の PNG がずれる（このツールが存在する理由そのもの）。
-* `-0` は 0 に畳む（JSON へ `-0` が出ると採取物の差分がノイズになる）。
-*
-* @param {{ x:number, y:number, width:number, height:number }} rect - getBoundingClientRect() の値（ビューポート座標）
-* @param {{ width:number, height:number }} viewport - ビューポートの CSS ピクセル寸法
-* @returns {{ x:number, y:number, width:number, height:number }}
-* @throws {Error} 丸めた clip が面積 0 になる／ビューポートからはみ出す場合
+ * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
+ *
+ * 丸めは `Math.round` で行い、**外接（floor / ceil）にしない**——外接は要素の寸法に無関係な
+ * 1px を足すので、同じ CSS box でも両側の PNG がずれる（このツールが存在する理由そのもの）。
+ * `-0` は 0 に畳む（JSON へ `-0` が出ると採取物の差分がノイズになる）。
+ *
+ * @param {{ x:number, y:number, width:number, height:number }} rect - getBoundingClientRect() の値（ビューポート座標）
+ * @param {{ width:number, height:number }} viewport - ビューポートの CSS ピクセル寸法
+ * @returns {{ x:number, y:number, width:number, height:number }}
+ * @throws {Error} 丸めた clip が面積 0 になる／ビューポートからはみ出す場合
  */
 export function planElementClip(rect, viewport) {
   for (const [label, value] of [
@@ -109,10 +107,9 @@ export function planElementClip(rect, viewport) {
 }
 
 /**
-
-* ブラウザ内で矩形とビューポートを読む純関数（locator.evaluate に渡す）。
-* この関数は文字列化して evaluate に渡るため、外部スコープを参照しない。
-* @param {Element} el
+ * ブラウザ内で矩形とビューポートを読む純関数（locator.evaluate に渡す）。
+ * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない。
+ * @param {Element} el
  */
 function readRectAndViewport(el) {
   const box = el.getBoundingClientRect();
@@ -131,23 +128,31 @@ function readRectAndViewport(el) {
 }
 
 /**
-
-* 要素を丸めた整数 clip で撮る。呼び出し側が目的の状態へ遷移させ、矩形が落ち着くまで待ってから呼ぶこと。
-*
-* `locator.screenshot()` を置き換える経路なので、**採取側とカタログ側の両方で同じこの関数を使う**
-* （片側だけ差し替えると、外接の 1px がそのまま寸法差として残り、塞いだはずの穴が戻る）。
-*
-* @param {import('playwright').Page} page - clip 付き撮影に使う Page（locator と同じ最上位フレームのページ）
-* @param {import('playwright').Locator} locator - 撮る要素（一意に解決すること）
-* @param {{ path?: string, scrollIntoView?: boolean }} [options] - path を渡すとそこへ書き出す。
-* scrollIntoView は既定 true（`locator.screenshot()` と同じく、撮る前に見える位置へ入れる）
-* @returns {Promise<{ buffer: Buffer, clip: { x:number, y:number, width:number, height:number },
-*                     rect: { x:number, y:number, width:number, height:number }, tool_version: string }>}
-* @throws {Error} 要素が最上位フレームに無い（clip の座標系が食い違う）場合
+ * 要素を丸めた整数 clip で撮る。呼び出し側が目的の状態へ遷移させ、矩形が落ち着くまで待ってから呼ぶこと。
+ *
+ * `locator.screenshot()` を置き換える経路なので、**採取側とカタログ側の両方で同じこの関数を使う**
+ * （片側だけ差し替えると、外接の 1px がそのまま寸法差として残り、塞いだはずの穴が戻る）。
+ *
+ * @param {import('playwright').Page} page - clip 付き撮影に使う Page（locator と同じ最上位フレームのページ）
+ * @param {import('playwright').Locator} locator - 撮る要素（一意に解決すること）
+ * @param {{ path?: string, scrollIntoView?: boolean, animations?: ("disabled"|"allow") }} [options]
+ *   path を渡すとそこへ書き出す。scrollIntoView は既定 true（`locator.screenshot()` と同じく、撮る前に見える位置へ入れる）。
+ *   animations は既定 `"disabled"`——Playwright の既定は `"allow"` で、アニメーション・トランジションの
+ *   途中フレームがそのまま PNG になり run ごとに揺れる。採取条件は `animations: disabled` として
+ *   記録される運用なので、記録と実体が食い違わないよう既定で止める
+ *   （出典: <https://playwright.dev/docs/api/class-page#page-screenshot>）
+ * @returns {Promise<{ buffer: Buffer, clip: { x:number, y:number, width:number, height:number },
+ *                     rect: { x:number, y:number, width:number, height:number }, tool_version: string }>}
+ * @throws {Error} 要素が最上位フレームに無い（clip の座標系が食い違う）場合
 
  */
 export async function captureElementShot(page, locator, options = {}) {
-  const { path, scrollIntoView = true } = options;
+  const { path, scrollIntoView = true, animations = "disabled" } = options;
+  if (animations !== "disabled" && animations !== "allow") {
+    throw new Error(
+      `element clip: animations must be "disabled" or "allow" (got ${String(animations)})`,
+    );
+  }
   if (scrollIntoView) await locator.scrollIntoViewIfNeeded();
   const measured = await locator.evaluate(readRectAndViewport);
   // フレームの中の要素は撮れない。`getBoundingClientRect()` はそのフレームのビューポート座標だが、
@@ -165,6 +170,8 @@ export async function captureElementShot(page, locator, options = {}) {
     );
   }
   const clip = planElementClip(measured.rect, measured.viewport);
-  const buffer = await page.screenshot(path === undefined ? { clip } : { clip, path });
-  return { buffer, clip, rect: measured.rect, tool_version: VERSION };
+  const shot = { clip, animations };
+  if (path !== undefined) shot.path = path;
+  const buffer = await page.screenshot(shot);
+  return { buffer, clip, rect: measured.rect, animations, tool_version: VERSION };
 }

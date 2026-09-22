@@ -25,7 +25,7 @@ function enclosingIntRect(rect) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("1");
+  expect(VERSION).toBe("2");
 });
 
 // 実測された 4 例（Issue #434 の再現手順 2）。いずれも width / height は整数だが原点が小数。
@@ -138,6 +138,7 @@ test("captureElementShot は丸めた clip で page.screenshot を呼び、path 
   expect(calls[0]).toEqual(["scroll"]);
   expect(calls[1][1]).toEqual({
     clip: { x: 1329, y: 219, width: 25, height: 28 },
+    animations: "disabled",
     path: "element.png",
   });
   expect(out.clip).toEqual({ x: 1329, y: 219, width: 25, height: 28 });
@@ -183,5 +184,51 @@ test("scrollIntoView: false なら見える位置へ入れない", async () => {
   };
   const page = { screenshot: async () => Buffer.alloc(0) };
   await captureElementShot(page, locator, { scrollIntoView: false });
+  expect(calls).toEqual([]);
+});
+
+// --- アニメーションの既定 ---------------------------------------------------
+//
+// Playwright の screenshot は `animations` の既定が `"allow"`（実測: types.d.ts
+// 「Defaults to "allow" that leaves animations untouched.」）。トランジション中の要素を撮ると
+// 途中フレームが PNG になり run ごとに揺れるのに、撮影条件は `animations: disabled` として
+// 記録される。記録と実体を食い違わせない。
+
+function shotSpy(rect = { x: 0, y: 0, width: 10, height: 10 }) {
+  const calls = [];
+  const locator = {
+    scrollIntoViewIfNeeded: async () => {},
+    evaluate: async () => ({ rect, viewport: VIEWPORT, top_frame: true }),
+  };
+  const page = {
+    screenshot: async (options) => {
+      calls.push(options);
+      return Buffer.alloc(0);
+    },
+  };
+  return { calls, locator, page };
+}
+
+test("既定でアニメーションを止めて撮る", async () => {
+  const { calls, locator, page } = shotSpy();
+  const out = await captureElementShot(page, locator);
+  expect(calls[0].animations).toBe("disabled");
+  expect(out.animations).toBe("disabled");
+  // path を渡さない呼び出しでも clip と animations は必ず載る。
+  expect(Object.keys(calls[0]).sort()).toEqual(["animations", "clip"]);
+});
+
+test("animations: allow を明示すればそのまま渡す（止める一択にしない）", async () => {
+  const { calls, locator, page } = shotSpy();
+  const out = await captureElementShot(page, locator, { animations: "allow" });
+  expect(calls[0].animations).toBe("allow");
+  expect(out.animations).toBe("allow");
+});
+
+test("animations に未知の値を渡したら撮らずに失敗する", async () => {
+  const { calls, locator, page } = shotSpy();
+  await expect(captureElementShot(page, locator, { animations: "off" })).rejects.toThrow(
+    /animations must be/,
+  );
   expect(calls).toEqual([]);
 });

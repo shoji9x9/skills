@@ -55,6 +55,9 @@ element-shot.mjs は矩形を最近接へ丸めた寸法で `page.screenshot({ c
   iframe の中の要素を撮ると**別の場所を切り出した PNG が黙って残る**（はみ出し判定もフレーム側の寸法で通ってしまう）。
   ツールは最上位フレーム以外を撮る前に失敗させるので、カタログが iframe で描く場合（Storybook 等）は
   その iframe の URL 自体をページとして開いて撮る（`/iframe.html?id=<story>`）
+- element-shot.mjs は**既定でアニメーション・トランジションを止めて撮る**（`animations: "disabled"`）。
+  Playwright の既定は `"allow"` なので、止めないとトランジション中の途中フレームが PNG になり run ごとに揺れる
+  （撮影条件は `animations: disabled` として記録されるので、記録と実体が食い違う）
 - element-shot.mjs は、丸めた clip がビューポートからはみ出すとき・面積 0 のときは**撮らずに失敗する**。
   Playwright は clip をビューポートへ黙って切り詰めるため、失敗させないと部品の一部だけを撮った PNG が基準として残る。
   ビューポートを広げる（撮影条件の記録も更新する）か、撮れないことを `gaps.md` に残す
