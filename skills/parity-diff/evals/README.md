@@ -91,4 +91,4 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   空配列への最初の追記）を「失われた行」に化けさせることが実測された**——一覧の `unit`（`lines` / `markdown-structure` / `json-arrays`）で
   突き合わせの単位を分け、誤検出で収束が止まらないようにした（回帰はテスト側の陽性・陰性コントロール両方で押さえている）
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

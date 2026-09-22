@@ -68,4 +68,4 @@ scripts/run-skill-eval.sh \
   食い違いが「このフェーズの対象外」への逃げ道になっていたためで、**矛盾を消したら assertion 2 は baseline も到達した**。
   fixture の矛盾が弁別を作っていた実例なので、Delta の内訳は fixture の整合と合わせて読む
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

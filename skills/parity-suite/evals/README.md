@@ -134,4 +134,4 @@ scripts/run-skill-eval.sh \
   **`unmeasured` へ落とす案を prompt で問うている**——問わない初版では 3 run とも到達しなかった（iteration-42）。
   読み手（`parity-diff` の収束判定）の分担は prompt が下流工程に触れないため assertion から外し、書き手と検査までに絞った
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

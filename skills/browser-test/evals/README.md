@@ -28,4 +28,4 @@ scripts/run-skill-eval.sh \
 
 - eval 7 の fixture は `skills.browser-test.environments` だけを持つ設定を置く**囮**で、呼び出し元から環境を渡されたときに設定解決を行わない契約（`references/project-config.md`）を検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

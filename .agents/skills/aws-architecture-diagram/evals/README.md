@@ -64,14 +64,11 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 ### 3. 結果を集計する
 
 ```bash
-# skill-creator のインストール先を自動検索（ユーザーレベル・プロジェクトレベルの両方を探索）
-SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
-
-cd "$SKILL_CREATOR"
-python -m scripts.aggregate_benchmark \
-  /path/to/tests/aws-architecture-diagram/iteration-N \
+node scripts/build-skill-eval-benchmark.js tests/aws-architecture-diagram/iteration-N \
   --skill-name aws-architecture-diagram \
-  --skill-path '<repo>/skills/aws-architecture-diagram'
+  --skill-path '<repo>/skills/aws-architecture-diagram' \
+  --executor-model <model-id> \
+  --analyzer-model <model-id>
 ```
 
 ### 4. 前回との比較

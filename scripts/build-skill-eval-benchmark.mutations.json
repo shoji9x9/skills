@@ -1,0 +1,183 @@
+{
+  "$comment": [
+    "build-skill-eval-benchmark.test.js の検出能力を示す変異の一覧（Issue #421）。",
+    "判定行を無効化する変異で狙ったテストが落ちることを scripts/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/build-skill-eval-benchmark.test.js",
+  "mutations": [
+    {
+      "id": "TEXT-KEY",
+      "why": "判定をテキストではなく位置（index）で対応づける",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const expectations = assertions.map((text) => ({ text, ...verdicts.get(text) }));",
+      "replace": "  const ordered = [...verdicts.values()];\n  const expectations = assertions.map((text, i) => ({ text, ...ordered[i] }));",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） 判定が並べ替わっていてもテキストで対応づける"]
+    },
+    {
+      "id": "POSITIONAL",
+      "why": "位置配列（オブジェクトでない判定）を受理する",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (typeof item !== \"object\" || item === null || Array.isArray(item)) {\n      die(\n        `${where}: expectations[${i}] が {text, passed, evidence} のオブジェクトでない（位置配列は受理しない）`,\n      );\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 判定の位置配列（真偽値の並び）を受理しない",
+        "受理しない入力（exit 2） 判定の位置配列（[passed, evidence] の組）を受理しない"
+      ]
+    },
+    {
+      "id": "TEXT-GUARD",
+      "why": "判定側の assertion テキスト検査を外す（オブジェクト判定とは別のガード）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (typeof text !== \"string\" || text.length === 0) {\n      die(`${where}: ${at} の assertion テキストが非空の文字列でない（位置配列は受理しない）`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） text を持たない判定を受理しない"]
+    },
+    {
+      "id": "KEYSET",
+      "why": "キー集合の突き合わせを外す（件数だけ見る）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const missing = assertions.filter((t) => !verdicts.has(t));\n  const extra = [...verdicts.keys()].filter((t) => !assertions.includes(t));\n  if (missing.length || extra.length) {\n    const parts = [];\n    if (missing.length)\n      parts.push(`判定の無い assertion ${missing.length} 件: ${missing.join(\" / \")}`);\n    if (extra.length) parts.push(`宣言に無い判定 ${extra.length} 件: ${extra.join(\" / \")}`);\n    die(`${gradingPath}: ${metaPath} とキー集合が一致しない。${parts.join(\"、\")}`);\n  }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） キー集合が eval_metadata と違えば落とす（判定の無い assertion）",
+        "受理しない入力（exit 2） キー集合が eval_metadata と違えば落とす（宣言に無い判定）"
+      ]
+    },
+    {
+      "id": "SUMMARY",
+      "why": "採点内訳と summary の突き合わせを外す",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (summary[key] !== want) {\n      die(`${gradingPath}: summary.${key}=${summary[key]} が採点内訳（${want}）と違う`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） summary の件数が採点内訳と食い違えば落とす"]
+    },
+    {
+      "id": "RATE",
+      "why": "pass_rate の突き合わせを外す",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (typeof summary.pass_rate !== \"number\" || round(summary.pass_rate, 4) !== computedRate) {\n    die(\n      `${gradingPath}: summary.pass_rate=${summary.pass_rate} が採点内訳（${computedRate}）と違う`,\n    );\n  }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） summary の pass_rate が採点内訳と食い違えば落とす"
+      ]
+    },
+    {
+      "id": "STDEV",
+      "why": "母集団標準偏差（n で割る）へ変える",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const variance = values.reduce((a, v) => a + (v - m) ** 2, 0) / (values.length - 1);",
+      "replace": "  const variance = values.reduce((a, v) => a + (v - m) ** 2, 0) / values.length;",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する"]
+    },
+    {
+      "id": "ROUND",
+      "why": "Python 互換の丸めを素朴な Math.round へ変える",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  return Number(result.toFixed(digits));",
+      "replace": "  return Math.round(value * 10 ** digits) / 10 ** digits;",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する"]
+    },
+    {
+      "id": "RPC",
+      "why": "runs_per_configuration を 3 に決め打ちする",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const runsPerConfiguration = [...counts][0];",
+      "replace": "  const runsPerConfiguration = 3;",
+      "occurrences": 1,
+      "expect_failing": [
+        "集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する",
+        "受理しない入力（exit 2） 採点の無い run は既定で落とし、--ungraded skip で除外する"
+      ]
+    },
+    {
+      "id": "ORDER",
+      "why": "eval の並びをディレクトリ名順から番号順へ変える",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const evalDirs = listDirs(opts.dir, \"eval-\");",
+      "replace": "  const evalDirs = listDirs(opts.dir, \"eval-\").sort(\n    (a, b) => Number(a.slice(5)) - Number(b.slice(5)),\n  );",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する"]
+    },
+    {
+      "id": "UNGRADED",
+      "why": "採点の無い run を既定で黙って除外する",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const opts = { ungraded: \"fail\", force: false, stdout: false };",
+      "replace": "  const opts = { ungraded: \"skip\", force: false, stdout: false };",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 採点の無い run は既定で落とし、--ungraded skip で除外する"
+      ]
+    },
+    {
+      "id": "EXECUTOR",
+      "why": "executor が混ざった run の検査を外す",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (executorKeys.size > 1) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） executor / model が混ざっていれば落とす（母集団を分ける）"
+      ]
+    },
+    {
+      "id": "DELTA",
+      "why": "Delta の桁を pass_rate も 1 桁にする",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "      pass_rate: signed(runSummary[a].pass_rate.mean - runSummary[b].pass_rate.mean, 2),",
+      "replace": "      pass_rate: signed(runSummary[a].pass_rate.mean - runSummary[b].pass_rate.mean, 1),",
+      "occurrences": 1,
+      "expect_failing": ["集計（揃った iteration） run の並び・evals_run・統計・Delta を固定する"]
+    },
+    {
+      "id": "EVIDENCE",
+      "why": "根拠（evidence）の空を受理する",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (typeof evidence !== \"string\" || evidence.length === 0) {\n      die(`${where}: ${at} の evidence が非空の文字列でない`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） evidence が空なら落とす（根拠の無い判定を集計しない）"
+      ]
+    },
+    {
+      "id": "TIMING",
+      "why": "timing.json が無い run を 0 秒 / 0 トークンで埋める",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (!existsSync(timingPath)) die(`${runDir}: timing.json が無い（時間・トークンの正本）`);",
+      "replace": "  const timingMissing = !existsSync(timingPath);",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） timing.json が無ければ落とす（時間・トークンを 0 で埋めない）"
+      ]
+    },
+    {
+      "id": "CONFIG-SHAPE",
+      "why": "片側の configuration しか無い eval を混ぜて集計する（Delta の母集団がずれる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (shapes.size > 1) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） configuration が eval ごとに違えば落とす（Delta の母集団がずれる）"
+      ]
+    },
+    {
+      "id": "EVAL-ID-DIR",
+      "why": "eval_id とディレクトリ名の食い違いを見ない（別の eval として数える）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (named && Number(named[1]) !== evalId) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） eval_id がディレクトリ名と食い違えば落とす"]
+    }
+  ]
+}
