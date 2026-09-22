@@ -12,10 +12,20 @@
 // 中核の判定は純粋関数 `lint(path, content)` に切り出してある（scripts/lint-pagination.test.js でテスト）。
 //
 // 使い方: node scripts/lint-pagination.js [files...]
-//   引数なし: リポジトリ内の *.sh と *.md を全件走査（node_modules / .git を除外）。
+//   引数なし: リポジトリ内の *.sh と *.md を全件走査。
+//   引数あり: 渡されたファイルだけを走査する（無視規則は適用しない。lefthook が staged file を渡す経路）。
+//
+// 引数なしの走査対象は **git の無視規則をそのまま使って**決める（`git ls-files --cached --others
+// --exclude-standard`）。ディレクトリを素朴に辿ると `.gitignore` 済みの生成物まで読むため、
+// CI（クリーンな checkout ＝ tracked のみ）では出ない指摘が手元でだけ出る。
+// 実際に `tests/*/iteration-*/eval-*/`（.gitignore 済みの eval 実行成果物。エージェントの応答が
+// そのまま入っており、こちらが書いたコードではない）で 2 件の偽の赤が出て、CI が緑なのに
+// 手元が赤いという食い違いになった。git を使えない場所（git 未導入・work tree の外）では
+// 走査を止めず、従来のディレクトリ走査へ落ちる（無視規則は効かないぶん過検出側に倒す）。
 
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const COLLECTION_SEGMENTS = new Set([
@@ -212,41 +222,118 @@ export function lint(path, content) {
   return findings;
 }
 
-function listFiles(dir) {
+/** インストール済みコピー（生成物）とツールの作業領域。どちらの列挙経路でも外す。 */
+const SKIP_DIRS = new Set(["node_modules", ".git", ".agents", ".claude"]);
+
+export function isLintable(path) {
+  return path.endsWith(".sh") || path.endsWith(".md");
+}
+
+/** dir 配下を素朴に辿る（git を使えないときのフォールバック。無視規則は効かない）。 */
+export function walkFiles(dir, deps = {}) {
+  const readdir = deps.readdirSync ?? readdirSync;
+  const stat = deps.statSync ?? statSync;
   const out = [];
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === ".git" || name === ".agents" || name === ".claude")
-      continue;
+  for (const name of readdir(dir)) {
+    if (SKIP_DIRS.has(name)) continue;
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...listFiles(p));
-    else if (name.endsWith(".sh") || name.endsWith(".md")) out.push(p);
+    if (stat(p).isDirectory()) out.push(...walkFiles(p, deps));
+    else if (isLintable(name)) out.push(p);
   }
   return out;
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const targets = args.length ? args : listFiles(".");
+/**
+ * git の無視規則に従って走査対象を列挙する。git work tree の外・git 不在なら null を返す
+ * （呼び出し側が walkFiles へ落ちる。ここで空配列を返すと「対象ゼロ＝指摘ゼロ」で緑になる）。
+ */
+export function gitFiles(dir, deps = {}) {
+  const run = deps.execFileSync ?? execFileSync;
+  let stdout;
+  try {
+    stdout = run(
+      "git",
+      ["-C", dir, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+  } catch {
+    return null;
+  }
+  if (typeof stdout !== "string") return null;
+  const base = resolve(dir);
+  const out = [];
+  for (const entry of stdout.split("\0")) {
+    if (entry === "") continue;
+    if (!isLintable(entry)) continue;
+    // 除外は **dir からの相対パス**（git の出力そのもの）で判定する。cwd 相対に直してから
+    // 判定すると、dir の外側のディレクトリ名（`node_modules/` 配下への checkout・`../` を挟む
+    // 呼び出し）を拾って、走査対象を丸ごと落としてしまう。
+    if (entry.split("/").some((segment) => SKIP_DIRS.has(segment))) continue;
+    // git は起動時の cwd（`-C dir` なので dir）からの相対で返す。読める形へ直して返す。
+    const abs = resolve(base, entry);
+    out.push(relative(process.cwd(), abs) || entry);
+  }
+  return out;
+}
+
+/** 走査対象の列挙（引数なしの実行で使う）。 */
+export function listFiles(dir = ".", deps = {}) {
+  return gitFiles(dir, deps) ?? walkFiles(dir, deps);
+}
+
+export function main(argv = process.argv.slice(2), deps = {}) {
+  const read = deps.readFileSync ?? readFileSync;
+  const log = deps.log ?? console.log;
+  const err = deps.error ?? console.error;
+  // 引数ありは「これを見ろ」という明示なので無視規則を当てない（lefthook の staged file 経路）。
+  const targets = (argv.length ? argv : listFiles(".", deps)).filter(isLintable);
+  // 対象 0 件を成功に倒さない。列挙が壊れると「指摘 0 件」と見分けが付かなくなる。
+  if (targets.length === 0) {
+    err(
+      `error: 走査対象が 0 件（cwd: ${process.cwd()}）。列挙が壊れているか、対象の *.sh / *.md が無い`,
+    );
+    return 2;
+  }
   const findings = [];
+  let scanned = 0;
+  let unreadable = 0;
   for (const path of targets) {
-    if (!(path.endsWith(".sh") || path.endsWith(".md"))) continue;
     let content;
     try {
-      content = readFileSync(path, "utf8");
+      content = read(path, "utf8");
     } catch {
+      unreadable += 1;
       continue;
     }
+    scanned += 1;
     findings.push(...lint(path, content));
   }
+  // 読めなかったファイルは走査していない。全件読めなければ「指摘 0 件」と見分けが付かないので、
+  // 対象 0 件と同じ扱いで落とす（対象は挙がったのに 1 件も読めない＝列挙かパスが壊れている）。
+  if (scanned === 0) {
+    err(
+      `error: ${targets.length} 件の対象を 1 件も読めなかった（cwd: ${process.cwd()}）。列挙かパスの解決が壊れている`,
+    );
+    return 2;
+  }
+  // 一部だけ読めなかった場合も件数を出す（黙って飛ばすと、その中の違反が無いのと同じ見え方になる）。
+  const unread = unreadable > 0 ? `・${unreadable} ファイルは読めず未走査` : "";
   if (findings.length) {
     findings.sort((a, b) => a.path.localeCompare(b.path) || a.n - b.n);
-    for (const f of findings) console.error(`${f.path}:${f.n}: ${f.msg}`);
-    console.error(`\npagination-lint: ${findings.length} 件の指摘`);
-    process.exit(1);
+    for (const f of findings) err(`${f.path}:${f.n}: ${f.msg}`);
+    err(`\npagination-lint: ${scanned} ファイル走査・${findings.length} 件の指摘${unread}`);
+    return 1;
   }
-  console.log("pagination-lint: OK");
+  log(`pagination-lint: OK（${scanned} ファイル走査${unread}）`);
+  return 0;
 }
 
 // CLI として実行されたときだけ走らせる（テストから import しても main は動かない）。
 // import.meta.url との比較は pathToFileURL で正規化する（相対パス/URL エスケープ差分での不一致を避ける）。
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = main();
+}

@@ -1,5 +1,17 @@
 import { test, expect } from "vitest";
-import { lint, tokenize, restEndpointSegment } from "./lint-pagination.js";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  lint,
+  tokenize,
+  restEndpointSegment,
+  gitFiles,
+  walkFiles,
+  listFiles,
+} from "./lint-pagination.js";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body) => "# t\n\n```bash\n" + body + "\n```\n";
@@ -132,4 +144,195 @@ test("複数指摘: GraphQL と REST を両方検出", () => {
     "gh api repos/o/r/pulls/6/comments",
   ].join("\n");
   expect(count("t.md", md(body))).toBe(2);
+});
+
+// --- 走査対象の列挙（.gitignore を尊重するか） -------------------------------
+//
+// 素朴なディレクトリ走査は `.gitignore` 済みの生成物まで読むため、CI（tracked のみの
+// クリーンな checkout）では出ない指摘が手元でだけ出る。実際に
+// tests/*/iteration-*/eval-*/ の eval 実行成果物で 2 件の偽の赤が出た。
+// 除外を入れた検査は「本当に無い」と「検査が動いていない」が同じ出力になるので、
+// 除外の内と外に**同じ違反**を置いて弁別できることまで確かめる。
+
+const script = join(dirname(fileURLToPath(import.meta.url)), "lint-pagination.js");
+const OFFENDING =
+  "# t\n\n```bash\ngh api graphql -f query='{ a { b(first: 50) { nodes { id } } } }'\n```\n";
+
+function makeRepo({ git = true } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "pagination-lint-"));
+  if (git) {
+    const init = spawnSync("git", ["-C", dir, "init", "-q", "-b", "main"], { encoding: "utf8" });
+    expect(init.status, init.stderr).toBe(0);
+  }
+  return dir;
+}
+
+function write(dir, rel, body) {
+  const abs = join(dir, rel);
+  mkdirSync(dirname(abs), { recursive: true });
+  writeFileSync(abs, body);
+  return abs;
+}
+
+function runCli(cwd, args = []) {
+  return spawnSync(process.execPath, [script, ...args], { cwd, encoding: "utf8" });
+}
+
+test("除外の内と外に同じ違反を置くと、無視されていない側だけが指摘される（弁別）", () => {
+  const dir = makeRepo();
+  write(dir, ".gitignore", "tests/*/iteration-*/eval-*/\n");
+  // 除外の外（tracked でなくても .gitignore に当たらないので走査対象）＝陽性コントロール
+  write(dir, "docs/guide.md", OFFENDING);
+  // 除外の中（eval 実行成果物と同じ場所）＝飛ぶべき側
+  write(
+    dir,
+    "tests/issue-batch/iteration-5/eval-10/with_skill/run-1/outputs/response.md",
+    OFFENDING,
+  );
+
+  const out = runCli(dir);
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("docs/guide.md");
+  // 陽性コントロールが出ていることを確かめたうえで、除外側が出ていないことを主張する。
+  expect(out.stderr).not.toContain("response.md");
+  expect(out.stderr).toContain("1 件の指摘");
+});
+
+test("除外を外すと、同じファイルが指摘される（除外が効いていたことの裏取り）", () => {
+  const dir = makeRepo();
+  write(dir, ".gitignore", "# 何も無視しない\n");
+  write(
+    dir,
+    "tests/issue-batch/iteration-5/eval-10/with_skill/run-1/outputs/response.md",
+    OFFENDING,
+  );
+
+  const out = runCli(dir);
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("response.md");
+});
+
+test("無視されたファイルも、引数で明示的に渡せば走査する", () => {
+  const dir = makeRepo();
+  write(dir, ".gitignore", "ignored/\n");
+  write(dir, "ignored/a.md", OFFENDING);
+  write(dir, "keep.md", "# t\n");
+
+  const out = runCli(dir, ["ignored/a.md"]);
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("ignored/a.md");
+});
+
+test("git work tree でなければディレクトリ走査へ落ちる（走査を止めない）", () => {
+  const dir = makeRepo({ git: false });
+  write(dir, "docs/guide.md", OFFENDING);
+
+  expect(gitFiles(dir)).toBeNull();
+  const out = runCli(dir);
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("guide.md");
+});
+
+test("走査対象 0 件は成功に倒さない", () => {
+  const dir = makeRepo();
+  const out = runCli(dir);
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/走査対象が 0 件/);
+});
+
+test("指摘ゼロのときは走査したファイル数を出す（0 件の素通りと区別する）", () => {
+  const dir = makeRepo();
+  write(dir, "clean.md", "# t\n\n```bash\ngh api --paginate repos/o/r/issues\n```\n");
+  const out = runCli(dir);
+  expect(out.status).toBe(0);
+  expect(out.stdout).toContain("1 ファイル走査");
+});
+
+test("gitFiles は node_modules / .agents / .claude を外す", () => {
+  const dir = makeRepo();
+  write(dir, ".agents/skills/x/SKILL.md", "# t\n");
+  write(dir, ".claude/skills/x.md", "# t\n");
+  write(dir, "node_modules/pkg/readme.md", "# t\n");
+  write(dir, "kept.md", "# t\n");
+
+  const files = gitFiles(dir);
+  expect(files).not.toBeNull();
+  expect(files.some((f) => f.endsWith("kept.md"))).toBe(true);
+  expect(files.filter((f) => /\.agents|\.claude|node_modules/.test(f))).toEqual([]);
+});
+
+test("walkFiles は .sh と .md だけを拾い、除外ディレクトリへ降りない", () => {
+  const dir = makeRepo({ git: false });
+  write(dir, "a.md", "");
+  write(dir, "b.sh", "");
+  write(dir, "c.txt", "");
+  write(dir, "node_modules/d.md", "");
+
+  const files = walkFiles(dir).map((f) => f.slice(dir.length + 1));
+  expect(files.sort()).toEqual(["a.md", "b.sh"]);
+});
+
+test("読めなかったファイルは件数として出す（黙って飛ばさない）", () => {
+  const dir = makeRepo();
+  write(dir, "a.md", OFFENDING);
+  const out = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const fs = await import("node:fs");` +
+        `const m = await import(${JSON.stringify(script)});` +
+        `process.exitCode = m.main(["a.md", "gone.md"], { readFileSync: (p, e) => {` +
+        `  if (p === "gone.md") throw new Error("ENOENT");` +
+        `  return fs.readFileSync(p, e);` +
+        `} });`,
+      "--input-type=module",
+    ],
+    { cwd: dir, encoding: "utf8" },
+  );
+  expect(out.status).toBe(1);
+  expect(out.stderr).toContain("1 ファイルは読めず未走査");
+});
+
+test("対象は挙がったのに 1 件も読めなければ成功に倒さない", () => {
+  const dir = makeRepo();
+  write(dir, "a.md", "# t\n");
+  const out = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const m = await import(${JSON.stringify(script)});` +
+        `process.exitCode = m.main([], { readFileSync: () => { throw new Error("ENOENT"); } });`,
+      "--input-type=module",
+    ],
+    { cwd: dir, encoding: "utf8" },
+  );
+  expect(out.status).toBe(2);
+  expect(out.stderr).toMatch(/1 件も読めなかった/);
+});
+
+test("除外判定は dir 相対で行う（リポジトリの外側のディレクトリ名に巻き込まれない）", () => {
+  // 親ディレクトリ名に除外語（node_modules）が入った場所へリポジトリを置く。
+  const parent = mkdtempSync(join(tmpdir(), "pagination-outer-"));
+  const nested = join(parent, "node_modules", "pkg");
+  mkdirSync(nested, { recursive: true });
+  const init = spawnSync("git", ["-C", nested, "init", "-q", "-b", "main"], { encoding: "utf8" });
+  expect(init.status, init.stderr).toBe(0);
+  write(nested, "docs/guide.md", OFFENDING);
+
+  const files = gitFiles(nested);
+  expect(files).not.toBeNull();
+  expect(files.some((f) => f.endsWith("docs/guide.md"))).toBe(true);
+});
+
+test("listFiles は git があれば git の結果を使う", () => {
+  const dir = makeRepo();
+  write(dir, ".gitignore", "gen/\n");
+  write(dir, "gen/x.md", "");
+  write(dir, "y.md", "");
+
+  const fromList = listFiles(dir);
+  expect(fromList.some((f) => f.endsWith("y.md"))).toBe(true);
+  expect(fromList.some((f) => f.endsWith("gen/x.md"))).toBe(false);
+  // 対照: 素朴な走査なら無視ファイルも拾う（＝上の不在が「走査していない」ではないことの裏取り）。
+  expect(walkFiles(dir).some((f) => f.endsWith("x.md"))).toBe(true);
 });
