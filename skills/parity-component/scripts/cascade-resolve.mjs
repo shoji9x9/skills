@@ -541,6 +541,14 @@ export function resolveCascade(document, options) {
 
   const requested = options.properties ?? null;
   const results = [];
+  // `all` しか宣言が無い採取物では buckets が空になる。keys を buckets だけから作ると
+  // `--all` が「候補 0 件」で exit 0 になり、ほぼ全プロパティを reset する宣言を見落とす。
+  // 擬似要素ごとに、その `all` を受ける番兵のバケットを先に作っておく。
+  for (const pseudoKey of wildcards.keys()) {
+    const pseudo = pseudoKey === "" ? null : pseudoKey;
+    const hasBucket = [...buckets.values()].some((e) => (e.pseudo_element ?? "") === pseudoKey);
+    if (!hasBucket) bucket(pseudo, "all");
+  }
   const keys = [...buckets.keys()].sort();
   for (const key of keys) {
     const entry = buckets.get(key);

@@ -6,6 +6,8 @@
 // PNG の寸法が食い違い、寸法一致を要求する画素比較が実行不能になる。
 
 import { expect, test } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +27,7 @@ function enclosingIntRect(rect) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("3");
+  expect(VERSION).toBe("4");
 });
 
 // 実測された 4 例（Issue #434 の再現手順 2）。いずれも width / height は整数だが原点が小数。
@@ -134,13 +136,16 @@ test("captureElementShot は丸めた clip で page.screenshot を呼び、path 
     },
   };
 
-  const out = await captureElementShot(page, locator, { path: "element.png" });
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-"));
+  const target = join(dir, "nested", "element.png");
+  const out = await captureElementShot(page, locator, { path: target });
   expect(calls[0]).toEqual(["scroll"]);
+  // path は Playwright へ渡さない（検査を通ってから自分で書く）。
   expect(calls[1][1]).toEqual({
     clip: { x: 1329, y: 219, width: 25, height: 28 },
     animations: "disabled",
-    path: "element.png",
   });
+  expect(readFileSync(target).toString()).toBe("png");
   expect(out.clip).toEqual({ x: 1329, y: 219, width: 25, height: 28 });
   expect(out.rect).toEqual({ x: 1328.8125, y: 219.296875, width: 25, height: 28 });
   expect(out.tool_version).toBe(VERSION);
@@ -254,7 +259,14 @@ function movingSpy(before, after) {
   const page = {
     screenshot: async (options) => {
       calls.push(options);
-      return Buffer.alloc(0);
+      // Playwright は `path` を渡されるとその場で書き出す。fake も同じ振る舞いにしないと、
+      // 「検査前に書いていないか」を測るテストが素通りする。
+      const data = Buffer.from("png");
+      if (options.path !== undefined) {
+        mkdirSync(dirname(options.path), { recursive: true });
+        writeFileSync(options.path, data);
+      }
+      return data;
     },
   };
   return { calls, locator, page };
@@ -275,4 +287,29 @@ test("矩形が変わらなければ従来どおり返す（何でも失敗さ�
   const { locator, page } = movingSpy(rect, { ...rect });
   const out = await captureElementShot(page, locator);
   expect(out.clip).toEqual({ x: 10, y: 10, width: 40, height: 20 });
+});
+
+test("検査に落ちたら PNG を書かない（拒否したフレームを基準に残さない）", async () => {
+  const { locator, page } = movingSpy(
+    { x: 10, y: 10, width: 40, height: 20 },
+    { x: 10, y: 34, width: 40, height: 20 },
+  );
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-reject-"));
+  const target = join(dir, "element.png");
+  await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow(
+    /box changed while capturing/,
+  );
+  expect(existsSync(target)).toBe(false);
+});
+
+test("既存の基準ファイルを、落ちた run が上書きしない", async () => {
+  const { locator, page } = movingSpy(
+    { x: 10, y: 10, width: 40, height: 20 },
+    { x: 10, y: 34, width: 40, height: 20 },
+  );
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-keep-"));
+  const target = join(dir, "element.png");
+  writeFileSync(target, "previous");
+  await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow();
+  expect(readFileSync(target).toString()).toBe("previous");
 });

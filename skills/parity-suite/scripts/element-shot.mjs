@@ -44,13 +44,17 @@
 // Playwright はピア前提であり import しない（Locator / Page は引数で受け取る）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 /**
  * ツールのバージョン（正本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
  * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
+ * 4: `path` は Playwright へ渡さず、検査を通ってから自分で書く（拒否した PNG を残さない）。
  * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
@@ -173,9 +177,10 @@ export async function captureElementShot(page, locator, options = {}) {
     );
   }
   const clip = planElementClip(measured.rect, measured.viewport);
-  const shot = { clip, animations };
-  if (path !== undefined) shot.path = path;
-  const buffer = await page.screenshot(shot);
+  // `path` は Playwright へ渡さずバッファで受け取る。撮影後の検査で落ちる run が、
+  // 拒否したはずのフレームを基準ファイルとして書き残す（または上書きする）のを避けるため——
+  // 後段の「ファイルがあるか」で確かめる手順が、無効な成果物を読んでしまう。
+  const buffer = await page.screenshot({ clip, animations });
 
   // clip は撮影**前**に測った矩形から決まるが、`animations: "disabled"` は撮影のときに効く
   // （有限のアニメーションは完了まで早送りされ、無限のものは初期状態へ戻る）。その早送りで
@@ -197,6 +202,12 @@ export async function captureElementShot(page, locator, options = {}) {
         `show a different region. quiesce animations and transitions at the page level (or wait until the ` +
         `rect is stable across two reads) before capturing`,
     );
+  }
+
+  // 検査を通ってから書く。
+  if (path !== undefined) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, buffer);
   }
   return { buffer, clip, rect: measured.rect, animations, tool_version: VERSION };
 }

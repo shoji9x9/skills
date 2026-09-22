@@ -823,3 +823,18 @@ test("同じ規則で同じプロパティが 2 回宣言されたら後勝ち",
   });
   expect(resolve(input, "color").winner.value).toBe("blue");
 });
+
+test("`all` しか宣言が無い採取物を --all で 0 件合格にしない", () => {
+  const input = doc({
+    matched: [{ order: 1, selector: ".x", declarations: [decl("all", "unset")] }],
+  });
+  const report = resolveCascade(input, { states: ["default"], properties: null });
+  expect(report.counts.undecidable).toBe(1);
+  expect(report.counts.resolved).toBe(0);
+  expect(report.results[0].status).toBe("undecidable");
+  expect(report.results[0].reasons.join(" ")).toMatch(/`all` declaration/);
+
+  // 陽性コントロール: `all` が無ければ候補ゼロの採取物は結果も 0 件のまま（番兵を無条件に足さない）。
+  const empty = resolveCascade(doc(), { states: ["default"], properties: null });
+  expect(empty.results).toEqual([]);
+});
