@@ -501,10 +501,13 @@ cp <スキル>/assets/kaizen-schedule.yml .github/workflows/kaizen-schedule.yml
 # インストールでも必ず誤警告する（実測: 3 つ中 1 つ在る状態で exit 2）。
 # **一致 0 件を成功に倒さない**——この検査が存在する理由そのものの状態（どこにも無い）を
 # 無出力・exit 0 で通すと、毎週 run が赤くなる構成を「確認済み」と読んでコミットしてしまう。
+# **ワークフローと同じく 2 本が揃っていることを見る**——レポート（`kaizen-schedule-report.sh`）と
+# 追跡 Issue の照会（`tracking-issue-lib.sh`）で、片方だけ在るディレクトリは古い
+# インストール。ここで片方しか見ないと、この検査は緑なのに毎週の run が探索で落ちる。
 found=""
 for d in .claude/skills/kaizen/scripts .agents/skills/kaizen/scripts \
          .github/skills/kaizen/scripts skills/kaizen/scripts; do
-  if [ -r "$d/kaizen-schedule-report.sh" ]; then
+  if [ -r "$d/kaizen-schedule-report.sh" ] && [ -r "$d/tracking-issue-lib.sh" ]; then
     found="$d"
     break
   fi
@@ -634,8 +637,10 @@ skip した run は Issue を作らず、理由を step summary に出して成�
   レート制限等で途中終了した run の**部分出力**が非空になり、非空だけを見ると未完成の
   レポートを完成品として転記する。逆に非空を見ないと、正常終了して何も出さなかった run を
   失敗と区別できない。Issue にはこの 2 つが別の文言で出る
-- **`kaizen-schedule-report.sh` が見つからない**: ここだけは落とす。材料を作れないまま先へ進むと、
-  空の Issue が「異常なし」として出てしまう
+- **`kaizen-schedule-report.sh` と `tracking-issue-lib.sh` が揃ったディレクトリが無い**: ここだけは落とす。
+  材料を作れないまま先へ進むと空の Issue が「異常なし」として出てしまい、照会が欠けたまま進むと
+  追跡 Issue を引けない。片方だけのディレクトリは採らない（古いインストールから照会の旧版を
+  読むのを防ぐ）
 
 ## 使わない方式
 

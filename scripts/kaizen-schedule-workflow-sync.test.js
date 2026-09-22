@@ -82,6 +82,24 @@ describe("スクリプト探索条件（配布先でだけ壊れるので実配�
     expect(canon()).not.toContain('[ -x "$dir/kaizen-schedule-report.sh" ]');
   });
 
+  // 探索は「レポートと照会が同じディレクトリに揃っていること」を条件にしている。
+  // setup.md の確認スニペットが片方しか見ないと、**そのスニペットは緑なのに毎週の run が
+  // 探索で落ちる**（Issue #420 で照会を同梱スクリプトへ括り出した）。同じ 2 本を見ることを固定する。
+  test("探索は 2 本揃ったディレクトリだけを採り、setup.md の確認も同じ 2 本を見る", () => {
+    const required = ["kaizen-schedule-report.sh", "tracking-issue-lib.sh"];
+    const loop = canon().match(/for dir in [\s\S]*?\n(\s*if \[ [^\n]*\n)/);
+    expect(loop, "探索ループの条件行が見つからない").not.toBeNull();
+    for (const name of required) {
+      expect(loop[1], `探索が ${name} を見ていない`).toContain(`[ -r "$dir/${name}" ]`);
+    }
+    const setup = readFileSync(join(repoRoot, "skills/kaizen/references/setup.md"), "utf8");
+    const check = setup.match(/for d in [\s\S]*?\n(\s*if \[ [^\n]*\n)/);
+    expect(check, "setup.md の確認スニペットが見つからない").not.toBeNull();
+    for (const name of required) {
+      expect(check[1], `setup.md の確認が ${name} を見ていない`).toContain(`[ -r "$d/${name}" ]`);
+    }
+  });
+
   test("setup.md が正規配置として挙げるリポジトリ内のパスを網羅する", () => {
     // 期待集合は観測ではなく宣言（setup.md の探索スニペット）から構成する。
     const setup = readFileSync(join(repoRoot, "skills/kaizen/references/setup.md"), "utf8");
