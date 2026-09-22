@@ -312,15 +312,9 @@ export function main(argv = process.argv.slice(2), deps = {}) {
     scanned += 1;
     findings.push(...lint(path, content));
   }
-  // 読めなかったファイルは走査していない。全件読めなければ「指摘 0 件」と見分けが付かないので、
-  // 対象 0 件と同じ扱いで落とす（対象は挙がったのに 1 件も読めない＝列挙かパスが壊れている）。
-  if (scanned === 0) {
-    err(
-      `error: ${targets.length} 件の対象を 1 件も読めなかった（cwd: ${process.cwd()}）。列挙かパスの解決が壊れている`,
-    );
-    return 2;
-  }
-  // 一部だけ読めなかった場合も件数を出す（黙って飛ばすと、その中の違反が無いのと同じ見え方になる）。
+  // 読めなかったファイルは走査していない。**1 件でも読めなければ合格に倒さない**——
+  // その中の違反は「無い」ではなく「見ていない」で、OK と印字した瞬間に見分けが付かなくなる。
+  // 全件読めない場合は列挙かパスの解決が壊れているので、理由を分けて出す。
   const unread = unreadable > 0 ? `・${unreadable} ファイルは読めず未走査` : "";
   if (findings.length) {
     findings.sort((a, b) => a.path.localeCompare(b.path) || a.n - b.n);
@@ -328,7 +322,20 @@ export function main(argv = process.argv.slice(2), deps = {}) {
     err(`\npagination-lint: ${scanned} ファイル走査・${findings.length} 件の指摘${unread}`);
     return 1;
   }
-  log(`pagination-lint: OK（${scanned} ファイル走査${unread}）`);
+  if (scanned === 0) {
+    err(
+      `error: ${targets.length} 件の対象を 1 件も読めなかった（cwd: ${process.cwd()}）。列挙かパスの解決が壊れている`,
+    );
+    return 2;
+  }
+  if (unreadable > 0) {
+    err(
+      `error: ${targets.length} 件のうち ${unreadable} 件を読めず走査していない（cwd: ${process.cwd()}）。` +
+        `残り ${scanned} 件に指摘は無いが、読めなかったぶんは検査していないので合格にしない`,
+    );
+    return 2;
+  }
+  log(`pagination-lint: OK（${scanned} ファイル走査）`);
   return 0;
 }
 

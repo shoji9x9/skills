@@ -355,7 +355,19 @@ function strongest(candidates) {
       c.specificity === null || best.specificity === null
         ? 0
         : compareSpecificity(c.specificity, best.specificity);
-    if (bySpec > 0 || (bySpec === 0 && c.order >= best.order)) best = c;
+    if (bySpec > 0) {
+      best = c;
+      continue;
+    }
+    if (bySpec < 0) continue;
+    if (c.order > best.order) {
+      best = c;
+      continue;
+    }
+    // 同じ規則（同じ order）なら、後に書いた宣言が勝つ。
+    if (c.order === best.order && (c.declaration_index ?? 0) >= (best.declaration_index ?? 0)) {
+      best = c;
+    }
   }
   return best;
 }
@@ -471,7 +483,8 @@ export function resolveCascade(document, options) {
       if (!(err instanceof UndecidableSelector)) throw err;
       specError = err.message;
     }
-    for (const decl of declarations) {
+    for (let declIndex = 0; declIndex < declarations.length; declIndex += 1) {
+      const decl = declarations[declIndex];
       if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
       // `all` はプロパティ名の振り分けに載せない（どのプロパティにも効きうるので別に持つ）。
       const wildcard = decl.property === "all";
@@ -489,6 +502,9 @@ export function resolveCascade(document, options) {
         specificity: spec,
         specificity_error: specError,
         order: typeof rule.order === "number" ? rule.order : null,
+        // 同じ規則の中では後に書いた宣言が勝つ。`order` は規則単位なので、規則内の順序を別に持たないと
+        // `.x { color: red; all: unset }` のように同一規則で競合する形が同点になる。
+        declaration_index: declIndex,
         layers,
         conditions,
       };
@@ -661,8 +677,17 @@ function decide(entry, wildcard = []) {
    * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
    * レイヤ順は詳細度より強く `!important` で逆転するので、同一視すると黙って誤った勝者になる。
    */
-  const anonymousLayer = (candidates) =>
-    candidates.length > 1 && candidates.some((c) => c.layers.some((name) => name === ""));
+  const isAnonymous = (c) => c.layers.some((name) => name === "");
+  // 判定は `applying` に閉じない。条件付き・状態不明・`all` の候補も同じレイヤ順の曖昧さを持ち、
+  // 無名レイヤに入っていれば「同じ `[""]` に見えるが別レイヤ」の可能性が残る
+  // （`@media` 配下の無名レイヤの `!important` は、後段の無名レイヤの `!important` に逆順で勝ちうる）。
+  const anonymousPool = [
+    ...entry.applying,
+    ...entry.conditional,
+    ...entry.state_unknown,
+    ...wildcard,
+  ];
+  const anonymousAmbiguity = anonymousPool.length > 1 && anonymousPool.some(isAnonymous);
 
   const tiers = [
     { name: "inline !important", candidates: inlineImportant },
@@ -675,9 +700,9 @@ function decide(entry, wildcard = []) {
   let winningTier = null;
   for (const tier of tiers) {
     if (tier.candidates.length === 0) continue;
-    if (anonymousLayer(tier.candidates)) {
+    if (anonymousAmbiguity) {
       reasons.push(
-        `competing ${tier.name} declarations sit in anonymous cascade layers; ` +
+        `a candidate for this property sits in an anonymous cascade layer (tier: ${tier.name}); ` +
           "css-rules-capture records every anonymous layer as an empty name, so two different layers " +
           "are indistinguishable here and layer order outranks specificity",
       );
@@ -706,7 +731,11 @@ function decide(entry, wildcard = []) {
     if (JSON.stringify(c.layers) !== JSON.stringify(winner.layers)) return true;
     if (c.specificity === null) return true;
     const bySpec = compareSpecificity(c.specificity, winner.specificity);
-    return bySpec > 0 || (bySpec === 0 && (c.order ?? 0) > (winner.order ?? 0));
+    if (bySpec !== 0) return bySpec > 0;
+    const byOrder = (c.order ?? 0) - (winner.order ?? 0);
+    if (byOrder !== 0) return byOrder > 0;
+    // 同じ規則の中では後に書いた宣言が勝つ（`.x { color: red; all: unset }` の形）。
+    return (c.declaration_index ?? 0) > (winner.declaration_index ?? 0);
   };
   if (entry.conditional.some(couldOutrank)) {
     reasons.push(

@@ -536,7 +536,7 @@ test("無名カスケードレイヤをまたぐ競合は undecidable（別レ�
   });
   const result = resolve(input, "color");
   expect(result.status).toBe("undecidable");
-  expect(result.reasons.join(" ")).toMatch(/anonymous cascade layers/);
+  expect(result.reasons.join(" ")).toMatch(/anonymous cascade layer/);
 
   // 陽性コントロール: 名前付きなら同一レイヤと判定でき、後勝ちで解決する。
   const named = doc({
@@ -751,4 +751,75 @@ test("`all` が無ければ宣言の無いプロパティは従来どおり abse
     matched: [{ order: 1, selector: ".x", declarations: [decl("color", "blue")] }],
   });
   expect(resolve(input, "box-shadow").status).toBe("absent");
+});
+
+test("条件付き・`all` の候補が無名レイヤにいても undecidable にする（applying に閉じない）", () => {
+  // @media 配下の無名レイヤの !important は、後段の無名レイヤの !important に逆順で勝ちうる。
+  const conditional = doc({
+    matched: [
+      {
+        order: 1,
+        selector: ".x",
+        layers: [""],
+        conditions: ["(min-width: 768px)"],
+        declarations: [decl("color", "blue", true)],
+      },
+      { order: 2, selector: ".x", layers: [""], declarations: [decl("color", "red", true)] },
+    ],
+  });
+  const result = resolve(conditional, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/anonymous cascade layer/);
+
+  // 陽性コントロール: 名前付きレイヤなら同じ形でも解決できる。
+  const named = doc({
+    matched: [
+      {
+        order: 1,
+        selector: ".x",
+        layers: ["vendor"],
+        conditions: ["(min-width: 768px)"],
+        declarations: [decl("color", "blue")],
+      },
+      {
+        order: 2,
+        selector: "#m .x",
+        layers: ["vendor"],
+        declarations: [decl("color", "red", true)],
+      },
+    ],
+  });
+  expect(resolve(named, "color").status).toBe("resolved");
+});
+
+test("同じ規則の中では後に書いた宣言が勝つ（`all` が後なら undecidable）", () => {
+  // `.x { color: red; all: unset }` は 1 規則なので order が同じ。宣言の並び順で決まる。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("color", "red"), decl("all", "unset")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/`all` declaration/);
+});
+
+test("同じ規則で `all` が先なら、後の宣言が勝って resolved", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("all", "unset"), decl("color", "red")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("red");
+});
+
+test("同じ規則で同じプロパティが 2 回宣言されたら後勝ち", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".x", declarations: [decl("color", "red"), decl("color", "blue")] },
+    ],
+  });
+  expect(resolve(input, "color").winner.value).toBe("blue");
 });

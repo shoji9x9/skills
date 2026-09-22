@@ -336,3 +336,39 @@ test("listFiles は git があれば git の結果を使う", () => {
   // 対照: 素朴な走査なら無視ファイルも拾う（＝上の不在が「走査していない」ではないことの裏取り）。
   expect(walkFiles(dir).some((f) => f.endsWith("x.md"))).toBe(true);
 });
+
+test("1 件でも読めなければ合格に倒さない", () => {
+  const dir = makeRepo();
+  write(dir, "ok.md", "# t\n");
+  // 読めない対象は引数経路で作る（列挙は実在するファイルしか返さないため）。
+  const res = spawnSync(process.execPath, [script, join(dir, "ok.md"), join(dir, "missing.md")], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  expect(res.status).toBe(2);
+  expect(res.stderr).toMatch(/読めず走査していない/);
+  expect(res.stdout).not.toMatch(/OK/);
+});
+
+test("全件読めれば従来どおり OK（読めない件数 0 を落とさない）", () => {
+  const dir = makeRepo();
+  write(dir, "ok.md", "# t\n");
+  const res = spawnSync(process.execPath, [script, join(dir, "ok.md")], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  expect(res.status).toBe(0);
+  expect(res.stdout).toMatch(/OK（1 ファイル走査）/);
+});
+
+test("読めないファイルがあっても、読めたぶんの指摘は exit 1 で出す", () => {
+  const dir = makeRepo();
+  write(dir, "bad.md", OFFENDING);
+  const res = spawnSync(process.execPath, [script, join(dir, "bad.md"), join(dir, "missing.md")], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  expect(res.status).toBe(1);
+  expect(res.stderr).toMatch(/bad\.md/);
+  expect(res.stderr).toMatch(/1 ファイルは読めず未走査/);
+});
