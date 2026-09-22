@@ -385,7 +385,10 @@ export function stripYamlBlocks(text, blocks, growable = [], registryGroups = []
         path,
         indent,
         wrappedOut,
-        [`${MUTABLE_BLOCK_PREFIX}${path}>`],
+        // **接頭辞は渡さない**——mutable_blocks は配下を単位から外すので、この接頭辞が当たるのは
+        // 「鍵を丸ごと消した」ときだけ。当てると破壊に対して「表記を直しても通らない。内容を人が確認して通す」と
+        // 案内することになる。折り返しで失われうるのは読みに行った行（`lines`）の方なので、そちらだけで帰属する。
+        [],
         { keepItemComments: false },
       );
       if (flow.items !== null && !flow.block) {
@@ -761,7 +764,13 @@ function scanFlow(raw) {
         const quoted =
           t.length >= 2 &&
           ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")));
-        return quoted ? t.slice(1, -1) : t;
+        if (quoted) return t.slice(1, -1);
+        // 入れ子のコンテナは**正規形へ組み直す**——要素自身が折り返されると末尾カンマや余分な空白が
+        // 残り、内容を 1 文字も変えていない整形だけで別の単位になる（コンテナは閉じているので
+        // 案内も出ず、書き手は「復元」へ向かう。#430 で避けたかった向き）。
+        const nested = scanFlow(t);
+        if (nested.items === null) return t;
+        return t[0] === "[" ? `[${nested.items.join(", ")}]` : `{${nested.items.join(", ")}}`;
       })
       .filter((x) => x !== ""),
     reason: null,

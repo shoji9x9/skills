@@ -2618,3 +2618,64 @@ test("mutable_blocks のブロック形式は今までどおり配下を外す�
   expect(r.status).toBe(0);
   rmSync(root, { recursive: true, force: true });
 });
+
+test("入れ子の要素自身を折り返しても単位は変わらない（整形だけでは落ちない）", () => {
+  // 要素の折り返しで末尾カンマ・余分な空白が入っても、正規形へ組み直すので 1 行の形と同じ単位になる。
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      "    component_diffs: []",
+      '    component_diffs: [{component: "grid", property: "color"}]',
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '    component_diffs: [{component: "grid", property: "color"}]',
+      [
+        "    component_diffs: [",
+        "      {",
+        '        component: "grid",',
+        '        property: "color",',
+        "      },",
+        "    ]",
+      ].join("\n"),
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 入れ子の要素の中身を差し替えれば落ちる", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      "    component_diffs: []",
+      '    component_diffs: [{component: "grid", property: "color"}]',
+    ),
+  );
+  writeConfig(root, readConfig(root).replace('property: "color"', 'property: "font"'));
+  const r = run(root);
+  expect(r.stdout).toMatch(/grid/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す」とは案内しない", () => {
+  // mutable_blocks は配下を外すので、鍵の単位が失われるのは鍵ごと消したときだけ。破壊に案内を付けない。
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/mutable-block/);
+  expect(r.stdout).not.toMatch(/内容を人が確認して通す/);
+  rmSync(root, { recursive: true, force: true });
+});
