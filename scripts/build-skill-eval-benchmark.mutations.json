@@ -175,7 +175,7 @@
       "id": "EVAL-ID-DIR",
       "why": "eval_id とディレクトリ名の食い違いを見ない（別の eval として数える）",
       "file": "scripts/build-skill-eval-benchmark.js",
-      "find": "  if (named && Number(named[1]) !== evalId) {",
+      "find": "  if (Number(named[1]) !== evalId) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": ["受理しない入力（exit 2） eval_id がディレクトリ名と食い違えば落とす"]
@@ -286,6 +286,59 @@
       "occurrences": 1,
       "expect_failing": [
         "受理しない入力（exit 2） verdicts と expectations が両方あれば落とす（正本を決められない）"
+      ]
+    },
+    {
+      "id": "TOKENS-NUMBER",
+      "why": "total_tokens を 0 で埋める（計測できていない run をトークン 0 として混ぜる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const tokens = timing.total_tokens;\n",
+      "replace": "  const tokens = timing.total_tokens ?? 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） total_tokens が数値でなければ落とす（0 で埋めない）"
+      ]
+    },
+    {
+      "id": "METRICS-FILE",
+      "why": "metrics.json の不在を黙って 0 で埋める",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (!existsSync(metricsPath)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） metrics.json が無ければ落とし、null のキーは測れなかったとして 0 で記録する"
+      ]
+    },
+    {
+      "id": "METRICS-KEYS",
+      "why": "metrics の値の型検査を外す（文字列の件数をそのまま集計へ流す）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (value !== undefined && value !== null && typeof value !== \"number\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） metrics.json のキーが無ければ 0 として記録し、型違いは落とす"
+      ]
+    },
+    {
+      "id": "EVAL-DIR-SHAPE",
+      "why": "eval ディレクトリ名の形の検査を外す（突き合わせを飛ばして重複に気づけない）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (!named) {",
+      "replace": "  if (false && !named) {",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） eval ディレクトリ名が形に合わなければ落とす"]
+    },
+    {
+      "id": "DUP-RUNS",
+      "why": "同じ run が 2 つのディレクトリから来ても落とさない（片方の eval が 2 倍の重みになる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "    if (seenRuns.has(key)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 同じ run が 2 つのディレクトリから来ていれば落とす"
       ]
     }
   ]

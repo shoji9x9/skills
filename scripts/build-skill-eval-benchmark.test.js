@@ -538,6 +538,86 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("executor.name が無い run がある");
   });
 
+  test("total_tokens が数値でなければ落とす（0 で埋めない）", () => {
+    const root = makeIteration();
+    const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    const timing = JSON.parse(readFileSync(join(dir, "timing.json"), "utf8"));
+    timing.total_tokens = null;
+    writeFileSync(join(dir, "timing.json"), JSON.stringify(timing));
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("total_tokens が数値でない");
+  });
+
+  test("metrics.json が無ければ落とし、null のキーは測れなかったとして 0 で記録する", () => {
+    const root = makeIteration();
+    const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    rmSync(join(dir, "outputs", "metrics.json"));
+    const missing = run(root);
+    expect(missing.status, missing.out).toBe(2);
+    expect(missing.out).toContain("outputs/metrics.json が無い");
+
+    // null は正規化器が「この executor では測れない」を明示した形なので受理して 0 にする。
+    writeFileSync(
+      join(dir, "outputs", "metrics.json"),
+      JSON.stringify({ total_tool_calls: null, errors_encountered: 0 }),
+    );
+    const ok = run(root);
+    expect(ok.status, ok.out).toBe(0);
+    expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
+  });
+
+  // キー無し・null は「この executor では測れない」（実データの `total_tool_calls` は 145 件が
+  // キー無し）。0 として記録する。**型が違う値だけ**落とす。
+  test("metrics.json のキーが無ければ 0 として記録し、型違いは落とす", () => {
+    const root = makeIteration();
+    const dir = writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
+    writeFileSync(join(dir, "outputs", "metrics.json"), JSON.stringify({ total_steps: 3 }));
+    const ok = run(root);
+    expect(ok.status, ok.out).toBe(0);
+    expect(JSON.parse(ok.stdout).runs[0].result.tool_calls).toBe(0);
+
+    writeFileSync(
+      join(dir, "outputs", "metrics.json"),
+      JSON.stringify({ total_tool_calls: "7", errors_encountered: 0 }),
+    );
+    const bad = run(root);
+    expect(bad.status, bad.out).toBe(2);
+    expect(bad.out).toContain("total_tool_calls が数値でも null でもない");
+  });
+
+  // 取り込みは `eval-` の前方一致なので、形に合わない名前を突き合わせから外すと
+  // `eval-1-retry` のコピーが同じ eval_id で 2 重に数えられる（実測）。
+  test("eval ディレクトリ名が形に合わなければ落とす", () => {
+    const root = makeIteration();
+    writeRun(root, { evalDir: "eval-27b", evalId: 27, configuration: "with_skill" });
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("eval ディレクトリ名が eval-<番号>");
+
+    // 陽性コントロール: 注記つき（本リポの成果物にある形）は通る。
+    const ok = makeIteration();
+    writeRun(ok, {
+      evalDir: "eval-31-mutation-ownership",
+      evalId: 31,
+      configuration: "with_skill",
+    });
+    const passed = run(ok);
+    expect(passed.status, passed.out).toBe(0);
+    expect(JSON.parse(passed.stdout).metadata.evals_run).toStrictEqual([31]);
+  });
+
+  test("同じ run が 2 つのディレクトリから来ていれば落とす", () => {
+    const root = makeIteration();
+    for (const evalDir of ["eval-1", "eval-1-retry"]) {
+      writeRun(root, { evalDir, evalId: 1, configuration: "with_skill" });
+      writeRun(root, { evalDir, evalId: 1, configuration: "without_skill" });
+    }
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("同じ run（1/with_skill/run-1）が 2 つのディレクトリから来ている");
+  });
+
   test("timing.json が無ければ落とす（時間・トークンを 0 で埋めない）", () => {
     const root = makeIteration();
     writeRun(root, {

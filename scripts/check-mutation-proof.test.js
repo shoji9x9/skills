@@ -339,6 +339,38 @@ test("guard", () => {
     expect(existsSync(fx.target), "fixture が掃かれた").toBe(true);
   });
 
+  // signal handler は同期の `main()` では dispatch されない（登録すると `kill` も効かなくなる）。
+  // 中断で変異が残る可能性は**次回起動の復元**で受ける、という契約を固定する。
+  test("前回の中断で残った変異を次回起動で戻す", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "recover.lock");
+    // 中断された run の状態を作る: 復元情報が残っていて、対象は変異したまま。
+    writeFileSync(
+      `${lock}.recovery.json`,
+      JSON.stringify({ file: fx.target, content: FIXTURE_TARGET }),
+    );
+    writeFileSync(fx.target, FIXTURE_TARGET.replace(GUARD, ""));
+
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("前回の中断で残っていた変異を戻した");
+    // 戻したうえで、その run の基準・変異の判定まで通っていること。
+    expect(res.out).toContain("PASS G");
+    expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
+    expect(existsSync(`${lock}.recovery.json`), "復元情報を消していない").toBe(false);
+  });
+
+  test("復元情報が壊れていれば exit 2（黙って続けない）", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const lock = join(lockDir, "broken-recovery.lock");
+    writeFileSync(`${lock}.recovery.json`, JSON.stringify({ file: 42 }));
+    const res = runRunner(spec, { MUTATION_PROOF_LOCK: lock });
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("復元情報が壊れている");
+  });
+
   test("--only でどの変異も選ばれなければ exit 2", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);

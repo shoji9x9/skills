@@ -70,8 +70,17 @@ function takeLock() {
     try {
       writeFileSync(staging, `${process.pid}\n`);
       linkSync(staging, lockPath); // 既にあれば EEXIST（アトミック）
-      unlinkSync(staging);
+      // **公開できた時点で所有を記録する。** staging の後片付けの失敗で catch へ落ちると、
+      // ロックは公開済みなのに `lockHeld` が false のままで解放されず、しかも
+      // 「ロックを作れない」という実態と違う理由で終わる。
       lockHeld = true;
+      try {
+        unlinkSync(staging);
+      } catch (cleanupErr) {
+        console.error(
+          `mutation-proof: 一時ファイルを消せなかった（${staging}）: ${cleanupErr.message}`,
+        );
+      }
       return;
     } catch (err) {
       try {
@@ -132,6 +141,46 @@ function releaseLock() {
 // exit ハンドラからも片付ける。
 const tempDirs = new Set();
 
+// 変異を当てている間だけ置く復元情報。プロセスが殺されて（SIGKILL・電源断・端末の Ctrl-C）
+// 復元が走らなかった場合に、**次回起動で作業ツリーを元へ戻す**ための記録。
+const recoveryPath = `${lockPath}.recovery.json`;
+
+function writeRecovery(target, content) {
+  writeFileSync(recoveryPath, JSON.stringify({ file: target, content }));
+}
+
+function clearRecovery() {
+  try {
+    unlinkSync(recoveryPath);
+  } catch {
+    /* 無ければ消すものが無い */
+  }
+}
+
+/** 前回の中断で変異が残っていれば戻す（ロックを取った後・宣言を読む前に呼ぶ）。 */
+function recoverFromInterrupted() {
+  if (!existsSync(recoveryPath)) return;
+  let saved;
+  try {
+    saved = JSON.parse(readFileSync(recoveryPath, "utf8"));
+  } catch (err) {
+    die(
+      `前回の中断の復元情報を読めない（${recoveryPath}）: ${err.message}。手で作業ツリーを確かめる`,
+    );
+  }
+  if (typeof saved?.file !== "string" || typeof saved?.content !== "string") {
+    die(`前回の中断の復元情報が壊れている（${recoveryPath}）。手で作業ツリーを確かめる`);
+  }
+  const current = existsSync(saved.file) ? readFileSync(saved.file, "utf8") : null;
+  if (current === saved.content) {
+    console.error(`mutation-proof: 前回の中断で残った変異は無かった（${saved.file}）`);
+  } else {
+    writeFileSync(saved.file, saved.content);
+    console.error(`mutation-proof: 前回の中断で残っていた変異を戻した（${saved.file}）`);
+  }
+  clearRecovery();
+}
+
 // 変異を当てている最中のファイル。中断（Ctrl-C・SIGTERM）でも必ず戻す
 // ——戻せないまま終わると、変異したワークフローやスクリプトが作業ツリーに残る。
 let pending = null;
@@ -158,15 +207,12 @@ function restorePending() {
   }
 }
 
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
-  process.on(signal, () => {
-    restorePending();
-    cleanupTempDirs();
-    releaseLock();
-    console.error(`mutation-proof: ${signal} で中断した（変異は戻した）`);
-    process.exit(130);
-  });
-}
+// **signal handler は置かない。** `main()` は `spawnSync` だけの完全な同期処理なので、
+// 届いた signal の JS コールバックはスタックが空くまで dispatch されず、`main()` が終わる前に
+// 実行されることはない（最小プローブで実測）。登録するだけだと `SIGTERM` の既定動作
+// （terminate）が外れて `kill` でも止まらなくなり、「中断を扱っている」という誤った保証になる。
+//
+// 中断（SIGKILL を含む）で変異が残る可能性は、**次回起動時の復元**で受ける（`recoveryPath`）。
 process.on("exit", () => {
   restorePending();
   cleanupTempDirs();
@@ -364,11 +410,13 @@ function proveMutation(mutation, testFile) {
   let run;
   try {
     pending = { path: mutation.target, content: original };
+    writeRecovery(mutation.target, original);
     writeFileSync(mutation.target, mutated);
     run = runTests(testFile);
   } finally {
     writeFileSync(mutation.target, original);
     pending = null;
+    clearRecovery();
     // 復元を実測する（ここが崩れると、以降の変異も本来の版で測れていない）。
     const restored = readFileSync(mutation.target, "utf8");
     if (restored !== original) {
@@ -395,6 +443,8 @@ function main() {
   const { files, only } = parseArgs(process.argv.slice(2));
   // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
   takeLock();
+  // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
+  recoverFromInterrupted();
   const specs = specPaths(files).map(loadSpec);
   let proven = 0;
   let failures = 0;

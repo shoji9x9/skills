@@ -133,6 +133,29 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["宣言と前提の検証（走らせる前に落とす） テスト名が重複していたら exit 2"]
+    },
+    {
+      "id": "RECOVERY",
+      "why": "前回の中断で残った変異を戻さない（残った変異を基準 run が測る）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  recoverFromInterrupted();",
+      "replace": "  // recoverFromInterrupted();",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 前回の中断で残った変異を次回起動で戻す",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）"
+      ]
+    },
+    {
+      "id": "RECOVERY-SHAPE",
+      "why": "復元情報の形を検査しない（壊れた記録で黙って続ける）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (typeof saved?.file !== \"string\" || typeof saved?.content !== \"string\") {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）"
+      ]
     }
   ]
 }

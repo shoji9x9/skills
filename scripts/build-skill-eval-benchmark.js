@@ -236,8 +236,17 @@ function loadRun(runDir, configuration, evalDir) {
   // **ディレクトリ名と宣言を突き合わせる。** run 数の突き合わせはディレクトリ単位、集計の
   // キーは `eval_id` なので、食い違うと「eval-27 の run が 26 として数えられる」取り違えが
   // 黙って通る（位置で対応づけて件数を誤ったのと同じクラス。Issue #421）。
-  const named = /^eval-(\d+)$/.exec(evalDir);
-  if (named && Number(named[1]) !== evalId) {
+  // 形は `eval-<番号>` か `eval-<番号>-<注記>`（本リポの成果物に `eval-31-mutation-ownership` 等が
+  // 4 件ある）。**形に合わない名前は突き合わせを飛ばさず落とす**——飛ばすと `eval-27b` や
+  // `eval-1 copy` が eval として採り込まれ、eval_id の重複に気づけない。
+  const named = /^eval-(\d+)(?:-[\w.-]+)?$/.exec(evalDir);
+  if (!named) {
+    die(
+      `${evalDir}: eval ディレクトリ名が eval-<番号> または eval-<番号>-<注記> でない。` +
+        "名前を揃えるか、iteration から外す",
+    );
+  }
+  if (Number(named[1]) !== evalId) {
     die(`${metaPath}: eval_id=${evalId} がディレクトリ名（${evalDir}）と違う`);
   }
   if (!Array.isArray(meta.assertions) || meta.assertions.length === 0) {
@@ -303,10 +312,27 @@ function loadRun(runDir, configuration, evalDir) {
 
   const seconds = timing.total_duration_seconds;
   if (typeof seconds !== "number") die(`${timingPath}: total_duration_seconds が数値でない`);
-  const tokens = timing.total_tokens ?? 0;
+  // **記録が無いトークンを 0 で埋めない。** 0 として mean / min / max / Delta に混ぜると、
+  // 計測できていない run が「トークン 0」の観測として報告される（実測で `delta.tokens` が
+  // 実在しない値になった）。時間と同じく型で落とす。
+  const tokens = timing.total_tokens;
   if (typeof tokens !== "number") die(`${timingPath}: total_tokens が数値でない`);
+  // `metrics.json` が無いのは成果物が切り詰められた形なので落とす（20 件の旧 run が該当）。
+  // **キーが `null` なのは別の状態**——正規化器が「この executor では測れない」を明示した形
+  // （`total_tool_calls` は 436 件中 235 件が null）。その場合だけ 0 として記録する。
   const metricsPath = join(runDir, "outputs", "metrics.json");
-  const metrics = existsSync(metricsPath) ? readJson(metricsPath) : {};
+  if (!existsSync(metricsPath)) {
+    die(`${runDir}: outputs/metrics.json が無い（tool_calls / errors の正本）`);
+  }
+  const metrics = readJson(metricsPath);
+  // キー無し・`null` は「この executor では測れない」（実データでは `total_tool_calls` が
+  // 145 件キー無し）。0 として記録する。**数値でも null でもない値だけ**を落とす。
+  for (const key of ["total_tool_calls", "errors_encountered"]) {
+    const value = metrics[key];
+    if (value !== undefined && value !== null && typeof value !== "number") {
+      die(`${metricsPath}: ${key} が数値でも null でもない`);
+    }
+  }
 
   return {
     runDir,
@@ -328,7 +354,7 @@ function loadRun(runDir, configuration, evalDir) {
         total: expectations.length,
         time_seconds: seconds,
         tokens,
-        tool_calls: metrics.total_tool_calls ?? 0,
+        tool_calls: metrics.total_tool_calls ?? 0, // null = この executor では測れない
         errors: metrics.errors_encountered ?? 0,
       },
       expectations,
@@ -477,6 +503,21 @@ function main() {
     );
   }
   const runsPerConfiguration = [...counts][0];
+
+  // **同じ (eval_id, configuration, run_number) の run が 2 件あれば落とす。** 置き直した
+  // コピー（`eval-1` と `eval-1-retry` が同じ eval_id）や `run-1` / `run-01` の同居で、
+  // 片方の eval が 2 倍の重みで mean に入るのを防ぐ（成果物からは判別できない）。
+  const seenRuns = new Map();
+  for (const r of loaded) {
+    const key = `${r.run.eval_id}/${r.run.configuration}/run-${r.run.run_number}`;
+    if (seenRuns.has(key)) {
+      die(
+        `同じ run（${key}）が 2 つのディレクトリから来ている: ${seenRuns.get(key)} と ${r.runDir}。` +
+          "置き直したコピーを iteration から外す",
+      );
+    }
+    seenRuns.set(key, r.runDir);
+  }
 
   // **同じ eval の run が同じ assertion 集合を採点していることを確かめる。** run の合間に
   // `evals.json` を編集すると、各 run は自分の宣言と整合したまま assertion 数が変わり、
