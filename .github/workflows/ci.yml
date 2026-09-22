@@ -38,13 +38,19 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 変異実証は差分に当たる宣言だけを測るので、通常の PR ではジョブが数分で終わる。
+    # 上限は**最悪ケース**（実行器を触った PR は全宣言へ広がる）で決める——その CI 実測は
+    # ジョブ 1020 秒・うち変異実証 891 秒（ubuntu-latest / 2 vCPU）。20 分だと余裕が 3 分しかない。
+    # 全件を毎回測るのは定期実行（mutation-proof.yml）の役目で、ここは PR の最悪ケースを通す。
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # 変異実証の差分選択（`--changed-since origin/<base>`）が基点の ref を要求する。
+          fetch-depth: 0
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
@@ -78,6 +84,18 @@ jobs:
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
+      # 変異実証（検査の検出能力の再実行）。**差分に当たる宣言だけ**を測る——全件は手元実測 962 秒で、
+      # その 7 割が実行器自身の宣言（テストが入れ子で runner を起動する）だった。対象も検査も
+      # 変わっていない宣言は前回の実証がそのまま有効なので、PR では測り直さない。
+      # **全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。
+      # **pre-commit には入れない**——実行中は対象ファイルを書き換えて戻すため、staged な変更と
+      # 混ざると取り違えが起きる。
+      #
+      # push（マージ後の main）では測らない: その差分は PR 側で測り終えており、基点となる
+      # 前の SHA は force-push や初回 push で欠けることがある（欠けたら fail-closed で落ちる）。
+      - name: Mutation proof (specs touched by this diff)
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-mutation-proof.js --changed-since "origin/${{ github.base_ref }}"
 
   actionlint:
     name: GitHub Actions lint

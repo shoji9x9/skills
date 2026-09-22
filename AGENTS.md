@@ -40,6 +40,19 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   `scripts/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
   `scripts/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/check-skills-sync.js` / `scripts/check-js-extensions.js` /
   `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js`。
+- **変異実証（CI 専任）**: `scripts/check-mutation-proof.js` が `scripts/*.mutations.json` の宣言を再実行し、
+  各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
+  検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
+  - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
+    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は CI 実測 891 秒（93 変異時。手元は 95 変異で 962 秒）かかり、
+    その 7 割が実行器自身の宣言（テストが入れ子で runner を起動する）だった。
+  - **全件は週次の定期実行**（`.github/workflows/mutation-proof.yml`）。対象も検査も変わっていない宣言は前回の実証が
+    有効だが、共有ライブラリやツールの版で前提が崩れることはあるので測り直す。
+  - pre-commit には入れない（実行中に対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違える）。
+    **並行して走らせない**——同時実行はロックで弾くが、無関係な `pnpm test` と重ねると変異中の中間状態を読んで無関係に赤くなる（実測）。
+  - **実行器自身を変異させる宣言があるときは、`--changed-since` を測るテストを `--only` で有界にする。**
+    選択の判定を常に真にする変異が入ると、入れ子の runner が指数的に増える（実測で 30 分以上・21 プロセス以上、
+    殺した後の作業ツリーに変異が残った）。
 - **実行前ゲート（PreToolUse）**: `scripts/bash-command-guard.sh` が、文章規約で防げず再発した 2 形を Bash 実行前に止める——
   `gh api` と同じセグメントの `--body-file`（`gh api` にこのフラグは無い。`gh pr` / `gh issue` の `--body-file` は通す）と、
   文字クラスで自分を避けていない `pkill -f` / `killall -f`（照合対象が full command line なので自分のシェルに一致する）。

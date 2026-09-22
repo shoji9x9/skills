@@ -1,0 +1,42 @@
+# 変異実証の全件測定。
+#
+# PR の CI（`ci.yml` の `Lint`）は**差分に当たる宣言だけ**を測る。全件は手元実測 962 秒（95 変異）で、
+# その 7 割が実行器自身を変異させる宣言（テストが入れ子で runner を起動する）だったため、
+# 毎 PR で払うコストとしては重すぎる。対象も検査も変わっていない宣言は前回の実証がそのまま有効だが、
+# **共有ライブラリの更新やツールの版上げで前提が崩れることはある**ので、全件は週次で測り直す。
+name: Mutation proof
+
+on:
+  schedule:
+    # 毎週月曜 02:00 UTC (11:00 JST)。kaizen-schedule（01:00 UTC）とずらす。
+    - cron: "0 2 * * 1"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mutation-proof:
+    name: All mutations
+    runs-on: ubuntu-latest
+    # 全件は CI 実測 891 秒（93 変異時。手元は 95 変異で 962 秒）。変異が増える前提で 2 倍以上を取る。
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: pnpm install --frozen-lockfile
+      # 引数なし = `scripts/*.mutations.json` の全件。宣言 0 件は成功に倒さない（スクリプト側で exit 2）。
+      - name: Mutation proof (all specs)
+        run: node scripts/check-mutation-proof.js

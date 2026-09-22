@@ -81,7 +81,7 @@ raw trace は調査・deterministic grading 用であり、集計・viewer は r
 Codex の `item.type=error` / `turn.failed`、Claude Code の `is_error`、raw の parse 失敗、final response 不在は、CLI exit が 0 でも正規化を fail-closed にして runner を非 0 終了させる。
 
 `grading.json` は executor に依存しない既存 schema を使う。必須フィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}`。
-採点後は既存 skill-creator の `aggregate_benchmark.py` と `eval-viewer/generate_review.py` をそのまま使う。
+採点後の集計は repo の `scripts/build-skill-eval-benchmark.js`（判定を assertion テキストで突き合わせる）。viewer は既存 skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
 
 ## Native skill と隔離
 

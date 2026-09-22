@@ -226,6 +226,8 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 
 `grading.json` は集計スクリプト／ビューアが実際に読むスキーマで生成する（後段の集計が 0.0% や「No runs found」になるのを防ぐ）。
 必須フィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text` / `passed` / `evidence`。
+**判定は assertion テキストで対応づけるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする**
+（位置で並べた配列や `text` の無い要素は集計器が受理しない。`scripts/build-skill-eval-benchmark.js`）。
 ビューアを使う場合は run 配下のレイアウト（`outputs/` と `eval_metadata.json`）も揃える。正本は skill-creator の `references/schemas.md`（インストール先の skill-creator 配下。無い場合は skill-creator のドキュメントを参照）を参照する。
 
 ### 対象スキルを読まなかった run を集計から外す
@@ -331,28 +333,35 @@ eval は**スキルの欠陥を見つけるための装置**であり、モデ�
 
 ### 集計
 
-集計スクリプト（skill-creator 同梱）で結果を `tests/<name>/iteration-N/` に集約する:
+集計は**リポジトリのスクリプト**で行う。書き捨てのスクリプトで組み立てない——判定を位置（配列 index）で
+対応づけて件数を誤る（`parity-diff` #27 の `without_skill` を 1/6 と 2/6 の両方で数えた記録がある。Issue #421）。
 
 ```bash
-# skill-creator のインストール先を自動検索（各エージェントのスキルディレクトリを横断）
-REPO=$(git rev-parse --show-toplevel)
-SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
-cd "$SKILL_CREATOR"
-# benchmark_dir は実在パスを読むので絶対パスで渡す（cd 後に相対パスだと解決できない）。
-# --skill-path は metadata 用の表示文字列。絶対パスを避け <repo> プレースホルダ形式で渡す
-#（下記の絶対パス除去方針に合わせる。未指定だと <path/to/skill> になる）。
-mise exec python -- python -m scripts.aggregate_benchmark \
-  "$REPO/tests/<name>/iteration-N" \
+node scripts/build-skill-eval-benchmark.js tests/<name>/iteration-N \
   --skill-name <name> \
-  --skill-path '<repo>/skills/<name>'
+  --skill-path '<repo>/skills/<name>' \
+  --executor-model <model-id> \
+  --analyzer-model <model-id> \
+  [--notes-file <備考のテキスト>] [--ungraded skip] [--force] [--stdout]
 ```
 
-`aggregate_benchmark.py` は `executor_model` / `analyzer_model`（= `<model-name>`）と `runs_per_configuration`（= `3`）をハードコードしており、これらを設定する CLI 引数は無い。生成後に手動で実値へ直してからコミットする:
-
-- `benchmark.json` / `benchmark.md` の `<model-name>` を実際のモデル名（例: `claude-opus-4-8`）に置換する（モデル名は秘匿情報ではないのでマスクしない）。
-- `runs_per_configuration` と `benchmark.md` ヘッダの「N runs each per configuration」を実際の run 数に合わせる。
-
-model・reasoning effort・CLI / harness version の一次情報は各 run の `result.json` / `timing.json` にある。異なる executor や model の run を同じ母集団へ集計せず、iteration を分ける。
+- **判定は assertion テキストをキーにして突き合わせる。** 位置配列（`[true, ...]` /
+  `[[passed, evidence], ...]`）と `text` を持たない要素は受理しない（exit 2）。
+  `grading.json` は `expectations: [{text, passed, evidence}]` か
+  `verdicts: {"<assertion テキスト>": {passed, evidence}}` のどちらでもよい。
+- **assertion テキストの正本は各 run の `eval_metadata.json`**（run 時点の宣言）。`evals.json` から採らない
+  ——後から assertion を変えると過去の記録のテキストがずれる。出力の `expectations` はこの宣言順に並ぶ。
+- キー集合の不一致（判定の無い assertion・宣言に無い判定）、テキストの重複、`summary` と採点内訳の食い違いは exit 2。
+- `runs_per_configuration` は成果物から数える（手で直す運用に戻さない）。`eval × configuration` の run 数が
+  揃っていない、`timing.json` の executor / model / effort が混ざっている場合は exit 2（iteration を分ける）。
+- 採点の無い run（汚染・`invalid_run` で `grading.json` を置かなかった run）は既定で exit 2。除外して進めるなら
+  `--ungraded skip` を付け、**除外した件数とパスを `--notes-file` の備考に残す**。
+- `notes` は文章なのでスクリプトが作らない。`--notes-file`（1 行 1 note のテキスト、または文字列配列の JSON）で渡す。
+- 既存の `benchmark.json` は `--force` なしに上書きしない（手で足した備考を消さないため）。
+- `time_seconds` / `tokens` は `timing.json`、`tool_calls` / `errors` は `outputs/metrics.json` から採る。
+  model・reasoning effort・CLI / harness version の一次情報も各 run の `result.json` / `timing.json` にある。
+- `benchmark.md` は人が書く（このスクリプトは `benchmark.json` だけを作る）。テスト結果にローカル絶対パスや
+  ユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 
 スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
 

@@ -1,5 +1,9 @@
 # replace-strategy の回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 テストケースは [`evals.json`](evals.json)。実行・採点・集計の共通手順は `docs/skill-development.md`「回帰テストを実行する」に従う。
 
 ## 前提
@@ -199,4 +203,4 @@ scripts/run-skill-eval.sh \
   確認ダイアログは `pending_decisions` へ落として「保留 2 件を setup 完了報告に列挙する」と締めた。
   assertion 1 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

@@ -80,6 +80,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HAS_OUTDATED: ${{ steps.detect.outputs.has_outdated }}
+          # 照会の正本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、
+          # ここはその正本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。
+          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh
         run: |
           # `detect` は true / false のどちらかを必ず書く。それ以外（未設定・別表記）は
           # 「検出が壊れた」なので、`!= true` で閉じる側＝「全ツール最新」という結論へ
@@ -96,104 +99,13 @@ jobs:
           # タイムゾーンに依存しない値になる。
           title="$ISSUE_TITLE_PREFIX ($(date -u +%F))"
 
-          # 追跡 Issue は 1 本だけ。タイトルへ更新日が入るので完全一致では引けない。
-          # **素の前方一致にはしない**——接頭辞で始まるだけの無関係な Issue まで拾い、
-          # それを毎週上書きしてしまう。接頭辞を外した残りが「空」か「 (YYYY-MM-DD)」
-          # であることまで確かめる。空を受理するのは、日付を入れる前に作られた既存の
-          # 追跡 Issue を引き継いでリネームするため。
-          #
-          # `gh issue list` の既定は 30 件までなので、open Issue の多いリポジトリでは
-          # 既定のままだと取りこぼして毎週新しい Issue を作る。`--search` で母数を絞る。
-          # `| head -n1` は使わない——書き手より先に読み手が閉じると pipefail が
-          # 「見つからなかった」に化ける。タイトルは jq の `env` 経由で渡し、引用符や
-          # 正規表現のメタ文字を含む値でも壊れないようにする（接頭辞側は文字列比較）。
-          #
-          # **0 件なら `--search` 無しでもう一度引く。** 検索インデックスは結果整合なので、
-          # Issue を作成・リネームした直後に workflow_dispatch で再実行すると未反映で
-          # 「無い」と答え、2 本目を立ててしまう（一覧 API は即時反映）。
-          #
-          # フォールバックが埋めるのは**この未反映の窓だけ**。その窓では対象が最も新しい
-          # Issue なので、作成日降順の先頭 100 件に必ず入る。一方、古い追跡 Issue を検索が
-          # 返さないケース（インデックス障害等）は、open Issue が 100 件を超えるリポジトリでは
-          # フォールバックでも拾えない。その可能性は**新規作成する分岐でだけ**警告する
-          # （取りこぼしが害になるのは重複を作る経路だけ。何もしない分岐で鳴らすと、
-          # 追跡 Issue が無い正常な定常状態で毎週ノイズが出る）。
-          #
-          # 走査件数は同じ呼び出しの中で `scanned=N` として先頭行に出す。件数を別の API で
-          # 引き直すと、2 回の呼び出しの間に open 数が動いて判定と根拠がずれる。
-          #
-          # 追加の 1 往復が走るのは一致 0 件のとき——つまり追跡 Issue が無い期間の定常 run でも
-          # 毎回走る。1 回の GET なので許容する。
-          # 取得上限は 1 箇所で決める。打ち切り判定の閾値と別リテラルにすると、片方だけ
-          # 上げたときに誤警告（打ち切っていないのに鳴る）と検出漏れの両方が起きる。
-          list_limit=100
-          # pagination-ok: --search が母数を絞る。フォールバックは --limit で母数を明示し、
-          # 上限に張り付いたら警告する（打ち切りを成功へ倒さない）。
-          # **`state` は返ってきた値で確かめる。** `--search` の `is:open` はインデックス側の
-          # 評価なので、閉じた直後の Issue が open として返る（結果整合は偽陰性だけでなく
-          # 偽陽性にも振れる）。素通りさせると closed な Issue にリネームとコメントを当て、
-          # その週のレポートが閉じた Issue へ積まれる（`gh` はどちらも成功する）。
-          find_tracking_issues() {
-            gh issue list --state open --limit "$list_limit" "$@" \
-              --json number,title,state \
-              --jq '(["scanned=" + (length | tostring)]
-                     + ([ .[]
-                          | select(.state == "OPEN")
-                          | select(.title | startswith(env.ISSUE_TITLE_PREFIX))
-                          | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)
-                                   | test("^( \\([0-9]{4}-[0-9]{2}-[0-9]{2}\\))?$"))
-                          | .number ] | sort | map(tostring)))
-                    | .[]'
-          }
-          # 先頭行の `scanned=N` と、それ以降の Issue 番号を分けて読む。
-          read_matches() {
-            scanned=0
-            numbers=()
-            while IFS= read -r line; do
-              case "$line" in
-              "") continue ;;
-              scanned=*) scanned="${line#scanned=}" ;;
-              *) numbers+=("$line") ;;
-              esac
-            done <<<"$1"
-          }
-          # **`gh` の失敗を「追跡 Issue が無い」へ倒さない。** `$( )` を**代入**に置けば
-          # `set -e` が拾うが、**関数の引数**に置くとその終了コードは捨てられる（実測）。
-          # 捨てると、secondary rate limit（403）や 5xx を踏んだ週に「0 件」と読んで
-          # 既存 Issue を残したまま 2 本目を作り、run は緑で終わる。
-          # 出力と終了コードを分けて受け、非 0 はここで落とす（fail-closed）。
-          query_tracking_issues() {
-            local out
-            if ! out="$(find_tracking_issues "$@")"; then
-              echo "gh issue list が失敗した。追跡 Issue を取り違えないようジョブを落とす" >&2
-              return 1
-            fi
-            read_matches "$out"
-          }
-          query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title"
-          # **どちらの照会が打ち切られても、窓の外に本物が残りうる。** 1 本の flag にまとめる。
-          # `scanned` は照会が返した件数であって接頭辞一致の件数ではない（接頭辞の判定は jq 側）
-          # ——警告文でもそう書く。
-          truncated=false
-          if [ "$scanned" -ge "$list_limit" ]; then
-            truncated=true
-          fi
-          if [ "${#numbers[@]}" -eq 0 ]; then
-            query_tracking_issues
-            if [ "$scanned" -ge "$list_limit" ]; then
-              truncated=true
-            fi
-            if [ "${#numbers[@]}" -gt 0 ]; then
-              echo "検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）" >&2
-            fi
-          fi
-          # **鳴らすのは「実際に Issue を触った分岐」だけ。** 何もしない分岐で鳴らすと、
-          # 追跡 Issue が無い正常な定常状態で毎週ノイズになる（害が出るのは触ったときだけ）。
-          warn_if_truncated() {
-            if [ "$truncated" = true ]; then
-              echo "::warning::open Issue の照会が ${list_limit} 件で打ち切られた。$1"
-            fi
-          }
+          # 追跡 Issue の照会（接頭辞での照合・フォールバック・打ち切り判定・fail-closed）は
+          # `kaizen-schedule.yml` と共通なので、正本は同梱スクリプト 1 本だけに置く。
+          # `numbers` / `scanned` / `truncated` と `warn_if_truncated` はそこで定義される。
+          # shellcheck source=/dev/null
+          . "$TRACKING_LIB"
+          resolve_tracking_issues
+
           number="${numbers[0]-}"
           # 複数見つかるのは手動で作られた等の異常。黙って先勝ちにせず件数と番号を出す。
           # **ここでは何をするかを書かない**——分岐によって扱いが違う（更新は最も古い 1 本だけ、

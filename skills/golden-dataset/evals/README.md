@@ -1,5 +1,9 @@
 # golden-dataset の回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 テストケースは [`evals.json`](evals.json)。実行・採点・集計の共通手順は `docs/skill-development.md`「回帰テストを実行する」に従う。
 
 ## 前提
@@ -74,4 +78,4 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   取得できないときに待たず非 0 で終える形にも、排他が効くことの実測にも届かない。空の表を読む害も「比較が成立しない」までで、
   **空を正解として緑で通る**形は説明しない。冪等性と同時実行の区別（assertion 1）と読み手との衝突（assertion 6）は baseline も自力で到達するので後退検知の項目として残す
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

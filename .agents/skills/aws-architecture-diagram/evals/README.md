@@ -1,5 +1,9 @@
 # 回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 `aws-architecture-diagram` スキルの動作をテストケースで検証する手順。
 
 ## ファイル構成
@@ -64,14 +68,11 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 ### 3. 結果を集計する
 
 ```bash
-# skill-creator のインストール先を自動検索（ユーザーレベル・プロジェクトレベルの両方を探索）
-SKILL_CREATOR=$(find ~/.claude/skills .claude/skills .agents/skills -maxdepth 1 -name skill-creator -type d 2>/dev/null | head -1)
-
-cd "$SKILL_CREATOR"
-python -m scripts.aggregate_benchmark \
-  /path/to/tests/aws-architecture-diagram/iteration-N \
+node scripts/build-skill-eval-benchmark.js tests/aws-architecture-diagram/iteration-N \
   --skill-name aws-architecture-diagram \
-  --skill-path '<repo>/skills/aws-architecture-diagram'
+  --skill-path '<repo>/skills/aws-architecture-diagram' \
+  --executor-model <model-id> \
+  --analyzer-model <model-id>
 ```
 
 ### 4. 前回との比較

@@ -1,0 +1,227 @@
+{
+  "$comment": [
+    "check-mutation-proof.test.js の検出能力を示す変異の一覧（Issue #420）。",
+    "変異実行器が自分自身を変異させる: 親は読み込み済みのコードで走り、テストが起動する子プロセスが変異版を使う。"
+  ],
+  "test_file": "scripts/check-mutation-proof.test.js",
+  "mutations": [
+    {
+      "id": "NOT-APPLIED",
+      "why": "当たらなかった変異（出現数の不一致）を成功に倒す",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (hits !== mutation.occurrences) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "変異の判定 置換が 1 件も当たらない変異は FAIL（成功に倒さない）",
+        "変異の判定 宣言した出現数と食い違う変異は FAIL"
+      ]
+    },
+    {
+      "id": "EXTRA",
+      "why": "宣言外で落ちたテストを見ない（帰属のずれを通す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  const extra = sorted([...run.failed].filter((n) => !expected.has(n)));",
+      "replace": "  const extra = [];",
+      "occurrences": 1,
+      "expect_failing": ["変異の判定 宣言外のテストまで落ちる変異は FAIL（帰属のずれ）"]
+    },
+    {
+      "id": "NAME-CHECK",
+      "why": "expect_failing のテスト名が実在するかを見ない",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      const unknown = m.expect.filter((name) => !baseline.results.has(name));",
+      "replace": "      const unknown = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 実在しないテスト名を宣言したら exit 2"
+      ]
+    },
+    {
+      "id": "BASELINE",
+      "why": "基準 run が緑であることを確かめない",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (baseline.failed.size > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 基準 run が緑でなければ exit 2"]
+    },
+    {
+      "id": "LIVE-LOCK",
+      "why": "生きている実行のロックも残骸として奪う",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      if (Number.isInteger(pid) && pid > 0 && alive(pid)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 別の実行が変異を当てている間は落ちる"
+      ]
+    },
+    {
+      "id": "ONLY-SPAN",
+      "why": "--only で選ばれなかった宣言を飛ばさず落とす（宣言が 2 件以上あると常に exit 2）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (targeted.length === 0) continue;",
+      "replace": "    if (targeted.length === 0) die(\"--only で 1 件も選ばれなかった\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）",
+        "宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る"
+      ]
+    },
+    {
+      "id": "ONLY-UNMATCHED",
+      "why": "どの宣言にも無い --only の id を黙って無視する（実証していない変異を実証済みと読む）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (unmatched.length) die(",
+      "replace": "    if (false) die(",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --only でどの変異も選ばれなければ exit 2"
+      ]
+    },
+    {
+      "id": "LOCK-READ",
+      "why": "ロックの読み取りを try/catch から外す（一過性の失敗が未処理例外になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      let pid = NaN;\n      try {\n        pid = Number(readFileSync(lockPath, \"utf8\").trim());\n      } catch (readErr) {\n        if (readErr.code !== \"ENOENT\") {\n          die(`ロック（${lockPath}）を読めない: ${readErr.message}`);\n        }\n      }\n",
+      "replace": "      const pid = Number(readFileSync(lockPath, \"utf8\").trim());\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） ロックの読み取りが ENOENT 以外で失敗したら exit 2（stack trace にしない）"
+      ]
+    },
+    {
+      "id": "SPAWN-ERROR",
+      "why": "spawn 自体の失敗を exit 2 に倒さない（環境起因の失敗を実証の失敗に混ぜる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (res.error) {\n      die(`vitest を起動できない: ${res.error.message}`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） vitest を起動できなければ exit 2（理由を捨てない）"
+      ]
+    },
+    {
+      "id": "CHILD-GUARD",
+      "why": "子 vitest へ MUTATION_PROOF_CHILD を渡さない（globalSetup が使用中の fixture を消す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "        env: { ...process.env, MUTATION_PROOF_CHILD: \"1\" },\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 子 vitest の掃引を止めるので、使用中の fixture が消えない"
+      ]
+    },
+    {
+      "id": "SPEC-SHAPE",
+      "why": "宣言ファイルの形を検査しない（壊れた宣言が exit 1 =実証失敗に化ける）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (typeof raw !== \"object\" || raw === null || Array.isArray(raw)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 宣言が \"文字列\" なら exit 2（stack trace にしない）",
+        "宣言と前提の検証（走らせる前に落とす） 宣言が [] なら exit 2（stack trace にしない）",
+        "宣言と前提の検証（走らせる前に落とす） 宣言が null なら exit 2（stack trace にしない）"
+      ]
+    },
+    {
+      "id": "DUP-NAMES",
+      "why": "テスト名の重複を検出しない（名前で合否を判定する前提が黙って破れる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (duplicated.length > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） テスト名が重複していたら exit 2"]
+    },
+    {
+      "id": "RECOVERY",
+      "why": "前回の中断で残った変異を戻さない（残った変異を基準 run が測る）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  recoverFromInterrupted();",
+      "replace": "  // recoverFromInterrupted();",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 前回の中断で残った変異を次回起動で戻す",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報と作業ツリーが食い違えば自動で戻さず exit 2",
+        "宣言と前提の検証（走らせる前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2"
+      ]
+    },
+    {
+      "id": "RECOVERY-SHAPE",
+      "why": "復元情報の形を検査しない（壊れた記録で黙って続ける）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    typeof saved?.file !== \"string\" ||\n    typeof saved?.before !== \"string\" ||\n    typeof saved?.after !== \"string\"\n",
+      "replace": "    false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報が壊れていれば exit 2（黙って続けない）"
+      ]
+    },
+    {
+      "id": "RECOVERY-MATCH",
+      "why": "変異後の内容と一致しなくても戻す（中断後の編集を上書きする）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  } else if (current === saved.after) {",
+      "replace": "  } else if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報と作業ツリーが食い違えば自動で戻さず exit 2"
+      ]
+    },
+    {
+      "id": "RECOVERY-BOUNDARY",
+      "why": "書き戻し先の repoRoot 境界検査を外す（植え付けた記録で任意のファイルを上書き）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (!target.startsWith(repoRoot + \"/\")) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2"
+      ]
+    },
+    {
+      "id": "CHANGED-FAILCLOSED",
+      "why": "差分が取れない失敗を「変更なし」に倒す（当たる宣言を 1 件も測らず緑になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (res.status !== 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 差分を取れなければ exit 2"]
+    },
+    {
+      "id": "CHANGED-RUNNER",
+      "why": "実行器が変わっても全宣言へ広げない（判定の仕組みが変わったのに旧実証で通す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (changed.has(runnerPath)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る"]
+    },
+    {
+      "id": "CHANGED-HITS",
+      "why": "当たり判定を常に真にする（差分の外の宣言まで測って PR のコストが戻る）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (hits.length > 0) {",
+      "replace": "    if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 対象ファイルが変わった宣言だけを選ぶ",
+        "宣言と前提の検証（走らせる前に落とす） 差分に当たらない宣言は飛ばし、理由を印字する"
+      ]
+    },
+    {
+      "id": "CHANGED-EXCLUSIVE",
+      "why": "--changed-since と宣言指定の併用を許す（選び方が二重になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (files.length > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --changed-since と宣言ファイルの指定は併用できない"
+      ]
+    }
+  ]
+}

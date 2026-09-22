@@ -1,5 +1,9 @@
 # current-environment-bootstrap の回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 テストケースは [`evals.json`](evals.json)。実行・採点・集計の共通手順は `docs/skill-development.md`「回帰テストを実行する」に従う。
 
 ## 前提
@@ -82,4 +86,4 @@ scripts/run-skill-eval.sh \
   **この executor では弁別せず後退検知として機能する**。Delta を読むときは executor 別に扱う。
 
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json` / `benchmark.md`）は skill-creator 同梱の `aggregate_benchmark` を使う（詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

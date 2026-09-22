@@ -1,5 +1,9 @@
 # git-worktree の回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 `docs/skill-development.md` の隔離手順に従い、with-skill / without-skill を同じ prompt・同じモデル条件で実行する。
 
 ```bash
