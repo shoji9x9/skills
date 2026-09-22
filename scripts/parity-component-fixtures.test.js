@@ -27,6 +27,7 @@ const cssRules = await import(
   join(repoRoot, "skills/parity-component/scripts/css-rules-capture.mjs")
 );
 const axisDiff = await import(join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs"));
+const elementShot = await import(join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs"));
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const TEMPLATE = readJson(join(repoRoot, "skills/parity-component/assets/metadata-template.json"));
@@ -52,6 +53,18 @@ function checkComponent(dir) {
   const tools = meta.capture.tools;
   if (tools.traits_version !== traitCapture.VERSION) {
     problems.push(`traits_version ${tools.traits_version} ≠ ${traitCapture.VERSION}`);
+  }
+  // element-shot.mjs の版も突き合わせる。build 手順 1 のツール版判定がこの値を読むので、
+  // 欠けていると eval が実装の分岐へ届かず前段で止まる。
+  if (tools.element_shot_version !== elementShot.VERSION) {
+    problems.push(`element_shot_version ${tools.element_shot_version} ≠ ${elementShot.VERSION}`);
+  }
+  // テンプレートはコピー先のパスも記録させる（`traits` と対）。版だけ埋めて経路を書かない
+  // 採取物を fixture が手本にしてしまうため、パス側も揃っていることを検査する。
+  for (const key of ["traits", "element_shot"]) {
+    if (typeof tools[key] !== "string" || tools[key] === "") {
+      problems.push(`capture.tools.${key} にコピー先のパスが無い`);
+    }
   }
   if (tools.css_rules_version !== cssRules.VERSION) {
     problems.push(`css_rules_version ${tools.css_rules_version} ≠ ${cssRules.VERSION}`);
@@ -250,6 +263,7 @@ const componentDirs = readdirSync(fixturesRoot)
 test("baseline を持つ fixture を見つけている（検査対象が 0 件で緑にしない）", () => {
   expect(componentDirs.map((d) => d.slice(fixturesRoot.length + 1)).sort()).toEqual([
     "breaking-change-request/.replace/components/button",
+    "cascade-conflict/.replace/components/button",
     "catalog-unset/.replace/components/button",
   ]);
 });
@@ -276,10 +290,25 @@ const edit = (path, mutate) => {
 
 test("陽性コントロール: 実物に無いプロパティを含む traits_property_set を検出する", () => {
   const dir = copyFixture();
-  edit(join(dir, "metadata.json"), (m) => m.capture.tools.traits_property_set.push("box-shadow"));
+  // 実物の FIXED_PROPERTIES に無い名前を選ぶ（集合に足された名前を使うと、重複で長さが変わる
+  // せいで通ってしまい、「実物に無い名前を検出した」ことの証拠にならない）。
+  edit(join(dir, "metadata.json"), (m) => {
+    expect(m.capture.tools.traits_property_set).not.toContain("letter-spacing");
+    m.capture.tools.traits_property_set.push("letter-spacing");
+  });
   expect(checkComponent(dir)).toContain(
     "traits_property_set が trait-capture.mjs の FIXED_PROPERTIES と一致しない",
   );
+});
+
+test("陽性コントロール: 記録されていない element_shot_version を検出する", () => {
+  const dir = copyFixture();
+  edit(join(dir, "metadata.json"), (m) => {
+    // 「値が違う」ではなく「キーごと無い」形で壊す。element-shot.mjs は今回の追加なので、
+    // 既存の fixture がキーを持たないまま通り抜けるのがいちばん起きやすい壊れ方。
+    delete m.capture.tools.element_shot_version;
+  });
+  expect(checkComponent(dir)).toContain(`element_shot_version undefined ≠ ${elementShot.VERSION}`);
 });
 
 test("陽性コントロール: 計算値と食い違う規則の宣言を検出する", () => {

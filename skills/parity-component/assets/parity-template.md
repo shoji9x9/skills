@@ -7,7 +7,8 @@
 - 対象 slug: （`.replace/components.md` の slug）
 - 新側 target: （`side: new` の target 名。証跡は環境別に `new/<target>/build-metadata.json`）
 - 基準の採取条件: （`metadata.json` の `capture_conditions` を指す。ここへ転記しない）
-- 採取ツール版の一致: （trait-capture / css-rules-capture の `VERSION` が `metadata.json` の記録値と一致したか。不一致なら比較へ進まず両側を採り直す）
+- 採取ツール版の一致: （trait-capture / element-shot / css-rules-capture の `VERSION` が `metadata.json` の記録値と一致したか。不一致なら比較へ進まず両側を採り直す）
+- 画素比較の実行可否: （寸法不一致で実行不能だったセルの件数。**0 件でないなら許容に数えず**、両側を element-shot.mjs で撮り直したか、本物の寸法差として特性照合で扱ったかを書く）
 
 ## カタログ側の自己ノイズ
 

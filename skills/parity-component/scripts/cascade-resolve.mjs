@@ -1,0 +1,662 @@
+// 採取した CSS 規則のカスケード解決（正本）。
+// **プロジェクトへコピーせずスキル配下からそのまま実行する**（css-rules-capture.mjs と同じ規約）。
+//
+// 何をするか: `css-rules.json`（css-rules-capture.mjs の出力）を読み、プロパティ × 擬似要素ごとに
+// **実際に勝っている宣言を 1 つに確定**する。優先順位は CSS のカスケード順で、
+//   1. インラインの `!important`
+//   2. 規則の `!important`（レイヤ間の順序は**逆転**する）
+//   3. インラインの非 `!important`
+//   4. 規則の非 `!important`（後のレイヤが勝つ。レイヤ無しが最も強い）
+// 同じ段の中では 詳細度 → 出現順（`order` の大きい方が後勝ち）で決める。
+//
+// なぜ要るか: `matched` を読むだけでは足りない。同じプロパティに複数のスタイルシートが
+// 競合する宣言を持つ構成（基礎スタイルシート → テーマ層 → 個別テーマの順に読み込み、後段が
+// 同一セレクタ・同一プロパティを再宣言して上書きする）では、**最初に見つかった宣言を採ると
+// 実際の描画と逆の実装になる**。`feedback-message` の閉じるボタン（`top` が 0 → 2px → 5px、
+// グリフの不透明度が不透明 → alpha≈0.5）と `radio-button` の外側の輪（inset の影 → `none`）が
+// この形で実装に残っていた。インライン値が `!important` 付き規則に負ける形（`width: 10px` の
+// インラインが `.SearchBoxButton { width: 25px !important }` に負ける）も同じ（Issue #433）。
+//
+// fail-closed: 「勝者を 1 つに決められない」ことを黙って最初の宣言に倒さない。次は `undecidable`
+// として理由付きで残し、exit 1 にする（利用者は現行の CSS を直接読んで確定する）:
+//   - セレクタの詳細度を機械的に決められない（トップレベルのカンマ＝どの枝が当たったか不明、
+//     未解決の `&`、読めないトークン）
+//   - 競合する候補が**別のカスケードレイヤ**にある（レイヤの宣言順は `css-rules.json` に無く、
+//     `layers` の名前だけからは前後を決められない）
+//   - 条件付き（`@media` / `@supports` / `@container`）の候補が勝ちうる。css-rules-capture.mjs は
+//     条件を**評価せず記録するだけ**なので、当たっているかどうかはこの入力から決まらない
+//
+// 状態は入力から決まらない: `css-rules.json` は状態ごとに別ファイルだが、ファイル自身は
+// どの状態で採ったかを持たない（`baseline/<instance>/<state>/` のディレクトリ名が持つ）。
+// `matched` には他の状態でだけ当たる規則（`states: ["hover"]` 等）も並ぶため、**`--state` は必須**にする。
+// `--state default` は「追加の状態擬似クラス無しで当たる規則だけ」を意味する。
+//
+// 何を決めないか: これは**合否判定ではない**。勝者を決めるのは実装時に「何を写すのか」を
+// 確定するためで、現新の差分は画素比較と特性照合が出す（css-rules-capture.mjs と同じ分担）。
+//
+// 決定論的: 乱数・現在時刻・ネットワークに依存しない。TypeScript 構文は使わない（型は JSDoc）。
+
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+/**
+
+* ツールのバージョン（正本）。優先順位の規則・出力形状・fail-closed の条件を変えたら上げる。
+* @type {string}
+ */
+export const VERSION = "1";
+
+/** 入力として受け付ける css-rules-capture.mjs の `tool_version`（採取スキーマが違う入力は読まない）。 */
+export const SUPPORTED_CSS_RULES_VERSIONS = ["4"];
+
+/** 単一コロンで書ける歴史的な擬似要素（詳細度は擬似要素として数える）。 */
+const LEGACY_PSEUDO_ELEMENTS = new Set(["before", "after", "first-line", "first-letter"]);
+
+/** 引数の中で最も詳細度の高い枝をそのまま採る擬似クラス。 */
+const MAX_OF_ARGUMENT = new Set(["is", "not", "has", "matches", "-moz-any", "-webkit-any", "any"]);
+
+/** 詳細度に寄与しない擬似クラス。 */
+const ZERO_SPECIFICITY = new Set(["where"]);
+
+class UsageError extends Error {}
+
+/** 詳細度を機械的に決められないときに投げる。 */
+export class UndecidableSelector extends Error {}
+
+/**
+
+* セレクタ文字列の詳細度 [id, class, type] を数える。
+* 決められない形は `UndecidableSelector` を投げる（推測で数えない）。
+* @param {string} selector
+* @returns {[number, number, number]}
+ */
+export function specificity(selector) {
+  if (typeof selector !== "string" || selector.trim() === "") {
+    throw new UndecidableSelector("selector is empty");
+  }
+  const counts = [0, 0, 0];
+  let i = 0;
+  const s = selector;
+
+  const skipIdent = (start) => {
+    let j = start;
+    if (j >= s.length) throw new UndecidableSelector(`identifier expected at ${start}`);
+    while (j < s.length) {
+      const ch = s[j];
+      if (ch === "\\") {
+        j += 2;
+        continue;
+      }
+      if (/[-\w -￿]/.test(ch)) {
+        j += 1;
+        continue;
+      }
+      break;
+    }
+    if (j === start) throw new UndecidableSelector(`identifier expected at ${start}`);
+    return j;
+  };
+
+  /** 対応する閉じ括弧の位置（開き括弧を含む入れ子・文字列を飛ばす）。 */
+  const matchClose = (start, open, close) => {
+    let depth = 0;
+    let j = start;
+    while (j < s.length) {
+      const ch = s[j];
+      if (ch === "\\") {
+        j += 2;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        j = skipString(j);
+        continue;
+      }
+      if (ch === open) depth += 1;
+      else if (ch === close) {
+        depth -= 1;
+        if (depth === 0) return j;
+      }
+      j += 1;
+    }
+    throw new UndecidableSelector(`unbalanced ${open} in selector`);
+  };
+
+  const skipString = (start) => {
+    const quote = s[start];
+    let j = start + 1;
+    while (j < s.length) {
+      if (s[j] === "\\") {
+        j += 2;
+        continue;
+      }
+      if (s[j] === quote) return j + 1;
+      j += 1;
+    }
+    throw new UndecidableSelector("unterminated string in selector");
+  };
+
+  /** トップレベルのカンマで分割する（入れ子の括弧・文字列の中は分割しない）。 */
+  const splitTopLevel = (text) => {
+    const parts = [];
+    let depth = 0;
+    let start = 0;
+    let j = 0;
+    while (j < text.length) {
+      const ch = text[j];
+      if (ch === "\\") {
+        j += 2;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        j += 1;
+        while (j < text.length && text[j] !== quote) j += text[j] === "\\" ? 2 : 1;
+        j += 1;
+        continue;
+      }
+      if (ch === "(" || ch === "[") depth += 1;
+      else if (ch === ")" || ch === "]") depth -= 1;
+      else if (ch === "," && depth === 0) {
+        parts.push(text.slice(start, j));
+        start = j + 1;
+      }
+      j += 1;
+    }
+    parts.push(text.slice(start));
+    return parts;
+  };
+
+  const add = (other) => {
+    counts[0] += other[0];
+    counts[1] += other[1];
+    counts[2] += other[2];
+  };
+
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === "\\") {
+      // エスケープされた先頭文字は型セレクタの一部として数える。
+      counts[2] += 1;
+      i = skipIdent(i);
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      i = skipString(i);
+      continue;
+    }
+    if (/\s/.test(ch) || ch === ">" || ch === "+" || ch === "~" || ch === "|") {
+      i += 1;
+      continue;
+    }
+    if (ch === ",") {
+      // どの枝が当たったかは css-rules.json に無い（matched は規則単位で、枝は記録されない）。
+      throw new UndecidableSelector(
+        "selector is a selector list; which branch matched is not recorded",
+      );
+    }
+    if (ch === "&") {
+      throw new UndecidableSelector("selector still contains an unresolved nesting `&`");
+    }
+    if (ch === "*") {
+      i += 1;
+      continue;
+    }
+    if (ch === "#") {
+      counts[0] += 1;
+      i = skipIdent(i + 1);
+      continue;
+    }
+    if (ch === ".") {
+      counts[1] += 1;
+      i = skipIdent(i + 1);
+      continue;
+    }
+    if (ch === "[") {
+      counts[1] += 1;
+      i = matchClose(i, "[", "]") + 1;
+      continue;
+    }
+    if (ch === ":") {
+      const doubled = s[i + 1] === ":";
+      const nameStart = i + (doubled ? 2 : 1);
+      const nameEnd = skipIdent(nameStart);
+      const name = s.slice(nameStart, nameEnd).toLowerCase();
+      let argument = null;
+      let next = nameEnd;
+      if (s[nameEnd] === "(") {
+        const close = matchClose(nameEnd, "(", ")");
+        argument = s.slice(nameEnd + 1, close);
+        next = close + 1;
+      }
+      if (doubled || LEGACY_PSEUDO_ELEMENTS.has(name)) {
+        counts[2] += 1;
+        i = next;
+        continue;
+      }
+      if (ZERO_SPECIFICITY.has(name)) {
+        i = next;
+        continue;
+      }
+      if (MAX_OF_ARGUMENT.has(name)) {
+        if (argument === null || argument.trim() === "") {
+          throw new UndecidableSelector(`:${name}() has no argument`);
+        }
+        let best = null;
+        for (const branch of splitTopLevel(argument)) {
+          if (branch.trim() === "") throw new UndecidableSelector(`:${name}() has an empty branch`);
+          const value = specificity(branch.trim());
+          if (best === null || compareSpecificity(value, best) > 0) best = value;
+        }
+        add(best);
+        i = next;
+        continue;
+      }
+      if (argument !== null && /\bof\b/i.test(argument)) {
+        // `:nth-child(2n of .a)` は引数側の詳細度を足すが、`of` の中身をここでは数えない。
+        throw new UndecidableSelector(`:${name}() uses the \`of\` form; resolve it by hand`);
+      }
+      counts[1] += 1;
+      i = next;
+      continue;
+    }
+    if (/[-\w -￿]/.test(ch)) {
+      counts[2] += 1;
+      i = skipIdent(i);
+      continue;
+    }
+    throw new UndecidableSelector(`unreadable token ${JSON.stringify(ch)} at ${i}`);
+  }
+  return /** @type {[number, number, number]}*/ (counts);
+}
+
+/**
+
+* 詳細度を比較する（a が強ければ正）。
+* @param {[number,number,number]} a
+* @param {[number,number,number]} b
+* @returns {number}
+ */
+export function compareSpecificity(a, b) {
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return 0;
+}
+
+/**
+
+* 候補を 1 件に畳む（同じ段・同じレイヤの中での勝者）。詳細度 → order の後勝ち。
+* @param {any[]} candidates
+* @returns {any}
+ */
+function strongest(candidates) {
+  let best = candidates[0];
+  for (const c of candidates.slice(1)) {
+    // インラインの候補は詳細度を持たない（`specificity: null`）。同じ段に並ぶのはインライン同士か
+    // 規則同士のどちらかなので、null が混じる比較は引き分けにして出現順（後勝ち）で決める。
+    // ここで compareSpecificity へ null を渡すと TypeError になり、UsageError の exit 2 ではなく
+    // 素のクラッシュになる（同じプロパティのインライン宣言が 2 件並ぶ入力で起きる）。
+    const bySpec =
+      c.specificity === null || best.specificity === null
+        ? 0
+        : compareSpecificity(c.specificity, best.specificity);
+    if (bySpec > 0 || (bySpec === 0 && c.order >= best.order)) best = c;
+  }
+  return best;
+}
+
+/**
+
+* `css-rules.json` の内容を読み、プロパティ × 擬似要素ごとに勝者を確定する。
+*
+* @param {any} document - css-rules.json をパースしたもの
+* @param {{ states: string[], properties?: string[]|null, source?: string }} options
+* states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同義）
+* properties: 解決するプロパティ名（省略時は候補に現れる全プロパティ）
+* @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
+*             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
+
+ */
+export function resolveCascade(document, options) {
+  if (document === null || typeof document !== "object" || Array.isArray(document)) {
+    throw new UsageError("css-rules.json must be a JSON object");
+  }
+  if (!Array.isArray(document.matched)) {
+    throw new UsageError("css-rules.json has no `matched` array (is it css-rules-capture output?)");
+  }
+  const toolVersion = typeof document.tool_version === "string" ? document.tool_version : null;
+  if (toolVersion === null || !SUPPORTED_CSS_RULES_VERSIONS.includes(toolVersion)) {
+    throw new UsageError(
+      `css-rules.json tool_version ${JSON.stringify(toolVersion)} is not supported` +
+        `(supported: ${SUPPORTED_CSS_RULES_VERSIONS.join(", ")}); re-capture with the bundled css-rules-capture.mjs`,
+    );
+  }
+  const inline = Array.isArray(document.inline_declarations) ? document.inline_declarations : null;
+  if (inline === null) {
+    throw new UsageError(
+      "css-rules.json has no `inline_declarations` (captured with tool_version 1); re-capture",
+    );
+  }
+
+  const active = new Set(options.states.filter((s) => s !== "default"));
+  /** @type {Map<string, any>} key = `${pseudo}\u0000${property}` */
+  const buckets = new Map();
+  const bucket = (pseudo, property) => {
+    const key = `${pseudo === null ? "" : pseudo}\u0000${property}`;
+    let entry = buckets.get(key);
+    if (entry === undefined) {
+      entry = {
+        property,
+        pseudo_element: pseudo,
+        applying: [],
+        conditional: [],
+        state_gated: 0,
+        reasons: [],
+      };
+      buckets.set(key, entry);
+    }
+    return entry;
+  };
+
+  for (const rule of document.matched) {
+    const states = Array.isArray(rule.states) ? rule.states : [];
+    const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
+    const layers = Array.isArray(rule.layers) ? rule.layers : [];
+    const declarations = Array.isArray(rule.declarations) ? rule.declarations : [];
+    const gated = states.some((state) => !active.has(state));
+    let spec = null;
+    let specError = null;
+    try {
+      spec = specificity(String(rule.selector));
+    } catch (err) {
+      if (!(err instanceof UndecidableSelector)) throw err;
+      specError = err.message;
+    }
+    for (const decl of declarations) {
+      if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
+      const entry = bucket(rule.pseudo_element ?? null, decl.property);
+      if (gated) {
+        entry.state_gated += 1;
+        continue;
+      }
+      const candidate = {
+        source: "rule",
+        selector: rule.selector,
+        origin: rule.href ?? null,
+        value: decl.value,
+        important: Boolean(decl.important),
+        specificity: spec,
+        specificity_error: specError,
+        order: typeof rule.order === "number" ? rule.order : null,
+        layers,
+        conditions,
+      };
+      if (conditions.length > 0) entry.conditional.push(candidate);
+      else entry.applying.push(candidate);
+    }
+  }
+
+  for (const decl of inline) {
+    if (decl === null || typeof decl !== "object" || typeof decl.property !== "string") continue;
+    // インラインは擬似要素に効かないので、要素自身のバケットにだけ入れる。
+    const entry = bucket(null, decl.property);
+    entry.applying.push({
+      source: "inline",
+      selector: null,
+      origin: "style attribute",
+      value: decl.value,
+      important: Boolean(decl.important),
+      specificity: null,
+      specificity_error: null,
+      order: null,
+      layers: [],
+      conditions: [],
+    });
+  }
+
+  const requested = options.properties ?? null;
+  const results = [];
+  const keys = [...buckets.keys()].sort();
+  for (const key of keys) {
+    const entry = buckets.get(key);
+    if (requested !== null && !requested.includes(entry.property)) continue;
+    results.push(decide(entry));
+  }
+  if (requested !== null) {
+    const seen = new Set(results.map((r) => r.property));
+    for (const property of requested) {
+      if (seen.has(property)) continue;
+      results.push({
+        property,
+        pseudo_element: null,
+        status: "absent",
+        winner: null,
+        losers: [],
+        conditional: [],
+        state_gated: 0,
+        reasons: ["no declaration for this property in matched or inline_declarations"],
+      });
+    }
+    results.sort((a, b) => (a.property < b.property ? -1 : a.property > b.property ? 1 : 0));
+  }
+
+  const counts = { resolved: 0, undecidable: 0, absent: 0 };
+  for (const r of results) counts[r.status] += 1;
+  return {
+    source: options.source ?? null,
+    tool_version: toolVersion,
+    cascade_resolve_version: VERSION,
+    active_states: [...active].sort(),
+    results,
+    counts,
+  };
+}
+
+/**
+
+* 1 バケット（プロパティ × 擬似要素）の勝者を決める。
+* @param {any} entry
+ */
+function decide(entry) {
+  const reasons = [...entry.reasons];
+  const out = {
+    property: entry.property,
+    pseudo_element: entry.pseudo_element,
+    status: "undecidable",
+    winner: null,
+    losers: [],
+    conditional: entry.conditional,
+    state_gated: entry.state_gated,
+    reasons,
+  };
+  if (entry.applying.length === 0) {
+    if (entry.conditional.length > 0) {
+      reasons.push(
+        "only conditional (@media / @supports / @container) declarations remain; " +
+          "css-rules-capture records conditions without evaluating them, so applicability is unknown",
+      );
+      return out;
+    }
+    out.status = "absent";
+    reasons.push(
+      entry.state_gated > 0
+        ? `all ${entry.state_gated} declaration(s) need a state that is not active`
+        : "no declaration for this property",
+    );
+    return out;
+  }
+
+  const unreadable = entry.applying.filter(
+    (c) => c.source === "rule" && c.specificity_error !== null,
+  );
+  if (unreadable.length > 0) {
+    for (const c of unreadable) {
+      reasons.push(
+        `cannot read specificity of ${JSON.stringify(c.selector)}: ${c.specificity_error}`,
+      );
+    }
+    return out;
+  }
+
+  // 段（強い順）: インライン !important → 規則 !important → インライン → 規則
+  const inlineImportant = entry.applying.filter((c) => c.source === "inline" && c.important);
+  const ruleImportant = entry.applying.filter((c) => c.source === "rule" && c.important);
+  const inlineNormal = entry.applying.filter((c) => c.source === "inline" && !c.important);
+  const ruleNormal = entry.applying.filter((c) => c.source === "rule" && !c.important);
+
+  /** レイヤをまたぐ競合はここでは決められない（レイヤの宣言順が入力に無い）。 */
+  const layerSpread = (candidates) => {
+    const paths = new Set(candidates.map((c) => JSON.stringify(c.layers)));
+    return paths.size > 1;
+  };
+
+  const tiers = [
+    { name: "inline !important", candidates: inlineImportant },
+    { name: "rule !important", candidates: ruleImportant },
+    { name: "inline", candidates: inlineNormal },
+    { name: "rule", candidates: ruleNormal },
+  ];
+
+  let winner = null;
+  let winningTier = null;
+  for (const tier of tiers) {
+    if (tier.candidates.length === 0) continue;
+    if (layerSpread(tier.candidates)) {
+      reasons.push(
+        `competing ${tier.name} declarations sit in different cascade layers` +
+          `(${[...new Set(tier.candidates.map((c) => JSON.stringify(c.layers)))].join(" vs ")});` +
+          "the order in which the layers were declared is not recorded in css-rules.json",
+      );
+      return out;
+    }
+    winner = strongest(tier.candidates);
+    winningTier = tier.name;
+    break;
+  }
+
+  // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
+  const tierRank = tiers.findIndex((t) => t.name === winningTier);
+  const conditionalCouldWin = entry.conditional.some((c) => {
+    const rank = c.important ? 1 : 3;
+    if (rank < tierRank) return true;
+    if (rank > tierRank) return false;
+    if (winner.source === "inline") return true;
+    if (JSON.stringify(c.layers) !== JSON.stringify(winner.layers)) return true;
+    if (c.specificity === null) return true;
+    const bySpec = compareSpecificity(c.specificity, winner.specificity);
+    return bySpec > 0 || (bySpec === 0 && (c.order ?? 0) > (winner.order ?? 0));
+  });
+  if (conditionalCouldWin) {
+    reasons.push(
+      "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
+        "condition holds; css-rules-capture does not evaluate conditions, so this cannot be decided here",
+    );
+    return out;
+  }
+
+  out.status = "resolved";
+  out.winner = { ...winner, tier: winningTier };
+  out.losers = entry.applying.filter((c) => c !== winner);
+  return out;
+}
+
+const USAGE = [
+  "usage: cascade-resolve.mjs --css-rules <css-rules.json> --state <name> [--state <name>...]",
+  "                          [--property <name>]... [--all]",
+  "",
+  "  --state      この採取物を採ったときに成立していた状態。`default` は「状態擬似クラス無し」。",
+  "               baseline/<instance>/<state>/ の <state> をそのまま渡す（必須。推測しない）",
+  "  --property   解決するプロパティ（繰り返し可）。省略時は --all が要る。",
+  "               CSS カスタムプロパティ（--brand-color 等）もそのまま渡せる",
+  "  --all        候補に現れる全プロパティを解決する",
+  "",
+  "exit 0=全て resolved / absent、1=undecidable が 1 件以上、2=入力エラー",
+].join("\n");
+
+/**
+
+* CLI エントリ。
+* @param {string[]} argv - process.argv.slice(2)
+* @returns {number} exit code
+ */
+export function main(argv) {
+  try {
+    const FLAGS = new Set(["--css-rules", "--state", "--property", "--all"]);
+    let cssRules = null;
+    const states = [];
+    const properties = [];
+    let all = false;
+    for (let i = 0; i < argv.length; i += 1) {
+      const arg = argv[i];
+      const need = (name) => {
+        const value = argv[i + 1];
+        // CSS カスタムプロパティ（`--brand-color`）は `--property` の値として正当なので、
+        // 「`--` で始まる」だけでは弾かない（弾くと custom property の勝者を確定できない）。
+        // 取り違えを拾うため、既知のフラグ名そのものは値として受け取らない。
+        const looksLikeFlag =
+          value !== undefined &&
+          value.startsWith("--") &&
+          (name !== "--property" || FLAGS.has(value));
+        if (value === undefined || value.trim() === "" || looksLikeFlag) {
+          throw new UsageError(`${name} requires a value`);
+        }
+        i += 1;
+        return value;
+      };
+      if (arg === "--css-rules") cssRules = need(arg);
+      else if (arg === "--state") states.push(need(arg));
+      else if (arg === "--property") properties.push(need(arg));
+      else if (arg === "--all") all = true;
+      else throw new UsageError(`unknown argument ${JSON.stringify(arg)}`);
+    }
+    if (cssRules === null) throw new UsageError("--css-rules is required");
+    if (states.length === 0) {
+      throw new UsageError(
+        "--state is required; css-rules.json does not record which state it was captured in, " +
+          "and matched[] contains rules that only apply in other states",
+      );
+    }
+    if (properties.length === 0 && !all) {
+      throw new UsageError("pass --property <name> at least once, or --all");
+    }
+    if (properties.length > 0 && all) {
+      throw new UsageError("--all and --property are mutually exclusive");
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(cssRules, "utf8"));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new UsageError(`cannot read ${cssRules}: ${message}`);
+    }
+    const report = resolveCascade(parsed, {
+      states,
+      properties: all ? null : properties,
+      source: cssRules,
+    });
+    process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    return report.counts.undecidable > 0 ? 1 : 0;
+  } catch (err) {
+    if (err instanceof UsageError) {
+      process.stderr.write(`error: ${err.message}\n${USAGE}\n`);
+      return 2;
+    }
+    throw err;
+  }
+}
+
+// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動で
+// 条件が偽になり、何も出力せず exit 0 になるのを避ける）。
+const invokedAsCli = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  const self = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(entry) === realpathSync(self);
+  } catch {
+    return entry === self;
+  }
+})();
+
+if (invokedAsCli) process.exitCode = main(process.argv.slice(2));

@@ -20,7 +20,7 @@
     "auth_roles": ["admin"],
     "tools": {
       "traits": "e2e/parity/lib/tools/vendor/trait-capture.mjs",
-      "traits_version": "3",
+      "traits_version": "4",
       "traits_property_set": [
         "background-color",
         "border-bottom-color",
@@ -39,29 +39,43 @@
         "border-top-right-radius",
         "border-top-style",
         "border-top-width",
+        "bottom",
+        "box-shadow",
         "color",
         "cursor",
         "display",
         "font-family",
         "font-size",
         "font-weight",
+        "left",
         "line-height",
         "margin-bottom",
         "margin-left",
         "margin-right",
         "margin-top",
+        "opacity",
+        "overflow-x",
+        "overflow-y",
         "padding-bottom",
         "padding-left",
         "padding-right",
         "padding-top",
         "pointer-events",
+        "position",
+        "right",
         "text-align",
+        "text-overflow",
+        "top",
         "user-select",
-        "visibility"
+        "visibility",
+        "white-space",
+        "word-break"
       ],
       "css_rules_version": "4",
       "axis_diff_version": "2",
-      "pixel_differ": "pixelmatch@7.1.0"
+      "pixel_differ": "pixelmatch@7.1.0",
+      "element_shot": "e2e/parity/lib/tools/vendor/element-shot.mjs",
+      "element_shot_version": "1"
     }
   },
   "instances": [
@@ -92,8 +106,8 @@
     "path": ".replace/components/button/axes.json",
     "ok": true,
     "variable": 10,
-    "fixed": 150,
-    "measured": 160,
+    "fixed": 198,
+    "measured": 208,
     "not_compared": []
   },
   "capture_gaps": {

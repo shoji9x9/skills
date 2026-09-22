@@ -26,7 +26,10 @@
   （子の計算値は採らない）。**照合には使わない診断材料**で、読むのは「計算値が全一致なのに画素だけ差が出た」ときに**装飾がどこに乗っているかを先に確かめる**ため
   （実測: `<a><span style="font-weight: bold;">` の形で 34 プロパティが全一致し、画素差 62 だけが出た。読む手順の正本は `parity-diff` の `references/font-diff.md`）
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
-  固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。プロパティ集合の正本は
+  固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。
+  **`parity-component` は要素の矩形だけを撮る**ので「写らないもの」がさらに増える——矩形の外に描かれる `box-shadow`、下地に依存して弁別できない `opacity`、
+  切り出しが要素についてくるため矩形の中に出ない `position` / `top` / `right` / `bottom` / `left`、採取時の文字列が短ければ差にならない
+  `white-space` / `overflow-x` / `overflow-y` / `text-overflow` / `word-break` も、同じ理由で固定集合に入れてある（Issue #434）。プロパティ集合の正本は
   [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる
 - **`url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。** 採取ツールは相対 URL の絶対化によるホスト違いを消すため
   同一オリジンの `url()` をオリジン非依存の印へ畳む（[`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `foldOrigin`）。

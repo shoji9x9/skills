@@ -101,6 +101,16 @@
     },
     {
       "state": "active",
+      "axis": "bottom",
+      "value": "auto"
+    },
+    {
+      "state": "active",
+      "axis": "box-shadow",
+      "value": "none"
+    },
+    {
+      "state": "active",
       "axis": "cursor",
       "value": "pointer"
     },
@@ -123,6 +133,11 @@
       "state": "active",
       "axis": "font-weight",
       "value": "400"
+    },
+    {
+      "state": "active",
+      "axis": "left",
+      "value": "auto"
     },
     {
       "state": "active",
@@ -151,6 +166,21 @@
     },
     {
       "state": "active",
+      "axis": "opacity",
+      "value": "1"
+    },
+    {
+      "state": "active",
+      "axis": "overflow-x",
+      "value": "visible"
+    },
+    {
+      "state": "active",
+      "axis": "overflow-y",
+      "value": "visible"
+    },
+    {
+      "state": "active",
       "axis": "padding-bottom",
       "value": "4px"
     },
@@ -176,13 +206,33 @@
     },
     {
       "state": "active",
+      "axis": "position",
+      "value": "static"
+    },
+    {
+      "state": "active",
       "axis": "rect/height",
       "value": "28"
     },
     {
       "state": "active",
+      "axis": "right",
+      "value": "auto"
+    },
+    {
+      "state": "active",
       "axis": "text-align",
       "value": "center"
+    },
+    {
+      "state": "active",
+      "axis": "text-overflow",
+      "value": "clip"
+    },
+    {
+      "state": "active",
+      "axis": "top",
+      "value": "auto"
     },
     {
       "state": "active",
@@ -193,6 +243,16 @@
       "state": "active",
       "axis": "visibility",
       "value": "visible"
+    },
+    {
+      "state": "active",
+      "axis": "white-space",
+      "value": "normal"
+    },
+    {
+      "state": "active",
+      "axis": "word-break",
+      "value": "normal"
     },
     {
       "state": "default",
@@ -286,6 +346,16 @@
     },
     {
       "state": "default",
+      "axis": "bottom",
+      "value": "auto"
+    },
+    {
+      "state": "default",
+      "axis": "box-shadow",
+      "value": "none"
+    },
+    {
+      "state": "default",
       "axis": "cursor",
       "value": "pointer"
     },
@@ -308,6 +378,11 @@
       "state": "default",
       "axis": "font-weight",
       "value": "400"
+    },
+    {
+      "state": "default",
+      "axis": "left",
+      "value": "auto"
     },
     {
       "state": "default",
@@ -336,6 +411,21 @@
     },
     {
       "state": "default",
+      "axis": "opacity",
+      "value": "1"
+    },
+    {
+      "state": "default",
+      "axis": "overflow-x",
+      "value": "visible"
+    },
+    {
+      "state": "default",
+      "axis": "overflow-y",
+      "value": "visible"
+    },
+    {
+      "state": "default",
       "axis": "padding-bottom",
       "value": "4px"
     },
@@ -361,13 +451,33 @@
     },
     {
       "state": "default",
+      "axis": "position",
+      "value": "static"
+    },
+    {
+      "state": "default",
       "axis": "rect/height",
       "value": "28"
     },
     {
       "state": "default",
+      "axis": "right",
+      "value": "auto"
+    },
+    {
+      "state": "default",
       "axis": "text-align",
       "value": "center"
+    },
+    {
+      "state": "default",
+      "axis": "text-overflow",
+      "value": "clip"
+    },
+    {
+      "state": "default",
+      "axis": "top",
+      "value": "auto"
     },
     {
       "state": "default",
@@ -378,6 +488,16 @@
       "state": "default",
       "axis": "visibility",
       "value": "visible"
+    },
+    {
+      "state": "default",
+      "axis": "white-space",
+      "value": "normal"
+    },
+    {
+      "state": "default",
+      "axis": "word-break",
+      "value": "normal"
     },
     {
       "state": "disabled",
@@ -468,6 +588,16 @@
       "state": "disabled",
       "axis": "border-top-width",
       "value": "0px"
+    },
+    {
+      "state": "disabled",
+      "axis": "bottom",
+      "value": "auto"
+    },
+    {
+      "state": "disabled",
+      "axis": "box-shadow",
+      "value": "none"
     },
     {
       "state": "disabled",
@@ -501,6 +631,11 @@
     },
     {
       "state": "disabled",
+      "axis": "left",
+      "value": "auto"
+    },
+    {
+      "state": "disabled",
       "axis": "line-height",
       "value": "20px"
     },
@@ -523,6 +658,21 @@
       "state": "disabled",
       "axis": "margin-top",
       "value": "0px"
+    },
+    {
+      "state": "disabled",
+      "axis": "opacity",
+      "value": "1"
+    },
+    {
+      "state": "disabled",
+      "axis": "overflow-x",
+      "value": "visible"
+    },
+    {
+      "state": "disabled",
+      "axis": "overflow-y",
+      "value": "visible"
     },
     {
       "state": "disabled",
@@ -551,13 +701,33 @@
     },
     {
       "state": "disabled",
+      "axis": "position",
+      "value": "static"
+    },
+    {
+      "state": "disabled",
       "axis": "rect/height",
       "value": "28"
     },
     {
       "state": "disabled",
+      "axis": "right",
+      "value": "auto"
+    },
+    {
+      "state": "disabled",
       "axis": "text-align",
       "value": "center"
+    },
+    {
+      "state": "disabled",
+      "axis": "text-overflow",
+      "value": "clip"
+    },
+    {
+      "state": "disabled",
+      "axis": "top",
+      "value": "auto"
     },
     {
       "state": "disabled",
@@ -568,6 +738,16 @@
       "state": "disabled",
       "axis": "visibility",
       "value": "visible"
+    },
+    {
+      "state": "disabled",
+      "axis": "white-space",
+      "value": "normal"
+    },
+    {
+      "state": "disabled",
+      "axis": "word-break",
+      "value": "normal"
     },
     {
       "state": "hover",
@@ -661,6 +841,16 @@
     },
     {
       "state": "hover",
+      "axis": "bottom",
+      "value": "auto"
+    },
+    {
+      "state": "hover",
+      "axis": "box-shadow",
+      "value": "none"
+    },
+    {
+      "state": "hover",
       "axis": "cursor",
       "value": "pointer"
     },
@@ -683,6 +873,11 @@
       "state": "hover",
       "axis": "font-weight",
       "value": "400"
+    },
+    {
+      "state": "hover",
+      "axis": "left",
+      "value": "auto"
     },
     {
       "state": "hover",
@@ -711,6 +906,21 @@
     },
     {
       "state": "hover",
+      "axis": "opacity",
+      "value": "1"
+    },
+    {
+      "state": "hover",
+      "axis": "overflow-x",
+      "value": "visible"
+    },
+    {
+      "state": "hover",
+      "axis": "overflow-y",
+      "value": "visible"
+    },
+    {
+      "state": "hover",
       "axis": "padding-bottom",
       "value": "4px"
     },
@@ -736,13 +946,33 @@
     },
     {
       "state": "hover",
+      "axis": "position",
+      "value": "static"
+    },
+    {
+      "state": "hover",
       "axis": "rect/height",
       "value": "28"
     },
     {
       "state": "hover",
+      "axis": "right",
+      "value": "auto"
+    },
+    {
+      "state": "hover",
       "axis": "text-align",
       "value": "center"
+    },
+    {
+      "state": "hover",
+      "axis": "text-overflow",
+      "value": "clip"
+    },
+    {
+      "state": "hover",
+      "axis": "top",
+      "value": "auto"
     },
     {
       "state": "hover",
@@ -753,6 +983,16 @@
       "state": "hover",
       "axis": "visibility",
       "value": "visible"
+    },
+    {
+      "state": "hover",
+      "axis": "white-space",
+      "value": "normal"
+    },
+    {
+      "state": "hover",
+      "axis": "word-break",
+      "value": "normal"
     }
   ],
   "variable": [
@@ -897,7 +1137,7 @@
       ]
     }
   ],
-  "measured": 160,
+  "measured": 208,
   "not_compared": [],
   "problems": [],
   "ok": true

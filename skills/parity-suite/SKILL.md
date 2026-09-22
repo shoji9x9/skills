@@ -256,7 +256,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物（`.replace/parity/<slug>/noise-pass2/`）は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/baseline.md`](references/baseline.md)）
-- 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs)）。
+- 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs) / 要素単位の撮影を使う場合は [`scripts/element-shot.mjs`](scripts/element-shot.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
   **コピーは修正しない規約のため、プロジェクト自作ツールとパスで分けられるコピー専用のサブディレクトリに置く**（配置指針は [`references/locator-mapping.md`](references/locator-mapping.md)）
 - **被覆プロファイルと [`scripts/coverage-expand.mjs`](scripts/coverage-expand.mjs)・[`scripts/pixel-strict-count.mjs`](scripts/pixel-strict-count.mjs) はコピーしない。**

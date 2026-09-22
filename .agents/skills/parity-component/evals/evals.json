@@ -74,6 +74,56 @@
         "引数を足して既定値を据え置く形で解けるかという代替案を示している",
         "承認を得ないまま variant から primary を削除する実装を行っていない"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "parity-component build --component button の実装（手順 4）まで進めて。capture は済んでいて、Issue とブランチの用意も終わっている。component-api.md には orders-search の幅が文言の長さに追従しない理由が未判別のまま残っている。新側のボタン部品に当てる幅と字間の値を、採取物のどこを根拠にどう決めたのかが分かる形で、実際にはファイルを書かず手順と結論だけ報告して。",
+      "fixture": "evals/fixtures/cascade-conflict",
+      "requires_skills": ["parity-suite"],
+      "assertions": [
+        "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+        "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+        "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+        "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+        "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+        "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+        "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+        "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない"
+      ],
+      "reachability": [
+        {
+          "assertion": "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+          "prompt_quote": "採取物のどこを根拠にどう決めたのかが分かる形で"
+        },
+        {
+          "assertion": "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+          "prompt_quote": "新側のボタン部品に当てる幅と字間の値を"
+        },
+        {
+          "assertion": "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+          "prompt_quote": "orders-search の幅が文言の長さに追従しない理由が未判別のまま残っている"
+        },
+        {
+          "assertion": "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+          "prompt_quote": "幅と字間の値"
+        },
+        {
+          "assertion": "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+          "prompt_quote": "字間の値を、採取物のどこを根拠に"
+        },
+        {
+          "assertion": "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+          "prompt_quote": "採取物のどこを根拠に"
+        },
+        {
+          "assertion": "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+          "prompt_quote": "component-api.md には orders-search の幅が文言の長さに追従しない"
+        },
+        {
+          "assertion": "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない",
+          "prompt_quote": "実際にはファイルを書かず手順と結論だけ報告して"
+        }
+      ]
     }
   ]
 }

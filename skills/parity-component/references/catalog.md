@@ -20,6 +20,38 @@
   **この 2 つは排他で、両方あるのもどちらも無いのも停止する**（`url` / `url_command` と同じ形。同じキーに両形を入れると、開くのか実行するのかが決まらない）。
   `catalog_url_command` の解決に失敗・空出力なら停止する（解決値は成果物に書かず `"runtime"` を記録する）
 
+## 勝っている宣言を確定してから写す
+
+実装で CSS 値を決めるときは、`css-rules.json` の **`inline_declarations` と `matched` の両方**を読む。
+どちらか片方だけでは実際の描画と逆の値を写す。
+
+- **インラインが常に勝つわけではない。** `!important` 付きの作者スタイルシート規則は、インラインの非 `!important` 宣言を上書きする
+  （実測: `inline_declarations` の `width: 10px` が `.SearchBoxButton { width: 25px !important }` に負けていた）
+- **`matched` を読んでも、最初に見つかった宣言を採ると同じ間違いをする。** 基礎スタイルシート → テーマ層 → 個別テーマの順に読み込み、
+  後段が**同一セレクタ・同一プロパティを再宣言して上書きする**構成では、勝者は後段にある
+  （実測 3 件: `feedback-message` の閉じるボタンの `top` が 0 → 2px → 5px、そのグリフの不透明度が不透明 → alpha≈0.5、
+  `radio-button` の外側の輪の `box-shadow` が inset の影 → `none`。いずれも前段の値を実装に残していた）
+
+**確定は手で追わず、同梱の cascade-resolve.mjs に出させる**（コピーせずスキル配下からそのまま実行する）。
+
+```bash
+node <skill>/scripts/cascade-resolve.mjs \
+  --css-rules .replace/components/<slug>/baseline/<instance>/<state>/css-rules.json \
+  --state <state> --all
+```
+
+- `--state` は必須で、`baseline/<instance>/<state>/` の `<state>` をそのまま渡す。`css-rules.json` は
+  どの状態で採ったかを持たず、`matched` には**他の状態でだけ当たる規則**も並ぶため、省くと別状態の宣言を勝者にしてしまう
+  （`default` は「追加の状態擬似クラス無しで当たる規則だけ」を意味する）
+- 優先順位は インラインの `!important` → 規則の `!important` → インライン → 規則、同じ段では 詳細度 → 出現順（`order` の後勝ち）
+- `--property` には CSS カスタムプロパティ（`--brand-color` 等）もそのまま渡せる（`--all` で全件出してから絞ってもよい）
+- **exit 1（`undecidable`）を黙って無視しない。** 次の 3 つは入力から決まらないので、勝者を捏造せず理由付きで残す設計である——
+  詳細度を機械的に決められないセレクタ（トップレベルのカンマ・未解決の `&`）、競合が**別のカスケードレイヤ**にある
+  （レイヤの宣言順は `css-rules.json` に無い）、条件付き（`@media` / `@supports` / `@container`）の候補が勝ちうる
+  （css-rules-capture.mjs は条件を評価せず記録するだけ）。**現行の CSS を直接読んで確定し、判断の根拠を `component-api.md` に残す**
+- **これは合否判定ではない。** 勝者を決めるのは「何を写すのか」を確定するためで、現新の差分は画素比較と特性照合が出す
+  （[`compare.md`](compare.md)「3 つの経路の役割」）
+
 ## 見本の粒度は採取の粒度に合わせる
 
 **見本は「インスタンス × 状態」ごとに置く。** 採取したのにその組み合わせの見本が無いと、その組み合わせは照合されない——

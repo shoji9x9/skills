@@ -146,7 +146,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    **例外は到達できない状態だけ**。そのインスタンスで作れない状態は、禁止された遷移を試さず `unreachable_states` に理由付きで宣言し、
    比較の母集合と軸の割り出しの両方から外す（[`references/instances.md`](references/instances.md)）
 5. **採取**: 先に `parity-suite` 同梱の特性採取ツールをプロジェクト側へ用意する（[`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」。用意できなければ停止する）。
-   インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
+   インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット（`parity-suite` 同梱の element-shot.mjs。`locator.screenshot()` は外接整数矩形へ丸めるので使わない）、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
    撮影条件は `parity-suite` の `references/baseline.md` に従い、**同一条件で 2 回撮ってノイズ基準値を出す**（2 回目の採取物は基準値を記録したら削除する）。詳細: [`references/capture.md`](references/capture.md)
 6. **固定軸・可変軸の割り出し**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out .replace/components/<slug>/axes.json` を **exit 0 まで通す**（マニフェストは手で組まず、この経路が採取物から決定論的に組み立てる）（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
    未採取・片側のみ・id 重複は問題として落ちるので、採取へ戻して埋める。**問題を残したまま「可変軸なし」を結論にしない**。詳細: [`references/component-api.md`](references/component-api.md)
@@ -160,7 +160,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    **判定は 2 段で行う。先に設定の宣言と採取物の実体を全部調べ、欠けがあれば陳腐化（下の 3 項）へ進まず、見つけた欠落をすべて挙げて停止する**
    ——この 2 つはプロジェクト内のファイルを読むだけで決まるが、陳腐化の判定は `parity-suite` 同梱ツール等の外部の実体に依存する。
    順を決めないと、外部依存で先に止まった run が宣言の欠落を報告せず、利用者は直して再実行するたびに別の欠落へ当たる:
-   - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `css_rules_version` / `axis_diff_version` と、
+   - **ツール版**: `metadata.json` の `capture.tools` に記録された `traits_version` / `element_shot_version` / `css_rules_version` / `axis_diff_version` と、
      集合として持つ `traits_property_set` を、いま使うツールの実際の版・集合と突き合わせる。
      **違えば実装へ進まず `capture` からやり直す**（採取スキーマが違う基準は比較の入力にならない）
    - **軸の再導出**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out <一時パス>` を実行し、
@@ -183,6 +183,10 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    （値の意味・覆り方・読む側の規則の正本は `replace-strategy` の `references/dependency-selection.md`「洗い出しの 6 値」）。
    **部品が描く静的資産（アイコン・画像・書体）は `.replace/assets.md` の同じ種類で状態が `有効` の行に従い（`取り消し済み` の行は履歴）、部品の中で写すかを決めない**（台帳に無ければ方針空欄の行を追記してユーザーに確認し、決まるまでその資産に依存する実装を進めない。正本は `replace-strategy` の `references/static-assets.md`）
 4. **実装と見本**: 現行のソースコードと採取物を一次情報源に実装し、**インスタンス × 状態ごとに見本（story 等）を置く**。見本は採取と同じ状態集合を持たせる——見本の無い状態は照合されない。
+   **CSS 値を写す前に、`css-rules.json` の `matched` と `inline_declarations` の両方から実際に勝っている宣言を確定する**——
+   同梱の `node <skill>/scripts/cascade-resolve.mjs --css-rules <path> --state <state> --all` を通し、`undecidable` が残ったら
+   現行の CSS を直接読んで決める（インラインの値が `!important` 付き規則に負ける形と、後段テーマの再宣言が前段を上書きする形を、
+   目視で 3 部品とも取り違えた実績がある）。詳細: [`references/catalog.md`](references/catalog.md)「勝っている宣言を確定してから写す」
    データ依存部品は `capture` が採った実データを見本の入力にする。書き方は `references.coding_conventions` に従う。詳細: [`references/catalog.md`](references/catalog.md)
 5. **見た目の系統差を源流で縮める**: **`references.ui_library` が未整備（キー欠落・空値・解決できないパス）ならここで停止し、整備を促す**（推測でライブラリを決めない）。
    整備済みならトークンマッピングで旧 design token を新側テーマへ寄せる。テーマで消せない構造差の扱い（`component_diffs` 宣言か `gaps.md`）は `parity-replace` の `references/theming.md` が正本

@@ -46,6 +46,18 @@ node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out 
 - **判別できない割れ方を「現行の不整合」に倒さない。** 用途の違いを見つけられていないだけのことがある。
   判別できないものは `component-api.md` に「未判別」として残し、ユーザーに上げる
 
+### 値が「部品自身の見た目」か「ページ内配置」かを決めるときは勝者を先に確定する
+
+軸を `fixed` / `variable` に振り分けたあと、その値を**部品の定数にするか、ページ側の配置として部品の外へ出すか**を判断する場面では、
+`css-rules.json` の `inline_declarations` と `matched` の**両方**を読む。片方だけで判断すると、
+インラインの値が `!important` 付き規則に負けている形と、後段テーマの再宣言が前段を上書きしている形を取り違える
+（実測 3 件。詳細と確定手順は [`catalog.md`](catalog.md)「勝っている宣言を確定してから写す」）。
+
+- 確定は手で追わず `node <skill>/scripts/cascade-resolve.mjs --css-rules <path> --state <state> --all` に出させる。
+  `undecidable` が残った軸は、現行の CSS を直接読んで決め、**根拠（どのスタイルシートのどの宣言が勝ったか）をここに残す**
+- **インスタンスごとに勝者が違う軸は `variable`**（インスタンス固有の値を `style` 属性で当てている部品が典型）。
+  勝者を確定しないまま `fixed` に倒すと、負けている宣言を全インスタンス共通の定数として実装することになる
+
 ## 状態を表す引数
 
 `hover` / `active` / `focus` は**利用側が渡すものではなく CSS が引き受ける**。引数にするのは、**利用側が決める状態**だけである。
@@ -68,5 +80,7 @@ node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out 
 残すのは「割り出しの結果どう判断したか」であって、ツール出力そのものはファイルとして併存させる。
 
 - 引数ごとに「対応する軸」「値の集合」「既定値」「既定値の根拠となったインスタンス」を書く
+- **CSS 値の根拠は「勝った宣言」で書く**（どのスタイルシート・どのセレクタ・`!important` の有無）。
+  `css-rules.json` に競合があった軸は、負けた宣言も 1 行添える——次の改修で前段の値を採り直す往復を防ぐ
 - **引数にしなかった `variable` の軸は、理由とともに全件残す**（後から「なぜこの差を吸収したのか」を追えるようにする）
 - ユーザー確認へ回した差は `intentional_diffs.pending` の追記と対応づける（差異の文言は照合キーの `item` に書く。`item` / `slug` / `added_by` / `added_at` の形は `replace-strategy` の `references/project-config.md` が正本）

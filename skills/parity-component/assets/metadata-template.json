@@ -32,6 +32,8 @@
       "traits_property_set": [
         "<trait-capture.mjs の FIXED_PROPERTIES の要素。配列で持つ（parity-suite の metadata の traits.property_set と同じ形。build が集合として突き合わせるため、文字列に畳まない）>"
       ],
+      "element_shot": "<parity-suite 同梱 element-shot.mjs のコピー先パス>",
+      "element_shot_version": "<element-shot.mjs の VERSION。要素スクショは locator.screenshot() ではなくこのツールで撮る（外接整数矩形の丸めで画素比較が実行不能になるため）>",
       "css_rules_version": "<parity-component 同梱 css-rules-capture.mjs の VERSION（コピーせずスキル配下から実行する）>",
       "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",
       "pixel_differ": "<画素差分ツールと版（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
@@ -70,7 +72,7 @@
       }
     ],
     "animations": "disabled",
-    "element_screenshot": "<要素の矩形で撮ったこと（locator.screenshot）。ページ全体ではないため margin は写らない。真偽値で書く>",
+    "element_screenshot": "<要素の矩形で撮ったこと（parity-suite 同梱 element-shot.mjs。locator.screenshot は外接整数矩形へ丸めるので使わない）。ページ全体ではないため margin は写らない。真偽値で書く>",
     "masks": [
       "<認証情報・トークン・個人情報・揮発項目を成果物へ残さないための恒久マスク（parity-suite の references/auth.md の方針に従う）>"
     ]

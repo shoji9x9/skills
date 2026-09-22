@@ -35,10 +35,10 @@ const cssRules = await import(
   join(repoRoot, "skills/parity-component/scripts/css-rules-capture.mjs")
 );
 const axisDiff = await import(join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs"));
+const elementShot = await import(join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs"));
 
-const FIXTURES = ["catalog-unset", "breaking-change-request"].map((name) =>
-  join(repoRoot, "skills/parity-component/evals/fixtures", name, ".replace/components/button"),
-);
+const fixtureDir = (name) =>
+  join(repoRoot, "skills/parity-component/evals/fixtures", name, ".replace/components/button");
 const VIEWPORT = { width: 1280, height: 800 };
 const VIEWER_ENVIRONMENT = "一致";
 
@@ -67,9 +67,31 @@ const APP_CSS = `.btn {
 .btn:disabled { color: rgb(153, 153, 153); cursor: not-allowed; }
 `;
 
-const page = (title, button) =>
+// カスケードの競合を仕込んだ 2 枚目のスタイルシート（後から読み込まれるテーマ層に相当）。
+// 現行アプリ（基礎スタイルシート → テーマ層 → 個別テーマの順に読み込み、後段が同一セレクタ・
+// 同一プロパティを再宣言して上書きする構成）で実際に起きた 2 形を、ブラウザに解決させて再現する:
+//
+//   width          インライン 10px（非 !important）が、テーマ層の 60px !important に**負ける**。
+//                  基礎側は 40px。素朴な読み方は 10px（インラインだけ読む）か 40px（matched の最初）になる
+//                  （`button` の UA 既定は border-box なので rect.width がそのまま 60 になる）
+//   letter-spacing 基礎の normal を、テーマ層の 1px が**上書きする**。matched の最初を採ると normal になる
+//
+// どちらも trait-capture.mjs の FIXED_PROPERTIES に無いプロパティを選んである。集合にある
+// プロパティで競合を作ると、traits.json の計算値が勝者をそのまま持ってしまい、
+// 「カスケードを解いたか」を測れない（採取物が答えを持っている状態になる）。
+const THEME_CSS = `.searchbox-btn { width: 60px !important; }
+.btn { letter-spacing: 1px; }
+`;
+
+// 競合用ページの基礎スタイルシート。APP_CSS に、テーマ層が上書きする側の宣言を足す。
+const CASCADE_BASE_CSS = `${APP_CSS}.searchbox-btn { width: 40px; }
+.btn { letter-spacing: normal; }
+`;
+
+const page = (title, button, css = APP_CSS, extraCss = null) =>
   `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${title}</title>` +
-  `<style>${APP_CSS}</style></head><body style="margin:0">` +
+  `<style>${css}</style>${extraCss === null ? "" : `<style>${extraCss}</style>`}` +
+  `</head><body style="margin:0">` +
   `<main style="padding:16px">${button}</main></body></html>`;
 
 const PAGES = {
@@ -83,11 +105,33 @@ const PAGES = {
   ),
 };
 
+const CASCADE_PAGES = {
+  "/orders": page(
+    "注文",
+    '<button class="btn btn-primary searchbox-btn" style="width: 10px" ' +
+      'data-testid="order-search-submit">検索</button>',
+    CASCADE_BASE_CSS,
+    THEME_CSS,
+  ),
+  "/users": page(
+    "利用者",
+    '<button class="btn btn-secondary" data-testid="user-create-submit">利用者を作成</button>',
+    CASCADE_BASE_CSS,
+    THEME_CSS,
+  ),
+};
+
 const INSTANCES = [
   { id: "orders-search", page: "/orders", selector: '[data-testid="order-search-submit"]' },
   { id: "users-create", page: "/users", selector: '[data-testid="user-create-submit"]' },
 ];
 const STATES = ["default", "hover", "active", "disabled"];
+
+// 採取物の組。同じ採取を複数の fixture へ書くものと、別のページから採るものを分ける。
+const VARIANTS = [
+  { pages: PAGES, fixtures: ["catalog-unset", "breaking-change-request"].map(fixtureDir) },
+  { pages: CASCADE_PAGES, fixtures: [fixtureDir("cascade-conflict")] },
+];
 
 // 1 回の CDP 呼び出し・HTTP 取得に許す時間。全体の timeout で切ると、どの呼び出しで止まったかが
 // 出力に残らない（http へのナビゲーションが開始しない環境で実際に起きた）。呼び出しごとに切って名前を出す。
@@ -267,11 +311,11 @@ const locator = (cdp, selector) => ({
   },
 });
 
-async function captureOnce(cdp, instance, state) {
+async function captureOnce(cdp, pages, instance, state) {
   const { frameTree } = await cdp.send("Page.getFrameTree");
   await cdp.send("Page.setDocumentContent", {
     frameId: frameTree.frame.id,
-    html: PAGES[instance.page],
+    html: pages[instance.page],
   });
   const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
   const { nodeId } = await cdp.send("DOM.querySelector", {
@@ -290,10 +334,12 @@ async function captureOnce(cdp, instance, state) {
   const el = locator(cdp, instance.selector);
   const [traits] = await traitCapture.captureTraits([{ name, locator: el }]);
   const [rules] = await cssRules.captureMatchedRules([{ name, locator: el }]);
-  const { x, y, width, height } = traits.rect;
+  // 要素スクショの clip は element-shot.mjs に決めさせる（矩形の丸めの正本。
+  // 生の rect を渡すと小数座標のぶん寸法が揺れ、寸法一致を要求する画素比較の入力にならない）。
+  const clip = elementShot.planElementClip(traits.rect, VIEWPORT);
   const shot = await cdp.send("Page.captureScreenshot", {
     format: "png",
-    clip: { x, y, width, height, scale: 1 },
+    clip: { ...clip, scale: 1 },
   });
   // 総称ファミリー（sans-serif）が実際に何のフォントで描かれたかを残す（撮影環境の記録に要る）。
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
@@ -341,99 +387,105 @@ try {
     mobile: false,
   });
 
-  const captured = [];
-  for (const instance of INSTANCES) {
-    for (const state of STATES) {
-      // ノイズ基準値: 同一条件で 2 回採り、特性とバイト列が一致することを確かめる。
-      const first = await captureOnce(cdp, instance, state);
-      const second = await captureOnce(cdp, instance, state);
-      const traitsNoise = isDeepStrictEqual(first.traits, second.traits) ? 0 : 1;
-      const pixelNoise = first.png.equals(second.png) ? 0 : 1;
-      if (traitsNoise || pixelNoise || !isDeepStrictEqual(first.rules, second.rules)) {
-        throw new Error(`${instance.id} / ${state}: 2 回の採取が一致しない（決定論的でない）`);
+  for (const variant of VARIANTS) {
+    const captured = [];
+    for (const instance of INSTANCES) {
+      for (const state of STATES) {
+        // ノイズ基準値: 同一条件で 2 回採り、特性とバイト列が一致することを確かめる。
+        const first = await captureOnce(cdp, variant.pages, instance, state);
+        const second = await captureOnce(cdp, variant.pages, instance, state);
+        const traitsNoise = isDeepStrictEqual(first.traits, second.traits) ? 0 : 1;
+        const pixelNoise = first.png.equals(second.png) ? 0 : 1;
+        if (traitsNoise || pixelNoise || !isDeepStrictEqual(first.rules, second.rules)) {
+          throw new Error(`${instance.id} / ${state}: 2 回の採取が一致しない（決定論的でない）`);
+        }
+        captured.push({ instance, state, ...first });
       }
-      captured.push({ instance, state, ...first });
-    }
-  }
-
-  for (const dir of FIXTURES) {
-    for (const { instance, state, traits, rules, png } of captured) {
-      const base = join(dir, "baseline", instance.id, state);
-      mkdirSync(base, { recursive: true });
-      writeJson(join(base, "traits.json"), traits);
-      writeJson(join(base, "css-rules.json"), rules);
-      writeFileSync(join(base, "element.png"), png);
     }
 
-    const metaPath = join(dir, "metadata.json");
-    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-    meta.capture.states = STATES;
-    meta.capture.tools = {
-      ...meta.capture.tools,
-      traits_version: traitCapture.VERSION,
-      traits_property_set: [...traitCapture.FIXED_PROPERTIES].sort(),
-      css_rules_version: cssRules.VERSION,
-      axis_diff_version: axisDiff.VERSION,
-    };
-    const unresolved = captured.reduce((n, c) => n + c.rules.unresolved.length, 0);
-    const inaccessible = captured.reduce((n, c) => n + c.rules.inaccessible.length, 0);
-    meta.capture_gaps = { inaccessible_sheets: inaccessible, unresolved_selectors: unresolved };
-    // 撮影条件とノイズ基準値は、既存の値の有無（null のプレースホルダを含む）に依らず採取から書く。
-    // 真偽で分岐すると null の fixture が `capture.complete: true` のまま条件も基準値も持たず残り、
-    // `build` の照合が同一条件を再現できない。
-    const fontsUsed = [...new Set(captured.flatMap((c) => c.platformFonts))].sort();
-    if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
-    meta.capture_conditions = {
-      environment: `${cdp.browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
-      // 想定利用者環境との一致は採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
-      // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
-      viewer_environment: VIEWER_ENVIRONMENT,
-      viewports: [{ ...VIEWPORT, label: "desktop" }],
-      animations: "disabled",
-      element_screenshot: true,
-      masks: [],
-    };
-    // 2 回の採取が特性・画素とも一致しなければ上で停止しているので、ここに来た組み合わせの差分は 0。
-    meta.noise_baseline = captured.map(({ instance, state }) => ({
-      instance: instance.id,
-      state,
-      viewport: "desktop",
-      pixel: 0,
-      traits: 0,
-    }));
-    // 軸の件数は axes.json から写す。先に metadata を書かないと --baseline がプロパティ集合を読めない。
-    writeJson(metaPath, meta);
-    const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
-    if (!axes.ok) throw new Error(`${dir}: axis-diff が ok でない: ${axes.problems.join(" / ")}`);
-    writeJson(join(dir, "axes.json"), axes);
-    meta.axes = {
-      ...meta.axes,
-      ok: axes.ok,
-      variable: axes.variable.length,
-      fixed: axes.fixed.length,
-      measured: axes.measured,
-      not_compared: axes.not_compared,
-    };
-    writeJson(metaPath, meta);
-    console.log(`wrote ${dir}`);
-  }
+    for (const dir of variant.fixtures) {
+      for (const { instance, state, traits, rules, png } of captured) {
+        const base = join(dir, "baseline", instance.id, state);
+        mkdirSync(base, { recursive: true });
+        writeJson(join(base, "traits.json"), traits);
+        writeJson(join(base, "css-rules.json"), rules);
+        writeFileSync(join(base, "element.png"), png);
+      }
 
-  const widths = Object.fromEntries(
-    captured.filter((c) => c.state === "default").map((c) => [c.instance.id, c.traits.rect.width]),
-  );
-  const axes = JSON.parse(readFileSync(join(FIXTURES[0], "axes.json"), "utf8"));
-  console.log(
-    JSON.stringify(
-      {
-        browser: cdp.browser,
-        widths,
-        variable: axes.variable.map((v) => `${v.state} / ${v.axis}`),
+      const metaPath = join(dir, "metadata.json");
+      const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+      meta.capture.states = STATES;
+      meta.capture.tools = {
+        ...meta.capture.tools,
+        traits_version: traitCapture.VERSION,
+        traits_property_set: [...traitCapture.FIXED_PROPERTIES].sort(),
+        element_shot_version: elementShot.VERSION,
+        css_rules_version: cssRules.VERSION,
+        axis_diff_version: axisDiff.VERSION,
+      };
+      const unresolved = captured.reduce((n, c) => n + c.rules.unresolved.length, 0);
+      const inaccessible = captured.reduce((n, c) => n + c.rules.inaccessible.length, 0);
+      meta.capture_gaps = { inaccessible_sheets: inaccessible, unresolved_selectors: unresolved };
+      // 撮影条件とノイズ基準値は、既存の値の有無（null のプレースホルダを含む）に依らず採取から書く。
+      // 真偽で分岐すると null の fixture が `capture.complete: true` のまま条件も基準値も持たず残り、
+      // `build` の照合が同一条件を再現できない。
+      const fontsUsed = [...new Set(captured.flatMap((c) => c.platformFonts))].sort();
+      if (fontsUsed.length === 0) throw new Error("描画に使われたフォントを取得できない");
+      meta.capture_conditions = {
+        environment: `${cdp.browser}（headless）/ Linux / DPR 1。"Noto Sans JP", sans-serif は ${fontsUsed.join(" / ")} に解決`,
+        // 想定利用者環境との一致は採取からは決まらない fixture の前提。両 fixture の gaps.md（採取環境依存の未検証: なし）と
+        // 揃えて「一致」とする（既存値の有無で分けると、null だった fixture だけ別の前提になり gaps.md と食い違う）
+        viewer_environment: VIEWER_ENVIRONMENT,
+        viewports: [{ ...VIEWPORT, label: "desktop" }],
+        animations: "disabled",
+        element_screenshot: true,
+        masks: [],
+      };
+      // 2 回の採取が特性・画素とも一致しなければ上で停止しているので、ここに来た組み合わせの差分は 0。
+      meta.noise_baseline = captured.map(({ instance, state }) => ({
+        instance: instance.id,
+        state,
+        viewport: "desktop",
+        pixel: 0,
+        traits: 0,
+      }));
+      // 軸の件数は axes.json から写す。先に metadata を書かないと --baseline がプロパティ集合を読めない。
+      writeJson(metaPath, meta);
+      const axes = axisDiff.diffAxes(axisDiff.assembleFromBaseline(dir));
+      if (!axes.ok) throw new Error(`${dir}: axis-diff が ok でない: ${axes.problems.join(" / ")}`);
+      writeJson(join(dir, "axes.json"), axes);
+      meta.axes = {
+        ...meta.axes,
+        ok: axes.ok,
+        variable: axes.variable.length,
+        fixed: axes.fixed.length,
         measured: axes.measured,
-      },
-      null,
-      2,
-    ),
-  );
+        not_compared: axes.not_compared,
+      };
+      writeJson(metaPath, meta);
+      console.log(`wrote ${dir}`);
+    }
+
+    const widths = Object.fromEntries(
+      captured
+        .filter((c) => c.state === "default")
+        .map((c) => [c.instance.id, c.traits.rect.width]),
+    );
+    const summaryAxes = JSON.parse(readFileSync(join(variant.fixtures[0], "axes.json"), "utf8"));
+    console.log(
+      JSON.stringify(
+        {
+          browser: cdp.browser,
+          fixtures: variant.fixtures.map((d) => d.slice(repoRoot.length + 1)),
+          widths,
+          variable: summaryAxes.variable.map((v) => `${v.state} / ${v.axis}`),
+          measured: summaryAxes.measured,
+        },
+        null,
+        2,
+      ),
+    );
+  }
   formatWrittenJson();
 } catch (err) {
   generationError = err;
