@@ -1,0 +1,471 @@
+{
+  "$comment": [
+    "tracking-issue-title.test.js の検出能力を示す変異の一覧（Issue #420）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/tracking-issue-title.test.js",
+  "mutations": [
+    {
+      "id": "A",
+      "why": "jq から日付の形の検査を外し、素の前方一致へ戻す",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "                | select(.title | ltrimstr(env.ISSUE_TITLE_PREFIX)\n                         | test(\"^( \\\\([0-9]{4}-[0-9]{2}-[0-9]{2}\\\\))?$\"))\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
+      ]
+    },
+    {
+      "id": "U",
+      "why": "select(.state == \"OPEN\") を外す（検索インデックスの偽陽性を素通りさせる）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "                | select(.state == \"OPEN\")\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 kaizen: 未適用の学び",
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 mise outdated tool versions",
+        "照会の正本（tracking-issue-lib.sh） jq 式が世代違いだけを拾う: 接頭辞 tool (a.b) [x]*"
+      ]
+    },
+    {
+      "id": "D",
+      "why": "--limit を外して既定 30 件に戻す",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "gh issue list --state open --limit \"$list_limit\" \"$@\" \\",
+      "replace": "gh issue list --state open \"$@\" \\",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+      ]
+    },
+    {
+      "id": "P",
+      "why": "打ち切り判定の閾値を数値リテラルへ戻す（上限と別リテラルにする）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "-ge \"$list_limit\" ]",
+      "replace": "-ge 100 ]",
+      "occurrences": 2,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） 既定 30 件で打ち切らず、上限と閾値を 1 箇所で決める"
+      ]
+    },
+    {
+      "id": "M",
+      "why": "read_matches が scanned 行を読まない（走査件数が 0 のまま進む）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\t\tscanned=*) scanned=\"${line#scanned=}\" ;;\n",
+      "replace": "\t\tscanned=*) ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+      ]
+    },
+    {
+      "id": "N",
+      "why": "照会を read_matches \"$(find_tracking_issues ...)\" へ戻す（終了コードを捨てる）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\tlocal out\n\tif ! out=\"$(find_tracking_issues \"$@\")\"; then\n\t\techo \"gh issue list が失敗した。追跡 Issue を取り違えないようジョブを落とす\" >&2\n\t\treturn 1\n\tfi\n\tread_matches \"$out\"\n",
+      "replace": "\tread_matches \"$(find_tracking_issues \"$@\")\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） gh issue list が失敗したら非 0 で返る（fail-closed）",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+      ]
+    },
+    {
+      "id": "F",
+      "why": "検索 0 件時のフォールバックを外す",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\tif [ \"${#numbers[@]}\" -eq 0 ]; then\n\t\tquery_tracking_issues\n\t\tif [ \"$scanned\" -ge \"$list_limit\" ]; then\n\t\t\ttruncated=true\n\t\tfi\n\t\tif [ \"${#numbers[@]}\" -gt 0 ]; then\n\t\t\techo \"検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）\" >&2\n\t\tfi\n\tfi\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） 検索が 0 件なら --search 無しで引き直し、見つかった週は 2 度引かない",
+        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+      ]
+    },
+    {
+      "id": "Q",
+      "why": "検索側の打ち切り判定を外す",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\ttruncated=false\n\tif [ \"$scanned\" -ge \"$list_limit\" ]; then\n\t\ttruncated=true\n\tfi\n",
+      "replace": "\ttruncated=false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+      ]
+    },
+    {
+      "id": "T",
+      "why": "フォールバック後の打ち切り判定を外す",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\t\tif [ \"$scanned\" -ge \"$list_limit\" ]; then\n\t\t\ttruncated=true\n\t\tfi\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） どちらの照会が打ち切られても truncated を立て、下回れば鳴らさない"
+      ]
+    },
+    {
+      "id": "Y",
+      "why": "接頭辞が空でも照会へ進む（fail-closed のガードを外す）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": "\tif [ -z \"${ISSUE_TITLE_PREFIX:-}\" ]; then\n\t\techo \"ISSUE_TITLE_PREFIX が空。全 open Issue に当たるため追跡 Issue を触らずに落とす\" >&2\n\t\treturn 1\n\tfi\n\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） 接頭辞が空なら gh を 1 度も呼ばずに落ちる"
+      ]
+    },
+    {
+      "id": "V",
+      "why": "探索がレポートだけで採る（照会の同居を見ない）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "[ -r \"$dir/kaizen-schedule-report.sh\" ] && [ -r \"$dir/tracking-issue-lib.sh\" ]",
+      "replace": "[ -r \"$dir/kaizen-schedule-report.sh\" ]",
+      "occurrences": 1,
+      "expect_failing": [
+        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） kaizen-schedule-report.sh だけのディレクトリは採らずに落ちる"
+      ]
+    },
+    {
+      "id": "W",
+      "why": "探索が lib のパスを出力しない",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "              echo \"lib=$dir/tracking-issue-lib.sh\" >>\"$GITHUB_OUTPUT\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 両方揃ったディレクトリを採り、lib のパスを出力する",
+        "kaizen スクリプトの探索（レポートと照会を同じ版から採る） 本リポでは実在する lib を指す（探索先の 1 つに正本がある）",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "B-kaizen",
+      "why": "タイトルを固定文字列へ戻す（世代を区別できなくする）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "title=\"$ISSUE_TITLE_PREFIX ($(date -u +%F))\"",
+      "replace": "title=\"$ISSUE_TITLE_PREFIX\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+      ]
+    },
+    {
+      "id": "O-kaizen",
+      "why": "env の ISSUE_TITLE_PREFIX 宣言を落とす（空の接頭辞で走らせる）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "  ISSUE_TITLE_PREFIX: \"kaizen: 未適用の学び\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "X-kaizen",
+      "why": "ステップから lib の source を落とす（照会を呼ばない）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "          # shellcheck source=/dev/null\n          . \"$TRACKING_LIB\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+      ]
+    },
+    {
+      "id": "X2-kaizen",
+      "why": "TRACKING_LIB の env 宣言を落とす",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "          # 照会の正本（同梱スクリプト）。`Locate kaizen scripts` が実在を確かめた 1 本。\n          TRACKING_LIB: ${{ steps.locate.outputs.lib }}\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "R-kaizen",
+      "why": "ゲート入力の検証を外す（空・仕様外の値で gh を呼ぶ）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "          case \"$PENDING_COUNT\" in\n          '' | *[!0-9]*)\n            echo \"pending_count=\\\"$PENDING_COUNT\\\" が 10 進の件数でない。追跡 Issue を触らずに落とす\" >&2\n            exit 1\n            ;;\n          esac\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"3件\" なら Issue を触らずに落ちる",
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ PENDING_COUNT=\"-1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "C-kaizen",
+      "why": "クローズ分岐で先にリネームする（閉じた Issue の日付を動かす）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"未適用の学びはありません。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "replace": "              gh issue edit \"$number\" --title \"$title\"\n              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"未適用の学びはありません。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
+      ]
+    },
+    {
+      "id": "G-kaizen",
+      "why": "クローズを最古 1 本だけに戻す（閉じ残す）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"未適用の学びはありません。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "replace": "              gh issue close \"$number\" --comment \"未適用の学びはありません。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+      ]
+    },
+    {
+      "id": "E-kaizen",
+      "why": "更新分岐からだけ --title を落とす（毎回のリネームをやめる）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "            gh issue edit \"$number\" --title \"$title\" --body-file \"$BODY_FILE\"\n",
+      "replace": "            gh issue edit \"$number\" --body-file \"$BODY_FILE\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
+      ]
+    },
+    {
+      "id": "H-kaizen",
+      "why": "更新側も全件ループにする（過剰一般化の陰性コントロール）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "            gh issue edit \"$number\" --title \"$title\" --body-file \"$BODY_FILE\"\n",
+      "replace": "            for n in \"${numbers[@]}\"; do\n              gh issue edit \"$n\" --title \"$title\" --body-file \"$BODY_FILE\"\n            done\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+      ]
+    },
+    {
+      "id": "J-kaizen",
+      "why": "新規作成分岐から打ち切り警告を外す",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "            warn_if_truncated \"既存の追跡 Issue を取りこぼして重複を作った可能性がある\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "S-kaizen",
+      "why": "更新分岐から打ち切り警告を外す",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "            warn_if_truncated \"本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "L-kaizen",
+      "why": "何もしない分岐へ打ち切り警告を挿す（偽陽性の再現）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "              echo \"未適用の学びは 0 件。追跡 Issue も無いので何もしない\"\n",
+      "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"未適用の学びは 0 件。追跡 Issue も無いので何もしない\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "K-kaizen",
+      "why": "分岐前の通知へ挙動を書き戻す（run ログと実挙動を食い違わせる）",
+      "file": ".github/workflows/kaizen-schedule.yml",
+      "find": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）\" >&2",
+      "replace": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新するのは最も古い 1 本のみ\" >&2",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
+      ]
+    },
+    {
+      "id": "B-outdated",
+      "why": "タイトルを固定文字列へ戻す（世代を区別できなくする）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "title=\"$ISSUE_TITLE_PREFIX ($(date -u +%F))\"",
+      "replace": "title=\"$ISSUE_TITLE_PREFIX\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+      ]
+    },
+    {
+      "id": "O-outdated",
+      "why": "env の ISSUE_TITLE_PREFIX 宣言を落とす（空の接頭辞で走らせる）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "      ISSUE_TITLE_PREFIX: \"mise outdated tool versions\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ env で接頭辞を宣言し、タイトルへ UTC の更新日を付ける",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "X-outdated",
+      "why": "ステップから lib の source を落とす（照会を呼ばない）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "          # shellcheck source=/dev/null\n          . \"$TRACKING_LIB\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+      ]
+    },
+    {
+      "id": "X2-outdated",
+      "why": "TRACKING_LIB の env 宣言を落とす",
+      "file": ".github/workflows/outdated.yml",
+      "find": "          # 照会の正本。配布物なのでスキル内（`skills/kaizen/scripts/`）に置いてあり、\n          # ここはその正本をそのまま読む（複製を作ると片方だけ直る余地が戻る）。\n          TRACKING_LIB: skills/kaizen/scripts/tracking-issue-lib.sh\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 照会は lib を source して呼び、ステップ内に再展開しない",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ lib を読めないときは Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "R-outdated",
+      "why": "ゲート入力の検証を外す（空・仕様外の値で gh を呼ぶ）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "          case \"$HAS_OUTDATED\" in\n          true | false) ;;\n          *)\n            echo \"has_outdated=\\\"$HAS_OUTDATED\\\" が true | false のいずれでもない。追跡 Issue を触らずに落とす\" >&2\n            exit 1\n            ;;\n          esac\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"TRUE\" なら Issue を触らずに落ちる",
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ HAS_OUTDATED=\"1\" なら Issue を触らずに落ちる"
+      ]
+    },
+    {
+      "id": "C-outdated",
+      "why": "クローズ分岐で先にリネームする（閉じた Issue の日付を動かす）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"全ツールが最新です。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "replace": "              gh issue edit \"$number\" --title \"$title\"\n              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"全ツールが最新です。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズ時はリネームしない（閉じた Issue は当時の日付で固定する）"
+      ]
+    },
+    {
+      "id": "G-outdated",
+      "why": "クローズを最古 1 本だけに戻す（閉じ残す）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "              for n in \"${numbers[@]}\"; do\n                gh issue close \"$n\" --comment \"全ツールが最新です。自動クローズします。\"\n                echo \"閉じた: #${n}\" >&2\n              done\n",
+      "replace": "              gh issue close \"$number\" --comment \"全ツールが最新です。自動クローズします。\"\n              echo \"閉じた: #${number}\" >&2\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+      ]
+    },
+    {
+      "id": "E-outdated",
+      "why": "更新分岐からだけ --title を落とす（毎回のリネームをやめる）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "            gh issue edit \"$number\" --title \"$title\" --body-file /tmp/issue-body.md\n",
+      "replace": "            gh issue edit \"$number\" --body-file /tmp/issue-body.md\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 既存の追跡 Issue は毎回リネームし、新規作成も日付つきで立てる"
+      ]
+    },
+    {
+      "id": "H-outdated",
+      "why": "更新側も全件ループにする（過剰一般化の陰性コントロール）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "            gh issue edit \"$number\" --title \"$title\" --body-file /tmp/issue-body.md\n",
+      "replace": "            for n in \"${numbers[@]}\"; do\n              gh issue edit \"$n\" --title \"$title\" --body-file /tmp/issue-body.md\n            done\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ クローズは一致した全件に当てる（更新は最古 1 本だけ）"
+      ]
+    },
+    {
+      "id": "J-outdated",
+      "why": "新規作成分岐から打ち切り警告を外す",
+      "file": ".github/workflows/outdated.yml",
+      "find": "            warn_if_truncated \"既存の追跡 Issue を取りこぼして重複を作った可能性がある\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "S-outdated",
+      "why": "更新分岐から打ち切り警告を外す",
+      "file": ".github/workflows/outdated.yml",
+      "find": "            warn_if_truncated \"本物の追跡 Issue が窓の外にあり、別の Issue を更新している可能性がある\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "L-outdated",
+      "why": "何もしない分岐へ打ち切り警告を挿す（偽陽性の再現）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "              echo \"更新のあるツールは無く、追跡 Issue も無いので何もしない\"\n",
+      "replace": "              warn_if_truncated \"何もしていないのに鳴らす\"\n              echo \"更新のあるツールは無く、追跡 Issue も無いので何もしない\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 打ち切りの警告は Issue を触った分岐すべてに置き、何もしない分岐には置かない"
+      ]
+    },
+    {
+      "id": "K-outdated",
+      "why": "分岐前の通知へ挙動を書き戻す（run ログと実挙動を食い違わせる）",
+      "file": ".github/workflows/outdated.yml",
+      "find": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）\" >&2",
+      "replace": "            echo \"追跡 Issue が ${#numbers[@]} 件ある（番号: ${numbers[*]}）。更新するのは最も古い 1 本のみ\" >&2",
+      "occurrences": 1,
+      "expect_failing": [
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
+      ]
+    }
+  ]
+}

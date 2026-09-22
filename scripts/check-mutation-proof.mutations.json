@@ -1,0 +1,83 @@
+{
+  "$comment": [
+    "check-mutation-proof.test.js の検出能力を示す変異の一覧（Issue #420）。",
+    "変異実行器が自分自身を変異させる: 親は読み込み済みのコードで走り、テストが起動する子プロセスが変異版を使う。"
+  ],
+  "test_file": "scripts/check-mutation-proof.test.js",
+  "mutations": [
+    {
+      "id": "NOT-APPLIED",
+      "why": "当たらなかった変異（出現数の不一致）を成功に倒す",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (hits !== mutation.occurrences) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "変異の判定 置換が 1 件も当たらない変異は FAIL（成功に倒さない）",
+        "変異の判定 宣言した出現数と食い違う変異は FAIL"
+      ]
+    },
+    {
+      "id": "EXTRA",
+      "why": "宣言外で落ちたテストを見ない（帰属のずれを通す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  const extra = sorted([...run.failed].filter((n) => !expected.has(n)));",
+      "replace": "  const extra = [];",
+      "occurrences": 1,
+      "expect_failing": ["変異の判定 宣言外のテストまで落ちる変異は FAIL（帰属のずれ）"]
+    },
+    {
+      "id": "NAME-CHECK",
+      "why": "expect_failing のテスト名が実在するかを見ない",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      const unknown = m.expect.filter((name) => !baseline.results.has(name));",
+      "replace": "      const unknown = [];",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 実在しないテスト名を宣言したら exit 2"
+      ]
+    },
+    {
+      "id": "BASELINE",
+      "why": "基準 run が緑であることを確かめない",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (baseline.failed.size > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 基準 run が緑でなければ exit 2"]
+    },
+    {
+      "id": "LIVE-LOCK",
+      "why": "生きている実行のロックも残骸として奪う",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      if (Number.isInteger(pid) && pid > 0 && alive(pid)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 別の実行が変異を当てている間は落ちる"
+      ]
+    },
+    {
+      "id": "ONLY-SPAN",
+      "why": "--only で選ばれなかった宣言を飛ばさず落とす（宣言が 2 件以上あると常に exit 2）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (targeted.length === 0) continue;",
+      "replace": "    if (targeted.length === 0) die(\"--only で 1 件も選ばれなかった\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）"
+      ]
+    },
+    {
+      "id": "ONLY-UNMATCHED",
+      "why": "どの宣言にも無い --only の id を黙って無視する（実証していない変異を実証済みと読む）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (unmatched.length) die(",
+      "replace": "    if (false) die(",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --only でどの変異も選ばれなければ exit 2"
+      ]
+    }
+  ]
+}
