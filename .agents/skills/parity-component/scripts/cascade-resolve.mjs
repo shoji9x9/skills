@@ -25,6 +25,10 @@
 //     `layers` の名前だけからは前後を決められない）
 //   - 条件付き（`@media` / `@supports` / `@container`）の候補が勝ちうる。css-rules-capture.mjs は
 //     条件を**評価せず記録するだけ**なので、当たっているかどうかはこの入力から決まらない
+//   - 恒常状態（`:enabled` / `:valid` / `:read-only` 等）で門番された候補が勝ちうる。これらは
+//     要素の性質であって採取ディレクトリ名からは決まらない（下記 TRANSIENT_STATES）
+//   - 競合が**無名レイヤ**にある。無名 `@layer` の名前は空文字で記録されるため、別々のレイヤが
+//     同じパスに見える
 //
 // 状態は入力から決まらない: `css-rules.json` は状態ごとに別ファイルだが、ファイル自身は
 // どの状態で採ったかを持たない（`baseline/<instance>/<state>/` のディレクトリ名が持つ）。
@@ -58,6 +62,29 @@ const MAX_OF_ARGUMENT = new Set(["is", "not", "has", "matches", "-moz-any", "-we
 /** 詳細度に寄与しない擬似クラス。 */
 const ZERO_SPECIFICITY = new Set(["where"]);
 
+/**
+ * ポインタ・キーボード・遷移で作る**一時的な**状態擬似クラス（正本）。
+ * これらは「いま作っていなければ当たっていない」と言い切れるので、`--state` に無ければ確実に不成立。
+ *
+ * 逆に、ここに無い状態擬似クラス（`:enabled` / `:valid` / `:read-only` 等）は**要素の性質**であって、
+ * 採取ディレクトリ名からは成否が決まらない。`css-rules-capture.mjs` の `STATE_PSEUDO_CLASSES` は
+ * 両者を区別せず `states` に記録するため、ディレクトリ名だけで不成立に倒すと
+ * **採取時に実際に効いていた宣言を落として、負けるはずの宣言を勝者として exit 0 で返す**。
+ * そこで、`--state` に無い恒常状態は「不成立」ではなく**不明**として扱い、勝ちうるなら undecidable にする。
+ * 成否が分かっているなら `--state <name>` で明示的に渡す。
+ * @type {ReadonlySet<string>}
+ */
+const TRANSIENT_STATES = new Set([
+  "active",
+  "focus",
+  "focus-visible",
+  "focus-within",
+  "hover",
+  "link",
+  "target",
+  "visited",
+]);
+
 class UsageError extends Error {}
 
 /** 詳細度を機械的に決められないときに投げる。 */
@@ -78,13 +105,29 @@ export function specificity(selector) {
   let i = 0;
   const s = selector;
 
+  // CSS のエスケープは `\` ＋ 1 文字とは限らない。16 進エスケープは `\` ＋ 16 進数 1〜6 桁で、
+  // 直後の空白 1 つが終端記号として消費される（`.\31 23` は「123」というクラス 1 つ）。
+  // 2 文字固定で進めると残りの桁を型セレクタとして数え、詳細度が狂う（`.\31 23` が [0,1,1] になる）。
+  const skipEscape = (start) => {
+    let j = start + 1;
+    if (j >= s.length) throw new UndecidableSelector(`dangling escape at ${start}`);
+    let hex = 0;
+    while (j < s.length && hex < 6 && /[0-9a-fA-F]/.test(s[j])) {
+      j += 1;
+      hex += 1;
+    }
+    if (hex === 0) return j + 1; // `\.` のような 1 文字エスケープ
+    if (j < s.length && /\s/.test(s[j])) j += 1; // 終端の空白 1 つを消費する
+    return j;
+  };
+
   const skipIdent = (start) => {
     let j = start;
     if (j >= s.length) throw new UndecidableSelector(`identifier expected at ${start}`);
     while (j < s.length) {
       const ch = s[j];
       if (ch === "\\") {
-        j += 2;
+        j = skipEscape(j);
         continue;
       }
       if (/[-\w -￿]/.test(ch)) {
@@ -180,6 +223,7 @@ export function specificity(selector) {
       i = skipIdent(i);
       continue;
     }
+    // 以降のトークン判定は skipIdent がエスケープ全体を消費する前提で進む。
     if (ch === '"' || ch === "'") {
       i = skipString(i);
       continue;
@@ -350,6 +394,7 @@ export function resolveCascade(document, options) {
         pseudo_element: pseudo,
         applying: [],
         conditional: [],
+        state_unknown: [],
         state_gated: 0,
         reasons: [],
       };
@@ -363,7 +408,11 @@ export function resolveCascade(document, options) {
     const conditions = Array.isArray(rule.conditions) ? rule.conditions : [];
     const layers = Array.isArray(rule.layers) ? rule.layers : [];
     const declarations = Array.isArray(rule.declarations) ? rule.declarations : [];
-    const gated = states.some((state) => !active.has(state));
+    // 一時的な状態は「作っていないなら不成立」と言い切れる。恒常状態（`:enabled` 等）は
+    // ディレクトリ名から成否が決まらないので、不成立に倒さず「不明」として持つ。
+    const inactive = states.filter((state) => !active.has(state));
+    const gated = inactive.some((state) => TRANSIENT_STATES.has(state));
+    const unknownStates = inactive.filter((state) => !TRANSIENT_STATES.has(state));
     let spec = null;
     let specError = null;
     try {
@@ -392,7 +441,9 @@ export function resolveCascade(document, options) {
         conditions,
       };
       if (conditions.length > 0) entry.conditional.push(candidate);
-      else entry.applying.push(candidate);
+      else if (unknownStates.length > 0) {
+        entry.state_unknown.push({ ...candidate, unknown_states: unknownStates });
+      } else entry.applying.push(candidate);
     }
   }
 
@@ -466,6 +517,7 @@ function decide(entry) {
     winner: null,
     losers: [],
     conditional: entry.conditional,
+    state_unknown: entry.state_unknown,
     state_gated: entry.state_gated,
     reasons,
   };
@@ -474,6 +526,15 @@ function decide(entry) {
       reasons.push(
         "only conditional (@media / @supports / @container) declarations remain; " +
           "css-rules-capture records conditions without evaluating them, so applicability is unknown",
+      );
+      return out;
+    }
+    if (entry.state_unknown.length > 0) {
+      reasons.push(
+        "only declarations gated by persistent state pseudo-classes remain " +
+          `(${[...new Set(entry.state_unknown.flatMap((c) => c.unknown_states))].sort().join(", ")}); ` +
+          "these describe the element itself, not the capture directory, so applicability is unknown. " +
+          "pass --state <name> for the ones you know were active",
       );
       return out;
     }
@@ -509,6 +570,13 @@ function decide(entry) {
     const paths = new Set(candidates.map((c) => JSON.stringify(c.layers)));
     return paths.size > 1;
   };
+  /**
+   * 無名レイヤ（`@layer { … }`）の名前は `css-rules-capture.mjs` で空文字になる。
+   * 別々の無名レイヤが同じ `[""]` として記録されるため、**同じパスに見えても同一レイヤとは限らない**。
+   * レイヤ順は詳細度より強く `!important` で逆転するので、同一視すると黙って誤った勝者になる。
+   */
+  const anonymousLayer = (candidates) =>
+    candidates.length > 1 && candidates.some((c) => c.layers.some((name) => name === ""));
 
   const tiers = [
     { name: "inline !important", candidates: inlineImportant },
@@ -521,6 +589,14 @@ function decide(entry) {
   let winningTier = null;
   for (const tier of tiers) {
     if (tier.candidates.length === 0) continue;
+    if (anonymousLayer(tier.candidates)) {
+      reasons.push(
+        `competing ${tier.name} declarations sit in anonymous cascade layers; ` +
+          "css-rules-capture records every anonymous layer as an empty name, so two different layers " +
+          "are indistinguishable here and layer order outranks specificity",
+      );
+      return out;
+    }
     if (layerSpread(tier.candidates)) {
       reasons.push(
         `competing ${tier.name} declarations sit in different cascade layers` +
@@ -536,7 +612,7 @@ function decide(entry) {
 
   // 条件付きの候補が、決まった勝者より強い段にいるなら結論を出せない。
   const tierRank = tiers.findIndex((t) => t.name === winningTier);
-  const conditionalCouldWin = entry.conditional.some((c) => {
+  const couldOutrank = (c) => {
     const rank = c.important ? 1 : 3;
     if (rank < tierRank) return true;
     if (rank > tierRank) return false;
@@ -545,11 +621,20 @@ function decide(entry) {
     if (c.specificity === null) return true;
     const bySpec = compareSpecificity(c.specificity, winner.specificity);
     return bySpec > 0 || (bySpec === 0 && (c.order ?? 0) > (winner.order ?? 0));
-  });
-  if (conditionalCouldWin) {
+  };
+  if (entry.conditional.some(couldOutrank)) {
     reasons.push(
       "a conditional (@media / @supports / @container) declaration would outrank the winner if its " +
         "condition holds; css-rules-capture does not evaluate conditions, so this cannot be decided here",
+    );
+    return out;
+  }
+  if (entry.state_unknown.some(couldOutrank)) {
+    reasons.push(
+      "a declaration gated by a persistent state pseudo-class " +
+        `(${[...new Set(entry.state_unknown.filter(couldOutrank).flatMap((c) => c.unknown_states))].sort().join(", ")}) ` +
+        "would outrank the winner if that state was active during capture; the capture directory name " +
+        "does not settle it. pass --state <name> if you know it was active",
     );
     return out;
   }
@@ -564,8 +649,11 @@ const USAGE = [
   "usage: cascade-resolve.mjs --css-rules <css-rules.json> --state <name> [--state <name>...]",
   "                          [--property <name>]... [--all]",
   "",
-  "  --state      この採取物を採ったときに成立していた状態。`default` は「状態擬似クラス無し」。",
-  "               baseline/<instance>/<state>/ の <state> をそのまま渡す（必須。推測しない）",
+  "  --state      この採取物を採ったときに成立していた状態（繰り返し可）。`default` は「状態擬似クラス無し」。",
+  "               baseline/<instance>/<state>/ の <state> をそのまま渡す（必須。推測しない）。",
+  "               :hover / :focus 等の一時的な状態は渡さなければ不成立として扱うが、",
+  "               :enabled / :valid / :read-only のような恒常状態は不明として undecidable に倒す。",
+  "               成否が分かっているものは --state で明示的に足す",
   "  --property   解決するプロパティ（繰り返し可）。省略時は --all が要る。",
   "               CSS カスタムプロパティ（--brand-color 等）もそのまま渡せる",
   "  --all        候補に現れる全プロパティを解決する",

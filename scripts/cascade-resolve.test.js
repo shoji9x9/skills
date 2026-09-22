@@ -437,3 +437,144 @@ test("CLI: 読めないファイルは exit 2", () => {
   expect(out.status).toBe(2);
   expect(out.stderr).toMatch(/cannot read/);
 });
+
+// --- codex レビュー #435 の 3 件 -------------------------------------------
+//
+// いずれも「黙って誤った勝者を exit 0 で返す」形。落とす入力と、通さねばならない入力を
+// 同じ数だけ置く（片方だけだと「全部 undecidable にする実装」と区別が付かない）。
+
+test("恒常状態（:enabled 等）で門番された宣言を不成立に倒さない", () => {
+  // css-rules-capture の STATE_PSEUDO_CLASSES は :enabled / :valid / :read-only も states に入れる。
+  // これらは要素の性質で、採取ディレクトリ名からは成否が決まらない。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      {
+        order: 2,
+        selector: ".btn:enabled",
+        states: ["enabled"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/persistent state/);
+  expect(result.state_unknown).toHaveLength(1);
+
+  // 陽性コントロール: 素朴にディレクトリ名だけで門番すると blue を勝者として返していた。
+  expect(result.winner).toBeNull();
+});
+
+test("恒常状態も --state で明示すれば解決する", () => {
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      {
+        order: 2,
+        selector: ".btn:enabled",
+        states: ["enabled"],
+        declarations: [decl("color", "green")],
+      },
+    ],
+  });
+  const result = resolve(input, "color", ["default", "enabled"]);
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("green");
+});
+
+test("恒常状態でも勝てない候補なら resolved にする（何でも undecidable にしない）", () => {
+  const input = doc({
+    matched: [
+      {
+        order: 1,
+        selector: ".btn:enabled",
+        states: ["enabled"],
+        declarations: [decl("color", "green")],
+      },
+      { order: 2, selector: "#main .btn", declarations: [decl("color", "blue", true)] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("blue");
+});
+
+test("一時的な状態（:hover 等）は従来どおり不成立に倒す", () => {
+  // ここを恒常状態と同じ扱いにすると、default の採取で :hover を持つ部品が全部 undecidable になる。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".btn", declarations: [decl("color", "blue")] },
+      {
+        order: 2,
+        selector: ".btn:hover",
+        states: ["hover"],
+        declarations: [decl("color", "green")],
+      },
+      {
+        order: 3,
+        selector: ".btn:focus-visible",
+        states: ["focus-visible"],
+        declarations: [decl("color", "red")],
+      },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("blue");
+  expect(result.state_gated).toBe(2);
+  expect(result.state_unknown).toHaveLength(0);
+});
+
+test("無名カスケードレイヤをまたぐ競合は undecidable（別レイヤを同一視しない）", () => {
+  // css-rules-capture は無名レイヤの名前を空文字で記録するので、別々の無名レイヤが同じ [""] になる。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".btn", layers: [""], declarations: [decl("color", "blue")] },
+      { order: 2, selector: ".btn", layers: [""], declarations: [decl("color", "green")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("undecidable");
+  expect(result.reasons.join(" ")).toMatch(/anonymous cascade layers/);
+
+  // 陽性コントロール: 名前付きなら同一レイヤと判定でき、後勝ちで解決する。
+  const named = doc({
+    matched: [
+      { order: 1, selector: ".btn", layers: ["app"], declarations: [decl("color", "blue")] },
+      { order: 2, selector: ".btn", layers: ["app"], declarations: [decl("color", "green")] },
+    ],
+  });
+  expect(resolve(named, "color").winner.value).toBe("green");
+});
+
+test("無名レイヤでも候補が 1 件なら解決する（競合が無いので同一性を問う必要がない）", () => {
+  const input = doc({
+    matched: [{ order: 1, selector: ".btn", layers: [""], declarations: [decl("color", "blue")] }],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  expect(result.winner.value).toBe("blue");
+});
+
+test("16 進エスケープはエスケープ全体を消費して数える", () => {
+  // `.\31 23` はクラス「123」1 つ。2 文字固定で進めると残り「23」を型セレクタに数えて [0,1,1] になる。
+  expect(specificity(".\\31 23")).toEqual([0, 1, 0]);
+  expect(specificity("#\\31 2 .b")).toEqual([1, 1, 0]);
+  expect(specificity(".\\.a")).toEqual([0, 1, 0]); // 1 文字エスケープは従来どおり
+  expect(specificity(".\\31 23 div")).toEqual([0, 1, 1]); // 終端空白の後ろの型セレクタは数える
+});
+
+test("エスケープの誤読が勝者を変えていたことを回帰で固定する", () => {
+  // 誤読すると `.\31 23` の詳細度が [0,1,1] になり、[0,1,0] の .btn より強く読まれる。
+  const input = doc({
+    matched: [
+      { order: 1, selector: ".\\31 23", declarations: [decl("color", "green")] },
+      { order: 2, selector: ".btn", declarations: [decl("color", "blue")] },
+    ],
+  });
+  const result = resolve(input, "color");
+  expect(result.status).toBe("resolved");
+  // 同詳細度なので後勝ち＝ blue。誤読していると green（型セレクタぶん強い）になる。
+  expect(result.winner.value).toBe("blue");
+});
