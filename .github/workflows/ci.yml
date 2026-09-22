@@ -81,7 +81,7 @@ jobs:
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
-      # 変異実証（検査の検出能力の再実行）。**pre-commit には入れない**——CI 実測で 177 秒（手元は約 5 分）かかり、
+      # 変異実証（検査の検出能力の再実行）。**pre-commit には入れない**——CI 実測で 177 秒（62 変異時。手元は 70 変異で約 6 分 20 秒）かかり、
       # 実行中は対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違えが起きる。
       - name: Mutation proof (scripts/*.mutations.json)
         run: node scripts/check-mutation-proof.js

@@ -298,6 +298,21 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
     expect(ok.stdout).toContain("numbers=0");
   });
 
+  // **fail-closed を呼び出し側の `set -e` に依存させない。** `if resolve_tracking_issues; then` や
+  // `|| ...` の左辺では errexit が効かないので、照会の失敗を関数の戻り値で伝える必要がある
+  // （伝えないと 0 件として新規作成へ倒れ、既存 Issue を残したまま 2 本目を立てる）。
+  test("errexit が効かない文脈でも照会の失敗を戻り値で伝える", () => {
+    const probe =
+      'if resolve_tracking_issues; then echo "REACHED-SUCCESS"; else echo "FAILED-CLOSED"; fi';
+    const failed = runLib(probe, GH_FAILING, { ISSUE_TITLE_PREFIX: "p" });
+    expect(failed.stdout, "gh の失敗が成功として返った").toContain("FAILED-CLOSED");
+    expect(failed.stdout).not.toContain("REACHED-SUCCESS");
+
+    // 陽性コントロール: 同じ文脈で gh が正常なら成功側へ入る。
+    const ok = runLib(probe, GH_EMPTY, { ISSUE_TITLE_PREFIX: "p" });
+    expect(ok.stdout).toContain("REACHED-SUCCESS");
+  });
+
   // 検索インデックスは結果整合。作成・リネーム直後の workflow_dispatch で未反映だと
   // 「無い」と答え、2 本目を立てる（一覧 API は即時反映）。0 件なら --search 無しで引き直す。
   test("検索が 0 件なら --search 無しで引き直し、見つかった週は 2 度引かない", () => {

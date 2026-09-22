@@ -76,14 +76,15 @@
       "expect_failing": [
         "照会の正本（tracking-issue-lib.sh） gh issue list が失敗したら非 0 で返る（fail-closed）",
         "'.github/workflows/kaizen-schedule.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
-        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）"
+        "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ gh issue list が失敗したら Issue を触らずに落ちる（fail-closed）",
+        "照会の正本（tracking-issue-lib.sh） errexit が効かない文脈でも照会の失敗を戻り値で伝える"
       ]
     },
     {
       "id": "F",
       "why": "検索 0 件時のフォールバックを外す",
       "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
-      "find": "\tif [ \"${#numbers[@]}\" -eq 0 ]; then\n\t\tquery_tracking_issues\n\t\tif [ \"$scanned\" -ge \"$list_limit\" ]; then\n\t\t\ttruncated=true\n\t\tfi\n\t\tif [ \"${#numbers[@]}\" -gt 0 ]; then\n\t\t\techo \"検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）\" >&2\n\t\tfi\n\tfi\n",
+      "find": "\tif [ \"${#numbers[@]}\" -eq 0 ]; then\n\t\tquery_tracking_issues || return 1\n\t\tif [ \"$scanned\" -ge \"$list_limit\" ]; then\n\t\t\ttruncated=true\n\t\tfi\n\t\tif [ \"${#numbers[@]}\" -gt 0 ]; then\n\t\t\techo \"検索インデックス未反映のため --search 無しで再取得した（番号: ${numbers[*]}）\" >&2\n\t\tfi\n\tfi\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -465,6 +466,17 @@
       "occurrences": 1,
       "expect_failing": [
         "'.github/workflows/outdated.yml' の追跡 Issue 更新ステップ 複数一致の通知は分岐前で挙動を断定しない"
+      ]
+    },
+    {
+      "id": "LIB-RETURN",
+      "why": "照会の失敗を戻り値で伝えない（2 箇所とも呼び出し側の set -e 任せに戻す。片方だけ外しても他方が庇うので両方）",
+      "file": "skills/kaizen/scripts/tracking-issue-lib.sh",
+      "find": " || return 1\n",
+      "replace": "\n",
+      "occurrences": 2,
+      "expect_failing": [
+        "照会の正本（tracking-issue-lib.sh） errexit が効かない文脈でも照会の失敗を戻り値で伝える"
       ]
     }
   ]

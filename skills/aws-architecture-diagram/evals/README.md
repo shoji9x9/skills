@@ -1,5 +1,9 @@
 # 回帰テスト
 
+> **この手順は shoji9x9/skills リポジトリでの開発専用。** ハーネス（`scripts/run-skill-eval.sh`）と
+> 集計器（`scripts/build-skill-eval-benchmark.js`）はこのリポジトリのツールで配布物ではないため、
+> スキルをインストールした下流リポジトリには存在しない。
+
 `aws-architecture-diagram` スキルの動作をテストケースで検証する手順。
 
 ## ファイル構成

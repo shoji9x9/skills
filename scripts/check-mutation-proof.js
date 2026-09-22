@@ -23,6 +23,7 @@
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   closeSync,
   existsSync,
@@ -50,9 +51,14 @@ function die(message) {
 // **この検査は作業ツリーを書き換えて戻す。** 並行して走らせる（別の mutation-proof、
 // 同時に走るテスト）と、相手が変異を当てている最中のファイルを読んで**無関係な赤**が出る
 // （実測: 並行実行中に集計器のテストが 1 本落ちた）。単一実行をロックで担保する。
+// キーは repoRoot **全体**のハッシュ。末尾だけを見ると、worktree を並べる運用で末尾が同じパス
+// （`wt-issue-420-benchmark-scripts` / `wt-issue-421-benchmark-scripts`）が同じロックを取り合う。
 const lockPath =
   process.env.MUTATION_PROOF_LOCK ??
-  join(tmpdir(), `mutation-proof-${Buffer.from(repoRoot).toString("hex").slice(-32)}.lock`);
+  join(
+    tmpdir(),
+    `mutation-proof-${createHash("sha256").update(repoRoot).digest("hex").slice(0, 32)}.lock`,
+  );
 let lockHeld = false;
 
 function takeLock() {
@@ -241,8 +247,20 @@ function runTests(testFile) {
     const res = spawnSync(
       "pnpm",
       ["exec", "vitest", "run", testFile, "--reporter=json", `--outputFile=${outFile}`],
-      { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        // 子 vitest に、使用中の fixture を掃かせない（`scripts/vitest-global-setup.js`）。
+        env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
+      },
     );
+    // **起動できなかったのは「実証の失敗」ではない。** spawn 自体が失敗すると理由は
+    // `res.error` にだけ入り stdout/stderr は null なので、そのままだと理由なしの FAIL
+    // （exit 1 =「実証できない変異がある」）に化ける。前提の誤りとして exit 2 に倒す。
+    if (res.error) {
+      die(`vitest を起動できない: ${res.error.message}`);
+    }
     if (!existsSync(outFile)) {
       return {
         ran: false,

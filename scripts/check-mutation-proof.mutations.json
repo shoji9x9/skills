@@ -89,6 +89,28 @@
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） ロックの読み取りが ENOENT 以外で失敗したら exit 2（stack trace にしない）"
       ]
+    },
+    {
+      "id": "SPAWN-ERROR",
+      "why": "spawn 自体の失敗を exit 2 に倒さない（環境起因の失敗を実証の失敗に混ぜる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (res.error) {\n      die(`vitest を起動できない: ${res.error.message}`);\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） vitest を起動できなければ exit 2（理由を捨てない）"
+      ]
+    },
+    {
+      "id": "CHILD-GUARD",
+      "why": "子 vitest へ MUTATION_PROOF_CHILD を渡さない（globalSetup が使用中の fixture を消す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "        env: { ...process.env, MUTATION_PROOF_CHILD: \"1\" },\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 子 vitest の掃引を止めるので、使用中の fixture が消えない"
+      ]
     }
   ]
 }

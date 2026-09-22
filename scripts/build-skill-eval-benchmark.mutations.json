@@ -58,13 +58,14 @@
     },
     {
       "id": "RATE",
-      "why": "pass_rate の突き合わせを外す",
+      "why": "pass_rate の突き合わせを外す（内訳と食い違う採点を通す）",
       "file": "scripts/build-skill-eval-benchmark.js",
-      "find": "  if (typeof summary.pass_rate !== \"number\" || round(summary.pass_rate, 4) !== computedRate) {\n    die(\n      `${gradingPath}: summary.pass_rate=${summary.pass_rate} が採点内訳（${computedRate}）と違う`,\n    );\n  }\n",
-      "replace": "",
+      "find": "  if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "受理しない入力（exit 2） summary の pass_rate が採点内訳と食い違えば落とす"
+        "受理しない入力（exit 2） summary の pass_rate が採点内訳と食い違えば落とす",
+        "受理しない入力（exit 2） 桁を丸めても説明できない pass_rate は落とす"
       ]
     },
     {
@@ -200,6 +201,26 @@
       "expect_failing": [
         "受理しない入力（exit 2） 同じ eval の run が違う assertion 集合を採点していれば落とす"
       ]
+    },
+    {
+      "id": "RATE-DIGITS",
+      "why": "pass_rate の比較桁を保存値に合わせず 4 桁固定へ戻す（丸めた採点を誤って落とす）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  const digits = Math.min(Math.max(storedDigits, 1), 4);",
+      "replace": "  const digits = 4;",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） 保存された pass_rate の桁が粗くても内訳が合っていれば受理する"
+      ]
+    },
+    {
+      "id": "EXECUTOR-NAME",
+      "why": "executor.name の必須検査を外す（記録が無い run を「揃っている」に倒す）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (missingExecutor.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） timing.json に executor.name が無ければ落とす"]
     }
   ]
 }

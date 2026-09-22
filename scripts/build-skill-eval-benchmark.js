@@ -107,6 +107,14 @@ function round(value, digits) {
   return Number(result.toFixed(digits));
 }
 
+/** 数値の小数桁数（保存された精度を知るため）。指数表記は桁を読めないので 4 桁として扱う。 */
+function decimals(value) {
+  const text = String(value);
+  if (text.includes("e") || text.includes("E")) return 4;
+  const dot = text.indexOf(".");
+  return dot < 0 ? 0 : text.length - dot - 1;
+}
+
 function mean(values) {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
@@ -256,7 +264,16 @@ function loadRun(runDir, configuration, evalDir) {
     }
   }
   const computedRate = round(passed / expectations.length, 4);
-  if (typeof summary.pass_rate !== "number" || round(summary.pass_rate, 4) !== computedRate) {
+  if (typeof summary.pass_rate !== "number") {
+    die(`${gradingPath}: summary.pass_rate が数値でない`);
+  }
+  // **保存値の桁に合わせて比べる。** `pass_rate` の小数桁は規約が定めていないので、採点者は
+  // 0.56（= 5/9）のように 2〜3 桁で保存する（本リポの既存成果物に 10 件ある）。4 桁固定で
+  // 比べると、内訳が正しい採点を「summary と食い違う」と誤報して落とす。
+  // 桁は 1〜4 に収める——0 桁（整数で保存）をそのまま使うと 1 と 0.6667 が同じに丸まって弁別が消える。
+  const storedDigits = decimals(summary.pass_rate);
+  const digits = Math.min(Math.max(storedDigits, 1), 4);
+  if (round(computedRate, digits) !== round(summary.pass_rate, digits)) {
     die(
       `${gradingPath}: summary.pass_rate=${summary.pass_rate} が採点内訳（${computedRate}）と違う`,
     );
@@ -353,6 +370,16 @@ function main() {
       ]),
     ),
   );
+  // **「記録が無い」を「揃っている」に倒さない。** `timing.executor` を欠く run ばかりだと
+  // キーが全部 `[null,null,null]` になり、本当に混ざっていても size 1 で素通りする
+  // （本リポの成果物にも executor を欠く run が 20 件ある）。名前は必須にする。
+  const missingExecutor = loaded.filter((r) => !r.executor?.name).map((r) => r.runDir);
+  if (missingExecutor.length > 0) {
+    die(
+      `timing.json に executor.name が無い run がある（${missingExecutor.length} 件。例: ${missingExecutor[0]}）。` +
+        "executor を記録した run で取り直す（記録が無いと母集団が揃っているか確かめられない）",
+    );
+  }
   if (executorKeys.size > 1) {
     die(
       `executor / model / effort が混ざっている（iteration を分ける）: ${[...executorKeys].join(" | ")}`,

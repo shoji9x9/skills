@@ -438,6 +438,58 @@ describe("受理しない入力（exit 2）", () => {
     );
   });
 
+  // `pass_rate` の小数桁は規約が定めていない。採点者が 0.56（= 5/9）のように丸めて保存した
+  // grading は内訳が正しいので受理する（本リポの既存成果物に 10 件ある）。
+  test("保存された pass_rate の桁が粗くても内訳が合っていれば受理する", () => {
+    const root = makeIteration();
+    const nine = Array.from({ length: 9 }, (_, i) => `assertion ${i + 1}`);
+    writeRun(root, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "with_skill",
+      assertions: nine,
+      grading: {
+        // 5/9 = 0.5556 を 2 桁で保存した形。
+        summary: { pass_rate: 0.56, passed: 5, failed: 4, total: 9 },
+        expectations: nine.map((text, i) => ({ text, passed: i < 5, evidence: "e" })),
+      },
+    });
+    const res = run(root);
+    expect(res.status, res.out).toBe(0);
+    // 出力には採点者が保存した値をそのまま載せる（既存記録の再生成が一致する形）。
+    expect(JSON.parse(res.stdout).runs[0].result.pass_rate).toBe(0.56);
+  });
+
+  test("桁を丸めても説明できない pass_rate は落とす", () => {
+    reject(
+      {
+        summary: { pass_rate: 0.5, passed: 3, failed: 0, total: 3 },
+        expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
+      },
+      "summary.pass_rate=0.5 が採点内訳（1）と違う",
+    );
+  });
+
+  // 「記録が無い」を「揃っている」に倒さない（全 run で executor が欠けると混在検査が空振りする）。
+  test("timing.json に executor.name が無ければ落とす", () => {
+    const root = makeIteration();
+    writeRun(root, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "with_skill",
+      executor: { name: null, model: null, reasoning_effort: null },
+    });
+    writeRun(root, {
+      evalDir: "eval-1",
+      evalId: 1,
+      configuration: "without_skill",
+      executor: { name: null, model: null, reasoning_effort: null },
+    });
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("executor.name が無い run がある");
+  });
+
   test("timing.json が無ければ落とす（時間・トークンを 0 で埋めない）", () => {
     const root = makeIteration();
     writeRun(root, {

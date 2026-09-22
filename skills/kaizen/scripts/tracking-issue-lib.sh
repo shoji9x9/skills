@@ -116,7 +116,10 @@ resolve_tracking_issues() {
 		return 1
 	fi
 
-	query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title"
+	# **戻り値を捨てない。** `set -e` が効かない文脈（`if resolve_tracking_issues; then` や
+	# `|| ...` の左辺、別のシェル設定で source した配布先）では、照会が 403 で失敗しても
+	# 最後のコマンドの終了コードで 0 を返し、一致 0 件として新規作成へ倒れて 2 本目を立てる。
+	query_tracking_issues --search "$ISSUE_TITLE_PREFIX in:title" || return 1
 	# **どちらの照会が打ち切られても、窓の外に本物が残りうる。** 1 本の flag にまとめる。
 	# `scanned` は照会が返した件数であって接頭辞一致の件数ではない（接頭辞の判定は jq 側）
 	# ——警告文でもそう書く。
@@ -125,7 +128,7 @@ resolve_tracking_issues() {
 		truncated=true
 	fi
 	if [ "${#numbers[@]}" -eq 0 ]; then
-		query_tracking_issues
+		query_tracking_issues || return 1
 		if [ "$scanned" -ge "$list_limit" ]; then
 			truncated=true
 		fi
