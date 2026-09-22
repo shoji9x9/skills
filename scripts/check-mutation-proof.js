@@ -25,10 +25,9 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  closeSync,
   existsSync,
+  linkSync,
   mkdtempSync,
-  openSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -62,14 +61,24 @@ const lockPath =
 let lockHeld = false;
 
 function takeLock() {
+  // **pid を書き終えてから公開する。** `openSync(wx)` → `writeFileSync` の 2 段だと、
+  // 作成直後の窓ではロックが**空**で、そこに入った 2 本目が「pid が読めない＝残骸」と判定して
+  // 生きている持ち主のロックを奪える（`Number("")` は NaN ではなく 0 なので `pid > 0` が false）。
+  // 一時ファイルへ pid を書いてから `linkSync` で公開すると、公開されたロックは常に pid を持つ。
+  const staging = `${lockPath}.${process.pid}.staging`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const fd = openSync(lockPath, "wx");
-      writeFileSync(fd, `${process.pid}\n`);
-      closeSync(fd);
+      writeFileSync(staging, `${process.pid}\n`);
+      linkSync(staging, lockPath); // 既にあれば EEXIST（アトミック）
+      unlinkSync(staging);
       lockHeld = true;
       return;
     } catch (err) {
+      try {
+        unlinkSync(staging);
+      } catch {
+        /* 作れていなければ消すものが無い */
+      }
       if (err.code !== "EEXIST") die(`ロックを作れない（${lockPath}）: ${err.message}`);
       // **読み取りも失敗しうる。** EEXIST を受けてから持ち主が `releaseLock()` で unlink する窓に
       // 入ると ENOENT を投げ、`catch` の中なので誰も受けず未処理例外になる（終了コード 1 は
@@ -119,9 +128,24 @@ function releaseLock() {
   }
 }
 
+// 実行中に作った一時ディレクトリ。`die()`（`process.exit`）は finally を飛ばすので、
+// exit ハンドラからも片付ける。
+const tempDirs = new Set();
+
 // 変異を当てている最中のファイル。中断（Ctrl-C・SIGTERM）でも必ず戻す
 // ——戻せないまま終わると、変異したワークフローやスクリプトが作業ツリーに残る。
 let pending = null;
+
+function cleanupTempDirs() {
+  for (const dir of tempDirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* 消せなければ諦める（一時ディレクトリなので害は蓄積だけ） */
+    }
+  }
+  tempDirs.clear();
+}
 
 function restorePending() {
   if (!pending) return;
@@ -137,6 +161,7 @@ function restorePending() {
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(signal, () => {
     restorePending();
+    cleanupTempDirs();
     releaseLock();
     console.error(`mutation-proof: ${signal} で中断した（変異は戻した）`);
     process.exit(130);
@@ -144,6 +169,7 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
 }
 process.on("exit", () => {
   restorePending();
+  cleanupTempDirs();
   releaseLock();
 });
 
@@ -246,7 +272,10 @@ function loadSpec(specPath) {
  * 区別できないため、JSON レポータの結果から名前で読む。
  */
 function runTests(testFile) {
+  // **`die()` は `process.exit` なので finally を飛ばす。** 変異の復元と同じく exit ハンドラで
+  // 二重化して、起動失敗・重複検出で落ちたときに一時ディレクトリを残さない。
   const dir = mkdtempSync(join(tmpdir(), "mutation-proof-"));
+  tempDirs.add(dir);
   const outFile = join(dir, "result.json");
   try {
     const res = spawnSync(
@@ -304,6 +333,7 @@ function runTests(testFile) {
     return { ran: true, results, failed };
   } finally {
     rmSync(dir, { recursive: true, force: true });
+    tempDirs.delete(dir);
   }
 }
 

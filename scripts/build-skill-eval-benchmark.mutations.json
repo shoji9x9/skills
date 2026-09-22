@@ -256,6 +256,37 @@
       "replace": "      ? readJson(path)",
       "occurrences": 1,
       "expect_failing": ["集計（揃った iteration） notes は JSON の文字列配列でも受け取れる"]
+    },
+    {
+      "id": "UNKNOWN-CONFIG",
+      "why": "未知の configuration ディレクトリの検査を外す（1 文字違いの成果物を黙って捨てる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (unknownDirs.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） configuration に使えないディレクトリがあれば落とす"
+      ]
+    },
+    {
+      "id": "STRAY-RUN",
+      "why": "run-<番号> でないディレクトリの検査を外す（run を黙って捨てる）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "      if (strayRuns.length > 0) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["受理しない入力（exit 2） run-<番号> でないディレクトリがあれば落とす"]
+    },
+    {
+      "id": "BOTH-FORMS",
+      "why": "verdicts と expectations の併存を落とさない（expectations を黙って無視する）",
+      "file": "scripts/build-skill-eval-benchmark.js",
+      "find": "  if (grading.verdicts !== undefined && grading.expectations !== undefined) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "受理しない入力（exit 2） verdicts と expectations が両方あれば落とす（正本を決められない）"
+      ]
     }
   ]
 }

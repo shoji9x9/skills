@@ -704,6 +704,39 @@ describe("受理しない入力（exit 2）", () => {
     expect(res.out).toContain("eval_id=2 がディレクトリ名（eval-1）と違う");
   });
 
+  // **知らない名前のディレクトリを黙って捨てない。** 既知の 2 名だけを拾う形だと、1 文字違いの
+  // 成果物が集計から消えて「片側だけの iteration」として通る。
+  test("configuration に使えないディレクトリがあれば落とす", () => {
+    const root = completeIteration();
+    writeRun(root, { evalDir: "eval-2", evalId: 2, configuration: "without-skill" });
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("configuration に使えないディレクトリがある");
+    expect(res.out).toContain("eval-2/without-skill");
+  });
+
+  test("run-<番号> でないディレクトリがあれば落とす", () => {
+    const root = completeIteration();
+    mkdirSync(join(root, "eval-2", "with_skill", "retry-run-2"), { recursive: true });
+    const res = run(root);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("run ディレクトリの名前が run-<番号> でない");
+    expect(res.out).toContain("eval-2/with_skill/retry-run-2");
+  });
+
+  test("verdicts と expectations が両方あれば落とす（正本を決められない）", () => {
+    reject(
+      {
+        summary: { pass_rate: 1, passed: 3, failed: 0, total: 3 },
+        expectations: ASSERTIONS.map((text) => ({ text, passed: true, evidence: "e" })),
+        verdicts: Object.fromEntries(
+          ASSERTIONS.map((text) => [text, { passed: true, evidence: "e" }]),
+        ),
+      },
+      "verdicts と expectations の両方がある",
+    );
+  });
+
   test("eval ディレクトリが無ければ落とす（対象 0 件を成功に倒さない）", () => {
     const res = run(makeIteration());
     expect(res.status, res.out).toBe(2);

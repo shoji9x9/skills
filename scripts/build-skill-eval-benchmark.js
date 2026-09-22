@@ -178,6 +178,11 @@ function verdictsFromGrading(grading, where) {
     map.set(text, { passed: verdict.passed, evidence });
   };
 
+  // **両方あるなら、どちらが正本か決められない。** `verdicts` を優先して `expectations` を
+  // 黙って無視すると、viewer が読む `expectations` と benchmark の判定が食い違ったまま通る。
+  if (grading.verdicts !== undefined && grading.expectations !== undefined) {
+    die(`${where}: verdicts と expectations の両方がある（どちらが正本か決められない）`);
+  }
   if (grading.verdicts !== undefined) {
     if (
       typeof grading.verdicts !== "object" ||
@@ -344,6 +349,22 @@ function main() {
   if (evalDirs.length === 0)
     die(`${opts.dir}: eval-* ディレクトリが無い（対象 0 件を成功に倒さない）`);
 
+  // **実在する子ディレクトリを列挙して、知らない名前を黙って捨てない。** 既知の 2 名だけを
+  // `existsSync` で拾う形だと、`without-skill` のような 1 文字違いの成果物が誰にも告げられずに
+  // 集計から消え、「片側だけの iteration」として exit 0 で通る（実測）。除外は人が明示する。
+  const unknownDirs = [];
+  for (const evalDir of evalDirs) {
+    for (const name of listDirs(join(opts.dir, evalDir), "")) {
+      if (!CONFIGURATIONS.includes(name)) unknownDirs.push(`${evalDir}/${name}`);
+    }
+  }
+  if (unknownDirs.length > 0) {
+    die(
+      `configuration に使えないディレクトリがある（${unknownDirs.join(", ")}）。` +
+        `名前を ${CONFIGURATIONS.join(" / ")} に揃えるか、iteration から外す`,
+    );
+  }
+
   const loaded = [];
   const ungraded = [];
   const perPair = new Map();
@@ -355,6 +376,14 @@ function main() {
       presentByEval.get(evalDir).push(configuration);
       const runDirs = listDirs(configDir, "run-");
       if (runDirs.length === 0) die(`${configDir}: run-* ディレクトリが無い`);
+      // `run-` に一致しないディレクトリも同じく黙って落とさない（`run1` / `retry-run-2` 等）。
+      const strayRuns = listDirs(configDir, "").filter((n) => !runDirs.includes(n));
+      if (strayRuns.length > 0) {
+        die(
+          `run ディレクトリの名前が run-<番号> でない（${strayRuns.map((n) => `${evalDir}/${configuration}/${n}`).join(", ")}）。` +
+            "名前を揃えるか、iteration から外す",
+        );
+      }
       let graded = 0;
       for (const runDir of runDirs) {
         const abs = join(configDir, runDir);
