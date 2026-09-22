@@ -65,7 +65,8 @@
       "replace": "    if (targeted.length === 0) die(\"--only で 1 件も選ばれなかった\");",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（走らせる前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）"
+        "宣言と前提の検証（走らせる前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）",
+        "宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る"
       ]
     },
     {
@@ -179,6 +180,47 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） 復元情報の書き戻し先がリポジトリ外なら exit 2"
+      ]
+    },
+    {
+      "id": "CHANGED-FAILCLOSED",
+      "why": "差分が取れない失敗を「変更なし」に倒す（当たる宣言を 1 件も測らず緑になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (res.status !== 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 差分を取れなければ exit 2"]
+    },
+    {
+      "id": "CHANGED-RUNNER",
+      "why": "実行器が変わっても全宣言へ広げない（判定の仕組みが変わったのに旧実証で通す）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (changed.has(runnerPath)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る"]
+    },
+    {
+      "id": "CHANGED-HITS",
+      "why": "当たり判定を常に真にする（差分の外の宣言まで測って PR のコストが戻る）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (hits.length > 0) {",
+      "replace": "    if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） 対象ファイルが変わった宣言だけを選ぶ",
+        "宣言と前提の検証（走らせる前に落とす） 差分に当たらない宣言は飛ばし、理由を印字する"
+      ]
+    },
+    {
+      "id": "CHANGED-EXCLUSIVE",
+      "why": "--changed-since と宣言指定の併用を許す（選び方が二重になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (files.length > 0) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） --changed-since と宣言ファイルの指定は併用できない"
       ]
     }
   ]

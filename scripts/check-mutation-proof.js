@@ -20,6 +20,13 @@
 //   node scripts/check-mutation-proof.js                    # scripts/*.mutations.json を全部
 //   node scripts/check-mutation-proof.js <spec.json> ...     # 指定したものだけ
 //   node scripts/check-mutation-proof.js --only A,B          # id で絞る（開発中の 1 本だけ回す）
+//   node scripts/check-mutation-proof.js --changed-since origin/main
+//                                                            # 差分に当たる宣言だけ（PR 用）
+//
+// **全件は重い。** 1 変異 = 対象テストファイル 1 回の実行で、実行器自身を変異させる宣言
+// （テストが入れ子で runner を起動する）だけで全体の 7 割を占める（実測: 89 変異 641 秒のうち
+// `check-mutation-proof` の 16 変異が約 430 秒）。PR では `--changed-since` で差分に当たる宣言へ絞り、
+// **全件は定期実行**（`.github/workflows/mutation-proof.yml`）で測る。
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
 import { spawnSync } from "node:child_process";
@@ -241,6 +248,7 @@ process.on("exit", () => {
 function parseArgs(argv) {
   const files = [];
   let only = null;
+  let changedSince = null;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--only") {
@@ -248,8 +256,13 @@ function parseArgs(argv) {
       if (!value) die("--only に値がない");
       only = new Set(value.split(",").filter(Boolean));
       if (only.size === 0) die("--only の値が空");
+    } else if (arg === "--changed-since") {
+      changedSince = argv[++i];
+      if (!changedSince) die("--changed-since に ref がない");
     } else if (arg === "--help" || arg === "-h") {
-      console.log("usage: node scripts/check-mutation-proof.js [<spec.json>...] [--only <id,...>]");
+      console.log(
+        "usage: node scripts/check-mutation-proof.js [<spec.json>...] [--only <id,...>] [--changed-since <ref>]",
+      );
       process.exit(0);
     } else if (arg.startsWith("-")) {
       die(`不明な引数: ${arg}`);
@@ -257,7 +270,7 @@ function parseArgs(argv) {
       files.push(arg);
     }
   }
-  return { files, only };
+  return { files, only, changedSince };
 }
 
 /** 宣言ファイルの一覧。**0 件は成功に倒さない**（検査が空振りしただけの緑を根拠にしない）。 */
@@ -273,6 +286,66 @@ function specPaths(files) {
     if (!existsSync(p)) die(`宣言ファイルが無い: ${p}`);
   }
   return found;
+}
+
+/**
+ * `ref` からの差分で変更されたリポジトリ相対パスを返す。
+ *
+ * **失敗を「変更なし」に倒さない**（未知の ref・git が無い・repo でない）。0 件と失敗が同じ
+ * 空配列になると、当たるはずの宣言を 1 件も走らせないまま緑で終わる。
+ * テスト用に `MUTATION_PROOF_CHANGED_FILES`（改行区切り）で差し替えられる。**使ったら必ず印字する**
+ * ——CI が気づかないまま注入された一覧に頼るのを防ぐ。
+ */
+function changedFiles(ref) {
+  const injected = process.env.MUTATION_PROOF_CHANGED_FILES;
+  if (injected !== undefined) {
+    const list = injected.split("\n").filter(Boolean);
+    console.error(
+      `変更ファイル: MUTATION_PROOF_CHANGED_FILES から ${list.length} 件（テスト用の注入）`,
+    );
+    return list;
+  }
+  const res = spawnSync("git", ["diff", "--name-only", `${ref}...HEAD`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (res.error) die(`git を起動できない: ${res.error.message}`);
+  if (res.status !== 0) {
+    die(`${ref} からの差分を取れない（git diff exit ${res.status}）: ${tail(res.stderr)}`);
+  }
+  return res.stdout.split("\n").filter(Boolean);
+}
+
+/**
+ * 差分に当たる宣言だけを返す。当たり方は 3 通り:
+ *   - 実行器（このファイル）が変わった → **全宣言**（判定の仕組みが変わったので全部測り直す）
+ *   - 宣言ファイル自身が変わった
+ *   - その宣言の `test_file` か、いずれかの変異の対象ファイルが変わった
+ *
+ * それ以外は対象も検査も変わっていないので、前回の実証がそのまま有効。
+ * **選んだ／飛ばした理由は必ず印字する**（0 件を黙って緑にしない）。
+ */
+function selectChangedSpecs(specs, ref) {
+  const changed = new Set(changedFiles(ref));
+  const runnerPath = relative(repoRoot, fileURLToPath(import.meta.url));
+  console.error(`変更ファイル: ${changed.size} 件（${ref}...HEAD）`);
+  if (changed.has(runnerPath)) {
+    console.error(`実行器（${runnerPath}）が変わったので全宣言を測る`);
+    return specs;
+  }
+  const selected = [];
+  for (const spec of specs) {
+    const specRel = relative(repoRoot, spec.specPath);
+    const targets = [...new Set(spec.mutations.map((m) => m.file))];
+    const hits = [specRel, spec.testFile, ...targets].filter((f) => changed.has(f));
+    if (hits.length > 0) {
+      console.error(`測る: ${specRel}（当たった変更: ${hits.join(", ")}）`);
+      selected.push(spec);
+    } else {
+      console.error(`飛ばす: ${specRel}（対象も検査も変わっていない）`);
+    }
+  }
+  return selected;
 }
 
 function asString(value, label) {
@@ -462,12 +535,27 @@ function proveMutation(mutation, testFile) {
 }
 
 function main() {
-  const { files, only } = parseArgs(process.argv.slice(2));
+  const { files, only, changedSince } = parseArgs(process.argv.slice(2));
   // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
   takeLock();
   // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
   recoverFromInterrupted();
-  const specs = specPaths(files).map(loadSpec);
+  let specs = specPaths(files).map(loadSpec);
+  if (changedSince) {
+    if (files.length > 0) {
+      die("--changed-since と宣言ファイルの指定は併用しない（選び方が二重になる）");
+    }
+    const declared = specs.length;
+    specs = selectChangedSpecs(specs, changedSince);
+    if (specs.length === 0) {
+      // **0 件は「測るものが無い」**（宣言 `declared` 件すべてが差分の外）。全件は定期実行が測る。
+      console.log(
+        `mutation-proof: この差分に当たる宣言は無い（宣言 ${declared} 件はいずれも対象・検査が未変更）。` +
+          "全件は定期実行（.github/workflows/mutation-proof.yml）で測る",
+      );
+      return;
+    }
+  }
   let proven = 0;
   let failures = 0;
 

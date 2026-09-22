@@ -415,6 +415,62 @@ test("guard", () => {
     expect(res.out).toContain("復元情報が壊れている");
   });
 
+  // 差分に当たる宣言だけを測る選択。**0 件は「測るものが無い」**（全件は定期実行が測る）。
+  // `MUTATION_PROOF_CHANGED_FILES` は差分の注入（git を使わずに選択だけを測るため）。
+  //
+  // **`--changed-since` を測るテストは必ず `--only` で有界にする。** 選択の判定を常に真にする変異
+  // （`CHANGED-HITS`）が入ると、`--only` 無しでは選ばれた全宣言を測りに行き、入れ子の runner が
+  // 指数的に増える（実測で 30 分以上・21 プロセス以上に膨らみ、殺した後の作業ツリーに変異が残った）。
+  test("差分に当たらない宣言は飛ばし、理由を印字する", () => {
+    const res = runRunner("--changed-since", "origin/main", "--only", "D", {
+      MUTATION_PROOF_CHANGED_FILES: "docs/skill-development.md",
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("この差分に当たる宣言は無い");
+    // 黙って緑にしない: 注入を使ったことと、飛ばした宣言が出ていること。
+    expect(res.out).toContain("テスト用の注入");
+    expect(res.out).toContain("飛ばす: scripts/tracking-issue-title.mutations.json");
+  });
+
+  test("対象ファイルが変わった宣言だけを選ぶ", () => {
+    const res = runRunner("--changed-since", "origin/main", "--only", "STDEV", {
+      MUTATION_PROOF_CHANGED_FILES: "scripts/build-skill-eval-benchmark.js",
+      // 集計器の宣言だけが選ばれる差分。`--only` で 1 変異に抑える（有界化の理由は上のコメント）。
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("測る: scripts/build-skill-eval-benchmark.mutations.json");
+    expect(res.out).toContain("飛ばす: scripts/check-mutation-proof.mutations.json");
+    expect(res.out).toContain("PASS STDEV");
+  }, 60_000);
+
+  test("実行器が変わったら全宣言を測る", () => {
+    // `--only D`（tracking の宣言にだけ在る id）で測る量を 1 変異に抑える。全宣言へ広がったことは
+    // 「飛ばす:」が出ないことで判定する（選択の結果を見るのに全件を走らせる必要はない）。
+    const res = runRunner("--changed-since", "origin/main", "--only", "D", {
+      MUTATION_PROOF_CHANGED_FILES: "scripts/check-mutation-proof.js",
+    });
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain(
+      "実行器（scripts/check-mutation-proof.js）が変わったので全宣言を測る",
+    );
+    expect(res.out).not.toContain("飛ばす:");
+  }, 60_000);
+
+  // 差分を取れないときは「変更なし」に倒さない（0 件と失敗が同じ空配列になる）。
+  test("差分を取れなければ exit 2", () => {
+    const res = runRunner("--changed-since", "no-such-ref-for-test");
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("からの差分を取れない");
+  });
+
+  test("--changed-since と宣言ファイルの指定は併用できない", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, "--changed-since", "origin/main");
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toContain("併用しない");
+  });
+
   test("--only でどの変異も選ばれなければ exit 2", () => {
     const fx = makeFixture();
     const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
