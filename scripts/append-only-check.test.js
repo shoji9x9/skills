@@ -12,6 +12,10 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import {
+  flowItems,
+  stripYamlBlocks,
+} from "../skills/replace-strategy/scripts/append-only-check.mjs";
+import {
   appendFileSync,
   mkdirSync,
   mkdtempSync,
@@ -2002,5 +2006,676 @@ test("同じキーパスを 2 つのオプションに書けば合格に倒さ�
   const r = run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(/同じキーパスが .+ と .+ の両方にある/);
   expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// --- 1 行で閉じないフロー形式のコンテナ（#430） ---
+//
+// `flowItems` は `raw.slice(1, -1)` で末尾 1 文字を閉じ括弧と決め打ちしていたため、折り返された
+// コンテナを「読めた」ことにしていた（`[` は空、`[ "a",` は要素 1 件）。読めたことにすると
+// 折り返しの中身が空に見え、要素を足しただけの編集が縮小に化ける。
+
+test("1 行で閉じないフロー形式のコンテナは読めたことにしない（null）", () => {
+  // 折り返しの各形。`[` を空コンテナ（`[]`）、`[ "a",` を要素 1 件と読んだのが #430 の直接の原因。
+  expect(flowItems("[")).toBeNull();
+  expect(flowItems("{")).toBeNull();
+  expect(flowItems('[ "a",')).toBeNull();
+  expect(flowItems("{item: a")).toBeNull();
+  expect(flowItems('["a"')).toBeNull();
+  // 開き括弧と閉じ方の種類が合わない。
+  expect(flowItems("[a}")).toBeNull();
+  // 閉じた後に余りがある。
+  expect(flowItems('["a"] trailing')).toBeNull();
+});
+
+test("陽性コントロール: 1 行で閉じるコンテナは今までどおり読める", () => {
+  expect(flowItems("[]")).toEqual([]);
+  expect(flowItems("[ ]")).toEqual([]);
+  expect(flowItems("{}")).toEqual([]);
+  expect(flowItems('["a", "b"]')).toEqual(["a", "b"]);
+  // 引用符の中のカンマは区切りにしない。入れ子の括弧は要素の一部として残す。
+  expect(flowItems('["a, b", c]')).toEqual(["a, b", "c"]);
+  expect(flowItems('[{item: "a"}]')).toEqual(['{item: "a"}']);
+});
+
+/** keep を折り返した形で書いた設定ファイル。 */
+const WRAPPED_KEEP = [
+  "      keep: [",
+  '        "テーブル名を保つ",',
+  '        "項目名を保つ"',
+  "      ] # 変えない（例: テーブル名、項目名）",
+].join("\n");
+
+/** @param {string} root */
+function makeWrappedConfigRepo() {
+  return makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      WRAPPED_KEEP,
+    ),
+  );
+}
+
+test("折り返したコンテナへ追記しただけなら通る（#430 の再現手順）", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '        "項目名を保つ"\n',
+      '        "項目名を保つ",\n        "並び順を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返したコンテナを 1 行へ書き直せば、要素を足していても通る", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      WRAPPED_KEEP,
+      '      keep: ["テーブル名を保つ", "項目名を保つ", "並び順を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返したコンテナから要素を消せば、1 行へ書き直しても落ちる", () => {
+  const root = makeWrappedConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      WRAPPED_KEEP,
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/項目名を保つ/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("1 行のコンテナを折り返しても通る（折り返し ⇄ 1 行の相互変換）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      [
+        "      keep: [",
+        '        "テーブル名を保つ"',
+        "      ] # 変えない（例: テーブル名、項目名）",
+      ].join("\n"),
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("連結しても閉じないコンテナは読めたことにせず、表記を直すよう案内する", () => {
+  const root = makeConfigRepo();
+  // 閉じ括弧が無いまま次の鍵へ出る。連結は鍵のブロックを抜けた時点で打ち切る（fail-closed）。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 折り返しが無ければ案内を出さない", () => {
+  const root = makeConfigRepo();
+  // 1 行のコンテナから要素を消す（同じ「縮小」でも折り返しは関係しない）。
+  writeConfig(root, readConfig(root).replace('"テーブル名を保つ"', ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  // 実際に出る文言と同じ綴りで照合する（別の綴りにすると常に不一致になり、案内が出ていても通る）。
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 折り返しの連結は「名指しした鍵の値が何行に渡るか」の 1 軸だけを受理する。受理する側と
+// 読めなかったことにする側を同じ数だけ並べ、境界（閉じ括弧の位置・途中の行の種類・文書の終わり）を固定する。
+/** @param {string} src */
+function keepUnits(src) {
+  return stripYamlBlocks(src, [], ["a.keep"], [])
+    .split("\n")
+    .filter((l) => l.trim() !== "");
+}
+
+test("折り返しの連結: 鍵のブロック内で閉じていれば読む（閉じ括弧のインデントは問わない）", () => {
+  expect(keepUnits('a:\n  keep: [\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
+  ]);
+  // 閉じ括弧が鍵より深くても読む。
+  expect(keepUnits('a:\n  keep: [\n    "x"\n    ] # c\n')).toContain("<item: a.keep> x");
+  // 途中の行に付いた行末コメントも単位として残す（別行へ移しただけの編集を落とさない）。
+  expect(keepUnits('a:\n  keep: [\n    "x", # 注記\n    "y"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# 注記",
+    "# c",
+    "<item: a.keep> x",
+    "<item: a.keep> y",
+  ]);
+  // 入れ子のマッピングが複数行に渡っても 1 要素として読む。
+  expect(keepUnits('a:\n  keep: [\n    {item: "x",\n     slug: s}\n  ] # c\n')).toContain(
+    '<item: a.keep> {item: "x", slug: s}',
+  );
+});
+
+test("折り返しの連結: 開き括弧が次の行にあっても読む（フォーマッタが畳む形）", () => {
+  // YAML のフォーマッタは 1 行に収まらないコンテナを `key:` と `[` に分けて畳む。ブロック形式として
+  // 扱うと中身が行のまま単位になり、要素を足しただけの編集が縮小に化ける（#430 と同じ害）。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
+    "<item: a.keep> y",
+  ]);
+  // 1 行の形と同じ単位になる（表記を変えただけの編集が通る）。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x",\n      "y"\n    ] # c\n')).toEqual(
+    keepUnits('a:\n  keep: ["x", "y"] # c\n'),
+  );
+  // 弁別: 要素を落とせば単位が減る。
+  expect(keepUnits('a:\n  keep:\n    [\n      "x"\n    ] # c\n')).not.toContain("<item: a.keep> y");
+  // 次の行が開き括弧でなければ今までどおりブロック形式として扱う（行のまま残す）。
+  expect(keepUnits('a:\n  keep:\n    - "x"\n')).toEqual(["a:", "<container: a.keep>", '    - "x"']);
+});
+
+test("折り返しの連結: 途中の空行・コメント行を挟んでも読む（同じ軸の内側）", () => {
+  // ここで打ち切ると、比較元の折り返し行がそのまま単位になり、案内どおり 1 行へ書き直しても落ちる。
+  expect(keepUnits('a:\n  keep: [\n\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# c",
+    "<item: a.keep> x",
+  ]);
+  // コメント行は単位として残す（黙って消せるようにしない）。
+  expect(keepUnits('a:\n  keep: [\n    # note\n    "x"\n  ] # c\n')).toEqual([
+    "a:",
+    "<container: a.keep>",
+    "# note",
+    "# c",
+    "<item: a.keep> x",
+  ]);
+});
+
+test("折り返しの連結: 読めない形は行のまま突き合わせる（fail-closed）", () => {
+  // 閉じないまま文書が終わる。
+  expect(keepUnits('a:\n  keep: [\n    "x"\n')).toEqual(["a:", "  keep: [", '    "x"']);
+  // 閉じないまま鍵のブロックを抜ける（続きの行を飲み込まない）。
+  expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
+});
+
+test("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る（案内どおり直せば通る）", () => {
+  const wrapped = [
+    "      keep: [",
+    "",
+    '        "テーブル名を保つ"',
+    "      ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  // 追記だけ。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '        "テーブル名を保つ"\n',
+      '        "テーブル名を保つ",\n        "項目名を保つ"\n',
+    ),
+  );
+  const added = run(root);
+  expect(added.stdout).toMatch(/^ok: /m);
+  expect(added.status).toBe(0);
+  // 案内が指す「1 行へ書き直す」。
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+    ),
+  );
+  const rewritten = run(root);
+  expect(rewritten.stdout).toMatch(/^ok: /m);
+  expect(rewritten.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 案内はファイル単位で出さない。読めないコンテナと無関係な鍵の削除に「復元せず表記を直す」が付くと、
+// 記録した決定を消させないというツールの目的と逆向きの指示になる。
+/** 閉じないコンテナ（比較元・現在で不変）と、別の鍵の育つコンテナを持つ設定。 */
+const UNREADABLE_CONFIG = CONFIG.replace(
+  "    component_diffs: []",
+  "    component_diffs: [{component: grid, property: color}]",
+).replace('      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）', "      keep: [");
+
+test("読めないコンテナがあっても、無関係な鍵の削除には案内を出さない", () => {
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "    component_diffs: [{component: grid, property: color}]",
+      "    component_diffs: []",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/component_diffs/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("陽性コントロール: 読めないコンテナ由来の消失には案内を出す", () => {
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /閉じていないフロー形式のコンテナがある: skills\.replace-strategy\.intentional_diffs\.keep/,
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("連結を打ち切らせた行（コンテナの外）の削除には案内を出さない", () => {
+  // 打ち切らせた行を帰属材料に入れると、コンテナの外にある行を消しただけで案内が付く。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      note_line: 無関係なメモ\n"),
+  );
+  writeConfig(root, readConfig(root).replace("      note_line: 無関係なメモ\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/note_line/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("registry のグループ共通の単位が消えても、別の鍵の読めないコンテナに帰属させない", () => {
+  // <registry-item: <グループ id>> は鍵をまたぐ移動を許すためグループ共通で、鍵を弁別できない。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/一覧の並び順が変わる/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("鍵と開き括弧の間に空行・コメント行があっても読む（joinWrappedFlow と対称）", () => {
+  const wrapped = [
+    "      keep:",
+    "        # 注記",
+    "        [",
+    '          "テーブル名を保つ"',
+    "        ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '          "テーブル名を保つ"\n',
+      '          "テーブル名を保つ",\n          "項目名を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("読めないコンテナの後ろにあるコメント行の削除には案内を出さない", () => {
+  // 連結が失敗したときは閉じ括弧が無く、その注記が内にあったか外にあったかを区別できない。
+  const root = makeConfigRepo(
+    UNREADABLE_CONFIG.replace("      keep: [\n", "      keep: [\n      # 無関係な注記\n"),
+  );
+  writeConfig(root, readConfig(root).replace("      # 無関係な注記\n", ""));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/無関係な注記/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// registry は鍵をまたぐ移動（棚卸し）を許すので、要素行の注記は単位にしない（移動先に置き場所が無い。
+// ブロック形式の flushRegistryItem と同じ判断）。閉じる行の注記は鍵の注記なので単位に残す。
+const WRAPPED_PENDING = [
+  "      pending: [",
+  "        {item: 一覧の並び順が変わる, slug: cross-cutting}, # 注記",
+  "      ] # 保留（測定結果で決める）",
+].join("\n");
+
+test("折り返した registry の要素行の注記は単位にしない（棚卸しが表記で割れない）", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
+  );
+  // 正規の棚卸し: pending の文言を keep へ移す。
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(WRAPPED_PENDING, "      pending: [] # 保留（測定結果で決める）")
+      .replace(
+        '      keep: ["テーブル名を保つ"] #',
+        '      keep: ["テーブル名を保つ", "一覧の並び順が変わる"] #',
+      ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返した registry でも、閉じる行の注記（鍵の注記）を消せば落ちる", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", WRAPPED_PENDING),
+  );
+  writeConfig(root, readConfig(root).replace("      ] # 保留（測定結果で決める）", "      ]"));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/保留（測定結果で決める）/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 育つコンテナは折り返した要素行の注記も単位に残す（行末コメントの削除を落とす要求）", () => {
+  const wrapped = [
+    "    component_diffs: [",
+    "      {component: grid, property: color}, # 注記",
+    "    ]",
+  ].join("\n");
+  const root = makeConfigRepo(CONFIG.replace("    component_diffs: []", wrapped));
+  writeConfig(root, readConfig(root).replace(", property: color}, # 注記", ", property: color},"));
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/注記/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("折り返したコンテナの中の独立したコメント行は、registry でも単位に残す", () => {
+  // 要素に付いた注記と違って移動先の問題が無い。落とすと中の注記だけ黙って消せる（main では落ちていた）。
+  const wrapped = [
+    "      pending: [",
+    "        # 大事な注記",
+    "        {item: 一覧の並び順が変わる, slug: cross-cutting},",
+    "      ] # 保留（測定結果で決める）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）", wrapped),
+  );
+  writeConfig(root, readConfig(root).replace("        # 大事な注記\n", ""));
+  const r = run(root);
+  expect(r.stdout).toMatch(/大事な注記/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("要素が鍵と同じインデントに並ぶ折り返しも読む（js-yaml で妥当な YAML）", () => {
+  const wrapped = [
+    "      keep: [",
+    '      "テーブル名を保つ"',
+    "      ] # 変えない（例: テーブル名、項目名）",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      "テーブル名を保つ"\n',
+      '      "テーブル名を保つ",\n      "項目名を保つ"\n',
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("比較元に読めないコンテナがあるときは「直せば通る」と案内しない", () => {
+  // 比較元の行がそのまま単位なので、どの編集でも exit 0 に到達しない。実行できない指示を出さない。
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  writeConfig(
+    root,
+    readConfig(root).replace("      keep: [\n", '      keep: ["テーブル名を保つ"] # 変えない\n'),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある/);
+  expect(r.stdout).toMatch(/判定できない/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("現在側だけが読めないときは 1 行への書き直しを案内する", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      "      keep: [",
+    ),
+  );
+  const r = run(root);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/復元せず表記を直す/);
+  expect(r.stdout).not.toMatch(/判定できない/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+/** 読めないコンテナとして記録されたキーパス（案内の材料）。 */
+function wrappedPathsOf(src) {
+  /** @type {{ path: string }[]} */
+  const out = [];
+  stripYamlBlocks(src, [], ["a.keep"], [], out);
+  return out.map((w) => w.path);
+}
+
+test("閉じた後に余りがある形は「閉じていない」と案内しない", () => {
+  // `[a] b` は**閉じてはいる**。1 行へ畳んでも同じく読めないので、その案内は指示にならない。
+  expect(wrappedPathsOf('a:\n  keep: [\n    "x"\n  ],\n')).toEqual([]);
+  // 陽性コントロール: 閉じないまま兄弟のキーへ出る形は記録する。
+  expect(wrappedPathsOf("a:\n  keep: [\n  other: 1\n")).toEqual(["a.keep"]);
+});
+
+test("mutable_blocks の折り返しも配下ごと消費する（1 行への畳み込みで単位が消えない）", () => {
+  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
+    ),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks の折り返しでも、キーごと消せば落ちる（外しすぎていない）", () => {
+  const wrapped = ["      keep: [", '        "テーブル名を保つ"', "      ] # 変えない"].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(root, readConfig(root).replace(`${wrapped}\n`, ""));
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/mutable-block/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks でも、開き括弧が次の行にある形を消費する（値の形で門番しない）", () => {
+  const wrapped = [
+    "      keep:",
+    "      [",
+    '        "テーブル名を保つ"',
+    "      ] # 変えない",
+  ].join("\n");
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）',
+      wrapped,
+    ),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      wrapped,
+      '      keep: ["テーブル名を保つ", "項目名を保つ"] # 変えない',
+    ),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks のブロック形式は今までどおり配下を外す（消費へ倒れていない）", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace("      pending: [] # 保留（測定結果で決める）\n", PENDING_BLOCK),
+  );
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.pending"],
+    },
+  ]);
+  // 配下の要素は単位から外れているので、消しても落ちない。
+  writeConfig(
+    root,
+    readConfig(root).replace(PENDING_BLOCK, "      pending: # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("入れ子の要素自身を折り返しても単位は変わらない（整形だけでは落ちない）", () => {
+  // 要素の折り返しで末尾カンマ・余分な空白が入っても、正規形へ組み直すので 1 行の形と同じ単位になる。
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      "    component_diffs: []",
+      '    component_diffs: [{component: "grid", property: "color"}]',
+    ),
+  );
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '    component_diffs: [{component: "grid", property: "color"}]',
+      [
+        "    component_diffs: [",
+        "      {",
+        '        component: "grid",',
+        '        property: "color",',
+        "      },",
+        "    ]",
+      ].join("\n"),
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("弁別: 入れ子の要素の中身を差し替えれば落ちる", () => {
+  const root = makeConfigRepo(
+    CONFIG.replace(
+      "    component_diffs: []",
+      '    component_diffs: [{component: "grid", property: "color"}]',
+    ),
+  );
+  writeConfig(root, readConfig(root).replace('property: "color"', 'property: "font"'));
+  const r = run(root);
+  expect(r.stdout).toMatch(/grid/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す」とは案内しない", () => {
+  // mutable_blocks は配下を外すので、鍵の単位が失われるのは鍵ごと消したときだけ。破壊に案内を付けない。
+  const root = makeConfigRepo(UNREADABLE_CONFIG);
+  const manifest = writeManifest(root, [
+    {
+      id: "project-config",
+      pattern: ".config/skills/*/skills.yml",
+      unit: "lines",
+      mutable_blocks: ["skills.replace-strategy.intentional_diffs.keep"],
+    },
+  ]);
+  writeConfig(root, readConfig(root).replace("      keep: [\n", ""));
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/mutable-block/);
+  expect(r.stdout).not.toMatch(/内容を人が確認して通す/);
   rmSync(root, { recursive: true, force: true });
 });
