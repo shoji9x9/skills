@@ -88,7 +88,6 @@
         "プレースホルダのままの operations_none_reason では判定を省略しない",
         "手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）",
         "プレースホルダのままの到達不能の理由は除外にしない",
-        "同梱テンプレートをそのまま渡しても合格にしない",
         "見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"
       ]
     },
@@ -131,6 +130,15 @@
       "expect_failing": [
         "承認日時は暦の上で実在する値だけを通す（Date.parse の繰り上げに頼らない）"
       ]
+    },
+    {
+      "id": "operation-source",
+      "why": "操作の導出源を検査しない",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!OPERATION_SOURCES.includes(capture.operation_source)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["操作の導出源が無い・プレースホルダ・語彙外なら型崩れ"]
     }
   ]
 }

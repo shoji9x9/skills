@@ -11,7 +11,7 @@
 
 - **操作は部品の機能表から列挙する。** 市販部品なら同梱の機能の一覧・公式サンプル、自作・OSS なら部品カタログ、資料が無ければ現行 UI から洗い出す。
   導出源の規律（資料は列挙の生成源であって正解ではない）は `parity-suite` の `references/coverage.md`「状態網羅の導出源」と同じで、
-  使った導出源を `metadata.json` の `capture.operation_source` に書く
+  使った導出源を `metadata.json` の `capture.operation_source` に書く（`vendor-feature-list` / `component-catalog` / `current-source` / `app-ui` のいずれか。無い・語彙外なら検査が型崩れとして落とす）
 - **状態の列挙と同じく、操作の集合は全インスタンスで共通にする。** そのインスタンスで実施できない操作だけを
   `instances[].unreachable_operations` に理由付きで宣言し、同じ内容を `gaps.md` に残す。**宣言の無い欠落は採り忘れとして検査が落とす**
 - **版差が落ちやすい操作を先に挙げる。** 見た目は CSS で揃えられても、イベントの順序（`mousedown` と `click` のどちらで判定するか）や

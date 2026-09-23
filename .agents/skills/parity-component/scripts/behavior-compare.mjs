@@ -40,6 +40,14 @@ export const VERSION = "1";
 /** 突き合わせ表の行が取れる扱いの語彙（正本）。null は「比べた」。 */
 export const DISPOSITIONS = ["accepted"];
 
+/** 操作の導出源の語彙（正本。metadata-template.json の capture.operation_source と同じ）。 */
+export const OPERATION_SOURCES = [
+  "vendor-feature-list",
+  "component-catalog",
+  "current-source",
+  "app-ui",
+];
+
 /**
  * 空でない文字列か。
  * @param {unknown} value
@@ -188,6 +196,12 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
     }
     return structural(
       "capture.operations が空で capture.operations_none_reason も無い（操作が無いのか採っていないのか区別できない）",
+    );
+  }
+  // 導出源が無いと、任意の一部だけを列挙した操作の集合が「部品の操作」として完了を示してしまう。
+  if (!OPERATION_SOURCES.includes(capture.operation_source)) {
+    return structural(
+      `capture.operation_source は ${OPERATION_SOURCES.join(" / ")} のいずれか: ${JSON.stringify(capture.operation_source)}`,
     );
   }
   /** @type {Map<string, string[]>} */

@@ -23,6 +23,7 @@ function metadataOf(override = {}) {
   return {
     slug: "data-grid",
     capture: {
+      operation_source: "vendor-feature-list",
       operations: [
         {
           id: "corner-click",
@@ -416,9 +417,9 @@ test("同梱テンプレートをそのまま渡しても合格にしない", as
     comparison: asset("behavior-comparison-template.json"),
     target: "preview",
   });
-  // 操作 id がプレースホルダのままなので、判定に入る前に型崩れとして落ちる。
+  // 導出源・操作 id がテンプレートの値のままなので、判定に入る前に型崩れとして落ちる。
   expect(result.structural).toBe(true);
-  expect(result.findings[0].detail).toMatch(/プレースホルダ/);
+  expect(result.findings[0].detail).toMatch(/operation_source|プレースホルダ/);
 });
 
 test("テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）", () => {
@@ -519,5 +520,19 @@ test("承認日時は暦の上で実在する値だけを通す（Date.parse の
     "2025-02-29",
   ]) {
     expect(isoDateTime(ng)).toBe(false);
+  }
+});
+
+test("操作の導出源が無い・プレースホルダ・語彙外なら型崩れ", () => {
+  for (const operation_source of [undefined, "<操作の導出源>", "guess"]) {
+    expect(run({ metadata: metadataOf({ capture: { operation_source } }) }).structural).toBe(true);
+  }
+  for (const operation_source of [
+    "vendor-feature-list",
+    "component-catalog",
+    "current-source",
+    "app-ui",
+  ]) {
+    expect(run({ metadata: metadataOf({ capture: { operation_source } }) }).findings).toEqual([]);
   }
 });
