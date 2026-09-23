@@ -1,0 +1,137 @@
+{
+  "$comment": [
+    "element-shot.test.js のうち、iframe の中の要素と撮影記録（Issue #436）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/element-shot.test.js",
+  "mutations": [
+    {
+      "id": "offset",
+      "why": "フレームのオフセットを足さない（フレーム内の座標のまま clip を決める）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "入れ子の iframe の中の要素は、各段のオフセットを足した最上位の座標で撮る",
+        "枠線は丸めた clientLeft ではなく計算後スタイルの小数で足す（deviceScaleFactor でスナップされる）"
+      ]
+    },
+    {
+      "id": "border-rounded",
+      "why": "枠線を整数へ丸められた clientLeft / clientTop で足す（deviceScaleFactor でスナップされた小数の枠線とずれる）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "parseFloat(style.borderLeftWidth)",
+      "replace": "frameEl.clientLeft",
+      "occurrences": 1,
+      "expect_failing": [
+        "枠線は丸めた clientLeft ではなく計算後スタイルの小数で足す（deviceScaleFactor でスナップされる）"
+      ]
+    },
+    {
+      "id": "unreadable",
+      "why": "読めないフレームで止めず、そこを最上位とみなす",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      frameError = \"unreadable\";\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "読めないフレーム（クロスオリジン）の中の要素は撮らずに失敗する",
+        "外側のフレームが読めなくても撮らない（内側だけ読めても最上位へ直せない）"
+      ]
+    },
+    {
+      "id": "transformed",
+      "why": "変形の判定を常に偽にする",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": ["transform で拡縮されたフレームの中の要素は撮らずに失敗する"]
+    },
+    {
+      "id": "tolerance",
+      "why": "変形の許容差を丸め未満に戻す（小数寸法のフレームを誤って落とす。実ブラウザで踏んだ形）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
+      "replace": "      Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
+      "occurrences": 1,
+      "expect_failing": ["寸法が小数のフレームは変形とみなさない（offsetWidth は整数へ丸められる）"]
+    },
+    {
+      "id": "frame-visible",
+      "why": "途中のフレームの見える範囲の判定を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      planElementClip(frame.rect, frame.viewport);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの右端を越える",
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの下端を越える",
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの上へ出る（フレーム内でスクロールされた）",
+        "外側のフレームの見える範囲からはみ出す要素も撮らない（内側に収まっていても）",
+        "見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）"
+      ]
+    },
+    {
+      "id": "scrollbar",
+      "why": "フレームの見える範囲をスクロールバー込みの innerWidth で測る",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      viewport: { width: scroller.clientWidth, height: scroller.clientHeight },\n",
+      "replace": "      viewport: { width: view.innerWidth, height: view.innerHeight },\n",
+      "occurrences": 1,
+      "expect_failing": ["見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）"]
+    },
+    {
+      "id": "page-moved",
+      "why": "撮影後の測り直しでフレーム内の矩形だけを比べる",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " || !sameRect(after.page_rect, measured.page_rect)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["撮影中にフレームが動いたら失敗する（フレーム内の矩形が同じでも）"]
+    },
+    {
+      "id": "png-signature",
+      "why": "PNG 署名の検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    signature.some((b, i) => buffer[i] !== b) ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["PNG の実寸を読めない形は失敗させる: 長さは足りるが署名が違う（JPEG 等）"]
+    },
+    {
+      "id": "png-ihdr",
+      "why": "先頭チャンクが IHDR かの検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " ||\n    buffer.toString(\"latin1\", 12, 16) !== \"IHDR\"",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "PNG の実寸を読めない形は失敗させる: 署名は PNG だが先頭チャンクが IHDR でない"
+      ]
+    },
+    {
+      "id": "png-ext",
+      "why": "path の拡張子検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "  if (typeof path !== \"string\" || !path.endsWith(\".png\")) {",
+      "replace": "  if (typeof path !== \"string\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "path が .png で終わらなければ撮る前に失敗する（記録ファイルの名前が決まらない）"
+      ]
+    },
+    {
+      "id": "record",
+      "why": "記録ファイルを書かない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    writeFileSync(recordPath, `${JSON.stringify(result, null, 2)}\\n`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["captureElementShot は丸めた clip で page.screenshot を呼び、path を渡す"]
+    }
+  ]
+}

@@ -30,7 +30,10 @@
 ## 保存先はファイル名まで固定する
 
 インスタンス × 状態ごとに `baseline/<instance>/<state>/` を作り、**`element.png`（要素スクショ）・`traits.json`（計算後スタイル）・
-`css-rules.json`（当たっている CSS 規則）**の 3 つをこの名前で置く。データ依存部品の実データだけは状態に依らないので
+`css-rules.json`（当たっている CSS 規則）**の 3 つをこの名前で置く。
+element-shot.mjs に `path` として `element.png` を渡すと、隣に **`element.shot.json`**（実際に使った clip・出力 PNG の実寸・
+最上位座標の矩形）を同じ run の値で書く。`traits.json` の `rect` は要素が居るフレームの座標なので、
+iframe の中の部品では **`rect` から PNG の実寸は導出できない**（Issue #436）。寸法を突き合わせるときは `element.shot.json` の `png` を読む。データ依存部品の実データだけは状態に依らないので
 `baseline/<instance>/data.json`。`build` の前提判定はこのファイル名で実体を確かめるため、名前が揺れると採取済みの基準が「無い」と判定される。
 
 ## ページ全体ではなく要素を撮る
@@ -50,11 +53,13 @@ element-shot.mjs は矩形を最近接へ丸めた寸法で `page.screenshot({ c
   計算後スタイルの固定集合が持つ（trait-capture.mjs の `FIXED_PROPERTIES`）。`position` / `top` / `left` も、
   切り出しが要素についてくるぶん矩形の中には出ないので同じ扱い
 - `position` や親の `overflow` で要素が切れる場合は、切れた状態のまま撮って**切れていることを `gaps.md` に記録する**（親ごと撮って範囲を広げると、比較対象が部品でなくなる）
-- **element-shot.mjs は最上位フレームの要素しか撮れない。** `page.screenshot({ clip })` の clip は最上位フレームの
-  ビューポート座標として解釈されるのに対し、`getBoundingClientRect()` はその要素が居るフレームの座標なので、
-  iframe の中の要素を撮ると**別の場所を切り出した PNG が黙って残る**（はみ出し判定もフレーム側の寸法で通ってしまう）。
-  ツールは最上位フレーム以外を撮る前に失敗させるので、カタログが iframe で描く場合（Storybook 等）は
-  その iframe の URL 自体をページとして開いて撮る（`/iframe.html?id=<story>`）
+- **iframe の中の要素（ダイアログ内 iframe の部品等）も element-shot.mjs で撮れる。** `page.screenshot({ clip })` の clip は
+  最上位フレームのビューポート座標なので、ツールがフレームを遡ってオフセット（フレーム要素の位置 + 枠線 + padding）を足す。
+  locator は `page.frameLocator(...)` から引いたものをそのまま渡す。次の形は**撮らずに失敗する**——
+  足すべきオフセットが読めない（クロスオリジンのフレーム）、transform で拡縮されたフレーム、
+  途中のフレームの見える範囲からはみ出す要素（フレームに切られて部品の一部だけが写る）。
+  前の 2 つはフレームの URL 自体をページとして開いて撮り（Storybook なら `/iframe.html?id=<story>`）、
+  最後は撮れないことを `gaps.md` に残す
 - element-shot.mjs は**撮る前に生きているアニメーションを数え、あれば撮らずに失敗する**。
   `animations: "disabled"` は撮影の中で有限のものを早送りし、無限のものを初期状態へ戻してから撮り、
   撮り終えたら元の時刻へ戻すため、一時停止した無限アニメーションでは**前後の矩形が同じなのに PNG だけ別の幾何**になる

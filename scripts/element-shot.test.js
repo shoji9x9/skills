@@ -13,7 +13,20 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs");
-const { VERSION, planElementClip, captureElementShot } = await import(script);
+const { VERSION, planElementClip, captureElementShot, readPngSize, shotRecordPath } = await import(
+  script
+);
+
+/** IHDR まで持つ最小の PNG ヘッダ（fake の page.screenshot が返す。実寸の記録を測るため）。 */
+function pngHeader(width, height) {
+  const buf = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buf, 0);
+  buf.writeUInt32BE(13, 8);
+  buf.write("IHDR", 12, "latin1");
+  buf.writeUInt32BE(width, 16);
+  buf.writeUInt32BE(height, 20);
+  return buf;
+}
 
 const VIEWPORT = { width: 1920, height: 1080 };
 
@@ -27,7 +40,7 @@ function enclosingIntRect(rect) {
 }
 
 test("VERSION を持つ", () => {
-  expect(VERSION).toBe("5");
+  expect(VERSION).toBe("6");
 });
 
 // 実測された 4 例（Issue #434 の再現手順 2）。いずれも width / height は整数だが原点が小数。
@@ -111,15 +124,54 @@ test("ビューポートが 0 以下なら失敗する", () => {
 });
 
 /**
- * `readRectAndViewport` が読む形の偽要素。`view.top` を自分自身にすると最上位フレーム相当、
- * 別オブジェクトにすると iframe の中に居る相当になる（座標系が食い違う側）。
+ * `readRectAndViewport` が読む形の偽のビュー。`frames` を渡すと、その数だけ入れ子の iframe の中に居る相当になる
+ * （内側から外側へ。各段は `{ frameEl, visible, style }`。`frameEl: null` はクロスオリジンで読めないフレーム）。
  */
-function fakeElement({ inFrame = false, rect } = {}) {
-  const view = { innerWidth: VIEWPORT.width, innerHeight: VIEWPORT.height };
-  view.top = inFrame ? { innerWidth: 3840, innerHeight: 2160 } : view;
+function fakeView({ frames = [] } = {}) {
+  const top = { innerWidth: VIEWPORT.width, innerHeight: VIEWPORT.height };
+  top.top = top;
+  let outer = top;
+  // 外側から組み立てる。
+  for (const frame of [...frames].reverse()) {
+    const view = {
+      innerWidth: frame.visible.width + 15,
+      innerHeight: frame.visible.height + 15,
+      frameElement: frame.frameEl,
+      parent: outer,
+      top,
+      document: {
+        scrollingElement: { clientWidth: frame.visible.width, clientHeight: frame.visible.height },
+      },
+    };
+    // 枠線は計算後スタイルから読まれる（clientLeft は整数へ丸められるため）。既定はフレーム要素の枠線の値。
+    const border = frame.frameEl ? frame.frameEl.clientLeft : 0;
+    outer.getComputedStyle = () => ({
+      paddingLeft: "0px",
+      paddingTop: "0px",
+      borderLeftWidth: `${border}px`,
+      borderTopWidth: `${border}px`,
+      ...frame.style,
+    });
+    outer = view;
+  }
+  return outer;
+}
+
+function fakeElement({ rect, frames } = {}) {
   return {
-    ownerDocument: { defaultView: view },
+    ownerDocument: { defaultView: fakeView({ frames }) },
     getBoundingClientRect: () => rect ?? { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
+  };
+}
+
+/** 偽のフレーム要素（矩形 = 変形後、offset* = レイアウト寸法）。 */
+function fakeFrameEl({ x, y, width = 600, height = 800, border = 0, scale = 1 }) {
+  return {
+    getBoundingClientRect: () => ({ x, y, width: width * scale, height: height * scale }),
+    offsetWidth: width,
+    offsetHeight: height,
+    clientLeft: border,
+    clientTop: border,
   };
 }
 
@@ -132,7 +184,7 @@ test("captureElementShot は丸めた clip で page.screenshot を呼び、path 
   const page = {
     screenshot: async (options) => {
       calls.push(["screenshot", options]);
-      return Buffer.from("png");
+      return pngHeader(options.clip.width, options.clip.height);
     },
   };
 
@@ -145,40 +197,263 @@ test("captureElementShot は丸めた clip で page.screenshot を呼び、path 
     clip: { x: 1329, y: 219, width: 25, height: 28 },
     animations: "disabled",
   });
-  expect(readFileSync(target).toString()).toBe("png");
+  expect(readFileSync(target)).toEqual(pngHeader(25, 28));
   expect(out.clip).toEqual({ x: 1329, y: 219, width: 25, height: 28 });
+  expect(out.png).toEqual({ width: 25, height: 28 });
   expect(out.rect).toEqual({ x: 1328.8125, y: 219.296875, width: 25, height: 28 });
+  expect(out.frame_depth).toBe(0);
   expect(out.tool_version).toBe(VERSION);
+  // 隣に clip と PNG 実寸の記録を書く（rect とは別のフィールド。Issue #436）。
+  const record = JSON.parse(readFileSync(join(dir, "nested", "element.shot.json"), "utf8"));
+  expect(record).toEqual({
+    clip: { x: 1329, y: 219, width: 25, height: 28 },
+    png: { width: 25, height: 28 },
+    rect: { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
+    page_rect: { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
+    frame_depth: 0,
+    animations: "disabled",
+    tool_version: VERSION,
+  });
 });
 
-// iframe の中の要素は、`getBoundingClientRect()` がそのフレームのビューポート座標を返すのに対し
-// `page.screenshot({ clip })` は最上位フレームのビューポート座標として解釈するため、座標系が食い違う。
-// はみ出し判定もフレーム側の innerWidth / innerHeight で通ってしまうので、撮る前に落とす。
-test("フレームの中の要素は撮らずに失敗する（座標系が食い違う）", async () => {
-  const page = {
-    screenshot: async () => {
-      throw new Error("撮ってはいけない");
-    },
-  };
-  const locator = {
-    scrollIntoViewIfNeeded: async () => {},
-    evaluate: async (fn) => fn(fakeElement({ inFrame: true })),
-  };
-  await expect(captureElementShot(page, locator)).rejects.toThrow(/inside a frame/);
+// --- iframe の中の要素（Issue #436） ---------------------------------------
+//
+// `getBoundingClientRect()` はその要素が居るフレームの座標、`page.screenshot({ clip })` は最上位の座標。
+// フレームを遡ってオフセット（フレーム要素の矩形 + 枠線 + padding）を足して最上位へ直す。
+// ダイアログ内 iframe の部品は、ローカル座標が整数でも親のオフセットが小数なら `locator.screenshot()` の
+// 外接で PNG が 1px 膨らんでいた（実測: rect=(566, 407.765625, 80, 28) → 81x29）。
 
-  // 陽性コントロール: 同じ矩形でも最上位フレームなら撮れる（判定が矩形ではなくフレームで効いている）。
-  const shots = [];
-  const okPage = {
+/** fake の element を evaluate する locator。`sequence` を渡すと呼ぶたびに次の element を使う。 */
+function frameLocator(...sequence) {
+  let call = 0;
+  return {
+    scrollIntoViewIfNeeded: async () => {},
+    evaluate: async (fn) => fn(sequence[Math.min(call++, sequence.length - 1)]),
+  };
+}
+
+function recordingPage() {
+  const calls = [];
+  return {
+    calls,
     screenshot: async (options) => {
-      shots.push(options);
-      return Buffer.alloc(0);
+      calls.push(options);
+      return pngHeader(options.clip.width, options.clip.height);
     },
   };
-  await captureElementShot(okPage, {
-    scrollIntoViewIfNeeded: async () => {},
-    evaluate: async (fn) => fn(fakeElement()),
-  });
-  expect(shots).toHaveLength(1);
+}
+
+const LOCAL = { x: 66, y: 306.765625, width: 80, height: 28 };
+// 内側から外側へ: 内側のフレームは外側のフレームの中の (7.4, 13.3) に枠線 2・padding 3.25 で、
+// 外側のフレームは最上位の (100.5, 50.25) に枠線 3・padding 5.5 で置かれている。
+const NESTED = [
+  {
+    frameEl: fakeFrameEl({ x: 7.4, y: 13.3, border: 2 }),
+    visible: { width: 600, height: 800 },
+    style: { paddingLeft: "3.25px", paddingTop: "3.25px" },
+  },
+  {
+    frameEl: fakeFrameEl({ x: 100.5, y: 50.25, border: 3, width: 900, height: 1000 }),
+    visible: { width: 900, height: 1000 },
+    style: { paddingLeft: "5.5px", paddingTop: "5.5px" },
+  },
+];
+
+test("入れ子の iframe の中の要素は、各段のオフセットを足した最上位の座標で撮る", async () => {
+  const page = recordingPage();
+  const out = await captureElementShot(
+    page,
+    frameLocator(fakeElement({ rect: LOCAL, frames: NESTED })),
+  );
+  // x = 66 + (7.4 + 2 + 3.25) + (100.5 + 3 + 5.5) = 187.65 / y = 306.765625 + 18.55 + 58.75 = 384.065625
+  const pageRect = out.page_rect;
+  expect(pageRect.x).toBeCloseTo(187.65, 9);
+  expect(pageRect.y).toBeCloseTo(384.065625, 9);
+  expect(page.calls[0].clip).toEqual({ x: 188, y: 384, width: 80, height: 28 });
+  expect(out.png).toEqual({ width: 80, height: 28 });
+  expect(out.rect).toEqual(LOCAL); // フレーム内の座標（trait-capture.mjs の rect と同じ座標系）は別に残す
+  expect(out.frame_depth).toBe(2);
+
+  // 陽性コントロール: オフセットを足さずフレーム内の座標で切ると別の場所になる（旧実装が拒否していた理由）。
+  expect(planElementClip(LOCAL, VIEWPORT)).not.toEqual(page.calls[0].clip);
+  // 陽性コントロール: 外接（locator.screenshot() 相当）だと最上位の小数座標で 1px 膨らむ。
+  const enclosing = enclosingIntRect(pageRect);
+  expect([enclosing.width, enclosing.height]).toEqual([81, 29]);
+});
+
+test("枠線は丸めた clientLeft ではなく計算後スタイルの小数で足す（deviceScaleFactor でスナップされる）", async () => {
+  // 実測（chromium, deviceScaleFactor 1.5）: 1px の枠線は borderLeftWidth=0.666667px・clientLeft=1。
+  const frameEl = { ...fakeFrameEl({ x: 8.6, y: 8.6 }), clientLeft: 1, clientTop: 1 };
+  const frames = [
+    {
+      frameEl,
+      visible: { width: 600, height: 800 },
+      style: { borderLeftWidth: "0.666667px", borderTopWidth: "0.666667px" },
+    },
+  ];
+  const page = recordingPage();
+  const rect = { x: 10, y: 10, width: 5, height: 5 };
+  await captureElementShot(page, frameLocator(fakeElement({ rect, frames })));
+  // 8.6 + 0.666667 + 10 = 19.27 → 19（clientLeft を足すと 19.6 → 20 で 1px ずれる）
+  expect(page.calls[0].clip).toEqual({ x: 19, y: 19, width: 5, height: 5 });
+});
+
+test("読めないフレーム（クロスオリジン）の中の要素は撮らずに失敗する", async () => {
+  const page = recordingPage();
+  const frames = [{ frameEl: null, visible: { width: 600, height: 800 } }];
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
+  ).rejects.toThrow(/offset cannot be read/);
+  expect(page.calls).toEqual([]);
+});
+
+test("外側のフレームが読めなくても撮らない（内側だけ読めても最上位へ直せない）", async () => {
+  const page = recordingPage();
+  const frames = [NESTED[0], { ...NESTED[1], frameEl: null }];
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
+  ).rejects.toThrow(/offset cannot be read/);
+  expect(page.calls).toEqual([]);
+});
+
+test("transform で拡縮されたフレームの中の要素は撮らずに失敗する", async () => {
+  const page = recordingPage();
+  const frames = [{ ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10, scale: 0.5 }) }];
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
+  ).rejects.toThrow(/scaled by a CSS transform/);
+  expect(page.calls).toEqual([]);
+});
+
+test("寸法が小数のフレームは変形とみなさない（offsetWidth は整数へ丸められる）", async () => {
+  // 実測: 幅 600 + 枠線 2x2 + padding 3.25x2 = 610.5px のフレームで offsetWidth は 611。
+  const frameEl = {
+    ...fakeFrameEl({ x: 7.4, y: 13.3, border: 2 }),
+    offsetWidth: 611,
+    offsetHeight: 811,
+  };
+  frameEl.getBoundingClientRect = () => ({ x: 7.4, y: 13.3, width: 610.5, height: 810.5 });
+  const page = recordingPage();
+  const frames = [{ ...NESTED[0], frameEl }];
+  const out = await captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames })));
+  expect(out.frame_depth).toBe(1);
+  expect(page.calls).toHaveLength(1);
+});
+
+test.each([
+  ["内側のフレームの右端を越える", { x: 540, y: 10, width: 80, height: 28 }, 1],
+  ["内側のフレームの下端を越える", { x: 10, y: 790, width: 80, height: 28 }, 1],
+  [
+    "内側のフレームの上へ出る（フレーム内でスクロールされた）",
+    { x: 10, y: -5, width: 80, height: 28 },
+    1,
+  ],
+])("フレームの見える範囲からはみ出す要素は撮らない: %s", async (_label, rect, level) => {
+  const page = recordingPage();
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect, frames: NESTED }))),
+  ).rejects.toThrow(new RegExp(`inside frame level ${level} `));
+  expect(page.calls).toEqual([]);
+});
+
+test("外側のフレームの見える範囲からはみ出す要素も撮らない（内側に収まっていても）", async () => {
+  const page = recordingPage();
+  // 内側のフレームは外側の中で (500, 900) にあり、外側の見える範囲 900x1000 の下端近く。
+  const frames = [
+    { ...NESTED[0], frameEl: fakeFrameEl({ x: 500, y: 900, border: 0 }), style: undefined },
+    NESTED[1],
+  ];
+  await expect(
+    captureElementShot(
+      page,
+      frameLocator(fakeElement({ rect: { x: 10, y: 90, width: 80, height: 28 }, frames })),
+    ),
+  ).rejects.toThrow(/inside frame level 2 /);
+  expect(page.calls).toEqual([]);
+});
+
+test("見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）", async () => {
+  // fakeView の innerWidth は見える範囲 + 15（スクロールバー相当）。見える範囲 600 を 5px 越える要素は落とす。
+  const page = recordingPage();
+  await expect(
+    captureElementShot(
+      page,
+      frameLocator(
+        fakeElement({ rect: { x: 525, y: 10, width: 80, height: 28 }, frames: [NESTED[0]] }),
+      ),
+    ),
+  ).rejects.toThrow(/inside frame level 1 /);
+  expect(page.calls).toEqual([]);
+});
+
+test("撮影中にフレームが動いたら失敗する（フレーム内の矩形が同じでも）", async () => {
+  const page = recordingPage();
+  const moved = [
+    NESTED[0],
+    {
+      ...NESTED[1],
+      frameEl: fakeFrameEl({ x: 100.5, y: 74.25, border: 3, width: 900, height: 1000 }),
+    },
+  ];
+  await expect(
+    captureElementShot(
+      page,
+      frameLocator(
+        fakeElement({ rect: LOCAL, frames: NESTED }),
+        fakeElement({ rect: LOCAL, frames: moved }),
+      ),
+    ),
+  ).rejects.toThrow(/box changed while capturing/);
+});
+
+test("path が .png で終わらなければ撮る前に失敗する（記録ファイルの名前が決まらない）", async () => {
+  const page = recordingPage();
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-ext-"));
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement()), { path: join(dir, "element.jpeg") }),
+  ).rejects.toThrow(/must end with \.png/);
+  expect(page.calls).toEqual([]);
+  expect(shotRecordPath("/a/b/element.png")).toBe("/a/b/element.shot.json");
+});
+
+test("PNG でないものが返ったら実寸を記録せず失敗し、何も書かない", async () => {
+  const page = { screenshot: async () => Buffer.from("not a png") };
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-notpng-"));
+  const target = join(dir, "element.png");
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement()), { path: target }),
+  ).rejects.toThrow(/did not return a PNG/);
+  expect(existsSync(target)).toBe(false);
+  expect(existsSync(join(dir, "element.shot.json"))).toBe(false);
+  // 陽性コントロール: PNG ヘッダなら読める。
+  expect(readPngSize(pngHeader(81, 29))).toEqual({ width: 81, height: 29 });
+});
+
+test.each([
+  ["短すぎる", Buffer.from("not a png")],
+  [
+    "長さは足りるが署名が違う（JPEG 等）",
+    Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), pngHeader(1, 1).subarray(3)]),
+  ],
+  [
+    "署名は PNG だが先頭チャンクが IHDR でない",
+    Buffer.concat([
+      pngHeader(1, 1).subarray(0, 12),
+      Buffer.from("IDAT"),
+      pngHeader(1, 1).subarray(16),
+    ]),
+  ],
+])("PNG の実寸を読めない形は失敗させる: %s", (_label, buffer) => {
+  expect(() => readPngSize(buffer)).toThrow(/did not return a PNG/);
+});
+
+test("PNG の実寸は clip ではなく PNG から読む（deviceScaleFactor で倍になる）", async () => {
+  const page = {
+    screenshot: async (options) => pngHeader(options.clip.width * 2, options.clip.height * 2),
+  };
+  const out = await captureElementShot(page, frameLocator(fakeElement()));
+  expect(out.clip).toEqual({ x: 1329, y: 219, width: 25, height: 28 });
+  expect(out.png).toEqual({ width: 50, height: 56 });
 });
 
 test("scrollIntoView: false なら見える位置へ入れない", async () => {
@@ -187,7 +462,9 @@ test("scrollIntoView: false なら見える位置へ入れない", async () => {
     scrollIntoViewIfNeeded: async () => calls.push("scroll"),
     evaluate: async (fn) => fn(fakeElement({ rect: { x: 0, y: 0, width: 10, height: 10 } })),
   };
-  const page = { screenshot: async () => Buffer.alloc(0) };
+  const page = {
+    screenshot: async (options) => pngHeader(options.clip.width, options.clip.height),
+  };
   await captureElementShot(page, locator, { scrollIntoView: false });
   expect(calls).toEqual([]);
 });
@@ -199,16 +476,28 @@ test("scrollIntoView: false なら見える位置へ入れない", async () => {
 // 途中フレームが PNG になり run ごとに揺れるのに、撮影条件は `animations: disabled` として
 // 記録される。記録と実体を食い違わせない。
 
+/** 最上位フレームの要素について readRectAndViewport が返す形。 */
+function measuredTop(rect, liveAnimations) {
+  return {
+    rect,
+    page_rect: rect,
+    viewport: VIEWPORT,
+    frames: [],
+    frame_error: null,
+    live_animations: liveAnimations,
+  };
+}
+
 function shotSpy(rect = { x: 0, y: 0, width: 10, height: 10 }) {
   const calls = [];
   const locator = {
     scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => ({ rect, viewport: VIEWPORT, top_frame: true, live_animations: 0 }),
+    evaluate: async () => measuredTop(rect, 0),
   };
   const page = {
     screenshot: async (options) => {
       calls.push(options);
-      return Buffer.alloc(0);
+      return pngHeader(options.clip.width, options.clip.height);
     },
   };
   return { calls, locator, page };
@@ -250,19 +539,14 @@ function movingSpy(before, after) {
   const calls = [];
   const locator = {
     scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => ({
-      rect: rects[Math.min(call++, rects.length - 1)],
-      viewport: VIEWPORT,
-      top_frame: true,
-      live_animations: 0,
-    }),
+    evaluate: async () => measuredTop(rects[Math.min(call++, rects.length - 1)], 0),
   };
   const page = {
     screenshot: async (options) => {
       calls.push(options);
       // Playwright は `path` を渡されるとその場で書き出す。fake も同じ振る舞いにしないと、
       // 「検査前に書いていないか」を測るテストが素通りする。
-      const data = Buffer.from("png");
+      const data = pngHeader(options.clip.width, options.clip.height);
       if (options.path !== undefined) {
         mkdirSync(dirname(options.path), { recursive: true });
         writeFileSync(options.path, data);
@@ -325,17 +609,12 @@ function animatedSpy(liveAnimations, rect = { x: 0, y: 0, width: 10, height: 10 
   const calls = [];
   const locator = {
     scrollIntoViewIfNeeded: async () => {},
-    evaluate: async () => ({
-      rect,
-      viewport: VIEWPORT,
-      top_frame: true,
-      live_animations: liveAnimations,
-    }),
+    evaluate: async () => measuredTop(rect, liveAnimations),
   };
   const page = {
     screenshot: async (options) => {
       calls.push(options);
-      return Buffer.from("png");
+      return pngHeader(options.clip.width, options.clip.height);
     },
   };
   return { calls, locator, page };

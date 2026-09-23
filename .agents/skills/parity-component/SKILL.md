@@ -203,6 +203,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 成果物 | 場所 | 正本テンプレート |
 |---|---|---|
 | 要素スクリーンショット | `.replace/components/<slug>/baseline/<instance>/<state>/element.png` | — |
+| 撮影の記録（clip・PNG 実寸） | `.replace/components/<slug>/baseline/<instance>/<state>/element.shot.json`（element-shot.mjs が PNG と対で書く） | — |
 | 計算後スタイル | `.replace/components/<slug>/baseline/<instance>/<state>/traits.json` | — |
 | 当たっている CSS 規則 | `.replace/components/<slug>/baseline/<instance>/<state>/css-rules.json` | — |
 | データ依存部品の実データ | `.replace/components/<slug>/baseline/<instance>/data.json` | — |
