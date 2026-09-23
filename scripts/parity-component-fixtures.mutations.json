@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "parity-component-fixtures.test.js のうち、element.shot.json の契約検査（PR #445）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/parity-component-fixtures.test.js",
+  "mutations": [
+    {
+      "id": "shot-contract",
+      "why": "記録と期待値の食い違いを報告しない",
+      "file": "scripts/parity-component-fixtures.test.js",
+      "find": "          if (differ.length > 0) {\n",
+      "replace": "          if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性コントロール: element.shot.json の契約違反を検出する: clip の座標",
+        "陽性コントロール: element.shot.json の契約違反を検出する: rect の欠落",
+        "陽性コントロール: element.shot.json の契約違反を検出する: page_rect の座標",
+        "陽性コントロール: element.shot.json の契約違反を検出する: frame_depth",
+        "陽性コントロール: element.shot.json の契約違反を検出する: animations",
+        "陽性コントロール: element.shot.json の契約違反を検出する: 余計なキー",
+        "陽性コントロール: 寸法が同じ別の撮影の記録を差し込むと検出する"
+      ]
+    },
+    {
+      "id": "shot-extra-keys",
+      "why": "記録側にだけある余計なキーを見ない（期待値のキーだけで比べる）",
+      "file": "scripts/parity-component-fixtures.test.js",
+      "find": "[...new Set([...Object.keys(expected), ...Object.keys(shot)])]",
+      "replace": "Object.keys(expected)",
+      "occurrences": 1,
+      "expect_failing": ["陽性コントロール: element.shot.json の契約違反を検出する: 余計なキー"]
+    }
+  ]
+}
