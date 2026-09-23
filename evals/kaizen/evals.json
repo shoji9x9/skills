@@ -1,0 +1,299 @@
+{
+  "skill_name": "kaizen",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このセッションで「パスを間違えていました、修正してください」という指示があった。このセッションの学びを 1 件抽出して .kaizen/ に保存したい",
+      "assertions": [
+        ".kaizen/ ディレクトリが作成されている",
+        ".kaizen/*.md ファイルが 1 件作成されている",
+        "作成されたファイルの frontmatter に date, type, status, priority, applied-to フィールドがある",
+        "作成されたファイルに「事象」「根本原因」「提案」セクションがある",
+        "status が pending、applied-to が空配列になっている",
+        "個別の失敗ではなく根本原因が記述されている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "全セッションを振り返って学びを抽出したい",
+      "assertions": [
+        "references/extract.md の --all モードに従って全セッションログを対象にしようとしている",
+        "複数の候補が提示されている（または候補がない旨が伝えられている）",
+        "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": ".kaizen/ に pending な学びがある前提で、学びを適用したい",
+      "assertions": [
+        ".kaizen/*.md の一覧を確認しようとしている",
+        "1 件ずつユーザーに確認するフローになっている",
+        "type に応じて multiagent-setup スキルを参照しようとしている",
+        "全件処理後にブランチ継続か Issue 作成かをユーザーに確認している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "kaizen の Hook を Claude Code に設定して、コミット前に学びを自動抽出できるようにしたい",
+      "assertions": [
+        ".claude/settings.json の hooks セクションに Stop イベントの設定が追加されている",
+        "Stop Hook がバンドルされた kaizen-stop-mark スクリプトを呼び出し、session 単位の未抽出センチネル .kaizen/.pending-extract<agent suffix>.<session key> を作成する設定になっている",
+        "Stop Hook に echo によるリマインダー出力が含まれていない",
+        "PreToolUse Hook（matcher が Bash）が設定され、handler の if が Bash(git commit *) に限定され、kaizen-precommit-gate スクリプトを呼び出している",
+        "ゲートは未抽出センチネルがある時に git commit をブロックして kaizen --current の実行を促す設計になっている"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "このセッションでコマンドエラーが繰り返し起きた。kaizen で根本原因を分析して学びを抽出したい",
+      "assertions": [
+        "症状レベルで止めず、最低 3 階層の「なぜ」を掘り下げようとしている",
+        "既存の .kaizen/*.md と照合（KEDB）して同種の学びがないか確認しようとしている",
+        "同じ根本原因が他の箇所にも潜んでいないか横断スコープを確認しようとしている",
+        "ユーザーの承認なしに .kaizen/ にファイルを書き込んでいない"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "kaizen のセッション開始時フックを設定して、過去の学びをエージェントが参照できるようにしたい",
+      "assertions": [
+        "SessionStart（またはセッション開始相当）の Hook を設定しようとしている",
+        "kaizen-context-inject スクリプトを呼び出す設定になっている",
+        "Claude Code と Codex は context へ注入され、Copilot はベストエフォートという但し書きに言及している",
+        "「kaizen を実行せよ」という行動リマインダーではなく、学びデータの供給が目的だと区別している"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "学びを抽出し、その内容を同じセッションで AGENTS.md に反映した。.kaizen のファイルはどう扱うべきか",
+      "assertions": [
+        "反映（適用）が完了したら当該ファイルの status を pending から applied に更新し applied-to に AGENTS.md を記録すべきと案内している",
+        "kaizen-status-check.sh で status と applied-to の整合を検査すると案内している"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "kaizen をインストールしたので初期セットアップをしたい",
+      "assertions": [
+        "references/setup.md を参照してセットアップ手順に従おうとしている",
+        "基底ドキュメント（AGENTS.md。無ければ CLAUDE.md / .github/copilot-instructions.md）にエージェントの自己設定編集の制約（自己改変ガード）の節を追記しようとしている（既存なら追記しない）",
+        "追記した基底ドキュメントの節に、ブロックされたときのフォールバック（適用内容を一時ファイルへ書き出し `! cp <tmp> <設定ファイル>` での適用をユーザーに依頼する）が記載されている（成果物で判定。ブロックが起きなかった run では応答本文での言及を要求しない）",
+        "追記する表で Claude Code の編集可否を「不可」と断定せず、版と権限モードで変わるので実測する旨にしており、かつ設定を緩める変更はブロックされたかどうかに関わらず人に確認する旨を含めている",
+        "タスク終了時・コミット前ゲート・セッション開始時の 3 つの Hook を設定しようとしている",
+        ".gitignore に **/.kaizen/.pending-extract*、**/.kaizen/.extract-done*、**/.kaizen/.extract-checkpoint* を追加しようとしている（session 単位の派生名まで掛かる末尾 * 付き。.kaizen/ 本体はコミット対象のまま）"
+      ]
+    },
+    {
+      "id": 9,
+      "fixture": "fixtures/apply-mechanism",
+      "prompt": ".kaizen/ の pending な学びを適用したい。この学びをどこへ反映すべきかを根拠とともに示し、反映後の後処理まで説明して。",
+      "assertions": [
+        "反映先として散文（rule / doc への追記）ではなくリポジトリのツール（lint / pre-commit / スクリプト / CI ジョブ）の改修・新設＝機構を第一候補にしている",
+        "根拠として、手順の記述で閉じる対策は知識であって仕組みではない旨、または同じ組み立てを毎回人が再現しているなら既定挙動にする旨を述べている",
+        "反映後に当該ファイルの status を pending から applied に更新し、applied-to に成果物パスを記録して kaizen-status-check.sh で検査すると述べている",
+        "全グループ処理後の選択として「このブランチで作業継続」か「グループごとに Issue を作成」の二択をユーザーに確認すると述べている"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "kaizen の Hook を Codex に設定して、終了時記録・コミット前ゲート・セッション開始時の学び注入を有効にしたい",
+      "assertions": [
+        ".codex/hooks.json のトップレベルは任意の description と必須の hooks だけで、Stop / PreToolUse / SessionStart は hooks 配下にある",
+        "各イベントが matcher group の hooks 配列内に type: command と command を持つ Codex の現行形式になっている",
+        "PreToolUse の matcher が Bash で、kaizen-precommit-gate スクリプトを呼び出している",
+        "Stop は kaizen-stop-mark スクリプトを -codex 付きで呼び出している",
+        "SessionStart は全 start source にマッチし、kaizen-context-inject スクリプトを呼び出している",
+        "SessionStart の plain text stdout が extra developer context に追加される根拠として、Codex Hooks 公式ドキュメントの SessionStart 節 URL を近接位置に示している",
+        "初回設定と Hook 定義変更後に Codex CLI の /hooks で参照元と command をレビューして信頼し、信頼前は Hook がスキップされると案内している"
+      ]
+    },
+    {
+      "id": 11,
+      "fixture": "fixtures/priority-order",
+      "prompt": "fixture の pending 学びを SessionStart と同じスクリプトで注入し、実際の出力順を示して。あわせて high / medium / low の判定基準と --current の選択順を説明して。",
+      "assertions": [
+        "kaizen-context-inject.sh を fixture ルート基準で実行し、HIGH_OLD, HIGH_NEW, MEDIUM, LOW, UNKNOWN の順で出力されたことを示している",
+        "同じ high の中で date 昇順（2026-07-01 が 2026-08-01 より先）になり、未知の priority が最末尾でも処理が失敗していない",
+        "high は作業停止、medium は実時間損失または手戻り、low は papercut と説明している",
+        "--current の選択根拠として実際の影響度を、KEDB の反復・根本原因の明確さ・対策の具体性より先に評価している"
+      ]
+    },
+    {
+      "id": 12,
+      "fixture": "fixtures/kedb-existing",
+      "prompt": "サブディレクトリから pre-commit hook を動かしたところ制御ファイルが別の cwd に作られた。バンドルされた KEDB スクリプトで既存ノートを照合して扱いを示して。さらに ONLY_ARCHIVE_BODY_MARKER を同じスクリプトで検索し、archive 本文が通常走査から除外されることを終了コード付きで実証して。",
+      "assertions": [
+        "kaizen-kedb-match.sh に事象語と hook または対象パスの複数キーワードを渡して照合している",
+        "fixture の 2026-08-01-hook-path-resolution.md を status=pending のヒットとして特定している",
+        "新しい学びファイルを作らず、既存 pending ノートの priority を上げて事象・提案を追記する扱いを選んでいる",
+        "ONLY_ARCHIVE_BODY_MARKER と空でない第2キーワードを渡した検索が出力なし・exit 1 になる一方、INDEX.md にある語の検索は archived ノートを検出して exit 0 になることを示している"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "外部 CLI の仕様上の不具合が根本原因で、このリポジトリ側では直せない。kaizen の type と適用経路を、frog が無い場合や targets が 0 件の場合も含めて示して。外部への起票はまだ承認していない。",
+      "assertions": [
+        "根本原因の所有者が外部にいるため type: upstream と分類している",
+        "frog が導入済みなら frog targets の opt-in を確認して frog log --target を使い、0 件・未設定・失敗時は停止せず次へ進む",
+        "frog を利用できない場合は issue-create に委譲するが、起票先とドラフトを示してユーザー承認を得るまで外部 Issue を作成しない",
+        "上流報告できない場合はローカル回避策に上流 Issue または修正版を基準とする撤去条件を併記する"
+      ]
+    },
+    {
+      "id": 14,
+      "fixture": "fixtures/lifecycle-inconsistent",
+      "prompt": "fixture に新旧形式の kaizen ノートと不整合な archive INDEX がある。バンドルされた lifecycle 検査を実行し、終了コードと対象ファイルを示してから、各不整合の修正方法と旧形式の互換性を説明して。その修正手順には、整合が取れたことをどう確認するかまで含めて。あわせて、INDEX.md に 2026-06-01-archived.md という文字列があるのに検査が 0 件と言う理由を、検査スクリプトのエントリ判定に即して説明して。",
+      "assertions": [
+        "kaizen-status-check.sh が exit 2 となり、pending-with-target と applied-empty の両ファイルを status/applied-to 不整合として出力したことを示している",
+        "2026-08-03-wrapped-lead.md は `## 提案` の先頭段落が次の行へ折り返されている点を検出し、参照注入が最初の非空行だけを要約に使うため先頭段落を 1 行に収めると説明している",
+        "archive の 2026-06-01-archived.md 欠落と INDEX.md の 2026-06-02-stale.md 過剰を両方検出している",
+        "found 0 の理由として、バンドルされた kaizen-status-check.sh のエントリ抽出が行頭の - `<name>.md` 形式だけを拾う sed 式に限られる点を、その実装（式または該当行）を引いて説明している",
+        "legacy-applied.md は applied-to フィールド自体が無い旧形式なのでエラー対象になっていないことを出力と照合している",
+        "修正後は status: applied と applied-to の成果物パスまたは Issue 番号を対にし、kaizen-archive.sh --reindex 後に再検査すると説明している"
+      ]
+    },
+    {
+      "id": 15,
+      "fixture": "fixtures/candidate-scan",
+      "prompt": "fixture の各 JSONL をバンドルされた candidate scanner で実行し、ファイルごとの終了コードを示して。続けて次の 4 点を、どのレコードのどのフィールドを見て決めているかまで示して: (1) 成功したツール出力の中に現れるエラーらしい文字列と、本物の失敗をどう見分けているか。(2) 同じ Claude Code の user レコードで結果が分かれるものは、content のどの要素を根拠に採り、どの要素を除外しているか（候補として出る行番号まで）。(3) Codex の構造化レコードでは、どのフィールドがどの値のときに候補にするか。同一パスを何回目から候補にするかと、記号だけが違うパスの数え方も。(4) 未知のレコード型で終了コードが分かれるものは何がその差を決めているか。既知の container の扱いも含めて。",
+      "assertions": [
+        "claude-no-candidate.jsonl・claude-atis-latch-no-candidate.jsonl・codex-no-candidate.jsonl・codex-two-edits-no-candidate.jsonl・claude-internal-records-no-candidate.jsonl・claude-tool-result-correction-word.jsonl は exit 1、claude-candidate.jsonl・claude-atis-latch-candidate.jsonl・codex-tool-error.jsonl・codex-repeated-edit.jsonl・codex-structured-error.jsonl・codex-structured-repeated-edit.jsonl・codex-colliding-paths-repeated-edit.jsonl・correction-at-boundary.jsonl・claude-internal-records-candidate.jsonl・claude-tool-result-and-user-correction.jsonl は exit 0、unknown.jsonl・unknown-string-type.jsonl・unknown-type-with-message.jsonl・malformed-json.jsonl・malformed-event-msg.jsonl・unknown-response-item-subtype.jsonl・response-item-missing-payload.jsonl・event-msg-missing-payload.jsonl は exit 2 という実測結果を示している",
+        "成功した Codex tool output 内の文字列 exit code 2 は候補にせず、Script failed の runner envelope は候補にする弁別を示している",
+        "Claude Code はツール結果も role: user のレコードに載せるため、user correction の判定に使うのは文字列の content と text 要素だけで tool_result 要素は除外すると説明し、claude-tool-result-and-user-correction.jsonl では tool_result の行ではなく本物のユーザー発話の行番号（transcript line 5）が根拠に出ることを示している",
+        "Codex event_msg の item_completed では CommandExecution.status=failed を候補にし、FileChange.changes の同一パス 3 回目を repeated edit として候補にする。記号だけが異なるパスは別々に数える",
+        "未知の top-level type は型名の allowlist ではなく構造で弁別し、message / payload / content を持たないレコード（cost-state・worktree-state・relocated 等）は読み飛ばして exit 1、同じ未知の型でも message を持つものは exit 2 の fail closed になると、両者を対比して説明している。既知 container（response_item / event_msg）は payload が丸ごと欠けていてもこの読み飛ばしの対象外で exit 2 のままだと区別している"
+      ]
+    },
+    {
+      "id": 16,
+      "fixture": "fixtures/candidate-scan",
+      "prompt": "issue-batch から kaizen extract --current --record-pending を呼ぶ。候補あり／候補なしの両分岐、通常の kaizen --current との差、完了処理を 1 つの報告にまとめて。fixture の candidate scanner で検出能力も実測して。",
+      "assertions": [
+        "--record-pending を extract --current と同時指定した場合だけ受理し、候補を最大 1 件に制限する",
+        "候補ありは承認確認なしで status: pending / applied-to: [] として記録し、apply / archive / delete を行わない",
+        "候補なしの前に candidate fixture の既知候補を scanner が検出できる陽性コントロールを実行し、失敗や未知形式を no-op に倒さない",
+        "候補ありは agent 固有 suffix / agent / session id / transcript path 付きの complete モード、候補なしは scanner の scanned-bytes / scanned-lines を渡す --checkpoint-only で処理し、候補なしでは .extract-done.<session key> を作らない",
+        "候補あり／なしの両方で kaizen-status-check.sh を通す",
+        "current transcript を同定できない Copilot では候補ゼロと推測せず BLOCKED にする",
+        "通常の kaizen --current は従来どおりユーザー承認を要求すると区別する"
+      ]
+    },
+    {
+      "id": 17,
+      "prompt": "同じリポジトリで Claude Code のセッションを 2 つ動かしている（片方は git worktree で作業）。片方で kaizen の抽出を終えたのに、もう片方の commit がゲートに止められ続ける。kaizen の制御ファイルがどの単位で分かれていて、この状況で何が起きるのかを、実際のファイル名と解消コマンドまで具体的に説明して。あわせて、抽出を終えた側で次にセッションを開始したとき制御ファイルがどうなるか、そして他セッションの未解決センチネルをゲートが commit のたびにどう扱うかも示して。",
+      "assertions": [
+        "センチネル・抽出完了マーカー・checkpoint がいずれも session 単位（.pending-extract<suffix>.<session key> / .extract-done.<session key> / .extract-checkpoint.<session key>）だと説明している",
+        "片方のセッションの抽出完了は他方のセンチネルを削除せず、SessionStart も自セッションのマーカーだけを失効させると説明している",
+        "ゲートは自セッション分を解消した後、他セッションの未解決センチネルもそのセンチネルが持つ transcript で差分走査し、候補ゼロを検証できたものは自動解消すると説明している",
+        "他セッションのセンチネルは候補が残っていても commit をブロックせず警告に留まり（ゲートの exit 1）、ゲートがセンチネルの中身（transcript パス・エージェント・session id）から kaizen-extract-done.sh の実行可能なコマンドを案内すると説明している",
+        "解消コマンドの --session-id にはセンチネルを立てたセッションの id を渡すのであって、自分のセッションの id ではないと区別している",
+        "書き込み先はコミット対象の作業ツリー基準で決まるが、**制御ファイルの探索と解消はリポジトリの全作業ツリーへ広げてある**ため、センチネルを立てたツリーと commit するツリーが分かれても worktree の commit が素通りしないと説明している",
+        "ブロックの解消として、他セッションのセンチネルを一括削除する（--sentinel-suffix を省略した kaizen-extract-done.sh やワイルドカード rm）方法を勧めていない"
+      ]
+    },
+    {
+      "id": 18,
+      "prompt": "1 本の feature branch で作業を 3 つの commit に分ける。1 回目の commit の前にコミット前ゲートに止められ、kaizen --current で 1 件抽出して commit した。その後も実装を続けて 2 回目・3 回目の commit をする。ゲートは 2 回目以降に何を見て何をするのか、抽出のたびに何を記録すべきか、記録し損ねると何が起きるのかを、実際のファイル名とコマンドで説明して。",
+      "assertions": [
+        "2 回目以降の commit でも、前回の抽出以降に積まれた活動を .kaizen/.extract-checkpoint.<session key> より後の未処理範囲として走査すると説明している",
+        "抽出完了時の kaizen-extract-done.sh に transcript path を渡して処理位置を記録させ、省略しないと説明している",
+        ".extract-done.<session key> は checkpoint を記録できなかったときだけ書かれる fail safe で、これがあるとセッション全体が抽出済みになり後続の commit が素通りすると説明している",
+        "checkpoint がある間はゲートが .extract-done を尊重せず再走査すると説明している",
+        "candidate scanner の exit code 契約（0=候補あり／1=検証済みゼロ／それ以外=不明）を挙げ、exit 1 のときだけ --checkpoint-only で checkpoint を進めて自動通過し、それ以外は再ブロックすると具体的に説明している",
+        "2 回目の抽出では checkpoint より後だけを読み、1 回目に記録済みの学びを重複して起票しないと説明している",
+        "セッション内で毎回抽出を要求されないよう .extract-done を先に書いておく、センチネルを手で消す、といった回避策を勧めていない"
+      ]
+    },
+    {
+      "id": 19,
+      "fixture": "fixtures/candidate-scan",
+      "prompt": "1 つの作業ツリーで Claude Code のセッションを 4 つ走らせている。うち 2 つは既に終了して戻ってこないが、そのセンチネルが .kaizen/ に残っている。fixture の claude-internal-records-no-candidate.jsonl・claude-internal-records-candidate.jsonl・unknown-type-with-message.jsonl をバンドルされた candidate scanner で実行し、ファイルごとの終了コードと、その差が何で決まるのかを示して。続けて、コミット前ゲートが遮断の根拠にするセンチネルの範囲とその範囲にした理由、戻ってこないセッションのセンチネルの扱いと学びが失われないか、その扱いを変える設定の場所と既定値を、1 つの報告にまとめて。",
+      "assertions": [
+        "claude-internal-records-no-candidate.jsonl は exit 1、claude-internal-records-candidate.jsonl は exit 0、unknown-type-with-message.jsonl は exit 2 という実測結果を示している",
+        "終了コードの差を決めているのは type 名の allowlist ではなく、未知のレコードが会話を運ぶ入れ物（message / payload / content）を持つかどうかであり、持たない内部レコードは読み飛ばすと説明している",
+        "ゲートが commit を止める根拠にするのは自セッションのセンチネル（.kaizen/.pending-extract<suffix>.<session key>）だけで、他セッションのぶんは exit 1 の警告に留まり commit は通ると説明している",
+        "他セッションのぶんを遮断に使わない理由として、そのセッションで何が起きたかを知らない主体が抽出すると記録の担保が推測に変わる（止めた相手が解消できない）ことを挙げている",
+        "戻ってこないセッションのセンチネルはセンチネル 1 行目の UTC タイムスタンプを基準に、保持期間を過ぎたものをゲートが自動で削除すると説明している",
+        "削除されるのは「未抽出である」という印だけで transcript は残り、後から kaizen extract で読み直せるため学びは失われないと説明している（対応する checkpoint も消さない）",
+        "保持期間は .kaizen/config の foreign_sentinel_retention_days で変更でき、既定は 7 日だと具体的なキー名と値で示している",
+        "恒久ブロックの回避策として .kaizen/.pending-extract* の一括削除や .extract-done の先置きを勧めていない"
+      ]
+    },
+    {
+      "id": 20,
+      "prompt": "kaizen のコミット前ゲートを Claude Code / Codex / Copilot に配線したい。全 Bash 呼び出しを遅くしない Hook 設定を示したうえで、次を 1 つの報告にまとめて: (1) commit でない Bash 呼び出しのとき、ゲートは何を起動せずに終わるか。(2) 候補ゼロを検証できたとき、どのファイルをどこまで更新し、どのファイルを作らないか。(3) Codex と Copilot のセンチネルが同時に残っている状態で Codex 側の候補ゼロ transcript を走査したら、どちらが消えて commit はどうなるか。(4) 逆に、どんなときブロックへ倒れるか。(5) ブロックされたエージェントが commit を通すまでに済ませるべき範囲はどこまでか。",
+      "assertions": [
+        "Claude Code の handler if を Bash(git commit *) に限定し、Codex/Copilot は tool-name matcher のためスクリプト内 Bash prefilter を使う",
+        "非 commit の prefilter は jq・python・git を起動せず終了すると説明している",
+        "transcript_path と自セッションの .kaizen/.extract-checkpoint.<session key> の間だけを走査し、検証済み候補ゼロなら checkpoint と自セッションのセンチネルだけを更新して .extract-done.<session key> は作らず commit を通す",
+        "Codex と Copilot のセンチネルが同時にある状態で Codex の候補ゼロ transcript を走査すると、Codex のセンチネルだけを削除し Copilot のぶんは残す。残った Copilot 分が自セッション（または key を持たない旧形式）なら exit 2 でブロックし、別セッションのものなら警告に留めて commit は通すと区別している",
+        "候補あり、既知 container の未知・欠損 subtype、壊れた JSON、読めない transcript、jq 不在、内部 timeout は fail closed で kaizen --current を促すと説明している",
+        "コミットの既定クリティカルパスは抽出・記録と extract-done までで、apply は明示選択時だけ続ける"
+      ]
+    },
+    {
+      "id": 21,
+      "prompt": "Claude Code で数時間作業したセッションから、同じセッションのまま kaizen --current を実行する。このセッションの transcript は 9.7 MB / 4,757 行ある。抽出の一次情報を何にするのか、transcript をどこまで読むのか、候補の場所をどう特定して走査器が何を返すのか、走査器が exit 1 / exit 2 を返したときにどう扱うのか、この 1 回目の抽出で checkpoint による差分化が効くのかどうかとその理由、そして自分が持ち主でない transcript を抽出する場合との違いを、実際のコマンドとファイル名で示して。",
+      "assertions": [
+        "抽出しているセッション自身が transcript の持ち主である場合は一次情報を自分の文脈にし、transcript 全体を読み直さないと説明している",
+        "transcript は候補の位置特定にだけ使い、kaizen-candidate-scan.sh に transcript パスと .kaizen/.extract-checkpoint.<session key> を渡す実行コマンドを示している",
+        "走査器が返すのはカテゴリ（user correction / tool error / repeated edit）と transcript の絶対行番号だけで本文は出ないと述べ、自分の文脈で辿れない行があるときだけその周辺だけを読むと説明している",
+        "走査器の exit 1（検証済みゼロ）を「学びが無い」と読み替えず自分の文脈に残る失敗を打ち消さない、exit 2 を候補なしに倒さない、と説明している",
+        "1 回目の抽出でも checkpoint はありうる（同じセッションの前の commit がゲートを候補ゼロで自動通過すると kaizen-extract-done.sh --checkpoint-only が書く）ため、offset の有無は .kaizen/.extract-checkpoint.<session key> の実在で確かめると説明している",
+        "持ち主かどうかはモードでなく transcript ごとに決まると述べ、持ち主でない transcript（--all のうち他セッションのぶん、他セッションのセンチネルを引き受けた場合）は出来事が文脈に無いので従来どおり読み込む、という分岐を示している",
+        "文脈窓を超える transcript を分割・要約しながら全体を読み通す回避策を勧めていない"
+      ]
+    },
+    {
+      "id": 22,
+      "prompt": "Claude Code のセッションを共有ツリー（リポジトリ本体）で始めて途中で終え、その後 `git worktree add` で作った worktree に移って作業し、そこで `git commit` した。kaizen のコミット前ゲートはこの commit を止めるのか、止めるとしたら何を根拠にするのかを、制御ファイルの実際の置き場（絶対パスの形）で説明して。あわせて、抽出を終えて `kaizen-extract-done.sh` を worktree 側から実行したとき、共有ツリーに残ったセンチネルがどうなるのか、そして「解消した」と「解消するものが無かった」をどうやって区別するのかも示して。",
+      "assertions": [
+        "制御ファイル（センチネル・checkpoint・抽出完了マーカー）の置き場は作業ディレクトリから決まるため、共有ツリーの `.kaizen/` と worktree の `.kaizen/` に分かれうると説明している",
+        "ゲートは自分のツリーの `.kaizen/` だけでなく、`git worktree list` が返すリポジトリの全作業ツリーの `.kaizen/` からセンチネル・抽出完了マーカー・checkpoint を探すため、共有ツリーに立ったセンチネルでも worktree の commit を止めると説明している",
+        "`kaizen-extract-done.sh` も同じ全作業ツリーの範囲からセンチネルを削除するので、worktree 側から実行しても共有ツリーに残ったセンチネルが消えると説明している",
+        "`rm -f` は対象が無くても正常終了するため終了コードでは空振りと成功を区別できず、`kaizen-extract-done.sh` は削除が 0 件だったときに stderr へ警告を出すと説明している",
+        "警告が出たときの確認先として、`--session-id` / `--sentinel-suffix` がセンチネルを立てた本人のものかを挙げている",
+        "素通りが出力にも終了コードにも現れないことを踏まえ、「worktree の commit が止まらない＝学びが無い」と読み替える対処を勧めていない"
+      ]
+    },
+    {
+      "id": 23,
+      "prompt": "kaizen のコミット前ゲートに `git commit` を止められたので、案内どおり抽出を実行して `.kaizen/2026-09-18-xxx.md` に学びを 1 件書いた。このリポジトリの pre-commit には Markdown の書式検査が入っている。同じ `git commit` を通すまでにまだやることが残っているなら、それが何かと理由を手順で示して。",
+      "assertions": [
+        "記録を書いた後に、そのリポジトリの整形の入口を通してから commit を再実行すると説明している",
+        "理由として、pre-commit の書式検査がいま書いたばかりの記録を対象に含めるため、整形を通さないと記録そのものが次の commit を落とすことを挙げている",
+        "記録をステージしていなくても pre-commit の書式検査の対象になりうる（検査が `git ls-files --cached --others` の集合を見る構成では未追跡ファイルも入る）ことに触れている",
+        "整形のコマンドはリポジトリごとに違うため固定のコマンドを決め打ちせず、そのリポジトリの整形の入口（`package.json` の format 系スクリプト等）を特定して通すと説明している",
+        "整形の入口が見つからないリポジトリではこの段を飛ばしてよいと明示している",
+        "記録を `.gitignore` へ入れて検査から外す・記録を消す・検査を無効化する、といった回避策を勧めていない"
+      ]
+    },
+    {
+      "id": 24,
+      "fixture": "fixtures/docs-only-applied",
+      "prompt": "fixture の .kaizen にある学びについて、バンドルされた lifecycle 検査を実行して。出力が出たファイルと出なかったファイルの違いを、検査が frontmatter の何を見ているかに即して説明し、指摘されたノートをこのまま applied で閉じてよいのか、閉じるなら何を直すのかを示して。この検査が提案の文面ではなくその材料を使っている理由も説明して。",
+      "assertions": [
+        "2026-02-01-lint-scope-in-doc.md だけが指摘され、2026-02-02-mechanism-applied.md（同じ type: hook だが applied-to に scripts/check-control-bytes.js を含む）と 2026-02-03-prose-only.md（type: doc）は指摘されないことを、出力と照合して述べている",
+        "判定は frontmatter の type が hook であることと、applied-to の要素が .md だけであることの両方が成り立つ場合だと説明している",
+        "これは警告であって終了コードは 0 のままであり、コミット前ゲートは止まらないと述べている",
+        "閉じ方は 2 つ——機構を実際に作るか、ドキュメントへ寄せると決めたなら type を実際にやったこと（doc / rule）へ直す——であることを述べている",
+        "機構化を別作業へ切り出す場合は applied-to に \"#<Issue番号>\" を載せる経路があり、その形なら警告の対象外になると述べている",
+        "提案の文面にある語（lint / hook / 検査 等）で判定しない理由として、語は提案が何について述べているかを指すだけで機構を要求している証拠にならない旨を述べている"
+      ]
+    },
+    {
+      "id": 25,
+      "fixture": "fixtures/forget-candidates",
+      "prompt": "セッション開始時に注入される学びが増えてきた。fixture の .kaizen のうち、どれが忘却の対象になるかをバンドルされたツールで確認し、対象にならないものはなぜ外れるのかを 1 件ずつ説明して。忘却すると実体に何が起きるのか、そのあと再び同じ失敗をしたらどうなるのかも示して。閾値を変えたい場合と、自動で動かしたくない場合の方法も教えて。",
+      "assertions": [
+        "忘却の対象は 2026-01-05-stale-low.md と 2026-01-06-stale-medium.md の 2 件だけであることを、バンドルされたツールの出力と照合して示している",
+        "2026-01-10-stale-high.md は priority が既定の閾値（medium）を超えるため対象外だと説明している",
+        "2026-01-07-stale-no-priority.md と 2026-01-08-stale-bad-date.md は priority / date を読めないため対象外であり、判定材料が読めないものは忘れない側へ倒す設計だと説明している",
+        "2026-01-09-stale-applied.md は status が pending でないため対象外で、片付けるなら忘却ではなくアーカイブだと述べている",
+        "忘却はファイルを移動せず frontmatter の status を forgotten に書き換えるだけで、本文は top-level に残るため KEDB 照合では引き続き全文が照合されると述べている",
+        "再発して KEDB 照合が forgotten のノートにヒットしたら status を pending へ戻し、新しい事象を追記して priority を上げると述べている",
+        ".kaizen/config の forget_after_days / forget_max_priority で閾値を変え、forget_auto=off で自動忘却を止められると述べている"
+      ]
+    }
+  ]
+}

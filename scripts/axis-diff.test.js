@@ -710,7 +710,7 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
   // マニフェストを手で組む余地を残すと、axes.json が採取物に対応している保証が無くなる。
   const repoFixture = join(
     repoRoot,
-    "skills/parity-component/evals/fixtures/catalog-unset/.replace/components/button",
+    "evals/parity-component/fixtures/catalog-unset/.replace/components/button",
   );
   const r = spawnSync(process.execPath, [script, "--baseline", repoFixture], { encoding: "utf8" });
   expect(r.status).toBe(0);

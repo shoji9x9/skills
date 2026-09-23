@@ -7,7 +7,7 @@
 ## スキルを追加・修正する
 
 1. `skills/<name>/` を作成または編集する
-2. `skills/<name>/evals/evals.json` にテストケースを追加・更新する
+2. `evals/<name>/evals.json` にテストケースを追加・更新する（eval は配布しないため `skills/<name>/` の外に置く）
 3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
 4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
 5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
@@ -24,14 +24,14 @@
    **文字数・バイト数・書式のような「数えれば分かる」規約の合否は、それを強制する実装をそのまま実行して取る**（自前の近似を書かない）。
    単位（バイト / 文字 / 表示幅）は強制する実装ごとに違うため、近似は偽陽性・偽陰性を出す——commit message は `pnpm exec commitlint --edit <file>`、
    Markdown は `pnpm exec markdownlint-cli2 <path>`、`SKILL.md` の frontmatter は `node scripts/check-skill-frontmatter.js <path>` で測る。
-2. **複製ボイラープレートの横断適用**: スキル間で複製されたファイル（`evals/README.md` 等）は、修正対象の文字列で `grep -rn <キーワード> skills/` を実行し、全複製に同じ修正を適用する。
+2. **複製ボイラープレートの横断適用**: スキル間で複製されたファイル（`evals/<name>/README.md` 等）は、修正対象の文字列で `grep -rn <キーワード> skills/ evals/` を実行し、全複製に同じ修正を適用する。
 3. **ルール記述 ↔ 強制ゲートの実在とスコープ一致**: まず**強制点が実在するか**を確かめる——「この規律を破ろうとしたとき、どのコード / lint / hook が落とすか」を 1 つ名指しできない規律は、
    「仕組みで縛った」ではなく規約である（散文に書いた箇所数は強度ではない。効くのは強制点だけ）。名指しできないなら強制点を実装するか、規約であることを明記する。
    **強制点があると宣言したら陰性コントロールで実際に破ってみる**（違反する最小入力が落ちること）とともに**陽性コントロールも通す**（正当な入力が通ること。でないと「全部落とすだけの検査」と区別できない）。
    **fail-closed は「落とす」だけでなく「見える」まで作る**——黙って捨てる実装は機械可読値に 0 を記録しレポートにも載らないため、後段の判定から検証不能になる。
    そのうえで、ルールとそれを強制する lint / ゲート / スクリプトを同じ変更で追加・更新したら、両者の走査スコープ（対象 glob・条件）が一致しているか確認する。
-4. **SKILL.md 本文 ↔ evals の整合**: スキルの挙動・手順を変更したら、変更した概念のキーワードで同スキルの `evals/` を `grep` し、旧仕様前提の assertion を更新する。
-   **変更したのが姉妹スキルの読む共有契約**（`replace-strategy/references/project-config.md` 等）や、他スキルが根拠として引用しうる記述なら、`grep` の範囲を同スキルに閉じず `skills/*/evals/` 横断にする。
+4. **SKILL.md 本文 ↔ evals の整合**: スキルの挙動・手順を変更したら、変更した概念のキーワードで同スキルの `evals/<name>/` を `grep` し、旧仕様前提の assertion を更新する。
+   **変更したのが姉妹スキルの読む共有契約**（`replace-strategy/references/project-config.md` 等）や、他スキルが根拠として引用しうる記述なら、`grep` の範囲を同スキルに閉じず `evals/` 横断にする。
    `grep` する語は**変更後の新しい語ではなく、変更前の語彙／既存要素の名前**にする（古いアサーションは変更前の語彙で書かれているため、新語では原理的に引っかからない）。
    ヒットしたアサーションは、**更新後のドキュメントに沿った回答が pass するか**を 1 件ずつ読み直す（放置すると、正しい回答が不合格になり、いまは誤りである主張が合格になる回帰テストを埋め込むことになる）。
 5. **実装物 ↔ 消費側仕様の契約整合**: 共有契約（設定キー・成果物スキーマ・プロパティ集合・経路・名前）を定義・変更したら、消費側仕様（姉妹 Issue の本文・コメント、下流スキルの前提節）と契約面を 1 項目ずつ突き合わせる。
@@ -90,7 +90,7 @@ scripts/reinstall-skill.sh <name>
 
 ## 回帰テストを実行する
 
-各スキルのテストケースと手順は `skills/<name>/evals/`（`evals.json` / `README.md`）にある。
+各スキルのテストケースと手順は `evals/<name>/`（`evals.json` / `README.md`）にある。
 
 **新規・変更した eval には `reachability` を書く。** 各 assertion を引き出す prompt の文を
 `{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` として並べる。
@@ -174,8 +174,8 @@ scripts/run-skill-eval.sh \
 # without_skill も同様に --config without_skill で実行する。
 # 正常系 eval（前提が揃った状態の検証）は --fixture <dir> で使い捨てプロジェクトへ
 # 事前状態（設定・.replace/ 成果物等）をコピーして実行する。fixture の正本は
-# skills/<name>/evals/fixtures/<fixture名>/ に置き、evals.json の当該 eval に
-# "fixture": "evals/fixtures/<fixture名>" を記録する（fixture は実行で変更されない）。
+# evals/<name>/fixtures/<fixture名>/ に置き、evals.json の当該 eval に
+# "fixture": "fixtures/<fixture名>"（evals/<name>/ からの相対）を記録する（fixture は実行で変更されない）。
 ```
 
 fixture のルートに executable な `setup.sh` があれば、ハーネスはコピー後・executor 起動前に使い捨てプロジェクト内で実行する。

@@ -17,3 +17,15 @@ applyTo: "skills/**"
   `100644` なので、`[ -x "$dir/<script>.sh" ]` のような実行ビット判定は**配布先で必ず外れる**（ソースは 755 なので手元では通る）。
   読めれば足りるなら `-r` にし、起動は `bash <path>` にする。分岐の陽性コントロールは 644 の installed copy を置いて取る。
 - コピーされるファイルは自己完結させる。スキル内の `references/` 等への相対リンク／相対パスを張らない（コピー先の階層やユーザープロジェクトでは解決不能）。出典はスキル名で言及するか内容をインラインに書く
+
+## 開発専用の成果物は `skills/<name>/` に置かない
+
+逆向きも成立させる。`gh skill install` はスキルディレクトリの git tree を再帰取得して**全 blob を配る**（除外の仕組みは無い。
+`.skillignore` 等も読まない。cli/cli の `internal/skills/discovery/discovery.go` の `DiscoverSkillFiles`、gh v2.93.0 で確認:
+<https://github.com/cli/cli/blob/v2.93.0/internal/skills/discovery/discovery.go>。ローカルからの install も `installer.go` が全ファイルを WalkDir で写す）。
+置いた物はすべて下流へ配られるので、このリポジトリでしか意味を持たない物はスキルの外に置く。
+
+- **回帰 eval（`evals.json`・`README.md`・fixture）は `evals/<name>/` に置く**（#438 で `skills/<name>/evals/` から移設）。
+  下流は eval を実行せず、手順もこのリポジトリのハーネス（`scripts/run-skill-eval.sh` 等）を前提にするため、配っても使えない。
+  配布スキル側の文書から `evals/` を参照しない（配布先に存在しない）
+- 強制点: `scripts/check-eval-reachability.js` の全走査（CI の `Lint` ジョブ）が `skills/<name>/evals/` の残存を違反にする

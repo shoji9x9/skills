@@ -1,7 +1,0 @@
-{
-  "page": "注文",
-  "state": "default",
-  "viewport": "desktop",
-  "image": { "width": 1280, "height": 800 },
-  "roots": ["search.root"]
-}

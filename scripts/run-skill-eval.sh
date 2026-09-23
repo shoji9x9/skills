@@ -172,6 +172,9 @@ src="${repo}/skills/${skill}"
 	echo "skill source not found: ${src}/SKILL.md" >&2
 	exit 1
 }
+# Eval definitions live outside skills/<name>/ so `gh skill install` does not ship
+# them to downstream repositories (it copies every file under the skill directory).
+evals_file="${repo}/evals/${skill}/evals.json"
 normalizer="${repo}/scripts/normalize-skill-eval-result.js"
 [ -f "${normalizer}" ] || {
 	echo "normalizer not found: ${normalizer}" >&2
@@ -223,8 +226,8 @@ fi
 # before anything runs so a malformed declaration or a missing sibling source fails
 # the run instead of silently dropping the sibling.
 required_skills=()
-if [ -n "${metadata_eval_id}" ] && [ -f "${src}/evals/evals.json" ]; then
-	required_skills_list="$(node "${fingerprinter}" --required-skills-of "${skill}" --eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")" || exit 5
+if [ -n "${metadata_eval_id}" ] && [ -f "${evals_file}" ]; then
+	required_skills_list="$(node "${fingerprinter}" --required-skills-of "${skill}" --eval-id "${metadata_eval_id}" --evals "${evals_file}")" || exit 5
 	while IFS= read -r required_skill; do
 		[ -n "${required_skill}" ] || continue
 		[ -f "${repo}/skills/${required_skill}/SKILL.md" ] || {
@@ -245,7 +248,7 @@ fingerprint_args=(
 	--cli-version "${cli_version}"
 	--harness-version "${harness_version}"
 )
-[ -n "${metadata_eval_id}" ] && fingerprint_args+=(--eval-id "${metadata_eval_id}" --evals "${src}/evals/evals.json")
+[ -n "${metadata_eval_id}" ] && fingerprint_args+=(--eval-id "${metadata_eval_id}" --evals "${evals_file}")
 [ -n "${fixture}" ] && fingerprint_args+=(--fixture "${fixture}")
 fingerprint_args+=(--skills-root "${repo}/skills")
 node "${fingerprinter}" "${fingerprint_args[@]}" >"${fingerprint_file}" || {
@@ -463,7 +466,7 @@ if [ -n "${metadata_eval_id}" ]; then
 		--eval-metadata "${eval_dir}/eval_metadata.json"
 		--compat-eval-metadata "${out}/eval_metadata.json"
 	)
-	[ -f "${src}/evals/evals.json" ] && normalizer_args+=(--evals "${src}/evals/evals.json")
+	[ -f "${evals_file}" ] && normalizer_args+=(--evals "${evals_file}")
 fi
 
 # Snapshot the paths and bounded text contents created in the isolated project.

@@ -1,3 +1,0 @@
-{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}
-{"type":"atis-latch","atis":{},"sessionId":"test-session"}
-{"type":"user","message":{"content":"違う、やり直してください"}}

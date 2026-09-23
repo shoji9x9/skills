@@ -94,7 +94,7 @@ pre-commit:
             run: node scripts/check-control-chars.js {staged_files}
           - name: eval-reachability
             # eval の assertion に、それを引き出す prompt の文（reachability）が併記されているか。
-            glob: "skills/*/evals/evals.json"
+            glob: "evals/*/evals.json"
             run: node scripts/check-eval-reachability.js {staged_files}
           - name: skill-frontmatter
             # SKILL.md frontmatter を検査（YAML 妥当性・description<=1024B・name 形式）。

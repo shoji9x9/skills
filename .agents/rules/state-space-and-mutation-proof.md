@@ -2,8 +2,8 @@
 paths:
   - "scripts/**"
   - "skills/*/scripts/**"
-  - "skills/*/evals/**"
-applyTo: "scripts/**,skills/*/scripts/**,skills/*/evals/**"
+  - "evals/**"
+applyTo: "scripts/**,skills/*/scripts/**,evals/**"
 ---
 
 # 照合・分岐の状態空間を列挙し、テストが効くことを変異で実証する
@@ -131,7 +131,7 @@ applyTo: "scripts/**,skills/*/scripts/**,skills/*/evals/**"
 ## 5. テストが効いていることの示し方
 
 - **境界・分岐のテストは、その判定行を無効化する変異で赤くなることを実証してから green を根拠にする。**
-  対象は `skills/*/evals/**` だけでなく `scripts/*.test.js` のユニットテストも含む。
+  対象は `evals/**` だけでなく `scripts/*.test.js` のユニットテストも含む。
   fixture が分岐へ到達していないテストは、判定行を変異させても green のままになる
   （実例: 「後続見出しで止まる」テストの fixture が空行で始まり、見出し境界の分岐に到達していなかった）。
 - **変異実証は列挙の実証ではない。** 全変異が RED になっても、それは書いたテストが判定行に到達している
