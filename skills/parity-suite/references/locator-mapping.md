@@ -61,8 +61,10 @@
 **どれにも解決しない受け側は、起点の名前が Playwright 以外と確定したときだけ `Playwright 以外と確定 N 件` に数え、
 それ以外は判定不能にする。** 確定の根拠は次の閉じた集合に限る（「解決しなかったら対象外」にすると、読んでいない束縛の形が黙って消える）。
 
-- 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`）・JSX、
-  または Page から取り出した Page / Locator でないプロパティ（`page.clock`）
+- 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`。プロパティ参照・
+  呼び出し・添字・括弧を含まない）・閉じた JSX 要素、または Page から取り出した Page / Locator でないプロパティ（`page.clock`）。
+  対象外に数えるのはその名前そのもの（`x.count()`）だけで、プロパティを辿った先（`x.row.count()`）は後から Locator を
+  代入できるので確定にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
 
 **型注釈と関数値は根拠にしない。** 型名の中身はファイルの外にありうる（import した型エイリアス・型引数・構造的な interface）、

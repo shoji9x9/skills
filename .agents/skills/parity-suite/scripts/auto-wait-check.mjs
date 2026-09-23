@@ -1011,9 +1011,6 @@ function nonPlaywrightNames(
   const nonReceivers = new Set();
   const pathNames = (text) => text.trim().split(/\s*\??\.\s*/);
   const PURE_PATH = /^\s*[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*\s*$/;
-  const FUNCTION_HEAD = new RegExp(
-    String.raw`^\s*(?:async\s+)?(?:function\b|(?:<(?:[^<>()]|<[^<>()]*>)*>\s*)?(?:[A-Za-z_$][\w$]*|\((?:[^()]|\([^()]*\))*\))\s*(?::[^=;{]*)?=>)`,
-  );
   const siteIsNonValue = (rawRhs) => {
     const statement = declaratorRhs(rawRhs);
     const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
@@ -1033,10 +1030,20 @@ function nonPlaywrightNames(
       }
     }
     if (asserted !== null) return false;
-    // 関数式・アロー関数は根拠にしない（関数値そのものと呼び出し・タグ付きテンプレートの戻り値を見分けられない）。
-    if (FUNCTION_HEAD.test(statement)) return false;
     // JSX 要素。角括弧のアサーションが書ける拡張子（.ts 系）では `<` 始まりを JSX と読まない。
-    if (!angleAssertionAllowed && /^\s*<[A-Za-z]/.test(statement)) return true;
+    // 要素として閉じた形（`<X …>…</X>` / `<X … />`）に限る。`<` 始まりだけで認めると、宣言子の切り出しが
+    // 型引数の `,` で切った断片（`.tsx` の `<T,>() => …` から `<T`）まで JSX として確定してしまう。
+    if (
+      !angleAssertionAllowed &&
+      /^\s*<([A-Za-z][\w.]*)\b[\s\S]*(?:<\/\1\s*>|\/>)\s*$/.test(statement)
+    ) {
+      return true;
+    }
+    // 関数式・アロー関数は、括弧を含むか引数名が根拠の無い束縛なので、下の判定で根拠から外れる
+    // （関数値そのものと、呼び出し・タグ付きテンプレートの戻り値を見分けられない）。
+    // プロパティ参照・呼び出し・添字・括弧（`(box.row)`）を含む式は根拠にしない。起点の名前が確定していても、
+    // 辿った先・戻り値は Locator でありうる（`box.row = page.locator(…)` の後の `box.row`）。
+    if (/[.([]/.test(statement)) return false;
     return [...rootNames(statement)].every(
       (name) => VALUE_KEYWORDS.has(name) || nonReceivers.has(name),
     );
@@ -1162,7 +1169,14 @@ export function scanSourceWithStats(source, file = "<source>") {
         // どれにも解決しない受け側は、起点が Playwright 以外と確定した名前のときだけ対象外に数える。
         // 黙って読み飛ばすと、束縛を読めなかった名前（引数・分割代入・再代入・for-of・import）の呼び出しが
         // 違反 0 件でも判定不能 0 件でもないまま消える（Issue #412）。
-        if (receivers.nonReceivers.has(chain.segments[0].name)) {
+        // 同じファイルで確定した名前は、その名前そのもの（チェーン長 1）だけを対象外に数える。
+        // プロパティ（`box.row` / `timers.row`）は後から Locator を代入できる（代入・Object.assign 等）ので、
+        // 辿った先は確定にしない。組み込み（`document.body`）は実行環境の値なので辿ってよい。
+        const root = chain.segments[0].name;
+        if (
+          receivers.nonReceivers.has(root) &&
+          (chain.segments.length === 1 || BUILTIN_NON_RECEIVERS.has(root))
+        ) {
           stats.excluded += 1;
           continue;
         }

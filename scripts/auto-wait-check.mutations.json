@@ -10,8 +10,8 @@
       "id": "excluded-never",
       "why": "確定した名前でも対象外に数えず判定不能にする（通常運用を止める側）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "        if (receivers.nonReceivers.has(chain.segments[0].name)) {\n",
-      "replace": "        if (false) {\n",
+      "find": "          receivers.nonReceivers.has(root) &&\n",
+      "replace": "          false &&\n",
       "occurrences": 1,
       "expect_failing": [
         ".tsx の JSX 本文を型アサーションと読み違えない: as を含まない JSX",
@@ -39,19 +39,25 @@
       "id": "excluded-always",
       "why": "解決しない受け側を全て対象外に数える（Issue #412 の黙った素通りへ戻す）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "        if (receivers.nonReceivers.has(chain.segments[0].name)) {\n",
-      "replace": "        if (true) {\n",
+      "find": "          receivers.nonReceivers.has(root) &&\n",
+      "replace": "          true ||\n",
       "occurrences": 1,
       "expect_failing": [
         "Playwright と無関係なメンバー式は違反にせず、起点が未宣言なら判定不能にする",
         "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする",
+        "`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない",
         "generic なアロー関数を角括弧アサーションと読み違えない",
-        "型注釈・関数値は Playwright 以外の根拠にしない: DOM 型の注釈の宣言",
-        "型注釈・関数値は Playwright 以外の根拠にしない: DOM 型の注釈の引数",
-        "型注釈・関数値は Playwright 以外の根拠にしない: generic なアロー関数",
-        "型注釈・関数値は Playwright 以外の根拠にしない: アロー関数",
-        "型注釈・関数値は Playwright 以外の根拠にしない: プリミティブ型の注釈",
-        "型注釈・関数値は Playwright 以外の根拠にしない: 本体の起点が組み込みだけの関数値",
+        "Playwright 以外の根拠にしない形は判定不能: DOM 型の注釈の宣言",
+        "Playwright 以外の根拠にしない形は判定不能: DOM 型の注釈の引数",
+        "Playwright 以外の根拠にしない形は判定不能: Object.assign で入れたプロパティを括弧で束ね直す",
+        "Playwright 以外の根拠にしない形は判定不能: Page から取り出した値のプロパティを辿る",
+        "Playwright 以外の根拠にしない形は判定不能: generic なアロー関数",
+        "Playwright 以外の根拠にしない形は判定不能: アロー関数",
+        "Playwright 以外の根拠にしない形は判定不能: プリミティブ型の注釈",
+        "Playwright 以外の根拠にしない形は判定不能: 代入の無い確定した名前でもプロパティは辿らない",
+        "Playwright 以外の根拠にしない形は判定不能: 本体の起点が組み込みだけの関数値",
+        "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを括弧で束ね直す",
+        "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを辿る",
         "束縛を読めない受け側には、束縛へ型注釈を付ける直し方を出す",
         "束縛を読めない受け側は判定不能に数える: Page / Locator 以外の Playwright の型",
         "束縛を読めない受け側は判定不能に数える: any で注釈した引数",
@@ -208,17 +214,6 @@
       ]
     },
     {
-      "id": "function-head",
-      "why": "関数式・アロー関数を Playwright 以外の根拠にする（呼び出し・タグ付きテンプレートの戻り値と見分けられない）",
-      "find": "    if (FUNCTION_HEAD.test(statement)) return false;\n",
-      "replace": "",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "occurrences": 1,
-      "expect_failing": [
-        "型注釈・関数値は Playwright 以外の根拠にしない: 本体の起点が組み込みだけの関数値"
-      ]
-    },
-    {
       "id": "annotated-declaration",
       "why": "型注釈付きの宣言（const x: Foo = …）を束縛として数えない",
       "find": ")\\s*:/g)) {\n    unknown.add(match[1]);\n",
@@ -252,6 +247,41 @@
         "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
         "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
       ]
+    },
+    {
+      "id": "chain-length",
+      "why": "確定した名前から辿ったプロパティも対象外に数える（後から Locator を代入できる）",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": "          (chain.segments.length === 1 || BUILTIN_NON_RECEIVERS.has(root))",
+      "replace": "          (true || BUILTIN_NON_RECEIVERS.has(root))",
+      "occurrences": 1,
+      "expect_failing": [
+        "Playwright 以外の根拠にしない形は判定不能: Page から取り出した値のプロパティを辿る",
+        "Playwright 以外の根拠にしない形は判定不能: 代入の無い確定した名前でもプロパティは辿らない",
+        "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを辿る"
+      ]
+    },
+    {
+      "id": "value-member",
+      "why": "プロパティ参照・呼び出し・添字・括弧を含む式も根拠にする",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": "    if (/[.([]/.test(statement)) return false;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "Playwright 以外の根拠にしない形は判定不能: Object.assign で入れたプロパティを括弧で束ね直す",
+        "Playwright 以外の根拠にしない形は判定不能: 本体の起点が組み込みだけの関数値",
+        "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを括弧で束ね直す"
+      ]
+    },
+    {
+      "id": "jsx-complete",
+      "why": "JSX の根拠を閉じた要素に限らず、`<` 始まりの断片（型引数の `<T`）も JSX と読む",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": "      /^\\s*<([A-Za-z][\\w.]*)\\b[\\s\\S]*(?:<\\/\\1\\s*>|\\/>)\\s*$/.test(statement)\n",
+      "replace": "      /^\\s*<[A-Za-z]/.test(statement)\n",
+      "occurrences": 1,
+      "expect_failing": ["`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない"]
     }
   ]
 }

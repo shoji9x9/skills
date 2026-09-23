@@ -1094,19 +1094,43 @@ const notEvidenceForms = [
   ["DOM 型の注釈の引数", "function f(el: Element) { return el.getAttribute('x'); }"],
   ["DOM 型の注釈の宣言", "function f(raw) { const el: Element = raw; el.count(); }"],
   ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }"],
+  // 確定した名前のプロパティは後から Locator を代入できる（PR #448 のレビュー）。
+  // 代入の形は `box.row =` に限らない（`Object.assign` 等）ので、プロパティ参照を含む式そのものを根拠にしない。
+  [
+    "Object.assign で入れたプロパティを括弧で束ね直す",
+    "const box = {}; Object.assign(box, { row: page.locator('tr') }); const row = (box.row); row.count();",
+  ],
+  [
+    "確定した名前のプロパティを括弧で束ね直す",
+    "const box = {}; box.row = page.locator('tr'); const row = (box.row); row.count();",
+  ],
+  [
+    "確定した名前のプロパティを辿る",
+    "const box = {}; box.row = page.locator('tr'); box.row.count();",
+  ],
+  [
+    "Page から取り出した値のプロパティを辿る",
+    "function f(page) { const t = page.clock; t.row = page.locator('tr'); t.row.count(); }",
+  ],
+  ["代入の無い確定した名前でもプロパティは辿らない", "const limit = 3;\nlimit.foo.count();"],
   // 本体の起点が組み込みだけの関数値でも、タグ付きテンプレートの戻り値は読めない（テンプレートはマスクで消える）。
   [
     "本体の起点が組み込みだけの関数値",
     "const make = () => window.handle;\nconst row = make`tag`;\nrow.count();",
   ],
 ];
-test.each(notEvidenceForms)(
-  "型注釈・関数値は Playwright 以外の根拠にしない: %s",
-  (_label, source) => {
-    const { stats } = scanSourceWithStats(source, "spec.ts");
-    expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
-  },
-);
+test("`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない", () => {
+  const { stats } = scanSourceWithStats(
+    "const make = <T,>() => window.h;\nconst row = make`tag`;\nrow.count();",
+    "spec.tsx",
+  );
+  expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+});
+
+test.each(notEvidenceForms)("Playwright 以外の根拠にしない形は判定不能: %s", (_label, source) => {
+  const { stats } = scanSourceWithStats(source, "spec.ts");
+  expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+});
 
 test.each(excludedForms)(
   "Playwright 以外と確定した受け側は対象外に数える: %s",
