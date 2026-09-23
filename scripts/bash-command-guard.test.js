@@ -324,6 +324,43 @@ test.each(HEREDOC_PASSING)("ヒアドキュメントの本文はデータとし�
   expect(r.stderr).not.toMatch(/実行前に止めた/);
 });
 
+// 読み手の許可リスト（PR #448 のレビュー後に、本文を実行するシェルの列挙から反転した）。
+// 本文を読み飛ばすのは、`<<` の読み手とパイプの先がすべて許可リストのときだけ。
+const HEREDOC_READER_PASSING = [
+  ["tee", "tee f.md <<'EOF'\nDon't pkill -f\nEOF"],
+  ["git commit -F -", "git commit -F - <<'EOF'\nfix: don't pkill -f\nEOF"],
+  ["先頭の代入を読み飛ばす", "GIT_EDITOR=true git commit -F - <<'EOF'\nfix: don't pkill -f\nEOF"],
+  ["許可リストの読み手へのパイプ", "cat <<'EOF' | gh pr create --body-file -\nDon't pkill -f\nEOF"],
+  ["コマンド置換の中の git commit", "git commit -m \"$(cat <<'EOF'\nfix: don't pkill -f\nEOF\n)\""],
+  ["行継続を挟んだ読み手", "cat \\\n  <<'EOF'\nDon't pkill -f\nEOF"],
+  ["node", "node - <<'EOF'\nconsole.log(\"don't pkill -f\")\nEOF"],
+];
+test.each(HEREDOC_READER_PASSING)(
+  "許可リストの読み手の本文はデータとして通す: %s",
+  (_name, command) => {
+    const r = guard(command);
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toMatch(/実行前に止めた/);
+  },
+);
+
+const HEREDOC_READER_BLOCKING = [
+  ["引用したシェル名", "'bash' <<'EOF'\npkill -f chrome\nEOF"],
+  ["パス付きのシェル", "/bin/sh <<'EOF'\npkill -f chrome\nEOF"],
+  ["env 経由のシェル", "env bash <<'EOF'\npkill -f chrome\nEOF"],
+  [
+    "許可リストの読み手から許可リスト外へのパイプ",
+    "cat <<'EOF' | tee f | bash\npkill -f chrome\nEOF",
+  ],
+  ["リダイレクトの & を境界と読む（安全側）", "cat 2>&1 <<'EOF'\npkill -f chrome\nEOF"],
+];
+test.each(HEREDOC_READER_BLOCKING)(
+  "許可リスト外の読み手の本文はコードとして読む: %s",
+  (_name, command) => {
+    expect(guard(command).status).toBe(2);
+  },
+);
+
 const HEREDOC_BLOCKING = [
   ["区切り語の行の次のコマンド", "cat > f.md <<'EOF'\nDon't\nEOF\npkill -f chrome"],
   ["マーカーの後ろのコマンド", "cat <<'EOF' && pkill -f chrome\nbody\nEOF"],
@@ -368,8 +405,9 @@ test("意図的な穴（見逃し側）: 変数に入れたコマンド名は展
   expect(guard("K=pkill; $K -f chrome").status).toBe(0);
 });
 
-test("意図的な穴（見逃し側）: シェル以外のインタプリタが読むヒアドキュメントの本文はデータとして通す", () => {
-  const command = "python3 - <<'EOF'\nimport subprocess; subprocess.run(['pkill', '-f', 'x'])\nEOF";
+test("意図的な穴（見逃し側）: インタプリタが読むヒアドキュメントの本文はデータとして通す", () => {
+  // AGENTS.md は本文を quoted heredoc でインタプリタへ渡す形を推奨するので、読み手の許可リストに入れる。
+  const command = "python3 - <<'EOF'\nimport os\npkill -f x\nEOF";
   expect(guard(command).status).toBe(0);
 });
 
@@ -394,8 +432,8 @@ test.each([
 // パラメータ展開の中の `<<` は置換文字列。ヒアドキュメントと読むと、区切り語と同じ行までを飛ばす
 // （PR #448 のレビュー。親版は止めていた）。
 test.each([
-  ["置換文字列の <<", "echo ${x:-<<EOF;}\npkill -f chrome\nEOF"],
-  ["入れ子のパラメータ展開", "echo ${x:-${y:-<<EOF;}}\npkill -f chrome\nEOF"],
+  ["置換文字列の <<", "cat ${x:-<<EOF;}\npkill -f chrome\nEOF"],
+  ["入れ子のパラメータ展開", "cat ${x:-${y:-<<EOF;}}\npkill -f chrome\nEOF"],
 ])("パラメータ展開の << をヒアドキュメントと読まない（%s）", (_name, command) => {
   expect(guard(command).status).toBe(2);
 });
@@ -403,7 +441,7 @@ test.each([
 // bash は `${…}` の中の素の `{` を数えず、最初の `}` で閉じる（実測: `${x:-{a}b}` は `{ab}`）。
 // 深さで数えると、閉じた後の本物のヒアドキュメントをパラメータ展開の中と読み、本文をコードとして止める。
 test("パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す", () => {
-  const r = guard("echo ${x:-{a}b} <<'EOF'\nDon't pkill -f\nEOF");
+  const r = guard("cat ${x:-{a}b} - <<'EOF'\nDon't pkill -f\nEOF");
   expect(r.status).toBe(0);
 });
 

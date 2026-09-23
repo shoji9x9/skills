@@ -24,17 +24,22 @@
 #   事故で打つ形（過去に再発した形）を拾えていれば許容し、故意の回避（名前を変数で組み立てる等）は対象外にする。
 #
 #   閉じたもの:
-#   - ヒアドキュメントの本文はデータとして読み飛ばす。本文が実行される形（同じ行に sh / bash / ssh / eval / source / . がある、
-#     区切り語を引用していない本文に $( ) / ` がある）と、区切り語の行が見つからないものは従来どおりコードとして読む。
-#   - 算術（`$(( ))` / `(( ))`）とパラメータ展開（`${x:-<<EOF;}`）の中の `<<` はヒアドキュメントを開かない
-#     （後続の行が右辺・語と一致すると、間のコマンドを本文として飛ばしていた）。
+#   - ヒアドキュメントの本文は、読み手（`<<` を書いたコマンドとパイプの先の全段）が許可リスト
+#     （cat / tee / git / gh / jq / python3 / python / node）のときだけデータとして読み飛ばす。それ以外の読み手、
+#     区切り語を引用していない本文に $( ) / ` がある形、区切り語の行が見つからない形は従来どおりコードとして読む。
+#     本文を実行するシェルを列挙する形にしない（引用・パス・行継続・env 経由と書き方が尽きず、漏れた形で退行する）。
+#   - パラメータ展開（`cat ${x:-<<EOF;}`）の中の `<<` はヒアドキュメントを開かない（読み手が許可リストでも
+#     後続の行を本文として飛ばしていた）。算術（`$(( 1 << 2 ))`）の `<<` は、読み手の境界 `(` の後の語
+#     （数値・変数）が許可リストに無いので、本文をコードとして読む側に倒れる。
 #   - awk の実装差: mawk 1.3.4 と BusyBox 1.35.0 の awk で回帰テストを実走して一致。gawk は未実測（手元に無い）。
 #
 #   閉じないもの（コストと失敗方向）:
 #   - シェル委譲（sh -c / ssh / eval）はセグメント全文をコードとして扱う＝誤検知側（`bash -c '…' _ "<危険語>"` の
 #     位置引数まで止める）。委譲先の引数だけを切り出すには委譲ごとの引数文法が要り、稀な形なので見合わない。
 #   - 変数・間接で組み立てたコマンド名（`K=<名前>; $K -f …`）は見逃す。展開の評価が要り、事故ではなく故意の回避。
-#   - シェル以外のインタプリタが読むヒアドキュメント（`python3 - <<EOF`）の本文は見逃す。本文の言語ごとに解釈が要る。
+#   - 許可リストのインタプリタが読むヒアドキュメント（`python3 - <<EOF`）の本文は見逃す。本文の言語ごとに解釈が要り、
+#     AGENTS.md が本文を quoted heredoc でインタプリタへ渡す形を推奨しているため、止めると日常の作業が止まる。
+#   - 許可リスト外の読み手（`echo` 等、実行しない読み手を含む）の本文はコードとして読む＝誤検知側。
 #   - 構造（リダイレクト・プロセス置換・case / 関数の本体）は解析しない。コード部分の部分一致で拾うので、xargs / env /
 #     timeout / find -exec / case / 関数 / プロセス置換の中の実行は止まる。一方、引用していないリダイレクト先の
 #     ファイル名に危険語が入ると誤検知になる（稀）。
@@ -138,7 +143,7 @@ split_segments() {
 		for (i = 1; i <= n; i++) {
 			c = substr(raw, i, 1); nx = substr(raw, i + 1, 1)
 			cur = stack[sp]
-			if (cur == "CODE" || cur == "SUB" || cur == "BT" || cur == "ARITH" || cur == "PARAM") {
+			if (cur == "CODE" || cur == "SUB" || cur == "BT" || cur == "PARAM") {
 				if (c == "\\") { addfull(nx); code = code nx; i++; continue }
 				if (c == "\047") { push("SQ"); addfull(c); continue }
 				if (c == "\"") { push("DQ"); addfull(c); continue }
@@ -147,28 +152,17 @@ split_segments() {
 					if (cur == "BT") pop(); else push("BT")
 					continue
 				}
-				# 算術（`$(( ))` / `(( ))`）の中はコードだが、`<<` は左シフトでヒアドキュメントではない。
-				# 区別しないと、後続の行が右辺と一致したときに間のコマンドを本文として飛ばす（`$(( 1 << 2 ))` の後の行が `2`）。
-				# 中の括弧は深さで数え、深さ 0 の `))` で閉じる。サブシェルの入れ子 `((cmd))` を算術と誤っても、
-				# 中でヒアドキュメントを読まなくなるだけ（本文をコードとして読む＝安全側）。
-				if (cur == "ARITH") {
-					if (c == "(") { adepth[sp]++; addfull(c); code = code c; continue }
-					if (c == ")" && adepth[sp] > 0) { adepth[sp]--; addfull(c); code = code c; continue }
-					if (c == ")" && nx == ")") { pop(); addfull("))"); code = code " "; i++; continue }
-				}
 				# パラメータ展開（`${x:-<<EOF;}`）の中の `<<` は置換文字列で、ヒアドキュメントではない。
 				# 中はコードとして読み（従来どおり）、最初の `}` で閉じる。入れ子は `${` だけで、素の `{` は数えない
 				# （bash 5 の実測: `${x:-{a}b}` は `{a` で閉じて `{ab}` を出す）。
 				if (cur == "PARAM" && c == "}") { pop(); addfull(c); code = code c; continue }
 				if (c == "$" && nx == "{") { push("PARAM"); addfull("${"); code = code "${"; i++; continue }
-				if (c == "$" && nx == "(" && substr(raw, i + 2, 1) == "(") { push("ARITH"); adepth[sp] = 0; addfull("$(("); code = code " "; i += 2; continue }
-				if (c == "(" && nx == "(") { push("ARITH"); adepth[sp] = 0; addfull("(("); code = code " "; i++; continue }
 				if (c == "$" && nx == "(") { push("SUB"); addfull(c); addfull("("); code = code " "; i++; continue }
 				if (c == ")" && cur == "SUB") { pop(); addfull(c); code = code " "; continue }
 				# ヒアドキュメントの開始。区切り語を控えておき、この行の改行で本文を読み飛ばす。
 				# ヒアストリング `<<<` は 3 文字まとめて進める——1 文字目で見送るだけだと、
 				# 2 文字目からの `<<` を区切り語付きのヒアドキュメントと読み、後続の行をデータとして飛ばす。
-				if (c == "<" && nx == "<" && cur != "ARITH" && cur != "PARAM") {
+				if (c == "<" && nx == "<" && cur != "PARAM") {
 					if (substr(raw, i + 2, 1) == "<") { addfull("<<<"); code = code "<<<"; i += 2; continue }
 					if (heredoc_open()) continue
 				}
@@ -191,7 +185,6 @@ split_segments() {
 				addfull(c)
 				if (c == "\\") { addfull(nx); i++; continue }
 				if (c == "\"") { pop(); continue }
-				if (c == "$" && nx == "(" && substr(raw, i + 2, 1) == "(") { push("ARITH"); adepth[sp] = 0; addfull("(("); code = code " "; i += 2; continue }
 				if (c == "$" && nx == "(") { push("SUB"); addfull("("); code = code " "; i++; continue }
 				if (c == "`") { push("BT"); code = code " "; continue }
 				continue
@@ -224,31 +217,24 @@ split_segments() {
 			delim = delim ch; j++
 		}
 		if (delim == "") return 0
-		hn++; hdelim[hn] = delim; hstrip[hn] = strip; hquoted[hn] = quoted
+		hn++; hdelim[hn] = delim; hstrip[hn] = strip; hquoted[hn] = quoted; hpos[hn] = i
 		addfull(substr(raw, i, j - i)); code = code " "
 		i = j - 1
 		return 1
 	}
-	# 改行の直後（i は改行の位置）から、控えた順に本文を読み飛ばす。本文がコードとして実行されるもの
-	# （シェルが読む・区切り語を引用していない本文に $( ) / ` がある）と、区切り語の行が見つからないものに
-	# 当たったら、そこから先は読み飛ばさず通常のコードとして解釈させる（この変更の前と同じ扱い＝安全側）。
+	# 改行の直後（i は改行の位置）から、控えた順に本文を読み飛ばす。読み飛ばすのは本文を読むコマンドが
+	# 許可リストにあるとき（heredoc_consumer_ok）で、区切り語を引用していない本文に $( ) / ` が無く、
+	# 区切り語の行が見つかったときだけ。どれかを満たさなければ、そこから先は読み飛ばさず通常のコードとして
+	# 解釈させる（この変更の前と同じ扱い＝安全側）。
+	# **本文を実行する読み手（シェル）を列挙する形にしない**——`bash` / `sh` / `ssh` / `.` / 引用したシェル名 /
+	# 行継続・パス・`env bash` と書き方が尽きず、列挙から漏れた形で本文を飛ばして退行する（PR #448 のレビューで 3 回）。
 	# 区切り語が無いときに全文 fail-safe へ倒さないのは、fail-safe が全文で文字クラスの免除を見るため
 	# （別セグメントの `[d]x` で素の pkill -f まで免除される）。
-	function heredoc_bodies(    k, p, e, line, body, found, ls) {
-		# 本文をシェルが読むなら本文はコード。行の**どこに**シェルがあっても当てる
-		# （`bash <<EOF` だけでなく `cat <<EOF | bash` も本文を実行する）。引用符の中の語でも当てて安全側へ倒す。
-		# `foo.sh` のような語の一部は当てない（heredoc でシェルスクリプトを書く作業を止めない）。
-		ls = i
-		while (ls > 1 && substr(raw, ls - 1, 1) != "\n") ls--
-		# 行継続（行末の `\`）でつながった前の行も同じ論理行として見る（`bash \` の次の行に `<<EOF` がある形）。
-		while (ls > 2 && substr(raw, ls - 2, 1) == "\\") {
-			ls--
-			while (ls > 1 && substr(raw, ls - 1, 1) != "\n") ls--
-		}
-		if (substr(raw, ls, i - ls) ~ /(^|[[:space:]|;&(\/`])((ba|z|k|da|a)?sh|ssh|eval|source)([[:space:];|&)]|$)/ ||
-		    substr(raw, ls, i - ls) ~ /(^|[[:space:]|;&(`])\.[[:space:]]/) { hn = 0; return }
+	function heredoc_bodies(    k, p, e, line, body, found, lend) {
+		lend = i
 		p = i + 1
 		for (k = 1; k <= hn; k++) {
+			if (!heredoc_consumer_ok(hpos[k], lend)) { hn = 0; return }
 			body = ""; found = 0
 			while (p <= n) {
 				e = index(substr(raw, p), "\n")
@@ -263,6 +249,35 @@ split_segments() {
 			i = p - 1
 		}
 		hn = 0
+	}
+	# `pos` の `<<` の本文を読むコマンドと、その後ろのパイプの先が、すべて本文を実行しない読み手か。
+	# 読み手は `<<` の手前で最も近い境界（行頭・| ; & ( `）の後の最初の語。行継続は境界にしない。
+	# パイプの先（`cat <<EOF | bash`）も本文を受け取るので、論理行の残りを `|` で切った各段にも当てる。
+	function heredoc_consumer_ok(pos, lend,    b, ch, rest, parts, np, j) {
+		b = pos - 1
+		while (b >= 1) {
+			ch = substr(raw, b, 1)
+			if (ch == "\n" && b > 1 && substr(raw, b - 1, 1) == "\\") { b -= 2; continue }
+			if (ch ~ /[|;&(`\n]/) break
+			b--
+		}
+		if (!heredoc_reader(substr(raw, b + 1, pos - b - 1))) return 0
+		rest = substr(raw, pos, lend - pos)
+		np = split(rest, parts, /\|/)
+		for (j = 2; j <= np; j++) if (parts[j] != "" && !heredoc_reader(parts[j])) return 0
+		return 1
+	}
+	# 本文をシェルとして実行しない読み手の許可リスト。先頭の代入（`GIT_EDITOR=true git …`）は読み飛ばす。
+	# 引用した語・パス付きの語・リストに無い語は本文をコードとして読む。
+	# インタプリタ（python3 / python / node）は、AGENTS.md が本文を quoted heredoc で渡す形を推奨しているので入れる
+	# （本文の言語は解釈しない＝冒頭の「閉じないもの」の見逃し）。
+	function heredoc_reader(s,    t) {
+		gsub(/\\\n/, " ", s)
+		sub(/^[[:space:]]+/, "", s)
+		while (s ~ /^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/) sub(/^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/, "", s)
+		t = s
+		sub(/[[:space:]].*/, "", t)
+		return (t == "cat" || t == "tee" || t == "git" || t == "gh" || t == "jq" || t == "python3" || t == "python" || t == "node")
 	}
 	function push(s) { sp++; stack[sp] = s }
 	function pop() { if (sp > 0) sp-- }
