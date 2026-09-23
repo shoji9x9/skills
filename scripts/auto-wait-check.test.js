@@ -1001,6 +1001,10 @@ const undecidableForms = [
     "type Element = Locator;\nfunction f(el: Element) { return el.count(); }",
   ],
   [
+    "許可リストの名前を TypeScript の import 代入で束ね直したもの",
+    "import Element = Types.Row;\nfunction f(x: Element) { return x.count(); }",
+  ],
+  [
     "許可リストの名前を import し直したもの",
     'import type { Element } from "./mapping";\nfunction f(el: Element) { return el.count(); }',
   ],

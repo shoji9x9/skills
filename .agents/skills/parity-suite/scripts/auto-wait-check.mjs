@@ -960,11 +960,13 @@ function nonPlaywrightNames(
   };
   const annotatedNon = new Set();
   // 許可リストの名前でも、同じファイルで型として宣言し直したもの（`type Element = Locator`・
-  // `interface Node {…}`・`import type { Element } from …`）は中身を追わないので根拠にしない。
+  // `interface Node {…}`・`import type { Element } from …`・`import Element = Types.Row`）は中身を追わないので根拠にしない。
   const typeShadows = new Set(
     [
       ...code.matchAll(/\b(?:type|interface|class|enum)\s+([A-Za-z_$][\w$]*)/g),
       ...code.matchAll(/\bimport\s+([\s\S]*?)\s+from\b/g),
+      // TypeScript の import 代入（`import Element = Types.Row`）。`from` を持たないので上では拾えない。
+      ...code.matchAll(/\bimport\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*=/g),
     ].flatMap((match) => [...match[1].matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0])),
   );
   // 型名の後ろに型が続く形（union `Element | Locator`・intersection・配列 `Foo[]`・generic・条件型）も同じ。
