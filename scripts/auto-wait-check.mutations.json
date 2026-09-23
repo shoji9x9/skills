@@ -93,6 +93,8 @@
         "束縛を読めない受け側は判定不能に数える: 配列の分割代入で再代入",
         "束縛を読めない受け側は判定不能に数える: 配列型の引数",
         "束縛を読めない受け側は判定不能に数える: 関数の型引数",
+        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（同じ行）",
+        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（次の行）",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: any で注釈した引数",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: catch の束縛",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: for-of の束縛",
@@ -169,8 +171,8 @@
       "id": "declaration-every",
       "why": "同じ名前の宣言のうち 1 つでも確定すれば確定にする（別スコープの束縛が素通りする）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      if (sites.every(siteIsNonValue)) {\n",
-      "replace": "      if (sites.some(siteIsNonValue)) {\n",
+      "find": "      if (verdicts.every(Boolean)) {\n",
+      "replace": "      if (verdicts.some(Boolean)) {\n",
       "occurrences": 1,
       "expect_failing": [
         "束縛を読めない受け側は判定不能に数える: 同じ名前の 2 つ目の宣言が確定しない"
@@ -314,6 +316,18 @@
       "expect_failing": [
         "束縛を読めない受け側は判定不能に数える: オブジェクトの分割代入で再代入",
         "束縛を読めない受け側は判定不能に数える: 配列の分割代入で再代入"
+      ]
+    },
+    {
+      "id": "function-valued-root",
+      "why": "関数値の名前を値の式の起点として確定に数える（タグ付きテンプレートの戻り値が消える）",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": "      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name) && !functionValued.has(name)),",
+      "replace": "      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name)),",
+      "occurrences": 1,
+      "expect_failing": [
+        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（同じ行）",
+        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（次の行）"
       ]
     }
   ]

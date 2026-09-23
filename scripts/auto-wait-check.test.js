@@ -1000,6 +1000,15 @@ const undecidableForms = [
     "許可リストの名前を同じファイルで型エイリアスにし直したもの",
     "type Element = Locator;\nfunction f(el: Element) { return el.count(); }",
   ],
+  // 関数値の名前を起点にした右辺は、タグ付きテンプレートの戻り値でありうる（テンプレートはマスクで消える。PR #448 のレビュー）。
+  [
+    "関数値の名前にタグ付きテンプレート（同じ行）",
+    "const make = () => page.locator('tr'); const row = make`tag`; row.count();",
+  ],
+  [
+    "関数値の名前にタグ付きテンプレート（次の行）",
+    "const make = () => page.locator('tr'); const row = make\n`tag`; row.count();",
+  ],
   // 型引数の名前は許可リストの名前と同じでも中身は別物（PR #448 のレビュー）。
   ["関数の型引数", "function f<Node extends Locator>(x: Node) { return x.count(); }"],
   ["アロー関数の型引数", "const f = <Node extends Locator>(x: Node) => x.count();"],

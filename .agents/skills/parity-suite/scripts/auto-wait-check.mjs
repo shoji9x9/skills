@@ -1073,6 +1073,8 @@ function nonPlaywrightNames(
   const FUNCTION_HEAD = new RegExp(
     String.raw`^\s*(?:async\s+)?(?:function\b|(?:<(?:[^<>()]|<[^<>()]*>)*>\s*)?(?:[A-Za-z_$][\w$]*|\((?:[^()]|\([^()]*\))*\))\s*(?::[^=;{]*)?=>)`,
   );
+  /** 関数式・アロー関数で確定した名前。値の式の起点としては確定に数えない（下の every）。 */
+  const functionValued = new Set();
   const siteIsNonValue = (rawRhs) => {
     const statement = declaratorRhs(rawRhs);
     const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
@@ -1092,11 +1094,13 @@ function nonPlaywrightNames(
       }
     }
     if (asserted !== null) return false;
-    if (FUNCTION_HEAD.test(statement)) return true;
+    if (FUNCTION_HEAD.test(statement)) return "function";
     // JSX 要素。角括弧のアサーションが書ける拡張子（.ts 系）では `<` 始まりを JSX と読まない。
     if (!angleAssertionAllowed && /^\s*<[A-Za-z]/.test(statement)) return true;
+    // 関数値の名前は起点として確定に数えない。呼び出し・タグ付きテンプレート（`make\`tag\``）の戻り値は
+    // 読めず、テンプレートは maskNonCode で空白になるので `make` だけが残って関数値そのものと見分けられない。
     return [...rootNames(statement)].every(
-      (name) => VALUE_KEYWORDS.has(name) || nonReceivers.has(name),
+      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name) && !functionValued.has(name)),
     );
   };
 
@@ -1114,8 +1118,10 @@ function nonPlaywrightNames(
     grew = false;
     for (const [name, sites] of declarations) {
       if (nonReceivers.has(name) || !candidate(name)) continue;
-      if (sites.every(siteIsNonValue)) {
+      const verdicts = sites.map(siteIsNonValue);
+      if (verdicts.every(Boolean)) {
         nonReceivers.add(name);
+        if (verdicts.includes("function")) functionValued.add(name);
         grew = true;
       }
     }
