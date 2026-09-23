@@ -1000,6 +1000,19 @@ const undecidableForms = [
     "許可リストの名前を同じファイルで型エイリアスにし直したもの",
     "type Element = Locator;\nfunction f(el: Element) { return el.count(); }",
   ],
+  // 型引数の名前は許可リストの名前と同じでも中身は別物（PR #448 のレビュー）。
+  ["関数の型引数", "function f<Node extends Locator>(x: Node) { return x.count(); }"],
+  ["アロー関数の型引数", "const f = <Node extends Locator>(x: Node) => x.count();"],
+  ["クラスの型引数", "class A<Node> { go(x: Node) { return x.count(); } }"],
+  // 分割代入で再代入された名前は、宣言時の右辺で確定しない（PR #448 のレビュー）。
+  [
+    "配列の分割代入で再代入",
+    'async function f(page) { let row = 1; [row] = [page.locator("tr")]; await row.count(); }',
+  ],
+  [
+    "オブジェクトの分割代入で再代入",
+    'async function f(page) { let row = 1; ({ row } = { row: page.locator("tr") }); await row.count(); }',
+  ],
   [
     "許可リストの名前を TypeScript の import 代入で束ね直したもの",
     "import Element = Types.Row;\nfunction f(x: Element) { return x.count(); }",
@@ -1081,6 +1094,16 @@ const excludedForms = [
     "spec.ts",
   ],
   ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }", "spec.ts"],
+  [
+    "別名の型引数を持つ関数の許可リスト型注釈",
+    "function f<T>(el: Element, t: T) { return el.getAttribute('x'); }",
+    "spec.ts",
+  ],
+  [
+    "添字への代入があっても別の確定した名前は巻き込まない",
+    "const limit = 3;\narr[0] = 1;\nlimit.count();",
+    "spec.ts",
+  ],
   ["Promise.all", "await Promise.all([a(), b()]);", "spec.ts"],
   ["console.count", "console.count('x');", "spec.ts"],
   ["document の中の DOM", "document.body.getAttribute('x');", "spec.ts"],
@@ -1146,6 +1169,11 @@ const shadowedForms = [
   ["分割した引数", "function f({ loc }) { return loc.textContent(); }"],
   ["any で注釈した引数", "function f(loc: any) { return loc.textContent(); }"],
   ["分割代入の宣言", "function f(page) { const { loc } = make(page); return loc.textContent(); }"],
+  // 型注釈を挟むと `}` の直後が `=` でなくなり、分割代入の走査（`} =`）では拾えない。
+  [
+    "型注釈付きの分割代入の宣言",
+    "function f(page) { const { loc }: Props = make(page); return loc.textContent(); }",
+  ],
   ["for-of の束縛", "for (const loc of rows) { await loc.innerText(); }"],
   ["catch の束縛", "try { x(); } catch (loc) { loc.count(); }"],
   ["import した名前", "import { loc } from './mapping';\nawait loc.count();"],

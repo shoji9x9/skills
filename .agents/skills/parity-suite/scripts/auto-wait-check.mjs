@@ -584,6 +584,21 @@ function matchingClose(code, open) {
   return -1;
 }
 
+/** `close` の閉じ括弧に対応する開き括弧の位置。対応が取れなければ -1。 */
+function matchingOpen(code, close) {
+  const pairs = { ")": "(", "]": "[", "}": "{" };
+  const stack = [];
+  for (let k = close; k >= 0; k -= 1) {
+    const c = code[k];
+    if (c in pairs) stack.push(pairs[c]);
+    else if (c === "(" || c === "[" || c === "{") {
+      if (stack.pop() !== c) return -1;
+      if (stack.length === 0) return k;
+    }
+  }
+  return -1;
+}
+
 /** 括弧の外側の `,` で分ける。 */
 function splitTopLevel(text) {
   const parts = [];
@@ -967,6 +982,11 @@ function nonPlaywrightNames(
       ...code.matchAll(/\bimport\s+([\s\S]*?)\s+from\b/g),
       // TypeScript の import 代入（`import Element = Types.Row`）。`from` を持たないので上では拾えない。
       ...code.matchAll(/\bimport\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*=/g),
+      // 型引数（`function f<Node extends Locator>(x: Node)` / `const f = <Node>(…) =>` / `class A<Node>`）。
+      // 型引数の名前は許可リストの名前と同じでも中身は別物（`Node extends Locator`）。
+      ...code.matchAll(/[\w$]\s*<((?:[^<>()]|<[^<>()]*>)*)>\s*\(/g),
+      ...code.matchAll(/=\s*(?:async\s+)?<((?:[^<>()]|<[^<>()]*>)*)>\s*\(/g),
+      ...code.matchAll(/\b(?:class|interface|type)\s+[A-Za-z_$][\w$]*\s*<((?:[^<>]|<[^<>]*>)*)>/g),
     ].flatMap((match) => [...match[1].matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0])),
   );
   // 型名の後ろに型が続く形（union `Element | Locator`・intersection・配列 `Foo[]`・generic・条件型）も同じ。
@@ -1021,6 +1041,12 @@ function nonPlaywrightNames(
     if (!/\b(?:const|let|var)\s+$/.test(code.slice(Math.max(0, match.index - 16), match.index))) {
       unknown.add(match[1]);
     }
+  }
+  // 分割代入による再代入（`[row] = …` / `({ row } = …)`）。名前が `=` に隣接しないので上では拾えない。
+  // 添字への代入（`arr[i] = …`）も拾うが、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
+  for (const match of code.matchAll(/[\]}]\s*=(?![=>])/g)) {
+    const open = matchingOpen(code, match.index);
+    if (open !== -1) markUnknown(code.slice(open + 1, match.index));
   }
   // 型注釈付きの宣言（`const x: Foo = …`）。
   for (const match of code.matchAll(

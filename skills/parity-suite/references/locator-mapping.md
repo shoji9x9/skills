@@ -66,7 +66,7 @@
 - 許可リストの型での注釈（`(e: Element)` / `const x: HTMLInputElement = …`）。許可リストはプリミティブ（`string` 等）・
   `Date` / `RegExp` / `Error`・DOM（`Element` / `Node` / `Document` / `Window` / `Event` / `HTML…Element` / `SVG…Element`）に限る。
   型名の中身はファイルの外にありうる（import した型エイリアス `type Row = Locator` など）ため、リスト外の名前・`any`・修飾名・
-  generic / union / intersection / 配列・`typeof` / `import(…)`・同じファイルで型として宣言し直したリストの名前は根拠にしない
+  generic / union / intersection / 配列・`typeof` / `import(…)`・同じファイルで型として宣言し直した・import し直した・型引数に使ったリストの名前は根拠にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
 
 名前はファイル全体で 1 つとして扱う（スコープを見ない）ので、同じ名前が根拠の無い形でも束縛されていれば
