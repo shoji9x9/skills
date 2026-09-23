@@ -24,8 +24,9 @@
 //                                                            # 差分に当たる宣言だけ（PR 用）
 //
 // **全件は重い。** 1 変異 = 対象テストファイル 1 回の実行で、実行器自身を変異させる宣言
-// （テストが入れ子で runner を起動する）だけで全体の 7 割を占める（実測: 89 変異 641 秒のうち
-// `check-mutation-proof` の 16 変異が約 430 秒）。PR では `--changed-since` で差分に当たる宣言へ絞り、
+// （テストが入れ子で runner を起動する）が全体の 3 分の 2 を占める（手元実測: 98 変異 390 秒のうち
+// `check-mutation-proof` の 23 変異が 255 秒。Issue #442 でスタブ化と `pnpm exec` の省略を入れる前は
+// 95 変異 975 秒・うち 792 秒）。PR では `--changed-since` で差分に当たる宣言へ絞り、
 // **全件は定期実行**（`.github/workflows/mutation-proof.yml`）で測る。
 //
 // 終了コード: 0 = 全変異が実証できた / 1 = 実証できない変異がある / 2 = 使い方・宣言・前提の誤り
@@ -42,6 +43,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,7 +63,7 @@ function die(message) {
 // **状態ファイルは `/tmp` に置かない。** `os.tmpdir()`（1777）は同一ホストの別ユーザーも書けるうえ、
 // パスは repoRoot から決定論的に導けるので**先に作っておける**。ロックを先取りされれば実行を止められ、
 // 復元情報を植え付けられれば次回起動が任意のファイルを上書きしてしまう（実測で確認された経路）。
-// 作業ツリー内の自分が所有するディレクトリ（`node_modules/.cache/`。`pnpm exec` を使う以上必ず在る）へ置く。
+// 作業ツリー内の自分が所有するディレクトリ（`node_modules/.cache/`。vitest を `node_modules` から解決する以上必ず在る）へ置く。
 // worktree ごとに `node_modules` が分かれるので、ハッシュで取り合う問題も起きない。
 const stateDir = join(repoRoot, "node_modules", ".cache", "mutation-proof");
 const lockPath = process.env.MUTATION_PROOF_LOCK ?? join(stateDir, "lock");
@@ -410,6 +412,46 @@ function loadSpec(specPath) {
 }
 
 /**
+ * テストを起動するコマンド（実行ファイルと、`run <testFile> ...` の前に置く引数）。
+ *
+ * **既定は vitest の entry を Node のモジュール解決で求め、`node` で直接起動する。** `pnpm exec` を経由すると
+ * 1 回あたり約 0.6 秒の起動コストが乗り（実測: `pnpm exec vitest --version` 0.70 秒 / `node vitest.mjs --version`
+ * 0.07 秒）、変異 1 件ごとに基準 run・入れ子の runner を含めて数十回起動するこの検査では支配的になる。
+ * `node_modules/.bin/` のハードパスは使わない（AGENTS.md「ツール起動」の例外。解決はパッケージの `bin` から取る）。
+ *
+ * `MUTATION_PROOF_TEST_COMMAND` で実行ファイルを差し替えられる（**テスト用の seam**。実行器のロック・復元・
+ * 判定のテストを、決まった JSON レポートを返すスタブで回して vitest の起動を省くため）。引数は vitest と同じ
+ * `run <testFile> --reporter=json --outputFile=<path>` を渡す。**使ったら必ず印字する**（`MUTATION_PROOF_CHANGED_FILES` と同じ扱い）。
+ */
+let testCommandCache = null;
+function testCommand() {
+  if (testCommandCache) return testCommandCache;
+  const injected = process.env.MUTATION_PROOF_TEST_COMMAND;
+  if (injected !== undefined) {
+    // 空文字を「未指定」に倒さない（注入のつもりで本物の vitest を測ると、速さも中身も別物になる）。
+    if (injected === "") die("MUTATION_PROOF_TEST_COMMAND が空");
+    console.error(
+      `テストコマンド: MUTATION_PROOF_TEST_COMMAND=${injected}（テスト用の注入。vitest は起動しない）`,
+    );
+    testCommandCache = { file: injected, prefix: [] };
+    return testCommandCache;
+  }
+  let entry;
+  try {
+    const pkgPath = createRequire(join(repoRoot, "package.json")).resolve("vitest/package.json");
+    const { bin } = JSON.parse(readFileSync(pkgPath, "utf8"));
+    const rel = typeof bin === "string" ? bin : bin?.vitest;
+    if (typeof rel !== "string") throw new Error(`${pkgPath} に bin.vitest が無い`);
+    entry = join(dirname(pkgPath), rel);
+  } catch (err) {
+    // 起動できないのと同じく前提の誤り（exit 2）。`pnpm install` 前・リポジトリ外へのコピー等。
+    die(`vitest を解決できない（pnpm install 済みか確かめる）: ${err.message}`);
+  }
+  testCommandCache = { file: process.execPath, prefix: [entry] };
+  return testCommandCache;
+}
+
+/**
  * テストファイルを 1 回走らせ、テスト名 → 状態のマップを返す。
  * **終了コードでは判定しない**——走らなかった（収集で落ちた）のか、狙ったテストが落ちたのかを
  * 区別できないため、JSON レポータの結果から名前で読む。
@@ -421,9 +463,10 @@ function runTests(testFile) {
   tempDirs.add(dir);
   const outFile = join(dir, "result.json");
   try {
+    const command = testCommand();
     const res = spawnSync(
-      "pnpm",
-      ["exec", "vitest", "run", testFile, "--reporter=json", `--outputFile=${outFile}`],
+      command.file,
+      [...command.prefix, "run", testFile, "--reporter=json", `--outputFile=${outFile}`],
       {
         cwd: repoRoot,
         encoding: "utf8",
@@ -436,7 +479,7 @@ function runTests(testFile) {
     // `res.error` にだけ入り stdout/stderr は null なので、そのままだと理由なしの FAIL
     // （exit 1 =「実証できない変異がある」）に化ける。前提の誤りとして exit 2 に倒す。
     if (res.error) {
-      die(`vitest を起動できない: ${res.error.message}`);
+      die(`テストを起動できない（${command.file}）: ${res.error.message}`);
     }
     if (!existsSync(outFile)) {
       return {
