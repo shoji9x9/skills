@@ -135,6 +135,22 @@ function checkComponent(dir) {
       }
 
       const png = existsSync(join(base, "element.png")) ? pngSize(join(base, "element.png")) : null;
+      // element.shot.json は element.png と同じ run の記録。宣言した element_shot_version の出力と
+      // 名乗る以上、記録が在り、その版で、PNG の実寸と一致していなければならない。
+      const shotPath = join(base, "element.shot.json");
+      const shot = existsSync(shotPath) ? readJson(shotPath) : null;
+      if (!shot) {
+        problems.push(`${where}: element.shot.json が無い`);
+      } else {
+        if (shot.tool_version !== elementShot.VERSION) {
+          problems.push(
+            `${where}: element.shot.json の tool_version ${shot.tool_version} ≠ ${elementShot.VERSION}`,
+          );
+        }
+        if (png && (shot.png?.width !== png.width || shot.png?.height !== png.height)) {
+          problems.push(`${where}: element.shot.json の png が element.png の実寸と合わない`);
+        }
+      }
       if (!png) {
         problems.push(`${where}: element.png が PNG でない`);
       } else if (
@@ -327,6 +343,23 @@ test("陽性コントロール: rect と合わない element.png を検出する
   const other = readFileSync(join(dir, "baseline/orders-search/default/element.png"));
   writeFileSync(join(dir, "baseline/users-create/default/element.png"), other);
   expect(checkComponent(dir).join("\n")).toContain("users-create / default: element.png");
+});
+
+test("陽性コントロール: element.shot.json の欠落・版違い・実寸違いを検出する", () => {
+  const dir = copyFixture();
+  rmSync(join(dir, "baseline/orders-search/default/element.shot.json"));
+  edit(join(dir, "baseline/users-create/default/element.shot.json"), (r) => {
+    r.tool_version = "5";
+  });
+  edit(join(dir, "baseline/users-create/hover/element.shot.json"), (r) => {
+    r.png.width += 1;
+  });
+  const problems = checkComponent(dir).join("\n");
+  expect(problems).toContain("orders-search / default: element.shot.json が無い");
+  expect(problems).toContain("users-create / default: element.shot.json の tool_version 5");
+  expect(problems).toContain(
+    "users-create / hover: element.shot.json の png が element.png の実寸と合わない",
+  );
 });
 
 test("陽性コントロール: 採取物から導けない axes.json を検出する", () => {
