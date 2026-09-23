@@ -57,6 +57,9 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
     slug 直下の `axes.json` / `component-api.md`（**ファイル名まで固定する**——名前を決めないと前提判定が機械的に行えず、
     「在るはずのもの」を人の目で探すことになる）。
     **データ依存の部品（`.replace/components.md` の `データ依存: true`）は `baseline/<instance>/data.json` も必須**。
+    **操作の結果の `baseline/<instance>/behaviors.json` も全インスタンスで必須**（`capture.operations_none_reason` で操作の無い部品と宣言した場合を除く。
+    突き合わせ表がまだ無いので `behavior-compare.mjs` は `comparison-missing` で必ず exit 1 になる——終了コードではなく、
+    それ以外の finding（`behavior-baseline-*`・`unreachable-declaration-invalid`）が 0 件であることで判定し、残れば `build` の前に `capture` へ戻す）。
     一部だけ揃った採取を通すと、画素比較の入力やカタログへ注入するデータが無いまま `build` に入る。
     宣言は古い実行の残りでもありうるので、実体が無ければ比較対象が空のまま `build` に入る
 - **比較の母集合**（採取・前提判定・見本・照合・完了判定がすべてこの 1 つの定義を使う）:
@@ -81,6 +84,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - **計算後スタイルだけで実装しない。** 計算値は「いまの状態の結果」なので、`:hover` の宣言も `!important` の勝ち負けも見えない。当たっている CSS 規則を併せて採る（[`references/capture.md`](references/capture.md)）
 - **採取ツールが「読めなかった」と報告した箇所を、無かったことにしない。** `inaccessible`（クロスオリジンのスタイルシート）・`unresolved`（判定できないセレクタ）が非ゼロなら `gaps.md` へ残す。**0 件を「差が無い」の根拠にしない**
 - **`component-coverage.json`（`parity-suite` の部品被覆表）を見た目の根拠にしない。** あれは操作と状態の**有無**を数える表で、色・寸法・余白は見ていない。機能が揃っていて見た目が全部違う部品も `present` で埋まる
+- **見た目の照合を操作の結果の根拠にしない。** 状態ごとの見た目が全部一致していても、操作した結果（全選択になる・チェックが残る・書き出しで落ちる）は別の測定で、`behavior-compare.mjs` の突き合わせだけが示す
 - **LLM に「差分があるか」を聞かない。** 検出は決定論的ツール（画素・特性照合）の仕事、LLM の仕事は分類（要対応／許容／環境ノイズ）。**「同じに見えます」を収束根拠にしない**
 - **現行アプリを変更・駆動の範囲を超えて触らない。** 現行アプリのコード・データを変更しない（正解の基準を動かさないため）。**状態を作る操作は「読み取りだけ」に含まれない**——選択した target の `forbidden_actions` を先に引き、禁止された操作で作る状態は遷移させず `gaps.md` へ残す
 - **現行から抜いたデータを、来歴を確かめずにカタログへ持ち込まない。** ゴールデンデータセット由来であることを確認できないデータは使わない（[`references/capture.md`](references/capture.md)「データ依存部品」）
@@ -142,12 +146,16 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    **インスタンスが 2 件未満、またはページ・論理名が空の行は採取へ進まない**（固定と可変を区別できないため）。不足は `replace-strategy` 側で埋めるようユーザーに促す。詳細: [`references/instances.md`](references/instances.md)
 3. **保存先検証**: `artifacts`（`overrides.<slug>` を考慮）の書き込み可否を**撮影前に**検証し、不可なら早期に失敗する（全部撮ってから保存できないと分かるのを避ける）
 4. **状態の列挙**: 採る状態を部品の規範的な資料と現行 UI から列挙する。**資料は生成源であって正解ではない**（導出源の正本は `parity-suite` の `references/coverage.md`「状態網羅の導出源」）。
+   **資料が 1 つに括る状態でも、現行が描き分けるなら分けて採る**（単一選択と範囲選択・複数選択など。同じ正本の同節）。
    **列挙する候補の状態集合は全インスタンスで共通**にする——片方で採らなかった状態は「差が無い」ではなく「測っていない」になる。
    **例外は到達できない状態だけ**。そのインスタンスで作れない状態は、禁止された遷移を試さず `unreachable_states` に理由付きで宣言し、
    比較の母集合と軸の割り出しの両方から外す（[`references/instances.md`](references/instances.md)）
 5. **採取**: 先に `parity-suite` 同梱の特性採取ツールをプロジェクト側へ用意する（[`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」。用意できなければ停止する）。
    インスタンス × 状態ごとに 4 点を採る。要素単位のスクリーンショット（`parity-suite` 同梱の element-shot.mjs。`locator.screenshot()` は外接整数矩形へ丸めるので使わない）、計算後スタイル（`parity-suite` 同梱の trait-capture.mjs）、**当たっている CSS 規則**（同梱の [`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)）、データ依存部品なら可視行の実データ。
    撮影条件は `parity-suite` の `references/baseline.md` に従い、**同一条件で 2 回撮ってノイズ基準値を出す**（2 回目の採取物は基準値を記録したら削除する）。詳細: [`references/capture.md`](references/capture.md)
+   **見た目に加えて操作の結果を採る。** 部品の機能表から操作を列挙して `metadata.json` の `capture.operations` に書き、
+   インスタンスごとに現行で実施して観測した結果の状態（画素ではない）を `baseline/<instance>/behaviors.json` へ書く。
+   見た目の照合は操作の結果を 1 件も示さない。詳細: [`references/behavior.md`](references/behavior.md)
 6. **固定軸・可変軸の割り出し**: `node <skill>/scripts/axis-diff.mjs --baseline .replace/components/<slug>/ --out .replace/components/<slug>/axes.json` を **exit 0 まで通す**（マニフェストは手で組まず、この経路が採取物から決定論的に組み立てる）（**コピーせずスキル配下のスクリプトをそのまま実行する**）。
    未採取・片側のみ・id 重複は問題として落ちるので、採取へ戻して埋める。**問題を残したまま「可変軸なし」を結論にしない**。詳細: [`references/component-api.md`](references/component-api.md)
 7. **成果物記録**: `component-api.md`（固定・可変の割り出しと引数の候補）・`metadata.json`（撮影条件・ノイズ基準値・ツール版・データセット版・`capture.complete`）・`gaps.md`（採れなかった箇所と理由）を書く。
@@ -194,7 +202,13 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    手順の正本は `parity-replace` の `references/adversarial-review.md`。**サブエージェントを起動できないことを省略の理由にしない**（差分だけを人間のレビュアーへ渡す代替を取る）
 7. **カタログ採取と照合**: カタログを現行と同一条件で採り、`parity-suite` 同梱の差分器（画素・特性照合）で基準と突き合わせる。
    差分は決定論的ツールが出し、LLM は 1 件ずつ分類（要対応／許容／環境ノイズ）する。要対応は手順 4 へ戻す。詳細: [`references/compare.md`](references/compare.md)
-8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **比較の母集合（上記「前提」）の全組み合わせに対応する見本があり、全件を照合した**こと。
+   **操作の結果も突き合わせる。** `capture` と同じ操作を見本で同じ手順で実施して `new/<target>/behavior-comparison.json` に書き、
+   `node <skill>/scripts/behavior-compare.mjs --baseline .replace/components/<slug>/ --comparison <その表> --target <target>` を通す。
+   不一致は要対応として手順 4 へ戻す（現行の挙動を引き継がない判断は利用者に上げる）。詳細: [`references/behavior.md`](references/behavior.md)
+8. **完了判定**: **未説明差分ゼロ**（要対応が 0 件で、許容は全件が `intentional_diffs` か `component_diffs` の宣言に紐づく）＋ **`verification_commands.full` が通る**＋ **比較の母集合（上記「前提」）の全組み合わせに対応する見本があり、全件を照合した**こと
+   ＋ **母集合に対応しない見本（基準の無い見本）が 0 件**であること（[`references/catalog.md`](references/catalog.md)「現行に無い見た目を見本に作らない」）
+   ＋ **`behavior-compare.mjs` が exit 0**（操作の結果の未突合・不一致が 0 件）であること。
+   完了報告には、比べなかった操作（到達できない・承認して残した）と、列挙の外の挙動を引き受ける工程を収束と並べて示す（[`references/behavior.md`](references/behavior.md)「完了報告に書くこと」）。
    実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う（`issue-start` の実装ステップへ再入しない）
 
 ## 成果物
@@ -208,6 +222,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 計算後スタイル | `.replace/components/<slug>/baseline/<instance>/<state>/traits.json` | — |
 | 当たっている CSS 規則 | `.replace/components/<slug>/baseline/<instance>/<state>/css-rules.json` | — |
 | データ依存部品の実データ | `.replace/components/<slug>/baseline/<instance>/data.json` | — |
+| 操作の結果（現行） | `.replace/components/<slug>/baseline/<instance>/behaviors.json` | [`assets/behaviors-template.json`](assets/behaviors-template.json) |
+| 操作の結果の突き合わせ（**環境別**） | `.replace/components/<slug>/new/<target>/behavior-comparison.json` | [`assets/behavior-comparison-template.json`](assets/behavior-comparison-template.json) |
 | 引数の設計（固定・可変の割り出し） | `.replace/components/<slug>/component-api.md` | [`assets/component-api-template.md`](assets/component-api-template.md) |
 | メタデータ・ノイズ基準値 | `.replace/components/<slug>/metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 照合と往復の記録 | `.replace/components/<slug>/parity.md` | [`assets/parity-template.md`](assets/parity-template.md) |
@@ -217,11 +233,12 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 実装・見本 | 新側リポジトリ（`references.architecture` の構成に従う） | — |
 
-- テキスト成果物（特性 JSON・CSS 規則 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- テキスト成果物（特性 JSON・CSS 規則 JSON・操作の結果 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除する（正本: `parity-suite` の `references/baseline.md`）
 - **差分器・特性採取ツールは `parity-suite` 同梱を正本として使う**（本スキルで再実装しない）。実行時は `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーし、実際のパスを `metadata.json` に記録する。
   **機能単位の `parity-suite` より先に走るのでコピーが無いのが普通**——インストール済み `parity-suite` からの用意と、既存のコピーが同梱版と違うときに停止する規律は [`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」
-- **[`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs) と [`scripts/axis-diff.mjs`](scripts/axis-diff.mjs) はコピーしない。** スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）
+- **[`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)・[`scripts/axis-diff.mjs`](scripts/axis-diff.mjs)・[`scripts/behavior-compare.mjs`](scripts/behavior-compare.mjs) はコピーしない。**
+  スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）
 
 ## 姉妹スキルとの連携
 

@@ -1,0 +1,144 @@
+{
+  "$comment": [
+    "behavior-compare.test.js のうち、操作の結果の突き合わせ（Issue #446）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/behavior-compare.test.js",
+  "mutations": [
+    {
+      "id": "observation-shape",
+      "why": "観測項目の欠落・余分を見ない（空の観測同士が一致する）",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "ok: missing.length === 0 && extra.length === 0",
+      "replace": "ok: true",
+      "occurrences": 1,
+      "expect_failing": [
+        "観測項目が欠けた行は一致扱いにしない（空の観測同士を一致させない）",
+        "基準側の観測項目が欠けていても落とす（新側と同じく空にできない）"
+      ]
+    },
+    {
+      "id": "uncompared",
+      "why": "行の無い組み合わせを未突合として数えない",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!seen.has(key)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "行の無い組み合わせは behavior-uncompared で落とす",
+        "理由の無い到達不能の宣言は除外にしない",
+        "rows が配列でない突き合わせ表は全組み合わせを未突合にする",
+        "CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと exit 1",
+        "プレースホルダのままの到達不能の理由は除外にしない"
+      ]
+    },
+    {
+      "id": "mismatch",
+      "why": "観測値を比べない（操作の結果が違っても一致とする）",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "canonical(row.observed[name]) !== canonical(expected[name])",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["見た目が同じでも操作の結果が違えば behavior-mismatch で落とす"]
+    },
+    {
+      "id": "unreachable-reason",
+      "why": "理由の無い到達不能の宣言を除外として受ける",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!filled(u.reason)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "理由の無い到達不能の宣言は除外にしない",
+        "プレースホルダのままの到達不能の理由は除外にしない"
+      ]
+    },
+    {
+      "id": "approval",
+      "why": "承認者の無い accepted を通す",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "!filled(row.approved_by) ||",
+      "replace": "false ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "比べないことを選ぶには承認が要る（承認があれば accepted として通す）",
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
+      ]
+    },
+    {
+      "id": "nothing-compared",
+      "why": "比べる組み合わせが 0 件でも合格にする",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (population.size === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["全組み合わせが到達できない宣言なら合格にしない"]
+    },
+    {
+      "id": "placeholder",
+      "why": "テンプレートのプレースホルダを記入済みとして受ける",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "return typeof value === \"string\" && /^<[\\s\\S]*>$/.test(value.trim());",
+      "replace": "return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）",
+        "プレースホルダのままの operations_none_reason では判定を省略しない",
+        "手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）",
+        "プレースホルダのままの到達不能の理由は除外にしない",
+        "見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"
+      ]
+    },
+    {
+      "id": "steps",
+      "why": "手順・説明の無い操作を受ける",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!filled(op.description) || !filled(op.steps)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）"]
+    },
+    {
+      "id": "approved-at-iso",
+      "why": "承認日時を ISO 8601 として検査しない",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "!isoDateTime(row.approved_at)",
+      "replace": "!filled(row.approved_at)",
+      "occurrences": 1,
+      "expect_failing": [
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
+      ]
+    },
+    {
+      "id": "story",
+      "why": "見本の識別子の無い行を突き合わせとして数える",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!filled(row.story)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"]
+    },
+    {
+      "id": "calendar",
+      "why": "年月日を組み直して同じ日に戻るかを見ず、Date.UTC が繰り上げた実在しない日付を通す",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "date.getUTCFullYear() !== year ||",
+      "replace": "false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "承認日時は暦の上で実在する値だけを通す（Date.parse の繰り上げに頼らない）"
+      ]
+    },
+    {
+      "id": "operation-source",
+      "why": "操作の導出源を検査しない",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!OPERATION_SOURCES.includes(capture.operation_source)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["操作の導出源が無い・プレースホルダ・語彙外なら型崩れ"]
+    }
+  ]
+}

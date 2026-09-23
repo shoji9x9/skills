@@ -42,8 +42,20 @@
     "states": "<照合した状態数>",
     "cells_compared": "<照合した インスタンス × 状態 の件数。採取物の件数と一致すること>",
     "missing_stories": "<採取物にあって見本が無い組み合わせの件数。1 以上なら完了しない>",
+    "unbaselined_stories": "<見本にあって採取物（比較の母集合）に無い組み合わせの件数。照合されないので 1 以上なら完了しない>",
     "unexplained": "<未説明差分の件数。要対応が 0 件で、許容が全件宣言に紐づいているとき 0>",
     "record": ".replace/components/<slug>/parity.md"
+  },
+  "behavior": {
+    "record": ".replace/components/<slug>/new/<target>/behavior-comparison.json",
+    "check_exit": "<scripts/behavior-compare.mjs の終了コード。0 以外なら完了しない>",
+    "judged": "<判定したか（operations_none_reason で操作の無い部品と宣言したときだけ false）。真偽値で書く>",
+    "cells": "<比べる組み合わせ（操作 × インスタンス − 宣言済みの unreachable_operations）の件数>",
+    "matched": "<観測が一致した件数>",
+    "mismatched": "<観測が食い違った件数。1 以上なら完了しない（要対応として実装へ戻す）>",
+    "uncompared": "<比べていない件数。1 以上なら完了しない>",
+    "accepted": "<比べない・差を残すことを利用者が承認した件数。完了報告で操作名と理由を示す>",
+    "not_compared": "<到達できないと宣言して母集合から外した件数。完了報告で示し、引き受ける工程（機能単位の parity-suite の被覆表と parity-replace の突き合わせ）を書く>"
   },
   "loop": {
     "iterations": "<照合と修正の反復回数>",

@@ -40,8 +40,20 @@
     "states": 4,
     "cells_compared": 8,
     "missing_stories": 0,
+    "unbaselined_stories": 0,
     "unexplained": 0,
     "record": ".replace/components/button/parity.md"
+  },
+  "behavior": {
+    "record": ".replace/components/button/new/local-dev/behavior-comparison.json",
+    "check_exit": 0,
+    "judged": true,
+    "cells": 2,
+    "matched": 2,
+    "mismatched": 0,
+    "uncompared": 0,
+    "accepted": 0,
+    "not_compared": 0
   },
   "loop": {
     "iterations": 2,

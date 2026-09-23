@@ -23,4 +23,7 @@
 - 未説明差分: 0 件
 - `verification_commands.full`: npm run lint / npm run typecheck ともに pass
 - 見本の網羅: 8 組合せ ＝ 8 件照合
+- 基準の無い見本: 0 件
+- 操作の結果: `behavior-compare.mjs` exit 0（2 組合せ ＝ 2 件一致）
+- 比べなかった操作: なし
 - 未検証として残るもの: なし

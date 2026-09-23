@@ -11,7 +11,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/assets.md` | 静的資産の種類ごとの方針（空欄＝未決）と未走査・未確認の記録（`replace-strategy` の `setup` が作る。形式の正本は [`static-assets.md`](static-assets.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクト**——`setup` 未実施として報告しない） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/components/<slug>/metadata.json` | 部品の採取の状態（`capture.complete`・`axes.ok`・`capture_gaps`）と基準の陳腐化判定材料（`dataset_version`・`target.name`）（`parity-component` が生成。スキーマ正本は同スキル） |
-| `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
+| `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`parity.unbaselined_stories`・`behavior`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
 | `.replace/parity/<slug>/strength.md` | パリティスイートの強度（捕捉した故障種別・素通り＝弱点・未検証種別。`parity-suite` が生成） |
 | `.replace/parity/<slug>/gaps.md` | 未検証領域（特性化できなかった箇所・hermetic でないテスト・スコープ外の副作用。同上） |
 | `.replace/parity/<slug>/metadata.json` | 取得時のゴールデンデータセットバージョン・対象コミット・部品被覆表の宣言（`component_coverage`。キーごと無ければ旧成果物）・反応の被覆表の宣言（`reaction_coverage`。同）・**未測定の宣言（`unmeasured`。同）**（同上） |
@@ -105,7 +105,8 @@ done
    **在席チェックがスキップされたままの範囲**であり、そのページでセクションが丸ごと欠けていてもどのスイートも赤くならない（環境ごとに分かれる）。ページ一覧を持たない features.md では「在席が未導出」として報告する
 7. **共通部品の現況**（`.replace/components.md` があるときだけ）: 部品 slug ごとに、Issue 状態（未起票／open／closed／判定不能）、採取の状態（`metadata.json` の `capture.complete` と `axes.ok`。
    `axes.ok` が false なら「軸の割り出しに未解決の問題あり——採取へ戻す必要がある」）、基準の陳腐化（`dataset_version` より後の `changes[].affects` がその部品の描画に効くデータと交差するとき、および `target.name` が現在の current target と違うとき）、
-   照合の到達点（`new/<target>/build-metadata.json` の `parity.unexplained` と `parity.missing_stories`。`missing_stories` が 1 以上なら「見本が足りず未照合の組み合わせがある」）、
+   照合の到達点（`new/<target>/build-metadata.json` の `parity.unexplained`・`parity.missing_stories`・`parity.unbaselined_stories`。`missing_stories` が 1 以上なら「見本が足りず未照合の組み合わせがある」、
+   `unbaselined_stories` が 1 以上なら「基準の無い見本があり照合されていない」。操作の結果の `behavior.check_exit` が 0 以外なら「操作の結果が未突合・不一致」。キーが無ければ「未記録（テンプレート更新前の証跡）」として示し 0 と読まない）、
    往復の状態（`loop.iterations` と `loop.stopped_reason`）を、**新側は target ごとに**示す。
    **`.replace/components.md` が無いときは「共通部品を先に作る方針を採っていない」と報告し、未着手として数えない**（節の不在を未整備と読まない）。
    合わせて `metadata.json.capture_gaps` の `inaccessible_sheets` / `unresolved_selectors` を未検証領域（項目 3）へ含める——**0 件を「差が無い」の根拠にしない**

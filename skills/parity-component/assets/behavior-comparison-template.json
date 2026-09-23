@@ -1,0 +1,23 @@
+{
+  "_note": "parity-component の build が .replace/components/<slug>/new/<target>/behavior-comparison.json として生成する（環境別。他の target の証跡を上書きしない）。カタログの見本で capture と同じ操作を同じ手順で実施し、同じ観測項目を記録する。判定は同梱の scripts/behavior-compare.mjs（比較の母集合に対応する行が 1 件ずつ要る。行の無い組み合わせは未突合、母集合に無い行は基準の無い突き合わせとして落ちる）。全ての値はプレースホルダ例であり実測値で置き換える。実装を変えたら取り直す（この検査は記録の鮮度を見ない）。",
+  "component": "<部品 slug（capture の metadata.json の slug）>",
+  "target": "<選択した new target 名（設定 targets の side: new）>",
+  "rows": [
+    {
+      "operation": "<操作 id（capture.operations[].id）>",
+      "instance": "<インスタンス id>",
+      "story": "<操作を実施した見本の識別子（build-metadata.json の catalog.stories と同じ体系）>",
+      "observed": {
+        "<観測項目名（capture.operations[].observe の要素。ちょうどその集合を書く）>": "<観測した値（JSON の値。不在は null）>"
+      }
+    },
+    {
+      "operation": "<比べないこと・差を残すことを利用者が承認した操作 id>",
+      "instance": "<インスタンス id>",
+      "disposition": "accepted",
+      "reason": "<比べない・差を残す理由（例: 現行の不具合を引き継がないと利用者が決めた）>",
+      "approved_by": "<承認した利用者>",
+      "approved_at": "<ISO 8601 の承認日時>"
+    }
+  ]
+}

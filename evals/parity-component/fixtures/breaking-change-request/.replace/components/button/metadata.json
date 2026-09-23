@@ -76,7 +76,17 @@
       "pixel_differ": "pixelmatch@7.1.0",
       "element_shot": "e2e/parity/lib/tools/vendor/element-shot.mjs",
       "element_shot_version": "6"
-    }
+    },
+    "operations": [
+      {
+        "id": "click-submit",
+        "description": "既定の状態のボタンを押す",
+        "steps": "ボタン（role=button ＋アクセシブルネーム）をクリックする",
+        "observe": ["submitted", "page_errors"]
+      }
+    ],
+    "operation_source": "app-ui",
+    "operations_none_reason": null
   },
   "instances": [
     {

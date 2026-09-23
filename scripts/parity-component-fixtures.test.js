@@ -28,6 +28,9 @@ const cssRules = await import(
   join(repoRoot, "skills/parity-component/scripts/css-rules-capture.mjs")
 );
 const axisDiff = await import(join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs"));
+const behaviorCompare = await import(
+  join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs")
+);
 const elementShot = await import(join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs"));
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
@@ -313,6 +316,25 @@ test("baseline を持つ fixture を見つけている（検査対象が 0 件�
     "catalog-unset/.replace/components/button",
   ]);
 });
+
+// build の前提は全インスタンスの behaviors.json を要求する（Issue #446）。欠けた fixture では build 系の eval が
+// 前提判定で止まり目的の分岐へ届かないので、基準側が behavior-compare.mjs の検査を通ることを確かめる。
+// 突き合わせ表は渡さない（基準側の不備だけを見る）ので、期待する finding は comparison-missing の 1 件だけ。
+test.each(componentDirs.map((d) => [d.slice(fixturesRoot.length + 1), d]))(
+  "操作の結果の基準が behavior-compare.mjs の基準側の検査を通る: %s",
+  (_, dir) => {
+    const { metadata, behaviors } = behaviorCompare.loadBaseline(dir);
+    const result = behaviorCompare.compareBehaviors({
+      metadata,
+      behaviors,
+      comparison: null,
+      target: "any",
+    });
+    expect(result.structural).toBe(false);
+    expect(result.counts.cells).toBeGreaterThan(0);
+    expect(result.findings.map((f) => f.code)).toEqual(["comparison-missing"]);
+  },
+);
 
 test.each(componentDirs.map((d) => [d.slice(fixturesRoot.length + 1), d]))(
   "採取物が実物のツールの出力として整合している: %s",
