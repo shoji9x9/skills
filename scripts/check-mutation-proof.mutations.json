@@ -95,11 +95,11 @@
       "id": "SPAWN-ERROR",
       "why": "spawn 自体の失敗を exit 2 に倒さない（環境起因の失敗を実証の失敗に混ぜる）",
       "file": "scripts/check-mutation-proof.js",
-      "find": "    if (res.error) {\n      die(`vitest を起動できない: ${res.error.message}`);\n    }\n",
+      "find": "    if (res.error) {\n      die(`テストを起動できない（${command.file}）: ${res.error.message}`);\n    }\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（走らせる前に落とす） vitest を起動できなければ exit 2（理由を捨てない）"
+        "宣言と前提の検証（走らせる前に落とす） テストを起動できなければ exit 2（理由を捨てない）"
       ]
     },
     {
@@ -110,7 +110,7 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "宣言と前提の検証（走らせる前に落とす） 子 vitest の掃引を止めるので、使用中の fixture が消えない"
+        "変異の判定 本物の vitest でも PASS し、子の掃引で使用中の fixture が消えない"
       ]
     },
     {
@@ -222,6 +222,37 @@
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） --changed-since と宣言ファイルの指定は併用できない"
       ]
+    },
+    {
+      "id": "TEST-COMMAND-NOTICE",
+      "why": "テストコマンドの注入を黙って使う（スタブで測っていることに気づけない）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    console.error(\n      `テストコマンド: MUTATION_PROOF_TEST_COMMAND=${injected}（テスト用の注入。vitest は起動しない）`,\n    );\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "変異の判定 当たって狙ったテストだけが落ちる変異は PASS（陽性コントロール）"
+      ]
+    },
+    {
+      "id": "TEST-COMMAND-EMPTY",
+      "why": "空の MUTATION_PROOF_TEST_COMMAND を弾かない（前提の誤りが exit 2 にならない）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    if (injected === \"\") die(",
+      "replace": "    if (false) die(",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言と前提の検証（走らせる前に落とす） MUTATION_PROOF_TEST_COMMAND が空なら exit 2"
+      ]
+    },
+    {
+      "id": "VITEST-RESOLVE",
+      "why": "vitest を解決できない失敗を exit 2 に倒さない（前提の誤りが実証の失敗や stack trace に化ける）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "    die(`vitest を解決できない（pnpm install 済みか確かめる）: ${err.message}`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["宣言と前提の検証（走らせる前に落とす） vitest を解決できなければ exit 2"]
     }
   ]
 }

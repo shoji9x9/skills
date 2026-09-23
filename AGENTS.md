@@ -16,6 +16,9 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 - **テスト**: skill-creator、Python 3.8+（集計スクリプト）
 - **環境管理**: mise
 - **ツール起動**: スクリプト・lefthook・CI からツールを起動する際は `./node_modules/.bin/<tool>` のハードパスで叩かず、`pnpm exec <tool>`（または mise の shim）経由で起動する
+  - **例外: 1 回の実行で同じツールを数十回以上起動するスクリプト**は、`pnpm exec` の起動コスト（実測 1 回約 0.6 秒）が支配的になるため、
+    Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）で entry を求めて `node` で起動してよい（現状は `scripts/check-mutation-proof.js` の子 vitest のみ）。
+    この場合も `.bin` のハードパスは使わない
   - **mise の shim は cwd の設定階層で解決する。** リポジトリ外の cwd（`/tmp` 等）から素のコマンド名で起動すると
     `No version is set for shim` で落ちる（グローバル既定が無いため。untrusted とは別の失敗）。
     プロジェクト外で動かす検証は `mise which <tool>` で実体パスを解決して渡すか、cwd をプロジェクト内に保つ
@@ -44,8 +47,8 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
   検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
   - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
-    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は CI 実測 891 秒（93 変異時。手元は 95 変異で 962 秒）かかり、
-    その 7 割が実行器自身の宣言（テストが入れ子で runner を起動する）だった。
+    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は手元実測 390 秒（98 変異）かかり、
+    その 3 分の 2 が実行器自身の宣言（テストが入れ子で runner を起動する）。実行器のテストは本物の vitest を e2e の 3 本に絞り、残りはスタブで回す（`MUTATION_PROOF_TEST_COMMAND`）。
   - **全件は週次の定期実行**（`.github/workflows/mutation-proof.yml`）。対象も検査も変わっていない宣言は前回の実証が
     有効だが、共有ライブラリやツールの版で前提が崩れることはあるので測り直す。
   - pre-commit には入れない（実行中に対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違える）。
