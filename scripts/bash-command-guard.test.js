@@ -332,6 +332,8 @@ const HEREDOC_READER_PASSING = [
   ["先頭の代入を読み飛ばす", "GIT_EDITOR=true git commit -F - <<'EOF'\nfix: don't pkill -f\nEOF"],
   ["許可リストの読み手へのパイプ", "cat <<'EOF' | gh pr create --body-file -\nDon't pkill -f\nEOF"],
   ["コマンド置換の中の git commit", "git commit -m \"$(cat <<'EOF'\nfix: don't pkill -f\nEOF\n)\""],
+  ["代入が受け取るコマンド置換", "msg=$(cat <<'EOF'\nDon't pkill -f\nEOF\n)"],
+  ["代入が受け取るバッククォート", "x=`cat <<'EOF'\nDon't pkill -f\nEOF\n`"],
   ["行継続を挟んだ読み手", "cat \\\n  <<'EOF'\nDon't pkill -f\nEOF"],
   ["node", "node - <<'EOF'\nconsole.log(\"don't pkill -f\")\nEOF"],
 ];
@@ -352,6 +354,10 @@ const HEREDOC_READER_BLOCKING = [
     "許可リストの読み手から許可リスト外へのパイプ",
     "cat <<'EOF' | tee f | bash\npkill -f chrome\nEOF",
   ],
+  // 読み手がコマンド置換の中にあると、置換の結果を受け取る外側のコマンドも本文を実行しうる（PR #448 のレビュー。親版は止めていた）。
+  ["eval が受け取るコマンド置換", "eval \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
+  ["bash -c が受け取るコマンド置換", "bash -c \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
+  ["eval が受け取るバッククォート", "eval `cat <<'EOF'\npkill -f chrome\nEOF\n`"],
   // プロセス置換は読み手の出力を別のコマンドへ渡す（PR #448 のレビュー。親版は止めていた）。
   ["出力のプロセス置換", "cat <<'EOF' > >(bash)\npkill -f chrome\nEOF"],
   ["tee のプロセス置換", "tee >(sh) <<'EOF'\npkill -f chrome\nEOF"],

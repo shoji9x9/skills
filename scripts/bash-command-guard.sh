@@ -28,6 +28,8 @@
 #     （cat / tee / git / gh / jq / python3 / python / node）のときだけデータとして読み飛ばす。それ以外の読み手、
 #     区切り語を引用していない本文に $( ) / ` がある形、区切り語の行が見つからない形は従来どおりコードとして読む。
 #     本文を実行するシェルを列挙する形にしない（引用・パス・行継続・env 経由と書き方が尽きず、漏れた形で退行する）。
+#     読み手がコマンド置換の中にあるときは、置換の結果を受け取る外側のコマンドも許可リストか代入（`msg=$(cat <<EOF …)`）
+#     であることを確かめる（`eval "$(cat <<EOF …)"` は本文を実行する）。
 #   - パラメータ展開（`cat ${x:-<<EOF;}`）の中の `<<` はヒアドキュメントを開かない（読み手が許可リストでも
 #     後続の行を本文として飛ばしていた）。算術（`$(( 1 << 2 ))`）の `<<` は、読み手の境界 `(` の後の語
 #     （数値・変数）が許可リストに無いので、本文をコードとして読む側に倒れる。
@@ -203,7 +205,7 @@ split_segments() {
 		}
 	}
 	# `<<` の位置（i）から区切り語を読み、控える。区切り語が無ければ 0 を返す（ヒアドキュメントではない）。
-	function heredoc_open(    j, strip, quoted, delim, ch, q) {
+	function heredoc_open(    j, strip, quoted, delim, ch, q, lv) {
 		j = i + 2; strip = 0; quoted = 0; delim = ""
 		if (substr(raw, j, 1) == "-") { strip = 1; j++ }
 		while (substr(raw, j, 1) == " " || substr(raw, j, 1) == "\t") j++
@@ -220,6 +222,10 @@ split_segments() {
 		}
 		if (delim == "") return 0
 		hn++; hdelim[hn] = delim; hstrip[hn] = strip; hquoted[hn] = quoted; hpos[hn] = i
+		# 読み手がコマンド置換の中にあるとき、置換の結果を受け取る外側のコマンドも本文を実行しうる
+		# （`eval "$(cat <<EOF …)"`）。外側の置換の開始位置を控え、heredoc_bodies で各段の読み手を確かめる。
+		hencl[hn] = ""
+		for (lv = 1; lv <= sp; lv++) if (stack[lv] == "SUB" || stack[lv] == "BT") hencl[hn] = hencl[hn] " " spos[lv]
 		addfull(substr(raw, i, j - i)); code = code " "
 		i = j - 1
 		return 1
@@ -236,7 +242,7 @@ split_segments() {
 		lend = i
 		p = i + 1
 		for (k = 1; k <= hn; k++) {
-			if (!heredoc_consumer_ok(hpos[k], lend)) { hn = 0; return }
+			if (!heredoc_consumer_ok(hpos[k], lend) || !heredoc_enclosing_ok(hencl[k])) { hn = 0; return }
 			body = ""; found = 0
 			while (p <= n) {
 				e = index(substr(raw, p), "\n")
@@ -272,6 +278,26 @@ split_segments() {
 		for (j = 2; j <= np; j++) if (parts[j] != "" && !heredoc_reader(parts[j])) return 0
 		return 1
 	}
+	# 外側のコマンド置換それぞれについて、置換の結果を受け取るコマンドが許可リストの読み手か、
+	# 変数への代入（`msg=$(cat <<EOF …)`）であること。`eval "$(cat <<EOF …)"` の `eval` を通さない。
+	function heredoc_enclosing_ok(list,    parts, np, j, b, ch, seg) {
+		np = split(list, parts, " ")
+		for (j = 1; j <= np; j++) {
+			if (parts[j] == "") continue
+			b = parts[j] - 1
+			while (b >= 1) {
+				ch = substr(raw, b, 1)
+				if (ch == "\n" && b > 1 && substr(raw, b - 1, 1) == "\\") { b -= 2; continue }
+				if (ch ~ /[|;&(`\n]/) break
+				b--
+			}
+			seg = substr(raw, b + 1, parts[j] - b - 1)
+			gsub(/["\047]/, "", seg)
+			if (seg ~ /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*=[[:space:]]*$/) continue
+			if (!heredoc_reader(seg)) return 0
+		}
+		return 1
+	}
 	# 本文をシェルとして実行しない読み手の許可リスト。先頭の代入（`GIT_EDITOR=true git …`）は読み飛ばす。
 	# 引用した語・パス付きの語・リストに無い語は本文をコードとして読む。
 	# インタプリタ（python3 / python / node）は、AGENTS.md が本文を quoted heredoc で渡す形を推奨しているので入れる
@@ -284,7 +310,7 @@ split_segments() {
 		sub(/[[:space:]].*/, "", t)
 		return (t == "cat" || t == "tee" || t == "git" || t == "gh" || t == "jq" || t == "python3" || t == "python" || t == "node")
 	}
-	function push(s) { sp++; stack[sp] = s }
+	function push(s) { sp++; stack[sp] = s; spos[sp] = i }
 	function pop() { if (sp > 0) sp-- }
 	function addfull(s) { full = full s; nfull = nfull s }
 	function collapse(t) { gsub(/\n/, " ", t); return t }
