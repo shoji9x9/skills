@@ -240,6 +240,11 @@ split_segments() {
 		# `foo.sh` のような語の一部は当てない（heredoc でシェルスクリプトを書く作業を止めない）。
 		ls = i
 		while (ls > 1 && substr(raw, ls - 1, 1) != "\n") ls--
+		# 行継続（行末の `\`）でつながった前の行も同じ論理行として見る（`bash \` の次の行に `<<EOF` がある形）。
+		while (ls > 2 && substr(raw, ls - 2, 1) == "\\") {
+			ls--
+			while (ls > 1 && substr(raw, ls - 1, 1) != "\n") ls--
+		}
 		if (substr(raw, ls, i - ls) ~ /(^|[[:space:]|;&(\/`])((ba|z|k|da|a)?sh|ssh|eval|source)([[:space:];|&)]|$)/ ||
 		    substr(raw, ls, i - ls) ~ /(^|[[:space:]|;&(`])\.[[:space:]]/) { hn = 0; return }
 		p = i + 1

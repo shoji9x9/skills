@@ -316,6 +316,7 @@ const HEREDOC_PASSING = [
   ],
   ["マーカーの後ろに続くコマンドが正当", "cat <<'EOF' > f.md && echo ok\nDon't pkill -f\nEOF"],
   ["シェルスクリプトを書き出す（語の一部の sh）", "cat > x.sh <<'EOF'\npkill -f chrome\nEOF"],
+  ["行継続の前の行がシェルでない", "cat \\\n  <<'EOF'\nDon't pkill -f\nEOF"],
 ];
 test.each(HEREDOC_PASSING)("ヒアドキュメントの本文はデータとして通す: %s", (_name, command) => {
   const r = guard(command);
@@ -330,6 +331,8 @@ const HEREDOC_BLOCKING = [
   ["本文をパイプでシェルへ渡す", "cat <<'EOF' | sh\npkill -f chrome\nEOF"],
   ["本文を ssh が読む", "ssh host <<EOF\npkill -f node\nEOF"],
   ["本文を . が読む", ". /dev/stdin <<'EOF'\npkill -f chrome\nEOF"],
+  // 行継続でシェルとマーカーが別の物理行に分かれても同じ論理行（PR #448 のレビュー。親版は止めていた）。
+  ["行継続の前の行でシェルが読む", "bash \\\n <<'EOF'\npkill -f chrome\nEOF"],
   ["非引用の区切り語で本文に $( )", "cat > f.md <<EOF\nout=$(pkill -f x)\nEOF"],
   ["非引用の区切り語で本文にバッククォート", "cat > f.md <<EOF\nout=`pkill -f x`\nEOF"],
   ["区切り語の行が無い", "cat <<'EOF'\npkill -f chrome"],
