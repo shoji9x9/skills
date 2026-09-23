@@ -955,12 +955,17 @@ function nonPlaywrightNames(
   // 名前で読める単純な型だけを根拠にする。修飾名（`pw.Locator`）・generic（`Readonly<Locator>`）・
   // 型演算子（`typeof page` / `import("…").Page`）・Page / Locator 以外の Playwright の型・型エイリアスは
   // 中身が Page / Locator でありうるので、確定の候補から外す（fail-closed）。
-  const noteAnnotation = (name, type, generic) => {
+  // 型名の後ろに型が続く形（union `Element | Locator`・intersection・配列 `Foo[]`・generic・条件型）も同じ。
+  // 先頭の型名だけを読むと、Locator を含む注釈を「Playwright 以外」と確定してしまう。
+  // 型名の直後が注釈の終わり（`,` / `)` / `=` / `;` / 末尾）のときだけ単純な型とみなす。
+  const TYPE_TERMINATORS = new Set(["", ",", ")", "=", ";"]);
+  const noteAnnotation = (name, type, next) => {
+    const composite = !TYPE_TERMINATORS.has(next);
     if (type === "Page" || type === "Locator") return;
     if (
       UNCHECKED_TYPES.has(type) ||
       type.includes(".") ||
-      generic ||
+      composite ||
       TYPE_OPERATORS.has(type) ||
       PLAYWRIGHT_TYPES.has(type) ||
       typeAliases.has(type)
@@ -985,10 +990,10 @@ function nonPlaywrightNames(
     if (!bindingList) continue;
     for (const param of splitTopLevel(code.slice(open + 1, close))) {
       const annotated = param.match(
-        /^\s*(?:\.\.\.)?\s*([A-Za-z_$][\w$]*)\s*\??\s*:\s*([A-Za-z_$][\w$.]*)(\s*<)?/,
+        /^\s*(?:\.\.\.)?\s*([A-Za-z_$][\w$]*)\s*\??\s*:\s*([A-Za-z_$][\w$.]*)\s*(\S?)/,
       );
       if (annotated !== null && !CONDITION_HEADS.has(annotated[1])) {
-        noteAnnotation(annotated[1], annotated[2], annotated[3] !== undefined);
+        noteAnnotation(annotated[1], annotated[2], annotated[3]);
       } else markUnknown(param);
     }
   }
@@ -1012,9 +1017,9 @@ function nonPlaywrightNames(
   }
   // 型注釈付きの宣言（`const x: Foo = …`）。
   for (const match of code.matchAll(
-    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$.]*)(\s*<)?/g,
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$.]*)\s*(\S?)/g,
   )) {
-    noteAnnotation(match[1], match[2], match[3] !== undefined);
+    noteAnnotation(match[1], match[2], match[3]);
   }
 
   /** 宣言ごとの右辺。2 つ以上ある名前は、全部が確定したときだけ確定にする。 */

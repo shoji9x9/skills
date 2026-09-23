@@ -64,7 +64,7 @@
 - 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`）・関数式・JSX、
   または Page から取り出した Page / Locator でないプロパティ（`page.clock`）
 - Page / Locator 以外の型注釈（`(e: Element)` / `const x: Foo = …`）。何でも代入できる `any` / `unknown` / `object`、
-  中身が Page / Locator でありうる修飾名（`pw.Locator`）・generic（`Readonly<Locator>`）・`typeof` / `import(…)`・
+  中身が Page / Locator でありうる修飾名（`pw.Locator`）・generic（`Readonly<Locator>`）・union / intersection / 配列（`Element | Locator` / `Foo[]`）・`typeof` / `import(…)`・
   Page / Locator 以外の Playwright の型（`Frame` 等）・同一ファイルの型エイリアスは根拠にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
 

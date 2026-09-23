@@ -36,7 +36,9 @@
         "Page から取り出した別の値は Page として束ねない",
         "generic なアロー関数を角括弧アサーションと読み違えない",
         "リテラル・算術を束ねた変数は判定不能にしない",
-        "純粋なプロパティ取り出しの免除は型アサーションで外れない"
+        "純粋なプロパティ取り出しの免除は型アサーションで外れない",
+        "Playwright 以外と確定した受け側は対象外に数える: 既定値付きの非 Playwright 型注釈の引数",
+        "Playwright 以外と確定した受け側は対象外に数える: 複数の引数の先頭が非 Playwright 型注釈"
       ]
     },
     {
@@ -82,7 +84,11 @@
         "束縛を読めない受け側は判定不能に数える: typeof で注釈した引数",
         "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した宣言",
         "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した引数",
-        "束縛を読めない受け側は判定不能に数える: 同一ファイルの型エイリアス"
+        "束縛を読めない受け側は判定不能に数える: 同一ファイルの型エイリアス",
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の引数",
+        "束縛を読めない受け側は判定不能に数える: intersection の引数",
+        "束縛を読めない受け側は判定不能に数える: 配列型の引数",
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の宣言"
       ]
     },
     {
@@ -158,7 +164,7 @@
       "id": "annotation-simple-only",
       "why": "修飾名・generic・型演算子・Page / Locator 以外の Playwright の型・型エイリアスの注釈も Playwright 以外の根拠にする",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      type.includes(\".\") ||\n      generic ||\n      TYPE_OPERATORS.has(type) ||\n      PLAYWRIGHT_TYPES.has(type) ||\n      typeAliases.has(type)\n",
+      "find": "      type.includes(\".\") ||\n      composite ||\n      TYPE_OPERATORS.has(type) ||\n      PLAYWRIGHT_TYPES.has(type) ||\n      typeAliases.has(type)\n",
       "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": [
@@ -168,7 +174,26 @@
         "束縛を読めない受け側は判定不能に数える: typeof で注釈した引数",
         "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した宣言",
         "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した引数",
-        "束縛を読めない受け側は判定不能に数える: 同一ファイルの型エイリアス"
+        "束縛を読めない受け側は判定不能に数える: 同一ファイルの型エイリアス",
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の引数",
+        "束縛を読めない受け側は判定不能に数える: intersection の引数",
+        "束縛を読めない受け側は判定不能に数える: 配列型の引数",
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の宣言"
+      ]
+    },
+    {
+      "id": "composite-type",
+      "why": "型名の後ろに型が続く注釈（union・intersection・配列・generic）を単純な型として読む（先頭の型名だけで確定する）",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": "    const composite = !TYPE_TERMINATORS.has(next);\n",
+      "replace": "    const composite = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の引数",
+        "束縛を読めない受け側は判定不能に数える: intersection の引数",
+        "束縛を読めない受け側は判定不能に数える: 配列型の引数",
+        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の宣言",
+        "束縛を読めない受け側は判定不能に数える: generic で包んだ Locator"
       ]
     },
     {

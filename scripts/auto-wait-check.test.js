@@ -990,6 +990,17 @@ const undecidableForms = [
     "Page / Locator 以外の Playwright の型",
     "function f(frame: Frame) { return frame.textContent('a'); }",
   ],
+  // 型名の後ろに型が続く形。先頭の型名だけを読むと Locator を含む注釈を確定してしまう（PR #448 のレビュー）。
+  [
+    "union の先頭が非 Playwright 型の引数",
+    'function f(x: Element | Locator) { if ("count" in x) return x.count(); }',
+  ],
+  ["intersection の引数", "function f(x: Element & Locator) { return x.count(); }"],
+  ["配列型の引数", "function f(xs: Element[]) { return xs.count(); }"],
+  [
+    "union の先頭が非 Playwright 型の宣言",
+    "function f(raw) { const x: Element | Locator = raw; return x.count(); }",
+  ],
   [
     "同一ファイルの型エイリアス",
     "type Row = Locator;\nfunction f(r: Row) { return r.textContent(); }",
@@ -1034,6 +1045,16 @@ const excludedForms = [
   [
     "非 Playwright の型注釈の宣言",
     "function f(raw) { const el: Element = raw; el.count(); }",
+    "spec.ts",
+  ],
+  [
+    "既定値付きの非 Playwright 型注釈の引数",
+    "function f(el: Element = raw) { return el.getAttribute('x'); }",
+    "spec.ts",
+  ],
+  [
+    "複数の引数の先頭が非 Playwright 型注釈",
+    "function f(el: Element, n) { return el.getAttribute('x'); }",
     "spec.ts",
   ],
   ["Promise.all", "await Promise.all([a(), b()]);", "spec.ts"],
