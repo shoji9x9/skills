@@ -26,6 +26,8 @@
 #   閉じたもの:
 #   - ヒアドキュメントの本文はデータとして読み飛ばす。本文が実行される形（同じ行に sh / bash / ssh / eval / source / . がある、
 #     区切り語を引用していない本文に $( ) / ` がある）と、区切り語の行が見つからないものは従来どおりコードとして読む。
+#   - 算術（`$(( ))` / `(( ))`）の中の `<<` は左シフトとして読み、ヒアドキュメントを開かない
+#     （後続の行が右辺と一致すると、間のコマンドを本文として飛ばしていた）。
 #   - awk の実装差: mawk 1.3.4 と BusyBox 1.35.0 の awk で回帰テストを実走して一致。gawk は未実測（手元に無い）。
 #
 #   閉じないもの（コストと失敗方向）:
@@ -36,8 +38,6 @@
 #   - 構造（リダイレクト・プロセス置換・case / 関数の本体）は解析しない。コード部分の部分一致で拾うので、xargs / env /
 #     timeout / find -exec / case / 関数 / プロセス置換の中の実行は止まる。一方、引用していないリダイレクト先の
 #     ファイル名に危険語が入ると誤検知になる（稀）。
-#   - 算術展開の `<<`（`$(( 1 << 2 ))`）はヒアドキュメントと区別しない。区切り語の行が見つからなければ
-#     本文をコードとして読むので、安全側に倒れる。
 #
 # 終了コード: 0=通す / 2=ブロック（Claude Code / Codex は exit 2 だけがブロック）。
 set -euo pipefail
@@ -138,7 +138,7 @@ split_segments() {
 		for (i = 1; i <= n; i++) {
 			c = substr(raw, i, 1); nx = substr(raw, i + 1, 1)
 			cur = stack[sp]
-			if (cur == "CODE" || cur == "SUB" || cur == "BT") {
+			if (cur == "CODE" || cur == "SUB" || cur == "BT" || cur == "ARITH") {
 				if (c == "\\") { addfull(nx); code = code nx; i++; continue }
 				if (c == "\047") { push("SQ"); addfull(c); continue }
 				if (c == "\"") { push("DQ"); addfull(c); continue }
@@ -147,12 +147,23 @@ split_segments() {
 					if (cur == "BT") pop(); else push("BT")
 					continue
 				}
+				# 算術（`$(( ))` / `(( ))`）の中はコードだが、`<<` は左シフトでヒアドキュメントではない。
+				# 区別しないと、後続の行が右辺と一致したときに間のコマンドを本文として飛ばす（`$(( 1 << 2 ))` の後の行が `2`）。
+				# 中の括弧は深さで数え、深さ 0 の `))` で閉じる。サブシェルの入れ子 `((cmd))` を算術と誤っても、
+				# 中でヒアドキュメントを読まなくなるだけ（本文をコードとして読む＝安全側）。
+				if (cur == "ARITH") {
+					if (c == "(") { adepth[sp]++; addfull(c); code = code c; continue }
+					if (c == ")" && adepth[sp] > 0) { adepth[sp]--; addfull(c); code = code c; continue }
+					if (c == ")" && nx == ")") { pop(); addfull("))"); code = code " "; i++; continue }
+				}
+				if (c == "$" && nx == "(" && substr(raw, i + 2, 1) == "(") { push("ARITH"); adepth[sp] = 0; addfull("$(("); code = code " "; i += 2; continue }
+				if (c == "(" && nx == "(") { push("ARITH"); adepth[sp] = 0; addfull("(("); code = code " "; i++; continue }
 				if (c == "$" && nx == "(") { push("SUB"); addfull(c); addfull("("); code = code " "; i++; continue }
 				if (c == ")" && cur == "SUB") { pop(); addfull(c); code = code " "; continue }
 				# ヒアドキュメントの開始。区切り語を控えておき、この行の改行で本文を読み飛ばす。
 				# ヒアストリング `<<<` は 3 文字まとめて進める——1 文字目で見送るだけだと、
 				# 2 文字目からの `<<` を区切り語付きのヒアドキュメントと読み、後続の行をデータとして飛ばす。
-				if (c == "<" && nx == "<") {
+				if (c == "<" && nx == "<" && cur != "ARITH") {
 					if (substr(raw, i + 2, 1) == "<") { addfull("<<<"); code = code "<<<"; i += 2; continue }
 					if (heredoc_open()) continue
 				}
@@ -175,6 +186,7 @@ split_segments() {
 				addfull(c)
 				if (c == "\\") { addfull(nx); i++; continue }
 				if (c == "\"") { pop(); continue }
+				if (c == "$" && nx == "(" && substr(raw, i + 2, 1) == "(") { push("ARITH"); adepth[sp] = 0; addfull("(("); code = code " "; i += 2; continue }
 				if (c == "$" && nx == "(") { push("SUB"); addfull("("); code = code " "; i++; continue }
 				if (c == "`") { push("BT"); code = code " "; continue }
 				continue

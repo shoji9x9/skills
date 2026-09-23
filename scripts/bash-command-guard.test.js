@@ -374,8 +374,23 @@ test("意図的な穴（誤検知側）: 引用していないリダイレクト
   expect(guard("echo hi > pkill-f.log").status).toBe(2);
 });
 
-test("算術展開の << を区切り語と読んでも、区切り語の行が無ければ後続をコードとして読む", () => {
-  expect(guard("echo $(( 1 << 2 ))\npkill -f chrome").status).toBe(2);
+// 算術の中の `<<` は左シフト。ヒアドキュメントと読むと、後続の行が右辺と一致したときに
+// 間のコマンドを本文として飛ばす（PR #448 のレビュー。親版は止めていた）。
+test.each([
+  ["$(( )) の後", "echo $(( 1 << 2 ))\npkill -f chrome\n2"],
+  ["(( )) の後", "(( x = 1 << 2 ))\npkill -f chrome\n2"],
+  ["二重引用符の中の $(( ))", 'echo "$(( 1 << 2 ))"\npkill -f chrome\n2'],
+  ["括弧を含む算術", "echo $(( (1 << 2) + 1 ))\npkill -f chrome\n2"],
+  ["右辺が変数", "echo $(( x << y ))\npkill -f chrome\ny"],
+  // 内側の括弧を深さで数えないと、`((1 << 2))` の閉じを算術の閉じと読んで残りをコードに戻す。
+  ["入れ子の括弧を含む算術", "echo $(( ((1 << 2)) + (3 << 4) ))\npkill -f chrome\n4"],
+])("算術の << をヒアドキュメントと読まない（%s）", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+test("算術を閉じた後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("x=$(( 1 << 2 ))\ncat <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
 });
 
 // --- 入力の退化形 ---
