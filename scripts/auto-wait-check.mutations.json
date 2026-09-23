@@ -48,14 +48,17 @@
         "Playwright 以外の根拠にしない形は判定不能: DOM 型の注釈の宣言",
         "Playwright 以外の根拠にしない形は判定不能: DOM 型の注釈の引数",
         "Playwright 以外の根拠にしない形は判定不能: Object.assign で入れたプロパティを括弧で束ね直す",
+        "Playwright 以外の根拠にしない形は判定不能: Object.assign で書き込んだ組み込み",
         "Playwright 以外の根拠にしない形は判定不能: Page から取り出した値のプロパティを辿る",
         "Playwright 以外の根拠にしない形は判定不能: Page の任意のプロパティ",
         "Playwright 以外の根拠にしない形は判定不能: generic なアロー関数",
         "Playwright 以外の根拠にしない形は判定不能: アロー関数",
         "Playwright 以外の根拠にしない形は判定不能: プリミティブ型の注釈",
+        "Playwright 以外の根拠にしない形は判定不能: 代入した組み込みのプロパティ",
         "Playwright 以外の根拠にしない形は判定不能: 代入し直した Page API の名前",
         "Playwright 以外の根拠にしない形は判定不能: 代入の無い確定した名前でもプロパティは辿らない",
         "Playwright 以外の根拠にしない形は判定不能: 本体の起点が組み込みだけの関数値",
+        "Playwright 以外の根拠にしない形は判定不能: 添字で代入した組み込みのプロパティ",
         "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを括弧で束ね直す",
         "Playwright 以外の根拠にしない形は判定不能: 確定した名前のプロパティを辿る",
         "`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない",
@@ -236,21 +239,6 @@
       ]
     },
     {
-      "id": "builtin",
-      "why": "標準の組み込みを確定の根拠にしない",
-      "find": "    if (candidate(name) && !declarations.has(name)) {\n",
-      "replace": "    if (false) {\n",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI は Playwright 以外と確定した件数を出力する",
-        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
-        "Playwright 以外と確定した受け側は対象外に数える: console.count",
-        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
-        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
-      ]
-    },
-    {
       "id": "chain-length",
       "why": "確定した名前から辿ったプロパティも対象外に数える（後から Locator を代入できる）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -302,6 +290,34 @@
       "replace": "        true\n",
       "occurrences": 1,
       "expect_failing": ["Playwright 以外の根拠にしない形は判定不能: 代入し直した Page API の名前"]
+    },
+    {
+      "id": "mutated-builtin",
+      "why": "同じファイルで書き込んだ組み込みも根拠にする（window.row = page.locator(…) が確定に化ける）",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "find": " && !mutatedBuiltins.has(name)) {",
+      "replace": ") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "Playwright 以外の根拠にしない形は判定不能: Object.assign で書き込んだ組み込み",
+        "Playwright 以外の根拠にしない形は判定不能: 代入した組み込みのプロパティ",
+        "Playwright 以外の根拠にしない形は判定不能: 添字で代入した組み込みのプロパティ"
+      ]
+    },
+    {
+      "id": "builtin",
+      "why": "標準の組み込みを確定の根拠にしない",
+      "find": "    if (candidate(name) && !declarations.has(name) && !mutatedBuiltins.has(name)) {\n",
+      "replace": "    if (false) {\n",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は Playwright 以外と確定した件数を出力する",
+        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
+        "Playwright 以外と確定した受け側は対象外に数える: console.count",
+        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
+        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
+      ]
     }
   ]
 }

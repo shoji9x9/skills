@@ -1094,6 +1094,16 @@ const notEvidenceForms = [
   ["DOM 型の注釈の引数", "function f(el: Element) { return el.getAttribute('x'); }"],
   ["DOM 型の注釈の宣言", "function f(raw) { const el: Element = raw; el.count(); }"],
   ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }"],
+  // 組み込みもプロパティへ代入できる（PR #448 のレビュー）。
+  ["代入した組み込みのプロパティ", "window.row = page.locator('tr'); window.row.count();"],
+  [
+    "添字で代入した組み込みのプロパティ",
+    "document['row'] = page.locator('tr'); document.row.count();",
+  ],
+  [
+    "Object.assign で書き込んだ組み込み",
+    "Object.assign(window, { row: page.locator('tr') }); window.row.count();",
+  ],
   // Page から取り出すプロパティは Page API の既知の名前に限る（任意の名前には後から Locator を代入できる。PR #448 のレビュー）。
   [
     "Page の任意のプロパティ",

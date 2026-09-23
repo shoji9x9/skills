@@ -1069,8 +1069,20 @@ function nonPlaywrightNames(
     );
   };
 
+  // 組み込みもプロパティへ代入できる（`window.row = page.locator(…)` / `Object.assign(window, …)`）。
+  // 同じファイルで書き込んでいる組み込みは根拠にしない（辿った先に Locator が入りうる）。
+  const mutatedBuiltins = new Set(
+    [
+      ...code.matchAll(
+        /(?<![\w$.])([A-Za-z_$][\w$]*)\s*(?:\??\.\s*[A-Za-z_$][\w$]*|\[[^\]]*\])+\s*(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])/g,
+      ),
+      ...code.matchAll(
+        /\b(?:assign|defineProperty|defineProperties|set)\s*\(\s*([A-Za-z_$][\w$]*)/g,
+      ),
+    ].map((match) => match[1]),
+  );
   for (const name of BUILTIN_NON_RECEIVERS) {
-    if (candidate(name) && !declarations.has(name)) {
+    if (candidate(name) && !declarations.has(name) && !mutatedBuiltins.has(name)) {
       nonReceivers.add(name);
     }
   }

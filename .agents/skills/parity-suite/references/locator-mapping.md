@@ -65,7 +65,7 @@
   呼び出し・添字・括弧を含まない）・閉じた JSX 要素、または Page から取り出した Page API の既知のプロパティ（`clock` / `keyboard` / `mouse` / `touchscreen` / `request` / `coverage` / `accessibility`。同じファイルで代入し直した名前は除く）。
   対象外に数えるのはその名前そのもの（`x.count()`）だけで、プロパティを辿った先（`x.row.count()`）は後から Locator を
   代入できるので確定にしない
-- 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
+- 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）。同じファイルでプロパティへ書き込んだ組み込み（`window.row = …` / `Object.assign(window, …)`）は除く
 
 **型注釈と関数値は根拠にしない。** 型名の中身はファイルの外にありうる（import した型エイリアス・型引数・構造的な interface）、
 関数値は呼び出し・タグ付きテンプレートの戻り値と見分けられない。そのため `(e: Element) => e.getAttribute(…)` のような
