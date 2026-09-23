@@ -358,6 +358,16 @@ const HEREDOC_READER_BLOCKING = [
   ["eval が受け取るコマンド置換", "eval \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
   ["bash -c が受け取るコマンド置換", "bash -c \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
   ["eval が受け取るバッククォート", "eval `cat <<'EOF'\npkill -f chrome\nEOF\n`"],
+  // 同じ呼び出しで読み手の名前が実体を表さなくなる形（PR #448 のレビュー。親版は止めていた）。
+  ["関数として定義し直した読み手", "cat() { bash; }; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["function で定義し直した読み手", "function cat { bash; }; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["alias で差し替えた読み手", "alias cat=bash; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["PATH を差し替えた読み手", "PATH=/tmp/evil cat <<'EOF'\npkill -f chrome\nEOF"],
+  [
+    "PATH を export した後の読み手",
+    "export PATH=/tmp/evil:$PATH; cat <<'EOF'\npkill -f chrome\nEOF",
+  ],
+  ["hash で差し替えた読み手", "hash -p /tmp/evil cat; cat <<'EOF'\npkill -f chrome\nEOF"],
   // プロセス置換は読み手の出力を別のコマンドへ渡す（PR #448 のレビュー。親版は止めていた）。
   ["出力のプロセス置換", "cat <<'EOF' > >(bash)\npkill -f chrome\nEOF"],
   ["tee のプロセス置換", "tee >(sh) <<'EOF'\npkill -f chrome\nEOF"],

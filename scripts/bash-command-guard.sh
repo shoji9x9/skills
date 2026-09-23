@@ -28,6 +28,7 @@
 #     （cat / tee / git / gh / jq / python3 / python / node）のときだけデータとして読み飛ばす。それ以外の読み手、
 #     区切り語を引用していない本文に $( ) / ` がある形、区切り語の行が見つからない形は従来どおりコードとして読む。
 #     本文を実行するシェルを列挙する形にしない（引用・パス・行継続・env 経由と書き方が尽きず、漏れた形で退行する）。
+#     同じ呼び出しで読み手の名前を定義し直す（関数・alias）か、探索先を変える（PATH= / hash）形では許可リストを使わない。
 #     読み手がコマンド置換の中にあるときは、置換の結果を受け取る外側のコマンドも許可リストか代入（`msg=$(cat <<EOF …)`）
 #     であることを確かめる（`eval "$(cat <<EOF …)"` は本文を実行する）。
 #   - パラメータ展開（`cat ${x:-<<EOF;}`）の中の `<<` はヒアドキュメントを開かない（読み手が許可リストでも
@@ -137,6 +138,10 @@ split_segments() {
 	{ buf = buf $0 "\n" }
 	END {
 		raw = buf; sub(/\n$/, "", raw); n = length(raw)
+		# 同じ呼び出しで許可リストの名前を関数・alias として定義し直した形（`cat() { bash; }`）や、
+		# コマンドの探索先を変える形（`PATH=…` / `hash -p`）では、読み手の名前が実体を表さない。
+		# その呼び出しでは読み手の許可リストを使わない（本文をコードとして読む＝親版と同じ）。
+		reader_trusted = (raw !~ /(^|[^A-Za-z0-9_])PATH[[:space:]]*\+?=/ && raw !~ /(^|[^A-Za-z0-9_-])hash[[:space:]]/ && raw !~ /(^|[^A-Za-z0-9_-])(alias|function)[[:space:]]/ && raw !~ /(^|[^A-Za-z0-9_.-])(cat|tee|git|gh|jq|python3|python|node)[[:space:]]*\([[:space:]]*\)/)
 		# 文脈は**スタック**で持つ。単一の変数で「戻り先」を覚えると、入れ子
 		# （"$(dirname "$0")/x" のような日常的な形）で内側が外側の戻り先を壊し、
 		# 閉じたのに閉じていない扱いになる。
@@ -308,7 +313,7 @@ split_segments() {
 		while (s ~ /^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/) sub(/^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/, "", s)
 		t = s
 		sub(/[[:space:]].*/, "", t)
-		return (t == "cat" || t == "tee" || t == "git" || t == "gh" || t == "jq" || t == "python3" || t == "python" || t == "node")
+		return reader_trusted && (t == "cat" || t == "tee" || t == "git" || t == "gh" || t == "jq" || t == "python3" || t == "python" || t == "node")
 	}
 	function push(s) { sp++; stack[sp] = s; spos[sp] = i }
 	function pop() { if (sp > 0) sp-- }
