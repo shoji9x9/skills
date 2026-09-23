@@ -1,0 +1,12 @@
+{
+  "instance": "users-create",
+  "results": [
+    {
+      "operation": "click-submit",
+      "observed": {
+        "submitted": true,
+        "page_errors": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "component": "button",
+  "target": "local-dev",
+  "rows": [
+    {
+      "operation": "click-submit",
+      "instance": "orders-search",
+      "story": "components-button--orders-search-default",
+      "observed": {
+        "submitted": true,
+        "page_errors": 0
+      }
+    },
+    {
+      "operation": "click-submit",
+      "instance": "users-create",
+      "story": "components-button--users-create-default",
+      "observed": {
+        "submitted": true,
+        "page_errors": 0
+      }
+    }
+  ]
+}

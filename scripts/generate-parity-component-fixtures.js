@@ -127,6 +127,24 @@ const INSTANCES = [
 ];
 const STATES = ["default", "hover", "active", "disabled"];
 
+// 操作の結果（Issue #446）。build の前提は全インスタンスの baseline/<instance>/behaviors.json を要求するので、
+// 無いと build 系の eval が前提判定で止まり、目的の分岐（カタログ未整備・カスケードの競合・破壊的変更）へ届かない。
+// 流し込むページはフォームを持たず押しても何も起きないため、結果はブラウザで採らず fixture の前提として固定する
+// （VIEWER_ENVIRONMENT と同じ扱い）。形は behavior-compare.mjs の基準側の検査を通ること（parity-component-fixtures.test.js）。
+const OPERATIONS = [
+  {
+    id: "click-submit",
+    description: "既定の状態のボタンを押す",
+    steps: "ボタン（role=button ＋アクセシブルネーム）をクリックする",
+    observe: ["submitted", "page_errors"],
+  },
+];
+const OPERATION_SOURCE = "app-ui";
+const behaviorsOf = (instanceId) => ({
+  instance: instanceId,
+  results: [{ operation: "click-submit", observed: { submitted: true, page_errors: 0 } }],
+});
+
 // 採取物の組。同じ採取を複数の fixture へ書くものと、別のページから採るものを分ける。
 const VARIANTS = [
   { pages: PAGES, fixtures: ["catalog-unset", "breaking-change-request"].map(fixtureDir) },
@@ -424,10 +442,16 @@ try {
         writeFileSync(join(base, "element.png"), png);
         writeJson(join(base, "element.shot.json"), shotRecord);
       }
+      for (const instance of INSTANCES) {
+        writeJson(join(dir, "baseline", instance.id, "behaviors.json"), behaviorsOf(instance.id));
+      }
 
       const metaPath = join(dir, "metadata.json");
       const meta = JSON.parse(readFileSync(metaPath, "utf8"));
       meta.capture.states = STATES;
+      meta.capture.operations = OPERATIONS;
+      meta.capture.operation_source = OPERATION_SOURCE;
+      meta.capture.operations_none_reason = null;
       meta.capture.tools = {
         ...meta.capture.tools,
         traits_version: traitCapture.VERSION,

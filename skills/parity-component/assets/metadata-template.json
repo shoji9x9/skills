@@ -23,6 +23,18 @@
       "<採った状態名（default / hover / active / focus / disabled / checked 等）。全インスタンスで同じ集合にする>"
     ],
     "state_source": "<状態の導出源（component-catalog | vendor-spec | current-source | app-ui）。資料は列挙の生成源であって比較の正解ではない>",
+    "operations": [
+      {
+        "id": "<操作 id（一意。例: corner-click / select-all-then-uncheck-one / export-excel）>",
+        "description": "<何をする操作か（1 文）>",
+        "steps": "<見本でも同じに再生できる手順。部品の中の論理名（role ＋アクセシブルネーム）で書き、ページ固有の要素に頼らない。各操作は同じ初期状態から始める>",
+        "observe": [
+          "<観測項目名（例: selection / checked_rows / row_order / open_popup / download / page_errors）。操作の結果を表す状態の値で、画素ではない。空にしない>"
+        ]
+      }
+    ],
+    "operation_source": "<操作の導出源（vendor-feature-list | component-catalog | current-source | app-ui）。資料は列挙の生成源であって比較の正解ではない（parity-suite の references/coverage.md「状態網羅の導出源」と同じ規律）>",
+    "operations_none_reason": "<操作を持たない部品（静的な表示だけ等）のときだけ理由を書き operations を空配列にする。それ以外は null>",
     "auth_roles": [
       "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の正本は parity-suite の references/auth.md>"
     ],
@@ -54,6 +66,12 @@
         {
           "state": "<このインスタンスでは到達できない状態名>",
           "reason": "<到達できない理由（例: この画面では常に活性）。同じ内容を gaps.md にも残す>"
+        }
+      ],
+      "unreachable_operations": [
+        {
+          "operation": "<このインスタンスでは実施できない操作 id>",
+          "reason": "<実施できない理由（例: 選択した target の forbidden_actions が書き込みを禁じる）。同じ内容を gaps.md にも残す>"
         }
       ],
       "ua_defaults": [
