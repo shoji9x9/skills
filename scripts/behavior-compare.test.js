@@ -323,9 +323,13 @@ test("CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと e
 test("CLI: 引数の欠落・空白だけの target は exit 2", () => {
   const dir = baselineDir();
   const writes = [];
-  const write = (s) => writes.push(s);
-  expect(main(["--baseline", dir, "--target", "preview"], { write })).toBe(2);
-  expect(main(["--baseline", dir, "--comparison", "x.json", "--target", " "], { write })).toBe(2);
+  const errors = [];
+  const io = { write: (s) => writes.push(s), writeErr: (s) => errors.push(s) };
+  expect(main(["--baseline", dir, "--target", "preview"], io)).toBe(2);
+  expect(main(["--baseline", dir, "--comparison", "x.json", "--target", " "], io)).toBe(2);
+  // 引数の誤りは stdout の JSON に混ぜず、usage 付きで stderr へ出す。
+  expect(writes).toEqual([]);
+  expect(errors.join("")).toMatch(/^usage: behavior-compare\.mjs /m);
 });
 
 test("baseline の外を指す behaviors.json は読まない", () => {

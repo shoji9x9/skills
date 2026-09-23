@@ -472,11 +472,21 @@ export function loadBaseline(dir) {
  * @param {{ cwd?: string, write?: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(argv, { cwd = process.cwd(), write = (s) => process.stdout.write(s) } = {}) {
+export function main(
+  argv,
+  {
+    cwd = process.cwd(),
+    write = (s) => process.stdout.write(s),
+    writeErr = (s) => process.stderr.write(s),
+  } = {},
+) {
   const out = (obj) =>
     write(`${JSON.stringify({ tool: "behavior-compare", version: VERSION, ...obj }, null, 2)}\n`);
+  const usage =
+    "usage: behavior-compare.mjs --baseline <部品の成果物ディレクトリ> --comparison <new/<target>/behavior-comparison.json> --target <name>";
+  // 引数・入力の誤りは判定結果ではないので stdout の JSON に混ぜず stderr へ知らせる（同梱スクリプト共通の CLI 規約）。
   const fail = (message) => {
-    out({ ok: false, structural: true, error: message });
+    writeErr(`error: ${message}\n${usage}\n`);
     return 2;
   };
   /** @type {Record<string, string>} */
