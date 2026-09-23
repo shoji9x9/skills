@@ -1,0 +1,187 @@
+{
+  "$comment": [
+    "bash-command-guard.test.js のうち、判定行（ヒアドキュメントの本文・シェル委譲・文字クラスの免除・行コメント・引用内のコマンド置換）の検出能力を示す変異の一覧（Issue #423）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/bash-command-guard.test.js",
+  "mutations": [
+    {
+      "id": "heredoc-open",
+      "why": "ヒアドキュメントの開始を読まない（本文を従来どおりコードとして切る）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (heredoc_open()) continue",
+      "replace": "if (0) continue",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントの本文はデータとして通す: 1 行に 2 つのヒアドキュメント",
+        "ヒアドキュメントの本文はデータとして通す: <<- はタブを剥いだ区切り語で閉じる",
+        "ヒアドキュメントの本文はデータとして通す: コマンド置換の中のヒアドキュメント",
+        "ヒアドキュメントの本文はデータとして通す: シェルスクリプトを書き出す（語の一部の sh）",
+        "ヒアドキュメントの本文はデータとして通す: バックスラッシュの区切り語",
+        "ヒアドキュメントの本文はデータとして通す: マーカーの後ろに続くコマンドが正当",
+        "ヒアドキュメントの本文はデータとして通す: 二重引用符の区切り語",
+        "ヒアドキュメントの本文はデータとして通す: 引用した区切り語の本文にアポストロフィ",
+        "ヒアドキュメントの本文はデータとして通す: 引用した区切り語の本文の $( ) は実行されない",
+        "ヒアドキュメントの本文はデータとして通す: 本文の gh api の文章",
+        "ヒアドキュメントの本文はデータとして通す: 非引用の区切り語で置換の無い本文"
+      ]
+    },
+    {
+      "id": "heredoc-bodies",
+      "why": "改行で本文を読み飛ばさない",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (hn > 0) heredoc_bodies();",
+      "replace": "if (0) heredoc_bodies();",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントの本文はデータとして通す: 1 行に 2 つのヒアドキュメント",
+        "ヒアドキュメントの本文はデータとして通す: <<- はタブを剥いだ区切り語で閉じる",
+        "ヒアドキュメントの本文はデータとして通す: コマンド置換の中のヒアドキュメント",
+        "ヒアドキュメントの本文はデータとして通す: シェルスクリプトを書き出す（語の一部の sh）",
+        "ヒアドキュメントの本文はデータとして通す: バックスラッシュの区切り語",
+        "ヒアドキュメントの本文はデータとして通す: マーカーの後ろに続くコマンドが正当",
+        "ヒアドキュメントの本文はデータとして通す: 二重引用符の区切り語",
+        "ヒアドキュメントの本文はデータとして通す: 引用した区切り語の本文にアポストロフィ",
+        "ヒアドキュメントの本文はデータとして通す: 引用した区切り語の本文の $( ) は実行されない",
+        "ヒアドキュメントの本文はデータとして通す: 本文の gh api の文章",
+        "ヒアドキュメントの本文はデータとして通す: 非引用の区切り語で置換の無い本文"
+      ]
+    },
+    {
+      "id": "shell-reader",
+      "why": "本文をシェル（sh / bash / ssh / eval / source / .）が読む行でも本文を読み飛ばす（実行される本文を見逃す）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "\\.[[:space:]]/) { hn = 0; return }",
+      "replace": "\\.[[:space:]]/) { }",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントでも実行される形は止める: 本文を . が読む",
+        "ヒアドキュメントでも実行される形は止める: 本文を ssh が読む",
+        "ヒアドキュメントでも実行される形は止める: 本文をシェルが読む",
+        "ヒアドキュメントでも実行される形は止める: 本文をパイプでシェルへ渡す"
+      ]
+    },
+    {
+      "id": "unquoted-substitution",
+      "why": "区切り語を引用していない本文の $( ) / ` も読み飛ばす（実行される置換を見逃す）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (!hquoted[k] && (index(body, \"$(\") || index(body, \"`\"))) { hn = 0; return }",
+      "replace": "if (0) { hn = 0; return }",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントでも実行される形は止める: 非引用の区切り語で本文に $( )",
+        "ヒアドキュメントでも実行される形は止める: 非引用の区切り語で本文にバッククォート"
+      ]
+    },
+    {
+      "id": "tab-strip",
+      "why": "<<- でも区切り語の行のタブを剥がない",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (hstrip[k]) sub(/^\\t+/, \"\", line)",
+      "replace": "if (0) sub(/^\\t+/, \"\", line)",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントの本文はデータとして通す: <<- はタブを剥いだ区切り語で閉じる"
+      ]
+    },
+    {
+      "id": "terminator-missing",
+      "why": "区切り語の行が無いときも末尾まで読み飛ばす",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (!found) { hn = 0; return }",
+      "replace": "if (0) { hn = 0; return }",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントでも実行される形は止める: << の区切り語はタブ付きでは閉じない",
+        "ヒアドキュメントでも実行される形は止める: 区切り語の行が無い",
+        "算術展開の << を区切り語と読んでも、区切り語の行が無ければ後続をコードとして読む"
+      ]
+    },
+    {
+      "id": "after-terminator",
+      "why": "区切り語の行の後も読み飛ばし続ける（後続のコマンドを見逃す）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "\t\t\ti = p - 1\n",
+      "replace": "\t\t\ti = n\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントでも実行される形は止める: gh api の本文の後の gh api",
+        "ヒアドキュメントでも実行される形は止める: 区切り語の行の次のコマンド",
+        "ヒアドキュメントの本文はデータとして通す: コマンド置換の中のヒアドキュメント"
+      ]
+    },
+    {
+      "id": "delegate",
+      "why": "シェル委譲を検出しない（sh -c / ssh / eval の引数を引用のデータとして扱う）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if [[ ${seg_code} =~ ${delegate_re} ]]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "オプションを束ねたシェル委譲（bash -lc）も検査する",
+        "オプションを束ねたシェル委譲（sh -xc）も検査する",
+        "シェルへ委譲した bash -c の中身も検査する",
+        "シェルへ委譲した sh -c（gh api 側） の中身も検査する",
+        "シェルへ委譲した ssh の中身も検査する",
+        "意図的な穴（誤検知側）: シェル委譲のセグメントは位置引数の文字列もコードとして扱う"
+      ]
+    },
+    {
+      "id": "class-escape",
+      "why": "1 文字の文字クラスで自分を避けた pkill -f も止める",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if [[ ${scan} =~ ${class_escape_re} ]]; then",
+      "replace": "if false; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "変数展開と併用した文字クラスは免除する",
+        "陰性コントロール: 任意文字の後の文字クラスは通す",
+        "陰性コントロール: 文字クラスで自分を避けた pkill は通す",
+        "陰性コントロール: 正規表現の途中に置いた文字クラスは通す",
+        "陰性コントロール: 行頭アンカーの後の文字クラスは通す",
+        "陰性コントロール: 語中に置いた文字クラスは通す"
+      ]
+    },
+    {
+      "id": "line-comment",
+      "why": "行コメントをデータとして扱わない",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (c == \"#\" && (code == \"\" ||",
+      "replace": "if (0 && c == \"#\" && (code == \"\" ||",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性コントロール: eval の行コメントでも発動しない",
+        "陰性コントロール: コマンド置換を閉じた後はコード文脈へ戻る",
+        "陰性コントロール: 委譲コマンドの行コメントでは発動しない",
+        "陰性コントロール: 行コメントの注意書きでは発動しない"
+      ]
+    },
+    {
+      "id": "dq-substitution",
+      "why": "二重引用符の中のコマンド置換をコードとして拾わない",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (c == \"$\" && nx == \"(\") { push(\"SUB\"); addfull(\"(\"); code = code \" \"; i++; continue }",
+      "replace": "if (0) { push(\"SUB\"); addfull(\"(\"); code = code \" \"; i++; continue }",
+      "occurrences": 1,
+      "expect_failing": [
+        "コマンド位置の gh api を 引用値に 2 つ目のコマンド置換 でも止める",
+        "コマンド位置の gh api を 引用値の途中のコマンド置換 でも止める",
+        "コマンド位置の gh api を 引用符付きコマンド置換の中 でも止める",
+        "コマンド置換の中の引用された ) で早く閉じない",
+        "ブロックメッセージは打っていないコマンドを引用しない（引用符の中のコマンド置換）"
+      ]
+    },
+    {
+      "id": "herestring",
+      "why": "ヒアストリング <<< を 3 文字まとめて進めない（2 文字目からを区切り語付きのヒアドキュメントと読む）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (substr(raw, i + 2, 1) == \"<\") { addfull(\"<<<\"); code = code \"<<<\"; i += 2; continue }",
+      "replace": "if (0) { addfull(\"<<<\"); code = code \"<<<\"; i += 2; continue }",
+      "occurrences": 1,
+      "expect_failing": [
+        "ヒアドキュメントでも実行される形は止める: ヒアストリングの語と同じ行が後にある"
+      ]
+    }
+  ]
+}
