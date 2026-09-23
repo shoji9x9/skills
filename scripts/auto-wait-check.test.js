@@ -990,6 +990,20 @@ const undecidableForms = [
     "Page / Locator 以外の Playwright の型",
     "function f(frame: Frame) { return frame.textContent('a'); }",
   ],
+  // 型名の中身がファイルの外にありうる形。許可リスト外の名前は根拠にしない（PR #448 のレビュー）。
+  [
+    "import した型エイリアスで注釈した引数",
+    'import type { Row } from "./mapping";\nfunction f(row: Row) { return row.count(); }',
+  ],
+  ["同一ファイルで宣言していない型名", "function f(x: Countable) { return x.count(); }"],
+  [
+    "許可リストの名前を同じファイルで型エイリアスにし直したもの",
+    "type Element = Locator;\nfunction f(el: Element) { return el.count(); }",
+  ],
+  [
+    "許可リストの名前を import し直したもの",
+    'import type { Element } from "./mapping";\nfunction f(el: Element) { return el.count(); }',
+  ],
   // 型名の後ろに型が続く形。先頭の型名だけを読むと Locator を含む注釈を確定してしまう（PR #448 のレビュー）。
   [
     "union の先頭が非 Playwright 型の引数",
@@ -1057,6 +1071,12 @@ const excludedForms = [
     "function f(el: Element, n) { return el.getAttribute('x'); }",
     "spec.ts",
   ],
+  [
+    "DOM の要素型の注釈",
+    "function f(el: HTMLInputElement) { return el.getAttribute('x'); }",
+    "spec.ts",
+  ],
+  ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }", "spec.ts"],
   ["Promise.all", "await Promise.all([a(), b()]);", "spec.ts"],
   ["console.count", "console.count('x');", "spec.ts"],
   ["document の中の DOM", "document.body.getAttribute('x');", "spec.ts"],

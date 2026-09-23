@@ -526,23 +526,34 @@ const VALUE_KEYWORDS = new Set([
   "new",
   "await",
 ]);
-/** 型注釈でも「Playwright 以外」の根拠にならない型（何でも代入できる）。 */
-const UNCHECKED_TYPES = new Set(["any", "unknown", "object", "Object"]);
 /**
- * Page / Locator 以外の Playwright の型。禁止 API と同名のメソッドを持つ（`Frame.textContent` /
- * `Frame.waitForTimeout` 等）ので、注釈されても「Playwright 以外」の根拠にならない。
+ * 型注釈で「Playwright 以外」の根拠にしてよい型（閉じた許可リスト）。プリミティブ・標準の組み込み・DOM に限る。
+ * **許可リストにする理由**: 型名の中身はファイルの外にありうる（import した型エイリアス `type Row = Locator`、
+ * ambient 宣言、構造的な interface に Locator が代入できる形）。同一ファイルからは確かめられないので、
+ * 「Page / Locator でない名前」を根拠にすると、それらが「確定」に化けて違反が消える（PR #448 のレビュー）。
+ * `any` / `unknown` / 修飾名 / 型演算子 / Frame 等の Playwright の型も、リストに無いので根拠にならない。
  */
-const PLAYWRIGHT_TYPES = new Set([
-  "Frame",
-  "FrameLocator",
-  "ElementHandle",
-  "JSHandle",
-  "Worker",
-  "BrowserContext",
-  "Browser",
+const NON_PLAYWRIGHT_TYPES = new Set([
+  "string",
+  "number",
+  "boolean",
+  "bigint",
+  "symbol",
+  "null",
+  "undefined",
+  "void",
+  "never",
+  "Date",
+  "RegExp",
+  "Error",
+  "Element",
+  "Node",
+  "Document",
+  "Window",
+  "Event",
 ]);
-/** 型注釈の先頭に来ても、その後ろの型を名前で読めない型演算子。 */
-const TYPE_OPERATORS = new Set(["typeof", "keyof", "import", "infer", "readonly", "unique"]);
+/** DOM の要素型（`HTMLInputElement` / `SVGElement` 等）。 */
+const DOM_ELEMENT_TYPE = /^(?:HTML|SVG)[A-Za-z]*Element$/;
 /** 直後の括弧が束縛の並び（引数・catch・for の頭）ではない制御構文。 */
 const CONDITION_HEADS = new Set(["if", "while", "switch", "with"]);
 
@@ -948,13 +959,14 @@ function nonPlaywrightNames(
     for (const name of rootNames(text)) unknown.add(name);
   };
   const annotatedNon = new Set();
-  // 同一ファイルの型エイリアス（`type Row = Locator`）は中身を追わないので根拠にしない。
-  const typeAliases = new Set(
-    [...code.matchAll(/\btype\s+([A-Za-z_$][\w$]*)\b[^=;]*=/g)].map((match) => match[1]),
+  // 許可リストの名前でも、同じファイルで型として宣言し直したもの（`type Element = Locator`・
+  // `interface Node {…}`・`import type { Element } from …`）は中身を追わないので根拠にしない。
+  const typeShadows = new Set(
+    [
+      ...code.matchAll(/\b(?:type|interface|class|enum)\s+([A-Za-z_$][\w$]*)/g),
+      ...code.matchAll(/\bimport\s+([\s\S]*?)\s+from\b/g),
+    ].flatMap((match) => [...match[1].matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0])),
   );
-  // 名前で読める単純な型だけを根拠にする。修飾名（`pw.Locator`）・generic（`Readonly<Locator>`）・
-  // 型演算子（`typeof page` / `import("…").Page`）・Page / Locator 以外の Playwright の型・型エイリアスは
-  // 中身が Page / Locator でありうるので、確定の候補から外す（fail-closed）。
   // 型名の後ろに型が続く形（union `Element | Locator`・intersection・配列 `Foo[]`・generic・条件型）も同じ。
   // 先頭の型名だけを読むと、Locator を含む注釈を「Playwright 以外」と確定してしまう。
   // 型名の直後が注釈の終わり（`,` / `)` / `=` / `;` / 末尾）のときだけ単純な型とみなす。
@@ -962,16 +974,9 @@ function nonPlaywrightNames(
   const noteAnnotation = (name, type, next) => {
     const composite = !TYPE_TERMINATORS.has(next);
     if (type === "Page" || type === "Locator") return;
-    if (
-      UNCHECKED_TYPES.has(type) ||
-      type.includes(".") ||
-      composite ||
-      TYPE_OPERATORS.has(type) ||
-      PLAYWRIGHT_TYPES.has(type) ||
-      typeAliases.has(type)
-    ) {
-      unknown.add(name);
-    } else annotatedNon.add(name);
+    const listed = NON_PLAYWRIGHT_TYPES.has(type) || DOM_ELEMENT_TYPE.test(type);
+    if (!composite && listed && !typeShadows.has(type)) annotatedNon.add(name);
+    else unknown.add(name);
   };
 
   // 引数・catch・for の頭。閉じ括弧の後が `=>` / `{` / `:`（戻り値注釈）なら束縛の並びと読む。

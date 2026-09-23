@@ -63,9 +63,10 @@
 
 - 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`）・関数式・JSX、
   または Page から取り出した Page / Locator でないプロパティ（`page.clock`）
-- Page / Locator 以外の型注釈（`(e: Element)` / `const x: Foo = …`）。何でも代入できる `any` / `unknown` / `object`、
-  中身が Page / Locator でありうる修飾名（`pw.Locator`）・generic（`Readonly<Locator>`）・union / intersection / 配列（`Element | Locator` / `Foo[]`）・`typeof` / `import(…)`・
-  Page / Locator 以外の Playwright の型（`Frame` 等）・同一ファイルの型エイリアスは根拠にしない
+- 許可リストの型での注釈（`(e: Element)` / `const x: HTMLInputElement = …`）。許可リストはプリミティブ（`string` 等）・
+  `Date` / `RegExp` / `Error`・DOM（`Element` / `Node` / `Document` / `Window` / `Event` / `HTML…Element` / `SVG…Element`）に限る。
+  型名の中身はファイルの外にありうる（import した型エイリアス `type Row = Locator` など）ため、リスト外の名前・`any`・修飾名・
+  generic / union / intersection / 配列・`typeof` / `import(…)`・同じファイルで型として宣言し直したリストの名前は根拠にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
 
 名前はファイル全体で 1 つとして扱う（スコープを見ない）ので、同じ名前が根拠の無い形でも束縛されていれば
