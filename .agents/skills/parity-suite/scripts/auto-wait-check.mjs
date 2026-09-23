@@ -71,8 +71,9 @@ const UNRESOLVED_MESSAGES = {
   opaque:
     "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から引く",
   binding:
-    "受け側の名前の束縛を解決できない（型注釈の無い引数・分割代入・再代入・for-of・import・未宣言の名前・this のプロパティ等）。" +
-    "束縛へ Page / Locator の型注釈を付ける。Playwright 以外の値なら、その実際の型（`e: Element` 等）を注釈する",
+    "受け側の名前の束縛を解決できない（Page / Locator 以外の注釈を含む引数・分割代入・再代入・for-of・import・未宣言の名前・this のプロパティ等）。" +
+    "Locator / Page なら束縛へ型注釈（`loc: Locator`）を付ける。Playwright 以外の値（evaluate の中の DOM 等）は " +
+    "`document` / `window` を起点にした式で直接読む",
 };
 
 /**
@@ -526,34 +527,6 @@ const VALUE_KEYWORDS = new Set([
   "new",
   "await",
 ]);
-/**
- * 型注釈で「Playwright 以外」の根拠にしてよい型（閉じた許可リスト）。プリミティブ・標準の組み込み・DOM に限る。
- * **許可リストにする理由**: 型名の中身はファイルの外にありうる（import した型エイリアス `type Row = Locator`、
- * ambient 宣言、構造的な interface に Locator が代入できる形）。同一ファイルからは確かめられないので、
- * 「Page / Locator でない名前」を根拠にすると、それらが「確定」に化けて違反が消える（PR #448 のレビュー）。
- * `any` / `unknown` / 修飾名 / 型演算子 / Frame 等の Playwright の型も、リストに無いので根拠にならない。
- */
-const NON_PLAYWRIGHT_TYPES = new Set([
-  "string",
-  "number",
-  "boolean",
-  "bigint",
-  "symbol",
-  "null",
-  "undefined",
-  "void",
-  "never",
-  "Date",
-  "RegExp",
-  "Error",
-  "Element",
-  "Node",
-  "Document",
-  "Window",
-  "Event",
-]);
-/** DOM の要素型（`HTMLInputElement` / `SVGElement` 等）。 */
-const DOM_ELEMENT_TYPE = /^(?:HTML|SVG)[A-Za-z]*Element$/;
 /** 直後の括弧が束縛の並び（引数・catch・for の頭）ではない制御構文。 */
 const CONDITION_HEADS = new Set(["if", "while", "switch", "with"]);
 
@@ -954,14 +927,18 @@ function declaratorRhs(rawRhs) {
  * **確定の根拠を閉じた集合で持つ**——「解決しなかったら対象外」にすると、読んでいない束縛の形
  * （分割代入・引数・再代入・for-of・import）が、違反 0 件でも判定不能 0 件でもないまま消える。
  *
- * 根拠は 3 つ:
+ * 根拠は 2 つ:
  *   1. 同一ファイルの `const|let|var x = <右辺>` で、右辺が Playwright の値を運ばない
- *      （リテラル・起点が全て確定済みの式・関数式・JSX・Page から取り出した Page / Locator でないプロパティ）
- *   2. Page / Locator 以外の型注釈（`(e: Element)` / `const x: Foo`）。何でも代入できる `any` 等は除く
- *   3. 標準の組み込み（BUILTIN_NON_RECEIVERS）
+ *      （リテラル・起点が全て確定済みの式・JSX・Page から取り出した Page / Locator でないプロパティ）
+ *   2. 標準の組み込み（BUILTIN_NON_RECEIVERS）
+ *
+ * **型注釈と関数値は根拠にしない**（PR #448 のレビュー後に絞った）。型名の中身はファイルの外にありうり
+ * （import した型エイリアス・型引数・構造的な interface）、関数値は呼び出し・タグ付きテンプレートの戻り値と
+ * 見分けられない（テンプレートは maskNonCode で空白になる）。どちらも例外を 1 つ塞ぐたびに次の書き方が
+ * 見つかったので、根拠の側を閉じた小さな集合に保つ。代わりに DOM を扱う callback の引数は判定不能になる。
  *
  * **名前はファイル全体で 1 つとして扱う**（スコープを見ない）。そのため、同じ名前が根拠の無い形でも
- * 束縛されていれば（型注釈の無い引数・分割代入・再代入・import・2 つ目の宣言）、どの根拠があっても確定にしない。
+ * 束縛されていれば（引数・分割代入・再代入・import・2 つ目の宣言）、どの根拠があっても確定にしない。
  * 迷ったら判定不能側（fail-closed）へ倒す。
  */
 function nonPlaywrightNames(
@@ -973,34 +950,6 @@ function nonPlaywrightNames(
   const markUnknown = (text) => {
     for (const name of rootNames(text)) unknown.add(name);
   };
-  const annotatedNon = new Set();
-  // 許可リストの名前でも、同じファイルで型として宣言し直したもの（`type Element = Locator`・
-  // `interface Node {…}`・`import type { Element } from …`・`import Element = Types.Row`）は中身を追わないので根拠にしない。
-  const typeShadows = new Set(
-    [
-      ...code.matchAll(/\b(?:type|interface|class|enum)\s+([A-Za-z_$][\w$]*)/g),
-      ...code.matchAll(/\bimport\s+([\s\S]*?)\s+from\b/g),
-      // TypeScript の import 代入（`import Element = Types.Row`）。`from` を持たないので上では拾えない。
-      ...code.matchAll(/\bimport\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*=/g),
-      // 型引数（`function f<Node extends Locator>(x: Node)` / `const f = <Node>(…) =>` / `class A<Node>`）。
-      // 型引数の名前は許可リストの名前と同じでも中身は別物（`Node extends Locator`）。
-      ...code.matchAll(/[\w$]\s*<((?:[^<>()]|<[^<>()]*>)*)>\s*\(/g),
-      ...code.matchAll(/=\s*(?:async\s+)?<((?:[^<>()]|<[^<>()]*>)*)>\s*\(/g),
-      ...code.matchAll(/\b(?:class|interface|type)\s+[A-Za-z_$][\w$]*\s*<((?:[^<>]|<[^<>]*>)*)>/g),
-    ].flatMap((match) => [...match[1].matchAll(/[A-Za-z_$][\w$]*/g)].map((m) => m[0])),
-  );
-  // 型名の後ろに型が続く形（union `Element | Locator`・intersection・配列 `Foo[]`・generic・条件型）も同じ。
-  // 先頭の型名だけを読むと、Locator を含む注釈を「Playwright 以外」と確定してしまう。
-  // 型名の直後が注釈の終わり（`,` / `)` / `=` / `;` / 末尾）のときだけ単純な型とみなす。
-  const TYPE_TERMINATORS = new Set(["", ",", ")", "=", ";"]);
-  const noteAnnotation = (name, type, next) => {
-    const composite = !TYPE_TERMINATORS.has(next);
-    if (type === "Page" || type === "Locator") return;
-    const listed = NON_PLAYWRIGHT_TYPES.has(type) || DOM_ELEMENT_TYPE.test(type);
-    if (!composite && listed && !typeShadows.has(type)) annotatedNon.add(name);
-    else unknown.add(name);
-  };
-
   // 引数・catch・for の頭。閉じ括弧の後が `=>` / `{` / `:`（戻り値注釈）なら束縛の並びと読む。
   // 呼び出しの引数を束縛と誤っても、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
   for (let open = code.indexOf("("); open !== -1; open = code.indexOf("(", open + 1)) {
@@ -1015,14 +964,8 @@ function nonPlaywrightNames(
     const bindingList =
       head === "catch" || head === "for" || /^\s*(?:=>|\{|:)/.test(code.slice(close + 1));
     if (!bindingList) continue;
-    for (const param of splitTopLevel(code.slice(open + 1, close))) {
-      const annotated = param.match(
-        /^\s*(?:\.\.\.)?\s*([A-Za-z_$][\w$]*)\s*\??\s*:\s*([A-Za-z_$][\w$.]*)\s*(\S?)/,
-      );
-      if (annotated !== null && !CONDITION_HEADS.has(annotated[1])) {
-        noteAnnotation(annotated[1], annotated[2], annotated[3]);
-      } else markUnknown(param);
-    }
+    // 型注釈の有無に依らず、引数の名前はすべて根拠の無い束縛として数える（Page / Locator の注釈は別経路で解決する）。
+    for (const param of splitTopLevel(code.slice(open + 1, close))) markUnknown(param);
   }
   // 括弧の無い単引数のアロー関数（`row => row.count()`）。
   for (const match of code.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*=>/g)) unknown.add(match[1]);
@@ -1048,11 +991,9 @@ function nonPlaywrightNames(
     const open = matchingOpen(code, match.index);
     if (open !== -1) markUnknown(code.slice(open + 1, match.index));
   }
-  // 型注釈付きの宣言（`const x: Foo = …`）。
-  for (const match of code.matchAll(
-    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*([A-Za-z_$][\w$.]*)\s*(\S?)/g,
-  )) {
-    noteAnnotation(match[1], match[2], match[3]);
+  // 型注釈付きの宣言（`const x: Foo = …`）。`assignments` は `x =` の形しか拾わないので、別の束縛として数える。
+  for (const match of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:/g)) {
+    unknown.add(match[1]);
   }
 
   /** 宣言ごとの右辺。2 つ以上ある名前は、全部が確定したときだけ確定にする。 */
@@ -1073,8 +1014,6 @@ function nonPlaywrightNames(
   const FUNCTION_HEAD = new RegExp(
     String.raw`^\s*(?:async\s+)?(?:function\b|(?:<(?:[^<>()]|<[^<>()]*>)*>\s*)?(?:[A-Za-z_$][\w$]*|\((?:[^()]|\([^()]*\))*\))\s*(?::[^=;{]*)?=>)`,
   );
-  /** 関数式・アロー関数で確定した名前。値の式の起点としては確定に数えない（下の every）。 */
-  const functionValued = new Set();
   const siteIsNonValue = (rawRhs) => {
     const statement = declaratorRhs(rawRhs);
     const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
@@ -1094,21 +1033,17 @@ function nonPlaywrightNames(
       }
     }
     if (asserted !== null) return false;
-    if (FUNCTION_HEAD.test(statement)) return "function";
+    // 関数式・アロー関数は根拠にしない（関数値そのものと呼び出し・タグ付きテンプレートの戻り値を見分けられない）。
+    if (FUNCTION_HEAD.test(statement)) return false;
     // JSX 要素。角括弧のアサーションが書ける拡張子（.ts 系）では `<` 始まりを JSX と読まない。
     if (!angleAssertionAllowed && /^\s*<[A-Za-z]/.test(statement)) return true;
-    // 関数値の名前は起点として確定に数えない。呼び出し・タグ付きテンプレート（`make\`tag\``）の戻り値は
-    // 読めず、テンプレートは maskNonCode で空白になるので `make` だけが残って関数値そのものと見分けられない。
     return [...rootNames(statement)].every(
-      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name) && !functionValued.has(name)),
+      (name) => VALUE_KEYWORDS.has(name) || nonReceivers.has(name),
     );
   };
 
-  for (const name of annotatedNon) {
-    if (candidate(name) && !declarations.has(name)) nonReceivers.add(name);
-  }
   for (const name of BUILTIN_NON_RECEIVERS) {
-    if (candidate(name) && !declarations.has(name) && !annotatedNon.has(name)) {
+    if (candidate(name) && !declarations.has(name)) {
       nonReceivers.add(name);
     }
   }
@@ -1118,10 +1053,8 @@ function nonPlaywrightNames(
     grew = false;
     for (const [name, sites] of declarations) {
       if (nonReceivers.has(name) || !candidate(name)) continue;
-      const verdicts = sites.map(siteIsNonValue);
-      if (verdicts.every(Boolean)) {
+      if (sites.every(siteIsNonValue)) {
         nonReceivers.add(name);
-        if (verdicts.includes("function")) functionValued.add(name);
         grew = true;
       }
     }

@@ -54,23 +54,24 @@
 | 関数呼び出しの戻り値が経路に混じる（型注釈が同一ファイルに無い。起点でも途中でも同じ） | `gridRows(view).count()` / `helpers.gridRows(view).count()` | その関数の戻り値へ `Locator` / `Page` の型注釈を付ける（別ファイルの関数なら、そのファイルに注釈があっても読めないので呼ぶ側で束ね直す） |
 | 束ねた変数の由来を追えない | `const rows = importedHelper();` / `const rows = model.rows;` の `rows` | 右辺の関数の戻り値、またはプロパティへ型注釈を付ける（`{ rows: Locator }`）。**ローカル変数へ束ねても消えない**——束ねれば検査から外れる抜け道は作っていない |
 | `Page` / `Locator` 以外へ型アサーションした別名 | `const row = raw as Foo;` / `const row = <Foo>raw;` の `row` | アサート先を `Locator` / `Page` にするか、右辺の由来へ型注釈を付ける。**型アサーションを挟んでも消えない**——挟めば検査から外れる抜け道は作っていない |
-| 名前の束縛を読めない（型注釈の無い引数・分割代入・再代入・for-of・import・未宣言の名前・`this` のプロパティ） | `function f(loc) { loc.count() }` / `const { rows } = make(page)` / `import { rows } from "./mapping"` | 束縛へ `Locator` / `Page` の型注釈を付ける（`this` のプロパティならクラスのフィールド宣言へ）。Playwright 以外の値なら実際の型（`(e: Element)`）を注釈する |
+| 名前の束縛を読めない（Page / Locator 以外の注釈を含む引数・分割代入・再代入・for-of・import・未宣言の名前・`this` のプロパティ） | `function f(loc) { loc.count() }` / `const { rows } = make(page)` / `import { rows } from "./mapping"` | 束縛へ `Locator` / `Page` の型注釈を付ける（`this` のプロパティならクラスのフィールド宣言へ）。Playwright 以外の値は `document` / `window` を起点にした式で直接読む（型注釈は根拠にしない） |
 | 添字アクセスでプロパティ名が読めない | `this["page"].textContent()` / `rows[0].count()` | プロパティ名で引いた値をローカル変数へ束ねる（`const page = this.page;`） |
 | 起点が確定できない（括弧の中身も解決しない・リテラル） | `(a + b).count()` / `[1, 2].count()` | `Page` / `Locator` に解決する式から引く |
 
 **どれにも解決しない受け側は、起点の名前が Playwright 以外と確定したときだけ `Playwright 以外と確定 N 件` に数え、
 それ以外は判定不能にする。** 確定の根拠は次の閉じた集合に限る（「解決しなかったら対象外」にすると、読んでいない束縛の形が黙って消える）。
 
-- 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`）・関数式・JSX、
+- 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`）・JSX、
   または Page から取り出した Page / Locator でないプロパティ（`page.clock`）
-- 許可リストの型での注釈（`(e: Element)` / `const x: HTMLInputElement = …`）。許可リストはプリミティブ（`string` 等）・
-  `Date` / `RegExp` / `Error`・DOM（`Element` / `Node` / `Document` / `Window` / `Event` / `HTML…Element` / `SVG…Element`）に限る。
-  型名の中身はファイルの外にありうる（import した型エイリアス `type Row = Locator` など）ため、リスト外の名前・`any`・修飾名・
-  generic / union / intersection / 配列・`typeof` / `import(…)`・同じファイルで型として宣言し直した・import し直した・型引数に使ったリストの名前は根拠にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
 
+**型注釈と関数値は根拠にしない。** 型名の中身はファイルの外にありうる（import した型エイリアス・型引数・構造的な interface）、
+関数値は呼び出し・タグ付きテンプレートの戻り値と見分けられない。そのため `(e: Element) => e.getAttribute(…)` のような
+DOM を扱う callback の引数も判定不能になる。Locator / Page なら束縛へ型注釈（`loc: Locator`）を付け、
+Playwright 以外の値は `document` / `window` を起点にした式で直接読む。
+
 名前はファイル全体で 1 つとして扱う（スコープを見ない）ので、同じ名前が根拠の無い形でも束縛されていれば
-（型注釈の無い引数・分割代入・再代入・import・2 つ目の宣言）確定にしない。
+（引数・分割代入・再代入・import・2 つ目の宣言）確定にしない。
 
 **逆に、チェーンのどこかが `page` / `locator` に解決すれば、同じ形でも判定不能にはしない**
 （`page["x"].locator("a").count()` は解決する）。**解決できた受け側は、規則の要求と合わなくても

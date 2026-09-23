@@ -871,12 +871,14 @@ test("二重アサーションの行き先が Page / Locator でなければ従�
 });
 
 // 角括弧アサーションが書ける `.ts` 系は、generic なアロー関数が同じ形に見える拡張子でもある。
+// 関数値は「Playwright 以外と確定」の根拠にしないので判定不能になるが、理由はアサーション由来（alias）ではなく
+// 束縛（binding）であること——角括弧アサーションと読み違えると別名が opaqueAliases に入り alias になる。
 test("generic なアロー関数を角括弧アサーションと読み違えない", () => {
-  const stats = scanSourceWithStats(
+  const [finding] = scanSource(
     `const pick = <T>(x: T) => x;\nfunction f() {\n  return pick.count();\n}`,
     "spec.ts",
-  ).stats;
-  expect(stats.undecidable).toBe(0);
+  );
+  expect(finding.message).toMatch(/束縛を解決できない/);
 });
 
 // `as` はどの拡張子でも書けるので、拡張子ではなく区切り（`<` / `>`）で JSX を止める。
@@ -1055,7 +1057,7 @@ test.each(undecidableForms)("束縛を読めない受け側は判定不能に数
 test("束縛を読めない受け側には、束縛へ型注釈を付ける直し方を出す", () => {
   const [finding] = scanSource("function f(loc) { return loc.textContent(); }", "spec.ts");
   expect(finding.message).toMatch(/束縛を解決できない/);
-  expect(finding.message).toMatch(/e: Element/);
+  expect(finding.message).toMatch(/document/);
 });
 
 // 陰性コントロール: 確定の根拠がある名前は判定不能にしない（通常運用を止めない）。
@@ -1064,8 +1066,6 @@ const excludedForms = [
   ["起点が確定済みの算術", "const limit = 3;\nconst total = limit + 1;\ntotal.count();", "spec.ts"],
   ["文字列リテラル", "const label = 'x';\nlabel.count();", "spec.ts"],
   ["リテラルだけのオブジェクト", "const opts = { timeout: 1 };\nopts.count();", "spec.ts"],
-  ["アロー関数", "const pick = (x) => x;\npick.count();", "spec.ts"],
-  ["generic なアロー関数（.ts）", "const pick = <T>(x: T) => x;\npick.count();", "spec.ts"],
   ["JSX（.tsx）", "const el = <span>hello</span>;\nel.count();", "spec.tsx"],
   [
     "Page から取り出したプロパティ",
@@ -1078,37 +1078,6 @@ const excludedForms = [
     "spec.ts",
   ],
   [
-    "非 Playwright の型注釈の引数",
-    "function f(el: Element) { return el.getAttribute('x'); }",
-    "spec.ts",
-  ],
-  [
-    "非 Playwright の型注釈の宣言",
-    "function f(raw) { const el: Element = raw; el.count(); }",
-    "spec.ts",
-  ],
-  [
-    "既定値付きの非 Playwright 型注釈の引数",
-    "function f(el: Element = raw) { return el.getAttribute('x'); }",
-    "spec.ts",
-  ],
-  [
-    "複数の引数の先頭が非 Playwright 型注釈",
-    "function f(el: Element, n) { return el.getAttribute('x'); }",
-    "spec.ts",
-  ],
-  [
-    "DOM の要素型の注釈",
-    "function f(el: HTMLInputElement) { return el.getAttribute('x'); }",
-    "spec.ts",
-  ],
-  ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }", "spec.ts"],
-  [
-    "別名の型引数を持つ関数の許可リスト型注釈",
-    "function f<T>(el: Element, t: T) { return el.getAttribute('x'); }",
-    "spec.ts",
-  ],
-  [
     "添字への代入があっても別の確定した名前は巻き込まない",
     "const limit = 3;\narr[0] = 1;\nlimit.count();",
     "spec.ts",
@@ -1117,6 +1086,28 @@ const excludedForms = [
   ["console.count", "console.count('x');", "spec.ts"],
   ["document の中の DOM", "document.body.getAttribute('x');", "spec.ts"],
 ];
+// 型注釈と関数値は根拠にしない（PR #448 のレビュー後に絞った）。以前は対象外に数えていた形が
+// 判定不能になることを固定する——根拠を広げ直すと、ここが赤くなる。
+const notEvidenceForms = [
+  ["アロー関数", "const pick = (x) => x;\npick.count();"],
+  ["generic なアロー関数", "const pick = <T>(x: T) => x;\npick.count();"],
+  ["DOM 型の注釈の引数", "function f(el: Element) { return el.getAttribute('x'); }"],
+  ["DOM 型の注釈の宣言", "function f(raw) { const el: Element = raw; el.count(); }"],
+  ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }"],
+  // 本体の起点が組み込みだけの関数値でも、タグ付きテンプレートの戻り値は読めない（テンプレートはマスクで消える）。
+  [
+    "本体の起点が組み込みだけの関数値",
+    "const make = () => window.handle;\nconst row = make`tag`;\nrow.count();",
+  ],
+];
+test.each(notEvidenceForms)(
+  "型注釈・関数値は Playwright 以外の根拠にしない: %s",
+  (_label, source) => {
+    const { stats } = scanSourceWithStats(source, "spec.ts");
+    expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+  },
+);
+
 test.each(excludedForms)(
   "Playwright 以外と確定した受け側は対象外に数える: %s",
   (_label, source, file) => {
@@ -1187,6 +1178,11 @@ const shadowedForms = [
   ["catch の束縛", "try { x(); } catch (loc) { loc.count(); }"],
   ["import した名前", "import { loc } from './mapping';\nawait loc.count();"],
   ["再代入", "function f(page) { loc = page.locator('a'); return loc.count(); }"],
+  // `assignments` は `loc =` の形しか拾わないので、型注釈を挟んだ宣言は別経路で束縛として数える。
+  [
+    "型注釈付きの宣言",
+    "function f(page) { const loc: Foo = page.locator('a'); return loc.count(); }",
+  ],
 ];
 test.each(shadowedForms)(
   "確定した同名の宣言があっても、根拠の無い束縛は判定不能: %s",

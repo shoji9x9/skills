@@ -18,28 +18,18 @@
         ".tsx の JSX 本文を型アサーションと読み違えない: as を含む JSX テキスト",
         "CLI は Playwright 以外と確定した件数を出力する",
         "Page から取り出した別の値は Page として束ねない",
-        "Playwright 以外と確定した受け側は対象外に数える: DOM の要素型の注釈",
         "Playwright 以外と確定した受け側は対象外に数える: JSX（.tsx）",
         "Playwright 以外と確定した受け側は対象外に数える: Page から取り出したプロパティ",
         "Playwright 以外と確定した受け側は対象外に数える: Page から取り出したプロパティを別の型へアサート",
         "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
         "Playwright 以外と確定した受け側は対象外に数える: console.count",
         "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
-        "Playwright 以外と確定した受け側は対象外に数える: generic なアロー関数（.ts）",
-        "Playwright 以外と確定した受け側は対象外に数える: アロー関数",
-        "Playwright 以外と確定した受け側は対象外に数える: プリミティブ型の注釈",
         "Playwright 以外と確定した受け側は対象外に数える: リテラルだけのオブジェクト",
-        "Playwright 以外と確定した受け側は対象外に数える: 別名の型引数を持つ関数の許可リスト型注釈",
         "Playwright 以外と確定した受け側は対象外に数える: 数値リテラル",
         "Playwright 以外と確定した受け側は対象外に数える: 文字列リテラル",
-        "Playwright 以外と確定した受け側は対象外に数える: 既定値付きの非 Playwright 型注釈の引数",
         "Playwright 以外と確定した受け側は対象外に数える: 添字への代入があっても別の確定した名前は巻き込まない",
-        "Playwright 以外と確定した受け側は対象外に数える: 複数の引数の先頭が非 Playwright 型注釈",
         "Playwright 以外と確定した受け側は対象外に数える: 起点が確定済みの算術",
-        "Playwright 以外と確定した受け側は対象外に数える: 非 Playwright の型注釈の宣言",
-        "Playwright 以外と確定した受け側は対象外に数える: 非 Playwright の型注釈の引数",
         "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする",
-        "generic なアロー関数を角括弧アサーションと読み違えない",
         "リテラル・算術を束ねた変数は判定不能にしない",
         "純粋なプロパティ取り出しの免除は型アサーションで外れない",
         "走査の内訳は呼び出し数と常に合う（解決 + 判定不能 + 対象外。免除は解決の内数）"
@@ -55,6 +45,13 @@
       "expect_failing": [
         "Playwright と無関係なメンバー式は違反にせず、起点が未宣言なら判定不能にする",
         "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする",
+        "generic なアロー関数を角括弧アサーションと読み違えない",
+        "型注釈・関数値は Playwright 以外の根拠にしない: DOM 型の注釈の宣言",
+        "型注釈・関数値は Playwright 以外の根拠にしない: DOM 型の注釈の引数",
+        "型注釈・関数値は Playwright 以外の根拠にしない: generic なアロー関数",
+        "型注釈・関数値は Playwright 以外の根拠にしない: アロー関数",
+        "型注釈・関数値は Playwright 以外の根拠にしない: プリミティブ型の注釈",
+        "型注釈・関数値は Playwright 以外の根拠にしない: 本体の起点が組み込みだけの関数値",
         "束縛を読めない受け側には、束縛へ型注釈を付ける直し方を出す",
         "束縛を読めない受け側は判定不能に数える: Page / Locator 以外の Playwright の型",
         "束縛を読めない受け側は判定不能に数える: any で注釈した引数",
@@ -104,24 +101,9 @@
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 分割代入の宣言",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈の無い引数",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈付きの分割代入の宣言",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈付きの宣言",
         "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 括弧の無い単引数のアロー",
         "走査の内訳は呼び出し数と常に合う（解決 + 判定不能 + 対象外。免除は解決の内数）"
-      ]
-    },
-    {
-      "id": "param-unknown",
-      "why": "型注釈の無い引数・分割した引数・catch・for の頭を根拠の無い束縛として数えない",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      } else markUnknown(param);\n",
-      "replace": "      }\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: 確定した const と同名の引数（スコープが違う）",
-        "束縛を読めない受け側は判定不能に数える: 組み込みと同名の引数",
-        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: catch の束縛",
-        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: for-of の束縛",
-        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 分割した引数",
-        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈の無い引数"
       ]
     },
     {
@@ -168,17 +150,6 @@
       ]
     },
     {
-      "id": "declaration-every",
-      "why": "同じ名前の宣言のうち 1 つでも確定すれば確定にする（別スコープの束縛が素通りする）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      if (verdicts.every(Boolean)) {\n",
-      "replace": "      if (verdicts.some(Boolean)) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: 同じ名前の 2 つ目の宣言が確定しない"
-      ]
-    },
-    {
       "id": "continued-line",
       "why": "演算子で終わる行で右辺を切る（折った続きの名前を確定の判定から漏らす）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -199,21 +170,6 @@
       "expect_failing": ["行をまたぐ角括弧アサーションは Locator として解決する"]
     },
     {
-      "id": "builtin",
-      "why": "標準の組み込みを確定の根拠にしない",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "    if (candidate(name) && !declarations.has(name) && !annotatedNon.has(name)) {\n",
-      "replace": "    if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "CLI は Playwright 以外と確定した件数を出力する",
-        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
-        "Playwright 以外と確定した受け側は対象外に数える: console.count",
-        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
-        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
-      ]
-    },
-    {
       "id": "breakdown",
       "why": "内訳の不一致を検出しない（呼び出しを数えずに捨てても exit 0 になる）",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
@@ -221,90 +177,6 @@
       "replace": "  return null;\n",
       "occurrences": 1,
       "expect_failing": ["内訳が呼び出し数に満たなければ不一致として説明を返す"]
-    },
-    {
-      "id": "allowlist",
-      "why": "型注釈の許可リストを外し、Page / Locator 以外の単純な型名を全て Playwright 以外の根拠にする（import した型エイリアス等が確定に化ける）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "    const listed = NON_PLAYWRIGHT_TYPES.has(type) || DOM_ELEMENT_TYPE.test(type);\n",
-      "replace": "    const listed = true;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: Page / Locator 以外の Playwright の型",
-        "束縛を読めない受け側は判定不能に数える: any で注釈した引数",
-        "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した宣言",
-        "束縛を読めない受け側は判定不能に数える: 修飾名の Locator で注釈した引数",
-        "束縛を読めない受け側は判定不能に数える: 同一ファイルで宣言していない型名",
-        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: any で注釈した引数"
-      ]
-    },
-    {
-      "id": "type-shadow",
-      "why": "許可リストの名前を同じファイルで型として宣言し直した・import し直したものも根拠にする",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "if (!composite && listed && !typeShadows.has(type)) annotatedNon.add(name);",
-      "replace": "if (!composite && listed) annotatedNon.add(name);",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: アロー関数の型引数",
-        "束縛を読めない受け側は判定不能に数える: クラスの型引数",
-        "束縛を読めない受け側は判定不能に数える: 許可リストの名前を TypeScript の import 代入で束ね直したもの",
-        "束縛を読めない受け側は判定不能に数える: 許可リストの名前を import し直したもの",
-        "束縛を読めない受け側は判定不能に数える: 許可リストの名前を同じファイルで型エイリアスにし直したもの",
-        "束縛を読めない受け側は判定不能に数える: 関数の型引数"
-      ]
-    },
-    {
-      "id": "composite-type",
-      "why": "型名の後ろに型が続く注釈（union・intersection・配列）を単純な型として読む（先頭の型名だけで確定する）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "    const composite = !TYPE_TERMINATORS.has(next);\n",
-      "replace": "    const composite = false;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: intersection の引数",
-        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の宣言",
-        "束縛を読めない受け側は判定不能に数える: union の先頭が非 Playwright 型の引数",
-        "束縛を読めない受け側は判定不能に数える: 配列型の引数"
-      ]
-    },
-    {
-      "id": "import-assignment",
-      "why": "TypeScript の import 代入（import X = A.B）で束ね直した型名を影付けに数えない",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      ...code.matchAll(/\\bimport\\s+(?:type\\s+)?([A-Za-z_$][\\w$]*)\\s*=/g),\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: 許可リストの名前を TypeScript の import 代入で束ね直したもの"
-      ]
-    },
-    {
-      "id": "generic-function",
-      "why": "関数・メソッドの型引数を影付けに数えない（<Node extends Locator> の Node を DOM 型と読む）",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      ...code.matchAll(/[\\w$]\\s*<((?:[^<>()]|<[^<>()]*>)*)>\\s*\\(/g),\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["束縛を読めない受け側は判定不能に数える: 関数の型引数"]
-    },
-    {
-      "id": "generic-arrow",
-      "why": "アロー関数の型引数を影付けに数えない",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      ...code.matchAll(/=\\s*(?:async\\s+)?<((?:[^<>()]|<[^<>()]*>)*)>\\s*\\(/g),\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["束縛を読めない受け側は判定不能に数える: アロー関数の型引数"]
-    },
-    {
-      "id": "generic-declaration",
-      "why": "class / interface / type の型引数を影付けに数えない",
-      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      ...code.matchAll(/\\b(?:class|interface|type)\\s+[A-Za-z_$][\\w$]*\\s*<((?:[^<>]|<[^<>]*>)*)>/g),\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["束縛を読めない受け側は判定不能に数える: クラスの型引数"]
     },
     {
       "id": "destructuring-assignment",
@@ -319,15 +191,66 @@
       ]
     },
     {
-      "id": "function-valued-root",
-      "why": "関数値の名前を値の式の起点として確定に数える（タグ付きテンプレートの戻り値が消える）",
+      "id": "param-unknown",
+      "why": "引数（型注釈の有無に依らない）・catch・for の頭を根拠の無い束縛として数えない",
+      "find": "    for (const param of splitTopLevel(code.slice(open + 1, close))) markUnknown(param);\n",
+      "replace": "    for (const param of splitTopLevel(code.slice(open + 1, close))) void param;\n",
       "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
-      "find": "      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name) && !functionValued.has(name)),",
-      "replace": "      (name) => VALUE_KEYWORDS.has(name) || (nonReceivers.has(name)),",
       "occurrences": 1,
       "expect_failing": [
-        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（同じ行）",
-        "束縛を読めない受け側は判定不能に数える: 関数値の名前にタグ付きテンプレート（次の行）"
+        "束縛を読めない受け側は判定不能に数える: 確定した const と同名の引数（スコープが違う）",
+        "束縛を読めない受け側は判定不能に数える: 組み込みと同名の引数",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: any で注釈した引数",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: catch の束縛",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: for-of の束縛",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 分割した引数",
+        "確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈の無い引数"
+      ]
+    },
+    {
+      "id": "function-head",
+      "why": "関数式・アロー関数を Playwright 以外の根拠にする（呼び出し・タグ付きテンプレートの戻り値と見分けられない）",
+      "find": "    if (FUNCTION_HEAD.test(statement)) return false;\n",
+      "replace": "",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "occurrences": 1,
+      "expect_failing": [
+        "型注釈・関数値は Playwright 以外の根拠にしない: 本体の起点が組み込みだけの関数値"
+      ]
+    },
+    {
+      "id": "annotated-declaration",
+      "why": "型注釈付きの宣言（const x: Foo = …）を束縛として数えない",
+      "find": ")\\s*:/g)) {\n    unknown.add(match[1]);\n",
+      "replace": ")\\s*:/g)) {\n    void match;\n",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "occurrences": 1,
+      "expect_failing": ["確定した同名の宣言があっても、根拠の無い束縛は判定不能: 型注釈付きの宣言"]
+    },
+    {
+      "id": "declaration-every",
+      "why": "同じ名前の宣言のうち 1 つでも確定すれば確定にする（別スコープの束縛が素通りする）",
+      "find": "      if (sites.every(siteIsNonValue)) {\n",
+      "replace": "      if (sites.some(siteIsNonValue)) {\n",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "occurrences": 1,
+      "expect_failing": [
+        "束縛を読めない受け側は判定不能に数える: 同じ名前の 2 つ目の宣言が確定しない"
+      ]
+    },
+    {
+      "id": "builtin",
+      "why": "標準の組み込みを確定の根拠にしない",
+      "find": "    if (candidate(name) && !declarations.has(name)) {\n",
+      "replace": "    if (false) {\n",
+      "file": "skills/parity-suite/scripts/auto-wait-check.mjs",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI は Playwright 以外と確定した件数を出力する",
+        "Playwright 以外と確定した受け側は対象外に数える: Promise.all",
+        "Playwright 以外と確定した受け側は対象外に数える: console.count",
+        "Playwright 以外と確定した受け側は対象外に数える: document の中の DOM",
+        "Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする"
       ]
     }
   ]
