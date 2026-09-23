@@ -1094,6 +1094,15 @@ const notEvidenceForms = [
   ["DOM 型の注釈の引数", "function f(el: Element) { return el.getAttribute('x'); }"],
   ["DOM 型の注釈の宣言", "function f(raw) { const el: Element = raw; el.count(); }"],
   ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }"],
+  // Page から取り出すプロパティは Page API の既知の名前に限る（任意の名前には後から Locator を代入できる。PR #448 のレビュー）。
+  [
+    "Page の任意のプロパティ",
+    "page.row = page.locator('tr'); const alias = page.row; alias.count();",
+  ],
+  [
+    "代入し直した Page API の名前",
+    "page.clock = page.locator('a'); const t = page.clock; t.count();",
+  ],
   // 確定した名前のプロパティは後から Locator を代入できる（PR #448 のレビュー）。
   // 代入の形は `box.row =` に限らない（`Object.assign` 等）ので、プロパティ参照を含む式そのものを根拠にしない。
   [

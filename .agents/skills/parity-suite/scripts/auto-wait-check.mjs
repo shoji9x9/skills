@@ -512,6 +512,20 @@ const NON_RECEIVER_KEYWORDS = new Set([
  * 同じファイルで束縛し直した名前（`function f(document)`）には当てない。
  */
 const BUILTIN_NON_RECEIVERS = new Set(["Promise", "console", "document", "window"]);
+/**
+ * Page から取り出して「Playwright 以外」と確定してよいプロパティ（Page API の既知の名前に限る許可リスト）。
+ * 任意の名前を認めると、`page.row = page.locator(…)` のように後から Locator を入れたプロパティが確定に化ける。
+ * 同じファイルでこの名前へ代入していれば（`page.clock = …`）、その名前は根拠にしない。
+ */
+const PAGE_NON_RECEIVER_PROPERTIES = new Set([
+  "clock",
+  "keyboard",
+  "mouse",
+  "touchscreen",
+  "request",
+  "coverage",
+  "accessibility",
+]);
 /** 値の式の中で、受け側の由来にならない語（リテラル・演算子のキーワード）。 */
 const VALUE_KEYWORDS = new Set([
   "true",
@@ -1011,6 +1025,12 @@ function nonPlaywrightNames(
   const nonReceivers = new Set();
   const pathNames = (text) => text.trim().split(/\s*\??\.\s*/);
   const PURE_PATH = /^\s*[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*\s*$/;
+  /** 同じファイルで代入された Page API の名前（`page.clock = …`）。 */
+  const reassignedPageProperties = new Set(
+    [...code.matchAll(/\.\s*([A-Za-z_$][\w$]*)\s*=(?![=>])/g)]
+      .map((match) => match[1])
+      .filter((name) => PAGE_NON_RECEIVER_PROPERTIES.has(name)),
+  );
   const siteIsNonValue = (rawRhs) => {
     const statement = declaratorRhs(rawRhs);
     const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
@@ -1022,9 +1042,9 @@ function nonPlaywrightNames(
       const last = names[names.length - 1];
       if (
         names.length > 1 &&
-        names.some((name) => pages.has(name) || locators.has(name)) &&
-        !pages.has(last) &&
-        !locators.has(last)
+        pages.has(names[names.length - 2]) &&
+        PAGE_NON_RECEIVER_PROPERTIES.has(last) &&
+        !reassignedPageProperties.has(last)
       ) {
         return true;
       }

@@ -62,7 +62,7 @@
 それ以外は判定不能にする。** 確定の根拠は次の閉じた集合に限る（「解決しなかったら対象外」にすると、読んでいない束縛の形が黙って消える）。
 
 - 同一ファイルの `const` / `let` / `var x = <右辺>` で、右辺がリテラル・起点が全て確定済みの式（`limit + 1`。プロパティ参照・
-  呼び出し・添字・括弧を含まない）・閉じた JSX 要素、または Page から取り出した Page / Locator でないプロパティ（`page.clock`）。
+  呼び出し・添字・括弧を含まない）・閉じた JSX 要素、または Page から取り出した Page API の既知のプロパティ（`clock` / `keyboard` / `mouse` / `touchscreen` / `request` / `coverage` / `accessibility`。同じファイルで代入し直した名前は除く）。
   対象外に数えるのはその名前そのもの（`x.count()`）だけで、プロパティを辿った先（`x.row.count()`）は後から Locator を
   代入できるので確定にしない
 - 標準の組み込み `Promise` / `console` / `document` / `window`（`Promise.all()` / `console.count()` / `evaluate` の中の DOM）
