@@ -14,6 +14,8 @@
       "replace": "if (0) continue",
       "occurrences": 1,
       "expect_failing": [
+        "パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す",
+        "パラメータ展開を閉じた後のヒアドキュメントは本文をデータとして通す",
         "ヒアドキュメントの本文はデータとして通す: 1 行に 2 つのヒアドキュメント",
         "ヒアドキュメントの本文はデータとして通す: <<- はタブを剥いだ区切り語で閉じる",
         "ヒアドキュメントの本文はデータとして通す: コマンド置換の中のヒアドキュメント",
@@ -36,6 +38,8 @@
       "replace": "if (0) heredoc_bodies();",
       "occurrences": 1,
       "expect_failing": [
+        "パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す",
+        "パラメータ展開を閉じた後のヒアドキュメントは本文をデータとして通す",
         "ヒアドキュメントの本文はデータとして通す: 1 行に 2 つのヒアドキュメント",
         "ヒアドキュメントの本文はデータとして通す: <<- はタブを剥いだ区切り語で閉じる",
         "ヒアドキュメントの本文はデータとして通す: コマンド置換の中のヒアドキュメント",
@@ -188,8 +192,8 @@
       "id": "arith-heredoc",
       "why": "算術の中の << をヒアドキュメントとして開く（後続の行が右辺と一致すると間のコマンドを飛ばす）",
       "file": "scripts/bash-command-guard.sh",
-      "find": "if (c == \"<\" && nx == \"<\" && cur != \"ARITH\") {",
-      "replace": "if (c == \"<\" && nx == \"<\") {",
+      "find": "if (c == \"<\" && nx == \"<\" && cur != \"ARITH\" && cur != \"PARAM\") {",
+      "replace": "if (c == \"<\" && nx == \"<\" && cur != \"PARAM\") {",
       "occurrences": 1,
       "expect_failing": [
         "算術の << をヒアドキュメントと読まない（$(( )) の後）",
@@ -239,6 +243,42 @@
       "replace": "if (0) { adepth[sp]--; addfull(c); code = code c; continue }",
       "occurrences": 1,
       "expect_failing": ["算術の << をヒアドキュメントと読まない（入れ子の括弧を含む算術）"]
+    },
+    {
+      "id": "param-heredoc",
+      "why": "パラメータ展開の中の << をヒアドキュメントとして開く（区切り語と同じ行までを飛ばす）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (c == \"<\" && nx == \"<\" && cur != \"ARITH\" && cur != \"PARAM\") {",
+      "replace": "if (c == \"<\" && nx == \"<\" && cur != \"ARITH\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "パラメータ展開の << をヒアドキュメントと読まない（入れ子のパラメータ展開）",
+        "パラメータ展開の << をヒアドキュメントと読まない（置換文字列の <<）"
+      ]
+    },
+    {
+      "id": "param-open",
+      "why": "${ を パラメータ展開の文脈として扱わない",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (c == \"$\" && nx == \"{\") { push(\"PARAM\"); addfull(\"${\"); code = code \"${\"; i++; continue }",
+      "replace": "if (0) { push(\"PARAM\"); addfull(\"${\"); code = code \"${\"; i++; continue }",
+      "occurrences": 1,
+      "expect_failing": [
+        "パラメータ展開の << をヒアドキュメントと読まない（入れ子のパラメータ展開）",
+        "パラメータ展開の << をヒアドキュメントと読まない（置換文字列の <<）"
+      ]
+    },
+    {
+      "id": "param-close",
+      "why": "パラメータ展開を } で閉じない（閉じた後の本物のヒアドキュメントを読み飛ばさない）",
+      "file": "scripts/bash-command-guard.sh",
+      "find": "if (cur == \"PARAM\" && c == \"}\") { pop(); addfull(c); code = code c; continue }",
+      "replace": "if (0) { pop(); addfull(c); code = code c; continue }",
+      "occurrences": 1,
+      "expect_failing": [
+        "パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す",
+        "パラメータ展開を閉じた後のヒアドキュメントは本文をデータとして通す"
+      ]
     }
   ]
 }

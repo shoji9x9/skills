@@ -26,8 +26,8 @@
 #   閉じたもの:
 #   - ヒアドキュメントの本文はデータとして読み飛ばす。本文が実行される形（同じ行に sh / bash / ssh / eval / source / . がある、
 #     区切り語を引用していない本文に $( ) / ` がある）と、区切り語の行が見つからないものは従来どおりコードとして読む。
-#   - 算術（`$(( ))` / `(( ))`）の中の `<<` は左シフトとして読み、ヒアドキュメントを開かない
-#     （後続の行が右辺と一致すると、間のコマンドを本文として飛ばしていた）。
+#   - 算術（`$(( ))` / `(( ))`）とパラメータ展開（`${x:-<<EOF;}`）の中の `<<` はヒアドキュメントを開かない
+#     （後続の行が右辺・語と一致すると、間のコマンドを本文として飛ばしていた）。
 #   - awk の実装差: mawk 1.3.4 と BusyBox 1.35.0 の awk で回帰テストを実走して一致。gawk は未実測（手元に無い）。
 #
 #   閉じないもの（コストと失敗方向）:
@@ -138,7 +138,7 @@ split_segments() {
 		for (i = 1; i <= n; i++) {
 			c = substr(raw, i, 1); nx = substr(raw, i + 1, 1)
 			cur = stack[sp]
-			if (cur == "CODE" || cur == "SUB" || cur == "BT" || cur == "ARITH") {
+			if (cur == "CODE" || cur == "SUB" || cur == "BT" || cur == "ARITH" || cur == "PARAM") {
 				if (c == "\\") { addfull(nx); code = code nx; i++; continue }
 				if (c == "\047") { push("SQ"); addfull(c); continue }
 				if (c == "\"") { push("DQ"); addfull(c); continue }
@@ -156,6 +156,11 @@ split_segments() {
 					if (c == ")" && adepth[sp] > 0) { adepth[sp]--; addfull(c); code = code c; continue }
 					if (c == ")" && nx == ")") { pop(); addfull("))"); code = code " "; i++; continue }
 				}
+				# パラメータ展開（`${x:-<<EOF;}`）の中の `<<` は置換文字列で、ヒアドキュメントではない。
+				# 中はコードとして読み（従来どおり）、最初の `}` で閉じる。入れ子は `${` だけで、素の `{` は数えない
+				# （bash 5 の実測: `${x:-{a}b}` は `{a` で閉じて `{ab}` を出す）。
+				if (cur == "PARAM" && c == "}") { pop(); addfull(c); code = code c; continue }
+				if (c == "$" && nx == "{") { push("PARAM"); addfull("${"); code = code "${"; i++; continue }
 				if (c == "$" && nx == "(" && substr(raw, i + 2, 1) == "(") { push("ARITH"); adepth[sp] = 0; addfull("$(("); code = code " "; i += 2; continue }
 				if (c == "(" && nx == "(") { push("ARITH"); adepth[sp] = 0; addfull("(("); code = code " "; i++; continue }
 				if (c == "$" && nx == "(") { push("SUB"); addfull(c); addfull("("); code = code " "; i++; continue }
@@ -163,7 +168,7 @@ split_segments() {
 				# ヒアドキュメントの開始。区切り語を控えておき、この行の改行で本文を読み飛ばす。
 				# ヒアストリング `<<<` は 3 文字まとめて進める——1 文字目で見送るだけだと、
 				# 2 文字目からの `<<` を区切り語付きのヒアドキュメントと読み、後続の行をデータとして飛ばす。
-				if (c == "<" && nx == "<" && cur != "ARITH") {
+				if (c == "<" && nx == "<" && cur != "ARITH" && cur != "PARAM") {
 					if (substr(raw, i + 2, 1) == "<") { addfull("<<<"); code = code "<<<"; i += 2; continue }
 					if (heredoc_open()) continue
 				}

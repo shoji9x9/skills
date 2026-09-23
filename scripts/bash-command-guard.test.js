@@ -388,6 +388,27 @@ test.each([
   expect(guard(command).status).toBe(2);
 });
 
+// パラメータ展開の中の `<<` は置換文字列。ヒアドキュメントと読むと、区切り語と同じ行までを飛ばす
+// （PR #448 のレビュー。親版は止めていた）。
+test.each([
+  ["置換文字列の <<", "echo ${x:-<<EOF;}\npkill -f chrome\nEOF"],
+  ["入れ子のパラメータ展開", "echo ${x:-${y:-<<EOF;}}\npkill -f chrome\nEOF"],
+])("パラメータ展開の << をヒアドキュメントと読まない（%s）", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+// bash は `${…}` の中の素の `{` を数えず、最初の `}` で閉じる（実測: `${x:-{a}b}` は `{ab}`）。
+// 深さで数えると、閉じた後の本物のヒアドキュメントをパラメータ展開の中と読み、本文をコードとして止める。
+test("パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("echo ${x:-{a}b} <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
+});
+
+test("パラメータ展開を閉じた後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("echo ${#arr[@]}\ncat <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
+});
+
 test("算術を閉じた後のヒアドキュメントは本文をデータとして通す", () => {
   const r = guard("x=$(( 1 << 2 ))\ncat <<'EOF'\nDon't pkill -f\nEOF");
   expect(r.status).toBe(0);
