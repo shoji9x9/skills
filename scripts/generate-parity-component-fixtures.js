@@ -38,7 +38,7 @@ const axisDiff = await import(join(repoRoot, "skills/parity-component/scripts/ax
 const elementShot = await import(join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs"));
 
 const fixtureDir = (name) =>
-  join(repoRoot, "skills/parity-component/evals/fixtures", name, ".replace/components/button");
+  join(repoRoot, "evals/parity-component/fixtures", name, ".replace/components/button");
 const VIEWPORT = { width: 1280, height: 800 };
 const VIEWER_ENVIRONMENT = "一致";
 

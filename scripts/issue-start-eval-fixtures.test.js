@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 
 const repository = resolve(import.meta.dirname, "..");
-const fixturesRoot = join(repository, "skills", "issue-start", "evals", "fixtures");
+const fixturesRoot = join(repository, "evals", "issue-start", "fixtures");
 const temporaryDirectories = [];
 
 afterEach(() => {
@@ -61,15 +61,15 @@ test("fetch-failure fixture has no usable remote PR base and fetch fails", () =>
 
 test("all pre-push evals map to a fixture and do not state the expected outcome", () => {
   const evals = JSON.parse(
-    readFileSync(join(repository, "skills", "issue-start", "evals", "evals.json"), "utf8"),
+    readFileSync(join(repository, "evals", "issue-start", "evals.json"), "utf8"),
   ).evals.filter(({ id }) => [2, 9, 10, 11].includes(id));
 
   expect(evals).toHaveLength(4);
   expect(evals.map(({ fixture }) => fixture)).toEqual([
-    "evals/fixtures/pr-base-behind",
-    "evals/fixtures/pr-base-behind",
-    "evals/fixtures/pr-base-current",
-    "evals/fixtures/pr-base-fetch-failure",
+    "fixtures/pr-base-behind",
+    "fixtures/pr-base-behind",
+    "fixtures/pr-base-current",
+    "fixtures/pr-base-fetch-failure",
   ]);
   for (const evaluation of evals) {
     expect(evaluation.prompt).not.toMatch(/未取り込み.*(?:0|1)\s*件/u);

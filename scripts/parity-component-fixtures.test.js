@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const fixturesRoot = join(repoRoot, "skills/parity-component/evals/fixtures");
+const fixturesRoot = join(repoRoot, "evals/parity-component/fixtures");
 const traitCapture = await import(join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs"));
 const cssRules = await import(
   join(repoRoot, "skills/parity-component/scripts/css-rules-capture.mjs")

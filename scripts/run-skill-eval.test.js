@@ -942,7 +942,8 @@ describe("run-skill-eval required sibling skills", () => {
     }
     const subject = join(root, "skills", "subject-skill");
     mkdirSync(join(subject, "references"), { recursive: true });
-    mkdirSync(join(subject, "evals"));
+    const subjectEvals = join(root, "evals", "subject-skill");
+    mkdirSync(subjectEvals, { recursive: true });
     writeFileSync(join(subject, "SKILL.md"), "# subject\n", "utf8");
     writeFileSync(join(subject, "references", "subject-guide.md"), "guide\n", "utf8");
     // A bundle path both skills ship: the baseline has the sibling's copy installed.
@@ -951,7 +952,7 @@ describe("run-skill-eval required sibling skills", () => {
     // A subject path the sibling's own text names: the baseline can read it there.
     writeFileSync(join(subject, "references", "handoff.md"), "handoff\n", "utf8");
     writeFileSync(
-      join(subject, "evals", "evals.json"),
+      join(subjectEvals, "evals.json"),
       `${JSON.stringify({ evals: [{ id: 1, prompt: "p", assertions: ["a"], ...evalDefinition }] })}\n`,
       "utf8",
     );

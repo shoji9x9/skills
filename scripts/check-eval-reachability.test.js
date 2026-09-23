@@ -226,9 +226,9 @@ test("evals が配列でない・JSON として壊れている入力を落とす
 
 test("孤児の免除は全走査でだけ落とす（部分走査では正常な commit を止めない）", () => {
   const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
-  mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
+  mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
-  const evalsPath = join(root, "skills/demo/evals/evals.json");
+  const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
   writeFileSync(
     join(root, BACKLOG_PATH),
@@ -241,10 +241,31 @@ test("孤児の免除は全走査でだけ落とす（部分走査では正常�
   rmSync(root, { recursive: true, force: true });
 });
 
+test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだけ落とす", () => {
+  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  mkdirSync(join(root, "evals/demo"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  const evalsPath = join(root, "evals/demo/evals.json");
+  writeFileSync(evalsPath, file());
+  writeFileSync(join(root, BACKLOG_PATH), JSON.stringify({ exempt: {} }));
+  // 陰性コントロール: 置き場所が evals/<name>/ だけなら違反 0 件で、走査にも拾われる。
+  expect(listEvalFiles(root)).toEqual([evalsPath]);
+  expect(checkAll(root, [evalsPath]).violations).toEqual([]);
+  // 陽性コントロール: 旧配置に戻すと、走査から外れる（listEvalFiles は拾わない）うえで違反になる。
+  mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
+  writeFileSync(join(root, "skills/demo/evals/evals.json"), file());
+  expect(listEvalFiles(root)).toEqual([evalsPath]);
+  expect(checkAll(root, [evalsPath]).violations).toEqual([
+    "skills/demo/evals/: 配布スキルの中に eval がある（下流へ配られ、この検査の走査からも外れる）。evals/demo/ へ置く",
+  ]);
+  expect(checkAll(root, [evalsPath], { fullScan: false }).violations).toEqual([]);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("backlog が無ければ免除の正本が読めないので落とす", () => {
   const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
-  mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
-  const evalsPath = join(root, "skills/demo/evals/evals.json");
+  mkdirSync(join(root, "evals/demo"), { recursive: true });
+  const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
   expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルが無い/);
   rmSync(root, { recursive: true, force: true });
@@ -254,9 +275,9 @@ test("backlog が壊れていても、クラッシュせず違反として落と
   // 不在を違反にしている以上、壊れている場合も違反にする（素の JSON.parse だと merge 衝突の
   // 残骸でスタックトレースごと検査が止まり、「検査した結果」ではなくクラッシュで落ちる）。
   const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
-  mkdirSync(join(root, "skills/demo/evals"), { recursive: true });
+  mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
-  const evalsPath = join(root, "skills/demo/evals/evals.json");
+  const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
   writeFileSync(join(root, BACKLOG_PATH), '{ "exempt": { "demo:1": ');
   expect(checkAll(root, [evalsPath]).violations[0]).toMatch(/宣言ファイルを読めない/);

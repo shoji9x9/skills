@@ -1,7 +1,7 @@
 ---
 paths:
-  - "skills/*/evals/**"
-applyTo: "skills/*/evals/**"
+  - "evals/**"
+applyTo: "evals/**"
 ---
 
 # eval の実走スコープは起動前に宣言する

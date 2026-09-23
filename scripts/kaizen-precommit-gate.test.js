@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
-const fixturesDir = join(repoRoot, "skills", "kaizen", "evals", "fixtures", "candidate-scan");
+const fixturesDir = join(repoRoot, "evals", "kaizen", "fixtures", "candidate-scan");
 
 /** .kaizen/ を持つ空プロジェクトを作る。CLAUDE_PROJECT_DIR を渡すので git 管理下でなくてよい。 */
 function makeProject() {

@@ -1,3 +1,0 @@
-{"type":"user","message":{"content":"ドキュメントの表を整えてください"}}
-{"type":"atis-latch","atis":{},"sessionId":"test-session"}
-{"type":"assistant","message":{"content":[{"type":"text","text":"整えました"}]}}

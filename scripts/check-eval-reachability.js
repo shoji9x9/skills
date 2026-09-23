@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // eval の assertion と、それを引き出す prompt の文の対応（到達性）を決定論的に検査する
 // （lefthook pre-commit はステージした evals.json、CI の Lint ジョブは全スキル）。
+// eval は配布物に含めないため `skills/<name>/` ではなく `evals/<name>/evals.json` に置く
+// （全走査では `skills/<name>/evals/` の残存も違反にする）。
 //
 // なぜ要るか: 「assertion を 1 本ずつ『prompt のどの文が引き出すか』と問い、引用を並べた対応表を
 // 書き出す」は `.agents/rules/eval-assertion-discrimination.md` の文章規約にしかなく、書いた証拠を
@@ -37,10 +39,23 @@ export function backlogKey(skill, id) {
 }
 
 export function listEvalFiles(root) {
+  const evalsDir = join(root, "evals");
+  if (!existsSync(evalsDir)) return [];
+  return readdirSync(evalsDir)
+    .map((name) => join(evalsDir, name, "evals.json"))
+    .filter((p) => existsSync(p));
+}
+
+/**
+ * 配布スキルの中に置かれた eval ディレクトリ（`skills/<name>/evals/`）。
+ * `gh skill install` はスキルディレクトリの全ファイルを配るため、ここに置くと
+ * 下流へ eval が配られる。走査対象（`evals/<name>/`）からも外れて黙って未検査になる。
+ */
+export function listShippedEvalDirs(root) {
   const skillsDir = join(root, "skills");
   if (!existsSync(skillsDir)) return [];
   return readdirSync(skillsDir)
-    .map((name) => join(skillsDir, name, "evals/evals.json"))
+    .map((name) => join(skillsDir, name, "evals"))
     .filter((p) => existsSync(p));
 }
 
@@ -242,6 +257,12 @@ export function checkAll(root, files, { fullScan = true } = {}) {
   // ただし全走査のときだけ——一部ファイルしか渡されない pre-commit で当てると、
   // 渡されなかったファイルの免除が全部「孤児」に化けて正常な commit を止める。
   if (!fullScan) return { evals, violations, files: files.length };
+  for (const dir of listShippedEvalDirs(root)) {
+    const name = relative(join(root, "skills"), dir).split("/")[0];
+    violations.push(
+      `${relative(root, dir)}/: 配布スキルの中に eval がある（下流へ配られ、この検査の走査からも外れる）。evals/${name}/ へ置く`,
+    );
+  }
   for (const key of Object.keys(exempt)) {
     if (!keys.includes(key)) {
       violations.push(`${BACKLOG_PATH}: "${key}" に対応する eval が無い（孤児の免除）`);

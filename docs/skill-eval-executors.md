@@ -1,6 +1,6 @@
 # スキル評価 executor 契約
 
-`scripts/run-skill-eval.sh` は同じ `skills/<name>/evals/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
+`scripts/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
 Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択

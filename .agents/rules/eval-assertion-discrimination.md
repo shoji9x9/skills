@@ -1,7 +1,7 @@
 ---
 paths:
-  - "skills/*/evals/**"
-applyTo: "skills/*/evals/**"
+  - "evals/**"
+applyTo: "evals/**"
 ---
 
 # 回帰 eval のアサーション・fixture は「測れるか」を書いた時点で検証する
@@ -81,7 +81,7 @@ assertion 固有の判断軸を prompt で直接問うと、**その判断軸・
   変えたところ、同一 executor の `without_skill` が 2/4 → **4/4** になり弁別が消えた。上位概念の引用のままの旧 prompt は
   `with_skill` 3/3 pass・`without_skill` fail で、到達と弁別を両立していた。
 - 強めた prompt で弁別が消え、かつ元の prompt に戻せないなら、その assertion は**後退検知**であることを
-  `evals/README.md` に明記する（Delta には寄与しない）。
+  `evals/<name>/README.md` に明記する（Delta には寄与しない）。
 
 **cue を消しても弁別しないなら、その項目はこの eval では測れないと結論する。** 弁別ゼロの原因を「fixture に答えが
 書いてある」だけに決め打ちしないこと——結論が**事象の事実そのもの**から演繹できる場合（例「同じ成果物を 5 回手で
