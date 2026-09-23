@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs");
-const { VERSION, compareBehaviors, canonical, cellKey, loadBaseline, main } = await import(script);
+const { VERSION, compareBehaviors, canonical, cellKey, isoDateTime, loadBaseline, main } =
+  await import(script);
 
 /** 操作 2 件 × インスタンス 2 件の採取。 */
 function metadataOf(override = {}) {
@@ -484,19 +485,39 @@ test("プレースホルダのままの到達不能の理由は除外にしな�
   expect(codes(result)).toEqual(["unreachable-declaration-invalid", "behavior-uncompared"]);
 });
 
-test("観測値にプレースホルダが残る記録は、両側で同じ文字列でも一致として数えない", () => {
+test("角括弧で囲まれた観測値（<button> 等）も正当な出力として比べる（プレースホルダ扱いしない）", () => {
+  const legit = { download: "<none>", page_errors: 0 };
   const behaviors = behaviorsOf();
-  behaviors.orders.results[1].observed = { download: "<観測した値>", page_errors: 0 };
+  behaviors.orders.results[1].observed = legit;
   const rows = comparisonOf().rows.map((r) =>
-    r.operation === "export" && r.instance === "orders"
-      ? { ...r, observed: { download: ["<観測した値>"], page_errors: 0 } }
-      : r,
+    r.operation === "export" && r.instance === "orders" ? { ...r, observed: legit } : r,
   );
   const result = run({ behaviors, comparison: comparisonOf({ rows }) });
-  expect(codes(result)).toEqual([
-    "behavior-baseline-incomplete",
-    "behavior-observation-incomplete",
-  ]);
-  expect(result.findings[1].placeholders).toEqual(["download"]);
-  expect(result.counts.matched).toBe(3);
+  expect(result.findings).toEqual([]);
+  expect(result.counts.matched).toBe(4);
+});
+
+test("見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない", () => {
+  for (const story of [undefined, "", "<操作を実施した見本の識別子>"]) {
+    const rows = comparisonOf().rows.map((r, i) => (i === 0 ? { ...r, story } : r));
+    const result = run({ comparison: comparisonOf({ rows }) });
+    expect(codes(result)).toEqual(["behavior-story-missing"]);
+    expect(result.counts).toMatchObject({ matched: 3, uncompared: 1 });
+  }
+});
+
+test("承認日時は暦の上で実在する値だけを通す（Date.parse の繰り上げに頼らない）", () => {
+  for (const ok of ["2026-09-23", "2026-09-23T10:00:00Z", "2024-02-29T23:59:59.5+09:00"]) {
+    expect(isoDateTime(ok)).toBe(true);
+  }
+  for (const ng of [
+    "2026-02-30",
+    "2026-13-01",
+    "2026-09-23T24:00:00Z",
+    "2026-09-23T10:60Z",
+    "2026-09-23T10:00:00+25:00",
+    "2025-02-29",
+  ]) {
+    expect(isoDateTime(ng)).toBe(false);
+  }
 });

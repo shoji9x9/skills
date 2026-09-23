@@ -88,8 +88,8 @@
         "プレースホルダのままの operations_none_reason では判定を省略しない",
         "手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）",
         "プレースホルダのままの到達不能の理由は除外にしない",
-        "観測値にプレースホルダが残る記録は、両側で同じ文字列でも一致として数えない",
-        "同梱テンプレートをそのまま渡しても合格にしない"
+        "同梱テンプレートをそのまま渡しても合格にしない",
+        "見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"
       ]
     },
     {
@@ -110,6 +110,26 @@
       "occurrences": 1,
       "expect_failing": [
         "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
+      ]
+    },
+    {
+      "id": "story",
+      "why": "見本の識別子の無い行を突き合わせとして数える",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!filled(row.story)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["見本の識別子（story）が空・プレースホルダの行は突き合わせとして数えない"]
+    },
+    {
+      "id": "calendar",
+      "why": "年月日を組み直して同じ日に戻るかを見ず、Date.UTC が繰り上げた実在しない日付を通す",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "date.getUTCFullYear() !== year ||",
+      "replace": "false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "承認日時は暦の上で実在する値だけを通す（Date.parse の繰り上げに頼らない）"
       ]
     }
   ]

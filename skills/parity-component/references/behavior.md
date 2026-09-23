@@ -19,7 +19,7 @@
   行の挿入位置・削除の扱い（削除するか印を付けるだけか）、書き出しを含める
 - 操作ごとに `metadata.json` の `capture.operations[]` へ `id` / `description` / `steps` / `observe` を書く（様式の正本: [`../assets/metadata-template.json`](../assets/metadata-template.json)）。
   **4 つとも必須**で、空やテンプレートのプレースホルダ（`<...>`）のままなら検査が型崩れとして落とす——`steps` が無いと、両側が同じ id で別の操作をしても観測が一致すれば通ってしまう。
-  理由・承認者・観測値など人が記入する欄も同じく、プレースホルダのままは記入済みとして扱われない。
+  理由・承認者・見本の識別子など人が記入する欄も同じく、プレースホルダのままは記入済みとして扱われない（観測値は部品の出力なので対象外）。
   **操作を持たない部品（静的な表示だけ等）は `operations` を空配列にし、`operations_none_reason` に理由を書く**——理由の無い空配列は、検査が型崩れとして落とす
 
 ## 観測項目の決め方
@@ -45,7 +45,7 @@
 
 ## 突き合わせ（build）
 
-- カタログの見本で**同じ手順を同じ初期状態から**実施し、同じ観測項目を `new/<target>/behavior-comparison.json` に書く
+- カタログの見本で**同じ手順を同じ初期状態から**実施し、同じ観測項目と実施した見本の識別子（`story`。必須）を `new/<target>/behavior-comparison.json` に書く
   （様式の正本: [`../assets/behavior-comparison-template.json`](../assets/behavior-comparison-template.json)）
 - 検査を通す:
 

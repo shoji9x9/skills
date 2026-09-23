@@ -70,30 +70,31 @@ function filled(value) {
 
 /**
  * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
+ * **暦の上で実在する値だけを通す。** `Date.parse("2026-02-30")` は 3 月 2 日へ繰り上げて成功するので、
+ * 解析の成否ではなく各欄の範囲と、年月日を UTC で組み直して同じ日に戻ることを確かめる。
  * @param {unknown} value
  * @returns {boolean}
  */
-function isoDateTime(value) {
-  return (
-    typeof value === "string" &&
-    /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value) &&
-    !Number.isNaN(Date.parse(value))
-  );
-}
-
-/**
- * 観測値の中にプレースホルダの文字列が残っているか（入れ子も見る）。
- * 両側がテンプレートの値のままだと、同じ文字列同士で一致してしまう。
- * @param {unknown} value
- * @returns {boolean}
- */
-function containsPlaceholder(value) {
-  if (isPlaceholder(value)) return true;
-  if (Array.isArray(value)) return value.some(containsPlaceholder);
-  if (value !== null && typeof value === "object") {
-    return Object.values(value).some(containsPlaceholder);
+export function isoDateTime(value) {
+  if (typeof value !== "string") return false;
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-](\d{2}):(\d{2}))?)?$/.exec(
+      value,
+    );
+  if (!m) return false;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return false;
   }
-  return false;
+  const within = (field, max) => field === undefined || Number(field) <= max;
+  return (
+    within(m[4], 23) && within(m[5], 59) && within(m[6], 59) && within(m[8], 23) && within(m[9], 59)
+  );
 }
 
 /**
@@ -131,20 +132,15 @@ export function canonical(value) {
  */
 function observationShape(observed, expected) {
   if (observed === null || typeof observed !== "object" || Array.isArray(observed)) {
-    return { ok: false, missing: [...expected], extra: [], placeholders: [] };
+    return { ok: false, missing: [...expected], extra: [] };
   }
   const keys = Object.keys(observed);
   const missing = expected.filter((k) => !Object.prototype.hasOwnProperty.call(observed, k));
   const extra = keys.filter((k) => !expected.includes(k));
-  const placeholders = expected.filter(
-    (k) => Object.prototype.hasOwnProperty.call(observed, k) && containsPlaceholder(observed[k]),
-  );
-  return {
-    ok: missing.length === 0 && extra.length === 0 && placeholders.length === 0,
-    missing,
-    extra,
-    placeholders,
-  };
+  // 観測値そのものはプレースホルダ判定をしない——部品の出力として `<button>` や `<none>` は正当な値で、
+  // 弾くと一致していても永久に通らない。テンプレートの行は観測項目名がプレースホルダなので、
+  // observe の集合と食い違って missing / extra で落ちる。
+  return { ok: missing.length === 0 && extra.length === 0, missing, extra };
 }
 
 /**
@@ -323,7 +319,6 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
           operation: op,
           missing: shape.missing,
           extra: shape.extra,
-          placeholders: shape.placeholders,
         });
         // 不備のある基準は比較の相手にしない（未採取として扱う）。
         baseline.set(key, undefined);
@@ -415,6 +410,17 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
       counts.accepted += 1;
       continue;
     }
+    // 検査はカタログを駆動しないので、見本の識別子が観測と見本を結ぶ唯一の証拠になる。
+    if (!filled(row.story)) {
+      findings.push({
+        code: "behavior-story-missing",
+        operation: op,
+        instance: inst,
+        detail: "操作を実施した見本の識別子（story）が空かプレースホルダのまま",
+      });
+      counts.uncompared += 1;
+      continue;
+    }
     const shape = observationShape(row.observed, observeOf.get(op));
     if (!shape.ok) {
       findings.push({
@@ -423,7 +429,6 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         instance: inst,
         missing: shape.missing,
         extra: shape.extra,
-        placeholders: shape.placeholders,
       });
       counts.uncompared += 1;
       continue;
