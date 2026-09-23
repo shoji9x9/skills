@@ -30,7 +30,8 @@
         "行の無い組み合わせは behavior-uncompared で落とす",
         "理由の無い到達不能の宣言は除外にしない",
         "rows が配列でない突き合わせ表は全組み合わせを未突合にする",
-        "CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと exit 1"
+        "CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと exit 1",
+        "プレースホルダのままの到達不能の理由は除外にしない"
       ]
     },
     {
@@ -46,19 +47,25 @@
       "id": "unreachable-reason",
       "why": "理由の無い到達不能の宣言を除外として受ける",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "if (!nonEmptyString(u.reason)) {",
+      "find": "if (!filled(u.reason)) {",
       "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["理由の無い到達不能の宣言は除外にしない"]
+      "expect_failing": [
+        "理由の無い到達不能の宣言は除外にしない",
+        "プレースホルダのままの到達不能の理由は除外にしない"
+      ]
     },
     {
       "id": "approval",
       "why": "承認者の無い accepted を通す",
       "file": "skills/parity-component/scripts/behavior-compare.mjs",
-      "find": "!nonEmptyString(row.approved_by) ||",
+      "find": "!filled(row.approved_by) ||",
       "replace": "false ||",
       "occurrences": 1,
-      "expect_failing": ["比べないことを選ぶには承認が要る（承認があれば accepted として通す）"]
+      "expect_failing": [
+        "比べないことを選ぶには承認が要る（承認があれば accepted として通す）",
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
+      ]
     },
     {
       "id": "nothing-compared",
@@ -68,6 +75,42 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["全組み合わせが到達できない宣言なら合格にしない"]
+    },
+    {
+      "id": "placeholder",
+      "why": "テンプレートのプレースホルダを記入済みとして受ける",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "return typeof value === \"string\" && /^<[\\s\\S]*>$/.test(value.trim());",
+      "replace": "return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）",
+        "プレースホルダのままの operations_none_reason では判定を省略しない",
+        "手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）",
+        "プレースホルダのままの到達不能の理由は除外にしない",
+        "観測値にプレースホルダが残る記録は、両側で同じ文字列でも一致として数えない",
+        "同梱テンプレートをそのまま渡しても合格にしない"
+      ]
+    },
+    {
+      "id": "steps",
+      "why": "手順・説明の無い操作を受ける",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "if (!filled(op.description) || !filled(op.steps)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）"]
+    },
+    {
+      "id": "approved-at-iso",
+      "why": "承認日時を ISO 8601 として検査しない",
+      "file": "skills/parity-component/scripts/behavior-compare.mjs",
+      "find": "!isoDateTime(row.approved_at)",
+      "replace": "!filled(row.approved_at)",
+      "occurrences": 1,
+      "expect_failing": [
+        "テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）"
+      ]
     }
   ]
 }

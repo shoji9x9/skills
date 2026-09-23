@@ -50,6 +50,53 @@ function nonEmptyString(value) {
 }
 
 /**
+ * 同梱テンプレートのプレースホルダ（`<...>` の形）か。テンプレートは利用者がそのまま提出しうる入力なので、
+ * 空でないだけの値を「記入済み」と読むと、写しただけの承認・理由・識別子が判定を通る。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isPlaceholder(value) {
+  return typeof value === "string" && /^<[\s\S]*>$/.test(value.trim());
+}
+
+/**
+ * 人が記入すべき欄が記入済みか（空でなく、テンプレートのプレースホルダのままでもない）。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function filled(value) {
+  return nonEmptyString(value) && !isPlaceholder(value);
+}
+
+/**
+ * ISO 8601 の日付・日時として読めるか（承認日時の検査。プレースホルダや自由記述を通さない）。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isoDateTime(value) {
+  return (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value) &&
+    !Number.isNaN(Date.parse(value))
+  );
+}
+
+/**
+ * 観測値の中にプレースホルダの文字列が残っているか（入れ子も見る）。
+ * 両側がテンプレートの値のままだと、同じ文字列同士で一致してしまう。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function containsPlaceholder(value) {
+  if (isPlaceholder(value)) return true;
+  if (Array.isArray(value)) return value.some(containsPlaceholder);
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).some(containsPlaceholder);
+  }
+  return false;
+}
+
+/**
  * 操作 × インスタンスの鍵。区切り文字を持つ連結にせず JSON の配列にする
  * （`("a|b","c")` と `("a","b|c")` が同じ鍵に潰れない）。
  * @param {string} operation
@@ -84,12 +131,20 @@ export function canonical(value) {
  */
 function observationShape(observed, expected) {
   if (observed === null || typeof observed !== "object" || Array.isArray(observed)) {
-    return { ok: false, missing: [...expected], extra: [] };
+    return { ok: false, missing: [...expected], extra: [], placeholders: [] };
   }
   const keys = Object.keys(observed);
   const missing = expected.filter((k) => !Object.prototype.hasOwnProperty.call(observed, k));
   const extra = keys.filter((k) => !expected.includes(k));
-  return { ok: missing.length === 0 && extra.length === 0, missing, extra };
+  const placeholders = expected.filter(
+    (k) => Object.prototype.hasOwnProperty.call(observed, k) && containsPlaceholder(observed[k]),
+  );
+  return {
+    ok: missing.length === 0 && extra.length === 0 && placeholders.length === 0,
+    missing,
+    extra,
+    placeholders,
+  };
 }
 
 /**
@@ -132,7 +187,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   }
   if (operations.length === 0) {
     // 操作を持たない部品（静的なラベル等）だけが判定しないで通れる。理由の無い 0 件は採り忘れと区別できない。
-    if (nonEmptyString(capture.operations_none_reason)) {
+    if (filled(capture.operations_none_reason)) {
       return { structural: false, judged: false, findings: [], counts };
     }
     return structural(
@@ -143,17 +198,23 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const observeOf = new Map();
   for (const op of operations) {
     const id = op && op.id;
-    if (!nonEmptyString(id)) return structural("capture.operations[].id が空");
+    if (!filled(id)) return structural("capture.operations[].id が空かプレースホルダのまま");
     if (observeOf.has(id)) return structural(`capture.operations[].id が重複: ${id}`);
     const observe = op.observe;
     if (
       !Array.isArray(observe) ||
       observe.length === 0 ||
-      !observe.every(nonEmptyString) ||
+      !observe.every(filled) ||
       new Set(observe).size !== observe.length
     ) {
       return structural(
         `capture.operations[${JSON.stringify(id)}].observe が空・重複・非文字列（観測項目を固定しないと空の観測同士が一致する）`,
+      );
+    }
+    // 手順が無いと、capture と build が同じ id で別の操作をしても観測が一致すれば通る（一致が挙動の一致を示さない）。
+    if (!filled(op.description) || !filled(op.steps)) {
+      return structural(
+        `capture.operations[${JSON.stringify(id)}] の description / steps が空かプレースホルダのまま（両側で同じ操作を再生できない）`,
       );
     }
     observeOf.set(id, observe);
@@ -165,13 +226,13 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
   const instanceIds = [];
   for (const inst of instances) {
     const id = inst && inst.id;
-    if (!nonEmptyString(id)) return structural("instances[].id が空");
+    if (!filled(id)) return structural("instances[].id が空かプレースホルダのまま");
     if (instanceIds.includes(id)) return structural(`instances[].id が重複: ${id}`);
     instanceIds.push(id);
   }
   if (!nonEmptyString(target)) return structural("--target が空");
   // 部品の照合を省ける形にしない——slug が無いと、別の部品の突き合わせ表がそのまま通る。
-  if (!nonEmptyString(metadata.slug)) return structural("metadata.json の slug が空");
+  if (!filled(metadata.slug)) return structural("metadata.json の slug が空かプレースホルダのまま");
 
   // 母集合: 操作 × インスタンスから、宣言済みの到達できない操作を除いたもの。
   /** @type {Map<string, { operation: string, instance: string }>} */
@@ -198,13 +259,13 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         });
         continue;
       }
-      if (!nonEmptyString(u.reason)) {
+      if (!filled(u.reason)) {
         // 理由の無い宣言は除外にしない（採り忘れを除外に化けさせない）。母集合に残す。
         findings.push({
           code: "unreachable-declaration-invalid",
           instance: inst.id,
           operation: op,
-          detail: "到達できない理由が無い（除外として扱わない）",
+          detail: "到達できない理由が無いかプレースホルダのまま（除外として扱わない）",
         });
         continue;
       }
@@ -262,6 +323,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
           operation: op,
           missing: shape.missing,
           extra: shape.extra,
+          placeholders: shape.placeholders,
         });
         // 不備のある基準は比較の相手にしない（未採取として扱う）。
         baseline.set(key, undefined);
@@ -339,16 +401,13 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         counts.uncompared += 1;
         continue;
       }
-      if (
-        !nonEmptyString(row.reason) ||
-        !nonEmptyString(row.approved_by) ||
-        !nonEmptyString(row.approved_at)
-      ) {
+      if (!filled(row.reason) || !filled(row.approved_by) || !isoDateTime(row.approved_at)) {
         findings.push({
           code: "behavior-acceptance-unapproved",
           operation: op,
           instance: inst,
-          detail: "accepted には reason / approved_by / approved_at が要る",
+          detail:
+            "accepted には記入済みの reason / approved_by と ISO 8601 の approved_at が要る（テンプレートのプレースホルダは承認ではない）",
         });
         counts.uncompared += 1;
         continue;
@@ -364,6 +423,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
         instance: inst,
         missing: shape.missing,
         extra: shape.extra,
+        placeholders: shape.placeholders,
       });
       counts.uncompared += 1;
       continue;

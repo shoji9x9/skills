@@ -23,8 +23,18 @@ function metadataOf(override = {}) {
     slug: "data-grid",
     capture: {
       operations: [
-        { id: "corner-click", observe: ["selection", "open_popup"] },
-        { id: "export", observe: ["download", "page_errors"] },
+        {
+          id: "corner-click",
+          description: "隅のアイコンを押す",
+          steps: "表の左上の隅のボタンをクリックする",
+          observe: ["selection", "open_popup"],
+        },
+        {
+          id: "export",
+          description: "Excel に書き出す",
+          steps: "メニューから書き出しを選ぶ",
+          observe: ["download", "page_errors"],
+        },
       ],
       ...override.capture,
     },
@@ -241,8 +251,11 @@ test("操作の列挙が無い・空（理由なし）・観測項目が空な�
   expect(run({ metadata: { ...metadataOf(), capture: {} } }).structural).toBe(true);
   expect(run({ metadata: metadataOf({ capture: { operations: [] } }) }).structural).toBe(true);
   expect(
-    run({ metadata: metadataOf({ capture: { operations: [{ id: "x", observe: [] }] } }) })
-      .structural,
+    run({
+      metadata: metadataOf({
+        capture: { operations: [{ id: "x", description: "d", steps: "s", observe: [] }] },
+      }),
+    }).structural,
   ).toBe(true);
   expect(run({ metadata: { ...metadataOf(), slug: "" } }).structural).toBe(true);
 });
@@ -402,6 +415,88 @@ test("同梱テンプレートをそのまま渡しても合格にしない", as
     comparison: asset("behavior-comparison-template.json"),
     target: "preview",
   });
-  expect(result.structural).toBe(false);
-  expect(result.findings.length).toBeGreaterThan(0);
+  // 操作 id がプレースホルダのままなので、判定に入る前に型崩れとして落ちる。
+  expect(result.structural).toBe(true);
+  expect(result.findings[0].detail).toMatch(/プレースホルダ/);
+});
+
+test("テンプレートのプレースホルダのままの承認は承認として数えない（承認日時も ISO 8601 を要求する）", () => {
+  const acceptedRow = (override) => ({
+    operation: "corner-click",
+    instance: "orders",
+    disposition: "accepted",
+    reason: "版差を許容",
+    approved_by: "owner",
+    approved_at: "2026-09-23T10:00:00Z",
+    ...override,
+  });
+  const withRow = (row) => comparisonOf({ rows: [row, ...comparisonOf().rows.slice(1)] });
+  expect(run({ comparison: withRow(acceptedRow({})) }).findings).toEqual([]);
+  for (const override of [
+    { reason: "<比べない・差を残す理由（例: ...）>" },
+    { approved_by: "<承認した利用者>" },
+    { approved_at: "<ISO 8601 の承認日時>" },
+    { approved_at: "昨日" },
+  ]) {
+    expect(codes(run({ comparison: withRow(acceptedRow(override)) }))).toEqual([
+      "behavior-acceptance-unapproved",
+    ]);
+  }
+});
+
+test("プレースホルダのままの operations_none_reason では判定を省略しない", () => {
+  const result = run({
+    metadata: metadataOf({
+      capture: {
+        operations: [],
+        operations_none_reason:
+          "<操作を持たない部品のときだけ理由を書き operations を空配列にする>",
+      },
+    }),
+  });
+  expect(result.structural).toBe(true);
+});
+
+test("手順（steps）・説明の無い操作は型崩れ（両側で同じ操作を再生できない）", () => {
+  for (const op of [
+    { id: "x", description: "d", observe: ["a"] },
+    { id: "x", steps: "s", observe: ["a"] },
+    { id: "x", description: "d", steps: "<見本でも同じに再生できる手順>", observe: ["a"] },
+  ]) {
+    expect(run({ metadata: metadataOf({ capture: { operations: [op] } }) }).structural).toBe(true);
+  }
+});
+
+test("プレースホルダのままの到達不能の理由は除外にしない", () => {
+  const metadata = metadataOf({
+    instances: [
+      { id: "orders" },
+      {
+        id: "stock",
+        unreachable_operations: [{ operation: "export", reason: "<実施できない理由>" }],
+      },
+    ],
+  });
+  const rows = comparisonOf().rows.filter(
+    (r) => !(r.operation === "export" && r.instance === "stock"),
+  );
+  const result = run({ metadata, comparison: comparisonOf({ rows }) });
+  expect(codes(result)).toEqual(["unreachable-declaration-invalid", "behavior-uncompared"]);
+});
+
+test("観測値にプレースホルダが残る記録は、両側で同じ文字列でも一致として数えない", () => {
+  const behaviors = behaviorsOf();
+  behaviors.orders.results[1].observed = { download: "<観測した値>", page_errors: 0 };
+  const rows = comparisonOf().rows.map((r) =>
+    r.operation === "export" && r.instance === "orders"
+      ? { ...r, observed: { download: ["<観測した値>"], page_errors: 0 } }
+      : r,
+  );
+  const result = run({ behaviors, comparison: comparisonOf({ rows }) });
+  expect(codes(result)).toEqual([
+    "behavior-baseline-incomplete",
+    "behavior-observation-incomplete",
+  ]);
+  expect(result.findings[1].placeholders).toEqual(["download"]);
+  expect(result.counts.matched).toBe(3);
 });
