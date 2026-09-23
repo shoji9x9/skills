@@ -214,26 +214,38 @@
       "expect_failing": ["既存の組は新しい組へまとめて置き換わる（バックアップも残さない）"]
     },
     {
-      "id": "ancestor-animations",
-      "why": "同じ文書の祖先のアニメーションを数えない（部分木だけに戻す）",
+      "id": "doc-animations",
+      "why": "要素が居る文書のアニメーションを数えない",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    for (let node = up(el); node && node.nodeType === 1; node = up(node)) {\n      liveAnimations += live(node.getAnimations());\n    }\n",
-      "replace": "",
+      "find": "    liveAnimations = countTree(el.ownerDocument);\n",
+      "replace": "    liveAnimations = 0;\n",
       "occurrences": 1,
       "expect_failing": [
-        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: 同じ文書の祖先（最上位フレーム）"
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 要素が居る文書（兄弟・祖先を含む）",
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 開いたシャドウルートの中（document.getAnimations は含まない）"
       ]
     },
     {
-      "id": "frame-animations",
-      "why": "フレーム要素と親文書内の祖先のアニメーションを数えない",
+      "id": "parent-doc-animations",
+      "why": "iframe を遡った先の文書のアニメーションを数えない",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "      if (liveAnimations !== null) {\n        try {\n          liveAnimations += live(node.getAnimations());\n",
-      "replace": "      if (false) {\n        try {\n          liveAnimations += live(node.getAnimations());\n",
+      "find": "        liveAnimations += countTree(parent.document);\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: フレーム要素",
-        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: 親文書内でフレームを包む祖先"
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 親文書（フレーム要素・その祖先・兄弟を含む）",
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 2 段外側の文書"
+      ]
+    },
+    {
+      "id": "shadow-animations",
+      "why": "シャドウルートの中を辿らない（document.getAnimations だけに頼る）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      if (host.shadowRoot) n += countTree(host.shadowRoot);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 開いたシャドウルートの中（document.getAnimations は含まない）"
       ]
     }
   ]

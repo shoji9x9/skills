@@ -136,7 +136,7 @@ test("ビューポートが 0 以下なら失敗する", () => {
  * （内側から外側へ。各段は `{ frameEl, visible, style }`。`frameEl: null` はクロスオリジンで読めないフレーム）。
  */
 function fakeView({ frames = [] } = {}) {
-  const top = { innerWidth: VIEWPORT.width, innerHeight: VIEWPORT.height };
+  const top = { innerWidth: VIEWPORT.width, innerHeight: VIEWPORT.height, document: fakeTree() };
   top.top = top;
   let outer = top;
   // 外側から組み立てる。
@@ -149,8 +149,12 @@ function fakeView({ frames = [] } = {}) {
       top,
       document: {
         scrollingElement: { clientWidth: frame.visible.width, clientHeight: frame.visible.height },
+        ...fakeTree(),
       },
     };
+    // フレーム要素が置かれた文書（外側のビューの文書）のアニメーション。
+    if (frame.parentAnimations)
+      outer.document = { ...outer.document, ...fakeTree(frame.parentAnimations) };
     // 枠線は計算後スタイルから読まれる（clientLeft は整数へ丸められるため）。既定はフレーム要素の枠線の値。
     const border = frame.frameEl ? frame.frameEl.clientLeft : 0;
     // フレーム要素にはフレームの style、祖先には各要素の `computed` を返す（変形の検査は祖先まで辿る）。
@@ -173,13 +177,15 @@ function fakeView({ frames = [] } = {}) {
 /** `playState` の列から Animation の代わりを作る。 */
 const anims = (...states) => states.map((playState) => ({ playState }));
 
-function fakeElement({ rect, frames, animations = [], parentElement = null } = {}) {
+/** getAnimations / querySelectorAll を持つ偽の文書（シャドウルートも同じ形）。`hosts` は shadowRoot を持つ要素。 */
+function fakeTree(animations = [], hosts = []) {
+  return { getAnimations: () => animations, querySelectorAll: () => hosts };
+}
+
+function fakeElement({ rect, frames, animations = [], shadowHosts = [] } = {}) {
   return {
-    ownerDocument: { defaultView: fakeView({ frames }) },
+    ownerDocument: { defaultView: fakeView({ frames }), ...fakeTree(animations, shadowHosts) },
     getBoundingClientRect: () => rect ?? { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
-    getAnimations: () => animations,
-    parentElement,
-    parentNode: parentElement,
   };
 }
 
@@ -197,14 +203,8 @@ class FakeMatrix {
 }
 
 /** 偽の祖先要素（親文書の中でフレーム要素を包む要素）。 */
-function fakeAncestor(computed = {}, parentElement = null, animations = []) {
-  return {
-    nodeType: 1,
-    computed,
-    parentElement,
-    parentNode: parentElement,
-    getAnimations: () => animations,
-  };
+function fakeAncestor(computed = {}, parentElement = null) {
+  return { nodeType: 1, computed, parentElement, parentNode: parentElement };
 }
 
 function fakeFrameEl({
@@ -216,7 +216,6 @@ function fakeFrameEl({
   scale = 1,
   parentElement = null,
   parentNode = parentElement,
-  animations = [],
 }) {
   return {
     getBoundingClientRect: () => ({ x, y, width: width * scale, height: height * scale }),
@@ -227,7 +226,6 @@ function fakeFrameEl({
     nodeType: 1,
     parentElement,
     parentNode,
-    getAnimations: () => animations,
   };
 }
 
@@ -530,57 +528,47 @@ test.each([
   expect(page.calls).toEqual([]);
 });
 
-// 要素を運ぶ祖先のアニメーションも、撮影の中で早送り／初期化されて撮り終えると戻るので、
-// 前後の矩形が一致したまま PNG だけ別の位置で切られる。部分木だけでなく祖先・フレームも数える。
+// 要素を動かすのは部分木だけではない（祖先の移動・フレーム要素・前に並ぶ兄弟の幅の変化もレイアウトを通じて動かす）。
+// それらも撮影の中で早送り／初期化されて撮り終えると戻るので、前後の矩形が一致したまま PNG だけ別の位置で切られる。
+// 要素が居る文書と、iframe を遡った先の各文書の全体で数える。
 test.each([
+  ["要素が居る文書（兄弟・祖先を含む）", () => fakeElement({ animations: anims("running") })],
   [
-    "同じ文書の祖先（最上位フレーム）",
-    () => fakeElement({ parentElement: fakeAncestor({}, null, anims("running")) }),
-  ],
-  [
-    "フレーム要素",
+    "親文書（フレーム要素・その祖先・兄弟を含む）",
     () =>
       fakeElement({
         rect: LOCAL,
-        frames: [
-          { ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10, animations: anims("paused") }) },
-        ],
+        frames: [{ ...NESTED[0], parentAnimations: anims("paused") }],
       }),
   ],
   [
-    "親文書内でフレームを包む祖先",
+    "2 段外側の文書",
     () =>
       fakeElement({
         rect: LOCAL,
-        frames: [
-          {
-            ...NESTED[0],
-            frameEl: fakeFrameEl({
-              x: 10,
-              y: 10,
-              parentElement: fakeAncestor({}, null, anims("running")),
-            }),
-          },
-        ],
+        frames: [NESTED[0], { ...NESTED[1], parentAnimations: anims("running") }],
       }),
   ],
-])("要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: %s", async (_label, make) => {
+  [
+    "開いたシャドウルートの中（document.getAnimations は含まない）",
+    () =>
+      fakeElement({
+        shadowHosts: [{ shadowRoot: fakeTree([], [{ shadowRoot: fakeTree(anims("running")) }]) }],
+      }),
+  ],
+])("文書内のアニメーションが生きていれば撮らずに失敗する: %s", async (_label, make) => {
   const page = recordingPage();
   await expect(captureElementShot(page, frameLocator(make()))).rejects.toThrow(/live animation/);
   expect(page.calls).toEqual([]);
 });
 
-test("祖先のアニメーションが終わっていれば撮る（finished / idle は数えない）", async () => {
+test("文書内のアニメーションが終わっていれば撮る（finished / idle は数えない）", async () => {
   const page = recordingPage();
   const el = fakeElement({
     rect: LOCAL,
-    parentElement: fakeAncestor({}, null, anims("finished", "idle")),
-    frames: [
-      {
-        ...NESTED[0],
-        frameEl: fakeFrameEl({ x: 10, y: 10, animations: anims("finished") }),
-      },
-    ],
+    animations: anims("finished", "idle"),
+    shadowHosts: [{ shadowRoot: fakeTree(anims("finished")) }],
+    frames: [{ ...NESTED[0], parentAnimations: anims("finished") }],
   });
   await captureElementShot(page, frameLocator(el));
   expect(page.calls).toHaveLength(1);
