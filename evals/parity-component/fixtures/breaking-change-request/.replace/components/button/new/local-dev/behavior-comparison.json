@@ -7,7 +7,7 @@
       "instance": "orders-search",
       "story": "components-button--orders-search-default",
       "observed": {
-        "submitted": true,
+        "submitted": false,
         "page_errors": 0
       }
     },
@@ -16,7 +16,7 @@
       "instance": "users-create",
       "story": "components-button--users-create-default",
       "observed": {
-        "submitted": true,
+        "submitted": false,
         "page_errors": 0
       }
     }
