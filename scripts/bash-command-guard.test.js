@@ -287,6 +287,198 @@ test("変数展開と併用した文字クラスは免除する", () => {
   expect(r.stderr).not.toMatch(/実行前に止めた/);
 });
 
+// --- ヒアドキュメントの本文（Issue #423） ---
+//
+// 本文はコマンドの標準入力に渡るデータで、実行されない。本文をコードとして読むと、
+// ゲートや注意書きを説明する文章を heredoc で書いただけで止まる（引用符の有無に依らず、本文の各行を
+// コマンドとして切っていた）。ただし本文が実行される形は従来どおりコードとして読む。
+//
+// | 軸                 | データ（通す）                                     | コード（止める）                                   |
+// |--------------------|----------------------------------------------------|----------------------------------------------------|
+// | 区切り語           | 引用（'EOF' / "EOF" / \EOF）・非引用で置換なし     | 非引用で本文に $( ) / ` がある                     |
+// | 本文を読むもの     | cat / tee / git commit -F - 等                     | 同じ行に sh / bash / ssh / eval / source / . がある |
+// | 区切り語の行       | 一致（<<- はタブを剥いで一致）                     | 見つからない（本文をコードとして読む）             |
+// | 本文の後           | —                                                  | 区切り語の行の次からは通常のコード                 |
+// | マーカーのある行   | —                                                  | マーカーの後ろ（`&& ...`）は通常のコード           |
+// | 数                 | 1 行に 2 つ（順に読み飛ばす）・$( ) の中           | —                                                  |
+const HEREDOC_PASSING = [
+  ["引用した区切り語の本文にアポストロフィ", "cat > f.md <<'EOF'\nDon't use pkill -f here\nEOF"],
+  ["二重引用符の区切り語", 'cat > f.md <<"EOF"\nnever pkill -f\nEOF'],
+  ["バックスラッシュの区切り語", "cat > f.md <<\\EOF\nnever pkill -f\nEOF"],
+  ["非引用の区切り語で置換の無い本文", "cat > f.md <<EOF\nnever use pkill -f here\nEOF"],
+  ["本文の gh api の文章", "cat > b.md <<'EOF'\ngh api x --body-file y は不可\nEOF"],
+  ["<<- はタブを剥いだ区切り語で閉じる", "cat > f.md <<-'EOF'\n\tDon't pkill -f\n\tEOF"],
+  ["1 行に 2 つのヒアドキュメント", "cat <<A <<'B'\nx pkill -f\nA\ny it's pkill -f\nB"],
+  ["引用した区切り語の本文の $( ) は実行されない", "cat > f.sh <<'EOF'\nout=$(pkill -f x)\nEOF"],
+  [
+    "コマンド置換の中のヒアドキュメント",
+    "msg=$(cat <<'EOF'\nDon't pkill -f\nEOF\n)\ngit commit -m \"$msg\"",
+  ],
+  ["マーカーの後ろに続くコマンドが正当", "cat <<'EOF' > f.md && echo ok\nDon't pkill -f\nEOF"],
+  ["シェルスクリプトを書き出す（語の一部の sh）", "cat > x.sh <<'EOF'\npkill -f chrome\nEOF"],
+  ["行継続の前の行がシェルでない", "cat \\\n  <<'EOF'\nDon't pkill -f\nEOF"],
+];
+test.each(HEREDOC_PASSING)("ヒアドキュメントの本文はデータとして通す: %s", (_name, command) => {
+  const r = guard(command);
+  expect(r.status).toBe(0);
+  expect(r.stderr).not.toMatch(/実行前に止めた/);
+});
+
+// 読み手の許可リスト（PR #448 のレビュー後に、本文を実行するシェルの列挙から反転した）。
+// 本文を読み飛ばすのは、`<<` の読み手とパイプの先がすべて許可リストのときだけ。
+const HEREDOC_READER_PASSING = [
+  ["tee", "tee f.md <<'EOF'\nDon't pkill -f\nEOF"],
+  ["git commit -F -", "git commit -F - <<'EOF'\nfix: don't pkill -f\nEOF"],
+  ["先頭の代入を読み飛ばす", "GIT_EDITOR=true git commit -F - <<'EOF'\nfix: don't pkill -f\nEOF"],
+  ["許可リストの読み手へのパイプ", "cat <<'EOF' | gh pr create --body-file -\nDon't pkill -f\nEOF"],
+  ["コマンド置換の中の git commit", "git commit -m \"$(cat <<'EOF'\nfix: don't pkill -f\nEOF\n)\""],
+  ["代入が受け取るコマンド置換", "msg=$(cat <<'EOF'\nDon't pkill -f\nEOF\n)"],
+  ["代入が受け取るバッククォート", "x=`cat <<'EOF'\nDon't pkill -f\nEOF\n`"],
+  ["行継続を挟んだ読み手", "cat \\\n  <<'EOF'\nDon't pkill -f\nEOF"],
+  ["node", "node - <<'EOF'\nconsole.log(\"don't pkill -f\")\nEOF"],
+];
+test.each(HEREDOC_READER_PASSING)(
+  "許可リストの読み手の本文はデータとして通す: %s",
+  (_name, command) => {
+    const r = guard(command);
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toMatch(/実行前に止めた/);
+  },
+);
+
+const HEREDOC_READER_BLOCKING = [
+  ["引用したシェル名", "'bash' <<'EOF'\npkill -f chrome\nEOF"],
+  ["パス付きのシェル", "/bin/sh <<'EOF'\npkill -f chrome\nEOF"],
+  ["env 経由のシェル", "env bash <<'EOF'\npkill -f chrome\nEOF"],
+  [
+    "許可リストの読み手から許可リスト外へのパイプ",
+    "cat <<'EOF' | tee f | bash\npkill -f chrome\nEOF",
+  ],
+  // 読み手がコマンド置換の中にあると、置換の結果を受け取る外側のコマンドも本文を実行しうる（PR #448 のレビュー。親版は止めていた）。
+  ["eval が受け取るコマンド置換", "eval \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
+  ["bash -c が受け取るコマンド置換", "bash -c \"$(cat <<'EOF'\npkill -f chrome\nEOF\n)\""],
+  ["eval が受け取るバッククォート", "eval `cat <<'EOF'\npkill -f chrome\nEOF\n`"],
+  // 同じ呼び出しで読み手の名前が実体を表さなくなる形（PR #448 のレビュー。親版は止めていた）。
+  ["関数として定義し直した読み手", "cat() { bash; }; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["function で定義し直した読み手", "function cat { bash; }; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["alias で差し替えた読み手", "alias cat=bash; cat <<'EOF'\npkill -f chrome\nEOF"],
+  ["PATH を差し替えた読み手", "PATH=/tmp/evil cat <<'EOF'\npkill -f chrome\nEOF"],
+  [
+    "PATH を export した後の読み手",
+    "export PATH=/tmp/evil:$PATH; cat <<'EOF'\npkill -f chrome\nEOF",
+  ],
+  ["hash で差し替えた読み手", "hash -p /tmp/evil cat; cat <<'EOF'\npkill -f chrome\nEOF"],
+  // プロセス置換は読み手の出力を別のコマンドへ渡す（PR #448 のレビュー。親版は止めていた）。
+  ["出力のプロセス置換", "cat <<'EOF' > >(bash)\npkill -f chrome\nEOF"],
+  ["tee のプロセス置換", "tee >(sh) <<'EOF'\npkill -f chrome\nEOF"],
+  ["リダイレクトの & を境界と読む（安全側）", "cat 2>&1 <<'EOF'\npkill -f chrome\nEOF"],
+];
+test.each(HEREDOC_READER_BLOCKING)(
+  "許可リスト外の読み手の本文はコードとして読む: %s",
+  (_name, command) => {
+    expect(guard(command).status).toBe(2);
+  },
+);
+
+const HEREDOC_BLOCKING = [
+  ["区切り語の行の次のコマンド", "cat > f.md <<'EOF'\nDon't\nEOF\npkill -f chrome"],
+  ["マーカーの後ろのコマンド", "cat <<'EOF' && pkill -f chrome\nbody\nEOF"],
+  ["本文をシェルが読む", "bash <<'EOF'\npkill -f chrome\nEOF"],
+  ["本文をパイプでシェルへ渡す", "cat <<'EOF' | sh\npkill -f chrome\nEOF"],
+  ["本文を ssh が読む", "ssh host <<EOF\npkill -f node\nEOF"],
+  ["本文を . が読む", ". /dev/stdin <<'EOF'\npkill -f chrome\nEOF"],
+  // 行継続でシェルとマーカーが別の物理行に分かれても同じ論理行（PR #448 のレビュー。親版は止めていた）。
+  ["行継続の前の行でシェルが読む", "bash \\\n <<'EOF'\npkill -f chrome\nEOF"],
+  ["非引用の区切り語で本文に $( )", "cat > f.md <<EOF\nout=$(pkill -f x)\nEOF"],
+  ["非引用の区切り語で本文にバッククォート", "cat > f.md <<EOF\nout=`pkill -f x`\nEOF"],
+  ["区切り語の行が無い", "cat <<'EOF'\npkill -f chrome"],
+  ["<< の区切り語はタブ付きでは閉じない", "cat <<'EOF'\nx\n\tEOF\npkill -f chrome"],
+  ["ヒアストリングはヒアドキュメントではない", "cat <<< x\npkill -f chrome"],
+  // `<<<` の 2 文字目からを `<<` と読むと、区切り語 EOF のヒアドキュメントとして次の行を飛ばす。
+  ["ヒアストリングの語と同じ行が後にある", "cat <<< EOF\npkill -f chrome\nEOF"],
+  ["gh api の本文の後の gh api", "cat > b.md <<'EOF'\nnote\nEOF\ngh api x --body-file b.md"],
+];
+test.each(HEREDOC_BLOCKING)("ヒアドキュメントでも実行される形は止める: %s", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+// --- 意図的な穴と、構造を見ずに拾えている形（Issue #423） ---
+//
+// スクリプト冒頭の「意図的な穴」の各行を、現在の挙動として固定する。挙動を変えたらここと冒頭を一緒に直す。
+test.each([
+  ["xargs 経由", "echo chrome | xargs pkill -f"],
+  ["find -exec 経由", "find . -exec pkill -f {} \\;"],
+  ["case の本体", "case x in x) pkill -f chrome ;; esac"],
+  ["関数の本体", "f() { pkill -f chrome; }; f"],
+  ["プロセス置換", "cat <(pkill -f chrome)"],
+  ["行継続で別の行に分かれた gh api と --body-file", "gh api x \\\n  --body-file b"],
+])("構造を解析せずに拾えている形（%s）は止める", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+test("意図的な穴（誤検知側）: シェル委譲のセグメントは位置引数の文字列もコードとして扱う", () => {
+  expect(guard('bash -c \'echo "$1"\' _ "pkill -f x"').status).toBe(2);
+});
+
+test("意図的な穴（見逃し側）: 変数に入れたコマンド名は展開しない", () => {
+  expect(guard("K=pkill; $K -f chrome").status).toBe(0);
+});
+
+test("意図的な穴（見逃し側）: インタプリタが読むヒアドキュメントの本文はデータとして通す", () => {
+  // AGENTS.md は本文を quoted heredoc でインタプリタへ渡す形を推奨するので、読み手の許可リストに入れる。
+  const command = "python3 - <<'EOF'\nimport os\npkill -f x\nEOF";
+  expect(guard(command).status).toBe(0);
+});
+
+test("意図的な穴（見逃し側）: 許可リストの読み手でファイルへ書き出してから実行する形は見逃す", () => {
+  // 書き出した内容の行方はゲートから追えない（Write ツールで書いてから実行するのと同じ）。
+  expect(guard("cat > s.sh <<'EOF' && bash s.sh\npkill -f chrome\nEOF").status).toBe(0);
+});
+
+test("意図的な穴（誤検知側）: 引用していないリダイレクト先のファイル名もコードとして見る", () => {
+  expect(guard("echo hi > pkill-f.log").status).toBe(2);
+});
+
+// 算術の中の `<<` は左シフト。ヒアドキュメントと読むと、後続の行が右辺と一致したときに
+// 間のコマンドを本文として飛ばす（PR #448 のレビュー。親版は止めていた）。
+test.each([
+  ["$(( )) の後", "echo $(( 1 << 2 ))\npkill -f chrome\n2"],
+  ["(( )) の後", "(( x = 1 << 2 ))\npkill -f chrome\n2"],
+  ["二重引用符の中の $(( ))", 'echo "$(( 1 << 2 ))"\npkill -f chrome\n2'],
+  ["括弧を含む算術", "echo $(( (1 << 2) + 1 ))\npkill -f chrome\n2"],
+  ["右辺が変数", "echo $(( x << y ))\npkill -f chrome\ny"],
+  // 内側の括弧を深さで数えないと、`((1 << 2))` の閉じを算術の閉じと読んで残りをコードに戻す。
+  ["入れ子の括弧を含む算術", "echo $(( ((1 << 2)) + (3 << 4) ))\npkill -f chrome\n4"],
+])("算術の << をヒアドキュメントと読まない（%s）", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+// パラメータ展開の中の `<<` は置換文字列。ヒアドキュメントと読むと、区切り語と同じ行までを飛ばす
+// （PR #448 のレビュー。親版は止めていた）。
+test.each([
+  ["置換文字列の <<", "cat ${x:-<<EOF;}\npkill -f chrome\nEOF"],
+  ["入れ子のパラメータ展開", "cat ${x:-${y:-<<EOF;}}\npkill -f chrome\nEOF"],
+])("パラメータ展開の << をヒアドキュメントと読まない（%s）", (_name, command) => {
+  expect(guard(command).status).toBe(2);
+});
+
+// bash は `${…}` の中の素の `{` を数えず、最初の `}` で閉じる（実測: `${x:-{a}b}` は `{ab}`）。
+// 深さで数えると、閉じた後の本物のヒアドキュメントをパラメータ展開の中と読み、本文をコードとして止める。
+test("パラメータ展開は最初の } で閉じ、その後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("cat ${x:-{a}b} - <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
+});
+
+test("パラメータ展開を閉じた後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("echo ${#arr[@]}\ncat <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
+});
+
+test("算術を閉じた後のヒアドキュメントは本文をデータとして通す", () => {
+  const r = guard("x=$(( 1 << 2 ))\ncat <<'EOF'\nDon't pkill -f\nEOF");
+  expect(r.status).toBe(0);
+});
+
 // --- 入力の退化形 ---
 
 test("command フィールドが無い Hook JSON は通す", () => {

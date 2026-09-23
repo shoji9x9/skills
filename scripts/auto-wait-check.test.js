@@ -12,7 +12,7 @@ const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/auto-wait-check.mjs");
-const { maskNonCode, scanSource, scanSourceWithStats } = await import(script);
+const { breakdownMismatch, maskNonCode, scanSource, scanSourceWithStats } = await import(script);
 
 test("陽性コントロール: locator と自動リトライ assertion は通る", () => {
   const source = `
@@ -60,14 +60,22 @@ test("テンプレート文字列の文字部分にある例示は誤検出し�
   expect(scanSource("const note = `do not use locator.textContent()`;")).toEqual([]);
 });
 
-test("Playwright 以外の同名メソッドは誤検出しない", () => {
+// 同名メソッドを違反にしない。ただし由来を確定できない名前（未宣言＝import・グローバル）は
+// Playwright 以外とも確定できないので、黙って読み飛ばさず判定不能にする（Issue #412）。
+test("Playwright 以外の同名メソッドは違反にせず、由来を確定できない名前は判定不能にする", () => {
   const source = `
     await Promise.all(tasks);
     const size = collection.count();
     await clock.waitForTimeout(10);
     await wrapper.elementHandle();
   `;
-  expect(scanSource(source)).toEqual([]);
+  const { findings, stats } = scanSourceWithStats(source);
+  expect(findings.map((v) => v.rule)).toEqual([
+    "unresolved-receiver",
+    "unresolved-receiver",
+    "unresolved-receiver",
+  ]);
+  expect(stats).toMatchObject({ callSites: 4, resolved: 0, undecidable: 3, excluded: 1 });
 });
 
 test("Page / Locator の直接チェーン・代入別名・型注釈を検出する", () => {
@@ -639,13 +647,15 @@ test("受け側の種別は呼び出しに最も近い一致で決まり、解�
   expect(result.stats).toMatchObject({ callSites: 1, resolved: 1, undecidable: 0 });
 });
 
-test("Playwright と無関係なメンバー式・関数呼び出しは誤検出しない", () => {
+test("Playwright と無関係なメンバー式は違反にせず、起点が未宣言なら判定不能にする", () => {
   const source = [
     "const total = config.pagination.count();",
     "const names = collection.items.allTextContents();",
     "await clock.timers.waitForTimeout(10);",
   ].join("\n");
-  expect(scanSource(source)).toEqual([]);
+  const { findings, stats } = scanSourceWithStats(source);
+  expect(findings.every((v) => v.rule === "unresolved-receiver")).toBe(true);
+  expect(stats).toMatchObject({ callSites: 3, resolved: 0, undecidable: 3, excluded: 0 });
 });
 
 // --- 採取スペックの免除 ---
@@ -861,12 +871,14 @@ test("二重アサーションの行き先が Page / Locator でなければ従�
 });
 
 // 角括弧アサーションが書ける `.ts` 系は、generic なアロー関数が同じ形に見える拡張子でもある。
+// 関数値は「Playwright 以外と確定」の根拠にしないので判定不能になるが、理由はアサーション由来（alias）ではなく
+// 束縛（binding）であること——角括弧アサーションと読み違えると別名が opaqueAliases に入り alias になる。
 test("generic なアロー関数を角括弧アサーションと読み違えない", () => {
-  const stats = scanSourceWithStats(
+  const [finding] = scanSource(
     `const pick = <T>(x: T) => x;\nfunction f() {\n  return pick.count();\n}`,
     "spec.ts",
-  ).stats;
-  expect(stats.undecidable).toBe(0);
+  );
+  expect(finding.message).toMatch(/束縛を解決できない/);
 });
 
 // `as` はどの拡張子でも書けるので、拡張子ではなく区切り（`<` / `>`）で JSX を止める。
@@ -914,3 +926,311 @@ test("複数宣言子の後ろの型アサーションを先頭の別名に当�
   expect(r.stats.resolved).toBe(0);
   expect(r.findings.map((x) => x.rule)).not.toContain("immediate-read");
 });
+
+// --- 束縛を読めない受け側を黙って読み飛ばさない（Issue #412） ---
+//
+// どれにも解決しない受け側は、起点が「Playwright 以外と確定」した名前のときだけ対象外（excluded）に数え、
+// それ以外は判定不能にする。確定の根拠は閉じた集合（リテラル・起点が確定済みの式・関数式・JSX・
+// Page から取り出した非 Page / Locator のプロパティ・非 Playwright の型注釈・標準の組み込み）。
+//
+// | 軸                 | 判定不能にする（束縛を読めない）                                         | 対象外に数える（確定）                     |
+// |--------------------|---------------------------------------------------------------------------|--------------------------------------------|
+// | 宣言の形           | 分割代入 / 宣言だけして後で代入 / 初期化後の再代入 / 2 つ目の宣言        | `const x = <確定した右辺>` 1 つだけ        |
+// | 右辺               | 三項 / 未確定の名前を含む式 / 行を折った続きに未確定の名前               | リテラル / 算術 / 文字列 / 関数式 / JSX     |
+// | 引数               | 型注釈なし / 分割 / 括弧なしアロー / `any` 注釈 / catch / for-of          | 非 Playwright の型注釈（`e: Element`）     |
+// | ファイル外         | import / 未宣言 / this のプロパティ / 組み込みを引数で束ね直した名前     | Promise / console / document / window      |
+// | 行をまたぐ角括弧   | `<Locator>\n raw` は解決、`<Foo>\n raw` は判定不能                         | —                                          |
+const undecidableForms = [
+  [
+    "分割代入",
+    "function f(page) { const { rows } = makeLocators(page); return rows.textContent(); }",
+  ],
+  ["三項", "function f(a, b, c) { const loc = c ? a : b; return loc.textContent(); }"],
+  ["宣言だけして後で代入", "function f(x) { let loc; loc = x.thing; return loc.textContent(); }"],
+  [
+    "確定した右辺で初期化した後の再代入",
+    "function f(page) { let loc = 1; loc = page.locator('a'); return loc.count(); }",
+  ],
+  ["型注釈の無い引数", "function f(loc) { return loc.textContent(); }"],
+  ["括弧の無い単引数のアロー", "const read = loc => loc.textContent();"],
+  ["分割した引数", "function f({ loc }) { return loc.textContent(); }"],
+  ["any で注釈した引数", "function f(loc: any) { return loc.textContent(); }"],
+  ["for-of の束縛", "for (const heading of headings) { await heading.innerText(); }"],
+  ["catch の束縛", "try { x(); } catch (err) { err.count(); }"],
+  ["import した名前", "import { rows } from './mapping';\nawait rows.count();"],
+  ["this のプロパティ", "class A { go() { return this.rows.count(); } }"],
+  ["組み込みと同名の引数", "function f(document) { return document.count(); }"],
+  [
+    "同じ名前の 2 つ目の宣言が確定しない",
+    "function f() { const x = 1; }\nfunction g(raw) { const x = raw; return x.count(); }",
+  ],
+  [
+    "確定した const と同名の引数（スコープが違う）",
+    "const size = 3;\nfunction g(size) { return size.count(); }",
+  ],
+  [
+    "行を折った右辺の続きに未確定の名前",
+    "function f(raw) { const t = 1 +\n  raw;\n  return t.count(); }",
+  ],
+  [
+    "行をまたぐ角括弧で別の型",
+    "function f(raw) { const row = <Foo>\n  raw;\n  return row.count(); }",
+  ],
+  // 型注釈の中身が Page / Locator でありうる形は、Playwright 以外の根拠にしない。
+  ["修飾名の Locator で注釈した引数", "function f(loc: pw.Locator) { return loc.textContent(); }"],
+  [
+    "修飾名の Locator で注釈した宣言",
+    "function f(page) { const loc: pw.Locator = page.locator('a'); return loc.textContent(); }",
+  ],
+  ["generic で包んだ Locator", "function f(loc: Readonly<Locator>) { return loc.textContent(); }"],
+  ["typeof で注釈した引数", "function f(p: typeof page) { return p.waitForTimeout(1); }"],
+  [
+    "import 型で注釈した引数",
+    'function f(p: import("@playwright/test").Page) { return p.waitForTimeout(1); }',
+  ],
+  [
+    "Page / Locator 以外の Playwright の型",
+    "function f(frame: Frame) { return frame.textContent('a'); }",
+  ],
+  // 型名の中身がファイルの外にありうる形。許可リスト外の名前は根拠にしない（PR #448 のレビュー）。
+  [
+    "import した型エイリアスで注釈した引数",
+    'import type { Row } from "./mapping";\nfunction f(row: Row) { return row.count(); }',
+  ],
+  ["同一ファイルで宣言していない型名", "function f(x: Countable) { return x.count(); }"],
+  [
+    "許可リストの名前を同じファイルで型エイリアスにし直したもの",
+    "type Element = Locator;\nfunction f(el: Element) { return el.count(); }",
+  ],
+  // 関数値の名前を起点にした右辺は、タグ付きテンプレートの戻り値でありうる（テンプレートはマスクで消える。PR #448 のレビュー）。
+  [
+    "関数値の名前にタグ付きテンプレート（同じ行）",
+    "const make = () => page.locator('tr'); const row = make`tag`; row.count();",
+  ],
+  [
+    "関数値の名前にタグ付きテンプレート（次の行）",
+    "const make = () => page.locator('tr'); const row = make\n`tag`; row.count();",
+  ],
+  // 型引数の名前は許可リストの名前と同じでも中身は別物（PR #448 のレビュー）。
+  ["関数の型引数", "function f<Node extends Locator>(x: Node) { return x.count(); }"],
+  ["アロー関数の型引数", "const f = <Node extends Locator>(x: Node) => x.count();"],
+  ["クラスの型引数", "class A<Node> { go(x: Node) { return x.count(); } }"],
+  // 分割代入で再代入された名前は、宣言時の右辺で確定しない（PR #448 のレビュー）。
+  [
+    "配列の分割代入で再代入",
+    'async function f(page) { let row = 1; [row] = [page.locator("tr")]; await row.count(); }',
+  ],
+  [
+    "オブジェクトの分割代入で再代入",
+    'async function f(page) { let row = 1; ({ row } = { row: page.locator("tr") }); await row.count(); }',
+  ],
+  [
+    "許可リストの名前を TypeScript の import 代入で束ね直したもの",
+    "import Element = Types.Row;\nfunction f(x: Element) { return x.count(); }",
+  ],
+  [
+    "許可リストの名前を import し直したもの",
+    'import type { Element } from "./mapping";\nfunction f(el: Element) { return el.count(); }',
+  ],
+  // 型名の後ろに型が続く形。先頭の型名だけを読むと Locator を含む注釈を確定してしまう（PR #448 のレビュー）。
+  [
+    "union の先頭が非 Playwright 型の引数",
+    'function f(x: Element | Locator) { if ("count" in x) return x.count(); }',
+  ],
+  ["intersection の引数", "function f(x: Element & Locator) { return x.count(); }"],
+  ["配列型の引数", "function f(xs: Element[]) { return xs.count(); }"],
+  [
+    "union の先頭が非 Playwright 型の宣言",
+    "function f(raw) { const x: Element | Locator = raw; return x.count(); }",
+  ],
+  [
+    "同一ファイルの型エイリアス",
+    "type Row = Locator;\nfunction f(r: Row) { return r.textContent(); }",
+  ],
+];
+test.each(undecidableForms)("束縛を読めない受け側は判定不能に数える: %s", (_label, source) => {
+  const { findings, stats } = scanSourceWithStats(source, "spec.ts");
+  expect(stats).toMatchObject({ callSites: 1, resolved: 0, undecidable: 1, excluded: 0 });
+  expect(findings.map((v) => v.rule)).toEqual(["unresolved-receiver"]);
+});
+
+test("束縛を読めない受け側には、束縛へ型注釈を付ける直し方を出す", () => {
+  const [finding] = scanSource("function f(loc) { return loc.textContent(); }", "spec.ts");
+  expect(finding.message).toMatch(/束縛を解決できない/);
+  expect(finding.message).toMatch(/document/);
+});
+
+// 陰性コントロール: 確定の根拠がある名前は判定不能にしない（通常運用を止めない）。
+const excludedForms = [
+  ["数値リテラル", "const limit = 3;\nlimit.count();", "spec.ts"],
+  ["起点が確定済みの算術", "const limit = 3;\nconst total = limit + 1;\ntotal.count();", "spec.ts"],
+  ["文字列リテラル", "const label = 'x';\nlabel.count();", "spec.ts"],
+  ["リテラルだけのオブジェクト", "const opts = { timeout: 1 };\nopts.count();", "spec.ts"],
+  ["JSX（.tsx）", "const el = <span>hello</span>;\nel.count();", "spec.tsx"],
+  [
+    "Page から取り出したプロパティ",
+    "function f(page) { const t = page.clock; t.count(); }",
+    "spec.ts",
+  ],
+  [
+    "Page から取り出したプロパティを別の型へアサート",
+    "function f(page) { const t = page.clock as Clock; t.count(); }",
+    "spec.ts",
+  ],
+  [
+    "添字への代入があっても別の確定した名前は巻き込まない",
+    "const limit = 3;\narr[0] = 1;\nlimit.count();",
+    "spec.ts",
+  ],
+  ["Promise.all", "await Promise.all([a(), b()]);", "spec.ts"],
+  ["console.count", "console.count('x');", "spec.ts"],
+  ["document の中の DOM", "document.body.getAttribute('x');", "spec.ts"],
+];
+// 型注釈と関数値は根拠にしない（PR #448 のレビュー後に絞った）。以前は対象外に数えていた形が
+// 判定不能になることを固定する——根拠を広げ直すと、ここが赤くなる。
+const notEvidenceForms = [
+  ["アロー関数", "const pick = (x) => x;\npick.count();"],
+  ["generic なアロー関数", "const pick = <T>(x: T) => x;\npick.count();"],
+  ["DOM 型の注釈の引数", "function f(el: Element) { return el.getAttribute('x'); }"],
+  ["DOM 型の注釈の宣言", "function f(raw) { const el: Element = raw; el.count(); }"],
+  ["プリミティブ型の注釈", "function f(s: string) { return s.count(); }"],
+  // 組み込みもプロパティへ代入できる（PR #448 のレビュー）。
+  ["代入した組み込みのプロパティ", "window.row = page.locator('tr'); window.row.count();"],
+  [
+    "添字で代入した組み込みのプロパティ",
+    "document['row'] = page.locator('tr'); document.row.count();",
+  ],
+  [
+    "Object.assign で書き込んだ組み込み",
+    "Object.assign(window, { row: page.locator('tr') }); window.row.count();",
+  ],
+  // Page から取り出すプロパティは Page API の既知の名前に限る（任意の名前には後から Locator を代入できる。PR #448 のレビュー）。
+  [
+    "Page の任意のプロパティ",
+    "page.row = page.locator('tr'); const alias = page.row; alias.count();",
+  ],
+  [
+    "代入し直した Page API の名前",
+    "page.clock = page.locator('a'); const t = page.clock; t.count();",
+  ],
+  // 確定した名前のプロパティは後から Locator を代入できる（PR #448 のレビュー）。
+  // 代入の形は `box.row =` に限らない（`Object.assign` 等）ので、プロパティ参照を含む式そのものを根拠にしない。
+  [
+    "Object.assign で入れたプロパティを括弧で束ね直す",
+    "const box = {}; Object.assign(box, { row: page.locator('tr') }); const row = (box.row); row.count();",
+  ],
+  [
+    "確定した名前のプロパティを括弧で束ね直す",
+    "const box = {}; box.row = page.locator('tr'); const row = (box.row); row.count();",
+  ],
+  [
+    "確定した名前のプロパティを辿る",
+    "const box = {}; box.row = page.locator('tr'); box.row.count();",
+  ],
+  [
+    "Page から取り出した値のプロパティを辿る",
+    "function f(page) { const t = page.clock; t.row = page.locator('tr'); t.row.count(); }",
+  ],
+  ["代入の無い確定した名前でもプロパティは辿らない", "const limit = 3;\nlimit.foo.count();"],
+  // 本体の起点が組み込みだけの関数値でも、タグ付きテンプレートの戻り値は読めない（テンプレートはマスクで消える）。
+  [
+    "本体の起点が組み込みだけの関数値",
+    "const make = () => window.handle;\nconst row = make`tag`;\nrow.count();",
+  ],
+];
+test("`.tsx` の generic アロー関数を JSX と読んで Playwright 以外と確定しない", () => {
+  const { stats } = scanSourceWithStats(
+    "const make = <T,>() => window.h;\nconst row = make`tag`;\nrow.count();",
+    "spec.tsx",
+  );
+  expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+});
+
+test.each(notEvidenceForms)("Playwright 以外の根拠にしない形は判定不能: %s", (_label, source) => {
+  const { stats } = scanSourceWithStats(source, "spec.ts");
+  expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+});
+
+test.each(excludedForms)(
+  "Playwright 以外と確定した受け側は対象外に数える: %s",
+  (_label, source, file) => {
+    const { findings, stats } = scanSourceWithStats(source, file);
+    expect(stats).toMatchObject({ callSites: 1, resolved: 0, undecidable: 0, excluded: 1 });
+    expect(findings).toEqual([]);
+  },
+);
+
+test("行をまたぐ角括弧アサーションは Locator として解決する", () => {
+  const { findings, stats } = scanSourceWithStats(
+    "function f(raw) { const row = <Locator>\n  raw;\n  return row.count(); }",
+    "spec.ts",
+  );
+  expect(stats).toMatchObject({ callSites: 1, resolved: 1, undecidable: 0, excluded: 0 });
+  expect(findings.map((v) => v.rule)).toEqual(["immediate-read"]);
+});
+
+test("走査の内訳は呼び出し数と常に合う（解決 + 判定不能 + 対象外。免除は解決の内数）", () => {
+  const source = [
+    "const limit = 3;",
+    "limit.count();",
+    "await page.getByRole('row').count();",
+    "function f(loc) { return loc.textContent(); }",
+  ].join("\n");
+  const capture = "/repo/parity/orders/current-only/baseline.spec.ts";
+  const { stats } = scanSourceWithStats(source, capture);
+  expect(stats).toEqual({ callSites: 3, resolved: 1, undecidable: 1, excluded: 1, exempted: 1 });
+  expect(breakdownMismatch(stats)).toBeNull();
+});
+
+test("内訳が呼び出し数に満たなければ不一致として説明を返す", () => {
+  const message = breakdownMismatch({
+    callSites: 2,
+    resolved: 1,
+    undecidable: 0,
+    excluded: 0,
+    exempted: 0,
+  });
+  expect(message).toMatch(
+    /禁止 API の呼び出し 2 件 ≠ 解決 1 \+ 判定不能 0 \+ Playwright 以外と確定 0/,
+  );
+});
+
+test("CLI は Playwright 以外と確定した件数を出力する", () => {
+  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-excluded-"));
+  writeFileSync(join(dir, "a.spec.ts"), "await Promise.all([a(), b()]);\n");
+  const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toMatch(/Playwright 以外と確定 1 件/);
+});
+
+// 名前はファイル全体で 1 つとして扱うので、確定の根拠（`const loc = 1`）が同じファイルの別の場所にあっても、
+// 根拠の無い形で束縛された同名は判定不能に倒す。上の表は根拠そのものが無い形なので、
+// 束縛の読み取りを外しても緑のまま——この表が束縛の各形を読んでいることを弁別する。
+const shadowedForms = [
+  ["型注釈の無い引数", "function f(loc) { return loc.textContent(); }"],
+  ["括弧の無い単引数のアロー", "const read = loc => loc.textContent();"],
+  ["分割した引数", "function f({ loc }) { return loc.textContent(); }"],
+  ["any で注釈した引数", "function f(loc: any) { return loc.textContent(); }"],
+  ["分割代入の宣言", "function f(page) { const { loc } = make(page); return loc.textContent(); }"],
+  // 型注釈を挟むと `}` の直後が `=` でなくなり、分割代入の走査（`} =`）では拾えない。
+  [
+    "型注釈付きの分割代入の宣言",
+    "function f(page) { const { loc }: Props = make(page); return loc.textContent(); }",
+  ],
+  ["for-of の束縛", "for (const loc of rows) { await loc.innerText(); }"],
+  ["catch の束縛", "try { x(); } catch (loc) { loc.count(); }"],
+  ["import した名前", "import { loc } from './mapping';\nawait loc.count();"],
+  ["再代入", "function f(page) { loc = page.locator('a'); return loc.count(); }"],
+  // `assignments` は `loc =` の形しか拾わないので、型注釈を挟んだ宣言は別経路で束縛として数える。
+  [
+    "型注釈付きの宣言",
+    "function f(page) { const loc: Foo = page.locator('a'); return loc.count(); }",
+  ],
+];
+test.each(shadowedForms)(
+  "確定した同名の宣言があっても、根拠の無い束縛は判定不能: %s",
+  (_label, body) => {
+    const { stats } = scanSourceWithStats(`function g() { const loc = 1; }\n${body}`, "spec.ts");
+    expect(stats).toMatchObject({ callSites: 1, undecidable: 1, excluded: 0 });
+  },
+);

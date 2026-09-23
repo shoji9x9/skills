@@ -70,6 +70,10 @@ const UNRESOLVED_MESSAGES = {
     "受け側を解決できない（束ねた変数の由来を追えない）。右辺の関数の戻り値、またはプロパティへ Page / Locator の型注釈を付ける",
   opaque:
     "受け側の起点を確定できない（括弧で包んだ式・リテラル等）。Page / Locator に解決する式から引く",
+  binding:
+    "受け側の名前の束縛を解決できない（Page / Locator 以外の注釈を含む引数・分割代入・再代入・for-of・import・未宣言の名前・this のプロパティ等）。" +
+    "Locator / Page なら束縛へ型注釈（`loc: Locator`）を付ける。Playwright 以外の値（evaluate の中の DOM 等）は " +
+    "`document` / `window` を起点にした式で直接読む",
 };
 
 /**
@@ -503,6 +507,104 @@ const NON_RECEIVER_KEYWORDS = new Set([
 ]);
 
 /**
+ * Playwright 以外と確定する標準の組み込みオブジェクト。禁止 API と同名のメソッドを持つもの
+ * （`Promise.all` / `console.count`）と、DOM を読む `evaluate` の中身の起点（`document` / `window`）に閉じる。
+ * 同じファイルで束縛し直した名前（`function f(document)`）には当てない。
+ */
+const BUILTIN_NON_RECEIVERS = new Set(["Promise", "console", "document", "window"]);
+/**
+ * Page から取り出して「Playwright 以外」と確定してよいプロパティ（Page API の既知の名前に限る許可リスト）。
+ * 任意の名前を認めると、`page.row = page.locator(…)` のように後から Locator を入れたプロパティが確定に化ける。
+ * 同じファイルでこの名前へ代入していれば（`page.clock = …`）、その名前は根拠にしない。
+ */
+const PAGE_NON_RECEIVER_PROPERTIES = new Set([
+  "clock",
+  "keyboard",
+  "mouse",
+  "touchscreen",
+  "request",
+  "coverage",
+  "accessibility",
+]);
+/** 値の式の中で、受け側の由来にならない語（リテラル・演算子のキーワード）。 */
+const VALUE_KEYWORDS = new Set([
+  "true",
+  "false",
+  "null",
+  "undefined",
+  "NaN",
+  "Infinity",
+  "typeof",
+  "void",
+  "instanceof",
+  "in",
+  "new",
+  "await",
+]);
+/** 直後の括弧が束縛の並び（引数・catch・for の頭）ではない制御構文。 */
+const CONDITION_HEADS = new Set(["if", "while", "switch", "with"]);
+
+/** プロパティ名（`.` の直後）とオブジェクトリテラルのキーを除いた、式の起点になる名前を返す。 */
+function rootNames(text) {
+  const names = new Set();
+  for (const match of text.matchAll(/(?<![\w$])(?<!\.\s*)[A-Za-z_$][\w$]*/g)) {
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + match[0].length);
+    const objectKey = /[{,]\s*$/.test(before) && /^\s*:(?!:)/.test(after);
+    if (!objectKey) names.add(match[0]);
+  }
+  return names;
+}
+
+/** `open` の開き括弧に対応する閉じ括弧の位置。対応が取れなければ -1。 */
+function matchingClose(code, open) {
+  const pairs = { "(": ")", "[": "]", "{": "}" };
+  const stack = [];
+  for (let k = open; k < code.length; k += 1) {
+    const c = code[k];
+    if (c in pairs) stack.push(pairs[c]);
+    else if (c === ")" || c === "]" || c === "}") {
+      if (stack.pop() !== c) return -1;
+      if (stack.length === 0) return k;
+    }
+  }
+  return -1;
+}
+
+/** `close` の閉じ括弧に対応する開き括弧の位置。対応が取れなければ -1。 */
+function matchingOpen(code, close) {
+  const pairs = { ")": "(", "]": "[", "}": "{" };
+  const stack = [];
+  for (let k = close; k >= 0; k -= 1) {
+    const c = code[k];
+    if (c in pairs) stack.push(pairs[c]);
+    else if (c === "(" || c === "[" || c === "{") {
+      if (stack.pop() !== c) return -1;
+      if (stack.length === 0) return k;
+    }
+  }
+  return -1;
+}
+
+/** 括弧の外側の `,` で分ける。 */
+function splitTopLevel(text) {
+  const parts = [];
+  let depth = 0;
+  let from = 0;
+  for (let k = 0; k < text.length; k += 1) {
+    const c = text[k];
+    if (c === "(" || c === "[" || c === "{") depth += 1;
+    else if (c === ")" || c === "]" || c === "}") depth -= 1;
+    else if (c === "," && depth === 0) {
+      parts.push(text.slice(from, k));
+      from = k + 1;
+    }
+  }
+  parts.push(text.slice(from));
+  return parts;
+}
+
+/**
  * 呼び出し直前の式を逆向きにたどり、プロパティチェーンの各区間を root 側から並べて返す。
  * 区間ごとに「直後が呼び出しだったか」「添字アクセスだったか」を持つ——どちらも名前で解決できない形なので、
  * 判定不能として扱うために区別が要る（添字アクセスはプロパティ名そのものが読めない）。
@@ -663,8 +765,11 @@ function playwrightReceivers(code, file = "<source>") {
    * @param {string} statement 右辺の最初の文
    * @returns {"page" | "locator" | "other" | null}
    */
-  const assertionKind = (statement) => {
-    const angle = angleAssertionAllowed ? statement.match(ANGLE_ASSERTION) : null;
+  // 角括弧のアサーションは右辺の先頭に付くので、1 行目で切らず右辺全体の先頭で見る。
+  // 1 行目だけに当てると、`<Locator>` と対象が別の行にある形（`const row = <Locator>\n  raw;`）で
+  // アサーションを読み落とし、別名がどこにも入らないまま消える（Issue #412）。
+  const assertionKind = (statement, rawRhs) => {
+    const angle = angleAssertionAllowed ? rawRhs.match(ANGLE_ASSERTION) : null;
     const name = (angle ?? statement.match(TRAILING_ASSERTION))?.[1] ?? null;
     if (name === null) return null;
     if (name === "Page") return "page";
@@ -681,7 +786,7 @@ function playwrightReceivers(code, file = "<source>") {
       const rhsStart = match.index + match[0].length;
       const rawRhs = code.slice(rhsStart);
       const rhsStatement = rawRhs.split(/[;\n]/, 1)[0].trim();
-      const asserted = assertionKind(rhsStatement);
+      const asserted = assertionKind(rhsStatement, rawRhs);
       // 角括弧の型アサーションは右辺の先頭に付く。落としてからでないとチェーンを 1 区間も読めない。
       const rhs =
         angleAssertionAllowed && ANGLE_ASSERTION.test(rawRhs)
@@ -782,7 +887,218 @@ function playwrightReceivers(code, file = "<source>") {
       }
     }
   }
-  return { page: pages, locator: locators, pageCallables, locatorCallables, opaqueAliases };
+  const nonReceivers = nonPlaywrightNames(code, {
+    assignments,
+    pages,
+    locators,
+    opaqueAliases,
+    angleAssertionAllowed,
+    assertionKind,
+  });
+  return {
+    page: pages,
+    locator: locators,
+    pageCallables,
+    locatorCallables,
+    opaqueAliases,
+    nonReceivers,
+  };
+}
+
+/**
+ * 代入の右辺のうち、その宣言子に属する範囲（括弧の外の `;` / `,`、または文を終える改行まで）。
+ * 行を折った右辺の続きを読み落とすと、後ろの行に現れる名前が「確定」の判定から漏れる（fail-open）ので、
+ * 迷ったら長く取る側へ倒す——前の行が演算子で終わるか、次の行が演算子で始まるなら続きとして読む。
+ */
+function declaratorRhs(rawRhs) {
+  let depth = 0;
+  for (let k = 0; k < rawRhs.length; k += 1) {
+    const c = rawRhs[k];
+    if (c === "(" || c === "[" || c === "{") depth += 1;
+    else if (c === ")" || c === "]" || c === "}") {
+      if (depth === 0) return rawRhs.slice(0, k);
+      depth -= 1;
+    } else if (depth === 0 && (c === ";" || c === ",")) return rawRhs.slice(0, k);
+    else if (depth === 0 && c === "\n") {
+      const before = rawRhs.slice(0, k).trimEnd();
+      const after = rawRhs.slice(k + 1).trimStart();
+      if (
+        before !== "" &&
+        !/[=+\-*/%&|^!~?:,.<>([{]$/.test(before) &&
+        !/^[.?:+\-*/%&|^<>=]/.test(after)
+      ) {
+        return rawRhs.slice(0, k);
+      }
+    }
+  }
+  return rawRhs;
+}
+
+/**
+ * 受け側として現れたとき「Playwright 以外」と確定できる名前を返す（Issue #412）。
+ *
+ * どれにも解決しない受け側は、ここに入った名前を起点にするものだけを対象外に数え、残りは判定不能にする。
+ * **確定の根拠を閉じた集合で持つ**——「解決しなかったら対象外」にすると、読んでいない束縛の形
+ * （分割代入・引数・再代入・for-of・import）が、違反 0 件でも判定不能 0 件でもないまま消える。
+ *
+ * 根拠は 2 つ:
+ *   1. 同一ファイルの `const|let|var x = <右辺>` で、右辺が Playwright の値を運ばない
+ *      （リテラル・起点が全て確定済みの式・JSX・Page から取り出した Page / Locator でないプロパティ）
+ *   2. 標準の組み込み（BUILTIN_NON_RECEIVERS）
+ *
+ * **型注釈と関数値は根拠にしない**（PR #448 のレビュー後に絞った）。型名の中身はファイルの外にありうり
+ * （import した型エイリアス・型引数・構造的な interface）、関数値は呼び出し・タグ付きテンプレートの戻り値と
+ * 見分けられない（テンプレートは maskNonCode で空白になる）。どちらも例外を 1 つ塞ぐたびに次の書き方が
+ * 見つかったので、根拠の側を閉じた小さな集合に保つ。代わりに DOM を扱う callback の引数は判定不能になる。
+ *
+ * **名前はファイル全体で 1 つとして扱う**（スコープを見ない）。そのため、同じ名前が根拠の無い形でも
+ * 束縛されていれば（引数・分割代入・再代入・import・2 つ目の宣言）、どの根拠があっても確定にしない。
+ * 迷ったら判定不能側（fail-closed）へ倒す。
+ */
+function nonPlaywrightNames(
+  code,
+  { assignments, pages, locators, opaqueAliases, angleAssertionAllowed, assertionKind },
+) {
+  /** 根拠の無い形で束縛されている名前。確定の候補から外す。 */
+  const unknown = new Set();
+  const markUnknown = (text) => {
+    for (const name of rootNames(text)) unknown.add(name);
+  };
+  // 引数・catch・for の頭。閉じ括弧の後が `=>` / `{` / `:`（戻り値注釈）なら束縛の並びと読む。
+  // 呼び出しの引数を束縛と誤っても、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
+  for (let open = code.indexOf("("); open !== -1; open = code.indexOf("(", open + 1)) {
+    const close = matchingClose(code, open);
+    if (close === -1) continue;
+    let headEnd = open;
+    while (headEnd > 0 && /\s/.test(code[headEnd - 1])) headEnd -= 1;
+    let headStart = headEnd;
+    while (headStart > 0 && /[\w$]/.test(code[headStart - 1])) headStart -= 1;
+    const head = headStart < headEnd ? code.slice(headStart, headEnd) : null;
+    if (head !== null && CONDITION_HEADS.has(head)) continue;
+    const bindingList =
+      head === "catch" || head === "for" || /^\s*(?:=>|\{|:)/.test(code.slice(close + 1));
+    if (!bindingList) continue;
+    // 型注釈の有無に依らず、引数の名前はすべて根拠の無い束縛として数える（Page / Locator の注釈は別経路で解決する）。
+    for (const param of splitTopLevel(code.slice(open + 1, close))) markUnknown(param);
+  }
+  // 括弧の無い単引数のアロー関数（`row => row.count()`）。
+  for (const match of code.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*=>/g)) unknown.add(match[1]);
+  // 分割代入の宣言（`const { rows } = …` / `const [a] = …`）。
+  for (const match of code.matchAll(/\b(?:const|let|var)\s*([{[])/g)) {
+    const open = match.index + match[0].length - 1;
+    const close = matchingClose(code, open);
+    markUnknown(close === -1 ? code.slice(open) : code.slice(open + 1, close));
+  }
+  // import で束ねた名前（別ファイルの値。マッピング層のロケータがここから来る）。
+  for (const match of code.matchAll(/\bimport\s+([\s\S]*?)\s+from\b/g)) markUnknown(match[1]);
+  // 再代入（宣言の `=` を除く）。宣言時の右辺だけで確定すると、後から代入した Locator が素通りする。
+  for (const match of code.matchAll(
+    /(?<![\w$])(?<!\.\s*)([A-Za-z_$][\w$]*)\s*(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])/g,
+  )) {
+    if (!/\b(?:const|let|var)\s+$/.test(code.slice(Math.max(0, match.index - 16), match.index))) {
+      unknown.add(match[1]);
+    }
+  }
+  // 分割代入による再代入（`[row] = …` / `({ row } = …)`）。名前が `=` に隣接しないので上では拾えない。
+  // 添字への代入（`arr[i] = …`）も拾うが、名前が候補から外れるだけ（判定不能側）なので安全側に倒れる。
+  for (const match of code.matchAll(/[\]}]\s*=(?![=>])/g)) {
+    const open = matchingOpen(code, match.index);
+    if (open !== -1) markUnknown(code.slice(open + 1, match.index));
+  }
+  // 型注釈付きの宣言（`const x: Foo = …`）。`assignments` は `x =` の形しか拾わないので、別の束縛として数える。
+  for (const match of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*:/g)) {
+    unknown.add(match[1]);
+  }
+
+  /** 宣言ごとの右辺。2 つ以上ある名前は、全部が確定したときだけ確定にする。 */
+  const declarations = new Map();
+  for (const match of assignments) {
+    const rawRhs = code.slice(match.index + match[0].length);
+    const sites = declarations.get(match[1]) ?? [];
+    sites.push(rawRhs);
+    declarations.set(match[1], sites);
+  }
+  // 2 つ目の宣言は別スコープの別の束縛でありうる。どれか 1 つでも根拠が無ければ候補から外す（下の every）。
+
+  const settled = (name) => pages.has(name) || locators.has(name) || opaqueAliases.has(name);
+  const candidate = (name) => !settled(name) && !unknown.has(name);
+  const nonReceivers = new Set();
+  const pathNames = (text) => text.trim().split(/\s*\??\.\s*/);
+  const PURE_PATH = /^\s*[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*\s*$/;
+  /** 同じファイルで代入された Page API の名前（`page.clock = …`）。 */
+  const reassignedPageProperties = new Set(
+    [...code.matchAll(/\.\s*([A-Za-z_$][\w$]*)\s*=(?![=>])/g)]
+      .map((match) => match[1])
+      .filter((name) => PAGE_NON_RECEIVER_PROPERTIES.has(name)),
+  );
+  const siteIsNonValue = (rawRhs) => {
+    const statement = declaratorRhs(rawRhs);
+    const asserted = assertionKind(statement.split("\n", 1)[0], rawRhs);
+    // Page から取り出した、Page / Locator でないプロパティ（`page.clock` / `page.clock as Clock`）。
+    // 末尾が受け側そのもの（`page as Foo`）なら確定にしない。
+    const unasserted = statement.replace(/\s+(?:as|satisfies)\s+[\s\S]*$/, "");
+    if (PURE_PATH.test(unasserted)) {
+      const names = pathNames(unasserted);
+      const last = names[names.length - 1];
+      if (
+        names.length > 1 &&
+        pages.has(names[names.length - 2]) &&
+        PAGE_NON_RECEIVER_PROPERTIES.has(last) &&
+        !reassignedPageProperties.has(last)
+      ) {
+        return true;
+      }
+    }
+    if (asserted !== null) return false;
+    // JSX 要素。角括弧のアサーションが書ける拡張子（.ts 系）では `<` 始まりを JSX と読まない。
+    // 要素として閉じた形（`<X …>…</X>` / `<X … />`）に限る。`<` 始まりだけで認めると、宣言子の切り出しが
+    // 型引数の `,` で切った断片（`.tsx` の `<T,>() => …` から `<T`）まで JSX として確定してしまう。
+    if (
+      !angleAssertionAllowed &&
+      /^\s*<([A-Za-z][\w.]*)\b[\s\S]*(?:<\/\1\s*>|\/>)\s*$/.test(statement)
+    ) {
+      return true;
+    }
+    // 関数式・アロー関数は、括弧を含むか引数名が根拠の無い束縛なので、下の判定で根拠から外れる
+    // （関数値そのものと、呼び出し・タグ付きテンプレートの戻り値を見分けられない）。
+    // プロパティ参照・呼び出し・添字・括弧（`(box.row)`）を含む式は根拠にしない。起点の名前が確定していても、
+    // 辿った先・戻り値は Locator でありうる（`box.row = page.locator(…)` の後の `box.row`）。
+    if (/[.([]/.test(statement)) return false;
+    return [...rootNames(statement)].every(
+      (name) => VALUE_KEYWORDS.has(name) || nonReceivers.has(name),
+    );
+  };
+
+  // 組み込みもプロパティへ代入できる（`window.row = page.locator(…)` / `Object.assign(window, …)`）。
+  // 同じファイルで書き込んでいる組み込みは根拠にしない（辿った先に Locator が入りうる）。
+  const mutatedBuiltins = new Set(
+    [
+      ...code.matchAll(
+        /(?<![\w$.])([A-Za-z_$][\w$]*)\s*(?:\??\.\s*[A-Za-z_$][\w$]*|\[[^\]]*\])+\s*(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])/g,
+      ),
+      ...code.matchAll(
+        /\b(?:assign|defineProperty|defineProperties|set)\s*\(\s*([A-Za-z_$][\w$]*)/g,
+      ),
+    ].map((match) => match[1]),
+  );
+  for (const name of BUILTIN_NON_RECEIVERS) {
+    if (candidate(name) && !declarations.has(name) && !mutatedBuiltins.has(name)) {
+      nonReceivers.add(name);
+    }
+  }
+  // 起点が全て確定済みの式（`const total = limit + 1`）は、確定した名前が増えるたびに読み直す。
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [name, sites] of declarations) {
+      if (nonReceivers.has(name) || !candidate(name)) continue;
+      if (sites.every(siteIsNonValue)) {
+        nonReceivers.add(name);
+        grew = true;
+      }
+    }
+  }
+  return nonReceivers;
 }
 
 /**
@@ -845,7 +1161,8 @@ export function scanSourceWithStats(source, file = "<source>") {
   const receivers = playwrightReceivers(code, file);
   const captureSpec = isCaptureSpec(file);
   const findings = [];
-  const stats = { callSites: 0, resolved: 0, undecidable: 0, exempted: 0 };
+  // exempted は resolved の内数（解決してから免除する）。内訳は callSites = resolved + undecidable + excluded。
+  const stats = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
   const position = (index) => {
     const before = code.slice(0, index);
     return { line: before.split("\n").length, column: index - before.lastIndexOf("\n") };
@@ -880,7 +1197,30 @@ export function scanSourceWithStats(source, file = "<source>") {
         });
         continue;
       }
-      if (kind === null) continue;
+      if (kind === null) {
+        // どれにも解決しない受け側は、起点が Playwright 以外と確定した名前のときだけ対象外に数える。
+        // 黙って読み飛ばすと、束縛を読めなかった名前（引数・分割代入・再代入・for-of・import）の呼び出しが
+        // 違反 0 件でも判定不能 0 件でもないまま消える（Issue #412）。
+        // 同じファイルで確定した名前は、その名前そのもの（チェーン長 1）だけを対象外に数える。
+        // プロパティ（`box.row` / `timers.row`）は後から Locator を代入できる（代入・Object.assign 等）ので、
+        // 辿った先は確定にしない。組み込み（`document.body`）は実行環境の値なので辿ってよい。
+        const root = chain.segments[0].name;
+        if (
+          receivers.nonReceivers.has(root) &&
+          (chain.segments.length === 1 || BUILTIN_NON_RECEIVERS.has(root))
+        ) {
+          stats.excluded += 1;
+          continue;
+        }
+        stats.undecidable += 1;
+        findings.push({
+          ...position(match.index),
+          file,
+          rule: UNRESOLVED_RULE,
+          message: UNRESOLVED_MESSAGES.binding,
+        });
+        continue;
+      }
       // 解決できた受け側は、規則の要求と合わなくても件数に数える（合致だけを数えると
       // 「解決できた」と「規則が当たった」が区別できず、ok: 行が測れた量を示さなくなる）。
       stats.resolved += 1;
@@ -897,6 +1237,20 @@ export function scanSourceWithStats(source, file = "<source>") {
   }
   findings.sort((a, b) => a.line - b.line || a.column - b.column || a.rule.localeCompare(b.rule));
   return { findings, stats };
+}
+
+/**
+ * 走査の内訳が呼び出し数と合わなければ、その説明を返す（合えば null）。
+ * 各呼び出しは「解決」「判定不能」「Playwright 以外と確定」のどれか 1 つに必ず数える。
+ * 合わないのは走査器が呼び出しをどこにも数えずに捨てた＝違反 0 件と「見えていない」が同じ見え方になる状態。
+ */
+export function breakdownMismatch(stats) {
+  const { callSites, resolved, undecidable, excluded } = stats;
+  if (callSites === resolved + undecidable + excluded) return null;
+  return (
+    `禁止 API の呼び出し ${callSites} 件 ≠ 解決 ${resolved} + 判定不能 ${undecidable} + ` +
+    `Playwright 以外と確定 ${excluded}（走査器が呼び出しを数えずに捨てている）`
+  );
 }
 
 export function scanSource(source, file = "<source>") {
@@ -948,7 +1302,7 @@ export function main(args) {
 
   const violations = [];
   const unresolved = [];
-  const total = { callSites: 0, resolved: 0, undecidable: 0, exempted: 0 };
+  const total = { callSites: 0, resolved: 0, undecidable: 0, excluded: 0, exempted: 0 };
   // 走査は重複を除いた集合に対して 1 回ずつ行う。報告する件数も同じ集合から採る
   // （引数が重なった `parity/ parity/a.spec.ts` で件数だけ水増しすると、
   // 「走査ファイル数がスイートの実ファイル数と合っているか」の確認が通ってしまう）。
@@ -959,6 +1313,11 @@ export function main(args) {
       result = scanSourceWithStats(readFileSync(file, "utf8"), file);
     } catch (error) {
       process.stderr.write(`error: ${file}: 走査不能: ${String(error)}\n`);
+      return 2;
+    }
+    const mismatch = breakdownMismatch(result.stats);
+    if (mismatch !== null) {
+      process.stderr.write(`error: ${file}: 走査の内訳が合わない: ${mismatch}\n`);
       return 2;
     }
     for (const key of Object.keys(total)) total[key] += result.stats[key];
@@ -972,7 +1331,8 @@ export function main(args) {
   // 走査できた量を必ず出す。違反 0 件と「見えていない」を出力で区別できるようにする。
   const measured =
     `走査 ${targets.length} ファイル / 禁止 API の呼び出し ${total.callSites} 件 / ` +
-    `受け側を解決 ${total.resolved} 件 / 判定不能 ${total.undecidable} 件 / 採取スペックで免除 ${total.exempted} 件`;
+    `受け側を解決 ${total.resolved} 件 / 判定不能 ${total.undecidable} 件 / ` +
+    `Playwright 以外と確定 ${total.excluded} 件 / 採取スペックで免除 ${total.exempted} 件`;
   if (violations.length > 0 || unresolved.length > 0) {
     if (violations.length > 0) {
       process.stderr.write(`error: 待たない取得 API を ${violations.length} 件検出\n`);
