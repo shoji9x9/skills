@@ -167,12 +167,15 @@
       "id": "transform-props",
       "why": "個別プロパティ rotate / scale を見ない",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "      if ((cs.rotate && cs.rotate !== \"none\") || (cs.scale && cs.scale !== \"none\")) {\n",
+      "find": "      if (!rotateIsIdentity || !scaleIsIdentity) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ rotate",
-        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ scale"
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ scale",
+        "何かを変える個別プロパティは撮らない: rotate: y 30deg",
+        "何かを変える個別プロパティは撮らない: scale: 1 2（片軸だけ拡縮）",
+        "何かを変える個別プロパティは撮らない: 読めない値"
       ]
     },
     {
@@ -246,6 +249,30 @@
       "occurrences": 1,
       "expect_failing": [
         "文書内のアニメーションが生きていれば撮らずに失敗する: 開いたシャドウルートの中（document.getAnimations は含まない）"
+      ]
+    },
+    {
+      "id": "rotate-identity",
+      "why": "角度 0 の rotate も変形とみなす（リセット用のスタイルで撮れなくなる）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "parseFloat(tokens(cs.rotate).pop()) === 0",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: rotate: 0deg",
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: rotate: x 0deg（軸付き）"
+      ]
+    },
+    {
+      "id": "scale-identity",
+      "why": "全成分 1 の scale も変形とみなす",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "tokens(cs.scale).every((t) => parseFloat(t) === 1)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1",
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1 1 1"
       ]
     }
   ]

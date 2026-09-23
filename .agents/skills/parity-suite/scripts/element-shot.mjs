@@ -210,7 +210,15 @@ function readRectAndViewport(el) {
     let transformed = false;
     for (let node = frameEl; node && node.nodeType === 1;) {
       const cs = parent.getComputedStyle(node);
-      if ((cs.rotate && cs.rotate !== "none") || (cs.scale && cs.scale !== "none")) {
+      // 個別プロパティは「何も変えない値」を none ではなくその値で返す（実測: `rotate: 0deg` → "0deg"、
+      // `scale: 1 1` → "1"）。transition の初期値・リセットで普通に書かれるので、角度 0 の rotate と
+      // 全成分 1 の scale は通す。読めない値（NaN）は恒等とみなさず拒否する。
+      const tokens = (v) => v.trim().split(/\s+/);
+      const rotateIsIdentity =
+        !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop()) === 0;
+      const scaleIsIdentity =
+        !cs.scale || cs.scale === "none" || tokens(cs.scale).every((t) => parseFloat(t) === 1);
+      if (!rotateIsIdentity || !scaleIsIdentity) {
         transformed = true;
         break;
       }

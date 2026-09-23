@@ -574,6 +574,31 @@ test("文書内のアニメーションが終わっていれば撮る（finished
   expect(page.calls).toHaveLength(1);
 });
 
+test.each([
+  ["rotate: 0deg", { rotate: "0deg" }],
+  ["rotate: x 0deg（軸付き）", { rotate: "x 0deg" }],
+  ["scale: 1", { scale: "1" }],
+  ["scale: 1 1 1", { scale: "1 1 1" }],
+])("何も変えない個別プロパティは撮る（計算値は none にならない）: %s", async (_label, style) => {
+  const page = recordingPage();
+  const frames = [{ ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10 }), style }];
+  await captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames })));
+  expect(page.calls).toHaveLength(1);
+});
+
+test.each([
+  ["rotate: y 30deg", { rotate: "y 30deg" }],
+  ["scale: 1 2（片軸だけ拡縮）", { scale: "1 2" }],
+  ["読めない値", { rotate: "garbage" }],
+])("何かを変える個別プロパティは撮らない: %s", async (_label, style) => {
+  const page = recordingPage();
+  const frames = [{ ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10 }), style }];
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
+  ).rejects.toThrow(/transformed by CSS/);
+  expect(page.calls).toEqual([]);
+});
+
 test("平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）", async () => {
   const page = recordingPage();
   const frames = [
