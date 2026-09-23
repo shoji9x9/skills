@@ -126,12 +126,92 @@
     },
     {
       "id": "record",
-      "why": "記録ファイルを書かない",
+      "why": "記録ファイルを書かない（PNG と記録の組を前提にするテストも落ちる）",
       "file": "skills/parity-suite/scripts/element-shot.mjs",
-      "find": "    writeFileSync(recordPath, `${JSON.stringify(result, null, 2)}\\n`);\n",
+      "find": "      [recordPath, `${JSON.stringify(result, null, 2)}\\n`],\n",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["captureElementShot は丸めた clip で page.screenshot を呼び、path を渡す"]
+      "expect_failing": [
+        "captureElementShot は丸めた clip で page.screenshot を呼び、path を渡す",
+        "一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す",
+        "既存の組は新しい組へまとめて置き換わる（バックアップも残さない）",
+        "記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）"
+      ]
+    },
+    {
+      "id": "transform-matrix",
+      "why": "行列の判定を常に偽にする（外形を保つ回転・反転を見逃す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "        if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の rotate(180deg)（行列）",
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の scaleX(-1)（行列）",
+        "外形を保つ変形も撮らずに失敗する: 祖先の rotate(180deg)",
+        "外形を保つ変形も撮らずに失敗する: シャドウホストの向こうの祖先の変形"
+      ]
+    },
+    {
+      "id": "transform-translate",
+      "why": "行列の判定を常に真にする（平行移動だけのフレームまで拒否する）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "        if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "        if (true) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）"
+      ]
+    },
+    {
+      "id": "transform-props",
+      "why": "個別プロパティ rotate / scale を見ない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      if ((cs.rotate && cs.rotate !== \"none\") || (cs.scale && cs.scale !== \"none\")) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ rotate",
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ scale"
+      ]
+    },
+    {
+      "id": "shadow-host",
+      "why": "シャドウツリーの境界で祖先の走査を止める",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " || (node.parentNode && node.parentNode.host)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["外形を保つ変形も撮らずに失敗する: シャドウホストの向こうの祖先の変形"]
+    },
+    {
+      "id": "nonfile-precheck",
+      "why": "置き換え先が通常のファイルかを確かめない（ディレクトリを退避して消す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    if (existsSync(dest) && !statSync(dest).isFile()) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）"
+      ]
+    },
+    {
+      "id": "staging-cleanup",
+      "why": "一時ファイルの書き込みに失敗したとき、書けた分の一時ファイルを消さない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    for (const dest of staged) rmSync(dest + suffix, { force: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す"]
+    },
+    {
+      "id": "backup-cleanup",
+      "why": "置き換えに成功した後のバックアップを消さない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "  for (const dest of backups) rmSync(dest + suffix + \".bak\", { force: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["既存の組は新しい組へまとめて置き換わる（バックアップも残さない）"]
     }
   ]
 }

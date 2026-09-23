@@ -40,7 +40,7 @@
 // ダイアログ内 iframe の部品は、ローカル座標が整数でも親のオフセットが小数なら `locator.screenshot()` の
 // 外接で PNG が 1px 膨らんでいた）。直せない形は撮る前に失敗させる:
 //   - 読めないフレーム（クロスオリジンで `frameElement` が null）: 足すべきオフセットが分からない
-//   - 変形されたフレーム（transform で拡縮）: 足し算では座標が決まらない
+//   - 変形されたフレーム（フレームか親文書内の祖先に平行移動以外の transform / rotate / scale）: 足し算では座標が決まらない
 //   - 途中のフレームの見える範囲からはみ出す要素: そのフレームが切るので、部品の一部だけの PNG になる
 //
 // 記録: `path` を渡すと、PNG の隣に `<名前>.shot.json` を書く（実際に使った clip・出力 PNG の実寸・
@@ -52,7 +52,7 @@
 // Playwright はピア前提であり import しない（Locator / Page は引数で受け取る）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 /**
@@ -60,7 +60,8 @@ import { basename, dirname, join } from "node:path";
  * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
  * 4: `path` は Playwright へ渡さず、検査を通ってから自分で書く（拒否した PNG を残さない）。
  * 5: 撮る前に生きているアニメーションを数え、`animations: "disabled"` なら撮らずに失敗させる。
- * 6: 同一オリジンの iframe の中の要素を、フレームのオフセットを足して撮る。`path` の隣に `.shot.json` を書く。
+ * 6: 同一オリジンの iframe の中の要素を、フレームのオフセットを足して撮る。`path` の隣に `.shot.json` を書く
+ *    （PNG と記録は両方置き換わるか、どちらも変わらないか）。
  * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
@@ -190,6 +191,32 @@ function readRectAndViewport(el) {
       frameError = "transformed";
       break;
     }
+    // 寸法だけでは外形を保つ変形（rotate(180deg) / scaleX(-1) 等）を見逃す——外接矩形の寸法が変わらないのに
+    // 中身の座標は反転している。フレーム要素と親文書内の祖先の計算後スタイルを読み、平行移動以外の変形を拒否する。
+    // `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
+    let transformed = false;
+    for (let node = frameEl; node && node.nodeType === 1;) {
+      const cs = parent.getComputedStyle(node);
+      if ((cs.rotate && cs.rotate !== "none") || (cs.scale && cs.scale !== "none")) {
+        transformed = true;
+        break;
+      }
+      if (cs.transform && cs.transform !== "none") {
+        const m = new parent.DOMMatrixReadOnly(cs.transform);
+        const linear = [m.m11, m.m12, m.m13, m.m14, m.m21, m.m22, m.m23, m.m24];
+        const rest = [m.m31, m.m32, m.m33, m.m34, m.m44];
+        if (linear.join() !== "1,0,0,0,0,1,0,0" || rest.join() !== "0,0,1,0,1") {
+          transformed = true;
+          break;
+        }
+      }
+      // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
+      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+    }
+    if (transformed) {
+      frameError = "transformed";
+      break;
+    }
     const style = parent.getComputedStyle(frameEl);
     // 枠線は clientLeft / clientTop ではなく計算後スタイルから読む。clientLeft は整数へ丸められるが、
     // 枠線はデバイスピクセルへスナップされて小数になる（実測: deviceScaleFactor 1.5 で 1px の枠線は
@@ -236,6 +263,15 @@ export function shotRecordPath(path) {
     throw new Error(`element clip: path must end with .png (got ${String(path)})`);
   }
   return join(dirname(path), `${basename(path, ".png")}.shot.json`);
+}
+
+/**
+ * `element.shot.json` の中身（正本の形）。captureElementShot 以外で撮った PNG に記録を添える場合も
+ * この関数で組み立て、キーの集合と `tool_version` を揃える。
+ * @param {{ clip: object, png: object, rect: object, page_rect: object, frame_depth: number, animations: string }} fields
+ */
+export function buildShotRecord({ clip, png, rect, page_rect, frame_depth, animations }) {
+  return { clip, png, rect, page_rect, frame_depth, animations, tool_version: VERSION };
 }
 
 /** 2 つの矩形が同じ値か。 */
@@ -289,7 +325,8 @@ export async function captureElementShot(page, locator, options = {}) {
   }
   if (measured.frame_error === "transformed") {
     throw new Error(
-      "element clip: the element lives inside a frame scaled by a CSS transform; adding offsets cannot " +
+      "element clip: the element lives inside a frame transformed by CSS (scale, rotation or flip — anything " +
+        "but a translation, on the frame or its ancestors); adding offsets cannot " +
         "map its box to the top-level viewport. remove the transform for the capture or open the frame's " +
         "own URL as a page",
     );
@@ -344,20 +381,68 @@ export async function captureElementShot(page, locator, options = {}) {
   }
   const png = readPngSize(buffer);
 
-  const result = {
+  const result = buildShotRecord({
     clip,
     png,
     rect: measured.rect,
     page_rect: measured.page_rect,
     frame_depth: measured.frames.length,
     animations,
-    tool_version: VERSION,
-  };
+  });
   // 検査を通ってから書く。PNG と記録は同じ run の値で対にする（片方だけ古い組を残さない）。
   if (path !== undefined) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, buffer);
-    writeFileSync(recordPath, `${JSON.stringify(result, null, 2)}\n`);
+    writePair([
+      [path, buffer],
+      [recordPath, `${JSON.stringify(result, null, 2)}\n`],
+    ]);
   }
   return { buffer, ...result };
+}
+
+/**
+ * 複数のファイルを「全部置き換わるか、何も変わらないか」で書く。
+ * 一時ファイルへ書き切ってから rename で差し替え、途中で落ちたら差し替えた分を元に戻す。
+ * PNG だけ新しく記録が古い（または無い）組を残すと、後の比較が別 run の clip で寸法を読む。
+ * @param {Array<[string, (string|Buffer)]>} entries - [書き出し先, 中身]
+ */
+export function writePair(entries) {
+  const suffix = `.tmp-${process.pid}`;
+  // 置き換え先が通常のファイルでない（ディレクトリ等）なら、何も書かずに落とす。
+  // 退避して置き換えると、利用者のディレクトリを基準ファイルで上書きして消すことになる。
+  for (const [dest] of entries) {
+    if (existsSync(dest) && !statSync(dest).isFile()) {
+      throw new Error(
+        `element clip: ${dest} exists and is not a regular file; refusing to replace it`,
+      );
+    }
+  }
+  const staged = [];
+  try {
+    for (const [dest, data] of entries) {
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest + suffix, data);
+      staged.push(dest);
+    }
+  } catch (error) {
+    for (const dest of staged) rmSync(dest + suffix, { force: true });
+    throw error;
+  }
+  const backups = [];
+  const replaced = [];
+  try {
+    for (const [dest] of entries) {
+      if (existsSync(dest)) {
+        renameSync(dest, dest + suffix + ".bak");
+        backups.push(dest);
+      }
+      renameSync(dest + suffix, dest);
+      replaced.push(dest);
+    }
+  } catch (error) {
+    for (const dest of replaced) rmSync(dest, { force: true });
+    for (const dest of backups) renameSync(dest + suffix + ".bak", dest);
+    for (const [dest] of entries) rmSync(dest + suffix, { force: true });
+    throw error;
+  }
+  for (const dest of backups) rmSync(dest + suffix + ".bak", { force: true });
 }

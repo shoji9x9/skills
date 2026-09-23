@@ -14,7 +14,7 @@
   `locator.screenshot()` へ戻すと、要素の矩形を外接整数矩形へ広げる丸めが片側にだけ入り、同じ寸法の部品でも PNG が食い違って
   画素比較が実行不能になる（Issue #434）。
   カタログが iframe で描くなら（Storybook 等）、iframe の中の要素をそのまま渡してよい（ツールがフレームのオフセットを足す）。
-  クロスオリジン・変形されたフレームでは撮らずに失敗するので、その iframe の URL をページとして開いて撮る（[`capture.md`](capture.md) の同じ節）
+  クロスオリジン・平行移動以外の変形（拡縮・回転・反転）がかかったフレームでは撮らずに失敗するので、その iframe の URL をページとして開いて撮る（[`capture.md`](capture.md) の同じ節）
 - 差分器（trait-compare.mjs）がプロジェクト側に無ければ、採取と同じ手順で `parity-suite` から用意する（[`capture.md`](capture.md)「`parity-suite` 同梱ツールの用意」。既存のコピーが同梱版と違えば停止する）
 - **採取ツールのバージョンを突き合わせる。** trait-capture.mjs・element-shot.mjs・css-rules-capture.mjs の `VERSION` が `metadata.json` の記録値と違うなら、
   片側だけ新しい形で採った成果物になるので**比較へ進まず、両側を採り直す**（止まるのが正しい振る舞い）

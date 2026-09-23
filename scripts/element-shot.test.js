@@ -6,7 +6,15 @@
 // PNG の寸法が食い違い、寸法一致を要求する画素比較が実行不能になる。
 
 import { expect, test } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,13 +153,18 @@ function fakeView({ frames = [] } = {}) {
     };
     // 枠線は計算後スタイルから読まれる（clientLeft は整数へ丸められるため）。既定はフレーム要素の枠線の値。
     const border = frame.frameEl ? frame.frameEl.clientLeft : 0;
-    outer.getComputedStyle = () => ({
+    // フレーム要素にはフレームの style、祖先には各要素の `computed` を返す（変形の検査は祖先まで辿る）。
+    outer.getComputedStyle = (node) => ({
       paddingLeft: "0px",
       paddingTop: "0px",
       borderLeftWidth: `${border}px`,
       borderTopWidth: `${border}px`,
-      ...frame.style,
+      transform: "none",
+      rotate: "none",
+      scale: "none",
+      ...(node === frame.frameEl ? frame.style : node.computed),
     });
+    outer.DOMMatrixReadOnly = FakeMatrix;
     outer = view;
   }
   return outer;
@@ -165,13 +178,42 @@ function fakeElement({ rect, frames } = {}) {
 }
 
 /** 偽のフレーム要素（矩形 = 変形後、offset* = レイアウト寸法）。 */
-function fakeFrameEl({ x, y, width = 600, height = 800, border = 0, scale = 1 }) {
+/** `matrix(a, b, c, d, e, f)` だけを読む DOMMatrixReadOnly の代わり（Node には DOMMatrix が無い）。 */
+class FakeMatrix {
+  constructor(text) {
+    const [a, b, c, d, e, f] = text
+      .match(/^matrix\((.*)\)$/)[1]
+      .split(",")
+      .map(Number);
+    Object.assign(this, { m11: a, m12: b, m13: 0, m14: 0, m21: c, m22: d, m23: 0, m24: 0 });
+    Object.assign(this, { m31: 0, m32: 0, m33: 1, m34: 0, m41: e, m42: f, m43: 0, m44: 1 });
+  }
+}
+
+/** 偽の祖先要素（親文書の中でフレーム要素を包む要素）。 */
+function fakeAncestor(computed = {}, parentElement = null) {
+  return { nodeType: 1, computed, parentElement, parentNode: parentElement };
+}
+
+function fakeFrameEl({
+  x,
+  y,
+  width = 600,
+  height = 800,
+  border = 0,
+  scale = 1,
+  parentElement = null,
+  parentNode = parentElement,
+}) {
   return {
     getBoundingClientRect: () => ({ x, y, width: width * scale, height: height * scale }),
     offsetWidth: width,
     offsetHeight: height,
     clientLeft: border,
     clientTop: border,
+    nodeType: 1,
+    parentElement,
+    parentNode,
   };
 }
 
@@ -321,7 +363,7 @@ test("transform で拡縮されたフレームの中の要素は撮らずに失�
   const frames = [{ ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10, scale: 0.5 }) }];
   await expect(
     captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
-  ).rejects.toThrow(/scaled by a CSS transform/);
+  ).rejects.toThrow(/transformed by CSS/);
   expect(page.calls).toEqual([]);
 });
 
@@ -445,6 +487,94 @@ test.each([
   ],
 ])("PNG の実寸を読めない形は失敗させる: %s", (_label, buffer) => {
   expect(() => readPngSize(buffer)).toThrow(/did not return a PNG/);
+});
+
+// 外形の寸法を保つ変形（rotate(180deg) / scaleX(-1)）は、矩形と offset* の比較では見えない。
+// 計算後スタイルの行列と個別プロパティで、平行移動以外の変形を拒否する。
+test.each([
+  ["フレーム要素の rotate(180deg)（行列）", { style: { transform: "matrix(-1, 0, 0, -1, 0, 0)" } }],
+  ["フレーム要素の scaleX(-1)（行列）", { style: { transform: "matrix(-1, 0, 0, 1, 0, 0)" } }],
+  ["フレーム要素の個別プロパティ rotate", { style: { rotate: "180deg" } }],
+  ["フレーム要素の個別プロパティ scale", { style: { scale: "-1 1" } }],
+  [
+    "祖先の rotate(180deg)",
+    { parentElement: fakeAncestor({ transform: "matrix(-1, 0, 0, -1, 0, 0)" }) },
+  ],
+  [
+    "シャドウホストの向こうの祖先の変形",
+    {
+      parentElement: null,
+      parentNode: { host: fakeAncestor({ transform: "matrix(-1, 0, 0, 1, 0, 0)" }) },
+    },
+  ],
+])("外形を保つ変形も撮らずに失敗する: %s", async (_label, { style, ...where }) => {
+  const page = recordingPage();
+  const frames = [{ ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10, ...where }), style }];
+  await expect(
+    captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
+  ).rejects.toThrow(/transformed by CSS/);
+  expect(page.calls).toEqual([]);
+});
+
+test("平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）", async () => {
+  const page = recordingPage();
+  const frames = [
+    {
+      ...NESTED[0],
+      frameEl: fakeFrameEl({
+        x: 10,
+        y: 10,
+        parentElement: fakeAncestor({ transform: "matrix(1, 0, 0, 1, 30, 40)" }),
+      }),
+      style: { transform: "matrix(1, 0, 0, 1, 5, 5)" },
+    },
+  ];
+  const out = await captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames })));
+  expect(out.frame_depth).toBe(1);
+  expect(page.calls).toHaveLength(1);
+});
+
+// PNG と記録は「両方置き換わるか、どちらも変わらないか」。記録の書き込みが落ちたのに PNG だけ
+// 差し替わると、新しい PNG が古い（または無い）記録と組になり、後の比較が別 run の clip を読む。
+test("記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-pair-"));
+  const target = join(dir, "element.png");
+  writeFileSync(target, "previous-png");
+  mkdirSync(join(dir, "element.shot.json")); // 記録の置き場所がディレクトリで rename が落ちる
+  await expect(
+    captureElementShot(recordingPage(), frameLocator(fakeElement()), { path: target }),
+  ).rejects.toThrow();
+  expect(readFileSync(target).toString()).toBe("previous-png");
+  expect(readdirSync(dir).sort()).toEqual(["element.png", "element.shot.json"]);
+  expect(statSync(join(dir, "element.shot.json")).isDirectory()).toBe(true); // 退避して消していない
+});
+
+test("一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-stage-"));
+  const target = join(dir, "element.png");
+  writeFileSync(target, "previous-png");
+  writeFileSync(join(dir, "element.shot.json"), "previous-record");
+  mkdirSync(join(dir, `element.shot.json.tmp-${process.pid}`)); // 記録の一時ファイルを書けない
+  await expect(
+    captureElementShot(recordingPage(), frameLocator(fakeElement()), { path: target }),
+  ).rejects.toThrow();
+  expect(readFileSync(target).toString()).toBe("previous-png");
+  expect(readFileSync(join(dir, "element.shot.json"), "utf8")).toBe("previous-record");
+  expect(existsSync(`${target}.tmp-${process.pid}`)).toBe(false);
+});
+
+test("既存の組は新しい組へまとめて置き換わる（バックアップも残さない）", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "element-shot-replace-"));
+  const target = join(dir, "element.png");
+  writeFileSync(target, "previous-png");
+  writeFileSync(join(dir, "element.shot.json"), "{}");
+  await captureElementShot(recordingPage(), frameLocator(fakeElement()), { path: target });
+  expect(readFileSync(target)).toEqual(pngHeader(25, 28));
+  expect(JSON.parse(readFileSync(join(dir, "element.shot.json"), "utf8")).png).toEqual({
+    width: 25,
+    height: 28,
+  });
+  expect(readdirSync(dir).sort()).toEqual(["element.png", "element.shot.json"]);
 });
 
 test("PNG の実寸は clip ではなく PNG から読む（deviceScaleFactor で倍になる）", async () => {
