@@ -1,0 +1,279 @@
+{
+  "$comment": [
+    "element-shot.test.js のうち、iframe の中の要素と撮影記録（Issue #436）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/element-shot.test.js",
+  "mutations": [
+    {
+      "id": "offset",
+      "why": "フレームのオフセットを足さない（フレーム内の座標のまま clip を決める）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "入れ子の iframe の中の要素は、各段のオフセットを足した最上位の座標で撮る",
+        "枠線は丸めた clientLeft ではなく計算後スタイルの小数で足す（deviceScaleFactor でスナップされる）"
+      ]
+    },
+    {
+      "id": "border-rounded",
+      "why": "枠線を整数へ丸められた clientLeft / clientTop で足す（deviceScaleFactor でスナップされた小数の枠線とずれる）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "parseFloat(style.borderLeftWidth)",
+      "replace": "frameEl.clientLeft",
+      "occurrences": 1,
+      "expect_failing": [
+        "枠線は丸めた clientLeft ではなく計算後スタイルの小数で足す（deviceScaleFactor でスナップされる）"
+      ]
+    },
+    {
+      "id": "unreadable",
+      "why": "読めないフレームで止めず、そこを最上位とみなす",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      frameError = \"unreadable\";\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "読めないフレーム（クロスオリジン）の中の要素は撮らずに失敗する",
+        "外側のフレームが読めなくても撮らない（内側だけ読めても最上位へ直せない）"
+      ]
+    },
+    {
+      "id": "transformed",
+      "why": "変形の判定を常に偽にする",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": ["transform で拡縮されたフレームの中の要素は撮らずに失敗する"]
+    },
+    {
+      "id": "tolerance",
+      "why": "変形の許容差を丸め未満に戻す（小数寸法のフレームを誤って落とす。実ブラウザで踏んだ形）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||\n",
+      "replace": "      Math.abs(frameBox.width - frameEl.offsetWidth) > 0.01 ||\n",
+      "occurrences": 1,
+      "expect_failing": ["寸法が小数のフレームは変形とみなさない（offsetWidth は整数へ丸められる）"]
+    },
+    {
+      "id": "frame-visible",
+      "why": "途中のフレームの見える範囲の判定を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      planElementClip(frame.rect, frame.viewport);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの右端を越える",
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの下端を越える",
+        "フレームの見える範囲からはみ出す要素は撮らない: 内側のフレームの上へ出る（フレーム内でスクロールされた）",
+        "外側のフレームの見える範囲からはみ出す要素も撮らない（内側に収まっていても）",
+        "見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）"
+      ]
+    },
+    {
+      "id": "scrollbar",
+      "why": "フレームの見える範囲をスクロールバー込みの innerWidth で測る",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      viewport: { width: scroller.clientWidth, height: scroller.clientHeight },\n",
+      "replace": "      viewport: { width: view.innerWidth, height: view.innerHeight },\n",
+      "occurrences": 1,
+      "expect_failing": ["見える範囲はスクロールバーを除いた寸法で測る（innerWidth ではなく）"]
+    },
+    {
+      "id": "page-moved",
+      "why": "撮影後の測り直しでフレーム内の矩形だけを比べる",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " || !sameRect(after.page_rect, measured.page_rect)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["撮影中にフレームが動いたら失敗する（フレーム内の矩形が同じでも）"]
+    },
+    {
+      "id": "png-signature",
+      "why": "PNG 署名の検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    signature.some((b, i) => buffer[i] !== b) ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["PNG の実寸を読めない形は失敗させる: 長さは足りるが署名が違う（JPEG 等）"]
+    },
+    {
+      "id": "png-ihdr",
+      "why": "先頭チャンクが IHDR かの検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " ||\n    buffer.toString(\"latin1\", 12, 16) !== \"IHDR\"",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "PNG の実寸を読めない形は失敗させる: 署名は PNG だが先頭チャンクが IHDR でない"
+      ]
+    },
+    {
+      "id": "png-ext",
+      "why": "path の拡張子検査を外す",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "  if (typeof path !== \"string\" || !path.endsWith(\".png\")) {",
+      "replace": "  if (typeof path !== \"string\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "path が .png で終わらなければ撮る前に失敗する（記録ファイルの名前が決まらない）"
+      ]
+    },
+    {
+      "id": "record",
+      "why": "記録ファイルを書かない（PNG と記録の組を前提にするテストも落ちる）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      [recordPath, `${JSON.stringify(result, null, 2)}\\n`],\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "captureElementShot は丸めた clip で page.screenshot を呼び、path を渡す",
+        "一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す",
+        "既存の組は新しい組へまとめて置き換わる（バックアップも残さない）",
+        "記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）"
+      ]
+    },
+    {
+      "id": "transform-matrix",
+      "why": "行列の判定を常に偽にする（外形を保つ回転・反転を見逃す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "        if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の rotate(180deg)（行列）",
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の scaleX(-1)（行列）",
+        "外形を保つ変形も撮らずに失敗する: 祖先の rotate(180deg)",
+        "外形を保つ変形も撮らずに失敗する: シャドウホストの向こうの祖先の変形"
+      ]
+    },
+    {
+      "id": "transform-translate",
+      "why": "行列の判定を常に真にする（平行移動だけのフレームまで拒否する）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "        if (linear.join() !== \"1,0,0,0,0,1,0,0\" || rest.join() !== \"0,0,1,0,1\") {\n",
+      "replace": "        if (true) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）"
+      ]
+    },
+    {
+      "id": "transform-props",
+      "why": "個別プロパティ rotate / scale を見ない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      if (!rotateIsIdentity || !scaleIsIdentity) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ rotate",
+        "外形を保つ変形も撮らずに失敗する: フレーム要素の個別プロパティ scale",
+        "何かを変える個別プロパティは撮らない: rotate: y 30deg",
+        "何かを変える個別プロパティは撮らない: scale: 1 2（片軸だけ拡縮）",
+        "何かを変える個別プロパティは撮らない: 読めない値"
+      ]
+    },
+    {
+      "id": "shadow-host",
+      "why": "シャドウツリーの境界で祖先の走査を止める",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": " || (node.parentNode && node.parentNode.host)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["外形を保つ変形も撮らずに失敗する: シャドウホストの向こうの祖先の変形"]
+    },
+    {
+      "id": "nonfile-precheck",
+      "why": "置き換え先が通常のファイルかを確かめない（ディレクトリを退避して消す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    if (existsSync(dest) && !statSync(dest).isFile()) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）"
+      ]
+    },
+    {
+      "id": "staging-cleanup",
+      "why": "一時ファイルの書き込みに失敗したとき、書けた分の一時ファイルを消さない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    for (const dest of staged) rmSync(dest + suffix, { force: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す"]
+    },
+    {
+      "id": "backup-cleanup",
+      "why": "置き換えに成功した後のバックアップを消さない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "  for (const dest of backups) rmSync(dest + suffix + \".bak\", { force: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["既存の組は新しい組へまとめて置き換わる（バックアップも残さない）"]
+    },
+    {
+      "id": "doc-animations",
+      "why": "要素が居る文書のアニメーションを数えない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    liveAnimations = countTree(el.ownerDocument);\n",
+      "replace": "    liveAnimations = 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 要素が居る文書（兄弟・祖先を含む）",
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 開いたシャドウルートの中（document.getAnimations は含まない）"
+      ]
+    },
+    {
+      "id": "parent-doc-animations",
+      "why": "iframe を遡った先の文書のアニメーションを数えない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "        liveAnimations += countTree(parent.document);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 親文書（フレーム要素・その祖先・兄弟を含む）",
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 2 段外側の文書"
+      ]
+    },
+    {
+      "id": "shadow-animations",
+      "why": "シャドウルートの中を辿らない（document.getAnimations だけに頼る）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      if (host.shadowRoot) n += countTree(host.shadowRoot);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "文書内のアニメーションが生きていれば撮らずに失敗する: 開いたシャドウルートの中（document.getAnimations は含まない）"
+      ]
+    },
+    {
+      "id": "rotate-identity",
+      "why": "角度 0 の rotate も変形とみなす（リセット用のスタイルで撮れなくなる）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "parseFloat(tokens(cs.rotate).pop()) === 0",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: rotate: 0deg",
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: rotate: x 0deg（軸付き）"
+      ]
+    },
+    {
+      "id": "scale-identity",
+      "why": "全成分 1 の scale も変形とみなす",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "tokens(cs.scale).every((t) => parseFloat(t) === 1)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1",
+        "何も変えない個別プロパティは撮る（計算値は none にならない）: scale: 1 1 1"
+      ]
+    }
+  ]
+}

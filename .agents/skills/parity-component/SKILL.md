@@ -52,7 +52,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
     その `component-api.md` は実装の根拠にならないので、採取へ戻る。
     **`metadata.json` の宣言だけで通さない**——**比較の母集合**（下記）の全組み合わせについて
     **採取が必須とする成果物を漏れなく**確かめる——`baseline/<instance>/<state>/` の
-    **要素スクリーンショット（`element.png`）・特性（`traits.json`）・当たっている CSS 規則（`css-rules.json`）**の 3 点と、
+    **要素スクリーンショット（`element.png`）・撮影の記録（`element.shot.json`）・特性（`traits.json`）・当たっている CSS 規則（`css-rules.json`）**の 4 点と、
     slug 直下の `axes.json` / `component-api.md`（**ファイル名まで固定する**——名前を決めないと前提判定が機械的に行えず、
     「在るはずのもの」を人の目で探すことになる）。
     **データ依存の部品（`.replace/components.md` の `データ依存: true`）は `baseline/<instance>/data.json` も必須**。
@@ -203,6 +203,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | 成果物 | 場所 | 正本テンプレート |
 |---|---|---|
 | 要素スクリーンショット | `.replace/components/<slug>/baseline/<instance>/<state>/element.png` | — |
+| 撮影の記録（clip・PNG 実寸） | `.replace/components/<slug>/baseline/<instance>/<state>/element.shot.json`（element-shot.mjs が PNG と対で書く） | — |
 | 計算後スタイル | `.replace/components/<slug>/baseline/<instance>/<state>/traits.json` | — |
 | 当たっている CSS 規則 | `.replace/components/<slug>/baseline/<instance>/<state>/css-rules.json` | — |
 | データ依存部品の実データ | `.replace/components/<slug>/baseline/<instance>/data.json` | — |

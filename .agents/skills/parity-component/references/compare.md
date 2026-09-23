@@ -13,8 +13,8 @@
 - **カタログ側も `parity-suite` 同梱の element-shot.mjs で撮る**（[`capture.md`](capture.md)「ページ全体ではなく要素を撮る」）。
   `locator.screenshot()` へ戻すと、要素の矩形を外接整数矩形へ広げる丸めが片側にだけ入り、同じ寸法の部品でも PNG が食い違って
   画素比較が実行不能になる（Issue #434）。
-  **カタログが iframe で描くなら（Storybook 等）、その iframe の URL をページとして開いて撮る**——
-  element-shot.mjs は座標系が食い違うフレーム内の要素を撮らずに失敗させる（[`capture.md`](capture.md) の同じ節）
+  カタログが iframe で描くなら（Storybook 等）、iframe の中の要素をそのまま渡してよい（ツールがフレームのオフセットを足す）。
+  クロスオリジン・平行移動以外の変形（拡縮・回転・反転）がかかったフレームでは撮らずに失敗するので、その iframe の URL をページとして開いて撮る（[`capture.md`](capture.md) の同じ節）
 - 差分器（trait-compare.mjs）がプロジェクト側に無ければ、採取と同じ手順で `parity-suite` から用意する（[`capture.md`](capture.md)「`parity-suite` 同梱ツールの用意」。既存のコピーが同梱版と違えば停止する）
 - **採取ツールのバージョンを突き合わせる。** trait-capture.mjs・element-shot.mjs・css-rules-capture.mjs の `VERSION` が `metadata.json` の記録値と違うなら、
   片側だけ新しい形で採った成果物になるので**比較へ進まず、両側を採り直す**（止まるのが正しい振る舞い）
@@ -34,7 +34,8 @@
   （読むときは同梱の cascade-resolve.mjs で勝者を確定する。[`catalog.md`](catalog.md)「勝っている宣言を確定してから写す」）
 - **画素比較が「実行不能」で返ってきたら、それを許容に数えない。** 寸法が食い違って比較できていないだけで、
   その組み合わせは 3 経路のうち 1 経路を欠いたまま進んでいる。両側を element-shot.mjs で撮り直し、
-  それでも寸法が揃わないなら**本物の寸法差**なので特性照合の `rect/width` / `rect/height` で差分として扱う（Issue #434）
+  それでも寸法が揃わないなら**本物の寸法差**なので特性照合の `rect/width` / `rect/height` で差分として扱う（Issue #434）。
+  寸法は両側の `element.shot.json` の `png` で突き合わせ、`traits.json` の `rect` から逆算しない（フレーム内の座標なので PNG の実寸と一致しない。Issue #436）
 - 画素差分が出て特性照合がゼロのときは、**名前の付かない内部要素か、フォントの実体差**を疑う。切り分け手順は `parity-diff` の `references/font-diff.md` が正本
 
 ## 分類

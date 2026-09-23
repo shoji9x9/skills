@@ -19,6 +19,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesRoot = join(repoRoot, "evals/parity-component/fixtures");
@@ -135,6 +136,51 @@ function checkComponent(dir) {
       }
 
       const png = existsSync(join(base, "element.png")) ? pngSize(join(base, "element.png")) : null;
+      // element.shot.json は element.png と同じ run の記録。宣言した element_shot_version の出力と
+      // 名乗る以上、記録が在り、その版で、PNG の実寸と一致していなければならない。
+      const shotPath = join(base, "element.shot.json");
+      const shot = existsSync(shotPath) ? readJson(shotPath) : null;
+      if (!shot) {
+        problems.push(`${where}: element.shot.json が無い`);
+      } else {
+        if (shot.tool_version !== elementShot.VERSION) {
+          problems.push(
+            `${where}: element.shot.json の tool_version ${shot.tool_version} ≠ ${elementShot.VERSION}`,
+          );
+        }
+        if (png && (shot.png?.width !== png.width || shot.png?.height !== png.height)) {
+          problems.push(`${where}: element.shot.json の png が element.png の実寸と合わない`);
+        }
+        // 記録の契約全体を、対になる採取物から組み立て直した期待値と突き合わせる（キーの過不足も含む）。
+        // fixture は最上位フレームの要素だけなので page_rect = traits.rect・frame_depth = 0、clip は
+        // 記録した撮影条件のビューポートで element-shot.mjs の planElementClip が決める値。
+        // 寸法が同じ別の撮影の記録を差し込んでも、rect / clip の座標で食い違う。
+        const viewport = meta.capture_conditions?.viewports?.[0];
+        let expectedClip = null;
+        try {
+          expectedClip = viewport ? elementShot.planElementClip(traits.rect, viewport) : null;
+        } catch (error) {
+          // ビューポートの不備は capture_conditions の検査が別に報告する。ここでは再計算できないことだけ残す。
+          problems.push(
+            `${where}: element.shot.json の clip を撮影条件から再計算できない（${error.message}）`,
+          );
+        }
+        if (png && expectedClip) {
+          const expected = elementShot.buildShotRecord({
+            clip: expectedClip,
+            png,
+            rect: traits.rect,
+            page_rect: traits.rect,
+            frame_depth: 0,
+            animations: meta.capture_conditions.animations,
+          });
+          const keys = [...new Set([...Object.keys(expected), ...Object.keys(shot)])].sort();
+          const differ = keys.filter((k) => !isDeepStrictEqual(shot[k], expected[k]));
+          if (differ.length > 0) {
+            problems.push(`${where}: element.shot.json が採取物と合わない（${differ.join(", ")}）`);
+          }
+        }
+      }
       if (!png) {
         problems.push(`${where}: element.png が PNG でない`);
       } else if (
@@ -327,6 +373,52 @@ test("陽性コントロール: rect と合わない element.png を検出する
   const other = readFileSync(join(dir, "baseline/orders-search/default/element.png"));
   writeFileSync(join(dir, "baseline/users-create/default/element.png"), other);
   expect(checkComponent(dir).join("\n")).toContain("users-create / default: element.png");
+});
+
+test("陽性コントロール: element.shot.json の欠落・版違い・実寸違いを検出する", () => {
+  const dir = copyFixture();
+  rmSync(join(dir, "baseline/orders-search/default/element.shot.json"));
+  edit(join(dir, "baseline/users-create/default/element.shot.json"), (r) => {
+    r.tool_version = "5";
+  });
+  edit(join(dir, "baseline/users-create/hover/element.shot.json"), (r) => {
+    r.png.width += 1;
+  });
+  const problems = checkComponent(dir).join("\n");
+  expect(problems).toContain("orders-search / default: element.shot.json が無い");
+  expect(problems).toContain("users-create / default: element.shot.json の tool_version 5");
+  expect(problems).toContain(
+    "users-create / hover: element.shot.json の png が element.png の実寸と合わない",
+  );
+});
+
+test.each([
+  ["clip の座標", (r) => (r.clip.x += 3), "clip"],
+  ["rect の欠落", (r) => delete r.rect, "rect"],
+  ["page_rect の座標", (r) => (r.page_rect.y += 1), "page_rect"],
+  ["frame_depth", (r) => (r.frame_depth = 1), "frame_depth"],
+  ["animations", (r) => (r.animations = "allow"), "animations"],
+  ["余計なキー", (r) => (r.extra = true), "extra"],
+])("陽性コントロール: element.shot.json の契約違反を検出する: %s", (_label, mutate, key) => {
+  const dir = copyFixture();
+  edit(join(dir, "baseline/users-create/default/element.shot.json"), mutate);
+  expect(checkComponent(dir).join("\n")).toContain(
+    `users-create / default: element.shot.json が採取物と合わない（${key}）`,
+  );
+});
+
+test("陽性コントロール: 寸法が同じ別の撮影の記録を差し込むと検出する", () => {
+  const dir = copyFixture();
+  // 同じボタン・同じ寸法で状態だけ違う記録（hover）を default に差し込む。rect が同じなら差は出ないので、
+  // 別インスタンスの記録を使う（寸法は同じでも位置が違う）。
+  const from = readFileSync(join(dir, "baseline/orders-search/default/element.shot.json"), "utf8");
+  const to = join(dir, "baseline/users-create/default/element.shot.json");
+  const a = JSON.parse(from);
+  const b = JSON.parse(readFileSync(to, "utf8"));
+  writeFileSync(to, JSON.stringify({ ...a, png: b.png }));
+  expect(checkComponent(dir).join("\n")).toContain(
+    "users-create / default: element.shot.json が採取物と合わない",
+  );
 });
 
 test("陽性コントロール: 採取物から導けない axes.json を検出する", () => {

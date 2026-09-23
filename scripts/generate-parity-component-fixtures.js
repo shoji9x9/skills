@@ -341,10 +341,22 @@ async function captureOnce(cdp, pages, instance, state) {
     format: "png",
     clip: { ...clip, scale: 1 },
   });
+  const png = Buffer.from(shot.data, "base64");
+  // element.png の隣の記録（element.shot.json）も element-shot.mjs の正本の形で組み立てる。
+  // fixture は最上位フレームの要素だけで、ページにアニメーションを持たないので、
+  // page_rect は rect と同じ・animations は capture_conditions の記録どおり "disabled"。
+  const shotRecord = elementShot.buildShotRecord({
+    clip,
+    png: elementShot.readPngSize(png),
+    rect: traits.rect,
+    page_rect: traits.rect,
+    frame_depth: 0,
+    animations: "disabled",
+  });
   // 総称ファミリー（sans-serif）が実際に何のフォントで描かれたかを残す（撮影環境の記録に要る）。
   const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
   const platformFonts = fonts.map((f) => f.familyName).sort();
-  return { traits, rules, png: Buffer.from(shot.data, "base64"), platformFonts };
+  return { traits, rules, png, shotRecord, platformFonts };
 }
 
 // 整形は「このスクリプトが書いた JSON」だけに当てる。手順書で人に `oxfmt <ディレクトリ>` を
@@ -404,12 +416,13 @@ try {
     }
 
     for (const dir of variant.fixtures) {
-      for (const { instance, state, traits, rules, png } of captured) {
+      for (const { instance, state, traits, rules, png, shotRecord } of captured) {
         const base = join(dir, "baseline", instance.id, state);
         mkdirSync(base, { recursive: true });
         writeJson(join(base, "traits.json"), traits);
         writeJson(join(base, "css-rules.json"), rules);
         writeFileSync(join(base, "element.png"), png);
+        writeJson(join(base, "element.shot.json"), shotRecord);
       }
 
       const metaPath = join(dir, "metadata.json");

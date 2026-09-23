@@ -34,28 +34,38 @@
 // 本ツールは切り詰めが起きる形を撮る前に失敗させる（ビューポートを広げるか、
 // 撮れないことを `gaps.md` に残す）。面積 0 の矩形も撮らずに失敗させる。
 //
-// fail-closed（フレーム）: clip は**最上位フレーム**のビューポート座標として解釈されるので、iframe の中の
-// 要素は `getBoundingClientRect()` と座標系が食い違う。フレーム側の innerWidth / innerHeight では
-// はみ出し判定も通ってしまい、別の場所を切り出した PNG が黙って残る。最上位フレーム以外は撮らずに失敗させる
-// （カタログが iframe で描くなら、その iframe の URL をページとして開いて撮る）。
+// フレーム: clip は**最上位フレーム**のビューポート座標として解釈されるので、iframe の中の要素は
+// `getBoundingClientRect()`（そのフレームの座標）をそのまま使えない。フレームを 1 段ずつ遡り、
+// フレーム要素の矩形 + 枠線（計算後スタイルの border-*-width）+ padding を足して最上位の座標へ直す（Issue #436。
+// ダイアログ内 iframe の部品は、ローカル座標が整数でも親のオフセットが小数なら `locator.screenshot()` の
+// 外接で PNG が 1px 膨らんでいた）。直せない形は撮る前に失敗させる:
+//   - 読めないフレーム（クロスオリジンで `frameElement` が null）: 足すべきオフセットが分からない
+//   - 変形されたフレーム（フレームか親文書内の祖先に平行移動以外の transform / rotate / scale）: 足し算では座標が決まらない
+//   - 途中のフレームの見える範囲からはみ出す要素: そのフレームが切るので、部品の一部だけの PNG になる
+//
+// 記録: `path` を渡すと、PNG の隣に `<名前>.shot.json` を書く（実際に使った clip・出力 PNG の実寸・
+// 最上位座標の矩形）。trait-capture.mjs の `rect` はフレーム内の座標で、撮影のスクロール前に採られることも
+// あるため、`rect` から PNG の実寸は導出できない（Issue #436）。撮った側が撮った値を同じ場で残す。
 //
 // 決定論的: 乱数・現在時刻に依存しない。状態遷移・矩形が落ち着くまでの待ちは呼び出し側の責務で、
 // 本ツールは「いまの矩形」を撮るだけ（trait-capture.mjs と同じ分担）。
 // Playwright はピア前提であり import しない（Locator / Page は引数で受け取る）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 /**
  * ツールのバージョン（正本）。clip の算出規則・失敗条件・撮影オプションの既定を変えたら上げる。
  * 3: 撮影後に矩形を測り直し、撮影中に動いていたら失敗させる。
  * 4: `path` は Playwright へ渡さず、検査を通ってから自分で書く（拒否した PNG を残さない）。
  * 5: 撮る前に生きているアニメーションを数え、`animations: "disabled"` なら撮らずに失敗させる。
+ * 6: 同一オリジンの iframe の中の要素を、フレームのオフセットを足して撮る。`path` の隣に `.shot.json` を書く
+ *    （PNG と記録は両方置き換わるか、どちらも変わらないか）。
  * metadata.json の `capture.tools.element_shot_version` に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /**
  * 要素の矩形とビューポートから clip を決める純関数（ブラウザに依存しないのでここで単体検査できる）。
@@ -115,6 +125,11 @@ export function planElementClip(rect, viewport) {
 /**
  * ブラウザ内で矩形とビューポートを読む純関数（locator.evaluate に渡す）。
  * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない。
+ *
+ * iframe の中なら、フレームを 1 段ずつ遡って最上位のビューポート座標（`page_rect`）へ直す。
+ * 各段のオフセットは「フレーム要素の矩形 + 枠線 + padding」で、フレームの中身はそこから始まる。
+ * 各段で要素がそのフレームの見える範囲に収まっているかを Node 側で判定できるよう、
+ * 段ごとの矩形と見える範囲を `frames` に並べる（内側から外側へ。最上位は含めない）。
  * @param {Element} el
  */
 function readRectAndViewport(el) {
@@ -123,27 +138,174 @@ function readRectAndViewport(el) {
   // 完了まで早送りし、無限のものを初期状態へ戻してから撮り、撮り終えたら元の時刻へ復帰させる。
   // そのため撮影の前後で測った矩形が同じでも、PNG は別の幾何で撮られている（一時停止した無限
   // アニメーションが典型）。撮る前に件数を見て、生きているなら clip を信用しない。
+  // 数える範囲は要素の部分木ではなく、要素が居る文書と、iframe を遡った先の各文書の全体。
+  // 要素を動かすのは部分木だけではない——祖先の移動・変形、フレーム要素、前に並ぶ兄弟の幅の変化も
+  // レイアウトを通じて要素を動かす。これらも撮影の中で早送り／初期化され、撮り終えると戻るので、
+  // 前後の矩形が一致したまま PNG だけ別の位置で切られる。どのノードが要素を動かしうるかを列挙する代わりに文書ごと数える。
+  // `document.getAnimations()` はシャドウツリーの中を含まない（実測）ので、開いたシャドウルートを再帰で辿る
+  // （閉じたシャドウルートは読めない）。
+  const live = (anims) =>
+    anims.filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+  const countTree = (root) => {
+    let n = live(root.getAnimations());
+    for (const host of root.querySelectorAll("*")) {
+      if (host.shadowRoot) n += countTree(host.shadowRoot);
+    }
+    return n;
+  };
   let liveAnimations = null;
   try {
-    liveAnimations = el
-      .getAnimations({ subtree: true })
-      .filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+    liveAnimations = countTree(el.ownerDocument);
   } catch {
     liveAnimations = null; // getAnimations を持たない環境では数えられない（判定しない）
   }
-  const view = el.ownerDocument.defaultView;
-  let topFrame;
-  try {
-    topFrame = view === view.top;
-  } catch {
-    topFrame = false;
+  const rect = { x: box.x, y: box.y, width: box.width, height: box.height };
+  let view = el.ownerDocument.defaultView;
+  let x = box.x;
+  let y = box.y;
+  const frames = [];
+  let frameError = null;
+  for (;;) {
+    let isTop;
+    try {
+      isTop = view === view.top;
+    } catch {
+      isTop = false;
+    }
+    if (isTop) break;
+    let frameEl = null;
+    try {
+      frameEl = view.frameElement;
+    } catch {
+      frameEl = null;
+    }
+    if (!frameEl) {
+      frameError = "unreadable";
+      break;
+    }
+    // 見える範囲はスクロールバーを除いた寸法（scrollingElement は quirks なら body、標準なら html）。
+    const doc = view.document;
+    const scroller = doc.scrollingElement || doc.documentElement;
+    frames.push({
+      rect: { x, y, width: box.width, height: box.height },
+      viewport: { width: scroller.clientWidth, height: scroller.clientHeight },
+    });
+    const parent = view.parent;
+    const frameBox = frameEl.getBoundingClientRect();
+    // transform で拡縮されたフレームは、矩形（変形後）とレイアウト寸法（変形前）が食い違う。
+    // 中身の座標も同じ倍率で縮むので、足し算では最上位の座標が決まらない。
+    // offsetWidth / offsetHeight は整数へ丸められるので（枠線・padding が小数なら矩形と 1px 未満ずれる。
+    // 実測: 610.5px のフレームで offsetWidth=611）、1px 以上の食い違いだけを変形とみなす。
+    // それより小さい倍率ずれは、フレーム全体でも位置の誤差が 1px 未満で、clip の丸めと同じ桁に収まる。
+    if (
+      Math.abs(frameBox.width - frameEl.offsetWidth) >= 1 ||
+      Math.abs(frameBox.height - frameEl.offsetHeight) >= 1
+    ) {
+      frameError = "transformed";
+      break;
+    }
+    // 寸法だけでは外形を保つ変形（rotate(180deg) / scaleX(-1) 等）を見逃す——外接矩形の寸法が変わらないのに
+    // 中身の座標は反転している。フレーム要素と親文書内の祖先の計算後スタイルを読み、平行移動以外の変形を拒否する。
+    // `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
+    let transformed = false;
+    for (let node = frameEl; node && node.nodeType === 1;) {
+      const cs = parent.getComputedStyle(node);
+      // 個別プロパティは「何も変えない値」を none ではなくその値で返す（実測: `rotate: 0deg` → "0deg"、
+      // `scale: 1 1` → "1"）。transition の初期値・リセットで普通に書かれるので、角度 0 の rotate と
+      // 全成分 1 の scale は通す。読めない値（NaN）は恒等とみなさず拒否する。
+      const tokens = (v) => v.trim().split(/\s+/);
+      const rotateIsIdentity =
+        !cs.rotate || cs.rotate === "none" || parseFloat(tokens(cs.rotate).pop()) === 0;
+      const scaleIsIdentity =
+        !cs.scale || cs.scale === "none" || tokens(cs.scale).every((t) => parseFloat(t) === 1);
+      if (!rotateIsIdentity || !scaleIsIdentity) {
+        transformed = true;
+        break;
+      }
+      if (cs.transform && cs.transform !== "none") {
+        const m = new parent.DOMMatrixReadOnly(cs.transform);
+        const linear = [m.m11, m.m12, m.m13, m.m14, m.m21, m.m22, m.m23, m.m24];
+        const rest = [m.m31, m.m32, m.m33, m.m34, m.m44];
+        if (linear.join() !== "1,0,0,0,0,1,0,0" || rest.join() !== "0,0,1,0,1") {
+          transformed = true;
+          break;
+        }
+      }
+      // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
+      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+    }
+    if (transformed) {
+      frameError = "transformed";
+      break;
+    }
+    // 親文書のアニメーションも数える（フレーム要素・その祖先・兄弟がフレームごと要素を動かしうる）。
+    if (liveAnimations !== null) {
+      try {
+        liveAnimations += countTree(parent.document);
+      } catch {
+        liveAnimations = null;
+      }
+    }
+    const style = parent.getComputedStyle(frameEl);
+    // 枠線は clientLeft / clientTop ではなく計算後スタイルから読む。clientLeft は整数へ丸められるが、
+    // 枠線はデバイスピクセルへスナップされて小数になる（実測: deviceScaleFactor 1.5 で 1px の枠線は
+    // borderLeftWidth=0.666667px・clientLeft=1）。丸めた値を足すと最上位の座標が 1/3px ずれ、clip の丸めが 1px 反転しうる。
+    x += frameBox.x + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+    y += frameBox.y + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
+    view = parent;
   }
   return {
-    rect: { x: box.x, y: box.y, width: box.width, height: box.height },
+    rect,
+    page_rect: { x, y, width: box.width, height: box.height },
     viewport: { width: view.innerWidth, height: view.innerHeight },
-    top_frame: topFrame,
+    frames,
+    frame_error: frameError,
     live_animations: liveAnimations,
   };
+}
+
+/**
+ * PNG の IHDR から実寸を読む。`page.screenshot()` は PNG を返すはずだが、実寸を記録する以上
+ * 読めないものを黙って null にしない（記録と実体が食い違う成果物を作らない）。
+ * @param {Buffer} buffer
+ * @returns {{ width:number, height:number }}
+ */
+export function readPngSize(buffer) {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (
+    !Buffer.isBuffer(buffer) ||
+    buffer.length < 24 ||
+    signature.some((b, i) => buffer[i] !== b) ||
+    buffer.toString("latin1", 12, 16) !== "IHDR"
+  ) {
+    throw new Error("element clip: page.screenshot() did not return a PNG (no IHDR header)");
+  }
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+/**
+ * `element.png` の隣に置く記録ファイルのパス（`element.png` → `element.shot.json`）。
+ * @param {string} path - PNG のパス（`.png` で終わること）
+ */
+export function shotRecordPath(path) {
+  if (typeof path !== "string" || !path.endsWith(".png")) {
+    throw new Error(`element clip: path must end with .png (got ${String(path)})`);
+  }
+  return join(dirname(path), `${basename(path, ".png")}.shot.json`);
+}
+
+/**
+ * `element.shot.json` の中身（正本の形）。captureElementShot 以外で撮った PNG に記録を添える場合も
+ * この関数で組み立て、キーの集合と `tool_version` を揃える。
+ * @param {{ clip: object, png: object, rect: object, page_rect: object, frame_depth: number, animations: string }} fields
+ */
+export function buildShotRecord({ clip, png, rect, page_rect, frame_depth, animations }) {
+  return { clip, png, rect, page_rect, frame_depth, animations, tool_version: VERSION };
+}
+
+/** 2 つの矩形が同じ値か。 */
+function sameRect(a, b) {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 /**
@@ -152,10 +314,11 @@ function readRectAndViewport(el) {
  * `locator.screenshot()` を置き換える経路なので、**採取側とカタログ側の両方で同じこの関数を使う**
  * （片側だけ差し替えると、外接の 1px がそのまま寸法差として残り、塞いだはずの穴が戻る）。
  *
- * @param {import('playwright').Page} page - clip 付き撮影に使う Page（locator と同じ最上位フレームのページ）
- * @param {import('playwright').Locator} locator - 撮る要素（一意に解決すること）
+ * @param {import('playwright').Page} page - clip 付き撮影に使う Page（locator が居るフレームを含む最上位のページ）
+ * @param {import('playwright').Locator} locator - 撮る要素（一意に解決すること。同一オリジンの iframe の中でもよい）
  * @param {{ path?: string, scrollIntoView?: boolean, animations?: ("disabled"|"allow") }} [options]
- *   path を渡すとそこへ書き出す。scrollIntoView は既定 true（`locator.screenshot()` と同じく、撮る前に見える位置へ入れる）。
+ *   path（`.png` で終わる）を渡すとそこへ書き出し、隣に `<名前>.shot.json`（clip・PNG 実寸・矩形）を書く。
+ *   scrollIntoView は既定 true（`locator.screenshot()` と同じく、撮る前に見える位置へ入れる）。
  *   animations は既定 `"disabled"`——Playwright の既定は `"allow"` で、アニメーション・トランジションの
  *   途中フレームがそのまま PNG になり run ごとに揺れる。採取条件は `animations: disabled` として
  *   記録される運用なので、記録と実体が食い違わないよう既定で止める
@@ -163,9 +326,12 @@ function readRectAndViewport(el) {
  *   clip は撮影前の矩形から決まる一方で `animations` は撮影時に効くため、**撮影後にもう一度矩形を測り、
  *   変わっていたら失敗させる**（早送りで動いた要素を古い矩形で切った PNG を基準にしない）
  * @returns {Promise<{ buffer: Buffer, clip: { x:number, y:number, width:number, height:number },
- *                     rect: { x:number, y:number, width:number, height:number }, tool_version: string }>}
- * @throws {Error} 要素が最上位フレームに無い（clip の座標系が食い違う）場合
-
+ *                     png: { width:number, height:number },
+ *                     rect: { x:number, y:number, width:number, height:number },
+ *                     page_rect: { x:number, y:number, width:number, height:number },
+ *                     frame_depth: number, animations: string, tool_version: string }>}
+ *   `rect` は要素が居るフレームの座標（trait-capture.mjs の `rect` と同じ座標系）、`page_rect` は最上位の座標。
+ * @throws {Error} フレームの座標を最上位へ直せない（読めない・変形された・フレームが切る）場合
  */
 export async function captureElementShot(page, locator, options = {}) {
   const { path, scrollIntoView = true, animations = "disabled" } = options;
@@ -174,22 +340,37 @@ export async function captureElementShot(page, locator, options = {}) {
       `element clip: animations must be "disabled" or "allow" (got ${String(animations)})`,
     );
   }
+  const recordPath = path === undefined ? undefined : shotRecordPath(path);
   if (scrollIntoView) await locator.scrollIntoViewIfNeeded();
   const measured = await locator.evaluate(readRectAndViewport);
-  // フレームの中の要素は撮れない。`getBoundingClientRect()` はそのフレームのビューポート座標だが、
-  // `page.screenshot({ clip })` は**最上位フレーム**のビューポート座標として解釈されるため、
-  // 座標系が食い違ったまま別の場所を切り出した PNG が「撮れた」として残る（ビューポート内判定も
-  // フレーム側の innerWidth / innerHeight で通ってしまうので気付けない）。
-  // Storybook のようにカタログが iframe で描く場合は、iframe の URL 自体をページとして開いて撮る
-  // （`/iframe.html?id=<story>`）。
-  if (measured.top_frame !== true) {
+  // フレームの中の要素は、最上位の座標へ直せたときだけ撮る。直せないまま撮ると、
+  // `page.screenshot({ clip })` が最上位の座標として解釈して別の場所を切り出した PNG が「撮れた」として残る。
+  if (measured.frame_error === "unreadable") {
     throw new Error(
-      "element clip: the element lives inside a frame. getBoundingClientRect() is relative to that " +
-        "frame, but page.screenshot({ clip }) is relative to the top-level viewport, so the crop " +
-        "would silently land on the wrong region. open the frame's own URL as a page " +
-        "(Storybook: /iframe.html?id=<story>) and capture the element there",
+      "element clip: the element lives inside a frame whose offset cannot be read (cross-origin: " +
+        "frameElement is null), so its box cannot be mapped to the top-level viewport that " +
+        "page.screenshot({ clip }) uses. open the frame's own URL as a page and capture the element there",
     );
   }
+  if (measured.frame_error === "transformed") {
+    throw new Error(
+      "element clip: the element lives inside a frame transformed by CSS (scale, rotation or flip — anything " +
+        "but a translation, on the frame or its ancestors); adding offsets cannot " +
+        "map its box to the top-level viewport. remove the transform for the capture or open the frame's " +
+        "own URL as a page",
+    );
+  }
+  // 途中のフレームの見える範囲からはみ出す要素は、そのフレームに切られて部品の一部だけが写る。
+  // 最上位の判定（planElementClip）と同じ丸めで各段を判定する。
+  measured.frames.forEach((frame, depth) => {
+    try {
+      planElementClip(frame.rect, frame.viewport);
+    } catch (error) {
+      throw new Error(
+        `element clip: inside frame level ${depth + 1} (innermost = 1), ${error.message.replace(/^element clip: /, "")}`,
+      );
+    }
+  });
   // 生きているアニメーションがあるなら、撮影中に幾何が変わっても前後の測定は同じ値になりうる
   // （撮影後の測り直しでは捕まえられない）。撮る前に落とす。
   if (
@@ -198,14 +379,15 @@ export async function captureElementShot(page, locator, options = {}) {
     measured.live_animations > 0
   ) {
     throw new Error(
-      `element clip: ${measured.live_animations} live animation(s) on the element or its subtree. ` +
+      `element clip: ${measured.live_animations} live animation(s) in the element's document or the documents ` +
+        `of its enclosing frames (any of them can move the element through layout). ` +
         `animations: "disabled" fast-forwards or resets them inside page.screenshot() and restores them ` +
         `afterwards, so the clip measured before the capture can describe a different geometry than the PNG ` +
         `(the post-capture rect check cannot see this). quiesce animations and transitions at the page level ` +
         `before capturing, or pass animations: "allow" and record that the capture condition differs`,
     );
   }
-  const clip = planElementClip(measured.rect, measured.viewport);
+  const clip = planElementClip(measured.page_rect, measured.viewport);
   // `path` は Playwright へ渡さずバッファで受け取る。撮影後の検査で落ちる run が、
   // 拒否したはずのフレームを基準ファイルとして書き残す（または上書きする）のを避けるため——
   // 後段の「ファイルがあるか」で確かめる手順が、無効な成果物を読んでしまう。
@@ -215,28 +397,82 @@ export async function captureElementShot(page, locator, options = {}) {
   // （有限のアニメーションは完了まで早送りされ、無限のものは初期状態へ戻る）。その早送りで
   // 要素の位置・寸法が変われば、古い矩形で切った PNG が別の領域を写したまま残る。
   // 撮った後にもう一度測って、変わっていたら失敗させる——撮影条件を記録しながら
-  // 中身が条件と食い違う成果物を基準にしない。
+  // 中身が条件と食い違う成果物を基準にしない。フレームの中なら、フレームが動いても同じなので最上位の座標でも比べる。
   const after = await locator.evaluate(readRectAndViewport);
-  const moved =
-    after.rect.x !== measured.rect.x ||
-    after.rect.y !== measured.rect.y ||
-    after.rect.width !== measured.rect.width ||
-    after.rect.height !== measured.rect.height;
-  if (moved) {
+  if (!sameRect(after.rect, measured.rect) || !sameRect(after.page_rect, measured.page_rect)) {
     throw new Error(
       `element clip: the element's box changed while capturing ` +
-        `(${measured.rect.width}x${measured.rect.height} at ${measured.rect.x},${measured.rect.y} -> ` +
-        `${after.rect.width}x${after.rect.height} at ${after.rect.x},${after.rect.y}). ` +
+        `(${measured.page_rect.width}x${measured.page_rect.height} at ${measured.page_rect.x},${measured.page_rect.y} -> ` +
+        `${after.page_rect.width}x${after.page_rect.height} at ${after.page_rect.x},${after.page_rect.y}). ` +
         `the clip was computed before the screenshot applied animations: "${animations}", so the PNG may ` +
         `show a different region. quiesce animations and transitions at the page level (or wait until the ` +
         `rect is stable across two reads) before capturing`,
     );
   }
+  const png = readPngSize(buffer);
 
-  // 検査を通ってから書く。
+  const result = buildShotRecord({
+    clip,
+    png,
+    rect: measured.rect,
+    page_rect: measured.page_rect,
+    frame_depth: measured.frames.length,
+    animations,
+  });
+  // 検査を通ってから書く。PNG と記録は同じ run の値で対にする（片方だけ古い組を残さない）。
   if (path !== undefined) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, buffer);
+    writePair([
+      [path, buffer],
+      [recordPath, `${JSON.stringify(result, null, 2)}\n`],
+    ]);
   }
-  return { buffer, clip, rect: measured.rect, animations, tool_version: VERSION };
+  return { buffer, ...result };
+}
+
+/**
+ * 複数のファイルを「全部置き換わるか、何も変わらないか」で書く。
+ * 一時ファイルへ書き切ってから rename で差し替え、途中で落ちたら差し替えた分を元に戻す。
+ * PNG だけ新しく記録が古い（または無い）組を残すと、後の比較が別 run の clip で寸法を読む。
+ * @param {Array<[string, (string|Buffer)]>} entries - [書き出し先, 中身]
+ */
+export function writePair(entries) {
+  const suffix = `.tmp-${process.pid}`;
+  // 置き換え先が通常のファイルでない（ディレクトリ等）なら、何も書かずに落とす。
+  // 退避して置き換えると、利用者のディレクトリを基準ファイルで上書きして消すことになる。
+  for (const [dest] of entries) {
+    if (existsSync(dest) && !statSync(dest).isFile()) {
+      throw new Error(
+        `element clip: ${dest} exists and is not a regular file; refusing to replace it`,
+      );
+    }
+  }
+  const staged = [];
+  try {
+    for (const [dest, data] of entries) {
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest + suffix, data);
+      staged.push(dest);
+    }
+  } catch (error) {
+    for (const dest of staged) rmSync(dest + suffix, { force: true });
+    throw error;
+  }
+  const backups = [];
+  const replaced = [];
+  try {
+    for (const [dest] of entries) {
+      if (existsSync(dest)) {
+        renameSync(dest, dest + suffix + ".bak");
+        backups.push(dest);
+      }
+      renameSync(dest + suffix, dest);
+      replaced.push(dest);
+    }
+  } catch (error) {
+    for (const dest of replaced) rmSync(dest, { force: true });
+    for (const dest of backups) renameSync(dest + suffix + ".bak", dest);
+    for (const [dest] of entries) rmSync(dest + suffix, { force: true });
+    throw error;
+  }
+  for (const dest of backups) rmSync(dest + suffix + ".bak", { force: true });
 }

@@ -1,0 +1,27 @@
+{
+  "clip": {
+    "x": 16,
+    "y": 16,
+    "width": 108,
+    "height": 28
+  },
+  "png": {
+    "width": 108,
+    "height": 28
+  },
+  "rect": {
+    "x": 16,
+    "y": 16,
+    "width": 108.015625,
+    "height": 28
+  },
+  "page_rect": {
+    "x": 16,
+    "y": 16,
+    "width": 108.015625,
+    "height": 28
+  },
+  "frame_depth": 0,
+  "animations": "disabled",
+  "tool_version": "6"
+}
