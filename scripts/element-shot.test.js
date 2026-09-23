@@ -170,10 +170,16 @@ function fakeView({ frames = [] } = {}) {
   return outer;
 }
 
-function fakeElement({ rect, frames } = {}) {
+/** `playState` の列から Animation の代わりを作る。 */
+const anims = (...states) => states.map((playState) => ({ playState }));
+
+function fakeElement({ rect, frames, animations = [], parentElement = null } = {}) {
   return {
     ownerDocument: { defaultView: fakeView({ frames }) },
     getBoundingClientRect: () => rect ?? { x: 1328.8125, y: 219.296875, width: 25, height: 28 },
+    getAnimations: () => animations,
+    parentElement,
+    parentNode: parentElement,
   };
 }
 
@@ -191,8 +197,14 @@ class FakeMatrix {
 }
 
 /** 偽の祖先要素（親文書の中でフレーム要素を包む要素）。 */
-function fakeAncestor(computed = {}, parentElement = null) {
-  return { nodeType: 1, computed, parentElement, parentNode: parentElement };
+function fakeAncestor(computed = {}, parentElement = null, animations = []) {
+  return {
+    nodeType: 1,
+    computed,
+    parentElement,
+    parentNode: parentElement,
+    getAnimations: () => animations,
+  };
 }
 
 function fakeFrameEl({
@@ -204,6 +216,7 @@ function fakeFrameEl({
   scale = 1,
   parentElement = null,
   parentNode = parentElement,
+  animations = [],
 }) {
   return {
     getBoundingClientRect: () => ({ x, y, width: width * scale, height: height * scale }),
@@ -214,6 +227,7 @@ function fakeFrameEl({
     nodeType: 1,
     parentElement,
     parentNode,
+    getAnimations: () => animations,
   };
 }
 
@@ -514,6 +528,62 @@ test.each([
     captureElementShot(page, frameLocator(fakeElement({ rect: LOCAL, frames }))),
   ).rejects.toThrow(/transformed by CSS/);
   expect(page.calls).toEqual([]);
+});
+
+// 要素を運ぶ祖先のアニメーションも、撮影の中で早送り／初期化されて撮り終えると戻るので、
+// 前後の矩形が一致したまま PNG だけ別の位置で切られる。部分木だけでなく祖先・フレームも数える。
+test.each([
+  [
+    "同じ文書の祖先（最上位フレーム）",
+    () => fakeElement({ parentElement: fakeAncestor({}, null, anims("running")) }),
+  ],
+  [
+    "フレーム要素",
+    () =>
+      fakeElement({
+        rect: LOCAL,
+        frames: [
+          { ...NESTED[0], frameEl: fakeFrameEl({ x: 10, y: 10, animations: anims("paused") }) },
+        ],
+      }),
+  ],
+  [
+    "親文書内でフレームを包む祖先",
+    () =>
+      fakeElement({
+        rect: LOCAL,
+        frames: [
+          {
+            ...NESTED[0],
+            frameEl: fakeFrameEl({
+              x: 10,
+              y: 10,
+              parentElement: fakeAncestor({}, null, anims("running")),
+            }),
+          },
+        ],
+      }),
+  ],
+])("要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: %s", async (_label, make) => {
+  const page = recordingPage();
+  await expect(captureElementShot(page, frameLocator(make()))).rejects.toThrow(/live animation/);
+  expect(page.calls).toEqual([]);
+});
+
+test("祖先のアニメーションが終わっていれば撮る（finished / idle は数えない）", async () => {
+  const page = recordingPage();
+  const el = fakeElement({
+    rect: LOCAL,
+    parentElement: fakeAncestor({}, null, anims("finished", "idle")),
+    frames: [
+      {
+        ...NESTED[0],
+        frameEl: fakeFrameEl({ x: 10, y: 10, animations: anims("finished") }),
+      },
+    ],
+  });
+  await captureElementShot(page, frameLocator(el));
+  expect(page.calls).toHaveLength(1);
 });
 
 test("平行移動だけの変形は撮る（getBoundingClientRect が移動後の位置を返すので足し算で合う）", async () => {

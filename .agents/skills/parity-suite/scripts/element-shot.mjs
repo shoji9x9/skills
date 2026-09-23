@@ -138,11 +138,18 @@ function readRectAndViewport(el) {
   // 完了まで早送りし、無限のものを初期状態へ戻してから撮り、撮り終えたら元の時刻へ復帰させる。
   // そのため撮影の前後で測った矩形が同じでも、PNG は別の幾何で撮られている（一時停止した無限
   // アニメーションが典型）。撮る前に件数を見て、生きているなら clip を信用しない。
+  // 数える範囲は要素の部分木だけでなく、要素を運ぶ祖先（同じ文書の祖先・フレーム要素・親文書内の祖先）も含める。
+  // 祖先の位置・変形のアニメーションも撮影の中で早送り／初期化され、撮り終えると戻るので、
+  // 前後の矩形が一致したまま PNG だけ別の位置で切られる。
+  const live = (anims) =>
+    anims.filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+  const up = (node) => node.parentElement || (node.parentNode && node.parentNode.host) || null;
   let liveAnimations = null;
   try {
-    liveAnimations = el
-      .getAnimations({ subtree: true })
-      .filter((a) => a.playState !== "finished" && a.playState !== "idle").length;
+    liveAnimations = live(el.getAnimations({ subtree: true }));
+    for (let node = up(el); node && node.nodeType === 1; node = up(node)) {
+      liveAnimations += live(node.getAnimations());
+    }
   } catch {
     liveAnimations = null; // getAnimations を持たない環境では数えられない（判定しない）
   }
@@ -196,6 +203,13 @@ function readRectAndViewport(el) {
     // `transform` の計算値は行列（translate / rotate / scale の個別プロパティは含まない）なので、個別プロパティも見る。
     let transformed = false;
     for (let node = frameEl; node && node.nodeType === 1;) {
+      if (liveAnimations !== null) {
+        try {
+          liveAnimations += live(node.getAnimations());
+        } catch {
+          liveAnimations = null;
+        }
+      }
       const cs = parent.getComputedStyle(node);
       if ((cs.rotate && cs.rotate !== "none") || (cs.scale && cs.scale !== "none")) {
         transformed = true;
@@ -210,8 +224,7 @@ function readRectAndViewport(el) {
           break;
         }
       }
-      // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける。
-      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+      node = up(node); // シャドウツリーの中なら、ホストへ抜けて祖先を辿り続ける
     }
     if (transformed) {
       frameError = "transformed";
@@ -350,7 +363,8 @@ export async function captureElementShot(page, locator, options = {}) {
     measured.live_animations > 0
   ) {
     throw new Error(
-      `element clip: ${measured.live_animations} live animation(s) on the element or its subtree. ` +
+      `element clip: ${measured.live_animations} live animation(s) on the element, its subtree, its ancestors ` +
+        `or its enclosing frames. ` +
         `animations: "disabled" fast-forwards or resets them inside page.screenshot() and restores them ` +
         `afterwards, so the clip measured before the capture can describe a different geometry than the PNG ` +
         `(the post-capture rect check cannot see this). quiesce animations and transitions at the page level ` +

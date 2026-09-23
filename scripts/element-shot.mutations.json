@@ -212,6 +212,29 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["既存の組は新しい組へまとめて置き換わる（バックアップも残さない）"]
+    },
+    {
+      "id": "ancestor-animations",
+      "why": "同じ文書の祖先のアニメーションを数えない（部分木だけに戻す）",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "    for (let node = up(el); node && node.nodeType === 1; node = up(node)) {\n      liveAnimations += live(node.getAnimations());\n    }\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: 同じ文書の祖先（最上位フレーム）"
+      ]
+    },
+    {
+      "id": "frame-animations",
+      "why": "フレーム要素と親文書内の祖先のアニメーションを数えない",
+      "file": "skills/parity-suite/scripts/element-shot.mjs",
+      "find": "      if (liveAnimations !== null) {\n        try {\n          liveAnimations += live(node.getAnimations());\n",
+      "replace": "      if (false) {\n        try {\n          liveAnimations += live(node.getAnimations());\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: フレーム要素",
+        "要素を運ぶ祖先のアニメーションが生きていれば撮らずに失敗する: 親文書内でフレームを包む祖先"
+      ]
     }
   ]
 }
