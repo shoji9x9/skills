@@ -40,6 +40,8 @@
 #   - 許可リストのインタプリタが読むヒアドキュメント（`python3 - <<EOF`）の本文は見逃す。本文の言語ごとに解釈が要り、
 #     AGENTS.md が本文を quoted heredoc でインタプリタへ渡す形を推奨しているため、止めると日常の作業が止まる。
 #   - 許可リスト外の読み手（`echo` 等、実行しない読み手を含む）の本文はコードとして読む＝誤検知側。
+#   - 許可リストの読み手でファイルへ書き出してから実行する形（`cat > s.sh <<'EOF' … && bash s.sh`・次の行で実行）は見逃す。
+#     書き出した内容の行方はゲートから追えない（Write ツールで書いてから実行するのと同じ）。
 #   - 構造（リダイレクト・プロセス置換・case / 関数の本体）は解析しない。コード部分の部分一致で拾うので、xargs / env /
 #     timeout / find -exec / case / 関数 / プロセス置換の中の実行は止まる。一方、引用していないリダイレクト先の
 #     ファイル名に危険語が入ると誤検知になる（稀）。
@@ -263,6 +265,9 @@ split_segments() {
 		}
 		if (!heredoc_reader(substr(raw, b + 1, pos - b - 1))) return 0
 		rest = substr(raw, pos, lend - pos)
+		# プロセス置換（`cat <<EOF > >(bash)`）は読み手の出力を別のコマンドへ渡すので、パイプと同じく本文が実行されうる。
+		# 置換の中身の読み手は解析せず、本文をコードとして読む側へ倒す。
+		if (index(substr(raw, b + 1, lend - b - 1), ">(") || index(substr(raw, b + 1, lend - b - 1), "<(")) return 0
 		np = split(rest, parts, /\|/)
 		for (j = 2; j <= np; j++) if (parts[j] != "" && !heredoc_reader(parts[j])) return 0
 		return 1

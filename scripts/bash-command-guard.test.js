@@ -352,6 +352,9 @@ const HEREDOC_READER_BLOCKING = [
     "許可リストの読み手から許可リスト外へのパイプ",
     "cat <<'EOF' | tee f | bash\npkill -f chrome\nEOF",
   ],
+  // プロセス置換は読み手の出力を別のコマンドへ渡す（PR #448 のレビュー。親版は止めていた）。
+  ["出力のプロセス置換", "cat <<'EOF' > >(bash)\npkill -f chrome\nEOF"],
+  ["tee のプロセス置換", "tee >(sh) <<'EOF'\npkill -f chrome\nEOF"],
   ["リダイレクトの & を境界と読む（安全側）", "cat 2>&1 <<'EOF'\npkill -f chrome\nEOF"],
 ];
 test.each(HEREDOC_READER_BLOCKING)(
@@ -409,6 +412,11 @@ test("意図的な穴（見逃し側）: インタプリタが読むヒアドキ
   // AGENTS.md は本文を quoted heredoc でインタプリタへ渡す形を推奨するので、読み手の許可リストに入れる。
   const command = "python3 - <<'EOF'\nimport os\npkill -f x\nEOF";
   expect(guard(command).status).toBe(0);
+});
+
+test("意図的な穴（見逃し側）: 許可リストの読み手でファイルへ書き出してから実行する形は見逃す", () => {
+  // 書き出した内容の行方はゲートから追えない（Write ツールで書いてから実行するのと同じ）。
+  expect(guard("cat > s.sh <<'EOF' && bash s.sh\npkill -f chrome\nEOF").status).toBe(0);
 });
 
 test("意図的な穴（誤検知側）: 引用していないリダイレクト先のファイル名もコードとして見る", () => {
