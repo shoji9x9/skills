@@ -29,12 +29,13 @@
 
 ## 保存先はファイル名まで固定する
 
-インスタンス × 状態ごとに `baseline/<instance>/<state>/` を作り、**`element.png`（要素スクショ）・`traits.json`（計算後スタイル）・
-`css-rules.json`（当たっている CSS 規則）**の 3 つをこの名前で置く。
-element-shot.mjs に `path` として `element.png` を渡すと、隣に **`element.shot.json`**（実際に使った clip・出力 PNG の実寸・
-最上位座標の矩形）を同じ run の値で書く。`traits.json` の `rect` は要素が居るフレームの座標なので、
-iframe の中の部品では **`rect` から PNG の実寸は導出できない**（Issue #436）。寸法を突き合わせるときは `element.shot.json` の `png` を読む。データ依存部品の実データだけは状態に依らないので
-`baseline/<instance>/data.json`。`build` の前提判定はこのファイル名で実体を確かめるため、名前が揺れると採取済みの基準が「無い」と判定される。
+インスタンス × 状態ごとに `baseline/<instance>/<state>/` を作り、**`element.png`（要素スクショ）・`element.shot.json`（撮影の記録）・
+`traits.json`（計算後スタイル）・`css-rules.json`（当たっている CSS 規則）**の 4 つをこの名前で置く。データ依存部品の実データだけは
+状態に依らないので `baseline/<instance>/data.json`。`build` の前提判定はこのファイル名で実体を確かめるため、名前が揺れると採取済みの基準が「無い」と判定される。
+
+`element.shot.json` は、element-shot.mjs に `path` として `element.png` を渡すと PNG と同じ run の値で隣に書かれる
+（実際に使った clip・出力 PNG の実寸・最上位座標の矩形）。`traits.json` の `rect` は要素が居るフレームの座標なので、
+iframe の中の部品では **`rect` から PNG の実寸は導出できない**（Issue #436）。寸法を突き合わせるときは `element.shot.json` の `png` を読む。
 
 ## ページ全体ではなく要素を撮る
 
