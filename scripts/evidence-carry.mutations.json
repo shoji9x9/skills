@@ -80,7 +80,9 @@
         "影響あり・撮り直した新側の画像を prev_new にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
         "影響あり・撮り直した組の traits.json が無い: 持ち越さない",
         "影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない",
-        "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない"
+        "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない",
+        "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない",
+        "影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す"
       ]
     },
     {
@@ -245,6 +247,40 @@
       "occurrences": 1,
       "expect_failing": [
         "影響あり・撮り直した新側の画像を current にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない"
+      ]
+    },
+    {
+      "id": "current-pair-unbound",
+      "why": "inputs.current が別の組の現側の基準でも持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (missing.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない"
+      ]
+    },
+    {
+      "id": "outside-verdict-unchecked",
+      "why": "pass: true なら領域の外の計数が食い違っていても持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (entry.outside_identical !== true || entry.outside_diff_pixels !== 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・pass: true だが計数と食い違う記録（outside_identical が false）: 持ち越さない",
+        "影響あり・pass: true だが計数と食い違う記録（outside_diff_pixels が 0 でない）: 持ち越さない"
+      ]
+    },
+    {
+      "id": "inside-verdict-unchecked",
+      "why": "pass: true なら領域の中の不一致が増えていても持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (entry.inside_diff_after > entry.inside_diff_before) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・pass: true だが計数と食い違う記録（inside_diff_after が inside_diff_before より大きい）: 持ち越さない"
       ]
     }
   ]

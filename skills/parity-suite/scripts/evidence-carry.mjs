@@ -174,6 +174,27 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
 }
 
 /**
+ * amend-verify の組の判定（pass）が、同じ記録の計数と食い違っていないか。記録の書き換え・部分的なマージ・
+ * 別の書き手の記録で pass だけが true になっていても、合格の条件（領域の外は完全一致・領域の中の不一致は増えていない）を
+ * 満たさない計数なら持ち越さない。
+ * @param {Record<string, any>} entry
+ * @returns {string | null} 不合格の理由（合格なら null）
+ */
+function checkVerdict(entry) {
+  const count = (v) => Number.isInteger(v) && v >= 0;
+  if (entry.outside_identical !== true || entry.outside_diff_pixels !== 0) {
+    return `pass なのに領域の外が一致していない（outside_identical: ${JSON.stringify(entry.outside_identical)}、outside_diff_pixels: ${JSON.stringify(entry.outside_diff_pixels)}）`;
+  }
+  if (!count(entry.inside_diff_before) || !count(entry.inside_diff_after)) {
+    return "inside_diff_before / inside_diff_after が 0 以上の整数でない";
+  }
+  if (entry.inside_diff_after > entry.inside_diff_before) {
+    return `pass なのに領域の中の現行との不一致が増えている（${entry.inside_diff_before} → ${entry.inside_diff_after}）`;
+  }
+  return null;
+}
+
+/**
  * amend-verify の組の 3 つの入力が、それぞれの役割の採取物を指しているか。
  * 画像の sha256 は「そのパスのバイト」を認証するだけで、役割を認証しない（撮り直した新側を 3 つ全部に渡しても
  * 判定は合格し、ハッシュも一致する）。役割ごとに置き場所を固定して突き合わせる:
@@ -211,6 +232,13 @@ function checkProvenance(entry, pair, changeId, where) {
   const current = at("current");
   if (current === null || !current.startsWith(where.currentRoot + sep)) {
     return `inputs.current が現側の基準（${where.currentRoot}${sep} の下）でない: ${current}`;
+  }
+  // 現側の基準の並び（<page>/<state>/<viewport>/screenshot.png、<page>.<state>.<viewport>.png 等）は採取スペックが決めるので、
+  // 基準の下のパスを `/` と `.` で区切った語に、組の page / state / viewport が全部あることを求める（別の組の基準を渡した記録を弾く）
+  const tokens = new Set(current.slice(where.currentRoot.length + 1).split(/[/\\.]/));
+  const missing = [page, state, viewport].filter((v) => !tokens.has(v));
+  if (missing.length > 0) {
+    return `inputs.current が組 ${pair} の現側の基準でない（パスに ${missing.join(", ")} が無い）: ${current}`;
   }
   return null;
 }
@@ -713,6 +741,11 @@ export function judgeCarry(input) {
         findings.push(
           `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
         );
+        continue;
+      }
+      const verdict = checkVerdict(entry);
+      if (verdict !== null) {
+        findings.push(`amend-verify の組 ${pair}: ${verdict}: ${recordPath}`);
         continue;
       }
       const provenance = checkProvenance(entry, pair, id, {

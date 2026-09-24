@@ -14,7 +14,8 @@
 // git は本物のリポジトリを一時ディレクトリに作って使う（fixture は scripts/evidence-carry-fixture.js）。
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -343,6 +344,53 @@ test("影響あり・inputs.new が撮り直した組とは別のページの採
   const result = judge(p);
   expect(result.ok).toBe(false);
   expect(result.findings.join("\n")).toContain("inputs.new が撮り直した組の採取物");
+});
+
+/**
+ * 記録の current を現側の基準の下の別のパスへ置き直す（ファイルも作り、sha256 を合わせる）。
+ * @param {ReturnType<typeof project>} p
+ * @param {string} rel `.replace/parity/<slug>/baseline/` からの相対パス
+ */
+function moveCurrent(p, rel) {
+  const path = `.replace/parity/${FEATURE}/baseline/${rel}`;
+  const body = `PNG current ${rel}\n`;
+  mkdirSync(dirname(join(p.root, path)), { recursive: true });
+  writeFileSync(join(p.root, path), body);
+  editRecordPair(p, (entry) => {
+    entry.inputs.current = { path, sha256: createHash("sha256").update(body).digest("hex") };
+  });
+}
+
+test("影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない", () => {
+  const p = project();
+  moveCurrent(p, "other/default/mobile/screenshot.png");
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("組 list|hover|desktop の現側の基準でない");
+});
+
+test("影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す", () => {
+  const p = project();
+  moveCurrent(p, "list.hover.desktop.png");
+  const result = judge(p);
+  expect(result.findings).toEqual([]);
+  expect(result.ok).toBe(true);
+});
+
+test.each([
+  ["outside_identical が false", { outside_identical: false }],
+  ["outside_diff_pixels が 0 でない", { outside_diff_pixels: 999 }],
+  [
+    "inside_diff_after が inside_diff_before より大きい",
+    { inside_diff_before: 3, inside_diff_after: 5 },
+  ],
+  ["inside_diff_after が整数でない", { inside_diff_after: "0" }],
+])("影響あり・pass: true だが計数と食い違う記録（%s）: 持ち越さない", (_label, patch) => {
+  const p = project();
+  editRecordPair(p, (entry) => Object.assign(entry, patch));
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toMatch(/pass なのに|0 以上の整数でない/);
 });
 
 test("影響あり・amend-verify の記録に影響する組が無い: 落とす", () => {

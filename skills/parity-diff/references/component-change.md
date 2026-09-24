@@ -50,8 +50,10 @@
      （`--pair` / `--prev-new` / `--new` / `--current` / `--region` / `--margin`、複数の組は `--pairs <json>`。`--change-id` と `--out <記録>` で記録を残す）。
      `--region` には `traits.json` の `rect` を**広げずにそのまま**、`--margin` には宣言の `margin_px` を渡す。画像は役割ごとに置き場所が決まっている:
      `--new` は撮り直した組の `baseline-new/<page>/<state>/<viewport>/screenshot.png`、`--prev-new` は手順 3 の写し
-     `pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`、`--current` は現側の基準（`.replace/parity/<slug>/baseline/` の下）の同じ組。
-     鮮度検査は各入力がこの置き場所を指すことを確かめる（画像のハッシュはバイトを認証するだけで役割を認証しないので、取り違えた記録で持ち越さない）。
+     `pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`、`--current` は現側の基準（`.replace/parity/<slug>/baseline/` の下）の同じ組
+     （基準の下のパスを `/` と `.` で区切った語に、その組の page / state / viewport が全部あること。`list/hover/desktop/screenshot.png` も `list.hover.desktop.png` も可）。
+     鮮度検査は各入力がこの置き場所を指すこと、記録の計数が合格の条件（外の不一致 0・中の不一致が増えていない）と食い違わないことを確かめる
+     （画像のハッシュはバイトを認証するだけで役割も判定も認証しないので、取り違えた・書き換えた記録で持ち越さない）。
      鮮度検査は記録の `margin` が `margin_px` と、`declared_regions` がその隣の `traits.json` の `rect` と一致することを確かめ、
      判定を弱めた記録（大きな margin・画面全体の領域）では持ち越さない。
      **プロジェクトルート（`.replace` の親）を作業ディレクトリにして実行する**（記録は渡したパスのまま残り、鮮度検査はそれをプロジェクトルートから解決する）。記録は `new/<target>/` の下に置く
