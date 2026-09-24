@@ -388,6 +388,13 @@ function movesCwd(text) {
 // textual one once any directory on the way was reached through a symlink — and the
 // trace cannot show that. Leave such an operand as written. (A `cd ..` is different:
 // bash's default logical cd does resolve it textually.)
+//
+// A symlink the cwd sits *under* is not handled: `cd ./.claude/skills/box/link && cat
+// SKILL.md` counts as the skill exactly as `cat .claude/skills/box/link/SKILL.md` always
+// has. The matcher takes a path spelled under the installed skill as the skill; the
+// harness installs it with `cp -R` from skills/, which holds no symlinks, so one there
+// is the run's own making. Refusing every relative read whose directory's symlinks
+// cannot be verified would refuse them all.
 function resolveRead(cwd, path) {
   return /(?:^|\/)\.\.(?:\/|$)/u.test(path) ? path : resolveAgainst(cwd, path);
 }
