@@ -62,7 +62,8 @@
       "replace": "if (!legacy) {",
       "occurrences": 1,
       "expect_failing": [
-        "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）"
+        "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）",
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）"
       ]
     },
     {
@@ -90,6 +91,46 @@
         "持ち越し: 宣言外のファイルが変わっていれば落とす（ファイル名を出す）",
         "持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）",
         "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）"
+      ]
+    },
+    {
+      "id": "jsx-stripped",
+      "why": ".tsx / .jsx にもコメント除去を当て、JSX のテキストの // をコメントとして捨てる",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "const JS_FAMILY_EXTENSIONS = new Set([\".js\", \".mjs\", \".cjs\", \".ts\", \".mts\", \".cts\"]);",
+      "replace": "const JS_FAMILY_EXTENSIONS = new Set([\".js\", \".mjs\", \".cjs\", \".jsx\", \".ts\", \".tsx\", \".mts\", \".cts\"]);",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）"
+      ]
+    },
+    {
+      "id": "line-directive-dropped",
+      "why": "行コメントの指示コメントを通常のコメントとして除く",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (isDirectiveComment(src.slice(start + 2, i)))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 指示コメント // @ts-expect-error は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /// <reference types=\"a\" /> は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント //# sourceMappingURL=a.map は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント // eslint-disable-next-line は除かない（書き換えれば正規形が変わる）"
+      ]
+    },
+    {
+      "id": "block-directive-dropped",
+      "why": "ブロックコメントの指示コメントを通常のコメントとして除く",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (isDirectiveComment(src.slice(i + 2, end)))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 指示コメント /* @vite-ignore */ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /** @jsx h */ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /*#__PURE__*/ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /* istanbul ignore next */ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /*! license a */ は除かない（書き換えれば正規形が変わる）"
       ]
     }
   ]

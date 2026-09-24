@@ -210,17 +210,30 @@ function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-/** コメントを除いて指紋を取る JS / TS 系の拡張子。 */
-const JS_FAMILY_EXTENSIONS = new Set([
-  ".js",
-  ".mjs",
-  ".cjs",
-  ".jsx",
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-]);
+/**
+ * コメントを除いて指紋を取る JS / TS 系の拡張子。`.jsx` / `.tsx` は含めない（生バイトで数える）——
+ * JSX のテキスト（`<p>http://x</p>`）の `//` はこの字句解析ではコメントと区別できず、テキストの書き換えを見逃すため。
+ */
+const JS_FAMILY_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]);
+
+/**
+ * 残すコメント（指示コメント）か。ツール・コンパイラへの指示はコメントの形でも動きを変えうるので、
+ * 除かずに正規形へ残す（残しすぎは回し直しを 1 回増やすだけで、除きすぎは変更を見逃す）。
+ * 対象: `///`・`//#`・`/*!`、`@` で始まるもの（`@ts-*`・`@vite-ignore`・JSDoc 冒頭の `@jsx` 等）、
+ * 既知のツール名で始まるもの（eslint・istanbul・webpack 等）。
+ * @param {string} body `//` の後、またはブロックコメントの開きと閉じの間
+ * @returns {boolean}
+ */
+function isDirectiveComment(body) {
+  if (/^[/#!]/.test(body)) return true;
+  const t = body.replace(/^[\s*]+/, "");
+  return (
+    t.startsWith("@") ||
+    /^(eslint|istanbul|c8|v8|webpack|vite-|prettier-|jshint|jscs|globals?\b|exported\b|tslint|biome-|oxlint-|deno-|swc-|esbuild-|rollup-|turbopack)/i.test(
+      t,
+    )
+  );
+}
 
 /** 直後の `/` を正規表現リテラルの開始と読むキーワード（それ以外の識別子・数値の後は除算）。 */
 const REGEX_AFTER_KEYWORDS = new Set([
@@ -253,7 +266,9 @@ const REGEX_AFTER_KEYWORDS = new Set([
  * - `/` が正規表現か除算かは直前の有意なトークンで決める。識別子（上のキーワードを除く）・数値・
  *   文字列・`)` `]` の後は除算、それ以外（`}` を含む）は正規表現。`}` を正規表現側に倒すのは、
  *   正規表現を除算と読み違えると `/a\//` の `//` を行コメントとして読み、コードを捨てて変更を見逃すため。
- * 限界: JSX のテキスト（`<p>http://x</p>`）の `//` はコメントと読む。字句解析が閉じない
+ * - 指示コメント（isDirectiveComment）は除かず残す。
+ * 限界: JSX のテキスト（`<p>http://x</p>`）の `//` はコメントと読むので、`.jsx` / `.tsx` には当てない
+ * （JS_FAMILY_EXTENSIONS）。字句解析が閉じない
  * （終わらない文字列・コメント・正規表現）ときは null を返し、呼び出し側は生バイトで指紋を取る。
  * @param {string} src
  * @returns {string | null}
@@ -315,14 +330,18 @@ export function stripJsComments(src) {
       continue;
     }
     if (c === "/" && src[i + 1] === "/") {
+      const start = i;
       while (i < n && !/[\n\r\u2028\u2029]/.test(src[i])) i += 1;
-      ws(false);
+      // 指示コメントは残す。直前・直後の有意なトークンの読み（prev）はコメントで変えない
+      if (isDirectiveComment(src.slice(start + 2, i))) emit(src.slice(start, i).trimEnd());
+      else ws(false);
       continue;
     }
     if (c === "/" && src[i + 1] === "*") {
       const end = src.indexOf("*/", i + 2);
       if (end < 0) return null;
-      ws(/[\n\r\u2028\u2029]/.test(src.slice(i + 2, end)));
+      if (isDirectiveComment(src.slice(i + 2, end))) emit(src.slice(i, end + 2));
+      else ws(/[\n\r\u2028\u2029]/.test(src.slice(i + 2, end)));
       i = end + 2;
       continue;
     }

@@ -984,6 +984,38 @@ test("#457: JS / TS 系以外のファイルは生バイトで数える（コメ
   rmSync(root, { recursive: true, force: true });
 });
 
+test("#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）", () => {
+  const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+  writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://old.example</p>;\n");
+  const suite = { specs: "view.tsx" };
+  const before = suiteFingerprint(suite, root).fingerprint;
+  writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://new.example</p>;\n");
+  expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["// @ts-expect-error", "// @ts-ignore"],
+  ['/// <reference types="a" />', '/// <reference types="b" />'],
+  ["//# sourceMappingURL=a.map", "//# sourceMappingURL=b.map"],
+  ["/* @vite-ignore */", "/* @vite-ignore-x */"],
+  ["/** @jsx h */", "/** @jsx preact */"],
+  ["/*#__PURE__*/", "/*@__NOINLINE__*/"],
+  ["// eslint-disable-next-line", "// eslint-disable-next-line no-x"],
+  ["/* istanbul ignore next */", "/* istanbul ignore else */"],
+  ["/*! license a */", "/*! license b */"],
+])("#457: 指示コメント %s は除かない（書き換えれば正規形が変わる）", (from, to) => {
+  const src = `${from}\nfoo();\n`;
+  expect(stripJsComments(src)).toContain(from);
+  expect(stripJsComments(src.replace(from, to))).not.toBe(stripJsComments(src));
+});
+
+test("#457: 指示コメントでない行コメント・ブロックコメントは従来どおり除く", () => {
+  const src =
+    "// plain note\nfoo(); /* note */ bar();\n/**\n * JSDoc の説明\n * @param x 説明\n */\nbaz();\n";
+  expect(stripJsComments(src)).toBe("foo(); bar();\nbaz();");
+});
+
 test("#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す", () => {
   const { root, metadataPath, fp, specPath } = recordedProject({
     specBody: "// orders.default.desktop.png と orders.xlsx.json\nconst s = 'unterminated\n",
