@@ -445,7 +445,7 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 1. 最小幅より狭く、撮影したビューポートと同じ高さの窓（横スクロールバーが出る）
 2. 1 と同じ幅で、中身が収まる高さの窓。**縦のはみ出しが頁の高さの決め方だけで決まる**ので、`100%` と `100vh` の差がここに出る
 
-最小幅は、320px から撮影ビューポートの幅まで 40px 刻みの窓と、頁のスタイルシートから読んだ**メディアクエリの幅の境界の前後**の窓で、文書の `scrollWidth` を読んで決める。
+最小幅は、320px から撮影ビューポートの幅まで 40px 刻みの窓と、頁のスタイルシート（`@import` で読み込んだものを含む）から読んだ**メディアクエリの幅の境界の前後**の窓で、文書の `scrollWidth` を読んで決める。
 横にはみ出した窓のうち最も広いものを 1 の幅にする（中間のブレークポイントでだけ最小幅が効くレスポンシブな頁を、1 窓や刻みだけの探索で見落とさないため）。
 **読めないスタイルシート**（別オリジンで CORS の無いもの等）があれば、その境界は探索できていない。件数は `probe.unreadable_stylesheets` に残り、`gaps.md` に「採取環境依存の未検証」として書いて `probe.gaps_ref` に該当箇所を入れる。
 JavaScript やコンテナクエリで最小幅を変える頁も拾えないので、同じく `gaps.md` に残す。
@@ -513,6 +513,18 @@ async function readBreakpoints(page: Page): Promise<{ widths: number[]; unreadab
     const walk = (rules: CSSRuleList) => {
       for (const rule of Array.from(rules)) {
         if (rule instanceof CSSMediaRule) collect(rule.conditionText);
+        // @import は cssRules を持たず、読み込んだ規則は styleSheet の下、読み込みの条件は media にある。
+        // 読めない読み込み先（別オリジン等）は unreadable に数える（黙って読み飛ばさない）
+        if (rule instanceof CSSImportRule) {
+          collect(rule.media.mediaText);
+          try {
+            if (!rule.styleSheet) throw new Error("読み込み先が無い");
+            walk(rule.styleSheet.cssRules);
+          } catch {
+            unreadable += 1;
+          }
+          continue;
+        }
         // @supports・@layer・入れ子の @media も辿る
         if ("cssRules" in rule) walk((rule as CSSGroupingRule).cssRules);
       }
