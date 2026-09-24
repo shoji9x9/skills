@@ -1,0 +1,9 @@
+{
+  "_note": "新側のコミットが変わった後も差分の証跡を持ち越すための宣言。.replace/parity/<slug>/new/<target>/evidence-carry.json として replace-metadata.json と同じディレクトリに置き、parity-suite の scripts/evidence-carry.mjs（artifact-health-check.mjs の --target 判定と component-comparison-check.mjs が呼ぶ）が読む。持ち越しの判定は replace-metadata.json の new.render_inputs があるときだけ行う（無い・空なら従来どおり new.commit の不一致で古いとする）。記録の版から今の版までの描画入力の差分が空ならこのファイルは読まない。差分があるなら、その全ファイルが carries の変更宣言の files に含まれ、変化が宣言の commits.before → after の連鎖で説明でき、宣言ごとに component-impact.mjs で再計算したこの機能の影響が「影響なし」か「影響あり＋amend-verify の記録が影響する組を全部覆い全組 pass・記録した画像の sha256 が今のファイルと一致」のときだけ持ち越す。判定不能・読めない入力は持ち越さない。change / amend_verify と amend-verify の記録の inputs.*.path は、相対パスならプロジェクトルート（.replace の親ディレクトリ）から解決する（amend-verify.mjs はプロジェクトルートで実行する）。carries は追記していき、今の差分に触れない古い宣言は判定に使われない（注記に残る）。",
+  "carries": [
+    {
+      "change": "<変更宣言のパス（例: .replace/components/<部品 slug>/changes/<change-id>.json）。parity-component の assets/component-change-template.json の形>",
+      "amend_verify": "<この機能に効く組を amend-verify.mjs --change-id <change-id> で判定した記録のパス。component-impact.mjs でこの機能が影響なしなら null>"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "_note": "共通部品への 1 回の改修を「部品 × インスタンス × 状態 × プロパティ」で宣言する変更宣言。.replace/components/<slug>/changes/<change-id>.json として書く。形式の正本はこの雛形。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。プレースホルダ（<...>）を残した宣言は parity-suite 同梱 component-impact.mjs が使い方の誤り（exit 2）として落とす。この宣言が component-impact.mjs の入力になり、影響する撮影組（ページ × 状態 × ビューポート）と影響しない機能を導く。改修の手順の正本は parity-component の references/amend.md、ページ側の一括再検証は parity-diff の references/component-change.md。",
+  "id": "<変更宣言の id（.replace/components/<slug>/changes/ の中で一意。ファイル名の <change-id> と同じにする）>",
+  "slug": "<部品 slug（.replace/components.md が採番したもの。部品 metadata.json の slug と一致させる）>",
+  "kind": "<align-to-current（現行に合わせ直す修正）| new-appearance（利用側の要求で足す新しい見た目）のどちらか>",
+  "reason": "<何を直したかを 1 文で（例: hover の外周の影を現行に合わせた）>",
+  "instances": [
+    "<影響するインスタンス id（部品 metadata.json の instances[].id）。横断の測定で値が変わった全インスタンスを書く。ページはその instances[].page で引く>"
+  ],
+  "variants": ["<系統名（人が読むためのラベル。判定には使わない）>"],
+  "states": [
+    "<影響する状態名（部品 metadata.json の capture.states と各機能の capture_conditions.states と同じ語彙）。空にしない。capture.states に無い状態は component-impact.mjs が判定不能にする（綴り違いを「その状態を撮っていない＝影響なし」に倒さない）>"
+  ],
+  "properties": ["<変わった計算後スタイルのプロパティ名（例: box-shadow）。空にしない>"],
+  "usages": [
+    "<新側でこの部品を使うページのパス（各機能の capture_conditions.pages[].path と同じ語彙。完全一致で照合し、末尾スラッシュ等も正規化しない）。import 箇所の走査で導き、走査コマンドを usages_source に残す。instances と usages の両方を空にした宣言は受け付けない>"
+  ],
+  "usages_source": "<usages を導いたコマンド（例: 部品の import 箇所の grep）>",
+  "files": [
+    "<この改修で変えた新側リポジトリのファイル（リポジトリ相対）。証跡の持ち越しは、描画入力の差分がここに含まれるときだけ認める。空にしない>"
+  ],
+  "commits": {
+    "before": "<改修前の新側コミット SHA（16 進）>",
+    "after": "<改修後の新側コミット SHA（16 進）>"
+  },
+  "margin_px": "<影響インスタンスの矩形を広げる余白（px、0 以上の数値で書く。影など矩形の外へ描く分を覆う。例: 4）>",
+  "cross_measurement": {
+    "record": "<横断の測定（部品インベントリの全インスタンス × 採っていた全状態、現行と新側の両方）の記録パス>",
+    "instances": "<横断の測定で測ったインスタンス数（0 以上の整数で書く）>",
+    "states": ["<横断の測定で測った状態名。空にしない>"]
+  },
+  "catalog_verification": {
+    "record": "<全見本の照合の記録（parity.md の該当節）>",
+    "outside_scope_identical": "<宣言した範囲の外の見本が改修前後で差分ゼロだったか。真偽値で書く>",
+    "inside_matches_current": "<宣言した範囲の中の見本が現行の値と一致したか。真偽値で書く>"
+  }
+}

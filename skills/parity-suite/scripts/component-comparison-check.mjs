@@ -20,14 +20,22 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから引く。静的な "./evidence-carry.mjs" は
+// --preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、リンクの置き場所から解決して
+// 見つからず、持ち越しを使わない実行（引数不足の usage 表示を含む）まで起動時に落ちる。
+const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
+  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
+    .href
+);
 
 /**
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** セルの鍵の区切り。`component` / `item` / `instance` にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
@@ -92,12 +100,18 @@ export function fingerprintOf(keys) {
 
 /**
  * 被覆表と突き合わせ表を突き合わせる。
- * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null }} input
- * @returns {{ findings: {code:string, message:string}[], counts: Record<string, number>, structural: boolean, judged: boolean }}
+ *
+ * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
+ * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
+ * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つの検査器の判定を揃える。
+ * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
+ * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
  */
 export function checkComponentComparison(input) {
   /** @type {{code:string, message:string}[]} */
   const findings = [];
+  /** @type {string[]} */
+  const notes = [];
   const counts = { present: 0, compared: 0, blocking: 0, accepted: 0 };
   const coverage = /** @type {Record<string, any>} */ (input.coverage);
   if (!coverage || typeof coverage !== "object" || !Array.isArray(coverage.cells)) {
@@ -108,6 +122,7 @@ export function checkComponentComparison(input) {
           message: "被覆表が読めない（cells を持つ JSON オブジェクトでない）。合格に倒さない",
         },
       ],
+      notes,
       counts,
       structural: true,
       judged: true,
@@ -149,7 +164,7 @@ export function checkComponentComparison(input) {
       message:
         "新側の突き合わせ表が無い（被覆表の present は移行元側の測定であり、新側の欠落を 1 件も示さない）",
     });
-    return { findings, counts, structural: false, judged: true };
+    return { findings, notes, counts, structural: false, judged: true };
   }
   if (nonEmptyString(input.target) && comparison.target !== input.target) {
     findings.push({
@@ -259,10 +274,33 @@ export function checkComponentComparison(input) {
           }
         }
       } else if (recorded !== wanted) {
-        findings.push({
-          code: "comparison-implementation-stale",
-          message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
-        });
+        // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る（Issue #454）。
+        // 判定の正本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
+        const carry =
+          typeof input.carry === "function"
+            ? input.carry({
+                recordedCommit: recorded,
+                wantedCommit: wanted,
+                renderInputs: replaceNew.render_inputs,
+              })
+            : null;
+        if (carry !== null && carry.ok) {
+          notes.push(...carry.notes);
+        } else {
+          findings.push({
+            code: "comparison-implementation-stale",
+            message: `突き合わせ表の new_implementation.commit「${recorded}」が現在の新側「${wanted}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+          });
+          if (carry !== null) {
+            for (const message of carry.findings) {
+              findings.push({
+                code: "evidence-carry-rejected",
+                message: `証跡を持ち越せない: ${message}`,
+              });
+            }
+            notes.push(...carry.notes);
+          }
+        }
       }
     }
     if (replaceNew.dirty !== false) {
@@ -411,13 +449,13 @@ export function checkComponentComparison(input) {
     counts.blocking += 1;
   }
 
-  return { findings, counts, structural: false, judged: true };
+  return { findings, notes, counts, structural: false, judged: true };
 }
 
 /**
  * CLI 本体。
  * @param {string[]} argv
- * @param {{ readFile?: (path: string) => string, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
+ * @param {{ readFile?: (path: string) => string, readBytes?: (path: string) => Buffer, cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
@@ -426,7 +464,7 @@ export function main(argv, deps = {}) {
   const write = deps.write ?? ((s) => process.stdout.write(s));
   const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
   const usage =
-    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>]";
+    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>] [--new-repo <path>] [--replace-root <.replace>] [--evidence-carry <evidence-carry.json>]";
   /**
    * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
    * @param {string} message
@@ -457,7 +495,16 @@ export function main(argv, deps = {}) {
     args[key] = value;
     i += 1;
   }
-  const known = ["--coverage", "--comparison", "--metadata", "--replace-metadata", "--target"];
+  const known = [
+    "--coverage",
+    "--comparison",
+    "--metadata",
+    "--replace-metadata",
+    "--target",
+    "--new-repo",
+    "--replace-root",
+    "--evidence-carry",
+  ];
   const unknown = Object.keys(args).filter((k) => !known.includes(k));
   if (unknown.length > 0) {
     return fail(`不明な引数: ${unknown.join(", ")}`);
@@ -499,12 +546,40 @@ export function main(argv, deps = {}) {
       return fail(`${path} を読めない: ${error && error.message}`);
     }
   }
+  // 持ち越しの判定に渡す材料。パスは作業ディレクトリから解決し、--replace-root を省けば
+  // --replace-metadata のパスにある `.replace` を使う（artifact-health-check.mjs の既定 <root>/.replace と同じ場所）。
+  const replaceMetadataPath = resolve(cwd, args["--replace-metadata"]);
+  /** @type {string | null} */
+  let replaceRoot = null;
+  if (args["--replace-root"] !== undefined) {
+    replaceRoot = resolve(cwd, args["--replace-root"]);
+  } else {
+    const parts = replaceMetadataPath.split(sep);
+    const i = parts.lastIndexOf(".replace");
+    if (i > 0) replaceRoot = parts.slice(0, i + 1).join(sep);
+  }
+  const coverageSlug = /** @type {Record<string, unknown> | null} */ (parsed["--coverage"])?.slug;
   const result = checkComponentComparison({
     coverage: parsed["--coverage"],
     comparison: parsed["--comparison"] ?? null,
     metadata: parsed["--metadata"],
     replaceMetadata: parsed["--replace-metadata"],
     target: args["--target"] ?? null,
+    carry: ({ recordedCommit, wantedCommit, renderInputs }) =>
+      judgeCarry({
+        recordedCommit,
+        wantedCommit,
+        renderInputs,
+        repo: args["--new-repo"] !== undefined ? resolve(cwd, args["--new-repo"]) : null,
+        evidenceCarryPath:
+          args["--evidence-carry"] !== undefined
+            ? resolve(cwd, args["--evidence-carry"])
+            : join(dirname(replaceMetadataPath), EVIDENCE_CARRY_FILE),
+        featureSlug: typeof coverageSlug === "string" ? coverageSlug : "",
+        featureMetadata: parsed["--metadata"],
+        replaceRoot,
+        ...(deps.readBytes ? { readBytes: deps.readBytes } : {}),
+      }),
   });
   if (result.structural) {
     out({ ok: false, structural: true, findings: result.findings, counts: result.counts });
@@ -514,6 +589,8 @@ export function main(argv, deps = {}) {
     ok: result.findings.length === 0,
     judged: result.judged,
     findings: result.findings,
+    // 持ち越し・従来の失敗の注記。無いときは出力の形を変えない。
+    ...(result.notes.length > 0 ? { notes: result.notes } : {}),
     counts: { ...result.counts, findings: result.findings.length },
   });
   return result.findings.length === 0 ? 0 : 1;

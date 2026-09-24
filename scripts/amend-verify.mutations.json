@@ -1,0 +1,101 @@
+{
+  "$comment": [
+    "amend-verify.test.js のうち、部品改修の前後を画素で判定する規則（Issue #454）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/amend-verify.test.js",
+  "mutations": [
+    {
+      "id": "outside-not-counted",
+      "why": "領域の外の変化を数えない",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "        outside += 1;",
+      "replace": "        outside += 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "領域の外が 1 画素でも変われば、その数を出して fail",
+        "margin で領域を広げる（広げた分の変化は外に数えない）",
+        "複数の領域は和集合で扱う",
+        "領域の外は隠れた RGB の違い（両側とも透明）も差にする"
+      ]
+    },
+    {
+      "id": "outside-alpha-blind",
+      "why": "領域の外を透明の隠れた RGB を無視する比較で数える",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "      if (\n        prevNew.data[o] !== next.data[o] ||\n        prevNew.data[o + 1] !== next.data[o + 1] ||\n        prevNew.data[o + 2] !== next.data[o + 2] ||\n        prevNew.data[o + 3] !== next.data[o + 3]\n      ) {",
+      "replace": "      if (strictDiffers(prevNew.data, next.data, o)) {",
+      "occurrences": 1,
+      "expect_failing": ["領域の外は隠れた RGB の違い（両側とも透明）も差にする"]
+    },
+    {
+      "id": "inside-grew",
+      "why": "領域の中で現行との不一致が増えても通す",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "  if (after > before) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["領域の中で現行との不一致が増えたら fail"]
+    },
+    {
+      "id": "prev-new-dimensions",
+      "why": "prev-new と new の寸法が違っても判定する",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "  if (prevNew.width !== next.width || prevNew.height !== next.height) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["prev-new と new の寸法が違えば fail（外の一致を示せない）"]
+    },
+    {
+      "id": "current-dimensions",
+      "why": "current の寸法が new と違っても判定する",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "  if (current.width !== next.width || current.height !== next.height) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["current の寸法が new と違えば fail"]
+    },
+    {
+      "id": "margin-ignored",
+      "why": "margin で領域を広げない",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "    const e = expandRegion(r, margin, width, height);",
+      "replace": "    const e = expandRegion(r, 0, width, height);",
+      "occurrences": 1,
+      "expect_failing": ["margin で領域を広げる（広げた分の変化は外に数えない）"]
+    },
+    {
+      "id": "empty-regions",
+      "why": "画像と重ならない領域だけでも判定を続ける",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "  if (clamped.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "切り詰めた領域はマスクと記録に反映され、画像と重ならない領域だけなら fail"
+      ]
+    },
+    {
+      "id": "both-transparent",
+      "why": "両側とも完全な透明な画素を現行との差に数える",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "  if (a[o + 3] === 0 && b[o + 3] === 0) return false;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "領域の中の現行との比較は、両側とも完全な透明なら差にしない（pixel-strict-count と同じ）"
+      ]
+    },
+    {
+      "id": "merge-replace",
+      "why": "同じ pair id の組を置き換えず末尾に足す",
+      "file": "skills/parity-diff/scripts/amend-verify.mjs",
+      "find": "    else pairs[at] = entry;",
+      "replace": "    else pairs.push(entry);",
+      "occurrences": 1,
+      "expect_failing": ["mergeRecord は同じ pair id の組を置き換え、新しい組を末尾に足す"]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-argument-hint: '[--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomous]'
+argument-hint: '[--feature <slug>] [--target <name>] [--remeasure-noise] [--component-change <change.json>] [--autonomous]'
 description: 仕様を変えないアプリケーションリプレイスで、parity-suite が採取したベースライン・ノイズ基準値・強度ゲートで検証済みの差分器を使い、現行と新側の差分を決定論的ツールで検出して分類する replace-strategy の姉妹スキル。検出は画素・特性照合・aria の 3 経路が担い、LLM には「差分があるか」を聞かず「この差分は重要か」だけを 1 件ずつ crop 対で聞いて要対応／許容／環境ノイズに分類する。新側環境は --target で選び成果物は環境別。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロかつ未修正回帰ゼロ。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite・parity-replace の新側 green が前提で、未完了なら捏造せず停止する。「現新の差分を検出して」「差分を分類して」「parity-diff」や --feature / --target を伴う依頼で発動する。
 license: MIT
 name: parity-diff
@@ -10,21 +10,24 @@ name: parity-diff
 
 - **検出は決定論的ツールの仕事、モデルの仕事は分類だけ。** モデルに「差分があるか」を聞かず（＝探させず）、決定論的ツールが検出済みの差分について「この差分は重要か」だけを聞く
 - **`parity-replace` との住み分け**: `parity-replace` はスイートが見ている範囲（新に対して green か）、本スキルはスイートに写らない差分（余白・色・フォント・角丸・行間・罫線等の見た目）を扱う
-- **1 回の実行につき 1 機能。** ページ単位で処理する。差分の**修正は行わない**——要対応は `parity-replace` へ差し戻す
+- **1 回の実行につき 1 機能**（部品改修の一括再検証を除く）。ページ単位で処理する。差分の**修正は行わない**——要対応は `parity-replace` へ差し戻す
 
 ## 使い方
 
 ```text
 parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomous]
+parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 ```
 
-- **1 回の実行につき 1 機能。** 複数機能を並行して進めない
+- **1 回の実行につき 1 機能。** 複数機能を並行して進めない（例外は下記 `--component-change` の一括再検証だけで、そこでも機能は 1 つずつ順に処理する）
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
 - `--target` は差分を検出する**新側の環境**（`skills.replace-strategy.targets` のうち `side: new` のもの。本スキルが対象とする側の宣言はここが正本）。
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）。
   **成果物は環境ごとに分かれる**（下記「成果物」）
 - `--remeasure-noise` は新側の自己ノイズを**全組で測り直す**（既定は前回実行の測定値を組単位で再利用する。再利用の可否・失効条件は [`references/capture-new.md`](references/capture-new.md)「測定値の再利用」が正本）
 - **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）
+- `--component-change` は共通部品を後から直したときの一括再検証。変更宣言（`.replace/components/<slug>/changes/<change-id>.json`）から影響する機能と組を導き、影響する組だけを新側で撮り直して機械で判定する。
+  現側は撮り直さない。手順・判定・持ち越しの記録の正本は [`references/component-change.md`](references/component-change.md)
 - `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
 - 自然文でも発動する:「現新の差分を検出して」「差分を分類して」「この画面の差を見て」
 
@@ -194,6 +197,7 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
 | 新側採取スペック | `metadata.json.suite.new_only` の場所（既定 `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
 | インスタンス例外レジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` へ**非破壊追記**（無ければテンプレートから作成）。ユーザー承認済みのみ・**設定ファイルには置かない** | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
 | 承認済み例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` へ**非破壊追記**（無ければテンプレートから作成）。`component_diff_exception_causes[].evidence` の宛先で、**`gaps.md` に書かない** | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
+| 証跡の持ち越し（`--component-change` のときのみ。**環境別**） | `.replace/parity/<slug>/new/<target>/evidence-carry.json` へ追記（撮り直した組の判定記録も同じ `new/<target>/` の下） | 様式の正本: `parity-suite` の `assets/evidence-carry-template.json`（手順: [`references/component-change.md`](references/component-change.md)） |
 | 依存の決定記録（差分器・トリアージ補助に依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - **新側の成果物は環境別**（`new/<target>/` 配下）。環境を切り替えても他の環境の差分レポート・メタデータ・新側ベースラインを上書きしない。現側 `baseline/` は 1 環境で slug 直下のまま
@@ -202,7 +206,8 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
   新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
 - **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）は成果物ではない。** 測定値を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
-  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) / [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)）は
+  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) /
+  [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) / [`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)）は
   **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う
 
 ## 姉妹スキルとの連携

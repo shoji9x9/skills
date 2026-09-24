@@ -17,7 +17,7 @@
     "target": "<検出対象にした新側 target 名（--target で解決した値。replace-metadata.json の new.target と一致）>",
     "ui_url": "<replace-metadata.json の new.ui_url。url_command の target は \"runtime\"（解決した URL を書かない）>",
     "api_url": "<同 new.api_url（target の api_url。省略時は ui_url と同値）。固定の api_url はその値を記録し、api_url を省略して url_command で解決した UI URL を使う場合のみ \"runtime\">",
-    "commit": "<同 new.commit>"
+    "commit": "<同 new.commit。--component-change の一括再検証では書き換えない（改修前の記録のまま。持ち越しは記録の版から今の版への向きで evidence-carry.json が判定する。撮った新側の SHA は diff.md の前提確認表に書く）>"
   },
   "capture_conditions_verified": {
     "viewports": "<現側 capture_conditions.viewports と新側実寸の照合結果。不一致なら停止しているはず>",
@@ -98,7 +98,7 @@
     "reused_pairs": 0,
     "remeasured_pairs": 0,
     "remeasure_reason": [
-      "<再測定した組がある場合の失効条件（例: loop.changed_scope.pages に該当 / --remeasure-noise 指定 / 前回記録なし）。全組を再利用したなら空配列>"
+      "<再測定した組がある場合の失効条件（例: loop.changed_scope.pages に該当 / loop.changed_scope.components の影響する組 / 部品改修の一括再検証〈変更宣言の id〉/ --remeasure-noise 指定 / 前回記録なし）。全組を再利用したなら空配列>"
     ]
   },
   "paths": {

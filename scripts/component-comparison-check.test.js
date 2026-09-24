@@ -5,6 +5,8 @@
 //
 // 陽性コントロール（3 点の揃った記録が exit 0）を置く——これが無いと「常に落とす」実装と区別できない。
 
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect } from "vitest";
 import {
   main,
@@ -12,6 +14,14 @@ import {
   cellKey,
   fingerprintOf,
 } from "../skills/parity-suite/scripts/component-comparison-check.mjs";
+import {
+  FEATURE,
+  RENDER_INPUTS,
+  TARGET,
+  commit as commitFiles,
+  makeCarryProject,
+  writeJson,
+} from "./evidence-carry-fixture.js";
 
 /** 移行元側の被覆表（present 2 件 ＋ absent / unmeasured 各 1 件）。 */
 const COVERAGE = {
@@ -555,4 +565,140 @@ test("両側とも none で反復回数も一致すれば通る（陽性コン�
       replaceMetadata: noneReplaceMetadata(3),
     }),
   ).toEqual([]);
+});
+
+// 証跡の持ち越し（Issue #454）。comparison-implementation-stale の SHA 不一致でも、描画入力の差分が変更宣言と
+// amend-verify で説明できれば持ち越す（判定の正本は evidence-carry.mjs。artifact-health-check.mjs と同じ関数）。
+// git を実物で使うので、ここだけメモリ上のファイルではなく一時ディレクトリで回す。
+
+/**
+ * 持ち越しの fixture に被覆表・突き合わせ表・replace-metadata.json を足す。
+ * @param {[string, string, string][]} scope
+ * @param {Record<string, unknown>} [replaceNewExtra]
+ */
+function carryFiles(scope, replaceNewExtra = { render_inputs: RENDER_INPUTS }) {
+  const p = makeCarryProject({ scope });
+  writeJson(join(p.slugDir, "component-coverage.json"), { ...COVERAGE, slug: FEATURE });
+  writeJson(join(p.stageDir, "component-comparison.json"), {
+    ...comparisonOf({ slug: FEATURE, target: TARGET }),
+    new_implementation: { commit: p.commits.base, dirty: false },
+  });
+  writeJson(join(p.stageDir, "replace-metadata.json"), {
+    new: { target: TARGET, commit: p.commits.component, dirty: false, ...replaceNewExtra },
+  });
+  return p;
+}
+
+/**
+ * 実ファイルで main を回す（cwd はプロジェクトルート。引数のパスはそこからの相対）。
+ * @param {ReturnType<typeof carryFiles>} p
+ * @param {string[]} [extra]
+ */
+function runCarry(p, extra = ["--new-repo", "app"]) {
+  let output = "";
+  const code = main(
+    [
+      "--coverage",
+      `.replace/parity/${FEATURE}/component-coverage.json`,
+      "--comparison",
+      `.replace/parity/${FEATURE}/new/${TARGET}/component-comparison.json`,
+      "--target",
+      TARGET,
+      "--replace-metadata",
+      `.replace/parity/${FEATURE}/new/${TARGET}/replace-metadata.json`,
+      ...extra,
+    ],
+    {
+      cwd: p.root,
+      write: (s) => {
+        output += s;
+      },
+      writeErr: () => {},
+    },
+  );
+  rmSync(p.root, { recursive: true, force: true });
+  return { code, result: JSON.parse(output) };
+}
+
+test("持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ stale にしない（注記付き）", () => {
+  const { code, result } = runCarry(carryFiles([["list", "default", "desktop"]]));
+  expect(result.findings).toEqual([]);
+  expect(result.notes.join("\n")).toContain("証跡を持ち越す");
+  expect(code).toBe(0);
+});
+
+test("持ち越し: 影響する組が amend-verify で pass なら stale にしない", () => {
+  const { code, result } = runCarry(carryFiles([["list", "hover", "desktop"]]));
+  expect(result.findings).toEqual([]);
+  expect(result.notes.join("\n")).toContain("amend-verify で pass");
+  expect(code).toBe(0);
+});
+
+test("持ち越し: 宣言外のファイルが変わっていれば stale ＋ evidence-carry-rejected（ファイル名付き）", () => {
+  const p = carryFiles([["list", "default", "desktop"]]);
+  const theme = commitFiles(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
+  const replacePath = join(p.stageDir, "replace-metadata.json");
+  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  replace.new.commit = theme;
+  writeFileSync(replacePath, JSON.stringify(replace));
+  const { code, result } = runCarry(p);
+  expect(result.findings.map((f) => f.code)).toEqual([
+    "comparison-implementation-stale",
+    "evidence-carry-rejected",
+  ]);
+  expect(result.findings[1].message).toContain("src/theme.css");
+  expect(code).toBe(1);
+});
+
+test("持ち越し: --new-repo が無ければ持ち越さない", () => {
+  const { code, result } = runCarry(carryFiles([["list", "default", "desktop"]]), []);
+  expect(result.findings.map((f) => f.code)).toEqual([
+    "comparison-implementation-stale",
+    "evidence-carry-rejected",
+  ]);
+  expect(result.findings[1].message).toContain("--new-repo");
+  expect(code).toBe(1);
+});
+
+test("持ち越し: --evidence-carry で別の宣言ファイルを指せる（既定は replace-metadata.json の隣）", () => {
+  const p = carryFiles([["list", "default", "desktop"]]);
+  const moved = join(p.root, "carry.json");
+  writeFileSync(moved, readFileSync(p.evidenceCarryPath));
+  rmSync(p.evidenceCarryPath);
+  const { code, result } = runCarry(p, ["--new-repo", "app", "--evidence-carry", "carry.json"]);
+  expect(result.findings).toEqual([]);
+  expect(code).toBe(0);
+});
+
+test("持ち越し: 既定の evidence-carry.json が無く描画入力に差分があれば落とす", () => {
+  const p = carryFiles([["list", "default", "desktop"]]);
+  rmSync(p.evidenceCarryPath);
+  const { code, result } = runCarry(p);
+  expect(result.findings.map((f) => f.code)).toContain("evidence-carry-rejected");
+  expect(code).toBe(1);
+});
+
+test("持ち越し: render_inputs が無ければ従来の stale だけで落とし、理由を注記する", () => {
+  const p = carryFiles([["list", "default", "desktop"]], {});
+  const { base, component } = p.commits;
+  const { code, result } = runCarry(p);
+  expect(result.findings).toEqual([
+    {
+      code: "comparison-implementation-stale",
+      message: `突き合わせ表の new_implementation.commit「${base}」が現在の新側「${component}」と違う（記録の後に実装が変わっている。同じ版で取り直す）`,
+    },
+  ]);
+  expect(result.notes.join("\n")).toContain("render_inputs");
+  expect(code).toBe(1);
+});
+
+test("carry を渡さない checkComponentComparison は従来どおり stale（純関数の既定は変えない）", () => {
+  const result = checkComponentComparison({
+    coverage: COVERAGE,
+    comparison: comparisonOf(),
+    replaceMetadata: { new: { commit: "def456", dirty: false, render_inputs: RENDER_INPUTS } },
+    target: null,
+  });
+  expect(result.findings.map((f) => f.code)).toEqual(["comparison-implementation-stale"]);
+  expect(result.notes).toEqual([]);
 });

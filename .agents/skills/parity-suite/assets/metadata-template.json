@@ -40,7 +40,7 @@
         {
           "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）>",
           "result": "<green | red。連続する 2 回とも green であることを求める>",
-          "suite_fingerprint": "<その回に回したスイートの指紋（sha256:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。手で計算せずスクリプトの suiteFingerprint を使う。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "suite_fingerprint": "<その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せずスクリプトの suiteFingerprint を使う。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"

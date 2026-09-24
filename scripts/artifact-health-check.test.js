@@ -13,11 +13,19 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  RENDER_INPUTS,
+  amendVerifyPair,
+  commit as commitFiles,
+  featureMetadata,
+  makeCarryProject,
+  writeJson,
+} from "./evidence-carry-fixture.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
 // 期待値はスクリプトと同じ関数から取る（テスト側で計算規則を複製すると、両方が同時に間違っても緑になる）。
-const { suiteFingerprint } = await import(pathToFileURL(script).href);
+const { suiteFingerprint, stripJsComments } = await import(pathToFileURL(script).href);
 
 const XLSX_BODY = "row-a\nrow-b\n";
 const xlsxSha = createHash("sha256").update(XLSX_BODY).digest("hex");
@@ -770,10 +778,10 @@ test("2 回緑を記録した後にスペックを変えたら落ちる（記録
   const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
   for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
   writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
-  // 記録した後に後始末を外す（スペックの中身が変わる）。
+  // 記録した後に後始末を外す（スペックのコードが変わる。コメントだけの書き換えは #457 で指紋に効かない）。
   writeFileSync(
     join(root, "e2e/parity/order-list/orders.spec.ts"),
-    "// orders.default.desktop.png と orders.xlsx.json を読む（後始末を外した）\n",
+    "// orders.default.desktop.png と orders.xlsx.json を読む\nconst cleanup = false;\n",
   );
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
@@ -811,6 +819,240 @@ test("指紋を持たない旧成果物はこの軸を判定しない（後方�
   const r = run(metadataPath);
   expect(r.stdout).toMatch(/suite_fingerprint を持たない旧成果物/);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// Issue #457: 指紋がコメントを含むと、注記を書き換えただけで現行での 2 回の実行を取り直すことになる。
+// 新方式（sha256-nc:）は JS / TS 系のコメントを除いて数え、旧方式（sha256:）の記録は旧方式で照合する。
+
+/** 指紋の対象（mutatingSuite と同じ宣言）。 */
+const FP_SUITE = { specs: "e2e/parity/order-list", expectations: "e2e/parity/lib/expectations.ts" };
+
+/**
+ * 状態を変えるスイートを、いまのスイートの指紋で 2 回緑として記録したプロジェクトを作る。
+ * @param {{ specBody?: string, legacy?: boolean }} [opts]
+ */
+function recordedProject(opts = {}) {
+  const project = makeProject(
+    (m) => {
+      m.suite = mutatingSuite("placeholder");
+    },
+    opts.specBody === undefined ? {} : { specBody: opts.specBody },
+  );
+  const fp = suiteFingerprint(FP_SUITE, project.root, { legacy: opts.legacy === true }).fingerprint;
+  const meta = JSON.parse(readFileSync(project.metadataPath, "utf8"));
+  for (const r of meta.suite.repeat_run.runs) r.suite_fingerprint = fp;
+  writeFileSync(project.metadataPath, JSON.stringify(meta, null, 2));
+  return { ...project, fp, specPath: join(project.root, "e2e/parity/order-list/orders.spec.ts") };
+}
+
+const SPEC_WITH_NOTE = [
+  "// orders.default.desktop.png と orders.xlsx.json を読む",
+  "// intentional_diffs.keep の項目",
+  "test('orders', async () => {",
+  "  await expect(page).toHaveURL(/orders\\/list/); /* 一覧へ */",
+  "});",
+  "",
+].join("\n");
+
+test("#457 再現: スペックの 1 行コメントだけを書き換えても exit 0（新方式の指紋）", () => {
+  const { root, metadataPath, fp, specPath } = recordedProject({ specBody: SPEC_WITH_NOTE });
+  expect(fp).toMatch(/^sha256-nc:[0-9a-f]{64}$/);
+  writeFileSync(
+    specPath,
+    SPEC_WITH_NOTE.replace("// intentional_diffs.keep", "// intentional_diffs.may_change"),
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/スイートの指紋が記録と一致.*コメントを除いて照合/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: 行・ブロック・JSDoc のコメントの書き換え（行数の増減を含む）では指紋が変わらない", () => {
+  const { root, fp, specPath } = recordedProject({ specBody: SPEC_WITH_NOTE });
+  writeFileSync(
+    specPath,
+    [
+      "/**",
+      " * JSDoc を足した（2 行目）",
+      " * @see intentional_diffs.may_change",
+      " */",
+      "// orders.default.desktop.png と orders.xlsx.json を読む（書き換えた）",
+      "test('orders', async () => { // 行末にも注記",
+      "  await expect(page).toHaveURL(/orders\\/list/); /* 別の注記 */",
+      "});",
+      "",
+    ].join("\n"),
+  );
+  expect(suiteFingerprint(FP_SUITE, root).fingerprint).toBe(fp);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: コードを変えれば指紋が変わり exit 1（新方式でも変更を見逃さない）", () => {
+  const { root, metadataPath, fp, specPath } = recordedProject({ specBody: SPEC_WITH_NOTE });
+  writeFileSync(specPath, SPEC_WITH_NOTE.replace("orders\\/list", "orders\\/detail"));
+  expect(suiteFingerprint(FP_SUITE, root).fingerprint).not.toBe(fp);
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない", () => {
+  const src = [
+    "const a = 'x // in single';",
+    'const b = "y /* in double */";',
+    "const c = `t // ${`nested // ${d /* real */}` + '}'} // tail`; // real",
+    "const e = /a\\/\\/b[/]/g; // real",
+    "const r = /a\\//; // real",
+    "const f = g / h / i; // real",
+    "",
+  ].join("\n");
+  const out = stripJsComments(src);
+  expect(out).toContain("'x // in single'");
+  expect(out).toContain('"y /* in double */"');
+  expect(out).toContain("`t // ${`nested // ${d}` + '}'} // tail`");
+  expect(out).toContain("/a\\/\\/b[/]/g");
+  // 正規表現を除算と読み違えると、\/ の直後の / と閉じの / が // に見えて行の残りを捨てる。
+  expect(out).toContain("/a\\//;");
+  expect(out).toContain("g / h / i");
+  expect(out).not.toContain("real");
+  // 陽性コントロール: 文字列・テンプレート・正規表現の中の // の後ろを変えれば正規形が変わる。
+  for (const [from, to] of [
+    ["in single", "in SINGLE"],
+    ["in double", "in DOUBLE"],
+    ["// tail", "// TAIL"],
+    ["nested //", "NESTED //"],
+    ["b[/]/g", "B[/]/g"],
+  ]) {
+    expect(stripJsComments(src.replace(from, to)), from).not.toBe(out);
+  }
+});
+
+test("#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由の陽性コントロール）", () => {
+  const body =
+    "test.skip(true, 'https://example.test // 理由');\n// orders.default.desktop.png と orders.xlsx.json\n";
+  const { root, fp, specPath } = recordedProject({ specBody: body });
+  writeFileSync(specPath, body.replace("// 理由", "// 別の理由"));
+  expect(suiteFingerprint(FP_SUITE, root).fingerprint).not.toBe(fp);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: 旧方式 sha256: の記録は旧方式で照合する（変えていなければ通る）", () => {
+  const { root, metadataPath, fp } = recordedProject({ specBody: SPEC_WITH_NOTE, legacy: true });
+  expect(fp).toMatch(/^sha256:[0-9a-f]{64}$/);
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/スイートの指紋が記録と一致.*旧方式 sha256:/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: 旧方式 sha256: の記録はコメントの書き換えも従来どおり差として落とす", () => {
+  const { root, metadataPath, specPath } = recordedProject({
+    specBody: SPEC_WITH_NOTE,
+    legacy: true,
+  });
+  writeFileSync(
+    specPath,
+    SPEC_WITH_NOTE.replace("// intentional_diffs.keep", "// intentional_diffs.may_change"),
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない.*旧方式 sha256:/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: 接頭辞を読めない指紋は不一致として落とす", () => {
+  const { root, metadataPath } = makeProject((m) => {
+    m.suite = mutatingSuite("md5:0123");
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/suite_fingerprint の方式を読めない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）", () => {
+  const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+  writeFileSync(join(root, "locators.json"), '{"a": "// x"}\n');
+  writeFileSync(join(root, "notes.yaml"), "# keep\n// keep\nkey: 1\n");
+  const suite = { locator_map: "locators.json", interactions: "notes.yaml" };
+  const before = suiteFingerprint(suite, root).fingerprint;
+  // JS の行コメントに見える行の書き換えも差にする（JS / TS 系の正規形を当てると消える）。
+  writeFileSync(join(root, "notes.yaml"), "# keep\n// may_change\nkey: 1\n");
+  expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([".js", ".mjs", ".cjs"])(
+  "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+  (ext) => {
+    const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+    writeFileSync(join(root, `view${ext}`), "export const X = () => <p>http://old.example</p>;\n");
+    const suite = { specs: `view${ext}` };
+    const before = suiteFingerprint(suite, root).fingerprint;
+    writeFileSync(join(root, `view${ext}`), "export const X = () => <p>http://new.example</p>;\n");
+    expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+    rmSync(root, { recursive: true, force: true });
+  },
+);
+
+test("#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）", () => {
+  const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+  writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://old.example</p>;\n");
+  const suite = { specs: "view.tsx" };
+  const before = suiteFingerprint(suite, root).fingerprint;
+  writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://new.example</p>;\n");
+  expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["// @ts-expect-error", "// @ts-ignore"],
+  ['/// <reference types="a" />', '/// <reference types="b" />'],
+  ["//# sourceMappingURL=a.map", "//# sourceMappingURL=b.map"],
+  ["/* @vite-ignore */", "/* @vite-ignore-x */"],
+  ["/** @jsx h */", "/** @jsx preact */"],
+  ["/*#__PURE__*/", "/*@__NOINLINE__*/"],
+  ["// eslint-disable-next-line", "// eslint-disable-next-line no-x"],
+  ["/* istanbul ignore next */", "/* istanbul ignore else */"],
+  ["/*! license a */", "/*! license b */"],
+])("#457: 指示コメント %s は除かない（書き換えれば正規形が変わる）", (from, to) => {
+  const src = `${from}\nfoo();\n`;
+  expect(stripJsComments(src)).toContain(from);
+  expect(stripJsComments(src.replace(from, to))).not.toBe(stripJsComments(src));
+});
+
+test("#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトに倒す（null）", () => {
+  // 除算と読むと正規表現の中の // を行コメントとして捨て、後ろのコードの変更を見逃す
+  expect(stripJsComments("if (enabled) /[//]/.test(value); cleanupOld();\n")).toBeNull();
+});
+
+test("#457: ) の後の / でも同じ行に // /* が無い除算は従来どおり正規形にする（陽性コントロール）", () => {
+  expect(stripJsComments("const h = (a + b) / 2;\n// note\nx();\n")).toBe(
+    "const h = (a + b) / 2;\nx();",
+  );
+});
+
+test("#457: 指示コメントでない行コメント・ブロックコメントは従来どおり除く", () => {
+  const src =
+    "// plain note\nfoo(); /* note */ bar();\n/**\n * JSDoc の説明\n * @param x 説明\n */\nbaz();\n";
+  expect(stripJsComments(src)).toBe("foo(); bar();\nbaz();");
+});
+
+test("#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す", () => {
+  const { root, metadataPath, fp, specPath } = recordedProject({
+    specBody: "// orders.default.desktop.png と orders.xlsx.json\nconst s = 'unterminated\n",
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/コメントを除けず生バイトで数えたファイル.*orders\.spec\.ts/);
+  expect(r.status).toBe(0);
+  // 生バイトなのでコメントの書き換えも差になる（除けないときに変更を見逃す側へ倒さない）。
+  writeFileSync(
+    specPath,
+    "// orders.default.desktop.png と orders.xlsx.json（書き換え）\nconst s = 'unterminated\n",
+  );
+  expect(suiteFingerprint(FP_SUITE, root).fingerprint).not.toBe(fp);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -1082,6 +1324,148 @@ test("反復回数は数字列を受けない（姉妹の検査器と判定を�
   );
   const r = run(metadataPath, ["--target", "local-dev"]);
   expect(r.stdout).toMatch(/新側の版を対応づける指標が無い/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 証跡の持ち越し（Issue #454）。new.commit が食い違っても、replace-metadata.json の new.render_inputs の差分が
+// 変更宣言と amend-verify で説明できれば持ち越す（判定の正本は evidence-carry.mjs。
+// 状態空間は scripts/evidence-carry.test.js が持つ。ここは checkStage への組み込みの両側と legacy を測る）。
+
+/**
+ * makeProject に持ち越しの fixture（新側 git リポジトリ・変更宣言・部品 metadata・amend-verify の記録）を足す。
+ * @param {[string, string, string][]} scope 機能が撮った組
+ * @param {Record<string, unknown>} [replaceNewExtra] replace-metadata.json の new へ足す値
+ */
+function carryProject(scope, replaceNewExtra = { render_inputs: RENDER_INPUTS }) {
+  const conditions = featureMetadata(scope);
+  const made = makeProject((m) => {
+    Object.assign(m, { mode: "feature", capture_conditions: conditions.capture_conditions });
+    // makeCarryProject が現側の基準（baseline_dir の下）に置く amend-verify の current 画像を採取物として宣言する
+    m.artifact_health.entries.push({
+      path: "list/hover/desktop/screenshot.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "部品改修の機械判定（amend-verify）の現側の入力としてだけ読む",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
+  });
+  const carry = makeCarryProject({ root: made.root });
+  writeStage(
+    made.slugDir,
+    {
+      new: { target: "local-dev", commit: carry.commits.base },
+      iteration: 3,
+      dataset_version: 7,
+      converged: true,
+    },
+    {
+      new: {
+        target: "local-dev",
+        commit: carry.commits.component,
+        dirty: false,
+        ...replaceNewExtra,
+      },
+      loop: { iterations: 3 },
+    },
+  );
+  return { ...made, carry };
+}
+
+test("持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ exit 0（注記付き）", () => {
+  const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).not.toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/^note: .*証跡を持ち越す/m);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: 影響する組が amend-verify で pass なら exit 0", () => {
+  const { root, metadataPath, carry } = carryProject([
+    ["list", "default", "desktop"],
+    ["list", "hover", "desktop"],
+  ]);
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).toMatch(/amend-verify で pass なので証跡を持ち越す/);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: 影響する組が amend-verify で pass でなければ従来の不一致に理由を添えて落とす", () => {
+  const { root, metadataPath, carry } = carryProject([["list", "hover", "desktop"]]);
+  writeJson(join(root, carry.recordPath), {
+    tool: "amend-verify",
+    version: "1",
+    change_id: "hover-shadow",
+    pairs: [amendVerifyPair(root, "list|hover|desktop", { pass: false })],
+  });
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/^warn: 証跡を持ち越せない: .*pass でない/m);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: 宣言外のファイルが変わっていれば落とす（ファイル名を出す）", () => {
+  const { root, slugDir, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
+  const theme = commitFiles(carry.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
+  const replacePath = join(slugDir, "new/local-dev/replace-metadata.json");
+  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  replace.new.commit = theme;
+  writeFileSync(replacePath, JSON.stringify(replace));
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/証跡を持ち越せない: .*src\/theme\.css/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）", () => {
+  const { root, metadataPath } = carryProject([["list", "default", "desktop"]]);
+  const r = run(metadataPath, ["--target", "local-dev"]);
+  expect(r.stdout).toMatch(/今の新側の版に対応していない/);
+  expect(r.stdout).toMatch(/証跡を持ち越せない: --new-repo/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）", () => {
+  const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]]);
+  const elsewhere = join(root, "elsewhere/.replace");
+  mkdirSync(elsewhere, { recursive: true });
+  const r = run(metadataPath, [
+    "--target",
+    "local-dev",
+    "--new-repo",
+    carry.repo,
+    "--replace-root",
+    elsewhere,
+  ]);
+  expect(r.stdout).toMatch(/証跡を持ち越せない: 変更宣言 を読めない/);
+  expect(r.status).toBe(1);
+  const ok = run(metadataPath, [
+    "--target",
+    "local-dev",
+    "--new-repo",
+    carry.repo,
+    "--replace-root",
+    join(root, ".replace"),
+  ]);
+  expect(ok.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("持ち越し: render_inputs が無ければ従来のメッセージのまま落とし、持ち越せない理由を注記する", () => {
+  const { root, metadataPath, carry } = carryProject([["list", "default", "desktop"]], {});
+  const r = run(metadataPath, ["--target", "local-dev", "--new-repo", carry.repo]);
+  expect(r.stdout).toContain(
+    `warn: diff-metadata.json が今の新側の版に対応していない（new.commit ${carry.commits.base} ≠ replace-metadata.json の ${carry.commits.component}）`,
+  );
+  expect(r.stdout).not.toMatch(/証跡を持ち越せない/);
+  expect(r.stdout).toMatch(/^note: .*render_inputs.*持ち越せない/m);
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });

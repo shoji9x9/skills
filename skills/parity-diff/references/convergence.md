@@ -134,7 +134,7 @@
     ```
 
     落とすのは、**`present` なのに突き合わせの行が無い**・`compared: true` なのに入口・当たり判定・完了の観測が欠ける・
-    **突き合わせを取った新側の版（`new_implementation.commit`）が無い／現在の `replace-metadata.json` の `new.commit` と違う**（記録の後に実装が変わっている）・
+    **突き合わせを取った新側の版（`new_implementation.commit`）が無い／現在の `replace-metadata.json` の `new.commit` と違う**（記録の後に実装が変わっている。`--new-repo` を渡し部品改修の持ち越しが覆う違いは通す）・
     **`new.commit` が `none`（新側が git 管理を持たない）のときは `new_implementation.iteration` と `loop.iterations` が違う**
     （両側 `none` の文字列比較は常に一致するので、鮮度は反復回数が担う）・
     **そのどちらかが読めない**（`comparison-implementation-unversionable`。退き先が無いことを合格に倒さない。規則の正本は `parity-suite` の `references/coverage.md`）・
@@ -178,6 +178,7 @@
     **未測定**（`unmeasured.entries` に `disposition: blocking` が残る。語彙外・承認記録の空は `blocking` として数える）、
     **工程の成果物**（`new/<target>/replace-metadata.json` の `suite.new_green` が真なのに同じ場所に `diff-metadata.json` が無い、
     それが**いまの新側に対応していない**〈`new.commit` が `replace-metadata.json` と違う・`iteration` が `loop.iterations` と違う〉、
+    ただし SHA の違いは、`--new-repo` を渡したときに限り部品改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) 手順 5）が覆えば通す、
     またはその `dataset_version` が読めない・現在の版より新しい・区間の `changes[].affects` に `*` がある・`changes` の履歴が壊れている）。
     **対応づけを版だけに委ねない**——データセットを変えずに `parity-replace` が実装を作り直すと、
     前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのゲートを満たし、

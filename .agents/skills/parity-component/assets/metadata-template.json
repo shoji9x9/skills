@@ -54,7 +54,7 @@
   "instances": [
     {
       "id": "<インスタンス id（一意。成果物パス baseline/<id>/ と axis-diff の照合キーになる。採取前に確定させる）>",
-      "page": "<現行 target でのページ URL（到達できないページは対象から外し gaps.md に残す）>",
+      "page": "<target の baseURL からの相対パス（例: /orders/1001）。parity-suite の capture_conditions.pages[].path と同じ語彙で書き、スキーム付きの絶対 URL にしない（部品の改修で影響する機能を引く component-impact.mjs が完全一致で照合する）。パターンのページは具体化した値。到達できないページは対象から外し gaps.md に残す>",
       "locator": "<その部品インスタンスを指す論理名（role ＋アクセシブルネームで引ける名前。id・自動生成クラスをアンカーにしない）>",
       "auth_role": "<このインスタンスのページへ到達するのに使ったロール名。認証不要なら null。capture.auth_roles に含まれること>",
       "data": {

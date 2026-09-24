@@ -36,8 +36,12 @@
 
 - `pages`: 変更が描画に効くページ（差し戻された差分のページだけでなく、**修正で実際に触れた範囲**を書く）。
   値は `.replace/features.md` のページ識別子（＝現側 `metadata.json.noise_baseline[].page` と同じ語彙）で書く——ファイルパスやコンポーネント名で書くと `parity-diff` 側で突き合わせられず全組再測定に倒れる
-- `global`: 共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れたら `true`。真なら `pages` は空でよい
-- **`pages: []` と `null` を取り違えない。** `pages: []`（`global: false`）は「**この反復では描画に効く変更を入れなかった**」という積極的な申告で、
+- `global`: 共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れたら `true`。真なら `pages` は空でよい。
+  **共通部品に触れても、その改修の変更宣言（`parity-component` の `references/amend.md`「現行に合わせ直す修正」）があれば `global` にせず `components` に書く**
+- `components`: 変更宣言のある共通部品の改修 `[{"slug": "<部品 slug>", "change": ".replace/components/<slug>/changes/<change-id>.json"}]`。
+  `parity-diff` は宣言から影響する組だけを導く（導けなければ全組）。宣言の無い共有資産の変更を同じ反復に含むなら `global: true` も書く（全組が勝つ）
+  部品を使う**他の機能**の再検証はこの記録では起きない——`parity-diff --component-change <宣言>` で一括して回す（手順の正本は `parity-diff` の `references/component-change.md`）
+- **`pages: []` と `null` を取り違えない。** `pages: []`（`global: false`・`components` なし）は「**この反復では描画に効く変更を入れなかった**」という積極的な申告で、
   `parity-diff` は全組を再利用してよいと読む。範囲が**未確定・未記録**なら空配列ではなく `loop.changed_scope` ごと `null` にする（`parity-diff` 側で「全組再測定」に倒れる）
 - **範囲を過小申告しない。** 判断が付かないなら上記のとおり `null` に倒す——過小申告は測り直すべき組を黙って飛ばす（誤ったノイズ基準で実回帰を吸収しうる）
 
