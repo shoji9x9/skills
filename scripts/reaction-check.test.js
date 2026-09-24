@@ -36,6 +36,7 @@ const noneReaction = () => ({
   observation: {
     window_ms: 3000,
     documents: ["top", "共有ダイアログの iframe"],
+    source_document: "top",
     method: "全文書の DOM 変化を監視",
   },
   covered_by: ["search.spec.ts: 検索で観測時間内にどの文書にも通知が出ない"],
@@ -45,6 +46,8 @@ const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
   documents: ["top", "共有ダイアログの iframe"],
+  document_origins: { top: "same-origin", "共有ダイアログの iframe": "same-origin" },
+  cross_origin_evidence: null,
   observation_window_ms: 3000,
   feedback_calls: {
     declared: true,
@@ -123,6 +126,20 @@ test("陽性コントロール: 完全な表は exit 0", () => {
     unmeasured_operations: 0,
     call_sites: { checked: true, found: 1 },
   });
+});
+
+test("別オリジンの文書は、移行元の本来の配置でも別オリジンになる根拠があれば通す（Issue #450）", () => {
+  const t = mutated((x) => {
+    x.document_origins["共有ダイアログの iframe"] = "cross-origin";
+    x.cross_origin_evidence =
+      "移行元は共有ダイアログを設定 share.origin の絶対 URL で読み込み、本番の配置でも本体と別オリジンになる";
+    // フレームの中で操作して、どの文書にも反応が出ないことを見た
+    x.operations[1].reactions[0].observation.source_document = "共有ダイアログの iframe";
+  });
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout)).toMatchObject({ ok: true });
 });
 
 test("reaction_coverage を持たない旧成果物は判定しない（exit 0・judged: false）", () => {
@@ -229,6 +246,61 @@ test.each([
     "documents に top",
   ],
   ["文書の棚卸しが無い", (t) => delete t.documents, "documents が空でない文字列の配列でない"],
+  // 文書のオリジン（Issue #450）: 対象 URL と別オリジンのフレームは親の文書へ反応を届けられず、実在する反応が「無い」に化ける
+  [
+    "none に操作した文書が無い",
+    (t) => delete t.operations[1].reactions[0].observation.source_document,
+    "observation.source_document が空",
+  ],
+  [
+    "none の操作した文書が棚卸しに無い",
+    (t) => (t.operations[1].reactions[0].observation.source_document = "別のフレーム"),
+    'observation.source_document "別のフレーム" が表の documents に無い',
+  ],
+  ["文書のオリジンの記録が無い", (t) => delete t.document_origins, "document_origins が無い"],
+  [
+    "文書のオリジンの記録が配列",
+    (t) => (t.document_origins = ["same-origin"]),
+    "document_origins が無い",
+  ],
+  [
+    "文書のオリジンに棚卸しの文書が欠けている",
+    (t) => delete t.document_origins["共有ダイアログの iframe"],
+    "document_origins に無い文書: 共有ダイアログの iframe",
+  ],
+  [
+    "文書のオリジンに棚卸しに無い文書がある",
+    (t) => (t.document_origins["別のフレーム"] = "same-origin"),
+    "document_origins に表の documents に無い文書がある: 別のフレーム",
+  ],
+  [
+    "文書のオリジンが語彙外（オリジンの値そのものを書いた）",
+    (t) => (t.document_origins["共有ダイアログの iframe"] = "https://app.example.com"),
+    "same-origin / cross-origin でない文書: 共有ダイアログの iframe",
+  ],
+  [
+    "別オリジンの文書があるのに根拠が無い",
+    (t) => (t.document_origins["共有ダイアログの iframe"] = "cross-origin"),
+    "文書 共有ダイアログの iframe が対象 URL と別オリジンなのに cross_origin_evidence が空",
+  ],
+  [
+    "別オリジンの文書があるのに根拠が空白だけ",
+    (t) => {
+      t.document_origins["共有ダイアログの iframe"] = "cross-origin";
+      t.cross_origin_evidence = "  ";
+    },
+    "cross_origin_evidence が空",
+  ],
+  [
+    "別オリジンの文書が無いのに根拠が残っている",
+    (t) => (t.cross_origin_evidence = "決済フレームは外部サービス"),
+    "別オリジンの文書が無いのに cross_origin_evidence が null でない",
+  ],
+  [
+    "オリジンの根拠のキーが無い",
+    (t) => delete t.cross_origin_evidence,
+    "cross_origin_evidence が無い",
+  ],
   [
     "出る先の文書が棚卸しに無い",
     (t) => (t.operations[0].reactions[0].destination.document = "別のフレーム"),
@@ -669,4 +741,20 @@ test("declared: true なのに表が読めなければ exit 1（合格に倒さ�
     metadata: { reaction_coverage: { declared: true, path: "missing.json" } },
   });
   expect(r.status).toBe(1);
+});
+
+test("同梱テンプレートのプレースホルダのままの文書のオリジンは落とす（Issue #450）", () => {
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const t = mutated((x) => {
+    x.document_origins = template.document_origins;
+    x.cross_origin_evidence = template.cross_origin_evidence;
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stdout + r.stderr).toContain("same-origin / cross-origin でない文書: top");
 });

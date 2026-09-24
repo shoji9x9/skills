@@ -5,6 +5,7 @@
 // 何をするか:
 //   1. 現側 metadata.json の reaction_coverage 宣言を読み、declared: true のときだけ反応の被覆表を開く
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
+//      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）
 //   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
@@ -29,10 +30,16 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
+
+/**
+ * 文書のオリジンが対象 URL（targets[].url）のオリジンと同じか（Issue #450）。
+ * 値そのもの（ホスト・ポート）は書かせない——url_command の target は URL を成果物に残さない規約なので、関係だけを記録する。
+ */
+const ORIGIN_RELATIONS = ["same-origin", "cross-origin"];
 
 /** observed の消え方。auto は消えるまでの時間の標本を要求する。 */
 const DISMISSAL_MODES = ["auto", "manual", "persistent", "not-applicable"];
@@ -283,6 +290,13 @@ function noneProblem(r, windowMs, documents) {
       return `observation.documents に表の documents に無い文書がある: ${unknown.join(", ")}`;
     }
   }
+  // 操作した文書。反応の出どころと見た文書のオリジンが違うと、実在する反応が同一オリジンポリシーで届かず「無い」に化ける（表の document_origins で照合する）
+  if (!nonEmptyString(obs.source_document)) {
+    return "observation.source_document が空（どの文書で操作したかを記録していない。オリジンの照合に使う）";
+  }
+  if (documents && !documents.has(/** @type {string} */ (obs.source_document))) {
+    return `observation.source_document "${obs.source_document}" が表の documents に無い`;
+  }
   if (!nonEmptyString(obs.method)) return "observation.method が空";
   // 新側が反応を足しても（遅れて出て消えるトースト等）静止画・特性照合には写らないので、不在もスイートで確かめる
   if (
@@ -409,6 +423,52 @@ export function checkReactions(table, opts = {}) {
     problems.push("documents に top（最上位の文書）が無い");
   } else {
     documents = new Set(/** @type {string[]} */ (docs));
+  }
+  // 文書ごとのオリジン（対象 URL と同じか）。Issue #450
+  // 移行元が絶対 URL で組み立てるフレームの読み込み先と targets[].url のオリジンが違うと、フレームの中の処理が親の文書に届かず、
+  // 実在する反応が「無い」と記録される。差分器は「無い」同士で一致させてしまうので、別オリジンの文書には根拠を要求する
+  const origins = table.document_origins;
+  /** @type {string[] | null} 別オリジンの文書（読めなければ null） */
+  let crossOrigin = null;
+  if (!isPlainObject(origins)) {
+    problems.push(
+      "document_origins が無い（documents の各文書のオリジンが対象 URL と同じか〈same-origin / cross-origin〉を記録していない）",
+    );
+  } else if (documents) {
+    const keys = Object.keys(origins);
+    const lacking = [...documents].filter((d) => !Object.hasOwn(origins, d));
+    const unknown = keys.filter((k) => !documents.has(k));
+    const invalid = keys.filter(
+      (k) => documents.has(k) && !ORIGIN_RELATIONS.includes(/** @type {string} */ (origins[k])),
+    );
+    if (lacking.length > 0) problems.push(`document_origins に無い文書: ${lacking.join(", ")}`);
+    if (unknown.length > 0)
+      problems.push(`document_origins に表の documents に無い文書がある: ${unknown.join(", ")}`);
+    if (invalid.length > 0) {
+      problems.push(
+        `document_origins の値が ${ORIGIN_RELATIONS.join(" / ")} でない文書: ${invalid.join(", ")}`,
+      );
+    }
+    if (lacking.length === 0 && unknown.length === 0 && invalid.length === 0) {
+      crossOrigin = keys.filter((k) => origins[k] === "cross-origin");
+    }
+  }
+  if (!Object.hasOwn(table, "cross_origin_evidence")) {
+    problems.push(
+      "cross_origin_evidence が無い（別オリジンの文書が無ければ null と書く。キーの欠落を根拠不要に倒さない）",
+    );
+  } else if (crossOrigin !== null) {
+    const evidence = table.cross_origin_evidence;
+    if (crossOrigin.length > 0 && !nonEmptyString(evidence)) {
+      problems.push(
+        `文書 ${crossOrigin.join(", ")} が対象 URL と別オリジンなのに cross_origin_evidence が空（移行元の本来の配置でも別オリジンになることを、移行元が組み立てる絶対 URL 等で確かめた根拠を書く。環境の都合で別オリジンになっているなら、targets[].url をそのオリジンに揃えて測り直す）`,
+      );
+    }
+    if (crossOrigin.length === 0 && evidence !== null) {
+      problems.push(
+        "別オリジンの文書が無いのに cross_origin_evidence が null でない（どの文書の根拠かが残らない古い記録）",
+      );
+    }
   }
   const windowMs = positiveNumber(table.observation_window_ms)
     ? /** @type {number} */ (table.observation_window_ms)

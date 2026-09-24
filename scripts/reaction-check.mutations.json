@@ -1,0 +1,100 @@
+{
+  "$comment": [
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/reaction-check.test.js",
+  "mutations": [
+    {
+      "id": "source-document-missing",
+      "why": "none の操作した文書が空でも通す（オリジンを照合する起点を記録させない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonEmptyString(obs.source_document)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: none に操作した文書が無い"]
+    },
+    {
+      "id": "source-document-unknown",
+      "why": "none の操作した文書が棚卸しに無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (documents && !documents.has(/** @type {string} */ (obs.source_document))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: none の操作した文書が棚卸しに無い"]
+    },
+    {
+      "id": "origins-missing",
+      "why": "文書のオリジンの記録が無くても欠落として数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(origins)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 文書のオリジンの記録が無い",
+        "未測定として落とす: 文書のオリジンの記録が配列"
+      ]
+    },
+    {
+      "id": "origins-lacking",
+      "why": "棚卸しの文書がオリジンの記録から欠けていても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0) problems.push(",
+      "replace": "    if (false) problems.push(",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 文書のオリジンに棚卸しの文書が欠けている"]
+    },
+    {
+      "id": "origins-unknown",
+      "why": "棚卸しに無い文書のオリジンの記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unknown.length > 0)\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 文書のオリジンに棚卸しに無い文書がある"]
+    },
+    {
+      "id": "origins-invalid",
+      "why": "オリジンの記録が語彙外でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (invalid.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 文書のオリジンが語彙外（オリジンの値そのものを書いた）"
+      ]
+    },
+    {
+      "id": "evidence-key-missing",
+      "why": "根拠のキーの欠落を根拠不要に倒す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Object.hasOwn(table, \"cross_origin_evidence\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: オリジンの根拠のキーが無い"]
+    },
+    {
+      "id": "cross-origin-without-evidence",
+      "why": "別オリジンの文書があっても根拠を要求しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (crossOrigin.length > 0 && !nonEmptyString(evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 別オリジンの文書があるのに根拠が無い",
+        "未測定として落とす: 別オリジンの文書があるのに根拠が空白だけ"
+      ]
+    },
+    {
+      "id": "stale-evidence",
+      "why": "別オリジンの文書が無いのに残った根拠を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (crossOrigin.length === 0 && evidence !== null) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 別オリジンの文書が無いのに根拠が残っている"]
+    }
+  ]
+}

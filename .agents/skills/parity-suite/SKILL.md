@@ -135,7 +135,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 
 - **対象の選択**（`--feature` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: `current.feedback_calls` の候補の確定（設定への記録は越えない線）、ファイルストレージの `upload_route` が未宣言のときの経路、
-  後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、`intentional_diffs.pending` へ追記した差異の確認
+  後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、フレームが環境の都合で別オリジンになっているときの `targets[].url` の変更（その頁の反応は記録しない）、`intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 読み取り系の特性化・ベースライン採取・保留に依存しない構成要素の強度検証。**保留に依存するスペック（例: 実行可否が保留の書き込み系）は書かず、`gaps.md` に判断待ちとして残す**（未検証を確認済みにしない）
 - **記録先**: `.replace/parity/<slug>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`metadata.json` には書かない**——`parity-replace` / `parity-diff` はその存在を本スキル完了の前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
@@ -178,6 +178,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    **器を開く・指を乗せる・焦点を当てる・押している最中・不活性**の 5 種を `visual_state_coverage.rows` へ起こし、撮るなら `capture_conditions.states` の状態名、撮れないなら理由（`gaps.md` の「撮影状態の対象外」）を埋める。
    **この位置なのは、測った操作からしか導けず、かつ状態を後から足すと現行側もベースラインとノイズ基準値を採り直しになるため**（[`references/baseline.md`](references/baseline.md)「撮影状態の決め方（1）被覆表から導く」）
    **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
+   **反応を記録する前に、対象ページの全フレームのオリジンが `targets[].url` のオリジンと同じかを測って `document_origins` に残す**——違えば、移行元が組み立てる絶対 URL で本来の配置を確かめ、
+   本来も別オリジンなら根拠を `cross_origin_evidence` に書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
    移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
