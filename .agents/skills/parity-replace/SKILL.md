@@ -89,7 +89,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **確信度の申告を迷ったときだけに限らない。** 実装単位ごとに**常に**高／中／低を `porting.md` へ申告する（「低」＝「おそらく間違っている。レビューで現行を読み直せ」）
 - **モデルの「同じに見えます」を完了根拠にしない**
 - **本スキルの完了（新側 green）を「現行と一致」と報告しない。** スイートが見るのは値・ラベル・役割で、余白・幅・罫線・背景・色・寸法・配置は `parity-diff` の担当。
-  一致を名乗れるのは、同じ target の `parity-diff` が `.replace/parity/<slug>/new/<target>/diff-metadata.json` を `converged: true` にしてから（報告の書き方は手順 8「完了の報告」）
+  現行との比較結果を報告できるのは、同じ target の `parity-diff` が `.replace/parity/<slug>/new/<target>/diff-metadata.json` を `converged: true` にしてから。
+  そのときも無条件の「一致」とは書かず、収束したことと、承認済みの例外・意図的差異・未検証領域を並べて報告する（収束は生の差分ゼロを求めない。正本は `parity-diff` の `references/convergence.md`「収束の定義」）。報告の書き方は手順 8「完了の報告」
 - **撮影したビューポートで測った px を並べて版組を作らない。** 3 経路はその点でしか比べないため、1 点の px を並べた版組は全経路で緑のまま別の窓で崩れる。
   位置・寸法は `parity-suite` が読んだ式（`metadata.json` の `capture_conditions.dimension_model.fits`）で写し、完了判定で `dimension-fit.mjs check` を通す（手順 8）
 - **振る舞い保存と品質改善を同じフェーズで狙わない。** レガシーの奇妙な挙動も再現する
@@ -265,8 +266,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    feature モードでは「見た目（余白・幅・罫線・背景・色・寸法・配置）は `parity-diff` の収束まで未検証」を**必ず書く**——
    スイートが green でも 1 画面の画素の大半が違うことがあり（ページの器の幅・ヘッダーの位置・表の組み方）、書かないと利用者が画面を並べて見るまで気付かれない。
    api-resource / batch モードでも、一致の主張は `parity-diff` の収束まで保留する（batch モードの完了判定にある「出力一致」（[`references/paging.md`](references/paging.md)）はスイートのベースラインに対する判定で、現行との一致の報告ではない）。
-   **次の工程として、同じ `--target` の `parity-diff --feature <slug>` を案内する**（`--autonomous` 実行ならそのまま委譲する）。
-   同じ target の `diff-metadata.json` が既に `converged: true` でも、その後に新側を変えたなら古い収束を一致の根拠にしない
+   **次の工程として、同じ target を渡した `parity-diff --feature <slug> --target <target>` を案内する**（`--autonomous` 実行ならそのまま委譲する）。
+   同じ target の `diff-metadata.json` が既に `converged: true` でも、その後に新側を変えたなら古い収束を比較結果の根拠にしない
 9. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。
    対象 target の `on_diff` ドキュメントがあればそれに従って修正・反映・再テストを進め（無ければ修正して対象 target で再テストする）、反復回数と**その反復で描画に効く変更を入れた範囲**（`loop.changed_scope`。`parity-diff` の自己ノイズ再測定判定に使う）を `new/<target>/replace-metadata.json` に記録する。
    `on_diff` の解釈手順・終了条件・反復上限（`--max-iterations` 既定 5）の正本: [`references/diff-loop.md`](references/diff-loop.md)

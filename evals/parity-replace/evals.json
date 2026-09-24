@@ -266,7 +266,7 @@
       "assertions": [
         "報告で見た目（余白・幅・罫線・背景・色・寸法・配置のいずれか）が現行と一致したとは書かず、parity-diff の収束まで未検証だと明記している",
         "スイートが見るのは値・ラベル・役割で、見た目の比較は parity-diff の担当であることを、一致と書けない理由として挙げている",
-        "現行との一致を名乗れるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
+        "現行との比較結果を報告できるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
         "次の工程として同じ target（local-dev）で parity-diff --feature order-list を回すよう案内している",
         "通した判定（スイート green・verification_commands.full・dimension-fit などのゲート）自体は完了として報告しており、完了そのものを取り消していない"
       ],
@@ -280,7 +280,7 @@
           "prompt_quote": "order-list は feature モードで、パリティスイートは new で green"
         },
         {
-          "assertion": "現行との一致を名乗れるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
+          "assertion": "現行との比較結果を報告できるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
           "prompt_quote": "parity-diff はまだ回していない"
         },
         {

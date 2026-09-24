@@ -69,7 +69,7 @@ scripts/run-skill-eval.sh \
   fixture の矛盾が弁別を作っていた実例なので、Delta の内訳は fixture の整合と合わせて読む
 - eval 23（Issue #451）は fixture 無しで、feature モードの完了ゲートをすべて通した直後に**`parity-diff` を回していない**状態を与え、
   「数値も見た目も現行と一致した」で完了報告をまとめてよいかを問う。見た目の一致を主張しないこと・`parity-diff` の担当であること・
-  `converged: true` まで一致を名乗れないこと・同じ target での `parity-diff` の案内を検証する。
+  `converged: true` まで現行との比較結果を報告できないこと・同じ target での `parity-diff` の案内を検証する。
   assertion 5 は、一致の主張を避けるあまり**完了そのものを取り消す**過剰な後退を落とす。prompt には「まだ一致とは言えない」という結論を書かない
   **iteration-25 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5。**弁別したのは assertion 2・3・4**——
   baseline も一致の主張は避け（assertion 1）完了も取り消さない（assertion 5）が、スイートが見る範囲と `parity-diff` の担当を区別せず、
