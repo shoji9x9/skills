@@ -1,0 +1,169 @@
+{
+  "$comment": [
+    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/capture-scope-check.test.js",
+  "mutations": [
+    {
+      "id": "scrollbars-missing",
+      "why": "scrollbars の欠落を欠落として数えない（語彙外と区別しない）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"scrollbars\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["scrollbars の欠落・語彙外は落とす（新側を同じ扱いで撮れない）"]
+    },
+    {
+      "id": "overflow-missing",
+      "why": "overflow をキーごと省略した成果物を欠落として数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"overflow\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["overflow をキーごと持たない成果物は落とす（省略を免除にしない）"]
+    },
+    {
+      "id": "scrollbars-hidden",
+      "why": "スクロールバーを隠したまま測った記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (o.scrollbars !== \"shown\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）"
+      ]
+    },
+    {
+      "id": "bar-takes-no-space",
+      "why": "横にはみ出した窓で横スクロールバーの厚みが 0 でも通す（陽性コントロールを外す）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (w.horizontal && w.horizontal_bar_px === 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）"
+      ]
+    },
+    {
+      "id": "page-unknown",
+      "why": "撮影頁に無い頁の記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!declaredPages.includes(page)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+      ]
+    },
+    {
+      "id": "page-missing",
+      "why": "撮影頁の測り漏れを数えない（記録された頁だけを期待集合にする）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!seenPages.has(page)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+      ]
+    },
+    {
+      "id": "min-width-null-horizontal",
+      "why": "最小幅を持たないと書いた頁が横にはみ出していても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        if (w.horizontal) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "narrow-window-missing",
+      "why": "最小幅より狭い窓を 1 つも測っていなくても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (minWidthOk && minWidth !== null && narrow === 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "fit-window-missing",
+      "why": "最小幅より狭く中身が収まる高さの窓が無くても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "content-height-malformed",
+      "why": "最小幅を持つ頁の content_height が読めなくても落とさない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (minWidthOk && !contentHeightOk) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "extent-malformed",
+      "why": "はみ出し量が読めない窓も通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "extent-inconsistent",
+      "why": "はみ出しの真偽値と量の矛盾を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        w.horizontal !== /** @type {number} */ (w.overflow_x_px) > 0 ||\n",
+      "replace": "        false ||\n",
+      "occurrences": 1,
+      "expect_failing": ["はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "narrow-requires-horizontal",
+      "why": "横にはみ出していない狭い窓も「狭い窓」に数える",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "(minWidth) && w.horizontal) {\n",
+      "replace": "(minWidth)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "probe-malformed",
+      "why": "探索の範囲の記録が無い・型崩れを落とさない（この分岐の検出を別の名前に逃がす）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        \"overflow-probe-malformed\",\n",
+      "replace": "        \"overflow-probe-malformed-disabled\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "probe-unreadable-unrecorded",
+      "why": "読めないスタイルシートを gaps.md に回していなくても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      /** @type {number} */ (probe.unreadable_stylesheets) > 0 &&\n",
+      "replace": "      false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "probe-gaps-ref-unexpected",
+      "why": "読めないスタイルシートが無いのに残った gaps_ref を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    } else if (probe.unreadable_stylesheets === 0 && probe.gaps_ref !== null) {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    }
+  ]
+}

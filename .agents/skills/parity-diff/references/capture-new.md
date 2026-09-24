@@ -13,7 +13,7 @@
   `new` から除外が無いと、採取専用の環境変数を持たない `parity-replace` の green 検証が**テスト収集の時点で落ちる**（往復ループが進まなくなる）。
   記録が無い・除外が設定されていなければ撮影せず停止し、`parity-suite` へ設定を戻す（対称の規則である現側専用スペックの除外は `parity-suite` の `references/locator-mapping.md` が正本）
 - **撮影は `suite.new_only` に記録された採取専用プロジェクト（既定 `new-capture`）で実行する**（`--project new` では走らない）。プロジェクト名が記録に無ければ撮影せず停止し `parity-suite` へ戻す
-- 雛形が読む撮影条件は `metadata.json.capture_conditions` の `viewports` / `states` / `pages` / `masks` / `full_page`。**`pages[].name` は `noise_baseline[].page` と同じ語彙**であることを確認する
+- 雛形が読む撮影条件は `metadata.json.capture_conditions` の `viewports` / `states` / `pages` / `masks` / `full_page` / `scrollbars`。**`pages[].name` は `noise_baseline[].page` と同じ語彙**であることを確認する
   （語彙がずれると `PARITY_NOISE_PAIRS` による再利用の絞り込みが 1 組も一致せず、自己ノイズ測定が空振りする）。`masks[].name` はロケータマッピングで解決できる論理名であることを確認する
 - `capture_conditions.cofeature_masks` は撮影条件へそのまま足さない。下記「共同居住機能の実行時マスク」で同 target の実装状態から有効集合を導出し、現側・新側の正本を保持した作業コピーへ対称に適用する
 - 雛形は 1 回目（`baseline-new/`）と 2 回目（`noise-pass2/`）を同じスペックの別パスとして撮る。差分量（`pixel_diff` / `trait_diffs`）を測るのは記録済みの差分器の仕事で、スペックは撮るだけ。
@@ -37,7 +37,7 @@
 
 環境差を差分として報告しないため、撮影前に条件一致を検証する。**不一致を検出したら差分報告をせず停止する。**
 
-- `metadata.json.capture_conditions` の `environment` / `viewports` / `full_page` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
+- `metadata.json.capture_conditions` の `environment` / `viewports` / `full_page` / `scrollbars` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
 - ビューポート寸法・アニメーション無効化・マスク適用が現行と一致していることを撮影前に検証する
 
 ### `capture_conditions_verified` は項目ごとに記録する
@@ -49,6 +49,7 @@
 |---|---|
 | `viewports` | 現側の `viewports` と新側の実寸、および `full_page`（全画面かビューポート内か）が一致したか（不一致は停止。画像サイズが違えば全ページが全面差分になる） |
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
+| `scrollbars` | 現側の `scrollbars`（`hidden` / `shown`）と同じ扱いで新側を撮ったか。雛形は `shown` のとき `--hide-scrollbars` を外して起動する。ヘッドあり起動はスクロールバーが場所を取るので `hidden` の撮影には使わない。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
 | `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・器を開く呼び出し〈親の器 × 関数名 × 開く対象の論理名〉が全て同じ `parent` の行の `opened_by` に現れる・`opened_by` が空でなく行内に重複が無く同じ `parent` × 同じ呼び出しが 2 行に現れない・同じ `name` の行が 2 つ以上無い〈`name` は機能の棚卸し全体で一意〉。単一の文字列の `opened_by` は旧形式として 1 要素の配列と同義に読む）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
@@ -174,7 +175,7 @@
 |---|---|---|
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
 | 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |

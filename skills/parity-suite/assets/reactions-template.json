@@ -6,6 +6,13 @@
     "top",
     "<対象ページの全フレームの論理名（操作で開くダイアログの iframe を含む）。top（最上位の文書）は必須。none の observation.documents はこれを全て含み、observed の destination.document はこの中から選ぶ>"
   ],
+  "document_origins": {
+    "top": "<same-origin | cross-origin。この文書の実効オリジン（frame.evaluate(() => self.origin)）が対象 URL（targets[].url）のオリジンと同じか。値そのもの（ホスト・ポート）は書かない>",
+    "<documents の各フレームの論理名>": "<same-origin | cross-origin。documents の全ての文書を 1 回ずつ書く（欠け・余分は落ちる）>"
+  },
+  "cross_origin_evidence": {
+    "<document_origins で cross-origin の文書（例: 決済フレーム）>": "<その文書が移行元の本来の配置でも別オリジンになることを確かめた根拠（例: 移行元は決済フレームを設定 payment.origin の絶対 URL で読み込み、本番でも別オリジン）。cross-origin の文書ごとに 1 つ書く——表全体で 1 本にすると、意図して別オリジンにした文書の根拠が、環境の都合で別オリジンになった文書まで通してしまう。別オリジンのフレームの中の処理は親の文書へ届かず、実在する反応が kind: none に化ける。環境の都合（targets[].url にホストやポートの別名を書いた）で別オリジンなら、記録せず targets[].url を揃えて測り直す。cross-origin の文書が無ければ {}（キーは省略しない）>"
+  },
   "observation_window_ms": "<正の数。kind: none を書くときに最低限見続ける時間（ミリ秒）。observed の delay_ms_samples の最大値より長くとる（以下なら落ちる）。none の observation.window_ms はこれ以上でなければ落ちる>",
   "feedback_calls": {
     "declared": "<真偽値。移行元ソースのフィードバック呼び出しと突き合わせたか。設定 current.feedback_calls があり移行元ソースを読めるなら true>",
@@ -95,6 +102,7 @@
             "documents": [
               "<見た文書。top と表の documents の全てを含める（欠けると落ちる）。操作した器の中だけを見て none と書かない>"
             ],
+            "source_document": "<操作した文書（documents の中から。例: 共有ダイアログの iframe）。見た文書と合わせて、どのオリジンの間で「無い」を確かめたかを残す>",
             "method": "<どう見たか（例: 全文書の DOM 変化を監視）>"
           },
           "covered_by": [

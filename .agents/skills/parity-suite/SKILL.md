@@ -94,6 +94,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 - **撮影したビューポートの 1 点で合うことを「寸法が合う」として扱わない。** 3 経路はその点でしか比べないため、1 点の実測 px を並べた新側の版組が全経路で緑になる。
   feature モードでは窓を変えて位置と寸法の式を読み、`metadata.json` の `capture_conditions.dimension_model` を**キーごと省略しない**（ビューポートが 1 つなら `measured` か理由付きの `not_measured`）。
   **未測定を `gaps.md` に書いて済ませない**——`parity-replace` への引き渡し条件として `dimension_model` に残す（[`references/baseline.md`](references/baseline.md)「寸法の決まり方（窓への追従）」）
+- **スクロールバーを隠した撮影だけで、頁の高さの決め方（`height: 100%` と `100vh`）を担保しない。** Playwright のヘッドレス Chromium はスクロールバーを隠すので、横スクロールバーが出る窓でもこの差は 0 になり、3 経路すべてが緑のまま通る。
+  feature モードでは `capture_conditions.scrollbars`（撮影時の扱い）と `capture_conditions.overflow`（スクロールバーを表示した、頁の最小幅より狭い窓での縦・横のはみ出し）を**キーごと省略しない**
+  （[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）
 - **採取環境でだけ成立する一致を「一致」として扱わない。** 総称ファミリーのフォントフォールバック等は採取環境では差分ゼロになり、利用者環境でだけ壊れる（`viewer_environment` に記録し、乖離は `gaps.md` へ）
 - **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
@@ -132,7 +135,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 
 - **対象の選択**（`--feature` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: `current.feedback_calls` の候補の確定（設定への記録は越えない線）、ファイルストレージの `upload_route` が未宣言のときの経路、
-  後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、`intentional_diffs.pending` へ追記した差異の確認
+  後始末できない書き込み系特性化の実行可否（`references/data-discipline.md` の承認）、スイートへの依存の追加、フレームが環境の都合で別オリジンになっているときの `targets[].url` の変更（その頁の反応は記録しない）、`intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 読み取り系の特性化・ベースライン採取・保留に依存しない構成要素の強度検証。**保留に依存するスペック（例: 実行可否が保留の書き込み系）は書かず、`gaps.md` に判断待ちとして残す**（未検証を確認済みにしない）
 - **記録先**: `.replace/parity/<slug>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`metadata.json` には書かない**——`parity-replace` / `parity-diff` はその存在を本スキル完了の前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
@@ -175,6 +178,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    **器を開く・指を乗せる・焦点を当てる・押している最中・不活性**の 5 種を `visual_state_coverage.rows` へ起こし、撮るなら `capture_conditions.states` の状態名、撮れないなら理由（`gaps.md` の「撮影状態の対象外」）を埋める。
    **この位置なのは、測った操作からしか導けず、かつ状態を後から足すと現行側もベースラインとノイズ基準値を採り直しになるため**（[`references/baseline.md`](references/baseline.md)「撮影状態の決め方（1）被覆表から導く」）
    **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
+   **反応を記録する前に、対象ページの全フレームのオリジンが `targets[].url` のオリジンと同じかを測って `document_origins` に残す**——違えば、移行元が組み立てる絶対 URL で本来の配置を確かめ、
+   本来も別オリジンなら根拠をその文書ごとに `cross_origin_evidence` へ書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
    移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
@@ -188,6 +193,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 6. **ベースライン採取とノイズ基準値測定**（feature モードのみ）: 現行アプリを駆動するついでに 3 点セットを採り、2 回撮ってノイズ基準値を出す（**2 回目の採取物は基準値を記録したら削除する**）。
    **続けて寸法の決まり方を測る**——`traits.elements` の全論理名を、撮影したビューポートを含み幅と高さを独立に動かした 4 窓以上で読む
    （`dimension/` の測定スペックを `PARITY_DIMENSION_CAPTURE=1` 付きで `current` に走らせ、`dimension-samples.json` を書く。手順 7 の強度ゲートなど他の実行では渡さず上書きさせない。当てはめは手順 8）。
+   **あわせてスクロールバーを表示した窓のはみ出しを測る**——`overflow/` の測定スペックを `PARITY_OVERFLOW_CAPTURE=1` 付きで `current` に単独で走らせ、`capture_conditions.overflow` を書かせる（手で転記しない）。
+   同じスペックは通常の実行でこの記録を期待値として現・新の両側に当てる。撮影時にスクロールバーが場所を取ったかは `capture_conditions.scrollbars` に書く（[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）。
    撮影状態は**手順 5 で被覆表から導いた集合**（`visual_state_coverage.rows` の `captured`）を土台に、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器と、
    操作から導けない状態（`selected` / `error` / 初期表示のバリアント）を足して決め（導出も棚卸しも通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
    **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
@@ -207,7 +214,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    **`--metadata` を省かない**——省くと撮影状態を `capture_conditions.states` と照合しないまま `conformance.visual_states.checked: false` で通り、`parity-diff` が収束させない
    （撮影状態を確定した `metadata.json` を書いた後に通す）。
    feature モードでは `node <skill>/scripts/capture-scope-check.mjs --metadata <metadata.json>` も **exit 0 まで通す**
-   （`noise_baseline` と `capture_scope` を突き合わせるため、ノイズ基準値と範囲の実測を書いた後に通す。コピーせずスキル配下から実行する）。
+   （`noise_baseline` と `capture_scope` を突き合わせるため、ノイズ基準値と範囲の実測を書いた後に通す。`scrollbars` と `overflow` の記録もここで数える。コピーせずスキル配下から実行する）。
    穴が残るなら範囲を広げて採り直すか、`capture_scope_exemptions` に理由と `gaps.md` の該当箇所を書く（**exit 0 を作るために実測値を丸めない**）。
    `capture_conditions.dimension_model` は `node <skill>/scripts/dimension-fit.mjs fit --samples .replace/parity/<slug>/dimension-samples.json --metadata <metadata.json> --write` を exit 0 まで通して書かせる
    （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。
@@ -279,12 +286,13 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 - **`golden-dataset` との往復**: フェーズ A 完了が前提。探索でシード不足（空リストしか確認できない・ページネーションが 1 ページ等）を見つけたら `gaps.md` に「データ不足」として記録し `golden-dataset` へ戻す。戻るとバージョンが上がり、影響を受けるベースラインを再取得する
 - **`parity-replace` へ引き渡すもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、現側の値だけを埋めた期待値解決層（`metadata.json.suite.expectations`。新側の値の充填は `parity-replace`）、現側専用スペックの `testIgnore` 除外（`metadata.json.suite.current_only`）、
   寸法の決まり方（`metadata.json.capture_conditions.dimension_model` と `dimension/` の測定スペック。`not_measured` も引き渡し条件としてそのまま渡す）、
+  スクロールバーを表示した窓のはみ出し（`metadata.json.capture_conditions.overflow` と、それを期待値として両側に当てる `overflow/` のスペック。頁ごとに 1 テスト）、
   部品被覆表と**新側の突き合わせの宿題**（3 値は移行元側の測定なので、`value: present` のセルごとに新側で入口・当たり判定・完了を観測して
   `new/<target>/component-comparison.json` へ書くのは `parity-replace`。様式の正本は本スキルの `assets/component-comparison-template.json`）、
   未実装機能の在席チェック（slug 付きでスキップ）、Playwright `projects` の `current` / `new` という名前と target 選択の仕組み
   （baseURL は環境変数から解決する。`side: new` の target 選択と `new` の baseURL 設定は `parity-replace` 段階）
 - **`parity-diff` が再利用するもの**: 強度ゲートで健全性を確認済みの差分器（ツール・しきい値）、ノイズ基準値、
-  撮影条件（**撮る範囲の実測 `capture_scope` を含む。本スキルの `capture-scope-check.mjs` で数え直す**）、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
+  撮影条件（**撮る範囲の実測 `capture_scope` を含む。本スキルの `capture-scope-check.mjs` で数え直す**。スクロールバーの扱い `scrollbars` は新側採取で同じにする）、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
   プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
   反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --recorded` で数え直す）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す

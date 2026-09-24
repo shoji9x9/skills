@@ -46,6 +46,7 @@
 | 操作の反応（トースト・ダイアログの開閉・クリップボード等。遅れて出る・別の文書に出る・自動で消えるものを含む） | 対象 | 操作ごとに反応の被覆表 `reactions.json` で押さえ、出るまで待ち消えるまでの時間を測って assertion にする。移行元ソースを読めなければフィードバック呼び出しとの突き合わせを `gaps.md` に未検証として必須記録 | `parity-suite` の `references/coverage.md` |
 | 操作で開く器の見た目（吹き出し・引き出し等） | 条件付き | `capture_conditions.popup_inventory` で再帰的に数え、撮影状態へ入れた器だけ対象。撮らない器と、位置が落ち着かず撮れない状態は `gaps.md` に「撮影状態の対象外」として理由付きで必須記録 | `parity-suite` の `references/baseline.md` |
 | 窓の寸法への追従（位置・寸法の式） | 対象 | 画素・特性照合・aria は撮影したビューポートでしか比べないため、`parity-suite` が窓を変えて式を読み（`capture_conditions.dimension_model`）、`parity-replace` が完了判定で新側を照合する。未測定・式が読めない軸は `gaps.md` で済ませず `porting.md` に写していない旨を明示 | `parity-suite` の `references/baseline.md` |
+| スクロールバーが場所を取る窓での頁の高さ（`height: 100%` と `100vh`） | 対象 | ヘッドレスの撮影はスクロールバーを隠すので 3 経路に写らない。`parity-suite` がスクロールバーを表示した、頁の最小幅より狭い窓で縦・横のはみ出しを測り（`capture_conditions.overflow`）、同じスペックが現・新の両側に当てる | `parity-suite` の `references/baseline.md` |
 | 採取環境依存の一致（フォント等） | 条件付き | 環境非依存のフォントスタックにする／利用者環境でも採取する／`gaps.md` に残す のいずれか | `parity-suite` の `references/baseline.md` |
 | 書き込み系の検証 | 条件付き | 対象 target が書き込みを許可していること（`forbidden_actions` / `seedable`）。不許可なら実行せず未検証として記録 | [`project-config.md`](project-config.md)「実行対象環境」 |
 | 後始末できない書き込み（削除機能が無い等） | 条件付き | 事前にユーザーへ残置可否を確認し、「hermetic でない」と明示して一覧化 | `parity-suite` の `references/data-discipline.md` |

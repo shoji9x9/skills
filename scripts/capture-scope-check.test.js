@@ -15,11 +15,66 @@ import {
 } from "../skills/parity-suite/scripts/capture-scope-check.mjs";
 
 /**
+ * スクロールバーを表示した窓のはみ出しの実測（Issue #449）。差し替えたい部分だけ渡す。
+ *
+ * 形は同梱テンプレート（assets/metadata-template.json の capture_conditions.overflow）と同じ。
+ * 頁 list は最小幅 1280 を持つので、それより狭い窓（1180 幅）で横スクロールバーが場所を取る。
+ * 高さ 3300 の窓は中身（3200）が収まる窓で、縦のはみ出しは頁の高さの決め方（100% か 100vh か）だけで決まる。
+ * @param {Record<string, unknown>} [override]
+ */
+function overflowOf(override = {}) {
+  return {
+    status: "measured",
+    scrollbars: "shown",
+    spec: "e2e/parity/order-list/overflow/overflow.spec.ts",
+    pages: [
+      {
+        page: "list",
+        min_width: 1280,
+        content_height: 3200,
+        probe: { step: 40, breakpoints: [768, 1024], unreadable_stylesheets: 0, gaps_ref: null },
+        windows: [
+          {
+            width: 1366,
+            height: 768,
+            horizontal: false,
+            vertical: true,
+            horizontal_bar_px: 0,
+            overflow_x_px: 0,
+            overflow_y_px: 2432,
+          },
+          {
+            width: 1180,
+            height: 768,
+            horizontal: true,
+            vertical: true,
+            horizontal_bar_px: 15,
+            overflow_x_px: 100,
+            overflow_y_px: 2447,
+          },
+          {
+            width: 1180,
+            height: 3300,
+            horizontal: true,
+            vertical: false,
+            horizontal_bar_px: 15,
+            overflow_x_px: 100,
+            overflow_y_px: 0,
+          },
+        ],
+      },
+    ],
+    reason: null,
+    ...override,
+  };
+}
+
+/**
  * 穴の無い metadata を組み立てる。差し替えたい部分だけ渡す。
  *
  * 期待値（撮るはずの組）は `capture_conditions` の 3 軸の直積なので、
  * 1 組だけを対象にするテストは `states` 等の軸も同時に狭める（狭めないと「採っていない組」が増える）。
- * @param {{ scope?: unknown, exemptions?: unknown, noise?: unknown, pages?: unknown, states?: unknown, viewports?: unknown }} [override]
+ * @param {{ scope?: unknown, exemptions?: unknown, noise?: unknown, pages?: unknown, states?: unknown, viewports?: unknown, scrollbars?: unknown, overflow?: unknown }} [override]
  */
 function metadataOf(override = {}) {
   return {
@@ -60,6 +115,8 @@ function metadataOf(override = {}) {
         },
       ],
       capture_scope_exemptions: override.exemptions ?? [],
+      scrollbars: "scrollbars" in override ? override.scrollbars : "hidden",
+      overflow: "overflow" in override ? override.overflow : overflowOf(),
     },
     noise_baseline: override.noise ?? [
       { page: "list", state: "default", viewport: "desktop", pixel_diff: 0 },
@@ -614,4 +671,368 @@ test("holes の中身は先に来た実測で決まり、合否は並び順に�
   expect(codesOf(metadataOf({ states: ["default"], scope: [noHole, withHole], noise }))).toContain(
     "scope-entry-duplicated",
   );
+});
+
+// ---- スクロールバーが場所を取る窓のはみ出し（Issue #449） ----
+//
+// スクロールバーを隠した撮影では 100vh と height: 100% の差が 0 になり、3 経路すべてが緑のまま通る。
+// 撮影時の扱い（scrollbars）と、スクロールバーを表示した窓の縦・横のはみ出し（overflow）を宣言させる。
+
+/** @param {Record<string, unknown>} windowOverride 頁 list の 2 つ目の窓（1180x768）へ当てる差し替え */
+function overflowWithWindow(windowOverride) {
+  const base = overflowOf();
+  const page = /** @type {any} */ (base.pages)[0];
+  return overflowOf({
+    pages: [
+      {
+        ...page,
+        windows: [page.windows[0], { ...page.windows[1], ...windowOverride }, page.windows[2]],
+      },
+    ],
+  });
+}
+
+test("はみ出しの陰性コントロール: 正規の記録は落とさない（hidden / shown / not_measured）", () => {
+  expect(codesOf(metadataOf())).toEqual([]);
+  // 撮影をスクロールバー表示で行ったプロジェクト
+  expect(codesOf(metadataOf({ scrollbars: "shown" }))).toEqual([]);
+  // 測れなかったことを理由付きで宣言する
+  expect(
+    codesOf(
+      metadataOf({ overflow: { status: "not_measured", reason: "認証の都合で窓を変えられない" } }),
+    ),
+  ).toEqual([]);
+  // 最小幅を持たない頁（どの窓でも横にはみ出さない）
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              page: "list",
+              min_width: null,
+              probe: { step: 40, breakpoints: [], unreadable_stylesheets: 0, gaps_ref: null },
+              windows: [
+                {
+                  width: 1366,
+                  height: 768,
+                  horizontal: false,
+                  vertical: true,
+                  horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
+                },
+                {
+                  width: 360,
+                  height: 768,
+                  horizontal: false,
+                  vertical: true,
+                  horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toEqual([]);
+});
+
+test("scrollbars の欠落・語彙外は落とす（新側を同じ扱いで撮れない）", () => {
+  const { scrollbars: _dropped, ...conditions } = metadataOf().capture_conditions;
+  expect(codesOf({ ...metadataOf(), capture_conditions: conditions })).toContain(
+    "scrollbars-missing",
+  );
+  expect(codesOf(metadataOf({ scrollbars: "auto" }))).toContain("scrollbars-unknown");
+  expect(codesOf(metadataOf({ scrollbars: null }))).toContain("scrollbars-unknown");
+});
+
+test("overflow をキーごと持たない成果物は落とす（省略を免除にしない）", () => {
+  const { overflow: _dropped, ...conditions } = metadataOf().capture_conditions;
+  expect(codesOf({ ...metadataOf(), capture_conditions: conditions })).toContain(
+    "overflow-missing",
+  );
+});
+
+test("overflow の status が読めない・not_measured の理由が無いなら落とす", () => {
+  for (const overflow of [null, [], "measured", { status: "skipped" }, { reason: "x" }]) {
+    expect(codesOf(metadataOf({ overflow }))).toContain("overflow-status-unknown");
+  }
+  for (const reason of [undefined, null, "", "  "]) {
+    expect(codesOf(metadataOf({ overflow: { status: "not_measured", reason } }))).toContain(
+      "overflow-reason-missing",
+    );
+  }
+  expect(codesOf(metadataOf({ overflow: overflowOf({ reason: "測った" }) }))).toContain(
+    "overflow-reason-unexpected",
+  );
+});
+
+test("スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）", () => {
+  for (const scrollbars of ["hidden", undefined, null]) {
+    expect(codesOf(metadataOf({ overflow: overflowOf({ scrollbars }) }))).toContain(
+      "overflow-scrollbars-hidden",
+    );
+  }
+  // 陽性コントロール: 横にはみ出した窓で横スクロールバーの厚みが 0 なら、隠れたまま測っている
+  expect(codesOf(metadataOf({ overflow: overflowWithWindow({ horizontal_bar_px: 0 }) }))).toContain(
+    "overflow-bar-takes-no-space",
+  );
+});
+
+test("記録を現・新に当てるスペックが無いなら落とす", () => {
+  for (const spec of [undefined, null, ""]) {
+    expect(codesOf(metadataOf({ overflow: overflowOf({ spec }) }))).toContain(
+      "overflow-spec-missing",
+    );
+  }
+});
+
+test("頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  expect(codesOf(metadataOf({ overflow: overflowOf({ pages: [] }) }))).toContain(
+    "overflow-page-missing",
+  );
+  expect(codesOf(metadataOf({ overflow: overflowOf({ pages: [page, page] }) }))).toContain(
+    "overflow-page-duplicated",
+  );
+  expect(
+    codesOf(metadataOf({ overflow: overflowOf({ pages: [page, { ...page, page: "detail" }] }) })),
+  ).toContain("overflow-page-unknown");
+  expect(codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, page: "" }] }) }))).toEqual(
+    expect.arrayContaining(["overflow-page-unkeyed", "overflow-page-missing"]),
+  );
+  expect(codesOf(metadataOf({ overflow: overflowOf({ pages: "list" }) }))).toContain(
+    "overflow-pages-missing",
+  );
+});
+
+test("窓の欠落・型崩れ・重複は落とす", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  expect(
+    codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, windows: [] }] }) })),
+  ).toContain("overflow-windows-missing");
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({ pages: [{ ...page, windows: [...page.windows, page.windows[1]] }] }),
+      }),
+    ),
+  ).toContain("overflow-window-duplicated");
+  for (const bad of [
+    { width: 0 },
+    { height: "768" },
+    { horizontal: "true" },
+    { vertical: undefined },
+    { horizontal_bar_px: -1 },
+    { horizontal_bar_px: null },
+  ]) {
+    expect(codesOf(metadataOf({ overflow: overflowWithWindow(bad) }))).toContain(
+      "overflow-window-malformed",
+    );
+  }
+});
+
+test("最小幅と窓の記録が矛盾していれば落とす", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  for (const minWidth of [0, -1, 1280.5, "1280", undefined]) {
+    expect(
+      codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, min_width: minWidth }] }) })),
+    ).toContain("overflow-min-width-malformed");
+  }
+  // 最小幅より狭い窓がどれも横にはみ出していない（最小幅の実測が誤っている）
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              ...page,
+              windows: page.windows.map((w) => ({
+                ...w,
+                horizontal: false,
+                horizontal_bar_px: 0,
+                overflow_x_px: 0,
+              })),
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toContain("overflow-narrow-window-missing");
+  // 最小幅を持たないと書いたのに横にはみ出している
+  expect(
+    codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, min_width: null }] }) })),
+  ).toContain("overflow-min-width-inconsistent");
+  // 最小幅より狭い窓が 1 つも無い（横スクロールバーが出る窓で測っていない）
+  expect(
+    codesOf(
+      metadataOf({ overflow: overflowOf({ pages: [{ ...page, windows: [page.windows[0]] }] }) }),
+    ),
+  ).toContain("overflow-narrow-window-missing");
+});
+
+test("中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  // 狭い窓が短い 1 窓だけ: 縦のはみ出しが頁の高さの決め方で決まらず、100% と 100vh を見分けられない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({ pages: [{ ...page, windows: [page.windows[0], page.windows[1]] }] }),
+      }),
+    ),
+  ).toContain("overflow-fit-window-missing");
+  // 狭い窓の高さが中身の高さと同じ（収まっていない）
+  expect(
+    codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, content_height: 3300 }] }) })),
+  ).toContain("overflow-fit-window-missing");
+  for (const contentHeight of [undefined, null, 0, 3200.5, "3200"]) {
+    expect(
+      codesOf(
+        metadataOf({
+          overflow: overflowOf({ pages: [{ ...page, content_height: contentHeight }] }),
+        }),
+      ),
+    ).toContain("overflow-content-height-malformed");
+  }
+  // 陰性コントロール: 中身が収まる高さの窓でも縦にはみ出す頁（body の height: 100% と既定の margin）は落とさない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              ...page,
+              windows: [
+                page.windows[0],
+                page.windows[1],
+                { ...page.windows[2], vertical: true, overflow_y_px: 16 },
+              ],
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toEqual([]);
+  // 最小幅を持たない頁は content_height を要求しない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              page: "list",
+              min_width: null,
+              probe: { step: 40, breakpoints: [], unreadable_stylesheets: 0, gaps_ref: null },
+              content_height: null,
+              windows: [
+                {
+                  width: 1366,
+                  height: 768,
+                  horizontal: false,
+                  vertical: true,
+                  horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toEqual([]);
+});
+
+test("同梱テンプレートのプレースホルダのままの overflow は落とす", async () => {
+  const { readFileSync } = await import("node:fs");
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/metadata-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const cc = template.capture_conditions;
+  const codes = codesOf(metadataOf({ scrollbars: cc.scrollbars, overflow: cc.overflow }));
+  expect(codes).toEqual(expect.arrayContaining(["scrollbars-unknown", "overflow-status-unknown"]));
+});
+
+test("最小幅が中間のブレークポイントでだけ効く頁は、狭いモバイル幅ではみ出さなくても落とさない（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  const mobile = {
+    width: 375,
+    height: 768,
+    horizontal: false,
+    vertical: true,
+    horizontal_bar_px: 0,
+    overflow_x_px: 0,
+    overflow_y_px: 2432,
+  };
+  expect(
+    codesOf(
+      metadataOf({
+        viewports: [
+          { width: 1366, height: 768, label: "desktop" },
+          { width: 375, height: 768, label: "mobile" },
+        ],
+        scope: [],
+        noise: [],
+        overflow: overflowOf({ pages: [{ ...page, windows: [...page.windows, mobile] }] }),
+      }),
+    ).filter((c) => c.startsWith("overflow-")),
+  ).toEqual([]);
+});
+
+test("はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）", () => {
+  for (const bad of [
+    { overflow_x_px: undefined },
+    { overflow_y_px: -1 },
+    { overflow_y_px: 1.5 },
+    { overflow_x_px: "100" },
+  ]) {
+    expect(codesOf(metadataOf({ overflow: overflowWithWindow(bad) }))).toContain(
+      "overflow-window-malformed",
+    );
+  }
+  expect(codesOf(metadataOf({ overflow: overflowWithWindow({ overflow_x_px: 0 }) }))).toContain(
+    "overflow-extent-inconsistent",
+  );
+  expect(codesOf(metadataOf({ overflow: overflowWithWindow({ overflow_y_px: 0 }) }))).toContain(
+    "overflow-extent-inconsistent",
+  );
+});
+
+test("最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  const withProbe = (probe) =>
+    metadataOf({ overflow: overflowOf({ pages: [{ ...page, probe }] }) });
+  for (const probe of [
+    undefined,
+    null,
+    { ...page.probe, step: 0 },
+    { ...page.probe, breakpoints: "768" },
+    { ...page.probe, breakpoints: [768, -1] },
+    { ...page.probe, unreadable_stylesheets: -1 },
+    { ...page.probe, unreadable_stylesheets: undefined },
+  ]) {
+    expect(codesOf(withProbe(probe))).toContain("overflow-probe-malformed");
+  }
+  expect(codesOf(withProbe({ ...page.probe, unreadable_stylesheets: 2 }))).toContain(
+    "overflow-probe-unreadable-unrecorded",
+  );
+  expect(codesOf(withProbe({ ...page.probe, gaps_ref: "gaps.md#stale" }))).toContain(
+    "overflow-probe-gaps-ref-unexpected",
+  );
+  // 陰性コントロール: 読めないスタイルシートを gaps.md に回した記録は通す
+  expect(
+    codesOf(
+      withProbe({
+        ...page.probe,
+        unreadable_stylesheets: 2,
+        gaps_ref: "gaps.md#採取環境依存の未検証",
+      }),
+    ),
+  ).toEqual([]);
 });

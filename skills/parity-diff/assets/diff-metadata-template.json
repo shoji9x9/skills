@@ -22,6 +22,7 @@
   "capture_conditions_verified": {
     "viewports": "<現側 capture_conditions.viewports と新側実寸の照合結果。不一致なら停止しているはず>",
     "animations": "<animations: disabled を新側でも適用できたかの確認結果>",
+    "scrollbars": "<現側 capture_conditions.scrollbars（hidden / shown）と同じ扱いで新側を撮ったかの確認結果。キーごと無い旧成果物は停止している>",
     "masks": "<現側 masks のロケータを新側で解決してマスクできたかの確認結果（解決できないものは理由）>",
     "cofeature_masks": [
       {
@@ -86,7 +87,7 @@
     "measured_at_commit": "<測定時点の新側コミット SHA。変化そのものは単独の失効条件にしない（往復ループでは毎反復変わるため）が、反復が進んでいない（loop.iterations の差が 0）のに変わっていればループ外の変更として全組を再測定する>",
     "loop_iteration": "<測定時点の同 target の replace-metadata.json の loop.iterations（数値）>",
     "fingerprint": {
-      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations / popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
+      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / states / masks / animations / scrollbars / popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
       "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
       "dataset_version": "<測定時点の dataset_version（数値）。phase B との整合を免除した target では null>",
       "settle_wait": "<1 回目・2 回目とも操作アダプタの静止待ち（撮る対象の矩形が 2 回続けて同じ値になるまで待つ）を通して測ったなら true（真偽値で書く）。キーが無い・true でない前回記録は再利用しない>",
