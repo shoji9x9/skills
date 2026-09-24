@@ -83,6 +83,10 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
+        "skill eval result normalization skill read detection takes no evidence from a read after an exit",
+        "skill eval result normalization skill read detection takes no evidence from a read after a return",
+        "skill eval result normalization skill read detection takes no evidence from a read after an exec",
+        "skill eval result normalization skill read detection takes no evidence from a read after an eval",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a pushd",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd behind a variable",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd home",
@@ -97,9 +101,9 @@
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by quotes",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by a line continuation",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a globbed command word",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd whose target is a glob",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an ANSI-C quoted piece of a command word",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a substitution inside a command word",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd whose target is a glob"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a substitution inside a command word"
       ]
     },
     {
@@ -242,6 +246,10 @@
       "replace": "!LITERAL_WORD.test(word)",
       "occurrences": 1,
       "expect_failing": [
+        "skill eval result normalization skill read detection takes no evidence from a read after an exit",
+        "skill eval result normalization skill read detection takes no evidence from a read after a return",
+        "skill eval result normalization skill read detection takes no evidence from a read after an exec",
+        "skill eval result normalization skill read detection takes no evidence from a read after an eval",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a pushd",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd behind a variable",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd home",
@@ -253,9 +261,9 @@
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of an expanded command",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd after a child shell",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of a quoted cd",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd whose target is a glob",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd after a reserved word",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd between escaped single quotes",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd whose target is a glob"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd between escaped single quotes"
       ]
     },
     {
@@ -302,6 +310,32 @@
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory keeps the skill directory across a redirect with a separate target"
+      ]
+    },
+    {
+      "id": "list-continues-after-divert",
+      "why": "許可リストを通らない要素の後も && リストの読み取りを採る（exit / eval の後の cat を読んだと数える）",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "      cwdAfter = null;\n      break;\n",
+      "replace": "      cwdAfter = null;\n      continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection takes no evidence from a read after an exit",
+        "skill eval result normalization skill read detection takes no evidence from a read after a return",
+        "skill eval result normalization skill read detection takes no evidence from a read after an exec",
+        "skill eval result normalization skill read detection takes no evidence from a read after an eval"
+      ]
+    },
+    {
+      "id": "end-words-kept",
+      "why": "シェルを終える語（exit / return 等）を素の字面として許可する",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "  \"exit\",\n  \"logout\",\n  \"return\",\n  \"suspend\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection takes no evidence from a read after an exit",
+        "skill eval result normalization skill read detection takes no evidence from a read after a return"
       ]
     }
   ]

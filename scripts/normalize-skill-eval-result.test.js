@@ -399,6 +399,11 @@ describe("skill eval result normalization", () => {
       ["a read in a backgrounded list", "cat .claude/skills/box/SKILL.md && echo done & true"],
       ["a read behind a comment", "true # && cat .claude/skills/box/SKILL.md"],
       ["a read in a subshell", "true && (cat .claude/skills/box/SKILL.md)"],
+      // Codex review on #463: these end the shell with status zero before the read runs.
+      ["a read after an exit", "exit 0 && cat .claude/skills/box/SKILL.md"],
+      ["a read after a return", "return 0 && cat .claude/skills/box/SKILL.md"],
+      ["a read after an exec", "exec true && cat .claude/skills/box/SKILL.md"],
+      ["a read after an eval", 'eval "$X" && cat .claude/skills/box/SKILL.md'],
     ])("takes no evidence from %s", (_label, command) => {
       const usage = buildSkillUsage({
         config: "without_skill",

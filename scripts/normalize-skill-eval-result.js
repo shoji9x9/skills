@@ -300,6 +300,12 @@ const CWD_WORDS = new Set([
   "shopt",
   "source",
   "trap",
+  // Ends the shell, so an `&&` list exits zero without running what follows
+  // (`exit 0 && cat X`).
+  "exit",
+  "logout",
+  "return",
+  "suspend",
   // Reserved words put the real command word after them (`if cd /x; then …`).
   "!",
   "case",
@@ -421,10 +427,13 @@ function analyzeShellCommand(command, cwd, depth = 0) {
       cwdAfter = current;
       continue;
     }
+    // Anything the allowlist does not pass may also have ended the shell (`exit 0`,
+    // `eval "$X"`), after which the list exits zero with nothing further run: no read
+    // after it counts.
     if (movesCwd(element)) {
       current = null;
       cwdAfter = null;
-      continue;
+      break;
     }
     if (isShellCInvocation(element.trim())) {
       reads.push(...analyzeShellCommand(element, current, depth).reads);
