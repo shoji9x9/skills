@@ -395,6 +395,14 @@ export function stripJsComments(src) {
       continue;
     }
     // 記号 1 文字。`.5` のような数値の小数点も記号として出すが、正規形として決定的なので問題ない。
+    if (c === "/" && out.endsWith(")")) {
+      // `)` の後の `/` は、`(a + b) / 2` なら除算、`if (x) /[//]/.test(v)` なら正規表現で、字句だけでは決まらない。
+      // 除算と読んだまま同じ行の残りに `//` `/*` があると、正規表現の中身をコメントとして捨ててコードの変更を
+      // 見逃しうるので、その形は読めないとして生バイトに倒す（null）
+      const eol = src.slice(i + 1).search(/[\n\r\u2028\u2029]/);
+      const rest = eol < 0 ? src.slice(i + 1) : src.slice(i + 1, i + 1 + eol);
+      if (rest.includes("//") || rest.includes("/*")) return null;
+    }
     i += 1;
     if (c === "{") braces.push("b");
     if (c === "}" && braces.pop() === "t") {

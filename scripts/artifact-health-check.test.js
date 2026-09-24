@@ -1023,6 +1023,17 @@ test.each([
   expect(stripJsComments(src.replace(from, to))).not.toBe(stripJsComments(src));
 });
 
+test("#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトに倒す（null）", () => {
+  // 除算と読むと正規表現の中の // を行コメントとして捨て、後ろのコードの変更を見逃す
+  expect(stripJsComments("if (enabled) /[//]/.test(value); cleanupOld();\n")).toBeNull();
+});
+
+test("#457: ) の後の / でも同じ行に // /* が無い除算は従来どおり正規形にする（陽性コントロール）", () => {
+  expect(stripJsComments("const h = (a + b) / 2;\n// note\nx();\n")).toBe(
+    "const h = (a + b) / 2;\nx();",
+  );
+});
+
 test("#457: 指示コメントでない行コメント・ブロックコメントは従来どおり除く", () => {
   const src =
     "// plain note\nfoo(); /* note */ bar();\n/**\n * JSDoc の説明\n * @param x 説明\n */\nbaz();\n";

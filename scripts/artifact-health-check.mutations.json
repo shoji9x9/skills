@@ -138,6 +138,17 @@
         "#457: 指示コメント /* istanbul ignore next */ は除かない（書き換えれば正規形が変わる）",
         "#457: 指示コメント /*! license a */ は除かない（書き換えれば正規形が変わる）"
       ]
+    },
+    {
+      "id": "ambiguous-slash-stripped",
+      "why": ") の後の / を除算と読んだまま、同じ行の正規表現の中の // をコメントとして捨てる",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (rest.includes(\"//\") || rest.includes(\"/*\")) return null;",
+      "replace": "void rest;",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトに倒す（null）"
+      ]
     }
   ]
 }
