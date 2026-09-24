@@ -33,9 +33,33 @@ function overflowOf(override = {}) {
         min_width: 1280,
         content_height: 3200,
         windows: [
-          { width: 1366, height: 768, horizontal: false, vertical: true, horizontal_bar_px: 0 },
-          { width: 1180, height: 768, horizontal: true, vertical: true, horizontal_bar_px: 15 },
-          { width: 1180, height: 3300, horizontal: true, vertical: false, horizontal_bar_px: 15 },
+          {
+            width: 1366,
+            height: 768,
+            horizontal: false,
+            vertical: true,
+            horizontal_bar_px: 0,
+            overflow_x_px: 0,
+            overflow_y_px: 2432,
+          },
+          {
+            width: 1180,
+            height: 768,
+            horizontal: true,
+            vertical: true,
+            horizontal_bar_px: 15,
+            overflow_x_px: 100,
+            overflow_y_px: 2447,
+          },
+          {
+            width: 1180,
+            height: 3300,
+            horizontal: true,
+            vertical: false,
+            horizontal_bar_px: 15,
+            overflow_x_px: 100,
+            overflow_y_px: 0,
+          },
         ],
       },
     ],
@@ -693,6 +717,8 @@ test("はみ出しの陰性コントロール: 正規の記録は落とさない
                   horizontal: false,
                   vertical: true,
                   horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
                 },
                 {
                   width: 360,
@@ -700,6 +726,8 @@ test("はみ出しの陰性コントロール: 正規の記録は落とさない
                   horizontal: false,
                   vertical: true,
                   horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
                 },
               ],
             },
@@ -812,12 +840,26 @@ test("最小幅と窓の記録が矛盾していれば落とす", () => {
       codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, min_width: minWidth }] }) })),
     ).toContain("overflow-min-width-malformed");
   }
-  // 最小幅より狭い窓で横にはみ出していない
+  // 最小幅より狭い窓がどれも横にはみ出していない（最小幅の実測が誤っている）
   expect(
     codesOf(
-      metadataOf({ overflow: overflowWithWindow({ horizontal: false, horizontal_bar_px: 0 }) }),
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              ...page,
+              windows: page.windows.map((w) => ({
+                ...w,
+                horizontal: false,
+                horizontal_bar_px: 0,
+                overflow_x_px: 0,
+              })),
+            },
+          ],
+        }),
+      }),
     ),
-  ).toContain("overflow-min-width-inconsistent");
+  ).toContain("overflow-narrow-window-missing");
   // 最小幅を持たないと書いたのに横にはみ出している
   expect(
     codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, min_width: null }] }) })),
@@ -861,7 +903,11 @@ test("中身が収まる高さの狭い窓が無い記録は落とす（Codex �
           pages: [
             {
               ...page,
-              windows: [page.windows[0], page.windows[1], { ...page.windows[2], vertical: true }],
+              windows: [
+                page.windows[0],
+                page.windows[1],
+                { ...page.windows[2], vertical: true, overflow_y_px: 16 },
+              ],
             },
           ],
         }),
@@ -885,6 +931,8 @@ test("中身が収まる高さの狭い窓が無い記録は落とす（Codex �
                   horizontal: false,
                   vertical: true,
                   horizontal_bar_px: 0,
+                  overflow_x_px: 0,
+                  overflow_y_px: 2432,
                 },
               ],
             },
@@ -906,4 +954,49 @@ test("同梱テンプレートのプレースホルダのままの overflow は�
   const cc = template.capture_conditions;
   const codes = codesOf(metadataOf({ scrollbars: cc.scrollbars, overflow: cc.overflow }));
   expect(codes).toEqual(expect.arrayContaining(["scrollbars-unknown", "overflow-status-unknown"]));
+});
+
+test("最小幅が中間のブレークポイントでだけ効く頁は、狭いモバイル幅ではみ出さなくても落とさない（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  const mobile = {
+    width: 375,
+    height: 768,
+    horizontal: false,
+    vertical: true,
+    horizontal_bar_px: 0,
+    overflow_x_px: 0,
+    overflow_y_px: 2432,
+  };
+  expect(
+    codesOf(
+      metadataOf({
+        viewports: [
+          { width: 1366, height: 768, label: "desktop" },
+          { width: 375, height: 768, label: "mobile" },
+        ],
+        scope: [],
+        noise: [],
+        overflow: overflowOf({ pages: [{ ...page, windows: [...page.windows, mobile] }] }),
+      }),
+    ).filter((c) => c.startsWith("overflow-")),
+  ).toEqual([]);
+});
+
+test("はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）", () => {
+  for (const bad of [
+    { overflow_x_px: undefined },
+    { overflow_y_px: -1 },
+    { overflow_y_px: 1.5 },
+    { overflow_x_px: "100" },
+  ]) {
+    expect(codesOf(metadataOf({ overflow: overflowWithWindow(bad) }))).toContain(
+      "overflow-window-malformed",
+    );
+  }
+  expect(codesOf(metadataOf({ overflow: overflowWithWindow({ overflow_x_px: 0 }) }))).toContain(
+    "overflow-extent-inconsistent",
+  );
+  expect(codesOf(metadataOf({ overflow: overflowWithWindow({ overflow_y_px: 0 }) }))).toContain(
+    "overflow-extent-inconsistent",
+  );
 });

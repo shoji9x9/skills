@@ -215,7 +215,7 @@
       "pages": [
         {
           "page": "<capture_conditions.pages[].name。撮影頁を全て 1 回ずつ>",
-          "min_width": "<頁の最小幅（px。狭い窓で測った document の scrollWidth）。どの幅でも横にはみ出さない頁だけ null>",
+          "min_width": "<頁の最小幅（px）。320px から撮影ビューポートの幅まで 40px 刻みの窓で読み、横にはみ出した窓の document の scrollWidth の最大値。どの窓でも横にはみ出さない頁だけ null>",
           "content_height": "<min_width を持つ頁だけ、最小幅より狭く撮影ビューポートと同じ高さの窓で読んだ文書の scrollHeight（px）。windows にはこれより高い狭い窓（中身が収まる高さ＝縦のはみ出しが頁の高さの決め方だけで決まる窓）が要る。min_width が null なら null>",
           "windows": [
             {
@@ -223,7 +223,9 @@
               "height": 0,
               "horizontal": "<真偽値。scrollWidth > clientWidth（横にはみ出したか）。根（html、または伝播する body）の overflow-x が hidden / clip なら横スクロールバーが出ないので false>",
               "vertical": "<真偽値。scrollHeight > clientHeight（縦にはみ出したか）>",
-              "horizontal_bar_px": "<0 以上の数。innerHeight − clientHeight（横スクロールバーの厚み）。横にはみ出した窓で 0 なら、スクロールバーが隠れたまま測っている>"
+              "horizontal_bar_px": "<0 以上の数。innerHeight − clientHeight（横スクロールバーの厚み）。横にはみ出した窓で 0 なら、スクロールバーが隠れたまま測っている>",
+              "overflow_x_px": "<0 以上の整数。横のはみ出し量（scrollWidth − clientWidth。根の overflow-x が hidden / clip なら 0）。horizontal は overflow_x_px > 0 と一致させる>",
+              "overflow_y_px": "<0 以上の整数。縦のはみ出し量（scrollHeight − clientHeight）。vertical は overflow_y_px > 0 と一致させる。スイートは有無ではなく量（±1px）で比べる——どの高さでも縦にはみ出す頁では有無だけだと 100% と 100vh を見分けられない>"
             }
           ]
         }

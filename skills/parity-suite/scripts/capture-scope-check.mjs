@@ -497,6 +497,25 @@ export function checkOverflow(conditions) {
         add("overflow-window-malformed", `${wat}.horizontal_bar_px が 0 以上の数でない`);
         return;
       }
+      // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
+      // 100% と 100vh が両側とも vertical: true になり見分けられない（Codex レビュー #453）。スイートは量を比べる
+      const extentOk = (v) => Number.isInteger(v) && /** @type {number} */ (v) >= 0;
+      if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {
+        add(
+          "overflow-window-malformed",
+          `${wat}.overflow_x_px / overflow_y_px が 0 以上の整数でない`,
+        );
+        return;
+      }
+      if (
+        w.horizontal !== /** @type {number} */ (w.overflow_x_px) > 0 ||
+        w.vertical !== /** @type {number} */ (w.overflow_y_px) > 0
+      ) {
+        add(
+          "overflow-extent-inconsistent",
+          `${wat} のはみ出しの真偽値とはみ出し量が矛盾している（horizontal は overflow_x_px > 0、vertical は overflow_y_px > 0 と一致させる）`,
+        );
+      }
       // 陽性コントロール: 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている
       if (w.horizontal && w.horizontal_bar_px === 0) {
         add(
@@ -514,7 +533,9 @@ export function checkOverflow(conditions) {
         }
         return;
       }
-      if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth)) {
+      // 最小幅より狭い窓が全て横にはみ出すとは限らない（最小幅が中間のブレークポイントでだけ効くレスポンシブな頁は、
+      // モバイル幅ではみ出さない）。数えるのは「最小幅より狭く、横にはみ出した窓」
+      if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth) && w.horizontal) {
         narrow += 1;
         if (
           contentHeightOk &&
@@ -522,23 +543,17 @@ export function checkOverflow(conditions) {
         ) {
           fitting += 1;
         }
-        if (!w.horizontal) {
-          add(
-            "overflow-min-width-inconsistent",
-            `${wat} は min_width（${minWidth}）より狭いのに横にはみ出していない（最小幅の実測が誤っている）`,
-          );
-        }
       }
     });
     if (minWidthOk && minWidth !== null && narrow === 0) {
       add(
         "overflow-narrow-window-missing",
-        `${at} に min_width（${minWidth}）より狭い窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
+        `${at} に min_width（${minWidth}）より狭く横にはみ出した窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
       );
     } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {
       add(
         "overflow-fit-window-missing",
-        `${at} に min_width（${minWidth}）より狭く content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
+        `${at} に min_width（${minWidth}）より狭く横にはみ出し、content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
       );
     }
   });

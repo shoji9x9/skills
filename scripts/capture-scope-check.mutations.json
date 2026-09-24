@@ -79,15 +79,6 @@
       "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
     },
     {
-      "id": "narrow-not-horizontal",
-      "why": "最小幅より狭い窓で横にはみ出していなくても通す",
-      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "        if (!w.horizontal) {\n",
-      "replace": "        if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
-    },
-    {
       "id": "narrow-window-missing",
       "why": "最小幅より狭い窓を 1 つも測っていなくても通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
@@ -113,6 +104,33 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "extent-malformed",
+      "why": "はみ出し量が読めない窓も通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "extent-inconsistent",
+      "why": "はみ出しの真偽値と量の矛盾を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        w.horizontal !== /** @type {number} */ (w.overflow_x_px) > 0 ||\n",
+      "replace": "        false ||\n",
+      "occurrences": 1,
+      "expect_failing": ["はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "narrow-requires-horizontal",
+      "why": "横にはみ出していない狭い窓も「狭い窓」に数える",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "(minWidth) && w.horizontal) {\n",
+      "replace": "(minWidth)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
     }
   ]
 }

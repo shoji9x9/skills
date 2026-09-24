@@ -445,7 +445,10 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 1. 最小幅より狭く、撮影したビューポートと同じ高さの窓（横スクロールバーが出る）
 2. 1 と同じ幅で、中身が収まる高さの窓。**縦のはみ出しが頁の高さの決め方だけで決まる**ので、`100%` と `100vh` の差がここに出る
 
-最小幅は、狭い窓（既定 320px 幅）で読んだ文書の `scrollWidth` で決める。2 の高さは 1 の窓で読んだ文書の `scrollHeight`（`content_height` として記録する）より高くとり、検査はその窓があることを確かめる。その窓で横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
+最小幅は、320px から撮影ビューポートの幅まで 40px 刻みの窓で読んだ文書の `scrollWidth` で決め、横にはみ出した窓のうち最も広いものを 1 の幅にする（中間のブレークポイントでだけ最小幅が効くレスポンシブな頁を 1 窓の探索で見落とさないため）。
+2 の高さは 1 の窓で読んだ文書の `scrollHeight`（`content_height` として記録する）より高くとり、検査はその窓があることを確かめる。
+どの窓でも横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
+各窓では縦・横のはみ出しの有無に加えて**はみ出し量**（`scrollHeight − clientHeight` 等）を残し、スペックは量で比べる——どの高さでも縦にはみ出す頁（`body { height: 100% }` と既定の margin）では、有無だけだと `100%` と `100vh` が両側とも「はみ出す」になり見分けられない。
 
 測定スペックは `<parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts` に置き、**`current` と `new` の両プロジェクトに含める**。
 同じスペックが 2 つの役を持つ——`PARITY_OVERFLOW_CAPTURE=1` を渡した `current` の実行では実測を `metadata.json` の `capture_conditions.overflow` へ書き、
@@ -485,9 +488,17 @@ const capturing = process.env.PARITY_OVERFLOW_CAPTURE === "1";
 const faultCss = process.env.PARITY_OVERFLOW_FAULT_CSS;
 /** 最小幅を読む狭い窓の幅 */
 const PROBE_WIDTH = 320;
+/** 最小幅を探す窓の刻み（これより狭い帯でだけ効く最小幅は拾えない） */
+const PROBE_STEP = 40;
 
 type Window = { width: number; height: number };
-type Measured = { horizontal: boolean; vertical: boolean; horizontal_bar_px: number };
+type Measured = {
+  horizontal: boolean;
+  vertical: boolean;
+  horizontal_bar_px: number;
+  overflow_x_px: number;
+  overflow_y_px: number;
+};
 
 async function measure(page: Page, path: string, w: Window): Promise<Measured> {
   await page.setViewportSize(w);
@@ -503,9 +514,15 @@ async function measure(page: Page, path: string, w: Window): Promise<Measured> {
     const rootX = getComputedStyle(document.documentElement).overflowX;
     const viewportX = rootX === "visible" && document.body ? getComputedStyle(document.body).overflowX : rootX;
     const clipsX = viewportX === "hidden" || viewportX === "clip";
+    const overflowX = clipsX ? 0 : Math.max(0, el.scrollWidth - el.clientWidth);
+    const overflowY = Math.max(0, el.scrollHeight - el.clientHeight);
     return {
-      horizontal: !clipsX && el.scrollWidth > el.clientWidth,
-      vertical: el.scrollHeight > el.clientHeight,
+      horizontal: overflowX > 0,
+      vertical: overflowY > 0,
+      // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
+      // 100% と 100vh が両側とも vertical: true になり見分けられない
+      overflow_x_px: overflowX,
+      overflow_y_px: overflowY,
       // 横スクロールバーの厚み。横にはみ出して 0 なら、スクロールバーが隠れたまま測っている
       horizontal_bar_px: window.innerHeight - el.clientHeight,
     };
@@ -525,26 +542,36 @@ if (capturing) {
     const records = [];
     for (const p of pages) {
       const base = viewports[0];
-      await page.setViewportSize({ width: PROBE_WIDTH, height: base.height });
-      await page.goto(p.path);
-      await waitForStableRect(page.locator("body"));
-      const probe = await page.evaluate(() => {
-        const el = document.scrollingElement ?? document.documentElement;
-        // measure と同じ判定（根で横を切っている頁は横スクロールバーが出ないので最小幅を持たない扱い）
-        const rootX = getComputedStyle(document.documentElement).overflowX;
-        const viewportX = rootX === "visible" && document.body ? getComputedStyle(document.body).overflowX : rootX;
-        const clipsX = viewportX === "hidden" || viewportX === "clip";
-        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, clipsX };
-      });
-      const minWidth = !probe.clipsX && probe.scrollWidth > probe.clientWidth ? probe.scrollWidth : null;
+      // 最小幅は 1 窓では決まらない（中間のブレークポイントでだけ min-width が効くレスポンシブな頁は、320px でも撮影幅でも
+      // はみ出さない）。PROBE_WIDTH から撮影ビューポートの幅まで PROBE_STEP 刻みで読み、横にはみ出した窓のうち最も広いものを狭い窓にする
+      const maxWidth = Math.max(...viewports.map((v) => v.width));
+      let minWidth: number | null = null;
+      let narrowWidth: number | null = null;
+      for (let width = PROBE_WIDTH; width < maxWidth; width += PROBE_STEP) {
+        await page.setViewportSize({ width, height: base.height });
+        await page.goto(p.path);
+        await waitForStableRect(page.locator("body"));
+        const probe = await page.evaluate(() => {
+          const el = document.scrollingElement ?? document.documentElement;
+          // measure と同じ判定（根で横を切っている頁は横スクロールバーが出ないのではみ出しに数えない）
+          const rootX = getComputedStyle(document.documentElement).overflowX;
+          const viewportX = rootX === "visible" && document.body ? getComputedStyle(document.body).overflowX : rootX;
+          const clipsX = viewportX === "hidden" || viewportX === "clip";
+          return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, clipsX };
+        });
+        if (!probe.clipsX && probe.scrollWidth > probe.clientWidth) {
+          minWidth = Math.max(minWidth ?? 0, probe.scrollWidth);
+          narrowWidth = width;
+        }
+      }
       const windows: Window[] = viewports.map((v) => ({ width: v.width, height: v.height }));
       // 最小幅より狭い窓で読んだ中身の高さ（capture-scope-check が「これより高い狭い窓」があることを確かめる）
       let contentHeight: number | null = null;
-      if (minWidth === null) {
+      if (minWidth === null || narrowWidth === null) {
         windows.push({ width: PROBE_WIDTH, height: base.height });
       } else {
         // 最小幅より狭い窓（横スクロールバーが出る）と、同じ幅で中身が収まる高さの窓
-        const narrow = { width: Math.max(1, minWidth - 100), height: base.height };
+        const narrow = { width: narrowWidth, height: base.height };
         await page.setViewportSize(narrow);
         await page.goto(p.path);
         await waitForStableRect(page.locator("body"));
@@ -590,8 +617,9 @@ if (capturing) {
         const label = `${record.page} ${w.width}x${w.height}`;
         const m = await measure(page, p.path, w);
         assertBarTakesSpace(m, label);
-        expect.soft(m.horizontal, `${label} の横のはみ出し`).toBe(w.horizontal);
-        expect.soft(m.vertical, `${label} の縦のはみ出し`).toBe(w.vertical);
+        // 量で比べる（±1px はサブピクセルの丸め）。真偽値の一致だけでは、両側ともはみ出す頁で高さの決め方の差を見逃す
+        expect.soft(Math.abs(m.overflow_x_px - w.overflow_x_px), `${label} の横のはみ出し量`).toBeLessThanOrEqual(1);
+        expect.soft(Math.abs(m.overflow_y_px - w.overflow_y_px), `${label} の縦のはみ出し量`).toBeLessThanOrEqual(1);
       }
     });
   }
