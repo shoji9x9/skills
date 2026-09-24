@@ -164,11 +164,21 @@ export function amendVerifyPair(root, pair, options = {}) {
   /** @type {Record<string, {path:string, sha256:string}>} */
   const inputs = {};
   for (const key of ["prev_new", "new", "current"]) {
-    const path = `${dir}/${pair.replaceAll("|", ".")}.${key}.png`;
+    // 撮り直した新側（inputs.new）は採取の組のディレクトリの screenshot.png。隣の traits.json から領域を突き合わせる
+    const path =
+      key === "new"
+        ? `.replace/parity/${FEATURE}/new/${TARGET}/baseline-new/${pair.replaceAll("|", "/")}/screenshot.png`
+        : `${dir}/${pair.replaceAll("|", ".")}.${key}.png`;
     const body = `PNG ${pair} ${key}\n`;
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), body);
     inputs[key] = { path, sha256: createHash("sha256").update(body).digest("hex") };
+    if (key === "new") {
+      writeFileSync(
+        join(root, dirname(path), "traits.json"),
+        `${JSON.stringify([{ name: "button: 次へ", rect: { x: 10, y: 10, width: 80, height: 24 } }])}\n`,
+      );
+    }
   }
   const pass = options.pass ?? true;
   return {

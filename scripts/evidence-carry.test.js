@@ -255,6 +255,67 @@ test("機能の slug が空で metadata を渡していない: 別のパスへ�
   expect(result.findings.join("\n")).toContain("機能の slug が分からない");
 });
 
+test.each([
+  ["outside_scope_identical", { outside_scope_identical: false, inside_matches_current: true }],
+  ["inside_matches_current", { outside_scope_identical: true, inside_matches_current: false }],
+])(
+  "変更宣言の catalog_verification.%s が false: 影響なしの機能でも持ち越さない",
+  (_key, verification) => {
+    const p = project();
+    const path = join(p.root, p.changePath);
+    const change = JSON.parse(readFileSync(path, "utf8"));
+    writeJson(path, {
+      ...change,
+      catalog_verification: { ...change.catalog_verification, ...verification },
+    });
+    const result = judge(p, { featureMetadata: featureMetadata([["list", "default", "desktop"]]) });
+    expect(result.ok).toBe(false);
+    expect(result.findings.join("\n")).toContain("catalog_verification が合格していない");
+  },
+);
+
+/**
+ * 記録の組を書き換える。
+ * @param {ReturnType<typeof project>} p
+ * @param {(entry: Record<string, any>) => void} edit
+ */
+function editRecordPair(p, edit) {
+  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  edit(record.pairs[0]);
+  writeJson(join(p.root, p.recordPath), record);
+}
+
+test("影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない", () => {
+  const p = project();
+  editRecordPair(p, (entry) => {
+    entry.margin = 400;
+  });
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("変更宣言の margin_px 4 と違う");
+});
+
+test("影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない", () => {
+  const p = project();
+  editRecordPair(p, (entry) => {
+    entry.declared_regions = [{ x: 0, y: 0, width: 1280, height: 800 }];
+  });
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain(
+    "declared_regions（0,0,1280,800）が新側の traits.json",
+  );
+});
+
+test("影響あり・撮り直した組の traits.json が無い: 持ち越さない", () => {
+  const p = project();
+  const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
+  rmSync(join(p.root, dirname(record.pairs[0].inputs.new.path), "traits.json"));
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("新側の traits.json を読めない");
+});
+
 test("影響あり・amend-verify の記録に影響する組が無い: 落とす", () => {
   const p = project();
   writeJson(join(p.root, p.recordPath), {
@@ -294,7 +355,8 @@ test("amend-verify の inputs のパスはプロジェクトルートから解�
   const p = project();
   const record = JSON.parse(readFileSync(join(p.root, p.recordPath), "utf8"));
   // 記録のディレクトリ相対に書き換える。ファイルは実在するがプロジェクトルートからは解決できない。
-  for (const key of ["prev_new", "new", "current"]) {
+  // inputs.new は traits.json を引く起点にもなるので書き換えず、画像の解決規則だけを測る
+  for (const key of ["prev_new", "current"]) {
     const ref = record.pairs[0].inputs[key];
     ref.path = ref.path.replace(`.replace/parity/${FEATURE}/new/${TARGET}/`, "");
   }

@@ -177,6 +177,38 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["変更宣言の usages がどの機能のページとも一致しない: 持ち越さない"]
+    },
+    {
+      "id": "catalog-unverified-carried",
+      "why": "部品の照合（catalog_verification）が合格していない変更宣言で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "変更宣言の catalog_verification.outside_scope_identical が false: 影響なしの機能でも持ち越さない",
+        "変更宣言の catalog_verification.inside_matches_current が false: 影響なしの機能でも持ち越さない"
+      ]
+    },
+    {
+      "id": "margin-unbound",
+      "why": "記録の margin が変更宣言の margin_px と違っても持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (entry.margin !== change.margin_px) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない"]
+    },
+    {
+      "id": "regions-unbound",
+      "why": "記録の領域が traits.json の rect と違っても（画面全体でも）持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (a !== b) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない"
+      ]
     }
   ]
 }

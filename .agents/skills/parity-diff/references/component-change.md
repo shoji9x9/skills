@@ -47,6 +47,10 @@
      論理名が `traits.json` に無い・`rect` が面積 0 なら領域を推測で置かず、その組は機械判定できない
    - インストール済みの本スキルの [`../scripts/amend-verify.mjs`](../scripts/amend-verify.mjs) に、組ごとに改修前の新側・撮り直した新側・現側のスクリーンショットと領域を渡す
      （`--pair` / `--prev-new` / `--new` / `--current` / `--region` / `--margin`、複数の組は `--pairs <json>`。`--change-id` と `--out <記録>` で記録を残す）。
+     `--region` には `traits.json` の `rect` を**広げずにそのまま**、`--margin` には宣言の `margin_px` を渡し、`--new` には撮り直した組の
+     `baseline-new/<page>/<state>/<viewport>/screenshot.png` をそのまま渡す（写した先のパスにしない）。
+     鮮度検査は記録の `margin` が `margin_px` と、`declared_regions` がその隣の `traits.json` の `rect` と一致することを確かめ、
+     判定を弱めた記録（大きな margin・画面全体の領域）では持ち越さない。
      **プロジェクトルート（`.replace` の親）を作業ディレクトリにして実行する**（記録は渡したパスのまま残り、鮮度検査はそれをプロジェクトルートから解決する）。記録は `new/<target>/` の下に置く
    - **合格の組**（領域の外は改修前と画素が完全に一致し、領域の中の現行との不一致画素が増えていない）は、トリアージ・承認を省き、**前回の分類を組・領域・原因で引き継ぐ**。
      検出と正規化（[`detect.md`](detect.md) / [`normalize.md`](normalize.md)）は決定論的なので通常どおり回し、前回の分類に対応が無い候補だけをトリアージへ回す

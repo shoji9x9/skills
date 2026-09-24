@@ -102,6 +102,78 @@ function reasonOf(e) {
 }
 
 /**
+ * 影響する組の影響インスタンス（論理名）。
+ * @param {{pair:string, instances?: {id:string, locator:string}[]}[]} pairs
+ * @param {string} pair
+ * @returns {{id:string, locator:string}[]}
+ */
+function pairInstances(pairs, pair) {
+  return pairs.find((p) => p.pair === pair)?.instances ?? [];
+}
+
+/**
+ * 矩形を比較用の文字列にする（順序に依らない集合比較のため）。
+ * @param {unknown} r
+ * @returns {string | null}
+ */
+function rectKey(r) {
+  if (!isPlainObject(r)) return null;
+  const v = /** @type {Record<string, unknown>} */ (r);
+  const nums = [v.x, v.y, v.width, v.height];
+  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+  return nums.join(",");
+}
+
+/**
+ * amend-verify の組の判定に使った幾何（margin と領域）が、変更宣言と新側の採取物に結びついているか。
+ * 画像の sha256 は画像を認証するだけで、判定を弱める margin・領域（画面全体など）を認証しない。
+ * margin は宣言の margin_px と一致し、領域（広げる前の declared_regions）は撮り直した新側の組の
+ * traits.json（inputs.new と同じディレクトリ）にある影響インスタンスの論理名の rect と一致することを求める。
+ * @param {Record<string, any>} entry
+ * @param {Record<string, any>} change
+ * @param {{id:string, locator:string}[]} instances
+ * @param {(p: string) => string} fromProject
+ * @param {(p: string) => Buffer} readBytes
+ * @returns {string | null} 不合格の理由（合格なら null）
+ */
+function checkGeometry(entry, change, instances, fromProject, readBytes) {
+  if (entry.margin !== change.margin_px) {
+    return `margin ${JSON.stringify(entry.margin)} が変更宣言の margin_px ${JSON.stringify(change.margin_px)} と違う（判定を弱めた記録で持ち越さない）`;
+  }
+  if (instances.length === 0) return "影響インスタンスが無く、領域を採取物と突き合わせられない";
+  const newPath = isPlainObject(entry.inputs) ? entry.inputs.new?.path : undefined;
+  if (!nonEmptyString(newPath)) return "inputs.new.path が無く、traits.json を引けない";
+  const traitsPath = join(dirname(fromProject(newPath)), "traits.json");
+  let traits;
+  try {
+    traits = JSON.parse(readBytes(traitsPath).toString("utf8"));
+  } catch (e) {
+    return `新側の traits.json を読めない（inputs.new には撮り直した組の screenshot.png を渡す）: ${traitsPath}（${reasonOf(e)}）`;
+  }
+  if (!Array.isArray(traits)) return `新側の traits.json が配列でない: ${traitsPath}`;
+  /** @type {string[]} */
+  const expected = [];
+  for (const { locator } of instances) {
+    const found = traits.filter((t) => isPlainObject(t) && t.name === locator);
+    const key = found.length === 1 ? rectKey(found[0].rect) : null;
+    if (key === null) {
+      return `新側の traits.json に影響インスタンスの論理名 ${JSON.stringify(locator)} の rect が 1 件だけある形でない（${found.length} 件）: ${traitsPath}`;
+    }
+    expected.push(key);
+  }
+  const declared = Array.isArray(entry.declared_regions) ? entry.declared_regions.map(rectKey) : [];
+  if (declared.some((k) => k === null) || declared.length === 0) {
+    return "declared_regions が矩形の配列でない";
+  }
+  const a = [...declared].sort().join(" | ");
+  const b = [...expected].sort().join(" | ");
+  if (a !== b) {
+    return `declared_regions（${a}）が新側の traits.json の影響インスタンスの rect（${b}）と一致しない（領域は traits.json の rect をそのまま渡す）`;
+  }
+  return null;
+}
+
+/**
  * render_inputs の pathspec を git へ渡す形にする。既に magic（`:` 始まり）を持つものはそのまま、
  * それ以外は `:(glob)` を付ける（`*` が `/` を跨がず、`**` だけが階層を跨ぐ）。
  * @param {string} spec
@@ -485,6 +557,15 @@ export function judgeCarry(input) {
   }
   for (const d of used) {
     const id = String(d.change.id);
+    // 部品側の照合（宣言した範囲の外は差分ゼロ・範囲の中は現行と一致）が通っていない宣言は、
+    // 範囲の外にも効いている疑いがあるので、影響の計算そのものを根拠にできない
+    const catalog = /** @type {Record<string, unknown>} */ (d.change.catalog_verification);
+    if (catalog.outside_scope_identical !== true || catalog.inside_matches_current !== true) {
+      findings.push(
+        `変更宣言 ${id} の catalog_verification が合格していない（outside_scope_identical: ${JSON.stringify(catalog.outside_scope_identical)}、inside_matches_current: ${JSON.stringify(catalog.inside_matches_current)}）。部品の照合が通ってから持ち越す（parity-component の references/amend.md）`,
+      );
+      continue;
+    }
     const componentPath = join(replaceRoot, "components", String(d.change.slug), "metadata.json");
     const component = readJson(componentPath, "部品 metadata.json");
     if (!component.ok) {
@@ -533,7 +614,10 @@ export function judgeCarry(input) {
       continue;
     }
     // affected。
-    const pairs = /** @type {{pair:string, region_known:boolean}[]} */ (feature.pairs);
+    const pairs =
+      /** @type {{pair:string, region_known:boolean, instances: {id:string, locator:string}[]}[]} */ (
+        feature.pairs
+      );
     // 機械判定（amend-verify）の合格条件は「現行へ近づいた」なので、現行に合わせ直す修正にしか意味を持たない。
     // new-appearance は満たすべき条件が宣言から決まらず、合格しても従来のトリアージを省く根拠にならない
     if (d.change.kind !== "align-to-current") {
@@ -587,6 +671,17 @@ export function judgeCarry(input) {
         findings.push(
           `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
         );
+        continue;
+      }
+      const geometry = checkGeometry(
+        entry,
+        d.change,
+        pairInstances(pairs, pair),
+        fromProject,
+        readBytes,
+      );
+      if (geometry !== null) {
+        findings.push(`amend-verify の組 ${pair}: ${geometry}: ${recordPath}`);
         continue;
       }
       for (const key of ["prev_new", "new", "current"]) {
