@@ -467,6 +467,30 @@
           "prompt_quote": "この実行は --autonomous なので、後で人に聞く保留に落とすべきものがあるかも判断したい"
         }
       ]
+    },
+    {
+      "id": 36,
+      "fixture": "fixtures/issues-approval-gate",
+      "prompt": "replace-strategy issues で、機能 order の Issue 本文ドラフトだけ先に見せて（起票はまだしない）。受け入れ条件は「order のパリティスイートが新側で green」と「verification_commands.full が通る」の 2 つで足りるよね？ parity-replace が終わればスイートは green になるから、見た目も含めてそこで現行と一致したと言えるはず。",
+      "assertions": [
+        "order の Issue 本文ドラフトの受け入れ条件に、parity-replace と同じ target で parity-diff を回し diff-metadata.json の converged: true まで進める項を入れている",
+        "スイートが見るのは値・ラベル・役割で、余白・幅・罫線・背景などの見た目は parity-diff だけが見るため、スイート green を見た目の一致の根拠にできないと説明している",
+        "承認が無いため Issue を起票せず、.replace/features.md の Issue 列も書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "order の Issue 本文ドラフトの受け入れ条件に、parity-replace と同じ target で parity-diff を回し diff-metadata.json の converged: true まで進める項を入れている",
+          "prompt_quote": "受け入れ条件は「order のパリティスイートが新側で green」と「verification_commands.full が通る」の 2 つで足りるよね？"
+        },
+        {
+          "assertion": "スイートが見るのは値・ラベル・役割で、余白・幅・罫線・背景などの見た目は parity-diff だけが見るため、スイート green を見た目の一致の根拠にできないと説明している",
+          "prompt_quote": "見た目も含めてそこで現行と一致したと言えるはず"
+        },
+        {
+          "assertion": "承認が無いため Issue を起票せず、.replace/features.md の Issue 列も書き換えていない",
+          "prompt_quote": "起票はまだしない"
+        }
+      ]
     }
   ]
 }
