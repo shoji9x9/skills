@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCHEMA_VERSION = 1;
@@ -100,15 +100,6 @@ const SHELL_BINARIES = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 // a separator inside a quoted word.
 const SHELL_CONTROL_FLOW = /[|&;\n`()<>]|\$\(/u;
 
-// A command is evidence only when the WHOLE command is one plain invocation of a
-// reading utility. Splitting a compound command and judging the pieces reads a branch
-// that never ran as executed: `test -f X && cat X || echo absent` exits zero when X is
-// absent, yet the `cat X` piece is still in the text, and a separator inside quotes
-// (`printf '%s' 'note; cat X'`) splits the same way. Knowing which branch ran needs a
-// real shell parse; short of that, a compound command yields nothing.
-//
-// This under-counts a genuine read written as `cat X | head -5`, which costs one run
-// marked invalid_run — visible, and never a fabricated contamination.
 // How many leading non-flag operands are NOT files. `grep PATTERN file` and
 // `sed SCRIPT file` name the skill path in that first operand without opening it,
 // so the evidence is the operands after it, never the whole command.
@@ -121,7 +112,12 @@ const NON_FILE_LEADING_OPERANDS = new Map([
   ["sed", 1],
 ]);
 
-function shellReadTarget(command, depth = 0) {
+// The file operands of ONE plain invocation of a reading utility, or nothing. Anything
+// that can hide or redirect part of the command (a pipe, a redirect, a substitution, a
+// separator) disqualifies it: `cat X | head -5` exits with head's status, so a zero
+// exit does not say cat succeeded. That under-counts a genuine piped read, which costs
+// one run marked invalid_run — visible, and never a fabricated contamination.
+function readOperands(command) {
   const trimmed = command.trim();
   const words = trimmed.split(/\s+/u).filter(Boolean);
   // Skip leading env assignments and `sudo`-style prefixes to find the utility.
@@ -130,14 +126,6 @@ function shellReadTarget(command, depth = 0) {
     index += 1;
   }
   const utility = (words[index] ?? "").split("/").pop();
-
-  // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
-  // unwrapping the inner script no codex run would ever count as a read.
-  if (depth < 2 && SHELL_BINARIES.has(utility) && words.slice(index + 1).some(isShellCFlag)) {
-    const inner = stripOuterQuotes(trimmed);
-    return inner === null ? [] : shellReadTarget(inner, depth + 1);
-  }
-
   if (!READ_UTILITIES.has(utility) || SHELL_CONTROL_FLOW.test(trimmed)) {
     return [];
   }
@@ -173,28 +161,336 @@ function shellReadTarget(command, depth = 0) {
   return operands.slice(consumedOptionValue ? Math.max(leadingNonFile - 1, 0) : leadingNonFile);
 }
 
+// Split a script into the elements of a top-level `a && b && c` list, or return null
+// when it is anything else. The one inference this allows is sound: a pure `&&` list
+// that exited zero ran every element and every element exited zero, so a read inside
+// it happened and a `cd` inside it took effect. Every other connector breaks that:
+// `a || b` and `a; b` exit zero with `a` failed, `a & b` does not wait for `a`, and a
+// comment or subshell changes what the text means. A separator inside quotes, `$( )`
+// or backticks belongs to that inner word, not to the list. Whatever this scanner
+// cannot place (an unbalanced quote or paren) rejects the whole script.
+function splitAndList(script) {
+  const elements = [];
+  let current = "";
+  let quote = null;
+  let substitutionDepth = 0;
+  let inBackticks = false;
+  for (let index = 0; index < script.length; index += 1) {
+    const char = script[index];
+    const next = script[index + 1];
+    if (quote === "'") {
+      current += char;
+      if (char === "'") {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "\\") {
+      current += char + (next ?? "");
+      index += 1;
+      continue;
+    }
+    if (quote === '"') {
+      // `"$(…)"` may nest quotes of its own; rather than track that, give up.
+      if (char === "`" || (char === "$" && next === "(")) {
+        return null;
+      }
+      current += char;
+      if (char === '"') {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (inBackticks) {
+      current += char;
+      if (char === "`") {
+        inBackticks = false;
+      }
+      continue;
+    }
+    if (char === "`") {
+      inBackticks = true;
+      current += char;
+      continue;
+    }
+    if (char === "$" && next === "(") {
+      substitutionDepth += 1;
+      current += "$(";
+      index += 1;
+      continue;
+    }
+    if (substitutionDepth > 0) {
+      if (char === "(") {
+        substitutionDepth += 1;
+      } else if (char === ")") {
+        substitutionDepth -= 1;
+      }
+      current += char;
+      continue;
+    }
+    // Top level from here on.
+    if (char === "&" && next === "&") {
+      elements.push(current);
+      current = "";
+      index += 1;
+      continue;
+    }
+    // `2>&1`, `>&2` and `&>` are redirects, not a background `&`.
+    const redirect = char === "&" && (/[<>]/u.test(script[index - 1] ?? "") || next === ">");
+    const commentStart = char === "#" && (current === "" || /\s/u.test(current.at(-1)));
+    if (
+      (char === "&" && !redirect) ||
+      (char === "|" && next === "|") ||
+      ";\n(){}".includes(char) ||
+      commentStart
+    ) {
+      return null;
+    }
+    current += char;
+  }
+  if (quote !== null || inBackticks || substitutionDepth !== 0) {
+    return null;
+  }
+  elements.push(current);
+  return elements.every((element) => element.trim() !== "") ? elements : null;
+}
+
+// `cd <one literal directory>`. Anything the shell would expand first (`~`, `$VAR`,
+// globs, `cd -`, no operand) has a destination the trace does not state.
+function plainCdTarget(element) {
+  const match = /^cd\s+(\S+)$/u.exec(element.trim());
+  if (match === null) {
+    return null;
+  }
+  const quoted = /^(['"])([^'"]*)\1$/u.exec(match[1]);
+  const target = quoted === null ? match[1] : quoted[2];
+  if (target === "" || /^[-~]|[$`*?[\\'"]/u.test(target)) {
+    return null;
+  }
+  return target;
+}
+
+// Whether a script may leave the shell in another directory. This is an allowlist,
+// not a list of ways to move: every spelling a denylist missed (`\cd`, `c'd'`, `c$'d'`,
+// `c$(printf d)`, `c? /x`, `eval "$MOVE"`, a line continuation inside `cd`) runs the
+// builtin, and there is no end to them. So the directory is kept only when every
+// command word in the script is a plain literal that is not itself a move or a way to
+// run one; anything else leaves it unknown, which only ever drops evidence.
+//
+// Not covered: a function or alias from the user's shell profile (`z proj`) moves the
+// directory under a plain literal name. The Bash tool does not carry functions between
+// calls, so only profile-defined ones remain.
+const CWD_WORDS = new Set([
+  // Moves, and ways to run a command the text does not spell out.
+  ".",
+  "alias",
+  "builtin",
+  "cd",
+  "command",
+  "enable",
+  "eval",
+  "exec",
+  "popd",
+  "pushd",
+  "shopt",
+  "source",
+  "trap",
+  // Ends the shell, so an `&&` list exits zero without running what follows
+  // (`exit 0 && cat X`).
+  "exit",
+  "logout",
+  "return",
+  "suspend",
+  // Reserved words put the real command word after them (`if cd /x; then …`).
+  "!",
+  "case",
+  "coproc",
+  "do",
+  "done",
+  "elif",
+  "else",
+  "esac",
+  "fi",
+  "for",
+  "function",
+  "if",
+  "in",
+  "select",
+  "then",
+  "time",
+  "until",
+  "while",
+]);
+const LITERAL_WORD = /^(?:[\w./+:@%^,-]+|\[{1,2})$/u;
+const REDIRECT_WORD = /^\d*(?:[<>]|&>)/u;
+
+// Blank what quotes protect, so a separator inside them does not start a command word.
+// A substitution inside double quotes runs in a subshell, which cannot move the caller.
+// The quote characters stay, so a word spelled with quotes (`c'd'`, `"cd"`) is still not
+// a literal. A quote left open returns null.
+function blankQuoted(text) {
+  let out = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\\") {
+      out += text.slice(index, index + 2);
+      index += 1;
+      continue;
+    }
+    if (char !== "'" && char !== '"') {
+      out += char;
+      continue;
+    }
+    let close = index + 1;
+    while (close < text.length && text[close] !== char) {
+      close += char === '"' && text[close] === "\\" ? 2 : 1;
+    }
+    if (close >= text.length) {
+      return null;
+    }
+    out += char + char;
+    index = close;
+  }
+  return out;
+}
+
+function movesCwd(text) {
+  // A line continuation needs no joining: `c\<newline>d` leaves `c\` as a word, which
+  // is not a literal.
+  const blanked = blankQuoted(text);
+  if (blanked === null) {
+    return true;
+  }
+  for (const segment of blanked.split(/[;&|(){}`\n]/u)) {
+    const words = segment.trim().split(/\s+/u).filter(Boolean);
+    let index = 0;
+    while (
+      index < words.length &&
+      (/^[A-Za-z_]\w*=/u.test(words[index]) || REDIRECT_WORD.test(words[index]))
+    ) {
+      // A bare operator (`2>`, `<`) takes the next word as its target.
+      index += /^\d*(?:[<>]{1,2}|&>)$/u.test(words[index]) ? 2 : 1;
+    }
+    const word = words[index];
+    if (word !== undefined && (!LITERAL_WORD.test(word) || CWD_WORDS.has(word))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A read that climbs with `..` opens the physical parent, which differs from the
+// textual one once any directory on the way was reached through a symlink — and the
+// trace cannot show that. Leave such an operand as written. (A `cd ..` is different:
+// bash's default logical cd does resolve it textually.)
+//
+// A symlink the cwd sits *under* is not handled: `cd ./.claude/skills/box/link && cat
+// SKILL.md` counts as the skill exactly as `cat .claude/skills/box/link/SKILL.md` always
+// has. The matcher takes a path spelled under the installed skill as the skill; the
+// harness installs it with `cp -R` from skills/, which holds no symlinks, so one there
+// is the run's own making. Refusing every relative read whose directory's symlinks
+// cannot be verified would refuse them all.
+function resolveRead(cwd, path) {
+  return /(?:^|\/)\.\.(?:\/|$)/u.test(path) ? path : resolveAgainst(cwd, path);
+}
+
+function resolveAgainst(cwd, path) {
+  return cwd === null || /^[/~$]/u.test(path) ? path : posix.resolve(cwd, path);
+}
+
+// What one shell command read, and where it left the shell's directory, given the
+// directory it started in (`null` = not known). `cwdAfter` is `undefined` when the
+// command cannot have moved it, `null` when it may have gone somewhere unknown.
+function analyzeShellCommand(command, cwd, depth = 0) {
+  const trimmed = command.trim();
+  // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
+  // unwrapping the inner script no codex run would ever count as a read. The inner
+  // shell is a child, so nothing it does moves the caller's directory.
+  // shellCScript accepts only a script that ends the command, so nothing of this
+  // command runs in the caller's shell.
+  const inner = shellCScript(trimmed);
+  if (inner !== null) {
+    if (depth >= 2) {
+      return { reads: [], cwdAfter: undefined };
+    }
+    return { reads: analyzeShellCommand(inner, cwd, depth + 1).reads, cwdAfter: undefined };
+  }
+
+  const elements = splitAndList(trimmed);
+  if (elements === null) {
+    return { reads: [], cwdAfter: movesCwd(trimmed) ? null : undefined };
+  }
+  const reads = [];
+  let current = cwd;
+  let cwdAfter;
+  for (const element of elements) {
+    const target = plainCdTarget(element);
+    if (target !== null) {
+      // A relative target other than `./…` / `../…` is looked up through CDPATH first.
+      const direct = target.startsWith("/") || /^\.\.?(?:\/|$)/u.test(target);
+      current =
+        direct && (target.startsWith("/") || current !== null)
+          ? resolveAgainst(current, target)
+          : null;
+      cwdAfter = current;
+      continue;
+    }
+    // Anything the allowlist does not pass may also have ended the shell (`exit 0`,
+    // `eval "$X"`), after which the list exits zero with nothing further run: no read
+    // after it counts.
+    if (movesCwd(element)) {
+      current = null;
+      cwdAfter = null;
+      break;
+    }
+    if (shellCScript(element.trim()) !== null) {
+      reads.push(...analyzeShellCommand(element, current, depth).reads);
+      continue;
+    }
+    reads.push(...readOperands(element).map((path) => resolveRead(current, path)));
+  }
+  return { reads, cwdAfter };
+}
+
 function stripQuotes(word) {
   return word.replaceAll(/^['"]|['"]$/gu, "");
+}
+
+// The script `bash -c` runs: the first non-option word after the options, one of which
+// holds `c`. It must be a single quoted word that ends the command — text after it
+// (`bash -c 'x' && cd y`, or positional arguments) runs elsewhere or means something
+// else, and a quoted word later on the line (`bash -c echo 'cd x && cat y'`) is `$0`,
+// not the script. Anything else returns null, so the command is read as a plain one.
+function shellCScript(command) {
+  const match = /^(?:\w+=\S*\s+|sudo\s+)*(\S+)((?:\s+-{1,2}[A-Za-z-]+)+)\s+(['"])/u.exec(command);
+  if (
+    match === null ||
+    !SHELL_BINARIES.has(match[1].split("/").pop()) ||
+    !match[2].trim().split(/\s+/u).some(isShellCFlag) ||
+    command.length <= match[0].length ||
+    command.at(-1) !== match[3]
+  ) {
+    return null;
+  }
+  const body = command.slice(match[0].length, -1);
+  // A single-quoted word cannot hold `'`; a double-quoted one may hold only escaped `"`.
+  const closesEarly = match[3] === "'" ? body.includes("'") : /(?:^|[^\\])(?:\\\\)*"/u.test(body);
+  return closesEarly ? null : body;
 }
 
 function isShellCFlag(word) {
   return /^-[a-z]*c[a-z]*$/u.test(word);
 }
 
-// Return the text between the first quote and the last matching one, which is where a
-// `-c` script lives.
-function stripOuterQuotes(text) {
-  const opening = text.search(/['"]/u);
-  if (opening === -1) {
-    return null;
-  }
-  const closing = text.lastIndexOf(text[opening]);
-  return closing <= opening ? null : text.slice(opening + 1, closing);
-}
-
-function collectReadEvidence(toolName, input, sink) {
+// Returns where a shell call may leave the directory (see analyzeShellCommand).
+function collectReadEvidence(toolName, input, sink, cwd) {
   if (typeof input !== "object" || input === null) {
-    return;
+    return undefined;
   }
   for (const field of READ_TOOL_FIELDS.get(toolName) ?? []) {
     if (typeof input[field] === "string") {
@@ -202,8 +498,22 @@ function collectReadEvidence(toolName, input, sink) {
     }
   }
   if (SHELL_TOOLS.has(toolName) && typeof input.command === "string") {
-    sink.push(...shellReadTarget(input.command));
+    const { reads, cwdAfter } = analyzeShellCommand(input.command, cwd);
+    sink.push(...reads);
+    // A background command's `cd` lands in a shell whose directory this cannot follow.
+    return cwdAfter !== undefined && input.run_in_background === true ? null : cwdAfter;
   }
+  return undefined;
+}
+
+function toolResultText(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content.map((part) => (typeof part?.text === "string" ? part.text : "")).join("\n");
 }
 
 // `--output-format json` writes one object; `--output-format stream-json --verbose`
@@ -244,6 +554,12 @@ export function parseClaudeTrace(rawText) {
   // tool_use id -> evidence awaiting its result. Anything still here at the end was
   // issued but never completed, so it is dropped.
   const pendingEvidence = new Map();
+  // The Bash tool keeps one shell across calls, so `cd <skill dir>` followed by
+  // `cat SKILL.md` reads the skill without its path ever appearing in one command.
+  // `null` = not known: before init states it, after a call that may have moved it
+  // anywhere, and after the tool reports resetting it. Unknown leaves relative
+  // operands unresolved, which only ever loses evidence.
+  let cwd = null;
 
   let sawNonResultEvent = false;
   for (const event of events) {
@@ -252,8 +568,13 @@ export function parseClaudeTrace(rawText) {
       continue;
     }
     sawNonResultEvent = true;
-    if (event.type === "system" && event.subtype === "init" && Array.isArray(event.skills)) {
-      visibleSkills = event.skills.filter((name) => typeof name === "string");
+    if (event.type === "system" && event.subtype === "init") {
+      if (Array.isArray(event.skills)) {
+        visibleSkills = event.skills.filter((name) => typeof name === "string");
+      }
+      if (typeof event.cwd === "string" && event.cwd.startsWith("/")) {
+        cwd = event.cwd;
+      }
       continue;
     }
     // A call's evidence counts only once its result comes back without an error.
@@ -276,6 +597,14 @@ export function parseClaudeTrace(rawText) {
             invokedSkills.push(pending.invoked);
           }
         }
+        // A failed `cd X && …` may have stopped before or after the cd, and a move that
+        // ran alongside another may have run either first or last.
+        if (pending.cwdAfter !== undefined) {
+          cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;
+        }
+        if (/^Shell cwd was reset to /mu.test(toolResultText(block.content))) {
+          cwd = null;
+        }
       }
       continue;
     }
@@ -296,14 +625,45 @@ export function parseClaudeTrace(rawText) {
       if (name === "Skill" && typeof block.input?.skill === "string") {
         invoked = block.input.skill;
       }
-      collectReadEvidence(name, block.input, candidate);
-      if (candidate.length === 0 && invoked === null) {
+      // Calls issued together may run in any order, so while one that may move the
+      // directory is still out, where the others ran is not known.
+      const movePending = [...pendingEvidence.values()].some(
+        (pending) => pending.cwdAfter !== undefined,
+      );
+      const cwdAfter = collectReadEvidence(name, block.input, candidate, movePending ? null : cwd);
+      // The order runs both ways: a call already out may run after this move, so its
+      // relative reads lose the directory they were resolved against, and two moves out
+      // together leave whichever ran last.
+      let concurrentMove = false;
+      if (cwdAfter !== undefined) {
+        for (const pending of pendingEvidence.values()) {
+          if (pending.cwdAfter !== undefined) {
+            pending.concurrentMove = true;
+            concurrentMove = true;
+          }
+          const unresolved = [];
+          collectReadEvidence(pending.name, pending.input, unresolved, null);
+          pending.texts = unresolved;
+        }
+      }
+      const shell = SHELL_TOOLS.has(name);
+      if (candidate.length === 0 && invoked === null && !shell) {
         continue;
       }
       // Without an id the result cannot be correlated, so the call never becomes
       // evidence — an uncorrelated call is exactly the case this guard exists for.
+      // Every shell call waits too: its result is where a cwd reset is reported.
       if (typeof block.id === "string") {
-        pendingEvidence.set(block.id, { texts: candidate, invoked });
+        pendingEvidence.set(block.id, {
+          texts: candidate,
+          invoked,
+          cwdAfter,
+          concurrentMove,
+          name,
+          input: block.input,
+        });
+      } else if (cwdAfter !== undefined) {
+        cwd = null;
       }
     }
   }
@@ -385,7 +745,9 @@ export function parseCodexTrace(rawText) {
       // `cat` of a path a baseline expects to be absent exits nonzero and must not
       // count as having read it.
       if (typeof event.item.command === "string" && event.item.exit_code === 0) {
-        toolInputTexts.push(...shellReadTarget(event.item.command));
+        // Codex starts every command afresh in its workdir, so a `cd` carries only
+        // through the rest of the same command, never into the next one.
+        toolInputTexts.push(...analyzeShellCommand(event.item.command, null).reads);
       }
       if (typeof event.item.exit_code === "number" && event.item.exit_code !== 0) {
         errors += 1;
@@ -441,7 +803,11 @@ function collectSkillPaths(texts, skill) {
   const found = new Set();
   for (const text of texts) {
     for (const match of text.matchAll(pattern)) {
-      found.add(match[0]);
+      // `.claude/skills/box/../other/SKILL.md` names the text of the subject skill but
+      // opens another directory.
+      if (!/\/\.\.(?:\/|$)/u.test(match[0])) {
+        found.add(match[0]);
+      }
     }
   }
   return [...found].sort();
