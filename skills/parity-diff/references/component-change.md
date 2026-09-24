@@ -54,7 +54,9 @@
    - **不合格の組**（寸法が変わった・外に差が出た・中の差が増えた）は機械判定で通らない。変更宣言の範囲が過小だった疑いとして `parity-component` へも報告する
    - exit 2（入力の不備・`pngjs` が無い）は判定していないので合格に倒さない。`pngjs` の導入はユーザーに確認する
 5. **持ち越しを記録し、鮮度検査で確かめる。** 影響する機能の `evidence-carry.json` に `{"change": "<変更宣言のパス>", "amend_verify": "<手順 4 の記録のパス>"}` を追記し、
-   `diff-metadata.json` の `new.commit` にはこの実行で撮った新側の SHA（手順の前提の `commits.after`）を書く。そのうえで機能ごとに:
+   `diff-metadata.json` の `new.commit` は**書き換えない**（改修前の記録のまま残す）。持ち越しは「記録の版 → 今の版」の向きで、
+   変更宣言の `commits.before → after` をたどって判定するため、記録を `after` に書き換えると向きが逆になり、正しく宣言した改修まで説明できない差分として落ちる。
+   撮った新側の SHA（`commits.after`）は `diff.md` の前提確認表に書く（下記「記録」）。そのうえで機能ごとに:
 
    ```bash
    node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff --new-repo <新側リポジトリ>
@@ -67,6 +69,8 @@
    `evidence-carry.json` は `replace-metadata.json` と同じディレクトリから読む——
    既定から外れる配置でだけ `--replace-root` / `--evidence-carry`〈後者は `component-comparison-check.mjs` のみ〉を渡す）。検査は SHA の食い違いを、そのページの描画入力（`replace-metadata.json` の `new.render_inputs`）の差分が
    持ち越した変更宣言の `files` に収まり、影響する組が合格の記録で覆われているときだけ通す。
+   `replace-metadata.json` の `new.commit` がまだ改修前の版なら SHA は一致して持ち越しは評価されない——
+   持ち越しが効くのは、その後 `new.commit` が改修後の版へ進んだとき（`evidence-carry.json` が改修の分を説明する）
    **落ちたら持ち越しは成立していない**——描画入力が無い・宣言の外のファイルが変わっている機能は、同じ target の `parity-replace` から従来どおり回し直す。
    収束の判定は通常どおり [`convergence.md`](convergence.md) に従う
 
@@ -77,6 +81,6 @@
 
 ## 記録
 
-- `diff.md` の前提確認表に、この実行が一括再検証であること・変更宣言のパス・撮り直した組と引き継いだ組の別を書く
+- `diff.md` の前提確認表に、この実行が一括再検証であること・変更宣言のパス・撮った新側の SHA（`commits.after`）・撮り直した組と引き継いだ組の別を書く
 - `noise_measurement.remeasure_reason` には部品改修による失効であることと変更宣言の id を書く
 - 影響なしとした機能・判定不能で全組に倒した機能・持ち越しが落ちた機能を、機能ごとに報告する（黙って通さない）
