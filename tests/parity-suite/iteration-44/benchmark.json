@@ -5,7 +5,7 @@
     "executor_model": "claude-opus-5",
     "analyzer_model": "claude-opus-5-5",
     "timestamp": "2026-09-24T04:31:04Z",
-    "evals_run": [43],
+    "evals_run": [43, 44],
     "runs_per_configuration": 1
   },
   "runs": [
@@ -53,6 +53,54 @@
       "notes": []
     },
     {
+      "eval_id": 44,
+      "configuration": "with_skill",
+      "run_number": 2,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 133.942,
+        "tokens": 241331,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Playwright のヘッドレス Chromium はスクロールバーを隠す（場所を取らない）ため、横スクロールバーが出る窓でも 100vh と height: 100% の差が 0 になり、3 経路にも寸法の測定にも写らなかったと説明している",
+          "passed": true,
+          "evidence": "「Playwright のヘッドレス Chromium は --hide-scrollbars 付きで起動する…隠れたスクロールバーは場所を取らないので…100vh と height: 100% はどの窓でも同じ値」、画素・特性照合・aria と dimension-fit.mjs の式が同一になる理由を §3 で列挙"
+        },
+        {
+          "text": "検査が緑であることを根拠に、利用者環境の問題として未検証の一覧に書いて済ませる案を採らない",
+          "passed": true,
+          "evidence": "§1「利用者環境の問題ではない。未検証の一覧に落とすのは誤り」「gaps.md は…特性化したつもりで穴が開いていた箇所を流す場所ではありません」"
+        },
+        {
+          "text": "スクロールバーが場所を取る状態（--hide-scrollbars を外した起動）で、最小幅より狭い窓の縦・横のはみ出しを現側で測り、同じ窓で新側にも当てる検査をスイートに足すと答えている",
+          "passed": true,
+          "evidence": "§4(b)「ignoreDefaultArgs で --hide-scrollbars を外す」「最小幅より狭く…」の窓で overflow/ スペックを current と new の両プロジェクトに含め、current の実測を期待値として現・新の両側に当てる。横にはみ出した窓の horizontal_bar_px の自己検査にも触れる"
+        },
+        {
+          "text": "測る窓に、最小幅より狭く中身が収まる高さの窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を含めると述べている",
+          "passed": true,
+          "evidence": "§4(b)「②①と同じ幅で中身が収まる高さ（縦のはみ出しが頁の高さの決め方だけで決まる窓＝今回の差がここに出る）」"
+        },
+        {
+          "text": "撮影時にスクロールバーが場所を取ったかどうかを撮影条件として記録し、新側を同じ扱いで撮ると述べている",
+          "passed": true,
+          "evidence": "§4(a)「capture_conditions.scrollbars: hidden / shown。parity-diff の新側採取を同じ扱いで撮らせるために必須」"
+        },
+        {
+          "text": "強度ゲートで height: 100% を min-height: 100vh に置き換える故障を注入し、足した検査が赤くなることを確かめると述べている",
+          "passed": true,
+          "evidence": "§4(c) PARITY_OVERFLOW_FAULT_CSS='html, body { height: auto !important; min-height: 100vh !important; }' を注入し「注入で overflow/ が赤」を strength.md に記録、赤くならなければ assertion が弱い"
+        }
+      ],
+      "notes": []
+    },
+    {
       "eval_id": 43,
       "configuration": "without_skill",
       "run_number": 1,
@@ -94,6 +142,54 @@
         }
       ],
       "notes": []
+    },
+    {
+      "eval_id": 44,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 98.918,
+        "tokens": 44368,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Playwright のヘッドレス Chromium はスクロールバーを隠す（場所を取らない）ため、横スクロールバーが出る窓でも 100vh と height: 100% の差が 0 になり、3 経路にも寸法の測定にも写らなかったと説明している",
+          "passed": true,
+          "evidence": "「ヘッドレス Chrome は既定で --hide-scrollbars 相当…今回の差はフレームから消えます」「4 つの窓はおそらく全て 1280px 以上…100vh と 100% は定義上一致」"
+        },
+        {
+          "text": "検査が緑であることを根拠に、利用者環境の問題として未検証の一覧に書いて済ませる案を採らない",
+          "passed": true,
+          "evidence": "「「利用者環境の問題」で片付けるのは誤りです」"
+        },
+        {
+          "text": "スクロールバーが場所を取る状態（--hide-scrollbars を外した起動）で、最小幅より狭い窓の縦・横のはみ出しを現側で測り、同じ窓で新側にも当てる検査をスイートに足すと答えている",
+          "passed": true,
+          "evidence": "(A) 各窓で新旧の scrollHeight/clientHeight・scrollWidth/clientWidth を採取して突き合わせる、(B) 最小幅未満の窓を標本点に加える、(D) スクロールバーを隠さない"
+        },
+        {
+          "text": "測る窓に、最小幅より狭く中身が収まる高さの窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を含めると述べている",
+          "passed": false,
+          "evidence": "最小幅未満の窓は挙げるが、中身が収まる高さの窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）には触れていない"
+        },
+        {
+          "text": "撮影時にスクロールバーが場所を取ったかどうかを撮影条件として記録し、新側を同じ扱いで撮ると述べている",
+          "passed": false,
+          "evidence": "(D) で描画環境を固定するとは述べるが、スクロールバーの扱いを撮影条件として記録し新側を同じ扱いで撮るとは述べていない"
+        },
+        {
+          "text": "強度ゲートで height: 100% を min-height: 100vh に置き換える故障を注入し、足した検査が赤くなることを確かめると述べている",
+          "passed": false,
+          "evidence": "強度ゲートでの故障注入には触れていない（(E) は静的 lint の提案）"
+        }
+      ],
+      "notes": []
     }
   ],
   "run_summary": {
@@ -105,48 +201,49 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 118.77,
-        "stddev": 0,
+        "mean": 126.356,
+        "stddev": 10.7282,
         "min": 118.77,
-        "max": 118.77
+        "max": 133.942
       },
       "tokens": {
-        "mean": 212654,
-        "stddev": 0,
+        "mean": 226992.5,
+        "stddev": 20277.7012,
         "min": 212654,
-        "max": 212654
+        "max": 241331
       }
     },
     "without_skill": {
       "pass_rate": {
-        "mean": 0.6,
-        "stddev": 0,
-        "min": 0.6,
+        "mean": 0.55,
+        "stddev": 0.0707,
+        "min": 0.5,
         "max": 0.6
       },
       "time_seconds": {
-        "mean": 69.242,
-        "stddev": 0,
+        "mean": 84.08,
+        "stddev": 20.9841,
         "min": 69.242,
-        "max": 69.242
+        "max": 98.918
       },
       "tokens": {
-        "mean": 64652,
-        "stddev": 0,
-        "min": 64652,
+        "mean": 54510,
+        "stddev": 14342.9539,
+        "min": 44368,
         "max": 64652
       }
     },
     "delta": {
-      "pass_rate": "+0.40",
-      "time_seconds": "+49.5",
-      "tokens": "+148002"
+      "pass_rate": "+0.45",
+      "time_seconds": "+42.3",
+      "tokens": "+172483"
     }
   },
   "notes": [
     "変更確認スコープ（新設の eval 43・44 を with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
     "eval 43（#450 の停止条件）: with_skill 5/5、without_skill 3/5。without_skill は環境の都合で別オリジンになっていることには到達したが、根拠欄に未確認の観測を書く例文を示して照合を通せる形を残し（矛盾で fail）、差分器が「無い」同士を一致させる点に触れなかった。",
-    "eval 44（#449）はこの iteration から外した。with_skill の 2 run（run-1・run-2）がどちらも skill_usage.invalid_run: true になったため。raw では `cd <スキル> && find …` の後に相対パスの `cat SKILL.md` / `grep … references/baseline.md` で読んでおり、回答も SKILL.md・baseline.md の行番号を引いている。判定器が cd 後の相対パスを読み取りに数えない取りこぼしで、読まなかった run ではない。参考採点は run-1・run-2 とも 6/6。run は tests/parity-suite/iteration-44-held/eval-44/ に退避（Git 管理外）。判定器を直したら（Issue #455）判定し直して benchmark に戻す。",
-    "eval 44 の without_skill（参考）は 3/6。ヘッドレスがスクロールバーを隠すことと最小幅未満の窓で新旧を突き合わせることには到達したが、中身が収まる高さの窓・撮影条件としての記録・強度ゲートでの故障注入には到達しなかった。"
+    "eval 44（#449）: with_skill 6/6（run-2）、without_skill 3/6。with_skill は当初 2 run とも skill_usage.invalid_run: true で外していたが、判定器が cd 後の相対パスを読み取りに数えない取りこぼしだった。#455 の判定器で判定し直し、run-2 は read: true（`cd <スキル> && … && wc -l $(…)` の後の `echo … && cat scripts/dimension-fit.mjs`）。",
+    "eval 44 の with_skill run-1 は #455 の判定器でも invalid_run: true のままなので、採点せず除外した（--ungraded skip。除外 1 件: tests/parity-suite/iteration-44/eval-44/with_skill/run-1）。cd の呼び出しが `cd <スキル> && wc …; echo …; ls …` で `;` を含み、終了コードが最後の ls で決まるため cd の成否が読めない。判定器は cwd を不明に倒す（閉じた緩和の範囲外）。参考採点は 6/6。",
+    "eval 44 の without_skill は 3/6。ヘッドレスがスクロールバーを隠すことと最小幅未満の窓で新旧を突き合わせることには到達したが、中身が収まる高さの窓・撮影条件としての記録・強度ゲートでの故障注入には到達しなかった。unexpected_read は #455 の判定器でも false。"
   ]
 }

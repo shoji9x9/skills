@@ -38,7 +38,17 @@ function assistantToolUse(name, input, outcome = "ok") {
   if (outcome === "no-result") {
     return [call];
   }
-  const result = {
+  return [call, toolResult(id, outcome)];
+}
+
+// `outcome` is "ok", "error", or `{ content }` for a successful call whose output
+// matters (the Bash tool reports a cwd reset there).
+function toolResult(id, outcome = "ok") {
+  let content = outcome === "error" ? "command failed" : "ok";
+  if (typeof outcome === "object") {
+    content = outcome.content;
+  }
+  return {
     type: "user",
     message: {
       content: [
@@ -46,12 +56,11 @@ function assistantToolUse(name, input, outcome = "ok") {
           type: "tool_result",
           tool_use_id: id,
           ...(outcome === "error" ? { is_error: true } : {}),
-          content: outcome === "error" ? "command failed" : "ok",
+          content,
         },
       ],
     },
   };
-  return [call, result];
 }
 
 describe("skill eval result normalization", () => {
@@ -361,19 +370,35 @@ describe("skill eval result normalization", () => {
     });
 
     // A zero exit for the whole command does not mean every part of it ran, and a
-    // separator inside quotes is not a separator. Deciding that needs a real shell
-    // parse, so a compound command yields nothing — including the two forms below
+    // separator inside quotes is not a separator. Only a pure `&&` list says that
+    // (see the next table); anything else yields nothing — including the forms below
     // that do read the skill. That costs an invalid_run, never a false contamination.
     test.each([
       ["a branch that did not run", "test -f x && cat .claude/skills/box/SKILL.md || echo absent"],
       ["a separator inside quotes", "printf '%s' 'note; cat .claude/skills/box/SKILL.md'"],
+      ["an and-list inside quotes", "printf '%s' 'x && cat .claude/skills/box/SKILL.md'"],
       ["a command substitution", "echo $(cat .claude/skills/box/SKILL.md)"],
       ["a genuine piped read", "cat .claude/skills/box/SKILL.md | head -n 5"],
+      ["a piped read inside an and-list", "true && cat .claude/skills/box/SKILL.md | head"],
       // Leading word IS a read utility here, so only the control-flow guard can
       // reject these; the cases above are already stopped by the utility check.
-      ["a read utility followed by a branch", "cat .claude/skills/box/SKILL.md && echo done"],
       ["a read utility before a semicolon", "cat .claude/skills/box/SKILL.md; echo done"],
-      ["a genuine read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
+      ["a read after a semicolon", "false; cat .claude/skills/box/SKILL.md && echo done"],
+      ["a read in a background list", "false & cat .claude/skills/box/SKILL.md && echo done"],
+      // `a && b || c` is `(a && b) || c` and `a && b & c` backgrounds `a && b`: both
+      // exit zero with the read failed, though splitting at `&&` alone yields `cat X`.
+      ["a read before a fallback", "cat .claude/skills/box/SKILL.md && echo done || true"],
+      [
+        "a read before a semicolon-joined command",
+        "cat .claude/skills/box/SKILL.md && echo done; true",
+      ],
+      [
+        "a read before a newline-joined command",
+        "cat .claude/skills/box/SKILL.md && echo done\ntrue",
+      ],
+      ["a read in a backgrounded list", "cat .claude/skills/box/SKILL.md && echo done & true"],
+      ["a read behind a comment", "true # && cat .claude/skills/box/SKILL.md"],
+      ["a read in a subshell", "true && (cat .claude/skills/box/SKILL.md)"],
     ])("takes no evidence from %s", (_label, command) => {
       const usage = buildSkillUsage({
         config: "without_skill",
@@ -389,6 +414,29 @@ describe("skill eval result normalization", () => {
 
       expect(usage).toMatchObject({ read: false, unexpected_read: false });
       expect(usage.files_read).toEqual([]);
+    });
+
+    // A pure `&&` list that exited zero ran every element, and every element exited
+    // zero, so a plain read anywhere in it happened.
+    test.each([
+      ["a read followed by a branch", "cat .claude/skills/box/SKILL.md && echo done"],
+      ["a read after a test", "test -e x && cat .claude/skills/box/SKILL.md"],
+      ["a read after a redirect", "ls 2>&1 && cat .claude/skills/box/SKILL.md"],
+    ])("counts %s in a successful and-list", (_label, command) => {
+      const usage = buildSkillUsage({
+        config: "without_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: [] },
+            assistantToolUse("Bash", { command }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, unexpected_read: true });
+      expect(usage.files_read).toEqual([".claude/skills/box/SKILL.md"]);
     });
 
     test.each([
@@ -758,6 +806,197 @@ describe("skill eval result normalization", () => {
         read: true,
         invalid_run: false,
         unexpected_read: true,
+      });
+    });
+
+    // #455: the Bash tool keeps one shell, so `cd <skill dir>` then `cat SKILL.md`
+    // reads the skill without its path appearing in any single command.
+    describe("reads relative to the shell's working directory", () => {
+      const SKILL_DIR = "/p/.claude/skills/box";
+      const INIT = { type: "system", subtype: "init", skills: ["box"], cwd: "/p" };
+      const bash = (command, outcome) => assistantToolUse("Bash", { command }, outcome);
+      const usageOf = (events, config = "with_skill") =>
+        buildSkillUsage({
+          config,
+          skill: "box",
+          evidence: evidenceFor(claudeStream([...events, RESULT_EVENT])),
+        });
+
+      test.each([
+        ["after an absolute cd", [bash(`cd ${SKILL_DIR} && ls`), bash("cat SKILL.md")], "SKILL.md"],
+        [
+          "after a cd relative to the start",
+          [bash("cd .claude/skills/box"), bash("cat SKILL.md")],
+          "SKILL.md",
+        ],
+        ["after a quoted cd", [bash(`cd "${SKILL_DIR}"`), bash("cat SKILL.md")], "SKILL.md"],
+        [
+          "up from a subdirectory",
+          [bash(`cd ${SKILL_DIR}/references`), bash("cat ../SKILL.md")],
+          "SKILL.md",
+        ],
+        ["inside the same and-list", [bash(`cd ${SKILL_DIR} && cat SKILL.md`)], "SKILL.md"],
+        [
+          // The shape eval 44 recorded (iteration-44, with_skill run-2).
+          "after a cd whose list pipes and substitutes",
+          [
+            bash(
+              `cd ${SKILL_DIR} && find . -type f | head -50 && echo "=== SIZES ===" && wc -l $(find . -type f -name "*.md") 2>/dev/null`,
+            ),
+            bash('echo "===== fit =====" && cat scripts/fit.mjs'),
+          ],
+          "scripts/fit.mjs",
+        ],
+      ])("counts a relative read %s", (_label, events, file) => {
+        const usage = usageOf([INIT, ...events]);
+
+        expect(usage).toMatchObject({ read: true, invalid_run: false });
+        expect(usage.files_read).toEqual([`.claude/skills/box/${file}`]);
+      });
+
+      // Each of these either may not have reached the skill directory or may have
+      // left it again, so the relative read after it must not resolve there.
+      test.each([
+        // The shape eval 44 recorded (iteration-44, with_skill run-1): the list
+        // exits with `ls`'s status, which says nothing about the cd.
+        [
+          "a cd followed by a semicolon",
+          [bash(`cd ${SKILL_DIR} && wc -l SKILL.md 2>/dev/null; echo "==="; ls assets/`)],
+        ],
+        ["a cd with a fallback", [bash(`cd ${SKILL_DIR} || true`)]],
+        ["a cd in the background", [bash(`cd ${SKILL_DIR} & true`)]],
+        ["a cd whose call failed", [bash(`cd ${SKILL_DIR} && ls`, "error")]],
+        ["a cd whose call never returned", [bash(`cd ${SKILL_DIR}`, "no-result")]],
+        ["a cd in a child shell", [bash(`bash -c 'cd ${SKILL_DIR}'`)]],
+        [
+          "a cd run in the background",
+          [assistantToolUse("Bash", { command: `cd ${SKILL_DIR}`, run_in_background: true })],
+        ],
+        [
+          "a cd relative to an unknown start",
+          [bash("cd .claude/skills/box")],
+          { ...INIT, cwd: undefined },
+        ],
+      ])("does not resolve a relative read after %s", (_label, events, init = INIT) => {
+        const usage = usageOf([init, ...events, bash("cat SKILL.md")]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      test.each([
+        ["a pushd", `pushd /tmp`],
+        ["a cd behind a variable", `cd "$HOME"`],
+        ["a cd home", "cd ~"],
+        ["a cd back", "cd -"],
+        ["a cd before a semicolon", "cd /tmp; ls"],
+        ["a cd with a fallback", "cd /tmp || true"],
+        ["a sourced script", "source env.sh"],
+        ["a dot-sourced script", ". env.sh"],
+        ["a cd later in the list", "ls && cd /tmp"],
+        ["a cd after a child shell", `bash -c "echo hi" && cd "/tmp"`],
+        ["an eval of a quoted cd", `eval "cd /tmp" && ls`],
+      ])("forgets the skill directory after %s", (_label, command) => {
+        const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      test("forgets the skill directory once the tool reports resetting the cwd", () => {
+        const usage = usageOf([
+          INIT,
+          bash(`cd ${SKILL_DIR}`),
+          bash("ls", { content: "SKILL.md\nShell cwd was reset to /p" }),
+          bash("cat SKILL.md"),
+        ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      // Already in the skill directory, so only the pending cd can make the read
+      // unresolvable: it may have run first and moved away.
+      test("does not resolve a read issued alongside a cd that may run first", () => {
+        const usage = usageOf([
+          INIT,
+          bash(`cd ${SKILL_DIR}`),
+          {
+            type: "assistant",
+            message: {
+              content: [
+                {
+                  type: "tool_use",
+                  id: "toolu_par_cd",
+                  name: "Bash",
+                  input: { command: "cd /tmp" },
+                },
+                {
+                  type: "tool_use",
+                  id: "toolu_par_cat",
+                  name: "Bash",
+                  input: { command: "cat SKILL.md" },
+                },
+              ],
+            },
+          },
+          toolResult("toolu_par_cd"),
+          toolResult("toolu_par_cat"),
+        ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      test("does not resolve a read that leaves the skill directory", () => {
+        const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash("cat ../../../README.md")]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      // The issue's negative control: with no skill installed the cd fails, and the
+      // baseline's later relative read must not count as contamination.
+      test("does not call a baseline contaminated after its cd into the absent skill fails", () => {
+        const usage = usageOf(
+          [{ ...INIT, skills: [] }, bash(`cd ${SKILL_DIR} && ls`, "error"), bash("cat SKILL.md")],
+          "without_skill",
+        );
+
+        expect(usage).toMatchObject({ read: false, unexpected_read: false });
+      });
+
+      const codexTrace = (...commands) =>
+        [
+          ...commands.map((command) => ({
+            type: "item.completed",
+            item: { type: "command_execution", command, exit_code: 0 },
+          })),
+          { type: "item.completed", item: { type: "agent_message", text: "done" } },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n");
+
+      test("counts a codex read inside the command that moved there", () => {
+        const usage = buildSkillUsage({
+          config: "with_skill",
+          skill: "box",
+          evidence: evidenceFor(
+            codexTrace("/bin/bash -lc 'cd /p/.agents/skills/box && cat SKILL.md'"),
+            "codex",
+          ),
+        });
+
+        expect(usage).toMatchObject({ read: true, invalid_run: false });
+        expect(usage.files_read).toEqual([".agents/skills/box/SKILL.md"]);
+      });
+
+      test("does not carry a codex cd into the next command", () => {
+        const usage = buildSkillUsage({
+          config: "with_skill",
+          skill: "box",
+          evidence: evidenceFor(
+            codexTrace("/bin/bash -lc 'cd /p/.agents/skills/box'", "/bin/bash -lc 'cat SKILL.md'"),
+            "codex",
+          ),
+        });
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
       });
     });
   });
