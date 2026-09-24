@@ -10,8 +10,8 @@
       "id": "failed-cd-keeps-cwd",
       "why": "失敗した呼び出しの cd を成功扱いにし、cwd を不明に倒さない",
       "file": "scripts/normalize-skill-eval-result.js",
-      "find": "          cwd = block.is_error === true ? null : pending.cwdAfter;\n",
-      "replace": "          cwd = pending.cwdAfter;\n",
+      "find": "cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;",
+      "replace": "cwd = pending.concurrentMove ? null : pending.cwdAfter;",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory does not resolve a relative read after a cd whose call failed",
@@ -89,7 +89,10 @@
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd back",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a sourced script",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a dot-sourced script",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of a quoted cd"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of a quoted cd",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of an expanded command",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an expanded command word",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a quoted cd word"
       ]
     },
     {
@@ -172,13 +175,57 @@
     },
     {
       "id": "quoted-cd-ignored",
-      "why": "eval \"cd /x\" のように引用符の直後に来る cd を cwd の変更と見なさない",
+      "why": "\"cd\" /x のように引用符の直後に来る cd を cwd の変更と見なさない（eval \"cd /x\" は eval の語で拾う）",
       "file": "scripts/normalize-skill-eval-result.js",
-      "find": "  /(?:^|[\\s;&|(`{'\"])(?:cd|pushd|popd|source)",
-      "replace": "  /(?:^|[\\s;&|(`{])(?:cd|pushd|popd|source)",
+      "find": "  /(?:^|[\\s;&|(`{'\"])(?:cd|pushd|popd|source|eval)",
+      "replace": "  /(?:^|[\\s;&|(`{])(?:cd|pushd|popd|source|eval)",
       "occurrences": 1,
       "expect_failing": [
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of a quoted cd"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a quoted cd word"
+      ]
+    },
+    {
+      "id": "concurrent-moves-settle-last",
+      "why": "並行に出た 2 つの移動のうち、後から結果が返った方を cwd にする",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;",
+      "replace": "cwd = block.is_error === true ? null : pending.cwdAfter;",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory does not settle on whichever of two parallel moves reported last"
+      ]
+    },
+    {
+      "id": "earlier-read-keeps-cwd",
+      "why": "移動より先に発行され結果待ちの読み取りを、移動前の cwd で解決したまま残す",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "          pending.texts = unresolved;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory does not resolve a read issued just before a parallel move"
+      ]
+    },
+    {
+      "id": "indirect-command-ignored",
+      "why": "eval と展開されるコマンド語を移動とみなさない",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "(?:cd|pushd|popd|source|eval)",
+      "replace": "(?:cd|pushd|popd|source)",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an eval of an expanded command"
+      ]
+    },
+    {
+      "id": "expanded-command-word-ignored",
+      "why": "コマンド位置の $VAR / 置換（展開後に cd になりうる語）を移動とみなさない",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "(?:\\.(?=\\s)|[\"']?[$`])",
+      "replace": "(?:\\.(?=\\s))",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an expanded command word"
       ]
     }
   ]

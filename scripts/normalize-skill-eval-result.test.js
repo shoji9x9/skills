@@ -892,9 +892,12 @@ describe("skill eval result normalization", () => {
         ["a cd with a fallback", "cd /tmp || true"],
         ["a sourced script", "source env.sh"],
         ["a dot-sourced script", ". env.sh"],
+        ["an eval of an expanded command", 'eval "$MOVE"'],
+        ["an expanded command word", "$GO /tmp"],
         ["a cd later in the list", "ls && cd /tmp"],
         ["a cd after a child shell", `bash -c "echo hi" && cd "/tmp"`],
         ["an eval of a quoted cd", `eval "cd /tmp" && ls`],
+        ["a quoted cd word", `"cd" /tmp && ls`],
       ])("forgets the skill directory after %s", (_label, command) => {
         const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
 
@@ -939,6 +942,43 @@ describe("skill eval result normalization", () => {
           },
           toolResult("toolu_par_cd"),
           toolResult("toolu_par_cat"),
+        ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      // Codex review on #463: results arrive in some order, but the calls may have run
+      // in another, so neither move nor a read issued before the move is placed.
+      const parallel = (...calls) => [
+        {
+          type: "assistant",
+          message: {
+            content: calls.map(([id, command]) => ({
+              type: "tool_use",
+              id,
+              name: "Bash",
+              input: { command },
+            })),
+          },
+        },
+        ...calls.map(([id]) => toolResult(id)),
+      ];
+
+      test("does not settle on whichever of two parallel moves reported last", () => {
+        const usage = usageOf([
+          INIT,
+          ...parallel(["toolu_mv_tmp", "cd /tmp"], ["toolu_mv_skill", `cd ${SKILL_DIR}`]),
+          bash("cat SKILL.md"),
+        ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      test("does not resolve a read issued just before a parallel move", () => {
+        const usage = usageOf([
+          INIT,
+          bash(`cd ${SKILL_DIR}`),
+          ...parallel(["toolu_rd_first", "cat SKILL.md"], ["toolu_mv_after", "cd /tmp"]),
         ]);
 
         expect(usage).toMatchObject({ read: false, invalid_run: true });

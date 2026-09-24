@@ -276,12 +276,17 @@ function plainCdTarget(element) {
 }
 
 // Anything that may move the shell's directory without being a plain `cd`: a `cd`
-// behind a variable, `pushd` / `popd`, or sourcing a script that could do either.
-// The words match anywhere, quoted too (`eval "cd /x"`), since over-matching only drops
-// a known directory; `.` only in command position, since as an argument (`find . -name`)
-// it is just a path.
+// behind a variable, `pushd` / `popd`, sourcing a script that could do either, and
+// commands whose text is only known after expansion (`eval "$MOVE"`, `$CMD /x`). The
+// words match anywhere, quoted too (`eval "cd /x"`), since over-matching only drops a
+// known directory; `.` and an expanded command word only in command position, since as
+// arguments (`find . -name`, `cat $F`) they are just operands.
+//
+// Not covered: a function or alias from the user's shell profile (`z proj`) moves the
+// directory under a name no text rule can know. The Bash tool does not carry functions
+// between calls, so only profile-defined ones remain.
 const CWD_CHANGE =
-  /(?:^|[\s;&|(`{'"])(?:cd|pushd|popd|source)(?=$|[\s;&|)`}'"])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*\.(?=\s)/u;
+  /(?:^|[\s;&|(`{'"])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}'"])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`])/u;
 
 function resolveAgainst(cwd, path) {
   return cwd === null || /^[/~$]/u.test(path) ? path : posix.resolve(cwd, path);
@@ -483,9 +488,10 @@ export function parseClaudeTrace(rawText) {
             invokedSkills.push(pending.invoked);
           }
         }
-        // A failed `cd X && …` may have stopped before or after the cd.
+        // A failed `cd X && …` may have stopped before or after the cd, and a move that
+        // ran alongside another may have run either first or last.
         if (pending.cwdAfter !== undefined) {
-          cwd = block.is_error === true ? null : pending.cwdAfter;
+          cwd = block.is_error === true || pending.concurrentMove ? null : pending.cwdAfter;
         }
         if (/^Shell cwd was reset to /mu.test(toolResultText(block.content))) {
           cwd = null;
@@ -516,6 +522,21 @@ export function parseClaudeTrace(rawText) {
         (pending) => pending.cwdAfter !== undefined,
       );
       const cwdAfter = collectReadEvidence(name, block.input, candidate, movePending ? null : cwd);
+      // The order runs both ways: a call already out may run after this move, so its
+      // relative reads lose the directory they were resolved against, and two moves out
+      // together leave whichever ran last.
+      let concurrentMove = false;
+      if (cwdAfter !== undefined) {
+        for (const pending of pendingEvidence.values()) {
+          if (pending.cwdAfter !== undefined) {
+            pending.concurrentMove = true;
+            concurrentMove = true;
+          }
+          const unresolved = [];
+          collectReadEvidence(pending.name, pending.input, unresolved, null);
+          pending.texts = unresolved;
+        }
+      }
       const shell = SHELL_TOOLS.has(name);
       if (candidate.length === 0 && invoked === null && !shell) {
         continue;
@@ -524,7 +545,14 @@ export function parseClaudeTrace(rawText) {
       // evidence — an uncorrelated call is exactly the case this guard exists for.
       // Every shell call waits too: its result is where a cwd reset is reported.
       if (typeof block.id === "string") {
-        pendingEvidence.set(block.id, { texts: candidate, invoked, cwdAfter });
+        pendingEvidence.set(block.id, {
+          texts: candidate,
+          invoked,
+          cwdAfter,
+          concurrentMove,
+          name,
+          input: block.input,
+        });
       } else if (cwdAfter !== undefined) {
         cwd = null;
       }
