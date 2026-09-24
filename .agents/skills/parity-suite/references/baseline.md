@@ -498,8 +498,13 @@ async function measure(page: Page, path: string, w: Window): Promise<Measured> {
   // 出典: https://developer.mozilla.org/docs/Web/API/Document/scrollingElement（quirks なら body、標準なら html）
   return page.evaluate(() => {
     const el = document.scrollingElement ?? document.documentElement;
+    // 根で横を切っている頁（html か、html が visible なら伝播する body の overflow-x が hidden / clip）は、
+    // scrollWidth が大きくても横スクロールバーが出ない。はみ出しとして数えると「隠れたまま測った」と取り違える
+    const rootX = getComputedStyle(document.documentElement).overflowX;
+    const viewportX = rootX === "visible" && document.body ? getComputedStyle(document.body).overflowX : rootX;
+    const clipsX = viewportX === "hidden" || viewportX === "clip";
     return {
-      horizontal: el.scrollWidth > el.clientWidth,
+      horizontal: !clipsX && el.scrollWidth > el.clientWidth,
       vertical: el.scrollHeight > el.clientHeight,
       // 横スクロールバーの厚み。横にはみ出して 0 なら、スクロールバーが隠れたまま測っている
       horizontal_bar_px: window.innerHeight - el.clientHeight,
@@ -525,9 +530,13 @@ if (capturing) {
       await waitForStableRect(page.locator("body"));
       const probe = await page.evaluate(() => {
         const el = document.scrollingElement ?? document.documentElement;
-        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+        // measure と同じ判定（根で横を切っている頁は横スクロールバーが出ないので最小幅を持たない扱い）
+        const rootX = getComputedStyle(document.documentElement).overflowX;
+        const viewportX = rootX === "visible" && document.body ? getComputedStyle(document.body).overflowX : rootX;
+        const clipsX = viewportX === "hidden" || viewportX === "clip";
+        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, clipsX };
       });
-      const minWidth = probe.scrollWidth > probe.clientWidth ? probe.scrollWidth : null;
+      const minWidth = !probe.clipsX && probe.scrollWidth > probe.clientWidth ? probe.scrollWidth : null;
       const windows: Window[] = viewports.map((v) => ({ width: v.width, height: v.height }));
       if (minWidth === null) {
         windows.push({ width: PROBE_WIDTH, height: base.height });

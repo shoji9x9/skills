@@ -220,7 +220,7 @@
             {
               "width": 0,
               "height": 0,
-              "horizontal": "<真偽値。scrollWidth > clientWidth（横にはみ出したか）>",
+              "horizontal": "<真偽値。scrollWidth > clientWidth（横にはみ出したか）。根（html、または伝播する body）の overflow-x が hidden / clip なら横スクロールバーが出ないので false>",
               "vertical": "<真偽値。scrollHeight > clientHeight（縦にはみ出したか）>",
               "horizontal_bar_px": "<0 以上の数。innerHeight − clientHeight（横スクロールバーの厚み）。横にはみ出した窓で 0 なら、スクロールバーが隠れたまま測っている>"
             }

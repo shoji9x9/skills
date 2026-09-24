@@ -111,7 +111,9 @@ if (unknownPairs.length > 0) {
 
 // スクロールバーの扱いは現側と揃える（capture_conditions.scrollbars。片側だけ場所を取ると、見える幅と高さが
 // 厚みの分ずれて全面差分になる）。Playwright のヘッドレス Chromium の既定は hidden（--hide-scrollbars）。
-// launchOptions はワーカー単位の設定なので describe の中には置けず、ファイルの最上位で切り替える
+// launchOptions はワーカー単位の設定なので describe の中には置けず、ファイルの最上位で切り替える。
+// test.use はプロジェクトの launchOptions をオブジェクトごと置き換えるので、new-capture に launchOptions（args 等）が
+// あるならその値をここへ写してから ignoreDefaultArgs を足す（落とすと現側と起動条件がずれる）
 const scrollbars: unknown = metadata.capture_conditions.scrollbars;
 if (scrollbars !== "hidden" && scrollbars !== "shown") {
   throw new Error(
