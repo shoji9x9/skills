@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-24T04:31:04Z",
+    "evals_run": [43],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 43,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 118.77,
+        "tokens": 212654,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "iframe の読み込み先は移行元がアプリ自身のベース URL から組み立てているので、本来の配置では本体と同じオリジンになり、別オリジンは対象 URL（localhost:8080）の別名による環境の都合だと判断している",
+          "passed": true,
+          "evidence": "「APP_BASE_URL … アプリ自身のベース URL … 本来の配置では同一オリジンになるはず。別オリジンは localhost:8080 というホスト・ポートの別名経由だから」"
+        },
+        {
+          "text": "根拠の欄に「本番でも別オリジン」と推測で書いて通す案を採らない",
+          "passed": true,
+          "evidence": "「書いてはいけません」「本番でも別オリジンは根拠として不適格なだけでなく、おそらく誤り」"
+        },
+        {
+          "text": "別オリジンのフレームの中の処理は親の文書へ届かない（同一オリジンポリシー）ため、「反応なし」の記録は移行元に実在する反応を取りこぼしている疑いがあると述べている",
+          "passed": true,
+          "evidence": "「別オリジンのフレームの中の処理は同一オリジンポリシーで親文書に届きません。…観測できないことの記録」"
+        },
+        {
+          "text": "「反応なし」の記録を確定させず、対象環境の URL を移行元が組み立てるオリジン（app.internal.example）に揃える設定変更をユーザーに求め、揃えてから測り直すと答えている",
+          "passed": true,
+          "evidence": "手順 1 で kind: none を取り下げ、手順 3「オリジンを揃える提案をユーザーに出す（自分では設定を書き換えない）」、手順 4「揃えてから測り直す」"
+        },
+        {
+          "text": "このまま進むと差分器は「無い」同士を一致させるため、新側も反応なしで作られても検出できないことに触れている",
+          "passed": true,
+          "evidence": "「差分器は「無い」同士を一致させるので、この取り違えは parity-diff では検出されません。新実装がコピーのトーストを丸ごと落としても…緑のまま」"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 43,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 69.242,
+        "tokens": 64652,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "iframe の読み込み先は移行元がアプリ自身のベース URL から組み立てているので、本来の配置では本体と同じオリジンになり、別オリジンは対象 URL（localhost:8080）の別名による環境の都合だと判断している",
+          "passed": true,
+          "evidence": "「別オリジンになっているのは親だけが localhost に化けているから…本番で親も app.internal.example 配下なら iframe は同一オリジン」"
+        },
+        {
+          "text": "根拠の欄に「本番でも別オリジン」と推測で書いて通す案を採らない",
+          "passed": false,
+          "evidence": "冒頭で「書かないほうがいい」としつつ、「それまでの記録の書き方」で根拠欄に未確認の観測を書く例文を示しており、根拠欄を埋めると照合が通る。矛盾する出力として fail"
+        },
+        {
+          "text": "別オリジンのフレームの中の処理は親の文書へ届かない（同一オリジンポリシー）ため、「反応なし」の記録は移行元に実在する反応を取りこぼしている疑いがあると述べている",
+          "passed": true,
+          "evidence": "「別オリジンなら親は iframe 内の DOM も操作結果も原理的に観測できない…環境起因の偽陰性」"
+        },
+        {
+          "text": "「反応なし」の記録を確定させず、対象環境の URL を移行元が組み立てるオリジン（app.internal.example）に揃える設定変更をユーザーに求め、揃えてから測り直すと答えている",
+          "passed": true,
+          "evidence": "「オリジンを揃えて再測定する — 本命」（hosts / プロキシで親を app.internal.example として開く等）。記録は未確認として残すと述べている"
+        },
+        {
+          "text": "このまま進むと差分器は「無い」同士を一致させるため、新側も反応なしで作られても検出できないことに触れている",
+          "passed": false,
+          "evidence": "差分器が「無い」同士を一致させて新側の欠落を検出できない点には触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 118.77,
+        "stddev": 0,
+        "min": 118.77,
+        "max": 118.77
+      },
+      "tokens": {
+        "mean": 212654,
+        "stddev": 0,
+        "min": 212654,
+        "max": 212654
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 69.242,
+        "stddev": 0,
+        "min": 69.242,
+        "max": 69.242
+      },
+      "tokens": {
+        "mean": 64652,
+        "stddev": 0,
+        "min": 64652,
+        "max": 64652
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "+49.5",
+      "tokens": "+148002"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（新設の eval 43・44 を with_skill / without_skill 各 1 run）。Delta の数値は語らず弁別だけを見る。executor claude-code / claude-opus-5 / effort high。",
+    "eval 43（#450 の停止条件）: with_skill 5/5、without_skill 3/5。without_skill は環境の都合で別オリジンになっていることには到達したが、根拠欄に未確認の観測を書く例文を示して照合を通せる形を残し（矛盾で fail）、差分器が「無い」同士を一致させる点に触れなかった。",
+    "eval 44（#449）はこの iteration から外した。with_skill の 2 run（run-1・run-2）がどちらも skill_usage.invalid_run: true になったため。raw では `cd <スキル> && find …` の後に相対パスの `cat SKILL.md` / `grep … references/baseline.md` で読んでおり、回答も SKILL.md・baseline.md の行番号を引いている。判定器が cd 後の相対パスを読み取りに数えない取りこぼしで、読まなかった run ではない。参考採点は run-1・run-2 とも 6/6。run は tests/parity-suite/iteration-44-held/eval-44/ に退避（Git 管理外）。判定器を直したら（Issue #455）判定し直して benchmark に戻す。",
+    "eval 44 の without_skill（参考）は 3/6。ヘッドレスがスクロールバーを隠すことと最小幅未満の窓で新旧を突き合わせることには到達したが、中身が収まる高さの窓・撮影条件としての記録・強度ゲートでの故障注入には到達しなかった。"
+  ]
+}

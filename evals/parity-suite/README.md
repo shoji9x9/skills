@@ -133,5 +133,11 @@ scripts/run-skill-eval.sh \
   `present` を `unmeasured` へ落とさないことを検証する。プロンプトには「言えない」という結論も、3 点の軸の名前も書かない。
   **`unmeasured` へ落とす案を prompt で問うている**——問わない初版では 3 run とも到達しなかった（iteration-42）。
   読み手（`parity-diff` の収束判定）の分担は prompt が下流工程に触れないため assertion から外し、書き手と検査までに絞った
+- eval 43 は fixture 無しで、フレームのオリジン（Issue #450）の停止条件を検証する。対象 URL の別名で iframe だけが別オリジンになった環境で「反応なし」を記録し、
+  照合に落ちたところで根拠欄を推測で埋めて通す案を持ち込む。**非対話で判断材料が手元に無い場で、根拠を埋めず、対象 URL を揃えて測り直す側へ止まるか**を見る
+  （`docs/skill-development.md` の整合パス 8）。プロンプトには記録のキー名（`document_origins` 等）を書かず、iframe の読み込み先を組み立てる一次情報だけを置く
+- eval 44 は fixture 無しで、スクロールバーが場所を取る窓のはみ出し（Issue #449）を検証する。3 経路と寸法の測定が緑のまま利用者が縦スクロールバーを見つけた状況で、
+  未検証の一覧に書いて済ませる案を押し戻し、ヘッドレス Chromium がスクロールバーを隠すことと、スクロールバーを表示した最小幅以下の窓で両側に当てる検査を足すことに到達するかを見る。
+  プロンプトには撮影条件のキー名・起動引数を書かない
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
