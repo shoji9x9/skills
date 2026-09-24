@@ -279,20 +279,24 @@ function plainCdTarget(element) {
 // behind a variable, `pushd` / `popd`, sourcing a script that could do either, and
 // commands whose text is only known after expansion (`eval "$MOVE"`, `$CMD /x`). The
 // words match anywhere (quoted forms are caught by movesCwd), since over-matching only
-// drops a known directory; `.` and an expanded command word only in command position, since as
-// arguments (`find . -name`, `cat $F`) they are just operands.
+// drops a known directory; `.`, an expanded command word and a glob (`c? /x` may expand to
+// `cd`) only in command position, since as arguments (`find . -name`, `cat $F`) they
+// are just operands.
 //
 // Not covered: a function or alias from the user's shell profile (`z proj`) moves the
 // directory under a name no text rule can know. The Bash tool does not carry functions
 // between calls, so only profile-defined ones remain.
 const CWD_CHANGE =
-  /(?:^|[\s;&|(`{])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`])/u;
+  /(?:^|[\s;&|(`{])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`]|(?!\[{1,2}\s)[^\s;&|()]*[*?[])/u;
 
-// The shell removes quotes and backslashes before it looks a command up, so `\cd /x`,
-// `c'd' /x` and `"cd" /x` all run the builtin. Judge the text with them removed as well
-// as without (the unremoved text is what places `.` and `$` in command position).
+// The shell joins line continuations before it tokenizes and removes quotes and
+// backslashes before it looks a command up, so `c\<newline>d /x`, `\cd /x`, `c'd' /x`
+// and `"cd" /x` all run the builtin. Judge the text with those removed as well as
+// without (the unremoved text is what places `.` and `$` in command position).
 function movesCwd(text) {
-  return CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll(/[\\'"]/gu, ""));
+  return (
+    CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll("\\\n", "").replaceAll(/[\\'"]/gu, ""))
+  );
 }
 
 function resolveAgainst(cwd, path) {

@@ -94,7 +94,9 @@
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an expanded command word",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a quoted cd word",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an escaped cd word",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by quotes"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by quotes",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by a line continuation",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a globbed command word"
       ]
     },
     {
@@ -212,8 +214,8 @@
       "id": "expanded-command-word-ignored",
       "why": "コマンド位置の $VAR / 置換（展開後に cd になりうる語）を移動とみなさない",
       "file": "scripts/normalize-skill-eval-result.js",
-      "find": "(?:\\.(?=\\s)|[\"']?[$`])",
-      "replace": "(?:\\.(?=\\s))",
+      "find": "|[\"']?[$`]|(?!",
+      "replace": "|(?!",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an expanded command word"
@@ -223,13 +225,47 @@
       "id": "quote-removal-ignored",
       "why": "引用符・バックスラッシュを除いた字面（シェルが実行する語）で移動を判定しない",
       "file": "scripts/normalize-skill-eval-result.js",
-      "find": "  return CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll(/[\\\\'\"]/gu, \"\"));\n",
-      "replace": "  return CWD_CHANGE.test(text);\n",
+      "find": "    CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll(\"\\\\\\n\", \"\").replaceAll(/[\\\\'\"]/gu, \"\"))\n",
+      "replace": "    CWD_CHANGE.test(text)\n",
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after an escaped cd word",
         "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by quotes",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a quoted cd word"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a quoted cd word",
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by a line continuation"
+      ]
+    },
+    {
+      "id": "line-continuation-kept",
+      "why": "行継続（バックスラッシュ＋改行）を繋がずに移動を判定する",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": ".replaceAll(\"\\\\\\n\", \"\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd word split by a line continuation"
+      ]
+    },
+    {
+      "id": "globbed-command-word-ignored",
+      "why": "コマンド位置のグロブ（展開で cd になりうる語）を移動とみなさない",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "|(?!\\[{1,2}\\s)[^\\s;&|()]*[*?[])/u;",
+      "replace": ")/u;",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a globbed command word"
+      ]
+    },
+    {
+      "id": "bracket-test-taken-for-glob",
+      "why": "[ … ]（test）をグロブのコマンド語と読み、cwd を不明に倒す",
+      "file": "scripts/normalize-skill-eval-result.js",
+      "find": "(?!\\[{1,2}\\s)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "skill eval result normalization skill read detection reads relative to the shell's working directory keeps the skill directory across a bracket test"
       ]
     }
   ]

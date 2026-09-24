@@ -900,10 +900,24 @@ describe("skill eval result normalization", () => {
         ["a quoted cd word", `"cd" /tmp && ls`],
         ["an escaped cd word", String.raw`\cd /tmp`],
         ["a cd word split by quotes", "c'd' /tmp"],
+        ["a cd word split by a line continuation", "c\\\nd /tmp"],
+        ["a globbed command word", "c? /tmp"],
       ])("forgets the skill directory after %s", (_label, command) => {
         const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
 
         expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      // The glob rule must not take `[ … ]` (test) for a command word to expand.
+      test("keeps the skill directory across a bracket test", () => {
+        const usage = usageOf([
+          INIT,
+          bash(`cd ${SKILL_DIR}`),
+          bash("[ -e x ] && ls"),
+          bash("cat SKILL.md"),
+        ]);
+
+        expect(usage).toMatchObject({ read: true, invalid_run: false });
       });
 
       test("forgets the skill directory once the tool reports resetting the cwd", () => {
