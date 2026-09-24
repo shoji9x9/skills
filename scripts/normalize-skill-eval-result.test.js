@@ -404,6 +404,19 @@ describe("skill eval result normalization", () => {
       ["a read after a return", "return 0 && cat .claude/skills/box/SKILL.md"],
       ["a read after an exec", "exec true && cat .claude/skills/box/SKILL.md"],
       ["a read after an eval", 'eval "$X" && cat .claude/skills/box/SKILL.md'],
+      // Codex review on #463: the script is the operand right after the options, and
+      // only when it ends the command.
+      ["a quoted $0 after a -c script", "bash -c echo 'cat .claude/skills/box/SKILL.md'"],
+      ["a -c script followed by arguments", "bash -c 'cat .claude/skills/box/SKILL.md' arg0"],
+      [
+        "a -c script followed by a quoted argument",
+        "bash -c 'cat .claude/skills/box/SKILL.md' 'arg0'",
+      ],
+      ["an unterminated -c script", "bash -c 'cat .claude/skills/box/SKILL.md"],
+      [
+        "a skill path that climbs out of the skill",
+        "cat .claude/skills/box/../issue-start/SKILL.md",
+      ],
     ])("takes no evidence from %s", (_label, command) => {
       const usage = buildSkillUsage({
         config: "without_skill",
@@ -737,6 +750,22 @@ describe("skill eval result normalization", () => {
       expect(usage).toMatchObject({ read: false, invalid_run: true });
     });
 
+    test("unwraps a -c script that follows further options", () => {
+      const usage = buildSkillUsage({
+        config: "with_skill",
+        skill: "box",
+        evidence: evidenceFor(
+          claudeStream([
+            { type: "system", subtype: "init", skills: ["box"] },
+            assistantToolUse("Bash", { command: "bash -c -x 'cat .claude/skills/box/SKILL.md'" }),
+            RESULT_EVENT,
+          ]),
+        ),
+      });
+
+      expect(usage).toMatchObject({ read: true, invalid_run: false });
+    });
+
     test("never turns an empty Codex trace into a measured 'not read'", () => {
       const usage = buildSkillUsage({
         config: "with_skill",
@@ -835,11 +864,6 @@ describe("skill eval result normalization", () => {
           "SKILL.md",
         ],
         ["after a quoted cd", [bash(`cd "${SKILL_DIR}"`), bash("cat SKILL.md")], "SKILL.md"],
-        [
-          "up from a subdirectory",
-          [bash(`cd ${SKILL_DIR}/references`), bash("cat ../SKILL.md")],
-          "SKILL.md",
-        ],
         ["inside the same and-list", [bash(`cd ${SKILL_DIR} && cat SKILL.md`)], "SKILL.md"],
         [
           // The shape eval 44 recorded (iteration-44, with_skill run-2).
@@ -1011,6 +1035,14 @@ describe("skill eval result normalization", () => {
           bash(`cd ${SKILL_DIR}`),
           ...parallel(["toolu_rd_first", "cat SKILL.md"], ["toolu_mv_after", "cd /tmp"]),
         ]);
+
+        expect(usage).toMatchObject({ read: false, invalid_run: true });
+      });
+
+      // Codex review on #463: `..` in a read opens the physical parent, which a symlink
+      // anywhere on the way makes differ from the textual one.
+      test("leaves a read that climbs with .. unresolved", () => {
+        const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}/references`), bash("cat ../SKILL.md")]);
 
         expect(usage).toMatchObject({ read: false, invalid_run: true });
       });

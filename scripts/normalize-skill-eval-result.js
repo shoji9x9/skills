@@ -384,6 +384,14 @@ function movesCwd(text) {
   return false;
 }
 
+// A read that climbs with `..` opens the physical parent, which differs from the
+// textual one once any directory on the way was reached through a symlink — and the
+// trace cannot show that. Leave such an operand as written. (A `cd ..` is different:
+// bash's default logical cd does resolve it textually.)
+function resolveRead(cwd, path) {
+  return /(?:^|\/)\.\.(?:\/|$)/u.test(path) ? path : resolveAgainst(cwd, path);
+}
+
 function resolveAgainst(cwd, path) {
   return cwd === null || /^[/~$]/u.test(path) ? path : posix.resolve(cwd, path);
 }
@@ -396,16 +404,14 @@ function analyzeShellCommand(command, cwd, depth = 0) {
   // Codex runs every command as `/bin/bash -lc '<script>'` (measured), so without
   // unwrapping the inner script no codex run would ever count as a read. The inner
   // shell is a child, so nothing it does moves the caller's directory.
-  //
-  // The quote check cannot tell one quoted script from `bash -c "a" && cd "/b"`, whose
-  // cd runs in the caller's shell, so the caller's side is judged like any script.
-  if (isShellCInvocation(trimmed)) {
-    const inner = stripOuterQuotes(trimmed);
-    const callerMove = movesCwd(trimmed) ? null : undefined;
-    if (depth >= 2 || inner === null) {
-      return { reads: [], cwdAfter: callerMove };
+  // shellCScript accepts only a script that ends the command, so nothing of this
+  // command runs in the caller's shell.
+  const inner = shellCScript(trimmed);
+  if (inner !== null) {
+    if (depth >= 2) {
+      return { reads: [], cwdAfter: undefined };
     }
-    return { reads: analyzeShellCommand(inner, cwd, depth + 1).reads, cwdAfter: callerMove };
+    return { reads: analyzeShellCommand(inner, cwd, depth + 1).reads, cwdAfter: undefined };
   }
 
   const elements = splitAndList(trimmed);
@@ -435,11 +441,11 @@ function analyzeShellCommand(command, cwd, depth = 0) {
       cwdAfter = null;
       break;
     }
-    if (isShellCInvocation(element.trim())) {
+    if (shellCScript(element.trim()) !== null) {
       reads.push(...analyzeShellCommand(element, current, depth).reads);
       continue;
     }
-    reads.push(...readOperands(element).map((path) => resolveAgainst(current, path)));
+    reads.push(...readOperands(element).map((path) => resolveRead(current, path)));
   }
   return { reads, cwdAfter };
 }
@@ -448,37 +454,30 @@ function stripQuotes(word) {
   return word.replaceAll(/^['"]|['"]$/gu, "");
 }
 
-// `bash -c '<script>'` and its kin, when the quoted script is the last thing on the
-// line. Text after the closing quote (`bash -c 'x' && cd y`) runs in the caller's
-// shell, so that form is left to the list scanner instead.
-function isShellCInvocation(command) {
-  const words = command.split(/\s+/u);
-  let index = 0;
-  while (index < words.length && (/^\w+=/u.test(words[index]) || words[index] === "sudo")) {
-    index += 1;
+// The script `bash -c` runs: the first non-option word after the options, one of which
+// holds `c`. It must be a single quoted word that ends the command — text after it
+// (`bash -c 'x' && cd y`, or positional arguments) runs elsewhere or means something
+// else, and a quoted word later on the line (`bash -c echo 'cd x && cat y'`) is `$0`,
+// not the script. Anything else returns null, so the command is read as a plain one.
+function shellCScript(command) {
+  const match = /^(?:\w+=\S*\s+|sudo\s+)*(\S+)((?:\s+-{1,2}[A-Za-z-]+)+)\s+(['"])/u.exec(command);
+  if (
+    match === null ||
+    !SHELL_BINARIES.has(match[1].split("/").pop()) ||
+    !match[2].trim().split(/\s+/u).some(isShellCFlag) ||
+    command.length <= match[0].length ||
+    command.at(-1) !== match[3]
+  ) {
+    return null;
   }
-  const utility = (words[index] ?? "").split("/").pop();
-  return (
-    SHELL_BINARIES.has(utility) &&
-    words.slice(index + 1).some(isShellCFlag) &&
-    stripOuterQuotes(command) !== null &&
-    command.at(-1) === command[command.search(/['"]/u)]
-  );
+  const body = command.slice(match[0].length, -1);
+  // A single-quoted word cannot hold `'`; a double-quoted one may hold only escaped `"`.
+  const closesEarly = match[3] === "'" ? body.includes("'") : /(?:^|[^\\])(?:\\\\)*"/u.test(body);
+  return closesEarly ? null : body;
 }
 
 function isShellCFlag(word) {
   return /^-[a-z]*c[a-z]*$/u.test(word);
-}
-
-// Return the text between the first quote and the last matching one, which is where a
-// `-c` script lives.
-function stripOuterQuotes(text) {
-  const opening = text.search(/['"]/u);
-  if (opening === -1) {
-    return null;
-  }
-  const closing = text.lastIndexOf(text[opening]);
-  return closing <= opening ? null : text.slice(opening + 1, closing);
 }
 
 // Returns where a shell call may leave the directory (see analyzeShellCommand).
@@ -797,7 +796,11 @@ function collectSkillPaths(texts, skill) {
   const found = new Set();
   for (const text of texts) {
     for (const match of text.matchAll(pattern)) {
-      found.add(match[0]);
+      // `.claude/skills/box/../other/SKILL.md` names the text of the subject skill but
+      // opens another directory.
+      if (!/\/\.\.(?:\/|$)/u.test(match[0])) {
+        found.add(match[0]);
+      }
     }
   }
   return [...found].sort();
