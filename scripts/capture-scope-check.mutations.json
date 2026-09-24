@@ -1,0 +1,100 @@
+{
+  "$comment": [
+    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/capture-scope-check.test.js",
+  "mutations": [
+    {
+      "id": "scrollbars-missing",
+      "why": "scrollbars の欠落を欠落として数えない（語彙外と区別しない）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"scrollbars\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["scrollbars の欠落・語彙外は落とす（新側を同じ扱いで撮れない）"]
+    },
+    {
+      "id": "overflow-missing",
+      "why": "overflow をキーごと省略した成果物を欠落として数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"overflow\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["overflow をキーごと持たない成果物は落とす（省略を免除にしない）"]
+    },
+    {
+      "id": "scrollbars-hidden",
+      "why": "スクロールバーを隠したまま測った記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (o.scrollbars !== \"shown\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）"
+      ]
+    },
+    {
+      "id": "bar-takes-no-space",
+      "why": "横にはみ出した窓で横スクロールバーの厚みが 0 でも通す（陽性コントロールを外す）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (w.horizontal && w.horizontal_bar_px === 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクロールバーを隠して測った記録は落とす（100vh と 100% の差が 0 になる）"
+      ]
+    },
+    {
+      "id": "page-unknown",
+      "why": "撮影頁に無い頁の記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!declaredPages.includes(page)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+      ]
+    },
+    {
+      "id": "page-missing",
+      "why": "撮影頁の測り漏れを数えない（記録された頁だけを期待集合にする）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!seenPages.has(page)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の測り漏れ・重複・撮影頁に無い頁は落とす（期待集合は capture_conditions.pages から作る）"
+      ]
+    },
+    {
+      "id": "min-width-null-horizontal",
+      "why": "最小幅を持たないと書いた頁が横にはみ出していても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        if (w.horizontal) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "narrow-not-horizontal",
+      "why": "最小幅より狭い窓で横にはみ出していなくても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        if (!w.horizontal) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "narrow-window-missing",
+      "why": "最小幅より狭い窓を 1 つも測っていなくても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (minWidthOk && minWidth !== null && narrow === 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    }
+  ]
+}

@@ -94,6 +94,7 @@
     ],
     "animations": "disabled",
     "full_page": "<スクリーンショットを全画面（true）で撮ったかビューポート内（false）で撮ったか。parity-diff の新側採取が同じ値で撮るために必須（決め打ちすると画像サイズが違い全面差分になる）。真偽値で書く>",
+    "scrollbars": "<撮影時にスクロールバーが場所を取ったか。hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden）| shown（場所を取る。launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
     "pages": [
       {
         "name": "<ページ名。noise_baseline[].page と同じ語彙を使う（parity-diff が組の再測定範囲を突き合わせるため）>",
@@ -205,6 +206,28 @@
         }
       ],
       "reason": "<status が not_measured / not_required のときだけ理由。measured では null>"
+    },
+    "overflow": {
+      "_note": "スクロールバーが場所を取る窓での縦・横のはみ出し（Issue #449）。feature モードではキーごと省略しない。スクロールバーが隠れていると 100vh と height: 100% の差が 0 になり、頁の高さの決め方の違いが 3 経路のどれにも写らないため、scrollbars: shown の窓で測る。記録は overflow/ の測定スペックが現側で書き、同じスペックが通常実行でこの記録を期待値として現・新の両側に当てる（手で転記しない）。検査は parity-suite の scripts/capture-scope-check.mjs。正本は parity-suite の references/baseline.md「スクロールバーが場所を取る窓のはみ出し」。",
+      "status": "<measured | not_measured>",
+      "scrollbars": "<測った窓でのスクロールバーの扱い。measured では shown だけを受ける>",
+      "spec": "<この記録を期待値として現・新の両側に当てるスペックのパス（例: <parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts）>",
+      "pages": [
+        {
+          "page": "<capture_conditions.pages[].name。撮影頁を全て 1 回ずつ>",
+          "min_width": "<頁の最小幅（px。狭い窓で測った document の scrollWidth）。どの幅でも横にはみ出さない頁だけ null>",
+          "windows": [
+            {
+              "width": 0,
+              "height": 0,
+              "horizontal": "<真偽値。scrollWidth > clientWidth（横にはみ出したか）>",
+              "vertical": "<真偽値。scrollHeight > clientHeight（縦にはみ出したか）>",
+              "horizontal_bar_px": "<0 以上の数。innerHeight − clientHeight（横スクロールバーの厚み）。横にはみ出した窓で 0 なら、スクロールバーが隠れたまま測っている>"
+            }
+          ]
+        }
+      ],
+      "reason": "<status が not_measured のときだけ理由。measured では null>"
     },
     "popup_inventory": [
       {

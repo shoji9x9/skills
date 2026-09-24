@@ -13,6 +13,9 @@
 //      画素にも特性にも出ない領域が器の中に残っている（仮想スクロール・固定高のグリッドが該当する）。
 //   4. **撮影領域の外にある論理名付き要素**（`offscreen:<名前>`）: 特性は採れても画素には写らない。
 //
+// あわせて**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（Issue #449。`checkOverflow`）。
+// スクロールバーを隠した撮影では `100vh` と `height: 100%` の差が 0 になり、上の穴と同じく「差分 0 件」に化けるため。
+//
 // 穴は消すか、**対象外として理由付きで宣言する**（`capture_scope_exemptions`）。宣言の無い穴は落とす。
 // 効かない宣言（対応する穴が無い）も落とす——古い宣言が残ると、範囲を狭めても静かに通る。
 //
@@ -29,7 +32,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -323,6 +326,209 @@ export function declaredCombinations(conditions) {
   return { keys, findings };
 }
 
+/** `capture_conditions.scrollbars` の語彙。`hidden` は Playwright のヘッドレス Chromium の既定（`--hide-scrollbars`）。 */
+export const SCROLLBAR_MODES = ["hidden", "shown"];
+
+/** `capture_conditions.overflow.status` の語彙。 */
+export const OVERFLOW_STATUSES = ["measured", "not_measured"];
+
+/**
+ * スクロールバーの扱いと、スクロールバーが場所を取る窓での「はみ出し」の宣言を検査する。Issue #449。
+ *
+ * **スクロールバーが隠れていると `100vh` と `height: 100%` の差が測れない。** 隠れたスクロールバーは場所を取らないので、
+ * 横スクロールバーが出る窓でも「見える高さ」が減らず、頁の高さの決め方の違いが 3 経路のどれにも写らない。
+ * そこで撮影時の扱い（`scrollbars`）を記録させ、別に「スクロールバーを表示した窓で、頁の最小幅より狭い窓の縦・横のはみ出し」を
+ * `overflow` に宣言させる（現・新の突き合わせはこの記録を読むスイートの assertion が行う）。
+ *
+ * 通すのは 2 通りだけ: `status: measured` で頁ごとの実測が揃っている／`status: not_measured` で理由がある。
+ * @param {Record<string, unknown>} conditions
+ * @returns {{code:string, message:string}[]}
+ */
+export function checkOverflow(conditions) {
+  /** @type {{code:string, message:string}[]} */
+  const findings = [];
+  const add = (code, message) => findings.push({ code, message });
+  if (!Object.hasOwn(conditions, "scrollbars")) {
+    add(
+      "scrollbars-missing",
+      `capture_conditions.scrollbars が無い（撮影時にスクロールバーが場所を取ったか。${SCROLLBAR_MODES.join(" / ")} で書く。新側を同じ扱いで撮れない）`,
+    );
+  } else if (!SCROLLBAR_MODES.includes(/** @type {string} */ (conditions.scrollbars))) {
+    add(
+      "scrollbars-unknown",
+      `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
+    );
+  }
+  if (!Object.hasOwn(conditions, "overflow")) {
+    add(
+      "overflow-missing",
+      "capture_conditions.overflow が無い（スクロールバーを表示した窓のはみ出しを測っていない。測れないなら status: not_measured と reason を書く。キーを省略したまま免除しない）",
+    );
+    return findings;
+  }
+  const overflow = conditions.overflow;
+  if (
+    !overflow ||
+    typeof overflow !== "object" ||
+    Array.isArray(overflow) ||
+    !OVERFLOW_STATUSES.includes(/** @type {string} */ (/** @type {any} */ (overflow).status))
+  ) {
+    add(
+      "overflow-status-unknown",
+      `capture_conditions.overflow.status が ${OVERFLOW_STATUSES.join(" / ")} のいずれでもない`,
+    );
+    return findings;
+  }
+  const o = /** @type {Record<string, unknown>} */ (overflow);
+  if (o.status === "not_measured") {
+    if (!nonEmptyString(o.reason)) {
+      add(
+        "overflow-reason-missing",
+        "capture_conditions.overflow.status: not_measured に reason が無い",
+      );
+    }
+    return findings;
+  }
+  if (o.reason !== null) {
+    add(
+      "overflow-reason-unexpected",
+      "capture_conditions.overflow.status: measured なのに reason が null でない（測ったか測らなかったかが矛盾）",
+    );
+  }
+  if (o.scrollbars !== "shown") {
+    add(
+      "overflow-scrollbars-hidden",
+      "capture_conditions.overflow.scrollbars が shown でない（スクロールバーが場所を取らない窓では 100vh と 100% の差が 0 になる）",
+    );
+  }
+  if (!nonEmptyString(o.spec)) {
+    add(
+      "overflow-spec-missing",
+      "capture_conditions.overflow.spec が空（この記録を現・新の両側に当てるスペックが無いと、新側と突き合わせられない）",
+    );
+  }
+  // 期待集合は撮影条件の pages（宣言）から作る。記録された頁だけを見ると、頁ごと落とした測り漏れが通る
+  const declaredPages = Array.isArray(conditions.pages)
+    ? conditions.pages
+        .map((p) => (p && typeof p === "object" ? /** @type {any} */ (p).name : undefined))
+        .filter(nonEmptyString)
+    : [];
+  if (!Array.isArray(o.pages)) {
+    add("overflow-pages-missing", "capture_conditions.overflow.pages が配列でない");
+    return findings;
+  }
+  /** @type {Set<string>} */
+  const seenPages = new Set();
+  o.pages.forEach((raw, i) => {
+    const at = `capture_conditions.overflow.pages[${i}]`;
+    const entry = /** @type {Record<string, unknown>} */ (raw ?? {});
+    if (!nonEmptyString(entry.page)) {
+      add("overflow-page-unkeyed", `${at}.page が空（どの頁の実測か決まらない）`);
+      return;
+    }
+    const page = /** @type {string} */ (entry.page);
+    if (seenPages.has(page)) {
+      add(
+        "overflow-page-duplicated",
+        `capture_conditions.overflow.pages に ${page} が 2 つ以上ある`,
+      );
+      return;
+    }
+    seenPages.add(page);
+    if (!declaredPages.includes(page)) {
+      add("overflow-page-unknown", `${at} の頁 ${page} が capture_conditions.pages に無い`);
+    }
+    const minWidth = entry.min_width;
+    const minWidthOk =
+      minWidth === null || (Number.isInteger(minWidth) && /** @type {number} */ (minWidth) > 0);
+    if (!minWidthOk) {
+      add(
+        "overflow-min-width-malformed",
+        `${at}.min_width が正の整数でも null でもない（最小幅を持たない頁だけ null と書く）`,
+      );
+    }
+    if (!Array.isArray(entry.windows) || entry.windows.length === 0) {
+      add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
+      return;
+    }
+    /** @type {Set<string>} */
+    const seenWindows = new Set();
+    let narrow = 0;
+    entry.windows.forEach((rawWindow, j) => {
+      const wat = `${at}.windows[${j}]`;
+      const w = /** @type {Record<string, unknown>} */ (rawWindow ?? {});
+      if (
+        !Number.isInteger(w.width) ||
+        !Number.isInteger(w.height) ||
+        /** @type {number} */ (w.width) <= 0 ||
+        /** @type {number} */ (w.height) <= 0
+      ) {
+        add("overflow-window-malformed", `${wat} の width / height が正の整数でない`);
+        return;
+      }
+      const key = `${w.width}x${w.height}`;
+      if (seenWindows.has(key)) {
+        add("overflow-window-duplicated", `${at}.windows に窓 ${key} が 2 つ以上ある`);
+        return;
+      }
+      seenWindows.add(key);
+      if (typeof w.horizontal !== "boolean" || typeof w.vertical !== "boolean") {
+        add("overflow-window-malformed", `${wat} の horizontal / vertical が真偽値でない`);
+        return;
+      }
+      if (
+        typeof w.horizontal_bar_px !== "number" ||
+        !Number.isFinite(w.horizontal_bar_px) ||
+        w.horizontal_bar_px < 0
+      ) {
+        add("overflow-window-malformed", `${wat}.horizontal_bar_px が 0 以上の数でない`);
+        return;
+      }
+      // 陽性コントロール: 横にはみ出した窓で横スクロールバーが場所を取っていなければ、スクロールバーが隠れたまま測っている
+      if (w.horizontal && w.horizontal_bar_px === 0) {
+        add(
+          "overflow-bar-takes-no-space",
+          `${wat} は横にはみ出しているのに横スクロールバーの厚みが 0（スクロールバーが隠れたまま測っている。--hide-scrollbars が残っているか、オーバーレイ型のスクロールバー）`,
+        );
+      }
+      if (!minWidthOk) return;
+      if (minWidth === null) {
+        if (w.horizontal) {
+          add(
+            "overflow-min-width-inconsistent",
+            `${wat} は横にはみ出しているのに ${at}.min_width が null（最小幅を持つ頁として測り直す）`,
+          );
+        }
+        return;
+      }
+      if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth)) {
+        narrow += 1;
+        if (!w.horizontal) {
+          add(
+            "overflow-min-width-inconsistent",
+            `${wat} は min_width（${minWidth}）より狭いのに横にはみ出していない（最小幅の実測が誤っている）`,
+          );
+        }
+      }
+    });
+    if (minWidthOk && minWidth !== null && narrow === 0) {
+      add(
+        "overflow-narrow-window-missing",
+        `${at} に min_width（${minWidth}）より狭い窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
+      );
+    }
+  });
+  for (const page of declaredPages) {
+    if (!seenPages.has(page)) {
+      add(
+        "overflow-page-missing",
+        `capture_conditions.overflow.pages に撮影頁 ${page} が無い（頁ごとに測る）`,
+      );
+    }
+  }
+  return findings;
+}
+
 /**
  * `metadata.json` の内容から撮る範囲の穴を数える。
  *
@@ -395,6 +601,9 @@ export function checkCaptureScope(metadata) {
     /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (conditions)),
   );
   findings.push(...declared.findings);
+  findings.push(
+    ...checkOverflow(/** @type {Record<string, unknown>} */ (/** @type {unknown} */ (conditions))),
+  );
   const noiseBaseline = meta.noise_baseline;
   if (!Array.isArray(noiseBaseline) || noiseBaseline.length === 0) {
     findings.push({

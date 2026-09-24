@@ -45,6 +45,7 @@
 
 **同一環境・同一ビューポート・アニメーション無効（`animations: 'disabled'`）・動的領域のマスク。** 条件を `metadata.json` に残し、`parity-diff` が新側を同一条件で撮れるようにする。
 **撮影範囲（全画面かビューポート内か）も `capture_conditions.full_page` に残す**——記録しないと新側が決め打ちで撮り、画像サイズの違いが全面差分として出る。
+**スクロールバーが場所を取ったかも `capture_conditions.scrollbars` に残す**——片側だけ場所を取ると見える幅と高さが厚みの分ずれる。隠れた撮影で拾えない差は下の「スクロールバーが場所を取る窓のはみ出し」が持つ。
 
 マスクは用途を混ぜない。`capture_conditions.masks` は認証情報・トークン・個人情報・揮発項目を成果物へ残さないための**恒久マスク**とし、方針は [`auth.md`](auth.md) に従う。
 同じページに乗る別機能の未実装領域は `capture_conditions.cofeature_masks` にページ・所有 slug と、現側で測った page × state × viewport ごとのルート論理名・`bbox` を記録する。対象は `.replace/features.md` のページ一覧から導出し、対象機能自身は含めない。
@@ -315,10 +316,10 @@ export async function waitForStableRect(target: Locator): Promise<void> {
 
 **書き出すのは `PARITY_DIMENSION_CAPTURE=1` を渡した実行だけ**で、それ以外はスキップする。強度ゲート（手順 7）は故障を注入した状態で同じ `current` を回し、
 ノイズ測定の 2 回目や green の再確認も同じスイートを回すため、無条件に書くと**崩れた矩形で samples を上書きし、その値に式を当てはめる**ことになる。
-採るのは本手順（`current`）と `parity-replace` の完了判定（`new`）の直前だけにし、採った直後に `fit` / `check` を通す:
+採るのは本手順（`current`）と `parity-replace` の完了判定（`new`）の直前だけにし、採った直後に `fit` / `check` を通す（`--project` は複数の値を取るので、パスを後ろに置くとプロジェクト名として読まれて落ちる。パスを先に書く）:
 
 ```bash
-PARITY_DIMENSION_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test --project current <parity_suite_dir>/parity/<slug>/dimension/
+PARITY_DIMENSION_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test <parity_suite_dir>/parity/<slug>/dimension/ --project current
 ```
 
 ```ts
@@ -420,6 +421,176 @@ node <skill>/scripts/dimension-fit.mjs fit \
 - exit 0 で `capture_conditions.dimension_model` に `status: measured`・`measured_at`・`fits`・`unfit` が書かれる。exit 2（窓 4 未満・一直線上・撮影ビューポートを含まない・撮影ページや `traits.elements` の測り漏れ・全ての窓で表示されない要素・キーの欠落や重複・型崩れ）は採り直す
 - `dimension-samples.json` はテキスト成果物として Git に入れる（`parity-replace` の照合は `metadata.json` の式を使い、samples は再当てはめの根拠）
 - **要素・窓を変えて採り直したら、`fit` も通し直す**（`dimension_model.samples_fingerprint` はどの samples から当てた式かの記録。`parity-replace` の `check` は現側 `dimension-samples.json` とこの指紋を照合し、一致しなければ exit 2 で止まる）
+
+### スクロールバーが場所を取る窓のはみ出し
+
+**スクロールバーが隠れていると、頁の高さの決め方の違い（`height: 100%` と `100vh`）は 3 経路のどれにも写らない。**
+Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起動する（出典: <https://github.com/microsoft/playwright/blob/main/packages/playwright-core/src/server/chromium/chromium.ts> の `headless` 分岐）。
+隠れたスクロールバーは場所を取らないので、横スクロールバーが出る窓でも「見える高さ」が減らない。そのため `100vh` と `height: 100%` はどの窓でも同じ値になる。
+上の「寸法の決まり方」を何窓で測っても、この差は 0 のまま。
+
+スクロールバーが場所を取る窓では次の差が出る。移行元の `html`・`body` と器が `height: 100%` で、新側の器が `min-height: 100vh` の場合:
+
+- 窓の幅が頁の最小幅より狭いと横スクロールバーが出て、見える高さ（`100%`）はその厚みだけ減る。`100vh` は減らない
+- 中身が窓の高さに収まる頁でも、新側だけ横スクロールバーの厚みの分はみ出して縦スクロールバーが出る
+
+**最小幅を持つ業務画面では、狭い窓で必ず踏む差**なので、feature モードでは次の 2 つを `metadata.json` の `capture_conditions` に残す（形式はテンプレート `assets/metadata-template.json`）。
+
+- **`scrollbars`**: ベースラインを撮ったときにスクロールバーが場所を取ったか（`hidden` / `shown`）。Playwright のヘッドレス Chromium の既定は `hidden`。
+  `parity-diff` の新側採取は同じ扱いで撮る（片側だけ場所を取ると、見える幅と高さが厚みの分ずれて全面差分になる）
+- **`overflow`**: スクロールバーを表示させた窓（`scrollbars: shown`）での縦・横のはみ出し。**キーごと省略しない**——測れないなら `status: not_measured` と `reason` を書き、同じ理由を `gaps.md` に残す
+
+測る窓は測定スペックが頁ごとに導く。撮影したビューポートに加えて、頁が最小幅を持つなら次の 2 窓を足す（**幅と高さを手で選ばない**）:
+
+1. 最小幅より狭く、撮影したビューポートと同じ高さの窓（横スクロールバーが出る）
+2. 1 と同じ幅で、中身が収まる高さの窓。**縦のはみ出しが頁の高さの決め方だけで決まる**ので、`100%` と `100vh` の差がここに出る
+
+最小幅は、狭い窓（既定 320px 幅）で読んだ文書の `scrollWidth` で決める。その窓で横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
+
+測定スペックは `<parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts` に置き、**`current` と `new` の両プロジェクトに含める**。
+同じスペックが 2 つの役を持つ——`PARITY_OVERFLOW_CAPTURE=1` を渡した `current` の実行では実測を `metadata.json` の `capture_conditions.overflow` へ書き、
+それ以外の実行ではその記録を期待値として読み、現・新の両側に当てる（新側が現側と同じ窓で同じはみ出し方をすることを、スイートの green が保証する）。
+
+- **ファイルを分けるのは、起動引数（`launchOptions`）がワーカー単位の設定だから。** `test.use({ launchOptions })` はファイルの最上位にしか書けず（`describe` の中では新しいワーカーが要るため使えない）、
+  同じファイルの他のテストもスクロールバーを表示した状態になる。撮影・特性採取・寸法の採取は撮影時の扱い（`scrollbars`）のまま走らせる
+  （出典: <https://github.com/microsoft/playwright/blob/main/packages/playwright/src/common/fixtures.ts> の「Cannot use({ … }) in a describe group, because it forces a new worker」）
+- **プロジェクトの `launchOptions` を上書きする。** 設定に `launchOptions`（`args` 等）があるなら、下の `test.use` にその値を写したうえで `ignoreDefaultArgs` を足す（`test.use` はオブジェクトごと置き換える）
+- **頁ごとに 1 テストにする。** `parity-replace` はページ単位のフェーズでスイートを回すので、頁で分けないと未実装の頁で最初のフェーズが完了できない
+
+```bash
+PARITY_OVERFLOW_CAPTURE=1 PARITY_CURRENT_UI_URL=<url> npx playwright test <parity_suite_dir>/parity/<slug>/overflow/ --project current
+```
+
+```ts
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { expect, test, type Page } from "@playwright/test";
+// スペックは <parity_suite_dir>/parity/<slug>/overflow/ に置くので、共有ライブラリ（<parity_suite_dir>/parity/lib/）は 2 階層上
+import { waitForStableRect } from "../../lib/wait"; // 上記「撮る対象が動かなくなるまで待つ」の関数（実際のパスはスイートに合わせる）
+
+// スクロールバーが場所を取る状態で起動する（ヘッドレス Chromium の既定の --hide-scrollbars を外す）。
+// launchOptions はワーカー単位の設定なので、ファイルの最上位に置く。プロジェクトに launchOptions があれば、その値をここへ写してから足す
+test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
+
+const slug = "<slug>";
+const metadataPath = join(process.cwd(), ".replace", "parity", slug, "metadata.json");
+// 頁と撮影したビューポートは metadata.json（capture_conditions.pages / viewports）から引く。手で書き写さない
+const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+const { pages, viewports } = metadata.capture_conditions as {
+  pages: { name: string; path: string }[];
+  viewports: { width: number; height: number }[];
+};
+const capturing = process.env.PARITY_OVERFLOW_CAPTURE === "1";
+// 強度ゲート専用: 頁の高さの決め方を変える CSS を当てる（references/strength-gate.md の故障カタログ）。current 以外では使わない
+const faultCss = process.env.PARITY_OVERFLOW_FAULT_CSS;
+/** 最小幅を読む狭い窓の幅 */
+const PROBE_WIDTH = 320;
+
+type Window = { width: number; height: number };
+type Measured = { horizontal: boolean; vertical: boolean; horizontal_bar_px: number };
+
+async function measure(page: Page, path: string, w: Window): Promise<Measured> {
+  await page.setViewportSize(w);
+  await page.goto(path);
+  if (faultCss) await page.addStyleTag({ content: faultCss });
+  // 頁の描画が落ち着くまで待つ（はみ出しは文書の寸法で決まるので、文書の根の矩形が動かなくなるまで）
+  await waitForStableRect(page.locator("body"));
+  // 出典: https://developer.mozilla.org/docs/Web/API/Document/scrollingElement（quirks なら body、標準なら html）
+  return page.evaluate(() => {
+    const el = document.scrollingElement ?? document.documentElement;
+    return {
+      horizontal: el.scrollWidth > el.clientWidth,
+      vertical: el.scrollHeight > el.clientHeight,
+      // 横スクロールバーの厚み。横にはみ出して 0 なら、スクロールバーが隠れたまま測っている
+      horizontal_bar_px: window.innerHeight - el.clientHeight,
+    };
+  });
+}
+
+function assertBarTakesSpace(m: Measured, label: string): void {
+  if (m.horizontal && m.horizontal_bar_px <= 0) {
+    throw new Error(`${label}: 横にはみ出しているのに横スクロールバーが場所を取っていない（--hide-scrollbars が残っている）`);
+  }
+}
+
+if (capturing) {
+  test("はみ出しの採取", async ({ page }, testInfo) => {
+    if (testInfo.project.name !== "current") throw new Error("採取は current でだけ行う（期待値は現側の実測）");
+    if (faultCss) throw new Error("故障を注入したまま採取しない");
+    const records = [];
+    for (const p of pages) {
+      const base = viewports[0];
+      await page.setViewportSize({ width: PROBE_WIDTH, height: base.height });
+      await page.goto(p.path);
+      await waitForStableRect(page.locator("body"));
+      const probe = await page.evaluate(() => {
+        const el = document.scrollingElement ?? document.documentElement;
+        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
+      });
+      const minWidth = probe.scrollWidth > probe.clientWidth ? probe.scrollWidth : null;
+      const windows: Window[] = viewports.map((v) => ({ width: v.width, height: v.height }));
+      if (minWidth === null) {
+        windows.push({ width: PROBE_WIDTH, height: base.height });
+      } else {
+        // 最小幅より狭い窓（横スクロールバーが出る）と、同じ幅で中身が収まる高さの窓
+        const narrow = { width: Math.max(1, minWidth - 100), height: base.height };
+        await page.setViewportSize(narrow);
+        await page.goto(p.path);
+        await waitForStableRect(page.locator("body"));
+        const contentHeight = await page.evaluate(
+          () => (document.scrollingElement ?? document.documentElement).scrollHeight,
+        );
+        windows.push(narrow, { width: narrow.width, height: contentHeight + 100 });
+      }
+      const seen = new Set<string>();
+      const measured = [];
+      for (const w of windows) {
+        const key = `${w.width}x${w.height}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const m = await measure(page, p.path, w);
+        assertBarTakesSpace(m, `${p.name} ${key}`);
+        measured.push({ ...w, ...m });
+      }
+      records.push({ page: p.name, min_width: minWidth, windows: measured });
+    }
+    // 他の採取と並行して metadata.json を書き換えない（このディレクトリだけを単独で回す）
+    const current = JSON.parse(readFileSync(metadataPath, "utf8"));
+    current.capture_conditions.overflow = {
+      status: "measured",
+      scrollbars: "shown",
+      spec: relative(process.cwd(), testInfo.file),
+      pages: records,
+      reason: null,
+    };
+    writeFileSync(metadataPath, `${JSON.stringify(current, null, 2)}\n`);
+  });
+} else {
+  const overflow = metadata.capture_conditions.overflow;
+  if (overflow?.status !== "measured") {
+    throw new Error("capture_conditions.overflow が measured でない。PARITY_OVERFLOW_CAPTURE=1 で current に採ってから回す");
+  }
+  for (const record of overflow.pages as { page: string; windows: (Window & Measured)[] }[]) {
+    const p = pages.find((x) => x.name === record.page);
+    if (!p) throw new Error(`capture_conditions.pages に無い頁: ${record.page}`);
+    test(`はみ出し: ${record.page}`, async ({ page }, testInfo) => {
+      if (faultCss && testInfo.project.name !== "current") throw new Error("故障の注入は current でだけ行う");
+      for (const w of record.windows) {
+        const label = `${record.page} ${w.width}x${w.height}`;
+        const m = await measure(page, p.path, w);
+        assertBarTakesSpace(m, label);
+        expect.soft(m.horizontal, `${label} の横のはみ出し`).toBe(w.horizontal);
+        expect.soft(m.vertical, `${label} の縦のはみ出し`).toBe(w.vertical);
+      }
+    });
+  }
+}
+```
+
+採ったら `capture-scope-check.mjs` を通す（手順 8）。記録の形・最小幅と窓の矛盾・横にはみ出した窓で横スクロールバーが場所を取っていない記録（隠れたまま測った）を落とす。
+
+- **採ったあとは、同じスペックを採取用の環境変数を外して `current` で回し、green になることを確かめる**（期待値と測り方が同じ実行系で一致することの確認）
+- **頁・ビューポートを変えたら採り直す**（記録の頁は `capture_conditions.pages` と突き合わせる）
 
 ### 採取環境と利用者環境の乖離
 

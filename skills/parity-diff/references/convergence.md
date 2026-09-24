@@ -156,6 +156,8 @@
     **`capture_conditions.capture_scope` をキーごと持たない現側成果物は後方互換に倒さない**——この節の導入より前の採取は範囲を測っていないので、
     `popup_inventory` と同じく**範囲の実測を足して（必要なら撮り直して）から**収束判定に入る。**スクリプトが見つからないときは判定を飛ばさず停止し**、
     `gh skill install shoji9x9/skills parity-suite` を促す。視覚採取物を持たない機能（`api-resource` / `batch`）は `capture_conditions` を持たないため判定に入れない
+    **同じ検査がスクロールバーの扱い（`capture_conditions.scrollbars`）と、スクロールバーを表示した窓のはみ出し（`capture_conditions.overflow`）も数える**（Issue #449）。
+    この 2 キーを持たない現側成果物も後方互換に倒さず、`parity-suite` で記録させてから収束判定に入る（正本は `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」）
   - **採取物と工程の健全性に未検証が残っていない**（正本は `parity-suite` の `references/baseline.md`「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と
     `references/coverage.md`「未測定を機械可読にする」）。**採取物は工程の出力であり次の工程の入力**なので、
     読まれていない採取物・古い加工物・回っていない工程・後始末が効いていないスイート・未測定の宣言は、どれも**緑のまま抜ける**。
