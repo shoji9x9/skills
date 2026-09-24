@@ -898,6 +898,8 @@ describe("skill eval result normalization", () => {
         ["a cd after a child shell", `bash -c "echo hi" && cd "/tmp"`],
         ["an eval of a quoted cd", `eval "cd /tmp" && ls`],
         ["a quoted cd word", `"cd" /tmp && ls`],
+        ["an escaped cd word", String.raw`\cd /tmp`],
+        ["a cd word split by quotes", "c'd' /tmp"],
       ])("forgets the skill directory after %s", (_label, command) => {
         const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
 

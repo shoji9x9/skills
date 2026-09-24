@@ -278,15 +278,22 @@ function plainCdTarget(element) {
 // Anything that may move the shell's directory without being a plain `cd`: a `cd`
 // behind a variable, `pushd` / `popd`, sourcing a script that could do either, and
 // commands whose text is only known after expansion (`eval "$MOVE"`, `$CMD /x`). The
-// words match anywhere, quoted too (`eval "cd /x"`), since over-matching only drops a
-// known directory; `.` and an expanded command word only in command position, since as
+// words match anywhere (quoted forms are caught by movesCwd), since over-matching only
+// drops a known directory; `.` and an expanded command word only in command position, since as
 // arguments (`find . -name`, `cat $F`) they are just operands.
 //
 // Not covered: a function or alias from the user's shell profile (`z proj`) moves the
 // directory under a name no text rule can know. The Bash tool does not carry functions
 // between calls, so only profile-defined ones remain.
 const CWD_CHANGE =
-  /(?:^|[\s;&|(`{'"])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}'"])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`])/u;
+  /(?:^|[\s;&|(`{])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`])/u;
+
+// The shell removes quotes and backslashes before it looks a command up, so `\cd /x`,
+// `c'd' /x` and `"cd" /x` all run the builtin. Judge the text with them removed as well
+// as without (the unremoved text is what places `.` and `$` in command position).
+function movesCwd(text) {
+  return CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll(/[\\'"]/gu, ""));
+}
 
 function resolveAgainst(cwd, path) {
   return cwd === null || /^[/~$]/u.test(path) ? path : posix.resolve(cwd, path);
@@ -306,7 +313,7 @@ function analyzeShellCommand(command, cwd, depth = 0) {
   // unknown. That only drops evidence; keeping the old directory could fabricate it.
   if (isShellCInvocation(trimmed)) {
     const inner = stripOuterQuotes(trimmed);
-    const callerMove = CWD_CHANGE.test(trimmed) ? null : undefined;
+    const callerMove = movesCwd(trimmed) ? null : undefined;
     if (depth >= 2 || inner === null) {
       return { reads: [], cwdAfter: callerMove };
     }
@@ -315,7 +322,7 @@ function analyzeShellCommand(command, cwd, depth = 0) {
 
   const elements = splitAndList(trimmed);
   if (elements === null) {
-    return { reads: [], cwdAfter: CWD_CHANGE.test(trimmed) ? null : undefined };
+    return { reads: [], cwdAfter: movesCwd(trimmed) ? null : undefined };
   }
   const reads = [];
   let current = cwd;
@@ -327,7 +334,7 @@ function analyzeShellCommand(command, cwd, depth = 0) {
       cwdAfter = current;
       continue;
     }
-    if (CWD_CHANGE.test(element)) {
+    if (movesCwd(element)) {
       current = null;
       cwdAfter = null;
       continue;
