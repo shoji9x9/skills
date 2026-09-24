@@ -31,6 +31,7 @@ function overflowOf(override = {}) {
       {
         page: "list",
         min_width: 1280,
+        content_height: 3200,
         windows: [
           { width: 1366, height: 768, horizontal: false, vertical: true, horizontal_bar_px: 0 },
           { width: 1180, height: 768, horizontal: true, vertical: true, horizontal_bar_px: 15 },
@@ -827,6 +828,71 @@ test("最小幅と窓の記録が矛盾していれば落とす", () => {
       metadataOf({ overflow: overflowOf({ pages: [{ ...page, windows: [page.windows[0]] }] }) }),
     ),
   ).toContain("overflow-narrow-window-missing");
+});
+
+test("中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  // 狭い窓が短い 1 窓だけ: 縦のはみ出しが頁の高さの決め方で決まらず、100% と 100vh を見分けられない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({ pages: [{ ...page, windows: [page.windows[0], page.windows[1]] }] }),
+      }),
+    ),
+  ).toContain("overflow-fit-window-missing");
+  // 狭い窓の高さが中身の高さと同じ（収まっていない）
+  expect(
+    codesOf(metadataOf({ overflow: overflowOf({ pages: [{ ...page, content_height: 3300 }] }) })),
+  ).toContain("overflow-fit-window-missing");
+  for (const contentHeight of [undefined, null, 0, 3200.5, "3200"]) {
+    expect(
+      codesOf(
+        metadataOf({
+          overflow: overflowOf({ pages: [{ ...page, content_height: contentHeight }] }),
+        }),
+      ),
+    ).toContain("overflow-content-height-malformed");
+  }
+  // 陰性コントロール: 中身が収まる高さの窓でも縦にはみ出す頁（body の height: 100% と既定の margin）は落とさない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              ...page,
+              windows: [page.windows[0], page.windows[1], { ...page.windows[2], vertical: true }],
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toEqual([]);
+  // 最小幅を持たない頁は content_height を要求しない
+  expect(
+    codesOf(
+      metadataOf({
+        overflow: overflowOf({
+          pages: [
+            {
+              page: "list",
+              min_width: null,
+              content_height: null,
+              windows: [
+                {
+                  width: 1366,
+                  height: 768,
+                  horizontal: false,
+                  vertical: true,
+                  horizontal_bar_px: 0,
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    ),
+  ).toEqual([]);
 });
 
 test("同梱テンプレートのプレースホルダのままの overflow は落とす", async () => {

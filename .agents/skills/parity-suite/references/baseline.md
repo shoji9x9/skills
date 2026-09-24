@@ -445,7 +445,7 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 1. 最小幅より狭く、撮影したビューポートと同じ高さの窓（横スクロールバーが出る）
 2. 1 と同じ幅で、中身が収まる高さの窓。**縦のはみ出しが頁の高さの決め方だけで決まる**ので、`100%` と `100vh` の差がここに出る
 
-最小幅は、狭い窓（既定 320px 幅）で読んだ文書の `scrollWidth` で決める。その窓で横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
+最小幅は、狭い窓（既定 320px 幅）で読んだ文書の `scrollWidth` で決める。2 の高さは 1 の窓で読んだ文書の `scrollHeight`（`content_height` として記録する）より高くとり、検査はその窓があることを確かめる。その窓で横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
 
 測定スペックは `<parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts` に置き、**`current` と `new` の両プロジェクトに含める**。
 同じスペックが 2 つの役を持つ——`PARITY_OVERFLOW_CAPTURE=1` を渡した `current` の実行では実測を `metadata.json` の `capture_conditions.overflow` へ書き、
@@ -538,6 +538,8 @@ if (capturing) {
       });
       const minWidth = !probe.clipsX && probe.scrollWidth > probe.clientWidth ? probe.scrollWidth : null;
       const windows: Window[] = viewports.map((v) => ({ width: v.width, height: v.height }));
+      // 最小幅より狭い窓で読んだ中身の高さ（capture-scope-check が「これより高い狭い窓」があることを確かめる）
+      let contentHeight: number | null = null;
       if (minWidth === null) {
         windows.push({ width: PROBE_WIDTH, height: base.height });
       } else {
@@ -546,7 +548,7 @@ if (capturing) {
         await page.setViewportSize(narrow);
         await page.goto(p.path);
         await waitForStableRect(page.locator("body"));
-        const contentHeight = await page.evaluate(
+        contentHeight = await page.evaluate(
           () => (document.scrollingElement ?? document.documentElement).scrollHeight,
         );
         windows.push(narrow, { width: narrow.width, height: contentHeight + 100 });
@@ -561,7 +563,7 @@ if (capturing) {
         assertBarTakesSpace(m, `${p.name} ${key}`);
         measured.push({ ...w, ...m });
       }
-      records.push({ page: p.name, min_width: minWidth, windows: measured });
+      records.push({ page: p.name, min_width: minWidth, content_height: contentHeight, windows: measured });
     }
     // 他の採取と並行して metadata.json を書き換えない（このディレクトリだけを単独で回す）
     const current = JSON.parse(readFileSync(metadataPath, "utf8"));

@@ -95,6 +95,24 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "fit-window-missing",
+      "why": "最小幅より狭く中身が収まる高さの窓が無くても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
+    },
+    {
+      "id": "content-height-malformed",
+      "why": "最小幅を持つ頁の content_height が読めなくても落とさない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (minWidthOk && !contentHeightOk) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["中身が収まる高さの狭い窓が無い記録は落とす（Codex レビュー #453）"]
     }
   ]
 }

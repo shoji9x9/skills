@@ -216,6 +216,7 @@
         {
           "page": "<capture_conditions.pages[].name。撮影頁を全て 1 回ずつ>",
           "min_width": "<頁の最小幅（px。狭い窓で測った document の scrollWidth）。どの幅でも横にはみ出さない頁だけ null>",
+          "content_height": "<min_width を持つ頁だけ、最小幅より狭く撮影ビューポートと同じ高さの窓で読んだ文書の scrollHeight（px）。windows にはこれより高い狭い窓（中身が収まる高さ＝縦のはみ出しが頁の高さの決め方だけで決まる窓）が要る。min_width が null なら null>",
           "windows": [
             {
               "width": 0,

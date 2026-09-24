@@ -447,6 +447,18 @@ export function checkOverflow(conditions) {
         `${at}.min_width が正の整数でも null でもない（最小幅を持たない頁だけ null と書く）`,
       );
     }
+    // 狭い窓で読んだ中身の高さ。最小幅を持つ頁では、これより高い狭い窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を要求する。
+    // 「縦にはみ出さないこと」は要求しない——body { height: 100% } と既定の margin のように、どの高さでもはみ出す正当な頁がある
+    const contentHeight = entry.content_height;
+    const contentHeightOk =
+      minWidth === null ||
+      (Number.isInteger(contentHeight) && /** @type {number} */ (contentHeight) > 0);
+    if (minWidthOk && !contentHeightOk) {
+      add(
+        "overflow-content-height-malformed",
+        `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
+      );
+    }
     if (!Array.isArray(entry.windows) || entry.windows.length === 0) {
       add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
       return;
@@ -454,6 +466,7 @@ export function checkOverflow(conditions) {
     /** @type {Set<string>} */
     const seenWindows = new Set();
     let narrow = 0;
+    let fitting = 0;
     entry.windows.forEach((rawWindow, j) => {
       const wat = `${at}.windows[${j}]`;
       const w = /** @type {Record<string, unknown>} */ (rawWindow ?? {});
@@ -503,6 +516,12 @@ export function checkOverflow(conditions) {
       }
       if (/** @type {number} */ (w.width) < /** @type {number} */ (minWidth)) {
         narrow += 1;
+        if (
+          contentHeightOk &&
+          /** @type {number} */ (w.height) > /** @type {number} */ (contentHeight)
+        ) {
+          fitting += 1;
+        }
         if (!w.horizontal) {
           add(
             "overflow-min-width-inconsistent",
@@ -515,6 +534,11 @@ export function checkOverflow(conditions) {
       add(
         "overflow-narrow-window-missing",
         `${at} に min_width（${minWidth}）より狭い窓が無い（横スクロールバーが出る窓で測らないと 100vh と 100% の差は出ない）`,
+      );
+    } else if (minWidthOk && minWidth !== null && contentHeightOk && fitting === 0) {
+      add(
+        "overflow-fit-window-missing",
+        `${at} に min_width（${minWidth}）より狭く content_height（${contentHeight}）より高い窓が無い（中身が収まる高さの窓でないと、縦のはみ出しが頁の高さの決め方だけで決まらず 100vh と 100% を見分けられない）`,
       );
     }
   });
