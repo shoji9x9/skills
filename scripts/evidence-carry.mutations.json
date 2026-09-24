@@ -82,7 +82,8 @@
         "影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない",
         "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない",
         "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない",
-        "影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す"
+        "影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す",
+        "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない"
       ]
     },
     {
@@ -257,7 +258,8 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない"
+        "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない",
+        "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない"
       ]
     },
     {
@@ -281,6 +283,17 @@
       "occurrences": 1,
       "expect_failing": [
         "影響あり・pass: true だが計数と食い違う記録（inside_diff_after が inside_diff_before より大きい）: 持ち越さない"
+      ]
+    },
+    {
+      "id": "current-axis-order-ignored",
+      "why": "inputs.current の語の順番を見ず、軸を入れ替えた別の組の基準でも持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "else from = found + 1;",
+      "replace": "else from = 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない"
       ]
     }
   ]

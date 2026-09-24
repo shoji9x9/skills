@@ -235,10 +235,17 @@ function checkProvenance(entry, pair, changeId, where) {
   }
   // 現側の基準の並び（<page>/<state>/<viewport>/screenshot.png、<page>.<state>.<viewport>.png 等）は採取スペックが決めるので、
   // 基準の下のパスを `/` と `.` で区切った語に、組の page / state / viewport が全部あることを求める（別の組の基準を渡した記録を弾く）
-  const tokens = new Set(current.slice(where.currentRoot.length + 1).split(/[/\\.]/));
-  const missing = [page, state, viewport].filter((v) => !tokens.has(v));
+  // 語の有無だけでは軸の入れ替え（hover/list/desktop）を通すので、page → state → viewport の順に現れることを求める
+  const tokens = current.slice(where.currentRoot.length + 1).split(/[/\\.]/);
+  let from = 0;
+  const missing = [];
+  for (const axis of [page, state, viewport]) {
+    const found = tokens.indexOf(axis, from);
+    if (found < 0) missing.push(axis);
+    else from = found + 1;
+  }
   if (missing.length > 0) {
-    return `inputs.current が組 ${pair} の現側の基準でない（パスに ${missing.join(", ")} が無い）: ${current}`;
+    return `inputs.current が組 ${pair} の現側の基準でない（パスに ${[page, state, viewport].join(" → ")} の順で現れない。欠けた語: ${missing.join(", ")}）: ${current}`;
   }
   return null;
 }

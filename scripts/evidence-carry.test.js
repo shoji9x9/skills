@@ -369,6 +369,14 @@ test("影響あり・current が別の組の現側の基準（ハッシュは一
   expect(result.findings.join("\n")).toContain("組 list|hover|desktop の現側の基準でない");
 });
 
+test("影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない", () => {
+  const p = project();
+  moveCurrent(p, "hover/list/desktop/screenshot.png");
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("list → hover → desktop の順で現れない");
+});
+
 test("影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す", () => {
   const p = project();
   moveCurrent(p, "list.hover.desktop.png");
