@@ -170,6 +170,11 @@
   **slug に加えて、その Issue が引き受ける行の部分**（ページ・API の口・比較対象の副作用出力）**も名指しする**——
   名指しが無いと、受け入れ条件が行のどこまでを覆っているかを確かめられず、
   **一部のページ・口だけが完了条件になっている状態**が slug の一致で緑になる（下記「突き合わせの取り方」の部分の集合差分）
+- **機能・横断 API・バッチ Issue の受け入れ条件には、`parity-diff` の収束を 1 項置く**——「`<slug>` について、`parity-replace` と同じ target で `parity-diff` を回し、
+  `.replace/parity/<slug>/new/<target>/diff-metadata.json` の `converged: true` まで進める。スイートが green なことだけで一致と報告しない」。
+  `parity-replace` の完了（新側 green ＋検証コマンド）は値・ラベル・役割しか見ず、機能 Issue の余白・幅・罫線・背景といった見た目は `parity-diff` だけが見る。
+  横断 API・バッチ Issue でも、例外の承認・判断待ちの解消・採取物の健全性を含む収束の条件は `parity-diff` だけが判定する。
+  この項が無いと、チェックを埋めきった Issue が `parity-diff` を経ないまま閉じられる
 
 ### 機能 Issue
 

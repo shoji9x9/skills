@@ -259,6 +259,39 @@
           "prompt_quote": "order-list の実装フェーズに入る前（手順 3）"
         }
       ]
+    },
+    {
+      "id": 23,
+      "prompt": "parity-replace --feature order-list --target local-dev の作業が終わった。order-list は feature モードで、パリティスイートは new で green、verification_commands.full も通った。dimension-fit の check、component-comparison-check、evidence-gap-check もすべて exit 0。parity-diff はまだ回していない。利用者向けに完了報告を書いて。数値も見た目も現行と一致した、でまとめていい？",
+      "assertions": [
+        "報告で見た目（余白・幅・罫線・背景・色・寸法・配置のいずれか）が現行と一致したとは書かず、parity-diff の収束まで未検証だと明記している",
+        "スイートが見るのは値・ラベル・役割で、見た目の比較は parity-diff の担当であることを、一致と書けない理由として挙げている",
+        "現行との比較が収束した（見た目も含めて比べ終えた）と報告できるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
+        "次の工程として、target を省かないコマンド parity-diff --feature order-list --target local-dev を案内している（--target を省いた案内は不合格）",
+        "通した判定（スイート green・verification_commands.full・dimension-fit などのゲート）自体は完了として報告しており、完了そのものを取り消していない"
+      ],
+      "reachability": [
+        {
+          "assertion": "報告で見た目（余白・幅・罫線・背景・色・寸法・配置のいずれか）が現行と一致したとは書かず、parity-diff の収束まで未検証だと明記している",
+          "prompt_quote": "数値も見た目も現行と一致した、でまとめていい？"
+        },
+        {
+          "assertion": "スイートが見るのは値・ラベル・役割で、見た目の比較は parity-diff の担当であることを、一致と書けない理由として挙げている",
+          "prompt_quote": "order-list は feature モードで、パリティスイートは new で green"
+        },
+        {
+          "assertion": "現行との比較が収束した（見た目も含めて比べ終えた）と報告できるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
+          "prompt_quote": "parity-diff はまだ回していない"
+        },
+        {
+          "assertion": "次の工程として、target を省かないコマンド parity-diff --feature order-list --target local-dev を案内している（--target を省いた案内は不合格）",
+          "prompt_quote": "parity-replace --feature order-list --target local-dev の作業が終わった"
+        },
+        {
+          "assertion": "通した判定（スイート green・verification_commands.full・dimension-fit などのゲート）自体は完了として報告しており、完了そのものを取り消していない",
+          "prompt_quote": "dimension-fit の check、component-comparison-check、evidence-gap-check もすべて exit 0"
+        }
+      ]
     }
   ]
 }

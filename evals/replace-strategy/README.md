@@ -198,5 +198,12 @@ scripts/run-skill-eval.sh \
   行選択チェックボックスは**行を作らず**データグリッドの節へ追記し（「独立行を立てると二重計上」）、印刷プレビューは「自前実装なら自律的に確定してよい」とし、
   確認ダイアログは `pending_decisions` へ落として「保留 2 件を setup 完了報告に列挙する」と締めた。
   assertion 1 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
+- eval 36（Issue #451）は fixture `issues-approval-gate` で、機能 order の Issue 本文ドラフトの受け入れ条件を
+  「新側スイート green」と「`verification_commands.full`」の 2 つで足りるかを問う。受け入れ条件に `parity-diff` の収束（`converged: true`）を入れること・
+  スイートが見た目を見ない理由・承認前に起票しないことを検証する。prompt は「見た目も含めて一致と言えるはず」という誤った前提を置き、結論は書かない。
+  assertion 3 は prompt が起票を止めているので弁別を狙わず、後退検知の項目として置く
+  **iteration-43 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 3/3・`without_skill` 1/3。**弁別したのは assertion 1・2**——
+  baseline もスイート green が見た目の一致を示さないことには自力で気付くが、受け入れ条件には「スクリーンショット比較などの視覚差分チェック」を置き、
+  `parity-diff` の収束（`converged: true`）には至らなかった。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
