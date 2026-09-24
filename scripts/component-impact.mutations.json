@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "component-impact.test.js のうち、共通部品の変更宣言から影響する撮影組を導く判定（Issue #454）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/component-impact.test.js",
+  "mutations": [
+    {
+      "id": "absolute-url-accepted",
+      "why": "部品の page が絶対 URL でも入力の誤りにせず、どの機能とも一致しない＝影響なしへ流す",
+      "file": "skills/parity-suite/scripts/component-impact.mjs",
+      "find": "if (absolute.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品の page がhttp の絶対 URL: 語彙を橋渡しせず、全機能を判定不能にする",
+        "部品の page がhttps の絶対 URL: 語彙を橋渡しせず、全機能を判定不能にする",
+        "部品の page がプロトコル相対の URL: 語彙を橋渡しせず、全機能を判定不能にする",
+        "CLI: 部品の page が絶対 URL なら入力の誤りとして exit 2"
+      ]
+    },
+    {
+      "id": "unmatched-exit",
+      "why": "どの機能のページとも一致しない影響インスタンスを exit 1 にせず影響なしに倒す",
+      "file": "skills/parity-suite/scripts/component-impact.mjs",
+      "find": "result.unmatched_instances.length > 0",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: どの機能のページとも一致しない影響インスタンスがあれば exit 1（影響なしに倒さない）"
+      ]
+    },
+    {
+      "id": "feature-filter-universe",
+      "why": "--feature で絞ったとき、他の機能のページにあるインスタンスを一致しないに数える",
+      "file": "skills/parity-suite/scripts/component-impact.mjs",
+      "find": "const universe = Array.isArray(pageUniverse) ? pageUniverse : sorted.map((f) => f.metadata);",
+      "replace": "const universe = sorted.map((f) => f.metadata);",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --feature で絞っても、他の機能のページにあるインスタンスは一致しないに数えない",
+        "CLI: --feature で 1 機能に絞る"
+      ]
+    }
+  ]
+}

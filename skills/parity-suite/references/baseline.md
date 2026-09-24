@@ -800,10 +800,13 @@ node <skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>
 **記録は「どの版のスイートを回したか」に結びつける。** 2 回緑を記録した後にスペックを書き換えたり後始末を外したりしても、
 実行結果と時刻だけを見る検査は緑のまま通る——**いまのスイートは 1 度も 2 回続けて回っていない**のに、
 後始末の壊れたスイートが現行アプリを書き換え続ける。
-`runs[]` に `suite_fingerprint`（`suite.specs` / `locator_map` / `expectations` / `interactions` / `tools` の宣言パスから計算した `sha256:`）を記録し、
+`runs[]` に `suite_fingerprint`（`suite.specs` / `locator_map` / `expectations` / `interactions` / `tools` の宣言パスから計算した `sha256-nc:`）を記録し、
 連続する 2 回で同じ値であること、かつ現在のスイートから再計算した値と一致することを
 [`../scripts/artifact-health-check.mjs`](../scripts/artifact-health-check.mjs) が確かめる。
 **スイートを変えたら 2 回続けて回し直す。**
+JS / TS 系のファイルは**コメントを除いた内容**で数えるので、注記（登録簿の分類名など）を書き換えただけでは取り直しにならない。
+文字列（`test.skip` の理由を含む）・テンプレート・正規表現の中身は動きに効かないと言い切れないため除かない。
+旧方式 `sha256:` で記録済みの `runs[]` はコメントも含めた生バイトで照合する（記録し直すと `sha256-nc:` になる）。
 
 **現行アプリの行を変えるスイート（書き込み・更新・削除を含むもの）は、2 回続けて回して両方緑であることを確かめる。**
 **初期状態から始まる 1 回目には、後始末の有無が結果に現れない**——後始末を消しても 1 回目は緑のままで、2 回目で初めて落ちる。

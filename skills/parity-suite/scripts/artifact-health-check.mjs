@@ -28,14 +28,22 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから引く。静的な "./evidence-carry.mjs" は
+// --preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、リンクの置き場所から解決して
+// 見つからず、持ち越しを使わない実行（引数不足の usage 表示を含む）まで起動時に落ちる。
+const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
+  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "evidence-carry.mjs"))
+    .href
+);
 
 /**
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -200,6 +208,188 @@ function readJson(path, label) {
  */
 function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/** コメントを除いて指紋を取る JS / TS 系の拡張子。 */
+const JS_FAMILY_EXTENSIONS = new Set([
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".jsx",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+]);
+
+/** 直後の `/` を正規表現リテラルの開始と読むキーワード（それ以外の識別子・数値の後は除算）。 */
+const REGEX_AFTER_KEYWORDS = new Set([
+  "return",
+  "typeof",
+  "instanceof",
+  "in",
+  "of",
+  "new",
+  "delete",
+  "void",
+  "throw",
+  "case",
+  "do",
+  "else",
+  "yield",
+  "await",
+]);
+
+/**
+ * JS / TS 系のソースからコメントを除き、コメントの書き換えで変わらない正規形にする。
+ *
+ * 正規化の選択（指紋を「動きに効く書き換え」だけで変えるため）:
+ * - コメントは空白として扱う（`a/**\/b` を `ab` に潰さない）。
+ * - 文字列・テンプレートリテラル（`${}` の入れ子を含む）・正規表現リテラルの外では、空白の連なりを
+ *   改行を含むなら `\n` 1 個、含まなければ空白 1 個に畳む。改行の有無は ASI に効くので残し、
+ *   個数・インデント・コメントの行数は捨てる。行末コメントの有無・JSDoc の行数を変えても指紋は変わらない。
+ * - 文字列・テンプレート・正規表現の中身は 1 バイトも変えない（`test.skip` の理由のような文字列は
+ *   動きに効かないと言い切れないため対象外。中の `//` `/*` もコメントとして扱わない）。
+ * - `/` が正規表現か除算かは直前の有意なトークンで決める。識別子（上のキーワードを除く）・数値・
+ *   文字列・`)` `]` の後は除算、それ以外（`}` を含む）は正規表現。`}` を正規表現側に倒すのは、
+ *   正規表現を除算と読み違えると `/a\//` の `//` を行コメントとして読み、コードを捨てて変更を見逃すため。
+ * 限界: JSX のテキスト（`<p>http://x</p>`）の `//` はコメントと読む。字句解析が閉じない
+ * （終わらない文字列・コメント・正規表現）ときは null を返し、呼び出し側は生バイトで指紋を取る。
+ * @param {string} src
+ * @returns {string | null}
+ */
+export function stripJsComments(src) {
+  let out = "";
+  /** @type {"" | " " | "\n"} */
+  let pendingWs = "";
+  /** 直前の有意なトークン: "div" なら次の `/` は除算、"re" なら正規表現。 */
+  let prev = "re";
+  /** `{` の入れ子。"t" はテンプレートの `${` で、対応する `}` でテンプレートへ戻る。 */
+  /** @type {string[]} */
+  const braces = [];
+  let i = 0;
+  const n = src.length;
+  const isWs = (c) => /\s/.test(c);
+  const isIdent = (c) => /[\w$\\]/.test(c) || c.charCodeAt(0) > 0x7f;
+  const emit = (s) => {
+    if (pendingWs !== "" && out !== "") out += pendingWs;
+    pendingWs = "";
+    out += s;
+  };
+  const ws = (hasNewline) => {
+    if (hasNewline) pendingWs = "\n";
+    else if (pendingWs === "") pendingWs = " ";
+  };
+  /** テンプレートの本文を読む。`}` で戻ってきた直後か開始の `` ` `` の直後から。 */
+  const scanTemplate = () => {
+    const start = i;
+    while (i < n) {
+      const c = src[i];
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === "`") {
+        i += 1;
+        out += src.slice(start, i);
+        prev = "div";
+        return true;
+      }
+      if (c === "$" && src[i + 1] === "{") {
+        i += 2;
+        out += src.slice(start, i);
+        braces.push("t");
+        prev = "re";
+        return true;
+      }
+      i += 1;
+    }
+    return false;
+  };
+  while (i < n) {
+    const c = src[i];
+    if (isWs(c)) {
+      const start = i;
+      while (i < n && isWs(src[i])) i += 1;
+      ws(/[\n\r\u2028\u2029]/.test(src.slice(start, i)));
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "/") {
+      while (i < n && !/[\n\r\u2028\u2029]/.test(src[i])) i += 1;
+      ws(false);
+      continue;
+    }
+    if (c === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      if (end < 0) return null;
+      ws(/[\n\r\u2028\u2029]/.test(src.slice(i + 2, end)));
+      i = end + 2;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      const start = i;
+      i += 1;
+      while (i < n && src[i] !== c) {
+        if (src[i] === "\\") i += 1;
+        else if (src[i] === "\n") return null;
+        i += 1;
+      }
+      if (i >= n) return null;
+      i += 1;
+      emit(src.slice(start, i));
+      prev = "div";
+      continue;
+    }
+    if (c === "`") {
+      emit("`");
+      i += 1;
+      if (!scanTemplate()) return null;
+      continue;
+    }
+    if (c === "/" && prev === "re") {
+      const start = i;
+      i += 1;
+      let inClass = false;
+      while (i < n) {
+        const d = src[i];
+        if (d === "\\") i += 1;
+        else if (d === "\n") return null;
+        else if (d === "[") inClass = true;
+        else if (d === "]") inClass = false;
+        else if (d === "/" && !inClass) break;
+        i += 1;
+      }
+      if (i >= n) return null;
+      i += 1;
+      while (i < n && isIdent(src[i])) i += 1;
+      emit(src.slice(start, i));
+      prev = "div";
+      continue;
+    }
+    if (isIdent(c)) {
+      const start = i;
+      while (i < n && isIdent(src[i])) i += 1;
+      const word = src.slice(start, i);
+      emit(word);
+      prev = REGEX_AFTER_KEYWORDS.has(word) ? "re" : "div";
+      continue;
+    }
+    // 記号 1 文字。`.5` のような数値の小数点も記号として出すが、正規形として決定的なので問題ない。
+    i += 1;
+    if (c === "{") braces.push("b");
+    if (c === "}" && braces.pop() === "t") {
+      // テンプレートの `${ ... }` を閉じた。空白はテンプレートの本文に属するので、保留した空白は捨てる。
+      pendingWs = "";
+      out += "}";
+      if (!scanTemplate()) return null;
+      continue;
+    }
+    emit(c);
+    if (c === ")" || c === "]") prev = "div";
+    else if ((c === "+" || c === "-") && src[i - 2] === c) prev = "div"; // 後置 ++ / --
+    else prev = "re";
+  }
+  return out;
 }
 
 /**
@@ -429,11 +619,20 @@ const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions
  *
  * 列挙は宣言されたパス（suite.specs / locator_map / interactions）から行い、
  * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
+ *
+ * 既定（接頭辞 `sha256-nc:`）は JS / TS 系のファイルをコメントを除いた正規形（stripJsComments）で数える。
+ * 注記を書き換えただけで指紋が変わると、テストの動きが同じなのに現行で 2 回回し直すことになるため（#457）。
+ * それ以外の拡張子と、字句解析が閉じない JS / TS 系のファイルは生バイトで数える。
+ * `legacy: true` は旧方式（接頭辞 `sha256:`・全ファイル生バイト）で、`sha256:` で記録済みの runs と照合するのに使う。
  * @param {Record<string, unknown>} suiteObj
  * @param {string} root
- * @returns {{ fingerprint: string | null, files: number, missing: string[] }}
+ * @param {{ legacy?: boolean }} [opts]
+ * @returns {{ fingerprint: string | null, files: number, missing: string[], unparsed: string[] }}
  */
-export function suiteFingerprint(suiteObj, root) {
+export function suiteFingerprint(suiteObj, root, opts = {}) {
+  const legacy = opts.legacy === true;
+  /** @type {string[]} コメントを除けず生バイトで数えた JS / TS 系のファイル */
+  const unparsed = [];
   /** @type {string[]} */
   const missing = [];
   /** @type {string[]} */
@@ -456,7 +655,8 @@ export function suiteFingerprint(suiteObj, root) {
     if (statSync(abs).isDirectory()) files.push(...listFiles(abs).map((f) => `${rel}/${f}`));
     else files.push(rel);
   }
-  if (declared === 0 || missing.length > 0) return { fingerprint: null, files: 0, missing };
+  if (declared === 0 || missing.length > 0)
+    return { fingerprint: null, files: 0, missing, unparsed };
   files.sort();
   const digest = createHash("sha256");
   for (const rel of files) {
@@ -466,14 +666,28 @@ export function suiteFingerprint(suiteObj, root) {
         fingerprint: null,
         files: 0,
         missing: [`${rel}（ルートの外を指しているか実パスを解決できない）`],
+        unparsed,
       };
-    if (!existsSync(abs)) return { fingerprint: null, files: 0, missing: [`${rel}（実体が無い）`] };
+    if (!existsSync(abs))
+      return { fingerprint: null, files: 0, missing: [`${rel}（実体が無い）`], unparsed };
+    let fileHash = null;
+    if (!legacy && JS_FAMILY_EXTENSIONS.has(extname(rel).toLowerCase())) {
+      const stripped = stripJsComments(readFileSync(abs, "utf8"));
+      if (stripped === null) unparsed.push(rel);
+      else fileHash = createHash("sha256").update(stripped).digest("hex");
+    }
     digest.update(rel);
     digest.update("\0");
-    digest.update(sha256File(abs));
+    digest.update(fileHash ?? sha256File(abs));
     digest.update("\n");
   }
-  return { fingerprint: `sha256:${digest.digest("hex")}`, files: files.length, missing: [] };
+  const prefix = legacy ? "sha256" : "sha256-nc";
+  return {
+    fingerprint: `${prefix}:${digest.digest("hex")}`,
+    files: files.length,
+    missing: [],
+    unparsed,
+  };
 }
 
 /**
@@ -598,17 +812,38 @@ export function checkRepeatRun(metadata, ctx) {
         `連続する 2 回で suite_fingerprint が違う（同じスイートを 2 回続けて回していない）: ${recorded.join(" / ")}`,
       );
     } else {
-      const current = suiteFingerprint(suiteObj, ctx.root);
-      if (current.fingerprint === null) {
+      // 記録の接頭辞で照合の方式を決める。旧方式（sha256:）の記録は旧方式で数え直す
+      // （新方式へ一律に切り替えると、スイートを変えていない記録まで全部取り直しになる）。
+      const scheme = recorded[0].startsWith("sha256-nc:")
+        ? "nc"
+        : recorded[0].startsWith("sha256:")
+          ? "legacy"
+          : null;
+      const current =
+        scheme === null
+          ? null
+          : suiteFingerprint(suiteObj, ctx.root, { legacy: scheme === "legacy" });
+      if (current === null) {
+        findings.push(
+          `suite_fingerprint の方式を読めない（接頭辞が sha256-nc: でも sha256: でもない）: ${recorded[0]}。suiteFingerprint で計算し直して記録する`,
+        );
+      } else if (current.fingerprint === null) {
         findings.push(
           `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
         );
       } else if (current.fingerprint !== recorded[0]) {
         findings.push(
-          `記録した 2 回は現在のスイートのものでない（suite_fingerprint ${recorded[0]} ≠ 実測 ${current.fingerprint}）。スイートを変えたら 2 回続けて回し直す`,
+          `記録した 2 回は現在のスイートのものでない（suite_fingerprint ${recorded[0]} ≠ 実測 ${current.fingerprint}${scheme === "legacy" ? "。旧方式 sha256: の記録なのでコメントの書き換えも差として数えた" : ""}）。スイートを変えたら 2 回続けて回し直す`,
         );
       } else {
-        notes.push(`スイートの指紋が記録と一致（${current.files} ファイル）`);
+        notes.push(
+          `スイートの指紋が記録と一致（${current.files} ファイル、${scheme === "legacy" ? "旧方式 sha256: の記録なのでコメントも含めて照合" : "JS / TS 系はコメントを除いて照合"}）`,
+        );
+      }
+      if (current !== null && current.unparsed.length > 0) {
+        notes.push(
+          `コメントを除けず生バイトで数えたファイル（字句解析が閉じない）: ${current.unparsed.join(" / ")}`,
+        );
       }
     }
   }
@@ -752,7 +987,11 @@ export function affectsBetween(changes, v, c) {
 
 /**
  * 工程が残す成果物の在否と鮮度を数え直す（--target のときだけ）。
- * @param {{ root: string, slugDir: string, target: string }} ctx
+ *
+ * new.commit が両側とも SHA で食い違うときは、evidence-carry.mjs の judgeCarry で描画入力の差分から
+ * 持ち越せるかを判定する（replace-metadata.json に new.render_inputs があるときだけ。無ければ従来どおり落とす）。
+ * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つの検査器の判定を揃える。
+ * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkStage(ctx) {
@@ -847,9 +1086,27 @@ export function checkStage(ctx) {
         `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
       );
     } else if (wanted !== recordedCommit) {
-      findings.push(
-        `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
-      );
+      // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る（Issue #454）。
+      // 判定の正本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
+      const carry = judgeCarry({
+        recordedCommit,
+        wantedCommit: wanted,
+        renderInputs: replaceNew === null ? undefined : replaceNew.render_inputs,
+        repo: ctx.newRepo ?? null,
+        evidenceCarryPath: join(stageDir, EVIDENCE_CARRY_FILE),
+        featureSlug: basename(ctx.slugDir),
+        featureMetadata: ctx.featureMetadata,
+        replaceRoot: ctx.replaceRoot ?? join(ctx.root, ".replace"),
+      });
+      if (carry.ok) {
+        notes.push(...carry.notes.map((note) => `${note}: ${diffPath}`));
+      } else {
+        findings.push(
+          `diff-metadata.json が今の新側の版に対応していない（new.commit ${recordedCommit} ≠ replace-metadata.json の ${wanted}）: ${diffPath}`,
+        );
+        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
+        notes.push(...carry.notes);
+      }
     }
   } else {
     notes.push(
@@ -983,14 +1240,21 @@ export function deriveRoot(metadataPath) {
 
 /**
  * @param {string[]} argv
- * @returns {{ metadata: string, root: string | null, target: string | null }}
+ * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null }}
  */
 export function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--metadata" || arg === "--root" || arg === "--target" || arg === "--stage") {
+    if (
+      arg === "--metadata" ||
+      arg === "--root" ||
+      arg === "--target" ||
+      arg === "--stage" ||
+      arg === "--new-repo" ||
+      arg === "--replace-root"
+    ) {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
       opts[arg.slice(2)] = value;
@@ -998,7 +1262,7 @@ export function parseArgs(argv) {
       continue;
     }
     throw new UsageError(
-      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite]（不明な引数: ${arg}）`,
+      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>]（不明な引数: ${arg}）`,
     );
   }
   if (!nonEmptyString(opts.metadata)) throw new UsageError("--metadata は必須");
@@ -1006,7 +1270,14 @@ export function parseArgs(argv) {
   if (!STAGES.includes(stage)) {
     throw new UsageError(`--stage は ${STAGES.join(" | ")} のいずれか（渡された値: ${stage}）`);
   }
-  return { metadata: opts.metadata, root: opts.root ?? null, target: opts.target ?? null, stage };
+  return {
+    metadata: opts.metadata,
+    root: opts.root ?? null,
+    target: opts.target ?? null,
+    stage,
+    newRepo: opts["new-repo"] !== undefined ? resolve(opts["new-repo"]) : null,
+    replaceRoot: opts["replace-root"] !== undefined ? resolve(opts["replace-root"]) : null,
+  };
 }
 
 /**
@@ -1051,7 +1322,14 @@ export function run(argv, io) {
 
   if (args.target !== null) {
     if (!nonEmptyString(args.target)) throw new UsageError("--target が空");
-    const stage = checkStage({ root, slugDir, target: args.target.trim() });
+    const stage = checkStage({
+      root,
+      slugDir,
+      target: args.target.trim(),
+      newRepo: args.newRepo,
+      replaceRoot: args.replaceRoot,
+      featureMetadata: metadata,
+    });
     findings.push(...stage.findings);
     notes.push(...stage.notes);
   } else {
@@ -1072,11 +1350,13 @@ export function run(argv, io) {
 
 /** 使い方（stderr に出す。CLI エントリ判定が壊れたときのサイレント no-op を検出できるようにする）。 */
 const usage = [
-  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite]",
+  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>]",
   "  --metadata  .replace/parity/<slug>/metadata.json のパス（必須）",
   "  --root      リポジトリルート（省略時は metadata のパスの .replace の親から導く）",
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
   "  --stage     呼び出し元の工程。diff（既定・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
+  "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
+  "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
   "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型崩れ",
 ].join("\n");
 

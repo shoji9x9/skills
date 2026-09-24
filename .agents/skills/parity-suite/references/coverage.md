@@ -173,7 +173,9 @@
   ```
 
 - **`--replace-metadata` は必須。** 省けるようにすると、記録の後に新側を変えても鮮度の照合（`comparison-implementation-stale`）が
-  一度も評価されず古い証拠で収束する。突き合わせ表の `new_implementation.commit` は `replace-metadata.json` の `new.commit` と一致し、
+  一度も評価されず古い証拠で収束する。突き合わせ表の `new_implementation.commit` は `replace-metadata.json` の `new.commit` と一致し
+  （例外は部品改修の持ち越しだけ——`--new-repo` を渡し、同じディレクトリの `evidence-carry.json` が覆う違いを
+  [`../scripts/evidence-carry.mjs`](../scripts/evidence-carry.mjs) が認めたときに通す。手順の正本は `parity-diff` の `references/component-change.md`）、
   **両方の `dirty` が `false`** であることまで求める（未コミットの変更を抱えた作業ツリーの記録は commit で版を特定できない）
 - **`new.commit` が `none`（新側が git 管理を持たない）なら反復回数で判定する。** 文字列の比較は両側 `none` で常に一致し、
   実装を変えても古い記録が鮮度検査を永久に素通りするため、`new_implementation.iteration` と `replace-metadata.json` の

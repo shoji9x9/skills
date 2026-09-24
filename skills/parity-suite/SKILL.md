@@ -281,6 +281,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
   `parity-replace` と `parity-diff` がインストール済みの本スキルから同じスクリプトを呼ぶ
 - **[`scripts/artifact-health-check.mjs`](scripts/artifact-health-check.mjs) もコピーしない。** 本スキルは手順 9 で `metadata.json` を検査し、
   `parity-diff` はインストール済みの本スキルから同じスクリプトを `--target` 付きで呼んで収束判定に入れる（採取物・反復実行・未測定・工程の成果物の 4 群）
+- **[`scripts/component-impact.mjs`](scripts/component-impact.mjs) もコピーしない。** 共通部品の変更宣言から各機能の影響する撮影組を導く。
+  `parity-diff` の部品改修の一括再検証（`parity-diff` の `references/component-change.md`）が呼び、鮮度検査も同じ判定を再計算する
+- **[`scripts/evidence-carry.mjs`](scripts/evidence-carry.mjs) もコピーしない。** 新側のコミットが変わった後も差分の証跡を持ち越せるかを判定するライブラリで、
+  `artifact-health-check.mjs` と `component-comparison-check.mjs` が import し、自身は `component-impact.mjs` を import する——**この 4 本は同じディレクトリに置いたまま**呼ぶ
+  （持ち越しは両検査に `--new-repo` を渡したときだけ評価される。手順の正本は `parity-diff` の `references/component-change.md`）
 
 ## 姉妹スキルとの連携
 

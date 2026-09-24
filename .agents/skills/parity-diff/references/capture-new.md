@@ -30,7 +30,7 @@
   以降の工程では解決済みの値を再利用し、工程ごとに再実行しない——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」）
 - 解決値は `new/<target>/replace-metadata.json` の `new.ui_url` / `new.api_url` と一致することを確認する（別環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決値を持たないため、照合は **target 名の一致**で代替する（固定値で記録されたフィールド〈例: `url_command` の target の固定 `api_url`〉は従来どおり照合する）。
-  `url_command` の target に `commit_check` があれば、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する）
+  `url_command` の target に `commit_check` があれば、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する。部品改修の一括再検証では照合相手が変更宣言の `commits.after` になる——[`component-change.md`](component-change.md)）
 - **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` / `new-capture` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
 
 ## 条件一致の先行検証（差分検出より前）
@@ -182,7 +182,9 @@
 | 反復が飛んでいる（`loop.iterations` − `noise_measurement.loop_iteration` が 0 でも 1 でもない） | 全組 | `new/<target>/replace-metadata.json` の `loop.iterations`（間の反復の変更範囲を辿れない） |
 | 反復が進んでいない（差が 0）のに `new.commit` が `noise_measurement.measured_at_commit` と違う | 全組 | 同 `new.commit`（ループ外で新側を触っており変更範囲を辿れない） |
 | `loop.changed_scope` が無い、または `null`（範囲が未確定・未記録の `parity-replace` の証跡） | 全組 | 同上（`null` は「範囲不明」であり、`pages: []`＝「描画に効く変更なし」の申告とは別物） |
-| 前反復で共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に触れた | 全組 | `loop.changed_scope.global` が真 |
+| 前反復で共有資産（テーマ・design token・共通コンポーネント・グローバル CSS・フォント読み込み等）に変更宣言なしで触れた | 全組 | `loop.changed_scope.global` が真（`components` と併記されていても全組が勝つ） |
+| 前反復で変更宣言のある共通部品を直した | 宣言ごとに、この機能の影響する組（判定不能なら全組） | `loop.changed_scope.components[].change` を入力にした `parity-suite` の `scripts/component-impact.mjs --feature <slug>` の出力（宣言を読めない・exit 2 も全組） |
+| 部品改修の一括再検証（[`component-change.md`](component-change.md)）で回している | この機能の影響する組 | 同手順 1 の `component-impact.mjs` の出力（反復も `replace-metadata.json` の `new.commit` も改修前のまま進まないので、反復・SHA・`changed_scope` の行からは範囲が出ない。この行が範囲を与える） |
 | `loop.changed_scope.pages` に現側 `noise_baseline[].page` のどれとも一致しない値がある | 全組 | 同 `pages` と `metadata.json.noise_baseline[].page`（語彙が噛み合わず範囲を突き合わせられない） |
 | 前反復で変更したページ | 該当ページの組 | `loop.changed_scope.pages` |
 | 組の `measured_at` から 24 時間を超えている | 該当組 | `noise_baseline_new[].measured_at` と現在時刻（別セッションの測定値を当て込まない。他の組を測り直しても古い組は失効させる） |
@@ -191,5 +193,6 @@
 - **新側のコミット SHA（`new.commit`）の変化を単独の失効条件にしない。** 往復ループでは毎反復変わるため単独条件にすると再利用が成立しない。
   反復が進んだ（差が 1）ときの SHA 変化は `loop.changed_scope` で範囲を判定し、**反復が進んでいないのに変わった場合だけ**（ループ外の変更で範囲を辿れない）上表のとおり全組を再測定する。
   SHA は `noise_measurement.measured_at_commit` に記録する（`changed_scope` の記録契約は `parity-replace` の `references/diff-loop.md` が正本）
+- **`components` は `global` の代わりに書かれる範囲で、`global` と排他ではない。** 両方あれば `global` の全組が勝つ。`components` に書かれた部品の影響は宣言から機械で導き、自分で読み替えて組を減らさない
 - **現側 `noise_baseline` の更新は失効条件にしない**（新側の実測値は有効なまま）。新しい基準値でゲート判定だけをやり直す
 - 再測定した組は測定値と**その組の** `measured_at` を更新し、再利用した組は `measured_at` を含む前回値をそのまま引き継ぐ（`noise_baseline_new[].source` で区別する）

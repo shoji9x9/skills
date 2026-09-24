@@ -24,6 +24,9 @@
  *   PARITY_SLUG        … 対象機能の slug（必須。.replace/features.md が採番したもの）
  *   PARITY_CAPTURE_PASS… "baseline"（既定。1 回目＝新側ベースライン）| "noise"（2 回目＝自己ノイズ用）
  *   PARITY_NOISE_PAIRS … noise パスで撮り直す組（"page|state|viewport" のカンマ区切り）。未設定なら全組
+ *   PARITY_CAPTURE_PAIRS … baseline パスで撮る組（同じ書式）。未設定なら全組。部品改修の一括再検証
+ *                        （parity-diff の references/component-change.md）で、component-impact.mjs が返した
+ *                        影響する組だけを撮り直すために使う。撮らない組の baseline-new は触らない
  *   PARITY_NEW_UI_URL  … 新側 UI の baseURL（playwright.config の `new-capture` プロジェクトが参照する）
  *   PARITY_REPO_ROOT   … `.replace/` を持つリポジトリルート（省略時は cwd）。Playwright は
  *                        playwright.config のあるディレクトリ（既定 `e2e/`）から起動されることがあり、
@@ -76,6 +79,13 @@ const outRoot = join(
   pass === "noise" ? "noise-pass2" : "baseline-new",
 );
 const onlyPairs = (process.env.PARITY_NOISE_PAIRS ?? "").split(",").filter(Boolean);
+const capturePairs = (process.env.PARITY_CAPTURE_PAIRS ?? "").split(",").filter(Boolean);
+if (capturePairs.length > 0 && pass !== "baseline") {
+  // noise パスの絞り込みは PARITY_NOISE_PAIRS が持つ。2 つの変数が別々の組を指すと、どちらで絞ったか読めない
+  throw new Error(
+    "PARITY_CAPTURE_PAIRS is for the baseline pass; use PARITY_NOISE_PAIRS for the noise pass",
+  );
+}
 
 // 新側は「現側マッピング → 新側例外」の順で解決する（例外は解決できない論理名だけを埋める契約）
 function resolveLocator(page: import("@playwright/test").Page, name: string) {
@@ -101,10 +111,10 @@ const allPairs = new Set<string>(
     pages.flatMap((p) => states.map((s: string) => `${p.name}|${s}|${v.label}`)),
   ),
 );
-const unknownPairs = onlyPairs.filter((pair) => !allPairs.has(pair));
+const unknownPairs = [...onlyPairs, ...capturePairs].filter((pair) => !allPairs.has(pair));
 if (unknownPairs.length > 0) {
   throw new Error(
-    `PARITY_NOISE_PAIRS has pairs that match no capture target: ${unknownPairs.join(", ")}. ` +
+    `PARITY_NOISE_PAIRS / PARITY_CAPTURE_PAIRS have pairs that match no capture target: ${unknownPairs.join(", ")}. ` +
       "capture_conditions.pages[].name must use the same vocabulary as noise_baseline[].page",
   );
 }
@@ -153,6 +163,12 @@ for (const viewport of viewports) {
           const reused = pass === "noise" && onlyPairs.length > 0 && !onlyPairs.includes(pair);
           if (pass === "noise") rmSync(outDir, { recursive: true, force: true });
           test.skip(reused, "reused noise measurement");
+          // baseline パスの絞り込み: 撮らない組は前回の baseline-new をそのまま残す（削除しない。
+          // 部品改修の機械判定は前回の新側と今回の新側を比べるため、前回分は呼び出し側が別の場所へ写してある）
+          test.skip(
+            pass === "baseline" && capturePairs.length > 0 && !capturePairs.includes(pair),
+            "not in PARITY_CAPTURE_PAIRS",
+          );
 
           mkdirSync(outDir, { recursive: true });
 

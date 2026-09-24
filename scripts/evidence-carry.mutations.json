@@ -1,0 +1,173 @@
+{
+  "$comment": [
+    "evidence-carry.test.js のうち、新側のコミットが変わった後も差分の証跡を持ち越せるかの判定（Issue #454）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/evidence-carry.test.js",
+  "mutations": [
+    {
+      "id": "uncovered-file",
+      "why": "描画入力の差分に変更宣言の files に無いファイルがあっても持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (uncovered.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["D に変更宣言の files に無いファイルがある: そのファイルを挙げて落とす"]
+    },
+    {
+      "id": "chain-gap",
+      "why": "宣言の後の宣言外の編集（連鎖が今の版まで届かない）を持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (!reached.has(goal)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["宣言の後に宣言外の編集がある（files に名前があるだけの古い宣言）: 落とす"]
+    },
+    {
+      "id": "empty-diff",
+      "why": "描画入力の差分が空でも宣言の検査へ進む（外だけの変更を持ち越さない）",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (changed.length === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "D が空（描画入力の外だけ変わった）: 持ち越す・注記を残す",
+        "D が空でも evidence-carry.json を読まない（壊れていても持ち越しの判定に使わない）"
+      ]
+    },
+    {
+      "id": "pair-not-pass",
+      "why": "影響する組が pass でない amend-verify の記録で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (entry.pass !== true) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響あり・影響する組が pass でない: 落とす"]
+    },
+    {
+      "id": "image-sha-mismatch",
+      "why": "判定後に差し替えた画像（sha256 不一致）で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (actual !== ref.sha256) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす"]
+    },
+    {
+      "id": "undeterminable-impact",
+      "why": "影響が判定不能な機能を持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (feature.verdict === \"undeterminable\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響が判定不能（機能の capture_scope が無い）: 落とす"]
+    },
+    {
+      "id": "path-from-project-root",
+      "why": "amend-verify の inputs のパスを記録のディレクトリから解決する",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "const imagePath = fromProject(ref.path);",
+      "replace": "const imagePath = resolve(dirname(recordPath), ref.path);",
+      "occurrences": 1,
+      "expect_failing": [
+        "amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）",
+        "両検査器の一致: 持ち越せる fixture では両方とも合格",
+        "影響あり・amend-verify が全組 pass・画像の sha256 が一致: 持ち越す",
+        "影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす"
+      ]
+    },
+    {
+      "id": "legacy-empty-render-inputs",
+      "why": "render_inputs が空配列でも持ち越しの判定へ進む",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "(Array.isArray(renderInputs) && renderInputs.length === 0)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["render_inputs が空配列: 判定せず legacy（呼び出し側が従来どおり落とす）"]
+    },
+    {
+      "id": "region-unknown",
+      "why": "領域が分からない（usages だけで一致した）組を amend-verify で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "p.region_known !== true",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・usages だけで一致し領域が分からない組: amend-verify では持ち越さない"
+      ]
+    },
+    {
+      "id": "repo-toplevel",
+      "why": "--new-repo がリポジトリの最上位でなくても判定する",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (realRepo !== realTop) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["リポジトリの最上位でない: 落とす"]
+    },
+    {
+      "id": "change-id-mismatch",
+      "why": "別の変更宣言の amend-verify 記録で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (r.change_id !== id) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響あり・記録の change_id が違う: 落とす"]
+    },
+    {
+      "id": "comparison-carry-ignored",
+      "why": "component-comparison-check が持ち越しの合格を使わない（両検査器の判定がずれる）",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "if (carry !== null && carry.ok) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["両検査器の一致: 持ち越せる fixture では両方とも合格"]
+    },
+    {
+      "id": "kind-not-enforced",
+      "why": "new-appearance の宣言でも影響する組を amend-verify の合格で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (d.change.kind !== \"align-to-current\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・kind が new-appearance: amend-verify が全組 pass でも持ち越さない"
+      ]
+    },
+    {
+      "id": "empty-slug-collapse",
+      "why": "機能の slug が空でも metadata のパスを組み立てて読みに行く",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (typeof input.featureSlug !== \"string\" || input.featureSlug.trim() === \"\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "機能の slug が空で metadata を渡していない: 別のパスへ潰さず slug が分からないとして落とす"
+      ]
+    },
+    {
+      "id": "render-inputs-unmatched",
+      "why": "どのファイルにも当たらない render_inputs の pathspec（差分が常に空）で持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (unmatchedSpecs.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "render_inputs の pathspec がどちらの版のファイルにも当たらない: D が空でも持ち越さない"
+      ]
+    },
+    {
+      "id": "unmatched-instance-carried",
+      "why": "どの機能のページとも一致しない影響インスタンスがあってもこの機能を影響なしとして持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (impact.unmatched_instances.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響インスタンスのページがどの機能のページとも一致しない: この機能が影響なしでも持ち越さない"
+      ]
+    }
+  ]
+}

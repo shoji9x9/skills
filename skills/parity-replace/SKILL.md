@@ -238,6 +238,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    対象は**注記の機械的な目印**（既定は `presence:<slug>`）でスイート全体を検索して見つける（自然文の読み取りで探さない）。
    在席チェックの置き方の正本は `parity-suite` の `references/coverage.md`「同じページに乗る他機能の在席」。
    証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（**環境別**。他の target の証跡を上書きしない）。
+   feature モードでは `new.commit` と並べて **`new.render_inputs`**（このページの描画に効くファイルの git pathspec の配列: route・使う部品・テーマ・トークン・グローバル CSS）も書いてよい。
+   部品の改修で SHA が進んだとき、鮮度検査は描画入力の差分が変更宣言の範囲に収まるかで証跡を持ち越す（`parity-diff` の `references/component-change.md`）。
+   **過小に書かない**——漏れたファイルの変更は持ち越しを素通りする。判断が付かなければ書かない（無い・空なら従来どおり SHA の一致で判定する）
    **`parity-diff` の差分ゼロは含めない**（循環回避。理由の正本: [`references/diff-loop.md`](references/diff-loop.md)）。実装フロー（commit / push / PR）は `issue-start` に委ねる。
    **合わせて「要求単位の根拠」の取りこぼしを完了判定に入れる**——インストール済みの `replace-strategy` から
    `node <replace-strategy>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> --unmeasured .replace/parity/<slug>/metadata.json`

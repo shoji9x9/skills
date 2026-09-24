@@ -1,0 +1,96 @@
+{
+  "$comment": [
+    "artifact-health-check.test.js のうち、スイートの指紋をコメントを除いて数える規則（Issue #457）と、証跡の持ち越し（Issue #454）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/artifact-health-check.test.js",
+  "mutations": [
+    {
+      "id": "strip-string",
+      "why": "文字列リテラルを保護せず、中の // をコメントとして除く",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (c === \"'\" || c === '\"') {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない",
+        "#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す",
+        "#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由の陽性コントロール）"
+      ]
+    },
+    {
+      "id": "strip-template",
+      "why": "テンプレートリテラルを保護せず、中の // をコメントとして除く",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (c === \"`\") {\n      emit(\"`\");",
+      "replace": "    if (false) {\n      emit(\"`\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない"
+      ]
+    },
+    {
+      "id": "strip-regex",
+      "why": "正規表現リテラルを保護せず、中の // をコメントとして除く",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (c === \"/\" && prev === \"re\") {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない"
+      ]
+    },
+    {
+      "id": "legacy-prefix-routing",
+      "why": "旧方式 sha256: の記録を新方式で照合する",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": ": recorded[0].startsWith(\"sha256:\")\n          ? \"legacy\"",
+      "replace": ": recorded[0].startsWith(\"sha256:\")\n          ? \"nc\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: 旧方式 sha256: の記録は旧方式で照合する（変えていなければ通る）",
+        "#457: 旧方式 sha256: の記録はコメントの書き換えも従来どおり差として落とす"
+      ]
+    },
+    {
+      "id": "non-js-raw-bytes",
+      "why": "JS / TS 系以外のファイルもコメントを除いて数える",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (!legacy && JS_FAMILY_EXTENSIONS.has(extname(rel).toLowerCase())) {",
+      "replace": "if (!legacy) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）"
+      ]
+    },
+    {
+      "id": "health-carry-ignored",
+      "why": "持ち越しの合格を使わず SHA の不一致で落とす",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "      if (carry.ok) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ exit 0（注記付き）",
+        "持ち越し: 影響する組が amend-verify で pass なら exit 0",
+        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）"
+      ]
+    },
+    {
+      "id": "health-carry-reason-dropped",
+      "why": "持ち越せない理由を findings に残さない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));",
+      "replace": "        void 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち越し: 影響する組が amend-verify で pass でなければ従来の不一致に理由を添えて落とす",
+        "持ち越し: 宣言外のファイルが変わっていれば落とす（ファイル名を出す）",
+        "持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）",
+        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）"
+      ]
+    }
+  ]
+}
