@@ -517,6 +517,13 @@ export function judgeCarry(input) {
       );
       continue;
     }
+    if (impact.unmatched_usages.length > 0) {
+      // usages も同じ理由で持ち越さない（綴り違いの usages は、使っているページを「影響なし」に倒す）
+      findings.push(
+        `変更宣言 ${id} の usages がどの機能のページとも一致しない: ${impact.unmatched_usages.join(", ")}（component-impact.mjs を全機能で回して確かめる）`,
+      );
+      continue;
+    }
     if (feature.verdict === "undeterminable") {
       findings.push(`変更宣言 ${id} の影響を判定できない: ${feature.reasons.join(" / ")}`);
       continue;

@@ -602,11 +602,22 @@ test("影響インスタンスのページがどの機能のページとも一�
   component.instances[0].page = "/orders/";
   writeJson(join(p.replaceRoot, "components/button/metadata.json"), component);
   const change = JSON.parse(readFileSync(join(p.root, p.changePath), "utf8"));
-  change.usages = ["/orders/"];
+  // usages は機能のページと一致させ、一致しないのはインスタンスだけにする（usages の検査と区別する）
+  change.usages = ["/orders"];
   writeJson(join(p.root, p.changePath), change);
   const result = judge(p);
   expect(result.ok).toBe(false);
-  expect(result.findings.join("\n")).toContain("どの機能のページとも一致しない");
+  expect(result.findings.join("\n")).toContain("影響インスタンスがどの機能のページとも一致しない");
+});
+
+test("変更宣言の usages がどの機能のページとも一致しない: 持ち越さない", () => {
+  const p = project();
+  const path = join(p.root, p.changePath);
+  const change = JSON.parse(readFileSync(path, "utf8"));
+  writeJson(path, { ...change, usages: [...change.usages, "/ordres"] });
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("usages がどの機能のページとも一致しない: /ordres");
 });
 
 test("影響インスタンスのページが別の機能のページにある: 一致しないに数えず持ち越す", () => {

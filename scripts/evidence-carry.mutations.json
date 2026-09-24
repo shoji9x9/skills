@@ -168,6 +168,15 @@
       "expect_failing": [
         "影響インスタンスのページがどの機能のページとも一致しない: この機能が影響なしでも持ち越さない"
       ]
+    },
+    {
+      "id": "unmatched-usages-carried",
+      "why": "どの機能のページとも一致しない usages があってもこの機能を影響なしとして持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (impact.unmatched_usages.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["変更宣言の usages がどの機能のページとも一致しない: 持ち越さない"]
     }
   ]
 }

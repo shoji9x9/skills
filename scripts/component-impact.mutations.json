@@ -11,8 +11,8 @@
       "id": "absolute-url-accepted",
       "why": "部品の page が絶対 URL でも入力の誤りにせず、どの機能とも一致しない＝影響なしへ流す",
       "file": "skills/parity-suite/scripts/component-impact.mjs",
-      "find": "if (absolute.length > 0) {",
-      "replace": "if (false) {",
+      "find": "isAbsoluteUrl(i.page)",
+      "replace": "false",
       "occurrences": 1,
       "expect_failing": [
         "部品の page がhttp の絶対 URL: 語彙を橋渡しせず、全機能を判定不能にする",
@@ -42,6 +42,17 @@
       "expect_failing": [
         "CLI: --feature で絞っても、他の機能のページにあるインスタンスは一致しないに数えない",
         "CLI: --feature で 1 機能に絞る"
+      ]
+    },
+    {
+      "id": "unmatched-usages-exit",
+      "why": "どの機能のページとも一致しない usages を exit 1 にせず影響なしに倒す",
+      "file": "skills/parity-suite/scripts/component-impact.mjs",
+      "find": "result.unmatched_usages.length > 0",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしに倒さない）"
       ]
     }
   ]

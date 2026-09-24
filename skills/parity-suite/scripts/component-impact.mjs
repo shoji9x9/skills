@@ -130,6 +130,14 @@ export function validateChange(change) {
   textList("states", c.states, { nonEmpty: true });
   textList("properties", c.properties, { nonEmpty: true });
   textList("usages", c.usages);
+  if (Array.isArray(c.usages)) {
+    const absolute = c.usages.filter((u) => typeof u === "string" && isAbsoluteUrl(u));
+    if (absolute.length > 0) {
+      errors.push(
+        `usages は target の baseURL からの相対パスで書く（capture_conditions.pages[].path と同じ語彙）。絶対 URL: ${absolute.join(", ")}`,
+      );
+    }
+  }
   text("usages_source", c.usages_source);
   textList("files", c.files, { nonEmpty: true });
   if (Array.isArray(c.instances) && Array.isArray(c.usages)) {
@@ -449,7 +457,7 @@ function judgeFeature(slug, metadata, change, instances) {
  * `pageUniverse`（任意）は unmatched_instances の判定にだけ使う機能 metadata の一覧。`--feature` で 1 機能に
  * 絞った実行でも、他の機能のページにあるインスタンスを「一致しない」に数えないために渡す。省略時は features。
  * @param {{ change: unknown, componentMetadata: unknown, features: {slug: string, metadata: unknown}[], pageUniverse?: unknown[] }} input
- * @returns {{ tool: string, version: string, change_id: string, slug: string, features: {feature:string, verdict:string, pairs:object[], reasons:string[]}[], findings: string[], unmatched_instances: {id:string, page:string}[] }}
+ * @returns {{ tool: string, version: string, change_id: string, slug: string, features: {feature:string, verdict:string, pairs:object[], reasons:string[]}[], findings: string[], unmatched_instances: {id:string, page:string}[], unmatched_usages: string[] }}
  */
 export function computeImpact({ change, componentMetadata, features, pageUniverse }) {
   const errors = validateChange(change);
@@ -487,6 +495,10 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
   const unmatched = resolved
     .filter((instance) => !capturedPaths.has(instance.page))
     .map((instance) => ({ id: instance.id, page: instance.page }));
+  // usages も同じ扱い。綴り違いの usages はどの機能とも一致せず、usages だけに頼る宣言では全機能が黙って影響なしになる
+  const unmatchedUsages = /** @type {string[]} */ (c.usages).filter(
+    (usage) => !capturedPaths.has(usage),
+  );
   return {
     tool: TOOL,
     version: VERSION,
@@ -499,8 +511,13 @@ export function computeImpact({ change, componentMetadata, features, pageUnivers
         (instance) =>
           `影響インスタンス ${instance.id} のページ ${instance.page} がどの機能の capture_conditions.pages[].path とも一致しない（未着手の機能のページか、書き方の食い違いかを区別できないので判定不能にする）`,
       ),
+      ...unmatchedUsages.map(
+        (usage) =>
+          `usages のページ ${usage} がどの機能の capture_conditions.pages[].path とも一致しない（未着手の機能のページか、書き方の食い違いかを区別できないので判定不能にする）`,
+      ),
     ],
     unmatched_instances: unmatched,
+    unmatched_usages: unmatchedUsages,
   };
 }
 
@@ -656,7 +673,8 @@ export function main(argv, deps = {}) {
     write(text);
   }
   return result.features.some((feature) => feature.verdict === "undeterminable") ||
-    result.unmatched_instances.length > 0
+    result.unmatched_instances.length > 0 ||
+    result.unmatched_usages.length > 0
     ? 1
     : 0;
 }

@@ -45,7 +45,7 @@ function changeOf(override = {}) {
     variants: ["fill-orange"],
     states: ["hover"],
     properties: ["box-shadow"],
-    usages: ["/orders", "/orders/detail"],
+    usages: ["/orders"],
     usages_source: "grep -rl 'components/Button' src/pages",
     files: ["src/components/Button.tsx"],
     commits: { before: "a1b2c3d", after: "e4f5a6b" },
@@ -242,6 +242,7 @@ test("usages にだけあるページ: 影響する組だが領域は分から�
         ["detail", "default", "desktop"],
       ],
     }),
+    { change: changeOf({ usages: ["/orders", "/orders/detail"] }) },
   );
   expect(feature.verdict).toBe("affected");
   expect(feature.pairs).toEqual([
@@ -279,6 +280,7 @@ test("部品を使うが宣言した状態を撮っていない: 影響なし・
       pages: [{ name: "detail", path: "/orders/detail" }],
       scope: [["detail", "default", "desktop"]],
     }),
+    { change: changeOf({ usages: ["/orders", "/orders/detail"] }) },
   );
   expect(feature.verdict).toBe("unaffected");
   expect(feature.reasons).toEqual([
@@ -362,7 +364,8 @@ test("CLI: どの機能のページとも一致しない影響インスタンス
     baseArgs,
     filesOf({
       "/w/comp.json": JSON.stringify(component),
-      "/w/c.json": JSON.stringify(changeOf({ usages: ["/elsewhere"] })),
+      // usages は機能 search のページと一致させ、一致しないのはインスタンスだけにする（usages の検査と区別する）
+      "/w/c.json": JSON.stringify(changeOf({ usages: ["/search"] })),
     }),
   );
   expect(code).toBe(1);
@@ -646,5 +649,31 @@ test("CLI: 部品 metadata の instances が配列でなければ exit 2", () =>
   const component = componentOf();
   component.instances = {};
   const { code } = run(baseArgs, filesOf({ "/w/comp.json": JSON.stringify(component) }));
+  expect(code).toBe(2);
+});
+
+test("CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしに倒さない）", () => {
+  const { code, result } = run(
+    baseArgs,
+    filesOf({ "/w/c.json": JSON.stringify(changeOf({ instances: [], usages: ["/ordres"] })) }),
+  );
+  expect(code).toBe(1);
+  expect(result.unmatched_usages).toEqual(["/ordres"]);
+  expect(result.findings.join("\n")).toContain("usages のページ /ordres");
+});
+
+test("CLI: usages が全部どれかの機能のページと一致すれば unmatched_usages は空で exit 0", () => {
+  const { code, result } = run(baseArgs, filesOf());
+  expect(code).toBe(0);
+  expect(result.unmatched_usages).toEqual([]);
+});
+
+test("CLI: usages が絶対 URL なら入力の誤りとして exit 2", () => {
+  const { code } = run(
+    baseArgs,
+    filesOf({
+      "/w/c.json": JSON.stringify(changeOf({ usages: ["http://current.example.test/orders"] })),
+    }),
+  );
   expect(code).toBe(2);
 });
