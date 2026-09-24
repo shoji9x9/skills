@@ -75,7 +75,7 @@
   - 測り方: `page.frames()` の各フレームで `frame.evaluate(() => self.origin)` を読み、`new URL(<targets[].url>).origin` と比べる。
     フレームの URL ではなく実効オリジンで比べる（`about:blank` や `srcdoc` のフレームは親のオリジンを継ぐ。出典: <https://developer.mozilla.org/docs/Web/API/Window/origin>）
   - **`cross-origin` の文書があれば、反応を記録する前に、移行元がその読み込み先を組み立てる絶対 URL（設定・ソース）を確かめる。**
-    移行元の本来の配置でも別オリジンになるなら、確かめた根拠を `cross_origin_evidence` に書く（別オリジンの文書が無ければ `null`）。
+    移行元の本来の配置でも別オリジンになるなら、確かめた根拠を `cross_origin_evidence` に**文書ごとに**書く（`{ "<文書>": "<根拠>" }`。別オリジンの文書が無ければ `{}`）。表全体で 1 本にしない——意図して別オリジンにした文書の根拠が、環境の都合で別オリジンになった文書まで通してしまう。
     環境の都合（別名のホスト・ポート）で別オリジンになっているなら、反応を記録せずに停止する。`targets[].url` を移行元が組み立てるオリジンに揃えるようユーザーに促し（設定の正本は `replace-strategy` の `references/project-config.md`）、揃えてから測り直す
   - `kind: none` には操作した文書（`observation.source_document`）も書く。見た文書と合わせて、どのオリジンの間で「無い」を確かめたかが残る
 - **観測は「出るまで待ち、消えるまで測る」。1 回のスナップショットで判定しない**

@@ -453,20 +453,24 @@ export function checkReactions(table, opts = {}) {
       crossOrigin = keys.filter((k) => origins[k] === "cross-origin");
     }
   }
-  if (!Object.hasOwn(table, "cross_origin_evidence")) {
+  // 根拠は別オリジンの文書ごとに持たせる。表全体で 1 本だと、意図して別オリジンにした文書の根拠が
+  // 環境の都合で別オリジンになった文書まで通してしまう（Codex レビュー #453）
+  const evidence = table.cross_origin_evidence;
+  if (!isPlainObject(evidence)) {
     problems.push(
-      "cross_origin_evidence が無い（別オリジンの文書が無ければ null と書く。キーの欠落を根拠不要に倒さない）",
+      'cross_origin_evidence が文書ごとの根拠のオブジェクトでない（{ "<文書>": "<根拠>" }。別オリジンの文書が無ければ {} と書く。キーの欠落を根拠不要に倒さない）',
     );
   } else if (crossOrigin !== null) {
-    const evidence = table.cross_origin_evidence;
-    if (crossOrigin.length > 0 && !nonEmptyString(evidence)) {
+    const lackingEvidence = crossOrigin.filter((d) => !nonEmptyString(evidence[d]));
+    if (lackingEvidence.length > 0) {
       problems.push(
-        `文書 ${crossOrigin.join(", ")} が対象 URL と別オリジンなのに cross_origin_evidence が空（移行元の本来の配置でも別オリジンになることを、移行元が組み立てる絶対 URL 等で確かめた根拠を書く。環境の都合で別オリジンになっているなら、targets[].url をそのオリジンに揃えて測り直す）`,
+        `文書 ${lackingEvidence.join(", ")} が対象 URL と別オリジンなのに cross_origin_evidence にその文書の根拠が無い（移行元の本来の配置でも別オリジンになることを、移行元が組み立てる絶対 URL 等で確かめた根拠を文書ごとに書く。環境の都合で別オリジンになっているなら、targets[].url をそのオリジンに揃えて測り直す）`,
       );
     }
-    if (crossOrigin.length === 0 && evidence !== null) {
+    const staleEvidence = Object.keys(evidence).filter((d) => !crossOrigin.includes(d));
+    if (staleEvidence.length > 0) {
       problems.push(
-        "別オリジンの文書が無いのに cross_origin_evidence が null でない（どの文書の根拠かが残らない古い記録）",
+        `cross_origin_evidence に別オリジンでない文書の根拠が残っている: ${staleEvidence.join(", ")}（古い記録。どの文書の根拠かが実測と合わない）`,
       );
     }
   }

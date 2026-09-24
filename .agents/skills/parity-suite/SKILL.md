@@ -179,7 +179,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    **この位置なのは、測った操作からしか導けず、かつ状態を後から足すと現行側もベースラインとノイズ基準値を採り直しになるため**（[`references/baseline.md`](references/baseline.md)「撮影状態の決め方（1）被覆表から導く」）
    **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
    **反応を記録する前に、対象ページの全フレームのオリジンが `targets[].url` のオリジンと同じかを測って `document_origins` に残す**——違えば、移行元が組み立てる絶対 URL で本来の配置を確かめ、
-   本来も別オリジンなら根拠を `cross_origin_evidence` に書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
+   本来も別オリジンなら根拠をその文書ごとに `cross_origin_evidence` へ書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
    移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**

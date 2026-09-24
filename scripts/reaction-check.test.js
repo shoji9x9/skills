@@ -47,7 +47,7 @@ const baseTable = () => ({
   measured_target: "current-test",
   documents: ["top", "共有ダイアログの iframe"],
   document_origins: { top: "same-origin", "共有ダイアログの iframe": "same-origin" },
-  cross_origin_evidence: null,
+  cross_origin_evidence: {},
   observation_window_ms: 3000,
   feedback_calls: {
     declared: true,
@@ -131,8 +131,10 @@ test("陽性コントロール: 完全な表は exit 0", () => {
 test("別オリジンの文書は、移行元の本来の配置でも別オリジンになる根拠があれば通す（Issue #450）", () => {
   const t = mutated((x) => {
     x.document_origins["共有ダイアログの iframe"] = "cross-origin";
-    x.cross_origin_evidence =
-      "移行元は共有ダイアログを設定 share.origin の絶対 URL で読み込み、本番の配置でも本体と別オリジンになる";
+    x.cross_origin_evidence = {
+      "共有ダイアログの iframe":
+        "移行元は共有ダイアログを設定 share.origin の絶対 URL で読み込み、本番の配置でも本体と別オリジンになる",
+    };
     // フレームの中で操作して、どの文書にも反応が出ないことを見た
     x.operations[1].reactions[0].observation.source_document = "共有ダイアログの iframe";
   });
@@ -281,25 +283,52 @@ test.each([
   [
     "別オリジンの文書があるのに根拠が無い",
     (t) => (t.document_origins["共有ダイアログの iframe"] = "cross-origin"),
-    "文書 共有ダイアログの iframe が対象 URL と別オリジンなのに cross_origin_evidence が空",
+    "文書 共有ダイアログの iframe が対象 URL と別オリジンなのに cross_origin_evidence にその文書の根拠が無い",
   ],
   [
-    "別オリジンの文書があるのに根拠が空白だけ",
+    "別オリジンの文書の根拠が空白だけ",
     (t) => {
       t.document_origins["共有ダイアログの iframe"] = "cross-origin";
-      t.cross_origin_evidence = "  ";
+      t.cross_origin_evidence = { "共有ダイアログの iframe": "  " };
     },
-    "cross_origin_evidence が空",
+    "cross_origin_evidence にその文書の根拠が無い",
   ],
   [
-    "別オリジンの文書が無いのに根拠が残っている",
-    (t) => (t.cross_origin_evidence = "決済フレームは外部サービス"),
-    "別オリジンの文書が無いのに cross_origin_evidence が null でない",
+    // 意図して別オリジンにした文書の根拠で、環境の都合で別オリジンになった文書まで通さない（Codex レビュー #453）
+    "別オリジンの文書が複数あり、根拠が一方にしか無い",
+    (t) => {
+      t.documents.push("決済フレーム");
+      t.operations[1].reactions[0].observation.documents.push("決済フレーム");
+      t.document_origins["決済フレーム"] = "cross-origin";
+      t.document_origins["共有ダイアログの iframe"] = "cross-origin";
+      t.cross_origin_evidence = {
+        決済フレーム: "決済は外部サービスのドメインで本番でも別オリジン",
+      };
+    },
+    "文書 共有ダイアログの iframe が対象 URL と別オリジンなのに cross_origin_evidence にその文書の根拠が無い",
+  ],
+  [
+    "根拠が表全体で 1 本の文字列（旧形式）",
+    (t) => {
+      t.document_origins["共有ダイアログの iframe"] = "cross-origin";
+      t.cross_origin_evidence = "本番でも別オリジン";
+    },
+    "cross_origin_evidence が文書ごとの根拠のオブジェクトでない",
+  ],
+  [
+    "別オリジンでない文書の根拠が残っている",
+    (t) => (t.cross_origin_evidence = { "共有ダイアログの iframe": "決済フレームは外部サービス" }),
+    "cross_origin_evidence に別オリジンでない文書の根拠が残っている: 共有ダイアログの iframe",
   ],
   [
     "オリジンの根拠のキーが無い",
     (t) => delete t.cross_origin_evidence,
-    "cross_origin_evidence が無い",
+    "cross_origin_evidence が文書ごとの根拠のオブジェクトでない",
+  ],
+  [
+    "オリジンの根拠が null",
+    (t) => (t.cross_origin_evidence = null),
+    "cross_origin_evidence が文書ごとの根拠のオブジェクトでない",
   ],
   [
     "出る先の文書が棚卸しに無い",
