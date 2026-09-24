@@ -32,7 +32,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { computeImpact, validateChange } from "./component-impact.mjs";
 
 /**
@@ -169,6 +169,48 @@ function checkGeometry(entry, change, instances, fromProject, readBytes) {
   const b = [...expected].sort().join(" | ");
   if (a !== b) {
     return `declared_regions（${a}）が新側の traits.json の影響インスタンスの rect（${b}）と一致しない（領域は traits.json の rect をそのまま渡す）`;
+  }
+  return null;
+}
+
+/**
+ * amend-verify の組の 3 つの入力が、それぞれの役割の採取物を指しているか。
+ * 画像の sha256 は「そのパスのバイト」を認証するだけで、役割を認証しない（撮り直した新側を 3 つ全部に渡しても
+ * 判定は合格し、ハッシュも一致する）。役割ごとに置き場所を固定して突き合わせる:
+ * - new: `<stage>/baseline-new/<page>/<state>/<viewport>/screenshot.png`（撮り直した組そのもの）
+ * - prev_new: `<stage>/pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`（撮る前に写した改修前の新側）
+ * - current: `<replaceRoot>/parity/<slug>/baseline/` の下（現側の基準。その下の並びは採取スペックが決める）
+ * `<stage>` は evidence-carry.json のあるディレクトリ（new/<target>/）。
+ * @param {Record<string, any>} entry
+ * @param {string} pair
+ * @param {string} changeId
+ * @param {{ stageDir: string, currentRoot: string, fromProject: (p: string) => string }} where
+ * @returns {string | null} 不合格の理由（合格なら null）
+ */
+function checkProvenance(entry, pair, changeId, where) {
+  const [page, state, viewport] = pair.split("|");
+  const inputs = isPlainObject(entry.inputs) ? entry.inputs : {};
+  const at = (key) =>
+    nonEmptyString(inputs[key]?.path) ? where.fromProject(inputs[key].path) : null;
+  const expectedNew = join(where.stageDir, "baseline-new", page, state, viewport, "screenshot.png");
+  const expectedPrev = join(
+    where.stageDir,
+    "pre-change",
+    changeId,
+    page,
+    state,
+    viewport,
+    "screenshot.png",
+  );
+  if (at("new") !== expectedNew) {
+    return `inputs.new が撮り直した組の採取物（${expectedNew}）でない: ${at("new")}`;
+  }
+  if (at("prev_new") !== expectedPrev) {
+    return `inputs.prev_new が撮る前に写した改修前の新側（${expectedPrev}）でない: ${at("prev_new")}`;
+  }
+  const current = at("current");
+  if (current === null || !current.startsWith(where.currentRoot + sep)) {
+    return `inputs.current が現側の基準（${where.currentRoot}${sep} の下）でない: ${current}`;
   }
   return null;
 }
@@ -671,6 +713,15 @@ export function judgeCarry(input) {
         findings.push(
           `amend-verify の組 ${pair} が pass でない（${Array.isArray(entry.reasons) ? entry.reasons.join("; ") : "理由なし"}）: ${recordPath}`,
         );
+        continue;
+      }
+      const provenance = checkProvenance(entry, pair, id, {
+        stageDir: resolve(dirname(input.evidenceCarryPath)),
+        currentRoot: resolve(replaceRoot, "parity", input.featureSlug, "baseline"),
+        fromProject,
+      });
+      if (provenance !== null) {
+        findings.push(`amend-verify の組 ${pair}: ${provenance}: ${recordPath}`);
         continue;
       }
       const geometry = checkGeometry(

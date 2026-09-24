@@ -162,15 +162,17 @@ export function changeDeclaration(options) {
  * @param {{ pass?: boolean }} [options]
  */
 export function amendVerifyPair(root, pair, options = {}) {
-  const dir = `.replace/parity/${FEATURE}/new/${TARGET}/amend`;
   /** @type {Record<string, {path:string, sha256:string}>} */
   const inputs = {};
   for (const key of ["prev_new", "new", "current"]) {
     // 撮り直した新側（inputs.new）は採取の組のディレクトリの screenshot.png。隣の traits.json から領域を突き合わせる
-    const path =
-      key === "new"
-        ? `.replace/parity/${FEATURE}/new/${TARGET}/baseline-new/${pair.replaceAll("|", "/")}/screenshot.png`
-        : `${dir}/${pair.replaceAll("|", ".")}.${key}.png`;
+    // 役割ごとの置き場所（evidence-carry.mjs の checkProvenance が突き合わせる）
+    const at = pair.replaceAll("|", "/");
+    const path = {
+      new: `.replace/parity/${FEATURE}/new/${TARGET}/baseline-new/${at}/screenshot.png`,
+      prev_new: `.replace/parity/${FEATURE}/new/${TARGET}/pre-change/${CHANGE_ID}/${at}/screenshot.png`,
+      current: `.replace/parity/${FEATURE}/baseline/${at}/screenshot.png`,
+    }[key];
     const body = `PNG ${pair} ${key}\n`;
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), body);

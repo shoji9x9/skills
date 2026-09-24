@@ -34,7 +34,8 @@
    理由（どのページも影響インスタンスを持たない・その状態を撮っていない等）は出力のまま報告に載せる
 3. **影響する機能の新側を、影響する組だけ撮り直す。**
    - **現側は撮り直さない。** 比較の相手は現側 `baseline/` の同じ組のまま
-   - **撮る前に、影響する組の前回の新側採取物（`baseline-new/<page>/<state>/<viewport>/`）を `new/<target>/` の下の別ディレクトリへ写す。** 手順 4 の「改修前の新側」になる。
+   - **撮る前に、影響する組の前回の新側採取物（`baseline-new/<page>/<state>/<viewport>/`）を `new/<target>/pre-change/<change-id>/<page>/<state>/<viewport>/` へ写す。** 手順 4 の「改修前の新側」になる。
+     写し先はこのパスに固定する（鮮度検査が入力の役割をこの置き場所で確かめる）
      **写しは消さない**——鮮度検査は判定記録にある画像の sha256 を今のファイルと突き合わせるので、消すと持ち越しが落ちる。
      前回の採取物が無い（`artifacts: local` で消えた等）組は機械判定できない（下記「機械判定で通らない組がある機能」）
    - 撮影条件・条件一致の先行検証・URL の配線は通常の実行と同じ（[`capture-new.md`](capture-new.md)）。撮るのは影響する組だけで、影響しない組の採取物と前回の分類はそのまま残す
@@ -47,8 +48,10 @@
      論理名が `traits.json` に無い・`rect` が面積 0 なら領域を推測で置かず、その組は機械判定できない
    - インストール済みの本スキルの [`../scripts/amend-verify.mjs`](../scripts/amend-verify.mjs) に、組ごとに改修前の新側・撮り直した新側・現側のスクリーンショットと領域を渡す
      （`--pair` / `--prev-new` / `--new` / `--current` / `--region` / `--margin`、複数の組は `--pairs <json>`。`--change-id` と `--out <記録>` で記録を残す）。
-     `--region` には `traits.json` の `rect` を**広げずにそのまま**、`--margin` には宣言の `margin_px` を渡し、`--new` には撮り直した組の
-     `baseline-new/<page>/<state>/<viewport>/screenshot.png` をそのまま渡す（写した先のパスにしない）。
+     `--region` には `traits.json` の `rect` を**広げずにそのまま**、`--margin` には宣言の `margin_px` を渡す。画像は役割ごとに置き場所が決まっている:
+     `--new` は撮り直した組の `baseline-new/<page>/<state>/<viewport>/screenshot.png`、`--prev-new` は手順 3 の写し
+     `pre-change/<change-id>/<page>/<state>/<viewport>/screenshot.png`、`--current` は現側の基準（`.replace/parity/<slug>/baseline/` の下）の同じ組。
+     鮮度検査は各入力がこの置き場所を指すことを確かめる（画像のハッシュはバイトを認証するだけで役割を認証しないので、取り違えた記録で持ち越さない）。
      鮮度検査は記録の `margin` が `margin_px` と、`declared_regions` がその隣の `traits.json` の `rect` と一致することを確かめ、
      判定を弱めた記録（大きな margin・画面全体の領域）では持ち越さない。
      **プロジェクトルート（`.replace` の親）を作業ディレクトリにして実行する**（記録は渡したパスのまま残り、鮮度検査はそれをプロジェクトルートから解決する）。記録は `new/<target>/` の下に置く

@@ -316,6 +316,35 @@ test("影響あり・撮り直した組の traits.json が無い: 持ち越さ�
   expect(result.findings.join("\n")).toContain("新側の traits.json を読めない");
 });
 
+test.each([
+  ["prev_new", "inputs.prev_new が撮る前に写した改修前の新側"],
+  ["current", "inputs.current が現側の基準"],
+])(
+  "影響あり・撮り直した新側の画像を %s にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
+  (key, message) => {
+    const p = project();
+    editRecordPair(p, (entry) => {
+      entry.inputs[key] = { ...entry.inputs.new };
+    });
+    const result = judge(p);
+    expect(result.ok).toBe(false);
+    expect(result.findings.join("\n")).toContain(message);
+  },
+);
+
+test("影響あり・inputs.new が撮り直した組とは別のページの採取物: 持ち越さない", () => {
+  const p = project();
+  editRecordPair(p, (entry) => {
+    entry.inputs.new = {
+      ...entry.inputs.new,
+      path: entry.inputs.new.path.replace("/list/hover/desktop/", "/list/default/desktop/"),
+    };
+  });
+  const result = judge(p);
+  expect(result.ok).toBe(false);
+  expect(result.findings.join("\n")).toContain("inputs.new が撮り直した組の採取物");
+});
+
 test("影響あり・amend-verify の記録に影響する組が無い: 落とす", () => {
   const p = project();
   writeJson(join(p.root, p.recordPath), {
@@ -363,7 +392,8 @@ test("amend-verify の inputs のパスはプロジェクトルートから解�
   writeJson(join(p.root, p.recordPath), record);
   const result = judge(p);
   expect(result.ok).toBe(false);
-  expect(result.findings.join("\n")).toContain("inputs.prev_new を読めない");
+  // プロジェクトルートから解決するので、記録のディレクトリ相対に書いたパスは役割の置き場所と一致しない
+  expect(result.findings.join("\n")).toContain("inputs.prev_new が撮る前に写した改修前の新側");
 });
 
 test.each([

@@ -1317,6 +1317,15 @@ function carryProject(scope, replaceNewExtra = { render_inputs: RENDER_INPUTS })
   const conditions = featureMetadata(scope);
   const made = makeProject((m) => {
     Object.assign(m, { mode: "feature", capture_conditions: conditions.capture_conditions });
+    // makeCarryProject が現側の基準（baseline_dir の下）に置く amend-verify の current 画像を採取物として宣言する
+    m.artifact_health.entries.push({
+      path: "list/hover/desktop/screenshot.png",
+      kind: "captured",
+      read_by: [],
+      unread_reason: "部品改修の機械判定（amend-verify）の現側の入力としてだけ読む",
+      derived_from: null,
+      freshness_unverified_reason: null,
+    });
   });
   const carry = makeCarryProject({ root: made.root });
   writeStage(

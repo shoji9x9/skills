@@ -66,16 +66,21 @@
     },
     {
       "id": "path-from-project-root",
-      "why": "amend-verify の inputs のパスを記録のディレクトリから解決する",
+      "why": "amend-verify の inputs のパスを記録のディレクトリ（new/<target>/）から解決する",
       "file": "skills/parity-suite/scripts/evidence-carry.mjs",
-      "find": "const imagePath = fromProject(ref.path);",
-      "replace": "const imagePath = resolve(dirname(recordPath), ref.path);",
+      "find": "nonEmptyString(inputs[key]?.path) ? where.fromProject(inputs[key].path) : null",
+      "replace": "nonEmptyString(inputs[key]?.path) ? resolve(where.stageDir, inputs[key].path) : null",
       "occurrences": 1,
       "expect_failing": [
         "amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）",
         "両検査器の一致: 持ち越せる fixture では両方とも合格",
         "影響あり・amend-verify が全組 pass・画像の sha256 が一致: 持ち越す",
-        "影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす"
+        "影響あり・判定後に画像を差し替えた（sha256 不一致）: 落とす",
+        "影響あり・撮り直した新側の画像を current にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
+        "影響あり・撮り直した新側の画像を prev_new にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
+        "影響あり・撮り直した組の traits.json が無い: 持ち越さない",
+        "影響あり・記録の margin が変更宣言の margin_px と違う: 持ち越さない",
+        "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない"
       ]
     },
     {
@@ -208,6 +213,38 @@
       "occurrences": 1,
       "expect_failing": [
         "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない"
+      ]
+    },
+    {
+      "id": "new-role-unbound",
+      "why": "inputs.new が撮り直した組の採取物でなくても持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (at(\"new\") !== expectedNew) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["影響あり・inputs.new が撮り直した組とは別のページの採取物: 持ち越さない"]
+    },
+    {
+      "id": "prev-role-unbound",
+      "why": "inputs.prev_new が写した改修前の新側でなくても（撮り直した新側でも）持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (at(\"prev_new\") !== expectedPrev) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・撮り直した新側の画像を prev_new にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない",
+        "amend-verify の inputs のパスはプロジェクトルートから解決する（記録のディレクトリからではない）"
+      ]
+    },
+    {
+      "id": "current-role-unbound",
+      "why": "inputs.current が現側の基準でなくても（撮り直した新側でも）持ち越す",
+      "file": "skills/parity-suite/scripts/evidence-carry.mjs",
+      "find": "if (current === null || !current.startsWith(where.currentRoot + sep)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "影響あり・撮り直した新側の画像を current にも渡した記録（ハッシュは一致する）: 役割が違うので持ち越さない"
       ]
     }
   ]
