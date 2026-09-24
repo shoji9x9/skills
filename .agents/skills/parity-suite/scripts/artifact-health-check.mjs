@@ -211,10 +211,11 @@ function sha256File(path) {
 }
 
 /**
- * コメントを除いて指紋を取る JS / TS 系の拡張子。`.jsx` / `.tsx` は含めない（生バイトで数える）——
- * JSX のテキスト（`<p>http://x</p>`）の `//` はこの字句解析ではコメントと区別できず、テキストの書き換えを見逃すため。
+ * コメントを除いて指紋を取る拡張子。TypeScript（`.ts` / `.mts` / `.cts`）だけにする——TypeScript で JSX を書けるのは
+ * `.tsx` だけだが、JavaScript はトランスパイルで拡張子に関係なく JSX を書ける。JSX のテキスト（`<p>http://x</p>`）の `//` は
+ * この字句解析ではコメントと区別できず、テキストの書き換えを見逃すので、`.js` 系と `.jsx` / `.tsx` は生バイトで数える。
  */
-const JS_FAMILY_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]);
+const JS_FAMILY_EXTENSIONS = new Set([".ts", ".mts", ".cts"]);
 
 /**
  * 残すコメント（指示コメント）か。ツール・コンパイラへの指示はコメントの形でも動きを変えうるので、

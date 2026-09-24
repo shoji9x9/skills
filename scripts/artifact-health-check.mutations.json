@@ -63,7 +63,10 @@
       "occurrences": 1,
       "expect_failing": [
         "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）",
-        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）"
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）",
+        "#457: .cjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+        "#457: .js も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+        "#457: .mjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）"
       ]
     },
     {
@@ -95,13 +98,16 @@
     },
     {
       "id": "jsx-stripped",
-      "why": ".tsx / .jsx にもコメント除去を当て、JSX のテキストの // をコメントとして捨てる",
+      "why": ".js 系と .jsx / .tsx にもコメント除去を当て、JSX のテキストの // をコメントとして捨てる",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "const JS_FAMILY_EXTENSIONS = new Set([\".js\", \".mjs\", \".cjs\", \".ts\", \".mts\", \".cts\"]);",
+      "find": "const JS_FAMILY_EXTENSIONS = new Set([\".ts\", \".mts\", \".cts\"]);",
       "replace": "const JS_FAMILY_EXTENSIONS = new Set([\".js\", \".mjs\", \".cjs\", \".jsx\", \".ts\", \".tsx\", \".mts\", \".cts\"]);",
       "occurrences": 1,
       "expect_failing": [
-        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）"
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）",
+        "#457: .js も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+        "#457: .mjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+        "#457: .cjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）"
       ]
     },
     {

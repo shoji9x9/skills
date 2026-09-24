@@ -984,6 +984,19 @@ test("#457: JS / TS 系以外のファイルは生バイトで数える（コメ
   rmSync(root, { recursive: true, force: true });
 });
 
+test.each([".js", ".mjs", ".cjs"])(
+  "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+  (ext) => {
+    const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+    writeFileSync(join(root, `view${ext}`), "export const X = () => <p>http://old.example</p>;\n");
+    const suite = { specs: `view${ext}` };
+    const before = suiteFingerprint(suite, root).fingerprint;
+    writeFileSync(join(root, `view${ext}`), "export const X = () => <p>http://new.example</p>;\n");
+    expect(suiteFingerprint(suite, root).fingerprint).not.toBe(before);
+    rmSync(root, { recursive: true, force: true });
+  },
+);
+
 test("#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）", () => {
   const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
   writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://old.example</p>;\n");
