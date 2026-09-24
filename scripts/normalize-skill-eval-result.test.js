@@ -826,7 +826,7 @@ describe("skill eval result normalization", () => {
         ["after an absolute cd", [bash(`cd ${SKILL_DIR} && ls`), bash("cat SKILL.md")], "SKILL.md"],
         [
           "after a cd relative to the start",
-          [bash("cd .claude/skills/box"), bash("cat SKILL.md")],
+          [bash("cd ./.claude/skills/box"), bash("cat SKILL.md")],
           "SKILL.md",
         ],
         ["after a quoted cd", [bash(`cd "${SKILL_DIR}"`), bash("cat SKILL.md")], "SKILL.md"],
@@ -874,9 +874,11 @@ describe("skill eval result normalization", () => {
         ],
         [
           "a cd relative to an unknown start",
-          [bash("cd .claude/skills/box")],
+          [bash("cd ./.claude/skills/box")],
           { ...INIT, cwd: undefined },
         ],
+        // Codex review on #463: a bare relative target is looked up through CDPATH.
+        ["a bare relative cd CDPATH may redirect", [bash("cd .claude/skills/box")]],
       ])("does not resolve a relative read after %s", (_label, events, init = INIT) => {
         const usage = usageOf([init, ...events, bash("cat SKILL.md")]);
 
@@ -902,20 +904,28 @@ describe("skill eval result normalization", () => {
         ["a cd word split by quotes", "c'd' /tmp"],
         ["a cd word split by a line continuation", "c\\\nd /tmp"],
         ["a globbed command word", "c? /tmp"],
+        ["a cd whose target is a glob", "cd ./refs*"],
+        ["an ANSI-C quoted piece of a command word", "c$'d' /tmp"],
+        ["a substitution inside a command word", "c$(printf d) /tmp"],
+        ["a cd after a reserved word", "if cd /tmp; then :; fi"],
+        ["a cd between escaped single quotes", String.raw`echo \'; cd /tmp; echo \'`],
       ])("forgets the skill directory after %s", (_label, command) => {
         const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
 
         expect(usage).toMatchObject({ read: false, invalid_run: true });
       });
 
-      // The glob rule must not take `[ … ]` (test) for a command word to expand.
-      test("keeps the skill directory across a bracket test", () => {
-        const usage = usageOf([
-          INIT,
-          bash(`cd ${SKILL_DIR}`),
-          bash("[ -e x ] && ls"),
-          bash("cat SKILL.md"),
-        ]);
+      // The allowlist must still pass the ordinary commands an agent runs between reads,
+      // or the directory is never kept at all.
+      test.each([
+        ["a bracket test", "[ -e x ] && ls"],
+        ["separators inside quotes", `echo "a;b|c(d)" && grep -n 'x|y' notes.txt`],
+        ["a pipe", "find . -type f | head -50"],
+        ["a redirect and a substitution", `wc -l $(find . -name "*.md") 2>/dev/null`],
+        ["a redirect with a separate target", `wc -l $(find . -name "*.md") 2> "$LOG"`],
+        ["an env assignment", "LC_ALL=C sort notes.txt"],
+      ])("keeps the skill directory across %s", (_label, command) => {
+        const usage = usageOf([INIT, bash(`cd ${SKILL_DIR}`), bash(command), bash("cat SKILL.md")]);
 
         expect(usage).toMatchObject({ read: true, invalid_run: false });
       });

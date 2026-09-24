@@ -275,28 +275,107 @@ function plainCdTarget(element) {
   return target;
 }
 
-// Anything that may move the shell's directory without being a plain `cd`: a `cd`
-// behind a variable, `pushd` / `popd`, sourcing a script that could do either, and
-// commands whose text is only known after expansion (`eval "$MOVE"`, `$CMD /x`). The
-// words match anywhere (quoted forms are caught by movesCwd), since over-matching only
-// drops a known directory; `.`, an expanded command word and a glob (`c? /x` may expand to
-// `cd`) only in command position, since as arguments (`find . -name`, `cat $F`) they
-// are just operands.
+// Whether a script may leave the shell in another directory. This is an allowlist,
+// not a list of ways to move: every spelling a denylist missed (`\cd`, `c'd'`, `c$'d'`,
+// `c$(printf d)`, `c? /x`, `eval "$MOVE"`, a line continuation inside `cd`) runs the
+// builtin, and there is no end to them. So the directory is kept only when every
+// command word in the script is a plain literal that is not itself a move or a way to
+// run one; anything else leaves it unknown, which only ever drops evidence.
 //
 // Not covered: a function or alias from the user's shell profile (`z proj`) moves the
-// directory under a name no text rule can know. The Bash tool does not carry functions
-// between calls, so only profile-defined ones remain.
-const CWD_CHANGE =
-  /(?:^|[\s;&|(`{])(?:cd|pushd|popd|source|eval)(?=$|[\s;&|)`}])|(?:^|[;&|(`{]|\b(?:builtin|command)\s)\s*(?:\.(?=\s)|["']?[$`]|(?!\[{1,2}\s)[^\s;&|()]*[*?[])/u;
+// directory under a plain literal name. The Bash tool does not carry functions between
+// calls, so only profile-defined ones remain.
+const CWD_WORDS = new Set([
+  // Moves, and ways to run a command the text does not spell out.
+  ".",
+  "alias",
+  "builtin",
+  "cd",
+  "command",
+  "enable",
+  "eval",
+  "exec",
+  "popd",
+  "pushd",
+  "shopt",
+  "source",
+  "trap",
+  // Reserved words put the real command word after them (`if cd /x; then …`).
+  "!",
+  "case",
+  "coproc",
+  "do",
+  "done",
+  "elif",
+  "else",
+  "esac",
+  "fi",
+  "for",
+  "function",
+  "if",
+  "in",
+  "select",
+  "then",
+  "time",
+  "until",
+  "while",
+]);
+const LITERAL_WORD = /^(?:[\w./+:@%^,-]+|\[{1,2})$/u;
+const REDIRECT_WORD = /^\d*(?:[<>]|&>)/u;
 
-// The shell joins line continuations before it tokenizes and removes quotes and
-// backslashes before it looks a command up, so `c\<newline>d /x`, `\cd /x`, `c'd' /x`
-// and `"cd" /x` all run the builtin. Judge the text with those removed as well as
-// without (the unremoved text is what places `.` and `$` in command position).
+// Blank what quotes protect, so a separator inside them does not start a command word.
+// A substitution inside double quotes runs in a subshell, which cannot move the caller.
+// The quote characters stay, so a word spelled with quotes (`c'd'`, `"cd"`) is still not
+// a literal. A quote left open returns null.
+function blankQuoted(text) {
+  let out = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\\") {
+      out += text.slice(index, index + 2);
+      index += 1;
+      continue;
+    }
+    if (char !== "'" && char !== '"') {
+      out += char;
+      continue;
+    }
+    let close = index + 1;
+    while (close < text.length && text[close] !== char) {
+      close += char === '"' && text[close] === "\\" ? 2 : 1;
+    }
+    if (close >= text.length) {
+      return null;
+    }
+    out += char + char;
+    index = close;
+  }
+  return out;
+}
+
 function movesCwd(text) {
-  return (
-    CWD_CHANGE.test(text) || CWD_CHANGE.test(text.replaceAll("\\\n", "").replaceAll(/[\\'"]/gu, ""))
-  );
+  // A line continuation needs no joining: `c\<newline>d` leaves `c\` as a word, which
+  // is not a literal.
+  const blanked = blankQuoted(text);
+  if (blanked === null) {
+    return true;
+  }
+  for (const segment of blanked.split(/[;&|(){}`\n]/u)) {
+    const words = segment.trim().split(/\s+/u).filter(Boolean);
+    let index = 0;
+    while (
+      index < words.length &&
+      (/^[A-Za-z_]\w*=/u.test(words[index]) || REDIRECT_WORD.test(words[index]))
+    ) {
+      // A bare operator (`2>`, `<`) takes the next word as its target.
+      index += /^\d*(?:[<>]{1,2}|&>)$/u.test(words[index]) ? 2 : 1;
+    }
+    const word = words[index];
+    if (word !== undefined && (!LITERAL_WORD.test(word) || CWD_WORDS.has(word))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function resolveAgainst(cwd, path) {
@@ -313,8 +392,7 @@ function analyzeShellCommand(command, cwd, depth = 0) {
   // shell is a child, so nothing it does moves the caller's directory.
   //
   // The quote check cannot tell one quoted script from `bash -c "a" && cd "/b"`, whose
-  // cd runs in the caller's shell, so any cd in the text leaves the caller's directory
-  // unknown. That only drops evidence; keeping the old directory could fabricate it.
+  // cd runs in the caller's shell, so the caller's side is judged like any script.
   if (isShellCInvocation(trimmed)) {
     const inner = stripOuterQuotes(trimmed);
     const callerMove = movesCwd(trimmed) ? null : undefined;
@@ -334,7 +412,12 @@ function analyzeShellCommand(command, cwd, depth = 0) {
   for (const element of elements) {
     const target = plainCdTarget(element);
     if (target !== null) {
-      current = target.startsWith("/") || current !== null ? resolveAgainst(current, target) : null;
+      // A relative target other than `./…` / `../…` is looked up through CDPATH first.
+      const direct = target.startsWith("/") || /^\.\.?(?:\/|$)/u.test(target);
+      current =
+        direct && (target.startsWith("/") || current !== null)
+          ? resolveAgainst(current, target)
+          : null;
       cwdAfter = current;
       continue;
     }
