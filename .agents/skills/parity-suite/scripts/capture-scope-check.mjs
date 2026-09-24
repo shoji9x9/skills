@@ -459,6 +459,37 @@ export function checkOverflow(conditions) {
         `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
       );
     }
+    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ効く最小幅を見落とすので、メディアクエリの境界も探す（Codex レビュー #453）。
+    // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
+    const probe = /** @type {Record<string, unknown>} */ (entry.probe ?? {});
+    if (
+      !entry.probe ||
+      typeof entry.probe !== "object" ||
+      !Number.isInteger(probe.step) ||
+      /** @type {number} */ (probe.step) <= 0 ||
+      !Array.isArray(probe.breakpoints) ||
+      !probe.breakpoints.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0) ||
+      !Number.isInteger(probe.unreadable_stylesheets) ||
+      /** @type {number} */ (probe.unreadable_stylesheets) < 0
+    ) {
+      add(
+        "overflow-probe-malformed",
+        `${at}.probe が無いか型が崩れている（step: 正の整数、breakpoints: 正の数の配列、unreadable_stylesheets: 0 以上の整数）`,
+      );
+    } else if (
+      /** @type {number} */ (probe.unreadable_stylesheets) > 0 &&
+      !nonEmptyString(probe.gaps_ref)
+    ) {
+      add(
+        "overflow-probe-unreadable-unrecorded",
+        `${at} に読めないスタイルシートが ${probe.unreadable_stylesheets} 件あるのに probe.gaps_ref が空（その境界は探索できていない。gaps.md に未検証として残して該当箇所を書く）`,
+      );
+    } else if (probe.unreadable_stylesheets === 0 && probe.gaps_ref !== null) {
+      add(
+        "overflow-probe-gaps-ref-unexpected",
+        `${at} に読めないスタイルシートが無いのに probe.gaps_ref が null でない（古い記録）`,
+      );
+    }
     if (!Array.isArray(entry.windows) || entry.windows.length === 0) {
       add("overflow-windows-missing", `${at}.windows が空（測った窓が無い）`);
       return;

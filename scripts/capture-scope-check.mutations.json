@@ -131,6 +131,39 @@
       "replace": "(minWidth)) {\n",
       "occurrences": 1,
       "expect_failing": ["最小幅と窓の記録が矛盾していれば落とす"]
+    },
+    {
+      "id": "probe-malformed",
+      "why": "探索の範囲の記録が無い・型崩れを落とさない（この分岐の検出を別の名前に逃がす）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        \"overflow-probe-malformed\",\n",
+      "replace": "        \"overflow-probe-malformed-disabled\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "probe-unreadable-unrecorded",
+      "why": "読めないスタイルシートを gaps.md に回していなくても通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      /** @type {number} */ (probe.unreadable_stylesheets) > 0 &&\n",
+      "replace": "      false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "probe-gaps-ref-unexpected",
+      "why": "読めないスタイルシートが無いのに残った gaps_ref を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    } else if (probe.unreadable_stylesheets === 0 && probe.gaps_ref !== null) {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
     }
   ]
 }

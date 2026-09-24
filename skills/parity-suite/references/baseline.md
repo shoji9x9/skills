@@ -445,7 +445,10 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 1. 最小幅より狭く、撮影したビューポートと同じ高さの窓（横スクロールバーが出る）
 2. 1 と同じ幅で、中身が収まる高さの窓。**縦のはみ出しが頁の高さの決め方だけで決まる**ので、`100%` と `100vh` の差がここに出る
 
-最小幅は、320px から撮影ビューポートの幅まで 40px 刻みの窓で読んだ文書の `scrollWidth` で決め、横にはみ出した窓のうち最も広いものを 1 の幅にする（中間のブレークポイントでだけ最小幅が効くレスポンシブな頁を 1 窓の探索で見落とさないため）。
+最小幅は、320px から撮影ビューポートの幅まで 40px 刻みの窓と、頁のスタイルシートから読んだ**メディアクエリの幅の境界の前後**の窓で、文書の `scrollWidth` を読んで決める。
+横にはみ出した窓のうち最も広いものを 1 の幅にする（中間のブレークポイントでだけ最小幅が効くレスポンシブな頁を、1 窓や刻みだけの探索で見落とさないため）。
+**読めないスタイルシート**（別オリジンで CORS の無いもの等）があれば、その境界は探索できていない。件数は `probe.unreadable_stylesheets` に残り、`gaps.md` に「採取環境依存の未検証」として書いて `probe.gaps_ref` に該当箇所を入れる。
+JavaScript やコンテナクエリで最小幅を変える頁も拾えないので、同じく `gaps.md` に残す。
 2 の高さは 1 の窓で読んだ文書の `scrollHeight`（`content_height` として記録する）より高くとり、検査はその窓があることを確かめる。
 どの窓でも横にはみ出さない頁は `min_width: null`（最小幅を持たない）として、撮影したビューポートと 320px 幅の窓だけを測る。
 各窓では縦・横のはみ出しの有無に加えて**はみ出し量**（`scrollHeight − clientHeight` 等）を残し、スペックは量で比べる——どの高さでも縦にはみ出す頁（`body { height: 100% }` と既定の margin）では、有無だけだと `100%` と `100vh` が両側とも「はみ出す」になり見分けられない。
@@ -488,8 +491,43 @@ const capturing = process.env.PARITY_OVERFLOW_CAPTURE === "1";
 const faultCss = process.env.PARITY_OVERFLOW_FAULT_CSS;
 /** 最小幅を読む狭い窓の幅 */
 const PROBE_WIDTH = 320;
-/** 最小幅を探す窓の刻み（これより狭い帯でだけ効く最小幅は拾えない） */
+/** 最小幅を探す窓の刻み。これより狭い帯でだけ効く最小幅は、下のメディアクエリの境界で拾う */
 const PROBE_STEP = 40;
+
+/**
+ * 頁のスタイルシートからメディアクエリの幅の境界を集める。最小幅が変わるのは境界だけなので、その前後を探索に足す。
+ * 読めないスタイルシート（別オリジンで CORS の無いもの等。cssRules が例外を投げる）は件数を返し、gaps.md へ回す。
+ * 拾えないもの: JavaScript（matchMedia・ResizeObserver）やコンテナクエリで最小幅を変える頁
+ */
+async function readBreakpoints(page: Page): Promise<{ widths: number[]; unreadable: number }> {
+  return page.evaluate(() => {
+    const widths = new Set<number>();
+    let unreadable = 0;
+    // min-width / max-width と範囲構文（width >= 768px、768px <= width）。em / rem はメディアクエリでは初期値 16px で換算する
+    const collect = (text: string) => {
+      const px = (value: string, unit: string) => Number(value) * (unit === "px" ? 1 : 16);
+      for (const m of text.matchAll(/(?:min|max)-width\s*:\s*([\d.]+)(px|em|rem)/g)) widths.add(px(m[1], m[2]));
+      for (const m of text.matchAll(/width\s*[<>]=?\s*([\d.]+)(px|em|rem)/g)) widths.add(px(m[1], m[2]));
+      for (const m of text.matchAll(/([\d.]+)(px|em|rem)\s*[<>]=?\s*width/g)) widths.add(px(m[1], m[2]));
+    };
+    const walk = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        if (rule instanceof CSSMediaRule) collect(rule.conditionText);
+        // @supports・@layer・入れ子の @media も辿る
+        if ("cssRules" in rule) walk((rule as CSSGroupingRule).cssRules);
+      }
+    };
+    for (const sheet of Array.from(document.styleSheets)) {
+      collect(sheet.media.mediaText); // <link media="..."> で読み込み自体が切り替わるもの
+      try {
+        walk(sheet.cssRules);
+      } catch {
+        unreadable += 1;
+      }
+    }
+    return { widths: [...widths].sort((a, b) => a - b), unreadable };
+  });
+}
 
 type Window = { width: number; height: number };
 type Measured = {
@@ -545,9 +583,21 @@ if (capturing) {
       // 最小幅は 1 窓では決まらない（中間のブレークポイントでだけ min-width が効くレスポンシブな頁は、320px でも撮影幅でも
       // はみ出さない）。PROBE_WIDTH から撮影ビューポートの幅まで PROBE_STEP 刻みで読み、横にはみ出した窓のうち最も広いものを狭い窓にする
       const maxWidth = Math.max(...viewports.map((v) => v.width));
+      await page.setViewportSize({ width: base.width, height: base.height });
+      await page.goto(p.path);
+      await waitForStableRect(page.locator("body"));
+      const breakpoints = await readBreakpoints(page);
+      // 刻みの格子に、各境界の前後（境界で規則が切り替わる両側）を足す
+      const probeWidths = new Set<number>();
+      for (let width = PROBE_WIDTH; width < maxWidth; width += PROBE_STEP) probeWidths.add(width);
+      for (const b of breakpoints.widths) {
+        for (const width of [Math.floor(b) - 1, Math.floor(b), Math.ceil(b), Math.ceil(b) + 1]) {
+          if (width >= PROBE_WIDTH && width < maxWidth) probeWidths.add(width);
+        }
+      }
       let minWidth: number | null = null;
       let narrowWidth: number | null = null;
-      for (let width = PROBE_WIDTH; width < maxWidth; width += PROBE_STEP) {
+      for (const width of [...probeWidths].sort((a, b) => a - b)) {
         await page.setViewportSize({ width, height: base.height });
         await page.goto(p.path);
         await waitForStableRect(page.locator("body"));
@@ -590,7 +640,19 @@ if (capturing) {
         assertBarTakesSpace(m, `${p.name} ${key}`);
         measured.push({ ...w, ...m });
       }
-      records.push({ page: p.name, min_width: minWidth, content_height: contentHeight, windows: measured });
+      records.push({
+        page: p.name,
+        min_width: minWidth,
+        content_height: contentHeight,
+        // 探索の範囲。読めないスタイルシートがあれば、その境界は探索できていない。gaps.md の該当箇所を gaps_ref に書く
+        probe: {
+          step: PROBE_STEP,
+          breakpoints: breakpoints.widths,
+          unreadable_stylesheets: breakpoints.unreadable,
+          gaps_ref: null,
+        },
+        windows: measured,
+      });
     }
     // 他の採取と並行して metadata.json を書き換えない（このディレクトリだけを単独で回す）
     const current = JSON.parse(readFileSync(metadataPath, "utf8"));

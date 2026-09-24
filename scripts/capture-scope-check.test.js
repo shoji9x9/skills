@@ -32,6 +32,7 @@ function overflowOf(override = {}) {
         page: "list",
         min_width: 1280,
         content_height: 3200,
+        probe: { step: 40, breakpoints: [768, 1024], unreadable_stylesheets: 0, gaps_ref: null },
         windows: [
           {
             width: 1366,
@@ -710,6 +711,7 @@ test("はみ出しの陰性コントロール: 正規の記録は落とさない
             {
               page: "list",
               min_width: null,
+              probe: { step: 40, breakpoints: [], unreadable_stylesheets: 0, gaps_ref: null },
               windows: [
                 {
                   width: 1366,
@@ -923,6 +925,7 @@ test("中身が収まる高さの狭い窓が無い記録は落とす（Codex �
             {
               page: "list",
               min_width: null,
+              probe: { step: 40, breakpoints: [], unreadable_stylesheets: 0, gaps_ref: null },
               content_height: null,
               windows: [
                 {
@@ -999,4 +1002,37 @@ test("はみ出し量の欠落・型崩れ・真偽値との矛盾は落とす�
   expect(codesOf(metadataOf({ overflow: overflowWithWindow({ overflow_y_px: 0 }) }))).toContain(
     "overflow-extent-inconsistent",
   );
+});
+
+test("最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）", () => {
+  const page = /** @type {any} */ (overflowOf().pages)[0];
+  const withProbe = (probe) =>
+    metadataOf({ overflow: overflowOf({ pages: [{ ...page, probe }] }) });
+  for (const probe of [
+    undefined,
+    null,
+    { ...page.probe, step: 0 },
+    { ...page.probe, breakpoints: "768" },
+    { ...page.probe, breakpoints: [768, -1] },
+    { ...page.probe, unreadable_stylesheets: -1 },
+    { ...page.probe, unreadable_stylesheets: undefined },
+  ]) {
+    expect(codesOf(withProbe(probe))).toContain("overflow-probe-malformed");
+  }
+  expect(codesOf(withProbe({ ...page.probe, unreadable_stylesheets: 2 }))).toContain(
+    "overflow-probe-unreadable-unrecorded",
+  );
+  expect(codesOf(withProbe({ ...page.probe, gaps_ref: "gaps.md#stale" }))).toContain(
+    "overflow-probe-gaps-ref-unexpected",
+  );
+  // 陰性コントロール: 読めないスタイルシートを gaps.md に回した記録は通す
+  expect(
+    codesOf(
+      withProbe({
+        ...page.probe,
+        unreadable_stylesheets: 2,
+        gaps_ref: "gaps.md#採取環境依存の未検証",
+      }),
+    ),
+  ).toEqual([]);
 });

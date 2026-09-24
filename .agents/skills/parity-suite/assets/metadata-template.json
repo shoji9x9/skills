@@ -215,8 +215,16 @@
       "pages": [
         {
           "page": "<capture_conditions.pages[].name。撮影頁を全て 1 回ずつ>",
-          "min_width": "<頁の最小幅（px）。320px から撮影ビューポートの幅まで 40px 刻みの窓で読み、横にはみ出した窓の document の scrollWidth の最大値。どの窓でも横にはみ出さない頁だけ null>",
+          "min_width": "<頁の最小幅（px）。320px から撮影ビューポートの幅まで 40px 刻みの窓と、メディアクエリの幅の境界の前後の窓で読み、横にはみ出した窓の document の scrollWidth の最大値。どの窓でも横にはみ出さない頁だけ null>",
           "content_height": "<min_width を持つ頁だけ、最小幅より狭く撮影ビューポートと同じ高さの窓で読んだ文書の scrollHeight（px）。windows にはこれより高い狭い窓（中身が収まる高さ＝縦のはみ出しが頁の高さの決め方だけで決まる窓）が要る。min_width が null なら null>",
+          "probe": {
+            "step": "<最小幅を探した窓の刻み（px、正の整数。雛形の PROBE_STEP）>",
+            "breakpoints": [
+              "<頁のスタイルシートから読んだメディアクエリの幅の境界（px。em / rem は 16px 換算）。境界の前後も探索している>"
+            ],
+            "unreadable_stylesheets": "<0 以上の整数。読めなかったスタイルシートの件数（別オリジンで CORS の無いもの等）。その境界は探索できていない>",
+            "gaps_ref": "<unreadable_stylesheets が 1 以上のときだけ、gaps.md に未検証として残した該当箇所。0 なら null>"
+          },
           "windows": [
             {
               "width": 0,
