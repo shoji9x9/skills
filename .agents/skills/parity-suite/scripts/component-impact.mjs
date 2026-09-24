@@ -265,6 +265,24 @@ function resolveInstances(change, componentMetadata) {
     );
     return { resolved, problems };
   }
+  // 宣言した状態は部品が採った状態（capture.states）の語彙で書く。綴り違いの状態はどの撮影組にも当たらず、
+  // 「その状態を撮っていない＝影響なし」に化けるので、語彙に無い状態は判定不能にする
+  const captureStates = /** @type {any} */ (m.capture)?.states;
+  if (!Array.isArray(captureStates) || !captureStates.every((st) => nonEmptyString(st))) {
+    problems.push(
+      "部品 metadata の capture.states が状態名の配列でない（宣言した状態を部品の語彙と突き合わせられない）",
+    );
+    return { resolved, problems };
+  }
+  const unknownStates = /** @type {string[]} */ (change.states).filter(
+    (st) => !captureStates.includes(st),
+  );
+  if (unknownStates.length > 0) {
+    problems.push(
+      `変更宣言の states に部品 metadata の capture.states（${captureStates.join(", ")}）に無い状態がある: ${unknownStates.join(", ")}`,
+    );
+    return { resolved, problems };
+  }
   /** @type {Map<string, Record<string, unknown>[]>} */
   const byId = new Map();
   for (const instance of /** @type {unknown[]} */ (m.instances)) {

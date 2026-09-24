@@ -79,6 +79,8 @@ function componentOf(
   metadata.slug = "button";
   const shape = metadata.instances[0];
   metadata.instances = instances.map((instance) => ({ ...structuredClone(shape), ...instance }));
+  // 部品が採った状態の語彙（変更宣言の states はこの中から書く）
+  metadata.capture.states = ["default", "hover"];
   return metadata;
 }
 
@@ -676,4 +678,36 @@ test("CLI: usages が絶対 URL なら入力の誤りとして exit 2", () => {
     }),
   );
   expect(code).toBe(2);
+});
+
+test("変更宣言の states に部品の capture.states に無い状態（綴り違い）: 撮っていない＝影響なしに倒さず全機能を判定不能にする", () => {
+  const result = computeImpact({
+    change: changeOf({ states: ["hovre"] }),
+    componentMetadata: componentOf(),
+    features: [{ slug: "orders", metadata: featureOf() }],
+  });
+  expect(result.features.every((f) => f.verdict === "undeterminable")).toBe(true);
+  expect(result.features[0].reasons.join("\n")).toContain(
+    "capture.states（default, hover）に無い状態がある: hovre",
+  );
+});
+
+test("CLI: 変更宣言の states が部品の語彙に無ければ exit 1", () => {
+  const { code } = run(
+    baseArgs,
+    filesOf({ "/w/c.json": JSON.stringify(changeOf({ states: ["hovre"] })) }),
+  );
+  expect(code).toBe(1);
+});
+
+test("部品 metadata の capture.states が状態名の配列でない: 全機能を判定不能にする", () => {
+  const component = componentOf();
+  delete component.capture.states;
+  const result = computeImpact({
+    change: changeOf(),
+    componentMetadata: component,
+    features: [{ slug: "orders", metadata: featureOf() }],
+  });
+  expect(result.features.every((f) => f.verdict === "undeterminable")).toBe(true);
+  expect(result.features[0].reasons.join("\n")).toContain("capture.states が状態名の配列でない");
 });

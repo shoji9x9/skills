@@ -114,6 +114,8 @@ export function componentMetadata() {
     { id: "pager-next", page: "/orders", locator: "button: 次へ" },
     { id: "search-submit", page: "/search", locator: "button: 検索" },
   ].map((instance) => ({ ...structuredClone(shape), ...instance }));
+  // 部品が採った状態の語彙（変更宣言の states はこの中から書く）
+  metadata.capture.states = ["default", "hover"];
   return metadata;
 }
 

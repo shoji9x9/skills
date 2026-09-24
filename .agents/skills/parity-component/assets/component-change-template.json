@@ -9,7 +9,7 @@
   ],
   "variants": ["<系統名（人が読むためのラベル。判定には使わない）>"],
   "states": [
-    "<影響する状態名（部品 metadata.json の capture.states と各機能の capture_conditions.states と同じ語彙）。空にしない>"
+    "<影響する状態名（部品 metadata.json の capture.states と各機能の capture_conditions.states と同じ語彙）。空にしない。capture.states に無い状態は component-impact.mjs が判定不能にする（綴り違いを「その状態を撮っていない＝影響なし」に倒さない）>"
   ],
   "properties": ["<変わった計算後スタイルのプロパティ名（例: box-shadow）。空にしない>"],
   "usages": [

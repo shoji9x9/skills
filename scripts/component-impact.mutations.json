@@ -54,6 +54,18 @@
       "expect_failing": [
         "CLI: usages だけに頼る宣言で、usages がどの機能のページとも一致しなければ exit 1（影響なしに倒さない）"
       ]
+    },
+    {
+      "id": "unknown-state-accepted",
+      "why": "部品の capture.states に無い状態（綴り違い）を受け入れ、撮っていない＝影響なしに倒す",
+      "file": "skills/parity-suite/scripts/component-impact.mjs",
+      "find": "if (unknownStates.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "変更宣言の states に部品の capture.states に無い状態（綴り違い）: 撮っていない＝影響なしに倒さず全機能を判定不能にする",
+        "CLI: 変更宣言の states が部品の語彙に無ければ exit 1"
+      ]
     }
   ]
 }
