@@ -270,7 +270,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    スイートが green でも 1 画面の画素の大半が違うことがあり（ページの器の幅・ヘッダーの位置・表の組み方）、書かないと利用者が画面を並べて見るまで気付かれない。
    api-resource / batch モードでも、一致の主張は `parity-diff` の収束まで保留する（batch モードの完了判定にある「出力一致」（[`references/paging.md`](references/paging.md)）はスイートのベースラインに対する判定で、現行との一致の報告ではない）。
    **次の工程として、同じ target を渡した `parity-diff --feature <slug> --target <target>` を案内する**（`--autonomous` 実行ならそのまま委譲する）。
-   同じ target の `diff-metadata.json` が既に `converged: true` でも、その後に新側を変えたなら古い収束を報告の根拠にしない
+   同じ target の `diff-metadata.json` が既に `converged: true` でも、**本スキルはそれを収束の報告に使わない**——収束の入力は新側だけでなく、
+   現側ベースライン・データセットのバージョン・撮影条件・差分器の設定にも及び、その鮮度は `parity-diff` の前提確認（`parity-diff` の `references/preflight.md`）だけが判定する。
+   収束を報告するのは、そのとき `parity-diff` を回して得た結果に拠る場合だけにする
 9. **`parity-diff` との往復ループ**: 差し戻し時は `.replace/parity/<slug>/new/<target>/diff.md` を入力に**該当ページのフェーズから再開**（頭から作り直さない）。
    対象 target の `on_diff` ドキュメントがあればそれに従って修正・反映・再テストを進め（無ければ修正して対象 target で再テストする）、反復回数と**その反復で描画に効く変更を入れた範囲**（`loop.changed_scope`。`parity-diff` の自己ノイズ再測定判定に使う）を `new/<target>/replace-metadata.json` に記録する。
    `on_diff` の解釈手順・終了条件・反復上限（`--max-iterations` 既定 5）の正本: [`references/diff-loop.md`](references/diff-loop.md)
