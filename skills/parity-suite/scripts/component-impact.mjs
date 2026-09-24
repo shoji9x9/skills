@@ -401,6 +401,14 @@ function judgeFeature(slug, metadata, change, instances) {
         `capture_scope に page / state / viewport の読めない要素がある: ${JSON.stringify({ page: e.page, state: e.state, viewport: e.viewport })}`,
       ]);
     }
+    // 組 id は page|state|viewport を区切り文字でつなぐので、値に区切り文字を含むと別の組が同じ id になり、
+    // 重複除去で片方が黙って落ちる（影響する組が 1 つ減る）
+    const withSeparator = [e.page, e.state, e.viewport].filter((v) => v.includes(PAIR_SEPARATOR));
+    if (withSeparator.length > 0) {
+      return undeterminable([
+        `capture_scope の page / state / viewport に組 id の区切り文字「${PAIR_SEPARATOR}」を含む値がある: ${withSeparator.join(", ")}（別の組と同じ id になり取りこぼす）`,
+      ]);
+    }
     if (!pathByName.has(e.page)) {
       return undeterminable([
         `capture_scope のページ ${e.page} が capture_conditions.pages に無い（path が分からない）`,

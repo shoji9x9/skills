@@ -711,3 +711,16 @@ test("部品 metadata の capture.states が状態名の配列でない: 全機�
   expect(result.features.every((f) => f.verdict === "undeterminable")).toBe(true);
   expect(result.features[0].reasons.join("\n")).toContain("capture.states が状態名の配列でない");
 });
+
+test("capture_scope の state / viewport に組 id の区切り文字を含む値: 別の組と同じ id になるので判定不能", () => {
+  const feature = judgeOne(
+    featureOf({
+      scope: [
+        ["list", "hover|wide", "desktop"],
+        ["list", "hover", "wide|desktop"],
+      ],
+    }),
+  );
+  expect(feature.verdict).toBe("undeterminable");
+  expect(feature.reasons[0]).toContain("区切り文字「|」を含む値");
+});
