@@ -1052,6 +1052,14 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
         `suite.repeat_run.runs[${i}].spec_fingerprints が「スペックのパス → 指紋」のオブジェクトでない`,
       );
     }
+    // 正規化すると同じスペックになるキーが 2 つあると、どちらを読むかが挿入順で決まり、矛盾した記録が黙って通る（--fingerprint は書かない形）
+    const normalizedKeys = Object.keys(prints).map((k) => normalizeRel(k));
+    const dup = normalizedKeys.find((k, j) => normalizedKeys.indexOf(k) !== j);
+    if (dup !== undefined) {
+      throw new UsageError(
+        `suite.repeat_run.runs[${i}].spec_fingerprints に同じスペック ${dup} を指すキーが複数ある`,
+      );
+    }
   }
   for (const spec of mutating) {
     const hits = list.filter(

@@ -176,6 +176,7 @@
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む記録が 1 回だけ（もう 1 回は別のスペックだけ）",
         "#473: スペック単位の記録の型崩れは exit 2: current_excluded が配列でない",
         "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints がオブジェクトでない",
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
         "#473: スペック単位の記録の型崩れは exit 2: specs が配列でない",
         "#473: スペック単位の記録の型崩れは exit 2: state_mutating が真偽値でない",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
@@ -249,6 +250,7 @@
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む 2 回の started_at が同じ",
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む直近 2 回の後の回が赤",
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む記録が 1 回だけ（もう 1 回は別のスペックだけ）",
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）",
         "#473: 命名規則にも分類表にも当たらないのにテストを定義しているファイルは落とす（土台に紛れさせない）",
@@ -396,6 +398,17 @@
         "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
         "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
         "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの"
+      ]
+    },
+    {
+      "id": "per-spec-duplicate-key",
+      "why": "spec_fingerprints の正規化後に重複するキーを通す（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (dup !== undefined) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある"
       ]
     }
   ]

@@ -1792,6 +1792,14 @@ test.each([
     "spec_fingerprints が",
   ],
   [
+    "spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
+    (m) => {
+      const prints = m.suite.repeat_run.runs[0].spec_fingerprints;
+      prints[`./${LOCALE}`] = "sha256-nc:stale";
+    },
+    `spec_fingerprints に同じスペック ${LOCALE} を指すキーが複数ある`,
+  ],
+  [
     "current_excluded が配列でない",
     (m) => (m.suite.repeat_run.current_excluded = "new-only"),
     "current_excluded が配列でない",
