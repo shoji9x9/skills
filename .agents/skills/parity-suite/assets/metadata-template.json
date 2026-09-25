@@ -44,6 +44,12 @@
           "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
         }
       ],
+      "shared_files": [
+        {
+          "path": "<suite.specs の下で命名規則（*.spec.* / *.test.*）に当たらない JS / TS 系のうち、テストを定義しない共通の関数・fixture のパス。specs を書いたときだけ読む。命名規則に当たらない JS / TS 系のファイルは specs か shared_files のどちらかに書かないと落ちる（字面でスペックかどうかを推測しない）>",
+          "reason": "<テストを定義しないと判断した根拠（必須）。空の行は土台と認めない>"
+        }
+      ],
       "current_excluded": [
         {
           "path": "<current プロジェクトが testIgnore で走らせないディレクトリ（既定 <parity_suite_dir>/parity/<slug>/new-only）。specs を書いたときだけ読む。suite.specs の下に限る（外・suite.specs そのものは外さない）。この下は分類も指紋も要らない（土台の宣言パスは外さない）>",

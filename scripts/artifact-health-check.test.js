@@ -1503,6 +1503,9 @@ function perSpecProject(mutate) {
               "current プロジェクトの testIgnore で除外（parity-diff が新側採取スペックを置く）",
           },
         ],
+        shared_files: [
+          { path: `${SPEC_DIR}/helpers.ts`, reason: "画面を開く共通関数。テストを定義しない" },
+        ],
         runs: [],
         reason: null,
       },
@@ -1800,6 +1803,11 @@ test.each([
     `spec_fingerprints に同じスペック ${LOCALE} を指すキーが複数ある`,
   ],
   [
+    "shared_files が配列でない",
+    (m) => (m.suite.repeat_run.shared_files = "helpers.ts"),
+    "shared_files が配列でない",
+  ],
+  [
     "current_excluded が配列でない",
     (m) => (m.suite.repeat_run.current_excluded = "new-only"),
     "current_excluded が配列でない",
@@ -1842,16 +1850,16 @@ test("#473: --fingerprint は suite_fingerprint と、分類表を反映した�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473: 命名規則にも分類表にも当たらないのにテストを定義しているファイルは落とす（土台に紛れさせない）", () => {
+test("#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす", () => {
   const { root, metadataPath } = perSpecProject();
   writeFileSync(
     join(root, SPEC_DIR, "bulk-delete.pw.ts"),
-    "test.describe('bulk', () => { test('delete', async () => { save(); }); });\n",
+    "import { test as it } from '@playwright/test';\nit('delete', async () => { save(); });\n",
   );
-  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
   const r = run(metadataPath);
   expect(r.stdout).toContain(
-    `命名規則（*.spec.* / *.test.*）にも repeat_run.specs にも当たらないファイル: ${SPEC_DIR}/bulk-delete.pw.ts`,
+    `repeat_run.specs にも repeat_run.shared_files にも無いファイル: ${SPEC_DIR}/bulk-delete.pw.ts`,
   );
   expect(r.status).toBe(1);
   // 分類表に書けば、スペックとして 2 回続けての緑を求められる
@@ -1870,16 +1878,55 @@ test("#473: 命名規則にも分類表にも当たらないのにテストを�
   rmSync(root, { recursive: true, force: true });
 });
 
-test("#473 陽性コントロール: テストを定義しない共通の関数・fixture（test.extend）は土台として通る", () => {
+test("#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）", () => {
   const { root, metadataPath } = perSpecProject();
   writeFileSync(
     join(root, SPEC_DIR, "fixtures.ts"),
-    "// test('x') はコメント\nexport const test = base.extend({ page: async ({}, use) => use(1) });\n",
+    "export const test = base.extend({ page: async ({}, use) => use(1) });\n",
   );
+  writeFileSync(join(root, SPEC_DIR, "data.json"), "{}\n");
   recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  const undeclared = run(metadataPath);
+  expect(undeclared.stdout).toContain(`shared_files にも無いファイル: ${SPEC_DIR}/fixtures.ts`);
+  // JS / TS 系でないファイル（データ等）は宣言を求めない
+  expect(undeclared.stdout).not.toContain("data.json");
+  expect(undeclared.status).toBe(1);
+  editMetadata(metadataPath, (m) =>
+    m.suite.repeat_run.shared_files.push({
+      path: `${SPEC_DIR}/fixtures.ts`,
+      reason: "fixture の定義だけでテストを定義しない",
+    }),
+  );
   const r = run(metadataPath);
   expect(r.stdout).not.toMatch(/^warn: /m);
   expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  [
+    "reason が空",
+    (m) => (m.suite.repeat_run.shared_files[0].reason = ""),
+    `repeat_run.shared_files の ${SPEC_DIR}/helpers.ts に reason が無い`,
+  ],
+  [
+    "specs と両方にある",
+    (m) => m.suite.repeat_run.shared_files.push({ path: LOCALE, reason: "共通関数" }),
+    `${LOCALE} が repeat_run.specs と repeat_run.shared_files の両方にある`,
+  ],
+  [
+    "実体が無い",
+    (m) =>
+      m.suite.repeat_run.shared_files.push({ path: `${SPEC_DIR}/gone.ts`, reason: "共通関数" }),
+    `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${SPEC_DIR}/gone.ts`,
+  ],
+])("#473: shared_files の記録の不備は exit 1: %s", (_name, mutate, needle) => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  editMetadata(metadataPath, mutate);
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(needle);
+  expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
 

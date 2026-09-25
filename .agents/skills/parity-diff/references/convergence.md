@@ -176,7 +176,7 @@
     **反復実行**（`suite.state_mutating: true` なのに `repeat_run.cleanup_in_suite` が真でない・連続する 2 回の記録が無い・
     末尾 2 件が緑でない・`started_at` が同じか逆順・`suite_fingerprint` が 2 回で違う／現在のスイートと違う
     〈記録した後にスペックや後始末を変えた〉・片方だけ指紋を持つ・現在のスイートの指紋を計算できない。
-    `repeat_run.specs` を持つ成果物はスペック単位——分類されていないスペックがある・状態を変えるスペックを含む直近 2 回が無い／緑でない・状態を変えないスペックの直近の記録が緑でない／現在の版でない・
+    `repeat_run.specs` を持つ成果物はスペック単位——分類されていないスペックがある・命名規則に当たらない JS / TS 系のファイルが `specs` にも `shared_files` にも無い・状態を変えるスペックを含む直近 2 回が無い／緑でない・状態を変えないスペックの直近の記録が緑でない／現在の版でない・
     そのスペックの指紋か土台の `shared_fingerprint` が現在と違う）、
     **未測定**（`unmeasured.entries` に `disposition: blocking` が残る。語彙外・承認記録の空は `blocking` として数える）、
     **工程の成果物**（`new/<target>/replace-metadata.json` の `suite.new_green` が真なのに同じ場所に `diff-metadata.json` が無い、

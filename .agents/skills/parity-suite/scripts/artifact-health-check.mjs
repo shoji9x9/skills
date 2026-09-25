@@ -759,12 +759,8 @@ function digestFiles(files, root, legacy) {
  */
 const SPEC_FILE_PATTERN = /\.(spec|test)\.[cm]?[jt]sx?$/i;
 
-/**
- * テストを定義する呼び出し（`test(` / `test.describe(` / `test.only(` / `test.describe.serial(` 等）。`test.extend(` などの fixture 定義は当たらない。
- * 命名規則に当たらず分類表にも無いファイルがこれを含むなら、スペックが土台に紛れている疑いとして落とす。
- */
-const TEST_CALL_PATTERN =
-  /(?<![\w.$])test(?:\.(?:describe|only|skip|fixme|fail|slow|serial|parallel))*\s*\(/;
+/** JS / TS 系の拡張子。suite.specs の下で命名規則に当たらないこれらのファイルは、スペックか土台かの宣言を要る。 */
+const JS_TS_FILE_PATTERN = /\.[cm]?[jt]sx?$/i;
 
 /**
  * パスを / 区切りの正規形にする（宣言の字面の揺れ〈末尾の /・./〉で同じファイルを別物として数えない）。
@@ -797,11 +793,12 @@ function underRel(f, r) {
  *   現行へ走らないものは現行の状態を変えられず、記録を失効させる理由にならない
  * @param {Record<string, unknown>} suiteObj
  * @param {string} root
- * @param {{ declared?: string[], excluded?: string[] }} [opts] - どちらも normalizeRel 済みの root 基準の相対パス
- * @returns {{ shared: string | null, specs: Record<string, string>, specFiles: string[], sharedFiles: number, testLike: string[], missing: string[], unparsed: string[] }}
+ * @param {{ declared?: string[], sharedDeclared?: string[], excluded?: string[] }} [opts] - いずれも normalizeRel 済みの root 基準の相対パス
+ * @returns {{ shared: string | null, specs: Record<string, string>, specFiles: string[], sharedFiles: number, specsTreeShared: string[], undeclared: string[], missing: string[], unparsed: string[] }}
  */
 export function specFingerprints(suiteObj, root, opts = {}) {
   const declared = new Set(opts.declared ?? []);
+  const sharedDeclared = new Set(opts.sharedDeclared ?? []);
   const excluded = opts.excluded ?? [];
   const listed = listSuiteFiles(suiteObj, root);
   const empty = {
@@ -809,7 +806,8 @@ export function specFingerprints(suiteObj, root, opts = {}) {
     specs: {},
     specFiles: [],
     sharedFiles: 0,
-    testLike: [],
+    specsTreeShared: [],
+    undeclared: [],
     unparsed: [],
   };
   if (listed.declared === 0 || listed.missing.length > 0)
@@ -828,19 +826,20 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   }
   // 同じファイルが specs と別のキーの両方に入る宣言（tools を specs の下に置く等）は、スペックとして数える
   for (const f of specFiles) sharedFiles.delete(f);
-  // suite.specs の下で命名規則にも分類表にも当たらないのにテストを定義しているファイル（testMatch を変えたプロジェクトのスペック等）。
-  // 土台に黙って数えると、状態を変えるスペックでも 2 回続けての緑を求められないまま通る（旧方式ではスイート全体を 2 回回していた）
+  // suite.specs の下で命名規則にも分類表にも当たらない JS / TS 系のファイルは、repeat_run.shared_files に宣言していなければ落とす。
+  // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）等ですり抜け、状態を変えるスペックが
+  // 2 回続けての緑を求められないまま土台に紛れる（Codex レビュー、PR #475）。推測せず宣言を求める（fail-closed）
   /** @type {string[]} */
-  const testLike = [];
+  const specsTreeShared = [];
+  /** @type {string[]} */
+  const undeclared = [];
   for (const { key, files } of listed.byKey) {
     if (key !== "specs") continue;
     for (const raw of files) {
       const f = normalizeRel(raw);
-      if (!sharedFiles.has(f) || !/\.[cm]?[jt]sx?$/i.test(f)) continue;
-      const abs = resolveInside(root, f);
-      if (abs === null) continue;
-      const text = readFileSync(abs, "utf8");
-      if (TEST_CALL_PATTERN.test(stripJsComments(text) ?? text)) testLike.push(f);
+      if (!sharedFiles.has(f)) continue;
+      specsTreeShared.push(f);
+      if (JS_TS_FILE_PATTERN.test(f) && !sharedDeclared.has(f)) undeclared.push(f);
     }
   }
   /** @type {string[]} */
@@ -862,7 +861,8 @@ export function specFingerprints(suiteObj, root, opts = {}) {
     specs,
     specFiles: sortedSpecs,
     sharedFiles: sharedFiles.size,
-    testLike: testLike.sort(),
+    specsTreeShared: specsTreeShared.sort(),
+    undeclared: undeclared.sort(),
     missing: [],
     unparsed,
   };
@@ -916,7 +916,7 @@ function pairFindings(tail, label) {
  * @param {Record<string, unknown>} record - suite.repeat_run
  * @param {string} root
  * @param {unknown} specsDecl - suite.specs（current_excluded はこの下に限る）
- * @returns {{ findings: string[], declared: Map<string, boolean>, excluded: string[] }}
+ * @returns {{ findings: string[], declared: Map<string, boolean>, sharedDeclared: Set<string>, excluded: string[] }}
  */
 function readSpecClassification(record, root, specsDecl) {
   const specsRoot = nonEmptyString(specsDecl) ? normalizeRel(String(specsDecl)) : null;
@@ -982,7 +982,38 @@ function readSpecClassification(record, root, specsDecl) {
     }
     declared.set(rel, e.state_mutating);
   }
-  return { findings, declared, excluded };
+  const rawShared = record.shared_files ?? [];
+  if (!Array.isArray(rawShared)) throw new UsageError("suite.repeat_run.shared_files が配列でない");
+  /** @type {Set<string>} */
+  const sharedDeclared = new Set();
+  for (const [i, e] of rawShared.entries()) {
+    if (!isPlainObject(e))
+      throw new UsageError(`suite.repeat_run.shared_files[${i}] がオブジェクトでない`);
+    if (!nonEmptyString(e.path)) {
+      findings.push(`repeat_run.shared_files[${i}] の path が空`);
+      continue;
+    }
+    const rel = normalizeRel(String(e.path));
+    // 土台と宣言すると 2 回続けての緑を求めなくなる（緩和）ので、テストを定義しない根拠が無いものは土台と認めない
+    if (!nonEmptyString(e.reason)) {
+      findings.push(
+        `repeat_run.shared_files の ${rel} に reason が無い（テストを定義しない共通の関数だと判断した根拠が残らない）。土台と認めない`,
+      );
+      continue;
+    }
+    if (declared.has(rel)) {
+      findings.push(
+        `${rel} が repeat_run.specs と repeat_run.shared_files の両方にある（スペックか土台かが決まらない）`,
+      );
+      continue;
+    }
+    if (sharedDeclared.has(rel)) {
+      findings.push(`repeat_run.shared_files に ${rel} が重複している`);
+      continue;
+    }
+    sharedDeclared.add(rel);
+  }
+  return { findings, declared, sharedDeclared, excluded };
 }
 
 /**
@@ -997,10 +1028,18 @@ function readSpecClassification(record, root, specsDecl) {
  * @returns {{ findings: string[], notes: string[] }}
  */
 function checkRepeatRunPerSpec(suiteObj, record, root) {
-  const { findings, declared, excluded } = readSpecClassification(record, root, suiteObj.specs);
+  const { findings, declared, sharedDeclared, excluded } = readSpecClassification(
+    record,
+    root,
+    suiteObj.specs,
+  );
   /** @type {string[]} */
   const notes = [];
-  const current = specFingerprints(suiteObj, root, { declared: [...declared.keys()], excluded });
+  const current = specFingerprints(suiteObj, root, {
+    declared: [...declared.keys()],
+    sharedDeclared: [...sharedDeclared],
+    excluded,
+  });
   if (current.shared === null) {
     findings.push(
       `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
@@ -1015,10 +1054,18 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
-  for (const f of current.testLike) {
+  for (const f of current.undeclared) {
     findings.push(
-      `suite.specs の下にテストを定義しているのに命名規則（*.spec.* / *.test.*）にも repeat_run.specs にも当たらないファイル: ${f}（土台に数えると 2 回続けての緑を求められない。スペックなら分類表に書く）`,
+      `suite.specs の下で命名規則（*.spec.* / *.test.*）に当たらず、repeat_run.specs にも repeat_run.shared_files にも無いファイル: ${f}（スペックなら specs に、テストを定義しない共通の関数・fixture なら shared_files に理由を付けて書く）`,
     );
+  }
+  const treeShared = new Set(current.specsTreeShared);
+  for (const f of sharedDeclared) {
+    if (!treeShared.has(f)) {
+      findings.push(
+        `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${f}（実体が無い・suite.specs の外・current_excluded の下のいずれか）`,
+      );
+    }
   }
   for (const f of declared.keys()) {
     if (!specSet.has(f)) {
@@ -1746,13 +1793,16 @@ export function fingerprintReport(metadata, root) {
   /** @type {string[]} */
   let declared = [];
   /** @type {string[]} */
+  let sharedDeclared = [];
+  /** @type {string[]} */
   let excluded = [];
   if (record.specs !== undefined && record.specs !== null) {
     const c = readSpecClassification(record, root, suite.specs);
     declared = [...c.declared.keys()];
+    sharedDeclared = [...c.sharedDeclared];
     excluded = c.excluded;
   }
-  const perSpec = specFingerprints(suite, root, { declared, excluded });
+  const perSpec = specFingerprints(suite, root, { declared, sharedDeclared, excluded });
   const missing = [...new Set([...whole.missing, ...perSpec.missing])];
   if (whole.fingerprint === null || perSpec.shared === null) {
     throw new UsageError(
