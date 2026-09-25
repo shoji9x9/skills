@@ -70,8 +70,8 @@
         "verify は最後に記録した区切りとしか一致しない",
         "前の区切りに戻って記録し直すと、後の区切りの記録は消える",
         "陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る",
-        "前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）",
-        "前の区切りから成果物が動いていれば record は通る: 削除"
+        "--include の根が空なら record は exit 2（スイートが消えたまま区切りを進めない。Codex レビュー）",
+        "前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）"
       ]
     },
     {
@@ -202,7 +202,30 @@
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）"
+        "前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）",
+        "前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）"
+      ]
+    },
+    {
+      "id": "record-deletion-only",
+      "why": "削除だけを前の区切りからの進みとして数える",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      const moved = Object.keys(files).some((f) => prevFiles[f] !== files[f]);\n",
+      "replace": "      const moved =\n        Object.keys(files).some((f) => prevFiles[f] !== files[f]) ||\n        Object.keys(prevFiles).some((f) => !Object.hasOwn(files, f));\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）"
+      ]
+    },
+    {
+      "id": "record-empty-root",
+      "why": "--include の根が空でも記録する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (emptyRoots.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--include の根が空なら record は exit 2（スイートが消えたまま区切りを進めない。Codex レビュー）"
       ]
     }
   ]

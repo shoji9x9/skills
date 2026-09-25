@@ -353,10 +353,35 @@ test("前の区切りから成果物が 1 つも変わっていなければ reco
 test.each([
   ["追加", (d) => writeFileSync(join(d, SLUG, "dimension-samples.json"), "{}")],
   ["変更", (d) => writeFileSync(join(d, SLUG, "reactions.json"), '{"a":1}')],
-  ["削除", (d) => rmSync(join(d, SLUG, "reactions.json"))],
-])("前の区切りから成果物が動いていれば record は通る: %s", (_name, mutate) => {
+  [
+    "削除と追加",
+    (d) => {
+      rmSync(join(d, SLUG, "reactions.json"));
+      writeFileSync(join(d, SLUG, "metadata.json"), "{}");
+    },
+  ],
+])("前の区切りから成果物が足された・書き換えられたなら record は通る: %s", (_name, mutate) => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   mutate(dir);
   expect(record(dir, "captured").status).toBe(0);
+});
+
+test("前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  rmSync(join(dir, SLUG, "reactions.json"));
+  const r = record(dir, "captured");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("成果物が 1 つも変わっていない");
+});
+
+test("--include の根が空なら record は exit 2（スイートが消えたまま区切りを進めない。Codex レビュー）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  rmSync(join(dir, SUITE, "share.spec.ts"));
+  writeFileSync(join(dir, SLUG, "metadata.json"), "{}");
+  const r = record(dir, "captured");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--include の根にファイルが無い");
 });
