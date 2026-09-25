@@ -318,6 +318,20 @@ export function main(argv, deps = {}) {
     if (Object.keys(files).length === 0) {
       throw new UsageError("指紋の対象ファイルが 0 件（区切りに達した成果物が無い）");
     }
+    // 前の区切りから成果物が 1 つも動いていないなら、その間の手順は何も作っていない（採取・強度ゲートを飛ばした記録になる）
+    if (pos > 0) {
+      const prevFiles = /** @type {Record<string, string>} */ (
+        record.checkpoints[record.checkpoints.length - 1].files
+      );
+      const moved =
+        Object.keys(files).some((f) => prevFiles[f] !== files[f]) ||
+        Object.keys(prevFiles).some((f) => !Object.hasOwn(files, f));
+      if (!moved) {
+        throw new UsageError(
+          `前の区切り ${CHECKPOINTS[pos - 1].at} から成果物が 1 つも変わっていない（手順 ${CHECKPOINTS[pos - 1].next_step} の成果物が無いまま ${at} を記録しない）`,
+        );
+      }
+    }
     const entry = { at, next_step: CHECKPOINTS[pos].next_step, roots, files };
     record.checkpoints.push(entry);
     writeFileSync(

@@ -30,6 +30,7 @@
     スイート全体（`<parity_suite_dir>/parity/`）を渡すと、別機能の作業で共有ライブラリが変わっただけで再開が止まる
   - ベースラインを `artifacts` の設定で `.replace/parity/<slug>/` の外へ置いたなら、`captured` でその置き場所を `--include` に足す
   - 前の区切りが記録されていなければ止まる（順に記録する）。前の区切りに戻って記録し直すと、後の区切りの記録は消える
+  - 前の区切りから成果物が 1 つも変わっていなければ止まる（間の手順が何も作っていない区切りを残さない）
   - **状態を変えるスペック（書き込み系・アップロード・バッチ）を走らせた手順では、[`data-discipline.md`](data-discipline.md) の後始末が効いたことを確かめてから記録する**——
     後始末の途中の状態を区切りとして残すと、再開した文脈は汚れたデータの上で測る
 
@@ -62,7 +63,7 @@ JSON
 | `reactions.json` | `operations` | `id`（既定） |
 | `reactions.json` | `feedback_calls.call_sites` | `file,line,column,pattern` |
 | `component-coverage.json` | `cells` | `component,item,instance` |
-| `component-coverage.json` | `components` / `components[id=<部品 id>].instances` | `id`（既定） |
+| `component-coverage.json` | `components` / `components[id=<部品 id>].instances`（id が `]` や `"` を含むなら `components[id="grid[mobile]"].instances` のように JSON 文字列で書く） | `id`（既定） |
 | `component-coverage.json` | `visual_state_coverage.rows`（行そのものは `coverage-expand.mjs --write` が作る。撮る／撮らないの判断だけを差し替える） | `component,instance,required_by,kind` |
 
 - **表を読み返すときも全文を読まない。** `get --match '<鍵の JSON>'` で 1 行、`keys` で鍵の一覧を引く。照合スクリプトの出力が名指した行だけを引いて直す

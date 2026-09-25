@@ -43,6 +43,12 @@ function cli(dir, args) {
 const record = (dir, at, extra = []) => cli(dir, ["record", "--dir", SLUG, "--at", at, ...extra]);
 const verify = (dir, at) => cli(dir, ["verify", "--dir", SLUG, "--at", at]);
 
+/** 手順 6 の成果物（採取の記録）を書いてから captured を記録する。 */
+const capture = (dir) => {
+  writeFileSync(join(dir, SLUG, "metadata.json"), '{"noise_baseline":{}}\n');
+  return record(dir, "captured");
+};
+
 test("陽性コントロール: 記録した直後の verify は通り、次の手順を返す", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
@@ -106,7 +112,7 @@ test("外すのは slug のディレクトリ直下の名前だけ（スイー�
 test("verify は最後に記録した区切りとしか一致しない", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  expect(record(dir, "captured").status).toBe(0);
+  expect(capture(dir).status).toBe(0);
   const r = verify(dir, "authored");
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("最後に記録した区切りは captured");
@@ -116,7 +122,7 @@ test("verify は最後に記録した区切りとしか一致しない", () => {
 test("後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  const rec = record(dir, "captured");
+  const rec = capture(dir);
   expect(JSON.parse(rec.stdout).roots).toEqual([SLUG, SUITE]);
   writeFileSync(join(dir, SUITE, "share.spec.ts"), "// edited\n");
   expect(verify(dir, "captured").status).toBe(1);
@@ -125,7 +131,7 @@ test("後の区切りは前の区切りの --include を引き継ぐ（スイー
 test("前の区切りに戻って記録し直すと、後の区切りの記録は消える", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  expect(record(dir, "captured").status).toBe(0);
+  expect(capture(dir).status).toBe(0);
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   const rec = JSON.parse(readFileSync(join(dir, SLUG, "checkpoints.json"), "utf8"));
   expect(rec.checkpoints.map((c) => c.at)).toEqual(["authored"]);
@@ -141,7 +147,7 @@ test("前の区切りが無ければ record は exit 2（順序を飛ばさな�
 test("gated は strength.md が無ければ記録しない", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  expect(record(dir, "captured").status).toBe(0);
+  expect(capture(dir).status).toBe(0);
   const r = record(dir, "gated");
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("strength.md");
@@ -286,7 +292,7 @@ function editRecord(dir, mutate) {
 function gatedProject() {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  expect(record(dir, "captured").status).toBe(0);
+  expect(capture(dir).status).toBe(0);
   writeFileSync(join(dir, SLUG, "strength.md"), "# 強度\n");
   expect(record(dir, "gated").status).toBe(0);
   return dir;
@@ -334,3 +340,23 @@ test.each([
     expect(r.stderr).toContain(needle);
   },
 );
+
+test("前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  const r = record(dir, "captured");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("前の区切り authored から成果物が 1 つも変わっていない");
+  expect(verify(dir, "authored").status).toBe(0);
+});
+
+test.each([
+  ["追加", (d) => writeFileSync(join(d, SLUG, "dimension-samples.json"), "{}")],
+  ["変更", (d) => writeFileSync(join(d, SLUG, "reactions.json"), '{"a":1}')],
+  ["削除", (d) => rmSync(join(d, SLUG, "reactions.json"))],
+])("前の区切りから成果物が動いていれば record は通る: %s", (_name, mutate) => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  mutate(dir);
+  expect(record(dir, "captured").status).toBe(0);
+});

@@ -283,6 +283,18 @@
       "expect_failing": [
         "頁の組み方の記録の欠けを落とす: changes: true に assertion が無い（Issue #460）"
       ]
+    },
+    {
+      "id": "layout-rect-empty-name",
+      "why": "空の論理名の矩形を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(name)) return \"rects に空の論理名がある\";\n",
+      "replace": "    if (false) return \"rects に空の論理名がある\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 矩形の論理名が空（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: 矩形の論理名が空白だけ（Issue #460）"
+      ]
     }
   ]
 }

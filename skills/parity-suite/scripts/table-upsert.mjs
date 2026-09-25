@@ -15,7 +15,7 @@
 //
 // 配列の指し方（--array）: "." 区切りのキー。配列の中の 1 要素を経由するときは name[field=value] で選ぶ
 //   例: operations / feedback_calls.call_sites / cells / components[id=grid].instances
-//   選んだ要素が 0 件・複数件なら止める（先勝ちにしない）。value に "]" は書けない
+//   選んだ要素が 0 件・複数件なら止める（先勝ちにしない）。value が "]" や '"' を含むなら JSON 文字列で書く（components[id="grid[mobile]"]）
 //
 // fail-closed: 鍵の欠落・空・型崩れ・既存要素の鍵の重複は書き込まずに止める（鍵が潰れて別の行を上書きしないため）。
 // 終了コード: 0 ＝ 成功、1 ＝ get / remove で一致する要素が無い、2 ＝ 使い方の誤り・ファイルや構造の不備。
@@ -53,12 +53,25 @@ function keyValue(v) {
 export function parseArrayPath(spec) {
   /** @type {{ name: string, select: { field: string, value: string } | null }[]} */
   const segments = [];
-  const re = /^([A-Za-z_][\w-]*)(?:\[([A-Za-z_][\w-]*)=([^\]]+)\])?/;
+  // 選ぶ値は裸（"]" と '"' を含まない）か JSON 文字列（"grid[mobile]" のように "]" を含む id 用）
+  const re = /^([A-Za-z_][\w-]*)(?:\[([A-Za-z_][\w-]*)=(?:("(?:[^"\\]|\\.)*")|([^\]"]+))\])?/;
   let rest = spec;
   for (;;) {
     const m = re.exec(rest);
     if (!m) throw new UsageError(`--array の形が読めない: ${spec}`);
-    segments.push({ name: m[1], select: m[2] === undefined ? null : { field: m[2], value: m[3] } });
+    /** @type {string | undefined} */
+    let value = m[4];
+    if (m[3] !== undefined) {
+      try {
+        value = JSON.parse(m[3]);
+      } catch {
+        throw new UsageError(`--array の選ぶ値が JSON 文字列として読めない: ${m[3]}`);
+      }
+    }
+    segments.push({
+      name: m[1],
+      select: m[2] === undefined ? null : { field: m[2], value: /** @type {string} */ (value) },
+    });
     rest = rest.slice(m[0].length);
     if (rest === "") break;
     if (!rest.startsWith(".")) throw new UsageError(`--array の形が読めない: ${spec}`);

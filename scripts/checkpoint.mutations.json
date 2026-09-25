@@ -69,7 +69,9 @@
         "record が作らない形の記録は verify で exit 2: 後の区切りが前の区切りの根を引き継いでいない（Codex レビュー）",
         "verify は最後に記録した区切りとしか一致しない",
         "前の区切りに戻って記録し直すと、後の区切りの記録は消える",
-        "陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る"
+        "陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る",
+        "前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）",
+        "前の区切りから成果物が動いていれば record は通る: 削除"
       ]
     },
     {
@@ -190,6 +192,17 @@
       "occurrences": 1,
       "expect_failing": [
         "record が作らない形の記録は verify で exit 2: gated の指紋に strength.md が無い（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "record-unmoved",
+      "why": "前の区切りから成果物が動いていなくても記録する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (!moved) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）"
       ]
     }
   ]

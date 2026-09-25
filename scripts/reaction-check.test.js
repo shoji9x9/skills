@@ -892,6 +892,22 @@ test.each([
   ],
   ["標本の矩形が空", (t) => (t.operations[1].layout.samples[0].rects = {}), "rects が空"],
   [
+    "矩形の論理名が空",
+    (t) => {
+      const l = t.operations[1].layout;
+      for (const m of [l.before, ...l.samples]) m.rects = { "": m.rects.グリッド };
+    },
+    "rects に空の論理名がある",
+  ],
+  [
+    "矩形の論理名が空白だけ",
+    (t) => {
+      const l = t.operations[1].layout;
+      for (const m of [l.before, ...l.samples]) m.rects = { " ": m.rects.グリッド };
+    },
+    "rects に空の論理名がある",
+  ],
+  [
     "矩形の軸が欠けている",
     (t) => delete t.operations[1].layout.samples[0].rects.グリッド.height,
     "数値でも null でもない",

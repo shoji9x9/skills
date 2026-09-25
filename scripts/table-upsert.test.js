@@ -290,3 +290,32 @@ test.each([
   expect(r.status).toBe(2);
   expect(r.stderr).toContain(needle);
 });
+
+test('"]" を含む id は JSON 文字列の選択値で選べる（Codex レビュー）', () => {
+  const tbl = baseTable();
+  tbl.components.push({ id: "grid[mobile]", instances: [] });
+  const r = run(tbl, upsert('components[id="grid[mobile]"].instances'), {
+    fragment: { id: "list", page: "一覧" },
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  const after = JSON.parse(r.after);
+  expect(after.components[2].instances).toEqual([{ id: "list", page: "一覧" }]);
+  expect(after.components[0].instances.map((i) => i.id)).toEqual(["list"]);
+});
+
+test('JSON 文字列の選択値のエスケープ（\\" を含む id）も読む', () => {
+  const tbl = baseTable();
+  tbl.components.push({ id: 'a"b', instances: [] });
+  const r = run(tbl, upsert('components[id="a\\"b"].instances'), { fragment: { id: "x" } });
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.after).components[2].instances).toEqual([{ id: "x" }]);
+});
+
+test.each([
+  ["閉じていない JSON 文字列", 'components[id="grid].instances'],
+  ['裸の値に "]" を含む', "components[id=grid[mobile]].instances"],
+])("選択値が読めなければ exit 2: %s", (_name, array) => {
+  const r = run(baseTable(), upsert(array), { fragment: { id: "x" } });
+  expect(r.status).toBe(2);
+});

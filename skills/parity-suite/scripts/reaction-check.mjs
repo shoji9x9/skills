@@ -327,6 +327,8 @@ function layoutMeasureProblem(m) {
     return "rects が空（主な論理名の矩形を測っていない）";
   }
   for (const [name, r] of Object.entries(m.rects)) {
+    // 論理名の無い矩形は、どの要素の位置かを名指さないので測った記録にならない
+    if (!nonEmptyString(name)) return "rects に空の論理名がある";
     // null は「その時点で表示されない」の記録（操作で現れる要素は操作の前には無い）
     if (r === null) continue;
     if (
