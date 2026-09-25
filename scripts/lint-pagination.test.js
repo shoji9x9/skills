@@ -1,7 +1,6 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -12,6 +11,7 @@ import {
   walkFiles,
   listFiles,
 } from "./lint-pagination.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // markdown の bash コードブロックで囲む小さなヘルパ。
 const md = (body) => "# t\n\n```bash\n" + body + "\n```\n";
@@ -159,7 +159,7 @@ const OFFENDING =
   "# t\n\n```bash\ngh api graphql -f query='{ a { b(first: 50) { nodes { id } } } }'\n```\n";
 
 function makeRepo({ git = true } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "pagination-lint-"));
+  const dir = makeTempDir("pagination-lint-");
   if (git) {
     const init = spawnSync("git", ["-C", dir, "init", "-q", "-b", "main"], { encoding: "utf8" });
     expect(init.status, init.stderr).toBe(0);
@@ -312,7 +312,7 @@ test("対象は挙がったのに 1 件も読めなければ成功に倒さな�
 
 test("除外判定は dir 相対で行う（リポジトリの外側のディレクトリ名に巻き込まれない）", () => {
   // 親ディレクトリ名に除外語（node_modules）が入った場所へリポジトリを置く。
-  const parent = mkdtempSync(join(tmpdir(), "pagination-outer-"));
+  const parent = makeTempDir("pagination-outer-");
   const nested = join(parent, "node_modules", "pkg");
   mkdirSync(nested, { recursive: true });
   const init = spawnSync("git", ["-C", nested, "init", "-q", "-b", "main"], { encoding: "utf8" });

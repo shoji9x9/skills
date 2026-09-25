@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-archive.sh");
@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function createRepo() {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-archive-"));
+  const dir = makeTempDir("kaizen-archive-");
   workdirs.push(dir);
   mkdirSync(join(dir, ".kaizen"));
   const init = spawnSync("git", ["init", "-q", "."], { cwd: dir, encoding: "utf8" });

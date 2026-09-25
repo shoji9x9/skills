@@ -10,10 +10,10 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/cascade-resolve.mjs");
@@ -330,7 +330,7 @@ test("--property は CSS カスタムプロパティも受け取る", () => {
   const input = doc({
     matched: [{ order: 1, selector: ".btn", declarations: [decl("--brand", "red")] }],
   });
-  const dir = mkdtempSync(join(tmpdir(), "cascade-"));
+  const dir = makeTempDir("cascade-");
   const path = join(dir, "css-rules.json");
   writeFileSync(path, JSON.stringify(input));
   const out = spawnSync(
@@ -391,7 +391,7 @@ test("詳細度の比較", () => {
 });
 
 function runCli(args, files = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "cascade-resolve-"));
+  const dir = makeTempDir("cascade-resolve-");
   const paths = {};
   for (const [name, content] of Object.entries(files)) {
     paths[name] = join(dir, name);

@@ -8,10 +8,10 @@
 
 import { test, expect, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const skillDir = join(repoRoot, "skills/aws-architecture-diagram");
@@ -47,7 +47,7 @@ export const environments = { ${envName}: { title: "t" } };
  * （Node の module 構文検出に暗黙に頼ると、何を再現しているのかが読めなくなる）。
  */
 function diagramDir(files) {
-  const dir = mkdtempSync(join(tmpdir(), "diagram-registry-"));
+  const dir = makeTempDir("diagram-registry-");
   createdDirs.push(dir);
   writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
   for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);

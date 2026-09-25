@@ -7,10 +7,10 @@
 
 import { afterEach, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/checkpoint.mjs");
@@ -26,7 +26,7 @@ afterEach(() => {
 
 /** 手順 5 まで済んだプロジェクトを作る。 */
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), "checkpoint-"));
+  const dir = makeTempDir("checkpoint-");
   created.push(dir);
   mkdirSync(join(dir, SLUG), { recursive: true });
   mkdirSync(join(dir, SUITE), { recursive: true });

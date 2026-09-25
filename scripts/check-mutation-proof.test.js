@@ -10,9 +10,9 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
+import { makeSharedTempDir, makeTempDir } from "./lib/test-tmpdir.js";
 
 // `check-mutation-proof.js` は「変異が当たったこと」と「狙ったテストが落ちたこと」の両方で
 // 判定する。**当たらなかった変異を成功に倒さない**のがこの検査の主目的なので、
@@ -71,7 +71,7 @@ const STUB_TESTS = [
 
 let dirs = [];
 
-const lockDir = mkdtempSync(join(tmpdir(), "mutation-proof-lock-"));
+const lockDir = makeSharedTempDir("mutation-proof-lock-");
 
 // vitest の代わりに起動されるスタブ（`MUTATION_PROOF_TEST_COMMAND`）。引数は vitest と同じ
 // `run <testFile> --reporter=json --outputFile=<path>` を受け、**実物の JSON reporter と同じ単位**
@@ -126,7 +126,7 @@ afterEach(() => {
  * 既定はスタブ用（`fixture.stub.json`）。`real: true` なら本物の vitest が走る `fixture.test.js` を置く。
  */
 function makeFixture({ real = false, stubTests = STUB_TESTS } = {}) {
-  const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-"));
+  const dir = mkdtempSync(join(repoRoot, "scripts", "mutation-proof-fixture-")); // tmpdir-ok: scripts/ 配下・afterEach で消す
   dirs.push(dir);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "target.sh"), FIXTURE_TARGET);
@@ -417,8 +417,7 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
   // のは前提の誤り。**実行器を 1 ファイルだけリポジトリ外へコピーして**解決を失敗させる
   // （実行器は自分の位置から repoRoot を決めるので、コピー先には `node_modules` が無い）。
   test("vitest を解決できなければ exit 2", () => {
-    const root = mkdtempSync(join(tmpdir(), "mutation-proof-noroot-"));
-    dirs.push(root);
+    const root = makeTempDir("mutation-proof-noroot-");
     mkdirSync(join(root, "scripts"));
     copyFileSync(join(repoRoot, RUNNER), join(root, RUNNER));
     writeFileSync(join(root, "scripts", "target.sh"), FIXTURE_TARGET);
@@ -601,10 +600,4 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out, "選ばれていない宣言まで走らせた").not.toContain("PASS A");
     expect(res.out).toContain("1 skipped");
   });
-});
-
-// ロック用の使い捨てディレクトリ（`tmpdir()` 配下）を外す。
-test("片付け", () => {
-  rmSync(lockDir, { recursive: true, force: true });
-  expect(existsSync(lockDir)).toBe(false);
 });

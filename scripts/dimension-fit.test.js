@@ -7,11 +7,11 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, fitPlane } from "../skills/parity-suite/scripts/dimension-fit.mjs";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/dimension-fit.mjs");
@@ -764,7 +764,7 @@ test("fit: traits.elements の論理名の重複は exit 2（測る対象を黙�
 });
 
 test("CLI: シンボリックリンクでなく実パスで起動して exit コードを返す", () => {
-  const dir = mkdtempSync(join(tmpdir(), "dimension-fit-"));
+  const dir = makeTempDir("dimension-fit-");
   writeFileSync(join(dir, "s.json"), JSON.stringify(samplesOf(formula)));
   writeFileSync(join(dir, "m.json"), JSON.stringify(metadataOf()));
   const fit = spawnSync(

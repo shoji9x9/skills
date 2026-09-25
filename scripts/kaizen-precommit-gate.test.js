@@ -12,7 +12,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -22,6 +21,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeSharedTempDir, makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -29,7 +29,7 @@ const fixturesDir = join(repoRoot, "evals", "kaizen", "fixtures", "candidate-sca
 
 /** .kaizen/ を持つ空プロジェクトを作る。CLAUDE_PROJECT_DIR を渡すので git 管理下でなくてよい。 */
 function makeProject() {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-gate-"));
+  const dir = makeTempDir("kaizen-gate-");
   mkdirSync(join(dir, ".kaizen"));
   return dir;
 }
@@ -59,7 +59,7 @@ function runGate(command, { cwd, transcriptPath, sessionId, scripts = scriptsDir
 
 /** スクリプト一式を一時ディレクトリへ複製する（1 本だけスタブに差し替えるため）。 */
 function cloneScripts() {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-scripts-"));
+  const dir = makeTempDir("kaizen-scripts-");
   for (const name of readdirSync(scriptsDir)) copyFileSync(join(scriptsDir, name), join(dir, name));
   return dir;
 }
@@ -462,7 +462,7 @@ describe("同一セッションの後続 commit も未処理範囲を再走査�
 
   test("古い .extract-done を削除できなくても checkpoint 後のセンチネル解除を続ける", () => {
     const scripts = cloneScripts();
-    const shimDir = mkdtempSync(join(tmpdir(), "kaizen-rm-shim-"));
+    const shimDir = makeTempDir("kaizen-rm-shim-");
     const realRm = spawnSync("bash", ["-c", "command -v rm"], { encoding: "utf8" }).stdout.trim();
     writeFileSync(
       join(shimDir, "rm"),
@@ -571,7 +571,7 @@ describe("走査器の判定はゲートの外部コマンド方言に依存し�
     spawnSync("bash", ["-c", `"${realSed}" --posix -n p </dev/null`]).status === 0;
 
   test.skipIf(!posixSedAvailable)("POSIX BRE しか持たない sed でも候補ゼロは自動通過する", () => {
-    const shimDir = mkdtempSync(join(tmpdir(), "kaizen-shim-"));
+    const shimDir = makeTempDir("kaizen-shim-");
     const callLog = join(shimDir, "calls.log");
     // 実体は絶対パスで呼ぶ（PATH 経由にすると自分自身を呼び戻して無限再帰する）。
     writeFileSync(
@@ -929,7 +929,7 @@ describe("コミット先のスコープ判定", () => {
   // 同じリポジトリの別 worktree はプロジェクトルートの外に置かれる。パスの包含だけで判定すると
   // 外部宛てに見えるが、コミット先はこのプロジェクトそのものなのでブロックしなければならない。
   test("同一リポジトリの別 worktree 宛ては外部扱いにしない", () => {
-    const root = mkdtempSync(join(tmpdir(), "kaizen-wt-"));
+    const root = makeTempDir("kaizen-wt-");
     const main = join(root, "main");
     const linked = join(root, "linked");
     mkdirSync(main);
@@ -977,7 +977,7 @@ describe("コミット先のスコープ判定", () => {
 describe("生 JSON へ縮退した経路の commit 検出", () => {
   /** jq / python3 だけを解決できない PATH を作る（他のコマンドは実体へ通す）。 */
   function makeJqlessPathDir() {
-    const dir = mkdtempSync(join(tmpdir(), "kaizen-nojq-"));
+    const dir = makeSharedTempDir("kaizen-nojq-");
     // ゲート本体と kaizen-status-check.sh が使う外部コマンドは通す。ここが欠けると
     // 「縮退経路で正しく判定した」ではなく「別の理由で落ちた」を測ってしまう。
     // `dirname` は両スクリプトが script_dir の解決に使う。落とすと script_dir が壊れ、
@@ -1317,7 +1317,7 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
 
   /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。*/
   function makeRepoWithWorktree() {
-    const root = mkdtempSync(join(tmpdir(), "kaizen-wt-"));
+    const root = makeTempDir("kaizen-wt-");
     const main = join(root, "main");
     mkdirSync(main);
     const git = (args, cwd = main) => {

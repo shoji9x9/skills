@@ -6,17 +6,10 @@
 
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "skills", "kaizen", "scripts");
@@ -24,7 +17,7 @@ const SESSION = "00000000-1111-2222-3333-444444444444";
 
 /** 本体 ＋ worktree を 1 つ持つリポジトリを作る。`name` に改行を含めてもよい。*/
 function makeRepoWithWorktree(name = "wt") {
-  const root = mkdtempSync(join(tmpdir(), "kaizen-extract-done-"));
+  const root = makeTempDir("kaizen-extract-done-");
   const main = join(root, "main");
   mkdirSync(main);
   const git = (args, cwd = main) => {
@@ -328,7 +321,7 @@ describe("忘却の自動掃引", () => {
     writeSentinel(main);
     writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
 
-    const stubDir = mkdtempSync(join(tmpdir(), "kaizen-extract-done-diag-"));
+    const stubDir = makeTempDir("kaizen-extract-done-diag-");
     for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
       copyFileSync(join(scriptsDir, name), join(stubDir, name));
     }
@@ -366,7 +359,7 @@ describe("忘却の自動掃引", () => {
     writeFileSync(join(main, ".kaizen", "stale.md"), staleNote(200));
 
     // スクリプト一式を写し、忘却スクリプトだけを常に失敗するスタブへ差し替える。
-    const stubDir = mkdtempSync(join(tmpdir(), "kaizen-extract-done-stub-"));
+    const stubDir = makeTempDir("kaizen-extract-done-stub-");
     for (const name of ["kaizen-extract-done.sh", "kaizen-hook-common.sh"]) {
       copyFileSync(join(scriptsDir, name), join(stubDir, name));
     }

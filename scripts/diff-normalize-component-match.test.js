@@ -11,10 +11,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/diff-normalize.mjs");
@@ -102,7 +102,7 @@ test("照合に使えない宣言は理由付きで列挙する（0 件・非オ
  * （関数単体では exit code も警告も出ない）。
  */
 function runCli(componentDiffs, diffs) {
-  const dir = mkdtempSync(join(tmpdir(), "diff-normalize-"));
+  const dir = makeTempDir("diff-normalize-");
   const registries = join(dir, "registries.json");
   const input = join(dir, "diffs.json");
   writeFileSync(

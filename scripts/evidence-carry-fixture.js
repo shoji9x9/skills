@@ -8,10 +8,10 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -210,7 +210,7 @@ export function amendVerifyPair(root, pair, options = {}) {
  * @param {{ scope?: [string, string, string][], root?: string }} [options]
  */
 export function makeCarryProject(options = {}) {
-  const root = options.root ?? mkdtempSync(join(tmpdir(), "evidence-carry-"));
+  const root = options.root ?? makeTempDir("evidence-carry-");
   const repo = join(root, "app");
   mkdirSync(repo, { recursive: true });
   git(repo, ["init", "-q"]);

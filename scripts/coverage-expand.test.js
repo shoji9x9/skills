@@ -10,11 +10,11 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fillSetProvenance } from "./lib/coverage-set-provenance-fixture.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/coverage-expand.mjs");
@@ -931,7 +931,7 @@ test("プロファイルの形式検査: enumeration の欠落・空フィール
  * 被覆表がプロファイルとして読み込まれ、検証したい経路と別の理由で落ちる。
  */
 function runCli(args, { profiles = {}, files = {} } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "coverage-expand-"));
+  const root = makeTempDir("coverage-expand-");
   const profilesDir = join(root, "profiles");
   mkdirSync(profilesDir);
   const write = (dir, name, content) => {

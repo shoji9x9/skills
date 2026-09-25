@@ -1,0 +1,49 @@
+{
+  "$comment": [
+    "test-tmpdir.test.js の検出能力を示す変異の一覧（Issue #479）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/test-tmpdir.test.js",
+  "mutations": [
+    {
+      "id": "per-test-no-cleanup",
+      "why": "makeTempDir がテストの終わりに消す予約をしない",
+      "file": "scripts/lib/test-tmpdir.js",
+      "find": "onTestFinished(() => rmSync(dir, { recursive: true, force: true }));",
+      "replace": "onTestFinished(() => {});",
+      "occurrences": 1,
+      "expect_failing": [
+        "makeTempDir で作ったものはテストの終わりに消える",
+        "assertion が落ちても消える"
+      ]
+    },
+    {
+      "id": "collection-swallowed",
+      "why": "収集時の makeTempDir を例外にせず、消す予約の無いディレクトリを返す",
+      "file": "scripts/lib/test-tmpdir.js",
+      "find": "    rmSync(dir, { recursive: true, force: true });\n    throw error;",
+      "replace": "    rmSync(dir, { recursive: true, force: true });",
+      "occurrences": 1,
+      "expect_failing": ["収集時に makeTempDir を呼ぶと例外になる"]
+    },
+    {
+      "id": "shared-no-cleanup",
+      "why": "makeSharedTempDir が afterAll で消さない",
+      "file": "scripts/lib/test-tmpdir.js",
+      "find": "afterAll(() => rmSync(dir, { recursive: true, force: true }));",
+      "replace": "afterAll(() => {});",
+      "occurrences": 1,
+      "expect_failing": ["makeSharedTempDir で作ったものは describe を抜けると消える"]
+    },
+    {
+      "id": "exempt-without-reason",
+      "why": "免除の印に理由を要求しない",
+      "file": "scripts/test-tmpdir.test.js",
+      "find": "const EXEMPT = /\\/\\/ tmpdir-ok: \\S/;",
+      "replace": "const EXEMPT = /\\/\\/ tmpdir-ok:/;",
+      "occurrences": 1,
+      "expect_failing": ["findDirectMkdtemp 直呼び（理由の無い免除）を拾う"]
+    }
+  ]
+}

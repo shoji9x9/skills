@@ -13,21 +13,20 @@ import {
   chmodSync,
   copyFileSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-stop-mark.sh");
 
 function makeProject() {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-stop-mark-"));
+  const dir = makeTempDir("kaizen-stop-mark-");
   mkdirSync(join(dir, ".kaizen"));
   return dir;
 }
@@ -163,7 +162,7 @@ describe("共通ライブラリが読めない縮退時は transcript の有無�
 
   test("kaizen-hook-common.sh が同梱されていない場合、有効な transcript を渡してもセンチネルを立てる", () => {
     const cwd = makeProject();
-    const degradedDir = mkdtempSync(join(tmpdir(), "kaizen-stop-mark-degraded-"));
+    const degradedDir = makeTempDir("kaizen-stop-mark-degraded-");
     try {
       // 共通ライブラリだけを欠いた配布物（部分展開）を模す。呼び出し側はこれでも
       // 動く必要がある（動かなくなってはいけないのはセンチネル記録そのもの）。

@@ -2,10 +2,10 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 /** ブロックコメントの literal。このファイル自身のコメントを閉じないよう組み立てる。 */
 const BLOCK_COMMENT = `/${"*"} c ${"*"}/`;
@@ -120,7 +120,7 @@ test("閉じていない文字列は判定不能を成功扱いにしない", ()
 });
 
 test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を弁別する", () => {
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-"));
+  const dir = makeTempDir("auto-wait-check-");
   const bad = join(dir, "bad.spec.ts");
   const good = join(dir, "good.spec.ts");
   writeFileSync(bad, "await page.$('#save');\n");
@@ -142,7 +142,7 @@ test("CLI は対象 0 件を成功扱いにせず、違反と正常入力を弁�
 test("引数が重なっても走査ファイル数は重複を除いた実数を出す", () => {
   // 走査自体は重複を除いた集合に対して 1 回ずつ行う。件数だけ水増しすると
   // 「走査ファイル数がスイートの実ファイル数と合っているか」の確認が通ってしまう。
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-dup-"));
+  const dir = makeTempDir("auto-wait-check-dup-");
   const spec = join(dir, "suite.spec.ts");
   writeFileSync(spec, "await expect(page.getByRole('row')).toHaveCount(2);\n");
   const result = spawnSync(process.execPath, [script, dir, spec, dir], { encoding: "utf8" });
@@ -151,7 +151,7 @@ test("引数が重なっても走査ファイル数は重複を除いた実数�
 });
 
 test("ディレクトリ走査では非対象ファイルを無視し、明示ファイルなら入力誤りにする", () => {
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-mixed-"));
+  const dir = makeTempDir("auto-wait-check-mixed-");
   const source = join(dir, "suite.spec.ts");
   const metadata = join(dir, "metadata.json");
   writeFileSync(source, "await expect(page.getByRole('status')).toBeVisible();\n");
@@ -679,7 +679,7 @@ test("current-only の採取スペックでは即時読み取りだけを免除�
 // --- 測れた量の報告 ---
 
 test("CLI は判定不能を 0 件へ倒さず、測れた量を出力する", () => {
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-measured-"));
+  const dir = makeTempDir("auto-wait-check-measured-");
   const spec = join(dir, "unresolved.spec.ts");
   writeFileSync(spec, "const total = await pagerValue(view).innerText();\n");
   let result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
@@ -765,7 +765,7 @@ test("await の通常利用は走査を止めない", () => {
 });
 
 test("走査不能なファイルは違反 0 件へ倒さず exit 2 で落ちる", () => {
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-contextual-"));
+  const dir = makeTempDir("auto-wait-check-contextual-");
   const spec = join(dir, "contextual.spec.ts");
   writeFileSync(
     spec,
@@ -1196,7 +1196,7 @@ test("内訳が呼び出し数に満たなければ不一致として説明を�
 });
 
 test("CLI は Playwright 以外と確定した件数を出力する", () => {
-  const dir = mkdtempSync(join(tmpdir(), "auto-wait-check-excluded-"));
+  const dir = makeTempDir("auto-wait-check-excluded-");
   writeFileSync(join(dir, "a.spec.ts"), "await Promise.all([a(), b()]);\n");
   const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
   expect(result.status).toBe(0);

@@ -15,17 +15,10 @@ import {
   flowItems,
   stripYamlBlocks,
 } from "../skills/replace-strategy/scripts/append-only-check.mjs";
-import {
-  appendFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/append-only-check.mjs");
@@ -156,7 +149,7 @@ const EMPTY_EXCEPTIONS = `${JSON.stringify(
  * @param {{ emptyExceptions?: boolean }} [opts]
  */
 function makeRepo(opts = {}) {
-  const root = mkdtempSync(join(tmpdir(), "append-only-"));
+  const root = makeTempDir("append-only-");
   mkdirSync(join(root, ".replace/parity/order-list"), { recursive: true });
   mkdirSync(join(root, ".replace/dataset"), { recursive: true });
   writeFileSync(join(root, ".replace/features.md"), FEATURES);
@@ -261,7 +254,7 @@ test("同じ行が 2 回在ったのが 1 回に減っても落ちる（多重�
 });
 
 test("追記専用の成果物が 1 件も無ければ合格に倒さない（exit 2）", () => {
-  const root = mkdtempSync(join(tmpdir(), "append-only-empty-"));
+  const root = makeTempDir("append-only-empty-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
     ["init", "-q", "."],
@@ -279,7 +272,7 @@ test("追記専用の成果物が 1 件も無ければ合格に倒さない（ex
 });
 
 test("git リポジトリでなければ合格に倒さない（exit 2）", () => {
-  const root = mkdtempSync(join(tmpdir(), "append-only-nogit-"));
+  const root = makeTempDir("append-only-nogit-");
   const r = run(root);
   expect(r.stderr).toMatch(/git リポジトリではない/);
   expect(r.status).toBe(2);
@@ -298,7 +291,7 @@ test("比較元に無い新規ファイルは縮んでいないものとして�
 test("リポジトリの一階層下を --root に渡しても突き合わせが成立する", () => {
   // ls-tree の既定は cwd 相対、`git show <rev>:<path>` はトップレベル起点。揃えないと全件が
   // 「比較元に無い＝新規」に化け、行を消しても「比較元に在る成果物が 0 件」で落ちる（原因が別物に見える）。
-  const repo = mkdtempSync(join(tmpdir(), "append-only-subdir-"));
+  const repo = makeTempDir("append-only-subdir-");
   mkdirSync(join(repo, "app/.replace/parity/order-list"), { recursive: true });
   writeFileSync(join(repo, "README.md"), "x\n");
   writeFileSync(join(repo, "app/.replace/features.md"), FEATURES);
@@ -334,7 +327,7 @@ test("リポジトリの一階層下を --root に渡しても突き合わせが
 });
 
 test("比較元に在る追記専用の成果物が 0 件なら合格に倒さない（突き合わせが成立していない）", () => {
-  const root = mkdtempSync(join(tmpdir(), "append-only-uncommitted-"));
+  const root = makeTempDir("append-only-uncommitted-");
   writeFileSync(join(root, "README.md"), "x\n");
   for (const args of [
     ["init", "-q", "."],

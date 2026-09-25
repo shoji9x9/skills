@@ -8,10 +8,10 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/axis-diff.mjs");
@@ -199,7 +199,7 @@ test("絶対座標は軸にせず、寸法は軸にする", () => {
 // --- CLI ---
 
 function runCli(manifest, extraArgs = []) {
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-"));
+  const dir = makeTempDir("axis-diff-");
   const path = join(dir, "manifest.json");
   writeFileSync(path, JSON.stringify(manifest));
   return spawnSync(process.execPath, [script, path, ...extraArgs], { encoding: "utf8" });
@@ -240,7 +240,7 @@ test("CLI: 余った位置引数を黙って先勝ちにしない", () => {
   });
   expect(ok.status).toBe(0);
 
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-"));
+  const dir = makeTempDir("axis-diff-");
   const first = join(dir, "one.json");
   const second = join(dir, "two.json");
   for (const p of [first, second]) writeFileSync(p, JSON.stringify({ instances: [] }));
@@ -279,7 +279,7 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
   expect(missing.status).toBe(2);
   expect(missing.stderr).toContain("--out には出力先パス");
 
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-"));
+  const dir = makeTempDir("axis-diff-");
   const out = join(dir, "axes.json");
   const ok = runCli(manifest, ["--out", out]);
   expect(ok.status).toBe(0);
@@ -288,7 +288,7 @@ test("CLI: --out は出力先パスを要求し、実際に書く", () => {
 });
 
 test("CLI: 読めないマニフェストを成功に倒さない", () => {
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-"));
+  const dir = makeTempDir("axis-diff-");
   const path = join(dir, "broken.json");
   writeFileSync(path, "{ not json");
   const r = spawnSync(process.execPath, [script, path], { encoding: "utf8" });
@@ -723,7 +723,7 @@ test("--baseline は採取物から決定論的にマニフェストを組み立
 
 test("--baseline は宣言の無い欠落を黙って除外しない", () => {
   // 到達不能と宣言していない状態の traits.json が無ければ、読みに行って落ちる。
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const dir = makeTempDir("axis-diff-baseline-");
   const t = { computed: { color: "rgb(0, 0, 0)" }, rect: { x: 0, y: 0, width: 80, height: 32 } };
   writeFileSync(
     join(dir, "metadata.json"),
@@ -744,7 +744,7 @@ test("--baseline は宣言の無い欠落を黙って除外しない", () => {
 });
 
 test("--baseline とマニフェストの併用を拒否する", () => {
-  const dir = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const dir = makeTempDir("axis-diff-baseline-");
   const path = join(dir, "manifest.json");
   writeFileSync(path, JSON.stringify({ instances: [] }));
   const r = spawnSync(process.execPath, [script, path, "--baseline", dir], { encoding: "utf8" });
@@ -763,7 +763,7 @@ const validTraits = (color) => ({
 
 // metadata.json と baseline/<id>/<state>/traits.json を持つ採取物ディレクトリを作る。
 function makeBaseline({ states = ["default"], instances, tools, files = {} }) {
-  const root = mkdtempSync(join(tmpdir(), "axis-diff-baseline-"));
+  const root = makeTempDir("axis-diff-baseline-");
   const dir = join(root, "components", "button");
   mkdirSync(dir, { recursive: true });
   writeFileSync(

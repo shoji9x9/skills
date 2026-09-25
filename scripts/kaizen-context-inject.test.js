@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/kaizen/scripts/kaizen-context-inject.sh");
@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 function createRepo(summary) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-context-inject-"));
+  const dir = makeTempDir("kaizen-context-inject-");
   workdirs.push(dir);
   mkdirSync(join(dir, ".kaizen"));
   const init = spawnSync("git", ["init", "-q", "."], { cwd: dir, encoding: "utf8" });

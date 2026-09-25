@@ -15,10 +15,10 @@
 // 陰性コントロール: 本番構成（正本の場所）で実行したとき、この警告が出ないこと。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "skills/kaizen/scripts");
@@ -49,7 +49,7 @@ test("起動条件の宣言は実在するスクリプトだけを指す（孤�
 });
 
 test.each(targets)("%s: ライブラリが無い場所で実行すると縮退を stderr に残す", (name) => {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-degraded-"));
+  const dir = makeTempDir("kaizen-degraded-");
   copyFileSync(join(scriptsDir, name), join(dir, name));
   // 入力待ちで止まらないよう stdin を閉じ、引数なしで起動する。
   const { args = [], input = "" } = INVOCATION[name] ?? {};

@@ -15,18 +15,18 @@
 // 検査の期待形がずれていても緑のまま通る）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CANON_DIR, WIRINGS, checkRuleSymlinks } from "./check-rule-symlinks.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "scripts/check-rule-symlinks.js");
 
 /** 正しく配線された rule を持つ一時リポジトリを作る。 */
 function makeRepo(names = ["alpha", "beta"], { wire = true } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "rule-symlinks-"));
+  const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
   for (const name of names) {
@@ -136,7 +136,7 @@ test("配線ディレクトリが不在なら、走査を飛ばさず違反と�
 });
 
 test("正本ディレクトリが不在なら違反として報告し、走査件数は 0 件", () => {
-  const root = mkdtempSync(join(tmpdir(), "rule-symlinks-"));
+  const root = makeTempDir("rule-symlinks-");
   const { rules, violations } = checkRuleSymlinks(root);
   expect(rules).toEqual([]);
   expect(violations).toHaveLength(1);
@@ -145,7 +145,7 @@ test("正本ディレクトリが不在なら違反として報告し、走査�
 });
 
 test("CLI: 対象 0 件は成功に倒さず exit 1", () => {
-  const root = mkdtempSync(join(tmpdir(), "rule-symlinks-"));
+  const root = makeTempDir("rule-symlinks-");
   mkdirSync(join(root, CANON_DIR), { recursive: true });
   for (const { dir } of WIRINGS) mkdirSync(join(root, dir), { recursive: true });
   const r = spawnSync(process.execPath, [script, root], { encoding: "utf8" });
