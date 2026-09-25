@@ -45,6 +45,9 @@ function keyValue(v) {
   return (typeof v === "string" && v.trim() !== "") || Number.isInteger(v);
 }
 
+/** 表のキーとして辿ってはいけない名前（オブジェクトの継承プロパティに当たる）。 */
+const PROTO_NAMES = new Set(["__proto__", "constructor", "prototype"]);
+
 /**
  * --array の指し方を解析する。
  * @param {string} spec
@@ -77,6 +80,14 @@ export function parseArrayPath(spec) {
     if (!rest.startsWith(".")) throw new UsageError(`--array の形が読めない: ${spec}`);
     rest = rest.slice(1);
   }
+  // 継承プロパティ（__proto__ 等）を辿ると表の外へ書いたまま成功を返すので、名前で弾き、辿るときも自前のキーに限る
+  for (const seg of segments) {
+    for (const n of [seg.name, seg.select?.field]) {
+      if (n !== undefined && PROTO_NAMES.has(n)) {
+        throw new UsageError(`--array に使えない名前がある: ${n}（${spec}）`);
+      }
+    }
+  }
   if (segments[segments.length - 1].select !== null) {
     throw new UsageError(`--array の末尾は配列のキーにする（要素の選択で終えない）: ${spec}`);
   }
@@ -105,6 +116,7 @@ export function resolveArray(table, spec, create) {
       if (!Array.isArray(arr)) throw new UsageError(`${spec}: ${seg.name} が配列でない`);
       return arr;
     }
+    if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);
     const child = node[seg.name];
     if (seg.select === null) {
       if (!isPlainObject(child)) throw new UsageError(`${spec}: ${seg.name} がオブジェクトでない`);

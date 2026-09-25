@@ -98,6 +98,29 @@
         "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--array\",\"operations\"]",
         "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--key\",\"id\",\"--key\",\"id\"]"
       ]
+    },
+    {
+      "id": "proto-names",
+      "why": "継承プロパティの名前を辿らせる",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "      if (n !== undefined && PROTO_NAMES.has(n)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "書き込まずに exit 2: 継承プロパティを辿る（__proto__）",
+        "書き込まずに exit 2: 継承プロパティを辿る（constructor）",
+        "書き込まずに exit 2: 末尾が継承プロパティ",
+        "書き込まずに exit 2: 選ぶ鍵が継承プロパティ"
+      ]
+    },
+    {
+      "id": "own-intermediate",
+      "why": "途中のキーが表自身に無くても辿る",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["書き込まずに exit 2: 途中のキーが無い"]
     }
   ]
 }

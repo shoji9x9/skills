@@ -314,6 +314,16 @@ function noneProblem(r, windowMs, documents) {
 }
 
 /**
+ * 同梱テンプレートの説明文（"<...>" で囲んだプレースホルダ）のままの値か。
+ * 空でない文字列というだけで「書いた」と数えると、テンプレートを写しただけの記録が通る。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function isPlaceholder(v) {
+  return typeof v === "string" && /^<[\s\S]*>$/.test(v.trim());
+}
+
+/**
  * 頁の組み方の 1 回の測定（操作の前 before、または操作を繰り返した後の samples の 1 件）の欠けを返す（無ければ null）。
  * @param {unknown} m
  * @returns {string | null}
@@ -363,7 +373,9 @@ function layoutProblem(layout) {
   }
   const coveredBy = layout.covered_by;
   const covered =
-    Array.isArray(coveredBy) && coveredBy.length > 0 && coveredBy.every(nonEmptyString);
+    Array.isArray(coveredBy) &&
+    coveredBy.length > 0 &&
+    coveredBy.every((c) => nonEmptyString(c) && !isPlaceholder(c));
   if (layout.changes === null) {
     // 測れなかった記録。未測定として数える（空欄と区別するため理由を要求する）
     return {
@@ -375,10 +387,10 @@ function layoutProblem(layout) {
     return { problem: "layout.changes が true / false / null のどれでもない", unmeasured: true };
   }
   if (layout.changes === false) {
-    if (!nonEmptyString(layout.evidence)) {
+    if (!nonEmptyString(layout.evidence) || isPlaceholder(layout.evidence)) {
       return {
         problem:
-          "layout.changes: false なのに evidence が空（操作の前後で頁の高さ・矩形が変わらないことを確かめた記録が無い）",
+          "layout.changes: false なのに evidence が空・テンプレートの説明文のまま（操作の前後で頁の高さ・矩形が変わらないことを確かめた記録が無い）",
         unmeasured: true,
       };
     }

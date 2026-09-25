@@ -211,69 +211,6 @@ test("記録が 1 つも無ければ verify は exit 1", () => {
   expect(r.stderr).toContain("1 つも記録されていない");
 });
 
-test.each([
-  ["壊れた JSON", "{"],
-  ["checkpoints が配列でない", JSON.stringify({ version: "1", checkpoints: {} })],
-  ["版が違う", JSON.stringify({ version: "0", checkpoints: [] })],
-  [
-    "roots が空（指紋の根が無い記録）",
-    JSON.stringify({
-      version: "1",
-      checkpoints: [{ at: "authored", roots: [], files: { "a.json": "0".repeat(64) } }],
-    }),
-  ],
-  [
-    "files が空",
-    JSON.stringify({
-      version: "1",
-      checkpoints: [
-        {
-          at: "authored",
-          next_step: 6,
-          roots: [".replace/parity/share", "e2e/parity/share"],
-          files: {},
-        },
-      ],
-    }),
-  ],
-  [
-    "指紋が sha256 でない",
-    JSON.stringify({
-      version: "1",
-      checkpoints: [
-        {
-          at: "authored",
-          next_step: 6,
-          roots: [".replace/parity/share", "e2e/parity/share"],
-          files: { "a.json": "x" },
-        },
-      ],
-    }),
-  ],
-  [
-    "roots の先頭が --dir でない",
-    JSON.stringify({
-      version: "1",
-      checkpoints: [
-        {
-          at: "authored",
-          next_step: 6,
-          roots: ["e2e/parity/share", ".replace/parity/share"],
-          files: { "e2e/parity/share/share.spec.ts": "0".repeat(64) },
-        },
-      ],
-    }),
-  ],
-  [
-    "語彙外の区切りの記録",
-    JSON.stringify({ version: "1", checkpoints: [{ at: "done", roots: [], files: {} }] }),
-  ],
-])("記録が崩れていれば verify は exit 2: %s", (_name, text) => {
-  const dir = project();
-  writeFileSync(join(dir, SLUG, "checkpoints.json"), text);
-  expect(verify(dir, "authored").status).toBe(2);
-});
-
 test("別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
@@ -307,70 +244,13 @@ function gatedProject() {
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   expect(capture(dir).status).toBe(0);
   writeFileSync(join(dir, SLUG, "strength.md"), "# 強度\n");
+  writeFileSync(join(dir, SLUG, "gaps.md"), "# 未検証\n");
   expect(record(dir, "gated").status).toBe(0);
   return dir;
 }
 
 test("陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る", () => {
   expect(verify(gatedProject(), "gated").status).toBe(0);
-});
-
-test.each([
-  [
-    "前段を欠いて gated だけが並ぶ",
-    (rec) => (rec.checkpoints = rec.checkpoints.slice(2)),
-    "順の先頭から並んでいない",
-  ],
-  [
-    "区切りの名前が入れ替わっている（next_step は位置どおり）",
-    (rec) => {
-      [rec.checkpoints[0].at, rec.checkpoints[1].at] = [
-        rec.checkpoints[1].at,
-        rec.checkpoints[0].at,
-      ];
-    },
-    "順の先頭から並んでいない",
-  ],
-  [
-    "next_step が区切りの定義と違う",
-    (rec) => (rec.checkpoints[2].next_step = 999),
-    "順の先頭から並んでいない",
-  ],
-  [
-    "スイートの根が無い",
-    (rec) => {
-      for (const c of rec.checkpoints) c.roots = c.roots.slice(0, 1);
-    },
-    "スイートの根が無い",
-  ],
-  [
-    "後の区切りが前の区切りの根を引き継いでいない",
-    (rec) => (rec.checkpoints[2].roots = [SLUG, "e2e/other"]),
-    "引き継いでいない",
-  ],
-  [
-    "gated の指紋に strength.md が無い",
-    (rec) => delete rec.checkpoints[2].files[`${SLUG}/strength.md`],
-    "strength.md が無い",
-  ],
-])(
-  "record が作らない形の記録は verify で exit 2: %s（Codex レビュー）",
-  (_name, mutate, needle) => {
-    const dir = gatedProject();
-    editRecord(dir, mutate);
-    const r = verify(dir, "gated");
-    expect(r.status).toBe(2);
-    expect(r.stderr).toContain(needle);
-  },
-);
-
-test("前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）", () => {
-  const dir = project();
-  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  const r = record(dir, "captured");
-  expect(r.status).toBe(2);
-  expect(r.stderr).toContain("前の区切り authored から成果物が 1 つも変わっていない");
-  expect(verify(dir, "authored").status).toBe(0);
 });
 
 test.each([
@@ -390,6 +270,15 @@ test.each([
   expect(record(dir, "captured").status).toBe(0);
 });
 
+test("前の区切りから成果物が 1 つも変わっていなければ record は exit 2（手順を飛ばした区切りを作らない。Codex レビュー）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  const r = record(dir, "captured");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("前の区切り authored から成果物が 1 つも変わっていない");
+  expect(verify(dir, "authored").status).toBe(0);
+});
+
 test("前の区切りから削除しかしていなければ record は exit 2（削除を進んだ証拠にしない。Codex レビュー）", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
@@ -407,4 +296,104 @@ test("--include の根が空なら record は exit 2（スイートが消えた�
   const r = record(dir, "captured");
   expect(r.status).toBe(2);
   expect(r.stderr).toContain("--include の根にファイルが無い");
+});
+
+const H = "0".repeat(64);
+const each = (fn) => (rec) => rec.checkpoints.forEach(fn);
+
+// 書き手（record）の不変条件 W1〜W9 ごとに、record が作った記録を 1 か所だけ崩して verify が exit 2 になることを確かめる。
+// 番号と条件の正本は checkpoint.mjs の recordProblem の表（手で直した・壊れた記録で --from が前段を確かめずに再開しない）
+test.each([
+  ["W1 tool が無い", (rec) => delete rec.tool, "最上位が"],
+  ["W1 version が違う", (rec) => (rec.version = "0"), "version（0）"],
+  [
+    "W2 区切りが定義の数を超える",
+    (rec) => rec.checkpoints.push({ ...rec.checkpoints[2] }),
+    "個を超える",
+  ],
+  [
+    "W2 前段を欠いて gated だけが並ぶ",
+    (rec) => (rec.checkpoints = rec.checkpoints.slice(2)),
+    "順の先頭から並んでいない",
+  ],
+  [
+    "W2 区切りの名前が入れ替わっている（next_step は位置どおり）",
+    (rec) => {
+      [rec.checkpoints[0].at, rec.checkpoints[1].at] = [
+        rec.checkpoints[1].at,
+        rec.checkpoints[0].at,
+      ];
+    },
+    "順の先頭から並んでいない",
+  ],
+  [
+    "W2 next_step が定義と違う",
+    (rec) => (rec.checkpoints[2].next_step = 999),
+    "next_step が定義と違う",
+  ],
+  ["W3 区切りがオブジェクトでない", (rec) => (rec.checkpoints[0] = []), "オブジェクトでない"],
+  ["W3 区切りに余分なキーがある", (rec) => (rec.checkpoints[0].extra = 1), "のキーが"],
+  ["W4 roots が配列でない", (rec) => (rec.checkpoints[0].roots = SLUG), "文字列の配列でない"],
+  ["W4 roots に重複（[slug, slug]）", each((c) => (c.roots = [SLUG, SLUG])), "重複"],
+  ["W4 roots の先頭が --dir でない", each((c) => (c.roots = [SUITE, SLUG])), "が --dir（"],
+  ["W4 スイートの根が無い", each((c) => (c.roots = [SLUG])), "スイートの根が無い"],
+  ["W4 スイートの根が --dir の中", each((c) => (c.roots = [SLUG, `${SLUG}/sub`])), "--dir の中"],
+  [
+    "W4 スイートの根が正規化されていない",
+    each((c) => (c.roots = [SLUG, "e2e/./parity/share"])),
+    "正規化",
+  ],
+  [
+    "W5 後の区切りが前の根を引き継いでいない",
+    (rec) => (rec.checkpoints[2].roots = [SLUG, "e2e/other"]),
+    "引き継いでいない",
+  ],
+  ["W6 files が空", (rec) => (rec.checkpoints[0].files = {}), "files が空"],
+  [
+    "W6 指紋が sha256 でない",
+    (rec) => (rec.checkpoints[0].files[`${SUITE}/share.spec.ts`] = "x"),
+    "sha256 でない",
+  ],
+  [
+    "W6 どの根の下にも無いファイル",
+    (rec) => (rec.checkpoints[0].files["other/x.ts"] = H),
+    "どの根の下にも無い",
+  ],
+  [
+    "W6 除外名の下のファイル",
+    (rec) => (rec.checkpoints[0].files[`${SLUG}/new/t/x.json`] = H),
+    "指紋から外す名前",
+  ],
+  [
+    "W7 スイートの根がファイルを持たない",
+    each((c) => c.roots.push("e2e/other")),
+    "ファイルを 1 つも持たない",
+  ],
+  [
+    "W8 前の区切りから追加・書き換えが無い",
+    (rec) => (rec.checkpoints[2].files = { ...rec.checkpoints[1].files }),
+    "追加・書き換えを 1 つも持たない",
+  ],
+  [
+    "W9 gated の指紋に strength.md が無い",
+    (rec) => {
+      delete rec.checkpoints[2].files[`${SLUG}/strength.md`];
+      rec.checkpoints[2].files[`${SLUG}/extra.md`] = H;
+    },
+    "strength.md が無い",
+  ],
+])("record が書かない形の記録は verify で exit 2: %s", (_name, mutate, needle) => {
+  const dir = gatedProject();
+  editRecord(dir, mutate);
+  const r = verify(dir, "gated");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(needle);
+});
+
+test("壊れた JSON の記録は verify で exit 2、authored はそれを読まずに記録し直せる", () => {
+  const dir = gatedProject();
+  writeFileSync(join(dir, SLUG, "checkpoints.json"), "{");
+  expect(verify(dir, "gated").status).toBe(2);
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  expect(verify(dir, "authored").status).toBe(0);
 });

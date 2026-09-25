@@ -975,3 +975,34 @@ test("同梱テンプレートのプレースホルダのままの layout は落
   expect(r.stderr).toContain('operations["copy"]: layout');
   expect(r.stderr).toContain('operations["search"]: layout');
 });
+
+test.each([
+  [
+    "evidence がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[0].layout.evidence = tpl.operations[1].layout.evidence),
+    "テンプレートの説明文のまま",
+  ],
+  [
+    "covered_by がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[0].layout.covered_by = tpl.operations[1].layout.covered_by),
+    "changes: false なのに covered_by が空",
+  ],
+  [
+    "changes: true の covered_by がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[1].layout.covered_by = tpl.operations[0].layout.covered_by),
+    "changes: true なのに covered_by が空",
+  ],
+])(
+  "layout の欄をテンプレートの説明文のまま出したら落とす: %s（Codex レビュー）",
+  (_name, mk, needle) => {
+    const template = JSON.parse(
+      readFileSync(
+        new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const r = run(mutated(mk(template)));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(needle);
+  },
+);

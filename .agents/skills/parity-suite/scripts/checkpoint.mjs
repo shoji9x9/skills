@@ -114,71 +114,134 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
 }
 
 /**
- * 記録ファイルを読む。無ければ空の記録を返す。
+ * 記録ファイルを読む（JSON として読めることだけを確かめる。形の検証は recordProblem）。無ければ空の記録を返す。
  * @param {string} path
- * @returns {{ tool: string, version: string, checkpoints: Record<string, unknown>[] }}
+ * @returns {unknown}
  */
 function readRecord(path) {
   if (!existsSync(path)) return { tool: "checkpoint", version: VERSION, checkpoints: [] };
-  let rec;
   try {
-    rec = JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
     throw new UsageError(`${RECORD_NAME} を読めない（${e instanceof Error ? e.message : e}）`);
   }
-  if (!isPlainObject(rec) || !Array.isArray(rec.checkpoints)) {
-    throw new UsageError(`${RECORD_NAME} の形が崩れている（checkpoints が配列でない）`);
+}
+
+/**
+ * パス f が根 r の下（r 自身を含む）にあるか。
+ * @param {string} f
+ * @param {string} r
+ */
+function under(f, r) {
+  return r === "." || f === r || f.startsWith(`${r}/`);
+}
+
+/** 記録の区切り 1 つが持つキー（record が書くもの。これ以外を持つ記録は record の出力ではない）。 */
+const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
+
+/**
+ * 記録が record の書く形かを検査し、最初に見つけた違反を返す（無ければ null）。
+ *
+ * 読み手の検証は「思いついた壊れ方」ではなく、書き手（下の main の record）が必ず満たす不変条件から作る。
+ * 手で直した・壊れた記録も同じ経路で読まれ、--from の再開判定（fail-closed なゲート）になるため、
+ * 書き手が作らない形を 1 つでも受けると、前段の成果物を確かめないまま再開できてしまう（Codex レビューで 7 巡指摘された形）。
+ *
+ * | # | 書き手が保証すること | 根拠（record の実装） |
+ * |---|---|---|
+ * | W1 | 最上位は { tool: "checkpoint", version: VERSION, checkpoints: [] } | 書き出しの JSON |
+ * | W2 | 区切りは CHECKPOINTS の順に先頭から欠けずに並び、at / next_step は定義どおり | 前の区切りが無ければ止め、後ろを切り捨てて足す |
+ * | W3 | 区切りのキーは at / next_step / roots / files だけ | entry の生成 |
+ * | W4 | roots は重複の無い正規化済みの相対パスで、先頭が slug のディレクトリ、2 つ目以降（スイートの根）が 1 つ以上あり、どれも slug のディレクトリの外 | toRel・--include の検査・authored の --include 必須 |
+ * | W5 | 後の区切りの roots は前の区切りの roots で始まる | 前の根を引き継いで後ろに足す |
+ * | W6 | files は空でなく、値は sha256、鍵はどれかの根の下で、slug のディレクトリ直下の除外名の下に無い | fingerprintFiles |
+ * | W7 | スイートの根はそれぞれ 1 つ以上のファイルを持つ | 根が空なら止める |
+ * | W8 | 2 つ目以降の区切りは、前の区切りから追加か書き換えを 1 つ以上持つ | 削除だけ・変化なしなら止める |
+ * | W9 | gated の files は slug のディレクトリの strength.md を持つ | strength.md が無ければ止める |
+ * @param {unknown} rec
+ * @param {string} slugDir - cwd 基準の相対パス
+ * @returns {string | null}
+ */
+export function recordProblem(rec, slugDir) {
+  // W1
+  if (!isPlainObject(rec) || rec.tool !== "checkpoint" || !Array.isArray(rec.checkpoints)) {
+    return '最上位が { tool: "checkpoint", version, checkpoints: [] } の形でない';
   }
   if (rec.version !== VERSION) {
-    throw new UsageError(
-      `${RECORD_NAME} の version（${String(rec.version)}）が ${VERSION} でない（区切りを記録し直す）`,
-    );
+    return `version（${String(rec.version)}）が ${VERSION} でない（区切りを記録し直す）`;
   }
-  for (const c of rec.checkpoints) {
-    if (
-      !isPlainObject(c) ||
-      !CHECKPOINTS.some((k) => k.at === c.at) ||
-      !Array.isArray(c.roots) ||
-      !isPlainObject(c.files)
-    ) {
-      throw new UsageError(`${RECORD_NAME} の区切りの記録の形が崩れている`);
+  const entries = rec.checkpoints;
+  if (entries.length > CHECKPOINTS.length) return `区切りが ${CHECKPOINTS.length} 個を超える`;
+  const hash = /^[0-9a-f]{64}$/;
+  /** @type {string[] | null} */
+  let prevRoots = null;
+  /** @type {Record<string, string> | null} */
+  let prevFiles = null;
+  for (const [i, c] of entries.entries()) {
+    const label = `${i + 1} 番目の区切り`;
+    // W3
+    if (!isPlainObject(c)) return `${label}がオブジェクトでない`;
+    const keys = Object.keys(c).sort();
+    if (JSON.stringify(keys) !== JSON.stringify([...ENTRY_KEYS].sort())) {
+      return `${label}のキーが ${ENTRY_KEYS.join(" / ")} でない（${keys.join(", ")}）`;
     }
-    // 対象 0 件の記録は照合しても空同士で一致し、何も確かめないまま再開を通す（record も 0 件を拒否する）
-    if (
-      c.roots.length === 0 ||
-      !c.roots.every((r) => typeof r === "string" && r !== "") ||
-      Object.keys(c.files).length === 0 ||
-      !Object.values(c.files).every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h))
-    ) {
-      throw new UsageError(
-        `${RECORD_NAME} の区切り ${String(c.at)} の roots / files が空・型崩れ（指紋の対象が無い記録では照合できない）`,
-      );
+    // W2
+    if (c.at !== CHECKPOINTS[i].at || c.next_step !== CHECKPOINTS[i].next_step) {
+      return `区切りが ${CHECKPOINTS.map((k) => k.at).join(" → ")} の順の先頭から並んでいない、または next_step が定義と違う（${label}が ${String(c.at)}）`;
     }
-  }
-  // record が作る形だけを受ける: 区切りは語彙の順の先頭から欠けずに並び、各区切りはスイートの根（2 つ目以降）を持ち、
-  // 前の区切りの根を引き継ぐ。前段を欠いた記録（手で直した・壊れた）を通すと、前段の成果物を確かめないまま再開する
-  for (const [i, c] of rec.checkpoints.entries()) {
-    if (c.at !== CHECKPOINTS[i]?.at || c.next_step !== CHECKPOINTS[i]?.next_step) {
-      throw new UsageError(
-        `${RECORD_NAME} の区切りが ${CHECKPOINTS.map((k) => k.at).join(" → ")} の順の先頭から並んでいない、または next_step が定義と違う（${i + 1} 番目が ${String(c.at)}）`,
-      );
+    // W4
+    const roots = c.roots;
+    if (!Array.isArray(roots) || !roots.every((r) => typeof r === "string" && r !== "")) {
+      return `${c.at} の roots が空でない文字列の配列でない`;
     }
-    const roots = /** @type {string[]} */ (c.roots);
+    if (new Set(roots).size !== roots.length) return `${c.at} の roots に重複がある`;
+    if (roots[0] !== slugDir) {
+      return `${c.at} の roots の先頭（${String(roots[0])}）が --dir（${slugDir}）でない`;
+    }
     if (roots.length < 2) {
-      throw new UsageError(
-        `${RECORD_NAME} の区切り ${String(c.at)} にスイートの根が無い（authored の --include が記録されていない）`,
-      );
+      return `${c.at} にスイートの根が無い（authored の --include が記録されていない）`;
     }
-    const prev = i > 0 ? /** @type {string[]} */ (rec.checkpoints[i - 1].roots) : null;
-    if (prev && (roots[0] !== prev[0] || !prev.every((r) => roots.includes(r)))) {
-      throw new UsageError(
-        `${RECORD_NAME} の区切り ${String(c.at)} の roots が前の区切りの roots を引き継いでいない`,
-      );
+    for (const r of roots.slice(1)) {
+      if (r.startsWith("/") || r.split("/").some((seg) => seg === "" || seg === ".")) {
+        return `${c.at} の roots に正規化されていないパスがある: ${r}`;
+      }
+      if (under(r, slugDir)) return `${c.at} のスイートの根が --dir の中を指す: ${r}`;
     }
+    // W5
+    if (prevRoots && !prevRoots.every((r, k) => roots[k] === r)) {
+      return `${c.at} の roots が前の区切りの roots を引き継いでいない`;
+    }
+    // W6
+    const files = c.files;
+    if (!isPlainObject(files) || Object.keys(files).length === 0) {
+      return `${c.at} の files が空（指紋の対象が無い記録では照合できない）`;
+    }
+    for (const [f, h] of Object.entries(files)) {
+      if (typeof h !== "string" || !hash.test(h)) return `${c.at} の ${f} の指紋が sha256 でない`;
+      if (!roots.some((r) => under(f, r))) return `${c.at} の ${f} がどの根の下にも無い`;
+      if ([...EXCLUDED_IN_DIR].some((n) => under(f, `${slugDir}/${n}`))) {
+        return `${c.at} の ${f} は指紋から外す名前の下にある`;
+      }
+    }
+    const fileKeys = Object.keys(files);
+    // W7
+    const emptyRoot = roots.slice(1).find((r) => !fileKeys.some((f) => under(f, r)));
+    if (emptyRoot !== undefined)
+      return `${c.at} のスイートの根 ${emptyRoot} がファイルを 1 つも持たない`;
+    // W8
+    if (prevFiles) {
+      const p = prevFiles;
+      if (!fileKeys.some((f) => p[f] !== files[f])) {
+        return `${c.at} が前の区切りから追加・書き換えを 1 つも持たない`;
+      }
+    }
+    // W9
+    if (c.at === "gated" && !Object.hasOwn(files, `${slugDir}/strength.md`)) {
+      return "gated の指紋に strength.md が無い";
+    }
+    prevRoots = roots;
+    prevFiles = /** @type {Record<string, string>} */ (files);
   }
-  return /** @type {{ tool: string, version: string, checkpoints: Record<string, unknown>[] }} */ (
-    rec
-  );
+  return null;
 }
 
 /**
@@ -237,7 +300,18 @@ export function main(argv, deps = {}) {
       throw new UsageError(`--dir がディレクトリでない: ${dir}`);
     }
     const recordPath = join(slugAbs, RECORD_NAME);
-    const record = readRecord(recordPath);
+    // authored は記録を作り直すので、既存の記録（壊れていても）は読まない。それ以外は書き手の形であることを先に確かめる
+    const raw =
+      command === "record" && pos === 0
+        ? { tool: "checkpoint", version: VERSION, checkpoints: [] }
+        : readRecord(recordPath);
+    const problem = recordProblem(raw, slugDir);
+    if (problem !== null) {
+      throw new UsageError(
+        `${RECORD_NAME} が record の書く形でない: ${problem}（手で直さず authored から記録し直す）`,
+      );
+    }
+    const record = /** @type {{ checkpoints: Record<string, unknown>[] }} */ (raw);
 
     if (command === "verify") {
       const last = record.checkpoints[record.checkpoints.length - 1];
@@ -251,17 +325,7 @@ export function main(argv, deps = {}) {
         );
         return 1;
       }
-      // 根の先頭は slug のディレクトリ（record がそう書く）。別の場所を指す記録では、この slug の成果物を照合していない
-      if (/** @type {string[]} */ (last.roots)[0] !== slugDir) {
-        throw new UsageError(
-          `${RECORD_NAME} の roots の先頭（${String(/** @type {string[]} */ (last.roots)[0])}）が --dir（${slugDir}）でない`,
-        );
-      }
       const recorded = /** @type {Record<string, string>} */ (last.files);
-      // gated は strength.md（強度ゲートの結果）を持つ時点でしか記録されない。持たない記録から手順 8 を始めさせない
-      if (at === "gated" && !Object.hasOwn(recorded, `${slugDir}/strength.md`)) {
-        throw new UsageError(`${RECORD_NAME} の gated の指紋に strength.md が無い`);
-      }
       const now = fingerprintFiles(cwd, /** @type {string[]} */ (last.roots), slugDir, {
         allowMissing: true,
       });
@@ -295,8 +359,6 @@ export function main(argv, deps = {}) {
       }
       record.checkpoints = record.checkpoints.slice(0, prevIndex + 1);
       inherited = /** @type {string[]} */ (record.checkpoints[prevIndex].roots).slice(1);
-    } else {
-      record.checkpoints = [];
     }
     for (const inc of includes) {
       const rel = toRel(cwd, inc);

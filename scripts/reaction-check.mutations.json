@@ -138,11 +138,12 @@
       "id": "layout-false-evidence",
       "why": "changes: false の確かめ方が空でも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (!nonEmptyString(layout.evidence)) {\n",
+      "find": "    if (!nonEmptyString(layout.evidence) || isPlaceholder(layout.evidence)) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "頁の組み方の記録の欠けを落とす: changes: false に確かめ方が無い（Issue #460）"
+        "頁の組み方の記録の欠けを落とす: changes: false に確かめ方が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: evidence がテンプレートの説明文のまま（Codex レビュー）"
       ]
     },
     {
@@ -153,7 +154,8 @@
       "replace": "    if (false) {\n      return {\n        problem:\n          \"layout.changes: false",
       "occurrences": 1,
       "expect_failing": [
-        "頁の組み方の記録の欠けを落とす: changes: false に assertion が無い（Issue #460）"
+        "頁の組み方の記録の欠けを落とす: changes: false に assertion が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: covered_by がテンプレートの説明文のまま（Codex レビュー）"
       ]
     },
     {
@@ -281,7 +283,8 @@
       "replace": "  if (false) {\n    return {\n      problem:\n        \"layout.changes: true",
       "occurrences": 1,
       "expect_failing": [
-        "頁の組み方の記録の欠けを落とす: changes: true に assertion が無い（Issue #460）"
+        "頁の組み方の記録の欠けを落とす: changes: true に assertion が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: changes: true の covered_by がテンプレートの説明文のまま（Codex レビュー）"
       ]
     },
     {
@@ -294,6 +297,29 @@
       "expect_failing": [
         "頁の組み方の記録の欠けを落とす: 矩形の論理名が空（Issue #460）",
         "頁の組み方の記録の欠けを落とす: 矩形の論理名が空白だけ（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-evidence-placeholder",
+      "why": "テンプレートの説明文のままの evidence を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(layout.evidence) || isPlaceholder(layout.evidence)) {\n",
+      "replace": "    if (!nonEmptyString(layout.evidence)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "layout の欄をテンプレートの説明文のまま出したら落とす: evidence がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "layout-covered-placeholder",
+      "why": "テンプレートの説明文のままの covered_by を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    coveredBy.every((c) => nonEmptyString(c) && !isPlaceholder(c));\n",
+      "replace": "    coveredBy.every((c) => nonEmptyString(c));\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "layout の欄をテンプレートの説明文のまま出したら落とす: covered_by がテンプレートの説明文のまま（Codex レビュー）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: changes: true の covered_by がテンプレートの説明文のまま（Codex レビュー）"
       ]
     }
   ]
