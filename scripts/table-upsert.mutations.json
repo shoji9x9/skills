@@ -1,0 +1,126 @@
+{
+  "$comment": [
+    "table-upsert.test.js の検出能力を示す変異の一覧（Issue #468）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/table-upsert.test.js",
+  "mutations": [
+    {
+      "id": "key-integer",
+      "why": "小数の鍵を受ける",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "  return (typeof v === \"string\" && v.trim() !== \"\") || Number.isInteger(v);\n",
+      "replace": "  return (typeof v === \"string\" && v.trim() !== \"\") || typeof v === \"number\";\n",
+      "occurrences": 1,
+      "expect_failing": ["書き込まずに exit 2: 断片の鍵が小数"]
+    },
+    {
+      "id": "key-blank",
+      "why": "空白だけの鍵を受ける",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "  return (typeof v === \"string\" && v.trim() !== \"\") || Number.isInteger(v);\n",
+      "replace": "  return (typeof v === \"string\" && v !== \"\") || Number.isInteger(v);\n",
+      "occurrences": 1,
+      "expect_failing": ["書き込まずに exit 2: 断片の鍵が空文字"]
+    },
+    {
+      "id": "existing-key-missing",
+      "why": "鍵の無い既存要素を索引に入れる",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (k === null) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "既存の要素に鍵が無ければ exit 2（undefined の鍵に潰して別の行を上書きしない）"
+      ]
+    },
+    {
+      "id": "existing-key-duplicate",
+      "why": "既存要素の鍵の重複を先勝ちにする",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (index.has(k)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["既存の要素の鍵が重複していれば差し替え先を選ばず exit 2"]
+    },
+    {
+      "id": "keep-conformance",
+      "why": "書き換えた表に conformance を残す",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    delete table.conformance;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "書き換えたら conformance を消す（照合し直していない表を照合済みに見せない）",
+        "remove は一致する要素だけを消し、conformance も消す"
+      ]
+    },
+    {
+      "id": "select-first",
+      "why": "選択が複数件でも先勝ちにする",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (hits.length !== 1) {\n",
+      "replace": "    if (hits.length === 0) {\n",
+      "occurrences": 1,
+      "expect_failing": ["選択が複数件なら先勝ちにせず exit 2"]
+    },
+    {
+      "id": "tail-select",
+      "why": "末尾が要素の選択でも通す",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "  if (segments[segments.length - 1].select !== null) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["書き込まずに exit 2: 末尾が要素の選択"]
+    },
+    {
+      "id": "select-quoted",
+      "why": "JSON 文字列の選択値を解かない（\"]\" を含む id を選べない）",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (m[3] !== undefined) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "\"]\" を含む id は JSON 文字列の選択値で選べる（Codex レビュー）",
+        "JSON 文字列の選択値のエスケープ（\\\" を含む id）も読む"
+      ]
+    },
+    {
+      "id": "duplicate-option",
+      "why": "重ねた引数を後勝ちで受ける",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (Object.hasOwn(opts, a.slice(2))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--file\",\"t.json\",\"--array\",\"operations\"]",
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--array\",\"operations\"]",
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--key\",\"id\",\"--key\",\"id\"]"
+      ]
+    },
+    {
+      "id": "proto-names",
+      "why": "継承プロパティの名前を辿らせる",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "      if (n !== undefined && PROTO_NAMES.has(n)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "書き込まずに exit 2: 継承プロパティを辿る（__proto__）",
+        "書き込まずに exit 2: 継承プロパティを辿る（constructor）",
+        "書き込まずに exit 2: 末尾が継承プロパティ",
+        "書き込まずに exit 2: 選ぶ鍵が継承プロパティ"
+      ]
+    },
+    {
+      "id": "own-intermediate",
+      "why": "途中のキーが表自身に無くても辿る",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (!Object.hasOwn(node, seg.name)) throw new UsageError(`${spec}: ${seg.name} が無い`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["書き込まずに exit 2: 途中のキーが無い"]
+    }
+  ]
+}

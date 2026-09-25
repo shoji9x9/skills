@@ -299,7 +299,8 @@ export async function waitForStableRect(target: Locator): Promise<void> {
   ビューポートが 2 つ以上のときだけ `not_required`（理由付き）を選べる
 - **`not_measured` は `gaps.md` に書いて済ませない。** `gaps.md` に書けば通る形は同じ穴を機能ごとに再生産するため、未測定は `parity-replace` への**引き渡し条件**として `dimension_model` に残す
   （`parity-replace` は完了判定で読み、写していない旨を `porting.md` に明示する。正本は `parity-replace` の `SKILL.md` 手順 8）
-- **測る要素**: `traits.elements` の論理名の全て（各論理名が在るページで、default 状態）。自分で選ばない——`scripts/dimension-fit.mjs` が samples に無い論理名を落とす
+- **測る要素**: `traits.elements` の論理名の全て（各論理名が在るページで、default 状態）。自分で選ばない——`scripts/dimension-fit.mjs` が samples に無い論理名を落とす。
+  **操作で現れる要素・操作で変わる組み方は式に入らない**——それは反応の被覆表の `layout` が持つ（[`coverage.md`](coverage.md)「操作で変わる頁の組み方（`layout`）」）
 - **測る窓**: 撮影したビューポートを含む **4 窓以上**を、**幅と高さを独立に動かして**選ぶ（縦横比が一定の窓だけでは幅と高さのどちらに追従しているかを分けられず、スクリプトが落とす）。
   窓は撮影したビューポートと**同じブレークポイントの範囲内**に取る（ブレークポイントの導出は [`coverage.md`](coverage.md)「スクリーンサイズ」。またぐと式が変わるので当てはまらない）
 - **当てはめ**: `値 = ratio.width × 窓の幅 ＋ ratio.height × 窓の高さ ＋ offset` を要素 × 軸（x / y / width / height）ごとに最小二乗で当てる。

@@ -42,6 +42,44 @@ const noneReaction = () => ({
   covered_by: ["search.spec.ts: 検索で観測時間内にどの文書にも通知が出ない"],
 });
 
+/** 操作で頁の組み方が変わらないことを実測で書いた記録。 */
+const noLayoutChange = () => ({
+  changes: false,
+  evidence: "操作の前後で scrollHeight と主な論理名の矩形が同じ",
+  covered_by: ["layout.spec.ts: 操作の後も頁の高さが変わらない"],
+});
+
+/** 頁の組み方を変える操作の記録（条件の行を足すたびに、グリッドの高さを窓の高さから書き直す）。 */
+const layoutChange = () => ({
+  changes: true,
+  before: {
+    scroll_height: 768,
+    client_height: 768,
+    rects: { 条件の行2: null, グリッド: { x: 0, y: 100, width: 1366, height: 600 } },
+  },
+  samples: [
+    {
+      repeat: 1,
+      scroll_height: 768,
+      client_height: 768,
+      rects: {
+        条件の行2: { x: 0, y: 57, width: 1366, height: 36 },
+        グリッド: { x: 0, y: 136, width: 1366, height: 564 },
+      },
+    },
+    {
+      repeat: 2,
+      scroll_height: 768,
+      client_height: 768,
+      rects: {
+        条件の行2: { x: 0, y: 57, width: 1366, height: 36 },
+        グリッド: { x: 0, y: 172, width: 1366, height: 528 },
+      },
+    },
+  ],
+  covered_by: ["layout.spec.ts: 条件を 2 回足した後も頁が窓に収まりグリッドが縮む"],
+});
+
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
@@ -64,6 +102,7 @@ const baseTable = () => ({
       trigger: "clickButton(コピー)",
       handlers: [{ file: "src/share.js", symbol: "copy" }],
       immediate_state: "ダイアログが閉じる",
+      layout: noLayoutChange(),
       reactions: [toast()],
     },
     {
@@ -71,6 +110,7 @@ const baseTable = () => ({
       trigger: "clickButton(検索)",
       handlers: [{ file: "src/share.js", symbol: "search" }],
       immediate_state: "一覧が絞られる",
+      layout: layoutChange(),
       reactions: [noneReaction()],
     },
   ],
@@ -352,6 +392,7 @@ test.each([
         id: "c",
         trigger: "x()",
         immediate_state: "y",
+        layout: noLayoutChange(),
         reactions: [{ ...toast(), id: "opy/toast" }],
       });
     },
@@ -787,3 +828,181 @@ test("同梱テンプレートのプレースホルダのままの文書のオ�
   expect(r.status).toBe(1);
   expect(r.stdout + r.stderr).toContain("same-origin / cross-origin でない文書: top");
 });
+
+test("頁の組み方を変えない操作と、2 回繰り返して測った変える操作は通す（Issue #460）", () => {
+  // 陽性コントロールの表そのもの（copy は changes: false、search は changes: true）。
+  // layout の分岐を足したことで正規の記録まで落とすようになっていないことを、他の欄と独立に固定する
+  const r = run(baseTable());
+  expect(r.status).toBe(0);
+  expect(r.stdout + r.stderr).not.toContain("layout");
+});
+
+test.each([
+  ["layout が無い", (t) => delete t.operations[0].layout, "layout が無い"],
+  ["layout が配列", (t) => (t.operations[0].layout = []), "layout が無い"],
+  [
+    "changes が語彙外",
+    (t) => (t.operations[0].layout.changes = "yes"),
+    "true / false / null のどれでもない",
+  ],
+  [
+    "changes: null（測れなかった）",
+    (t) => (t.operations[0].layout = { changes: null, reason: "窓を変えられない" }),
+    "未測定（窓を変えられない）",
+  ],
+  [
+    "changes: false に確かめ方が無い",
+    (t) => (t.operations[0].layout.evidence = ""),
+    "evidence が空",
+  ],
+  [
+    "changes: false に assertion が無い",
+    (t) => (t.operations[0].layout.covered_by = []),
+    "changes: false なのに covered_by が空",
+  ],
+  [
+    "changes: true の標本が 1 回",
+    (t) => t.operations[1].layout.samples.pop(),
+    "samples が 2 回未満",
+  ],
+  [
+    "changes: true に操作の前の測定が無い",
+    (t) => delete t.operations[1].layout.before,
+    "layout.before: オブジェクトでない",
+  ],
+  [
+    "標本の repeat が連番でない",
+    (t) => (t.operations[1].layout.samples[1].repeat = 3),
+    "repeat が 1 から始まる連番でない",
+  ],
+  [
+    "標本の repeat が重複",
+    (t) => (t.operations[1].layout.samples[1].repeat = 1),
+    "repeat が 1 から始まる連番でない",
+  ],
+  [
+    "標本に client_height が無い",
+    (t) => delete t.operations[1].layout.samples[0].client_height,
+    "client_height が正の数でない",
+  ],
+  [
+    "標本の scroll_height が非数",
+    (t) => (t.operations[1].layout.samples[0].scroll_height = "768"),
+    "scroll_height が 0 以上の数でない",
+  ],
+  ["標本の矩形が空", (t) => (t.operations[1].layout.samples[0].rects = {}), "rects が空"],
+  [
+    "矩形の論理名が空",
+    (t) => {
+      const l = t.operations[1].layout;
+      for (const m of [l.before, ...l.samples]) m.rects = { "": m.rects.グリッド };
+    },
+    "rects に空の論理名がある",
+  ],
+  [
+    "矩形の論理名が空白だけ",
+    (t) => {
+      const l = t.operations[1].layout;
+      for (const m of [l.before, ...l.samples]) m.rects = { " ": m.rects.グリッド };
+    },
+    "rects に空の論理名がある",
+  ],
+  [
+    "矩形の軸が欠けている",
+    (t) => delete t.operations[1].layout.samples[0].rects.グリッド.height,
+    "数値でも null でもない",
+  ],
+  [
+    "矩形の幅が負",
+    (t) => (t.operations[1].layout.samples[0].rects.グリッド.width = -1),
+    "width / height が負",
+  ],
+  [
+    "回によって測った論理名が違う",
+    (t) => delete t.operations[1].layout.samples[1].rects.条件の行2,
+    "測った論理名が揃っていない",
+  ],
+  [
+    "changes: true なのに全ての標本が操作の前と同じ",
+    (t) => {
+      const l = t.operations[1].layout;
+      l.samples = l.samples.map((m, i) => ({ ...structuredClone(l.before), repeat: i + 1 }));
+    },
+    "before と全ての samples が同じ",
+  ],
+  [
+    "changes: true なのに全ての標本が操作の前と同じ（矩形の軸の書き順だけが違う）",
+    (t) => {
+      const l = t.operations[1].layout;
+      const reorder = (rects) =>
+        Object.fromEntries(
+          Object.entries(rects).map(([k, r]) =>
+            r === null ? [k, null] : [k, { height: r.height, width: r.width, y: r.y, x: r.x }],
+          ),
+        );
+      l.samples = l.samples.map((m, i) => ({
+        ...structuredClone(l.before),
+        rects: reorder(l.before.rects),
+        repeat: i + 1,
+      }));
+    },
+    "before と全ての samples が同じ",
+  ],
+  [
+    "changes: true に assertion が無い",
+    (t) => (t.operations[1].layout.covered_by = [""]),
+    "changes: true なのに covered_by が空",
+  ],
+])("頁の組み方の記録の欠けを落とす: %s（Issue #460）", (_name, mutate, needle) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(needle);
+});
+
+test("同梱テンプレートのプレースホルダのままの layout は落とす（Issue #460）", () => {
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const t = mutated((x) => {
+    x.operations[0].layout = template.operations[0].layout;
+    x.operations[1].layout = template.operations[1].layout;
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('operations["copy"]: layout');
+  expect(r.stderr).toContain('operations["search"]: layout');
+});
+
+test.each([
+  [
+    "evidence がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[0].layout.evidence = tpl.operations[1].layout.evidence),
+    "テンプレートの説明文のまま",
+  ],
+  [
+    "covered_by がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[0].layout.covered_by = tpl.operations[1].layout.covered_by),
+    "changes: false なのに covered_by が空",
+  ],
+  [
+    "changes: true の covered_by がテンプレートの説明文のまま",
+    (tpl) => (x) => (x.operations[1].layout.covered_by = tpl.operations[0].layout.covered_by),
+    "changes: true なのに covered_by が空",
+  ],
+])(
+  "layout の欄をテンプレートの説明文のまま出したら落とす: %s（Codex レビュー）",
+  (_name, mk, needle) => {
+    const template = JSON.parse(
+      readFileSync(
+        new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const r = run(mutated(mk(template)));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(needle);
+  },
+);
