@@ -7,6 +7,22 @@
   "test_file": "scripts/checkpoint.test.js",
   "mutations": [
     {
+      "id": "real-inside",
+      "why": "スイートの根の包含を実パスで判定しない（シンボリックリンクで slug のディレクトリの中を指す根を通す）",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (realUnder(real, slugReal)) {\n      return `スイートの根",
+      "replace": "    if (false) {\n      return `スイートの根",
+      "occurrences": 1,
+      "expect_failing": [
+        "#474 再現: slug のディレクトリの中のファイルを指すリンクを --include にすると record は exit 2",
+        "#474: slug のディレクトリそのものを指すリンクを --include にすると record は exit 2",
+        "#474: 記録した後にスイートの根を slug のディレクトリの中を指すリンクへ差し替えると verify は exit 2（W4 を実パスで）",
+        "record が書かない形の記録は verify で exit 2: W4 スイートの根が --dir の中",
+        "使い方の誤りは exit 2: --include が --dir そのもの",
+        "使い方の誤りは exit 2: --include が --dir の中"
+      ]
+    },
+    {
       "id": "exclude-everywhere",
       "why": "slug のディレクトリ直下以外でも除外名を外す",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
@@ -362,22 +378,6 @@
       ]
     },
     {
-      "id": "real-inside",
-      "why": "スイートの根の包含を実パスで判定しない（シンボリックリンクで slug のディレクトリの中を指す根を通す）",
-      "file": "skills/parity-suite/scripts/checkpoint.mjs",
-      "find": "    if (realUnder(real, slugReal)) {\n",
-      "replace": "    if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "#474 再現: slug のディレクトリの中のファイルを指すリンクを --include にすると record は exit 2",
-        "#474: slug のディレクトリそのものを指すリンクを --include にすると record は exit 2",
-        "#474: 記録した後にスイートの根を slug のディレクトリの中を指すリンクへ差し替えると verify は exit 2（W4 を実パスで）",
-        "record が書かない形の記録は verify で exit 2: W4 スイートの根が --dir の中",
-        "使い方の誤りは exit 2: --include が --dir そのもの",
-        "使い方の誤りは exit 2: --include が --dir の中"
-      ]
-    },
-    {
       "id": "real-duplicate",
       "why": "スイートの根の重複を実パスで判定しない（字面の違う 2 つの根が同じ実体を指すのを通す）",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
@@ -398,7 +398,6 @@
       "occurrences": 1,
       "expect_failing": [
         "#474 再現: slug のディレクトリの中のファイルを指すリンクを --include にすると record は exit 2",
-        "#474: slug のディレクトリそのものを指すリンクを --include にすると record は exit 2",
         "#474: slug のディレクトリを含む祖先を --include にすると record は exit 2（別機能の成果物を指紋に混ぜない）",
         "#474: 字面の違う 2 つの --include が同じ実体を指すと record は exit 2",
         "使い方の誤りは exit 2: --include が --dir そのもの",
@@ -413,7 +412,6 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "#474: 記録した後にスイートの根を slug のディレクトリの中を指すリンクへ差し替えると verify は exit 2（W4 を実パスで）",
         "#474: 記録の 2 つのスイートの根が同じ実体を指すと verify は exit 2（W4 を実パスで）",
         "#474: 記録のスイートの根が slug のディレクトリの祖先なら verify は exit 2（W4 を実パスで）",
         "record が書かない形の記録は verify で exit 2: W4 スイートの根が --dir の中"
@@ -429,6 +427,18 @@
       "expect_failing": [
         "#474: slug のディレクトリを含む祖先を --include にすると record は exit 2（別機能の成果物を指紋に混ぜない）",
         "#474: 記録のスイートの根が slug のディレクトリの祖先なら verify は exit 2（W4 を実パスで）"
+      ]
+    },
+    {
+      "id": "nested-link-into-slug",
+      "why": "スイートの根の下で slug のディレクトリの中を指すリンクを辿って指紋にする（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (inSuite) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#474（Codex レビュー）: スイートの根の中のファイルが slug のディレクトリの中を指すリンクなら record は exit 2",
+        "#474（Codex レビュー）: 記録した後にスイートの中のファイルを slug の中を指すリンクへ差し替えると verify は exit 2"
       ]
     }
   ]

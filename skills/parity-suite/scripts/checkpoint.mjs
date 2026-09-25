@@ -133,7 +133,8 @@ function realRootProblem(cwd, slugDir, suiteRoots) {
     if (realUnder(real, slugReal)) {
       return `スイートの根 ${r} の実パス（${real}）が --dir の中を指す（シンボリックリンク経由でも slug のディレクトリの成果物はスイートにならない）`;
     }
-    // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に混ざる
+    // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に混ざる。
+    // 根の下の要素が slug のディレクトリの中を指す形は fingerprintFiles が辿りながら止める
     if (realUnder(slugReal, real)) {
       return `スイートの根 ${r} の実パス（${real}）が --dir を含む（slug のディレクトリの祖先はスイートの根にしない。別機能の成果物が指紋に混ざる）`;
     }
@@ -157,13 +158,33 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
   /** @type {Record<string, string>} */
   const files = {};
   const slugAbs = resolve(cwd, slugDir);
-  const visit = (abs) => {
+  const slugReal = realPathOf(slugAbs);
+  /** いま辿っている根（slug のディレクトリか、スイートの根か） */
+  let r0 = slugDir;
+  if (slugReal === null) throw new UsageError(`--dir（${slugDir}）の実パスを解決できない`);
+  /**
+   * @param {string} abs
+   * @param {boolean} inSuite - スイートの根（--include）の下の要素か（根そのものは realRootProblem が確かめる）
+   */
+  const visit = (abs, inSuite) => {
+    // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物の写しになり、
+    // 書いたスイートを 1 つも照合しないまま通る（Codex レビュー、PR #475）。根の下で辿る要素をすべて実パスで確かめる
+    if (inSuite) {
+      const real = realPathOf(abs);
+      if (real === null)
+        throw new UsageError(`スイートの根の下の ${toRel(cwd, abs)} の実パスを解決できない`);
+      if (realUnder(real, slugReal)) {
+        throw new UsageError(
+          `スイートの根の下の ${toRel(cwd, abs)} の実パス（${real}）が --dir の中を指す（slug のディレクトリの成果物はスイートにならない）`,
+        );
+      }
+    }
     const st = statSync(abs);
     if (st.isDirectory()) {
       for (const name of readdirSync(abs).sort()) {
         if (SKIP_DIRS.has(name)) continue;
         if (abs === slugAbs && EXCLUDED_IN_DIR.has(name)) continue;
-        visit(join(abs, name));
+        visit(join(abs, name), r0 !== slugDir);
       }
     } else if (st.isFile()) {
       const rel = toRel(cwd, abs);
@@ -176,7 +197,8 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
       if (opts.allowMissing) continue;
       throw new UsageError(`指紋の対象が存在しない: ${r}`);
     }
-    visit(abs);
+    r0 = r;
+    visit(abs, false);
   }
   return files;
 }
