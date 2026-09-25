@@ -206,6 +206,11 @@ export function main(argv, deps = {}) {
       process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
       return 2;
     }
+    // 同じ引数を重ねると後勝ちで黙って別のファイル・配列・鍵を書き換えうるので、曖昧な呼び出しは止める
+    if (Object.hasOwn(opts, a.slice(2))) {
+      process.stderr.write(`error: ${a} が重複している\n${usage}\n`);
+      return 2;
+    }
     opts[a.slice(2)] = v;
     i += 1;
   }

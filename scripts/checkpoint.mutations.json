@@ -238,6 +238,18 @@
       "expect_failing": [
         "record が作らない形の記録は verify で exit 2: next_step が区切りの定義と違う（Codex レビュー）"
       ]
+    },
+    {
+      "id": "duplicate-option",
+      "why": "--dir / --at の重複を後勝ちで受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if ((a === \"--dir\" && dir !== null) || (a === \"--at\" && at !== null)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "使い方の誤りは exit 2: --dir の重複",
+        "使い方の誤りは exit 2: --at の重複"
+      ]
     }
   ]
 }

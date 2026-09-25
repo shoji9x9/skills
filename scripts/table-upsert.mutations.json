@@ -85,6 +85,19 @@
         "\"]\" を含む id は JSON 文字列の選択値で選べる（Codex レビュー）",
         "JSON 文字列の選択値のエスケープ（\\\" を含む id）も読む"
       ]
+    },
+    {
+      "id": "duplicate-option",
+      "why": "重ねた引数を後勝ちで受ける",
+      "file": "skills/parity-suite/scripts/table-upsert.mjs",
+      "find": "    if (Object.hasOwn(opts, a.slice(2))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--file\",\"t.json\",\"--array\",\"operations\"]",
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--array\",\"operations\"]",
+        "使い方の誤りは exit 2: [\"keys\",\"--file\",\"t.json\",\"--array\",\"operations\",\"--key\",\"id\",\"--key\",\"id\"]"
+      ]
     }
   ]
 }

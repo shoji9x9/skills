@@ -285,6 +285,15 @@ test.each([
   [["keys", "--file", "t.json"], "--file と --array"],
   [["keys", "--file", "t.json", "--array", "operations", "--bogus", "x"], "不明な引数"],
   [["keys", "--file", "--array", "operations"], "値が無い"],
+  [["keys", "--file", "t.json", "--file", "t.json", "--array", "operations"], "--file が重複"],
+  [
+    ["keys", "--file", "t.json", "--array", "operations", "--array", "operations"],
+    "--array が重複",
+  ],
+  [
+    ["keys", "--file", "t.json", "--array", "operations", "--key", "id", "--key", "id"],
+    "--key が重複",
+  ],
 ])("使い方の誤りは exit 2: %j", (args, needle) => {
   const r = run(baseTable(), args);
   expect(r.status).toBe(2);

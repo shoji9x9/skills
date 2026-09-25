@@ -214,6 +214,11 @@ export function main(argv, deps = {}) {
       process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
       return 2;
     }
+    // --include 以外を重ねると後勝ちで黙って別の区切り・別の slug を扱うので止める
+    if ((a === "--dir" && dir !== null) || (a === "--at" && at !== null)) {
+      process.stderr.write(`error: ${a} が重複している\n${usage}\n`);
+      return 2;
+    }
     if (a === "--dir") dir = v;
     else if (a === "--at") at = v;
     else includes.push(v);

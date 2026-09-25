@@ -190,6 +190,12 @@ test.each([
     "--include は渡さない",
   ],
   ["サブコマンドが無い", [], "サブコマンド"],
+  [
+    "--dir の重複",
+    ["record", "--dir", SLUG, "--dir", SLUG, "--at", "authored", "--include", SUITE],
+    "--dir が重複",
+  ],
+  ["--at の重複", ["verify", "--dir", SLUG, "--at", "authored", "--at", "captured"], "--at が重複"],
   ["不明な引数", ["record", "--dir", SLUG, "--at", "authored", "--bogus", "x"], "不明な引数"],
 ])("使い方の誤りは exit 2: %s", (_name, args, needle) => {
   const dir = project();
