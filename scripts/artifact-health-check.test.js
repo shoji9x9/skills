@@ -25,7 +25,7 @@ import {
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
 // 期待値はスクリプトと同じ関数から取る（テスト側で計算規則を複製すると、両方が同時に間違っても緑になる）。
-const { suiteFingerprint, stripJsComments } = await import(pathToFileURL(script).href);
+const { main, suiteFingerprint, stripJsComments } = await import(pathToFileURL(script).href);
 
 const XLSX_BODY = "row-a\nrow-b\n";
 const xlsxSha = createHash("sha256").update(XLSX_BODY).digest("hex");
@@ -122,15 +122,50 @@ function makeProject(mutate, opts = {}) {
 }
 
 /**
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #478）。
+ * CLI として起動できること（エントリ判定・引数と出力の受け渡し）は cli() の陽性コントロールが持つ。
  * @param {string} metadataPath
  * @param {string[]} [extra]
  */
 function run(metadataPath, extra = []) {
+  let stdout = "";
+  let stderr = "";
+  const status = main(["--metadata", metadataPath, ...extra], {
+    out: (s) => (stdout += s),
+    err: (s) => (stderr += s),
+  });
+  return { status, stdout, stderr };
+}
+
+/**
+ * 子プロセスとして CLI を起動する。
+ * @param {string} metadataPath
+ * @param {string[]} [extra]
+ */
+function cli(metadataPath, extra = []) {
   const r = spawnSync(process.execPath, [script, "--metadata", metadataPath, ...extra], {
     encoding: "utf8",
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、健全な成果物は exit 0 で ok を stdout に出す", () => {
+  const { root, metadataPath } = makeProject();
+  const r = cli(metadataPath);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+  const { root, metadataPath } = makeProject();
+  const r = cli(metadataPath, ["--stage", "bogus"]);
+  expect(r.stderr).toMatch(/--stage は diff \| suite のいずれか/);
+  expect(r.stderr).toMatch(/^usage: artifact-health-check\.mjs/m);
+  expect(r.stdout).toBe("");
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
 
 test("陽性コントロール: 健全な成果物は exit 0", () => {
   const { root, metadataPath } = makeProject();

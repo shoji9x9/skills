@@ -1905,15 +1905,20 @@ const usage = [
 ].join("\n");
 
 /**
+ * 出力先は差し込める（テストが子プロセスを起動せずに終了コード・stdout・stderr を受け取るため）。
  * @param {string[]} argv
+ * @param {{ out: (s: string) => void, err: (s: string) => void }} [io]
  * @returns {number} 終了コード
  */
-export function main(argv) {
+export function main(
+  argv,
+  io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) },
+) {
   try {
-    return run(argv, { log: (line) => process.stdout.write(`${line}\n`) });
+    return run(argv, { log: (line) => io.out(`${line}\n`) });
   } catch (e) {
     if (e instanceof UsageError) {
-      process.stderr.write(`error: ${e.message}\n${usage}\n`);
+      io.err(`error: ${e.message}\n${usage}\n`);
       return 2;
     }
     throw e;

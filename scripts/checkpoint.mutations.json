@@ -440,6 +440,19 @@
         "#474（Codex レビュー）: スイートの根の中のファイルが slug のディレクトリの中を指すリンクなら record は exit 2",
         "#474（Codex レビュー）: 記録した後にスイートの中のファイルを slug の中を指すリンクへ差し替えると verify は exit 2"
       ]
+    },
+    {
+      "id": "checkpoint-cli-entry-skipped",
+      "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #478）",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "if (invokedAsCli) {\n",
+      "replace": "if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+      ]
     }
   ]
 }

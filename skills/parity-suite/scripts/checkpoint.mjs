@@ -338,12 +338,15 @@ export function recordProblem(rec, slugDir, opts) {
 }
 
 /**
+ * 出力先は差し込める（テストが子プロセスを起動せずに終了コード・stdout・stderr を受け取るため）。
  * @param {string[]} argv - process.argv.slice(2)
- * @param {{ cwd?: string }} [deps]
+ * @param {{ cwd?: string, out?: (s: string) => void, err?: (s: string) => void }} [deps]
  * @returns {number}
  */
 export function main(argv, deps = {}) {
   const cwd = deps.cwd ?? process.cwd();
+  const out = deps.out ?? ((s) => process.stdout.write(s));
+  const err = deps.err ?? ((s) => process.stderr.write(s));
   const vocab = CHECKPOINTS.map((c) => c.at).join(" | ");
   const usage = [
     `usage: checkpoint.mjs record --dir .replace/parity/<slug> --at <${vocab}> [--include <パス>]...`,
@@ -352,7 +355,7 @@ export function main(argv, deps = {}) {
   ].join("\n");
   const [command, ...rest] = argv;
   if (command !== "record" && command !== "verify") {
-    process.stderr.write(`error: サブコマンドが無い・不明: ${command ?? ""}\n${usage}\n`);
+    err(`error: サブコマンドが無い・不明: ${command ?? ""}\n${usage}\n`);
     return 2;
   }
   let dir = null;
@@ -363,16 +366,16 @@ export function main(argv, deps = {}) {
     const a = rest[i];
     const v = rest[i + 1];
     if (a !== "--dir" && a !== "--at" && a !== "--include") {
-      process.stderr.write(`error: 不明な引数 ${a}\n${usage}\n`);
+      err(`error: 不明な引数 ${a}\n${usage}\n`);
       return 2;
     }
     if (v === undefined || v === "" || v.startsWith("--")) {
-      process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
+      err(`error: ${a} に値が無い\n${usage}\n`);
       return 2;
     }
     // --include 以外を重ねると後勝ちで黙って別の区切り・別の slug を扱うので止める
     if ((a === "--dir" && dir !== null) || (a === "--at" && at !== null)) {
-      process.stderr.write(`error: ${a} が重複している\n${usage}\n`);
+      err(`error: ${a} が重複している\n${usage}\n`);
       return 2;
     }
     if (a === "--dir") dir = v;
@@ -409,11 +412,11 @@ export function main(argv, deps = {}) {
     if (command === "verify") {
       const last = record.checkpoints[record.checkpoints.length - 1];
       if (last === undefined) {
-        process.stderr.write(`error: 区切りが 1 つも記録されていない（${at} から再開できない）\n`);
+        err(`error: 区切りが 1 つも記録されていない（${at} から再開できない）\n`);
         return 1;
       }
       if (last.at !== at) {
-        process.stderr.write(
+        err(
           `error: 最後に記録した区切りは ${String(last.at)}（${at} ではない）。${String(last.at)} から再開するか、${at} までの手順をやり直す\n`,
         );
         return 1;
@@ -428,11 +431,11 @@ export function main(argv, deps = {}) {
         (f) => Object.hasOwn(recorded, f) && recorded[f] !== now[f],
       );
       const ok = added.length + removed.length + changed.length === 0;
-      process.stdout.write(
+      out(
         `${JSON.stringify({ tool: "checkpoint", version: VERSION, at, ok, next_step: last.next_step, files: Object.keys(now).length, added, removed, changed }, null, 2)}\n`,
       );
       if (!ok) {
-        process.stderr.write(
+        err(
           `error: ${at} を記録した後に成果物が変わっている（追加 ${added.length}・削除 ${removed.length}・変更 ${changed.length}）。` +
             "区切りの後の手順が途中まで進んだか、手で直した。どこまで済んだかを成果物から決められないので、区切りの次の手順をやり直してから record し直す\n",
         );
@@ -503,12 +506,12 @@ export function main(argv, deps = {}) {
       recordPath,
       `${JSON.stringify({ tool: "checkpoint", version: VERSION, checkpoints: record.checkpoints }, null, 2)}\n`,
     );
-    process.stdout.write(
+    out(
       `${JSON.stringify({ tool: "checkpoint", version: VERSION, at, recorded: true, next_step: entry.next_step, roots, files: Object.keys(files).length })}\n`,
     );
     return 0;
   } catch (e) {
-    process.stderr.write(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    err(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
     return 2;
   }
 }
