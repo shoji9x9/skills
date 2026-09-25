@@ -221,7 +221,12 @@ test.each([
     JSON.stringify({
       version: "1",
       checkpoints: [
-        { at: "authored", roots: [".replace/parity/share", "e2e/parity/share"], files: {} },
+        {
+          at: "authored",
+          next_step: 6,
+          roots: [".replace/parity/share", "e2e/parity/share"],
+          files: {},
+        },
       ],
     }),
   ],
@@ -232,6 +237,7 @@ test.each([
       checkpoints: [
         {
           at: "authored",
+          next_step: 6,
           roots: [".replace/parity/share", "e2e/parity/share"],
           files: { "a.json": "x" },
         },
@@ -245,6 +251,7 @@ test.each([
       checkpoints: [
         {
           at: "authored",
+          next_step: 6,
           roots: ["e2e/parity/share", ".replace/parity/share"],
           files: { "e2e/parity/share/share.spec.ts": "0".repeat(64) },
         },
@@ -309,8 +316,18 @@ test.each([
     "順の先頭から並んでいない",
   ],
   [
-    "区切りの順が入れ替わっている",
-    (rec) => ([rec.checkpoints[0], rec.checkpoints[1]] = [rec.checkpoints[1], rec.checkpoints[0]]),
+    "区切りの名前が入れ替わっている（next_step は位置どおり）",
+    (rec) => {
+      [rec.checkpoints[0].at, rec.checkpoints[1].at] = [
+        rec.checkpoints[1].at,
+        rec.checkpoints[0].at,
+      ];
+    },
+    "順の先頭から並んでいない",
+  ],
+  [
+    "next_step が区切りの定義と違う",
+    (rec) => (rec.checkpoints[2].next_step = 999),
     "順の先頭から並んでいない",
   ],
   [

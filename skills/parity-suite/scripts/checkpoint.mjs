@@ -158,9 +158,9 @@ function readRecord(path) {
   // record が作る形だけを受ける: 区切りは語彙の順の先頭から欠けずに並び、各区切りはスイートの根（2 つ目以降）を持ち、
   // 前の区切りの根を引き継ぐ。前段を欠いた記録（手で直した・壊れた）を通すと、前段の成果物を確かめないまま再開する
   for (const [i, c] of rec.checkpoints.entries()) {
-    if (c.at !== CHECKPOINTS[i]?.at) {
+    if (c.at !== CHECKPOINTS[i]?.at || c.next_step !== CHECKPOINTS[i]?.next_step) {
       throw new UsageError(
-        `${RECORD_NAME} の区切りが ${CHECKPOINTS.map((k) => k.at).join(" → ")} の順の先頭から並んでいない（${i + 1} 番目が ${String(c.at)}）`,
+        `${RECORD_NAME} の区切りが ${CHECKPOINTS.map((k) => k.at).join(" → ")} の順の先頭から並んでいない、または next_step が定義と違う（${i + 1} 番目が ${String(c.at)}）`,
       );
     }
     const roots = /** @type {string[]} */ (c.roots);
