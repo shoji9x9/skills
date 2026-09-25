@@ -21,8 +21,7 @@
 // 陽性コントロールも実データから取る（実在の eval の prompt を 1 文字変えると指紋が外れること）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -33,6 +32,7 @@ import {
   evalFingerprint,
   listEvalFiles,
 } from "./check-eval-reachability.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "scripts/check-eval-reachability.js");
@@ -225,7 +225,7 @@ test("evals が配列でない・JSON として壊れている入力を落とす
 });
 
 test("孤児の免除は全走査でだけ落とす（部分走査では正常な commit を止めない）", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
@@ -242,7 +242,7 @@ test("孤児の免除は全走査でだけ落とす（部分走査では正常�
 });
 
 test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだけ落とす", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
@@ -263,7 +263,7 @@ test("配布スキルの中の eval（skills/<name>/evals/）は全走査でだ�
 });
 
 test("backlog が無ければ免除の正本が読めないので落とす", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
   writeFileSync(evalsPath, file());
@@ -274,7 +274,7 @@ test("backlog が無ければ免除の正本が読めないので落とす", () 
 test("backlog が壊れていても、クラッシュせず違反として落とす", () => {
   // 不在を違反にしている以上、壊れている場合も違反にする（素の JSON.parse だと merge 衝突の
   // 残骸でスタックトレースごと検査が止まり、「検査した結果」ではなくクラッシュで落ちる）。
-  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  const root = makeTempDir("eval-reach-");
   mkdirSync(join(root, "evals/demo"), { recursive: true });
   mkdirSync(join(root, "scripts"), { recursive: true });
   const evalsPath = join(root, "evals/demo/evals.json");
@@ -298,7 +298,7 @@ test.each([
 });
 
 test("CLI: 対象 0 件は成功に倒さず exit 1", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-reach-"));
+  const root = makeTempDir("eval-reach-");
   const r = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
   expect(r.status).toBe(1);
   expect(r.stderr).toMatch(/evals\.json が 0 件/);

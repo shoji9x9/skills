@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repository = resolve(import.meta.dirname, "..");
 const fixturesRoot = join(repository, "evals", "issue-start", "fixtures");
@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function prepareFixture(name) {
-  const directory = mkdtempSync(join(tmpdir(), `issue-start-${name}-`));
+  const directory = makeTempDir(`issue-start-${name}-`);
   temporaryDirectories.push(directory);
   cpSync(join(fixturesRoot, name), directory, { recursive: true });
   execFileSync(join(directory, "setup.sh"), { cwd: directory, stdio: "pipe" });

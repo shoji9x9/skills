@@ -8,10 +8,10 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/behavior-compare.mjs");
@@ -297,7 +297,7 @@ test("鍵は区切り文字で潰れない", () => {
 
 /** 採取物のディレクトリを作る。 */
 function baselineDir() {
-  const dir = mkdtempSync(join(tmpdir(), "behavior-compare-"));
+  const dir = makeTempDir("behavior-compare-");
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(metadataOf()));
   for (const [id, doc] of Object.entries(behaviorsOf())) {
     mkdirSync(join(dir, "baseline", id), { recursive: true });
@@ -349,7 +349,7 @@ test("CLI: 引数の欠落・空白だけの target は exit 2", () => {
 
 test("baseline の外を指す behaviors.json は読まない", () => {
   const dir = baselineDir();
-  const outside = mkdtempSync(join(tmpdir(), "behavior-compare-outside-"));
+  const outside = makeTempDir("behavior-compare-outside-");
   mkdirSync(join(outside, "x"), { recursive: true });
   writeFileSync(
     join(outside, "x", "behaviors.json"),

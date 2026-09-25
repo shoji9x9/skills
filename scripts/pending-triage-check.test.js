@@ -58,10 +58,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/pending-triage-check.mjs");
@@ -73,7 +73,7 @@ const SLUG = "my-feature";
  * @param {{pending: unknown[], entries?: unknown[], keep?: string[], may_change?: string[], slugs?: string[], features?: false}} input
  */
 function run(input) {
-  const work = mkdtempSync(join(tmpdir(), "pending-triage-"));
+  const work = makeTempDir("pending-triage-");
   const registries = join(work, "registries.json");
   const metadata = join(work, "diff-metadata.json");
   const features = join(work, "features.md");
@@ -436,7 +436,7 @@ test("--features を渡さないと別機能への緩和を適用しない（fai
 });
 
 test("slug 表の無い features.md は読めないものとして exit 2 で落ちる", () => {
-  const work = mkdtempSync(join(tmpdir(), "pending-triage-features-"));
+  const work = makeTempDir("pending-triage-features-");
   const registries = join(work, "registries.json");
   const metadata = join(work, "diff-metadata.json");
   const features = join(work, "features.md");

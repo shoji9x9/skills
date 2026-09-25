@@ -10,8 +10,7 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -19,6 +18,7 @@ import {
   itemSource,
   setInventory,
 } from "./lib/coverage-set-provenance-fixture.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/coverage-check.mjs");
@@ -949,7 +949,7 @@ test("同値クラスの rationale 空・members 外の representative は問題
 
 /** 一時ディレクトリに metadata.json と被覆表を書いて CLI を実行する。 */
 function runCli(metadata, coverage) {
-  const dir = mkdtempSync(join(tmpdir(), "coverage-check-"));
+  const dir = makeTempDir("coverage-check-");
   const metaPath = join(dir, "metadata.json");
   const covPath = join(dir, "component-coverage.json");
   writeFileSync(metaPath, JSON.stringify(metadata));

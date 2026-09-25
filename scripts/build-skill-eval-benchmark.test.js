@@ -1,17 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // `build-skill-eval-benchmark.js` は **assertion テキストをキーにした入力だけを受理する**
 // 集計器（Issue #421）。位置で対応づけると、assertion の追加・削除・並べ替えで判定がずれ、
@@ -25,7 +17,7 @@ const ASSERTIONS = ["最初の assertion", "2 番目の assertion", "3 番目の
 const dirs = [];
 
 function makeIteration() {
-  const root = mkdtempSync(join(tmpdir(), "benchmark-build-"));
+  const root = makeTempDir("benchmark-build-");
   dirs.push(root);
   return root;
 }
@@ -831,7 +823,7 @@ describe("受理しない入力（exit 2）", () => {
     const root = makeIteration();
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "with_skill" });
     writeRun(root, { evalDir: "eval-1", evalId: 1, configuration: "without_skill" });
-    const real = mkdtempSync(join(tmpdir(), "benchmark-linked-"));
+    const real = makeTempDir("benchmark-linked-");
     dirs.push(real);
     for (const configuration of ["with_skill", "without_skill"]) {
       writeRun(real, { evalDir: "eval-2", evalId: 2, configuration });

@@ -13,10 +13,11 @@
 // 実ファイルの書き方〈行末コメント〉と解析がずれていても緑のまま通る）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = [
@@ -45,7 +46,7 @@ const parse = (stdout) =>
   );
 
 function withConfig(body, fn) {
-  const dir = mkdtempSync(join(tmpdir(), "review-tool-"));
+  const dir = makeTempDir("review-tool-");
   const path = join(dir, "skills.yml");
   writeFileSync(path, body);
   try {
@@ -204,7 +205,7 @@ for (const script of SCRIPTS) {
   });
 
   test(`${name}: git の外では既定へ倒すが、参照したパスを stderr に残す`, () => {
-    const dir = mkdtempSync(join(tmpdir(), "review-tool-nogit-"));
+    const dir = makeTempDir("review-tool-nogit-");
     try {
       const r = run(script, { cwd: dir });
       expect(r.status, r.stderr).toBe(0);

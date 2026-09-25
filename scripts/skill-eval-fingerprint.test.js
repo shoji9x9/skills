@@ -1,5 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { formatError as formatReuseError } from "./reuse-skill-eval-baseline.js";
@@ -9,6 +8,7 @@ import {
   formatError as formatFingerprintError,
   hashFixture,
 } from "./skill-eval-fingerprint.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const temporaryDirectories = [];
 
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function temporaryDirectory() {
-  const directory = mkdtempSync(join(tmpdir(), "skill-eval-fingerprint-"));
+  const directory = makeTempDir("skill-eval-fingerprint-");
   temporaryDirectories.push(directory);
   return directory;
 }

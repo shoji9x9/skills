@@ -10,10 +10,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/evidence-gap-check.mjs");
@@ -46,7 +46,7 @@ function run(dir, files, args) {
 }
 
 function withDir(fn) {
-  const dir = mkdtempSync(join(tmpdir(), "evidence-gap-"));
+  const dir = makeTempDir("evidence-gap-");
   try {
     return fn(dir);
   } finally {

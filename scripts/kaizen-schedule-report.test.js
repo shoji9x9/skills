@@ -1,17 +1,9 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // kaizen-schedule-report.sh は **CI から無人で走り、出力がそのまま Issue になる**。
 // 判定が狂っても人が見ているのは結果の Issue だけなので、狂ったこと自体は出力に現れない。
@@ -76,7 +68,7 @@ function note({
 
 /** 一時プロジェクトを作って cb に渡す。notes は {name: noteOptions}、config は .kaizen/config の中身。 */
 function withProject({ notes = {}, config = null, degraded = false }, cb) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-sched-"));
+  const dir = makeTempDir("kaizen-sched-");
   try {
     mkdirSync(join(dir, ".kaizen"), { recursive: true });
     for (const [name, opts] of Object.entries(notes)) {
@@ -205,7 +197,7 @@ describe("opt-in（schedule_enabled の既定は off）", () => {
     );
     // 置換が当たったことの陽性コントロール（空振りだと既定 off のまま測ってしまう）。
     expect(flipped).toContain("readonly DEFAULT_SCHEDULE_ENABLED=on");
-    const dir = mkdtempSync(join(tmpdir(), "kaizen-sched-default-"));
+    const dir = makeTempDir("kaizen-sched-default-");
     try {
       mkdirSync(join(dir, ".kaizen"), { recursive: true });
       writeFileSync(join(dir, ".kaizen", "a.md"), note({ slug: "a" }));

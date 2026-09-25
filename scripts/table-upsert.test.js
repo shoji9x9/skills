@@ -8,10 +8,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/table-upsert.mjs");
@@ -39,7 +39,7 @@ const baseTable = () => ({
  * @param {{ fragment?: object | string, input?: string }} [opts]
  */
 function run(table, args, opts = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "table-upsert-"));
+  const dir = makeTempDir("table-upsert-");
   writeFileSync(
     join(dir, "t.json"),
     typeof table === "string" ? table : JSON.stringify(table, null, 2),

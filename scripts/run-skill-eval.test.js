@@ -3,16 +3,15 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   symlinkSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, test } from "vitest";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const temporaryDirectories = [];
@@ -24,7 +23,7 @@ afterEach(() => {
 });
 
 function makeStub() {
-  const directory = mkdtempSync(join(tmpdir(), "skill-eval-stub-"));
+  const directory = makeTempDir("skill-eval-stub-");
   temporaryDirectories.push(directory);
   const stub = join(directory, "executor-stub.sh");
   const claudeMarker = join(directory, "claude-was-invoked");
@@ -928,7 +927,7 @@ describe("run-skill-eval required sibling skills", () => {
   // are copied, not symlinked: the helpers compare argv[1] with import.meta.url to
   // decide whether to run main(), and a symlinked path makes them silently no-op.
   function makeRepository(evalDefinition) {
-    const root = mkdtempSync(join(tmpdir(), "skill-eval-required-"));
+    const root = makeTempDir("skill-eval-required-");
     temporaryDirectories.push(root);
     mkdirSync(join(root, "scripts"));
     for (const name of [

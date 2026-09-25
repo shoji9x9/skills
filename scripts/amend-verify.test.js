@@ -2,12 +2,12 @@
 // pngjs はこのリポジトリに入れないため、判定は純関数 judgePair で測り、CLI は入力不備（exit 2）の経路だけを測る。
 
 import { expect, test } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const verify = await import(join(repoRoot, "skills/parity-diff/scripts/amend-verify.mjs"));
@@ -271,7 +271,7 @@ test("regionFromJson は配列とオブジェクトを読み、欠けたもの�
 });
 
 test("sha256File はファイル内容の sha256 を返す", () => {
-  const dir = mkdtempSync(join(tmpdir(), "amend-verify-"));
+  const dir = makeTempDir("amend-verify-");
   const path = join(dir, "x.bin");
   writeFileSync(path, "abc");
   expect(verify.sha256File(path)).toBe(createHash("sha256").update("abc").digest("hex"));
@@ -386,7 +386,7 @@ test.each([
     /pair is duplicated/,
   ],
 ])("--pairs が %s なら exit 2", async (_name, list, message) => {
-  const dir = mkdtempSync(join(tmpdir(), "amend-verify-"));
+  const dir = makeTempDir("amend-verify-");
   const path = join(dir, "pairs.json");
   writeFileSync(path, JSON.stringify(list));
 
@@ -397,7 +397,7 @@ test.each([
 });
 
 test("--out の既存記録が別の change_id なら exit 2（別の変更宣言の記録へ混ぜない）", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "amend-verify-"));
+  const dir = makeTempDir("amend-verify-");
   const out = join(dir, "record.json");
   const before = JSON.stringify({
     tool: "amend-verify",

@@ -1,9 +1,9 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // kaizen-status-check.sh は awk で frontmatter の applied-to を読む。値が
 // 折り返された flow 配列（.kaizen/*.md にフォーマッタを掛けると applied-to が
@@ -31,7 +31,7 @@ session: claude-code
 }
 
 function runCheck(content) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-status-check-"));
+  const dir = makeTempDir("kaizen-status-check-");
   try {
     mkdirSync(join(dir, ".kaizen"));
     writeFileSync(join(dir, ".kaizen", "2026-08-10-note.md"), content);
@@ -227,7 +227,7 @@ session: claude-code
 const WRAPPED_MESSAGE = "is wrapped onto the next line";
 
 function runCheckOnBody(body, { status = "pending", appliedTo = "[]", archived = false } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-lead-"));
+  const dir = makeTempDir("kaizen-lead-");
   try {
     const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
     mkdirSync(noteDir, { recursive: true });
@@ -395,7 +395,7 @@ function realAwkPath() {
 test("折り返し検査が実行できなかったら素通りさせない", () => {
   const realAwk = realAwkPath();
   expect(realAwk).not.toBe("");
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-lead-awk-"));
+  const dir = makeTempDir("kaizen-lead-awk-");
   try {
     mkdirSync(join(dir, ".kaizen"), { recursive: true });
     writeFileSync(
@@ -488,7 +488,7 @@ function runCheckTyped({
   appliedTo = '["docs/a.md"]',
   archived = false,
 }) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-docs-only-"));
+  const dir = makeTempDir("kaizen-docs-only-");
   try {
     const noteDir = archived ? join(dir, ".kaizen", "archive") : join(dir, ".kaizen");
     mkdirSync(noteDir, { recursive: true });

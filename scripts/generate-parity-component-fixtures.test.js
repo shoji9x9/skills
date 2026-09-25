@@ -5,19 +5,11 @@
 // SIGTERM を無視する偽物では、上限なしに終了を待つ実装は終わらない（修正前の実装で再現する）。
 
 import { spawn } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const script = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -41,7 +33,7 @@ afterEach(() => {
 });
 
 function makeFakeChrome({ ignoreTerm }) {
-  const directory = mkdtempSync(join(tmpdir(), "fake-chrome-"));
+  const directory = makeTempDir("fake-chrome-");
   directories.push(directory);
   const pidFile = join(directory, "pid");
   pidFiles.push(pidFile);
@@ -59,7 +51,7 @@ while :; do sleep 0.05; done
   );
   chmodSync(chrome, 0o755);
   // 生成スクリプトはプロファイルを os.tmpdir() に作る。TMPDIR を専用にして残骸を数える。
-  const profileRoot = mkdtempSync(join(tmpdir(), "fake-chrome-tmp-"));
+  const profileRoot = makeTempDir("fake-chrome-tmp-");
   directories.push(profileRoot);
   return { chrome, pidFile, profileRoot };
 }

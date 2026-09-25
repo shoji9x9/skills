@@ -1,9 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const sourceScript = resolve(dirname(fileURLToPath(import.meta.url)), "eval-sandbox.sh");
 const temporaryDirectories = [];
@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 test("refuses to replace an existing managed Codex directory", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-sandbox-managed-"));
+  const root = makeTempDir("eval-sandbox-managed-");
   temporaryDirectories.push(root);
   const managedDirectory = join(root, "etc", "codex");
   const fakeHome = join(root, "home");
@@ -59,7 +59,7 @@ test("refuses to replace an existing managed Codex directory", () => {
 });
 
 test.skipIf(!hasBwrap)("isolates and reopens only required state from a custom CODEX_HOME", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-sandbox-codex-home-"));
+  const root = makeTempDir("eval-sandbox-codex-home-");
   temporaryDirectories.push(root);
   const fakeHome = join(root, "home");
   const codexHome = join(root, "custom-codex-home");
@@ -103,7 +103,7 @@ echo CUSTOM_CODEX_HOME_OK
 });
 
 test("deduplicates worktree parent mounts and leaves /tmp to the sibling-run mount", () => {
-  const root = mkdtempSync(join(tmpdir(), "eval-sandbox-worktrees-"));
+  const root = makeTempDir("eval-sandbox-worktrees-");
   temporaryDirectories.push(root);
   const repo = join(root, "repo");
   const project = join(root, "project");

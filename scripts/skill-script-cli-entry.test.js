@@ -8,10 +8,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, symlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const skillsDir = join(repoRoot, "skills");
@@ -45,7 +45,7 @@ test("CLI エントリを持つ同梱スクリプトを検出できている", (
 test.each(cliScripts.map((p) => [p.slice(repoRoot.length + 1), p]))(
   "%s: シンボリックリンク経由でも引数不足を usage と exit 2 で知らせる",
   (_label, scriptPath) => {
-    const linkDir = mkdtempSync(join(tmpdir(), "cli-entry-"));
+    const linkDir = makeTempDir("cli-entry-");
     const link = join(linkDir, basename(scriptPath));
     symlinkSync(scriptPath, link);
 

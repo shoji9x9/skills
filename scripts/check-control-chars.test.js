@@ -16,8 +16,7 @@
 // 陰性コントロールは実リポジトリ全体（修正後は 0 件）。
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -26,6 +25,7 @@ import {
   isTextPath,
   trackedTextFiles,
 } from "./check-control-chars.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "scripts/check-control-chars.js");
@@ -97,7 +97,7 @@ test("読めないファイルはクラッシュさせず、走査できてい�
   // git ls-files は index を読むので、作業ツリーから消えた追跡ファイルや壊れた symlink が
   // 入りうる。素の readFileSync だとスタックトレースごと検査が止まり、「走査できていない」が
   // 検査結果として残らない。
-  const dir = mkdtempSync(join(tmpdir(), "control-chars-"));
+  const dir = makeTempDir("control-chars-");
   try {
     const violations = checkFiles(["missing.md"], dir);
     expect(violations).toHaveLength(1);
@@ -111,7 +111,7 @@ test("読めないファイルはクラッシュさせず、走査できてい�
 });
 
 test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報告する", () => {
-  const dir = mkdtempSync(join(tmpdir(), "control-chars-"));
+  const dir = makeTempDir("control-chars-");
   writeFileSync(join(dir, "bad.md"), `# 見出し\n本文${NUL}\n`);
   writeFileSync(join(dir, "good.md"), "# 見出し\n本文\n");
   const r = spawnSync(process.execPath, [script, "bad.md", "good.md"], {
@@ -125,7 +125,7 @@ test("CLI: 引数で渡したテキストファイルの違反を exit 1 で報�
 });
 
 test("CLI: 非テキスト拡張子だけを渡したら成功に倒さず exit 1", () => {
-  const dir = mkdtempSync(join(tmpdir(), "control-chars-"));
+  const dir = makeTempDir("control-chars-");
   writeFileSync(join(dir, "image.png"), Buffer.from([0x89, 0x50, 0x00, 0x01]));
   const r = spawnSync(process.execPath, [script, "image.png"], { cwd: dir, encoding: "utf8" });
   expect(r.status).toBe(1);

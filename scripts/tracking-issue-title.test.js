@@ -1,18 +1,10 @@
 import { describe, test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // 週次ワークフローの追跡 Issue は、タイトルが固定文字列だと手動クローズのたびに
 // 同名の Issue が open / closed に並び、一覧で世代を区別できない（Issue #417）。
@@ -100,7 +92,7 @@ fi
 
 /** スタブ化した `gh` を PATH 前段に置いて bash スクリプトを走らせる。 */
 function runBash(script, ghScript, env) {
-  const dir = mkdtempSync(join(tmpdir(), "tracking-step-"));
+  const dir = makeTempDir("tracking-step-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin, { recursive: true });
@@ -209,7 +201,7 @@ function resolveLib(wfPath) {
 
 /** 探索ステップを `cwd` で実際に走らせ、`$GITHUB_OUTPUT` へ書かれた値を返す。 */
 function runLocate(wfPath, cwd) {
-  const dir = mkdtempSync(join(tmpdir(), "tracking-locate-"));
+  const dir = makeTempDir("tracking-locate-");
   try {
     const out = join(dir, "output.txt");
     writeFileSync(out, "");
@@ -456,7 +448,7 @@ describe("照会の正本（tracking-issue-lib.sh）", () => {
       expect(cases.some((c) => c.hit)).toBe(true);
       expect(cases.some((c) => !c.hit)).toBe(true);
 
-      const dir = mkdtempSync(join(tmpdir(), "tracking-issue-"));
+      const dir = makeTempDir("tracking-issue-");
       try {
         const fixture = join(dir, "issues.json");
         writeFileSync(
@@ -498,7 +490,7 @@ describe("kaizen スクリプトの探索（レポートと照会を同じ版か
 
   /** 探索先に指定のファイルだけを置いた使い捨てツリーを作って探索を走らせる。 */
   function locateWith(files) {
-    const dir = mkdtempSync(join(tmpdir(), "tracking-tree-"));
+    const dir = makeTempDir("tracking-tree-");
     try {
       const target = join(dir, SEARCH_DIRS[SEARCH_DIRS.length - 1]);
       mkdirSync(target, { recursive: true });

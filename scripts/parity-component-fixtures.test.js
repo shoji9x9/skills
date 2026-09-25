@@ -7,19 +7,11 @@
 // （CI にブラウザが無いので再生成はしない）。各検査は壊した写しで赤くなることを併せて確かめる。
 
 import { expect, test } from "vitest";
-import {
-  cpSync,
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const fixturesRoot = join(repoRoot, "evals/parity-component/fixtures");
@@ -346,7 +338,7 @@ test.each(componentDirs.map((d) => [d.slice(fixturesRoot.length + 1), d]))(
 // --- 陽性コントロール: 壊した写しで各検査が赤くなる ---
 
 const copyFixture = () => {
-  const dir = join(mkdtempSync(join(tmpdir(), "parity-component-fixture-")), "button");
+  const dir = join(makeTempDir("parity-component-fixture-"), "button");
   cpSync(componentDirs[0], dir, { recursive: true });
   return dir;
 };

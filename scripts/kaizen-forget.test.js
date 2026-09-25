@@ -4,15 +4,14 @@ import {
   chmodSync,
   copyFileSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 // kaizen-forget.sh は **SessionStart フックから無人で走り、追跡ファイルを書き換える**
 // （Issue #339）。判定が緩むと、まだ適用したい学びが黙って注入から消える——消えたことは
@@ -71,7 +70,7 @@ function note({ date = daysAgo(200), priority = "low", status = "pending", appli
 }
 
 function makeProject(notes, config) {
-  const dir = mkdtempSync(join(tmpdir(), "kaizen-forget-"));
+  const dir = makeTempDir("kaizen-forget-");
   mkdirSync(join(dir, ".kaizen"), { recursive: true });
   for (const [name, content] of Object.entries(notes)) {
     writeFileSync(join(dir, ".kaizen", `${name}.md`), content);
@@ -468,7 +467,7 @@ test.each(["--list", "--auto"])(
     // 日付を日数へ変換できないと全件が「材料を読めない」で外れ、閾値で 0 件だったときと
     // 同じ出力になる。縮退したことを終了コードと診断で区別できるようにする。
     const dir = makeProject(CANDIDATES);
-    const lonely = mkdtempSync(join(tmpdir(), "kaizen-forget-nolib-"));
+    const lonely = makeTempDir("kaizen-forget-nolib-");
     try {
       copyFileSync(script, join(lonely, "kaizen-forget.sh"));
       const result = spawnSync("bash", [join(lonely, "kaizen-forget.sh"), mode], {

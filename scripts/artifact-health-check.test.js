@@ -9,8 +9,7 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -21,6 +20,7 @@ import {
   makeCarryProject,
   writeJson,
 } from "./evidence-carry-fixture.js";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/artifact-health-check.mjs");
@@ -82,7 +82,7 @@ const baseMetadata = () => ({
  * @param {{ xlsxBody?: string, extraBaselineFile?: string, specBody?: string, dataset?: unknown }} [opts]
  */
 function makeProject(mutate, opts = {}) {
-  const root = mkdtempSync(join(tmpdir(), "artifact-health-"));
+  const root = makeTempDir("artifact-health-");
   const slugDir = join(root, ".replace/parity/order-list");
   mkdirSync(join(slugDir, "baseline"), { recursive: true });
   mkdirSync(join(slugDir, "new/local-dev"), { recursive: true });
@@ -1008,7 +1008,7 @@ test("#457: 接頭辞を読めない指紋は不一致として落とす", () =>
 });
 
 test("#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）", () => {
-  const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+  const root = makeTempDir("artifact-health-fp-");
   writeFileSync(join(root, "locators.json"), '{"a": "// x"}\n');
   writeFileSync(join(root, "notes.yaml"), "# keep\n// keep\nkey: 1\n");
   const suite = { locator_map: "locators.json", interactions: "notes.yaml" };
@@ -1022,7 +1022,7 @@ test("#457: JS / TS 系以外のファイルは生バイトで数える（コメ
 test.each([".js", ".mjs", ".cjs"])(
   "#457: %s も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
   (ext) => {
-    const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+    const root = makeTempDir("artifact-health-fp-");
     writeFileSync(join(root, `view${ext}`), "export const X = () => <p>http://old.example</p>;\n");
     const suite = { specs: `view${ext}` };
     const before = suiteFingerprint(suite, root).fingerprint;
@@ -1033,7 +1033,7 @@ test.each([".js", ".mjs", ".cjs"])(
 );
 
 test("#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）", () => {
-  const root = mkdtempSync(join(tmpdir(), "artifact-health-fp-"));
+  const root = makeTempDir("artifact-health-fp-");
   writeFileSync(join(root, "view.tsx"), "export const V = () => <p>http://old.example</p>;\n");
   const suite = { specs: "view.tsx" };
   const before = suiteFingerprint(suite, root).fingerprint;
@@ -1199,7 +1199,7 @@ test("期待値解決層を書き換えても指紋が変わらなければ素�
 // 置いた外向きのシンボリックリンクが finding を 1 件も出さずに通り、--root の外のファイルの
 // 内容が sha256 照合に使われていた。
 test("baseline_dir の外を指すシンボリックリンクを落とす（実パスで閉じ込める）", () => {
-  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  const outside = makeTempDir("artifact-health-outside-");
   writeFileSync(join(outside, "secret.png"), "SECRET-CONTENT-OUTSIDE-SANDBOX");
   const { root, slugDir, metadataPath } = makeProject((m) => {
     m.artifact_health.entries.push({
@@ -1245,7 +1245,7 @@ test("baseline_dir の中を指すシンボリックリンクは落とさない�
 // 閉じ込め拒否（実パスがルート外）と不在は原因が違う。同じ文言にすると、
 // 実体が在るのに「無い」と報告され、書き手は閉じ込め拒否に辿り着けない。
 test("read_by がルート外を指すリンクのとき、不在と別の理由で落とす", () => {
-  const outside = mkdtempSync(join(tmpdir(), "artifact-health-outside-"));
+  const outside = makeTempDir("artifact-health-outside-");
   writeFileSync(
     join(outside, "linked.spec.ts"),
     "// orders.default.desktop.png と orders.xlsx.json を読む\n",

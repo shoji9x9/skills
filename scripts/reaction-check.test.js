@@ -8,10 +8,10 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
@@ -122,7 +122,7 @@ const baseTable = () => ({
  * @param {{ args?: string[], metadata?: object, source?: string }} [opts]
  */
 function run(table, opts = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "reaction-check-"));
+  const dir = makeTempDir("reaction-check-");
   mkdirSync(join(dir, "src"));
   // 操作 search のハンドラは全ての source の末尾に置く（行番号を動かさない）
   writeFileSync(
@@ -625,7 +625,7 @@ test("版が一致しているのに照合不能の理由が埋まっていれ�
 
 test("ファイル名やパターン id に : があっても別の呼び出しを 1 件に潰さない", () => {
   // 連結キーでは ("src/a", 1, 1, "2:toast") と ("src/a:1", 1, 2, "toast") がどちらも "src/a:1:1:2:toast" になる
-  const dir = mkdtempSync(join(tmpdir(), "reaction-check-colon-"));
+  const dir = makeTempDir("reaction-check-colon-");
   mkdirSync(join(dir, "src"));
   writeFileSync(join(dir, "src/a"), "notify();\n");
   writeFileSync(join(dir, "src/a:1"), " showFeedback('x');\n");

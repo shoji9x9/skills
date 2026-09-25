@@ -6,18 +6,10 @@
 // PNG の寸法が食い違い、寸法一致を要求する画素比較が実行不能になる。
 
 import { expect, test } from "vitest";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/element-shot.mjs");
@@ -242,7 +234,7 @@ test("captureElementShot は丸めた clip で page.screenshot を呼び、path 
     },
   };
 
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-"));
+  const dir = makeTempDir("element-shot-");
   const target = join(dir, "nested", "element.png");
   const out = await captureElementShot(page, locator, { path: target });
   expect(calls[0]).toEqual(["scroll"]);
@@ -462,7 +454,7 @@ test("撮影中にフレームが動いたら失敗する（フレーム内の�
 
 test("path が .png で終わらなければ撮る前に失敗する（記録ファイルの名前が決まらない）", async () => {
   const page = recordingPage();
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-ext-"));
+  const dir = makeTempDir("element-shot-ext-");
   await expect(
     captureElementShot(page, frameLocator(fakeElement()), { path: join(dir, "element.jpeg") }),
   ).rejects.toThrow(/must end with \.png/);
@@ -472,7 +464,7 @@ test("path が .png で終わらなければ撮る前に失敗する（記録フ
 
 test("PNG でないものが返ったら実寸を記録せず失敗し、何も書かない", async () => {
   const page = { screenshot: async () => Buffer.from("not a png") };
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-notpng-"));
+  const dir = makeTempDir("element-shot-notpng-");
   const target = join(dir, "element.png");
   await expect(
     captureElementShot(page, frameLocator(fakeElement()), { path: target }),
@@ -620,7 +612,7 @@ test("平行移動だけの変形は撮る（getBoundingClientRect が移動後�
 // PNG と記録は「両方置き換わるか、どちらも変わらないか」。記録の書き込みが落ちたのに PNG だけ
 // 差し替わると、新しい PNG が古い（または無い）記録と組になり、後の比較が別 run の clip を読む。
 test("記録を書けなければ既存の PNG も記録も差し替えない（一時ファイルも残さない）", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-pair-"));
+  const dir = makeTempDir("element-shot-pair-");
   const target = join(dir, "element.png");
   writeFileSync(target, "previous-png");
   mkdirSync(join(dir, "element.shot.json")); // 記録の置き場所がディレクトリで rename が落ちる
@@ -633,7 +625,7 @@ test("記録を書けなければ既存の PNG も記録も差し替えない（
 });
 
 test("一時ファイルを書けなければ、書けた分の一時ファイルも消して既存の組を残す", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-stage-"));
+  const dir = makeTempDir("element-shot-stage-");
   const target = join(dir, "element.png");
   writeFileSync(target, "previous-png");
   writeFileSync(join(dir, "element.shot.json"), "previous-record");
@@ -647,7 +639,7 @@ test("一時ファイルを書けなければ、書けた分の一時ファイ�
 });
 
 test("既存の組は新しい組へまとめて置き換わる（バックアップも残さない）", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-replace-"));
+  const dir = makeTempDir("element-shot-replace-");
   const target = join(dir, "element.png");
   writeFileSync(target, "previous-png");
   writeFileSync(join(dir, "element.shot.json"), "{}");
@@ -792,7 +784,7 @@ test("検査に落ちたら PNG を書かない（拒否したフレームを基
     { x: 10, y: 10, width: 40, height: 20 },
     { x: 10, y: 34, width: 40, height: 20 },
   );
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-reject-"));
+  const dir = makeTempDir("element-shot-reject-");
   const target = join(dir, "element.png");
   await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow(
     /box changed while capturing/,
@@ -805,7 +797,7 @@ test("既存の基準ファイルを、落ちた run が上書きしない", asy
     { x: 10, y: 10, width: 40, height: 20 },
     { x: 10, y: 34, width: 40, height: 20 },
   );
-  const dir = mkdtempSync(join(tmpdir(), "element-shot-keep-"));
+  const dir = makeTempDir("element-shot-keep-");
   const target = join(dir, "element.png");
   writeFileSync(target, "previous");
   await expect(captureElementShot(page, locator, { path: target })).rejects.toThrow();
