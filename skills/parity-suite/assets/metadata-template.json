@@ -36,11 +36,29 @@
     "repeat_run": {
       "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
+      "specs": [
+        {
+          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。正本は parity-suite の references/baseline.md「スペック単位で記録する」。",
+          "path": "<スペックのリポジトリルート基準の相対パス>",
+          "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度ゲートは、現行へ保存する操作を含まなければ false>",
+          "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
+        }
+      ],
+      "current_excluded": [
+        {
+          "path": "<current プロジェクトが testIgnore で走らせないディレクトリ（既定 <parity_suite_dir>/parity/<slug>/new-only）。specs を書いたときだけ読む。この下は分類も指紋も要らない>",
+          "reason": "<走らせない根拠（testIgnore のパターン等）。空の行は外さずに数える>"
+        }
+      ],
       "runs": [
         {
           "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）>",
           "result": "<green | red。連続する 2 回とも green であることを求める>",
-          "suite_fingerprint": "<その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せずスクリプトの suiteFingerprint を使う。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "shared_fingerprint": "<specs を書いたときに書く。スペックが共通に読む土台（locator_map / expectations / interactions / tools と suite.specs の下のスペック以外）の指紋。artifact-health-check.mjs --fingerprint の出力から写す>",
+          "spec_fingerprints": {
+            "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から写す>"
+          },
+          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から写す。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
