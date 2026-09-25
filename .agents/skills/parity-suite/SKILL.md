@@ -235,7 +235,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    データ不足があれば `golden-dataset` へ戻す案内をする
 9. **採取物と工程の健全性の記録**: `metadata.json` に `artifact_health`（採取物ごとの読むスペックと「何から作ったか」）・
    `suite.state_mutating` / `suite.repeat_run`（状態を変えるスイートは 2 回続けて緑。各回に `suite_fingerprint` を記録し、
-   **スイートを変えたら 2 回続けて回し直す**——記録を版に結びつけないと、後からスペックや後始末を変えても古い記録で通る）・
+   **スイートを変えたら 2 回続けて回し直す**——記録を版に結びつけないと、後からスペックや後始末を変えても古い記録で通る。
+   `repeat_run.specs` でスペックごとに分類すれば、2 回を求めるのは状態を変えるスペックだけになり、変えたスペックだけを回し直せば足りる。
+   指紋は `artifact-health-check.mjs --fingerprint` の出力から写す）・
    `unmeasured`（未測定の機械可読な宣言）を書き、
    **視覚採取物を持たない機能（`api-resource` 等）でも `artifact_health.declared: false` ＋理由で済ませるのはこの節だけ**——
    `suite.state_mutating` は書き込み系こそ要る側なので必ず書く（書かないと未検証として落ちる）、

@@ -1469,3 +1469,490 @@ test("持ち越し: render_inputs が無ければ従来のメッセージのま�
   expect(r.status).toBe(1);
   rmSync(root, { recursive: true, force: true });
 });
+
+// Issue #473: 2 回の記録をスイート全体の 1 つの指紋に結びつけると、状態を変えないスペックを 1 行変えただけで
+// 状態を変えるスペックまで現行へ 2 回回し直すことになる。repeat_run.specs（スペックごとの分類）を持つ成果物は、
+// 状態を変えるスペックごとに「そのスペックを含む直近 2 回」を、スペックの指紋と共有の土台の指紋で照合する。
+
+const SPEC_DIR = "e2e/parity/order-list";
+const LOCALE = `${SPEC_DIR}/locale.spec.ts`;
+const ORDERS = `${SPEC_DIR}/orders.spec.ts`;
+
+/**
+ * スペック単位の分類表を持つプロジェクトを作る（locale.spec.ts が状態を変え、orders.spec.ts は変えない）。
+ * runs は空。記録は recordRuns で --fingerprint の出力から書く。
+ * @param {(m: Record<string, any>) => void} [mutate]
+ */
+function perSpecProject(mutate) {
+  const project = makeProject((m) => {
+    m.suite = {
+      current_green: true,
+      specs: SPEC_DIR,
+      expectations: "e2e/parity/lib/expectations.ts",
+      state_mutating: true,
+      repeat_run: {
+        cleanup_in_suite: true,
+        specs: [
+          { path: ORDERS, state_mutating: false, reason: "一覧を表示して読むだけ" },
+          { path: LOCALE, state_mutating: true, reason: "ロケールを保存し、同じテストで戻す" },
+        ],
+        current_excluded: [
+          {
+            path: `${SPEC_DIR}/new-only`,
+            reason:
+              "current プロジェクトの testIgnore で除外（parity-diff が新側採取スペックを置く）",
+          },
+        ],
+        shared_files: [
+          { path: `${SPEC_DIR}/helpers.ts`, reason: "画面を開く共通関数。テストを定義しない" },
+        ],
+        runs: [],
+        reason: null,
+      },
+    };
+    if (mutate) mutate(m);
+  });
+  writeFileSync(join(project.root, LOCALE), "test('locale', async () => { save('ja'); });\n");
+  writeFileSync(join(project.root, SPEC_DIR, "helpers.ts"), "export const open = () => 1;\n");
+  return project;
+}
+
+/** --fingerprint の出力を読む。 */
+function fingerprints(metadataPath) {
+  const r = run(metadataPath, ["--fingerprint"]);
+  expect(r.status).toBe(0);
+  return JSON.parse(r.stdout);
+}
+
+/**
+ * 回したスペックを 2 回緑で記録する（--fingerprint の出力から写す）。
+ * @param {string} metadataPath
+ * @param {string[]} ranSpecs
+ * @param {string} day - started_at の日付部分（記録を足すたびに後の日付を渡す）
+ * @param {number} [times] - 回数（状態を変えないスペックだけを回すなら 1）
+ */
+function recordRuns(metadataPath, ranSpecs, day, times = 2) {
+  const fp = fingerprints(metadataPath);
+  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  for (const hour of ["01", "02"].slice(0, times)) {
+    meta.suite.repeat_run.runs.push({
+      started_at: `${day}T${hour}:00:00Z`,
+      result: "green",
+      shared_fingerprint: fp.shared_fingerprint,
+      spec_fingerprints: Object.fromEntries(ranSpecs.map((s) => [s, fp.spec_fingerprints[s]])),
+    });
+  }
+  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+}
+
+/** @param {string} metadataPath @param {(m: Record<string, any>) => void} mutate */
+function editMetadata(metadataPath, mutate) {
+  const meta = JSON.parse(readFileSync(metadataPath, "utf8"));
+  mutate(meta);
+  writeFileSync(metadataPath, JSON.stringify(meta, null, 2));
+}
+
+test("#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）", () => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  recordRuns(metadataPath, [ORDERS], "2026-09-21", 1);
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(
+    /スペック単位で判定: 状態を変えるスペック 1 件.*状態を変えないスペック 1 件/,
+  );
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）", () => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  writeFileSync(
+    join(root, ORDERS),
+    "// orders.default.desktop.png と orders.xlsx.json を読む\nconst extra = 1;\n",
+  );
+  const stale = run(metadataPath);
+  expect(stale.stdout).toContain(
+    `状態を変えないスペック ${ORDERS} の直近の緑は現在のスペック・土台のものでない`,
+  );
+  expect(stale.stdout).not.toContain(LOCALE + " の 2 回の記録");
+  expect(stale.status).toBe(1);
+  recordRuns(metadataPath, [ORDERS], "2026-09-21", 1);
+  const r = run(metadataPath);
+  expect(r.stdout).not.toMatch(/^warn: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["記録が無い", () => {}, `状態を変えないスペック ${ORDERS} の実行記録が 0 件`],
+  [
+    "直近の記録が赤",
+    (m) =>
+      m.suite.repeat_run.runs.push({
+        ...m.suite.repeat_run.runs[1],
+        started_at: "2026-09-22T01:00:00Z",
+        result: "red",
+      }),
+    `状態を変えないスペック ${ORDERS} の直近の記録が緑でない`,
+  ],
+])(
+  "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: %s",
+  (name, mutate, needle) => {
+    const { root, metadataPath } = perSpecProject();
+    recordRuns(metadataPath, name === "記録が無い" ? [LOCALE] : [LOCALE, ORDERS], "2026-09-20");
+    editMetadata(metadataPath, mutate);
+    const r = run(metadataPath);
+    expect(r.stdout).toContain(needle);
+    expect(r.status).toBe(1);
+    rmSync(root, { recursive: true, force: true });
+  },
+);
+
+test.each([
+  ["共有の宣言パス（expectations）", "e2e/parity/lib/expectations.ts"],
+  ["共有の宣言パスの祖先", "e2e/parity/lib"],
+  ["suite.specs そのもの", SPEC_DIR],
+])("#473: current_excluded は suite.specs の下のスペックの置き場所に限る: %s", (_name, path) => {
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.repeat_run.current_excluded.push({ path, reason: "current で走らせない" });
+  });
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  writeFileSync(join(root, "e2e/parity/lib/expectations.ts"), "export const changed = 2;\n");
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(`current_excluded の ${path} が suite.specs（${SPEC_DIR}）の下でない`);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る", () => {
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.repeat_run.specs.push({
+      path: `${SPEC_DIR}/grid.spec.ts`,
+      state_mutating: true,
+      reason: "グリッド設定を保存し、同じテストで Reset する",
+    });
+  });
+  writeFileSync(
+    join(root, SPEC_DIR, "grid.spec.ts"),
+    "test('grid', async () => { save(); reset(); });\n",
+  );
+  recordRuns(metadataPath, [LOCALE, `${SPEC_DIR}/grid.spec.ts`, ORDERS], "2026-09-20");
+  writeFileSync(join(root, LOCALE), "test('locale', async () => { save('en'); });\n");
+  const stale = run(metadataPath);
+  expect(stale.stdout).toContain(
+    `状態を変えるスペック ${LOCALE} の 2 回の記録は現在のスペックのものでない`,
+  );
+  expect(stale.stdout).not.toContain("grid.spec.ts の 2 回の記録");
+  expect(stale.status).toBe(1);
+  recordRuns(metadataPath, [LOCALE], "2026-09-21");
+  const r = run(metadataPath);
+  expect(r.stdout).not.toMatch(/^warn: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["suite.specs の下のスペック以外（共通の関数）", `${SPEC_DIR}/helpers.ts`],
+  ["共有の宣言パス（expectations）", "e2e/parity/lib/expectations.ts"],
+])("#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: %s", (_name, file) => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  writeFileSync(join(root, file), "export const changed = 2;\n");
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: current_excluded の下（新側専用スペック）に足しても記録は失効せず、分類も要らない", () => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  mkdirSync(join(root, SPEC_DIR, "new-only"), { recursive: true });
+  writeFileSync(
+    join(root, SPEC_DIR, "new-only/capture-new.spec.ts"),
+    "test('capture', () => {});\n",
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).not.toMatch(/^warn: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）", () => {
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.repeat_run.current_excluded[0].reason = "";
+  });
+  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  mkdirSync(join(root, SPEC_DIR, "new-only"), { recursive: true });
+  writeFileSync(
+    join(root, SPEC_DIR, "new-only/capture-new.spec.ts"),
+    "test('capture', () => {});\n",
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/current_excluded の .*new-only に reason が無い/);
+  expect(r.stdout).toContain(`分類されていないスペック: ${SPEC_DIR}/new-only/capture-new.spec.ts`);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  [
+    "分類されていないスペックがある",
+    (root) => writeFileSync(join(root, SPEC_DIR, "extra.spec.ts"), "test('x', () => {});\n"),
+    () => {},
+    `分類されていないスペック: ${SPEC_DIR}/extra.spec.ts`,
+  ],
+  [
+    "分類の reason が空",
+    () => {},
+    (m) => (m.suite.repeat_run.specs[0].reason = " "),
+    `repeat_run.specs の ${ORDERS} に reason が無い`,
+  ],
+  [
+    "分類が重複している",
+    () => {},
+    (m) =>
+      m.suite.repeat_run.specs.push({ path: `./${ORDERS}`, state_mutating: true, reason: "x" }),
+    `repeat_run.specs に ${ORDERS} が重複している`,
+  ],
+  [
+    "分類表のスペックが suite.specs の下に無い",
+    () => {},
+    (m) =>
+      m.suite.repeat_run.specs.push({
+        path: "e2e/other/a.spec.ts",
+        state_mutating: false,
+        reason: "x",
+      }),
+    "repeat_run.specs のスペックが suite.specs の下に無い: e2e/other/a.spec.ts",
+  ],
+  [
+    "状態を変えるスペックが 1 件も無い",
+    () => {},
+    (m) => (m.suite.repeat_run.specs[1].state_mutating = false),
+    "状態を変えるスペックが 1 件も無い",
+  ],
+  [
+    "状態を変えるスペックの記録に shared_fingerprint が無い",
+    () => {},
+    (m) => m.suite.repeat_run.runs.forEach((r) => delete r.shared_fingerprint),
+    `スペック ${LOCALE} の記録に shared_fingerprint が無い`,
+  ],
+  [
+    "状態を変えるスペックを含む直近 2 回の後の回が赤",
+    () => {},
+    (m) => (m.suite.repeat_run.runs[1].result = "red"),
+    `スペック ${LOCALE}: 連続する 2 回のうち 2 回目が緑でない`,
+  ],
+  [
+    "状態を変えるスペックを含む 2 回の started_at が同じ",
+    () => {},
+    (m) => (m.suite.repeat_run.runs[1].started_at = m.suite.repeat_run.runs[0].started_at),
+    `スペック ${LOCALE}: 連続する 2 回の started_at が同じ`,
+  ],
+  [
+    "状態を変えるスペックを含む記録が 1 回だけ（もう 1 回は別のスペックだけ）",
+    () => {},
+    (m) => (m.suite.repeat_run.runs[1].spec_fingerprints = { [ORDERS]: "sha256-nc:x" }),
+    `状態を変えるスペック ${LOCALE} の実行記録が 1 件`,
+  ],
+])("#473: スペック単位の記録の不備は exit 1: %s", (_name, prepare, mutate, needle) => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  prepare(root);
+  editMetadata(metadataPath, mutate);
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(needle);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: suite.state_mutating: false なのに状態を変えるスペックを分類していたら落とす", () => {
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.state_mutating = false;
+    m.suite.repeat_run.reason = "読み取りだけ";
+  });
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(
+    /state_mutating: false なのに repeat_run\.specs に状態を変えるスペックがある/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["specs が配列でない", (m) => (m.suite.repeat_run.specs = {}), "repeat_run.specs が配列でない"],
+  [
+    "state_mutating が真偽値でない",
+    (m) => (m.suite.repeat_run.specs[0].state_mutating = "no"),
+    "state_mutating が真偽値でない",
+  ],
+  [
+    "spec_fingerprints がオブジェクトでない",
+    (m) => (m.suite.repeat_run.runs[0].spec_fingerprints = [LOCALE]),
+    "spec_fingerprints が",
+  ],
+  [
+    "spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
+    (m) => {
+      const prints = m.suite.repeat_run.runs[0].spec_fingerprints;
+      prints[`./${LOCALE}`] = "sha256-nc:stale";
+    },
+    `spec_fingerprints に同じスペック ${LOCALE} を指すキーが複数ある`,
+  ],
+  [
+    "shared_files が配列でない",
+    (m) => (m.suite.repeat_run.shared_files = "helpers.ts"),
+    "shared_files が配列でない",
+  ],
+  [
+    "current_excluded が配列でない",
+    (m) => (m.suite.repeat_run.current_excluded = "new-only"),
+    "current_excluded が配列でない",
+  ],
+])("#473: スペック単位の記録の型崩れは exit 2: %s", (_name, mutate, needle) => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE], "2026-09-20");
+  editMetadata(metadataPath, mutate);
+  const r = run(metadataPath);
+  expect(r.stderr).toContain(needle);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: repeat_run.specs を持たない成果物は従来どおりスイート全体の指紋で判定する（状態を変えないスペックの変更でも落ちる）", () => {
+  const { root, metadataPath, fp, specPath } = recordedProject({ specBody: SPEC_WITH_NOTE });
+  expect(fp).toMatch(/^sha256-nc:/);
+  writeFileSync(specPath, SPEC_WITH_NOTE.replace("orders\\/list", "orders\\/detail"));
+  const r = run(metadataPath);
+  expect(r.stdout).toMatch(/記録した 2 回は現在のスイートのものでない/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・土台の指紋を出す", () => {
+  const { root, metadataPath } = perSpecProject();
+  mkdirSync(join(root, SPEC_DIR, "new-only"), { recursive: true });
+  writeFileSync(
+    join(root, SPEC_DIR, "new-only/capture-new.spec.ts"),
+    "test('capture', () => {});\n",
+  );
+  const fp = fingerprints(metadataPath);
+  expect(fp.suite_fingerprint).toBe(
+    suiteFingerprint({ specs: SPEC_DIR, expectations: "e2e/parity/lib/expectations.ts" }, root)
+      .fingerprint,
+  );
+  expect(Object.keys(fp.spec_fingerprints).sort()).toEqual([LOCALE, ORDERS]);
+  expect(fp.shared_fingerprint).toMatch(/^sha256-nc:[0-9a-f]{64}$/);
+  expect(fp.spec_fingerprints[LOCALE]).not.toBe(fp.spec_fingerprints[ORDERS]);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす", () => {
+  const { root, metadataPath } = perSpecProject();
+  writeFileSync(
+    join(root, SPEC_DIR, "bulk-delete.pw.ts"),
+    "import { test as it } from '@playwright/test';\nit('delete', async () => { save(); });\n",
+  );
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(
+    `repeat_run.specs にも repeat_run.shared_files にも無いファイル: ${SPEC_DIR}/bulk-delete.pw.ts`,
+  );
+  expect(r.status).toBe(1);
+  // 分類表に書けば、スペックとして 2 回続けての緑を求められる
+  editMetadata(metadataPath, (m) =>
+    m.suite.repeat_run.specs.push({
+      path: `${SPEC_DIR}/bulk-delete.pw.ts`,
+      state_mutating: true,
+      reason: "一括削除し、同じテストで戻す",
+    }),
+  );
+  const declared = run(metadataPath);
+  expect(declared.stdout).toContain(
+    `状態を変えるスペック ${SPEC_DIR}/bulk-delete.pw.ts の実行記録が 0 件`,
+  );
+  expect(declared.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）", () => {
+  const { root, metadataPath } = perSpecProject();
+  writeFileSync(
+    join(root, SPEC_DIR, "fixtures.ts"),
+    "export const test = base.extend({ page: async ({}, use) => use(1) });\n",
+  );
+  writeFileSync(join(root, SPEC_DIR, "data.json"), "{}\n");
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  const undeclared = run(metadataPath);
+  expect(undeclared.stdout).toContain(`shared_files にも無いファイル: ${SPEC_DIR}/fixtures.ts`);
+  // JS / TS 系でないファイル（データ等）は宣言を求めない
+  expect(undeclared.stdout).not.toContain("data.json");
+  expect(undeclared.status).toBe(1);
+  editMetadata(metadataPath, (m) =>
+    m.suite.repeat_run.shared_files.push({
+      path: `${SPEC_DIR}/fixtures.ts`,
+      reason: "fixture の定義だけでテストを定義しない",
+    }),
+  );
+  const r = run(metadataPath);
+  expect(r.stdout).not.toMatch(/^warn: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  [
+    "reason が空",
+    (m) => (m.suite.repeat_run.shared_files[0].reason = ""),
+    `repeat_run.shared_files の ${SPEC_DIR}/helpers.ts に reason が無い`,
+  ],
+  [
+    "specs と両方にある",
+    (m) => m.suite.repeat_run.shared_files.push({ path: LOCALE, reason: "共通関数" }),
+    `${LOCALE} が repeat_run.specs と repeat_run.shared_files の両方にある`,
+  ],
+  [
+    "実体が無い",
+    (m) =>
+      m.suite.repeat_run.shared_files.push({ path: `${SPEC_DIR}/gone.ts`, reason: "共通関数" }),
+    `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${SPEC_DIR}/gone.ts`,
+  ],
+])("#473: shared_files の記録の不備は exit 1: %s", (_name, mutate, needle) => {
+  const { root, metadataPath } = perSpecProject();
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  editMetadata(metadataPath, mutate);
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(needle);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: suite.state_mutating: false でも repeat_run.specs の型崩れは exit 2", () => {
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.state_mutating = false;
+    m.suite.repeat_run.reason = "読み取りだけ";
+    m.suite.repeat_run.specs = {};
+  });
+  const r = run(metadataPath);
+  expect(r.stderr).toContain("repeat_run.specs が配列でない");
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない", () => {
+  const adapter = `${SPEC_DIR}/new-only/adapter.ts`;
+  const { root, metadataPath } = perSpecProject((m) => {
+    m.suite.interactions = adapter;
+  });
+  mkdirSync(join(root, SPEC_DIR, "new-only"), { recursive: true });
+  writeFileSync(join(root, adapter), "export const click = () => 1;\n");
+  recordRuns(metadataPath, [LOCALE, ORDERS], "2026-09-20");
+  writeFileSync(join(root, adapter), "export const click = () => 2;\n");
+  const r = run(metadataPath);
+  expect(r.stdout).toContain(`スペック ${LOCALE} の 2 回の記録は現在の土台のものでない`);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});

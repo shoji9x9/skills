@@ -31,7 +31,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -77,6 +77,75 @@ function toRel(cwd, p) {
 }
 
 /**
+ * 実在する最も深い祖先まで `realpathSync` で解いてから、残りの区間を継ぎ足して実パスを組む。
+ * verify では記録後に消えた根も数えるため、存在しないパスでも実パスで包含を判定できるようにする。
+ * ENOENT 以外（ELOOP・EACCES 等）は「解けなかった」であって「外にある」ではないので null を返す（fail-closed）。
+ * @param {string} p - 絶対パス
+ * @returns {string | null}
+ */
+function realPathOf(p) {
+  let current = resolve(p);
+  /** @type {string[]} */
+  const tail = [];
+  for (;;) {
+    try {
+      const real = realpathSync(current);
+      return tail.length === 0 ? real : join(real, ...tail);
+    } catch (e) {
+      if (/** @type {NodeJS.ErrnoException} */ (e).code !== "ENOENT") return null;
+    }
+    const parent = dirname(current);
+    if (parent === current) return null;
+    tail.unshift(basename(current));
+    current = parent;
+  }
+}
+
+/**
+ * 実パス a が実パス b の中（b 自身を含む）にあるか。
+ * @param {string} a
+ * @param {string} b
+ */
+function realUnder(a, b) {
+  const rel = relative(b, a);
+  return rel === "" || !(rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel));
+}
+
+/**
+ * スイートの根を実パスで確かめ、最初に見つけた問題を返す（無ければ null）。
+ *
+ * 字面の比較だけでは、slug のディレクトリの中を指すシンボリックリンク（`e2e/parity/share.spec.ts` →
+ * `.replace/parity/share/reactions.json` 等）がスイートの根として通り、スイートを 1 つも照合しないまま
+ * record と verify が通る（Issue #474）。根の重複も同じで、字面の違う 2 つの根が同じ実体を指すと 1 つの根として働く。
+ * @param {string} cwd
+ * @param {string} slugDir - cwd 基準の相対パス
+ * @param {string[]} suiteRoots - cwd 基準の相対パス（slug のディレクトリを含まない）
+ * @returns {string | null}
+ */
+function realRootProblem(cwd, slugDir, suiteRoots) {
+  const slugReal = realPathOf(resolve(cwd, slugDir));
+  if (slugReal === null) return `--dir（${slugDir}）の実パスを解決できない`;
+  /** @type {Map<string, string>} 実パス → 最初に見た根 */
+  const seen = new Map();
+  for (const r of suiteRoots) {
+    const real = realPathOf(resolve(cwd, r));
+    if (real === null) return `スイートの根 ${r} の実パスを解決できない`;
+    if (realUnder(real, slugReal)) {
+      return `スイートの根 ${r} の実パス（${real}）が --dir の中を指す（シンボリックリンク経由でも slug のディレクトリの成果物はスイートにならない）`;
+    }
+    // 逆向き（根が slug のディレクトリを含む祖先）も止める。slug の成果物を二重に数え、別機能の slug の成果物まで指紋に混ざる。
+    // 根の下の要素が slug のディレクトリの中を指す形は fingerprintFiles が辿りながら止める
+    if (realUnder(slugReal, real)) {
+      return `スイートの根 ${r} の実パス（${real}）が --dir を含む（slug のディレクトリの祖先はスイートの根にしない。別機能の成果物が指紋に混ざる）`;
+    }
+    const first = seen.get(real);
+    if (first !== undefined) return `スイートの根 ${first} と ${r} が同じ実体（${real}）を指す`;
+    seen.set(real, r);
+  }
+  return null;
+}
+
+/**
  * 根の下のファイルの指紋を集める。
  * @param {string} cwd
  * @param {string[]} roots - cwd 基準の相対パス（先頭は slug のディレクトリ）
@@ -89,13 +158,33 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
   /** @type {Record<string, string>} */
   const files = {};
   const slugAbs = resolve(cwd, slugDir);
-  const visit = (abs) => {
+  const slugReal = realPathOf(slugAbs);
+  /** いま辿っている根（slug のディレクトリか、スイートの根か） */
+  let r0 = slugDir;
+  if (slugReal === null) throw new UsageError(`--dir（${slugDir}）の実パスを解決できない`);
+  /**
+   * @param {string} abs
+   * @param {boolean} inSuite - スイートの根（--include）の下の要素か（根そのものは realRootProblem が確かめる）
+   */
+  const visit = (abs, inSuite) => {
+    // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物の写しになり、
+    // 書いたスイートを 1 つも照合しないまま通る（Codex レビュー、PR #475）。根の下で辿る要素をすべて実パスで確かめる
+    if (inSuite) {
+      const real = realPathOf(abs);
+      if (real === null)
+        throw new UsageError(`スイートの根の下の ${toRel(cwd, abs)} の実パスを解決できない`);
+      if (realUnder(real, slugReal)) {
+        throw new UsageError(
+          `スイートの根の下の ${toRel(cwd, abs)} の実パス（${real}）が --dir の中を指す（slug のディレクトリの成果物はスイートにならない）`,
+        );
+      }
+    }
     const st = statSync(abs);
     if (st.isDirectory()) {
       for (const name of readdirSync(abs).sort()) {
         if (SKIP_DIRS.has(name)) continue;
         if (abs === slugAbs && EXCLUDED_IN_DIR.has(name)) continue;
-        visit(join(abs, name));
+        visit(join(abs, name), r0 !== slugDir);
       }
     } else if (st.isFile()) {
       const rel = toRel(cwd, abs);
@@ -108,7 +197,8 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
       if (opts.allowMissing) continue;
       throw new UsageError(`指紋の対象が存在しない: ${r}`);
     }
-    visit(abs);
+    r0 = r;
+    visit(abs, false);
   }
   return files;
 }
@@ -151,7 +241,7 @@ const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
  * | W1 | 最上位は { tool: "checkpoint", version: VERSION, checkpoints: [] } | 書き出しの JSON |
  * | W2 | 区切りは CHECKPOINTS の順に先頭から欠けずに並び、at / next_step は定義どおり | 前の区切りが無ければ止め、後ろを切り捨てて足す |
  * | W3 | 区切りのキーは at / next_step / roots / files だけ | entry の生成 |
- * | W4 | roots は重複の無い正規化済みの相対パスで、先頭が slug のディレクトリ、2 つ目以降（スイートの根）が 1 つ以上あり、どれも slug のディレクトリの外 | toRel・--include の検査・authored の --include 必須 |
+ * | W4 | roots は重複の無い正規化済みの相対パスで、先頭が slug のディレクトリ、2 つ目以降（スイートの根）が 1 つ以上あり、どれも slug のディレクトリの外で、slug のディレクトリを含まない。包含と重複は実パスで成り立つ | toRel・--include の検査（realRootProblem）・authored の --include 必須 |
  * | W5 | 後の区切りの roots は前の区切りの roots で始まる | 前の根を引き継いで後ろに足す |
  * | W6 | files は空でなく、値は sha256、鍵はどれかの根の下で、slug のディレクトリ直下の除外名の下に無い | fingerprintFiles |
  * | W7 | スイートの根はそれぞれ 1 つ以上のファイルを持つ | 根が空なら止める |
@@ -159,9 +249,10 @@ const ENTRY_KEYS = ["at", "next_step", "roots", "files"];
  * | W9 | gated の files は slug のディレクトリの strength.md を持つ | strength.md が無ければ止める |
  * @param {unknown} rec
  * @param {string} slugDir - cwd 基準の相対パス
+ * @param {{ cwd: string }} opts - W4 の包含と重複を実パスで確かめる基準（対象プロジェクトのルート）
  * @returns {string | null}
  */
-export function recordProblem(rec, slugDir) {
+export function recordProblem(rec, slugDir, opts) {
   // W1
   if (!isPlainObject(rec) || rec.tool !== "checkpoint" || !Array.isArray(rec.checkpoints)) {
     return '最上位が { tool: "checkpoint", version, checkpoints: [] } の形でない';
@@ -204,8 +295,10 @@ export function recordProblem(rec, slugDir) {
       if (r.startsWith("/") || r.split("/").some((seg) => seg === "" || seg === ".")) {
         return `${c.at} の roots に正規化されていないパスがある: ${r}`;
       }
-      if (under(r, slugDir)) return `${c.at} のスイートの根が --dir の中を指す: ${r}`;
     }
+    // 包含と重複は字面でなく実パスで判定する（字面の包含は実パスの包含に含まれる。Issue #474）
+    const real = realRootProblem(opts.cwd, slugDir, roots.slice(1));
+    if (real !== null) return `${c.at} の ${real}`;
     // W5
     if (prevRoots && !prevRoots.every((r, k) => roots[k] === r)) {
       return `${c.at} の roots が前の区切りの roots を引き継いでいない`;
@@ -305,7 +398,7 @@ export function main(argv, deps = {}) {
       command === "record" && pos === 0
         ? { tool: "checkpoint", version: VERSION, checkpoints: [] }
         : readRecord(recordPath);
-    const problem = recordProblem(raw, slugDir);
+    const problem = recordProblem(raw, slugDir, { cwd });
     if (problem !== null) {
       throw new UsageError(
         `${RECORD_NAME} が record の書く形でない: ${problem}（手で直さず authored から記録し直す）`,
@@ -364,12 +457,11 @@ export function main(argv, deps = {}) {
       const rel = toRel(cwd, inc);
       const abs = resolve(cwd, rel);
       if (!existsSync(abs)) throw new UsageError(`--include が存在しない: ${inc}`);
-      const fromSlug = relative(slugAbs, abs);
-      if (fromSlug === "" || !(fromSlug === ".." || fromSlug.startsWith(`..${sep}`))) {
-        throw new UsageError(`--include が --dir の中を指す（既に指紋の対象）: ${inc}`);
-      }
       if (!inherited.includes(rel)) inherited.push(rel);
     }
+    // 包含（中を指す・祖先を指す）と重複は実パスで判定する。字面だけではシンボリックリンクで slug のディレクトリの中を指す根が通る（Issue #474）
+    const realProblem = realRootProblem(cwd, slugDir, inherited);
+    if (realProblem !== null) throw new UsageError(`--include の ${realProblem}`);
     // スイートは authored の主な成果物。slug のディレクトリだけの指紋では、スイートを書き換えた再開を見逃す
     if (pos === 0 && inherited.length === 0) {
       throw new UsageError(

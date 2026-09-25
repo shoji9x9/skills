@@ -15,9 +15,9 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない",
         "#457: 字句解析が閉じない JS / TS 系のファイルは生バイトで数え、その旨を残す",
-        "#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由の陽性コントロール）"
+        "#457: 文字列の中の // の後ろを変えれば指紋が変わる（ファイル経由の陽性コントロール）",
+        "#457: 文字列・テンプレート・正規表現の中の // や /* はコメントとして除かない"
       ]
     },
     {
@@ -50,8 +50,8 @@
       "replace": ": recorded[0].startsWith(\"sha256:\")\n          ? \"nc\"",
       "occurrences": 1,
       "expect_failing": [
-        "#457: 旧方式 sha256: の記録は旧方式で照合する（変えていなければ通る）",
-        "#457: 旧方式 sha256: の記録はコメントの書き換えも従来どおり差として落とす"
+        "#457: 旧方式 sha256: の記録はコメントの書き換えも従来どおり差として落とす",
+        "#457: 旧方式 sha256: の記録は旧方式で照合する（変えていなければ通る）"
       ]
     },
     {
@@ -62,11 +62,11 @@
       "replace": "if (!legacy) {",
       "occurrences": 1,
       "expect_failing": [
-        "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）",
-        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）",
         "#457: .cjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
         "#457: .js も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
-        "#457: .mjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）"
+        "#457: .mjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）",
+        "#457: JS / TS 系以外のファイルは生バイトで数える（コメント風の行の書き換えも差になる）"
       ]
     },
     {
@@ -77,9 +77,9 @@
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ exit 0（注記付き）",
+        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）",
         "持ち越し: 影響する組が amend-verify で pass なら exit 0",
-        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）"
+        "持ち越し: 描画入力の差分が変更宣言で説明でき機能に影響しなければ exit 0（注記付き）"
       ]
     },
     {
@@ -90,10 +90,10 @@
       "replace": "        void 0;",
       "occurrences": 1,
       "expect_failing": [
-        "持ち越し: 影響する組が amend-verify で pass でなければ従来の不一致に理由を添えて落とす",
-        "持ち越し: 宣言外のファイルが変わっていれば落とす（ファイル名を出す）",
         "持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）",
-        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）"
+        "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）",
+        "持ち越し: 宣言外のファイルが変わっていれば落とす（ファイル名を出す）",
+        "持ち越し: 影響する組が amend-verify で pass でなければ従来の不一致に理由を添えて落とす"
       ]
     },
     {
@@ -104,10 +104,10 @@
       "replace": "const JS_FAMILY_EXTENSIONS = new Set([\".js\", \".mjs\", \".cjs\", \".jsx\", \".ts\", \".tsx\", \".mts\", \".cts\"]);",
       "occurrences": 1,
       "expect_failing": [
-        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）",
+        "#457: .cjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
         "#457: .js も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
         "#457: .mjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）",
-        "#457: .cjs も生バイトで数える（トランスパイルで JSX を書ける。テキストの // を見逃さない）"
+        "#457: .tsx / .jsx は生バイトで数える（JSX のテキストの // をコメントと読んで書き換えを見逃さない）"
       ]
     },
     {
@@ -119,9 +119,9 @@
       "occurrences": 1,
       "expect_failing": [
         "#457: 指示コメント // @ts-expect-error は除かない（書き換えれば正規形が変わる）",
-        "#457: 指示コメント /// <reference types=\"a\" /> は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント // eslint-disable-next-line は除かない（書き換えれば正規形が変わる）",
         "#457: 指示コメント //# sourceMappingURL=a.map は除かない（書き換えれば正規形が変わる）",
-        "#457: 指示コメント // eslint-disable-next-line は除かない（書き換えれば正規形が変わる）"
+        "#457: 指示コメント /// <reference types=\"a\" /> は除かない（書き換えれば正規形が変わる）"
       ]
     },
     {
@@ -133,10 +133,10 @@
       "occurrences": 1,
       "expect_failing": [
         "#457: 指示コメント /* @vite-ignore */ は除かない（書き換えれば正規形が変わる）",
-        "#457: 指示コメント /** @jsx h */ は除かない（書き換えれば正規形が変わる）",
-        "#457: 指示コメント /*#__PURE__*/ は除かない（書き換えれば正規形が変わる）",
         "#457: 指示コメント /* istanbul ignore next */ は除かない（書き換えれば正規形が変わる）",
-        "#457: 指示コメント /*! license a */ は除かない（書き換えれば正規形が変わる）"
+        "#457: 指示コメント /*! license a */ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /*#__PURE__*/ は除かない（書き換えれば正規形が変わる）",
+        "#457: 指示コメント /** @jsx h */ は除かない（書き換えれば正規形が変わる）"
       ]
     },
     {
@@ -149,6 +149,291 @@
       "expect_failing": [
         "#457: ) の後の / が正規表現にも読める形で同じ行に // があれば、読めないとして生バイトに倒す（null）"
       ]
+    },
+    {
+      "id": "per-spec-dispatch-off",
+      "why": "repeat_run.specs を持つ成果物もスイート全体の指紋で判定する（spec_fingerprints だけの記録は旧成果物として素通りする）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (record.specs !== undefined && record.specs !== null) {\n    const perSpec",
+      "replace": "  if (false) {\n    const perSpec",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす",
+        "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
+        "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）",
+        "#473: shared_files の記録の不備は exit 1: reason が空",
+        "#473: shared_files の記録の不備は exit 1: specs と両方にある",
+        "#473: shared_files の記録の不備は exit 1: 実体が無い",
+        "#473: スペック単位の記録の不備は exit 1: 分類が重複している",
+        "#473: スペック単位の記録の不備は exit 1: 分類されていないスペックがある",
+        "#473: スペック単位の記録の不備は exit 1: 分類の reason が空",
+        "#473: スペック単位の記録の不備は exit 1: 分類表のスペックが suite.specs の下に無い",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックが 1 件も無い",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックの記録に shared_fingerprint が無い",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む 2 回の started_at が同じ",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む直近 2 回の後の回が赤",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む記録が 1 回だけ（もう 1 回は別のスペックだけ）",
+        "#473: スペック単位の記録の型崩れは exit 2: current_excluded が配列でない",
+        "#473: スペック単位の記録の型崩れは exit 2: shared_files が配列でない",
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints がオブジェクトでない",
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
+        "#473: スペック単位の記録の型崩れは exit 2: specs が配列でない",
+        "#473: スペック単位の記録の型崩れは exit 2: state_mutating が真偽値でない",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）",
+        "#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い",
+        "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
+      ]
+    },
+    {
+      "id": "per-spec-all-mutating",
+      "why": "状態を変えないスペックにも 2 回続けての緑を求める（#473 の元の形）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "filter(([f, m]) => m && specSet.has(f))",
+      "replace": "filter(([f]) => specSet.has(f))",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックが 1 件も無い"
+      ]
+    },
+    {
+      "id": "per-spec-fingerprint-ignored",
+      "why": "状態を変えるスペックの指紋を現在と照合しない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (recorded.some((fp) => fp !== current.specs[spec])) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
+      ]
+    },
+    {
+      "id": "per-spec-shared-ignored",
+      "why": "共有の土台の指紋を現在と照合しない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "} else if (shared.some((fp) => fp !== current.shared)) {",
+      "replace": "} else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）"
+      ]
+    },
+    {
+      "id": "per-spec-no-spec-split",
+      "why": "suite.specs の下のスペックを土台として数える（1 つ変えると全件が失効する）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (key === \"specs\" && (SPEC_FILE_PATTERN.test(f) || declared.has(f))) specFiles.add(f);",
+      "replace": "if (false) specFiles.add(f);",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす",
+        "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
+        "#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・土台の指紋を出す",
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
+        "#473: current_excluded の下（新側専用スペック）に足しても記録は失効せず、分類も要らない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
+        "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）",
+        "#473: スペック単位の記録の不備は exit 1: 分類されていないスペックがある",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックの記録に shared_fingerprint が無い",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む 2 回の started_at が同じ",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む直近 2 回の後の回が赤",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む記録が 1 回だけ（もう 1 回は別のスペックだけ）",
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
+        "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）",
+        "#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い",
+        "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
+      ]
+    },
+    {
+      "id": "per-spec-unclassified-ignored",
+      "why": "分類されていないスペックを落とさない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (!declared.has(f)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）",
+        "#473: スペック単位の記録の不備は exit 1: 分類されていないスペックがある"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-ignored",
+      "why": "current_excluded の下を外さない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "      if (key === \"specs\" && excluded.some((e) => underRel(f, e))) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・土台の指紋を出す",
+        "#473: current_excluded の下（新側専用スペック）に足しても記録は失効せず、分類も要らない"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-without-reason",
+      "why": "reason の無い current_excluded も外す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (!nonEmptyString(e.reason)) {\n      // 外したものは",
+      "replace": "    if (false) {\n      // 外したものは",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）"
+      ]
+    },
+    {
+      "id": "per-spec-pair-skipped",
+      "why": "状態を変えるスペックを含む 2 回の結果と時刻を判定しない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    findings.push(...pairFindings(tail, `スペック ${spec}: `));\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む 2 回の started_at が同じ",
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックを含む直近 2 回の後の回が赤"
+      ]
+    },
+    {
+      "id": "per-spec-tail-whole-list",
+      "why": "状態を変えるスペックを含まない回も直近 2 回として数える",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    const tail = hits.slice(-2);\n",
+      "replace": "    const tail = list.slice(-2);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
+        "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
+      ]
+    },
+    {
+      "id": "per-spec-zero-mutating-ignored",
+      "why": "状態を変えるスペックが 0 件でも suite.state_mutating: true を通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  if (mutating.length === 0 && [...declared.values()].every((m) => !m)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックが 1 件も無い"
+      ]
+    },
+    {
+      "id": "per-spec-false-contradiction-ignored",
+      "why": "suite.state_mutating: false と状態を変えるスペックの分類の矛盾を通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "record.specs.some((e) => isPlainObject(e) && e.state_mutating === true)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: suite.state_mutating: false なのに状態を変えるスペックを分類していたら落とす"
+      ]
+    },
+    {
+      "id": "per-spec-false-type-unchecked",
+      "why": "state_mutating: false のとき repeat_run.specs の型崩れを通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (record.specs !== undefined && record.specs !== null && !Array.isArray(record.specs))\n      throw new UsageError",
+      "replace": "    if (false)\n      throw new UsageError",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: suite.state_mutating: false でも repeat_run.specs の型崩れは exit 2"
+      ]
+    },
+    {
+      "id": "per-spec-readonly-unbound",
+      "why": "状態を変えないスペックの 1 回の緑を現在の版に結びつけない（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  for (const spec of readOnly) {\n",
+      "replace": "  for (const spec of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-any-key",
+      "why": "current_excluded を土台のキーにも当てる（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (key === \"specs\" && excluded.some((e) => underRel(f, e))) continue;",
+      "replace": "if (excluded.some((e) => underRel(f, e))) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-outside-specs",
+      "why": "suite.specs の外の current_excluded を受ける（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (specsRoot === null || normalized === specsRoot || !underRel(normalized, specsRoot)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）"
+      ]
+    },
+    {
+      "id": "per-spec-duplicate-key",
+      "why": "spec_fingerprints の正規化後に重複するキーを通す（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (dup !== undefined) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: スペック単位の記録の型崩れは exit 2: spec_fingerprints に正規化すると同じスペックになるキーが 2 つある"
+      ]
+    },
+    {
+      "id": "per-spec-undeclared-ignored",
+      "why": "命名規則に当たらず宣言も無い JS / TS 系のファイルを黙って土台に数える（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "      if (JS_TS_FILE_PATTERN.test(f) && !sharedDeclared.has(f)) undeclared.push(f);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現（Codex レビュー）: 命名規則に当たらないファイルは、別名で test を呼んでいても宣言が無ければ落とす",
+        "#473: 共通の関数・fixture は shared_files に宣言すれば土台として通る（宣言しなければ落ちる）"
+      ]
+    },
+    {
+      "id": "per-spec-shared-without-reason",
+      "why": "reason の無い shared_files も土台と認める",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (!nonEmptyString(e.reason)) {\n      findings.push(\n        `repeat_run.shared_files",
+      "replace": "    if (false) {\n      findings.push(\n        `repeat_run.shared_files",
+      "occurrences": 1,
+      "expect_failing": ["#473: shared_files の記録の不備は exit 1: reason が空"]
+    },
+    {
+      "id": "per-spec-shared-stale-ignored",
+      "why": "実体の無い shared_files を通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (!treeShared.has(f)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["#473: shared_files の記録の不備は exit 1: 実体が無い"]
     }
   ]
 }

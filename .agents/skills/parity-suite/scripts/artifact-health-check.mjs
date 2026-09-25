@@ -11,6 +11,9 @@
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
 //      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける——
 //      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。
+//      repeat_run.specs（スペックごとの分類）を持つ成果物はスペック単位で判定する（Issue #473）——
+//      2 回を求めるのは状態を変えるスペックだけで、記録はスペックごとの指紋と共有の土台の指紋に結びつける。
+//      記録する指紋は --fingerprint で出す（手で計算しない）。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
 //   4. 工程の成果物（--target）: suite.new_green が真なら同じ場所に diff-metadata.json が在り、
 //      それが「いまの新側」（new.commit と loop.iterations）に対応していることを求める
@@ -28,7 +31,17 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  posix,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // 同じディレクトリの evidence-carry.mjs は、このファイルの実パスから引く。静的な "./evidence-carry.mjs" は
@@ -43,7 +56,7 @@ const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "8";
+export const VERSION = "9";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -659,12 +672,30 @@ const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions
  */
 export function suiteFingerprint(suiteObj, root, opts = {}) {
   const legacy = opts.legacy === true;
-  /** @type {string[]} コメントを除けず生バイトで数えた JS / TS 系のファイル */
-  const unparsed = [];
+  const listed = listSuiteFiles(suiteObj, root);
+  if (listed.declared === 0 || listed.missing.length > 0)
+    return { fingerprint: null, files: 0, missing: listed.missing, unparsed: [] };
+  const files = listed.byKey.flatMap((k) => k.files).sort();
+  const d = digestFiles(files, root, legacy);
+  return {
+    fingerprint: d.fingerprint,
+    files: d.fingerprint === null ? 0 : files.length,
+    missing: d.missing,
+    unparsed: d.unparsed,
+  };
+}
+
+/**
+ * suite の宣言パス（SUITE_SOURCE_KEYS）の下のファイルを列挙する。ディレクトリは再帰、パスは宣言の字面に継ぎ足す。
+ * @param {Record<string, unknown>} suiteObj
+ * @param {string} root
+ * @returns {{ declared: number, missing: string[], byKey: { key: string, rel: string, files: string[] }[] }}
+ */
+function listSuiteFiles(suiteObj, root) {
   /** @type {string[]} */
   const missing = [];
-  /** @type {string[]} */
-  const files = [];
+  /** @type {{ key: string, rel: string, files: string[] }[]} */
+  const byKey = [];
   let declared = 0;
   for (const key of SUITE_SOURCE_KEYS) {
     const value = suiteObj[key];
@@ -680,24 +711,33 @@ export function suiteFingerprint(suiteObj, root, opts = {}) {
       missing.push(`${rel}（実体が無い）`);
       continue;
     }
-    if (statSync(abs).isDirectory()) files.push(...listFiles(abs).map((f) => `${rel}/${f}`));
-    else files.push(rel);
+    const files = statSync(abs).isDirectory() ? listFiles(abs).map((f) => `${rel}/${f}`) : [rel];
+    byKey.push({ key, rel, files });
   }
-  if (declared === 0 || missing.length > 0)
-    return { fingerprint: null, files: 0, missing, unparsed };
-  files.sort();
+  return { declared, missing, byKey };
+}
+
+/**
+ * ファイルの並びから指紋を計算する（並びは呼び出し側で固定する）。
+ * 既定（`sha256-nc:`）は JS / TS 系をコメントを除いた正規形で数え、字句解析が閉じないものは生バイトで数える。
+ * @param {string[]} files - root 基準の相対パス
+ * @param {string} root
+ * @param {boolean} legacy - 旧方式（`sha256:`・全ファイル生バイト）
+ * @returns {{ fingerprint: string | null, missing: string[], unparsed: string[] }}
+ */
+function digestFiles(files, root, legacy) {
+  /** @type {string[]} コメントを除けず生バイトで数えた JS / TS 系のファイル */
+  const unparsed = [];
   const digest = createHash("sha256");
   for (const rel of files) {
     const abs = resolveInside(root, rel);
     if (abs === null)
       return {
         fingerprint: null,
-        files: 0,
         missing: [`${rel}（ルートの外を指しているか実パスを解決できない）`],
         unparsed,
       };
-    if (!existsSync(abs))
-      return { fingerprint: null, files: 0, missing: [`${rel}（実体が無い）`], unparsed };
+    if (!existsSync(abs)) return { fingerprint: null, missing: [`${rel}（実体が無い）`], unparsed };
     let fileHash = null;
     if (!legacy && JS_FAMILY_EXTENSIONS.has(extname(rel).toLowerCase())) {
       const stripped = stripJsComments(readFileSync(abs, "utf8"));
@@ -710,12 +750,449 @@ export function suiteFingerprint(suiteObj, root, opts = {}) {
     digest.update("\n");
   }
   const prefix = legacy ? "sha256" : "sha256-nc";
+  return { fingerprint: `${prefix}:${digest.digest("hex")}`, missing: [], unparsed };
+}
+
+/**
+ * Playwright の既定の testMatch（`**\/*.@(spec|test).?(c|m)[jt]s?(x)`）。suite.specs の下でこれに当たるファイルをスペックとして数える。
+ * testMatch を変えたプロジェクトのスペックはこれに当たらないことがあるので、分類表（repeat_run.specs）に書いたパスもスペックとして数える。
+ */
+const SPEC_FILE_PATTERN = /\.(spec|test)\.[cm]?[jt]sx?$/i;
+
+/** JS / TS 系の拡張子。suite.specs の下で命名規則に当たらないこれらのファイルは、スペックか土台かの宣言を要る。 */
+const JS_TS_FILE_PATTERN = /\.[cm]?[jt]sx?$/i;
+
+/**
+ * パスを / 区切りの正規形にする（宣言の字面の揺れ〈末尾の /・./〉で同じファイルを別物として数えない）。
+ * @param {string} p
+ */
+function normalizeRel(p) {
+  return posix.normalize(p.trim().split(sep).join("/")).replace(/\/+$/, "");
+}
+
+/**
+ * パス f が根 r の下（r 自身を含む）にあるか（どちらも normalizeRel 済み）。
+ * @param {string} f
+ * @param {string} r
+ */
+function underRel(f, r) {
+  return f === r || f.startsWith(`${r}/`);
+}
+
+/**
+ * スペック単位の指紋を計算する（Issue #473）。
+ *
+ * スイート全体の 1 つの指紋に 2 回の記録を結びつけると、状態を変えないスペックを 1 行変えただけで
+ * 状態を変えるスペックまで現行へ 2 回回し直すことになる。2 回目が意味を持つのは状態を変えるスペックだけなので、
+ * 記録はスペックごとの指紋と、スペックが共通に読む土台（shared）の指紋に結びつける。
+ *
+ * - スペック: suite.specs の下で SPEC_FILE_PATTERN に当たるファイルと、分類表に書いたファイル。1 ファイルずつ指紋を取る
+ * - 土台（shared）: それ以外の宣言パスの全ファイル（locator_map / expectations / interactions / tools と、
+ *   suite.specs の下のスペック以外——スペックが読む共通の関数・fixture）。変われば全スペックの記録が失効する
+ * - 外すもの: excluded（current プロジェクトが testIgnore で走らせないディレクトリ。新側専用スペック等）の下。
+ *   現行へ走らないものは現行の状態を変えられず、記録を失効させる理由にならない
+ * @param {Record<string, unknown>} suiteObj
+ * @param {string} root
+ * @param {{ declared?: string[], sharedDeclared?: string[], excluded?: string[] }} [opts] - いずれも normalizeRel 済みの root 基準の相対パス
+ * @returns {{ shared: string | null, specs: Record<string, string>, specFiles: string[], sharedFiles: number, specsTreeShared: string[], undeclared: string[], missing: string[], unparsed: string[] }}
+ */
+export function specFingerprints(suiteObj, root, opts = {}) {
+  const declared = new Set(opts.declared ?? []);
+  const sharedDeclared = new Set(opts.sharedDeclared ?? []);
+  const excluded = opts.excluded ?? [];
+  const listed = listSuiteFiles(suiteObj, root);
+  const empty = {
+    shared: null,
+    specs: {},
+    specFiles: [],
+    sharedFiles: 0,
+    specsTreeShared: [],
+    undeclared: [],
+    unparsed: [],
+  };
+  if (listed.declared === 0 || listed.missing.length > 0)
+    return { ...empty, missing: listed.missing };
+  /** @type {Set<string>} */
+  const specFiles = new Set();
+  /** @type {Set<string>} */
+  const sharedFiles = new Set();
+  for (const { key, files } of listed.byKey) {
+    for (const raw of files) {
+      const f = normalizeRel(raw);
+      if (key === "specs" && excluded.some((e) => underRel(f, e))) continue;
+      if (key === "specs" && (SPEC_FILE_PATTERN.test(f) || declared.has(f))) specFiles.add(f);
+      else sharedFiles.add(f);
+    }
+  }
+  // 同じファイルが specs と別のキーの両方に入る宣言（tools を specs の下に置く等）は、スペックとして数える
+  for (const f of specFiles) sharedFiles.delete(f);
+  // suite.specs の下で命名規則にも分類表にも当たらない JS / TS 系のファイルは、repeat_run.shared_files に宣言していなければ落とす。
+  // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）等ですり抜け、状態を変えるスペックが
+  // 2 回続けての緑を求められないまま土台に紛れる（Codex レビュー、PR #475）。推測せず宣言を求める（fail-closed）
+  /** @type {string[]} */
+  const specsTreeShared = [];
+  /** @type {string[]} */
+  const undeclared = [];
+  for (const { key, files } of listed.byKey) {
+    if (key !== "specs") continue;
+    for (const raw of files) {
+      const f = normalizeRel(raw);
+      if (!sharedFiles.has(f)) continue;
+      specsTreeShared.push(f);
+      if (JS_TS_FILE_PATTERN.test(f) && !sharedDeclared.has(f)) undeclared.push(f);
+    }
+  }
+  /** @type {string[]} */
+  const unparsed = [];
+  const shared = digestFiles([...sharedFiles].sort(), root, false);
+  if (shared.fingerprint === null) return { ...empty, missing: shared.missing };
+  unparsed.push(...shared.unparsed);
+  /** @type {Record<string, string>} */
+  const specs = {};
+  const sortedSpecs = [...specFiles].sort();
+  for (const f of sortedSpecs) {
+    const d = digestFiles([f], root, false);
+    if (d.fingerprint === null) return { ...empty, missing: d.missing };
+    unparsed.push(...d.unparsed);
+    specs[f] = d.fingerprint;
+  }
   return {
-    fingerprint: `${prefix}:${digest.digest("hex")}`,
-    files: files.length,
+    shared: shared.fingerprint,
+    specs,
+    specFiles: sortedSpecs,
+    sharedFiles: sharedFiles.size,
+    specsTreeShared: specsTreeShared.sort(),
+    undeclared: undeclared.sort(),
     missing: [],
     unparsed,
   };
+}
+
+/**
+ * 連続する 2 回の記録が、どちらも緑で、別の日時に順に始まったかを数える。
+ * @param {Record<string, unknown>[]} tail - 連続する 2 回（オブジェクトであることは呼び出し側で確かめる）
+ * @param {string} label - 所見の接頭辞（スペック単位の判定ではスペックのパス）
+ * @returns {string[]}
+ */
+function pairFindings(tail, label) {
+  /** @type {string[]} */
+  const findings = [];
+  /** @type {string[]} */
+  const startedAt = [];
+  for (const [i, run] of tail.entries()) {
+    if (run.result !== GREEN) {
+      findings.push(
+        `${label}連続する 2 回のうち ${i + 1} 回目が緑でない（result: ${JSON.stringify(run.result)}）`,
+      );
+    }
+    if (!nonEmptyString(run.started_at)) {
+      findings.push(`${label}連続する 2 回のうち ${i + 1} 回目の started_at が空`);
+    } else {
+      startedAt.push(String(run.started_at).trim());
+    }
+  }
+  if (startedAt.length === 2) {
+    if (startedAt[0] === startedAt[1]) {
+      findings.push(
+        `${label}連続する 2 回の started_at が同じ（1 回の記録の写しと区別が付かない）: ${startedAt[0]}`,
+      );
+    } else {
+      const t0 = Date.parse(startedAt[0]);
+      const t1 = Date.parse(startedAt[1]);
+      if (Number.isNaN(t0) || Number.isNaN(t1)) {
+        findings.push(`${label}started_at が日時として読めない: ${startedAt.join(" / ")}`);
+      } else if (t1 <= t0) {
+        findings.push(
+          `${label}2 回目の started_at が 1 回目より後になっていない: ${startedAt.join(" → ")}`,
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/**
+ * 分類表（repeat_run.specs）と current_excluded を読む。型崩れは UsageError、記録の不備は所見。
+ * @param {Record<string, unknown>} record - suite.repeat_run
+ * @param {string} root
+ * @param {unknown} specsDecl - suite.specs（current_excluded はこの下に限る）
+ * @returns {{ findings: string[], declared: Map<string, boolean>, sharedDeclared: Set<string>, excluded: string[] }}
+ */
+function readSpecClassification(record, root, specsDecl) {
+  const specsRoot = nonEmptyString(specsDecl) ? normalizeRel(String(specsDecl)) : null;
+  /** @type {string[]} */
+  const findings = [];
+  const rawExcluded = record.current_excluded ?? [];
+  if (!Array.isArray(rawExcluded))
+    throw new UsageError("suite.repeat_run.current_excluded が配列でない");
+  /** @type {string[]} */
+  const excluded = [];
+  for (const [i, e] of rawExcluded.entries()) {
+    if (!isPlainObject(e))
+      throw new UsageError(`suite.repeat_run.current_excluded[${i}] がオブジェクトでない`);
+    if (!nonEmptyString(e.path)) {
+      findings.push(`current_excluded[${i}] の path が空`);
+      continue;
+    }
+    const rel = String(e.path).trim();
+    if (!nonEmptyString(e.reason)) {
+      // 外したものは記録を失効させなくなる（緩和）ので、現行へ走らない根拠が無いものは外さない
+      findings.push(
+        `current_excluded の ${rel} に reason が無い（current プロジェクトが走らせない根拠が残らない）。外さずに数える`,
+      );
+      continue;
+    }
+    if (resolveInside(root, rel) === null) {
+      findings.push(`current_excluded の ${rel} がルートの外を指しているか実パスを解決できない`);
+      continue;
+    }
+    // 外せるのは suite.specs の下（current が走らせないスペックの置き場所）だけ。土台（locator_map 等）やその祖先を外すと、
+    // 土台を変えても記録が失効しなくなる。suite.specs そのものも外せない（全スペックが判定から消える）
+    const normalized = normalizeRel(rel);
+    if (specsRoot === null || normalized === specsRoot || !underRel(normalized, specsRoot)) {
+      findings.push(
+        `current_excluded の ${rel} が suite.specs（${specsRoot ?? "未宣言"}）の下でない（外せるのは current が走らせないスペックの置き場所だけ）。外さずに数える`,
+      );
+      continue;
+    }
+    excluded.push(normalizeRel(rel));
+  }
+  const specs = record.specs;
+  if (!Array.isArray(specs)) throw new UsageError("suite.repeat_run.specs が配列でない");
+  /** @type {Map<string, boolean>} */
+  const declared = new Map();
+  for (const [i, e] of specs.entries()) {
+    if (!isPlainObject(e))
+      throw new UsageError(`suite.repeat_run.specs[${i}] がオブジェクトでない`);
+    if (!nonEmptyString(e.path)) {
+      findings.push(`repeat_run.specs[${i}] の path が空`);
+      continue;
+    }
+    const rel = normalizeRel(String(e.path));
+    if (typeof e.state_mutating !== "boolean")
+      throw new UsageError(`suite.repeat_run.specs の ${rel} の state_mutating が真偽値でない`);
+    if (!nonEmptyString(e.reason)) {
+      findings.push(
+        `repeat_run.specs の ${rel} に reason が無い（状態を変えるか変えないかの判断の根拠が残らない）`,
+      );
+    }
+    if (declared.has(rel)) {
+      findings.push(`repeat_run.specs に ${rel} が重複している（分類が 1 つに決まらない）`);
+      continue;
+    }
+    declared.set(rel, e.state_mutating);
+  }
+  const rawShared = record.shared_files ?? [];
+  if (!Array.isArray(rawShared)) throw new UsageError("suite.repeat_run.shared_files が配列でない");
+  /** @type {Set<string>} */
+  const sharedDeclared = new Set();
+  for (const [i, e] of rawShared.entries()) {
+    if (!isPlainObject(e))
+      throw new UsageError(`suite.repeat_run.shared_files[${i}] がオブジェクトでない`);
+    if (!nonEmptyString(e.path)) {
+      findings.push(`repeat_run.shared_files[${i}] の path が空`);
+      continue;
+    }
+    const rel = normalizeRel(String(e.path));
+    // 土台と宣言すると 2 回続けての緑を求めなくなる（緩和）ので、テストを定義しない根拠が無いものは土台と認めない
+    if (!nonEmptyString(e.reason)) {
+      findings.push(
+        `repeat_run.shared_files の ${rel} に reason が無い（テストを定義しない共通の関数だと判断した根拠が残らない）。土台と認めない`,
+      );
+      continue;
+    }
+    if (declared.has(rel)) {
+      findings.push(
+        `${rel} が repeat_run.specs と repeat_run.shared_files の両方にある（スペックか土台かが決まらない）`,
+      );
+      continue;
+    }
+    if (sharedDeclared.has(rel)) {
+      findings.push(`repeat_run.shared_files に ${rel} が重複している`);
+      continue;
+    }
+    sharedDeclared.add(rel);
+  }
+  return { findings, declared, sharedDeclared, excluded };
+}
+
+/**
+ * スペック単位の反復実行を数え直す（Issue #473。repeat_run.specs を持つ成果物）。
+ *
+ * 状態を変えるスペックごとに、そのスペックを含む直近 2 回の記録が緑・別の日時で順に始まり、
+ * どちらもそのスペックの指紋と土台（shared）の指紋が現在と一致することを求める。
+ * 状態を変えないスペックは 1 回の緑（current_green）で足りる。分類されていないスペックは落とす（fail-closed）。
+ * @param {Record<string, unknown>} suiteObj
+ * @param {Record<string, unknown>} record - suite.repeat_run
+ * @param {string} root
+ * @returns {{ findings: string[], notes: string[] }}
+ */
+function checkRepeatRunPerSpec(suiteObj, record, root) {
+  const { findings, declared, sharedDeclared, excluded } = readSpecClassification(
+    record,
+    root,
+    suiteObj.specs,
+  );
+  /** @type {string[]} */
+  const notes = [];
+  const current = specFingerprints(suiteObj, root, {
+    declared: [...declared.keys()],
+    sharedDeclared: [...sharedDeclared],
+    excluded,
+  });
+  if (current.shared === null) {
+    findings.push(
+      `現在のスイートの指紋を計算できない（判定不能を合格に倒さない）: ${current.missing.length > 0 ? `読めない ${current.missing.join(" / ")}` : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+    );
+    return { findings, notes };
+  }
+  const specSet = new Set(current.specFiles);
+  for (const f of current.specFiles) {
+    if (!declared.has(f)) {
+      findings.push(
+        `repeat_run.specs で分類されていないスペック: ${f}（状態を変えるかどうかが決まらない。state_mutating と reason を書く）`,
+      );
+    }
+  }
+  for (const f of current.undeclared) {
+    findings.push(
+      `suite.specs の下で命名規則（*.spec.* / *.test.*）に当たらず、repeat_run.specs にも repeat_run.shared_files にも無いファイル: ${f}（スペックなら specs に、テストを定義しない共通の関数・fixture なら shared_files に理由を付けて書く）`,
+    );
+  }
+  const treeShared = new Set(current.specsTreeShared);
+  for (const f of sharedDeclared) {
+    if (!treeShared.has(f)) {
+      findings.push(
+        `repeat_run.shared_files のファイルが suite.specs の下の土台に無い: ${f}（実体が無い・suite.specs の外・current_excluded の下のいずれか）`,
+      );
+    }
+  }
+  for (const f of declared.keys()) {
+    if (!specSet.has(f)) {
+      findings.push(
+        `repeat_run.specs のスペックが suite.specs の下に無い: ${f}（実体が無い・suite.specs の外・current_excluded の下のいずれか）`,
+      );
+    }
+  }
+  const mutating = [...declared].filter(([f, m]) => m && specSet.has(f)).map(([f]) => f);
+  if (mutating.length === 0 && [...declared.values()].every((m) => !m)) {
+    findings.push(
+      "suite.state_mutating: true なのに repeat_run.specs に状態を変えるスペックが 1 件も無い（状態を変えないなら suite.state_mutating: false と reason を書く）",
+    );
+  }
+
+  const runs = record.runs;
+  if (runs !== undefined && runs !== null && !Array.isArray(runs))
+    throw new UsageError("suite.repeat_run.runs が配列でない");
+  const list = Array.isArray(runs) ? runs : [];
+  let withoutSpecPrints = 0;
+  for (const [i, run] of list.entries()) {
+    if (!isPlainObject(run))
+      throw new UsageError(`suite.repeat_run.runs[${i}] がオブジェクトでない`);
+    const prints = run.spec_fingerprints;
+    if (prints === undefined || prints === null) {
+      withoutSpecPrints += 1;
+      continue;
+    }
+    if (!isPlainObject(prints) || !Object.values(prints).every((v) => nonEmptyString(v))) {
+      throw new UsageError(
+        `suite.repeat_run.runs[${i}].spec_fingerprints が「スペックのパス → 指紋」のオブジェクトでない`,
+      );
+    }
+    // 正規化すると同じスペックになるキーが 2 つあると、どちらを読むかが挿入順で決まり、矛盾した記録が黙って通る（--fingerprint は書かない形）
+    const normalizedKeys = Object.keys(prints).map((k) => normalizeRel(k));
+    const dup = normalizedKeys.find((k, j) => normalizedKeys.indexOf(k) !== j);
+    if (dup !== undefined) {
+      throw new UsageError(
+        `suite.repeat_run.runs[${i}].spec_fingerprints に同じスペック ${dup} を指すキーが複数ある`,
+      );
+    }
+  }
+  for (const spec of mutating) {
+    const hits = list.filter(
+      (run) =>
+        isPlainObject(run.spec_fingerprints) &&
+        Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
+    );
+    if (hits.length < 2) {
+      findings.push(
+        `状態を変えるスペック ${spec} の実行記録が ${hits.length} 件（そのスペックを 2 回続けて回さないと後始末の有無が結果に現れない）`,
+      );
+      continue;
+    }
+    const tail = hits.slice(-2);
+    findings.push(...pairFindings(tail, `スペック ${spec}: `));
+    const recorded = tail.map((run) => {
+      const prints = /** @type {Record<string, unknown>} */ (run.spec_fingerprints);
+      const key = Object.keys(prints).find((k) => normalizeRel(k) === spec);
+      return String(prints[/** @type {string} */ (key)]).trim();
+    });
+    if (recorded.some((fp) => fp !== current.specs[spec])) {
+      findings.push(
+        `状態を変えるスペック ${spec} の 2 回の記録は現在のスペックのものでない（記録 ${recorded.join(" / ")} ≠ 実測 ${current.specs[spec]}）。このスペックを 2 回続けて回し直す`,
+      );
+    }
+    const shared = tail.map((run) =>
+      nonEmptyString(run.shared_fingerprint) ? String(run.shared_fingerprint).trim() : null,
+    );
+    if (shared.some((fp) => fp === null)) {
+      findings.push(
+        `スペック ${spec} の記録に shared_fingerprint が無い（スペックが共通に読む土台のどの版で回したか対応づかない）`,
+      );
+    } else if (shared.some((fp) => fp !== current.shared)) {
+      findings.push(
+        `スペック ${spec} の 2 回の記録は現在の土台のものでない（shared_fingerprint ${shared.join(" / ")} ≠ 実測 ${current.shared}）。` +
+          "土台（locator_map / expectations / interactions / tools・suite.specs の下のスペック以外）を変えたら、状態を変えるスペックをすべて 2 回続けて回し直す",
+      );
+    }
+  }
+  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在の版に結びつける。
+  // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
+  const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
+  for (const spec of readOnly) {
+    const last = list
+      .filter(
+        (run) =>
+          isPlainObject(run.spec_fingerprints) &&
+          Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
+      )
+      .at(-1);
+    if (last === undefined) {
+      findings.push(
+        `状態を変えないスペック ${spec} の実行記録が 0 件（1 回の緑を現在のスペックに結びつける記録が無い）`,
+      );
+      continue;
+    }
+    const prints = /** @type {Record<string, unknown>} */ (last.spec_fingerprints);
+    const key = /** @type {string} */ (Object.keys(prints).find((k) => normalizeRel(k) === spec));
+    const recorded = String(prints[key]).trim();
+    const shared = nonEmptyString(last.shared_fingerprint)
+      ? String(last.shared_fingerprint).trim()
+      : null;
+    if (last.result !== GREEN) {
+      findings.push(
+        `状態を変えないスペック ${spec} の直近の記録が緑でない（result: ${JSON.stringify(last.result)}）`,
+      );
+    } else if (recorded !== current.specs[spec] || shared !== current.shared) {
+      findings.push(
+        `状態を変えないスペック ${spec} の直近の緑は現在のスペック・土台のものでない（spec ${recorded} / shared ${shared} ≠ 実測 ${current.specs[spec]} / ${current.shared}）。このスペックを 1 回回して記録を足す`,
+      );
+    }
+  }
+  notes.push(
+    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（土台 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
+  );
+  if (withoutSpecPrints > 0) {
+    notes.push(
+      `spec_fingerprints を持たない実行記録 ${withoutSpecPrints} 件はスペック単位の判定に使わない`,
+    );
+  }
+  if (current.unparsed.length > 0) {
+    notes.push(
+      `コメントを除けず生バイトで数えたファイル（字句解析が閉じない）: ${current.unparsed.join(" / ")}`,
+    );
+  }
+  return { findings, notes };
 }
 
 /**
@@ -759,6 +1236,16 @@ export function checkRepeatRun(metadata, ctx) {
   const record = isPlainObject(repeat) ? repeat : {};
 
   if (!suiteObj.state_mutating) {
+    if (record.specs !== undefined && record.specs !== null && !Array.isArray(record.specs))
+      throw new UsageError("suite.repeat_run.specs が配列でない");
+    if (
+      Array.isArray(record.specs) &&
+      record.specs.some((e) => isPlainObject(e) && e.state_mutating === true)
+    ) {
+      findings.push(
+        "suite.state_mutating: false なのに repeat_run.specs に状態を変えるスペックがある（どちらの宣言が正しいか決まらない）",
+      );
+    }
     if (!nonEmptyString(record.reason)) {
       findings.push(
         "suite.state_mutating: false なのに repeat_run.reason が空（状態を変えないと判断した根拠が残らない）",
@@ -776,6 +1263,12 @@ export function checkRepeatRun(metadata, ctx) {
       "状態を変えるスイートなのに repeat_run.cleanup_in_suite が true でない（後始末が外の道具に依存すると次の実行が壊れる）",
     );
   }
+  // 分類表を持つ成果物はスペック単位で判定する（持たない成果物は従来どおりスイート全体の指紋で判定する）
+  if (record.specs !== undefined && record.specs !== null) {
+    const perSpec = checkRepeatRunPerSpec(suiteObj, record, ctx.root);
+    findings.push(...perSpec.findings);
+    return { judged: true, findings, notes: perSpec.notes };
+  }
   const runs = record.runs;
   if (runs !== undefined && runs !== null && !Array.isArray(runs))
     throw new UsageError("suite.repeat_run.runs が配列でない");
@@ -787,39 +1280,11 @@ export function checkRepeatRun(metadata, ctx) {
     return { judged: true, findings, notes: [] };
   }
   const tail = list.slice(-2);
-  /** @type {string[]} */
-  const startedAt = [];
   for (const [i, run] of tail.entries()) {
     if (!isPlainObject(run))
       throw new UsageError(`suite.repeat_run.runs の末尾 ${i + 1} 件目がオブジェクトでない`);
-    if (run.result !== GREEN) {
-      findings.push(
-        `連続する 2 回のうち ${i + 1} 回目が緑でない（result: ${JSON.stringify(run.result)}）`,
-      );
-    }
-    if (!nonEmptyString(run.started_at)) {
-      findings.push(`連続する 2 回のうち ${i + 1} 回目の started_at が空`);
-    } else {
-      startedAt.push(String(run.started_at).trim());
-    }
   }
-  if (startedAt.length === 2) {
-    if (startedAt[0] === startedAt[1]) {
-      findings.push(
-        `連続する 2 回の started_at が同じ（1 回の記録の写しと区別が付かない）: ${startedAt[0]}`,
-      );
-    } else {
-      const t0 = Date.parse(startedAt[0]);
-      const t1 = Date.parse(startedAt[1]);
-      if (Number.isNaN(t0) || Number.isNaN(t1)) {
-        findings.push(`started_at が日時として読めない: ${startedAt.join(" / ")}`);
-      } else if (t1 <= t0) {
-        findings.push(
-          `2 回目の started_at が 1 回目より後になっていない: ${startedAt.join(" → ")}`,
-        );
-      }
-    }
-  }
+  findings.push(...pairFindings(tail, ""));
   /** @type {string[]} */
   const notes = [`状態を変えるスイートの実行記録 ${list.length} 件のうち末尾 2 件を判定`];
 
@@ -853,7 +1318,7 @@ export function checkRepeatRun(metadata, ctx) {
           : suiteFingerprint(suiteObj, ctx.root, { legacy: scheme === "legacy" });
       if (current === null) {
         findings.push(
-          `suite_fingerprint の方式を読めない（接頭辞が sha256-nc: でも sha256: でもない）: ${recorded[0]}。suiteFingerprint で計算し直して記録する`,
+          `suite_fingerprint の方式を読めない（接頭辞が sha256-nc: でも sha256: でもない）: ${recorded[0]}。--fingerprint の出力で記録し直す`,
         );
       } else if (current.fingerprint === null) {
         findings.push(
@@ -1268,13 +1733,18 @@ export function deriveRoot(metadataPath) {
 
 /**
  * @param {string[]} argv
- * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null }}
+ * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null, fingerprint: boolean }}
  */
 export function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
+  let fingerprint = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === "--fingerprint") {
+      fingerprint = true;
+      continue;
+    }
     if (
       arg === "--metadata" ||
       arg === "--root" ||
@@ -1290,7 +1760,7 @@ export function parseArgs(argv) {
       continue;
     }
     throw new UsageError(
-      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>]（不明な引数: ${arg}）`,
+      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--fingerprint]（不明な引数: ${arg}）`,
     );
   }
   if (!nonEmptyString(opts.metadata)) throw new UsageError("--metadata は必須");
@@ -1305,6 +1775,46 @@ export function parseArgs(argv) {
     stage,
     newRepo: opts["new-repo"] !== undefined ? resolve(opts["new-repo"]) : null,
     replaceRoot: opts["replace-root"] !== undefined ? resolve(opts["replace-root"]) : null,
+    fingerprint,
+  };
+}
+
+/**
+ * 反復実行の記録に書く指紋を出す（--fingerprint）。検査はしない。
+ * spec_fingerprints は分類表と current_excluded を反映した全スペックの指紋で、runs[] にはその回に回したスペックの分だけを写す。
+ * @param {Record<string, unknown>} metadata
+ * @param {string} root
+ * @returns {Record<string, unknown>}
+ */
+export function fingerprintReport(metadata, root) {
+  const suite = isPlainObject(metadata.suite) ? metadata.suite : {};
+  const record = isPlainObject(suite.repeat_run) ? suite.repeat_run : {};
+  const whole = suiteFingerprint(suite, root);
+  /** @type {string[]} */
+  let declared = [];
+  /** @type {string[]} */
+  let sharedDeclared = [];
+  /** @type {string[]} */
+  let excluded = [];
+  if (record.specs !== undefined && record.specs !== null) {
+    const c = readSpecClassification(record, root, suite.specs);
+    declared = [...c.declared.keys()];
+    sharedDeclared = [...c.sharedDeclared];
+    excluded = c.excluded;
+  }
+  const perSpec = specFingerprints(suite, root, { declared, sharedDeclared, excluded });
+  const missing = [...new Set([...whole.missing, ...perSpec.missing])];
+  if (whole.fingerprint === null || perSpec.shared === null) {
+    throw new UsageError(
+      `スイートの指紋を計算できない: ${missing.length > 0 ? missing.join(" / ") : "suite.specs / locator_map / interactions がどれも宣言されていない"}`,
+    );
+  }
+  return {
+    tool: "artifact-health-check",
+    version: VERSION,
+    suite_fingerprint: whole.fingerprint,
+    shared_fingerprint: perSpec.shared,
+    spec_fingerprints: perSpec.specs,
   };
 }
 
@@ -1327,6 +1837,11 @@ export function run(argv, io) {
     );
   }
   const slugDir = resolve(metadataPath, "..");
+
+  if (args.fingerprint) {
+    io.log(JSON.stringify(fingerprintReport(metadata, root), null, 2));
+    return 0;
+  }
 
   /** @type {string[]} */
   const findings = [];
@@ -1378,12 +1893,13 @@ export function run(argv, io) {
 
 /** 使い方（stderr に出す。CLI エントリ判定が壊れたときのサイレント no-op を検出できるようにする）。 */
 const usage = [
-  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>]",
+  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--fingerprint]",
   "  --metadata  .replace/parity/<slug>/metadata.json のパス（必須）",
   "  --root      リポジトリルート（省略時は metadata のパスの .replace の親から導く）",
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
   "  --stage     呼び出し元の工程。diff（既定・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
   "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
+  "  --fingerprint  検査せず、反復実行の記録に書く指紋（suite_fingerprint / shared_fingerprint / spec_fingerprints）を JSON で出す",
   "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
   "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型崩れ",
 ].join("\n");
