@@ -40,7 +40,6 @@
         "記録の後に成果物が動いたら verify は exit 1: 変更",
         "外すのは slug のディレクトリ直下の名前だけ（スイートの中の new/ は指紋に入る）",
         "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）",
-        "別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）",
         "記録の後に成果物が動いたら verify は exit 1: --include の根ごと削除"
       ]
     },
@@ -111,6 +110,33 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["記録の後に成果物が動いたら verify は exit 1: --include の根ごと削除"]
+    },
+    {
+      "id": "record-empty-files",
+      "why": "files が空の記録を照合に通す",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      Object.keys(c.files).length === 0 ||\n",
+      "replace": "      false ||\n",
+      "occurrences": 1,
+      "expect_failing": ["記録が崩れていれば verify は exit 2: files が空"]
+    },
+    {
+      "id": "record-hash-shape",
+      "why": "sha256 でない指紋を受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      !Object.values(c.files).every((h) => typeof h === \"string\" && /^[0-9a-f]{64}$/.test(h))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": ["記録が崩れていれば verify は exit 2: 指紋が sha256 でない"]
+    },
+    {
+      "id": "verify-slug-root",
+      "why": "roots の先頭が --dir でない記録を照合する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (/** @type {string[]} */ (last.roots)[0] !== slugDir) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["記録が崩れていれば verify は exit 2: roots の先頭が --dir でない"]
     }
   ]
 }

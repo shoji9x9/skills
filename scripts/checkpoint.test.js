@@ -204,6 +204,40 @@ test.each([
   ["checkpoints が配列でない", JSON.stringify({ version: "1", checkpoints: {} })],
   ["版が違う", JSON.stringify({ version: "0", checkpoints: [] })],
   [
+    "roots が空（指紋の根が無い記録）",
+    JSON.stringify({
+      version: "1",
+      checkpoints: [{ at: "authored", roots: [], files: { "a.json": "0".repeat(64) } }],
+    }),
+  ],
+  [
+    "files が空",
+    JSON.stringify({
+      version: "1",
+      checkpoints: [{ at: "authored", roots: [".replace/parity/share"], files: {} }],
+    }),
+  ],
+  [
+    "指紋が sha256 でない",
+    JSON.stringify({
+      version: "1",
+      checkpoints: [{ at: "authored", roots: [".replace/parity/share"], files: { "a.json": "x" } }],
+    }),
+  ],
+  [
+    "roots の先頭が --dir でない",
+    JSON.stringify({
+      version: "1",
+      checkpoints: [
+        {
+          at: "authored",
+          roots: ["e2e/parity/share"],
+          files: { "e2e/parity/share/share.spec.ts": "0".repeat(64) },
+        },
+      ],
+    }),
+  ],
+  [
     "語彙外の区切りの記録",
     JSON.stringify({ version: "1", checkpoints: [{ at: "done", roots: [], files: {} }] }),
   ],

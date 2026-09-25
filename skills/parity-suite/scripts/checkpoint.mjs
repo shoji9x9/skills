@@ -143,6 +143,17 @@ function readRecord(path) {
     ) {
       throw new UsageError(`${RECORD_NAME} の区切りの記録の形が崩れている`);
     }
+    // 対象 0 件の記録は照合しても空同士で一致し、何も確かめないまま再開を通す（record も 0 件を拒否する）
+    if (
+      c.roots.length === 0 ||
+      !c.roots.every((r) => typeof r === "string" && r !== "") ||
+      Object.keys(c.files).length === 0 ||
+      !Object.values(c.files).every((h) => typeof h === "string" && /^[0-9a-f]{64}$/.test(h))
+    ) {
+      throw new UsageError(
+        `${RECORD_NAME} の区切り ${String(c.at)} の roots / files が空・型崩れ（指紋の対象が無い記録では照合できない）`,
+      );
+    }
   }
   return /** @type {{ tool: string, version: string, checkpoints: Record<string, unknown>[] }} */ (
     rec
@@ -213,6 +224,12 @@ export function main(argv, deps = {}) {
           `error: 最後に記録した区切りは ${String(last.at)}（${at} ではない）。${String(last.at)} から再開するか、${at} までの手順をやり直す\n`,
         );
         return 1;
+      }
+      // 根の先頭は slug のディレクトリ（record がそう書く）。別の場所を指す記録では、この slug の成果物を照合していない
+      if (/** @type {string[]} */ (last.roots)[0] !== slugDir) {
+        throw new UsageError(
+          `${RECORD_NAME} の roots の先頭（${String(/** @type {string[]} */ (last.roots)[0])}）が --dir（${slugDir}）でない`,
+        );
       }
       const recorded = /** @type {Record<string, string>} */ (last.files);
       const now = fingerprintFiles(cwd, /** @type {string[]} */ (last.roots), slugDir, {
