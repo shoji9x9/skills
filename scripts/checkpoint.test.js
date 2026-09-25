@@ -7,7 +7,7 @@
 
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -396,4 +396,84 @@ test("壊れた JSON の記録は verify で exit 2、authored はそれを読�
   expect(verify(dir, "gated").status).toBe(2);
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
   expect(verify(dir, "authored").status).toBe(0);
+});
+
+// Issue #474: --include の包含と重複を字面だけで判定すると、slug のディレクトリの中を指すシンボリックリンクが
+// スイートの根として通り、スイートを 1 つも照合しないまま record と verify が通る。
+
+test("#474 再現: slug のディレクトリの中のファイルを指すリンクを --include にすると record は exit 2", () => {
+  const dir = project();
+  rmSync(join(dir, SUITE), { recursive: true });
+  mkdirSync(join(dir, "e2e/parity"), { recursive: true });
+  symlinkSync(join(dir, SLUG, "reactions.json"), join(dir, "e2e/parity/share.spec.ts"));
+  const r = record(dir, "authored", ["--include", "e2e/parity/share.spec.ts"]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--dir の中を指す");
+  // 記録が作られていないので、続く verify も通らない
+  expect(verify(dir, "authored").status).toBe(1);
+});
+
+test("#474: slug のディレクトリそのものを指すリンクを --include にすると record は exit 2", () => {
+  const dir = project();
+  symlinkSync(join(dir, SLUG), join(dir, "e2e/parity/alias"));
+  const r = record(dir, "authored", ["--include", "e2e/parity/alias"]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--dir の中を指す");
+});
+
+test("#474: 字面の違う 2 つの --include が同じ実体を指すと record は exit 2", () => {
+  const dir = project();
+  symlinkSync(join(dir, SUITE), join(dir, "e2e/alias"));
+  const r = record(dir, "authored", ["--include", SUITE, "--include", "e2e/alias"]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("同じ実体");
+});
+
+test("#474 陽性コントロール: slug のディレクトリの外を指すリンクは --include として通る", () => {
+  const dir = project();
+  symlinkSync(join(dir, SUITE), join(dir, "e2e/alias"));
+  expect(record(dir, "authored", ["--include", "e2e/alias"]).status).toBe(0);
+  const r = verify(dir, "authored");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout)).toMatchObject({ ok: true, files: 2 });
+});
+
+test("#474: 記録した後にスイートの根を slug のディレクトリの中を指すリンクへ差し替えると verify は exit 2（W4 を実パスで）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  rmSync(join(dir, SUITE), { recursive: true });
+  symlinkSync(join(dir, SLUG), join(dir, SUITE));
+  const r = verify(dir, "authored");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--dir の中を指す");
+});
+
+test("#474: 記録の 2 つのスイートの根が同じ実体を指すと verify は exit 2（W4 を実パスで）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  symlinkSync(join(dir, SUITE), join(dir, "e2e/alias"));
+  editRecord(dir, (rec) => {
+    rec.checkpoints[0].roots.push("e2e/alias");
+    rec.checkpoints[0].files["e2e/alias/share.spec.ts"] =
+      rec.checkpoints[0].files[`${SUITE}/share.spec.ts`];
+  });
+  const r = verify(dir, "authored");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("同じ実体");
+});
+
+test("#474: slug のディレクトリを含む祖先を --include にすると record は exit 2（別機能の成果物を指紋に混ぜない）", () => {
+  const dir = project();
+  const r = record(dir, "authored", ["--include", ".replace/parity"]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--dir を含む");
+});
+
+test("#474: 記録のスイートの根が slug のディレクトリの祖先なら verify は exit 2（W4 を実パスで）", () => {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  editRecord(dir, (rec) => rec.checkpoints[0].roots.push(".replace/parity"));
+  const r = verify(dir, "authored");
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--dir を含む");
 });
