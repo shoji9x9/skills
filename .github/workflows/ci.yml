@@ -38,19 +38,13 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    # 変異実証は差分に当たる宣言だけを測るので、通常の PR ではジョブが数分で終わる。
-    # 上限は**最悪ケース**（実行器を触った PR は全宣言へ広がる）で決める——変異実証の全件は
-    # 手元実測 390 秒（98 変異。Issue #442 の前は 975 秒で、CI ではジョブ 1020 秒・うち変異実証 891 秒）。
-    # 全件を毎回測るのは定期実行（mutation-proof.yml）の役目で、ここは PR の最悪ケースを通す。
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # 変異実証の差分選択（`--changed-since origin/<base>`）が基点の ref を要求する。
-          fetch-depth: 0
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
@@ -84,17 +78,36 @@ jobs:
         run: node scripts/check-skill-frontmatter.js
       - name: Unit tests (vitest)
         run: pnpm test
-      # 変異実証（検査の検出能力の再実行）。**差分に当たる宣言だけ**を測る——全件は手元実測 390 秒で、
-      # その 3 分の 2 が実行器自身の宣言（テストが入れ子で runner を起動する）。対象も検査も
-      # 変わっていない宣言は前回の実証がそのまま有効なので、PR では測り直さない。
-      # **全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。
-      # **pre-commit には入れない**——実行中は対象ファイルを書き換えて戻すため、staged な変更と
-      # 混ざると取り違えが起きる。
-      #
-      # push（マージ後の main）では測らない: その差分は PR 側で測り終えており、基点となる
-      # 前の SHA は force-push や初回 push で欠けることがある（欠けたら fail-closed で落ちる）。
+
+  # 変異実証（検査の検出能力の再実行）。Lint から独立したジョブにして Unit tests と並べて走らせる
+  # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。ルールセットの必須チェックに
+  # このジョブ名を足す（リポジトリ設定側の手動作業）——足さないとマージを止めない。
+  #
+  # **差分に当たる宣言だけ**を測る。対象も検査も変わっていない宣言は前回の実証がそのまま有効なので、
+  # PR では測り直さない。**全件は定期実行**（`.github/workflows/mutation-proof.yml`）が週次で測る。
+  # **pre-commit には入れない**——実行中は対象ファイルを書き換えて戻すため、staged な変更と
+  # 混ざると取り違えが起きる。
+  #
+  # push（マージ後の main）では測らない: その差分は PR 側で測り終えており、基点となる
+  # 前の SHA は force-push や初回 push で欠けることがある（欠けたら fail-closed で落ちる）。
+  mutation-proof:
+    name: Mutation proof (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # 上限は**最悪ケース**（実行器を触った PR は全宣言へ広がる）で決める——全件は手元実測 1036 秒
+    # （376 変異。Issue #478 の時点）。変異が増える前提で 2 倍以上を取る。
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # 差分選択（`--changed-since origin/<base>`）が基点の ref を要求する。
+          fetch-depth: 0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: pnpm install --frozen-lockfile
       - name: Mutation proof (specs touched by this diff)
-        if: github.event_name == 'pull_request'
         run: node scripts/check-mutation-proof.js --changed-since "origin/${{ github.base_ref }}"
 
   actionlint:

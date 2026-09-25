@@ -47,8 +47,9 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
   検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
   - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
-    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は手元実測 390 秒（98 変異）かかり、
-    その 3 分の 2 が実行器自身の宣言（テストが入れ子で runner を起動する）。実行器のテストは本物の vitest を e2e の 3 本に絞り、残りはスタブで回す（`MUTATION_PROOF_TEST_COMMAND`）。
+    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は手元実測 1036 秒（376 変異）かかる。
+    1 変異 = 対象テストファイル 1 回の実行なので、対象テストは子プロセスを起動せず `main` を直接呼び、CLI としての起動は陽性コントロールの数本に絞る（Issue #478）。
+    実行器のテストは本物の vitest を e2e の 3 本に絞り、残りはスタブで回す（`MUTATION_PROOF_TEST_COMMAND`）。
   - **全件は週次の定期実行**（`.github/workflows/mutation-proof.yml`）。対象も検査も変わっていない宣言は前回の実証が
     有効だが、共有ライブラリやツールの版で前提が崩れることはあるので測り直す。
   - pre-commit には入れない（実行中に対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違える）。
@@ -215,7 +216,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
   - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
     - commitlint / semantic-release はコードで `commit-types.js` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.js` が型の整合を CI で検査する
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
-- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
+- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `Mutation proof (PR)` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
   - CI は `pull_request` に加え `push: main`（マージ後の main）でも起動する。新設の `Secret scan` ジョブは GitHub のルールセットで必須チェックに追加する（リポジトリ設定側の手動作業）
 
 ## 脆弱性対応
