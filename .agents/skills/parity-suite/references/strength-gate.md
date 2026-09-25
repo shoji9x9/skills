@@ -38,6 +38,8 @@
 | 操作時の手応え（静止画に写らないスタイル） | `cursor` / `user-select` / `pointer-events` の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag`）して採り直す | **特性照合が必須経路**（ここが赤くならなければ固定プロパティ集合から漏れている）。画素は写らないのが原則だが、`pointer-events` の改変が hover 対象を変えて `:hover` のスタイル差として間接的に写ることはある——**画素が緑であることを合格条件にしない** |
 | ドキュメントレベル要素 | `title` / favicon / `meta` / `html[lang]` の改変 | DOM 摂動（`page.evaluate` で `document.title` や `link[rel~="icon"]` の `href` を書き換え） | 手書き assertion（**画素・特性照合・aria のどれにも写らない**ため、この経路しか無い） |
 | 頁の高さの決め方（最小幅を持つ頁） | `html`・`body`・器の `height: 100%` を `min-height: 100vh` に置き換える | **スタイル注入**（`overflow/` のスペックを `PARITY_OVERFLOW_FAULT_CSS` 付きで `current` に回す。例: `html, body { height: auto !important; min-height: 100vh !important; }`） | `overflow/` の手書き assertion（**スクロールバーを隠した画素・特性照合・aria には写らない**。最小幅を持つ頁が無い機能では対象外として `strength.md` に書く） |
+| 機能の在否（畳まれた器） | 機能の器を高さ 0 にする・`hidden` にする・操作を結び付けない | **スタイル注入**（`addStyleTag` で器に `height: 0 !important; overflow: hidden !important` 等）か DOM 摂動 | 手書き assertion（**在否を「器と文言がある」だけで確かめる観点は素通りする**——素通りしたら観点を直す。[`coverage.md`](coverage.md)「機能の在否は「器と文言がある」で確かめない」） |
+| 操作で変わる頁の組み方 | 操作のたびに器の高さを書き直す処理が効かない | **スタイル注入**（反応の被覆表で `layout.changes: true` の操作の器に、操作の前の寸法を `!important` で固定する） | `layout.covered_by` の手書き assertion（**寸法の式・画素・特性照合は初期表示しか見ないので写らない**。`changes: true` の操作が無い機能では対象外として `strength.md` に書く） |
 | 待ちの欠落 | 初期応答には対象を置かず、通常範囲内の遅延後に描画 | 応答／初期化を遅延させ、Locator と自動リトライ assertion が解決を待つことを確認 | 手書き assertion |
 
 - **検出＝手書き assertion が赤 ∪ 差分器（特性照合／画素／aria 比較）が赤。** 名前付き要素のスタイルは特性照合が、名前無しは画素が拾う。

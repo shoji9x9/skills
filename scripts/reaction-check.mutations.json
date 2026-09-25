@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）の検出能力を示す変異の一覧。",
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）と操作で変わる頁の組み方（Issue #460）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -101,6 +101,188 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["未測定として落とす: 別オリジンでない文書の根拠が残っている"]
+    },
+    {
+      "id": "layout-missing",
+      "why": "操作に layout が無くても・配列でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(layout)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: layout が無い（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: layout が配列（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-changes-vocab",
+      "why": "changes が語彙外でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (typeof layout.changes !== \"boolean\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: changes が語彙外（Issue #460）"]
+    },
+    {
+      "id": "layout-unmeasured",
+      "why": "changes: null（測れなかった）を未測定として数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (layout.changes === null) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: null（測れなかった）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-false-evidence",
+      "why": "changes: false の確かめ方が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(layout.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: false に確かめ方が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-false-covered",
+      "why": "changes: false の assertion が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!covered) {\n      return {\n        problem:\n          \"layout.changes: false",
+      "replace": "    if (false) {\n      return {\n        problem:\n          \"layout.changes: false",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: false に assertion が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-samples-min",
+      "why": "変える操作を 1 回の標本で通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(samples) || samples.length < 2) {\n",
+      "replace": "  if (!Array.isArray(samples) || samples.length < 1) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true の標本が 1 回（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-before",
+      "why": "操作の前の測定を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (beforeProblem) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true に操作の前の測定が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-repeat",
+      "why": "repeat の連番を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!repeats.every((r, i) => r === i + 1)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本の repeat が連番でない（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: 標本の repeat が重複（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-client-height",
+      "why": "client_height を要求しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!positiveNumber(m.client_height)) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本に client_height が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-scroll-height",
+      "why": "scroll_height を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonNegativeNumber(m.scroll_height)) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本の scroll_height が非数（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-rects-empty",
+      "why": "矩形が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(m.rects) || Object.keys(m.rects).length === 0) {\n",
+      "replace": "  if (!isPlainObject(m.rects)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 標本の矩形が空（Issue #460）"]
+    },
+    {
+      "id": "layout-rect-axes",
+      "why": "矩形の軸の欠けを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      !RECT_AXES.every((k) => typeof r[k] === \"number\" && Number.isFinite(r[k]))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 矩形の軸が欠けている（Issue #460）"]
+    },
+    {
+      "id": "layout-rect-negative",
+      "why": "負の幅・高さを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (/** @type {number} */ (r.width) < 0 || /** @type {number} */ (r.height) < 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 矩形の幅が負（Issue #460）"]
+    },
+    {
+      "id": "layout-keys",
+      "why": "回によって測った論理名が違っても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!samples.every((m) => keysOf(m) === beforeKeys)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 回によって測った論理名が違う（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-all-same",
+      "why": "変わると書いたのに全ての標本が操作の前と同じでも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (samples.every((m) => same(m, layout.before))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（矩形の軸の書き順だけが違う）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-same-key-order",
+      "why": "矩形を軸の順に正規化せず、書き順の違いで「変わった」と読む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    rectsText(a) === rectsText(b);\n",
+      "replace": "    JSON.stringify(a.rects) === JSON.stringify(b.rects);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（矩形の軸の書き順だけが違う）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-true-covered",
+      "why": "変える操作の assertion が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!covered) {\n    return {\n      problem:\n        \"layout.changes: true",
+      "replace": "  if (false) {\n    return {\n      problem:\n        \"layout.changes: true",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true に assertion が無い（Issue #460）"
+      ]
     }
   ]
 }

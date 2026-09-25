@@ -1,0 +1,114 @@
+{
+  "$comment": [
+    "checkpoint.test.js の検出能力を示す変異の一覧（Issue #468）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/checkpoint.test.js",
+  "mutations": [
+    {
+      "id": "exclude-everywhere",
+      "why": "slug のディレクトリ直下以外でも除外名を外す",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "        if (abs === slugAbs && EXCLUDED_IN_DIR.has(name)) continue;\n",
+      "replace": "        if (EXCLUDED_IN_DIR.has(name)) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "外すのは slug のディレクトリ直下の名前だけ（スイートの中の new/ は指紋に入る）"
+      ]
+    },
+    {
+      "id": "verify-any-checkpoint",
+      "why": "最後の区切り以外でも verify を通す",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (last.at !== at) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["verify は最後に記録した区切りとしか一致しない"]
+    },
+    {
+      "id": "verify-always-ok",
+      "why": "指紋の差分を見ない",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      const ok = added.length + removed.length + changed.length === 0;\n",
+      "replace": "      const ok = true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "記録の後に成果物が動いたら verify は exit 1: slug のディレクトリに追加",
+        "記録の後に成果物が動いたら verify は exit 1: スイートに追加",
+        "記録の後に成果物が動いたら verify は exit 1: 削除",
+        "記録の後に成果物が動いたら verify は exit 1: 変更",
+        "外すのは slug のディレクトリ直下の名前だけ（スイートの中の new/ は指紋に入る）",
+        "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）"
+      ]
+    },
+    {
+      "id": "skip-order",
+      "why": "前の区切りが無くても記録する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (prevIndex < 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["前の区切りが無ければ record は exit 2（順序を飛ばさない）"]
+    },
+    {
+      "id": "no-inherit",
+      "why": "前の区切りの --include を引き継がない",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      inherited = /** @type {string[]} */ (record.checkpoints[prevIndex].roots).slice(1);\n",
+      "replace": "      inherited = [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）"
+      ]
+    },
+    {
+      "id": "keep-later",
+      "why": "前の区切りに戻っても後の記録を残す",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      record.checkpoints = [];\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["前の区切りに戻って記録し直すと、後の区切りの記録は消える"]
+    },
+    {
+      "id": "include-inside",
+      "why": "--dir の中の --include を受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (fromSlug === \"\" || !(fromSlug === \"..\" || fromSlug.startsWith(`..${sep}`))) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "使い方の誤りは exit 2: --include が --dir の中",
+        "使い方の誤りは exit 2: --include が --dir そのもの"
+      ]
+    },
+    {
+      "id": "authored-no-suite",
+      "why": "authored でスイートの --include を要求しない",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (pos === 0 && inherited.length === 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["使い方の誤りは exit 2: authored に --include が無い"]
+    },
+    {
+      "id": "gated-no-strength",
+      "why": "strength.md の無い gated を記録する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (at === \"gated\" && !existsSync(join(slugAbs, \"strength.md\"))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["gated は strength.md が無ければ記録しない"]
+    },
+    {
+      "id": "verify-missing-root-usage",
+      "why": "verify で記録後に消えた根を削除として数えず、使い方の誤り（exit 2）に倒す",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (opts.allowMissing) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["記録の後に成果物が動いたら verify は exit 1: --include の根ごと削除"]
+    }
+  ]
+}

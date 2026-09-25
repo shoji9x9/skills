@@ -57,6 +57,32 @@
         }
       ],
       "immediate_state": "<操作の直後に確定する状態（例: 共有ダイアログが閉じる）。変化が無いならそう書く>",
+      "layout": {
+        "_note": "操作で頁の高さ・要素の位置が変わるか（Issue #460）。寸法の式（dimension_model）と視覚ベースラインは初期表示しか見ないので、操作で変わる組み方はここでしか押さえられない。操作ごとに必ず書く（欠けると未測定）。changes: true / false / null（測れなかった）のどれか。",
+        "changes": "<真偽値。操作の前後で頁の scrollHeight か主な論理名の矩形が変わるなら true。変わらないなら false と evidence・covered_by だけを書く。測れなければ null と reason（gaps.md にも残す）>",
+        "before": {
+          "scroll_height": "<changes: true のときだけ。操作の前の document.documentElement.scrollHeight>",
+          "client_height": "<正の数。同じ時点の document.documentElement.clientHeight（scroll_height がこれを超えれば頁が窓からはみ出している。スクロールバーを隠す撮影では横幅のずれが矩形に出ないので高さで見る）>",
+          "rects": {
+            "<主な論理名（操作で動く・現れる要素と、窓の寸法で決まる器）>": "<{ x, y, width, height }（ページ座標）。その時点で表示されないなら null（操作で現れる要素は操作の前は null）>"
+          }
+        },
+        "samples": [
+          {
+            "repeat": "<何回目の操作の後か（1 から始まる連番）。2 回以上測る——1 回の差分では「窓の高さから書き直す絶対値」と「前の値からの相対」を区別できない>",
+            "scroll_height": "<その回の後の scrollHeight>",
+            "client_height": "<その回の後の clientHeight>",
+            "rects": {
+              "<before と同じ論理名の集合>": "<{ x, y, width, height } か null>"
+            }
+          }
+        ],
+        "evidence": "<changes: false のときだけ、変わらないことを確かめた記録（例: 操作の前後で scrollHeight と主な論理名の矩形が同じ）>",
+        "reason": "<changes: null のときだけ、測れなかった理由>",
+        "covered_by": [
+          "<changes: true なら 2 回以上繰り返した後の頁の高さ・矩形（窓に収まるか）を、false なら操作の後も変わらないことを確かめたスイートの assertion（スペックとテスト名）。空なら落ちる>"
+        ]
+      },
       "reactions": [
         {
           "id": "<反応 id（\"/\" を含めない）>",
@@ -93,6 +119,11 @@
       "name": "<例: 検索ボタンを押す>",
       "trigger": "<操作アダプタの呼び出し>",
       "immediate_state": "<例: 一覧が絞られる>",
+      "layout": {
+        "changes": "<例: false（一覧が絞られても頁の高さと主な論理名の矩形は変わらない）>",
+        "evidence": "<操作の前後で scrollHeight と主な論理名の矩形を測り、同じだった記録>",
+        "covered_by": ["<操作の後も頁の組み方が変わらないことを確かめたスイートの assertion>"]
+      },
       "reactions": [
         {
           "id": "none",
@@ -117,6 +148,10 @@
       "name": "<人が読む操作名>",
       "trigger": "<操作アダプタの呼び出し>",
       "immediate_state": "<直後の状態>",
+      "layout": {
+        "changes": null,
+        "reason": "<測れなかった理由（例: この操作は窓の高さの測定と同時に成立させられない）。未測定として数えられる。gaps.md にも残す>"
+      },
       "reactions": [
         {
           "id": "<反応 id>",

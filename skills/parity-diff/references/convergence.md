@@ -117,7 +117,8 @@
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
     **表の文書ごとのオリジン（`document_origins` / `cross_origin_evidence`）と、`kind: none` の操作した文書（`observation.source_document`）も同じ判定に入る**（Issue #450）。
-    これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --write` を通し直させる（`tool_version` も上がっている）
+    これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --write` を通し直させる（`tool_version` も上がっている）。
+    **操作ごとの頁の組み方の変化（`layout`）も同じ判定に入り、欠けた表も同じく exit 1 になる**（Issue #460）
   - **部品被覆表の `present` を新側で突き合わせてある**（正本は `parity-suite` の `references/coverage.md`「被覆表は移行元側の測定である」）。
     **被覆表の 3 値は移行元側の測定**なので、`unmeasured` 0 は「新側で操作を完了できる」を意味しない——
     スイートが green でも、**入口・当たり判定・完了のどこかで止まる欠落**（下位を持つ項目を押すとメニューが閉じる・印が押せる範囲の外にある・

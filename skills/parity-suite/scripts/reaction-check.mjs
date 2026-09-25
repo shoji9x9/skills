@@ -6,6 +6,7 @@
 //   1. 現側 metadata.json の reaction_coverage 宣言を読み、declared: true のときだけ反応の被覆表を開く
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
 //      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
+//      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）
 //   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
@@ -30,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -43,6 +44,9 @@ const ORIGIN_RELATIONS = ["same-origin", "cross-origin"];
 
 /** observed の消え方。auto は消えるまでの時間の標本を要求する。 */
 const DISMISSAL_MODES = ["auto", "manual", "persistent", "not-applicable"];
+
+/** layout の矩形 1 つが持つ数値の軸。 */
+const RECT_AXES = ["x", "y", "width", "height"];
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -310,6 +314,142 @@ function noneProblem(r, windowMs, documents) {
 }
 
 /**
+ * 頁の組み方の 1 回の測定（操作の前 before、または操作を繰り返した後の samples の 1 件）の欠けを返す（無ければ null）。
+ * @param {unknown} m
+ * @returns {string | null}
+ */
+function layoutMeasureProblem(m) {
+  if (!isPlainObject(m)) return "オブジェクトでない";
+  if (!nonNegativeNumber(m.scroll_height)) return "scroll_height が 0 以上の数でない";
+  // 窓に収まるか（scroll_height <= client_height）を読むための分母。スクロールバーを隠す撮影では横幅のずれが矩形に出ないので、はみ出しは高さで見る
+  if (!positiveNumber(m.client_height)) return "client_height が正の数でない";
+  if (!isPlainObject(m.rects) || Object.keys(m.rects).length === 0) {
+    return "rects が空（主な論理名の矩形を測っていない）";
+  }
+  for (const [name, r] of Object.entries(m.rects)) {
+    // null は「その時点で表示されない」の記録（操作で現れる要素は操作の前には無い）
+    if (r === null) continue;
+    if (
+      !isPlainObject(r) ||
+      !RECT_AXES.every((k) => typeof r[k] === "number" && Number.isFinite(r[k]))
+    ) {
+      return `rects["${name}"] が { x, y, width, height } の数値でも null でもない`;
+    }
+    if (/** @type {number} */ (r.width) < 0 || /** @type {number} */ (r.height) < 0) {
+      return `rects["${name}"] の width / height が負`;
+    }
+  }
+  return null;
+}
+
+/**
+ * 操作の頁の組み方の変化（layout）の欠けを返す（無ければ null）。Issue #460
+ *
+ * 寸法の式（dimension_model）と視覚ベースラインは初期表示の状態しか見ないので、操作で頁の高さや要素の位置が変わる振る舞いは
+ * どの経路にも入らない。1 回の操作の差分では「窓から書き直す絶対値」と「前の値からの相対」を区別できないため、
+ * 変わるなら 2 回以上繰り返した後を測らせる。
+ * @param {unknown} layout
+ * @returns {{ problem: string | null, unmeasured: boolean }}
+ */
+function layoutProblem(layout) {
+  if (!isPlainObject(layout)) {
+    return {
+      problem:
+        "layout が無い（操作で頁の高さ・要素の位置が変わるかを測っていない。変わらないなら changes: false を確かめ方付きで書く）",
+      unmeasured: true,
+    };
+  }
+  const coveredBy = layout.covered_by;
+  const covered =
+    Array.isArray(coveredBy) && coveredBy.length > 0 && coveredBy.every(nonEmptyString);
+  if (layout.changes === null) {
+    // 測れなかった記録。未測定として数える（空欄と区別するため理由を要求する）
+    return {
+      problem: `layout: 未測定${nonEmptyString(layout.reason) ? `（${layout.reason}）` : "（reason が空）"}`,
+      unmeasured: true,
+    };
+  }
+  if (typeof layout.changes !== "boolean") {
+    return { problem: "layout.changes が true / false / null のどれでもない", unmeasured: true };
+  }
+  if (layout.changes === false) {
+    if (!nonEmptyString(layout.evidence)) {
+      return {
+        problem:
+          "layout.changes: false なのに evidence が空（操作の前後で頁の高さ・矩形が変わらないことを確かめた記録が無い）",
+        unmeasured: true,
+      };
+    }
+    if (!covered) {
+      return {
+        problem:
+          "layout.changes: false なのに covered_by が空（新側が操作で頁の組み方を変えても、静止画・寸法の照合には写らない）",
+        unmeasured: true,
+      };
+    }
+    return { problem: null, unmeasured: false };
+  }
+  const beforeProblem = layoutMeasureProblem(layout.before);
+  if (beforeProblem) return { problem: `layout.before: ${beforeProblem}`, unmeasured: true };
+  const samples = layout.samples;
+  if (!Array.isArray(samples) || samples.length < 2) {
+    return {
+      problem:
+        "layout.changes: true なのに samples が 2 回未満（1 回の操作の差分では、窓から書き直す絶対値か前の値からの相対かを区別できない）",
+      unmeasured: true,
+    };
+  }
+  for (const [i, m] of samples.entries()) {
+    const p = layoutMeasureProblem(m);
+    if (p) return { problem: `layout.samples[${i}]: ${p}`, unmeasured: true };
+  }
+  // repeat は 1 から始まる連番（何回目の操作の後か）。欠番・重複は繰り返しの記録として読めない
+  const repeats = samples.map((m) => /** @type {Record<string, unknown>} */ (m).repeat);
+  if (!repeats.every((r, i) => r === i + 1)) {
+    return {
+      problem: "layout.samples の repeat が 1 から始まる連番でない（何回目の操作の後かを読めない）",
+      unmeasured: true,
+    };
+  }
+  // 測った論理名の集合は前後で揃える（ある回だけ測った要素は、回を跨いだ変わり方を読めない）
+  const keysOf = (m) => JSON.stringify(Object.keys(m.rects).sort());
+  const beforeKeys = keysOf(layout.before);
+  if (!samples.every((m) => keysOf(m) === beforeKeys)) {
+    return {
+      problem:
+        "layout の before と samples で測った論理名が揃っていない（表示されない回は null で書く）",
+      unmeasured: true,
+    };
+  }
+  // 矩形は軸の順に正規化して比べる（{ width, height, x, y } と { x, y, width, height } を別物にしない）
+  const rectsText = (m) =>
+    JSON.stringify(
+      Object.keys(m.rects)
+        .sort()
+        .map((k) => [k, m.rects[k] === null ? null : RECT_AXES.map((ax) => m.rects[k][ax])]),
+    );
+  const same = (a, b) =>
+    a.scroll_height === b.scroll_height &&
+    a.client_height === b.client_height &&
+    rectsText(a) === rectsText(b);
+  if (samples.every((m) => same(m, layout.before))) {
+    return {
+      problem:
+        "layout.changes: true なのに before と全ての samples が同じ（変わらないなら changes: false と確かめ方を書く）",
+      unmeasured: false,
+    };
+  }
+  if (!covered) {
+    return {
+      problem:
+        "layout.changes: true なのに covered_by が空（2 回以上繰り返した後の頁の高さ・矩形をスイートの assertion に落としていない）",
+      unmeasured: true,
+    };
+  }
+  return { problem: null, unmeasured: false };
+}
+
+/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
@@ -506,6 +646,11 @@ export function checkReactions(table, opts = {}) {
     };
     if (!nonEmptyString(op.trigger)) fail("trigger（操作アダプタの呼び出し）が空");
     if (!nonEmptyString(op.immediate_state)) fail("immediate_state（直後の状態）が空");
+    const lp = layoutProblem(op.layout);
+    if (lp.problem) {
+      if (lp.unmeasured) fail(lp.problem);
+      else problems.push(`${label}: ${lp.problem}`);
+    }
     handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
     if (reactions.length === 0) {

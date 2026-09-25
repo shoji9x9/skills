@@ -1,5 +1,5 @@
 ---
-argument-hint: '[--feature <slug>] [--target <name>] [--autonomous]'
+argument-hint: '[--feature <slug>] [--target <name>] [--autonomous] [--from <区切り>] [--until <区切り>]'
 description: 仕様を変えないアプリケーションリプレイスで、新旧どちらの実装にも当てられる実行可能な合否判定基準（パリティスイート）を現行アプリに対して構築し、故障注入で強度を検証する replace-strategy の姉妹スキル。論理名のロケータマッピング層と手書きの寛容な aria スナップショットで Playwright スイートを書き、API を record/replay で特性化し、視覚ベースライン（スクリーンショット・computed style・参考 aria スナップショット）とノイズ基準値を採取して parity-diff へ引き渡す。1 回で 1 機能（横断 API リソース・バッチも可）。replace-strategy setup と golden-dataset の完了が前提で、未完了・Playwright 不可なら停止する。「パリティスイートを作って」「現行アプリを特性化して」「parity-suite」や --feature <slug> / --target <name>（対象環境）を伴う依頼で発動する。
 license: MIT
 name: parity-suite
@@ -13,11 +13,14 @@ name: parity-suite
 ## 使い方
 
 ```text
-parity-suite [--feature <slug>] [--target <name>] [--autonomous]
+parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切り>] [--until <区切り>]
 ```
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない（調査・特性化・強度検証が浅くなるため）
 - `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--until <区切り>` はその区切りを記録したら止まって返る。`--from <区切り>` は記録した区切りを照合してから次の手順で再開する。
+  区切りは `authored`（手順 5 の後）・`captured`（手順 6 の後）・`gated`（手順 7 の後）。**文脈を縮められない実行形態（subagent 等）では区切りごとに分けて回す**
+  （1 つの文脈で最後まで回すと費用がターン数の 2 乗で増える。再開の手順と各区切りで揃う成果物の正本は [`references/checkpoints.md`](references/checkpoints.md)）
 - `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
 - `--target <name>` は実行対象の現行環境。設定の `targets` のうち **`side: current` のものだけを候補**にする（本スキルが対象とする側の宣言はここが正本）。
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
@@ -144,6 +147,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 ## 実行フロー
 
 詳細は各 reference へ委譲する。番号順に進める。
+**手順 5・6・7 の後はそれぞれ区切り（`authored` / `captured` / `gated`）で、達したら `scripts/checkpoint.mjs record` で記録する**——
+`--until` が無くても記録する（止まった実行を新しい文脈から再開できるようにするため）。
+**大きな JSON 成果物（`component-coverage.json`・`reactions.json`）は Write で本文ごと書かず、`scripts/table-upsert.mjs` で 1 行ずつ書く**
+（書いた本文が文脈に積まれ続けるため。どちらも [`references/checkpoints.md`](references/checkpoints.md)）。
 
 1. **前提検証と早期失敗**: `.replace/features.md`・設定が無ければ `replace-strategy setup` を促して停止。
    `.replace/dataset/metadata.json` が無ければ `golden-dataset`（フェーズ A）を促して停止。
@@ -204,10 +211,11 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
    **既定は全画面（`full_page: true`）**で、ビューポート内で撮るのは全画面で撮れない理由があるときだけにする。
    **範囲の狭さは「差分 0 件」と同じ見え方になり、実装後に範囲外の差分が出てから現側ごと撮り直すことになる**（[`references/baseline.md`](references/baseline.md)「撮る範囲の決め方（穴は採取の段で数える）」）。
    api-resource / batch モードのベースラインは API 応答・出力（DB 状態・生成ファイル）の捕捉であり、視覚 3 点セットは採らない
-7. **強度ゲート（故障注入）**: **無注入で全経路が緑になること（ポジティブコントロール）を同じ実行系で先に確認**したうえで、既知の回帰分類から故障カタログを導出し注入する。素通りした故障は強化するか `gaps.md` へ。詳細: [`references/strength-gate.md`](references/strength-gate.md)
+7. **強度ゲート（故障注入）**: **無注入で全経路が緑になること（ポジティブコントロール）を同じ実行系で先に確認**したうえで、既知の回帰分類から故障カタログを導出し注入する。素通りした故障は強化するか `gaps.md` へ。詳細: [`references/strength-gate.md`](references/strength-gate.md)。
+   **結果はこの手順の中で `strength.md` に書く**（区切り `gated` は `strength.md` が無いと記録できない。手順 8 へ持ち越すと、新しい文脈へ強度ゲートの結果が渡らない）
 8. **成果物記録と完了報告**: スイートが**現に対して green** であることを確認し、設定の `verification_commands.full`（静的解析・型検査）をスイートに通す
    （**`full` が無くても、値がリスト〈旧形式＝走る範囲が未宣言〉でも停止せず** `gaps.md` に記録して進む。検証コマンドがスイートのパスを対象に含んでいない場合も、含まれていないことを記録して範囲を勝手に広げない）。
-   そのうえで `strength.md` / `gaps.md` / `metadata.json` を生成する。
+   そのうえで `gaps.md` / `metadata.json` を生成し、手順 7 で書いた `strength.md` を仕上げる。
    feature モードでは `component-coverage.json` も生成し、`metadata.json` の `component_coverage` に期待セル数と未測定数を宣言する（部品を使っていない・列挙を起こせない場合は `declared: false` ＋理由を書き、同じ理由を `gaps.md` にも残す）。
    **`declared: true` の被覆表は必ず `scripts/coverage-expand.mjs` を exit 0 まで通し、`conformance` に記録を残す**——プロファイルを宣言した部品が 1 つも無くても要る
    （`node <skill>/scripts/coverage-expand.mjs --coverage <被覆表> --metadata <metadata.json> --write`）。
@@ -261,6 +269,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- **区切りの記録（`.replace/parity/<slug>/checkpoints.json`）も成果物ではない。** 同じ作業ツリーで再開するための作業記録で、指紋はコミットしない大きなバイナリも含むのでコミットしない
+  （形式の正本: [`scripts/checkpoint.mjs`](scripts/checkpoint.mjs)）
 - **ノイズ測定の 2 回目の採取物（`.replace/parity/<slug>/noise-pass2/`）は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/baseline.md`](references/baseline.md)）
 - 決定論的ツールは正本を本スキルに同梱する（[`scripts/trait-capture.mjs`](scripts/trait-capture.mjs) / [`scripts/trait-compare.mjs`](scripts/trait-compare.mjs) / 要素単位の撮影を使う場合は [`scripts/element-shot.mjs`](scripts/element-shot.mjs)）。
   実行時はプロジェクト側 `<parity_suite_dir>/parity/lib/tools/vendor/`（既定）へコピーして使い、実際のパスを `metadata.json` に記録する。
@@ -269,6 +279,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous]
   スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）。
   プロファイル（[`assets/coverage-profiles/`](assets/coverage-profiles/)）はスクリプトの位置から解決するので、
   実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
+- **[`scripts/checkpoint.mjs`](scripts/checkpoint.mjs)・[`scripts/table-upsert.mjs`](scripts/table-upsert.mjs) もコピーしない。** 区切りの記録・照合と、大きな JSON 成果物の 1 行更新に使う（[`references/checkpoints.md`](references/checkpoints.md)）
 - **[`scripts/reaction-check.mjs`](scripts/reaction-check.mjs) もコピーしない。** 照合結果は `reactions.json` の `conformance`（表の指紋付き）に残り、
   `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ
 - **[`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。** 本スキルは `fit` で式を `metadata.json` に書き、
