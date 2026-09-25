@@ -214,14 +214,22 @@ test.each([
     "files が空",
     JSON.stringify({
       version: "1",
-      checkpoints: [{ at: "authored", roots: [".replace/parity/share"], files: {} }],
+      checkpoints: [
+        { at: "authored", roots: [".replace/parity/share", "e2e/parity/share"], files: {} },
+      ],
     }),
   ],
   [
     "指紋が sha256 でない",
     JSON.stringify({
       version: "1",
-      checkpoints: [{ at: "authored", roots: [".replace/parity/share"], files: { "a.json": "x" } }],
+      checkpoints: [
+        {
+          at: "authored",
+          roots: [".replace/parity/share", "e2e/parity/share"],
+          files: { "a.json": "x" },
+        },
+      ],
     }),
   ],
   [
@@ -231,7 +239,7 @@ test.each([
       checkpoints: [
         {
           at: "authored",
-          roots: ["e2e/parity/share"],
+          roots: ["e2e/parity/share", ".replace/parity/share"],
           files: { "e2e/parity/share/share.spec.ts": "0".repeat(64) },
         },
       ],
@@ -261,3 +269,68 @@ test("別の cwd から verify すると指紋の対象が見つからず落ち�
   );
   expect(r.status).not.toBe(0);
 });
+
+/**
+ * record が作った記録を読み、手で直したような形へ書き換える。
+ * @param {string} dir
+ * @param {(rec: { checkpoints: Record<string, any>[] }) => void} mutate
+ */
+function editRecord(dir, mutate) {
+  const path = join(dir, SLUG, "checkpoints.json");
+  const rec = JSON.parse(readFileSync(path, "utf8"));
+  mutate(rec);
+  writeFileSync(path, JSON.stringify(rec));
+}
+
+/** authored → captured → gated まで記録したプロジェクト。 */
+function gatedProject() {
+  const dir = project();
+  expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
+  expect(record(dir, "captured").status).toBe(0);
+  writeFileSync(join(dir, SLUG, "strength.md"), "# 強度\n");
+  expect(record(dir, "gated").status).toBe(0);
+  return dir;
+}
+
+test("陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る", () => {
+  expect(verify(gatedProject(), "gated").status).toBe(0);
+});
+
+test.each([
+  [
+    "前段を欠いて gated だけが並ぶ",
+    (rec) => (rec.checkpoints = rec.checkpoints.slice(2)),
+    "順の先頭から並んでいない",
+  ],
+  [
+    "区切りの順が入れ替わっている",
+    (rec) => ([rec.checkpoints[0], rec.checkpoints[1]] = [rec.checkpoints[1], rec.checkpoints[0]]),
+    "順の先頭から並んでいない",
+  ],
+  [
+    "スイートの根が無い",
+    (rec) => {
+      for (const c of rec.checkpoints) c.roots = c.roots.slice(0, 1);
+    },
+    "スイートの根が無い",
+  ],
+  [
+    "後の区切りが前の区切りの根を引き継いでいない",
+    (rec) => (rec.checkpoints[2].roots = [SLUG, "e2e/other"]),
+    "引き継いでいない",
+  ],
+  [
+    "gated の指紋に strength.md が無い",
+    (rec) => delete rec.checkpoints[2].files[`${SLUG}/strength.md`],
+    "strength.md が無い",
+  ],
+])(
+  "record が作らない形の記録は verify で exit 2: %s（Codex レビュー）",
+  (_name, mutate, needle) => {
+    const dir = gatedProject();
+    editRecord(dir, mutate);
+    const r = verify(dir, "gated");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(needle);
+  },
+);

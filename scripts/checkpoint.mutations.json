@@ -54,13 +54,22 @@
     },
     {
       "id": "no-inherit",
-      "why": "前の区切りの --include を引き継がない",
+      "why": "前の区切りの --include を引き継がない（引き継がない記録はスイートの根を欠くので、以降の照合がすべて落ちる）",
       "file": "skills/parity-suite/scripts/checkpoint.mjs",
       "find": "      inherited = /** @type {string[]} */ (record.checkpoints[prevIndex].roots).slice(1);\n",
       "replace": "      inherited = [];\n",
       "occurrences": 1,
       "expect_failing": [
-        "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）"
+        "後の区切りは前の区切りの --include を引き継ぐ（スイートを書き換えた再開を見逃さない）",
+        "gated は strength.md が無ければ記録しない",
+        "record が作らない形の記録は verify で exit 2: gated の指紋に strength.md が無い（Codex レビュー）",
+        "record が作らない形の記録は verify で exit 2: スイートの根が無い（Codex レビュー）",
+        "record が作らない形の記録は verify で exit 2: 前段を欠いて gated だけが並ぶ（Codex レビュー）",
+        "record が作らない形の記録は verify で exit 2: 区切りの順が入れ替わっている（Codex レビュー）",
+        "record が作らない形の記録は verify で exit 2: 後の区切りが前の区切りの根を引き継いでいない（Codex レビュー）",
+        "verify は最後に記録した区切りとしか一致しない",
+        "前の区切りに戻って記録し直すと、後の区切りの記録は消える",
+        "陽性コントロール: record が作った 3 区切りの記録はそのまま verify を通る"
       ]
     },
     {
@@ -137,6 +146,51 @@
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["記録が崩れていれば verify は exit 2: roots の先頭が --dir でない"]
+    },
+    {
+      "id": "record-sequence",
+      "why": "前段を欠いた・順の違う記録を受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (c.at !== CHECKPOINTS[i]?.at) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "record が作らない形の記録は verify で exit 2: 前段を欠いて gated だけが並ぶ（Codex レビュー）",
+        "record が作らない形の記録は verify で exit 2: 区切りの順が入れ替わっている（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "record-suite-root",
+      "why": "スイートの根の無い記録を受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (roots.length < 2) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "record が作らない形の記録は verify で exit 2: スイートの根が無い（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "record-inherit",
+      "why": "前の区切りの根を引き継がない記録を受ける",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "    if (prev && (roots[0] !== prev[0] || !prev.every((r) => roots.includes(r)))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "record が作らない形の記録は verify で exit 2: 後の区切りが前の区切りの根を引き継いでいない（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "verify-gated-strength",
+      "why": "strength.md の指紋の無い gated を照合する",
+      "file": "skills/parity-suite/scripts/checkpoint.mjs",
+      "find": "      if (at === \"gated\" && !Object.hasOwn(recorded, `${slugDir}/strength.md`)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "record が作らない形の記録は verify で exit 2: gated の指紋に strength.md が無い（Codex レビュー）"
+      ]
     }
   ]
 }

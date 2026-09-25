@@ -155,6 +155,27 @@ function readRecord(path) {
       );
     }
   }
+  // record が作る形だけを受ける: 区切りは語彙の順の先頭から欠けずに並び、各区切りはスイートの根（2 つ目以降）を持ち、
+  // 前の区切りの根を引き継ぐ。前段を欠いた記録（手で直した・壊れた）を通すと、前段の成果物を確かめないまま再開する
+  for (const [i, c] of rec.checkpoints.entries()) {
+    if (c.at !== CHECKPOINTS[i]?.at) {
+      throw new UsageError(
+        `${RECORD_NAME} の区切りが ${CHECKPOINTS.map((k) => k.at).join(" → ")} の順の先頭から並んでいない（${i + 1} 番目が ${String(c.at)}）`,
+      );
+    }
+    const roots = /** @type {string[]} */ (c.roots);
+    if (roots.length < 2) {
+      throw new UsageError(
+        `${RECORD_NAME} の区切り ${String(c.at)} にスイートの根が無い（authored の --include が記録されていない）`,
+      );
+    }
+    const prev = i > 0 ? /** @type {string[]} */ (rec.checkpoints[i - 1].roots) : null;
+    if (prev && (roots[0] !== prev[0] || !prev.every((r) => roots.includes(r)))) {
+      throw new UsageError(
+        `${RECORD_NAME} の区切り ${String(c.at)} の roots が前の区切りの roots を引き継いでいない`,
+      );
+    }
+  }
   return /** @type {{ tool: string, version: string, checkpoints: Record<string, unknown>[] }} */ (
     rec
   );
@@ -232,6 +253,10 @@ export function main(argv, deps = {}) {
         );
       }
       const recorded = /** @type {Record<string, string>} */ (last.files);
+      // gated は strength.md（強度ゲートの結果）を持つ時点でしか記録されない。持たない記録から手順 8 を始めさせない
+      if (at === "gated" && !Object.hasOwn(recorded, `${slugDir}/strength.md`)) {
+        throw new UsageError(`${RECORD_NAME} の gated の指紋に strength.md が無い`);
+      }
       const now = fingerprintFiles(cwd, /** @type {string[]} */ (last.roots), slugDir, {
         allowMissing: true,
       });
