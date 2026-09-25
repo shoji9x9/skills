@@ -434,6 +434,18 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["#473: shared_files の記録の不備は exit 1: 実体が無い"]
+    },
+    {
+      "id": "health-check-cli-entry-skipped",
+      "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #478）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (invokedAsCli) {\n",
+      "replace": "if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、健全な成果物は exit 0 で ok を stdout に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+      ]
     }
   ]
 }

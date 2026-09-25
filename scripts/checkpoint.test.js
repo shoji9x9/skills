@@ -10,10 +10,11 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/checkpoint.mjs");
+const { main } = await import(pathToFileURL(script).href);
 const SLUG = ".replace/parity/share";
 const SUITE = "e2e/parity/share";
 
@@ -35,20 +36,38 @@ function project() {
 }
 
 /**
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #478）。
+ * CLI として起動できること（エントリ判定・cwd・引数と出力の受け渡し）は cli() の陽性コントロールが持つ。
  * @param {string} dir
  * @param {string[]} args
  */
-function cli(dir, args) {
-  const r = spawnSync(process.execPath, [script, ...args], {
+function run(dir, args) {
+  let stdout = "";
+  let stderr = "";
+  const status = main(args, {
     cwd: dir,
+    out: (s) => (stdout += s),
+    err: (s) => (stderr += s),
+  });
+  return { status, stdout, stderr };
+}
+
+/**
+ * 子プロセスとして CLI を起動する。
+ * @param {string} cwd
+ * @param {string[]} args
+ */
+function cli(cwd, args) {
+  const r = spawnSync(process.execPath, [script, ...args], {
+    cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-const record = (dir, at, extra = []) => cli(dir, ["record", "--dir", SLUG, "--at", at, ...extra]);
-const verify = (dir, at) => cli(dir, ["verify", "--dir", SLUG, "--at", at]);
+const record = (dir, at, extra = []) => run(dir, ["record", "--dir", SLUG, "--at", at, ...extra]);
+const verify = (dir, at) => run(dir, ["verify", "--dir", SLUG, "--at", at]);
 
 /** 手順 6 の成果物（採取の記録）を書いてから captured を記録する。 */
 const capture = (dir) => {
@@ -206,7 +225,7 @@ test.each([
   ["不明な引数", ["record", "--dir", SLUG, "--at", "authored", "--bogus", "x"], "不明な引数"],
 ])("使い方の誤りは exit 2: %s", (_name, args, needle) => {
   const dir = project();
-  const r = cli(dir, args);
+  const r = run(dir, args);
   expect(r.status).toBe(2);
   expect(r.stderr).toContain(needle);
 });
@@ -221,16 +240,29 @@ test("記録が 1 つも無ければ verify は exit 1", () => {
 test("別の cwd から verify すると指紋の対象が見つからず落ちる（合格に倒さない）", () => {
   const dir = project();
   expect(record(dir, "authored", ["--include", SUITE]).status).toBe(0);
-  const r = spawnSync(
-    process.execPath,
-    [script, "verify", "--dir", join(dir, SLUG), "--at", "authored"],
-    {
-      cwd: join(dir, "e2e"),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  // 子プロセスで起動する（cwd を process.cwd() から取ることまで含めて確かめる）
+  const r = cli(join(dir, "e2e"), ["verify", "--dir", join(dir, SLUG), "--at", "authored"]);
+  expect(r.stderr).toContain("error: ");
   expect(r.status).not.toBe(0);
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、cwd を根に record・verify が通り結果を stdout に出す", () => {
+  const dir = project();
+  const rec = cli(dir, ["record", "--dir", SLUG, "--at", "authored", "--include", SUITE]);
+  expect(rec.stdout).toContain('"recorded":true');
+  expect(rec.status).toBe(0);
+  const ver = cli(dir, ["verify", "--dir", SLUG, "--at", "authored"]);
+  expect(JSON.parse(ver.stdout)).toMatchObject({ at: "authored", ok: true });
+  expect(ver.status).toBe(0);
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+  const dir = project();
+  const r = cli(dir, ["record", "--dir", SLUG]);
+  expect(r.stderr).toContain("--dir と --at が要る");
+  expect(r.stderr).toMatch(/^usage: checkpoint\.mjs record/m);
+  expect(r.stdout).toBe("");
+  expect(r.status).toBe(2);
 });
 
 /**
