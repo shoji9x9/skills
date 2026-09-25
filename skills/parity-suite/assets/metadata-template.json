@@ -38,7 +38,7 @@
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "specs": [
         {
-          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。正本は parity-suite の references/baseline.md「スペック単位で記録する」。",
+          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。正本は parity-suite の references/baseline.md「スペック単位で記録する」。",
           "path": "<スペックのリポジトリルート基準の相対パス>",
           "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度ゲートは、現行へ保存する操作を含まなければ false>",
           "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
@@ -46,7 +46,7 @@
       ],
       "current_excluded": [
         {
-          "path": "<current プロジェクトが testIgnore で走らせないディレクトリ（既定 <parity_suite_dir>/parity/<slug>/new-only）。specs を書いたときだけ読む。この下は分類も指紋も要らない>",
+          "path": "<current プロジェクトが testIgnore で走らせないディレクトリ（既定 <parity_suite_dir>/parity/<slug>/new-only）。specs を書いたときだけ読む。suite.specs の下に限る（外・suite.specs そのものは外さない）。この下は分類も指紋も要らない（土台の宣言パスは外さない）>",
           "reason": "<走らせない根拠（testIgnore のパターン等）。空の行は外さずに数える>"
         }
       ],

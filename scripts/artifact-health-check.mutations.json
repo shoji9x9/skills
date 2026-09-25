@@ -158,7 +158,12 @@
       "replace": "  if (false) {\n    const perSpec",
       "occurrences": 1,
       "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
         "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
         "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）",
         "#473: スペック単位の記録の不備は exit 1: 分類が重複している",
         "#473: スペック単位の記録の不備は exit 1: 分類されていないスペックがある",
@@ -176,6 +181,8 @@
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）",
         "#473: 命名規則にも分類表にも当たらないのにテストを定義しているファイルは落とす（土台に紛れさせない）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い",
         "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
       ]
     },
@@ -187,10 +194,8 @@
       "replace": "filter(([f]) => specSet.has(f))",
       "occurrences": 1,
       "expect_failing": [
-        "#473 再現: 状態を変えないスペックのコードを変えても 2 回の記録は失効しない",
-        "#473 陽性コントロール: テストを定義しない共通の関数・fixture（test.extend）は土台として通る",
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
         "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
-        "#473: current_excluded の下（新側専用スペック）に足しても記録は失効せず、分類も要らない",
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックが 1 件も無い"
       ]
     },
@@ -213,6 +218,10 @@
       "replace": "} else if (false) {",
       "occurrences": 1,
       "expect_failing": [
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）"
       ]
@@ -225,11 +234,15 @@
       "replace": "if (false) specFiles.add(f);",
       "occurrences": 1,
       "expect_failing": [
-        "#473 再現: 状態を変えないスペックのコードを変えても 2 回の記録は失効しない",
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
         "#473 陽性コントロール: テストを定義しない共通の関数・fixture（test.extend）は土台として通る",
         "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
         "#473: --fingerprint は suite_fingerprint と、分類表を反映したスペック・土台の指紋を出す",
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない",
         "#473: current_excluded の下（新側専用スペック）に足しても記録は失効せず、分類も要らない",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
         "#473: reason の無い current_excluded は外さずに数える（無根拠の緩和を通さない）",
         "#473: スペック単位の記録の不備は exit 1: 分類されていないスペックがある",
         "#473: スペック単位の記録の不備は exit 1: 状態を変えるスペックの記録に shared_fingerprint が無い",
@@ -239,6 +252,8 @@
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: suite.specs の下のスペック以外（共通の関数）",
         "#473: 共有の土台を変えたら状態を変えるスペックの記録が失効する: 共有の宣言パス（expectations）",
         "#473: 命名規則にも分類表にも当たらないのにテストを定義しているファイルは落とす（土台に紛れさせない）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い",
         "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
       ]
     },
@@ -258,7 +273,7 @@
       "id": "per-spec-excluded-ignored",
       "why": "current_excluded の下を外さない",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "      if (excluded.some((e) => underRel(f, e))) continue;\n",
+      "find": "      if (key === \"specs\" && excluded.some((e) => underRel(f, e))) continue;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
@@ -297,6 +312,8 @@
       "replace": "    const tail = list.slice(-2);\n",
       "occurrences": 1,
       "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473 陽性コントロール: 状態を変えるスペックを 2 回続けて緑で記録すれば通す（状態を変えないスペックは 1 回で足りる）",
         "#473: 状態を変えるスペックを変えたら落ち、そのスペックだけを 2 回回し直せば通る"
       ]
     },
@@ -342,6 +359,43 @@
       "occurrences": 1,
       "expect_failing": [
         "#473: suite.state_mutating: false でも repeat_run.specs の型崩れは exit 2"
+      ]
+    },
+    {
+      "id": "per-spec-readonly-unbound",
+      "why": "状態を変えないスペックの 1 回の緑を現在の版に結びつけない（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "  for (const spec of readOnly) {\n",
+      "replace": "  for (const spec of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473 再現: 状態を変えないスペックを変えても、そのスペックを 1 回回して足せば通る（状態を変えるスペックの 2 回は取り直さない）",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 記録が無い",
+        "#473: 状態を変えないスペックの 1 回の緑が現在の版に結びつかなければ落とす: 直近の記録が赤"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-any-key",
+      "why": "current_excluded を土台のキーにも当てる（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (key === \"specs\" && excluded.some((e) => underRel(f, e))) continue;",
+      "replace": "if (excluded.some((e) => underRel(f, e))) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: current_excluded の下にあっても、土台の宣言パス（interactions 等）は指紋から外さない"
+      ]
+    },
+    {
+      "id": "per-spec-excluded-outside-specs",
+      "why": "suite.specs の外の current_excluded を受ける（Codex レビュー）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    if (specsRoot === null || normalized === specsRoot || !underRel(normalized, specsRoot)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パス（expectations）",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: 共有の宣言パスの祖先",
+        "#473: current_excluded は suite.specs の下のスペックの置き場所に限る: suite.specs そのもの"
       ]
     }
   ]

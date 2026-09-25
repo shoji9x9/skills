@@ -821,7 +821,7 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   for (const { key, files } of listed.byKey) {
     for (const raw of files) {
       const f = normalizeRel(raw);
-      if (excluded.some((e) => underRel(f, e))) continue;
+      if (key === "specs" && excluded.some((e) => underRel(f, e))) continue;
       if (key === "specs" && (SPEC_FILE_PATTERN.test(f) || declared.has(f))) specFiles.add(f);
       else sharedFiles.add(f);
     }
@@ -915,9 +915,11 @@ function pairFindings(tail, label) {
  * 分類表（repeat_run.specs）と current_excluded を読む。型崩れは UsageError、記録の不備は所見。
  * @param {Record<string, unknown>} record - suite.repeat_run
  * @param {string} root
+ * @param {unknown} specsDecl - suite.specs（current_excluded はこの下に限る）
  * @returns {{ findings: string[], declared: Map<string, boolean>, excluded: string[] }}
  */
-function readSpecClassification(record, root) {
+function readSpecClassification(record, root, specsDecl) {
+  const specsRoot = nonEmptyString(specsDecl) ? normalizeRel(String(specsDecl)) : null;
   /** @type {string[]} */
   const findings = [];
   const rawExcluded = record.current_excluded ?? [];
@@ -942,6 +944,15 @@ function readSpecClassification(record, root) {
     }
     if (resolveInside(root, rel) === null) {
       findings.push(`current_excluded の ${rel} がルートの外を指しているか実パスを解決できない`);
+      continue;
+    }
+    // 外せるのは suite.specs の下（current が走らせないスペックの置き場所）だけ。土台（locator_map 等）やその祖先を外すと、
+    // 土台を変えても記録が失効しなくなる。suite.specs そのものも外せない（全スペックが判定から消える）
+    const normalized = normalizeRel(rel);
+    if (specsRoot === null || normalized === specsRoot || !underRel(normalized, specsRoot)) {
+      findings.push(
+        `current_excluded の ${rel} が suite.specs（${specsRoot ?? "未宣言"}）の下でない（外せるのは current が走らせないスペックの置き場所だけ）。外さずに数える`,
+      );
       continue;
     }
     excluded.push(normalizeRel(rel));
@@ -986,7 +997,7 @@ function readSpecClassification(record, root) {
  * @returns {{ findings: string[], notes: string[] }}
  */
 function checkRepeatRunPerSpec(suiteObj, record, root) {
-  const { findings, declared, excluded } = readSpecClassification(record, root);
+  const { findings, declared, excluded } = readSpecClassification(record, root, suiteObj.specs);
   /** @type {string[]} */
   const notes = [];
   const current = specFingerprints(suiteObj, root, { declared: [...declared.keys()], excluded });
@@ -1080,8 +1091,41 @@ function checkRepeatRunPerSpec(suiteObj, record, root) {
       );
     }
   }
+  // 状態を変えないスペックは 1 回の緑で足りるが、その 1 回も現在の版に結びつける。
+  // 結びつけないと、状態を変えないスペックを書き換えた（壊した）後も、状態を変えるスペックの記録だけで通る
+  const readOnly = current.specFiles.filter((f) => declared.get(f) === false);
+  for (const spec of readOnly) {
+    const last = list
+      .filter(
+        (run) =>
+          isPlainObject(run.spec_fingerprints) &&
+          Object.keys(run.spec_fingerprints).some((k) => normalizeRel(k) === spec),
+      )
+      .at(-1);
+    if (last === undefined) {
+      findings.push(
+        `状態を変えないスペック ${spec} の実行記録が 0 件（1 回の緑を現在のスペックに結びつける記録が無い）`,
+      );
+      continue;
+    }
+    const prints = /** @type {Record<string, unknown>} */ (last.spec_fingerprints);
+    const key = /** @type {string} */ (Object.keys(prints).find((k) => normalizeRel(k) === spec));
+    const recorded = String(prints[key]).trim();
+    const shared = nonEmptyString(last.shared_fingerprint)
+      ? String(last.shared_fingerprint).trim()
+      : null;
+    if (last.result !== GREEN) {
+      findings.push(
+        `状態を変えないスペック ${spec} の直近の記録が緑でない（result: ${JSON.stringify(last.result)}）`,
+      );
+    } else if (recorded !== current.specs[spec] || shared !== current.shared) {
+      findings.push(
+        `状態を変えないスペック ${spec} の直近の緑は現在のスペック・土台のものでない（spec ${recorded} / shared ${shared} ≠ 実測 ${current.specs[spec]} / ${current.shared}）。このスペックを 1 回回して記録を足す`,
+      );
+    }
+  }
   notes.push(
-    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${current.specFiles.length - mutating.length} 件は 1 回の緑で足りる（土台 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
+    `スペック単位で判定: 状態を変えるスペック ${mutating.length} 件は 2 回続けての緑、状態を変えないスペック ${readOnly.length} 件は現在の版での 1 回の緑で足りる（土台 ${current.sharedFiles} ファイル、current_excluded ${excluded.length} 件）`,
   );
   if (withoutSpecPrints > 0) {
     notes.push(
@@ -1696,7 +1740,7 @@ export function fingerprintReport(metadata, root) {
   /** @type {string[]} */
   let excluded = [];
   if (record.specs !== undefined && record.specs !== null) {
-    const c = readSpecClassification(record, root);
+    const c = readSpecClassification(record, root, suite.specs);
     declared = [...c.declared.keys()];
     excluded = c.excluded;
   }
