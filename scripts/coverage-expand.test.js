@@ -763,6 +763,10 @@ test("required_rules の代替の組の形を検査する", () => {
       [["column-visible", "context-menu-open"]],
       /代替の組 column-visible \/ context-menu-open の axes が揃っていない/,
     ],
+    [
+      [["column-visible", "column-filter"]],
+      /column-visible と column-filter の guard が排他でない/,
+    ],
   ]) {
     const p = structuredClone(profile);
     p.required_rules = bad;

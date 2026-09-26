@@ -1363,8 +1363,8 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
     const it = t.operations[1].aftermath.look.items[1];
     it.captured = "copy-toast";
     it.covered_by = [];
-    t.operations[0].page = pages[0];
-    t.operations[1].page = pages[1];
+    t.operations[0].capture_page = pages[0];
+    t.operations[1].capture_page = pages[1];
   };
   const cross = run(
     mutated((t) => share(t, ["共有画面", "検索画面"])),
@@ -1384,7 +1384,7 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
   );
   expect(unknown.status).toBe(1);
   expect(unknown.stderr).toContain(
-    'page "旧検索画面" が metadata.json の capture_conditions.pages に無い',
+    'capture_page "旧検索画面" が metadata.json の capture_conditions.pages に無い',
   );
   // ページ一覧が無い metadata では page を照合できないので通さない
   const noPages = run(mutated((t) => share(t, ["共有画面", "検索画面"])));

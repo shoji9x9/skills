@@ -505,7 +505,8 @@
       "occurrences": 1,
       "expect_failing": [
         "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）",
-        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）"
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
       ]
     },
     {
@@ -527,7 +528,8 @@
       "replace": "      continue;\n",
       "occurrences": 1,
       "expect_failing": [
-        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）"
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
       ]
     },
     {
@@ -545,7 +547,7 @@
       "id": "page-unknown",
       "why": "撮影条件に無いページ名を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.page)))\n",
+      "find": "      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))\n",
       "replace": "      else if (false)\n",
       "occurrences": 1,
       "expect_failing": [

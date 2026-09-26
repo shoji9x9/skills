@@ -91,6 +91,7 @@
       "name": "初期非表示の列を表示切替で出せること",
       "axes": ["column"],
       "guard": {
+        "column.initially_visible": false,
         "column.toggleable": true
       },
       "visual_states": ["opens-container"],

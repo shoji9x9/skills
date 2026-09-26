@@ -824,11 +824,24 @@ export function validateProfile(profile, source) {
   const required = Array.isArray(p.required_rules) ? p.required_rules : [];
   /** @type {Map<string, string>} ルール id → 軸の並び（代替の組の同質性の照合に使う） */
   const axesOfRule = new Map();
+  /** @type {Map<string, Record<string, unknown>>} ルール id → guard（代替の組の排他性の照合に使う） */
+  const guardOfRule = new Map();
   for (const rule of rules) {
     if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
     const r = /** @type {Record<string, unknown>} */ (rule);
     axesOfRule.set(String(r.id), JSON.stringify(Array.isArray(r.axes) ? r.axes.map(String) : []));
+    guardOfRule.set(
+      String(r.id),
+      isPlainObject(r.guard) ? /** @type {Record<string, unknown>} */ (r.guard) : {},
+    );
   }
+  // 2 つのルールの guard が排他か（同じフラグに逆の値を要求する条件が 1 つ以上ある）。
+  // 排他なら、1 つの要素はどちらか一方にしか当たらない＝同じ要求を要素の性質で分けたルールだと機械的に言える
+  const exclusive = (/** @type {string} */ a, /** @type {string} */ b) => {
+    const ga = guardOfRule.get(a) ?? {};
+    const gb = guardOfRule.get(b) ?? {};
+    return Object.keys(ga).some((k) => Object.hasOwn(gb, k) && ga[k] !== gb[k]);
+  };
   /** @type {Set<string>} */
   const seenRequired = new Set();
   for (const entry of required) {
@@ -852,6 +865,16 @@ export function validateProfile(profile, source) {
       at(
         `required_rules: 代替の組 ${group.map(String).join(" / ")} の axes が揃っていない（同じ要求を guard だけで分けたルールしか組にしない）`,
       );
+    }
+    // 軸が揃っていても、別の要求（列の表示と列の絞り込み等）を組にすると片方の候補がもう片方の 0 件を黙らせる。
+    // 組の全ての組み合わせで guard が排他（同じフラグに逆の値を要求）なことを要求する
+    for (let i = 0; i < group.length; i += 1) {
+      for (let j = i + 1; j < group.length; j += 1) {
+        if (!exclusive(String(group[i]), String(group[j])))
+          at(
+            `required_rules: 代替の組の ${String(group[i])} と ${String(group[j])} の guard が排他でない（同じフラグに逆の値を要求する条件が無い。同じ要求を要素の性質で分けたルールしか組にしない）`,
+          );
+      }
     }
   }
 

@@ -45,6 +45,15 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["required_rules の代替の組の形を検査する"]
+    },
+    {
+      "id": "required-group-exclusive",
+      "why": "guard が排他でないルールを代替の組にしても通す",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "        if (!exclusive(String(group[i]), String(group[j])))\n",
+      "replace": "        if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["required_rules の代替の組の形を検査する"]
     }
   ]
 }

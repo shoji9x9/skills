@@ -960,19 +960,25 @@ export function checkReactions(table, opts = {}) {
       else problems.push(`${label}: ${ap.problem}`);
     }
     // 撮影の単位はページ × 状態名 × ビューポートなので、別のページの同じ状態名は別の 1 枚（baseline.md）。
-    // 操作が載るページ（page。省略は同じページとみなして使い回しを厳しく見る）で状態名を割る
+    // 割る単位は操作が載るページではなく、押した後に撮ったページ（capture_page。遷移する操作は遷移先）。
+    // 載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通ってしまう（Codex レビュー）。
+    // 省略は同じページとみなして使い回しを厳しく見る
     /** @type {string | null} */
     let page = null;
-    if (op.page !== undefined && op.page !== null) {
-      if (!filled(op.page))
-        fail("page が空でない文字列でない（省略するか capture_conditions.pages の名前を書く）");
+    if (op.capture_page !== undefined && op.capture_page !== null) {
+      if (!filled(op.capture_page))
+        fail(
+          "capture_page が空でない文字列でない（省略するか capture_conditions.pages の名前を書く）",
+        );
       else if (pageNames === null && captureStates !== null)
         fail(
-          `page "${op.page}" を照合できない（metadata.json の capture_conditions.pages を読めない）`,
+          `capture_page "${op.capture_page}" を照合できない（metadata.json の capture_conditions.pages を読めない）`,
         );
-      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.page)))
-        fail(`page "${op.page}" が metadata.json の capture_conditions.pages に無い`);
-      else page = /** @type {string} */ (op.page);
+      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))
+        fail(
+          `capture_page "${op.capture_page}" が metadata.json の capture_conditions.pages に無い`,
+        );
+      else page = /** @type {string} */ (op.capture_page);
     }
     const captureKey = (/** @type {string} */ state) => JSON.stringify([page, state]);
     // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
