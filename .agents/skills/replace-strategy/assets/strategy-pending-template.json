@@ -1,5 +1,5 @@
 {
-  "_note": "replace-strategy が --autonomous の実行で .replace/strategy-pending.json として生成する。setup / issues / evidence で人の判断待ちにした保留の記録。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く（無記録と区別する）。次の実行は上書きする前に未解決の保留（resolution: null）を読む。ファイル直下の mode は最後に実行したモード。保留の由来は要素ごとの mode（その保留を立てた実行のモード）に書き、別モードの実行で持ち越しても書き換えない。下流の setup 完了判定は要素の mode: setup で絞る（範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
+  "_note": "replace-strategy が --autonomous の実行で .replace/strategy-pending.json として生成する。setup / issues / evidence で人の判断待ちにした保留の記録。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く（無記録と区別する）。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は references/autonomy.md「保留の状態」）を読む。ファイル直下の mode は最後に実行したモード。保留の由来は要素ごとの mode（その保留を立てた実行のモード）に書き、別モードの実行で持ち越しても書き換えない。下流の setup 完了判定は要素の mode: setup で絞る（範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
   "mode": "<setup | issues | evidence。最後に実行したモード。保留の由来は要素の mode を見る>",
   "run": {
     "started_at": "<ISO 8601 の開始日時>",

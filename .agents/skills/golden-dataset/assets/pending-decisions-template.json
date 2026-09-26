@@ -1,5 +1,5 @@
 {
-  "_note": "golden-dataset が --autonomous の実行で .replace/dataset/pending-decisions.json として生成する自律実行の保留の記録。.replace/dataset/metadata.json には保留を書かない（下流がその存在を完了の証拠に使うため、保留を残す目的で作ると未完了のまま後続が進む）。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。 要素ごとに phase を書き、phase: b では slugs（影響するすべての slug）と target も書く（下流は範囲が一致する保留だけで止まる。範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
+  "_note": "golden-dataset が --autonomous の実行で .replace/dataset/pending-decisions.json として生成する自律実行の保留の記録。.replace/dataset/metadata.json には保留を書かない（下流がその存在を完了の証拠に使うため、保留を残す目的で作ると未完了のまま後続が進む）。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は replace-strategy の references/autonomy.md「保留の状態」）を読む。 要素ごとに phase を書き、phase: b では slugs（影響するすべての slug）と target も書く（下流は範囲が一致する保留だけで止まる。範囲の正本は replace-strategy の references/autonomy.md「下流の前提判定」）。",
   "run": {
     "started_at": "<ISO 8601 の開始日時>",
     "finished_at": "<ISO 8601 の終了日時>",

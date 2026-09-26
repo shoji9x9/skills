@@ -1,5 +1,5 @@
 {
-  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。",
+  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
   "slug": "<.replace/components.md が採番した slug（自分で採番しない）>",
   "component": "<部品の呼び名（components.md の表記）>",
   "target": {

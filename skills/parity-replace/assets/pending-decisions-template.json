@@ -1,5 +1,5 @@
 {
-  "_note": "parity-replace が --autonomous の実行で .replace/parity/<slug>/new/<target>/pending-decisions.json として生成する自律実行の保留の記録。replace-metadata.json には保留を書かない（parity-diff がその存在と suite.new_green を前提に使うため、保留を残す目的で作ると未完了のまま後続が進む）。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く。次の実行は上書きする前に未解決（resolution: null）の保留を読む。",
+  "_note": "parity-replace が --autonomous の実行で .replace/parity/<slug>/new/<target>/pending-decisions.json として生成する自律実行の保留の記録。replace-metadata.json には保留を書かない（parity-diff がその存在と suite.new_green を前提に使うため、保留を残す目的で作ると未完了のまま後続が進む）。pending_decisions の要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」。保留が無ければ空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
   "slug": "<features.md が採番した slug>",
   "target": "<新側 target 名>",
   "run": {
