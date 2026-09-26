@@ -89,7 +89,7 @@
       "id": "fingerprint-ignores-comments",
       "why": "コメントでの条件の改訂を指紋に入れず、古い表を通す",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    comments: comments.map((c) => c.replace(/\\r\\n?/g, \"\\n\")),\n",
+      "find": "    comments: comments.map((c) => c.replace(/\\r\\n?/g, \"\\n\").trimEnd()),\n",
       "replace": "    comments: [],\n",
       "occurrences": 1,
       "expect_failing": [
@@ -104,7 +104,8 @@
       "replace": "    body,\n",
       "occurrences": 1,
       "expect_failing": [
-        "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
+        "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）",
+        "チェックを付けて書き戻したときの末尾の改行では表を古くしない"
       ]
     },
     {
@@ -146,6 +147,26 @@
       "expect_failing": [
         "本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）"
       ]
+    },
+    {
+      "id": "html-comment-counted",
+      "why": "HTML コメントの中の例示チェックボックスを項目に数える",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": ".replace(/<!--[\\s\\S]*?(?:-->|$)/g, \"\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中の例示チェックボックスは項目に数えない（閉じないコメントは末尾まで）"
+      ]
+    },
+    {
+      "id": "trailing-newline-stale",
+      "why": "書き戻しで付いた末尾の改行だけで表を古くする",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    .join(\"\\n\")\n    .trimEnd();",
+      "replace": "    .join(\"\\n\");",
+      "occurrences": 1,
+      "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
     }
   ]
 }

@@ -89,7 +89,10 @@ export function checklistItems(body) {
   const items = [];
   /** @type {string | null} */
   let fence = null;
-  for (const line of body.replace(/\r\n?/g, "\n").split("\n")) {
+  // HTML コメントの中は画面に出ない（テンプレートが残した例示の `- [ ]` 等）ので数えない。
+  // 閉じない `<!--` は文書の末尾まで続く（CommonMark の HTML ブロック）。
+  const visible = body.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  for (const line of visible.split("\n")) {
     const f = line.match(FENCE);
     if (fence !== null) {
       // 閉じは同じ文字で同じ長さ以上、かつ後ろが空白だけ（CommonMark）。言語名付きの行は中身として扱う。
@@ -111,8 +114,8 @@ export function checklistItems(body) {
 }
 
 /**
- * 指紋の材料にする本文。チェックの有無は畳む——完了の報告で項目にチェックを付けると本文が変わるが、
- * 条件そのものは変わっていないので表を古くしない。
+ * 指紋の材料にする本文。チェックの有無と末尾の空白・改行は畳む——完了の報告で項目にチェックを付けて
+ * 本文を書き戻すと、チェックと（取得・書き戻しの経路によっては）末尾の改行が変わるが、条件そのものは変わっていないので表を古くしない。
  * @param {string} body
  * @returns {string}
  */
@@ -123,7 +126,8 @@ function bodyForFingerprint(body) {
     .map((line) =>
       line.replace(CHECKBOX, (_all, head, _mark, gap, rest) => `${head}[ ]${gap}${rest}`),
     )
-    .join("\n");
+    .join("\n")
+    .trimEnd();
 }
 
 /**
@@ -157,7 +161,7 @@ export function fingerprintOf(body, comments, title = "") {
   const payload = JSON.stringify({
     title,
     body: bodyForFingerprint(body),
-    comments: comments.map((c) => c.replace(/\r\n?/g, "\n")),
+    comments: comments.map((c) => c.replace(/\r\n?/g, "\n").trimEnd()),
   });
   return `sha256:${createHash("sha256").update(payload).digest("hex")}`;
 }

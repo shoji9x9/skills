@@ -359,3 +359,19 @@ test("本文が空でタイトルだけの Issue は、タイトルからの行�
   expect(retitled.code).toBe(1);
   expect(retitled.codes).toEqual(expect.arrayContaining(["stale-issue", "quote-not-found"]));
 });
+
+test("HTML コメントの中の例示チェックボックスは項目に数えない（閉じないコメントは末尾まで）", () => {
+  expect(
+    checklistItems("- [ ] real\n<!--\n- [ ] example item from template\n-->\n- [ ] after"),
+  ).toEqual(["real", "after"]);
+  expect(checklistItems("- [ ] real\n<!-- - [ ] inline -->\n<!--\n- [ ] unclosed")).toEqual([
+    "real",
+  ]);
+});
+
+test("チェックを付けて書き戻したときの末尾の改行では表を古くしない", () => {
+  expect(fingerprintOf("- [ ] a", [])).toBe(fingerprintOf("- [x] a\n", []));
+  expect(fingerprintOf("b", ["c"])).toBe(fingerprintOf("b", ["c\n"]));
+  // 中身が変われば変わる（陽性コントロール）。
+  expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
+});
