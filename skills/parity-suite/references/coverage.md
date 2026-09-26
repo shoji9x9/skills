@@ -144,7 +144,9 @@
     **同じ `captured` の状態名を複数の行（別の操作を含む）が指すなら、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の `shared_capture_reason` に書く**（撮影状態の導出の「状態名も撮影単位の中で一意にする」と同じ理由。根拠の無い使い回しは片方の操作しか作っていない 1 枚でも全行が満たされる）。
     観測した反応の `capture.state` も同じ集合で数え、共有するなら `capture.shared_capture_reason` を書く。
     照合はページ × 状態名で行う——押した後に撮ったページ（遷移する操作は遷移先）を `capture_page`（`capture_conditions.pages` の名前）に書けば、
-    別のページの同じ状態名は別の 1 枚として扱う（操作が載るページではない）。撮る状態を持つ操作は、`capture_conditions.pages` が 2 つ以上なら `capture_page` が要る（1 つならそのページとみなす）
+    別のページの同じ状態名は別の 1 枚として扱う（操作が載るページではない）。撮る状態を持つ操作は、`capture_conditions.pages` が 2 つ以上なら `capture_page` が要る（1 つならそのページとみなす）。
+    名乗ったページは押した後の URL（`returns_to.url_after`）と `capture_conditions.pages[].path` で照合し（クエリ・フラグメントと前後の `/` を落とし、URL が path と一致するか `/<path>` で終わる。根の path は URL も根のときだけ）、
+    使い回しは名前ではなく path で数える（別名で同じ path を指すページは同じ 1 枚）
   - 残らないなら `changes: false` と確かめた記録（`evidence`）、確かめた論理名（`targets`。強度ゲートがここへ残る塗りを注入する）、
     残らないことを確かめる assertion（`covered_by`。新側が塗り・焦点の輪を残しても撮っていない状態には写らない）。測れなければ `changes: null` と理由
   - 部品の操作から立つ残る見た目（選択の塗り・絞り込みの印・並べ替えの印）は、被覆プロファイルの `after-operation` が撮影状態の行を導く

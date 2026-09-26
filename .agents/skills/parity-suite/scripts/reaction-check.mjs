@@ -716,6 +716,32 @@ function aftermathReturnsProblems(ret, screenStates) {
 }
 
 /**
+ * ページの path と URL の比較用の正規化。クエリ・フラグメントを落とし、前後の "/" を落とす。
+ * @param {string} v
+ * @returns {string}
+ */
+function normalizePagePath(v) {
+  return String(v)
+    .split(/[?#]/)[0]
+    .replace(/^\/+|\/+$/g, "");
+}
+
+/**
+ * 押した後の URL（オリジンを除いたパス）が、capture_conditions.pages[].path（baseURL からの相対）のページか。
+ * baseURL にパスの接頭辞があり得るので、正規化した URL が path と一致するか "/<path>" で終わるものを同じページとする。
+ * path が空（baseURL の根）は、URL も根のときだけ一致させる（接尾辞の一致に倒すと全ての URL が根に一致する）。
+ * @param {string} url
+ * @param {string} pagePath
+ * @returns {boolean}
+ */
+function urlMatchesPage(url, pagePath) {
+  const u = normalizePagePath(url);
+  const q = normalizePagePath(pagePath);
+  if (q === "") return u === "";
+  return u === q || u.endsWith(`/${q}`);
+}
+
+/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
@@ -791,7 +817,7 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Map<string, string | null> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -925,6 +951,8 @@ export function checkReactions(table, opts = {}) {
   const unmeasuredOps = new Set();
   /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行 */
   const aftermathCaptureUses = new Map();
+  /** @type {Map<string, string>} 使い回しの照合のキー → 人が読む名前（最初に現れたページ名 × 状態名） */
+  const captureLabel = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
   const handlersByOp = new Map();
   for (const op of operations) {
@@ -995,13 +1023,40 @@ export function checkReactions(table, opts = {}) {
         Array.isArray(op.aftermath.look.items) &&
         op.aftermath.look.items.some((it) => isPlainObject(it) && filled(it.captured)));
     if (page === null && op.capture_page == null && consumesCapture && pageNames !== null) {
-      if (pageNames.size === 1) page = [...pageNames][0];
+      if (pageNames.size === 1) page = [...pageNames.keys()][0];
       else if (pageNames.size > 1)
         fail(
           "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
         );
     }
-    const captureKey = (/** @type {string} */ state) => JSON.stringify([page, state]);
+    // 名乗ったページが本当に撮ったページかを、押した後の URL と capture_conditions.pages[].path で照合する。
+    // 名前だけを見ると、同じ URL に着く 2 操作が別の名前を名乗って使い回しの照合を逃れる（Codex レビュー）。
+    // 照合の単位も名前ではなく path にする（別名で同じ path を指す 2 つのページを 1 枚として数える）
+    /** @type {string | null} */
+    let pageKey = page === null ? null : `name:${page}`;
+    if (page !== null && pageNames !== null) {
+      const pagePath = pageNames.get(page) ?? null;
+      const ret = isPlainObject(op.aftermath) ? op.aftermath.returns_to : null;
+      if (pagePath === null) {
+        fail(
+          `capture_page "${page}" の path が metadata.json の capture_conditions.pages に無い（押した後の URL と照合できない）`,
+        );
+      } else {
+        pageKey = `path:${normalizePagePath(pagePath)}`;
+        if (isPlainObject(ret) && ret.measured === true && filled(ret.url_after)) {
+          if (!urlMatchesPage(/** @type {string} */ (ret.url_after), pagePath))
+            fail(
+              `capture_page "${page}"（path: ${pagePath}）が押した後の URL（${ret.url_after}）と合わない（押した後に撮ったページを書く）`,
+            );
+        }
+      }
+    }
+    const captureKey = (/** @type {string} */ state) => {
+      const key = JSON.stringify([pageKey, state]);
+      if (!captureLabel.has(key))
+        captureLabel.set(key, page === null ? state : `${page} の ${state}`);
+      return key;
+    };
     // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
     const lookItems =
       isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
@@ -1074,8 +1129,7 @@ export function checkReactions(table, opts = {}) {
   // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する
   for (const [key, uses] of aftermathCaptureUses) {
     if (uses.length < 2) continue;
-    const [pageName, stateName] = JSON.parse(key);
-    const name = pageName === null ? stateName : `${pageName} の ${stateName}`;
+    const name = captureLabel.get(key) ?? key;
     const lacking = uses.filter((u) => !u.shared);
     if (lacking.length === 0) continue;
     for (const u of lacking) unmeasuredOps.add(u.opId);
@@ -1398,10 +1452,13 @@ export function main(argv, deps = {}) {
       recorded,
       captureStates: new Set(cc.states),
       pageNames: Array.isArray(cc.pages)
-        ? new Set(
+        ? new Map(
             cc.pages
               .filter((pg) => isPlainObject(pg) && nonEmptyString(pg.name))
-              .map((pg) => /** @type {string} */ (pg.name)),
+              .map((pg) => [
+                /** @type {string} */ (pg.name),
+                typeof pg.path === "string" ? pg.path : null,
+              ]),
           )
         : null,
       slug: metadata.slug,

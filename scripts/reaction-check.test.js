@@ -1355,7 +1355,10 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: {
       states: ["default", "copy-toast"],
-      pages: [{ name: "共有画面" }, { name: "検索画面" }],
+      pages: [
+        { name: "共有画面", path: "share" },
+        { name: "検索画面", path: "search" },
+      ],
     },
   };
   // copy の反応（copy-toast）と search の残る見た目（copy-toast）
@@ -1365,6 +1368,9 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
     it.covered_by = [];
     t.operations[0].capture_page = pages[0];
     t.operations[1].capture_page = pages[1];
+    // 検索は検索画面へ遷移して撮る（押した後の URL が capture_page の path と合う）
+    t.operations[1].aftermath.returns_to.url_after =
+      pages[1] === "共有画面" ? "/share?id=1" : "/search";
   };
   const cross = run(
     mutated((t) => share(t, ["共有画面", "検索画面"])),
@@ -1399,7 +1405,7 @@ test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capt
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: {
       states: ["default", "copy-toast"],
-      pages: pages.map((name) => ({ name })),
+      pages: pages.map((name) => ({ name, path: { 共有画面: "share", 検索画面: "search" }[name] })),
     },
   });
   const two = run(baseTable(), { metadata: meta(["共有画面", "検索画面"]) });
@@ -1414,4 +1420,74 @@ test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capt
   );
   expect(written.stderr).toBe("");
   expect(written.status).toBe(0);
+});
+
+test("capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [
+        { name: "共有画面", path: "share" },
+        { name: "共有画面（別名）", path: "/share/" },
+        { name: "検索画面", path: "search" },
+        { name: "トップ", path: "" },
+      ],
+    },
+  };
+  const share = (t, pages, urls) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].capture_page = pages[0];
+    t.operations[1].capture_page = pages[1];
+    t.operations[0].aftermath.returns_to.url_after = urls[0];
+    t.operations[1].aftermath.returns_to.url_after = urls[1];
+  };
+  // 同じ URL に着く 2 操作が別の名前を名乗っても、名乗った名前が URL と合わなければ落とす
+  const lie = run(
+    mutated((t) => share(t, ["共有画面", "検索画面"], ["/share?id=1", "/share?id=1"])),
+    {
+      metadata,
+    },
+  );
+  expect(lie.status).toBe(1);
+  expect(lie.stderr).toContain(
+    'capture_page "検索画面"（path: search）が押した後の URL（/share?id=1）と合わない',
+  );
+  // 別名で同じ path を指すページは 1 枚として数える（根拠の無い使い回しで落ちる）
+  const alias = run(
+    mutated((t) => share(t, ["共有画面", "共有画面（別名）"], ["/share?id=1", "/app/share#top"])),
+    { metadata },
+  );
+  expect(alias.status).toBe(1);
+  expect(alias.stderr).toContain('撮る状態 "');
+  // 根のページは URL も根のときだけ一致する（接尾辞で全ての URL に一致させない）
+  const root = run(
+    mutated((t) => share(t, ["共有画面", "トップ"], ["/share?id=1", "/search"])),
+    {
+      metadata,
+    },
+  );
+  expect(root.status).toBe(1);
+  expect(root.stderr).toContain(
+    'capture_page "トップ"（path: ）が押した後の URL（/search）と合わない',
+  );
+  // path の無いページは照合できないので通さない
+  const noPath = run(
+    mutated((t) => share(t, ["共有画面", "検索画面"], ["/share?id=1", "/search"])),
+    {
+      metadata: {
+        ...metadata,
+        capture_conditions: {
+          ...metadata.capture_conditions,
+          pages: [{ name: "共有画面" }, { name: "検索画面", path: "search" }],
+        },
+      },
+    },
+  );
+  expect(noPath.status).toBe(1);
+  expect(noPath.stderr).toContain('capture_page "共有画面" の path が');
 });
