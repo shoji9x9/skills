@@ -913,6 +913,8 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
+  /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} 残る見た目の撮る状態名 → 割り当てた行 */
+  const aftermathCaptureUses = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
   const handlersByOp = new Map();
   for (const op of operations) {
@@ -946,6 +948,21 @@ export function checkReactions(table, opts = {}) {
     for (const ap of amProblems) {
       if (ap.unmeasured) fail(ap.problem);
       else problems.push(`${label}: ${ap.problem}`);
+    }
+    // 撮る状態へ割り当てた残る見た目を、状態名ごとに集める（使い回しの照合は全操作を見た後）
+    const lookItems =
+      isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
+        ? am.look.items
+        : [];
+    for (const item of lookItems) {
+      if (!isPlainObject(item) || !filled(item.captured) || !nonEmptyString(item.id)) continue;
+      const uses = aftermathCaptureUses.get(/** @type {string} */ (item.captured)) ?? [];
+      uses.push({
+        opId: /** @type {string} */ (op.id),
+        label: `${label}: aftermath.look.items["${item.id}"]`,
+        shared: filled(item.shared_capture_reason),
+      });
+      aftermathCaptureUses.set(/** @type {string} */ (item.captured), uses);
     }
     handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
@@ -985,6 +1002,17 @@ export function checkReactions(table, opts = {}) {
         }
       }
     }
+  }
+  // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
+  // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する
+  for (const [name, uses] of aftermathCaptureUses) {
+    if (uses.length < 2) continue;
+    const lacking = uses.filter((u) => !u.shared);
+    if (lacking.length === 0) continue;
+    for (const u of lacking) unmeasuredOps.add(u.opId);
+    problems.push(
+      `aftermath: 撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
+    );
   }
   // none の観測時間の下限が観測済みの遅れ以下だと、遅れて出る反応を「無い」と記録しても通る
   if (windowMs !== null && maxObservedDelay !== null && windowMs <= maxObservedDelay) {

@@ -1288,3 +1288,28 @@ test("同梱テンプレートのプレースホルダのままの aftermath は
   expect(r.stderr).toContain('operations["copy"]: aftermath');
   expect(r.stderr).toContain('operations["search"]: aftermath');
 });
+
+test("残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）", () => {
+  const share = (t, reasons) => {
+    const item = { ...structuredClone(lingeringAftermath().look.items[1]), id: "copied-row" };
+    t.operations[0].aftermath.look = { changes: true, items: [item] };
+    t.operations[0].aftermath.look.items[0].shared_capture_reason = reasons[0];
+    t.operations[1].aftermath.look.items[1].shared_capture_reason = reasons[1];
+  };
+  const bare = run(mutated((t) => share(t, [null, null])));
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('撮る状態 "copy-toast" を');
+  const half = run(mutated((t) => share(t, ["コピーの後に検索しても同じ通知が残る", null])));
+  expect(half.status).toBe(1);
+  expect(half.stderr).toContain('根拠が空: operations["search"]');
+  const both = run(
+    mutated((t) =>
+      share(t, [
+        "コピーと検索を続けて行った 1 枚に両方の後の見た目が写ることを実 UI で確かめた",
+        "同上（コピーと検索を続けて行った 1 枚で両方を確かめた）",
+      ]),
+    ),
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});

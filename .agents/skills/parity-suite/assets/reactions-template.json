@@ -100,6 +100,7 @@
               "description": "<残る見た目（例: 絞り込み中の見出しの文字色・複数列の並べ替えの順位の印・選択した行のこの列の塗り）>",
               "observed": "<現行で測った値（例: color: rgb(204, 0, 0)・印の文言「2▲」・塗りが付かない〈background-color が選択前と同じ〉）。付かないことも値として書く>",
               "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
+              "shared_capture_reason": "<同じ captured の状態名を別の行（別の操作を含む）も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く（片方だけでは落ちる）。使い回さないなら null>",
               "covered_by": [
                 "<押さえた assertion（toHaveCSS・印の文言など。スペックとテスト名）。撮る状態だけで押さえるなら空配列>"
               ],
