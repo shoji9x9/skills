@@ -1391,3 +1391,27 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
   expect(noPages.status).toBe(1);
   expect(noPages.stderr).toContain("capture_conditions.pages を読めない");
 });
+
+test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）", () => {
+  const meta = (pages) => ({
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: pages.map((name) => ({ name })),
+    },
+  });
+  const two = run(baseTable(), { metadata: meta(["共有画面", "検索画面"]) });
+  expect(two.status).toBe(1);
+  expect(two.stderr).toContain("capture_page が無い");
+  const one = run(baseTable(), { metadata: meta(["共有画面"]) });
+  expect(one.stderr).toBe("");
+  expect(one.status).toBe(0);
+  const written = run(
+    mutated((t) => (t.operations[0].capture_page = "共有画面")),
+    { metadata: meta(["共有画面", "検索画面"]) },
+  );
+  expect(written.stderr).toBe("");
+  expect(written.status).toBe(0);
+});

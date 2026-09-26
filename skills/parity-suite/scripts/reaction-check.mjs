@@ -980,6 +980,27 @@ export function checkReactions(table, opts = {}) {
         );
       else page = /** @type {string} */ (op.capture_page);
     }
+    // ページが 2 つ以上ある機能で capture_page を省くと、撮った状態がどのページの 1 枚かを決められない
+    // （別のページの同名の 1 枚でも行が満たされる）。ページが 1 つだけならそのページとみなす
+    const consumesCapture =
+      (Array.isArray(op.reactions) ? op.reactions : []).some(
+        (r) =>
+          isPlainObject(r) &&
+          r.kind === "observed" &&
+          isPlainObject(r.capture) &&
+          filled(r.capture.state),
+      ) ||
+      (isPlainObject(op.aftermath) &&
+        isPlainObject(op.aftermath.look) &&
+        Array.isArray(op.aftermath.look.items) &&
+        op.aftermath.look.items.some((it) => isPlainObject(it) && filled(it.captured)));
+    if (page === null && op.capture_page == null && consumesCapture && pageNames !== null) {
+      if (pageNames.size === 1) page = [...pageNames][0];
+      else if (pageNames.size > 1)
+        fail(
+          "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
+        );
+    }
     const captureKey = (/** @type {string} */ state) => JSON.stringify([page, state]);
     // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
     const lookItems =

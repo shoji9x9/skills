@@ -553,6 +553,17 @@
       "expect_failing": [
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
       ]
+    },
+    {
+      "id": "capture-page-required",
+      "why": "ページが 2 つ以上あるのに capture_page の無い撮る状態を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      else if (pageNames.size > 1)\n",
+      "replace": "      else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）"
+      ]
     }
   ]
 }
