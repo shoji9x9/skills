@@ -80,6 +80,26 @@ const CHECKBOX = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](\s+)(.*)$/;
 const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
 
 /**
+ * フェンスの外の 1 行から HTML コメントを取り除く。インラインコードの中の `<!--` / `-->` は見ない。
+ * @param {string} line
+ * @returns {{ text: string, open: boolean }} open は行末までに閉じないコメントが始まったか
+ */
+function stripHtmlComments(line) {
+  // インラインコードを同じ長さの空白で覆い、位置を保ったまま `<!--` を探す。
+  const masked = line.replace(/(`+)[^`]*?\1/g, (span) => " ".repeat(span.length));
+  let text = "";
+  let from = 0;
+  for (;;) {
+    const start = masked.indexOf("<!--", from);
+    if (start < 0) return { text: text + line.slice(from), open: false };
+    text += line.slice(from, start);
+    const end = masked.indexOf("-->", start + 4);
+    if (end < 0) return { text, open: true };
+    from = end + 3;
+  }
+}
+
+/**
  * 本文のチェックリストの項目を列挙する（コードフェンスの中は数えない）。
  * @param {string} body
  * @returns {string[]} 空白を畳んだ項目の文言（本文の順）
@@ -91,8 +111,17 @@ export function checklistItems(body) {
   let fence = null;
   // HTML コメントの中は画面に出ない（テンプレートが残した例示の `- [ ]` 等）ので数えない。
   // 閉じない `<!--` は文書の末尾まで続く（CommonMark の HTML ブロック）。
-  const visible = body.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  for (const line of visible.split("\n")) {
+  // コメントの判定はフェンスの外の行だけに当て、インラインコードの中の `<!--` はコメントにしない
+  // （本文全体へ先に当てると、コードの中の `<!--` から末尾までが消え、項目が 1 件も数えられなくなる）。
+  let inComment = false;
+  for (const raw of body.replace(/\r\n?/g, "\n").split("\n")) {
+    let line = raw;
+    if (fence === null && inComment) {
+      const end = line.indexOf("-->");
+      if (end < 0) continue;
+      line = line.slice(end + 3);
+      inComment = false;
+    }
     const f = line.match(FENCE);
     if (fence !== null) {
       // 閉じは同じ文字で同じ長さ以上、かつ後ろが空白だけ（CommonMark）。言語名付きの行は中身として扱う。
@@ -107,7 +136,9 @@ export function checklistItems(body) {
       fence = f[1];
       continue;
     }
-    const m = line.match(CHECKBOX);
+    const stripped = stripHtmlComments(line);
+    if (stripped.open) inComment = true;
+    const m = stripped.text.match(CHECKBOX);
     if (m && nonEmptyString(m[4])) items.push(normalizeText(m[4]));
   }
   return items;

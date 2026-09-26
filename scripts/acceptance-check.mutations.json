@@ -152,8 +152,8 @@
       "id": "html-comment-counted",
       "why": "HTML コメントの中の例示チェックボックスを項目に数える",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": ".replace(/<!--[\\s\\S]*?(?:-->|$)/g, \"\")",
-      "replace": "",
+      "find": "    const stripped = stripHtmlComments(line);",
+      "replace": "    const stripped = { text: line, open: false };",
       "occurrences": 1,
       "expect_failing": [
         "HTML コメントの中の例示チェックボックスは項目に数えない（閉じないコメントは末尾まで）"
@@ -167,6 +167,15 @@
       "replace": "    .join(\"\\n\");",
       "occurrences": 1,
       "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
+    },
+    {
+      "id": "comment-in-code-span",
+      "why": "インラインコードの中の <!-- をコメントの開きと読み、項目の文言を壊す",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  const masked = line.replace(/(`+)[^`]*?\\1/g, (span) => \" \".repeat(span.length));",
+      "replace": "  const masked = line;",
+      "occurrences": 1,
+      "expect_failing": ["インラインコード・コードフェンスの中の <!-- はコメントにしない"]
     }
   ]
 }

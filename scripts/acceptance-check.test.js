@@ -375,3 +375,10 @@ test("チェックを付けて書き戻したときの末尾の改行では表�
   // 中身が変われば変わる（陽性コントロール）。
   expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
 });
+
+test("インラインコード・コードフェンスの中の <!-- はコメントにしない", () => {
+  expect(checklistItems("- [ ] 出力に `<!-- -->` を含めない")).toEqual([
+    "出力に `<!-- -->` を含めない",
+  ]);
+  expect(checklistItems("```html\n<!-- header\n```\n- [ ] a\n- [ ] b")).toEqual(["a", "b"]);
+});
