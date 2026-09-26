@@ -506,8 +506,7 @@
       "expect_failing": [
         "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）",
         "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
-        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
       ]
     },
     {
@@ -530,8 +529,7 @@
       "occurrences": 1,
       "expect_failing": [
         "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
-        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
       ]
     },
     {
@@ -565,52 +563,6 @@
       "occurrences": 1,
       "expect_failing": [
         "ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）"
-      ]
-    },
-    {
-      "id": "capture-page-url-match",
-      "why": "名乗ったページが押した後の URL と合わなくても通す",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "          if (!urlMatchesPage(url, pagePath, basePath))\n",
-      "replace": "          if (false)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）",
-        "baseURL のパスが分かれば、それにつないだ path と完全一致で照合する（Codex レビュー）"
-      ]
-    },
-    {
-      "id": "capture-page-key-path",
-      "why": "使い回しを path ではなく名前で数える（別名で同じ path の 2 枚を別の 1 枚にする）",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "        pageKey = `path:${normalizePagePath(pagePath)}`;\n",
-      "replace": "        pageKey = `name:${page}`;\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
-      ]
-    },
-    {
-      "id": "capture-page-base-exact",
-      "why": "baseURL のパスが分かっても完全一致で照合しない（接尾辞だけの一致を通す）",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (basePath !== null) return u === [basePath, q].filter((x) => x !== \"\").join(\"/\");\n",
-      "replace": "  if (false) return u === [basePath, q].filter((x) => x !== \"\").join(\"/\");\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "baseURL のパスが分かれば、それにつないだ path と完全一致で照合する（Codex レビュー）"
-      ]
-    },
-    {
-      "id": "capture-page-longest",
-      "why": "接尾辞で重なる短い path のページを名乗っても通す",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "          else if (resolved !== normalizePagePath(pagePath))\n",
-      "replace": "          else if (false)\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "path が接尾辞で重なるページは、URL を最も長く一致する 1 ページに解決する（Codex レビュー）",
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
       ]
     }
   ]

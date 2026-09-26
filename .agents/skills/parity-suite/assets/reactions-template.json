@@ -56,7 +56,7 @@
       "id": "<操作 id（\"/\" を含めない。call_sites の reaction から参照する）>",
       "name": "<人が読む操作名（例: 共有ダイアログの Copy を押す）>",
       "trigger": "<操作アダプタの呼び出し（<関数名>(<論理名>)）>",
-      "capture_page": "<押した後に撮ったページ（metadata.json の capture_conditions.pages の名前。遷移する操作は遷移先）。押した後の URL（aftermath.returns_to.url_after）とこのページの path が合わなければ落ちる。撮影はページ × 状態名 × ビューポートの単位なので、このページが違えば同じ状態名でも別の 1 枚として使い回しの照合から外れる。操作が載るページではない（載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通る）。撮る状態（reactions[].capture.state・aftermath.look.items[].captured）を持つ操作は、capture_conditions.pages が 2 つ以上なら必須（1 つならそのページとみなすので省略してよい）>",
+      "capture_page": "<押した後に撮ったページ（metadata.json の capture_conditions.pages の名前。遷移する操作は遷移先）。撮影はページ × 状態名 × ビューポートの単位なので、このページが違えば同じ状態名でも別の 1 枚として使い回しの照合から外れる。操作が載るページではない（載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通る）。撮る状態（reactions[].capture.state・aftermath.look.items[].captured）を持つ操作は、capture_conditions.pages が 2 つ以上なら必須（1 つならそのページとみなすので省略してよい）>",
       "handlers": [
         {
           "file": "<移行元ソースでこの操作を処理するハンドラのファイル（--root からの相対、/ 区切り）。feedback_calls.source.paths の走査範囲に入っていなければ落ちる>",

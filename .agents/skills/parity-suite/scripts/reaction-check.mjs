@@ -716,36 +716,6 @@ function aftermathReturnsProblems(ret, screenStates) {
 }
 
 /**
- * ページの path と URL の比較用の正規化。クエリ・フラグメントを落とし、前後の "/" を落とす。
- * @param {string} v
- * @returns {string}
- */
-function normalizePagePath(v) {
-  return String(v)
-    .split(/[?#]/)[0]
-    .replace(/^\/+|\/+$/g, "");
-}
-
-/**
- * 押した後の URL（オリジンを除いたパス）が、capture_conditions.pages[].path（baseURL からの相対）のページか。
- * baseURL のパス（basePath）が分かれば、それに path をつないだものと完全一致で比べる（根の path は baseURL そのもの）。
- * 分からない（target が url_command で ui_url が runtime 等）ときは、正規化した URL が path と一致するか
- * "/<path>" で終わるものを同じページとし、根の path は全ての URL に一致させる。
- * どちらでも呼び出し側が最も長く一致する 1 ページに解決するので、より具体的なページがあればそちらが選ばれる。
- * @param {string} url
- * @param {string} pagePath
- * @param {string | null} basePath - baseURL のパス（正規化済み）。分からなければ null
- * @returns {boolean}
- */
-function urlMatchesPage(url, pagePath, basePath) {
-  const u = normalizePagePath(url);
-  const q = normalizePagePath(pagePath);
-  if (basePath !== null) return u === [basePath, q].filter((x) => x !== "").join("/");
-  if (q === "") return true;
-  return u === q || u.endsWith(`/${q}`);
-}
-
-/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
@@ -821,7 +791,7 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Map<string, string | null> | null, basePath?: string | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -830,7 +800,6 @@ export function checkReactions(table, opts = {}) {
     recorded = false,
     captureStates = null,
     pageNames = null,
-    basePath = null,
     slug = null,
     target = null,
     targetCommit = undefined,
@@ -1028,46 +997,16 @@ export function checkReactions(table, opts = {}) {
         Array.isArray(op.aftermath.look.items) &&
         op.aftermath.look.items.some((it) => isPlainObject(it) && filled(it.captured)));
     if (page === null && op.capture_page == null && consumesCapture && pageNames !== null) {
-      if (pageNames.size === 1) page = [...pageNames.keys()][0];
+      if (pageNames.size === 1) page = [...pageNames][0];
       else if (pageNames.size > 1)
         fail(
           "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
         );
     }
-    // 名乗ったページが本当に撮ったページかを、押した後の URL と capture_conditions.pages[].path で照合する。
-    // 名前だけを見ると、同じ URL に着く 2 操作が別の名前を名乗って使い回しの照合を逃れる（Codex レビュー）。
-    // 照合の単位も名前ではなく path にする（別名で同じ path を指す 2 つのページを 1 枚として数える）
-    /** @type {string | null} */
-    let pageKey = page === null ? null : `name:${page}`;
-    if (page !== null && pageNames !== null) {
-      const pagePath = pageNames.get(page) ?? null;
-      const ret = isPlainObject(op.aftermath) ? op.aftermath.returns_to : null;
-      if (pagePath === null) {
-        fail(
-          `capture_page "${page}" の path が metadata.json の capture_conditions.pages に無い（押した後の URL と照合できない）`,
-        );
-      } else {
-        pageKey = `path:${normalizePagePath(pagePath)}`;
-        if (isPlainObject(ret) && ret.measured === true && filled(ret.url_after)) {
-          const url = /** @type {string} */ (ret.url_after);
-          // 接尾辞で一致させるので、path が接尾辞で重なるページ（orders と archive/orders）は同じ URL に両方が一致する。
-          // 一致したページのうち path が最も長い 1 つに解決し、名乗ったページがそれと同じ path でなければ落とす
-          // （短い方を名乗ると別の path のキーになり、同じ 1 枚が使い回しの照合を逃れる。Codex レビュー）
-          const resolved = [...pageNames.values()]
-            .filter((pth) => typeof pth === "string" && urlMatchesPage(url, pth, basePath))
-            .map((pth) => normalizePagePath(/** @type {string} */ (pth)))
-            .sort((a, b) => b.length - a.length)[0];
-          if (!urlMatchesPage(url, pagePath, basePath))
-            fail(
-              `capture_page "${page}"（path: ${pagePath}）が押した後の URL（${url}）と合わない（押した後に撮ったページを書く）`,
-            );
-          else if (resolved !== normalizePagePath(pagePath))
-            fail(
-              `capture_page "${page}"（path: ${pagePath}）より長く一致する path（${resolved}）のページがあり、押した後の URL（${url}）はそちらに解決される（そのページを書く）`,
-            );
-        }
-      }
-    }
+    // 使い回しは名乗ったページ名 × 状態名で数える。名乗ったページが本当に撮ったページか（押した後の URL との照合）は
+    // ページの定義（pages[].path の意味論: baseURL の接頭辞・クエリ・フラグメント）を固めてから扱う（Issue #484）。
+    // それまでは規約（押した後に撮ったページを書く）で持つ
+    const pageKey = page;
     const captureKey = (/** @type {string} */ state) => {
       const key = JSON.stringify([pageKey, state]);
       if (!captureLabel.has(key))
@@ -1469,26 +1408,15 @@ export function main(argv, deps = {}) {
       recorded,
       captureStates: new Set(cc.states),
       pageNames: Array.isArray(cc.pages)
-        ? new Map(
+        ? new Set(
             cc.pages
               .filter((pg) => isPlainObject(pg) && nonEmptyString(pg.name))
-              .map((pg) => [
-                /** @type {string} */ (pg.name),
-                typeof pg.path === "string" ? pg.path : null,
-              ]),
+              .map((pg) => /** @type {string} */ (pg.name)),
           )
         : null,
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
-      basePath: (() => {
-        // 解決した UI の baseURL のパス。url_command の target は "runtime" で値を持たないので null（接尾辞の照合に倒す）
-        try {
-          return normalizePagePath(new URL(String(metadata.target.ui_url)).pathname);
-        } catch {
-          return null;
-        }
-      })(),
     });
     const ok = result.unmeasured_operations === 0 && result.problems.length === 0;
     if (write) {
