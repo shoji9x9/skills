@@ -85,6 +85,7 @@ const quietAftermath = () => ({
   look: {
     changes: false,
     evidence: "押した後に対象の論理名の計算後スタイルと印の文言が押す前と同じ",
+    targets: ["コピーボタン", "一覧"],
     covered_by: ["share.spec.ts: コピーの後もボタンと一覧の計算後スタイルが押す前と同じ"],
   },
   returns_to: {
@@ -119,8 +120,8 @@ const lingeringAftermath = () => ({
         target: "コピー完了の通知",
         description: "押した後に残る通知の背景",
         observed: "background-color: rgb(0, 128, 0)",
-        captured: "copy-toast",
-        covered_by: [],
+        captured: null,
+        covered_by: ["search.spec.ts: 押した後に通知の背景が緑で残る"],
         reason: null,
       },
     ],
@@ -1104,6 +1105,11 @@ test.each([
     "aftermath.look.changes: false なのに covered_by が空",
   ],
   [
+    "look.changes: false に確かめた論理名が無い",
+    (t) => (t.operations[0].aftermath.look.targets = []),
+    "aftermath.look.changes: false なのに targets",
+  ],
+  [
     "look.changes: false なのに items がある",
     (t) => (t.operations[0].aftermath.look.items = lingeringAftermath().look.items),
     "changes: false なのに items がある",
@@ -1290,11 +1296,17 @@ test("同梱テンプレートのプレースホルダのままの aftermath は
 });
 
 test("残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）", () => {
+  // 反応の撮影は外し、2 つの操作の残る見た目だけが copy-toast を指す形にする
   const share = (t, reasons) => {
+    t.operations[0].reactions[0].capture = { state: null, reason: "通知は aftermath 側で撮る" };
     const item = { ...structuredClone(lingeringAftermath().look.items[1]), id: "copied-row" };
     t.operations[0].aftermath.look = { changes: true, items: [item] };
-    t.operations[0].aftermath.look.items[0].shared_capture_reason = reasons[0];
-    t.operations[1].aftermath.look.items[1].shared_capture_reason = reasons[1];
+    const other = t.operations[1].aftermath.look.items[1];
+    for (const [i, it] of [item, other].entries()) {
+      it.captured = "copy-toast";
+      it.covered_by = [];
+      it.shared_capture_reason = reasons[i];
+    }
   };
   const bare = run(mutated((t) => share(t, [null, null])));
   expect(bare.status).toBe(1);
@@ -1309,6 +1321,28 @@ test("残る見た目の撮る状態を操作をまたいで使い回すなら�
         "同上（コピーと検索を続けて行った 1 枚で両方を確かめた）",
       ]),
     ),
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});
+
+test("反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）", () => {
+  // copy の反応（copy-toast）と search の残る見た目（copy-toast）。反応側を数えないと 1 件に見えて通る
+  const shareToast = (t) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+  };
+  const bare = run(mutated(shareToast));
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('reactions["toast"].capture');
+  const both = run(
+    mutated((t) => {
+      shareToast(t);
+      t.operations[0].reactions[0].capture.shared_capture_reason =
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた";
+      t.operations[1].aftermath.look.items[1].shared_capture_reason = "同上";
+    }),
   );
   expect(both.stderr).toBe("");
   expect(both.status).toBe(0);

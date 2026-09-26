@@ -253,6 +253,7 @@ function observedProblem(r, captureStates, documents) {
   const cap = r.capture;
   if (!isPlainObject(cap)) return "capture が無い（撮る／撮らないを決めていない）";
   const hasState = nonEmptyString(cap.state);
+  // 同じ状態名の使い回しの照合は checkReactions が全操作を見た後に行う（残る見た目の captured と合わせて数える）
   const hasReason = nonEmptyString(cap.reason);
   if (hasState === hasReason) return "capture は state と reason のどちらか一方だけを埋める";
   if (hasState && captureStates && !captureStates.has(/** @type {string} */ (cap.state))) {
@@ -524,6 +525,14 @@ function aftermathLookProblems(look, captureStates) {
       out.push({
         problem:
           "aftermath.look.changes: false なのに evidence が空・テンプレートの説明文のまま（押した後に見た目が残らないことを確かめた記録が無い）",
+        unmeasured: true,
+      });
+    }
+    // 残らないことを確かめた論理名。強度ゲートがここへ押した後だけ残る塗りを注入し、不在の assertion が赤くなるかを確かめる
+    if (!filledStrings(look.targets)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに targets（残らないことを確かめた論理名）が空（強度ゲートが注入する先が無く、不在の assertion の空振りを検出できない）",
         unmeasured: true,
       });
     }
@@ -954,6 +963,18 @@ export function checkReactions(table, opts = {}) {
       isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
         ? am.look.items
         : [];
+    // 観測した反応の capture.state も同じ状態名の集合に入れる（別の操作の残る見た目と 1 枚を共有しても通さない）
+    for (const r of Array.isArray(op.reactions) ? op.reactions : []) {
+      if (!isPlainObject(r) || r.kind !== "observed" || !isPlainObject(r.capture)) continue;
+      if (!filled(r.capture.state) || !nonEmptyString(r.id)) continue;
+      const uses = aftermathCaptureUses.get(/** @type {string} */ (r.capture.state)) ?? [];
+      uses.push({
+        opId: /** @type {string} */ (op.id),
+        label: `${label}: reactions["${r.id}"].capture`,
+        shared: filled(r.capture.shared_capture_reason),
+      });
+      aftermathCaptureUses.set(/** @type {string} */ (r.capture.state), uses);
+    }
     for (const item of lookItems) {
       if (!isPlainObject(item) || !filled(item.captured) || !nonEmptyString(item.id)) continue;
       const uses = aftermathCaptureUses.get(/** @type {string} */ (item.captured)) ?? [];
@@ -1011,7 +1032,7 @@ export function checkReactions(table, opts = {}) {
     if (lacking.length === 0) continue;
     for (const u of lacking) unmeasuredOps.add(u.opId);
     problems.push(
-      `aftermath: 撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
+      `撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
     );
   }
   // none の観測時間の下限が観測済みの遅れ以下だと、遅れて出る反応を「無い」と記録しても通る

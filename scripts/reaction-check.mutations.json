@@ -504,7 +504,30 @@
       "replace": "    continue;\n",
       "occurrences": 1,
       "expect_failing": [
-        "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）"
+        "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）",
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "aftermath-look-false-targets",
+      "why": "残らないと書いた記録に確かめた論理名が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filledStrings(look.targets)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に確かめた論理名が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "capture-shared-reaction",
+      "why": "反応の撮る状態を使い回しの照合に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!isPlainObject(r) || r.kind !== \"observed\" || !isPlainObject(r.capture)) continue;\n",
+      "replace": "      continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）"
       ]
     }
   ]
