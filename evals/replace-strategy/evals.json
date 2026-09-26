@@ -491,6 +491,39 @@
           "prompt_quote": "起票はまだしない"
         }
       ]
+    },
+    {
+      "id": 37,
+      "prompt": "parity-replace --autonomous の保留 .replace/parity/order/new/dev/pending-decisions.json に pd-1 がある。blocks は [\"受け入れ条件 X の test target 分\"]。利用者の回答「案 A。実施は deploy を伴うため別途」を、resolution に answer と answered_at だけで書いた。blocks の工程はまだやっていない。これで pd-1 は解決済みとして replace-strategy status の判断待ちから外し、parity-diff の前提確認も通していい？ どう記録すれば済んだと数えられるかも教えて。",
+      "assertions": [
+        "回答が付いただけで blocks の工程を実施していない pd-1 を解決済みにせず、未解決（決まったが済んでいない）として数えると答えている",
+        "parity-diff の前提確認はこの保留が未解決の間は通らない（停止する）と答えている",
+        "済んだと数えるには resolution.resumed（実施した日時と空でない証拠）か resolution.follow_up（残作業と置き場 tracked_in）が要ると述べている",
+        "「別途」の残作業を回答の自由文にだけ残さず、置き場（別 Issue 等）を決めて follow_up に書くと述べている",
+        "判定を手で数えず、replace-strategy 同梱の pending-decisions-check.mjs に pending-decisions.json を渡して確かめると述べている"
+      ],
+      "reachability": [
+        {
+          "assertion": "回答が付いただけで blocks の工程を実施していない pd-1 を解決済みにせず、未解決（決まったが済んでいない）として数えると答えている",
+          "prompt_quote": "blocks の工程はまだやっていない"
+        },
+        {
+          "assertion": "parity-diff の前提確認はこの保留が未解決の間は通らない（停止する）と答えている",
+          "prompt_quote": "parity-diff の前提確認も通していい？"
+        },
+        {
+          "assertion": "済んだと数えるには resolution.resumed（実施した日時と空でない証拠）か resolution.follow_up（残作業と置き場 tracked_in）が要ると述べている",
+          "prompt_quote": "どう記録すれば済んだと数えられるかも教えて"
+        },
+        {
+          "assertion": "「別途」の残作業を回答の自由文にだけ残さず、置き場（別 Issue 等）を決めて follow_up に書くと述べている",
+          "prompt_quote": "案 A。実施は deploy を伴うため別途"
+        },
+        {
+          "assertion": "判定を手で数えず、replace-strategy 同梱の pending-decisions-check.mjs に pending-decisions.json を渡して確かめると述べている",
+          "prompt_quote": ".replace/parity/order/new/dev/pending-decisions.json"
+        }
+      ]
     }
   ]
 }

@@ -138,6 +138,49 @@
         "commit / push / PR はこのモードの対象外だと述べている",
         "実行はせず手順の提示に留めている（ブランチ作成・ファイル変更を行っていない）"
       ]
+    },
+    {
+      "id": 13,
+      "prompt": "issue-start 12 --pr で実装が終わり、pnpm test も lint も全部通った。このまま push して、PR 本文は Closes #12 で作っていい？ Issue #12 の本文とコメントは次のとおり（この環境から gh は使えないので、これを正とする）。本文: 「## 受け入れ条件 / - [ ] 検索条件を URL のクエリで持ち、再読み込みで復元する / - [ ] 保存に失敗したらエラーログを書く」。コメント 1 件: 「CSV 出力も対象にしてほしい。別 Issue に切るかは後で相談」。実装では、URL の件は移行元が URL に条件を持たないので入れず、コードに注記しておいた。CSV 出力は手を付けていない。まだ何も実行しないで、push の前に何をするかを手順で示して。",
+      "assertions": [
+        "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+        "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+        "コメントで足された CSV 出力の条件も、原文を quote に写した行（source: comment）として表に載せると述べている",
+        "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+        "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+        "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+        "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+          "prompt_quote": "pnpm test も lint も全部通った"
+        },
+        {
+          "assertion": "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+          "prompt_quote": "- [ ] 検索条件を URL のクエリで持ち、再読み込みで復元する / - [ ] 保存に失敗したらエラーログを書く"
+        },
+        {
+          "assertion": "コメントで足された CSV 出力の条件も、原文を quote に写した行（source: comment）として表に載せると述べている",
+          "prompt_quote": "CSV 出力も対象にしてほしい"
+        },
+        {
+          "assertion": "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+          "prompt_quote": "URL の件は移行元が URL に条件を持たないので入れず、コードに注記しておいた"
+        },
+        {
+          "assertion": "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+          "prompt_quote": "このまま push して"
+        },
+        {
+          "assertion": "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+          "prompt_quote": "PR 本文は Closes #12 で作っていい？"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
+          "prompt_quote": "まだ何も実行しないで"
+        }
+      ]
     }
   ]
 }

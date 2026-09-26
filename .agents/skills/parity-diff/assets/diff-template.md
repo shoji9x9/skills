@@ -163,6 +163,6 @@
 - 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
 - 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
 - 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --recorded の ok と未測定の操作数。ok: true かつ未測定ゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
-- 未解決の判断待ち（pending_decisions の resolution: null）: （件数。ゼロが条件。diff-metadata.json の pending_decisions と一致させる）
+- 未解決の判断待ち（pending_decisions のうち resolution: null と、回答はあるが blocks の工程が済んでいないもの）: （件数。ゼロが条件。pending-decisions-check.mjs の unsettled と一致させる。置き場へ回したもの（follow_up）は置き場とともに列挙）
 - 収束状態: （収束／他機能待ち／判断待ち／未収束）と根拠
 - 収束: （converged: true / false）

@@ -104,7 +104,10 @@ console、主要要素、Network / API、副作用のない操作を確認する
 検証後に `kaizen extract --current --record-pending` を使う。候補は最大 1 件、`status: pending` の記録だけで、apply / archive / delete は行わない。
 候補ゼロは current transcript と scanner の検出能力を確認した no-op とする。transcript を同定できない agent は no-op に倒さず BLOCKED。
 
-学びが作られた場合は実装変更と分離した commit にする。関連ファイルだけを stage し、規約どおり commit / push する。PR 本文に `Closes #<Issue番号>`、変更概要、静的検査、browser-test の結果／非適用根拠、Kaizen 結果を含める。
+学びが作られた場合は実装変更と分離した commit にする。関連ファイルだけを stage し、規約どおり commit する。
+**全 commit の後・push の直前に** `issue-start` の受け入れ条件の突き合わせ（基本フロー step 10。正本は `issue-start` の `references/acceptance.md`）を通す——
+ローカルレビューは未コミット差分を対象にし、レビュー修正や Kaizen の commit で HEAD が進むので、それより前に取った表は `commit-missing` か `stale-commit` で落ちる。
+exit 0 にならない、満たせない条件に利用者の判断が要る、または `closable: false`（Issue を閉じられない）なら `BLOCKED`。通ったら push する。PR 本文に `Closes #<Issue番号>`、変更概要、静的検査、受け入れ条件の突き合わせ表、browser-test の結果／非適用根拠、Kaizen 結果を含める。
 
 ## pr-finalize-loop への handoff
 

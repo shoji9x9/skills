@@ -113,8 +113,10 @@ done
 8. **ページ要素の帰属**: features.md の「ページ要素の帰属」表から、**配置の所有者が空欄の行**を未検証領域として列挙する——誰も配置しない要素は実装後の `parity-diff` まで説明できない差分として現れないため、着手前の確認事項として示す。
    **節が「なし」（該当が無いと明記）なら「該当なし」として報告する**。節そのものが features.md に無い場合だけ「要素の帰属が未導出（テンプレート更新前の features.md）」として報告する——**節の不在を「該当なし」と読まない**
 
-9. **判断待ちの保留**: 上記の全 JSON 成果物（slug × target を含む）・`pending-decisions.json`・`.replace/strategy-pending.json` から `resolution` が `null` の `pending_decisions[]` を集め、
-   成果物のパス・`question`・`blocks`・`raised_at` を**古い順**に列挙する。**保留は「止めている工程がある」ことを表す**ので、`converged: false` の「往復中」や未着手と混同せず区別して示す。
+9. **判断待ちの保留**: 上記の全 JSON 成果物（slug × target を含む）・`pending-decisions.json`・`.replace/strategy-pending.json` から未解決の `pending_decisions[]` を集め、
+   成果物のパス・`question`・`blocks`・`raised_at` を**古い順**に列挙する。未解決は `resolution` が `null` のもの（`open`）に加え、**回答はあるが `blocks` の工程が済んでいないもの（`decided`）**も含み、
+   2 つを分けて示す（「決まったが実施していない」は判断ではなく作業が残っている。数え方の正本は [`autonomy.md`](autonomy.md)「保留の状態」の `pending-decisions-check.mjs`）。
+   置き場へ回した保留（`follow_up`）は解決済みだが、残作業と置き場を別に列挙する。**保留は「止めている工程がある」ことを表す**ので、`converged: false` の「往復中」や未着手と混同せず区別して示す。
    キーごと無い成果物は自律実行していない（または本ポリシー導入前の）成果物として数えない
 10. **静的資産の未決**: `.replace/assets.md` の方針が空欄の行と「未走査・未確認」を、着手前の確認事項として列挙する（未決の種類の資産を使う実装単位は `parity-replace` が進めないため）。
     **ファイルが無ければ「静的資産の方針が未決定（`setup` 手順 11 未実施）」と報告する**——無いことを「資産が無い」と読まない

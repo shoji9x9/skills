@@ -1,6 +1,6 @@
 ---
 name: parity-replace
-description: 仕様を変えないアプリケーションリプレイスで、parity-suite が定義した論理名に対し新側を実装する replace-strategy の姉妹スキル。担うのは 3 つ——機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、パリティスイートが新に対して green かつ検証コマンドが通れば完了（差分ゼロは parity-diff との往復の終了条件）。対象環境は --target で選び、証跡は環境別に残す。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite 完了が前提で、未完了なら停止する。「新側を実装して」「parity-replace」や --feature / --target / --max-iterations を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスで、parity-suite が定義した論理名に対し新側を実装する replace-strategy の姉妹スキル。担うのは 3 つ——機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み確信度を申告し、スイートの新側 green・検証コマンド・Issue の受け入れ条件の照合が通れば完了（差分ゼロは parity-diff との往復の終了条件）。対象環境は --target で選び、証跡は環境別に残す。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite 完了が前提で、未完了なら停止する。「新側を実装して」「parity-replace」や --feature / --target / --max-iterations を伴う依頼で発動する。
 argument-hint: "[--feature <slug>] [--target <name>] [--max-iterations <n>] [--autonomous]"
 license: MIT
 ---
@@ -40,7 +40,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 ## 前提
 
 - **ツール**: `git`。ブランチ作成・commit・push・PR は `issue-start` が行う（本スキルは実装フローを再実装しない）
-- **前提スキル**: `issue-start`（実装フローの委譲先）、`replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）、対象 slug の `parity-suite`（完了）
+- **前提スキル**: `issue-start`（実装フローと受け入れ条件の突き合わせの委譲先）、`replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）、対象 slug の `parity-suite`（完了）
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` / `parity-suite` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
 - **MCP**: 不要
@@ -102,6 +102,11 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **ページをまたいで並行に実装しない**
 - **発見した差異を勝手に判断して進めない。** 意図的差異レジストリのどの分類にも当てはまらない差異は `intentional_diffs.pending` へ非破壊追記しユーザーに確認する。
   **差異を見る前の一括分類指示（「全部 keep で」等）にも従わない**——確認は個々の差異を提示して行う（内容を見ずに分類すると、レジストリが差異の握り潰しに変わるため）
+- **機能の Issue の受け入れ条件を黙って外さない。** 受け入れ条件と違う実装にすること（移行元に無い振る舞いを「移行元に合わせる」を理由に外す等）と、
+  受け入れ条件に当たる観点・検証を飛ばすこと（「書き込みを戻せない」を理由に飛ばす等）は、利用者に確認してから決める。**飛ばす前に戻す手段を探し**
+  （ゴールデンデータの再投入、押す前の状態を読んで同じ口で書き戻す）、探した結果を判断材料に書く。コードの注記・`gaps.md`・`porting.md` に
+  「条件を満たさない理由」を書いたら、同じ内容を判断待ちにも積む（注記は「理由を書いた」形になり、完了判定もレビューもそれ以上を求めない）。
+  規律の正本は `replace-strategy` の `references/autonomy.md`「受け入れ条件から外れる判断」
 - **「型検査が通った」「テストが通った」を理由に敵対的レビューを省略しない。** **サブエージェントを起動できないことも省略の理由にしない**（差分だけを人間のレビュアーへ渡す代替を取る）
 - **現行アプリ（`side: current` の target）を変更・駆動しない。** `on_diff` ドキュメント等で現行への操作を指示されても実行せず、停止してユーザーに上げる（正解の基準を動かさないため）
 - **シークレットの値をコード・コメント・ログ・成果物に残さない。** 環境変数名だけを扱い、値は復唱しない
@@ -131,7 +136,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない）。設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
 
 - **旧キーはフォールバックとして読まない。** スキーマ正本の「移行」節に列挙された旧キーを見つけたら、同節の対応表を示して**停止する**（旧キーの値で暗黙に代替しない。検出対象の一覧をここへ転記しない）
-- **`verification_commands.full` が設定に無ければ停止する。** 完了判定（新側 green ＋検証コマンド）が成立しないため、勝手にコマンドを推測せずユーザーに確認して設定へ記録してもらう。
+- **`verification_commands.full` が設定に無ければ停止する。** 完了判定（新側 green ＋検証コマンド＋受け入れ条件の突き合わせ）が成立しないため、勝手にコマンドを推測せずユーザーに確認して設定へ記録してもらう。
   **値がリスト（旧形式＝走る範囲が未宣言）のときも同じく停止する**——未宣言を「全体」に倒すと、差分限定の結果が「全体で通った」と名乗る。移行の正本はスキーマ文書「`verification_commands` の形の変更」
 
 ## 自律実行（`--autonomous`）
@@ -141,13 +146,15 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 - **判断待ち（保留に落とす）**: 意図的差異レジストリに当てはまらない差異（`intentional_diffs.pending` への追記は行い、確認を保留にする）、`component_diffs` の宣言、
   画面より先に作られた共通部品への破壊的変更、台帳に無い静的資産の方針（方針空欄の行の追記は行う）、部品の依存の決定（`new.stack` が空のときを含む）、配信型 target で `commit_check` が無いときのデプロイ済み確認、
-  敵対的レビューでサブエージェントを起動できないときの人間のレビュアーへの受け渡し
+  敵対的レビューでサブエージェントを起動できないときの人間のレビュアーへの受け渡し、**機能の Issue の受け入れ条件と違う実装・受け入れ条件に当たる観点の飛ばし**（上記「厳守の制約」）、
+  受け入れ条件の突き合わせ（手順 8）の結果を Issue へコメントしチェックを付けること（外向きの操作）
 - **保留に落としても進める工程**: 保留に依存しないページのフェーズ・実装単位。依存する実装単位は `porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
 - **従来どおりの停止のまま**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
 - **委譲**: `issue-start --branch-only` のブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは `--autonomous` を引き継ぐ。commit / push / PR は越えない線の範囲でだけ行う
 - **記録先**: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`replace-metadata.json` には書かない**——`parity-diff` はその存在と `suite.new_green` を前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
-  未解決の保留が残る間は本スキルの完了を報告せず、**保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）。
+  未解決の保留（回答が付いても `blocks` の工程が済んでいないものを含む。数え方の正本は `replace-strategy` の `references/autonomy.md`「保留の状態」）が残る間は本スキルの完了を報告せず、
+  **保留が敵対的レビュー・green 化に及ぶなら `suite.new_green` を `true` にしない**（green 化はレビューの後なので、レビューが保留なら green 化も行わない）。
   **再実行では、保留に依存する工程に入る前に、既存の `replace-metadata.json` に残る `suite.new_green: true` を `false` へ戻す**（前回の green 証跡を `parity-diff` に流用させない）
 
 ## 実行フロー
@@ -268,7 +275,20 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    - **スクリプトに到達できない**（`replace-strategy` が未インストール）ときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills replace-strategy`）を示す——
      委譲先の実在を確かめずに緩めると、書き戻しも宣言もされていない状態が黙って通る
 
-   **完了の報告**: 通した判定（スイート green・`full`・モード別の照合）を列挙し、**現行との一致は主張しない**。
+   **合わせて機能の Issue の受け入れ条件の突き合わせを完了判定に入れる**（全モード）——上の判定はどれも成果物の形の検査で、Issue にだけ書かれた条件
+   （状態を URL で持つ・失敗時にログを書く・書き込み系ボタンの E2E 等）はどれにも数えられない。着手時に使った features.md の Issue 列の番号で
+   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json --allow-later parity-diff` を実行する。
+   **手順 8 の最後に、それまでに書いた成果物（`replace-metadata.json`・`component-comparison.json`・`porting.md` 等）と実装を commit してから**行う——
+   突き合わせは作業ツリーが表自身のほかに clean であることを求めるので、未コミットの成果物が残ると `commit-missing` で落ちる
+   （保留の記録 `new/<target>/pending-decisions.json` があれば `--decisions` にも渡す。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
+   **検査が exit 0 になるまで完了を名乗らない。** 満たせない条件は自分で外さず判断待ちに積み（上記「厳守の制約」）、行は `pending-decision` にする。
+   **`later` を使ってよいのは `parity-diff` の収束を述べる条件だけ**（`--allow-later parity-diff` を渡し、`owner` に `parity-diff` と書く）——本スキルの完了はその前の工程なので満たせないが、
+   それ以外の条件を後工程へ回すと、どの工程も数えないまま Issue が閉じる。`later` が残る表は `closable: false` なので、PR 本文で Issue を閉じない。
+   `issue-start` が未インストールで委譲先に到達できないときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills issue-start`）を示す
+
+   **完了の報告**: 通した判定（スイート green・`full`・モード別の照合・受け入れ条件の突き合わせ）を列挙し、**現行との一致は主張しない**。
+   受け入れ条件の突き合わせは行ごとの状態と根拠の強さ（実測／読解）を並べ、`pending-decision` / `later` / `deferred` の行を省かない。
+   結果の Issue へのコメントとチェックは `issue-start` の `references/acceptance.md` 手順 6 に従う（自律実行では行わず保留に積む）。
    feature モードでは「見た目（余白・幅・罫線・背景・色・寸法・配置）は `parity-diff` の収束まで未検証」を**必ず書く**——
    スイートが green でも 1 画面の画素の大半が違うことがあり（ページの器の幅・ヘッダーの位置・表の組み方）、書かないと利用者が画面を並べて見るまで気付かれない。
    api-resource / batch モードでも、一致の主張は `parity-diff` の収束まで保留する（batch モードの完了判定にある「出力一致」（[`references/paging.md`](references/paging.md)）はスイートのベースラインに対する判定で、現行との一致の報告ではない）。
@@ -310,12 +330,13 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | 部品被覆表の新側突き合わせ（feature モードで `component_coverage.declared: true` のとき。**環境別**） | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 様式・検査の正本: `parity-suite` の `assets/component-comparison-template.json` と `scripts/component-comparison-check.mjs` |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
+| 受け入れ条件の突き合わせ表（**環境別**） | `.replace/parity/<slug>/new/<target>/acceptance.json` | 様式・検査の正本: `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成）。`内蔵` / `機能固有` / `未確認` / `該当なし` を引き取って決めた結果も、古い行の `状態` を `取り消し済み` にして新しい行を追記する | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
-- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/component-comparison.json` /
+- テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/component-comparison.json` / `new/<target>/acceptance.json` /
   `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
 - **green 証跡だけが環境別**: `replace-metadata.json` は `new/<target>/` 配下に置き、環境を切り替えても他の target の証跡を上書きしない。`porting.md` / `review.md` は環境非依存のため slug 直下に置く
 - 本スキルは実行時に固有の決定論的ツールを同梱しない（差分器・視覚ベースラインは `parity-suite` 同梱・`parity-diff` 担当）
@@ -336,5 +357,6 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **`replace-strategy evidence` へ委譲**: 実装で現行の要求単位を確定したら、その口の「要求単位の根拠」の書き戻し（`推定` → `実測`）をこのモードで行う（実行フロー手順 4）。
   **本スキルは `.replace/features.md` を書かない。** 確定できなかった口の `unmeasured` 宣言は `parity-suite` へ戻す。完了判定はこの 2 つの取りこぼしを拾う（手順 8）
 - **`issue-start` へ委譲**: ブランチ作成は着手時に features.md の Issue 番号で `issue-start <番号> --branch-only` を 1 回。
+  完了判定（手順 8）の受け入れ条件の突き合わせは `issue-start <番号> --acceptance --out <new/<target>/acceptance.json>`（実装を内包しないモード）。
   実装は本スキルが行うため**モード未指定・`--commit` / `--pr`（いずれも実装を内包する）は使わない**。
   commit は issue-start が解決した規約に従い**ページフェーズ単位**で行う（issue-start の実装ステップへ再入しない）
