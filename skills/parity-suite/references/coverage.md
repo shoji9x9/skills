@@ -149,7 +149,9 @@
   - 残らないなら `changes: false` と確かめた記録（`evidence`）、確かめた論理名（`targets`。強度ゲートがここへ残る塗りを注入する）、
     残らないことを確かめる assertion（`covered_by`。新側が塗り・焦点の輪を残しても撮っていない状態には写らない）。測れなければ `changes: null` と理由
   - 部品の操作から立つ残る見た目（選択の塗り・絞り込みの印・並べ替えの印）は、被覆プロファイルの `after-operation` が撮影状態の行を導く
-    （[`baseline.md`](baseline.md)「撮影状態の決め方（1）被覆表から導く」）。`look` は部品に依らず操作ごとに数える側で、導いた行と同じ状態名を `captured` に書いてよい
+    （[`baseline.md`](baseline.md)「撮影状態の決め方（1）被覆表から導く」）。`look` は部品に依らず操作ごとに数える側。
+    **導いた行と同じページで同じ状態名を `captured` に書くなら、両方の行（`visual_state_coverage.rows[].shared_capture_reason` と `items[].shared_capture_reason`）に、その 1 枚が両方の操作の後を写すことを実 UI で確かめた根拠を書く**
+    （表をまたいだ使い回しはどちらのチェッカーも数えないので規約で持つ。機械的な照合は Issue #485）
 - **`returns_to`**: 押す前後の URL（`url_before` / `url_after`。`/` で始まるオリジンを除いたパス。ホスト・ポートは書かない）と、
   **押す前に既定から動かした状態**（`probed`）のうち押した後に既定へ戻ったもの（`reset`）を書く
   - **画面が持つ状態（検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り等）を表の `screen_states` に 1 回だけ棚卸しし**（出どころを `source` に）、
