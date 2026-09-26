@@ -1347,3 +1347,47 @@ test("反応の撮る状態と、別の操作の残る見た目が 1 枚を共�
   expect(both.stderr).toBe("");
   expect(both.status).toBe(0);
 });
+
+test("別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [{ name: "共有画面" }, { name: "検索画面" }],
+    },
+  };
+  // copy の反応（copy-toast）と search の残る見た目（copy-toast）
+  const share = (t, pages) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].page = pages[0];
+    t.operations[1].page = pages[1];
+  };
+  const cross = run(
+    mutated((t) => share(t, ["共有画面", "検索画面"])),
+    { metadata },
+  );
+  expect(cross.stderr).toBe("");
+  expect(cross.status).toBe(0);
+  const same = run(
+    mutated((t) => share(t, ["共有画面", "共有画面"])),
+    { metadata },
+  );
+  expect(same.status).toBe(1);
+  expect(same.stderr).toContain('撮る状態 "共有画面 の copy-toast" を');
+  const unknown = run(
+    mutated((t) => share(t, ["共有画面", "旧検索画面"])),
+    { metadata },
+  );
+  expect(unknown.status).toBe(1);
+  expect(unknown.stderr).toContain(
+    'page "旧検索画面" が metadata.json の capture_conditions.pages に無い',
+  );
+  // ページ一覧が無い metadata では page を照合できないので通さない
+  const noPages = run(mutated((t) => share(t, ["共有画面", "検索画面"])));
+  expect(noPages.status).toBe(1);
+  expect(noPages.stderr).toContain("capture_conditions.pages を読めない");
+});

@@ -36,6 +36,15 @@
       "replace": "      if (false)\n",
       "occurrences": 1,
       "expect_failing": ["required_rules の代替の組の形を検査する"]
+    },
+    {
+      "id": "required-group-axes",
+      "why": "軸の違うルールを代替の組にしても通す",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "    if (group.length > 1 && new Set(group.map((rid) => axesOfRule.get(String(rid)))).size > 1) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["required_rules の代替の組の形を検査する"]
     }
   ]
 }

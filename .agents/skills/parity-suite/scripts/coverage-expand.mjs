@@ -822,6 +822,13 @@ export function validateProfile(profile, source) {
   // 代替の組は、同じ要求を排他な guard で分けたルール（初期表示の列と、表示切替で出す列の行の選択など）に使う。
   // 別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が「必須ルールの候補 0 件」で行き止まりになる。
   const required = Array.isArray(p.required_rules) ? p.required_rules : [];
+  /** @type {Map<string, string>} ルール id → 軸の並び（代替の組の同質性の照合に使う） */
+  const axesOfRule = new Map();
+  for (const rule of rules) {
+    if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
+    const r = /** @type {Record<string, unknown>} */ (rule);
+    axesOfRule.set(String(r.id), JSON.stringify(Array.isArray(r.axes) ? r.axes.map(String) : []));
+  }
   /** @type {Set<string>} */
   const seenRequired = new Set();
   for (const entry of required) {
@@ -838,6 +845,13 @@ export function validateProfile(profile, source) {
           `required_rules: ルール ${String(rid)} が 2 回以上現れる（代替の組は 1 つの要素にまとめる）`,
         );
       seenRequired.add(String(rid));
+    }
+    // 組は「どれか 1 つで満たす」ので、同じ要求を guard だけで分けたルールに限る。軸が違うルールを組にすると
+    // 片方の候補がもう片方の候補 0 件を黙らせる（例: 列の表示と右クリックメニューを組にするとメニューの列挙漏れが消える）
+    if (group.length > 1 && new Set(group.map((rid) => axesOfRule.get(String(rid)))).size > 1) {
+      at(
+        `required_rules: 代替の組 ${group.map(String).join(" / ")} の axes が揃っていない（同じ要求を guard だけで分けたルールしか組にしない）`,
+      );
     }
   }
 

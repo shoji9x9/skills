@@ -759,6 +759,10 @@ test("required_rules の代替の組の形を検査する", () => {
     [[["row-select", ""]], /空の要素・空の代替の組/],
     [[["row-select", "nope"]], /未定義のルール nope/],
     [["row-select", ["row-select", "row-select-revealed"]], /ルール row-select が 2 回以上現れる/],
+    [
+      [["column-visible", "context-menu-open"]],
+      /代替の組 column-visible \/ context-menu-open の axes が揃っていない/,
+    ],
   ]) {
     const p = structuredClone(profile);
     p.required_rules = bad;

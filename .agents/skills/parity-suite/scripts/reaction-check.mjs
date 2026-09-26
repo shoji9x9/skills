@@ -791,7 +791,7 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -799,6 +799,7 @@ export function checkReactions(table, opts = {}) {
     root = process.cwd(),
     recorded = false,
     captureStates = null,
+    pageNames = null,
     slug = null,
     target = null,
     targetCommit = undefined,
@@ -922,7 +923,7 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
-  /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} 残る見た目の撮る状態名 → 割り当てた行 */
+  /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行 */
   const aftermathCaptureUses = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
   const handlersByOp = new Map();
@@ -958,7 +959,23 @@ export function checkReactions(table, opts = {}) {
       if (ap.unmeasured) fail(ap.problem);
       else problems.push(`${label}: ${ap.problem}`);
     }
-    // 撮る状態へ割り当てた残る見た目を、状態名ごとに集める（使い回しの照合は全操作を見た後）
+    // 撮影の単位はページ × 状態名 × ビューポートなので、別のページの同じ状態名は別の 1 枚（baseline.md）。
+    // 操作が載るページ（page。省略は同じページとみなして使い回しを厳しく見る）で状態名を割る
+    /** @type {string | null} */
+    let page = null;
+    if (op.page !== undefined && op.page !== null) {
+      if (!filled(op.page))
+        fail("page が空でない文字列でない（省略するか capture_conditions.pages の名前を書く）");
+      else if (pageNames === null && captureStates !== null)
+        fail(
+          `page "${op.page}" を照合できない（metadata.json の capture_conditions.pages を読めない）`,
+        );
+      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.page)))
+        fail(`page "${op.page}" が metadata.json の capture_conditions.pages に無い`);
+      else page = /** @type {string} */ (op.page);
+    }
+    const captureKey = (/** @type {string} */ state) => JSON.stringify([page, state]);
+    // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
     const lookItems =
       isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
         ? am.look.items
@@ -967,23 +984,25 @@ export function checkReactions(table, opts = {}) {
     for (const r of Array.isArray(op.reactions) ? op.reactions : []) {
       if (!isPlainObject(r) || r.kind !== "observed" || !isPlainObject(r.capture)) continue;
       if (!filled(r.capture.state) || !nonEmptyString(r.id)) continue;
-      const uses = aftermathCaptureUses.get(/** @type {string} */ (r.capture.state)) ?? [];
+      const key = captureKey(/** @type {string} */ (r.capture.state));
+      const uses = aftermathCaptureUses.get(key) ?? [];
       uses.push({
         opId: /** @type {string} */ (op.id),
         label: `${label}: reactions["${r.id}"].capture`,
         shared: filled(r.capture.shared_capture_reason),
       });
-      aftermathCaptureUses.set(/** @type {string} */ (r.capture.state), uses);
+      aftermathCaptureUses.set(key, uses);
     }
     for (const item of lookItems) {
       if (!isPlainObject(item) || !filled(item.captured) || !nonEmptyString(item.id)) continue;
-      const uses = aftermathCaptureUses.get(/** @type {string} */ (item.captured)) ?? [];
+      const key = captureKey(/** @type {string} */ (item.captured));
+      const uses = aftermathCaptureUses.get(key) ?? [];
       uses.push({
         opId: /** @type {string} */ (op.id),
         label: `${label}: aftermath.look.items["${item.id}"]`,
         shared: filled(item.shared_capture_reason),
       });
-      aftermathCaptureUses.set(/** @type {string} */ (item.captured), uses);
+      aftermathCaptureUses.set(key, uses);
     }
     handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
@@ -1026,8 +1045,10 @@ export function checkReactions(table, opts = {}) {
   }
   // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
   // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する
-  for (const [name, uses] of aftermathCaptureUses) {
+  for (const [key, uses] of aftermathCaptureUses) {
     if (uses.length < 2) continue;
+    const [pageName, stateName] = JSON.parse(key);
+    const name = pageName === null ? stateName : `${pageName} の ${stateName}`;
     const lacking = uses.filter((u) => !u.shared);
     if (lacking.length === 0) continue;
     for (const u of lacking) unmeasuredOps.add(u.opId);
@@ -1349,6 +1370,13 @@ export function main(argv, deps = {}) {
       root,
       recorded,
       captureStates: new Set(cc.states),
+      pageNames: Array.isArray(cc.pages)
+        ? new Set(
+            cc.pages
+              .filter((pg) => isPlainObject(pg) && nonEmptyString(pg.name))
+              .map((pg) => /** @type {string} */ (pg.name)),
+          )
+        : null,
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
