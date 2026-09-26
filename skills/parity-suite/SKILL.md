@@ -190,7 +190,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    本来も別オリジンなら根拠をその文書ごとに `cross_origin_evidence` へ書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
    移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）。
    **同じ表に、操作ごとに押した後に残る見た目（塗り・色・印・焦点）と戻り先（押す前後の URL・押す前に動かした状態のうち戻った範囲）を現行で測って `aftermath` に書く**——
-   残る見た目は撮る状態か assertion に割り当て、どちらにもしないなら理由を書く。**戻す範囲は、画面が持つ状態を全て既定から動かしてから押して測る**
+   残る見た目は撮る状態か assertion に割り当て、どちらにもしないなら理由を書く。**戻す範囲は、画面が持つ状態を表の `screen_states` に棚卸しし、その全てを既定から動かしてから押して測る**
    （途中の見た目しか導かない撮影状態と、出て消える反応のどちらにも入らず、差が「差 0 件」と同じ見え方になるため。[`references/coverage.md`](references/coverage.md)「押した後に残るもの（`aftermath`）」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**

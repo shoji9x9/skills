@@ -607,10 +607,13 @@ function aftermathLookProblems(look, captureStates) {
  * 押す前後の URL と、押す前に既定から動かした状態（probed）のうち押した後に既定へ戻ったもの（reset）を実測させる。
  * 動かしていない状態が戻るかは測れないので、動かさずに測った記録は範囲を語れない。
  * URL は成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、オリジンを除いたパスで書かせる。
+ * probed は操作ごとの自己申告だと、1 つだけ動かして 1 つだけ確かめた記録が通る（Codex レビュー）。
+ * 表で 1 回だけ宣言した画面の状態の棚卸し（screen_states）と突き合わせ、動かさなかった状態には理由を要求する。
  * @param {unknown} ret
+ * @param {string[] | null} screenStates - 表の screen_states.states（読めなければ null で、表側の問題として別に落ちる）
  * @returns {{ problem: string, unmeasured: boolean }[]}
  */
-function aftermathReturnsProblems(ret) {
+function aftermathReturnsProblems(ret, screenStates) {
   if (!isPlainObject(ret)) {
     return [
       {
@@ -648,7 +651,7 @@ function aftermathReturnsProblems(ret) {
   if (!stringsOk(probed) || !stringsOk(reset)) {
     out.push({
       problem:
-        "aftermath.returns_to の probed / reset が、重複の無い空でない文字列の配列でない（何も動かしていないなら空配列と probe_skipped_reason）",
+        "aftermath.returns_to の probed / reset が、重複の無い空でない文字列の配列でない（何も動かしていないなら空配列）",
       unmeasured: true,
     });
   } else {
@@ -660,19 +663,37 @@ function aftermathReturnsProblems(ret) {
         unmeasured: true,
       });
     }
-    const skipped = filled(ret.probe_skipped_reason);
-    if (probed.length === 0 && !skipped) {
+    const notProbed = ret.not_probed;
+    if (!isPlainObject(notProbed)) {
       out.push({
         problem:
-          "aftermath.returns_to.probed が空なのに probe_skipped_reason が空（押す前に状態を動かさずに測ると、戻す範囲を「何も戻さない」と区別できない）",
+          'aftermath.returns_to.not_probed が状態ごとの理由のオブジェクトでない（{ "<状態>": "<動かさなかった理由>" }。全て動かしたなら {}）',
         unmeasured: true,
       });
-    }
-    if (probed.length > 0 && skipped) {
-      out.push({
-        problem: "aftermath.returns_to.probed があるのに probe_skipped_reason が埋まっている",
-        unmeasured: false,
-      });
+    } else if (screenStates !== null) {
+      const declared = new Set(screenStates);
+      const unknown = /** @type {string[]} */ (probed).filter((x) => !declared.has(x));
+      if (unknown.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to.probed に表の screen_states に無い状態がある: ${unknown.join(", ")}（棚卸しに足すか名前を合わせる）`,
+          unmeasured: true,
+        });
+      }
+      // 動かしていない状態が戻るかは測れない。棚卸しの全ての状態を、動かしたか・理由付きで動かさなかったかのどちらかにする
+      const lacking = screenStates.filter((x) => !probedSet.has(x) && !filled(notProbed[x]));
+      if (lacking.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to: 画面の状態 ${lacking.join(", ")} を押す前に動かしておらず、not_probed に理由も無い（戻す範囲を語れない）`,
+          unmeasured: true,
+        });
+      }
+      const stale = Object.keys(notProbed).filter((x) => !declared.has(x) || probedSet.has(x));
+      if (stale.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to.not_probed に、棚卸しに無い・動かした状態の理由が残っている: ${stale.join(", ")}`,
+          unmeasured: false,
+        });
+      }
     }
   }
   if (!filledStrings(ret.covered_by)) {
@@ -856,6 +877,27 @@ export function checkReactions(table, opts = {}) {
   if (windowMs === null)
     problems.push("observation_window_ms が正の数でない（none の観測時間の下限が無い）");
 
+  // 画面が持つ状態の棚卸し（Issue #471）。押した後に戻す範囲を、操作ごとの自己申告ではなくこの一覧と突き合わせる
+  const ss = table.screen_states;
+  /** @type {string[] | null} */
+  let screenStates = null;
+  if (
+    !isPlainObject(ss) ||
+    !Array.isArray(ss.states) ||
+    !ss.states.every(filled) ||
+    new Set(ss.states).size !== ss.states.length
+  ) {
+    problems.push(
+      "screen_states.states が重複の無い空でない文字列の配列でない（画面が持つ状態〈検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り等〉の棚卸し。持たないなら空配列）",
+    );
+  } else if (!filled(ss.source)) {
+    problems.push(
+      "screen_states.source が空（状態の棚卸しをどこから列挙したか〈移行元ソースの状態を持つ変数・URL のクエリ・実 UI〉が残らない）",
+    );
+  } else {
+    screenStates = /** @type {string[]} */ (ss.states);
+  }
+
   const operations = Array.isArray(table.operations) ? table.operations : null;
   if (operations === null) throw new UsageError("operations が配列でない");
   if (operations.length === 0)
@@ -892,7 +934,7 @@ export function checkReactions(table, opts = {}) {
     const amProblems = isPlainObject(am)
       ? [
           ...aftermathLookProblems(am.look, captureStates),
-          ...aftermathReturnsProblems(am.returns_to),
+          ...aftermathReturnsProblems(am.returns_to, screenStates),
         ]
       : [
           {

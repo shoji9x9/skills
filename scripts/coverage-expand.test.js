@@ -182,10 +182,10 @@ test("陽性コントロール: 候補が全てセルへ落ちていれば適合
   const r = reconcile(datagridCoverage(), bundled);
   expect(r.problems).toEqual([]);
   expect(r.ok).toBe(true);
-  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1 組 × 足した列の向き 3
+  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1 組 × 先の列の向き 2 × 足した列の向き 3
   // ＋ 行の選択 1 手段 × 列 2 ＋ メニュー開閉 1 ＋ メニュー項目 2。
   // 初期非表示で表示切替できる列が無いので row-select-revealed は候補を生まない。
-  expect(r.candidates).toBe(17);
+  expect(r.candidates).toBe(20);
   expect(r.unmeasured).toBe(0);
 });
 
@@ -1206,7 +1206,7 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
   );
   expect(r.status).toBe(0);
   const written = JSON.parse(readFileSync(r.paths["component-coverage.json"], "utf8"));
-  expect(written.components[0].instances[0].candidates).toHaveLength(17);
+  expect(written.components[0].instances[0].candidates).toHaveLength(20);
   expect(written.conformance).toMatchObject({ tool: "coverage-expand", ok: true, unmeasured: 0 });
   // 測定値は書き換えない。
   expect(written.cells[0]).toMatchObject({ value: "present" });
@@ -1260,9 +1260,12 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
     "column-sort/price/asc",
     "column-sort/price/desc",
     "column-sort/price/none",
-    "multi-column-sort/price-then-name/asc",
-    "multi-column-sort/price-then-name/desc",
-    "multi-column-sort/price-then-name/none",
+    "multi-column-sort/price-then-name/asc/asc",
+    "multi-column-sort/price-then-name/asc/desc",
+    "multi-column-sort/price-then-name/asc/none",
+    "multi-column-sort/price-then-name/desc/asc",
+    "multi-column-sort/price-then-name/desc/desc",
+    "multi-column-sort/price-then-name/desc/none",
     "row-select/row-number/name",
     "row-select/row-number/price",
   ]);

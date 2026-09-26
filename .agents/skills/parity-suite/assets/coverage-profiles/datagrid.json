@@ -25,8 +25,14 @@
     {
       "id": "sort-combination",
       "kind": "element",
-      "name": "複数列の並べ替えの組（2 列目以降を足す操作〈修飾キー付きのクリック・並べ替えの設定画面など〉で作る組。要素は「先に並べた列 → 足した列」の並び）。足した列の向きは sort-direction 軸で展開されるので、組ごとの要素には向きを含めない。組を足す操作の手段ごとに列挙する。グリッドが複数列の並べ替えを持たないなら空配列と justified_absences",
+      "name": "複数列の並べ替えの組（2 列目以降を足す操作〈修飾キー付きのクリック・並べ替えの設定画面など〉で作る組。要素は「先に並べた列 → 足した列」の並び）。向きは先に並べた列を leading-sort-direction、足した列を sort-direction で展開するので、組ごとの要素には向きを含めない。組を足す操作の手段ごとに列挙する。グリッドが複数列の並べ替えを持たないなら空配列と justified_absences",
       "flags": []
+    },
+    {
+      "id": "leading-sort-direction",
+      "kind": "enum",
+      "name": "複数列の並べ替えで、先に並べた列の向き。列を足した後は先の列の印も順位付きで描き直されるので、単一列の並べ替え（column-sort）とは別に向きごとに確かめる",
+      "values": ["asc", "desc"]
     },
     {
       "id": "row-selector",
@@ -121,8 +127,8 @@
     },
     {
       "id": "multi-column-sort",
-      "name": "複数列で並べ替えた後に残る印（順位・向き）。足した列の向き（昇順・降順・解除）ごとに確かめる",
-      "axes": ["sort-combination", "sort-direction"],
+      "name": "複数列で並べ替えた後に残る印（順位・向き）。先に並べた列の向き（昇順・降順）× 足した列の向き（昇順・降順・解除）ごとに確かめる",
+      "axes": ["sort-combination", "leading-sort-direction", "sort-direction"],
       "visual_states": ["after-operation"],
       "no_visual_state_reason": null
     },
@@ -182,7 +188,7 @@
       "列を束ねてよいのは、列の描画が同じ型（同じセルレンダラ・同じ書式・同じ幅の決まり方）に属するときだけ。書式が違う列（数値・日付・バッジ・リンク）は別クラスにする",
       "メニュー項目を束ねてよいのは、項目の描画が同じ型（アイコンの有無・活性の見え方・区切りの入り方）のときだけ。無効表示のある項目は活性のものと束ねない",
       "row-select / row-select-revealed で列を束ねてよいのは、現行で選択の塗りの有無と色が同じだと列ごとに確かめた列だけ（現行が特定の列だけ塗らないなら、その列は別クラスにする）。1 回の選択で全列が同時に塗られるので、束ねない列どうしが同じ撮影状態を指すときは、全行の shared_capture_reason に「同じ選択操作の 1 枚で全列が写る」ことを書く",
-      "sort-direction・sort-combination・row-selector・menu-target・menu-condition は束ねない。方向・組・選ぶ手段・対象・条件はそれぞれ描画が変わりうるため、代表 1 件では差分が見えなくなる",
+      "sort-direction・sort-combination・leading-sort-direction・row-selector・menu-target・menu-condition は束ねない。方向・組・選ぶ手段・対象・条件はそれぞれ描画が変わりうるため、代表 1 件では差分が見えなくなる",
       "束ねた根拠は「現行アプリで実際に同じ描画になることを確かめた手順」を rationale に書く。「同じに見えたから」は根拠にしない"
     ]
   }

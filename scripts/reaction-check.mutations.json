@@ -441,14 +441,15 @@
       ]
     },
     {
-      "id": "aftermath-returns-probe-skipped",
-      "why": "何も動かさずに測った理由が無くても通す",
+      "id": "aftermath-returns-not-probed-lacking",
+      "why": "棚卸しの状態を動かさず理由も無い記録を通す（1 つだけ動かして 1 つだけ確かめる）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (probed.length === 0 && !skipped) {\n",
-      "replace": "    if (false) {\n",
+      "find": "      if (lacking.length > 0) {\n",
+      "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "押した後に残るものの記録の欠けを落とす: 何も動かさずに測った理由が無い（Issue #471）"
+        "押した後に残るものの記録の欠けを落とす: 棚卸しの状態を動かさず理由も無い（1 つだけ動かして 1 つだけ確かめる）（Issue #471）",
+        "押した後に残るものの記録の欠けを落とす: 何も動かさず理由も無い（Issue #471）"
       ]
     },
     {
@@ -471,6 +472,28 @@
       "occurrences": 1,
       "expect_failing": [
         "押した後に残るものの記録の欠けを落とす: look.changes: false に assertion が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-probed-unknown",
+      "why": "棚卸しに無い状態を動かしたと書いても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (unknown.length > 0) {\n        out.push({\n          problem: `aftermath.returns_to.probed",
+      "replace": "      if (false) {\n        out.push({\n          problem: `aftermath.returns_to.probed",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 棚卸しに無い状態を動かしたと書く（Issue #471）"
+      ]
+    },
+    {
+      "id": "screen-states-missing",
+      "why": "画面の状態の棚卸しが無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    problems.push(\n      \"screen_states.states が",
+      "replace": "    [].push(\n      \"screen_states.states が",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 画面の状態の棚卸しが無い（Issue #471）"
       ]
     }
   ]

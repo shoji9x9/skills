@@ -91,9 +91,12 @@ const quietAftermath = () => ({
     measured: true,
     url_before: "/share?id=1",
     url_after: "/share?id=1",
-    probed: ["検索条件", "並べ替え"],
+    probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
     reset: [],
-    covered_by: ["share.spec.ts: コピーの後も URL と検索条件・並べ替えが残る"],
+    not_probed: {},
+    covered_by: [
+      "share.spec.ts: コピーの後も URL と検索条件・並べ替え・列フィルター・列の変更が残る",
+    ],
   },
 });
 
@@ -128,6 +131,7 @@ const lingeringAftermath = () => ({
     url_after: "/share?id=1",
     probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
     reset: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    not_probed: {},
     covered_by: ["search.spec.ts: Clear で検索条件と並べ替え・列フィルター・列の変更が既定に戻る"],
   },
 });
@@ -139,6 +143,11 @@ const baseTable = () => ({
   document_origins: { top: "same-origin", "共有ダイアログの iframe": "same-origin" },
   cross_origin_evidence: {},
   observation_window_ms: 3000,
+  screen_states: {
+    states: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    source:
+      "移行元ソースの一覧画面が保持する状態（検索フォームの値・グリッドの並べ替え・列フィルター・列の表示設定）",
+  },
   feedback_calls: {
     declared: true,
     reason: null,
@@ -1170,14 +1179,39 @@ test.each([
     "reset に probed に無い状態がある: 並べ替え, 列フィルター, 列の変更",
   ],
   [
-    "何も動かさずに測った理由が無い",
-    (t) => (t.operations[0].aftermath.returns_to.probed = []),
-    "probed が空なのに probe_skipped_reason が空",
+    "棚卸しの状態を動かさず理由も無い（1 つだけ動かして 1 つだけ確かめる）",
+    (t) => (t.operations[0].aftermath.returns_to.probed = ["検索条件"]),
+    "画面の状態 並べ替え, 列フィルター, 列の変更 を押す前に動かしておらず、not_probed に理由も無い",
   ],
   [
-    "動かしたのに動かさなかった理由がある",
-    (t) => (t.operations[0].aftermath.returns_to.probe_skipped_reason = "状態を持たない"),
-    "probed があるのに probe_skipped_reason が埋まっている",
+    "何も動かさず理由も無い",
+    (t) => (t.operations[0].aftermath.returns_to.probed = []),
+    "を押す前に動かしておらず、not_probed に理由も無い",
+  ],
+  [
+    "棚卸しに無い状態を動かしたと書く",
+    (t) => t.operations[0].aftermath.returns_to.probed.push("ページ送り"),
+    "probed に表の screen_states に無い状態がある: ページ送り",
+  ],
+  [
+    "動かした状態に動かさなかった理由が残っている",
+    (t) => (t.operations[0].aftermath.returns_to.not_probed = { 検索条件: "古い理由" }),
+    "not_probed に、棚卸しに無い・動かした状態の理由が残っている: 検索条件",
+  ],
+  [
+    "not_probed が無い",
+    (t) => delete t.operations[0].aftermath.returns_to.not_probed,
+    "not_probed が状態ごとの理由のオブジェクトでない",
+  ],
+  [
+    "画面の状態の棚卸しが無い",
+    (t) => delete t.screen_states,
+    "screen_states.states が重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "画面の状態の棚卸しに出どころが無い",
+    (t) => (t.screen_states.source = ""),
+    "screen_states.source が空",
   ],
   [
     "probed に重複がある",
@@ -1200,12 +1234,25 @@ test.each([
   expect(r.stderr).toContain(needle);
 });
 
-test("何も動かさずに測った理由があれば、戻す範囲が空でも通す（Issue #471）", () => {
+test("動かさなかった状態に理由があれば通し、状態を持たない画面は空の棚卸しで通す（Issue #471）", () => {
+  const withReason = run(
+    mutated((t) => {
+      t.operations[0].aftermath.returns_to.probed = ["検索条件", "並べ替え"];
+      t.operations[0].aftermath.returns_to.not_probed = {
+        列フィルター: "この操作は列フィルターを開いている間は押せない（実 UI で確かめた）",
+        列の変更: "列の変更の器を開いている間は押せない（実 UI で確かめた）",
+      };
+    }),
+  );
+  expect(withReason.stderr).toBe("");
+  expect(withReason.status).toBe(0);
   const r = run(
     mutated((t) => {
-      t.operations[0].aftermath.returns_to.probed = [];
-      t.operations[0].aftermath.returns_to.probe_skipped_reason =
-        "この画面は検索条件・並べ替え・選択のどれも持たない（実 UI で確かめた）";
+      t.screen_states.states = [];
+      for (const op of t.operations) {
+        op.aftermath.returns_to.probed = [];
+        op.aftermath.returns_to.reset = [];
+      }
     }),
   );
   expect(r.stderr).toBe("");
