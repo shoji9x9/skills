@@ -13,15 +13,23 @@ Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表（�
 
 ## 手順
 
-1. **Issue を取り直す**（着手時の記憶で書かない）。本文とコメントを同じ取得でファイルへ保存する
+1. **Issue を取り直す**（着手時の記憶で書かない）。本文とコメントに加えて、GitHub が本文を描画した HTML（`bodyHTML`）を取る。
+   チェックリストの項目は、検査がこの HTML のチェックボックスから数える（画面にチェックボックスとして出たものだけが項目になり、
+   コードフェンスや HTML コメントの中の `- [ ]` は数えない）。`gh issue view --json` は `bodyHTML` を返さないので GraphQL で取る
 
    ```bash
    gh issue view <番号> --repo <owner>/<repo> --json number,url,title,body,comments > <作業ディレクトリ>/issue.json
+   gh api graphql -f owner=<owner> -f name=<repo> -F number=<番号> \
+     -f query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { body bodyHTML } } }' \
+     --jq '.data.repository.issue' > <作業ディレクトリ>/issue-html.json
    ```
 
-   `issue.json` と、置き場（`--out`）が指定されていないときの表は、作業ツリーの外の一時ディレクトリに置く（リポジトリへ commit しない）。
+   2 つの取得の間に本文が編集されると、検査が本文の不一致として exit 2 で落とす（両方を取り直す）。
+   `issue.json`・`issue-html.json` と、置き場（`--out`）が指定されていないときの表は、作業ツリーの外の一時ディレクトリに置く（リポジトリへ commit しない）。
 2. **条件を列挙する**
-   - 本文のチェックリスト（`- [ ]` / `- [x]` / 番号付き。コードフェンスの中は除く）の項目は**全部**、`source: checklist` の行にする。`criterion` は項目の文言をそのまま写す（言い換えると検査が別の項目として数える）
+   - 本文のチェックリストの項目は**全部**、`source: checklist` の行にする。`criterion` は、検査の出力の `checklist_items` から**そのまま写す**
+     （描画後の文言なので、Markdown の記号・リンクの URL・タグは落ちている。本文の Markdown から写したり言い換えたりすると、検査が別の項目として数える）。
+     初回は行の無い表で検査を 1 回通し、`checklist_items` と `expected_fingerprint` を得てから書く
    - チェックリストに無い条件（散文の要件・コメントでの追記や改訂）は `source: body` / `comment` の行にし、`quote` に原文を**一字一句**写す（要約すると検査が引用を見つけられない）。
      本文が空でタイトルだけが条件を述べる Issue は `source: title` の行にする
    - コメントが条件を改訂・撤回していれば最新の決定に従う。撤回されたチェックリスト項目も行は残し、`waived` にして `approval.ref` に撤回したコメントを書く
@@ -48,14 +56,16 @@ Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表（�
 5. **検査を通す**
 
    ```bash
-   node <issue-start>/scripts/acceptance-check.mjs --issue <issue.json> --table <acceptance.json> \
+   node <issue-start>/scripts/acceptance-check.mjs --issue <issue.json> --issue-html <issue-html.json> --table <acceptance.json> \
      --head "$(git rev-parse HEAD)" [--root <ファイル:行 の起点>] [--decisions <pending_decisions を持つ JSON>] \
      [--allow-later <後工程名,...>]
    ```
 
    - `source_fingerprint` は手で書かず、初回の出力の `expected_fingerprint` を写す。**表を書いた後に Issue の本文かコメントが変わると `stale-issue` で落ちる**ので、条件を読み直して表を直す
      （チェックを付けただけ・下の結果コメントを投稿しただけでは変わらない）
-   - 終了コード: **0** ＝ 全行が `met` / `waived` / `deferred` / `later` で Issue と対応している、**1** ＝ 未充足・不整合が残る（`findings` を直す）、**2** ＝ 入力の誤り（別の Issue の表・短縮 SHA・JSON でない）。1 と 2 は完了にしない
+   - 終了コード: **0** ＝ 全行が `met` / `waived` / `deferred` / `later` で Issue と対応している、**1** ＝ 未充足・不整合が残る（`findings` を直す）、
+     **2** ＝ 入力の誤り（別の Issue の表・短縮 SHA・JSON でない・`issue.json` と `issue-html.json` の本文が違う）。1 と 2 は完了にしない
+   - `checklist-item-empty` は文言の無いチェックボックス（画像も代替テキストも無い等）で、行と対応づけられない。Issue の本文に文言を足すか利用者に確かめる
    - 出力の `closable` が `false`（`deferred` か `later` がある）なら、**PR で Issue を閉じない**（`Closes #<番号>` ではなく `Refs #<番号>`）
 6. **結果を Issue に残す**（外向きの操作）
    - 表を Markdown にしたコメントを投稿する。**本文の先頭に目印 `<!-- issue-start:acceptance -->` を入れる**（検査がこのコメントを指紋から外す）

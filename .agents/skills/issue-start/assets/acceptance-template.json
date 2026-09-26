@@ -1,5 +1,5 @@
 {
-  "_note": "issue-start の受け入れ条件の突き合わせ表。Issue の受け入れ条件を 1 項目 1 行で列挙し、根拠を付ける。検査は同梱の scripts/acceptance-check.mjs（様式の正本はこのファイルと同スクリプト）。source_fingerprint は手で書かず、検査が出す expected_fingerprint を写す。本文のチェックリスト（- [ ] / - [x]）の項目は source: checklist で 1 対 1 に全部書き、criterion は項目の文言をそのまま写す。チェックリストに無い条件（散文・コメントでの改訂）は source: body / comment で quote に原文を一字一句写す（本文が空でタイトルだけが条件を述べる Issue は source: title）。status は met / unmet / pending-decision / waived / deferred / later。met は evidence（command: command と result、file: ref に パス:行 か パス:開始-終了）と strength（measured＝コマンドの結果を 1 件以上持つ / read＝読解のみ）が要る。pending-decision は decision_ref（判断待ちの記録の id）、waived と deferred は利用者の承認 approval（by / at / ref）が要り、deferred は tracked_in（残作業の置き場）も要る。later（同じ流れの後工程が満たす条件）は owner（呼び出し元が --allow-later で許した後工程名）が要る。deferred と later が残る Issue は閉じない。以下の値はすべてプレースホルダ例。",
+  "_note": "issue-start の受け入れ条件の突き合わせ表。Issue の受け入れ条件を 1 項目 1 行で列挙し、根拠を付ける。検査は同梱の scripts/acceptance-check.mjs（様式の正本はこのファイルと同スクリプト）。source_fingerprint は手で書かず、検査が出す expected_fingerprint を写す。本文のチェックリストの項目（検査が GitHub の描画した bodyHTML のチェックボックスから数える）は source: checklist で 1 対 1 に全部書き、criterion は検査が出す checklist_items の文言をそのまま写す（本文の Markdown から写さない）。チェックリストに無い条件（散文・コメントでの改訂）は source: body / comment で quote に原文を一字一句写す（本文が空でタイトルだけが条件を述べる Issue は source: title）。status は met / unmet / pending-decision / waived / deferred / later。met は evidence（command: command と result、file: ref に パス:行 か パス:開始-終了）と strength（measured＝コマンドの結果を 1 件以上持つ / read＝読解のみ）が要る。pending-decision は decision_ref（判断待ちの記録の id）、waived と deferred は利用者の承認 approval（by / at / ref）が要り、deferred は tracked_in（残作業の置き場）も要る。later（同じ流れの後工程が満たす条件）は owner（呼び出し元が --allow-later で許した後工程名）が要る。deferred と later が残る Issue は閉じない。以下の値はすべてプレースホルダ例。",
   "issue": {
     "url": "<Issue の URL>",
     "number": 0
@@ -8,7 +8,7 @@
   "commit": "<根拠を取ったときの HEAD の完全 SHA>",
   "items": [
     {
-      "criterion": "<チェックリストの項目の文言をそのまま>",
+      "criterion": "<検査が出す checklist_items の文言をそのまま>",
       "source": "checklist",
       "status": "met",
       "strength": "measured",

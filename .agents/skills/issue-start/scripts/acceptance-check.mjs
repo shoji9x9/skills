@@ -8,7 +8,11 @@
 // 表が Issue と対応していること（チェックリストの項目と行が 1 対 1・引用が本文にある）と、
 // 各行に根拠があることをここで機械的に確かめる。表の様式の正本は assets/acceptance-template.json。
 //
-// 何をしないか: gh を呼ばない（Issue は `gh issue view --json number,url,title,body,comments` の出力をファイルで受け取る）。
+// 何をしないか: gh を呼ばない（Issue は `gh issue view --json number,url,title,body,comments` の出力と、
+// GraphQL の `issue { body bodyHTML }` の出力をファイルで受け取る）。
+// Markdown を自前で解釈しない: チェックリストの項目は GitHub が描画した HTML（bodyHTML）のチェックボックスから取る。
+// 本文の Markdown から数えると、コードフェンス・HTML コメント・インラインコードの中の `- [ ]` の扱いを
+// 文法の形ごとに書き足し続けることになる（レビューで 3 巡、同じクラスの取りこぼしが出た）。
 // 根拠のコマンドを再実行しない（結果の記録があるかを見る）。条件が満たされたかの判断そのものは人とエージェントの仕事。
 //
 // 終了コード: 0 ＝ 全行が met / waived / deferred / later で表が Issue と対応している、1 ＝ 未充足・不整合が残る、
@@ -76,71 +80,112 @@ export function normalizeText(text) {
   return text.replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
 }
 
+// 指紋の材料でチェックの有無を畳むためだけに使う（項目の列挙には使わない。列挙は bodyHTML から取る）。
 const CHECKBOX = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](\s+)(.*)$/;
-const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
+
+// 描画後の HTML の字句。属性値の中の `>` で切らないよう、引用符の中を 1 塊で読む。
+const TOKEN = /<!--[\s\S]*?-->|<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+
+// 項目の文言を打ち切るタグ。チェックボックスは li の先頭か、緩いリストでは li > p の先頭に置かれ、
+// 文言はその後ろから、入れ子のリスト・次の段落・li の終わりまで（実測: GitHub の bodyHTML と POST /markdown の gfm）。
+const ITEM_END = new Set([
+  "ul",
+  "ol",
+  "li",
+  "p",
+  "div",
+  "pre",
+  "blockquote",
+  "table",
+  "details",
+  "summary",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "dl",
+  "dt",
+  "dd",
+]);
+
+/** @type {Record<string, string>} */
+const NAMED_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
 
 /**
- * フェンスの外の 1 行から HTML コメントを取り除く。インラインコードの中の `<!--` / `-->` は見ない。
- * @param {string} line
- * @returns {{ text: string, open: boolean }} open は行末までに閉じないコメントが始まったか
+ * HTML の文字参照を戻す。
+ * @param {string} text
+ * @returns {string}
  */
-function stripHtmlComments(line) {
-  // インラインコードを同じ長さの空白で覆い、位置を保ったまま `<!--` を探す。
-  const masked = line.replace(/(`+)[^`]*?\1/g, (span) => " ".repeat(span.length));
-  let text = "";
-  let from = 0;
-  for (;;) {
-    const start = masked.indexOf("<!--", from);
-    if (start < 0) return { text: text + line.slice(from), open: false };
-    text += line.slice(from, start);
-    const end = masked.indexOf("-->", start + 4);
-    if (end < 0) return { text, open: true };
-    from = end + 3;
-  }
+function decodeEntities(text) {
+  return text.replace(/&(#[xX][0-9a-fA-F]+|#[0-9]+|[A-Za-z]+);/g, (all, ref) => {
+    if (ref[0] !== "#") return NAMED_ENTITIES[ref] ?? all;
+    const cp =
+      ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+    return cp <= 0x10ffff ? String.fromCodePoint(cp) : all;
+  });
 }
 
 /**
- * 本文のチェックリストの項目を列挙する（コードフェンスの中は数えない）。
- * @param {string} body
- * @returns {string[]} 空白を畳んだ項目の文言（本文の順）
+ * タグの属性を 1 つ読む。
+ * @param {string} attrs
+ * @param {string} name
+ * @returns {string | null}
  */
-export function checklistItems(body) {
+function attribute(attrs, name) {
+  const m = attrs.match(
+    new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, "i"),
+  );
+  return m ? decodeEntities(m[1] ?? m[2] ?? m[3]) : null;
+}
+
+/**
+ * 本文のチェックリストの項目を、GitHub が描画した HTML のチェックボックスから列挙する。
+ * 画面にチェックボックスとして出たものだけが項目になる——コードフェンス・HTML コメントの中の `- [ ]` は
+ * 描画でチェックボックスにならず、引用・<details> の中はなる。利用者がタグで書いた <input> は描画で消される（実測）。
+ * @param {string} html
+ * @returns {string[]} 空白を畳んだ項目の文言（本文の順）。文言の無い項目は空文字
+ */
+export function checklistItems(html) {
   /** @type {string[]} */
   const items = [];
   /** @type {string | null} */
-  let fence = null;
-  // HTML コメントの中は画面に出ない（テンプレートが残した例示の `- [ ]` 等）ので数えない。
-  // 閉じない `<!--` は文書の末尾まで続く（CommonMark の HTML ブロック）。
-  // コメントの判定はフェンスの外の行だけに当て、インラインコードの中の `<!--` はコメントにしない
-  // （本文全体へ先に当てると、コードの中の `<!--` から末尾までが消え、項目が 1 件も数えられなくなる）。
-  let inComment = false;
-  for (const raw of body.replace(/\r\n?/g, "\n").split("\n")) {
-    let line = raw;
-    if (fence === null && inComment) {
-      const end = line.indexOf("-->");
-      if (end < 0) continue;
-      line = line.slice(end + 3);
-      inComment = false;
-    }
-    const f = line.match(FENCE);
-    if (fence !== null) {
-      // 閉じは同じ文字で同じ長さ以上、かつ後ろが空白だけ（CommonMark）。言語名付きの行は中身として扱う。
-      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === "") {
-        fence = null;
-      }
+  let current = null;
+  const finish = () => {
+    if (current !== null) items.push(normalizeText(current));
+    current = null;
+  };
+  let last = 0;
+  for (const m of html.matchAll(TOKEN)) {
+    const index = /** @type {number} */ (m.index);
+    if (current !== null) current += decodeEntities(html.slice(last, index));
+    last = index + m[0].length;
+    if (m[2] === undefined) continue; // HTML コメント
+    const name = m[2].toLowerCase();
+    const opening = m[1] === "";
+    if (
+      opening &&
+      name === "input" &&
+      (attribute(m[3], "type") ?? "").toLowerCase() === "checkbox" &&
+      (attribute(m[3], "class") ?? "").split(/\s+/).includes("task-list-item-checkbox")
+    ) {
+      finish();
+      current = "";
+    } else if (current === null) {
       continue;
+    } else if (ITEM_END.has(name)) {
+      finish();
+    } else if (name === "br") {
+      current += " ";
+    } else if (name === "img" && opening) {
+      // 画像だけの項目も文言を持つ（代替テキスト）。
+      current += attribute(m[3], "alt") ?? "";
     }
-    // バッククォートの開きは、後ろ（情報文字列）にバッククォートを含むとフェンスにならない（CommonMark）。
-    // 行頭のインラインコード（```npm test``` を通す）を開きと読むと、以降の項目が 1 件も数えられない。
-    if (f && !(f[1][0] === "`" && f[2].includes("`"))) {
-      fence = f[1];
-      continue;
-    }
-    const stripped = stripHtmlComments(line);
-    if (stripped.open) inComment = true;
-    const m = stripped.text.match(CHECKBOX);
-    if (m && nonEmptyString(m[4])) items.push(normalizeText(m[4]));
   }
+  if (current !== null) current += decodeEntities(html.slice(last));
+  finish();
   return items;
 }
 
@@ -244,6 +289,7 @@ export function fileChecker(root, readText) {
  * 突き合わせ表を検査する。
  * @param {{
  *   issue: unknown,
+ *   issueHtml: unknown,
  *   table: unknown,
  *   head?: string | null,
  *   decisionIds?: Set<string> | null,
@@ -255,12 +301,14 @@ export function fileChecker(root, readText) {
  *   findings: Array<{ code: string, row: number | null, message: string }>,
  *   closable: boolean,
  *   expected_fingerprint: string,
+ *   checklist_items: string[],
  *   counts: Record<string, number>,
  * }}
  */
 export function checkAcceptance(input) {
   const {
     issue,
+    issueHtml,
     table,
     head = null,
     decisionIds = null,
@@ -271,6 +319,23 @@ export function checkAcceptance(input) {
     return {
       structural: true,
       error: "Issue が `gh issue view --json number,url,title,body,comments` の形でない",
+    };
+  }
+  if (
+    !isObject(issueHtml) ||
+    typeof issueHtml.body !== "string" ||
+    typeof issueHtml.bodyHTML !== "string"
+  ) {
+    return {
+      structural: true,
+      error: "Issue の HTML が GraphQL の `issue { body bodyHTML }` の形でない",
+    };
+  }
+  if (issueHtml.body !== issue.body) {
+    // 別の時点で取った本文と HTML を突き合わせると、項目の列挙が本文と食い違う。
+    return {
+      structural: true,
+      error: "Issue の本文と HTML を取った後に本文が変わった（両方を取り直す）",
     };
   }
   const comments = commentBodies(issue.comments);
@@ -326,11 +391,16 @@ export function checkAcceptance(input) {
   // 0 件を「条件が無い」に倒さない——表を書き忘れた状態と同じ出力になる。
   if (table.items.length === 0) add("no-items", null, "表に行が無い");
 
-  const issueChecklist = checklistItems(issue.body);
+  const issueChecklist = checklistItems(issueHtml.bodyHTML);
   counts.checklist = issueChecklist.length;
   /** @type {Map<string, number>} */
   const remaining = new Map();
-  for (const item of issueChecklist) remaining.set(item, (remaining.get(item) ?? 0) + 1);
+  for (const item of issueChecklist) {
+    // 文言の無い項目は行と対応づけられない。黙って捨てず、Issue 側を直す（か利用者に確かめる）よう出す。
+    if (item === "")
+      add("checklist-item-empty", null, "本文に文言の無いチェックリストの項目がある");
+    else remaining.set(item, (remaining.get(item) ?? 0) + 1);
+  }
   const normalizedBody = normalizeText(issue.body);
   const normalizedComments = comments.map(normalizeText);
 
@@ -458,12 +528,14 @@ export function checkAcceptance(input) {
     // deferred・later が残る Issue は、PR で閉じない（Closes を書かない）。
     closable: findings.length === 0 && counts.deferred === 0 && counts.later === 0,
     expected_fingerprint: expected,
+    checklist_items: issueChecklist,
     counts,
   };
 }
 
 const USAGE =
   "usage: node acceptance-check.mjs --issue <gh issue view --json number,url,title,body,comments の出力> " +
+  "--issue-html <GraphQL の issue { body bodyHTML } の出力> " +
   "--table <突き合わせ表> [--head <現在の HEAD の完全 SHA>] [--root <ファイル:行 の起点>] " +
   "[--decisions <pending_decisions を持つ JSON>] [--allow-later <後工程名,...>]";
 
@@ -481,7 +553,15 @@ export function main(argv, deps = {}) {
     (deps.stderr ?? ((s) => process.stderr.write(s)))(`${message}\n${USAGE}\n`);
     return 2;
   };
-  const known = new Set(["--issue", "--table", "--head", "--root", "--decisions", "--allow-later"]);
+  const known = new Set([
+    "--issue",
+    "--issue-html",
+    "--table",
+    "--head",
+    "--root",
+    "--decisions",
+    "--allow-later",
+  ]);
   /** @type {Record<string, string>} */
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -493,8 +573,12 @@ export function main(argv, deps = {}) {
     args[key] = value;
     i += 1;
   }
-  if (args["--issue"] === undefined || args["--table"] === undefined) {
-    return fail("--issue と --table は必須");
+  if (
+    args["--issue"] === undefined ||
+    args["--issue-html"] === undefined ||
+    args["--table"] === undefined
+  ) {
+    return fail("--issue と --issue-html と --table は必須");
   }
   // 短縮 SHA は別のコミットと一致しうるので受け付けない。
   if (args["--head"] !== undefined && !/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(args["--head"])) {
@@ -502,7 +586,7 @@ export function main(argv, deps = {}) {
   }
   /** @type {Record<string, unknown>} */
   const parsed = {};
-  for (const key of ["--issue", "--table", "--decisions"]) {
+  for (const key of ["--issue", "--issue-html", "--table", "--decisions"]) {
     if (args[key] === undefined) continue;
     const path = resolve(cwd, args[key]);
     try {
@@ -536,6 +620,7 @@ export function main(argv, deps = {}) {
   };
   const result = checkAcceptance({
     issue: parsed["--issue"],
+    issueHtml: parsed["--issue-html"],
     table: parsed["--table"],
     head: args["--head"] ?? null,
     decisionIds,
@@ -556,6 +641,8 @@ export function main(argv, deps = {}) {
     closable: result.closable,
     findings: result.findings,
     expected_fingerprint: result.expected_fingerprint,
+    // source: checklist の行の criterion はここから写す（描画後の文言。Markdown の記号やタグは落ちている）。
+    checklist_items: result.checklist_items,
     counts: { ...result.counts, findings: result.findings.length },
   });
   return result.findings.length === 0 ? 0 : 1;

@@ -120,24 +120,6 @@
       ]
     },
     {
-      "id": "inline-code-opens-fence",
-      "why": "行頭のインラインコードをフェンスの開きと読み、以降のチェックリスト項目を数えない",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    if (f && !(f[1][0] === \"`\" && f[2].includes(\"`\"))) {",
-      "replace": "    if (f) {",
-      "occurrences": 1,
-      "expect_failing": ["行頭のインラインコードはフェンスの開きにしない（以降の項目を数える）"]
-    },
-    {
-      "id": "info-string-closes-fence",
-      "why": "言語名付きの行でフェンスを閉じる",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": " && f[2].trim() === \"\") {",
-      "replace": ") {",
-      "occurrences": 1,
-      "expect_failing": ["言語名付きの行はフェンスを閉じない"]
-    },
-    {
       "id": "title-not-quotable",
       "why": "タイトルからの行を受け付けず、本文が空の Issue が永久に通れない",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
@@ -146,17 +128,6 @@
       "occurrences": 1,
       "expect_failing": [
         "本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）"
-      ]
-    },
-    {
-      "id": "html-comment-counted",
-      "why": "HTML コメントの中の例示チェックボックスを項目に数える",
-      "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "    const stripped = stripHtmlComments(line);",
-      "replace": "    const stripped = { text: line, open: false };",
-      "occurrences": 1,
-      "expect_failing": [
-        "HTML コメントの中の例示チェックボックスは項目に数えない（閉じないコメントは末尾まで）"
       ]
     },
     {
@@ -169,13 +140,61 @@
       "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
     },
     {
-      "id": "comment-in-code-span",
-      "why": "インラインコードの中の <!-- をコメントの開きと読み、項目の文言を壊す",
+      "id": "checklist-from-markdown",
+      "why": "項目を描画後の HTML ではなく本文の Markdown から取る（描画の結果を使わない）",
       "file": "skills/issue-start/scripts/acceptance-check.mjs",
-      "find": "  const masked = line.replace(/(`+)[^`]*?\\1/g, (span) => \" \".repeat(span.length));",
-      "replace": "  const masked = line;",
+      "find": "  const issueChecklist = checklistItems(issueHtml.bodyHTML);",
+      "replace": "  const issueChecklist = checklistItems(issue.body);",
       "occurrences": 1,
-      "expect_failing": ["インラインコード・コードフェンスの中の <!-- はコメントにしない"]
+      "expect_failing": [
+        "陽性コントロール: Issue と対応し根拠の揃った表は exit 0（deferred があれば閉じない）",
+        "deferred が無ければ閉じてよい",
+        "本文のチェックリストの項目に行が無ければ落とす",
+        "文言の無い項目は黙って捨てず、Issue 側を直すよう落とす",
+        "later は満たす後工程が無ければ落とし、あれば通すが Issue は閉じない",
+        "行が 0 件の表は合格にしない",
+        "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
+      ]
+    },
+    {
+      "id": "list-boundary-not-ending-item",
+      "why": "リストの境界（ul / ol / li）で項目の文言を打ち切らず、後ろの項目の文言を混ぜる",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  \"ul\",\n  \"ol\",\n  \"li\",\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面にチェックボックスとして出た項目だけを数える（フェンス・HTML コメントの中は描画でチェックボックスにならない）"
+      ]
+    },
+    {
+      "id": "entity-not-decoded",
+      "why": "文字参照を戻さず、描画後の文言が画面の文言と食い違う",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (ref[0] !== \"#\") return NAMED_ENTITIES[ref] ?? all;",
+      "replace": "    if (ref[0] !== \"#\") return all;",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面にチェックボックスとして出た項目だけを数える（フェンス・HTML コメントの中は描画でチェックボックスにならない）"
+      ]
+    },
+    {
+      "id": "html-body-mismatch-ignored",
+      "why": "別の時点で取った本文と HTML を突き合わせる（項目の列挙が本文と食い違う）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "  if (issueHtml.body !== issue.body) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["本文と HTML を別の時点で取った・HTML が無い・形が違う入力は exit 2"]
+    },
+    {
+      "id": "empty-item-dropped",
+      "why": "文言の無い項目を黙って捨てる（画面にあるチェックボックスが表と対応しないまま通る）",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (item === \"\")\n",
+      "replace": "    if (item === \"\") continue;\n    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["文言の無い項目は黙って捨てず、Issue 側を直すよう落とす"]
     }
   ]
 }

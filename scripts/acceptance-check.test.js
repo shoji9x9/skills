@@ -14,22 +14,23 @@ import {
   fingerprintOf,
   RESULT_MARKER,
 } from "../skills/issue-start/scripts/acceptance-check.mjs";
+import { RENDERED } from "./acceptance-check-rendered-fixture.js";
 import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const HEAD = "a".repeat(40);
 
-const BODY = [
-  "## 受け入れ条件",
-  "",
-  "- [ ] 検索条件を URL で持つ",
-  "- [x] 準備の失敗時にログを書く",
-  "",
-  "書き込み系ボタンの E2E を置くこと。",
-  "",
-  "```md",
-  "- [ ] フェンスの中は数えない",
-  "```",
-].join("\n");
+// 本文の Markdown と、GitHub がそれを描画した HTML の組（HTML は手で書かず描画から採る）。
+const BODY = RENDERED.body.markdown;
+
+/**
+ * 本文に対応する描画後の HTML（GraphQL の issue { body bodyHTML } の形）。
+ * @param {string} body
+ */
+function htmlOf(body) {
+  const found = Object.values(RENDERED).find((r) => r.markdown === body);
+  if (!found) throw new Error(`描画の fixture に無い本文: ${JSON.stringify(body)}`);
+  return { body, bodyHTML: found.html };
+}
 
 /**
  * Issue の JSON（gh issue view --json number,url,title,body,comments の形）。
@@ -93,15 +94,36 @@ function table(override = {}) {
 
 /**
  * 作業ディレクトリに Issue・表・根拠のファイルを置いて CLI を呼ぶ。
- * @param {{ issueData?: unknown, tableData?: unknown, extra?: string[], decisions?: unknown }} [input]
+ * @param {{
+ *   issueData?: any,
+ *   issueHtml?: unknown,
+ *   tableData?: unknown,
+ *   extra?: string[],
+ *   decisions?: unknown,
+ * }} [input]
  */
 function run(input = {}) {
   const work = makeTempDir("acceptance-check-");
   mkdirSync(join(work, "src"));
   writeFileSync(join(work, "src/app.js"), "line1\nline2\nline3\n");
-  writeFileSync(join(work, "issue.json"), JSON.stringify(input.issueData ?? issue()));
+  const issueData = input.issueData ?? issue();
+  writeFileSync(join(work, "issue.json"), JSON.stringify(issueData));
+  writeFileSync(
+    join(work, "issue-html.json"),
+    JSON.stringify(
+      "issueHtml" in input ? input.issueHtml : htmlOf(/** @type {string} */ (issueData.body)),
+    ),
+  );
   writeFileSync(join(work, "table.json"), JSON.stringify(input.tableData ?? table()));
-  const argv = ["--issue", "issue.json", "--table", "table.json", ...(input.extra ?? [])];
+  const argv = [
+    "--issue",
+    "issue.json",
+    "--issue-html",
+    "issue-html.json",
+    "--table",
+    "table.json",
+    ...(input.extra ?? []),
+  ];
   if (input.decisions !== undefined) {
     writeFileSync(join(work, "decisions.json"), JSON.stringify(input.decisions));
     argv.push("--decisions", "decisions.json");
@@ -127,6 +149,8 @@ test("陽性コントロール: Issue と対応し根拠の揃った表は exit 
   expect(r.json.ok).toBe(true);
   expect(r.json.closable).toBe(false);
   expect(r.json.counts.checklist).toBe(2);
+  // source: checklist の行の criterion を写す元として、描画後の項目の文言を出す。
+  expect(r.json.checklist_items).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
 });
 
 test("deferred が無ければ閉じてよい", () => {
@@ -150,18 +174,59 @@ test("本文に無いチェックリスト項目・重複した行は落とす",
   expect(r.codes).toContain("checklist-row-not-in-issue");
 });
 
-test("コードフェンスの中のチェックボックスは項目に数えない", () => {
-  expect(checklistItems(BODY)).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
+test("画面にチェックボックスとして出た項目だけを数える（フェンス・HTML コメントの中は描画でチェックボックスにならない）", () => {
+  // 本文のフェンスの中の `- [ ]` は数えない。
+  expect(checklistItems(RENDERED.body.html)).toEqual([
+    "検索条件を URL で持つ",
+    "準備の失敗時にログを書く",
+  ]);
+  // フェンス・HTML コメント・インラインコードの `<!--` の後ろ・引用・<details>・入れ子・番号付き・緩いリスト・
+  // `*` / `+` の箇条・継続行を含む本文。描画後の文言（記号とタグを落とし、文字参照を戻す）で出す。
+  expect(checklistItems(RENDERED.edgeCases.html)).toEqual([
+    'plain code and bold and link and #486 & "q"',
+    "checked lower",
+    "checked upper",
+    "ordered item",
+    "parent",
+    "child",
+    "trailing space",
+    "after inline comment opener",
+    "in quote",
+    "in details",
+    "loose one",
+    "loose two",
+    "indented code",
+    "star bullet",
+    "plus bullet",
+    "a continued line",
+  ]);
 });
 
-test("行頭のインラインコードはフェンスの開きにしない（以降の項目を数える）", () => {
-  expect(checklistItems("```npm test``` を通すこと\n- [ ] a\n- [ ] b")).toEqual(["a", "b"]);
+test("文言の無い項目は黙って捨てず、Issue 側を直すよう落とす", () => {
+  const body = RENDERED.emptyItem.markdown;
+  const data = issue({ body, comments: [] });
+  const items = [
+    {
+      criterion: "文言のある項目",
+      source: "checklist",
+      status: "met",
+      strength: "read",
+      evidence: [{ kind: "file", ref: "src/app.js:1" }],
+    },
+  ];
+  const r = run({ issueData: data, tableData: table({ issueData: data, items }) });
+  expect(r.code).toBe(1);
+  expect(r.codes).toEqual(["checklist-item-empty"]);
+  expect(r.json.checklist_items).toEqual(["", "文言のある項目"]);
 });
 
-test("言語名付きの行はフェンスを閉じない", () => {
-  expect(checklistItems("```js\ncode\n```js\n- [ ] inside\n```\n- [ ] after")).toEqual(["after"]);
-  // 後ろが空白だけの閉じは閉じとして扱う（陽性コントロール）。
-  expect(checklistItems("~~~\n- [ ] inside\n~~~  \n- [ ] after")).toEqual(["after"]);
+test("本文と HTML を別の時点で取った・HTML が無い・形が違う入力は exit 2", () => {
+  const edited = run({ issueHtml: htmlOf(RENDERED.bodyChecked.markdown) });
+  expect(edited.code).toBe(2);
+  expect(edited.json.error).toContain("取り直す");
+  expect(run({ issueHtml: { body: BODY } }).code).toBe(2);
+  const work = makeTempDir("acceptance-check-");
+  expect(main(["--issue", "i.json", "--table", "t.json"], { cwd: work, stderr: () => {} })).toBe(2);
 });
 
 test("散文からの行は引用が本文・コメントに無ければ落とす", () => {
@@ -266,11 +331,11 @@ test("別の Issue の表・短縮 SHA・壊れた入力は exit 2", () => {
   const other = { ...table(), issue: { number: 465 } };
   expect(run({ tableData: other }).code).toBe(2);
   expect(run({ extra: ["--head", "abc1234"] }).code).toBe(2);
-  expect(run({ issueData: { number: 464 } }).code).toBe(2);
+  expect(run({ issueData: { number: 464 }, issueHtml: htmlOf(BODY) }).code).toBe(2);
 });
 
-test("チェックリストの無い Issue は散文からの行だけの表で通る（番号付き・CRLF の本文も読む）", () => {
-  const prose = issue({ body: "## 受け入れ条件\r\n\r\n状態を URL で持つ。\r\n", comments: [] });
+test("チェックリストの無い Issue は散文からの行だけの表で通る（CRLF の本文も読む）", () => {
+  const prose = issue({ body: RENDERED.prose.markdown, comments: [] });
   const items = [
     {
       criterion: "状態を URL で持つ",
@@ -284,7 +349,6 @@ test("チェックリストの無い Issue は散文からの行だけの表で�
   const r = run({ issueData: prose, tableData: table({ issueData: prose, items }) });
   expect(r.code).toBe(0);
   expect(r.json.counts.checklist).toBe(0);
-  expect(checklistItems("1. [ ] 番号付き\r\n2) [x] 括弧")).toEqual(["番号付き", "括弧"]);
 });
 
 test("同梱テンプレートのプレースホルダのまま提出した表は通さない", () => {
@@ -360,25 +424,9 @@ test("本文が空でタイトルだけの Issue は、タイトルからの行�
   expect(retitled.codes).toEqual(expect.arrayContaining(["stale-issue", "quote-not-found"]));
 });
 
-test("HTML コメントの中の例示チェックボックスは項目に数えない（閉じないコメントは末尾まで）", () => {
-  expect(
-    checklistItems("- [ ] real\n<!--\n- [ ] example item from template\n-->\n- [ ] after"),
-  ).toEqual(["real", "after"]);
-  expect(checklistItems("- [ ] real\n<!-- - [ ] inline -->\n<!--\n- [ ] unclosed")).toEqual([
-    "real",
-  ]);
-});
-
 test("チェックを付けて書き戻したときの末尾の改行では表を古くしない", () => {
   expect(fingerprintOf("- [ ] a", [])).toBe(fingerprintOf("- [x] a\n", []));
   expect(fingerprintOf("b", ["c"])).toBe(fingerprintOf("b", ["c\n"]));
   // 中身が変われば変わる（陽性コントロール）。
   expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
-});
-
-test("インラインコード・コードフェンスの中の <!-- はコメントにしない", () => {
-  expect(checklistItems("- [ ] 出力に `<!-- -->` を含めない")).toEqual([
-    "出力に `<!-- -->` を含めない",
-  ]);
-  expect(checklistItems("```html\n<!-- header\n```\n- [ ] a\n- [ ] b")).toEqual(["a", "b"]);
 });
