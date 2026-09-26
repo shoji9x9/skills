@@ -826,6 +826,8 @@ export function validateProfile(profile, source) {
   const axesOfRule = new Map();
   /** @type {Map<string, Record<string, unknown>>} ルール id → guard（代替の組の排他性の照合に使う） */
   const guardOfRule = new Map();
+  /** @type {Map<string, string>} ルール id → requirement（代替の組の意味の同一性。宣言した値だけを信じる） */
+  const requirementOfRule = new Map();
   for (const rule of rules) {
     if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
     const r = /** @type {Record<string, unknown>} */ (rule);
@@ -834,6 +836,7 @@ export function validateProfile(profile, source) {
       String(r.id),
       isPlainObject(r.guard) ? /** @type {Record<string, unknown>} */ (r.guard) : {},
     );
+    if (nonEmptyString(r.requirement)) requirementOfRule.set(String(r.id), String(r.requirement));
   }
   // 2 つのルールの guard が排他か（同じフラグに逆の値を要求する条件が 1 つ以上ある）。
   // 排他なら、1 つの要素はどちらか一方にしか当たらない＝同じ要求を要素の性質で分けたルールだと機械的に言える
@@ -865,6 +868,15 @@ export function validateProfile(profile, source) {
       at(
         `required_rules: 代替の組 ${group.map(String).join(" / ")} の axes が揃っていない（同じ要求を guard だけで分けたルールしか組にしない）`,
       );
+    }
+    // 軸や guard の形からは「同じ要求か」を推し量れない（排他は候補が重ならないことしか言わない。Codex レビュー）。
+    // 組の全てのルールに同じ requirement を明示させ、宣言で意味の同一性を持たせる
+    if (group.length > 1) {
+      const reqs = group.map((rid) => requirementOfRule.get(String(rid)));
+      if (reqs.some((x) => x === undefined) || new Set(reqs).size > 1)
+        at(
+          `required_rules: 代替の組 ${group.map(String).join(" / ")} の requirement が揃っていない（同じ要求を分けたルールには、組の全てに同じ requirement を書く）`,
+        );
     }
     // 軸が揃っていても、別の要求（列の表示と列の絞り込み等）を組にすると片方の候補がもう片方の 0 件を黙らせる。
     // 組の全ての組み合わせで guard が排他（同じフラグに逆の値を要求）なことを要求する

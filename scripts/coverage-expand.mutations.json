@@ -54,6 +54,15 @@
       "replace": "        if (false)\n",
       "occurrences": 1,
       "expect_failing": ["required_rules の代替の組の形を検査する"]
+    },
+    {
+      "id": "required-group-requirement",
+      "why": "同じ要求だと宣言していないルールを代替の組にしても通す",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "      if (reqs.some((x) => x === undefined) || new Set(reqs).size > 1)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["required_rules の代替の組の形を検査する"]
     }
   ]
 }

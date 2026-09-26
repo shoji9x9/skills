@@ -719,10 +719,7 @@ test("必須ルールの代替の組は、どれか 1 つが候補を生めば�
   }));
   resolveVisualStates(cov);
   const r = reconcile(cov, bundled);
-  // 列の表示も同じ形（初期表示の列が無く、表示切替で出す列だけがある）なので column-visible / column-toggle も組にしてある
   expect(r.problems.join("\n")).not.toContain("必須ルール row-select");
-  expect(r.problems.join("\n")).not.toContain("必須ルール column-visible");
-  expect(r.problems).toEqual([]);
 });
 
 test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
@@ -754,7 +751,8 @@ test("代替の組の全てのルールが候補 0 件なら、全てに根拠�
 test("required_rules の代替の組の形を検査する", () => {
   const profile = structuredClone(bundled.get("datagrid"));
   expect(validateProfile(profile, "d.json")).toEqual([]);
-  for (const [bad, pattern] of [
+  const rule = (p, id) => p.candidate_rules.find((r) => r.id === id);
+  for (const [bad, pattern, tweak] of [
     [[[]], /空の要素・空の代替の組/],
     [[["row-select", ""]], /空の要素・空の代替の組/],
     [[["row-select", "nope"]], /未定義のルール nope/],
@@ -763,13 +761,25 @@ test("required_rules の代替の組の形を検査する", () => {
       [["column-visible", "context-menu-open"]],
       /代替の組 column-visible \/ context-menu-open の axes が揃っていない/,
     ],
+    // 軸が揃い guard が排他でも、同じ要求だと宣言していないルールは組にできない（Codex レビュー）
+    [
+      [["column-visible", "column-filter"]],
+      /代替の組 column-visible \/ column-filter の requirement が揃っていない/,
+      (p) => (rule(p, "column-filter").guard["column.initially_visible"] = false),
+    ],
+    // requirement を揃えても guard が排他でなければ落とす
     [
       [["column-visible", "column-filter"]],
       /column-visible と column-filter の guard が排他でない/,
+      (p) => {
+        rule(p, "column-visible").requirement = "x";
+        rule(p, "column-filter").requirement = "x";
+      },
     ],
   ]) {
     const p = structuredClone(profile);
     p.required_rules = bad;
+    tweak?.(p);
     expect(validateProfile(p, "d.json").join("\n")).toMatch(pattern);
   }
 });

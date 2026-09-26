@@ -91,7 +91,6 @@
       "name": "初期非表示の列を表示切替で出せること",
       "axes": ["column"],
       "guard": {
-        "column.initially_visible": false,
         "column.toggleable": true
       },
       "visual_states": ["opens-container"],
@@ -137,6 +136,7 @@
     {
       "id": "row-select",
       "name": "行を選んだ後に列ごとに付く選択の塗り（初期表示の列。塗りが付かない列も含めて列ごとに確かめる）",
+      "requirement": "row-selection-paint",
       "axes": ["row-selector", "column"],
       "guard": {
         "column.initially_visible": true
@@ -147,6 +147,7 @@
     {
       "id": "row-select-revealed",
       "name": "初期非表示の列を表示切替で出してから行を選んだ後に、その列に付く選択の塗り",
+      "requirement": "row-selection-paint",
       "axes": ["row-selector", "column"],
       "guard": {
         "column.initially_visible": false,
@@ -177,7 +178,7 @@
     }
   ],
   "required_rules": [
-    ["column-visible", "column-toggle"],
+    "column-visible",
     "column-sort",
     "multi-column-sort",
     ["row-select", "row-select-revealed"],
