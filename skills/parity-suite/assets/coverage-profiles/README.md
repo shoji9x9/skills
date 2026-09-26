@@ -10,7 +10,7 @@ UI 部品ごとの確認軸を宣言するファイル群。契約は [`../../re
 
 1. `<id>.json` を作り、`profile-schema.json` の形式で `axes` / `enumeration` / `candidate_rules` /
    `required_rules` / `equivalence` を宣言する。`id` はファイル名（拡張子を除く）と一致させる。
-   **各ルールには `visual_states`（その操作で立つ見た目の状態。`opens-container` / `hover` / `focus` / `active` / `disabled`）も要る**——
+   **各ルールには `visual_states`（その操作で立つ見た目の状態。`opens-container` / `hover` / `focus` / `active` / `disabled` / `after-operation`）も要る**——
    空配列なら `no_visual_state_reason` を書く（キーごとの省略は「見た目が変わらない」と「考えていない」を同じ見え方にするので落ちる）
 2. `references/coverage-profiles.md`「同梱プロファイル」の表に 1 行足す
 3. `scripts/coverage-expand.mjs` と `references/coverage-profiles.md` の**契約部分は変更しない**。
@@ -28,6 +28,7 @@ UI 部品ごとの確認軸を宣言するファイル群。契約は [`../../re
 - **`required_rules` には「列挙されないと静かに 0 件になるルール」を入れる。**
   そのルールが候補を生まなかったら失敗する。「その部品には無い」を主張したいなら、
   列挙側の `enumeration.justified_absences` に軸スコープの根拠を残す
-  （逃げ道が無いと、フラグを偽って `true` にする以外に収束できなくなる）
+  （逃げ道が無いと、フラグを偽って `true` にする以外に収束できなくなる）。
+  同じ要求を排他な `guard` で分けたルールは、全てに同じ `requirement` を書き、ルール id の配列（代替の組）として 1 要素に書く（どれか 1 つが候補を生めば満たす）
 - **`equivalence.reducible_axes` には、描画が同じになりうる軸だけを入れる。**
   方向・対象・条件のように描画が変わる軸を入れると、代表 1 件の採取で差分が見えなくなる

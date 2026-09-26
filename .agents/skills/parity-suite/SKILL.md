@@ -182,12 +182,15 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    欠落・未列挙・証拠なし・対応付けなしが 0 件になるまで測定へ戻る（[`references/coverage-profiles.md`](references/coverage-profiles.md)）。
    **視覚採取を同値クラスで削減する場合も、E2E は全候補に要る**（削減してよいのはベースライン採取だけ）
    **被覆表が埋まったら、撮る前に撮影状態の必要集合を導く**——`value: present` のセルと項目の `visual_states`（プロファイル宣言済みなら `--write` が書き戻す）から
-   **器を開く・指を乗せる・焦点を当てる・押している最中・不活性**の 5 種を `visual_state_coverage.rows` へ起こし、撮るなら `capture_conditions.states` の状態名、撮れないなら理由（`gaps.md` の「撮影状態の対象外」）を埋める。
+   **器を開く・指を乗せる・焦点を当てる・押している最中・不活性**の 5 種と**操作を終えた後に残る見た目**（`after-operation`）を `visual_state_coverage.rows` へ起こし、撮るなら `capture_conditions.states` の状態名、撮れないなら理由（`gaps.md` の「撮影状態の対象外」）を埋める。
    **この位置なのは、測った操作からしか導けず、かつ状態を後から足すと現行側もベースラインとノイズ基準値を採り直しになるため**（[`references/baseline.md`](references/baseline.md)「撮影状態の決め方（1）被覆表から導く」）
    **操作ごとに反応を「出るまで待ち、消えるまで測る」で観測し、反応の被覆表 `reactions.json` に残して assertion にする**（feature モードのみ）。
    **反応を記録する前に、対象ページの全フレームのオリジンが `targets[].url` のオリジンと同じかを測って `document_origins` に残す**——違えば、移行元が組み立てる絶対 URL で本来の配置を確かめ、
    本来も別オリジンなら根拠をその文書ごとに `cross_origin_evidence` へ書き、環境の都合なら記録せず停止して `targets[].url` を揃えるようユーザーに促す（別オリジンのフレームからは親の文書へ反応が届かず、実在する反応が `kind: none` に化ける）。
-   移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）
+   移行元のフィードバック呼び出し（`current.feedback_calls`）を走査して記録と突き合わせる（照合スクリプトは `metadata.json` を読むので手順 8 で通す。[`references/coverage.md`](references/coverage.md)「操作の反応」）。
+   **同じ表に、操作ごとに押した後に残る見た目（塗り・色・印・焦点）と戻り先（押す前後の URL・押す前に動かした状態のうち戻った範囲）を現行で測って `aftermath` に書く**——
+   残る見た目は撮る状態か assertion に割り当て、どちらにもしないなら理由を書く。**戻す範囲は、画面が持つ状態を表の `screen_states` に棚卸しし、その全てを既定から動かしてから押して測る**
+   （途中の見た目しか導かない撮影状態と、出て消える反応のどちらにも入らず、差が「差 0 件」と同じ見え方になるため。[`references/coverage.md`](references/coverage.md)「押した後に残るもの（`aftermath`）」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
@@ -203,7 +206,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    **あわせてスクロールバーを表示した窓のはみ出しを測る**——`overflow/` の測定スペックを `PARITY_OVERFLOW_CAPTURE=1` 付きで `current` に単独で走らせ、`capture_conditions.overflow` を書かせる（手で転記しない）。
    同じスペックは通常の実行でこの記録を期待値として現・新の両側に当てる。撮影時にスクロールバーが場所を取ったかは `capture_conditions.scrollbars` に書く（[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）。
    撮影状態は**手順 5 で被覆表から導いた集合**（`visual_state_coverage.rows` の `captured`）を土台に、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器と、
-   操作から導けない状態（`selected` / `error` / 初期表示のバリアント）を足して決め（導出も棚卸しも通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
+   操作から導けない状態（`error` / 初期表示のバリアント）と、反応の被覆表の `aftermath` で撮ると決めた状態を足して決め（導出も棚卸しも通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
    **成果物を書き出す現側専用スペック（本手順と手順 7）は `current-only/` に置き、`new` プロジェクトから `testIgnore` で除外する**（除外しないと新側の実行が現側の証跡を静かに上書きする。配置と設定は [`references/locator-mapping.md`](references/locator-mapping.md)）。
    同じ設定で **`current` / `new` の両プロジェクトから `new-only/`（`parity-diff` が新側採取スペックを置く場所）も除外し、採取用の `new-capture` プロジェクトを用意する**（この時点では空でよい）。
    **撮る範囲は撮った組ごとに実測して `capture_conditions.capture_scope` に残す**——文書と撮影領域の寸法・内部スクロール器・撮影領域の外にある論理名を採り、

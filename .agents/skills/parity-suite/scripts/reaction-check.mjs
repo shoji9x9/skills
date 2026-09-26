@@ -7,6 +7,8 @@
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
 //      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
 //      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
+//      操作を終えた後に残るもの（aftermath）も数える。残る見た目は撮る状態か assertion に割り当て、
+//      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる（Issue #471）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）
 //   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
@@ -31,7 +33,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -251,6 +253,7 @@ function observedProblem(r, captureStates, documents) {
   const cap = r.capture;
   if (!isPlainObject(cap)) return "capture が無い（撮る／撮らないを決めていない）";
   const hasState = nonEmptyString(cap.state);
+  // 同じ状態名の使い回しの照合は checkReactions が全操作を見た後に行う（残る見た目の captured と合わせて数える）
   const hasReason = nonEmptyString(cap.reason);
   if (hasState === hasReason) return "capture は state と reason のどちらか一方だけを埋める";
   if (hasState && captureStates && !captureStates.has(/** @type {string} */ (cap.state))) {
@@ -464,6 +467,255 @@ function layoutProblem(layout) {
 }
 
 /**
+ * 値が空でない文字列の配列か（テンプレートの説明文のままの要素を含まない）。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function filledStrings(v) {
+  return Array.isArray(v) && v.length > 0 && v.every((c) => nonEmptyString(c) && !isPlaceholder(c));
+}
+
+/**
+ * 空でなく、テンプレートの説明文のままでもない文字列か。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function filled(v) {
+  return nonEmptyString(v) && !isPlaceholder(v);
+}
+
+/**
+ * 操作を終えた後に残る見た目（aftermath.look）の欠けを返す。Issue #471
+ *
+ * 撮影状態の導出は操作の途中（器を開く・指を乗せる等）までしか導かないので、終えた後に残る塗り・色・印は
+ * 撮る状態にも assertion にも入らず、差は「差 0 件」と同じ見え方になる。見た目ごとに現行で測った値を残させ、
+ * 撮る状態か assertion のどちらか（両方でもよい）に割り当てさせる。どちらにもしないなら理由を要求する。
+ * @param {unknown} look
+ * @param {Set<string> | null} captureStates
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function aftermathLookProblems(look, captureStates) {
+  if (!isPlainObject(look)) {
+    return [
+      {
+        problem:
+          "aftermath.look が無い（押した後に残る見た目〈塗り・色・印・焦点〉を測っていない。残らないなら changes: false を確かめ方付きで書く）",
+        unmeasured: true,
+      },
+    ];
+  }
+  if (look.changes === null) {
+    return [
+      {
+        problem: `aftermath.look: 未測定${nonEmptyString(look.reason) ? `（${look.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (typeof look.changes !== "boolean") {
+    return [
+      { problem: "aftermath.look.changes が true / false / null のどれでもない", unmeasured: true },
+    ];
+  }
+  const items = look.items;
+  if (look.changes === false) {
+    /** @type {{ problem: string, unmeasured: boolean }[]} */
+    const out = [];
+    if (!filled(look.evidence)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに evidence が空・テンプレートの説明文のまま（押した後に見た目が残らないことを確かめた記録が無い）",
+        unmeasured: true,
+      });
+    }
+    // 残らないことを確かめた論理名。強度ゲートがここへ押した後だけ残る塗りを注入し、不在の assertion が赤くなるかを確かめる
+    if (!filledStrings(look.targets)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに targets（残らないことを確かめた論理名）が空（強度ゲートが注入する先が無く、不在の assertion の空振りを検出できない）",
+        unmeasured: true,
+      });
+    }
+    // 残らないことも assertion にする。新側が押した後に塗り・焦点の輪を残しても、撮っていない状態は 3 経路に写らない
+    if (!filledStrings(look.covered_by)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに covered_by が空（押した後に見た目が残らないことをスイートの assertion に落としていない）",
+        unmeasured: true,
+      });
+    }
+    if (Array.isArray(items) && items.length > 0) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに items がある（残らないと残るが同時に成立する）",
+        unmeasured: false,
+      });
+    }
+    return out;
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return [
+      {
+        problem:
+          "aftermath.look.changes: true なのに items が空（残る見た目を 1 つずつ列挙していない）",
+        unmeasured: true,
+      },
+    ];
+  }
+  /** @type {string[]} */
+  const idProblems = [];
+  const ids = collectIds(items, "aftermath.look.items", idProblems);
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = idProblems.map((problem) => ({ problem, unmeasured: true }));
+  for (const item of items) {
+    if (!isPlainObject(item) || !ids.has(/** @type {string} */ (item.id))) continue;
+    const at = `aftermath.look.items["${item.id}"]`;
+    if (!filled(item.target) || !filled(item.description)) {
+      out.push({ problem: `${at}: target（論理名）/ description が空`, unmeasured: true });
+      continue;
+    }
+    // 現行で 1 度測った値。書かせないと、見た目を思い浮かべただけの列挙と区別が付かない
+    if (!filled(item.observed)) {
+      out.push({
+        problem: `${at}: observed（現行で測った値〈計算後スタイル・印の文言など〉）が空・テンプレートの説明文のまま`,
+        unmeasured: true,
+      });
+      continue;
+    }
+    const hasState = filled(item.captured);
+    const hasAssertion = filledStrings(item.covered_by);
+    const hasReason = filled(item.reason);
+    if (hasReason && (hasState || hasAssertion)) {
+      out.push({
+        problem: `${at}: reason と captured / covered_by が両方埋まっている（撮る・押さえると、どちらにもしないが同時に成立する）`,
+        unmeasured: false,
+      });
+      continue;
+    }
+    if (!hasState && !hasAssertion && !hasReason) {
+      out.push({
+        problem: `${at}: 撮る状態（captured）にも assertion（covered_by）にも割り当てていない（どちらにもしないなら reason を書き、gaps.md に残す）`,
+        unmeasured: true,
+      });
+      continue;
+    }
+    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {
+      out.push({
+        problem: `${at}: captured "${item.captured}" が capture_conditions.states に無い`,
+        unmeasured: true,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * 押した後に URL の上でも状態の上でもどこへ戻るか（aftermath.returns_to）の欠けを返す。Issue #471
+ *
+ * 遷移しないはずの操作が遷移する・戻すはずの状態を戻さない差は、撮った画面の上には現れない。
+ * 押す前後の URL と、押す前に既定から動かした状態（probed）のうち押した後に既定へ戻ったもの（reset）を実測させる。
+ * 動かしていない状態が戻るかは測れないので、動かさずに測った記録は範囲を語れない。
+ * URL は成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、オリジンを除いたパスで書かせる。
+ * probed は操作ごとの自己申告だと、1 つだけ動かして 1 つだけ確かめた記録が通る（Codex レビュー）。
+ * 表で 1 回だけ宣言した画面の状態の棚卸し（screen_states）と突き合わせ、動かさなかった状態には理由を要求する。
+ * @param {unknown} ret
+ * @param {string[] | null} screenStates - 表の screen_states.states（読めなければ null で、表側の問題として別に落ちる）
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function aftermathReturnsProblems(ret, screenStates) {
+  if (!isPlainObject(ret)) {
+    return [
+      {
+        problem:
+          "aftermath.returns_to が無い（押した後の遷移先と、押す前に動かした状態のうち戻った範囲を測っていない）",
+        unmeasured: true,
+      },
+    ];
+  }
+  if (ret.measured === false) {
+    return [
+      {
+        problem: `aftermath.returns_to: 未測定${nonEmptyString(ret.reason) ? `（${ret.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (ret.measured !== true) {
+    return [{ problem: "aftermath.returns_to.measured が真偽値でない", unmeasured: true }];
+  }
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = [];
+  for (const key of ["url_before", "url_after"]) {
+    const v = ret[key];
+    if (!filled(v) || !String(v).startsWith("/") || String(v).startsWith("//")) {
+      out.push({
+        problem: `aftermath.returns_to.${key} が "/" で始まるオリジンを除いたパス（クエリ・フラグメントを含む）でない`,
+        unmeasured: true,
+      });
+    }
+  }
+  const probed = ret.probed;
+  const reset = ret.reset;
+  const stringsOk = (v) => Array.isArray(v) && v.every(filled) && new Set(v).size === v.length;
+  if (!stringsOk(probed) || !stringsOk(reset)) {
+    out.push({
+      problem:
+        "aftermath.returns_to の probed / reset が、重複の無い空でない文字列の配列でない（何も動かしていないなら空配列）",
+      unmeasured: true,
+    });
+  } else {
+    const probedSet = new Set(/** @type {string[]} */ (probed));
+    const stray = /** @type {string[]} */ (reset).filter((x) => !probedSet.has(x));
+    if (stray.length > 0) {
+      out.push({
+        problem: `aftermath.returns_to.reset に probed に無い状態がある: ${stray.join(", ")}（動かしていない状態が戻ったかは測れない）`,
+        unmeasured: true,
+      });
+    }
+    const notProbed = ret.not_probed;
+    if (!isPlainObject(notProbed)) {
+      out.push({
+        problem:
+          'aftermath.returns_to.not_probed が状態ごとの理由のオブジェクトでない（{ "<状態>": "<動かさなかった理由>" }。全て動かしたなら {}）',
+        unmeasured: true,
+      });
+    } else if (screenStates !== null) {
+      const declared = new Set(screenStates);
+      const unknown = /** @type {string[]} */ (probed).filter((x) => !declared.has(x));
+      if (unknown.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to.probed に表の screen_states に無い状態がある: ${unknown.join(", ")}（棚卸しに足すか名前を合わせる）`,
+          unmeasured: true,
+        });
+      }
+      // 動かしていない状態が戻るかは測れない。棚卸しの全ての状態を、動かしたか・理由付きで動かさなかったかのどちらかにする
+      const lacking = screenStates.filter((x) => !probedSet.has(x) && !filled(notProbed[x]));
+      if (lacking.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to: 画面の状態 ${lacking.join(", ")} を押す前に動かしておらず、not_probed に理由も無い（戻す範囲を語れない）`,
+          unmeasured: true,
+        });
+      }
+      const stale = Object.keys(notProbed).filter((x) => !declared.has(x) || probedSet.has(x));
+      if (stale.length > 0) {
+        out.push({
+          problem: `aftermath.returns_to.not_probed に、棚卸しに無い・動かした状態の理由が残っている: ${stale.join(", ")}`,
+          unmeasured: false,
+        });
+      }
+    }
+  }
+  if (!filledStrings(ret.covered_by)) {
+    out.push({
+      problem:
+        "aftermath.returns_to.covered_by が空（押した後の URL と、戻る・戻らない状態をスイートの assertion に落としていない）",
+      unmeasured: true,
+    });
+  }
+  return out;
+}
+
+/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
@@ -539,7 +791,7 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -547,6 +799,7 @@ export function checkReactions(table, opts = {}) {
     root = process.cwd(),
     recorded = false,
     captureStates = null,
+    pageNames = null,
     slug = null,
     target = null,
     targetCommit = undefined,
@@ -634,6 +887,27 @@ export function checkReactions(table, opts = {}) {
   if (windowMs === null)
     problems.push("observation_window_ms が正の数でない（none の観測時間の下限が無い）");
 
+  // 画面が持つ状態の棚卸し（Issue #471）。押した後に戻す範囲を、操作ごとの自己申告ではなくこの一覧と突き合わせる
+  const ss = table.screen_states;
+  /** @type {string[] | null} */
+  let screenStates = null;
+  if (
+    !isPlainObject(ss) ||
+    !Array.isArray(ss.states) ||
+    !ss.states.every(filled) ||
+    new Set(ss.states).size !== ss.states.length
+  ) {
+    problems.push(
+      "screen_states.states が重複の無い空でない文字列の配列でない（画面が持つ状態〈検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り等〉の棚卸し。持たないなら空配列）",
+    );
+  } else if (!filled(ss.source)) {
+    problems.push(
+      "screen_states.source が空（状態の棚卸しをどこから列挙したか〈移行元ソースの状態を持つ変数・URL のクエリ・実 UI〉が残らない）",
+    );
+  } else {
+    screenStates = /** @type {string[]} */ (ss.states);
+  }
+
   const operations = Array.isArray(table.operations) ? table.operations : null;
   if (operations === null) throw new UsageError("operations が配列でない");
   if (operations.length === 0)
@@ -649,6 +923,10 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
+  /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行 */
+  const aftermathCaptureUses = new Map();
+  /** @type {Map<string, string>} 使い回しの照合のキー → 人が読む名前（最初に現れたページ名 × 状態名） */
+  const captureLabel = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
   const handlersByOp = new Map();
   for (const op of operations) {
@@ -664,6 +942,105 @@ export function checkReactions(table, opts = {}) {
     if (lp.problem) {
       if (lp.unmeasured) fail(lp.problem);
       else problems.push(`${label}: ${lp.problem}`);
+    }
+    // 押した後に残る見た目と戻り先（Issue #471）。欠けは layout と同じく未測定に数える
+    const am = op.aftermath;
+    const amProblems = isPlainObject(am)
+      ? [
+          ...aftermathLookProblems(am.look, captureStates),
+          ...aftermathReturnsProblems(am.returns_to, screenStates),
+        ]
+      : [
+          {
+            problem:
+              "aftermath が無い（押した後に残る見た目〈look〉と戻り先〈returns_to〉を測っていない）",
+            unmeasured: true,
+          },
+        ];
+    for (const ap of amProblems) {
+      if (ap.unmeasured) fail(ap.problem);
+      else problems.push(`${label}: ${ap.problem}`);
+    }
+    // 撮影の単位はページ × 状態名 × ビューポートなので、別のページの同じ状態名は別の 1 枚（baseline.md）。
+    // 割る単位は操作が載るページではなく、押した後に撮ったページ（capture_page。遷移する操作は遷移先）。
+    // 載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通ってしまう（Codex レビュー）。
+    // 省略は同じページとみなして使い回しを厳しく見る
+    /** @type {string | null} */
+    let page = null;
+    if (op.capture_page !== undefined && op.capture_page !== null) {
+      if (!filled(op.capture_page))
+        fail(
+          "capture_page が空でない文字列でない（省略するか capture_conditions.pages の名前を書く）",
+        );
+      else if (pageNames === null && captureStates !== null)
+        fail(
+          `capture_page "${op.capture_page}" を照合できない（metadata.json の capture_conditions.pages を読めない）`,
+        );
+      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))
+        fail(
+          `capture_page "${op.capture_page}" が metadata.json の capture_conditions.pages に無い`,
+        );
+      else page = /** @type {string} */ (op.capture_page);
+    }
+    // ページが 2 つ以上ある機能で capture_page を省くと、撮った状態がどのページの 1 枚かを決められない
+    // （別のページの同名の 1 枚でも行が満たされる）。ページが 1 つだけならそのページとみなす
+    const consumesCapture =
+      (Array.isArray(op.reactions) ? op.reactions : []).some(
+        (r) =>
+          isPlainObject(r) &&
+          r.kind === "observed" &&
+          isPlainObject(r.capture) &&
+          filled(r.capture.state),
+      ) ||
+      (isPlainObject(op.aftermath) &&
+        isPlainObject(op.aftermath.look) &&
+        Array.isArray(op.aftermath.look.items) &&
+        op.aftermath.look.items.some((it) => isPlainObject(it) && filled(it.captured)));
+    if (page === null && op.capture_page == null && consumesCapture && pageNames !== null) {
+      if (pageNames.size === 1) page = [...pageNames][0];
+      else if (pageNames.size > 1)
+        fail(
+          "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
+        );
+    }
+    // 使い回しは名乗ったページ名 × 状態名で数える。名乗ったページが本当に撮ったページか（押した後の URL との照合）は
+    // ページの定義（pages[].path の意味論: baseURL の接頭辞・クエリ・フラグメント）を固めてから扱う（Issue #484）。
+    // それまでは規約（押した後に撮ったページを書く）で持つ
+    const pageKey = page;
+    const captureKey = (/** @type {string} */ state) => {
+      const key = JSON.stringify([pageKey, state]);
+      if (!captureLabel.has(key))
+        captureLabel.set(key, page === null ? state : `${page} の ${state}`);
+      return key;
+    };
+    // 撮る状態へ割り当てた残る見た目を、ページ × 状態名ごとに集める（使い回しの照合は全操作を見た後）
+    const lookItems =
+      isPlainObject(am) && isPlainObject(am.look) && Array.isArray(am.look.items)
+        ? am.look.items
+        : [];
+    // 観測した反応の capture.state も同じ状態名の集合に入れる（別の操作の残る見た目と 1 枚を共有しても通さない）
+    for (const r of Array.isArray(op.reactions) ? op.reactions : []) {
+      if (!isPlainObject(r) || r.kind !== "observed" || !isPlainObject(r.capture)) continue;
+      if (!filled(r.capture.state) || !nonEmptyString(r.id)) continue;
+      const key = captureKey(/** @type {string} */ (r.capture.state));
+      const uses = aftermathCaptureUses.get(key) ?? [];
+      uses.push({
+        opId: /** @type {string} */ (op.id),
+        label: `${label}: reactions["${r.id}"].capture`,
+        shared: filled(r.capture.shared_capture_reason),
+      });
+      aftermathCaptureUses.set(key, uses);
+    }
+    for (const item of lookItems) {
+      if (!isPlainObject(item) || !filled(item.captured) || !nonEmptyString(item.id)) continue;
+      const key = captureKey(/** @type {string} */ (item.captured));
+      const uses = aftermathCaptureUses.get(key) ?? [];
+      uses.push({
+        opId: /** @type {string} */ (op.id),
+        label: `${label}: aftermath.look.items["${item.id}"]`,
+        shared: filled(item.shared_capture_reason),
+      });
+      aftermathCaptureUses.set(key, uses);
     }
     handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];
@@ -703,6 +1080,18 @@ export function checkReactions(table, opts = {}) {
         }
       }
     }
+  }
+  // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
+  // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する
+  for (const [key, uses] of aftermathCaptureUses) {
+    if (uses.length < 2) continue;
+    const name = captureLabel.get(key) ?? key;
+    const lacking = uses.filter((u) => !u.shared);
+    if (lacking.length === 0) continue;
+    for (const u of lacking) unmeasuredOps.add(u.opId);
+    problems.push(
+      `撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
+    );
   }
   // none の観測時間の下限が観測済みの遅れ以下だと、遅れて出る反応を「無い」と記録しても通る
   if (windowMs !== null && maxObservedDelay !== null && windowMs <= maxObservedDelay) {
@@ -1018,6 +1407,13 @@ export function main(argv, deps = {}) {
       root,
       recorded,
       captureStates: new Set(cc.states),
+      pageNames: Array.isArray(cc.pages)
+        ? new Set(
+            cc.pages
+              .filter((pg) => isPlainObject(pg) && nonEmptyString(pg.name))
+              .map((pg) => /** @type {string} */ (pg.name)),
+          )
+        : null,
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,

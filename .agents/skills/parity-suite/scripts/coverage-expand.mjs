@@ -32,16 +32,26 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "17";
+export const VERSION = "20";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
 
 // 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
 // capture_conditions.states の状態名そのものではない（名前は撮る側が決める）。
-// 導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は
+// 先頭の 5 種は操作の**途中**の見た目、after-operation は操作を**終えた後に残る**見た目
+// （選択の塗り・絞り込み中の見出しの印・並べ替えの印。Issue #471）。途中だけを導くと、
+// 終えた後の見た目は撮られず、差は「差 0 件」と同じ見え方になる。
+// 導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は
 // 従来どおり手で states へ足す。
-const VISUAL_STATE_KINDS = ["opens-container", "hover", "focus", "active", "disabled"];
+const VISUAL_STATE_KINDS = [
+  "opens-container",
+  "hover",
+  "focus",
+  "active",
+  "disabled",
+  "after-operation",
+];
 
 // 撮影状態の行のうち、人／エージェントが埋める欄。導出は要求の集合だけを決めるので、
 // 書き戻し（fillVisualStateRows）はこの一覧を必ず引き継ぐ。
@@ -808,10 +818,76 @@ export function validateProfile(profile, source) {
     }
   });
 
+  // 要素は ルール id か、ルール id の配列（どれか 1 つが候補を生めばよい代替の組）。
+  // 代替の組は、同じ要求を排他な guard で分けたルール（初期表示の列と、表示切替で出す列の行の選択など）に使う。
+  // 別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が「必須ルールの候補 0 件」で行き止まりになる。
   const required = Array.isArray(p.required_rules) ? p.required_rules : [];
-  for (const rid of required) {
-    if (!ruleIds.has(String(rid)))
-      at(`required_rules: 未定義のルール ${String(rid)} を参照している`);
+  /** @type {Map<string, string>} ルール id → 軸の並び（代替の組の同質性の照合に使う） */
+  const axesOfRule = new Map();
+  /** @type {Map<string, Record<string, unknown>>} ルール id → guard（代替の組の排他性の照合に使う） */
+  const guardOfRule = new Map();
+  /** @type {Map<string, string>} ルール id → requirement（代替の組の意味の同一性。宣言した値だけを信じる） */
+  const requirementOfRule = new Map();
+  for (const rule of rules) {
+    if (!isPlainObject(rule) || !nonEmptyString(rule.id)) continue;
+    const r = /** @type {Record<string, unknown>} */ (rule);
+    axesOfRule.set(String(r.id), JSON.stringify(Array.isArray(r.axes) ? r.axes.map(String) : []));
+    guardOfRule.set(
+      String(r.id),
+      isPlainObject(r.guard) ? /** @type {Record<string, unknown>} */ (r.guard) : {},
+    );
+    if (nonEmptyString(r.requirement)) requirementOfRule.set(String(r.id), String(r.requirement));
+  }
+  // 2 つのルールの guard が排他か（同じフラグに逆の値を要求する条件が 1 つ以上ある）。
+  // 排他なら、1 つの要素はどちらか一方にしか当たらない＝同じ要求を要素の性質で分けたルールだと機械的に言える
+  const exclusive = (/** @type {string} */ a, /** @type {string} */ b) => {
+    const ga = guardOfRule.get(a) ?? {};
+    const gb = guardOfRule.get(b) ?? {};
+    return Object.keys(ga).some((k) => Object.hasOwn(gb, k) && ga[k] !== gb[k]);
+  };
+  /** @type {Set<string>} */
+  const seenRequired = new Set();
+  for (const entry of required) {
+    const group = Array.isArray(entry) ? entry : [entry];
+    if (group.length === 0 || !group.every(nonEmptyString)) {
+      at("required_rules: 空の要素・空の代替の組・文字列でないルール id がある");
+      continue;
+    }
+    for (const rid of group) {
+      if (!ruleIds.has(String(rid)))
+        at(`required_rules: 未定義のルール ${String(rid)} を参照している`);
+      if (seenRequired.has(String(rid)))
+        at(
+          `required_rules: ルール ${String(rid)} が 2 回以上現れる（代替の組は 1 つの要素にまとめる）`,
+        );
+      seenRequired.add(String(rid));
+    }
+    // 組は「どれか 1 つで満たす」ので、同じ要求を guard だけで分けたルールに限る。軸が違うルールを組にすると
+    // 片方の候補がもう片方の候補 0 件を黙らせる（例: 列の表示と右クリックメニューを組にするとメニューの列挙漏れが消える）
+    if (group.length > 1 && new Set(group.map((rid) => axesOfRule.get(String(rid)))).size > 1) {
+      at(
+        `required_rules: 代替の組 ${group.map(String).join(" / ")} の axes が揃っていない（同じ要求を guard だけで分けたルールしか組にしない）`,
+      );
+    }
+    // 軸や guard の形からは「同じ要求か」を推し量れない（排他は候補が重ならないことしか言わない。Codex レビュー）。
+    // 組の全てのルールに同じ requirement を明示させ、宣言で意味の同一性を持たせる
+    if (group.length > 1) {
+      const reqs = group.map((rid) => requirementOfRule.get(String(rid)));
+      if (reqs.some((x) => x === undefined) || new Set(reqs).size > 1)
+        at(
+          `required_rules: 代替の組 ${group.map(String).join(" / ")} の requirement が揃っていない（同じ要求を分けたルールには、組の全てに同じ requirement を書く）`,
+        );
+    }
+    // 軸が揃っていても、別の要求（列の表示と列の絞り込み等）を組にすると片方の候補がもう片方の 0 件を黙らせる。
+    // 組の全ての組み合わせで guard が排他（同じフラグに逆の値を要求）なことを要求する
+    for (let i = 0; i < group.length; i += 1) {
+      for (let j = i + 1; j < group.length; j += 1) {
+        if (!exclusive(String(group[i]), String(group[j])))
+          at(
+            `required_rules: 代替の組の ${String(group[i])} と ${String(group[j])} の guard が排他でない（同じフラグに逆の値を要求する条件が無い。同じ要求を要素の性質で分けたルールしか組にしない）`,
+          );
+      }
+    }
   }
 
   // enumeration ブロックは形式の正本（profile-schema.json）が必須にしている。
@@ -1684,21 +1760,23 @@ export function reconcile(coverage, profiles, metadata = null) {
       }
 
       const candidates = expandCandidates(profile, elements);
-      const required = Array.isArray(profile.required_rules)
-        ? profile.required_rules.map(String)
-        : [];
+      // 要素は ルール id か代替の組（validateProfile が形を検査済み）。組はどれか 1 つが候補を生めば満たす。
+      const required = (Array.isArray(profile.required_rules) ? profile.required_rules : []).map(
+        (entry) => (Array.isArray(entry) ? entry.map(String) : [String(entry)]),
+      );
       const usedAbsences = new Set();
-      for (const rid of required) {
-        if (candidates.some((cand) => cand.rule === rid)) continue;
+      for (const group of required) {
+        if (candidates.some((cand) => group.includes(cand.rule))) continue;
         // 「その部品には無い」の主張は、ルールが使う element 軸のいずれかが
         // 根拠付きで空（軸ごと空、または全要素が要素ごとの免除を持つ）のときだけ通す。
-        const justifiedBy = justifiedEmptyAxis(profile, rid, elements, absences);
-        if (justifiedBy) {
-          for (const scope of justifiedBy) usedAbsences.add(scope);
+        // 代替の組は、組の全てのルールについて根拠があるときだけ通す（1 つでも根拠が無ければ列挙漏れと区別できない）。
+        const justified = group.map((rid) => justifiedEmptyAxis(profile, rid, elements, absences));
+        if (justified.every(Boolean)) {
+          for (const scopes of justified) for (const scope of scopes ?? []) usedAbsences.add(scope);
           continue;
         }
         problems.push(
-          `${label}: 必須ルール ${rid} の候補が 0 件（列挙されていないのか、その部品に無いのかを区別できない。無いなら enumeration.justified_absences に根拠を残す）`,
+          `${label}: 必須ルール ${group.join(" / ")} の候補が 0 件（列挙されていないのか、その部品に無いのかを区別できない。無いなら enumeration.justified_absences に根拠を残す）`,
         );
         unmeasured += 1;
       }
@@ -1935,7 +2013,7 @@ function visualRowKey(row) {
  * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べないので、
  * 集合が足りないぶんは「差 0 件」と区別が付かない。導出はその不足を撮る前に見えるようにする。
  *
- * 下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は手で states へ足す。
+ * 下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。
  * @param {Record<string, unknown>} cov
  * @returns {{rows: Array<Record<string, unknown>>, problems: string[]}}
  */

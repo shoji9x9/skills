@@ -91,7 +91,7 @@ test("同梱プロファイルはすべてスキーマ検証を通る（壊れ�
   expect(bundled.has("datagrid")).toBe(true);
 });
 
-/** DataGrid の列挙（列 2・メニュー対象 1・メニュー項目 2・条件 1）。 */
+/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
 function enumeration() {
   return {
     source: {
@@ -125,6 +125,8 @@ function enumeration() {
           },
         },
       ],
+      "sort-combination": [{ id: "price-then-name", flags: {} }],
+      "row-selector": [{ id: "row-number", flags: {} }],
       "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
       "menu-item": [
         { id: "copy", flags: { enabled: true } },
@@ -146,7 +148,7 @@ function datagridCoverage() {
       {
         id: "grid",
         profile: "datagrid",
-        profile_version: "2",
+        profile_version: "3",
         items: candidates.map((c) => ({
           id: c.id,
           category: c.rule,
@@ -180,8 +182,10 @@ test("陽性コントロール: 候補が全てセルへ落ちていれば適合
   const r = reconcile(datagridCoverage(), bundled);
   expect(r.problems).toEqual([]);
   expect(r.ok).toBe(true);
-  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ メニュー開閉 1 ＋ メニュー項目 2。
-  expect(r.candidates).toBe(12);
+  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1 組 × 先の列の向き 2 × 足した列の向き 3
+  // ＋ 行の選択 1 手段 × 列 2 ＋ メニュー開閉 1 ＋ メニュー項目 2。
+  // 初期非表示で表示切替できる列が無いので row-select-revealed は候補を生まない。
+  expect(r.candidates).toBe(20);
   expect(r.unmeasured).toBe(0);
 });
 
@@ -623,7 +627,7 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   for (const axis of ["menu-target", "menu-item", "menu-condition"]) {
     inst.enumeration.elements[axis] = [];
   }
-  const keep = (id) => id.startsWith("column-");
+  const keep = (id) => !id.startsWith("context-menu-");
   cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
   inst.candidates = inst.candidates.filter(keep);
   cov.cells = cov.cells.filter((c) => keep(c.item));
@@ -649,6 +653,163 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   // 根拠が空なら通さない。
   inst.enumeration.justified_absences = [{ scope: "menu-target", reason: "  " }];
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(/reason が空/);
+});
+
+test("行の選択・複数列の並べ替えを持たないグリッドは、列挙が空でも根拠付きでだけ通す（Issue #471）", () => {
+  // 終えた後に残る見た目（選択の塗り・複数列の並べ替えの印）は、軸を列挙しないと候補にすら現れない。
+  // 空の列挙を「その部品には無い」と区別できない形で通さないため、必須ルールにして根拠を求める。
+  for (const [axis, rule, label] of [
+    ["row-selector", "row-select", "row-select / row-select-revealed"],
+    ["sort-combination", "multi-column-sort", "multi-column-sort"],
+  ]) {
+    const cov = datagridCoverage();
+    const inst = cov.components[0].instances[0];
+    inst.enumeration.elements[axis] = [];
+    const keep = (id) => !id.startsWith(`${rule}/`);
+    cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
+    inst.candidates = inst.candidates.filter(keep);
+    cov.cells = cov.cells.filter((c) => keep(c.item));
+    resolveVisualStates(cov);
+
+    const bare = reconcile(cov, bundled);
+    expect(bare.ok).toBe(false);
+    expect(bare.problems.join("\n")).toContain(`必須ルール ${label} の候補が 0 件`);
+
+    inst.enumeration.justified_absences = [
+      {
+        scope: axis,
+        reason:
+          "行番号・チェックボックス・修飾キー付きのクリックを実 UI で試し、効かないことを確かめた",
+      },
+    ];
+    expect(reconcile(cov, bundled).problems).toEqual([]);
+  }
+});
+
+test("必須ルールの代替の組は、どれか 1 つが候補を生めば満たす（全列が初期非表示のグリッド。Codex レビュー）", () => {
+  // 全列が初期非表示で表示切替できるグリッドは row-select の候補を生まず、row-select-revealed だけが立つ。
+  // 行を選ぶ手段も列も実在するので justified_absences では通せない——組にしないと行き止まりになる。
+  const profile = bundled.get("datagrid");
+  const cov = datagridCoverage();
+  const inst = cov.components[0].instances[0];
+  for (const col of inst.enumeration.elements.column) {
+    col.flags.initially_visible = false;
+    col.flags.toggleable = true;
+  }
+  const { elements } = readEnumeration(inst.enumeration, profile, "t");
+  const candidates = expandCandidates(profile, elements);
+  expect(candidates.some((c) => c.rule === "row-select")).toBe(false);
+  expect(candidates.some((c) => c.rule === "row-select-revealed")).toBe(true);
+  const c = cov.components[0];
+  c.items = candidates.map((x) => ({
+    id: x.id,
+    category: x.rule,
+    name: x.id,
+    candidate: { rule: x.rule, axes: x.axes },
+  }));
+  inst.candidates = candidates.map((x) => x.id);
+  cov.cells = candidates.map((x) => ({
+    component: "grid",
+    item: x.id,
+    instance: "orders",
+    value: "present",
+    evidence: "実 UI で列を出してから操作し、DOM 変化で発火を確認した",
+    covered_by: [`e2e/order-list.spec.ts > ${x.id}`],
+    unmeasured_reason: null,
+  }));
+  resolveVisualStates(cov);
+  const r = reconcile(cov, bundled);
+  // 残る問題は column-visible の候補 0 件だけであることを固定する。これは本 Issue 以前（datagrid v2）からの制約で、
+  // 全列が初期非表示のグリッドは column-visible を満たせない（v2 でも同じく落ちることを実測した。回帰ではない）。
+  // 列の表示を代替の組にする案は、column-toggle と guard が排他でなく組にできないため見送った（PR #482）
+  expect(r.problems).toHaveLength(1);
+  expect(r.problems[0]).toContain("必須ルール column-visible の候補が 0 件");
+});
+
+test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
+  // row-select-revealed の軸を column だけにした版。row-selector を根拠付きで空にしても、
+  // row-select-revealed は column が実在するので根拠にならず、組として列挙漏れと区別できない。
+  const dg = structuredClone(bundled.get("datagrid"));
+  dg.candidate_rules.find((r) => r.id === "row-select-revealed").axes = ["column"];
+  const profiles = new Map(bundled);
+  profiles.set("datagrid", dg);
+  const cov = datagridCoverage();
+  const inst = cov.components[0].instances[0];
+  inst.enumeration.elements["row-selector"] = [];
+  inst.enumeration.justified_absences = [
+    {
+      scope: "row-selector",
+      reason: "行番号・チェックボックス・行のクリックを実 UI で試し、行を選べないことを確かめた",
+    },
+  ];
+  const keep = (id) => !id.startsWith("row-select/");
+  cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
+  inst.candidates = inst.candidates.filter(keep);
+  cov.cells = cov.cells.filter((c) => keep(c.item));
+  resolveVisualStates(cov);
+  expect(reconcile(cov, profiles).problems.join("\n")).toContain(
+    "必須ルール row-select / row-select-revealed の候補が 0 件",
+  );
+});
+
+test("required_rules の代替の組の形を検査する", () => {
+  const profile = structuredClone(bundled.get("datagrid"));
+  expect(validateProfile(profile, "d.json")).toEqual([]);
+  const rule = (p, id) => p.candidate_rules.find((r) => r.id === id);
+  for (const [bad, pattern, tweak] of [
+    [[[]], /空の要素・空の代替の組/],
+    [[["row-select", ""]], /空の要素・空の代替の組/],
+    [[["row-select", "nope"]], /未定義のルール nope/],
+    [["row-select", ["row-select", "row-select-revealed"]], /ルール row-select が 2 回以上現れる/],
+    [
+      [["column-visible", "context-menu-open"]],
+      /代替の組 column-visible \/ context-menu-open の axes が揃っていない/,
+    ],
+    // 軸が揃い guard が排他でも、同じ要求だと宣言していないルールは組にできない（Codex レビュー）
+    [
+      [["column-visible", "column-filter"]],
+      /代替の組 column-visible \/ column-filter の requirement が揃っていない/,
+      (p) => (rule(p, "column-filter").guard["column.initially_visible"] = false),
+    ],
+    // requirement を揃えても guard が排他でなければ落とす
+    [
+      [["column-visible", "column-filter"]],
+      /column-visible と column-filter の guard が排他でない/,
+      (p) => {
+        rule(p, "column-visible").requirement = "x";
+        rule(p, "column-filter").requirement = "x";
+      },
+    ],
+  ]) {
+    const p = structuredClone(profile);
+    p.required_rules = bad;
+    tweak?.(p);
+    expect(validateProfile(p, "d.json").join("\n")).toMatch(pattern);
+  }
+});
+
+test("初期非表示で表示切替できる列にも、行の選択の塗りの候補が立つ（Issue #471 レビュー）", () => {
+  // 列を出してから行を選ぶ経路。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
+  const profile = bundled.get("datagrid");
+  const en = enumeration();
+  en.elements.column.push({
+    id: "memo",
+    flags: {
+      initially_visible: false,
+      toggleable: true,
+      requires_horizontal_scroll: false,
+      filterable: false,
+      sortable: false,
+    },
+  });
+  const { elements } = readEnumeration(en, profile, "t");
+  const ids = expandCandidates(profile, elements).map((c) => c.id);
+  expect(ids).toContain("row-select-revealed/row-number/memo");
+  // 初期表示の列は row-select 側だけに立つ（同じ列が 2 つのルールで二重に数えられない）
+  expect(ids).not.toContain("row-select/row-number/memo");
+  expect(ids.filter((id) => id.startsWith("row-select-revealed/"))).toEqual([
+    "row-select-revealed/row-number/memo",
+  ]);
 });
 
 test("要素が候補にならないことも根拠付きでだけ通す（要素スコープの免除）", () => {
@@ -1147,7 +1308,7 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
   );
   expect(r.status).toBe(0);
   const written = JSON.parse(readFileSync(r.paths["component-coverage.json"], "utf8"));
-  expect(written.components[0].instances[0].candidates).toHaveLength(12);
+  expect(written.components[0].instances[0].candidates).toHaveLength(20);
   expect(written.conformance).toMatchObject({ tool: "coverage-expand", ok: true, unmeasured: 0 });
   // 測定値は書き換えない。
   expect(written.cells[0]).toMatchObject({ value: "present" });
@@ -1181,10 +1342,35 @@ test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
 test("被覆表の操作から撮影状態を導く（プロファイルが種別の正本）", () => {
   const cov = datagridCoverage();
   const kinds = cov.visual_state_coverage.rows.map((r) => r.kind);
-  // 器を開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種が測った操作から立つ。
+  // 器を開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種と、
+  // 操作を終えた後に残る見た目（Issue #471）が測った操作から立つ。
   expect(new Set(kinds)).toEqual(
-    new Set(["opens-container", "hover", "focus", "active", "disabled"]),
+    new Set(["opens-container", "hover", "focus", "active", "disabled", "after-operation"]),
   );
+  // 終えた後の見た目は、絞り込み・並べ替え（方向ごと）・複数列の並べ替え・行の選択（列ごと）から立つ。
+  // 途中の見た目だけを導くと、選択の塗りが付かない列や絞り込み中の見出しの色は撮られない。
+  expect(
+    cov.visual_state_coverage.rows
+      .filter((r) => r.kind === "after-operation")
+      .map((r) => r.required_by)
+      .sort(),
+  ).toEqual([
+    "column-filter/price",
+    "column-sort/name/asc",
+    "column-sort/name/desc",
+    "column-sort/name/none",
+    "column-sort/price/asc",
+    "column-sort/price/desc",
+    "column-sort/price/none",
+    "multi-column-sort/price-then-name/asc/asc",
+    "multi-column-sort/price-then-name/asc/desc",
+    "multi-column-sort/price-then-name/asc/none",
+    "multi-column-sort/price-then-name/desc/asc",
+    "multi-column-sort/price-then-name/desc/desc",
+    "multi-column-sort/price-then-name/desc/none",
+    "row-select/row-number/name",
+    "row-select/row-number/price",
+  ]);
   // 行は要求元の候補ごとに分かれる。種別だけで束ねると、同じ opens-container を要求する
   // 列フィルタの吹き出しと右クリックメニューが 1 行へ潰れ、片方を撮るだけで門が通る。
   // column-toggle はこの列挙に toggleable な列が無いため候補が立たず、行も立たない。
@@ -1211,7 +1397,7 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
   );
   // 項目の種別はプロファイルから書き戻される（部品ごとに手で書かない）。
   const sortItem = cov.components[0].items.find((i) => i.candidate.rule === "column-sort");
-  expect(sortItem.visual_states).toEqual(["hover", "focus", "active"]);
+  expect(sortItem.visual_states).toEqual(["hover", "focus", "active", "after-operation"]);
   const visibleItem = cov.components[0].items.find((i) => i.candidate.rule === "column-visible");
   expect(visibleItem.visual_states).toEqual([]);
   expect(visibleItem.no_visual_state_reason).toMatch(/操作しない/);

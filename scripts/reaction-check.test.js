@@ -80,6 +80,63 @@ const layoutChange = () => ({
   covered_by: ["layout.spec.ts: 条件を 2 回足した後も頁が窓に収まりグリッドが縮む"],
 });
 
+/** 押した後に見た目が残らず、どこへも戻らないことを実測で書いた記録（Issue #471）。 */
+const quietAftermath = () => ({
+  look: {
+    changes: false,
+    evidence: "押した後に対象の論理名の計算後スタイルと印の文言が押す前と同じ",
+    targets: ["コピーボタン", "一覧"],
+    covered_by: ["share.spec.ts: コピーの後もボタンと一覧の計算後スタイルが押す前と同じ"],
+  },
+  returns_to: {
+    measured: true,
+    url_before: "/share?id=1",
+    url_after: "/share?id=1",
+    probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    reset: [],
+    not_probed: {},
+    covered_by: [
+      "share.spec.ts: コピーの後も URL と検索条件・並べ替え・列フィルター・列の変更が残る",
+    ],
+  },
+});
+
+/** 押した後に見た目が残り、状態の一部を戻す操作の記録（絞り込み中の見出しの色・Clear が戻す範囲）。 */
+const lingeringAftermath = () => ({
+  look: {
+    changes: true,
+    items: [
+      {
+        id: "filtered-header",
+        target: "価格列の見出し",
+        description: "絞り込み中の見出しの文字色",
+        observed: "color: rgb(204, 0, 0)",
+        captured: null,
+        covered_by: ["search.spec.ts: 絞り込んだ列の見出しが赤くなる"],
+        reason: null,
+      },
+      {
+        id: "result-toast",
+        target: "コピー完了の通知",
+        description: "押した後に残る通知の背景",
+        observed: "background-color: rgb(0, 128, 0)",
+        captured: null,
+        covered_by: ["search.spec.ts: 押した後に通知の背景が緑で残る"],
+        reason: null,
+      },
+    ],
+  },
+  returns_to: {
+    measured: true,
+    url_before: "/share?id=1&sort=price",
+    url_after: "/share?id=1",
+    probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    reset: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    not_probed: {},
+    covered_by: ["search.spec.ts: Clear で検索条件と並べ替え・列フィルター・列の変更が既定に戻る"],
+  },
+});
+
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
@@ -87,6 +144,11 @@ const baseTable = () => ({
   document_origins: { top: "same-origin", "共有ダイアログの iframe": "same-origin" },
   cross_origin_evidence: {},
   observation_window_ms: 3000,
+  screen_states: {
+    states: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    source:
+      "移行元ソースの一覧画面が保持する状態（検索フォームの値・グリッドの並べ替え・列フィルター・列の表示設定）",
+  },
   feedback_calls: {
     declared: true,
     reason: null,
@@ -103,6 +165,7 @@ const baseTable = () => ({
       handlers: [{ file: "src/share.js", symbol: "copy" }],
       immediate_state: "ダイアログが閉じる",
       layout: noLayoutChange(),
+      aftermath: quietAftermath(),
       reactions: [toast()],
     },
     {
@@ -111,6 +174,7 @@ const baseTable = () => ({
       handlers: [{ file: "src/share.js", symbol: "search" }],
       immediate_state: "一覧が絞られる",
       layout: layoutChange(),
+      aftermath: lingeringAftermath(),
       reactions: [noneReaction()],
     },
   ],
@@ -393,6 +457,7 @@ test.each([
         trigger: "x()",
         immediate_state: "y",
         layout: noLayoutChange(),
+        aftermath: quietAftermath(),
         reactions: [{ ...toast(), id: "opy/toast" }],
       });
     },
@@ -1006,3 +1071,353 @@ test.each([
     expect(r.stderr).toContain(needle);
   },
 );
+
+test("押した後に何も残らない操作と、残る見た目・戻す範囲を測った操作は通す（Issue #471）", () => {
+  // 陽性コントロールの表そのもの（copy は残らない・戻さない、search は残る・戻す）。
+  // aftermath の分岐を足したことで正規の記録まで落とすようになっていないことを、他の欄と独立に固定する
+  const r = run(baseTable());
+  expect(r.status).toBe(0);
+  expect(r.stdout + r.stderr).not.toContain("aftermath");
+});
+
+test.each([
+  ["aftermath が無い", (t) => delete t.operations[0].aftermath, "aftermath が無い"],
+  ["aftermath が配列", (t) => (t.operations[0].aftermath = []), "aftermath が無い"],
+  ["look が無い", (t) => delete t.operations[0].aftermath.look, "aftermath.look が無い"],
+  [
+    "look.changes が語彙外",
+    (t) => (t.operations[0].aftermath.look.changes = "yes"),
+    "aftermath.look.changes が true / false / null のどれでもない",
+  ],
+  [
+    "look.changes: null（測れなかった）",
+    (t) => (t.operations[0].aftermath.look = { changes: null, reason: "選択を保てない" }),
+    "aftermath.look: 未測定（選択を保てない）",
+  ],
+  [
+    "look.changes: false に確かめ方が無い",
+    (t) => (t.operations[0].aftermath.look.evidence = ""),
+    "aftermath.look.changes: false なのに evidence が空",
+  ],
+  [
+    "look.changes: false に assertion が無い",
+    (t) => (t.operations[0].aftermath.look.covered_by = []),
+    "aftermath.look.changes: false なのに covered_by が空",
+  ],
+  [
+    "look.changes: false に確かめた論理名が無い",
+    (t) => (t.operations[0].aftermath.look.targets = []),
+    "aftermath.look.changes: false なのに targets",
+  ],
+  [
+    "look.changes: false なのに items がある",
+    (t) => (t.operations[0].aftermath.look.items = lingeringAftermath().look.items),
+    "changes: false なのに items がある",
+  ],
+  [
+    "look.changes: true に items が無い",
+    (t) => (t.operations[1].aftermath.look.items = []),
+    "changes: true なのに items が空",
+  ],
+  [
+    "items の id が重複",
+    (t) => (t.operations[1].aftermath.look.items[1].id = "filtered-header"),
+    'aftermath.look.items: id "filtered-header" が 2 回重複している',
+  ],
+  [
+    "items に現行で測った値が無い",
+    (t) => (t.operations[1].aftermath.look.items[0].observed = ""),
+    "observed（現行で測った値",
+  ],
+  [
+    "items の論理名が空",
+    (t) => (t.operations[1].aftermath.look.items[0].target = " "),
+    "target（論理名）/ description が空",
+  ],
+  [
+    "items を撮る状態にも assertion にも割り当てていない",
+    (t) => (t.operations[1].aftermath.look.items[0].covered_by = []),
+    "撮る状態（captured）にも assertion（covered_by）にも割り当てていない",
+  ],
+  [
+    "items が理由と割り当てを両方持つ",
+    (t) => (t.operations[1].aftermath.look.items[0].reason = "外部連携が起動する"),
+    "reason と captured / covered_by が両方埋まっている",
+  ],
+  [
+    "items の撮る状態が撮影条件に無い",
+    (t) => (t.operations[1].aftermath.look.items[1].captured = "selected-row"),
+    'captured "selected-row" が capture_conditions.states に無い',
+  ],
+  [
+    "returns_to が無い",
+    (t) => delete t.operations[0].aftermath.returns_to,
+    "aftermath.returns_to が無い",
+  ],
+  [
+    "returns_to.measured: false（測れなかった）",
+    (t) => (t.operations[0].aftermath.returns_to = { measured: false, reason: "遷移先が外部" }),
+    "aftermath.returns_to: 未測定（遷移先が外部）",
+  ],
+  [
+    "returns_to.measured が真偽値でない",
+    (t) => (t.operations[0].aftermath.returns_to.measured = "yes"),
+    "aftermath.returns_to.measured が真偽値でない",
+  ],
+  [
+    "押した後の URL が無い",
+    (t) => delete t.operations[0].aftermath.returns_to.url_after,
+    "aftermath.returns_to.url_after が",
+  ],
+  [
+    "押す前の URL にオリジンが入っている",
+    (t) => (t.operations[0].aftermath.returns_to.url_before = "https://app.example/share?id=1"),
+    "aftermath.returns_to.url_before が",
+  ],
+  [
+    "押す前の URL がプロトコル相対",
+    (t) => (t.operations[0].aftermath.returns_to.url_before = "//app.example/share"),
+    "aftermath.returns_to.url_before が",
+  ],
+  [
+    "動かしていない状態を戻したと書く",
+    (t) => (t.operations[1].aftermath.returns_to.probed = ["検索条件"]),
+    "reset に probed に無い状態がある: 並べ替え, 列フィルター, 列の変更",
+  ],
+  [
+    "棚卸しの状態を動かさず理由も無い（1 つだけ動かして 1 つだけ確かめる）",
+    (t) => (t.operations[0].aftermath.returns_to.probed = ["検索条件"]),
+    "画面の状態 並べ替え, 列フィルター, 列の変更 を押す前に動かしておらず、not_probed に理由も無い",
+  ],
+  [
+    "何も動かさず理由も無い",
+    (t) => (t.operations[0].aftermath.returns_to.probed = []),
+    "を押す前に動かしておらず、not_probed に理由も無い",
+  ],
+  [
+    "棚卸しに無い状態を動かしたと書く",
+    (t) => t.operations[0].aftermath.returns_to.probed.push("ページ送り"),
+    "probed に表の screen_states に無い状態がある: ページ送り",
+  ],
+  [
+    "動かした状態に動かさなかった理由が残っている",
+    (t) => (t.operations[0].aftermath.returns_to.not_probed = { 検索条件: "古い理由" }),
+    "not_probed に、棚卸しに無い・動かした状態の理由が残っている: 検索条件",
+  ],
+  [
+    "not_probed が無い",
+    (t) => delete t.operations[0].aftermath.returns_to.not_probed,
+    "not_probed が状態ごとの理由のオブジェクトでない",
+  ],
+  [
+    "画面の状態の棚卸しが無い",
+    (t) => delete t.screen_states,
+    "screen_states.states が重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "画面の状態の棚卸しに出どころが無い",
+    (t) => (t.screen_states.source = ""),
+    "screen_states.source が空",
+  ],
+  [
+    "probed に重複がある",
+    (t) => t.operations[0].aftermath.returns_to.probed.push("検索条件"),
+    "probed / reset が、重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "reset が配列でない",
+    (t) => (t.operations[0].aftermath.returns_to.reset = null),
+    "probed / reset が、重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "戻り先に assertion が無い",
+    (t) => (t.operations[0].aftermath.returns_to.covered_by = [""]),
+    "aftermath.returns_to.covered_by が空",
+  ],
+])("押した後に残るものの記録の欠けを落とす: %s（Issue #471）", (_name, mutate, needle) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(needle);
+});
+
+test("動かさなかった状態に理由があれば通し、状態を持たない画面は空の棚卸しで通す（Issue #471）", () => {
+  const withReason = run(
+    mutated((t) => {
+      t.operations[0].aftermath.returns_to.probed = ["検索条件", "並べ替え"];
+      t.operations[0].aftermath.returns_to.not_probed = {
+        列フィルター: "この操作は列フィルターを開いている間は押せない（実 UI で確かめた）",
+        列の変更: "列の変更の器を開いている間は押せない（実 UI で確かめた）",
+      };
+    }),
+  );
+  expect(withReason.stderr).toBe("");
+  expect(withReason.status).toBe(0);
+  const r = run(
+    mutated((t) => {
+      t.screen_states.states = [];
+      for (const op of t.operations) {
+        op.aftermath.returns_to.probed = [];
+        op.aftermath.returns_to.reset = [];
+      }
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("撮る状態にも assertion にもしない見た目は、理由があれば通す（Issue #471）", () => {
+  const r = run(
+    mutated((t) => {
+      const item = t.operations[1].aftermath.look.items[0];
+      item.covered_by = [];
+      item.reason = "押すと外部の決済画面へ移り、戻った後の見出しを同じ条件で作れない";
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("同梱テンプレートのプレースホルダのままの aftermath は落とす（Issue #471）", () => {
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const r = run(
+    mutated((x) => {
+      x.operations[0].aftermath = template.operations[0].aftermath;
+      x.operations[1].aftermath = template.operations[1].aftermath;
+    }),
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('operations["copy"]: aftermath');
+  expect(r.stderr).toContain('operations["search"]: aftermath');
+});
+
+test("残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）", () => {
+  // 反応の撮影は外し、2 つの操作の残る見た目だけが copy-toast を指す形にする
+  const share = (t, reasons) => {
+    t.operations[0].reactions[0].capture = { state: null, reason: "通知は aftermath 側で撮る" };
+    const item = { ...structuredClone(lingeringAftermath().look.items[1]), id: "copied-row" };
+    t.operations[0].aftermath.look = { changes: true, items: [item] };
+    const other = t.operations[1].aftermath.look.items[1];
+    for (const [i, it] of [item, other].entries()) {
+      it.captured = "copy-toast";
+      it.covered_by = [];
+      it.shared_capture_reason = reasons[i];
+    }
+  };
+  const bare = run(mutated((t) => share(t, [null, null])));
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('撮る状態 "copy-toast" を');
+  const half = run(mutated((t) => share(t, ["コピーの後に検索しても同じ通知が残る", null])));
+  expect(half.status).toBe(1);
+  expect(half.stderr).toContain('根拠が空: operations["search"]');
+  const both = run(
+    mutated((t) =>
+      share(t, [
+        "コピーと検索を続けて行った 1 枚に両方の後の見た目が写ることを実 UI で確かめた",
+        "同上（コピーと検索を続けて行った 1 枚で両方を確かめた）",
+      ]),
+    ),
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});
+
+test("反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）", () => {
+  // copy の反応（copy-toast）と search の残る見た目（copy-toast）。反応側を数えないと 1 件に見えて通る
+  const shareToast = (t) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+  };
+  const bare = run(mutated(shareToast));
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('reactions["toast"].capture');
+  const both = run(
+    mutated((t) => {
+      shareToast(t);
+      t.operations[0].reactions[0].capture.shared_capture_reason =
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた";
+      t.operations[1].aftermath.look.items[1].shared_capture_reason = "同上";
+    }),
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});
+
+test("別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [
+        { name: "共有画面", path: "share" },
+        { name: "検索画面", path: "search" },
+      ],
+    },
+  };
+  // copy の反応（copy-toast）と search の残る見た目（copy-toast）
+  const share = (t, pages) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].capture_page = pages[0];
+    t.operations[1].capture_page = pages[1];
+    // 検索は検索画面へ遷移して撮る（押した後の URL が capture_page の path と合う）
+    t.operations[1].aftermath.returns_to.url_after =
+      pages[1] === "共有画面" ? "/share?id=1" : "/search";
+  };
+  const cross = run(
+    mutated((t) => share(t, ["共有画面", "検索画面"])),
+    { metadata },
+  );
+  expect(cross.stderr).toBe("");
+  expect(cross.status).toBe(0);
+  const same = run(
+    mutated((t) => share(t, ["共有画面", "共有画面"])),
+    { metadata },
+  );
+  expect(same.status).toBe(1);
+  expect(same.stderr).toContain('撮る状態 "共有画面 の copy-toast" を');
+  const unknown = run(
+    mutated((t) => share(t, ["共有画面", "旧検索画面"])),
+    { metadata },
+  );
+  expect(unknown.status).toBe(1);
+  expect(unknown.stderr).toContain(
+    'capture_page "旧検索画面" が metadata.json の capture_conditions.pages に無い',
+  );
+  // ページ一覧が無い metadata では page を照合できないので通さない
+  const noPages = run(mutated((t) => share(t, ["共有画面", "検索画面"])));
+  expect(noPages.status).toBe(1);
+  expect(noPages.stderr).toContain("capture_conditions.pages を読めない");
+});
+
+test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）", () => {
+  const meta = (pages) => ({
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: pages.map((name) => ({ name, path: { 共有画面: "share", 検索画面: "search" }[name] })),
+    },
+  });
+  const two = run(baseTable(), { metadata: meta(["共有画面", "検索画面"]) });
+  expect(two.status).toBe(1);
+  expect(two.stderr).toContain("capture_page が無い");
+  const one = run(baseTable(), { metadata: meta(["共有画面"]) });
+  expect(one.stderr).toBe("");
+  expect(one.status).toBe(0);
+  const written = run(
+    mutated((t) => (t.operations[0].capture_page = "共有画面")),
+    { metadata: meta(["共有画面", "検索画面"]) },
+  );
+  expect(written.stderr).toBe("");
+  expect(written.status).toBe(0);
+});

@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "claude-opus-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-25T14:03:18Z",
+    "evals_run": [36],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 36,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 44.93,
+        "tokens": 208019,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮る状態を画面を見ながら思い付きで決めることを退け、部品被覆表の present のセル（測った操作）から必要な撮影状態の集合を機械的に導くと述べている",
+          "passed": true,
+          "evidence": "「撮る状態は思い付きで決めず、被覆表から導きます」とし、coverage-expand.mjs --write が present セルから visual_state_coverage.rows を作ると述べている"
+        },
+        {
+          "text": "操作から導く見た目の状態として、器を開く・指を乗せる・焦点を当てる・押している最中・不活性の操作の途中の 5 種に加え、操作を終えた後に残る見た目（絞り込み中や並べ替えた後の印など）を挙げている",
+          "passed": true,
+          "evidence": "器を開く・hover・focus・active を操作の途中として挙げ、無効表示（disabled）を「導出される 6 種類の状態の 1 つ」とし、操作を終えた後に残る見た目（並べ替えの印・絞り込み中の見出しの印・選択の塗り）を挙げている"
+        },
+        {
+          "text": "導いた集合と metadata.json の capture_conditions.states の差（足りない状態の一覧）を、parity-suite 同梱の coverage-expand.mjs に metadata を渡した実行で報告させると述べている",
+          "passed": true,
+          "evidence": "手順 8 で coverage-expand.mjs を --metadata 付きで exit 0 まで通し、撮影状態と capture_conditions.states を照合すると述べ、未決行が報告されることにも触れている"
+        },
+        {
+          "text": "不活性になる条件が現行に無いメニュー項目を何も書かずに飛ばすことを退け、撮れない理由を導出の行に残したうえで gaps.md に「撮影状態の対象外」として同じ文言を残すと述べている",
+          "passed": true,
+          "evidence": "作れない場合は visual_state_coverage.rows[].reason に理由を書き、同じ文言を gaps.md に種別「撮影状態の対象外」で残すと述べている"
+        },
+        {
+          "text": "撮影状態を後から足すと新側だけでなく現行側もベースライン（3 点セット）とノイズ基準値を採り直しになるため、撮る前に集合を確定させると述べている",
+          "passed": true,
+          "evidence": "「現行側で 3 点セットとノイズ基準値（2 回撮り）を採り直す…新側だけでは済みません」とし、導出を採取の前に置く理由として述べている"
+        },
+        {
+          "text": "導出が出すのは必要な撮影状態の下限だけで、操作から導けない状態（error / 初期表示のバリアント等）は手で capture_conditions.states へ足すと述べている",
+          "passed": true,
+          "evidence": "「操作から導けない状態も手で足します。エラー表示、初期表示のバリエーション」と述べ、導出が被覆表からの必要集合であることを前提にしている"
+        },
+        {
+          "text": "回答内で「被覆表が全部 present なので 2 状態で足りる」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "2 状態で足りるという結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 36,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 32.996,
+        "tokens": 37025,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮る状態を画面を見ながら思い付きで決めることを退け、部品被覆表の present のセル（測った操作）から必要な撮影状態の集合を機械的に導くと述べている",
+          "passed": true,
+          "evidence": "「状態は被覆表から導く」と述べている"
+        },
+        {
+          "text": "操作から導く見た目の状態として、器を開く・指を乗せる・焦点を当てる・押している最中・不活性の操作の途中の 5 種に加え、操作を終えた後に残る見た目（絞り込み中や並べ替えた後の印など）を挙げている",
+          "passed": false,
+          "evidence": "適用後の状態・無効表示は挙げるが、器を開く・指を乗せる・焦点・押している最中・不活性の途中の 5 種を語彙として挙げていない"
+        },
+        {
+          "text": "導いた集合と metadata.json の capture_conditions.states の差（足りない状態の一覧）を、parity-suite 同梱の coverage-expand.mjs に metadata を渡した実行で報告させると述べている",
+          "passed": false,
+          "evidence": "coverage-expand.mjs や capture_conditions.states との差の報告に触れず、独自の capture-states.json を提案している"
+        },
+        {
+          "text": "不活性になる条件が現行に無いメニュー項目を何も書かずに飛ばすことを退け、撮れない理由を導出の行に残したうえで gaps.md に「撮影状態の対象外」として同じ文言を残すと述べている",
+          "passed": false,
+          "evidence": "unobserved の行と被覆表への注記を提案するが、gaps.md の「撮影状態の対象外」には触れていない"
+        },
+        {
+          "text": "撮影状態を後から足すと新側だけでなく現行側もベースライン（3 点セット）とノイズ基準値を採り直しになるため、撮る前に集合を確定させると述べている",
+          "passed": true,
+          "evidence": "後から足した状態の 3 点セットとノイズ基準値の撮り直しと、旧実装（現行側）で基準を撮る必要に触れ、先に集合を決めるよう勧めている"
+        },
+        {
+          "text": "導出が出すのは必要な撮影状態の下限だけで、操作から導けない状態（error / 初期表示のバリアント等）は手で capture_conditions.states へ足すと述べている",
+          "passed": false,
+          "evidence": "導出が下限であり導けない状態を手で足すという区別に触れていない"
+        },
+        {
+          "text": "回答内で「被覆表が全部 present なので 2 状態で足りる」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "2 状態で足りるという結論を併記していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 44.93,
+        "stddev": 0,
+        "min": 44.93,
+        "max": 44.93
+      },
+      "tokens": {
+        "mean": 208019,
+        "stddev": 0,
+        "min": 208019,
+        "max": 208019
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4286,
+        "stddev": 0,
+        "min": 0.4286,
+        "max": 0.4286
+      },
+      "time_seconds": {
+        "mean": 32.996,
+        "stddev": 0,
+        "min": 32.996,
+        "max": 32.996
+      },
+      "tokens": {
+        "mean": 37025,
+        "stddev": 0,
+        "min": 37025,
+        "max": 37025
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.57",
+      "time_seconds": "+11.9",
+      "tokens": "+170994"
+    }
+  },
+  "notes": [
+    "Issue #471 の変更確認（eval 36 の assertion 2・6 を 6 種の語彙と「selected は導出される」に合わせて更新）。1 run のため Delta は語らず弁別の有無だけを見る。with_skill 7/7、without_skill 3/7（語彙・同梱ツールでの差の報告・gaps.md の種別・導出は下限で落ちる）。"
+  ]
+}

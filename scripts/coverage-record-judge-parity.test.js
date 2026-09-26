@@ -37,7 +37,7 @@ const { profiles } = loadProfiles(join(repoRoot, "skills/parity-suite/assets/cov
 
 const SLUG = "order-list";
 
-/** DataGrid の列挙（列 2・メニュー対象 1・メニュー項目 2・条件 1）。 */
+/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
 function enumeration() {
   const column = (id, filterable) => ({
     id,
@@ -60,6 +60,8 @@ function enumeration() {
     complete: true,
     elements: {
       column: [column("price", true), column("name", false)],
+      "sort-combination": [{ id: "price-then-name", flags: {} }],
+      "row-selector": [{ id: "row-number", flags: {} }],
       "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
       "menu-item": [
         { id: "copy", flags: { enabled: true } },

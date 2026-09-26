@@ -31,6 +31,7 @@
     {
       "id": "<ルール id。候補 id の先頭になる>",
       "name": "<ルールの説明（例: 列ごとのソート操作）>",
+      "requirement": "<任意。required_rules の代替の組に入れるルールだけに書く要求の id。組の全てのルールに同じ値を書く（軸や guard の形からは同じ要求かを推し量れないので、宣言で持たせる）>",
       "axes": [
         "<このルールが直積を取る軸 id の並び。候補 id は <ルール id>/<この順で軸値を \"/\" 連結> になる（順序を固定して決定論的にする）>"
       ],
@@ -38,13 +39,17 @@
         "<軸 id>.<フラグ名>": "<真偽値。element 軸の要素の flags に対する条件。全て満たす要素だけが候補になる（設定で無効な操作を候補に数えない）>"
       },
       "visual_states": [
-        "<このルールの操作で見た目が変わる状態の種別。opens-container | hover | focus | active | disabled のいずれか（重複不可）。coverage-expand.mjs が present のセルから撮影状態の必要集合を導き、metadata.json の capture_conditions.states との差を報告する。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
+        "<このルールの操作で見た目が変わる状態の種別。opens-container | hover | focus | active | disabled | after-operation のいずれか（重複不可。前の 5 種は操作の途中、after-operation は操作を終えた後に残る見た目〈選択の塗り・絞り込みの印・並べ替えの印〉）。coverage-expand.mjs が present のセルから撮影状態の必要集合を導き、metadata.json の capture_conditions.states との差を報告する。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
       ],
       "no_visual_state_reason": "<visual_states が空配列のときだけ、このルールの操作で見た目の状態が変わらない理由（例: 到達の確認だけで状態を持たない）。空だと coverage-expand.mjs が落とす。visual_states が非空なら null>"
     }
   ],
   "required_rules": [
-    "<候補を 1 件も生まなかったら失敗させるルール id。列挙されないと静かに 0 件になる軸（コンテキストメニュー等）を、「その部品には無い」と区別できない形で通さないため。本当に無い場合は被覆表の instances[].enumeration.justified_absences に根拠を残すと通る（fail-closed を行き止まりにしないため。契約は references/coverage-profiles.md）>"
+    "<候補を 1 件も生まなかったら失敗させるルール id。列挙されないと静かに 0 件になる軸（コンテキストメニュー等）を、「その部品には無い」と区別できない形で通さないため。本当に無い場合は被覆表の instances[].enumeration.justified_absences に根拠を残すと通る（fail-closed を行き止まりにしないため。契約は references/coverage-profiles.md）>",
+    [
+      "<代替の組: ルール id の配列。どれか 1 つが候補を生めば満たす。同じ要求を排他な guard で分けたルール（例: 初期表示の列と表示切替で出す列の行の選択）に使う——別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が行き止まりになる。組の全てのルールが候補 0 件のときは、全てに justified_absences の根拠が要る。組にできるのは、全てに同じ requirement を書き、axes が同じ並びで、guard が互いに排他（同じフラグに逆の値を要求する条件を持つ）なルールだけ（そうでないと片方の候補がもう片方の列挙漏れを黙らせる）。1 つのルール id を 2 つの要素に書かない>",
+      "<組の 2 つ目のルール id>"
+    ]
   ],
   "equivalence": {
     "reducible_axes": ["<視覚採取を同値クラスで束ねてよい軸 id。ここに無い軸で束ねたら失敗させる>"],
