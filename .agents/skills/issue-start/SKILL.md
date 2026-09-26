@@ -1,6 +1,6 @@
 ---
-argument-hint: <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
-description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。ブランチを用意した時点で呼び出し元へ返す `--branch-only` があり、実装を自分で持つスキルからの委譲に使う。「Issue から始める」「この issue に着手」「issue-start」や、`--branch-only` / `--plan` / `--commit` / `--pr` を伴う依頼で発動する。
+argument-hint: <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance]
+description: GitHub Issue を起点に作業開始フローを標準化するスキル。Issue URL や Issue 番号を受け取り、リポジトリ一致確認・feature ブランチ作成と checkout（gh issue develop）・調査・実装・commit・push・PR 作成までを段階的に進めたいときに使う。ブランチを用意した時点で呼び出し元へ返す `--branch-only` があり、実装を自分で持つスキルからの委譲に使う。push の前と `--acceptance` で、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を同梱の検査で確かめる。「Issue から始める」「この issue に着手」「受け入れ条件を確かめて」「issue-start」や、`--branch-only` / `--plan` / `--commit` / `--pr` / `--acceptance` を伴う依頼で発動する。
 license: MIT
 name: issue-start
 ---
@@ -11,20 +11,23 @@ GitHub Issue 起点の作業開始を `gh` で標準化する。ブランチ命�
 ## 使い方
 
 ```text
-issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
+issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --acceptance [--out <path>] [--decisions <path>] [--allow-later <owner>]]
 ```
 
-- モード未指定（`--branch-only` / `--plan` / `--commit` / `--pr` なし）: ブランチ作成・checkout 後そのまま調査・実装へ進む。commit / push / PR はしない
+- モード未指定（`--branch-only` / `--plan` / `--commit` / `--pr` / `--acceptance` なし）: ブランチ作成・checkout 後そのまま調査・実装へ進む。commit / push / PR はしない
 - `--branch-only`: ブランチ作成・checkout（と基本フロー step 8 の現状検証）まで行い、**調査・実装へ進まずに返る**。
   **実装を自分で持つスキルからの委譲用**——モード未指定で呼ぶと本スキルがそのまま実装へ進む契約なので、
   呼び出し元が続けて実装すると同じ Issue に対して実装が二重に走る。散文で「実装は委ねない」と書いても契約は変わらないため、モードで区別する
 - `--plan`: 関連ファイルと Issue を確認し、必要なことだけ追加確認して詳細計画を作る。実装はユーザーの開始指示後に進める
 - `--commit`: 実装、必要な確認、関連ファイルだけの staging、論理単位の commit まで行う
-- `--pr`: 実装、必要な確認、commit、push、PR 作成まで行う
+- `--pr`: 実装、必要な確認、commit、push、PR 作成まで行う。push の前に受け入れ条件の突き合わせ（基本フロー step 10）を通す
+- `--acceptance`: **現在のブランチで**、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、同梱の検査を通して返る（ブランチ作成・実装・commit・push はしない）。
+  実装を自分で持つスキル（`parity-replace` 等）の完了判定からの委譲にも使う。`--out` は表の置き場、`--decisions` は判断待ちの記録（`pending_decisions` を持つ JSON）、`--allow-later` は後工程へ回してよい条件の担い手（呼び出し元が定める）。
+  手順の正本は [`references/acceptance.md`](references/acceptance.md)
 
 `--commit` / `--pr` は、その段階までの実行をユーザーが明示的に委譲した合図。指定がない限り commit しない。
 
-例: `issue-start 220` / `issue-start 220 --plan` / `issue-start 220 --branch-only` / `issue-start https://github.com/<owner>/<repo>/issues/220 --pr`
+例: `issue-start 220` / `issue-start 220 --plan` / `issue-start 220 --branch-only` / `issue-start 220 --acceptance` / `issue-start https://github.com/<owner>/<repo>/issues/220 --pr`
 
 - 自然文でも発動する:「Issue から始める」「この issue に着手」。
 
@@ -34,7 +37,8 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
 - **前提スキル**: なし（worktree で作業する場合のみ `git-worktree`）
 - **MCP**: なし
 - **シェル**: bash（POSIX 互換シェル）。コマンド例は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
-- node / pnpm / python などのランタイムは不要。
+- **Node.js** は受け入れ条件の突き合わせ（`--acceptance` と `--pr` の push 前）でだけ要る（同梱の [`scripts/acceptance-check.mjs`](scripts/acceptance-check.mjs) を実行する）。
+  無ければ突き合わせを合格に倒さず止まる。それ以外のモードは pnpm / python を含めランタイム不要。
 
 ## ブランチ運用・commit 規約の参照
 
@@ -129,14 +133,21 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
    - 乖離が作業範囲や実装方針を変える規模なら、実装に進まずユーザーに確認する（「追加確認が必要な条件」）
 9. 選択されたモードに応じて後続へ進む（各モードの挙動は「使い方」を参照）。
    **`--branch-only` はここで終わる**——ブランチ名・checkout の有無・step 8 の現状検証の結果（乖離があればその分類）を報告して返す。
-   調査・実装・commit・push・PR のいずれも行わない
-10. **push する直前にリモートの PR ベースブランチの進行を確認する**（`--pr` のみ）
+   調査・実装・commit・push・PR のいずれも行わない。
+   **`--acceptance` は step 1〜3（リポジトリ一致と Issue の取得）の後、step 4〜8 を飛ばしてここから step 10 だけを行い**、検査の結果（終了コード・`closable`・`findings`）を報告して返す
+10. **Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせる**（`--pr` の push 前と `--acceptance`）。
+    手順・表の様式・状態の語彙・検査の終了コードの正本は [`references/acceptance.md`](references/acceptance.md)（ここへ転記しない。読めなければ突き合わせを合格に倒さず止まる）。
+    **検査が exit 0 になるまで push しない**——テストやリントの緑は受け入れ条件の充足を示さない。
+    満たせない条件は自分で外さず、利用者に確認する（`waived` / `deferred` は利用者の承認が要る）。
+    検査の出力の `closable` が `false` なら PR 本文で Issue を閉じない（`Refs #<番号>`）
+11. **push する直前にリモートの PR ベースブランチの進行を確認する**（`--pr` のみ）
     - step 7 で規約から解決したベースブランチを、作成予定の PR のベースとして保持し、`git fetch origin '<PR ベースブランチ>'` を実行する。リポジトリのデフォルトブランチと同じだと仮定しない。既存 PR を継続する場合は `gh pr view --json baseRefName` で実際の PR ベースを再取得して使う
     - `git rev-list --count 'HEAD..origin/<PR ベースブランチ>'` で、現在の作業ブランチへ未取り込みの commit 数を確認する。fetch の失敗、PR ベースの解決失敗、remote ref の不在を「進行なし」に倒さず、push を止めて原因を解消する
     - 0 件ならそのまま push へ進む。1 件以上なら、差分を `git log --oneline 'HEAD..origin/<PR ベースブランチ>'` で示し、次のいずれかで扱う
       - merge / rebase 等の取り込み方法がリポジトリ規約またはユーザー指示で一意に決まっている場合は、その方法で取り込み、競合解消と必要な検証を済ませてから未取り込み件数を再確認する
       - 取り込み方法が決まっていない、競合解消に複数の妥当な選択肢がある、または取り込みが作業範囲を変える場合は、push せずユーザーに確認する
     - 取り込み後も未取り込み件数が 0 になったことを実測してから push する。確認後に長時間の作業や修正を挟んだ場合は、push 直前に fetch から再実行する
+    - 取り込みで HEAD が進んだら、step 10 の検査を取り直す（表の `commit` が HEAD と合わず `stale-commit` で落ちる）
 
 ## commit / PR の扱い
 
@@ -144,7 +155,8 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr]
 - 無関係な変更を同じ commit に混ぜない。関連ファイルだけを stage する
 - 既存 worktree に無関係な差分がある場合は巻き込まず、対象ファイルだけを扱う
 - commit 時に pre-commit フック（lefthook 等）や kaizen のコミット前ゲートが設定されていれば走る。ゲートでブロックされた場合は指示に従って `kaizen --current` を実行してから再 commit する
-- `--pr` 時は基本フロー step 10 の PR ベースブランチ進行確認を通過してからブランチを push し、関連 Issue・変更概要・確認内容を含む PR を作る
+- `--pr` 時は基本フロー step 10 の受け入れ条件の突き合わせと step 11 の PR ベースブランチ進行確認を通過してからブランチを push し、関連 Issue・変更概要・確認内容・突き合わせ表を含む PR を作る。
+  PR を作ったら突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) 手順 6）
 - commit の `--amend` と force push は行わない
 
 ## 追加確認が必要な条件
