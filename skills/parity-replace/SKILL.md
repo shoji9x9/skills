@@ -277,7 +277,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
    **合わせて機能の Issue の受け入れ条件の突き合わせを完了判定に入れる**（全モード）——上の判定はどれも成果物の形の検査で、Issue にだけ書かれた条件
    （状態を URL で持つ・失敗時にログを書く・書き込み系ボタンの E2E 等）はどれにも数えられない。着手時に使った features.md の Issue 列の番号で
-   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json --allow-later parity-diff` を実行する
+   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json --allow-later parity-diff` を実行する。
+   **手順 8 の最後に、それまでに書いた成果物（`replace-metadata.json`・`component-comparison.json`・`porting.md` 等）と実装を commit してから**行う——
+   突き合わせは作業ツリーが表自身のほかに clean であることを求めるので、未コミットの成果物が残ると `commit-missing` で落ちる
    （保留の記録 `new/<target>/pending-decisions.json` があれば `--decisions` にも渡す。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
    **検査が exit 0 になるまで完了を名乗らない。** 満たせない条件は自分で外さず判断待ちに積み（上記「厳守の制約」）、行は `pending-decision` にする。
    **`later` を使ってよいのは `parity-diff` の収束を述べる条件だけ**（`--allow-later parity-diff` を渡し、`owner` に `parity-diff` と書く）——本スキルの完了はその前の工程なので満たせないが、
