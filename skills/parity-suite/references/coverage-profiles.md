@@ -84,8 +84,11 @@ Chart・Tree・DatePicker 等を足すときに共通処理・中心ドキュメ
 撮影状態を部品ごとに手で数えると、測った操作と撮った状態が結び付かず、
 撮っていない状態の差は「差 0 件」と同じ見え方になる（正本は `parity-suite` の [`baseline.md`](baseline.md)「撮影状態の決め方（1）被覆表から導く」）。
 
-- `candidate_rules[].visual_states` に 5 種の語彙から選んで書く——
-  `opens-container`（器を開く）・`hover`（指を乗せる）・`focus`（焦点を当てる）・`active`（押している最中）・`disabled`（不活性）
+- `candidate_rules[].visual_states` に 6 種の語彙から選んで書く——操作の途中の
+  `opens-container`（器を開く）・`hover`（指を乗せる）・`focus`（焦点を当てる）・`active`（押している最中）・`disabled`（不活性）と、
+  操作を終えた後に残る `after-operation`（選択の塗り・絞り込み中の見出しの印・並べ替えの印）。
+  **途中の種別だけを宣言しない**——選択・絞り込み・並べ替えのように結果が画面に残る操作は、残る見た目を撮らないと差が「差 0 件」と同じ見え方になる（Issue #471）。
+  結果が列ごとに違いうる操作（行の選択の塗り）は、ルールの `axes` に列の軸を入れて列ごとに候補を立てる
 - **見た目が変わらないルールは空配列と `no_visual_state_reason`。** キーごと省略すると
   「見た目が変わらない」と「考えていない」が同じ見え方になるため、`validateProfile` が落とす
 - `coverage-expand.mjs --write` がこの宣言を被覆表の `items[].visual_states` へ書き戻し、

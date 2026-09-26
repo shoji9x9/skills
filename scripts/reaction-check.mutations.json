@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）と操作で変わる頁の組み方（Issue #460）の検出能力を示す変異の一覧。",
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -320,6 +320,146 @@
       "expect_failing": [
         "layout の欄をテンプレートの説明文のまま出したら落とす: covered_by がテンプレートの説明文のまま（Codex レビュー）",
         "layout の欄をテンプレートの説明文のまま出したら落とす: changes: true の covered_by がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "aftermath-missing",
+      "why": "aftermath が無い操作を未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const amProblems = isPlainObject(am)\n",
+      "replace": "    const amProblems = true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: aftermath が無い（Issue #471）",
+        "押した後に残るものの記録の欠けを落とす: aftermath が配列（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-missing",
+      "why": "look が無くても未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(look)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["押した後に残るものの記録の欠けを落とす: look が無い（Issue #471）"]
+    },
+    {
+      "id": "aftermath-look-evidence",
+      "why": "残らないと書いた記録に確かめ方が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(look.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に確かめ方が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-items-empty",
+      "why": "残ると書いたのに見た目を 1 つも列挙しなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(items) || items.length === 0) {\n",
+      "replace": "  if (!Array.isArray(items)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: true に items が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-observed",
+      "why": "現行で測った値が無い見た目を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(item.observed)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items に現行で測った値が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-unassigned",
+      "why": "撮る状態にも assertion にも割り当てず理由も無い見た目を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!hasState && !hasAssertion && !hasReason) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items を撮る状態にも assertion にも割り当てていない（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-captured-unknown",
+      "why": "撮影条件に無い状態名へ割り当てても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items の撮る状態が撮影条件に無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-missing",
+      "why": "戻り先が無くても未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(ret)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["押した後に残るものの記録の欠けを落とす: returns_to が無い（Issue #471）"]
+    },
+    {
+      "id": "aftermath-returns-url-origin",
+      "why": "オリジン付きの URL を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(v) || !String(v).startsWith(\"/\") || String(v).startsWith(\"//\")) {\n",
+      "replace": "    if (!filled(v) || String(v).startsWith(\"//\")) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 押す前の URL にオリジンが入っている（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-url-protocol-relative",
+      "why": "プロトコル相対の URL を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(v) || !String(v).startsWith(\"/\") || String(v).startsWith(\"//\")) {\n",
+      "replace": "    if (!filled(v) || !String(v).startsWith(\"/\")) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 押す前の URL がプロトコル相対（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-reset-stray",
+      "why": "動かしていない状態を戻したと書いても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (stray.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 動かしていない状態を戻したと書く（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-probe-skipped",
+      "why": "何も動かさずに測った理由が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (probed.length === 0 && !skipped) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 何も動かさずに測った理由が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-covered",
+      "why": "戻り先を assertion にしていなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filledStrings(ret.covered_by)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 戻り先に assertion が無い（Issue #471）"
       ]
     }
   ]

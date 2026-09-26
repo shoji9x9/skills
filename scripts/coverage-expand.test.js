@@ -91,7 +91,7 @@ test("同梱プロファイルはすべてスキーマ検証を通る（壊れ�
   expect(bundled.has("datagrid")).toBe(true);
 });
 
-/** DataGrid の列挙（列 2・メニュー対象 1・メニュー項目 2・条件 1）。 */
+/** DataGrid の列挙（列 2・複数列の並べ替えの組 1・行を選ぶ手段 1・メニュー対象 1・メニュー項目 2・条件 1）。 */
 function enumeration() {
   return {
     source: {
@@ -125,6 +125,8 @@ function enumeration() {
           },
         },
       ],
+      "sort-combination": [{ id: "price-then-name", flags: {} }],
+      "row-selector": [{ id: "row-number", flags: {} }],
       "menu-target": [{ id: "row", flags: { has_context_menu: true } }],
       "menu-item": [
         { id: "copy", flags: { enabled: true } },
@@ -146,7 +148,7 @@ function datagridCoverage() {
       {
         id: "grid",
         profile: "datagrid",
-        profile_version: "2",
+        profile_version: "3",
         items: candidates.map((c) => ({
           id: c.id,
           category: c.rule,
@@ -180,8 +182,9 @@ test("陽性コントロール: 候補が全てセルへ落ちていれば適合
   const r = reconcile(datagridCoverage(), bundled);
   expect(r.problems).toEqual([]);
   expect(r.ok).toBe(true);
-  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ メニュー開閉 1 ＋ メニュー項目 2。
-  expect(r.candidates).toBe(12);
+  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1
+  // ＋ 行の選択 1 手段 × 列 2 ＋ メニュー開閉 1 ＋ メニュー項目 2。
+  expect(r.candidates).toBe(15);
   expect(r.unmeasured).toBe(0);
 });
 
@@ -623,7 +626,7 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   for (const axis of ["menu-target", "menu-item", "menu-condition"]) {
     inst.enumeration.elements[axis] = [];
   }
-  const keep = (id) => id.startsWith("column-");
+  const keep = (id) => !id.startsWith("context-menu-");
   cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
   inst.candidates = inst.candidates.filter(keep);
   cov.cells = cov.cells.filter((c) => keep(c.item));
@@ -649,6 +652,37 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
   // 根拠が空なら通さない。
   inst.enumeration.justified_absences = [{ scope: "menu-target", reason: "  " }];
   expect(reconcile(cov, bundled).problems.join("\n")).toMatch(/reason が空/);
+});
+
+test("行の選択・複数列の並べ替えを持たないグリッドは、列挙が空でも根拠付きでだけ通す（Issue #471）", () => {
+  // 終えた後に残る見た目（選択の塗り・複数列の並べ替えの印）は、軸を列挙しないと候補にすら現れない。
+  // 空の列挙を「その部品には無い」と区別できない形で通さないため、必須ルールにして根拠を求める。
+  for (const [axis, rule] of [
+    ["row-selector", "row-select"],
+    ["sort-combination", "multi-column-sort"],
+  ]) {
+    const cov = datagridCoverage();
+    const inst = cov.components[0].instances[0];
+    inst.enumeration.elements[axis] = [];
+    const keep = (id) => !id.startsWith(`${rule}/`);
+    cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
+    inst.candidates = inst.candidates.filter(keep);
+    cov.cells = cov.cells.filter((c) => keep(c.item));
+    resolveVisualStates(cov);
+
+    const bare = reconcile(cov, bundled);
+    expect(bare.ok).toBe(false);
+    expect(bare.problems.join("\n")).toContain(`必須ルール ${rule} の候補が 0 件`);
+
+    inst.enumeration.justified_absences = [
+      {
+        scope: axis,
+        reason:
+          "行番号・チェックボックス・修飾キー付きのクリックを実 UI で試し、効かないことを確かめた",
+      },
+    ];
+    expect(reconcile(cov, bundled).problems).toEqual([]);
+  }
 });
 
 test("要素が候補にならないことも根拠付きでだけ通す（要素スコープの免除）", () => {
@@ -1147,7 +1181,7 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
   );
   expect(r.status).toBe(0);
   const written = JSON.parse(readFileSync(r.paths["component-coverage.json"], "utf8"));
-  expect(written.components[0].instances[0].candidates).toHaveLength(12);
+  expect(written.components[0].instances[0].candidates).toHaveLength(15);
   expect(written.conformance).toMatchObject({ tool: "coverage-expand", ok: true, unmeasured: 0 });
   // 測定値は書き換えない。
   expect(written.cells[0]).toMatchObject({ value: "present" });
@@ -1181,10 +1215,30 @@ test("CLI --list-profiles は同梱プロファイルを列挙する", () => {
 test("被覆表の操作から撮影状態を導く（プロファイルが種別の正本）", () => {
   const cov = datagridCoverage();
   const kinds = cov.visual_state_coverage.rows.map((r) => r.kind);
-  // 器を開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種が測った操作から立つ。
+  // 器を開く・指を乗せる・焦点を当てる・押している最中・不活性の 5 種と、
+  // 操作を終えた後に残る見た目（Issue #471）が測った操作から立つ。
   expect(new Set(kinds)).toEqual(
-    new Set(["opens-container", "hover", "focus", "active", "disabled"]),
+    new Set(["opens-container", "hover", "focus", "active", "disabled", "after-operation"]),
   );
+  // 終えた後の見た目は、絞り込み・並べ替え（方向ごと）・複数列の並べ替え・行の選択（列ごと）から立つ。
+  // 途中の見た目だけを導くと、選択の塗りが付かない列や絞り込み中の見出しの色は撮られない。
+  expect(
+    cov.visual_state_coverage.rows
+      .filter((r) => r.kind === "after-operation")
+      .map((r) => r.required_by)
+      .sort(),
+  ).toEqual([
+    "column-filter/price",
+    "column-sort/name/asc",
+    "column-sort/name/desc",
+    "column-sort/name/none",
+    "column-sort/price/asc",
+    "column-sort/price/desc",
+    "column-sort/price/none",
+    "multi-column-sort/price-then-name",
+    "row-select/row-number/name",
+    "row-select/row-number/price",
+  ]);
   // 行は要求元の候補ごとに分かれる。種別だけで束ねると、同じ opens-container を要求する
   // 列フィルタの吹き出しと右クリックメニューが 1 行へ潰れ、片方を撮るだけで門が通る。
   // column-toggle はこの列挙に toggleable な列が無いため候補が立たず、行も立たない。
@@ -1211,7 +1265,7 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
   );
   // 項目の種別はプロファイルから書き戻される（部品ごとに手で書かない）。
   const sortItem = cov.components[0].items.find((i) => i.candidate.rule === "column-sort");
-  expect(sortItem.visual_states).toEqual(["hover", "focus", "active"]);
+  expect(sortItem.visual_states).toEqual(["hover", "focus", "active", "after-operation"]);
   const visibleItem = cov.components[0].items.find((i) => i.candidate.rule === "column-visible");
   expect(visibleItem.visual_states).toEqual([]);
   expect(visibleItem.no_visual_state_reason).toMatch(/操作しない/);

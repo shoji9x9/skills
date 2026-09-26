@@ -38,7 +38,7 @@
         "<軸 id>.<フラグ名>": "<真偽値。element 軸の要素の flags に対する条件。全て満たす要素だけが候補になる（設定で無効な操作を候補に数えない）>"
       },
       "visual_states": [
-        "<このルールの操作で見た目が変わる状態の種別。opens-container | hover | focus | active | disabled のいずれか（重複不可）。coverage-expand.mjs が present のセルから撮影状態の必要集合を導き、metadata.json の capture_conditions.states との差を報告する。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
+        "<このルールの操作で見た目が変わる状態の種別。opens-container | hover | focus | active | disabled | after-operation のいずれか（重複不可。前の 5 種は操作の途中、after-operation は操作を終えた後に残る見た目〈選択の塗り・絞り込みの印・並べ替えの印〉）。coverage-expand.mjs が present のセルから撮影状態の必要集合を導き、metadata.json の capture_conditions.states との差を報告する。キーごと省略しない——省略は「見た目が変わらない」と「考えていない」を同じ見え方にする>"
       ],
       "no_visual_state_reason": "<visual_states が空配列のときだけ、このルールの操作で見た目の状態が変わらない理由（例: 到達の確認だけで状態を持たない）。空だと coverage-expand.mjs が落とす。visual_states が非空なら null>"
     }

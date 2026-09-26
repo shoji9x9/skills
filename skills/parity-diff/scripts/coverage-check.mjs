@@ -40,20 +40,22 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.coverage_check に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "15";
+export const VERSION = "16";
 
 // 撮影状態の要約を信頼してよい生成側（parity-suite の coverage-expand.mjs）の最低バージョン。
 //
-// **なぜ 16 か**: 16 で導出の意味論が変わった——要求元をルール id でまとめるのをやめ、候補 id 単位にし、
+// **なぜ 18 か**: 16 で導出の意味論が変わった——要求元をルール id でまとめるのをやめ、候補 id 単位にし、
 // 縮約は宣言・検証済みの同値クラス経由だけにした。15 以前は 1 ルールが展開する複数候補が 1 行へ潰れ、
 // 縮約してはいけない軸（datagrid の sort-direction 等）まで畳んでいた。
+// 18 で操作を終えた後に残る見た目の種別（after-operation）を足した（Issue #471）。17 以前の要約は
+// 選択の塗り・絞り込みの印・並べ替えの印の行を 1 行も持たず、撮られなかった差が「差 0 件」に戻る。
 // 指紋（table / capture）は「その表を忠実に写したか」しか言わないので、壊れた意味論で作られた要約も
 // 指紋は一致する。版を見ないと、スキルを上げても既知の欠陥を持つ要約が収束を通り続ける。
 //
 // **導出の意味論を変えたらここを上げる。** 上げ忘れると、古い規則で作られた成果物が黙って通る。
 // 姉妹の reaction-check.mjs は記録側・判定側が同一スクリプトなので完全一致を要求できるが、
 // こちらは coverage-expand と coverage-check が別スクリプトで版も独立なので下限で見る。
-export const MIN_COVERAGE_EXPAND_VERSION = 16;
+export const MIN_COVERAGE_EXPAND_VERSION = 18;
 const COVERAGE_EXPAND_TOOL = "coverage-expand";
 
 /** 被覆表のセルが取りうる値。 */
@@ -1152,7 +1154,7 @@ export function countCoverage(coverage, slug, captureFingerprintNow = null) {
       // 版を見ないとスキルを上げても既知の欠陥を持つ要約が通り続ける。
       // 欠落・非数値は「判定しない」に倒さず落とす（検証不能は満たされたではない）。
       problems.push(
-        `conformance.visual_states は ${COVERAGE_EXPAND_TOOL} ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則で作られている必要がある（記録: ${nonEmptyString(conf.tool_version) ? String(conf.tool_version) : "（空）"}）。それ以前は要求元をルール id でまとめ、縮約してはいけない軸まで畳んでいた。coverage-expand.mjs を --metadata 付きで通し直す`,
+        `conformance.visual_states は ${COVERAGE_EXPAND_TOOL} ${MIN_COVERAGE_EXPAND_VERSION} 以降の導出規則で作られている必要がある（記録: ${nonEmptyString(conf.tool_version) ? String(conf.tool_version) : "（空）"}）。15 以前は要求元をルール id でまとめて縮約してはいけない軸まで畳み、17 以前は操作を終えた後に残る見た目（after-operation）を導かなかった。coverage-expand.mjs を --metadata 付きで通し直す`,
       );
     } else {
       if (typeof visual.undecided !== "number" || visual.undecided !== 0) {

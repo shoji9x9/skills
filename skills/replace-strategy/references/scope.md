@@ -47,6 +47,7 @@
 | 操作で開く器の見た目（吹き出し・引き出し等） | 条件付き | `capture_conditions.popup_inventory` で再帰的に数え、撮影状態へ入れた器だけ対象。撮らない器と、位置が落ち着かず撮れない状態は `gaps.md` に「撮影状態の対象外」として理由付きで必須記録 | `parity-suite` の `references/baseline.md` |
 | 窓の寸法への追従（位置・寸法の式） | 対象 | 画素・特性照合・aria は撮影したビューポートでしか比べないため、`parity-suite` が窓を変えて式を読み（`capture_conditions.dimension_model`）、`parity-replace` が完了判定で新側を照合する。未測定・式が読めない軸は `gaps.md` で済ませず `porting.md` に写していない旨を明示 | `parity-suite` の `references/baseline.md` |
 | 操作で変わる頁の組み方（行を足すたびに器の高さを書き直す等） | 対象 | 寸法の式と視覚ベースラインは初期表示しか見ないため、反応の被覆表の `layout` で操作を 2 回以上繰り返した後の頁の高さと矩形を測り assertion にする。撮影したビューポート以外での追従は `gaps.md` に残す | `parity-suite` の `references/coverage.md` |
+| 押した後に残る見た目と戻り先（選択の塗り・絞り込み中の見出しの印・並べ替えの印・遷移先・戻す状態の範囲） | 対象 | 撮影状態の導出は操作の途中しか導かず、反応は出て消えるものしか見ないため、反応の被覆表の `aftermath` で操作ごとに現行で測り、撮る状態か assertion に割り当てる。戻す範囲は画面が持つ状態を全て動かしてから押して測る。どちらにもしない見た目は `gaps.md` に理由付きで必須記録 | `parity-suite` の `references/coverage.md` |
 | スクロールバーが場所を取る窓での頁の高さ（`height: 100%` と `100vh`） | 対象 | ヘッドレスの撮影はスクロールバーを隠すので 3 経路に写らない。`parity-suite` がスクロールバーを表示した、頁の最小幅より狭い窓で縦・横のはみ出しを測り（`capture_conditions.overflow`）、同じスペックが現・新の両側に当てる | `parity-suite` の `references/baseline.md` |
 | 採取環境依存の一致（フォント等） | 条件付き | 環境非依存のフォントスタックにする／利用者環境でも採取する／`gaps.md` に残す のいずれか | `parity-suite` の `references/baseline.md` |
 | 書き込み系の検証 | 条件付き | 対象 target が書き込みを許可していること（`forbidden_actions` / `seedable`）。不許可なら実行せず未検証として記録 | [`project-config.md`](project-config.md)「実行対象環境」 |

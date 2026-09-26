@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions を必ず持つ（空欄を許さず、反応が無ければ kind: none を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
+  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
   "documents": [
@@ -83,6 +83,42 @@
           "<changes: true なら 2 回以上繰り返した後の頁の高さ・矩形（窓に収まるか）を、false なら操作の後も変わらないことを確かめたスイートの assertion（スペックとテスト名）。空なら落ちる>"
         ]
       },
+      "aftermath": {
+        "_note": "押した後に残るもの（Issue #471）。撮影状態の導出は操作の途中（器を開く・指を乗せる・焦点・押している最中・不活性）までしか導かないので、終えた後に残る見た目と戻り先はここでしか押さえられない。操作ごとに必ず書く（欠けると未測定）。look と returns_to はどちらも現行で 1 度ずつ測って書く。",
+        "look": {
+          "changes": "<真偽値。押した後に見た目（塗り・色・印・焦点）が残るなら true と items、残らないなら false と evidence。測れなければ null と reason（gaps.md にも残す）>",
+          "items": [
+            {
+              "id": "<見た目の id（\"/\" を含めない。操作の中で一意）>",
+              "target": "<見た目が残る要素の論理名（例: 価格列の見出し。選択の塗りなら列ごとの論理名）>",
+              "description": "<残る見た目（例: 絞り込み中の見出しの文字色・複数列の並べ替えの順位の印・選択した行のこの列の塗り）>",
+              "observed": "<現行で測った値（例: color: rgb(204, 0, 0)・印の文言「2▲」・塗りが付かない〈background-color が選択前と同じ〉）。付かないことも値として書く>",
+              "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
+              "covered_by": [
+                "<押さえた assertion（toHaveCSS・印の文言など。スペックとテスト名）。撮る状態だけで押さえるなら空配列>"
+              ],
+              "reason": "<captured も covered_by も無いときだけ、どちらにもしない理由（gaps.md にも残す）。どちらかがあるなら null>"
+            }
+          ],
+          "evidence": "<changes: false のときだけ、押した後に見た目が残らないことを確かめた記録（例: 押した前後で対象の論理名の計算後スタイルが同じ）>",
+          "reason": "<changes: null のときだけ、測れなかった理由>"
+        },
+        "returns_to": {
+          "measured": "<真偽値。押した後の遷移先と戻した状態の範囲を測ったか。測れなければ false と reason（未測定として数えられる。gaps.md にも残す）>",
+          "url_before": "<押す前の URL。\"/\" で始まるオリジンを除いたパス（クエリ・フラグメントを含む）。ホスト・ポートは書かない>",
+          "url_after": "<押した後の URL（同じ形）。遷移しないなら url_before と同じ値。ロゴのように遷移するはずの操作は、ここで遷移先を測る>",
+          "probed": [
+            "<押す前に既定から動かした状態（例: 検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り）。画面が持つ状態を全て動かしてから押す——動かしていない状態が戻るかは測れない>"
+          ],
+          "reset": [
+            "<probed のうち、押した後に既定へ戻ったもの。戻らなかったものは書かない（probed との差が「残した状態」になる）>"
+          ],
+          "probe_skipped_reason": "<probed が空のときだけ、状態を動かさずに測った理由（例: この画面は状態を持たない）。probed があるなら null>",
+          "covered_by": [
+            "<押した後の URL と、戻る状態・戻らない状態を押さえた assertion（スペックとテスト名）。空なら落ちる>"
+          ]
+        }
+      },
       "reactions": [
         {
           "id": "<反応 id（\"/\" を含めない）>",
@@ -124,6 +160,22 @@
         "evidence": "<操作の前後で scrollHeight と主な論理名の矩形を測り、同じだった記録>",
         "covered_by": ["<操作の後も頁の組み方が変わらないことを確かめたスイートの assertion>"]
       },
+      "aftermath": {
+        "look": {
+          "changes": "<例: false（検索で一覧が絞られても、見出し・行の見た目は押す前と同じ）>",
+          "evidence": "<押した前後で主な論理名の計算後スタイルと印の文言を測り、同じだった記録>"
+        },
+        "returns_to": {
+          "measured": "<例: true>",
+          "url_before": "<例: /orders>",
+          "url_after": "<例: /orders?q=abc>",
+          "probed": ["<例: 並べ替え>", "<例: 列フィルター>"],
+          "reset": [],
+          "covered_by": [
+            "<検索の後も並べ替え・列フィルターが残ることを確かめたスイートの assertion>"
+          ]
+        }
+      },
       "reactions": [
         {
           "id": "none",
@@ -151,6 +203,16 @@
       "layout": {
         "changes": null,
         "reason": "<測れなかった理由（例: この操作は窓の高さの測定と同時に成立させられない）。未測定として数えられる。gaps.md にも残す>"
+      },
+      "aftermath": {
+        "look": {
+          "changes": null,
+          "reason": "<測れなかった理由。未測定として数えられる。gaps.md にも残す>"
+        },
+        "returns_to": {
+          "measured": false,
+          "reason": "<測れなかった理由。未測定として数えられる。gaps.md にも残す>"
+        }
       },
       "reactions": [
         {

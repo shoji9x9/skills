@@ -1,6 +1,6 @@
 {
   "id": "datagrid",
-  "version": "2",
+  "version": "3",
   "name": "データグリッド",
   "applies_to": "1 つのインスタンスが多数の列を持ち、列ごとに表示可否・フィルター可否・ソート可否が設定される表形式部品。特定の製品に依存しない（自作・OSS・市販のいずれでも、この構造を持てば当てる）",
   "axes": [
@@ -23,6 +23,18 @@
       "values": ["asc", "desc", "none"]
     },
     {
+      "id": "sort-combination",
+      "kind": "element",
+      "name": "複数列の並べ替えの組（2 列目以降を足す操作〈修飾キー付きのクリック・並べ替えの設定画面など〉で作る組）。組ごとに並べ替えの印（順位の数字・向きの印）が変わるので、組を足す操作の手段ごとに列挙する。グリッドが複数列の並べ替えを持たないなら空配列と justified_absences",
+      "flags": []
+    },
+    {
+      "id": "row-selector",
+      "kind": "element",
+      "name": "行を選ぶ手段（行番号・チェックボックス・行のクリック・キーボード・範囲選択など）。手段ごとに選択の塗りが付く範囲が変わりうるので手段ごとに列挙する。グリッドが行の選択を持たないなら空配列と justified_absences",
+      "flags": []
+    },
+    {
       "id": "menu-target",
       "kind": "element",
       "name": "右クリックの対象。メニュー構成が変わる単位で列挙する（列ヘッダ・データ行・空白領域など）",
@@ -43,14 +55,16 @@
   ],
   "enumeration": {
     "sources": ["current-source", "config", "app-ui"],
-    "procedure": "現行ソースのグリッド定義（列定義の配列、列ごとの表示・フィルター・ソートの設定、コンテキストメニューの項目定義とその表示条件）を一次情報源にして column / menu-target / menu-item / menu-condition を抜く。設定ファイル・DB 由来の動的な列定義があればそれも合わせる。抜いた候補の期待値（実際にフィルターが効くか、メニュー項目が出るか）は動作中の現行アプリで確定する——ソースの設定値をそのまま実測の代わりにしない。",
+    "procedure": "現行ソースのグリッド定義（列定義の配列、列ごとの表示・フィルター・ソートの設定、コンテキストメニューの項目定義とその表示条件）、行の選択と複数列の並べ替えの設定を一次情報源にして column / sort-combination / row-selector / menu-target / menu-item / menu-condition を抜く。設定ファイル・DB 由来の動的な列定義があればそれも合わせる。抜いた候補の期待値（実際にフィルターが効くか、メニュー項目が出るか）は動作中の現行アプリで確定する——ソースの設定値をそのまま実測の代わりにしない。",
     "pitfalls": [
       "初期表示で非表示の列（列選択・列表示切替で出るもの）を列挙から落とす",
       "横スクロールしないと画面に出ない列を「無い」と扱う",
       "列定義が動的に組まれていて、静的な配列リテラルだけを読んで打ち切る",
       "右クリック対象を 1 種類（データ行）だけ見て、列ヘッダ・空白領域のメニューを落とす",
       "権限・行状態でメニュー項目が増減するのに、1 ロール・1 状態でだけ開いて確定する",
-      "無効（グレーアウト）で出る項目を「出ない」と扱う"
+      "無効（グレーアウト）で出る項目を「出ない」と扱う",
+      "行を選んだ後・列で絞り込んだ後・並べ替えた後に残る見た目（選択の塗り・見出しの印）を、操作が効いたこと（行数・並び順）だけで確かめて見た目を列挙しない",
+      "選択の塗りを 1 列だけで見て、塗りが付かない列（現行が特定の列だけ塗らない）を落とす"
     ],
     "fail_closed": "グリッド定義を読めない（ソース未受領・難読化・動的生成で追えない）場合は complete: false ＋ incomplete_reason に、実 UI からの列挙手順（列表示切替を全て開く・横スクロールを右端まで送る・対象ごとに右クリックする・ロールと行状態を変えて開き直す）と、その手順でも確定できない不足を書く。確認済みにしない。"
   },
@@ -87,22 +101,39 @@
     },
     {
       "id": "column-filter",
-      "name": "列ごとのフィルター操作",
+      "name": "列ごとのフィルター操作（絞り込んだ後に残る見出しの印まで）",
       "axes": ["column"],
       "guard": {
         "column.filterable": true
       },
-      "visual_states": ["opens-container"],
+      "visual_states": ["opens-container", "after-operation"],
       "no_visual_state_reason": null
     },
     {
       "id": "column-sort",
-      "name": "列ごとのソート操作（昇順・降順・解除）",
+      "name": "列ごとのソート操作（昇順・降順・解除と、並べ替えた後に残る印）",
       "axes": ["column", "sort-direction"],
       "guard": {
         "column.sortable": true
       },
-      "visual_states": ["hover", "focus", "active"],
+      "visual_states": ["hover", "focus", "active", "after-operation"],
+      "no_visual_state_reason": null
+    },
+    {
+      "id": "multi-column-sort",
+      "name": "複数列で並べ替えた後に残る印（順位・向き）",
+      "axes": ["sort-combination"],
+      "visual_states": ["after-operation"],
+      "no_visual_state_reason": null
+    },
+    {
+      "id": "row-select",
+      "name": "行を選んだ後に列ごとに付く選択の塗り（塗りが付かない列も含めて列ごとに確かめる）",
+      "axes": ["row-selector", "column"],
+      "guard": {
+        "column.initially_visible": true
+      },
+      "visual_states": ["after-operation"],
       "no_visual_state_reason": null
     },
     {
@@ -126,13 +157,21 @@
       "no_visual_state_reason": null
     }
   ],
-  "required_rules": ["column-visible", "column-sort", "context-menu-open", "context-menu-item"],
+  "required_rules": [
+    "column-visible",
+    "column-sort",
+    "multi-column-sort",
+    "row-select",
+    "context-menu-open",
+    "context-menu-item"
+  ],
   "equivalence": {
     "reducible_axes": ["column", "menu-item"],
     "constraints": [
       "列を束ねてよいのは、列の描画が同じ型（同じセルレンダラ・同じ書式・同じ幅の決まり方）に属するときだけ。書式が違う列（数値・日付・バッジ・リンク）は別クラスにする",
       "メニュー項目を束ねてよいのは、項目の描画が同じ型（アイコンの有無・活性の見え方・区切りの入り方）のときだけ。無効表示のある項目は活性のものと束ねない",
-      "sort-direction・menu-target・menu-condition は束ねない。方向・対象・条件はそれぞれ描画が変わりうるため、代表 1 件では差分が見えなくなる",
+      "row-select で列を束ねてよいのは、現行で選択の塗りの有無と色が同じだと列ごとに確かめた列だけ（現行が特定の列だけ塗らないなら、その列は別クラスにする）。1 回の選択で全列が同時に塗られるので、束ねない列どうしが同じ撮影状態を指すときは、全行の shared_capture_reason に「同じ選択操作の 1 枚で全列が写る」ことを書く",
+      "sort-direction・sort-combination・row-selector・menu-target・menu-condition は束ねない。方向・組・選ぶ手段・対象・条件はそれぞれ描画が変わりうるため、代表 1 件では差分が見えなくなる",
       "束ねた根拠は「現行アプリで実際に同じ描画になることを確かめた手順」を rationale に書く。「同じに見えたから」は根拠にしない"
     ]
   }

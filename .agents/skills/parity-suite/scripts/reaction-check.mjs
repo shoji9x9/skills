@@ -7,6 +7,8 @@
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
 //      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
 //      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
+//      操作を終えた後に残るもの（aftermath）も数える。残る見た目は撮る状態か assertion に割り当て、
+//      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる（Issue #471）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）
 //   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
@@ -31,7 +33,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -464,6 +466,218 @@ function layoutProblem(layout) {
 }
 
 /**
+ * 値が空でない文字列の配列か（テンプレートの説明文のままの要素を含まない）。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function filledStrings(v) {
+  return Array.isArray(v) && v.length > 0 && v.every((c) => nonEmptyString(c) && !isPlaceholder(c));
+}
+
+/**
+ * 空でなく、テンプレートの説明文のままでもない文字列か。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function filled(v) {
+  return nonEmptyString(v) && !isPlaceholder(v);
+}
+
+/**
+ * 操作を終えた後に残る見た目（aftermath.look）の欠けを返す。Issue #471
+ *
+ * 撮影状態の導出は操作の途中（器を開く・指を乗せる等）までしか導かないので、終えた後に残る塗り・色・印は
+ * 撮る状態にも assertion にも入らず、差は「差 0 件」と同じ見え方になる。見た目ごとに現行で測った値を残させ、
+ * 撮る状態か assertion のどちらか（両方でもよい）に割り当てさせる。どちらにもしないなら理由を要求する。
+ * @param {unknown} look
+ * @param {Set<string> | null} captureStates
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function aftermathLookProblems(look, captureStates) {
+  if (!isPlainObject(look)) {
+    return [
+      {
+        problem:
+          "aftermath.look が無い（押した後に残る見た目〈塗り・色・印・焦点〉を測っていない。残らないなら changes: false を確かめ方付きで書く）",
+        unmeasured: true,
+      },
+    ];
+  }
+  if (look.changes === null) {
+    return [
+      {
+        problem: `aftermath.look: 未測定${nonEmptyString(look.reason) ? `（${look.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (typeof look.changes !== "boolean") {
+    return [
+      { problem: "aftermath.look.changes が true / false / null のどれでもない", unmeasured: true },
+    ];
+  }
+  const items = look.items;
+  if (look.changes === false) {
+    /** @type {{ problem: string, unmeasured: boolean }[]} */
+    const out = [];
+    if (!filled(look.evidence)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに evidence が空・テンプレートの説明文のまま（押した後に見た目が残らないことを確かめた記録が無い）",
+        unmeasured: true,
+      });
+    }
+    if (Array.isArray(items) && items.length > 0) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに items がある（残らないと残るが同時に成立する）",
+        unmeasured: false,
+      });
+    }
+    return out;
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return [
+      {
+        problem:
+          "aftermath.look.changes: true なのに items が空（残る見た目を 1 つずつ列挙していない）",
+        unmeasured: true,
+      },
+    ];
+  }
+  /** @type {string[]} */
+  const idProblems = [];
+  const ids = collectIds(items, "aftermath.look.items", idProblems);
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = idProblems.map((problem) => ({ problem, unmeasured: true }));
+  for (const item of items) {
+    if (!isPlainObject(item) || !ids.has(/** @type {string} */ (item.id))) continue;
+    const at = `aftermath.look.items["${item.id}"]`;
+    if (!filled(item.target) || !filled(item.description)) {
+      out.push({ problem: `${at}: target（論理名）/ description が空`, unmeasured: true });
+      continue;
+    }
+    // 現行で 1 度測った値。書かせないと、見た目を思い浮かべただけの列挙と区別が付かない
+    if (!filled(item.observed)) {
+      out.push({
+        problem: `${at}: observed（現行で測った値〈計算後スタイル・印の文言など〉）が空・テンプレートの説明文のまま`,
+        unmeasured: true,
+      });
+      continue;
+    }
+    const hasState = filled(item.captured);
+    const hasAssertion = filledStrings(item.covered_by);
+    const hasReason = filled(item.reason);
+    if (hasReason && (hasState || hasAssertion)) {
+      out.push({
+        problem: `${at}: reason と captured / covered_by が両方埋まっている（撮る・押さえると、どちらにもしないが同時に成立する）`,
+        unmeasured: false,
+      });
+      continue;
+    }
+    if (!hasState && !hasAssertion && !hasReason) {
+      out.push({
+        problem: `${at}: 撮る状態（captured）にも assertion（covered_by）にも割り当てていない（どちらにもしないなら reason を書き、gaps.md に残す）`,
+        unmeasured: true,
+      });
+      continue;
+    }
+    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {
+      out.push({
+        problem: `${at}: captured "${item.captured}" が capture_conditions.states に無い`,
+        unmeasured: true,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * 押した後に URL の上でも状態の上でもどこへ戻るか（aftermath.returns_to）の欠けを返す。Issue #471
+ *
+ * 遷移しないはずの操作が遷移する・戻すはずの状態を戻さない差は、撮った画面の上には現れない。
+ * 押す前後の URL と、押す前に既定から動かした状態（probed）のうち押した後に既定へ戻ったもの（reset）を実測させる。
+ * 動かしていない状態が戻るかは測れないので、動かさずに測った記録は範囲を語れない。
+ * URL は成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、オリジンを除いたパスで書かせる。
+ * @param {unknown} ret
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function aftermathReturnsProblems(ret) {
+  if (!isPlainObject(ret)) {
+    return [
+      {
+        problem:
+          "aftermath.returns_to が無い（押した後の遷移先と、押す前に動かした状態のうち戻った範囲を測っていない）",
+        unmeasured: true,
+      },
+    ];
+  }
+  if (ret.measured === false) {
+    return [
+      {
+        problem: `aftermath.returns_to: 未測定${nonEmptyString(ret.reason) ? `（${ret.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (ret.measured !== true) {
+    return [{ problem: "aftermath.returns_to.measured が真偽値でない", unmeasured: true }];
+  }
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = [];
+  for (const key of ["url_before", "url_after"]) {
+    const v = ret[key];
+    if (!filled(v) || !String(v).startsWith("/") || String(v).startsWith("//")) {
+      out.push({
+        problem: `aftermath.returns_to.${key} が "/" で始まるオリジンを除いたパス（クエリ・フラグメントを含む）でない`,
+        unmeasured: true,
+      });
+    }
+  }
+  const probed = ret.probed;
+  const reset = ret.reset;
+  const stringsOk = (v) => Array.isArray(v) && v.every(filled) && new Set(v).size === v.length;
+  if (!stringsOk(probed) || !stringsOk(reset)) {
+    out.push({
+      problem:
+        "aftermath.returns_to の probed / reset が、重複の無い空でない文字列の配列でない（何も動かしていないなら空配列と probe_skipped_reason）",
+      unmeasured: true,
+    });
+  } else {
+    const probedSet = new Set(/** @type {string[]} */ (probed));
+    const stray = /** @type {string[]} */ (reset).filter((x) => !probedSet.has(x));
+    if (stray.length > 0) {
+      out.push({
+        problem: `aftermath.returns_to.reset に probed に無い状態がある: ${stray.join(", ")}（動かしていない状態が戻ったかは測れない）`,
+        unmeasured: true,
+      });
+    }
+    const skipped = filled(ret.probe_skipped_reason);
+    if (probed.length === 0 && !skipped) {
+      out.push({
+        problem:
+          "aftermath.returns_to.probed が空なのに probe_skipped_reason が空（押す前に状態を動かさずに測ると、戻す範囲を「何も戻さない」と区別できない）",
+        unmeasured: true,
+      });
+    }
+    if (probed.length > 0 && skipped) {
+      out.push({
+        problem: "aftermath.returns_to.probed があるのに probe_skipped_reason が埋まっている",
+        unmeasured: false,
+      });
+    }
+  }
+  if (!filledStrings(ret.covered_by)) {
+    out.push({
+      problem:
+        "aftermath.returns_to.covered_by が空（押した後の URL と、戻る・戻らない状態をスイートの assertion に落としていない）",
+      unmeasured: true,
+    });
+  }
+  return out;
+}
+
+/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
@@ -664,6 +878,24 @@ export function checkReactions(table, opts = {}) {
     if (lp.problem) {
       if (lp.unmeasured) fail(lp.problem);
       else problems.push(`${label}: ${lp.problem}`);
+    }
+    // 押した後に残る見た目と戻り先（Issue #471）。欠けは layout と同じく未測定に数える
+    const am = op.aftermath;
+    const amProblems = isPlainObject(am)
+      ? [
+          ...aftermathLookProblems(am.look, captureStates),
+          ...aftermathReturnsProblems(am.returns_to),
+        ]
+      : [
+          {
+            problem:
+              "aftermath が無い（押した後に残る見た目〈look〉と戻り先〈returns_to〉を測っていない）",
+            unmeasured: true,
+          },
+        ];
+    for (const ap of amProblems) {
+      if (ap.unmeasured) fail(ap.problem);
+      else problems.push(`${label}: ${ap.problem}`);
     }
     handlersByOp.set(/** @type {string} */ (op.id), op.handlers);
     const reactions = Array.isArray(op.reactions) ? op.reactions : [];

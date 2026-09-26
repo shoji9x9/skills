@@ -80,6 +80,57 @@ const layoutChange = () => ({
   covered_by: ["layout.spec.ts: 条件を 2 回足した後も頁が窓に収まりグリッドが縮む"],
 });
 
+/** 押した後に見た目が残らず、どこへも戻らないことを実測で書いた記録（Issue #471）。 */
+const quietAftermath = () => ({
+  look: {
+    changes: false,
+    evidence: "押した後に対象の論理名の計算後スタイルと印の文言が押す前と同じ",
+  },
+  returns_to: {
+    measured: true,
+    url_before: "/share?id=1",
+    url_after: "/share?id=1",
+    probed: ["検索条件", "並べ替え"],
+    reset: [],
+    covered_by: ["share.spec.ts: コピーの後も URL と検索条件・並べ替えが残る"],
+  },
+});
+
+/** 押した後に見た目が残り、状態の一部を戻す操作の記録（絞り込み中の見出しの色・Clear が戻す範囲）。 */
+const lingeringAftermath = () => ({
+  look: {
+    changes: true,
+    items: [
+      {
+        id: "filtered-header",
+        target: "価格列の見出し",
+        description: "絞り込み中の見出しの文字色",
+        observed: "color: rgb(204, 0, 0)",
+        captured: null,
+        covered_by: ["search.spec.ts: 絞り込んだ列の見出しが赤くなる"],
+        reason: null,
+      },
+      {
+        id: "result-toast",
+        target: "コピー完了の通知",
+        description: "押した後に残る通知の背景",
+        observed: "background-color: rgb(0, 128, 0)",
+        captured: "copy-toast",
+        covered_by: [],
+        reason: null,
+      },
+    ],
+  },
+  returns_to: {
+    measured: true,
+    url_before: "/share?id=1&sort=price",
+    url_after: "/share?id=1",
+    probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    reset: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
+    covered_by: ["search.spec.ts: Clear で検索条件と並べ替え・列フィルター・列の変更が既定に戻る"],
+  },
+});
+
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
@@ -103,6 +154,7 @@ const baseTable = () => ({
       handlers: [{ file: "src/share.js", symbol: "copy" }],
       immediate_state: "ダイアログが閉じる",
       layout: noLayoutChange(),
+      aftermath: quietAftermath(),
       reactions: [toast()],
     },
     {
@@ -111,6 +163,7 @@ const baseTable = () => ({
       handlers: [{ file: "src/share.js", symbol: "search" }],
       immediate_state: "一覧が絞られる",
       layout: layoutChange(),
+      aftermath: lingeringAftermath(),
       reactions: [noneReaction()],
     },
   ],
@@ -393,6 +446,7 @@ test.each([
         trigger: "x()",
         immediate_state: "y",
         layout: noLayoutChange(),
+        aftermath: quietAftermath(),
         reactions: [{ ...toast(), id: "opy/toast" }],
       });
     },
@@ -1006,3 +1060,178 @@ test.each([
     expect(r.stderr).toContain(needle);
   },
 );
+
+test("押した後に何も残らない操作と、残る見た目・戻す範囲を測った操作は通す（Issue #471）", () => {
+  // 陽性コントロールの表そのもの（copy は残らない・戻さない、search は残る・戻す）。
+  // aftermath の分岐を足したことで正規の記録まで落とすようになっていないことを、他の欄と独立に固定する
+  const r = run(baseTable());
+  expect(r.status).toBe(0);
+  expect(r.stdout + r.stderr).not.toContain("aftermath");
+});
+
+test.each([
+  ["aftermath が無い", (t) => delete t.operations[0].aftermath, "aftermath が無い"],
+  ["aftermath が配列", (t) => (t.operations[0].aftermath = []), "aftermath が無い"],
+  ["look が無い", (t) => delete t.operations[0].aftermath.look, "aftermath.look が無い"],
+  [
+    "look.changes が語彙外",
+    (t) => (t.operations[0].aftermath.look.changes = "yes"),
+    "aftermath.look.changes が true / false / null のどれでもない",
+  ],
+  [
+    "look.changes: null（測れなかった）",
+    (t) => (t.operations[0].aftermath.look = { changes: null, reason: "選択を保てない" }),
+    "aftermath.look: 未測定（選択を保てない）",
+  ],
+  [
+    "look.changes: false に確かめ方が無い",
+    (t) => (t.operations[0].aftermath.look.evidence = ""),
+    "aftermath.look.changes: false なのに evidence が空",
+  ],
+  [
+    "look.changes: false なのに items がある",
+    (t) => (t.operations[0].aftermath.look.items = lingeringAftermath().look.items),
+    "changes: false なのに items がある",
+  ],
+  [
+    "look.changes: true に items が無い",
+    (t) => (t.operations[1].aftermath.look.items = []),
+    "changes: true なのに items が空",
+  ],
+  [
+    "items の id が重複",
+    (t) => (t.operations[1].aftermath.look.items[1].id = "filtered-header"),
+    'aftermath.look.items: id "filtered-header" が 2 回重複している',
+  ],
+  [
+    "items に現行で測った値が無い",
+    (t) => (t.operations[1].aftermath.look.items[0].observed = ""),
+    "observed（現行で測った値",
+  ],
+  [
+    "items の論理名が空",
+    (t) => (t.operations[1].aftermath.look.items[0].target = " "),
+    "target（論理名）/ description が空",
+  ],
+  [
+    "items を撮る状態にも assertion にも割り当てていない",
+    (t) => (t.operations[1].aftermath.look.items[0].covered_by = []),
+    "撮る状態（captured）にも assertion（covered_by）にも割り当てていない",
+  ],
+  [
+    "items が理由と割り当てを両方持つ",
+    (t) => (t.operations[1].aftermath.look.items[0].reason = "外部連携が起動する"),
+    "reason と captured / covered_by が両方埋まっている",
+  ],
+  [
+    "items の撮る状態が撮影条件に無い",
+    (t) => (t.operations[1].aftermath.look.items[1].captured = "selected-row"),
+    'captured "selected-row" が capture_conditions.states に無い',
+  ],
+  [
+    "returns_to が無い",
+    (t) => delete t.operations[0].aftermath.returns_to,
+    "aftermath.returns_to が無い",
+  ],
+  [
+    "returns_to.measured: false（測れなかった）",
+    (t) => (t.operations[0].aftermath.returns_to = { measured: false, reason: "遷移先が外部" }),
+    "aftermath.returns_to: 未測定（遷移先が外部）",
+  ],
+  [
+    "returns_to.measured が真偽値でない",
+    (t) => (t.operations[0].aftermath.returns_to.measured = "yes"),
+    "aftermath.returns_to.measured が真偽値でない",
+  ],
+  [
+    "押した後の URL が無い",
+    (t) => delete t.operations[0].aftermath.returns_to.url_after,
+    "aftermath.returns_to.url_after が",
+  ],
+  [
+    "押す前の URL にオリジンが入っている",
+    (t) => (t.operations[0].aftermath.returns_to.url_before = "https://app.example/share?id=1"),
+    "aftermath.returns_to.url_before が",
+  ],
+  [
+    "押す前の URL がプロトコル相対",
+    (t) => (t.operations[0].aftermath.returns_to.url_before = "//app.example/share"),
+    "aftermath.returns_to.url_before が",
+  ],
+  [
+    "動かしていない状態を戻したと書く",
+    (t) => (t.operations[1].aftermath.returns_to.probed = ["検索条件"]),
+    "reset に probed に無い状態がある: 並べ替え, 列フィルター, 列の変更",
+  ],
+  [
+    "何も動かさずに測った理由が無い",
+    (t) => (t.operations[0].aftermath.returns_to.probed = []),
+    "probed が空なのに probe_skipped_reason が空",
+  ],
+  [
+    "動かしたのに動かさなかった理由がある",
+    (t) => (t.operations[0].aftermath.returns_to.probe_skipped_reason = "状態を持たない"),
+    "probed があるのに probe_skipped_reason が埋まっている",
+  ],
+  [
+    "probed に重複がある",
+    (t) => t.operations[0].aftermath.returns_to.probed.push("検索条件"),
+    "probed / reset が、重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "reset が配列でない",
+    (t) => (t.operations[0].aftermath.returns_to.reset = null),
+    "probed / reset が、重複の無い空でない文字列の配列でない",
+  ],
+  [
+    "戻り先に assertion が無い",
+    (t) => (t.operations[0].aftermath.returns_to.covered_by = [""]),
+    "aftermath.returns_to.covered_by が空",
+  ],
+])("押した後に残るものの記録の欠けを落とす: %s（Issue #471）", (_name, mutate, needle) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(needle);
+});
+
+test("何も動かさずに測った理由があれば、戻す範囲が空でも通す（Issue #471）", () => {
+  const r = run(
+    mutated((t) => {
+      t.operations[0].aftermath.returns_to.probed = [];
+      t.operations[0].aftermath.returns_to.probe_skipped_reason =
+        "この画面は検索条件・並べ替え・選択のどれも持たない（実 UI で確かめた）";
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("撮る状態にも assertion にもしない見た目は、理由があれば通す（Issue #471）", () => {
+  const r = run(
+    mutated((t) => {
+      const item = t.operations[1].aftermath.look.items[0];
+      item.covered_by = [];
+      item.reason = "押すと外部の決済画面へ移り、戻った後の見出しを同じ条件で作れない";
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("同梱テンプレートのプレースホルダのままの aftermath は落とす（Issue #471）", () => {
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const r = run(
+    mutated((x) => {
+      x.operations[0].aftermath = template.operations[0].aftermath;
+      x.operations[1].aftermath = template.operations[1].aftermath;
+    }),
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('operations["copy"]: aftermath');
+  expect(r.stderr).toContain('operations["search"]: aftermath');
+});

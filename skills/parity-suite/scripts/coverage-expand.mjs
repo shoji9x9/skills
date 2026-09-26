@@ -32,16 +32,26 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "17";
+export const VERSION = "18";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
 
 // 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
 // capture_conditions.states の状態名そのものではない（名前は撮る側が決める）。
-// 導出は下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は
+// 先頭の 5 種は操作の**途中**の見た目、after-operation は操作を**終えた後に残る**見た目
+// （選択の塗り・絞り込み中の見出しの印・並べ替えの印。Issue #471）。途中だけを導くと、
+// 終えた後の見た目は撮られず、差は「差 0 件」と同じ見え方になる。
+// 導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は
 // 従来どおり手で states へ足す。
-const VISUAL_STATE_KINDS = ["opens-container", "hover", "focus", "active", "disabled"];
+const VISUAL_STATE_KINDS = [
+  "opens-container",
+  "hover",
+  "focus",
+  "active",
+  "disabled",
+  "after-operation",
+];
 
 // 撮影状態の行のうち、人／エージェントが埋める欄。導出は要求の集合だけを決めるので、
 // 書き戻し（fillVisualStateRows）はこの一覧を必ず引き継ぐ。
@@ -1935,7 +1945,7 @@ function visualRowKey(row) {
  * 「部品 × インスタンス × 要求元の操作 × 種別」の行を作る。撮っていない状態には差が出ず、差分器は撮った 2 枚しか比べないので、
  * 集合が足りないぶんは「差 0 件」と区別が付かない。導出はその不足を撮る前に見えるようにする。
  *
- * 下限であって上限ではない——操作から導けない状態（selected / error / 初期表示のバリアント）は手で states へ足す。
+ * 下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。
  * @param {Record<string, unknown>} cov
  * @returns {{rows: Array<Record<string, unknown>>, problems: string[]}}
  */
