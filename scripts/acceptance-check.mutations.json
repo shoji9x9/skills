@@ -195,6 +195,15 @@
       "replace": "    if (item === \"\") continue;\n    if (false)\n",
       "occurrences": 1,
       "expect_failing": ["文言の無い項目は黙って捨てず、Issue 側を直すよう落とす"]
+    },
+    {
+      "id": "fingerprint-checkmark-in-quote",
+      "why": "引用・リストの中の項目のチェックを指紋で畳まず、チェックを付けただけで表を古くする",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "const CHECKBOX =\n  /^((?:\\s*(?:>|(?:[-*+]|\\d+[.)])(?=\\s)))*\\s*(?:[-*+]|\\d+[.)])\\s+)\\[([ xX])\\](\\s+)(.*)$/;\n",
+      "replace": "const CHECKBOX = /^(\\s*(?:[-*+]|\\d+[.)])\\s+)\\[([ xX])\\](\\s+)(.*)$/;\n",
+      "occurrences": 1,
+      "expect_failing": ["チェックを付けて書き戻したときの末尾の改行では表を古くしない"]
     }
   ]
 }

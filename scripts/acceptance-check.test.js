@@ -427,6 +427,10 @@ test("本文が空でタイトルだけの Issue は、タイトルからの行�
 test("チェックを付けて書き戻したときの末尾の改行では表を古くしない", () => {
   expect(fingerprintOf("- [ ] a", [])).toBe(fingerprintOf("- [x] a\n", []));
   expect(fingerprintOf("b", ["c"])).toBe(fingerprintOf("b", ["c\n"]));
+  // 引用・リストの中の項目（描画でチェックボックスになる）も、チェックを付けただけでは変わらない。
+  for (const prefix of ["> ", "> > 1. ", "- > ", "  "]) {
+    expect(fingerprintOf(`${prefix}- [ ] a`, [])).toBe(fingerprintOf(`${prefix}- [x] a`, []));
+  }
   // 中身が変われば変わる（陽性コントロール）。
   expect(fingerprintOf("- [ ] a", [])).not.toBe(fingerprintOf("- [ ] b", []));
 });
