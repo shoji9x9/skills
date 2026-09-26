@@ -527,6 +527,14 @@ function aftermathLookProblems(look, captureStates) {
         unmeasured: true,
       });
     }
+    // 残らないことも assertion にする。新側が押した後に塗り・焦点の輪を残しても、撮っていない状態は 3 経路に写らない
+    if (!filledStrings(look.covered_by)) {
+      out.push({
+        problem:
+          "aftermath.look.changes: false なのに covered_by が空（押した後に見た目が残らないことをスイートの assertion に落としていない）",
+        unmeasured: true,
+      });
+    }
     if (Array.isArray(items) && items.length > 0) {
       out.push({
         problem:

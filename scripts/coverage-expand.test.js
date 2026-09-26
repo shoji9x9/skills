@@ -182,9 +182,10 @@ test("陽性コントロール: 候補が全てセルへ落ちていれば適合
   const r = reconcile(datagridCoverage(), bundled);
   expect(r.problems).toEqual([]);
   expect(r.ok).toBe(true);
-  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1
+  // 列 2 の表示 ＋ price のフィルター ＋ 列 2 × 方向 3 のソート ＋ 複数列の並べ替え 1 組 × 足した列の向き 3
   // ＋ 行の選択 1 手段 × 列 2 ＋ メニュー開閉 1 ＋ メニュー項目 2。
-  expect(r.candidates).toBe(15);
+  // 初期非表示で表示切替できる列が無いので row-select-revealed は候補を生まない。
+  expect(r.candidates).toBe(17);
   expect(r.unmeasured).toBe(0);
 });
 
@@ -685,6 +686,30 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
   }
 });
 
+test("初期非表示で表示切替できる列にも、行の選択の塗りの候補が立つ（Issue #471 レビュー）", () => {
+  // 列を出してから行を選ぶ経路。初期表示の列だけを候補にすると、出した列の塗りの差が撮られない。
+  const profile = bundled.get("datagrid");
+  const en = enumeration();
+  en.elements.column.push({
+    id: "memo",
+    flags: {
+      initially_visible: false,
+      toggleable: true,
+      requires_horizontal_scroll: false,
+      filterable: false,
+      sortable: false,
+    },
+  });
+  const { elements } = readEnumeration(en, profile, "t");
+  const ids = expandCandidates(profile, elements).map((c) => c.id);
+  expect(ids).toContain("row-select-revealed/row-number/memo");
+  // 初期表示の列は row-select 側だけに立つ（同じ列が 2 つのルールで二重に数えられない）
+  expect(ids).not.toContain("row-select/row-number/memo");
+  expect(ids.filter((id) => id.startsWith("row-select-revealed/"))).toEqual([
+    "row-select-revealed/row-number/memo",
+  ]);
+});
+
 test("要素が候補にならないことも根拠付きでだけ通す（要素スコープの免除）", () => {
   const cov = datagridCoverage();
   const inst = cov.components[0].instances[0];
@@ -1181,7 +1206,7 @@ test("CLI --write は candidates と conformance を書き戻す（測定値に�
   );
   expect(r.status).toBe(0);
   const written = JSON.parse(readFileSync(r.paths["component-coverage.json"], "utf8"));
-  expect(written.components[0].instances[0].candidates).toHaveLength(15);
+  expect(written.components[0].instances[0].candidates).toHaveLength(17);
   expect(written.conformance).toMatchObject({ tool: "coverage-expand", ok: true, unmeasured: 0 });
   // 測定値は書き換えない。
   expect(written.cells[0]).toMatchObject({ value: "present" });
@@ -1235,7 +1260,9 @@ test("被覆表の操作から撮影状態を導く（プロファイルが種�
     "column-sort/price/asc",
     "column-sort/price/desc",
     "column-sort/price/none",
-    "multi-column-sort/price-then-name",
+    "multi-column-sort/price-then-name/asc",
+    "multi-column-sort/price-then-name/desc",
+    "multi-column-sort/price-then-name/none",
     "row-select/row-number/name",
     "row-select/row-number/price",
   ]);

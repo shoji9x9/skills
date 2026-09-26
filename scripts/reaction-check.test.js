@@ -85,6 +85,7 @@ const quietAftermath = () => ({
   look: {
     changes: false,
     evidence: "押した後に対象の論理名の計算後スタイルと印の文言が押す前と同じ",
+    covered_by: ["share.spec.ts: コピーの後もボタンと一覧の計算後スタイルが押す前と同じ"],
   },
   returns_to: {
     measured: true,
@@ -1087,6 +1088,11 @@ test.each([
     "look.changes: false に確かめ方が無い",
     (t) => (t.operations[0].aftermath.look.evidence = ""),
     "aftermath.look.changes: false なのに evidence が空",
+  ],
+  [
+    "look.changes: false に assertion が無い",
+    (t) => (t.operations[0].aftermath.look.covered_by = []),
+    "aftermath.look.changes: false なのに covered_by が空",
   ],
   [
     "look.changes: false なのに items がある",

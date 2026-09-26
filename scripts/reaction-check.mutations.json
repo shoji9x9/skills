@@ -461,6 +461,17 @@
       "expect_failing": [
         "押した後に残るものの記録の欠けを落とす: 戻り先に assertion が無い（Issue #471）"
       ]
+    },
+    {
+      "id": "aftermath-look-false-covered",
+      "why": "残らないと書いた記録に assertion が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filledStrings(look.covered_by)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に assertion が無い（Issue #471）"
+      ]
     }
   ]
 }
