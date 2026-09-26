@@ -1044,9 +1044,21 @@ export function checkReactions(table, opts = {}) {
       } else {
         pageKey = `path:${normalizePagePath(pagePath)}`;
         if (isPlainObject(ret) && ret.measured === true && filled(ret.url_after)) {
-          if (!urlMatchesPage(/** @type {string} */ (ret.url_after), pagePath))
+          const url = /** @type {string} */ (ret.url_after);
+          // 接尾辞で一致させるので、path が接尾辞で重なるページ（orders と archive/orders）は同じ URL に両方が一致する。
+          // 一致したページのうち path が最も長い 1 つに解決し、名乗ったページがそれと同じ path でなければ落とす
+          // （短い方を名乗ると別の path のキーになり、同じ 1 枚が使い回しの照合を逃れる。Codex レビュー）
+          const resolved = [...pageNames.values()]
+            .filter((pth) => typeof pth === "string" && urlMatchesPage(url, pth))
+            .map((pth) => normalizePagePath(/** @type {string} */ (pth)))
+            .sort((a, b) => b.length - a.length)[0];
+          if (!urlMatchesPage(url, pagePath))
             fail(
-              `capture_page "${page}"（path: ${pagePath}）が押した後の URL（${ret.url_after}）と合わない（押した後に撮ったページを書く）`,
+              `capture_page "${page}"（path: ${pagePath}）が押した後の URL（${url}）と合わない（押した後に撮ったページを書く）`,
+            );
+          else if (resolved !== normalizePagePath(pagePath))
+            fail(
+              `capture_page "${page}"（path: ${pagePath}）より長く一致する path（${resolved}）のページがあり、押した後の URL（${url}）はそちらに解決される（そのページを書く）`,
             );
         }
       }

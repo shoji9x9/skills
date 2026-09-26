@@ -571,7 +571,7 @@
       "id": "capture-page-url-match",
       "why": "名乗ったページが押した後の URL と合わなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "          if (!urlMatchesPage(/** @type {string} */ (ret.url_after), pagePath))\n",
+      "find": "          if (!urlMatchesPage(url, pagePath))\n",
       "replace": "          if (false)\n",
       "occurrences": 1,
       "expect_failing": [
@@ -598,6 +598,17 @@
       "occurrences": 1,
       "expect_failing": [
         "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "capture-page-longest",
+      "why": "接尾辞で重なる短い path のページを名乗っても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "          else if (resolved !== normalizePagePath(pagePath))\n",
+      "replace": "          else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "path が接尾辞で重なるページは、URL を最も長く一致する 1 ページに解決する（Codex レビュー）"
       ]
     }
   ]

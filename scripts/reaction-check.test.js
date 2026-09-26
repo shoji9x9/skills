@@ -1491,3 +1491,48 @@ test("capture_page は押した後の URL と path で照合し、使い回し�
   expect(noPath.status).toBe(1);
   expect(noPath.stderr).toContain('capture_page "共有画面" の path が');
 });
+
+test("path が接尾辞で重なるページは、URL を最も長く一致する 1 ページに解決する（Codex レビュー）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [
+        { name: "受注", path: "orders" },
+        { name: "過去の受注", path: "archive/orders" },
+      ],
+    },
+  };
+  const at = (t, pages, url) => {
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].capture_page = pages[0];
+    t.operations[1].capture_page = pages[1];
+    t.operations[0].aftermath.returns_to.url_after = url;
+    t.operations[1].aftermath.returns_to.url_after = url;
+  };
+  // 同じ URL に着く 2 操作が、短い方と長い方を名乗り分けても通さない
+  const r = run(
+    mutated((t) => at(t, ["受注", "過去の受注"], "/archive/orders")),
+    { metadata },
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    'capture_page "受注"（path: orders）より長く一致する path（archive/orders）',
+  );
+  // 短い path だけに一致する URL では、短い方のページを名乗れる
+  const ok = run(
+    mutated((t) => {
+      at(t, ["受注", "受注"], "/orders");
+      t.operations[0].reactions[0].capture.shared_capture_reason =
+        "同じ受注画面の 1 枚に両方が写ることを実 UI で確かめた";
+      t.operations[1].aftermath.look.items[1].shared_capture_reason = "同上";
+    }),
+    { metadata },
+  );
+  expect(ok.stderr).toBe("");
+  expect(ok.status).toBe(0);
+});

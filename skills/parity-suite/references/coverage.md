@@ -145,7 +145,7 @@
     観測した反応の `capture.state` も同じ集合で数え、共有するなら `capture.shared_capture_reason` を書く。
     照合はページ × 状態名で行う——押した後に撮ったページ（遷移する操作は遷移先）を `capture_page`（`capture_conditions.pages` の名前）に書けば、
     別のページの同じ状態名は別の 1 枚として扱う（操作が載るページではない）。撮る状態を持つ操作は、`capture_conditions.pages` が 2 つ以上なら `capture_page` が要る（1 つならそのページとみなす）。
-    名乗ったページは押した後の URL（`returns_to.url_after`）と `capture_conditions.pages[].path` で照合し（クエリ・フラグメントと前後の `/` を落とし、URL が path と一致するか `/<path>` で終わる。根の path は URL も根のときだけ）、
+    名乗ったページは押した後の URL（`returns_to.url_after`）と `capture_conditions.pages[].path` で照合し（クエリ・フラグメントと前後の `/` を落とし、URL が path と一致するか `/<path>` で終わる。根の path は URL も根のときだけ。path が接尾辞で重なるページは最も長く一致する 1 つに解決する）、
     使い回しは名前ではなく path で数える（別名で同じ path を指すページは同じ 1 枚）
   - 残らないなら `changes: false` と確かめた記録（`evidence`）、確かめた論理名（`targets`。強度ゲートがここへ残る塗りを注入する）、
     残らないことを確かめる assertion（`covered_by`。新側が塗り・焦点の輪を残しても撮っていない状態には写らない）。測れなければ `changes: null` と理由
