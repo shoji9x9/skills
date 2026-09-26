@@ -719,7 +719,11 @@ test("必須ルールの代替の組は、どれか 1 つが候補を生めば�
   }));
   resolveVisualStates(cov);
   const r = reconcile(cov, bundled);
-  expect(r.problems.join("\n")).not.toContain("必須ルール row-select");
+  // 残る問題は column-visible の候補 0 件だけであることを固定する。これは本 Issue 以前（datagrid v2）からの制約で、
+  // 全列が初期非表示のグリッドは column-visible を満たせない（v2 でも同じく落ちることを実測した。回帰ではない）。
+  // 列の表示を代替の組にする案は、column-toggle と guard が排他でなく組にできないため見送った（PR #482）
+  expect(r.problems).toHaveLength(1);
+  expect(r.problems[0]).toContain("必須ルール column-visible の候補が 0 件");
 });
 
 test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
