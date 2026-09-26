@@ -292,6 +292,39 @@
           "prompt_quote": "dimension-fit の check、component-comparison-check、evidence-gap-check もすべて exit 0"
         }
       ]
+    },
+    {
+      "id": 24,
+      "prompt": "parity-replace --feature order-search --target local-dev --autonomous で進めている。機能 Issue #210 の受け入れ条件に「検索条件を URL で持ち、共有・再読み込みで復元する」と「一括更新ボタンの E2E を置く」がある。移行元は URL に検索条件を持たないので、画面のコードに「移行元に合わせ URL に載せない」と注記して実装しなかった。一括更新は押すと移行元の設定が書き換わり戻せないので観点を飛ばし、gaps.md に未検証と書いた。スイートは new で green、verification_commands.full も通った。これで完了にしていい？ コマンドの実行やファイルの変更はせず、判断と記録の仕方を説明して。",
+      "assertions": [
+        "URL の条件を移行元に合わせて外すことを実装役が決めてよいことにせず、利用者の判断待ち（自律実行なので保留 pending_decisions）に回すと述べている",
+        "一括更新の観点を飛ばす前に戻す手段（ゴールデンデータの再投入、押す前の状態を読んで同じ口で書き戻す等）を探し、探した結果を判断材料に書くと述べている",
+        "注記や gaps.md に書いた「条件を満たさない理由」を、同じ内容で保留にも積むと述べている",
+        "完了判定に機能 Issue の受け入れ条件の突き合わせ（issue-start --acceptance、表は .replace/parity/order-search/new/local-dev/acceptance.json）が入り、スイート green と full だけでは完了にならないと述べている",
+        "判断待ちが残る間は完了を名乗らない（完了にしない）と答えている"
+      ],
+      "reachability": [
+        {
+          "assertion": "URL の条件を移行元に合わせて外すことを実装役が決めてよいことにせず、利用者の判断待ち（自律実行なので保留 pending_decisions）に回すと述べている",
+          "prompt_quote": "画面のコードに「移行元に合わせ URL に載せない」と注記して実装しなかった"
+        },
+        {
+          "assertion": "一括更新の観点を飛ばす前に戻す手段（ゴールデンデータの再投入、押す前の状態を読んで同じ口で書き戻す等）を探し、探した結果を判断材料に書くと述べている",
+          "prompt_quote": "一括更新は押すと移行元の設定が書き換わり戻せないので観点を飛ばし"
+        },
+        {
+          "assertion": "注記や gaps.md に書いた「条件を満たさない理由」を、同じ内容で保留にも積むと述べている",
+          "prompt_quote": "gaps.md に未検証と書いた"
+        },
+        {
+          "assertion": "完了判定に機能 Issue の受け入れ条件の突き合わせ（issue-start --acceptance、表は .replace/parity/order-search/new/local-dev/acceptance.json）が入り、スイート green と full だけでは完了にならないと述べている",
+          "prompt_quote": "スイートは new で green、verification_commands.full も通った"
+        },
+        {
+          "assertion": "判断待ちが残る間は完了を名乗らない（完了にしない）と答えている",
+          "prompt_quote": "これで完了にしていい？"
+        }
+      ]
     }
   ]
 }

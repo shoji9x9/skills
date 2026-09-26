@@ -42,7 +42,8 @@
 
 - 担うのはバックエンド実装（現行コードとの diff レビュー）と、API パリティスイートを新に対して green にすることだけ
 - 成果物パスの `slug` は当該リソースのもの
-- 完了判定は API スイート green ＋ 検証コマンド（`verification_commands.full`。視覚 3 点セットは無い）。green 化の前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
+- 完了判定は API スイート green ＋ 検証コマンド（`verification_commands.full`。視覚 3 点セットは無い）
+  ＋ 受け入れ条件の突き合わせ（`SKILL.md` 手順 8。全モード共通）。green 化の前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
 
 ## batch モード（バッチ Issue）
 
@@ -50,4 +51,4 @@
 
 - バッチ本体の新側実装（現行コードとの diff レビュー）と、その出力（DB 状態・生成ファイル・対象範囲内の副作用出力）が現行と一致することを担う
 - 出力一致の検証手段は `parity-suite` がバッチモードで採取した現行ベースライン（`.replace/parity/<slug>/` 配下）に対して行う
-- 完了判定は出力一致 ＋ 検証コマンド（`verification_commands.full`）。新側でバッチを走らせる前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する
+- 完了判定は出力一致 ＋ 検証コマンド（`verification_commands.full`）＋ 受け入れ条件の突き合わせ（`SKILL.md` 手順 8。全モード共通）。新側でバッチを走らせる前に `golden-dataset --phase b --feature <slug> --target <選択中の new target>` で新側 DB へ投入する

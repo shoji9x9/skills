@@ -182,6 +182,9 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    **採取物と工程の健全性**（採取物の読み手・加工物の鮮度・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の在否と鮮度）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す（**`diff-metadata.json` に結果を書いた後**に通す——工程の節は自分が書く成果物の在否を見るため。`--stage suite` を渡すと未測定の `blocking` を素通りさせる）。
    **追記専用の成果物が縮んでいないこと**も収束条件に入れ、インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
+   **`converged: true` にしたら、`parity-replace` が `later`（`owner` が本スキル）で残した受け入れ条件の行を取り直すよう報告に書く**——
+   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json` で表を取り直し（`--allow-later` は渡さない）、
+   収束の行を `met` にして `closable: true` になるまで機能の Issue を閉じない（正本は `issue-start` の `references/acceptance.md`。本スキルは表を書かない）。
    他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
    ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
 
