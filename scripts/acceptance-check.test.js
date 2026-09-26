@@ -154,6 +154,16 @@ test("コードフェンスの中のチェックボックスは項目に数え�
   expect(checklistItems(BODY)).toEqual(["検索条件を URL で持つ", "準備の失敗時にログを書く"]);
 });
 
+test("行頭のインラインコードはフェンスの開きにしない（以降の項目を数える）", () => {
+  expect(checklistItems("```npm test``` を通すこと\n- [ ] a\n- [ ] b")).toEqual(["a", "b"]);
+});
+
+test("言語名付きの行はフェンスを閉じない", () => {
+  expect(checklistItems("```js\ncode\n```js\n- [ ] inside\n```\n- [ ] after")).toEqual(["after"]);
+  // 後ろが空白だけの閉じは閉じとして扱う（陽性コントロール）。
+  expect(checklistItems("~~~\n- [ ] inside\n~~~  \n- [ ] after")).toEqual(["after"]);
+});
+
 test("散文からの行は引用が本文・コメントに無ければ落とす", () => {
   const items = table().items.map((i) =>
     i.source === "body" ? { ...i, quote: "本文に無い条件" } : i,

@@ -114,6 +114,24 @@
       "expect_failing": [
         "表の後で Issue の条件が変わったら古い表として落とす（チェックを付けただけでは古くしない）"
       ]
+    },
+    {
+      "id": "inline-code-opens-fence",
+      "why": "行頭のインラインコードをフェンスの開きと読み、以降のチェックリスト項目を数えない",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "    if (f && !(f[1][0] === \"`\" && f[2].includes(\"`\"))) {",
+      "replace": "    if (f) {",
+      "occurrences": 1,
+      "expect_failing": ["行頭のインラインコードはフェンスの開きにしない（以降の項目を数える）"]
+    },
+    {
+      "id": "info-string-closes-fence",
+      "why": "言語名付きの行でフェンスを閉じる",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": " && f[2].trim() === \"\") {",
+      "replace": ") {",
+      "occurrences": 1,
+      "expect_failing": ["言語名付きの行はフェンスを閉じない"]
     }
   ]
 }

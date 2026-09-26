@@ -74,7 +74,7 @@ export function normalizeText(text) {
 }
 
 const CHECKBOX = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](\s+)(.*)$/;
-const FENCE = /^\s*(`{3,}|~{3,})/;
+const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
 
 /**
  * 本文のチェックリストの項目を列挙する（コードフェンスの中は数えない）。
@@ -88,14 +88,19 @@ export function checklistItems(body) {
   let fence = null;
   for (const line of body.replace(/\r\n?/g, "\n").split("\n")) {
     const f = line.match(FENCE);
-    if (f) {
-      const mark = f[1];
-      if (fence === null) fence = mark;
-      // 閉じは同じ文字で同じ長さ以上。短い・別の文字のフェンスは中身として扱う。
-      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
+    if (fence !== null) {
+      // 閉じは同じ文字で同じ長さ以上、かつ後ろが空白だけ（CommonMark）。言語名付きの行は中身として扱う。
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === "") {
+        fence = null;
+      }
       continue;
     }
-    if (fence !== null) continue;
+    // バッククォートの開きは、後ろ（情報文字列）にバッククォートを含むとフェンスにならない（CommonMark）。
+    // 行頭のインラインコード（```npm test``` を通す）を開きと読むと、以降の項目が 1 件も数えられない。
+    if (f && !(f[1][0] === "`" && f[2].includes("`"))) {
+      fence = f[1];
+      continue;
+    }
     const m = line.match(CHECKBOX);
     if (m && nonEmptyString(m[4])) items.push(normalizeText(m[4]));
   }
