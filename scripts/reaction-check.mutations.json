@@ -571,11 +571,12 @@
       "id": "capture-page-url-match",
       "why": "名乗ったページが押した後の URL と合わなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "          if (!urlMatchesPage(url, pagePath))\n",
+      "find": "          if (!urlMatchesPage(url, pagePath, basePath))\n",
       "replace": "          if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
+        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）",
+        "baseURL のパスが分かれば、それにつないだ path と完全一致で照合する（Codex レビュー）"
       ]
     },
     {
@@ -590,14 +591,14 @@
       ]
     },
     {
-      "id": "capture-page-root-suffix",
-      "why": "根のページを接尾辞の一致に倒す（全ての URL が根に一致する）",
+      "id": "capture-page-base-exact",
+      "why": "baseURL のパスが分かっても完全一致で照合しない（接尾辞だけの一致を通す）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (q === \"\") return u === \"\";\n",
-      "replace": "  if (q === \"\") return true;\n",
+      "find": "  if (basePath !== null) return u === [basePath, q].filter((x) => x !== \"\").join(\"/\");\n",
+      "replace": "  if (false) return u === [basePath, q].filter((x) => x !== \"\").join(\"/\");\n",
       "occurrences": 1,
       "expect_failing": [
-        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
+        "baseURL のパスが分かれば、それにつないだ path と完全一致で照合する（Codex レビュー）"
       ]
     },
     {
@@ -608,7 +609,8 @@
       "replace": "          else if (false)\n",
       "occurrences": 1,
       "expect_failing": [
-        "path が接尾辞で重なるページは、URL を最も長く一致する 1 ページに解決する（Codex レビュー）"
+        "path が接尾辞で重なるページは、URL を最も長く一致する 1 ページに解決する（Codex レビュー）",
+        "capture_page は押した後の URL と path で照合し、使い回しは path で数える（Codex レビュー）"
       ]
     }
   ]

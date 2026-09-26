@@ -1464,7 +1464,7 @@ test("capture_page は押した後の URL と path で照合し、使い回し�
   );
   expect(alias.status).toBe(1);
   expect(alias.stderr).toContain('撮る状態 "');
-  // 根のページは URL も根のときだけ一致する（接尾辞で全ての URL に一致させない）
+  // baseURL が分からないとき根のページは全ての URL に一致するが、より長く一致するページがあればそちらに解決される
   const root = run(
     mutated((t) => share(t, ["共有画面", "トップ"], ["/share?id=1", "/search"])),
     {
@@ -1472,9 +1472,7 @@ test("capture_page は押した後の URL と path で照合し、使い回し�
     },
   );
   expect(root.status).toBe(1);
-  expect(root.stderr).toContain(
-    'capture_page "トップ"（path: ）が押した後の URL（/search）と合わない',
-  );
+  expect(root.stderr).toContain('capture_page "トップ"（path: ）より長く一致する path（search）');
   // path の無いページは照合できないので通さない
   const noPath = run(
     mutated((t) => share(t, ["共有画面", "検索画面"], ["/share?id=1", "/search"])),
@@ -1535,4 +1533,54 @@ test("path が接尾辞で重なるページは、URL を最も長く一致す�
   );
   expect(ok.stderr).toBe("");
   expect(ok.status).toBe(0);
+});
+
+test("baseURL のパスが分かれば、それにつないだ path と完全一致で照合する（Codex レビュー）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123", ui_url: "https://host.example/portal/" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [
+        { name: "トップ", path: "" },
+        { name: "受注", path: "orders" },
+      ],
+    },
+  };
+  const at = (t, page, url) => {
+    t.operations[0].capture_page = page;
+    t.operations[0].aftermath.returns_to.url_after = url;
+  };
+  // 根のページは baseURL そのもの（/portal/）に一致する
+  const root = run(
+    mutated((t) => at(t, "トップ", "/portal/?q=1")),
+    { metadata },
+  );
+  expect(root.stderr).toBe("");
+  expect(root.status).toBe(0);
+  const orders = run(
+    mutated((t) => at(t, "受注", "/portal/orders")),
+    { metadata },
+  );
+  expect(orders.stderr).toBe("");
+  expect(orders.status).toBe(0);
+  // 接尾辞だけの一致（別の接頭辞）は通さない
+  const other = run(
+    mutated((t) => at(t, "受注", "/archive/orders")),
+    { metadata },
+  );
+  expect(other.status).toBe(1);
+  expect(other.stderr).toContain(
+    'capture_page "受注"（path: orders）が押した後の URL（/archive/orders）と合わない',
+  );
+  // 根のページを baseURL 以外の URL で名乗っても通さない
+  const notRoot = run(
+    mutated((t) => at(t, "トップ", "/portal/orders")),
+    { metadata },
+  );
+  expect(notRoot.status).toBe(1);
+  expect(notRoot.stderr).toContain(
+    'capture_page "トップ"（path: ）が押した後の URL（/portal/orders）と合わない',
+  );
 });

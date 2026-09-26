@@ -728,16 +728,20 @@ function normalizePagePath(v) {
 
 /**
  * 押した後の URL（オリジンを除いたパス）が、capture_conditions.pages[].path（baseURL からの相対）のページか。
- * baseURL にパスの接頭辞があり得るので、正規化した URL が path と一致するか "/<path>" で終わるものを同じページとする。
- * path が空（baseURL の根）は、URL も根のときだけ一致させる（接尾辞の一致に倒すと全ての URL が根に一致する）。
+ * baseURL のパス（basePath）が分かれば、それに path をつないだものと完全一致で比べる（根の path は baseURL そのもの）。
+ * 分からない（target が url_command で ui_url が runtime 等）ときは、正規化した URL が path と一致するか
+ * "/<path>" で終わるものを同じページとし、根の path は全ての URL に一致させる。
+ * どちらでも呼び出し側が最も長く一致する 1 ページに解決するので、より具体的なページがあればそちらが選ばれる。
  * @param {string} url
  * @param {string} pagePath
+ * @param {string | null} basePath - baseURL のパス（正規化済み）。分からなければ null
  * @returns {boolean}
  */
-function urlMatchesPage(url, pagePath) {
+function urlMatchesPage(url, pagePath, basePath) {
   const u = normalizePagePath(url);
   const q = normalizePagePath(pagePath);
-  if (q === "") return u === "";
+  if (basePath !== null) return u === [basePath, q].filter((x) => x !== "").join("/");
+  if (q === "") return true;
   return u === q || u.endsWith(`/${q}`);
 }
 
@@ -817,7 +821,7 @@ export function scanSources(root, paths, patterns) {
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Map<string, string | null> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Map<string, string | null> | null, basePath?: string | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -826,6 +830,7 @@ export function checkReactions(table, opts = {}) {
     recorded = false,
     captureStates = null,
     pageNames = null,
+    basePath = null,
     slug = null,
     target = null,
     targetCommit = undefined,
@@ -1049,10 +1054,10 @@ export function checkReactions(table, opts = {}) {
           // 一致したページのうち path が最も長い 1 つに解決し、名乗ったページがそれと同じ path でなければ落とす
           // （短い方を名乗ると別の path のキーになり、同じ 1 枚が使い回しの照合を逃れる。Codex レビュー）
           const resolved = [...pageNames.values()]
-            .filter((pth) => typeof pth === "string" && urlMatchesPage(url, pth))
+            .filter((pth) => typeof pth === "string" && urlMatchesPage(url, pth, basePath))
             .map((pth) => normalizePagePath(/** @type {string} */ (pth)))
             .sort((a, b) => b.length - a.length)[0];
-          if (!urlMatchesPage(url, pagePath))
+          if (!urlMatchesPage(url, pagePath, basePath))
             fail(
               `capture_page "${page}"（path: ${pagePath}）が押した後の URL（${url}）と合わない（押した後に撮ったページを書く）`,
             );
@@ -1476,6 +1481,14 @@ export function main(argv, deps = {}) {
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
+      basePath: (() => {
+        // 解決した UI の baseURL のパス。url_command の target は "runtime" で値を持たないので null（接尾辞の照合に倒す）
+        try {
+          return normalizePagePath(new URL(String(metadata.target.ui_url)).pathname);
+        } catch {
+          return null;
+        }
+      })(),
     });
     const ok = result.unmeasured_operations === 0 && result.problems.length === 0;
     if (write) {
