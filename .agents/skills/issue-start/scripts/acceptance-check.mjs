@@ -8,7 +8,7 @@
 // 表が Issue と対応していること（チェックリストの項目と行が 1 対 1・引用が本文にある）と、
 // 各行に根拠があることをここで機械的に確かめる。表の様式の正本は assets/acceptance-template.json。
 //
-// 何をしないか: gh を呼ばない（Issue は `gh issue view --json number,url,body,comments` の出力をファイルで受け取る）。
+// 何をしないか: gh を呼ばない（Issue は `gh issue view --json number,url,title,body,comments` の出力をファイルで受け取る）。
 // 根拠のコマンドを再実行しない（結果の記録があるかを見る）。条件が満たされたかの判断そのものは人とエージェントの仕事。
 //
 // 終了コード: 0 ＝ 全行が met / waived / deferred / later で表が Issue と対応している、1 ＝ 未充足・不整合が残る、
@@ -34,8 +34,11 @@ export const VERSION = "1";
  */
 export const STATUSES = ["met", "unmet", "pending-decision", "waived", "deferred", "later"];
 
-/** 行の出所の語彙。checklist は本文のチェックリストの項目そのもの、body / comment は散文からの引用。 */
-export const SOURCES = ["checklist", "body", "comment"];
+/**
+ * 行の出所の語彙。checklist は本文のチェックリストの項目そのもの、title / body / comment は散文からの引用。
+ * title は本文が空でタイトルだけが条件を述べる Issue のため（無いと行を 1 件も作れず、永久に通れない）。
+ */
+export const SOURCES = ["checklist", "title", "body", "comment"];
 
 /** 根拠の強さ。measured（実測）はコマンドの結果、read（読解）はファイル:行。 */
 export const STRENGTHS = ["measured", "read"];
@@ -144,13 +147,15 @@ function commentBodies(comments) {
 }
 
 /**
- * 表を書いた時点の Issue（本文とコメント）の指紋。表の後で条件が書き換わったことを検出する。
+ * 表を書いた時点の Issue（タイトル・本文・コメント）の指紋。表の後で条件が書き換わったことを検出する。
  * @param {string} body
  * @param {string[]} comments
+ * @param {string} [title]
  * @returns {string}
  */
-export function fingerprintOf(body, comments) {
+export function fingerprintOf(body, comments, title = "") {
   const payload = JSON.stringify({
+    title,
     body: bodyForFingerprint(body),
     comments: comments.map((c) => c.replace(/\r\n?/g, "\n")),
   });
@@ -230,7 +235,7 @@ export function checkAcceptance(input) {
   if (!isObject(issue) || typeof issue.body !== "string" || typeof issue.number !== "number") {
     return {
       structural: true,
-      error: "Issue が `gh issue view --json number,url,body,comments` の形でない",
+      error: "Issue が `gh issue view --json number,url,title,body,comments` の形でない",
     };
   }
   const comments = commentBodies(issue.comments);
@@ -253,7 +258,8 @@ export function checkAcceptance(input) {
     /** @type {string} */ message,
   ) => findings.push({ code, row, message });
 
-  const expected = fingerprintOf(issue.body, comments);
+  const title = typeof issue.title === "string" ? issue.title : "";
+  const expected = fingerprintOf(issue.body, comments, title);
   if (table.source_fingerprint !== expected) {
     add(
       "stale-issue",
@@ -311,7 +317,7 @@ export function checkAcceptance(input) {
           row,
           `本文のチェックリストに無い（または重複した）項目: ${key}`,
         );
-    } else if (raw.source === "body" || raw.source === "comment") {
+    } else if (raw.source === "title" || raw.source === "body" || raw.source === "comment") {
       if (!nonEmptyString(raw.quote)) {
         add(
           "quote-missing",
@@ -321,14 +327,16 @@ export function checkAcceptance(input) {
       } else {
         const quote = normalizeText(raw.quote);
         const found =
-          raw.source === "body"
-            ? normalizedBody.includes(quote)
-            : normalizedComments.some((c) => c.includes(quote));
+          raw.source === "title"
+            ? normalizeText(title).includes(quote)
+            : raw.source === "body"
+              ? normalizedBody.includes(quote)
+              : normalizedComments.some((c) => c.includes(quote));
         if (!found)
           add(
             "quote-not-found",
             row,
-            `quote が Issue の ${raw.source === "body" ? "本文" : "コメント"}に無い: ${quote}`,
+            `quote が Issue の ${{ title: "タイトル", body: "本文", comment: "コメント" }[raw.source]}に無い: ${quote}`,
           );
       }
     } else {
@@ -420,7 +428,7 @@ export function checkAcceptance(input) {
 }
 
 const USAGE =
-  "usage: node acceptance-check.mjs --issue <gh issue view --json number,url,body,comments の出力> " +
+  "usage: node acceptance-check.mjs --issue <gh issue view --json number,url,title,body,comments の出力> " +
   "--table <突き合わせ表> [--head <現在の HEAD の完全 SHA>] [--root <ファイル:行 の起点>] " +
   "[--decisions <pending_decisions を持つ JSON>] [--allow-later <後工程名,...>]";
 

@@ -32,7 +32,7 @@ const BODY = [
 ].join("\n");
 
 /**
- * Issue の JSON（gh issue view --json number,url,body,comments の形）。
+ * Issue の JSON（gh issue view --json number,url,title,body,comments の形）。
  * @param {{ body?: string, comments?: string[] }} [override]
  */
 function issue(override = {}) {
@@ -331,4 +331,31 @@ test("later は呼び出し元が --allow-later で許した後工程にだけ�
     }),
   });
   expect(none.codes).toContain("owner-not-allowed");
+});
+
+test("本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）", () => {
+  const titled = {
+    number: 464,
+    url: "u",
+    title: "fix: 保存に失敗したらログを書く",
+    body: "",
+    comments: [],
+  };
+  const fp = fingerprintOf("", [], titled.title);
+  const items = [
+    {
+      criterion: "保存に失敗したらログを書く",
+      source: "title",
+      quote: "保存に失敗したらログを書く",
+      status: "met",
+      strength: "read",
+      evidence: [{ kind: "file", ref: "src/app.js:1" }],
+    },
+  ];
+  const tableData = { issue: { number: 464 }, source_fingerprint: fp, commit: HEAD, items };
+  const ok = run({ issueData: titled, tableData });
+  expect(ok.code).toBe(0);
+  const retitled = run({ issueData: { ...titled, title: "fix: 別の条件" }, tableData });
+  expect(retitled.code).toBe(1);
+  expect(retitled.codes).toEqual(expect.arrayContaining(["stale-issue", "quote-not-found"]));
 });

@@ -26,7 +26,10 @@
       "find": "        if (!found)\n          add(\n            \"quote-not-found\",",
       "replace": "        if (false)\n          add(\n            \"quote-not-found\",",
       "occurrences": 1,
-      "expect_failing": ["散文からの行は引用が本文・コメントに無ければ落とす"]
+      "expect_failing": [
+        "散文からの行は引用が本文・コメントに無ければ落とす",
+        "本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）"
+      ]
     },
     {
       "id": "met-without-evidence",
@@ -132,6 +135,17 @@
       "replace": ") {",
       "occurrences": 1,
       "expect_failing": ["言語名付きの行はフェンスを閉じない"]
+    },
+    {
+      "id": "title-not-quotable",
+      "why": "タイトルからの行を受け付けず、本文が空の Issue が永久に通れない",
+      "file": "skills/issue-start/scripts/acceptance-check.mjs",
+      "find": "            ? normalizeText(title).includes(quote)",
+      "replace": "            ? false",
+      "occurrences": 1,
+      "expect_failing": [
+        "本文が空でタイトルだけの Issue は、タイトルからの行で通る（タイトルの変更は古い表として落とす）"
+      ]
     }
   ]
 }
