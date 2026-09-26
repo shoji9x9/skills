@@ -1,0 +1,53 @@
+{
+  "$comment": [
+    "pending-decisions-check.test.js のうち、回答が付いただけの保留を済んだと数えない（Issue #462）検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/pending-decisions-check.test.js",
+  "mutations": [
+    {
+      "id": "decided-counted-settled",
+      "why": "回答はあるが blocks の工程を実施した記録も置き場も無い保留を済んだと数える",
+      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "find": "  return { state: \"decided\", reason: missingReason };\n",
+      "replace": "  return { state: \"settled\", reason: missingReason };\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "回答が付いただけで blocks の工程を実施していない保留は未解決として落とす",
+        "実施の記録に証拠が無い・置き場に残作業が無いものは済んだと数えない",
+        "blocks が欠落した保留は工程があるものとして扱う（空とみなさない）"
+      ]
+    },
+    {
+      "id": "resumed-without-evidence",
+      "why": "証拠の無い実施の記録（日時だけ）で済んだと数える",
+      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "find": "    resumed.evidence.some(nonEmptyString)\n",
+      "replace": "    true\n",
+      "occurrences": 1,
+      "expect_failing": ["実施の記録に証拠が無い・置き場に残作業が無いものは済んだと数えない"]
+    },
+    {
+      "id": "blocks-missing-as-empty",
+      "why": "blocks の欠落を「止めた工程が無い」とみなして済んだと数える",
+      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "find": "  if (!Array.isArray(blocks)) {\n",
+      "replace": "  if (!Array.isArray(blocks)) return { state: \"settled\", reason: \"\" };\n  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["blocks が欠落した保留は工程があるものとして扱う（空とみなさない）"]
+    },
+    {
+      "id": "slugs-missing-out-of-scope",
+      "why": "slugs の無いフェーズ B の保留を範囲外にして、同じ target の slug を止めない",
+      "file": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "find": "    if (Array.isArray(slugs) && slugs.length > 0 && !slugs.includes(scope.slug)) return false;\n",
+      "replace": "    if (!Array.isArray(slugs) || !slugs.includes(scope.slug)) return false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "フェーズ B は slug × target で絞り、slugs の無い要素は同じ target の全 slug を止める"
+      ]
+    }
+  ]
+}

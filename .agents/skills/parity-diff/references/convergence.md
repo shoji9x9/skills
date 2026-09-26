@@ -20,7 +20,9 @@
     `diff-metadata.json.accepted_exceptions.unresolved` が 0。不整合な例外は吸収されないため該当候補が `unexplained` として残る）
   - `diff-metadata.json` の `blocked_by[]` が空（他機能待ちが残っていれば下記「他機能待ちの差分」の状態であって収束ではない）
   - 未検証領域（下記）が `diff.md` に「未検証」として残されている（確認済みにしていない）
-  - **`diff-metadata.json` の `pending_decisions[]` に未解決（`resolution: null`）の保留が無い**（自律実行で人の判断待ちにした保留。記録の形の正本は `replace-strategy` の `references/autonomy.md`。
+  - **`diff-metadata.json` の `pending_decisions[]` に未解決の保留が無い**（自律実行で人の判断待ちにした保留。記録の形の正本は `replace-strategy` の `references/autonomy.md`。
+    **未解決は `resolution: null` だけではない**——回答が付いても `blocks` の工程を実施した記録（`resumed`）も残作業の置き場（`follow_up`）も無い保留は未解決のまま。
+    数え方の正本は同ファイル「保留の状態」で、`node <replace-strategy>/scripts/pending-decisions-check.mjs --file .replace/parity/<slug>/new/<target>/diff-metadata.json` が exit 0 になること。
     本スキルは毎回このキーを書く——自律実行でない実行・保留の無い実行は空配列）
   - **意図的差異の保留（`intentional_diffs.pending`）の棚卸しが済んでいる**（下記「`intentional_diffs.pending` の棚卸し」）。
     数え直しは [`../scripts/pending-triage-check.mjs`](../scripts/pending-triage-check.mjs) が行う（**記録された件数を信用せず設定ファイルの `pending` から数え直す**）:
