@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "coverage-expand.test.js の検出能力を示す変異の一覧（Issue #471 の required_rules の代替の組）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/coverage-expand.test.js",
+  "mutations": [
+    {
+      "id": "required-group-first-only",
+      "why": "代替の組を先頭のルールだけで判定する（組にした意味が消え、全列が初期非表示のグリッドが行き止まりに戻る）",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "        if (candidates.some((cand) => group.includes(cand.rule))) continue;\n",
+      "replace": "        if (candidates.some((cand) => cand.rule === group[0])) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "必須ルールの代替の組は、どれか 1 つが候補を生めば満たす（全列が初期非表示のグリッド。Codex レビュー）"
+      ]
+    },
+    {
+      "id": "required-group-any-justified",
+      "why": "組の 1 つにだけ根拠があれば通す（残りのルールの列挙漏れを見逃す）",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "        if (justified.every(Boolean)) {\n",
+      "replace": "        if (justified.some(Boolean)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）"
+      ]
+    },
+    {
+      "id": "required-dup",
+      "why": "同じルールを 2 つの要素に書いても通す",
+      "file": "skills/parity-suite/scripts/coverage-expand.mjs",
+      "find": "      if (seenRequired.has(String(rid)))\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["required_rules の代替の組の形を検査する"]
+    }
+  ]
+}

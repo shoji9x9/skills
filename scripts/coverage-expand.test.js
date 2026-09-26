@@ -658,9 +658,9 @@ test("必須ルールの候補ゼロは justified_absences の根拠付きでだ
 test("行の選択・複数列の並べ替えを持たないグリッドは、列挙が空でも根拠付きでだけ通す（Issue #471）", () => {
   // 終えた後に残る見た目（選択の塗り・複数列の並べ替えの印）は、軸を列挙しないと候補にすら現れない。
   // 空の列挙を「その部品には無い」と区別できない形で通さないため、必須ルールにして根拠を求める。
-  for (const [axis, rule] of [
-    ["row-selector", "row-select"],
-    ["sort-combination", "multi-column-sort"],
+  for (const [axis, rule, label] of [
+    ["row-selector", "row-select", "row-select / row-select-revealed"],
+    ["sort-combination", "multi-column-sort", "multi-column-sort"],
   ]) {
     const cov = datagridCoverage();
     const inst = cov.components[0].instances[0];
@@ -673,7 +673,7 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
 
     const bare = reconcile(cov, bundled);
     expect(bare.ok).toBe(false);
-    expect(bare.problems.join("\n")).toContain(`必須ルール ${rule} の候補が 0 件`);
+    expect(bare.problems.join("\n")).toContain(`必須ルール ${label} の候補が 0 件`);
 
     inst.enumeration.justified_absences = [
       {
@@ -683,6 +683,86 @@ test("行の選択・複数列の並べ替えを持たないグリッドは、�
       },
     ];
     expect(reconcile(cov, bundled).problems).toEqual([]);
+  }
+});
+
+test("必須ルールの代替の組は、どれか 1 つが候補を生めば満たす（全列が初期非表示のグリッド。Codex レビュー）", () => {
+  // 全列が初期非表示で表示切替できるグリッドは row-select の候補を生まず、row-select-revealed だけが立つ。
+  // 行を選ぶ手段も列も実在するので justified_absences では通せない——組にしないと行き止まりになる。
+  const profile = bundled.get("datagrid");
+  const cov = datagridCoverage();
+  const inst = cov.components[0].instances[0];
+  for (const col of inst.enumeration.elements.column) {
+    col.flags.initially_visible = false;
+    col.flags.toggleable = true;
+  }
+  const { elements } = readEnumeration(inst.enumeration, profile, "t");
+  const candidates = expandCandidates(profile, elements);
+  expect(candidates.some((c) => c.rule === "row-select")).toBe(false);
+  expect(candidates.some((c) => c.rule === "row-select-revealed")).toBe(true);
+  const c = cov.components[0];
+  c.items = candidates.map((x) => ({
+    id: x.id,
+    category: x.rule,
+    name: x.id,
+    candidate: { rule: x.rule, axes: x.axes },
+  }));
+  inst.candidates = candidates.map((x) => x.id);
+  cov.cells = candidates.map((x) => ({
+    component: "grid",
+    item: x.id,
+    instance: "orders",
+    value: "present",
+    evidence: "実 UI で列を出してから操作し、DOM 変化で発火を確認した",
+    covered_by: [`e2e/order-list.spec.ts > ${x.id}`],
+    unmeasured_reason: null,
+  }));
+  resolveVisualStates(cov);
+  const r = reconcile(cov, bundled);
+  // 列の表示も同じ形（初期表示の列が無く、表示切替で出す列だけがある）なので column-visible / column-toggle も組にしてある
+  expect(r.problems.join("\n")).not.toContain("必須ルール row-select");
+  expect(r.problems.join("\n")).not.toContain("必須ルール column-visible");
+  expect(r.problems).toEqual([]);
+});
+
+test("代替の組の全てのルールが候補 0 件なら、全てに根拠が要る（1 つだけの根拠では通さない）", () => {
+  // row-select-revealed の軸を column だけにした版。row-selector を根拠付きで空にしても、
+  // row-select-revealed は column が実在するので根拠にならず、組として列挙漏れと区別できない。
+  const dg = structuredClone(bundled.get("datagrid"));
+  dg.candidate_rules.find((r) => r.id === "row-select-revealed").axes = ["column"];
+  const profiles = new Map(bundled);
+  profiles.set("datagrid", dg);
+  const cov = datagridCoverage();
+  const inst = cov.components[0].instances[0];
+  inst.enumeration.elements["row-selector"] = [];
+  inst.enumeration.justified_absences = [
+    {
+      scope: "row-selector",
+      reason: "行番号・チェックボックス・行のクリックを実 UI で試し、行を選べないことを確かめた",
+    },
+  ];
+  const keep = (id) => !id.startsWith("row-select/");
+  cov.components[0].items = cov.components[0].items.filter((i) => keep(i.id));
+  inst.candidates = inst.candidates.filter(keep);
+  cov.cells = cov.cells.filter((c) => keep(c.item));
+  resolveVisualStates(cov);
+  expect(reconcile(cov, profiles).problems.join("\n")).toContain(
+    "必須ルール row-select / row-select-revealed の候補が 0 件",
+  );
+});
+
+test("required_rules の代替の組の形を検査する", () => {
+  const profile = structuredClone(bundled.get("datagrid"));
+  expect(validateProfile(profile, "d.json")).toEqual([]);
+  for (const [bad, pattern] of [
+    [[[]], /空の要素・空の代替の組/],
+    [[["row-select", ""]], /空の要素・空の代替の組/],
+    [[["row-select", "nope"]], /未定義のルール nope/],
+    [["row-select", ["row-select", "row-select-revealed"]], /ルール row-select が 2 回以上現れる/],
+  ]) {
+    const p = structuredClone(profile);
+    p.required_rules = bad;
+    expect(validateProfile(p, "d.json").join("\n")).toMatch(pattern);
   }
 });
 

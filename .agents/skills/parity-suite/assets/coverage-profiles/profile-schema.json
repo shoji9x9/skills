@@ -44,7 +44,11 @@
     }
   ],
   "required_rules": [
-    "<候補を 1 件も生まなかったら失敗させるルール id。列挙されないと静かに 0 件になる軸（コンテキストメニュー等）を、「その部品には無い」と区別できない形で通さないため。本当に無い場合は被覆表の instances[].enumeration.justified_absences に根拠を残すと通る（fail-closed を行き止まりにしないため。契約は references/coverage-profiles.md）>"
+    "<候補を 1 件も生まなかったら失敗させるルール id。列挙されないと静かに 0 件になる軸（コンテキストメニュー等）を、「その部品には無い」と区別できない形で通さないため。本当に無い場合は被覆表の instances[].enumeration.justified_absences に根拠を残すと通る（fail-closed を行き止まりにしないため。契約は references/coverage-profiles.md）>",
+    [
+      "<代替の組: ルール id の配列。どれか 1 つが候補を生めば満たす。同じ要求を排他な guard で分けたルール（例: 初期表示の列と表示切替で出す列の行の選択）に使う——別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が行き止まりになる。組の全てのルールが候補 0 件のときは、全てに justified_absences の根拠が要る。1 つのルール id を 2 つの要素に書かない>",
+      "<組の 2 つ目のルール id>"
+    ]
   ],
   "equivalence": {
     "reducible_axes": ["<視覚採取を同値クラスで束ねてよい軸 id。ここに無い軸で束ねたら失敗させる>"],

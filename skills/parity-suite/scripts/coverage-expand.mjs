@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
  * 被覆表の conformance.tool_version に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "18";
+export const VERSION = "19";
 
 /** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
@@ -818,10 +818,27 @@ export function validateProfile(profile, source) {
     }
   });
 
+  // 要素は ルール id か、ルール id の配列（どれか 1 つが候補を生めばよい代替の組）。
+  // 代替の組は、同じ要求を排他な guard で分けたルール（初期表示の列と、表示切替で出す列の行の選択など）に使う。
+  // 別々の要素にすると、片方の guard に当たる要素しか無い正当な部品が「必須ルールの候補 0 件」で行き止まりになる。
   const required = Array.isArray(p.required_rules) ? p.required_rules : [];
-  for (const rid of required) {
-    if (!ruleIds.has(String(rid)))
-      at(`required_rules: 未定義のルール ${String(rid)} を参照している`);
+  /** @type {Set<string>} */
+  const seenRequired = new Set();
+  for (const entry of required) {
+    const group = Array.isArray(entry) ? entry : [entry];
+    if (group.length === 0 || !group.every(nonEmptyString)) {
+      at("required_rules: 空の要素・空の代替の組・文字列でないルール id がある");
+      continue;
+    }
+    for (const rid of group) {
+      if (!ruleIds.has(String(rid)))
+        at(`required_rules: 未定義のルール ${String(rid)} を参照している`);
+      if (seenRequired.has(String(rid)))
+        at(
+          `required_rules: ルール ${String(rid)} が 2 回以上現れる（代替の組は 1 つの要素にまとめる）`,
+        );
+      seenRequired.add(String(rid));
+    }
   }
 
   // enumeration ブロックは形式の正本（profile-schema.json）が必須にしている。
@@ -1694,21 +1711,23 @@ export function reconcile(coverage, profiles, metadata = null) {
       }
 
       const candidates = expandCandidates(profile, elements);
-      const required = Array.isArray(profile.required_rules)
-        ? profile.required_rules.map(String)
-        : [];
+      // 要素は ルール id か代替の組（validateProfile が形を検査済み）。組はどれか 1 つが候補を生めば満たす。
+      const required = (Array.isArray(profile.required_rules) ? profile.required_rules : []).map(
+        (entry) => (Array.isArray(entry) ? entry.map(String) : [String(entry)]),
+      );
       const usedAbsences = new Set();
-      for (const rid of required) {
-        if (candidates.some((cand) => cand.rule === rid)) continue;
+      for (const group of required) {
+        if (candidates.some((cand) => group.includes(cand.rule))) continue;
         // 「その部品には無い」の主張は、ルールが使う element 軸のいずれかが
         // 根拠付きで空（軸ごと空、または全要素が要素ごとの免除を持つ）のときだけ通す。
-        const justifiedBy = justifiedEmptyAxis(profile, rid, elements, absences);
-        if (justifiedBy) {
-          for (const scope of justifiedBy) usedAbsences.add(scope);
+        // 代替の組は、組の全てのルールについて根拠があるときだけ通す（1 つでも根拠が無ければ列挙漏れと区別できない）。
+        const justified = group.map((rid) => justifiedEmptyAxis(profile, rid, elements, absences));
+        if (justified.every(Boolean)) {
+          for (const scopes of justified) for (const scope of scopes ?? []) usedAbsences.add(scope);
           continue;
         }
         problems.push(
-          `${label}: 必須ルール ${rid} の候補が 0 件（列挙されていないのか、その部品に無いのかを区別できない。無いなら enumeration.justified_absences に根拠を残す）`,
+          `${label}: 必須ルール ${group.join(" / ")} の候補が 0 件（列挙されていないのか、その部品に無いのかを区別できない。無いなら enumeration.justified_absences に根拠を残す）`,
         );
         unmeasured += 1;
       }

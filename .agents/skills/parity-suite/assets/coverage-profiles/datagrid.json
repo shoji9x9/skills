@@ -176,10 +176,10 @@
     }
   ],
   "required_rules": [
-    "column-visible",
+    ["column-visible", "column-toggle"],
     "column-sort",
     "multi-column-sort",
-    "row-select",
+    ["row-select", "row-select-revealed"],
     "context-menu-open",
     "context-menu-item"
   ],
