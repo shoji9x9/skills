@@ -11,7 +11,7 @@
 | 要素 | 中身 | 用途 |
 |---|---|---|
 | スクリーンショット | 画面の画素 | 名前の付かない要素の見た目差を `parity-diff` の画素経路＋トリアージが扱う |
-| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）＋1 段下の子の inline style（`child_inline_styles`。診断材料であり照合には使わない）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
+| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）＋1 段下の子の inline style（`child_inline_styles`。診断材料であり照合には使わない）＋**文字の持ち主**（`text_owners`。部分木で文字を描いている要素ごとの書体・大きさ・行の高さと文字の寸法。照合する）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
 | 参考 aria スナップショット | 採取した aria | **参考資料であって assertion ではない**（assertion は手書き。[`coverage.md`](coverage.md)） |
 
 - **特性照合の対象は論理名付き要素に絞る。** 名前の付かない要素の見た目差はスクリーンショット（画素経路）が担う
@@ -25,6 +25,13 @@
 - **子に inline style が乗っている差は、名前を付けた要素の計算値には出ない。** 採取ツールは 1 段下の子の inline style だけを `child_inline_styles` に記録する
   （子の計算値は採らない）。**照合には使わない診断材料**で、読むのは「計算値が全一致なのに画素だけ差が出た」ときに**装飾がどこに乗っているかを先に確かめる**ため
   （実測: `<a><span style="font-weight: bold;">` の形で 34 プロパティが全一致し、画素差 62 だけが出た。読む手順の正本は `parity-diff` の `references/font-diff.md`）
+- **文字を描いているのが子孫の要素だと、名前を付けた要素の font 系の計算値は文字の見た目を表さない。** 採取ツールは部分木のテキストノードの親要素（文字の持ち主）ごとに
+  書体・大きさ・字形・太さ・行の高さの計算値と文字の寸法（行の断片の幅の合計 `advance`・高さ `glyph_height`・断片の数 `lines`）を `text_owners` に記録し、
+  差分器（trait-compare.mjs）が**並び順（i 番目どうし）**で照合して `kind: "text"` の差を出す。外接矩形（`rect`）は折り返しや間に挟まる子要素で膨らむので照合に使わない。
+  DOM の入れ子の深さでは突き合わせないので、`<button><div><span>設定</span></div></button>` の現行と `<button>設定</button>` の新側でも書体・大きさの差が出る
+  （Issue #459。要素自身の計算値は一致し、文字の幅が 26px と 30.4px で違っていた）。文字列が違う組は寸法を比べず、行数が違う組は行数の差だけを出す。
+  **描画に使われた書体の実体**（フォールバックの解決先）は計算値に出ないので採らない——下の「採取環境と利用者環境の乖離」で確かめる。
+  閉じたシャドウルートの中の文字は採れない
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
   固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。
   **`parity-component` は要素の矩形だけを撮る**ので「写らないもの」がさらに増える——矩形の外に描かれる `box-shadow`、下地に依存して弁別できない `opacity`、

@@ -1,0 +1,101 @@
+{
+  "$comment": [
+    "trait-capture.test.js のうち、文字の持ち主（text_owners）の採取（Issue #459）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/trait-capture.test.js",
+  "mutations": [
+    {
+      "id": "direct-children-only",
+      "why": "要素の直下の文字だけを見て、子孫へ降りない（要素自身の値しか採らない修正前の形に近い）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "        visit(Array.from(node.childNodes), childPath, node);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る",
+        "空白だけの文字 は持ち主として数えない",
+        "矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
+        "矩形の高さが 0 の文字 は持ち主として数えない",
+        "visibility が visible でない要素の文字は数えない",
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"
+      ]
+    },
+    {
+      "id": "zero-area-counted",
+      "why": "描かれていない（矩形の面積 0 の）文字も持ち主として数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    if (!(r.width > 0 && r.height > 0)) return;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
+        "矩形の高さが 0 の文字 は持ち主として数えない"
+      ]
+    },
+    {
+      "id": "hidden-counted",
+      "why": "visibility: hidden の要素の文字も数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    if (style.getPropertyValue(\"visibility\") !== \"visible\") return;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["visibility が visible でない要素の文字は数えない"]
+    },
+    {
+      "id": "unresolved-passes",
+      "why": "文字の持ち主で解決しないプロパティ名を空文字のまま通す",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (value === \"\") unknown.push(prop);\n      picked[prop] = value;\n",
+      "replace": "      picked[prop] = value;\n",
+      "occurrences": 1,
+      "expect_failing": ["文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる"]
+    },
+    {
+      "id": "slot-ignored",
+      "why": "<slot> に割り当てられたノードを辿らない（ライト DOM の文字を落とす）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      } else if (typeof node.assignedNodes === \"function\" && node.assignedNodes().length > 0) {",
+      "replace": "      } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
+      ]
+    },
+    {
+      "id": "no-merge",
+      "why": "同じ持ち主の 2 つ目以降の文字を別の行にする",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const known = owners.get(owner);\n",
+      "replace": "    const known = undefined;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
+      ]
+    },
+    {
+      "id": "bbox-as-advance",
+      "why": "比較に使う幅を行の断片ではなく外接矩形の幅から出す（折り返しで広がる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const advance = fragments.reduce((sum, f) => sum + f.width, 0);\n",
+      "replace": "    const advance = r.width;\n",
+      "occurrences": 1,
+      "expect_failing": ["折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"]
+    },
+    {
+      "id": "dom-parent-as-owner",
+      "why": "文字の持ち主を平坦木の親ではなく DOM の親にする（slot に割り当てた文字がホストの書体で記録される）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const owner = flatParent;\n",
+      "replace": "    const owner = node.parentElement || (node.parentNode && node.parentNode.host) || null;\n",
+      "occurrences": 1,
+      "expect_failing": ["slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"]
+    }
+  ]
+}

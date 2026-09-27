@@ -1,5 +1,6 @@
 // 静止画に写らない computed style を固定集合に入れ、解決しない名前で fail closed する回帰テスト（Issue #342）。
-// 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）。
+// 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）、
+// 文字の持ち主（text_owners）の採取（Issue #459）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -7,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
-const { FIXED_PROPERTIES, VERSION, captureTraits } = await import(script);
+const { FIXED_PROPERTIES, TEXT_OWNER_PROPERTIES, VERSION, captureTraits } = await import(script);
 
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
@@ -22,6 +23,10 @@ function fakeLocator(
     viewport = { width: 1280, height: 800 },
     documentSize = { width: 1280, height: 800 },
     children = [],
+    childNodes = [],
+    shadowRoot = null,
+    // el 自身が文字の持ち主になる場合の計算値（styles に重ねる。省略時は textStyle を持たない）
+    rootTextStyle = null,
   } = {},
 ) {
   return {
@@ -32,6 +37,24 @@ function fakeLocator(
           tagName: (child.tag ?? "span").toUpperCase(),
           getAttribute: (name) => (name === "style" ? (child.style ?? null) : null),
         })),
+        tagName: "BUTTON",
+        textStyle: rootTextStyle ? { ...styles, ...rootTextStyle } : undefined,
+        childNodes,
+        shadowRoot,
+        ownerDocument: {
+          // Range は selectNodeContents したテキストノードの矩形（textNode の rect）を返す
+          createRange: () => {
+            let target = null;
+            return {
+              selectNodeContents: (node) => {
+                target = node;
+              },
+              getBoundingClientRect: () => target.rect,
+              // 行の断片。折り返す文字は fragments で複数を渡す（省略時は矩形 1 つ）
+              getClientRects: () => target.fragments ?? [target.rect],
+            };
+          },
+        },
       };
       const previousStyle = globalThis.getComputedStyle;
       const previousLocation = globalThis.location;
@@ -40,9 +63,12 @@ function fakeLocator(
       const previousScrollY = globalThis.scrollY;
       const previousInnerWidth = globalThis.innerWidth;
       const previousInnerHeight = globalThis.innerHeight;
-      globalThis.getComputedStyle = (_element, pseudo) => ({
+      globalThis.getComputedStyle = (element, pseudo) => ({
         content: pseudo ? pseudoContent : "normal",
-        getPropertyValue: (prop) => (pseudo ? pseudoStyles : styles)[prop] ?? "",
+        getPropertyValue: (prop) =>
+          (element && element.textStyle ? element.textStyle : pseudo ? pseudoStyles : styles)[
+            prop
+          ] ?? "",
       });
       globalThis.location = { origin };
       globalThis.document = {
@@ -103,7 +129,7 @@ test.each([
 // 陳腐化判定はこの版でしか働かないので、集合だけ変えて版を据え置く変異をここで落とす。
 test("固定集合の要素数と VERSION が対応している", () => {
   expect(FIXED_PROPERTIES).toHaveLength(48);
-  expect(VERSION).toBe("4");
+  expect(VERSION).toBe("5");
 });
 
 test("固定集合に重複が無い", () => {
@@ -371,4 +397,220 @@ test("子に inline style が無ければ空配列になる（キーの欠落と
     },
   ]);
   expect(trait.child_inline_styles).toEqual([]);
+});
+
+// --- 文字の持ち主（Issue #459） ---
+
+// 偽の DOM。要素は textStyle（その要素の計算値）を持ち、テキストノードは rect（Range の矩形）を持つ。
+// parentElement / parentNode は組み立て後に張る。
+function textNode(value, rect = { x: 0, y: 0, width: 24, height: 14 }, fragments) {
+  return { nodeType: 3, nodeValue: value, rect, fragments };
+}
+function elementNode(tag, childNodes = [], textStyle = {}, extra = {}) {
+  const node = { nodeType: 1, tagName: tag.toUpperCase(), childNodes, textStyle, ...extra };
+  for (const child of childNodes) {
+    child.parentNode = node;
+    child.parentElement = node;
+  }
+  return node;
+}
+function fontOf(overrides = {}) {
+  return {
+    "font-family": "arial, sans-serif",
+    "font-size": "13.3333px",
+    "font-style": "normal",
+    "font-weight": "400",
+    "line-height": "normal",
+    visibility: "visible",
+    ...overrides,
+  };
+}
+// 名前を付けた要素自身。直下のテキストノードの親は el 自身なので、el と同じ計算値（styles）を返す偽を張る。
+function rootWith(childNodes, rootStyle = fontOf()) {
+  const root = { textStyle: rootStyle, tagName: "BUTTON", nodeType: 1 };
+  for (const child of childNodes) {
+    child.parentNode = root;
+    child.parentElement = root;
+  }
+  return root;
+}
+
+test("文字の持ち主の固定集合と VERSION が対応している", () => {
+  expect([...TEXT_OWNER_PROPERTIES]).toEqual([
+    "font-family",
+    "font-size",
+    "font-style",
+    "font-weight",
+    "line-height",
+  ]);
+  expect(VERSION).toBe("5");
+});
+
+// 実例（Issue #459）: <button>（arial・13.3333px）の中の <div>（Roboto・14px）の中の <span>（12px）が文字を持つ。
+// 要素自身の計算値は採れても、文字を描く span の書体・大きさはどこにも残らなかった。
+test("入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る", async () => {
+  const text = textNode("設定", { x: 16, y: 14, width: 24.015625, height: 14 });
+  const span = elementNode(
+    "span",
+    [text],
+    fontOf({ "font-family": "Roboto, sans-serif", "font-size": "12px" }),
+  );
+  const div = elementNode(
+    "div",
+    [span],
+    fontOf({ "font-family": "Roboto, sans-serif", "font-size": "14px" }),
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [div] });
+  rootWith([div]);
+
+  const [trait] = await captureTraits([{ name: "toolbar.settings", locator }]);
+
+  expect(trait.text_owners).toEqual([
+    {
+      path: "div[0]>span[0]",
+      tag: "span",
+      text: "設定",
+      style: {
+        "font-family": "Roboto, sans-serif",
+        "font-size": "12px",
+        "font-style": "normal",
+        "font-weight": "400",
+        "line-height": "normal",
+      },
+      advance: 24.015625,
+      glyph_height: 14,
+      lines: 1,
+      rect: { x: 16, y: 14, width: 24.015625, height: 14 },
+    },
+  ]);
+});
+
+test("要素自身が文字を持つなら持ち主の path は空文字になる", async () => {
+  const text = textNode("設定");
+  rootWith([text], fontOf());
+  const locator = fakeLocator(allResolved(), { childNodes: [text], rootTextStyle: fontOf() });
+  const [trait] = await captureTraits([{ name: "toolbar.settings", locator }]);
+  expect(trait.text_owners.map((o) => [o.path, o.tag, o.text])).toEqual([["", "button", "設定"]]);
+});
+
+test.each([
+  ["空白だけの文字", () => textNode("  \n\t ")],
+  [
+    "矩形の幅が 0 の文字（display: none の中）",
+    () => textNode("無", { x: 0, y: 0, width: 0, height: 14 }),
+  ],
+  ["矩形の高さが 0 の文字", () => textNode("無", { x: 0, y: 0, width: 10, height: 0 })],
+])("%s は持ち主として数えない", async (_name, make) => {
+  const visible = textNode("見");
+  const hiddenText = make();
+  const hidden = elementNode("span", [hiddenText], fontOf());
+  const shown = elementNode("span", [visible], fontOf());
+  const locator = fakeLocator(allResolved(), { childNodes: [hidden, shown] });
+  rootWith([hidden, shown]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.path, o.text])).toEqual([["span[1]", "見"]]);
+});
+
+test("visibility が visible でない要素の文字は数えない", async () => {
+  const hidden = elementNode("span", [textNode("隠")], fontOf({ visibility: "hidden" }));
+  const shown = elementNode("span", [textNode("見")], fontOf());
+  const locator = fakeLocator(allResolved(), { childNodes: [hidden, shown] });
+  rootWith([hidden, shown]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => o.text)).toEqual(["見"]);
+});
+
+test("同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする", async () => {
+  const bold = elementNode(
+    "b",
+    [textNode("太", { x: 30, y: 10, width: 10, height: 14 })],
+    fontOf({ "font-weight": "700" }),
+  );
+  const p = elementNode(
+    "p",
+    [
+      textNode(" 前  ", { x: 10, y: 10, width: 20, height: 14 }),
+      bold,
+      textNode("後", { x: 40, y: 12, width: 15, height: 16 }),
+    ],
+    fontOf(),
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [p] });
+  rootWith([p]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(
+    trait.text_owners.map((o) => [o.path, o.text, o.advance, o.glyph_height, o.lines, o.rect]),
+  ).toEqual([
+    ["p[0]", "前 後", 35, 16, 2, { x: 10, y: 10, width: 45, height: 18 }],
+    ["p[0]>b[0]", "太", 10, 14, 1, { x: 30, y: 10, width: 10, height: 14 }],
+  ]);
+});
+
+// 実ブラウザでは折り返した Text ノードの外接矩形が「1 行目の左端〜最終行の右端」まで広がる。
+// 比較に使う寸法は行の断片から出し、外接矩形の幅を使わない。
+test("折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）", async () => {
+  const text = textNode("長い説明文", { x: 0, y: 0, width: 100, height: 32 }, [
+    { x: 0, y: 0, width: 100, height: 16 },
+    { x: 0, y: 16, width: 30, height: 16 },
+    { x: 30, y: 16, width: 0, height: 0 },
+  ]);
+  const span = elementNode("span", [text], fontOf());
+  const locator = fakeLocator(allResolved(), { childNodes: [span] });
+  rootWith([span]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.advance, o.glyph_height, o.lines, o.rect.width])).toEqual([
+    [130, 16, 2, 100],
+  ]);
+});
+
+// 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。
+test("シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る", async () => {
+  const label = elementNode("span", [textNode("ラベル")], fontOf());
+  const slot = elementNode("slot", [], fontOf(), { assignedNodes: () => [label] });
+  const before = elementNode("b", [textNode("前")], fontOf({ "font-size": "20px" }));
+  const after = elementNode("i", [textNode("後")], fontOf());
+  const shadowRoot = { childNodes: [before, slot, after] };
+  const locator = fakeLocator(allResolved(), { childNodes: [label], shadowRoot });
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.path, o.text])).toEqual([
+    ["#shadow-root>b[0]", "前"],
+    ["#shadow-root>slot[1]>span[0]", "ラベル"],
+    ["#shadow-root>i[2]", "後"],
+  ]);
+});
+
+// slot に直接割り当てられた文字は、DOM の親（ホスト）ではなく平坦木の親（slot）から書体を継承する。
+// 実測: シャドウ内の <button style="font-size:30px"><slot> に割り当てた文字を parentElement で採ると、ホストの 16px が記録された。
+test("slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる", async () => {
+  const label = textNode("ラベル");
+  const slot = elementNode("slot", [], fontOf({ "font-size": "30px" }), {
+    assignedNodes: () => [label],
+  });
+  const shadowRoot = { childNodes: [slot] };
+  const locator = fakeLocator(allResolved(), {
+    childNodes: [label],
+    shadowRoot,
+    rootTextStyle: fontOf({ "font-size": "16px" }),
+  });
+  rootWith([label], fontOf({ "font-size": "16px" }));
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.path, o.tag, o.style["font-size"]])).toEqual([
+    ["#shadow-root>slot[0]", "slot", "30px"],
+  ]);
+});
+
+test("文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる", async () => {
+  const style = fontOf();
+  delete style["line-height"];
+  const span = elementNode("span", [textNode("設定")], style);
+  const locator = fakeLocator(allResolved(), { childNodes: [span] });
+  rootWith([span]);
+  await expect(captureTraits([{ name: "toolbar.settings", locator }])).rejects.toThrow(
+    /toolbar\.settings[\s\S]*computed style did not resolve for text owner[\s\S]*line-height/,
+  );
+});
+
+test("文字が無ければ空配列になる（キーの欠落と区別する）", async () => {
+  const [trait] = await captureTraits([{ name: "x", locator: fakeLocator(allResolved()) }]);
+  expect(trait.text_owners).toEqual([]);
 });

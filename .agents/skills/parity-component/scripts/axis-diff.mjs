@@ -44,6 +44,8 @@ const SEPARATOR = String.fromCharCode(31);
  * 1 つの採取物（trait-capture.mjs の返り値の形）を「軸名 → 値」の平坦な表に畳む。
  * 畳むのは computed / before / after / rect だけ。`child_inline_styles`（trait-capture.mjs VERSION 3 以降）は
  * 照合に使わない診断材料なので**意図して読まない**（軸にすると子の書き方の違いが可変軸に化ける）。
+ * `text_owners`（VERSION 5 以降）も読まない——行の数が文言やデータで変わるため、軸にすると
+ * 一部インスタンスにしか無い軸として problems に落ちる。文字の持ち主の照合は build の trait-compare.mjs が担う。
  * 擬似要素は content が無いと null で返るため、その不在自体を値として扱う
  * （片方のインスタンスだけ ::before で描いている、という差が可変軸として出る）。
  *

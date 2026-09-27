@@ -7,7 +7,8 @@
 //
 // 何を採るか: 論理名（ロケータマッピングの契約名）を付けた要素について、
 // 固定プロパティ集合の computed style ＋ 擬似要素（::before / ::after）の computed style ＋
-// getBoundingClientRect() ＋ 1 段下の子の inline style（child_inline_styles）を採る。
+// getBoundingClientRect() ＋ 1 段下の子の inline style（child_inline_styles）＋
+// 文字の持ち主（text_owners。部分木の中で文字を描いている要素ごとの書体・大きさ・文字の寸法）を採る。
 // 相対幾何（要素対の関係）は絶対座標ではなくこの rect から trait-compare.mjs 側で導出する。
 //
 // 採った対象が「画面に描かれているもの」かを、採取の中で 1 度だけ確かめる。特性照合は
@@ -21,6 +22,18 @@
 //     見た目を変えている。子の計算値は採らず、inline style の在否と値だけを記録して、
 //     画素の差をフォントの版・ヒンティングの切り分けへ持っていかずに済むようにする
 //     （照合には使わない診断材料。正本の説明は references/baseline.md）
+//
+// 文字の持ち主（text_owners）: 固定集合の font 系は「名前を付けた要素そのもの」の値でしかない。
+// 文字を持つのが子孫の要素だと（<button><div><span>設定</span></div></button>）、実際に文字を
+// 描いている書体・大きさ・行の高さはどこにも採られず、新側が要素自身に文字を置く実装だと
+// 要素の計算値が一致したまま特性照合が緑になる（Issue #459。文字の幅が 26px と 30.4px で違っていた）。
+// そこで部分木のテキストノードを平坦木の順（開いたシャドウルートの中と、<slot> に割り当てられた
+// ノードを描かれる位置で辿る）に拾い、平坦木の親要素（文字の持ち主。slot に割り当てられた文字は slot）ごとに 1 行、TEXT_OWNER_PROPERTIES の
+// 計算値と、その要素が直接持つ文字の寸法（行の断片の幅の合計 advance・最大の高さ glyph_height・断片の数 lines）を記録する。行は文字が現れる順に並び、入れ子の深さに
+// 依らないので、DOM の形が違う現・新でも「i 番目の文字の持ち主」どうしを trait-compare.mjs が突き合わせられる。
+// 描かれていない文字（空白だけ・矩形の面積 0・visibility が visible でない）は数えない。
+// 射程: 閉じたシャドウルートの中は辿れない。描画に使われた書体の実体（フォールバックの解決先）は
+// 計算値に出ないので採らない——採取環境と利用者環境の乖離として references/baseline.md の手順で確かめる。
 //
 // 何を採らないか: letter-spacing・text-transform・background-image 等、要素の矩形の内側に
 // そのまま写る項目はこの集合に含めない（名前無し要素の見た目差と同様、画素経路＝要素
@@ -63,7 +76,7 @@
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /**
  * 採取する computed style プロパティの固定集合（正本）。
@@ -124,15 +137,29 @@ export const FIXED_PROPERTIES = [
 ];
 
 /**
+ * 文字の持ち主（text_owners）について採る computed style の固定集合（正本）。
+ * 文字の見た目のうち、描いている要素の計算値でしか決まらない書体・大きさ・行の高さに絞る
+ * （色や装飾は要素の矩形の内側に写るので画素経路が拾う）。変えたら VERSION を上げる。
+ * @type {readonly string[]}
+ */
+export const TEXT_OWNER_PROPERTIES = [
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "line-height",
+];
+
+/**
  * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
- * el と props を受け取り、computed / before / after / rect / child_inline_styles を返す。
+ * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners を返す。
  * 擬似要素は content が "none"（＝生成コンテンツ無し）のとき null を返し、省略できるようにする。
  * 矩形が文書の外に丸ごと出ている要素（支援技術のための写し）はここで失敗させる。
  * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない（props で受け取る）。
  * @param {Element} el
- * @param {readonly string[]} props
+ * @param {{ fixed: readonly string[], textOwner: readonly string[] }} props
  */
-function captureElement(el, props) {
+function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
   // 同一オリジンの url() をオリジン非依存の印へ畳む。cursor: url(cur.png) のような相対 URL の
   // 計算値は自分のオリジンで絶対化されるため（実測: 同じ CSS が :8811 と :8822 で別文字列になる）、
   // 現・新がホストもポートも違う前提のパリティ比較では、同じ指定が偽の property 差分になる。
@@ -234,12 +261,103 @@ function captureElement(el, props) {
     });
   }
 
+  // 文字の持ち主を平坦木の順に拾う（冒頭の「文字の持ち主」を参照）。path は el からの道筋で、
+  // 照合には使わない診断材料（どの要素が文字を持っているかを採取物から読むため）。
+  const owners = new Map();
+  const textOwners = [];
+  const collectText = (node, path, flatParent) => {
+    const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
+    if (text === "") return;
+    // 持ち主は平坦木の親（visit が渡す）。文字の書体は平坦木で継承されるため、<slot> に割り当てられた
+    // 文字は DOM の親（ホスト）ではなく slot から継承する（実測: シャドウ内の <button style="font-size:30px">
+    // <slot> に割り当てた文字を parentElement で採るとホストの 16px が記録された）。シャドウルート直下の
+    // 文字はホストが持ち主になる（ShadowRoot は要素ではなく計算値を持たない）。
+    const owner = flatParent;
+    const range = (el.ownerDocument || document).createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return;
+    // 比較に使う寸法は行の断片（getClientRects）から出す。外接矩形（r）は折り返すと「1 行目の左端〜
+    // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
+    // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
+    const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
+    const advance = fragments.reduce((sum, f) => sum + f.width, 0);
+    const glyphHeight = fragments.reduce((max, f) => Math.max(max, f.height), 0);
+    const style = getComputedStyle(owner);
+    if (style.getPropertyValue("visibility") !== "visible") return;
+    const known = owners.get(owner);
+    if (known) {
+      known.text += " " + text;
+      known.advance += advance;
+      known.glyph_height = Math.max(known.glyph_height, glyphHeight);
+      known.lines += fragments.length;
+      const x2 = Math.max(known.rect.x + known.rect.width, r.x + r.width);
+      const y2 = Math.max(known.rect.y + known.rect.height, r.y + r.height);
+      known.rect.x = Math.min(known.rect.x, r.x);
+      known.rect.y = Math.min(known.rect.y, r.y);
+      known.rect.width = x2 - known.rect.x;
+      known.rect.height = y2 - known.rect.y;
+      return;
+    }
+    const picked = {};
+    const unknown = [];
+    for (const prop of textOwnerProps) {
+      const value = style.getPropertyValue(prop);
+      if (value === "") unknown.push(prop);
+      picked[prop] = value;
+    }
+    if (unknown.length > 0) {
+      throw new Error(
+        `computed style did not resolve for text owner "${path}": ${unknown.join(", ")}`,
+      );
+    }
+    const entry = {
+      path,
+      tag: owner.tagName.toLowerCase(),
+      text,
+      style: picked,
+      advance,
+      glyph_height: glyphHeight,
+      lines: fragments.length,
+      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+    };
+    owners.set(owner, entry);
+    textOwners.push(entry);
+  };
+  const visit = (nodes, path, flatParent) => {
+    let elementIndex = 0;
+    for (const node of nodes) {
+      if (node.nodeType === 3) {
+        collectText(node, path, flatParent);
+        continue;
+      }
+      if (node.nodeType !== 1) continue;
+      const segment = `${node.tagName.toLowerCase()}[${elementIndex}]`;
+      elementIndex += 1;
+      const childPath = path === "" ? segment : `${path}>${segment}`;
+      if (node.shadowRoot) {
+        // シャドウツリーが描かれ、ライト DOM の子は <slot> 経由でその位置に描かれる
+        visit(Array.from(node.shadowRoot.childNodes), `${childPath}>#shadow-root`, node);
+      } else if (typeof node.assignedNodes === "function" && node.assignedNodes().length > 0) {
+        visit(node.assignedNodes(), childPath, node);
+      } else {
+        visit(Array.from(node.childNodes), childPath, node);
+      }
+    }
+  };
+  visit(
+    el.shadowRoot ? Array.from(el.shadowRoot.childNodes) : Array.from(el.childNodes || []),
+    el.shadowRoot ? "#shadow-root" : "",
+    el,
+  );
+
   return {
     computed: pick(null),
     before: pick("::before"),
     after: pick("::after"),
     rect: { x: box.x, y: box.y, width: box.width, height: box.height },
     child_inline_styles: childInlineStyles,
+    text_owners: textOwners,
   };
 }
 
@@ -255,6 +373,16 @@ function captureElement(el, props) {
  *     after:  Record<string,string> | null,   // ::after（content が none なら null）
  *     rect:   { x:number, y:number, width:number, height:number },
  *     child_inline_styles: { index:number, tag:string, style:string }[]  // 1 段下の子の inline style（診断材料）
+ *     text_owners: {                   // 文字の持ち主（描画順。trait-compare.mjs が i 番目どうしを照合する）
+ *       path: string,                  // el からの道筋（"" は el 自身。診断材料）
+ *       tag: string,
+ *       text: string,                  // その要素が直接持つ文字（空白を畳んだもの）
+ *       style: Record<string,string>,  // TEXT_OWNER_PROPERTIES の computed 値
+ *       advance: number,               // 文字の行の断片（Range.getClientRects）の幅の合計（照合する）
+ *       glyph_height: number,          // 行の断片の高さの最大（照合する）
+ *       lines: number,                 // 行の断片の数（照合する。折り返しの差）
+ *       rect: { x:number, y:number, width:number, height:number },  // 文字の外接矩形（診断材料）
+ *     }[]
  *   }
  *
  * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした・
@@ -272,14 +400,17 @@ function captureElement(el, props) {
  * 写しから採り続ける状態が残る。この失敗も捕捉せず停止し、ロケータマッピングを直してから採り直す。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
- * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[] }>>}
+ * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[] }>>}
  */
 export async function captureTraits(entries) {
   const results = [];
   for (const entry of entries) {
     let captured;
     try {
-      captured = await entry.locator.evaluate(captureElement, FIXED_PROPERTIES);
+      captured = await entry.locator.evaluate(captureElement, {
+        fixed: FIXED_PROPERTIES,
+        textOwner: TEXT_OWNER_PROPERTIES,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`trait capture failed for logical name "${entry.name}": ${message}`, {
