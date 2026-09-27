@@ -592,6 +592,21 @@ test("同じ持ち主の文字が複数のテキストノードに分かれて�
   ]);
 });
 
+// 行の断片の高さは行送りではなく書体の高さなので、line-height を詰めると上下の行の断片が重なる
+// （実測: 16px・line-height: 1 で断片の高さ 18、行送り 16）。重なりで数えると 3 行の折り返しが 1 行になる。
+test("line-height を詰めて行の断片が縦に重なっても、折り返した行を数える", async () => {
+  const text = textNode("長い説明文", { x: 0, y: 0, width: 100, height: 50 }, [
+    { x: 0, y: 0, width: 100, height: 18 },
+    { x: 0, y: 16, width: 100, height: 18 },
+    { x: 0, y: 32, width: 40, height: 18 },
+  ]);
+  const span = elementNode("span", [text], fontOf());
+  const locator = fakeLocator(allResolved(), { childNodes: [span] });
+  rootWith([span]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => o.lines)).toEqual([3]);
+});
+
 // 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。
 test("シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る", async () => {
   const label = elementNode("span", [textNode("ラベル")], fontOf());

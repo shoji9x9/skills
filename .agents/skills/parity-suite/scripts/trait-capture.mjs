@@ -270,15 +270,20 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
   // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）、
   // 見た目が同じ文字の寸法の照合が trait-compare.mjs で黙って省かれる。
   const rawText = new Map();
-  // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、縦に重ならない帯の数で数える——
+  // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、行の帯の数で数える——
   // テキストノードが分かれると同じ行に断片が 2 つ出る（実測: "3" と "件" の 2 ノードで断片 2、1 ノードで 1）。
+  // 帯の切れ目は「前の帯の上端から、その断片の高さの半分以上下がったか」で決める。断片の高さは行送りではなく
+  // 書体の高さなので、line-height を詰めると上下の行の断片が縦に重なり、重なりで数えると折り返しを 1 行と
+  // 数える（実測: 16px・3 行の折り返しが line-height: 1 / 0.8 で 1 行になった）。同じ行の断片は上端が揃う。
   const bands = new Map();
   const countLines = (list) => {
     let lines = 0;
-    let bottom = -Infinity;
+    let rowTop = -Infinity;
     for (const f of [...list].sort((a, b) => a.top - b.top)) {
-      if (f.top >= bottom) lines += 1;
-      bottom = Math.max(bottom, f.bottom);
+      if (f.top >= rowTop + (f.bottom - f.top) / 2) {
+        lines += 1;
+        rowTop = f.top;
+      }
     }
     return lines;
   };
