@@ -232,7 +232,7 @@ Playwright が起動したブラウザではなく、**利用者環境で起動�
 - **現・新の両側に同じ宣言を要求する**——片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る。撮影に使ったブラウザは `metadata.json` の `capture_conditions.browser`（`launched` / `cdp`）に残し、
   `cdp` では接続先の同一性を `capture_conditions.browser_identity`（`product`: `browser.version()`、`user_agent`: `navigator.userAgent`）にも残す。
   `parity-diff` は新側 target の宣言がこれと合わない、または接続したブラウザの同一性が違えば撮影せず停止する
-  （出典: <https://playwright.dev/docs/api/class-browser#browser-version> / 起動の選択肢 <https://playwright.dev/docs/api/class-testoptions>）
+  （出典: <https://playwright.dev/docs/api/class-browser#browser-version> / 起動・接続の選択肢 <https://playwright.dev/docs/api/class-testoptions>（`connectOptions` を含む）/ <https://playwright.dev/docs/api/class-browsertype#browser-type-connect>）
 
 ```ts
 // <parity_suite_dir>/parity/lib/fixtures.ts（抜粋）
@@ -241,14 +241,17 @@ import { test as base, chromium, firefox, webkit, type Browser } from "@playwrig
 export const test = base.extend<{}, { browser: Browser }>({
   browser: [
     // 組み込みの browser に依存しない（依存すると cdp でもローカルのブラウザが先に起動し、無い環境ではそこで落ちる）。
-    // 起動は接続しない分岐だけで、プロジェクトの use の launchOptions / headless / channel を渡す
-    async ({ browserName, launchOptions, headless, channel }, use, workerInfo) => {
+    // CDP で接続しない分岐は組み込みと同じく、use.connectOptions があれば connect()、無ければ launchOptions / headless / channel で launch()
+    async ({ browserName, launchOptions, headless, channel, connectOptions }, use, workerInfo) => {
       const side = workerInfo.project.name === "current" ? "CURRENT" : "NEW";
       const cdpUrl = process.env[`PARITY_${side}_CDP_URL`];
       if (!cdpUrl) {
-        const launched = await { chromium, firefox, webkit }[browserName].launch({ ...launchOptions, headless, channel });
-        await use(launched);
-        await launched.close();
+        const browserType = { chromium, firefox, webkit }[browserName];
+        const opened = connectOptions
+          ? await browserType.connect(connectOptions.wsEndpoint, connectOptions)
+          : await browserType.launch({ ...launchOptions, headless, channel });
+        await use(opened);
+        await opened.close();
         return;
       }
       const connected = await chromium.connectOverCDP(cdpUrl);

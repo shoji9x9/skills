@@ -1437,6 +1437,19 @@ export function checkCaptureScope(metadata) {
       });
     }
   }
+  // **記録した組が宣言にあることも確かめる。** 変種を消した・改名した後に古い行が noise_baseline と capture_scope の
+  // 両方に残ると、2 つの記録は互いに突き合って通り、宣言に無い組の基準値が比較や新側の測り直しに使われる
+  if (declared.keys.length > 0) {
+    const declaredSet = new Set(declared.keys);
+    for (const key of new Set([...shot, ...scopeByKey.keys()])) {
+      if (!declaredSet.has(key)) {
+        findings.push({
+          code: "recorded-combination-undeclared",
+          message: `${key} は noise_baseline / capture_scope に記録があるが、撮影条件（pages × states × viewports と display_axes.variants）が宣言した組に無い（消した・改名した変種や窓の古い記録を消す）`,
+        });
+      }
+    }
+  }
   for (const key of scopeByKey.keys()) {
     if (shot.size > 0 && !shot.has(key)) {
       findings.push({

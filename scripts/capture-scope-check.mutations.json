@@ -210,7 +210,12 @@
       "occurrences": 1,
       "expect_failing": [
         "変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）",
-        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる"
+        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる",
+        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）",
+        "軸の対の判断が無い・理由が無い・形が崩れていると落ちる",
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
+        "陽性コントロール: ロケールの変種を全ページ × 全状態で撮った採取は通る"
       ]
     },
     {
@@ -383,6 +388,17 @@
       "occurrences": 1,
       "expect_failing": [
         "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "recorded-undeclared",
+      "why": "宣言に無い組の記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!declaredSet.has(key)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）"
       ]
     }
   ]

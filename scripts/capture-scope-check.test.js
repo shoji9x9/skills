@@ -1630,3 +1630,17 @@ test("browser が cdp なのに接続先の同一性が無ければ落とす（�
   // 陰性コントロール: launched では同一性を求めない
   expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
 });
+
+test("宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）", () => {
+  const { scope, noise } = withVariantCaptures();
+  // 変種を宣言から消し、記録だけを残す
+  const metadata = metadataOf({ displayAxes: localeAxes({ variants: [] }), scope, noise });
+  const codes = codesOf(metadata);
+  expect(codes.filter((c) => c === "recorded-combination-undeclared")).toHaveLength(2);
+  // 陰性コントロール: 宣言どおりの記録だけなら出ない
+  expect(
+    codesOf(metadataOf({ displayAxes: localeAxes(), scope, noise })).filter(
+      (c) => c === "recorded-combination-undeclared",
+    ),
+  ).toEqual([]);
+});
