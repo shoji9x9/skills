@@ -244,6 +244,17 @@ for (const viewport of shots) {
               "capture_conditions.browser is cdp but the browser was not connected over CDP: import test from the shared fixtures",
             );
           }
+          // cdp では、現側が撮った利用者環境と同じブラウザへ接続したかを確かめる（モードだけが揃って別の機械で撮ると、環境の差が差分に出る）
+          if (browserMode === "cdp") {
+            const identity = metadata.capture_conditions.browser_identity;
+            const product = page.context().browser()?.version();
+            const userAgent = await page.evaluate(() => navigator.userAgent);
+            if (!identity || identity.product !== product || identity.user_agent !== userAgent) {
+              throw new Error(
+                `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
+              );
+            }
+          }
           await page.goto(pageDef.path);
           // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
           if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });

@@ -939,6 +939,26 @@ export function checkBrowser(conditions) {
       },
     ];
   }
+  // cdp では接続先の同一性（Browser.version と userAgent）も残す。モードだけでは、現・新が別の機械へ接続しても揃ったことになる
+  if (conditions.browser === "cdp") {
+    const identity = /** @type {Record<string, unknown> | null | undefined} */ (
+      conditions.browser_identity
+    );
+    if (
+      !identity ||
+      typeof identity !== "object" ||
+      !evidenceText(identity.product) ||
+      !evidenceText(identity.user_agent)
+    ) {
+      return [
+        {
+          code: "browser-identity-missing",
+          message:
+            "capture_conditions.browser が cdp なのに browser_identity（product: Browser.version()、user_agent: navigator.userAgent）が無い（新側が同じ利用者環境へ接続したかを照合できない）",
+        },
+      ];
+    }
+  }
   return [];
 }
 

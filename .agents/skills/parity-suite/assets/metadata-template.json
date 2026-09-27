@@ -110,6 +110,11 @@
     "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
     "viewer_environment": "<想定利用者環境との一致。「一致: <確かめ方（例: 利用者環境のブラウザへ接続して撮り、CSS.getPlatformFontsForNode で描いた書体を読んだ）>」か「乖離: <内容と gaps.md の該当箇所>」の 2 形だけ。未確認・確かめ方の無い一致は capture-scope-check.mjs が落とし parity-diff が収束させない。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す。正本は parity-suite の references/baseline.md「採取環境と利用者環境の乖離」>",
     "browser": "<launched | cdp。launched は Playwright が起動したブラウザ、cdp は選択した target の browser.cdp_url（利用者環境で起動した Chromium 系ブラウザ）へ connectOverCDP で接続して撮った。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ利用者環境で撮ると環境の差がそのまま差分に出る）>",
+    "browser_identity": {
+      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別の版で撮るのを止める。",
+      "product": "<Playwright の browser.version() の値>",
+      "user_agent": "<撮影したページで読んだ navigator.userAgent>"
+    },
     "display_axes": {
       "_note": "表示を切り替える軸（ロケール・配色テーマ等。Issue #489）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の穴として数える。正本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
       "axes": [

@@ -191,6 +191,13 @@ function metadataOf(override = {}) {
           ? override.viewerEnvironment
           : "一致: 利用者環境のブラウザへ接続し CSS.getPlatformFontsForNode で描いた書体を読んだ",
       browser: "browser" in override ? override.browser : "cdp",
+      browser_identity:
+        "browserIdentity" in override
+          ? override.browserIdentity
+          : {
+              product: "140.0.3485.54",
+              user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
+            },
     },
     noise_baseline: override.noise ?? [
       { page: "list", state: "default", viewport: "desktop", pixel_diff: 0 },
@@ -1606,4 +1613,20 @@ test("変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切
       }),
     ),
   ).toContain("display-axis-variant-label-unusable");
+});
+
+test("browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）", () => {
+  for (const identity of [
+    undefined,
+    null,
+    {},
+    { product: "140", user_agent: "" },
+    { product: "<browser.version()>", user_agent: "x" },
+  ]) {
+    expect(codesOf(metadataOf({ browserIdentity: identity }))).toEqual([
+      "browser-identity-missing",
+    ]);
+  }
+  // 陰性コントロール: launched では同一性を求めない
+  expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
 });

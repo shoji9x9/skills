@@ -359,7 +359,8 @@
       "replace": "  return nonEmptyString(value);\n",
       "occurrences": 1,
       "expect_failing": [
-        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）"
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
       ]
     },
     {
@@ -371,6 +372,17 @@
       "occurrences": 1,
       "expect_failing": [
         "変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "browser-identity-missing",
+      "why": "cdp の接続先の同一性の欠落を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (conditions.browser === \"cdp\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
       ]
     }
   ]

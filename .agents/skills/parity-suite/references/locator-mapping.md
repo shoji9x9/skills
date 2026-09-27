@@ -230,19 +230,25 @@ Playwright が起動したブラウザではなく、**利用者環境で起動�
   （出典: <https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp> / <https://playwright.dev/docs/api/class-browser#browser-close> /
   組み込みフィクスチャの上書き <https://playwright.dev/docs/test-fixtures#overriding-fixtures>）
 - **現・新の両側に同じ宣言を要求する**——片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る。撮影に使ったブラウザは `metadata.json` の `capture_conditions.browser`（`launched` / `cdp`）に残し、
-  `parity-diff` は新側 target の宣言がこれと合わなければ撮影せず停止する
+  `cdp` では接続先の同一性を `capture_conditions.browser_identity`（`product`: `browser.version()`、`user_agent`: `navigator.userAgent`）にも残す。
+  `parity-diff` は新側 target の宣言がこれと合わない、または接続したブラウザの同一性が違えば撮影せず停止する
+  （出典: <https://playwright.dev/docs/api/class-browser#browser-version> / 起動の選択肢 <https://playwright.dev/docs/api/class-testoptions>）
 
 ```ts
 // <parity_suite_dir>/parity/lib/fixtures.ts（抜粋）
-import { test as base, chromium, type Browser } from "@playwright/test";
+import { test as base, chromium, firefox, webkit, type Browser } from "@playwright/test";
 
 export const test = base.extend<{}, { browser: Browser }>({
   browser: [
-    async ({ browser: launched }, use, workerInfo) => {
+    // 組み込みの browser に依存しない（依存すると cdp でもローカルのブラウザが先に起動し、無い環境ではそこで落ちる）。
+    // 起動は接続しない分岐だけで、プロジェクトの use の launchOptions / headless / channel を渡す
+    async ({ browserName, launchOptions, headless, channel }, use, workerInfo) => {
       const side = workerInfo.project.name === "current" ? "CURRENT" : "NEW";
       const cdpUrl = process.env[`PARITY_${side}_CDP_URL`];
       if (!cdpUrl) {
+        const launched = await { chromium, firefox, webkit }[browserName].launch({ ...launchOptions, headless, channel });
         await use(launched);
+        await launched.close();
         return;
       }
       const connected = await chromium.connectOverCDP(cdpUrl);
