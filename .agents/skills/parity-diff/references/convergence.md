@@ -165,6 +165,10 @@
     `gh skill install shoji9x9/skills parity-suite` を促す。視覚採取物を持たない機能（`api-resource` / `batch`）は `capture_conditions` を持たないため判定に入れない
     **同じ検査がスクロールバーの扱い（`capture_conditions.scrollbars`）と、スクロールバーを表示した窓のはみ出し（`capture_conditions.overflow`）も数える**（Issue #449）。
     この 2 キーを持たない現側成果物も後方互換に倒さず、`parity-suite` で記録させてから収束判定に入る（正本は `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」）
+    **同じ検査が表示を切り替える軸（`capture_conditions.display_axes`）の抜けも数える**（Issue #489）——候補の振り分け漏れ・既定以外の値の変種の欠落・軸の対の判断の欠落・
+    スイートへの写し方の未決を落とし、宣言した変種を撮っていない組は `#not-captured` の穴になる（既定の 1 値だけで撮った差は 3 経路のどれにも写らない）。
+    **採取環境と利用者環境の一致（`viewer_environment`）が「未確認」の成果物と、撮影に使ったブラウザ（`browser`）の記録が無い成果物も落とす**（Issue #476。未確認のまま `diff.md` へ転記するだけでは収束させない）。
+    これらのキーを持たない現側成果物も後方互換に倒さず `parity-suite` へ戻す（正本は `parity-suite` の `references/baseline.md`「表示を切り替える軸（掛け合わせずに撮る）」「採取環境と利用者環境の乖離」）
   - **採取物と工程の健全性に未検証が残っていない**（正本は `parity-suite` の `references/baseline.md`「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と
     `references/coverage.md`「未測定を機械可読にする」）。**採取物は工程の出力であり次の工程の入力**なので、
     読まれていない採取物・古い加工物・回っていない工程・後始末が効いていないスイート・未測定の宣言は、どれも**緑のまま抜ける**。

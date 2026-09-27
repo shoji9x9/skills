@@ -23,6 +23,8 @@
     "viewports": "<現側 capture_conditions.viewports と新側実寸の照合結果。不一致なら停止しているはず>",
     "animations": "<animations: disabled を新側でも適用できたかの確認結果>",
     "scrollbars": "<現側 capture_conditions.scrollbars（hidden / shown）と同じ扱いで新側を撮ったかの確認結果。キーごと無い旧成果物は停止している>",
+    "display_axes": "<現側 capture_conditions.display_axes の基準の組（全軸の default）と各変種（variants）の値を、操作アダプタ applyDisplayAxes で新側にも当てて撮ったかの確認結果。当てられない値があれば停止している。キーごと無い旧成果物は停止している>",
+    "browser": "<現側 capture_conditions.browser（launched / cdp）と、選択した新側 target の browser.cdp_url の有無が一致したかの確認結果（cdp なら接続先の環境も）。不一致なら停止している>",
     "masks": "<現側 masks のロケータを新側で解決してマスクできたかの確認結果（解決できないものは理由）>",
     "cofeature_masks": [
       {

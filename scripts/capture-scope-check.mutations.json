@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）の検出能力を示す変異の一覧。",
+    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -163,6 +163,142 @@
       "occurrences": 1,
       "expect_failing": [
         "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "display-axes-missing",
+      "why": "display_axes をキーごと持たない成果物を欠落として数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"display_axes\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "display_axes をキーごと持たない成果物は落とす（数えていない軸を免除にしない）"
+      ]
+    },
+    {
+      "id": "candidate-unsurveyed",
+      "why": "振り分けていない候補を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!surveyed.has(id)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "候補を axes にも absent にも振り分けていないと落ちる（思いつかなかった軸と区別する）",
+        "同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる"
+      ]
+    },
+    {
+      "id": "value-unswept",
+      "why": "既定以外の値を撮る変種の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!signatures.has(variantSignature({ [axisName]: value }))) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "既定以外の値を撮る変種が無ければ落ちる（1 軸ずつ振る）",
+        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る"
+      ]
+    },
+    {
+      "id": "variant-not-declared",
+      "why": "変種を撮るはずの組に入れない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  for (const variant of displayAxes?.variants ?? []) {\n",
+      "replace": "  for (const variant of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）",
+        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる"
+      ]
+    },
+    {
+      "id": "not-applicable-ignored",
+      "why": "not_applicable のページも撮るはずの組に残す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (excluded) continue;\n",
+      "replace": "      if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる",
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "suite-undecided",
+      "why": "スイートへの写し方の両方空・両方書きを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (expectations === noExpectations) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ"]
+    },
+    {
+      "id": "pair-undecided",
+      "why": "軸の対の判断の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!decided.has(key)) {\n        add(\n          \"display-axis-pair-undecided\",\n",
+      "replace": "      if (!decided.has(key)) {\n        if (false) add(\n          \"display-axis-pair-undecided\",\n",
+      "occurrences": 1,
+      "expect_failing": ["軸の対の判断が無い・理由が無い・形が崩れていると落ちる"]
+    },
+    {
+      "id": "pair-viewport-not-crossed",
+      "why": "窓と掛けると宣言した軸の窓ごとの変種を確かめない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "            if (!variantKeys.has(want)) {\n",
+      "replace": "            if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["窓と掛け合わせると宣言した軸は、全ての窓で変種が要る"]
+    },
+    {
+      "id": "pair-axes-not-crossed",
+      "why": "2 軸を掛けると宣言した対の値の組の変種を確かめない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "          if (!signatures.has(want)) {\n",
+      "replace": "          if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る"]
+    },
+    {
+      "id": "variant-default-value",
+      "why": "変種に既定値を書いた宣言を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (value === axis.default) {\n        add(\n",
+      "replace": "      if (false) {\n        add(\n",
+      "occurrences": 1,
+      "expect_failing": ["変種の宣言の型崩れは落とす（label・窓・値）"]
+    },
+    {
+      "id": "viewer-unconfirmed",
+      "why": "未確認の viewer_environment を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!matched) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "viewer_environment が未確認・確かめ方の無い一致・欠落なら落とす",
+        "同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる"
+      ]
+    },
+    {
+      "id": "browser-missing",
+      "why": "browser の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"browser\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["browser の欠落・語彙外は落とす（新側を同じ扱いで撮れない）"]
+    },
+    {
+      "id": "not-applicable-all-pages",
+      "why": "全ページを not_applicable にした軸を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
       ]
     }
   ]

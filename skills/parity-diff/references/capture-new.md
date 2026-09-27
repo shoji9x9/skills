@@ -13,7 +13,7 @@
   `new` から除外が無いと、採取専用の環境変数を持たない `parity-replace` の green 検証が**テスト収集の時点で落ちる**（往復ループが進まなくなる）。
   記録が無い・除外が設定されていなければ撮影せず停止し、`parity-suite` へ設定を戻す（対称の規則である現側専用スペックの除外は `parity-suite` の `references/locator-mapping.md` が正本）
 - **撮影は `suite.new_only` に記録された採取専用プロジェクト（既定 `new-capture`）で実行する**（`--project new` では走らない）。プロジェクト名が記録に無ければ撮影せず停止し `parity-suite` へ戻す
-- 雛形が読む撮影条件は `metadata.json.capture_conditions` の `viewports` / `states` / `pages` / `masks` / `full_page` / `scrollbars`。**`pages[].name` は `noise_baseline[].page` と同じ語彙**であることを確認する
+- 雛形が読む撮影条件は `metadata.json.capture_conditions` の `viewports` / `states` / `pages` / `masks` / `full_page` / `scrollbars` / `display_axes` / `browser`。**`pages[].name` は `noise_baseline[].page` と同じ語彙**であることを確認する
   （語彙がずれると `PARITY_NOISE_PAIRS` による再利用の絞り込みが 1 組も一致せず、自己ノイズ測定が空振りする）。`masks[].name` はロケータマッピングで解決できる論理名であることを確認する
 - `capture_conditions.cofeature_masks` は撮影条件へそのまま足さない。下記「共同居住機能の実行時マスク」で同 target の実装状態から有効集合を導出し、現側・新側の正本を保持した作業コピーへ対称に適用する
 - 雛形は 1 回目（`baseline-new/`）と 2 回目（`noise-pass2/`）を同じスペックの別パスとして撮る。差分量（`pixel_diff` / `trait_diffs`）を測るのは記録済みの差分器の仕事で、スペックは撮るだけ。
@@ -26,6 +26,8 @@
 
 - 選択 target の `url` / `api_url`（省略時は `url`）を環境変数 `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、Playwright の**採取用プロジェクト**
   （`metadata.json.suite.new_only` に記録された名前。既定 `new-capture`。`new` と同じ baseURL 配線を使う）の baseURL と `request` フィクスチャへ渡す
+- 選択 target が `browser.cdp_url` を持てば `PARITY_NEW_CDP_URL` に解決し、共通のフィクスチャが利用者環境のブラウザへ接続する（配線の正本は `parity-suite` の `references/locator-mapping.md`「利用者環境のブラウザへ接続する」）。
+  現側の `capture_conditions.browser` と宣言の有無が合わなければ撮影せず停止する（下記「条件一致の先行検証」の `browser`）
   （`url_command` を持つ target は、本スキル実行の target 解決時に 1 回だけコマンドを実行して得た URL を使う。失敗・空出力は停止する。
   以降の工程では解決済みの値を再利用し、工程ごとに再実行しない——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」）
 - 解決値は `new/<target>/replace-metadata.json` の `new.ui_url` / `new.api_url` と一致することを確認する（別環境の URL で撮らない）。
@@ -37,7 +39,7 @@
 
 環境差を差分として報告しないため、撮影前に条件一致を検証する。**不一致を検出したら差分報告をせず停止する。**
 
-- `metadata.json.capture_conditions` の `environment` / `viewports` / `full_page` / `scrollbars` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
+- `metadata.json.capture_conditions` の `environment` / `viewports` / `full_page` / `scrollbars` / `display_axes` / `browser` / `animations: "disabled"` / `masks` / `states` を新側で再現できるか確認する
 - ビューポート寸法・アニメーション無効化・マスク適用が現行と一致していることを撮影前に検証する
 
 ### `capture_conditions_verified` は項目ごとに記録する
@@ -50,6 +52,8 @@
 | `viewports` | 現側の `viewports` と新側の実寸、および `full_page`（全画面かビューポート内か）が一致したか（不一致は停止。画像サイズが違えば全ページが全面差分になる） |
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
 | `scrollbars` | 現側の `scrollbars`（`hidden` / `shown`）と同じ扱いで新側を撮ったか。雛形は `shown` のとき `--hide-scrollbars` を外して起動する。ヘッドあり起動はスクロールバーが場所を取るので `hidden` の撮影には使わない。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」） |
+| `display_axes` | 現側の `display_axes` の基準の組（全軸の `default`）と各変種（`variants`）の値を、操作アダプタ `applyDisplayAxes`（`metadata.json.suite.interactions`）で新側にも当てて撮ったか。変種は `viewports` と同じく外側のループで回し、書き出し先は変種の `label`、窓の寸法は変種の `viewport` が指す窓のもの。当てられない値は停止。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「表示を切り替える軸（掛け合わせずに撮る）」） |
+| `browser` | 現側の `browser`（`launched` / `cdp`）と、選択した新側 target の `browser.cdp_url` の有無が一致したか（`cdp` なら `PARITY_NEW_CDP_URL` へ解決して共通のフィクスチャで接続する）。片側だけ利用者環境で撮ると環境の差がそのまま差分に出るので、不一致は停止。キーごと無い旧成果物は停止し `parity-suite` へ戻す（配線の正本: `parity-suite` の `references/locator-mapping.md`「利用者環境のブラウザへ接続する」） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
 | `states` | 現側の `states` の各状態へ操作アダプタ（`metadata.json.suite.interactions`。下記「論理名の解決」）で新側でも遷移できたか（遷移できない状態は停止） |
 | `popup_inventory` | 現側の `popup_inventory` が整合したか（`captured` が全て `states` の要素・`captured` を持つ行は `reason: null`・`captured: null` の行は空でない `reason`・器を開く呼び出し〈親の器 × 関数名 × 開く対象の論理名〉が全て同じ `parent` の行の `opened_by` に現れる・`opened_by` が空でなく行内に重複が無く同じ `parent` × 同じ呼び出しが 2 行に現れない・同じ `name` の行が 2 つ以上無い〈`name` は機能の棚卸し全体で一意〉。単一の文字列の `opened_by` は旧形式として 1 要素の配列と同義に読む）と、`diff.md` の未検証領域へ転記した `captured: null` の器。キーごと無い旧成果物は停止し、ユーザー承認の例外で続行したときだけ `"absent: 承認済みの例外。ノイズ吸収なしで続行"`（不整合は停止） |
@@ -57,7 +61,8 @@
 
 - **`environment` は自由記述であり機械照合できない。** 原則 `"unverified: <理由>"`（例: `"unverified: 現側は記述のみで新側と機械照合できない"`）を記録し、
   同じ内容を `diff.md` の未検証領域へ転記する。照合できた場合に限り、照合した根拠（比較したブラウザ・OS・フォント等）を値に書く
-- **現側 `capture_conditions.viewer_environment` が「乖離」「未確認」なら、その内容を `diff.md` の未検証領域へ転記する。** 現・新を同一条件で撮る統制は、
+- **現側 `capture_conditions.viewer_environment` が「乖離」なら、その内容を `diff.md` の未検証領域へ転記する**（「未確認」は `parity-suite` の `capture-scope-check.mjs` が落とすので、収束判定で `parity-suite` へ戻る）。
+  現・新を同一条件で撮る統制は、
   **採取環境でだけ成立する一致**（総称ファミリーのフォントフォールバック先・システム UI 由来の既定値）を現・新の両側に等しく効かせるため、利用者環境でだけ壊れる差を差分ゼロとして通す。
   同一条件の検証をもって「利用者環境でも一致」と読み替えない（正本: `parity-suite` の `references/baseline.md`「採取環境と利用者環境の乖離」）
 - **現側 `capture_conditions.popup_inventory` を読む**（正本: `parity-suite` の `references/baseline.md`「撮影状態の決め方（2）器の棚卸し」）。
@@ -175,7 +180,7 @@
 |---|---|---|
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `display_axes` / `browser` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
 | 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |

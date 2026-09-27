@@ -14,7 +14,7 @@
 | 区切り | 位置 | 揃っている成果物 | 次の手順 | 次の手順が読む参照 |
 |---|---|---|---|---|
 | `authored` | 手順 5 の後 | スイート（マッピング層・期待値解決層・操作アダプタ・手書き aria・API 特性化）、`auto-wait-check.mjs` 通過、feature モードでは `component-coverage.json`（`coverage-expand.mjs --write` 通過・`visual_state_coverage.rows` の撮る／撮らない）と `reactions.json`（観測の記録） | 6 | [`baseline.md`](baseline.md)、[`locator-mapping.md`](locator-mapping.md)「side 専用スペックは相手側の project から `testIgnore` で除外する（両向き）」 |
-| `captured` | 手順 6 の後 | 視覚ベースライン、`metadata.json` の `noise_baseline`・`capture_conditions`（`states`・`popup_inventory`・`overflow`・`scrollbars`・`capture_scope`）、`dimension-samples.json`。`noise-pass2/` は削除済み | 7 | [`strength-gate.md`](strength-gate.md) |
+| `captured` | 手順 6 の後 | 視覚ベースライン、`metadata.json` の `noise_baseline`・`capture_conditions`（`states`・`popup_inventory`・`overflow`・`scrollbars`・`display_axes`・`viewer_environment`・`browser`・`capture_scope`）、`dimension-samples.json`。`noise-pass2/` は削除済み | 7 | [`strength-gate.md`](strength-gate.md) |
 | `gated` | 手順 7 の後 | **`strength.md`**（ポジティブコントロールの結果・故障カタログ・注入ごとの結果・素通りした故障の扱い）。**手順 7 の中で書く**——手順 8 まで持ち越すと、新しい文脈へ強度ゲートの結果が渡らない | 8 | [`coverage.md`](coverage.md)「照合と宣言」「未測定を機械可読にする」、[`baseline.md`](baseline.md)「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」 |
 
 - **前の手順の参照を読み直さない。** 次の手順が読むのは `SKILL.md`・本ファイル・上表の参照と、上表の成果物だけ。前の手順で読んだ参照の中身は、成果物に落ちた形で引き継がれている

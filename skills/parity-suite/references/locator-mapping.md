@@ -114,6 +114,10 @@ Playwright 以外の値は `document` / `window` を起点にした式で直接�
   環境変数や `baseURL` の中身で side を判定しない（projects 名が本スキルの確定契約）
 - **本スキルが埋めるのは現側の値だけ**（マッピング層と同じく片側ずつ埋まる）。新側の値は `parity-replace` が埋める。現側だけの時点では、新側の値は未定として置き、`new` プロジェクトの green 化時に埋まる
 - 配置の既定は後述の「配置の指針」の表（実際のパスは `metadata.json` の `suite.expectations` に記録し、`parity-replace` が推測せず引く）
+- **表示を切り替える軸（ロケール等）で変わる文言・振る舞いは、期待値に軸の値の次元を足して持つ**（論理名 → 軸の値 → side 別の期待値）。
+  スイートは軸の値ごとに `applyDisplayAxes` で値を当ててから assertion を回す（見出しの文言をロケールごとに期待する等）。
+  既定の値だけで書くと、スイートは既定の値でしか緑を示さず、他の値での差は視覚ベースラインにしか写らない。
+  次元を足した層のパスは軸ごとに `metadata.json` の `capture_conditions.display_axes.axes[].suite_expectations` に書く（軸の数え方の正本は [`baseline.md`](baseline.md)「表示を切り替える軸（掛け合わせずに撮る）」）
 
 ## 操作の実装差を吸収する層
 
@@ -126,6 +130,9 @@ Playwright 以外の値は `document` / `window` を起点にした式で直接�
   [`mouse.click`](https://playwright.dev/docs/api/class-mouse#mouse-click)・[`expect.poll`](https://playwright.dev/docs/test-assertions#expectpoll)・
   [CSSOM View `elementFromPoint`](https://drafts.csswg.org/cssom-view/#dom-document-elementfrompoint)）。
   role が画面外のミラー要素に付く場合があるため判定用ロケータの座標を流用せず、hit-test が別要素を返す座標にも操作を送らない
+- **表示の軸の値を当てる関数（`applyDisplayAxes(page, 値)`）も操作アダプタに置く**。受け取るのは「軸の名前 → 値」で、全軸の値を当ててから返す
+  （当て方は軸ごとに `display_axes.axes[].apply` に書いたとおり。再読み込みを伴うなら、再読み込み後に落ち着くまで待つ）。
+  採取スペック・スイート・`parity-diff` の新側採取が同じ関数を呼ぶ（正本は [`baseline.md`](baseline.md)「表示を切り替える軸（掛け合わせずに撮る）」）
 - **撮影状態へ遷移する関数（`applyState`）は、撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す**（出現待ちで止めない。要件と実装例の正本は [`baseline.md`](baseline.md)「撮る対象が動かなくなるまで待つ」）
 - **本スキルで最も工数を食う箇所**であり、見積もりで過小評価しない
 
@@ -142,6 +149,7 @@ Playwright 以外の値は `document` / `window` を起点にした式で直接�
 | 現側マッピング | `<parity_suite_dir>/parity/lib/locator-map/<slug>.ts` |
 | 期待値解決層 | `<parity_suite_dir>/parity/lib/expectations/<slug>.ts` |
 | 操作アダプタ | `<parity_suite_dir>/parity/lib/interactions/` |
+| 共通のフィクスチャ（利用者環境のブラウザへ接続する target があるときだけ。後述「利用者環境のブラウザへ接続する」） | `<parity_suite_dir>/parity/lib/fixtures.ts` |
 | プロジェクトが自分で書くツール（画素差分の呼び出し・aria 比較等） | `<parity_suite_dir>/parity/lib/tools/` |
 | **決定論的ツール（同梱 scripts のコピー）** | `<parity_suite_dir>/parity/lib/tools/vendor/` |
 
@@ -207,3 +215,45 @@ PARITY_CURRENT_UI_URL=<url> PARITY_CURRENT_API_URL=<url> npx playwright test --p
 `new` 側の target 選択と green 化は `parity-replace` 段階で行われるため、本スキルでは `PARITY_NEW_UI_URL` は未設定でよい。
 `dimension/` の測定スペックは `PARITY_DIMENSION_CAPTURE=1` の実行でだけ書き、`new` ではさらに `PARITY_NEW_TARGET`（選択した新側 target 名）で出力先 `new/<target>/` を決める（未設定なら書かずに落ちる。別 target の samples を上書きしないため）。
 通常の green 検証・強度ゲートでは `PARITY_DIMENSION_CAPTURE` を渡さない（スキップされる）。
+
+### 利用者環境のブラウザへ接続する（`browser.cdp_url`）
+
+選択した target が `browser.cdp_url` を宣言していれば（スキーマの正本は `replace-strategy` の `references/project-config.md`「実行対象環境」）、
+Playwright が起動したブラウザではなく、**利用者環境で起動したブラウザ（デバッグのポートを開けた Chromium 系）へ `connectOverCDP` で接続して撮る**。
+スイート・差分器・成果物は今の環境のまま、描画だけが利用者環境で行われる（理由は [`baseline.md`](baseline.md)「採取環境と利用者環境の乖離」）。
+
+- **接続は共通のフィクスチャ `<parity_suite_dir>/parity/lib/fixtures.ts` で、組み込みの `browser` フィクスチャを上書きして行う**。
+  スペックは `@playwright/test` ではなくこのファイルから `test` を import する（上書きを通らないスペックは、宣言があっても起動したブラウザで撮る）。
+  **接続したらワーカーの環境変数 `PARITY_CDP_CONNECTED` に印を立て、採取スペックは撮る前にこの印を確かめる**（環境変数 `PARITY_*_CDP_URL` の有無だけでは、import の差し替え漏れを見分けられない）
+  接続先は side ごとの環境変数 `PARITY_CURRENT_CDP_URL` / `PARITY_NEW_CDP_URL`（target の `browser.cdp_url` から解決する。値を成果物に書かない）で、未設定の実行は従来どおり起動する
+- `connectOverCDP` は Chromium 系だけに使え、`browserType.connect` より忠実度が低い。接続したブラウザの `close()` はこちらが作ったコンテキストを片付けて切断するだけで、利用者のブラウザは閉じない
+  （出典: <https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp> / <https://playwright.dev/docs/api/class-browser#browser-close> /
+  組み込みフィクスチャの上書き <https://playwright.dev/docs/test-fixtures#overriding-fixtures>）
+- **現・新の両側に同じ宣言を要求する**——片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る。撮影に使ったブラウザは `metadata.json` の `capture_conditions.browser`（`launched` / `cdp`）に残し、
+  `parity-diff` は新側 target の宣言がこれと合わなければ撮影せず停止する
+
+```ts
+// <parity_suite_dir>/parity/lib/fixtures.ts（抜粋）
+import { test as base, chromium, type Browser } from "@playwright/test";
+
+export const test = base.extend<{}, { browser: Browser }>({
+  browser: [
+    async ({ browser: launched }, use, workerInfo) => {
+      const side = workerInfo.project.name === "current" ? "CURRENT" : "NEW";
+      const cdpUrl = process.env[`PARITY_${side}_CDP_URL`];
+      if (!cdpUrl) {
+        await use(launched);
+        return;
+      }
+      const connected = await chromium.connectOverCDP(cdpUrl);
+      // 接続した印。上書きを通らないスペック（@playwright/test から test を import したもの）はこれを立てられないので、
+      // 採取スペックはこの印を確かめて、起動したブラウザで撮ったまま cdp として記録する経路を落とす
+      process.env.PARITY_CDP_CONNECTED = "1";
+      await use(connected);
+      await connected.close(); // 接続したブラウザでは切断だけ（利用者のブラウザは閉じない）
+    },
+    { scope: "worker" },
+  ],
+});
+export { expect } from "@playwright/test";
+```
