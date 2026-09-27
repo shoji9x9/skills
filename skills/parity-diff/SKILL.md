@@ -179,7 +179,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**新側での突き合わせ**（`present` セルごとの入口・当たり判定・完了）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
-   **撮る範囲の穴**（撮影領域の外・内部スクロール器の中・領域外に出た論理名）も収束条件に入れ、インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
+   **撮る範囲の穴**（撮影領域の外・内部スクロール器の中・領域外に出た論理名・撮っていない表示の軸の値）と**採取環境と利用者環境の一致の未確認**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
    **採取物と工程の健全性**（採取物の読み手・加工物の鮮度・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の在否と鮮度）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す（**`diff-metadata.json` に結果を書いた後**に通す——工程の節は自分が書く成果物の在否を見るため。`--stage suite` を渡すと未測定の `blocking` を素通りさせる）。
    **追記専用の成果物が縮んでいないこと**も収束条件に入れ、インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。

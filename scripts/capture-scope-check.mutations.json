@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）の検出能力を示す変異の一覧。",
+    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -163,6 +163,242 @@
       "occurrences": 1,
       "expect_failing": [
         "最小幅の探索の範囲の記録が無い・読めないスタイルシートを未検証に回していない記録は落とす（Codex レビュー #453）"
+      ]
+    },
+    {
+      "id": "display-axes-missing",
+      "why": "display_axes をキーごと持たない成果物を欠落として数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"display_axes\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "display_axes をキーごと持たない成果物は落とす（数えていない軸を免除にしない）"
+      ]
+    },
+    {
+      "id": "candidate-unsurveyed",
+      "why": "振り分けていない候補を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (!surveyed.has(id)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "候補を axes にも absent にも振り分けていないと落ちる（思いつかなかった軸と区別する）",
+        "同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる"
+      ]
+    },
+    {
+      "id": "value-unswept",
+      "why": "既定以外の値を撮る変種の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!signatures.has(variantSignature({ [axisName]: value }))) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "既定以外の値を撮る変種が無ければ落ちる（1 軸ずつ振る）",
+        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "variant-not-declared",
+      "why": "変種を撮るはずの組に入れない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  for (const variant of displayAxes?.variants ?? []) {\n",
+      "replace": "  for (const variant of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）",
+        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる",
+        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）",
+        "軸の対の判断が無い・理由が無い・形が崩れていると落ちる",
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
+        "陽性コントロール: ロケールの変種を全ページ × 全状態で撮った採取は通る"
+      ]
+    },
+    {
+      "id": "not-applicable-ignored",
+      "why": "not_applicable のページも撮るはずの組に残す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (excluded) continue;\n",
+      "replace": "      if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": ["軸が効かないページは not_applicable と理由で撮るはずの組から外れる"]
+    },
+    {
+      "id": "suite-undecided",
+      "why": "スイートへの写し方の両方空・両方書きを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (expectations === noExpectations) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "pair-undecided",
+      "why": "軸の対の判断の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!decided.has(key)) {\n        add(\n          \"display-axis-pair-undecided\",\n",
+      "replace": "      if (!decided.has(key)) {\n        if (false) add(\n          \"display-axis-pair-undecided\",\n",
+      "occurrences": 1,
+      "expect_failing": ["軸の対の判断が無い・理由が無い・形が崩れていると落ちる"]
+    },
+    {
+      "id": "pair-viewport-not-crossed",
+      "why": "窓と掛けると宣言した軸の窓ごとの変種を確かめない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "            if (!variantKeys.has(want)) {\n",
+      "replace": "            if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["窓と掛け合わせると宣言した軸は、全ての窓で変種が要る"]
+    },
+    {
+      "id": "pair-axes-not-crossed",
+      "why": "2 軸を掛けると宣言した対の値の組の変種を確かめない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "          if (!signatures.has(want)) {\n",
+      "replace": "          if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
+        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "variant-default-value",
+      "why": "変種に既定値を書いた宣言を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (value === axis.default) {\n        add(\n",
+      "replace": "      if (false) {\n        add(\n",
+      "occurrences": 1,
+      "expect_failing": ["変種の宣言の型崩れは落とす（label・窓・値）"]
+    },
+    {
+      "id": "viewer-unconfirmed",
+      "why": "未確認の viewer_environment を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!matched) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "viewer_environment が未確認・確かめ方の無い一致・欠落なら落とす",
+        "同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる"
+      ]
+    },
+    {
+      "id": "browser-missing",
+      "why": "browser の欠落を数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!Object.hasOwn(conditions, \"browser\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["browser の欠落・語彙外は落とす（新側を同じ扱いで撮れない）"]
+    },
+    {
+      "id": "not-applicable-all-pages",
+      "why": "全ページを not_applicable にした軸を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    if (declaredPages.length > 0 && declaredPages.every((page) => excludedPages.has(page))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "variant-no-pages",
+      "why": "軸の効くページが 0 の複合変種を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）",
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "variant-label-dot",
+      "why": "変種の label の . / .. / 区切り・カンマを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      label === \".\" ||\n      label === \"..\" ||\n      /[\\\\/,]/.test(/** @type {string} */ (label))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）",
+        "変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "divergence-gaps-ref",
+      "why": "乖離の gaps.md 参照の欠落を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (matched && matched[1] === \"乖離\" && !matched[2].includes(\"gaps.md\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "乖離に gaps.md の該当箇所が無ければ落とす（既知の乖離を未検証へ回さない。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "unconfirmed-body",
+      "why": "「一致: 未確認」等のプレースホルダを確かめ方として通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (matched && UNCONFIRMED_BODY.test(matched[2].trim())) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "「一致: 未確認」のように形だけ満たしたプレースホルダは落とす（Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "evidence-placeholder",
+      "why": "根拠欄のプレースホルダを根拠として数える",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  return nonEmptyString(value) && !UNCONFIRMED_BODY.test(String(value).trim());\n",
+      "replace": "  return nonEmptyString(value);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "variant-label-comma",
+      "why": "変種の label のカンマを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      /[\\\\/,]/.test(/** @type {string} */ (label))\n",
+      "replace": "      /[\\\\/]/.test(/** @type {string} */ (label))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "browser-identity-missing",
+      "why": "cdp の接続先の同一性の欠落を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (conditions.browser === \"cdp\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "recorded-undeclared",
+      "why": "宣言に無い組の記録を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (!declaredSet.has(key)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）"
       ]
     }
   ]

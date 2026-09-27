@@ -37,6 +37,8 @@
  */
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
+// 現側の capture_conditions.browser が cdp なら、@playwright/test ではなく共通のフィクスチャ（利用者環境のブラウザへ接続する。
+// parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」）から import する
 import { test } from "@playwright/test";
 
 // TODO: プロジェクトの現側スペックが使っている入口をそのまま使う（現側と対称に書く）。
@@ -47,6 +49,8 @@ import { resolveLocator as resolveCurrent } from "../../lib/locator-map/<slug>";
 // 例外ゼロなら parity-replace はこのファイルを作らないので、その場合はこの import ごと外す。
 import { resolveLocator as resolveNewException } from "../../lib/locator-map/<slug>.new";
 import { applyState } from "../../lib/interactions";
+// 表示の軸（capture_conditions.display_axes）を持つ機能だけ使う。軸が無ければこの import と呼び出しごと外してよい
+import { applyDisplayAxes } from "../../lib/interactions";
 
 const slug = requireEnv("PARITY_SLUG");
 const target = requireEnv("PARITY_NEW_TARGET");
@@ -65,6 +69,56 @@ const metadata = JSON.parse(
 );
 const { viewports, states, masks, full_page: fullPage } = metadata.capture_conditions;
 const pages: { name: string; path: string }[] = metadata.capture_conditions.pages;
+
+// 表示を切り替える軸（Issue #489）。基準の組は全軸の既定値を明示して当て、変種（variants）は既定値に変種の値を重ねて当てる。
+// 変種の label はビューポートの label と同じ位置（書き出し先・組の鍵）に入り、窓の寸法は変種の viewport が指す窓を使う
+// （形式の正本は parity-suite の assets/metadata-template.json の capture_conditions.display_axes）
+type Axis = { name: string; default: string; not_applicable?: { page: string }[] };
+type Variant = { label: string; viewport: string; values: Record<string, string> };
+const displayAxes = metadata.capture_conditions.display_axes;
+if (!displayAxes || !Array.isArray(displayAxes.axes) || !Array.isArray(displayAxes.variants)) {
+  // 軸を数えていない現側成果物で撮ると、既定の 1 値だけの比較が「全部撮った」ように見える
+  throw new Error("capture_conditions.display_axes is missing: parity-suite で軸を数えさせる");
+}
+const axes: Axis[] = displayAxes.axes;
+const defaults: Record<string, string> = Object.fromEntries(axes.map((a) => [a.name, a.default]));
+const shots = [
+  ...viewports.map((v: { label: string; width: number; height: number }) => ({
+    label: v.label,
+    width: v.width,
+    height: v.height,
+    values: {} as Record<string, string>,
+  })),
+  ...(displayAxes.variants as Variant[]).map((variant) => {
+    const base = viewports.find((v: { label: string }) => v.label === variant.viewport);
+    if (!base)
+      throw new Error(
+        `display_axes.variants ${variant.label}: viewport ${variant.viewport} is unknown`,
+      );
+    return { label: variant.label, width: base.width, height: base.height, values: variant.values };
+  }),
+];
+// 変種の軸を not_applicable と宣言したページは、その変種で撮らない（現側と同じ集合にする）
+function applies(shot: { values: Record<string, string> }, pageName: string): boolean {
+  return Object.keys(shot.values).every(
+    (axis) =>
+      !axes.find((a) => a.name === axis)?.not_applicable?.some((na) => na.page === pageName),
+  );
+}
+
+// 撮影に使うブラウザは現側と揃える（Issue #476）。片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る
+const browserMode: unknown = metadata.capture_conditions.browser;
+if (browserMode !== "launched" && browserMode !== "cdp") {
+  throw new Error(
+    `capture_conditions.browser must be "launched" or "cdp" (got ${JSON.stringify(browserMode)}): parity-suite で記録させる`,
+  );
+}
+if ((browserMode === "cdp") !== Boolean(process.env.PARITY_NEW_CDP_URL)) {
+  throw new Error(
+    `current side captured with browser "${browserMode}" but PARITY_NEW_CDP_URL is ${process.env.PARITY_NEW_CDP_URL ? "set" : "unset"}: ` +
+      "新側 target の browser.cdp_url を現側と揃える",
+  );
+}
 
 // baseline パスは新側ベースライン本体、noise パスは自己ノイズ測定用の 2 回目
 // （noise-pass2/ は測定値を diff-metadata.json へ記録した時点で parity-diff が削除する。
@@ -96,7 +150,16 @@ function resolveLocator(page: import("@playwright/test").Page, name: string) {
 // 外を指し、noise パスの rmSync が採取ディレクトリの外を消しうる。撮影・削除の前に落とす
 function assertInsideOutRoot(dir: string): void {
   const rel = relative(outRoot, dir);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+  // page / state / viewport（変種の label）の 3 段がそれぞれ 1 つのディレクトリ名であることまで確かめる。
+  // `.` / `..` は outRoot の内側に収まったまま別の組のディレクトリを指し、noise パスの削除が兄弟の組を消す
+  const segments = rel.split(/[\\/]/);
+  if (
+    rel === "" ||
+    rel.startsWith("..") ||
+    isAbsolute(rel) ||
+    segments.length !== 3 ||
+    segments.some((segment) => segment === "" || segment === "." || segment === "..")
+  ) {
     throw new Error(
       `capture output "${dir}" escapes "${outRoot}": ` +
         "check capture_conditions.pages[].name / states / viewports for path traversal",
@@ -107,8 +170,10 @@ function assertInsideOutRoot(dir: string): void {
 // PARITY_NOISE_PAIRS の語彙が pages[].name とずれると「全組スキップ＝自己ノイズ未測定」が
 // 静かに成功扱いになる。ずれは撮影前に落とす（安全側＝測り直しではなく停止）
 const allPairs = new Set<string>(
-  viewports.flatMap((v: { label: string }) =>
-    pages.flatMap((p) => states.map((s: string) => `${p.name}|${s}|${v.label}`)),
+  shots.flatMap((v) =>
+    pages
+      .filter((p) => applies(v, p.name))
+      .flatMap((p) => states.map((s: string) => `${p.name}|${s}|${v.label}`)),
   ),
 );
 const unknownPairs = [...onlyPairs, ...capturePairs].filter((pair) => !allPairs.has(pair));
@@ -143,11 +208,12 @@ test.beforeEach(async (_fixtures, testInfo) => {
   }
 });
 
-for (const viewport of viewports) {
+for (const viewport of shots) {
   test.describe(`viewport=${viewport.label}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
     for (const pageDef of pages) {
+      if (!applies(viewport, pageDef.name)) continue;
       for (const state of states) {
         const pair = `${pageDef.name}|${state}|${viewport.label}`;
         // 収集時点（撮影・削除より前）に検証する
@@ -172,7 +238,26 @@ for (const viewport of viewports) {
 
           mkdirSync(outDir, { recursive: true });
 
+          // browser が cdp なら、共通のフィクスチャが接続した印を確かめる（import の差し替え漏れで、起動したブラウザのまま撮らない）
+          if (browserMode === "cdp" && process.env.PARITY_CDP_CONNECTED !== "1") {
+            throw new Error(
+              "capture_conditions.browser is cdp but the browser was not connected over CDP: import test from the shared fixtures",
+            );
+          }
+          // cdp では、現側が撮った利用者環境と同じブラウザへ接続したかを確かめる（モードだけが揃って別の機械で撮ると、環境の差が差分に出る）
+          if (browserMode === "cdp") {
+            const identity = metadata.capture_conditions.browser_identity;
+            const product = page.context().browser()?.version();
+            const userAgent = await page.evaluate(() => navigator.userAgent);
+            if (!identity || identity.product !== product || identity.user_agent !== userAgent) {
+              throw new Error(
+                `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
+              );
+            }
+          }
           await page.goto(pageDef.path);
+          // 表示の軸の値は状態へ遷移する前に当てる（基準の組も既定値を明示して当てる。ブラウザや OS の既定に委ねない）
+          if (axes.length > 0) await applyDisplayAxes(page, { ...defaults, ...viewport.values });
           // 状態遷移は現側と同じ操作アダプタを使う（遷移できない状態は例外にして停止させる）。
           // applyState は撮る対象の矩形が 2 回続けて同じ値になるまで待ってから返す契約
           // （正本は parity-suite の references/baseline.md「撮る対象が動かなくなるまで待つ」）。

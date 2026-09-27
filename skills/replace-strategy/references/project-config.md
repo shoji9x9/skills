@@ -35,6 +35,8 @@ skills:
         side: current # current | new。必須（省略時の既定は無い。無ければ停止）
         url: <URL> # UI の baseURL。current 側は測定・特性化の対象環境（本番ではないテスト環境）
         api_url: <URL> # API の baseURL。UI と別 origin のときだけ指定する（省略時は url を使う）
+        # browser: # 利用者環境で起動したブラウザ（デバッグのポートを開けた Chromium 系）へ接続して撮るときだけ書く（下記「実行対象環境」の browser）
+        #   cdp_url: http://<利用者環境のホスト>:9222/ # 省略時は Playwright が起動したブラウザで撮る
         db:
           env_vars: [CURRENT_DB_URL] # この環境の DB 接続情報を持つ環境変数の「名前」。値は書かない。書く＝スキルが接続を読んでよい（書かない target の DB にスキルは一切触れない）
           seedable: true # true のときだけ golden-dataset の投入対象。省略・false は読み取り専用接続（接続は読むが削除・投入をしない）
@@ -452,7 +454,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
 
 - **エントリ項目の意味論の正本は `browser-test` の `references/project-config.md`**（`url` / `url_command` / `pre_commands` / `start` / `check_urls` / `forbidden_actions` の意味と、
   実行順 `url_command` の解決 → `check_urls` で稼働判定 → 落ちているときだけ `pre_commands` → `start` → 再度 `check_urls`。最初の稼働判定の失敗は起動の合図で、それ以外の失敗は早期停止。ただし `forbidden_actions` の適用範囲は下記のとおり本ファイルが定義する）。
-  本ファイルが定義するのは `side`・`api_url`・`catalog_url` / `catalog_url_command`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
+  本ファイルが定義するのは `side`・`api_url`・`browser`・`catalog_url` / `catalog_url_command`・`db`・`auth`・`commit_check`・側ごとの `default`・選択規則・`on_diff`・parity 系での使い方
   （`auth` は browser-test の `auth: none | user` とは別物。扱いの正本は `parity-suite` の `references/auth.md`）
 - **スキーマ不変条件**（各スキルは target 解決時に検証し、違反したら**停止**して設定修正を促す）:
   - `side` は必須（`current` | `new`。省略時の既定は無い——新側環境を追加するときの書き忘れが「正解＝現行」の原則を反転させるため）
@@ -471,6 +473,12 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   - **`side: current` の target が `url: none` を持てるのは `current.origin: received-assets` かつ再構築が未完了の間だけ**（`current-environment-bootstrap` が引き渡し時に実 URL と `default: true` を埋める）。
     `origin: managed` で `url: none` の current target は停止する——測定対象が無いまま `setup` が測定へ進む
 - **`api_url`**: API の baseURL。UI と API が別 origin のときだけ指定し、省略時は `url` を使う（api-resource モードは現行応答を正に同一リクエストを新側へ送るため、UI とは別に選べる必要がある）
+- **`browser.cdp_url`**: 撮影・スイートの実行を、Playwright が起動したブラウザではなく**利用者環境で起動したブラウザ**（デバッグのポートを開けた Chromium 系）へ `connectOverCDP` で接続して行うときの接続先
+  （`http://<host>:<port>/` か `ws://…/devtools/browser/…`。出典: <https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp>）。
+  採取環境と利用者環境の OS が違う（コンテナで回し、利用者は Windows 等）ときに、スイートを回す環境を移さず描画だけを利用者環境で行うために使う。省略時は従来どおり起動する。
+  値は環境変数 `PARITY_CURRENT_CDP_URL` / `PARITY_NEW_CDP_URL` へ解決して Playwright の共通フィクスチャへ渡す（配線の正本は `parity-suite` の `references/locator-mapping.md`「利用者環境のブラウザへ接続する」）。
+  **現・新で比べる組は両側に同じ宣言が要る**——片側だけ利用者環境で撮ると環境の差がそのまま差分に出る。`parity-suite` が撮影に使ったブラウザを `metadata.json` の `capture_conditions.browser` に残し、
+  `parity-diff` は選択した新側 target の宣言がそれと合わなければ撮影せず停止する（設定の段では、どの target 同士を比べるかが決まらないため照合しない）
 - **選択規則の正本は下記「選択規則」節**（各スキルは自分の対象側だけを宣言し、規則の全文はここだけが持つ）
 - **`db` / `auth` / `forbidden_actions` は target ごとに定義する**（側の既定・フォールバックは持たない。複数 target で同じ値になる場合も各エントリに書く——共有したければ YAML アンカーを使ってよい。スキルキーを跨いだ共有の可否と制約は上記「設定ファイルの共有と YAML アンカー」）
 - **`db` は「接続を知っている」、`db.seedable` は「シードしてよい」——2 段の契約**（`dataset_mode: db` のときの投入先解決の正本。`static` の扱いは下記「データセットの実体」）:

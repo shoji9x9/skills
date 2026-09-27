@@ -12,6 +12,7 @@ import {
   checkCaptureScope,
   deriveHoles,
   combinationKey,
+  AXIS_CANDIDATES,
 } from "../skills/parity-suite/scripts/capture-scope-check.mjs";
 
 /**
@@ -70,6 +71,73 @@ function overflowOf(override = {}) {
 }
 
 /**
+ * 表示の軸が 1 つも無い宣言（候補を全て absent に振り分ける）。形は同梱テンプレートの capture_conditions.display_axes と同じ。
+ * @param {string[]} [except] absent から外す候補 id（axes に書く側）
+ */
+function noAxes(except = []) {
+  return {
+    axes: [],
+    absent: AXIS_CANDIDATES.filter((c) => !except.includes(c.id)).map((c) => ({
+      candidate: c.id,
+      source: `現行の設定画面と移行元ソースに ${c.id} の切り替えが無い（実測）`,
+    })),
+    pairs: [],
+    variants: [],
+  };
+}
+
+/**
+ * ロケール（既定 en、ほかに ja）を持つ宣言。1 軸ずつ振る変種と、窓との対の判断まで揃えた穴の無い形。
+ * @param {Record<string, unknown>} [override]
+ */
+function localeAxes(override = {}) {
+  return {
+    ...noAxes(["locale"]),
+    axes: [
+      {
+        name: "locale",
+        candidate: "locale",
+        values: ["en", "ja"],
+        default: "en",
+        source: "現行のロケール切替の選択肢（実測）",
+        apply: "applyDisplayAxes: cookie lang を書いて再読み込み",
+        suite_expectations: "e2e/parity/lib/expectations/order-list.ts",
+        suite_reason: null,
+        not_applicable: [],
+      },
+    ],
+    pairs: [{ axes: ["locale", "viewport"], crossed: false, reason: "窓は 1 つだけ" }],
+    variants: [{ label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } }],
+    ...override,
+  };
+}
+
+/**
+ * 変種 desktop-ja を撮った記録（capture_scope と noise_baseline）を足す。
+ * @param {string[]} [states]
+ */
+function withVariantCaptures(states = ["default", "hover"]) {
+  const base = /** @type {any} */ (metadataOf());
+  const scope = [
+    ...base.capture_conditions.capture_scope,
+    ...states.map((state) => ({
+      page: "list",
+      state,
+      viewport: "desktop-ja",
+      document: { width: 1366, height: 3200 },
+      captured: { width: 1366, height: 3200 },
+      scroll_containers: [],
+      named_elements_outside: [],
+    })),
+  ];
+  const noise = [
+    ...base.noise_baseline,
+    ...states.map((state) => ({ page: "list", state, viewport: "desktop-ja", pixel_diff: 0 })),
+  ];
+  return { scope, noise };
+}
+
+/**
  * 穴の無い metadata を組み立てる。差し替えたい部分だけ渡す。
  *
  * 期待値（撮るはずの組）は `capture_conditions` の 3 軸の直積なので、
@@ -117,6 +185,19 @@ function metadataOf(override = {}) {
       capture_scope_exemptions: override.exemptions ?? [],
       scrollbars: "scrollbars" in override ? override.scrollbars : "hidden",
       overflow: "overflow" in override ? override.overflow : overflowOf(),
+      display_axes: "displayAxes" in override ? override.displayAxes : noAxes(),
+      viewer_environment:
+        "viewerEnvironment" in override
+          ? override.viewerEnvironment
+          : "一致: 利用者環境のブラウザへ接続し CSS.getPlatformFontsForNode で描いた書体を読んだ",
+      browser: "browser" in override ? override.browser : "cdp",
+      browser_identity:
+        "browserIdentity" in override
+          ? override.browserIdentity
+          : {
+              product: "140.0.3485.54",
+              user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
+            },
     },
     noise_baseline: override.noise ?? [
       { page: "list", state: "default", viewport: "desktop", pixel_diff: 0 },
@@ -1033,6 +1114,533 @@ test("最小幅の探索の範囲の記録が無い・読めないスタイル�
         unreadable_stylesheets: 2,
         gaps_ref: "gaps.md#採取環境依存の未検証",
       }),
+    ),
+  ).toEqual([]);
+});
+
+// ---- 表示を切り替える軸（Issue #489） ----
+
+test("陽性コントロール: ロケールの変種を全ページ × 全状態で撮った採取は通る", () => {
+  const { scope, noise } = withVariantCaptures();
+  const metadata = metadataOf({ displayAxes: localeAxes(), scope, noise });
+  expect(codesOf(metadata)).toEqual([]);
+  expect(holeIdsOf(metadata)).toEqual([]);
+});
+
+test("display_axes をキーごと持たない成果物は落とす（数えていない軸を免除にしない）", () => {
+  const metadata = metadataOf();
+  delete (/** @type {any} */ (metadata).capture_conditions.display_axes);
+  expect(codesOf(metadata)).toContain("display-axes-missing");
+  expect(codesOf(metadataOf({ displayAxes: [] }))).toContain("display-axes-malformed");
+  expect(codesOf(metadataOf({ displayAxes: { ...noAxes(), variants: undefined } }))).toContain(
+    "display-axes-malformed",
+  );
+});
+
+test("候補を axes にも absent にも振り分けていないと落ちる（思いつかなかった軸と区別する）", () => {
+  const axes = noAxes();
+  const metadata = metadataOf({
+    displayAxes: { ...axes, absent: axes.absent.filter((a) => a.candidate !== "color-scheme") },
+  });
+  const findings = checkCaptureScope(metadata).findings;
+  expect(findings.map((f) => f.code)).toEqual(["display-axis-candidate-unsurveyed"]);
+  expect(findings[0].message).toContain("color-scheme");
+});
+
+test("absent の来歴の欠落・候補の重複・一覧に無い候補は落とす", () => {
+  const axes = noAxes();
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: {
+          ...axes,
+          absent: axes.absent.map((a) => (a.candidate === "print" ? { candidate: "print" } : a)),
+        },
+      }),
+    ),
+  ).toEqual(["display-axis-absent-source-missing"]);
+  expect(
+    codesOf(metadataOf({ displayAxes: { ...axes, absent: [...axes.absent, axes.absent[0]] } })),
+  ).toContain("display-axis-candidate-duplicated");
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, absent: [...axes.absent, { candidate: "font", source: "x" }] },
+      }),
+    ),
+  ).toContain("display-axis-candidate-unknown");
+  // 在ると無いの両方に書いた候補も重複として落とす
+  const both = localeAxes();
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: { ...both, absent: [...both.absent, { candidate: "locale", source: "x" }] },
+        ...withVariantCaptures(),
+      }),
+    ),
+  ).toContain("display-axis-candidate-duplicated");
+});
+
+test("既定以外の値を撮る変種が無ければ落ちる（1 軸ずつ振る）", () => {
+  const metadata = metadataOf({ displayAxes: localeAxes({ variants: [] }) });
+  expect(codesOf(metadata)).toEqual(["display-axis-value-unswept"]);
+});
+
+test("変種を宣言したのに撮っていない組は #not-captured の穴になる（parity-diff の収束でも落ちる）", () => {
+  const metadata = metadataOf({ displayAxes: localeAxes() });
+  expect(holeIdsOf(metadata)).toEqual([
+    "list|default|desktop-ja#not-captured",
+    "list|hover|desktop-ja#not-captured",
+  ]);
+  expect(codesOf(metadata).filter((c) => c === "hole-unexempted")).toHaveLength(2);
+});
+
+test("軸が効かないページは not_applicable と理由で撮るはずの組から外れる", () => {
+  const pages = [
+    { name: "list", path: "/orders" },
+    { name: "print", path: "/orders/print" },
+  ];
+  const axes = localeAxes();
+  const withNa = (na) =>
+    metadataOf({
+      pages,
+      displayAxes: { ...axes, axes: [{ ...axes.axes[0], not_applicable: na }] },
+      ...withVariantCaptures(),
+    });
+  // 外さなければ print ページの変種と基準の組が穴になる（陽性コントロール）
+  expect(holeIdsOf(withNa([]))).toContain("print|default|desktop-ja#not-captured");
+  const excluded = holeIdsOf(withNa([{ page: "print", reason: "印刷画面は英語固定（実測）" }]));
+  expect(excluded.filter((id) => id.includes("desktop-ja"))).toEqual([]);
+  expect(codesOf(withNa([{ page: "print" }]))).toContain(
+    "display-axis-not-applicable-reason-missing",
+  );
+  expect(codesOf(withNa([{ page: "nowhere", reason: "x" }]))).toContain(
+    "display-axis-not-applicable-page-unknown",
+  );
+  expect(
+    codesOf(
+      withNa([
+        { page: "print", reason: "x" },
+        { page: "print", reason: "x" },
+      ]),
+    ),
+  ).toContain("display-axis-not-applicable-duplicated");
+});
+
+test("軸の宣言の欠落・型崩れは落とす（名前・値・既定・来歴・当て方）", () => {
+  const axes = localeAxes();
+  const withAxis = (patch) =>
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, axes: [{ ...axes.axes[0], ...patch }] },
+        ...withVariantCaptures(),
+      }),
+    );
+  for (const name of ["", "a|b", "a=b", "a,b", "viewport", undefined]) {
+    expect(withAxis({ name })).toContain("display-axis-name-unusable");
+  }
+  for (const values of [undefined, ["en"], ["en", "en"], ["en", ""], "en,ja"]) {
+    expect(withAxis({ values })).toContain("display-axis-values-unusable");
+  }
+  expect(withAxis({ default: "fr" })).toContain("display-axis-default-unknown");
+  expect(withAxis({ default: undefined })).toContain("display-axis-default-unknown");
+  expect(withAxis({ source: "" })).toContain("display-axis-source-missing");
+  expect(withAxis({ apply: undefined })).toContain("display-axis-apply-missing");
+  expect(withAxis({ candidate: "language" })).toContain("display-axis-candidate-unknown");
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, axes: [axes.axes[0], axes.axes[0]] },
+        ...withVariantCaptures(),
+      }),
+    ),
+  ).toContain("display-axis-duplicated");
+});
+
+test("スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ", () => {
+  const axes = localeAxes();
+  const withSuite = (suite_expectations, suite_reason) =>
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, axes: [{ ...axes.axes[0], suite_expectations, suite_reason }] },
+        ...withVariantCaptures(),
+      }),
+    );
+  expect(withSuite(null, null)).toEqual(["display-axis-suite-undecided"]);
+  expect(withSuite("e2e/x.ts", "変わらない")).toEqual(["display-axis-suite-undecided"]);
+  // 陰性コントロール: 変わらない根拠だけでも通る
+  expect(withSuite(null, "配色だけが変わり文言・振る舞いは変わらない（移行元ソース）")).toEqual([]);
+});
+
+test("軸の対の判断が無い・理由が無い・形が崩れていると落ちる", () => {
+  const withPairs = (pairs) =>
+    codesOf(metadataOf({ displayAxes: localeAxes({ pairs }), ...withVariantCaptures() }));
+  expect(withPairs([])).toEqual(["display-axis-pair-undecided"]);
+  expect(withPairs([{ axes: ["locale", "viewport"], crossed: false, reason: "" }])).toEqual([
+    "display-axis-pair-reason-missing",
+  ]);
+  for (const bad of [
+    { axes: ["locale"], crossed: false, reason: "x" },
+    { axes: ["locale", "locale"], crossed: false, reason: "x" },
+    { axes: ["locale", "theme"], crossed: false, reason: "x" },
+    { axes: ["viewport", "viewport"], crossed: false, reason: "x" },
+    { axes: ["locale", "viewport"], crossed: "no", reason: "x" },
+  ]) {
+    expect(withPairs([bad])).toContain("display-axis-pair-unusable");
+  }
+  const pair = { axes: ["viewport", "locale"], crossed: false, reason: "x" };
+  expect(withPairs([pair, pair])).toContain("display-axis-pair-duplicated");
+});
+
+test("窓と掛け合わせると宣言した軸は、全ての窓で変種が要る", () => {
+  const viewports = [
+    { width: 1920, height: 1080, label: "desktop" },
+    { width: 1255, height: 900, label: "narrow" },
+  ];
+  const crossed = [
+    { axes: ["locale", "viewport"], crossed: true, reason: "文言の長さで折り返しが変わる" },
+  ];
+  // desktop だけの変種では narrow との組が欠ける
+  expect(
+    codesOf(
+      metadataOf({ viewports, scope: [], noise: [], displayAxes: localeAxes({ pairs: crossed }) }),
+    ),
+  ).toContain("display-axis-pair-not-crossed");
+  const both = localeAxes({
+    pairs: crossed,
+    variants: [
+      { label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } },
+      { label: "narrow-ja", viewport: "narrow", values: { locale: "ja" } },
+    ],
+  });
+  expect(
+    codesOf(metadataOf({ viewports, scope: [], noise: [], displayAxes: both })).filter((c) =>
+      c.startsWith("display-axis"),
+    ),
+  ).toEqual([]);
+});
+
+test("2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る", () => {
+  const locale = localeAxes();
+  const theme = {
+    ...locale.axes[0],
+    name: "theme",
+    candidate: "color-scheme",
+    values: ["light", "dark"],
+    default: "light",
+  };
+  const displayAxes = (crossed, variants) => ({
+    ...noAxes(["locale", "color-scheme"]),
+    axes: [locale.axes[0], theme],
+    pairs: [
+      { axes: ["locale", "viewport"], crossed: false, reason: "x" },
+      { axes: ["theme", "viewport"], crossed: false, reason: "x" },
+      { axes: ["locale", "theme"], crossed, reason: "x" },
+    ],
+    variants,
+  });
+  const singles = [
+    { label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } },
+    { label: "desktop-dark", viewport: "desktop", values: { theme: "dark" } },
+  ];
+  const axisCodes = (m) => codesOf(m).filter((c) => c.startsWith("display-axis"));
+  expect(axisCodes(metadataOf({ displayAxes: displayAxes(false, singles) }))).toEqual([]);
+  expect(axisCodes(metadataOf({ displayAxes: displayAxes(true, singles) }))).toEqual([
+    "display-axis-pair-not-crossed",
+  ]);
+  const crossedVariant = {
+    label: "desktop-ja-dark",
+    viewport: "desktop",
+    values: { theme: "dark", locale: "ja" },
+  };
+  expect(
+    axisCodes(metadataOf({ displayAxes: displayAxes(true, [...singles, crossedVariant]) })),
+  ).toEqual([]);
+  // 掛け合わせた変種だけでは、1 軸ずつ振った変種の代わりにならない
+  expect(axisCodes(metadataOf({ displayAxes: displayAxes(true, [crossedVariant]) }))).toEqual([
+    "display-axis-value-unswept",
+    "display-axis-value-unswept",
+  ]);
+});
+
+test("変種の宣言の型崩れは落とす（label・窓・値）", () => {
+  const withVariant = (variant) =>
+    codesOf(metadataOf({ displayAxes: localeAxes({ variants: [variant] }) }));
+  const ok = { label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } };
+  expect(withVariant({ ...ok, label: "a|b" })).toContain("display-axis-variant-label-unusable");
+  expect(withVariant({ ...ok, label: "desktop" })).toContain(
+    "display-axis-variant-label-duplicated",
+  );
+  expect(withVariant({ ...ok, viewport: "tablet" })).toContain(
+    "display-axis-variant-viewport-unknown",
+  );
+  for (const values of [undefined, {}, [], { locale: "en" }, { locale: "fr" }, { theme: "dark" }]) {
+    expect(withVariant({ ...ok, values })).toContain("display-axis-variant-values-unusable");
+  }
+  expect(
+    codesOf(
+      metadataOf({ displayAxes: localeAxes({ variants: [ok, { ...ok, label: "desktop-ja-2" }] }) }),
+    ),
+  ).toContain("display-axis-variant-duplicated");
+});
+
+// ---- 採取環境と利用者環境（Issue #476） ----
+
+test("viewer_environment が未確認・確かめ方の無い一致・欠落なら落とす", () => {
+  for (const value of ["未確認", "一致", "一致:", "", null, 1]) {
+    expect(codesOf(metadataOf({ viewerEnvironment: value }))).toEqual([
+      "viewer-environment-unconfirmed",
+    ]);
+  }
+  const metadata = metadataOf();
+  delete (/** @type {any} */ (metadata).capture_conditions.viewer_environment);
+  expect(codesOf(metadata)).toEqual(["viewer-environment-missing"]);
+  // 陰性コントロール: 理由付きの乖離と、全角コロンの一致は通す
+  expect(
+    codesOf(
+      metadataOf({
+        viewerEnvironment:
+          "乖離: 利用者は Windows で Meiryo UI、採取環境には無い（gaps.md 採取環境依存の未検証）",
+      }),
+    ),
+  ).toEqual([]);
+  expect(
+    codesOf(metadataOf({ viewerEnvironment: "一致：利用者環境の Edge へ接続して撮った" })),
+  ).toEqual([]);
+});
+
+test("browser の欠落・語彙外は落とす（新側を同じ扱いで撮れない）", () => {
+  expect(codesOf(metadataOf({ browser: "edge" }))).toEqual(["browser-unknown"]);
+  const metadata = metadataOf();
+  delete (/** @type {any} */ (metadata).capture_conditions.browser);
+  expect(codesOf(metadata)).toEqual(["browser-missing"]);
+  expect(codesOf(metadataOf({ browser: "launched" }))).toEqual([]);
+});
+
+test("同梱テンプレートのプレースホルダのまま書いた表示の軸・利用者環境・ブラウザは落ちる", async () => {
+  const { readFileSync } = await import("node:fs");
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/metadata-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const cc = template.capture_conditions;
+  const codes = codesOf(
+    metadataOf({
+      displayAxes: cc.display_axes,
+      viewerEnvironment: cc.viewer_environment,
+      browser: cc.browser,
+    }),
+  );
+  expect(codes).toEqual(
+    expect.arrayContaining([
+      "display-axis-name-unusable",
+      "display-axis-candidate-unsurveyed",
+      "viewer-environment-unconfirmed",
+      "browser-unknown",
+    ]),
+  );
+});
+
+test("not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）", () => {
+  const axes = localeAxes();
+  const metadata = metadataOf({
+    displayAxes: {
+      ...axes,
+      axes: [{ ...axes.axes[0], not_applicable: [{ page: "list", reason: "英語固定" }] }],
+    },
+  });
+  expect(codesOf(metadata)).toEqual([
+    "display-axis-not-applicable-all-pages",
+    "display-axis-variant-no-pages",
+    // 0 ページの変種は数えないので、その値を撮る変種も無いことになる
+    "display-axis-value-unswept",
+  ]);
+  // 撮るはずの組は 0 件なので穴は出ない（落とすのは上の finding だけ）
+  expect(holeIdsOf(metadata)).toEqual([]);
+});
+
+test("軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）", () => {
+  const pages = [
+    { name: "list", path: "/orders" },
+    { name: "print", path: "/orders/print" },
+  ];
+  const locale = localeAxes();
+  const theme = {
+    ...locale.axes[0],
+    name: "theme",
+    candidate: "color-scheme",
+    values: ["light", "dark"],
+    default: "light",
+    not_applicable: [{ page: "list", reason: "一覧は配色が固定" }],
+  };
+  const localeAxis = {
+    ...locale.axes[0],
+    not_applicable: [{ page: "print", reason: "印刷画面は英語固定" }],
+  };
+  const crossedVariant = {
+    label: "desktop-ja-dark",
+    viewport: "desktop",
+    values: { locale: "ja", theme: "dark" },
+  };
+  const displayAxes = {
+    ...noAxes(["locale", "color-scheme"]),
+    axes: [localeAxis, theme],
+    pairs: [
+      { axes: ["locale", "viewport"], crossed: false, reason: "x" },
+      { axes: ["theme", "viewport"], crossed: false, reason: "x" },
+      { axes: ["locale", "theme"], crossed: true, reason: "x" },
+    ],
+    variants: [
+      { label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } },
+      { label: "desktop-dark", viewport: "desktop", values: { theme: "dark" } },
+      crossedVariant,
+    ],
+  };
+  const codes = codesOf(metadataOf({ pages, scope: [], noise: [], displayAxes })).filter((c) =>
+    c.startsWith("display-axis"),
+  );
+  expect(codes).toContain("display-axis-variant-no-pages");
+  // 落とした変種は掛け合わせの対も満たさない
+  expect(codes).toContain("display-axis-pair-not-crossed");
+});
+
+test("変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）", () => {
+  for (const label of [".", "..", "a/b", "a\\b"]) {
+    expect(
+      codesOf(
+        metadataOf({
+          displayAxes: localeAxes({
+            variants: [{ label, viewport: "desktop", values: { locale: "ja" } }],
+          }),
+        }),
+      ),
+    ).toContain("display-axis-variant-label-unusable");
+  }
+});
+
+test("乖離に gaps.md の該当箇所が無ければ落とす（既知の乖離を未検証へ回さない。Codex レビュー #491）", () => {
+  expect(codesOf(metadataOf({ viewerEnvironment: "乖離: Linux と Windows が異なる" }))).toEqual([
+    "viewer-environment-gaps-ref-missing",
+  ]);
+  // 陰性コントロール: gaps.md の該当箇所を書けば通る
+  expect(
+    codesOf(
+      metadataOf({
+        viewerEnvironment: "乖離: Linux と Windows が異なる（gaps.md 採取環境依存の未検証）",
+      }),
+    ),
+  ).toEqual([]);
+});
+
+test("「一致: 未確認」のように形だけ満たしたプレースホルダは落とす（Codex レビュー #491）", () => {
+  for (const value of [
+    "一致: 未確認",
+    "一致: 未検証",
+    "一致: TODO",
+    "一致: tbd",
+    "一致: <確かめ方>",
+    "乖離: 未確認（gaps.md）",
+  ]) {
+    expect(codesOf(metadataOf({ viewerEnvironment: value }))).toEqual([
+      "viewer-environment-unconfirmed",
+    ]);
+  }
+  // 陰性コントロール: 確かめ方が書いてあれば、途中に「未確認」の語を含んでも通る
+  expect(
+    codesOf(
+      metadataOf({
+        viewerEnvironment: "一致: 利用者環境の Edge へ接続して撮った（以前の未確認を解消）",
+      }),
+    ),
+  ).toEqual([]);
+});
+
+test("軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）", () => {
+  const axes = localeAxes();
+  const withAxis = (patch) =>
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, axes: [{ ...axes.axes[0], ...patch }] },
+        ...withVariantCaptures(),
+      }),
+    );
+  expect(withAxis({ source: "<値の一覧をどこから数えたか>" })).toContain(
+    "display-axis-source-missing",
+  );
+  expect(withAxis({ apply: "TODO" })).toContain("display-axis-apply-missing");
+  expect(withAxis({ suite_expectations: "<期待値解決層のパス>" })).toContain(
+    "display-axis-suite-undecided",
+  );
+  expect(
+    withAxis({ not_applicable: [{ page: "list", reason: "未確認" }] }).filter((c) =>
+      c.startsWith("display-axis-not-applicable-reason"),
+    ),
+  ).toEqual(["display-axis-not-applicable-reason-missing"]);
+  const absentPlaceholder = noAxes();
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: {
+          ...absentPlaceholder,
+          absent: absentPlaceholder.absent.map((a) =>
+            a.candidate === "print" ? { ...a, source: "<無いと確かめた来歴>" } : a,
+          ),
+        },
+      }),
+    ),
+  ).toEqual(["display-axis-absent-source-missing"]);
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: localeAxes({
+          pairs: [{ axes: ["locale", "viewport"], crossed: false, reason: "TBD" }],
+        }),
+        ...withVariantCaptures(),
+      }),
+    ),
+  ).toEqual(["display-axis-pair-reason-missing"]);
+});
+
+test("変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）", () => {
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: localeAxes({
+          variants: [{ label: "desktop,ja", viewport: "desktop", values: { locale: "ja" } }],
+        }),
+      }),
+    ),
+  ).toContain("display-axis-variant-label-unusable");
+});
+
+test("browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）", () => {
+  for (const identity of [
+    undefined,
+    null,
+    {},
+    { product: "140", user_agent: "" },
+    { product: "<browser.version()>", user_agent: "x" },
+  ]) {
+    expect(codesOf(metadataOf({ browserIdentity: identity }))).toEqual([
+      "browser-identity-missing",
+    ]);
+  }
+  // 陰性コントロール: launched では同一性を求めない
+  expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
+});
+
+test("宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）", () => {
+  const { scope, noise } = withVariantCaptures();
+  // 変種を宣言から消し、記録だけを残す
+  const metadata = metadataOf({ displayAxes: localeAxes({ variants: [] }), scope, noise });
+  const codes = codesOf(metadata);
+  expect(codes.filter((c) => c === "recorded-combination-undeclared")).toHaveLength(2);
+  // 陰性コントロール: 宣言どおりの記録だけなら出ない
+  expect(
+    codesOf(metadataOf({ displayAxes: localeAxes(), scope, noise })).filter(
+      (c) => c === "recorded-combination-undeclared",
     ),
   ).toEqual([]);
 });

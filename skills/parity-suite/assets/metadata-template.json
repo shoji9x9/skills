@@ -108,7 +108,56 @@
   },
   "capture_conditions": {
     "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
-    "viewer_environment": "<想定利用者環境との一致。一致 | 乖離: <内容と gaps.md の該当箇所> | 未確認。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す>",
+    "viewer_environment": "<想定利用者環境との一致。「一致: <確かめ方（例: 利用者環境のブラウザへ接続して撮り、CSS.getPlatformFontsForNode で描いた書体を読んだ）>」か「乖離: <内容と gaps.md の該当箇所>」の 2 形だけ。未確認・確かめ方の無い一致は capture-scope-check.mjs が落とし parity-diff が収束させない。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す。正本は parity-suite の references/baseline.md「採取環境と利用者環境の乖離」>",
+    "browser": "<launched | cdp。launched は Playwright が起動したブラウザ、cdp は選択した target の browser.cdp_url（利用者環境で起動した Chromium 系ブラウザ）へ connectOverCDP で接続して撮った。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ利用者環境で撮ると環境の差がそのまま差分に出る）>",
+    "browser_identity": {
+      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別の版で撮るのを止める。",
+      "product": "<Playwright の browser.version() の値>",
+      "user_agent": "<撮影したページで読んだ navigator.userAgent>"
+    },
+    "display_axes": {
+      "_note": "表示を切り替える軸（ロケール・配色テーマ等。Issue #489）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の穴として数える。正本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
+      "axes": [
+        {
+          "name": "<軸の名前（例: locale）。variants / pairs から指す。| # = , と予約語 viewport は使えない>",
+          "candidate": "<候補の一覧（capture-scope-check.mjs の AXIS_CANDIDATES）の id。一覧に無い軸は other>",
+          "values": ["<現行が持つ値（2 つ以上）。例: en>", "<例: ja>"],
+          "default": "<基準の組を撮った値（values の要素）。ブラウザや OS の既定に委ねず、この値を明示して当てる>",
+          "source": "<値の一覧をどこから数えたかの来歴（例: 現行のロケール切替の選択肢〈実測〉・移行元ソースのリソースファイル）>",
+          "apply": "<値の当て方（操作アダプタ applyDisplayAxes の中で何をするか。例: cookie lang を書いて再読み込み / page.emulateMedia({ colorScheme })）。parity-diff が新側を同じ値で撮るために読む>",
+          "suite_expectations": "<値ごとの文言・振る舞いの期待値を引く期待値解決層のパス（例: <parity_suite_dir>/parity/lib/expectations/<slug>.ts）。値で文言・振る舞いが変わらないなら null>",
+          "suite_reason": "<suite_expectations が null のときだけ、値で文言・振る舞いが変わらない根拠。書いたら suite_expectations は null>",
+          "not_applicable": [
+            {
+              "page": "<この軸が効かない capture_conditions.pages[].name（例: 配色テーマを持たない画面）。このページは変種で撮らない>",
+              "reason": "<効かないことを確かめた来歴>"
+            }
+          ]
+        }
+      ],
+      "absent": [
+        {
+          "candidate": "<現行に無い候補の id（AXIS_CANDIDATES の全件を axes か absent のどちらかに 1 回だけ書く）>",
+          "source": "<無いと確かめた来歴（例: 設定画面と移行元ソースに切り替えが無い）>"
+        }
+      ],
+      "pairs": [
+        {
+          "axes": ["<軸の名前>", "<別の軸の名前、または viewport>"],
+          "crossed": "<真偽値。同時に変えると結果が変わる対（例: 文言の長さで折り返しが変わる locale × viewport）だけ true>",
+          "reason": "<掛けた・掛けなかった理由。軸（と viewport）の全ての対に 1 行ずつ書く>"
+        }
+      ],
+      "variants": [
+        {
+          "label": "<変種の label（例: desktop-ja）。viewports の label と他の変種と重ならない名前。書き出し先のディレクトリ名と PARITY_NOISE_PAIRS 等のカンマ区切りの組にもなるので . / .. / パスの区切り・カンマは使えない>",
+          "viewport": "<撮る窓（capture_conditions.viewports の label）>",
+          "values": {
+            "<軸の名前>": "<既定以外の値。1 軸ずつ振る変種は 1 キーだけ、crossed: true の対は両方の軸を書く（書かない軸は既定値で撮る）>"
+          }
+        }
+      ]
+    },
     "viewports": [
       {
         "width": 0,
@@ -138,7 +187,7 @@
         "regions": [
           {
             "state": "<撮影状態>",
-            "viewport": "<ビューポート label>",
+            "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
             "name": "<現側でその機能の領域を覆うルート要素の論理名>",
             "bbox": {
               "x": 0,
@@ -156,10 +205,10 @@
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積で、noise_baseline にもここにも無い組は #not-captured の穴として数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
+        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の穴として数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
-        "viewport": "<ビューポート label>",
+        "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
         "document": {
           "width": 0,
           "height": 0
@@ -301,7 +350,7 @@
     {
       "page": "<ページ>",
       "state": "<状態>",
-      "viewport": "<ビューポート label>",
+      "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
       "pixel_diff": 0,
       "pixel_diff_strict": 0,
       "pixel_diff_strict_only": 0,
