@@ -65,6 +65,15 @@
 |---|---|---|---|
 | （例: `.grid .cell.header { display: table }`） | 箱の寸法・中身の配置・匿名ボックスの生成 | 高さ 31.0156px / 31px、文字の上端からの位置 5px / 5px | 写す（高さが一致しないため。当てる相手が無い場合は同じ寸法になる規則を新側の構造で書く） |
 
+## 表への書き込み（読解のみの行）
+
+<!-- feature モードのみ。parity-suite の reactions.json の side_effect_writes.sites のうち verification: source-only の行（例外時など移行元で起こせない書き込み）を 1 行ずつ写す。 -->
+<!-- assertion の行はスイートの新側 green が根拠になるのでここには書かない。source-only の行が無ければ「該当なし」と書く（空欄にすると「無い」と「誰も見ていない」が区別できない）。 -->
+
+| 移行元の書き込み（file:line・表） | 時機・値・回数（sites の occasion / values / count） | 新側の書き込み箇所（ファイル・シンボル） | 敵対的レビューでの突き合わせ結果 |
+|---|---|---|---|
+| （例: src/export.js:4・access_log） | （例: 送信が例外で失敗したとき・種別 error・失敗 1 回につき 1 行） | （例: app/export/service.ts・sendExport の catch） | （例: 巻き戻した後に 1 行書く順序まで一致） |
+
 ## 未解決として明示した箇所（TODO 一覧）
 
 <!-- コード上の TODO と対応させる。未解決を隠さない。 -->

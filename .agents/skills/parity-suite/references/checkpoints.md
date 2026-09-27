@@ -63,6 +63,7 @@ JSON
 |---|---|---|
 | `reactions.json` | `operations` | `id`（既定） |
 | `reactions.json` | `feedback_calls.call_sites` | `file,line,column,pattern` |
+| `reactions.json` | `side_effect_writes.sites` | `file,line,column,pattern` |
 | `component-coverage.json` | `cells` | `component,item,instance` |
 | `component-coverage.json` | `components` / `components[id=<部品 id>].instances`（id が `]` や `"` を含むなら `components[id="grid[mobile]"].instances` のように JSON 文字列で書く） | `id`（既定） |
 | `component-coverage.json` | `visual_state_coverage.rows`（行そのものは `coverage-expand.mjs --write` が作る。撮る／撮らないの判断だけを差し替える） | `component,instance,required_by,kind` |

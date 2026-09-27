@@ -71,6 +71,7 @@
 ## 反応の未測定・非宣言
 
 <!-- reactions.json の kind: unmeasured の反応、feedback_calls.declared: false の理由、metadata.json の reaction_coverage.declared: false の理由をここに残す。 -->
+<!-- 送る前の判定を追えなかった操作（pre_send.found: null）と測れなかった境界の側（pre_send.items[].sides[].reason）、移行元ソースを読めず表への書き込みを列挙できなかった理由（side_effect_writes）もここに残す。 -->
 <!-- 「反応が無いことを確かめた」（kind: none）はここに書かない——測った結果なので被覆表の側に残す。理由は被覆表の reason と同じ文言にする。 -->
 <!-- 各行は例。実際の操作・反応・理由で置き換える。 -->
 
@@ -78,6 +79,7 @@
 |---|---|---|
 | 共有ダイアログの Copy を押す（例） | クリップボードへの書き込み | 採取環境のブラウザでクリップボードの読み取り権限を付与できず、書き込まれた文言を確かめられない |
 | （突き合わせ非宣言の例） | — | `feedback_calls.declared: false`: 移行元ソースを入手できず、フィードバック呼び出しと突き合わせられない |
+| 選んだ行を書き出す（例） | 送る前の判定（件数の上限）の止まる側 | `pre_send.items["max-rows"].sides`: 上限を超える行を作れない（ゴールデンデータは 120 行で、画面から行を足す手段も無い）。`golden-dataset` へデータ不足として戻した |
 
 ## hermetic でないテスト一覧
 

@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
+  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath・pre_send を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。操作 1 つにつき pre_send（送る前の判定）も必ず持ち、表の直下に side_effect_writes（表への書き込み）を持つ。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
   "documents": [
@@ -48,6 +48,48 @@
         "pattern": "<当たったパターン id>",
         "reaction": "<対応付けた反応 <操作 id>/<反応 id>。kind: observed の反応だけを指せる。除外するなら null>",
         "excluded_reason": "<reaction: null のときだけ、この機能の反応ではない理由（例: 別 slug の操作のハンドラ）。reaction を埋めたら null>"
+      }
+    ]
+  },
+  "side_effect_writes": {
+    "_note": "表への書き込み（Issue #466）。監査・利用ログのように利用者に見える反応を出さない書き込みは、反応の欄では「反応が無い」に落ち、差分器の 3 経路も DB を見ないので、ここでしか押さえられない。書き込みのパターンで移行元ソースを走査し、見つかった呼び出しを例外処理の中を含めて全件 sites に 1 行ずつ記録する（記録漏れ・記録だけ残った行は落ちる）。キーごと省略しない。",
+    "declared": "<真偽値。features.md の副作用出力に表への書き込みがある機能なら true。書き込みを持たない機能は false と reason>",
+    "reason": "<declared: false のときだけ、書き込みを持たない根拠（例: features.md の副作用出力に表への書き込みが無く、操作のハンドラから到達点まで読んでも書き込みが無い）。移行元ソースを読めずに列挙できないなら、その旨を書いて gaps.md と metadata.json の unmeasured にも残す。declared: true では null>",
+    "tables": ["<書き込み先の表（features.md の副作用出力の列から転記。例: access_log）>"],
+    "patterns": [
+      {
+        "id": "<パターン id（\"/\" を含めない）>",
+        "table": "<このパターンが書く表（tables の中から）。表ごとにパターンを 1 つ以上持たせる>",
+        "regex": "<書き込みの呼び出しの字面に当たる JavaScript の正規表現（移行元ソースの書き込みの関数・SQL から起こす）。ファイル全体に複数行モードで照合する>",
+        "example": "<regex が一致すべき実際の呼び出しの字面（移行元ソースから 1 つ写す）。一致しなければ落ちる>"
+      }
+    ],
+    "source": {
+      "paths": [
+        "<走査する移行元ソースのパス（--root からの相対）。操作のハンドラと、操作が呼ぶ共通処理・サーバー側の処理を含める>"
+      ],
+      "version": "<走査した版。metadata.json の target.commit と一致しなければ落ちる>",
+      "version_unverified_reason": "<target.commit か version が none のときだけ、走査した版をどう選んだか。照合できるなら null>",
+      "derivation": "<走査範囲をどう決めたか（どの操作・画面を開く処理から辿ったか）>"
+    },
+    "sites": [
+      {
+        "file": "<走査で見つかった書き込みのファイル（--root からの相対、/ 区切り）。file・line・column（1 始まり）・pattern で 1 件を識別する>",
+        "line": 0,
+        "column": 0,
+        "pattern": "<当たったパターン id>",
+        "operation": "<この書き込みを起こす操作 id。画面を開いたときのように操作に結び付かないなら null（occasion に時機を書く）>",
+        "occasion": "<いつ書くか。送信・確認・例外との前後が分かるように書く（例: 書き出しの送信の前・送信が例外で失敗したときに巻き戻した後・画面を開いたとき）>",
+        "path": "<normal（通常の経路）| exception（例外処理の中）>",
+        "values": "<書く値（列ごと。例: 種別 export・利用者 id・対象件数）>",
+        "count": "<回数（例: 1 操作につき 1 行）>",
+        "verification": "<assertion（スイートで確かめる）| source-only（移行元で起こせないので読解だけで記録する。例外時等）>",
+        "covered_by": [
+          "<verification: assertion のとき、書いた行〈値・回数・時機〉を確かめる API テストか E2E の assertion（スペックとテスト名）>"
+        ],
+        "db_evidence": "<移行元の DB を読めるなら、既存の行で値を裏づけた記録（例: access_log の既存行で種別の値を確かめた）。読めなければ null>",
+        "source_only_reason": "<verification: source-only のときだけ、移行元で起こせない理由。新側の書き込み箇所は parity-replace が porting.md に残す>",
+        "excluded_reason": "<この機能の書き込みでないときだけ理由（例: 別 slug の操作のハンドラ）。埋めたら他の欄は要らない。この機能の書き込みなら null>"
       }
     ]
   },
@@ -135,6 +177,44 @@
           ]
         }
       },
+      "pre_send": {
+        "_note": "送る前の判定（Issue #483）。件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプト・部品が持つ送信の関数・サーバー側の共通処理に置かれることがあり、画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、境界の外側を測らないとスイートも差分器も両側で緑のまま新側に判定が無いことが分からない。操作ごとに必ず書く（欠けると未測定）。found: true / false / null（追えなかった）のどれか。",
+        "found": "<真偽値。操作が最終的に呼ぶ送信・実行の関数まで追い、その手前に止める判定があるなら true と items。無いなら false と evidence。追えなければ null と reason（gaps.md にも残す）>",
+        "traced_to": [
+          {
+            "file": "<追った到達点（送信・実行の直前の関数）のファイル（--root からの相対）。feedback_calls.source.paths の走査範囲に入れる（部品の内側まで範囲を広げると、そこにあるフィードバック呼び出しも call_sites に現れる）。feedback_calls.declared: false なら --root から直接読んで照合する>",
+            "symbol": "<到達点の関数名。file の中に語として現れなければ落ちる>"
+          }
+        ],
+        "trace": "<操作のハンドラから部品の内側を通って到達点までどう辿ったか（例: 書き出しボタンのハンドラ → 共通部品の書き出し → 送信の関数 submitExport）>",
+        "items": [
+          {
+            "id": "<判定 id（\"/\" を含めない。操作の中で一意。order から参照する）>",
+            "kind": "<count-limit（件数の上限）| length-limit（長さの上限）| size-limit（大きさの上限）| required（必須）| format（形式）| range（範囲）| other>",
+            "location": {
+              "file": "<判定のあるファイル（走査範囲に入れる）>",
+              "symbol": "<判定のある関数名>"
+            },
+            "condition": "<止める条件（例: 選んだ行が 500 件を超える）>",
+            "on_block": "<止めたときに起きること（例: 上限の通知を出して書き出さない）。通知が出るなら反応として見えるが、その反応は境界の外側の操作でしか出ない>",
+            "order": [
+              "<工程の並び。この判定の id を 1 回含め、確認・記録・送信などと実行順に並べる（例: confirm / max-rows / write-log / send）。順序が違うと止めたときに残る記録や出る確認の回数が変わる>"
+            ],
+            "sides": [
+              {
+                "side": "<inside（判定を通る側。上限ちょうど・形式の内側・必須を満たす）| outside（止まる側。1 つ超え・形式の外側・必須が欠ける）。両側を 1 つ以上ずつ書く>",
+                "input": "<与えた値（例: 500 行を選ぶ・501 行を選ぶ）>",
+                "setup": "<境界の状態をどう作ったか（例: ゴールデンデータの 600 行から選ぶ）。ゴールデンデータの件数が境界に届かないときは、届かないことと代わりの作り方（画面内で行を足す・データを足す）を書く>",
+                "observed": "<現行で測った結果（例: 通知が出て書き出されない）>",
+                "covered_by": ["<この側を確かめたスイートの assertion（スペックとテスト名）>"],
+                "reason": "<測れなかったときだけ理由（observed と covered_by を書かない。未測定として数えられ、gaps.md にも残す）>"
+              }
+            ]
+          }
+        ],
+        "evidence": "<found: false のときだけ、到達点まで読んで送る前の判定が無いことを確かめた記録>",
+        "reason": "<found: null のときだけ、追えなかった理由>"
+      },
       "reactions": [
         {
           "id": "<反応 id（\"/\" を含めない）>",
@@ -198,6 +278,17 @@
           "not_probed": {}
         }
       },
+      "pre_send": {
+        "found": "<例: false>",
+        "traced_to": [
+          {
+            "file": "<例: 検索の送信の関数のファイル>",
+            "symbol": "<例: submitSearch>"
+          }
+        ],
+        "trace": "<例: 検索ボタンのハンドラ → 検索フォームの部品 → 送信の関数 submitSearch>",
+        "evidence": "<送信の関数まで読み、件数・長さ・形式を判定して止める分岐が無いことを確かめた記録>"
+      },
       "reactions": [
         {
           "id": "none",
@@ -236,6 +327,10 @@
           "reason": "<測れなかった理由。未測定として数えられる。gaps.md にも残す>"
         }
       },
+      "pre_send": {
+        "found": null,
+        "reason": "<追えなかった理由（例: 部品のスクリプトが難読化されていて送信の関数まで辿れない）。未測定として数えられる。gaps.md にも残す>"
+      },
       "reactions": [
         {
           "id": "<反応 id>",
@@ -251,6 +346,7 @@
     "tool_version": "<スクリプトの VERSION>",
     "ok": "<真偽値>",
     "call_sites_checked": "<真偽値。移行元ソースを走査して突き合わせたか>",
+    "side_effects_checked": "<真偽値。表への書き込みを移行元ソースの走査と突き合わせたか（side_effect_writes.declared: true なら --recorded が true を要求する）>",
     "table_fingerprint": "<sha256>",
     "problems": 0
   }

@@ -78,6 +78,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - **操作の特性化を「押した直後の状態」で止めない。** 反応は遅れて出る・操作した器の外（親文書・別フレーム）に出る・自動で消えるため、直後のスナップショットでは取りこぼす。
   操作ごとに反応の欄を反応の被覆表 `reactions.json` に持たせ（無ければ `kind: none` を実測で書く）、**出るまで待ち、消えるまでの時間を 2 回以上測って** assertion にし、
   移行元ソースのフィードバック呼び出しと `scripts/reaction-check.mjs` で突き合わせる（[`references/coverage.md`](references/coverage.md)「操作の反応」）
+- **観点の起点を画面の処理と部品へ渡す引数で止めない。** 操作が最終的に呼ぶ送信・実行の関数まで部品の内側を読み、送る前の判定（件数・長さ・大きさの上限、必須・形式の検証）を
+  **境界の両側**（上限ちょうど・1 つ超え等）で現行に当てて `pre_send` に残す。**表への書き込み（監査・利用ログ等）は例外処理の中を含めて移行元ソースから全件列挙し** `side_effect_writes` に残す。
+  どちらも利用者に見える反応にも 3 経路にも写らず、ふだんの操作では両側で緑になる（[`references/coverage.md`](references/coverage.md)「送る前の判定（`pre_send`）」「表への書き込み（`side_effect_writes`）」）
 - **被覆表に載せる項目の粒度を自分の判断で決めない。** データグリッドのように構成要素ごとに操作可否が設定される部品は、
   代表列だけを測っても被覆表は満たせてしまう（登録しなかった列は期待セルにすら現れない）。
   **同梱の被覆プロファイルで候補集合を展開し、`scripts/coverage-expand.mjs` で被覆表と機械的に照合する**
@@ -192,6 +195,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    **同じ表に、操作ごとに押した後に残る見た目（塗り・色・印・焦点）と戻り先（押す前後の URL・押す前に動かした状態のうち戻った範囲）を現行で測って `aftermath` に書く**——
    残る見た目は撮る状態か assertion に割り当て、どちらにもしないなら理由を書く。**戻す範囲は、画面が持つ状態を表の `screen_states` に棚卸しし、その全てを既定から動かしてから押して測る**
    （途中の見た目しか導かない撮影状態と、出て消える反応のどちらにも入らず、差が「差 0 件」と同じ見え方になるため。[`references/coverage.md`](references/coverage.md)「押した後に残るもの（`aftermath`）」）
+   **同じ表に、操作ごとに送る前の判定（`pre_send`）を、表の直下に表への書き込み（`side_effect_writes`）を書く**——操作のハンドラから部品の内側を送信・実行の直前まで読んで判定を列挙し、
+   判定ごとに境界の両側を現行で測って assertion にする（ゴールデンデータが境界に届かないなら代わりの作り方を記録する）。書き込みは `.replace/features.md` の副作用出力にある表について、
+   移行元ソースを書き込みのパターンで走査して全件を記録し、1 か所ずつ値・時機・回数と確かめ方（assertion か読解のみ）を書く
+   （[`references/coverage.md`](references/coverage.md)「送る前の判定（`pre_send`）」「表への書き込み（`side_effect_writes`）」）
    詳細: [`references/locator-mapping.md`](references/locator-mapping.md) / [`references/coverage.md`](references/coverage.md) / [`references/api-batch.md`](references/api-batch.md) / [`references/auth.md`](references/auth.md)。
    **スイート・マッピング層・操作アダプタは対象プロジェクト側のコードなので、そのリポジトリのコーディング規約（`references.coding_conventions`）に従って書く**
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
@@ -271,7 +278,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | メタデータ・ノイズ基準値 | `.replace/parity/<slug>/metadata.json` | `assets/metadata-template.json` |
 | 部品被覆表（feature モードのみ。**操作と状態の有無だけを数え、見た目は見ていない**） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
 | 寸法の採取値（feature モードのみ。窓 × 論理名の矩形） | `.replace/parity/<slug>/dimension-samples.json` | 形式の正本: [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs)（手順は [`references/baseline.md`](references/baseline.md)） |
-| 反応の被覆表（feature モードのみ。操作 → 反応） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
+| 反応の被覆表（feature モードのみ。操作 → 反応・送る前の判定、表への書き込み） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）

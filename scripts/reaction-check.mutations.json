@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）の検出能力を示す変異の一覧。",
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -563,6 +563,267 @@
       "occurrences": 1,
       "expect_failing": [
         "ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "pre-send-missing",
+      "why": "操作に pre_send が無くても未測定にしない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(ps)) {\n",
+      "replace": "  if (!isPlainObject(ps)) {\n    return { problems: out, refs };\n  }\n  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["送る前の判定の欠けは未測定として落とす: pre_send が無い（Issue #483）"]
+    },
+    {
+      "id": "pre-send-traced-to",
+      "why": "追った到達点が空でも通す（画面の処理で読むのを止めた記録が通る）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 到達点が空（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 到達点のシンボルが欠けている（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-trace",
+      "why": "辿り方がテンプレートの説明文のままでも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(ps.trace)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 辿り方がテンプレートの説明文のまま（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-evidence",
+      "why": "判定が無いと書いて確かめた記録が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(ps.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 判定が無いと書いて確かめた記録が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-order-includes",
+      "why": "順序にこの判定の id が無くても通す（どこに入る判定かが残らない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      !order.includes(item.id)\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 順序にこの判定が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-order-length",
+      "why": "順序がこの判定だけでも通す（前後を語れない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      order.length < 2 ||\n",
+      "replace": "      false ||\n",
+      "occurrences": 1,
+      "expect_failing": ["送る前の判定の欠けは未測定として落とす: 順序がこの判定だけ（Issue #483）"]
+    },
+    {
+      "id": "pre-send-order-dup",
+      "why": "順序に同じ工程が 2 回あっても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      new Set(order).size !== order.length ||\n",
+      "replace": "      false ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 順序に同じ工程が 2 回（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-setup",
+      "why": "境界の状態の作り方が空でも通す（ゴールデンデータが届かないときの代わりの作り方が残らない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filled(side.input) || !filled(side.setup)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 境界の状態の作り方が空（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-side-measured",
+      "why": "observed / covered_by の無い側を測った側として数える",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (filled(side.observed) && filledStrings(side.covered_by)) {\n",
+      "replace": "      if (true) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 止まる側を測れなかった（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 止まる側の assertion が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-both-sides",
+      "why": "境界の片側だけを測った判定を通す（ふだん通る側だけで緑になる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0 && out.every((o) => !o.problem.startsWith(`${at}.sides`))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 止まる側を測っていない（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 通る側を測っていない（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 両側とも通る側（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-in-scan",
+      "why": "到達点のファイルが走査範囲に無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        (file) => scan.texts.get(file),\n",
+      "replace": "        (file) => scan.texts.get(file) ?? \"sendExport\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 到達点が走査範囲の外（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-symbol",
+      "why": "判定の場所のシンボルがファイルに無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      } else if (!symbolIn(text, ref.symbol)) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 判定の場所のシンボルがファイルに無い（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ファイルに無いシンボル（Issue #483）"
+      ]
+    },
+    {
+      "id": "side-effects-declared",
+      "why": "表への書き込みの宣言が無い旧表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(sew) || typeof sew.declared !== \"boolean\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: キーごと無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-pattern-table",
+      "why": "パターンの書く表が表の一覧に無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(t) || !tableSet.has(/** @type {string} */ (t))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: パターンの表が表の一覧に無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-unwritten",
+      "why": "書く箇所を 1 件も記録していない表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (unwritten.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 表に書く箇所を 1 件も記録していない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-unrecorded",
+      "why": "ソースにある書き込み（例外処理の中）の記録漏れを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!recordedCount.has(key))\n        problems.push(\n          `side_effect_writes.sites: ソースの書き込み",
+      "replace": "      if (false)\n        problems.push(\n          `side_effect_writes.sites: ソースの書き込み",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 例外時の書き込みを記録していない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-operation",
+      "why": "被覆表に無い操作へ結び付けた書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 操作が被覆表に無い（Issue #466）",
+        "表への書き込みの欠けは落とす: 操作を書いていない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-assertion",
+      "why": "assertion と書いて assertion の無い書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filledStrings(s.covered_by)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: assertion と書いて assertion が無い（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-source-only",
+      "why": "読解のみと書いて理由の無い書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filled(s.source_only_reason)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: 読解のみと書いて理由が無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-recorded",
+      "why": "--recorded で表への書き込みを突き合わせていない記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (sideEffects.declared === true && conf.side_effects_checked !== true)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--recorded は表への書き込みを突き合わせていない記録を落とす（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-site-shape",
+      "why": "位置の欠けた書き込みの記録を黙って読み飛ばす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      problems.push(\"side_effect_writes.sites: file / line / column / pattern が欠けた行がある\");\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: 書き込みの位置が欠けている（Issue #466）"]
+    },
+    {
+      "id": "side-effects-source-only-covered",
+      "why": "読解のみと assertion が同時に書かれた記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (Array.isArray(s.covered_by) && s.covered_by.length > 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 読解のみと書いて assertion もある（Issue #466）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-direct-read",
+      "why": "declared: false のとき読めない参照を読めたことにする",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        (file) => readSourceFile(root, file),\n",
+      "replace": "        (file) => readSourceFile(root, file) ?? \"send\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 無いファイル（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-outside-root",
+      "why": "ルートの外（絶対パスを含む）のファイルを参照として読む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rel === \"\" || rel === \"..\" || rel.startsWith(`..${sep}`)) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）"
       ]
     }
   ]
