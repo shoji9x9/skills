@@ -23,7 +23,8 @@
         "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
         "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
         "文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
-        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"
+        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
       ]
     },
     {
@@ -76,7 +77,8 @@
       "replace": "    const known = undefined;\n",
       "occurrences": 1,
       "expect_failing": [
-        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
       ]
     },
     {
@@ -96,6 +98,29 @@
       "replace": "    const owner = node.parentElement || (node.parentNode && node.parentNode.host) || null;\n",
       "occurrences": 1,
       "expect_failing": ["slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"]
+    },
+    {
+      "id": "trim-per-node",
+      "why": "テキストノードごとに trim して空白で繋ぐ（分割されたノードで \"3 件\" になる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      rawText.set(known, rawText.get(known) + raw);\n      known.advance",
+      "replace": "      rawText.set(known, rawText.get(known) + \" \" + raw.trim());\n      known.advance",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
+      ]
+    },
+    {
+      "id": "lines-as-fragments",
+      "why": "行の数を縦の帯ではなく断片の数で数える（テキストノードが分かれると 1 行が 2 行になる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (f.top >= bottom) lines += 1;\n",
+      "replace": "      lines += 1;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
+      ]
     }
   ]
 }

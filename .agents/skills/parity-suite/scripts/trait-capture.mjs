@@ -29,7 +29,7 @@
 // 要素の計算値が一致したまま特性照合が緑になる（Issue #459。文字の幅が 26px と 30.4px で違っていた）。
 // そこで部分木のテキストノードを平坦木の順（開いたシャドウルートの中と、<slot> に割り当てられた
 // ノードを描かれる位置で辿る）に拾い、平坦木の親要素（文字の持ち主。slot に割り当てられた文字は slot）ごとに 1 行、TEXT_OWNER_PROPERTIES の
-// 計算値と、その要素が直接持つ文字の寸法（行の断片の幅の合計 advance・最大の高さ glyph_height・断片の数 lines）を記録する。行は文字が現れる順に並び、入れ子の深さに
+// 計算値と、その要素が直接持つ文字の寸法（行の断片の幅の合計 advance・最大の高さ glyph_height・行の数 lines）を記録する。行は文字が現れる順に並び、入れ子の深さに
 // 依らないので、DOM の形が違う現・新でも「i 番目の文字の持ち主」どうしを trait-compare.mjs が突き合わせられる。
 // 描かれていない文字（空白だけ・矩形の面積 0・visibility が visible でない）は数えない。
 // 射程: 閉じたシャドウルートの中は辿れない。描画に使われた書体の実体（フォールバックの解決先）は
@@ -265,9 +265,32 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
   // 照合には使わない診断材料（どの要素が文字を持っているかを採取物から読むため）。
   const owners = new Map();
   const textOwners = [];
+  // 持ち主ごとの生の文字列。空白の畳み込みと trim は全ノードを繋いだ後に 1 回だけ当てる——
+  // ノードごとに trim して " " で繋ぐと、フレームワークがテキストを分けたかどうかで文字列が変わり
+  // （React の <span>{count}件</span> は "3" と "件" の 2 ノードで "3 件"、1 ノードなら "3件"）、
+  // 見た目が同じ文字の寸法の照合が trait-compare.mjs で黙って省かれる。
+  const rawText = new Map();
+  // 持ち主ごとの行の断片（縦の範囲）。行の数は断片の数ではなく、縦に重ならない帯の数で数える——
+  // テキストノードが分かれると同じ行に断片が 2 つ出る（実測: "3" と "件" の 2 ノードで断片 2、1 ノードで 1）。
+  const bands = new Map();
+  const countLines = (list) => {
+    let lines = 0;
+    let bottom = -Infinity;
+    for (const f of [...list].sort((a, b) => a.top - b.top)) {
+      if (f.top >= bottom) lines += 1;
+      bottom = Math.max(bottom, f.bottom);
+    }
+    return lines;
+  };
+  const collapse = (value) => value.replace(/\s+/g, " ").trim();
   const collectText = (node, path, flatParent) => {
-    const text = (node.nodeValue || "").replace(/\s+/g, " ").trim();
-    if (text === "") return;
+    const raw = node.nodeValue || "";
+    if (collapse(raw) === "") {
+      // 空白だけのノードは持ち主を新しく作らないが、既に文字を持つ持ち主の中の空白は文字列に残す
+      const known = owners.get(flatParent);
+      if (known) rawText.set(known, rawText.get(known) + raw);
+      return;
+    }
     // 持ち主は平坦木の親（visit が渡す）。文字の書体は平坦木で継承されるため、<slot> に割り当てられた
     // 文字は DOM の親（ホスト）ではなく slot から継承する（実測: シャドウ内の <button style="font-size:30px">
     // <slot> に割り当てた文字を parentElement で採るとホストの 16px が記録された）。シャドウルート直下の
@@ -287,10 +310,10 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     if (style.getPropertyValue("visibility") !== "visible") return;
     const known = owners.get(owner);
     if (known) {
-      known.text += " " + text;
+      rawText.set(known, rawText.get(known) + raw);
       known.advance += advance;
       known.glyph_height = Math.max(known.glyph_height, glyphHeight);
-      known.lines += fragments.length;
+      for (const f of fragments) bands.get(known).push({ top: f.y, bottom: f.y + f.height });
       const x2 = Math.max(known.rect.x + known.rect.width, r.x + r.width);
       const y2 = Math.max(known.rect.y + known.rect.height, r.y + r.height);
       known.rect.x = Math.min(known.rect.x, r.x);
@@ -314,14 +337,19 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     const entry = {
       path,
       tag: owner.tagName.toLowerCase(),
-      text,
+      text: "",
       style: picked,
       advance,
       glyph_height: glyphHeight,
-      lines: fragments.length,
+      lines: 0,
       rect: { x: r.x, y: r.y, width: r.width, height: r.height },
     };
     owners.set(owner, entry);
+    rawText.set(entry, raw);
+    bands.set(
+      entry,
+      fragments.map((f) => ({ top: f.y, bottom: f.y + f.height })),
+    );
     textOwners.push(entry);
   };
   const visit = (nodes, path, flatParent) => {
@@ -350,6 +378,10 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     el.shadowRoot ? "#shadow-root" : "",
     el,
   );
+  for (const entry of textOwners) {
+    entry.text = collapse(rawText.get(entry));
+    entry.lines = countLines(bands.get(entry));
+  }
 
   return {
     computed: pick(null),
@@ -380,7 +412,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
  *       style: Record<string,string>,  // TEXT_OWNER_PROPERTIES の computed 値
  *       advance: number,               // 文字の行の断片（Range.getClientRects）の幅の合計（照合する）
  *       glyph_height: number,          // 行の断片の高さの最大（照合する）
- *       lines: number,                 // 行の断片の数（照合する。折り返しの差）
+ *       lines: number,                 // 縦に重ならない行の帯の数（照合する。折り返しの差）
  *       rect: { x:number, y:number, width:number, height:number },  // 文字の外接矩形（診断材料）
  *     }[]
  *   }

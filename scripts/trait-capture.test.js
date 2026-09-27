@@ -541,7 +541,7 @@ test("同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計�
   expect(
     trait.text_owners.map((o) => [o.path, o.text, o.advance, o.glyph_height, o.lines, o.rect]),
   ).toEqual([
-    ["p[0]", "前 後", 35, 16, 2, { x: 10, y: 10, width: 45, height: 18 }],
+    ["p[0]", "前 後", 35, 16, 1, { x: 10, y: 10, width: 45, height: 18 }],
     ["p[0]>b[0]", "太", 10, 14, 1, { x: 30, y: 10, width: 10, height: 14 }],
   ]);
 });
@@ -560,6 +560,35 @@ test("折り返した文字の寸法は行の断片から出す（外接矩形�
   const [trait] = await captureTraits([{ name: "x", locator }]);
   expect(trait.text_owners.map((o) => [o.advance, o.glyph_height, o.lines, o.rect.width])).toEqual([
     [130, 16, 2, 100],
+  ]);
+});
+
+// フレームワークは 1 つの要素の文字を複数のテキストノードに分けることがある（React の <span>{count}件</span>）。
+// ノードごとに trim して " " で繋ぐと "3 件" になり、1 ノードで描く側の "3件" と食い違って寸法の照合が省かれる。
+test("同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる", async () => {
+  const split = elementNode(
+    "span",
+    [
+      textNode("3", { x: 0, y: 0, width: 8, height: 14 }),
+      textNode("件", { x: 8, y: 0, width: 13, height: 14 }),
+    ],
+    fontOf(),
+  );
+  const spaced = elementNode(
+    "em",
+    [
+      textNode("合計 ", { x: 0, y: 20, width: 30, height: 14 }),
+      textNode("  ", { x: 30, y: 20, width: 4, height: 14 }),
+      textNode("3", { x: 34, y: 20, width: 8, height: 14 }),
+    ],
+    fontOf(),
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [split, spaced] });
+  rootWith([split, spaced]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.text, o.lines])).toEqual([
+    ["3件", 1],
+    ["合計 3", 1],
   ]);
 });
 
