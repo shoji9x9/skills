@@ -180,7 +180,7 @@
 |---|---|---|
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
-| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `display_axes` / `browser` / `states` / `masks` / `animations` / `popup_inventory`） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `display_axes` / `browser` / `states` / `masks` / `animations` / `popup_inventory`。`browser: cdp` では接続先の同一性〈解決した `PARITY_NEW_CDP_URL` の sha256 と CDP `Browser.getVersion` の `product`・`userAgent`〉も含め、同一性を取れなければ測り直す） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
 | 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |

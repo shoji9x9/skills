@@ -1549,3 +1549,61 @@ test("「一致: 未確認」のように形だけ満たしたプレースホル
     ),
   ).toEqual([]);
 });
+
+test("軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）", () => {
+  const axes = localeAxes();
+  const withAxis = (patch) =>
+    codesOf(
+      metadataOf({
+        displayAxes: { ...axes, axes: [{ ...axes.axes[0], ...patch }] },
+        ...withVariantCaptures(),
+      }),
+    );
+  expect(withAxis({ source: "<値の一覧をどこから数えたか>" })).toContain(
+    "display-axis-source-missing",
+  );
+  expect(withAxis({ apply: "TODO" })).toContain("display-axis-apply-missing");
+  expect(withAxis({ suite_expectations: "<期待値解決層のパス>" })).toContain(
+    "display-axis-suite-undecided",
+  );
+  expect(
+    withAxis({ not_applicable: [{ page: "list", reason: "未確認" }] }).filter((c) =>
+      c.startsWith("display-axis-not-applicable-reason"),
+    ),
+  ).toEqual(["display-axis-not-applicable-reason-missing"]);
+  const absentPlaceholder = noAxes();
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: {
+          ...absentPlaceholder,
+          absent: absentPlaceholder.absent.map((a) =>
+            a.candidate === "print" ? { ...a, source: "<無いと確かめた来歴>" } : a,
+          ),
+        },
+      }),
+    ),
+  ).toEqual(["display-axis-absent-source-missing"]);
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: localeAxes({
+          pairs: [{ axes: ["locale", "viewport"], crossed: false, reason: "TBD" }],
+        }),
+        ...withVariantCaptures(),
+      }),
+    ),
+  ).toEqual(["display-axis-pair-reason-missing"]);
+});
+
+test("変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）", () => {
+  expect(
+    codesOf(
+      metadataOf({
+        displayAxes: localeAxes({
+          variants: [{ label: "desktop,ja", viewport: "desktop", values: { locale: "ja" } }],
+        }),
+      }),
+    ),
+  ).toContain("display-axis-variant-label-unusable");
+});

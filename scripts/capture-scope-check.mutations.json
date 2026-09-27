@@ -229,7 +229,10 @@
       "find": "    if (expectations === noExpectations) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ"]
+      "expect_failing": [
+        "スイートへの写し方は期待値の所在か変わらない根拠のどちらか一方だけ",
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）"
+      ]
     },
     {
       "id": "pair-undecided",
@@ -316,13 +319,14 @@
     },
     {
       "id": "variant-label-dot",
-      "why": "変種の label の . / .. / 区切りを通す",
+      "why": "変種の label の . / .. / 区切り・カンマを通す",
       "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
-      "find": "      label === \".\" ||\n      label === \"..\" ||\n      /[\\\\/]/.test(/** @type {string} */ (label))\n",
+      "find": "      label === \".\" ||\n      label === \"..\" ||\n      /[\\\\/,]/.test(/** @type {string} */ (label))\n",
       "replace": "      false\n",
       "occurrences": 1,
       "expect_failing": [
-        "変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）"
+        "変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）",
+        "変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）"
       ]
     },
     {
@@ -345,6 +349,28 @@
       "occurrences": 1,
       "expect_failing": [
         "「一致: 未確認」のように形だけ満たしたプレースホルダは落とす（Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "evidence-placeholder",
+      "why": "根拠欄のプレースホルダを根拠として数える",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  return nonEmptyString(value) && !UNCONFIRMED_BODY.test(String(value).trim());\n",
+      "replace": "  return nonEmptyString(value);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "variant-label-comma",
+      "why": "変種の label のカンマを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      /[\\\\/,]/.test(/** @type {string} */ (label))\n",
+      "replace": "      /[\\\\/]/.test(/** @type {string} */ (label))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種の label にカンマは使えない（PARITY_NOISE_PAIRS の区切りと衝突する。Codex レビュー #491）"
       ]
     }
   ]

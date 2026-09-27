@@ -383,6 +383,16 @@ function axisPartIsSafe(value) {
 }
 
 /**
+ * 根拠として数えてよい文字列か（空でなく、テンプレートの <…> や TODO・未確認のようなプレースホルダで始まらない）。
+ * 空でないだけで数えると、同梱テンプレートの値を埋めずに残した軸が「来歴付きで数えた」ことになる。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function evidenceText(value) {
+  return nonEmptyString(value) && !UNCONFIRMED_BODY.test(String(value).trim());
+}
+
+/**
  * 変種の値（軸名 → 値）を順序に依らない文字列にする（`locale=ja,theme=dark`）。
  * @param {Record<string, string>} values
  * @returns {string}
@@ -521,20 +531,20 @@ export function checkDisplayAxes(conditions) {
         `${at}（${axisName}）の default が values に無い（基準の組を撮った値が決まらない）: ${JSON.stringify(axis.default)}`,
       );
     }
-    if (!nonEmptyString(axis.source)) {
+    if (!evidenceText(axis.source)) {
       add(
         "display-axis-source-missing",
         `${at}（${axisName}）に source が無い（値の一覧をどこから数えたかの来歴が残らない）`,
       );
     }
-    if (!nonEmptyString(axis.apply)) {
+    if (!evidenceText(axis.apply)) {
       add(
         "display-axis-apply-missing",
         `${at}（${axisName}）に apply が無い（値の当て方が残らないと、新側を同じ値で撮れない）`,
       );
     }
-    const expectations = nonEmptyString(axis.suite_expectations);
-    const noExpectations = nonEmptyString(axis.suite_reason);
+    const expectations = evidenceText(axis.suite_expectations);
+    const noExpectations = evidenceText(axis.suite_reason);
     if (expectations === noExpectations) {
       add(
         "display-axis-suite-undecided",
@@ -569,7 +579,7 @@ export function checkDisplayAxes(conditions) {
           );
           return;
         }
-        if (!nonEmptyString(na.reason)) {
+        if (!evidenceText(na.reason)) {
           add(
             "display-axis-not-applicable-reason-missing",
             `${at}（${axisName}）の not_applicable の ${page} に reason が無い（軸が効かないことの来歴が残らない）`,
@@ -606,7 +616,7 @@ export function checkDisplayAxes(conditions) {
       return;
     }
     survey(absent.candidate, at);
-    if (!nonEmptyString(absent.source)) {
+    if (!evidenceText(absent.source)) {
       add(
         "display-axis-absent-source-missing",
         `${at}（${String(absent.candidate)}）に source が無い（無いと確かめた来歴が残らない。思いつかなかった軸と区別できない）`,
@@ -648,11 +658,11 @@ export function checkDisplayAxes(conditions) {
       !idPartIsSafe(label) ||
       label === "." ||
       label === ".." ||
-      /[\\/]/.test(/** @type {string} */ (label))
+      /[\\/,]/.test(/** @type {string} */ (label))
     ) {
       add(
         "display-axis-variant-label-unusable",
-        `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切りを含む）: ${JSON.stringify(label)}`,
+        `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切り・カンマを含む。カンマは PARITY_NOISE_PAIRS 等の区切りでもある）: ${JSON.stringify(label)}`,
       );
       return;
     }
@@ -790,7 +800,7 @@ export function checkDisplayAxes(conditions) {
       add("display-axis-pair-unusable", `${at}（${key}）の crossed が真偽値ではない`);
       return;
     }
-    if (!nonEmptyString(pair.reason)) {
+    if (!evidenceText(pair.reason)) {
       add(
         "display-axis-pair-reason-missing",
         `${at}（${key}）に reason が無い（掛けた・掛けなかった理由が残らない）`,

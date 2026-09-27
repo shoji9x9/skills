@@ -145,7 +145,7 @@
       ],
       "variants": [
         {
-          "label": "<変種の label（例: desktop-ja）。viewports の label と他の変種と重ならない名前。書き出し先のディレクトリ名にもなるので . / .. / パスの区切りは使えない>",
+          "label": "<変種の label（例: desktop-ja）。viewports の label と他の変種と重ならない名前。書き出し先のディレクトリ名と PARITY_NOISE_PAIRS 等のカンマ区切りの組にもなるので . / .. / パスの区切り・カンマは使えない>",
           "viewport": "<撮る窓（capture_conditions.viewports の label）>",
           "values": {
             "<軸の名前>": "<既定以外の値。1 軸ずつ振る変種は 1 キーだけ、crossed: true の対は両方の軸を書く（書かない軸は既定値で撮る）>"
