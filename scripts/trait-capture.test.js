@@ -42,6 +42,17 @@ function fakeLocator(
         childNodes,
         shadowRoot,
         ownerDocument: {
+          // canvas の measureText は文字数 × 13 の幅と 12 + 3 の高さを返す偽（ボタンとして描く <input> 用）
+          createElement: () => ({
+            getContext: () => ({
+              font: "",
+              measureText: (t) => ({
+                width: t.length * 13,
+                fontBoundingBoxAscent: 12,
+                fontBoundingBoxDescent: 3,
+              }),
+            }),
+          }),
           // Range は selectNodeContents したテキストノードの矩形（textNode の rect）を返す
           createRange: () => {
             let target = null;
@@ -422,6 +433,9 @@ function fontOf(overrides = {}) {
     "font-weight": "400",
     "line-height": "normal",
     visibility: "visible",
+    "overflow-x": "visible",
+    "overflow-y": "visible",
+    clip: "auto",
     ...overrides,
   };
 }
@@ -605,6 +619,59 @@ test("line-height を詰めて行の断片が縦に重なっても、折り返�
   rootWith([span]);
   const [trait] = await captureTraits([{ name: "x", locator }]);
   expect(trait.text_owners.map((o) => o.lines)).toEqual([3]);
+});
+
+// 視覚的に隠した文字（sr-only）は矩形の面積も visibility も通常の文字と同じなので、祖先の切り抜きで判定する。
+// 数えると、現行の <span class="sr-only">閉じる</span> と新側の aria-label で見た目が同じでも件数差が出る。
+test.each([
+  ["1px の箱に overflow: hidden で閉じ込めた文字（sr-only）", { width: 1, height: 1 }, {}, []],
+  [
+    "clip: rect(0 0 0 0) の文字",
+    { width: 100, height: 20 },
+    { clip: "rect(0px, 0px, 0px, 0px)" },
+    [],
+  ],
+  [
+    "省略記号で切られた長い文字（見えている部分が残る）",
+    { width: 80, height: 20 },
+    {},
+    ["長い説明"],
+  ],
+])("%s", async (_name, boxSize, clipStyle, expected) => {
+  const text = textNode("長い説明", { x: 0, y: 0, width: 270, height: 17 });
+  const box = elementNode(
+    "span",
+    [text],
+    fontOf({ "overflow-x": "hidden", "overflow-y": "hidden", ...clipStyle }),
+    {
+      getBoundingClientRect: () => ({ x: 0, y: 0, ...boxSize }),
+    },
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [box] });
+  rootWith([box]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => o.text)).toEqual(expected);
+});
+
+// <input type=submit value="検索"> はテキストノードを持たずに文字を描く。数えないと <button>検索</button> への
+// 置き換えで、見た目が同じでも件数の差が出る。
+test("ボタンとして描く <input> の value を文字の持ち主として採る", async () => {
+  const input = elementNode("input", [], fontOf(), {
+    type: "submit",
+    value: "検索",
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 60, height: 24 }),
+  });
+  const text = elementNode("input", [], fontOf(), {
+    type: "text",
+    value: "入力値",
+    getBoundingClientRect: () => ({ x: 0, y: 30, width: 60, height: 24 }),
+  });
+  const locator = fakeLocator(allResolved(), { childNodes: [input, text] });
+  rootWith([input, text]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(
+    trait.text_owners.map((o) => [o.path, o.tag, o.text, o.advance, o.glyph_height, o.lines]),
+  ).toEqual([["input[0]", "input", "検索", 26, 15, 1]]);
 });
 
 // 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。

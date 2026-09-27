@@ -25,19 +25,8 @@
         "文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
         "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
         "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
-        "line-height を詰めて行の断片が縦に重なっても、折り返した行を数える"
-      ]
-    },
-    {
-      "id": "zero-area-counted",
-      "why": "描かれていない（矩形の面積 0 の）文字も持ち主として数える",
-      "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "    if (!(r.width > 0 && r.height > 0)) return;\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
-        "矩形の高さが 0 の文字 は持ち主として数えない"
+        "line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
+        "省略記号で切られた長い文字（見えている部分が残る）"
       ]
     },
     {
@@ -89,14 +78,17 @@
       "find": "    const advance = fragments.reduce((sum, f) => sum + f.width, 0);\n",
       "replace": "    const advance = r.width;\n",
       "occurrences": 1,
-      "expect_failing": ["折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"]
+      "expect_failing": [
+        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "ボタンとして描く <input> の value を文字の持ち主として採る"
+      ]
     },
     {
       "id": "dom-parent-as-owner",
       "why": "文字の持ち主を平坦木の親ではなく DOM の親にする（slot に割り当てた文字がホストの書体で記録される）",
       "file": "skills/parity-suite/scripts/trait-capture.mjs",
-      "find": "    const owner = flatParent;\n",
-      "replace": "    const owner = node.parentElement || (node.parentNode && node.parentNode.host) || null;\n",
+      "find": "    record(flatParent, path, raw, r, fragments);\n",
+      "replace": "    record(node.parentElement || (node.parentNode && node.parentNode.host) || null, path, raw, r, fragments);\n",
       "occurrences": 1,
       "expect_failing": ["slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"]
     },
@@ -131,6 +123,45 @@
       "replace": "      if (f.top >= rowTop) {\n        lines += 1;\n        rowTop = f.bottom;\n",
       "occurrences": 1,
       "expect_failing": ["line-height を詰めて行の断片が縦に重なっても、折り返した行を数える"]
+    },
+    {
+      "id": "clip-ignored",
+      "why": "祖先の切り抜きを見ず、視覚的に隠した文字（sr-only）も数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    if (clippedAway(owner, r)) return;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
+        "clip: rect(0 0 0 0) の文字"
+      ]
+    },
+    {
+      "id": "clip-threshold-empty-only",
+      "why": "切り抜き後の面積が 0 のときだけ除外する（1×1 に閉じ込めた sr-only が残る）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    return right - left < 2 || bottom - top < 2;\n",
+      "replace": "    return right - left <= 0 || bottom - top <= 0;\n",
+      "occurrences": 1,
+      "expect_failing": ["1px の箱に overflow: hidden で閉じ込めた文字（sr-only）"]
+    },
+    {
+      "id": "input-ignored",
+      "why": "ボタンとして描く <input> の value を数えない",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (isButtonInput(node)) collectInputValue(node, childPath);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["ボタンとして描く <input> の value を文字の持ち主として採る"]
+    },
+    {
+      "id": "input-any-type",
+      "why": "文字入力欄の value までボタンの文字として数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    [\"submit\", \"button\", \"reset\"].includes(String(node.type).toLowerCase());\n",
+      "replace": "    true;\n",
+      "occurrences": 1,
+      "expect_failing": ["ボタンとして描く <input> の value を文字の持ち主として採る"]
     }
   ]
 }

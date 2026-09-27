@@ -31,7 +31,8 @@
 // ノードを描かれる位置で辿る）に拾い、平坦木の親要素（文字の持ち主。slot に割り当てられた文字は slot）ごとに 1 行、TEXT_OWNER_PROPERTIES の
 // 計算値と、その要素が直接持つ文字の寸法（行の断片の幅の合計 advance・最大の高さ glyph_height・行の数 lines）を記録する。行は文字が現れる順に並び、入れ子の深さに
 // 依らないので、DOM の形が違う現・新でも「i 番目の文字の持ち主」どうしを trait-compare.mjs が突き合わせられる。
-// 描かれていない文字（空白だけ・矩形の面積 0・visibility が visible でない）は数えない。
+// 描かれていない文字（空白だけ・矩形の面積 0・visibility が visible でない・祖先の切り抜きで実質見えない〈sr-only 等〉）は
+// 数えない。ボタンとして描く <input>（submit / button / reset）の value は文字として数える。
 // 射程: 閉じたシャドウルートの中は辿れない。描画に使われた書体の実体（フォールバックの解決先）は
 // 計算値に出ないので採らない——採取環境と利用者環境の乖離として references/baseline.md の手順で確かめる。
 //
@@ -300,7 +301,6 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     // 文字は DOM の親（ホスト）ではなく slot から継承する（実測: シャドウ内の <button style="font-size:30px">
     // <slot> に割り当てた文字を parentElement で採るとホストの 16px が記録された）。シャドウルート直下の
     // 文字はホストが持ち主になる（ShadowRoot は要素ではなく計算値を持たない）。
-    const owner = flatParent;
     const range = (el.ownerDocument || document).createRange();
     range.selectNodeContents(node);
     const r = range.getBoundingClientRect();
@@ -309,10 +309,43 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
     // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
     const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
+    record(flatParent, path, raw, r, fragments);
+  };
+  // 文字の矩形が、el までの祖先の切り抜き（overflow が visible でない箱・clip: rect(0 0 0 0)）で
+  // 実質的に見えなくなっているか。視覚的に隠した文字（sr-only: 1px の箱に overflow: hidden で閉じ込める、
+  // text-indent: -9999px で箱の外へ逃がす）は矩形の面積も visibility も通常の文字と同じなので、
+  // 切り抜いた後の幅か高さが 2px 未満なら描かれていないとみなす（実測: sr-only の「閉じる」は
+  // 切り抜き後 1×1）。省略記号で切られた長い文字は大きく残るので数え続ける。
+  const clippedAway = (owner, r) => {
+    let left = r.x;
+    let top = r.y;
+    let right = r.x + r.width;
+    let bottom = r.y + r.height;
+    for (let node = owner; node;) {
+      const style = getComputedStyle(node);
+      if (style.getPropertyValue("clip") === "rect(0px, 0px, 0px, 0px)") return true;
+      if (
+        style.getPropertyValue("overflow-x") !== "visible" ||
+        style.getPropertyValue("overflow-y") !== "visible"
+      ) {
+        const b = node.getBoundingClientRect();
+        left = Math.max(left, b.x);
+        top = Math.max(top, b.y);
+        right = Math.min(right, b.x + b.width);
+        bottom = Math.min(bottom, b.y + b.height);
+      }
+      if (node === el) break;
+      node = node.parentElement || (node.parentNode && node.parentNode.host) || null;
+    }
+    return right - left < 2 || bottom - top < 2;
+  };
+  // 持ち主へ 1 つ分の文字を足す。r は外接矩形（診断材料）、fragments は行の断片（寸法の照合に使う）。
+  const record = (owner, path, raw, r, fragments) => {
     const advance = fragments.reduce((sum, f) => sum + f.width, 0);
     const glyphHeight = fragments.reduce((max, f) => Math.max(max, f.height), 0);
     const style = getComputedStyle(owner);
     if (style.getPropertyValue("visibility") !== "visible") return;
+    if (clippedAway(owner, r)) return;
     const known = owners.get(owner);
     if (known) {
       rawText.set(known, rawText.get(known) + raw);
@@ -368,6 +401,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
       const segment = `${node.tagName.toLowerCase()}[${elementIndex}]`;
       elementIndex += 1;
       const childPath = path === "" ? segment : `${path}>${segment}`;
+      if (isButtonInput(node)) collectInputValue(node, childPath);
       if (node.shadowRoot) {
         // シャドウツリーが描かれ、ライト DOM の子は <slot> 経由でその位置に描かれる
         visit(Array.from(node.shadowRoot.childNodes), `${childPath}>#shadow-root`, node);
@@ -378,6 +412,33 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
       }
     }
   };
+  // ボタンとして描かれる <input>（submit / button / reset）は value の文字をテキストノードを持たずに描く。
+  // 数えないと <input type=submit value="検索"> を <button>検索</button> へ置き換えた組で、見た目が同じでも
+  // 件数の差（text[0] の absent / present）が出る。Range で測れないので、同じ書体を canvas の measureText に
+  // 当てて行の断片を 1 つ作る（実測: 同じ書体の <button> の Range と幅・高さが一致した）。
+  const isButtonInput = (node) =>
+    node.nodeType === 1 &&
+    node.tagName === "INPUT" &&
+    ["submit", "button", "reset"].includes(String(node.type).toLowerCase());
+  let canvas = null;
+  const collectInputValue = (node, path) => {
+    const raw = String(node.value || "");
+    if (collapse(raw) === "") return;
+    const box = node.getBoundingClientRect();
+    if (!(box.width > 0 && box.height > 0)) return;
+    const style = getComputedStyle(node);
+    canvas = canvas || (el.ownerDocument || document).createElement("canvas").getContext("2d");
+    canvas.font = ["font-style", "font-weight", "font-size", "font-family"]
+      .map((prop) => style.getPropertyValue(prop))
+      .join(" ");
+    const m = canvas.measureText(raw);
+    const height = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    const fragment = { x: box.x, y: box.y, width: m.width, height };
+    record(node, path, raw, { x: box.x, y: box.y, width: box.width, height: box.height }, [
+      fragment,
+    ]);
+  };
+  if (isButtonInput(el)) collectInputValue(el, "");
   visit(
     el.shadowRoot ? Array.from(el.shadowRoot.childNodes) : Array.from(el.childNodes || []),
     el.shadowRoot ? "#shadow-root" : "",
