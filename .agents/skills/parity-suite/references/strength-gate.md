@@ -35,6 +35,7 @@
 | 構造（aria） | role・構造の欠落 | DOM 摂動（`page.evaluate`） | 手書き assertion ＋ aria 比較（摂動後に aria を再取得し**ベースライン相手に**構造比較） |
 | 静的ラベル・placeholder・role | 文言・placeholder の改変 | **DOM 摂動**（`page.evaluate`。上流で届かない静的マークアップ用の第二経路） | 手書き assertion |
 | 要素スタイル（色・余白・フォント・罫線） | 色・余白等の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag` / CSS 応答摂動）して撮り直す | 差分器を**ベースライン相手に**回す（新側不要） |
+| 文字の持ち主のスタイル（名前を付けた要素の子孫が文字を持つ） | 文字を持つ子孫だけの `font-family` / `font-size` の改変 | **スタイル注入**（`addStyleTag` で文字を持つ子孫の要素にだけ当てる。名前を付けた要素自身には当てない） | 特性照合の `kind: "text"`（**要素自身の計算値は変わらない**ので、ここが赤くならなければ `text_owners` が採れていないか照合されていない。Issue #459） |
 | 操作時の手応え（静止画に写らないスタイル） | `cursor` / `user-select` / `pointer-events` の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag`）して採り直す | **特性照合が必須経路**（ここが赤くならなければ固定プロパティ集合から漏れている）。画素は写らないのが原則だが、`pointer-events` の改変が hover 対象を変えて `:hover` のスタイル差として間接的に写ることはある——**画素が緑であることを合格条件にしない** |
 | ドキュメントレベル要素 | `title` / favicon / `meta` / `html[lang]` の改変 | DOM 摂動（`page.evaluate` で `document.title` や `link[rel~="icon"]` の `href` を書き換え） | 手書き assertion（**画素・特性照合・aria のどれにも写らない**ため、この経路しか無い） |
 | 頁の高さの決め方（最小幅を持つ頁） | `html`・`body`・器の `height: 100%` を `min-height: 100vh` に置き換える | **スタイル注入**（`overflow/` のスペックを `PARITY_OVERFLOW_FAULT_CSS` 付きで `current` に回す。例: `html, body { height: auto !important; min-height: 100vh !important; }`） | `overflow/` の手書き assertion（**スクロールバーを隠した画素・特性照合・aria には写らない**。最小幅を持つ頁が無い機能では対象外として `strength.md` に書く） |

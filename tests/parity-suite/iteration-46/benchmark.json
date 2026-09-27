@@ -1,0 +1,180 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-27T10:20:08Z",
+    "evals_run": [38],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 32.517,
+        "tokens": 150535,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "「特性照合が緑だから computed style は揃っていると言えるのは、論理名が画面に描かれている要素を指している場合だけ」と述べている"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のための写しを別の木に作った合図だと説明している",
+          "passed": true,
+          "evidence": "採取物の rect を見て y が大きな負の値など文書の外なら写しと説明し、baseline.md の列見出し 9 件の実測を引用している"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": true,
+          "evidence": "getByRole で付けた論理名が画面外の写しに当たりうるとし、論理名を描画されている要素に付け替えると述べている"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": true,
+          "evidence": "採取ツールが文書の外に出た写しで自動で止めることに触れ、エラーを「要素が無い」扱いにせずロケータを直すと述べている"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": true,
+          "evidence": "手順 3 で child_inline_styles（1 段下の子の inline style）を見て、子の装飾で画素だけ差が出る実測に触れている"
+        },
+        {
+          "text": "文字を描いているのが論理名を付けた要素の子孫だと、要素自身の font 系の計算値は文字の見た目を表さないことに触れ、採取物の text_owners（文字の持ち主ごとの書体・大きさ・寸法）と特性差分の kind: \"text\" を確かめると述べている",
+          "passed": true,
+          "evidence": "手順 3 で text_owners を「実際に文字を描いている子孫要素ごとの書体・大きさ・文字幅」と説明して確かめるよう述べ、強度ゲートで文字を持つ子孫だけに注入して kind: \"text\" で赤になるかを見ると述べている（要素自身の計算値が文字を表さないことは子孫の文字の持ち主を見る理由として述べている）"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残った写しからの採取物を使い続けない）",
+          "passed": true,
+          "evidence": "写しから採った特性・スクリーンショット・ノイズ基準値の採り直しを述べている"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "「書体を疑うのは 1〜3 で差が見つからなかったとき」とし、fontTools の前に確かめる手順を置いている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": 35.714,
+        "tokens": 37358,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "「特性照合が緑なら computed style は揃っている」は言い過ぎで、緑は決めたプロパティが一致しただけと述べている"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のための写しを別の木に作った合図だと説明している",
+          "passed": false,
+          "evidence": "getBoundingClientRect を小数点以下まで比べるとは述べるが、画面の外の座標（y = -32000 等）や支援技術のための写しに触れていない"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": false,
+          "evidence": "論理名の解決先が描かれている要素かという観点が無い"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": false,
+          "evidence": "採取ツールが文書の外の要素で失敗することにも、欠落へ変換しない規約にも触れていない"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": false,
+          "evidence": "inline style には列幅の決め方として触れるだけで、子の inline style の装飾を読む手順が無い"
+        },
+        {
+          "text": "文字を描いているのが論理名を付けた要素の子孫だと、要素自身の font 系の計算値は文字の見た目を表さないことに触れ、採取物の text_owners（文字の持ち主ごとの書体・大きさ・寸法）と特性差分の kind: \"text\" を確かめると述べている",
+          "passed": false,
+          "evidence": "見出しの文字が内側の span にあることが多いと子孫の文字に触れているが、text_owners も kind: \"text\" も挙げず、代わりに全プロパティを自前で採り直す手順を述べている"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残った写しからの採取物を使い続けない）",
+          "passed": false,
+          "evidence": "マッピングを直した後の採り直しに触れていない（直し方は照合対象の追加）"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "「head を読んで意味があるのは別のフォントファイルが使われていると確定してから」とし、差分の場所・照合範囲・実フェイスを先に確かめる順序にしている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 32.517,
+        "stddev": 0,
+        "min": 32.517,
+        "max": 32.517
+      },
+      "tokens": {
+        "mean": 150535,
+        "stddev": 0,
+        "min": 150535,
+        "max": 150535
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 35.714,
+        "stddev": 0,
+        "min": 35.714,
+        "max": 35.714
+      },
+      "tokens": {
+        "mean": 37358,
+        "stddev": 0,
+        "min": 37358,
+        "max": 37358
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "-3.2",
+      "tokens": "+113177"
+    }
+  },
+  "notes": [
+    "変更確認スコープ（eval 38 のみ、with_skill / without_skill 各 1 run）。Delta の数値は語らない",
+    "2 run とも isolation は sandboxed、without_skill の contamination は clean"
+  ]
+}

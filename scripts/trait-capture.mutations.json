@@ -1,0 +1,233 @@
+{
+  "$comment": [
+    "trait-capture.test.js のうち、文字の持ち主（text_owners）の採取（Issue #459）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/trait-capture.test.js",
+  "mutations": [
+    {
+      "id": "direct-children-only",
+      "why": "要素の直下の文字だけを見て、子孫へ降りない（要素自身の値しか採らない修正前の形に近い）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "        visit(Array.from(node.childNodes), childPath, node);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "入れ子の子孫が持つ文字の書体・大きさ・矩形を、持ち主の行として採る",
+        "空白だけの文字 は持ち主として数えない",
+        "矩形の幅が 0 の文字（display: none の中） は持ち主として数えない",
+        "矩形の高さが 0 の文字 は持ち主として数えない",
+        "visibility が visible でない要素の文字は数えない",
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）",
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
+        "省略記号で切られた長い文字（見えている部分が残る）",
+        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
+      ]
+    },
+    {
+      "id": "hidden-counted",
+      "why": "visibility: hidden の要素の文字も数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    if (style.getPropertyValue(\"visibility\") !== \"visible\") return;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["visibility が visible でない要素の文字は数えない"]
+    },
+    {
+      "id": "unresolved-passes",
+      "why": "文字の持ち主で解決しないプロパティ名を空文字のまま通す",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (value === \"\") unknown.push(prop);\n      picked[prop] = value;\n",
+      "replace": "      picked[prop] = value;\n",
+      "occurrences": 1,
+      "expect_failing": ["文字の持ち主で解決しないプロパティ名は空文字で通さず論理名付きで落ちる"]
+    },
+    {
+      "id": "slot-ignored",
+      "why": "<slot> に割り当てられたノードを辿らない（ライト DOM の文字を落とす）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      } else if (typeof node.assignedNodes === \"function\" && node.assignedNodes().length > 0) {",
+      "replace": "      } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る",
+        "slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"
+      ]
+    },
+    {
+      "id": "no-merge",
+      "why": "同じ持ち主の 2 つ目以降の文字を別の行にする",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const known = owners.get(owner);\n",
+      "replace": "    const known = undefined;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする",
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+      ]
+    },
+    {
+      "id": "bbox-as-advance",
+      "why": "比較に使う幅を行の断片ではなく外接矩形の幅から出す（折り返しで広がる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      full: fragments.reduce((sum, f) => sum + f.width, 0),\n",
+      "replace": "      full: r.width,\n",
+      "occurrences": 1,
+      "expect_failing": ["折り返した文字の寸法は行の断片から出す（外接矩形の幅を使わない）"]
+    },
+    {
+      "id": "dom-parent-as-owner",
+      "why": "文字の持ち主を平坦木の親ではなく DOM の親にする（slot に割り当てた文字がホストの書体で記録される）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    record(flatParent, path, raw, r, fragments, segment);\n",
+      "replace": "    record(node.parentElement || (node.parentNode && node.parentNode.host) || null, path, raw, r, fragments, segment);\n",
+      "occurrences": 1,
+      "expect_failing": ["slot に割り当てられた文字の持ち主は、DOM の親ではなく slot になる"]
+    },
+    {
+      "id": "trim-per-node",
+      "why": "テキストノードごとに trim して空白で繋ぐ（分割されたノードで \"3 件\" になる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      rawText.set(known, rawText.get(known) + raw);\n      segments.get(known).push(segment);\n",
+      "replace": "      rawText.set(known, rawText.get(known) + \" \" + raw.trim());\n      segments.get(known).push(segment);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる"
+      ]
+    },
+    {
+      "id": "lines-as-fragments",
+      "why": "行の数を縦の帯ではなく断片の数で数える（テキストノードが分かれると 1 行が 2 行になる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (f.top >= rowTop + (f.bottom - f.top) / 2) {\n",
+      "replace": "      if (true) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
+        "同じ持ち主の文字は 1 行にまとめ、寸法は断片の合計、矩形はそれらを覆う範囲にする"
+      ]
+    },
+    {
+      "id": "lines-by-overlap",
+      "why": "行の帯を縦の重なりで切る（line-height を詰めると上下の行の断片が重なり、折り返しを 1 行と数える）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (f.top >= rowTop + (f.bottom - f.top) / 2) {\n        lines += 1;\n        rowTop = f.top;\n",
+      "replace": "      if (f.top >= rowTop) {\n        lines += 1;\n        rowTop = f.bottom;\n",
+      "occurrences": 1,
+      "expect_failing": ["line-height を詰めて行の断片が縦に重なっても、折り返した行を数える"]
+    },
+    {
+      "id": "clip-ignored",
+      "why": "祖先の切り抜きを見ず、視覚的に隠した文字（sr-only）も数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    if (clippedAway(owner, r)) return;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "1px の箱に overflow: hidden で閉じ込めた文字（sr-only）",
+        "clip: rect(0 0 0 0) の文字"
+      ]
+    },
+    {
+      "id": "clip-threshold-empty-only",
+      "why": "切り抜き後の面積が 0 のときだけ除外する（1×1 に閉じ込めた sr-only が残る）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    return right - left < 2 || bottom - top < 2;\n",
+      "replace": "    return right - left <= 0 || bottom - top <= 0;\n",
+      "occurrences": 1,
+      "expect_failing": ["1px の箱に overflow: hidden で閉じ込めた文字（sr-only）"]
+    },
+    {
+      "id": "input-ignored",
+      "why": "ボタンとして描く <input> の value を数えない",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      if (isButtonInput(node)) collectInputValue(node, childPath);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "ボタンとして描く <input> の value を文字の持ち主として採る",
+        "value 属性の無い submit は文字列を空にした行として数え、type=button は数えない",
+        "ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
+      ]
+    },
+    {
+      "id": "input-any-type",
+      "why": "文字入力欄の value までボタンの文字として数える",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    [\"submit\", \"button\", \"reset\"].includes(String(node.type).toLowerCase());\n",
+      "replace": "    true;\n",
+      "occurrences": 1,
+      "expect_failing": ["ボタンとして描く <input> の value を文字の持ち主として採る"]
+    },
+    {
+      "id": "edges-kept",
+      "why": "持ち主の端の空白の幅を差し引かない（境目の空白の付き方で幅が変わる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "        total -= seg[side];\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+      ]
+    },
+    {
+      "id": "blank-node-unmeasured",
+      "why": "空白だけのノードの幅を数えない（分割されたノードが 1 ノードより狭くなる）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "        segments.get(known).push({ full, lead: full, trail: full, blank: true });\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+      ]
+    },
+    {
+      "id": "input-no-transform",
+      "why": "input の文字に text-transform と letter-spacing を当てずに測る",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const m = canvas.measureText(shown);\n",
+      "replace": "    const m = canvas.measureText(raw);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る"
+      ]
+    },
+    {
+      "id": "default-label-ignored",
+      "why": "value 属性の無い submit を数えない（<button>送信</button> への置き換えで件数差が出る）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const defaultLabel = type !== \"button\" && !node.hasAttribute(\"value\");\n",
+      "replace": "    const defaultLabel = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "value 属性の無い submit は文字列を空にした行として数え、type=button は数えない"
+      ]
+    },
+    {
+      "id": "js-whitespace",
+      "why": "JavaScript の \\\\s で空白を畳む（全角スペースの字下げや NBSP を空白として消す）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "  const collapse = (value) => value.replace(/[ \\t\\n\\r\\f]+/g, \" \").replace(/^ | $/g, \"\");\n",
+      "replace": "  const collapse = (value) => value.replace(/\\s+/g, \" \").trim();\n",
+      "occurrences": 1,
+      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+    },
+    {
+      "id": "js-trim-edges",
+      "why": "端の空白の幅を JavaScript の trim で測る（全角スペースの字下げの幅を外す）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const leadLength = /^[ \\t\\n\\r\\f]*/.exec(raw)[0].length;\n",
+      "replace": "    const leadLength = raw.length - raw.trimStart().length;\n",
+      "occurrences": 1,
+      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+    }
+  ]
+}

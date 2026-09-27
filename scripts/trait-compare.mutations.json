@@ -1,0 +1,82 @@
+{
+  "$comment": [
+    "trait-compare.test.js のうち、文字の持ち主（text_owners）の照合（Issue #459）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/trait-compare.test.js",
+  "mutations": [
+    {
+      "id": "no-text-compare",
+      "why": "両側が text_owners を持っても突き合わせない（要素自身の計算値だけを見る修正前の形）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "      diffTextOwners(base.name, base.text_owners, cap.text_owners, tol, out);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素の計算値が一致していても、文字を描く子孫の書体・大きさ・幅の差を出す",
+        "文字の幅の合計は alignTolerance で比べる（許容誤差を超える）",
+        "文字の高さの差も出す",
+        "文字列が違う組は寸法を比べず、書体の差だけを出す",
+        "文字の持ち主の件数が違えば、はみ出した行を出す（新側に足りない）",
+        "文字の持ち主の件数が違えば、はみ出した行を出す（新側に余分）",
+        "折り返しの行数が違えば行数の差だけを出し、幅の合計は比べない"
+      ]
+    },
+    {
+      "id": "one-sided-skip",
+      "why": "片側だけが text_owners を持つ（版違い）ときに黙って比較を省く",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    } else if (baseHas !== capHas) {",
+      "replace": "    } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（ベースラインだけが持つ）",
+        "text_owners を片側だけが持つ（採取ツールの版違い）なら missing で出す（採取だけが持つ）"
+      ]
+    },
+    {
+      "id": "rect-despite-text-diff",
+      "why": "文字列が違う組でも寸法を比べる（別の文字の幅を差分に出す）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    if (expected.text !== actual.text) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["文字列が違う組は寸法を比べず、書体の差だけを出す"]
+    },
+    {
+      "id": "no-tolerance",
+      "why": "文字の幅の合計・高さを許容誤差なしで比べる（高さ 14 と 15 の 1px の揺れまで差分に出す）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "Math.abs(e - a) > tol",
+      "replace": "e !== a",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素の計算値が一致していても、文字を描く子孫の書体・大きさ・幅の差を出す",
+        "文字の幅の合計は alignTolerance で比べる（許容誤差ちょうど）"
+      ]
+    },
+    {
+      "id": "compare-by-path",
+      "why": "入れ子の道筋（path）の違いを差分として出す",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    if (expected.text !== actual.text) continue;\n",
+      "replace": "    if (expected.path !== actual.path) out.push({ name, kind: \"text\", prop: `${prefix}/path` });\n    if (expected.text !== actual.text) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "要素の計算値が一致していても、文字を描く子孫の書体・大きさ・幅の差を出す",
+        "入れ子の深さ（path）と外接矩形だけが違い、書体・寸法が同じなら差分にしない"
+      ]
+    },
+    {
+      "id": "lines-ignored",
+      "why": "折り返しの行数の違いを見ずに幅の合計を比べる",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    if (expected.lines !== actual.lines) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["折り返しの行数が違えば行数の差だけを出し、幅の合計は比べない"]
+    }
+  ]
+}

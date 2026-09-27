@@ -58,5 +58,28 @@
     "width": 102.015625,
     "height": 28
   },
-  "child_inline_styles": []
+  "child_inline_styles": [],
+  "text_owners": [
+    {
+      "path": "",
+      "tag": "button",
+      "text": "利用者を作成",
+      "style": {
+        "font-family": "\"Noto Sans JP\", sans-serif",
+        "font-size": "13px",
+        "font-style": "normal",
+        "font-weight": "400",
+        "line-height": "20px"
+      },
+      "advance": 78.015625,
+      "glyph_height": 19,
+      "lines": 1,
+      "rect": {
+        "x": 28,
+        "y": 20,
+        "width": 78.015625,
+        "height": 19
+      }
+    }
+  ]
 }

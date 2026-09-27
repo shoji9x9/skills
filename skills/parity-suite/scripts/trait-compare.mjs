@@ -11,6 +11,15 @@
 // 相対幾何の原則: 絶対座標は比較しない。要素対ごとの関係（左右・上下・端揃え）を両側で導出し、
 // 関係が変わった対だけを差分にする。位置がページ全体でずれても、要素同士の関係が保たれていれば差分にしない。
 //
+// 文字の持ち主（text_owners。trait-capture.mjs VERSION 5 以降）: 名前を付けた要素の計算値は、文字を描いている
+// 子孫の書体・大きさを持たない（Issue #459）。両側の text_owners を**並び順（i 番目どうし）**で突き合わせ、
+// 書体・大きさ・行の高さの計算値と、文字の寸法（行の数 lines、幅の合計 advance と高さ glyph_height は
+// alignTolerance 付き）の差を kind "text" で出す。外接矩形（rect）は折り返しや間に挟まる子要素で膨らむので比べない。
+// DOM の道筋（path）では突き合わせない——入れ子の深さが違う現・新（span に文字を持つ現行と、要素自身が
+// 文字を持つ新側）の比較こそが目的だから。文字列が違う組は寸法を比べない（別の文字の幅は比べられない）が、
+// 書体の差は出す。件数の違いは、はみ出した側の行を 1 件ずつ出す。
+// 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、黙って比較を省かない。
+//
 // 決定論的: 乱数・現在時刻に依存しない。Playwright に依存しない（純粋な JS）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
@@ -22,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * metadata.json の differ.trait_compare に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /**
  * @typedef {object} Trait
@@ -31,15 +40,29 @@ export const VERSION = "1";
  * @property {Record<string,string> | null} [before]
  * @property {Record<string,string> | null} [after]
  * @property {{ x:number, y:number, width:number, height:number }} rect
+ * @property {TextOwner[]} [text_owners]
+ */
+
+/**
+ * @typedef {object} TextOwner
+ * @property {string} [path]
+ * @property {string} [tag]
+ * @property {string} text
+ * @property {Record<string,string>} style
+ * @property {number} [advance]
+ * @property {number} [glyph_height]
+ * @property {number} [lines]
+ * @property {{ x:number, y:number, width:number, height:number }} [rect]
  */
 
 /**
  * @typedef {object} Diff
  * @property {string} name  - 要素の論理名。幾何差分は "A | B" の対で表す。
- * @property {'property'|'pseudo'|'geometry'|'missing'|'duplicate'} kind
- * @property {string} [prop]
+ * @property {'property'|'pseudo'|'geometry'|'missing'|'duplicate'|'text'} kind
+ * @property {string} [prop]  - kind "text" は "text[<i>]/<項目>"（i は text_owners の並び順）
  * @property {string} [expected]
  * @property {string} [actual]
+ * @property {string} [text]  - kind "text" のとき、ベースライン側のその行の文字（どの文字の差かを読むための診断材料）
  */
 
 /**
@@ -128,6 +151,66 @@ function diffPseudo(name, pseudo, expected, actual, out) {
 }
 
 /**
+ * 文字の持ち主（text_owners）を i 番目どうしで突き合わせて kind "text" の差分を積む（冒頭の説明を参照）。
+ * @param {string} name
+ * @param {TextOwner[]} expectedOwners
+ * @param {TextOwner[]} actualOwners
+ * @param {number} tol
+ * @param {Diff[]} out
+ */
+function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
+  const count = Math.max(expectedOwners.length, actualOwners.length);
+  for (let i = 0; i < count; i += 1) {
+    const expected = expectedOwners[i];
+    const actual = actualOwners[i];
+    const prefix = `text[${i}]`;
+    if (!expected || !actual) {
+      out.push({
+        name,
+        kind: "text",
+        prop: prefix,
+        expected: expected ? "present" : "absent",
+        actual: actual ? "present" : "absent",
+        text: (expected || actual).text,
+      });
+      continue;
+    }
+    const styleDiffs = [];
+    diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+    for (const d of styleDiffs) {
+      out.push({ ...d, kind: "text", prop: `${prefix}/${d.prop}`, text: expected.text });
+    }
+    if (expected.text !== actual.text) continue;
+    // 折り返しの行数が違えば幅の合計・高さは比べても意味が無いので、行数の差だけを出す
+    if (expected.lines !== actual.lines) {
+      out.push({
+        name,
+        kind: "text",
+        prop: `${prefix}/lines`,
+        expected: String(expected.lines),
+        actual: String(actual.lines),
+        text: expected.text,
+      });
+      continue;
+    }
+    for (const key of ["advance", "glyph_height"]) {
+      const e = expected[key];
+      const a = actual[key];
+      if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
+        out.push({
+          name,
+          kind: "text",
+          prop: `${prefix}/${key}`,
+          expected: String(e),
+          actual: String(a),
+          text: expected.text,
+        });
+      }
+    }
+  }
+}
+
+/**
  * baseline と capture を比較して差分配列を返す。決定論的。
  * @param {Trait[]} baselineEntries
  * @param {Trait[]} captureEntries
@@ -166,6 +249,19 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
     diffStyleMap(base.name, "property", "", base.computed || {}, cap.computed || {}, out);
     diffPseudo(base.name, "::before", base.before, cap.before, out);
     diffPseudo(base.name, "::after", base.after, cap.after, out);
+    const baseHas = Array.isArray(base.text_owners);
+    const capHas = Array.isArray(cap.text_owners);
+    if (baseHas && capHas) {
+      diffTextOwners(base.name, base.text_owners, cap.text_owners, tol, out);
+    } else if (baseHas !== capHas) {
+      out.push({
+        name: base.name,
+        kind: "missing",
+        prop: "text_owners",
+        expected: baseHas ? "present" : "absent",
+        actual: capHas ? "present" : "absent",
+      });
+    }
   }
 
   // 2. capture 側にしか無い要素（余分）も欠落として拾う。
