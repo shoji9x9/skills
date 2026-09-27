@@ -9,8 +9,13 @@
 //      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
 //      操作を終えた後に残るもの（aftermath）も数える。残る見た目は撮る状態か assertion に割り当て、
 //      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる（Issue #471）
+//      操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）も数える。部品の内側の判定は画面の処理にも
+//      部品へ渡す引数にも現れず、境界の外側でしか姿を現さないので、境界の両側を現行で測らせる（Issue #483）
+//      表への書き込み（side_effect_writes）も数える。移行元ソースを書き込みのパターンで走査して全件と突き合わせ、
+//      1 か所ずつ値・時機・回数と確かめ方を記録させる（Issue #466。利用者に見える反応が無いので反応の欄には現れない）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
-//      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）
+//      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）。
+//      side_effect_writes.declared: true なら、表に書いた書き込みのパターンで同じく走査して sites と突き合わせる
 //   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
 //   --recorded: ソースを走査せず、表の検査に加えて conformance.ok と表の指紋の一致を要求する
 //   （parity-diff の実行環境に移行元ソースがあるとは限らないため。表を後から書き換えたら指紋で落ちる）
@@ -33,7 +38,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -49,6 +54,26 @@ const DISMISSAL_MODES = ["auto", "manual", "persistent", "not-applicable"];
 
 /** layout の矩形 1 つが持つ数値の軸。 */
 const RECT_AXES = ["x", "y", "width", "height"];
+
+/** 送る前の判定の種類（Issue #483）。 */
+const PRE_SEND_KINDS = [
+  "count-limit",
+  "length-limit",
+  "size-limit",
+  "required",
+  "format",
+  "range",
+  "other",
+];
+
+/** 境界のどちら側を測ったか。inside ＝ 判定を通る側（上限ちょうど・形式の内側）、outside ＝ 止まる側（1 つ超え・形式の外側）。 */
+const BOUNDARY_SIDES = ["inside", "outside"];
+
+/** 表への書き込みが通る経路（Issue #466）。例外処理の中の書き込みは通常の操作では起きないので経路を分けて数える。 */
+const WRITE_PATHS = ["normal", "exception"];
+
+/** 表への書き込みの確かめ方。source-only は移行元で起こせない書き込み（例外時等）を読解だけで記録したもの。 */
+const WRITE_VERIFICATIONS = ["assertion", "source-only"];
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -716,13 +741,520 @@ function aftermathReturnsProblems(ret, screenStates) {
 }
 
 /**
+ * 移行元ソースの 1 箇所（ファイルとシンボル）の参照か。
+ * @param {unknown} ref
+ * @returns {ref is { file: string, symbol: string }}
+ */
+function isSourceRef(ref) {
+  return isPlainObject(ref) && filled(ref.file) && filled(ref.symbol);
+}
+
+/**
+ * シンボルが本文に語として現れるか（前後が識別子の文字でない）。
+ * @param {string} text
+ * @param {string} symbol
+ * @returns {boolean}
+ */
+function symbolIn(text, symbol) {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\w$])${escaped}([^\\w$]|$)`).test(text);
+}
+
+/**
+ * 操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）の欠けを返す。Issue #483
+ *
+ * 件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプトや送信の関数の中に置かれることがあり、
+ * 画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、スイートも差分器も両側で緑のまま新側に判定が無いことが分からない。
+ * そこで、どこまで追ったか（traced_to）を残させ、判定ごとに境界の両側（通る側と止まる側）を現行で測った記録と assertion を要求する。
+ * 判定の順序（確認・記録・送信のどれより前か）も order に残させる——順序が違うと、止めたときに残る記録や出る確認の回数が変わる。
+ * @param {unknown} ps
+ * @returns {{ problems: { problem: string, unmeasured: boolean }[], refs: { file: string, symbol: string, label: string }[] }}
+ */
+function preSendProblems(ps) {
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = [];
+  /** @type {{ file: string, symbol: string, label: string }[]} */
+  const refs = [];
+  if (!isPlainObject(ps)) {
+    out.push({
+      problem:
+        "pre_send が無い（操作が最終的に呼ぶ送信・実行の関数まで追い、送る前の判定〈上限・境界値・検証〉を列挙していない。無いなら found: false を確かめ方付きで書く）",
+      unmeasured: true,
+    });
+    return { problems: out, refs };
+  }
+  if (ps.found === null) {
+    out.push({
+      problem: `pre_send: 未測定${nonEmptyString(ps.reason) ? `（${ps.reason}）` : "（reason が空）"}`,
+      unmeasured: true,
+    });
+    return { problems: out, refs };
+  }
+  if (typeof ps.found !== "boolean") {
+    out.push({ problem: "pre_send.found が true / false / null のどれでもない", unmeasured: true });
+    return { problems: out, refs };
+  }
+  // 到達点。画面の処理で読むのを止めると、部品の内側の判定は読まれない（Issue #483 の実例は送信の関数の中の上限）
+  const traced = ps.traced_to;
+  if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {
+    out.push({
+      problem:
+        "pre_send.traced_to（追った到達点〈送信・実行の直前の関数〉のファイルとシンボル）が空・欠けている（どこまで読んだかが残らない）",
+      unmeasured: true,
+    });
+  } else {
+    for (const t of traced)
+      refs.push({ file: t.file, symbol: t.symbol, label: "pre_send.traced_to" });
+  }
+  if (!filled(ps.trace)) {
+    out.push({
+      problem:
+        "pre_send.trace が空（操作のハンドラから部品の内側を通って到達点までどう辿ったかが残らない）",
+      unmeasured: true,
+    });
+  }
+  const checks = ps.items;
+  if (ps.found === false) {
+    if (!filled(ps.evidence)) {
+      out.push({
+        problem:
+          "pre_send.found: false なのに evidence が空・テンプレートの説明文のまま（到達点まで読んで送る前の判定が無いことを確かめた記録が無い）",
+        unmeasured: true,
+      });
+    }
+    if (Array.isArray(checks) && checks.length > 0) {
+      out.push({
+        problem: "pre_send.found: false なのに items がある（無いと在るが同時に成立する）",
+        unmeasured: false,
+      });
+    }
+    return { problems: out, refs };
+  }
+  if (!Array.isArray(checks) || checks.length === 0) {
+    out.push({
+      problem: "pre_send.found: true なのに items が空（判定を 1 つずつ列挙していない）",
+      unmeasured: true,
+    });
+    return { problems: out, refs };
+  }
+  /** @type {string[]} */
+  const idProblems = [];
+  const ids = collectIds(checks, "pre_send.items", idProblems);
+  for (const problem of idProblems) out.push({ problem, unmeasured: true });
+  for (const item of checks) {
+    if (!isPlainObject(item) || !ids.has(/** @type {string} */ (item.id))) continue;
+    const at = `pre_send.items["${item.id}"]`;
+    if (typeof item.kind !== "string" || !PRE_SEND_KINDS.includes(item.kind)) {
+      out.push({
+        problem: `${at}: kind が語彙（${PRE_SEND_KINDS.join(" / ")}）に無い`,
+        unmeasured: true,
+      });
+    }
+    if (!isSourceRef(item.location)) {
+      out.push({
+        problem: `${at}: location（判定のあるファイルとシンボル）が空・欠けている`,
+        unmeasured: true,
+      });
+    } else {
+      refs.push({
+        file: item.location.file,
+        symbol: item.location.symbol,
+        label: `${at}.location`,
+      });
+    }
+    if (!filled(item.condition) || !filled(item.on_block)) {
+      out.push({
+        problem: `${at}: condition（止める条件）/ on_block（止めたときに起きること）が空`,
+        unmeasured: true,
+      });
+    }
+    // 判定の順序。確認・記録・送信と並べて、この判定がどこに入るかを残す（自分だけの 1 要素では前後を語れない）
+    const order = item.order;
+    if (
+      !Array.isArray(order) ||
+      order.length < 2 ||
+      !order.every(filled) ||
+      new Set(order).size !== order.length ||
+      !order.includes(item.id)
+    ) {
+      out.push({
+        problem: `${at}: order が、この判定の id を 1 回含む 2 つ以上の重複の無い工程の並びでない（確認・記録・送信のどれより前かが残らない）`,
+        unmeasured: true,
+      });
+    }
+    const sides = item.sides;
+    if (!Array.isArray(sides) || sides.length === 0) {
+      out.push({
+        problem: `${at}: sides が空（境界の両側〈通る側 inside と止まる側 outside〉を現行で測っていない）`,
+        unmeasured: true,
+      });
+      continue;
+    }
+    /** @type {Set<string>} */
+    const measuredSides = new Set();
+    for (const [i, side] of sides.entries()) {
+      const sat = `${at}.sides[${i}]`;
+      if (
+        !isPlainObject(side) ||
+        typeof side.side !== "string" ||
+        !BOUNDARY_SIDES.includes(side.side)
+      ) {
+        out.push({
+          problem: `${sat}: side が ${BOUNDARY_SIDES.join(" / ")} でない`,
+          unmeasured: true,
+        });
+        continue;
+      }
+      // どう境界の状態を作ったか。ゴールデンデータの件数が境界に届かないときは、届かないことと代わりの作り方をここに残す
+      if (!filled(side.input) || !filled(side.setup)) {
+        out.push({
+          problem: `${sat}: input（与えた値）/ setup（境界の状態をどう作ったか。ゴールデンデータが届かないなら代わりの作り方）が空`,
+          unmeasured: true,
+        });
+        continue;
+      }
+      if (filled(side.observed) && filledStrings(side.covered_by)) {
+        measuredSides.add(side.side);
+        continue;
+      }
+      out.push({
+        problem: filled(side.reason)
+          ? `${sat}: 未測定（${side.reason}）`
+          : `${sat}: observed（現行で測った結果）/ covered_by（assertion）が空`,
+        unmeasured: true,
+      });
+    }
+    const lacking = BOUNDARY_SIDES.filter((x) => !measuredSides.has(x));
+    if (lacking.length > 0 && out.every((o) => !o.problem.startsWith(`${at}.sides`))) {
+      out.push({
+        problem: `${at}: 境界の ${lacking.join(" / ")} 側を測っていない（ふだんの操作は通る側しか通らないので、止まる側を測らないと新側に判定が無くても緑になる）`,
+        unmeasured: true,
+      });
+    }
+  }
+  return { problems: out, refs };
+}
+
+/**
+ * 走査のパターン（id・regex・example）をコンパイルする。example に一致しないパターンは落とす（走査 0 件を「無い」と区別する陽性コントロール）。
+ * @param {unknown[]} patterns
+ * @param {Set<string>} patIds
+ * @param {string} label
+ * @param {string[]} problems
+ * @returns {{ id: string, re: RegExp, pattern: Record<string, unknown> }[]}
+ */
+function compilePatterns(patterns, patIds, label, problems) {
+  /** @type {{ id: string, re: RegExp, pattern: Record<string, unknown> }[]} */
+  const compiled = [];
+  for (const p of patterns) {
+    if (!isPlainObject(p) || !patIds.has(/** @type {string} */ (p.id))) continue;
+    if (!nonEmptyString(p.regex)) {
+      problems.push(`${label}["${p.id}"]: regex が空`);
+      continue;
+    }
+    /** @type {RegExp} */
+    let re;
+    try {
+      // ファイル全体に照合するので、^ / $ が行頭・行末に効くよう複数行モードにする（行ごとに照合していたときの意味を保つ）
+      re = new RegExp(/** @type {string} */ (p.regex), "gm");
+    } catch (e) {
+      throw new UsageError(
+        `${label}["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,
+      );
+    }
+    // 陽性コントロール: 実際の呼び出しの字面に一致しないパターンは、走査 0 件を「呼び出しが無い」と区別できない
+    if (!nonEmptyString(p.example)) {
+      problems.push(`${label}["${p.id}"]: example（一致すべき呼び出しの字面）が空`);
+      continue;
+    }
+    re.lastIndex = 0;
+    if (!re.test(/** @type {string} */ (p.example))) {
+      problems.push(
+        `${label}["${p.id}"]: regex が example に一致しない（検出器が呼び出しを認識できない）`,
+      );
+      continue;
+    }
+    re.lastIndex = 0;
+    compiled.push({ id: /** @type {string} */ (p.id), re, pattern: p });
+  }
+  return compiled;
+}
+
+/**
+ * 走査範囲と走査した版の欠けを返す。走査した版が測定した現行の版と違えば、測定側にだけある呼び出しが走査に現れない。
+ * @param {unknown} src
+ * @param {unknown} targetCommit - metadata.json の target.commit（undefined なら照合しない）
+ * @param {string} label - 例: feedback_calls.source
+ * @returns {string[]}
+ */
+function sourceProblems(src, targetCommit, label) {
+  const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
+  if (!isPlainObject(src) || paths.length === 0 || !paths.every(nonEmptyString)) {
+    return [`${label}.paths が空（走査範囲が無い）`];
+  }
+  if (!nonEmptyString(src.version)) return [`${label}.version が空（どの版を走査したか残らない）`];
+  if (targetCommit === undefined) return [];
+  const measured = nonEmptyString(targetCommit) && targetCommit !== "none" ? targetCommit : null;
+  const unverified = nonEmptyString(src.version_unverified_reason);
+  if (measured === null || src.version === "none") {
+    return unverified
+      ? []
+      : [
+          `走査した版と metadata.json の target.commit を照合できない（どちらかが none）のに ${label}.version_unverified_reason が空`,
+        ];
+  }
+  if (src.version !== measured) {
+    return [
+      `${label}.version（${src.version}）が metadata.json の target.commit（${measured}）と違う（測定した版と別の版を走査している）`,
+    ];
+  }
+  if (unverified) {
+    return [
+      `${label}: 走査した版が target.commit と一致しているのに version_unverified_reason が埋まっている`,
+    ];
+  }
+  return [];
+}
+
+/**
+ * 表への書き込み（side_effect_writes）を検査する。Issue #466
+ *
+ * 監査・利用ログのような表への書き込みは利用者に見える反応を出さないので、反応の欄では「反応が無い」に落ち、
+ * 差分器の 3 経路（画素・特性・aria）も DB を見ない。書き込みがまるごと無い新側でもスイートと差分検出が緑になる。
+ * 書き込みのパターンで移行元ソースを走査して全件（例外処理の中を含む）と突き合わせ、1 か所ずつ値・時機・回数と確かめ方を残させる。
+ * @param {unknown} sew
+ * @param {{ opIds: Set<string>, root: string, recorded: boolean, targetCommit: unknown, problems: string[] }} ctx
+ * @returns {{ declared: boolean | null, checked: boolean, found: number | null, recorded: number | null, files: number | null }}
+ */
+function checkSideEffectWrites(sew, ctx) {
+  const { opIds, root, recorded, targetCommit, problems } = ctx;
+  const summary = { declared: null, checked: false, found: null, recorded: null, files: null };
+  if (!isPlainObject(sew) || typeof sew.declared !== "boolean") {
+    problems.push(
+      "side_effect_writes.declared が真偽値でない（表への書き込み〈監査・利用ログ等〉を移行元ソースから列挙したかを書く。書き込みを持たない機能は declared: false と理由。キーごと省略しない）",
+    );
+    return summary;
+  }
+  summary.declared = sew.declared;
+  if (sew.declared === false) {
+    if (!filled(sew.reason)) problems.push("side_effect_writes.declared: false なのに reason が空");
+    for (const key of ["tables", "patterns", "sites"]) {
+      const value = sew[key];
+      if (value !== undefined && !(Array.isArray(value) && value.length === 0))
+        problems.push(
+          `side_effect_writes.declared: false なのに ${key} がある（書き込みが無いと在るが同時に成立する。記録したなら declared: true で走査させる）`,
+        );
+    }
+    return summary;
+  }
+  const tables = sew.tables;
+  /** @type {Set<string>} */
+  let tableSet = new Set();
+  if (
+    !Array.isArray(tables) ||
+    tables.length === 0 ||
+    !tables.every(filled) ||
+    new Set(tables).size !== tables.length
+  ) {
+    problems.push(
+      "side_effect_writes.tables が重複の無い空でない文字列の配列でない（features.md の副作用出力にある書き込み先の表を列挙する）",
+    );
+  } else {
+    tableSet = new Set(/** @type {string[]} */ (tables));
+  }
+  const patterns = Array.isArray(sew.patterns) ? sew.patterns : [];
+  if (patterns.length === 0)
+    problems.push("side_effect_writes.patterns が空（書き込みの呼び出しを探すパターンが無い）");
+  const patIds = collectIds(patterns, "side_effect_writes.patterns", problems);
+  const compiled = compilePatterns(patterns, patIds, "side_effect_writes.patterns", problems);
+  /** @type {Map<string, string>} パターン id → 書き込み先の表 */
+  const tableOfPattern = new Map();
+  for (const c of compiled) {
+    const t = c.pattern.table;
+    if (!filled(t) || !tableSet.has(/** @type {string} */ (t))) {
+      problems.push(
+        `side_effect_writes.patterns["${c.id}"]: table "${String(t)}" が side_effect_writes.tables に無い`,
+      );
+      continue;
+    }
+    tableOfPattern.set(c.id, /** @type {string} */ (t));
+  }
+  const patternless = [...tableSet].filter((t) => ![...tableOfPattern.values()].includes(t));
+  if (patternless.length > 0) {
+    problems.push(
+      `side_effect_writes: 表 ${patternless.join(", ")} への書き込みを探すパターンが無い（走査しない表は全件を突き合わせられない）`,
+    );
+  }
+  const sites = Array.isArray(sew.sites) ? sew.sites : null;
+  if (sites === null) throw new UsageError("side_effect_writes.sites が配列でない");
+  const keyOf = (s) => JSON.stringify([s.file, s.line, s.column, s.pattern]);
+  /** @type {Map<string, number>} */
+  const recordedCount = new Map();
+  /** @type {Set<string>} 書き込み箇所を 1 件以上記録した表 */
+  const writtenTables = new Set();
+  for (const s of sites) {
+    if (
+      !isPlainObject(s) ||
+      !nonEmptyString(s.file) ||
+      !Number.isInteger(s.line) ||
+      !Number.isInteger(s.column) ||
+      s.column < 1 ||
+      !nonEmptyString(s.pattern)
+    ) {
+      problems.push("side_effect_writes.sites: file / line / column / pattern が欠けた行がある");
+      continue;
+    }
+    const key = keyOf(s);
+    recordedCount.set(key, (recordedCount.get(key) ?? 0) + 1);
+    const at = `side_effect_writes.sites ${key}`;
+    if (!patIds.has(/** @type {string} */ (s.pattern))) {
+      problems.push(`${at}: pattern "${s.pattern}" が side_effect_writes.patterns に無い`);
+      continue;
+    }
+    if (filled(s.excluded_reason)) continue; // この機能の書き込みではない（別 slug の操作の呼び出し等）
+    const table = tableOfPattern.get(/** @type {string} */ (s.pattern));
+    if (table !== undefined) writtenTables.add(table);
+    // 画面を開いたときの書き込みのように操作に結び付かない書き込みは operation: null（occasion で時機を書く）
+    if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {
+      problems.push(
+        `${at}: operation "${String(s.operation)}" が被覆表の操作に無い（操作に結び付かない書き込みは null にして occasion に時機を書く。この機能の書き込みでなければ excluded_reason）`,
+      );
+    }
+    if (!filled(s.occasion) || !filled(s.values) || !filled(s.count)) {
+      problems.push(
+        `${at}: occasion（いつ書くか。送信・確認・例外との前後）/ values（書く値）/ count（回数）が空`,
+      );
+    }
+    if (typeof s.path !== "string" || !WRITE_PATHS.includes(s.path)) {
+      problems.push(`${at}: path が語彙（${WRITE_PATHS.join(" / ")}）に無い`);
+    }
+    if (s.verification === "assertion") {
+      if (!filledStrings(s.covered_by)) {
+        problems.push(`${at}: verification: assertion なのに covered_by が空`);
+      }
+    } else if (s.verification === "source-only") {
+      // 移行元で起こせない書き込み（例外時等）は読解だけで記録する。新側の書き込み箇所は parity-replace が porting.md に残す
+      if (!filled(s.source_only_reason)) {
+        problems.push(
+          `${at}: verification: source-only なのに source_only_reason（移行元で起こせない理由）が空`,
+        );
+      }
+      // 読解のみと assertion が同時に成立する記録は、どちらで確かめたかを読めない
+      if (Array.isArray(s.covered_by) && s.covered_by.length > 0) {
+        problems.push(
+          `${at}: verification: source-only なのに covered_by がある（assertion で確かめたなら verification: assertion にする）`,
+        );
+      }
+    } else {
+      problems.push(`${at}: verification が語彙（${WRITE_VERIFICATIONS.join(" / ")}）に無い`);
+    }
+  }
+  for (const [key, n] of recordedCount) {
+    if (n > 1) problems.push(`side_effect_writes.sites ${key}: ${n} 回重複している`);
+  }
+  const unwritten = [...tableSet].filter((t) => !writtenTables.has(t));
+  if (unwritten.length > 0) {
+    problems.push(
+      `side_effect_writes: 表 ${unwritten.join(", ")} に書く箇所が 1 件も記録されていない（例外処理の中を含めて移行元ソースから全件列挙する）`,
+    );
+  }
+  summary.recorded = sites.length;
+  const srcProblems = sourceProblems(sew.source, targetCommit, "side_effect_writes.source");
+  problems.push(...srcProblems);
+  const src = sew.source;
+  const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
+  if (!recorded && paths.length > 0 && paths.every(nonEmptyString) && compiled.length > 0) {
+    const scan = scanSources(
+      root,
+      /** @type {string[]} */ (paths),
+      compiled,
+      "side_effect_writes.source.paths",
+    );
+    summary.checked = true;
+    summary.files = scan.files;
+    summary.found = scan.sites.length;
+    if (scan.files === 0)
+      problems.push(
+        "side_effect_writes: 走査対象のテキストファイルが 0 件（走査範囲が誤っている）",
+      );
+    const foundKeys = new Set(scan.sites.map(keyOf));
+    for (const key of foundKeys) {
+      if (!recordedCount.has(key))
+        problems.push(
+          `side_effect_writes.sites: ソースの書き込み ${key} が被覆表に記録されていない`,
+        );
+    }
+    for (const key of recordedCount.keys()) {
+      if (!foundKeys.has(key))
+        problems.push(
+          `side_effect_writes.sites: 記録された ${key} がソースに見つからない（版の食い違い・行ずれ）`,
+        );
+    }
+  }
+  return summary;
+}
+
+/**
+ * 移行元ソースの 1 ファイルを --root から読む。--root からの / 区切りの相対パスそのもの（走査範囲のキーと同じ形）でないもの
+ * （絶対パス・`./` や `..` を含む形・ルートの外）・読めない・バイナリは null。形を揃えないと、declared を true に切り替えたときに
+ * 同じ参照が走査範囲のキーと一致せず合否が逆になり、マシン固有の絶対パスが表の指紋に残る。
+ * feedback_calls.declared: false で走査範囲を持たないときに、送る前の判定の参照を照合するために使う。
+ * @param {string} root
+ * @param {string} file - --root からの相対（/ 区切り）
+ * @returns {string | null}
+ */
+function readSourceFile(root, file) {
+  const absRoot = resolve(root);
+  const abs = resolve(absRoot, file);
+  const rel = relative(absRoot, abs);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) return null;
+  if (rel.split(sep).join("/") !== file) return null;
+  try {
+    const buf = readFileSync(abs);
+    return buf.includes(0) ? null : buf.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 送る前の判定の到達点と判定の場所（ファイルとシンボル）をソースと照合する。
+ * @param {Map<string, { file: string, symbol: string, label: string }[]>} refsByOp
+ * @param {(file: string) => string | null | undefined} read - ファイルの本文（読めなければ null / undefined）
+ * @param {string} unreadable - 読めないときの説明
+ * @returns {{ opId: string, problem: string }[]}
+ */
+function preSendRefProblems(refsByOp, read, unreadable) {
+  /** @type {{ opId: string, problem: string }[]} */
+  const out = [];
+  for (const [opId, refs] of refsByOp) {
+    for (const ref of refs) {
+      const text = read(ref.file);
+      if (text === null || text === undefined) {
+        out.push({
+          opId,
+          problem: `operations["${opId}"]: ${ref.label} のファイル ${ref.file} ${unreadable}`,
+        });
+      } else if (!symbolIn(text, ref.symbol)) {
+        out.push({
+          opId,
+          problem: `operations["${opId}"]: ${ref.label} の ${ref.symbol} が ${ref.file} に見つからない`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * 移行元ソースを走査して呼び出し箇所を列挙する。
  * @param {string} root
  * @param {string[]} paths
  * @param {{ id: string, re: RegExp }[]} patterns
+ * @param {string} [label] - エラーに出す走査範囲の名前
  * @returns {{ files: number, texts: Map<string, string>, sites: { file: string, line: number, column: number, pattern: string }[] }}
  */
-export function scanSources(root, paths, patterns) {
+export function scanSources(root, paths, patterns, label = "feedback_calls.source.paths") {
   const absRoot = resolve(root);
   /** @type {string[]} */
   const files = [];
@@ -738,18 +1270,16 @@ export function scanSources(root, paths, patterns) {
     }
   };
   for (const p of paths) {
-    if (isAbsolute(p)) throw new UsageError(`feedback_calls.source.paths に絶対パスがある: ${p}`);
+    if (isAbsolute(p)) throw new UsageError(`${label} に絶対パスがある: ${p}`);
     const abs = resolve(absRoot, p);
     const rel = relative(absRoot, abs);
     if (rel === ".." || rel.startsWith(`..${sep}`)) {
-      throw new UsageError(`feedback_calls.source.paths がルートの外を指す: ${p}`);
+      throw new UsageError(`${label} がルートの外を指す: ${p}`);
     }
     try {
       visit(abs);
     } catch (e) {
-      throw new UsageError(
-        `feedback_calls.source.paths を読めない: ${p}（${e instanceof Error ? e.message : e}）`,
-      );
+      throw new UsageError(`${label} を読めない: ${p}（${e instanceof Error ? e.message : e}）`);
     }
   }
   const unique = [...new Set(files)].sort();
@@ -929,6 +1459,8 @@ export function checkReactions(table, opts = {}) {
   const captureLabel = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
   const handlersByOp = new Map();
+  /** @type {Map<string, { file: string, symbol: string, label: string }[]>} 操作 id → 送る前の判定の到達点と判定の場所 */
+  const preSendRefsByOp = new Map();
   for (const op of operations) {
     if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
     const label = `operations["${op.id}"]`;
@@ -961,6 +1493,13 @@ export function checkReactions(table, opts = {}) {
       if (ap.unmeasured) fail(ap.problem);
       else problems.push(`${label}: ${ap.problem}`);
     }
+    // 送る前の判定（Issue #483）。欠けは layout と同じく未測定に数える
+    const ps = preSendProblems(op.pre_send);
+    for (const pp of ps.problems) {
+      if (pp.unmeasured) fail(pp.problem);
+      else problems.push(`${label}: ${pp.problem}`);
+    }
+    preSendRefsByOp.set(/** @type {string} */ (op.id), ps.refs);
     // 撮影の単位はページ × 状態名 × ビューポートなので、別のページの同じ状態名は別の 1 枚（baseline.md）。
     // 割る単位は操作が載るページではなく、押した後に撮ったページ（capture_page。遷移する操作は遷移先）。
     // 載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通ってしまう（Codex レビュー）。
@@ -1110,46 +1649,25 @@ export function checkReactions(table, opts = {}) {
   if (fc.declared === false) {
     if (!nonEmptyString(fc.reason))
       problems.push("feedback_calls.declared: false なのに reason が空");
+    // 走査範囲が無くても、送る前の判定の到達点と判定の場所は --root から直接読んで照合する。
+    // 照合しないと、存在しないファイル・関数を書いた pre_send が完全な記録として通る（code-review）。
+    // 移行元ソースを読めない環境では到達点まで追えないので、found: null と理由で未測定にする
+    if (!recorded) {
+      for (const { opId, problem } of preSendRefProblems(
+        preSendRefsByOp,
+        (file) => readSourceFile(root, file),
+        "を --root から読めない（--root からの / 区切りの相対パスで書く。移行元ソースを読めないなら pre_send.found: null と理由を書く）",
+      )) {
+        problems.push(problem);
+        unmeasuredOps.add(opId);
+      }
+    }
   } else {
     const patterns = Array.isArray(fc.patterns) ? fc.patterns : [];
     if (patterns.length === 0)
       problems.push("feedback_calls.patterns が空（突き合わせる呼び出しが無い）");
     const patIds = collectIds(patterns, "feedback_calls.patterns", problems);
-    /** @type {{ id: string, re: RegExp }[]} */
-    const compiled = [];
-    for (const p of patterns) {
-      if (!isPlainObject(p) || !patIds.has(/** @type {string} */ (p.id))) continue;
-      if (!nonEmptyString(p.regex)) {
-        problems.push(`feedback_calls.patterns["${p.id}"]: regex が空`);
-        continue;
-      }
-      /** @type {RegExp} */
-      let re;
-      try {
-        // ファイル全体に照合するので、^ / $ が行頭・行末に効くよう複数行モードにする（行ごとに照合していたときの意味を保つ）
-        re = new RegExp(/** @type {string} */ (p.regex), "gm");
-      } catch (e) {
-        throw new UsageError(
-          `feedback_calls.patterns["${p.id}"]: regex が不正（${e instanceof Error ? e.message : e}）`,
-        );
-      }
-      // 陽性コントロール: 実際の呼び出しの字面に一致しないパターンは、走査 0 件を「呼び出しが無い」と区別できない
-      if (!nonEmptyString(p.example)) {
-        problems.push(
-          `feedback_calls.patterns["${p.id}"]: example（一致すべき呼び出しの字面）が空`,
-        );
-        continue;
-      }
-      re.lastIndex = 0;
-      if (!re.test(/** @type {string} */ (p.example))) {
-        problems.push(
-          `feedback_calls.patterns["${p.id}"]: regex が example に一致しない（検出器が呼び出しを認識できない）`,
-        );
-        continue;
-      }
-      re.lastIndex = 0;
-      compiled.push({ id: /** @type {string} */ (p.id), re });
-    }
+    const compiled = compilePatterns(patterns, patIds, "feedback_calls.patterns", problems);
     const zeroReason = nonEmptyString(fc.zero_calls_reason);
     const recordedSites = Array.isArray(fc.call_sites) ? fc.call_sites : null;
     if (recordedSites === null) throw new UsageError("feedback_calls.call_sites が配列でない");
@@ -1193,31 +1711,7 @@ export function checkReactions(table, opts = {}) {
     }
     const src = fc.source;
     const paths = isPlainObject(src) && Array.isArray(src.paths) ? src.paths : [];
-    if (!isPlainObject(src) || paths.length === 0 || !paths.every(nonEmptyString)) {
-      problems.push("feedback_calls.source.paths が空（走査範囲が無い）");
-    } else if (!nonEmptyString(src.version)) {
-      problems.push("feedback_calls.source.version が空（どの版を走査したか残らない）");
-    } else if (targetCommit !== undefined) {
-      // 走査した版が測定した現行の版と違えば、測定側にだけある呼び出しが走査に現れない
-      const measured =
-        nonEmptyString(targetCommit) && targetCommit !== "none" ? targetCommit : null;
-      const unverified = nonEmptyString(src.version_unverified_reason);
-      if (measured === null || src.version === "none") {
-        if (!unverified) {
-          problems.push(
-            "走査した版と metadata.json の target.commit を照合できない（どちらかが none）のに feedback_calls.source.version_unverified_reason が空",
-          );
-        }
-      } else if (src.version !== measured) {
-        problems.push(
-          `feedback_calls.source.version（${src.version}）が metadata.json の target.commit（${measured}）と違う（測定した版と別の版を走査している）`,
-        );
-      } else if (unverified) {
-        problems.push(
-          "走査した版が target.commit と一致しているのに version_unverified_reason が埋まっている",
-        );
-      }
-    }
+    problems.push(...sourceProblems(src, targetCommit, "feedback_calls.source"));
     callSummary.recorded = recordedSites.length;
     // ハンドラの来歴: 走査範囲がどの操作のハンドラを覆っているかを表に残させる（範囲の書き漏れを操作単位で見えるようにする）
     /** @type {{ opId: string, file: string, symbol: string }[]} */
@@ -1263,13 +1757,22 @@ export function checkReactions(table, opts = {}) {
           unmeasuredOps.add(h.opId);
           continue;
         }
-        const escaped = h.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (!new RegExp(`(^|[^\\w$])${escaped}([^\\w$]|$)`).test(text)) {
+        if (!symbolIn(text, h.symbol)) {
           problems.push(
             `operations["${h.opId}"]: ハンドラ ${h.symbol} が ${h.file} に見つからない`,
           );
           unmeasuredOps.add(h.opId);
         }
+      }
+      // 送る前の判定の到達点と判定の場所も走査範囲に入れさせる。部品の内側まで範囲を広げると、
+      // そこにあるフィードバック呼び出し（上限を超えたときの通知等）も call_sites に現れて反応と突き合わせられる
+      for (const { opId, problem } of preSendRefProblems(
+        preSendRefsByOp,
+        (file) => scan.texts.get(file),
+        "が走査範囲に無い・読めていない（feedback_calls.source.paths に部品の内側を含める）",
+      )) {
+        problems.push(problem);
+        unmeasuredOps.add(opId);
       }
       if (scan.files === 0)
         problems.push("走査対象のテキストファイルが 0 件（走査範囲が誤っている）");
@@ -1286,6 +1789,15 @@ export function checkReactions(table, opts = {}) {
       }
     }
   }
+
+  // --- 表への書き込みとの突き合わせ（Issue #466）---
+  const sideEffects = checkSideEffectWrites(table.side_effect_writes, {
+    opIds,
+    root,
+    recorded,
+    targetCommit,
+    problems,
+  });
 
   // --- 記録済みの照合結果（--recorded）---
   const fingerprint = tableFingerprint(table);
@@ -1307,6 +1819,8 @@ export function checkReactions(table, opts = {}) {
         );
       if (fc.declared === true && conf.call_sites_checked !== true)
         problems.push("conformance.call_sites_checked が true でない");
+      if (sideEffects.declared === true && conf.side_effects_checked !== true)
+        problems.push("conformance.side_effects_checked が true でない");
     }
   }
 
@@ -1315,6 +1829,7 @@ export function checkReactions(table, opts = {}) {
     reactions: reactionCount,
     unmeasured_operations: unmeasuredOps.size,
     call_sites: callSummary,
+    side_effect_writes: sideEffects,
     table_fingerprint: fingerprint,
     problems,
   };
@@ -1425,6 +1940,7 @@ export function main(argv, deps = {}) {
         tool_version: VERSION,
         ok,
         call_sites_checked: result.call_sites.checked,
+        side_effects_checked: result.side_effect_writes.checked,
         table_fingerprint: result.table_fingerprint,
         problems: result.problems.length,
       };

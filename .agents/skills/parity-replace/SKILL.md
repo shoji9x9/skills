@@ -237,6 +237,10 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    `--replace-metadata <new/<target>/replace-metadata.json> --target <選択中の new target>`
    を **exit 0 まで通す**（コピーせずスキル配下から実行する。`source_coverage.fingerprint` は手で書かず検査が出す期待値を写す）。
    **`parity-diff` の収束判定も同じスクリプトを呼ぶ**ので、ここで通しておかないと差分の工程で差し戻される。
+   **feature モードでは表への書き込みの新側の根拠も完了判定に入れる**——現側の反応の被覆表（`reactions.json`）の `side_effect_writes` が `declared: true` なら、
+   `excluded_reason` の無い `sites` の全行に新側の根拠が要る。`verification: assertion` の行は `covered_by` のスイートが新で green であることが根拠になる。
+   **`verification: source-only` の行（例外時など移行元で起こせない書き込み）はスイートに現れない**ので、新側で同じ表へ同じ値・時機・回数で書く箇所（ファイル・シンボル）を
+   `porting.md`「表への書き込み（読解のみの行）」へ 1 行ずつ書き、敵対的レビューで移行元の該当行と突き合わせる。1 行でも空欄なら完了を名乗らない（書き込みがまるごと無い新側を通さないため。形式の正本は `parity-suite` の `references/coverage.md`「表への書き込み（`side_effect_writes`）」）。
    **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。

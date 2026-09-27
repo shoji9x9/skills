@@ -137,6 +137,106 @@ const lingeringAftermath = () => ({
   },
 });
 
+/**
+ * 書き出しの送信の関数（共通部品の内側）。上限の判定と、書き出しの前・例外時のアクセスログへの書き込みを持つ（Issue #483 / #466）。
+ * 行・列は side_effect_writes.sites と送る前の判定の location が参照するので、動かしたら両方を直す。
+ */
+const EXPORT_SOURCE = [
+  "function sendExport(rows) {",
+  "  if (rows.length > 500) return alertLimit();",
+  "  writeAccessLog('export');",
+  "  try { post(rows); } catch (e) { writeAccessLog('error'); }",
+  "}",
+  "",
+].join("\n");
+
+/** EXPORT_SOURCE の中の書き込みの位置（1 始まりの行・列）。 */
+const writeAt = (line) => ({
+  file: "src/export.js",
+  line,
+  column: EXPORT_SOURCE.split("\n")[line - 1].indexOf("writeAccessLog") + 1,
+  pattern: "access-log",
+});
+
+/** 到達点まで読んで送る前の判定が無いことを確かめた記録。 */
+const noPreSend = () => ({
+  found: false,
+  traced_to: [{ file: "src/share.js", symbol: "copy" }],
+  trace: "コピーボタンのハンドラ copy から、クリップボードへ書く処理まで読んだ",
+  evidence: "copy の中に件数・長さ・形式を判定して止める分岐が無い",
+});
+
+/** 送信の関数の中にある件数の上限を、境界の両側で測った記録。 */
+const rowLimit = () => ({
+  found: true,
+  traced_to: [{ file: "src/export.js", symbol: "sendExport" }],
+  trace: "検索ボタンのハンドラ search → 書き出しの共通部品 → 送信の関数 sendExport",
+  items: [
+    {
+      id: "max-rows",
+      kind: "count-limit",
+      location: { file: "src/export.js", symbol: "sendExport" },
+      condition: "選んだ行が 500 件を超える",
+      on_block: "上限の通知を出して送信しない",
+      order: ["confirm", "max-rows", "write-log", "send"],
+      sides: [
+        {
+          side: "inside",
+          input: "500 行を選ぶ",
+          setup: "ゴールデンデータの 600 行から 500 行を選ぶ",
+          observed: "送信される",
+          covered_by: ["export.spec.ts: 500 行なら送信される"],
+        },
+        {
+          side: "outside",
+          input: "501 行を選ぶ",
+          setup: "ゴールデンデータの 600 行から 501 行を選ぶ",
+          observed: "上限の通知が出て送信されない",
+          covered_by: ["export.spec.ts: 501 行なら通知が出て送信されない"],
+        },
+      ],
+    },
+  ],
+});
+
+/** アクセスログの表への書き込みを、書き出しの前と例外時の 2 か所で記録した表。 */
+const sideEffectWrites = () => ({
+  declared: true,
+  reason: null,
+  tables: ["access_log"],
+  patterns: [
+    {
+      id: "access-log",
+      table: "access_log",
+      regex: "\\bwriteAccessLog\\s*\\(",
+      example: "writeAccessLog('export')",
+    },
+  ],
+  source: { paths: ["src"], version: "abc123" },
+  sites: [
+    {
+      ...writeAt(3),
+      operation: "search",
+      occasion: "送信の前（上限の判定の後）",
+      path: "normal",
+      values: "種別 export・利用者 id",
+      count: "1 操作につき 1 行",
+      verification: "assertion",
+      covered_by: ["export.spec.ts: 書き出しの前にアクセスログが 1 行書かれる"],
+    },
+    {
+      ...writeAt(4),
+      operation: "search",
+      occasion: "送信が例外で失敗したとき",
+      path: "exception",
+      values: "種別 error・利用者 id",
+      count: "失敗 1 回につき 1 行",
+      verification: "source-only",
+      source_only_reason: "移行元の送信を例外で失敗させられない",
+    },
+  ],
+});
+
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
@@ -158,6 +258,7 @@ const baseTable = () => ({
       { file: "src/share.js", line: 2, column: 3, pattern: "toast", reaction: "copy/toast" },
     ],
   },
+  side_effect_writes: sideEffectWrites(),
   operations: [
     {
       id: "copy",
@@ -166,6 +267,7 @@ const baseTable = () => ({
       immediate_state: "ダイアログが閉じる",
       layout: noLayoutChange(),
       aftermath: quietAftermath(),
+      pre_send: noPreSend(),
       reactions: [toast()],
     },
     {
@@ -175,24 +277,37 @@ const baseTable = () => ({
       immediate_state: "一覧が絞られる",
       layout: layoutChange(),
       aftermath: lingeringAftermath(),
+      pre_send: rowLimit(),
       reactions: [noneReaction()],
     },
   ],
 });
 
+/** ルートの外に置くファイルの名前と、その絶対パスに置き換える目印（テストの表を書く時点では一時ディレクトリが決まっていない）。 */
+const OUTSIDE_FILE = "outside.js";
+const OUTSIDE_ABS = "__OUTSIDE_ABS__";
+/** ルートの中のファイル（src/export.js）の絶対パスに置き換える目印。 */
+const INSIDE_ABS = "__INSIDE_ABS__";
+
 /**
  * 一時プロジェクトを作って CLI を実行する。
  * @param {object} table
- * @param {{ args?: string[], metadata?: object, source?: string }} [opts]
+ * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string }} [opts]
  */
 function run(table, opts = {}) {
-  const dir = makeTempDir("reaction-check-");
+  // 移行元ソースのルート（dir）の外に、実在するファイルを 1 つ置く。ルートの外を指す参照を照合が読まないことを確かめる陽性コントロール
+  // （外に何も無いと、判定を外しても「読めない」で落ち、判定の有無を区別できない）
+  const outer = makeTempDir("reaction-check-");
+  writeFileSync(join(outer, OUTSIDE_FILE), "function sendOutside() {}\n");
+  const dir = join(outer, "project");
+  mkdirSync(dir);
   mkdirSync(join(dir, "src"));
   // 操作 search のハンドラは全ての source の末尾に置く（行番号を動かさない）
   writeFileSync(
     join(dir, "src/share.js"),
     `${opts.source ?? "function copy() {\n  showFeedback('Copied');\n}\n"}function search() {}\n`,
   );
+  writeFileSync(join(dir, "src/export.js"), opts.exportSource ?? EXPORT_SOURCE);
   mkdirSync(join(dir, "empty"));
   const metadata = opts.metadata ?? {
     slug: "share",
@@ -201,7 +316,13 @@ function run(table, opts = {}) {
     capture_conditions: { states: ["default", "copy-toast"] },
   };
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(metadata));
-  writeFileSync(join(dir, "reactions.json"), JSON.stringify(table));
+  writeFileSync(
+    join(dir, "reactions.json"),
+    // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
+    JSON.stringify(table)
+      .replaceAll(OUTSIDE_ABS, JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1))
+      .replaceAll(INSIDE_ABS, JSON.stringify(join(dir, "src/export.js")).slice(1, -1)),
+  );
   const r = spawnSync(
     process.execPath,
     [script, "--metadata", "metadata.json", ...(opts.args ?? [])],
@@ -458,6 +579,7 @@ test.each([
         immediate_state: "y",
         layout: noLayoutChange(),
         aftermath: quietAftermath(),
+        pre_send: noPreSend(),
         reactions: [{ ...toast(), id: "opy/toast" }],
       });
     },
@@ -663,17 +785,22 @@ test.each([
       reaction_coverage: { declared: true, path: "reactions.json" },
       capture_conditions: { states: ["default", "copy-toast"] },
     };
+    // 走査する 2 つの範囲（フィードバック呼び出しと表への書き込み）は同じ版を照合する
+    const sources = (t) => [t.feedback_calls.source, t.side_effect_writes.source];
     const noReason = run(
-      mutated((t) => Object.assign(t.feedback_calls.source, sourcePatch)),
+      mutated((t) => sources(t).forEach((src) => Object.assign(src, sourcePatch))),
       { metadata },
     );
     expect(noReason.status).toBe(1);
-    expect(noReason.stderr).toContain("version_unverified_reason が空");
+    expect(noReason.stderr).toContain("feedback_calls.source.version_unverified_reason が空");
+    expect(noReason.stderr).toContain("side_effect_writes.source.version_unverified_reason が空");
     const withReason = run(
       mutated((t) =>
-        Object.assign(t.feedback_calls.source, sourcePatch, {
-          version_unverified_reason: "受領資産にコミット履歴が無く、受領日のアーカイブを走査した",
-        }),
+        sources(t).forEach((src) =>
+          Object.assign(src, sourcePatch, {
+            version_unverified_reason: "受領資産にコミット履歴が無く、受領日のアーカイブを走査した",
+          }),
+        ),
       ),
       { metadata },
     );
@@ -856,6 +983,7 @@ test("--write の後の --recorded は通り、表を書き換えると指紋で
     ok: true,
     tool: "reaction-check",
     call_sites_checked: true,
+    side_effects_checked: true,
   });
 
   expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
@@ -1420,4 +1548,450 @@ test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capt
   );
   expect(written.stderr).toBe("");
   expect(written.status).toBe(0);
+});
+
+// --- 送る前の判定（Issue #483）---
+
+test("到達点まで読んで判定が無い操作と、境界の両側を測った判定は通す（Issue #483）", () => {
+  const r = run(baseTable());
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("ゴールデンデータが境界に届かず代わりの作り方で測った側も、作り方を書けば通す（Issue #483）", () => {
+  const t = mutated((x) => {
+    x.operations[1].pre_send.items[0].sides[1].setup =
+      "ゴールデンデータは 120 行で上限に届かないので、画面の行の追加で 501 行にしてから選ぶ";
+  });
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["読めるファイルとシンボル", { file: "src/export.js", symbol: "sendExport" }, 0, null],
+  [
+    "無いファイル",
+    { file: "lib/elsewhere.js", symbol: "send" },
+    1,
+    "pre_send.traced_to のファイル lib/elsewhere.js を --root から読めない",
+  ],
+  [
+    // ルートの外に実在するファイルを指す。ガードが無ければ読めてしまい、シンボル sendOutside が見つかって通る
+    "ルートの外",
+    { file: `../${OUTSIDE_FILE}`, symbol: "sendOutside" },
+    1,
+    `../${OUTSIDE_FILE} を --root から読めない`,
+  ],
+  [
+    "絶対パス",
+    { file: OUTSIDE_ABS, symbol: "sendOutside" },
+    1,
+    `${OUTSIDE_FILE} を --root から読めない`,
+  ],
+  [
+    // ルートの中を指していても、走査範囲のキー（相対パス）と形が違うと declared: true で合否が逆になる
+    "ルートの中の絶対パス",
+    { file: INSIDE_ABS, symbol: "sendExport" },
+    1,
+    "src/export.js を --root から読めない",
+  ],
+  [
+    "./ で始まる相対パス",
+    { file: "./src/export.js", symbol: "sendExport" },
+    1,
+    "./src/export.js を --root から読めない",
+  ],
+  [
+    "ファイルに無いシンボル",
+    { file: "src/export.js", symbol: "submitExport" },
+    1,
+    "pre_send.traced_to の submitExport が src/export.js に見つからない",
+  ],
+])(
+  "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: %s（Issue #483）",
+  (_name, ref, status, message) => {
+    const t = mutated((x) => {
+      x.feedback_calls = { declared: false, reason: "設定の呼び出しが空と確認済み" };
+      x.operations[1].pre_send.traced_to = [ref];
+    });
+    const r = run(t);
+    expect(r.status).toBe(status);
+    if (message === null) expect(r.stderr).toBe("");
+    else expect(r.stderr).toContain(message);
+  },
+);
+
+test("feedback_calls.declared: false の --recorded は送る前の判定の参照を読まない（Issue #483）", () => {
+  const t = mutated((x) => {
+    x.feedback_calls = { declared: false, reason: "設定の呼び出しが空と確認済み" };
+  });
+  const w = run(t, { args: ["--write"] });
+  expect(w.status).toBe(0);
+  // parity-diff の実行環境に移行元ソースがあるとは限らない
+  writeFileSync(join(w.dir, "src/export.js"), "");
+  expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
+});
+
+test.each([
+  ["pre_send が無い", (t) => delete t.operations[0].pre_send, "pre_send が無い"],
+  [
+    "追えなかった",
+    (t) => (t.operations[0].pre_send = { found: null, reason: "部品が難読化されている" }),
+    "pre_send: 未測定（部品が難読化されている）",
+  ],
+  ["found が真偽値でない", (t) => (t.operations[0].pre_send.found = "no"), "pre_send.found が"],
+  ["到達点が空", (t) => (t.operations[0].pre_send.traced_to = []), "pre_send.traced_to"],
+  [
+    "到達点のシンボルが欠けている",
+    (t) => (t.operations[0].pre_send.traced_to = [{ file: "src/share.js" }]),
+    "pre_send.traced_to",
+  ],
+  [
+    "辿り方がテンプレートの説明文のまま",
+    (t) => (t.operations[0].pre_send.trace = "<どう辿ったか>"),
+    "pre_send.trace が空",
+  ],
+  [
+    "判定が無いと書いて確かめた記録が無い",
+    (t) => delete t.operations[0].pre_send.evidence,
+    "found: false なのに evidence が空",
+  ],
+  [
+    "判定があると書いて列挙していない",
+    (t) => (t.operations[1].pre_send.items = []),
+    "found: true なのに items が空",
+  ],
+  [
+    "判定の種類が語彙に無い",
+    (t) => (t.operations[1].pre_send.items[0].kind = "limit"),
+    'pre_send.items["max-rows"]: kind が語彙',
+  ],
+  [
+    "判定の場所が無い",
+    (t) => delete t.operations[1].pre_send.items[0].location,
+    'pre_send.items["max-rows"]: location',
+  ],
+  [
+    "止める条件が空",
+    (t) => (t.operations[1].pre_send.items[0].condition = ""),
+    "condition（止める条件）",
+  ],
+  [
+    "止めたときに起きることが空",
+    (t) => delete t.operations[1].pre_send.items[0].on_block,
+    "on_block（止めたときに起きること）",
+  ],
+  [
+    "順序にこの判定が無い",
+    (t) => (t.operations[1].pre_send.items[0].order = ["confirm", "send"]),
+    'pre_send.items["max-rows"]: order',
+  ],
+  [
+    "順序がこの判定だけ",
+    (t) => (t.operations[1].pre_send.items[0].order = ["max-rows"]),
+    'pre_send.items["max-rows"]: order',
+  ],
+  [
+    "順序に同じ工程が 2 回",
+    (t) => (t.operations[1].pre_send.items[0].order = ["max-rows", "send", "send"]),
+    'pre_send.items["max-rows"]: order',
+  ],
+  [
+    "境界を 1 つも測っていない",
+    (t) => (t.operations[1].pre_send.items[0].sides = []),
+    "sides が空",
+  ],
+  [
+    "止まる側を測っていない",
+    (t) => t.operations[1].pre_send.items[0].sides.pop(),
+    "境界の outside 側を測っていない",
+  ],
+  [
+    "通る側を測っていない",
+    (t) => t.operations[1].pre_send.items[0].sides.shift(),
+    "境界の inside 側を測っていない",
+  ],
+  [
+    "両側とも通る側",
+    (t) => (t.operations[1].pre_send.items[0].sides[1].side = "inside"),
+    "境界の outside 側を測っていない",
+  ],
+  [
+    "側の語彙が無い",
+    (t) => (t.operations[1].pre_send.items[0].sides[1].side = "over"),
+    "sides[1]: side が",
+  ],
+  [
+    "止まる側を測れなかった",
+    (t) => {
+      const side = t.operations[1].pre_send.items[0].sides[1];
+      delete side.observed;
+      side.covered_by = [];
+      side.reason = "上限を超える行を作れない";
+    },
+    "sides[1]: 未測定（上限を超える行を作れない）",
+  ],
+  [
+    "止まる側の assertion が無い",
+    (t) => (t.operations[1].pre_send.items[0].sides[1].covered_by = []),
+    "sides[1]: observed（現行で測った結果）/ covered_by（assertion）が空",
+  ],
+  [
+    "境界の状態の作り方が空",
+    (t) => (t.operations[1].pre_send.items[0].sides[1].setup = ""),
+    "setup（境界の状態をどう作ったか",
+  ],
+  [
+    "判定 id の重複",
+    (t) => t.operations[1].pre_send.items.push({ ...t.operations[1].pre_send.items[0] }),
+    'pre_send.items: id "max-rows" が 2 回重複',
+  ],
+  [
+    "到達点が走査範囲の外",
+    (t) => {
+      t.operations[1].pre_send.traced_to = [{ file: "lib/export.js", symbol: "sendExport" }];
+    },
+    "pre_send.traced_to のファイル lib/export.js が走査範囲に無い",
+  ],
+  [
+    "判定の場所のシンボルがファイルに無い",
+    (t) => (t.operations[1].pre_send.items[0].location.symbol = "sendExportAll"),
+    "location の sendExportAll が src/export.js に見つからない",
+  ],
+])("送る前の判定の欠けは未測定として落とす: %s（Issue #483）", (_name, mutate, message) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+  expect(JSON.parse(r.stdout).unmeasured_operations).toBeGreaterThan(0);
+});
+
+test("判定が無いと書いたのに判定を列挙した操作は矛盾として落とす（Issue #483）", () => {
+  const r = run(mutated((t) => (t.operations[0].pre_send.items = [...rowLimit().items])));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("found: false なのに items がある");
+});
+
+test("同梱テンプレートのプレースホルダのままの pre_send は落とす（Issue #483）", () => {
+  const template = JSON.parse(
+    readFileSync(join(repoRoot, "skills/parity-suite/assets/reactions-template.json"), "utf8"),
+  );
+  const t = mutated((x) => {
+    x.operations[1].pre_send = template.operations[0].pre_send;
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("pre_send");
+});
+
+// --- 表への書き込み（Issue #466）---
+
+test("書き込みを持たない機能は declared: false と理由で通す（Issue #466）", () => {
+  const t = mutated(
+    (x) =>
+      (x.side_effect_writes = {
+        declared: false,
+        reason: "features.md の副作用出力に表への書き込みが無い",
+      }),
+  );
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).side_effect_writes).toMatchObject({
+    declared: false,
+    checked: false,
+  });
+});
+
+test("declared: false の空の配列は記録とみなさず通す（Issue #466）", () => {
+  const t = mutated(
+    (x) =>
+      (x.side_effect_writes = {
+        declared: false,
+        reason: "features.md の副作用出力に表への書き込みが無い",
+        tables: [],
+        patterns: [],
+        sites: [],
+      }),
+  );
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("画面を開いたときの書き込みは operation: null と時機で、別機能の書き込みは除外理由で通す（Issue #466）", () => {
+  const t = mutated((x) => {
+    x.side_effect_writes.sites[0] = {
+      ...writeAt(3),
+      operation: null,
+      occasion: "画面を開いたとき",
+      path: "normal",
+      values: "種別 open・利用者 id",
+      count: "開くたびに 1 行",
+      verification: "assertion",
+      covered_by: ["open.spec.ts: 画面を開くとアクセスログが 1 行書かれる"],
+    };
+    x.side_effect_writes.sites.push({
+      file: "src/share.js",
+      line: 4,
+      column: 1,
+      pattern: "access-log",
+      excluded_reason: "一覧画面（別 slug）の書き込み",
+    });
+  });
+  const r = run(t, {
+    source: "function copy() {\n  showFeedback('Copied');\n}\nwriteAccessLog('list');\n",
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).side_effect_writes).toMatchObject({
+    declared: true,
+    checked: true,
+    found: 3,
+  });
+});
+
+test.each([
+  [
+    "キーごと無い",
+    (t) => delete t.side_effect_writes,
+    "side_effect_writes.declared が真偽値でない",
+  ],
+  [
+    "declared: false なのに記録がある",
+    (t) =>
+      Object.assign(t.side_effect_writes, {
+        declared: false,
+        reason: "features.md の副作用出力に表への書き込みが無い",
+      }),
+    "side_effect_writes.declared: false なのに sites がある",
+  ],
+  [
+    "書き込みが無いと書いて理由が無い",
+    (t) => (t.side_effect_writes = { declared: false, reason: "" }),
+    "declared: false なのに reason が空",
+  ],
+  ["表が空", (t) => (t.side_effect_writes.tables = []), "side_effect_writes.tables が"],
+  ["パターンが空", (t) => (t.side_effect_writes.patterns = []), "side_effect_writes.patterns が空"],
+  [
+    "パターンが実際の呼び出しに一致しない",
+    (t) => (t.side_effect_writes.patterns[0].example = "logAccess('export')"),
+    "regex が example に一致しない",
+  ],
+  [
+    "パターンの表が表の一覧に無い",
+    (t) => (t.side_effect_writes.patterns[0].table = "audit"),
+    'table "audit" が side_effect_writes.tables に無い',
+  ],
+  [
+    "パターンを持たない表がある",
+    (t) => t.side_effect_writes.tables.push("audit"),
+    "表 audit への書き込みを探すパターンが無い",
+  ],
+  [
+    "表に書く箇所を 1 件も記録していない",
+    (t) => {
+      t.side_effect_writes.tables.push("audit");
+      t.side_effect_writes.patterns.push({
+        id: "audit",
+        table: "audit",
+        regex: "\\bwriteAudit\\s*\\(",
+        example: "writeAudit('x')",
+      });
+    },
+    "表 audit に書く箇所が 1 件も記録されていない",
+  ],
+  ["例外時の書き込みを記録していない", (t) => t.side_effect_writes.sites.pop(), "ソースの書き込み"],
+  [
+    "ソースに無い書き込みを記録している",
+    (t) => t.side_effect_writes.sites.push({ ...t.side_effect_writes.sites[0], line: 9 }),
+    "がソースに見つからない",
+  ],
+  [
+    "同じ書き込みを 2 回記録している",
+    (t) => t.side_effect_writes.sites.push({ ...t.side_effect_writes.sites[0] }),
+    "2 回重複している",
+  ],
+  [
+    "書き込みのパターンが一覧に無い",
+    (t) => (t.side_effect_writes.sites[0].pattern = "audit"),
+    'pattern "audit" が side_effect_writes.patterns に無い',
+  ],
+  [
+    "操作が被覆表に無い",
+    (t) => (t.side_effect_writes.sites[0].operation = "export"),
+    'operation "export" が被覆表の操作に無い',
+  ],
+  [
+    "操作を書いていない",
+    (t) => delete t.side_effect_writes.sites[0].operation,
+    'operation "undefined" が被覆表の操作に無い',
+  ],
+  ["時機が空", (t) => (t.side_effect_writes.sites[0].occasion = ""), "occasion（いつ書くか"],
+  ["書く値が空", (t) => delete t.side_effect_writes.sites[0].values, "values（書く値）"],
+  ["回数が空", (t) => (t.side_effect_writes.sites[0].count = "<回数>"), "count（回数）"],
+  ["経路が語彙に無い", (t) => (t.side_effect_writes.sites[0].path = "catch"), "path が語彙"],
+  [
+    "assertion と書いて assertion が無い",
+    (t) => (t.side_effect_writes.sites[0].covered_by = []),
+    "verification: assertion なのに covered_by が空",
+  ],
+  [
+    "読解のみと書いて理由が無い",
+    (t) => delete t.side_effect_writes.sites[1].source_only_reason,
+    "verification: source-only なのに source_only_reason",
+  ],
+  [
+    "読解のみと書いて assertion もある",
+    (t) => (t.side_effect_writes.sites[1].covered_by = ["export.spec.ts: 例外時にログが書かれる"]),
+    "verification: source-only なのに covered_by がある",
+  ],
+  [
+    "書き込みの位置が欠けている",
+    (t) => delete t.side_effect_writes.sites[0].column,
+    "side_effect_writes.sites: file / line / column / pattern が欠けた行がある",
+  ],
+  [
+    "確かめ方が語彙に無い",
+    (t) => (t.side_effect_writes.sites[1].verification = "db"),
+    "verification が語彙",
+  ],
+  [
+    "走査した版が違う",
+    (t) => (t.side_effect_writes.source.version = "def456"),
+    "side_effect_writes.source.version（def456）",
+  ],
+  [
+    "走査範囲が空",
+    (t) => (t.side_effect_writes.source.paths = []),
+    "side_effect_writes.source.paths が空",
+  ],
+  [
+    "走査範囲にテキストファイルが無い",
+    (t) => (t.side_effect_writes.source.paths = ["empty"]),
+    "side_effect_writes: 走査対象のテキストファイルが 0 件",
+  ],
+])("表への書き込みの欠けは落とす: %s（Issue #466）", (_name, mutate, message) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test.each([
+  ["書き込みの記録が配列でない", (t) => (t.side_effect_writes.sites = {})],
+  ["書き込みのパターンが不正な正規表現", (t) => (t.side_effect_writes.patterns[0].regex = "(")],
+  ["走査範囲がルートの外", (t) => (t.side_effect_writes.source.paths = ["../outside"])],
+])("表への書き込みの型崩れは exit 2: %s（Issue #466）", (_name, mutate) => {
+  expect(run(mutated(mutate)).status).toBe(2);
+});
+
+test("--recorded は表への書き込みを突き合わせていない記録を落とす（Issue #466）", () => {
+  const w = run(baseTable(), { args: ["--write"] });
+  expect(w.status).toBe(0);
+  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  written.conformance.side_effects_checked = false;
+  writeFileSync(join(w.dir, "reactions.json"), JSON.stringify(written));
+  const r = rerun(w.dir, ["--recorded"]);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("conformance.side_effects_checked が true でない");
 });
