@@ -197,7 +197,8 @@
       "occurrences": 1,
       "expect_failing": [
         "既定以外の値を撮る変種が無ければ落ちる（1 軸ずつ振る）",
-        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る"
+        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
       ]
     },
     {
@@ -219,10 +220,7 @@
       "find": "      if (excluded) continue;\n",
       "replace": "      if (false) continue;\n",
       "occurrences": 1,
-      "expect_failing": [
-        "軸が効かないページは not_applicable と理由で撮るはずの組から外れる",
-        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
-      ]
+      "expect_failing": ["軸が効かないページは not_applicable と理由で撮るはずの組から外れる"]
     },
     {
       "id": "suite-undecided",
@@ -258,7 +256,10 @@
       "find": "          if (!signatures.has(want)) {\n",
       "replace": "          if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る"]
+      "expect_failing": [
+        "2 つの軸を掛け合わせると宣言したら、既定以外の値の組ごとに変種が要る",
+        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）"
+      ]
     },
     {
       "id": "variant-default-value",
@@ -299,6 +300,40 @@
       "occurrences": 1,
       "expect_failing": [
         "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "variant-no-pages",
+      "why": "軸の効くページが 0 の複合変種を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）",
+        "not_applicable が撮影ページの全てを覆う軸は落とす（変種の撮るはずの組が 0 件になり撮らずに通る）"
+      ]
+    },
+    {
+      "id": "variant-label-dot",
+      "why": "変種の label の . / .. / 区切りを通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      label === \".\" ||\n      label === \"..\" ||\n      /[\\\\/]/.test(/** @type {string} */ (label))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "divergence-gaps-ref",
+      "why": "乖離の gaps.md 参照の欠落を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (matched && matched[1] === \"乖離\" && !matched[2].includes(\"gaps.md\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "乖離に gaps.md の該当箇所が無ければ落とす（既知の乖離を未検証へ回さない。Codex レビュー #491）"
       ]
     }
   ]

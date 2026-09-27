@@ -642,10 +642,17 @@ export function checkDisplayAxes(conditions) {
       rawVariant && typeof rawVariant === "object" ? rawVariant : {}
     );
     const label = variant.label;
-    if (!idPartIsSafe(label)) {
+    // label は書き出し先のディレクトリ名にもなる（page/state/label）。`.` / `..` やパスの区切りを通すと、
+    // 採取の noise パスの削除が別の組のディレクトリを指す
+    if (
+      !idPartIsSafe(label) ||
+      label === "." ||
+      label === ".." ||
+      /[\\/]/.test(/** @type {string} */ (label))
+    ) {
       add(
         "display-axis-variant-label-unusable",
-        `${at} の label が使えない（空、または区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む）: ${JSON.stringify(label)}`,
+        `${at} の label が使えない（空、区切り文字 ${KEY_SEPARATOR} / ${ID_SEPARATOR} を含む、または . / .. / パスの区切りを含む）: ${JSON.stringify(label)}`,
       );
       return;
     }
@@ -710,6 +717,19 @@ export function checkDisplayAxes(conditions) {
       picked[axisName] = value;
     }
     if (!usable) return;
+    // 変種の軸のどれかが効かないページは撮らない。全ページが外れる変種は撮るはずの組が 0 件になり、
+    // それでも掛け合わせの対を満たしたことになるので落とす
+    const pickedAxes = Object.keys(picked);
+    if (
+      declaredPages.length > 0 &&
+      declaredPages.every((page) => pickedAxes.some((axis) => notApplicable.get(axis)?.has(page)))
+    ) {
+      add(
+        "display-axis-variant-no-pages",
+        `${at}（${labelText}）の軸が効くページが 1 つも無い（not_applicable が合わせて全ページを覆う。撮るはずの組が 0 件のまま掛け合わせの対を満たさない。同時に効かない対なら crossed: false にする）`,
+      );
+      return;
+    }
     const signature = variantSignature(picked);
     const key = `${variant.viewport}${KEY_SEPARATOR}${signature}`;
     if (variantKeys.has(key)) {
@@ -848,6 +868,14 @@ export function checkViewerEnvironment(conditions) {
   }
   const matched =
     typeof value === "string" ? /^(一致|乖離)\s*[:：]\s*(\S[\s\S]*)$/u.exec(value.trim()) : null;
+  if (matched && matched[1] === "乖離" && !matched[2].includes("gaps.md")) {
+    return [
+      {
+        code: "viewer-environment-gaps-ref-missing",
+        message: `capture_conditions.viewer_environment の乖離に gaps.md の該当箇所が無い: ${JSON.stringify(value)}（既知の乖離を未検証領域へ回さないと、収束の後に誰にも見えなくなる）`,
+      },
+    ];
+  }
   if (!matched) {
     return [
       {

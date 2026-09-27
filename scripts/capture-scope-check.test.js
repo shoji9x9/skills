@@ -1444,7 +1444,85 @@ test("not_applicable が撮影ページの全てを覆う軸は落とす（変�
       axes: [{ ...axes.axes[0], not_applicable: [{ page: "list", reason: "英語固定" }] }],
     },
   });
-  expect(codesOf(metadata)).toEqual(["display-axis-not-applicable-all-pages"]);
+  expect(codesOf(metadata)).toEqual([
+    "display-axis-not-applicable-all-pages",
+    "display-axis-variant-no-pages",
+    // 0 ページの変種は数えないので、その値を撮る変種も無いことになる
+    "display-axis-value-unswept",
+  ]);
   // 撮るはずの組は 0 件なので穴は出ない（落とすのは上の finding だけ）
   expect(holeIdsOf(metadata)).toEqual([]);
+});
+
+test("軸の効くページが 1 つも無い複合変種は落とす（撮るはずの組 0 件で掛け合わせの対を満たさない。Codex レビュー #491）", () => {
+  const pages = [
+    { name: "list", path: "/orders" },
+    { name: "print", path: "/orders/print" },
+  ];
+  const locale = localeAxes();
+  const theme = {
+    ...locale.axes[0],
+    name: "theme",
+    candidate: "color-scheme",
+    values: ["light", "dark"],
+    default: "light",
+    not_applicable: [{ page: "list", reason: "一覧は配色が固定" }],
+  };
+  const localeAxis = {
+    ...locale.axes[0],
+    not_applicable: [{ page: "print", reason: "印刷画面は英語固定" }],
+  };
+  const crossedVariant = {
+    label: "desktop-ja-dark",
+    viewport: "desktop",
+    values: { locale: "ja", theme: "dark" },
+  };
+  const displayAxes = {
+    ...noAxes(["locale", "color-scheme"]),
+    axes: [localeAxis, theme],
+    pairs: [
+      { axes: ["locale", "viewport"], crossed: false, reason: "x" },
+      { axes: ["theme", "viewport"], crossed: false, reason: "x" },
+      { axes: ["locale", "theme"], crossed: true, reason: "x" },
+    ],
+    variants: [
+      { label: "desktop-ja", viewport: "desktop", values: { locale: "ja" } },
+      { label: "desktop-dark", viewport: "desktop", values: { theme: "dark" } },
+      crossedVariant,
+    ],
+  };
+  const codes = codesOf(metadataOf({ pages, scope: [], noise: [], displayAxes })).filter((c) =>
+    c.startsWith("display-axis"),
+  );
+  expect(codes).toContain("display-axis-variant-no-pages");
+  // 落とした変種は掛け合わせの対も満たさない
+  expect(codes).toContain("display-axis-pair-not-crossed");
+});
+
+test("変種の label に . / .. / パスの区切りは使えない（書き出し先が別の組のディレクトリを指す。Codex レビュー #491）", () => {
+  for (const label of [".", "..", "a/b", "a\\b"]) {
+    expect(
+      codesOf(
+        metadataOf({
+          displayAxes: localeAxes({
+            variants: [{ label, viewport: "desktop", values: { locale: "ja" } }],
+          }),
+        }),
+      ),
+    ).toContain("display-axis-variant-label-unusable");
+  }
+});
+
+test("乖離に gaps.md の該当箇所が無ければ落とす（既知の乖離を未検証へ回さない。Codex レビュー #491）", () => {
+  expect(codesOf(metadataOf({ viewerEnvironment: "乖離: Linux と Windows が異なる" }))).toEqual([
+    "viewer-environment-gaps-ref-missing",
+  ]);
+  // 陰性コントロール: gaps.md の該当箇所を書けば通る
+  expect(
+    codesOf(
+      metadataOf({
+        viewerEnvironment: "乖離: Linux と Windows が異なる（gaps.md 採取環境依存の未検証）",
+      }),
+    ),
+  ).toEqual([]);
 });

@@ -733,7 +733,8 @@ if (capturing) {
      掛けた対は、軸 × 窓なら全ての窓で、軸 × 軸なら既定以外の値の組ごとに変種を足す（例: 文言の長さで折り返しが変わる `locale` × `viewport`）
   4. **軸が効かないページは理由付きで外す**: その軸の `not_applicable` にページと来歴を書く。そのページは変種で撮らない
 - **変種の撮り方**: 変種の `label` を**ビューポートの label と同じ位置**に書く——`noise_baseline` / `capture_scope` の `viewport`、書き出し先のディレクトリ。
-  窓の寸法は変種の `viewport` が指す窓のものを使う。**変種も基準の組と同じくノイズ基準値の 2 回撮りと範囲の実測を採る**。
+  label は書き出し先のディレクトリ名にもなるので `.` / `..` / パスの区切りは使えない。窓の寸法は変種の `viewport` が指す窓のものを使う。
+  変種の軸が合わせて全ページで効かない（`not_applicable` が全ページを覆う）変種は、撮る組が 0 件になるので落ちる。**変種も基準の組と同じくノイズ基準値の 2 回撮りと範囲の実測を採る**。
   採取スペックは窓と変種を外側のループにして回し、ページを開いたら状態へ遷移する前に**操作アダプタ `applyDisplayAxes(page, 値)`** で全軸の値（基準の組は全軸の `default`、変種はそれに `values` を重ねたもの）を当てる
   （ロケールの cookie を書いて再読み込み・`page.emulateMedia({ colorScheme })` 等。中身は `apply` に書いたとおり。
   出典: <https://playwright.dev/docs/api/class-page#page-emulate-media>）。当てた後は `applyState` と同じく撮る対象の矩形が落ち着くまで待つ
@@ -757,7 +758,7 @@ if (capturing) {
      配線は [`locator-mapping.md`](locator-mapping.md)「利用者環境のブラウザへ接続する」。**現・新の両側に同じ宣言が要る**（片側だけ利用者環境で撮ると環境の差がそのまま差分に出る）。
      実際に描いた書体は CDP の `CSS.getPlatformFontsForNode` で読んで確かめる（出典: <https://chromedevtools.github.io/devtools-protocol/tot/CSS/#method-getPlatformFontsForNode>）
   3. どちらも取れないなら `gaps.md` に「採取環境依存の未検証」として残す（確認済みにしない）
-- **記録の形は `一致: <確かめ方>` か `乖離: <内容と gaps.md の該当箇所>` の 2 つだけ**で、`capture-scope-check.mjs` が数える（手順 8。`parity-diff` の収束判定も同じスクリプトを呼ぶ）。
+- **記録の形は `一致: <確かめ方>` か `乖離: <内容と gaps.md の該当箇所>` の 2 つだけ**（乖離は `gaps.md` の該当箇所を書かないと落ちる）で、`capture-scope-check.mjs` が数える（手順 8。`parity-diff` の収束判定も同じスクリプトを呼ぶ）。
   **「未確認」と確かめ方の無い「一致」は落ちる**——未確認のまま収束すると、採取環境でだけ成立する一致が誰にも見えないまま残る。
   撮影に使ったブラウザ（`launched` か `cdp`）は `capture_conditions.browser` に残す（`parity-diff` の新側採取が同じ扱いで撮るために読む）
 - 総称ファミリー由来でなくても、**採取環境の既定値に解決される指定**（システムフォント・システム色・OS 既定のフォームコントロール外観）は同じ穴を持つ。フォントスタックだけを見て済ませない

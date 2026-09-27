@@ -150,7 +150,16 @@ function resolveLocator(page: import("@playwright/test").Page, name: string) {
 // 外を指し、noise パスの rmSync が採取ディレクトリの外を消しうる。撮影・削除の前に落とす
 function assertInsideOutRoot(dir: string): void {
   const rel = relative(outRoot, dir);
-  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+  // page / state / viewport（変種の label）の 3 段がそれぞれ 1 つのディレクトリ名であることまで確かめる。
+  // `.` / `..` は outRoot の内側に収まったまま別の組のディレクトリを指し、noise パスの削除が兄弟の組を消す
+  const segments = rel.split(/[\\/]/);
+  if (
+    rel === "" ||
+    rel.startsWith("..") ||
+    isAbsolute(rel) ||
+    segments.length !== 3 ||
+    segments.some((segment) => segment === "" || segment === "." || segment === "..")
+  ) {
     throw new Error(
       `capture output "${dir}" escapes "${outRoot}": ` +
         "check capture_conditions.pages[].name / states / viewports for path traversal",
