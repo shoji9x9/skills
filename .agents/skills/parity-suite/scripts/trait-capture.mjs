@@ -288,7 +288,11 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     }
     return lines;
   };
-  const collapse = (value) => value.replace(/\s+/g, " ").trim();
+  // 畳む・端から外す空白は CSS が畳む空白（スペース・タブ・改行・CR・FF）だけにする。JavaScript の \s と
+  // trim は NBSP や全角スペースも空白とみなすが、CSS はそれらを幅を持つ文字として描く——\s で扱うと
+  // 全角スペースで字下げした「\u3000設定」が「設定」と同じ文字列になり、字下げの幅まで差し引かれて
+  // 字下げの無い文字と区別できなくなる（別の文字列として残せば、寸法は比べないが字下げは画素経路に写る）。
+  const collapse = (value) => value.replace(/[ \t\n\r\f]+/g, " ").replace(/^ | $/g, "");
   // 持ち主ごとの文字の区切り（テキストノード 1 つ分）。幅の合計 advance は全区切りの幅から、持ち主の
   // 先頭と末尾の空白の幅だけを差し引いて出す——文字列は空白を畳んで trim して比べるので、端の空白の幅を
   // 残すと、境目の空白がどちらの持ち主に付くかだけで幅が変わる（実測: <p>合計 <b>3件</b></p> と
@@ -343,8 +347,8 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
     // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
     const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
-    const leadLength = raw.length - raw.trimStart().length;
-    const trailLength = raw.length - raw.trimEnd().length;
+    const leadLength = /^[ \t\n\r\f]*/.exec(raw)[0].length;
+    const trailLength = /[ \t\n\r\f]*$/.exec(raw)[0].length;
     const segment = {
       full: fragments.reduce((sum, f) => sum + f.width, 0),
       lead: widthOf(node, 0, leadLength),

@@ -27,7 +27,8 @@
         "同じ持ち主の文字が複数のテキストノードに分かれていても、1 ノードと同じ文字列・行数になる",
         "line-height を詰めて行の断片が縦に重なっても、折り返した行を数える",
         "省略記号で切られた長い文字（見えている部分が残る）",
-        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える"
+        "持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える",
+        "NBSP と全角スペースは空白として畳まず、端の幅からも外さない"
       ]
     },
     {
@@ -209,6 +210,24 @@
       "expect_failing": [
         "value 属性の無い submit は文字列を空にした行として数え、type=button は数えない"
       ]
+    },
+    {
+      "id": "js-whitespace",
+      "why": "JavaScript の \\\\s で空白を畳む（全角スペースの字下げや NBSP を空白として消す）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "  const collapse = (value) => value.replace(/[ \\t\\n\\r\\f]+/g, \" \").replace(/^ | $/g, \"\");\n",
+      "replace": "  const collapse = (value) => value.replace(/\\s+/g, \" \").trim();\n",
+      "occurrences": 1,
+      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+    },
+    {
+      "id": "js-trim-edges",
+      "why": "端の空白の幅を JavaScript の trim で測る（全角スペースの字下げの幅を外す）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    const leadLength = /^[ \\t\\n\\r\\f]*/.exec(raw)[0].length;\n",
+      "replace": "    const leadLength = raw.length - raw.trimStart().length;\n",
+      "occurrences": 1,
+      "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
     }
   ]
 }

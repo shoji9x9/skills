@@ -779,6 +779,32 @@ test("value 属性の無い submit は文字列を空にした行として数え
   expect(trait.text_owners.map((o) => [o.path, o.text])).toEqual([["input[0]", ""]]);
 });
 
+// CSS は NBSP と全角スペースを畳まず幅を持つ文字として描くので、JavaScript の \s / trim で扱わない。
+test("NBSP と全角スペースは空白として畳まず、端の幅からも外さない", async () => {
+  const span = elementNode(
+    "span",
+    [
+      textNode("\u3000設定\u00a0", { x: 0, y: 0, width: 50, height: 14 }, undefined, {
+        lead: 16,
+        trail: 4,
+      }),
+    ],
+    fontOf(),
+  );
+  const blank = elementNode(
+    "i",
+    [textNode("\u3000", { x: 60, y: 0, width: 16, height: 14 })],
+    fontOf(),
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [span, blank] });
+  rootWith([span, blank]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.tag, o.text, o.advance])).toEqual([
+    ["span", "\u3000設定\u00a0", 50],
+    ["i", "\u3000", 16],
+  ]);
+});
+
 // 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。
 test("シャドウルートの中と slot に割り当てられた文字を、描かれる順に採る", async () => {
   const label = elementNode("span", [textNode("ラベル")], fontOf());
