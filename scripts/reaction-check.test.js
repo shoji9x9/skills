@@ -286,6 +286,8 @@ const baseTable = () => ({
 /** ルートの外に置くファイルの名前と、その絶対パスに置き換える目印（テストの表を書く時点では一時ディレクトリが決まっていない）。 */
 const OUTSIDE_FILE = "outside.js";
 const OUTSIDE_ABS = "__OUTSIDE_ABS__";
+/** ルートの中のファイル（src/export.js）の絶対パスに置き換える目印。 */
+const INSIDE_ABS = "__INSIDE_ABS__";
 
 /**
  * 一時プロジェクトを作って CLI を実行する。
@@ -317,10 +319,9 @@ function run(table, opts = {}) {
   writeFileSync(
     join(dir, "reactions.json"),
     // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
-    JSON.stringify(table).replaceAll(
-      OUTSIDE_ABS,
-      JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1),
-    ),
+    JSON.stringify(table)
+      .replaceAll(OUTSIDE_ABS, JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1))
+      .replaceAll(INSIDE_ABS, JSON.stringify(join(dir, "src/export.js")).slice(1, -1)),
   );
   const r = spawnSync(
     process.execPath,
@@ -1587,6 +1588,19 @@ test.each([
     { file: OUTSIDE_ABS, symbol: "sendOutside" },
     1,
     `${OUTSIDE_FILE} を --root から読めない`,
+  ],
+  [
+    // ルートの中を指していても、走査範囲のキー（相対パス）と形が違うと declared: true で合否が逆になる
+    "ルートの中の絶対パス",
+    { file: INSIDE_ABS, symbol: "sendExport" },
+    1,
+    "src/export.js を --root から読めない",
+  ],
+  [
+    "./ で始まる相対パス",
+    { file: "./src/export.js", symbol: "sendExport" },
+    1,
+    "./src/export.js を --root から読めない",
   ],
   [
     "ファイルに無いシンボル",

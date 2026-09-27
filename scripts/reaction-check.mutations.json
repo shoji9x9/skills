@@ -822,19 +822,32 @@
       "expect_failing": [
         "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 無いファイル（Issue #483）",
         "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）",
-        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）"
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの中の絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ./ で始まる相対パス（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-canonical",
+      "why": "--root からの相対パスでない形（ルートの中の絶対パス・./ 始まり）の参照を読む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rel.split(sep).join(\"/\") !== file) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの中の絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ./ で始まる相対パス（Issue #483）"
       ]
     },
     {
       "id": "pre-send-ref-outside-root",
-      "why": "ルートの外（絶対パスを含む）のファイルを参照として読む",
+      "why": "ルートの外を .. で指す参照を読む（ルートの外の絶対パスは相対パスの形の判定でも落ちるので、この判定だけでは落ちない）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
       "find": "  if (rel === \"\" || rel === \"..\" || rel.startsWith(`..${sep}`)) return null;\n",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）",
-        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）"
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）"
       ]
     }
   ]

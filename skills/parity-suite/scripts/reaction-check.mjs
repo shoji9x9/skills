@@ -1195,7 +1195,9 @@ function checkSideEffectWrites(sew, ctx) {
 }
 
 /**
- * 移行元ソースの 1 ファイルを --root から読む。ルートの外（絶対パスを含む。resolve が絶対パスをそのまま返すので相対で見るとルートの外になる）・読めない・バイナリは null。
+ * 移行元ソースの 1 ファイルを --root から読む。--root からの / 区切りの相対パスそのもの（走査範囲のキーと同じ形）でないもの
+ * （絶対パス・`./` や `..` を含む形・ルートの外）・読めない・バイナリは null。形を揃えないと、declared を true に切り替えたときに
+ * 同じ参照が走査範囲のキーと一致せず合否が逆になり、マシン固有の絶対パスが表の指紋に残る。
  * feedback_calls.declared: false で走査範囲を持たないときに、送る前の判定の参照を照合するために使う。
  * @param {string} root
  * @param {string} file - --root からの相対（/ 区切り）
@@ -1206,6 +1208,7 @@ function readSourceFile(root, file) {
   const abs = resolve(absRoot, file);
   const rel = relative(absRoot, abs);
   if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`)) return null;
+  if (rel.split(sep).join("/") !== file) return null;
   try {
     const buf = readFileSync(abs);
     return buf.includes(0) ? null : buf.toString("utf8");
@@ -1653,7 +1656,7 @@ export function checkReactions(table, opts = {}) {
       for (const { opId, problem } of preSendRefProblems(
         preSendRefsByOp,
         (file) => readSourceFile(root, file),
-        "を --root から読めない（移行元ソースを読めないなら pre_send.found: null と理由を書く）",
+        "を --root から読めない（--root からの / 区切りの相対パスで書く。移行元ソースを読めないなら pre_send.found: null と理由を書く）",
       )) {
         problems.push(problem);
         unmeasuredOps.add(opId);
