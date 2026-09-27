@@ -193,7 +193,7 @@
 | `loop.changed_scope.pages` に現側 `noise_baseline[].page` のどれとも一致しない値がある | 全組 | 同 `pages` と `metadata.json.noise_baseline[].page`（語彙が噛み合わず範囲を突き合わせられない） |
 | 前反復で変更したページ | 該当ページの組 | `loop.changed_scope.pages` |
 | 組の `measured_at` から 24 時間を超えている | 該当組 | `noise_baseline_new[].measured_at` と現在時刻（別セッションの測定値を当て込まない。他の組を測り直しても古い組は失効させる） |
-| 前回測っていない組がある（ページ・状態・ビューポートが増えた） | 増えた組 | `fingerprint.pairs` に無い組 |
+| 前回測っていない組がある（ページ・状態・ビューポート〈表示の軸の変種の label を含む〉が増えた） | 増えた組 | `fingerprint.pairs` に無い組 |
 
 - **新側のコミット SHA（`new.commit`）の変化を単独の失効条件にしない。** 往復ループでは毎反復変わるため単独条件にすると再利用が成立しない。
   反復が進んだ（差が 1）ときの SHA 変化は `loop.changed_scope` で範囲を判定し、**反復が進んでいないのに変わった場合だけ**（ループ外の変更で範囲を辿れない）上表のとおり全組を再測定する。
