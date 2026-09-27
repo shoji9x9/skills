@@ -335,6 +335,17 @@
       "expect_failing": [
         "乖離に gaps.md の該当箇所が無ければ落とす（既知の乖離を未検証へ回さない。Codex レビュー #491）"
       ]
+    },
+    {
+      "id": "unconfirmed-body",
+      "why": "「一致: 未確認」等のプレースホルダを確かめ方として通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (matched && UNCONFIRMED_BODY.test(matched[2].trim())) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "「一致: 未確認」のように形だけ満たしたプレースホルダは落とす（Codex レビュー #491）"
+      ]
     }
   ]
 }

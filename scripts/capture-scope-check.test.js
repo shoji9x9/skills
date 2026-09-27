@@ -1526,3 +1526,26 @@ test("乖離に gaps.md の該当箇所が無ければ落とす（既知の乖�
     ),
   ).toEqual([]);
 });
+
+test("「一致: 未確認」のように形だけ満たしたプレースホルダは落とす（Codex レビュー #491）", () => {
+  for (const value of [
+    "一致: 未確認",
+    "一致: 未検証",
+    "一致: TODO",
+    "一致: tbd",
+    "一致: <確かめ方>",
+    "乖離: 未確認（gaps.md）",
+  ]) {
+    expect(codesOf(metadataOf({ viewerEnvironment: value }))).toEqual([
+      "viewer-environment-unconfirmed",
+    ]);
+  }
+  // 陰性コントロール: 確かめ方が書いてあれば、途中に「未確認」の語を含んでも通る
+  expect(
+    codesOf(
+      metadataOf({
+        viewerEnvironment: "一致: 利用者環境の Edge へ接続して撮った（以前の未確認を解消）",
+      }),
+    ),
+  ).toEqual([]);
+});

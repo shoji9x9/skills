@@ -868,6 +868,15 @@ export function checkViewerEnvironment(conditions) {
   }
   const matched =
     typeof value === "string" ? /^(一致|乖離)\s*[:：]\s*(\S[\s\S]*)$/u.exec(value.trim()) : null;
+  // 形だけ満たした未確認（「一致: 未確認」「一致: TODO」、テンプレートの <…> のまま）は確かめ方・内容として数えない
+  if (matched && UNCONFIRMED_BODY.test(matched[2].trim())) {
+    return [
+      {
+        code: "viewer-environment-unconfirmed",
+        message: `capture_conditions.viewer_environment の「${matched[1]}」の後ろが未確認・プレースホルダ: ${JSON.stringify(value)}（確かめ方か、乖離の内容と gaps.md の該当箇所を書く）`,
+      },
+    ];
+  }
   if (matched && matched[1] === "乖離" && !matched[2].includes("gaps.md")) {
     return [
       {
@@ -886,6 +895,13 @@ export function checkViewerEnvironment(conditions) {
   }
   return [];
 }
+
+/**
+ * `viewer_environment` の「一致: / 乖離:」の後ろに置かれた、確かめていないことを表す書き方（先頭一致・大小文字無視）。
+ * 空でないだけの本文を確かめ方として数えると、「一致: 未確認」が一致として通る。
+ */
+export const UNCONFIRMED_BODY =
+  /^(?:未確認|未検証|要確認|確認中|不明|未定|なし|todo|tbd|fixme|n\/a|-|—|<)/iu;
 
 /** `capture_conditions.browser` の語彙。`launched` は Playwright が起動したブラウザ、`cdp` は利用者環境で起動したブラウザへの接続。 */
 export const BROWSER_MODES = ["launched", "cdp"];
