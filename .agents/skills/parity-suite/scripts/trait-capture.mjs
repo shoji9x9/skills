@@ -289,12 +289,46 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     return lines;
   };
   const collapse = (value) => value.replace(/\s+/g, " ").trim();
+  // 持ち主ごとの文字の区切り（テキストノード 1 つ分）。幅の合計 advance は全区切りの幅から、持ち主の
+  // 先頭と末尾の空白の幅だけを差し引いて出す——文字列は空白を畳んで trim して比べるので、端の空白の幅を
+  // 残すと、境目の空白がどちらの持ち主に付くかだけで幅が変わる（実測: <p>合計 <b>3件</b></p> と
+  // <p>合計<b> 3件</b></p> で p と b の幅が 4.45px ずつ入れ替わった）。中の空白は幅に数える
+  // （空白だけのノードも。数えないと "合計" " " "3" の 3 ノードが 1 ノードより 4.4px 狭くなった）。
+  const segments = new Map();
+  const edgeTrimmedAdvance = (list) => {
+    let total = list.reduce((sum, seg) => sum + seg.full, 0);
+    for (const [order, side] of [
+      [list, "lead"],
+      [[...list].reverse(), "trail"],
+    ]) {
+      for (const seg of order) {
+        if (seg.blank) {
+          total -= seg.full;
+          continue;
+        }
+        total -= seg[side];
+        break;
+      }
+    }
+    return total;
+  };
+  const widthOf = (node, start, end) => {
+    if (start >= end) return 0;
+    const sub = (el.ownerDocument || document).createRange();
+    sub.setStart(node, start);
+    sub.setEnd(node, end);
+    return Array.from(sub.getClientRects()).reduce((sum, f) => sum + f.width, 0);
+  };
   const collectText = (node, path, flatParent) => {
     const raw = node.nodeValue || "";
     if (collapse(raw) === "") {
-      // 空白だけのノードは持ち主を新しく作らないが、既に文字を持つ持ち主の中の空白は文字列に残す
+      // 空白だけのノードは持ち主を新しく作らないが、既に文字を持つ持ち主の中の空白は文字列と幅に残す
       const known = owners.get(flatParent);
-      if (known) rawText.set(known, rawText.get(known) + raw);
+      if (known) {
+        rawText.set(known, rawText.get(known) + raw);
+        const full = widthOf(node, 0, raw.length);
+        segments.get(known).push({ full, lead: full, trail: full, blank: true });
+      }
       return;
     }
     // 持ち主は平坦木の親（visit が渡す）。文字の書体は平坦木で継承されるため、<slot> に割り当てられた
@@ -309,7 +343,15 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     // 最終行の右端」まで広がり、同じ持ち主の文字どうしを合わせると間に挟まる子要素の領域まで覆うため、
     // 書体と無関係な寸法の差を出す（外接矩形は診断材料として rect に残すだけ）。
     const fragments = Array.from(range.getClientRects()).filter((f) => f.width > 0 && f.height > 0);
-    record(flatParent, path, raw, r, fragments);
+    const leadLength = raw.length - raw.trimStart().length;
+    const trailLength = raw.length - raw.trimEnd().length;
+    const segment = {
+      full: fragments.reduce((sum, f) => sum + f.width, 0),
+      lead: widthOf(node, 0, leadLength),
+      trail: widthOf(node, raw.length - trailLength, raw.length),
+      blank: false,
+    };
+    record(flatParent, path, raw, r, fragments, segment);
   };
   // 文字の矩形が、el までの祖先の切り抜き（overflow が visible でない箱・clip: rect(0 0 0 0)）で
   // 実質的に見えなくなっているか。視覚的に隠した文字（sr-only: 1px の箱に overflow: hidden で閉じ込める、
@@ -340,8 +382,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     return right - left < 2 || bottom - top < 2;
   };
   // 持ち主へ 1 つ分の文字を足す。r は外接矩形（診断材料）、fragments は行の断片（寸法の照合に使う）。
-  const record = (owner, path, raw, r, fragments) => {
-    const advance = fragments.reduce((sum, f) => sum + f.width, 0);
+  const record = (owner, path, raw, r, fragments, segment) => {
     const glyphHeight = fragments.reduce((max, f) => Math.max(max, f.height), 0);
     const style = getComputedStyle(owner);
     if (style.getPropertyValue("visibility") !== "visible") return;
@@ -349,7 +390,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     const known = owners.get(owner);
     if (known) {
       rawText.set(known, rawText.get(known) + raw);
-      known.advance += advance;
+      segments.get(known).push(segment);
       known.glyph_height = Math.max(known.glyph_height, glyphHeight);
       for (const f of fragments) bands.get(known).push({ top: f.y, bottom: f.y + f.height });
       const x2 = Math.max(known.rect.x + known.rect.width, r.x + r.width);
@@ -377,13 +418,14 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
       tag: owner.tagName.toLowerCase(),
       text: "",
       style: picked,
-      advance,
+      advance: 0,
       glyph_height: glyphHeight,
       lines: 0,
       rect: { x: r.x, y: r.y, width: r.width, height: r.height },
     };
     owners.set(owner, entry);
     rawText.set(entry, raw);
+    segments.set(entry, [segment]);
     bands.set(
       entry,
       fragments.map((f) => ({ top: f.y, bottom: f.y + f.height })),
@@ -421,9 +463,14 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     node.tagName === "INPUT" &&
     ["submit", "button", "reset"].includes(String(node.type).toLowerCase());
   let canvas = null;
+  // value 属性の無い submit / reset はブラウザが既定の文言（「送信」等）を描くが、その文言は DOM から
+  // 読めない。数えないと <button>送信</button> への置き換えで件数の差が出るので、文字列を空にした行として
+  // 数える（書体は照合し、文字列が合わないので寸法は照合されない）。
   const collectInputValue = (node, path) => {
+    const type = String(node.type).toLowerCase();
+    const defaultLabel = type !== "button" && !node.hasAttribute("value");
     const raw = String(node.value || "");
-    if (collapse(raw) === "") return;
+    if (collapse(raw) === "" && !defaultLabel) return;
     const box = node.getBoundingClientRect();
     if (!(box.width > 0 && box.height > 0)) return;
     const style = getComputedStyle(node);
@@ -431,12 +478,25 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     canvas.font = ["font-style", "font-weight", "font-size", "font-family"]
       .map((prop) => style.getPropertyValue(prop))
       .join(" ");
-    const m = canvas.measureText(raw);
+    // canvas は text-transform と letter-spacing を当てないので、描く側と同じ形へ寄せてから測る
+    // （実測: uppercase・0.05em で input 48.0px、button 71.5px だった）
+    const transform = style.getPropertyValue("text-transform");
+    const shown =
+      transform === "uppercase"
+        ? raw.toUpperCase()
+        : transform === "lowercase"
+          ? raw.toLowerCase()
+          : transform === "capitalize"
+            ? raw.replace(/(^|\s)(\S)/g, (_all, space, first) => space + first.toUpperCase())
+            : raw;
+    const spacing = style.getPropertyValue("letter-spacing");
+    canvas.letterSpacing = spacing === "normal" ? "0px" : spacing;
+    const m = canvas.measureText(shown);
     const height = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
     const fragment = { x: box.x, y: box.y, width: m.width, height };
-    record(node, path, raw, { x: box.x, y: box.y, width: box.width, height: box.height }, [
-      fragment,
-    ]);
+    const segment = { full: m.width, lead: 0, trail: 0, blank: false };
+    const rect = { x: box.x, y: box.y, width: box.width, height: box.height };
+    record(node, path, raw, rect, [fragment], segment);
   };
   if (isButtonInput(el)) collectInputValue(el, "");
   visit(
@@ -446,6 +506,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
   );
   for (const entry of textOwners) {
     entry.text = collapse(rawText.get(entry));
+    entry.advance = edgeTrimmedAdvance(segments.get(entry));
     entry.lines = countLines(bands.get(entry));
   }
 

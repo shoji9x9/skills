@@ -43,26 +43,48 @@ function fakeLocator(
         shadowRoot,
         ownerDocument: {
           // canvas の measureText は文字数 × 13 の幅と 12 + 3 の高さを返す偽（ボタンとして描く <input> 用）
+          // 大文字を含む文字列には 1000 を足し、letterSpacing は 1 文字ごとに足す（渡した形を弁別するため）
           createElement: () => ({
             getContext: () => ({
               font: "",
-              measureText: (t) => ({
-                width: t.length * 13,
-                fontBoundingBoxAscent: 12,
-                fontBoundingBoxDescent: 3,
-              }),
+              letterSpacing: "0px",
+              measureText(t) {
+                const spacing = parseFloat(this.letterSpacing) || 0;
+                return {
+                  width: t.length * 13 + spacing * t.length + (/[A-Z]/.test(t) ? 1000 : 0),
+                  fontBoundingBoxAscent: 12,
+                  fontBoundingBoxDescent: 3,
+                };
+              },
             }),
           }),
           // Range は selectNodeContents したテキストノードの矩形（textNode の rect）を返す
           createRange: () => {
             let target = null;
+            let start = null;
             return {
               selectNodeContents: (node) => {
                 target = node;
               },
+              // 部分範囲（端の空白の幅を測る）。先頭からの範囲は lead、それ以外は trail の幅を返す
+              setStart: (node, offset) => {
+                target = node;
+                start = offset;
+              },
+              setEnd: () => {},
               getBoundingClientRect: () => target.rect,
               // 行の断片。折り返す文字は fragments で複数を渡す（省略時は矩形 1 つ）
-              getClientRects: () => target.fragments ?? [target.rect],
+              getClientRects: () =>
+                start === null
+                  ? (target.fragments ?? [target.rect])
+                  : [
+                      {
+                        x: 0,
+                        y: 0,
+                        width: (start === 0 ? target.lead : target.trail) ?? 0,
+                        height: 1,
+                      },
+                    ],
             };
           },
         },
@@ -414,8 +436,8 @@ test("子に inline style が無ければ空配列になる（キーの欠落と
 
 // 偽の DOM。要素は textStyle（その要素の計算値）を持ち、テキストノードは rect（Range の矩形）を持つ。
 // parentElement / parentNode は組み立て後に張る。
-function textNode(value, rect = { x: 0, y: 0, width: 24, height: 14 }, fragments) {
-  return { nodeType: 3, nodeValue: value, rect, fragments };
+function textNode(value, rect = { x: 0, y: 0, width: 24, height: 14 }, fragments, edges = {}) {
+  return { nodeType: 3, nodeValue: value, rect, fragments, ...edges };
 }
 function elementNode(tag, childNodes = [], textStyle = {}, extra = {}) {
   const node = { nodeType: 1, tagName: tag.toUpperCase(), childNodes, textStyle, ...extra };
@@ -659,11 +681,13 @@ test("ボタンとして描く <input> の value を文字の持ち主として�
   const input = elementNode("input", [], fontOf(), {
     type: "submit",
     value: "検索",
+    hasAttribute: (name) => name === "value",
     getBoundingClientRect: () => ({ x: 0, y: 0, width: 60, height: 24 }),
   });
   const text = elementNode("input", [], fontOf(), {
     type: "text",
     value: "入力値",
+    hasAttribute: (name) => name === "value",
     getBoundingClientRect: () => ({ x: 0, y: 30, width: 60, height: 24 }),
   });
   const locator = fakeLocator(allResolved(), { childNodes: [input, text] });
@@ -672,6 +696,87 @@ test("ボタンとして描く <input> の value を文字の持ち主として�
   expect(
     trait.text_owners.map((o) => [o.path, o.tag, o.text, o.advance, o.glyph_height, o.lines]),
   ).toEqual([["input[0]", "input", "検索", 26, 15, 1]]);
+});
+
+// 文字列は空白を畳んで trim して比べるので、寸法も持ち主の端の空白を外して測る。外さないと、境目の空白が
+// どちらの持ち主に付くかだけで幅が変わる（実測: <p>合計 <b>3件</b></p> と <p>合計<b> 3件</b></p>）。
+test("持ち主の端の空白の幅は数えず、中の空白（空白だけのノードを含む）の幅は数える", async () => {
+  const capture = async (nodes) => {
+    const p = elementNode("p", nodes, fontOf());
+    const locator = fakeLocator(allResolved(), { childNodes: [p] });
+    rootWith([p]);
+    const [trait] = await captureTraits([{ name: "x", locator }]);
+    return trait.text_owners.map((o) => [o.text, o.advance]);
+  };
+  const b = (text, width, edges) =>
+    elementNode(
+      "b",
+      [textNode(text, { x: 0, y: 0, width, height: 14 }, undefined, edges)],
+      fontOf(),
+    );
+  // 境目の空白が p 側にある形と b 側にある形
+  const trailing = await capture([
+    textNode("合計 ", { x: 0, y: 0, width: 36, height: 14 }, undefined, { trail: 4 }),
+    b("3件", 25),
+  ]);
+  const leading = await capture([
+    textNode("合計", { x: 0, y: 0, width: 32, height: 14 }),
+    b(" 3件", 29, { lead: 4 }),
+  ]);
+  expect(trailing).toEqual([
+    ["合計", 32],
+    ["3件", 25],
+  ]);
+  expect(leading).toEqual(trailing);
+  // 空白だけのノードが中にある形は、1 ノードで描いた幅と同じになる
+  const split = await capture([
+    textNode("合計", { x: 0, y: 0, width: 32, height: 14 }),
+    textNode(" ", { x: 32, y: 0, width: 4, height: 14 }, undefined, { lead: 4, trail: 4 }),
+    textNode("3", { x: 36, y: 0, width: 9, height: 14 }),
+  ]);
+  expect(split).toEqual([["合計 3", 45]]);
+});
+
+// canvas は text-transform と letter-spacing を当てないので、描く側と同じ形へ寄せてから測る。
+test("ボタンとして描く <input> の文字は text-transform と letter-spacing を当てて測る", async () => {
+  const input = elementNode(
+    "input",
+    [],
+    fontOf({ "text-transform": "uppercase", "letter-spacing": "1px" }),
+    {
+      type: "submit",
+      value: "search",
+      hasAttribute: (name) => name === "value",
+      getBoundingClientRect: () => ({ x: 0, y: 0, width: 120, height: 24 }),
+    },
+  );
+  const locator = fakeLocator(allResolved(), { childNodes: [input] });
+  rootWith([input]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.text, o.advance])).toEqual([
+    ["search", 6 * 13 + 6 + 1000],
+  ]);
+});
+
+// value 属性の無い submit / reset は、ブラウザが既定の文言を描くが DOM から読めない。
+test("value 属性の無い submit は文字列を空にした行として数え、type=button は数えない", async () => {
+  const box = () => ({ x: 0, y: 0, width: 60, height: 24 });
+  const submit = elementNode("input", [], fontOf(), {
+    type: "submit",
+    value: "",
+    hasAttribute: () => false,
+    getBoundingClientRect: box,
+  });
+  const button = elementNode("input", [], fontOf(), {
+    type: "button",
+    value: "",
+    hasAttribute: () => false,
+    getBoundingClientRect: box,
+  });
+  const locator = fakeLocator(allResolved(), { childNodes: [submit, button] });
+  rootWith([submit, button]);
+  const [trait] = await captureTraits([{ name: "x", locator }]);
+  expect(trait.text_owners.map((o) => [o.path, o.text])).toEqual([["input[0]", ""]]);
 });
 
 // 開いたシャドウルートは中を辿り、ライト DOM の子は <slot> に割り当てられた位置で数える（描かれる順）。
