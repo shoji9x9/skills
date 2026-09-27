@@ -708,6 +708,17 @@
       "expect_failing": ["表への書き込みの欠けは落とす: キーごと無い（Issue #466）"]
     },
     {
+      "id": "side-effects-declared-false-records",
+      "why": "declared: false のまま記録を持つ表を走査せずに通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (value !== undefined && !(Array.isArray(value) && value.length === 0))\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: declared: false なのに記録がある（Issue #466）"
+      ]
+    },
+    {
       "id": "side-effects-pattern-table",
       "why": "パターンの書く表が表の一覧に無くても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",

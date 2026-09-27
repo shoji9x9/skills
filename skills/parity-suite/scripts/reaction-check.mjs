@@ -1038,6 +1038,13 @@ function checkSideEffectWrites(sew, ctx) {
   summary.declared = sew.declared;
   if (sew.declared === false) {
     if (!filled(sew.reason)) problems.push("side_effect_writes.declared: false なのに reason が空");
+    for (const key of ["tables", "patterns", "sites"]) {
+      const value = sew[key];
+      if (value !== undefined && !(Array.isArray(value) && value.length === 0))
+        problems.push(
+          `side_effect_writes.declared: false なのに ${key} がある（書き込みが無いと在るが同時に成立する。記録したなら declared: true で走査させる）`,
+        );
+    }
     return summary;
   }
   const tables = sew.tables;

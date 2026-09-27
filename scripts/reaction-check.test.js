@@ -1789,6 +1789,22 @@ test("書き込みを持たない機能は declared: false と理由で通す（
   });
 });
 
+test("declared: false の空の配列は記録とみなさず通す（Issue #466）", () => {
+  const t = mutated(
+    (x) =>
+      (x.side_effect_writes = {
+        declared: false,
+        reason: "features.md の副作用出力に表への書き込みが無い",
+        tables: [],
+        patterns: [],
+        sites: [],
+      }),
+  );
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
 test("画面を開いたときの書き込みは operation: null と時機で、別機能の書き込みは除外理由で通す（Issue #466）", () => {
   const t = mutated((x) => {
     x.side_effect_writes.sites[0] = {
@@ -1826,6 +1842,15 @@ test.each([
     "キーごと無い",
     (t) => delete t.side_effect_writes,
     "side_effect_writes.declared が真偽値でない",
+  ],
+  [
+    "declared: false なのに記録がある",
+    (t) =>
+      Object.assign(t.side_effect_writes, {
+        declared: false,
+        reason: "features.md の副作用出力に表への書き込みが無い",
+      }),
+    "side_effect_writes.declared: false なのに sites がある",
   ],
   [
     "書き込みが無いと書いて理由が無い",
