@@ -22,6 +22,7 @@
 //   node scripts/check-mutation-proof.js --only A,B          # id で絞る（開発中の 1 本だけ回す）
 //   node scripts/check-mutation-proof.js --changed-since origin/main
 //                                                            # 差分に当たる宣言だけ（PR 用）
+//   node scripts/check-mutation-proof.js --shard 2/4         # 選んだ変異を 4 分割した 2 番目だけ（CI の並列実行用）
 //
 // **全件は重い。** 1 変異 = 対象テストファイル 1 回の実行で、実行器自身を変異させる宣言
 // （テストが入れ子で runner を起動する）が全体の 3 分の 2 を占める（手元実測: 98 変異 390 秒のうち
@@ -257,6 +258,7 @@ function parseArgs(argv) {
   const files = [];
   let only = null;
   let changedSince = null;
+  let shard = null;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--only") {
@@ -267,9 +269,11 @@ function parseArgs(argv) {
     } else if (arg === "--changed-since") {
       changedSince = argv[++i];
       if (!changedSince) die("--changed-since に ref がない");
+    } else if (arg === "--shard") {
+      shard = parseShard(argv[++i]);
     } else if (arg === "--help" || arg === "-h") {
       console.log(
-        "usage: node scripts/check-mutation-proof.js [<spec.json>...] [--only <id,...>] [--changed-since <ref>]",
+        "usage: node scripts/check-mutation-proof.js [<spec.json>...] [--only <id,...>] [--changed-since <ref>] [--shard <i>/<N>]",
       );
       process.exit(0);
     } else if (arg.startsWith("-")) {
@@ -278,7 +282,20 @@ function parseArgs(argv) {
       files.push(arg);
     }
   }
-  return { files, only, changedSince };
+  return { files, only, changedSince, shard };
+}
+
+/**
+ * `--shard i/N` を読む（1 始まり）。**範囲外・非整数は前提の誤りにする**——黙って 0 件のシャードにすると、
+ * どのシャードも測らない変異が出ても全ジョブが緑になる。
+ */
+function parseShard(value) {
+  const m = /^([1-9]\d*)\/([1-9]\d*)$/.exec(value ?? "");
+  if (!m) die(`--shard は <i>/<N>（1 以上の整数）で指定する: ${value ?? "(値がない)"}`);
+  const index = Number(m[1]);
+  const total = Number(m[2]);
+  if (index > total) die(`--shard の i が N を超えている: ${value}`);
+  return { index, total };
 }
 
 /** 宣言ファイルの一覧。**0 件は成功に倒さない**（検査が空振りしただけの緑を根拠にしない）。 */
@@ -584,7 +601,7 @@ function proveMutation(mutation, testFile) {
 }
 
 function main() {
-  const { files, only, changedSince } = parseArgs(process.argv.slice(2));
+  const { files, only, changedSince, shard } = parseArgs(process.argv.slice(2));
   // 宣言の検証より先にロックを取る（並行実行が互いのファイルを読むのを防ぐ）。
   takeLock();
   // 前回が中断されて変異が残っていれば、測る前に戻す（残った変異を基準 run が測らないため）。
@@ -622,6 +639,29 @@ function main() {
     const selected = new Set(plans.flatMap((p) => p.targeted.map((m) => m.id)));
     const unmatched = sorted([...only].filter((id) => !selected.has(id)));
     if (unmatched.length) die(`--only で 1 件も選ばれなかった: ${unmatched.join(" / ")}`);
+  }
+
+  // `--shard i/N` は、選んだ変異を**宣言をまたいだ通し番号**で N 分割し i 番目だけを測る。
+  // 通し番号の剰余で配るので、どの変異もちょうど 1 つのシャードに入り（N 本を合わせると全件）、
+  // 1 つの宣言に変異が偏っていても（reaction-check の 100 件超等）各シャードへ均等に散る。
+  // 基準 run は変異を受け持つ宣言ごとに各シャードで測る（シャードは別ジョブで作業ツリーを共有しない）。
+  if (shard) {
+    const total = plans.reduce((n, p) => n + p.targeted.length, 0);
+    let k = 0;
+    for (const p of plans) {
+      p.targeted = p.targeted.filter(() => k++ % shard.total === shard.index - 1);
+    }
+    const mine = plans.reduce((n, p) => n + p.targeted.length, 0);
+    console.log(
+      `シャード ${shard.index}/${shard.total}: 選んだ変異 ${total} 件のうち ${mine} 件を測る`,
+    );
+    if (mine === 0) {
+      // 変異がシャード数より少ないときに起きる。残りは他のシャードが測る（選んだ変異 0 件はここへ来る前に扱う）。
+      console.log(
+        `mutation-proof: このシャードに割り当てられた変異は無い（選んだ ${total} 件を ${shard.total} 分割）`,
+      );
+      return;
+    }
   }
 
   for (const { spec, targeted } of plans) {
