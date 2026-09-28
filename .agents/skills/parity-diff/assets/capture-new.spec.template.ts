@@ -34,9 +34,14 @@
  *
  * 1 回目と 2 回目の差分量（pixel_diff / trait_diffs）を測るのはスペックの仕事ではない。
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
+ *
+ * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・OS）は
+ * `new/<target>/browser-identity.<pass>.json` に書き出す。parity-diff が自己ノイズの測定値を再利用するかを決める
+ * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる（Issue #493）。
  */
-import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { readFileSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { arch, platform, release } from "node:os";
+import { dirname, isAbsolute, join, relative } from "node:path";
 // 現側の capture_conditions.browser が cdp なら、@playwright/test ではなく共通のフィクスチャ（利用者環境のブラウザへ接続する。
 // parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」）から import する
 import { test } from "@playwright/test";
@@ -199,6 +204,48 @@ if (scrollbars === "shown") {
   test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 }
 
+// 撮影に使ったブラウザの同一性（Issue #493）。launched でも、ランナー・OS の移動、Playwright の更新による版の変化、
+// channel / headless の変更で描画環境は変わる。parity-diff はこれを自己ノイズの指紋へ入れ、前回と違えば測り直す。
+// 2 回目（noise）も書き、1 回目と違えば同じ環境で 2 回撮れていないので parity-diff が測定を捨てる。
+// 書き出し先は outRoot の外（noise-pass2/ は測定後に消える。組のディレクトリ 3 段の外に置く）
+const identityPath = join(
+  repoRoot,
+  ".replace",
+  "parity",
+  slug,
+  "new",
+  target,
+  `browser-identity.${pass}.json`,
+);
+test.beforeAll(async ({ browser, browserName }, testInfo) => {
+  // 現側が hidden で撮ったのに、プロジェクトの launchOptions がスクロールバーを出していたら撮らない（片側だけ場所を取る）
+  const ignored = testInfo.project.use.launchOptions?.ignoreDefaultArgs;
+  if (
+    scrollbars === "hidden" &&
+    (ignored === true || (Array.isArray(ignored) && ignored.includes("--hide-scrollbars")))
+  ) {
+    throw new Error(
+      "capture_conditions.scrollbars is hidden but the project launchOptions removes --hide-scrollbars: 現側と同じ扱いで撮る",
+    );
+  }
+  const probe = await browser.newPage();
+  const userAgent = await probe.evaluate(() => navigator.userAgent);
+  await probe.close();
+  // beforeAll はワーカーごとに走る。書くのは並列の枠 0 のワーカーだけにし（同じプロジェクトのワーカーは同じブラウザを起動する）、
+  // 一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
+  if (testInfo.parallelIndex !== 0) return;
+  writeJsonAtomic(identityPath, {
+    browser: browserMode,
+    browser_name: browserName,
+    product: browser.version(),
+    user_agent: userAgent,
+    // project の use に書いた値（未指定は null＝Playwright の既定）。test.use で上書きした scrollbars の起動引数は scrollbars が持つ
+    channel: testInfo.project.use.channel ?? null,
+    headless: testInfo.project.use.headless ?? null,
+    os: `${platform()} ${release()} ${arch()}`,
+  });
+});
+
 test.beforeEach(async (_fixtures, testInfo) => {
   // fail-fast: current で走ると現行アプリを新側ベースラインとして書き出す（testIgnore の設定漏れ対策）
   if (testInfo.project.name !== "new-capture") {
@@ -300,6 +347,14 @@ function requireEnv(name: string): string {
 // TODO: 書き出しをラップしているプロジェクトではそのユーティリティへ差し替える
 function writeJson(path: string, value: unknown): void {
   writeText(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeJsonAtomic(path: string, value: unknown): void {
+  // 初回の実行では new/<target>/ がまだ無い（撮影の出力ディレクトリはテストの中で作る）
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeText(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  renameSync(temporary, path);
 }
 
 function writeText(path: string, value: string): void {

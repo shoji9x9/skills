@@ -207,7 +207,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - **インスタンス例外レジストリとその根拠は環境非依存**なので slug 直下に置く（`gaps.md` / `porting.md` と同じ扱い）。特定の target でだけ出る差は例外ではなく環境差であり、ノイズ基準値と新側の自己ノイズで扱う
 - テキスト成果物（`diff.md` / `diff-metadata.json` / 例外レジストリとその根拠）は Git。
   新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
-- **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）は成果物ではない。** 測定値を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
+- **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）と、撮影に使ったブラウザの同一性の記録（`new/<target>/browser-identity.<pass>.json`）は成果物ではない。** 測定値・指紋を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
   [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) /
   [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) / [`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)）は

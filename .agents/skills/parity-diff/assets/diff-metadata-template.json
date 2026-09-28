@@ -89,7 +89,7 @@
     "measured_at_commit": "<測定時点の新側コミット SHA。変化そのものは単独の失効条件にしない（往復ループでは毎反復変わるため）が、反復が進んでいない（loop.iterations の差が 0）のに変わっていればループ外の変更として全組を再測定する>",
     "loop_iteration": "<測定時点の同 target の replace-metadata.json の loop.iterations（数値）>",
     "fingerprint": {
-      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / full_page / states / masks / animations / scrollbars / display_axes（axes の name・values・default・not_applicable と variants の label・viewport・values）/ browser（cdp なら接続先の同一性も含める: 解決した PARITY_NEW_CDP_URL の sha256 と、CDP Browser.getVersion の product・userAgent。URL そのものは書かない。同一性を取れないなら再利用せず測り直す）/ popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
+      "capture_conditions": "<現側 metadata.json の capture_conditions のうち viewports / full_page / states / masks / animations / scrollbars / display_axes（axes の name・values・default・not_applicable と variants の label・viewport・values）/ browser（cdp なら接続先の同一性も含める: 解決した PARITY_NEW_CDP_URL の sha256 と、CDP Browser.getVersion の product・userAgent。URL そのものは書かない。同一性を取れないなら再利用せず測り直す）/ browser_identity（launched・cdp とも。雛形が書き出した new/<target>/browser-identity.baseline.json の browser_name・product・user_agent・channel・headless・os。今回の記録が無い・読めない・前回の指紋に無いなら再利用せず測り直す）/ popup_inventory（name・parent・opened_by・captured の対応。opened_by は要素を整列した配列として、単一の文字列は 1 要素の配列として正規化する〈開き方の並び順は意味を持たない〉）を正規化した文字列>",
       "differ": "<differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare} と traits.tool を正規化した文字列>",
       "dataset_version": "<測定時点の dataset_version（数値）。phase B との整合を免除した target では null>",
       "settle_wait": "<1 回目・2 回目とも操作アダプタの静止待ち（撮る対象の矩形が 2 回続けて同じ値になるまで待つ）を通して測ったなら true（真偽値で書く）。キーが無い・true でない前回記録は再利用しない>",
