@@ -787,6 +787,19 @@ function aftermathReturnsProblems(ret, screenStates) {
 }
 
 /**
+ * 横取り・保留した要求の URL のパターンが、オリジン（スキームとホスト・ポート）を含まない形か。
+ * 成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、実行時に解決した URL がそのまま記録されるのを落とす
+ * （Codex レビュー #504）。`/api/orders` や、先頭を `**` にした Playwright の glob は通し、`https://host/…`・`//host/…` は落とす。
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+function originFreePattern(v) {
+  if (!filled(v)) return false;
+  const t = String(v).trim();
+  return !/^[a-z][a-z0-9+.-]*:/i.test(t) && !t.startsWith("//");
+}
+
+/**
  * 状態表示の候補 1 つ（state_displays.pages[].candidates の 1 値）の欠けを返す。Issue #500
  *
  * 「状態表示」を散文の観点にしておくと、画面がその状態を持つかを一度も測らないまま完了できる。
@@ -850,10 +863,10 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
     // 横取りした要求を書かせないと、どの要求を止めたか（画面の本体の取得か、無関係な要求か）を読めない
     if (
       INTERCEPT_METHODS.includes(method) &&
-      !filled(/** @type {Record<string, unknown>} */ (setup).request)
+      !originFreePattern(/** @type {Record<string, unknown>} */ (setup).request)
     ) {
       out.push({
-        problem: `${candidate}: setup.method: ${method} なのに setup.request（横取りした要求の URL のパターン。オリジンは書かない）が空`,
+        problem: `${candidate}: setup.method: ${method} なのに setup.request（横取りした要求の URL のパターン。オリジンは書かない）が空・オリジン付き`,
         unmeasured: true,
       });
     }
@@ -1108,10 +1121,10 @@ function resubmitProblems(rs, writes) {
   const out = [];
   // 応答を保留しないと、押し直す前に往復が終わり「送っている間」を一度も作らない
   const hold = rs.hold;
-  if (!isPlainObject(hold) || hold.method !== "route-delay" || !filled(hold.request)) {
+  if (!isPlainObject(hold) || hold.method !== "route-delay" || !originFreePattern(hold.request)) {
     out.push({
       problem:
-        "resubmit.hold が { method: route-delay, request: <保留した要求の URL のパターン> } でない（応答を保留せずに押し直すと、送っている間を作れない）",
+        "resubmit.hold が { method: route-delay, request: <保留した要求の URL のパターン。オリジンは書かない> } でない（応答を保留せずに押し直すと、送っている間を作れない）",
       unmeasured: true,
     });
   }

@@ -2565,3 +2565,39 @@ test.each([
     expect(r.stderr).toContain(message);
   },
 );
+
+test.each([
+  [
+    "状態表示の横取りした要求が絶対 URL",
+    (t) => (candidate(t, "loading").setup.request = "https://current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
+  [
+    "状態表示の横取りした要求がスキーム相対",
+    (t) => (candidate(t, "fetch-error").setup.request = "//current.example/api/share/list"),
+    "fetch-error: setup.method: route-abort なのに setup.request",
+  ],
+  [
+    "押し直しの保留した要求が絶対 URL",
+    (t) => (t.operations[1].resubmit.hold.request = "http://localhost:8080/api/export"),
+    "resubmit.hold が { method: route-delay",
+  ],
+])(
+  "要求のパターンにオリジンを残す記録は落とす: %s（Codex レビュー #504）",
+  (_name, mutate, message) => {
+    const r = run(mutated(mutate));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test("オリジンを含まない glob の要求パターンは通す（Codex レビュー #504）", () => {
+  const r = run(
+    mutated((t) => {
+      candidate(t, "loading").setup.request = "**/api/share/list";
+      t.operations[1].resubmit.hold.request = "**/api/export?format=csv";
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});

@@ -897,10 +897,14 @@
       "id": "state-display-request",
       "why": "横取りした要求が空でも通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (\n      INTERCEPT_METHODS.includes(method) &&\n      !filled(/** @type {Record<string, unknown>} */ (setup).request)\n    ) {\n",
+      "find": "    if (\n      INTERCEPT_METHODS.includes(method) &&\n      !originFreePattern(/** @type {Record<string, unknown>} */ (setup).request)\n    ) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["状態表示の振り分けの欠けは落とす: 横取りした要求が空（Issue #500）"]
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 横取りした要求が空（Issue #500）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）"
+      ]
     },
     {
       "id": "state-display-observed",
@@ -1143,12 +1147,13 @@
       "id": "resubmit-hold",
       "why": "応答を保留せずに押し直した記録を通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (!isPlainObject(hold) || hold.method !== \"route-delay\" || !filled(hold.request)) {\n",
+      "find": "  if (!isPlainObject(hold) || hold.method !== \"route-delay\" || !originFreePattern(hold.request)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "送っている間の押し直しの欠けは落とす: 応答を保留していない（Issue #500）",
-        "送っている間の押し直しの欠けは落とす: 保留した要求が空（Issue #500）"
+        "送っている間の押し直しの欠けは落とす: 保留した要求が空（Issue #500）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）"
       ]
     },
     {
@@ -1244,6 +1249,19 @@
       "occurrences": 1,
       "expect_failing": [
         "画面の宣言の型崩れは黙って捨てずに exit 2: 同じ名前の宣言（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "request-pattern-origin",
+      "why": "オリジン付きの要求パターンを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  return !/^[a-z][a-z0-9+.-]*:/i.test(t) && !t.startsWith(\"//\");\n",
+      "replace": "  return true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）"
       ]
     }
   ]
