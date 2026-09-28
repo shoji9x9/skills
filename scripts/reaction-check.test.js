@@ -288,12 +288,20 @@ const stateDisplayRow = (page = "共有画面") => ({
       observed: "保留している間も表示が変わらない（読み込み中の表示が出ない）",
       covered_by: ["share.spec.ts: 応答の保留中に読み込み中の表示が出ない"],
     },
-    toast: {
-      status: "present",
-      setup: { method: "ui", detail: "コピーを押す" },
-      observed: "コピー完了のトーストが最上部に出て消える",
-      reactions: ["copy/toast"],
-    },
+    // 反応は押した後の画面のものだけを指せる（copy の通知は共有画面の反応）
+    toast:
+      page === "共有画面"
+        ? {
+            status: "present",
+            setup: { method: "ui", detail: "コピーを押す" },
+            observed: "コピー完了のトーストが最上部に出て消える",
+            reactions: ["copy/toast"],
+          }
+        : {
+            status: "absent",
+            setup: { method: "not-applicable", detail: "この画面の操作は通知を出さない" },
+            observed: "この画面の操作の反応はどれも kind: none",
+          },
     dialog: {
       status: "absent",
       setup: { method: "not-applicable", detail: "画面が開くダイアログの器を持たない" },
@@ -2247,7 +2255,7 @@ test.each([
   [
     "反応の参照が被覆表に無い",
     (t) => (candidate(t, "toast").reactions = ["copy/missing"]),
-    'toast: reactions の "copy/missing"',
+    'toast: reactions の "copy/missing" が被覆表の観測した反応',
   ],
   [
     "toast / dialog 以外に反応の参照",
@@ -2466,3 +2474,94 @@ test("同梱テンプレートのプレースホルダのままの状態表示�
   expect(r.stderr).toContain('operations["copy"]: resubmit.sends: false なのに reason');
   expect(r.stderr).toContain('operations["search"]: resubmit.presses');
 });
+
+test("状態表示の反応の参照は、その画面の操作の反応に限る（Codex レビュー #504）", () => {
+  const metadata = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [
+        { name: "共有画面", path: "share" },
+        { name: "検索画面", path: "search" },
+      ],
+    },
+  };
+  const withSearchPage = (t) => {
+    t.state_displays.pages.push(stateDisplayRow("検索画面"));
+    t.operations[0].capture_page = "共有画面";
+  };
+  // 陰性コントロール: 共有画面の行が共有画面の操作の反応を指す
+  const own = run(mutated(withSearchPage), { metadata });
+  expect(own.stderr).toBe("");
+  expect(own.status).toBe(0);
+  // 検索画面の行が共有画面の操作の反応を指す
+  const cross = run(
+    mutated((t) => {
+      withSearchPage(t);
+      t.state_displays.pages[1].candidates.toast = stateDisplayRow().candidates.toast;
+    }),
+    { metadata },
+  );
+  expect(cross.status).toBe(1);
+  expect(cross.stderr).toContain(
+    'toast: reactions の "copy/toast" は画面 "共有画面" の反応（capture_page）で、画面 "検索画面" の状態表示に使えない',
+  );
+  // 撮る状態を持たず capture_page も無い操作の反応は、画面が 2 つ以上だとどの画面のものか決まらない
+  const unknown = run(
+    mutated((t) => {
+      withSearchPage(t);
+      delete t.operations[0].capture_page;
+      t.operations[0].reactions[0].capture = { state: null, reason: "通知は撮らない" };
+    }),
+    { metadata },
+  );
+  expect(unknown.status).toBe(1);
+  expect(unknown.stderr).toContain(
+    'toast: reactions の "copy/toast" の操作がどの画面の反応か決まらない',
+  );
+});
+
+test.each([
+  [
+    "name の無い宣言",
+    [{ name: "共有画面", path: "share" }, { path: "orphan" }],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "空の name",
+    [
+      { name: "共有画面", path: "share" },
+      { name: "", path: "x" },
+    ],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "オブジェクトでない宣言",
+    [{ name: "共有画面", path: "share" }, "検索画面"],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "同じ名前の宣言",
+    [
+      { name: "共有画面", path: "share" },
+      { name: "共有画面", path: "share2" },
+    ],
+    '画面 "共有画面" が 2 つある',
+  ],
+])(
+  "画面の宣言の型崩れは黙って捨てずに exit 2: %s（Codex レビュー #504）",
+  (_name, pages, message) => {
+    const r = run(baseTable(), {
+      metadata: {
+        slug: "share",
+        target: { name: "current-test", commit: "abc123" },
+        reaction_coverage: { declared: true, path: "reactions.json" },
+        capture_conditions: { states: ["default", "copy-toast"], pages },
+      },
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(message);
+  },
+);

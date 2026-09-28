@@ -1210,6 +1210,41 @@
       "expect_failing": [
         "送っている間の押し直しの欠けは落とす: assertion にしていない（Issue #500）"
       ]
+    },
+    {
+      "id": "state-display-reaction-page",
+      "why": "別の画面の操作の反応で状態表示を満たす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (refPage !== at.page) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の反応の参照は、その画面の操作の反応に限る（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "page-declaration-name",
+      "why": "名前の無い・空の画面の宣言を黙って扱う",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!isPlainObject(pg) || !nonEmptyString(pg.name)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面の宣言の型崩れは黙って捨てずに exit 2: name の無い宣言（Codex レビュー #504）",
+        "画面の宣言の型崩れは黙って捨てずに exit 2: 空の name（Codex レビュー #504）",
+        "画面の宣言の型崩れは黙って捨てずに exit 2: オブジェクトでない宣言（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "page-declaration-duplicate",
+      "why": "同じ名前の画面の宣言を 1 つに畳む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (names.has(pg.name)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面の宣言の型崩れは黙って捨てずに exit 2: 同じ名前の宣言（Codex レビュー #504）"
+      ]
     }
   ]
 }
