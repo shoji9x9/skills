@@ -1247,6 +1247,19 @@
         "状態表示の振り分けの欠けは落とす: toast に反応の参照を書いた（Codex レビュー #504 で入力形式ごと外した）（Issue #500）",
         "状態表示の振り分けの欠けは落とす: dialog の反応の参照が空配列（キーがあれば落とす）（Issue #500）"
       ]
+    },
+    {
+      "id": "reaction-check-cli-entry-skipped",
+      "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #507）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "if (invokedAsCli) {\n",
+      "replace": "if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+      ]
     }
   ]
 }

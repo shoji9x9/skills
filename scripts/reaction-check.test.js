@@ -10,11 +10,12 @@ import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
+const { main } = await import(pathToFileURL(script).href);
 
 /** 観測した反応（トースト）。消えるまでの時間を 2 標本で持つ。 */
 const toast = () => ({
@@ -359,7 +360,38 @@ const OUTSIDE_ABS = "__OUTSIDE_ABS__";
 const INSIDE_ABS = "__INSIDE_ABS__";
 
 /**
- * 一時プロジェクトを作って CLI を実行する。
+ * main を同じプロセスで呼ぶ（子プロセスの起動を省く。変異実証が変異ごとにこのファイルを丸ごと回すため、Issue #507）。
+ * CLI として起動できること（エントリ判定・引数と出力・終了コードの受け渡し）は cli() の陽性コントロールが持つ。
+ * @param {string} dir - 起動時の作業ディレクトリ
+ * @param {string[]} args
+ */
+function call(dir, args) {
+  let stdout = "";
+  let stderr = "";
+  const status = main(["--metadata", "metadata.json", ...args], {
+    cwd: dir,
+    out: (s) => (stdout += s),
+    err: (s) => (stderr += s),
+  });
+  return { dir, status, stdout, stderr };
+}
+
+/**
+ * 子プロセスとして CLI を起動する。
+ * @param {string} dir
+ * @param {string[]} [args]
+ */
+function cli(dir, args = []) {
+  const r = spawnSync(process.execPath, [script, "--metadata", "metadata.json", ...args], {
+    cwd: dir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
+}
+
+/**
+ * 一時プロジェクトを作って main を実行する。
  * @param {object} table
  * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string }} [opts]
  */
@@ -395,16 +427,7 @@ function run(table, opts = {}) {
       .replaceAll(OUTSIDE_ABS, JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1))
       .replaceAll(INSIDE_ABS, JSON.stringify(join(dir, "src/export.js")).slice(1, -1)),
   );
-  const r = spawnSync(
-    process.execPath,
-    [script, "--metadata", "metadata.json", ...(opts.args ?? [])],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
+  return call(dir, opts.args ?? []);
 }
 
 /** @param {(t: ReturnType<typeof baseTable>) => void} mutate */
@@ -423,6 +446,35 @@ test("陽性コントロール: 完全な表は exit 0", () => {
     unmeasured_operations: 0,
     call_sites: { checked: true, found: 1 },
   });
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す", () => {
+  const { dir } = run(baseTable());
+  const r = cli(dir);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout)).toMatchObject({ tool: "reaction-check", ok: true });
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す", () => {
+  const t = mutated((x) => {
+    x.feedback_calls.call_sites = [];
+    x.feedback_calls.zero_calls_reason = "呼び出しは無い";
+  });
+  const { dir } = run(t);
+  const r = cli(dir);
+  expect(r.stderr).toContain('["src/share.js",2,3,"toast"] が被覆表に記録されていない');
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toMatchObject({ ok: false });
+});
+
+test("陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す", () => {
+  const { dir } = run(baseTable());
+  const r = cli(dir, ["--bogus"]);
+  expect(r.stderr).toContain("error: 不明な引数 --bogus");
+  expect(r.stderr).toMatch(/^usage: reaction-check\.mjs/m);
+  expect(r.stdout).toBe("");
+  expect(r.status).toBe(2);
 });
 
 test("別オリジンの文書は、移行元の本来の配置でも別オリジンになる根拠があれば通す（Issue #450）", () => {
@@ -772,12 +824,7 @@ test.each([
 
 /** 同じ一時プロジェクトで再実行する。 */
 function rerun(dir, args = []) {
-  const r = spawnSync(process.execPath, [script, "--metadata", "metadata.json", ...args], {
-    cwd: dir,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
+  return call(dir, args);
 }
 
 test("改行をまたぐ呼び出しも検出する（記録が無ければ落ちる）", () => {
