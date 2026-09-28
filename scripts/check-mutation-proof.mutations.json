@@ -66,7 +66,8 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言と前提の検証（走らせる前に落とす） --only は選ばれなかった宣言を飛ばす（宣言が複数あっても走る）",
-        "宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る"
+        "宣言と前提の検証（走らせる前に落とす） 実行器が変わったら全宣言を測る",
+        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる"
       ]
     },
     {
@@ -253,6 +254,50 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["宣言と前提の検証（走らせる前に落とす） vitest を解決できなければ exit 2"]
+    },
+    {
+      "id": "SHARD-PARTITION",
+      "why": "--shard で絞らず、どのシャードも全件を測る（分割が効かず速くならない・重複して測る）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "      p.targeted = p.targeted.filter(() => k++ % shard.total === shard.index - 1);",
+      "replace": "      p.targeted = p.targeted.filter(() => (k++, true));",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
+        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0"
+      ]
+    },
+    {
+      "id": "SHARD-OFFSET",
+      "why": "シャード番号を 0 始まりと取り違える（1/N と N/N で同じ変異を測り、別の変異をどのシャードも測らない）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "k++ % shard.total === shard.index - 1",
+      "replace": "k++ % shard.total === shard.index % shard.total",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard 宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる",
+        "--shard 変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0"
+      ]
+    },
+    {
+      "id": "SHARD-RANGE",
+      "why": "N を超える i を受け付ける（どの変異も割り当たらない 0 件のシャードが黙って緑になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (index > total) die(",
+      "replace": "  if (false) die(",
+      "occurrences": 1,
+      "expect_failing": ["--shard --shard 3/2 は exit 2（黙って 0 件のシャードにしない）"]
+    },
+    {
+      "id": "SHARD-SAFE",
+      "why": "安全な整数の範囲外の --shard を受け付ける（丸めで i > N が比較を通り、0 件のシャードが黙って緑になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --shard 9007199254740993/9007199254740992 は exit 2（黙って 0 件のシャードにしない）"
+      ]
     }
   ]
 }

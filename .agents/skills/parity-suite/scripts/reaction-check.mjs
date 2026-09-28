@@ -2298,13 +2298,16 @@ function pageNameSet(pages) {
 
 /**
  * @param {string[]} argv - process.argv.slice(2)
- * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string }} [deps]
+ * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string, out?: (s: string) => void, err?: (s: string) => void }} [deps]
+ *   out / err は出力先（既定は process.stdout / process.stderr）。テストが子プロセスを起動せず main を直接呼ぶために差し込む（Issue #507）
  * @returns {number}
  */
 export function main(argv, deps = {}) {
   const readFile = deps.readFile ?? ((p) => readFileSync(p, "utf8"));
   const writeFile = deps.writeFile ?? ((p, s) => writeFileSync(p, s));
   const cwd = deps.cwd ?? process.cwd();
+  const stdout = deps.out ?? ((s) => process.stdout.write(s));
+  const stderr = deps.err ?? ((s) => process.stderr.write(s));
   const usage =
     "usage: reaction-check.mjs --metadata <metadata.json> [--root <移行元ソースのルート>] [--write | --recorded]";
   let metadataPath = null;
@@ -2316,7 +2319,7 @@ export function main(argv, deps = {}) {
     if (a === "--metadata" || a === "--root") {
       const v = argv[i + 1];
       if (!nonEmptyString(v) || v.startsWith("--")) {
-        process.stderr.write(`error: ${a} に値が無い\n${usage}\n`);
+        stderr(`error: ${a} に値が無い\n${usage}\n`);
         return 2;
       }
       if (a === "--metadata") metadataPath = v;
@@ -2325,20 +2328,18 @@ export function main(argv, deps = {}) {
     } else if (a === "--write") write = true;
     else if (a === "--recorded") recorded = true;
     else {
-      process.stderr.write(`error: 不明な引数 ${a}\n${usage}\n`);
+      stderr(`error: 不明な引数 ${a}\n${usage}\n`);
       return 2;
     }
   }
   if (metadataPath === null || (write && recorded)) {
-    process.stderr.write(
+    stderr(
       `error: ${metadataPath === null ? "--metadata が無い" : "--write と --recorded は同時に使えない"}\n${usage}\n`,
     );
     return 2;
   }
   const out = (obj) =>
-    process.stdout.write(
-      `${JSON.stringify({ tool: "reaction-check", version: VERSION, ...obj }, null, 2)}\n`,
-    );
+    stdout(`${JSON.stringify({ tool: "reaction-check", version: VERSION, ...obj }, null, 2)}\n`);
   try {
     const metadata = JSON.parse(readFile(resolve(cwd, metadataPath)));
     const decl = readDeclaration(metadata);
@@ -2352,7 +2353,7 @@ export function main(argv, deps = {}) {
       table = JSON.parse(readFile(tablePath));
     } catch (e) {
       out({ judged: true, reason: null, ok: false, unmeasured_operations: null });
-      process.stderr.write(
+      stderr(
         `error: 反応の被覆表を読めない: ${decl.path}（${e instanceof Error ? e.message : e}）\n`,
       );
       return 1;
@@ -2405,15 +2406,15 @@ export function main(argv, deps = {}) {
       writeFile(tablePath, `${JSON.stringify(table, null, 2)}\n`);
     }
     out({ judged: true, reason: null, ok, path: decl.path, ...result });
-    for (const p of result.problems) process.stderr.write(`warn: ${p}\n`);
+    for (const p of result.problems) stderr(`warn: ${p}\n`);
     if (!ok) {
-      process.stderr.write(
+      stderr(
         `error: 反応の未測定 ${result.unmeasured_operations} 操作・状態表示の未測定 ${result.state_displays.unmeasured} 件・不整合 ${result.problems.length} 件 — 測り直す（parity-diff では収束させず parity-suite へ戻す）\n`,
       );
     }
     return ok ? 0 : 1;
   } catch (e) {
-    process.stderr.write(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
+    stderr(`error: ${e instanceof Error ? e.message : e}\n${usage}\n`);
     return 2;
   }
 }

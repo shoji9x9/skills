@@ -601,3 +601,72 @@ describe("宣言と前提の検証（走らせる前に落とす）", () => {
     expect(res.out).toContain("1 skipped");
   });
 });
+
+// `--shard i/N` は CI の並列実行用（Issue #507）。**N 本を合わせてちょうど全件**でなければならない
+// ——取りこぼしは「どのジョブも測らない変異」になり、全ジョブが緑のまま実証が抜ける。
+describe("--shard", () => {
+  /** 宣言 2 件・変異 3 件（A1, A2 / B1）。通し番号は A1=0, A2=1, B1=2。 */
+  function twoSpecs() {
+    const a = makeFixture();
+    const b = makeFixture();
+    const specA = a.spec([
+      mutation({ id: "A1", file: relative(repoRoot, a.target) }),
+      mutation({
+        id: "A2",
+        why: "上限を変える",
+        file: relative(repoRoot, a.target),
+        find: "limit=100",
+        replace: "limit=1",
+        expect_failing: ["limit"],
+      }),
+    ]);
+    const specB = b.spec([mutation({ id: "B1", file: relative(repoRoot, b.target) })]);
+    return [specA, specB];
+  }
+
+  test("宣言をまたいだ通し番号で分け、N 本を合わせるとちょうど全件になる", () => {
+    const specs = twoSpecs();
+    const first = runRunner(...specs, "--shard", "1/2");
+    expect(first.status, first.out).toBe(0);
+    expect(first.out).toContain("シャード 1/2: 選んだ変異 3 件のうち 2 件を測る");
+    expect(first.out).toContain("PASS A1");
+    expect(first.out).toContain("PASS B1");
+    expect(first.out, "他のシャードの変異まで測った").not.toContain("PASS A2");
+    expect(first.out).toContain("mutation-proof: 2 proven / 0 failed");
+
+    const second = runRunner(...specs, "--shard", "2/2");
+    expect(second.status, second.out).toBe(0);
+    expect(second.out).toContain("シャード 2/2: 選んだ変異 3 件のうち 1 件を測る");
+    expect(second.out).toContain("PASS A2");
+    expect(second.out, "他のシャードの変異まで測った").not.toMatch(/PASS (A1|B1)/);
+    expect(second.out).toContain("mutation-proof: 1 proven / 0 failed");
+    // 変異を受け持たない宣言は基準 run も測らない（B はこのシャードに変異が無い）。
+    expect(second.out).not.toContain(relative(repoRoot, specs[1]));
+  });
+
+  test("変異がシャード数より少なく割り当てが 0 件なら、理由を出して exit 0", () => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, "--shard", "2/2");
+    expect(res.status, res.out).toBe(0);
+    expect(res.out).toContain("このシャードに割り当てられた変異は無い（選んだ 1 件を 2 分割）");
+    expect(res.out).not.toContain("PASS G");
+  });
+
+  test.each([
+    ["0/2"],
+    ["3/2"],
+    ["1/0"],
+    ["x"],
+    ["1/2/3"],
+    [""],
+    ["9007199254740993/9007199254740992"],
+  ])("--shard %s は exit 2（黙って 0 件のシャードにしない）", (value) => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, "--shard", value);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toMatch(/--shard (は <i>\/<N>|の i が N を超えている|の値が大きすぎる)/);
+    expect(res.out).not.toContain("PASS G");
+  });
+});

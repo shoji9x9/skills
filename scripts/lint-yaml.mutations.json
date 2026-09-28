@@ -1,0 +1,104 @@
+{
+  "$comment": [
+    "lint-yaml.test.js の検出能力を示す変異の一覧（Issue #507）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/lint-yaml.test.js",
+  "mutations": [
+    {
+      "id": "LY-PRUNE-ANY-DEPTH",
+      "why": "除外を起点直下に限らず、どの階層の同名ディレクトリも刈る（検査すべきファイルを黙って落とす）",
+      "file": "scripts/lint-yaml.js",
+      "find": "!PRUNED.includes(f.split(\"/\")[0])",
+      "replace": "!f.split(\"/\").some((c) => PRUNED.includes(c))",
+      "occurrences": 1,
+      "expect_failing": [
+        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+      ]
+    },
+    {
+      "id": "LY-PRUNE-NONE",
+      "why": "起点直下の除外を効かせない（インストール済みコピーまで検査して二重に報告する）",
+      "file": "scripts/lint-yaml.js",
+      "find": "!PRUNED.includes(f.split(\"/\")[0])",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": [
+        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+      ]
+    },
+    {
+      "id": "LY-OTHERS",
+      "why": "未追跡のファイルを列挙しない（add 前の新規 YAML を手元で見落とす）",
+      "file": "scripts/lint-yaml.js",
+      "find": "\"--cached\", \"--others\", ",
+      "replace": "\"--cached\", ",
+      "occurrences": 1,
+      "expect_failing": [
+        "未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）",
+        "gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）"
+      ]
+    },
+    {
+      "id": "LY-EXCLUDE",
+      "why": "gitignore を効かせない（手元の eval 出力で CI と食い違って赤くなる）",
+      "file": "scripts/lint-yaml.js",
+      "find": "\"--others\", \"--exclude-standard\"",
+      "replace": "\"--others\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）"
+      ]
+    },
+    {
+      "id": "LY-ZERO",
+      "why": "対象 0 件を成功に倒す",
+      "file": "scripts/lint-yaml.js",
+      "find": "  if (targets.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["対象の YAML が 0 件なら exit 1（空振りを成功に倒さない）"]
+    },
+    {
+      "id": "LY-LIST-FAIL",
+      "why": "git の列挙の失敗を 0 件に倒す",
+      "file": "scripts/lint-yaml.js",
+      "find": "      targets = findYamlFiles(root);\n    } catch (e) {\n",
+      "replace": "      targets = findYamlFiles(root);\n    } catch (e) {\n      return 0;\n",
+      "occurrences": 1,
+      "expect_failing": ["起点が git リポジトリでなければ exit 2（列挙の失敗を 0 件に倒さない）"]
+    },
+    {
+      "id": "LY-LOADALL",
+      "why": "YAML として読まない（壊れた YAML を通す）",
+      "file": "scripts/lint-yaml.js",
+      "find": "    yaml.loadAll(text, () => {});",
+      "replace": "    void text;",
+      "occurrences": 1,
+      "expect_failing": [
+        "壊れた YAML を 1 件置くと exit 1 でそのファイルを名指しする",
+        "未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）",
+        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "ファイルを指定したらそれだけを検査する（lefthook 用）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0"
+      ]
+    },
+    {
+      "id": "LY-DELETED",
+      "why": "作業ツリーで消した（未ステージの削除）追跡ファイルも読みに行き、ENOENT で赤くする",
+      "file": "scripts/lint-yaml.js",
+      "find": "    .filter((p) => existsSync(p));",
+      "replace": "    .filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "作業ツリーで消した（未ステージの削除）追跡ファイルは読まない（ENOENT で赤くしない）"
+      ]
+    }
+  ]
+}

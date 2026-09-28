@@ -67,7 +67,8 @@ pre-commit:
           - name: js-yaml
             glob: "*.{yml,yaml}"
             exclude: *agent-copies
-            run: sh -c 'for f in {staged_files}; do pnpm exec js-yaml "$f" > /dev/null || exit 1; done'
+            # js-yaml の API で 1 プロセスにまとめて読む（ファイルごとの起動をしない。Issue #507）
+            run: node scripts/lint-yaml.js {staged_files}
           - name: gha-lint
             glob: ".github/workflows/*.{yml,yaml}"
             run: actionlint
