@@ -653,15 +653,20 @@ describe("--shard", () => {
     expect(res.out).not.toContain("PASS G");
   });
 
-  test.each([["0/2"], ["3/2"], ["1/0"], ["x"], ["1/2/3"], [""]])(
-    "--shard %s は exit 2（黙って 0 件のシャードにしない）",
-    (value) => {
-      const fx = makeFixture();
-      const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
-      const res = runRunner(spec, "--shard", value);
-      expect(res.status, res.out).toBe(2);
-      expect(res.out).toMatch(/--shard (は <i>\/<N>|の i が N を超えている)/);
-      expect(res.out).not.toContain("PASS G");
-    },
-  );
+  test.each([
+    ["0/2"],
+    ["3/2"],
+    ["1/0"],
+    ["x"],
+    ["1/2/3"],
+    [""],
+    ["9007199254740993/9007199254740992"],
+  ])("--shard %s は exit 2（黙って 0 件のシャードにしない）", (value) => {
+    const fx = makeFixture();
+    const spec = fx.spec([mutation({ file: relative(repoRoot, fx.target) })]);
+    const res = runRunner(spec, "--shard", value);
+    expect(res.status, res.out).toBe(2);
+    expect(res.out).toMatch(/--shard (は <i>\/<N>|の i が N を超えている|の値が大きすぎる)/);
+    expect(res.out).not.toContain("PASS G");
+  });
 });

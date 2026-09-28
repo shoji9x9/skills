@@ -287,6 +287,17 @@
       "replace": "  if (false) die(",
       "occurrences": 1,
       "expect_failing": ["--shard --shard 3/2 は exit 2（黙って 0 件のシャードにしない）"]
+    },
+    {
+      "id": "SHARD-SAFE",
+      "why": "安全な整数の範囲外の --shard を受け付ける（丸めで i > N が比較を通り、0 件のシャードが黙って緑になる）",
+      "file": "scripts/check-mutation-proof.js",
+      "find": "  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--shard --shard 9007199254740993/9007199254740992 は exit 2（黙って 0 件のシャードにしない）"
+      ]
     }
   ]
 }

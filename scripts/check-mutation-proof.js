@@ -294,6 +294,10 @@ function parseShard(value) {
   if (!m) die(`--shard は <i>/<N>（1 以上の整数）で指定する: ${value ?? "(値がない)"}`);
   const index = Number(m[1]);
   const total = Number(m[2]);
+  // 桁の大きい値は Number で丸まり、i > N でも比較を通って 0 件のシャードになる（例: 9007199254740993/9007199254740992）。
+  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) {
+    die(`--shard の値が大きすぎる（安全な整数の範囲外）: ${value}`);
+  }
   if (index > total) die(`--shard の i が N を超えている: ${value}`);
   return { index, total };
 }
