@@ -13,6 +13,10 @@
 //      部品へ渡す引数にも現れず、境界の外側でしか姿を現さないので、境界の両側を現行で測らせる（Issue #483）
 //      表への書き込み（side_effect_writes）も数える。移行元ソースを書き込みのパターンで走査して全件と突き合わせ、
 //      1 か所ずつ値・時機・回数と確かめ方を記録させる（Issue #466。利用者に見える反応が無いので反応の欄には現れない）
+//      画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）も数える。候補ごとに ある／ない を現行で測らせ、
+//      要求に結び付く候補（取得の失敗・読み込み中）の「ない」は要求の横取りで試した記録か、要求が無いことの記録でだけ通す。
+//      送る操作ごとの「送っている間にもう一度押す」（resubmit）も数える。応答を保留して押し直し、送った回数・確認の回数・覆いを測らせ、
+//      表への書き込みを持つ操作は書き込みの回数とも突き合わせる（Issue #500。1 回押した後の反応や押している最中の見た目には現れない）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）。
 //      side_effect_writes.declared: true なら、表に書いた書き込みのパターンで同じく走査して sites と突き合わせる
@@ -38,7 +42,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -74,6 +78,48 @@ const WRITE_PATHS = ["normal", "exception"];
 
 /** 表への書き込みの確かめ方。source-only は移行元で起こせない書き込み（例外時等）を読解だけで記録したもの。 */
 const WRITE_VERIFICATIONS = ["assertion", "source-only"];
+
+/**
+ * 画面ごとに ある／ない を振り分ける状態表示の候補（Issue #500）。
+ * 操作が返すトースト・ダイアログは反応の欄が測るが、画面の状態（0 件・取得の失敗・読み込み中）に出るものは操作の反応に現れない。
+ */
+const STATE_DISPLAY_CANDIDATES = ["empty", "fetch-error", "loading", "toast", "dialog"];
+
+/** 状態表示の候補の振り分け。unmeasured は理由付きでも未測定として数える。 */
+const STATE_DISPLAY_STATUSES = ["present", "absent", "unmeasured"];
+
+/**
+ * 状態表示を作った（作ろうとした）手段。route-* は要求の横取り（Playwright の page.route で abort / fulfill / 応答の保留）。
+ * no-request は画面がその状態に結び付く要求を送らないこと、not-applicable は画面がその状態を持つ器を持たないことの記録。
+ */
+const STATE_SETUP_METHODS = [
+  "data",
+  "ui",
+  "route-abort",
+  "route-fulfill",
+  "route-delay",
+  "no-request",
+  "not-applicable",
+];
+
+/** 要求の横取り。request（横取りした要求）を要求する。 */
+const INTERCEPT_METHODS = ["route-abort", "route-fulfill", "route-delay"];
+
+/**
+ * 候補ごとに absent（ない）を名乗れる手段。取得の失敗と読み込み中は、移行元で「起こせない」と書かれやすいが
+ * 要求の横取りで起こせる（Issue #500）。横取りで試した記録か、要求が無いことの記録が無い「ない」は通さない。
+ * @type {Record<string, string[]>}
+ */
+const ABSENT_METHODS = {
+  empty: ["data", "ui", "route-fulfill", "not-applicable"],
+  "fetch-error": ["route-abort", "route-fulfill", "no-request"],
+  loading: ["route-delay", "no-request"],
+  toast: ["data", "ui", "route-abort", "route-fulfill", "route-delay", "not-applicable"],
+  dialog: ["data", "ui", "route-abort", "route-fulfill", "route-delay", "not-applicable"],
+};
+
+/** absent の記録のうち、不在を確かめる assertion を置けないもの（状態を作る要求・器がそもそも無い）。 */
+const ABSENT_WITHOUT_ASSERTION = ["no-request", "not-applicable"];
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -741,6 +787,365 @@ function aftermathReturnsProblems(ret, screenStates) {
 }
 
 /**
+ * 状態表示の候補 1 つ（state_displays.pages[].candidates の 1 値）の欠けを返す。Issue #500
+ *
+ * 「状態表示」を散文の観点にしておくと、画面がその状態を持つかを一度も測らないまま完了できる。
+ * 候補ごとに ある（present）／ない（absent）を現行で測らせ、ある は撮る状態・assertion・観測した反応へ割り当てさせる。
+ * ない も測った結果なので、不在を確かめる assertion を要求する（新側が警告のダイアログを足しても、撮っていない状態は 3 経路に写らない）。
+ * @param {unknown} entry
+ * @param {string} candidate - STATE_DISPLAY_CANDIDATES の 1 つ
+ * @param {Set<string> | null} captureStates
+ * @param {Map<string, string>} reactionKinds - 反応キー（<操作 id>/<反応 id>）→ kind
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function stateDisplayProblems(entry, candidate, captureStates, reactionKinds) {
+  if (!isPlainObject(entry)) {
+    return [
+      {
+        problem: `${candidate} の記録がオブジェクトでない（status: present / absent / unmeasured で書く）`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (typeof entry.status !== "string" || !STATE_DISPLAY_STATUSES.includes(entry.status)) {
+    return [
+      {
+        problem: `${candidate}.status が語彙（${STATE_DISPLAY_STATUSES.join(" / ")}）に無い`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (entry.status === "unmeasured") {
+    return [
+      {
+        problem: `${candidate}: 未測定${filled(entry.reason) ? `（${entry.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = [];
+  const setup = entry.setup;
+  const method = isPlainObject(setup) ? setup.method : undefined;
+  const allowed =
+    entry.status === "present"
+      ? STATE_SETUP_METHODS.filter((m) => !ABSENT_WITHOUT_ASSERTION.includes(m))
+      : ABSENT_METHODS[candidate];
+  if (typeof method !== "string" || !allowed.includes(method)) {
+    out.push({
+      problem:
+        entry.status === "absent" && (candidate === "fetch-error" || candidate === "loading")
+          ? `${candidate}: absent の setup.method が ${allowed.join(" / ")} でない（「起こせない」と書く前に要求の横取り〈page.route の abort / fulfill / 応答の保留〉で試す。画面がその要求を送らないなら no-request）`
+          : `${candidate}: ${entry.status} の setup.method が ${allowed.join(" / ")} でない（その状態をどう作った・作ろうとしたかが残らない）`,
+      unmeasured: true,
+    });
+  } else {
+    if (!filled(/** @type {Record<string, unknown>} */ (setup).detail)) {
+      out.push({
+        problem: `${candidate}: setup.detail（状態の作り方〈検索条件・横取りした応答の中身・保留した時間〉）が空`,
+        unmeasured: true,
+      });
+    }
+    // 横取りした要求を書かせないと、どの要求を止めたか（画面の本体の取得か、無関係な要求か）を読めない
+    if (
+      INTERCEPT_METHODS.includes(method) &&
+      !filled(/** @type {Record<string, unknown>} */ (setup).request)
+    ) {
+      out.push({
+        problem: `${candidate}: setup.method: ${method} なのに setup.request（横取りした要求の URL のパターン。オリジンは書かない）が空`,
+        unmeasured: true,
+      });
+    }
+  }
+  // 現行で見たもの。ある なら文言・覆い・ページ表示、ない なら代わりに見えたもの（表示が変わらない等）
+  if (!filled(entry.observed)) {
+    out.push({
+      problem: `${candidate}: observed（現行で見た文言・覆い・ページ表示。ない なら代わりに見えたもの）が空・テンプレートの説明文のまま`,
+      unmeasured: true,
+    });
+  }
+  const hasState = filled(entry.captured);
+  const hasAssertion = filledStrings(entry.covered_by);
+  const reactions = entry.reactions;
+  const hasReactions = Array.isArray(reactions) && reactions.length > 0;
+  if (hasReactions && candidate !== "toast" && candidate !== "dialog") {
+    out.push({
+      problem: `${candidate}: reactions は toast / dialog の候補だけに書ける（操作の反応として測った通知を指す）`,
+      unmeasured: false,
+    });
+  }
+  if (entry.status === "present") {
+    if (!hasState && !hasAssertion && !hasReactions) {
+      out.push({
+        problem: `${candidate}: present なのに撮る状態（captured）にも assertion（covered_by）にも観測した反応（reactions）にも割り当てていない`,
+        unmeasured: true,
+      });
+    }
+    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (entry.captured))) {
+      out.push({
+        problem: `${candidate}: captured "${entry.captured}" が capture_conditions.states に無い`,
+        unmeasured: true,
+      });
+    }
+    if (hasReactions) {
+      for (const ref of /** @type {unknown[]} */ (reactions)) {
+        const kind = typeof ref === "string" ? reactionKinds.get(ref) : undefined;
+        if (kind !== "observed") {
+          out.push({
+            problem: `${candidate}: reactions の "${String(ref)}" が被覆表の観測した反応（kind: observed）に無い`,
+            unmeasured: true,
+          });
+        }
+      }
+    }
+    return out;
+  }
+  // absent
+  if (hasState || hasReactions) {
+    out.push({
+      problem: `${candidate}: absent なのに captured / reactions がある（ないと在るが同時に成立する）`,
+      unmeasured: false,
+    });
+  }
+  if (!ABSENT_WITHOUT_ASSERTION.includes(/** @type {string} */ (method)) && !hasAssertion) {
+    out.push({
+      problem: `${candidate}: absent なのに covered_by が空（その状態で何も出ないことをスイートの assertion にしていない。新側が出しても写らない）`,
+      unmeasured: true,
+    });
+  }
+  return out;
+}
+
+/**
+ * 画面ごとの状態表示の振り分け（state_displays）を検査する。Issue #500
+ *
+ * 画面の集合は metadata.json の capture_conditions.pages（宣言）から取る。記録した画面の一覧を期待値にすると、
+ * 画面ごと落とした振り分けが期待値からも消える。
+ * @param {unknown} sd
+ * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, reactionKinds: Map<string, string>, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
+ * @returns {{ pages: number | null, entries: number, unmeasured: number }}
+ */
+function checkStateDisplays(sd, ctx) {
+  const { pageNames, captureStates, reactionKinds, problems, captureUses, captureLabel } = ctx;
+  const summary = { pages: null, entries: 0, unmeasured: 0 };
+  if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {
+    problems.push(
+      "state_displays.pages が配列でない（画面ごとに状態表示の候補〈空データ・取得の失敗・読み込み中・トースト・ダイアログ〉を ある／ない へ振り分ける。キーごと省略しない）",
+    );
+    summary.unmeasured += 1;
+    return summary;
+  }
+  if (pageNames === null || pageNames.size === 0) {
+    problems.push(
+      "state_displays を画面の集合と照合できない（metadata.json の capture_conditions.pages を読めない）",
+    );
+    summary.unmeasured += 1;
+  }
+  /** @type {Map<string, number>} */
+  const seen = new Map();
+  for (const row of sd.pages) {
+    const page = isPlainObject(row) ? row.page : undefined;
+    if (!filled(page)) {
+      problems.push("state_displays.pages: page（capture_conditions.pages の名前）が空の行がある");
+      summary.unmeasured += 1;
+      continue;
+    }
+    seen.set(/** @type {string} */ (page), (seen.get(/** @type {string} */ (page)) ?? 0) + 1);
+  }
+  for (const [page, n] of seen) {
+    if (n > 1)
+      problems.push(`state_displays.pages: 画面 "${page}" が ${n} 回ある（先勝ちにしない）`);
+  }
+  if (pageNames !== null) {
+    const lacking = [...pageNames].filter((pg) => !seen.has(pg));
+    if (lacking.length > 0) {
+      problems.push(
+        `state_displays: 画面 ${lacking.join(", ")} の状態表示を振り分けていない（capture_conditions.pages の全ての画面を 1 回ずつ書く）`,
+      );
+      summary.unmeasured += lacking.length;
+    }
+    const unknown = [...seen.keys()].filter((pg) => !pageNames.has(pg));
+    if (unknown.length > 0) {
+      problems.push(
+        `state_displays: 画面 ${unknown.join(", ")} が capture_conditions.pages に無い（誤記・旧称）`,
+      );
+    }
+  }
+  summary.pages = seen.size;
+  for (const row of sd.pages) {
+    if (
+      !isPlainObject(row) ||
+      !filled(row.page) ||
+      seen.get(/** @type {string} */ (row.page)) !== 1
+    )
+      continue;
+    const at = `state_displays["${row.page}"]`;
+    const candidates = row.candidates;
+    if (!isPlainObject(candidates)) {
+      problems.push(
+        `${at}: candidates が候補ごとの記録のオブジェクトでない（${STATE_DISPLAY_CANDIDATES.join(" / ")} を全て書く）`,
+      );
+      summary.unmeasured += 1;
+      continue;
+    }
+    const lacking = STATE_DISPLAY_CANDIDATES.filter((c) => !Object.hasOwn(candidates, c));
+    if (lacking.length > 0) {
+      problems.push(
+        `${at}: 候補 ${lacking.join(", ")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,
+      );
+      summary.unmeasured += lacking.length;
+    }
+    const unknown = Object.keys(candidates).filter((c) => !STATE_DISPLAY_CANDIDATES.includes(c));
+    if (unknown.length > 0) {
+      problems.push(
+        `${at}: 候補の語彙（${STATE_DISPLAY_CANDIDATES.join(" / ")}）に無いキー: ${unknown.join(", ")}`,
+      );
+    }
+    for (const c of STATE_DISPLAY_CANDIDATES) {
+      if (!Object.hasOwn(candidates, c)) continue;
+      summary.entries += 1;
+      const entry = candidates[c];
+      const found = stateDisplayProblems(entry, c, captureStates, reactionKinds);
+      if (found.some((f) => f.unmeasured)) summary.unmeasured += 1;
+      for (const f of found) problems.push(`${at}: ${f.problem}`);
+      // 撮る状態は撮影の単位（ページ × 状態名）で、反応・残る見た目の撮る状態と同じ集合に入れて使い回しを数える
+      if (isPlainObject(entry) && entry.status === "present" && filled(entry.captured)) {
+        const key = JSON.stringify([row.page, entry.captured]);
+        if (!captureLabel.has(key)) captureLabel.set(key, `${row.page} の ${entry.captured}`);
+        const uses = captureUses.get(key) ?? [];
+        uses.push({ opId: null, label: `${at}.${c}`, shared: filled(entry.shared_capture_reason) });
+        captureUses.set(key, uses);
+      }
+    }
+  }
+  return summary;
+}
+
+/**
+ * 送っている間にもう一度押したときの振る舞い（resubmit）の欠けを返す。Issue #500
+ *
+ * 撮影状態の active は押している最中の見た目で、反応の欄は 1 回押した後を測る。要求が往復している間の操作の受け付け
+ * （無視する・もう一度送る・確認をもう一度出す）はどちらにも現れず、移行元と移行先で違いやすい。
+ * 応答を保留して（page.route で応答を返さずに待つ）押し直し、送った回数・確認の回数・画面の覆いを現行で測らせる。
+ * @param {unknown} rs
+ * @param {boolean} writes - この操作に表への書き込み（side_effect_writes の除外していない sites）があるか
+ * @returns {{ problem: string, unmeasured: boolean }[]}
+ */
+function resubmitProblems(rs, writes) {
+  if (!isPlainObject(rs)) {
+    return [
+      {
+        problem:
+          "resubmit が無い（送る操作なら、応答を保留して押し直したときの送った回数・確認の回数・覆いを測る。送らないなら sends: false と根拠）",
+        unmeasured: true,
+      },
+    ];
+  }
+  if (rs.sends === null) {
+    return [
+      {
+        problem: `resubmit: 未測定${filled(rs.reason) ? `（${rs.reason}）` : "（reason が空）"}`,
+        unmeasured: true,
+      },
+    ];
+  }
+  if (rs.sends === false) {
+    /** @type {{ problem: string, unmeasured: boolean }[]} */
+    const out = [];
+    if (!filled(rs.reason)) {
+      out.push({
+        problem:
+          "resubmit.sends: false なのに reason（要求を送らないことを確かめた記録）が空・テンプレートの説明文のまま",
+        unmeasured: true,
+      });
+    }
+    // 表へ書き込む操作は要求を送っている。送らないと書いた記録は書き込みの記録と矛盾する
+    if (writes) {
+      out.push({
+        problem:
+          "resubmit.sends: false なのに、この操作の表への書き込みが side_effect_writes.sites にある（書き込む操作は送っている）",
+        unmeasured: true,
+      });
+    }
+    for (const key of ["hold", "presses", "observed", "writes", "covered_by"]) {
+      if (rs[key] !== undefined && rs[key] !== null) {
+        out.push({
+          problem: `resubmit.sends: false なのに ${key} がある（送らないと送るが同時に成立する）`,
+          unmeasured: false,
+        });
+      }
+    }
+    return out;
+  }
+  if (rs.sends !== true) {
+    return [{ problem: "resubmit.sends が true / false / null のどれでもない", unmeasured: true }];
+  }
+  /** @type {{ problem: string, unmeasured: boolean }[]} */
+  const out = [];
+  // 応答を保留しないと、押し直す前に往復が終わり「送っている間」を一度も作らない
+  const hold = rs.hold;
+  if (!isPlainObject(hold) || hold.method !== "route-delay" || !filled(hold.request)) {
+    out.push({
+      problem:
+        "resubmit.hold が { method: route-delay, request: <保留した要求の URL のパターン> } でない（応答を保留せずに押し直すと、送っている間を作れない）",
+      unmeasured: true,
+    });
+  }
+  if (!Number.isInteger(rs.presses) || /** @type {number} */ (rs.presses) < 2) {
+    out.push({
+      problem:
+        "resubmit.presses（応答を保留している間に押した回数。最初の 1 回を含む）が 2 以上の整数でない",
+      unmeasured: true,
+    });
+  }
+  const obs = rs.observed;
+  if (
+    !isPlainObject(obs) ||
+    !Number.isInteger(obs.requests_sent) ||
+    /** @type {number} */ (obs.requests_sent) < 1 ||
+    !Number.isInteger(obs.confirms_shown) ||
+    /** @type {number} */ (obs.confirms_shown) < 0 ||
+    !filled(obs.overlay)
+  ) {
+    out.push({
+      problem:
+        "resubmit.observed に、送った回数（requests_sent: 1 以上の整数）・確認の回数（confirms_shown: 0 以上の整数）・覆い（overlay: 画面を覆って受け付けない・押した要素だけ不活性・何もしない等）が揃っていない",
+      unmeasured: true,
+    });
+  }
+  const w = rs.writes;
+  if (writes) {
+    // 書き込みの回数は送った回数と別に数える（1 回の送信が 2 行書く・2 回送っても 1 行に畳む処理がある）
+    if (
+      !isPlainObject(w) ||
+      !Number.isInteger(w.count) ||
+      /** @type {number} */ (w.count) < 0 ||
+      !filled(w.evidence)
+    ) {
+      out.push({
+        problem:
+          "resubmit.writes が { count: <押し直しで表に書かれた行の数>, evidence: <数え方> } でない（この操作は side_effect_writes.sites に書き込みがあるので、送った回数を書き込みの回数と突き合わせる）",
+        unmeasured: true,
+      });
+    }
+  } else if (w !== undefined && w !== null) {
+    out.push({
+      problem:
+        "resubmit.writes があるのに、この操作の表への書き込みが side_effect_writes.sites に無い（書き込みを sites に記録するか writes を消す）",
+      unmeasured: false,
+    });
+  }
+  if (!filledStrings(rs.covered_by)) {
+    out.push({
+      problem:
+        "resubmit.covered_by が空（送っている間の押し直しで送った回数・確認の回数・覆いをスイートの assertion にしていない）",
+      unmeasured: true,
+    });
+  }
+  return out;
+}
+
+/**
  * 移行元ソースの 1 箇所（ファイルとシンボル）の参照か。
  * @param {unknown} ref
  * @returns {ref is { file: string, symbol: string }}
@@ -1027,7 +1432,7 @@ function sourceProblems(src, targetCommit, label) {
  * @returns {{ declared: boolean | null, checked: boolean, found: number | null, recorded: number | null, files: number | null }}
  */
 function checkSideEffectWrites(sew, ctx) {
-  const { opIds, root, recorded, targetCommit, problems } = ctx;
+  const { opIds, root, recorded, targetCommit, problems, writeOps } = ctx;
   const summary = { declared: null, checked: false, found: null, recorded: null, files: null };
   if (!isPlainObject(sew) || typeof sew.declared !== "boolean") {
     problems.push(
@@ -1114,6 +1519,9 @@ function checkSideEffectWrites(sew, ctx) {
     if (filled(s.excluded_reason)) continue; // この機能の書き込みではない（別 slug の操作の呼び出し等）
     const table = tableOfPattern.get(/** @type {string} */ (s.pattern));
     if (table !== undefined) writtenTables.add(table);
+    // 送っている間の押し直し（resubmit）で書き込みの回数を突き合わせる操作
+    if (opIds.has(/** @type {string} */ (s.operation)))
+      writeOps.add(/** @type {string} */ (s.operation));
     // 画面を開いたときの書き込みのように操作に結び付かない書き込みは operation: null（occasion で時機を書く）
     if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {
       problems.push(
@@ -1453,7 +1861,7 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
-  /** @type {Map<string, { opId: string, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行 */
+  /** @type {Map<string, { opId: string | null, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行（状態表示の行は opId: null） */
   const aftermathCaptureUses = new Map();
   /** @type {Map<string, string>} 使い回しの照合のキー → 人が読む名前（最初に現れたページ名 × 状態名） */
   const captureLabel = new Map();
@@ -1620,18 +2028,6 @@ export function checkReactions(table, opts = {}) {
       }
     }
   }
-  // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
-  // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する
-  for (const [key, uses] of aftermathCaptureUses) {
-    if (uses.length < 2) continue;
-    const name = captureLabel.get(key) ?? key;
-    const lacking = uses.filter((u) => !u.shared);
-    if (lacking.length === 0) continue;
-    for (const u of lacking) unmeasuredOps.add(u.opId);
-    problems.push(
-      `撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
-    );
-  }
   // none の観測時間の下限が観測済みの遅れ以下だと、遅れて出る反応を「無い」と記録しても通る
   if (windowMs !== null && maxObservedDelay !== null && windowMs <= maxObservedDelay) {
     problems.push(
@@ -1791,13 +2187,50 @@ export function checkReactions(table, opts = {}) {
   }
 
   // --- 表への書き込みとの突き合わせ（Issue #466）---
+  /** @type {Set<string>} 表への書き込みを持つ操作 */
+  const writeOps = new Set();
   const sideEffects = checkSideEffectWrites(table.side_effect_writes, {
     opIds,
     root,
     recorded,
     targetCommit,
     problems,
+    writeOps,
   });
+
+  // --- 送っている間の押し直し（Issue #500）---
+  // 書き込みを持つ操作は表への書き込みの突き合わせが済んでから分かるので、操作の走査とは別に回す
+  for (const op of operations) {
+    if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
+    for (const rp of resubmitProblems(op.resubmit, writeOps.has(/** @type {string} */ (op.id)))) {
+      problems.push(`operations["${op.id}"]: ${rp.problem}`);
+      if (rp.unmeasured) unmeasuredOps.add(/** @type {string} */ (op.id));
+    }
+  }
+
+  // --- 画面ごとの状態表示（Issue #500）---
+  const stateDisplays = checkStateDisplays(table.state_displays, {
+    pageNames,
+    captureStates,
+    reactionKinds,
+    problems,
+    captureUses: aftermathCaptureUses,
+    captureLabel,
+  });
+
+  // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
+  // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する。
+  // 状態表示を撮る状態も同じ集合で数える（0 件の 1 枚を、押した後の 1 枚と根拠なしに兼ねさせない。Issue #500）
+  for (const [key, uses] of aftermathCaptureUses) {
+    if (uses.length < 2) continue;
+    const name = captureLabel.get(key) ?? key;
+    const lacking = uses.filter((u) => !u.shared);
+    if (lacking.length === 0) continue;
+    for (const u of lacking) if (u.opId !== null) unmeasuredOps.add(u.opId);
+    problems.push(
+      `撮る状態 "${name}" を ${uses.map((u) => u.label).join(" / ")} が使い回している（その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠を全行の shared_capture_reason に書くか、別の状態名にする。根拠が空: ${lacking.map((u) => u.label).join(" / ")}）`,
+    );
+  }
 
   // --- 記録済みの照合結果（--recorded）---
   const fingerprint = tableFingerprint(table);
@@ -1830,6 +2263,7 @@ export function checkReactions(table, opts = {}) {
     unmeasured_operations: unmeasuredOps.size,
     call_sites: callSummary,
     side_effect_writes: sideEffects,
+    state_displays: stateDisplays,
     table_fingerprint: fingerprint,
     problems,
   };
@@ -1933,7 +2367,10 @@ export function main(argv, deps = {}) {
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
     });
-    const ok = result.unmeasured_operations === 0 && result.problems.length === 0;
+    const ok =
+      result.unmeasured_operations === 0 &&
+      result.state_displays.unmeasured === 0 &&
+      result.problems.length === 0;
     if (write) {
       table.conformance = {
         tool: "reaction-check",
@@ -1950,7 +2387,7 @@ export function main(argv, deps = {}) {
     for (const p of result.problems) process.stderr.write(`warn: ${p}\n`);
     if (!ok) {
       process.stderr.write(
-        `error: 反応の未測定 ${result.unmeasured_operations} 操作・不整合 ${result.problems.length} 件 — 測り直す（parity-diff では収束させず parity-suite へ戻す）\n`,
+        `error: 反応の未測定 ${result.unmeasured_operations} 操作・状態表示の未測定 ${result.state_displays.unmeasured} 件・不整合 ${result.problems.length} 件 — 測り直す（parity-diff では収束させず parity-suite へ戻す）\n`,
       );
     }
     return ok ? 0 : 1;

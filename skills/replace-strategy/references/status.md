@@ -85,7 +85,8 @@ done
    （行が無い組み合わせ・`evidence` が空・`present` なのに `covered_by` が空・重複行も未測定であり、目視の行数え・宣言値はいずれも少なく出る。数え方の正本は `parity-suite` の `references/coverage.md`）。
    **どの target でも `parity-diff` 未実行なら「未測定数は未算出（`parity-diff` の実行で確定する）」と報告する**——本モードは自前で数えない（数え直しは `parity-diff` 同梱ツールの担当で、本スキル単体では到達できない）、
    `declared: false` ならその理由、**キーごと無ければ「被覆表が未導出（旧版 `parity-suite` の成果物）」**として区別する（`declared: false` と混同しない）。
-   **反応の被覆表も同じ形で示す**——未測定の操作数は `diff-metadata.json.reaction_coverage.unmeasured_operations` から取り（`reactions.json` を目視で数えない）、`parity-diff` 未実行なら未算出、`declared: false` ならその理由、キーごと無ければ旧成果物として区別する。
+   **反応の被覆表も同じ形で示す**——未測定の操作数は `diff-metadata.json.reaction_coverage.unmeasured_operations` から、画面ごとの状態表示の未測定数は同じく
+   `state_displays_unmeasured` から取り（`reactions.json` を目視で数えない）、`parity-diff` 未実行なら未算出、`declared: false` ならその理由、キーごと無ければ旧成果物として区別する。
    合わせて `component-diff-exceptions.json` の**原因数とインスタンス数**を slug ごとに示す——承認済みで説明済みではあるが、**インスタンス件数は検証の弱さのシグナル**である
    （件数を畳んで隠さない契約なので、原因数ではなくインスタンス数もそのまま数えて報告する）
    合わせて**意図的差異の保留（`intentional_diffs.pending`）の滞留**を示す——設定ファイルの `pending` を全件数え、`slug` ごとの内訳（機能に帰属 / `cross-cutting` / 帰属不明）と**最も古い `added_at`** を報告する。
