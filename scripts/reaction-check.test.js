@@ -237,6 +237,72 @@ const sideEffectWrites = () => ({
   ],
 });
 
+/** 要求を送らない操作（クリップボードへ書くだけ）の押し直しの記録（Issue #500）。 */
+const noResubmit = () => ({
+  sends: false,
+  reason: "copy はクリップボードへ書くだけで要求を送らない（押している間の通信を監視して 0 件）",
+});
+
+/** 応答を保留して押し直した記録。表への書き込みを持つ操作なので書き込みの回数も数える（Issue #500）。 */
+const heldResubmit = () => ({
+  sends: true,
+  reason: null,
+  hold: { method: "route-delay", request: "/api/export" },
+  presses: 2,
+  observed: {
+    requests_sent: 1,
+    confirms_shown: 1,
+    overlay: "送信中は画面を覆い、2 回目の押下を受け付けない",
+  },
+  writes: { count: 1, evidence: "押し直しの後に access_log の行を数えて 1 行" },
+  covered_by: ["export.spec.ts: 応答の保留中に 2 回押しても送信 1 回・確認 1 回"],
+});
+
+/** 1 画面の状態表示の候補を全て振り分けた記録（Issue #500）。 */
+const stateDisplayRow = (page = "共有画面") => ({
+  page,
+  candidates: {
+    empty: {
+      status: "present",
+      setup: { method: "data", detail: "一致する行が無い検索条件で検索する" },
+      observed: "覆いに「結果が無い」の文言、ページ表示 1 / 0",
+      covered_by: ["share.spec.ts: 0 件で結果が無い旨とページ表示 1 / 0 が出る"],
+    },
+    "fetch-error": {
+      status: "present",
+      setup: {
+        method: "route-abort",
+        request: "/api/share/list",
+        detail: "一覧の取得を page.route で abort する",
+      },
+      observed: "覆いを出したまま、検索ボタンの操作を受け付ける",
+      covered_by: ["share.spec.ts: 取得に失敗すると覆いが残り検索は押せる"],
+    },
+    loading: {
+      status: "absent",
+      setup: {
+        method: "route-delay",
+        request: "/api/share/list",
+        detail: "一覧の応答を 5 秒保留する",
+      },
+      observed: "保留している間も表示が変わらない（読み込み中の表示が出ない）",
+      covered_by: ["share.spec.ts: 応答の保留中に読み込み中の表示が出ない"],
+    },
+    // 通知は操作の反応を参照せず、反応と同じ assertion 名で押さえる
+    toast: {
+      status: "present",
+      setup: { method: "ui", detail: "コピーを押す" },
+      observed: "コピー完了のトーストが最上部に出て消える",
+      covered_by: ["share.spec.ts: コピーで通知が出て消える"],
+    },
+    dialog: {
+      status: "absent",
+      setup: { method: "not-applicable", detail: "画面が開くダイアログの器を持たない" },
+      observed: "移行元の画面のテンプレートにダイアログの要素が無い",
+    },
+  },
+});
+
 const baseTable = () => ({
   slug: "share",
   measured_target: "current-test",
@@ -259,6 +325,7 @@ const baseTable = () => ({
     ],
   },
   side_effect_writes: sideEffectWrites(),
+  state_displays: { pages: [stateDisplayRow()] },
   operations: [
     {
       id: "copy",
@@ -268,6 +335,7 @@ const baseTable = () => ({
       layout: noLayoutChange(),
       aftermath: quietAftermath(),
       pre_send: noPreSend(),
+      resubmit: noResubmit(),
       reactions: [toast()],
     },
     {
@@ -278,6 +346,7 @@ const baseTable = () => ({
       layout: layoutChange(),
       aftermath: lingeringAftermath(),
       pre_send: rowLimit(),
+      resubmit: heldResubmit(),
       reactions: [noneReaction()],
     },
   ],
@@ -313,7 +382,10 @@ function run(table, opts = {}) {
     slug: "share",
     target: { name: "current-test", commit: "abc123" },
     reaction_coverage: { declared: true, path: "reactions.json" },
-    capture_conditions: { states: ["default", "copy-toast"] },
+    capture_conditions: {
+      states: ["default", "copy-toast"],
+      pages: [{ name: "共有画面", path: "share" }],
+    },
   };
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(metadata));
   writeFileSync(
@@ -783,7 +855,10 @@ test.each([
       slug: "share",
       target: { name: "current-test", commit: "abc123", ...targetPatch },
       reaction_coverage: { declared: true, path: "reactions.json" },
-      capture_conditions: { states: ["default", "copy-toast"] },
+      capture_conditions: {
+        states: ["default", "copy-toast"],
+        pages: [{ name: "共有画面", path: "share" }],
+      },
     };
     // 走査する 2 つの範囲（フィードバック呼び出しと表への書き込み）は同じ版を照合する
     const sources = (t) => [t.feedback_calls.source, t.side_effect_writes.source];
@@ -1438,7 +1513,7 @@ test("残る見た目の撮る状態を操作をまたいで使い回すなら�
   };
   const bare = run(mutated((t) => share(t, [null, null])));
   expect(bare.status).toBe(1);
-  expect(bare.stderr).toContain('撮る状態 "copy-toast" を');
+  expect(bare.stderr).toContain('撮る状態 "共有画面 の copy-toast" を');
   const half = run(mutated((t) => share(t, ["コピーの後に検索しても同じ通知が残る", null])));
   expect(half.status).toBe(1);
   expect(half.stderr).toContain('根拠が空: operations["search"]');
@@ -1499,6 +1574,8 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
     // 検索は検索画面へ遷移して撮る（押した後の URL が capture_page の path と合う）
     t.operations[1].aftermath.returns_to.url_after =
       pages[1] === "共有画面" ? "/share?id=1" : "/search";
+    // 状態表示は capture_conditions.pages の全ての画面で振り分ける（Issue #500）
+    t.state_displays.pages.push(stateDisplayRow("検索画面"));
   };
   const cross = run(
     mutated((t) => share(t, ["共有画面", "検索画面"])),
@@ -1521,7 +1598,15 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
     'capture_page "旧検索画面" が metadata.json の capture_conditions.pages に無い',
   );
   // ページ一覧が無い metadata では page を照合できないので通さない
-  const noPages = run(mutated((t) => share(t, ["共有画面", "検索画面"])));
+  const noPages = run(
+    mutated((t) => share(t, ["共有画面", "検索画面"])),
+    {
+      metadata: {
+        ...metadata,
+        capture_conditions: { states: metadata.capture_conditions.states },
+      },
+    },
+  );
   expect(noPages.status).toBe(1);
   expect(noPages.stderr).toContain("capture_conditions.pages を読めない");
 });
@@ -1536,14 +1621,19 @@ test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capt
       pages: pages.map((name) => ({ name, path: { 共有画面: "share", 検索画面: "search" }[name] })),
     },
   });
-  const two = run(baseTable(), { metadata: meta(["共有画面", "検索画面"]) });
+  // 状態表示は capture_conditions.pages の全ての画面で振り分ける（Issue #500）
+  const bothPages = (t) => t.state_displays.pages.push(stateDisplayRow("検索画面"));
+  const two = run(mutated(bothPages), { metadata: meta(["共有画面", "検索画面"]) });
   expect(two.status).toBe(1);
   expect(two.stderr).toContain("capture_page が無い");
   const one = run(baseTable(), { metadata: meta(["共有画面"]) });
   expect(one.stderr).toBe("");
   expect(one.status).toBe(0);
   const written = run(
-    mutated((t) => (t.operations[0].capture_page = "共有画面")),
+    mutated((t) => {
+      bothPages(t);
+      t.operations[0].capture_page = "共有画面";
+    }),
     { metadata: meta(["共有画面", "検索画面"]) },
   );
   expect(written.stderr).toBe("");
@@ -1787,13 +1877,14 @@ test("同梱テンプレートのプレースホルダのままの pre_send は�
 // --- 表への書き込み（Issue #466）---
 
 test("書き込みを持たない機能は declared: false と理由で通す（Issue #466）", () => {
-  const t = mutated(
-    (x) =>
-      (x.side_effect_writes = {
-        declared: false,
-        reason: "features.md の副作用出力に表への書き込みが無い",
-      }),
-  );
+  const t = mutated((x) => {
+    x.side_effect_writes = {
+      declared: false,
+      reason: "features.md の副作用出力に表への書き込みが無い",
+    };
+    // 書き込みが無ければ押し直しで数える書き込みも無い（Issue #500）
+    delete x.operations[1].resubmit.writes;
+  });
   const r = run(t);
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
@@ -1804,16 +1895,16 @@ test("書き込みを持たない機能は declared: false と理由で通す（
 });
 
 test("declared: false の空の配列は記録とみなさず通す（Issue #466）", () => {
-  const t = mutated(
-    (x) =>
-      (x.side_effect_writes = {
-        declared: false,
-        reason: "features.md の副作用出力に表への書き込みが無い",
-        tables: [],
-        patterns: [],
-        sites: [],
-      }),
-  );
+  const t = mutated((x) => {
+    x.side_effect_writes = {
+      declared: false,
+      reason: "features.md の副作用出力に表への書き込みが無い",
+      tables: [],
+      patterns: [],
+      sites: [],
+    };
+    delete x.operations[1].resubmit.writes;
+  });
   const r = run(t);
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
@@ -1994,4 +2085,474 @@ test("--recorded は表への書き込みを突き合わせていない記録を
   const r = rerun(w.dir, ["--recorded"]);
   expect(r.status).toBe(1);
   expect(r.stderr).toContain("conformance.side_effects_checked が true でない");
+});
+
+// --- 画面ごとの状態表示（Issue #500）---
+
+/** @param {ReturnType<typeof baseTable>} t @param {string} c */
+const candidate = (t, c) => t.state_displays.pages[0].candidates[c];
+
+test("状態表示を画面ごとに全候補で振り分けた表は通し、数えた件数を出す（Issue #500）", () => {
+  const r = run(baseTable());
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).state_displays).toEqual({ pages: 1, entries: 5, unmeasured: 0 });
+});
+
+test.each([
+  [
+    "取得の失敗が起きないことを横取りの abort で確かめ、不在を assertion にした",
+    (t) =>
+      (t.state_displays.pages[0].candidates["fetch-error"] = {
+        status: "absent",
+        setup: {
+          method: "route-abort",
+          request: "/api/share/list",
+          detail: "一覧の取得を abort する",
+        },
+        observed: "取得に失敗しても表示が変わらない",
+        covered_by: ["share.spec.ts: 取得に失敗しても警告が出ない"],
+      }),
+  ],
+  [
+    "画面が取得の要求を送らない（no-request）",
+    (t) =>
+      (t.state_displays.pages[0].candidates["fetch-error"] = {
+        status: "absent",
+        setup: {
+          method: "no-request",
+          detail: "一覧はサーバーが HTML に描き込み、画面は要求を送らない",
+        },
+        observed: "画面を開いてから操作するまで要求が 0 件",
+      }),
+  ],
+  [
+    "読み込み中を応答の保留で作り、反応と 1 枚を共有する根拠を両方に書いて撮る状態に割り当てた",
+    (t) => {
+      t.state_displays.pages[0].candidates.loading = {
+        status: "present",
+        setup: { method: "route-delay", request: "/api/share/list", detail: "応答を 5 秒保留する" },
+        observed: "一覧の上に読み込み中の覆いが出る",
+        captured: "copy-toast",
+        shared_capture_reason:
+          "コピーの通知と読み込み中の覆いが同じ 1 枚に写ることを実 UI で確かめた",
+      };
+      t.operations[0].reactions[0].capture.shared_capture_reason = "同上";
+    },
+  ],
+  [
+    "0 件を横取りの fulfill（空の一覧）で作った",
+    (t) =>
+      Object.assign(candidate(t, "empty").setup, {
+        method: "route-fulfill",
+        request: "/api/share/list",
+        detail: "空の一覧を返す",
+      }),
+  ],
+])("状態表示の正規の記録は通す: %s（Issue #500）", (_name, mutate) => {
+  const r = run(mutated(mutate));
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["キーごと無い", (t) => delete t.state_displays, "state_displays.pages が配列でない"],
+  [
+    "page が空の行",
+    (t) => (t.state_displays.pages[0].page = ""),
+    "page（capture_conditions.pages の名前）が空の行がある",
+  ],
+  [
+    "画面の名前が capture_conditions.pages に無い",
+    (t) => (t.state_displays.pages[0].page = "旧共有画面"),
+    "画面 旧共有画面 が capture_conditions.pages に無い",
+  ],
+  [
+    "同じ画面が 2 行",
+    (t) => t.state_displays.pages.push(stateDisplayRow()),
+    '画面 "共有画面" が 2 回ある',
+  ],
+  [
+    "candidates がオブジェクトでない",
+    (t) => (t.state_displays.pages[0].candidates = []),
+    "candidates が候補ごとの記録のオブジェクトでない",
+  ],
+  [
+    "候補が欠けている",
+    (t) => delete t.state_displays.pages[0].candidates.loading,
+    "候補 loading を振り分けていない",
+  ],
+  [
+    "語彙に無い候補",
+    (t) => (t.state_displays.pages[0].candidates.spinner = { status: "absent" }),
+    "候補の語彙（empty / fetch-error / loading / toast / dialog）に無いキー: spinner",
+  ],
+  ["status が語彙に無い", (t) => (candidate(t, "empty").status = "n/a"), "empty.status が語彙"],
+  [
+    "理由付きの未測定",
+    (t) =>
+      (t.state_displays.pages[0].candidates["fetch-error"] = {
+        status: "unmeasured",
+        reason: "移行元で失敗を起こす手段が無い",
+      }),
+    "fetch-error: 未測定（移行元で失敗を起こす手段が無い）",
+  ],
+  [
+    "取得の失敗の「ない」を横取りで試していない",
+    (t) =>
+      Object.assign(candidate(t, "fetch-error"), {
+        status: "absent",
+        setup: { method: "ui", detail: "画面を開いた" },
+      }),
+    "「起こせない」と書く前に要求の横取り",
+  ],
+  [
+    "読み込み中の「ない」を abort で確かめた（保留していない）",
+    (t) => (candidate(t, "loading").setup.method = "route-abort"),
+    "loading: absent の setup.method が route-delay / no-request でない",
+  ],
+  [
+    "present に要求が無いことの記録",
+    (t) => (candidate(t, "empty").setup.method = "no-request"),
+    "empty: present の setup.method が",
+  ],
+  [
+    "横取りした要求が空",
+    (t) => (candidate(t, "loading").setup.request = ""),
+    "setup.method: route-delay なのに setup.request",
+  ],
+  ["作り方が空", (t) => (candidate(t, "empty").setup.detail = ""), "empty: setup.detail"],
+  [
+    "現行で見たものがテンプレートの説明文のまま",
+    (t) => (candidate(t, "empty").observed = "<現行で見た文言>"),
+    "empty: observed",
+  ],
+  [
+    "present をどこにも割り当てていない",
+    (t) => (candidate(t, "empty").covered_by = []),
+    "empty: present なのに撮る状態（captured）にも",
+  ],
+  [
+    "present の撮る状態が capture_conditions.states に無い",
+    (t) => {
+      candidate(t, "empty").covered_by = [];
+      candidate(t, "empty").captured = "empty-result";
+    },
+    'empty: captured "empty-result" が capture_conditions.states に無い',
+  ],
+  [
+    "toast に反応の参照を書いた（Codex レビュー #504 で入力形式ごと外した）",
+    (t) => (candidate(t, "toast").reactions = ["copy/toast"]),
+    "toast: reactions は書けない",
+  ],
+  [
+    "dialog の反応の参照が空配列（キーがあれば落とす）",
+    (t) => (candidate(t, "dialog").reactions = []),
+    "dialog: reactions は書けない",
+  ],
+  [
+    "撮る状態を反応と根拠なしに共有する",
+    (t) => {
+      candidate(t, "empty").covered_by = [];
+      candidate(t, "empty").captured = "copy-toast";
+    },
+    'state_displays["共有画面"].empty',
+  ],
+  [
+    "absent の不在を assertion にしていない",
+    (t) => (candidate(t, "loading").covered_by = []),
+    "loading: absent なのに covered_by が空",
+  ],
+  [
+    "absent に撮る状態",
+    (t) => (candidate(t, "loading").captured = "copy-toast"),
+    "loading: absent なのに captured がある",
+  ],
+])("状態表示の振り分けの欠けは落とす: %s（Issue #500）", (_name, mutate, message) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）", () => {
+  const base = {
+    slug: "share",
+    target: { name: "current-test", commit: "abc123" },
+    reaction_coverage: { declared: true, path: "reactions.json" },
+  };
+  // 画面が 2 つある機能で 1 画面しか振り分けていない。copy は capture_page を書いて、capture_page の欠けと分ける
+  const two = run(
+    mutated((t) => (t.operations[0].capture_page = "共有画面")),
+    {
+      metadata: {
+        ...base,
+        capture_conditions: {
+          states: ["default", "copy-toast"],
+          pages: [
+            { name: "共有画面", path: "share" },
+            { name: "検索画面", path: "search" },
+          ],
+        },
+      },
+    },
+  );
+  expect(two.status).toBe(1);
+  expect(two.stderr).toContain("画面 検索画面 の状態表示を振り分けていない");
+  expect(JSON.parse(two.stdout).state_displays.unmeasured).toBe(1);
+  const noPages = run(baseTable(), {
+    metadata: { ...base, capture_conditions: { states: ["default", "copy-toast"] } },
+  });
+  expect(noPages.status).toBe(1);
+  expect(noPages.stderr).toContain("state_displays を画面の集合と照合できない");
+});
+
+test("状態表示の未測定は ok を落とし、未測定の件数に数える（Issue #500）", () => {
+  const r = run(
+    mutated(
+      (t) =>
+        (t.state_displays.pages[0].candidates.loading = {
+          status: "unmeasured",
+          reason: "保留の手段を用意していない",
+        }),
+    ),
+  );
+  expect(r.status).toBe(1);
+  expect(JSON.parse(r.stdout)).toMatchObject({
+    ok: false,
+    unmeasured_operations: 0,
+    state_displays: { unmeasured: 1 },
+  });
+  expect(r.stderr).toContain("状態表示の未測定 1 件");
+});
+
+// --- 送っている間の押し直し（Issue #500）---
+
+test.each([
+  [
+    "書き込みを持たない送る操作は writes なしで通す",
+    (t) =>
+      (t.operations[0].resubmit = {
+        sends: true,
+        reason: null,
+        hold: { method: "route-delay", request: "/api/share" },
+        presses: 3,
+        observed: { requests_sent: 3, confirms_shown: 0, overlay: "何もしない（押すたびに送る）" },
+        covered_by: ["share.spec.ts: 応答の保留中に 3 回押すと 3 回送る"],
+      }),
+  ],
+  [
+    "書き込みの回数 0（押し直しで送っても行に畳む）",
+    (t) =>
+      (t.operations[1].resubmit.writes = { count: 0, evidence: "送信は横取りして届けず、行は 0" }),
+  ],
+])("送っている間の押し直しの正規の記録は通す: %s（Issue #500）", (_name, mutate) => {
+  const r = run(mutated(mutate));
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test.each([
+  ["キーごと無い", (t) => delete t.operations[0].resubmit, 'operations["copy"]: resubmit が無い'],
+  [
+    "理由付きの未測定",
+    (t) => (t.operations[0].resubmit = { sends: null, reason: "保留の手段を用意していない" }),
+    "resubmit: 未測定（保留の手段を用意していない）",
+  ],
+  [
+    "sends が語彙に無い",
+    (t) => (t.operations[0].resubmit.sends = "no"),
+    "resubmit.sends が true / false / null のどれでもない",
+  ],
+  [
+    "送らない根拠が空",
+    (t) => (t.operations[0].resubmit.reason = ""),
+    "resubmit.sends: false なのに reason",
+  ],
+  [
+    "書き込む操作を送らないと書いた",
+    (t) => (t.operations[1].resubmit = { sends: false, reason: "送らない" }),
+    'operations["search"]: resubmit.sends: false なのに、この操作の表への書き込みが',
+  ],
+  [
+    "送らないのに測定が残っている",
+    (t) => (t.operations[0].resubmit.presses = 2),
+    "resubmit.sends: false なのに presses がある",
+  ],
+  [
+    "応答を保留していない",
+    (t) => (t.operations[1].resubmit.hold.method = "route-abort"),
+    "resubmit.hold が { method: route-delay",
+  ],
+  [
+    "保留した要求が空",
+    (t) => (t.operations[1].resubmit.hold.request = ""),
+    "resubmit.hold が { method: route-delay",
+  ],
+  ["押し直していない（1 回）", (t) => (t.operations[1].resubmit.presses = 1), "resubmit.presses"],
+  [
+    "送った回数が 0",
+    (t) => (t.operations[1].resubmit.observed.requests_sent = 0),
+    "resubmit.observed に、送った回数",
+  ],
+  [
+    "確認の回数が負",
+    (t) => (t.operations[1].resubmit.observed.confirms_shown = -1),
+    "resubmit.observed に、送った回数",
+  ],
+  [
+    "覆いが空",
+    (t) => (t.operations[1].resubmit.observed.overlay = ""),
+    "resubmit.observed に、送った回数",
+  ],
+  [
+    "書き込む操作で書き込みの回数を数えていない",
+    (t) => delete t.operations[1].resubmit.writes,
+    "resubmit.writes が { count:",
+  ],
+  [
+    "書き込みの回数が整数でない",
+    (t) => (t.operations[1].resubmit.writes.count = "1 行"),
+    "resubmit.writes が { count:",
+  ],
+  [
+    "書き込みの数え方が空",
+    (t) => (t.operations[1].resubmit.writes.evidence = ""),
+    "resubmit.writes が { count:",
+  ],
+  [
+    "書き込みの無い操作に書き込みの回数",
+    (t) =>
+      (t.operations[0].resubmit = {
+        ...heldResubmit(),
+        hold: { method: "route-delay", request: "/api/share" },
+      }),
+    'operations["copy"]: resubmit.writes があるのに、この操作の表への書き込みが side_effect_writes.sites に無い',
+  ],
+  [
+    "assertion にしていない",
+    (t) => (t.operations[1].resubmit.covered_by = []),
+    "resubmit.covered_by が空",
+  ],
+])("送っている間の押し直しの欠けは落とす: %s（Issue #500）", (_name, mutate, message) => {
+  const r = run(mutated(mutate));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("同梱テンプレートのプレースホルダのままの状態表示と押し直しは落とす（Issue #500）", () => {
+  const template = JSON.parse(
+    readFileSync(
+      new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const t = mutated((x) => {
+    // 画面名だけ実在の名前にして、候補ごとの記録をテンプレートのまま入れる（画面名の欠けで先に落ちないようにする）
+    x.state_displays = {
+      pages: [{ ...structuredClone(template.state_displays.pages[0]), page: "共有画面" }],
+    };
+    x.operations[0].resubmit = structuredClone(template.operations[1].resubmit);
+    x.operations[1].resubmit = structuredClone(template.operations[0].resubmit);
+  });
+  const r = run(t);
+  expect(r.status).toBe(1);
+  for (const c of ["empty", "fetch-error", "loading", "toast", "dialog"]) {
+    expect(r.stderr).toContain(`state_displays["共有画面"]: ${c}`);
+  }
+  expect(r.stderr).toContain('operations["copy"]: resubmit.sends: false なのに reason');
+  expect(r.stderr).toContain('operations["search"]: resubmit.presses');
+});
+
+test.each([
+  [
+    "name の無い宣言",
+    [{ name: "共有画面", path: "share" }, { path: "orphan" }],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "空の name",
+    [
+      { name: "共有画面", path: "share" },
+      { name: "", path: "x" },
+    ],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "オブジェクトでない宣言",
+    [{ name: "共有画面", path: "share" }, "検索画面"],
+    "capture_conditions.pages[1] に name",
+  ],
+  [
+    "同じ名前の宣言",
+    [
+      { name: "共有画面", path: "share" },
+      { name: "共有画面", path: "share2" },
+    ],
+    '画面 "共有画面" が 2 つある',
+  ],
+])(
+  "画面の宣言の型崩れは黙って捨てずに exit 2: %s（Codex レビュー #504）",
+  (_name, pages, message) => {
+    const r = run(baseTable(), {
+      metadata: {
+        slug: "share",
+        target: { name: "current-test", commit: "abc123" },
+        reaction_coverage: { declared: true, path: "reactions.json" },
+        capture_conditions: { states: ["default", "copy-toast"], pages },
+      },
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test.each([
+  [
+    "状態表示の横取りした要求が絶対 URL",
+    (t) => (candidate(t, "loading").setup.request = "https://current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
+  [
+    "状態表示の横取りした要求がスキーム相対",
+    (t) => (candidate(t, "fetch-error").setup.request = "//current.example/api/share/list"),
+    "fetch-error: setup.method: route-abort なのに setup.request",
+  ],
+  [
+    "押し直しの保留した要求が絶対 URL",
+    (t) => (t.operations[1].resubmit.hold.request = "http://localhost:8080/api/export"),
+    "resubmit.hold が { method: route-delay",
+  ],
+  [
+    "状態表示の横取りした要求が glob の後ろにホストを持つ",
+    (t) => (candidate(t, "loading").setup.request = "**://current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
+  [
+    "押し直しの保留した要求が glob の後ろにホストを持つ",
+    (t) => (t.operations[1].resubmit.hold.request = "*://localhost:8080/api/export"),
+    "resubmit.hold が { method: route-delay",
+  ],
+  [
+    "状態表示の横取りした要求が / で始まらない",
+    (t) => (candidate(t, "loading").setup.request = "current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
+])(
+  "要求のパターンにオリジンを残す記録は落とす: %s（Codex レビュー #504）",
+  (_name, mutate, message) => {
+    const r = run(mutated(mutate));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test("オリジンを含まない glob の要求パターンは通す（Codex レビュー #504）", () => {
+  const r = run(
+    mutated((t) => {
+      candidate(t, "loading").setup.request = "**/api/share/list";
+      t.operations[1].resubmit.hold.request = "**/api/export?format=csv";
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
 });
