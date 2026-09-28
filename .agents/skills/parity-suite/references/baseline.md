@@ -213,15 +213,22 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
   const root = document.documentElement;
   const doc = { width: root.scrollWidth, height: root.scrollHeight };
   const captured = fullPage ? doc : { width: window.innerWidth, height: window.innerHeight };
+  // はみ出した器に加えて、はみ出していなくてもスクロールバー（とガター）が場所を取っている器も数える
+  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）
   const scroll_containers = [...document.querySelectorAll("*")]
-    .filter((el) => {
-      const style = getComputedStyle(el);
-      const scrollable = /(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`);
-      return scrollable && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
-    })
     .map((el) => {
       const style = getComputedStyle(el);
+      if (!/(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`)) return null;
+      // inline の要素には overflow が効かず client が 0 になり、bar が文字の寸法に化ける（trait-capture.mjs と同じ除外）
+      if (style.display === "inline") return null;
       const border = (side) => parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0;
+      // スクロールバー（とガター）が取った幅・高さ。枠を除く（trait-capture.mjs の scroll と同じ式）
+      const bar = {
+        vertical: Math.round(el.offsetWidth - el.clientWidth - border("left") - border("right")),
+        horizontal: Math.round(el.offsetHeight - el.clientHeight - border("top") - border("bottom")),
+      };
+      const overflowing = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
+      if (!overflowing && bar.vertical === 0 && bar.horizontal === 0) return null;
       return {
         // name は書き手が付ける（論理名で引ける器はその論理名。hint は名前を決めるための手がかりで、記録には残さない）
         hint: `${el.tagName.toLowerCase()}.${el.className}`,
@@ -229,13 +236,10 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
         scroll: { width: el.scrollWidth, height: el.scrollHeight },
         overflow_x: style.overflowX,
         overflow_y: style.overflowY,
-        // スクロールバー（とガター）が取った幅・高さ。枠を除く（trait-capture.mjs の scroll と同じ式）
-        bar: {
-          vertical: Math.round(el.offsetWidth - el.clientWidth - border("left") - border("right")),
-          horizontal: Math.round(el.offsetHeight - el.clientHeight - border("top") - border("bottom")),
-        },
+        bar,
       };
-    });
+    })
+    .filter(Boolean);
   const outside = Object.entries(namedSelectors).filter(([, selector]) => {
     const el = document.querySelector(selector);
     if (!el) return false;
@@ -260,6 +264,7 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
 
 - **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない。
   論理名をロケータマッピングに足して `traits.elements` にも入れる——入れないとスクロールバーの差が特性照合に写らず `untraced:<名前>` の穴になる
+- **はみ出していない器でも、スクロールバー（とガター）が場所を取っていれば数える**（`overflow: scroll`・`scrollbar-gutter: stable`）。場所を取るバーも特性照合の対象になる
 - **器ごとに `overflow_x` / `overflow_y`（計算値）と `bar`（`vertical`: 縦のバーの幅・`horizontal`: 横のバーの高さ。枠を除く）も書く。** 欠落・語彙外・負の値は落ちる。
   `scrollbars: shown` で撮ったのに、`auto` / `scroll` の向きにはみ出した器でその向きの `bar` が 0 なら `scrollbar-hidden:<名前>` の穴になる（バーが場所を取らないまま測っている）
 - **器が 1 つも無い組は `scroll_containers: []` と書く**（キーの欠落は「数えていない」と区別できない。`named_elements_outside` も同じ）

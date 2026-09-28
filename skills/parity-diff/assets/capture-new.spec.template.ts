@@ -35,7 +35,7 @@
  * 1 回目と 2 回目の差分量（pixel_diff / trait_diffs）を測るのはスペックの仕事ではない。
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
  *
- * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・OS）は
+ * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・ブラウザ側とランナーの OS）は
  * `new/<target>/browser-identity.<pass>.json` に書き出す。parity-diff が自己ノイズの測定値を再利用するかを決める
  * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる（Issue #493）。
  */
@@ -217,7 +217,7 @@ const identityPath = join(
   target,
   `browser-identity.${pass}.json`,
 );
-test.beforeAll(async ({ browser, browserName }, testInfo) => {
+test.beforeAll(async (_fixtures, testInfo) => {
   // 現側が hidden で撮ったのに、プロジェクトの launchOptions がスクロールバーを出していたら撮らない（片側だけ場所を取る）
   const ignored = testInfo.project.use.launchOptions?.ignoreDefaultArgs;
   if (
@@ -228,23 +228,46 @@ test.beforeAll(async ({ browser, browserName }, testInfo) => {
       "capture_conditions.scrollbars is hidden but the project launchOptions removes --hide-scrollbars: 現側と同じ扱いで撮る",
     );
   }
-  const probe = await browser.newPage();
-  const userAgent = await probe.evaluate(() => navigator.userAgent);
-  await probe.close();
-  // beforeAll はワーカーごとに走る。書くのは並列の枠 0 のワーカーだけにし（同じプロジェクトのワーカーは同じブラウザを起動する）、
-  // 一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
+});
+
+// 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
+// browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う（Codex レビュー #501）。
+// OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
+// userAgentData を持たないブラウザ（Firefox / WebKit、安全なコンテキストでない http の頁）は navigator.platform を残す。ランナーの OS は runner_os に別に残す
+let identityRecorded = false;
+async function recordIdentity(
+  page: import("@playwright/test").Page,
+  browserName: string,
+  testInfo: import("@playwright/test").TestInfo,
+): Promise<void> {
+  if (identityRecorded) return;
+  identityRecorded = true;
+  // beforeAll ではなく最初のテストで読むので、ワーカーごとに 1 回。書くのは並列の枠 0 のワーカーだけにし
+  // （同じプロジェクトのワーカーは同じブラウザ・同じ use で撮る）、一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
   if (testInfo.parallelIndex !== 0) return;
+  const seen = await page.evaluate(async () => {
+    const data = (
+      navigator as Navigator & {
+        userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
+      }
+    ).userAgentData;
+    const os = data
+      ? await data.getHighEntropyValues(["platform", "platformVersion", "architecture"])
+      : { platform: navigator.platform };
+    return { userAgent: navigator.userAgent, os };
+  });
   writeJsonAtomic(identityPath, {
     browser: browserMode,
     browser_name: browserName,
-    product: browser.version(),
-    user_agent: userAgent,
+    product: page.context().browser()?.version() ?? null,
+    user_agent: seen.userAgent,
     // project の use に書いた値（未指定は null＝Playwright の既定）。test.use で上書きした scrollbars の起動引数は scrollbars が持つ
     channel: testInfo.project.use.channel ?? null,
     headless: testInfo.project.use.headless ?? null,
-    os: `${platform()} ${release()} ${arch()}`,
+    browser_os: seen.os,
+    runner_os: `${platform()} ${release()} ${arch()}`,
   });
-});
+}
 
 test.beforeEach(async (_fixtures, testInfo) => {
   // fail-fast: current で走ると現行アプリを新側ベースラインとして書き出す（testIgnore の設定漏れ対策）
@@ -267,7 +290,9 @@ for (const viewport of shots) {
         const outDir = join(outRoot, pageDef.name, state, viewport.label);
         assertInsideOutRoot(outDir);
 
-        test(`capture ${pair}`, async ({ page }) => {
+        test(`capture ${pair}`, async ({ page, browserName }, testInfo) => {
+          // 撮影に使うページで同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
+          await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
           // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
           // 撮らない組は「今回の baseline-new」対「前反復の 2 回目」が突き合わされて反復間のコード変更を
