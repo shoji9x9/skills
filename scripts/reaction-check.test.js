@@ -288,20 +288,13 @@ const stateDisplayRow = (page = "共有画面") => ({
       observed: "保留している間も表示が変わらない（読み込み中の表示が出ない）",
       covered_by: ["share.spec.ts: 応答の保留中に読み込み中の表示が出ない"],
     },
-    // 反応は押した後の画面のものだけを指せる（copy の通知は共有画面の反応）
-    toast:
-      page === "共有画面"
-        ? {
-            status: "present",
-            setup: { method: "ui", detail: "コピーを押す" },
-            observed: "コピー完了のトーストが最上部に出て消える",
-            reactions: ["copy/toast"],
-          }
-        : {
-            status: "absent",
-            setup: { method: "not-applicable", detail: "この画面の操作は通知を出さない" },
-            observed: "この画面の操作の反応はどれも kind: none",
-          },
+    // 通知は操作の反応を参照せず、反応と同じ assertion 名で押さえる
+    toast: {
+      status: "present",
+      setup: { method: "ui", detail: "コピーを押す" },
+      observed: "コピー完了のトーストが最上部に出て消える",
+      covered_by: ["share.spec.ts: コピーで通知が出て消える"],
+    },
     dialog: {
       status: "absent",
       setup: { method: "not-applicable", detail: "画面が開くダイアログの器を持たない" },
@@ -2248,19 +2241,14 @@ test.each([
     'empty: captured "empty-result" が capture_conditions.states に無い',
   ],
   [
-    "反応の参照が観測した反応でない",
-    (t) => (candidate(t, "toast").reactions = ["search/none"]),
-    'toast: reactions の "search/none" が被覆表の観測した反応',
+    "toast に反応の参照を書いた（Codex レビュー #504 で入力形式ごと外した）",
+    (t) => (candidate(t, "toast").reactions = ["copy/toast"]),
+    "toast: reactions は書けない",
   ],
   [
-    "反応の参照が被覆表に無い",
-    (t) => (candidate(t, "toast").reactions = ["copy/missing"]),
-    'toast: reactions の "copy/missing" が被覆表の観測した反応',
-  ],
-  [
-    "toast / dialog 以外に反応の参照",
-    (t) => (candidate(t, "empty").reactions = ["copy/toast"]),
-    "empty: reactions は toast / dialog の候補だけに書ける",
+    "dialog の反応の参照が空配列（キーがあれば落とす）",
+    (t) => (candidate(t, "dialog").reactions = []),
+    "dialog: reactions は書けない",
   ],
   [
     "撮る状態を反応と根拠なしに共有する",
@@ -2278,7 +2266,7 @@ test.each([
   [
     "absent に撮る状態",
     (t) => (candidate(t, "loading").captured = "copy-toast"),
-    "loading: absent なのに captured / reactions がある",
+    "loading: absent なのに captured がある",
   ],
 ])("状態表示の振り分けの欠けは落とす: %s（Issue #500）", (_name, mutate, message) => {
   const r = run(mutated(mutate));
@@ -2475,54 +2463,6 @@ test("同梱テンプレートのプレースホルダのままの状態表示�
   expect(r.stderr).toContain('operations["search"]: resubmit.presses');
 });
 
-test("状態表示の反応の参照は、その画面の操作の反応に限る（Codex レビュー #504）", () => {
-  const metadata = {
-    slug: "share",
-    target: { name: "current-test", commit: "abc123" },
-    reaction_coverage: { declared: true, path: "reactions.json" },
-    capture_conditions: {
-      states: ["default", "copy-toast"],
-      pages: [
-        { name: "共有画面", path: "share" },
-        { name: "検索画面", path: "search" },
-      ],
-    },
-  };
-  const withSearchPage = (t) => {
-    t.state_displays.pages.push(stateDisplayRow("検索画面"));
-    t.operations[0].capture_page = "共有画面";
-  };
-  // 陰性コントロール: 共有画面の行が共有画面の操作の反応を指す
-  const own = run(mutated(withSearchPage), { metadata });
-  expect(own.stderr).toBe("");
-  expect(own.status).toBe(0);
-  // 検索画面の行が共有画面の操作の反応を指す
-  const cross = run(
-    mutated((t) => {
-      withSearchPage(t);
-      t.state_displays.pages[1].candidates.toast = stateDisplayRow().candidates.toast;
-    }),
-    { metadata },
-  );
-  expect(cross.status).toBe(1);
-  expect(cross.stderr).toContain(
-    'toast: reactions の "copy/toast" は画面 "共有画面" の反応（capture_page）で、画面 "検索画面" の状態表示に使えない',
-  );
-  // 撮る状態を持たず capture_page も無い操作の反応は、画面が 2 つ以上だとどの画面のものか決まらない
-  const unknown = run(
-    mutated((t) => {
-      withSearchPage(t);
-      delete t.operations[0].capture_page;
-      t.operations[0].reactions[0].capture = { state: null, reason: "通知は撮らない" };
-    }),
-    { metadata },
-  );
-  expect(unknown.status).toBe(1);
-  expect(unknown.stderr).toContain(
-    'toast: reactions の "copy/toast" の操作がどの画面の反応か決まらない',
-  );
-});
-
 test.each([
   [
     "name の無い宣言",
@@ -2582,6 +2522,21 @@ test.each([
     (t) => (t.operations[1].resubmit.hold.request = "http://localhost:8080/api/export"),
     "resubmit.hold が { method: route-delay",
   ],
+  [
+    "状態表示の横取りした要求が glob の後ろにホストを持つ",
+    (t) => (candidate(t, "loading").setup.request = "**://current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
+  [
+    "押し直しの保留した要求が glob の後ろにホストを持つ",
+    (t) => (t.operations[1].resubmit.hold.request = "*://localhost:8080/api/export"),
+    "resubmit.hold が { method: route-delay",
+  ],
+  [
+    "状態表示の横取りした要求が / で始まらない",
+    (t) => (candidate(t, "loading").setup.request = "current.example/api/share/list"),
+    "loading: setup.method: route-delay なのに setup.request",
+  ],
 ])(
   "要求のパターンにオリジンを残す記録は落とす: %s（Codex レビュー #504）",
   (_name, mutate, message) => {
@@ -2600,12 +2555,4 @@ test("オリジンを含まない glob の要求パターンは通す（Codex �
   );
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
-});
-
-test("状態表示の toast / dialog は画面に出ない反応（visible: false）を指せない（Codex レビュー #504）", () => {
-  const r = run(mutated((t) => (t.operations[0].reactions[0].visible = false)));
-  expect(r.status).toBe(1);
-  expect(r.stderr).toContain(
-    'toast: reactions の "copy/toast" は画面に出ない反応（visible: false）で、表示の ある を示さない',
-  );
 });

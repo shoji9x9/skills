@@ -94,7 +94,7 @@
     ]
   },
   "state_displays": {
-    "_note": "画面ごとの状態表示の振り分け（Issue #500）。metadata.json の capture_conditions.pages の全ての画面を 1 行ずつ（page に名前。欠け・余分・重複は落ちる）、候補 empty / fetch-error / loading / toast / dialog を全て書く（欠けは未測定）。status は present（ある: setup・observed を書き、captured か covered_by に割り当てる。toast / dialog は reactions で観測した反応を指してもよい）/ absent（ない: setup・observed を書き、何も出ないことを covered_by の assertion にする。setup.method が no-request / not-applicable のときだけ省ける）/ unmeasured（reason。未測定として数えられ、gaps.md にも残す）。fetch-error の absent は route-abort / route-fulfill / no-request、loading の absent は route-delay / no-request でしか名乗れない（「起こせない」と書く前に要求の横取りで試す）。1 行ずつ table-upsert.mjs の --array state_displays.pages --key page で書く。正本は parity-suite の references/coverage.md「画面ごとの状態表示（state_displays）」。",
+    "_note": "画面ごとの状態表示の振り分け（Issue #500）。metadata.json の capture_conditions.pages の全ての画面を 1 行ずつ（page に名前。欠け・余分・重複は落ちる）、候補 empty / fetch-error / loading / toast / dialog を全て書く（欠けは未測定）。status は present（ある: setup・observed を書き、captured か covered_by に割り当てる。toast / dialog も操作の反応を参照せず covered_by に反応と同じ assertion 名を書く。reactions の欄は書けない）/ absent（ない: setup・observed を書き、何も出ないことを covered_by の assertion にする。setup.method が no-request / not-applicable のときだけ省ける）/ unmeasured（reason。未測定として数えられ、gaps.md にも残す）。fetch-error の absent は route-abort / route-fulfill / no-request、loading の absent は route-delay / no-request でしか名乗れない（「起こせない」と書く前に要求の横取りで試す）。1 行ずつ table-upsert.mjs の --array state_displays.pages --key page で書く。正本は parity-suite の references/coverage.md「画面ごとの状態表示（state_displays）」。",
     "pages": [
       {
         "page": "<capture_conditions.pages[].name。全ての画面を 1 回ずつ>",
@@ -145,8 +145,8 @@
               "detail": "<例: 保存を押す>"
             },
             "observed": "<例: 保存完了のトーストが最上部に出て消える>",
-            "reactions": [
-              "<toast / dialog だけ。操作の反応として測った通知（<操作 id>/<反応 id>。kind: observed に限る）>"
+            "covered_by": [
+              "<通知の表示を確かめたスイートの assertion。操作の反応と同じ assertion 名でよい（反応を参照する reactions の欄は書けない）>"
             ]
           },
           "dialog": {

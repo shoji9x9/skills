@@ -789,30 +789,32 @@ function aftermathReturnsProblems(ret, screenStates) {
 /**
  * 横取り・保留した要求の URL のパターンが、オリジン（スキームとホスト・ポート）を含まない形か。
  * 成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、実行時に解決した URL がそのまま記録されるのを落とす
- * （Codex レビュー #504）。`/api/orders` や、先頭を `**` にした Playwright の glob は通し、`https://host/…`・`//host/…` は落とす。
+ * （Codex レビュー #504）。先頭の `*`（Playwright の glob）を外した残りが `/` で始まるパス（`//` で始まらない）で、
+ * どこにも `://` を含まないものだけを通す——`https://host/…`・`//host/…` に加えて、glob の後ろにスキームやホストを書いた
+ * `*` + `*://host/…` の形も落とす。
  * @param {unknown} v
  * @returns {boolean}
  */
 function originFreePattern(v) {
   if (!filled(v)) return false;
-  const t = String(v).trim();
-  return !/^[a-z][a-z0-9+.-]*:/i.test(t) && !t.startsWith("//");
+  const path = String(v).trim().replace(/^\*+/, "");
+  return path.startsWith("/") && !path.startsWith("//") && !path.includes("://");
 }
 
 /**
  * 状態表示の候補 1 つ（state_displays.pages[].candidates の 1 値）の欠けを返す。Issue #500
  *
  * 「状態表示」を散文の観点にしておくと、画面がその状態を持つかを一度も測らないまま完了できる。
- * 候補ごとに ある（present）／ない（absent）を現行で測らせ、ある は撮る状態・assertion・観測した反応へ割り当てさせる。
+ * 候補ごとに ある（present）／ない（absent）を現行で測らせ、ある は撮る状態か assertion へ割り当てさせる。
  * ない も測った結果なので、不在を確かめる assertion を要求する（新側が警告のダイアログを足しても、撮っていない状態は 3 経路に写らない）。
+ * toast / dialog も操作の反応を参照させない。参照は画面・見えるか・種別の一致を検査で保証し続ける必要があり、
+ * 軸を 1 つ塞ぐたびに別の軸の穴が出た（Codex レビュー #504 で 3 巡）ので、入力形式ごと外した。反応と同じ assertion 名を covered_by に書く。
  * @param {unknown} entry
  * @param {string} candidate - STATE_DISPLAY_CANDIDATES の 1 つ
  * @param {Set<string> | null} captureStates
- * @param {Map<string, string>} reactionKinds - 反応キー（<操作 id>/<反応 id>）→ kind
- * @param {{ pages: Map<string, string | null>, visible: Set<string>, page: string }} at - 反応キー → 押した後の画面、画面に出る反応のキー、この行の画面
  * @returns {{ problem: string, unmeasured: boolean }[]}
  */
-function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at) {
+function stateDisplayProblems(entry, candidate, captureStates) {
   if (!isPlainObject(entry)) {
     return [
       {
@@ -880,18 +882,17 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
   }
   const hasState = filled(entry.captured);
   const hasAssertion = filledStrings(entry.covered_by);
-  const reactions = entry.reactions;
-  const hasReactions = Array.isArray(reactions) && reactions.length > 0;
-  if (hasReactions && candidate !== "toast" && candidate !== "dialog") {
+  // 反応の参照は受け付けない（黙って無視すると、参照だけで割り当てたつもりの記録が「割り当てなし」と別の理由で落ち、直し方を誤る）
+  if (Object.hasOwn(entry, "reactions")) {
     out.push({
-      problem: `${candidate}: reactions は toast / dialog の候補だけに書ける（操作の反応として測った通知を指す）`,
-      unmeasured: false,
+      problem: `${candidate}: reactions は書けない（操作の反応を参照せず、撮る状態〈captured〉か assertion〈covered_by。反応と同じ assertion 名でよい〉で押さえる）`,
+      unmeasured: true,
     });
   }
   if (entry.status === "present") {
-    if (!hasState && !hasAssertion && !hasReactions) {
+    if (!hasState && !hasAssertion) {
       out.push({
-        problem: `${candidate}: present なのに撮る状態（captured）にも assertion（covered_by）にも観測した反応（reactions）にも割り当てていない`,
+        problem: `${candidate}: present なのに撮る状態（captured）にも assertion（covered_by）にも割り当てていない`,
         unmeasured: true,
       });
     }
@@ -901,43 +902,12 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
         unmeasured: true,
       });
     }
-    if (hasReactions) {
-      for (const ref of /** @type {unknown[]} */ (reactions)) {
-        const kind = typeof ref === "string" ? reactionKinds.get(ref) : undefined;
-        if (kind !== "observed") {
-          out.push({
-            problem: `${candidate}: reactions の "${String(ref)}" が被覆表の観測した反応（kind: observed）に無い`,
-            unmeasured: true,
-          });
-          continue;
-        }
-        // 画面に出ない反応（クリップボードへの書き込み等）はトースト・ダイアログの表示を示さない（Codex レビュー #504）
-        if (!at.visible.has(/** @type {string} */ (ref))) {
-          out.push({
-            problem: `${candidate}: reactions の "${ref}" は画面に出ない反応（visible: false）で、表示の ある を示さない`,
-            unmeasured: true,
-          });
-          continue;
-        }
-        // 別の画面の操作の反応で、この画面の状態表示を満たさない
-        const refPage = at.pages.get(/** @type {string} */ (ref)) ?? null;
-        if (refPage !== at.page) {
-          out.push({
-            problem:
-              refPage === null
-                ? `${candidate}: reactions の "${ref}" の操作がどの画面の反応か決まらない（画面が 2 つ以上なら、その操作に capture_page〈押した後の画面〉を書く）`
-                : `${candidate}: reactions の "${ref}" は画面 "${refPage}" の反応（capture_page）で、画面 "${at.page}" の状態表示に使えない`,
-            unmeasured: true,
-          });
-        }
-      }
-    }
     return out;
   }
   // absent
-  if (hasState || hasReactions) {
+  if (hasState) {
     out.push({
-      problem: `${candidate}: absent なのに captured / reactions がある（ないと在るが同時に成立する）`,
+      problem: `${candidate}: absent なのに captured がある（ないと在るが同時に成立する）`,
       unmeasured: false,
     });
   }
@@ -956,20 +926,11 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
  * 画面の集合は metadata.json の capture_conditions.pages（宣言）から取る。記録した画面の一覧を期待値にすると、
  * 画面ごと落とした振り分けが期待値からも消える。
  * @param {unknown} sd
- * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, reactionKinds: Map<string, string>, reactionPages: Map<string, string | null>, visibleReactions: Set<string>, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
+ * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
  * @returns {{ pages: number | null, entries: number, unmeasured: number }}
  */
 function checkStateDisplays(sd, ctx) {
-  const {
-    pageNames,
-    captureStates,
-    reactionKinds,
-    reactionPages,
-    visibleReactions,
-    problems,
-    captureUses,
-    captureLabel,
-  } = ctx;
+  const { pageNames, captureStates, problems, captureUses, captureLabel } = ctx;
   const summary = { pages: null, entries: 0, unmeasured: 0 };
   if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {
     problems.push(
@@ -1048,11 +1009,7 @@ function checkStateDisplays(sd, ctx) {
       if (!Object.hasOwn(candidates, c)) continue;
       summary.entries += 1;
       const entry = candidates[c];
-      const found = stateDisplayProblems(entry, c, captureStates, reactionKinds, {
-        pages: reactionPages,
-        visible: visibleReactions,
-        page: /** @type {string} */ (row.page),
-      });
+      const found = stateDisplayProblems(entry, c, captureStates);
       if (found.some((f) => f.unmeasured)) summary.unmeasured += 1;
       for (const f of found) problems.push(`${at}: ${f.problem}`);
       // 撮る状態は撮影の単位（ページ × 状態名）で、反応・残る見た目の撮る状態と同じ集合に入れて使い回しを数える
@@ -1903,10 +1860,6 @@ export function checkReactions(table, opts = {}) {
 
   /** 反応キー（<操作 id>/<反応 id>）→ kind。call_sites の対応付け先。 */
   const reactionKinds = new Map();
-  /** @type {Map<string, string | null>} 反応キー → 押した後の画面（capture_page。画面が 1 つならその画面、決まらなければ null） */
-  const reactionPages = new Map();
-  /** @type {Set<string>} 画面に出る（visible: true の）観測した反応のキー。状態表示の toast / dialog はこれだけを指せる */
-  const visibleReactions = new Set();
   let reactionCount = 0;
   /** @type {number | null} observed の delay_ms_samples の最大値（observation_window_ms の下限照合に使う） */
   let maxObservedDelay = null;
@@ -2060,18 +2013,6 @@ export function checkReactions(table, opts = {}) {
         continue;
       }
       reactionKinds.set(`${op.id}/${r.id}`, r.kind);
-      if (r.kind === "observed" && r.visible === true) visibleReactions.add(`${op.id}/${r.id}`);
-      // 状態表示の toast / dialog が指す反応は、その画面の反応でなければならない（Codex レビュー #504）。
-      // 撮る状態を持たない操作は上で page を決めないので、capture_page か画面が 1 つであることから決め直す
-      reactionPages.set(
-        `${op.id}/${r.id}`,
-        page ??
-          (filled(op.capture_page) && pageNames?.has(/** @type {string} */ (op.capture_page))
-            ? /** @type {string} */ (op.capture_page)
-            : pageNames?.size === 1
-              ? [...pageNames][0]
-              : null),
-      );
       if (r.kind === "unmeasured") {
         fail(
           `${rLabel}: unmeasured${nonEmptyString(r.reason) ? `（${r.reason}）` : "（reason が空）"}`,
@@ -2275,9 +2216,6 @@ export function checkReactions(table, opts = {}) {
   const stateDisplays = checkStateDisplays(table.state_displays, {
     pageNames,
     captureStates,
-    reactionKinds,
-    reactionPages,
-    visibleReactions,
     problems,
     captureUses: aftermathCaptureUses,
     captureLabel,

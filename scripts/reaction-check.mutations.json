@@ -903,7 +903,9 @@
       "expect_failing": [
         "状態表示の振り分けの欠けは落とす: 横取りした要求が空（Issue #500）",
         "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
-        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）"
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が / で始まらない（Codex レビュー #504）"
       ]
     },
     {
@@ -918,21 +920,10 @@
       ]
     },
     {
-      "id": "state-display-reactions-scope",
-      "why": "toast / dialog 以外の候補に反応の参照を許す",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (hasReactions && candidate !== \"toast\" && candidate !== \"dialog\") {\n",
-      "replace": "  if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "状態表示の振り分けの欠けは落とす: toast / dialog 以外に反応の参照（Issue #500）"
-      ]
-    },
-    {
       "id": "state-display-present-unassigned",
       "why": "present をどこにも割り当てなくても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "    if (!hasState && !hasAssertion && !hasReactions) {\n",
+      "find": "    if (!hasState && !hasAssertion) {\n",
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
@@ -951,23 +942,11 @@
       ]
     },
     {
-      "id": "state-display-reaction-ref",
-      "why": "観測した反応でない参照を通す",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "        if (kind !== \"observed\") {\n",
-      "replace": "        if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "状態表示の振り分けの欠けは落とす: 反応の参照が観測した反応でない（Issue #500）",
-        "状態表示の振り分けの欠けは落とす: 反応の参照が被覆表に無い（Issue #500）"
-      ]
-    },
-    {
       "id": "state-display-absent-contradiction",
       "why": "absent に captured / reactions があっても通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  if (hasState || hasReactions) {\n",
-      "replace": "  if (false) {\n",
+      "find": "  if (hasState) {\n    out.push({\n      problem: `${candidate}: absent なのに captured がある",
+      "replace": "  if (false) {\n    out.push({\n      problem: `${candidate}: absent なのに captured がある",
       "occurrences": 1,
       "expect_failing": ["状態表示の振り分けの欠けは落とす: absent に撮る状態（Issue #500）"]
     },
@@ -1153,7 +1132,8 @@
       "expect_failing": [
         "送っている間の押し直しの欠けは落とす: 応答を保留していない（Issue #500）",
         "送っている間の押し直しの欠けは落とす: 保留した要求が空（Issue #500）",
-        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）"
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が glob の後ろにホストを持つ（Codex レビュー #504）"
       ]
     },
     {
@@ -1217,17 +1197,6 @@
       ]
     },
     {
-      "id": "state-display-reaction-page",
-      "why": "別の画面の操作の反応で状態表示を満たす",
-      "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "        if (refPage !== at.page) {\n",
-      "replace": "        if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "状態表示の反応の参照は、その画面の操作の反応に限る（Codex レビュー #504）"
-      ]
-    },
-    {
       "id": "page-declaration-name",
       "why": "名前の無い・空の画面の宣言を黙って扱う",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
@@ -1255,24 +1224,28 @@
       "id": "request-pattern-origin",
       "why": "オリジン付きの要求パターンを通す",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "  return !/^[a-z][a-z0-9+.-]*:/i.test(t) && !t.startsWith(\"//\");\n",
+      "find": "  return path.startsWith(\"/\") && !path.startsWith(\"//\") && !path.includes(\"://\");\n",
       "replace": "  return true;\n",
       "occurrences": 1,
       "expect_failing": [
         "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
         "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
-        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）"
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が / で始まらない（Codex レビュー #504）"
       ]
     },
     {
-      "id": "state-display-reaction-visible",
-      "why": "画面に出ない反応でトースト・ダイアログの ある を満たす",
+      "id": "state-display-reactions-forbidden",
+      "why": "状態表示に操作の反応の参照を書いても通す（入力形式ごと外した参照を黙って受ける）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "        if (!at.visible.has(/** @type {string} */ (ref))) {\n",
-      "replace": "        if (false) {\n",
+      "find": "  if (Object.hasOwn(entry, \"reactions\")) {\n",
+      "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "状態表示の toast / dialog は画面に出ない反応（visible: false）を指せない（Codex レビュー #504）"
+        "状態表示の振り分けの欠けは落とす: toast に反応の参照を書いた（Codex レビュー #504 で入力形式ごと外した）（Issue #500）",
+        "状態表示の振り分けの欠けは落とす: dialog の反応の参照が空配列（キーがあれば落とす）（Issue #500）"
       ]
     }
   ]
