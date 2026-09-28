@@ -225,7 +225,10 @@ let identityRecorded = false;
 // スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる（Codex レビュー #501）。
 // cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
 // オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
-// overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）
+// overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）。
+// 読むのは頁へ移動する前の about:blank——確かめるのはブラウザの起動の仕方で、頁の CSS（scrollbar-width: none 等）ではない。
+// 頁の CSS で隠したバーは現側も同じ CSS で隠れ、器ごとの差は trait-capture.mjs の scroll が照合する。
+// 移動後に測ると、頁が正当にバーを隠しているだけで shown の撮影が止まる
 let scrollbarPx: number | null = null;
 async function verifyScrollbars(page: import("@playwright/test").Page): Promise<number> {
   if (scrollbarPx !== null) return scrollbarPx;

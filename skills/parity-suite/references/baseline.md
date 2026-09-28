@@ -217,7 +217,10 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
   // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）。
   // 器の判定は trait-capture.mjs と同じ（overflow-x / overflow-y の片方でも visible / clip でない、inline でない）。
   // ただし hidden の向きではみ出しただけの器（省略記号で切った文字等）は、バーもガターも取らないので数えない
-  const scroll_containers = [...document.querySelectorAll("*")]
+  // 開いたシャドウルートの中の器も数える（document.querySelectorAll は light DOM しか返さない。Codex レビュー #501）
+  const allElements = (root) =>
+    [...root.querySelectorAll("*")].flatMap((el) => [el, ...(el.shadowRoot ? allElements(el.shadowRoot) : [])]);
+  const scroll_containers = allElements(document)
     .map((el) => {
       const style = getComputedStyle(el);
       const clipsNothing = (value) => value === "visible" || value === "clip";
@@ -493,7 +496,7 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
   **`hidden` で撮るなら `scrollbars_reason` に理由を書き**、同じ内容を `gaps.md` に残す——隠した撮影では、バーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・
   バーの見た目の差が 3 経路のどれにも写らない（器の `scroll` も両側「厚み 0」に揃う。上の「3 点セット」）。理由の無い `hidden` は `capture-scope-check.mjs` が落とす。
   **起動引数を設定しただけで「shown で撮った」としない**——`cdp`（利用者環境のブラウザへの接続）では `launchOptions` が効かず、接続先の起動の仕方で決まる。
-  撮影の最初に、撮影に使うページへ `overflow: scroll` の箱を 1 つ置いてバーの幅（`offsetWidth − clientWidth`）を読み、`shown` なのに 0・`hidden` なのに 0 でなければ撮らない
+  撮影の最初に、撮影に使うページ（頁へ移動する前の `about:blank`。確かめるのはブラウザの起動の仕方で、頁の CSS ではない）へ `overflow: scroll` の箱を 1 つ置いてバーの幅（`offsetWidth − clientWidth`）を読み、`shown` なのに 0・`hidden` なのに 0 でなければ撮らない
   （`parity-diff` の新側採取の雛形も同じ実測で止める）
 - **`scrollbar_environment`**（`shown` のとき）: どの OS・ブラウザの、どの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: `Linux の headless Chromium 140（クラシック・15px）`）。
   **スクロールバーの描き方は OS とブラウザで変わる**ので、採取環境で撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない。
