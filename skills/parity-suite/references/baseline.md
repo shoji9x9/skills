@@ -214,11 +214,14 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
   const doc = { width: root.scrollWidth, height: root.scrollHeight };
   const captured = fullPage ? doc : { width: window.innerWidth, height: window.innerHeight };
   // はみ出した器に加えて、はみ出していなくてもスクロールバー（とガター）が場所を取っている器も数える
-  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）
+  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）。
+  // 器の判定は trait-capture.mjs と同じ（overflow-x / overflow-y の片方でも visible / clip でない、inline でない）。
+  // ただし hidden の向きではみ出しただけの器（省略記号で切った文字等）は、バーもガターも取らないので数えない
   const scroll_containers = [...document.querySelectorAll("*")]
     .map((el) => {
       const style = getComputedStyle(el);
-      if (!/(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`)) return null;
+      const clipsNothing = (value) => value === "visible" || value === "clip";
+      if (clipsNothing(style.overflowX) && clipsNothing(style.overflowY)) return null;
       // inline の要素には overflow が効かず client が 0 になり、bar が文字の寸法に化ける（trait-capture.mjs と同じ除外）
       if (style.display === "inline") return null;
       const border = (side) => parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0;
@@ -227,7 +230,11 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
         vertical: Math.round(el.offsetWidth - el.clientWidth - border("left") - border("right")),
         horizontal: Math.round(el.offsetHeight - el.clientHeight - border("top") - border("bottom")),
       };
-      const overflowing = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
+      // バーを描く向き（auto / scroll）でのはみ出し。hidden の向きのはみ出しは切っているだけ
+      const scrolls = (value) => value === "auto" || value === "scroll";
+      const overflowing =
+        (scrolls(style.overflowY) && el.scrollHeight > el.clientHeight) ||
+        (scrolls(style.overflowX) && el.scrollWidth > el.clientWidth);
       if (!overflowing && bar.vertical === 0 && bar.horizontal === 0) return null;
       return {
         // name は書き手が付ける（論理名で引ける器はその論理名。hint は名前を決めるための手がかりで、記録には残さない）
@@ -264,7 +271,7 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
 
 - **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない。
   論理名をロケータマッピングに足して `traits.elements` にも入れる——入れないとスクロールバーの差が特性照合に写らず `untraced:<名前>` の穴になる
-- **はみ出していない器でも、スクロールバー（とガター）が場所を取っていれば数える**（`overflow: scroll`・`scrollbar-gutter: stable`）。場所を取るバーも特性照合の対象になる
+- **はみ出していない器でも、スクロールバー（とガター）が場所を取っていれば数える**（`overflow: scroll`・`scrollbar-gutter: stable`。`overflow: hidden` でガターを取る器も含む）。場所を取るバーも特性照合の対象になる
 - **器ごとに `overflow_x` / `overflow_y`（計算値）と `bar`（`vertical`: 縦のバーの幅・`horizontal`: 横のバーの高さ。枠を除く）も書く。** 欠落・語彙外・負の値は落ちる。
   `scrollbars: shown` で撮ったのに、`auto` / `scroll` の向きにはみ出した器でその向きの `bar` が 0 なら `scrollbar-hidden:<名前>` の穴になる（バーが場所を取らないまま測っている）
 - **器が 1 つも無い組は `scroll_containers: []` と書く**（キーの欠落は「数えていない」と区別できない。`named_elements_outside` も同じ）
@@ -484,7 +491,10 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
   撮影・特性採取・範囲の実測を走らせるプロジェクト（`current` と `parity-diff` の `new-capture`）の `use.launchOptions` に `ignoreDefaultArgs: ["--hide-scrollbars"]` を足して撮る
   （プロジェクトに `launchOptions` が既にあれば、その値に足す）。`parity-diff` の新側採取は同じ扱いで撮る（片側だけ場所を取ると、見える幅と高さが厚みの分ずれて全面差分になる）。
   **`hidden` で撮るなら `scrollbars_reason` に理由を書き**、同じ内容を `gaps.md` に残す——隠した撮影では、バーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・
-  バーの見た目の差が 3 経路のどれにも写らない（器の `scroll` も両側「厚み 0」に揃う。上の「3 点セット」）。理由の無い `hidden` は `capture-scope-check.mjs` が落とす
+  バーの見た目の差が 3 経路のどれにも写らない（器の `scroll` も両側「厚み 0」に揃う。上の「3 点セット」）。理由の無い `hidden` は `capture-scope-check.mjs` が落とす。
+  **起動引数を設定しただけで「shown で撮った」としない**——`cdp`（利用者環境のブラウザへの接続）では `launchOptions` が効かず、接続先の起動の仕方で決まる。
+  撮影の最初に、撮影に使うページへ `overflow: scroll` の箱を 1 つ置いてバーの幅（`offsetWidth − clientWidth`）を読み、`shown` なのに 0・`hidden` なのに 0 でなければ撮らない
+  （`parity-diff` の新側採取の雛形も同じ実測で止める）
 - **`scrollbar_environment`**（`shown` のとき）: どの OS・ブラウザの、どの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: `Linux の headless Chromium 140（クラシック・15px）`）。
   **スクロールバーの描き方は OS とブラウザで変わる**ので、採取環境で撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない。
   利用者環境のバーが違う種類なら（例: 利用者は macOS のオーバーレイ）、`viewer_environment` を「乖離」にして `gaps.md` に残すか、

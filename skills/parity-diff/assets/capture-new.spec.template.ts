@@ -217,29 +217,46 @@ const identityPath = join(
   target,
   `browser-identity.${pass}.json`,
 );
-test.beforeAll(async (_fixtures, testInfo) => {
-  // 現側が hidden で撮ったのに、プロジェクトの launchOptions がスクロールバーを出していたら撮らない（片側だけ場所を取る）
-  const ignored = testInfo.project.use.launchOptions?.ignoreDefaultArgs;
-  if (
-    scrollbars === "hidden" &&
-    (ignored === true || (Array.isArray(ignored) && ignored.includes("--hide-scrollbars")))
-  ) {
-    throw new Error(
-      "capture_conditions.scrollbars is hidden but the project launchOptions removes --hide-scrollbars: 現側と同じ扱いで撮る",
-    );
-  }
-});
-
 // 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
 // browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う（Codex レビュー #501）。
 // OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
 // userAgentData を持たないブラウザ（Firefox / WebKit、安全なコンテキストでない http の頁）は navigator.platform を残す。ランナーの OS は runner_os に別に残す
 let identityRecorded = false;
+// スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる（Codex レビュー #501）。
+// cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
+// オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
+// overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）
+let scrollbarPx: number | null = null;
+async function verifyScrollbars(page: import("@playwright/test").Page): Promise<number> {
+  if (scrollbarPx !== null) return scrollbarPx;
+  const px = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;top:-10000px;left:0;width:100px;height:100px;overflow:scroll;border:0";
+    document.body.appendChild(probe);
+    const width = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    return width;
+  });
+  if (scrollbars === "shown" && px === 0) {
+    throw new Error(
+      "capture_conditions.scrollbars is shown but scrollbars take no space in the capture browser (--hide-scrollbars が残っているか、オーバーレイのバー): 現側と同じ扱いで撮る",
+    );
+  }
+  if (scrollbars === "hidden" && px > 0) {
+    throw new Error(
+      `capture_conditions.scrollbars is hidden but scrollbars take ${px}px in the capture browser: 現側と同じ扱いで撮る`,
+    );
+  }
+  scrollbarPx = px;
+  return px;
+}
 async function recordIdentity(
   page: import("@playwright/test").Page,
   browserName: string,
   testInfo: import("@playwright/test").TestInfo,
 ): Promise<void> {
+  const barPx = await verifyScrollbars(page);
   if (identityRecorded) return;
   identityRecorded = true;
   // beforeAll ではなく最初のテストで読むので、ワーカーごとに 1 回。書くのは並列の枠 0 のワーカーだけにし
@@ -266,6 +283,8 @@ async function recordIdentity(
     headless: testInfo.project.use.headless ?? null,
     browser_os: seen.os,
     runner_os: `${platform()} ${release()} ${arch()}`,
+    // 撮影ページで実測したスクロールバーの幅（overflow: scroll の箱）。バーの種類・厚みが変われば描画環境も変わる
+    scrollbar_px: barPx,
   });
 }
 
@@ -291,7 +310,7 @@ for (const viewport of shots) {
         assertInsideOutRoot(outDir);
 
         test(`capture ${pair}`, async ({ page, browserName }, testInfo) => {
-          // 撮影に使うページで同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
+          // 撮影に使うページでスクロールバーの扱いを実測し、同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
           await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
           // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
