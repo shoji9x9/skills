@@ -30,7 +30,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | Markdown (`*.md`)                                 | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/lint-pagination.js` で shell コードブロック内の `gh api` ページネーションを検査 |
 | JavaScript / TypeScript (`*.js`, `*.mjs`, `*.ts` 等) | `oxlint`          | `oxfmt`             | なし                                                                                      |
 | JSON (`*.json`)                                   | `jsonlint`          | `oxfmt`             | duplicate key も検査                                                                      |
-| YAML (`*.yml`, `*.yaml`)                          | `js-yaml`           | `oxfmt`             | なし                                                                                      |
+| YAML (`*.yml`, `*.yaml`)                          | `js-yaml`（`scripts/lint-yaml.js` が API で 1 プロセスにまとめて読む） | `oxfmt` | なし |
 | Shell (`*.sh`)                                    | `shellcheck`        | `shfmt`             | `scripts/lint-pagination.js` で `gh api` ページネーションを検査                          |
 | GitHub Actions (`.github/workflows/*.{yml,yaml}`) | `actionlint` + `ghalint` | `oxfmt` | `pinact` で SHA pinning を確認 |
 

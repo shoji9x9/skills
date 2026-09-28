@@ -57,11 +57,10 @@ jobs:
         run: pnpm run format:js:check
       - name: JSON lint
         run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.json" -type f -exec pnpm exec jsonlint --quiet --continue --no-duplicate-keys {} +
+      # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
+      # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功に倒さない（スクリプト側で exit 1）。
       - name: YAML lint
-        run: |
-          while IFS= read -r f; do
-            pnpm exec js-yaml "$f" > /dev/null
-          done < <(find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o \( -name "*.yml" -o -name "*.yaml" \) -type f -print)
+        run: node scripts/lint-yaml.js
       - name: Pagination lint
         run: node scripts/lint-pagination.js
       - name: Skills sync (skills/ vs .agents/skills/)
