@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // YAML の構文検査（CI の Lint ジョブはリポジトリ全体、lefthook pre-commit はステージしたファイル）。
 //
-// 以前は 1 ファイルごとに `pnpm exec js-yaml <file>` を起動していた。起動が 1 回約 0.1 秒かかり、
-// 380 ファイルで 44 秒を占めていた（Issue #507）。js-yaml の API で全ファイルを 1 プロセスで読む。
+// 以前は 1 ファイルごとに `pnpm exec js-yaml <file>` を起動していた。起動が 1 回約 0.6 秒かかり（`pnpm exec` の起動コスト）、
+// 66 ファイルで 44 秒を占めていた（Issue #507）。js-yaml の API で全ファイルを 1 プロセスで読む。
 // 判定は js-yaml の CLI と同じにする: JSON として読めればよし、読めなければ `loadAll`（複数文書）で読む。
 //
 // 使い方:
@@ -13,7 +13,7 @@
 // **対象 0 件は成功に倒さない**（走査が空振りしただけの緑を根拠にしない）。検査した件数と起点を必ず出す。
 // 終了コード: 0 = 全件読めた / 1 = 読めないファイルがある・対象 0 件 / 2 = 使い方の誤り
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -42,7 +42,9 @@ export function findYamlFiles(root) {
   const found = out
     .split("\0")
     .filter((f) => f && YAML_RE.test(f) && !PRUNED.includes(f.split("/")[0]))
-    .map((f) => join(root, f));
+    .map((f) => join(root, f))
+    // `--cached` は作業ツリーで消した（未ステージの削除）追跡ファイルも返す。読めない ENOENT で赤くしない。
+    .filter((p) => existsSync(p));
   return [...new Set(found)].sort();
 }
 

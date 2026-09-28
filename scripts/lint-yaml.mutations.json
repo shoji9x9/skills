@@ -88,6 +88,17 @@
         "ファイルを指定したらそれだけを検査する（lefthook 用）",
         "陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0"
       ]
+    },
+    {
+      "id": "LY-DELETED",
+      "why": "作業ツリーで消した（未ステージの削除）追跡ファイルも読みに行き、ENOENT で赤くする",
+      "file": "scripts/lint-yaml.js",
+      "find": "    .filter((p) => existsSync(p));",
+      "replace": "    .filter(() => true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "作業ツリーで消した（未ステージの削除）追跡ファイルは読まない（ENOENT で赤くしない）"
+      ]
     }
   ]
 }

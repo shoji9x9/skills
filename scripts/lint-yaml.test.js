@@ -6,7 +6,7 @@
 
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main } from "./lint-yaml.js";
@@ -92,6 +92,15 @@ test("gitignore された壊れた YAML は見ない（手元の eval 出力で 
     { "a.yml": VALID, "tests/x/iteration-1/eval-1/out.yml": BROKEN },
     { track: false, gitignore: "tests/*/iteration-*/eval-*/\n" },
   );
+  const r = run(["--root", dir]);
+  expect(r.stderr).toBe("");
+  expect(r.stdout).toContain("1 件を検査した");
+  expect(r.status).toBe(0);
+});
+
+test("作業ツリーで消した（未ステージの削除）追跡ファイルは読まない（ENOENT で赤くしない）", () => {
+  const dir = repo({ "a.yml": VALID, "b.yml": VALID });
+  rmSync(join(dir, "b.yml"));
   const r = run(["--root", dir]);
   expect(r.stderr).toBe("");
   expect(r.stdout).toContain("1 件を検査した");
