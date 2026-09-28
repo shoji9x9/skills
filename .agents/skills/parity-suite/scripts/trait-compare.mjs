@@ -20,6 +20,10 @@
 // 書体の差は出す。件数の違いは、はみ出した側の行を 1 件ずつ出す。
 // 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、黙って比較を省かない。
 //
+// スクロールする器（scroll。trait-capture.mjs VERSION 6 以降。Issue #495）: 器かどうか（null か否か）、
+// はみ出しの有無、スクロールバーが取った幅・高さ（alignTolerance 付き）、見た目の宣言と ::-webkit-scrollbar 系の
+// 計算値の差を kind "scroll" で出す。片側だけがキーを持つ（採取ツールの版違い）なら text_owners と同じく kind "missing"。
+//
 // 決定論的: 乱数・現在時刻に依存しない。Playwright に依存しない（純粋な JS）。
 // TypeScript 構文は使わない（型は JSDoc）。
 
@@ -31,7 +35,7 @@ import { fileURLToPath } from "node:url";
  * metadata.json の differ.trait_compare に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * @typedef {object} Trait
@@ -41,6 +45,17 @@ export const VERSION = "2";
  * @property {Record<string,string> | null} [after]
  * @property {{ x:number, y:number, width:number, height:number }} rect
  * @property {TextOwner[]} [text_owners]
+ * @property {Scroll | null} [scroll]
+ */
+
+/**
+ * @typedef {object} Scroll
+ * @property {boolean} overflowing_x
+ * @property {boolean} overflowing_y
+ * @property {number} vertical_bar_px
+ * @property {number} horizontal_bar_px
+ * @property {Record<string,string>} style
+ * @property {Record<string, Record<string,string>> | "unsupported"} webkit
  */
 
 /**
@@ -58,8 +73,9 @@ export const VERSION = "2";
 /**
  * @typedef {object} Diff
  * @property {string} name  - 要素の論理名。幾何差分は "A | B" の対で表す。
- * @property {'property'|'pseudo'|'geometry'|'missing'|'duplicate'|'text'} kind
- * @property {string} [prop]  - kind "text" は "text[<i>]/<項目>"（i は text_owners の並び順）
+ * @property {'property'|'pseudo'|'geometry'|'missing'|'duplicate'|'text'|'scroll'} kind
+ * @property {string} [prop]  - kind "text" は "text[<i>]/<項目>"（i は text_owners の並び順）、
+ *   kind "scroll" は "scroll"（器かどうか）/ "scroll/<項目>" / "scroll/<擬似要素>/<プロパティ>"
  * @property {string} [expected]
  * @property {string} [actual]
  * @property {string} [text]  - kind "text" のとき、ベースライン側のその行の文字（どの文字の差かを読むための診断材料）
@@ -211,6 +227,58 @@ function diffTextOwners(name, expectedOwners, actualOwners, tol, out) {
 }
 
 /**
+ * スクロールする器の特性（scroll）の差を kind "scroll" で積む（冒頭の説明を参照）。
+ * @param {string} name
+ * @param {Scroll | null} expected
+ * @param {Scroll | null} actual
+ * @param {number} tol
+ * @param {Diff[]} out
+ */
+function diffScroll(name, expected, actual, tol, out) {
+  const push = (prop, e, a) =>
+    out.push({ name, kind: "scroll", prop, expected: String(e), actual: String(a) });
+  if (!expected || !actual) {
+    if (Boolean(expected) !== Boolean(actual)) {
+      push("scroll", expected ? "present" : "absent", actual ? "present" : "absent");
+    }
+    return;
+  }
+  for (const key of ["overflowing_x", "overflowing_y"]) {
+    if (expected[key] !== actual[key]) push(`scroll/${key}`, expected[key], actual[key]);
+  }
+  for (const key of ["vertical_bar_px", "horizontal_bar_px"]) {
+    const e = expected[key];
+    const a = actual[key];
+    if (typeof e !== "number" || typeof a !== "number" || Math.abs(e - a) > tol) {
+      push(`scroll/${key}`, e, a);
+    }
+  }
+  const styleDiffs = [];
+  diffStyleMap(name, "property", "", expected.style || {}, actual.style || {}, styleDiffs);
+  for (const d of styleDiffs) out.push({ ...d, kind: "scroll", prop: `scroll/${d.prop}` });
+  const ew = expected.webkit;
+  const aw = actual.webkit;
+  if (typeof ew !== "object" || typeof aw !== "object" || !ew || !aw) {
+    // 片側だけ（または両側とも）擬似要素を読めない。両側 unsupported は比べられないだけで差ではない
+    if (ew !== aw) {
+      push(
+        "scroll/webkit",
+        typeof ew === "string" ? ew : "present",
+        typeof aw === "string" ? aw : "present",
+      );
+    }
+    return;
+  }
+  for (const pseudo of [...new Set([...Object.keys(ew), ...Object.keys(aw)])].sort()) {
+    const pseudoDiffs = [];
+    diffStyleMap(name, "property", "", ew[pseudo] || {}, aw[pseudo] || {}, pseudoDiffs);
+    for (const d of pseudoDiffs) {
+      out.push({ ...d, kind: "scroll", prop: `scroll/${pseudo}/${d.prop}` });
+    }
+  }
+}
+
+/**
  * baseline と capture を比較して差分配列を返す。決定論的。
  * @param {Trait[]} baselineEntries
  * @param {Trait[]} captureEntries
@@ -260,6 +328,20 @@ export function compareTraits(baselineEntries, captureEntries, options = {}) {
         prop: "text_owners",
         expected: baseHas ? "present" : "absent",
         actual: capHas ? "present" : "absent",
+      });
+    }
+    // scroll は null（器でない）を正規の値に持つので、キーの在否で版違いを見る
+    const baseHasScroll = Object.hasOwn(base, "scroll");
+    const capHasScroll = Object.hasOwn(cap, "scroll");
+    if (baseHasScroll && capHasScroll) {
+      diffScroll(base.name, base.scroll ?? null, cap.scroll ?? null, tol, out);
+    } else if (baseHasScroll !== capHasScroll) {
+      out.push({
+        name: base.name,
+        kind: "missing",
+        prop: "scroll",
+        expected: baseHasScroll ? "present" : "absent",
+        actual: capHasScroll ? "present" : "absent",
       });
     }
   }

@@ -44,6 +44,8 @@
 
 - **`kind: "text"` の Diff の `property` は `text[<i>]/<項目>`** で、`i` は要素の中で文字が現れる順番である。文言やデータで行の数が変わると同じ文字でも `i` がずれるので、
   複数のインスタンスへ効かせる宣言（`component_diffs`）に `text[<i>]/…` を書くときは、対象のインスタンスで文字の並びが同じことを確かめる
+- **`kind: "scroll"` の Diff の `property` は `scroll/<項目>`**（`scroll/horizontal_bar_px`・`scroll/scrollbar-width`・`scroll/::-webkit-scrollbar-thumb/background-color` 等。器かどうかの差は `scroll`）。
+  バーの厚み（`*_bar_px`）は採取環境のスクロールバーの厚みで決まるので、値を宣言に書くときは現側 `capture_conditions.scrollbar_environment` と同じ環境で撮った値であることを確かめる
 
 - **`*` を含めば glob**（`*` は任意個の文字）、**含まなければ完全一致**。`filter-popup-*` のように書けば「1 回の宣言が全インスタンスに効く」T の性質を保ったまま、掛かる範囲が宣言に明示される（`*` 以外の正規表現メタ文字はリテラル）
 - **幾何差分の `name` は `"A | B"` の対**（`trait-compare.mjs` が 2 要素の相対幾何をこの形で出す）。**両側が照合候補**で、片側が一致すれば掛かる

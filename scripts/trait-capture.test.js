@@ -1,6 +1,6 @@
 // 静止画に写らない computed style を固定集合に入れ、解決しない名前で fail closed する回帰テスト（Issue #342）。
 // 併せて、採った対象が「画面に描かれているもの」かの判定と子の inline style の記録（Issue #386）、
-// 文字の持ち主（text_owners）の採取（Issue #459）。
+// 文字の持ち主（text_owners）の採取（Issue #459）、スクロールする器の特性（scroll）の採取（Issue #495）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -8,7 +8,15 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/trait-capture.mjs");
-const { FIXED_PROPERTIES, TEXT_OWNER_PROPERTIES, VERSION, captureTraits } = await import(script);
+const {
+  FIXED_PROPERTIES,
+  TEXT_OWNER_PROPERTIES,
+  SCROLLBAR_PROPERTIES,
+  SCROLLBAR_PSEUDOS,
+  SCROLLBAR_PSEUDO_PROPERTIES,
+  VERSION,
+  captureTraits,
+} = await import(script);
 
 // captureElement は locator.evaluate に文字列化して渡る純関数なので、
 // evaluate を「渡された関数をブラウザ相当のスタブへ当てる」偽ロケータで実行して検証する。
@@ -27,6 +35,12 @@ function fakeLocator(
     shadowRoot = null,
     // el 自身が文字の持ち主になる場合の計算値（styles に重ねる。省略時は textStyle を持たない）
     rootTextStyle = null,
+    // 器の寸法（offsetWidth 等）。省略時は offsetWidth を持たない（HTML 要素でない）扱いで scroll は null
+    box = null,
+    // 擬似要素ごとの計算値（::-webkit-scrollbar 系）。無い擬似要素は pseudoStyles を返す
+    pseudoStylesBy = {},
+    // CSS.supports("selector(::-webkit-scrollbar)") の答え。null なら CSS を置かない
+    webkitSupported = true,
   } = {},
 ) {
   return {
@@ -41,6 +55,7 @@ function fakeLocator(
         textStyle: rootTextStyle ? { ...styles, ...rootTextStyle } : undefined,
         childNodes,
         shadowRoot,
+        ...box,
         ownerDocument: {
           // canvas の measureText は文字数 × 13 の幅と 12 + 3 の高さを返す偽（ボタンとして描く <input> 用）
           // 大文字を含む文字列には 1000 を足し、letterSpacing は 1 文字ごとに足す（渡した形を弁別するため）
@@ -96,13 +111,20 @@ function fakeLocator(
       const previousScrollY = globalThis.scrollY;
       const previousInnerWidth = globalThis.innerWidth;
       const previousInnerHeight = globalThis.innerHeight;
+      const previousCSS = globalThis.CSS;
       globalThis.getComputedStyle = (element, pseudo) => ({
         content: pseudo ? pseudoContent : "normal",
         getPropertyValue: (prop) =>
-          (element && element.textStyle ? element.textStyle : pseudo ? pseudoStyles : styles)[
-            prop
-          ] ?? "",
+          (element && element.textStyle
+            ? element.textStyle
+            : pseudo
+              ? (pseudoStylesBy[pseudo] ?? pseudoStyles)
+              : styles)[prop] ?? "",
       });
+      globalThis.CSS =
+        webkitSupported === null
+          ? undefined
+          : { supports: (query) => query === "selector(::-webkit-scrollbar)" && webkitSupported };
       globalThis.location = { origin };
       globalThis.document = {
         documentElement: { scrollWidth: documentSize.width, scrollHeight: documentSize.height },
@@ -121,6 +143,7 @@ function fakeLocator(
         globalThis.scrollY = previousScrollY;
         globalThis.innerWidth = previousInnerWidth;
         globalThis.innerHeight = previousInnerHeight;
+        globalThis.CSS = previousCSS;
       }
     },
   };
@@ -162,7 +185,7 @@ test.each([
 // 陳腐化判定はこの版でしか働かないので、集合だけ変えて版を据え置く変異をここで落とす。
 test("固定集合の要素数と VERSION が対応している", () => {
   expect(FIXED_PROPERTIES).toHaveLength(48);
-  expect(VERSION).toBe("5");
+  expect(VERSION).toBe("6");
 });
 
 test("固定集合に重複が無い", () => {
@@ -479,7 +502,7 @@ test("文字の持ち主の固定集合と VERSION が対応している", () =>
     "font-weight",
     "line-height",
   ]);
-  expect(VERSION).toBe("5");
+  expect(VERSION).toBe("6");
 });
 
 // 実例（Issue #459）: <button>（arial・13.3333px）の中の <div>（Roboto・14px）の中の <span>（12px）が文字を持つ。
@@ -855,4 +878,275 @@ test("文字の持ち主で解決しないプロパティ名は空文字で通�
 test("文字が無ければ空配列になる（キーの欠落と区別する）", async () => {
   const [trait] = await captureTraits([{ name: "x", locator: fakeLocator(allResolved()) }]);
   expect(trait.text_owners).toEqual([]);
+});
+
+// スクロールする器（Issue #495）。実例: ダイアログの中のデータグリッドで、現行は overflow: auto、新側は
+// overflow-x: hidden。スクロールバーが場所を取る撮影では、現行だけ縦のバーの 15px で中身がはみ出して横のバーが出る。
+// 値は Chrome 149 の実測（枠 0・器 628×298、中身 628 幅）に合わせている。
+function scrollStyles(overrides = {}) {
+  // allResolved は固定集合のキーしか持たないので、スクロールバーの宣言は外で重ねる
+  return {
+    ...allResolved({
+      "overflow-x": "auto",
+      "overflow-y": "auto",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+    }),
+    "scrollbar-width": "auto",
+    "scrollbar-color": "auto",
+    "scrollbar-gutter": "auto",
+    ...overrides,
+  };
+}
+function scrollbarPseudo(overrides = {}) {
+  return Object.fromEntries(
+    SCROLLBAR_PSEUDO_PROPERTIES.map((prop) => [
+      prop,
+      overrides[prop] ?? (prop.endsWith("color") ? "rgba(0, 0, 0, 0)" : "auto"),
+    ]),
+  );
+}
+const gridBox = (clientWidth, clientHeight) => ({
+  offsetWidth: 628,
+  offsetHeight: 298,
+  clientWidth,
+  clientHeight,
+  scrollWidth: 628,
+  scrollHeight: 900,
+});
+
+test("スクロールする器の固定集合と VERSION が対応している", () => {
+  expect([...SCROLLBAR_PROPERTIES]).toEqual([
+    "scrollbar-width",
+    "scrollbar-color",
+    "scrollbar-gutter",
+  ]);
+  expect([...SCROLLBAR_PSEUDOS]).toEqual([
+    "::-webkit-scrollbar",
+    "::-webkit-scrollbar-thumb",
+    "::-webkit-scrollbar-track",
+    "::-webkit-scrollbar-corner",
+    "::-webkit-scrollbar-button",
+  ]);
+  expect(SCROLLBAR_PSEUDO_PROPERTIES).toHaveLength(16);
+  expect(VERSION).toBe("6");
+});
+
+test("スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る", async () => {
+  const [legacy] = await captureTraits([
+    {
+      name: "dialog.grid",
+      locator: fakeLocator(scrollStyles(), {
+        box: { ...gridBox(613, 283), scrollWidth: 628 },
+        pseudoStyles: scrollbarPseudo(),
+      }),
+    },
+  ]);
+  const [replacement] = await captureTraits([
+    {
+      name: "dialog.grid",
+      locator: fakeLocator(scrollStyles({ "overflow-x": "hidden" }), {
+        box: { ...gridBox(613, 298), scrollWidth: 628 },
+        pseudoStyles: scrollbarPseudo(),
+      }),
+    },
+  ]);
+  expect(legacy.scroll).toMatchObject({
+    overflowing_x: true,
+    overflowing_y: true,
+    vertical_bar_px: 15,
+    horizontal_bar_px: 15,
+  });
+  expect(replacement.scroll).toMatchObject({
+    overflowing_x: true,
+    overflowing_y: true,
+    vertical_bar_px: 15,
+    horizontal_bar_px: 0,
+  });
+});
+
+test("スクロールバーの厚みは枠を差し引いて数える", async () => {
+  // 実測: 枠 2px・overflow: auto の器で offsetWidth 204 / clientWidth 185（バー 15px）
+  const [trait] = await captureTraits([
+    {
+      name: "list",
+      locator: fakeLocator(
+        scrollStyles({
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+        }),
+        {
+          box: {
+            offsetWidth: 204,
+            clientWidth: 185,
+            scrollWidth: 200,
+            offsetHeight: 104,
+            clientHeight: 85,
+            scrollHeight: 400,
+          },
+          pseudoStyles: scrollbarPseudo(),
+        },
+      ),
+    },
+  ]);
+  expect(trait.scroll.vertical_bar_px).toBe(15);
+  expect(trait.scroll.horizontal_bar_px).toBe(15);
+});
+
+test("display: inline の要素は overflow を持っていても器として扱わない（文字の幅をバーの厚みにしない）", async () => {
+  // 実測（Chromium）: overflow: hidden の <a> は offsetWidth 122 / clientWidth 0・offsetHeight 17 / clientHeight 0
+  const [trait] = await captureTraits([
+    {
+      name: "row.link",
+      locator: fakeLocator(
+        scrollStyles({ display: "inline", "overflow-x": "hidden", "overflow-y": "hidden" }),
+        {
+          box: {
+            offsetWidth: 122,
+            clientWidth: 0,
+            scrollWidth: 0,
+            offsetHeight: 17,
+            clientHeight: 0,
+            scrollHeight: 0,
+          },
+          pseudoStyles: scrollbarPseudo(),
+        },
+      ),
+    },
+  ]);
+  expect(trait.scroll).toBeNull();
+});
+
+test.each([
+  ["両向きとも visible", "visible", "visible"],
+  ["両向きとも clip", "clip", "clip"],
+  ["visible と clip", "visible", "clip"],
+])("器でない要素（%s）の scroll は null", async (_label, x, y) => {
+  const [trait] = await captureTraits([
+    {
+      name: "cell",
+      locator: fakeLocator(scrollStyles({ "overflow-x": x, "overflow-y": y }), {
+        box: gridBox(628, 298),
+      }),
+    },
+  ]);
+  expect(trait.scroll).toBeNull();
+});
+
+test.each([
+  ["hidden（切るだけの器）", "hidden", "visible"],
+  ["片向きだけ auto", "visible", "auto"],
+  ["scroll", "scroll", "scroll"],
+])("器（%s）は scroll を持つ", async (_label, x, y) => {
+  const [trait] = await captureTraits([
+    {
+      name: "grid",
+      locator: fakeLocator(scrollStyles({ "overflow-x": x, "overflow-y": y }), {
+        box: gridBox(628, 298),
+        pseudoStyles: scrollbarPseudo(),
+      }),
+    },
+  ]);
+  expect(trait.scroll).not.toBeNull();
+});
+
+test("offsetWidth を持たない要素（SVG 等）の scroll は null", async () => {
+  const [trait] = await captureTraits([
+    { name: "icon", locator: fakeLocator(scrollStyles({ "overflow-x": "hidden" })) },
+  ]);
+  expect(trait.scroll).toBeNull();
+});
+
+test("スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る", async () => {
+  const [trait] = await captureTraits([
+    {
+      name: "grid",
+      locator: fakeLocator(
+        scrollStyles({
+          "scrollbar-width": "thin",
+          "scrollbar-color": "rgb(255, 0, 0) rgb(0, 0, 255)",
+          "scrollbar-gutter": "stable",
+        }),
+        {
+          box: gridBox(620, 298),
+          pseudoStyles: scrollbarPseudo(),
+          pseudoStylesBy: {
+            "::-webkit-scrollbar": scrollbarPseudo({
+              width: "8px",
+              height: "6px",
+              "background-color": "rgb(1, 2, 3)",
+            }),
+            "::-webkit-scrollbar-thumb": scrollbarPseudo({
+              "background-color": "rgb(9, 9, 9)",
+              "border-top-left-radius": "4px",
+            }),
+          },
+        },
+      ),
+    },
+  ]);
+  expect(trait.scroll.style).toEqual({
+    "scrollbar-width": "thin",
+    "scrollbar-color": "rgb(255, 0, 0) rgb(0, 0, 255)",
+    "scrollbar-gutter": "stable",
+  });
+  expect(Object.keys(trait.scroll.webkit)).toEqual([...SCROLLBAR_PSEUDOS]);
+  expect(trait.scroll.webkit["::-webkit-scrollbar"]).toMatchObject({
+    width: "8px",
+    height: "6px",
+    "background-color": "rgb(1, 2, 3)",
+  });
+  expect(trait.scroll.webkit["::-webkit-scrollbar-thumb"]).toMatchObject({
+    "background-color": "rgb(9, 9, 9)",
+    "border-top-left-radius": "4px",
+  });
+  expect(trait.scroll.webkit["::-webkit-scrollbar-track"]["background-color"]).toBe(
+    "rgba(0, 0, 0, 0)",
+  );
+});
+
+test.each([
+  ["CSS.supports が偽", false],
+  ["CSS が無い", null],
+])(
+  "::-webkit-scrollbar を持たないブラウザ（%s）では webkit を unsupported にする",
+  async (_l, supported) => {
+    const [trait] = await captureTraits([
+      {
+        name: "grid",
+        locator: fakeLocator(scrollStyles(), {
+          box: gridBox(613, 283),
+          pseudoStyles: scrollbarPseudo(),
+          webkitSupported: supported,
+        }),
+      },
+    ]);
+    expect(trait.scroll.webkit).toBe("unsupported");
+  },
+);
+
+test("スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる", async () => {
+  const styles = scrollStyles();
+  delete styles["scrollbar-gutter"];
+  const locator = fakeLocator(styles, { box: gridBox(613, 283), pseudoStyles: scrollbarPseudo() });
+  await expect(captureTraits([{ name: "dialog.grid", locator }])).rejects.toThrow(
+    /dialog\.grid[\s\S]*computed style did not resolve[\s\S]*scrollbar-gutter/,
+  );
+});
+
+test("::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる", async () => {
+  const thumb = scrollbarPseudo();
+  delete thumb["border-top-left-radius"];
+  const locator = fakeLocator(scrollStyles(), {
+    box: gridBox(613, 283),
+    pseudoStyles: scrollbarPseudo(),
+    pseudoStylesBy: { "::-webkit-scrollbar-thumb": thumb },
+  });
+  await expect(captureTraits([{ name: "dialog.grid", locator }])).rejects.toThrow(
+    /computed style did not resolve for ::-webkit-scrollbar-thumb: border-top-left-radius/,
+  );
 });

@@ -177,13 +177,20 @@ function metadataOf(override = {}) {
               name: "グリッド本体",
               client: { width: 1200, height: 600 },
               scroll: { width: 1200, height: 600 },
+              overflow_x: "auto",
+              overflow_y: "auto",
+              bar: { vertical: 0, horizontal: 0 },
             },
           ],
           named_elements_outside: [],
         },
       ],
       capture_scope_exemptions: override.exemptions ?? [],
-      scrollbars: "scrollbars" in override ? override.scrollbars : "hidden",
+      scrollbars: "scrollbars" in override ? override.scrollbars : "shown",
+      ...("scrollbarsReason" in override ? { scrollbars_reason: override.scrollbarsReason } : {}),
+      ...("scrollbarEnvironment" in override
+        ? { scrollbar_environment: override.scrollbarEnvironment }
+        : { scrollbar_environment: "Linux の headless Chromium 140（クラシック・15px）" }),
       overflow: "overflow" in override ? override.overflow : overflowOf(),
       display_axes: "displayAxes" in override ? override.displayAxes : noAxes(),
       viewer_environment:
@@ -203,6 +210,7 @@ function metadataOf(override = {}) {
       { page: "list", state: "default", viewport: "desktop", pixel_diff: 0 },
       { page: "list", state: "hover", viewport: "desktop", pixel_diff: 0 },
     ],
+    traits: "traits" in override ? override.traits : { elements: ["グリッド本体", "保存ボタン"] },
   };
 }
 
@@ -276,8 +284,11 @@ test("内部スクロール器の外は穴になる（画素にも特性にも�
         scroll_containers: [
           {
             name: "グリッド本体",
-            client: { width: 1200, height: 600 },
-            scroll: { width: 1200, height: 2400 },
+            client: { width: 1185, height: 600 },
+            scroll: { width: 1185, height: 2400 },
+            overflow_x: "auto",
+            overflow_y: "auto",
+            bar: { vertical: 15, horizontal: 0 },
           },
         ],
         named_elements_outside: [],
@@ -287,6 +298,139 @@ test("内部スクロール器の外は穴になる（画素にも特性にも�
     noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
   });
   expect(holeIdsOf(metadata)).toEqual(["list|default|desktop#scroll:グリッド本体"]);
+});
+
+// 器ごとの overflow とスクロールバーの厚み（Issue #495）。実例: ダイアログの中のデータグリッド（628×298、中身 628 幅）。
+// バーを隠して撮ると client 628 = scroll 628 で横のはみ出しが消え、現行の横のバーと新側の右端の切れが区別できない。
+/**
+ * 撮影組 1 つ・器 1 つの metadata。
+ * @param {Record<string, unknown>} container 器の差し替え
+ * @param {Record<string, unknown>} [override] metadataOf へ渡す差し替え
+ */
+function withContainer(container, override = {}) {
+  return metadataOf({
+    scope: [
+      {
+        page: "list",
+        state: "default",
+        viewport: "desktop",
+        document: { width: 1366, height: 768 },
+        captured: { width: 1366, height: 768 },
+        scroll_containers: [
+          {
+            name: "グリッド本体",
+            client: { width: 613, height: 283 },
+            scroll: { width: 628, height: 900 },
+            overflow_x: "auto",
+            overflow_y: "auto",
+            bar: { vertical: 15, horizontal: 15 },
+            ...container,
+          },
+        ],
+        named_elements_outside: [],
+      },
+    ],
+    states: ["default"],
+    noise: [{ page: "list", state: "default", viewport: "desktop", pixel_diff: 0 }],
+    ...override,
+  });
+}
+
+test("器ごとの記録の陰性コントロール: バーが場所を取って撮った器は scroll の穴だけ", () => {
+  expect(holeIdsOf(withContainer({}))).toEqual(["list|default|desktop#scroll:グリッド本体"]);
+  // 新側の形（overflow-x: hidden で横のバーを描かない）は、横の厚み 0 が正規の値
+  expect(
+    holeIdsOf(withContainer({ overflow_x: "hidden", bar: { vertical: 15, horizontal: 0 } })),
+  ).toEqual(["list|default|desktop#scroll:グリッド本体"]);
+  // hidden で撮ったなら（理由付き）、厚み 0 は正規の値
+  expect(
+    holeIdsOf(
+      withContainer(
+        { client: { width: 628, height: 298 }, bar: { vertical: 0, horizontal: 0 } },
+        { scrollbars: "hidden", scrollbarsReason: "キオスク端末でスクロールバーを出さない運用" },
+      ),
+    ),
+  ).toEqual(["list|default|desktop#scroll:グリッド本体"]);
+});
+
+test.each([
+  ["縦", { client: { width: 628, height: 298 }, bar: { vertical: 0, horizontal: 0 } }],
+  [
+    "横",
+    {
+      client: { width: 613, height: 298 },
+      scroll: { width: 628, height: 298 },
+      bar: { vertical: 15, horizontal: 0 },
+    },
+  ],
+])(
+  "shown で撮ったのに%sにはみ出した向きのバーが場所を取っていない器は穴になる",
+  (_label, container) => {
+    expect(holeIdsOf(withContainer(container))).toContain(
+      "list|default|desktop#scrollbar-hidden:グリッド本体",
+    );
+  },
+);
+
+test.each([
+  ["overflow が hidden", { overflow_x: "hidden", overflow_y: "hidden" }],
+  ["overflow が clip", { overflow_x: "clip", overflow_y: "clip" }],
+  [
+    "はみ出していない",
+    { scroll: { width: 628, height: 298 }, client: { width: 628, height: 298 } },
+  ],
+])("バーを描かない器（%s）の厚み 0 は scrollbar-hidden にしない", (_label, container) => {
+  expect(
+    holeIdsOf(withContainer({ ...container, bar: { vertical: 0, horizontal: 0 } })),
+  ).not.toContain("list|default|desktop#scrollbar-hidden:グリッド本体");
+});
+
+test("traits.elements に無い器は untraced の穴になる（スクロールバーの差が特性照合に写らない）", () => {
+  expect(holeIdsOf(withContainer({ name: "名前の無い器" }))).toContain(
+    "list|default|desktop#untraced:名前の無い器",
+  );
+  expect(holeIdsOf(withContainer({}))).not.toContain("list|default|desktop#untraced:グリッド本体");
+});
+
+test.each([
+  ["欠落", { traits: undefined }],
+  ["配列でない", { traits: { elements: "グリッド本体" } }],
+  ["空の名前", { traits: { elements: ["グリッド本体", ""] } }],
+])("器があるのに traits.elements が読めない（%s）なら落とす", (_label, override) => {
+  expect(codesOf(withContainer({}, override))).toContain("traits-elements-unreadable");
+});
+
+test("器が無ければ traits.elements が読めなくても落とさない（判定に使わない）", () => {
+  const metadata = withContainer({}, { traits: undefined });
+  /** @type {any} */ (metadata).capture_conditions.capture_scope[0].scroll_containers = [];
+  expect(codesOf(metadata)).toEqual([]);
+});
+
+test.each([
+  ["overflow_x の欠落", { overflow_x: undefined }, "scroll-container-overflow-unreadable"],
+  ["overflow_y が語彙外", { overflow_y: "overlay" }, "scroll-container-overflow-unreadable"],
+  ["bar の欠落", { bar: undefined }, "scroll-container-bar-unreadable"],
+  ["bar の負の値", { bar: { vertical: -1, horizontal: 0 } }, "scroll-container-bar-unreadable"],
+  ["bar が文字列", { bar: { vertical: "15", horizontal: 0 } }, "scroll-container-bar-unreadable"],
+])("器の記録の %s は落とす（読めないことを穴が無いことに倒さない）", (_label, container, code) => {
+  expect(codesOf(withContainer(container))).toContain(code);
+});
+
+test("scrollbars が hidden なら理由を、shown なら撮った環境を書かせる", () => {
+  expect(codesOf(metadataOf({ scrollbars: "hidden" }))).toContain(
+    "scrollbars-hidden-reason-missing",
+  );
+  expect(codesOf(metadataOf({ scrollbars: "hidden", scrollbarsReason: "<理由>" }))).toContain(
+    "scrollbars-hidden-reason-missing",
+  );
+  expect(
+    codesOf(metadataOf({ scrollbars: "hidden", scrollbarsReason: "キオスク端末で出さない" })),
+  ).toEqual([]);
+  for (const env of [undefined, "", "未確認", "<OS・ブラウザ>"]) {
+    expect(codesOf(metadataOf({ scrollbarEnvironment: env }))).toContain(
+      "scrollbar-environment-missing",
+    );
+  }
 });
 
 test("同じ論理名が 2 つあれば落ちる（同じ id の穴が 2 つできる）", () => {

@@ -8,7 +8,8 @@
 // 何を採るか: 論理名（ロケータマッピングの契約名）を付けた要素について、
 // 固定プロパティ集合の computed style ＋ 擬似要素（::before / ::after）の computed style ＋
 // getBoundingClientRect() ＋ 1 段下の子の inline style（child_inline_styles）＋
-// 文字の持ち主（text_owners。部分木の中で文字を描いている要素ごとの書体・大きさ・文字の寸法）を採る。
+// 文字の持ち主（text_owners。部分木の中で文字を描いている要素ごとの書体・大きさ・文字の寸法）＋
+// スクロールする器の特性（scroll。スクロールバーの有無・厚み・見た目の宣言）を採る。
 // 相対幾何（要素対の関係）は絶対座標ではなくこの rect から trait-compare.mjs 側で導出する。
 //
 // 採った対象が「画面に描かれているもの」かを、採取の中で 1 度だけ確かめる。特性照合は
@@ -35,6 +36,18 @@
 // 数えない。ボタンとして描く <input>（submit / button / reset）の value は文字として数える。
 // 射程: 閉じたシャドウルートの中は辿れない。描画に使われた書体の実体（フォールバックの解決先）は
 // 計算値に出ないので採らない——採取環境と利用者環境の乖離として references/baseline.md の手順で確かめる。
+//
+// スクロールする器（scroll）: overflow-x / overflow-y の片方でも visible / clip でない、display: inline でない HTML 要素について、
+// はみ出しの有無（scrollWidth > clientWidth 等）、スクロールバー（とガター）が取った幅・高さ
+// （offsetWidth − clientWidth − 左右の枠。縦のバーの幅）、見た目の宣言（SCROLLBAR_PROPERTIES と
+// SCROLLBAR_PSEUDOS の計算値）を採る（Issue #495）。固定集合の overflow-x / overflow-y だけでは、
+// 現行が overflow: auto で横スクロールバーを出し、新側が overflow-x: hidden で右端を切る差のうち、
+// 「バーが幅を取って中身がはみ出したか」が値に出ない（実測: 628px の器で現行だけ横スクロールバーが出た）。
+// バーの厚みは撮影時のスクロールバーの扱いで変わる——--hide-scrollbars（Playwright のヘッドレス Chromium の既定）では
+// 0 になり、上の差は両側とも「はみ出し無し・厚み 0」に揃って消える。撮影条件の正本は references/baseline.md。
+// 器でない要素は null（器かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
+// ::-webkit-scrollbar 系を読めないブラウザ（CSS.supports で判定）では webkit を "unsupported" にする
+// （空の計算値を採って両側が一致したように見せない）。
 //
 // 何を採らないか: letter-spacing・text-transform・background-image 等、要素の矩形の内側に
 // そのまま写る項目はこの集合に含めない（名前無し要素の見た目差と同様、画素経路＝要素
@@ -77,7 +90,7 @@
  * metadata.json の traits.tool / differ に記録する「バージョン」はこの値を使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "5";
+export const VERSION = "6";
 
 /**
  * 採取する computed style プロパティの固定集合（正本）。
@@ -152,15 +165,65 @@ export const TEXT_OWNER_PROPERTIES = [
 ];
 
 /**
+ * スクロールする器について採る、スクロールバーの見た目の宣言（正本）。変えたら VERSION を上げる。
+ * @type {readonly string[]}
+ */
+export const SCROLLBAR_PROPERTIES = ["scrollbar-width", "scrollbar-color", "scrollbar-gutter"];
+
+/**
+ * スクロールする器について計算値を採る、Chromium / WebKit のスクロールバーの擬似要素（正本）。変えたら VERSION を上げる。
+ * @type {readonly string[]}
+ */
+export const SCROLLBAR_PSEUDOS = [
+  "::-webkit-scrollbar",
+  "::-webkit-scrollbar-thumb",
+  "::-webkit-scrollbar-track",
+  "::-webkit-scrollbar-corner",
+  "::-webkit-scrollbar-button",
+];
+
+/**
+ * スクロールバーの擬似要素ごとに採る computed style（正本）。幅・高さ・背景・角の丸み・枠。変えたら VERSION を上げる。
+ * @type {readonly string[]}
+ */
+export const SCROLLBAR_PSEUDO_PROPERTIES = [
+  "width",
+  "height",
+  "background-color",
+  "background-image",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
+];
+
+/**
  * ブラウザ内で 1 要素分の特性を採る純関数（locator.evaluate に渡す）。
- * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners を返す。
+ * el と props を受け取り、computed / before / after / rect / child_inline_styles / text_owners / scroll を返す。
  * 擬似要素は content が "none"（＝生成コンテンツ無し）のとき null を返し、省略できるようにする。
  * 矩形が文書の外に丸ごと出ている要素（支援技術のための写し）はここで失敗させる。
  * この関数は文字列化して evaluate に渡るため、外部スコープを参照しない（props で受け取る）。
  * @param {Element} el
- * @param {{ fixed: readonly string[], textOwner: readonly string[] }} props
+ * @param {{ fixed: readonly string[], textOwner: readonly string[], scrollbar: readonly string[], scrollbarPseudos: readonly string[], scrollbarPseudoProps: readonly string[] }} props
  */
-function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
+function captureElement(
+  el,
+  {
+    fixed: props,
+    textOwner: textOwnerProps,
+    scrollbar: scrollbarProps,
+    scrollbarPseudos,
+    scrollbarPseudoProps,
+  },
+) {
   // 同一オリジンの url() をオリジン非依存の印へ畳む。cursor: url(cur.png) のような相対 URL の
   // 計算値は自分のオリジンで絶対化されるため（実測: 同じ CSS が :8811 と :8822 で別文字列になる）、
   // 現・新がホストもポートも違う前提のパリティ比較では、同じ指定が偽の property 差分になる。
@@ -189,12 +252,13 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     });
   };
 
-  const pick = (pseudo) => {
+  const pick = (pseudo, names = props) => {
     const style = getComputedStyle(el, pseudo);
-    if (pseudo && style.content === "none") return null;
+    // 生成コンテンツの有無で省けるのは ::before / ::after だけ（スクロールバーの擬似要素は content を持たない）
+    if ((pseudo === "::before" || pseudo === "::after") && style.content === "none") return null;
     const out = {};
     const unknown = [];
-    for (const prop of props) {
+    for (const prop of names) {
       const value = style.getPropertyValue(prop);
       // getPropertyValue はブラウザが知らないプロパティ名に空文字を返す。空のまま採ると
       // 現・新の両側が同じ空文字になり「差が無い」と読めてしまう（集合に入れた意味が消える）。
@@ -514,6 +578,45 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     entry.lines = countLines(bands.get(entry));
   }
 
+  // スクロールする器の特性（冒頭の「スクロールする器」を参照）。offsetWidth を持たない要素（SVG 等）は
+  // 器の寸法を読めないので null にする（器かどうかの差は overflow-x / overflow-y の差として固定集合に出る）。
+  // display: inline の要素にも overflow は効かず、clientWidth / clientHeight が 0 になるので
+  // offsetWidth − clientWidth が文字の幅そのものに化ける（実測: overflow: hidden の <a> で 122px / 17px）。器として扱わない。
+  const elementStyle = getComputedStyle(el);
+  const clipsNothing = (value) => value === "visible" || value === "clip";
+  let scroll = null;
+  if (
+    typeof el.offsetWidth === "number" &&
+    elementStyle.getPropertyValue("display") !== "inline" &&
+    !(
+      clipsNothing(elementStyle.getPropertyValue("overflow-x")) &&
+      clipsNothing(elementStyle.getPropertyValue("overflow-y"))
+    )
+  ) {
+    const border = (side) => parseFloat(elementStyle.getPropertyValue(`border-${side}-width`)) || 0;
+    // ::-webkit-scrollbar を持たないブラウザでは擬似要素の計算値が見た目を表さないので、読まずに印を残す
+    const webkitSupported =
+      typeof CSS !== "undefined" && CSS.supports("selector(::-webkit-scrollbar)");
+    const webkit = webkitSupported ? {} : "unsupported";
+    if (webkitSupported) {
+      for (const pseudo of scrollbarPseudos) webkit[pseudo] = pick(pseudo, scrollbarPseudoProps);
+    }
+    scroll = {
+      overflowing_x: el.scrollWidth > el.clientWidth,
+      overflowing_y: el.scrollHeight > el.clientHeight,
+      // 縦のスクロールバー（とガター）が取った幅・横のスクロールバーが取った高さ。枠を差し引く
+      // （実測: 枠 2px・overflow: auto の器で offsetWidth 204 / clientWidth 185 → 15px）
+      vertical_bar_px: Math.round(
+        el.offsetWidth - el.clientWidth - border("left") - border("right"),
+      ),
+      horizontal_bar_px: Math.round(
+        el.offsetHeight - el.clientHeight - border("top") - border("bottom"),
+      ),
+      style: pick(null, scrollbarProps),
+      webkit,
+    };
+  }
+
   return {
     computed: pick(null),
     before: pick("::before"),
@@ -521,6 +624,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
     rect: { x: box.x, y: box.y, width: box.width, height: box.height },
     child_inline_styles: childInlineStyles,
     text_owners: textOwners,
+    scroll,
   };
 }
 
@@ -545,7 +649,15 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
  *       glyph_height: number,          // 行の断片の高さの最大（照合する）
  *       lines: number,                 // 縦に重ならない行の帯の数（照合する。折り返しの差）
  *       rect: { x:number, y:number, width:number, height:number },  // 文字の外接矩形（診断材料）
- *     }[]
+ *     }[],
+ *     scroll: {                        // スクロールする器（overflow-x / overflow-y が visible / clip でない）でなければ null
+ *       overflowing_x: boolean,        // scrollWidth > clientWidth
+ *       overflowing_y: boolean,        // scrollHeight > clientHeight
+ *       vertical_bar_px: number,       // 縦のスクロールバー（とガター）が取った幅（枠を除く）
+ *       horizontal_bar_px: number,     // 横のスクロールバーが取った高さ（枠を除く）
+ *       style: Record<string,string>,  // SCROLLBAR_PROPERTIES の computed 値
+ *       webkit: Record<string, Record<string,string>> | "unsupported",  // SCROLLBAR_PSEUDOS ごとの SCROLLBAR_PSEUDO_PROPERTIES
+ *     } | null
  *   }
  *
  * 採取に失敗したエントリ（ロケータが複数要素に解決した・0 件で待ちがタイムアウトした・
@@ -563,7 +675,7 @@ function captureElement(el, { fixed: props, textOwner: textOwnerProps }) {
  * 写しから採り続ける状態が残る。この失敗も捕捉せず停止し、ロケータマッピングを直してから採り直す。
  *
  * @param {{ name: string, locator: import('playwright').Locator }[]} entries
- * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[] }>>}
+ * @returns {Promise<Array<{ name: string, computed: Record<string,string>, before: (Record<string,string>|null), after: (Record<string,string>|null), rect: { x:number, y:number, width:number, height:number }, child_inline_styles: { index:number, tag:string, style:string }[], text_owners: { path:string, tag:string, text:string, style: Record<string,string>, advance:number, glyph_height:number, lines:number, rect: { x:number, y:number, width:number, height:number } }[], scroll: ({ overflowing_x:boolean, overflowing_y:boolean, vertical_bar_px:number, horizontal_bar_px:number, style: Record<string,string>, webkit: (Record<string, Record<string,string>>|"unsupported") }|null) }>>}
  */
 export async function captureTraits(entries) {
   const results = [];
@@ -573,6 +685,9 @@ export async function captureTraits(entries) {
       captured = await entry.locator.evaluate(captureElement, {
         fixed: FIXED_PROPERTIES,
         textOwner: TEXT_OWNER_PROPERTIES,
+        scrollbar: SCROLLBAR_PROPERTIES,
+        scrollbarPseudos: SCROLLBAR_PSEUDOS,
+        scrollbarPseudoProps: SCROLLBAR_PSEUDO_PROPERTIES,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

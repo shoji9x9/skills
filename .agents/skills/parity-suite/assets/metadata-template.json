@@ -167,7 +167,9 @@
     ],
     "animations": "disabled",
     "full_page": "<スクリーンショットを全画面（true）で撮ったかビューポート内（false）で撮ったか。parity-diff の新側採取が同じ値で撮るために必須（決め打ちすると画像サイズが違い全面差分になる）。真偽値で書く>",
-    "scrollbars": "<撮影時にスクロールバーが場所を取ったか。hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden）| shown（場所を取る。launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
+    "scrollbars": "<撮影時にスクロールバーが場所を取ったか。shown（既定。場所を取る。current と new-capture プロジェクトの launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）| hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden。器のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・バーの見た目の差が 3 経路のどれにも写らないので、scrollbars_reason が要る）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
+    "scrollbars_reason": "<scrollbars が hidden のときだけ、スクロールバーを隠して撮る理由（同じ内容を gaps.md に残す）。無い・プレースホルダのままは capture-scope-check.mjs が落とす。shown ではキーごと消す>",
+    "scrollbar_environment": "<scrollbars が shown のとき、どの OS・ブラウザのどの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: Linux の headless Chromium 140〈クラシック・15px〉）。バーの描き方は OS とブラウザで変わるので、撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない（種類が違えば viewer_environment を乖離にする）。hidden ではキーごと消す>",
     "pages": [
       {
         "name": "<ページ名。noise_baseline[].page と同じ語彙を使う（parity-diff が組の再測定範囲を突き合わせるため）>",
@@ -227,6 +229,13 @@
             "scroll": {
               "width": 0,
               "height": 0
+            },
+            "overflow_x": "<器の overflow-x の計算値（visible / hidden / clip / scroll / auto）>",
+            "overflow_y": "<器の overflow-y の計算値>",
+            "bar": {
+              "_note": "スクロールバー（とガター）が取った寸法。offsetWidth − clientWidth から左右の枠を除いたものが vertical、offsetHeight − clientHeight から上下の枠を除いたものが horizontal。scrollbars: shown で auto / scroll の向きにはみ出しているのに 0 なら scrollbar-hidden:<名前> の穴になる。器の名前が traits.elements に無ければ untraced:<名前> の穴になる（スクロールバーの差が特性照合に写らない）。",
+              "vertical": 0,
+              "horizontal": 0
             }
           }
         ],

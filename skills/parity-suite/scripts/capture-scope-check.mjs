@@ -11,10 +11,16 @@
 //   2. **文書が撮影領域より大きい**（`below-fold` / `beyond-right`）: `full_page: false` で下・右が切れている。
 //   3. **内部スクロール器の外**（`scroll:<名前>`）: 器の `scrollHeight` / `scrollWidth` が `clientHeight` / `clientWidth` より大きく、
 //      画素にも特性にも出ない領域が器の中に残っている（仮想スクロール・固定高のグリッドが該当する）。
+//      あわせて器ごとに（Issue #495）、**特性照合に器が無い**（`untraced:<名前>`。器の名前が `traits.elements` に無く、
+//      スクロールバーの有無・厚み・見た目が trait-capture.mjs の `scroll` に採られない）と、
+//      **スクロールバーを表示して撮ったのに、はみ出した向きのバーが場所を取っていない**（`scrollbar-hidden:<名前>`。
+//      `--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバー）を穴として数える。
 //   4. **撮影領域の外にある論理名付き要素**（`offscreen:<名前>`）: 特性は採れても画素には写らない。
 //
 // あわせて**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（Issue #449。`checkOverflow`）。
 // スクロールバーを隠した撮影では `100vh` と `height: 100%` の差が 0 になり、上の穴と同じく「差分 0 件」に化けるため。
+// 撮影時の扱い（`scrollbars`）は `shown` を既定にし、`hidden` で撮るなら理由（`scrollbars_reason`）を、
+// `shown` ならどの環境のスクロールバーで撮ったか（`scrollbar_environment`）を書かせる（Issue #495）。
 // **表示を切り替える軸**（ロケール・配色テーマ等。Issue #489。`checkDisplayAxes`）も数える——既定の 1 値だけで撮ると、
 // 他の値での差がどの経路にも写らない。既定以外の値ごとの撮影（変種）は撮るはずの組に入り、撮っていなければ `#not-captured` の穴になる。
 // **採取環境と利用者環境の一致**（Issue #476。`checkViewerEnvironment` / `checkBrowser`）も数える——「未確認」のままでは、
@@ -36,7 +42,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /** `metadata.json` の `mode` の語彙（正本は parity-suite の SKILL.md）。視覚採取物を持つのは `feature` だけ。 */
 export const MODES = ["feature", "api-resource", "batch"];
@@ -123,15 +129,36 @@ function readSize(value) {
   return { width: /** @type {number} */ (size.width), height: /** @type {number} */ (size.height) };
 }
 
+/** CSS の `overflow-x` / `overflow-y` の計算値の語彙。 */
+export const OVERFLOW_VALUES = ["visible", "hidden", "clip", "scroll", "auto"];
+
+/** スクロールバーを描く `overflow` の値（`hidden` / `clip` は切るだけでバーを描かない）。 */
+const SCROLLBAR_OVERFLOW = ["scroll", "auto"];
+
+/**
+ * 0 以上の有限数か（スクロールバーの厚みの実測値はここを通す。0 はバーが場所を取らない正規の値）。
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function nonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 /**
  * 1 つの撮影組の実測から穴を導く。
  *
  * **穴は記録された `holes` ではなく寸法から導く**——書き手が挙げた分だけを見ると、
  * 挙げ忘れた穴が「穴が無い」と同じ見え方になる。
+ *
+ * `context.elements` は `traits.elements`（特性照合する論理名）の集合。null（読めない）なら器ごとの
+ * `untraced` の判定をしない（読めないことは呼び出し側が finding にする）。`context.scrollbars` は撮影時の扱いで、
+ * `shown` のときだけ `scrollbar-hidden` の陽性コントロールを当てる（`hidden` ではバーの厚み 0 が正規の値）。
  * @param {Record<string, unknown>} entry
+ * @param {{ elements?: Set<string> | null, scrollbars?: unknown }} [context]
  * @returns {{ holes: {id:string, kind:string, detail:string}[], findings: {code:string, message:string}[] }}
  */
-export function deriveHoles(entry) {
+export function deriveHoles(entry, context = {}) {
+  const elements = context.elements ?? null;
   const key = combinationKey(entry);
   /** @type {{id:string, kind:string, detail:string}[]} */
   const holes = [];
@@ -206,6 +233,56 @@ export function deriveHoles(entry) {
           id: `${key}#scroll:${String(name)}`,
           kind: "scroll-container",
           detail: `器 ${String(name)} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
+        });
+      }
+      // 器ごとの overflow とスクロールバーの厚み（Issue #495）。寸法だけでは、現行が overflow: auto で横のバーを出し、
+      // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
+      const overflowX = container.overflow_x;
+      const overflowY = container.overflow_y;
+      if (
+        !OVERFLOW_VALUES.includes(/** @type {string} */ (overflowX)) ||
+        !OVERFLOW_VALUES.includes(/** @type {string} */ (overflowY))
+      ) {
+        findings.push({
+          code: "scroll-container-overflow-unreadable",
+          message: `${key} の scroll_containers[${String(name)}] の overflow_x / overflow_y が計算値の語彙（${OVERFLOW_VALUES.join(" / ")}）で書かれていない`,
+        });
+        continue;
+      }
+      const bar = /** @type {Record<string, unknown> | null | undefined} */ (container.bar);
+      if (
+        !bar ||
+        typeof bar !== "object" ||
+        !nonNegativeNumber(bar.vertical) ||
+        !nonNegativeNumber(bar.horizontal)
+      ) {
+        findings.push({
+          code: "scroll-container-bar-unreadable",
+          message: `${key} の scroll_containers[${String(name)}] の bar（vertical: 縦のバーの幅 / horizontal: 横のバーの高さ。枠を除く）が 0 以上の数で書かれていない`,
+        });
+        continue;
+      }
+      if (elements && !elements.has(String(name))) {
+        holes.push({
+          id: `${key}#untraced:${String(name)}`,
+          kind: "untraced-scroll-container",
+          detail: `器 ${String(name)} が traits.elements に無い（スクロールバーの有無・厚み・見た目が特性照合に写らない。器に論理名を付けて採る）`,
+        });
+      }
+      // 陽性コントロール: バーを描く overflow ではみ出しているのに厚みが 0 なら、バーが場所を取っていない
+      const hiddenVertical =
+        scroll.height > client.height &&
+        SCROLLBAR_OVERFLOW.includes(/** @type {string} */ (overflowY)) &&
+        bar.vertical === 0;
+      const hiddenHorizontal =
+        scroll.width > client.width &&
+        SCROLLBAR_OVERFLOW.includes(/** @type {string} */ (overflowX)) &&
+        bar.horizontal === 0;
+      if (context.scrollbars === "shown" && (hiddenVertical || hiddenHorizontal)) {
+        holes.push({
+          id: `${key}#scrollbar-hidden:${String(name)}`,
+          kind: "scrollbar-hidden",
+          detail: `器 ${String(name)} は${hiddenVertical ? "縦" : "横"}にはみ出しているのにスクロールバーの厚みが 0（scrollbars: shown で撮ったはずが --hide-scrollbars が残っているか、オーバーレイ型・scrollbar-width: none のバー）`,
         });
       }
     }
@@ -349,7 +426,9 @@ export function declaredCombinations(conditions, displayAxes) {
  *
  * **軸は思いついた分だけ数えると、数えなかった軸の値での差がどの経路にも写らない**（ロケールを数えずに English だけで撮り、
  * 利用者が Japanese で開いて初めて気づいた）。候補の全件を「在る（`axes[].candidate`）」か「無い（`absent`）」に振り分けさせ、
- * 振り分けていない候補を落とす。一覧に無い軸は `candidate: "other"` で足す。スクロールバーの出方は `scrollbars` / `overflow` が持つので含めない。
+ * 振り分けていない候補を落とす。一覧に無い軸は `candidate: "other"` で足す。
+ * スクロールバーの出方（常に表示・オーバーレイ）は利用者の OS・ブラウザの設定で変わる軸として数える（Issue #495）。
+ * 採取環境で撮るバーの扱い（場所を取るか）は別に `scrollbars` / `overflow` が持つ。
  * @type {{id:string, label:string}[]}
  */
 export const AXIS_CANDIDATES = [
@@ -364,6 +443,7 @@ export const AXIS_CANDIDATES = [
   { id: "reduced-motion", label: "動きを減らす設定（prefers-reduced-motion）" },
   { id: "role", label: "利用者の権限・ロールで変わる表示" },
   { id: "print", label: "印刷（@media print）" },
+  { id: "scrollbar-appearance", label: "スクロールバーの出方（常に表示・オーバーレイ）" },
 ];
 
 /** 一覧に無い軸を足すときの `candidate`。 */
@@ -994,6 +1074,18 @@ export function checkOverflow(conditions) {
       "scrollbars-unknown",
       `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
     );
+  } else if (conditions.scrollbars === "hidden" && !evidenceText(conditions.scrollbars_reason)) {
+    // 既定は shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 経路のどれにも写らない（Issue #495）
+    add(
+      "scrollbars-hidden-reason-missing",
+      "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（既定は shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
+    );
+  } else if (conditions.scrollbars === "shown" && !evidenceText(conditions.scrollbar_environment)) {
+    // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない（Issue #495）
+    add(
+      "scrollbar-environment-missing",
+      "capture_conditions.scrollbars が shown なのに scrollbar_environment が無い（どの OS・ブラウザのどの種類〈クラシック / オーバーレイ〉のスクロールバーで撮ったかを書く）",
+    );
   }
   if (!Object.hasOwn(conditions, "overflow")) {
     add(
@@ -1306,6 +1398,12 @@ export function checkCaptureScope(metadata) {
   const conditionsRecord = /** @type {Record<string, unknown>} */ (
     /** @type {unknown} */ (conditions)
   );
+  // 特性照合する論理名（器ごとの untraced の判定に使う）。読めなければ判定を飛ばさず、器があるときに落とす
+  const traitElements = meta.traits && meta.traits.elements;
+  const elements =
+    Array.isArray(traitElements) && traitElements.every((name) => nonEmptyString(name))
+      ? new Set(/** @type {string[]} */ (traitElements))
+      : null;
   const displayAxes = checkDisplayAxes(conditionsRecord);
   const declared = declaredCombinations(conditionsRecord, displayAxes);
   findings.push(...declared.findings);
@@ -1459,9 +1557,19 @@ export function checkCaptureScope(metadata) {
     }
   }
   for (const entry of scopeByKey.values()) {
-    const derived = deriveHoles(entry);
+    const derived = deriveHoles(entry, { elements, scrollbars: conditions.scrollbars });
     holes.push(...derived.holes);
     findings.push(...derived.findings);
+  }
+  const hasContainer = [...scopeByKey.values()].some(
+    (entry) => Array.isArray(entry.scroll_containers) && entry.scroll_containers.length > 0,
+  );
+  if (hasContainer && !elements) {
+    findings.push({
+      code: "traits-elements-unreadable",
+      message:
+        "traits.elements が空でない文字列の配列ではない（内部スクロール器が特性照合の対象かを判定できない）",
+    });
   }
 
   const exemptions = conditions.capture_scope_exemptions ?? [];

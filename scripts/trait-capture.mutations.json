@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "trait-capture.test.js のうち、文字の持ち主（text_owners）の採取（Issue #459）の検出能力を示す変異の一覧。",
+    "trait-capture.test.js のうち、文字の持ち主（text_owners）の採取（Issue #459）と、スクロールする器の特性（scroll。Issue #495）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -228,6 +228,67 @@
       "replace": "    const leadLength = raw.length - raw.trimStart().length;\n",
       "occurrences": 1,
       "expect_failing": ["NBSP と全角スペースは空白として畳まず、端の幅からも外さない"]
+    },
+    {
+      "id": "scroll-never-container",
+      "why": "器かどうかを判定せず scroll を常に null にする（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "    typeof el.offsetWidth === \"number\" &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクロールバーが場所を取る撮影では、現行の横のバーと新側の切れが scroll に分かれて出る",
+        "スクロールバーの厚みは枠を差し引いて数える",
+        "器（hidden（切るだけの器））は scroll を持つ",
+        "器（片向きだけ auto）は scroll を持つ",
+        "器（scroll）は scroll を持つ",
+        "スクロールバーの見た目の宣言と ::-webkit-scrollbar 系の計算値を擬似要素ごとに採る",
+        "::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする",
+        "スクロールバーの宣言で解決しないプロパティ名は空文字で通さず論理名付きで落ちる",
+        "::-webkit-scrollbar 系で解決しないプロパティ名も擬似要素名付きで落ちる"
+      ]
+    },
+    {
+      "id": "scroll-bar-border-kept",
+      "why": "縦のバーの幅から左右の枠を差し引かない（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "el.offsetWidth - el.clientWidth - border(\"left\") - border(\"right\")",
+      "replace": "el.offsetWidth - el.clientWidth",
+      "occurrences": 1,
+      "expect_failing": ["スクロールバーの厚みは枠を差し引いて数える"]
+    },
+    {
+      "id": "scroll-webkit-assumed",
+      "why": "::-webkit-scrollbar を持たないブラウザでも擬似要素の計算値を読む（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "      typeof CSS !== \"undefined\" && CSS.supports(\"selector(::-webkit-scrollbar)\");",
+      "replace": "      true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "::-webkit-scrollbar を持たないブラウザ（CSS.supports が偽）では webkit を unsupported にする",
+        "::-webkit-scrollbar を持たないブラウザ（CSS が無い）では webkit を unsupported にする"
+      ]
+    },
+    {
+      "id": "scroll-bar-border-kept-horizontal",
+      "why": "横のバーの高さから上下の枠を差し引かない（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "el.offsetHeight - el.clientHeight - border(\"top\") - border(\"bottom\")",
+      "replace": "el.offsetHeight - el.clientHeight",
+      "occurrences": 1,
+      "expect_failing": ["スクロールバーの厚みは枠を差し引いて数える"]
+    },
+    {
+      "id": "scroll-inline-treated-as-container",
+      "why": "display: inline の要素（overflow が効かず clientWidth が 0）を器として採り、文字の幅をバーの厚みにする（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-capture.mjs",
+      "find": "elementStyle.getPropertyValue(\"display\") !== \"inline\" &&",
+      "replace": "true &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "display: inline の要素は overflow を持っていても器として扱わない（文字の幅をバーの厚みにしない）"
+      ]
     }
   ]
 }

@@ -67,6 +67,7 @@
   - `baseline.json` は現行の採取結果、`capture.json` は新側の採取結果（[`capture-new.md`](capture-new.md)）
   - **記録値 `align_tolerance` を必ず渡す**（省略すると既定 1 になり、記録値と食い違うと結果が変わる）
   - 終了コード 0=差分なし / 1=差分あり / 2=入力エラー。出力 JSON の `kind` は `property` / `pseudo` / `geometry` / `missing` / `duplicate` / `text`（文字の持ち主の差。`prop` は `text[<i>]/<項目>` で、`text` にベースライン側の文字が付く）
+    / `scroll`（スクロールする器の差。`prop` は `scroll`〈器かどうか〉・`scroll/<項目>`〈はみ出し・バーの厚み・見た目の宣言〉・`scroll/<擬似要素>/<プロパティ>`）
 
 ## aria 経路
 
