@@ -2601,3 +2601,11 @@ test("オリジンを含まない glob の要求パターンは通す（Codex �
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
 });
+
+test("状態表示の toast / dialog は画面に出ない反応（visible: false）を指せない（Codex レビュー #504）", () => {
+  const r = run(mutated((t) => (t.operations[0].reactions[0].visible = false)));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    'toast: reactions の "copy/toast" は画面に出ない反応（visible: false）で、表示の ある を示さない',
+  );
+});

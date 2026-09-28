@@ -1263,6 +1263,17 @@
         "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
         "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）"
       ]
+    },
+    {
+      "id": "state-display-reaction-visible",
+      "why": "画面に出ない反応でトースト・ダイアログの ある を満たす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (!at.visible.has(/** @type {string} */ (ref))) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の toast / dialog は画面に出ない反応（visible: false）を指せない（Codex レビュー #504）"
+      ]
     }
   ]
 }

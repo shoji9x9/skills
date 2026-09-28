@@ -809,7 +809,7 @@ function originFreePattern(v) {
  * @param {string} candidate - STATE_DISPLAY_CANDIDATES の 1 つ
  * @param {Set<string> | null} captureStates
  * @param {Map<string, string>} reactionKinds - 反応キー（<操作 id>/<反応 id>）→ kind
- * @param {{ pages: Map<string, string | null>, page: string }} at - 反応キー → 押した後の画面と、この行の画面
+ * @param {{ pages: Map<string, string | null>, visible: Set<string>, page: string }} at - 反応キー → 押した後の画面、画面に出る反応のキー、この行の画面
  * @returns {{ problem: string, unmeasured: boolean }[]}
  */
 function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at) {
@@ -911,6 +911,14 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
           });
           continue;
         }
+        // 画面に出ない反応（クリップボードへの書き込み等）はトースト・ダイアログの表示を示さない（Codex レビュー #504）
+        if (!at.visible.has(/** @type {string} */ (ref))) {
+          out.push({
+            problem: `${candidate}: reactions の "${ref}" は画面に出ない反応（visible: false）で、表示の ある を示さない`,
+            unmeasured: true,
+          });
+          continue;
+        }
         // 別の画面の操作の反応で、この画面の状態表示を満たさない
         const refPage = at.pages.get(/** @type {string} */ (ref)) ?? null;
         if (refPage !== at.page) {
@@ -948,7 +956,7 @@ function stateDisplayProblems(entry, candidate, captureStates, reactionKinds, at
  * 画面の集合は metadata.json の capture_conditions.pages（宣言）から取る。記録した画面の一覧を期待値にすると、
  * 画面ごと落とした振り分けが期待値からも消える。
  * @param {unknown} sd
- * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, reactionKinds: Map<string, string>, reactionPages: Map<string, string | null>, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
+ * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, reactionKinds: Map<string, string>, reactionPages: Map<string, string | null>, visibleReactions: Set<string>, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
  * @returns {{ pages: number | null, entries: number, unmeasured: number }}
  */
 function checkStateDisplays(sd, ctx) {
@@ -957,6 +965,7 @@ function checkStateDisplays(sd, ctx) {
     captureStates,
     reactionKinds,
     reactionPages,
+    visibleReactions,
     problems,
     captureUses,
     captureLabel,
@@ -1041,6 +1050,7 @@ function checkStateDisplays(sd, ctx) {
       const entry = candidates[c];
       const found = stateDisplayProblems(entry, c, captureStates, reactionKinds, {
         pages: reactionPages,
+        visible: visibleReactions,
         page: /** @type {string} */ (row.page),
       });
       if (found.some((f) => f.unmeasured)) summary.unmeasured += 1;
@@ -1895,6 +1905,8 @@ export function checkReactions(table, opts = {}) {
   const reactionKinds = new Map();
   /** @type {Map<string, string | null>} 反応キー → 押した後の画面（capture_page。画面が 1 つならその画面、決まらなければ null） */
   const reactionPages = new Map();
+  /** @type {Set<string>} 画面に出る（visible: true の）観測した反応のキー。状態表示の toast / dialog はこれだけを指せる */
+  const visibleReactions = new Set();
   let reactionCount = 0;
   /** @type {number | null} observed の delay_ms_samples の最大値（observation_window_ms の下限照合に使う） */
   let maxObservedDelay = null;
@@ -2048,6 +2060,7 @@ export function checkReactions(table, opts = {}) {
         continue;
       }
       reactionKinds.set(`${op.id}/${r.id}`, r.kind);
+      if (r.kind === "observed" && r.visible === true) visibleReactions.add(`${op.id}/${r.id}`);
       // 状態表示の toast / dialog が指す反応は、その画面の反応でなければならない（Codex レビュー #504）。
       // 撮る状態を持たない操作は上で page を決めないので、capture_page か画面が 1 つであることから決め直す
       reactionPages.set(
@@ -2264,6 +2277,7 @@ export function checkReactions(table, opts = {}) {
     captureStates,
     reactionKinds,
     reactionPages,
+    visibleReactions,
     problems,
     captureUses: aftermathCaptureUses,
     captureLabel,

@@ -229,7 +229,7 @@
   **候補 5 つ（`empty` / `fetch-error` / `loading` / `toast` / `dialog`）を全て**振り分ける。画面・候補の欠けは未測定として数えられ、宣言に無い画面名・候補名は落ちる
 - 候補ごとに `status` を書く
   - `present`（ある）: 状態の作り方（`setup`）・現行で見たもの（`observed`: 文言・覆い・ページ表示）を書き、**撮る状態（`captured`）か assertion（`covered_by`）に割り当てる**。
-    `toast` / `dialog` は操作の反応として測った通知を指してもよい（`reactions`: `<操作 id>/<反応 id>`。`kind: observed` で、押した後の画面〈`capture_page`。画面が 1 つならその画面〉がこの行の画面と同じ操作の反応に限る）。
+    `toast` / `dialog` は操作の反応として測った通知を指してもよい（`reactions`: `<操作 id>/<反応 id>`。`kind: observed`・`visible: true` で、押した後の画面〈`capture_page`。画面が 1 つならその画面〉がこの行の画面と同じ操作の反応に限る）。
     撮る状態は反応・残る見た目の撮る状態と同じ集合（ページ × 状態名）で数え、共有するなら全行に `shared_capture_reason` を書く
   - `absent`（ない）: 作ろうとした手段（`setup`）と、代わりに見えたもの（`observed`）を書き、**何も出ないことを assertion にする**（`covered_by`。新側が警告のダイアログを足しても、撮っていない状態には写らない）。
     画面がその状態に結び付く要求を送らない（`no-request`）・その状態を持つ器が無い（`not-applicable`）ときだけ assertion を省ける
