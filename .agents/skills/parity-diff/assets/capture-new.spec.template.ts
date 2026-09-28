@@ -34,9 +34,14 @@
  *
  * 1 回目と 2 回目の差分量（pixel_diff / trait_diffs）を測るのはスペックの仕事ではない。
  * 記録済みの画素差分ツールと trait-compare に、下の 2 つの出力ディレクトリを渡して測る。
+ *
+ * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・ブラウザ側とランナーの OS）は
+ * `new/<target>/browser-identity.<pass>.json` に書き出す。parity-diff が自己ノイズの測定値を再利用するかを決める
+ * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる（Issue #493）。
  */
-import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { readFileSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { arch, platform, release } from "node:os";
+import { dirname, isAbsolute, join, relative } from "node:path";
 // 現側の capture_conditions.browser が cdp なら、@playwright/test ではなく共通のフィクスチャ（利用者環境のブラウザへ接続する。
 // parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」）から import する
 import { test } from "@playwright/test";
@@ -199,6 +204,93 @@ if (scrollbars === "shown") {
   test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 }
 
+// 撮影に使ったブラウザの同一性（Issue #493）。launched でも、ランナー・OS の移動、Playwright の更新による版の変化、
+// channel / headless の変更で描画環境は変わる。parity-diff はこれを自己ノイズの指紋へ入れ、前回と違えば測り直す。
+// 2 回目（noise）も書き、1 回目と違えば同じ環境で 2 回撮れていないので parity-diff が測定を捨てる。
+// 書き出し先は outRoot の外（noise-pass2/ は測定後に消える。組のディレクトリ 3 段の外に置く）
+const identityPath = join(
+  repoRoot,
+  ".replace",
+  "parity",
+  slug,
+  "new",
+  target,
+  `browser-identity.${pass}.json`,
+);
+// 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
+// browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う（Codex レビュー #501）。
+// OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
+// userAgentData を持たないブラウザ（Firefox / WebKit、安全なコンテキストでない http の頁）は navigator.platform を残す。ランナーの OS は runner_os に別に残す
+let identityRecorded = false;
+// スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる（Codex レビュー #501）。
+// cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
+// オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
+// overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）。
+// 読むのは頁へ移動する前の about:blank——確かめるのはブラウザの起動の仕方で、頁の CSS（scrollbar-width: none 等）ではない。
+// 頁の CSS で隠したバーは現側も同じ CSS で隠れ、器ごとの差は trait-capture.mjs の scroll が照合する。
+// 移動後に測ると、頁が正当にバーを隠しているだけで shown の撮影が止まる
+let scrollbarPx: number | null = null;
+async function verifyScrollbars(page: import("@playwright/test").Page): Promise<number> {
+  if (scrollbarPx !== null) return scrollbarPx;
+  const px = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;top:-10000px;left:0;width:100px;height:100px;overflow:scroll;border:0";
+    document.body.appendChild(probe);
+    const width = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    return width;
+  });
+  if (scrollbars === "shown" && px === 0) {
+    throw new Error(
+      "capture_conditions.scrollbars is shown but scrollbars take no space in the capture browser (--hide-scrollbars が残っているか、オーバーレイのバー): 現側と同じ扱いで撮る",
+    );
+  }
+  if (scrollbars === "hidden" && px > 0) {
+    throw new Error(
+      `capture_conditions.scrollbars is hidden but scrollbars take ${px}px in the capture browser: 現側と同じ扱いで撮る`,
+    );
+  }
+  scrollbarPx = px;
+  return px;
+}
+async function recordIdentity(
+  page: import("@playwright/test").Page,
+  browserName: string,
+  testInfo: import("@playwright/test").TestInfo,
+): Promise<void> {
+  const barPx = await verifyScrollbars(page);
+  if (identityRecorded) return;
+  identityRecorded = true;
+  // beforeAll ではなく最初のテストで読むので、ワーカーごとに 1 回。書くのは並列の枠 0 のワーカーだけにし
+  // （同じプロジェクトのワーカーは同じブラウザ・同じ use で撮る）、一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
+  if (testInfo.parallelIndex !== 0) return;
+  const seen = await page.evaluate(async () => {
+    const data = (
+      navigator as Navigator & {
+        userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
+      }
+    ).userAgentData;
+    const os = data
+      ? await data.getHighEntropyValues(["platform", "platformVersion", "architecture"])
+      : { platform: navigator.platform };
+    return { userAgent: navigator.userAgent, os };
+  });
+  writeJsonAtomic(identityPath, {
+    browser: browserMode,
+    browser_name: browserName,
+    product: page.context().browser()?.version() ?? null,
+    user_agent: seen.userAgent,
+    // project の use に書いた値（未指定は null＝Playwright の既定）。test.use で上書きした scrollbars の起動引数は scrollbars が持つ
+    channel: testInfo.project.use.channel ?? null,
+    headless: testInfo.project.use.headless ?? null,
+    browser_os: seen.os,
+    runner_os: `${platform()} ${release()} ${arch()}`,
+    // 撮影ページで実測したスクロールバーの幅（overflow: scroll の箱）。バーの種類・厚みが変われば描画環境も変わる
+    scrollbar_px: barPx,
+  });
+}
+
 test.beforeEach(async (_fixtures, testInfo) => {
   // fail-fast: current で走ると現行アプリを新側ベースラインとして書き出す（testIgnore の設定漏れ対策）
   if (testInfo.project.name !== "new-capture") {
@@ -220,7 +312,9 @@ for (const viewport of shots) {
         const outDir = join(outRoot, pageDef.name, state, viewport.label);
         assertInsideOutRoot(outDir);
 
-        test(`capture ${pair}`, async ({ page }) => {
+        test(`capture ${pair}`, async ({ page, browserName }, testInfo) => {
+          // 撮影に使うページでスクロールバーの扱いを実測し、同一性を読む（組を飛ばす前に行う。全組を再利用する noise パスでも書く）
+          await recordIdentity(page, browserName, testInfo);
           // noise パスは「測り直す組」だけを撮る（再利用の可否は parity-diff が判定して PARITY_NOISE_PAIRS で渡す）。
           // noise パスの出力は撮る組・撮らない組とも先に消す——前反復の 2 回目が残っていると、
           // 撮らない組は「今回の baseline-new」対「前反復の 2 回目」が突き合わされて反復間のコード変更を
@@ -300,6 +394,14 @@ function requireEnv(name: string): string {
 // TODO: 書き出しをラップしているプロジェクトではそのユーティリティへ差し替える
 function writeJson(path: string, value: unknown): void {
   writeText(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeJsonAtomic(path: string, value: unknown): void {
+  // 初回の実行では new/<target>/ がまだ無い（撮影の出力ディレクトリはテストの中で作る）
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeText(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  renameSync(temporary, path);
 }
 
 function writeText(path: string, value: string): void {

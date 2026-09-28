@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）の検出能力を示す変異の一覧。",
+    "capture-scope-check.test.js のうち、スクロールバーが場所を取る窓のはみ出し（Issue #449）・表示を切り替える軸（Issue #489）・採取環境と利用者環境（Issue #476）と、撮影時のスクロールバーの扱いと内部スクロール器の記録（Issue #495）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -365,7 +365,8 @@
       "occurrences": 1,
       "expect_failing": [
         "軸の根拠欄にテンプレートの <…> や TODO が残っていたら落とす（Codex レビュー #491）",
-        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）",
+        "scrollbars が hidden なら理由を、shown なら撮った環境を書かせる"
       ]
     },
     {
@@ -399,6 +400,94 @@
       "occurrences": 1,
       "expect_failing": [
         "宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）"
+      ]
+    },
+    {
+      "id": "untraced-disabled",
+      "why": "traits.elements に無い器を穴にしない（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (elements && !elements.has(String(name))) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "traits.elements に無い器は untraced の穴になる（スクロールバーの差が特性照合に写らない）"
+      ]
+    },
+    {
+      "id": "scrollbar-hidden-disabled",
+      "why": "shown で撮ったのにはみ出した向きのバーが厚み 0 の器を穴にしない（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (context.scrollbars === \"shown\" && (hiddenVertical || hiddenHorizontal)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "shown で撮ったのに縦にはみ出した向きのバーが場所を取っていない器は穴になる",
+        "shown で撮ったのに横にはみ出した向きのバーが場所を取っていない器は穴になる"
+      ]
+    },
+    {
+      "id": "scrollbar-hidden-any-mode",
+      "why": "hidden で撮った器の厚み 0 も穴にする（撮影時の扱いを見ない）（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      if (context.scrollbars === \"shown\" && (hiddenVertical || hiddenHorizontal)) {",
+      "replace": "      if (hiddenVertical || hiddenHorizontal) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "器ごとの記録の陰性コントロール: バーが場所を取って撮った器は scroll の穴だけ"
+      ]
+    },
+    {
+      "id": "scrollbars-hidden-reason-optional",
+      "why": "理由の無い hidden を通す（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  } else if (conditions.scrollbars === \"hidden\" && !evidenceText(conditions.scrollbars_reason)) {",
+      "replace": "  } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["scrollbars が hidden なら理由を、shown なら撮った環境を書かせる"]
+    },
+    {
+      "id": "scrollbar-environment-optional",
+      "why": "撮ったスクロールバーの環境の無い shown を通す（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  } else if (conditions.scrollbars === \"shown\" && !evidenceText(conditions.scrollbar_environment)) {",
+      "replace": "  } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["scrollbars が hidden なら理由を、shown なら撮った環境を書かせる"]
+    },
+    {
+      "id": "traits-elements-unreadable-ignored",
+      "why": "器があるのに traits.elements が読めない成果物を通す（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (hasContainer && !elements) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "器があるのに traits.elements が読めない（欠落）なら落とす",
+        "器があるのに traits.elements が読めない（配列でない）なら落とす",
+        "器があるのに traits.elements が読めない（空の名前）なら落とす"
+      ]
+    },
+    {
+      "id": "container-bar-negative",
+      "why": "器の bar.vertical を検査しない（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        !nonNegativeNumber(bar.vertical) ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "器の記録の bar の負の値 は落とす（読めないことを穴が無いことに倒さない）",
+        "器の記録の bar が文字列 は落とす（読めないことを穴が無いことに倒さない）"
+      ]
+    },
+    {
+      "id": "container-overflow-unchecked",
+      "why": "器の overflow_x を語彙で検査しない（Issue #495）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "        !OVERFLOW_VALUES.includes(/** @type {string} */ (overflowX)) ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "器の記録の overflow_x の欠落 は落とす（読めないことを穴が無いことに倒さない）"
       ]
     }
   ]

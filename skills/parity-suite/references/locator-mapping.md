@@ -180,22 +180,25 @@ Playwright の `projects` は `current` / `new` / `new-capture` の 3 つを定�
 
 ```ts
 // playwright.config.ts（抜粋。パスはプロジェクト規約に合わせる）
+// スクロールバーが場所を取る状態で撮る（capture_conditions.scrollbars の既定 shown。ヘッドレス Chromium の既定の --hide-scrollbars を外す）。
+// 3 プロジェクトとも同じ扱いにする（片側だけ場所を取ると見える幅と高さが厚みの分ずれる。正本は references/baseline.md「スクロールバーが場所を取る窓のはみ出し」）。
+// hidden で撮ると決めた（scrollbars_reason を書いた）ときだけ launchOptions を外す
 projects: [
   {
     name: 'current',
-    use: { baseURL: process.env.PARITY_CURRENT_UI_URL },
+    use: { baseURL: process.env.PARITY_CURRENT_UI_URL, launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } },
     testIgnore: '**/new-only/**',
   },
   {
     name: 'new',
-    use: { baseURL: process.env.PARITY_NEW_UI_URL },
+    use: { baseURL: process.env.PARITY_NEW_UI_URL, launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } },
     // parity-replace の green 検証用。採取スペックは走らせない（収集時に採取用の環境変数を要求するため）
     // dimension/ は除外しない（PARITY_DIMENSION_CAPTURE=1 のときだけ新側の寸法を new/<PARITY_NEW_TARGET>/ へ採る）
     testIgnore: ['**/current-only/**', '**/new-only/**'],
   },
   {
     name: 'new-capture',
-    use: { baseURL: process.env.PARITY_NEW_UI_URL },
+    use: { baseURL: process.env.PARITY_NEW_UI_URL, launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } },
     // parity-diff の新側ベースライン採取専用。testDir を new-only/ に絞る
     testDir: 'e2e/parity/<slug>/new-only',
   },

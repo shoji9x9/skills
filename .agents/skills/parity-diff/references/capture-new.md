@@ -51,7 +51,7 @@
 |---|---|
 | `viewports` | 現側の `viewports` と新側の実寸、および `full_page`（全画面かビューポート内か）が一致したか（不一致は停止。画像サイズが違えば全ページが全面差分になる） |
 | `animations` | `animations: "disabled"` を新側でも適用できたか（不一致は停止） |
-| `scrollbars` | 現側の `scrollbars`（`hidden` / `shown`）と同じ扱いで新側を撮ったか。雛形は `shown` のとき `--hide-scrollbars` を外して起動する。ヘッドあり起動はスクロールバーが場所を取るので `hidden` の撮影には使わない。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」） |
+| `scrollbars` | 現側の `scrollbars`（`hidden` / `shown`）と同じ扱いで新側を撮ったか。雛形は `shown` のとき `--hide-scrollbars` を外して起動し、撮影に使うページに `overflow: scroll` の箱を置いてバーの幅を実測する（`shown` なのに 0・`hidden` なのに 0 でなければ停止。`cdp` では起動引数が効かないため）。ヘッドあり起動はスクロールバーが場所を取るので `hidden` の撮影には使わない。**現側が `hidden`（既定は `shown`。`scrollbars_reason` 付き）なら、スクロールバーが場所を取る差〈器のはみ出し・横のバーの有無・バーの見た目〉を比べていないことを理由とともに `diff.md` の未検証領域へ転記する**（Issue #495）。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「スクロールバーが場所を取る窓のはみ出し」） |
 | `display_axes` | 現側の `display_axes` の基準の組（全軸の `default`）と各変種（`variants`）の値を、操作アダプタ `applyDisplayAxes`（`metadata.json.suite.interactions`）で新側にも当てて撮ったか。変種は `viewports` と同じく外側のループで回し、書き出し先は変種の `label`、窓の寸法は変種の `viewport` が指す窓のもの。当てられない値は停止。キーごと無い旧成果物は停止し `parity-suite` へ戻す（正本: `parity-suite` の `references/baseline.md`「表示を切り替える軸（掛け合わせずに撮る）」） |
 | `browser` | 現側の `browser`（`launched` / `cdp`）と、選択した新側 target の `browser.cdp_url` の有無が一致したか（`cdp` なら `PARITY_NEW_CDP_URL` へ解決して共通のフィクスチャで接続し、接続したブラウザの `browser.version()` と `navigator.userAgent` が現側の `browser_identity` と一致することも確かめる）。片側だけ利用者環境で撮ると環境の差がそのまま差分に出るので、不一致は停止。キーごと無い旧成果物は停止し `parity-suite` へ戻す（配線の正本: `parity-suite` の `references/locator-mapping.md`「利用者環境のブラウザへ接続する」） |
 | `masks` | 現側の `masks` のロケータを新側でも解決してマスクできたか（解決できないマスクは値に理由を残す） |
@@ -171,6 +171,9 @@
 - **ゲート判定（現側 `noise_baseline` との対比。承認済みの例外では自己ノイズが 0 でない組の未検証化）は再利用した組でも毎回行う。** 省くのは撮影であって判定ではない
 - 再利用の可否は下記「失効条件」で判定する。**判断材料が無い・読めない・判定が付かない場合は再利用しない**（安全側＝その組を測り直す）
 - 測った組と再利用した組の別を `diff-metadata.json.noise_measurement` と `diff.md` の前提確認表に記録する（どの値がいつの測定か追えるようにする）
+- **撮影に使ったブラウザの同一性は雛形が書き出す**（`new/<target>/browser-identity.<pass>.json`。`pass` は `baseline` / `noise`）。1 回目の値を `fingerprint.capture_conditions.browser_identity` に入れる。
+  2 回目を撮ったら 2 つを突き合わせ、**違えば同じ環境で 2 回撮れていないので測定値を記録せず停止する**（別の描画環境の差を自己ノイズとして計上しない）。
+  `noise-pass2/` と同じく指紋へ記録したら削除し、コミットしない
 
 #### 失効条件（成立したら再測定を強制する）
 
@@ -181,6 +184,7 @@
 | `--remeasure-noise` が指定された | 全組 | 実行時フラグ |
 | 前回の測定記録（`noise_measurement`）が無い・壊れている・`noise_baseline_new` と組が対応しない | 全組 | `new/<target>/diff-metadata.json` |
 | 撮影条件が変わった（`capture_conditions` の `viewports` / `full_page` / `scrollbars` / `display_axes` / `browser` / `states` / `masks` / `animations` / `popup_inventory`。`browser: cdp` では接続先の同一性〈解決した `PARITY_NEW_CDP_URL` の sha256 と CDP `Browser.getVersion` の `product`・`userAgent`〉も含め、同一性を取れなければ測り直す） | 全組 | `noise_measurement.fingerprint.capture_conditions` と `metadata.json` の不一致 |
+| 撮影に使ったブラウザの同一性が変わった（`launched` / `cdp` とも。ブラウザ名・版〈`browser.version()`〉・撮影に使うページで読んだ `navigator.userAgent`・`channel`・`headless`・描画するブラウザ側の OS〈`navigator.userAgentData` の高エントロピー値。`cdp` ではランナーと別の機械なので Node の `os` では代えない〉。ランナー・OS の移動、Playwright の更新による版の変化、`channel` / `headless` の変更が該当する。Issue #493） | 全組 | 今回の 1 回目の `new/<target>/browser-identity.baseline.json` と `fingerprint.capture_conditions.browser_identity` の不一致。**今回の記録が無い・読めない・前回の指紋に無いなら再利用しない**（同一性を取れない状態を一致に倒さない） |
 | 差分器のツール・しきい値が変わった（`differ.{pixel_tool,pixel_threshold,align_tolerance,aria_compare,trait_compare}` / `traits.tool`） | 全組 | 同 `fingerprint.differ` の不一致 |
 | 前回の測定が静止待ちを通した記録を持たない（`fingerprint.settle_wait` が無い、または `true` でない） | 全組 | 同 `fingerprint.settle_wait`（静止待ちの導入前に測った値は、2 値に転ぶ採取を「ノイズ 0」として持ち越しうる） |
 | `fingerprint.dataset_version` より後に対象 slug へ影響するデータセット変更がある | 全組 | `fingerprint.dataset_version` と dataset の `changes[].affects`（判定契約は `golden-dataset` の `references/versioning.md`） |

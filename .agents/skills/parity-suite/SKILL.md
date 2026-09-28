@@ -101,8 +101,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   feature モードでは窓を変えて位置と寸法の式を読み、`metadata.json` の `capture_conditions.dimension_model` を**キーごと省略しない**（ビューポートが 1 つなら `measured` か理由付きの `not_measured`）。
   **未測定を `gaps.md` に書いて済ませない**——`parity-replace` への引き渡し条件として `dimension_model` に残す（[`references/baseline.md`](references/baseline.md)「寸法の決まり方（窓への追従）」）
 - **スクロールバーを隠した撮影だけで、頁の高さの決め方（`height: 100%` と `100vh`）を担保しない。** Playwright のヘッドレス Chromium はスクロールバーを隠すので、横スクロールバーが出る窓でもこの差は 0 になり、3 経路すべてが緑のまま通る。
-  feature モードでは `capture_conditions.scrollbars`（撮影時の扱い）と `capture_conditions.overflow`（スクロールバーを表示した、頁の最小幅より狭い窓での縦・横のはみ出し）を**キーごと省略しない**
-  （[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）
+  feature モードでは `capture_conditions.scrollbars`（撮影時の扱い）と `capture_conditions.overflow`（スクロールバーを表示した、頁の最小幅より狭い窓での縦・横のはみ出し）を**キーごと省略しない**。
+  **撮影時の扱いの既定は `shown`**（`--hide-scrollbars` を外して撮る）——隠すと、器のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差も消える（Issue #495）。
+  `hidden` で撮るなら `scrollbars_reason` に理由を、`shown` なら撮ったバーの出どころを `scrollbar_environment` に書き、内部スクロール器には論理名を付けて `traits.elements` に入れる
+  （[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」「撮る範囲の決め方」）
 - **採取環境でだけ成立する一致を「一致」として扱わない。** 総称ファミリーのフォントフォールバック等は採取環境では差分ゼロになり、利用者環境でだけ壊れる。
   `viewer_environment` は `一致: <確かめ方>` か `乖離: <内容と gaps.md の該当箇所>` で書き、**「未確認」のまま完了させない**（`capture-scope-check.mjs` が落とす）。
   確かめる手段は target の `browser.cdp_url` で利用者環境のブラウザへ接続して撮ること（[`references/baseline.md`](references/baseline.md)「採取環境と利用者環境の乖離」）
@@ -217,7 +219,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    **続けて寸法の決まり方を測る**——`traits.elements` の全論理名を、撮影したビューポートを含み幅と高さを独立に動かした 4 窓以上で読む
    （`dimension/` の測定スペックを `PARITY_DIMENSION_CAPTURE=1` 付きで `current` に走らせ、`dimension-samples.json` を書く。手順 7 の強度ゲートなど他の実行では渡さず上書きさせない。当てはめは手順 8）。
    **あわせてスクロールバーを表示した窓のはみ出しを測る**——`overflow/` の測定スペックを `PARITY_OVERFLOW_CAPTURE=1` 付きで `current` に単独で走らせ、`capture_conditions.overflow` を書かせる（手で転記しない）。
-   同じスペックは通常の実行でこの記録を期待値として現・新の両側に当てる。撮影時にスクロールバーが場所を取ったかは `capture_conditions.scrollbars` に書く（[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）。
+   同じスペックは通常の実行でこの記録を期待値として現・新の両側に当てる。撮影時にスクロールバーが場所を取ったかは `capture_conditions.scrollbars` に書く（既定は `shown`。撮影・特性採取・範囲の実測を走らせる `current` プロジェクトの `launchOptions` で `--hide-scrollbars` を外す。[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」）。
    撮影状態は**手順 5 で被覆表から導いた集合**（`visual_state_coverage.rows` の `captured`）を土台に、操作で開く器を再帰的に数えた `capture_conditions.popup_inventory` の撮る器と、
    操作から導けない状態（`error` / 初期表示のバリアント）と、反応の被覆表の `aftermath` で撮ると決めた状態を足して決め（**撮る前に表示を切り替える軸を数えて `capture_conditions.display_axes` を書き、基準の組に加えて既定以外の値の変種も同じページ × 状態で撮る**。
    値は操作アダプタ `applyDisplayAxes` で基準の組にも明示して当てる。[`references/baseline.md`](references/baseline.md)「表示を切り替える軸（掛け合わせずに撮る）」）（導出も棚卸しも通常の状態一覧を置き換えない）、各状態は撮る対象の矩形が落ち着くまで待ってから撮る（2 回撮りの一致は待ちの代わりにならない）。詳細: [`references/baseline.md`](references/baseline.md)。
@@ -239,7 +241,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    **`--metadata` を省かない**——省くと撮影状態を `capture_conditions.states` と照合しないまま `conformance.visual_states.checked: false` で通り、`parity-diff` が収束させない
    （撮影状態を確定した `metadata.json` を書いた後に通す）。
    feature モードでは `node <skill>/scripts/capture-scope-check.mjs --metadata <metadata.json>` も **exit 0 まで通す**
-   （`noise_baseline` と `capture_scope` を突き合わせるため、ノイズ基準値と範囲の実測を書いた後に通す。`scrollbars` と `overflow`、表示の軸 `display_axes`（変種の撮り漏れは `#not-captured` の穴）・`viewer_environment`・`browser` の記録もここで数える。コピーせずスキル配下から実行する）。
+   （`noise_baseline` と `capture_scope` を突き合わせるため、ノイズ基準値と範囲の実測を書いた後に通す。`scrollbars`（`hidden` の理由・`shown` の環境）と `overflow`、
+   内部スクロール器の `overflow_x` / `overflow_y` / `bar` と `traits.elements` への採り漏れ（`untraced:<名前>` の穴）、表示の軸 `display_axes`（変種の撮り漏れは `#not-captured` の穴）・`viewer_environment`・`browser` の記録もここで数える。コピーせずスキル配下から実行する）。
    穴が残るなら範囲を広げて採り直すか、`capture_scope_exemptions` に理由と `gaps.md` の該当箇所を書く（**exit 0 を作るために実測値を丸めない**）。
    `capture_conditions.dimension_model` は `node <skill>/scripts/dimension-fit.mjs fit --samples .replace/parity/<slug>/dimension-samples.json --metadata <metadata.json> --write` を exit 0 まで通して書かせる
    （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。

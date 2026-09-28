@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "trait-compare.test.js のうち、文字の持ち主（text_owners）の照合（Issue #459）の検出能力を示す変異の一覧。",
+    "trait-compare.test.js のうち、文字の持ち主（text_owners）の照合（Issue #459）と、スクロールする器の特性（scroll。Issue #495）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -49,8 +49,8 @@
       "id": "no-tolerance",
       "why": "文字の幅の合計・高さを許容誤差なしで比べる（高さ 14 と 15 の 1px の揺れまで差分に出す）",
       "file": "skills/parity-suite/scripts/trait-compare.mjs",
-      "find": "Math.abs(e - a) > tol",
-      "replace": "e !== a",
+      "find": "Math.abs(e - a) > tol) {\n        out.push({",
+      "replace": "e !== a) {\n        out.push({",
       "occurrences": 1,
       "expect_failing": [
         "要素の計算値が一致していても、文字を描く子孫の書体・大きさ・幅の差を出す",
@@ -77,6 +77,42 @@
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": ["折り返しの行数が違えば行数の差だけを出し、幅の合計は比べない"]
+    },
+    {
+      "id": "scroll-not-compared",
+      "why": "両側が scroll を持っても照合しない（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "      diffScroll(base.name, base.scroll ?? null, cap.scroll ?? null, tol, out);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "横のバーが出るか出ないかの差を kind scroll で出す",
+        "縦のバーの幅 の差を出す",
+        "横のはみ出し の差を出す",
+        "縦のはみ出し の差を出す",
+        "バーの幅の差は alignTolerance の内側なら出さない",
+        "見た目の宣言と ::-webkit-scrollbar 系の計算値の差を、擬似要素ごとに出す",
+        "器かどうかの差（片側だけ null）を出す",
+        "::-webkit-scrollbar を読めない側がある（片側だけ unsupported）"
+      ]
+    },
+    {
+      "id": "scroll-bar-exact",
+      "why": "スクロールバーの厚みを alignTolerance なしで比べる（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    if (typeof e !== \"number\" || typeof a !== \"number\" || Math.abs(e - a) > tol) {\n      push(",
+      "replace": "    if (e !== a) {\n      push(",
+      "occurrences": 1,
+      "expect_failing": ["バーの幅の差は alignTolerance の内側なら出さない"]
+    },
+    {
+      "id": "scroll-webkit-unsupported-ignored",
+      "why": "片側だけ ::-webkit-scrollbar を読めない差を出さない（Issue #495）",
+      "file": "skills/parity-suite/scripts/trait-compare.mjs",
+      "find": "    if (ew !== aw) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["::-webkit-scrollbar を読めない側がある（片側だけ unsupported）"]
     }
   ]
 }

@@ -1,5 +1,6 @@
 // 文字の持ち主（text_owners）の照合の回帰テスト（Issue #459）。
 // 名前を付けた要素の計算値が一致していても、文字を描く子孫の書体・大きさの差を kind "text" で出すこと。
+// スクロールする器の特性（scroll）の照合（Issue #495）。
 
 import { expect, test } from "vitest";
 import { dirname, join } from "node:path";
@@ -39,8 +40,8 @@ const trait = (textOwners, name = "toolbar.settings") => ({
   ...(textOwners === undefined ? {} : { text_owners: textOwners }),
 });
 
-test("VERSION は 2（text_owners の照合を足した）", () => {
-  expect(VERSION).toBe("2");
+test("VERSION は 3（scroll の照合を足した）", () => {
+  expect(VERSION).toBe("3");
 });
 
 // 実測（Chrome 149）: 現行 <button><div><span>設定</span></div></button> と新側 <button>設定</button>。
@@ -176,4 +177,91 @@ test.each([
 
 test("両側とも text_owners を持たない（旧版どうし）なら文字の照合はしない", () => {
   expect(compareTraits([trait(undefined)], [trait(undefined)])).toEqual([]);
+});
+
+// スクロールする器（Issue #495）。値は Chrome 149 の実測: 628×298 の器・中身 628 幅で、スクロールバーが場所を取る撮影では
+// 現行（overflow: auto）は縦横とも 15px、新側（overflow-x: hidden）は横のバーが出ない。
+const scrollOf = (overrides = {}) => ({
+  overflowing_x: true,
+  overflowing_y: true,
+  vertical_bar_px: 15,
+  horizontal_bar_px: 15,
+  style: { "scrollbar-width": "auto", "scrollbar-color": "auto", "scrollbar-gutter": "auto" },
+  webkit: {
+    "::-webkit-scrollbar": { width: "auto", "background-color": "rgba(0, 0, 0, 0)" },
+    "::-webkit-scrollbar-thumb": { width: "auto", "border-top-left-radius": "0px" },
+  },
+  ...overrides,
+});
+const grid = (scroll) => ({ ...trait([], "dialog.grid"), scroll });
+
+test("横のバーが出るか出ないかの差を kind scroll で出す", () => {
+  const diffs = compareTraits([grid(scrollOf())], [grid(scrollOf({ horizontal_bar_px: 0 }))]);
+  expect(diffs).toEqual([
+    {
+      name: "dialog.grid",
+      kind: "scroll",
+      prop: "scroll/horizontal_bar_px",
+      expected: "15",
+      actual: "0",
+    },
+  ]);
+});
+
+test.each([
+  ["縦のバーの幅", { vertical_bar_px: 0 }, "scroll/vertical_bar_px"],
+  ["横のはみ出し", { overflowing_x: false }, "scroll/overflowing_x"],
+  ["縦のはみ出し", { overflowing_y: false }, "scroll/overflowing_y"],
+])("%s の差を出す", (_label, override, prop) => {
+  const diffs = compareTraits([grid(scrollOf())], [grid(scrollOf(override))]);
+  expect(diffs.map((d) => [d.kind, d.prop])).toEqual([["scroll", prop]]);
+});
+
+test("バーの幅の差は alignTolerance の内側なら出さない", () => {
+  expect(compareTraits([grid(scrollOf())], [grid(scrollOf({ vertical_bar_px: 16 }))])).toEqual([]);
+  expect(
+    compareTraits([grid(scrollOf())], [grid(scrollOf({ vertical_bar_px: 17 }))]).map((d) => d.prop),
+  ).toEqual(["scroll/vertical_bar_px"]);
+});
+
+test("見た目の宣言と ::-webkit-scrollbar 系の計算値の差を、擬似要素ごとに出す", () => {
+  const actual = scrollOf({
+    style: { ...scrollOf().style, "scrollbar-width": "thin" },
+    webkit: {
+      ...scrollOf().webkit,
+      "::-webkit-scrollbar-thumb": { width: "auto", "border-top-left-radius": "4px" },
+    },
+  });
+  const diffs = compareTraits([grid(scrollOf())], [grid(actual)]);
+  expect(diffs.map((d) => [d.kind, d.prop, d.expected, d.actual])).toEqual([
+    ["scroll", "scroll/scrollbar-width", "auto", "thin"],
+    ["scroll", "scroll/::-webkit-scrollbar-thumb/border-top-left-radius", "0px", "4px"],
+  ]);
+});
+
+test("器かどうかの差（片側だけ null）を出す", () => {
+  expect(compareTraits([grid(scrollOf())], [grid(null)])).toEqual([
+    { name: "dialog.grid", kind: "scroll", prop: "scroll", expected: "present", actual: "absent" },
+  ]);
+  expect(compareTraits([grid(null)], [grid(null)])).toEqual([]);
+});
+
+test.each([
+  ["片側だけ unsupported", scrollOf(), scrollOf({ webkit: "unsupported" }), ["scroll/webkit"]],
+  [
+    "両側 unsupported",
+    scrollOf({ webkit: "unsupported" }),
+    scrollOf({ webkit: "unsupported" }),
+    [],
+  ],
+])("::-webkit-scrollbar を読めない側がある（%s）", (_label, expected, actual, props) => {
+  expect(compareTraits([grid(expected)], [grid(actual)]).map((d) => d.prop)).toEqual(props);
+});
+
+test("片側だけが scroll のキーを持つ（採取ツールの版違い）なら missing で出す", () => {
+  const legacy = trait([], "dialog.grid");
+  expect(compareTraits([grid(null)], [legacy])).toEqual([
+    { name: "dialog.grid", kind: "missing", prop: "scroll", expected: "present", actual: "absent" },
+  ]);
+  expect(compareTraits([legacy], [legacy])).toEqual([]);
 });

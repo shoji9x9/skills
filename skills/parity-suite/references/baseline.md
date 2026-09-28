@@ -11,7 +11,7 @@
 | 要素 | 中身 | 用途 |
 |---|---|---|
 | スクリーンショット | 画面の画素 | 名前の付かない要素の見た目差を `parity-diff` の画素経路＋トリアージが扱う |
-| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）＋1 段下の子の inline style（`child_inline_styles`。診断材料であり照合には使わない）＋**文字の持ち主**（`text_owners`。部分木で文字を描いている要素ごとの書体・大きさ・行の高さと文字の寸法。照合する）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
+| 論理名付き要素の特性 | 固定プロパティ集合（padding / margin / font 系 / color / background-color / border-radius ＋ `cursor` / `user-select` / `pointer-events`）＋擬似要素（`::before` / `::after`）＋`getBoundingClientRect()` の**相対幾何**（絶対座標は比較に使わない）＋1 段下の子の inline style（`child_inline_styles`。診断材料であり照合には使わない）＋**文字の持ち主**（`text_owners`。部分木で文字を描いている要素ごとの書体・大きさ・行の高さと文字の寸法。照合する）＋**スクロールする器の特性**（`scroll`。はみ出しの有無・スクロールバーが取った幅と高さ・スクロールバーの見た目の宣言。照合する）。[`coverage.md`](coverage.md) で遷移させた各状態で採る | DOM 構造が同じで見た目だけ違う事象を、名前付き要素については決定論的に捉える |
 | 参考 aria スナップショット | 採取した aria | **参考資料であって assertion ではない**（assertion は手書き。[`coverage.md`](coverage.md)） |
 
 - **特性照合の対象は論理名付き要素に絞る。** 名前の付かない要素の見た目差はスクリーンショット（画素経路）が担う
@@ -34,6 +34,13 @@
   視覚的に隠した文字（1px の箱に閉じ込めた sr-only・`text-indent` で箱の外へ逃がした文字）は数えず、ボタンとして描く `<input>`（submit / button / reset）の `value` は数える。
   寸法は持ち主の端の空白を外して測る（境目の空白がどちらの持ち主に付くかで幅を変えない）。`value` 属性の無い submit / reset の既定の文言は DOM から読めないので、文字列を空にした行として数える（書体だけを照合する）。
   閉じたシャドウルートの中の文字と、文字入力欄の `value` は採れない
+- **スクロールバーが場所を取ったか・取った結果はみ出したかは、`overflow-x` / `overflow-y` の計算値には出ない。** 採取ツールは器（`overflow-x` / `overflow-y` の片方でも `visible` / `clip` でない、`display: inline` でない HTML 要素）ごとに
+  `scroll` を記録する——はみ出しの有無（`overflowing_x`: `scrollWidth > clientWidth`、`overflowing_y`）、縦のバー（とガター）が取った幅 `vertical_bar_px` と横のバーが取った高さ `horizontal_bar_px`（`offsetWidth − clientWidth` から枠を除く）、
+  見た目の宣言（`scrollbar-width` / `scrollbar-color` / `scrollbar-gutter` と、`::-webkit-scrollbar` / `-thumb` / `-track` / `-corner` / `-button` の幅・高さ・背景・角の丸み・枠の計算値）。
+  差分器は `kind: "scroll"` で照合する（厚みは `align_tolerance` 付き）。器でない要素は `null`。`::-webkit-scrollbar` を持たないブラウザでは擬似要素の値を `"unsupported"` にする（空の値で両側が一致したように見せない）。
+  実例（Issue #495）: ダイアログの中のデータグリッドで、現行は `overflow: auto`、新側は `overflow-x: hidden`。バーが場所を取ると現行は縦のバーの 15px で中身（628px）がはみ出して横のバーが出るが、新側は右端の 15px が切れる。
+  **バーを隠して撮ると両側とも「はみ出し無し・厚み 0」に揃い、この差は消える**——`scroll` が効くのは撮影時の扱いが `scrollbars: shown` のときだけ（下の「スクロールバーが場所を取る窓のはみ出し」）。
+  器に論理名が無いと `scroll` は採られないので、`capture_scope` が数えた内部スクロール器の名前は `traits.elements` に入れる（入れない器は `untraced:<名前>` の穴になる。下の「撮る範囲の決め方」）
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
   固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。
   **`parity-component` は要素の矩形だけを撮る**ので「写らないもの」がさらに増える——矩形の外に描かれる `box-shadow`、下地に依存して弁別できない `opacity`、
@@ -54,7 +61,7 @@
 
 **同一環境・同一ビューポート・アニメーション無効（`animations: 'disabled'`）・動的領域のマスク。** 条件を `metadata.json` に残し、`parity-diff` が新側を同一条件で撮れるようにする。
 **撮影範囲（全画面かビューポート内か）も `capture_conditions.full_page` に残す**——記録しないと新側が決め打ちで撮り、画像サイズの違いが全面差分として出る。
-**スクロールバーが場所を取ったかも `capture_conditions.scrollbars` に残す**——片側だけ場所を取ると見える幅と高さが厚みの分ずれる。隠れた撮影で拾えない差は下の「スクロールバーが場所を取る窓のはみ出し」が持つ。
+**スクロールバーが場所を取ったかも `capture_conditions.scrollbars` に残す**——片側だけ場所を取ると見える幅と高さが厚みの分ずれる。**既定は `shown`**（`--hide-scrollbars` を外して撮る）で、`hidden` で撮るなら理由を `scrollbars_reason` に書く。詳細は下の「スクロールバーが場所を取る窓のはみ出し」。
 **表示を切り替える軸（ロケール・配色テーマ等）の値と、撮影に使ったブラウザも残す**——既定の 1 値だけで撮った差・採取環境でだけ成立する一致は 3 経路のどれにも写らない（下の「表示を切り替える軸（掛け合わせずに撮る）」「採取環境と利用者環境の乖離」）。
 
 マスクは用途を混ぜない。`capture_conditions.masks` は認証情報・トークン・個人情報・揮発項目を成果物へ残さないための**恒久マスク**とし、方針は [`auth.md`](auth.md) に従う。
@@ -193,6 +200,8 @@
 |---|---|
 | `below-fold` / `beyond-right` | 文書（`scrollWidth` / `scrollHeight`）が撮影領域より大きい。`full_page: false` で下・右が切れている |
 | `scroll:<器の名前>` | 内部スクロール器の中身が可視部より大きい（仮想スクロール・固定高のグリッド）。**画素にも特性にも出ない** |
+| `untraced:<器の名前>` | 内部スクロール器の名前が `traits.elements` に無い。**スクロールバーの有無・厚み・見た目（trait-capture.mjs の `scroll`）が特性照合に写らない**（Issue #495） |
+| `scrollbar-hidden:<器の名前>` | `scrollbars: shown` で撮ったのに、`auto` / `scroll` の向きにはみ出した器でその向きのバーの厚みが 0。`--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバー（後者なら理由を宣言する） |
 | `offscreen:<論理名>` | 論理名付き要素が撮影領域の外にある。特性は採れても画素には写らない |
 
 実測は撮る直前に 1 回で採る（`full_page: true` なら撮影領域は文書と同じ寸法になるので、穴は 0 件として数えられる）。
@@ -204,18 +213,43 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
   const root = document.documentElement;
   const doc = { width: root.scrollWidth, height: root.scrollHeight };
   const captured = fullPage ? doc : { width: window.innerWidth, height: window.innerHeight };
-  const scroll_containers = [...document.querySelectorAll("*")]
-    .filter((el) => {
+  // はみ出した器に加えて、はみ出していなくてもスクロールバー（とガター）が場所を取っている器も数える
+  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）。
+  // 器の判定は trait-capture.mjs と同じ（overflow-x / overflow-y の片方でも visible / clip でない、inline でない）。
+  // ただし hidden の向きではみ出しただけの器（省略記号で切った文字等）は、バーもガターも取らないので数えない
+  // 開いたシャドウルートの中の器も数える（document.querySelectorAll は light DOM しか返さない。Codex レビュー #501）
+  const allElements = (root) =>
+    [...root.querySelectorAll("*")].flatMap((el) => [el, ...(el.shadowRoot ? allElements(el.shadowRoot) : [])]);
+  const scroll_containers = allElements(document)
+    .map((el) => {
       const style = getComputedStyle(el);
-      const scrollable = /(auto|scroll)/.test(`${style.overflowX} ${style.overflowY}`);
-      return scrollable && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+      const clipsNothing = (value) => value === "visible" || value === "clip";
+      if (clipsNothing(style.overflowX) && clipsNothing(style.overflowY)) return null;
+      // inline の要素には overflow が効かず client が 0 になり、bar が文字の寸法に化ける（trait-capture.mjs と同じ除外）
+      if (style.display === "inline") return null;
+      const border = (side) => parseFloat(style.getPropertyValue(`border-${side}-width`)) || 0;
+      // スクロールバー（とガター）が取った幅・高さ。枠を除く（trait-capture.mjs の scroll と同じ式）
+      const bar = {
+        vertical: Math.round(el.offsetWidth - el.clientWidth - border("left") - border("right")),
+        horizontal: Math.round(el.offsetHeight - el.clientHeight - border("top") - border("bottom")),
+      };
+      // バーを描く向き（auto / scroll）でのはみ出し。hidden の向きのはみ出しは切っているだけ
+      const scrolls = (value) => value === "auto" || value === "scroll";
+      const overflowing =
+        (scrolls(style.overflowY) && el.scrollHeight > el.clientHeight) ||
+        (scrolls(style.overflowX) && el.scrollWidth > el.clientWidth);
+      if (!overflowing && bar.vertical === 0 && bar.horizontal === 0) return null;
+      return {
+        // name は書き手が付ける（論理名で引ける器はその論理名。hint は名前を決めるための手がかりで、記録には残さない）
+        hint: `${el.tagName.toLowerCase()}.${el.className}`,
+        client: { width: el.clientWidth, height: el.clientHeight },
+        scroll: { width: el.scrollWidth, height: el.scrollHeight },
+        overflow_x: style.overflowX,
+        overflow_y: style.overflowY,
+        bar,
+      };
     })
-    .map((el) => ({
-      // name は書き手が付ける（論理名で引ける器はその論理名。hint は名前を決めるための手がかりで、記録には残さない）
-      hint: `${el.tagName.toLowerCase()}.${el.className}`,
-      client: { width: el.clientWidth, height: el.clientHeight },
-      scroll: { width: el.scrollWidth, height: el.scrollHeight },
-    }));
+    .filter(Boolean);
   const outside = Object.entries(namedSelectors).filter(([, selector]) => {
     const el = document.querySelector(selector);
     if (!el) return false;
@@ -238,7 +272,11 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
 }, { fullPage, namedSelectors });
 ```
 
-- **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない
+- **器の名前は論理名で付ける**（引けないときだけ構造で特定できる名前にする）。**この名前が宣言の鍵**なので、実行ごとに変わる名前にしない。
+  論理名をロケータマッピングに足して `traits.elements` にも入れる——入れないとスクロールバーの差が特性照合に写らず `untraced:<名前>` の穴になる
+- **はみ出していない器でも、スクロールバー（とガター）が場所を取っていれば数える**（`overflow: scroll`・`scrollbar-gutter: stable`。`overflow: hidden` でガターを取る器も含む）。場所を取るバーも特性照合の対象になる
+- **器ごとに `overflow_x` / `overflow_y`（計算値）と `bar`（`vertical`: 縦のバーの幅・`horizontal`: 横のバーの高さ。枠を除く）も書く。** 欠落・語彙外・負の値は落ちる。
+  `scrollbars: shown` で撮ったのに、`auto` / `scroll` の向きにはみ出した器でその向きの `bar` が 0 なら `scrollbar-hidden:<名前>` の穴になる（バーが場所を取らないまま測っている）
 - **器が 1 つも無い組は `scroll_containers: []` と書く**（キーの欠落は「数えていない」と区別できない。`named_elements_outside` も同じ）
 - **寸法は実測値（正の数）で埋める。** テンプレートの `0` を残した組は「測っていない」として落ちる——
   0×0 のまま比較すると穴が 1 つも出ず、**測っていない組が穴の無い組と同じ見え方**になる
@@ -452,8 +490,18 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 
 **最小幅を持つ業務画面では、狭い窓で必ず踏む差**なので、feature モードでは次の 2 つを `metadata.json` の `capture_conditions` に残す（形式はテンプレート `assets/metadata-template.json`）。
 
-- **`scrollbars`**: ベースラインを撮ったときにスクロールバーが場所を取ったか（`hidden` / `shown`）。Playwright のヘッドレス Chromium の既定は `hidden`。
-  `parity-diff` の新側採取は同じ扱いで撮る（片側だけ場所を取ると、見える幅と高さが厚みの分ずれて全面差分になる）
+- **`scrollbars`**: ベースラインを撮ったときにスクロールバーが場所を取ったか（`hidden` / `shown`）。**既定は `shown`**（Issue #495）——Playwright のヘッドレス Chromium の既定は `hidden` なので、
+  撮影・特性採取・範囲の実測を走らせるプロジェクト（`current` と `parity-diff` の `new-capture`）の `use.launchOptions` に `ignoreDefaultArgs: ["--hide-scrollbars"]` を足して撮る
+  （プロジェクトに `launchOptions` が既にあれば、その値に足す）。`parity-diff` の新側採取は同じ扱いで撮る（片側だけ場所を取ると、見える幅と高さが厚みの分ずれて全面差分になる）。
+  **`hidden` で撮るなら `scrollbars_reason` に理由を書き**、同じ内容を `gaps.md` に残す——隠した撮影では、バーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・
+  バーの見た目の差が 3 経路のどれにも写らない（器の `scroll` も両側「厚み 0」に揃う。上の「3 点セット」）。理由の無い `hidden` は `capture-scope-check.mjs` が落とす。
+  **起動引数を設定しただけで「shown で撮った」としない**——`cdp`（利用者環境のブラウザへの接続）では `launchOptions` が効かず、接続先の起動の仕方で決まる。
+  撮影の最初に、撮影に使うページ（頁へ移動する前の `about:blank`。確かめるのはブラウザの起動の仕方で、頁の CSS ではない）へ `overflow: scroll` の箱を 1 つ置いてバーの幅（`offsetWidth − clientWidth`）を読み、`shown` なのに 0・`hidden` なのに 0 でなければ撮らない
+  （`parity-diff` の新側採取の雛形も同じ実測で止める）
+- **`scrollbar_environment`**（`shown` のとき）: どの OS・ブラウザの、どの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: `Linux の headless Chromium 140（クラシック・15px）`）。
+  **スクロールバーの描き方は OS とブラウザで変わる**ので、採取環境で撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない。
+  利用者環境のバーが違う種類なら（例: 利用者は macOS のオーバーレイ）、`viewer_environment` を「乖離」にして `gaps.md` に残すか、
+  表示の軸の候補 `scrollbar-appearance` として値ごとに撮る（下の「表示を切り替える軸」）。欠落・プレースホルダは `capture-scope-check.mjs` が落とす
 - **`overflow`**: スクロールバーを表示させた窓（`scrollbars: shown`）での縦・横のはみ出し。**キーごと省略しない**——測れないなら `status: not_measured` と `reason` を書き、同じ理由を `gaps.md` に残す
 
 測る窓は測定スペックが頁ごとに導く。撮影したビューポートに加えて、頁が最小幅を持つなら次の 2 窓を足す（**幅と高さを手で選ばない**）:
@@ -729,9 +777,10 @@ if (capturing) {
 （実測: English / Japanese の 2 値の画面を English だけで作り、新側がロケールに追従しないまま `parity-replace` の完了判定と `parity-diff` の反復を通った。利用者が Japanese で開いて初めて気づいた）。
 
 **軸は数えて `capture_conditions.display_axes` に残す**（形式はテンプレート `assets/metadata-template.json`）。数え方は同梱の候補の一覧から始める——
-`scripts/capture-scope-check.mjs` の `AXIS_CANDIDATES` が正本で（ロケール・文字の方向・数値と日付の書式・配色テーマ・`forced-colors`・`prefers-contrast`・文字の大きさと拡大率・DPR・`prefers-reduced-motion`・権限／ロールで変わる表示・印刷。ここへ転記しない）、
+`scripts/capture-scope-check.mjs` の `AXIS_CANDIDATES` が正本で（ロケール・文字の方向・数値と日付の書式・配色テーマ・`forced-colors`・`prefers-contrast`・文字の大きさと拡大率・DPR・`prefers-reduced-motion`・権限／ロールで変わる表示・印刷・スクロールバーの出方。ここへ転記しない）、
 **全件を `axes`（在る）か `absent`（無い）のどちらかに 1 回だけ振り分ける**。振り分けていない候補は落ちる（思いつかなかった軸と、無いと確かめた軸を同じ見え方にしない）。
-一覧に無い軸は `candidate: "other"` で足す。スクロールバーの出方は `scrollbars` / `overflow` が持つので含めない。
+一覧に無い軸は `candidate: "other"` で足す。スクロールバーの出方（常に表示・オーバーレイ）は利用者の OS・ブラウザの設定で変わるので候補 `scrollbar-appearance` として数える
+（採取環境で撮るバーが場所を取るかは別に `scrollbars` / `overflow` が持つ）。
 
 - **在る軸には来歴を付ける**（根拠の欄にテンプレートの `<…>` や TODO・未確認のまま残した値は数えない）——値の一覧（`values`）・基準の組を撮った値（`default`）・値の一覧をどこから数えたか（`source`）・値の当て方（`apply`）。
   **既定値もブラウザや OS に委ねず明示して当てる**（Playwright の既定ロケールや OS の配色で決まる値は、採取環境と新側の撮影環境で変わりうる）
@@ -772,6 +821,9 @@ if (capturing) {
   **「未確認」と確かめ方の無い「一致」は落ちる**（`一致: 未確認` / `一致: TODO` のように後ろがプレースホルダの形も落ちる。語彙の正本は `capture-scope-check.mjs` の `UNCONFIRMED_BODY`）——未確認のまま収束すると、採取環境でだけ成立する一致が誰にも見えないまま残る。
   撮影に使ったブラウザ（`launched` か `cdp`）は `capture_conditions.browser` に、`cdp` では接続先の同一性を `browser_identity` に残す（`parity-diff` の新側採取が同じ扱い・同じ利用者環境で撮るために読む）
 - 総称ファミリー由来でなくても、**採取環境の既定値に解決される指定**（システムフォント・システム色・OS 既定のフォームコントロール外観）は同じ穴を持つ。フォントスタックだけを見て済ませない
+- **スクロールバーも OS 既定の外観に解決される。** クラシック（場所を取る）かオーバーレイ（場所を取らない）か、厚み・色は OS・ブラウザ・利用者の設定で変わるので、
+  採取環境で撮ったバーを利用者環境の見え方の根拠にしない。撮ったバーの出どころは `scrollbar_environment` に残し、利用者環境のバーと種類が違えば `viewer_environment` を「乖離」にする
+  （上の「スクロールバーが場所を取る窓のはみ出し」。値ごとに撮るなら表示の軸 `scrollbar-appearance`）
 
 ## ノイズ基準値
 
