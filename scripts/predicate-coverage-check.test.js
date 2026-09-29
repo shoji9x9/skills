@@ -968,6 +968,11 @@ test.each([
     "id-range-disposition-vocabulary",
   ],
   [
+    "届くのに扱いが空欄（- と書き分ける）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く |  | 読了 |",
+    "id-range-disposition-vocabulary",
+  ],
+  [
     "届くかが空欄",
     "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし |  | - | 読了 |",
     "id-range-reach-vocabulary",

@@ -908,10 +908,11 @@ export function checkPredicateCoverage(input) {
         continue;
       }
       if (reach === "届く") {
-        if (disposition !== "" && disposition !== NONE_SENTINEL) {
+        // 空欄は受けない——空欄は未調査で、`-` だけが「届くので何もしない」と決めた記録（書き分けの規律）。
+        if (disposition !== NONE_SENTINEL) {
           findings.push({
             code: "id-range-disposition-vocabulary",
-            message: `識別子の値の範囲の ${label} は届くのに扱いが「${disposition}」（届く行の扱いは -）`,
+            message: `識別子の値の範囲の ${label} は届くのに扱いが「${disposition || "（空欄）"}」（届く行の扱いは -）`,
           });
         }
         continue;

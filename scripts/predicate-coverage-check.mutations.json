@@ -139,10 +139,13 @@
       "id": "id-range-reached-disposition-ignored",
       "why": "届く行に扱いが書いてあっても落とさない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "if (disposition !== \"\" && disposition !== NONE_SENTINEL) {",
+      "find": "if (disposition !== NONE_SENTINEL) {",
       "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["識別子の値の範囲の不備: 届くのに扱いがある"]
+      "expect_failing": [
+        "識別子の値の範囲の不備: 届くのに扱いがある",
+        "識別子の値の範囲の不備: 届くのに扱いが空欄（- と書き分ける）"
+      ]
     },
     {
       "id": "id-range-cell-blank-ignored",
@@ -223,6 +226,15 @@
         "識別子の値の範囲の不備: gaps に記録の根拠が空欄",
         "識別子の値の範囲の不備: 行を足すの根拠が空欄"
       ]
+    },
+    {
+      "id": "id-range-reached-blank-accepted",
+      "why": "届く行の扱いの空欄を - と同じに受ける",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (disposition !== NONE_SENTINEL) {",
+      "replace": "if (disposition !== \"\" && disposition !== NONE_SENTINEL) {",
+      "occurrences": 1,
+      "expect_failing": ["識別子の値の範囲の不備: 届くのに扱いが空欄（- と書き分ける）"]
     }
   ]
 }
