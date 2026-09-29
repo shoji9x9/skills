@@ -20,8 +20,13 @@
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）。
 //      side_effect_writes.declared: true なら、表に書いた書き込みのパターンで同じく走査して sites と突き合わせる
-//   4. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
-//   --recorded: ソースを走査せず、表の検査に加えて conformance.ok と表の指紋の一致を要求する
+//   4. 表の全ての covered_by を --tests（playwright test --list --reporter=json の出力）のテストへ解決し、
+//      1 本のテストを 2 行以上が名乗るなら全行に根拠（shared_assertion_reason）を要求する。あわせて、covered_by の assertion が
+//      期待値まで届いているかを実装役と別の subagent が 1 行ずつ監査した記録（assertion_audit）が今の表に対してあるかを数える（Issue #506。
+//      欄の検査は空でない文字列かまでしか見ないので、浅い assertion を名乗っても緑・収束した）。監査の入力は --audit-sheet が出す。
+//      監査の記録は表の指紋に加えて covered_by のスペックファイルの中身の指紋を持ち、監査の後に assertion を弱めたら落とす（--recorded も一覧を読んで取り直す）
+//   5. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
+//   --recorded: 移行元ソースを走査せず、表の検査に加えて conformance.ok と表の指紋の一致を要求する（テスト一覧〈--tests〉は要る）
 //   （parity-diff の実行環境に移行元ソースがあるとは限らないため。表を後から書き換えたら指紋で落ちる）
 //
 // 何をしないか: 反応の観測（出るまで待つ・消えるまで測る）はスイートと採取の仕事で、ここでは記録を検査するだけ。
@@ -42,7 +47,7 @@ import { fileURLToPath } from "node:url";
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "6";
+export const VERSION = "7";
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -214,7 +219,7 @@ export function readDeclaration(metadata) {
 }
 
 /**
- * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
+ * 表の指紋。conformance と assertion_audit を除いた内容をキー順に正規化して sha256 を取る。
  * @param {Record<string, unknown>} table
  * @returns {string}
  */
@@ -231,10 +236,323 @@ export function tableFingerprint(table) {
     }
     return v;
   };
-  const { conformance: _ignored, ...rest } = table;
+  // 監査の記録（assertion_audit）は表の指紋を写して持つ側なので、指紋の外に置く（入れると記録するたびに指紋が変わり一致しない）
+  const { conformance: _ignored, assertion_audit: _audit, ...rest } = table;
   return createHash("sha256")
     .update(JSON.stringify(canon(rest)))
     .digest("hex");
+}
+
+/** covered_by の名前でテストを指すときの区切り（Playwright の一覧表示と同じ）。 */
+const TITLE_SEPARATOR = " › ";
+
+/** covered_by のテストが走らなければならない Playwright の projects 名（locator-mapping.md の確定契約）。 */
+const REQUIRED_PROJECTS = ["current", "new"];
+
+/** 監査の判定の語彙。short（期待値に届いていない部分がある）は未解消として落ちる。 */
+const AUDIT_VERDICTS = ["reaches", "short"];
+
+/** 表を歩くときに covered_by の持ち主として数えない最上位のキー（記録側の欄）。 */
+const NON_TABLE_KEYS = new Set(["conformance", "assertion_audit"]);
+
+/**
+ * 表の中で covered_by を持つオブジェクト（持ち主）を全て列挙する。欄の位置を決め打ちせず表全体を歩く——
+ * 欄を足すたびに列挙を足す形にすると、足し忘れた欄の covered_by が解決・共有・監査のどれにも入らない（Issue #506）。
+ * path は JSON の位置（例: $.operations[0].reactions[1]）で、監査の記録（assertion_audit.entries[].path）の突き合わせに使う。
+ * @param {Record<string, unknown>} table
+ * @returns {{ path: string, owner: Record<string, unknown>, names: string[] }[]}
+ */
+export function coveredByOwners(table) {
+  return scanCoveredBy(table).owners;
+}
+
+/**
+ * coveredByOwners の走査本体。形の壊れた covered_by（配列でない・空文字や文字列以外の要素を持つ）の位置も返す——
+ * 欄の位置を列挙しない走査なので、未知の欄で形が壊れていると解決・共有・監査のどれにも入らず黙って消える（Issue #506）。
+ * 空配列と null は「名乗らない」として通す（撮る状態だけで押さえる行・source-only の書き込み等）。
+ * @param {Record<string, unknown>} table
+ */
+function scanCoveredBy(table) {
+  /** @type {{ path: string, owner: Record<string, unknown>, names: string[] }[]} */
+  const found = [];
+  /** @type {string[]} */
+  const malformed = [];
+  /** @param {unknown} v @param {string} path */
+  const walk = (v, path) => {
+    if (Array.isArray(v)) {
+      v.forEach((x, i) => walk(x, `${path}[${i}]`));
+      return;
+    }
+    if (!isPlainObject(v)) return;
+    if (Object.hasOwn(v, "covered_by") && v.covered_by !== null) {
+      if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
+      else if (v.covered_by.length > 0) found.push({ path, owner: v, names: v.covered_by });
+    }
+    for (const k of Object.keys(v)) {
+      // _note 等の注記（文字列）だけを飛ばす。_ で始まるキーの下の行は数える
+      if (k === "covered_by" || (k.startsWith("_") && typeof v[k] === "string")) continue;
+      if (path === "$" && NON_TABLE_KEYS.has(k)) continue;
+      walk(v[k], `${path}.${k}`);
+    }
+  };
+  walk(table, "$");
+  return { owners: found, malformed };
+}
+
+/**
+ * `playwright test --list --reporter=json` の出力から、covered_by に書く名前 → テストの索引を作る。
+ * 名前は「スペックのパス › describe の題 › テストの題」（パスは JSON の file そのまま＝Playwright の rootDir からの相対）。
+ * 同じ名前に別のテストが 2 つ以上当たるもの（題に区切りを含む等）は曖昧として記録し、解決に使わせない。
+ * 形式の出典: https://playwright.dev/docs/test-reporters#json-reporter と、@playwright/test 1.63.0 の --list の実測
+ * （spec は projects ごとに別の要素で並び、ファイル自体の suite は題がファイルパス。題の空の describe は一覧表示でも題に入らない）。
+ * @param {unknown} report
+ * @returns {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>}
+ */
+export function indexTestList(report) {
+  if (!isPlainObject(report) || !Array.isArray(report.suites)) {
+    throw new UsageError(
+      "--tests が playwright test --list --reporter=json の出力でない（suites が無い）",
+    );
+  }
+  if (!Array.isArray(report.errors)) {
+    throw new UsageError("--tests の errors が配列でない（一覧の取得が成功したか確かめられない）");
+  }
+  if (report.errors.length > 0) {
+    // 読み込みに失敗したスペックのテストは一覧から黙って消えるので、解決できない名前と区別が付かない
+    throw new UsageError(
+      `--tests の一覧に読み込みエラーが ${report.errors.length} 件ある（スペックを直して一覧を取り直す）`,
+    );
+  }
+  /** @type {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>} */
+  const index = new Map();
+  /** @param {unknown} suite @param {string[]} titles @param {boolean} top */
+  const walk = (suite, titles, top) => {
+    if (!isPlainObject(suite)) throw new UsageError("--tests の suites に不正な要素がある");
+    // ファイル自体の suite の題はファイルパスなので題の列に入れない。空の題の describe も入れない（一覧表示と同じ）
+    const here = top || !nonEmptyString(suite.title) ? titles : [...titles, suite.title];
+    for (const spec of Array.isArray(suite.specs) ? suite.specs : []) {
+      if (!isPlainObject(spec) || !nonEmptyString(spec.file) || typeof spec.title !== "string") {
+        throw new UsageError("--tests の specs に file / title の無い要素がある");
+      }
+      const path = [...here, spec.title];
+      const name = [spec.file, ...path].join(TITLE_SEPARATOR);
+      const key = JSON.stringify([spec.file, ...path]);
+      const entry = index.get(name) ?? {
+        keys: new Set(),
+        projects: new Set(),
+        file: spec.file,
+        line: typeof spec.line === "number" ? spec.line : null,
+      };
+      entry.keys.add(key);
+      for (const t of Array.isArray(spec.tests) ? spec.tests : []) {
+        if (isPlainObject(t) && nonEmptyString(t.projectName)) entry.projects.add(t.projectName);
+      }
+      index.set(name, entry);
+    }
+    for (const child of Array.isArray(suite.suites) ? suite.suites : []) walk(child, here, false);
+  };
+  for (const s of report.suites) walk(s, [], true);
+  if (index.size === 0) {
+    throw new UsageError(
+      "--tests の一覧にテストが 1 件も無い（一覧の取得が空のまま照合を通さない）",
+    );
+  }
+  return index;
+}
+
+/**
+ * covered_by を検査する（Issue #506）。
+ * - 解決: 名前が一覧のテストへ 1 つだけ解決し、current / new の両プロジェクトで走ること（testIndex があるときだけ）
+ * - 共有: 1 本のテストを 2 つ以上の持ち主が名乗るなら、全ての持ち主に shared_assertion_reason を要求する
+ *   （1 本の assertion が持ち主ごとの期待値を全て確かめている保証は無いので、同じテストで足りる根拠を書かせる）
+ * @param {ReturnType<typeof coveredByOwners>} owners
+ * @param {ReturnType<typeof indexTestList> | null} testIndex
+ * @returns {{ problems: string[], resolved: boolean }}
+ */
+export function coveredByProblems(owners, testIndex) {
+  /** @type {string[]} */
+  const problems = [];
+  /** @type {Map<string, string[]>} 名前 → 名乗った持ち主の位置 */
+  const uses = new Map();
+  let resolvable = 0;
+  for (const { path, names } of owners) {
+    if (new Set(names).size !== names.length) {
+      problems.push(`${path}.covered_by: 同じ名前が 2 回ある`);
+    }
+    for (const name of new Set(names)) {
+      uses.set(name, [...(uses.get(name) ?? []), path]);
+      if (testIndex === null) continue;
+      const hit = testIndex.get(name);
+      if (hit === undefined) {
+        problems.push(
+          `${path}.covered_by: "${name}" が --tests の一覧のどのテストにも解決しない（名前は「スペックのパス${TITLE_SEPARATOR}describe の題${TITLE_SEPARATOR}テストの題」。--audit-sheet の出力か一覧から写す）`,
+        );
+      } else if (hit.keys.size > 1) {
+        problems.push(
+          `${path}.covered_by: "${name}" が ${hit.keys.size} 本のテストに当たり曖昧（題を変えて 1 本に決まる名前にする）`,
+        );
+      } else {
+        const absentIn = REQUIRED_PROJECTS.filter((p) => !hit.projects.has(p));
+        if (absentIn.length === 0) resolvable += 1;
+        else {
+          problems.push(
+            `${path}.covered_by: "${name}" が ${absentIn.join(" / ")} プロジェクトで走らない（現側専用・新側専用のスペックは両側の合否を押さえない）`,
+          );
+        }
+      }
+    }
+  }
+  for (const [name, paths] of uses) {
+    if (paths.length < 2) continue;
+    const lacking = paths.filter((p) => {
+      const o = owners.find((x) => x.path === p);
+      return !o || !nonEmptyString(o.owner.shared_assertion_reason);
+    });
+    if (lacking.length > 0) {
+      problems.push(
+        `テスト "${name}" を ${paths.join(" / ")} が covered_by に名乗っている（1 本で各行の期待値を全て確かめている根拠を全行の shared_assertion_reason に書くか、行ごとにテストを分ける。根拠が空: ${lacking.join(" / ")}）`,
+      );
+    }
+  }
+  const total = owners.reduce((n, o) => n + new Set(o.names).size, 0);
+  return {
+    problems,
+    resolved: testIndex !== null && resolvable === total && problems.length === 0,
+  };
+}
+
+/**
+ * assertion の深さの監査の記録（assertion_audit）を検査する（Issue #506）。
+ * 監査そのもの（期待値のどこを確かめていないか）は実装役と別の subagent が行い、ここでは「全ての持ち主を 1 件ずつ当てた記録が、
+ * 今の表に対して残っているか」だけを数える——記録の指紋が表と違えば、監査の後に期待値か covered_by が変わっている。
+ * @param {unknown} audit
+ * @param {ReturnType<typeof coveredByOwners>} owners
+ * @param {string} fingerprint
+ * @param {string | null} [specs] - 今のスペックの指紋（取り直せなかったら null。そのときは照合できないことを落とす側が別に積む）
+ * @returns {string[]}
+ */
+export function assertionAuditProblems(audit, owners, fingerprint, specs = null) {
+  if (owners.length === 0) return [];
+  if (!isPlainObject(audit)) {
+    return [
+      "assertion_audit が無い（covered_by の assertion が期待値まで届いているかを、実装役と別の subagent に 1 件ずつ監査させて記録する）",
+    ];
+  }
+  /** @type {string[]} */
+  const problems = [];
+  if (!nonEmptyString(audit.auditor)) {
+    problems.push("assertion_audit.auditor が空（誰が監査したか〈実装役と別の subagent〉を書く）");
+  }
+  if (audit.table_fingerprint !== fingerprint) {
+    problems.push(
+      "assertion_audit.table_fingerprint が表の内容と一致しない（監査の後に期待値か covered_by が変わった。--audit-sheet から監査し直す）",
+    );
+  }
+  if (!nonEmptyString(audit.specs_fingerprint)) {
+    problems.push(
+      "assertion_audit.specs_fingerprint が空（監査したときのスペックの中身を --audit-sheet の出力から写す）",
+    );
+  } else if (specs !== null && audit.specs_fingerprint !== specs) {
+    problems.push(
+      "assertion_audit.specs_fingerprint が今のスペックの中身と一致しない（監査の後に covered_by のスペックを書き換えた。assertion を弱めていないかを --audit-sheet から監査し直す）",
+    );
+  }
+  if (!Array.isArray(audit.entries)) {
+    problems.push("assertion_audit.entries が配列でない");
+    return problems;
+  }
+  const expected = new Set(owners.map((o) => o.path));
+  const seen = new Set();
+  audit.entries.forEach((e, i) => {
+    const at = `assertion_audit.entries[${i}]`;
+    if (!isPlainObject(e) || !nonEmptyString(e.path)) {
+      problems.push(`${at}: path が空`);
+      return;
+    }
+    if (seen.has(e.path)) problems.push(`${at}: ${e.path} が 2 回ある`);
+    seen.add(e.path);
+    if (!expected.has(e.path)) {
+      problems.push(`${at}: ${e.path} は covered_by を持つ行でない（表と監査の記録がずれている）`);
+    }
+    if (!AUDIT_VERDICTS.includes(/** @type {string} */ (e.verdict))) {
+      problems.push(`${at}: verdict が ${AUDIT_VERDICTS.join(" / ")} でない`);
+    } else if (e.verdict === "short") {
+      problems.push(
+        `${at}: ${e.path} の assertion が期待値に届いていない（${nonEmptyString(e.missing) ? e.missing : "届いていない部分が空"}）。assertion を深くして監査し直すか、測れないなら表の側を未測定にする`,
+      );
+    } else if (!nonEmptyString(e.checked)) {
+      problems.push(
+        `${at}: verdict: reaches なのに checked が空（期待値のどの部分をどの assertion が確かめているかを書く）`,
+      );
+    }
+  });
+  const lacking = [...expected].filter((p) => !seen.has(p));
+  if (lacking.length > 0) {
+    problems.push(`assertion_audit.entries に監査していない行がある: ${lacking.join(", ")}`);
+  }
+  return problems;
+}
+
+/**
+ * covered_by が名指ししたスペックファイルの中身の指紋（Issue #506 のレビュー）。
+ * 監査の記録は表の指紋だけだと、監査の後にスペックの assertion を弱めても（toHaveText を toBeVisible に置き換える等）表を触らない限り通る。
+ * 監査したときのスペックの中身を指紋で結び、--write・--recorded で取り直して照合する。
+ * 範囲は covered_by が名指ししたスペックファイルだけ——マッピング層・期待値解決層は新側の実装で正規に変わるので含めない
+ * （その層へ assertion を逃がした分は射程外。coverage.md に書く）。
+ * @param {ReturnType<typeof coveredByOwners>} owners
+ * @param {ReturnType<typeof indexTestList>} testIndex
+ * @param {string} rootDir - 一覧の config.rootDir（スペックのパスの起点）
+ * @param {(p: string) => string} readFile
+ * @returns {{ fingerprint: string | null, problems: string[] }}
+ */
+export function specsFingerprint(owners, testIndex, rootDir, readFile) {
+  /** @type {Set<string>} */
+  const files = new Set();
+  for (const o of owners) {
+    for (const name of o.names) {
+      const hit = testIndex.get(name);
+      if (hit !== undefined) files.add(hit.file);
+    }
+  }
+  if (files.size === 0) return { fingerprint: null, problems: [] };
+  /** @type {string[]} */
+  const problems = [];
+  /** @type {[string, string][]} */
+  const contents = [];
+  for (const file of [...files].sort()) {
+    try {
+      contents.push([file, readFile(resolve(rootDir, file))]);
+    } catch (e) {
+      problems.push(
+        `スペック ${file} を一覧の rootDir（${rootDir}）から読めない（${e instanceof Error ? e.message : e}）`,
+      );
+    }
+  }
+  if (problems.length > 0) return { fingerprint: null, problems };
+  return {
+    fingerprint: createHash("sha256").update(JSON.stringify(contents)).digest("hex"),
+    problems,
+  };
+}
+
+/**
+ * 監査用の入力（期待値とテストの所在）を作る。監査役の subagent には、これとテストのソースの 2 つだけを渡す。
+ * expected は持ち主の欄から covered_by と共有の根拠を除いたもの（期待値そのもの）。
+ * @param {ReturnType<typeof coveredByOwners>} owners
+ * @param {ReturnType<typeof indexTestList>} testIndex
+ */
+export function auditSheet(owners, testIndex) {
+  return owners.map(({ path, owner, names }) => {
+    const { covered_by: _c, shared_assertion_reason: _s, ...expected } = owner;
+    return {
+      path,
+      expected,
+      tests: names.map((name) => {
+        const hit = testIndex.get(name);
+        return { name, file: hit?.file ?? null, line: hit?.line ?? null };
+      }),
+    };
+  });
 }
 
 /**
@@ -885,7 +1203,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
   // 反応の参照は受け付けない（黙って無視すると、参照だけで割り当てたつもりの記録が「割り当てなし」と別の理由で落ち、直し方を誤る）
   if (Object.hasOwn(entry, "reactions")) {
     out.push({
-      problem: `${candidate}: reactions は書けない（操作の反応を参照せず、撮る状態〈captured〉か assertion〈covered_by。反応と同じ assertion 名でよい〉で押さえる）`,
+      problem: `${candidate}: reactions は書けない（操作の反応を参照せず、撮る状態〈captured〉か assertion〈covered_by。反応と同じ assertion 名でよいが、両方の行に shared_assertion_reason が要る〉で押さえる）`,
       unmeasured: true,
     });
   }
@@ -1733,7 +2051,7 @@ export function scanSources(root, paths, patterns, label = "feedback_calls.sourc
 /**
  * 被覆表を検査する。
  * @param {unknown} table
- * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown }} [opts]
+ * @param {{ root?: string, recorded?: boolean, captureStates?: Set<string> | null, pageNames?: Set<string> | null, slug?: string | null, target?: string | null, targetCommit?: unknown, testIndex?: ReturnType<typeof indexTestList> | null, specs?: ReturnType<typeof specsFingerprint> | null }} [opts]
  *   targetCommit は metadata.json の target.commit（undefined なら照合しない。null / none は照合不能として扱う）
  */
 export function checkReactions(table, opts = {}) {
@@ -1745,6 +2063,8 @@ export function checkReactions(table, opts = {}) {
     slug = null,
     target = null,
     targetCommit = undefined,
+    testIndex = null,
+    specs = null,
   } = opts;
   if (!isPlainObject(table)) throw new UsageError("反応の被覆表がオブジェクトでない");
   /** @type {string[]} */
@@ -2235,8 +2555,30 @@ export function checkReactions(table, opts = {}) {
     );
   }
 
-  // --- 記録済みの照合結果（--recorded）---
+  // --- covered_by の解決・共有と、assertion の深さの監査の記録（Issue #506）---
+  // 欄の検査は「空でない文字列の配列か」までなので、書いた名前のテストが実在するか・1 本を何行が名乗るか・
+  // その assertion が期待値まで届くかをここで数える（届くかの判断は監査役の subagent。ここは全行を当てた記録があるかだけ）
   const fingerprint = tableFingerprint(table);
+  const scanned = scanCoveredBy(table);
+  const owners = scanned.owners;
+  for (const at of scanned.malformed) {
+    problems.push(
+      `${at}.covered_by: 空でない文字列の配列でない（null か空配列以外は、テストの名前だけを並べる）`,
+    );
+  }
+  const coveredBy = coveredByProblems(owners, testIndex);
+  problems.push(...coveredBy.problems);
+  if (specs !== null) problems.push(...specs.problems);
+  problems.push(
+    ...assertionAuditProblems(
+      table.assertion_audit,
+      owners,
+      fingerprint,
+      specs === null ? null : specs.fingerprint,
+    ),
+  );
+
+  // --- 記録済みの照合結果（--recorded）---
   if (recorded) {
     const conf = table.conformance;
     if (!isPlainObject(conf))
@@ -2257,6 +2599,10 @@ export function checkReactions(table, opts = {}) {
         problems.push("conformance.call_sites_checked が true でない");
       if (sideEffects.declared === true && conf.side_effects_checked !== true)
         problems.push("conformance.side_effects_checked が true でない");
+      if (owners.length > 0 && conf.covered_by_resolved !== true)
+        problems.push(
+          "conformance.covered_by_resolved が true でない（covered_by をスイートのテスト一覧〈--tests〉へ解決して通していない）",
+        );
     }
   }
 
@@ -2267,6 +2613,7 @@ export function checkReactions(table, opts = {}) {
     call_sites: callSummary,
     side_effect_writes: sideEffects,
     state_displays: stateDisplays,
+    covered_by: { owners: owners.length, resolved: coveredBy.resolved },
     table_fingerprint: fingerprint,
     problems,
   };
@@ -2309,33 +2656,42 @@ export function main(argv, deps = {}) {
   const stdout = deps.out ?? ((s) => process.stdout.write(s));
   const stderr = deps.err ?? ((s) => process.stderr.write(s));
   const usage =
-    "usage: reaction-check.mjs --metadata <metadata.json> [--root <移行元ソースのルート>] [--write | --recorded]";
+    "usage: reaction-check.mjs --metadata <metadata.json> [--root <移行元ソースのルート>] --tests <playwright test --list --reporter=json の出力> [--write | --audit-sheet]\n" +
+    "       reaction-check.mjs --metadata <metadata.json> --tests <一覧> --recorded";
   let metadataPath = null;
   let root = cwd;
+  let testsPath = null;
   let write = false;
   let recorded = false;
+  let sheet = false;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === "--metadata" || a === "--root") {
+    if (a === "--metadata" || a === "--root" || a === "--tests") {
       const v = argv[i + 1];
       if (!nonEmptyString(v) || v.startsWith("--")) {
         stderr(`error: ${a} に値が無い\n${usage}\n`);
         return 2;
       }
       if (a === "--metadata") metadataPath = v;
+      else if (a === "--tests") testsPath = v;
       else root = resolve(cwd, v);
       i += 1;
     } else if (a === "--write") write = true;
     else if (a === "--recorded") recorded = true;
+    else if (a === "--audit-sheet") sheet = true;
     else {
       stderr(`error: 不明な引数 ${a}\n${usage}\n`);
       return 2;
     }
   }
-  if (metadataPath === null || (write && recorded)) {
-    stderr(
-      `error: ${metadataPath === null ? "--metadata が無い" : "--write と --recorded は同時に使えない"}\n${usage}\n`,
-    );
+  const argError =
+    metadataPath === null
+      ? "--metadata が無い"
+      : [write, recorded, sheet].filter(Boolean).length > 1
+        ? "--write・--recorded・--audit-sheet は同時に使えない"
+        : null;
+  if (argError !== null) {
+    stderr(`error: ${argError}\n${usage}\n`);
     return 2;
   }
   const out = (obj) =>
@@ -2346,6 +2702,33 @@ export function main(argv, deps = {}) {
     if (!decl.judged) {
       out({ judged: false, reason: decl.reason });
       return 0;
+    }
+    // covered_by の解決とスペックの指紋の取り直しはスイートのテスト一覧が要る。--recorded（parity-diff の収束判定）も同じ——
+    // 記録だけで判定すると、--write の後にスペックの assertion を弱めても収束する（parity-replace が新側を緑にする過程で起こりうる）
+    if (testsPath === null) {
+      throw new UsageError(
+        "--tests が無い（covered_by をテストへ解決するため、playwright test --list --reporter=json の出力を渡す）",
+      );
+    }
+    let testIndex = null;
+    /** @type {unknown} */
+    let testsRoot;
+    if (testsPath !== null) {
+      let report;
+      try {
+        report = JSON.parse(readFile(resolve(cwd, testsPath)));
+      } catch (e) {
+        throw new UsageError(
+          `--tests を JSON として読めない: ${testsPath}（${e instanceof Error ? e.message : e}）`,
+        );
+      }
+      testIndex = indexTestList(report);
+      testsRoot = isPlainObject(report.config) ? report.config.rootDir : undefined;
+      if (!nonEmptyString(testsRoot) || !isAbsolute(testsRoot)) {
+        throw new UsageError(
+          "--tests の config.rootDir が絶対パスでない（スペックの中身を読む起点が無い。playwright test --list --reporter=json の出力をそのまま渡す）",
+        );
+      }
     }
     const tablePath = resolve(cwd, decl.path);
     let table;
@@ -2380,6 +2763,38 @@ export function main(argv, deps = {}) {
         "metadata.json の target.commit が空（コミット SHA か、入手不可なら none を書く）",
       );
     }
+    if (sheet) {
+      // 監査役に渡す入力だけを出す。解決できない名前が残るうちは監査の土台にならないので落とす
+      const scanned = scanCoveredBy(table);
+      const owners = scanned.owners;
+      // 形の壊れた covered_by は owners に入らないので、黙って欠けた監査入力を ok として出さない
+      const problems = [
+        ...scanned.malformed.map(
+          (at) =>
+            `${at}.covered_by: 空でない文字列の配列でない（null か空配列以外は、テストの名前だけを並べる）`,
+        ),
+        ...coveredByProblems(owners, testIndex).problems,
+      ];
+      const specs = specsFingerprint(
+        owners,
+        /** @type {NonNullable<typeof testIndex>} */ (testIndex),
+        /** @type {string} */ (testsRoot),
+        readFile,
+      );
+      problems.push(...specs.problems);
+      out({
+        judged: true,
+        reason: null,
+        ok: problems.length === 0,
+        path: decl.path,
+        table_fingerprint: tableFingerprint(table),
+        specs_fingerprint: specs.fingerprint,
+        entries: auditSheet(owners, /** @type {NonNullable<typeof testIndex>} */ (testIndex)),
+        problems,
+      });
+      for (const p of problems) stderr(`warn: ${p}\n`);
+      return problems.length === 0 ? 0 : 1;
+    }
     const result = checkReactions(table, {
       root,
       recorded,
@@ -2388,6 +2803,13 @@ export function main(argv, deps = {}) {
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,
+      testIndex,
+      specs: specsFingerprint(
+        scanCoveredBy(table).owners,
+        /** @type {NonNullable<typeof testIndex>} */ (testIndex),
+        /** @type {string} */ (testsRoot),
+        readFile,
+      ),
     });
     const ok =
       result.unmeasured_operations === 0 &&
@@ -2400,6 +2822,7 @@ export function main(argv, deps = {}) {
         ok,
         call_sites_checked: result.call_sites.checked,
         side_effects_checked: result.side_effect_writes.checked,
+        covered_by_resolved: result.covered_by.resolved,
         table_fingerprint: result.table_fingerprint,
         problems: result.problems.length,
       };

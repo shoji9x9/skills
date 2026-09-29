@@ -70,7 +70,8 @@ JSON
 | `component-coverage.json` | `visual_state_coverage.rows`（行そのものは `coverage-expand.mjs --write` が作る。撮る／撮らないの判断だけを差し替える） | `component,instance,required_by,kind` |
 
 - **表を読み返すときも全文を読まない。** `get --match '<鍵の JSON>'` で 1 行、`keys` で鍵の一覧を引く。照合スクリプトの出力が名指した行だけを引いて直す
-- **書き換えると最上位の `conformance` が消える。** 照合結果は表の内容に対する記録なので、書き換えた後は照合スクリプト（`coverage-expand.mjs --write` / `reaction-check.mjs --write`）を通し直す
+- **書き換えると最上位の `conformance` が消える。** 照合結果は表の内容に対する記録なので、書き換えた後は照合スクリプト（`coverage-expand.mjs --write` / `reaction-check.mjs --tests <テスト一覧> --write`）を通し直す。
+  `reactions.json` は期待値か `covered_by` を変えると監査の記録（`assertion_audit`）の指紋も合わなくなるので、`--audit-sheet` から監査し直す（`covered_by` のスペックファイルを書き換えた場合も同じ）
 - 鍵が欠けた・空・重複した行があると、書き込まずに exit 2 で止まる（別の行を上書きしない）。表を直してから使う
 - **機械的に作れる値は、ツールかスペックに書かせて転記しない。** 寸法の採取値（`dimension-samples.json`）とスクロールバーの記録（`capture_conditions.overflow`）は測定スペックが、
   被覆表の候補と撮影状態の行は `coverage-expand.mjs --write` が、寸法の式は `dimension-fit.mjs --write` が、照合結果（`conformance`）は各照合スクリプトが書く
