@@ -865,6 +865,13 @@ export function checkPredicateCoverage(input) {
         });
         continue;
       }
+      // 列は 1 行に 1 つ——`id, parent_id` のように並べると、変換の違う識別子が 1 つの「届くか」を共有する。
+      if (splitList(column).items.length > 1) {
+        findings.push({
+          code: "id-range-column-multiple",
+          message: `識別子の値の範囲の ${label} の列に複数の列が並んでいる（識別子の列ごとに行を立てる）`,
+        });
+      }
       realColumnTables.add(tableName);
       // 範囲の 2 列は `-` も欠けとして落とす——値を持つ列の行なので範囲は必ず在り、
       // `-` を受けると範囲を並べて記録させる契約が黙って外れる。`-`（変換なし）が意味を持つのは変換の列だけ。

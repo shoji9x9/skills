@@ -1015,6 +1015,11 @@ test.each([
   ],
   ["列 - の根拠が -", "| orders | - | - | - | - | - | - | - | - |", "id-range-reason-missing"],
   [
+    "列に複数の列が並んでいる",
+    "| orders | id, parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-column-multiple",
+  ],
+  [
     "列 - の行に範囲・消費側・変換・判定が書いてある",
     "| orders | - | 12 桁 | 8 桁 | order | Convert.ToInt32 | 届く | - | 読了 |",
     "id-range-dash-row-populated",

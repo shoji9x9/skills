@@ -257,6 +257,15 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["識別子の値の範囲の不備: 列 - の行に範囲・消費側・変換・判定が書いてある"]
+    },
+    {
+      "id": "id-range-column-multiple-ignored",
+      "why": "列のセルに並んだ複数の列を 1 つの鍵として受ける",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (splitList(column).items.length > 1) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["識別子の値の範囲の不備: 列に複数の列が並んでいる"]
     }
   ]
 }
