@@ -5,7 +5,7 @@
 // 踏めない分岐は下流（parity-suite / parity-replace）が「観測できない」に当たってから分かる。
 // そのときにはベースラインを採り終えているため、行を足すと version が上がり交差する slug の採取物が陳腐化する。
 //
-// この検査が落とすのは 3 つ。
+// この検査が落とすのは 4 つ。
 //   1. **写し漏れ**: `.replace/features.md` の 3 表（機能一覧「テーブル」・横断 API「参照テーブル」・バッチ「参照テーブル」）に
 //      在る (テーブル, slug) が `design.md`「対象テーブル」表の写しに無い。写しが落ちると
 //      「どの機能もこの表を読まない」と読める状態になり、役割が「読み取りだけ」へ倒れて行数を増やす検討に入らない。
@@ -14,6 +14,9 @@
 //   3. **踏めない分岐**: 参照表の件数が 0 / 1、または述語の真・偽どちらかの該当行数が 0。
 //      0 件は真の分岐へ入れず、1 件は絞り込みを外しても結果が変わらない（絞り込みが効いていることを観測できない）。
 //      踏めない分岐は「足す」か「gaps に記録」かを**設計の段で**選ばせる（足すと版が上がるため、選択は判断であって既定値ではない）。
+//   4. **変換で値が変わる識別子**（Issue #498）: データセットが決めた識別子の値（採番帯）が、消費側の変換
+//      （整数への変換・桁の切り詰め・型の上限）の後に同じ値で届くかを消費側ごとに列挙していない、
+//      述語の「値の出どころ」が無い、届かないと記録した値の述語を「踏める」と数えている。
 //
 // 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは Markdown だけで DB へは接続しない
 // （投入後の実測件数は `verification.md` に書かれたものを読む）。TypeScript 構文は使わない（型は JSDoc）。
@@ -28,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "2";
+export const VERSION = "3";
 
 /**
  * 役割の語彙（正本）。
@@ -41,6 +44,15 @@ export const ROLES = ["投入する", "読み取りだけ", "FK 親のみ"];
 
 /** 踏めない分岐の扱いの語彙（正本）。 */
 export const DISPOSITIONS = ["足す", "gaps に記録"];
+
+/** 識別子の値が消費側の変換の後も同じ値で届くかの語彙（正本）。 */
+export const ID_REACH = ["届く", "届かない"];
+
+/**
+ * 変換の後に届かない識別子の扱いの語彙（正本）。
+ * 「帯を変える」は語彙に入れない——変えたなら表は変えた後の帯で書き直し、「届く」になる。
+ */
+export const ID_DISPOSITIONS = ["行を足す", "gaps に記録"];
 
 /** 「読むテーブル無し」の sentinel（正本は replace-strategy）。 */
 const NONE_SENTINEL = "-";
@@ -540,6 +552,16 @@ export function checkPredicateCoverage(input) {
   }
 
   // 4. 述語ごとの真・偽（0 件の側があれば踏めない）
+  // 「値の出どころ」列は必須列に入れない——入れると表そのものが無い（exit 2）と同じ出力になり、
+  // 列を足せば直る設計を「表が読めない」と取り違える。列の欠けは不備（exit 1）として名指しする。
+  const hasOriginColumn = predicateTable.headers.includes("値の出どころ");
+  if (!hasOriginColumn) {
+    findings.push({
+      code: "predicate-origin-column-missing",
+      message:
+        "述語ごとの分岐被覆に「値の出どころ」列が無い（述語の値を、消費側が変換した後に渡す値で書いたかが読めない）",
+    });
+  }
   const seenPredicateIds = new Set();
   for (const row of predicateRows) {
     const id = normalizeCell(row["述語 id"]);
@@ -572,6 +594,19 @@ export function checkPredicateCoverage(input) {
             message: `述語 ${id} の消費側 slug ${slug} は features.md で ${tableName} を参照していない`,
           });
         }
+      }
+    }
+    // **述語の値は、消費側が述語に渡す値で書く**——設計者が書いた値（`id = '900000000001'`）と、
+    // 消費側が変換した後に渡す値（32 ビット整数への変換で 0）が違うと、述語は設計どおり真でも
+    // 消費側が引く行は 0 件になり、この表は「踏める」のまま比べられない経路が残る（Issue #498）。
+    // 値の意味は読めないので、少なくとも出どころの欠けを落とす。値はどの述語にも在るので `-` も欠けとして扱う。
+    if (hasOriginColumn) {
+      const origin = normalizeCell(row["値の出どころ"]);
+      if (origin === "" || origin === NONE_SENTINEL) {
+        findings.push({
+          code: "predicate-origin-missing",
+          message: `述語 ${id} の値の出どころが「${origin || "（空欄）"}」（消費側のどのコードが作る値か・変換を経るかが書かれていないと、変換で値が変わる経路を踏めると数えたまま通る）`,
+        });
       }
     }
     const trueCount = parseCount(row["真の行数"]);
@@ -735,6 +770,224 @@ export function checkPredicateCoverage(input) {
         findings.push({
           code: "param-row-missing",
           message: `features.md では ${slug} が ${tableName} を読むのに、消費側パラメータにその組の行が無い（絞り込みを調べていないことが、絞り込みが無いことと同じ見え方になる。調べて無ければ絞り込み列・条件に - と書く）`,
+        });
+      }
+    }
+  }
+
+  // 5c. データセットが決めた識別子の値（採番帯）が、消費側の変換の後も同じ値で届くか（Issue #498）
+  //
+  // 採番帯は他の環境・作業と混ざらないようデータセット自身が決める値なので、実運用の範囲の外に出やすい。
+  // 消費側が述語へ渡す前に変換する（32 ビット整数への変換・桁の切り詰め・型の上限）と別の値になり、
+  // 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐被覆と verification.md は設計者の値で数えるので何も出ない。
+  // **消費側 (slug, テーブル) ごとに変換を列挙させる**——表ごと 1 行で済ませると、変換する消費側が 1 つでも
+  // 在ることが「別の消費側で届いた」に隠れる。
+  const idRangeTable = findTable(designTables, "識別子の値の範囲", [
+    "テーブル",
+    "列",
+    "データセットの値の範囲",
+    "実運用の値の範囲",
+    "消費側 slug",
+    "受け取る型・変換",
+    "届くか",
+    "扱い",
+    "根拠",
+  ]);
+  if (!idRangeTable) {
+    findings.push({
+      code: "id-range-table-missing",
+      message:
+        "design.md に「識別子の値の範囲」表（テーブル / 列 / データセットの値の範囲 / 実運用の値の範囲 / 消費側 slug / 受け取る型・変換 / 届くか / 扱い / 根拠）が無い（採番帯が消費側の変換を通るかを確かめていないことが、通ることと同じ見え方になる）",
+    });
+  } else {
+    /** @type {Set<string>} */
+    const coveredPairs = new Set();
+    /** 識別子の列が無い（列 `-`）と宣言したテーブル。 */
+    const noIdColumn = new Set();
+    /** 実在の列の行を持つテーブル。 */
+    const realColumnTables = new Set();
+    /** (テーブル, 列, slug) の既出。 */
+    const seenIdKeys = new Set();
+    /** @type {{ tableName: string, column: string, slugs: string[] }[]} */
+    const unreachedGaps = [];
+    for (const row of rowsAsRecords(idRangeTable)) {
+      const tableName = normalizeCell(row["テーブル"]);
+      const column = normalizeCell(row["列"]);
+      const reason = normalizeCell(row["根拠"]);
+      // 根拠の `-` は空欄と同じく欠けとして扱う——`-` は「調べた結果ゼロ件」の印で、根拠の代わりにならない。
+      const reasonMissing = reason === "" || reason === NONE_SENTINEL;
+      if (tableName === "" && column === "") continue;
+      const label = `${tableName || "（テーブル空欄）"}.${column || "（列空欄）"}`;
+      if (tableName === "" || !declared.has(tableName)) {
+        findings.push({
+          code: "id-range-table-unknown",
+          message: `識別子の値の範囲の ${label} のテーブルが対象テーブル表に無い`,
+        });
+        continue;
+      }
+      // 列 `-` は「このテーブルに帯の値を持つ列が無い」。**FK 列も親の帯の値を持つ**ので、
+      // 子表を読む消費側が親の識別子を変換するなら、その FK 列の行が要る（`-` にしない）。
+      // 投入ツールは ID を固定値で決めるので、「DB の採番に任せる」はこの逃げ道の理由にならない。
+      // 真偽は読めない自己申告なので、根拠を要求し、同じ表に実列の行があれば矛盾として落とす。
+      if (column === NONE_SENTINEL) {
+        if (reasonMissing) {
+          findings.push({
+            code: "id-range-reason-missing",
+            message: `識別子の値の範囲の ${tableName} は列が - （帯の値を持つ列が無い）だが根拠が「${reason || "（空欄）"}」`,
+          });
+        }
+        // 列 `-` の行に範囲・消費側・変換・判定が書いてあると、帯の値を持つ列が在るという記述と矛盾する。
+        // 黙って表ごとの免除へ倒すと、変換の検査を丸ごと外せる。残りのセルは `-` か空欄に限る。
+        const populated = [
+          "データセットの値の範囲",
+          "実運用の値の範囲",
+          "消費側 slug",
+          "受け取る型・変換",
+          "届くか",
+          "扱い",
+        ].filter((header) => {
+          const value = normalizeCell(row[header]);
+          return value !== "" && value !== NONE_SENTINEL;
+        });
+        if (populated.length > 0) {
+          findings.push({
+            code: "id-range-dash-row-populated",
+            message: `識別子の値の範囲の ${tableName} は列が - （帯の値を持つ列が無い）なのに「${populated.join("」「")}」が書いてある（列を書いた行にするか、残りを - にする）`,
+          });
+        }
+        noIdColumn.add(tableName);
+        continue;
+      }
+      if (column === "") {
+        findings.push({
+          code: "id-range-column-blank",
+          message: `識別子の値の範囲の ${label} の列が空欄（未調査。帯の値を持つ列が無いなら - と根拠を書く）`,
+        });
+        continue;
+      }
+      // 列は 1 行に 1 つ——`id, parent_id` のように並べると、変換の違う識別子が 1 つの「届くか」を共有する。
+      if (splitList(column).items.length > 1) {
+        findings.push({
+          code: "id-range-column-multiple",
+          message: `識別子の値の範囲の ${label} の列に複数の列が並んでいる（識別子の列ごとに行を立てる）`,
+        });
+      }
+      realColumnTables.add(tableName);
+      // 範囲の 2 列は `-` も欠けとして落とす——値を持つ列の行なので範囲は必ず在り、
+      // `-` を受けると範囲を並べて記録させる契約が黙って外れる。`-`（変換なし）が意味を持つのは変換の列だけ。
+      for (const header of ["データセットの値の範囲", "実運用の値の範囲"]) {
+        const value = normalizeCell(row[header]);
+        if (value === "" || value === NONE_SENTINEL) {
+          findings.push({
+            code: "id-range-cell-blank",
+            message: `識別子の値の範囲の ${label} の「${header}」が「${value || "（空欄）"}」（実在の列の行では範囲を書く）`,
+          });
+        }
+      }
+      if (normalizeCell(row["受け取る型・変換"]) === "") {
+        findings.push({
+          code: "id-range-cell-blank",
+          message: `識別子の値の範囲の ${label} の「受け取る型・変換」が空欄（未調査。変換が無いなら - と書く）`,
+        });
+      }
+      // 根拠は届く・届かないを問わず要る——届くかは変換の意味から設計者が判定した自己申告で、
+      // 読み手が確かめられる材料（帯が型の上限に収まる等）が無いと、届くと書くだけで通る。
+      if (reasonMissing) {
+        findings.push({
+          code: "id-range-reason-missing",
+          message: `識別子の値の範囲の ${label} の根拠が「${reason || "（空欄）"}」（変換の後も届くか・届かない経路をどう扱ったかを確かめた材料が残らない）`,
+        });
+      }
+      const slugList = splitList(row["消費側 slug"]);
+      if (slugList.kind !== "items") {
+        findings.push({
+          code: "id-range-consumer-blank",
+          message: `識別子の値の範囲の ${label} の消費側 slug が空（どの消費側の変換かが決まらない）`,
+        });
+      } else {
+        const actual = consumers.get(tableName) ?? new Set();
+        for (const slug of slugList.items) {
+          if (!actual.has(slug)) {
+            findings.push({
+              code: "id-range-consumer-unknown",
+              message: `識別子の値の範囲の ${label} の消費側 slug ${slug} は features.md で ${tableName} を参照していない`,
+            });
+            continue;
+          }
+          // 同じ (テーブル, 列, slug) を 2 行に書くと、届く・届かないの判定が 1 つに決まらない。
+          const key = `${tableName}\u0000${column}\u0000${slug}`;
+          if (seenIdKeys.has(key)) {
+            findings.push({
+              code: "id-range-duplicated",
+              message: `識別子の値の範囲で ${tableName}.${column} の消費側 ${slug} が 2 行以上にある（届くかと扱いが 1 つに決まらない）`,
+            });
+          }
+          seenIdKeys.add(key);
+          coveredPairs.add(`${slug}\u0000${tableName}`);
+        }
+      }
+      const reach = normalizeCell(row["届くか"]);
+      const disposition = normalizeCell(row["扱い"]);
+      if (!ID_REACH.includes(reach)) {
+        findings.push({
+          code: "id-range-reach-vocabulary",
+          message: `識別子の値の範囲の ${label} の届くか「${reach || "（空欄）"}」は語彙外（${ID_REACH.join(" / ")}）`,
+        });
+        continue;
+      }
+      if (reach === "届く") {
+        // 空欄は受けない——空欄は未調査で、`-` だけが「届くので何もしない」と決めた記録（書き分けの規律）。
+        if (disposition !== NONE_SENTINEL) {
+          findings.push({
+            code: "id-range-disposition-vocabulary",
+            message: `識別子の値の範囲の ${label} は届くのに扱いが「${disposition || "（空欄）"}」（届く行の扱いは -）`,
+          });
+        }
+        continue;
+      }
+      // 届かない。「帯を変える」を選んだなら表は変えた後の帯で書き直すので「届く」になる。
+      // 残る選択は、届く値の行を足す（帯の外になるなら利用者の判断）か、比べられない経路として gaps に記録する。
+      if (!ID_DISPOSITIONS.includes(disposition)) {
+        findings.push({
+          code: "id-range-disposition-missing",
+          message: `識別子の値の範囲の ${label} は変換の後に届かないのに扱いが「${disposition || "（空欄）"}」（${ID_DISPOSITIONS.join(" / ")} から選ぶ。帯を変えたなら変えた後の帯で書き直す）`,
+        });
+        continue;
+      }
+      if (disposition === "gaps に記録" && slugList.kind === "items") {
+        unreachedGaps.push({ tableName, column, slugs: slugList.items });
+      }
+    }
+    for (const tableName of noIdColumn) {
+      if (!realColumnTables.has(tableName)) continue;
+      findings.push({
+        code: "id-range-dash-conflict",
+        message: `識別子の値の範囲で ${tableName} は列 - （帯の値を持つ列が無い）と、実在の列の行の両方がある（- の行が消費側ごとの行の要求を黙って外す）`,
+      });
+    }
+    for (const [tableName, slugs] of consumers) {
+      const entry = declared.get(tableName);
+      if (!entry || entry.role !== "投入する" || noIdColumn.has(tableName)) continue;
+      for (const slug of [...slugs].sort()) {
+        if (coveredPairs.has(`${slug}\u0000${tableName}`)) continue;
+        findings.push({
+          code: "id-range-row-missing",
+          message: `${slug} が読む ${tableName} の識別子について、識別子の値の範囲に行が無い（消費側が識別子を受け取る型・変換を列挙していない。受け取らないなら受け取る型・変換に - と書く）`,
+        });
+      }
+    }
+    // **変換で届かないと記録した値を、述語では「踏める」と数えていないか。**
+    // gaps に記録した（届く行を足していない）なら、その消費側が変換後の値で引く行は 0 件なので、
+    // 同じ列の述語は変換後の値で数えれば踏めない。「踏める」のまま残るのが Issue #498 の形そのもの。
+    for (const gap of unreachedGaps) {
+      for (const row of predicatesByTable.get(gap.tableName) ?? []) {
+        const predicateSlugs = splitList(row["消費側 slug"]).items;
+        if (!predicateSlugs.some((slug) => gap.slugs.includes(slug))) continue;
+        if (!namesColumn(normalizeCell(row["述語（列・条件）"]), gap.column)) continue;
+        if (normalizeCell(row["判定"]) !== "踏める") continue;
+        findings.push({
+          code: "predicate-counts-unconverted-value",
+          message: `述語 ${normalizeCell(row["述語 id"])} は ${gap.tableName}.${gap.column} を「踏める」と数えているが、識別子の値の範囲ではその値が消費側の変換の後に届かない（gaps に記録）。変換後の値で真・偽を数え直す`,
         });
       }
     }

@@ -41,7 +41,7 @@ const FEATURES = `# 機能インベントリ（features）
 
 /**
  * 欠陥の無い design.md を組み立てる。差し替えたい行だけを渡す。
- * @param {{ targets?: string[], predicates?: string[], params?: string[] }} [override]
+ * @param {{ targets?: string[], predicates?: string[], params?: string[], idRanges?: string[] | null }} [override]
  */
 function designOf(override = {}) {
   const targets = override.targets ?? [
@@ -52,12 +52,12 @@ function designOf(override = {}) {
     "| roles | user | 3 | 投入する | - |",
   ];
   const predicates = override.predicates ?? [
-    "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
-    "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | バッチの入力条件 |",
-    "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 明細の絞り込み |",
-    "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
-    "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
-    "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | ロール表示 |",
+    "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
+    "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
+    "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
+    "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
+    "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
+    "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
   ];
   const params = override.params ?? [
     "| order | orders | status | ordered_at DESC | 20 | 実測 |",
@@ -67,6 +67,27 @@ function designOf(override = {}) {
     "| user | roles | role | id ASC | - | 実測 |",
     "| monthly-summary | orders | ordered_at | - | - | 実測 |",
   ];
+  // null は「表そのものが無い」（旧版テンプレートで作った design.md）。
+  const idRanges =
+    override.idRanges === undefined
+      ? [
+          "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁・BIGINT） | order, monthly-summary | 文字列のまま SQL のパラメータへ渡す（変換なし） | 届く | - | /orders の詳細と月次集計の入力を読了 |",
+          "| order_items | order_id | orders の帯と同じ | orders.id と同じ | order | - | 届く | - | 明細は親の id を文字列で受け取る |",
+          "| reports | id | 900001〜900006 | 1〜99999 | report | - | 届く | - | 一覧は id を受け取らない |",
+          "| users | id | 9001〜9004 | 1〜999 | user | int.Parse（32 ビット） | 届く | - | 共通ヘッダの利用者 |",
+          "| roles | id | 91〜93 | 1〜9 | user | - | 届く | - | ロールは名前で引く |",
+        ]
+      : override.idRanges;
+  const idRangeSection =
+    idRanges === null
+      ? ""
+      : `
+## 識別子の値の範囲
+
+| テーブル | 列 | データセットの値の範囲 | 実運用の値の範囲 | 消費側 slug | 受け取る型・変換 | 届くか | 扱い | 根拠 |
+|---|---|---|---|---|---|---|---|---|
+${idRanges.join("\n")}
+`;
   return `# データ設計（design）
 
 ## 対象テーブル
@@ -83,10 +104,10 @@ ${params.join("\n")}
 
 ## 述語ごとの分岐被覆
 
-| 述語 id | テーブル | 消費側 slug | 述語（列・条件） | 真の行数 | 偽の行数 | 判定 | 扱い | 根拠 |
-|---|---|---|---|---:|---:|---|---|---|
+| 述語 id | テーブル | 消費側 slug | 述語（列・条件） | 値の出どころ | 真の行数 | 偽の行数 | 判定 | 扱い | 根拠 |
+|---|---|---|---|---|---:|---:|---|---|---|
 ${predicates.join("\n")}
-`;
+${idRangeSection}`;
 }
 
 /** 欠陥の無い verification.md（設計値と一致する実測）。 */
@@ -383,12 +404,12 @@ test("0 件の側を持つ述語は「踏めない」判定と扱いを求める
   const codes = codesOf({
     design: designOf({
       predicates: [
-        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | 月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 3 | 0 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | 月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 3 | 0 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -400,12 +421,12 @@ test("「gaps に記録」を選んだ踏めない行は根拠を空欄にでき
   const codes = codesOf({
     design: designOf({
       predicates: [
-        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | 月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 3 | 0 | 踏めない | gaps に記録 |  |",
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | 月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 3 | 0 | 踏めない | gaps に記録 |  |",
       ],
     }),
   });
@@ -417,11 +438,11 @@ test("絞り込みがあるのに述語行が無い消費側は落ちる（数�
   const codes = codesOf({
     design: designOf({
       predicates: [
-        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | 月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | 月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -459,13 +480,13 @@ test("陽性コントロール: 並んだ絞り込みそれぞれに述語行が
         "| monthly-summary | orders | ordered_at | - | - | 実測 |",
       ],
       predicates: [
-        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-owner | orders | order | owner_id = :me | 5 | 36 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-owner | orders | order | owner_id = :me | 画面の入力値（変換なし） | 5 | 36 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -501,12 +522,12 @@ test("1 行の述語が 2 つの列を兼ねていたら落ちる（列ごとに
         "| monthly-summary | orders | ordered_at | - | - | 実測 |",
       ],
       predicates: [
-        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -527,13 +548,13 @@ test("1 対 1 の割り当てが存在すれば通す（先着順の貪欲だと
         "| monthly-summary | orders | ordered_at | - | - | 実測 |",
       ],
       predicates: [
-        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-status | orders | order | status IN ('pending','canceled') | 5 | 36 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+        "| orders-combined | orders | order | status = 'shipped' AND owner_id = :me | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status IN ('pending','canceled') | 画面の入力値（変換なし） | 5 | 36 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -582,12 +603,12 @@ test("列名の突き合わせは識別子境界で行う（owner_id は id を�
         "| monthly-summary | orders | ordered_at | - | - | 実測 |",
       ],
       predicates: [
-        "| orders-owner | orders | order | owner_id = :me | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 1 | 2 | 踏める | - | 読了 |",
+        "| orders-owner | orders | order | owner_id = :me | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -607,12 +628,12 @@ test("真・偽の合計が表の件数を超える述語は落ちる（捏造�
         "| roles | user | 1 | 投入する | - |",
       ],
       predicates: [
-        "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-        "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-        "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-        "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-        "| roles-admin | roles | user | role = 'admin' | 1 | 1 | 踏める | - | 読了 |",
+        "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+        "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+        "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+        "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+        "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+        "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 1 | 踏める | - | 読了 |",
       ],
     }),
   });
@@ -622,12 +643,12 @@ test("真・偽の合計が表の件数を超える述語は落ちる（捏造�
 test("「gaps に記録」と決めた分岐は、投入後 0 件でも verification を落とさない", () => {
   const design = designOf({
     predicates: [
-      "| orders-status | orders | order | status = 'shipped' | 3 | 38 | 踏める | - | 読了 |",
-      "| orders-month | orders | monthly-summary | ordered_at の月境界 | 12 | 29 | 踏める | - | 読了 |",
-      "| items-order | order_items | order | order_id = :id | 4 | 76 | 踏める | - | 読了 |",
-      "| reports-owner | reports | report | owner_id = :me | 2 | 4 | 踏める | - | 読了 |",
-      "| users-active | users | user | active = true | 3 | 1 | 踏める | - | 読了 |",
-      "| roles-admin | roles | user | role = 'admin' | 3 | 0 | 踏めない | gaps に記録 | 現行 UI にこの分岐が無い |",
+      "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | 読了 |",
+      "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | 読了 |",
+      "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 読了 |",
+      "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 読了 |",
+      "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 読了 |",
+      "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 3 | 0 | 踏めない | gaps に記録 | 現行 UI にこの分岐が無い |",
     ],
   });
   const verification = VERIFICATION.replace(
@@ -766,4 +787,310 @@ test("囲まれていない形・読めない形は従来どおり（対照）",
   expect(filterColumn("(owner_id = :me)")).toBe("owner_id");
   expect(filterColumn("()")).toBeNull();
   expect(filterColumn("")).toBeNull();
+});
+
+// Issue #498: データセットが決めた識別子の値（採番帯）が消費側の変換で別の値になると、
+// 述語は設計どおり真でも消費側が引く行は 0 件になる。分岐被覆は設計者の値で数えるので「踏める」のまま残る。
+
+/** 既定の識別子の値の範囲のうち、orders の行だけを差し替えた一覧。 */
+function idRangesWith(ordersRows) {
+  return [
+    ...ordersRows,
+    "| order_items | order_id | orders の帯と同じ | orders.id と同じ | order | - | 届く | - | 明細は親の id を文字列で受け取る |",
+    "| reports | id | 900001〜900006 | 1〜99999 | report | - | 届く | - | 一覧は id を受け取らない |",
+    "| users | id | 9001〜9004 | 1〜999 | user | int.Parse（32 ビット） | 届く | - | 共通ヘッダの利用者 |",
+    "| roles | id | 91〜93 | 1〜9 | user | - | 届く | - | ロールは名前で引く |",
+  ];
+}
+
+/** 既定の述語に、orders.id の述語を 1 行足した一覧。 */
+function predicatesWithOrderId(row) {
+  return [
+    "| orders-status | orders | order | status = 'shipped' | 画面の入力値（変換なし） | 3 | 38 | 踏める | - | /orders の SELECT を読了 |",
+    "| orders-month | orders | monthly-summary | ordered_at の月境界 | 画面の入力値（変換なし） | 12 | 29 | 踏める | - | バッチの入力条件 |",
+    "| items-order | order_items | order | order_id = :id | 画面の入力値（変換なし） | 4 | 76 | 踏める | - | 明細の絞り込み |",
+    "| reports-owner | reports | report | owner_id = :me | 画面の入力値（変換なし） | 2 | 4 | 踏める | - | 一覧の所有者条件 |",
+    "| users-active | users | user | active = true | 画面の入力値（変換なし） | 3 | 1 | 踏める | - | 共通ヘッダの利用者 |",
+    "| roles-admin | roles | user | role = 'admin' | 画面の入力値（変換なし） | 1 | 2 | 踏める | - | ロール表示 |",
+    row,
+  ];
+}
+
+const ORDERS_UNREACHED_GAPS =
+  "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | order | Convert.ToInt32（超えると 0） | 届かない | gaps に記録 | 書き出しは 32 ビットを超える id で値を引かない |";
+const ORDERS_REACHED_MONTHLY =
+  "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | monthly-summary | 変換なし | 届く | - | バッチは id を文字列のまま使う |";
+
+test("Issue #498 の形: 変換で届かないと記録した識別子の述語を「踏める」と数えると落ちる", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([ORDERS_UNREACHED_GAPS, ORDERS_REACHED_MONTHLY]),
+      predicates: predicatesWithOrderId(
+        "| orders-id | orders | order | id = '900000000001' | 設計者が書いた帯の値 | 1 | 40 | 踏める | - | 書き出しの明細 |",
+      ),
+    }),
+  });
+  expect(codes).toEqual(["predicate-counts-unconverted-value"]);
+});
+
+test("変換後の値で数え直して踏めない・gaps に記録にした述語は通る（陰性コントロール）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([ORDERS_UNREACHED_GAPS, ORDERS_REACHED_MONTHLY]),
+      predicates: predicatesWithOrderId(
+        "| orders-id | orders | order | id = 0 | Convert.ToInt32(画面の id) の後の値 | 0 | 41 | 踏めない | gaps に記録 | 帯の値は 0 に変わる |",
+      ),
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
+test("届く値の行を足した（行を足す）なら、その列の述語が踏めるのは矛盾ではない", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | order | Convert.ToInt32（超えると 0） | 届かない | 行を足す | 帯の外に 1 行（id 1）を足すと利用者が判断 |",
+        ORDERS_REACHED_MONTHLY,
+      ]),
+      predicates: predicatesWithOrderId(
+        "| orders-id | orders | order | id = 1 | Convert.ToInt32(画面の id) | 1 | 40 | 踏める | - | 帯の外の行 |",
+      ),
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
+test("届かない消費側と別の消費側の述語・別の列の述語は、届かない記録に巻き込まない", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([ORDERS_UNREACHED_GAPS, ORDERS_REACHED_MONTHLY]),
+      predicates: [
+        ...predicatesWithOrderId(
+          "| orders-id-monthly | orders | monthly-summary | id = '900000000001' | バッチの入力（変換なし） | 1 | 40 | 踏める | - | バッチ |",
+        ),
+        // 列 `id` の記録は、識別子の境界で照合するので `order_no` 等の別の列に当たらない。
+        "| orders-status-2 | orders | order | status_id = 2 | 画面の入力値（変換なし） | 2 | 39 | 踏める | - | 状態 |",
+      ],
+      params: [
+        "| order | orders | status, status_id | ordered_at DESC | 20 | 実測 |",
+        "| order | order_items | order_id | id ASC | - | 実測 |",
+        "| report | reports | owner_id | created_at DESC | 20 | 実測 |",
+        "| user | users | active | id ASC | - | 実測 |",
+        "| user | roles | role | id ASC | - | 実測 |",
+        "| monthly-summary | orders | ordered_at | - | - | 実測 |",
+      ],
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
+test("「値の出どころ」列が無い設計は、表が読めない（exit 2）ではなく不備（exit 1）として名指しする", () => {
+  const design = designOf()
+    .replace("| 述語（列・条件） | 値の出どころ |", "| 述語（列・条件） |")
+    .replace("|---|---|---|---|---|---:|", "|---|---|---|---|---:|")
+    .replaceAll(" | 画面の入力値（変換なし） |", " |");
+  const { code, result } = run(["--features", "f.md", "--design", "d.md"], {
+    "/w/f.md": FEATURES,
+    "/w/d.md": design,
+  });
+  expect(code).toBe(1);
+  expect(result.structural).toBeUndefined();
+  expect(result.findings.map((f) => f.code)).toEqual(["predicate-origin-column-missing"]);
+});
+
+test.each([
+  ["空欄", ""],
+  ["-", "-"],
+])("値の出どころが %s の述語は落ちる", (_label, origin) => {
+  const codes = codesOf({
+    design: designOf({
+      predicates: predicatesWithOrderId(
+        `| orders-id | orders | order | id = '900000000001' | ${origin} | 1 | 40 | 踏める | - | 詳細 |`,
+      ),
+      idRanges: idRangesWith([
+        "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual(["predicate-origin-missing"]);
+});
+
+test("「識別子の値の範囲」表が無い設計は落ちる（採番帯を確かめていないことが、通ることと同じ見え方になる）", () => {
+  expect(codesOf({ design: designOf({ idRanges: null }) })).toEqual(["id-range-table-missing"]);
+});
+
+test("消費側 (slug, テーブル) ごとに行を要する——表ごと 1 行では変換する消費側が隠れる", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 900000000001〜900000000041（12 桁） | 1〜99999999（8 桁） | order | 変換なし | 届く | - | 読了 |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual(["id-range-row-missing"]);
+});
+
+test("列 `-`（帯の値を持つ列が無い）と宣言した表には消費側ごとの行を求めない", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | - | - | - | - | - | - | - | 識別子の列が無い（親の識別子だけの複合キー） |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual([]);
+});
+
+test.each([
+  [
+    "届かないのに扱いが -",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | Convert.ToInt32 | 届かない | - | 読了 |",
+    "id-range-disposition-missing",
+  ],
+  [
+    "届かないのに扱いが語彙外（帯を変える）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | Convert.ToInt32 | 届かない | 帯を変える | 読了 |",
+    "id-range-disposition-missing",
+  ],
+  [
+    "gaps に記録の根拠が空欄",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | Convert.ToInt32 | 届かない | gaps に記録 |  |",
+    "id-range-reason-missing",
+  ],
+  [
+    "行を足すの根拠が空欄",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | Convert.ToInt32 | 届かない | 行を足す |  |",
+    "id-range-reason-missing",
+  ],
+  [
+    "届くのに扱いがある",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | gaps に記録 | 読了 |",
+    "id-range-disposition-vocabulary",
+  ],
+  [
+    "届くのに扱いが空欄（- と書き分ける）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く |  | 読了 |",
+    "id-range-disposition-vocabulary",
+  ],
+  [
+    "届くかが空欄",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし |  | - | 読了 |",
+    "id-range-reach-vocabulary",
+  ],
+  [
+    "受け取る型・変換が空欄",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary |  | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
+  [
+    "実運用の値の範囲が空欄",
+    "| orders | id | 12 桁 |  | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
+  [
+    "列が空欄",
+    "| orders |  | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-column-blank",
+  ],
+  [
+    "届くの根拠が空欄（整数変換を届くと書くだけで通さない）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | int.Parse | 届く | - |  |",
+    "id-range-reason-missing",
+  ],
+  [
+    "データセットの値の範囲が -",
+    "| orders | id | - | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
+  [
+    "実運用の値の範囲が -",
+    "| orders | id | 12 桁 | - | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
+  ["列 - の根拠が空欄", "| orders | - | - | - | - | - | - | - |  |", "id-range-reason-missing"],
+  [
+    "届くの根拠が -（- は根拠の代わりにならない）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | int.Parse | 届く | - | - |",
+    "id-range-reason-missing",
+  ],
+  ["列 - の根拠が -", "| orders | - | - | - | - | - | - | - | - |", "id-range-reason-missing"],
+  [
+    "列に複数の列が並んでいる",
+    "| orders | id, parent_id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-column-multiple",
+  ],
+  [
+    "列 - の行に範囲・消費側・変換・判定が書いてある",
+    "| orders | - | 12 桁 | 8 桁 | order | Convert.ToInt32 | 届く | - | 読了 |",
+    "id-range-dash-row-populated",
+  ],
+])("識別子の値の範囲の不備: %s", (_label, row, expected) => {
+  const codes = codesOf({ design: designOf({ idRanges: idRangesWith([row]) }) });
+  expect(codes).toContain(expected);
+});
+
+test("識別子の値の範囲の消費側・テーブルは features.md と対象テーブル表に照らす", () => {
+  expect(
+    codesOf({
+      design: designOf({
+        idRanges: idRangesWith([
+          "| orders | id | 12 桁 | 8 桁 | order, monthly-summary, report | 変換なし | 届く | - | 読了 |",
+        ]),
+      }),
+    }),
+  ).toEqual(["id-range-consumer-unknown"]);
+  expect(
+    codesOf({
+      design: designOf({
+        idRanges: [
+          ...idRangesWith([
+            "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+          ]),
+          "| invoices | id | 12 桁 | 8 桁 | order | 変換なし | 届く | - | 読了 |",
+        ],
+      }),
+    }),
+  ).toEqual(["id-range-table-unknown"]);
+  expect(
+    codesOf({
+      design: designOf({
+        idRanges: idRangesWith(["| orders | id | 12 桁 | 8 桁 |  | 変換なし | 届く | - | 読了 |"]),
+      }),
+    }),
+  ).toContain("id-range-consumer-blank");
+});
+
+test("列 `-` と実在の列の行を同じ表に併記すると落ちる（- の自己申告が消費側ごとの要求を黙って外す）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 12 桁 | 8 桁 | order | 変換なし | 届く | - | 読了 |",
+        "| orders | - | - | - | - | - | - | - | 採番に任せる |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual(["id-range-dash-conflict"]);
+});
+
+test("同じ (テーブル, 列, slug) を 2 行に書くと落ちる（届く・届かないが 1 つに決まらない）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+        "| orders | id | 12 桁 | 8 桁 | order | Convert.ToInt32 | 届かない | 行を足す | 帯の外に 1 行 |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual(["id-range-duplicated"]);
+});
+
+test("変換の列の `-`（変換なし）は範囲の列と違い受ける（陰性コントロール）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | - | 届く | - | 文字列のまま渡す |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual([]);
 });
