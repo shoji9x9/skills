@@ -9,8 +9,8 @@
 // | 行の形             | 1 行 / 折り返し（`//` `#` Markdown 本文）/ 復元できない折り返し               |
 // | 折り返しの切れ目   | 名前の途中 / 日付の途中 / `.kaizen/`・`.kaizen/archive/` の直後 / ディレクトリへの言及 |
 // | 参照の境界（前）   | 前が単語文字（`foo.kaizen/`）                                                 |
-// | 参照の境界（後ろ） | パスが続く（`.md.bak` `.md-old` `.md_x` `.mdx` `.md.gz` `.md.1`、1 行 / 折り返し）/
-// |                    | 参照の終わり（文末の `.`・行末・`)` `）` `、` `。` `` ` `` `"`、1 行 / 折り返し）  |
+// | 参照の境界（後ろ） | パスが続く（`.md.bak` `.md-old` `.md_x` `.mdx` `.md.gz` `.md.1` `.md/x` `.md/`、1 行 / 折り返し）/
+// |                    | 参照の終わり（文末の `.`・行末・`)` `）` `、` `。` `` ` `` `"`・アンカー `#`・区切りの ` / `、1 行 / 折り返し）|
 // | 参照元のパス       | 対象 / 除外（配布スキルのインストール済みコピー .claude tests .kaizen node_modules eval の入力）/ eval の文書 |
 // | .agents/ の中      | 配布スキルのコピー（skills/<name>/ あり）/ private skill（skills/ に無い）/ 名前が前方一致する別スキル / rule |
 // | 参照元の状態       | 追跡＋実在 / 作業ツリーで削除 / 非テキスト拡張子 / シンボリックリンク           |
@@ -150,6 +150,42 @@ test.each([
     expect(r.refs).toBe(1);
   },
 );
+
+// `.md` の直後の `/`（`.md` をディレクトリとして書いたパス）。落とす入力と通す入力を同じ数（4 件ずつ）置く。
+// 通す側の `#` は、実リポジトリに `.kaizen/…md#` の用例が 0 件（`git grep -nP '\\.kaizen/\\S*\\.md[#/]'`）だが、
+// アンカーはファイル内の位置で指すファイルを変えないので参照の終わりとして通す。
+test.each([
+  ["`.md/subpath`", `根拠は ${NOTE}/subpath`, `${NOTE}/subpath`, false],
+  ["`/` で終わる `.md/`", `根拠は ${NOTE}/`, `${NOTE}/`, false],
+  ["archive/ 配下の `.md/x`", `\`${ARCHIVED}/x\``, `${ARCHIVED}/x`, false],
+  [
+    "折り返しの後の `.md/sub`",
+    ".kaizen/archive/2026-08-01-old-\nnote.md/sub",
+    `${ARCHIVED}/sub`,
+    true,
+  ],
+])(
+  "陽性: `.md` の後ろに `/` が続く（%s）参照は形が崩れているとして落とす",
+  (_, text, shown, wrapped) => {
+    const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
+    expect(r.violations).toEqual([
+      `docs/a.md:1${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
+        "学びへのパスは .md で終わる 1 つのパスとして書く",
+    ]);
+    expect(r.refs).toBe(1);
+  },
+);
+
+test.each([
+  ["Markdown リンクの `)`", `[根拠](../${NOTE})`, 1],
+  ["URL のアンカー `.md#L10`", `根拠は ${NOTE}#L10`, 1],
+  ["折り返しの後のアンカー", ".kaizen/archive/2026-08-01-old-\nnote.md#L10", 1],
+  ["区切りの ` / `", `${NOTE} / ${ARCHIVED}`, 2],
+])("陰性: `.md` の後ろが `/` でない（%s）参照は通す", (_, text, refs) => {
+  const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
+  expect(r.violations).toEqual([]);
+  expect(r.refs).toBe(refs);
+});
 
 test("陰性: 免除の宣言ファイルに書いた参照は、実在しなくても通す", () => {
   const ref = ".kaizen/archive/2026-01-01-fixture.md";
