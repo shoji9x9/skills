@@ -75,6 +75,14 @@ jobs:
         run: node scripts/check-eval-reachability.js
       - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
         run: node scripts/check-skill-frontmatter.js
+      - name: Kaizen learning references exist
+        run: node scripts/check-kaizen-refs.js
+      - name: Identical copies (scripts/identical-copies.json)
+        run: node scripts/check-identical-copies.js
+      - name: No mutation counts in prose (AGENTS.md / rules / docs)
+        run: node scripts/check-mutation-count-prose.js
+      - name: Skill index (AGENTS.md / README.md vs skills/)
+        run: node scripts/check-skill-index.js
       - name: Unit tests (vitest)
         run: pnpm test
 

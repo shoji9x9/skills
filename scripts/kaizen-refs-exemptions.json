@@ -1,0 +1,13 @@
+{
+  "$comment": [
+    "scripts/check-kaizen-refs.js が実在を問わない .kaizen/ 参照（意図的な非実在）。file と ref の組で当て、reason は必須。",
+    "使われなくなった免除は検査が落とすので、参照を消したら免除も消す。"
+  ],
+  "exemptions": [
+    {
+      "file": "scripts/kaizen-archive.test.js",
+      "ref": ".kaizen/archive/2026-09-01-links.md",
+      "reason": "一時ディレクトリの fixture リポジトリで学びを移動した先のパス（このリポジトリの学びではない）"
+    }
+  ]
+}
