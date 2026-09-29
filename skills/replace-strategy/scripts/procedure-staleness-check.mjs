@@ -313,6 +313,47 @@ export function countRowLikeLines(text, consumed = new Set()) {
 }
 
 /**
+ * HTML コメントの記号が、読み飛ばしの規則（parseTables / countRowLikeLines）が扱える位置にだけあるかを確かめる。
+ * 扱える形は「行頭の `<!--` で始まり行末の `-->` で終わる 1 行」「行頭の `<!--` だけの開始行 … 行末の `-->` で終わる終了行」の 2 つ。
+ * それ以外（散文の後ろの `<!--`、行の途中の `-->`、1 行に複数の記号、閉じないコメント）は読める形を足さずに落とす——
+ * 読み飛ばしの規則に合わない位置のコメントは、中の表を生きた表として読むか、以降の表を丸ごと読み飛ばす。
+ * @param {string} text
+ * @returns {{ lines: number[], unclosed: boolean }} 扱えない位置の記号を含む行番号（1 始まり）と、閉じないコメントの有無
+ */
+export function strayCommentMarkers(text) {
+  /** @type {number[]} */
+  const lines = [];
+  let fence = null;
+  let comment = false;
+  text.split(/\r?\n/u).forEach((line, index) => {
+    const trimmed = line.trim();
+    const opens = trimmed.split("<!--").length - 1;
+    const closes = trimmed.split("-->").length - 1;
+    if (comment) {
+      if (closes === 0 && opens === 0) return;
+      if (opens > 0 || closes > 1 || !trimmed.endsWith("-->")) lines.push(index + 1);
+      comment = false;
+      return;
+    }
+    const mark = fenceOf(line);
+    if (mark !== null) {
+      if (fence === null) fence = mark;
+      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
+      return;
+    }
+    if (fence !== null) return;
+    if (opens === 0 && closes === 0) return;
+    if (!trimmed.startsWith("<!--") || opens > 1 || closes > 1) {
+      lines.push(index + 1);
+      return;
+    }
+    if (closes === 0) comment = true;
+    else if (!trimmed.endsWith("-->")) lines.push(index + 1);
+  });
+  return { lines, unclosed: comment };
+}
+
+/**
  * 対象の種類のセルを読む。`*` は全 mode。
  * @param {string} cell
  * @returns {string[] | null}
@@ -357,6 +398,13 @@ export function readLedger(text, skillChangeIds) {
     );
   }
   if (recordTable.duplicated) errors.push("「既に閉じた機能への当て直し」表が 2 つ以上ある");
+  const markers = strayCommentMarkers(text);
+  if (markers.lines.length > 0) {
+    errors.push(
+      `HTML コメントの記号が行頭の <!-- と行末の --> 以外の位置にある（${markers.lines.join(", ")} 行目）`,
+    );
+  }
+  if (markers.unclosed) errors.push("HTML コメントが閉じていない（以降の表が読まれない）");
   if (errors.length > 0) return { ok: false, errors };
 
   /** @type {Array<{ id: string, added_at: string, axis: string, origin: string, affects: string[], placement: string }>} */

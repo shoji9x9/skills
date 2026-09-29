@@ -432,6 +432,41 @@ test("HTML コメントの中の表は台帳として読まない（生きた表
   expect(/** @type {any} */ (onlyRetired).errors.join("\n")).toContain("「観点の追加」表が無い");
 });
 
+const LIVE = ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []);
+
+test.each([
+  [
+    "散文の後ろで開いたコメントの中の表",
+    `退役した表 <!--\n${CHANGE_HEADER}| PC-900 | 2026-01-01 | 軸 | 由来 | * | #9 |\n-->\n\n`,
+  ],
+  ["行の途中で閉じたコメント", "<!-- 説明 --> 後ろの散文\n\n"],
+  ["1 行に 2 つのコメント", "<!-- a --> <!-- b -->\n\n"],
+  ["終了行の後ろの散文", "<!--\n説明\n--> 続き\n\n"],
+  ["コメントの中で開き直したコメント", "<!--\n説明 <!-- 入れ子\n-->\n\n"],
+])("HTML コメントの記号が扱えない位置にある台帳は落とす: %s", (_name, prefix) => {
+  const r = readLedger(prefix + LIVE, new Set());
+  expect(r.ok).toBe(false);
+  expect(/** @type {any} */ (r).errors.join("\n")).toContain("HTML コメントの記号が");
+});
+
+test("閉じない HTML コメントは、以降の表を読まずに合格させない", () => {
+  const r = readLedger(`${LIVE}\n<!--\n説明\n`, new Set());
+  expect(r.ok).toBe(false);
+  expect(/** @type {any} */ (r).errors.join("\n")).toContain("HTML コメントが閉じていない");
+});
+
+test.each([
+  ["1 行のコメント", "<!-- 説明 | a | b | -->\n\n"],
+  ["開始行と終了行に分けたコメント", "<!--\n記入例: | a | b | c |\n-->\n\n"],
+  ["字下げした終了行", "<!--\n  説明\n  -->\n\n"],
+  ["コードフェンスの中の記号", "```text\n退役 <!-- 例 --> 続き\n```\n\n"],
+  ["コメントの中のフェンス記号", "<!--\n```\n-->\n\n"],
+])("陰性コントロール: 扱える位置の HTML コメントは通す: %s", (_name, prefix) => {
+  const r = readLedger(prefix + LIVE, new Set());
+  expect(r.ok).toBe(true);
+  expect(/** @type {any} */ (r).changes.map((c) => c.id)).toEqual(["PC-001"]);
+});
+
 test("同梱の改訂一覧と台帳テンプレートは検査がそのまま読める", () => {
   const shipped = readRevisions(
     JSON.parse(readFileSync("skills/parity-suite/assets/procedure-revisions.json", "utf8")),
