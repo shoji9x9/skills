@@ -1563,6 +1563,17 @@
       "expect_failing": [
         "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
       ]
+    },
+    {
+      "id": "audit-sheet-context-dropped",
+      "why": "監査の入力から持ち主を含む操作・画面の同定を外す（似た期待値を持つ別の操作のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      context: ownerContext(table, path),\n",
+      "replace": "      context: null,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
     }
   ]
 }

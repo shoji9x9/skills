@@ -3202,3 +3202,21 @@ test('区切りを含むキーの下の行は別の位置として監査させ�
   expect(r.status).toBe(1);
   expect(r.stderr).toContain('assertion_audit.entries に監査していない行がある: $["a.b"]');
 });
+
+test("--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）", () => {
+  const r = run(baseTable(), { args: ["--audit-sheet"], audit: false });
+  expect(r.status).toBe(0);
+  const { entries } = JSON.parse(r.stdout);
+  const byPath = (p) => entries.find((e) => e.path === p);
+  expect(byPath("$.operations[1].layout").context).toEqual({
+    operation: { id: "search", trigger: "clickButton(検索)" },
+  });
+  expect(byPath("$.operations[0].reactions[0]").context).toEqual({
+    operation: { id: "copy", trigger: "clickButton(コピー)" },
+  });
+  expect(byPath("$.state_displays.pages[0].candidates.toast").context).toEqual({
+    page: "共有画面",
+  });
+  // 行そのものが自分を同定する欄（書き込みの箇所）は文脈を持たない
+  expect(byPath("$.side_effect_writes.sites[0]").context).toBeNull();
+});

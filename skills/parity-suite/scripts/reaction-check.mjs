@@ -553,14 +553,18 @@ export function specsFingerprint(owners, testIndex, rootDir, readFile) {
 /**
  * 監査用の入力（期待値とテストの所在）を作る。監査役の subagent には、これとテストのソースの 2 つだけを渡す。
  * expected は持ち主の欄から covered_by と共有の根拠を除いたもの（期待値そのもの）。
+ * context は持ち主を含む行の同定（操作の中の欄なら操作の id / name / trigger、状態表示なら画面名）——
+ * 欄だけを渡すと、似た期待値を持つ別の操作のテストでも「届いている」と判定されうる（Codex レビュー #510）。
+ * @param {Record<string, unknown>} table
  * @param {ReturnType<typeof coveredByOwners>} owners
  * @param {ReturnType<typeof indexTestList>} testIndex
  */
-export function auditSheet(owners, testIndex) {
+export function auditSheet(table, owners, testIndex) {
   return owners.map(({ path, owner, names }) => {
     const { covered_by: _c, shared_assertion_reason: _s, ...expected } = owner;
     return {
       path,
+      context: ownerContext(table, path),
       expected,
       tests: names.map((name) => {
         const hit = testIndex.get(name);
@@ -568,6 +572,27 @@ export function auditSheet(owners, testIndex) {
       }),
     };
   });
+}
+
+/**
+ * 持ち主の位置から、それを含む行の同定を取る（行そのものが持ち主なら null）。
+ * @param {Record<string, unknown>} table
+ * @param {string} path
+ * @returns {Record<string, unknown> | null}
+ */
+function ownerContext(table, path) {
+  const op = /^\$\.operations\[(\d+)\][.[]/.exec(path);
+  if (op && Array.isArray(table.operations)) {
+    const o = table.operations[Number(op[1])];
+    if (isPlainObject(o)) return { operation: { id: o.id, name: o.name, trigger: o.trigger } };
+  }
+  const pg = /^\$\.state_displays\.pages\[(\d+)\][.[]/.exec(path);
+  const pages = isPlainObject(table.state_displays) ? table.state_displays.pages : null;
+  if (pg && Array.isArray(pages)) {
+    const row = pages[Number(pg[1])];
+    if (isPlainObject(row)) return { page: row.page };
+  }
+  return null;
 }
 
 /**
@@ -2804,7 +2829,11 @@ export function main(argv, deps = {}) {
         path: decl.path,
         table_fingerprint: tableFingerprint(table),
         specs_fingerprint: specs.fingerprint,
-        entries: auditSheet(owners, /** @type {NonNullable<typeof testIndex>} */ (testIndex)),
+        entries: auditSheet(
+          table,
+          owners,
+          /** @type {NonNullable<typeof testIndex>} */ (testIndex),
+        ),
         problems,
       });
       for (const p of problems) stderr(`warn: ${p}\n`);
