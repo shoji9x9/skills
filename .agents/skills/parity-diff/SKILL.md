@@ -219,7 +219,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - **依存順**: `replace-strategy`（setup）→ `golden-dataset` → `parity-suite` → `parity-replace` → **`parity-diff`**（`parity-replace` と往復）
 - **`parity-suite` から引き継ぐもの**: 強度ゲートで健全性を確認済みの差分器（画素・特性照合・aria の 3 経路のツール・しきい値）、ノイズ基準値、撮影条件（ページ一覧・マスクの論理名を含む）、
   部品被覆表（`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読み、未測定が残れば収束させず `parity-suite` へ戻す。様式・被覆プロファイルの正本は `parity-suite`）、
-  反応の被覆表（`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --recorded` で判定し、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、
+  反応の被覆表（`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --tests <テスト一覧> --recorded` で判定し、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`suite.new_only`）。すべて `.replace/parity/<slug>/metadata.json` 経由
 - **`parity-replace` から引き継ぐもの**: 新側の部品突き合わせ（`component_coverage.declared: true` のとき `new/<target>/component-comparison.json`。
   `parity-suite` の `component-comparison-check.mjs` で判定し、未突合が残れば収束させず `parity-replace` へ戻す。様式の正本は `parity-suite`）、

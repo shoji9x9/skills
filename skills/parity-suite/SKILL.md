@@ -344,7 +344,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   撮影条件（**撮る範囲の実測 `capture_scope` を含む。本スキルの `capture-scope-check.mjs` で数え直す**。
   スクロールバーの扱い `scrollbars`・表示の軸の値 `display_axes`・撮影に使ったブラウザ `browser` は新側採取で同じにする）、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
   プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
-  反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --recorded` で数え直す）、
+  反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す。
+  一覧は `playwright test --list --reporter=json --project=current --project=new` の出力）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy evidence` へ委譲するもの**: API 特性化で確定した口の「要求単位の根拠」の書き戻し（`推定` → `実測`）。
   **本スキルは `.replace/features.md` を書かない**ので、確定を観測した時点でこのモードを呼ぶ（[`references/api-batch.md`](references/api-batch.md)「要求単位を確定したら features.md へ書き戻す」）

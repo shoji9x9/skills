@@ -2732,7 +2732,7 @@ test("オリジンを含まない glob の要求パターンは通す（Codex �
 /** 表の covered_by の名前（重複を除く）。 */
 const namesOf = (t) => [...new Set(coveredByOwners(t).flatMap((o) => o.names))];
 
-test("陽性コントロール: --write は covered_by を解決した記録を残し、--recorded は一覧なしで通る（Issue #506）", () => {
+test("陽性コントロール: --write は covered_by を解決した記録を残し、--recorded も同じ一覧で通る（Issue #506）", () => {
   const w = run(baseTable(), { args: ["--write"] });
   expect(w.stderr).toBe("");
   expect(w.status).toBe(0);

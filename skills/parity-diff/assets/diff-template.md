@@ -162,7 +162,7 @@
 - インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
 - 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
-- 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --recorded の ok と未測定の操作数・状態表示の未測定数。ok: true かつどちらもゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
+- 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --tests <テスト一覧> --recorded の ok と未測定の操作数・状態表示の未測定数。ok: true かつどちらもゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
 - 未解決の判断待ち（pending_decisions のうち resolution: null と、回答はあるが blocks の工程が済んでいないもの）: （件数。ゼロが条件。pending-decisions-check.mjs の unsettled と一致させる。置き場へ回したもの（follow_up）は置き場とともに列挙）
 - 収束状態: （収束／他機能待ち／判断待ち／未収束）と根拠
 - 収束: （converged: true / false）

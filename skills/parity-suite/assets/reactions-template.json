@@ -454,7 +454,7 @@
     ]
   },
   "conformance": {
-    "_note": "reaction-check.mjs --write が書き戻す。手で書かない。table_fingerprint は conformance と assertion_audit を除いた表の指紋で、照合後に表を書き換えると parity-diff の --recorded が落とす。",
+    "_note": "reaction-check.mjs --tests <テスト一覧> --write が書き戻す。手で書かない。table_fingerprint は conformance と assertion_audit を除いた表の指紋で、照合後に表を書き換えると parity-diff の --recorded が落とす。",
     "tool": "reaction-check",
     "tool_version": "<スクリプトの VERSION>",
     "ok": "<真偽値>",

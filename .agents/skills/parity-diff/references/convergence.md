@@ -108,7 +108,7 @@
   - **反応の被覆表に未測定が残っていない**（正本は `parity-suite` の `references/coverage.md`「操作の反応」）。
     差分器は採取した状態しか見ないため、**遅れて出る・別の文書に出る・自動で消える反応**の取りこぼしと、新側の「出しっぱなし」は差分ゼロとして通る。
     `.replace/parity/<slug>/metadata.json` の `reaction_coverage.declared` が `true` のときだけ判定に入り、数え直しは**インストール済みの `parity-suite`**
-    （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
+    （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--tests <テスト一覧> --recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
 
     ```bash
     # current と new を明示する（省くと new-capture の採取スペックまで読み込み、採取用の環境変数が無いと落ちる）
@@ -122,7 +122,7 @@
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
     **表の文書ごとのオリジン（`document_origins` / `cross_origin_evidence`）と、`kind: none` の操作した文書（`observation.source_document`）も同じ判定に入る**（Issue #450）。
-    これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --write` を通し直させる（`tool_version` も上がっている）。
+    これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --tests <テスト一覧> --write` を通し直させる（`tool_version` も上がっている）。
     **操作ごとの頁の組み方の変化（`layout`）も同じ判定に入り、欠けた表も同じく exit 1 になる**（Issue #460）。
     **押した後に残る見た目と戻り先（`aftermath`）も同じ**（Issue #471。差分器は撮った状態しか見ないので、撮っていない終えた後の見た目と遷移・戻す範囲の差は差分ゼロとして通る）
     **`covered_by` をスイートのテストへ解決した記録（`conformance.covered_by_resolved`）と、assertion が期待値まで届くかの監査の記録（`assertion_audit`）も同じ判定に入る**（Issue #506。
