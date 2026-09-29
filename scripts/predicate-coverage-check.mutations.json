@@ -218,13 +218,14 @@
       "id": "id-range-reason-ignored",
       "why": "実在の列の行の根拠の空欄を落とさない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "      if (reason === \"\") {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が空欄",
-      "replace": "      if (false) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が空欄",
+      "find": "      if (reasonMissing) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が「",
+      "replace": "      if (false) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が「",
       "occurrences": 1,
       "expect_failing": [
         "識別子の値の範囲の不備: 届くの根拠が空欄（整数変換を届くと書くだけで通さない）",
         "識別子の値の範囲の不備: gaps に記録の根拠が空欄",
-        "識別子の値の範囲の不備: 行を足すの根拠が空欄"
+        "識別子の値の範囲の不備: 行を足すの根拠が空欄",
+        "識別子の値の範囲の不備: 届くの根拠が -（- は根拠の代わりにならない）"
       ]
     },
     {
@@ -235,6 +236,27 @@
       "replace": "if (disposition !== \"\" && disposition !== NONE_SENTINEL) {",
       "occurrences": 1,
       "expect_failing": ["識別子の値の範囲の不備: 届くのに扱いが空欄（- と書き分ける）"]
+    },
+    {
+      "id": "id-range-reason-dash-accepted",
+      "why": "根拠の - を記入済みとして受ける",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "const reasonMissing = reason === \"\" || reason === NONE_SENTINEL;",
+      "replace": "const reasonMissing = reason === \"\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "識別子の値の範囲の不備: 届くの根拠が -（- は根拠の代わりにならない）",
+        "識別子の値の範囲の不備: 列 - の根拠が -"
+      ]
+    },
+    {
+      "id": "id-range-dash-row-populated-ignored",
+      "why": "列 - の行に書かれた範囲・変換・判定を見ない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (populated.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["識別子の値の範囲の不備: 列 - の行に範囲・消費側・変換・判定が書いてある"]
     }
   ]
 }

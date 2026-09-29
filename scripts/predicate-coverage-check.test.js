@@ -1008,6 +1008,17 @@ test.each([
     "id-range-cell-blank",
   ],
   ["列 - の根拠が空欄", "| orders | - | - | - | - | - | - | - |  |", "id-range-reason-missing"],
+  [
+    "届くの根拠が -（- は根拠の代わりにならない）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | int.Parse | 届く | - | - |",
+    "id-range-reason-missing",
+  ],
+  ["列 - の根拠が -", "| orders | - | - | - | - | - | - | - | - |", "id-range-reason-missing"],
+  [
+    "列 - の行に範囲・消費側・変換・判定が書いてある",
+    "| orders | - | 12 桁 | 8 桁 | order | Convert.ToInt32 | 届く | - | 読了 |",
+    "id-range-dash-row-populated",
+  ],
 ])("識別子の値の範囲の不備: %s", (_label, row, expected) => {
   const codes = codesOf({ design: designOf({ idRanges: idRangesWith([row]) }) });
   expect(codes).toContain(expected);

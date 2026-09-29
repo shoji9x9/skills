@@ -814,6 +814,8 @@ export function checkPredicateCoverage(input) {
       const tableName = normalizeCell(row["テーブル"]);
       const column = normalizeCell(row["列"]);
       const reason = normalizeCell(row["根拠"]);
+      // 根拠の `-` は空欄と同じく欠けとして扱う——`-` は「調べた結果ゼロ件」の印で、根拠の代わりにならない。
+      const reasonMissing = reason === "" || reason === NONE_SENTINEL;
       if (tableName === "" && column === "") continue;
       const label = `${tableName || "（テーブル空欄）"}.${column || "（列空欄）"}`;
       if (tableName === "" || !declared.has(tableName)) {
@@ -828,10 +830,29 @@ export function checkPredicateCoverage(input) {
       // 投入ツールは ID を固定値で決めるので、「DB の採番に任せる」はこの逃げ道の理由にならない。
       // 真偽は読めない自己申告なので、根拠を要求し、同じ表に実列の行があれば矛盾として落とす。
       if (column === NONE_SENTINEL) {
-        if (reason === "") {
+        if (reasonMissing) {
           findings.push({
             code: "id-range-reason-missing",
-            message: `識別子の値の範囲の ${tableName} は列が - （帯の値を持つ列が無い）だが根拠が空欄`,
+            message: `識別子の値の範囲の ${tableName} は列が - （帯の値を持つ列が無い）だが根拠が「${reason || "（空欄）"}」`,
+          });
+        }
+        // 列 `-` の行に範囲・消費側・変換・判定が書いてあると、帯の値を持つ列が在るという記述と矛盾する。
+        // 黙って表ごとの免除へ倒すと、変換の検査を丸ごと外せる。残りのセルは `-` か空欄に限る。
+        const populated = [
+          "データセットの値の範囲",
+          "実運用の値の範囲",
+          "消費側 slug",
+          "受け取る型・変換",
+          "届くか",
+          "扱い",
+        ].filter((header) => {
+          const value = normalizeCell(row[header]);
+          return value !== "" && value !== NONE_SENTINEL;
+        });
+        if (populated.length > 0) {
+          findings.push({
+            code: "id-range-dash-row-populated",
+            message: `識別子の値の範囲の ${tableName} は列が - （帯の値を持つ列が無い）なのに「${populated.join("」「")}」が書いてある（列を書いた行にするか、残りを - にする）`,
           });
         }
         noIdColumn.add(tableName);
@@ -864,10 +885,10 @@ export function checkPredicateCoverage(input) {
       }
       // 根拠は届く・届かないを問わず要る——届くかは変換の意味から設計者が判定した自己申告で、
       // 読み手が確かめられる材料（帯が型の上限に収まる等）が無いと、届くと書くだけで通る。
-      if (reason === "") {
+      if (reasonMissing) {
         findings.push({
           code: "id-range-reason-missing",
-          message: `識別子の値の範囲の ${label} の根拠が空欄（変換の後も届くか・届かない経路をどう扱ったかを確かめた材料が残らない）`,
+          message: `識別子の値の範囲の ${label} の根拠が「${reason || "（空欄）"}」（変換の後も届くか・届かない経路をどう扱ったかを確かめた材料が残らない）`,
         });
       }
       const slugList = splitList(row["消費側 slug"]);
