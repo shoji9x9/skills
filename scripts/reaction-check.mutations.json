@@ -1308,7 +1308,8 @@
       "occurrences": 1,
       "expect_failing": [
         "1 本のテストを 2 行が名乗るのに根拠の無い行があれば落とし、全行に根拠があれば通す（Issue #506）",
-        "別の欄が同じテストを名乗る形も共有として数える（layout と returns_to。Issue #506）"
+        "別の欄が同じテストを名乗る形も共有として数える（layout と returns_to。Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
       ]
     },
     {
@@ -1360,7 +1361,9 @@
         "監査の記録の不備は落とす: 監査役が空（Issue #506）",
         "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）",
         "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
-        "監査の記録にスペックの指紋が無ければ落とす（Issue #506）"
+        "監査の記録にスペックの指紋が無ければ落とす（Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
       ]
     },
     {
@@ -1497,6 +1500,39 @@
         "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
         "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
         "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "shared-reason-placeholder-accepted",
+      "why": "共有の根拠がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      return !o || !filled(o.owner.shared_assertion_reason);\n",
+      "replace": "      return !o || !nonEmptyString(o.owner.shared_assertion_reason);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-auditor-placeholder-accepted",
+      "why": "監査役がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(audit.auditor)) {\n",
+      "replace": "  if (!nonEmptyString(audit.auditor)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-checked-placeholder-accepted",
+      "why": "確かめた部分がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    } else if (!filled(e.checked)) {\n",
+      "replace": "    } else if (!nonEmptyString(e.checked)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
       ]
     }
   ]

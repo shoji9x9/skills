@@ -3137,3 +3137,37 @@ test.each([
     expect(r.stderr).toContain("が new プロジェクトで走らない");
   },
 );
+
+test.each([
+  [
+    "共有の根拠",
+    (t) =>
+      (t.state_displays.pages[0].candidates.toast.shared_assertion_reason =
+        "<covered_by のテストを別の行も名乗るときだけ、その 1 本がこの行の期待値も全て確かめている根拠>"),
+    "根拠が空: $.state_displays.pages[0].candidates.toast）",
+  ],
+  [
+    "監査役",
+    (t) => (t.assertion_audit.auditor = "<監査した subagent（実装役と別の文脈で起動したもの）>"),
+    "assertion_audit.auditor が空かテンプレートの説明文のまま",
+  ],
+  [
+    "確かめた部分",
+    (t) =>
+      (t.assertion_audit.entries[0].checked =
+        "<reaches のとき、期待値のどの部分をどの assertion が確かめているか>"),
+    "verdict: reaches なのに checked が空かテンプレートの説明文のまま",
+  ],
+])(
+  "根拠の欄をテンプレートの説明文のまま出したら落とす: %s（Codex レビュー #510）",
+  (_name, mutate, message) => {
+    const t = baseTable();
+    t.assertion_audit = passingAudit(t);
+    mutate(t);
+    // 監査の指紋は根拠を書き換えた後の表で取り直す（指紋の不一致で落ちたのと区別する）
+    t.assertion_audit.table_fingerprint = tableFingerprint(t);
+    const r = run(t);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);

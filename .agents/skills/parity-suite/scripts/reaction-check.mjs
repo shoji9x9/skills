@@ -412,7 +412,7 @@ export function coveredByProblems(owners, testIndex) {
     if (paths.length < 2) continue;
     const lacking = paths.filter((p) => {
       const o = owners.find((x) => x.path === p);
-      return !o || !nonEmptyString(o.owner.shared_assertion_reason);
+      return !o || !filled(o.owner.shared_assertion_reason);
     });
     if (lacking.length > 0) {
       problems.push(
@@ -446,8 +446,10 @@ export function assertionAuditProblems(audit, owners, fingerprint, specs = null)
   }
   /** @type {string[]} */
   const problems = [];
-  if (!nonEmptyString(audit.auditor)) {
-    problems.push("assertion_audit.auditor が空（誰が監査したか〈実装役と別の subagent〉を書く）");
+  if (!filled(audit.auditor)) {
+    problems.push(
+      "assertion_audit.auditor が空かテンプレートの説明文のまま（誰が監査したか〈実装役と別の subagent〉を書く）",
+    );
   }
   if (audit.table_fingerprint !== fingerprint) {
     problems.push(
@@ -486,9 +488,9 @@ export function assertionAuditProblems(audit, owners, fingerprint, specs = null)
       problems.push(
         `${at}: ${e.path} の assertion が期待値に届いていない（${nonEmptyString(e.missing) ? e.missing : "届いていない部分が空"}）。assertion を深くして監査し直すか、測れないなら表の側を未測定にする`,
       );
-    } else if (!nonEmptyString(e.checked)) {
+    } else if (!filled(e.checked)) {
       problems.push(
-        `${at}: verdict: reaches なのに checked が空（期待値のどの部分をどの assertion が確かめているかを書く）`,
+        `${at}: verdict: reaches なのに checked が空かテンプレートの説明文のまま（期待値のどの部分をどの assertion が確かめているかを書く）`,
       );
     }
   });
