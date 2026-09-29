@@ -89,7 +89,7 @@ pnpm の transitive 依存には 2 種類ある。
 5. `pnpm install --frozen-lockfile` とテストで検証する
 6. `git diff pnpm-lock.yaml` の base `name@version` 比較で float 範囲を確認する。キー列挙は grep でなく YAML パーサの `loadAll` で取り、既知の quoted scoped key と総数を陽性コントロールとして突き合わせる（`pnpm-lock.yaml` は複数ドキュメントになりうる）。
 
-実例: Issue #124（postcss high）で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
+実例: postcss（high）の対応で `pnpm update postcss` は全変種で 8.5.15 のまま・完全再生成なら 122 パッケージ変更（typescript の major を含む）だったが、
 `pnpm remove vitest && pnpm add --save-dev 'vitest@^4.1.7'`（vitest は `devDependencies` 宣言）では 8.5.23 に到達し、変更 50 件・major ゼロ・`package.json` 無変更に収まった。
 
 ## 判断の権威は lockfile（現況・更新結果とも）
@@ -112,11 +112,11 @@ pnpm には **lockfile を読むコマンド**と **node_modules（実インス�
 - 更新後の stdout の増減（`- pkg X` / `+ pkg Y`）は node_modules を lockfile 記載へ整合させた分も
   報告するため、**lockfile 差分が無くても増減が表示される**（過大表示）。
 
-実例: Issue #177（js-yaml / undici / fast-uri）の着手時、同期前の `pnpm why undici` は Issue 本文と同じ
+実例: js-yaml / undici / fast-uri の脆弱性 Issue の着手時、同期前の `pnpm why undici` は Issue 本文と同じ
 `6.27.0` / `7.28.0` を返したが、base の lockfile は既に `6.28.0` / `7.29.0`（起票後にマージされた
 semantic-release の bump で解消済み）で `pnpm audit` にも advisory は無かった。
 `pnpm install --frozen-lockfile` 後は `pnpm why` も patched version を返した。
-同 Issue の js-yaml / fast-uri は未解消のままで、実際に更新が要ったのはこの 2 件だけだった。
+js-yaml / fast-uri は未解消のままで、実際に更新が要ったのはこの 2 件だけだった。
 
 ## 着手可否分類への反映
 
@@ -135,7 +135,7 @@ peer-keyed transitive はこの hand-edit が確実に機能するとは限ら�
 
 ## 出典
 
-- Issue #39（vite / peer-keyed）・Issue #67（undici / plain）・Issue #113（stdout の過大表示）・Issue #124（親 remove + re-add）・Issue #177（同期前 `pnpm why` の陳腐化）・Issue #181（バージョン明示とリリース年齢ゲートの無言 no-op）の実例
+- 配布元リポジトリでの実測（vite の peer-keyed・undici の plain・stdout の過大表示・親 remove + re-add・同期前 `pnpm why` の陳腐化・バージョン明示とリリース年齢ゲートの無言 no-op）
 - [pnpm update](https://pnpm.io/cli/update)
 - [pnpm Settings — configuration files](https://pnpm.io/settings)
 - [pnpm Dependency Resolution Settings — minimumReleaseAge](https://pnpm.io/settings#minimumreleaseage)

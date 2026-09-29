@@ -24,7 +24,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | `build` | `side: new` | 割り出した軸から引数を設計して部品を実装し、カタログに状態ごとの見本を置き、同条件で採って照合し、差分ゼロまで往復する |
 
 - **1 回の実行につき 1 部品。** 複数部品を並行して進めない（採取・設計・照合が浅くなる）
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - `slug` は `.replace/components.md` が採番したもの。**自分で採番しない。** 省略時は未着手から対話選択する
 - `--target <name>` の選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）。`capture` は `side: current`、`build` は `side: new` だけを候補にする
 - 自然文でも発動する:「共通部品の見た目の基準を採って」「部品を先に作りたい」「この部品を現行と突き合わせて」
@@ -70,7 +70,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - **軸の割り出しの対象は母集合とは別**（狭い）: **全インスタンスで到達できる状態**だけが対象になる。
   あるインスタンスで作れない状態は突き合わせる相手が居ないので、固定とも可変とも言えない。
   `axis-diff.mjs` はマニフェストの `instances[].unreachable_states` に宣言された欠落を除外として扱い、
-  対象から外した組み合わせを `not_compared` に残す（宣言の無い欠落は従来どおり問題にする）。
+  対象から外した組み合わせを `not_compared` に残す（宣言の無い欠落は問題にする）。
   **外れるのは「そのインスタンス × その状態」の組み合わせだけ**で、照合の母集合からも同じ単位で外れる——
   到達できない状態はそのインスタンスで採れないので基準が無く、見本も作らない（[`references/catalog.md`](references/catalog.md)）。
   **同じ状態でも到達できる別のインスタンスは母集合に残り、そのインスタンスの見本は作る**——
@@ -120,7 +120,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **対象の選択**（`--component` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug と target で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: 同梱ツールのコピー先が同梱版と一致しないときの扱い、
@@ -192,8 +192,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 4. **実装と見本**: 現行のソースコードと採取物を一次情報源に実装し、**インスタンス × 状態ごとに見本（story 等）を置く**。見本は採取と同じ状態集合を持たせる——見本の無い状態は照合されない。
    **CSS 値を写す前に、`css-rules.json` の `matched` と `inline_declarations` の両方から実際に勝っている宣言を確定する**——
    同梱の `node <skill>/scripts/cascade-resolve.mjs --css-rules <path> --state <state> --all` を通し、`undecidable` が残ったら
-   現行の CSS を直接読んで決める（インラインの値が `!important` 付き規則に負ける形と、後段テーマの再宣言が前段を上書きする形を、
-   目視で 3 部品とも取り違えた実績がある）。詳細: [`references/catalog.md`](references/catalog.md)「勝っている宣言を確定してから写す」
+   現行の CSS を直接読んで決める（インラインの値が `!important` 付き規則に負ける形と、後段テーマの再宣言が前段を上書きする形は、
+   目視では取り違えやすい）。詳細: [`references/catalog.md`](references/catalog.md)「勝っている宣言を確定してから写す」
    データ依存部品は `capture` が採った実データを見本の入力にする。書き方は `references.coding_conventions` に従う。詳細: [`references/catalog.md`](references/catalog.md)
 5. **見た目の系統差を源流で縮める**: **`references.ui_library` が未整備（キー欠落・空値・解決できないパス）ならここで停止し、整備を促す**（推測でライブラリを決めない）。
    整備済みならトークンマッピングで旧 design token を新側テーマへ寄せる。テーマで消せない構造差の扱い（`component_diffs` 宣言か `gaps.md`）は `parity-replace` の `references/theming.md` が正本
@@ -241,7 +241,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（`setup`。手順 10 で部品インベントリを作る）→ `golden-dataset`（フェーズ A）→ **`parity-component`（`capture` → `build`）** → 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`〕。
+- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。本スキル（`capture` → `build`）の直前は `golden-dataset`（フェーズ A。部品インベントリは `replace-strategy setup` の手順 10 が作る）、直後は各機能の `parity-suite`。
   **部品を画面より先に作らない方針のプロジェクトでは本スキルを使わない**（機能ごとに `parity-replace` が部品も作る）
 - **`replace-strategy` から受け取るもの**: `.replace/components.md`（部品 / slug / インスタンス / 採否 / データ依存の有無 / Issue 番号）。**本スキルはこのファイルを書かない**（Issue 番号の書き戻しは `replace-strategy issues` の担当）
 - **`parity-suite` から受け取るもの**: 特性採取ツールと差分器、撮影条件・ノイズ基準値の規約、状態網羅の導出源の規律。**対象 slug の `parity-suite` 実行は前提にしない**（部品の採取にページ単位のスイートは要らない）

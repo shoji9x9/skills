@@ -38,7 +38,8 @@ issue-create <説明> [--repo <owner>/<repo>]
    - 省略時は現在の repo（`gh repo view --json nameWithOwner -q .nameWithOwner`）を対象にする
    - 明示指定があればそれに従う
 2. 重複・関連 Issue を確認する
-   - `gh issue list --state open --limit 50` を取得し、同趣旨・重複の Issue がないか走査する
+   - 説明のキーワードで絞って取得し、同趣旨・重複の Issue がないか走査する: `gh issue list --state open --search "<キーワード>" --limit 100 --json number,title,url`
+     （`gh issue list` に `--paginate` は無く、`--limit` で黙って打ち切られる。返却件数が `--limit` に達したら打ち切りを疑い、キーワードを絞るか `--limit` を上げて取り直す。言い換えがありうるなら別のキーワードでも検索する）
    - 重複や強く関連する Issue があれば、新規作成の前にユーザーへ知らせて方針を確認する
 3. 種別を見極める（バグ / 機能要望 / タスク など）
 4. テンプレートを検出して読む（詳細は「テンプレートの扱い」を参照）
@@ -55,7 +56,10 @@ issue-create <説明> [--repo <owner>/<repo>]
 
      ```bash
      tmp=$(mktemp)
-     printf '%s' "<本文>" > "$tmp"
+     # 本文はバッククォートや $ を含みうるので、二重引用符ではなく quoted heredoc で書く
+     cat > "$tmp" <<'EOF'
+     <本文>
+     EOF
      gh issue create --title "<タイトル>" --body-file "$tmp" --label "<ラベル>"
      rm -f "$tmp"
      ```

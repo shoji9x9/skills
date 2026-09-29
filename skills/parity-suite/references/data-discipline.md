@@ -15,4 +15,4 @@
   （`gaps.md`「hermetic でないテスト一覧」の常連になる前提で計画する）。操作・fixture の生成・検証対象の正本は `replace-strategy` の `references/file-io.md`
 - **書き込んでよい範囲は設定が決める**: ストレージへ**直接**書く・消す（後始末等。アプリ経由のアップロードは `forbidden_actions` が律する）のは選択した target の `storage.write_scope` 配下だけ（`storage.seedable: true` が前提）、DB は `db.seedable`、静的データは `dataset_static_paths`。
   範囲外へ書こうとしたら実行せず停止する（契約の正本は `replace-strategy` の `references/project-config.md`）
-- **ストレージ実体へのゴールデンデータ投入は v1 スコープ外**（正本: 同ファイル「ファイルストレージ」）。アップロード操作の特性化はスコープ内で、投入だけがスコープ外である
+- **ストレージ実体へのゴールデンデータ投入はスコープ外**（正本: `replace-strategy` の `references/project-config.md`「ファイルストレージ」）。アップロード操作の特性化はスコープ内で、投入だけがスコープ外である

@@ -228,7 +228,7 @@ Playwright が起動したブラウザではなく、**利用者環境で起動�
 - **接続は共通のフィクスチャ `<parity_suite_dir>/parity/lib/fixtures.ts` で、組み込みの `browser` フィクスチャを上書きして行う**。
   スペックは `@playwright/test` ではなくこのファイルから `test` を import する（上書きを通らないスペックは、宣言があっても起動したブラウザで撮る）。
   **接続したらワーカーの環境変数 `PARITY_CDP_CONNECTED` に印を立て、採取スペックは撮る前にこの印を確かめる**（環境変数 `PARITY_*_CDP_URL` の有無だけでは、import の差し替え漏れを見分けられない）
-  接続先は side ごとの環境変数 `PARITY_CURRENT_CDP_URL` / `PARITY_NEW_CDP_URL`（target の `browser.cdp_url` から解決する。値を成果物に書かない）で、未設定の実行は従来どおり起動する
+  接続先は side ごとの環境変数 `PARITY_CURRENT_CDP_URL` / `PARITY_NEW_CDP_URL`（target の `browser.cdp_url` から解決する。値を成果物に書かない）で、未設定の実行は Playwright がブラウザを起動する
 - `connectOverCDP` は Chromium 系だけに使え、`browserType.connect` より忠実度が低い。接続したブラウザの `close()` はこちらが作ったコンテキストを片付けて切断するだけで、利用者のブラウザは閉じない
   （出典: <https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp> / <https://playwright.dev/docs/api/class-browser#browser-close> /
   組み込みフィクスチャの上書き <https://playwright.dev/docs/test-fixtures#overriding-fixtures>）

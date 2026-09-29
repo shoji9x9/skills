@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kaizen forget helper
 #
-# 適用されないまま古くなった pending の学びを `status: forgotten` にする（Issue #339）。
+# 適用されないまま古くなった pending の学びを `status: forgotten` にする。
 #
 #   kaizen-forget.sh --list        忘却候補を一覧する（何も変更しない）
 #   kaizen-forget.sh --auto        条件を満たす候補を忘却する（抽出完了時に kaizen-extract-done.sh が呼ぶ既定経路）

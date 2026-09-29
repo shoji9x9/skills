@@ -5,7 +5,7 @@
 # transcript を渡されていれば処理位置 `.kaizen/.extract-checkpoint.<session key>` を transcript の
 # 現在の終端まで進める。以降のコミット前ゲート（kaizen-precommit-gate.sh）は、その位置より後の
 # 未処理範囲だけを走査する——1 本の branch で複数 commit しても、前回の抽出以降に積まれた活動が
-# 毎回検査される（Issue #244）。
+# 毎回検査される。
 # checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）だけ、抽出完了
 # マーカー `.kaizen/.extract-done.<session key>`（UTC タイムスタンプ）を書き、古い checkpoint は
 # 落とす（残すとゲートがマーカーを尊重せず、古い起点から同じ候補を再検出して止まり続ける）。
@@ -16,7 +16,7 @@
 #
 # `--session-id <id>`: 対象セッション（センチネルを立てた本人。自分自身とは限らない）。
 # センチネル・checkpoint・抽出完了マーカーはこの id で決まる key を名前に持つ。省略すると
-# Issue #218 以前の agent 単位の名前（`.pending-extract<suffix>` 等）を対象にする（後方互換）。
+# session 単位化より前の agent 単位の名前（`.pending-extract<suffix>` 等）を対象にする（後方互換）。
 #
 # `--checkpoint-only`（ゲートが候補ゼロを検証できたときに呼ぶ）: transcript の処理位置
 # `.kaizen/.extract-checkpoint.<session key>` を走査器が報告した終端（`--scanned-bytes` /
@@ -26,7 +26,7 @@
 # 以降の未処理範囲だけが再走査される。
 #
 # 抽出完了の記録が済んだ後、適用されないまま閾値を過ぎた pending を `status: forgotten` にする
-# （Issue #339。同梱の kaizen-forget.sh へ委譲）。ここに置くのは、書き込む瞬間を「リポジトリを
+# （同梱の kaizen-forget.sh へ委譲）。ここに置くのは、書き込む瞬間を「リポジトリを
 # 変更する意思が確定した時点」に揃えるため——詳細は該当箇所のコメント。
 #
 # インラインの rm / リダイレクトは cwd 相対のため迷子ファイルを生み得る
@@ -161,7 +161,7 @@ if [ "${mode}" != "checkpoint-only" ] && { [ -n "${scanned_bytes}" ] || [ -n "${
 	exit 2
 fi
 # 制御ファイルは session 単位。session id を渡されない（または共通ライブラリを読めない）場合は
-# Issue #218 以前の agent 単位の名前へ縮退する。縮退した状態で複数セッションを動かすと
+# session 単位化より前の agent 単位の名前へ縮退する。縮退した状態で複数セッションを動かすと
 # 従来どおり奪い合うため、呼び出し側（ゲートの案内・references/extract.md）は常に渡す。
 session_key=""
 if declare -f kaizen_session_key >/dev/null 2>&1; then
@@ -181,7 +181,7 @@ fi
 
 # 制御ファイルは**このセッションのものが既に在るツリー**へ書く。置き場は作業ディレクトリから
 # 決まるため、同じセッションが共有ツリーと git worktree にまたがって続くと、センチネルと
-# checkpoint が別のツリーに散る（Issue #344）。散ったままだと、ゲートは片方しか見つけられず
+# checkpoint が別のツリーに散る。散ったままだと、ゲートは片方しか見つけられず
 # 「抽出済みの範囲を再検出してブロックし続ける」か「未抽出を素通りする」のどちらかに倒れる。
 # 既存の制御ファイルが見つからなければ従来どおり自分のツリー（cwd）へ書く。
 #
@@ -206,7 +206,7 @@ checkpoint_path="${control_dir}/${checkpoint_path#.kaizen/}"
 done_path="${control_dir}/${done_path#.kaizen/}"
 
 # 制御ファイルを**全作業ツリー**から消す。名前は `.kaizen/` を含まないファイル名で渡す。
-# 1 ツリーだけ消すと、散った複製が残ってゲートの判定を狂わせる（Issue #344）。
+# 1 ツリーだけ消すと、散った複製が残ってゲートの判定を狂わせる。
 remove_control_file_everywhere() { # $1: 制御ファイル名
 	local name="${1:-}" dir
 	[ -n "${name}" ] || return 0
@@ -276,7 +276,7 @@ fi
 if [ "${mode}" = "complete" ]; then
 	# `.extract-done` は**セッション全体**を抽出済みにする強い印なので、checkpoint を記録できた
 	# ときは書かない。書くと同一セッション内の後続 commit が素通りし、1 本の branch で複数
-	# commit する運用では最初の commit までの活動しか抽出されない（Issue #244）。
+	# commit する運用では最初の commit までの活動しか抽出されない。
 	# checkpoint があれば、次の commit ではその位置より後の未処理範囲だけが再走査され、
 	# 候補ゼロなら自動で通り、候補があればブロックされる——取りこぼしも恒久ブロックも起きない。
 	# 逆に checkpoint を記録できなかった場合（transcript 未指定・読めない・書き込み失敗）は、
@@ -299,8 +299,8 @@ if [ "${mode}" = "complete" ]; then
 		remove_control_file_everywhere "${checkpoint_path##*/}"
 	fi
 fi
-# センチネルの削除は**リポジトリの全作業ツリー**に対して行う。ゲートも全ツリーを見て遮断するので
-# （Issue #344）、自分のツリーだけ消すと別ツリーに残ったセンチネルでブロックが続く。
+# センチネルの削除は**リポジトリの全作業ツリー**に対して行う。ゲートも全ツリーを見て遮断するので、
+# 自分のツリーだけ消すと別ツリーに残ったセンチネルでブロックが続く。
 kaizen_dirs=()
 if declare -f kaizen_worktree_kaizen_dirs >/dev/null 2>&1; then
 	while IFS= read -r -d '' kaizen_dir; do
@@ -329,14 +329,14 @@ for kaizen_dir in "${kaizen_dirs[@]}"; do
 done
 
 # **空振りを成功と区別する。** `rm -f` は対象が無くても正常終了するため、終了コードでは
-# 「解消した」と「解消するものが無かった」が同じ値になる（Issue #344）。空振りに気づけないと、
+# 「解消した」と「解消するものが無かった」が同じ値になる。空振りに気づけないと、
 # 抽出したつもりでセンチネルが別の場所に残ったまま進むことになる。
 if [ "${removed}" -eq 0 ]; then
 	printf 'kaizen-extract-done: 警告: 削除対象のセンチネルがありませんでした（%s を起点に %s 個の .kaizen/ を確認。既に解消済みか、--sentinel-suffix / --session-id が立てた本人と違う可能性があります）\n' \
 		"$(pwd)" "${#kaizen_dirs[@]}" >&2
 fi
 
-# 適用されないまま古くなった pending を自動で忘却する（Issue #339）。
+# 適用されないまま古くなった pending を自動で忘却する。
 #
 # **発火点をここに置く理由は、書き込む瞬間を「リポジトリを変更する意思が確定した時点」に
 # 揃えるため。** SessionStart に置くと、リポジトリを変更するつもりのない調査だけのセッションでも

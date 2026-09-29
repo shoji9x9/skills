@@ -31,7 +31,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
   **本スキルの実行時点では current target は `url: none`（＝`default: true` を持てない）ため、`--target` 省略時は候補が 1 つでも自動選択せずユーザーに確認する**——
   既定へ落ちる経路が構造的に存在しない（`default: true` は工程 9 の引き渡しで初めて付く）
 - **1 回の実行につき 1 つの current target。** 複数環境を並行して建てない
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - 自然文でも発動する:「受領資産から現行環境を再構築して」「現行テスト環境を建てて」
 
 ## 前提
@@ -76,7 +76,7 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 | `targets[]`（`side: current`） | 再構築先の環境。`--target` で選択する。`url`（再構築前は `none` 可）・`db.env_vars`・`db.seedable`・`auth.roles`・`forbidden_actions`・`pre_commands` / `start` / `check_urls` を読む |
 | `targets[].db.seedable` | **暫定起動データ投入の設定由来ゲート**。`true` の target にだけ投入する（省略・`false` は読み取り専用接続。許可が無ければ設定の修正を促して停止し、自分で `seedable: true` を足さない） |
 | `dataset_mode` / `dataset_static_paths` | データの実体（`db` 既定 / `static`）。工程 3 の復元対象（DB か静的データ形式か）と工程 6 の設定由来ゲートの分岐に読む。`static` では書き込み先がすべて `dataset_static_paths` 配下に収まることが投入の条件（意味論の正本はスキーマ文書の「データセットの実体」） |
-| `uses_storage` / `targets[].storage` | ストレージを使うアプリで、起動に必要な最小の入れ物（バケット・ディレクトリ）が存在するかの確認に**読む**。**ゴールデンデータのストレージ投入は v1 スコープ外**（正本はスキーマ文書「ファイルストレージ」） |
+| `uses_storage` / `targets[].storage` | ストレージを使うアプリで、起動に必要な最小の入れ物（バケット・ディレクトリ）が存在するかの確認に**読む**。**ゴールデンデータのストレージ投入はスコープ外**（正本はスキーマ文書「ファイルストレージ」） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `references.env_setup` | 環境変数の用意方法。接続確認・起動が失敗したときの案内先 |
 | `references.coding_conventions` | 再構築ツール・投入ツールを書くときに従う規約（**ツールは対象プロジェクト側のコード**）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**（意味論の正本はスキーマ文書の「コーディング規約」） |
@@ -89,12 +89,12 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **対象の選択**（`--target` の省略。候補が 1 つでも自動選択しない）は保留にせず、候補を示して停止する（正本の「宣言」）
 - **判断待ち（保留に落とす）**: 既存の `metadata.json` がある実行を続きから進めてよいか（`--resume` が無いとき）、
   暫定起動データ投入前の「テスト環境であることの確認」（自己申告ゲート）、来歴・利用許可が不明なデータの投入可否、引き渡し時の `url` と `default: true` の書き込み
-- **従来どおりの停止のまま**: 上記「停止と再開」の表の条件（資産の不足・スキーマの復元不能・DB 設定の判断不能・質問票への回答待ち・`seedable` の欠落）。
+- **自律実行でも停止する**: 上記「停止と再開」の表の条件（資産の不足・スキーマの復元不能・DB 設定の判断不能・質問票への回答待ち・`seedable` の欠落）。
   これらは先方・SME の回答や資産で埋まる**前提の欠落**で、実行中の利用者の判断では埋まらない
 - **記録先**: `metadata.json` の `pending_decisions[]` と `run.autonomous`。**未解決の保留が残る間は `status: handed-off` にしない**——`status: blocked` のまま `blocked_on` に`判断待ち: <id>`を載せる
 - **本スキルは設定へ書く 1 箇所（引き渡し）も越えない線に当たる**（人間が確定させる方針キー）。値は保留に記録し、答えが得られてから書く
@@ -151,10 +151,9 @@ current-environment-bootstrap [--target <name>] [--resume] [--autonomous]
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（`setup` の由来確認）→ **current-environment-bootstrap** → `replace-strategy`（測定・戦略・機能インベントリ）→ `golden-dataset`（フェーズ A）
-  → 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`〕
+- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。本スキルの直前は `replace-strategy setup` の由来確認、直後は同 `setup` の測定・戦略・機能インベントリ
 - **`replace-strategy`**: `current.origin: received-assets` のとき `setup` が測定の前に本スキルへ委譲する。引き渡し後、`setup` は再構築された target に対して測定を行う。
   機能インベントリの採番後、`semantics.md` の「対象機能」列へ slug を書き戻すのは `replace-strategy` の担当
-- **`golden-dataset`**: `semantics.md` の**確定済み**の意味論と根拠を引き継いでゴールデンデータセットを設計する。**確認待ちの意味論を確定扱いにせず**、暫定起動データを流用しない。
+- **`golden-dataset`**: `semantics.md` の**確定済み**の意味論と根拠を引き継いでゴールデンデータセットを設計する。**確認待ち・確認したが確定できなかった意味論を確定扱いにせず**、暫定起動データを流用しない。
   フェーズ A の投入は暫定起動データを置き換えるため、**起動に要る前提（認証ユーザー・マスタ等）は確定根拠に基づいてフェーズ A のデータ設計に含める**
-- **`parity-suite`**: 対象 slug の必須意味論が `semantics.md` に確認待ちで残っている間は、その機能のスイート構築を開始しない（不足情報を報告して停止する）
+- **`parity-suite`**: 対象 slug の必須意味論が `semantics.md` の「確認待ち」または「確認したが確定できなかったもの」に残っている間は、その機能のスイート構築を開始しない（不足情報を報告して停止する）

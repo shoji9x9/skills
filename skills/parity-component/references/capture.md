@@ -7,7 +7,7 @@
 | 採るもの | 手段 | なぜ要るか |
 |---|---|---|
 | 要素のスクリーンショット | `parity-suite` 同梱の element-shot.mjs（`locator.screenshot()` は使わない） | 名前の付かない内部要素の見た目差を画素経路が拾う |
-| 計算後スタイル | `parity-suite` 同梱の trait-capture.mjs | 決定論的に比較できる値。状態ごとに採る。**文字の書体・大きさは要素自身の `computed` ではなく `text_owners`（文字の持ち主ごとの行）を読む**——文字を子孫の要素が持つ部品では、要素自身の font 系は文字の見た目を表さない（Issue #459）。採取が `element is outside the document` で失敗したら、引いた要素が画面に描かれていない（市販部品が支援技術のための写しを別の木に作っている）ので、セレクタを描かれている要素へ直して採り直す |
+| 計算後スタイル | `parity-suite` 同梱の trait-capture.mjs | 決定論的に比較できる値。状態ごとに採る。**文字の書体・大きさは要素自身の `computed` ではなく `text_owners`（文字の持ち主ごとの行）を読む**——文字を子孫の要素が持つ部品では、要素自身の font 系は文字の見た目を表さない。採取が `element is outside the document` で失敗したら、引いた要素が画面に描かれていない（市販部品が支援技術のための写しを別の木に作っている）ので、セレクタを描かれている要素へ直して採り直す |
 | **当たっている CSS 規則** | 同梱の `scripts/css-rules-capture.mjs` | 計算値が見せない側（`:hover` の宣言・`!important` の競合・どの規則が効いているか） |
 | **データ依存部品の実データ** | 現行の可視行から抽出 | 見本に同じ入力を与えないと、データ由来の差と実装の差を分けられない |
 
@@ -35,7 +35,7 @@
 
 `element.shot.json` は、element-shot.mjs に `path` として `element.png` を渡すと PNG と同じ run の値で隣に書かれる
 （実際に使った clip・出力 PNG の実寸・最上位座標の矩形）。`traits.json` の `rect` は要素が居るフレームの座標なので、
-iframe の中の部品では **`rect` から PNG の実寸は導出できない**（Issue #436）。寸法を突き合わせるときは `element.shot.json` の `png` を読む。
+iframe の中の部品では **`rect` から PNG の実寸は導出できない**。寸法を突き合わせるときは `element.shot.json` の `png` を読む。
 
 ## ページ全体ではなく要素を撮る
 
@@ -44,7 +44,7 @@ iframe の中の部品では **`rect` から PNG の実寸は導出できない*
 `helper.enclosingIntRect`。出典: <https://github.com/microsoft/playwright/blob/v1.56.1/packages/playwright-core/src/server/helper.ts>）、
 絶対座標が小数だと**要素自身の寸法とは無関係に PNG が軸ごと最大 1px 大きくなる**。
 現行が小数座標・新側（カタログ）が整数座標という組み合わせは普通に起きるため、同じ寸法の部品でも PNG が食い違い、
-寸法一致を要求する画素比較が**全件実行不能**になる（`button` の 84/84 セルで実測。Issue #434）。
+寸法一致を要求する画素比較が**全件実行不能**になる（`button` の 84/84 セルで実測）。
 element-shot.mjs は矩形を最近接へ丸めた寸法で `page.screenshot({ clip })` を撮るので、両側が同じ整数寸法になる。
 
 - **カタログ側も同じツールで撮る**（[`compare.md`](compare.md)）。片側だけ差し替えると外接の 1px がそのまま寸法差として残る

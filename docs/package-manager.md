@@ -1,6 +1,6 @@
 # パッケージマネージャ（pnpm）の保守
 
-正本は `package.json` の `packageManager` / `devEngines.packageManager` と `pnpm-lock.yaml`。
+版の正本は 4 箇所（`mise.toml` の `pnpm`、`package.json` の `packageManager` / `devEngines.packageManager`、`pnpm-lock.yaml`）。
 **npm は使わない**（`package-lock.json` を作らない。誤った PM 利用は `devEngines` が警告する）。
 
 ## pnpm を bump する

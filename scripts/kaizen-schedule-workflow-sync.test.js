@@ -69,7 +69,7 @@ test("正本が定期実行スキルの前提（cron・skip・エージェント
   }
 });
 
-// スクリプトの探索条件は、本リポでは緑のまま配布先だけで壊れる（`.kaizen/2026-09-20-
+// スクリプトの探索条件は、本リポでは緑のまま配布先だけで壊れる（`.kaizen/archive/2026-09-20-
 // distributed-script-probe-assumed-exec-bit.md`）。本リポには 755 のソース配置
 // `skills/kaizen/scripts/` があるので、`-x` に戻しても `.github/skills/...` を落としても
 // ここ以外は誰も赤くならない。2 つの軸を別々に固定する。

@@ -30,7 +30,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 - `evidence` は `--feature` を 1 つだけ取り、`--endpoint` と `--evidence` を**対で**繰り返して複数の口を一度に書き戻す。
   **口を省略した一括昇格はできない**（行に 1 つでも `実測` があると行全体が実測に見える、という列を作った理由そのものが失われる）
 - モード未指定時はどのモードかをユーザーに確認する（`setup` 未完了なら `setup` を提案する）
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - 自然文でも発動する:「リプレイス戦略を立てて」「リプレイスを始めたい」「現行アプリを測定して」「要求単位を確定したので書き戻して」
 
 ## 前提
@@ -109,7 +109,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 1. **依存の確認**: 前提スキル（`issue-create` / `browser-test`）のインストール状況と chrome-devtools MCP の有効性を確認する。未導入・無効なら導入手順（`gh skill install shoji9x9/skills <name>`、MCP の設定）を示す。**MCP が無いままでは測定できないため、手順を示したうえで停止する**
 2. **現行環境の由来の確認**: 測定対象になる現行テスト環境が次のどちらかを確認し、`current.origin` へ記録する（意味論の正本は [`references/project-config.md`](references/project-config.md) の「現行環境の由来」）。
    **由来を推測で決めない**——現行アプリの URL が設定に書けることは、その環境が動いていることの証拠ではない
-   - **`managed`（既存の管理済みテスト環境）**: 自社で管理している動作可能な環境がある。以降は従来どおり進める（手順 4 は行わない）
+   - **`managed`（既存の管理済みテスト環境）**: 自社で管理している動作可能な環境がある。手順 4 は行わない
    - **`received-assets`（受領資産から自社で再構築する）**: 先方から受領した資産だけがあり、比較基準になる環境をこれから建てる。
      受領資産の置き場所を `current.received_assets`（1 つ以上のパス）に記録し、**`current-environment-bootstrap` のインストール状況をここで確認する**
      （未導入なら `gh skill install shoji9x9/skills current-environment-bootstrap` を示して停止する。再構築を代行しない）
@@ -127,7 +127,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      **`seedable` と `dataset_static_paths` は投入の設定由来ゲート**であり、既定は deny（書かなければ投入されない）。実データを持つ環境は `seedable` を付けずに読み取り専用として登録する。正本は [`references/project-config.md`](references/project-config.md) の「データセットの実体」
    - **ファイルストレージ（`uses_storage` / `targets[].storage`）**: アップロード先・ファイル出力先のストレージを使うかを確認し（**`dataset_mode` とは直交する別軸**——`dataset_mode` に第 3 の値を足さない）、
      使うなら環境ごとに接続の環境変数名・書き込み範囲（パスまたは `<bucket>/<prefix>`）・アップロード経路（`direct` / `presigned`）を確認する。
-     **投入ゲート（`storage.seedable`）は既定 deny で、ストレージ実体へのゴールデンデータ投入は v1 スコープ外**（宣言だけを残し、ストレージ依存の検証は `gaps` に未検証として記録させる）。正本は [`references/project-config.md`](references/project-config.md) の「ファイルストレージ」
+     **投入ゲート（`storage.seedable`）は既定 deny で、ストレージ実体へのゴールデンデータ投入はスコープ外**（宣言だけを残し、ストレージ依存の検証は `gaps` に未検証として記録させる）。正本は [`references/project-config.md`](references/project-config.md) の「ファイルストレージ」
    - **検証コマンド（`verification_commands`）**: 完了前に実行する静的解析・テスト等を、**走る範囲で `full`（全体走査）と `diff`（変更ファイルだけ）の 2 列に分けて**確定する
      （環境準備・起動は含めない。それらは target の `pre_commands` / `start`）。**`full` は `parity-replace` の完了判定に必須のため、無いままにしない。**
      **`full` は生成先リポジトリの必須 CI から導出する。** 対象ブランチに有効な ruleset は `gh api --paginate` で全ページ・全 rule type を取得し、classic branch protection も読み、
@@ -153,7 +153,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      （手順 10 の確認結果としてパスか `none` を書き、確認まで至らなければキーごと書かない）。正本は [`references/project-config.md`](references/project-config.md) の「references（知識の注入）」
 4. **現行環境の再構築**（`current.origin: received-assets` のときだけ）: `current-environment-bootstrap` へ委譲する。
    **引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）まで測定へ進まない**（`blocked` なら質問票の回答・追加資産を待ち、`--resume` での再開を案内して停止する）。
-   引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**（従来フローは変わらない）
+   引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**
 5. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価を行い、
    `.replace/survey.md` に記録する。**測れない場合はここで停止する**
@@ -208,7 +208,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    採取・実装・照合は `parity-component` が担うので、**ここでは対象と slug を確定するだけで、見た目の採取は行わない**。
    併せて**部品カタログの実体**（1 インスタンス × 1 状態を固定 URL で描画できる場）を確認し、契約ドキュメントのパスを `references.component_catalog` に、
    カタログの baseURL を `side: new` の target の `catalog_url`（固定文字列）または `catalog_url_command`（実行ごとに変わる環境。排他）に記録する（未確定なら枠だけ残し、`parity-component build` に入る前に確定させる）。
-   **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る。従来のフローは変わらない）
+   **画面より先に作らない方針なら `.replace/components.md` は作らない**（機能ごとに `parity-replace` が部品も作る）
 11. **移行元の静的資産の方針決定**: 移行元が配信している画像・アイコン・favicon・ロゴ・図・書体を、**新側へ写すか**を実装が始まる前に**種類ごとに一括で**決めて `.replace/assets.md` に記録する
     （テンプレート: [`assets/assets-template.md`](assets/assets-template.md)。棚卸し・判断・記録の正本は [`references/static-assets.md`](references/static-assets.md)）。
     **手順 10 の依存とは別に決める**——依存は「自前か／どのパッケージか」で、資産は移行元の配信物そのものなので、依存選定の表に「本文フォント」の行があってもアイコン用の書体や画像を写すかは決まっていない。
@@ -273,7 +273,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
   ```
 
   exit 0 = 漏れなし／1 = 未宣言の未確認の口がある／2 = 入力の不備（列名のずれを含む）／3 = 判定不能（その行の表に根拠列が無い）／
-  4 = 対象外（**口の列も根拠列も持たない**バッチ・「その他の Issue」の行）。
+  4 = 対象外（その slug の行がバッチ・「その他の Issue」の表にあると**表の見出しで同定できた**とき。口の列も根拠列も無いだけでは対象外にせず 3 に倒す）。
   **2・3・4 のいずれも「検査して 0 件」（exit 0）と読み替えない**——3 つとも口を数えていない。
   消費側が 3 を完了の妨げにしないのは旧インベントリのための後方互換であって、合格の証拠にしたわけではない（[`references/evidence.md`](references/evidence.md)）
 - `parity-suite`（特性化で確定）と `parity-replace`（実装で確定）はこのモードへ委譲する。**両スキルは features.md を自分では書かない**——書き戻しの経路をここに 1 本だけ持つことで、昇格の条件が 3 スキルに分かれて緩まないようにする
@@ -305,33 +305,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
   node <skill>/scripts/append-only-check.mjs --root . --base <比較元の版>
   ```
 
-  **各項目の `id` は一覧の中で一意にする**（重複すると、同じファイルに当たった突き合わせ方の違う 2 項目が無音で先勝ちに決まり、
-  厳しい方の規則が黙って外れる。重複した一覧は exit 2 で落ちる）。
-  一覧の各項目は `unit` で**突き合わせの単位**を持つ（`lines` ＝ 空白を畳んだ行、`markdown-structure` ＝ 見出し・表の列名・表の行〈先頭セルが鍵〉・
-  行 × 列のセル・定義箇条書きの鍵・それ以外の散文行、`json-arrays` ＝ `arrays` に挙げた配列の要素〈深い等価〉）。
-  **鍵だけを同一性にしない**——表の行は先頭セルだけ残せば中身を丸ごと差し替えられ、`key` つきの配列も鍵以外が自由に書き換わる。
-  正本が更新を定めている箇所だけ `mutable_columns`（列名。`"*"` でセルを契約の対象外）・`mutable_bullets`（定義箇条書きの鍵）・
-  `mutable_blocks`（`lines` 専用。**正本が削除を定めている YAML のキーパスの配下**を単位から外す。キー行は鍵だけの単位へ畳むのでキーごと消せば落ちる）・
-  `growable_containers`（`lines` 専用。**追記だけを許すキーパス**のフロー形式コンテナを要素ごとの単位へ展開する。要素を足すのは単位の増加、落とすのは単位の消失になる）・
-  `registry_groups`（`lines` 専用。**鍵をまたいで要素が移動する台帳**——`intentional_diffs` の `keep` / `may_change` / `pending` は棚卸しで人が文言を移す——を
-  グループ共通の要素の単位へ展開する。鍵ごとの存在は別の単位で守るのでキーごと消せば落ち、**どの鍵にも無くなった要素だけ**が落ちる。
-  要素がオブジェクトのときの照合キーは `item_key` で、追随フィールド〈`slug` / `added_by` 等〉は移動先に無いので単位から外す）・
-  `fill_only`（空 → 非空だけ）・`transitions`（明示した `<変更前>-><変更後>` だけ）で開ける。
-  **キーパスを取る 3 つ（`mutable_blocks` / `growable_containers` / `registry_groups`）はルートからの完全なパスで書く**——
-  設定ファイルなら `skills.<スキル名>.intentional_diffs.pending` であって末尾だけでは引かず、一致しないパスは黙って「外し忘れ」になる。
-  同じパスを 2 つのオプションに書くと単位が二重に決まるので、その一覧は exit 2 で落ちる（**完全一致だけでなく祖先・子孫の入れ子も**。`mutable_blocks` に祖先を書くと配下の展開はそこへ到達せず、その配下の削除がすべて無音で通る）。
-  同じ鍵の行は**出現順で区別する**（`assets.md` は方針を覆した行と現在の行が同じ「種類」で並ぶので、
-  区別しないと 2 行の間でセルを入れ替えても単位が変わらない）。
-  **全部を行として比べない**——正本が明示的に求めるその場の更新（版の +1・状態列の `未`→`済`・Issue 列の `未起票`→番号・最終更新の日時）が
-  「失われた行」に化け、決定を 1 つも捨てていない成果物で収束が止まるため。守るのは行・列・節・配列の要素で、セルと箇条書きの**値**ではない。
-  `lines` で「空リストへ最初の要素を足す」を縮小に化けさせないのが `growable_containers`、「棚卸しで `pending` から `keep` へ文言を移す」を
-  縮小に化けさせないのが `registry_groups` である。**外して「別の工程が数える」に委ねない**——
-  `pending` の配下を単位から外すと、棚卸しを経ずに要素を丸ごと消した編集まで通るが、その削除を数える工程は実在しない
-  （`pending-triage-check.mjs` は現在の `pending` を母集合にするので、消えた要素は対象にならない）。
-  **緩和するキーは名指しする**——行はインデントを畳むので同じ鍵の行が複数ありえ（`targets[].forbidden_actions` 等）、
-  名指しせずに「育った」を判定すると**兄弟の間で要素が移動しただけの編集**（片方を空にしてもう片方へ足す）まで通る。
-  **行末コメントは切ってから読み**（正本の設定ファイルは `keep: [] # 変えない（…）` と書く。行末が `]` であることを求めると実プロジェクトで緩和が一度も効かない）、
-  鍵の行末コメントは独立した単位として守るので、消せば落ちる（要素の行末コメントは、要素が鍵をまたいで移動する設計上、移動先に置き場所が無いので単位にしない）。
+  **各項目の `id` は一覧の中で一意にし、キーパスはルートからの完全なパスで名指しする**（重複した `id`・末尾だけのパスは厳しい方の規則や緩和を黙って外す）。
+  一覧の項目（突き合わせの単位 `unit` と、正本が更新を定めている箇所を開けるオプション）を足す・直すときの規約は [`references/append-only.md`](references/append-only.md)
 
   `parity-diff` が機能を閉じる工程（収束判定）でこれを呼ぶ。プロジェクト側の置き場所が既定と違うなら一覧をプロジェクトへコピーして書き換え、`--manifest` で渡す（スキル内の正本は書き換えない）
 
@@ -347,7 +322,8 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 | `parity-diff` | 決定論的差分器（画素＋特性照合＋aria）→ LLM トリアージ |
 
 **全体の依存順**: `replace-strategy`（`setup` の由来確認）→ **必要時のみ `current-environment-bootstrap`** → `replace-strategy`（測定・戦略・機能インベントリ）
-→ `golden-dataset`（フェーズ A）→ **画面より先に部品を作る方針なら部品ごとに `parity-component`（`capture` → `build`）** → 各機能で〔`parity-suite` → `parity-replace` → `golden-dataset`（フェーズ B）→ `parity-diff`（`parity-replace` と往復）〕。
+→ `golden-dataset`（フェーズ A）→ **画面より先に部品を作る方針なら部品ごとに `parity-component`（`capture` → `build`）**
+→ 各機能で〔`parity-suite` → `parity-replace`（新側スキーマの確定後・完了ゲートの前に `golden-dataset` のフェーズ B を呼ぶ）→ `parity-diff`（`parity-replace` と往復）〕。
 共通部品 Issue は機能 Issue より先、横断 API Issue も機能 Issue より先。
 
 姉妹スキルが未インストールでも本スキル（測定・戦略・起票）は動くが、起票した Issue の実施には必要になる。`issues` モードの完了時に案内する。

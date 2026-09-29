@@ -9,7 +9,7 @@ Hook からエージェント自身を呼び出して LLM を動かすことは�
 - **タスク終了時 Hook（記録役）**: センチネルファイル `.kaizen/.pending-extract<agent suffix>.<session key>` を残し、「未抽出の活動がある」ことを記録する。センチネルは **session 単位**で、中身に解消用の同定情報（transcript パス・エージェント・session id）を持つ。
 - **コミット前 PreToolUse ゲート（実行役）**: このプロジェクト宛ての `git commit` を捕捉し（コマンド行から外部リポジトリ宛てと分かるものは対象外）、まず lifecycle 整合を検査する。
   未抽出センチネルがあり Hook から transcript パスを取得できる場合は、checkpoint との間だけを走査する。候補ゼロを検証できたときは自動通過し、候補あり・形式不明・timeout は `kaizen --current` を促す。
-  全エージェント（Claude Code / Codex / Copilot）で commit のブロックは機能する。transcript を提供しない Copilot は候補ゼロの自動通過だけを使わず、安全側の従来フローへ戻る。
+  全エージェント（Claude Code / Codex / Copilot）で commit のブロックは機能する。transcript を提供しない Copilot は候補ゼロの自動通過だけを使わず、安全側（`kaizen --current` を促すブロック）へ倒れる。
 - **セッション開始時 Hook（参照注入役）**: `.kaizen/` の未適用（`status: pending`）の学びダイジェストを stdout に出力し、エージェントのコンテキストへ「参照データ」として供給する。これにより過去の学びを踏まえてタスクに着手できる（KEDB 照合の入口）。
   Claude Code は SessionStart の stdout を context へ注入する。
   Codex は plain text の stdout を extra developer context として追加する（[Codex Hooks — SessionStart](https://learn.chatgpt.com/docs/hooks#sessionstart)）。
@@ -76,7 +76,7 @@ git worktree で作業している場合も**コミット対象のリポジト�
 
 **制御ファイル（センチネル・checkpoint・抽出完了マーカー）の探索と解消は、リポジトリの全作業ツリーに広げてある。**
 置き場は作業ディレクトリから決まるため、セッションが共有ツリーで始まって worktree で続くと、センチネルを立てたツリーと `git commit` を実行するツリーが分かれる。
-自分のツリーの `.kaizen/` しか見ない形だと、**worktree の commit がゲートを素通りし、それは出力にも終了コードにも現れない**（Issue #344）。
+自分のツリーの `.kaizen/` しか見ない形だと、**worktree の commit がゲートを素通りし、それは出力にも終了コードにも現れない**。
 ゲートは `git worktree list` が返す全ツリーの `.kaizen/` からセンチネル・マーカー・checkpoint を探し、`kaizen-extract-done.sh` は同じ範囲からセンチネルを消す。
 **`kaizen-extract-done.sh` は削除が空振りしたら stderr に警告を出す**——`rm -f` は対象が無くても正常終了するので、終了コードだけでは「解消した」と「解消するものが無かった」を区別できない。警告が出たら、抽出が対象にしたセッションと `--session-id` / `--sentinel-suffix` が一致しているかを確かめる。
 
@@ -92,7 +92,7 @@ for d in .agents/skills/kaizen/scripts .claude/skills/kaizen/scripts \
 done
 ```
 
-> **フック起動は cwd 非依存にする。** Stop / PreToolUse フックは、エージェントが `cd` したサブディレクトリの cwd を継承して起動することがある（Issue #53 / `.kaizen/2026-06-16-relative-path-hook-cd-stray-sentinel.md`）。
+> **フック起動は cwd 非依存にする。** Stop / PreToolUse フックは、エージェントが `cd` したサブディレクトリの cwd を継承して起動することがある。
 > このとき `bash <KAIZEN_SCRIPTS_DIR>/...` が相対パスだとスクリプト自体が見つからず起動に失敗するため、`<KAIZEN_SCRIPTS_DIR>` は**絶対パス**にする（上の `cd … && pwd` が絶対パスを返す）。
 > 絶対パスをハードコードしたくないプロジェクト内配置では、コマンドを `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}` で前置して root 基準に解決する（このリポジトリの `.claude/settings.json` 等はこの形）。
 > これはスクリプト**本体の在り処**を解決するための前置きで、書き込み先の `.kaizen/` は各スクリプトが上記のとおり作業ツリー基準で別に解決する。
@@ -178,17 +178,17 @@ commit のときだけ `kaizen-status-check.sh` を実行し、未抽出セン�
 `user correction` の判定に使うのは**文字列の `content` と `text` 要素だけ**で、`tool_result` 要素は除外する。
 Claude Code はツール結果も `role: "user"` のレコードに載せるため、連結するとツール出力の本文に含まれる修正語（「ではなく」等）が拾われ、実在しないユーザー修正で commit が止まる。
 同じ分岐の tool error 抽出が `tool_result` に絞っているのと対称にしてある。
-**未知の `type` は名前ではなく構造で弁別する**（Issue #288）。会話を運ぶ入れ物（`message` / `payload` / `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ従来どおり `2`（fail closed）にする。
+**未知の `type` は名前ではなく構造で弁別する**。会話を運ぶ入れ物（`message` / `payload` / `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ `2`（fail closed）にする。
 壊れた JSON は `fromjson` の失敗として別に検出するので、この読み飛ばしと混ざらない。
 既知の container（`response_item` / `event_msg`）は例外で、`payload` が丸ごと欠けていても読み飛ばさず `2` に倒す（subtype 欠損と同じ壊れ方を、形によって fail-closed / fail-open に分けないため）。
-型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる（`atis-latch` を足した後に `cost-state` / `worktree-state` / `relocated` で再発した）。
+型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる。
 ブロック理由に載る候補の根拠は、カテゴリ（`user correction` / `tool error` / `repeated edit`）と **transcript の行番号**だけで、transcript の本文は出さない。
 ブロックされたエージェントは自分のセッションの transcript を読めるため、位置さえ分かれば内容は自分で取得できる。stderr は端末のスクロールバックやログに残るので、秘密値をそこへ流さない。
 候補ゼロでは transcript のレコード形式から Claude Code / Codex を識別し、**そのエージェントかつ自セッション**の `.pending-extract<suffix>.<session key>` だけを削除する。
 
 ##### 遮断するのは自セッションのセンチネルだけ
 
-**commit を止めるかどうかは、自セッションのセンチネルだけで決める**（Issue #288）。他セッションのセンチネルが残っていても commit は通し、**知らせるだけ**にする。
+**commit を止めるかどうかは、自セッションのセンチネルだけで決める**。他セッションのセンチネルが残っていても commit は通し、**知らせるだけ**にする。
 学びの抽出は「そのセッションで何が起きたかを知っている主体」にしかできず、他セッションのぶんを引き受けさせると記録の担保が「読んだ人の推測」に変わる。止めた相手が解消できないなら止める意味が無い。
 センチネルは**作業ツリー単位**に立ち、**読み取りしか使っていないセッションでも Stop フックが立てる**ので、1 つの作業ツリーで複数セッションを走らせると互いを恒久的に塞いでいた。
 
@@ -196,12 +196,12 @@ Claude Code はツール結果も `role: "user"` のレコードに載せるた�
 PreToolUse をブロックするのは `2` だけで、他の非 0 は「ブロックしない失敗」として stderr が表示される（[Claude Code](https://code.claude.com/docs/en/hooks) / [Codex](https://learn.chatgpt.com/docs/hooks) の両方で確認）。
 **Copilot だけは違う**——`preToolUse` は timeout 以外の非 0 をすべて deny する（"a non-zero exit (other than exit 2) denies the tool call with `Denied by preToolUse hook (hook errored)`"。[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
 警告の exit 1 がそのまま commit の拒否に化け、しかも理由が hook errored になって案内が届かないため、Copilot のフックには第 1 引数 `-copilot` を渡し、ゲートは警告を exit 0 で返す（`kaizen-stop-mark.sh` と同じサフィックス規約）。
-key を持たない旧形式のセンチネルは持ち主を特定できないため、従来どおり自分側として扱う（遮断する）。
+key を持たない旧形式のセンチネルは持ち主を特定できないため、自分側として扱う（遮断する）。
 
 **Copilot では lifecycle 検査の警告が届かない（既知の制約）。** 警告は非 0 で終えることで表示させる仕組みなので、
 非 0 がすべて deny に化ける Copilot では `-copilot` で exit 0 に倒さざるを得ず、その結果 stderr も表示されない。
-遮断（exit 2）は Copilot でも効くため、`applied-to` の不整合など**止める側の検査は従来どおり働く**。
-届かないのは「止めないが知らせたい」警告だけで、現状これは Issue #341 の
+遮断（exit 2）は Copilot でも効くため、`applied-to` の不整合など**止める側の検査は働く**。
+届かないのは「止めないが知らせたい」警告だけで、現状これは
 「`type` が機構なのに `applied-to` がドキュメントだけ」の 1 種類。
 Copilot を主に使うプロジェクトでは、`kaizen-status-check.sh` を lefthook / CI からも実行して警告の表示経路を別に確保する。
 
@@ -233,7 +233,7 @@ foreign_sentinel_retention_days = 14
 Claude Code の Hook 入力と handler `if` は [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks) を正本とする。
 Codex の matcher・`transcript_path`・exit code は [Codex Hooks reference](https://learn.chatgpt.com/docs/hooks) を正本として再検証する。
 Copilot は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) を正本とする。
-**同一セッションで複数 commit しても、前回の抽出以降に積まれた活動は毎回検査する**（Issue #244）。
+**同一セッションで複数 commit しても、前回の抽出以降に積まれた活動は毎回検査する**。
 抽出完了時に `kaizen-extract-done.sh` が checkpoint を transcript の終端まで進めるので、Stop フックがターン終了ごとにセンチネルを再装填しても、次の commit で走査されるのはその位置より後の未処理範囲だけになる。
 新しい活動が無ければ候補ゼロで自動的に通り、1 本の branch で複数 commit しても最初の commit までの活動しか抽出されない、という取りこぼしが起きない。
 
@@ -241,13 +241,13 @@ Copilot は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/
 マーカーは、抽出完了時に checkpoint を記録できなかった場合（transcript を渡されない・読めない・書き込みに失敗した）だけ `kaizen-extract-done.sh` が記録する。差分走査の起点が無いと毎 commit が全走査になり恒久ブロッカーになるための fail safe であり、セッション開始時に SessionStart フック（`kaizen-context-inject.sh`）が**自セッション分だけ**削除する。
 checkpoint を記録できたときはマーカーを書かず、既にあるマーカーも失効させる（残すとゲートが素通りへ倒れ、checkpoint 以降の活動を取りこぼす）。
 逆にマーカーを書くときは古い checkpoint を落とす。残すとゲートがマーカーを尊重せず（上の条件）、古い起点から同じ候補を再検出して止まり続け、抽出をやり直しても同じ状態に戻るため fail safe が効かない。
-key を持たない旧形式のセンチネルだけは従来どおりマーカーが覆う——key 無しの checkpoint は単一ファイルで、そのセンチネルの transcript を指しているとは限らず「新しい活動がある」の根拠にできないため。
+key を持たない旧形式のセンチネルだけはマーカーが覆う——key 無しの checkpoint は単一ファイルで、そのセンチネルの transcript を指しているとは限らず「新しい活動がある」の根拠にできないため。
 複数エージェント・複数セッションが同時稼働する場合、抽出完了時はゲートが表示する `--sentinel-suffix` / `--session-id` 付きコマンドを使い、他のセンチネルを削除しない。
 
 > **運用上の注意（git commit を含む呼び出しは全体がブロックされる）**: ゲートは `git commit` を含む Bash 呼び出し**全体**を実行前にブロックする。
 > ただし、**コミット先のリポジトリがこのプロジェクト外だとコマンド行から分かる形**（`git -C <外部dir>` / `--git-dir=<外部dir>`）はゲートの対象外で、そのまま実行できる（テストのフィクスチャとして使い捨てリポジトリへコミットする形。同じリポジトリの別 worktree 宛ては対象内）。
-> コミット先がコマンド行から決まらない形（`cd <dir> && git commit`・パス指定なし・変数展開や glob を含むパス）は判定不能として従来どおりブロックする。
-> この対象外判定は Hook 入力からコマンド行を構造として取り出せた場合に限る。`jq` も `python3` も無く生 JSON 照合へ縮退した環境では判定を行わず、外部宛ての形も従来どおりブロックする。
+> コミット先がコマンド行から決まらない形（`cd <dir> && git commit`・パス指定なし・変数展開や glob を含むパス）は判定不能としてブロックする。
+> この対象外判定は Hook 入力からコマンド行を構造として取り出せた場合に限る。`jq` も `python3` も無く生 JSON 照合へ縮退した環境では判定を行わず、外部宛ての形もブロックする。
 > `--work-tree` はリポジトリではなく作業ツリーだけを差し替えるため（`git --work-tree=<外部dir> commit` はプロジェクトのリポジトリへコミットされる）、単独では対象外にならない。`cd` と相対パスの併用も、`git` が走る cwd が確定しないため判定不能として扱う。
 > 逆に、コミット先 repo が外部でも `--work-tree` がプロジェクト内を指す形（`git --git-dir=<外部dir>/.git --work-tree=<プロジェクト> commit`）はブロックする。コミットされる内容がこのプロジェクトの作業ツリーそのもので、抽出を求めている活動にあたるため。
 > そのため `git add` などコミット前準備や、センチネル削除・マーカー記録（`bash <KAIZEN_SCRIPTS_DIR>/kaizen-extract-done.sh`）を `git commit` と**同一コマンドにまとめると、それらが実行されないままブロックされる**。
@@ -327,7 +327,7 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 > `timeoutSec` は**ゲートの最悪ケースより長くする**。内部の走査予算は自セッション分が 8 秒、他セッション分が合計 24 秒なので、合わせて 40 秒にしてある。
 > **Copilot の `preToolUse` は timeout だけが fail-open** で、他の非 0 は deny される（[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
 > 短すぎる `timeoutSec` はゲートを黙って素通りさせるため、遮断が効かなくなる側へ倒れる。
-> 現行の camelCase `preToolUse` payload は `toolArgs` を渡すが `transcriptPath` を渡さない。そのため非 commit の高速 prefilter と commit 判定は機能する一方、候補ゼロの自動通過は使わず従来の `kaizen --current` ブロックへフォールバックする。
+> 現行の camelCase `preToolUse` payload は `toolArgs` を渡すが `transcriptPath` を渡さない。そのため非 commit の高速 prefilter と commit 判定は機能する一方、候補ゼロの自動通過は使わず `kaizen --current` を促すブロックへフォールバックする。
 > 挙動は [GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) で確認すること。
 
 #### 4-3. セッション開始時 参照注入フック（過去の学びをコンテキストへ供給）
@@ -466,7 +466,7 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 2 行目・4 行目は**走査器が実際に検査し終えた終端**（`kaizen-candidate-scan.sh` が検証済みゼロのときに出力する `scanned-bytes` / `scanned-lines`）を記録する。
 記録側で `wc -c` を測り直すと、走査から記録までの間に追記されたレコードを検査しないまま処理済みにしてしまう（fail open）。走査済み位置を受け取れないときはブロックする（fail closed）。
 3 行目は、前回の走査以降にレコードが 1 件も増えていないときに使う。レコードが無いとエージェントを判定できず、どのセンチネルを消せばよいか分からなくなるため、
-確定済みの値を持ち越して「検証済みゼロ」と判定する。3 行目を持たない旧 checkpoint は判定できないので従来どおりブロックする（fail closed）。
+確定済みの値を持ち越して「検証済みゼロ」と判定する。3 行目を持たない旧 checkpoint は判定できないのでブロックする（fail closed）。
 4 行目は候補の根拠を絶対行番号で出すときの起点。これが無いと処理済み部分を毎回読み直すことになるため、走査を O(差分) に保つために記録する
 （無い旧 checkpoint は数え直しへ縮退する）。
 

@@ -148,7 +148,7 @@ done
       機械検査（[`evidence.md`](evidence.md)「漏れを数える」）も同じ規則なので、ここを緩めると人手の導出とツールで判定が割れる。
       **宣言も無ければ「書き戻し漏れの疑い」として名指しする**——確定したのに `replace-strategy evidence` を通していないか、確定できなかったのに宣言していないかのどちらかで、
       どちらも放置すると `status` がその口を永久に未確認として報告し続ける（経路の正本は [`evidence.md`](evidence.md)）
-    - **`unmeasured` をキーごと持たない成果物**（旧版 `parity-suite`）では宣言の有無を判定できないので、「宣言の有無が判定不能」として書き分ける（宣言済みにも漏れにも倒さない）
+    - **`unmeasured` をキーごと持たない成果物**（旧版 `parity-suite`）は「宣言ゼロ」として扱い、未確認の口を書き戻し漏れの疑いとして名指しする（機械検査と同じ規則。正本は [`evidence.md`](evidence.md)「漏れを数える」）
 
     **同じ判定は slug ごとに機械可読で取れる**——`node <skill>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug>`。
     **`--unmeasured .replace/parity/<slug>/metadata.json` を付けるのは、そのファイルが在るときだけ**にする——

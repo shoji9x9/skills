@@ -10,10 +10,11 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 ## 技術スタック
 
 - **スキル管理**: GitHub CLI (`gh skill`、**v2.90.0+**)、Agent Skills 仕様
-- **パッケージマネージャ**: pnpm（mise で管理）。正本は `package.json` の `packageManager` / `devEngines.packageManager` と `pnpm-lock.yaml`。**npm は使わない**（`package-lock.json` を作らない。誤った PM 利用は `devEngines` が警告する）
+- **パッケージマネージャ**: pnpm（mise で管理）。版の正本は `mise.toml`・`package.json` の `packageManager` / `devEngines.packageManager`・`pnpm-lock.yaml` の 4 箇所。
+  **npm は使わない**（`package-lock.json` を作らない。誤った PM 利用は `devEngines` が警告する）
   - bump 手順（正本 4 箇所の同期）・broken 版回避は [`docs/package-manager.md`](docs/package-manager.md) を参照
 - **フォーマッタ／リンタ**: 下表の通り（**prettier は使わない**）
-- **テスト**: skill-creator、Python 3.8+（集計スクリプト）
+- **テスト**: skill-creator（eval viewer に Python 3.8+）、集計は `scripts/build-skill-eval-benchmark.js`（Node）
 - **環境管理**: mise
 - **ツール起動**: スクリプト・lefthook・CI からツールを起動する際は `./node_modules/.bin/<tool>` のハードパスで叩かず、`pnpm exec <tool>`（または mise の shim）経由で起動する
   - **例外: 1 回の実行で同じツールを数十回以上起動するスクリプト**は、`pnpm exec` の起動コスト（実測 1 回約 0.6 秒）が支配的になるため、
@@ -37,19 +38,22 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は mise でインストールし（`mise.toml`）素のコマンド名で起動する。それ以外は pnpm devDependencies（`pnpm exec` で起動）。
 
 - **`oxlint` / `oxfmt` の対象は JS/TS ファミリ全体**（`js` / `mjs` / `cjs` / `jsx` / `ts` / `tsx` / `mts` / `cts`）。CI は引数なし（`pnpm run lint:js`）で走らせるためこの範囲を自動で拾う。
-  **lefthook の glob と `format:js*` スクリプトの glob もこの範囲に揃える**——片方だけ狭いと、その拡張子は手元で検査されず CI でだけ落ちる（`.ts` を配布テンプレートに追加した際に実際に起きた）。
+  **lefthook の glob と `format:js*` スクリプトの glob もこの範囲に揃える**——片方だけ狭いと、その拡張子は手元で検査されず CI でだけ落ちる。
 - **GitHub Actions のポリシー検査**: `actionlint`（構文）に加え `ghalint`（`permissions`・`timeout-minutes`・`persist-credentials` 等のポリシー）で多層検査する。`ghalint` は全走査のため pre-commit に入れず CI（`GitHub Actions lint`）専任。
 - **横断ゲート（ファイル種別に依らない検査）**: pre-commit と CI の `Lint` ジョブで次を走らせる。いずれも対象 0 件を成功に倒さない。
   `scripts/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
   `scripts/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/check-skills-sync.js` / `scripts/check-js-extensions.js` /
-  `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js`。
+  `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js` /
+  `scripts/check-kaizen-refs.js`（`.kaizen/` の学びへの参照の実在。意図的な非実在は `scripts/kaizen-refs-exemptions.json`）/
+  `scripts/check-identical-copies.js`（同一であるべきコピー。組は `scripts/identical-copies.json`）/
+  `scripts/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文へ書かない）/ `scripts/check-skill-index.js`（スキルガイド・README とスキル実体の対応）。
 - **変異実証（CI 専任）**: `scripts/check-mutation-proof.js` が `scripts/*.mutations.json` の宣言を再実行し、
   各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
   検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
   - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
-    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は手元実測 1036 秒（376 変異）かかる。
-    1 変異 = 対象テストファイル 1 回の実行なので、対象テストは子プロセスを起動せず `main` を直接呼び、CLI としての起動は陽性コントロールの数本に絞る（Issue #478 / #507）。
-    CI では選んだ変異を matrix で 6 分割して並べて走らせ（`--shard i/N`）、必須チェック名 `Mutation proof (PR)` は全シャードの成功を確かめる集約ジョブが持つ（Issue #507）。
+    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は毎 PR では払えない重さになる（実測値は `.github/workflows/mutation-proof.yml` のコメント）。
+    1 変異 = 対象テストファイル 1 回の実行なので、対象テストは子プロセスを起動せず `main` を直接呼び、CLI としての起動は陽性コントロールの数本に絞る。
+    CI では選んだ変異を matrix で 6 分割して並べて走らせ（`--shard i/N`）、必須チェック名 `Mutation proof (PR)` は全シャードの成功を確かめる集約ジョブが持つ。
     実行器のテストは本物の vitest を e2e の 3 本に絞り、残りはスタブで回す（`MUTATION_PROOF_TEST_COMMAND`）。
   - **全件は週次の定期実行**（`.github/workflows/mutation-proof.yml`）。対象も検査も変わっていない宣言は前回の実証が
     有効だが、共有ライブラリやツールの版で前提が崩れることはあるので測り直す。
@@ -66,7 +70,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 - **整形の割り当ての正本は `lefthook.yml` の glob と `package.json` の `format:*`**。上表はその要約であって、ツールが扱える範囲の上限ではない。
   フォーマッタを当てる前に、そのファイル種別がそのフォーマッタに**割り当てられているか**を正本で確かめる。
   割り当て外のファイルに `--check` を当てて赤くなっても、それは誰も強制していない検査なので指摘ではない（直すと無関係な差分になる）。
-- **`oxfmt` には Markdown を渡さない**。oxfmt は渡されたファイルを種類で判定して整形するため、`.md` を渡すと表の桁揃えまで行う（4 回踏んだ）。
+- **`oxfmt` には Markdown を渡さない**。oxfmt は渡されたファイルを種類で判定して整形するため、`.md` を渡すと表の桁揃えまで行う。
   Markdown の整形は `markdownlint-cli2 --fix`。**oxfmt にディレクトリを渡さず対象ファイルを列挙する**（ディレクトリを渡すと目的外のファイルが黙って書き換わる）。
   生成物の整形は生成スクリプト自身が出力ファイルを列挙して行い、手順書で人に oxfmt を当てさせない。
 - **Markdown の行長（MD013）**: `markdownlint-cli2` の MD013 は非 strict 運用（`line_length: 200`、`code_blocks` / `tables` / `headings` は除外）。
@@ -77,8 +81,13 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 JavaScript の拡張子は配布有無で使い分ける（新規ファイルもこれに従う）。
 
 - **配布物は `.mjs`**: 配布スキル一式（`skills/**`）に含まれる JavaScript。インストール先の `package.json` の `type` に依存せず Node が常に ESM として解釈するため。
-- **非配布物は `.js`**: リポジトリ内ツール・設定・テスト（`scripts/**/*.js` / `vitest.config.js` / `commitlint.config.js` / `release.config.js`）と、配布しない private skill（`.private-skill`。`.agents/skills/<name>/` のみに存在）のスクリプト。
+- **非配布物は `.js`**: リポジトリ内ツール・テスト（`scripts/**/*.js`）と、配布しない private skill（`.private-skill`。`.agents/skills/<name>/` のみに存在）のスクリプト。
   `package.json` の `"type": "module"` 下で ESM として動くため拡張子で ESM を明示する必要がない。
+- **ツールが読む設定は `.ts`**: `vitest.config.ts` / `scripts/vitest-global-setup.ts` / `commitlint.config.ts` / `release.config.ts` / `commit-types.ts` /
+  `oxlint.config.ts` / `oxfmt.config.ts`。各ツールが `.ts` を自動探索して読む（commitlint と semantic-release の TypeScript loader が要る `typescript` は devDependencies に明示する。
+  oxlint の `.ts` 設定は Node.js 経由の起動が前提なので、素のバイナリではなく `pnpm exec oxlint` で起動する）。
+  `.ts` を読まないツールの設定は元の形式のまま（markdownlint-cli2 は `.mjs` / `.cjs` / JSON / YAML、lefthook は YAML / JSON / TOML、
+  mise・pnpm・GitHub・各エージェントの設定は形式がツール側で決まっている）。
 - この規約は `scripts/check-js-extensions.js` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（`skills/**` 配下の `.js` と `scripts/**` 配下の `.mjs` を fail させる）。
 
 `tests/**` はリント／フォーマット対象に含める。`.agents/**` と `.claude/**` はインストール済みコピー／エージェント用シンボリックリンクのため対象外にする。
@@ -171,7 +180,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
   **0 件を結論にする前に、その SHA で commit か check-suites を取得できることを陽性コントロールにする**（422 や対象不一致を「レビューなし」へ倒さない）。
 - **本文を伴う外向き操作は、本文を先にファイルへ書いて渡す**。渡すフラグはコマンドごとに違う——`gh pr` / `gh issue` は `--body-file <path>`、`gh api` は `-F body=@<path>`（`--body-file` は無く unknown flag で落ちる）か `--input <path>`。失敗時は再実行前に部分的な作成を確認し、存在すれば新規作成でなく補完する。
 - **順序依存のある外向き操作は `&&` で連鎖する**。前が失敗したら後が走らない形にする（`reply && resolve`）。
-  ループで回すときはとくに効く——1 件失敗しても次の反復へ進むので、失敗を見逃すと不整合な状態だけが残る（返信の無いスレッドを解決済みにした記録がある）。
+  ループで回すときはとくに効く——1 件失敗しても次の反復へ進むので、失敗を見逃すと不整合な状態（返信の無いまま解決済みのスレッド等）だけが残る。
   **不可逆な操作の引数を、その操作と同じコマンド内のコマンド置換で作らない**。先に別コマンドで取って非空を確かめてから渡す。
   **確認を `||` / fallback に置かない**——引数の由来が不確かなら、確認を先に実行して値を確定させてから本番の外向き操作を撃つ（`id=$(...); [ -n "$id" ] && gh api .../$id/...`）。
   fallback へ回すと「不確かだと認識したまま本番を先に実行する」形になり、外向きの副作用が先に飛ぶ。
@@ -179,7 +188,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 - **プロセス終了（`pkill` / `killall`）も破壊的操作として扱う**。自分で起動したプロセスは起動時に PID を保存し `kill "$PID"` で落とす。
   起動と後片付けが別のツール呼び出しに分かれるなら PID をファイルへ残し `kill "$(cat <file>)"` で撃つ（変数はツール呼び出しをまたいで残らないので、後片付けの段でパターンへ戻りやすい）。
   パターンで撃つのは PID を持っていない場合だけにし、その前に `pgrep -af <pattern>` で対象と件数を確認する。
-  **`pkill -f` の照合対象は full command line なので、そのコマンドを実行している自分のシェルにも一致する**（3 回踏んで毎回シェルごと落ちた）。
+  **`pkill -f` の照合対象は full command line なので、そのコマンドを実行している自分のシェルにも一致する**。
   症状は非 0 終了だけで、対象が死んだのか自分が死んだのかは出力から読めない。自分の呼び出しが一致しない形（`[d]ump-dom` 等）にするか、PID 指定へ切り替える。
 - **制限付き sandbox で子プロセス起動の `EPERM` を確認したら、待機・再試行せず承認付きの sandbox 外実行へ切り替える**。
 - **文字列一致で編集するときは、置換元を直前に読んだ現在の中身から一字一句コピーする**（Edit の `old_string` も、`python` / `perl` などスクリプト経由の置換も同じ）。不一致時は目視調整で再試行せず対象を再読するか、行番号ベースの置換へ切り替える。
@@ -187,7 +196,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 - **複数の置換を 1 スクリプトにまとめるなら、置換ごとに書き戻すのを既定にする**（`p.write_text(s)` を各置換の直後に置く）。落ちても成功分は残り、再実行は残りだけで済む。
   末尾 1 回の書き込みにしてよいのは、**途中状態がファイルとして不正になる**など全件が一つの原子単位であるべき場合だけで、そのときは理由を 1 行書く。
   各 `assert` にはどの置換か分かるラベルを付ける（`assert s.count(old) == 1, '<置換名>'`）——行番号だけの AssertionError は、どの置換が古いのかをスクリプトを読み返すまで特定できない。
-  「今回は不一致しないだろう」で粒度を落とさない（ラベルだけ守って書き込み粒度を落とし、8 件の置換を捨てた記録がある）。
+  「今回は不一致しないだろう」で粒度を落とさない。
 - **網羅を指示する言い回し（「全て」「漏れなく」）を受けたら、着手前に取る解釈を 1 行で宣言してから動く**。
   「全件を検討し、妥当なものは直し、不要と判断したものは根拠を残して直さない」のように、**機械的な適用ではないこと**と**判断の残し方**を明示する。
   判断が分かれる余地のある指示ほど、宣言のコストは小さく、途中で訂正が入るコストは大きい。
@@ -200,7 +209,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
 
 - **ブランチ**: `main` から feature ブランチを切る（`develop` は持たない）
 - **命名**: `feature/<issue番号>-<英語の短い説明>`（kebab-case）。日本語 Issue は短い英語に要約する
-- **起点**: Issue 駆動。`gh issue develop <issue番号> --base main --checkout` で作成・checkout する
+- **起点**: Issue 駆動。`gh issue develop <issue番号> --name "feature/<issue番号>-<英語の短い説明>" --base main --checkout` で作成・checkout する
   - 作成前に同番号ブランチの重複を local / remote で確認する
 - **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
 - **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
@@ -213,12 +222,11 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
   - **ゲートの判定は字面で決まるので、`git commit` を含まない呼び出しもリテラルだけで止まる。** テスト・コメント・置換文字列に
     検出語が現れるだけでブロックされるため、検出語を部分文字列に分けて構築する（python なら `"com" + "mit"`）か、ファイル編集ツールへ迂回する。
   - **実行中のセッション自身を検査する仕組み（PreToolUse hook 等）の検出範囲を広げるときは、自分のツール呼び出しが新たに何に当たるかを先に 1 行宣言する。**
-    区切り文字クラスを広げた直後に自分の編集コマンドが 2 度ブロックされた記録がある
-  - 使用する種別は `commit-types.js` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
-    - commitlint / semantic-release はコードで `commit-types.js` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.js` が型の整合を CI で検査する
+  - 使用する種別は `commit-types.ts` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
+    - commitlint / semantic-release はコードで `commit-types.ts` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.js` が型の整合を CI で検査する
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
-- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `Mutation proof (PR)` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
-  - CI は `pull_request` に加え `push: main`（マージ後の main）でも起動する。新設の `Secret scan` ジョブは GitHub のルールセットで必須チェックに追加する（リポジトリ設定側の手動作業）
+- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `Unit tests` / `Mutation proof (PR)` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
+  - CI は `pull_request` に加え `push: main`（マージ後の main）でも起動する
 
 ## 脆弱性対応
 
@@ -253,18 +261,17 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 
 ## 参照ルールガイド
 
-- `.agents/rules/doc-altitude.md`: エージェント向けドキュメント（`AGENTS.md` / `SKILL.md` / `skills/*/references/` / `docs/`）の記載粒度（altitude）。行動に必須な情報だけを single source of truth で置き、重複・読み手のいない節を避ける
+- `.agents/rules/doc-altitude.md`: エージェント向けドキュメント（`AGENTS.md` / `CLAUDE.md` / `SKILL.md` / `skills/*/references/` / `.agents/rules/` / `docs/`）の記載粒度（altitude）。行動に必須な情報だけを single source of truth で置き、重複・読み手のいない節を避ける
 - `.agents/rules/github-actions-authoring.md`: GitHub Actions ワークフロー作成・変更時のレビュー観点（必要権限の突き合わせ・happy path 失敗時の fail-safe）。`.github/workflows/**` 編集時に適用
-- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**` 編集時に適用
+- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**`（とインストール済みコピー）編集時に適用
 - `.agents/rules/external-tool-format-verification.md`: 外部ツール（Codex / Copilot / `gh` / GitHub API 等）の設定・Hook・API 形状は公式一次ドキュメントで構造とフィールド意味論を検証してから記述し、検証 URL を併記する。0 件・失敗時の分岐はその状態を作って実測する。`skills/**` 編集時に適用
 - `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl 例・スクリプトでは変数値を URL クエリ / フォームに直挿しせず `--data-urlencode`（GET は `-G` 併用）でエンコードする。秘密値は `k@file` で渡し argv 露出を塞ぐ。`skills/**` 編集時に適用
 - `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルは基底ドキュメントを `AGENTS.md` に決め打ちせず `CLAUDE.md` / `.github/copilot-instructions.md` のみの下流でも成立させる。`skills/**` 編集時に適用
 - `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に参照する成果物（テンプレート・スクリプト等）はスキル内（`assets/` / `scripts/` / `references/`）に正本を同梱する。`skills/**` 編集時に適用
 - `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
-- `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint`）を維持する。`skills/*/SKILL.md` 編集時に適用
+- `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint` / `license`）を維持する。`skills/*/SKILL.md`（とインストール済みコピー）編集時に適用
 - `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval のアサーション・fixture は書いた時点で「弁別・到達・材料・主価値・入力が答えを持っていないか・正本整合」の 6 点を検証し、採点は位置でなく assertion のテキストで対応づけ、出力内の矛盾を fail にする。`evals/**` 編集時に適用
-- `.agents/rules/eval-run-scope.md`: eval の実走は起動前に目的とスコープを宣言する。既定は入力が変わった eval だけを `with_skill` / `without_skill` 各 1 run で、
-  benchmark（3 run × 2 config）へ広げるのと実走中の executor 切り替えは人が決める。正本は `docs/skill-development.md`。`evals/**` 編集時に適用
+- `.agents/rules/eval-run-scope.md`: eval の実走は起動前に目的とスコープを宣言する（既定の run 数と広げる判断の正本は `docs/skill-development.md`）。`evals/**` 編集時に適用
 - `.agents/rules/state-space-and-mutation-proof.md`: 検査を書く前に入力形式・一致の単位・証拠フィールド・期待集合の出所を決め、状態空間の軸は判定に使う全入力で引く
   （各軸に「読めない」を含める）。fail-closed なゲートは「落とす入力」と「通さねばならない入力」を同じ数だけ列挙し、
   変異実証は終了コードでなく「対象テストが走り狙った assertion が落ちたこと」で判定する。`scripts/**` / `skills/*/scripts/**` / `evals/**` 編集時に適用
@@ -272,33 +279,26 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 
 ## 参照スキルガイド
 
+各スキルの用途だけを置く。モード・前提・手順の正本は各スキルの `SKILL.md`（ここへ転記しない）。
+
 - `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
 - `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
-- `git-worktree`: git worktree による作業隔離の機構を担う。渡された branch に worktree を用意してセッションをそこへ移し（作るだけでは隔離にならない）、`.gitignore` 対象ファイルの運搬、検査ツールからの除外、clean 確認付きの後片付けまでを標準化する。branch の作成と Issue との紐付けは行わず呼び出し側に委ねる。
-  作成手段に branch を作らせる経路（`EnterWorktree` の `name` / `git worktree add -b` 等）を PreToolUse で通知する branch guard hook を同梱し、`setup` で配線する
-- `issue-create`: 短い説明から GitHub Issue を作成する。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票する。着手は `issue-start` に引き継ぐ
-- `issue-start`: GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化する。`--branch-only` は branch を用意した時点で返すモードで、実装を自分で持つスキル（`parity-component` / `parity-replace`）からの委譲に使う。
-  worktree で着手する場合も branch は `gh issue develop`（`--checkout` なし）が作り、worktree の機構は `git-worktree` へ委譲する
-- `issue-batch`: 複数 Issue を入力順に隔離 worktree・独立 branch / PR で連続処理し、ローカルレビュー、検証、Kaizen、PR 収束、
-  merge（GitHub の auto-merge／エージェントが PR の状況を実測して merge、を `merge_mode` で選択）、Issue close、deployment、branch cleanup まで追跡する。
-  初回は `setup` で無人実行ポリシーとマージ方式を確定する
-- `pr-review-handle`: PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決（resolve）する。`--push` で commit・push まで行う。対応後の再レビュー依頼先は `pr-review-handle` の `references/review-tool.md` で解決する
-- `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化する。PR 単体または `--all` で open な全 PR を処理。`>=1.0` の決定論的自動マージは `.github/workflows/dependabot-automerge.yml` が担い、本スキルは 0.x や自動マージ未設定リポジトリでの手動判断を受け持つ
-- `dependabot-alert-issue`: Dependabot alerts を確認し、解消するための Issue を作成する。着手可否で分類し severity・パッケージ単位でグルーピング、着手できないものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定できる。起票後の着手は `issue-start` に引き継ぐ
-- `pnpm-audit-alert-issue`: Dependabot の pnpm 11 対応（dependabot/dependabot-core#14794）完了までの private skill。`pnpm audit --json` を正規化し、`dependabot-alert-issue` の外部 audit findings mode で脆弱性対応 Issue を作る
-- `pr-finalize-loop`: 作成済み PR の CI エラー解消とレビュー対応を CI 成功＋未解決なしまで自律ループ（修正・返信/解決・commit/push・再レビュー依頼）。
-  依頼先は `pr-finalize-loop` の `references/review-tool.md` で解決し、`--max-iterations` は既定 5。単体対応は `pr-review-handle`
-- `aws-architecture-diagram`: AWS 構成図を IaC（CDK/Terraform 等）や説明から spec に起こし SVG 生成する。作図ルール（交差最小・直交配線・軸整列）に従い、環境（prod/local 等）を単一ベース spec ＋ 変換で出し分け、PNG 化して目視確認しながら反復。初回は setup で対話導入、以降 update
-- `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK・追加ランタイム不要
-- `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能に分解して姉妹スキル
-  （current-environment-bootstrap / golden-dataset / parity-component / parity-suite / parity-replace / parity-diff）へ振り分ける（自分では実装しない）。
-  `setup` / `issues` / `status` / `evidence`（確定した要求単位の根拠を features.md へ書き戻す唯一の経路）の 4 モード。測定できなければ停止する
-- `current-environment-bootstrap`: replace-strategy 姉妹。先方から受領した資産だけを起点に現行テスト環境（current target）を再構築する。
-  資産の棚卸しと受領済み／導出可能／不足の分類、DB スキーマ・設定の復元、データ意味論の根拠収集、先方・SME 向け質問票、最小の暫定起動データ、起動・認証・到達の実測、空環境からの再実行検証。
-  推測でドメイン値を確定せず来歴不明データは投入しない。`current.origin: received-assets` のとき setup が測定前に委譲
-- `golden-dataset`: replace-strategy 姉妹。現新比較用の共通データセットを冪等・決定論的な投入ツール（TypeScript / SQL）で構築（本番非参照）。2 フェーズ（A: 現行テスト環境へ投入検証、B: 新側スキーマへ写像・現新一致検証）、バージョンで陳腐化検出。setup 完了が前提
-- `parity-component`: replace-strategy 姉妹。共通 UI 部品を画面より先に作るときに、現行から部品インスタンス（部品 × ページ）単位で見た目の基準を採り（要素スクショ・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データ）、
-  インスタンス間で割れた軸を可変＝引数として決定論的に割り出し、実装してカタログ上で照合する。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に作らない方針なら使わない
-- `parity-suite`: replace-strategy 姉妹。新旧両実装に当てられる合否判定基準を Playwright で構築し故障注入で強度検証。論理名マッピング・寛容な aria スナップショット・API record/replay・視覚ベースライン/ノイズ基準を採取し parity-diff へ渡す。1 回で 1 機能。setup / golden-dataset(A) 前提
-- `parity-replace`: replace-strategy 姉妹。parity-suite の論理名に新側を実装する薄い層（ページ単位分割・マッピング例外充填・敵対的レビュー）。branch/commit/PR は issue-start へ委譲、suite が新で green＋静的解析通過で完了。前提: setup・golden-dataset(A)・対象 slug の parity-suite
-- `parity-diff`: replace-strategy 姉妹。現新差分を画素・特性照合・aria の 3 経路の差分器（強度検証済み）で検出し LLM は分類のみ。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロ＋未修正回帰ゼロ。前提: setup・golden-dataset・parity-suite・parity-replace の新側 green
+- `git-worktree`: git worktree による作業隔離（セッションの移動・運搬・検査からの除外・後片付け）。branch の作成と Issue との紐付けは呼び出し側に委ねる
+- `issue-create`: 短い説明から重複チェック・ドラフト承認を経て GitHub Issue を起票する
+- `issue-start`: GitHub Issue を起点に branch 作成から実装・commit・PR 作成・受け入れ条件の突き合わせまでを標準化する
+- `issue-batch`: 複数 Issue を隔離 worktree・独立 PR で連続処理し、merge・Issue close・deployment・後片付けまで追跡する
+- `pr-review-handle`: PR のレビューコメントを確認・妥当性判断・必要時のみ修正・返信・解決する
+- `pr-finalize-loop`: 作成済み PR の CI エラーとレビュー指摘を、CI 成功＋未解決なしまで自律ループで解消する
+- `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断の記録・マージを標準化する
+- `dependabot-alert-issue`: Dependabot alerts（または外部 audit findings）から解消 Issue を作成する
+- `pnpm-audit-alert-issue`: private skill。Dependabot が pnpm-lock.yaml の依存グラフを読めない間（dependabot/dependabot-core#15904）、`pnpm audit --json` から `dependabot-alert-issue` 経由で Issue を作る
+- `browser-test`: 変更の回帰を実ブラウザ（chrome-devtools MCP）で確認する
+- `aws-architecture-diagram`: IaC や説明から AWS 構成図を spec に起こし SVG として生成・更新する
+- `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する
+- `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能を姉妹スキルへ振り分ける
+- `current-environment-bootstrap`: replace-strategy 姉妹。受領資産だけを起点に現行テスト環境を再構築する
+- `golden-dataset`: replace-strategy 姉妹。現新比較用の共通データセットを投入する冪等・決定論的なツールを作る
+- `parity-component`: replace-strategy 姉妹。共通 UI 部品の見た目の基準を現行から採り、実装してカタログ上で照合する
+- `parity-suite`: replace-strategy 姉妹。新旧両実装に当てられる合否判定基準を Playwright で構築し、故障注入で強度を検証する
+- `parity-replace`: replace-strategy 姉妹。parity-suite の論理名に対して新側を実装する
+- `parity-diff`: replace-strategy 姉妹。現新差分を決定論的ツールで検出し、LLM は分類だけを行う

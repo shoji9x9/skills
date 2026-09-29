@@ -46,7 +46,7 @@ pr-finalize-loop <PR URL> [--max-iterations <N>] [--wait-ci-before-review] [--re
 
 push 後などに再レビューを依頼する AI レビュアーは CLI・環境変数・共有設定から選ぶ。解決順と
 ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
-**解決は同梱スクリプト `scripts/resolve-review-tool.sh` で行い、値と出所の層（cli / env / config / default）を報告してから使う**（推測で「未設定」と判定して別ツールへ依頼した事故がある。手順は [`references/review-tool.md`](references/review-tool.md)）。
+**解決は同梱スクリプト `scripts/resolve-review-tool.sh` で行い、値と出所の層（cli / env / config / default）を報告してから使う**（解決順を推測すると層を取り違え、設定済みの値を「未設定」と判定して別ツールへ依頼することになる。手順は [`references/review-tool.md`](references/review-tool.md)）。
 
 値は `copilot` / `claude-code` / `codex` / `none`。**`none` の場合は再レビュー依頼を一切行わず、収束・完了判定から
 「HEAD がレビュー済み」条件を外す**（CI 全成功・未解決スレッド無し・スレッド外の指摘対応済みで完了）。以降の本文で「レビュー依頼」と言うときは
@@ -113,8 +113,8 @@ push 後などに再レビューを依頼する AI レビュアーは CLI・環�
 
 - **完了**: CI が全成功し、未解決スレッドが無く、**レビュー本文・トップレベルコメントに未対応の指摘が無く**、HEAD がレビュー済み。`review_tool: none` では HEAD レビュー済みを問わず CI 全成功・未解決スレッド無し・スレッド外の指摘対応済みで完了
 - **レビュー未着で待機終了**: 上記のうち HEAD レビュー済みだけを満たさず、レビュー出現待ちが上限に達した。
-  **これは「完了」と別の停止理由として報告する**——依頼が成立しているなら、遅れて到着したレビューに未解決の指摘が残りうる
-  （収束と報告した直後にレビューが到着し、未解決スレッドを取りこぼした記録が 2 回ある）。報告には依頼時刻・最終取得時刻・待機上限とその根拠（観測した到着時間）を添える
+  **これは「完了」と別の停止理由として報告する**——依頼が成立しているなら、遅れて到着したレビューに未解決の指摘が残りうる。
+  報告には依頼時刻・最終取得時刻・待機上限とその根拠（観測した到着時間）を添える
 - **最大反復到達**: `--max-iterations`（既定 5）に達した。残っている CI 失敗・未解決スレッド・スレッド外（レビュー本文・トップレベルコメント）の指摘を明示する
 - **行き詰まり**: 同じ CI 失敗が改善せず、新たに打てる手が無い。失敗内容と「どうすれば直せそうか」を報告する
 - **仕上げ対象なし**（着手前・またはループ中の状態取得で検出）: PR が OPEN でない（`MERGED` / `CLOSED`）。ループ中に他者のマージ / クローズで対象が消滅した場合も同様に停止する
@@ -131,10 +131,10 @@ push 後などに再レビューを依頼する AI レビュアーは CLI・環�
 - **レビュー出現待ち**（`--watch` 相当が無い）: レビュー依頼後、一定間隔で未解決スレッド/レビューの有無を再取得し、上限まで待つ。上限を超えたら**その反復はレビュー未着のまま閉じ**、CI 等の作業を進める（未着を報告に残す）。
   残作業が無くなった状態で上限に達したまま終わるなら、停止理由は「完了」ではなく**「レビュー未着で待機終了」**にする。
   - **完了条件は「HEAD のレビュー済み判定」と同じ経路集合で書く**——非著者レビューの到着・レビュー用 check-run・commit を明示する bot コメントの 3 経路。
-    1 経路だけを見る待機を書かない（「トップレベルコメントが 2 件以上」だけで待って、到着済みのレビューを 20 分間「未着」と報告した記録がある）。
+    1 経路だけを見る待機を書かない（他の経路で到着済みのレビューを「未着」と報告することになる）。
     参照文書に「〜のことがある」と書かれた経路は**例外の追加**であって経路の置き換えではないので、例外だけを実装条件に写さない。
   - **上限は同じリポジトリ・同じレビューツールで観測した到着時間から決める**。実測済みの通常遅延を下回る固定上限（90 秒など）で打ち切らない
-    （直前 2 回で約 4 分の到着を観測しながら 4 分 30 秒で打ち切り、その 25 分後に到着したレビューの未解決スレッド 4 件を取りこぼした記録がある）。
+    （打ち切った後に到着したレビューの未解決スレッドを取りこぼす）。
   - **上限到達を「未着」として報告する前に、判定側の全経路を 1 度取り直す**（上限は目安にすぎず、超過は未着の証拠ではない）。
   - **依頼が成立していてレビューが未着なら「収束」ではなく「レビュー未着で待機終了」と報告する。** CI とスレッドが緑であることと、レビューが収束したことを同じ語で報告しない。
 - **進行中レビューの完了待ち**: 進行中（設定ツールの自動レビュー・別エージェントとも）を検出して依頼を保留した場合も上限つきポーリングで待つ。上限までに完了しなければ進行中シグナルを無効とみなして通常の依頼判断に戻り、その旨を報告に残す（ハングしたワークフローで収束を止めない）。
@@ -235,10 +235,17 @@ query($endCursor: String) {
 
 ### 返信（REST）
 
+本文はバッククォートや `$` を含みうるので、quoted heredoc（またはファイル書き込みツール）でファイルに書き、`-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）:
+
 ```bash
+body_file=$(mktemp)
+cat > "$body_file" <<'EOF'
+<返信本文>
+EOF
 gh api --method POST \
   repos/<owner>/<repo>/pulls/<番号>/comments/<comment-id>/replies \
-  -f body="<返信本文>"
+  -F body=@"$body_file"
+rm -f "$body_file"
 ```
 
 ### 解決（GraphQL）
@@ -303,8 +310,8 @@ query($endCursor: String) {
 レビュー submit 直後は、レビュー自体（`reviews`）は取得できるのに `reviewThreads` へのコメント反映が遅れることがある（実測）。
 未解決スレッド 0 件だけを根拠に「指摘なし」と判定すると、コメント付きレビューを取りこぼす。
 
-レビューの取得は「HEAD のレビュー済み判定」と同じ全ページ取得クエリを流用し、`nodes` に `comments { totalCount }` と `body` を
-加えて 1 回のクエリで両方を判定する。
+レビューの取得は [`references/state-query.md`](references/state-query.md) の 1 段目（review index。`comments { totalCount }` を含み `body` は取らない）で
+レビュー済み判定と整合検証の両方を判定し、本文は同ファイルの 2 段目で対象のレビューだけ取得する。
 
 - HEAD への**非著者**レビューの `comments.totalCount`（Copilot はレビュー本文の「generated N comments」でも確認できる・実測）が 1 以上なのに、
   そのレビュー由来のコメントが reviewThreads から取得できない場合は反映ラグとみなす。間隔を空けて再取得し（「ポーリングと待機」の上限に従う）、
@@ -323,18 +330,20 @@ query($endCursor: String) {
 - **トップレベルコメント**: Claude GitHub Action（`review_tool: claude-code`）は総評と軽微な指摘をトップレベルコメントに置き、
   `reviews[].body` は空・`state` は `COMMENTED` になる。この形では**指摘がスレッドにも本文にも現れない**。
 
-```bash
-# 2 系統目: レビュー本文
-gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews \
-  --jq '.[] | select(.commit_id=="<headRefOid>") | {id, user: .user.login, state, body}'
+取得は [`references/state-query.md`](references/state-query.md) の 2 段取得に従う。索引（1 段目）で本文を読む対象を決め、その本文だけを個別に取る:
 
-# 3 系統目: トップレベルコメント（本文は切り詰めない）
-gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
-  --jq '.[] | {id, login: .user.login, type: .user.type, created_at, updated_at, body}'
+```bash
+# 2 系統目: レビュー本文（索引で対象と決めた review だけ）
+gh api repos/<owner>/<repo>/pulls/<番号>/reviews/<review-database-id> \
+  --jq '{id, user: .user.login, commit_id, submitted_at, state, body}'
+
+# 3 系統目: トップレベルコメント（索引で新規・更新と決めたものだけ。本文は切り詰めない）
+gh api repos/<owner>/<repo>/issues/comments/<comment-id> \
+  --jq '{id, login: .user.login, type: .user.type, created_at, updated_at, body}'
 ```
 
-- HEAD への**非著者**レビューの `body` を毎反復読む。`state` が `COMMENTED` でも本文に指摘・総合判定が入る。
-- **トップレベルコメントも毎反復読む。** とくに `review_tool` が mention 方式（`claude-code` / `codex`）のときは、
+- 毎反復、索引から本文を読む対象（HEAD への**非著者**レビュー・前回取得後に到着したレビュー・未処理のレビュー）を決めて `body` を読む。`state` が `COMMENTED` でも本文に指摘・総合判定が入る。
+- **トップレベルコメントも毎反復、索引で新規・更新分を特定して読む。** とくに `review_tool` が mention 方式（`claude-code` / `codex`）のときは、
   レビュアーが総評・指摘をここに置く前提で扱う（`reviews[].body` が空でも指摘はある）。
   対象は自分（PR 著者。本スキルの依頼コメントや対応記録を含む）以外の投稿**すべて**。
   **`select(.user.type=="Bot")` で bot に絞らない**——人間レビュアーが総評をトップレベルに置くこともあり、絞ると取りこぼす。
@@ -391,14 +400,15 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
           | select(.name == "copilot-pull-request-reviewer")
           | {name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
 
-  # claude-code / codex: 名前を固定できないので未完了の候補を列挙し、app / name / output で仕分ける。
+  # claude-code / codex: 名前を固定できないので未完了の候補を列挙し（1 段目。output は返さない）、app / name で仕分ける。
   # 絞り込みは gh の --jq 内で完結させる（外部 jq へパイプしない。前提ツールを増やさず、gh api の終了コードも保てる）。
   gh api --paginate "repos/<owner>/<repo>/commits/<headRefOid>/check-runs?filter=all&per_page=100" \
     --jq '.check_runs[]
           | select(.status != "completed")
-          | {id, head_sha, name, app: .app.slug, status, started_at, title: .output.title, summary: .output.summary}'
+          | {id, head_sha, name, app: .app.slug, status, started_at}'
 
-  # 未同定の候補は id を保持し、完了後も同じ run を id で取り直す（未完了だけの照会では完了した run が消えて追跡できない）。
+  # 2 段目: 仕分けに output が要る候補と未同定の候補は id を保持し、同じ run を id で取り直す
+  # （未完了だけの照会では完了した run が消えて追跡できない）。
   gh api "repos/<owner>/<repo>/check-runs/<id>" \
     --jq '{id, head_sha, name, app: .app.slug, status, conclusion, title: .output.title, summary: .output.summary}'
   ```
@@ -462,7 +472,7 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 
 `review_tool: none` の場合は依頼しない（この手順ごとスキップ）。それ以外では、現在の HEAD が未レビュー、かつ進行中のレビュー（設定ツールの自動レビュー・別エージェントとも）が無いときだけ依頼する（上の「HEAD のレビュー済み判定」・前述「レビュー進行中の検出」）。
 push が発生した反復では、**既定では push 直後（CI 再実行の完了を待たず）に依頼**し、CI とレビューを並行させる。
-`--wait-ci-before-review` 指定時のみ、push・CI 再実行の完了を待ってから依頼する（壊れた HEAD でレビューを促さない従来挙動）。
+`--wait-ci-before-review` 指定時のみ、push・CI 再実行の完了を待ってから依頼する（壊れた HEAD にレビューを促さないため）。
 既定では CI 失敗が判明した HEAD にレビューが付き得るが、修正・再 push で新しい HEAD にレビューが再依頼されるため無害。
 
 依頼と成立確認の具体手順は設定した `review_tool` ごとに異なる（[`references/review-tool.md`](references/review-tool.md)）:

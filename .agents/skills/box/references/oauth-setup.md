@@ -13,7 +13,8 @@ Dev Token（`BOX_ACCESS_TOKEN`）で足りる場合はこの手順は不要。�
    https://account.box.com/api/oauth2/authorize?client_id=<CLIENT_ID>&response_type=code&redirect_uri=https%3A%2F%2Fapp.box.com
    ```
 
-   （`redirect_uri` の値 `https://app.box.com` を `https%3A%2F%2Fapp.box.com` にエンコードしている。登録値が異なる場合はその値をエンコードして差し替える）
+   （`redirect_uri` の値 `https://app.box.com` を `https%3A%2F%2Fapp.box.com` にエンコードしている。登録値が異なる場合はその値をエンコードして差し替え、
+   手順 3 のトークン交換でも同じ値を使うよう `BOX_REDIRECT_URI` に設定する。`box-oauth-init.sh` は未設定なら `https://app.box.com` を使い、認可 URL と食い違うと交換に失敗する）
 
    承認後 `<redirect_uri>?code=...` に戻る。画面遷移で見えづらい場合は DevTools の Network（Preserve log ON）から `code` を取得する。
 
@@ -37,4 +38,4 @@ Dev Token（`BOX_ACCESS_TOKEN`）で足りる場合はこの手順は不要。�
    ```
 
 以後は `box-token.sh` が refresh token から access token を自動取得・更新するため、トークンの手動更新は不要。
-`.env` は `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` のみでよい。
+`.env` は `BOX_CLIENT_ID` / `BOX_CLIENT_SECRET` のみでよい（`BOX_REDIRECT_URI` は初回の `box-oauth-init.sh` 実行時だけ使う）。

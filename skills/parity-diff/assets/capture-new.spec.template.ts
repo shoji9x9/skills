@@ -37,7 +37,7 @@
  *
  * 撮影に使ったブラウザの同一性（ブラウザ名・版・userAgent・channel・headless・ブラウザ側とランナーの OS）は
  * `new/<target>/browser-identity.<pass>.json` に書き出す。parity-diff が自己ノイズの測定値を再利用するかを決める
- * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる（Issue #493）。
+ * 指紋（diff-metadata.json の noise_measurement.fingerprint.capture_conditions）へ入れる。
  */
 import { readFileSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
@@ -75,7 +75,7 @@ const metadata = JSON.parse(
 const { viewports, states, masks, full_page: fullPage } = metadata.capture_conditions;
 const pages: { name: string; path: string }[] = metadata.capture_conditions.pages;
 
-// 表示を切り替える軸（Issue #489）。基準の組は全軸の既定値を明示して当て、変種（variants）は既定値に変種の値を重ねて当てる。
+// 表示を切り替える軸。基準の組は全軸の既定値を明示して当て、変種（variants）は既定値に変種の値を重ねて当てる。
 // 変種の label はビューポートの label と同じ位置（書き出し先・組の鍵）に入り、窓の寸法は変種の viewport が指す窓を使う
 // （形式の正本は parity-suite の assets/metadata-template.json の capture_conditions.display_axes）
 type Axis = { name: string; default: string; not_applicable?: { page: string }[] };
@@ -111,7 +111,7 @@ function applies(shot: { values: Record<string, string> }, pageName: string): bo
   );
 }
 
-// 撮影に使うブラウザは現側と揃える（Issue #476）。片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る
+// 撮影に使うブラウザは現側と揃える。片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る
 const browserMode: unknown = metadata.capture_conditions.browser;
 if (browserMode !== "launched" && browserMode !== "cdp") {
   throw new Error(
@@ -204,7 +204,7 @@ if (scrollbars === "shown") {
   test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 }
 
-// 撮影に使ったブラウザの同一性（Issue #493）。launched でも、ランナー・OS の移動、Playwright の更新による版の変化、
+// 撮影に使ったブラウザの同一性。launched でも、ランナー・OS の移動、Playwright の更新による版の変化、
 // channel / headless の変更で描画環境は変わる。parity-diff はこれを自己ノイズの指紋へ入れ、前回と違えば測り直す。
 // 2 回目（noise）も書き、1 回目と違えば同じ環境で 2 回撮れていないので parity-diff が測定を捨てる。
 // 書き出し先は outRoot の外（noise-pass2/ は測定後に消える。組のディレクトリ 3 段の外に置く）
@@ -218,11 +218,11 @@ const identityPath = join(
   `browser-identity.${pass}.json`,
 );
 // 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
-// browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う（Codex レビュー #501）。
+// browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う。
 // OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
 // userAgentData を持たないブラウザ（Firefox / WebKit、安全なコンテキストでない http の頁）は navigator.platform を残す。ランナーの OS は runner_os に別に残す
 let identityRecorded = false;
-// スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる（Codex レビュー #501）。
+// スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる。
 // cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
 // オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
 // overflow: scroll の箱を 1 つ置いてバーの幅を読み、現側の scrollbars と食い違えば撮らない（片側だけ場所を取る）。

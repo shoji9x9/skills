@@ -29,7 +29,7 @@
   書体・大きさ・字形・太さ・行の高さの計算値と文字の寸法（行の断片の幅の合計 `advance`・高さ `glyph_height`・縦に重ならない行の数 `lines`）を `text_owners` に記録し、
   差分器（trait-compare.mjs）が**並び順（i 番目どうし）**で照合して `kind: "text"` の差を出す。外接矩形（`rect`）は折り返しや間に挟まる子要素で膨らむので照合に使わない。
   DOM の入れ子の深さでは突き合わせないので、`<button><div><span>設定</span></div></button>` の現行と `<button>設定</button>` の新側でも書体・大きさの差が出る
-  （Issue #459。要素自身の計算値は一致し、文字の幅が 26px と 30.4px で違っていた）。文字列が違う組は寸法を比べず、行数が違う組は行数の差だけを出す。
+  （要素自身の計算値は一致し、文字の幅が 26px と 30.4px で違っていた）。文字列が違う組は寸法を比べず、行数が違う組は行数の差だけを出す。
   **描画に使われた書体の実体**（フォールバックの解決先）は計算値に出ないので採らない——下の「採取環境と利用者環境の乖離」で確かめる。
   視覚的に隠した文字（1px の箱に閉じ込めた sr-only・`text-indent` で箱の外へ逃がした文字）は数えず、ボタンとして描く `<input>`（submit / button / reset）の `value` は数える。
   寸法は持ち主の端の空白を外して測る（境目の空白がどちらの持ち主に付くかで幅を変えない）。`value` 属性の無い submit / reset の既定の文言は DOM から読めないので、文字列を空にした行として数える（書体だけを照合する）。
@@ -38,14 +38,14 @@
   `scroll` を記録する——はみ出しの有無（`overflowing_x`: `scrollWidth > clientWidth`、`overflowing_y`）、縦のバー（とガター）が取った幅 `vertical_bar_px` と横のバーが取った高さ `horizontal_bar_px`（`offsetWidth − clientWidth` から枠を除く）、
   見た目の宣言（`scrollbar-width` / `scrollbar-color` / `scrollbar-gutter` と、`::-webkit-scrollbar` / `-thumb` / `-track` / `-corner` / `-button` の幅・高さ・背景・角の丸み・枠の計算値）。
   差分器は `kind: "scroll"` で照合する（厚みは `align_tolerance` 付き）。器でない要素は `null`。`::-webkit-scrollbar` を持たないブラウザでは擬似要素の値を `"unsupported"` にする（空の値で両側が一致したように見せない）。
-  実例（Issue #495）: ダイアログの中のデータグリッドで、現行は `overflow: auto`、新側は `overflow-x: hidden`。バーが場所を取ると現行は縦のバーの 15px で中身（628px）がはみ出して横のバーが出るが、新側は右端の 15px が切れる。
+  実例: ダイアログの中のデータグリッドで、現行は `overflow: auto`、新側は `overflow-x: hidden`。バーが場所を取ると現行は縦のバーの 15px で中身（628px）がはみ出して横のバーが出るが、新側は右端の 15px が切れる。
   **バーを隠して撮ると両側とも「はみ出し無し・厚み 0」に揃い、この差は消える**——`scroll` が効くのは撮影時の扱いが `scrollbars: shown` のときだけ（下の「スクロールバーが場所を取る窓のはみ出し」）。
   器に論理名が無いと `scroll` は採られないので、`capture_scope` が数えた内部スクロール器の名前は `traits.elements` に入れる（入れない器は `untraced:<名前>` の穴になる。下の「撮る範囲の決め方」）
 - **画素経路へ委ねられるのは静止画に写るものだけ。** `cursor` / `user-select` / `pointer-events` は操作したときの手応えを決めるが撮影には写らないため、
   固定プロパティ集合から外すと**特性照合でも画素比較でも差が出ない**（どちらの経路にも現れない見た目になる）。
   **`parity-component` は要素の矩形だけを撮る**ので「写らないもの」がさらに増える——矩形の外に描かれる `box-shadow`、下地に依存して弁別できない `opacity`、
   切り出しが要素についてくるため矩形の中に出ない `position` / `top` / `right` / `bottom` / `left`、採取時の文字列が短ければ差にならない
-  `white-space` / `overflow-x` / `overflow-y` / `text-overflow` / `word-break` も、同じ理由で固定集合に入れてある（Issue #434）。プロパティ集合の正本は
+  `white-space` / `overflow-x` / `overflow-y` / `text-overflow` / `word-break` も、同じ理由で固定集合に入れてある。プロパティ集合の正本は
   [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES` で、増減させたら `VERSION` を上げる
 - **`url()` を値に持つプロパティは、参照先の資産の中身までは照合していない。** 採取ツールは相対 URL の絶対化によるホスト違いを消すため
   同一オリジンの `url()` をオリジン非依存の印へ畳む（[`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `foldOrigin`）。
@@ -84,7 +84,7 @@
   `value: present` で並んでいるので、**操作 → 見た目が変わる状態**の写像を当てれば集合が出る。
   写像の語彙は 6 種——操作の**途中**の **器を開く（`opens-container`）・指を乗せる（`hover`）・焦点を当てる（`focus`）・押している最中（`active`）・不活性（`disabled`）** と、
   操作を**終えた後に残る**見た目（`after-operation`。選択の塗り・絞り込み中の見出しの印・並べ替えの印）。
-  **途中だけを導くと、終えた後の見た目は撮られない**——行を選んだ後に現行が特定の列だけ塗らない・絞り込んだ列の見出しが赤くなる、といった差は 3 経路のどれにも出ない（Issue #471）
+  **途中だけを導くと、終えた後の見た目は撮られない**——行を選んだ後に現行が特定の列だけ塗らない・絞り込んだ列の見出しが赤くなる、といった差は 3 経路のどれにも出ない
 - **種別は項目ごとに宣言する**（`items[].visual_states`。見た目が変わらないなら空配列と `no_visual_state_reason`）。
   被覆プロファイルを宣言した部品では**プロファイルの `candidate_rules[].visual_states` が正本**で、
   `coverage-expand.mjs --write` が項目へ書き戻すので手で書かない（[`coverage-profiles.md`](coverage-profiles.md)）
@@ -129,7 +129,7 @@
   下限以上かを見るので、古い規則で作られた要約は指紋が合っていても収束させない。
   `kind: opens-container` は `states` に在るだけでは足りず、次節の `popup_inventory` にも行が要る
 - **導出は下限であって上限ではない。** 操作から導けない状態（`error` / 初期表示のバリアント）は
-  従来どおり手で `states` へ足す。部品に依らない操作（ロゴ・Clear 等）の後に残る見た目と戻り先は、反応の被覆表の `aftermath` が操作ごとに数える
+  手で `states` へ足す。部品に依らない操作（ロゴ・Clear 等）の後に残る見た目と戻り先は、反応の被覆表の `aftermath` が操作ごとに数える
   （[`coverage.md`](coverage.md)「押した後に残るもの（`aftermath`）」）。被覆表は**操作の有無を数える表**であり、開いた中身の見た目を突き合わせたかは見ていないので、
   導出を「見た目の担保」と読み替えない——**導出が出すのは「撮るべき状態の集合」までで、
   撮った結果が現行と合っているかは画素比較と特性照合（`parity-diff`）が出す**（[`coverage.md`](coverage.md)「被覆表は見た目を見ていない」）
@@ -200,7 +200,7 @@
 |---|---|
 | `below-fold` / `beyond-right` | 文書（`scrollWidth` / `scrollHeight`）が撮影領域より大きい。`full_page: false` で下・右が切れている |
 | `scroll:<器の名前>` | 内部スクロール器の中身が可視部より大きい（仮想スクロール・固定高のグリッド）。**画素にも特性にも出ない** |
-| `untraced:<器の名前>` | 内部スクロール器の名前が `traits.elements` に無い。**スクロールバーの有無・厚み・見た目（trait-capture.mjs の `scroll`）が特性照合に写らない**（Issue #495） |
+| `untraced:<器の名前>` | 内部スクロール器の名前が `traits.elements` に無い。**スクロールバーの有無・厚み・見た目（trait-capture.mjs の `scroll`）が特性照合に写らない** |
 | `scrollbar-hidden:<器の名前>` | `scrollbars: shown` で撮ったのに、`auto` / `scroll` の向きにはみ出した器でその向きのバーの厚みが 0。`--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバー（後者なら理由を宣言する） |
 | `offscreen:<論理名>` | 論理名付き要素が撮影領域の外にある。特性は採れても画素には写らない |
 
@@ -214,10 +214,10 @@ const scope = await page.evaluate(({ fullPage, namedSelectors }) => {
   const doc = { width: root.scrollWidth, height: root.scrollHeight };
   const captured = fullPage ? doc : { width: window.innerWidth, height: window.innerHeight };
   // はみ出した器に加えて、はみ出していなくてもスクロールバー（とガター）が場所を取っている器も数える
-  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る。Codex レビュー #501）。
+  // （overflow: scroll・scrollbar-gutter: stable。クラシックのバーでは中身が収まっていても幅を取る）。
   // 器の判定は trait-capture.mjs と同じ（overflow-x / overflow-y の片方でも visible / clip でない、inline でない）。
   // ただし hidden の向きではみ出しただけの器（省略記号で切った文字等）は、バーもガターも取らないので数えない
-  // 開いたシャドウルートの中の器も数える（document.querySelectorAll は light DOM しか返さない。Codex レビュー #501）
+  // 開いたシャドウルートの中の器も数える（document.querySelectorAll は light DOM しか返さない）
   const allElements = (root) =>
     [...root.querySelectorAll("*")].flatMap((el) => [el, ...(el.shadowRoot ? allElements(el.shadowRoot) : [])]);
   const scroll_containers = allElements(document)
@@ -490,7 +490,7 @@ Playwright はヘッドレスの Chromium を `--hide-scrollbars` 付きで起�
 
 **最小幅を持つ業務画面では、狭い窓で必ず踏む差**なので、feature モードでは次の 2 つを `metadata.json` の `capture_conditions` に残す（形式はテンプレート `assets/metadata-template.json`）。
 
-- **`scrollbars`**: ベースラインを撮ったときにスクロールバーが場所を取ったか（`hidden` / `shown`）。**既定は `shown`**（Issue #495）——Playwright のヘッドレス Chromium の既定は `hidden` なので、
+- **`scrollbars`**: ベースラインを撮ったときにスクロールバーが場所を取ったか（`hidden` / `shown`）。**既定は `shown`**——Playwright のヘッドレス Chromium の既定は `hidden` なので、
   撮影・特性採取・範囲の実測を走らせるプロジェクト（`current` と `parity-diff` の `new-capture`）の `use.launchOptions` に `ignoreDefaultArgs: ["--hide-scrollbars"]` を足して撮る
   （プロジェクトに `launchOptions` が既にあれば、その値に足す）。`parity-diff` の新側採取は同じ扱いで撮る（片側だけ場所を取ると、見える幅と高さが厚みの分ずれて全面差分になる）。
   **`hidden` で撮るなら `scrollbars_reason` に理由を書き**、同じ内容を `gaps.md` に残す——隠した撮影では、バーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・
@@ -785,7 +785,7 @@ if (capturing) {
 - **在る軸には来歴を付ける**（根拠の欄にテンプレートの `<…>` や TODO・未確認のまま残した値は数えない）——値の一覧（`values`）・基準の組を撮った値（`default`）・値の一覧をどこから数えたか（`source`）・値の当て方（`apply`）。
   **既定値もブラウザや OS に委ねず明示して当てる**（Playwright の既定ロケールや OS の配色で決まる値は、採取環境と新側の撮影環境で変わりうる）
 - **掛け合わせずに撮る。** 全軸を掛け合わせると組み合わせが爆発する（ロケール 2 × 配色 2 × 窓 4 × 状態 10 で 160 組、現・新で倍）ので、次の規則で撮る組を決める
-  1. **基準の組**: 全軸を既定値にして、全ページ × 全状態 × 全窓を撮る（従来の採取と同じ）
+  1. **基準の組**: 全軸を既定値にして、全ページ × 全状態 × 全窓を撮る
   2. **1 軸ずつ振る**: 既定以外の値ごとに、他の軸は既定のまま、全ページ × 全状態を 1 つの窓で撮る。これを `variants` に 1 行ずつ書く（`values` にその軸だけ）。
      **軸が効く範囲は頁全体なので、ページと状態は減らさない**
   3. **相互に効く対だけ掛け合わせる**: 軸と軸、軸と窓（`viewport`）の**全ての対**に、掛けたか（`crossed`）と理由を `pairs` に書く。
@@ -962,7 +962,7 @@ TypeScript でも、`)` の後の `/` が正規表現にも読めて同じ行に
   回した人が忘れた時点で次の実行が壊れ**、しかも**壊れ方が「現行が変わった」と同じ見え方**になる
 - 判断と記録は `metadata.json` の `suite.state_mutating` / `suite.repeat_run`。状態を変えないなら `state_mutating: false` と理由を書く
   （**書かないと「状態を変えるか決めていない」と区別が付かない**）。2 回の `started_at` は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）
-- 後始末できない書き込み（hermetic でないテスト）は従来どおり `gaps.md` に残す。2 回続けて緑にできないことが分かった時点で、
+- 後始末できない書き込み（hermetic でないテスト）は `gaps.md` に残す。2 回続けて緑にできないことが分かった時点で、
   それは「後始末が効いていない」という測定結果であって、運用で守る話ではない
 
 ## 保存先

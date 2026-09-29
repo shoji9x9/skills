@@ -242,7 +242,10 @@ gh pr list    --repo <owner>/<repo> --state open --limit 200 --json number,title
 
 ```bash
 tmp=$(mktemp)
-printf '%s' "<本文>" > "$tmp"
+# 本文はバッククォートや $ を含みうるので、二重引用符ではなく quoted heredoc で書く
+cat > "$tmp" <<'EOF'
+<本文>
+EOF
 gh issue create --repo <owner>/<repo> --title "<severity を含むタイトル>" --body-file "$tmp" --label "<ラベル>"
 rm -f "$tmp"
 ```

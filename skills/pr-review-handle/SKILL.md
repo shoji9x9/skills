@@ -154,12 +154,18 @@ gh api --paginate repos/<owner>/<repo>/pulls/<番号>/reviews/<review-id>/commen
 
 ### 返信（REST）
 
-スレッドの先頭コメント `id`（= `databaseId`）に対して返信する:
+スレッドの先頭コメント `id`（= `databaseId`）に対して返信する。本文はバッククォートや `$` を含みうるので、
+quoted heredoc（またはファイル書き込みツール）でファイルに書き、`-F body=@<path>` で渡す（`gh api` に `--body-file` は無い）:
 
 ```bash
+body_file=$(mktemp)
+cat > "$body_file" <<'EOF'
+<返信本文>
+EOF
 gh api --method POST \
   repos/<owner>/<repo>/pulls/<番号>/comments/<comment-id>/replies \
-  -f body="<返信本文>"
+  -F body=@"$body_file"
+rm -f "$body_file"
 ```
 
 ### 解決（GraphQL）
@@ -199,7 +205,7 @@ mutation {
 
 レビュー対応（返信・解決）を終えたら、**設定したレビューツールへの再レビュー依頼の要否・タイミングをユーザーに確認する**。
 依頼先ツールの解決規則と、ツールごとの依頼・成立確認の具体手順は [`references/review-tool.md`](references/review-tool.md) を参照する。
-**解決は同梱スクリプト `scripts/resolve-review-tool.sh` で行い、値と出所の層（cli / env / config / default）を報告してから使う**（推測で「未設定」と判定して別ツールへ依頼した事故がある。手順は [`references/review-tool.md`](references/review-tool.md)）。
+**解決は同梱スクリプト `scripts/resolve-review-tool.sh` で行い、値と出所の層（cli / env / config / default）を報告してから使う**（解決順を推測すると層を取り違え、設定済みの値を「未設定」と判定して別ツールへ依頼することになる。手順は [`references/review-tool.md`](references/review-tool.md)）。
 GitHub 側の自動レビュー設定があっても push 後にレビューが始まらないことがあり、また
 push せず返信だけで閉じたスレッドも改めて見てほしいことがあるため、このスキルから明示的に依頼する。
 
@@ -238,7 +244,7 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 
 - 全チェックの完了まで待ち、すべて成功なら終了コード 0、いずれか失敗なら非 0 で終わる。
 - 失敗した場合は **依頼を出さず**、失敗内容をユーザーに通知して止まる（先に CI を直す）。
-- push 直後はチェック未登録で `no checks` と即時に返ることがある。その場合は数秒待ってから再確認する。
+- push 直後はチェック未登録で `no checks` と即時に返ることがある。その場合は間隔を空けて数回まで再確認し、それでも登録されなければ「この HEAD では CI が走らない」とみなしてその旨をユーザーに伝え、依頼へ進む（CI が無いこと自体は失敗ではない）。
 
 ### レビューツールへ再依頼する
 

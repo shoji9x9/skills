@@ -16,7 +16,7 @@ Issue のグルーピング・起票は配布 skill `dependabot-alert-issue` の
 - **ツール**: `pnpm`, `node`, `gh`
 - **対象**: pnpm を使うリポジトリ
 - **前提スキル**: `dependabot-alert-issue`
-- **禁止**: `pnpm audit --fix`, `pnpm.overrides` による暫定回避、`pnpm-lock.yaml` の手動編集
+- **禁止**: `pnpm audit --fix`, `pnpm.overrides` による暫定回避、`pnpm-lock.yaml` の変更（この skill は起票までで lockfile を変えない。解決時の手段は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` に従う）
 
 ## 基本フロー
 
@@ -29,7 +29,7 @@ Issue のグルーピング・起票は配布 skill `dependabot-alert-issue` の
    - JSON が空、または parse 不能な場合だけ停止して原因を報告する
 3. 同梱 script で外部 audit findings JSON に正規化する
 4. 正規化結果を読み、findings が 0 件なら「検出なし」と報告して終了する
-5. `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期する（以降の `pnpm why` / `pnpm list` を現況の根拠にするための前提）
+5. `pnpm install --frozen-lockfile` で node_modules を lockfile へ同期する（以降の `pnpm why` で依存経路を補強するための前提。現況の version 判定は lockfile / `pnpm audit` で行い、`pnpm why` / `pnpm list` を根拠にしない）
 6. 各 package について `pnpm why <package>` を実行し、依存経路を補強情報として整理する
 7. 正規化 JSON と `pnpm why` の結果を `dependabot-alert-issue` の外部 audit findings mode に渡す
 8. 以降の重複確認・着手可否分類・Issue ドラフト作成・起票は `dependabot-alert-issue` に委譲する
@@ -66,7 +66,7 @@ node .agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.js \
 
 正規化 JSON の `findings[].package` を重複排除し、各 package について `pnpm why` を実行する。これは pnpm audit の結果に、pnpm 固有の依存経路コンテキストを付与するための手順であり、Issue の重複確認や分類は `dependabot-alert-issue` に任せる。
 
-**実行前に基本フロー 5 の同期を済ませる。** `pnpm why` / `pnpm list` は lockfile ではなく node_modules の実インストールツリーを読むため、同期前の出力は過去の解決状態を映し現況の根拠にならない（ブランチを切った直後は特にずれる）。
+**実行前に基本フロー 5 の同期を済ませる。** `pnpm why` / `pnpm list` は lockfile ではなく node_modules の実インストールツリーを読むため、同期前の出力は過去の解決状態を映す（ブランチを切った直後は特にずれる）。同期後も用途は依存経路の補強に限り、現況の version 判定は lockfile / `pnpm audit` を権威とする（正本は `dependabot-alert-issue` の `references/pnpm-transitive-update.md`「判断の権威は lockfile」）。
 
 ```bash
 pnpm install --frozen-lockfile   # 未実施なら先に
@@ -86,7 +86,7 @@ pnpm why <package>
 transitive dependency は、親 range が patched version を許容していても `pnpm update <pkg>` で再解決されないことがある（lockfile 上で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で顕著）。着手可否分類（`dependabot-alert-issue` 側の責務）を誤らせないよう、次を確認して `context_note` に記録する。
 
 - 対象が peer-keyed か plain か
-- 可能なら使い捨てで `pnpm update <package>` を試し、patched version に到達するか（到達しなくても「完全再生成しかない」と記録しない。下記の手段の優先順に従って判定する）
+- 可能なら使い捨てのコピーで、バージョン無指定の `pnpm update <package> --depth Infinity --lockfile-only` を試し、patched version に到達するか（到達しなくても「完全再生成しかない」と記録しない。下記の手段の優先順に従って判定する）
 
 pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・手段の優先順・判断の権威は現況・更新結果とも node_modules 由来の出力でなく lockfile）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
 
@@ -94,7 +94,7 @@ pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の upd
 
 - `direct_dependencies`: 脆弱 package を持ち込む direct dependency 名の配列
 - `why_summary`: `pnpm why` から分かる短い依存経路要約（`pnpm install --frozen-lockfile` で node_modules を同期した後に取る）
-- `context_note`: Dependabot #14794 回避など、pnpm audit を使う理由の短い補足
+- `context_note`: Dependabot が依存グラフを読めない間の回避など、pnpm audit を使う理由の短い補足
 
 これらの補助フィールドは Issue 化の判断材料であり、最終的な重複確認・着手可否分類・本文作成は `dependabot-alert-issue` の責務とする。
 
@@ -128,5 +128,5 @@ pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の upd
 
 ## 注意
 
-- Dependabot 側の pnpm 11 対応は https://github.com/dependabot/dependabot-core/issues/14794 を追跡する
-- #14794 が解消し Dependabot alerts が安定して生成されるようになったら、この private skill の利用をやめ、通常の `dependabot-alert-issue` に戻す
+- Dependabot 側の対応は https://github.com/dependabot/dependabot-core/issues/15904 を追跡する（dependabot-core#14794 は close 済みだが、依存グラフには devDependencies が載らないまま）
+- 依存グラフ（`gh api repos/<owner>/<repo>/dependency-graph/sbom`）に devDependencies（例: `vitest`）が載り、Dependabot alerts が安定して生成されるようになったら、この private skill の利用をやめ、通常の `dependabot-alert-issue` に戻す
