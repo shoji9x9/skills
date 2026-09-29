@@ -84,23 +84,125 @@
       "find": "const LEAD = \"(?<![A-Za-z0-9_.-])\";",
       "replace": "const LEAD = \"\";",
       "occurrences": 1,
-      "expect_failing": ["陰性: 前が単語文字の `foo.kaizen/…` と、後ろが続く `.mdx` は参照ではない"]
+      "expect_failing": ["陰性: 前が単語文字の `foo.kaizen/…` は参照ではない"]
     },
     {
       "id": "KR-TAIL",
-      "why": "参照の後ろの境界を見ない（`.mdx` を参照として拾う）",
+      "why": "`.md` の後ろに続くパス（`.md.bak` `.mdx` 等）を見ず、`.md` までを参照として拾う（実在する学びを指せば合格になる）",
       "file": "scripts/check-kaizen-refs.js",
-      "find": "const TAIL = \"(?![A-Za-z0-9_])\";",
-      "replace": "const TAIL = \"\";",
+      "find": "    if (tail) malformed.push",
+      "replace": "    if (false) malformed.push",
       "occurrences": 1,
-      "expect_failing": ["陰性: 前が単語文字の `foo.kaizen/…` と、後ろが続く `.mdx` は参照ではない"]
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-REPORT",
+      "why": "形の崩れた参照を検出しても違反として報告しない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "of found.malformed) {",
+      "replace": "of []) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-DOT",
+      "why": "`.` の後ろに続くパス（`.md.bak` `.md.gz`）を続きと見なさない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": ")*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-DOT-ANY",
+      "why": "文末の `.` までパスの続きと見なす（`.md.` で終わる文を落とす）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": "|\\.)*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: `.md` の後ろが参照の終わり（文末の `.`）なら参照として数える",
+        "陰性: `.md` の後ろが参照の終わり（文末の `.` の直後が行末）なら参照として数える",
+        "陰性: `.md` の後ろが参照の終わり（折り返しの後の文末の `.`）なら参照として数える",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-HYPHEN",
+      "why": "`-` をパスの続きと見なさない（`.md-old` を通す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_-]|",
+      "replace": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_]|",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-ONE-LINE",
+      "why": "1 行の参照で `.md` の後ろを見ない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "take(m[0], line.slice(m.index + m[0].length), ",
+      "replace": "take(m[0], \"\", ",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-WRAPPED",
+      "why": "折り返した参照をつないだ後に `.md` の後ろを見ない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "take(joined, lines[i + 1].slice(next[0].length), ",
+      "replace": "take(joined, \"\", ",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす"
+      ]
     },
     {
       "id": "KR-WRAP-JOIN",
       "why": "折り返した参照をつながない（切れた参照を見落とす・正しい折り返しを判定不能にする）",
       "file": "scripts/check-kaizen-refs.js",
-      "find": "    if (joined && FULL_RE.test(joined)) refs.push",
-      "replace": "    if (false) refs.push",
+      "find": "    if (joined && FULL_RE.test(joined)) {",
+      "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "陰性: 折り返した参照（JS コメント）をつないで実在を確かめ、1 件と数える",
@@ -110,7 +212,10 @@
         "陽性: 日付の途中で折り返した参照もつないで実在を確かめ、切れていれば落とす",
         "陽性: `.kaizen/archive/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
         "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
-        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える",
+        "陰性: `.md` の後ろが参照の終わり（折り返しの後の文末の `.`）なら参照として数える",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす"
       ]
     },
     {
@@ -126,8 +231,8 @@
       "id": "KR-WRAP-DIR",
       "why": "名前を持たない切れ目（行末の .kaizen/ ・ .kaizen/archive/）をディレクトリへの言及として通さず、判定不能で落とす",
       "file": "scripts/check-kaizen-refs.js",
-      "find": "    else if (DIR_ONLY_RE.test(cut[1])) return;",
-      "replace": "    else if (false) return;",
+      "find": "    } else if (DIR_ONLY_RE.test(cut[1])) return;",
+      "replace": "    } else if (false) return;",
       "occurrences": 1,
       "expect_failing": [
         "陰性: 行末の `.kaizen/` `.kaizen/archive/` は次行とつないで参照にならなければディレクトリへの言及として通す"

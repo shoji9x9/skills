@@ -20,7 +20,12 @@
 //   書いたもので、このリポジトリの学びを指さない（prompt 中の仮のパスは意図的な非実在）ので除く。
 //   `evals/<name>/README.md` のような文書は対象に残す。この検査自身のテストと変異宣言（切れた参照の fixture を持つ）も除く。
 // - 拾う参照は `.kaizen/<YYYY-MM-DD>-<slug>.md` と `.kaizen/archive/<name>.md`。プレースホルダ
-//   （`${base}` / `*` / `<slug>`）は名前の文字集合に入らないので拾わない。位置はリポジトリルート基準で解決する
+//   （`${base}` / `*` / `<slug>`）は名前の文字集合に入らないので拾わない。
+// - `.md` の直後がパスの続き（名前の文字 `[A-Za-z0-9_-]`、または `.` の直後に `[A-Za-z0-9_]`。例: `.md.bak` /
+//   `.md-old` / `.mdx`）なら、書かれた文字どおりのパスは学びではない。`.md` までを参照として拾うと、
+//   実在する学びを指して合格になるので、判定不能を合格に倒さず違反にする（1 つのパスとして書くよう求める）。
+//   文末の `.`（直後が空白・行末・約物）や `)` `）` `、` `。` `` ` `` `"` などの約物は参照の終わりとして受け入れる。
+//   折り返した参照をつないだ後にも同じ規則を当てる。位置はリポジトリルート基準で解決する
 //   （`.kaizen/` はルートに 1 つしか無いので、`../.kaizen/...` のような相対リンクも同じ実体を指す）。
 // - 参照先は**追跡されていて、かつ作業ツリーに在る**こと。CI は追跡ファイルしか持たないので、
 //   作業ツリーにだけ在る未追跡の学びは手元でだけ通る。
@@ -92,8 +97,9 @@ export function loadExemptions(root) {
 const NAME = "[A-Za-z0-9_-]+";
 const DATED = `\\d{4}-\\d{2}-\\d{2}-${NAME}\\.md`;
 const LEAD = "(?<![A-Za-z0-9_.-])";
-const TAIL = "(?![A-Za-z0-9_])";
-const REF_RE = new RegExp(`${LEAD}\\.kaizen/(?:archive/${NAME}\\.md|${DATED})${TAIL}`, "g");
+const REF_RE = new RegExp(`${LEAD}\\.kaizen/(?:archive/${NAME}\\.md|${DATED})`, "g");
+// `.md` の直後に続くパスの続き。空でなければ参照の形が崩れている（`.md.` の後ろが名前の文字でなければ文末の句点）。
+const PATH_TAIL_RE = /^(?:[A-Za-z0-9_-]|\.(?=[A-Za-z0-9_]))*/;
 const FULL_RE = new RegExp(`^\\.kaizen/(?:archive/${NAME}\\.md|${DATED})$`);
 // 行末で切れた参照。切れ目は名前の途中に限らない——日付の途中（`2026-09-`）や、
 // `.kaizen/` / `.kaizen/archive/` の直後でも切れうる。日付を丸ごと要求すると、それより手前で
@@ -107,26 +113,37 @@ const TRUNCATED_RE = new RegExp(
 const DIR_ONLY_RE = /^\.kaizen\/(?:archive\/)?$/;
 // 折り返しの続き行の先頭から、コメント記号・引用記号・空白を除いて名前の続きを取る
 // （`.kaizen/` の直後で切れた形は `archive/` から続く）。
-const CONTINUATION_RE = new RegExp(
-  `^\\s*(?:\\/\\/|#|\\*|>)?\\s*((?:archive/)?${NAME}\\.md)${TAIL}`,
-);
+const CONTINUATION_RE = new RegExp(`^\\s*(?:\\/\\/|#|\\*|>)?\\s*((?:archive/)?${NAME}\\.md)`);
 
-/** 1 ファイルの本文から参照を列挙する。`broken` は折り返しを復元できなかった行。 */
+/**
+ * 1 ファイルの本文から参照を列挙する。`broken` は折り返しを復元できなかった行、
+ * `malformed` は `.md` の後ろにパスが続く（書かれた文字どおりのパスが学びではない）参照。
+ */
 export function findRefs(text) {
   const refs = [];
   const broken = [];
+  const malformed = [];
+  // `rest` は参照の直後から行末まで。
+  const take = (ref, rest, entry) => {
+    const tail = PATH_TAIL_RE.exec(rest)[0];
+    if (tail) malformed.push({ ...entry, text: ref + tail });
+    else refs.push({ ref, ...entry });
+  };
   const lines = text.split(/\r?\n/);
   lines.forEach((line, i) => {
-    for (const m of line.matchAll(REF_RE)) refs.push({ ref: m[0], line: i + 1 });
+    for (const m of line.matchAll(REF_RE)) {
+      take(m[0], line.slice(m.index + m[0].length), { line: i + 1 });
+    }
     const cut = TRUNCATED_RE.exec(line.trimEnd());
     if (!cut) return;
     const next = CONTINUATION_RE.exec(lines[i + 1] ?? "");
     const joined = next ? cut[1] + next[1] : null;
-    if (joined && FULL_RE.test(joined)) refs.push({ ref: joined, line: i + 1, wrapped: true });
-    else if (DIR_ONLY_RE.test(cut[1])) return;
+    if (joined && FULL_RE.test(joined)) {
+      take(joined, lines[i + 1].slice(next[0].length), { line: i + 1, wrapped: true });
+    } else if (DIR_ONLY_RE.test(cut[1])) return;
     else broken.push({ fragment: cut[1], line: i + 1 });
   });
-  return { refs, broken };
+  return { refs, broken, malformed };
 }
 
 /** `git ls-files` の一覧（NUL 区切りなので改行を含む名前も壊れない）。 */
@@ -175,6 +192,14 @@ export function checkKaizenRefs(root, { exemptions = loadExemptions(root) } = {}
     for (const { fragment, line } of found.broken) {
       violations.push(
         `${file}:${line}: 行末で切れた参照を次行とつないで復元できない（${fragment}…）。1 行に収める`,
+      );
+    }
+    // 形の崩れた参照も走査した参照に数える（それしか無いファイルを「参照 0 件」と取り違えない）。
+    refs += found.malformed.length;
+    for (const { text: shown, line, wrapped } of found.malformed) {
+      violations.push(
+        `${file}:${line}${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
+          "学びへのパスは .md で終わる 1 つのパスとして書く",
       );
     }
     for (const { ref, line, wrapped } of found.refs) {

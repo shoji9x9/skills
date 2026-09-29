@@ -8,7 +8,9 @@
 // | 参照先             | 追跡＋実在 / 不在 / 実在するが未追跡                                          |
 // | 行の形             | 1 行 / 折り返し（`//` `#` Markdown 本文）/ 復元できない折り返し               |
 // | 折り返しの切れ目   | 名前の途中 / 日付の途中 / `.kaizen/`・`.kaizen/archive/` の直後 / ディレクトリへの言及 |
-// | 参照の境界         | 前が単語文字（`foo.kaizen/`）/ 後ろが続く（`.mdx`）                            |
+// | 参照の境界（前）   | 前が単語文字（`foo.kaizen/`）                                                 |
+// | 参照の境界（後ろ） | パスが続く（`.md.bak` `.md-old` `.md_x` `.mdx` `.md.gz` `.md.1`、1 行 / 折り返し）/
+// |                    | 参照の終わり（文末の `.`・行末・`)` `）` `、` `。` `` ` `` `"`、1 行 / 折り返し）  |
 // | 参照元のパス       | 対象 / 除外（配布スキルのインストール済みコピー .claude tests .kaizen node_modules eval の入力）/ eval の文書 |
 // | .agents/ の中      | 配布スキルのコピー（skills/<name>/ あり）/ private skill（skills/ に無い）/ 名前が前方一致する別スキル / rule |
 // | 参照元の状態       | 追跡＋実在 / 作業ツリーで削除 / 非テキスト拡張子 / シンボリックリンク           |
@@ -91,9 +93,63 @@ test("陰性: プレースホルダは参照として拾わない（数えない
   expect(r.refs).toBe(1);
 });
 
-test("陰性: 前が単語文字の `foo.kaizen/…` と、後ろが続く `.mdx` は参照ではない", () => {
-  expect(findRefs("foo.kaizen/2026-01-01-x.md と .kaizen/2026-01-01-x.mdx").refs).toEqual([]);
+test("陰性: 前が単語文字の `foo.kaizen/…` は参照ではない", () => {
+  expect(findRefs("foo.kaizen/2026-01-01-x.md")).toEqual({ refs: [], broken: [], malformed: [] });
 });
+
+// 参照の後ろの境界。落とす入力と通す入力を同じ数（10 件ずつ）置く。
+// 落とす側は実在する学び（NOTE / ARCHIVED）を指す形にする（`.md` までを拾うと合格になる形）。
+test.each([
+  ["文末の `.`", `根拠は ${NOTE}. 次の文`],
+  ["`)`", `（根拠: ${NOTE})`],
+  ["全角の `）`", `（根拠は ${NOTE}）`],
+  ["`、`", `${NOTE}、ほか`],
+  ["`。`", `根拠は ${NOTE}。`],
+  ["バッククォート", `\`${NOTE}\``],
+  ["二重引用符", `"${NOTE}"`],
+  ["行末", `根拠は ${NOTE}`],
+  ["文末の `.` の直後が行末", `根拠は ${NOTE}.`],
+  ["折り返しの後の文末の `.`", "根拠は .kaizen/archive/2026-08-01-old-\nnote.md. 次の文"],
+])("陰性: `.md` の後ろが参照の終わり（%s）なら参照として数える", (_, text) => {
+  const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
+  expect(r.violations).toEqual([]);
+  expect(r.refs).toBe(1);
+});
+
+test.each([
+  ["`.md.bak`", `根拠は ${NOTE}.bak`, 1, `${NOTE}.bak`, false],
+  ["`.md-old`", `根拠は ${NOTE}-old`, 1, `${NOTE}-old`, false],
+  ["`.md_x`", `根拠は ${NOTE}_x`, 1, `${NOTE}_x`, false],
+  ["`.mdx`", `根拠は ${NOTE}x`, 1, `${NOTE}x`, false],
+  ["`.md.gz`", `根拠は ${NOTE}.gz。`, 1, `${NOTE}.gz`, false],
+  ["`.md.1`", `根拠は ${NOTE}.1`, 1, `${NOTE}.1`, false],
+  ["archive/ 配下の `.md.bak`", `\`${ARCHIVED}.bak\``, 1, `${ARCHIVED}.bak`, false],
+  ["`.md.bak.old`", `根拠は ${NOTE}.bak.old.`, 1, `${NOTE}.bak.old`, false],
+  [
+    "折り返しの後の `.md.bak`",
+    ".kaizen/archive/2026-08-01-old-\nnote.md.bak",
+    1,
+    `${ARCHIVED}.bak`,
+    true,
+  ],
+  [
+    "折り返しの後の `.mdx`",
+    "// .kaizen/archive/2026-08-01-old-\n// note.mdx",
+    1,
+    `${ARCHIVED}x`,
+    true,
+  ],
+])(
+  "陽性: `.md` の後ろにパスが続く（%s）参照は形が崩れているとして落とす",
+  (_, text, line, shown, wrapped) => {
+    const r = run(makeRepo({ "docs/a.md": `${text}\n` }));
+    expect(r.violations).toEqual([
+      `docs/a.md:${line}${wrapped ? "（折り返し）" : ""}: 参照の形が崩れている（${shown}）。` +
+        "学びへのパスは .md で終わる 1 つのパスとして書く",
+    ]);
+    expect(r.refs).toBe(1);
+  },
+);
 
 test("陰性: 免除の宣言ファイルに書いた参照は、実在しなくても通す", () => {
   const ref = ".kaizen/archive/2026-01-01-fixture.md";
@@ -167,7 +223,7 @@ test.each([
 
 test("陰性: 行末の `.kaizen/` `.kaizen/archive/` は次行とつないで参照にならなければディレクトリへの言及として通す", () => {
   const text = "学びは .kaizen/\nに置く。移動先は .kaizen/archive/\n（索引も同じ場所）。\n";
-  expect(findRefs(text)).toEqual({ refs: [], broken: [] });
+  expect(findRefs(text)).toEqual({ refs: [], broken: [], malformed: [] });
 });
 
 test("陽性: 直下の学びへの 1 行の参照が実在しなければ落とす", () => {
