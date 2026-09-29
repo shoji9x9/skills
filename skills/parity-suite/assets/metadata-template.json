@@ -86,7 +86,7 @@
     "reason": "<declared: false のときだけ、宣言しない理由（例: 共通部品を使っていない／ベンダー資料にも実 UI にも到達できず列挙を起こせない）。同じ理由を gaps.md にも残す。declared: false で空だと免除の根拠が残らないため parity-diff の coverage-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "reaction_coverage": {
-    "_note": "反応の被覆表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --recorded で被覆表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない——判定側は被覆表の実体から数え直す。",
+    "_note": "反応の被覆表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --tests <テスト一覧> --recorded で被覆表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない——判定側は被覆表の実体から数え直す。",
     "declared": true,
     "path": ".replace/parity/<slug>/reactions.json",
     "reason": "<declared: false のときだけ、宣言しない理由（操作を持たない機能だけ）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"

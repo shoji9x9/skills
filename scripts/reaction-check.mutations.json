@@ -1260,6 +1260,345 @@
         "陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す",
         "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
       ]
+    },
+    {
+      "id": "covered-by-unresolved-accepted",
+      "why": "covered_by の名前が一覧に無くても解決したことにする（書いた名前のテストが実在するかを見ない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      const hit = testIndex.get(name);\n      if (hit === undefined) {\n",
+      "replace": "      const hit =\n        testIndex.get(name) ??\n        { keys: new Set([name]), projects: new Set(REQUIRED_PROJECTS), file: null, line: null };\n      if (hit === undefined) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by の名前が一覧のどのテストにも解決しなければ落とす（Issue #506）",
+        "表のどの欄の covered_by も解決の対象にする（欄を列挙せず表全体を歩く。Issue #506）",
+        "--write は解決できない名前が残れば covered_by_resolved: false を記録する（Issue #506）",
+        "--audit-sheet は解決できない名前があれば exit 1（監査の土台にしない。Issue #506）",
+        "_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-ambiguous-accepted",
+      "why": "1 つの名前が 2 本のテストに当たっても通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      } else if (hit.keys.size > 1) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）",
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "covered-by-projects-ignored",
+      "why": "covered_by のテストが current / new の片側でしか走らなくても通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        const absentIn = REQUIRED_PROJECTS.filter((p) => !hit.projects.has(p));\n",
+      "replace": "        const absentIn = [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）",
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-shared-reason-ignored",
+      "why": "1 本のテストを 2 行以上が名乗っても根拠を求めない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (paths.length < 2) continue;\n",
+      "replace": "    continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "1 本のテストを 2 行が名乗るのに根拠の無い行があれば落とし、全行に根拠があれば通す（Issue #506）",
+        "別の欄が同じテストを名乗る形も共有として数える（layout と returns_to。Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "covered-by-empty-describe-kept",
+      "why": "題の空の describe を名前の題に入れる（一覧表示と名前がずれ、書いた名前が解決しない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const here = top || !nonEmptyString(suite.title) ? titles : [...titles, suite.title];\n",
+      "replace": "    const here = top ? titles : [...titles, suite.title];\n",
+      "occurrences": 1,
+      "expect_failing": ["題の空の describe は名前に入らない（一覧表示と同じ。Issue #506）"]
+    },
+    {
+      "id": "test-list-errors-ignored",
+      "why": "一覧の読み込みエラーを無視する（読めなかったスペックのテストが一覧から黙って消える。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (report.errors.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["--tests の一覧が使えなければ exit 2: 読み込みエラーがある（Issue #506）"]
+    },
+    {
+      "id": "tests-not-required",
+      "why": "--tests が無くても照合を通す（covered_by を解決しないまま緑にする。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (testsPath === null) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests が無ければ使い方の誤りとして exit 2（Issue #506）",
+        "--recorded も --tests が無ければ exit 2（記録だけではスペックを取り直せない。Issue #506）"
+      ]
+    },
+    {
+      "id": "assertion-audit-ignored",
+      "why": "assertion の深さの監査の記録を見ない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (owners.length === 0) return [];\n",
+      "replace": "  return [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "assertion の深さの監査の記録が無ければ落とす（Issue #506）",
+        "監査の後に期待値を変えたら、監査の指紋で落とす（Issue #506）",
+        "監査の記録の不備は落とす: 監査していない行がある（Issue #506）",
+        "監査の記録の不備は落とす: 期待値に届いていない行がある（Issue #506）",
+        "監査の記録の不備は落とす: reaches なのに確かめた部分が空（Issue #506）",
+        "監査の記録の不備は落とす: 語彙外の verdict（Issue #506）",
+        "監査の記録の不備は落とす: covered_by を持たない行を監査した（Issue #506）",
+        "監査の記録の不備は落とす: 同じ行を 2 回監査した（Issue #506）",
+        "監査の記録の不備は落とす: 監査役が空（Issue #506）",
+        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）",
+        "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
+        "監査の記録にスペックの指紋が無ければ落とす（Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "assertion-audit-fingerprint-ignored",
+      "why": "監査の後に期待値を変えても古い監査で通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (audit.table_fingerprint !== fingerprint) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の後に期待値を変えたら、監査の指紋で落とす（Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-short-accepted",
+      "why": "監査で期待値に届いていないとされた行を通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    } else if (e.verdict === \"short\") {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の記録の不備は落とす: 期待値に届いていない行がある（Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-coverage-ignored",
+      "why": "監査していない行が残っても通す（1 件ずつ当てたことを数えない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  const lacking = [...expected].filter((p) => !seen.has(p));\n",
+      "replace": "  const lacking = [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "監査の記録の不備は落とす: 監査していない行がある（Issue #506）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "recorded-covered-by-resolution-ignored",
+      "why": "--recorded で covered_by を解決した記録を求めない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (owners.length > 0 && conf.covered_by_resolved !== true)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["--recorded は covered_by を解決した記録が無ければ落とす（Issue #506）"]
+    },
+    {
+      "id": "covered-by-malformed-dropped",
+      "why": "形の壊れた covered_by を黙って捨てる（未知の欄で解決・共有・監査のどれにも入らない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);\n",
+      "replace": "      if (false) malformed.push(path);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列（Issue #506）",
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 空文字を含む配列（Issue #506）",
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列以外を含む配列（Issue #506）",
+        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+      ]
+    },
+    {
+      "id": "audit-sheet-malformed-dropped",
+      "why": "--audit-sheet が形の壊れた covered_by を黙って捨て、欠けた監査入力を ok として出す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        ...scanned.malformed.map(\n",
+      "replace": "        ...[].map(\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-underscore-key-skipped",
+      "why": "_ で始まるキーの下の行を走査しない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (k === \"covered_by\" || (k.startsWith(\"_\") && typeof v[k] === \"string\")) continue;\n",
+      "replace": "      if (k === \"covered_by\" || k.startsWith(\"_\")) continue;\n",
+      "occurrences": 1,
+      "expect_failing": ["_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-specs-mismatch-ignored",
+      "why": "監査の後にスペックの assertion を弱めても古い監査で通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  } else if (specs !== null && audit.specs_fingerprint !== specs) {\n",
+      "replace": "  } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
+        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）"
+      ]
+    },
+    {
+      "id": "assertion-audit-specs-empty-accepted",
+      "why": "監査の記録にスペックの指紋が無くても空欄として落とさない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonEmptyString(audit.specs_fingerprint)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の記録にスペックの指紋が無ければ落とす（Issue #506）"]
+    },
+    {
+      "id": "recorded-tests-optional",
+      "why": "--recorded ではテスト一覧を要求しない（記録だけで判定し、--write の後に弱めたスペックを取り直さない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (testsPath === null) {\n",
+      "replace": "    if (testsPath === null && !recorded) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--recorded も --tests が無ければ exit 2（記録だけではスペックを取り直せない。Issue #506）"
+      ]
+    },
+    {
+      "id": "tests-root-dir-unchecked",
+      "why": "一覧の config.rootDir を確かめない（スペックを読む起点が無いまま進む。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!nonEmptyString(testsRoot) || !isAbsolute(testsRoot)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests の config.rootDir が 無い なら exit 2（Issue #506）",
+        "--tests の config.rootDir が 相対パス なら exit 2（Issue #506）"
+      ]
+    },
+    {
+      "id": "specs-unreadable-ignored",
+      "why": "covered_by のスペックを読めなくても落とさない（指紋を取れないまま照合を飛ばす。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (specs !== null) problems.push(...specs.problems);\n",
+      "replace": "  if (false) problems.push(...specs.problems);\n",
+      "occurrences": 1,
+      "expect_failing": ["covered_by のスペックを rootDir から読めなければ落とす（Issue #506）"]
+    },
+    {
+      "id": "covered-by-skipped-project-counted",
+      "why": "expectedStatus が passed でない側（静的に飛ばす skipped・失敗を期待する failed・値の欠け）も走るものとして数える（片側で assertion が通ることを示さないまま解決する。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === \"passed\") {\n",
+      "replace": "        if (isPlainObject(t) && nonEmptyString(t.projectName)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "shared-reason-placeholder-accepted",
+      "why": "共有の根拠がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      return !o || !filled(o.owner.shared_assertion_reason);\n",
+      "replace": "      return !o || !nonEmptyString(o.owner.shared_assertion_reason);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-auditor-placeholder-accepted",
+      "why": "監査役がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(audit.auditor)) {\n",
+      "replace": "  if (!nonEmptyString(audit.auditor)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-checked-placeholder-accepted",
+      "why": "確かめた部分がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    } else if (!filled(e.checked)) {\n",
+      "replace": "    } else if (!nonEmptyString(e.checked)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-identity-without-location",
+      "why": "テストの同定から位置を外す（同じ題の別のテストの project を合算し、片側だけ走る 2 本を 1 本の両側のテストとして通す。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      const key = JSON.stringify([spec.file, spec.line, spec.column, ...path]);\n",
+      "replace": "      const key = JSON.stringify([spec.file, ...path]);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "owner-path-keys-concatenated",
+      "why": "キーを字面のまま連結して位置を作る（\"a.b\" と a.b が同じ位置になり、監査の記録 1 件が 2 行を満たす。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`,\n",
+      "replace": "        `${path}.${k}`,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-sheet-context-dropped",
+      "why": "監査の入力から持ち主を含む操作・画面の同定を外す（似た期待値を持つ別の操作のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      context: ancestors.map((a) => ({ path: a.path, fields: scalarFields(a.obj) })),\n",
+      "replace": "      context: [],\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-sheet-context-outermost-only",
+      "why": "監査の入力の文脈を最も外側の祖先（操作）だけにする（送る前の判定の項目のような中間の祖先が抜け、別の判定のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        path === \"$\" ? chain : [...chain, { path, obj: v }],\n",
+      "replace": "        path === \"$\" ? chain : chain.length > 0 ? chain : [{ path, obj: v }],\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-location-unchecked",
+      "why": "一覧の spec の位置（line / column）を確かめない（位置の無い同じ題の別のテストが 1 本に畳まれる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!positiveInteger(spec.line) || !positiveInteger(spec.column)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests の spec の位置が line が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が column が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が 0 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が文字列 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）"
+      ]
     }
   ]
 }

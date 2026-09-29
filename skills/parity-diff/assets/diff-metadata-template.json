@@ -126,7 +126,7 @@
     "unmeasured": 0
   },
   "reaction_coverage": {
-    "_note": "反応の被覆表の判定結果。現側 metadata.json の reaction_coverage.declared が true のときだけ、インストール済み parity-suite の scripts/reaction-check.mjs を --recorded で呼んで判定する（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。値はスクリプトの出力から写し、現側の記録を目視で数えない。unmeasured_operations か state_displays_unmeasured が 1 以上、または ok が true でなければ converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。api-resource / batch モードでは省略する。",
+    "_note": "反応の被覆表の判定結果。現側 metadata.json の reaction_coverage.declared が true のときだけ、インストール済み parity-suite の scripts/reaction-check.mjs を --tests <テスト一覧〈playwright test --list --reporter=json --project=current --project=new の出力〉> --recorded で呼んで判定する（declared: false と、キーごと持たない旧成果物は判定しない＝後方互換）。値はスクリプトの出力から写し、現側の記録を目視で数えない。unmeasured_operations か state_displays_unmeasured が 1 以上、または ok が true でなければ converged を true にしない。judged: false のときは reason に理由を書き、diff.md の未検証領域にも残す。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。api-resource / batch モードでは省略する。",
     "judged": false,
     "reason": "<judged: false のときの理由（現側が declared: false ならその reason、reaction_coverage をキーごと持たない旧成果物ならその旨）。judged: true では null>",
     "ok": "<judged: true のときスクリプト出力の ok。judged: false では null>",

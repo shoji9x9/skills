@@ -255,8 +255,12 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。
    測れなかったときだけ `not_measured` と理由、ビューポートが 2 つ以上で測らないときだけ `not_required` と理由を書き、キーごと省略しない。
    同じく `metadata.json` の `reaction_coverage` を宣言し（操作を持たない機能だけ `declared: false` ＋理由。キーごと省略しない）、
-   `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --write` で exit 0 まで通す
+   `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --tests <テスト一覧> --write` で exit 0 まで通す
    （`capture` の状態名を `capture_conditions.states` と照合するため、撮影状態を確定した `metadata.json` を書いた後に通す。コピーせずスキル配下から実行する）。
+   **その前に `covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する**——テスト一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力（両側を `=` 付きで明示する。省くと `new-capture` の採取スペックまで読み込まれ、採取用の環境変数が無いと一覧の取得が落ちる）。
+   `--audit-sheet` が出す期待値とテストのソースの 2 つだけを**実装役と別の subagent** に渡し、「期待値のうち確かめていない部分はどこか」を 1 行ずつ問わせて
+   `assertion_audit` に記録する（届いていない行は assertion を深くして監査し直す。1 本のテストを 2 行以上が名乗るなら全行に `shared_assertion_reason`）。
+   欄が埋まっているだけでは、期待値より浅い assertion を名乗っても緑・収束する（[`references/coverage.md`](references/coverage.md)「`covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する」）。
    記録が無い・`ok: false` の被覆表は `parity-diff` が収束させない（`conformance` の欠落は旧成果物ではなく未実行として扱われる）。
    `metadata.json` には**選択した current target 名**と解決した URL を記録する（現側は 1 環境。既存 `metadata.json` と target 名が違えばベースライン陳腐化として再取得を宣言する）。
    データ不足があれば `golden-dataset` へ戻す案内をする
@@ -340,7 +344,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   撮影条件（**撮る範囲の実測 `capture_scope` を含む。本スキルの `capture-scope-check.mjs` で数え直す**。
   スクロールバーの扱い `scrollbars`・表示の軸の値 `display_axes`・撮影に使ったブラウザ `browser` は新側採取で同じにする）、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
   プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
-  反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --recorded` で数え直す）、
+  反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す。
+  一覧は `playwright test --list --reporter=json --project=current --project=new` の出力）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy evidence` へ委譲するもの**: API 特性化で確定した口の「要求単位の根拠」の書き戻し（`推定` → `実測`）。
   **本スキルは `.replace/features.md` を書かない**ので、確定を観測した時点でこのモードを呼ぶ（[`references/api-batch.md`](references/api-batch.md)「要求単位を確定したら features.md へ書き戻す」）

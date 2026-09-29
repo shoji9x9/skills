@@ -15,7 +15,9 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
-const { main } = await import(pathToFileURL(script).href);
+const { main, coveredByOwners, tableFingerprint, indexTestList, specsFingerprint } = await import(
+  pathToFileURL(script).href
+);
 
 /** 観測した反応（トースト）。消えるまでの時間を 2 標本で持つ。 */
 const toast = () => ({
@@ -26,7 +28,9 @@ const toast = () => ({
   destination: { document: "top", locator: "コピー完了の通知" },
   appearance: { wait_limit_ms: 5000, delay_ms_samples: [480, 530] },
   dismissal: { mode: "auto", duration_ms_samples: [15400, 15600], tolerance_ms: 500 },
-  covered_by: ["share.spec.ts: コピーで通知が出て消える"],
+  covered_by: ["share.spec.ts › コピーで通知が出て消える"],
+  shared_assertion_reason:
+    "通知が出て消えることを確かめる 1 本で、状態表示の toast の行の期待値（出て消える）も同じ assertion が確かめる",
   capture: { state: "copy-toast", reason: null },
 });
 
@@ -40,14 +44,14 @@ const noneReaction = () => ({
     source_document: "top",
     method: "全文書の DOM 変化を監視",
   },
-  covered_by: ["search.spec.ts: 検索で観測時間内にどの文書にも通知が出ない"],
+  covered_by: ["search.spec.ts › 検索で観測時間内にどの文書にも通知が出ない"],
 });
 
 /** 操作で頁の組み方が変わらないことを実測で書いた記録。 */
 const noLayoutChange = () => ({
   changes: false,
   evidence: "操作の前後で scrollHeight と主な論理名の矩形が同じ",
-  covered_by: ["layout.spec.ts: 操作の後も頁の高さが変わらない"],
+  covered_by: ["layout.spec.ts › 操作の後も頁の高さが変わらない"],
 });
 
 /** 頁の組み方を変える操作の記録（条件の行を足すたびに、グリッドの高さを窓の高さから書き直す）。 */
@@ -78,7 +82,7 @@ const layoutChange = () => ({
       },
     },
   ],
-  covered_by: ["layout.spec.ts: 条件を 2 回足した後も頁が窓に収まりグリッドが縮む"],
+  covered_by: ["layout.spec.ts › 条件を 2 回足した後も頁が窓に収まりグリッドが縮む"],
 });
 
 /** 押した後に見た目が残らず、どこへも戻らないことを実測で書いた記録（Issue #471）。 */
@@ -87,7 +91,7 @@ const quietAftermath = () => ({
     changes: false,
     evidence: "押した後に対象の論理名の計算後スタイルと印の文言が押す前と同じ",
     targets: ["コピーボタン", "一覧"],
-    covered_by: ["share.spec.ts: コピーの後もボタンと一覧の計算後スタイルが押す前と同じ"],
+    covered_by: ["share.spec.ts › コピーの後もボタンと一覧の計算後スタイルが押す前と同じ"],
   },
   returns_to: {
     measured: true,
@@ -97,7 +101,7 @@ const quietAftermath = () => ({
     reset: [],
     not_probed: {},
     covered_by: [
-      "share.spec.ts: コピーの後も URL と検索条件・並べ替え・列フィルター・列の変更が残る",
+      "share.spec.ts › コピーの後も URL と検索条件・並べ替え・列フィルター・列の変更が残る",
     ],
   },
 });
@@ -113,7 +117,7 @@ const lingeringAftermath = () => ({
         description: "絞り込み中の見出しの文字色",
         observed: "color: rgb(204, 0, 0)",
         captured: null,
-        covered_by: ["search.spec.ts: 絞り込んだ列の見出しが赤くなる"],
+        covered_by: ["search.spec.ts › 絞り込んだ列の見出しが赤くなる"],
         reason: null,
       },
       {
@@ -122,7 +126,7 @@ const lingeringAftermath = () => ({
         description: "押した後に残る通知の背景",
         observed: "background-color: rgb(0, 128, 0)",
         captured: null,
-        covered_by: ["search.spec.ts: 押した後に通知の背景が緑で残る"],
+        covered_by: ["search.spec.ts › 押した後に通知の背景が緑で残る"],
         reason: null,
       },
     ],
@@ -134,7 +138,7 @@ const lingeringAftermath = () => ({
     probed: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
     reset: ["検索条件", "並べ替え", "列フィルター", "列の変更"],
     not_probed: {},
-    covered_by: ["search.spec.ts: Clear で検索条件と並べ替え・列フィルター・列の変更が既定に戻る"],
+    covered_by: ["search.spec.ts › Clear で検索条件と並べ替え・列フィルター・列の変更が既定に戻る"],
   },
 });
 
@@ -186,14 +190,14 @@ const rowLimit = () => ({
           input: "500 行を選ぶ",
           setup: "ゴールデンデータの 600 行から 500 行を選ぶ",
           observed: "送信される",
-          covered_by: ["export.spec.ts: 500 行なら送信される"],
+          covered_by: ["export.spec.ts › 500 行なら送信される"],
         },
         {
           side: "outside",
           input: "501 行を選ぶ",
           setup: "ゴールデンデータの 600 行から 501 行を選ぶ",
           observed: "上限の通知が出て送信されない",
-          covered_by: ["export.spec.ts: 501 行なら通知が出て送信されない"],
+          covered_by: ["export.spec.ts › 501 行なら通知が出て送信されない"],
         },
       ],
     },
@@ -223,7 +227,7 @@ const sideEffectWrites = () => ({
       values: "種別 export・利用者 id",
       count: "1 操作につき 1 行",
       verification: "assertion",
-      covered_by: ["export.spec.ts: 書き出しの前にアクセスログが 1 行書かれる"],
+      covered_by: ["export.spec.ts › 書き出しの前にアクセスログが 1 行書かれる"],
     },
     {
       ...writeAt(4),
@@ -256,7 +260,7 @@ const heldResubmit = () => ({
     overlay: "送信中は画面を覆い、2 回目の押下を受け付けない",
   },
   writes: { count: 1, evidence: "押し直しの後に access_log の行を数えて 1 行" },
-  covered_by: ["export.spec.ts: 応答の保留中に 2 回押しても送信 1 回・確認 1 回"],
+  covered_by: ["export.spec.ts › 応答の保留中に 2 回押しても送信 1 回・確認 1 回"],
 });
 
 /** 1 画面の状態表示の候補を全て振り分けた記録（Issue #500）。 */
@@ -267,7 +271,7 @@ const stateDisplayRow = (page = "共有画面") => ({
       status: "present",
       setup: { method: "data", detail: "一致する行が無い検索条件で検索する" },
       observed: "覆いに「結果が無い」の文言、ページ表示 1 / 0",
-      covered_by: ["share.spec.ts: 0 件で結果が無い旨とページ表示 1 / 0 が出る"],
+      covered_by: [`share.spec.ts › ${page}: 0 件で結果が無い旨とページ表示 1 / 0 が出る`],
     },
     "fetch-error": {
       status: "present",
@@ -277,7 +281,7 @@ const stateDisplayRow = (page = "共有画面") => ({
         detail: "一覧の取得を page.route で abort する",
       },
       observed: "覆いを出したまま、検索ボタンの操作を受け付ける",
-      covered_by: ["share.spec.ts: 取得に失敗すると覆いが残り検索は押せる"],
+      covered_by: [`share.spec.ts › ${page}: 取得に失敗すると覆いが残り検索は押せる`],
     },
     loading: {
       status: "absent",
@@ -287,14 +291,16 @@ const stateDisplayRow = (page = "共有画面") => ({
         detail: "一覧の応答を 5 秒保留する",
       },
       observed: "保留している間も表示が変わらない（読み込み中の表示が出ない）",
-      covered_by: ["share.spec.ts: 応答の保留中に読み込み中の表示が出ない"],
+      covered_by: [`share.spec.ts › ${page}: 応答の保留中に読み込み中の表示が出ない`],
     },
-    // 通知は操作の反応を参照せず、反応と同じ assertion 名で押さえる
+    // 通知は操作の反応を参照せず、反応と同じ assertion 名で押さえる（1 本を 2 行が名乗るので両方に根拠を書く。Issue #506）
     toast: {
       status: "present",
       setup: { method: "ui", detail: "コピーを押す" },
       observed: "コピー完了のトーストが最上部に出て消える",
-      covered_by: ["share.spec.ts: コピーで通知が出て消える"],
+      covered_by: ["share.spec.ts › コピーで通知が出て消える"],
+      shared_assertion_reason:
+        "コピーの反応の行と同じ 1 本が、トーストが最上部に出て消えることまで確かめる",
     },
     dialog: {
       status: "absent",
@@ -366,6 +372,7 @@ const INSIDE_ABS = "__INSIDE_ABS__";
  * @param {string[]} args
  */
 function call(dir, args) {
+  args = withTests(args);
   let stdout = "";
   let stderr = "";
   const status = main(["--metadata", "metadata.json", ...args], {
@@ -382,18 +389,102 @@ function call(dir, args) {
  * @param {string[]} [args]
  */
 function cli(dir, args = []) {
-  const r = spawnSync(process.execPath, [script, "--metadata", "metadata.json", ...args], {
-    cwd: dir,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const r = spawnSync(
+    process.execPath,
+    [script, "--metadata", "metadata.json", ...withTests(args)],
+    {
+      cwd: dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   return { dir, status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
 /**
+ * --tests の一覧（run が書く tests.json）を足す。--no-tests は足さない（一覧が無いときの振る舞いを測る）。
+ * @param {string[]} args
+ */
+function withTests(args) {
+  return args.includes("--tests") || args.includes("--no-tests")
+    ? args.filter((a) => a !== "--no-tests")
+    : [...args, "--tests", "tests.json"];
+}
+
+/**
+ * `playwright test --list --reporter=json` の出力の形（@playwright/test 1.63.0 の実測）で、テストの一覧を作る。
+ * 名前は「スペックのパス › 題 …」で、最初の区切りの前をファイル、残りを describe と題に割る。spec は projects ごとに別の要素で並ぶ。
+ * @param {string[]} names
+ * @param {string[]} [projects]
+ */
+function testList(names, projects = ["current", "new"]) {
+  /** @type {Map<string, object>} */
+  const files = new Map();
+  for (const name of names) {
+    const [file, ...titles] = name.split(" › ");
+    // 区切りの無い名前（テンプレートの説明文など）はどのテストにもならない
+    if (titles.length === 0) continue;
+    const top = files.get(file) ?? { title: file, file, line: 0, column: 0, specs: [], suites: [] };
+    files.set(file, top);
+    let suite = top;
+    for (const t of titles.slice(0, -1)) {
+      let child = suite.suites.find((c) => c.title === t);
+      if (!child) {
+        child = { title: t, file, line: 1, column: 1, specs: [], suites: [] };
+        suite.suites.push(child);
+      }
+      suite = child;
+    }
+    for (const projectName of projects) {
+      suite.specs.push({
+        title: titles.at(-1),
+        file,
+        line: 3,
+        column: 3,
+        tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
+      });
+    }
+  }
+  return { config: {}, suites: [...files.values()], errors: [], stats: {} };
+}
+
+/**
+ * 表の全ての covered_by を名乗った通りの一覧と、全行を reaches とした監査の記録を作る（陽性コントロールの既定）。
+ * @param {Record<string, unknown>} table
+ */
+function passingAudit(table) {
+  return {
+    auditor: "監査役の subagent（実装役と別の文脈）",
+    table_fingerprint: tableFingerprint(table),
+    entries: coveredByOwners(table).map((o) => ({
+      path: o.path,
+      verdict: "reaches",
+      checked: "期待値の全ての部分を covered_by の assertion が確かめている",
+      missing: null,
+    })),
+  };
+}
+
+/** @param {unknown} v @returns {v is Record<string, any>} */
+const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * 名指しされたスペックを一時プロジェクトに置く（中身は監査の指紋を取るためだけのもの）。
+ * @param {string} dir
+ * @param {string} file
+ */
+function writeSpec(dir, file) {
+  const path = join(dir, file);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `// ${file}\nexpect(page.getByText('Saved')).toHaveText('Saved');\n`);
+}
+
+/**
  * 一時プロジェクトを作って main を実行する。
+ * tests.json（--tests）は表の covered_by から、assertion_audit は表に無ければ全行 reaches で作る。
+ * 変えたいテストは opts.tests（名前の一覧か、一覧そのもの）・opts.audit: false で差し替える。
  * @param {object} table
- * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string }} [opts]
+ * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string, tests?: string[] | object, audit?: false }} [opts]
  */
 function run(table, opts = {}) {
   // 移行元ソースのルート（dir）の外に、実在するファイルを 1 つ置く。ルートの外を指す参照を照合が読まないことを確かめる陽性コントロール
@@ -420,13 +511,42 @@ function run(table, opts = {}) {
     },
   };
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(metadata));
-  writeFileSync(
-    join(dir, "reactions.json"),
-    // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
+  // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
+  const final = JSON.parse(
     JSON.stringify(table)
       .replaceAll(OUTSIDE_ABS, JSON.stringify(join(outer, OUTSIDE_FILE)).slice(1, -1))
       .replaceAll(INSIDE_ABS, JSON.stringify(join(dir, "src/export.js")).slice(1, -1)),
   );
+  if (opts.audit !== false && !Object.hasOwn(final, "assertion_audit")) {
+    final.assertion_audit = passingAudit(final);
+  }
+  const tests = opts.tests ?? coveredByOwners(final).flatMap((o) => o.names);
+  const list = Array.isArray(tests) ? testList([...new Set(tests)]) : tests;
+  // スペックの起点（config.rootDir）は一時プロジェクト。名指しされたスペックを実ファイルとして置く
+  if (isObject(list) && isObject(list.config) && !Object.hasOwn(list.config, "rootDir")) {
+    list.config.rootDir = dir;
+  }
+  for (const suite of isObject(list) && Array.isArray(list.suites) ? list.suites : []) {
+    writeSpec(dir, suite.file);
+  }
+  writeFileSync(join(dir, "tests.json"), JSON.stringify(list));
+  // 監査の記録にはスペックの指紋を写す（--audit-sheet の出力を写すのと同じ値。指紋を変えるテストは自分で書く）
+  if (
+    isObject(final.assertion_audit) &&
+    !Object.hasOwn(final.assertion_audit, "specs_fingerprint")
+  ) {
+    try {
+      final.assertion_audit.specs_fingerprint = specsFingerprint(
+        coveredByOwners(final),
+        indexTestList(list),
+        dir,
+        (f) => readFileSync(f, "utf8"),
+      ).fingerprint;
+    } catch {
+      // 一覧そのものが壊れている場合（使い方の誤りを測るテスト）は指紋を写さない
+    }
+  }
+  writeFileSync(join(dir, "reactions.json"), JSON.stringify(final));
   return call(dir, opts.args ?? []);
 }
 
@@ -965,6 +1085,9 @@ test("ファイル名やパターン id に : があっても別の呼び出し�
     }),
   );
   writeFileSync(join(dir, "reactions.json"), JSON.stringify(t));
+  const list = testList([...new Set(coveredByOwners(t).flatMap((o) => o.names))]);
+  list.config.rootDir = dir;
+  writeFileSync(join(dir, "tests.json"), JSON.stringify(list));
   const r = rerun(dir);
   expect(r.status).toBe(1);
   expect(r.stderr).toContain('["src/a",1,1,"2:toast"] が被覆表に記録されていない');
@@ -1967,7 +2090,7 @@ test("画面を開いたときの書き込みは operation: null と時機で、
       values: "種別 open・利用者 id",
       count: "開くたびに 1 行",
       verification: "assertion",
-      covered_by: ["open.spec.ts: 画面を開くとアクセスログが 1 行書かれる"],
+      covered_by: ["open.spec.ts › 画面を開くとアクセスログが 1 行書かれる"],
     };
     x.side_effect_writes.sites.push({
       file: "src/share.js",
@@ -2081,7 +2204,7 @@ test.each([
   ],
   [
     "読解のみと書いて assertion もある",
-    (t) => (t.side_effect_writes.sites[1].covered_by = ["export.spec.ts: 例外時にログが書かれる"]),
+    (t) => (t.side_effect_writes.sites[1].covered_by = ["export.spec.ts › 例外時にログが書かれる"]),
     "verification: source-only なのに covered_by がある",
   ],
   [
@@ -2158,7 +2281,7 @@ test.each([
           detail: "一覧の取得を abort する",
         },
         observed: "取得に失敗しても表示が変わらない",
-        covered_by: ["share.spec.ts: 取得に失敗しても警告が出ない"],
+        covered_by: ["share.spec.ts › 取得に失敗しても警告が出ない"],
       }),
   ],
   [
@@ -2384,7 +2507,7 @@ test.each([
         hold: { method: "route-delay", request: "/api/share" },
         presses: 3,
         observed: { requests_sent: 3, confirms_shown: 0, overlay: "何もしない（押すたびに送る）" },
-        covered_by: ["share.spec.ts: 応答の保留中に 3 回押すと 3 回送る"],
+        covered_by: ["share.spec.ts › 応答の保留中に 3 回押すと 3 回送る"],
       }),
   ],
   [
@@ -2603,3 +2726,530 @@ test("オリジンを含まない glob の要求パターンは通す（Codex �
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
 });
+
+// --- covered_by の解決・共有と assertion の深さの監査（Issue #506）---
+
+/** 表の covered_by の名前（重複を除く）。 */
+const namesOf = (t) => [...new Set(coveredByOwners(t).flatMap((o) => o.names))];
+
+test("陽性コントロール: --write は covered_by を解決した記録を残し、--recorded も同じ一覧で通る（Issue #506）", () => {
+  const w = run(baseTable(), { args: ["--write"] });
+  expect(w.stderr).toBe("");
+  expect(w.status).toBe(0);
+  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  expect(written.conformance.covered_by_resolved).toBe(true);
+  expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
+});
+
+test("covered_by の名前が一覧のどのテストにも解決しなければ落とす（Issue #506）", () => {
+  const t = baseTable();
+  const r = run(t, { tests: namesOf(t).filter((n) => !n.includes("500 行なら送信される")) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    '$.operations[1].pre_send.items[0].sides[0].covered_by: "export.spec.ts › 500 行なら送信される" が --tests の一覧のどのテストにも解決しない',
+  );
+});
+
+test("表のどの欄の covered_by も解決の対象にする（欄を列挙せず表全体を歩く。Issue #506）", () => {
+  const t = mutated(
+    (x) => (x.operations[0].future_field = { covered_by: ["share.spec.ts › 無いテスト"] }),
+  );
+  const r = run(t, { tests: namesOf(baseTable()) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    '$.operations[0].future_field.covered_by: "share.spec.ts › 無いテスト"',
+  );
+});
+
+test("covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）", () => {
+  const t = baseTable();
+  const r = run(t, { tests: testList(namesOf(t), ["current"]) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("が new プロジェクトで走らない");
+});
+
+test("1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）", () => {
+  const t = mutated(
+    (x) => (x.operations[0].layout.covered_by = ["layout.spec.ts › 高さ › 変わらない"]),
+  );
+  const list = testList(namesOf(t));
+  // 題に区切りを含むトップレベルのテスト「高さ › 変わらない」が、describe「高さ」の中の「変わらない」と同じ名前になる
+  list.suites
+    .find((s) => s.file === "layout.spec.ts")
+    .specs.push(
+      ...["current", "new"].map((projectName) => ({
+        title: "高さ › 変わらない",
+        file: "layout.spec.ts",
+        line: 9,
+        column: 1,
+        tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
+      })),
+    );
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('"layout.spec.ts › 高さ › 変わらない" が 2 本のテストに当たり曖昧');
+});
+
+test("題の空の describe は名前に入らない（一覧表示と同じ。Issue #506）", () => {
+  const t = mutated((x) => (x.operations[0].layout.covered_by = ["layout.spec.ts › 変わらない"]));
+  const list = testList(namesOf(t).filter((n) => n !== "layout.spec.ts › 変わらない"));
+  list.suites.push({
+    title: "layout.spec.ts",
+    file: "layout.spec.ts",
+    line: 0,
+    column: 0,
+    specs: [],
+    suites: [
+      {
+        title: "",
+        file: "layout.spec.ts",
+        line: 1,
+        column: 1,
+        suites: [],
+        specs: ["current", "new"].map((projectName) => ({
+          title: "変わらない",
+          file: "layout.spec.ts",
+          line: 2,
+          column: 3,
+          tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
+        })),
+      },
+    ],
+  });
+  const r = run(t, { tests: list });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("1 本のテストを 2 行が名乗るのに根拠の無い行があれば落とし、全行に根拠があれば通す（Issue #506）", () => {
+  const r = run(
+    mutated((x) => delete x.state_displays.pages[0].candidates.toast.shared_assertion_reason),
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    'テスト "share.spec.ts › コピーで通知が出て消える" を $.state_displays.pages[0].candidates.toast / $.operations[0].reactions[0] が covered_by に名乗っている',
+  );
+  expect(r.stderr).toContain("根拠が空: $.state_displays.pages[0].candidates.toast）");
+  // 陽性コントロール: 同じ表で両方に根拠がある（baseTable）なら通る
+  expect(run(baseTable()).status).toBe(0);
+});
+
+test("別の欄が同じテストを名乗る形も共有として数える（layout と returns_to。Issue #506）", () => {
+  const r = run(
+    mutated((x) => {
+      x.operations[0].layout.covered_by = x.operations[0].aftermath.returns_to.covered_by;
+    }),
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("$.operations[0].layout / $.operations[0].aftermath.returns_to");
+});
+
+test("1 行の covered_by に同じ名前が 2 回あれば落とす（Issue #506）", () => {
+  const r = run(
+    mutated((x) => x.operations[0].layout.covered_by.push(x.operations[0].layout.covered_by[0])),
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("$.operations[0].layout.covered_by: 同じ名前が 2 回ある");
+});
+
+test("--tests が無ければ使い方の誤りとして exit 2（Issue #506）", () => {
+  const r = run(baseTable(), { args: ["--no-tests"] });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--tests が無い");
+});
+
+test.each([
+  [
+    "読み込みエラーがある",
+    { config: {}, suites: [], errors: [{ message: "SyntaxError" }] },
+    "読み込みエラーが 1 件ある",
+  ],
+  ["テストが 0 件", { config: {}, suites: [], errors: [] }, "テストが 1 件も無い"],
+  ["errors が無い", { config: {}, suites: [] }, "errors が配列でない"],
+  ["suites が無い", { config: {}, errors: [] }, "suites が無い"],
+])("--tests の一覧が使えなければ exit 2: %s（Issue #506）", (_name, list, message) => {
+  const r = run(baseTable(), { tests: list });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain(message);
+});
+
+test("assertion の深さの監査の記録が無ければ落とす（Issue #506）", () => {
+  const r = run(baseTable(), { audit: false });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("assertion_audit が無い");
+});
+
+test("監査の後に期待値を変えたら、監査の指紋で落とす（Issue #506）", () => {
+  const t = baseTable();
+  t.assertion_audit = passingAudit(t);
+  // 期待値だけを変える（covered_by は同じ）。監査した時点の期待値に対する判定は、今の期待値には当たらない
+  t.operations[0].reactions[0].description = "コピー完了のトーストと、押した行の番号";
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("assertion_audit.table_fingerprint が表の内容と一致しない");
+});
+
+test.each([
+  [
+    "監査していない行がある",
+    (a) => a.entries.splice(0, 1),
+    "assertion_audit.entries に監査していない行がある: $.side_effect_writes.sites[0]",
+  ],
+  [
+    "期待値に届いていない行がある",
+    (a) =>
+      Object.assign(a.entries[0], {
+        verdict: "short",
+        checked: null,
+        missing: "書かれた行の値（種別 export）を確かめていない",
+      }),
+    "assertion が期待値に届いていない（書かれた行の値（種別 export）を確かめていない）",
+  ],
+  [
+    "reaches なのに確かめた部分が空",
+    (a) => (a.entries[0].checked = ""),
+    "verdict: reaches なのに checked が空",
+  ],
+  ["語彙外の verdict", (a) => (a.entries[0].verdict = "ok"), "verdict が reaches / short でない"],
+  [
+    "covered_by を持たない行を監査した",
+    (a) => a.entries.push({ ...a.entries[0], path: "$.operations[0]" }),
+    "$.operations[0] は covered_by を持つ行でない",
+  ],
+  ["同じ行を 2 回監査した", (a) => a.entries.push({ ...a.entries[0] }), "が 2 回ある"],
+  ["監査役が空", (a) => (a.auditor = ""), "assertion_audit.auditor が空"],
+])("監査の記録の不備は落とす: %s（Issue #506）", (_name, mutate, message) => {
+  const t = baseTable();
+  t.assertion_audit = passingAudit(t);
+  mutate(t.assertion_audit);
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("--recorded は covered_by を解決した記録が無ければ落とす（Issue #506）", () => {
+  const w = run(baseTable(), { args: ["--write"] });
+  const path = join(w.dir, "reactions.json");
+  const written = JSON.parse(readFileSync(path, "utf8"));
+  written.conformance.covered_by_resolved = false;
+  writeFileSync(path, JSON.stringify(written));
+  const r = rerun(w.dir, ["--recorded"]);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("conformance.covered_by_resolved が true でない");
+});
+
+test("--write は解決できない名前が残れば covered_by_resolved: false を記録する（Issue #506）", () => {
+  const t = baseTable();
+  const w = run(t, { args: ["--write"], tests: namesOf(t).slice(1) });
+  expect(w.status).toBe(1);
+  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  expect(written.conformance.covered_by_resolved).toBe(false);
+  expect(rerun(w.dir, ["--recorded"]).status).toBe(1);
+});
+
+test("--audit-sheet は監査の入力（期待値とテストの所在）を出し、監査の記録が無くても通る（Issue #506）", () => {
+  const r = run(baseTable(), { args: ["--audit-sheet"], audit: false });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  const out = JSON.parse(r.stdout);
+  const toastEntry = out.entries.find((e) => e.path === "$.operations[0].reactions[0]");
+  expect(toastEntry.tests).toEqual([
+    { name: "share.spec.ts › コピーで通知が出て消える", file: "share.spec.ts", line: 3 },
+  ]);
+  // 期待値は covered_by と共有の根拠を除いた欄そのもの
+  expect(toastEntry.expected).toMatchObject({ id: "toast", description: "コピー完了のトースト" });
+  expect(toastEntry.expected).not.toHaveProperty("covered_by");
+  expect(toastEntry.expected).not.toHaveProperty("shared_assertion_reason");
+  expect(out.entries.map((e) => e.path)).toEqual(coveredByOwners(baseTable()).map((o) => o.path));
+});
+
+test("--audit-sheet は解決できない名前があれば exit 1（監査の土台にしない。Issue #506）", () => {
+  const t = baseTable();
+  const r = run(t, { args: ["--audit-sheet"], tests: namesOf(t).slice(1) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("が --tests の一覧のどのテストにも解決しない");
+});
+
+test("--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）", () => {
+  const r = run(
+    mutated((x) => (x.operations[0].future_field = { covered_by: [""] })),
+    {
+      args: ["--audit-sheet"],
+      audit: false,
+    },
+  );
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("$.operations[0].future_field.covered_by: 空でない文字列の配列でない");
+  expect(JSON.parse(r.stdout).ok).toBe(false);
+});
+
+test("--audit-sheet は --write と同時に使えない（Issue #506）", () => {
+  const r = run(baseTable(), { args: ["--audit-sheet", "--write"] });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("同時に使えない");
+});
+
+test.each([
+  ["文字列", "share.spec.ts › 無いテスト"],
+  ["空文字を含む配列", [""]],
+  ["文字列以外を含む配列", [1, "share.spec.ts › 無いテスト"]],
+])("未知の欄の形の壊れた covered_by は黙って捨てず落とす: %s（Issue #506）", (_name, value) => {
+  const r = run(mutated((x) => (x.operations[0].future_field = { covered_by: value })));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("$.operations[0].future_field.covered_by: 空でない文字列の配列でない");
+});
+
+test("covered_by が null・空配列の行は名乗らない行として通す（Issue #506）", () => {
+  const r = run(
+    mutated((x) => {
+      x.operations[0].future_field = { covered_by: null };
+      x.operations[1].future_field = { covered_by: [] };
+    }),
+  );
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）", () => {
+  const t = mutated(
+    (x) => (x.operations[0]._draft = { covered_by: ["share.spec.ts › 無いテスト"] }),
+  );
+  const r = run(t, { tests: namesOf(baseTable()) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('$.operations[0]._draft.covered_by: "share.spec.ts › 無いテスト"');
+});
+
+/** 監査の後にスペックの assertion を弱める（表は触らない）。 */
+const weakenSpec = (dir) =>
+  writeFileSync(
+    join(dir, "share.spec.ts"),
+    "// share.spec.ts\nexpect(page.getByText('Saved')).toBeVisible();\n",
+  );
+
+test("監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）", () => {
+  const r = run(baseTable());
+  expect(r.status).toBe(0);
+  // 陽性コントロール: 何も変えずに取り直せば通る
+  expect(rerun(r.dir).status).toBe(0);
+  weakenSpec(r.dir);
+  const after = rerun(r.dir);
+  expect(after.status).toBe(1);
+  expect(after.stderr).toContain(
+    "assertion_audit.specs_fingerprint が今のスペックの中身と一致しない",
+  );
+});
+
+test("--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）", () => {
+  const w = run(baseTable(), { args: ["--write"] });
+  expect(w.status).toBe(0);
+  expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
+  weakenSpec(w.dir);
+  const r = rerun(w.dir, ["--recorded"]);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("assertion_audit.specs_fingerprint が今のスペックの中身と一致しない");
+});
+
+test("--recorded も --tests が無ければ exit 2（記録だけではスペックを取り直せない。Issue #506）", () => {
+  const w = run(baseTable(), { args: ["--write"] });
+  const r = rerun(w.dir, ["--recorded", "--no-tests"]);
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("--tests が無い");
+});
+
+test("監査の記録にスペックの指紋が無ければ落とす（Issue #506）", () => {
+  const t = baseTable();
+  t.assertion_audit = { ...passingAudit(t), specs_fingerprint: "" };
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("assertion_audit.specs_fingerprint が空");
+});
+
+test.each([
+  ["無い", undefined],
+  ["相対パス", "e2e"],
+])("--tests の config.rootDir が %s なら exit 2（Issue #506）", (_name, rootDir) => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  list.config = rootDir === undefined ? {} : { rootDir };
+  // run は rootDir が無ければ一時プロジェクトを入れるので、キーを持たせたうえで値を消す
+  if (rootDir === undefined) list.config.rootDir = null;
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("config.rootDir が絶対パスでない");
+});
+
+test("covered_by のスペックを rootDir から読めなければ落とす（Issue #506）", () => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  const outer = makeTempDir("reaction-check-specs-");
+  list.config.rootDir = outer;
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(`スペック export.spec.ts を一覧の rootDir（${outer}）から読めない`);
+});
+
+test("--audit-sheet はスペックの指紋を出し、それを写した監査の記録が通る（Issue #506）", () => {
+  const sheet = run(baseTable(), { args: ["--audit-sheet"], audit: false });
+  expect(sheet.status).toBe(0);
+  const { specs_fingerprint: fp } = JSON.parse(sheet.stdout);
+  expect(fp).toMatch(/^[0-9a-f]{64}$/);
+  const t = baseTable();
+  t.assertion_audit = { ...passingAudit(t), specs_fingerprint: fp };
+  const r = run(t);
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+});
+
+test("covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）", () => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+  for (const spec of layoutSpec.specs) {
+    if (spec.tests[0].projectName === "new") {
+      spec.tests[0].expectedStatus = "skipped";
+      spec.tests[0].annotations = [{ type: "skip" }];
+    }
+  }
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("が new プロジェクトで走らない");
+  // 陽性コントロール: 同じ一覧で飛ばさなければ通る
+  expect(run(t, { tests: testList(namesOf(t)) }).status).toBe(0);
+});
+
+test.each([
+  ["失敗を期待する（failed）", "failed"],
+  ["値が無い", undefined],
+])(
+  "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: %s（Issue #506）",
+  (_name, status) => {
+    const t = baseTable();
+    const list = testList(namesOf(t));
+    const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+    for (const spec of layoutSpec.specs) {
+      if (spec.tests[0].projectName === "new") {
+        if (status === undefined) delete spec.tests[0].expectedStatus;
+        else spec.tests[0].expectedStatus = status;
+      }
+    }
+    const r = run(t, { tests: list });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("が new プロジェクトで走らない");
+  },
+);
+
+test.each([
+  [
+    "共有の根拠",
+    (t) =>
+      (t.state_displays.pages[0].candidates.toast.shared_assertion_reason =
+        "<covered_by のテストを別の行も名乗るときだけ、その 1 本がこの行の期待値も全て確かめている根拠>"),
+    "根拠が空: $.state_displays.pages[0].candidates.toast）",
+  ],
+  [
+    "監査役",
+    (t) => (t.assertion_audit.auditor = "<監査した subagent（実装役と別の文脈で起動したもの）>"),
+    "assertion_audit.auditor が空かテンプレートの説明文のまま",
+  ],
+  [
+    "確かめた部分",
+    (t) =>
+      (t.assertion_audit.entries[0].checked =
+        "<reaches のとき、期待値のどの部分をどの assertion が確かめているか>"),
+    "verdict: reaches なのに checked が空かテンプレートの説明文のまま",
+  ],
+])(
+  "根拠の欄をテンプレートの説明文のまま出したら落とす: %s（Codex レビュー #510）",
+  (_name, mutate, message) => {
+    const t = baseTable();
+    t.assertion_audit = passingAudit(t);
+    mutate(t);
+    // 監査の指紋は根拠を書き換えた後の表で取り直す（指紋の不一致で落ちたのと区別する）
+    t.assertion_audit.table_fingerprint = tableFingerprint(t);
+    const r = run(t);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test("同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）", () => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+  // 同じ名前の 2 本目を別の行に置き、1 本目は current だけ・2 本目は new だけで走らせる
+  const first = layoutSpec.specs.filter(
+    (sp) => sp.title === "条件を 2 回足した後も頁が窓に収まりグリッドが縮む",
+  );
+  for (const sp of first) {
+    if (sp.tests[0].projectName === "new") sp.line = 9;
+  }
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    '"layout.spec.ts › 条件を 2 回足した後も頁が窓に収まりグリッドが縮む" が 2 本のテストに当たり曖昧',
+  );
+});
+
+test('区切りを含むキーの下の行は別の位置として監査させる（"a.b" と a.b を 1 件で満たさない。Codex レビュー #510）', () => {
+  const t = mutated((x) => {
+    x["a.b"] = { covered_by: ["layout.spec.ts › 操作の後も頁の高さが変わらない"] };
+    x.a = { b: { covered_by: ["search.spec.ts › 絞り込んだ列の見出しが赤くなる"] } };
+  });
+  t.assertion_audit = passingAudit(t);
+  // "a.b" の行だけ監査の記録から外す（位置が衝突すると、a.b の記録がこちらも満たしてしまう）
+  t.assertion_audit.entries = t.assertion_audit.entries.filter((e) => e.path !== '$["a.b"]');
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('assertion_audit.entries に監査していない行がある: $["a.b"]');
+});
+
+test("--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）", () => {
+  const r = run(baseTable(), { args: ["--audit-sheet"], audit: false });
+  expect(r.status).toBe(0);
+  const { entries } = JSON.parse(r.stdout);
+  const byPath = (p) => entries.find((e) => e.path === p);
+  const ctx = (p) => byPath(p).context;
+  // 操作の中の行は操作の同定を持つ
+  expect(ctx("$.operations[1].layout")[0]).toMatchObject({
+    path: "$.operations[1]",
+    fields: { id: "search", trigger: "clickButton(検索)" },
+  });
+  expect(ctx("$.operations[0].reactions[0]")[0].fields).toMatchObject({ id: "copy" });
+  // 送る前の判定の境界の行は、操作に加えて親の判定の項目（id・kind・condition）も持つ
+  const side = ctx("$.operations[1].pre_send.items[0].sides[0]");
+  expect(side.map((c) => c.path)).toEqual([
+    "$.operations[1]",
+    "$.operations[1].pre_send",
+    "$.operations[1].pre_send.items[0]",
+  ]);
+  expect(side[2].fields).toEqual({
+    id: "max-rows",
+    kind: "count-limit",
+    condition: "選んだ行が 500 件を超える",
+    on_block: "上限の通知を出して送信しない",
+  });
+  // 状態表示の行は画面名を持つ
+  expect(ctx("$.state_displays.pages[0].candidates.toast")).toContainEqual({
+    path: "$.state_displays.pages[0]",
+    fields: { page: "共有画面" },
+  });
+  // 表の直下の欄の行（書き込みの箇所）は表そのものを祖先に載せない
+  expect(ctx("$.side_effect_writes.sites[0]").map((c) => c.path)).toEqual(["$.side_effect_writes"]);
+});
+
+test.each([
+  ["line が無い", (sp) => delete sp.line],
+  ["column が無い", (sp) => delete sp.column],
+  ["line が 0", (sp) => (sp.line = 0)],
+  ["line が文字列", (sp) => (sp.line = "3")],
+])(
+  "--tests の spec の位置が %s なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+  (_name, mutate) => {
+    const t = baseTable();
+    const list = testList(namesOf(t));
+    for (const sp of list.suites.find((s) => s.file === "layout.spec.ts").specs) mutate(sp);
+    const r = run(t, { tests: list });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("に line / column（1 以上の整数）が無い");
+  },
+);

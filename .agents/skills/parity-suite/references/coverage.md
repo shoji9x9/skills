@@ -229,7 +229,7 @@
   **候補 5 つ（`empty` / `fetch-error` / `loading` / `toast` / `dialog`）を全て**振り分ける。画面・候補の欠けは未測定として数えられ、宣言に無い画面名・候補名は落ちる
 - 候補ごとに `status` を書く
   - `present`（ある）: 状態の作り方（`setup`）・現行で見たもの（`observed`: 文言・覆い・ページ表示）を書き、**撮る状態（`captured`）か assertion（`covered_by`）に割り当てる**。
-    `toast` / `dialog` も操作の反応を参照せず、反応と同じ assertion 名を `covered_by` に書く（`reactions` の欄は書けない。
+    `toast` / `dialog` も操作の反応を参照せず、反応と同じ assertion 名を `covered_by` に書く（1 本を 2 行が名乗るので、両方の行に `shared_assertion_reason` が要る。`reactions` の欄は書けない。
     参照を許すと、画面・見えるか・種別の一致を検査が保証し続ける必要があり、軸を塞ぐたびに別の穴が出たため入力形式ごと外した）。
     撮る状態は反応・残る見た目の撮る状態と同じ集合（ページ × 状態名）で数え、共有するなら全行に `shared_capture_reason` を書く
   - `absent`（ない）: 作ろうとした手段（`setup`）と、代わりに見えたもの（`observed`）を書き、**何も出ないことを assertion にする**（`covered_by`。新側が警告のダイアログを足しても、撮っていない状態には写らない）。
@@ -260,19 +260,56 @@
 - 設定にキーが無い（未確認）ときは、移行元ソースから候補を挙げて**ユーザーに確認し、確定した値を設定へ 1 回記録する**。移行元ソースを読めない（`current.repo: none` 等）なら
   `feedback_calls.declared: false` と理由を書き、`gaps.md` に残す（突き合わせを省いた事実を黙らない）。設定が空リスト（呼び出しが無いと確認済み）のときも `declared: false` とその旨を理由に書く
 
+### `covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する
+
+**`covered_by` は「期待値」と「それを押さえる assertion の名前」の対だが、欄の検査だけでは両者が合っているかを誰も確かめない。**
+期待値より浅い assertion（「押した行の詳細が別タブで開く」に「ボタンがある」だけを見るテスト、「書き出した中身が一致する」に拡張子だけを見るテスト）を名乗っても、
+被覆表・スイート・`parity-diff` の収束がすべて通る。強度ゲートは故障カタログにある種類しか拾わない（Issue #506）。
+
+- **名前は `スペックのパス › describe の題 › テストの題` で書く**（Playwright の一覧表示から project と行番号を除いた形。パスは `playwright test --list --reporter=json` の `file`＝rootDir からの相対）。
+  題の空の describe は題に入れない。**手で組み立てず、一覧か `--audit-sheet` の出力から写す**
+- **名前はスイートに実在するテストへ機械的に解決させる**——`playwright test --list --reporter=json` の出力を `--tests` に渡すと、
+  一覧のどのテストにも当たらない名前・2 本以上に当たる曖昧な名前・`current` / `new` の片方でしか走らないテスト（現側専用のスペック等）を落とす。
+  一覧に読み込みエラーがある・テストが 0 件なら exit 2（読めなかったスペックのテストは一覧から黙って消える）。
+  `test.skip` / `test.fixme` で静的に飛ばすテストは、飛ばす側では走らないものとして数える（一覧の `expectedStatus: skipped`）。
+  一覧で `expectedStatus` が `passed` でない側（失敗を期待する `failed` 等）も走らないものとして数える。
+  本文の中で条件付きに飛ばす `test.skip(条件)` と、失敗を期待する `test.fail(...)` は一覧に現れない（Playwright 1.63.0 の `--list` では `passed` のまま）ので、
+  `covered_by` のテストでは使わない（使うと片側で assertion が走らない・失敗しても緑のまま解決する）
+- **1 本のテストを 2 行以上の `covered_by` が名乗るなら、全ての行に `shared_assertion_reason` を書く**（その 1 本が各行の期待値を全て確かめている根拠）。
+  1 本で数行ぶん押さえたと数えられても、各行の期待値まで届いている保証は無い。根拠を書けないなら行ごとにテストを分ける。表のどの欄の `covered_by` も同じ集合で数える
+- **assertion が期待値まで届いているかは、実装役と別の subagent に 1 行ずつ監査させる**。入力は
+  `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --tests <一覧> --audit-sheet` が出す `entries`（行の位置 `path`・それを含む祖先〈操作・送る前の判定の項目・画面など〉の位置と値の欄 `context`・期待値 `expected`・テストの所在 `tests`）と、
+  そのテストのソースの **2 つだけ**にする（実装の経緯を渡すと、書いた側の意図で読んで浅さを見落とす）。
+  問いは「差分があるか」ではなく **「期待値のうち、この assertion が確かめていない部分はどこか」**。
+  「別タブで開く」なら開いた先がどの行の詳細か、「中身が一致する」なら中身そのものを、期待値の語ごとに assertion と対応付けさせる
+- 結果は表の直下の `assertion_audit` に書く: `auditor`（監査した subagent）・`table_fingerprint` と `specs_fingerprint`（どちらも `--audit-sheet` の出力の値を写す）・
+  `entries[]`（`path` ごとに 1 件。`verdict: reaches` なら確かめている部分を `checked` に、`verdict: short` なら届いていない部分を `missing` に）。
+  **`short` が残る・監査していない行がある・監査の後に期待値か `covered_by` を変えた（表の指紋が違う）・監査の後に `covered_by` のスペックファイルを書き換えた（スペックの指紋が違う）表は落ちる**——
+  assertion を深くするか、測れないなら行を未測定にして監査し直す。スペックの指紋は `--write` でも `--recorded` でも一覧の `config.rootDir` から読み直すので、
+  監査の後にスペックの assertion を弱める（`toHaveText` を `toBeVisible` に置き換える等）と、表を触らなくても落ちる。
+  **指紋が覆うのは `covered_by` が名指ししたスペックファイルだけ**——マッピング層・期待値解決層は新側の実装で正規に変わるので含めない。
+  期待値を確かめる assertion はスペックファイルに書き、その層へ逃がさない（逃がした分は監査の後に弱めても検出されない）。
+  深くした assertion が移行元で赤くなったら、それは移行元の振る舞いを測り損ねていた差なので、期待値の側を実測で直す（assertion を浅く戻さない）
+
 ### 照合と宣言
 
-- `metadata.json` に `reaction_coverage` と撮影状態（`capture_conditions.states`）を書いたら
-  `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --write` を**exit 0 まで**通す
-  （コピーせずスキル配下から実行する。`--root` の既定は cwd）。空欄・証拠の欠け・消える時間の単一標本・`layout` の欠けと 1 回だけの標本・`aftermath` の欠け（割り当ての無い残る見た目・動かしていない状態の `reset`・オリジン付きの URL）・
+- `metadata.json` に `reaction_coverage` と撮影状態（`capture_conditions.states`）を書いたら、スイートのテスト一覧を
+  `npx playwright test --list --reporter=json --project=current --project=new > "$TESTS"` で取り（**置き場は作業ツリーの外の一時ファイル**〈`TESTS="$(mktemp)"`〉。
+  一覧は絶対パスの `config.rootDir` を含む手元の環境の出力なので、`.replace/` に置いて commit しない。照合のたびに取り直し、終わったら消す。**`current` と `new` の両方を明示する**——片側に絞ると両側で走ることを確かめられず、
+  省くと `new-capture` の採取スペックまで読み込まれて採取用の環境変数〈`PARITY_SLUG` 等〉が無いと落ちる。`--project` は複数の値を取るので `=` 付きで書く。一覧の取得ではテストもブラウザも走らない）、
+  上の監査を済ませてから
+  `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --tests "$TESTS" --write` を**exit 0 まで**通す
+  （コピーせずスキル配下から実行する。`--root` の既定は cwd。`--tests` を省くと exit 2）。空欄・証拠の欠け・消える時間の単一標本・`layout` の欠けと 1 回だけの標本・`aftermath` の欠け（割り当ての無い残る見た目・動かしていない状態の `reset`・オリジン付きの URL）・
   `pre_send` の欠け（到達点の無い記録・境界の片側だけの判定・順序の無い判定・走査範囲の外の到達点）・`side_effect_writes` の欠け（ソースにある書き込みの記録漏れ・書く箇所の無い表・値や時機の空欄）・
   `resubmit` の欠け（保留せずに押し直した記録・書き込む操作の書き込みの回数の欠け）・`state_displays` の欠け（振り分けていない画面・候補、横取りで試していない取得の失敗・読み込み中の「ない」、割り当ての無い「ある」）・呼び出しの記録漏れ・走査対象 0 件・
-  `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表は落ちる
+  `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表・
+  解決しない `covered_by`・根拠の無い共有・`assertion_audit` の欠けと不備は落ちる
   （`metadata.json` にこれらと撮影状態・`target.commit`〈入手不可なら `none`〉が無ければ exit 2）。
   終了コードは 0 ＝ 通過、1 ＝ 未測定・不整合、2 ＝ 使い方の誤り・型崩れ
 - `metadata.json` の `reaction_coverage` に `declared: true` と `path` を書く。**操作を持たない機能だけ** `declared: false` ＋理由
   （画面駆動の機能で `default` 以外の撮影状態・空でない `popup_inventory`・`component_coverage.declared: true` のいずれかがあれば、操作の痕跡との矛盾として exit 2）（`gaps.md` にも残す）。**キーごと省略しない**——欠落は旧成果物の意味になり、`parity-diff` が判定を飛ばす
-- `parity-diff` は同じスクリプトを `--recorded` で呼び（移行元ソースは読まず、`conformance.ok` と表の指紋を要求する）、未測定が残る間は収束させない。**照合後に表を手で直したら `--write` から通し直す**
+- `parity-diff` は同じスクリプトを `--recorded` で呼び（移行元ソースは読まず、`conformance.ok`・`conformance.covered_by_resolved`・表の指紋と、監査の記録を要求する。
+  テスト一覧〈`--tests`〉は要る——スペックの指紋を読み直して、`--write` の後に assertion を弱めていないかを数える）、未測定が残る間は収束させない。**照合後に表を手で直したら `--write` から通し直す**
 
 ## 状態網羅の導出源
 
