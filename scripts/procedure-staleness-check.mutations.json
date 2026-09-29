@@ -184,6 +184,15 @@
       "replace": "  return new Date(Date.parse(value)).toISOString().slice(0, 10);\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "slug-mismatch-accepted",
+      "why": "置き場と成果物の slug の食い違いを見ず、別の機能の成果物をこの機能として旧手順判定する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (meta.slug !== name) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
     }
   ]
 }

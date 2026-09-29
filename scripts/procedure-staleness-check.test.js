@@ -61,7 +61,9 @@ function workspace(spec) {
     if (meta !== null) {
       writeFileSync(
         join(work, ".replace", "parity", slug, "metadata.json"),
-        typeof meta === "string" ? meta : JSON.stringify(meta),
+        typeof meta === "string"
+          ? meta
+          : JSON.stringify(Object.hasOwn(meta, "slug") ? meta : { slug, ...meta }),
       );
     }
   }
@@ -74,7 +76,7 @@ function workspace(spec) {
  * @param {string} [mode]
  */
 function meta(run, mode = "feature") {
-  return { slug: "x", mode, run: { finished_at: "2026-09-10T00:00:00Z", ...run } };
+  return { mode, run: { finished_at: "2026-09-10T00:00:00Z", ...run } };
 }
 
 /**
@@ -276,7 +278,13 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
   const cases = [
     [meta({ procedure_revision: "1" }), "procedure_revision"],
     [meta({ procedure_revision: 3 }), "改訂一覧が古い"],
-    [{ slug: "x", mode: "screen", run: { procedure_revision: 2 } }, "mode"],
+    [{ mode: "screen", run: { procedure_revision: 2 } }, "mode"],
+    // 別の機能の成果物が置き場を取り違えて置かれている。
+    [
+      { slug: "order-edit", ...meta({ procedure_revision: 2 }) },
+      "置き場の slug (order) と一致しない",
+    ],
+    [{ slug: null, ...meta({ procedure_revision: 2 }) }, "置き場の slug (order) と一致しない"],
     ["{", "読めない"],
   ];
   for (const [artifact, message] of cases) {

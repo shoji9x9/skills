@@ -464,6 +464,13 @@ export function readArtifacts(parityDir, latestRevision) {
       continue;
     }
     const meta = isObject(doc) ? doc : {};
+    // 置き場の slug と成果物の slug が違えば、別の機能の成果物をこの機能として判定することになる。
+    // 欠落・型崩れも同じく照合できないので合格に倒さない（parity-suite の metadata.json は slug を必須で持つ）。
+    if (meta.slug !== name) {
+      problems.push(
+        `metadata.json の slug (${JSON.stringify(meta.slug)}) が置き場の slug (${name}) と一致しない`,
+      );
+    }
     const mode = MODES.includes(/** @type {string} */ (meta.mode))
       ? /** @type {string} */ (meta.mode)
       : null;
