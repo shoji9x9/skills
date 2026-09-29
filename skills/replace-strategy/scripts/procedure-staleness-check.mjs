@@ -18,12 +18,13 @@
 //
 // 終了コード: 0 ＝ 対象の組み合わせがすべて判断済み、1 ＝ 未判断・見直し中が残る、
 // 2 ＝ 使い方の誤り・読めない入力（台帳の表・列の欠落、語彙外の値、重複 ID、実在しない変更 ID 等）、
-// 3 ＝ 未判断は無いが、成果物を読めず対象かどうかを判定できない機能がある（合格に倒さない）。
+// 3 ＝ 未判断は無いが、成果物を読めず対象かどうかを判定できない機能がある（合格に倒さない）、
+// 4 ＝ 対象外（特性化済みの成果物が 1 つも無い。0 件を「旧手順の機能なし」と読ませない）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。slug は名前順、記録は台帳の順で読む。
 // TypeScript 構文は使わない（型は JSDoc）。
 
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -261,15 +262,14 @@ function findTable(tables, headers) {
 
 /**
  * 表の行に見えるか。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
- * `|` で始まるかではなく、台帳の列数ぶんの区切りを持つかで見る。HTML コメント（テンプレートの記入例）は除く。
+ * `|` で始まるかでは見ない。列が欠けた行（5 セル）も表の外に落ちれば同じく判定から消えるので、
+ * 台帳の列数ではなく 3 セル（区切り 2 つ）以上を表の行とみなす。HTML コメントの中は呼び出し側で除く。
  * @param {string} line
  * @returns {boolean}
  */
 function looksLikeTableRow(line) {
-  const trimmed = line.trim();
-  if (trimmed.startsWith("<!--")) return false;
-  const cells = splitRow(trimmed);
-  return cells !== null && cells.length >= Math.min(CHANGE_HEADERS.length, RECORD_HEADERS.length);
+  const cells = splitRow(line.trim());
+  return cells !== null && cells.length >= 3;
 }
 
 /**
@@ -282,8 +282,14 @@ function looksLikeTableRow(line) {
  */
 export function countRowLikeLines(text, consumed = new Set()) {
   let fence = null;
+  let comment = false;
   let count = 0;
   text.split(/\r?\n/u).forEach((line, index) => {
+    // HTML コメント（テンプレートの記入例・説明）は表ではない。複数行にまたがるコメントも中を数えない。
+    if (fence === null && (comment || line.trim().startsWith("<!--"))) {
+      comment = !line.includes("-->");
+      return;
+    }
     const mark = fenceOf(line);
     if (mark !== null) {
       if (fence === null) fence = mark;
@@ -446,7 +452,26 @@ export function readArtifacts(parityDir, latestRevision) {
     if (!isDir) continue;
     const path = join(dir, "metadata.json");
     // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
-    if (!existsSync(path)) continue;
+    if (!existsSync(path)) {
+      // existsSync はリンクを辿るので、壊れたシンボリックリンクも「無い」になる。
+      // 特性化前（metadata.json が本当に無い）と区別し、壊れたリンクは読めない成果物として残す。
+      let linked = false;
+      try {
+        linked = lstatSync(path).isSymbolicLink();
+      } catch {
+        linked = false;
+      }
+      if (linked) {
+        slugs.push({
+          slug: name,
+          mode: null,
+          procedure_revision: null,
+          finished_on: null,
+          problems: ["metadata.json が壊れたシンボリックリンク（リンク先が無い）"],
+        });
+      }
+      continue;
+    }
     /** @type {string[]} */
     const problems = [];
     /** @type {unknown} */
@@ -691,7 +716,16 @@ export function main(argv, deps = {}) {
     undeterminable: pick(all.undeterminable),
     stray: pick(all.stray),
   };
-  const code = result.unresolved.length > 0 ? 1 : result.undeterminable.length > 0 ? 3 : 0;
+  // 成果物を 1 つも数えていない実行を exit 0 にしない。「旧手順の機能なし」と「何も見ていない」
+  // （別プロジェクトで実行した・特性化前）が同じ出力になる。evidence-gap-check と同じく 4 ＝ 対象外。
+  const code =
+    result.unresolved.length > 0
+      ? 1
+      : result.undeterminable.length > 0
+        ? 3
+        : slugs.length === 0
+          ? 4
+          : 0;
   out({
     ok: code === 0,
     version: VERSION,

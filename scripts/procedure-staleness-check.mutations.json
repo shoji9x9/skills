@@ -98,8 +98,8 @@
       "id": "undeterminable-exit-zero",
       "why": "判定不能だけが残る実行を exit 0 にする",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "result.undeterminable.length > 0 ? 3 : 0;",
-      "replace": "result.undeterminable.length > 0 ? 0 : 0;",
+      "find": "        ? 3\n",
+      "replace": "        ? 0\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
     },
@@ -151,8 +151,8 @@
       "id": "orphan-requires-leading-pipe",
       "why": "外側の | を省いて表の外に落ちた行を数えず、その行の変更を判定から黙って消す",
       "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
-      "find": "  return cells !== null && cells.length >= Math.min(CHANGE_HEADERS.length, RECORD_HEADERS.length);\n",
-      "replace": "  return trimmed.startsWith(\"|\");\n",
+      "find": "  const cells = splitRow(line.trim());\n",
+      "replace": "  const cells = line.trim().startsWith(\"|\") ? splitRow(line.trim()) : null;\n",
       "occurrences": 1,
       "expect_failing": [
         "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
@@ -173,7 +173,8 @@
         "同梱の改訂一覧と台帳テンプレートは検査がそのまま読める",
         "対象でない組み合わせへの記録は落とさず stray として見せる",
         "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
-        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"
+        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする",
+        "陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない"
       ]
     },
     {
@@ -193,6 +194,48 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "orphan-requires-full-columns",
+      "why": "列が欠けた行が表の外に落ちても表の行とみなさず、その変更を判定から黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return cells !== null && cells.length >= 3;\n",
+      "replace": "  return cells !== null && cells.length >= 6;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "multiline-comment-counted",
+      "why": "複数行の HTML コメントの中の記入例を表の外の行として数え、正しい台帳を落とす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      comment = !line.includes(\"-->\");\n",
+      "replace": "      comment = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない"
+      ]
+    },
+    {
+      "id": "dangling-metadata-skipped",
+      "why": "metadata.json が壊れたリンクの機能を特性化前として黙って外す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (linked) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "empty-artifacts-exit-zero",
+      "why": "成果物を 1 つも数えていない実行を exit 0 にし、何も見ていないことを合格に見せる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "          ? 4\n",
+      "replace": "          ? 0\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
     }
   ]
 }

@@ -256,6 +256,14 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
         RECORD_HEADER,
       "表の外に表の行",
     ],
+    // 列が 1 つ欠けた行（5 セル）が表の外に落ちても数える。
+    [
+      ledger([], []).replace(
+        "|---|---|---|---|---|---|\n\n## 既に",
+        "|---|---|---|---|---|---|\n\n| PC-001 | 2026-09-20 | 軸 | 由来 | feature |\n\n## 既に",
+      ),
+      "表の外に表の行",
+    ],
     // 表の外に落ちた行自身が外側の `|` を省いた形でも数える。
     [
       ledger([], []).replace(
@@ -324,6 +332,17 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
   const dangling = run(broken);
   expect(dangling.code).toBe(3);
   expect(dangling.json.undeterminable[0].slug).toBe("dangling");
+  // metadata.json 自体が壊れたリンクなら、特性化前として黙って外さず判定不能に残す。
+  const brokenMeta = workspace({
+    artifacts: { order: meta({ procedure_revision: 2 }), edit: null },
+  });
+  symlinkSync(
+    join(brokenMeta, "gone.json"),
+    join(brokenMeta, ".replace", "parity", "edit", "metadata.json"),
+  );
+  const brokenRun = run(brokenMeta);
+  expect(brokenRun.code).toBe(3);
+  expect(brokenRun.json.undeterminable.map((u) => u.slug)).toEqual(["edit"]);
 });
 
 test("成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする", () => {
@@ -333,8 +352,10 @@ test("成果物の置き場・台帳を読めないときは合格にも未判�
   expect(run(missing, ["--parity-dir", "file"]).code).toBe(2);
   mkdirSync(join(missing, "ledger-dir"));
   expect(run(missing, ["--ledger", "ledger-dir"]).code).toBe(2);
-  // 陰性コントロール: 空の置き場（特性化前のプロジェクト）は通る。
-  expect(run(missing).code).toBe(0);
+  // 空の置き場（特性化前・別プロジェクトでの実行）は合格にせず対象外（exit 4）で区別する。
+  const empty = run(missing);
+  expect(empty.code).toBe(4);
+  expect(empty.json.artifacts).toEqual([]);
 });
 
 test("--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす", () => {
@@ -368,6 +389,15 @@ test("改訂一覧の revision に対応する改訂が無い・affects が語�
   );
   expect(bad.code).toBe(2);
   expect(bad.json.errors.join("\n")).toContain("語彙外の mode");
+});
+
+test("陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない", () => {
+  const text = ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []).replace(
+    "## 観点の追加",
+    "<!--\n記入例: | PC-009 | 2026-09-01 | 軸 | 由来 | feature | #9 |\n-->\n\n## 観点の追加",
+  );
+  const r = readLedger(text, new Set());
+  expect(r.ok).toBe(true);
 });
 
 test("同梱の改訂一覧と台帳テンプレートは検査がそのまま読める", () => {

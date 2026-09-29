@@ -197,7 +197,7 @@ done
     **Issue が closed でも、`parity-diff` が収束済みでも出す**（軸を足す前の手順で閉じたことは、どの検査も落とさない）。
     導出は同梱の [`scripts/procedure-staleness-check.mjs`](../scripts/procedure-staleness-check.mjs) で行い（**成果物を目視で比べない**。手順・終了コードの正本は [`procedure-changes.md`](procedure-changes.md)「検査」）、
     `--revisions` にはインストール済みの `parity-suite` の `assets/procedure-revisions.json` を渡す（プロジェクトへコピーしない）。
-    `unresolved` を未解決、`undeterminable`（exit 3）を「対象かどうかを判定不能」、exit 2 を「入力を読めない（台帳の不整合・改訂一覧や成果物の置き場を読めない。stderr / `errors` の内容を添える）」として書き分ける（どれも 0 件に丸めない）。
+    `unresolved` を未解決、`undeterminable`（exit 3）を「対象かどうかを判定不能」、exit 4 を「特性化済みの機能が無く判定対象なし」、exit 2 を「入力を読めない（台帳の不整合・改訂一覧や成果物の置き場を読めない。stderr / `errors` の内容を添える）」として書き分ける（どれも 0 件に丸めない）。
     **`run.procedure_revision` を持たない成果物は改訂番号の導入前**なので、すべての改訂の対象として出る（旧版 `parity-suite` の成果物。判断を台帳に記録すれば消える）
 
 ## 報告
