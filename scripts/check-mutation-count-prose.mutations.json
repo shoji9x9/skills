@@ -49,7 +49,10 @@
         "陽性: 対象の場所（.agents/rules/x.md）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（docs/x.md）の件数を、ファイルと行を付けて落とす",
         "陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす",
+        "陽性: 対象の場所（.github/workflows/ci.yml）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
       ]
     },
     {
@@ -95,7 +98,10 @@
       "find": "    const line = raw.normalize(\"NFKC\");",
       "replace": "    const line = raw;",
       "occurrences": 1,
-      "expect_failing": ["陽性: 件数の表記（全角数字）を落とす"]
+      "expect_failing": [
+        "陽性: 件数の表記（全角数字）を落とす",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす"
+      ]
     },
     {
       "id": "MC-DURATION",
@@ -109,7 +115,8 @@
         "陽性: 全件の所要時間（秒）を落とす",
         "陽性: 全件の所要時間（小数の分）を落とす",
         "陽性: 全件の所要時間（CI の実測）を落とす",
-        "陽性: 全件の所要時間（英語の単位）を落とす"
+        "陽性: 全件の所要時間（英語の単位）を落とす",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす"
       ]
     },
     {
@@ -192,6 +199,65 @@
       "expect_failing": [
         "陰性: 全件の分割数（6 分割） は落とさない",
         "陰性: 全件の中の割合（3 分の 2） は落とさない"
+      ]
+    },
+    {
+      "id": "MC-WORKFLOWS-NONE",
+      "why": "ワークフローを走査しない（ci.yml のコメントに残った件数・所要時間を見逃す）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  if (existsSync(wf)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす",
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない",
+        "陽性: 対象の場所（.github/workflows/ci.yml）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
+      ]
+    },
+    {
+      "id": "MC-MEASUREMENTS",
+      "why": "実測値の置き場（mutation-proof.yml）まで落とす",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": " && rel !== MEASUREMENTS_FILE) files.push(rel);",
+      "replace": ") files.push(rel);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない",
+        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件"
+      ]
+    },
+    {
+      "id": "MC-YAML-ONLY",
+      "why": "ワークフローのディレクトリの YAML 以外も読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "if (/\\.ya?ml$/.test(e.name) && e.isFile()",
+      "replace": "if (e.isFile()",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
+      ]
+    },
+    {
+      "id": "MC-YAML-EXT",
+      "why": ".yaml を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "/\\.ya?ml$/.test(e.name)",
+      "replace": "/\\.yml$/.test(e.name)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
+      ]
+    },
+    {
+      "id": "MC-WORKFLOW-FILE",
+      "why": "名前が .yml のディレクトリをファイルとして読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "/.test(e.name) && e.isFile() && rel",
+      "replace": "/.test(e.name) && rel",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
       ]
     }
   ]

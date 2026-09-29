@@ -91,7 +91,7 @@ pre-commit:
             # 同一であるべきコピー（scripts/identical-copies.json で宣言）の一致。
             run: node scripts/check-identical-copies.js
           - name: mutation-count-prose
-            # 変異の件数・全件の実測値を散文（AGENTS.md / rules / docs）へ再導入していないか。
+            # 変異の件数・全件の実測値を散文（AGENTS.md / rules / docs / workflows のコメント）へ再導入していないか。
             run: node scripts/check-mutation-count-prose.js
           - name: skill-index
             # AGENTS.md の参照スキルガイドと README のスキル表が skills/ の実体と対応しているか。

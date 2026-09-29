@@ -23,7 +23,8 @@
       "replace": "(name) => !dist.has(name),",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない"
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない"
       ]
     },
     {
@@ -58,7 +59,8 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: AGENTS.md に実在しないスキル（改名前の名前）を載せたら落とす",
-        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない"
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす"
       ]
     },
     {
@@ -134,7 +136,10 @@
         "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
       ]
     },
     {
@@ -213,7 +218,10 @@
         "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
       ]
     },
     {
@@ -253,7 +261,10 @@
         "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
         "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
         "陽性: 配布スキルが README.md に未掲載なら落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
       ]
     },
     {
@@ -312,6 +323,18 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: 正規の編集（継続行が複数行で、字下げした入れ子の箇条を持つ）は違反 0 件"
+      ]
+    },
+    {
+      "id": "SI-PRIV-SKILLMD",
+      "why": ".private-skill の印だけで SKILL.md の無いディレクトリを private skill として数える",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (existsSync(join(root, \".agents/skills\", name, \"SKILL.md\"))) priv.push(name);",
+      "replace": "    if (true) priv.push(name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
       ]
     }
   ]

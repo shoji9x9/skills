@@ -8,19 +8,19 @@
   "mutations": [
     {
       "id": "KR-EXCLUDE-NONE",
-      "why": "インストール済みコピー・テスト結果・学び自身などの除外を効かせない（二重報告・学び同士の参照で赤くなる。走査件数も変わる）",
+      "why": "リンク・テスト結果・学び自身などの除外を効かせない（二重報告・学び同士の参照で赤くなる。走査件数も変わる）",
       "file": "scripts/check-kaizen-refs.js",
       "find": "  !EXCLUDED_PREFIXES.some((p) => path.startsWith(p)) &&",
       "replace": "  true &&",
       "occurrences": 1,
       "expect_failing": [
-        "除外（.agents/skills/x/SKILL.md）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（.claude/x.md）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（tests/x/benchmark.json）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（.kaizen/2026-09-03-other.md）の切れた参照は見ないが、外に同じものがあれば落とす",
         "除外（node_modules/pkg/README.md）の切れた参照は見ないが、外に同じものがあれば落とす",
         "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0",
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
       ]
     },
     {
@@ -72,8 +72,8 @@
       "id": "KR-DELETED",
       "why": "作業ツリーで消した追跡ファイルも読みに行く（ENOENT で赤くなる）",
       "file": "scripts/check-kaizen-refs.js",
-      "find": "listed.filter((f) => isScanned(f) && existsSync(join(root, f)))",
-      "replace": "listed.filter((f) => isScanned(f))",
+      "find": "      isScanned(f, distributed) &&\n      existsSync(join(root, f)) &&\n",
+      "replace": "      isScanned(f, distributed) &&\n",
       "occurrences": 1,
       "expect_failing": ["陰性: 作業ツリーで消した追跡ファイルは読まない（ENOENT で赤くしない）"]
     },
@@ -146,7 +146,13 @@
         "陽性: archive/ 配下の参照も実在しなければ落とす",
         "陽性: 日付の途中で折り返した参照もつないで実在を確かめ、切れていれば落とす",
         "陽性: `.kaizen/archive/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
-        "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす"
+        "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える",
+        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の正本（rule の正本）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
       ]
     },
     {
@@ -231,6 +237,64 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: gitignore された参照元は走査しない（手元の生成物で CI と食い違わない）"
+      ]
+    },
+    {
+      "id": "KR-INSTALLED-NONE",
+      "why": "配布スキルのインストール済みコピーを除外しない（正本と二重に報告する）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  !isInstalledCopy(path, distributed) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "除外（.agents/skills/x/SKILL.md）の切れた参照は見ないが、外に同じものがあれば落とす"
+      ]
+    },
+    {
+      "id": "KR-INSTALLED-ALL",
+      "why": ".agents/skills/ を丸ごと除外する（skills/ に正本の無い private skill の参照を見逃す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  return Boolean(m) && distributed.has(m[1]);",
+      "replace": "  return Boolean(m);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-AGENTS-NAME-PREFIX",
+      "why": ".agents/skills/ 側の名前を前方一致で取る（xy を x のコピーと読む）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+)\\//;",
+      "replace": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+?)/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-SKILLS-NAME-PREFIX",
+      "why": "skills/ 側の名前を前方一致で取る（skills/xy/ を x の正本と読む）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const SKILL_RE = /^skills\\/([^/]+)\\//;",
+      "replace": "const SKILL_RE = /^skills\\/([^/]+?)/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-SYMLINK",
+      "why": "シンボリックリンクを辿って読む（.github/instructions → .agents/rules の本文を二重に数える）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "      existsSync(join(root, f)) &&\n      !lstatSync(join(root, f)).isSymbolicLink(),",
+      "replace": "      existsSync(join(root, f)),",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
       ]
     }
   ]

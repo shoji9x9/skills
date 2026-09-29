@@ -6,7 +6,8 @@
 // 実測値は `.github/workflows/mutation-proof.yml` のコメント 1 箇所にだけ置く方針にしたので、
 // それ以外の散文へ再び書いたら落とす。
 //
-// 判定規則（対象は `AGENTS.md`・`.agents/rules/**/*.md`・`docs/**/*.md`）:
+// 判定規則（対象は `AGENTS.md`・`.agents/rules/**/*.md`・`docs/**/*.md`・`.github/workflows/*.{yml,yaml}`。
+// ワークフローはコメントが散文にあたる。実測値の置き場である `mutation-proof.yml` だけを除く）:
 // - 件数: 「<数> 変異」「<数> 件の変異」「変異 <数> 件」「変異数 <数>」「<数> mutations」。
 //   ただし数が 1 のものは通す——「1 変異 = 対象テストファイル 1 回の実行」は総数ではなく単位の定義で、
 //   実際の文書にある件数表記はこの形だけだった。2 以上は宣言 1 つぶんの説明でも件数そのものが腐るので落とす。
@@ -24,6 +25,10 @@ import { fileURLToPath } from "node:url";
 // 対象: ルート直下のファイルと、配下を再帰で走査するディレクトリ。
 export const TARGET_FILES = ["AGENTS.md"];
 export const TARGET_DIRS = [".agents/rules", "docs"];
+// ワークフローは直下の YAML だけ（GitHub Actions はサブディレクトリを読まない）。
+export const WORKFLOW_DIR = ".github/workflows";
+// 実測値の唯一の置き場なので、ここに書いた件数・所要時間は正本であって再導入ではない。
+export const MEASUREMENTS_FILE = ".github/workflows/mutation-proof.yml";
 
 // 数は語の先頭からだけ取る。`#` の直後（Issue / PR 番号）や英数字・小数点の直後から取ると、
 // 「PR #509 変異実証」のような番号の後に「変異」が続く文を件数と読んで落とす。
@@ -75,6 +80,13 @@ export function targetFiles(root) {
   for (const d of TARGET_DIRS) {
     const abs = join(root, d);
     if (existsSync(abs)) files.push(...walkMarkdown(abs).map((p) => relative(root, p)));
+  }
+  const wf = join(root, WORKFLOW_DIR);
+  if (existsSync(wf)) {
+    for (const e of readdirSync(wf, { withFileTypes: true })) {
+      const rel = `${WORKFLOW_DIR}/${e.name}`;
+      if (/\.ya?ml$/.test(e.name) && e.isFile() && rel !== MEASUREMENTS_FILE) files.push(rel);
+    }
   }
   return files.sort();
 }

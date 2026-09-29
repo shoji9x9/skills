@@ -9,6 +9,8 @@
 // 期待集合は宣言（実体の在り処）から作る:
 // - 配布スキル = `skills/<name>/`（SKILL.md を持つこと。持たないディレクトリは違反）。
 // - private skill = `.agents/skills/<name>/.private-skill` を持ち、`skills/` に無いもの（配布しない）。
+//   SKILL.md も持つこと。印だけで SKILL.md の無いディレクトリは違反にし、private skill として数えない
+//   （数えると AGENTS.md の掲載が「実在するスキル」への案内として通ってしまう）。
 // - AGENTS.md「## 参照スキルガイド」節の箇条 `- \`<name>\`:` の集合 = 配布スキル ∪ private skill。
 // - README.md「## 利用可能なスキル」節の表の行 `| [<name>](./skills/<name>/) |` の集合 = 配布スキル
 //   （private skill は `gh skill install` できないので載せない）。
@@ -121,9 +123,17 @@ export function checkSkillIndex(root) {
     }
   }
   const dist = new Set(distributed);
-  const priv = listDirs(join(root, ".agents/skills")).filter(
+  const marked = listDirs(join(root, ".agents/skills")).filter(
     (name) => !dist.has(name) && existsSync(join(root, ".agents/skills", name, ".private-skill")),
   );
+  const priv = [];
+  for (const name of marked) {
+    if (existsSync(join(root, ".agents/skills", name, "SKILL.md"))) priv.push(name);
+    else
+      violations.push(
+        `.agents/skills/${name}/: .private-skill はあるが SKILL.md が無い（スキルの実体として読めない）`,
+      );
+  }
 
   const agents = parseAgents(root, violations);
   if (agents) {

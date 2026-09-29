@@ -9,8 +9,9 @@
 // | 行の形             | 1 行 / 折り返し（`//` `#` Markdown 本文）/ 復元できない折り返し               |
 // | 折り返しの切れ目   | 名前の途中 / 日付の途中 / `.kaizen/`・`.kaizen/archive/` の直後 / ディレクトリへの言及 |
 // | 参照の境界         | 前が単語文字（`foo.kaizen/`）/ 後ろが続く（`.mdx`）                            |
-// | 参照元のパス       | 対象 / 除外（.agents .claude tests .kaizen node_modules eval の入力）/ eval の文書 |
-// | 参照元の状態       | 追跡＋実在 / 作業ツリーで削除 / 非テキスト拡張子                              |
+// | 参照元のパス       | 対象 / 除外（配布スキルのインストール済みコピー .claude tests .kaizen node_modules eval の入力）/ eval の文書 |
+// | .agents/ の中      | 配布スキルのコピー（skills/<name>/ あり）/ private skill（skills/ に無い）/ 名前が前方一致する別スキル / rule |
+// | 参照元の状態       | 追跡＋実在 / 作業ツリーで削除 / 非テキスト拡張子 / シンボリックリンク           |
 // | 免除               | 使われる / 使われない / 理由が空                                              |
 // | 件数               | ファイル 0 件 / 参照 0 件 / 1 件以上                                          |
 //
@@ -18,7 +19,7 @@
 // （`scripts/kaizen-schedule-report.test.js` の修正前の 2 行）をそのまま入力にする。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EXEMPTIONS_PATH, checkKaizenRefs, findRefs, main } from "./check-kaizen-refs.js";
@@ -206,7 +207,7 @@ test("陽性: eval の文書（README.md）の切れた参照は拾う（除外�
 });
 
 test.each([
-  ".agents/skills/x/SKILL.md",
+  ".agents/skills/x/SKILL.md", // skills/x/ に正本がある配布スキルのインストール済みコピー
   ".claude/x.md",
   "tests/x/benchmark.json",
   ".kaizen/2026-09-03-other.md",
@@ -217,12 +218,54 @@ test.each([
   "scripts/check-kaizen-refs.mutations.json",
 ])("除外（%s）の切れた参照は見ないが、外に同じものがあれば落とす", (excluded) => {
   const broken = "`.kaizen/2026-01-01-missing.md`\n";
-  const inside = run(makeRepo({ [excluded]: broken, "docs/ok.md": NOTE }));
+  const base = { [excluded]: broken, "docs/ok.md": NOTE, "skills/x/SKILL.md": "# x\n" };
+  const inside = run(makeRepo(base));
   expect(inside.violations).toEqual([]);
   expect(inside.files).not.toContain(excluded);
-  const outside = run(makeRepo({ [excluded]: broken, "docs/ok.md": NOTE, "docs/b.md": broken }));
+  const outside = run(makeRepo({ ...base, "docs/b.md": broken }));
   expect(outside.violations).toHaveLength(1);
   expect(outside.violations[0]).toMatch(/^docs\/b\.md:1: /);
+});
+
+test.each([
+  ["private skill（skills/ に正本が無い）", ".agents/skills/p/SKILL.md", {}],
+  ["private skill のスクリプト", ".agents/skills/p/scripts/a.js", {}],
+  ["rule の正本", ".agents/rules/r.md", {}],
+  [
+    "配布スキル xy の名前を前方に含む private skill x",
+    ".agents/skills/x/SKILL.md",
+    { "skills/xy/SKILL.md": "# xy\n" },
+  ],
+  [
+    "配布スキル x の名前で始まる private skill xy",
+    ".agents/skills/xy/SKILL.md",
+    { "skills/x/SKILL.md": "# x\n" },
+  ],
+])("陽性: .agents/ の正本（%s）の切れた参照は落とす", (_, path, extra) => {
+  const root = makeRepo({
+    ...extra,
+    [path]: "`.kaizen/2026-01-01-missing.md`\n",
+    ".agents/skills/p/.private-skill": "",
+    "docs/ok.md": NOTE,
+  });
+  expect(run(root).violations).toEqual([
+    `${path}:1: .kaizen/2026-01-01-missing.md が存在しない（archive/ へ移動したなら参照を直す）`,
+  ]);
+});
+
+test("陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える", () => {
+  const root = makeRepo({
+    ".agents/rules/r.md": `根拠は \`${NOTE}\`、切れた \`.kaizen/2026-01-01-missing.md\`\n`,
+  });
+  mkdirSync(join(root, ".github/instructions"), { recursive: true });
+  symlinkSync("../../.agents/rules/r.md", join(root, ".github/instructions/r.instructions.md"));
+  git(root, "add", "-A");
+  const r = run(root);
+  expect(r.files).toEqual([".agents/rules/r.md"]);
+  expect(r.refs).toBe(2);
+  expect(r.violations).toEqual([
+    ".agents/rules/r.md:1: .kaizen/2026-01-01-missing.md が存在しない（archive/ へ移動したなら参照を直す）",
+  ]);
 });
 
 test("陽性: 使われていない免除を落とす（残った免除が後の本物の参照を素通りさせる）", () => {

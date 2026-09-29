@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     # 全件は CI で 1690 秒（504 変異。2026-09-28 の週次 run、PR #509 の高速化前）＝ timeout の 71%。
     # PR #509 後は 6 分割の合計 1143 秒（569 変異）。宣言は 660 変異まで増えたので、週次の実測で比率を見直す。
+    # PR の CI（`ci.yml` の 6 分割シャード）では全宣言に広がったとき 1 シャード最長 3 分 47 秒（569 変異。PR #509）。
+    # ci.yml のシャードの timeout はこの値を根拠にしている。
     timeout-minutes: 40
     permissions:
       contents: read

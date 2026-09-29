@@ -9,11 +9,13 @@
 // | 所要時間     | 全件 … <数> 秒・分（同じ文）/ 全件を伴わない時間 / 時間を伴わない全件 / 文をまたぐ      |
 // | 似た数の表記 | <数> 分割 / <数> 通り / Issue 番号 / exit コード                                     |
 // | 場所         | AGENTS.md / .agents/rules / docs（入れ子）/ 対象外（README.md・skills・.md 以外）    |
+// | ワークフロー | .yml / .yaml / 実測値の置き場（mutation-proof.yml）/ YAML 以外 / サブディレクトリ     |
 // | 行の中       | 本文 / コードフェンスの中                                                             |
 // | 件数         | 対象ファイル 0 件 / 1 件以上                                                          |
 //
 // 陽性コントロールの実データ: この方針で削除する前の AGENTS.md の行をそのまま入力にする。
 // 陰性コントロールの実データ: 削除後の AGENTS.md に残した行（単位の定義・暴走時の記述）。
+// ワークフローの陽性コントロールの実データ: 実測値を mutation-proof.yml へ寄せる前の ci.yml のコメント。
 import { expect, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -134,15 +136,52 @@ test("陽性: コードフェンスの中の件数も落とす（出力例に書
   ]);
 });
 
-test.each(["AGENTS.md", ".agents/rules/x.md", "docs/x.md", "docs/sub/y.md"])(
-  "陽性: 対象の場所（%s）の件数を、ファイルと行を付けて落とす",
-  (path) => {
-    const root = makeRepo({ "AGENTS.md": "本文\n", [path]: "本文\n全件は 376 変異\n" });
-    expect(checkMutationCountProse(root).violations).toEqual([
-      `${path}:2: 変異実証の件数「376 変異」`,
-    ]);
-  },
-);
+test.each([
+  "AGENTS.md",
+  ".agents/rules/x.md",
+  "docs/x.md",
+  "docs/sub/y.md",
+  ".github/workflows/ci.yml",
+  ".github/workflows/x.yaml",
+])("陽性: 対象の場所（%s）の件数を、ファイルと行を付けて落とす", (path) => {
+  const root = makeRepo({ "AGENTS.md": "本文\n", [path]: "本文\n全件は 376 変異\n" });
+  expect(checkMutationCountProse(root).violations).toEqual([
+    `${path}:2: 変異実証の件数「376 変異」`,
+  ]);
+});
+
+test("陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす", () => {
+  const before = [
+    "        # 4 分割では全件（568 変異）が 5 分 21 秒かかった（PR #509 の実測。各シャードの実証ステップ 4 分 2 秒〜5 分 0 秒）",
+    "        shard: [1, 2, 3, 4, 5, 6]",
+    "    # 上限は**最悪ケース**（実行器を触った PR は全宣言へ広がる）で決める——全件は手元実測 1036 秒",
+    "    # （376 変異。Issue #478 の時点）、CI の 6 分割で 1 シャード最長 3 分 47 秒（569 変異。PR #509）。変異が増える前提で余裕を取る。",
+  ].join("\n");
+  const root = makeRepo({ "AGENTS.md": "本文\n", ".github/workflows/ci.yml": `${before}\n` });
+  expect(checkMutationCountProse(root).violations).toEqual([
+    ".github/workflows/ci.yml:1: 変異実証の件数「568 変異」",
+    ".github/workflows/ci.yml:1: 変異実証の所要時間「全件(568 変異)が 5 分」",
+    ".github/workflows/ci.yml:3: 変異実証の所要時間「全件は手元実測 1036 秒」",
+    ".github/workflows/ci.yml:4: 変異実証の件数「376 変異」",
+    ".github/workflows/ci.yml:4: 変異実証の件数「569 変異」",
+  ]);
+});
+
+test("陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない", () => {
+  const measured = "# 全件は CI で 1690 秒（504 変異）\n";
+  const root = makeRepo({
+    "AGENTS.md": "本文\n",
+    ".github/workflows/mutation-proof.yml": measured,
+    ".github/workflows/notes.md": measured,
+    ".github/workflows/sub/x.yml": measured,
+    ".github/workflows/dir.yml/x.md": measured,
+    ".github/workflows/ci.yml": "# 実測値は mutation-proof.yml のコメント\n",
+  });
+  expect(checkMutationCountProse(root)).toEqual({
+    files: [".github/workflows/ci.yml", "AGENTS.md"],
+    violations: [],
+  });
+});
 
 // ---- 件数と CLI ----
 

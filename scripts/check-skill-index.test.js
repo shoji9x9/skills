@@ -5,6 +5,7 @@
 // | 軸                   | 値                                                                          |
 // | -------------------- | --------------------------------------------------------------------------- |
 // | 実体                 | 配布（SKILL.md あり）/ SKILL.md の無いディレクトリ / private（.private-skill）/ 印の無い .agents/skills |
+// | private の SKILL.md  | あり / 印だけで無い（AGENTS.md に掲載 / 未掲載）/ 印も SKILL.md も無い            |
 // | AGENTS.md の掲載     | 一致 / 未掲載 / 実在しない名前 / 重複 / 形の崩れた箇条 / 節が無い            |
 // | README.md の掲載     | 一致 / 未掲載 / 実在しない名前 / private を掲載 / 重複 / 表示名とリンクの不一致 / 形の崩れた行 / 節が無い |
 // | 節の範囲             | 節の前後の別節にある同じ形の箇条・表 / 節内の導入文・継続行・見出し行・区切り行 |
@@ -316,6 +317,37 @@ test("陽性: SKILL.md の無い skills/ のディレクトリを落とす", () 
   expect(checkSkillIndex(root).violations).toEqual([
     "skills/beta/: SKILL.md が無い（スキルの実体として読めない）",
   ]);
+});
+
+test("陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす", () => {
+  const root = makeRepo();
+  rmSync(join(root, ".agents/skills/secret/SKILL.md"));
+  expect(checkSkillIndex(root)).toEqual({
+    distributed: ["alpha", "beta"],
+    private: [],
+    violations: [
+      ".agents/skills/secret/: .private-skill はあるが SKILL.md が無い（スキルの実体として読めない）",
+      "AGENTS.md「## 参照スキルガイド」: secret は実在しないスキル（skills/ にも private skill にも無い）",
+    ],
+  });
+});
+
+test("陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす", () => {
+  const root = makeRepo({ agents: ["alpha", "beta"] });
+  rmSync(join(root, ".agents/skills/secret/SKILL.md"));
+  expect(checkSkillIndex(root).violations).toEqual([
+    ".agents/skills/secret/: .private-skill はあるが SKILL.md が無い（スキルの実体として読めない）",
+  ]);
+});
+
+test("陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない", () => {
+  const root = makeRepo();
+  write(root, ".agents/skills/leftover/notes.md", "# 残骸\n");
+  expect(checkSkillIndex(root)).toEqual({
+    distributed: ["alpha", "beta"],
+    private: ["secret"],
+    violations: [],
+  });
 });
 
 // ---- 件数と CLI ----

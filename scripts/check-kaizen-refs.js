@@ -9,8 +9,12 @@
 // 判定規則:
 // - 対象は追跡ファイルと、ignore されていない未追跡ファイル（add 前の新規ファイルを手元で見落とさない。
 //   commit の前後で走査集合が変わらない）のうち、テキスト拡張子のもの（`check-control-chars.js` と同じ集合）。
-//   インストール済みコピー・エージェント用リンク（`.agents/` `.claude/`）、テスト結果（`tests/`）、
-//   学び自身（`.kaizen/`。学び同士の参照は移動と一緒に扱う）、`node_modules/` を除く。
+//   配布スキルのインストール済みコピー（`.agents/skills/<name>/` のうち `skills/<name>/` に正本があるもの）、
+//   エージェント用リンク（`.claude/`）、テスト結果（`tests/`）、学び自身（`.kaizen/`。学び同士の参照は
+//   移動と一緒に扱う）、`node_modules/` を除く。`.agents/` のそれ以外は正本なので走査する——
+//   private skill（`skills/` に無い `.agents/skills/<name>/`）と rule（`.agents/rules/`）。
+//   シンボリックリンクは読まない（`.github/instructions/` → `.agents/rules/` のようなリンクは、リンク先の正本を
+//   走査するので、辿ると同じ本文を二重に数える）。
 //   eval の入力（`evals/<name>/evals.json` と `evals/<name>/fixtures/`）は、eval が想定する別リポジトリの状態を
 //   書いたもので、このリポジトリの学びを指さない（prompt 中の仮のパスは意図的な非実在）ので除く。
 //   `evals/<name>/README.md` のような文書は対象に残す。この検査自身のテストと変異宣言（切れた参照の fixture を持つ）も除く。
@@ -32,12 +36,14 @@
 //
 // 対象ファイル 0 件・参照 0 件は成功に倒さない（走査できていないことと違反が無いことを区別する）。
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isTextPath } from "./check-control-chars.js";
 
-const EXCLUDED_PREFIXES = [".agents/", ".claude/", "tests/", ".kaizen/", "node_modules/"];
+const EXCLUDED_PREFIXES = [".claude/", "tests/", ".kaizen/", "node_modules/"];
+const AGENTS_SKILL_RE = /^\.agents\/skills\/([^/]+)\//;
+const SKILL_RE = /^skills\/([^/]+)\//;
 const EVAL_INPUT_RE = /^evals\/[^/]+\/(?:evals\.json$|fixtures\/)/;
 
 // 免除の宣言ファイルは、実在しない参照を並べるのが役目なので走査しない。
@@ -49,8 +55,19 @@ export const SELF_FIXTURES = [
   "scripts/check-kaizen-refs.mutations.json",
 ];
 
-export const isScanned = (path) =>
+/** 配布スキルのインストール済みコピーか（正本 `skills/<name>/` が一覧に在る名前だけ）。 */
+export const isInstalledCopy = (path, distributed) => {
+  const m = AGENTS_SKILL_RE.exec(path);
+  return Boolean(m) && distributed.has(m[1]);
+};
+
+/** 一覧のうち `skills/<name>/` 配下にファイルを持つ名前（配布スキルの正本）。 */
+export const distributedSkills = (paths) =>
+  new Set(paths.map((f) => SKILL_RE.exec(f)?.[1]).filter(Boolean));
+
+export const isScanned = (path, distributed = new Set()) =>
   isTextPath(path) &&
+  !isInstalledCopy(path, distributed) &&
   path !== EXEMPTIONS_PATH &&
   !SELF_FIXTURES.includes(path) &&
   !EXCLUDED_PREFIXES.some((p) => path.startsWith(p)) &&
@@ -129,8 +146,14 @@ export function checkKaizenRefs(root, { exemptions = loadExemptions(root) } = {}
   const tracked = gitFiles(root, "--cached");
   const trackedSet = new Set(tracked);
   const listed = [...tracked, ...gitFiles(root, "--others", "--exclude-standard")];
-  // 作業ツリーで消した（未ステージの削除）追跡ファイルは読まない。
-  const files = listed.filter((f) => isScanned(f) && existsSync(join(root, f)));
+  const distributed = distributedSkills(listed);
+  // 作業ツリーで消した（未ステージの削除）追跡ファイルと、シンボリックリンクは読まない。
+  const files = listed.filter(
+    (f) =>
+      isScanned(f, distributed) &&
+      existsSync(join(root, f)) &&
+      !lstatSync(join(root, f)).isSymbolicLink(),
+  );
   const violations = [];
   const usedExemptions = new Set();
   let refs = 0;
