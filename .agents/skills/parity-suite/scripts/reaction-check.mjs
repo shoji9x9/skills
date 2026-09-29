@@ -252,6 +252,9 @@ const REQUIRED_PROJECTS = ["current", "new"];
 /** 監査の判定の語彙。short（期待値に届いていない部分がある）は未解消として落ちる。 */
 const AUDIT_VERDICTS = ["reaches", "short"];
 
+/** @param {unknown} v @returns {v is number} */
+const positiveInteger = (v) => Number.isInteger(v) && /** @type {number} */ (v) >= 1;
+
 /** 位置の文字列で . の後にそのまま書けるキー（区切りを含まない）。それ以外は $["…"] で書く。 */
 const SAFE_KEY = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
 
@@ -348,11 +351,18 @@ export function indexTestList(report) {
       if (!isPlainObject(spec) || !nonEmptyString(spec.file) || typeof spec.title !== "string") {
         throw new UsageError("--tests の specs に file / title の無い要素がある");
       }
+      // 位置はテストの同定に使う。欠けを null で埋めると、位置の無い同じ題の別のテストが 1 本に畳まれる（Codex レビュー #510。
+      // Playwright の一覧は常に 1 始まりの line / column を持つので、欠けは作り変えた一覧として落とす）
+      if (!positiveInteger(spec.line) || !positiveInteger(spec.column)) {
+        throw new UsageError(
+          `--tests の spec「${spec.file} ${spec.title}」に line / column（1 以上の整数）が無い（一覧を作り変えずに渡す）`,
+        );
+      }
       const path = [...here, spec.title];
       const name = [spec.file, ...path].join(TITLE_SEPARATOR);
       // 同じテストの project ごとの写しだけを 1 本に畳む。位置（行・列）も同定に入れ、同じ題の別のテストは曖昧として残す
       // （Playwright は同じ題を読み込みエラーにするが、一覧を手で作り変えた入力でも別のテストの project を合算しない。Codex レビュー #510）
-      const key = JSON.stringify([spec.file, spec.line ?? null, spec.column ?? null, ...path]);
+      const key = JSON.stringify([spec.file, spec.line, spec.column, ...path]);
       const entry = index.get(name) ?? {
         keys: new Set(),
         projects: new Set(),

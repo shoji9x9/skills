@@ -3236,3 +3236,20 @@ test("--audit-sheet は操作・画面の中の行に、それを含む操作と
   // 表の直下の欄の行（書き込みの箇所）は表そのものを祖先に載せない
   expect(ctx("$.side_effect_writes.sites[0]").map((c) => c.path)).toEqual(["$.side_effect_writes"]);
 });
+
+test.each([
+  ["line が無い", (sp) => delete sp.line],
+  ["column が無い", (sp) => delete sp.column],
+  ["line が 0", (sp) => (sp.line = 0)],
+  ["line が文字列", (sp) => (sp.line = "3")],
+])(
+  "--tests の spec の位置が %s なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+  (_name, mutate) => {
+    const t = baseTable();
+    const list = testList(namesOf(t));
+    for (const sp of list.suites.find((s) => s.file === "layout.spec.ts").specs) mutate(sp);
+    const r = run(t, { tests: list });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("に line / column（1 以上の整数）が無い");
+  },
+);

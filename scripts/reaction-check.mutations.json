@@ -1546,7 +1546,7 @@
       "id": "test-identity-without-location",
       "why": "テストの同定から位置を外す（同じ題の別のテストの project を合算し、片側だけ走る 2 本を 1 本の両側のテストとして通す。Codex レビュー #510）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      const key = JSON.stringify([spec.file, spec.line ?? null, spec.column ?? null, ...path]);\n",
+      "find": "      const key = JSON.stringify([spec.file, spec.line, spec.column, ...path]);\n",
       "replace": "      const key = JSON.stringify([spec.file, ...path]);\n",
       "occurrences": 1,
       "expect_failing": [
@@ -1584,6 +1584,20 @@
       "occurrences": 1,
       "expect_failing": [
         "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-location-unchecked",
+      "why": "一覧の spec の位置（line / column）を確かめない（位置の無い同じ題の別のテストが 1 本に畳まれる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!positiveInteger(spec.line) || !positiveInteger(spec.column)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests の spec の位置が line が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が column が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が 0 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が文字列 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）"
       ]
     }
   ]
