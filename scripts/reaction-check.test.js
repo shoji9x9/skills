@@ -3116,3 +3116,24 @@ test("covered_by のテストを片側で静的に飛ばす（test.skip / test.f
   // 陽性コントロール: 同じ一覧で飛ばさなければ通る
   expect(run(t, { tests: testList(namesOf(t)) }).status).toBe(0);
 });
+
+test.each([
+  ["失敗を期待する（failed）", "failed"],
+  ["値が無い", undefined],
+])(
+  "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: %s（Issue #506）",
+  (_name, status) => {
+    const t = baseTable();
+    const list = testList(namesOf(t));
+    const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+    for (const spec of layoutSpec.specs) {
+      if (spec.tests[0].projectName === "new") {
+        if (status === undefined) delete spec.tests[0].expectedStatus;
+        else spec.tests[0].expectedStatus = status;
+      }
+    }
+    const r = run(t, { tests: list });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("が new プロジェクトで走らない");
+  },
+);

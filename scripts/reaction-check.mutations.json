@@ -1294,7 +1294,9 @@
       "occurrences": 1,
       "expect_failing": [
         "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）",
-        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）"
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
       ]
     },
     {
@@ -1486,13 +1488,15 @@
     },
     {
       "id": "covered-by-skipped-project-counted",
-      "why": "静的に飛ばす（test.skip / test.fixme）側も走るものとして数える（片側で assertion が走らないまま解決する。Issue #506）",
+      "why": "expectedStatus が passed でない側（静的に飛ばす skipped・失敗を期待する failed・値の欠け）も走るものとして数える（片側で assertion が通ることを示さないまま解決する。Issue #506）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus !== \"skipped\") {\n",
+      "find": "        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === \"passed\") {\n",
       "replace": "        if (isPlainObject(t) && nonEmptyString(t.projectName)) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）"
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
       ]
     }
   ]

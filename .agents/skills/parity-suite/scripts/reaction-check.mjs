@@ -305,7 +305,8 @@ function scanCoveredBy(table) {
  * 同じ名前に別のテストが 2 つ以上当たるもの（題に区切りを含む等）は曖昧として記録し、解決に使わせない。
  * 形式の出典: https://playwright.dev/docs/test-reporters#json-reporter と、@playwright/test 1.63.0 の --list の実測
  * （spec は projects ごとに別の要素で並び、ファイル自体の suite は題がファイルパス。題の空の describe は一覧表示でも題に入らない。
- * test.skip / test.fixme は tests[].expectedStatus: skipped で残る。本文の中で条件付きに飛ばす test.skip(cond) は一覧では区別できない）。
+ * test.skip / test.fixme は tests[].expectedStatus: skipped で残る。本文の中で条件付きに飛ばす test.skip(cond) と、
+ * test.fail(title, fn) は 1.63.0 の --list では expectedStatus: passed のままで区別できない）。
  * @param {unknown} report
  * @returns {Map<string, { keys: Set<string>, projects: Set<string>, file: string, line: number | null }>}
  */
@@ -346,8 +347,9 @@ export function indexTestList(report) {
       };
       entry.keys.add(key);
       for (const t of Array.isArray(spec.tests) ? spec.tests : []) {
-        // 静的に飛ばすテスト（test.skip / test.fixme）は expectedStatus: skipped で一覧に残る。その project では assertion が走らない
-        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus !== "skipped") {
+        // 走って通ることを期待する（expectedStatus: passed）project だけを数える。静的に飛ばす test.skip / test.fixme は skipped で残り、
+        // 失敗を期待する形（failed）や欠けた値も、その project で assertion が通ることを示さない（fail-closed）
+        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === "passed") {
           entry.projects.add(t.projectName);
         }
       }
