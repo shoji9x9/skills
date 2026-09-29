@@ -1283,7 +1283,10 @@
       "find": "      } else if (hit.keys.size > 1) {\n",
       "replace": "      } else if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）"]
+      "expect_failing": [
+        "1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）",
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
     },
     {
       "id": "covered-by-projects-ignored",
@@ -1533,6 +1536,17 @@
       "occurrences": 1,
       "expect_failing": [
         "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-identity-without-location",
+      "why": "テストの同定から位置を外す（同じ題の別のテストの project を合算し、片側だけ走る 2 本を 1 本の両側のテストとして通す。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      const key = JSON.stringify([spec.file, spec.line ?? null, spec.column ?? null, ...path]);\n",
+      "replace": "      const key = JSON.stringify([spec.file, ...path]);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
       ]
     }
   ]

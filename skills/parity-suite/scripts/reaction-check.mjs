@@ -338,7 +338,9 @@ export function indexTestList(report) {
       }
       const path = [...here, spec.title];
       const name = [spec.file, ...path].join(TITLE_SEPARATOR);
-      const key = JSON.stringify([spec.file, ...path]);
+      // 同じテストの project ごとの写しだけを 1 本に畳む。位置（行・列）も同定に入れ、同じ題の別のテストは曖昧として残す
+      // （Playwright は同じ題を読み込みエラーにするが、一覧を手で作り変えた入力でも別のテストの project を合算しない。Codex レビュー #510）
+      const key = JSON.stringify([spec.file, spec.line ?? null, spec.column ?? null, ...path]);
       const entry = index.get(name) ?? {
         keys: new Set(),
         projects: new Set(),

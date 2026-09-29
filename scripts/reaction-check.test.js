@@ -3171,3 +3171,21 @@ test.each([
     expect(r.stderr).toContain(message);
   },
 );
+
+test("同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）", () => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+  // 同じ名前の 2 本目を別の行に置き、1 本目は current だけ・2 本目は new だけで走らせる
+  const first = layoutSpec.specs.filter(
+    (sp) => sp.title === "条件を 2 回足した後も頁が窓に収まりグリッドが縮む",
+  );
+  for (const sp of first) {
+    if (sp.tests[0].projectName === "new") sp.line = 9;
+  }
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    '"layout.spec.ts › 条件を 2 回足した後も頁が窓に収まりグリッドが縮む" が 2 本のテストに当たり曖昧',
+  );
+});
