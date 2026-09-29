@@ -111,10 +111,12 @@
     （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
 
     ```bash
-    node <parity-suite の skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --recorded
+    npx playwright test --list --reporter=json > .replace/parity/<slug>/tests.json   # --project で絞らない
+    node <parity-suite の skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json \
+      --tests .replace/parity/<slug>/tests.json --recorded
     ```
 
-    `--recorded` は移行元ソースを読まず、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。
+    `--recorded` は移行元ソースを読まず（テスト一覧は読む。`--tests` を省くと exit 2）、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。
     終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
     `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
@@ -122,6 +124,10 @@
     これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --write` を通し直させる（`tool_version` も上がっている）。
     **操作ごとの頁の組み方の変化（`layout`）も同じ判定に入り、欠けた表も同じく exit 1 になる**（Issue #460）。
     **押した後に残る見た目と戻り先（`aftermath`）も同じ**（Issue #471。差分器は撮った状態しか見ないので、撮っていない終えた後の見た目と遷移・戻す範囲の差は差分ゼロとして通る）
+    **`covered_by` をスイートのテストへ解決した記録（`conformance.covered_by_resolved`）と、assertion が期待値まで届くかの監査の記録（`assertion_audit`）も同じ判定に入る**（Issue #506。
+    欄が埋まっているだけでは、期待値より浅い assertion を名乗った表も新側で緑になり差分ゼロで収束する）。名前の解決は一覧で取り直し、
+    監査の欠け・`verdict: short`・監査の後に書き換えた表（表の指紋の不一致）に加えて、**監査の後に `covered_by` のスペックを書き換えた形**（スペックの指紋の不一致）も落ちる——
+    新側を緑にする過程でスペックの assertion を弱めると、表は同じまま差分ゼロで収束するため
     **送る前の判定（`pre_send`）と表への書き込み（`side_effect_writes`）も同じ**（Issue #483 / #466。境界の外側の操作と DB への書き込みはどの差分器にも写らないので、判定・書き込みが無い新側も差分ゼロとして通る）
     **送っている間の押し直し（`resubmit`）と画面ごとの状態表示（`state_displays`）も同じ**（Issue #500。応答の往復中の受け付けと、0 件・取得の失敗・読み込み中は撮った状態に入らないので、振り分けていない表は収束させない）
   - **部品被覆表の `present` を新側で突き合わせてある**（正本は `parity-suite` の `references/coverage.md`「被覆表は移行元側の測定である」）。
