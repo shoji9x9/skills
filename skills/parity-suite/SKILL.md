@@ -302,6 +302,10 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- **`metadata.json` の `run.procedure_revision` に、採取した時点の [`assets/procedure-revisions.json`](assets/procedure-revisions.json) の `revision` を整数で書く**（コピーせずスキル配下から読む）。
+  確かめる軸を足した改訂より前の成果物を、`replace-strategy status` が「旧手順で閉じた機能」として列挙する材料になる。
+  **既に閉じた機能へ 1 つの軸を当て直しただけでは上げない**——同じ改訂の他の軸まで当てたことになる。
+  当て直しは `replace-strategy` の `references/procedure-changes.md` の台帳で記録する
 - **区切りの記録（`.replace/parity/<slug>/checkpoints.json`）も成果物ではない。** 同じ作業ツリーで再開するための作業記録で、指紋はコミットしない大きなバイナリも含むのでコミットしない
   （形式の正本: [`scripts/checkpoint.mjs`](scripts/checkpoint.mjs)）
 - **ノイズ測定の 2 回目の採取物（`.replace/parity/<slug>/noise-pass2/`）は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/baseline.md`](references/baseline.md)）

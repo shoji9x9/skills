@@ -1,0 +1,150 @@
+{
+  "$comment": [
+    "procedure-staleness-check.test.js のうち、手順に軸を足す前に閉じた機能を旧手順として列挙する（Issue #505）検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/procedure-staleness-check.test.js",
+  "mutations": [
+    {
+      "id": "missing-revision-as-latest",
+      "why": "改訂番号を持たない成果物（導入前）を最新の手順で作ったとみなし、どの改訂の対象にもしない",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      procedureRevision = 0;\n",
+      "replace": "      procedureRevision = latestRevision;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "改訂番号を持たない成果物は、スキルのすべての改訂について未判断として落とす",
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "affects-ignored",
+      "why": "改訂の affects を見ず、対象外の mode の機能まで旧手順として出す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!change.affects.includes(entry.mode)) continue;\n      if (entry.procedure_revision === null) continue;",
+      "replace": "      if (entry.procedure_revision === null) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない"
+      ]
+    },
+    {
+      "id": "same-day-excluded",
+      "why": "追加日と同じ日に作った成果物を追加後とみなして対象から外す（当てたかを日付で決められないのに合格に倒す）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (entry.finished_on <= change.added_at) {\n",
+      "replace": "      if (entry.finished_on < change.added_at) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない"
+      ]
+    },
+    {
+      "id": "in-progress-counted-resolved",
+      "why": "見直し中の記録を判断済みとして数え、置き場で追っているだけの機能を解決扱いにする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      } else if (record.decision === DECISIONS.inProgress) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
+        "同じ組み合わせの記録は後の行を現在の判断として読む"
+      ]
+    },
+    {
+      "id": "first-record-wins",
+      "why": "同じ組み合わせの記録を先勝ちで読み、後から足した判断（見直し中への差し戻し）を無視する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    latest.set(`${record.change}\\u0000${record.slug}`, record);\n",
+      "replace": "    if (!latest.has(`${record.change}\\u0000${record.slug}`)) latest.set(`${record.change}\\u0000${record.slug}`, record);\n",
+      "occurrences": 1,
+      "expect_failing": ["同じ組み合わせの記録は後の行を現在の判断として読む"]
+    },
+    {
+      "id": "placement-unchecked",
+      "why": "見直しの置き場が空の変更を通し、当て直しを誰の完了条件にも入れないまま台帳に載せる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (placement !== PLACEMENT_IN_CHANGE && !/^#\\d+$/u.test(placement)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "unknown-change-id-accepted",
+      "why": "台帳にも改訂一覧にも無い変更 ID の記録を通し、綴り違いで判断したつもりにさせる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (!changeIds.has(change) && !skillChangeIds.has(change)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "unreadable-finished-at-skipped",
+      "why": "終了日時を読めない成果物をプロジェクト側の変更の対象外に倒し、判定不能を合格にする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "        undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
+      "replace": "        if (false) undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "undeterminable-exit-zero",
+      "why": "判定不能だけが残る実行を exit 0 にする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "result.undeterminable.length > 0 ? 3 : 0;",
+      "replace": "result.undeterminable.length > 0 ? 0 : 0;",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "orphan-rows-ignored",
+      "why": "空行で表が切れて表の外に落ちた行を数えず、観点の追加の行を黙って捨てたまま合格させる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (orphans > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "in-progress-without-placement",
+      "why": "置き場を持たない見直し中の記録を通し、どこで当て直すのか読めないまま追っていることにする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      else if (decision === DECISIONS.inProgress && !/^#\\d+/u.test(basis)) {\n",
+      "replace": "      else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "parity-dir-missing-passes",
+      "why": "成果物の置き場を読めない実行（無い・綴り違い）を空として通し、cwd の誤りで合格を出す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    return fail(`${parityDir} を読めない: ${error && /** @type {Error} */ (error).message}`);\n",
+      "replace": "    artifacts = { slugs: [] };\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
+    },
+    {
+      "id": "change-filter-ignored",
+      "why": "--change を無視して他の変更の未判断で止める（1 つの変更の完了条件を判定できない）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      : list.filter((item) => item.change === undefined || item.change === only);\n",
+      "replace": "      : list;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
+      ]
+    }
+  ]
+}
