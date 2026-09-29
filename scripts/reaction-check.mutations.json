@@ -1293,7 +1293,8 @@
       "replace": "        const absentIn = [];\n",
       "occurrences": 1,
       "expect_failing": [
-        "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）"
+        "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）",
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）"
       ]
     },
     {
@@ -1482,6 +1483,17 @@
       "replace": "  if (false) problems.push(...specs.problems);\n",
       "occurrences": 1,
       "expect_failing": ["covered_by のスペックを rootDir から読めなければ落とす（Issue #506）"]
+    },
+    {
+      "id": "covered-by-skipped-project-counted",
+      "why": "静的に飛ばす（test.skip / test.fixme）側も走るものとして数える（片側で assertion が走らないまま解決する。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus !== \"skipped\") {\n",
+      "replace": "        if (isPlainObject(t) && nonEmptyString(t.projectName)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）"
+      ]
     }
   ]
 }

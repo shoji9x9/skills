@@ -176,7 +176,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 4 つ（収束／**他機能待ち**／**判断待ち**／未収束）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す
-   （一覧は `playwright test --list --reporter=json` の出力）。
+   （一覧は `playwright test --list --reporter=json --project=current --project=new` の出力）。
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**新側での突き合わせ**（`present` セルごとの入口・当たり判定・完了）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。

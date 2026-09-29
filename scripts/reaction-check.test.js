@@ -441,7 +441,7 @@ function testList(names, projects = ["current", "new"]) {
         file,
         line: 3,
         column: 3,
-        tests: [{ projectName, results: [] }],
+        tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
       });
     }
   }
@@ -2782,7 +2782,7 @@ test("1 つの名前が 2 本のテストに当たるなら曖昧として落と
         file: "layout.spec.ts",
         line: 9,
         column: 1,
-        tests: [{ projectName, results: [] }],
+        tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
       })),
     );
   const r = run(t, { tests: list });
@@ -2811,7 +2811,7 @@ test("題の空の describe は名前に入らない（一覧表示と同じ。I
           file: "layout.spec.ts",
           line: 2,
           column: 3,
-          tests: [{ projectName, results: [] }],
+          tests: [{ projectName, expectedStatus: "passed", annotations: [], results: [] }],
         })),
       },
     ],
@@ -3098,4 +3098,21 @@ test("--audit-sheet はスペックの指紋を出し、それを写した監査
   const r = run(t);
   expect(r.stderr).toBe("");
   expect(r.status).toBe(0);
+});
+
+test("covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）", () => {
+  const t = baseTable();
+  const list = testList(namesOf(t));
+  const layoutSpec = list.suites.find((s) => s.file === "layout.spec.ts");
+  for (const spec of layoutSpec.specs) {
+    if (spec.tests[0].projectName === "new") {
+      spec.tests[0].expectedStatus = "skipped";
+      spec.tests[0].annotations = [{ type: "skip" }];
+    }
+  }
+  const r = run(t, { tests: list });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("が new プロジェクトで走らない");
+  // 陽性コントロール: 同じ一覧で飛ばさなければ通る
+  expect(run(t, { tests: testList(namesOf(t)) }).status).toBe(0);
 });

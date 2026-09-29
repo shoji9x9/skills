@@ -111,7 +111,8 @@
     （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
 
     ```bash
-    npx playwright test --list --reporter=json > .replace/parity/<slug>/tests.json   # --project で絞らない
+    # current と new を明示する（省くと new-capture の採取スペックまで読み込み、採取用の環境変数が無いと落ちる）
+    npx playwright test --list --reporter=json --project=current --project=new > .replace/parity/<slug>/tests.json
     node <parity-suite の skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json \
       --tests .replace/parity/<slug>/tests.json --recorded
     ```

@@ -256,7 +256,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    同じく `metadata.json` の `reaction_coverage` を宣言し（操作を持たない機能だけ `declared: false` ＋理由。キーごと省略しない）、
    `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --tests <テスト一覧> --write` で exit 0 まで通す
    （`capture` の状態名を `capture_conditions.states` と照合するため、撮影状態を確定した `metadata.json` を書いた後に通す。コピーせずスキル配下から実行する）。
-   **その前に `covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する**——テスト一覧は `playwright test --list --reporter=json` の出力（`--project` で絞らない）。
+   **その前に `covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する**——テスト一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力（両側を `=` 付きで明示する。省くと `new-capture` の採取スペックまで読み込まれ、採取用の環境変数が無いと一覧の取得が落ちる）。
    `--audit-sheet` が出す期待値とテストのソースの 2 つだけを**実装役と別の subagent** に渡し、「期待値のうち確かめていない部分はどこか」を 1 行ずつ問わせて
    `assertion_audit` に記録する（届いていない行は assertion を深くして監査し直す。1 本のテストを 2 行以上が名乗るなら全行に `shared_assertion_reason`）。
    欄が埋まっているだけでは、期待値より浅い assertion を名乗っても緑・収束する（[`references/coverage.md`](references/coverage.md)「`covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する」）。

@@ -270,7 +270,9 @@
   題の空の describe は題に入れない。**手で組み立てず、一覧か `--audit-sheet` の出力から写す**
 - **名前はスイートに実在するテストへ機械的に解決させる**——`playwright test --list --reporter=json` の出力を `--tests` に渡すと、
   一覧のどのテストにも当たらない名前・2 本以上に当たる曖昧な名前・`current` / `new` の片方でしか走らないテスト（現側専用のスペック等）を落とす。
-  一覧に読み込みエラーがある・テストが 0 件なら exit 2（読めなかったスペックのテストは一覧から黙って消える）
+  一覧に読み込みエラーがある・テストが 0 件なら exit 2（読めなかったスペックのテストは一覧から黙って消える）。
+  `test.skip` / `test.fixme` で静的に飛ばすテストは、飛ばす側では走らないものとして数える（一覧の `expectedStatus: skipped`）。
+  本文の中で条件付きに飛ばす `test.skip(条件)` は一覧に現れないので、`covered_by` のテストでは使わない（使うと片側で assertion が走らないまま解決する）
 - **1 本のテストを 2 行以上の `covered_by` が名乗るなら、全ての行に `shared_assertion_reason` を書く**（その 1 本が各行の期待値を全て確かめている根拠）。
   1 本で数行ぶん押さえたと数えられても、各行の期待値まで届いている保証は無い。根拠を書けないなら行ごとにテストを分ける。表のどの欄の `covered_by` も同じ集合で数える
 - **assertion が期待値まで届いているかは、実装役と別の subagent に 1 行ずつ監査させる**。入力は
@@ -290,7 +292,8 @@
 ### 照合と宣言
 
 - `metadata.json` に `reaction_coverage` と撮影状態（`capture_conditions.states`）を書いたら、スイートのテスト一覧を
-  `npx playwright test --list --reporter=json > .replace/parity/<slug>/tests.json` で取り（**`--project` で絞らない**——`current` / `new` の両方で走ることを一覧で確かめるため。一覧の取得ではテストもブラウザも走らない）、
+  `npx playwright test --list --reporter=json --project=current --project=new` `> .replace/parity/<slug>/tests.json` で取り（**`current` と `new` の両方を明示する**——片側に絞ると両側で走ることを確かめられず、
+  省くと `new-capture` の採取スペックまで読み込まれて採取用の環境変数〈`PARITY_SLUG` 等〉が無いと落ちる。`--project` は複数の値を取るので `=` 付きで書く。一覧の取得ではテストもブラウザも走らない）、
   上の監査を済ませてから
   `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --tests .replace/parity/<slug>/tests.json --write` を**exit 0 まで**通す
   （コピーせずスキル配下から実行する。`--root` の既定は cwd。`--tests` を省くと exit 2）。空欄・証拠の欠け・消える時間の単一標本・`layout` の欠けと 1 回だけの標本・`aftermath` の欠け（割り当ての無い残る見た目・動かしていない状態の `reset`・オリジン付きの URL）・
