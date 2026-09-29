@@ -807,8 +807,19 @@ export function main(argv, deps = {}) {
     only === undefined
       ? list
       : list.filter((item) => item.change === undefined || item.change === only);
+  // 置き場を別 Issue にした変更は、その Issue の起票までが完了条件。対象の機能に置き場の番号で始まる `見直し中` を
+  // 書いたら、この変更の工程としては受け渡し済み（未解決としては --change なしの判定と status が数え続ける）。
+  // 置き場と違う番号・未判断は受け渡していないので残す。
+  const handedOff = (/** @type {Record<string, unknown>} */ item) =>
+    only !== undefined &&
+    item.state === DECISIONS.inProgress &&
+    typeof item.placement === "string" &&
+    /^#\d+$/u.test(item.placement) &&
+    new RegExp(`^${item.placement}(?!\\d)`, "u").test(String(item.basis));
+  const picked = pick(all.unresolved);
   const result = {
-    unresolved: pick(all.unresolved),
+    unresolved: picked.filter((item) => !handedOff(item)),
+    handed_off: picked.filter(handedOff),
     resolved: pick(all.resolved),
     undeterminable: pick(all.undeterminable),
     stray: pick(all.stray),
@@ -839,6 +850,7 @@ export function main(argv, deps = {}) {
       finished_on: entry.finished_on,
     })),
     unresolved: result.unresolved,
+    handed_off: result.handed_off,
     resolved: result.resolved,
     undeterminable: result.undeterminable,
     stray: result.stray,

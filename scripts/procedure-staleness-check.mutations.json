@@ -51,7 +51,8 @@
       "occurrences": 1,
       "expect_failing": [
         "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
-        "同じ組み合わせの記録は後の行を現在の判断として読む"
+        "同じ組み合わせの記録は後の行を現在の判断として読む",
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
       ]
     },
     {
@@ -181,7 +182,8 @@
         "陰性コントロール: 扱える位置の HTML コメントは通す: 字下げした終了行",
         "陰性コントロール: 扱える位置の HTML コメントは通す: コードフェンスの中の記号",
         "陰性コントロール: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号",
-        "セル内の \\| は区切りにせず、値では | として読む"
+        "セル内の \\| は区切りにせず、値では | として読む",
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
       ]
     },
     {
@@ -381,6 +383,50 @@
       "replace": "trimmed.split(\"|\")",
       "occurrences": 1,
       "expect_failing": ["セル内の \\| は区切りにせず、値では | として読む"]
+    },
+    {
+      "id": "handed-off-ignored",
+      "why": "置き場の別 Issue へ回した見直し中を --change でも未解決に数え、起票で完了するはずの変更を閉じられなくする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    unresolved: picked.filter((item) => !handedOff(item)),",
+      "replace": "    unresolved: picked,",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-without-change",
+      "why": "--change なしの判定でも見直し中を受け渡し済みとし、status から当て直しの残りを消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    only !== undefined &&\n    item.state",
+      "replace": "    item.state",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-number-prefix",
+      "why": "置き場の番号の前方一致だけを見て、#131 の置き場に #1310 の見直し中を受け渡し済みと認める",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "(?!\\\\d)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-in-change-placement",
+      "why": "置き場がこの変更の完了条件でも見直し中を受け渡し済みとし、完了条件の当て直しを外へ逃がす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    typeof item.placement === \"string\" &&\n    /^#\\d+$/u.test(item.placement) &&\n    new RegExp(`^${item.placement}",
+      "replace": "    new RegExp(`^${\"#131\"}",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
     }
   ]
 }

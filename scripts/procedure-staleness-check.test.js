@@ -425,6 +425,52 @@ test("--change は名指した変更だけで判定し、実在しない変更 I
   expect(run(work, ["--change", "PC-404"]).code).toBe(2);
 });
 
+test("--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す", () => {
+  const work = workspace({
+    ledger: ledger(
+      ["| PC-001 | 2026-09-20 | 軸 | issue: #10 | feature | #131 |"],
+      [
+        "| R-001 | PC-001 | order | 見直し中 | 2026-09-21 | #131 で当て直す |",
+        "| R-002 | PC-001 | user | 見直し中 | 2026-09-21 | #1310 で当て直す |",
+      ],
+    ),
+    artifacts: {
+      order: meta({ procedure_revision: 2 }),
+      user: meta({ procedure_revision: 2 }),
+      export: meta({ procedure_revision: 2 }),
+    },
+  });
+  const scoped = run(work, ["--change", "PC-001"]);
+  expect(scoped.code).toBe(1);
+  expect(scoped.json.handed_off.map((u) => u.slug)).toEqual(["order"]);
+  expect(scoped.json.unresolved.map((u) => [u.slug, u.state])).toEqual([
+    ["export", "未判断"],
+    ["user", "見直し中"],
+  ]);
+  // 陽性コントロール: 全ての対象を置き場の番号で受け渡せば、この変更の工程は閉じられる。
+  const done = workspace({
+    ledger: ledger(
+      ["| PC-001 | 2026-09-20 | 軸 | issue: #10 | feature | #131 |"],
+      ["| R-001 | PC-001 | order | 見直し中 | 2026-09-21 | #131 |"],
+    ),
+    artifacts: { order: meta({ procedure_revision: 2 }) },
+  });
+  expect(run(done, ["--change", "PC-001"]).code).toBe(0);
+  // --change なしの判定（status）は見直し中を未解決として数え続ける。
+  const whole = run(done);
+  expect(whole.code).toBe(1);
+  expect(whole.json.handed_off).toEqual([]);
+  // 置き場がこの変更の完了条件なら、見直し中は受け渡しにならない。
+  const inChange = workspace({
+    ledger: ledger(
+      ["| PC-001 | 2026-09-20 | 軸 | issue: #10 | feature | この変更の完了条件 |"],
+      ["| R-001 | PC-001 | order | 見直し中 | 2026-09-21 | #131 |"],
+    ),
+    artifacts: { order: meta({ procedure_revision: 2 }) },
+  });
+  expect(run(inChange, ["--change", "PC-001"]).code).toBe(1);
+});
+
 test("改訂一覧の revision に対応する改訂が無い・affects が語彙外なら exit 2 で落とす", () => {
   expect(
     readRevisions({ skill: "parity-suite", revision: 2, changes: [REVISIONS.changes[0]] }).ok,
