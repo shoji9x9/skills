@@ -15,6 +15,7 @@ applyTo: "skills/*/SKILL.md,.agents/skills/*/SKILL.md,.claude/skills/*/SKILL.md"
 name: <skill-name> # 必須: 小文字英数字とハイフンのみ、最大64文字
 description: <description> # 必須: スキルの説明とトリガー条件、最大 1024 バイト（UTF-8。日本語はおよそ 340 文字）
 argument-hint: "<hint>" # 任意: スラッシュコマンド実行時に表示する引数ヒント
+license: MIT # 任意（Agent Skills 仕様のフィールド）: 配布スキルは全て MIT
 ---
 ```
 

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "bash",
+        "bash": "bash \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}/.agents/skills/git-worktree/scripts/git-worktree-branch-guard.sh\"",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

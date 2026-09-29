@@ -10,7 +10,7 @@
 2. `evals/<name>/evals.json` にテストケースを追加・更新する（eval は配布しないため `skills/<name>/` の外に置く）
    - **`parity-suite` の手順に確かめる軸を足したら**（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）、
      同じ変更で `skills/parity-suite/assets/procedure-revisions.json` の `revision` を 1 上げ、`changes` へ 1 要素を追記する。
-     下流の `replace-strategy status` はこの一覧で「旧手順で閉じた機能」を列挙するため、上げ忘れると前に閉じた機能が古い手順のまま収束扱いで残る（Issue #505）。
+     下流の `replace-strategy status` はこの一覧で「旧手順で閉じた機能」を列挙するため、上げ忘れると前に閉じた機能が古い手順のまま収束扱いで残る。
      **これは規約で、強制点は無い**（軸を足したかは差分から機械的に決められない）。一覧の形は `scripts/procedure-staleness-check.test.js` が検査する
 3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
 4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
@@ -86,7 +86,7 @@ scripts/reinstall-skill.sh <name>
 
 このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作成する。
 また、`gh skill install --from-local` が自動追加する `metadata.local-path` をインストール済み `SKILL.md` から削除する。
-現時点の `gh skill install --help` には、このメタデータ追加を無効化するオプションはない。
+`gh skill install` にはこのメタデータ追加を無効化するオプションが無い（`gh skill install --help` で確かめる）。
 
 このスクリプトは **このリポジトリ専用の開発ツール**であり、配布スキルには同梱されない（インストール先には付いて行かない）。
 **ローカル未公開の編集**を `.agents/` / `.claude/` に反映するためのもので、**リモート公開版**を更新する `gh skill update` とは役割が異なり代替もできない。
@@ -122,8 +122,7 @@ LLM eval は最初のデバッグ手段にしない。先に変更したラン�
   1 run では分散を測れないので、Delta の数値は語らず「弁別が残っているか」だけを見る。
 - **前 iteration が benchmark だったことを理由に、自動で benchmark へ広げない。**
   Issue や依頼が「実走して挙動を確認」までしか求めていないなら、既定スコープで止める。
-  benchmark へ広げるかはコストを伴う判断なので、エージェントが前例に合わせて決めず**依頼者に諮る**
-  （eval 2 本の変更確認を 12 run の benchmark に広げ、executor 2 つ分の利用上限を使い切った記録がある）。
+  benchmark へ広げるかはコスト（executor の利用上限を使い切りうる）を伴う判断なので、エージェントが前例に合わせて決めず**依頼者に諮る**。
 - **起動前に「どの eval のどの入力が変わったか」と総 run 数を書き出してから実行する。**
   数えずに並列起動すると、上限到達で走り切れず、成功 run と失敗 run が混ざった集計不能な iteration が残る。
 - **executor は現在作業しているエージェントに合わせ、`--executor` で明示する。** Codex セッションなら `codex`、Claude Code セッションなら `claude-code` を既定にする。
@@ -159,7 +158,6 @@ eval プロンプトはファイルを生成・改変する（スキル・ルー
 **落とし穴**: コーディングエージェントに「`/tmp` で作業して」と `cd` で指示しても安全にならない。
 エージェントの Bash ツールの cwd は呼び出し間で持続しうるが、ターン境界やプロジェクト外へ出た場合はリセットされうるため前提にできない。
 スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような**相対パス**なので、後続の呼び出しでこのリポジトリを汚染する。
-実際にこの方式で `.agents/skills/` を汚した事例がある（[.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md](../.kaizen/2026-06-08-eval-isolation-cd-not-persisted.md)）。
 
 **対策**: `scripts/run-skill-eval.sh` を使う。
 ランチャ側で cwd を固定したヘッドレス executor を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
@@ -207,7 +205,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
   - 残る穴: 対象リポジトリが public なら `gh` / WebFetch でスキル本文を取得する経路はローカル遮断では塞げない。採点時に「baseline がスキル固有の語彙・契約を再現していないか」は見る。
 - **fixture に「期待する答え」を書かない。** fixture はスキルが読む**入力**であって契約知識ではない。
   設定・成果物に置くコメントや注記が、その eval が検査している結論（移行先のパス・意図的にそう作った旨・こう扱うのが正しいという診断）を述べていると、
-  **ベースラインがそれを読んで assertion を満たし、Delta が消える**。実際に `parity-diff` の fixture で移行先パスと「同一原因の `reason` が複製されている」診断を漏らし、ベースラインが正答した事例がある。
+  **ベースラインがそれを読んで assertion を満たし、Delta が消える**。
   fixture に書いてよいのは下流プロジェクトに実在しうる記述（調査メモ・運用上の但し書き）だけで、**判定・分類・あるべき置き場所は書かない**。
   否定形の assertion（「〜を理由に停止していない」等）は「意図的」と明言するコメント 1 行で通ってしまうため特に注意する。
 
@@ -274,7 +272,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
   **claude-code の `raw/` はマーカー走査の対象外**にしてある —— stream-json には中間メッセージとツール入力が入り、
   マーカーを口にしただけの baseline が CONTAMINATED（exit 4）になって正当な測定が捨てられるため（実測）。
   読み取りの signal は `skill_usage.unexpected_read` が担う（成功した読み取りから導くので、名前を挙げただけでは立たない）。
-  codex の `raw/` は従来からイベント列で走査対象のまま。
+  codex の `raw/` はイベント列なので走査対象に含める。
 
 ### eval 環境の前提（runtime / repo / 非対話）
 
@@ -290,9 +288,8 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 ### eval が失敗したとき executor を変えない
 
 比較 executor を変えると **Delta の母集団が変わる**ため、失敗の回避策として executor を切り替えない
-（Codex-only 対応のハーネスで `.git` の読み取り専用制約による fetch 失敗を見て Claude Code へ切り替え、
-Codex 単体で評価可能だったと差し戻された記録がある。後から raw trace を見ると、run の直接の停止原因には
-利用上限到達も含まれており、途中の fetch エラーだけで executor 非対応と判断していた）。
+（途中に見えたエラーが直接の停止原因とは限らない。利用上限到達など別の原因が raw trace に残っていることがあり、
+途中のエラーだけで「この executor では評価できない」と判断すると誤る）。
 
 失敗したら、次の順で切り分けてから対処する。
 
@@ -322,16 +319,14 @@ Codex 単体で評価可能だったと差し戻された記録がある。後�
    前 iteration と executor が異なるなら**その Delta を前 iteration と直接比較しない**旨を明記する。
    変更確認だけで benchmark を作らない場合も、実走の報告に executor と切り替え理由を書く。
 5. **切り替え先でも上限に当たる前提で run 数を数える。** 起動前に総 run 数を書き出し、
-   「実走の既定スコープ」を超えるなら実行前に諮る（codex の上限到達で claude-code へ切り替え、
-   同じ 12 run の計画を再投入して claude-code 側も 429 に当たり、12 run 中 5 run が失敗した記録がある）。
+   「実走の既定スコープ」を超えるなら実行前に諮る。
 
 ### 採点（一次資料は成果物、応答は補助）
 
 **採点の一次資料は `project-files/` と `project-tree.txt`。** 応答（`result.json` の `result`）は補助として読む。
 eval は**スキルの欠陥を見つけるための装置**であり、モデルの完了報告を根拠に採点すると
 「報告はできるが実行できていない」という欠陥クラスが構造的に検出できなくなる
-（実際に `.replace/bootstrap/` の 3 ファイルを「作成した」と具体的なパス・件数付きで報告しながら
-1 ファイルも書いていない run を pass にした事例がある。[.kaizen/2026-08-26-grade-from-artifacts-not-self-report.md](../.kaizen/2026-08-26-grade-from-artifacts-not-self-report.md)）。
+（具体的なパス・件数付きの「作成した」という報告は、ファイルを 1 つも書いていない run からも出る）。
 
 - **「作成した」「記録した」「更新した」という報告は、対応するファイルの実在を確認してから pass にする。**
   完了報告は具体的なほど信憑性が上がるが、パス・件数・キー名まで書かれていてもそれは**モデルが書いた文字列**であって観測ではない
@@ -345,7 +340,7 @@ eval は**スキルの欠陥を見つけるための装置**であり、モデ�
 ### 集計
 
 集計は**リポジトリのスクリプト**で行う。書き捨てのスクリプトで組み立てない——判定を位置（配列 index）で
-対応づけて件数を誤る（`parity-diff` #27 の `without_skill` を 1/6 と 2/6 の両方で数えた記録がある。Issue #421）。
+対応づけて件数を誤る。
 
 ```bash
 node scripts/build-skill-eval-benchmark.js tests/<name>/iteration-N \

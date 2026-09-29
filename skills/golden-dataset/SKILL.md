@@ -33,7 +33,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
 - `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - 自然文でも発動する:「ゴールデンデータセットを作って」「テストデータを投入して」
 
 ## 前提
@@ -69,7 +69,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
     判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 11. **フェーズ B の現新一致を逆写像の往復で検証しない**（`map∘unmap = id` で空回りし、宣言外の正規化を足しても通る）。判定は「差の列挙 × 宣言済み差分一覧との完全一致」で行い、
     **宣言外の正規化を 1 件足したら落ちること**まで確認する（詳細: [`references/phase-b.md`](references/phase-b.md)）
-12. **ファイルストレージ実体へ投入しない**（v1 スコープ外）。`targets[].storage.seedable: true` でも投入せず、ストレージ実体に依存するデータは
+12. **ファイルストレージ実体へ投入しない**（スコープ外。正本: `replace-strategy` の `references/scope.md`）。`targets[].storage.seedable: true` でも投入せず、ストレージ実体に依存するデータは
     「ストレージ投入はスコープ外＝未検証」として `verification.md` と `gaps` に残す（確認済みにしない）。アップロード用ファイルの**生成**（決定論的な fixture 生成）は対象で、
     **手書きの静的ファイルを直接コミットして生成ツールを省略しない**（正本: `replace-strategy` の `references/file-io.md`「ファイル入力（アップロード）」・同 `references/project-config.md`「ファイルストレージ」）
 13. **暫定起動データをゴールデンデータへ昇格させない。** `current-environment-bootstrap` が作った暫定起動データ（`<bootstrap_tool_dir>`・`.replace/bootstrap/semantics.md` の「暫定起動データに投入した値」）は
@@ -93,7 +93,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 | `dataset_mode` | データセットの実体（`db`〈既定〉/ `static`）。投入先解決とフェーズ A / B の投入手順が分岐する |
 | `dataset_static_paths` | `dataset_mode: static` のとき投入ツールが生成・削除してよいパス（**書き込み範囲の設定由来ゲート**。無ければ停止） |
 | `targets[].db.seedable` | **投入許可の設定由来ゲート**。`true` の target だけが投入対象（省略・`false` は読み取り専用接続） |
-| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、その環境の接続・書き込み範囲・投入ゲート（`storage.seedable`）・アップロード経路。**読むだけで投入しない**——ストレージ実体への投入は v1 スコープ外（禁止事項 12）。`uses_storage: true` なら、ストレージ実体に依存するデータを `verification.md` の未投入一覧に残し `gaps` へ回す |
+| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、その環境の接続・書き込み範囲・投入ゲート（`storage.seedable`）・アップロード経路。**読むだけで投入しない**——ストレージ実体への投入はスコープ外（禁止事項 12）。`uses_storage: true` なら、ストレージ実体に依存するデータを `verification.md` の未投入一覧に残し `gaps` へ回す |
 | `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 | `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差）。**キー欠落・空値・解決できないパスはいずれも未整備**として停止する |
@@ -117,13 +117,13 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **対象の選択**（無指定で既存の `metadata.json` があるときの用途〈フェーズ A 再実行かフェーズ B か〉・既定の無い `--target`）は保留にせず、候補を示して停止する（正本の「宣言」）
 - **判断待ち（保留に落とす）**: 投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
   投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
 - **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
-- **従来どおりの停止のまま**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
+- **自律実行でも停止する**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
 - **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **要素ごとに `phase` を書き、フェーズ B では `slugs`（その判断が影響するすべての slug）と `target` も書く**——下流は範囲が一致する保留だけで止まるので、書かないと無関係な機能まで止まる。
   **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
@@ -207,8 +207,7 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（setup。`received-assets` なら測定前に `current-environment-bootstrap`）→ **golden-dataset（フェーズ A）**
-  → 各機能で〔`parity-suite` → `parity-replace` → **golden-dataset（フェーズ B）** → `parity-diff`（`parity-replace` と往復）〕
+- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。フェーズ A の直前は `replace-strategy setup` の完了、フェーズ B は各機能の `parity-replace` の途中（新側スキーマの確定後）で呼ばれる
 - **`current-environment-bootstrap`**: `current.origin: received-assets` のとき、`.replace/bootstrap/semantics.md` の**確定済み**の意味論と根拠を引き継ぐ。
   暫定起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動要件だけを本スキルのデータ設計へ取り込む
 - **`parity-suite`**: フェーズ A 完了（＝`.replace/dataset/metadata.json` の存在）が前提。探索でシード不足を見つけると `gaps.md`「データ不足」で本スキルへ戻る。戻ると `version` が上がり、影響ベースラインを再取得する

@@ -663,7 +663,7 @@ describe("ゲートの commit 検出", () => {
     // 区切り文字（`;` `&` `|` `(` ・改行）が**引用の内側**にある形。シェルはそこで
     // コマンドを区切らないので commit は実行されない。判定が引用状態を持たないと
     // リテラルの区切りを本物と読んで読み取り専用コマンドを誤ブロックする
-    // （.kaizen/2026-09-08-quoted-separator-must-not-trigger-command-gate.md）。
+    // （.kaizen/archive/2026-09-08-quoted-separator-must-not-trigger-command-gate.md）。
     //
     // どのケースも**引用を外せば BLOCK になる形**にしてある（区切りの直後が
     // マッチしうる `git` + サブコマンド）。引用対応を外すと下の 5 件が赤くなることを

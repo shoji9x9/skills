@@ -6,7 +6,7 @@
 # 候補ゼロを検証できた場合だけ自動で checkpoint を進める。候補あり・形式不明・timeout は
 # exit 2 + stderr でブロックし、従来の kaizen --current にフォールバックする。
 #
-# **遮断するのは自セッションのセンチネルだけ**（Issue #288）。他セッションのぶんは
+# **遮断するのは自セッションのセンチネルだけ**。他セッションのぶんは
 # 「知らせるだけ」（exit 1）で、保持期間（既定 7 日、`.kaizen/config` で変更可）を過ぎたものは回収する。
 # 終了コード: 0=通す / 1=通すが警告あり / 2=ブロック。
 #
@@ -61,7 +61,7 @@ if [ -n "${script_dir}" ] && [ -r "${kaizen_lib}" ]; then
 else
 	printf '%s: 共通ライブラリを読めないため縮退します: %s\n' "$(basename "${BASH_SOURCE[0]}")" "${kaizen_lib}" >&2
 fi
-# 共通ライブラリを読めない（配布物の欠落・部分展開）ときは、Issue #218 以前の agent 単位の
+# 共通ライブラリを読めない（配布物の欠落・部分展開）ときは、session 単位化より前の agent 単位の
 # 名前だけを扱う縮退版を定義する。ゲートの判定を止めないためのシムであり、複数セッションの
 # 分離は失われる（従来どおり奪い合う）が、遮断条件は緩めない。
 if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
@@ -76,7 +76,7 @@ if ! declare -f kaizen_sentinel_key_of >/dev/null 2>&1; then
 		local base=${1##*/}
 		printf '%s' "${base#.pending-extract}"
 	}
-	# 縮退版は自分のツリーだけを見る（Issue #344 以前の挙動）。worktree を跨いだセンチネルは
+	# 縮退版は自分のツリーだけを見る（全作業ツリー探索より前の挙動）。worktree を跨いだセンチネルは
 	# 見つからないが、遮断条件は緩めない。
 	kaizen_worktree_kaizen_dirs() { printf '%s\0' "$(pwd)/.kaizen"; }
 	kaizen_find_control_file() {
@@ -151,7 +151,7 @@ session_key=$(kaizen_session_key "${session_id}")
 
 # `.kaizen/` は**コミットが実行される作業ツリー**基準で解決する。$CLAUDE_PROJECT_DIR を
 # 最優先にすると、セッションの起点がリポジトリ本体で作業が git worktree のとき、ゲートが見る
-# `.kaizen/` と抽出したセッションが書く `.kaizen/` が別ディレクトリになる（Issue #218）。
+# `.kaizen/` と抽出したセッションが書く `.kaizen/` が別ディレクトリになる。
 project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 [ -n "${project_root}" ] && cd "${project_root}" 2>/dev/null || true
 
@@ -159,8 +159,7 @@ project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 # 区切り文字（`;` `&` `|` `(` ・改行）が引用の内側にあるとき、シェルはそこでコマンドを
 # 区切らない。下の判定はシェル構文の解析ではなく正規表現なので引用状態を持たず、
 # リテラルの `(` を区切りと読んで読み取り専用コマンドを誤ブロックしていた
-# （`.kaizen/2026-09-08-quoted-separator-must-not-trigger-command-gate.md`。
-# `echo "Bash(git ""commit *)"` のような、settings.json の matcher 表記を本文に含むだけの
+# （`echo "Bash(git ""commit *)"` のような、settings.json の matcher 表記を本文に含むだけの
 # 呼び出しが止まる）。
 #
 # 引用符**そのもの**は残す。`gitoptval` が引用符をトークンの区切りとして使っており、
@@ -180,7 +179,7 @@ project_root=$(kaizen_resolve_project_root "${payload_cwd}")
 # Double-Quotes](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_02_03)）。
 # あの中は引用されたリテラルではなく**実行されるコマンド**なので、潰すと
 # `echo "$(git commit -m wip)"` の `git commit` が検出から消え、**実際に実行されるコミットが
-# ゲートを素通りする**（fail open。Issue #345）。したがって:
+# ゲートを素通りする**（fail open）。したがって:
 #   - 二重引用符の内側の `$( )` と `` ` ` ``: 中身を潰さず**そのまま写す**（`$( )` は入れ子の
 #     対応を数える）。写すので長さは保たれ、位置の対応もそのまま使える。
 #   - 対応する `)` / `` ` `` を見つけられない場合: heredoc と同じく判定不能で **fail closed**。
@@ -550,7 +549,7 @@ gitoptval='((\\"'"${dqbody}"'\\"|"'"${dqbody}"'"|'"${sq}[^${sq}]*${sq}"'|\\\\.|\
 gitoptval_opt='(-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--attr-source)'
 gitopts="((${gitoptval_opt}[[:space:]]+${gitoptval}|-[^[:space:]=]+=${gitoptval}|-[^[:space:]]+)[[:space:]]+)*"
 # 区切りには `` ` `` も含める。旧形式のコマンド置換の直後はコマンドの先頭であり、
-# `` echo "`git commit -m wip`" `` は実際にコミットを実行する（Issue #345）。
+# `` echo "`git commit -m wip`" `` は実際にコミットを実行する。
 # 誤ブロックにはならない——リテラルとして書かれた `` ` `` はシングルクォートの内側か
 # heredoc の中にしか現れず、前者は mask_quoted が潰し、後者は判定不能で fail closed になる。
 #
@@ -566,7 +565,7 @@ if [ "${extracted}" -eq 1 ]; then
 	commit_re=$'(^|[;&|(){`\n])[[:space:]]*'"${prefix}"'git[[:space:]]+'"${gitopts}"'commit([[:space:]]|$)'
 else
 	cmd=${input}
-	# **縮退経路でも行継続で割れたトークンを捕まえる**（Issue #409）。`gi\<改行>t commit` はシェルが
+	# **縮退経路でも行継続で割れたトークンを捕まえる**。`gi\<改行>t commit` はシェルが
 	# 継続を取り除いてから実行するのに、生 JSON には `git` も `commit` も揃って現れず素通りしていた（実測）。
 	# この経路はコマンド行を構造として取り出せていないので `strip_line_continuations` を当てられない。
 	# JSON では継続が `\\` ＋ `\n`（4 文字）として現れるので、その並びを取り除いた写しを作り、
@@ -613,7 +612,7 @@ if [[ ! "${cmd_masked}" =~ ${commit_re} ]]; then
 fi
 
 # コマンド行から**コミット先がプロジェクト外のリポジトリだと分かる**呼び出しは、ゲートの対象に
-# しない（Issue #221）。テストのフィクスチャとして使い捨ての一時リポジトリへコミットする形
+# しない。テストのフィクスチャとして使い捨ての一時リポジトリへコミットする形
 # （`git -C <dir> commit` / `--git-dir=<dir>`）まで止めると、抽出を求めている
 # 「このプロジェクトの活動」と無関係な commit が実行できなくなる。
 # 判定できない形（`cd <dir> && git commit`・パス指定なし・`--work-tree` 単独・`cd` と相対パスの
@@ -765,7 +764,7 @@ commit_target_is_external() { # $1: マッチした部分文字列
 	seg=${seg%commit*}
 	# 先頭は commit_re が消費した区切りで始まり得る。空白だけを `git` の直前に許すと
 	# `;git -C <外部> commit` のような区切り直後の呼び出しが解析できず、外部宛てでも
-	# 判定不能＝ブロックへ落ちる（Issue #221 の意図に反する）。
+	# 判定不能＝ブロックへ落ちる（外部リポジトリ宛てを対象外にする意図に反する）。
 	# **区切りの集合は commit_re と同じものを持たせる。** 片方だけ広げると、広げた側で
 	# 一致した形をこちらが解析できず、外部宛ての免除が効かないまま誤ブロックになる
 	# （実測: 旧形式のコマンド置換の直後に外部宛ての呼び出しを置いた形が exit 2）。
@@ -915,8 +914,8 @@ if [ "${status_rc}" -ne 0 ]; then
 	exit 2
 fi
 # 警告（rc 0）も出す。ここは lifecycle 検査の唯一の自動実行経路なので、非 0 のときしか
-# 出さないと「commit のたびに気づける」はずの警告が誰にも届かない（Issue #341 の
-# doc だけで閉じた対策の警告がこれに当たる）。commit は止めない。
+# 出さないと「commit のたびに気づける」はずの警告が誰にも届かない（「`type` が機構なのに
+# `applied-to` がドキュメントだけ」の警告がこれに当たる）。commit は止めない。
 #
 # **stderr へ書くだけでは表示されない。** PreToolUse フックの stderr が出るのは非 0 で
 # 終えたときだけで、素通りの `exit 0` では捨てられる（他セッションの警告が
@@ -1016,8 +1015,8 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 				# 見つからないことがあるので、「無記録」分岐と同じく transcript なしの解消も出す。
 				# ここを `-r` だけで「読めない」と一括りにすると、実在しない transcript を
 				# 探させ続ける案内しか出ず、抽出済みセッションが残したセンチネルが
-				# 恒久ブロッカーになる（transcript が剪定された後に到達する。Issue #244 で
-				# 抽出済みセッションのセンチネルもマーカーに覆われなくなったため露出が広がった）。
+				# 恒久ブロッカーになる（transcript が剪定された後に到達する。checkpoint のある
+				# セッションのセンチネルはマーカーに覆われないため、ここへ来る）。
 				# 実在するが読めないだけのケース（上の分岐）は従来どおり抽出を要求する。
 				printf '    センチネルが記録した transcript が実在しません（移動・削除済み、剪定、または値が不正）。\n' >&2
 				printf '    該当セッションの transcript を探し（Claude Code: ~/.claude/projects/**、Codex: ~/.codex/sessions/**）、見つかれば抽出後に実行してください:\n' >&2
@@ -1027,7 +1026,7 @@ print_sentinel_recovery() { # $1..: センチネルのパス
 			else
 				# transcript を一度も記録していないセンチネル（session 単位化より前、記録失敗、
 				# または `/compact` 専用の隠しセッションのように transcript を一度も作らないまま
-				# Stop が走った場合。Issue #240）。無い transcript は探しても見つからないので、
+				# Stop が走った場合）。無い transcript は探しても見つからないので、
 				# 見つからなかった場合の解消コマンドも合わせて出す（「transcript の無いセッションに
 				# 抽出すべき学びはない」という判断で、transcript を指定せず解消できる）。
 				printf '    transcript の記録がありません（session 単位化より前のセンチネル、記録に失敗、または /compact 専用の隠しセッションのように transcript を一度も作らないまま終了した可能性）。\n' >&2
@@ -1068,7 +1067,7 @@ epoch_from_stamp() { # $1: タイムスタンプ
 }
 
 # 他セッションのセンチネルを回収するまでの日数。既定 7 日、`never` で回収しない。
-# 放置されたセンチネルには解消できる主体がいないため、時間で回収する経路が要る（Issue #288）。
+# 放置されたセンチネルには解消できる主体がいないため、時間で回収する経路が要る。
 foreign_retention_days=7
 resolve_retention_days() {
 	local raw
@@ -1120,11 +1119,11 @@ sweep_expired_foreign_sentinels() {
 }
 
 # 未解決センチネル ＝ 対応する抽出完了マーカーが無いセンチネル。センチネルもマーカーも
-# session 単位なので、あるセッションの抽出完了が他セッションの未抽出シグナルを覆い隠さない
-# （Issue #218）。session 単位化より前の（key を持たない）センチネルは、同じく key を持たない
+# session 単位なので、あるセッションの抽出完了が他セッションの未抽出シグナルを覆い隠さない。
+# session 単位化より前の（key を持たない）センチネルは、同じく key を持たない
 # マーカーが覆う。
 #
-# ただし**そのセッションの checkpoint がある場合、マーカーは覆わない**（Issue #244）。
+# ただし**そのセッションの checkpoint がある場合、マーカーは覆わない**。
 # マーカーはセッション全体を抽出済みにする印なので、覆わせると 1 本の branch で複数 commit する
 # ときに最初の commit までの活動しか抽出されない。checkpoint があれば差分走査で「前回の抽出以降に
 # 積まれた活動」だけを検査でき、候補ゼロなら自動で通り、候補があればブロックできる。
@@ -1136,7 +1135,7 @@ sweep_expired_foreign_sentinels() {
 #
 # 走査は**リポジトリの全作業ツリー**（本体＋git worktree）へ広げる。センチネルを立てたツリーと
 # `git commit` を実行するツリーが分かれると、自分のツリーの `.kaizen/` だけを見る形では
-# **worktree の commit が素通りする**（Issue #344）。マーカー・checkpoint の探索も同じ範囲にする
+# **worktree の commit が素通りする**。マーカー・checkpoint の探索も同じ範囲にする
 # ——片方だけ広げると、別ツリーのセンチネルを見つけた直後に「マーカーが無い」と読んで
 # 解消済みのセッションで再びブロックする。
 collect_unresolved() {
@@ -1209,7 +1208,7 @@ resolve_foreign_sentinels() {
 		[ "${foreign_scan_budget}" -lt "${slice}" ] && slice=${foreign_scan_budget}
 		started=${SECONDS}
 		set +e
-		# checkpoint も全作業ツリーから探す（センチネルと同じ範囲。Issue #344）。
+		# checkpoint も全作業ツリーから探す（センチネルと同じ範囲）。
 		# 見つからなければ自分のツリーのパスを渡す＝不在扱いで offset 0（従来どおり）。
 		f_checkpoint=$(kaizen_checkpoint_path "${key}")
 		f_checkpoint=$(kaizen_find_control_file "${project_root}" "${f_checkpoint#.kaizen/}" 2>/dev/null) ||
@@ -1284,7 +1283,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 	# 指しているときだけ読み取りに使う（アップグレード直後の全走査を避ける）。書き込みは
 	# kaizen-extract-done.sh が session 単位のパスへ行う。
 	# 自分のツリーに無ければ他の作業ツリーからも探す。同じセッションが共有ツリーと worktree に
-	# またがって続くと、checkpoint は片方にしか無い（Issue #344）。見つからないまま全走査へ倒すと、
+	# またがって続くと、checkpoint は片方にしか無い。見つからないまま全走査へ倒すと、
 	# 抽出済みの範囲を再検出して commit が止まり続ける。
 	checkpoint_path=$(kaizen_checkpoint_path "${session_key}")
 	if [ ! -e "${checkpoint_path}" ]; then
@@ -1352,7 +1351,7 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		# 前と同じ判断でこれを失効させる（アップグレード直後の一度きり。現行の Stop フックは
 		# key 付きのセンチネルしか作らない）。
 		# collect_unresolved は key を持たないセンチネルを**全作業ツリー**から拾い、持ち主を
-		# 特定できないぶんは自分側＝遮断として扱う（Issue #344）。失効も同じ範囲で行わないと、
+		# 特定できないぶんは自分側＝遮断として扱う。失効も同じ範囲で行わないと、
 		# 別ツリーに残った旧形式のセンチネルをこの経路では二度と消せず、ブロックが続く。
 		legacy_sentinel_name=$(kaizen_sentinel_path "${sentinel_suffix}" "")
 		legacy_sentinel_name=${legacy_sentinel_name#.kaizen/}
@@ -1379,8 +1378,8 @@ if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && command -v 
 	fi
 fi
 
-# 残ったセンチネルを自セッション分と他セッション分へ分ける。**遮断するのは自セッション分だけ**
-# （Issue #288）。学びの抽出は「そのセッションで何が起きたかを知っている主体」にしかできず、
+# 残ったセンチネルを自セッション分と他セッション分へ分ける。**遮断するのは自セッション分だけ**。
+# 学びの抽出は「そのセッションで何が起きたかを知っている主体」にしかできず、
 # 他セッションのぶんを引き受けさせると記録の担保が「読んだ人の推測」に変わる。
 # 止めた相手が解消できないなら止める意味が無いので、他セッション分は**知らせるだけ**にする。
 # key を持たない旧形式は持ち主を特定できないため、従来どおり自分側として扱う（遮断する）。

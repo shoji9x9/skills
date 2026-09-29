@@ -67,7 +67,7 @@ else
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
-# 別の `.kaizen/` を見てしまう（Issue #218）。
+# 別の `.kaizen/` を見てしまう。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
 	project_root=$(kaizen_resolve_project_root "")
 else
@@ -93,7 +93,7 @@ archive_dir="${kaizen_dir}/archive"
 
 # 見出し直後の**先頭段落**を 1 行に連結して返す。索引の要約は最初の非空行だけを読んでいたため、
 # 先頭段落が折り返されたノートでは要約が文の途中で切れ、しかも `…` が付かないので完結した文に
-# 見えた（Issue #303）。INDEX.md は人が読む索引でエージェント文脈へは注入されないため、
+# 見えた。INDEX.md は人が読む索引でエージェント文脈へは注入されないため、
 # 注入側（kaizen-context-inject.sh）のように「折り返しを検査してブロック」ではなく連結を選ぶ。
 # 節の切り出し方は kaizen-status-check.sh の section_lead_state() と揃える（見出しは前方一致、
 # 見出し・空行・`---` 行・箇条書きの開始は段落の境界）。折り返しを検出するだけの

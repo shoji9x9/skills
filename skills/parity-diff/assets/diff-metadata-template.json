@@ -132,7 +132,7 @@
     "ok": "<judged: true のときスクリプト出力の ok。judged: false では null>",
     "operations": 0,
     "unmeasured_operations": 0,
-    "state_displays_unmeasured": "<judged: true のときスクリプト出力の state_displays.unmeasured（画面ごとの状態表示の未測定。Issue #500）。1 以上なら ok は true にならない。judged: false では null>"
+    "state_displays_unmeasured": "<judged: true のときスクリプト出力の state_displays.unmeasured（画面ごとの状態表示の未測定）。1 以上なら ok は true にならない。judged: false では null>"
   },
   "artifact_health": {
     "_note": "採取物と工程の健全性の判定結果。インストール済み parity-suite の scripts/artifact-health-check.mjs を --metadata <現側 metadata.json> --target <target> --stage diff で呼んで判定する（--stage は既定 diff。suite を渡すと未測定の blocking を素通りさせるので収束判定では渡さない）。値はスクリプトの出力から写し、現側の記録を目視で数えない。findings が 1 件でも残れば converged を true にしない。現側が artifact_health / unmeasured / suite.state_mutating をキーごと持たない旧成果物は当該の節を判定しない（後方互換）——その事実と理由を judged: false ＋ reason に残し、diff.md の未検証領域にも残す（黙って合格にしない）。artifact_health.declared: false が免除するのは採取物の節だけで、反復実行の節（suite.state_mutating）は免除されない。スクリプトが exit 2（型崩れ・無根拠の免除）なら収束判定へ進まず現側の成果物を直す。契約の正本は parity-suite の references/baseline.md「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」と references/coverage.md「未測定を機械可読にする」。",

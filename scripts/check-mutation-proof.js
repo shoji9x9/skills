@@ -492,7 +492,7 @@ function runTests(testFile) {
         cwd: repoRoot,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
-        // 子 vitest に、使用中の fixture を掃かせない（`scripts/vitest-global-setup.js`）。
+        // 子 vitest に、使用中の fixture を掃かせない（`scripts/vitest-global-setup.ts`）。
         env: { ...process.env, MUTATION_PROOF_CHILD: "1" },
       },
     );

@@ -216,8 +216,7 @@ if ! jq -Rr '
 	# 未知の `type` は名前ではなく**構造**で弁別する。会話を運ぶ入れ物（`message` / `payload` /
 	# `content`）を持たないレコードは候補の判定に関係しないので読み飛ばし、持つものだけ従来どおり
 	# fail closed にする。型名を 1 つずつ許可する形にすると、エージェントが内部レコードを 1 種類
-	# 増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる（Issue #288。
-	# `atis-latch` を足した #251 のあとに `cost-state` / `worktree-state` / `relocated` で再発した）。
+	# 増やすたびに「候補ゼロのセッションでも判定不能」へ倒れ、恒久ブロックになる。
 	# 壊れた JSON はここへ来ない——`fromjson` が失敗した行は上の `$j == null` で "X" になる。
 	# ただし既知の container（response_item / event_msg）は除く。payload が丸ごと欠けた形は
 	# こちらの想定外なので、subtype 欠損と同じく fail closed に残す。

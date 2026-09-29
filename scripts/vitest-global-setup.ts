@@ -17,7 +17,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // 「状態ファイルは `/tmp` に置かない」理由つきでそう決めている）。`scripts/` 配下に残るのは fixture だけ。
 const STALE_PREFIXES = ["mutation-proof-fixture-"];
 
-export function setup() {
+export function setup(): void {
   // **runner が起動した子 vitest では掃かない。** 子は `scripts/mutation-proof-fixture-*` の
   // fixture を**いま使っている**ので、ここで消すと検査対象ごと消える（実測で 12 テストが落ちた）。
   // 親（通常の `pnpm test`）だけが掃く。

@@ -27,7 +27,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - `--target <name>`（任意）: 実装・検証を行う新側の実行対象環境。設定 `targets` のうち **`side: new`** のものだけを候補にする（本スキルが対象とする側の宣言はここが正本）。
   省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
 - `--max-iterations <n>`（任意, 既定 5）: `parity-diff` との往復ループの反復上限。超えたら停止してユーザーに上げる
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 
 | モード | 起点 | 内容 |
 |---|---|---|
@@ -53,7 +53,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **前提の判定（無ければ停止し、該当スキルの実行を促す。捏造しない）**:
   - `replace-strategy setup` 完了 = 設定 `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy` と `.replace/features.md` の存在
   - `golden-dataset` フェーズ A 完了 = `.replace/dataset/metadata.json` の存在（`version` は 1 始まりの整数）
-  - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`
+  - 対象 slug の `parity-suite` 完了 = `.replace/parity/<slug>/metadata.json` の存在と `suite.current_green`・`differ.validated_by_strength_gate` がともに `true`（`parity-diff` の前提確認と同じ条件）
   - 上の setup・フェーズ A・`parity-suite` と下のフェーズ B（slug × target）は、未解決の保留があれば証拠があっても未完了として扱う（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
   - `golden-dataset` フェーズ B（**新側スキーマ確定後の実行のみ**。選択した target が**投入対象**の場合）= `.replace/dataset/metadata.json` の
     `phase_b.<slug>.<target>.dataset_version` が存在し、その版より後の `changes[].affects` が slug の実効参照テーブルと交差しないこと。
@@ -99,7 +99,6 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 - **振る舞い保存と品質改善を同じフェーズで狙わない。** レガシーの奇妙な挙動も再現する
 - **リントを off にして差異を回避しない**（ロケータマッピング層が現側の非セマンティックさを隔離しているため、新側を改善してもスイートは壊れない）
 - **タブ順の厳密一致を目標にしない**（ARIA APG 準拠で新の方が正しくてもタブ停止数が変わりうる）
-- **ページをまたいで並行に実装しない**
 - **発見した差異を勝手に判断して進めない。** 意図的差異レジストリのどの分類にも当てはまらない差異は `intentional_diffs.pending` へ非破壊追記しユーザーに確認する。
   **差異を見る前の一括分類指示（「全部 keep で」等）にも従わない**——確認は個々の差異を提示して行う（内容を見ずに分類すると、レジストリが差異の握り潰しに変わるため）
 - **機能の Issue の受け入れ条件を黙って外さない。** 受け入れ条件と違う実装にすること（移行元に無い振る舞いを「移行元に合わせる」を理由に外す等）と、
@@ -124,13 +123,13 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | `new.stack` | 新側スタックの列挙。依存の候補が新側スタック（フレームワーク・ORM 等）と両立するかの判断に使う。空・欠落なら推測せずユーザーに確認し、**確認結果を同キーへ非破壊追記する**（記録しないと機能ごとに聞き直しになる）。骨格の未整備ゲートは `references.architecture` が担うため、これ単独では停止しない |
 | `references.coding_conventions` | 新側リポジトリのコーディング規約（命名・エラー処理・型の扱い・テストの書き方・レビュー観点）。**実装（手順 4）と敵対的レビュー（手順 7）で読む**。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——新側リポジトリの基底ドキュメント・リント設定・既存コードから読み取り、解決できたパスは同キーへ非破壊追記する（意味論の正本はスキーマ文書の「コーディング規約」） |
 | `references.db_semantics` | 現行 DB → 新 DB の型マッピング・意味論差と、**移植時に踏む方言差の点検表**。**実装（手順 4）でクエリ・データアクセスを書く前に読む**。**未整備（キー欠落・空値・解決できないパス）でも停止しないが、方言差を推測で埋めない**——スキーマ文書「DB 意味論」の点検項目を現行 DB／新 DB の一次ドキュメントで確認し、確認結果と未確定を `porting.md` へ記録して整備を促す。差を吸収しないと決めたら `intentional_diffs.pending` へ非破壊追記しユーザー確認へ回す（意味論の正本はスキーマ文書の「DB 意味論」） |
-| `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**）。**未整備（キー欠落・空値・解決できないパス）なら手順 6 に入る前に整備を促す**（源流で系統差を縮められず、宣言と未検証が膨らむため。ライブラリを勝手に決めない） |
+| `references.ui_library` | 新 UI ライブラリ設定と旧→新 design token マッピングの reference パス（**特定のライブラリ名を固定しない**）。**未整備（キー欠落・空値・解決できないパス）なら手順 6 に入らず停止し、整備を促す**（ゲートの位置は手順 6 の直前。源流で系統差を縮められず、宣言と未検証が膨らむため。ライブラリを勝手に決めない） |
 | `references.dependency_policy` | 依存導入の方針ドキュメントのパス（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する（記録しないと毎回聞き直しになる） |
 | `new.repo` | 新側リポジトリ（実装対象）。コミット SHA は設定ではなく `replace-metadata.json` に記録する |
 | `targets`（`side: new` のみ） | 実行対象環境。`--target` で選び、`check_urls` で稼働判定して落ちているときだけ `pre_commands` → `start` の順に起動し、UI / API URL を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決し、`new` プロジェクトの baseURL に渡す（`api_url` 省略時は `url`）。`url_command` の target はコマンド実行で解決する（失敗・空出力は停止。解決値は成果物に書かず `"runtime"` を記録する）。`db.seedable` は投入対象かの契約（`dataset_mode: db` でのフェーズ B の要否）、`commit_check` は `start` を持たない配信型 target の稼働中コミット確認（下記「軽量経路」） |
 | `targets[].on_diff` | 選択した target で要対応差分が出たときの対応手順を書いた Markdown のパス（任意。省略時は修正 → 対象 target で再テスト）。本スキルでの解釈手順は [`references/diff-loop.md`](references/diff-loop.md) |
 | `targets[].auth.roles` / `targets[].forbidden_actions` | 選択した target のロール別認証情報（`<ロール名>.{user_name_env,password_env}`。値は環境変数の**名前**。認証不要の環境では省略可）と、実施しない UI / API 操作（未定義時の扱いは正本に従う）。いずれも target ごとの定義のみで、側単位のフォールバックは持たない |
-| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。**読むだけ**で、経路を現側から変えるなら意図的差異として `intentional_diffs.pending` へ非破壊追記しユーザー確認へ回す（`upload_route` 未宣言のまま実装しない）。ストレージ実体への投入は v1 スコープ外（正本: スキーマ文書「ファイルストレージ」、実装上の扱いは [`references/paging.md`](references/paging.md)） |
+| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・書き込み範囲（`write_scope`）・アップロード経路（`upload_route`）。**読むだけ**で、経路を現側から変えるなら意図的差異として `intentional_diffs.pending` へ非破壊追記しユーザー確認へ回す（`upload_route` 未宣言のまま実装しない）。ストレージ実体への投入はスコープ外（正本: スキーマ文書「ファイルストレージ」、実装上の扱いは [`references/paging.md`](references/paging.md)） |
 | `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
 
 各キーの既定値・意味論の正本は上記スキーマ文書にある（ここへ転記しない）。設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
@@ -142,14 +141,14 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **判断待ち（保留に落とす）**: 意図的差異レジストリに当てはまらない差異（`intentional_diffs.pending` への追記は行い、確認を保留にする）、`component_diffs` の宣言、
   画面より先に作られた共通部品への破壊的変更、台帳に無い静的資産の方針（方針空欄の行の追記は行う）、部品の依存の決定（`new.stack` が空のときを含む）、配信型 target で `commit_check` が無いときのデプロイ済み確認、
   敵対的レビューでサブエージェントを起動できないときの人間のレビュアーへの受け渡し、**機能の Issue の受け入れ条件と違う実装・受け入れ条件に当たる観点の飛ばし**（上記「厳守の制約」）、
   受け入れ条件の突き合わせ（手順 8）の結果を Issue へコメントしチェックを付けること（外向きの操作）
 - **保留に落としても進める工程**: 保留に依存しないページのフェーズ・実装単位。依存する実装単位は `porting.md` に `TODO`（`判断待ち: <id>`）として残し、推測で実装しない
-- **従来どおりの停止のまま**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
+- **自律実行でも停止する**: 前提成果物の欠落、骨格（`references.architecture`）の未整備、`verification_commands.full` が無い、反復上限への到達
 - **委譲**: `issue-start --branch-only` のブランチ作成は行ってよい。`golden-dataset --phase b` と `parity-diff` へは `--autonomous` を引き継ぐ。commit / push / PR は越えない線の範囲でだけ行う
 - **記録先**: `.replace/parity/<slug>/new/<target>/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
   **`replace-metadata.json` には書かない**——`parity-diff` はその存在と `suite.new_green` を前提に使うため、保留を残す目的でこのファイルを作ると後続が進む。
@@ -203,7 +202,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    **新側でスイートを回す前に、`new` プロジェクトが現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を `testIgnore` で除外していることを確認する**（`metadata.json.suite.current_only`）。
    除外されていなければ回す前に設定する——**新側の実行が現側の証跡を静かに上書きする**（配置と設定の正本は `parity-suite` の `references/locator-mapping.md`）。
    **green 化そのものはフェーズの最後**（敵対的レビューの後）に行う——フェーズ順の正本は [`references/paging.md`](references/paging.md)
-6. **見た目の系統差を源流で縮める**（feature モード）: `references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
+6. **見た目の系統差を源流で縮める**（feature モード）: **`references.ui_library` が未整備ならここで停止し、整備を促す**（推測でライブラリを決めない）。`references.ui_library` で新側ライブラリを選ぶ（固定しない）。テーマ可能なら旧 design token を新側テーマへ寄せる。
    テーマで消せない構造差はクラス/トークン単位の系統差として `component_diffs` へユーザー確認の上で宣言し、宣言できない構造差は `gaps.md` へ追記する（比較の正規化であって仕様変更ではない）。
    **移行元の宣言を「写さない」と決めるなら、その宣言が変える次元を全部測ってから決め**、結果を `porting.md` へ記録する（1 つの次元の一致は他の次元の一致の根拠にならない）。詳細: [`references/theming.md`](references/theming.md)
 7. **敵対的レビュー**: レビュー役の往復は高コストなため、先に検証コマンドを通して自明な破綻を安価に落とす（通ったことを**レビューを省略する理由にしない**）。
@@ -251,7 +250,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    証跡は `.replace/parity/<slug>/new/<target>/replace-metadata.json` へ記録する（**環境別**。他の target の証跡を上書きしない）。
    feature モードでは `new.commit` と並べて **`new.render_inputs`**（このページの描画に効くファイルの git pathspec の配列: route・使う部品・テーマ・トークン・グローバル CSS）も書いてよい。
    部品の改修で SHA が進んだとき、鮮度検査は描画入力の差分が変更宣言の範囲に収まるかで証跡を持ち越す（`parity-diff` の `references/component-change.md`）。
-   **過小に書かない**——漏れたファイルの変更は持ち越しを素通りする。判断が付かなければ書かない（無い・空なら従来どおり SHA の一致で判定する）
+   **過小に書かない**——漏れたファイルの変更は持ち越しを素通りする。判断が付かなければ書かない（無い・空なら SHA の一致で判定する）
    **`parity-diff` の差分ゼロは含めない**（循環回避。理由の正本: [`references/diff-loop.md`](references/diff-loop.md)）。実装フロー（commit / push / PR）は `issue-start` に委ねる。
    **合わせて「要求単位の根拠」の取りこぼしを完了判定に入れる**——インストール済みの `replace-strategy` から
    `node <replace-strategy>/scripts/evidence-gap-check.mjs --features .replace/features.md --slug <slug> --unmeasured .replace/parity/<slug>/metadata.json`
@@ -347,9 +346,9 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（setup）→ `golden-dataset`（フェーズ A）→ **画面より先に部品を作る方針なら `parity-component`** → 各機能で〔`parity-suite` → **`parity-replace`** → `golden-dataset`（フェーズ B）→ `parity-diff`（本スキルと往復）〕
+- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。本スキルの直前は対象 slug の `parity-suite`、直後は `parity-diff`（本スキルと往復）。`golden-dataset` のフェーズ B は本スキルの途中で呼ぶ（下記）
 - **`parity-component` との関係**: 共通部品が先に作られている場合、本スキルは**その部品を使う側**になる。実装中に部品へ手を入れる必要が出たときの規律（切り分け・影響の測り方・破壊的変更の判断）は
-  同スキルの `references/amend.md` が正本で、本スキルはそこへ委譲する。**部品を先に作っていないプロジェクトでは、共通部品も本スキルが機能ごとに作る**（従来どおり）
+  同スキルの `references/amend.md` が正本で、本スキルはそこへ委譲する。**部品を先に作っていないプロジェクトでは、共通部品も本スキルが機能ごとに作る**
 - **`parity-suite` から引き継ぐもの**: 論理名の契約（現・新をまたぐ）、現側 green のスイート、
   現側の値だけが埋まった期待値解決層（新側の値の充填は本スキル。[`references/new-mapping.md`](references/new-mapping.md)）、
   Playwright `projects` の `current` / `new` という名前（`new` の baseURL を選択した target から解決して渡すことと green 化は本スキルの担当。配線の正本は `parity-suite`）、脆弱マッピングを記録したマッピング層コメント。

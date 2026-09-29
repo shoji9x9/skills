@@ -205,7 +205,7 @@ describe("変異の判定", () => {
     expect(readFileSync(fx.target, "utf8")).toBe(FIXTURE_TARGET);
   });
 
-  // **使用中の fixture を掃かせない。** `scripts/vitest-global-setup.js` は収集前に
+  // **使用中の fixture を掃かせない。** `scripts/vitest-global-setup.ts` は収集前に
   // `scripts/mutation-proof-fixture-*` を消すので、runner が起動する子 vitest には
   // `MUTATION_PROOF_CHILD` を渡して掃引を止めている（渡さないと fixture ごと消えて 10 テストが落ちた）。
   // ここでは**ambient な marker を明示的に外して**測る（ハーネス自身が渡す値で緑にならないように）。

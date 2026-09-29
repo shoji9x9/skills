@@ -29,7 +29,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）
 - `--component-change` は共通部品を後から直したときの一括再検証。変更宣言（`.replace/components/<slug>/changes/<change-id>.json`）から影響する機能と組を導き、影響する組だけを新側で撮り直して機械で判定する。
   現側は撮り直さない。手順・判定・持ち越しの記録の正本は [`references/component-change.md`](references/component-change.md)
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - 自然文でも発動する:「現新の差分を検出して」「差分を分類して」「この画面の差を見て」
 
 | モード | 内容 |
@@ -116,8 +116,6 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - **名前の付かない要素の見た目差を「computed style で保証済み」と扱わない**（特性照合は名前付き要素しか見ない。名前無しは画素経路の担当）
 - **セル/行/フィールドに論理名を付けてテーブル/フォームを比較しない**（内容パリティは aria 経路が担う）
 - **未検証の箇所を「確認済み」にしない**（ベースラインに写らない箇所・宣言できない構造差は `diff.md` に未検証として残す）
-- **差分の修正を自分で行わない**（`parity-replace` へ戻す）
-- **現行アプリを駆動しない**（ノイズ基準値の測定は `parity-suite` の仕事）
 - **差分器・トリアージ補助に依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショットに残さない**（環境変数名だけを扱い、値は復唱しない。正本: `replace-strategy` の `references/project-config.md`「シークレットの扱い」）
 
@@ -129,7 +127,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 |---|---|---|
 | `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝phase B との整合を免除する代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
 | `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認。**`pending` は収束判定で棚卸しの対象としても読む**（対象の決め方は要素の `slug`。書き換えは人間が行い本スキルは書かない。要素の形の正本はスキーマ文書の「`pending` 要素の形」） |
-| `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入は v1 スコープ外のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
+| `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入はスコープ外（正本: `replace-strategy` の `references/scope.md`）のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
 | `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（`component` は対象要素の論理名 / glob。1 回の宣言が範囲内の全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
 | `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
 | `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
@@ -145,7 +143,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **判断待ち（保留に落とす）**: 「許容」の確定（原因単位。`diff.md` の分類は `許容候補（要確認）` のまま）、意図的差異の保留の棚卸しの処置、
   旧成果物をユーザー承認の例外で続行するか、差分器・フォント解析ツールの導入、`on_diff` ドキュメントが指示する起票（越えない線）、`references.dependency_policy` の確認
@@ -176,7 +174,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 4 つ（収束／**他機能待ち**／**判断待ち**／未収束）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
    現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す
-   （一覧は `playwright test --list --reporter=json --project=current --project=new` の出力）。
+   （一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力）。
    **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
    現側 `metadata.json.component_coverage` が `declared: true` なら**新側での突き合わせ**（`present` セルごとの入口・当たり判定・完了）も収束条件に入れ、
    インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
@@ -217,7 +215,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 
 ## 姉妹スキルとの連携
 
-- **依存順**: `replace-strategy`（setup）→ `golden-dataset` → `parity-suite` → `parity-replace` → **`parity-diff`**（`parity-replace` と往復）
+- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。本スキルの直前は同じ target で新側 green にした `parity-replace`（本スキルと往復）
 - **`parity-suite` から引き継ぐもの**: 強度ゲートで健全性を確認済みの差分器（画素・特性照合・aria の 3 経路のツール・しきい値）、ノイズ基準値、撮影条件（ページ一覧・マスクの論理名を含む）、
   部品被覆表（`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読み、未測定が残れば収束させず `parity-suite` へ戻す。様式・被覆プロファイルの正本は `parity-suite`）、
   反応の被覆表（`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --tests <テスト一覧> --recorded` で判定し、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、

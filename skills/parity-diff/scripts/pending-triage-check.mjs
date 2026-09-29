@@ -58,6 +58,9 @@ const CROSS_CUTTING_ONLY_WRITERS = new Set(["parity-component", "replace-strateg
  * slug に機能 slug を書けるスキル（正本は replace-strategy の references/project-config.md）。
  * 帰属を信用してよいのは書き手が読めていてこの集合にいるときだけで、書き手が読めない
  * （欠落・unknown・未知の名前）要素の slug は名前空間を確認できないため帰属不明として扱う。
+ * 書き手を増やすときは、replace-strategy の references/project-config.md「pending 要素の形」の
+ * added_by の一覧と、この集合か CROSS_CUTTING_ONLY_WRITERS のどちらか一方を同時に更新する
+ * （一覧だけ増やすと、その書き手の追記が帰属不明へ倒れる）。
  */
 const FEATURE_SLUG_WRITERS = new Set(["golden-dataset", "parity-suite", "parity-replace"]);
 

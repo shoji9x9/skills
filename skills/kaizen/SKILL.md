@@ -1,7 +1,7 @@
 ---
 name: kaizen
 description: コーディングエージェントのセッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映することで同じ失敗を繰り返さない仕組みを構築する。適用されないまま古くなり再発もしていない学びは抽出時に自動で忘却し、セッション開始時の注入を軽く保つ。「セッションを振り返る」「学びを抽出する」「kaizen」「改善を適用する」「学びを適用して」「古い学びを忘れて」などで発動。
-argument-hint: "[extract|apply|forget|archive] [--current | --all] [--record-pending]"
+argument-hint: "[extract|apply|forget|archive|delete|setup] [--current | --all] [--record-pending]"
 license: MIT
 ---
 
@@ -39,7 +39,7 @@ license: MIT
 - **前提スキル**: `multiagent-setup`（Hook・ドキュメント整備のセットアップで利用。`references/setup.md` 参照）。学びの反映先スキルの検証に `skill-creator` を使えるが任意
 - **MCP**: なし
 - **シェル**: bash（POSIX 互換シェル）。本スキルのコマンド例・設定する Hook（`mkdir -p` / `date -u` 等）は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
-- node / pnpm / python などのランタイムは不要。高速な transcript 候補走査には `jq` を任意利用し、無い場合は従来どおり安全側にブロックする。
+- node / pnpm / python などのランタイムは不要。高速な transcript 候補走査には `jq` を任意利用し、無い場合は安全側にブロックする。
 
 ## 基本原則
 
@@ -76,15 +76,6 @@ license: MIT
 
 ---
 
-## 参考文献
+## 出典
 
-このスキルの根本原因分析（`references/extract.md`「根本原因分析」: 最低 3 階層の「なぜ」・KEDB 照合・横断スコープ確認）は、LLM エージェントによる障害原因分析（RCA）の研究知見に基づく。
-
-- Roy et al. "Exploring LLM-based Agents for Root Cause Analysis" ([arXiv:2403.04123](https://arxiv.org/abs/2403.04123)) — 推論とツール実行を往復する ReAct 型エージェントが単発 LLM より診断精度が高い。証拠を取りに行く反復の根拠。
-- Chen et al. "Automatic Root Cause Analysis via Large Language Models for Cloud Incidents" ([arXiv:2305.15778](https://arxiv.org/abs/2305.15778))
-  — 約 4 万件の過去インシデントを RAG で参照すると精度向上。KEDB（既存 `.kaizen/` 照合）の根拠。
-- "Reasoning Language Models for Root Cause Analysis in 5G Wireless Networks" ([arXiv:2507.21974](https://arxiv.org/abs/2507.21974)) — 推論特化モデルが高い pass@1 を達成。段階的な深掘りの有効性。
-- "Towards LLM-based Root Cause Analysis of Hardware Design Failures" ([arXiv:2507.06512](https://arxiv.org/abs/2507.06512)) — 深い推論で RCA タスクの正答率が向上。
-- "TAMO: Fine-Grained Root Cause Analysis via Tool-Assisted LLM Agent" ([arXiv:2504.20462](https://arxiv.org/abs/2504.20462)) — 多角的な観測データとツール呼び出しで深い分析。「単一の視点だけで結論しない」の根拠。
-
-これらの要素は [karaage0703/ai-assistant-workspace の xangi-kaizen スキル](https://github.com/karaage0703/ai-assistant-workspace/tree/main/skills/xangi-kaizen) を参考に取り入れた。
+根本原因分析の要素（反復的な深掘り・KEDB 照合・横断スコープ確認）は [karaage0703/ai-assistant-workspace の xangi-kaizen スキル](https://github.com/karaage0703/ai-assistant-workspace/tree/main/skills/xangi-kaizen) を参考に取り入れた。

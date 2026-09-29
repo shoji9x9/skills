@@ -1,0 +1,341 @@
+{
+  "$comment": [
+    "check-skill-index.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/check-skill-index.test.js",
+  "mutations": [
+    {
+      "id": "SI-SKILLMD",
+      "why": "SKILL.md の無いディレクトリを配布スキルとして通す",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (!existsSync(join(root, \"skills\", name, \"SKILL.md\"))) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: SKILL.md の無い skills/ のディレクトリを落とす"]
+    },
+    {
+      "id": "SI-PRIV-MARKER",
+      "why": ".private-skill の印を見ずに .agents/skills だけのスキルを private とみなす",
+      "file": "scripts/check-skill-index.js",
+      "find": "(name) => !dist.has(name) && existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "replace": "(name) => !dist.has(name),",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない"
+      ]
+    },
+    {
+      "id": "SI-PRIV-DIST",
+      "why": "skills/ にもあるスキルを private とみなす（README から外すよう求める）",
+      "file": "scripts/check-skill-index.js",
+      "find": "(name) => !dist.has(name) && existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "replace": "(name) => existsSync(join(root, \".agents/skills\", name, \".private-skill\")),",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）"
+      ]
+    },
+    {
+      "id": "SI-AGENTS-MISSING",
+      "why": "AGENTS.md の未掲載を見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "      if (!agents.has(name)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
+        "陽性: private skill が AGENTS.md に未掲載なら落とす"
+      ]
+    },
+    {
+      "id": "SI-AGENTS-GHOST",
+      "why": "AGENTS.md の実在しないスキルを見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "      if (!dist.has(name) && !priv.includes(name)) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: AGENTS.md に実在しないスキル（改名前の名前）を載せたら落とす",
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす"
+      ]
+    },
+    {
+      "id": "SI-README-MISSING",
+      "why": "README.md の未掲載を見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "      if (!readme.has(name)) violations.push",
+      "replace": "      if (false) violations.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 配布スキルが README.md に未掲載なら落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0"
+      ]
+    },
+    {
+      "id": "SI-README-EXTRA",
+      "why": "README.md の実在しないスキル・private skill の掲載を見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "      if (dist.has(name)) continue;",
+      "replace": "      continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: README.md に実在しないスキルを載せたら落とす",
+        "陽性: README.md に private skill を載せたら落とす（配布しないのでインストールできない）"
+      ]
+    },
+    {
+      "id": "SI-README-PRIV-MSG",
+      "why": "README.md の private skill を実在しないスキルと取り違える",
+      "file": "scripts/check-skill-index.js",
+      "find": "        priv.includes(name)\n          ?",
+      "replace": "        false\n          ?",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: README.md に private skill を載せたら落とす（配布しないのでインストールできない）"
+      ]
+    },
+    {
+      "id": "SI-SECTION-END",
+      "why": "節の終わりを見ない（後ろの節の箇条・表まで数える）",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (/^#{1,2} /.test(lines[i])) break;",
+      "replace": "    if (false) break;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: private skill が 0 件でも、配布スキルだけで一致すれば通す",
+        "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）",
+        "陰性: 正規の編集（CRLF 改行）は違反 0 件",
+        "陰性: 正規の編集（private skill が複数）は違反 0 件",
+        "陰性: 正規の編集（skills/ 直下のディレクトリでないファイルは数えない）は違反 0 件",
+        "陰性: 正規の編集（スキルを 1 件足して両方に載せた）は違反 0 件",
+        "陰性: 正規の編集（掲載順が実体の並びと違う）は違反 0 件",
+        "陰性: 正規の編集（節がファイルの末尾にある（後ろの見出しが無い））は違反 0 件",
+        "陰性: 正規の編集（節の中の ### 小見出しの下にも箇条を続ける）は違反 0 件",
+        "陰性: 正規の編集（継続行が複数行で、字下げした入れ子の箇条を持つ）は違反 0 件",
+        "陰性: 正規の編集（見出しの末尾に空白がある）は違反 0 件",
+        "陰性: 正規の編集（説明文にバッククォートやコロンを含む）は違反 0 件",
+        "陰性: 節の前後にある同じ形の箇条・表は数えない（節の外の ghost-after を実在しないと言わない）",
+        "陰性: 節内の導入文・字下げの継続行・表の見出し行と区切り行は飛ばす",
+        "陰性: 配布は両方に、private は AGENTS.md にだけ載っていれば違反 0 件で件数を数える",
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陽性: AGENTS.md に実在しないスキル（改名前の名前）を載せたら落とす",
+        "陽性: AGENTS.md の節が無ければ落とす（見出しの改名で全件素通りしない）",
+        "陽性: AGENTS.md 自体が無ければ落とす（読めない一覧を一致扱いしない）",
+        "陽性: README の表の行が形で読めない・表示名とリンク先が違うなら落とす",
+        "陽性: README.md に private skill を載せたら落とす（配布しないのでインストールできない）",
+        "陽性: README.md に実在しないスキルを載せたら落とす",
+        "陽性: README.md の節が無ければ落とす（見出しの改名で全件素通りしない）",
+        "陽性: README.md 自体が無ければ落とす（読めない一覧を一致扱いしない）",
+        "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
+        "陽性: private skill が AGENTS.md に未掲載なら落とす",
+        "陽性: 同じスキルを重複して載せたら落とす",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
+        "陽性: 配布スキルが README.md に未掲載なら落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
+      ]
+    },
+    {
+      "id": "SI-SECTION-MISSING",
+      "why": "節が無いとき全文を節として読む",
+      "file": "scripts/check-skill-index.js",
+      "find": "  if (start === -1) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: AGENTS.md の節が無ければ落とす（見出しの改名で全件素通りしない）",
+        "陽性: README.md の節が無ければ落とす（見出しの改名で全件素通りしない）"
+      ]
+    },
+    {
+      "id": "SI-BULLET-SKIP",
+      "why": "形の崩れた箇条を黙って飛ばす",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (!text.startsWith(\"- \")) continue;",
+      "replace": "    if (!BULLET_RE.test(text)) continue;",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）"]
+    },
+    {
+      "id": "SI-ROW-MALFORMED",
+      "why": "形の崩れた表の行を黙って飛ばす",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (!m) {\n",
+      "replace": "    if (!m) continue;\n    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["陽性: README の表の行が形で読めない・表示名とリンク先が違うなら落とす"]
+    },
+    {
+      "id": "SI-ROW-NAME",
+      "why": "表示名とリンク先の不一致を見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "    } else if (m[1] !== m[2]) {",
+      "replace": "    } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: README の表の行が形で読めない・表示名とリンク先が違うなら落とす"]
+    },
+    {
+      "id": "SI-SEPARATOR",
+      "why": "表の区切り行を行として読む",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (SEPARATOR_RE.test(text.trim())) continue;",
+      "replace": "    if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: private skill が 0 件でも、配布スキルだけで一致すれば通す",
+        "陰性: 実リポジトリの一覧が実体と一致する",
+        "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）",
+        "陰性: 正規の編集（CRLF 改行）は違反 0 件",
+        "陰性: 正規の編集（private skill が複数）は違反 0 件",
+        "陰性: 正規の編集（skills/ 直下のディレクトリでないファイルは数えない）は違反 0 件",
+        "陰性: 正規の編集（スキルを 1 件足して両方に載せた）は違反 0 件",
+        "陰性: 正規の編集（掲載順が実体の並びと違う）は違反 0 件",
+        "陰性: 正規の編集（節がファイルの末尾にある（後ろの見出しが無い））は違反 0 件",
+        "陰性: 正規の編集（節の中の ### 小見出しの下にも箇条を続ける）は違反 0 件",
+        "陰性: 正規の編集（継続行が複数行で、字下げした入れ子の箇条を持つ）は違反 0 件",
+        "陰性: 正規の編集（見出しの末尾に空白がある）は違反 0 件",
+        "陰性: 正規の編集（説明文にバッククォートやコロンを含む）は違反 0 件",
+        "陰性: 節の前後にある同じ形の箇条・表は数えない（節の外の ghost-after を実在しないと言わない）",
+        "陰性: 節内の導入文・字下げの継続行・表の見出し行と区切り行は飛ばす",
+        "陰性: 配布は両方に、private は AGENTS.md にだけ載っていれば違反 0 件で件数を数える",
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陽性: AGENTS.md に実在しないスキル（改名前の名前）を載せたら落とす",
+        "陽性: AGENTS.md の節が無ければ落とす（見出しの改名で全件素通りしない）",
+        "陽性: AGENTS.md 自体が無ければ落とす（読めない一覧を一致扱いしない）",
+        "陽性: README の表の行が形で読めない・表示名とリンク先が違うなら落とす",
+        "陽性: README.md に private skill を載せたら落とす（配布しないのでインストールできない）",
+        "陽性: README.md に実在しないスキルを載せたら落とす",
+        "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
+        "陽性: private skill が AGENTS.md に未掲載なら落とす",
+        "陽性: 同じスキルを重複して載せたら落とす",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
+        "陽性: 配布スキルが README.md に未掲載なら落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
+      ]
+    },
+    {
+      "id": "SI-HEADER",
+      "why": "表の見出し行を行として読む",
+      "file": "scripts/check-skill-index.js",
+      "find": "rows.slice(1)",
+      "replace": "rows",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: private skill が 0 件でも、配布スキルだけで一致すれば通す",
+        "陰性: 実リポジトリの一覧が実体と一致する",
+        "陰性: 実体と同名で skills/ にもある .private-skill は配布として扱う（README に載せてよい）",
+        "陰性: 正規の編集（CRLF 改行）は違反 0 件",
+        "陰性: 正規の編集（private skill が複数）は違反 0 件",
+        "陰性: 正規の編集（skills/ 直下のディレクトリでないファイルは数えない）は違反 0 件",
+        "陰性: 正規の編集（スキルを 1 件足して両方に載せた）は違反 0 件",
+        "陰性: 正規の編集（掲載順が実体の並びと違う）は違反 0 件",
+        "陰性: 正規の編集（節がファイルの末尾にある（後ろの見出しが無い））は違反 0 件",
+        "陰性: 正規の編集（節の中の ### 小見出しの下にも箇条を続ける）は違反 0 件",
+        "陰性: 正規の編集（継続行が複数行で、字下げした入れ子の箇条を持つ）は違反 0 件",
+        "陰性: 正規の編集（見出しの末尾に空白がある）は違反 0 件",
+        "陰性: 正規の編集（説明文にバッククォートやコロンを含む）は違反 0 件",
+        "陰性: 節の前後にある同じ形の箇条・表は数えない（節の外の ghost-after を実在しないと言わない）",
+        "陰性: 節内の導入文・字下げの継続行・表の見出し行と区切り行は飛ばす",
+        "陰性: 配布は両方に、private は AGENTS.md にだけ載っていれば違反 0 件で件数を数える",
+        "陽性: .private-skill の印が無い .agents/skills だけのスキルは、AGENTS.md に載っていても実在扱いしない",
+        "陽性: AGENTS.md に実在しないスキル（改名前の名前）を載せたら落とす",
+        "陽性: AGENTS.md の節が無ければ落とす（見出しの改名で全件素通りしない）",
+        "陽性: AGENTS.md 自体が無ければ落とす（読めない一覧を一致扱いしない）",
+        "陽性: README の表の行が形で読めない・表示名とリンク先が違うなら落とす",
+        "陽性: README.md に private skill を載せたら落とす（配布しないのでインストールできない）",
+        "陽性: README.md に実在しないスキルを載せたら落とす",
+        "陽性: SKILL.md の無い skills/ のディレクトリを落とす",
+        "陽性: private skill が AGENTS.md に未掲載なら落とす",
+        "陽性: 同じスキルを重複して載せたら落とす",
+        "陽性: 節の中の形が崩れた箇条は判定不能として落とす（黙って飛ばさない）",
+        "陽性: 配布スキルが AGENTS.md に未掲載なら落とす",
+        "陽性: 配布スキルが README.md に未掲載なら落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不一致は exit 1、一致なら exit 0",
+        "陰性: 印も SKILL.md も無い .agents/skills のディレクトリは private skill の候補にしない",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
+      ]
+    },
+    {
+      "id": "SI-DUP",
+      "why": "重複した掲載を見ない",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (names.has(name)) violations.push",
+      "replace": "    if (false) violations.push",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 同じスキルを重複して載せたら落とす"]
+    },
+    {
+      "id": "SI-ZERO",
+      "why": "配布スキル 0 件を成功に倒す",
+      "file": "scripts/check-skill-index.js",
+      "find": "  if (distributed.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["配布スキル 0 件は成功に倒さず exit 1"]
+    },
+    {
+      "id": "SI-SECTION-DEPTH",
+      "why": "節の中の ### 小見出しで節を切る（その下の箇条を未掲載と読む）",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (/^#{1,2} /.test(lines[i])) break;",
+      "replace": "    if (/^#{1,3} /.test(lines[i])) break;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 正規の編集（節の中の ### 小見出しの下にも箇条を続ける）は違反 0 件"]
+    },
+    {
+      "id": "SI-HEADING-TRIM",
+      "why": "見出しの末尾空白で節を見失う",
+      "file": "scripts/check-skill-index.js",
+      "find": "lines.findIndex((l) => l.trimEnd() === heading)",
+      "replace": "lines.findIndex((l) => l === heading)",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 正規の編集（見出しの末尾に空白がある）は違反 0 件"]
+    },
+    {
+      "id": "SI-DIRS-ONLY",
+      "why": "skills/ 直下のファイルもスキルとして数える",
+      "file": "scripts/check-skill-index.js",
+      "find": "    .filter((e) => e.isDirectory())\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 正規の編集（skills/ 直下のディレクトリでないファイルは数えない）は違反 0 件"
+      ]
+    },
+    {
+      "id": "SI-NESTED",
+      "why": "字下げした入れ子の箇条を節の箇条として読む",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (!text.startsWith(\"- \")) continue;",
+      "replace": "    if (!text.trimStart().startsWith(\"- \")) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 正規の編集（継続行が複数行で、字下げした入れ子の箇条を持つ）は違反 0 件"
+      ]
+    },
+    {
+      "id": "SI-PRIV-SKILLMD",
+      "why": ".private-skill の印だけで SKILL.md の無いディレクトリを private skill として数える",
+      "file": "scripts/check-skill-index.js",
+      "find": "    if (existsSync(join(root, \".agents/skills\", name, \"SKILL.md\"))) priv.push(name);",
+      "replace": "    if (true) priv.push(name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に載っていても数えず落とす",
+        "陽性: .private-skill だけで SKILL.md の無い private skill は、AGENTS.md に未掲載でも落とす"
+      ]
+    }
+  ]
+}

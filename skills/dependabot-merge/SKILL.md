@@ -175,8 +175,17 @@ gh api --paginate repos/<owner>/<repo>/issues/<番号>/comments \
 
 ### 判断の記録（PR コメント）
 
+本文はバッククォートや `$` を含みうるので、quoted heredoc（またはファイル書き込みツール）でファイルに書き、`--body-file` で渡す:
+
 ```bash
-gh pr comment <番号> --repo <owner>/<repo> --body "<判断と根拠>"
+body_file=$(mktemp)
+cat > "$body_file" <<'EOF'
+<判断と根拠>
+EOF
+gh pr comment <番号> --repo <owner>/<repo> --body-file "$body_file"
+rc=$?
+rm -f "$body_file"
+(exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
 ```
 
 - マージする場合: 何を確認し、なぜ安全と判断したか（例: `>=1.0` のパッチで changelog にバグ修正のみ）。

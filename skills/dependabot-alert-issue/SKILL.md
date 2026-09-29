@@ -242,9 +242,14 @@ gh pr list    --repo <owner>/<repo> --state open --limit 200 --json number,title
 
 ```bash
 tmp=$(mktemp)
-printf '%s' "<本文>" > "$tmp"
+# 本文はバッククォートや $ を含みうるので、二重引用符ではなく quoted heredoc で書く
+cat > "$tmp" <<'EOF'
+<本文>
+EOF
 gh issue create --repo <owner>/<repo> --title "<severity を含むタイトル>" --body-file "$tmp" --label "<ラベル>"
+rc=$?
 rm -f "$tmp"
+(exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
 ```
 
 - `--body` に長文を直接入れると改行・特殊文字で崩れるため `--body-file` を使う。

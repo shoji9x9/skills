@@ -5,8 +5,9 @@
 # benchmarks (see docs/skill-development.md "回帰テストを実行する").
 #
 # WHY a launcher-fixed cwd instead of telling an agent to `cd /tmp`:
-#   A coding agent's Bash tool does NOT persist `cd` across separate tool calls
-#   (the shell cwd resets to the project root each call), and relative-path file
+#   A coding agent's Bash tool cannot be relied on to persist `cd` across separate
+#   tool calls (the cwd may persist within a turn, but resets at turn boundaries or
+#   after leaving the project), and relative-path file
 #   ops resolve against the agent's base dir. So instructing a subagent to "work
 #   in /tmp" lets the skill's relative-path steps (`mkdir .agents/...`, `ln -s`)
 #   land in THIS repo. Here the cwd is fixed by the launcher within a single
@@ -32,7 +33,7 @@
 # installation is not enough — a vendor CLI can read this repo's skill sources and
 # then satisfy skill-specific assertions, which silently voids the measured
 # Delta. That happened 5 times, and every time it was fixed by hand-building the
-# same wrapper (.kaizen/2026-07-28-eval-baseline-read-contamination.md). So the
+# same wrapper (.kaizen/archive/2026-07-28-eval-baseline-read-contamination.md). So the
 # harness, not the operator, owns it: baselines run inside scripts/eval-sandbox.sh
 # by default, unisolated baselines are serialized against with_skill runs, and
 # every baseline run gets a contamination verdict.

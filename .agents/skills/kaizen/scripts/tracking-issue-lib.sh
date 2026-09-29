@@ -4,7 +4,7 @@
 # 正本はこの 1 ファイル。`.github/workflows/kaizen-schedule.yml`（＝配布テンプレート
 # `skills/kaizen/assets/kaizen-schedule.yml` のバイト単位の複製）と
 # `.github/workflows/outdated.yml` の両方がこれを source する。以前は同じ約 100 行が
-# 両ワークフローへ展開されており、片方だけ直る余地があった（Issue #420）。
+# 両ワークフローへ展開されており、片方だけ直る余地があった。
 #
 # **正本をスキル内に置くのは配布物だから**（`.agents/rules/distributed-skill-bundle-artifacts.md`）。
 # composite action へ括り出すと、下流リポジトリが本リポへの外部参照と SHA pin 更新を負い、

@@ -67,7 +67,7 @@ issue-batch run <Issue URL | 番号>... \
 - PR 収束上限: setup 値。初期候補は 5
 - CI 待機: setup 値。初期候補は false（CI とレビューを並行）
 - BLOCKED 後の続行: setup 値。初期候補は true。`--stop-on-blocked` で当該 run だけ停止側へ上書き
-- merge mode: setup 値。初期候補は `auto`（現行踏襲）。`--merge-mode` で当該 run だけ上書き
+- merge mode: setup 値。初期候補は `auto`。`--merge-mode` で当該 run だけ上書き
 - merge 準備完了の待機上限: setup 値（`merge_ready_timeout_minutes`）。`agent` mode でだけ使い、CLI override は無い。`agent` で解決したのに設定に無ければ推測せず停止する
 - deployment 修正上限: `--max-deployment-fix-iterations` があれば当該 run だけ上書き
 
@@ -83,7 +83,7 @@ BLOCKED / FAILED が Issue の隔離 worktree 内に閉じる場合、既定方�
 - merge / close / deployment の全条件が成立する前に branch を削除しない。glob ではなく検証済みの完全一致 ref だけを扱う。
 - dirty / BLOCKED worktree は削除しない。絶対パスと残作業を最終報告へ残す。
 - ユーザー確認が必要なレビュー・仕様判断を「無人実行」で迂回しない。結果を捏造せず BLOCKED とする。
-- `kaizen extract --current --record-pending` が current transcript を同定できない agent では候補ゼロを検証できない。現状の Copilot はこの条件に該当するため、run の変更前に BLOCKED とし、検出能力を捏造して続行しない。
+- `kaizen extract --current --record-pending` が current transcript を同定できない agent では候補ゼロを検証できない。transcript を提供しない agent（例: Copilot）はこの条件に該当するため、run の変更前に BLOCKED とし、検出能力を捏造して続行しない。
 
 ## 最終報告
 

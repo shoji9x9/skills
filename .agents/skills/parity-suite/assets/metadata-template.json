@@ -117,7 +117,7 @@
       "user_agent": "<撮影したページで読んだ navigator.userAgent>"
     },
     "display_axes": {
-      "_note": "表示を切り替える軸（ロケール・配色テーマ等。Issue #489）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の穴として数える。正本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
+      "_note": "表示を切り替える軸（ロケール・配色テーマ等）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の穴として数える。正本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
       "axes": [
         {
           "name": "<軸の名前（例: locale）。variants / pairs から指す。| # = , と予約語 viewport は使えない>",
@@ -291,7 +291,7 @@
       "reason": "<status が not_measured / not_required のときだけ理由。measured では null>"
     },
     "overflow": {
-      "_note": "スクロールバーが場所を取る窓での縦・横のはみ出し（Issue #449）。feature モードではキーごと省略しない。スクロールバーが隠れていると 100vh と height: 100% の差が 0 になり、頁の高さの決め方の違いが 3 経路のどれにも写らないため、scrollbars: shown の窓で測る。記録は overflow/ の測定スペックが現側で書き、同じスペックが通常実行でこの記録を期待値として現・新の両側に当てる（手で転記しない）。検査は parity-suite の scripts/capture-scope-check.mjs。正本は parity-suite の references/baseline.md「スクロールバーが場所を取る窓のはみ出し」。",
+      "_note": "スクロールバーが場所を取る窓での縦・横のはみ出し。feature モードではキーごと省略しない。スクロールバーが隠れていると 100vh と height: 100% の差が 0 になり、頁の高さの決め方の違いが 3 経路のどれにも写らないため、scrollbars: shown の窓で測る。記録は overflow/ の測定スペックが現側で書き、同じスペックが通常実行でこの記録を期待値として現・新の両側に当てる（手で転記しない）。検査は parity-suite の scripts/capture-scope-check.mjs。正本は parity-suite の references/baseline.md「スクロールバーが場所を取る窓のはみ出し」。",
       "status": "<measured | not_measured>",
       "scrollbars": "<測った窓でのスクロールバーの扱い。measured では shown だけを受ける>",
       "spec": "<この記録を期待値として現・新の両側に当てるスペックのパス（例: <parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts）>",

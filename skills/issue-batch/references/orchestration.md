@@ -32,9 +32,9 @@ branch や設定を変更する前に次を全件分完了する。
 2. current repository と全 Issue の owner/repo が一致することを確認する。新規着手は Issue が OPEN の場合だけ許可する。
    再開時は一意な linked PR が MERGED で、Issue がその merge により CLOSED、残作業が deployment / cleanup に限られることを実状態から確認できれば CLOSED を受理する。それ以外の CLOSED Issue は SKIPPED または BLOCKED。本文と全コメントを取得し、最新の決定を優先する。
 3. 規約文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、agent 固有のローカルレビュー機能と Kaizen の current transcript を解決する。remote AI reviewer はここで固定せず pr-finalize-loop の解決規則へ委譲する。
-   `--record-pending` が transcript を同定できない agent は候補ゼロを検証できないため変更前に BLOCKED。現状の Copilot はこの経路を使えない。
+   `--record-pending` が transcript を同定できない agent は候補ゼロを検証できないため変更前に BLOCKED。transcript を提供しない agent（例: Copilot）はこの経路を使えない。
 4. local / remote branch、open / closed PR、worktree を列挙する。再開対象が一意なら再利用し、複数候補なら全体を停止する。
-5. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら v1 の対象外として開始前に停止する。
+5. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら対象外として開始前に停止する。
 6. browser-test が必要になり得る場合、環境を先に解決する。`auth: user`、未設定環境、ログイン待ち、禁止操作解除、課金・通知・CUD の承認が必要なら BLOCKED にする。
 7. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
    auto-merge 権限と repository の許可（`gh api repos/{owner}/{repo} --jq .allow_auto_merge`。

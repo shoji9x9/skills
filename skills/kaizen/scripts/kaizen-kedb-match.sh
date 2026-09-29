@@ -25,7 +25,7 @@ else
 fi
 # `.kaizen/` は**いま作業している作業ツリー**基準で解決する（他の kaizen スクリプトと統一）。
 # $CLAUDE_PROJECT_DIR を最優先にすると、git worktree で作業しているときにコミット対象と
-# 別の `.kaizen/` を見てしまう（Issue #218）。
+# 別の `.kaizen/` を見てしまう。
 if declare -f kaizen_resolve_project_root >/dev/null 2>&1; then
 	project_root=$(kaizen_resolve_project_root "")
 else

@@ -12,7 +12,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [issue-create](./skills/issue-create/) | 短い説明から GitHub Issue を作成。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票 |
 | [issue-start](./skills/issue-start/) | GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化 |
 | [git-worktree](./skills/git-worktree/) | git worktree による作業隔離の機構。渡された branch に worktree を用意してセッションをそこへ移し（作るだけでは subagent・fork・background Bash が共有ツリーで動くため隔離にならない）、`.gitignore` 対象ファイルの運搬、検査ツールからの除外、clean 確認付きの後片付けまでを標準化。branch 作成と Issue との紐付けは呼び出し側（issue-start / issue-batch 等）に委ねる。`setup` / `enter` / `cleanup` の 3 モード |
-| [issue-batch](./skills/issue-batch/) | 複数 Issue を 1 件ずつ隔離 worktree・独立 branch / PR で連続処理し、実装、レビュー、検証、PR 収束、自動 merge、Issue close、deployment、branch cleanup まで追跡。初回は `setup` で無人実行ポリシーを確定 |
+| [issue-batch](./skills/issue-batch/) | 複数 Issue を 1 件ずつ隔離 worktree・独立 branch / PR で連続処理し、実装、レビュー、検証、PR 収束、merge（GitHub の auto-merge／エージェントが実測して merge、を選択）、Issue close、deployment、branch cleanup まで追跡。初回は `setup` で無人実行ポリシーとマージ方式を確定 |
 | [pr-review-handle](./skills/pr-review-handle/) | PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決。`--push` で commit・push・CI 確認後の再レビュー依頼（依頼先は `review_tool` で選択: Copilot/Claude Code/Codex/none）まで |
 | [dependabot-merge](./skills/dependabot-merge/) | Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化。PR 単体または `--all` で open な全 PR を処理（0.x や自動マージ未設定リポジトリ向け） |
 | [dependabot-alert-issue](./skills/dependabot-alert-issue/) | Dependabot alerts を確認し解消 Issue を作成。着手可否で分類し severity・パッケージ単位でグルーピング、着手不能なものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定可 |
@@ -25,7 +25,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへ写像・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
 | [parity-component](./skills/parity-component/) | replace-strategy の姉妹スキル。共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出す。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に部品を作らない方針なら使わない（機能ごとに parity-replace が作る） |
 | [parity-suite](./skills/parity-suite/) | replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入で強度を検証。論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay・視覚ベースラインとノイズ基準値の採取まで。1 回の実行で 1 機能。replace-strategy setup / golden-dataset 未完了・Playwright 不可なら停止 |
-| [parity-replace](./skills/parity-replace/) | replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、スイートが新に対して green ＋ 静的解析で完了（差分ゼロは parity-diff との往復の終了条件）。1 回で 1 機能。前提未完了なら停止 |
+| [parity-replace](./skills/parity-replace/) | replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、スイートが新に対して green ＋ 検証コマンド ＋ Issue の受け入れ条件の照合で完了（差分ゼロは parity-diff との往復の終了条件）。1 回で 1 機能。前提未完了なら停止 |
 | [parity-diff](./skills/parity-diff/) | replace-strategy の姉妹スキル。現行と新側の差分を検出・分類する。検出は決定論的ツール（画素・特性照合・aria の 3 経路）が行い、LLM は分類（要対応／許容／環境ノイズ）のみを行う。1 回の実行で 1 機能。前提（replace-strategy setup / golden-dataset / 対象 slug の parity-suite 完了・parity-replace の新側 green）未完了なら停止 |
 
 ## 前提条件
@@ -84,7 +84,9 @@ skills:
     merge_method: squash # squash | merge | rebase
   issue-batch:
     # issue-batch setup が repository の許可方式と実測 workflow から対話的に確定する
+    merge_mode: auto # auto | agent
     merge_method: squash
+    # merge_ready_timeout_minutes: 10 # merge_mode: agent のとき必須
     max_local_review_iterations: 1
     max_pr_iterations: 5
     wait_ci_before_review: false

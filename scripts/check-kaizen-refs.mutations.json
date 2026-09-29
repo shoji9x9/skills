@@ -1,0 +1,446 @@
+{
+  "$comment": [
+    "check-kaizen-refs.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/check-kaizen-refs.test.js",
+  "mutations": [
+    {
+      "id": "KR-EXCLUDE-NONE",
+      "why": "リンク・テスト結果・学び自身などの除外を効かせない（二重報告・学び同士の参照で赤くなる。走査件数も変わる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  !EXCLUDED_PREFIXES.some((p) => path.startsWith(p)) &&",
+      "replace": "  true &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "除外（.claude/x.md）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（tests/x/benchmark.json）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（.kaizen/2026-09-03-other.md）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（node_modules/pkg/README.md）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、切れた参照は exit 1、無ければ exit 0",
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
+      ]
+    },
+    {
+      "id": "KR-EVAL-INPUT-NONE",
+      "why": "eval の入力（prompt に書いた仮のパス）を除外しない（実リポジトリの evals/kaizen/evals.json の仮パスで赤くなる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  !EVAL_INPUT_RE.test(path);",
+      "replace": "  true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "除外（evals/x/evals.json）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（evals/x/fixtures/docs/a.md）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+      ]
+    },
+    {
+      "id": "KR-EVAL-ALL",
+      "why": "eval 配下を丸ごと除外する（eval の文書の切れた参照を見落とす）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const EVAL_INPUT_RE = /^evals\\/[^/]+\\/(?:evals\\.json$|fixtures\\/)/;",
+      "replace": "const EVAL_INPUT_RE = /^evals\\//;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: eval の文書（README.md）の切れた参照は拾う（除外は eval の入力だけ）"
+      ]
+    },
+    {
+      "id": "KR-EXEMPTIONS-FILE-SCANNED",
+      "why": "免除の宣言ファイル自身を走査する（免除した参照がそこで切れた参照として報告される）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  path !== EXEMPTIONS_PATH &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 免除の宣言ファイルに書いた参照は、実在しなくても通す",
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+      ]
+    },
+    {
+      "id": "KR-TEXT-ONLY",
+      "why": "テキスト拡張子以外も読む",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  isTextPath(path) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陰性: テキスト拡張子でないファイルは読まない"]
+    },
+    {
+      "id": "KR-DELETED",
+      "why": "作業ツリーで消した追跡ファイルも読みに行く（ENOENT で赤くなる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "      isScanned(f, distributed) &&\n      existsSync(join(root, f)) &&\n",
+      "replace": "      isScanned(f, distributed) &&\n",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 作業ツリーで消した追跡ファイルは読まない（ENOENT で赤くしない）"]
+    },
+    {
+      "id": "KR-LEAD",
+      "why": "参照の前の境界を見ない（`foo.kaizen/…` を参照として拾う）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const LEAD = \"(?<![A-Za-z0-9_.-])\";",
+      "replace": "const LEAD = \"\";",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 前が単語文字の `foo.kaizen/…` は参照ではない"]
+    },
+    {
+      "id": "KR-TAIL",
+      "why": "`.md` の後ろに続くパス（`.md.bak` `.mdx` 等）を見ず、`.md` までを参照として拾う（実在する学びを指せば合格になる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    if (tail) malformed.push",
+      "replace": "    if (false) malformed.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`.md/subpath`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`/` で終わる `.md/`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（archive/ 配下の `.md/x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（折り返しの後の `.md/sub`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-REPORT",
+      "why": "形の崩れた参照を検出しても違反として報告しない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "of found.malformed) {",
+      "replace": "of []) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`.md/subpath`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`/` で終わる `.md/`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（archive/ 配下の `.md/x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（折り返しの後の `.md/sub`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-DOT",
+      "why": "`.` の後ろに続くパス（`.md.bak` `.md.gz`）を続きと見なさない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": ")*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-DOT-ANY",
+      "why": "文末の `.` までパスの続きと見なす（`.md.` で終わる文を落とす）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": "|\\.)*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: `.md` の後ろが参照の終わり（文末の `.`）なら参照として数える",
+        "陰性: `.md` の後ろが参照の終わり（文末の `.` の直後が行末）なら参照として数える",
+        "陰性: `.md` の後ろが参照の終わり（折り返しの後の文末の `.`）なら参照として数える",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-HYPHEN",
+      "why": "`-` をパスの続きと見なさない（`.md-old` を通す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_-]|",
+      "replace": "const PATH_TAIL_RE = /^(?:[A-Za-z0-9_]|",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-SLASH",
+      "why": "`/` をパスの続きと見なさない（`.md/subpath` `.md/` を `.md` までの参照として通す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\/|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": "|\\.(?=[A-Za-z0-9_]))*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろに `/` が続く（`.md/subpath`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`/` で終わる `.md/`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（archive/ 配下の `.md/x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（折り返しの後の `.md/sub`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-HASH",
+      "why": "URL のアンカー `#` までパスの続きと見なす（指すファイルが変わらない `.md#L10` を落とす）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "|\\/|\\.(?=[A-Za-z0-9_]))*/;",
+      "replace": "|[/#]|\\.(?=[A-Za-z0-9_]))*/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: `.md` の後ろが `/` でない（URL のアンカー `.md#L10`）参照は通す",
+        "陰性: `.md` の後ろが `/` でない（折り返しの後のアンカー）参照は通す"
+      ]
+    },
+    {
+      "id": "KR-TAIL-ONE-LINE",
+      "why": "1 行の参照で `.md` の後ろを見ない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "take(m[0], line.slice(m.index + m[0].length), ",
+      "replace": "take(m[0], \"\", ",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（`.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md-old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md_x`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.gz`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.1`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（archive/ 配下の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（`.md.bak.old`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`.md/subpath`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（`/` で終わる `.md/`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（archive/ 配下の `.md/x`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-TAIL-WRAPPED",
+      "why": "折り返した参照をつないだ後に `.md` の後ろを見ない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "take(joined, lines[i + 1].slice(next[0].length), ",
+      "replace": "take(joined, \"\", ",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろに `/` が続く（折り返しの後の `.md/sub`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-WRAP-JOIN",
+      "why": "折り返した参照をつながない（切れた参照を見落とす・正しい折り返しを判定不能にする）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    if (joined && FULL_RE.test(joined)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 折り返した参照（JS コメント）をつないで実在を確かめ、1 件と数える",
+        "陰性: 折り返した参照（シェルのコメント）をつないで実在を確かめ、1 件と数える",
+        "陰性: 折り返した参照（Markdown の本文）をつないで実在を確かめ、1 件と数える",
+        "陽性（実データ）: archive/ へ移した学びを指したままの折り返し参照を落とす",
+        "陽性: 日付の途中で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陽性: `.kaizen/archive/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える",
+        "陰性: `.md` の後ろが参照の終わり（折り返しの後の文末の `.`）なら参照として数える",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.md.bak`）参照は形が崩れているとして落とす",
+        "陽性: `.md` の後ろにパスが続く（折り返しの後の `.mdx`）参照は形が崩れているとして落とす",
+        "陰性: `.md` の後ろが `/` でない（折り返しの後のアンカー）参照は通す",
+        "陽性: `.md` の後ろに `/` が続く（折り返しの後の `.md/sub`）参照は形が崩れているとして落とす"
+      ]
+    },
+    {
+      "id": "KR-WRAP-BROKEN",
+      "why": "つないでも参照にならない折り返しを黙って捨てる",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    else broken.push({ fragment: cut[1], line: i + 1 });",
+      "replace": "    else void cut;",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 次行とつないでも参照の形にならない折り返しは判定不能として落とす"]
+    },
+    {
+      "id": "KR-WRAP-DIR",
+      "why": "名前を持たない切れ目（行末の .kaizen/ ・ .kaizen/archive/）をディレクトリへの言及として通さず、判定不能で落とす",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    } else if (DIR_ONLY_RE.test(cut[1])) return;",
+      "replace": "    } else if (false) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 行末の `.kaizen/` `.kaizen/archive/` は次行とつないで参照にならなければディレクトリへの言及として通す"
+      ]
+    },
+    {
+      "id": "KR-EXISTS",
+      "why": "参照先の実在を確かめない（後段の未追跡判定が拾うので、文言まで見るテストだけが落ちる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "      if (!existsSync(join(root, ref))) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性（実データ）: archive/ へ移した学びを指したままの折り返し参照を落とす",
+        "陽性: 直下の学びへの 1 行の参照が実在しなければ落とす",
+        "陽性: archive/ 配下の参照も実在しなければ落とす",
+        "陽性: 日付の途中で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陽性: `.kaizen/archive/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陽性: `.kaizen/` の直後で折り返した参照もつないで実在を確かめ、切れていれば落とす",
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える",
+        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の正本（rule の正本）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-TRACKED",
+      "why": "参照先が追跡されているかを確かめない（手元にだけ在る学びを通す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "      } else if (!trackedSet.has(ref)) {",
+      "replace": "      } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 作業ツリーにだけ在る未追跡の学びへの参照は落とす（CI には存在しない）"
+      ]
+    },
+    {
+      "id": "KR-UNUSED-EXEMPTION",
+      "why": "使われていない免除を報告しない",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    if (!usedExemptions.has(e)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 使われていない免除を落とす（残った免除が後の本物の参照を素通りさせる）"
+      ]
+    },
+    {
+      "id": "KR-EXEMPTION-REASON",
+      "why": "理由の無い免除を通す",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "    if (!e.reason?.trim()) violations.push",
+      "replace": "    if (false) violations.push",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 理由の無い免除を落とす"]
+    },
+    {
+      "id": "KR-EXEMPTION-SHAPE",
+      "why": "形の崩れた免除の宣言を受理する",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  if (!Array.isArray(list) || !list.every(ok)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["免除の宣言が読めない（reason が欠落）なら exit 2（免除 0 件に倒さない）"]
+    },
+    {
+      "id": "KR-ZERO",
+      "why": "ファイル 0 件・参照 0 件を成功に倒す",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  if (files.length === 0 || refs === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["参照 0 件は成功に倒さず exit 1"]
+    },
+    {
+      "id": "KR-SELF",
+      "why": "この検査自身のテスト・変異宣言（切れた参照の fixture）を走査する",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  !SELF_FIXTURES.includes(path) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "除外（scripts/check-kaizen-refs.test.js）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "除外（scripts/check-kaizen-refs.mutations.json）の切れた参照は見ないが、外に同じものがあれば落とす",
+        "陰性: 実リポジトリの参照が違反 0 件で、参照を 1 件以上数える"
+      ]
+    },
+    {
+      "id": "KR-OTHERS",
+      "why": "未追跡のファイルを走査しない（add 前の新規ファイルを手元で見落とす）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const listed = [...tracked, ...gitFiles(root, \"--others\", \"--exclude-standard\")];",
+      "replace": "const listed = [...tracked];",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ignore されていない未追跡の参照元も走査する（add 前の新規ファイルを見落とさない）"
+      ]
+    },
+    {
+      "id": "KR-EXCLUDE-STANDARD",
+      "why": "gitignore を効かせない（手元の生成物で CI と食い違って赤くなる）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "gitFiles(root, \"--others\", \"--exclude-standard\")",
+      "replace": "gitFiles(root, \"--others\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: gitignore された参照元は走査しない（手元の生成物で CI と食い違わない）"
+      ]
+    },
+    {
+      "id": "KR-INSTALLED-NONE",
+      "why": "配布スキルのインストール済みコピーを除外しない（正本と二重に報告する）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  !isInstalledCopy(path, distributed) &&\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "除外（.agents/skills/x/SKILL.md）の切れた参照は見ないが、外に同じものがあれば落とす"
+      ]
+    },
+    {
+      "id": "KR-INSTALLED-ALL",
+      "why": ".agents/skills/ を丸ごと除外する（skills/ に正本の無い private skill の参照を見逃す）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "  return Boolean(m) && distributed.has(m[1]);",
+      "replace": "  return Boolean(m);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（private skill（skills/ に正本が無い））の切れた参照は落とす",
+        "陽性: .agents/ の正本（private skill のスクリプト）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす",
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-AGENTS-NAME-PREFIX",
+      "why": ".agents/skills/ 側の名前を前方一致で取る（xy を x のコピーと読む）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+)\\//;",
+      "replace": "const AGENTS_SKILL_RE = /^\\.agents\\/skills\\/([^/]+?)/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（配布スキル x の名前で始まる private skill xy）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-SKILLS-NAME-PREFIX",
+      "why": "skills/ 側の名前を前方一致で取る（skills/xy/ を x の正本と読む）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "const SKILL_RE = /^skills\\/([^/]+)\\//;",
+      "replace": "const SKILL_RE = /^skills\\/([^/]+?)/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: .agents/ の正本（配布スキル xy の名前を前方に含む private skill x）の切れた参照は落とす"
+      ]
+    },
+    {
+      "id": "KR-SYMLINK",
+      "why": "シンボリックリンクを辿って読む（.github/instructions → .agents/rules の本文を二重に数える）",
+      "file": "scripts/check-kaizen-refs.js",
+      "find": "      existsSync(join(root, f)) &&\n      !lstatSync(join(root, f)).isSymbolicLink(),",
+      "replace": "      existsSync(join(root, f)),",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: rule へのシンボリックリンク（.github/instructions）は辿らず、正本の参照を 1 回だけ数える"
+      ]
+    }
+  ]
+}

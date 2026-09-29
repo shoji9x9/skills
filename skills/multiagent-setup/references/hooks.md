@@ -2,21 +2,22 @@
 
 ## エージェント別設定ファイル
 
-| エージェント | 設定ファイル | 対応イベント |
+| エージェント | 設定ファイル | イベントの例 |
 |------------|------------|------------|
-| Claude Code | `.claude/settings.json` の `hooks` セクション | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, StopFailure, Notification, SubagentStop |
-| Codex | `.codex/hooks.json` または `.codex/config.toml` の `[hooks]` テーブル | SessionStart, PreToolUse, PostToolUse, PermissionRequest, UserPromptSubmit, Stop |
-| Copilot | `.github/hooks/*.json`（ファイル名は任意） | preToolUse, sessionStart, sessionEnd, postToolUse, errorOccurred |
+| Claude Code | `.claude/settings.json` の `hooks` セクション | SessionStart, PreToolUse, PostToolUse, Stop |
+| Codex | `.codex/hooks.json` または `.codex/config.toml` の `[hooks]` テーブル | SessionStart, PreToolUse, PostToolUse, Stop |
+| Copilot | `.github/hooks/*.json`（ファイル名は任意） | sessionStart, preToolUse, postToolUse, sessionEnd |
 
-各エージェントのフックは stdin で JSON を受け取り、stdout への JSON 出力で動作を制御できる。最新の設定フォーマットは各エージェントの公式ドキュメントを確認すること:
+イベントの全一覧・入力 JSON・exit code の意味はエージェントごとに違い、版で増える。上の列は例なので、使うイベントは各エージェントの公式リファレンスで確かめる:
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/hooks)
-- [Codex](https://developers.openai.com/codex/hooks)
-- [GitHub Copilot](https://docs.github.com/en/copilot/concepts/agents/hooks)
+- [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)
+- [Codex Hooks](https://learn.chatgpt.com/docs/hooks)
+- [GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)
 
 ## フックスクリプトの配置
 
-Hook スクリプトは `.agents/hooks/scripts/` に配置し、各エージェントの設定ファイルからそのパスを参照する。これにより複数エージェントで同じスクリプトを共有できる。
+- **スキル同梱の Hook**（`kaizen` / `git-worktree` 等）は、スキルに同梱されたスクリプトを各エージェントの設定ファイルから直接参照する。配線先と手順は各スキルのセットアップ手順に従い、`.agents/hooks/scripts/` へ複製しない（複製するとスキル更新に追随しない）。
+- **プロジェクト固有の Hook** は `.agents/hooks/scripts/` に配置し、各エージェントの設定ファイルからそのパスを参照する。これにより複数エージェントで同じスクリプトを共有できる。
 
 ```text
 .agents/hooks/scripts/

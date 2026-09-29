@@ -35,11 +35,11 @@
 | 構造（aria） | role・構造の欠落 | DOM 摂動（`page.evaluate`） | 手書き assertion ＋ aria 比較（摂動後に aria を再取得し**ベースライン相手に**構造比較） |
 | 静的ラベル・placeholder・role | 文言・placeholder の改変 | **DOM 摂動**（`page.evaluate`。上流で届かない静的マークアップ用の第二経路） | 手書き assertion |
 | 要素スタイル（色・余白・フォント・罫線） | 色・余白等の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag` / CSS 応答摂動）して撮り直す | 差分器を**ベースライン相手に**回す（新側不要） |
-| 文字の持ち主のスタイル（名前を付けた要素の子孫が文字を持つ） | 文字を持つ子孫だけの `font-family` / `font-size` の改変 | **スタイル注入**（`addStyleTag` で文字を持つ子孫の要素にだけ当てる。名前を付けた要素自身には当てない） | 特性照合の `kind: "text"`（**要素自身の計算値は変わらない**ので、ここが赤くならなければ `text_owners` が採れていないか照合されていない。Issue #459） |
+| 文字の持ち主のスタイル（名前を付けた要素の子孫が文字を持つ） | 文字を持つ子孫だけの `font-family` / `font-size` の改変 | **スタイル注入**（`addStyleTag` で文字を持つ子孫の要素にだけ当てる。名前を付けた要素自身には当てない） | 特性照合の `kind: "text"`（**要素自身の計算値は変わらない**ので、ここが赤くならなければ `text_owners` が採れていないか照合されていない） |
 | 操作時の手応え（静止画に写らないスタイル） | `cursor` / `user-select` / `pointer-events` の改変 | **スタイル注入**（`page.evaluate` / `addStyleTag`）して採り直す | **特性照合が必須経路**（ここが赤くならなければ固定プロパティ集合から漏れている）。画素は写らないのが原則だが、`pointer-events` の改変が hover 対象を変えて `:hover` のスタイル差として間接的に写ることはある——**画素が緑であることを合格条件にしない** |
 | ドキュメントレベル要素 | `title` / favicon / `meta` / `html[lang]` の改変 | DOM 摂動（`page.evaluate` で `document.title` や `link[rel~="icon"]` の `href` を書き換え） | 手書き assertion（**画素・特性照合・aria のどれにも写らない**ため、この経路しか無い） |
 | 頁の高さの決め方（最小幅を持つ頁） | `html`・`body`・器の `height: 100%` を `min-height: 100vh` に置き換える | **スタイル注入**（`overflow/` のスペックを `PARITY_OVERFLOW_FAULT_CSS` 付きで `current` に回す。例: `html, body { height: auto !important; min-height: 100vh !important; }`） | `overflow/` の手書き assertion（**スクロールバーを隠した画素・特性照合・aria には写らない**。最小幅を持つ頁が無い機能では対象外として `strength.md` に書く） |
-| 器のスクロールバー（内部スクロール器） | 器の `overflow-x` を `hidden` にする（横のバーを出さず右端を切る）・`scrollbar-width: none` を当てる | **スタイル注入**（`addStyleTag` で器にだけ当てて採り直す） | 特性照合の `kind: "scroll"`（`scroll/horizontal_bar_px` / `scroll/scrollbar-width` 等）。**`scrollbars: shown` で採ったときだけ赤になる**——`hidden` ではバーの厚みが両側 0 に揃うので、`hidden` で撮った成果物では「未検証の故障種別」に残す（Issue #495） |
+| 器のスクロールバー（内部スクロール器） | 器の `overflow-x` を `hidden` にする（横のバーを出さず右端を切る）・`scrollbar-width: none` を当てる | **スタイル注入**（`addStyleTag` で器にだけ当てて採り直す） | 特性照合の `kind: "scroll"`（`scroll/horizontal_bar_px` / `scroll/scrollbar-width` 等）。**`scrollbars: shown` で採ったときだけ赤になる**——`hidden` ではバーの厚みが両側 0 に揃うので、`hidden` で撮った成果物では「未検証の故障種別」に残す |
 | 機能の在否（畳まれた器） | 機能の器を高さ 0 にする・`hidden` にする・操作を結び付けない | **スタイル注入**（`addStyleTag` で器に `height: 0 !important; overflow: hidden !important` 等）か DOM 摂動 | 手書き assertion（**在否を「器と文言がある」だけで確かめる観点は素通りする**——素通りしたら観点を直す。[`coverage.md`](coverage.md)「機能の在否は「器と文言がある」で確かめない」） |
 | 操作で変わる頁の組み方 | 操作のたびに器の高さを書き直す処理が効かない | **スタイル注入**（反応の被覆表で `layout.changes: true` の操作の器に、操作の前の寸法を `!important` で固定する） | `layout.covered_by` の手書き assertion（**寸法の式・画素・特性照合は初期表示しか見ないので写らない**。`changes: true` の操作が無い機能では対象外として `strength.md` に書く） |
 | 押した後に残るもの | 選択の塗りを全列に付ける・絞り込み中の見出しの色を消す・押した後に塗りや焦点の輪を残す・ロゴを押しても遷移しない・Clear が検索条件だけを戻す | **スタイル注入**と **DOM 摂動**を、`aftermath.look.items` の行ごとに `observed`（現行で測った値）から**失敗する向き**を選んで当てる（全行に同じ注入をしない——押す前のスタイルで固定しても「付かない」と測った行〈塗りが付かない列〉は変わらず、文言・属性の印〈複数列の並べ替えの順位・向き〉はスタイルでは変わらない）。付く見た目は押す前の計算後スタイルを `!important` で固定し、付かないと測った見た目は塗り・輪郭を足し、文言・属性の印は `page.evaluate` で書き換える。`changes: false` の操作は `look.targets` の論理名に押した後だけ残る塗り・輪郭を足す。戻り先は **DOM 摂動**（遷移・状態を戻す処理を結び付けない。例: `page.evaluate` でロゴのリンクの `href` を現在の URL にする） | `aftermath` の `covered_by` と撮る状態（**途中の撮影状態と出て消える反応は、終えた後の見た目と戻り先を見ない**。`changes: false` の不在の assertion も注入で赤くなることを確かめる——空振りの assertion は現・新の両側で緑になる。操作を持たない機能だけ対象外として `strength.md` に書く） |
@@ -52,7 +52,7 @@
   **画素が拾えるのは静止画に写るものだけ**なので、写らないスタイルを特性照合の固定プロパティ集合から外すと**どちらの経路にも現れない**（正本と理由は [`../scripts/trait-capture.mjs`](../scripts/trait-capture.mjs) の `FIXED_PROPERTIES`）。
   aria 比較＝取得済み aria スナップショット（参考資料）のベースラインとの構造比較で、`parity-diff` の第 3 経路（テーブル/フォームの内容パリティ）に相当する
 - **両方を素通りした故障が一式の弱点**——強化するか、`gaps.md` に記録する（確認済みにしない）
-- **待ちの欠落は、単なる低速化や固定 sleep では注入しない。** 初期応答時点では対象要素または期待値が存在せず、通常の expect タイムアウト内で後から現れる状態を作る。無注入と遅延注入を同じ assertion で green にし、`page.$`、`locator.all()`、即時の値読み取りへ判定行を変異させると赤になることを確認する。これにより「採った状態の値を壊す」従来の故障だけでは測れない、クライアント描画を待てるかを検証する
+- **待ちの欠落は、単なる低速化や固定 sleep では注入しない。** 初期応答時点では対象要素または期待値が存在せず、通常の expect タイムアウト内で後から現れる状態を作る。無注入と遅延注入を同じ assertion で green にし、`page.$`、`locator.all()`、即時の値読み取りへ判定行を変異させると赤になることを確認する。これにより「採った状態の値を壊す」故障だけでは測れない、クライアント描画を待てるかを検証する
 
 ### 「上流」は API とは限らない
 

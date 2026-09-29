@@ -180,7 +180,7 @@
     }
   ],
   "visual_state_coverage": {
-    "_note": "撮影状態の必要集合を被覆表から導いた結果。行の単位は「部品 × インスタンス × 要求元の候補 × 種別」（同値クラスに属する候補は代表へ寄る）。captured の値も同じ撮影単位の中で一意にする（重複は shared_capture_reason が全行にあるときだけ通る）。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は従来どおり手で states へ足す。部品に依らない操作の後に残る見た目と戻り先は reactions.json の aftermath が数える。",
+    "_note": "撮影状態の必要集合を被覆表から導いた結果。行の単位は「部品 × インスタンス × 要求元の候補 × 種別」（同値クラスに属する候補は代表へ寄る）。captured の値も同じ撮影単位の中で一意にする（重複は shared_capture_reason が全行にあるときだけ通る）。coverage-expand.mjs --write が rows の component / instance / required_by / kind を present のセルと items[].visual_states から導出して書き戻し（手で書かない）、captured / reason は人／エージェントが埋めた値を同じキー（component + instance + required_by + kind）で引き継ぐ。どちらも空の行は「撮影状態が未決」として problems に出る——これが『導いた集合と capture_conditions.states の差』の報告にあたる。--metadata を渡した実行では captured の状態名が metadata.json の capture_conditions.states に在ることまで照合し、kind: opens-container はさらに capture_conditions.popup_inventory[].captured に在ることを要求する。導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は手で states へ足す。部品に依らない操作の後に残る見た目と戻り先は reactions.json の aftermath が数える。",
     "rows": [
       {
         "component": "<部品 id>",

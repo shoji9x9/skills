@@ -1,0 +1,306 @@
+{
+  "$comment": [
+    "check-mutation-count-prose.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/check-mutation-count-prose.test.js",
+  "mutations": [
+    {
+      "id": "MC-NUM-LEAD",
+      "why": "番号（#509）や英数字の直後の数字も件数として取る（PR 番号の後に「変異」が続く文を落とす）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "const NUM_LEAD = \"(?<![#\\\\w.,])\";",
+      "replace": "const NUM_LEAD = \"\";",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 番号の直後の変異（の を挟まない） は落とさない"]
+    },
+    {
+      "id": "MC-ONE",
+      "why": "数が 1 の単位の定義も件数として落とす",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "        if (!isOne(m[1])) hits.push",
+      "replace": "        if (true) hits.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 1 件の変異 / 1 mutation は落とさない",
+        "陰性: 全角の 1 は落とさない",
+        "陰性: 単位の定義（実データ） は落とさない",
+        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件",
+        "陰性: 後置の 1 件（変異 1 件ごと） は落とさない",
+        "陰性: 後置の助詞・読点を挟む形（助詞が・数が 1）は件数として落とさない",
+        "陰性: 後置の助詞・読点を挟む形（読点・数が 1）は件数として落とさない"
+      ]
+    },
+    {
+      "id": "MC-COUNT-PLAIN",
+      "why": "「<数> 変異」の形を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  new RegExp(`${NUM}\\\\s*(?:件の)?変異`, \"g\"),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性（実データ）: 方針で削除する前の AGENTS.md の行を、件数と所要時間の両方で落とす",
+        "陽性: 件数の表記（<数> 変異）を落とす",
+        "陽性: 件数の表記（<数> 件の変異）を落とす",
+        "陽性: 件数の表記（全角数字）を落とす",
+        "陽性: 件数の表記（桁区切り）を落とす",
+        "陽性: 件数の表記（2（1 でない最小））を落とす",
+        "陽性: コードフェンスの中の件数も落とす（出力例に書いた件数も同じく腐る）",
+        "陽性: 対象の場所（AGENTS.md）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（.agents/rules/x.md）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（docs/x.md）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす",
+        "陽性: 対象の場所（.github/workflows/ci.yml）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
+      ]
+    },
+    {
+      "id": "MC-COUNT-KEN",
+      "why": "「<数> 件の変異」の形を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "`${NUM}\\\\s*(?:件の)?変異`",
+      "replace": "`${NUM}\\\\s*変異`",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 件数の表記（<数> 件の変異）を落とす"]
+    },
+    {
+      "id": "MC-COUNT-TRAILING",
+      "why": "「変異 <数> 件」の形を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  new RegExp(`変異\\\\s*(?:[はがもをの]\\\\s*)?(?:、\\\\s*)?${NUM}\\\\s*件`, \"g\"),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 件数の表記（変異 <数> 件）を落とす",
+        "陽性: 後置の助詞・読点を挟む形（助詞は）を件数として落とす",
+        "陽性: 後置の助詞・読点を挟む形（助詞が）を件数として落とす",
+        "陽性: 後置の助詞・読点を挟む形（助詞も）を件数として落とす",
+        "陽性: 後置の助詞・読点を挟む形（読点）を件数として落とす"
+      ]
+    },
+    {
+      "id": "MC-COUNT-PARTICLE",
+      "why": "後置の「変異」と数の間の助詞を許さない（「変異は 42 件」を見逃す）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "(?:[はがもをの]\\\\s*)?",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 後置の助詞・読点を挟む形（助詞は）を件数として落とす",
+        "陽性: 後置の助詞・読点を挟む形（助詞が）を件数として落とす",
+        "陽性: 後置の助詞・読点を挟む形（助詞も）を件数として落とす"
+      ]
+    },
+    {
+      "id": "MC-COUNT-COMMA",
+      "why": "後置の「変異」と数の間の読点を許さない（「変異、42 件」を見逃す）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "(?:、\\\\s*)?",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 後置の助詞・読点を挟む形（読点）を件数として落とす"]
+    },
+    {
+      "id": "MC-COUNT-TRAILING-UNIT",
+      "why": "後置の形で単位「件」を要求しない（「変異は 3 通り」「変異を 2 回」を件数と読む）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "(?:、\\\\s*)?${NUM}\\\\s*件`",
+      "replace": "(?:、\\\\s*)?${NUM}\\\\s*(?:件)?`",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 後置の助詞・読点を挟む形（助詞は・単位が通り）は件数として落とさない",
+        "陰性: 後置の助詞・読点を挟む形（助詞を・単位が回）は件数として落とさない"
+      ]
+    },
+    {
+      "id": "MC-COUNT-NOUN",
+      "why": "「変異数 <数>」の形を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  new RegExp(`変異(?:の総数|の数|数)\\\\s*[:：は]?\\\\s*(?:約\\\\s*)?${NUM}`, \"g\"),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 件数の表記（変異数 <数>）を落とす"]
+    },
+    {
+      "id": "MC-COUNT-EN",
+      "why": "「<数> mutations」の形を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  new RegExp(`${NUM}\\\\s*mutations?\\\\b`, \"gi\"),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 件数の表記（<数> mutations）を落とす"]
+    },
+    {
+      "id": "MC-NFKC",
+      "why": "全角数字を半角に揃えない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "    const line = raw.normalize(\"NFKC\");",
+      "replace": "    const line = raw;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 件数の表記（全角数字）を落とす",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす"
+      ]
+    },
+    {
+      "id": "MC-DURATION",
+      "why": "全件の所要時間を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "line.matchAll(DURATION_RE)",
+      "replace": "[]",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性（実データ）: 方針で削除する前の AGENTS.md の行を、件数と所要時間の両方で落とす",
+        "陽性: 全件の所要時間（秒）を落とす",
+        "陽性: 全件の所要時間（小数の分）を落とす",
+        "陽性: 全件の所要時間（CI の実測）を落とす",
+        "陽性: 全件の所要時間（英語の単位）を落とす",
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす"
+      ]
+    },
+    {
+      "id": "MC-SENTENCE",
+      "why": "所要時間の照合を文の中に限らない（別の文の時間を全件の実測と読む）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "`全件[^。\\\\n]*?${NUM}",
+      "replace": "`全件.*?${NUM}",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 文をまたぐ全件と時間 は落とさない"]
+    },
+    {
+      "id": "MC-UNIT-EN",
+      "why": "英語の時間単位を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "|sec(?:onds?)?\\\\b|min(?:utes?)?\\\\b",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 全件の所要時間（英語の単位）を落とす"]
+    },
+    {
+      "id": "MC-DIRS-NARROW",
+      "why": "docs/ を対象から外す",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "export const TARGET_DIRS = [\".agents/rules\", \"docs\"];",
+      "replace": "export const TARGET_DIRS = [\".agents/rules\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 対象の場所（docs/x.md）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、件数の記述は exit 1、無ければ exit 0"
+      ]
+    },
+    {
+      "id": "MC-DIRS-WIDE",
+      "why": "対象外の skills/ まで見る（skills/parity-suite/references/baseline.md の「全件の 2 回実行…約 35 分」のような変異実証と無関係な全件の時間で赤くなる）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "export const TARGET_DIRS = [\".agents/rules\", \"docs\"];",
+      "replace": "export const TARGET_DIRS = [\".agents/rules\", \"docs\", \"skills\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 対象外（README.md・skills/・.md 以外）の件数は見ない",
+        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件"
+      ]
+    },
+    {
+      "id": "MC-RECURSE",
+      "why": "docs/ の入れ子を辿らない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "    if (e.isDirectory()) out.push(...walkMarkdown(p));",
+      "replace": "    if (e.isDirectory()) void p;",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 対象の場所（docs/sub/y.md）の件数を、ファイルと行を付けて落とす"]
+    },
+    {
+      "id": "MC-MD-ONLY",
+      "why": ".md 以外も読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "    else if (e.name.endsWith(\".md\") && statSync(p).isFile()) out.push(p);",
+      "replace": "    else if (statSync(p).isFile()) out.push(p);",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 対象外（README.md・skills/・.md 以外）の件数は見ない"]
+    },
+    {
+      "id": "MC-ZERO",
+      "why": "対象ファイル 0 件を成功に倒す",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  if (files.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["対象ファイル 0 件は成功に倒さず exit 1"]
+    },
+    {
+      "id": "MC-FRACTION",
+      "why": "「6 分割」「3 分の 2」の「分」を時間として読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "分(?![割の])",
+      "replace": "分",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 全件の分割数（6 分割） は落とさない",
+        "陰性: 全件の中の割合（3 分の 2） は落とさない"
+      ]
+    },
+    {
+      "id": "MC-WORKFLOWS-NONE",
+      "why": "ワークフローを走査しない（ci.yml のコメントに残った件数・所要時間を見逃す）",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "  if (existsSync(wf)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性（実データ）: 実測値を寄せる前の ci.yml のコメントを、件数と所要時間で落とす",
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない",
+        "陽性: 対象の場所（.github/workflows/ci.yml）の件数を、ファイルと行を付けて落とす",
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
+      ]
+    },
+    {
+      "id": "MC-MEASUREMENTS",
+      "why": "実測値の置き場（mutation-proof.yml）まで落とす",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": " && rel !== MEASUREMENTS_FILE) files.push(rel);",
+      "replace": ") files.push(rel);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない",
+        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件"
+      ]
+    },
+    {
+      "id": "MC-YAML-ONLY",
+      "why": "ワークフローのディレクトリの YAML 以外も読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "if (/\\.ya?ml$/.test(e.name) && e.isFile()",
+      "replace": "if (e.isFile()",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
+      ]
+    },
+    {
+      "id": "MC-YAML-EXT",
+      "why": ".yaml を見ない",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "/\\.ya?ml$/.test(e.name)",
+      "replace": "/\\.yml$/.test(e.name)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 対象の場所（.github/workflows/x.yaml）の件数を、ファイルと行を付けて落とす"
+      ]
+    },
+    {
+      "id": "MC-WORKFLOW-FILE",
+      "why": "名前が .yml のディレクトリをファイルとして読む",
+      "file": "scripts/check-mutation-count-prose.js",
+      "find": "/.test(e.name) && e.isFile() && rel",
+      "replace": "/.test(e.name) && rel",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
+      ]
+    }
+  ]
+}

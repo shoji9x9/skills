@@ -18,7 +18,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 ```
 
 - **1 回の実行につき 1 機能。** 複数機能を並行して進めない（調査・特性化・強度検証が浅くなるため）
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は従来どおり判断のたびに確認する
+- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
 - `--until <区切り>` はその区切りを記録したら止まって返る。`--from <区切り>` は記録した区切りを照合してから次の手順で再開する。
   区切りは `authored`（手順 5 の後）・`captured`（手順 6 の後）・`gated`（手順 7 の後）。**文脈を縮められない実行形態（subagent 等）では区切りごとに分けて回す**
   （1 つの文脈で最後まで回すと費用がターン数の 2 乗で増える。再開の手順と各区切りで揃う成果物の正本は [`references/checkpoints.md`](references/checkpoints.md)）
@@ -106,7 +106,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   **未測定を `gaps.md` に書いて済ませない**——`parity-replace` への引き渡し条件として `dimension_model` に残す（[`references/baseline.md`](references/baseline.md)「寸法の決まり方（窓への追従）」）
 - **スクロールバーを隠した撮影だけで、頁の高さの決め方（`height: 100%` と `100vh`）を担保しない。** Playwright のヘッドレス Chromium はスクロールバーを隠すので、横スクロールバーが出る窓でもこの差は 0 になり、3 経路すべてが緑のまま通る。
   feature モードでは `capture_conditions.scrollbars`（撮影時の扱い）と `capture_conditions.overflow`（スクロールバーを表示した、頁の最小幅より狭い窓での縦・横のはみ出し）を**キーごと省略しない**。
-  **撮影時の扱いの既定は `shown`**（`--hide-scrollbars` を外して撮る）——隠すと、器のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差も消える（Issue #495）。
+  **撮影時の扱いの既定は `shown`**（`--hide-scrollbars` を外して撮る）——隠すと、器のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差も消える。
   `hidden` で撮るなら `scrollbars_reason` に理由を、`shown` なら撮ったバーの出どころを `scrollbar_environment` に書き、内部スクロール器には論理名を付けて `traits.elements` に入れる
   （[`references/baseline.md`](references/baseline.md)「スクロールバーが場所を取る窓のはみ出し」「撮る範囲の決め方」）
 - **採取環境でだけ成立する一致を「一致」として扱わない。** 総称ファミリーのフォントフォールバック等は採取環境では差分ゼロになり、利用者環境でだけ壊れる。
@@ -148,7 +148,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 ## 自律実行（`--autonomous`）
 
 規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、従来どおり確認のたびに止まる。本スキル固有の対応:
+**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **対象の選択**（`--feature` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: `current.feedback_calls` の候補の確定（設定への記録は越えない線）、ファイルストレージの `upload_route` が未宣言のときの経路、
@@ -276,7 +276,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    **`--stage suite` を省かない**——既定は `diff`（`parity-diff` の収束判定）で、`unmeasured` の `disposition: blocking` を落とす。
    blocking は「測るまで**機能を閉じさせない**」記録であって**本スキルが書く出力そのもの**なので、本スキルの完了は止めない（受け取るのは `parity-diff` の収束判定）。
    `--stage suite` でも**記録の不備は落ちる**（`item` の空・重複・`reason` の空・語彙外の `disposition`・承認記録の無い `accepted`）——測定待ちと壊れた記録は別物。
-   **exit 0 を作るために項目を消したり承認の無い `accepted` にしたりしない**（Issue #278 で塞いだ穴が戻る）。
+   **exit 0 を作るために項目を消したり承認の無い `accepted` にしたりしない**（項目を消すと未測定が数えられなくなり、承認の無い `accepted` は測らないと誰も決めていない項目を合格にする）。
    **採取物は工程の出力であり次の工程の入力**なので、読まれていない採取物・元が採り直されたのに古い加工物・後始末が効いていないスイート・
    測っていない項目は、どれも**緑のまま抜ける**（[`references/baseline.md`](references/baseline.md)「採取物の健全性」「状態を変えるスイートは 2 回続けて緑にする」、
    [`references/coverage.md`](references/coverage.md)「未測定を機械可読にする」）。
@@ -351,7 +351,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   スクロールバーの扱い `scrollbars`・表示の軸の値 `display_axes`・撮影に使ったブラウザ `browser` は新側採取で同じにする）、部品被覆表（`metadata.json.component_coverage` が `declared: true` のときだけ収束判定に入る。
   プロファイルを宣言した部品では、`parity-diff` はプロファイルを読まず被覆表の `instances[].candidates` と `conformance` から数え直す）、
   反応の被覆表（`metadata.json.reaction_coverage` が `declared: true` のときだけ収束判定に入る。本スキルの `reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す。
-  一覧は `playwright test --list --reporter=json --project=current --project=new` の出力）、
+  一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力）、
   新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`metadata.json.suite.new_only`。スペック本体は `parity-diff` が同梱雛形から置く）。すべて `metadata.json` 経由で引き渡す
 - **`replace-strategy evidence` へ委譲するもの**: API 特性化で確定した口の「要求単位の根拠」の書き戻し（`推定` → `実測`）。
   **本スキルは `.replace/features.md` を書かない**ので、確定を観測した時点でこのモードを呼ぶ（[`references/api-batch.md`](references/api-batch.md)「要求単位を確定したら features.md へ書き戻す」）
