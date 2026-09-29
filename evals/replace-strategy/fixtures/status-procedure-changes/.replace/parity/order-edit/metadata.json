@@ -1,0 +1,81 @@
+{
+  "slug": "order-edit",
+  "mode": "feature",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "started_at": "2026-09-29T01:00:00Z",
+    "finished_at": "2026-09-29T03:00:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.95.0",
+    "procedure_revision": 1
+  },
+  "dataset_version": 1,
+  "suite": {
+    "dir": "e2e/",
+    "specs": "e2e/parity/specs/order-edit.spec.ts",
+    "locator_map": "e2e/parity/lib/locator-map/order-edit.current.ts",
+    "interactions": "e2e/parity/lib/interactions/order-edit.ts",
+    "tools": "e2e/parity/tools/",
+    "auth_roles": ["admin"],
+    "current_green": true
+  },
+  "capture_conditions": {
+    "environment": "Chrome 140 / 1280x800 / 日本語ロケール / アニメーション無効",
+    "viewports": [
+      {
+        "width": 1280,
+        "height": 800,
+        "label": "desktop"
+      }
+    ],
+    "animations": "disabled",
+    "full_page": true,
+    "pages": [
+      {
+        "name": "/orders/:id/edit",
+        "path": "/orders/:id/edit"
+      }
+    ],
+    "masks": [
+      {
+        "name": "注文編集ヘッダーの最終更新時刻",
+        "reason": "揮発項目のため"
+      }
+    ],
+    "states": ["default"]
+  },
+  "traits": {
+    "tool": "e2e/parity/tools/trait-capture.mjs VERSION=1",
+    "property_set": ["color", "background-color", "font-size", "padding", "border"],
+    "elements": ["注文編集フォーム", "明細一覧テーブル", "保存ボタン"]
+  },
+  "differ": {
+    "trait_compare": "e2e/parity/tools/trait-compare.mjs VERSION=1",
+    "align_tolerance": 1,
+    "pixel_tool": "pixelmatch 7.1.0",
+    "pixel_threshold": 0,
+    "aria_compare": "ベースライン aria スナップショットとの構造比較（Playwright の aria snapshot）",
+    "validated_by_strength_gate": true
+  },
+  "noise_baseline": [
+    {
+      "page": "/orders/:id/edit",
+      "state": "default",
+      "viewport": "desktop",
+      "pixel_diff": 12,
+      "trait_diffs": 0
+    }
+  ],
+  "artifacts_storage": {
+    "selected": "local",
+    "size_threshold_mb": 50,
+    "baseline_pointer": ".replace/parity/order-edit/baseline/"
+  }
+}
