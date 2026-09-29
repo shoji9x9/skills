@@ -249,6 +249,37 @@
       "expect_failing": [
         "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）"
       ]
+    },
+    {
+      "id": "revision-gap-accepted",
+      "why": "改訂一覧の途中の番号の抜けを受理し、抜けた改訂の軸を一度も求めない",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!seen.has(rev)) errors.push",
+      "replace": "      if (rev === revision && !seen.has(rev)) errors.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "改訂一覧の revision に対応する改訂が無い・affects が語彙外なら exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "non-directory-entry-skipped",
+      "why": "slug の置き場がファイルに置き換わった機能を黙って飛ばす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!name.startsWith(\".\")) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "dangling-ledger-as-absent",
+      "why": "壊れたシンボリックリンクの台帳を「台帳なし」として読み、記録された変更を黙って捨てる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (linked) return fail(",
+      "replace": "    if (false) return fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
     }
   ]
 }

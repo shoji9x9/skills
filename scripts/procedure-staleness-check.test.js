@@ -343,6 +343,13 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
   const brokenRun = run(brokenMeta);
   expect(brokenRun.code).toBe(3);
   expect(brokenRun.json.undeterminable.map((u) => u.slug)).toEqual(["edit"]);
+  // slug の置き場がファイルに置き換わっていれば判定不能。ドットファイルは置き場の外の正当なファイルとして許す。
+  const fileEntry = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
+  writeFileSync(join(fileEntry, ".replace", "parity", "edit"), "{}");
+  writeFileSync(join(fileEntry, ".replace", "parity", ".gitkeep"), "");
+  const fileRun = run(fileEntry);
+  expect(fileRun.code).toBe(3);
+  expect(fileRun.json.undeterminable.map((u) => u.slug)).toEqual(["edit"]);
 });
 
 test("成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする", () => {
@@ -352,6 +359,10 @@ test("成果物の置き場・台帳を読めないときは合格にも未判�
   expect(run(missing, ["--parity-dir", "file"]).code).toBe(2);
   mkdirSync(join(missing, "ledger-dir"));
   expect(run(missing, ["--ledger", "ledger-dir"]).code).toBe(2);
+  // 台帳自体が壊れたリンクなら「台帳なし」に倒さない（成果物が最新でも exit 0 にしない）。
+  const lostLedger = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
+  symlinkSync(join(lostLedger, "gone.md"), join(lostLedger, ".replace", "procedure-changes.md"));
+  expect(run(lostLedger).code).toBe(2);
   // 空の置き場（特性化前・別プロジェクトでの実行）は合格にせず対象外（exit 4）で区別する。
   const empty = run(missing);
   expect(empty.code).toBe(4);
@@ -378,6 +389,14 @@ test("改訂一覧の revision に対応する改訂が無い・affects が語�
   expect(
     readRevisions({ skill: "parity-suite", revision: 2, changes: [REVISIONS.changes[0]] }).ok,
   ).toBe(false);
+  // 最新の番号はあっても途中の番号が抜けている一覧（1 と 3 だけ）を受理しない。
+  const gap = readRevisions({
+    skill: "parity-suite",
+    revision: 3,
+    changes: [REVISIONS.changes[0], { revision: 3, axis: "c", affects: ["feature"] }],
+  });
+  expect(gap.ok).toBe(false);
+  expect(/** @type {any} */ (gap).errors.join("\n")).toContain("revision 2 に対応する");
   const bad = run(
     workspace({
       revisions: {

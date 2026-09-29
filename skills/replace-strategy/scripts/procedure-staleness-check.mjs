@@ -240,8 +240,12 @@ export function readRevisions(doc) {
   });
   // 一覧の revision は最新の改訂番号。改訂の無い番号を名乗ると、成果物がその番号を書いた時点で
   // 「最新の手順で作った」と読まれ、実在しない改訂との比較になる。
-  if (Number.isInteger(revision) && !seen.has(revision)) {
-    errors.push(`revision ${revision} に対応する changes の要素が無い`);
+  // 1 から revision までのどの番号にも要素が要る。抜けた番号の改訂は対象の判定から消え、
+  // その軸を一度も求めないまま exit 0 になる（最新の番号だけ確かめても抜けは見えない）。
+  if (Number.isInteger(revision)) {
+    for (let rev = 1; rev <= /** @type {number} */ (revision); rev += 1) {
+      if (!seen.has(rev)) errors.push(`revision ${rev} に対応する changes の要素が無い`);
+    }
   }
   if (errors.length > 0) return { ok: false, errors };
   return {
@@ -456,7 +460,22 @@ export function readArtifacts(parityDir, latestRevision) {
       });
       continue;
     }
-    if (!isDir) continue;
+    // 置き場の外に置く正当なファイルは無い（ドットファイル〈.gitkeep 等〉だけ許す）。
+    // slug の置き場がファイルに置き換わった形を黙って飛ばすと、その機能が判定から消える。
+    if (!isDir) {
+      if (!name.startsWith(".")) {
+        slugs.push({
+          slug: name,
+          mode: null,
+          procedure_revision: null,
+          finished_on: null,
+          problems: [
+            "成果物の置き場がディレクトリでない（slug の置き場がファイルに置き換わっている）",
+          ],
+        });
+      }
+      continue;
+    }
     const path = join(dir, "metadata.json");
     // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
     if (!existsSync(path)) {
@@ -675,6 +694,17 @@ export function main(argv, deps = {}) {
 
   // 台帳が無いのは「プロジェクト側で観点を足していない」。ただし出力に残してパスの誤りと区別できるようにする。
   const ledgerExists = existsSync(ledgerPath);
+  // existsSync はリンクを辿るので、壊れたシンボリックリンクの台帳も「無い」になる。
+  // 台帳が無い（プロジェクト側で軸を足していない）と、台帳を失った状態を区別して後者を落とす。
+  if (!ledgerExists) {
+    let linked = false;
+    try {
+      linked = lstatSync(ledgerPath).isSymbolicLink();
+    } catch {
+      linked = false;
+    }
+    if (linked) return fail(`${ledgerPath} が壊れたシンボリックリンク（リンク先が無い）`);
+  }
   /** @type {{ changes: any[], records: any[] }} */
   let ledger = { changes: [], records: [] };
   if (ledgerExists) {
