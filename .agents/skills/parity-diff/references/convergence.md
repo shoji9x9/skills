@@ -302,6 +302,9 @@
 | `keep` / `may_change` | 意図的差異として確定した | **人間が**設定ファイルの `pending` から当該分類へ**文言を移す**（スキルは移さない。書き手区分の正本はスキーマ文書「キーの書き手とライフサイクル」）。文言を変えて移したなら `promoted_as` に移動後の文言 |
 | `carried_over` | 次工程へ持ち越す | `reason` に**持ち越す理由**（測定待ち・依存先の実装待ち等）。理由の記録で通過できるので、**恒久的に機能を止めることはない** |
 
+`keep` / `may_change` へ移す提示では、**同じ種類の前例（レジストリと他の機能の `diff.md` で、同じ種類の差を「現行に合わせる」とした判断）を引いて判断材料に並べる**。
+食い違うまま移すと、前の機能と後の機能で同じ種類の判断が割れたまま両方が収束する（引き方・記録・食い違ったときの扱いの正本は `replace-strategy` の `references/project-config.md`「同じ種類の前例を突き合わせる」）。
+
 ### 記録
 
 `diff-metadata.json` の `intentional_diffs_pending` に**件数と各件の処置**を残す（様式の正本は [`../assets/diff-metadata-template.json`](../assets/diff-metadata-template.json)）。
