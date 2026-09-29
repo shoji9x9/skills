@@ -126,6 +126,8 @@ const INSTANCES = [
   { id: "users-create", page: "/users", selector: '[data-testid="user-create-submit"]' },
 ];
 const STATES = ["default", "hover", "active", "disabled"];
+const MOTIONS_NONE_REASON =
+  "部品に当たる規則に transition / animation の宣言が無く、動きを起こす JavaScript も無い（css-rules.json と現行のソースで数えた）";
 
 // 操作の結果（Issue #446）。build の前提は全インスタンスの baseline/<instance>/behaviors.json を要求するので、
 // 無いと build 系の eval が前提判定で止まり、目的の分岐（カタログ未整備・カスケードの競合・破壊的変更）へ届かない。
@@ -148,7 +150,10 @@ const behaviorsOf = (instanceId) => ({
 
 // 採取物の組。同じ採取を複数の fixture へ書くものと、別のページから採るものを分ける。
 const VARIANTS = [
-  { pages: PAGES, fixtures: ["catalog-unset", "breaking-change-request"].map(fixtureDir) },
+  {
+    pages: PAGES,
+    fixtures: ["catalog-unset", "breaking-change-request", "lifecycle-binding"].map(fixtureDir),
+  },
   { pages: CASCADE_PAGES, fixtures: [fixtureDir("cascade-conflict")] },
 ];
 
@@ -453,8 +458,17 @@ try {
       meta.capture.operations = OPERATIONS;
       meta.capture.operation_source = OPERATION_SOURCE;
       meta.capture.operations_none_reason = null;
+      // 動き（Issue #456）。APP_CSS / THEME_CSS は transition / animation を宣言せず、JS も持たないので動きの無い部品として宣言する。
+      // build の前提は capture.motions の宣言を要求する（無いと motion-compare.mjs が型崩れで落ちる）。
+      meta.capture.motions = {
+        source_scan: [],
+        transitions: [],
+        none_reason: MOTIONS_NONE_REASON,
+      };
       meta.capture.tools = {
         ...meta.capture.tools,
+        motion_probe: null,
+        motion_probe_version: null,
         traits_version: traitCapture.VERSION,
         traits_property_set: [...traitCapture.FIXED_PROPERTIES].sort(),
         element_shot_version: elementShot.VERSION,

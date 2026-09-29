@@ -26,4 +26,6 @@
 - 基準の無い見本: 0 件
 - 操作の結果: `behavior-compare.mjs` exit 0（2 組合せ ＝ 2 件一致）
 - 比べなかった操作: なし
+- 動き: 動きの無い部品（`capture.motions.none_reason`。`motion-compare.mjs` は判定しない）
+- 一生の順番の経路: 対象外（`lifecycle.applies: false`。初期化で結ぶ処理も引数の購読も無い）
 - 未検証として残るもの: なし

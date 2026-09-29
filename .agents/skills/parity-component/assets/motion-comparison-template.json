@@ -1,0 +1,21 @@
+{
+  "_note": "parity-component の build が .replace/components/<slug>/new/<target>/motion-comparison.json として生成する（環境別。他の target の証跡を上書きしない）。カタログの見本で capture と同じ遷移を同じ手順（trigger）で起こし、capture と同じ版の motion-probe.mjs の出力を timeline に書く（1 回でよい。揺れは現行の 2 回から測る）。見本はその遷移の初期状態の見本（build-metadata.json の catalog.stories にある見本）を使う（検査は story が空でないことしか見ず、見本の実在は照合しない）。判定は同梱の scripts/motion-compare.mjs（比較の母集合に対応する行が 1 件ずつ要る）。全ての値はプレースホルダ例であり実測値で置き換える。実装を変えたら取り直す（この検査は記録の鮮度を見ない）。",
+  "component": "<部品 slug（capture の metadata.json の slug）>",
+  "target": "<選択した new target 名（設定 targets の side: new）>",
+  "rows": [
+    {
+      "transition": "<遷移 id（capture.motions.transitions[].id）>",
+      "instance": "<インスタンス id>",
+      "story": "<動きを採った見本の識別子（build-metadata.json の catalog.stories と同じ体系）>",
+      "timeline": "<motion-probe.mjs の probeMotion の戻り値（motions-template.json の runs[] の要素と同じ形）>"
+    },
+    {
+      "transition": "<動きを引き継がないこと・差を残すことを利用者が承認した遷移 id>",
+      "instance": "<インスタンス id>",
+      "disposition": "accepted",
+      "reason": "<比べない・差を残す理由（例: 新側では動きを付けないと利用者が決めた）>",
+      "approved_by": "<承認した利用者>",
+      "approved_at": "<ISO 8601 の承認日時>"
+    }
+  ]
+}

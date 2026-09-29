@@ -1,0 +1,5 @@
+.feedback-message { display: none; position: fixed; top: 0; left: 50%; width: 480px; margin-left: -240px; padding: 8px 32px 8px 12px; font-size: 13px; }
+.feedback-success { background-color: rgb(223, 240, 216); color: rgb(60, 118, 61); }
+.feedback-info { background-color: rgb(217, 237, 247); color: rgb(49, 112, 143); }
+.feedback-error { background-color: rgb(242, 222, 222); color: rgb(169, 68, 66); }
+.feedback-close { position: absolute; top: 5px; right: 8px; }

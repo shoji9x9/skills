@@ -1,0 +1,581 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/parity-component",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-29T12:42:23Z",
+    "evals_run": [5, 6, 7, 8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 38.312,
+        "tokens": 260621,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
+          "passed": true,
+          "evidence": "設定に component_catalog キーが無く、local-dev に catalog_url / catalog_url_command も無いと表で挙げた"
+        },
+        {
+          "text": "実装・見本の作成へ進まず停止している",
+          "passed": true,
+          "evidence": "手順 1 で停止し実装・見本の作成・ブランチ作成を行っていない"
+        },
+        {
+          "text": "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
+          "passed": true,
+          "evidence": "Storybook は候補に挙げただけで決め打ちしていない"
+        },
+        {
+          "text": "カタログの宣言（契約ドキュメントのパスと新側 target の baseURL）を設定へ整備するよう促している",
+          "passed": true,
+          "evidence": "references.component_catalog と catalog_url / catalog_url_command の追加を促した"
+        },
+        {
+          "text": "capture 成果物（axes.json / component-api.md / baseline）の実体を確認したうえで、capture は完了済みと認識している",
+          "passed": true,
+          "evidence": "capture.complete・axes.ok と 4 点・axes.json・component-api.md の実在を確かめ、揃っていると述べた"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "停止と矛盾する記述なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 32.659,
+        "tokens": 205807,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",
+          "passed": true,
+          "evidence": "「既存の引数の改名にあたる破壊的変更」"
+        },
+        {
+          "text": "自分で決めずにユーザーの判断を求めている",
+          "passed": true,
+          "evidence": "判断を受けてから進めると述べ実装していない"
+        },
+        {
+          "text": "影響範囲（その部品を使っている箇所と、変更後に出力が変わる見本）を示している",
+          "passed": true,
+          "evidence": "利用箇所 2 件と作り直しになる見本 8 件を列挙"
+        },
+        {
+          "text": "引数を足して既定値を据え置く形で解けるかという代替案を示している",
+          "passed": true,
+          "evidence": "variant を非推奨の別名として残し既定値を据え置く移行を提示"
+        },
+        {
+          "text": "承認を得ないまま variant から primary を削除する実装を行っていない",
+          "passed": true,
+          "evidence": "ファイル変更なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 95.917,
+        "tokens": 680977,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+          "passed": true,
+          "evidence": "3 宣言の表"
+        },
+        {
+          "text": "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+          "passed": true,
+          "evidence": "60px を採り 10px・40px を写さない"
+        },
+        {
+          "text": "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+          "passed": true,
+          "evidence": "インラインの非 !important が !important に負ける"
+        },
+        {
+          "text": "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+          "passed": true,
+          "evidence": "1px を採る"
+        },
+        {
+          "text": "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+          "passed": true,
+          "evidence": "同じ .btn で後に書かれた 1px が勝つ"
+        },
+        {
+          "text": "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+          "passed": true,
+          "evidence": "matched と inline_declarations の両方を読んだ"
+        },
+        {
+          "text": "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+          "passed": true,
+          "evidence": ".searchbox-btn による固定で users-create の追従と別扱い"
+        },
+        {
+          "text": "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない",
+          "passed": true,
+          "evidence": "矛盾なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 105.747,
+        "tokens": 482419,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "source_scan に show slide 600 / hide 500、transitions に enter / exit-close"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": true,
+          "evidence": "capture.motions の source_scan / transitions に書く"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": true,
+          "evidence": "motion-probe.mjs をコピーし baseline/<instance>/motions.json の runs に積む"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回採り、その差を揺れ（許容差の根拠）にすると述べている",
+          "passed": false,
+          "evidence": "2 回採るとは述べたが、その差を揺れ（許容差の根拠）にするとは述べていない"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": true,
+          "evidence": "探針のあいだはアニメーションを止めない"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": true,
+          "evidence": "focus-close-on-enter を操作にし enter の on_complete に書く"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べ、behaviors.json の観測値にはしていない",
+          "passed": true,
+          "evidence": "auto-exit を何もしないトリガーで timeoutMs 20000 で測る。behaviors は 16 秒後の open の状態で、時間の値は観測項目に入れないと明言"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 46.104,
+        "tokens": 235210,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で壊れる経路の検査の対象だと判断している",
+          "passed": true,
+          "evidence": "3 条件を Button.tsx:17-21 の handleInitialized と 24-30 の片付けで示し、対象と判断"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる経路を名指ししている",
+          "passed": true,
+          "evidence": "strict-rebind: 片付けで Enter の結び付けが消え initialized が再度来ないので Enter で押せなくなる"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない経路を名指ししている",
+          "passed": true,
+          "evidence": "prop-change-after-init: disabled は初期化時に 1 回 setEnabled するだけ"
+        },
+        {
+          "text": "経路ごとに順番を強制する見本を置き、経路に入った回数を data-* 属性で出して、入ったことを先に確かめてから症状を見る検査にすると述べている",
+          "passed": false,
+          "evidence": "data-* 属性で経路に入った回数を出すとは述べたが、入ったことを先に確かめてから症状を見る順序は述べていない"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories に載せず、基準の無い見本（unbaselined_stories）にも数えないと述べている",
+          "passed": false,
+          "evidence": "catalog.stories に載せないとは述べたが、unbaselined_stories に数えないことは述べていない"
+        },
+        {
+          "text": "直した処理を外すとその経路の検査だけが落ちることを確かめると述べている",
+          "passed": true,
+          "evidence": "fix_removal_verified: true（直した処理を外すとその検査だけが落ちる）を完了条件に挙げた"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "照合と突き合わせが一致していても手順 8 に進めないと結論"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 4,
+        "failed": 2,
+        "total": 6,
+        "time_seconds": 28.786,
+        "tokens": 107740,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
+          "passed": false,
+          "evidence": "スキル不在を停止理由にし、設定のキーの欠落は挙げていない（components.md の未確定のみ）"
+        },
+        {
+          "text": "実装・見本の作成へ進まず停止している",
+          "passed": true,
+          "evidence": "実装していない"
+        },
+        {
+          "text": "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
+          "passed": true,
+          "evidence": "カタログの実体を決めていない"
+        },
+        {
+          "text": "カタログの宣言（契約ドキュメントのパスと新側 target の baseURL）を設定へ整備するよう促している",
+          "passed": false,
+          "evidence": "設定への整備ではなく components.md の未確定を埋めるよう促しただけ"
+        },
+        {
+          "text": "capture 成果物（axes.json / component-api.md / baseline）の実体を確認したうえで、capture は完了済みと認識している",
+          "passed": true,
+          "evidence": "metadata・axes・component-api を読み capture 完了と認識"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "矛盾なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 36.701,
+        "tokens": 184307,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",
+          "passed": false,
+          "evidence": "破壊的変更という判断は述べていない（type 名の衝突と値の集合を論点にした）"
+        },
+        {
+          "text": "自分で決めずにユーザーの判断を求めている",
+          "passed": true,
+          "evidence": "決めてほしいことを挙げて止まった"
+        },
+        {
+          "text": "影響範囲（その部品を使っている箇所と、変更後に出力が変わる見本）を示している",
+          "passed": true,
+          "evidence": "呼び出し元 /orders・/users と Button.stories.tsx の置き換えを挙げた"
+        },
+        {
+          "text": "引数を足して既定値を据え置く形で解けるかという代替案を示している",
+          "passed": true,
+          "evidence": "variant のまま残す案を提示"
+        },
+        {
+          "text": "承認を得ないまま variant から primary を削除する実装を行っていない",
+          "passed": true,
+          "evidence": "ファイル変更なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 73.114,
+        "tokens": 287417,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+          "passed": true,
+          "evidence": "3 宣言の表"
+        },
+        {
+          "text": "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+          "passed": true,
+          "evidence": "60px、10px・40px は写さない"
+        },
+        {
+          "text": "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+          "passed": true,
+          "evidence": "インラインでも !important に勝てない"
+        },
+        {
+          "text": "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+          "passed": true,
+          "evidence": "1px"
+        },
+        {
+          "text": "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+          "passed": true,
+          "evidence": "同じ .btn の 2 回目の宣言が勝つ"
+        },
+        {
+          "text": "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+          "passed": true,
+          "evidence": "inline_declarations と matched の両方"
+        },
+        {
+          "text": "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+          "passed": true,
+          "evidence": "画面側の責務として別扱い"
+        },
+        {
+          "text": "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない",
+          "passed": true,
+          "evidence": "矛盾なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": 87.043,
+        "tokens": 210993,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "表示 600ms・閉じる 500ms を時系列で採るとした"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": false,
+          "evidence": "capture.motions への記録なし（「motion.md の形式（推定）」）"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": false,
+          "evidence": "motion-probe.mjs / motions.json に触れていない"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回採り、その差を揺れ（許容差の根拠）にすると述べている",
+          "passed": false,
+          "evidence": "2 回採るのは静止画のノイズだけ"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": false,
+          "evidence": "動きの採取でアニメーションを止めないとは述べていない"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": false,
+          "evidence": "フォーカス移動を操作にして on_complete で結んでいない"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べ、behaviors.json の観測値にはしていない",
+          "passed": false,
+          "evidence": "時計の制御で 14999/15000ms の境界を確かめる。探針の遅れとしては測らない"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 126.282,
+        "tokens": 148209,
+        "tool_calls": 18,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で壊れる経路の検査の対象だと判断している",
+          "passed": false,
+          "evidence": "不具合の疑いとして挙げたが、一生の順番の経路の検査の対象という判断はしていない"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる経路を名指ししている",
+          "passed": false,
+          "evidence": "StrictMode の結び直しに触れていない"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない経路を名指ししている",
+          "passed": true,
+          "evidence": "disabled は初期化時に一度だけ setEnabled するため後の変化が反映されない"
+        },
+        {
+          "text": "経路ごとに順番を強制する見本を置き、経路に入った回数を data-* 属性で出して、入ったことを先に確かめてから症状を見る検査にすると述べている",
+          "passed": false,
+          "evidence": "順番を強制する見本・data-* 属性に触れていない"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories に載せず、基準の無い見本（unbaselined_stories）にも数えないと述べている",
+          "passed": false,
+          "evidence": "catalog.stories / unbaselined_stories に触れていない"
+        },
+        {
+          "text": "直した処理を外すとその経路の検査だけが落ちることを確かめると述べている",
+          "passed": false,
+          "evidence": "直した処理を外して検査が落ちることの確認に触れていない"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "一致していても完了判定へ進めないと結論"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9179,
+        "stddev": 0.126,
+        "min": 0.7143,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 63.7478,
+        "stddev": 34.3642,
+        "min": 32.659,
+        "max": 105.747
+      },
+      "tokens": {
+        "mean": 373006.8,
+        "stddev": 203955.2481,
+        "min": 205807,
+        "max": 680977
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6005,
+        "stddev": 0.3262,
+        "min": 0.25,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 70.3852,
+        "stddev": 39.6059,
+        "min": 28.786,
+        "max": 126.282
+      },
+      "tokens": {
+        "mean": 187733.2,
+        "stddev": 67916.6614,
+        "min": 107740,
+        "max": 287417
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.32",
+      "time_seconds": "-6.6",
+      "tokens": "+185274"
+    }
+  },
+  "notes": []
+}

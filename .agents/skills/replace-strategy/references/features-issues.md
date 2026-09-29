@@ -217,7 +217,8 @@
 - **採取対象のインスタンス（ページ ＋ 論理名）の件数**と、データ依存の有無
 - ワークフロー: `parity-component capture`（現行から基準を採り、固定軸・可変軸を割り出す）→ `parity-component build`（引数を設計して実装し、カタログ上で照合する）
 - 受け入れ条件: 未説明差分ゼロ・`verification_commands.full` が通る・**比較の母集合の全組み合わせに対応する見本があり全件を照合した**こと・**母集合に対応しない見本（基準の無い見本）が 0 件**であること・
-  **操作の結果の突き合わせ（`parity-component` 同梱の `behavior-compare.mjs`）が通る**こと、
+  **操作の結果の突き合わせ（`parity-component` 同梱の `behavior-compare.mjs`）と動きの突き合わせ（同 `motion-compare.mjs`）が通る**こと、
+  部品の一生の順番で壊れる経路の対象なら、その検査が通ること（判定の正本は `parity-component` の `references/lifecycle.md`）、
   および `gaps.md` に残した未検証の一覧。母集合は `parity-component` の `SKILL.md`「前提」が定義する——
   インスタンス × 状態から、そのインスタンスで到達できないと宣言された状態を除いたもの。
   **全インスタンス × 全状態を要求すると、到達できない状態を持つ正当な部品が受け入れられなくなる**

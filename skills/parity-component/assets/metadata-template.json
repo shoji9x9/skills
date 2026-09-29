@@ -35,6 +35,23 @@
     ],
     "operation_source": "<操作の導出源（vendor-feature-list | component-catalog | current-source | app-ui）。資料は列挙の生成源であって比較の正解ではない（parity-suite の references/coverage.md「状態網羅の導出源」と同じ規律）>",
     "operations_none_reason": "<操作を持たない部品（静的な表示だけ等）のときだけ理由を書き operations を空配列にする。それ以外は null>",
+    "motions": {
+      "source_scan": [
+        "<現行のソースで見つけた、この部品に掛かる動きの呼び出し・宣言（例: message.js:42 show('slide', {direction: 'up'}, 600) / css-rules.json の transition: opacity .2s）。見つからなければ空配列にし、何を数えたかを none_reason に書く。判定の手順の正本は parity-component の references/motion.md>"
+      ],
+      "transitions": [
+        {
+          "id": "<遷移 id（一意。例: enter / exit / expand）>",
+          "description": "<何が・どう動くか（1 文。例: 上から 600ms でスライドして出る）>",
+          "trigger": "<動きを起こす手順。見本でも同じに再生できるよう部品の中の論理名で書く。各遷移は同じ初期状態から始める>",
+          "declared": "<ソースが宣言する長さ・緩急・移動量（source_scan の該当箇所の要約）。比較には使わない（比較は時系列の実測で行う）>",
+          "on_complete": [
+            "<動きの完了で始まる処理（フォーカスの移動・自動で閉じるタイマーの開始・閉じる操作の受け付け開始）を表す capture.operations の id。無ければ空配列>"
+          ]
+        }
+      ],
+      "none_reason": "<動きを持たない部品のときだけ理由を書き transitions を空配列にする（例: 部品の規則に transition / animation が無く、JS の動きの呼び出しも無い）。それ以外は null>"
+    },
     "auth_roles": [
       "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の正本は parity-suite の references/auth.md>"
     ],
@@ -48,6 +65,8 @@
       "element_shot_version": "<element-shot.mjs の VERSION。要素スクショは locator.screenshot() ではなくこのツールで撮る（外接整数矩形の丸めで画素比較が実行不能になるため）>",
       "css_rules_version": "<parity-component 同梱 css-rules-capture.mjs の VERSION（コピーせずスキル配下から実行する）>",
       "axis_diff_version": "<parity-component 同梱 axis-diff.mjs の VERSION>",
+      "motion_probe": "<parity-component 同梱 motion-probe.mjs のコピー先パス（動きの無い部品では null）>",
+      "motion_probe_version": "<motion-probe.mjs の VERSION（コピーしたファイルから読む）。motion-compare.mjs が時系列の probe_version と突き合わせる。動きの無い部品では null>",
       "pixel_differ": "<画素差分ツールと版（プロジェクトが選ぶ。例: pixelmatch / odiff）>"
     }
   },
@@ -72,6 +91,12 @@
         {
           "operation": "<このインスタンスでは実施できない操作 id>",
           "reason": "<実施できない理由（例: 選択した target の forbidden_actions が書き込みを禁じる）。同じ内容を gaps.md にも残す>"
+        }
+      ],
+      "unreachable_motions": [
+        {
+          "transition": "<このインスタンスでは起こせない遷移 id>",
+          "reason": "<起こせない理由（例: この画面では閉じるボタンを出さない）。同じ内容を gaps.md にも残す>"
         }
       ],
       "ua_defaults": [

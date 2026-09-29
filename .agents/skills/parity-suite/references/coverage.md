@@ -43,7 +43,8 @@
 | ドキュメントレベルの要素 | `<head>` 側とドキュメント属性。**ページごとに 1 回**: `title`、favicon（`link[rel~="icon"]` の解決先 URL）、現行が持つ主要な `meta`（`description` / `viewport` / OGP 等）、`html[lang]`。いずれも決定論的に取れるため手書き assertion に向く |
 | ファイル入力（アップロード） | 選択・複数選択・選択解除、バリデーション（形式・サイズ上限）、成功／失敗表示、保存結果（バイト列・派生物・保存 path の規則）。**操作は書き込みであり [`data-discipline.md`](data-discipline.md) の規律に従う。** 操作手段・fixture の生成・検証対象の正本は `replace-strategy` の `references/file-io.md`（ドラッグ & ドロップは対象外） |
 
-- **アニメーションのパリティは対象外。** 差分比較では `animations: 'disabled'` で停止させるため、この手法では原理的に扱えない。対象外であることを明記する
+- **アニメーションのパリティは対象外。** 差分比較では `animations: 'disabled'` で停止させるため、この手法では原理的に扱えない。対象外であることを明記する。
+  ただし共通部品を先に作る進め方では、部品の動きは `parity-component` が部品ごとに数えて時系列で比べる（`parity-component` の `references/motion.md`）——この一般論を部品の動きを写さない理由にしない
   （対象・対象外・条件付きの一覧は `replace-strategy` の `references/scope.md` が正本。本ファイルは各項目の**行動**を持つ）
 - **ページ本文の要素だけを対象にしない。** `<head>` 側は視覚ベースラインにも aria スナップショットにも写らないため、対象から外すとスイートでも差分器でも捕まらない
   （新側テンプレートの既定 favicon・既定 `title` のまま置き換わっても、誰も赤くならない）

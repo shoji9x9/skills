@@ -1,0 +1,89 @@
+{
+  "$comment": [
+    "motion-probe.test.js のうち、部品の動きの時系列を採る探針（Issue #456）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/motion-probe.test.js",
+  "mutations": [
+    {
+      "id": "settle",
+      "why": "最後の変化から落ち着くのを待たずに終わる（途中で切った時系列が完了扱いになる）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "const settled = state.lastChangeAt !== null && now - state.lastChangeAt >= settleMs;",
+      "replace": "const settled = true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "出る動きを採り、落ち着いた後に打ち切りでなく終わる",
+        "不透明度は祖先まで掛け合わせた実効の値を採る",
+        "動かないまま上限に達したのは観測（timed_out: false）で、動き続けたのは打ち切り（timed_out: true）",
+        "フレーム数の上限に達したら打ち切りとして記録する",
+        "セレクタが複数の要素に当たるなら採らずに失敗する"
+      ]
+    },
+    {
+      "id": "timed-out-flag",
+      "why": "動き続けたまま上限に達したのを打ち切りとして記録しない",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "state.timed_out = state.lastChangeAt !== null || state.samples.length >= maxSamples;",
+      "replace": "state.timed_out = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "動かないまま上限に達したのは観測（timed_out: false）で、動き続けたのは打ち切り（timed_out: true）",
+        "フレーム数の上限に達したら打ち切りとして記録する"
+      ]
+    },
+    {
+      "id": "multiple-matches",
+      "why": "セレクタが複数の要素に当たっても先頭を採る（どの要素の動きか決められない）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "if (found.length > 1) return",
+      "replace": "if (false) return",
+      "occurrences": 1,
+      "expect_failing": ["セレクタが複数の要素に当たるなら採らずに失敗する"]
+    },
+    {
+      "id": "effective-opacity",
+      "why": "祖先の不透明度を掛け合わせない（親をフェードさせる実装の動きが写らない）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "opacity *= Number(g.getComputedStyle(node).opacity);",
+      "replace": "opacity = Number(g.getComputedStyle(el).opacity);",
+      "occurrences": 1,
+      "expect_failing": ["不透明度は祖先まで掛け合わせた実効の値を採る"]
+    },
+    {
+      "id": "stop-on-trigger-failure",
+      "why": "操作が失敗してもページ側の採取を止めない（採り直しが still running で弾かれ、本来の失敗が隠れる）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "if (state) state.done = true;",
+      "replace": "if (state) state.done = state.done;",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作が失敗したらページ側の採取を止め、元の例外を投げ直す（同じページで採り直せる）"
+      ]
+    },
+    {
+      "id": "sampler-exception",
+      "why": "採取中の例外で探針を終わらせない（採り直しが still running で永久に弾かれる）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "error: `sampler failed: ${error && error.message ? error.message : String(error)}`,",
+      "replace": "error: null,",
+      "occurrences": 1,
+      "expect_failing": [
+        "採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）"
+      ]
+    },
+    {
+      "id": "state-disappeared",
+      "why": "ページ遷移で状態が消えても待ち続ける（理由付きの失敗に届かない）",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "return !state || Boolean(state.done);",
+      "replace": "return Boolean(state && state.done);",
+      "occurrences": 1,
+      "expect_failing": [
+        "採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）"
+      ]
+    }
+  ]
+}
