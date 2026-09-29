@@ -10,11 +10,12 @@
   },
   "run": {
     "started_at": "<ISO 8601 の開始日時>",
-    "finished_at": "<ISO 8601 の終了日時>",
+    "finished_at": "<ISO 8601 の終了日時。replace-strategy の procedure-staleness-check.mjs がプロジェクト側で足した軸の対象をこの日付で決めるので、書き換えるのは特性化をやり直したときだけ（ベースラインの再取得・部分的な追記では前の値を残す）>",
     "agent": "<調査したコーディングエージェント名>",
     "model": "<モデル名>",
     "effort": "<エフォート。省略不可>",
     "skill_version": "<parity-suite のバージョン>",
+    "procedure_revision": "<採取した時点の assets/procedure-revisions.json の revision（整数で書く）。確かめる軸を足した改訂より小さい成果物は、replace-strategy の procedure-staleness-check.mjs が旧手順で特性化した機能として列挙する。書き換えるのは特性化をやり直したときだけ（部分的な追記で上げない）>",
     "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
   "dataset_version": "<採取時の .replace/dataset/metadata.json の version。その版より後の changes[].affects がこの slug の実効参照テーブルと交差すれば陳腐化として再取得する。数値が古いだけなら有効>",

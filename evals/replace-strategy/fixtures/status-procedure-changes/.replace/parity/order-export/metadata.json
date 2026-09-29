@@ -1,0 +1,26 @@
+{
+  "slug": "order-export",
+  "mode": "batch",
+  "target": {
+    "name": "current-test",
+    "ui_url": "http://localhost:8080",
+    "api_url": "http://localhost:8080",
+    "commit": "none"
+  },
+  "run": {
+    "started_at": "2026-09-29T04:00:00Z",
+    "finished_at": "2026-09-29T05:00:00Z",
+    "agent": "Claude Code",
+    "model": "opus",
+    "effort": "high",
+    "skill_version": "1.95.0",
+    "procedure_revision": 1
+  },
+  "dataset_version": 1,
+  "suite": {
+    "dir": "e2e/",
+    "specs": "e2e/parity/specs/order-export.spec.ts",
+    "tools": "e2e/parity/tools/",
+    "current_green": true
+  }
+}

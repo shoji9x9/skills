@@ -524,6 +524,51 @@
           "prompt_quote": ".replace/parity/order/new/dev/pending-decisions.json"
         }
       ]
+    },
+    {
+      "id": 38,
+      "fixture": "fixtures/status-procedure-changes",
+      "requires_skills": ["parity-suite"],
+      "prompt": "replace-strategy status を実行して、現況を 1 つの報告にまとめて。3 件とも Issue を閉じて parity-diff も収束済みなので、切り替え前の最終確認のつもり。コマンドの実行はしてよいが、ファイルの変更はしないで。",
+      "assertions": [
+        "order-list を、プロジェクト側で足した軸 PC-001（一覧が 0 件のときの表示）の当て直しが未判断のまま残っている機能として挙げている",
+        "order-list を、改訂番号を記録していない（procedure_revision の無い）成果物として parity-suite#1 の対象に挙げ、見直し中（#240）の記録を解決済みに数えていない",
+        "order-edit の PC-001 は当て直し済み（PR #235）として、再確認が要る側に数えていない",
+        "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
+        "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
+        "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
+        "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない"
+      ],
+      "reachability": [
+        {
+          "assertion": "order-list を、プロジェクト側で足した軸 PC-001（一覧が 0 件のときの表示）の当て直しが未判断のまま残っている機能として挙げている",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "order-list を、改訂番号を記録していない（procedure_revision の無い）成果物として parity-suite#1 の対象に挙げ、見直し中（#240）の記録を解決済みに数えていない",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "order-edit の PC-001 は当て直し済み（PR #235）として、再確認が要る側に数えていない",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "order-export（バッチ）を PC-001 の当て直しの対象にしていない（PC-001 の対象の種類が feature だけのため）",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "Issue が閉じていることや parity-diff が収束済みであることを理由に、旧手順で閉じた機能が無いと結論していない",
+          "prompt_quote": "3 件とも Issue を閉じて parity-diff も収束済みなので、切り替え前の最終確認のつもり"
+        },
+        {
+          "assertion": "旧手順で閉じた機能を成果物の目視で比べず、replace-strategy 同梱の procedure-staleness-check.mjs で導出している（応答で判定）",
+          "prompt_quote": "現況を 1 つの報告にまとめて"
+        },
+        {
+          "assertion": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "prompt_quote": "ファイルの変更はしないで"
+        }
+      ]
     }
   ]
 }

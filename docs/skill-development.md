@@ -8,6 +8,10 @@
 
 1. `skills/<name>/` を作成または編集する
 2. `evals/<name>/evals.json` にテストケースを追加・更新する（eval は配布しないため `skills/<name>/` の外に置く）
+   - **`parity-suite` の手順に確かめる軸を足したら**（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）、
+     同じ変更で `skills/parity-suite/assets/procedure-revisions.json` の `revision` を 1 上げ、`changes` へ 1 要素を追記する。
+     下流の `replace-strategy status` はこの一覧で「旧手順で閉じた機能」を列挙するため、上げ忘れると前に閉じた機能が古い手順のまま収束扱いで残る（Issue #505）。
+     **これは規約で、強制点は無い**（軸を足したかは差分から機械的に決められない）。一覧の形は `scripts/procedure-staleness-check.test.js` が検査する
 3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
 4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
 5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する

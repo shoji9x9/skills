@@ -107,7 +107,8 @@ console、主要要素、Network / API、副作用のない操作を確認する
 学びが作られた場合は実装変更と分離した commit にする。関連ファイルだけを stage し、規約どおり commit する。
 **全 commit の後・push の直前に** `issue-start` の受け入れ条件の突き合わせ（基本フロー step 10。正本は `issue-start` の `references/acceptance.md`）を通す——
 ローカルレビューは未コミット差分を対象にし、レビュー修正や Kaizen の commit で HEAD が進むので、それより前に取った表は `commit-missing` か `stale-commit` で落ちる。
-exit 0 にならない、満たせない条件に利用者の判断が要る、または `closable: false`（Issue を閉じられない）なら `BLOCKED`。通ったら push する。PR 本文に `Closes #<Issue番号>`、変更概要、静的検査、受け入れ条件の突き合わせ表、browser-test の結果／非適用根拠、Kaizen 結果を含める。
+exit 0 にならない、満たせない条件に利用者の判断が要る、`closable: false`（Issue を閉じられない）、または**受け入れ条件を変えて類似 Issue の見直しの要否を確かめる必要がある**（同 `acceptance.md` 手順 6。全行が `met` でも起きる——コメントでの条件の改訂・本文の書き換え）なら `BLOCKED`。
+見直しの要否は候補の一覧を添えて BLOCKED の理由に残す（exit 0 だけを見て push すると、確認がどこにも残らず消える）。通ったら push する。PR 本文に `Closes #<Issue番号>`、変更概要、静的検査、受け入れ条件の突き合わせ表、browser-test の結果／非適用根拠、Kaizen 結果を含める。
 
 ## pr-finalize-loop への handoff
 

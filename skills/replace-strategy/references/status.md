@@ -9,6 +9,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、**API の「要求単位の根拠」列（`実測` / `推定`）**、Issue 番号（**番号だけ。旧版テンプレート由来の「状態」列と、突き合わせの出力である「受け入れ条件」列は読まない**——下記「Issue 状態の取得」「導出する内容」12） |
 | `.replace/components.md` | 共通部品の一覧、slug、インスタンス、データ依存の有無、採否、Issue 番号（**画面より先に部品を作る方針のときだけ存在する。無いのは未着手ではなく「この方針を採っていない」**——`setup` 未実施として報告しない） |
 | `.replace/assets.md` | 静的資産の種類ごとの方針（空欄＝未決）と未走査・未確認の記録（`replace-strategy` の `setup` が作る。形式の正本は [`static-assets.md`](static-assets.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクト**——`setup` 未実施として報告しない） |
+| `.replace/procedure-changes.md` と `parity-suite` の `assets/procedure-revisions.json` | 確かめる軸を足した変更（プロジェクト側の台帳とスキル側の改訂）と、既に閉じた機能への当て直しの判断（形式の正本は [`procedure-changes.md`](procedure-changes.md)。**台帳が無いのはプロジェクト側で軸を足していないだけ**——スキル側の改訂は台帳が無くても判定する） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/components/<slug>/metadata.json` | 部品の採取の状態（`capture.complete`・`axes.ok`・`capture_gaps`）と基準の陳腐化判定材料（`dataset_version`・`target.name`）（`parity-component` が生成。スキーマ正本は同スキル） |
 | `.replace/components/<slug>/new/<target>/build-metadata.json` | 部品の実装・照合の証跡（`parity.unexplained`・`parity.missing_stories`・`parity.unbaselined_stories`・`behavior`・`verification`・`loop`）（同上）。新側成果物は環境別のため target ごとに存在しうる |
@@ -191,8 +192,16 @@ done
     **`状態` 列が無い台帳**（値の導入前に作られたもの）は全行を `有効` として読み、`決定` 列に 6 値以外があれば要確認として挙げる
     （正本は [`dependency-selection.md`](dependency-selection.md)「列が無い台帳を読んだとき」）
 
+14. **旧手順で閉じた機能**: 確かめる軸を足した変更（`parity-suite` の手順の改訂と `.replace/procedure-changes.md` の「観点の追加」）より前に特性化を終えた機能のうち、
+    **当て直しの判断が無い・見直し中のもの**を、変更（足した軸・見直しの置き場）ごとに列挙する——データセット版の陳腐化と同じく「要再確認」として扱い、
+    **Issue が closed でも、`parity-diff` が収束済みでも出す**（軸を足す前の手順で閉じたことは、どの検査も落とさない）。
+    導出は同梱の [`scripts/procedure-staleness-check.mjs`](../scripts/procedure-staleness-check.mjs) で行い（**成果物を目視で比べない**。手順・終了コードの正本は [`procedure-changes.md`](procedure-changes.md)「検査」）、
+    `--revisions` にはインストール済みの `parity-suite` の `assets/procedure-revisions.json` を渡す（プロジェクトへコピーしない）。
+    `unresolved` を未解決、`undeterminable`（exit 3）を「対象かどうかを判定不能」、exit 4 を「特性化済みの機能が無く判定対象なし」、exit 2 を「入力を読めない（台帳の不整合・改訂一覧や成果物の置き場を読めない。stderr / `errors` の内容を添える）」として書き分ける（どれも 0 件に丸めない）。
+    **`run.procedure_revision` を持たない成果物は改訂番号の導入前**なので、すべての改訂の対象として出る（旧版 `parity-suite` の成果物。判断を台帳に記録すれば消える）
+
 ## 報告
 
-- **判断待ちの保留**（人が答えれば進む工程があるため先頭に示す）＋**その他の Issue（4 種以外）の状態**＋機能 × 状態の表＋**他機能待ちと解除済みの一覧**＋未検証領域の一覧＋影響範囲、の順で提示する（その他の Issue は他の Issue の前提になりうるため先に示す）
+- **判断待ちの保留**（人が答えれば進む工程があるため先頭に示す）＋**その他の Issue（4 種以外）の状態**＋機能 × 状態の表＋**他機能待ちと解除済みの一覧**＋**旧手順で閉じた機能**＋未検証領域の一覧＋影響範囲、の順で提示する（その他の Issue は他の Issue の前提になりうるため先に示す）
 - 「Issue が closed」と「検証済み」は別。closed でも `gaps.md` に残る未検証領域は未検証として報告する
 - 数（機能数・gaps 件数）は部分ビューではなく完全出力で数える

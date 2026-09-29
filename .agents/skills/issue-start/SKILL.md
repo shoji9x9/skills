@@ -140,6 +140,7 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --a
     **検査が exit 0 になるまで push しない**——テストやリントの緑は受け入れ条件の充足を示さない。
     満たせない条件は自分で外さず、利用者に確認する（`waived` / `deferred` は利用者の承認が要る）。
     検査の出力の `closable` が `false` なら PR 本文で Issue を閉じない（`Refs #<番号>`）
+    **受け入れ条件を変えた（`waived` / `deferred` にした・コメントで改訂した）なら、類似 Issue の見直しの要否を利用者に確かめる**（手順の正本は同じ [`references/acceptance.md`](references/acceptance.md)「受け入れ条件を変えたとき」。他の Issue の変更は承認の後だけ）
 11. **push する直前にリモートの PR ベースブランチの進行を確認する**（`--pr` のみ）
     - step 7 で規約から解決したベースブランチを、作成予定の PR のベースとして保持し、`git fetch origin '<PR ベースブランチ>'` を実行する。リポジトリのデフォルトブランチと同じだと仮定しない。既存 PR を継続する場合は `gh pr view --json baseRefName` で実際の PR ベースを再取得して使う
     - `git rev-list --count 'HEAD..origin/<PR ベースブランチ>'` で、現在の作業ブランチへ未取り込みの commit 数を確認する。fetch の失敗、PR ベースの解決失敗、remote ref の不在を「進行なし」に倒さず、push を止めて原因を解消する
@@ -156,7 +157,7 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --a
 - 既存 worktree に無関係な差分がある場合は巻き込まず、対象ファイルだけを扱う
 - commit 時に pre-commit フック（lefthook 等）や kaizen のコミット前ゲートが設定されていれば走る。ゲートでブロックされた場合は指示に従って `kaizen --current` を実行してから再 commit する
 - `--pr` 時は基本フロー step 10 の受け入れ条件の突き合わせと step 11 の PR ベースブランチ進行確認を通過してからブランチを push し、関連 Issue・変更概要・確認内容・突き合わせ表を含む PR を作る。
-  PR を作ったら突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) 手順 6）
+  PR を作ったら突き合わせの結果を Issue にコメントし、満たした項目にチェックを付ける（手順は [`references/acceptance.md`](references/acceptance.md) 手順 7）
 - commit の `--amend` と force push は行わない
 
 ## 追加確認が必要な条件

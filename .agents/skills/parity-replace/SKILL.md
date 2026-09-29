@@ -291,7 +291,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 
    **完了の報告**: 通した判定（スイート green・`full`・モード別の照合・受け入れ条件の突き合わせ）を列挙し、**現行との一致は主張しない**。
    受け入れ条件の突き合わせは行ごとの状態と根拠の強さ（実測／読解）を並べ、`pending-decision` / `later` / `deferred` の行を省かない。
-   結果の Issue へのコメントとチェックは `issue-start` の `references/acceptance.md` 手順 6 に従う（自律実行では行わず保留に積む）。
+   結果の Issue へのコメントとチェックは `issue-start` の `references/acceptance.md` 手順 7 に従う（自律実行では行わず保留に積む）。
    feature モードでは「見た目（余白・幅・罫線・背景・色・寸法・配置）は `parity-diff` の収束まで未検証」を**必ず書く**——
    スイートが green でも 1 画面の画素の大半が違うことがあり（ページの器の幅・ヘッダーの位置・表の組み方）、書かないと利用者が画面を並べて見るまで気付かれない。
    api-resource / batch モードでも、一致の主張は `parity-diff` の収束まで保留する（batch モードの完了判定にある「出力一致」（[`references/paging.md`](references/paging.md)）はスイートのベースラインに対する判定で、現行との一致の報告ではない）。
