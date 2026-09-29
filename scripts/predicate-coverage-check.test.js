@@ -987,6 +987,21 @@ test.each([
     "| orders |  | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
     "id-range-column-blank",
   ],
+  [
+    "届くの根拠が空欄（整数変換を届くと書くだけで通さない）",
+    "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | int.Parse | 届く | - |  |",
+    "id-range-reason-missing",
+  ],
+  [
+    "データセットの値の範囲が -",
+    "| orders | id | - | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
+  [
+    "実運用の値の範囲が -",
+    "| orders | id | 12 桁 | - | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+    "id-range-cell-blank",
+  ],
   ["列 - の根拠が空欄", "| orders | - | - | - | - | - | - | - |  |", "id-range-reason-missing"],
 ])("識別子の値の範囲の不備: %s", (_label, row, expected) => {
   const codes = codesOf({ design: designOf({ idRanges: idRangesWith([row]) }) });
@@ -1034,4 +1049,27 @@ test("列 `-` と実在の列の行を同じ表に併記すると落ちる（- �
     }),
   });
   expect(codes).toEqual(["id-range-dash-conflict"]);
+});
+
+test("同じ (テーブル, 列, slug) を 2 行に書くと落ちる（届く・届かないが 1 つに決まらない）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | 変換なし | 届く | - | 読了 |",
+        "| orders | id | 12 桁 | 8 桁 | order | Convert.ToInt32 | 届かない | 行を足す | 帯の外に 1 行 |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual(["id-range-duplicated"]);
+});
+
+test("変換の列の `-`（変換なし）は範囲の列と違い受ける（陰性コントロール）", () => {
+  const codes = codesOf({
+    design: designOf({
+      idRanges: idRangesWith([
+        "| orders | id | 12 桁 | 8 桁 | order, monthly-summary | - | 届く | - | 文字列のまま渡す |",
+      ]),
+    }),
+  });
+  expect(codes).toEqual([]);
 });

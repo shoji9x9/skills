@@ -146,14 +146,15 @@
     },
     {
       "id": "id-range-cell-blank-ignored",
-      "why": "範囲・変換の空欄を落とさない",
+      "why": "範囲の空欄・- を落とさない",
       "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
-      "find": "if (normalizeCell(row[header]) === \"\") {",
+      "find": "if (value === \"\" || value === NONE_SENTINEL) {",
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "識別子の値の範囲の不備: 受け取る型・変換が空欄",
-        "識別子の値の範囲の不備: 実運用の値の範囲が空欄"
+        "識別子の値の範囲の不備: 実運用の値の範囲が空欄",
+        "識別子の値の範囲の不備: データセットの値の範囲が -",
+        "識別子の値の範囲の不備: 実運用の値の範囲が -"
       ]
     },
     {
@@ -176,6 +177,51 @@
       "occurrences": 1,
       "expect_failing": [
         "列 `-` と実在の列の行を同じ表に併記すると落ちる（- の自己申告が消費側ごとの要求を黙って外す）"
+      ]
+    },
+    {
+      "id": "id-range-range-dash-accepted",
+      "why": "範囲の - を記入済みとして通す",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (value === \"\" || value === NONE_SENTINEL) {",
+      "replace": "if (value === \"\") {",
+      "occurrences": 1,
+      "expect_failing": [
+        "識別子の値の範囲の不備: データセットの値の範囲が -",
+        "識別子の値の範囲の不備: 実運用の値の範囲が -"
+      ]
+    },
+    {
+      "id": "id-range-conversion-blank-ignored",
+      "why": "変換の空欄を落とさない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (normalizeCell(row[\"受け取る型・変換\"]) === \"\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["識別子の値の範囲の不備: 受け取る型・変換が空欄"]
+    },
+    {
+      "id": "id-range-duplicate-ignored",
+      "why": "同じ (テーブル, 列, slug) の重複行を落とさない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "if (seenIdKeys.has(key)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ (テーブル, 列, slug) を 2 行に書くと落ちる（届く・届かないが 1 つに決まらない）"
+      ]
+    },
+    {
+      "id": "id-range-reason-ignored",
+      "why": "実在の列の行の根拠の空欄を落とさない",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "      if (reason === \"\") {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が空欄",
+      "replace": "      if (false) {\n        findings.push({\n          code: \"id-range-reason-missing\",\n          message: `識別子の値の範囲の ${label} の根拠が空欄",
+      "occurrences": 1,
+      "expect_failing": [
+        "識別子の値の範囲の不備: 届くの根拠が空欄（整数変換を届くと書くだけで通さない）",
+        "識別子の値の範囲の不備: gaps に記録の根拠が空欄",
+        "識別子の値の範囲の不備: 行を足すの根拠が空欄"
       ]
     }
   ]

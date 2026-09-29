@@ -806,6 +806,8 @@ export function checkPredicateCoverage(input) {
     const noIdColumn = new Set();
     /** 実在の列の行を持つテーブル。 */
     const realColumnTables = new Set();
+    /** (テーブル, 列, slug) の既出。 */
+    const seenIdKeys = new Set();
     /** @type {{ tableName: string, column: string, slugs: string[] }[]} */
     const unreachedGaps = [];
     for (const row of rowsAsRecords(idRangeTable)) {
@@ -843,13 +845,30 @@ export function checkPredicateCoverage(input) {
         continue;
       }
       realColumnTables.add(tableName);
-      for (const header of ["データセットの値の範囲", "実運用の値の範囲", "受け取る型・変換"]) {
-        if (normalizeCell(row[header]) === "") {
+      // 範囲の 2 列は `-` も欠けとして落とす——値を持つ列の行なので範囲は必ず在り、
+      // `-` を受けると範囲を並べて記録させる契約が黙って外れる。`-`（変換なし）が意味を持つのは変換の列だけ。
+      for (const header of ["データセットの値の範囲", "実運用の値の範囲"]) {
+        const value = normalizeCell(row[header]);
+        if (value === "" || value === NONE_SENTINEL) {
           findings.push({
             code: "id-range-cell-blank",
-            message: `識別子の値の範囲の ${label} の「${header}」が空欄（未調査。変換が無いなら - と書く）`,
+            message: `識別子の値の範囲の ${label} の「${header}」が「${value || "（空欄）"}」（実在の列の行では範囲を書く）`,
           });
         }
+      }
+      if (normalizeCell(row["受け取る型・変換"]) === "") {
+        findings.push({
+          code: "id-range-cell-blank",
+          message: `識別子の値の範囲の ${label} の「受け取る型・変換」が空欄（未調査。変換が無いなら - と書く）`,
+        });
+      }
+      // 根拠は届く・届かないを問わず要る——届くかは変換の意味から設計者が判定した自己申告で、
+      // 読み手が確かめられる材料（帯が型の上限に収まる等）が無いと、届くと書くだけで通る。
+      if (reason === "") {
+        findings.push({
+          code: "id-range-reason-missing",
+          message: `識別子の値の範囲の ${label} の根拠が空欄（変換の後も届くか・届かない経路をどう扱ったかを確かめた材料が残らない）`,
+        });
       }
       const slugList = splitList(row["消費側 slug"]);
       if (slugList.kind !== "items") {
@@ -867,6 +886,15 @@ export function checkPredicateCoverage(input) {
             });
             continue;
           }
+          // 同じ (テーブル, 列, slug) を 2 行に書くと、届く・届かないの判定が 1 つに決まらない。
+          const key = `${tableName}\u0000${column}\u0000${slug}`;
+          if (seenIdKeys.has(key)) {
+            findings.push({
+              code: "id-range-duplicated",
+              message: `識別子の値の範囲で ${tableName}.${column} の消費側 ${slug} が 2 行以上にある（届くかと扱いが 1 つに決まらない）`,
+            });
+          }
+          seenIdKeys.add(key);
           coveredPairs.add(`${slug}\u0000${tableName}`);
         }
       }
@@ -896,12 +924,6 @@ export function checkPredicateCoverage(input) {
           message: `識別子の値の範囲の ${label} は変換の後に届かないのに扱いが「${disposition || "（空欄）"}」（${ID_DISPOSITIONS.join(" / ")} から選ぶ。帯を変えたなら変えた後の帯で書き直す）`,
         });
         continue;
-      }
-      if (reason === "") {
-        findings.push({
-          code: "id-range-reason-missing",
-          message: `識別子の値の範囲の ${label} は「${disposition}」だが根拠が空欄（届かない経路をどう扱ったかが後から読めない）`,
-        });
       }
       if (disposition === "gaps に記録" && slugList.kind === "items") {
         unreachedGaps.push({ tableName, column, slugs: slugList.items });
