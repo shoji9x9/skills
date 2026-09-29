@@ -380,6 +380,35 @@ test("成果物の置き場・台帳を読めないときは合格にも未判�
   expect(empty.json.artifacts).toEqual([]);
 });
 
+test("明示した --ledger が無いときは「台帳なし」に倒さず exit 2 にする", () => {
+  const work = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
+  const typo = run(work, ["--ledger", ".replace/procedure-change.md"]);
+  expect(typo.code).toBe(2);
+  expect(typo.stderr).toContain("--ledger に渡した");
+  // 陰性コントロール: 既定の置き場に台帳が無いのは「プロジェクト側で軸を足していない」なので通す。
+  const absent = run(work);
+  expect(absent.code).toBe(0);
+  expect(absent.json.ledger_exists).toBe(false);
+});
+
+test("セル内の \\| は区切りにせず、値では | として読む", () => {
+  const work = workspace({
+    ledger: ledger(
+      ["| PC-001 | 2026-09-20 | 0 件 \\| 1 件の表示 | issue: #12 | feature | この変更の完了条件 |"],
+      ["| R-001 | PC-001 | order | 当てない | 2026-09-21 | 一覧 \\| 詳細のどちらも持たない |"],
+    ),
+    artifacts: { order: meta({ procedure_revision: 2 }), user: meta({ procedure_revision: 2 }) },
+  });
+  const r = run(work);
+  expect(r.code).toBe(1);
+  expect(r.json.unresolved.map((u) => [u.change, u.slug, u.axis])).toEqual([
+    ["PC-001", "user", "0 件 | 1 件の表示"],
+  ]);
+  expect(r.json.resolved.map((u) => [u.slug, u.basis])).toEqual([
+    ["order", "一覧 | 詳細のどちらも持たない"],
+  ]);
+});
+
 test("--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす", () => {
   const work = workspace({
     ledger: ledger(

@@ -10,7 +10,7 @@
   },
   "run": {
     "started_at": "<ISO 8601 の開始日時>",
-    "finished_at": "<ISO 8601 の終了日時>",
+    "finished_at": "<ISO 8601 の終了日時。replace-strategy の procedure-staleness-check.mjs がプロジェクト側で足した軸の対象をこの日付で決めるので、書き換えるのは特性化をやり直したときだけ（ベースラインの再取得・部分的な追記では前の値を残す）>",
     "agent": "<調査したコーディングエージェント名>",
     "model": "<モデル名>",
     "effort": "<エフォート。省略不可>",

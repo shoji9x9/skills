@@ -305,6 +305,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - **`metadata.json` の `run.procedure_revision` に、採取した時点の [`assets/procedure-revisions.json`](assets/procedure-revisions.json) の `revision` を整数で書く**（コピーせずスキル配下から読む）。
   確かめる軸を足した改訂より前の成果物を、`replace-strategy status` が「旧手順で閉じた機能」として列挙する材料になる。
   **既に閉じた機能へ 1 つの軸を当て直しただけでは上げない**——同じ改訂の他の軸まで当てたことになる。
+  **`run.finished_at` も同じく、特性化を全体でやり直したときだけ書き換える**（ベースラインの再取得・部分的な追記では前の値を残す）——
+  プロジェクト側で足した軸の対象はこの日付で決まるので、新しい日付にすると閉じた機能が対象から黙って外れる。
   当て直しは `replace-strategy` の `references/procedure-changes.md` の台帳で記録する
 - **区切りの記録（`.replace/parity/<slug>/checkpoints.json`）も成果物ではない。** 同じ作業ツリーで再開するための作業記録で、指紋はコミットしない大きなバイナリも含むのでコミットしない
   （形式の正本: [`scripts/checkpoint.mjs`](scripts/checkpoint.mjs)）

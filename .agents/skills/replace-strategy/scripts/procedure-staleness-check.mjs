@@ -62,8 +62,9 @@ function splitRow(line) {
   let trimmed = line.trim();
   if (!trimmed.includes("|")) return null;
   if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
-  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
-  return trimmed.split("|");
+  if (trimmed.endsWith("|") && !trimmed.endsWith("\\|")) trimmed = trimmed.slice(0, -1);
+  // GFM はセル内の縦棒を `\|` で書く。区切りにせず、セルの値では `|` に戻す。
+  return trimmed.split(/(?<!\\)\|/u).map((cell) => cell.replaceAll("\\|", "|"));
 }
 
 /**
@@ -761,6 +762,8 @@ export function main(argv, deps = {}) {
       linked = false;
     }
     if (linked) return fail(`${ledgerPath} が壊れたシンボリックリンク（リンク先が無い）`);
+    // 明示したパスが無いのは綴り・cwd の誤り。「台帳なし」として読むと台帳の未判断が黙って消える（--parity-dir と同じ扱い）。
+    if (args["--ledger"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);
   }
   /** @type {{ changes: any[], records: any[] }} */
   let ledger = { changes: [], records: [] };

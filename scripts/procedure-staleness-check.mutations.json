@@ -180,7 +180,8 @@
         "陰性コントロール: 扱える位置の HTML コメントは通す: 開始行と終了行に分けたコメント",
         "陰性コントロール: 扱える位置の HTML コメントは通す: 字下げした終了行",
         "陰性コントロール: 扱える位置の HTML コメントは通す: コードフェンスの中の記号",
-        "陰性コントロール: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号"
+        "陰性コントロール: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号",
+        "セル内の \\| は区切りにせず、値では | として読む"
       ]
     },
     {
@@ -362,6 +363,24 @@
       "replace": "  else if (false)\n",
       "occurrences": 1,
       "expect_failing": ["parity-suite 以外のスキルの改訂一覧は、番号が合っても exit 2 で落とす"]
+    },
+    {
+      "id": "explicit-ledger-missing-accepted",
+      "why": "明示した --ledger の綴り違いを「台帳なし」として読み、台帳の未判断を黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (args[\"--ledger\"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["明示した --ledger が無いときは「台帳なし」に倒さず exit 2 にする"]
+    },
+    {
+      "id": "escaped-pipe-split",
+      "why": "セル内の \\| を区切りとして割り、正しく書いた台帳を列数エラーで読めなくする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "trimmed.split(/(?<!\\\\)\\|/u)",
+      "replace": "trimmed.split(\"|\")",
+      "occurrences": 1,
+      "expect_failing": ["セル内の \\| は区切りにせず、値では | として読む"]
     }
   ]
 }
