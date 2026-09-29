@@ -68,9 +68,10 @@ function splitRow(line) {
 /**
  * Markdown の表を全て取り出す（コードフェンスの中は例示なので読まない）。
  * @param {string} text
+ * @param {Set<number>} [consumed] 渡すと、表として読んだ行（見出し・区切り・行）の行番号を入れる
  * @returns {{ headers: string[], rows: string[][] }[]}
  */
-export function parseTables(text) {
+export function parseTables(text, consumed) {
   const lines = text.split(/\r?\n/u);
   /** @type {{ headers: string[], rows: string[][] }[]} */
   const tables = [];
@@ -97,6 +98,7 @@ export function parseTables(text) {
       rows.push(row);
     }
     tables.push({ headers: header.map(collapse), rows });
+    if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);
     i = j - 1;
   }
   return tables;
@@ -156,7 +158,7 @@ export function isDate(value) {
 }
 
 /**
- * ISO 8601 の日時から UTC の日付（YYYY-MM-DD）を取る。読めなければ null。
+ * ISO 8601 の日時から、書かれたままの日付（YYYY-MM-DD）を取る。読めなければ null。
  * @param {unknown} value
  * @returns {string | null}
  */
@@ -166,9 +168,10 @@ export function dateOf(value) {
   if (!/^\d{4}-\d{2}-\d{2}T/u.test(value)) return null;
   // 2026-02-30T… を Date.parse が 03-02 へ繰り上げて受理するので、書かれた日付の実在を先に確かめる。
   if (!isDate(value.slice(0, 10))) return null;
-  const time = Date.parse(value);
-  if (Number.isNaN(time)) return null;
-  return new Date(time).toISOString().slice(0, 10);
+  if (Number.isNaN(Date.parse(value))) return null;
+  // UTC へ換算しない。UTC より遅れたオフセット（-05:00 等）の終了日時を換算すると翌日になり、
+  // 同じ日に足した軸の対象から漏れる（見逃す側に倒れる）。書き手の日付のまま比べる。
+  return value.slice(0, 10);
 }
 
 /**
@@ -257,22 +260,38 @@ function findTable(tables, headers) {
 }
 
 /**
- * コードフェンスの外で `|` から始まる行を数える（parseTables が読んだ行と突き合わせるため）。
+ * 表の行に見えるか。外側の `|` を省いた行（`PC-002 | … | #1`）も表の行として書ける（GFM）ので、
+ * `|` で始まるかではなく、台帳の列数ぶんの区切りを持つかで見る。HTML コメント（テンプレートの記入例）は除く。
+ * @param {string} line
+ * @returns {boolean}
+ */
+function looksLikeTableRow(line) {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("<!--")) return false;
+  const cells = splitRow(trimmed);
+  return cells !== null && cells.length >= Math.min(CHANGE_HEADERS.length, RECORD_HEADERS.length);
+}
+
+/**
+ * コードフェンスの外で表の行に見える行を数える（parseTables が読んだ行と突き合わせるため）。
+ * 読んだ行は件数の差し引きではなく行番号で除く——外側の `|` を省いた表の行は `|` で始まらないので、
+ * 件数で差し引くと表の外の行を打ち消して黙って通す。
  * @param {string} text
+ * @param {Set<number>} [consumed] parseTables が表として読んだ行番号（数えない）
  * @returns {number}
  */
-export function countRowLikeLines(text) {
+export function countRowLikeLines(text, consumed = new Set()) {
   let fence = null;
   let count = 0;
-  for (const line of text.split(/\r?\n/u)) {
+  text.split(/\r?\n/u).forEach((line, index) => {
     const mark = fenceOf(line);
     if (mark !== null) {
       if (fence === null) fence = mark;
       else if (mark[0] === fence[0] && mark.length >= fence.length) fence = null;
-      continue;
+      return;
     }
-    if (fence === null && line.trim().startsWith("|")) count += 1;
-  }
+    if (fence === null && !consumed.has(index) && looksLikeTableRow(line)) count += 1;
+  });
   return count;
 }
 
@@ -300,7 +319,9 @@ export function parseModes(cell) {
 export function readLedger(text, skillChangeIds) {
   /** @type {string[]} */
   const errors = [];
-  const tables = parseTables(text);
+  /** @type {Set<number>} */
+  const consumed = new Set();
+  const tables = parseTables(text, consumed);
   const changeTable = findTable(tables, CHANGE_HEADERS);
   const recordTable = findTable(tables, RECORD_HEADERS);
   // 表の不在を「変更なし」「記録なし」と読まない。列名を書き換えた台帳も同じ（黙って 0 件になる）。
@@ -312,8 +333,7 @@ export function readLedger(text, skillChangeIds) {
   if (changeTable.duplicated) errors.push("「観点の追加」表が 2 つ以上ある");
   // 表は空行で終わる。区切り行と行の間に空行を挟むと、以降の行は表の外として黙って捨てられ、
   // 「観点の追加」の行なら、その変更の対象が判定から丸ごと消える（偽の合格）。表の外の表の行を数えて落とす。
-  const orphans =
-    countRowLikeLines(text) - tables.reduce((sum, table) => sum + 2 + table.rows.length, 0);
+  const orphans = countRowLikeLines(text, consumed);
   if (orphans > 0) {
     errors.push(
       `表の外に表の行のような行が ${orphans} 行ある（表の途中に空行を挟むと、それ以降の行は読まれない）`,

@@ -38,7 +38,8 @@
       "replace": "      if (entry.finished_on < change.added_at) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない"
+        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない",
+        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"
       ]
     },
     {
@@ -145,6 +146,44 @@
       "expect_failing": [
         "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
       ]
+    },
+    {
+      "id": "orphan-requires-leading-pipe",
+      "why": "外側の | を省いて表の外に落ちた行を数えず、その行の変更を判定から黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return cells !== null && cells.length >= Math.min(CHANGE_HEADERS.length, RECORD_HEADERS.length);\n",
+      "replace": "  return trimmed.startsWith(\"|\");\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "consumed-lines-not-recorded",
+      "why": "表として読んだ行を記録せず、表の行まで表の外の行として数えて正しい台帳を落とす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす",
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす",
+        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない",
+        "同じ組み合わせの記録は後の行を現在の判断として読む",
+        "同梱の改訂一覧と台帳テンプレートは検査がそのまま読める",
+        "対象でない組み合わせへの記録は落とさず stray として見せる",
+        "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
+        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"
+      ]
+    },
+    {
+      "id": "finished-date-converted-to-utc",
+      "why": "終了日時を UTC へ換算し、UTC より遅れたオフセットの成果物を同じ日の追加の対象から漏らす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return value.slice(0, 10);\n",
+      "replace": "  return new Date(Date.parse(value)).toISOString().slice(0, 10);\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
     }
   ]
 }

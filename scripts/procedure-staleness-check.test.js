@@ -245,6 +245,23 @@ test("台帳の表の欠落・語彙外の値・実在しない変更 ID・空�
       ),
       "表の外に表の行",
     ],
+    // 外側の `|` を省いた表の行は `|` で始まらない。件数で差し引くと表の外の行を打ち消して通してしまう。
+    [
+      "# 台帳\n\n" +
+        "ID | 追加日 | 足した軸 | 由来 | 対象の種類 | 見直しの置き場\n---|---|---|---|---|---\n" +
+        "PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n" +
+        "| PC-002 | 2026-09-20 | 軸 | 由来 | feature | #1 |\n\n" +
+        RECORD_HEADER,
+      "表の外に表の行",
+    ],
+    // 表の外に落ちた行自身が外側の `|` を省いた形でも数える。
+    [
+      ledger([], []).replace(
+        "|---|---|---|---|---|---|\n\n## 既に",
+        "|---|---|---|---|---|---|\n\nPC-001 | 2026-09-20 | 軸 | 由来 | feature | #1\n\n## 既に",
+      ),
+      "表の外に表の行",
+    ],
   ];
   for (const [text, message] of cases) {
     const r = run(
@@ -283,6 +300,17 @@ test("成果物を読めず対象かを決められない機能は合格に倒�
     }),
   );
   expect(impossible.code).toBe(3);
+  // UTC より遅れたオフセットの終了日時を換算して翌日に倒さない（同じ日の追加の対象に残す）。
+  const behindUtc = run(
+    workspace({
+      ledger: ledger(["| PC-001 | 2026-09-28 | 軸 | 由来 | feature | #1 |"], []),
+      artifacts: {
+        order: meta({ procedure_revision: 2, finished_at: "2026-09-28T20:00:00-05:00" }),
+      },
+    }),
+  );
+  expect(behindUtc.code).toBe(1);
+  expect(behindUtc.json.unresolved.map((u) => u.change)).toEqual(["PC-001"]);
   const broken = workspace({ artifacts: { order: meta({ procedure_revision: 2 }) } });
   symlinkSync(join(broken, "nowhere"), join(broken, ".replace", "parity", "dangling"));
   const dangling = run(broken);

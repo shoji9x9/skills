@@ -12,7 +12,7 @@
 | 出所 | 記録する場所 | 対象になる機能 |
 |---|---|---|
 | スキル側の手順の改訂 | `parity-suite` の `assets/procedure-revisions.json`（スキルに同梱。プロジェクトは書かない） | `.replace/parity/<slug>/metadata.json` の `run.procedure_revision` がその改訂より小さく、`mode` が改訂の `affects` に入る機能。**キーが無い成果物は改訂番号の導入前**なので、すべての改訂の対象になる |
-| プロジェクト側の観点の追加 | `.replace/procedure-changes.md` の「観点の追加」表 | 同じ `metadata.json` の `run.finished_at` の日付（**UTC に直した日付**）が追加日**以前（同じ日を含む）**で、`mode` が「対象の種類」に入る機能 |
+| プロジェクト側の観点の追加 | `.replace/procedure-changes.md` の「観点の追加」表 | 同じ `metadata.json` の `run.finished_at` に書かれた日付（**オフセットを UTC へ換算しない**。換算すると UTC より遅れた地域の終了日時が翌日になり、同じ日の追加から漏れる）が追加日**以前（同じ日を含む）**で、`mode` が「対象の種類」に入る機能 |
 
 - `metadata.json` の無い slug は特性化前なので対象にしない（着手時に新しい手順で作られる）
 - **改訂一覧を持つのは `parity-suite` だけ**。他のスキル（`parity-replace` / `parity-diff` 等）の手順の更新で確かめる軸が増えたら、プロジェクト側の台帳に行を足す
