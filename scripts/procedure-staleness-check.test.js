@@ -400,6 +400,19 @@ test("陰性コントロール: 複数行の HTML コメントの中の `|` を�
   expect(r.ok).toBe(true);
 });
 
+test("HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）", () => {
+  const retired = `<!--\n退役した表:\n${CHANGE_HEADER}| PC-900 | 2026-01-01 | 軸 | 由来 | * | #9 |\n-->\n\n`;
+  const withLive = readLedger(
+    retired + ledger(["| PC-001 | 2026-09-20 | 軸 | 由来 | feature | #1 |"], []),
+    new Set(),
+  );
+  expect(withLive.ok).toBe(true);
+  expect(/** @type {any} */ (withLive).changes.map((c) => c.id)).toEqual(["PC-001"]);
+  const onlyRetired = readLedger(`# 台帳\n\n${retired}${RECORD_HEADER}`, new Set());
+  expect(onlyRetired.ok).toBe(false);
+  expect(/** @type {any} */ (onlyRetired).errors.join("\n")).toContain("「観点の追加」表が無い");
+});
+
 test("同梱の改訂一覧と台帳テンプレートは検査がそのまま読める", () => {
   const shipped = readRevisions(
     JSON.parse(readFileSync("skills/parity-suite/assets/procedure-revisions.json", "utf8")),

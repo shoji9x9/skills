@@ -77,7 +77,14 @@ export function parseTables(text, consumed) {
   /** @type {{ headers: string[], rows: string[][] }[]} */
   const tables = [];
   let fence = null;
+  let comment = false;
   for (let i = 0; i < lines.length; i += 1) {
+    // HTML コメントの中の表（コメントアウトした記入例・退役した表）は台帳ではない。読むと、生きた表の代わりに
+    // 変更を供給するか、同じ列名の表の重複に化ける。countRowLikeLines と同じ規則で読み飛ばす。
+    if (fence === null && (comment || lines[i].trim().startsWith("<!--"))) {
+      comment = !lines[i].includes("-->");
+      continue;
+    }
     const mark = fenceOf(lines[i]);
     if (mark !== null) {
       if (fence === null) fence = mark;
