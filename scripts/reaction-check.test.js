@@ -3189,3 +3189,16 @@ test("同じ題で位置の違うテストは 1 本に畳まず曖昧として�
     '"layout.spec.ts › 条件を 2 回足した後も頁が窓に収まりグリッドが縮む" が 2 本のテストに当たり曖昧',
   );
 });
+
+test('区切りを含むキーの下の行は別の位置として監査させる（"a.b" と a.b を 1 件で満たさない。Codex レビュー #510）', () => {
+  const t = mutated((x) => {
+    x["a.b"] = { covered_by: ["layout.spec.ts › 操作の後も頁の高さが変わらない"] };
+    x.a = { b: { covered_by: ["search.spec.ts › 絞り込んだ列の見出しが赤くなる"] } };
+  });
+  t.assertion_audit = passingAudit(t);
+  // "a.b" の行だけ監査の記録から外す（位置が衝突すると、a.b の記録がこちらも満たしてしまう）
+  t.assertion_audit.entries = t.assertion_audit.entries.filter((e) => e.path !== '$["a.b"]');
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain('assertion_audit.entries に監査していない行がある: $["a.b"]');
+});

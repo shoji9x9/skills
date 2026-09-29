@@ -1366,7 +1366,8 @@
         "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
         "監査の記録にスペックの指紋が無ければ落とす（Issue #506）",
         "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）",
-        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
       ]
     },
     {
@@ -1394,7 +1395,10 @@
       "find": "  const lacking = [...expected].filter((p) => !seen.has(p));\n",
       "replace": "  const lacking = [];\n",
       "occurrences": 1,
-      "expect_failing": ["監査の記録の不備は落とす: 監査していない行がある（Issue #506）"]
+      "expect_failing": [
+        "監査の記録の不備は落とす: 監査していない行がある（Issue #506）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
     },
     {
       "id": "recorded-covered-by-resolution-ignored",
@@ -1547,6 +1551,17 @@
       "occurrences": 1,
       "expect_failing": [
         "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "owner-path-keys-concatenated",
+      "why": "キーを字面のまま連結して位置を作る（\"a.b\" と a.b が同じ位置になり、監査の記録 1 件が 2 行を満たす。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      walk(v[k], SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`);\n",
+      "replace": "      walk(v[k], `${path}.${k}`);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
       ]
     }
   ]

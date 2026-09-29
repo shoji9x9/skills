@@ -252,6 +252,9 @@ const REQUIRED_PROJECTS = ["current", "new"];
 /** 監査の判定の語彙。short（期待値に届いていない部分がある）は未解消として落ちる。 */
 const AUDIT_VERDICTS = ["reaches", "short"];
 
+/** 位置の文字列で . の後にそのまま書けるキー（区切りを含まない）。それ以外は $["…"] で書く。 */
+const SAFE_KEY = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
+
 /** 表を歩くときに covered_by の持ち主として数えない最上位のキー（記録側の欄）。 */
 const NON_TABLE_KEYS = new Set(["conformance", "assertion_audit"]);
 
@@ -292,7 +295,9 @@ function scanCoveredBy(table) {
       // _note 等の注記（文字列）だけを飛ばす。_ で始まるキーの下の行は数える
       if (k === "covered_by" || (k.startsWith("_") && typeof v[k] === "string")) continue;
       if (path === "$" && NON_TABLE_KEYS.has(k)) continue;
-      walk(v[k], `${path}.${k}`);
+      // 区切り（. [ ] 等）を含みうるキーは JSON 文字列の添字で書く。字面を連結すると "a.b" と a.b が同じ位置になり、
+      // 監査の記録 1 件が別々の 2 行を満たす（Codex レビュー #510）
+      walk(v[k], SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`);
     }
   };
   walk(table, "$");
