@@ -3208,15 +3208,31 @@ test("--audit-sheet は操作・画面の中の行に、それを含む操作と
   expect(r.status).toBe(0);
   const { entries } = JSON.parse(r.stdout);
   const byPath = (p) => entries.find((e) => e.path === p);
-  expect(byPath("$.operations[1].layout").context).toEqual({
-    operation: { id: "search", trigger: "clickButton(検索)" },
+  const ctx = (p) => byPath(p).context;
+  // 操作の中の行は操作の同定を持つ
+  expect(ctx("$.operations[1].layout")[0]).toMatchObject({
+    path: "$.operations[1]",
+    fields: { id: "search", trigger: "clickButton(検索)" },
   });
-  expect(byPath("$.operations[0].reactions[0]").context).toEqual({
-    operation: { id: "copy", trigger: "clickButton(コピー)" },
+  expect(ctx("$.operations[0].reactions[0]")[0].fields).toMatchObject({ id: "copy" });
+  // 送る前の判定の境界の行は、操作に加えて親の判定の項目（id・kind・condition）も持つ
+  const side = ctx("$.operations[1].pre_send.items[0].sides[0]");
+  expect(side.map((c) => c.path)).toEqual([
+    "$.operations[1]",
+    "$.operations[1].pre_send",
+    "$.operations[1].pre_send.items[0]",
+  ]);
+  expect(side[2].fields).toEqual({
+    id: "max-rows",
+    kind: "count-limit",
+    condition: "選んだ行が 500 件を超える",
+    on_block: "上限の通知を出して送信しない",
   });
-  expect(byPath("$.state_displays.pages[0].candidates.toast").context).toEqual({
-    page: "共有画面",
+  // 状態表示の行は画面名を持つ
+  expect(ctx("$.state_displays.pages[0].candidates.toast")).toContainEqual({
+    path: "$.state_displays.pages[0]",
+    fields: { page: "共有画面" },
   });
-  // 行そのものが自分を同定する欄（書き込みの箇所）は文脈を持たない
-  expect(byPath("$.side_effect_writes.sites[0]").context).toBeNull();
+  // 表の直下の欄の行（書き込みの箇所）は表そのものを祖先に載せない
+  expect(ctx("$.side_effect_writes.sites[0]").map((c) => c.path)).toEqual(["$.side_effect_writes"]);
 });

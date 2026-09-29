@@ -278,7 +278,7 @@
 - **1 本のテストを 2 行以上の `covered_by` が名乗るなら、全ての行に `shared_assertion_reason` を書く**（その 1 本が各行の期待値を全て確かめている根拠）。
   1 本で数行ぶん押さえたと数えられても、各行の期待値まで届いている保証は無い。根拠を書けないなら行ごとにテストを分ける。表のどの欄の `covered_by` も同じ集合で数える
 - **assertion が期待値まで届いているかは、実装役と別の subagent に 1 行ずつ監査させる**。入力は
-  `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --tests <一覧> --audit-sheet` が出す `entries`（行の位置 `path`・それを含む操作や画面の同定 `context`・期待値 `expected`・テストの所在 `tests`）と、
+  `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --tests <一覧> --audit-sheet` が出す `entries`（行の位置 `path`・それを含む祖先〈操作・送る前の判定の項目・画面など〉の位置と値の欄 `context`・期待値 `expected`・テストの所在 `tests`）と、
   そのテストのソースの **2 つだけ**にする（実装の経緯を渡すと、書いた側の意図で読んで浅さを見落とす）。
   問いは「差分があるか」ではなく **「期待値のうち、この assertion が確かめていない部分はどこか」**。
   「別タブで開く」なら開いた先がどの行の詳細か、「中身が一致する」なら中身そのものを、期待値の語ごとに assertion と対応付けさせる

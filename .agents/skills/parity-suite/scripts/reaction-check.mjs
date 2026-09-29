@@ -263,7 +263,7 @@ const NON_TABLE_KEYS = new Set(["conformance", "assertion_audit"]);
  * 欄を足すたびに列挙を足す形にすると、足し忘れた欄の covered_by が解決・共有・監査のどれにも入らない（Issue #506）。
  * path は JSON の位置（例: $.operations[0].reactions[1]）で、監査の記録（assertion_audit.entries[].path）の突き合わせに使う。
  * @param {Record<string, unknown>} table
- * @returns {{ path: string, owner: Record<string, unknown>, names: string[] }[]}
+ * @returns {{ path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[]}
  */
 export function coveredByOwners(table) {
   return scanCoveredBy(table).owners;
@@ -276,20 +276,23 @@ export function coveredByOwners(table) {
  * @param {Record<string, unknown>} table
  */
 function scanCoveredBy(table) {
-  /** @type {{ path: string, owner: Record<string, unknown>, names: string[] }[]} */
+  /** @type {{ path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[]} */
   const found = [];
   /** @type {string[]} */
   const malformed = [];
   /** @param {unknown} v @param {string} path */
-  const walk = (v, path) => {
+  /** @param {unknown} v @param {string} path @param {{ path: string, obj: Record<string, unknown> }[]} chain 外側から並べた祖先（表そのものを除く） */
+  const walk = (v, path, chain) => {
     if (Array.isArray(v)) {
-      v.forEach((x, i) => walk(x, `${path}[${i}]`));
+      v.forEach((x, i) => walk(x, `${path}[${i}]`, chain));
       return;
     }
     if (!isPlainObject(v)) return;
     if (Object.hasOwn(v, "covered_by") && v.covered_by !== null) {
       if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);
-      else if (v.covered_by.length > 0) found.push({ path, owner: v, names: v.covered_by });
+      else if (v.covered_by.length > 0) {
+        found.push({ path, owner: v, names: v.covered_by, ancestors: chain });
+      }
     }
     for (const k of Object.keys(v)) {
       // _note 等の注記（文字列）だけを飛ばす。_ で始まるキーの下の行は数える
@@ -297,10 +300,14 @@ function scanCoveredBy(table) {
       if (path === "$" && NON_TABLE_KEYS.has(k)) continue;
       // 区切り（. [ ] 等）を含みうるキーは JSON 文字列の添字で書く。字面を連結すると "a.b" と a.b が同じ位置になり、
       // 監査の記録 1 件が別々の 2 行を満たす（Codex レビュー #510）
-      walk(v[k], SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`);
+      walk(
+        v[k],
+        SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`,
+        path === "$" ? chain : [...chain, { path, obj: v }],
+      );
     }
   };
-  walk(table, "$");
+  walk(table, "$", []);
   return { owners: found, malformed };
 }
 
@@ -553,18 +560,18 @@ export function specsFingerprint(owners, testIndex, rootDir, readFile) {
 /**
  * 監査用の入力（期待値とテストの所在）を作る。監査役の subagent には、これとテストのソースの 2 つだけを渡す。
  * expected は持ち主の欄から covered_by と共有の根拠を除いたもの（期待値そのもの）。
- * context は持ち主を含む行の同定（操作の中の欄なら操作の id / name / trigger、状態表示なら画面名）——
- * 欄だけを渡すと、似た期待値を持つ別の操作のテストでも「届いている」と判定されうる（Codex レビュー #510）。
- * @param {Record<string, unknown>} table
+ * context は持ち主を含む祖先（外側から。表そのものは除く）の位置と値の欄——操作の id / trigger、送る前の判定の項目の
+ * id / kind / condition、状態表示の画面名など。欄だけを渡すと、似た期待値を持つ別の操作・別の判定のテストでも
+ * 「届いている」と判定されうる（Codex レビュー #510。祖先を 1 段ずつ足すと段の数だけ抜けるので、全ての祖先を載せる）。
  * @param {ReturnType<typeof coveredByOwners>} owners
  * @param {ReturnType<typeof indexTestList>} testIndex
  */
-export function auditSheet(table, owners, testIndex) {
-  return owners.map(({ path, owner, names }) => {
+export function auditSheet(owners, testIndex) {
+  return owners.map(({ path, owner, names, ancestors }) => {
     const { covered_by: _c, shared_assertion_reason: _s, ...expected } = owner;
     return {
       path,
-      context: ownerContext(table, path),
+      context: ancestors.map((a) => ({ path: a.path, fields: scalarFields(a.obj) })),
       expected,
       tests: names.map((name) => {
         const hit = testIndex.get(name);
@@ -575,24 +582,17 @@ export function auditSheet(table, owners, testIndex) {
 }
 
 /**
- * 持ち主の位置から、それを含む行の同定を取る（行そのものが持ち主なら null）。
- * @param {Record<string, unknown>} table
- * @param {string} path
- * @returns {Record<string, unknown> | null}
+ * 祖先の値の欄（文字列・数値・真偽値・null）だけを取る。入れ子の欄は持ち主の系列か兄弟なので載せない。注記（_ で始まる）も除く。
+ * @param {Record<string, unknown>} obj
+ * @returns {Record<string, unknown>}
  */
-function ownerContext(table, path) {
-  const op = /^\$\.operations\[(\d+)\][.[]/.exec(path);
-  if (op && Array.isArray(table.operations)) {
-    const o = table.operations[Number(op[1])];
-    if (isPlainObject(o)) return { operation: { id: o.id, name: o.name, trigger: o.trigger } };
-  }
-  const pg = /^\$\.state_displays\.pages\[(\d+)\][.[]/.exec(path);
-  const pages = isPlainObject(table.state_displays) ? table.state_displays.pages : null;
-  if (pg && Array.isArray(pages)) {
-    const row = pages[Number(pg[1])];
-    if (isPlainObject(row)) return { page: row.page };
-  }
-  return null;
+function scalarFields(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(
+      ([k, v]) =>
+        !k.startsWith("_") && (v === null || ["string", "number", "boolean"].includes(typeof v)),
+    ),
+  );
 }
 
 /**
@@ -2829,11 +2829,7 @@ export function main(argv, deps = {}) {
         path: decl.path,
         table_fingerprint: tableFingerprint(table),
         specs_fingerprint: specs.fingerprint,
-        entries: auditSheet(
-          table,
-          owners,
-          /** @type {NonNullable<typeof testIndex>} */ (testIndex),
-        ),
+        entries: auditSheet(owners, /** @type {NonNullable<typeof testIndex>} */ (testIndex)),
         problems,
       });
       for (const p of problems) stderr(`warn: ${p}\n`);

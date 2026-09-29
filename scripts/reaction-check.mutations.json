@@ -1557,8 +1557,8 @@
       "id": "owner-path-keys-concatenated",
       "why": "キーを字面のまま連結して位置を作る（\"a.b\" と a.b が同じ位置になり、監査の記録 1 件が 2 行を満たす。Codex レビュー #510）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      walk(v[k], SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`);\n",
-      "replace": "      walk(v[k], `${path}.${k}`);\n",
+      "find": "        SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`,\n",
+      "replace": "        `${path}.${k}`,\n",
       "occurrences": 1,
       "expect_failing": [
         "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
@@ -1568,8 +1568,19 @@
       "id": "audit-sheet-context-dropped",
       "why": "監査の入力から持ち主を含む操作・画面の同定を外す（似た期待値を持つ別の操作のテストでも届いていると判定されうる。Codex レビュー #510）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "      context: ownerContext(table, path),\n",
-      "replace": "      context: null,\n",
+      "find": "      context: ancestors.map((a) => ({ path: a.path, fields: scalarFields(a.obj) })),\n",
+      "replace": "      context: [],\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-sheet-context-outermost-only",
+      "why": "監査の入力の文脈を最も外側の祖先（操作）だけにする（送る前の判定の項目のような中間の祖先が抜け、別の判定のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        path === \"$\" ? chain : [...chain, { path, obj: v }],\n",
+      "replace": "        path === \"$\" ? chain : chain.length > 0 ? chain : [{ path, obj: v }],\n",
       "occurrences": 1,
       "expect_failing": [
         "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
