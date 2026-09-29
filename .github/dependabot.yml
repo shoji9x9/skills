@@ -15,7 +15,7 @@ updates:
     cooldown:
       default-days: 7
     # squash マージ時の件名を conventional commits 準拠にする（chore: ...）。
-    # 依存更新の型は commit-types.js の単一の真実に従い chore（build は使わない）。
+    # 依存更新の型は commit-types.ts の単一の真実に従い chore（build は使わない）。
     commit-message:
       prefix: "chore"
     # メジャーアップデートの PR は作成しない
@@ -68,7 +68,7 @@ updates:
     cooldown:
       default-days: 7
     # squash マージ時の件名を conventional commits 準拠にする（chore: ...）。
-    # 依存更新の型は commit-types.js の単一の真実に従い chore（build は使わない）。
+    # 依存更新の型は commit-types.ts の単一の真実に従い chore（build は使わない）。
     commit-message:
       prefix: "chore"
     # メジャーアップデートの PR は作成しない

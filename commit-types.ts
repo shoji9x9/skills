@@ -14,7 +14,7 @@ export const types = ["feat", "fix", "docs", "refactor", "test", "ci", "chore"];
 // skills/** の変更がどの種別でも publish されるよう、各種別に最低リリースを割り当てる。
 // feat は minor、それ以外は patch。破壊的変更（`!` / BREAKING CHANGE）は major。
 // 破壊的変更を最優先で判定するため breaking ルールを先頭に置く（type ルールに先にマッチして
-// minor/patch へ落ちるのを防ぐ）。`!` 記法の検出には release.config.js 側で
+// minor/patch へ落ちるのを防ぐ）。`!` 記法の検出には release.config.ts 側で
 // preset: "conventionalcommits" の指定が必要（angular 既定では `!` を検出しない）。
 export const releaseRules = [
   { breaking: true, release: "major" },

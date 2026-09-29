@@ -1,6 +1,6 @@
-import { types } from "./commit-types.js";
+import { types } from "./commit-types.ts";
 
-// 許可するコミット種別は commit-types.js を単一の真実とする（二重定義を避ける）。
+// 許可するコミット種別は commit-types.ts を単一の真実とする（二重定義を避ける）。
 export default {
   extends: ["@commitlint/config-conventional"],
   rules: {

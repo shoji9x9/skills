@@ -24,6 +24,7 @@
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "semantic-release": "^25.0.9",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.11"
   },
   "devEngines": {
