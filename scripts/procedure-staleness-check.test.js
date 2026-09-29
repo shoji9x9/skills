@@ -110,6 +110,17 @@ test("改訂番号を持たない成果物は、スキルのすべての改訂�
   ]);
 });
 
+test("陰性コントロール: metadata.json の無い特性化中の slug は、中身があっても判定不能にしない", () => {
+  // parity-suite は metadata.json を終盤で書くので、対応表・スペックだけがある形は特性化中の正常な状態。
+  const work = workspace({
+    artifacts: { order: meta({ procedure_revision: 2 }), draft: null },
+  });
+  writeFileSync(join(work, ".replace", "parity", "draft", "gaps.md"), "# gaps\n");
+  const r = run(work);
+  expect(r.code).toBe(0);
+  expect(r.json.artifacts.map((a) => a.slug)).toEqual(["order"]);
+});
+
 test("成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない", () => {
   const work = workspace({
     artifacts: {
@@ -408,6 +419,15 @@ test("改訂一覧の revision に対応する改訂が無い・affects が語�
   );
   expect(bad.code).toBe(2);
   expect(bad.json.errors.join("\n")).toContain("語彙外の mode");
+});
+
+test("parity-suite 以外のスキルの改訂一覧は、番号が合っても exit 2 で落とす", () => {
+  const other = { ...REVISIONS, skill: "parity-replace" };
+  const bad = run(
+    workspace({ revisions: other, artifacts: { order: meta({ procedure_revision: 2 }) } }),
+  );
+  expect(bad.code).toBe(2);
+  expect(bad.json.errors.join("\n")).toContain("skill が parity-suite でない");
 });
 
 test("陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない", () => {

@@ -131,6 +131,9 @@ export const DECISIONS = {
 /** 見直しの置き場のうち、Issue 番号でないもの（変更そのものの完了条件に入れる）。 */
 export const PLACEMENT_IN_CHANGE = "この変更の完了条件";
 
+/** 改訂一覧を持つスキル（成果物の run.procedure_revision はこのスキルの改訂番号）。 */
+export const REVISIONS_SKILL = "parity-suite";
+
 const CHANGE_HEADERS = ["ID", "追加日", "足した軸", "由来", "対象の種類", "見直しの置き場"];
 const RECORD_HEADERS = ["記録 ID", "変更 ID", "slug", "判断", "記録日", "根拠・理由"];
 
@@ -193,6 +196,10 @@ export function readRevisions(doc) {
   if (!isObject(doc)) return { ok: false, errors: ["改訂一覧がオブジェクトでない"] };
   const skill = doc.skill;
   if (!nonEmptyString(skill)) errors.push("skill が空");
+  // 比べる意味（成果物の run.procedure_revision との大小）は parity-suite の改訂番号にしか無い。別のスキルの改訂一覧を
+  // 渡すと、番号が偶然合うだけで無関係な改訂を「当て済み」と認める。
+  else if (skill !== REVISIONS_SKILL)
+    errors.push(`skill が ${REVISIONS_SKILL} でない（別のスキルの改訂一覧）: ${skill}`);
   const revision = doc.revision;
   if (!Number.isInteger(revision) || /** @type {number} */ (revision) < 1) {
     errors.push("revision が 1 以上の整数でない");
@@ -526,6 +533,8 @@ export function readArtifacts(parityDir, latestRevision) {
     }
     const path = join(dir, "metadata.json");
     // metadata.json の無い slug は特性化前（未着手）であって、旧手順で閉じた機能ではない。
+    // 中身のあるディレクトリでも同じ扱いにする——parity-suite は metadata.json を終盤（手順 8）で書くので、
+    // 対応表・スペックだけがある形は特性化中の正常な状態で、判定不能にすると特性化中の機能 1 つで検査が止まる。
     if (!existsSync(path)) {
       // existsSync はリンクを辿るので、壊れたシンボリックリンクも「無い」になる。
       // 特性化前（metadata.json が本当に無い）と区別し、壊れたリンクは読めない成果物として残す。

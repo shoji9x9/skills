@@ -353,6 +353,15 @@
       "expect_failing": [
         "陰性コントロール: 扱える位置の HTML コメントは通す: コードフェンスの中の記号"
       ]
+    },
+    {
+      "id": "foreign-revisions-accepted",
+      "why": "parity-suite 以外のスキルの改訂一覧を受け入れ、番号が偶然合うだけで無関係な改訂を当て済みと認める",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  else if (skill !== REVISIONS_SKILL)\n",
+      "replace": "  else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["parity-suite 以外のスキルの改訂一覧は、番号が合っても exit 2 で落とす"]
     }
   ]
 }
