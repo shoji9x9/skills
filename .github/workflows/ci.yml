@@ -83,10 +83,25 @@ jobs:
         run: node scripts/check-mutation-count-prose.js
       - name: Skill index (AGENTS.md / README.md vs skills/)
         run: node scripts/check-skill-index.js
+
+  # ユニットテストは Lint から独立したジョブにして並べて走らせる（Lint の所要の大半を占めていたため）。
+  # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: pnpm install --frozen-lockfile
       - name: Unit tests (vitest)
         run: pnpm test
 
-  # 変異実証（検査の検出能力の再実行）。Lint から独立したジョブにして Unit tests と並べて走らせる
+  # 変異実証（検査の検出能力の再実行）。Lint・Unit tests から独立したジョブにして並べて走らせる
   # （ステップ自体は縮まないが、PR 全体の待ち時間が縮む。Issue #478）。
   #
   # **差分に当たる宣言だけ**を測る。対象も検査も変わっていない宣言は前回の実証がそのまま有効なので、
