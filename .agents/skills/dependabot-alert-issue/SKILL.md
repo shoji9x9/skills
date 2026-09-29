@@ -246,7 +246,9 @@ cat > "$tmp" <<'EOF'
 <本文>
 EOF
 gh issue create --repo <owner>/<repo> --title "<severity を含むタイトル>" --body-file "$tmp" --label "<ラベル>"
+rc=$?
 rm -f "$tmp"
+(exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
 ```
 
 - `--body` に長文を直接入れると改行・特殊文字で崩れるため `--body-file` を使う。

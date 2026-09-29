@@ -10,8 +10,9 @@
 // - 対象は追跡ファイルと、ignore されていない未追跡ファイル（add 前の新規ファイルを手元で見落とさない。
 //   commit の前後で走査集合が変わらない）のうち、テキスト拡張子のもの（`check-control-chars.js` と同じ集合）。
 //   配布スキルのインストール済みコピー（`.agents/skills/<name>/` のうち `skills/<name>/` に正本があるもの）、
-//   エージェント用リンク（`.claude/`）、テスト結果（`tests/`）、学び自身（`.kaizen/`。学び同士の参照は
-//   移動と一緒に扱う）、`node_modules/` を除く。`.agents/` のそれ以外は正本なので走査する——
+//   エージェント用リンク（`.claude/`）、テスト結果（`tests/`）、学び自身（`.kaizen/`。学びは書かれた時点の記録で、
+//   参照先が後で archive/ へ移って現存しなくても不整合ではない〈kaizen スキルの references/extract.md の規定〉。
+//   ここで落とすと archive のたびに過去の記録を書き換えることになる）、`node_modules/` を除く。`.agents/` のそれ以外は正本なので走査する——
 //   private skill（`skills/` に無い `.agents/skills/<name>/`）と rule（`.agents/rules/`）。
 //   シンボリックリンクは読まない（`.github/instructions/` → `.agents/rules/` のようなリンクは、リンク先の正本を
 //   走査するので、辿ると同じ本文を二重に数える）。

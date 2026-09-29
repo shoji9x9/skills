@@ -165,7 +165,9 @@ EOF
 gh api --method POST \
   repos/<owner>/<repo>/pulls/<番号>/comments/<comment-id>/replies \
   -F body=@"$body_file"
+rc=$?
 rm -f "$body_file"
+(exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
 ```
 
 ### 解決（GraphQL）

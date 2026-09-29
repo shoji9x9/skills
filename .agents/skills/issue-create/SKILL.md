@@ -60,7 +60,9 @@ issue-create <説明> [--repo <owner>/<repo>]
      <本文>
      EOF
      gh issue create --title "<タイトル>" --body-file "$tmp" --label "<ラベル>"
+     rc=$?
      rm -f "$tmp"
+     (exit "$rc")  # gh の失敗を後片付けの終了コードで隠さない
      ```
 
    - 別リポジトリを対象にする場合は `--repo <owner>/<repo>` を付ける
