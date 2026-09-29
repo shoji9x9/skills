@@ -111,10 +111,14 @@
     （本スキルと同じインストール先の `parity-suite/scripts/`）の `reaction-check.mjs` を `--tests <テスト一覧> --recorded` で呼んで行う（照合規則を 2 スキルに複製しない）:
 
     ```bash
+    # 一覧は作業ツリーの外の一時ファイルに置く（絶対パスの config.rootDir を含むので .replace/ に残して commit しない）
+    TESTS="$(mktemp)"
     # current と new を明示する（省くと new-capture の採取スペックまで読み込み、採取用の環境変数が無いと落ちる）
-    npx playwright test --list --reporter=json --project=current --project=new > .replace/parity/<slug>/tests.json
+    npx playwright test --list --reporter=json --project=current --project=new > "$TESTS"
     node <parity-suite の skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json \
-      --tests .replace/parity/<slug>/tests.json --recorded
+      --tests "$TESTS" --recorded
+    status=$?
+    rm -f "$TESTS"
     ```
 
     `--recorded` は移行元ソースを読まず（テスト一覧は読む。`--tests` を省くと exit 2）、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。

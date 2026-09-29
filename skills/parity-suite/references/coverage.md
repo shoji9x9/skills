@@ -294,10 +294,11 @@
 ### 照合と宣言
 
 - `metadata.json` に `reaction_coverage` と撮影状態（`capture_conditions.states`）を書いたら、スイートのテスト一覧を
-  `npx playwright test --list --reporter=json --project=current --project=new` `> .replace/parity/<slug>/tests.json` で取り（**`current` と `new` の両方を明示する**——片側に絞ると両側で走ることを確かめられず、
+  `npx playwright test --list --reporter=json --project=current --project=new > "$TESTS"` で取り（**置き場は作業ツリーの外の一時ファイル**〈`TESTS="$(mktemp)"`〉。
+  一覧は絶対パスの `config.rootDir` を含む手元の環境の出力なので、`.replace/` に置いて commit しない。照合のたびに取り直し、終わったら消す。**`current` と `new` の両方を明示する**——片側に絞ると両側で走ることを確かめられず、
   省くと `new-capture` の採取スペックまで読み込まれて採取用の環境変数〈`PARITY_SLUG` 等〉が無いと落ちる。`--project` は複数の値を取るので `=` 付きで書く。一覧の取得ではテストもブラウザも走らない）、
   上の監査を済ませてから
-  `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --tests .replace/parity/<slug>/tests.json --write` を**exit 0 まで**通す
+  `node <skill>/scripts/reaction-check.mjs --metadata .replace/parity/<slug>/metadata.json --root <移行元ソースのルート> --tests "$TESTS" --write` を**exit 0 まで**通す
   （コピーせずスキル配下から実行する。`--root` の既定は cwd。`--tests` を省くと exit 2）。空欄・証拠の欠け・消える時間の単一標本・`layout` の欠けと 1 回だけの標本・`aftermath` の欠け（割り当ての無い残る見た目・動かしていない状態の `reset`・オリジン付きの URL）・
   `pre_send` の欠け（到達点の無い記録・境界の片側だけの判定・順序の無い判定・走査範囲の外の到達点）・`side_effect_writes` の欠け（ソースにある書き込みの記録漏れ・書く箇所の無い表・値や時機の空欄）・
   `resubmit` の欠け（保留せずに押し直した記録・書き込む操作の書き込みの回数の欠け）・`state_displays` の欠け（振り分けていない画面・候補、横取りで試していない取得の失敗・読み込み中の「ない」、割り当ての無い「ある」）・呼び出しの記録漏れ・走査対象 0 件・
