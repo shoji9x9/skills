@@ -38,11 +38,14 @@ export const VERSION = "1";
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
 
 /**
- * lifecycle の記録を検査する（純関数）。
- * @param {any} lifecycle build-metadata.json の lifecycle
+ * build-metadata.json の lifecycle の記録を検査する（純関数）。lifecycle だけでなく catalog.stories も読む——
+ * 順番の見本が見た目の照合の対応表にも載っていると、見た目の見本がすり替わっても検査が通るため。
+ * @param {any} metadata build-metadata.json の中身
  * @returns {{ structural: boolean, applies: boolean | null, findings: object[] }}
  */
-export function checkLifecycle(lifecycle) {
+export function checkLifecycle(metadata) {
+  const lifecycle = metadata && metadata.lifecycle;
+  const catalogStories = metadata && metadata.catalog && metadata.catalog.stories;
   /** @type {object[]} */
   const findings = [];
   const structural = (detail) => ({
@@ -64,6 +67,14 @@ export function checkLifecycle(lifecycle) {
   if (!Array.isArray(paths) || !Array.isArray(notApplicable)) {
     return structural("lifecycle.paths / not_applicable_paths が配列でない");
   }
+  if (!Array.isArray(catalogStories)) {
+    return structural(
+      "catalog.stories が配列でない（順番の見本と見た目の見本の対応表を突き合わせられない）",
+    );
+  }
+  const visualStories = new Set(
+    catalogStories.map((row) => row && row.story).filter(nonEmptyString),
+  );
   if (!lifecycle.applies) {
     if (paths.length > 0) {
       findings.push({
@@ -117,6 +128,14 @@ export function checkLifecycle(lifecycle) {
         code: "lifecycle-path-not-entered",
         path: name,
         detail: `entered が 1 以上の整数でない: ${JSON.stringify(row.entered)}（経路に入らないまま症状だけを見た検査は何も示さない）`,
+      });
+    }
+    if (nonEmptyString(row.story) && visualStories.has(row.story)) {
+      findings.push({
+        code: "lifecycle-story-in-catalog",
+        path: name,
+        story: row.story,
+        detail: "順番の見本が catalog.stories（見た目の照合の対応表）にも載っている",
       });
     }
     if (row.fix_removal_verified !== true) {
@@ -184,7 +203,7 @@ export function main(
   } catch (error) {
     return fail(`build-metadata.json を読めない: ${error && error.message}`);
   }
-  const result = checkLifecycle(metadata && metadata.lifecycle);
+  const result = checkLifecycle(metadata);
   if (result.structural) {
     out({ ok: false, structural: true, findings: result.findings });
     return 2;

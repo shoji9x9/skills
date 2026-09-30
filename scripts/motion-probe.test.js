@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const { MAX_SAMPLES, VERSION, probeMotion } = await import(
+const { MAX_FRAME_RATE, VERSION, probeMotion, sampleLimit } = await import(
   join(repoRoot, "skills/parity-component/scripts/motion-probe.mjs")
 );
 const { summarizeTimeline } = await import(
@@ -29,7 +29,7 @@ const GLOBALS = [
 ];
 
 /** 偽のページ環境。model(elapsedSinceTrigger) が要素の状態を返す（null なら要素が無い）。 */
-function installEnv({ model, matches = 1, ancestorOpacity = 1 }) {
+function installEnv({ model, matches = 1, ancestorOpacity = 1, frame = FRAME }) {
   const env = { now: 1000, triggerAt: null, queue: [] };
   const parent = {
     nodeType: 1,
@@ -68,7 +68,7 @@ function installEnv({ model, matches = 1, ancestorOpacity = 1 }) {
     writable: true,
   });
   const tick = () => {
-    env.now += FRAME;
+    env.now += frame;
     const callbacks = env.queue;
     env.queue = [];
     for (const cb of callbacks) cb();
@@ -155,16 +155,33 @@ test("動かないまま上限に達したのは観測（timed_out: false）で�
   expect(summarizeTimeline(spinningTimeline).ok).toBe(false);
 });
 
-test("フレーム数の上限に達したら打ち切りとして記録する", async () => {
-  const { page, trigger } = installEnv({ model: () => ({ x: 0, y: 0, width: 10, height: 10 }) });
+test("想定より速く描く環境でフレーム数の上限に達したら打ち切りとして記録する", async () => {
+  // 500Hz で描く（想定の最大フレームレートより速い）。上限は timeoutMs から導いた件数。
+  const { page, trigger } = installEnv({
+    model: () => ({ x: 0, y: 0, width: 10, height: 10 }),
+    frame: 2,
+  });
   const timeline = await probeMotion(page, {
     selector: ".msg",
     trigger,
-    timeoutMs: (MAX_SAMPLES + 10) * FRAME,
+    timeoutMs: 1000,
     settleMs: 100,
   });
-  expect(timeline.samples).toHaveLength(MAX_SAMPLES);
+  expect(timeline.samples).toHaveLength(sampleLimit(1000));
   expect(timeline.timed_out).toBe(true);
+});
+
+test("自動で閉じるまでが長い部品でも、timeoutMs の内なら上限に達せず採り切る", async () => {
+  // 90 秒後に閉じ始める（60Hz で約 5400 フレーム後）。固定の上限 5000 件では打ち切りになっていた。
+  const lateClose = (elapsed) =>
+    elapsed < 90000
+      ? { x: 0, y: 0, width: 200, height: 40, opacity: 1 }
+      : { x: 0, y: 0, width: 200, height: 40, opacity: Math.max(0, 1 - (elapsed - 90000) / 500) };
+  const { page, trigger } = installEnv({ model: lateClose });
+  const timeline = await probeMotion(page, { selector: ".msg", trigger, timeoutMs: 100000 });
+  expect(timeline.timed_out).toBe(false);
+  expect(timeline.samples.length).toBeGreaterThan(5000);
+  expect(sampleLimit(100000)).toBeGreaterThan((100000 * MAX_FRAME_RATE) / 1000);
 });
 
 test("セレクタが複数の要素に当たるなら採らずに失敗する", async () => {

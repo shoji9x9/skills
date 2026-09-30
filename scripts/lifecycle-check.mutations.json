@@ -78,6 +78,17 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["名指しできない経路の理由が無ければ落とす"]
+    },
+    {
+      "id": "story-in-catalog",
+      "why": "順番の見本が見た目の対応表にも載っていても通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (nonEmptyString(row.story) && visualStories.has(row.story)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "順番の見本が catalog.stories にも載っていれば落とし、対応表が読めなければ型崩れ"
+      ]
     }
   ]
 }

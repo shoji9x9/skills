@@ -15,6 +15,20 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-component/scripts/lifecycle-check.mjs");
 const { PATHS, checkLifecycle, main } = await import(script);
 
+/** lifecycle を、順番の見本と重ならない見た目の対応表と一緒に build-metadata の形で渡す。 */
+function check(
+  lifecycle,
+  stories = [
+    {
+      instance: "orders-search",
+      state: "default",
+      story: "components-button--orders-search-default",
+    },
+  ],
+) {
+  return checkLifecycle({ lifecycle, catalog: { stories } });
+}
+
 function pathRow(path, override = {}) {
   return {
     path,
@@ -45,7 +59,7 @@ function lifecycleOf(override = {}) {
 const codes = (result) => result.findings.map((f) => f.code);
 
 test("陽性コントロール: 4 経路を 1 回ずつ振り分け、検査が通った記録は findings 0 件", () => {
-  expect(checkLifecycle(lifecycleOf())).toEqual({ structural: false, applies: true, findings: [] });
+  expect(check(lifecycleOf())).toEqual({ structural: false, applies: true, findings: [] });
 });
 
 test("対象でない部品は paths が空なら通し、paths があれば落とす", () => {
@@ -55,19 +69,19 @@ test("対象でない部品は paths が空なら通し、paths があれば落�
     paths: [],
     not_applicable_paths: [],
   };
-  expect(checkLifecycle(notApplicable).findings).toEqual([]);
-  expect(codes(checkLifecycle({ ...notApplicable, paths: [pathRow("remount")] }))).toEqual([
+  expect(check(notApplicable).findings).toEqual([]);
+  expect(codes(check({ ...notApplicable, paths: [pathRow("remount")] }))).toEqual([
     "lifecycle-paths-when-not-applicable",
   ]);
 });
 
 test("どちらにも振り分けていない経路は lifecycle-path-missing で落とす（空の paths も完了にしない）", () => {
   const dropped = lifecycleOf({ not_applicable_paths: [lifecycleOf().not_applicable_paths[0]] });
-  expect(checkLifecycle(dropped).findings).toEqual([
+  expect(check(dropped).findings).toEqual([
     expect.objectContaining({ code: "lifecycle-path-missing", path: "remount" }),
   ]);
   const empty = lifecycleOf({ paths: [], not_applicable_paths: [] });
-  expect(codes(checkLifecycle(empty))).toEqual([
+  expect(codes(check(empty))).toEqual([
     "lifecycle-no-paths",
     ...PATHS.map(() => "lifecycle-path-missing"),
   ]);
@@ -80,22 +94,22 @@ test("同じ経路の二重の振り分けと語彙外の経路名を落とす",
       { path: "strict-rebind", reason: "重複" },
     ],
   });
-  expect(codes(checkLifecycle(dup))).toEqual(["lifecycle-path-duplicate"]);
+  expect(codes(check(dup))).toEqual(["lifecycle-path-duplicate"]);
   const unknown = lifecycleOf({ paths: [...lifecycleOf().paths, pathRow("hot-reload")] });
-  expect(codes(checkLifecycle(unknown))).toEqual(["lifecycle-path-unknown"]);
+  expect(codes(check(unknown))).toEqual(["lifecycle-path-unknown"]);
 });
 
 test("検査が落ちた・経路に入っていない・直した処理を外した確認が無い経路を落とす", () => {
   const withRow = (override) =>
     lifecycleOf({ paths: [pathRow("strict-rebind", override), pathRow("prop-change-after-init")] });
-  expect(codes(checkLifecycle(withRow({ result: "fail" })))).toEqual(["lifecycle-path-failed"]);
+  expect(codes(check(withRow({ result: "fail" })))).toEqual(["lifecycle-path-failed"]);
   for (const entered of [0, null, "1", 0.5]) {
-    expect(codes(checkLifecycle(withRow({ entered })))).toEqual(["lifecycle-path-not-entered"]);
+    expect(codes(check(withRow({ entered })))).toEqual(["lifecycle-path-not-entered"]);
   }
-  expect(codes(checkLifecycle(withRow({ fix_removal_verified: false })))).toEqual([
+  expect(codes(check(withRow({ fix_removal_verified: false })))).toEqual([
     "lifecycle-fix-removal-unverified",
   ]);
-  expect(checkLifecycle(withRow({ story: "<順番を強制する見本の識別子>" })).findings).toEqual([
+  expect(check(withRow({ story: "<順番を強制する見本の識別子>" })).findings).toEqual([
     expect.objectContaining({ code: "lifecycle-path-incomplete", missing: ["story"] }),
   ]);
 });
@@ -107,14 +121,14 @@ test("名指しできない経路の理由が無ければ落とす", () => {
       lifecycleOf().not_applicable_paths[1],
     ],
   });
-  expect(codes(checkLifecycle(na))).toEqual(["lifecycle-na-reason-missing"]);
+  expect(codes(check(na))).toEqual(["lifecycle-na-reason-missing"]);
 });
 
 test("lifecycle が無い・applies が真偽値でない・reason が無いのは型崩れ", () => {
-  expect(checkLifecycle(undefined).structural).toBe(true);
-  expect(checkLifecycle(lifecycleOf({ applies: "<対象か>" })).structural).toBe(true);
-  expect(checkLifecycle(lifecycleOf({ reason: "" })).structural).toBe(true);
-  expect(checkLifecycle(lifecycleOf({ paths: null })).structural).toBe(true);
+  expect(check(undefined).structural).toBe(true);
+  expect(check(lifecycleOf({ applies: "<対象か>" })).structural).toBe(true);
+  expect(check(lifecycleOf({ reason: "" })).structural).toBe(true);
+  expect(check(lifecycleOf({ paths: null })).structural).toBe(true);
 });
 
 test("同梱テンプレートをそのまま渡しても合格にしない", () => {
@@ -124,17 +138,23 @@ test("同梱テンプレートをそのまま渡しても合格にしない", ()
       "utf8",
     ),
   );
-  expect(checkLifecycle(template.lifecycle).structural).toBe(true);
+  expect(checkLifecycle(template).structural).toBe(true);
 });
 
 test("CLI: 揃った記録で exit 0、経路の漏れで exit 1、引数の誤りは exit 2", () => {
   const dir = makeTempDir("lifecycle-check-");
   const file = join(dir, "build-metadata.json");
-  writeFileSync(file, JSON.stringify({ lifecycle: lifecycleOf() }));
+  writeFileSync(file, JSON.stringify({ lifecycle: lifecycleOf(), catalog: { stories: [] } }));
   const ok = spawnSync(process.execPath, [script, "--build-metadata", file], { encoding: "utf8" });
   expect(ok.status).toBe(0);
   expect(JSON.parse(ok.stdout)).toMatchObject({ tool: "lifecycle-check", ok: true, applies: true });
-  writeFileSync(file, JSON.stringify({ lifecycle: lifecycleOf({ not_applicable_paths: [] }) }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      lifecycle: lifecycleOf({ not_applicable_paths: [] }),
+      catalog: { stories: [] },
+    }),
+  );
   expect(
     spawnSync(process.execPath, [script, "--build-metadata", file], { encoding: "utf8" }).status,
   ).toBe(1);
@@ -153,9 +173,23 @@ test("eval fixture の完了済みの記録（対象でない部品）は通る"
       "utf8",
     ),
   );
-  expect(checkLifecycle(metadata.lifecycle)).toEqual({
+  expect(check(metadata.lifecycle)).toEqual({
     structural: false,
     applies: false,
     findings: [],
   });
+});
+
+test("順番の見本が catalog.stories にも載っていれば落とし、対応表が読めなければ型崩れ", () => {
+  const overlap = check(lifecycleOf(), [
+    {
+      instance: "orders-search",
+      state: "default",
+      story: "components-button--lifecycle-strict-rebind",
+    },
+  ]);
+  expect(overlap.findings).toEqual([
+    expect.objectContaining({ code: "lifecycle-story-in-catalog", path: "strict-rebind" }),
+  ]);
+  expect(checkLifecycle({ lifecycle: lifecycleOf() }).structural).toBe(true);
 });

@@ -61,7 +61,7 @@
 
 **判定は同梱の [`../scripts/lifecycle-check.mjs`](../scripts/lifecycle-check.mjs) が行う**（コピーせずスキル配下から実行する）。
 4 経路が `paths` と `not_applicable_paths` のどちらかにちょうど 1 回ずつ現れること、`paths` の各行の検査が通り・経路に入った回数が 1 以上で・
-`fix_removal_verified` が真であること、対象でない部品が `paths` を持たないことを確かめる。結果の終了コードを `lifecycle.check_exit` に書く。
+`fix_removal_verified` が真であること、順番の見本が `catalog.stories` に載っていないこと、対象でない部品が `paths` を持たないことを確かめる。結果の終了コードを `lifecycle.check_exit` に書く。
 
 ```bash
 node <skill>/scripts/lifecycle-check.mjs \

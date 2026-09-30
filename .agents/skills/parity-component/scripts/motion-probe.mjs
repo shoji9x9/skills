@@ -34,8 +34,22 @@ export const VERSION = "1";
  */
 export const CHANGE_EPSILON = { px: 0.01, opacity: 0.001 };
 
-/** 記録するフレーム数の上限。これを超えたら打ち切りとして記録する（timed_out）。 */
-export const MAX_SAMPLES = 5000;
+/**
+ * 記録するフレーム数の上限を決める想定の最大フレームレート（Hz）。上限は timeoutMs から導く——
+ * 固定の件数にすると、自動で閉じるまでが長い部品で timeoutMs を延ばしても、上限の件数に先に達して
+ * 動きの途中でなくても打ち切りと記録される（5000 件は 60Hz で約 83 秒）。
+ */
+export const MAX_FRAME_RATE = 240;
+
+/**
+ * timeoutMs に見合う、記録するフレーム数の上限。想定の最大フレームレートで timeoutMs を採り切れる件数にする。
+ * これより速く描く環境（240Hz 超）でだけ timeoutMs より先に上限に達し、打ち切りとして記録される。
+ * @param {number} timeoutMs
+ * @returns {number}
+ */
+export function sampleLimit(timeoutMs) {
+  return Math.ceil((timeoutMs * MAX_FRAME_RATE) / 1000) + 1;
+}
 
 /**
  * ページ側で採取を始める（`page.evaluate` に渡す関数。直列化されるので外側の名前を参照しない）。
@@ -200,7 +214,7 @@ export async function probeMotion(page, options) {
     settleMs,
     timeoutMs,
     epsilon: CHANGE_EPSILON,
-    maxSamples: MAX_SAMPLES,
+    maxSamples: sampleLimit(timeoutMs),
   });
   if (!installed || !installed.ok) {
     throw new Error(`motion probe: ${installed ? installed.error : "sampler did not start"}`);
