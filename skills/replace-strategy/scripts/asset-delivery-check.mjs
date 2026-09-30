@@ -7,7 +7,7 @@
 // 期待集合の出所: 台帳（宣言）の「状態 `有効` × 方針 `実体を写す`」の行。突き合わせの記録（asset-delivery.json）は
 // その全行に 1 件ずつ答える——記録に無い行は「確かめていない」として落とす（記録の側から期待集合を作らない）。
 //
-// 行ごとに確かめること（used: true）:
+// 行ごとに確かめること（files を書いた行）:
 //   1. 新側の配信物が参照している: 新側の画面で asset-probe.mjs を当てた出力（--probe）の
 //      images[].src / urlRefs[].url / fontFaces[].src[] / icons[].href / resources[].url のどれかに、
 //      記録の new を --new-base で解決した URL が完全一致（href）で現れる。
@@ -15,11 +15,13 @@
 //      中の icons は読んでいない）・localFragmentRefs（文書内の参照）。
 //   2. 取得したバイトが移行元の配信物と一致する: current を --current-base、new を --new-base で解決して取得し、
 //      どちらも 2xx で sha256 が一致する（SPA のフォールバックが 200 で index.html を返す形もここで落ちる）。
-// 突き合わせない行: used: false（この機能の画面が使わない。reason 必須。台帳の「使われるページ」が全ページなら使えない）、
-//   または disposition: accepted（機械的に確かめられない。reason と利用者の承認 approved_by / approved_at 必須）。
+// 突き合わせない行: disposition: accepted（この機能の画面が使わない・機械的に確かめられない。reason と利用者の承認
+//   approved_by / approved_at 必須）だけ。「この画面では使わない」を検査者が自分で宣言する used: false は置かない——
+//   台帳の「描き方と使われるページ」は自由記述で、そこから外してよい行を読み取る規則は表記ゆれのたびに外せる側へ漏れた
+//   （全頁・共通ヘッダー・`/*`・日本語の続くパス・サブパス配下。PR #535 のレビュー）。外すのは常に利用者の判断にする。
 //
 // fail-closed: 台帳の表が無い・複数ある・状態や方針が語彙外・同じ種類に `有効` が 2 行・記録の形が崩れている・
-//   確かめる資産があるのにプローブが無い、はどれも exit 2（判定していない）。取得の失敗・参照が無い・バイト不一致・
+//   表に属さない行がある・確かめる資産があるのにプローブが無い、はどれも exit 2（判定していない）。取得の失敗・参照が無い・バイト不一致・
 //   記録に無い行・台帳に無い記録は exit 1。
 //
 // ネットワークに依存する（取得して比べることが検査の中身）。それ以外は決定論的。TypeScript 構文は使わない（型は JSDoc）。
@@ -44,16 +46,6 @@ const STATUS_CANCELLED_PREFIX = "取り消し済み";
 /** 台帳の方針の語彙（空欄は未決）。 */
 export const POLICY_COPY = "実体を写す";
 const POLICIES = new Set([POLICY_COPY, "同等物を作る", "写さない", ""]);
-/**
- * used: false で外してよい行の条件。「使われるページ」は自由記述なので、全ページを表す言い方（全頁・各画面・共通ヘッダー…）を
- * 列挙して弾く形にすると、列挙から漏れた表記で全ページの資産が外せてしまう（fail-open）。
- * そこで逆向きに、**具体的なページのパス（`/` 始まり）を書いた行だけ**を外せる候補にし、全ページの目印があれば候補から外す。
- */
-// パスの 1 文字目は英数字などの具体的な名前に限る（`/*` `/**` のような全ルートの指定を具体的なページに数えない）。
-const PAGE_PATH = /(?:^|[\s、,，（「`])\/[\p{L}\p{N}_.:-]/u;
-// パスを書いた行でも、全ページ・全ルートを表す言い方やワイルドカードを含めば外せない。
-const ALL_PAGES =
-  /全(?:ページ|画面|頁|ルート|部|体)|(?:すべて|全て)の(?:ページ|画面|頁|ルート)|各(?:ページ|画面|頁|ルート)|共通|\ball\s+(?:pages|routes|screens)\b|\bevery\s+(?:page|route|screen)\b|\*/iu;
 
 /**
  * 空白を 1 つに畳み、前後を除き、セル全体を囲む強調（`**` / `__`）を外す。台帳の人が書いた表記ゆれを揃える。
@@ -176,7 +168,7 @@ export function parseTables(text) {
 }
 
 /**
- * @typedef {{ kind: string, excludable: boolean, paths: string[], line: number }} LedgerRow
+ * @typedef {{ kind: string, line: number }} LedgerRow
  */
 
 /**
@@ -217,15 +209,6 @@ export function readLedger(text) {
   const kindAt = headers.indexOf("種類");
   const policyAt = headers.indexOf("方針");
   const statusAt = headers.indexOf("状態");
-  // 「使われるページ」列は used: false を認めるかの判定に使う。無い・曖昧な台帳で読むと全ページの行が
-  // 「全ページでない」に化けて used: false が素通りするので、種類・方針・状態と同じく判定しない（fail-closed）。
-  const usageCols = headers.filter((h) => h.includes("使われるページ"));
-  if (usageCols.length !== 1) {
-    throw new UsageError(
-      `台帳の方針の表に「使われるページ」を含む列が ${usageCols.length} 個ある（1 個だけにする。assets-template.md の「描き方と使われるページ」）`,
-    );
-  }
-  const usageAt = headers.indexOf(usageCols[0]);
   /** @type {Map<string, number>} */
   const activeByKind = new Map();
   /** @type {LedgerRow[]} */
@@ -261,41 +244,9 @@ export function readLedger(text) {
     }
     activeByKind.set(kind, line);
     if (policy !== POLICY_COPY) return;
-    const usage = normalizeCell(row[usageAt]);
-    copyRows.push({
-      kind,
-      excludable: PAGE_PATH.test(usage) && !ALL_PAGES.test(usage),
-      paths: pagePaths(usage),
-      line,
-    });
+    copyRows.push({ kind, line });
   });
   return { copyRows, activeRows: activeByKind.size };
-}
-
-/**
- * 「使われるページ」のセルから具体的なページのパス（`/orders`・`/orders/:id` 等）を取り出す。
- * @param {string} usage
- * @returns {string[]}
- */
-export function pagePaths(usage) {
-  const out = [];
-  for (const m of usage.matchAll(/(?:^|[\s、,，（「`])(\/[\p{L}\p{N}_.:\-/]*)/gu)) out.push(m[1]);
-  return out;
-}
-
-/**
- * 台帳のパス（`:id` のような引数の区間を持ちうる）が、プローブを当てた画面のパスに当たるか。区間の数が同じで、
- * 各区間が一致するか台帳側が `:` 始まりなら当たる（末尾の `/` は揃える）。
- * @param {string} ledgerPath
- * @param {string} pagePath
- * @returns {boolean}
- */
-export function pathMatches(ledgerPath, pagePath) {
-  const split = (/** @type {string} */ p) => p.replace(/\/+$/u, "").split("/");
-  const a = split(ledgerPath);
-  const b = split(pagePath);
-  if (a.length !== b.length) return false;
-  return a.every((seg, i) => seg === b[i] || (seg.startsWith(":") && b[i] !== ""));
 }
 
 /**
@@ -330,7 +281,7 @@ export function resolveAssetUrl(value, base, label) {
 }
 
 /**
- * @typedef {{ kind: string, used: boolean, accepted: boolean, reason: string | null, files: { current: string, new: string }[] }} RecordEntry
+ * @typedef {{ kind: string, accepted: boolean, reason: string | null, files: { current: string, new: string }[] }} RecordEntry
  */
 
 /**
@@ -350,19 +301,23 @@ export function readRecord(doc) {
     const kind = normalizeCell(raw.kind);
     if (seen.has(kind)) throw new UsageError(`記録に「${kind}」が 2 件ある`);
     seen.add(kind);
-    if (typeof raw.used !== "boolean") throw new UsageError(`${at}.used が真偽値でない（${kind}）`);
+    // 「この画面では使わない」を検査者が自分で宣言して外す形（used: false）は持たない。黙って読み飛ばすと
+    // used: false と書いた記録が files の無い行として別の理由で落ち、外し方が伝わらないので、名指しで落とす
+    if (raw.used !== undefined) {
+      throw new UsageError(
+        `${at}.used は書かない（${kind}。突き合わせるなら files を書き、この画面で使わないなら disposition: accepted と利用者の承認を書く）`,
+      );
+    }
     const accepted = raw.disposition !== undefined;
     if (accepted && raw.disposition !== "accepted") {
       throw new UsageError(
         `${at}.disposition は accepted だけ（${kind}: "${String(raw.disposition)}"）`,
       );
     }
-    if (!raw.used || accepted) {
+    if (accepted) {
       if (!nonEmptyString(raw.reason)) {
         throw new UsageError(`${at}.reason が空（${kind}。突き合わせない理由を書く）`);
       }
-    }
-    if (accepted) {
       for (const key of ["approved_by", "approved_at"]) {
         if (!nonEmptyString(raw[key])) {
           throw new UsageError(
@@ -373,7 +328,7 @@ export function readRecord(doc) {
     }
     /** @type {{ current: string, new: string }[]} */
     const files = [];
-    if (raw.used && !accepted) {
+    if (!accepted) {
       if (!Array.isArray(raw.files) || raw.files.length === 0) {
         throw new UsageError(`${at}.files が空（${kind}。移行元と新側の URL の組を 1 件以上書く）`);
       }
@@ -385,12 +340,11 @@ export function readRecord(doc) {
       });
     } else if (raw.files !== undefined) {
       throw new UsageError(
-        `${at}.files は used: true で突き合わせる行だけに書く（${kind}。書いたのに確かめない、を作らない）`,
+        `${at}.files は accepted の行に書かない（${kind}。書いたのに確かめない、を作らない）`,
       );
     }
     return {
       kind,
-      used: raw.used,
       accepted,
       reason: nonEmptyString(raw.reason) ? raw.reason.trim() : null,
       files,
@@ -410,10 +364,6 @@ export function referencedUrls(probe, label) {
     if (!Array.isArray(probe[key])) {
       throw new UsageError(`${label} が asset-probe.mjs の出力でない（${key} が配列でない）`);
     }
-  }
-  // url はプローブを当てた画面のパス（location.pathname）。used: false の妥当性の判定に使うので、読めなければ判定しない
-  if (typeof probe.url !== "string" || !probe.url.startsWith("/")) {
-    throw new UsageError(`${label} が asset-probe.mjs の出力でない（url が / 始まりのパスでない）`);
   }
   /** @type {Set<string>} */
   const out = new Set();
@@ -506,14 +456,10 @@ export async function check(input) {
 
   /** @type {Set<string>} */
   const referenced = new Set();
-  /** @type {string[]} */
-  const probedPages = [];
   for (const probe of input.probes) {
     for (const u of referencedUrls(probe.doc, probe.label)) referenced.add(u);
-    probedPages.push(/** @type {{ url: string }} */ (probe.doc).url);
   }
-  // used: false の行も、この機能の画面（プローブを当てたページ）に当たらないことをプローブで確かめる。
-  // 承認済み（accepted）以外の行が 1 つでもあればプローブが要る
+  // 承認済み（accepted）以外の行が 1 つでもあれば、参照を確かめるプローブが要る
   const needsProbe = copyRows.some((row) => {
     const entry = byKind.get(row.kind);
     return entry !== undefined && !entry.accepted;
@@ -530,27 +476,12 @@ export async function check(input) {
     const entry = byKind.get(row.kind);
     if (entry === undefined) {
       findings.push(
-        `台帳の「${row.kind}」（実体を写す）を突き合わせていない（asset-delivery.json に行が無い。使わないなら used: false と理由を書く）`,
+        `台帳の「${row.kind}」（実体を写す）を突き合わせていない（asset-delivery.json に行が無い。この画面で使わないなら disposition: accepted と利用者の承認を書く）`,
       );
       continue;
     }
     if (entry.accepted) {
       notes.push(`「${row.kind}」は突き合わせない（利用者の承認済み）: ${entry.reason}`);
-      continue;
-    }
-    if (!entry.used) {
-      const hit = probedPages.find((page) => row.paths.some((path) => pathMatches(path, page)));
-      if (!row.excludable) {
-        findings.push(
-          `台帳の「${row.kind}」は used: false で外せない（「使われるページ」が全ページを表すか、具体的なページのパスを書いていない。台帳 ${row.line} 行目）`,
-        );
-      } else if (hit !== undefined) {
-        findings.push(
-          `台帳の「${row.kind}」は used: false で外せない（使われるページがこの機能の画面 ${hit} に当たる。台帳 ${row.line} 行目）`,
-        );
-      } else {
-        notes.push(`「${row.kind}」はこの機能の画面で使わない: ${entry.reason}`);
-      }
       continue;
     }
     toCheck.push({ row, entry });
@@ -566,6 +497,17 @@ export async function check(input) {
         `「${row.kind}」の current`,
       );
       const newUrl = resolveAssetUrl(file.new, input.newBase, `「${row.kind}」の new`);
+      // 新側が移行元の配信物へ直リンクしていると、取得先が同じなので sha256 は必ず一致するが、移行元を止めた時点で消える。
+      // 新側と移行元が別オリジンの構成で、new が移行元のオリジンを指していれば配っていないものとして落とす
+      const currentOrigin = new URL(input.currentBase).origin;
+      if (
+        currentOrigin !== new URL(input.newBase).origin &&
+        new URL(newUrl).origin === currentOrigin
+      ) {
+        findings.push(
+          `「${row.kind}」の ${file.new} は移行元のオリジン（${currentOrigin}）を指している（新側が移行元へ直リンクしている。新側が自分で配る URL を書く）`,
+        );
+      }
       const isReferenced = referenced.has(newUrl);
       if (!isReferenced) {
         findings.push(

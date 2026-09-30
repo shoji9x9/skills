@@ -17,7 +17,7 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
-const { main, pathMatches, readLedger, readRecord, referencedUrls } = await import(script);
+const { main, readLedger, readRecord, referencedUrls } = await import(script);
 
 const TEMPLATE = readFileSync(
   join(repoRoot, "skills/replace-strategy/assets/assets-template.md"),
@@ -74,24 +74,11 @@ const FONT_PROBE = probe({
 });
 const FONT_ENTRY = {
   kind: "本文の書体",
-  used: true,
   files: [
     { current: "/body.woff2", new: "/fonts/body.woff2" },
     { current: "/body.woff", new: "/fonts/body.woff" },
   ],
 };
-
-test.each([
-  ["/orders/:id", "/orders/1001", true],
-  ["/orders/:id", "/orders/1001/", true],
-  ["/orders", "/orders", true],
-  ["/orders/:id", "/orders", false],
-  ["/orders/:id", "/orders/", false],
-  ["/orders/new", "/orders/1001", false],
-  ["/orders", "/order", false],
-])("パス: 台帳の %s はプローブの画面 %s に当たる: %s", (ledgerPath, page, expected) => {
-  expect(pathMatches(ledgerPath, page)).toBe(expected);
-});
 
 /** URL → バイト列の表から取得器を作る（表に無い URL は 404）。 */
 function fetcherOf(table) {
@@ -173,7 +160,6 @@ async function runCheck(opts) {
 test("台帳: 正本のテンプレートから「有効 × 実体を写す」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）", () => {
   const { copyRows } = readLedger(TEMPLATE);
   expect(copyRows.map((r) => r.kind)).toEqual(["本文の書体"]);
-  expect(copyRows[0].excludable).toBe(false);
 });
 
 test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の行を指す（利用者が開く行と揃える）", () => {
@@ -182,39 +168,6 @@ test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の
   expect(readLedger(TEMPLATE).copyRows[0].line).toBe(fileLine);
   const broken = TEMPLATE.replace("| 本文の書体 |", "|  |");
   expect(() => readLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
-});
-
-test.each([
-  // 外せない: 全ページの言い方（列挙は補助。本体は「パスが無ければ外せない」）
-  ["全ページ", false],
-  ["全画面", false],
-  ["全頁", false],
-  ["すべてのページ", false],
-  ["全てのページ", false],
-  ["各画面", false],
-  ["共通ヘッダー", false],
-  ["/orders ほか共通ヘッダー", false],
-  // 外せない: 具体的なページのパスを書いていない（全ページの言い方の列挙から漏れた表記も含む）
-  ["ヘッダー", false],
-  ["タブ", false],
-  ["url(/bg.png)、ヘッダー", false],
-  // 外せない: パスを書いていても全ルートの指定（ワイルドカード・全ルートの言い方）
-  ["/*（SPA の全ルート）", false],
-  ["/**", false],
-  ["/orders/*", false],
-  ["/orders ほか全ルート", false],
-  ["/app 配下の all pages", false],
-  // 外せる: 具体的なページのパスだけを書いた行
-  ["/orders だけ", true],
-  ["/orders/:id、/orders/new", true],
-  ["一覧（/orders）", true],
-])("台帳: 「使われるページ」が %s なら used: false で外せるか: %s", (usage, expected) => {
-  const text = [
-    "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
-    "|---|---|---|---|",
-    `| ロゴ | \`img\`、${usage} | 実体を写す | 有効 |`,
-  ].join("\n");
-  expect(readLedger(text).copyRows[0].excludable).toBe(expected);
 });
 
 test("台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）", () => {
@@ -290,16 +243,6 @@ test("台帳: 強調で囲んだ方針・状態・種類は囲みを外して読
 test.each([
   ["方針の表が無い", "# 台帳\n\n表なし\n", /列を持つ表が無い/u],
   [
-    "「使われるページ」列が無い（全ページの行を見分けられない）",
-    "| 種類 | 方針 | 状態 |\n|---|---|---|\n| a | 実体を写す | 有効 |\n",
-    /「使われるページ」を含む列が 0 個/u,
-  ],
-  [
-    "「使われるページ」を含む列が 2 つ",
-    "| 種類 | 方針 | 状態 | 使われるページ | 使われるページ（旧） |\n|---|---|---|---|---|\n| a | 実体を写す | 有効 | /a | 全ページ |\n",
-    /「使われるページ」を含む列が 2 個/u,
-  ],
-  [
     "方針の表が 2 つ",
     "| 種類 | 方針 | 状態 | 使われるページ |\n|---|---|---|---|\n| a | 実体を写す | 有効 | /a |\n\n| 種類 | 方針 | 状態 | 使われるページ |\n|---|---|---|---|\n| b | 実体を写す | 有効 | /a |\n",
     /表が 2 個ある/u,
@@ -337,52 +280,65 @@ test.each([
 
 test.each([
   ["entries が無い", {}, /entries が配列でない/u],
-  ["kind が空", { entries: [{ kind: " ", used: true, files: [] }] }, /kind が空/u],
-  ["used が真偽値でない", { entries: [{ kind: "a", used: "true" }] }, /used が真偽値でない/u],
-  ["used: false に reason が無い", { entries: [{ kind: "a", used: false }] }, /reason が空/u],
+  ["kind が空", { entries: [{ kind: " ", files: [] }] }, /kind が空/u],
   [
-    "accepted に approved_by が無い",
+    "used を書いた（この画面で使わないは利用者の承認で外す）",
+    { entries: [{ kind: "a", used: false, reason: "r" }] },
+    /used は書かない/u,
+  ],
+  [
+    "accepted に reason が無い",
     {
       entries: [
-        { kind: "a", used: true, disposition: "accepted", reason: "r", approved_at: "2026-09-30" },
+        { kind: "a", disposition: "accepted", approved_by: "o", approved_at: "2026-09-30" },
       ],
     },
+    /reason が空/u,
+  ],
+  [
+    "accepted に approved_by が無い",
+    { entries: [{ kind: "a", disposition: "accepted", reason: "r", approved_at: "2026-09-30" }] },
     /approved_by が空/u,
   ],
   [
     "disposition が語彙外",
-    { entries: [{ kind: "a", used: true, disposition: "blocking", reason: "r" }] },
+    { entries: [{ kind: "a", disposition: "blocking", reason: "r" }] },
     /disposition は accepted だけ/u,
   ],
-  ["used: true に files が無い", { entries: [{ kind: "a", used: true }] }, /files が空/u],
+  ["突き合わせる行に files が無い", { entries: [{ kind: "a" }] }, /files が空/u],
   [
     "files に new が無い",
-    { entries: [{ kind: "a", used: true, files: [{ current: "/a" }] }] },
+    { entries: [{ kind: "a", files: [{ current: "/a" }] }] },
     /current と new が無い/u,
   ],
   [
-    "used: false に files がある",
-    { entries: [{ kind: "a", used: false, reason: "r", files: [{ current: "/a", new: "/a" }] }] },
-    /files は used: true で突き合わせる行だけ/u,
+    "accepted に files がある",
+    {
+      entries: [
+        {
+          kind: "a",
+          disposition: "accepted",
+          reason: "r",
+          approved_by: "o",
+          approved_at: "2026-09-30",
+          files: [{ current: "/a", new: "/a" }],
+        },
+      ],
+    },
+    /files は accepted の行に書かない/u,
   ],
   [
     "同じ種類が 2 件（表記ゆれを揃えた後で）",
     {
       entries: [
-        { kind: "ロゴ", used: false, reason: "r" },
-        { kind: "**ロゴ** ", used: false, reason: "r" },
+        { kind: "ロゴ", files: [{ current: "/a", new: "/a" }] },
+        { kind: "**ロゴ** ", files: [{ current: "/a", new: "/a" }] },
       ],
     },
     /2 件ある/u,
   ],
 ])("記録: %s は判定しない（例外）", (_label, doc, message) => {
   expect(() => readRecord(doc)).toThrow(message);
-});
-
-test("プローブ: 画面のパス（url）を持たない出力は判定しない（例外）", () => {
-  expect(() => referencedUrls(probe({ url: undefined }), "p.json")).toThrow(
-    /url が \/ 始まりのパスでない/u,
-  );
 });
 
 test("プローブ: asset-probe の出力でない JSON は判定しない（例外）", () => {
@@ -424,7 +380,7 @@ test("通す: 「実体を写す」の有効な行が 0 件の台帳は、プロ
   expect(r.written.asset_delivery_check).toMatchObject({ ok: true, rows: 0 });
 });
 
-test("通す: 全ページでない行を used: false と理由で外せる", async () => {
+test("判定しない: 記録に used: false と書いた（この画面で使わないは利用者の承認で外す）", async () => {
   const r = await runCheck({
     ledgerText: ledger(FIGURE_ROW),
     record: {
@@ -432,8 +388,8 @@ test("通す: 全ページでない行を used: false と理由で外せる", as
     },
     probes: [FONT_PROBE],
   });
-  expect(r.stdout).toMatch(/note: 「画面内の図」はこの機能の画面で使わない/u);
-  expect(r.code).toBe(0);
+  expect(r.stderr).toMatch(/entries\[1\]\.used は書かない（画面内の図。/u);
+  expect(r.code).toBe(2);
 });
 
 test("通す: 利用者が承認した accepted の行は突き合わせない", async () => {
@@ -444,7 +400,6 @@ test("通す: 利用者が承認した accepted の行は突き合わせない",
         FONT_ENTRY,
         {
           kind: "favicon",
-          used: true,
           disposition: "accepted",
           reason: "manifest の icons からだけ参照される",
           approved_by: "owner",
@@ -457,13 +412,12 @@ test("通す: 利用者が承認した accepted の行は突き合わせない",
   expect(r.code).toBe(0);
 });
 
-test("通す: 突き合わせる行が全て accepted / used: false ならプローブ無しで exit 0", async () => {
+test("通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0", async () => {
   const r = await runCheck({
     record: {
       entries: [
         {
           kind: "本文の書体",
-          used: true,
           disposition: "accepted",
           reason: "r",
           approved_by: "owner",
@@ -488,10 +442,7 @@ test("通す: 別オリジン（CDN）の絶対 URL で配る資産も、プロ�
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
     record: {
-      entries: [
-        FONT_ENTRY,
-        { kind: "favicon", used: true, files: [{ current: "/favicon.ico", new: cdn }] },
-      ],
+      entries: [FONT_ENTRY, { kind: "favicon", files: [{ current: "/favicon.ico", new: cdn }] }],
     },
     probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: cdn, sizes: null }] })],
     table: { ...SAME_FONTS, [`${CUR}/favicon.ico`]: "ico", [cdn]: "ico" },
@@ -511,7 +462,7 @@ test.each([
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "画面内の図", used: true, files: [{ current: "/flow.png", new: "/img/flow.png" }] },
+        { kind: "画面内の図", files: [{ current: "/flow.png", new: "/img/flow.png" }] },
       ],
     },
     probes: [FONT_PROBE, make(`${NEW}/img/flow.png`)],
@@ -528,7 +479,7 @@ test("落とす: 実例の形——favicon を配っていてバイトも同じ�
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "favicon", used: true, files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
       ],
     },
     probes: [FONT_PROBE],
@@ -539,13 +490,32 @@ test("落とす: 実例の形——favicon を配っていてバイトも同じ�
   expect(r.written.asset_delivery_check.ok).toBe(false);
 });
 
+test("落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）", async () => {
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    record: {
+      entries: [
+        FONT_ENTRY,
+        {
+          kind: "favicon",
+          files: [{ current: "/favicon.ico", new: `${CUR}/favicon.ico` }],
+        },
+      ],
+    },
+    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${CUR}/favicon.ico` }] })],
+    table: { ...SAME_FONTS, [`${CUR}/favicon.ico`]: "ico" },
+  });
+  expect(r.stdout).toMatch(/移行元のオリジン（http:\/\/current.test）を指している/u);
+  expect(r.code).toBe(1);
+});
+
 test("落とす: 新側が 200 で別のバイト（SPA のフォールバックの index.html）を返す", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "favicon", used: true, files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
       ],
     },
     probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
@@ -565,7 +535,7 @@ test("落とす: 両側とも 200 の空（0 バイト）は sha256 が一致し
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "favicon", used: true, files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
       ],
     },
     probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
@@ -584,7 +554,7 @@ test.each([
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "favicon", used: true, files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
       ],
     },
     probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
@@ -602,39 +572,6 @@ test("落とす: 台帳の「実体を写す」の行に記録が無い（突き
   });
   expect(r.stdout).toMatch(/台帳の「favicon」（実体を写す）を突き合わせていない/u);
   expect(r.code).toBe(1);
-});
-
-test("落とす: 使われるページがこの機能の画面（プローブを当てたページ）に当たる行を used: false で外す", async () => {
-  const r = await runCheck({
-    ledgerText: ledger(FIGURE_ROW),
-    record: { entries: [FONT_ENTRY, { kind: "画面内の図", used: false, reason: "使わない" }] },
-    probes: [FONT_PROBE, probe({ url: "/orders/1001" })],
-  });
-  expect(r.stdout).toMatch(
-    /「画面内の図」は used: false で外せない（使われるページがこの機能の画面 \/orders\/1001 に当たる/u,
-  );
-  expect(r.code).toBe(1);
-});
-
-test("判定しない: used: false の行だけでもプローブが無ければ、この機能の画面に当たらないことを確かめられない", async () => {
-  const r = await runCheck({
-    ledgerText: ledger(FIGURE_ROW),
-    record: {
-      entries: [
-        {
-          kind: "本文の書体",
-          used: true,
-          disposition: "accepted",
-          reason: "r",
-          approved_by: "owner",
-          approved_at: "2026-09-30",
-        },
-        { kind: "画面内の図", used: false, reason: "使わない" },
-      ],
-    },
-  });
-  expect(r.stderr).toMatch(/--probe が無い/u);
-  expect(r.code).toBe(2);
 });
 
 test.each([
@@ -660,7 +597,6 @@ test.each([
           FONT_ENTRY,
           {
             kind: "favicon",
-            used: true,
             files: [{ current: "/favicon.ico", new: "/favicon.ico" }],
           },
         ],
@@ -676,23 +612,10 @@ test.each([
   },
 );
 
-test("落とす: 全ページで使う資産を used: false で外す", async () => {
-  const r = await runCheck({
-    ledgerText: ledger(FAVICON_ROW),
-    record: { entries: [FONT_ENTRY, { kind: "favicon", used: false, reason: "タブは見ない" }] },
-    probes: [FONT_PROBE],
-  });
-  expect(r.stdout).toMatch(/台帳の「favicon」は used: false で外せない/u);
-  expect(r.code).toBe(1);
-});
-
 test("落とす: 台帳の「実体を写す」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）", async () => {
   const r = await runCheck({
     record: {
-      entries: [
-        FONT_ENTRY,
-        { kind: "ロゴ", used: true, files: [{ current: "/logo.png", new: "/logo.png" }] },
-      ],
+      entries: [FONT_ENTRY, { kind: "ロゴ", files: [{ current: "/logo.png", new: "/logo.png" }] }],
     },
     probes: [FONT_PROBE],
   });
@@ -713,7 +636,7 @@ test.each([
     record: {
       entries: [
         FONT_ENTRY,
-        { kind: "画面内の図", used: true, files: [{ current: "/flow.png", new: "/img/flow.png" }] },
+        { kind: "画面内の図", files: [{ current: "/flow.png", new: "/img/flow.png" }] },
       ],
     },
     probes: [FONT_PROBE, make(`${NEW}/img/flow.png`)],
@@ -800,7 +723,6 @@ test("CLI: node で起動し、ローカルの HTTP 配信物を実際に取得�
           entries: [
             {
               kind: "favicon",
-              used: true,
               files: [{ current: `${base}/cur/favicon.ico`, new: newPath }],
             },
           ],

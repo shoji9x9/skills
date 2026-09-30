@@ -1,9 +1,8 @@
 {
-  "_note": "静的資産の台帳（.replace/assets.md）で「実体を写す」と決めた資産を、新側が実際に配っているかを突き合わせた記録。parity-replace が feature モードの完了判定（手順 8）で .replace/parity/<slug>/new/<target>/asset-delivery.json として書き（環境別）、replace-strategy の scripts/asset-delivery-check.mjs が台帳と突き合わせる（判定規則の正本は replace-strategy の references/static-assets.md「完了判定での突き合わせ」）。台帳の「状態 有効 × 方針 実体を写す」の行 1 つにつき 1 件書く——書かない行は「突き合わせていない」として落ちる。favicon・title・印刷用の資産のように頁の外に出るものは画素・特性照合・aria のどれにも写らないので、この記録が唯一の網になる。各値はプレースホルダの例で、実際の資産で置き換える。",
+  "_note": "静的資産の台帳（.replace/assets.md）で「実体を写す」と決めた資産を、新側が実際に配っているかを突き合わせた記録。parity-replace が feature モードの完了判定（手順 8）で .replace/parity/<slug>/new/<target>/asset-delivery.json として書き（環境別）、replace-strategy の scripts/asset-delivery-check.mjs が台帳と突き合わせる（判定規則の正本は replace-strategy の references/static-assets.md「完了判定での突き合わせ」）。台帳の「状態 有効 × 方針 実体を写す」の行 1 つにつき 1 件書く——書かない行は「突き合わせていない」として落ちる。各行は「突き合わせる（files）」か「利用者の承認付きで突き合わせない（disposition: accepted）」のどちらか。この機能の画面が使わない資産も自分で外さず承認を得る（used のようなキーは持たない）。favicon・title・印刷用の資産のように頁の外に出るものは画素・特性照合・aria のどれにも写らないので、この記録が唯一の網になる。各値はプレースホルダの例で、実際の資産で置き換える。",
   "entries": [
     {
       "kind": "<台帳の「種類」の文言をそのまま写す（照合キー。表記がずれると「台帳に無い記録」と「突き合わせていない行」の 2 件で落ちる）>",
-      "used": true,
       "files": [
         {
           "current": "<移行元の配信物の URL。/ 始まりのパス（--current-base で解決）か http(s) の絶対 URL。例: /favicon.ico>",
@@ -12,15 +11,9 @@
       ]
     },
     {
-      "kind": "<この機能の画面が使わない資産の種類>",
-      "used": false,
-      "reason": "<使わない理由（例: この機能の画面はヘッダーを持たないダイアログだけ）。台帳の「描き方と使われるページ」に具体的なページのパス（/orders 等）を書いた行だけに使える。全ページを表す言い方（全ページ・全頁・各画面・共通ヘッダー等）を含む行・パスを書いていない行には使えない>"
-    },
-    {
-      "kind": "<機械的に突き合わせられない資産の種類（例: manifest の icons だけから参照されるインストール用アイコン）>",
-      "used": true,
+      "kind": "<突き合わせない資産の種類（例: この機能の画面が使わない資産・manifest の icons だけから参照されるインストール用アイコン・認証の内側にしか無い資産）>",
       "disposition": "accepted",
-      "reason": "<突き合わせられない理由と、代わりに何を確かめたか>",
+      "reason": "<突き合わせない理由（例: この機能の画面はヘッダーを持たないダイアログだけで、この資産を使わない）と、代わりに何を確かめたか>",
       "approved_by": "<突き合わせないことを承認した利用者>",
       "approved_at": "<承認日（ISO 8601）>"
     }

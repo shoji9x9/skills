@@ -54,15 +54,6 @@
       "expect_failing": ["落とす: 台帳の「実体を写す」の行に記録が無い（突き合わせていない）"]
     },
     {
-      "id": "all-pages-off",
-      "why": "外せない行（全ページ・パスの無い行）の favicon を used: false で外させる",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      if (!row.excludable) {\n",
-      "replace": "      if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": ["落とす: 全ページで使う資産を used: false で外す"]
-    },
-    {
       "id": "policy-filter-off",
       "why": "同等物・写さない・空欄の行まで「実体を写す」として期待集合に入れる",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -78,11 +69,10 @@
         "通す: プローブの images[].src に現れれば参照している",
         "通す: プローブの resources[].url に現れれば参照している",
         "通す: プローブの urlRefs[].url に現れれば参照している",
-        "通す: 全ページでない行を used: false と理由で外せる",
         "通す: 別オリジン（CDN）の絶対 URL で配る資産も、プローブに同じ URL があれば突き合う",
         "通す: 利用者が承認した accepted の行は突き合わせない",
         "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
-        "通す: 突き合わせる行が全て accepted / used: false ならプローブ無しで exit 0",
+        "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
         "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる"
       ]
     },
@@ -115,7 +105,6 @@
       "occurrences": 1,
       "expect_failing": [
         "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
-        "判定しない: used: false の行だけでもプローブが無ければ、この機能の画面に当たらないことを確かめられない",
         "判定しない: 突き合わせる資産があるのにプローブが無い"
       ]
     },
@@ -152,17 +141,6 @@
       ]
     },
     {
-      "id": "usage-column-optional",
-      "why": "「使われるページ」列の無い台帳を読んで、全ページの行を「全ページでない」に倒す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (usageCols.length !== 1) {\n",
-      "replace": "  if (usageCols.length > 1) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 「使われるページ」列が無い（全ページの行を見分けられない） は判定しない（例外）"
-      ]
-    },
-    {
       "id": "empty-body-accepted",
       "why": "両側とも 0 バイトの 200 を sha256 の一致で配っていることにする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -171,33 +149,6 @@
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも 200 の空（0 バイト）は sha256 が一致しても配っている証拠にしない"
-      ]
-    },
-    {
-      "id": "all-pages-words-off",
-      "why": "「全頁」「共通ヘッダー」のようにパスを含んでも全ページを表す行を外せる側に倒す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "PAGE_PATH.test(usage) && !ALL_PAGES.test(usage)",
-      "replace": "PAGE_PATH.test(usage)",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 「使われるページ」が /app 配下の all pages なら used: false で外せるか: false",
-        "台帳: 「使われるページ」が /orders ほか全ルート なら used: false で外せるか: false",
-        "台帳: 「使われるページ」が /orders ほか共通ヘッダー なら used: false で外せるか: false",
-        "台帳: 「使われるページ」が /orders/* なら used: false で外せるか: false"
-      ]
-    },
-    {
-      "id": "path-required-off",
-      "why": "パスを書いていない行（列挙から漏れた全ページの表記を含む）を外せる側に倒す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "PAGE_PATH.test(usage) && !ALL_PAGES.test(usage)",
-      "replace": "!ALL_PAGES.test(usage)",
-      "occurrences": 1,
-      "expect_failing": [
-        "台帳: 「使われるページ」が url(/bg.png)、ヘッダー なら used: false で外せるか: false",
-        "台帳: 「使われるページ」が タブ なら used: false で外せるか: false",
-        "台帳: 「使われるページ」が ヘッダー なら used: false で外せるか: false"
       ]
     },
     {
@@ -224,26 +175,6 @@
       ]
     },
     {
-      "id": "wildcard-path-accepted",
-      "why": "`/orders/*` のようなワイルドカードの指定を具体的なページのパスとして外せる側に倒す",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "screen)\\b|\\*/iu",
-      "replace": "screen)\\b/iu",
-      "occurrences": 1,
-      "expect_failing": ["台帳: 「使われるページ」が /orders/* なら used: false で外せるか: false"]
-    },
-    {
-      "id": "page-hit-off",
-      "why": "使われるページがこの機能の画面に当たる行を used: false で外させる",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      } else if (hit !== undefined) {\n",
-      "replace": "      } else if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: 使われるページがこの機能の画面（プローブを当てたページ）に当たる行を used: false で外す"
-      ]
-    },
-    {
       "id": "redirect-off",
       "why": "ログイン画面への転送で両側が同じ HTML を返したとき、バイト一致で合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -266,13 +197,25 @@
       ]
     },
     {
-      "id": "probe-url-optional",
-      "why": "画面のパスを持たないプローブを受け付け、used: false の行がこの機能の画面に当たるかを確かめないまま進む",
+      "id": "used-key-accepted",
+      "why": "記録の used: false（検査者が自分で「この画面では使わない」と宣言する形）を受け付け、利用者の承認なしに外させる",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (typeof probe.url !== \"string\" || !probe.url.startsWith(\"/\")) {\n",
-      "replace": "  if (false) {\n",
+      "find": "    if (raw.used !== undefined) {\n",
+      "replace": "    if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["プローブ: 画面のパス（url）を持たない出力は判定しない（例外）"]
+      "expect_failing": [
+        "判定しない: 記録に used: false と書いた（この画面で使わないは利用者の承認で外す）",
+        "記録: used を書いた（この画面で使わないは利用者の承認で外す） は判定しない（例外）"
+      ]
+    },
+    {
+      "id": "current-origin-link-accepted",
+      "why": "新側が移行元の配信物へ直リンクしていても、同じ取得先なので一致として合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "new URL(newUrl).origin === currentOrigin",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）"]
     }
   ]
 }
