@@ -233,8 +233,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    ＋ **部品の Issue の受け入れ条件の突き合わせが exit 0** であること——上の判定はどれも採取物との照合で、部品の Issue にだけ書かれた条件
    （フォーカスの閉じ込め・キーボード操作・引数の既定値等）はどれにも数えられない。手順 1 で使った `.replace/components.md` の Issue 列の番号で
    `issue-start <番号> --acceptance --out .replace/components/<slug>/new/<target>/acceptance.json --decisions .replace/components/<slug>/new/<target>/build-metadata.json` を実行する
-   （`build-metadata.json` の `verification` / `loop` / `pending_decisions` を確定して commit してから渡す——未コミットの変更が残ると表が根拠の版を固定できない。
-   検査の結果は後から同じファイルの `acceptance` に書き、次の commit に含める（表を取り直すときは `commit` をその時点の HEAD にする）。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
+   （`build-metadata.json` の `verification` / `pending_decisions` を確定して commit してから渡す——未コミットの変更が残ると表が根拠の版を固定できない。
+   検査の結果は後から同じファイルの `acceptance` に書き、`loop.stopped_reason` もこのとき書いて次の commit に含める（検査の前に「収束」と書かない）（表を取り直すときは `commit` をその時点の HEAD にする）。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
    **`--allow-later` は渡さない**——部品の Issue の条件はすべて本スキルの完了で満たす条件で（`replace-strategy` の `references/features-issues.md`「共通部品 Issue」）、
    後工程の `parity-diff` は画面の収束を見る工程なので部品の条件を引き受けない（下記「姉妹スキルとの連携」の「`parity-diff` との関係」）。後工程へ回すと、どの工程も数えないまま Issue が閉じる。
    満たせない条件は自分で外さず判断待ちに積み（上記「厳守の制約」）、行は `pending-decision` にする。
