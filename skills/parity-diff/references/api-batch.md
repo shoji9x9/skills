@@ -11,10 +11,13 @@
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答・**応答ヘッダーのうち `.replace/survey.md`「7. 横断の応答ヘッダー」に載るもの**
   （防御は有無と値、露出の抑止は付かないこと。`Set-Cookie` は値を比べず出力もせず cookie 名と属性だけ、CSP の `nonce-` の値は伏せてから比べる。
   `json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
-  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（`Set-Cookie` は cookie ごとに `{name, attributes}` にして cookie 名で並べ替え、
+  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（ヘッダー名は小文字に揃える——`allHeaders()` は小文字、`headersArray()` や HAR は元の表記で返す。
+  `Set-Cookie` は cookie ごとに `{name, attributes}` にして cookie 名で並べ替え、
   属性は `HttpOnly`・`Secure` の有無と `SameSite` の値だけ（`SameSite=Lax` → `None` の後退を見落とさないよう値ごと比べる）——`Expires` / `Max-Age` は実行ごとに変わる。
   CSP は `nonce-` の値を固定の文字列へ置き換えた値）へ変換してから比べる。一覧に載らないヘッダーと付け手が `不明` の行は比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
-- **現側の録画に応答ヘッダーが無い**（`parity-suite` の手順の改訂 2 より前に特性化した機能）なら、ヘッダーを比べず差分にも数えない——新側が正しく付けた防御ヘッダーが全部「現側に無い差」として出て収束が止まる。
+- **現側が `parity-suite` の手順の改訂 2 より前に特性化した機能**（`.replace/parity/<slug>/metadata.json` の `run.procedure_revision` が 2 未満か、キーが無い）なら、
+  **判定は改訂番号で行い、録画にヘッダーが無いことで判定しない**（改訂 2 でも、一覧のヘッダーが付かない応答の録画は空になり、露出の抑止の後退を見落とす）。
+  この場合はヘッダーを比べず差分にも数えない——新側が正しく付けた防御ヘッダーが全部「現側に無い差」として出て収束が止まる。
   未比較である旨を `diff.md` の未検証領域に残し、当て直しは `replace-strategy` の `.replace/procedure-changes.md` の判断に従う
 - **`references.db_semantics`（collation 等の意味論差）を並び順差の判断材料に読む。** 現行 DB と新 DB で並び順が変わりうる箇所を意図的差異として扱えるようにする
 - **揮発項目（生成日時・トークン等）は `intentional_diffs` で除外してから比較する**

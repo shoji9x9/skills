@@ -42,7 +42,7 @@
   `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値）だけを assertion にして cookie の値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
   **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record にも残さない（下の項。`Date` 等の揮発と秘密の値を持ち込まない）
 - **record にも秘密の値と要求ごとに変わる値を残さない**——録画は Git に入り、`parity-diff` の現側は録画から読むので、比べる前の変換では間に合わない。
-  record するヘッダーは**一覧に載るものだけに絞り**（`X-CSRF-Token` のような秘密の値・`Date` のような要求ごとに変わる値を録画に入れない）、
+  record するヘッダーは**一覧に載るものだけに絞り**、ヘッダー名を小文字に揃え（取得経路で表記が変わるため）（`X-CSRF-Token` のような秘密の値・`Date` のような要求ごとに変わる値を録画に入れない）、
   `Set-Cookie` を cookie ごとの名前と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値だけ）に、CSP の `nonce-` の値を固定の文字列に置き換えてから書く
 - **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
   対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
