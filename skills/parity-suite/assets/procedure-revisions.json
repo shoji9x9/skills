@@ -1,7 +1,7 @@
 {
   "_note": "parity-suite の手順の改訂一覧（正本）。確かめる軸（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）を手順に足したら、revision を 1 上げて changes へ 1 要素を追記する（既存の要素は書き換えない）。parity-suite は .replace/parity/<slug>/metadata.json の run.procedure_revision に採取時のこの revision を書き、replace-strategy の scripts/procedure-staleness-check.mjs が、成果物の改訂番号より新しい改訂の affects に当たる機能を「旧手順で特性化した機能」として列挙する。revision 1 は本機構の導入点で、それより前の成果物（run.procedure_revision が無い）は、どの軸で閉じたかを記録していないため全件が対象になる。軸を足さない変更（文言・検査の修正・誤りの訂正で、閉じた機能に測り直しが要らないもの）では上げない。",
   "skill": "parity-suite",
-  "revision": 3,
+  "revision": 4,
   "changes": [
     {
       "revision": 1,
@@ -23,6 +23,13 @@
       "axis": "応答ヘッダーの正規化の版と一覧の記録",
       "affects": ["feature", "api-resource"],
       "summary": "応答ヘッダーの録画を同梱の scripts/header-normalize.mjs（プロジェクト側コピー）で正規化し、使ったコピーのパス・VERSION・録画に使った一覧（--list の出力）を metadata.json の differ.header_normalize に記録する（references/api-batch.md「応答ヘッダー」）。parity-diff はこの記録が無い・版か一覧が食い違う機能のヘッダーを比べず未検証に残すので、改訂 2 で録画して閉じた機能も含めて、録り直すか当てないかを機能ごとに .replace/procedure-changes.md へ記録する"
+    },
+    {
+      "revision": 4,
+      "added_at": "2026-10-01",
+      "axis": "操作を持たない画面駆動の機能の状態表示の振り分け",
+      "affects": ["feature"],
+      "summary": "操作を持たない画面駆動の機能も metadata.json の reaction_coverage を declared: false にせず、operations: [] と operations_none_reason を書いた反応の被覆表（reactions.json）で画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）を振り分け、reaction-check.mjs を通す（references/coverage.md「画面ごとの状態表示」）。改訂 3 以前に declared: false で閉じた機能は振り分けを持たず、parity-diff も判定せず未検証に残す。procedure-staleness-check.mjs は mode でしか絞れないので改訂 3 以前の feature 機能を全て列挙するが、測り直しが要るのは reaction_coverage.declared: false の機能だけ（改訂 1 以降に declared: true で閉じた機能は状態表示を振り分け済み。改訂番号を持たない成果物の状態表示は改訂 1 が扱う）。列挙された機能ごとに、当て直すか当てないかを .replace/procedure-changes.md へ記録する"
     }
   ]
 }

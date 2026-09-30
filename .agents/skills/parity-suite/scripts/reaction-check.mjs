@@ -4,6 +4,9 @@
 //
 // 何をするか:
 //   1. 現側 metadata.json の reaction_coverage 宣言を読み、declared: true のときだけ反応の被覆表を開く
+//      画面駆動の機能は操作を持たなくても declared: false を使えず、operations: [] と operations_none_reason の表で
+//      状態表示を振り分けさせる（Issue #503。表示だけの画面も取得の失敗・読み込み中・0 件を持ちうる）。
+//      手順の改訂 OPERATIONLESS_TABLE_REVISION より前の declared: false は旧成果物として判定しない
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
 //      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
 //      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
@@ -57,7 +60,7 @@ const { pageForUrl, pageKey, resolvePages } = await import(
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "8";
+export const VERSION = "9";
 
 /**
  * 撮る状態を指す 1 行（使い回しの照合の単位。Issue #485）。
@@ -181,6 +184,53 @@ function nonNegativeNumber(v) {
 export class UsageError extends Error {}
 
 /**
+ * 画面駆動の機能に declared: false を認めなくした手順の改訂（parity-suite の assets/procedure-revisions.json の revision）。Issue #503
+ * これより前の成果物の declared: false は、状態表示を振り分ける前の旧手順として判定しない（当て直すかは replace-strategy の台帳で決める）。
+ */
+export const OPERATIONLESS_TABLE_REVISION = 4;
+
+/**
+ * 成果物の run.procedure_revision を読む。キーが無いのは改訂番号の導入前なので 0（replace-strategy の procedure-staleness-check.mjs と同じ読み方）。
+ * @param {Record<string, unknown>} metadata
+ * @returns {number}
+ */
+function procedureRevisionOf(metadata) {
+  if (!Object.hasOwn(metadata, "run")) return 0;
+  // run が在るのに読めない形なら、改訂番号の導入前へ倒さない（型崩れの procedure_revision を落とすのと揃える）
+  if (!isPlainObject(metadata.run)) throw new UsageError("run がオブジェクトでない");
+  const run = metadata.run;
+  if (!Object.hasOwn(run, "procedure_revision")) return 0;
+  const rev = run.procedure_revision;
+  if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 0) {
+    throw new UsageError("run.procedure_revision が 0 以上の整数でない");
+  }
+  return /** @type {number} */ (rev);
+}
+
+/**
+ * 画面駆動の機能で、成果物に残った操作の痕跡を返す（器の棚卸し・部品被覆表の宣言。withStates なら default 以外の撮影状態も）。
+ * 操作の無い表（operations: []）では撮影状態を痕跡に数えない——状態表示（0 件・取得の失敗）も撮る状態になるため。
+ * @param {Record<string, unknown>} metadata
+ * @param {{ withStates: boolean }} opts
+ * @returns {string[]}
+ */
+export function operationTraces(metadata, { withStates }) {
+  const cc = isPlainObject(metadata.capture_conditions) ? metadata.capture_conditions : {};
+  /** @type {string[]} */
+  const traces = [];
+  if (withStates && Array.isArray(cc.states) && cc.states.some((st) => st !== "default")) {
+    traces.push("capture_conditions.states に default 以外の状態がある");
+  }
+  if (Array.isArray(cc.popup_inventory) && cc.popup_inventory.length > 0) {
+    traces.push("capture_conditions.popup_inventory が空でない");
+  }
+  if (isPlainObject(metadata.component_coverage) && metadata.component_coverage.declared === true) {
+    traces.push("component_coverage.declared が true");
+  }
+  return traces;
+}
+
+/**
  * metadata.json の reaction_coverage 宣言を読む。
  * @param {unknown} metadata
  * @returns {{ judged: false, reason: string } | { judged: true, path: string }}
@@ -203,31 +253,30 @@ export function readDeclaration(metadata) {
         "reaction_coverage.declared: false なのに reason が空（免除の根拠が残らない）",
       );
     }
-    // 免除は「操作を持たない機能」だけ。理由の文字列だけで通すと、操作のある機能が反応の判定を飛ばして収束する。
-    // 画面駆動の機能で、成果物に操作の痕跡（default 以外の撮影状態・器の棚卸し・部品被覆表の宣言）があれば矛盾として落とす
-    if (metadata.mode !== "api-resource" && metadata.mode !== "batch") {
-      const cc = isPlainObject(metadata.capture_conditions) ? metadata.capture_conditions : {};
-      /** @type {string[]} */
-      const traces = [];
-      if (Array.isArray(cc.states) && cc.states.some((st) => st !== "default")) {
-        traces.push("capture_conditions.states に default 以外の状態がある");
-      }
-      if (Array.isArray(cc.popup_inventory) && cc.popup_inventory.length > 0) {
-        traces.push("capture_conditions.popup_inventory が空でない");
-      }
-      if (
-        isPlainObject(metadata.component_coverage) &&
-        metadata.component_coverage.declared === true
-      ) {
-        traces.push("component_coverage.declared が true");
-      }
-      if (traces.length > 0) {
-        throw new UsageError(
-          `reaction_coverage.declared: false は操作を持たない機能だけに使えるが、操作の痕跡がある（${traces.join(" / ")}）`,
-        );
-      }
+    // 画面を持たない api-resource / batch だけが表を作らずに通れる
+    if (metadata.mode === "api-resource" || metadata.mode === "batch") {
+      return { judged: false, reason: decl.reason };
     }
-    return { judged: false, reason: decl.reason };
+    // 画面駆動の機能（mode が無い・語彙外も含める）は、操作を持たなくても状態表示（0 件・取得の失敗・読み込み中）を持ちうる。
+    // declared: false で表ごと省くと振り分けを一度も測らずに完了・収束するので、operations: [] の表を作らせる（Issue #503）
+    const revision = procedureRevisionOf(metadata);
+    if (revision >= OPERATIONLESS_TABLE_REVISION) {
+      throw new UsageError(
+        "画面駆動の機能は reaction_coverage.declared: false を使えない（操作を持たない機能も、operations: [] と operations_none_reason を書いた反応の被覆表で画面ごとの状態表示を振り分け、declared: true と path を書く）",
+      );
+    }
+    // 改訂より前の成果物。免除は「操作を持たない機能」だけで、理由の文字列だけで通すと操作のある機能が反応の判定を飛ばして収束する。
+    // 成果物に操作の痕跡（default 以外の撮影状態・器の棚卸し・部品被覆表の宣言）があれば矛盾として落とす
+    const traces = operationTraces(metadata, { withStates: true });
+    if (traces.length > 0) {
+      throw new UsageError(
+        `reaction_coverage.declared: false は操作を持たない機能だけに使えるが、操作の痕跡がある（${traces.join(" / ")}）`,
+      );
+    }
+    return {
+      judged: false,
+      reason: `${decl.reason}（手順の改訂 ${OPERATIONLESS_TABLE_REVISION} より前〈run.procedure_revision: ${revision}〉の成果物で、画面ごとの状態表示を振り分けていない）`,
+    };
   }
   if (!nonEmptyString(decl.path))
     throw new UsageError("reaction_coverage.path が空でない文字列でない");
@@ -2141,6 +2190,7 @@ export function checkReactions(table, opts = {}) {
     coverageCaptures = null,
     coverageProblem = null,
     coverageSkipped = 0,
+    operationTraces: traces = null,
   } = opts;
   if (!isPlainObject(table)) throw new UsageError("反応の被覆表がオブジェクトでない");
   /** @type {string[]} */
@@ -2222,8 +2272,13 @@ export function checkReactions(table, opts = {}) {
   const windowMs = positiveNumber(table.observation_window_ms)
     ? /** @type {number} */ (table.observation_window_ms)
     : null;
-  if (windowMs === null)
-    problems.push("observation_window_ms が正の数でない（none の観測時間の下限が無い）");
+  // 操作の無い表（Issue #503）には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
+  // 正の数を書いた表も通す——照合する none が無いので値は判定に使われず、落とす理由が無い
+  const noOperations = Array.isArray(table.operations) && table.operations.length === 0;
+  if (windowMs === null && !(noOperations && table.observation_window_ms === null))
+    problems.push(
+      `observation_window_ms が正の数でない（none の観測時間の下限が無い${noOperations ? "。操作の無い表では null と書く" : ""}）`,
+    );
 
   // 画面が持つ状態の棚卸し（Issue #471）。押した後に戻す範囲を、操作ごとの自己申告ではなくこの一覧と突き合わせる
   const ss = table.screen_states;
@@ -2248,10 +2303,24 @@ export function checkReactions(table, opts = {}) {
 
   const operations = Array.isArray(table.operations) ? table.operations : null;
   if (operations === null) throw new UsageError("operations が配列でない");
-  if (operations.length === 0)
+  // 操作の無い表は、理由を書いたときだけ正規の記録として通す（Issue #503。理由の無い 0 件は採り忘れと区別できない）。
+  // 画面の状態表示の振り分けは操作の有無に依らず下で数える
+  const noneReason = table.operations_none_reason;
+  if (operations.length === 0) {
+    if (!filled(noneReason)) {
+      problems.push(
+        "operations が空なのに operations_none_reason が空・テンプレートの説明文のまま（操作を持たない機能は、画面に押せる要素が無いことをどう確かめたかを書く）",
+      );
+    }
+    // 操作の痕跡（器の棚卸し・部品被覆表の宣言）がある機能は、操作を持たないと言えない
+    if (traces !== null && traces.length > 0) {
+      problems.push(`operations が空だが、操作の痕跡がある（${traces.join(" / ")}）`);
+    }
+  } else if (noneReason !== undefined && noneReason !== null) {
     problems.push(
-      "operations が空（操作が無い機能は metadata.json で declared: false と理由を書く）",
+      "operations があるのに operations_none_reason が null でない（操作が無いことの理由と操作の記録が同時に成立する）",
     );
+  }
   const opIds = collectIds(operations, "operations", problems);
 
   /** 反応キー（<操作 id>/<反応 id>）→ kind。call_sites の対応付け先。 */
@@ -2650,6 +2719,29 @@ export function checkReactions(table, opts = {}) {
     captureLabel,
     pageResolution,
   });
+  // 操作の無い表では、状態表示のどれも撮らない default 以外の撮影状態を操作の痕跡に数える（PR #536 のレビュー）。
+  // 撮影状態の照合は「表が名乗った状態が宣言に在るか」の片向きなので、ここで数えないと、タブを押して撮る状態を
+  // 宣言したまま operations: [] と理由だけで反応の判定を飛ばせる
+  if (operations.length === 0 && captureStates !== null) {
+    /** @type {Set<string>} */
+    const displayed = new Set();
+    const sdPages = isPlainObject(table.state_displays) ? table.state_displays.pages : null;
+    for (const row of Array.isArray(sdPages) ? sdPages : []) {
+      const candidates = isPlainObject(row) ? row.candidates : null;
+      if (!isPlainObject(candidates)) continue;
+      for (const entry of Object.values(candidates)) {
+        if (!isPlainObject(entry) || entry.status !== "present" || !filled(entry.captured))
+          continue;
+        displayed.add(/** @type {string} */ (entry.captured));
+      }
+    }
+    const unexplained = [...captureStates].filter((st) => st !== "default" && !displayed.has(st));
+    if (unexplained.length > 0) {
+      problems.push(
+        `operations が空だが、どの状態表示も撮らない撮影状態がある: ${unexplained.join(", ")}（操作で作る状態なら操作を記録する。状態表示なら state_displays の captured に割り当てる）`,
+      );
+    }
+  }
 
   if (coverageProblem !== null) problems.push(coverageProblem);
   // 部品被覆表の撮る状態も同じ集合（解決したページ × 状態名）で数える（Issue #485）。
@@ -3023,6 +3115,7 @@ export function main(argv, deps = {}) {
       coverageCaptures: coverage.captures,
       coverageProblem: coverage.problem,
       coverageSkipped: coverage.skipped,
+      operationTraces: operationTraces(metadata, { withStates: false }),
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,

@@ -69,7 +69,7 @@
 
 ## 反応の未測定・非宣言
 
-<!-- reactions.json の kind: unmeasured の反応、feedback_calls.declared: false の理由、metadata.json の reaction_coverage.declared: false の理由をここに残す。 -->
+<!-- reactions.json の kind: unmeasured の反応、feedback_calls.declared: false の理由、metadata.json の reaction_coverage.declared: false の理由（api-resource / batch だけ）をここに残す。 -->
 <!-- 送る前の判定を追えなかった操作（pre_send.found: null）と測れなかった境界の側（pre_send.items[].sides[].reason）、移行元ソースを読めず表への書き込みを列挙できなかった理由（side_effect_writes）もここに残す。 -->
 <!-- 送っている間の押し直しを測れなかった操作（resubmit.sends: null）と、振り分けられなかった状態表示の候補（state_displays の status: unmeasured）もここに残す。 -->
 <!-- 取得の失敗・読み込み中は、要求の横取り（page.route の abort / fulfill / 応答の保留）で試した結果を理由に書く（試していない「起こせない」は書かない）。 -->

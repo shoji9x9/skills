@@ -178,11 +178,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      # pinact は pin の検証でタグを GitHub API から引く。トークンを渡さないと未認証の上限
+      # （ランナーの IP で共有される）に当たり、403 で落ちる（実測: PR #536）。
       - run: pinact run --check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       # 引数なしの `pinact run --check` は `.github/workflows/**` しか見ない（実測: 未 pin の
       # probe を `skills/*/assets/` に置いても exit 0）。配布スキルに同梱するワークフロー
       # テンプレートは配布先でそのまま使われるので、明示して同じ基準で検査する。
       - name: Pin check (distributed workflow templates)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           shopt -s nullglob
           templates=(skills/*/assets/*.yml skills/*/assets/*.yaml)

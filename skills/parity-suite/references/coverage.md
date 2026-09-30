@@ -246,7 +246,8 @@
   応答を保留すれば読み込み中を、移行元でも作れる（出典: <https://playwright.dev/docs/api/class-route>）。
   そのため `fetch-error` の `absent` は `route-abort` / `route-fulfill` / `no-request`、`loading` の `absent` は `route-delay` / `no-request` でしか名乗れない（試した記録の無い「ない」は落ちる）
 - 画面が要求を送る先の一覧は、画面を開いて操作するまでの通信（`page.on('request')`）から取る。`no-request` はその一覧が空であることを `observed` に書く
-- **操作を持たない機能（`reaction_coverage.declared: false`）は反応の被覆表を作らないので、この振り分けも持たない。** 表示だけの画面が取得の失敗・読み込み中を持つなら、その事実を `gaps.md` に残す
+- **操作を持たない画面駆動の機能も、この振り分けを持つ。** 表示だけの画面も 0 件・取得の失敗・読み込み中を持ちうるので、
+  反応の被覆表を `operations: []` と `operations_none_reason`（押せる要素が無いことをどう確かめたか）で作り、同じ検査を当てる（書き方は「照合と宣言」）
 
 ### 移行元のフィードバック呼び出しと突き合わせる
 
@@ -307,12 +308,19 @@
   （コピーせずスキル配下から実行する。`--root` の既定は cwd。`--tests` を省くと exit 2）。空欄・証拠の欠け・消える時間の単一標本・`layout` の欠けと 1 回だけの標本・`aftermath` の欠け（割り当ての無い残る見た目・動かしていない状態の `reset`・オリジン付きの URL）・
   `pre_send` の欠け（到達点の無い記録・境界の片側だけの判定・順序の無い判定・走査範囲の外の到達点）・`side_effect_writes` の欠け（ソースにある書き込みの記録漏れ・書く箇所の無い表・値や時機の空欄）・
   `resubmit` の欠け（保留せずに押し直した記録・書き込む操作の書き込みの回数の欠け）・`state_displays` の欠け（振り分けていない画面・候補、横取りで試していない取得の失敗・読み込み中の「ない」、割り当ての無い「ある」）・呼び出しの記録漏れ・走査対象 0 件・
-  `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表・
+  `/` を含む id・observed の遅れの最大値以下の `observation_window_ms`・理由の無い空の `operations`・`slug` / `measured_target` が `metadata.json` の `slug` / `target.name` と違う表・
   解決しない `covered_by`・根拠の無い共有・`assertion_audit` の欠けと不備は落ちる
   （`metadata.json` にこれらと撮影状態・`target.commit`〈入手不可なら `none`〉が無ければ exit 2）。
   終了コードは 0 ＝ 通過、1 ＝ 未測定・不整合、2 ＝ 使い方の誤り・型崩れ
-- `metadata.json` の `reaction_coverage` に `declared: true` と `path` を書く。**操作を持たない機能だけ** `declared: false` ＋理由
-  （画面駆動の機能で `default` 以外の撮影状態・空でない `popup_inventory`・`component_coverage.declared: true` のいずれかがあれば、操作の痕跡との矛盾として exit 2）（`gaps.md` にも残す）。**キーごと省略しない**——欠落は旧成果物の意味になり、`parity-diff` が判定を飛ばす
+- `metadata.json` の `reaction_coverage` に `declared: true` と `path` を書く。**キーごと省略しない**——欠落は旧成果物の意味になり、`parity-diff` が判定を飛ばす
+- **操作を持たない画面駆動の機能も `declared: true` で表を作る**（`declared: false` ＋理由で済ませてよいのは画面を持たない `api-resource` / `batch` だけ）。
+  表は `operations: []` と `operations_none_reason` を書き、`state_displays` で全画面・全候補を振り分ける。none の反応が無いので `observation_window_ms` は `null`、
+  書き込みもフィードバック呼び出しも無ければ `side_effect_writes` / `feedback_calls` は `declared: false` と理由にする。
+  理由の無い空の `operations`・操作があるのに理由が残った表・空でない `popup_inventory` か `component_coverage.declared: true`（操作の痕跡）のある空の `operations` は exit 1
+  （`default` 以外の撮影状態は、`state_displays` の `present` の `captured` に使われていないものだけを痕跡に数える——状態表示〈0 件等〉も撮る状態になる）。
+  画面駆動の機能の `declared: false` は `run.procedure_revision` が 4 以上なら exit 2。
+  改訂 4 より前の成果物（キーが無い成果物を含む）の `declared: false` は旧手順として判定しない（`judged: false`。`parity-diff` は未検証に残す）——
+  当て直すかは `replace-strategy` の `references/procedure-changes.md` の台帳で決める。旧成果物でも `default` 以外の撮影状態・空でない `popup_inventory`・`component_coverage.declared: true` があれば操作の痕跡との矛盾として exit 2
 - `parity-diff` は同じスクリプトを `--recorded` で呼び（移行元ソースは読まず、`conformance.ok`・`conformance.covered_by_resolved`・表の指紋と、監査の記録を要求する。
   テスト一覧〈`--tests`〉は要る——スペックの指紋を読み直して、`--write` の後に assertion を弱めていないかを数える）、未測定が残る間は収束させない。**照合後に表を手で直したら `--write` から通し直す**
 
