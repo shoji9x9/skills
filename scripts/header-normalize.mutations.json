@@ -207,6 +207,33 @@
       "expect_failing": [
         "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）"
       ]
+    },
+    {
+      "id": "unmeasured-accepted",
+      "why": "「未測定」の 7 節に残った表を一覧として読み、測っていないヘッダーを仕様にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "prose.some((l) => l.includes(\"未測定\"))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 7 節が「未測定」なら、表が残っていても一覧が無い扱いにする"]
+    },
+    {
+      "id": "template-example-accepted",
+      "why": "テンプレートの例示行（（例））を一覧として読み、例示の値を仕様にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".includes(\"（例）\")",
+      "replace": ".includes(\"__never__\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 未記入の同梱テンプレート（例示行が残る）は一覧が無い扱いにする"]
+    },
+    {
+      "id": "comment-counted-as-unmeasured",
+      "why": "HTML コメントの中の「未測定」で記入済みの一覧を捨てる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".replace(/<!--[\\s\\S]*?-->/g, \"\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない"]
     }
   ]
 }

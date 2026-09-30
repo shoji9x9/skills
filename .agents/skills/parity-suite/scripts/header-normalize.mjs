@@ -77,6 +77,14 @@ export function parseHeaderList(markdown) {
   let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
   if (end < 0) end = lines.length;
   const section = lines.slice(start + 1, end);
+  // 「未測定」と書いた節は、表が残っていても一覧ではない（replace-strategy はヘッダーを採れないとき停止せずこう書く）。
+  // HTML コメントの中の文言は数えない。
+  const prose = section
+    .join("\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("|"));
+  if (prose.some((l) => l.includes("未測定"))) throw new NoHeaderListError("7 節が「未測定」");
 
   const headIndex = section.findIndex(
     (l) => l.trim().startsWith("|") && cells(l)[0] === "ヘッダー",
@@ -91,6 +99,9 @@ export function parseHeaderList(markdown) {
   for (const line of section.slice(headIndex + 2)) {
     if (!line.trim().startsWith("|")) break;
     const row = cells(line);
+    // テンプレートの例示行（`（例）` 付き）が残っているのは、一覧を書いていない印。例示の値を現行の仕様にしない。
+    if ((row[0] ?? "").includes("（例）"))
+      throw new NoHeaderListError("7 節の表にテンプレートの例示行（（例））が残っている");
     const name = headerNameOf(row[0] ?? "");
     if (!TOKEN.test(name)) {
       throw new Error(`7 節の表のヘッダー名を読めない: ${JSON.stringify(row[0] ?? "")}`);

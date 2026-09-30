@@ -413,11 +413,51 @@ function writeInputs(markdown, headers) {
   return { surveyPath, headersPath };
 }
 
-test("CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）", () => {
-  const { surveyPath, headersPath } = writeInputs(
-    readFileSync(join(repoRoot, "skills/replace-strategy/assets/survey-template.md"), "utf8"),
-    { "X-Content-Type-Options": "nosniff", Date: "now" },
+/** 同梱テンプレートの 7 節を、例示行の `（例）` を外して記入済みにしたもの（正本の形から作る）。 */
+function filledTemplate() {
+  return readFileSync(
+    join(repoRoot, "skills/replace-strategy/assets/survey-template.md"),
+    "utf8",
+  ).replaceAll("（例）", "");
+}
+
+test("一覧: 未記入の同梱テンプレート（例示行が残る）は一覧が無い扱いにする", () => {
+  const template = readFileSync(
+    join(repoRoot, "skills/replace-strategy/assets/survey-template.md"),
+    "utf8",
   );
+  expect(() => parseHeaderList(template)).toThrow(NoHeaderListError);
+});
+
+test("一覧: 7 節が「未測定」なら、表が残っていても一覧が無い扱いにする", () => {
+  const markdown = survey([
+    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+  ]).replace("- 採った応答: 画面 /login", "未測定（現行へ到達できなかった）");
+  expect(() => parseHeaderList(markdown)).toThrow(NoHeaderListError);
+});
+
+test("一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない", () => {
+  const markdown = survey([
+    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+  ]).replace(
+    "- 採った応答: 画面 /login",
+    "<!-- 採れなかったら 未測定 と書く -->\n- 採った応答: 画面 /login",
+  );
+  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
+});
+
+test("一覧: 記入済みのテンプレートは例示を外した行を読む（HTML コメントの中の語は数えない）", () => {
+  expect([...parseHeaderList(filledTemplate())].sort()).toEqual([
+    "x-content-type-options",
+    "x-powered-by",
+  ]);
+});
+
+test("CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）", () => {
+  const { surveyPath, headersPath } = writeInputs(filledTemplate(), {
+    "X-Content-Type-Options": "nosniff",
+    Date: "now",
+  });
   const r = spawnSync(process.execPath, [script, "--survey", surveyPath, headersPath], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
