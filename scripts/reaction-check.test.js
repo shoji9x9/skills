@@ -3965,6 +3965,15 @@ test.each([
   expect(r.stderr).toContain(message);
 });
 
+test("操作の無い表で、どの状態表示も撮らない撮影状態があれば落ちる（操作の痕跡。PR #536 のレビュー）", () => {
+  const meta = displayOnlyMeta();
+  meta.capture_conditions.states = ["default", "share-empty", "tab-2"];
+  const r = run(displayOnlyTable(), { metadata: meta });
+  expect(r.status).toBe(1);
+  // 状態表示が撮る share-empty は数えない（列挙は tab-2 だけ）
+  expect(r.stderr).toContain("operations が空だが、どの状態表示も撮らない撮影状態がある: tab-2（");
+});
+
 test("操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）", () => {
   const meta = displayOnlyMeta({
     component_coverage: { declared: true, path: "component-coverage.json" },

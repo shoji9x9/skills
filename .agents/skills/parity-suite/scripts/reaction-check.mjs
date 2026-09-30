@@ -2719,6 +2719,29 @@ export function checkReactions(table, opts = {}) {
     captureLabel,
     pageResolution,
   });
+  // 操作の無い表では、状態表示のどれも撮らない default 以外の撮影状態を操作の痕跡に数える（PR #536 のレビュー）。
+  // 撮影状態の照合は「表が名乗った状態が宣言に在るか」の片向きなので、ここで数えないと、タブを押して撮る状態を
+  // 宣言したまま operations: [] と理由だけで反応の判定を飛ばせる
+  if (operations.length === 0 && captureStates !== null) {
+    /** @type {Set<string>} */
+    const displayed = new Set();
+    const sdPages = isPlainObject(table.state_displays) ? table.state_displays.pages : null;
+    for (const row of Array.isArray(sdPages) ? sdPages : []) {
+      const candidates = isPlainObject(row) ? row.candidates : null;
+      if (!isPlainObject(candidates)) continue;
+      for (const entry of Object.values(candidates)) {
+        if (!isPlainObject(entry) || entry.status !== "present" || !filled(entry.captured))
+          continue;
+        displayed.add(/** @type {string} */ (entry.captured));
+      }
+    }
+    const unexplained = [...captureStates].filter((st) => st !== "default" && !displayed.has(st));
+    if (unexplained.length > 0) {
+      problems.push(
+        `operations が空だが、どの状態表示も撮らない撮影状態がある: ${unexplained.join(", ")}（操作で作る状態なら操作を記録する。状態表示なら state_displays の captured に割り当てる）`,
+      );
+    }
+  }
 
   if (coverageProblem !== null) problems.push(coverageProblem);
   // 部品被覆表の撮る状態も同じ集合（解決したページ × 状態名）で数える（Issue #485）。

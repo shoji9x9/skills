@@ -317,7 +317,7 @@
   表は `operations: []` と `operations_none_reason` を書き、`state_displays` で全画面・全候補を振り分ける。none の反応が無いので `observation_window_ms` は `null`、
   書き込みもフィードバック呼び出しも無ければ `side_effect_writes` / `feedback_calls` は `declared: false` と理由にする。
   理由の無い空の `operations`・操作があるのに理由が残った表・空でない `popup_inventory` か `component_coverage.declared: true`（操作の痕跡）のある空の `operations` は exit 1
-  （撮影状態は痕跡に数えない——状態表示〈0 件等〉も撮る状態になる）。
+  （`default` 以外の撮影状態は、`state_displays` の `present` の `captured` に使われていないものだけを痕跡に数える——状態表示〈0 件等〉も撮る状態になる）。
   画面駆動の機能の `declared: false` は `run.procedure_revision` が 4 以上なら exit 2。
   改訂 4 より前の成果物（キーが無い成果物を含む）の `declared: false` は旧手順として判定しない（`judged: false`。`parity-diff` は未検証に残す）——
   当て直すかは `replace-strategy` の `references/procedure-changes.md` の台帳で決める。旧成果物でも `default` 以外の撮影状態・空でない `popup_inventory`・`component_coverage.declared: true` があれば操作の痕跡との矛盾として exit 2

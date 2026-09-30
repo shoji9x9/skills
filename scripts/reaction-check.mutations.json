@@ -1971,6 +1971,17 @@
         "run が 配列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
         "run が null なら exit 2（改訂番号の導入前に倒さない。Issue #503）"
       ]
+    },
+    {
+      "id": "operationless-unexplained-states",
+      "why": "操作の無い表で、どの状態表示も撮らない撮影状態（操作で作る状態）を痕跡に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unexplained.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で、どの状態表示も撮らない撮影状態があれば落ちる（操作の痕跡。PR #536 のレビュー）"
+      ]
     }
   ]
 }
