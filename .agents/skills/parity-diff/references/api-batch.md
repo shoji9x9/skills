@@ -9,7 +9,9 @@
 - 同一リクエスト（パス・クエリ・ボディ）を選択 target の API baseURL へ発行する——`.replace/parity/<slug>/new/<target>/replace-metadata.json` の `new.api_url`（target の `api_url`。省略時は `new.ui_url`）。
   記録が `"runtime"` の場合は前提確認（preflight）の target 解決時に解決済みの値を使う（同一実行内で再解決しない）
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答・**応答ヘッダーのうち `.replace/survey.md`「7. 横断の応答ヘッダー」に載るもの**
-  （防御は有無と値、露出の抑止は付かないこと。`Set-Cookie` は値を比べず出力もせず cookie 名と属性だけ、CSP の `nonce-` の値は伏せてから比べる。一覧に載らないヘッダーは比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
+  （防御は有無と値、露出の抑止は付かないこと。`Set-Cookie` は値を比べず出力もせず cookie 名と属性だけ、CSP の `nonce-` の値は伏せてから比べる。
+  `json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
+  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（`Set-Cookie` は cookie ごとに `{name, attributes}`、CSP は `nonce-` の値を固定の文字列へ置き換えた値）へ変換してから比べる。一覧に載らないヘッダーは比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
 - **`references.db_semantics`（collation 等の意味論差）を並び順差の判断材料に読む。** 現行 DB と新 DB で並び順が変わりうる箇所を意図的差異として扱えるようにする
 - **揮発項目（生成日時・トークン等）は `intentional_diffs` で除外してから比較する**
 - 同梱 [`../scripts/json-normalize-diff.mjs`](../scripts/json-normalize-diff.mjs) で正規化＋決定論的比較を行う
