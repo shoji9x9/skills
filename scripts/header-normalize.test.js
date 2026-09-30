@@ -10,9 +10,8 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/header-normalize.mjs");
 const diffScript = join(repoRoot, "skills/parity-diff/scripts/json-normalize-diff.mjs");
-const { NONCE_MASK, NoHeaderListError, main, normalizeHeaders, parseHeaderList } = await import(
-  script
-);
+const { NONCE_MASK, NoHeaderListError, loadHeaderList, main, normalizeHeaders, parseHeaderList } =
+  await import(script);
 
 /** survey.md の 7 節（replace-strategy の assets/survey-template.md と同じ列）。 */
 function survey(rows) {
@@ -447,6 +446,17 @@ test("CLI: --list は比べるヘッダー名を名前順の配列で出す（�
   const { chunks, io } = capture();
   expect(main(["--survey", surveyPath, "--list"], io)).toBe(0);
   expect(JSON.parse(chunks.stdout)).toEqual(["content-security-policy", "x-frame-options"]);
+});
+
+test("一覧: loadHeaderList は survey.md が無ければ NoHeaderListError、あれば一覧を返す", () => {
+  const { surveyPath } = writeInputs(
+    survey(["| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |"]),
+    {},
+  );
+  expect(() => loadHeaderList(join(dirname(surveyPath), "missing-survey.md"))).toThrow(
+    NoHeaderListError,
+  );
+  expect([...loadHeaderList(surveyPath)]).toEqual(["x-frame-options"]);
 });
 
 test("CLI: survey.md 自体が無ければ exit 3（一覧が無い）", () => {

@@ -171,7 +171,10 @@
       "find": "(err).code === \"ENOENT\")",
       "replace": "(err).code === \"__never__\")",
       "occurrences": 1,
-      "expect_failing": ["CLI: survey.md 自体が無ければ exit 3（一覧が無い）"]
+      "expect_failing": [
+        "CLI: survey.md 自体が無ければ exit 3（一覧が無い）",
+        "一覧: loadHeaderList は survey.md が無ければ NoHeaderListError、あれば一覧を返す"
+      ]
     },
     {
       "id": "setter-unknown-prefix-only",

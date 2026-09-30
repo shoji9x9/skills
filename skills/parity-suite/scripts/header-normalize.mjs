@@ -202,6 +202,25 @@ export function maskNonce(value) {
 }
 
 /**
+ * survey.md のパスから一覧を読む。スイートも CLI もこれを使う（ファイルの読み方を 2 か所に書かない）。
+ * survey.md 自体が無いのも「一覧が無い」（NoHeaderListError。測定をやり直す経路へ送る）。
+ * 読めない理由が他（権限等）なら、その例外をそのまま投げる（入力の誤り）。
+ * @param {string} path
+ * @returns {Set<string>}
+ */
+export function loadHeaderList(path) {
+  let markdown;
+  try {
+    markdown = readFileSync(path, "utf8");
+  } catch (err) {
+    if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT")
+      throw new NoHeaderListError(`${path} が無い`);
+    throw err;
+  }
+  return parseHeaderList(markdown);
+}
+
+/**
  * 応答ヘッダーを一覧に基づいて正規化する。
  * @param {unknown} headers allHeaders() / headersArray() / HAR の headers
  * @param {Set<string>} list parseHeaderList の戻り値
@@ -256,16 +275,7 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
   }
   let list;
   try {
-    let markdown;
-    try {
-      markdown = readFileSync(survey, "utf8");
-    } catch (err) {
-      // survey.md 自体が無いのも「一覧が無い」（測定をやり直す経路へ送る）。読めない理由が他（権限等）なら入力の誤り。
-      if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT")
-        throw new NoHeaderListError(`${survey} が無い`);
-      throw err;
-    }
-    list = parseHeaderList(markdown);
+    list = loadHeaderList(survey);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     io.stderr.write(`${err instanceof NoHeaderListError ? "no-list" : "error"}: ${message}\n`);
