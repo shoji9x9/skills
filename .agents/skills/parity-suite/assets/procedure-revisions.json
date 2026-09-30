@@ -29,7 +29,7 @@
       "added_at": "2026-10-01",
       "axis": "操作を持たない画面駆動の機能の状態表示の振り分け",
       "affects": ["feature"],
-      "summary": "操作を持たない画面駆動の機能も metadata.json の reaction_coverage を declared: false にせず、operations: [] と operations_none_reason を書いた反応の被覆表（reactions.json）で画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）を振り分け、reaction-check.mjs を通す（references/coverage.md「画面ごとの状態表示」）。改訂 3 以前に declared: false で閉じた機能は振り分けを持たず、parity-diff も判定せず未検証に残すので、当て直すか当てないかを機能ごとに .replace/procedure-changes.md へ記録する"
+      "summary": "操作を持たない画面駆動の機能も metadata.json の reaction_coverage を declared: false にせず、operations: [] と operations_none_reason を書いた反応の被覆表（reactions.json）で画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）を振り分け、reaction-check.mjs を通す（references/coverage.md「画面ごとの状態表示」）。改訂 3 以前に declared: false で閉じた機能は振り分けを持たず、parity-diff も判定せず未検証に残す。procedure-staleness-check.mjs は mode でしか絞れないので改訂 3 以前の feature 機能を全て列挙するが、測り直しが要るのは reaction_coverage.declared: false の機能だけ（改訂 1 以降に declared: true で閉じた機能は状態表示を振り分け済み。改訂番号を持たない成果物の状態表示は改訂 1 が扱う）。列挙された機能ごとに、当て直すか当てないかを .replace/procedure-changes.md へ記録する"
     }
   ]
 }
