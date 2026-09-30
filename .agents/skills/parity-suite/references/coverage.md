@@ -146,13 +146,17 @@
     観測した反応の `capture.state` も同じ集合で数え、共有するなら `capture.shared_capture_reason` を書く。
     照合はページ × 状態名で行う——押した後に撮ったページ（遷移する操作は遷移先）を `capture_page`（`capture_conditions.pages` の名前）に書けば、
     別のページの同じ状態名は別の 1 枚として扱う（操作が載るページではない）。撮る状態を持つ操作は、`capture_conditions.pages` が 2 つ以上なら `capture_page` が要る（1 つならそのページとみなす）。
-    名乗ったページが本当に撮ったページか（押した後の URL との照合）はチェッカーが確かめない（規約）。遷移する操作は遷移先を書く
+    **名乗ったページは押した後の URL（`returns_to.url_after`）と照合する**——URL を [`baseline.md`](baseline.md)「ページの path の解決規則」で宣言済みのページへ一意に解き、
+    名乗ったページと違う・どのページにも解けない・曖昧なら落ちる。ページは名前ではなく解いたページで数える（path が同じ別名は同じ 1 枚）。
+    `target.ui_url` が `runtime` で相対の path があるときは照合しない（`reaction-check.mjs` の出力の `capture_page_urls` に理由が出る）
   - 残らないなら `changes: false` と確かめた記録（`evidence`）、確かめた論理名（`targets`。強度ゲートがここへ残る塗りを注入する）、
     残らないことを確かめる assertion（`covered_by`。新側が塗り・焦点の輪を残しても撮っていない状態には写らない）。測れなければ `changes: null` と理由
   - 部品の操作から立つ残る見た目（選択の塗り・絞り込みの印・並べ替えの印）は、被覆プロファイルの `after-operation` が撮影状態の行を導く
     （[`baseline.md`](baseline.md)「撮影状態の決め方（1）被覆表から導く」）。`look` は部品に依らず操作ごとに数える側。
-    **導いた行と同じページで同じ状態名を `captured` に書くなら、両方の行（`visual_state_coverage.rows[].shared_capture_reason` と `items[].shared_capture_reason`）に、その 1 枚が両方の操作の後を写すことを実 UI で確かめた根拠を書く**
-    （表をまたいだ使い回しはどちらのチェッカーも数えないので規約で持つ）
+    **導いた行と同じページで同じ状態名を `captured` に書くなら、両方の行（`visual_state_coverage.rows[].shared_capture_reason` と `items[].shared_capture_reason`）に、その 1 枚が両方の操作の後を写すことを実 UI で確かめた根拠を書く。**
+    `reaction-check.mjs` が `metadata.json` の `component_coverage` の部品被覆表を読み、部品から導いた行（ページはインスタンスの `page`）も反応・残る見た目・状態表示と同じ集合（解いたページ × 状態名）で数える。
+    根拠の無い行が 1 つでもあれば落ちる。
+    部品被覆表を宣言したのに読めない・`visual_state_coverage.rows` が無いときも落ちる（出力の `coverage_captures` は数えた行数 `counted` と、インスタンスの `page` を引けず数えなかった行数 `skipped`——その行は `coverage-expand.mjs` が落とす。`null` は部品被覆表を宣言していない）
 - **`returns_to`**: 押す前後の URL（`url_before` / `url_after`。`/` で始まるオリジンを除いたパス。ホスト・ポートは書かない）と、
   **押す前に既定から動かした状態**（`probed`）のうち押した後に既定へ戻ったもの（`reset`）を書く
   - **画面が持つ状態（検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り等）を表の `screen_states` に 1 回だけ棚卸しし**（出どころを `source` に）、
@@ -232,7 +236,7 @@
   - `present`（ある）: 状態の作り方（`setup`）・現行で見たもの（`observed`: 文言・覆い・ページ表示）を書き、**撮る状態（`captured`）か assertion（`covered_by`）に割り当てる**。
     `toast` / `dialog` も操作の反応を参照せず、反応と同じ assertion 名を `covered_by` に書く（1 本を 2 行が名乗るので、両方の行に `shared_assertion_reason` が要る。`reactions` の欄は書けない。
     参照を許すと、画面・見えるか・種別の一致を検査が保証し続ける必要があり、軸を塞ぐたびに別の穴が出たため入力形式ごと外した）。
-    撮る状態は反応・残る見た目の撮る状態と同じ集合（ページ × 状態名）で数え、共有するなら全行に `shared_capture_reason` を書く
+    撮る状態は反応・残る見た目・部品被覆表の撮る状態と同じ集合（解いたページ × 状態名）で数え、共有するなら全行に `shared_capture_reason` を書く
   - `absent`（ない）: 作ろうとした手段（`setup`）と、代わりに見えたもの（`observed`）を書き、**何も出ないことを assertion にする**（`covered_by`。新側が警告のダイアログを足しても、撮っていない状態には写らない）。
     画面がその状態に結び付く要求を送らない（`no-request`）・その状態を持つ器が無い（`not-applicable`）ときだけ assertion を省ける
   - `unmeasured`: 理由（`reason`）を書き、`gaps.md` にも残す。未測定として数えられる

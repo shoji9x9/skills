@@ -484,7 +484,8 @@ function writeSpec(dir, file) {
  * tests.json（--tests）は表の covered_by から、assertion_audit は表に無ければ全行 reaches で作る。
  * 変えたいテストは opts.tests（名前の一覧か、一覧そのもの）・opts.audit: false で差し替える。
  * @param {object} table
- * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string, tests?: string[] | object, audit?: false }} [opts]
+ * 部品被覆表（opts.coverage）を渡すと component-coverage.json として置く（metadata の component_coverage.path が指す先）。
+ * @param {{ args?: string[], metadata?: object, source?: string, exportSource?: string, tests?: string[] | object, audit?: false, coverage?: object }} [opts]
  */
 function run(table, opts = {}) {
   // 移行元ソースのルート（dir）の外に、実在するファイルを 1 つ置く。ルートの外を指す参照を照合が読まないことを確かめる陽性コントロール
@@ -503,7 +504,7 @@ function run(table, opts = {}) {
   mkdirSync(join(dir, "empty"));
   const metadata = opts.metadata ?? {
     slug: "share",
-    target: { name: "current-test", commit: "abc123" },
+    target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: {
       states: ["default", "copy-toast"],
@@ -511,6 +512,9 @@ function run(table, opts = {}) {
     },
   };
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(metadata));
+  if (opts.coverage !== undefined) {
+    writeFileSync(join(dir, "component-coverage.json"), JSON.stringify(opts.coverage));
+  }
   // JSON 文字列の中へ入れるので、区切りがバックスラッシュのパス（Windows）もエスケープしてから置き換える
   const final = JSON.parse(
     JSON.stringify(table)
@@ -1020,7 +1024,12 @@ test.each([
   (_n, targetPatch, sourcePatch) => {
     const metadata = {
       slug: "share",
-      target: { name: "current-test", commit: "abc123", ...targetPatch },
+      target: {
+        name: "current-test",
+        commit: "abc123",
+        ui_url: "http://localhost:3000/",
+        ...targetPatch,
+      },
       reaction_coverage: { declared: true, path: "reactions.json" },
       capture_conditions: {
         states: ["default", "copy-toast"],
@@ -1079,7 +1088,7 @@ test("ファイル名やパターン id に : があっても別の呼び出し�
     join(dir, "metadata.json"),
     JSON.stringify({
       slug: "share",
-      target: { name: "current-test", commit: "abc123" },
+      target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
       reaction_coverage: { declared: true, path: "reactions.json" },
       capture_conditions: { states: ["default", "copy-toast"] },
     }),
@@ -1207,7 +1216,7 @@ test.each([
 ])("metadata.json の照合材料が欠けたら exit 2: %s", (_name, mutate) => {
   const metadata = {
     slug: "share",
-    target: { name: "current-test", commit: "abc123" },
+    target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: { states: ["default", "copy-toast"] },
   };
@@ -1724,7 +1733,7 @@ test("反応の撮る状態と、別の操作の残る見た目が 1 枚を共�
 test("別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）", () => {
   const metadata = {
     slug: "share",
-    target: { name: "current-test", commit: "abc123" },
+    target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: {
       states: ["default", "copy-toast"],
@@ -1784,7 +1793,7 @@ test("別のページの同じ状態名は別の 1 枚として扱い、同じ�
 test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）", () => {
   const meta = (pages) => ({
     slug: "share",
-    target: { name: "current-test", commit: "abc123" },
+    target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
     reaction_coverage: { declared: true, path: "reactions.json" },
     capture_conditions: {
       states: ["default", "copy-toast"],
@@ -1808,6 +1817,430 @@ test("ページが 2 つ以上ある機能で撮る状態を持つ操作は capt
   );
   expect(written.stderr).toBe("");
   expect(written.status).toBe(0);
+});
+
+// --- 押した後に撮ったページと URL の照合（Issue #484）---
+
+/**
+ * ページを宣言した metadata。状態表示は全ての画面で振り分ける（Issue #500）ので、表の側は withPages で揃える。
+ * @param {string | null} uiUrl
+ * @param {Record<string, string>} pages - 名前 → path
+ */
+const pagesMeta = (uiUrl, pages) => ({
+  slug: "share",
+  target: { name: "current-test", commit: "abc123", ui_url: uiUrl },
+  reaction_coverage: { declared: true, path: "reactions.json" },
+  capture_conditions: {
+    states: ["default", "copy-toast"],
+    pages: Object.entries(pages).map(([name, path]) => ({ name, path })),
+  },
+});
+
+/**
+ * コピー（copy-toast を撮る操作）が page を名乗り、押した後の URL が urlAfter の表。
+ * @param {Record<string, string>} pages
+ * @param {string} page
+ * @param {string} urlAfter
+ */
+const namedAfter = (pages, page, urlAfter) =>
+  mutated((t) => {
+    t.state_displays.pages = Object.keys(pages).map((name) => stateDisplayRow(name));
+    t.operations[0].capture_page = page;
+    t.operations[0].aftermath.returns_to.url_after = urlAfter;
+  });
+
+test.each(
+  [
+    {
+      shape: "baseURL にパスの接頭辞がある target の根のページ",
+      uiUrl: "https://host/portal/",
+      pages: { 根: "", 注文: "orders" },
+      urlAfter: "/portal/",
+      right: "根",
+      wrong: "注文",
+    },
+    {
+      shape: "接尾辞で重なる path",
+      uiUrl: "https://host/portal/",
+      pages: { 注文: "orders", 保管注文: "archive/orders" },
+      urlAfter: "/portal/archive/orders",
+      right: "保管注文",
+      wrong: "注文",
+    },
+    {
+      shape: "クエリで分かれるページ（書いたクエリの方が狭い）",
+      uiUrl: "https://host/portal/",
+      pages: { 一覧: "orders", 注文タブ: "orders?tab=orders" },
+      urlAfter: "/portal/orders?tab=orders",
+      right: "注文タブ",
+      wrong: "一覧",
+    },
+    {
+      shape: "クエリを書かないページは、押した後の URL のクエリが何でも合う",
+      uiUrl: "https://host/portal/",
+      pages: { 一覧: "orders", 注文タブ: "orders?tab=orders" },
+      urlAfter: "/portal/orders?q=abc",
+      right: "一覧",
+      wrong: "注文タブ",
+    },
+    {
+      shape: "フラグメントで分かれるページ（ハッシュルーティング）",
+      uiUrl: "https://host/portal/",
+      pages: { 根: "", 注文: "#/orders" },
+      urlAfter: "/portal/#/orders",
+      right: "注文",
+      wrong: "根",
+    },
+    {
+      shape: "フラグメントを書かないページは、書いたフラグメントと違う URL に合う",
+      uiUrl: "https://host/portal/",
+      pages: { 根: "", 注文: "#/orders" },
+      urlAfter: "/portal/#/archive",
+      right: "根",
+      wrong: "注文",
+    },
+    {
+      shape: "ui_url が runtime でも / から書いた path は照合する",
+      uiUrl: "runtime",
+      pages: { 注文: "/portal/orders", 保管注文: "/portal/archive/orders" },
+      urlAfter: "/portal/orders",
+      right: "注文",
+      wrong: "保管注文",
+    },
+  ].map((c) => [c.shape, c]),
+)("押した後に撮ったページを URL と照合する: %s（Issue #484）", (_shape, c) => {
+  const metadata = pagesMeta(c.uiUrl, c.pages);
+  const right = run(namedAfter(c.pages, c.right, c.urlAfter), { metadata });
+  expect(right.stderr).toBe("");
+  expect(right.status).toBe(0);
+  expect(JSON.parse(right.stdout).capture_page_urls).toEqual({
+    checked: true,
+    reason: null,
+    operations: 1,
+  });
+  const wrong = run(namedAfter(c.pages, c.wrong, c.urlAfter), { metadata });
+  expect(wrong.status).toBe(1);
+  expect(wrong.stderr).toContain(
+    `押した後に撮ったページを "${c.wrong}" と名乗っているが、押した後の URL ${c.urlAfter} は "${c.right}" に解決する`,
+  );
+});
+
+test("target.ui_url が runtime で相対の path があれば照合せず、理由を出力に残す（Issue #484）", () => {
+  const pages = { 注文: "orders", 保管注文: "archive/orders" };
+  // 別のページを名乗っても照合しないので通る。照合していないことは capture_page_urls に出る
+  const r = run(namedAfter(pages, "注文", "/portal/archive/orders"), {
+    metadata: pagesMeta("runtime", pages),
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  const out = JSON.parse(r.stdout).capture_page_urls;
+  expect(out.checked).toBe(false);
+  expect(out.reason).toContain('target.ui_url が "runtime"');
+  expect(out.operations).toBe(0);
+});
+
+test.each(
+  [
+    {
+      name: "どのページにも解決しない URL",
+      pages: { 注文: "orders", 保管注文: "archive/orders" },
+      page: "注文",
+      urlAfter: "/portal/home",
+      message: '"/portal/home" が capture_conditions.pages のどのページにも解決しない',
+    },
+    {
+      name: "同じ狭さの 2 ページに解決する URL",
+      pages: { 注文タブ: "orders?tab=orders", 注文の印: "orders#mark" },
+      page: "注文タブ",
+      urlAfter: "/portal/orders?tab=orders#mark",
+      message: "同じ狭さの複数のページ（注文タブ, 注文の印）に解決する",
+    },
+    {
+      // "/\\host/x" は http(s) ではスキーム相対になり、別のホストのパスとして解ける
+      name: "バックスラッシュを含む URL",
+      pages: { 注文: "orders", 保管注文: "archive/orders" },
+      page: "注文",
+      urlAfter: "/\\host/portal/orders",
+      message: '"/\\host/portal/orders" が "/" で始まるオリジンを除いたパスでない',
+    },
+    {
+      // 末尾のスラッシュを正規化しない（別の URL として扱う）
+      name: "末尾のスラッシュだけが違う URL",
+      pages: { 注文: "orders", 保管注文: "archive/orders" },
+      page: "注文",
+      urlAfter: "/portal/orders/",
+      message: '"/portal/orders/" が capture_conditions.pages のどのページにも解決しない',
+    },
+  ].map((c) => [c.name, c]),
+)("押した後の URL を一意に引けなければ落とす: %s（Issue #484）", (_name, c) => {
+  const r = run(namedAfter(c.pages, c.page, c.urlAfter), {
+    metadata: pagesMeta("https://host/portal/", c.pages),
+  });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(c.message);
+});
+
+test("target.ui_url が URL でも runtime でもなければ、撮る状態を持つ操作があるとき落とす（Issue #484）", () => {
+  const pages = { 共有画面: "share" };
+  for (const uiUrl of [null, "", "localhost:3000", "ftp://host/"]) {
+    const r = run(namedAfter(pages, "共有画面", "/share?id=1"), {
+      metadata: pagesMeta(uiUrl, pages),
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("target.ui_url が絶対 URL（http / https）でも");
+  }
+});
+
+test.each([
+  ["path が無い", { name: "検索画面" }, 'capture_conditions.pages の "検索画面" に path'],
+  [
+    "path がオリジンを持つ",
+    { name: "検索画面", path: "https://host/search" },
+    'capture_conditions.pages の "検索画面" の path がオリジンを持つ',
+  ],
+  [
+    "path がスキーム相対",
+    { name: "検索画面", path: "//host/search" },
+    'capture_conditions.pages の "検索画面" の path がオリジンを持つ',
+  ],
+  [
+    // http(s) の URL ではバックスラッシュが "/" と同じに読まれ、別のホストへ解ける
+    "path がバックスラッシュを含む",
+    { name: "検索画面", path: "\\\\host\\search" },
+    'capture_conditions.pages の "検索画面" の path がオリジンを持つかバックスラッシュを含む',
+  ],
+])(
+  "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: %s（Issue #484）",
+  (_n, page, message) => {
+    const metadata = pagesMeta("http://localhost:3000/", { 共有画面: "share" });
+    metadata.capture_conditions.pages.push(page);
+    const r = run(
+      namedAfter({ 共有画面: "share", 検索画面: "search" }, "共有画面", "/share?id=1"),
+      {
+        metadata,
+      },
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test("撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）", () => {
+  const pages = { 共有画面: "share" };
+  const t = mutated((x) => {
+    x.operations[0].reactions[0].capture = { state: null, reason: "通知は撮らない" };
+    x.state_displays.pages[0].candidates.empty.captured = "copy-toast";
+  });
+  const ok = run(t, { metadata: pagesMeta("http://localhost:3000/", pages) });
+  expect(ok.stderr).toBe("");
+  expect(ok.status).toBe(0);
+  const r = run(t, { metadata: pagesMeta(null, pages) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("target.ui_url が絶対 URL（http / https）でも");
+});
+
+test("別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）", () => {
+  const pages = { 共有画面: "share", 共有画面の別名: "share" };
+  const metadata = pagesMeta("http://localhost:3000/", pages);
+  // コピーは別名を名乗り、検索は本名を名乗って同じ状態名を撮る
+  const share = (t, reasons) => {
+    t.state_displays.pages = Object.keys(pages).map((name) => stateDisplayRow(name));
+    t.operations[0].capture_page = "共有画面の別名";
+    t.operations[1].capture_page = "共有画面";
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].reactions[0].capture.shared_capture_reason = reasons[0];
+    it.shared_capture_reason = reasons[1];
+  };
+  const bare = run(
+    mutated((t) => share(t, [null, null])),
+    { metadata },
+  );
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('撮る状態 "共有画面の別名 の copy-toast" を');
+  const both = run(
+    mutated((t) =>
+      share(t, [
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた",
+        "同上",
+      ]),
+    ),
+    { metadata },
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});
+
+// --- 部品被覆表と反応の被覆表をまたいだ撮る状態の使い回し（Issue #485）---
+
+const coverageTemplate = JSON.parse(
+  readFileSync(
+    join(repoRoot, "skills/parity-suite/assets/component-coverage-template.json"),
+    "utf8",
+  ),
+);
+
+/**
+ * テンプレートの形の部品被覆表。部品 grid のインスタンスごとに、導いた行（after-operation）が 1 つずつ撮る状態を指す。
+ * @param {{ instance: string, page: string, captured: string, reason?: string | null }[]} rows
+ */
+const coverageWith = (rows) => {
+  const cov = structuredClone(coverageTemplate);
+  const component = cov.components[0];
+  const instance = component.instances[0];
+  cov.components = [
+    {
+      ...component,
+      id: "grid",
+      instances: [...new Set(rows.map((r) => r.instance))].map((id) => ({
+        ...structuredClone(instance),
+        id,
+        page: rows.find((r) => r.instance === id)?.page,
+      })),
+    },
+  ];
+  cov.visual_state_coverage.rows = rows.map((r) => ({
+    ...structuredClone(coverageTemplate.visual_state_coverage.rows[0]),
+    component: "grid",
+    instance: r.instance,
+    required_by: "row-select",
+    kind: "after-operation",
+    captured: r.captured,
+    shared_capture_reason: r.reason ?? null,
+  }));
+  return cov;
+};
+
+/** 部品被覆表を宣言した metadata（ページは 2 つ。表の状態表示も 2 画面ぶん振り分ける）。 */
+const coverageMeta = () => ({
+  ...pagesMeta("http://localhost:3000/", { 共有画面: "share", 検索画面: "search" }),
+  component_coverage: { declared: true, path: "component-coverage.json" },
+});
+
+/** コピー（反応の copy-toast）を共有画面で撮る表。反応の側の根拠を reason にする。 */
+const copyOnShare = (reason) =>
+  mutated((t) => {
+    t.state_displays.pages = [stateDisplayRow("共有画面"), stateDisplayRow("検索画面")];
+    t.operations[0].capture_page = "共有画面";
+    t.operations[0].reactions[0].capture.shared_capture_reason = reason;
+  });
+
+test("表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）", () => {
+  const bare = run(copyOnShare(null), {
+    metadata: coverageMeta(),
+    coverage: coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]),
+  });
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('撮る状態 "共有画面 の copy-toast" を');
+  expect(bare.stderr).toContain(
+    "component-coverage.json: visual_state_coverage.rows[0]（grid / main / row-select / after-operation）",
+  );
+  // 片方だけの根拠では通さない（部品被覆表の側が空）
+  const half = run(copyOnShare("コピーの後に行を選んでも同じ通知が残る"), {
+    metadata: coverageMeta(),
+    coverage: coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]),
+  });
+  expect(half.status).toBe(1);
+  expect(half.stderr).toContain("根拠が空: component-coverage.json: visual_state_coverage.rows[0]");
+  const both = run(
+    copyOnShare("コピーの後に行を選んだ 1 枚に通知と選択の塗りが写ることを実 UI で確かめた"),
+    {
+      metadata: coverageMeta(),
+      coverage: coverageWith([
+        {
+          instance: "main",
+          page: "共有画面",
+          captured: "copy-toast",
+          reason: "同上（1 枚で両方を確かめた）",
+        },
+      ]),
+    },
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+  expect(JSON.parse(both.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
+});
+
+test("表をまたいでも別のページなら同じ状態名で通す（Issue #485）", () => {
+  const r = run(copyOnShare(null), {
+    metadata: coverageMeta(),
+    coverage: coverageWith([{ instance: "main", page: "検索画面", captured: "copy-toast" }]),
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 1, skipped: 0 });
+});
+
+test("部品被覆表を宣言していなければ表をまたいだ照合の相手は無い（coverage_captures: null。Issue #485）", () => {
+  const r = run(copyOnShare(null), {
+    metadata: pagesMeta("http://localhost:3000/", { 共有画面: "share", 検索画面: "search" }),
+  });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).coverage_captures).toBe(null);
+});
+
+test.each([
+  ["部品被覆表が無い", undefined, "部品被覆表を読めない: component-coverage.json"],
+  ["visual_state_coverage.rows が無い", { components: [] }, "visual_state_coverage.rows が無い"],
+])("部品被覆表を宣言したのに読めなければ落とす: %s（Issue #485）", (_name, coverage, message) => {
+  const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）", () => {
+  // インスタンスに page が無い行（coverage-expand.mjs が落とす形）。黙って捨てず skipped に数える
+  const cov = coverageWith([{ instance: "main", page: "共有画面", captured: "copy-toast" }]);
+  delete cov.components[0].instances[0].page;
+  const r = run(copyOnShare(null), { metadata: coverageMeta(), coverage: cov });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout).coverage_captures).toEqual({ counted: 0, skipped: 1 });
+});
+
+test("部品被覆表を宣言したのに path が空なら落とす（Issue #485）", () => {
+  const metadata = coverageMeta();
+  metadata.component_coverage.path = "";
+  const r = run(copyOnShare(null), { metadata });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("component_coverage.path が空");
+});
+
+test("部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）", () => {
+  // 同じページ名の 2 インスタンスが同じ状態名を指す（coverage-expand.mjs が落とす形）。反応の側は別の状態名にする
+  const noToast = mutated((t) => {
+    t.state_displays.pages = [stateDisplayRow("共有画面"), stateDisplayRow("検索画面")];
+    t.operations[0].reactions[0].capture = { state: null, reason: "通知は撮らない" };
+  });
+  const samePage = run(noToast, {
+    metadata: coverageMeta(),
+    coverage: coverageWith([
+      { instance: "main", page: "共有画面", captured: "copy-toast" },
+      { instance: "side", page: "共有画面", captured: "copy-toast" },
+    ]),
+  });
+  expect(samePage.stderr).toBe("");
+  expect(samePage.status).toBe(0);
+  // 別名のページ（同じ path の別の名前）は coverage-expand.mjs が名前で分けて数えるので、ここで落とす
+  const aliasMeta = coverageMeta();
+  aliasMeta.capture_conditions.pages.push({ name: "共有画面の別名", path: "share" });
+  const aliased = mutated((t) => {
+    t.state_displays.pages = ["共有画面", "検索画面", "共有画面の別名"].map((n) =>
+      stateDisplayRow(n),
+    );
+    t.operations[0].reactions[0].capture = { state: null, reason: "通知は撮らない" };
+  });
+  const alias = run(aliased, {
+    metadata: aliasMeta,
+    coverage: coverageWith([
+      { instance: "main", page: "共有画面", captured: "copy-toast" },
+      { instance: "side", page: "共有画面の別名", captured: "copy-toast" },
+    ]),
+  });
+  expect(alias.status).toBe(1);
+  expect(alias.stderr).toContain('撮る状態 "共有画面 の copy-toast" を');
 });
 
 // --- 送る前の判定（Issue #483）---
@@ -2447,7 +2880,7 @@ test.each([
 test("状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）", () => {
   const base = {
     slug: "share",
-    target: { name: "current-test", commit: "abc123" },
+    target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
     reaction_coverage: { declared: true, path: "reactions.json" },
   };
   // 画面が 2 つある機能で 1 画面しか振り分けていない。copy は capture_page を書いて、capture_page の欠けと分ける
@@ -2666,7 +3099,7 @@ test.each([
     const r = run(baseTable(), {
       metadata: {
         slug: "share",
-        target: { name: "current-test", commit: "abc123" },
+        target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
         reaction_coverage: { declared: true, path: "reactions.json" },
         capture_conditions: { states: ["default", "copy-toast"], pages },
       },

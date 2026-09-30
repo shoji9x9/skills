@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）の検出能力を示す変異の一覧。",
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -507,6 +507,9 @@
         "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）",
         "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）",
         "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
       ]
     },
@@ -531,6 +534,8 @@
       "expect_failing": [
         "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
         "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
       ]
     },
@@ -538,11 +543,12 @@
       "id": "capture-key-page",
       "why": "撮る状態の使い回しをページで割らない（別のページの 1 枚を同じ 1 枚と数える）",
       "file": "skills/parity-suite/scripts/reaction-check.mjs",
-      "find": "JSON.stringify([pageKey, state])",
+      "find": "JSON.stringify([page === null ? null : pageKey(page, pageResolution), state])",
       "replace": "JSON.stringify([null, state])",
       "occurrences": 1,
       "expect_failing": [
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
         "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
       ]
     },
@@ -1058,7 +1064,8 @@
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
       ]
     },
     {
@@ -1598,6 +1605,213 @@
         "--tests の spec の位置が column が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
         "--tests の spec の位置が line が 0 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
         "--tests の spec の位置が line が文字列 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "capture-page-url-mismatch-passes",
+      "why": "名乗ったページと押した後の URL が解決したページが違っても通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        } else if (got.page !== null && got.page.key !== named.key) {\n",
+      "replace": "        } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: baseURL にパスの接頭辞がある target の根のページ（Issue #484）",
+        "押した後に撮ったページを URL と照合する: 接尾辞で重なる path（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリで分かれるページ（書いたクエリの方が狭い）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）",
+        "押した後に撮ったページを URL と照合する: フラグメントで分かれるページ（ハッシュルーティング）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: フラグメントを書かないページは、書いたフラグメントと違う URL に合う（Issue #484）",
+        "押した後に撮ったページを URL と照合する: ui_url が runtime でも / から書いた path は照合する（Issue #484）"
+      ]
+    },
+    {
+      "id": "capture-page-url-unresolved-passes",
+      "why": "押した後の URL がどのページにも一意に解決しなくても通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (got.problem !== null) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: どのページにも解決しない URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 末尾のスラッシュだけが違う URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: バックスラッシュを含む URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-query-ignored",
+      "why": "path に書いたクエリをページの識別に含めない（クエリで分かれるページが区別できない。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (pg.search !== null && pg.search !== u.search) continue;\n",
+      "replace": "    if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-hash-ignored",
+      "why": "path に書いたフラグメントをページの識別に含めない（ハッシュルーティングのページが区別できない。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (pg.hash !== null && pg.hash !== u.hash) continue;\n",
+      "replace": "    if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: フラグメントを書かないページは、書いたフラグメントと違う URL に合う（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-query-never-declared",
+      "why": "path にクエリを書いてもクエリを識別に入れない（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    const search = path.split(\"#\")[0].includes(\"?\") ? u.search : null;\n",
+      "replace": "    const search = null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: クエリで分かれるページ（書いたクエリの方が狭い）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-ambiguity-first-wins",
+      "why": "同じ狭さの複数のページに解決する URL を先勝ちで通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  if (keys.size > 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-runtime-relative-resolved",
+      "why": "ui_url が runtime なのに相対の path を仮のオリジンで解いて照合する（baseURL のパス接頭辞を知らないまま照合する。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (baseRead.runtime && !originRelative(path)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "target.ui_url が runtime で相対の path があれば照合せず、理由を出力に残す（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-absolute-path-accepted",
+      "why": "オリジンを持つ path を相対パスとして受ける（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith(\"//\") || path.includes(\"\\\\\")) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がオリジンを持つ（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がスキーム相対（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がバックスラッシュを含む（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-key-by-name",
+      "why": "使い回しを解決したページではなく名前で数える（別名のページで 1 枚を根拠なく共有できる。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  return pg ? `url:${pg.key}` : `name:${name}`;\n",
+      "replace": "  return `name:${name}`;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "page-resolution-problems-dropped",
+      "why": "ページを解けない理由（ui_url・path の誤り）を落とさない（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    (capturePageNeedsResolution || aftermathCaptureUses.size > 0) &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "target.ui_url が URL でも runtime でもなければ、撮る状態を持つ操作があるとき落とす（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path が無い（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がオリジンを持つ（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がスキーム相対（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がバックスラッシュを含む（Issue #484）",
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-not-counted",
+      "why": "部品被覆表の撮る状態を使い回しの集合に入れない（表をまたいだ使い回しが根拠なしで通る。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  for (const c of coverageCaptures ?? []) {\n",
+      "replace": "  for (const c of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-unreadable-passes",
+      "why": "部品被覆表を宣言したのに読めなくても通す（Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (coverageProblem !== null) problems.push(coverageProblem);\n",
+      "replace": "  if (false) problems.push(coverageProblem);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表を宣言したのに読めなければ落とす: 部品被覆表が無い（Issue #485）",
+        "部品被覆表を宣言したのに読めなければ落とす: visual_state_coverage.rows が無い（Issue #485）",
+        "部品被覆表を宣言したのに path が空なら落とす（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-only-alias-skipped",
+      "why": "部品被覆表の中だけの使い回しを、別名のページをまたいでも coverage-expand.mjs に任せる（名前で数える coverage-expand.mjs は別名を分けて通す。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (uses.every((u) => u.source === \"coverage\") && new Set(uses.map((u) => u.page)).size === 1)\n",
+      "replace": "    if (uses.every((u) => u.source === \"coverage\"))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-row-page-ignored",
+      "why": "部品被覆表の行のページを見ずに数える（別のページの同じ状態名まで使い回しに数える。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const key = JSON.stringify([pageKey(c.page, pageResolution), c.captured]);\n",
+      "replace": "    const key = JSON.stringify([pageKey(\"共有画面\", pageResolution), c.captured]);\n",
+      "occurrences": 1,
+      "expect_failing": ["表をまたいでも別のページなら同じ状態名で通す（Issue #485）"]
+    },
+    {
+      "id": "url-after-backslash-accepted",
+      "why": "バックスラッシュを含む押した後の URL を受ける（http(s) では \"/\" と同じに読まれ、別のホストのパスとして解ける）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  path.startsWith(\"/\") && !path.startsWith(\"//\") && !path.includes(\"\\\\\");\n",
+      "replace": "  path.startsWith(\"/\") && !path.startsWith(\"//\");\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: バックスラッシュを含む URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "coverage-skipped-uncounted",
+      "why": "部品被覆表のうちページを引けない行を黙って捨て、件数を出力に残さない（Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      skipped += 1;\n",
+      "replace": "\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）"
+      ]
+    },
+    {
+      "id": "page-resolution-problems-ops-only",
+      "why": "ページを解けない理由を、撮る状態を持つ操作があるときだけ落とす（状態表示・部品被覆表だけが撮る機能で、名前で数える縮退に黙って倒れる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    (capturePageNeedsResolution || aftermathCaptureUses.size > 0) &&\n",
+      "replace": "    capturePageNeedsResolution &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
       ]
     }
   ]

@@ -108,7 +108,7 @@
             },
             "observed": "<現行で見た文言・覆い・ページ表示（例: 覆いに「結果が無い」の文言、ページ表示 1 / 0）>",
             "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
-            "shared_capture_reason": "<captured の状態名を同じページの別の行（反応・残る見た目・状態表示）も指すときだけ、その 1 枚が全ての行の状態を写すことを実 UI で確かめた根拠。使い回さないなら null>",
+            "shared_capture_reason": "<captured の状態名を同じページの別の行（反応・残る見た目・状態表示・部品被覆表の visual_state_coverage.rows）も指すときだけ、その 1 枚が全ての行の状態を写すことを実 UI で確かめた根拠。使い回さないなら null>",
             "covered_by": [
               "<この状態の表示を確かめたスイートの assertion。captured だけで押さえるなら空配列>"
             ]
@@ -163,7 +163,7 @@
       "id": "<操作 id（\"/\" を含めない。call_sites の reaction から参照する）>",
       "name": "<人が読む操作名（例: 共有ダイアログの Copy を押す）>",
       "trigger": "<操作アダプタの呼び出し（<関数名>(<論理名>)）>",
-      "capture_page": "<押した後に撮ったページ（metadata.json の capture_conditions.pages の名前。遷移する操作は遷移先）。撮影はページ × 状態名 × ビューポートの単位なので、このページが違えば同じ状態名でも別の 1 枚として使い回しの照合から外れる。操作が載るページではない（載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通る）。撮る状態（reactions[].capture.state・aftermath.look.items[].captured）を持つ操作は、capture_conditions.pages が 2 つ以上なら必須（1 つならそのページとみなすので省略してよい）>",
+      "capture_page": "<押した後に撮ったページ（metadata.json の capture_conditions.pages の名前。遷移する操作は遷移先）。撮影はページ × 状態名 × ビューポートの単位なので、このページが違えば同じ状態名でも別の 1 枚として使い回しの照合から外れる。操作が載るページではない（載るページで割ると、別のページから同じ遷移先へ移る 2 操作が 1 枚を共有しても通る）。撮る状態（reactions[].capture.state・aftermath.look.items[].captured）を持つ操作は、capture_conditions.pages が 2 つ以上なら必須（1 つならそのページとみなすので省略してよい）。reaction-check.mjs が aftermath.returns_to.url_after を pages[].path の解決規則（parity-suite の references/baseline.md「ページの path の解決規則」）で宣言済みのページへ解き、このページと違えば落とす。使い回しは名前ではなく解いたページで数える（path が同じ別名は同じ 1 枚）>",
       "handlers": [
         {
           "file": "<移行元ソースでこの操作を処理するハンドラのファイル（--root からの相対、/ 区切り）。feedback_calls.source.paths の走査範囲に入っていなければ落ちる>",
@@ -208,7 +208,7 @@
               "description": "<残る見た目（例: 絞り込み中の見出しの文字色・複数列の並べ替えの順位の印・選択した行のこの列の塗り）>",
               "observed": "<現行で測った値（例: color: rgb(204, 0, 0)・印の文言「2▲」・塗りが付かない〈background-color が選択前と同じ〉）。付かないことも値として書く>",
               "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
-              "shared_capture_reason": "<同じ captured の状態名を別の行（別の操作を含む）も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く（片方だけでは落ちる）。使い回さないなら null>",
+              "shared_capture_reason": "<同じページで同じ captured の状態名を別の行（別の操作・状態表示・部品被覆表の visual_state_coverage.rows を含む）も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く（片方だけでは落ちる）。使い回さないなら null>",
               "covered_by": [
                 "<押さえた assertion（toHaveCSS・印の文言など。名前は「スペックのパス › describe の題 › テストの題」）。撮る状態だけで押さえるなら空配列>"
               ],
@@ -333,7 +333,7 @@
           "capture": {
             "state": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
             "reason": "<撮らないなら理由（gaps.md の「撮影状態の対象外」と同じ文言）。撮るなら null>",
-            "shared_capture_reason": "<同じ state の状態名を別の反応・残る見た目（aftermath.look.items[].captured）も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く。使い回さないなら null>"
+            "shared_capture_reason": "<同じページで同じ state の状態名を別の反応・残る見た目（aftermath.look.items[].captured）・状態表示・部品被覆表の visual_state_coverage.rows も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く。使い回さないなら null>"
           }
         }
       ]
