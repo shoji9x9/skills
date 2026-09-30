@@ -319,7 +319,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   実行時の cwd は問わない。照合結果は被覆表の `conformance` に残り、`parity-diff` はそれを読む
 - **[`scripts/checkpoint.mjs`](scripts/checkpoint.mjs)・[`scripts/table-upsert.mjs`](scripts/table-upsert.mjs) もコピーしない。** 区切りの記録・照合と、大きな JSON 成果物の 1 行更新に使う（[`references/checkpoints.md`](references/checkpoints.md)）
 - **[`scripts/reaction-check.mjs`](scripts/reaction-check.mjs) もコピーしない。** 照合結果は `reactions.json` の `conformance`（表の指紋付き）に残り、
-  `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ
+  `parity-diff` はインストール済みの本スキルから同じスクリプトを `--recorded` で呼ぶ。
+  ページの path の解決（[`scripts/page-identity.mjs`](scripts/page-identity.mjs)）を import するので同じディレクトリに置いたまま呼ぶ。
+  `component_coverage.declared: true` なら部品被覆表も読んで撮る状態の使い回しを表をまたいで数えるので、`coverage-expand.mjs --write` の後に通す
 - **[`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs) もコピーしない。** 本スキルは `fit` で式を `metadata.json` に書き、
   `parity-replace` はインストール済みの本スキルから同じスクリプトを `check` で呼んで新側を照合する
 - **[`scripts/capture-scope-check.mjs`](scripts/capture-scope-check.mjs) もコピーしない。** 本スキルは手順 8 で撮る範囲の穴を数え、

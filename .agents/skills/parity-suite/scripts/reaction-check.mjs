@@ -9,6 +9,8 @@
 //      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
 //      操作を終えた後に残るもの（aftermath）も数える。残る見た目は撮る状態か assertion に割り当て、
 //      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる（Issue #471）
+//      撮る状態を持つ操作は、名乗った撮影ページ（capture_page）を押した後の URL を解いたページと照合する（Issue #484。解決規則は page-identity.mjs）。
+//      撮る状態の使い回しは解いたページ × 状態名で数え、部品被覆表（component_coverage）の導いた行も同じ集合に入れる（Issue #485）
 //      操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）も数える。部品の内側の判定は画面の処理にも
 //      部品へ渡す引数にも現れず、境界の外側でしか姿を現さないので、境界の両側を現行で測らせる（Issue #483）
 //      表への書き込み（side_effect_writes）も数える。移行元ソースを書き込みのパターンで走査して全件と突き合わせ、
@@ -39,15 +41,29 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// 同じディレクトリの page-identity.mjs は、このファイルの実パスから引く。静的な "./page-identity.mjs" は
+// --preserve-symlinks-main でファイル単位のシンボリックリンクから起動されると、リンクの置き場所から解決して
+// 見つからず、引数不足の usage 表示まで起動時に落ちる（artifact-health-check.mjs と同じ理由）。
+const { pageForUrl, pageKey, resolvePages } = await import(
+  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "page-identity.mjs"))
+    .href
+);
 
 /**
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * conformance.tool_version と一致しない記録は --recorded で落ちる。
  * @type {string}
  */
-export const VERSION = "7";
+export const VERSION = "8";
+
+/**
+ * 撮る状態を指す 1 行（使い回しの照合の単位。Issue #485）。
+ * source は出どころの表（reactions ＝ 反応の被覆表、coverage ＝ 部品被覆表の visual_state_coverage）、page は名乗ったページ名。
+ * @typedef {{ opId: string | null, label: string, shared: boolean, source: "reactions" | "coverage", page: string | null }} CaptureUse
+ */
 
 /** 反応の種類。none / unmeasured も「欄を埋めた」記録として明示させる（空欄を許さない）。 */
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
@@ -1294,11 +1310,11 @@ function stateDisplayProblems(entry, candidate, captureStates) {
  * 画面の集合は metadata.json の capture_conditions.pages（宣言）から取る。記録した画面の一覧を期待値にすると、
  * 画面ごと落とした振り分けが期待値からも消える。
  * @param {unknown} sd
- * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, problems: string[], captureUses: Map<string, { opId: string | null, label: string, shared: boolean }[]>, captureLabel: Map<string, string> }} ctx
+ * @param {{ pageNames: Set<string> | null, captureStates: Set<string> | null, problems: string[], captureUses: Map<string, CaptureUse[]>, captureLabel: Map<string, string>, pageResolution: import("./page-identity.mjs").PageResolution | null }} ctx
  * @returns {{ pages: number | null, entries: number, unmeasured: number }}
  */
 function checkStateDisplays(sd, ctx) {
-  const { pageNames, captureStates, problems, captureUses, captureLabel } = ctx;
+  const { pageNames, captureStates, problems, captureUses, captureLabel, pageResolution } = ctx;
   const summary = { pages: null, entries: 0, unmeasured: 0 };
   if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {
     problems.push(
@@ -1382,10 +1398,16 @@ function checkStateDisplays(sd, ctx) {
       for (const f of found) problems.push(`${at}: ${f.problem}`);
       // 撮る状態は撮影の単位（ページ × 状態名）で、反応・残る見た目の撮る状態と同じ集合に入れて使い回しを数える
       if (isPlainObject(entry) && entry.status === "present" && filled(entry.captured)) {
-        const key = JSON.stringify([row.page, entry.captured]);
+        const key = JSON.stringify([pageKey(String(row.page), pageResolution), entry.captured]);
         if (!captureLabel.has(key)) captureLabel.set(key, `${row.page} の ${entry.captured}`);
         const uses = captureUses.get(key) ?? [];
-        uses.push({ opId: null, label: `${at}.${c}`, shared: filled(entry.shared_capture_reason) });
+        uses.push({
+          opId: null,
+          label: `${at}.${c}`,
+          shared: filled(entry.shared_capture_reason),
+          source: "reactions",
+          page: String(row.page),
+        });
         captureUses.set(key, uses);
       }
     }
@@ -2115,6 +2137,10 @@ export function checkReactions(table, opts = {}) {
     targetCommit = undefined,
     testIndex = null,
     specs = null,
+    pageResolution = null,
+    coverageCaptures = null,
+    coverageProblem = null,
+    coverageSkipped = 0,
   } = opts;
   if (!isPlainObject(table)) throw new UsageError("反応の被覆表がオブジェクトでない");
   /** @type {string[]} */
@@ -2235,8 +2261,18 @@ export function checkReactions(table, opts = {}) {
   let maxObservedDelay = null;
   /** @type {Set<string>} */
   const unmeasuredOps = new Set();
-  /** @type {Map<string, { opId: string | null, label: string, shared: boolean }[]>} [ページ, 撮る状態名] → 割り当てた行（状態表示の行は opId: null） */
+  /** @type {Map<string, CaptureUse[]>} [解決したページ, 撮る状態名] → 割り当てた行（状態表示・部品被覆表の行は opId: null） */
   const aftermathCaptureUses = new Map();
+  // 押した後の URL と名乗ったページの照合（Issue #484）。照合できないときは理由を出力に残す（黙って照合済みにしない）
+  const capturePageUrls = {
+    checked: pageResolution !== null && pageResolution.resolvable,
+    reason:
+      pageResolution === null
+        ? "metadata.json の capture_conditions.pages が無い"
+        : pageResolution.reason,
+    operations: 0,
+  };
+  let capturePageNeedsResolution = false;
   /** @type {Map<string, string>} 使い回しの照合のキー → 人が読む名前（最初に現れたページ名 × 状態名） */
   const captureLabel = new Map();
   /** @type {Map<string, unknown>} 操作 id → handlers（移行元ソースとの突き合わせで照合する） */
@@ -2324,12 +2360,31 @@ export function checkReactions(table, opts = {}) {
           "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
         );
     }
-    // 使い回しは名乗ったページ名 × 状態名で数える。名乗ったページが本当に撮ったページか（押した後の URL との照合）は
-    // ページの定義（pages[].path の意味論: baseURL の接頭辞・クエリ・フラグメント）を固めてから扱う（Issue #484）。
-    // それまでは規約（押した後に撮ったページを書く）で持つ
-    const pageKey = page;
+    // 名乗ったページが本当に撮ったページかを、押した後の URL（returns_to.url_after）を宣言済みのページへ解決して確かめる（Issue #484）。
+    // 解決規則は page-identity.mjs（正本は baseline.md「ページの path の解決規則」）。別名のページ（path が同じ別の名前）は同じ 1 枚として通す。
+    // 戻り先を測っていない操作は returns_to の欠けとして別に落ちるので、ここでは照合しない
+    if (page !== null && consumesCapture) {
+      capturePageNeedsResolution = true;
+      const ret = isPlainObject(am) ? am.returns_to : undefined;
+      const urlAfter = isPlainObject(ret) && ret.measured === true ? ret.url_after : undefined;
+      const named = pageResolution?.pages.get(page);
+      if (pageResolution !== null && pageResolution.resolvable && named && filled(urlAfter)) {
+        capturePageUrls.operations += 1;
+        const got = pageForUrl(/** @type {string} */ (urlAfter), pageResolution);
+        if (got.problem !== null) {
+          fail(
+            `aftermath.returns_to.url_after ${got.problem}（押した後に撮ったページ "${page}" と照合できない）`,
+          );
+        } else if (got.page !== null && got.page.key !== named.key) {
+          fail(
+            `押した後に撮ったページを "${page}" と名乗っているが、押した後の URL ${String(urlAfter)} は "${got.page.name}" に解決する（capture_page に押した後に撮ったページを書く）`,
+          );
+        }
+      }
+    }
+    // 使い回しは解決したページ × 状態名で数える（別名で同じページを指す 2 つの名前は同じ 1 枚）
     const captureKey = (/** @type {string} */ state) => {
-      const key = JSON.stringify([pageKey, state]);
+      const key = JSON.stringify([page === null ? null : pageKey(page, pageResolution), state]);
       if (!captureLabel.has(key))
         captureLabel.set(key, page === null ? state : `${page} の ${state}`);
       return key;
@@ -2349,6 +2404,8 @@ export function checkReactions(table, opts = {}) {
         opId: /** @type {string} */ (op.id),
         label: `${label}: reactions["${r.id}"].capture`,
         shared: filled(r.capture.shared_capture_reason),
+        source: "reactions",
+        page,
       });
       aftermathCaptureUses.set(key, uses);
     }
@@ -2360,6 +2417,8 @@ export function checkReactions(table, opts = {}) {
         opId: /** @type {string} */ (op.id),
         label: `${label}: aftermath.look.items["${item.id}"]`,
         shared: filled(item.shared_capture_reason),
+        source: "reactions",
+        page,
       });
       aftermathCaptureUses.set(key, uses);
     }
@@ -2589,13 +2648,38 @@ export function checkReactions(table, opts = {}) {
     problems,
     captureUses: aftermathCaptureUses,
     captureLabel,
+    pageResolution,
   });
+
+  if (coverageProblem !== null) problems.push(coverageProblem);
+  // 部品被覆表の撮る状態も同じ集合（解決したページ × 状態名）で数える（Issue #485）。
+  // 部品から導いた行と反応・残る見た目・状態表示の行が同じ 1 枚を指すと、各表の中では 1 件にしか見えず根拠なしで通る
+  for (const c of coverageCaptures ?? []) {
+    const key = JSON.stringify([pageKey(c.page, pageResolution), c.captured]);
+    if (!captureLabel.has(key)) captureLabel.set(key, `${c.page} の ${c.captured}`);
+    const uses = aftermathCaptureUses.get(key) ?? [];
+    uses.push({ opId: null, label: c.label, shared: c.shared, source: "coverage", page: c.page });
+    aftermathCaptureUses.set(key, uses);
+  }
+  // 撮る状態が 1 つでもあれば（操作・状態表示・部品被覆表のどれでも）ページを解けない理由を落とす。
+  // 解けないページは名前で数える縮退になり、別名をまたいだ使い回しを数えられない
+  if (
+    (capturePageNeedsResolution || aftermathCaptureUses.size > 0) &&
+    pageResolution !== null &&
+    pageResolution.problems.length > 0
+  ) {
+    for (const rp of pageResolution.problems) problems.push(`押した後に撮ったページの照合: ${rp}`);
+  }
 
   // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
   // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する。
   // 状態表示を撮る状態も同じ集合で数える（0 件の 1 枚を、押した後の 1 枚と根拠なしに兼ねさせない。Issue #500）
   for (const [key, uses] of aftermathCaptureUses) {
     if (uses.length < 2) continue;
+    // 部品被覆表の中だけの同じページ名の使い回しは coverage-expand.mjs が数える（二重に報告しない）。
+    // 別名のページ（同じ path の別の名前）をまたぐものは coverage-expand.mjs が名前で数えるので、ここで数える
+    if (uses.every((u) => u.source === "coverage") && new Set(uses.map((u) => u.page)).size === 1)
+      continue;
     const name = captureLabel.get(key) ?? key;
     const lacking = uses.filter((u) => !u.shared);
     if (lacking.length === 0) continue;
@@ -2663,10 +2747,91 @@ export function checkReactions(table, opts = {}) {
     call_sites: callSummary,
     side_effect_writes: sideEffects,
     state_displays: stateDisplays,
+    capture_page_urls: capturePageUrls,
+    // 部品被覆表の撮る状態を何行数えたか（null は部品被覆表を宣言していない＝表をまたいだ照合の相手が無い）
+    coverage_captures:
+      coverageCaptures === null
+        ? null
+        : { counted: coverageCaptures.length, skipped: coverageSkipped },
     covered_by: { owners: owners.length, resolved: coveredBy.resolved },
     table_fingerprint: fingerprint,
     problems,
   };
+}
+
+/**
+ * 部品被覆表（metadata.json の component_coverage）の撮る状態を、表をまたいだ使い回しの照合用に読む（Issue #485）。
+ * 行のページはインスタンスの page（capture_conditions.pages の名前）。page が無い・宣言に無い行は
+ * coverage-expand.mjs が落とす（parity-diff の収束判定は部品被覆表の conformance.ok を要求する）ので、ここでは数えない。
+ * @param {Record<string, unknown>} metadata
+ * @param {Set<string> | null} pageNames
+ * @param {(p: string) => string} readFile
+ * @param {string} cwd
+ * 数えなかった行は件数（skipped）を返して出力に残す（黙って捨てた行と、撮る状態の無い表を同じ見え方にしない）。
+ * @returns {{ captures: { page: string, captured: string, label: string, shared: boolean }[] | null, problem: string | null, skipped: number }}
+ */
+export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
+  const decl = metadata.component_coverage;
+  // 宣言が無い・declared: false は部品被覆表を持たない機能（後方互換の扱いは parity-diff の coverage-check.mjs が持つ）
+  if (!isPlainObject(decl) || decl.declared !== true)
+    return { captures: null, problem: null, skipped: 0 };
+  if (!nonEmptyString(decl.path)) {
+    return {
+      captures: [],
+      skipped: 0,
+      problem:
+        "metadata.json の component_coverage.path が空（部品被覆表を読めず、表をまたいだ撮る状態の使い回しを照合できない）",
+    };
+  }
+  let cov;
+  try {
+    cov = JSON.parse(readFile(resolve(cwd, decl.path)));
+  } catch (e) {
+    return {
+      captures: [],
+      skipped: 0,
+      problem: `部品被覆表を読めない: ${decl.path}（${e instanceof Error ? e.message : e}。表をまたいだ撮る状態の使い回しを照合できない）`,
+    };
+  }
+  const rows =
+    isPlainObject(cov) && isPlainObject(cov.visual_state_coverage)
+      ? cov.visual_state_coverage.rows
+      : undefined;
+  if (!Array.isArray(rows)) {
+    return {
+      captures: [],
+      skipped: 0,
+      problem: `部品被覆表 ${decl.path} に visual_state_coverage.rows が無い（coverage-expand.mjs --write で導出してから通す）`,
+    };
+  }
+  /** @type {Map<string, string>} */
+  const pageByInstance = new Map();
+  for (const c of Array.isArray(cov.components) ? cov.components : []) {
+    if (!isPlainObject(c) || !nonEmptyString(c.id)) continue;
+    for (const inst of Array.isArray(c.instances) ? c.instances : []) {
+      if (!isPlainObject(inst) || !nonEmptyString(inst.id) || !nonEmptyString(inst.page)) continue;
+      const k = JSON.stringify([c.id, inst.id]);
+      if (!pageByInstance.has(k)) pageByInstance.set(k, inst.page);
+    }
+  }
+  /** @type {{ page: string, captured: string, label: string, shared: boolean }[]} */
+  const captures = [];
+  let skipped = 0;
+  rows.forEach((row, i) => {
+    if (!isPlainObject(row) || !filled(row.captured)) return;
+    const page = pageByInstance.get(JSON.stringify([row.component, row.instance]));
+    if (page === undefined || (pageNames !== null && !pageNames.has(page))) {
+      skipped += 1;
+      return;
+    }
+    captures.push({
+      page,
+      captured: /** @type {string} */ (row.captured),
+      label: `${decl.path}: visual_state_coverage.rows[${i}]（${String(row.component)} / ${String(row.instance)} / ${String(row.required_by)} / ${String(row.kind)}）`,
+      shared: filled(row.shared_capture_reason),
+    });
+  });
+  return { captures, problem: null, skipped };
 }
 
 /**
@@ -2845,11 +3010,19 @@ export function main(argv, deps = {}) {
       for (const p of problems) stderr(`warn: ${p}\n`);
       return problems.length === 0 ? 0 : 1;
     }
+    const pageNames = Array.isArray(cc.pages) ? pageNameSet(cc.pages) : null;
+    const coverage = readCoverageCaptures(metadata, pageNames, readFile, cwd);
     const result = checkReactions(table, {
       root,
       recorded,
       captureStates: new Set(cc.states),
-      pageNames: Array.isArray(cc.pages) ? pageNameSet(cc.pages) : null,
+      pageNames,
+      pageResolution: Array.isArray(cc.pages)
+        ? resolvePages(cc.pages, metadata.target.ui_url)
+        : null,
+      coverageCaptures: coverage.captures,
+      coverageProblem: coverage.problem,
+      coverageSkipped: coverage.skipped,
       slug: metadata.slug,
       target: metadata.target.name,
       targetCommit: metadata.target.commit,

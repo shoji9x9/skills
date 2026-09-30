@@ -71,6 +71,29 @@
 `bbox` は現側ベースラインと同時に実測する target 非依存の座標であり、新側に未実装機能の DOM が無くても両画像へ同じ矩形を適用できる。各撮影組に対応する矩形が無い、現側論理名が解決できない、領域が別機能まで覆う、またはページ一覧の共同居住 slug に候補が無い場合は、マスクで差分を隠さず `gaps.md` に不足を記録して停止する。
 依存先が green になった次の実行では候補を自動的に外し、正本から全面比較へ戻せる。
 
+### ページの path の解決規則
+
+`capture_conditions.pages[].path` は **target の baseURL（`target.ui_url`）からの相対パス**で、次の規則で 1 つの URL に解く。
+正本はこの節で、照合の実装は [`scripts/page-identity.mjs`](../scripts/page-identity.mjs)（`reaction-check.mjs` が押した後に撮ったページの照合と撮る状態の使い回しの数え方に使う）。
+
+- **解き方は Playwright の `page.goto(path)` と同じ**（WHATWG URL の相対解決 `new URL(path, baseURL)`）。撮影が開いたページと同じ URL になる
+  - `/` で始まる path は baseURL のパス接頭辞を捨てる（`https://host/portal/` に `/orders` は `https://host/orders`）。接頭辞の下のページは `orders` と相対で書く。根のページは空文字列
+  - 末尾の `/` の無い baseURL（`https://host/portal`）は最後の区間が置き換わる（`orders` は `https://host/orders`）。接頭辞の下で撮るなら baseURL を `/` で終える
+  - スキーム・ホストを持つ path（`https://…` / `//host/…`）とバックスラッシュを含む path は書かない（落ちる。http(s) ではバックスラッシュが `/` と同じに読まれ、`\\host\\x` は別のホストへ解ける）。押した後の URL も同じ
+- **ページの識別はパスの完全一致**。末尾の `/`・大文字小文字を正規化しない（`orders` と `orders/` は別、`orders` と `archive/orders` は別）
+- **クエリ・フラグメントは path に書いたときだけ識別に含め、書いたものと完全一致を要求する。** 書かなければ押した後の URL のクエリ・フラグメントは何でも合う
+  - 1 つの URL に複数のページが合うなら、クエリ・フラグメントを多く書いた方（狭い方）を採る（`orders` と `orders?tab=orders` なら `/portal/orders?tab=orders` は後者）
+  - 同じ狭さで別のページが残る URL は曖昧として落ちる。path のクエリ・フラグメントで分ける
+  - ハッシュルーティングのページはフラグメントまで書く（`#/orders`）。フラグメントの中の `?` はクエリではない
+- **path が同じ別の名前（別名）は同じページ**。撮る状態の使い回しは名前ではなく解いたページ × 状態名で数える
+- **`target.ui_url` が `runtime`（url_command の target。URL を成果物に残さない）なら baseURL が無い。**
+  `/` で始まる path だけを解き、相対の path が 1 つでもあれば押した後の URL との照合をしない（`reaction-check.mjs` の出力の `capture_page_urls.checked: false` に理由が出る）。
+  照合させるなら path を baseURL のパス接頭辞を含めて `/` から書く（オリジンは照合に使わないので、ホストは成果物に残らない）
+  - 照合しない場合も、撮る状態の使い回しは相対の path の文字列で数える（同じ path を書いた別名は同じ 1 枚。`orders` と `/portal/orders` のように書き方の違う同じページはまとまらない）
+
+**撮る状態を持つ操作は、押した後の URL（`reactions.json` の `aftermath.returns_to.url_after`）がこの規則で名乗ったページ（`capture_page`。ページが 1 つなら省略可）に解けなければ落ちる**
+（[`coverage.md`](coverage.md)「押した後に残るもの」）。
+
 ### 撮影状態の決め方（1）被覆表から導く
 
 **`capture_conditions.states` を「見た目が変わる状態を思いついた分」だけで決めない。** 挙げなかった状態は 3 点セット（スクリーンショット・特性・aria スナップショット）のどれも採られず、特性照合は名前を付けた要素しか見ない——
@@ -102,6 +125,8 @@
   （キーの粒度と同じ故障が値の側に残る）。別々の操作が**本当に同じ器を開く**場合だけ、
   共有する**全行**の `shared_capture_reason` に実 UI で確かめた根拠を書けば通る（片方だけでは通らない）。
   ページが違うインスタンス間では別の 1 枚になるので使い回してよい。
+  **反応の被覆表（`reactions.json`）の撮る状態とも同じ集合で数える**——部品から導いた行と、反応・残る見た目・状態表示の行が
+  同じページ × 状態名を指すなら、両方の表の全行に `shared_capture_reason` が要る（`reaction-check.mjs` が部品被覆表を読んで数える。Issue #485）
   **撮影状態を要求する行を持つインスタンスには `page` が要る**——撮影単位を決めるキーなので、
   欠けていると使い回しを判定できない（狭いスコープへ倒さず落とす）。
   **非空なだけでは足りず、`capture_conditions.pages[].name` に実在する名前でなければ落ちる**——
