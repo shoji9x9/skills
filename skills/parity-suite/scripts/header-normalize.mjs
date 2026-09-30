@@ -61,7 +61,13 @@ function cells(line) {
  */
 function headerNameOf(cell) {
   const quoted = /`([^`]*)`/.exec(cell);
-  return (quoted ? quoted[1] : cell).trim();
+  if (quoted) return quoted[1].trim();
+  // バッククォートの無いセルは強調（`**…**` / `__…__` / `*…*` / `_…_`）の囲みを外す。
+  // token は `*` と `_` を許すので、外さないと `**x-frame-options**` が名前として通り、黙って比較から外れる。
+  // 名前の中の `_`（`X_Custom` 等）は囲みではないので残す。
+  let name = cell.trim();
+  for (let m; (m = /^(\*\*|__|\*|_)(.+)\1$/.exec(name));) name = m[2].trim();
+  return name;
 }
 
 /**

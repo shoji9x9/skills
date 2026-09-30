@@ -247,6 +247,19 @@
       "replace": "l.includes(\"未測定\")",
       "occurrences": 1,
       "expect_failing": ["一覧: 本文中の部分的な「未測定」の言及では、埋まった表を捨てない"]
+    },
+    {
+      "id": "name-emphasis-kept",
+      "why": "ヘッダー名の強調の囲みを外さず、**X-Frame-Options** を別名として一覧に入れて黙って比較から外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "for (let m; (m = /^(\\*\\*|__|\\*|_)(.+)\\1$/.exec(name));) name = m[2].trim();",
+      "replace": "// (mutated) emphasis kept",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: ヘッダー名のセル **X-Frame-Options** は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル *X-Frame-Options* は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル __X-Frame-Options__ は強調の囲みだけを外して x-frame-options と読む"
+      ]
     }
   ]
 }

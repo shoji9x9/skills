@@ -70,6 +70,17 @@ test("一覧: 付け手が `不明` の行だけのヘッダーは比べる対�
   expect([...list]).toEqual(["x-frame-options"]);
 });
 
+test.each([
+  ["**X-Frame-Options**", "x-frame-options"],
+  ["__X-Frame-Options__", "x-frame-options"],
+  ["*X-Frame-Options*", "x-frame-options"],
+  ["**`X-Frame-Options`**", "x-frame-options"],
+  ["X_Custom_Header", "x_custom_header"],
+])("一覧: ヘッダー名のセル %s は強調の囲みだけを外して %s と読む", (cell, expected) => {
+  const list = parseHeaderList(survey([`| ${cell} | 防御 | x | 全種類 | サーバーの設定 | |`]));
+  expect([...list]).toEqual([expected]);
+});
+
 test("一覧: 強調記号付きの `**不明**` は `不明` と読む", () => {
   const list = parseHeaderList(
     survey([
