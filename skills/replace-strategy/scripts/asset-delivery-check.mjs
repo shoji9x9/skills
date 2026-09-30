@@ -176,7 +176,7 @@ export function parseTables(text) {
 }
 
 /**
- * @typedef {{ kind: string, excludable: boolean, line: number }} LedgerRow
+ * @typedef {{ kind: string, excludable: boolean, paths: string[], line: number }} LedgerRow
  */
 
 /**
@@ -262,9 +262,40 @@ export function readLedger(text) {
     activeByKind.set(kind, line);
     if (policy !== POLICY_COPY) return;
     const usage = normalizeCell(row[usageAt]);
-    copyRows.push({ kind, excludable: PAGE_PATH.test(usage) && !ALL_PAGES.test(usage), line });
+    copyRows.push({
+      kind,
+      excludable: PAGE_PATH.test(usage) && !ALL_PAGES.test(usage),
+      paths: pagePaths(usage),
+      line,
+    });
   });
   return { copyRows, activeRows: activeByKind.size };
+}
+
+/**
+ * 「使われるページ」のセルから具体的なページのパス（`/orders`・`/orders/:id` 等）を取り出す。
+ * @param {string} usage
+ * @returns {string[]}
+ */
+export function pagePaths(usage) {
+  const out = [];
+  for (const m of usage.matchAll(/(?:^|[\s、,，（「`])(\/[\p{L}\p{N}_.:\-/]*)/gu)) out.push(m[1]);
+  return out;
+}
+
+/**
+ * 台帳のパス（`:id` のような引数の区間を持ちうる）が、プローブを当てた画面のパスに当たるか。区間の数が同じで、
+ * 各区間が一致するか台帳側が `:` 始まりなら当たる（末尾の `/` は揃える）。
+ * @param {string} ledgerPath
+ * @param {string} pagePath
+ * @returns {boolean}
+ */
+export function pathMatches(ledgerPath, pagePath) {
+  const split = (/** @type {string} */ p) => p.replace(/\/+$/u, "").split("/");
+  const a = split(ledgerPath);
+  const b = split(pagePath);
+  if (a.length !== b.length) return false;
+  return a.every((seg, i) => seg === b[i] || (seg.startsWith(":") && b[i] !== ""));
 }
 
 /**
@@ -380,6 +411,10 @@ export function referencedUrls(probe, label) {
       throw new UsageError(`${label} が asset-probe.mjs の出力でない（${key} が配列でない）`);
     }
   }
+  // url はプローブを当てた画面のパス（location.pathname）。used: false の妥当性の判定に使うので、読めなければ判定しない
+  if (typeof probe.url !== "string" || !probe.url.startsWith("/")) {
+    throw new UsageError(`${label} が asset-probe.mjs の出力でない（url が / 始まりのパスでない）`);
+  }
   /** @type {Set<string>} */
   const out = new Set();
   /** @param {unknown} u */
@@ -403,7 +438,7 @@ export function referencedUrls(probe, label) {
 }
 
 /**
- * @typedef {(url: string) => Promise<{ ok: boolean, status: number, bytes: Buffer | null, error: string | null }>} Fetcher
+ * @typedef {(url: string) => Promise<{ ok: boolean, status: number, bytes: Buffer | null, error: string | null, redirected?: boolean, finalUrl?: string, contentType?: string | null }>} Fetcher
  */
 
 /**
@@ -416,7 +451,15 @@ export function defaultFetcher(timeoutMs) {
     try {
       const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
       const bytes = Buffer.from(await res.arrayBuffer());
-      return { ok: res.ok, status: res.status, bytes, error: null };
+      return {
+        ok: res.ok,
+        status: res.status,
+        bytes,
+        error: null,
+        redirected: res.redirected,
+        finalUrl: res.url,
+        contentType: res.headers.get("content-type"),
+      };
     } catch (e) {
       return {
         ok: false,
@@ -461,6 +504,26 @@ export async function check(input) {
     }
   }
 
+  /** @type {Set<string>} */
+  const referenced = new Set();
+  /** @type {string[]} */
+  const probedPages = [];
+  for (const probe of input.probes) {
+    for (const u of referencedUrls(probe.doc, probe.label)) referenced.add(u);
+    probedPages.push(/** @type {{ url: string }} */ (probe.doc).url);
+  }
+  // used: false の行も、この機能の画面（プローブを当てたページ）に当たらないことをプローブで確かめる。
+  // 承認済み（accepted）以外の行が 1 つでもあればプローブが要る
+  const needsProbe = copyRows.some((row) => {
+    const entry = byKind.get(row.kind);
+    return entry !== undefined && !entry.accepted;
+  });
+  if (needsProbe && input.probes.length === 0) {
+    throw new UsageError(
+      "突き合わせる資産があるのに --probe が無い（新側の画面で asset-probe.mjs を当てた出力を渡す）",
+    );
+  }
+
   /** @type {{ row: LedgerRow, entry: RecordEntry }[]} */
   const toCheck = [];
   for (const row of copyRows) {
@@ -476,9 +539,14 @@ export async function check(input) {
       continue;
     }
     if (!entry.used) {
+      const hit = probedPages.find((page) => row.paths.some((path) => pathMatches(path, page)));
       if (!row.excludable) {
         findings.push(
           `台帳の「${row.kind}」は used: false で外せない（「使われるページ」が全ページを表すか、具体的なページのパスを書いていない。台帳 ${row.line} 行目）`,
+        );
+      } else if (hit !== undefined) {
+        findings.push(
+          `台帳の「${row.kind}」は used: false で外せない（使われるページがこの機能の画面 ${hit} に当たる。台帳 ${row.line} 行目）`,
         );
       } else {
         notes.push(`「${row.kind}」はこの機能の画面で使わない: ${entry.reason}`);
@@ -486,17 +554,6 @@ export async function check(input) {
       continue;
     }
     toCheck.push({ row, entry });
-  }
-
-  if (toCheck.length > 0 && input.probes.length === 0) {
-    throw new UsageError(
-      "突き合わせる資産があるのに --probe が無い（新側の画面で asset-probe.mjs を当てた出力を渡す）",
-    );
-  }
-  /** @type {Set<string>} */
-  const referenced = new Set();
-  for (const probe of input.probes) {
-    for (const u of referencedUrls(probe.doc, probe.label)) referenced.add(u);
   }
 
   let fileCount = 0;
@@ -538,6 +595,17 @@ export async function check(input) {
         } else if (res.bytes.length === 0) {
           // 両側とも 0 バイトなら sha256 は一致するが、資産を配っていることの証拠にならない
           findings.push(`「${row.kind}」の${side}の配信物が空（0 バイト。${url}）`);
+        } else if (res.redirected === true) {
+          // ログイン画面・SSO への転送は両側で同じ HTML を返してバイトが一致しうる（偽の合格）。
+          // 資産そのものを配る URL ではないので、転送先を確かめて最終 URL を記録に書く
+          findings.push(
+            `「${row.kind}」の${side}の取得がリダイレクトされた（${url} → ${res.finalUrl ?? "不明"}。ログイン画面等の可能性。資産を直接配る URL を記録に書く）`,
+          );
+        } else if (typeof res.contentType === "string" && /^text\/html\b/iu.test(res.contentType)) {
+          // 静的資産（画像・書体・アイコン）が HTML で返るのは、SPA のフォールバックかログイン画面
+          findings.push(
+            `「${row.kind}」の${side}の配信物が HTML で返った（${url}: ${res.contentType}。SPA のフォールバックかログイン画面の可能性）`,
+          );
         }
       }
       const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;

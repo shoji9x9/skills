@@ -110,11 +110,12 @@
       "id": "no-probe-off",
       "why": "プローブを渡していない実行を「参照が無い」の exit 1 にして、判定していないことを隠す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (toCheck.length > 0 && input.probes.length === 0) {\n",
+      "find": "  if (needsProbe && input.probes.length === 0) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
         "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
+        "判定しない: used: false の行だけでもプローブが無ければ、この機能の画面に当たらないことを確かめられない",
         "判定しない: 突き合わせる資産があるのにプローブが無い"
       ]
     },
@@ -230,6 +231,48 @@
       "replace": "screen)\\b/iu",
       "occurrences": 1,
       "expect_failing": ["台帳: 「使われるページ」が /orders/* なら used: false で外せるか: false"]
+    },
+    {
+      "id": "page-hit-off",
+      "why": "使われるページがこの機能の画面に当たる行を used: false で外させる",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "      } else if (hit !== undefined) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 使われるページがこの機能の画面（プローブを当てたページ）に当たる行を used: false で外す"
+      ]
+    },
+    {
+      "id": "redirect-off",
+      "why": "ログイン画面への転送で両側が同じ HTML を返したとき、バイト一致で合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        } else if (res.redirected === true) {\n",
+      "replace": "        } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 両側とも同じバイトでも、リダイレクト（ログイン画面への転送） は配っている証拠にしない"
+      ]
+    },
+    {
+      "id": "html-off",
+      "why": "資産の URL が HTML（SPA のフォールバック・ログイン画面）を返しても、両側一致で合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        } else if (typeof res.contentType === \"string\" && /^text\\/html\\b/iu.test(res.contentType)) {\n",
+      "replace": "        } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない"
+      ]
+    },
+    {
+      "id": "probe-url-optional",
+      "why": "画面のパスを持たないプローブを受け付け、used: false の行がこの機能の画面に当たるかを確かめないまま進む",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (typeof probe.url !== \"string\" || !probe.url.startsWith(\"/\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["プローブ: 画面のパス（url）を持たない出力は判定しない（例外）"]
     }
   ]
 }

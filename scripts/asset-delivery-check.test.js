@@ -17,7 +17,7 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/replace-strategy/scripts/asset-delivery-check.mjs");
-const { main, readLedger, readRecord, referencedUrls } = await import(script);
+const { main, pathMatches, readLedger, readRecord, referencedUrls } = await import(script);
 
 const TEMPLATE = readFileSync(
   join(repoRoot, "skills/replace-strategy/assets/assets-template.md"),
@@ -81,6 +81,18 @@ const FONT_ENTRY = {
   ],
 };
 
+test.each([
+  ["/orders/:id", "/orders/1001", true],
+  ["/orders/:id", "/orders/1001/", true],
+  ["/orders", "/orders", true],
+  ["/orders/:id", "/orders", false],
+  ["/orders/:id", "/orders/", false],
+  ["/orders/new", "/orders/1001", false],
+  ["/orders", "/order", false],
+])("パス: 台帳の %s はプローブの画面 %s に当たる: %s", (ledgerPath, page, expected) => {
+  expect(pathMatches(ledgerPath, page)).toBe(expected);
+});
+
 /** URL → バイト列の表から取得器を作る（表に無い URL は 404）。 */
 function fetcherOf(table) {
   return async (url) => {
@@ -142,7 +154,7 @@ async function runCheck(opts) {
         meta,
         ...(opts.extraArgs ?? []),
       ],
-      { fetcher: fetcherOf(opts.table ?? SAME_FONTS) },
+      { fetcher: opts.fetcher ?? fetcherOf(opts.table ?? SAME_FONTS) },
     );
   } finally {
     so.mockRestore();
@@ -367,6 +379,12 @@ test.each([
   expect(() => readRecord(doc)).toThrow(message);
 });
 
+test("プローブ: 画面のパス（url）を持たない出力は判定しない（例外）", () => {
+  expect(() => referencedUrls(probe({ url: undefined }), "p.json")).toThrow(
+    /url が \/ 始まりのパスでない/u,
+  );
+});
+
 test("プローブ: asset-probe の出力でない JSON は判定しない（例外）", () => {
   expect(() => referencedUrls({ icons: [] }, "p.json")).toThrow(/asset-probe.mjs の出力でない/u);
 });
@@ -585,6 +603,78 @@ test("落とす: 台帳の「実体を写す」の行に記録が無い（突き
   expect(r.stdout).toMatch(/台帳の「favicon」（実体を写す）を突き合わせていない/u);
   expect(r.code).toBe(1);
 });
+
+test("落とす: 使われるページがこの機能の画面（プローブを当てたページ）に当たる行を used: false で外す", async () => {
+  const r = await runCheck({
+    ledgerText: ledger(FIGURE_ROW),
+    record: { entries: [FONT_ENTRY, { kind: "画面内の図", used: false, reason: "使わない" }] },
+    probes: [FONT_PROBE, probe({ url: "/orders/1001" })],
+  });
+  expect(r.stdout).toMatch(
+    /「画面内の図」は used: false で外せない（使われるページがこの機能の画面 \/orders\/1001 に当たる/u,
+  );
+  expect(r.code).toBe(1);
+});
+
+test("判定しない: used: false の行だけでもプローブが無ければ、この機能の画面に当たらないことを確かめられない", async () => {
+  const r = await runCheck({
+    ledgerText: ledger(FIGURE_ROW),
+    record: {
+      entries: [
+        {
+          kind: "本文の書体",
+          used: true,
+          disposition: "accepted",
+          reason: "r",
+          approved_by: "owner",
+          approved_at: "2026-09-30",
+        },
+        { kind: "画面内の図", used: false, reason: "使わない" },
+      ],
+    },
+  });
+  expect(r.stderr).toMatch(/--probe が無い/u);
+  expect(r.code).toBe(2);
+});
+
+test.each([
+  [
+    "リダイレクト（ログイン画面への転送）",
+    { redirected: true, finalUrl: "http://sso.test/login" },
+    /リダイレクトされた/u,
+  ],
+  [
+    "HTML の応答（SPA のフォールバック・ログイン画面）",
+    { contentType: "text/html; charset=utf-8" },
+    /HTML で返った/u,
+  ],
+])(
+  "落とす: 両側とも同じバイトでも、%s は配っている証拠にしない",
+  async (_label, extra, message) => {
+    const table = { ...SAME_FONTS, [`${CUR}/favicon.ico`]: "same", [`${NEW}/favicon.ico`]: "same" };
+    const base = fetcherOf(table);
+    const r = await runCheck({
+      ledgerText: ledger(FAVICON_ROW),
+      record: {
+        entries: [
+          FONT_ENTRY,
+          {
+            kind: "favicon",
+            used: true,
+            files: [{ current: "/favicon.ico", new: "/favicon.ico" }],
+          },
+        ],
+      },
+      probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
+      fetcher: async (url) => ({
+        ...(await base(url)),
+        ...(url.endsWith("favicon.ico") ? extra : {}),
+      }),
+    });
+    expect(r.stdout).toMatch(message);
+    expect(r.code).toBe(1);
+  },
+);
 
 test("落とす: 全ページで使う資産を used: false で外す", async () => {
   const r = await runCheck({
