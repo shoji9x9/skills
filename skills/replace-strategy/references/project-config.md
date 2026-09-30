@@ -134,10 +134,12 @@ skills:
       may_change: [] # 変えてよい（例: ディレクトリ・ファイル名、HTML の id/name、型変換に伴う差異、静的資産を同等物で置き換えたときに残る差〈.replace/assets.md の宣言列と同じ文言〉）
       pending: [] # 保留（測定結果で決める）。setup ではキーを必ず空リストとして作る（スキルが追記する記録なので初期値は空。キーだけ書いて値を省くと null になり、判定ツールが「配列でない」として落ちる）。設定ファイル上で唯一「スキルが作業中に追記する記録」（下記「キーの書き手とライフサイクル」）。確認後に人間が keep / may_change へ移す。**setup 自身が書き出す保留（手順 8 の「保留（測定結果で決める）」）もこのキーへ下の 4 キー形式で追記する**（空リストはキーの初期値の規定であって、setup が何も書かないという規定ではない。added_by: replace-strategy / slug: cross-cutting）
         # 追記する要素は追記元が分かる形で書く（要素の形の正本は下記「意図的差異レジストリ」の「`pending` 要素の形」）。素の文字列も読めるが帰属不明として扱われる
-        # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（照合キー）
+        # - item: <散文の宣言>                 # keep / may_change へ移すときはこの文言を移す（要素を突き合わせる鍵）
         #   slug: <機能 slug | cross-cutting>  # 追記した機能。帰属できるなら slug、1 つの機能に帰属させられないときだけ cross-cutting（部品 slug は書かない。parity-component / replace-strategy は必ず cross-cutting）
         #   added_by: <replace-strategy | golden-dataset | parity-suite | parity-replace | parity-component>
         #   added_at: <YYYY-MM-DD>
+        #   match: { element: <論理名 | glob>, property: <プロパティ | glob> }  # 任意。特性照合の差分に効かせる照合キー（下記「照合キー（`match`）」）
+      # keep / may_change の要素も「- item: <散文> ＋ match: {...}」のオブジェクトにできる（照合キーを持たない散文は理由を添えると差分に当たらない）
       # ↑ 書き手がスキルであることは「設定から出す」理由にはならない（slug 横断のためここに残る。同節の段 1 / 段 2 を参照）
       # append-only-check.mjs の同梱の一覧は keep / may_change / pending を 1 つのグループとして
       #   要素の単位へ展開する（registry_groups。照合キーは item）。棚卸しで人が pending の文言を
@@ -675,7 +677,7 @@ setup の 1 回だけ目視で突き合わせても後日の CI 変更は検出�
   帰属を持つ要素は自機能の棚卸しで閉じられるのに対し、帰属不明の要素は閉じる担当が決まらないため毎回出てくる。これが移行の圧力になる
 - **移行は棚卸しの場で行う**（一括変換を先に走らせない）。提示された要素を `keep` / `may_change` へ移すか、持ち越すなら**そのときに追記元が分かる形へ書き換える**
   （`added_by` / `added_at` を後から復元できないなら `unknown` と書く。推測のスキル名・日付で埋めない。**キーごと省くと判定ツールが型崩れとして落とす**ため、書き換えるなら 4 キーすべてを埋める）
-- **`keep` / `may_change` の要素は散文の文字列のまま**であり、この移行の対象ではない
+- **`keep` / `may_change` の要素は散文の文字列のままでよく**、この移行の対象ではない（照合キー `match` を持つオブジェクトにするのは任意。下記「照合キー（`match`）」）
 
 ### `db.env_vars` の意味変更（`seedable` の明示要求）
 
@@ -734,10 +736,11 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 
 | キー | 必須 | 値 |
 |---|---|---|
-| `item` | 必須 | 散文の宣言。**照合キー**であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
+| `item` | 必須 | 散文の宣言。**要素を突き合わせる鍵**（棚卸し・追記専用の検査が読む。差分との照合キーは `match`）であり、`keep` / `may_change` へ移すときはこの文言を移す（文言を変えて移すなら棚卸し記録の `promoted_as` に移動後の文言を書く。正本は `parity-diff` の `references/convergence.md`「`intentional_diffs.pending` の棚卸し」） |
 | `slug` | 必須 | 追記した機能の slug（`.replace/features.md` にあるもの。自分で採番しない）。**帰属できるなら必ず slug を書く**——`cross-cutting` は「1 つの機能に帰属させられない」ときだけ使う（複数機能を対象にした実行で、どの機能にも固有でない差／機能スコープを持たない工程）。**帰属できるものを `cross-cutting` にすると、閉じる担当が決まらず毎回の棚卸しに出続ける**。**機能 slug 以外の名前空間の slug を書かない**（部品 slug は下記の箇条を参照） |
 | `added_by` | 必須 | 追記したスキル名（`replace-strategy` / `golden-dataset` / `parity-suite` / `parity-replace` / `parity-component`）。旧形式からの移行で復元できないものだけ `unknown`。**この一覧に無い名を書くのも、書き手が分かっているのに `unknown` と書くのも帰属不明へ倒れる** |
 | `added_at` | 必須 | 追記日（`YYYY-MM-DD`）。旧形式からの移行で復元できないものだけ `unknown`（推測の日付を書かない） |
+| `match` | 任意 | 特性照合の差分に効かせる照合キー（下記「照合キー（`match`）」）。`keep` / `may_change` へ移すときは `item` と一緒に移す |
 
 - **`slug` は機能インベントリに実在するものだけ。** 綴り違い・採番し直した slug は「担当する機能」が現れないため、
   `pending-triage-check.mjs` が `.replace/features.md` と突き合わせて**帰属不明へ倒す**（全機能の棚卸し対象になる）
@@ -756,7 +759,23 @@ DB 接続情報もアプリの認証情報も、**スキルは環境変数から
 - **`cross-cutting` は予約語**である。機能 slug に使わない（使うと横断の追記と機能の追記が区別できなくなる）
 - **素の文字列の要素も読める**（この形式より前に書かれたもの）。ただし**帰属不明**として扱い、`slug` を問わず**どの機能の棚卸しでも提示する**——
   黙って対象外にすると、いちばん古くから積んでいる保留だけが誰の目にも触れなくなる
-- **`keep` / `may_change` の要素は散文の文字列のまま**である（人間が確定させた方針であり、追記元を追う必要がない）。`pending` から移すときは `item` の文言だけを移す
+- **`keep` / `may_change` の要素は散文の文字列か、`item` ＋ `match` のオブジェクト**である（人間が確定させた方針であり、追記元〈`slug` / `added_by` / `added_at`〉を追う必要がない）。
+  `pending` から移すときは `item` の文言（と、あれば `match`）だけを移す
+
+### 照合キー（`match`）
+
+**散文の宣言は照合キーにならない。** 理由・測定対象・決定者を添えた文は、`parity-diff` の正規化（`diff-normalize.mjs`）で差分の論理名とプロパティに一度も当たらない。
+特性照合の差分（計算後スタイル・相対幾何）に効かせる宣言は、要素を `item`（人が読む散文）と `match`（照合キー）のオブジェクトにする。
+
+```yaml
+may_change:
+  - item: "見出しの border-style: 現行 none・新側 solid。幅は両側 0px で描かれない"
+    match: { element: heading, property: border-*-style }
+```
+
+- `match` は `element`（論理名。`*` で glob）と `property`（`*` で glob）が必須、`page` / `state` / `viewport` が任意。欠けたキー・未知のキーは「どれにでも合う」ではなく、その宣言を照合に使わない
+- 照合の規則・警告の読み方の正本は `parity-diff` の `references/normalize.md`「意図的差異の照合キー（`match`）」（ここへ転記しない）
+- `match` を書き足すのは宣言の変更ではない（追記専用の検査〈`append-only-check.mjs`〉も、棚卸しの検査〈`pending-triage-check.mjs`〉も `item` で要素を突き合わせる）
 
 ### `pending` の棚卸し
 

@@ -1,0 +1,59 @@
+{
+  "$comment": [
+    "pixel-crops.test.js のうち、同じ場所の差を 1 つの候補にする取り込み（Issue #497）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/pixel-crops.test.js",
+  "mutations": [
+    {
+      "id": "no-absorb",
+      "why": "しきい値つきの領域を渡されても strict-only を取り込まない（修正前の形: 同じ差が 2 件になる）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "  if (thresholdRegions !== null) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
+        "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は取り込みの有無で変わらない",
+        "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）"
+      ]
+    },
+    {
+      "id": "absorb-never-overlaps",
+      "why": "strict-only のクラスタがどの領域とも重ならないと見なす",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));",
+      "replace": "      const group = undefined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
+        "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は取り込みの有無で変わらない",
+        "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
+        "縁を取り込んで広がった領域が別の領域と近接したら 1 つにまとめる",
+        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない"
+      ]
+    },
+    {
+      "id": "no-region-remerge",
+      "why": "取り込みで広がった領域同士をまとめない",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "        if (bboxOverlap(groups[i].bbox, groups[j].bbox, pad)) {",
+      "replace": "        if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["縁を取り込んで広がった領域が別の領域と近接したら 1 つにまとめる"]
+    },
+    {
+      "id": "absorb-on-outer-bbox",
+      "why": "取り込みの判定を広がった外側の bbox に対して行う（連鎖して離れた差を飲み込む）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));",
+      "replace": "      const group = groups.find((g) => bboxOverlap(g.bbox, cluster.bbox, pad));",
+      "occurrences": 1,
+      "expect_failing": [
+        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない"
+      ]
+    }
+  ]
+}

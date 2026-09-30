@@ -24,7 +24,15 @@
   - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
   - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
-  - `strict_only_regions[]` は**しきい値の内側にだけ差がある領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
+  - **同じ場所の 1 つの差は 1 つの候補にする。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
+    しきい値の内側のクラスタのうち `regions[]` の芯（しきい値つきの画素の bbox）と `--pad` 以内で重なるものを、その領域へ取り込んで `bbox` を外側（両者を包む bbox）へ広げる。
+    判定は芯に対して行う（広がった外側に対して行うと、取り込むたびに届く範囲が伸びて離れた無関係な差まで連鎖して飲み込む）。外側の bbox が重なった領域同士は 1 つにまとめる。
+    `regions[]` の `id` は外側の bbox の `(y, x)` 順で振る（`VERSION` が `3` までの出力とは id がずれうるので、旧出力の id で記録したトリアージは bbox で突き合わせ直す）。
+    取り込んだ領域は `threshold_bbox`（芯だけの bbox）/ `absorbed_strict_only`（取り込んだ strict-only の `id`）/ `absorbed_strict_only_pixels` を持ち、
+    取り込んだ件数・画素数は `summary.strict_only_absorbed_clusters` / `strict_only_absorbed_pixels` に出る（黙って消さない）。
+    分けたままだと同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になり、bbox の一致で照合する画素の例外の台帳
+    （[`normalize.md`](normalize.md)「画素経路の例外の適用」）が片方にしか当たらない
+  - `strict_only_regions[]` は**しきい値の内側にだけ差があり、近くにしきい値つきの差が無い領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
     **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
     先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
   - **`id` は上限を掛ける前の全体の並び（`(y, x)` 昇順）から決まる**ので、警告に従って上限を上げても既存候補の採番は変わらない

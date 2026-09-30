@@ -43,6 +43,7 @@
 
 <!-- しきい値の内側の差（strict_only_pixels）が非ゼロなら、差分領域 0 件でも「一致」と書かない。 -->
 <!-- 対比する相手は同じ軸の基準値（noise_baseline[].pixel_diff_strict / pixel_diff_strict_only）。strict の基準値が無い組はノイズと断定せず要確認で残す。 -->
+<!-- しきい値つきの領域に取り込んだ縁（summary.strict_only_absorbed_clusters）はその領域の候補の一部なので、別の件数として足さない。 -->
 <!-- strict_only_regions（しきい値の内側にだけ差がある領域）は crop 対を持つ候補なので、件数を検出件数へ含め、下の差分一覧にも 1 件ずつ並べる。 -->
 
 ## 3. 差分一覧

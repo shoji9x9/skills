@@ -25,6 +25,13 @@
 // （`--strict-min-cluster` 未満の孤立画素は落とし、件数は `--strict-max-regions` で上限を付けて
 // 総数も報告する。黙って捨てない）。
 //
+// **同じ場所の 1 つの差は 1 つの候補にする。** アイコンの輪郭のにじみのような差は、芯の数画素が
+// しきい値を超え、縁がしきい値の内側に収まるので、分けたままだと芯が regions に小さい bbox で、
+// 縁が strict_only_regions に大きい bbox で出て、同じ差が 2 件になる。台帳（画素の例外）は bbox の
+// 一致で照合するため、どちらの bbox を書いても片方が unexplained に残り、両方を書くと件数と承認の N が倍になる。
+// そこで strict-only のクラスタのうち、しきい値つきの領域と（`--pad` 以内で）重なるものは、その領域へ
+// 取り込んで bbox を外側に広げる。strict_only_regions に残るのは、しきい値つきの差が近くに 1 画素も無い領域だけ。
+//
 // 決定論的: 乱数・現在時刻に依存しない。連結成分はラスタ走査順に発見し、最終 bbox は
 // (y, x) 昇順に整列するため入力が同じなら出力は常に同じ。
 // PNG デコード/エンコードは pngjs を使う（pixel_tool が pixelmatch ならプロジェクトに入っていることが多い。
@@ -40,7 +47,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.pixel_crops に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /**
  * 差分色判定のチャンネル許容差（既定）。赤 (255,0,0) と、アンチエイリアス色として使われがちな
@@ -336,6 +343,79 @@ function unionBbox(a, b) {
 }
 
 /**
+ * しきい値つきの領域に、pad 以内で重なる strict-only のクラスタを取り込む。
+ *
+ * 同じ場所の 1 つの差（芯はしきい値を超え、縁はしきい値の内側）を 1 つの候補にするための段。
+ * 取り込んだ領域の bbox は外側（両者を包む bbox）へ広げ、広がった結果ほかの領域と重なれば
+ * それもまとめる（まとめた後にさらに strict-only を取り込めることがあるので、変化が無くなるまで繰り返す）。
+ * 取り込まれなかったクラスタだけを remaining として返す（呼び出し側が下限・上限を掛ける）。
+ *
+ * strict-only の id は取り込む前に振ってある前提で、取り込んだ id を `absorbed_strict_only` に残す
+ * （どの strict-only の差がどの候補に入ったかを追えるようにする。黙って消さない）。
+ * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions - しきい値つきの領域
+ * @param {Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} strictClusters
+ * @param {number} pad
+ * @returns {{ regions: Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number },
+ *                              threshold_bbox:{ x:number, y:number, width:number, height:number },
+ *                              absorbed_strict_only:string[], absorbed_strict_only_pixels:number }>,
+ *             remaining: Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }> }}
+ */
+export function absorbStrictIntoRegions(regions, strictClusters, pad) {
+  let groups = regions.map((r) => ({
+    pixels: r.pixels,
+    bbox: r.bbox,
+    threshold_bbox: r.bbox,
+    absorbed_strict_only: [],
+    absorbed_strict_only_pixels: 0,
+  }));
+  const remaining = [...strictClusters];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < remaining.length;) {
+      const cluster = remaining[i];
+      // 判定は芯（しきい値つきの画素の bbox）に対して行う。取り込みで広がった外側の bbox に対して行うと、
+      // 取り込むたびに届く範囲が伸び、実際の差分画素から --pad を超えて離れた無関係な差まで連鎖して飲み込む。
+      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));
+      if (group) {
+        group.bbox = unionBbox(group.bbox, cluster.bbox);
+        group.absorbed_strict_only.push(cluster.id);
+        group.absorbed_strict_only_pixels += cluster.pixels;
+        remaining.splice(i, 1);
+        changed = true;
+      } else {
+        i += 1;
+      }
+    }
+    for (let i = 0; i < groups.length && !changed; i += 1) {
+      for (let j = i + 1; j < groups.length; j += 1) {
+        if (bboxOverlap(groups[i].bbox, groups[j].bbox, pad)) {
+          const a = groups[i];
+          const b = groups[j];
+          const combined = {
+            pixels: a.pixels + b.pixels,
+            bbox: unionBbox(a.bbox, b.bbox),
+            threshold_bbox: unionBbox(a.threshold_bbox, b.threshold_bbox),
+            absorbed_strict_only: [...a.absorbed_strict_only, ...b.absorbed_strict_only],
+            absorbed_strict_only_pixels:
+              a.absorbed_strict_only_pixels + b.absorbed_strict_only_pixels,
+          };
+          groups = groups.filter((_, k) => k !== i && k !== j);
+          groups.push(combined);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  const idNumber = (id) => Number(String(id).replace(/^s/, ""));
+  for (const g of groups) g.absorbed_strict_only.sort((a, b) => idNumber(a) - idNumber(b));
+  groups.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
+  remaining.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
+  return { regions: groups, remaining };
+}
+
+/**
  * **先に pad 以内でマージしてから** minCluster 未満を落とす。結果は (y, x) 昇順。
  *
  * strict-only はこちらを使う。`filterAndMerge`（落としてからマージ）だと、
@@ -345,26 +425,47 @@ function unionBbox(a, b) {
  *
  * マージ後も下限に満たなかった分は捨てるが、**件数と画素数を返して呼び出し側に報告させる**
  * （黙って捨てない）。
+ *
+ * `thresholdRegions` を渡すと、下限を掛ける前に `absorbStrictIntoRegions` でしきい値つきの領域へ
+ * 重なる分を取り込む（取り込んだ分は候補の縁なので、下限で落とした数にも strict-only の候補にも数えない）。
+ * 取り込み後の領域を `regions` として返す（渡さなければ null）。
  * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>} components
  * @param {number} minCluster
  * @param {number} pad
- * @returns {{ kept: Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>,
- *             droppedClusters:number, droppedPixels:number }}
+ * @param {Array<{ pixels:number, bbox:{ x:number, y:number, width:number, height:number } }> | null} [thresholdRegions]
+ * @returns {{ kept: Array<{ id:string, pixels:number, bbox:{ x:number, y:number, width:number, height:number } }>,
+ *             droppedClusters:number, droppedPixels:number,
+ *             absorbedClusters:number, absorbedPixels:number,
+ *             regions: (ReturnType<typeof absorbStrictIntoRegions>['regions'] | null) }}
  */
-export function mergeThenFilter(components, minCluster, pad) {
+export function mergeThenFilter(components, minCluster, pad, thresholdRegions = null) {
   // id は**どちらのフィルタも掛ける前**のマージ済み全体の並び（(y, x) 昇順）から決める。
   // 下限で絞った後に採番すると、警告に従って --strict-min-cluster を下げたときに
   // 手前の小さな成分が s1 になり、既存の s1 が s2 へずれる（記録済みのトリアージが別の crop に貼り付く）。
+  // 取り込みより前に振るのも同じ理由（しきい値つきの領域が増減しても残った候補の id が変わらない）。
   const merged = filterAndMerge(components, 1, pad).map((r, index) => ({
     ...r,
     id: `s${index + 1}`,
   }));
-  const kept = merged.filter((r) => r.pixels >= minCluster);
-  const dropped = merged.filter((r) => r.pixels < minCluster);
+  let candidates = merged;
+  let regions = null;
+  if (thresholdRegions !== null) {
+    const absorbed = absorbStrictIntoRegions(thresholdRegions, merged, pad);
+    candidates = absorbed.remaining;
+    regions = absorbed.regions;
+  }
+  const kept = candidates.filter((r) => r.pixels >= minCluster);
+  const dropped = candidates.filter((r) => r.pixels < minCluster);
+  const absorbedCount = merged.length - candidates.length;
   return {
     kept,
     droppedClusters: dropped.length,
     droppedPixels: dropped.reduce((sum, r) => sum + r.pixels, 0),
+    absorbedClusters: absorbedCount,
+    absorbedPixels:
+      merged.reduce((sum, r) => sum + r.pixels, 0) -
+      candidates.reduce((sum, r) => sum + r.pixels, 0),
+    regions,
   };
 }
 
@@ -445,8 +546,8 @@ async function loadPng() {
  * CLI エントリ。
  * `node pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]`
  * stdout は `{ summary, regions, strict_only_regions }`（summary はしきい値つき／なしの画素数、
- * regions は記録済みツールが出した差分領域の crop 対、strict_only_regions はしきい値の内側にだけ
- * 差がある領域の crop 対）。
+ * regions は記録済みツールが出した差分領域〈重なる strict-only の縁を取り込んだ外側の bbox〉の crop 対、
+ * strict_only_regions はしきい値の内側にだけ差があり近くにしきい値つきの差が無い領域の crop 対）。
  * 分類すべき候補（どちらかの領域）があれば exit 1、無ければ exit 0、入力エラーは exit 2。
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {Promise<number>} exit code
@@ -559,7 +660,23 @@ export async function main(argv) {
     strict.maxChannelDelta,
     strict.maxStrictOnlyChannelDelta,
   );
-  const regions = filterAndMerge(clusterComponents(mask, diff.width, diff.height), minCluster, pad);
+  const thresholdRegions = filterAndMerge(
+    clusterComponents(mask, diff.width, diff.height),
+    minCluster,
+    pad,
+  );
+  // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
+  // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
+  // ただし、しきい値つきの領域と重なる分はその領域の縁（同じ場所の同じ差）なので、領域へ取り込んで
+  // 1 つの候補にする（分けると同じ差が別の bbox で 2 件になり、台帳の照合が片方にしか当たらない）。
+  const strictOnlyMask = buildStrictOnlyMask(mask, strict.mask);
+  const strictClustered = mergeThenFilter(
+    clusterComponents(strictOnlyMask, diff.width, diff.height),
+    strictMinCluster,
+    pad,
+    thresholdRegions,
+  );
+  const regions = strictClustered.regions ?? [];
   try {
     mkdirSync(out, { recursive: true });
   } catch (err) {
@@ -588,18 +705,13 @@ export async function main(argv) {
       bbox: regions[i].bbox,
       pixels: regions[i].pixels,
       strict_pixels: countInBbox(strict.mask, current.width, regions[i].bbox),
+      threshold_bbox: regions[i].threshold_bbox,
+      absorbed_strict_only: regions[i].absorbed_strict_only,
+      absorbed_strict_only_pixels: regions[i].absorbed_strict_only_pixels,
       crop_current: cropCurrentPath,
       crop_new: cropNewPath,
     });
   }
-  // しきい値の内側にだけ差がある画素も候補として出す。数だけ報告するとトリアージが
-  // 「crop 対のある候補」を受け取れず、検出した差を分類も差し戻しもできないまま閉じてしまう。
-  const strictOnlyMask = buildStrictOnlyMask(mask, strict.mask);
-  const strictClustered = mergeThenFilter(
-    clusterComponents(strictOnlyMask, diff.width, diff.height),
-    strictMinCluster,
-    pad,
-  );
   const strictClusters = strictClustered.kept;
   const strictSelected = selectStrictRegions(strictClusters, strictMaxRegions);
   const strictResult = [];
@@ -634,6 +746,8 @@ export async function main(argv) {
   summary.strict_only_dropped_clusters = strictClustered.droppedClusters;
   summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
   summary.strict_min_cluster = strictMinCluster;
+  summary.strict_only_absorbed_clusters = strictClustered.absorbedClusters;
+  summary.strict_only_absorbed_pixels = strictClustered.absorbedPixels;
 
   // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
   // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
@@ -643,7 +757,8 @@ export async function main(argv) {
         `(max channel delta among them ${summary.strict_only_max_channel_delta}, ` +
         `overall ${summary.strict_max_channel_delta}); ` +
         `${strictClusters.length} cluster(s) >= ${strictMinCluster}px, ` +
-        `${strictResult.length} emitted as candidates; ` +
+        `${strictResult.length} emitted as candidates, ` +
+        `${strictClustered.absorbedClusters} merged into threshold regions at the same place; ` +
         `report both numbers and compare the strict counts with the noise baseline\n`,
     );
   }
