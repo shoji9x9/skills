@@ -212,7 +212,7 @@
       "id": "unmeasured-accepted",
       "why": "「未測定」の 7 節に残った表を一覧として読み、測っていないヘッダーを仕様にする",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "prose.some((l) => l.includes(\"未測定\"))",
+      "find": "section.some((l) => /^未測定(（[^）]*）)?$/.test(l.trim()))",
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["一覧: 7 節が「未測定」なら、表が残っていても一覧が無い扱いにする"]
@@ -234,11 +234,19 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない",
         "一覧: HTML コメントの中のテンプレートの例示表は読まず、後ろの本物の表を読む",
         "一覧: HTML コメントの中の見出しを含むコメントは読まず、後ろの本物の表を読む",
         "一覧: HTML コメントの中の退避した旧一覧は読まず、後ろの本物の表を読む"
       ]
+    },
+    {
+      "id": "unmeasured-substring",
+      "why": "本文中の部分的な「未測定」で埋まった一覧を捨て、その機能のヘッダーを比べなくなる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "/^未測定(（[^）]*）)?$/.test(l.trim())",
+      "replace": "l.includes(\"未測定\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 本文中の部分的な「未測定」の言及では、埋まった表を捨てない"]
     }
   ]
 }

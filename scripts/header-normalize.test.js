@@ -436,6 +436,13 @@ test("一覧: 7 節が「未測定」なら、表が残っていても一覧が�
   expect(() => parseHeaderList(markdown)).toThrow(NoHeaderListError);
 });
 
+test("一覧: 本文中の部分的な「未測定」の言及では、埋まった表を捨てない", () => {
+  const markdown = survey([
+    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+  ]).replace("- 採った応答: 画面 /login", "- 採った応答: 画面 /login（404 は未測定）");
+  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
+});
+
 test("一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない", () => {
   const markdown = survey([
     "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",

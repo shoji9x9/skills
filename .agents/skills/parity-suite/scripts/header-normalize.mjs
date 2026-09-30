@@ -81,9 +81,11 @@ export function parseHeaderList(markdown) {
   let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
   if (end < 0) end = lines.length;
   const section = lines.slice(start + 1, end);
-  // 「未測定」と書いた節は、表が残っていても一覧ではない（replace-strategy はヘッダーを採れないとき停止せずこう書く）。
-  const prose = section.filter((l) => !l.trim().startsWith("|"));
-  if (prose.some((l) => l.includes("未測定"))) throw new NoHeaderListError("7 節が「未測定」");
+  // 節全体が未測定の印（`未測定` か `未測定（理由）` だけの 1 行。書式の正本は replace-strategy の
+  // assets/survey-template.md 7 節）があれば、表が残っていても一覧ではない。
+  // 本文中の「（404 は未測定）」のような部分的な言及では一覧を捨てない（埋まった表まで比べなくなる）。
+  if (section.some((l) => /^未測定(（[^）]*）)?$/.test(l.trim())))
+    throw new NoHeaderListError("7 節が「未測定」");
 
   const headIndex = section.findIndex(
     (l) => l.trim().startsWith("|") && cells(l)[0] === "ヘッダー",
