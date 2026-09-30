@@ -66,7 +66,7 @@
     "samples_fingerprint": "<照合した新側 dimension-samples.json の sha256。読んでいなければ null>"
   },
   "asset_delivery_check": {
-    "_note": "feature モードのみ。replace-strategy の scripts/asset-delivery-check.mjs --write が書く（手で転記しない）。台帳（.replace/assets.md）の「状態 有効 × 方針 実体を写す」の行を、同じディレクトリの asset-delivery.json と新側の画面のプローブで突き合わせた結果。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。ledger_fingerprint / record_fingerprint は突き合わせた台帳と記録の sha256 で、書き換えた後の古い結果を見分けるために使う。",
+    "_note": "feature モードのみ。replace-strategy の scripts/asset-delivery-check.mjs --write が書く（手で転記しない）。台帳（.replace/assets.md）の「状態 有効 × 方針 実体を写す」の行を、同じディレクトリの asset-delivery.json と新側の画面のプローブで突き合わせた結果。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。ledger_fingerprint / record_fingerprint / probe_fingerprints は突き合わせた台帳・記録・プローブの sha256 で、書き換えた後の古い結果を見分けるために使う。",
     "tool": "asset-delivery-check",
     "tool_version": "<asset-delivery-check.mjs の VERSION>",
     "ok": "<全行が突き合ったか（真偽値）。検査を走らせずにこのテンプレートを写した値を合格と読まれないよう、ここは文字列のプレースホルダにしてある>",
@@ -83,6 +83,8 @@
         "referenced": "<新側の画面のプローブに new の URL が現れたか（真偽値）>",
         "current_status": "<移行元の HTTP ステータス（整数）>",
         "new_status": "<新側の HTTP ステータス（整数）>",
+        "current_redirected": "<移行元の取得が転送されたか（真偽値）。転送先は署名付き URL のクエリを含みうるので書かない>",
+        "new_redirected": "<新側の取得が転送されたか（真偽値）>",
         "current_sha256": "<移行元の配信物の sha256。取得できなければ null>",
         "new_sha256": "<新側の配信物の sha256。取得できなければ null>",
         "bytes_match": "<両方を取得でき sha256 が一致し、かつ一致を配信の証拠にできない指摘（同じ URL・直リンク・転送・HTML・空）が無いか（真偽値）。参照の有無は referenced に分けて記録し、ここには混ぜない>"
@@ -90,6 +92,12 @@
     ],
     "ledger_fingerprint": "<突き合わせた .replace/assets.md の sha256>",
     "record_fingerprint": "<突き合わせた asset-delivery.json の sha256>",
+    "probe_fingerprints": [
+      {
+        "path": "<渡したプローブの出力のパス（作業ディレクトリからの相対）>",
+        "sha256": "<そのファイルの sha256>"
+      }
+    ],
     "error": "<exit 2 で終わったときのエラー文。判定したときは null>"
   },
   "loop": {

@@ -28,7 +28,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
@@ -560,18 +560,30 @@ export async function check(input) {
         } else if (res.bytes.length === 0) {
           // 両側とも 0 バイトなら sha256 は一致するが、資産を配っていることの証拠にならない
           findings.push(`「${row.kind}」の${side}の配信物が空（0 バイト。${url}）`);
-        } else if (res.redirected === true) {
-          // ログイン画面・SSO への転送は両側で同じ HTML を返してバイトが一致しうる（偽の合格）。
-          // 資産そのものを配る URL ではないので、転送先を確かめて最終 URL を記録に書く
-          findings.push(
-            `「${row.kind}」の${side}の取得がリダイレクトされた（${url} → ${res.finalUrl ?? "不明"}。ログイン画面等の可能性。資産を直接配る URL を記録に書く）`,
-          );
         } else if (typeof res.contentType === "string" && /^text\/html\b/iu.test(res.contentType)) {
           // 静的資産（画像・書体・アイコン）が HTML で返るのは、SPA のフォールバックかログイン画面
           findings.push(
             `「${row.kind}」の${side}の配信物が HTML で返った（${url}: ${res.contentType}。SPA のフォールバックかログイン画面の可能性）`,
           );
         }
+      }
+      // 転送そのものは正規の配り方（ハッシュ付きのパスへの 301・署名付き URL への 302 等）なので落とさない。
+      // 参照はプローブが記録する転送前の URL（記録の new）で判定し、バイトと HTML かどうかは最終応答で見る
+      // （ログイン画面への転送は最終応答が HTML になるので上で落ちる）。
+      // ただし両側が同じ転送先に着いたら、同じ配信物を比べているだけなので落とす。
+      // 転送先は署名付き URL のクエリを含みうるので、記録と出力にはオリジンとパスだけを出す。
+      result.current_redirected = cur.redirected === true;
+      result.new_redirected = neu.redirected === true;
+      if (
+        (cur.redirected === true || neu.redirected === true) &&
+        typeof cur.finalUrl === "string" &&
+        cur.finalUrl !== "" &&
+        cur.finalUrl === neu.finalUrl
+      ) {
+        const at = new URL(cur.finalUrl);
+        findings.push(
+          `「${row.kind}」の移行元と新側が同じ転送先（${at.origin}${at.pathname}）に着いた（同じ配信物を比べているだけ。新側が自分で配る URL を書く）`,
+        );
       }
       const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;
       // 転送・HTML・空・同じ URL・直リンクの指摘が出た組は、sha256 が一致していても「一致」と記録しない
@@ -694,8 +706,8 @@ function writeResult(path, result, writeFile) {
 export async function main(argv, deps = {}) {
   const writeFile = deps.writeFile ?? ((p, s) => writeFileSync(p, s));
   const writeTarget = preScanWrite(argv);
-  /** @type {{ ledger: string | null, record: string | null }} */
-  const fingerprints = { ledger: null, record: null };
+  /** @type {{ ledger: string | null, record: string | null, probes: { path: string, sha256: string }[] }} */
+  const fingerprints = { ledger: null, record: null, probes: [] };
   try {
     const args = parseArgs(argv);
     const ledgerText = readFileSync(args.assets, "utf8");
@@ -703,10 +715,15 @@ export async function main(argv, deps = {}) {
     const recordText = readFileSync(args.record, "utf8");
     fingerprints.record = createHash("sha256").update(recordText).digest("hex");
     const record = parseJson(recordText, args.record);
-    const probes = args.probes.map((p) => ({
-      label: p,
-      doc: parseJson(readFileSync(p, "utf8"), p),
-    }));
+    // プローブも判定を左右する入力なので指紋を残す（プローブを取り直した後の古い合格を見分けるため）
+    const probes = args.probes.map((p) => {
+      const text = readFileSync(p, "utf8");
+      fingerprints.probes.push({
+        path: relative(process.cwd(), p),
+        sha256: createHash("sha256").update(text).digest("hex"),
+      });
+      return { label: p, doc: parseJson(text, p) };
+    });
     const fetcher = deps.fetcher ?? defaultFetcher(args.timeoutMs);
     const { findings, notes, files, counts } = await check({
       ledgerText,
@@ -737,6 +754,7 @@ export async function main(argv, deps = {}) {
           files,
           ledger_fingerprint: fingerprints.ledger,
           record_fingerprint: fingerprints.record,
+          probe_fingerprints: fingerprints.probes,
           error: null,
         },
         writeFile,
@@ -771,6 +789,7 @@ export async function main(argv, deps = {}) {
             ok: false,
             ledger_fingerprint: fingerprints.ledger,
             record_fingerprint: fingerprints.record,
+            probe_fingerprints: fingerprints.probes,
             error: message,
           },
           writeFile,

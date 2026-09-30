@@ -72,6 +72,7 @@
         "通す: 別オリジン（CDN）の絶対 URL で配る資産も、プローブに同じ URL があれば突き合う",
         "通す: 利用者が承認した accepted の行は突き合わせない",
         "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
+        "通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う",
         "通す: 突き合わせる行が全て accepted ならプローブ無しで exit 0",
         "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる"
       ]
@@ -175,17 +176,6 @@
       ]
     },
     {
-      "id": "redirect-off",
-      "why": "ログイン画面への転送で両側が同じ HTML を返したとき、バイト一致で合格にする",
-      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "        } else if (res.redirected === true) {\n",
-      "replace": "        } else if (false) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "落とす: 両側とも同じバイトでも、リダイレクト（ログイン画面への転送） は配っている証拠にしない"
-      ]
-    },
-    {
       "id": "html-off",
       "why": "資産の URL が HTML（SPA のフォールバック・ログイン画面）を返しても、両側一致で合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
@@ -240,7 +230,7 @@
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない",
-        "落とす: 両側とも同じバイトでも、リダイレクト（ログイン画面への転送） は配っている証拠にしない",
+        "落とす: 両側とも同じバイトでも、両側が同じ転送先（ログイン画面）に着く は配っている証拠にしない",
         "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
       ]
     },
@@ -273,6 +263,28 @@
       "occurrences": 1,
       "expect_failing": [
         "落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない"
+      ]
+    },
+    {
+      "id": "same-final-url-accepted",
+      "why": "両側が同じ転送先（ログイン画面等）に着いた組を、同じ配信物を比べているだけなのに一致として合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        cur.finalUrl === neu.finalUrl\n",
+      "replace": "        false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 両側とも同じバイトでも、両側が同じ転送先（ログイン画面）に着く は配っている証拠にしない"
+      ]
+    },
+    {
+      "id": "probe-fingerprint-dropped",
+      "why": "判定を左右するプローブの指紋を残さず、プローブを取り直した後の古い合格を見分けられなくする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "probe_fingerprints: fingerprints.probes,",
+      "replace": "probe_fingerprints: [],",
+      "occurrences": 2,
+      "expect_failing": [
+        "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）"
       ]
     }
   ]

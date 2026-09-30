@@ -365,6 +365,13 @@ test("通す: 参照があり移行元とバイト一致する資産は exit 0 �
     true,
   );
   expect(r.written.asset_delivery_check.ledger_fingerprint).toMatch(/^[0-9a-f]{64}$/u);
+  // プローブも判定を左右する入力なので指紋を残す
+  expect(r.written.asset_delivery_check.probe_fingerprints).toEqual([
+    {
+      path: expect.stringMatching(/probe-0\.json$/u),
+      sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    },
+  ]);
 });
 
 test("通す: 「実体を写す」の有効な行が 0 件の台帳は、プローブ無しで exit 0", async () => {
@@ -560,6 +567,40 @@ test("落とす: 移行元が CDN から配る資産へ、新側が同じ CDN �
   expect(r.code).toBe(1);
 });
 
+test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で配る資産も、参照は転送前の URL・バイトは最終応答で突き合う", async () => {
+  const base = fetcherOf({
+    ...SAME_FONTS,
+    [`${CUR}/favicon.ico`]: "ico",
+    [`${NEW}/favicon.ico`]: "ico",
+  });
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    record: {
+      entries: [
+        FONT_ENTRY,
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+      ],
+    },
+    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
+    fetcher: async (url) => ({
+      ...(await base(url)),
+      ...(url === `${NEW}/favicon.ico`
+        ? {
+            redirected: true,
+            finalUrl: `${NEW}/assets/favicon-abc.ico?sig=secret`,
+            contentType: "image/x-icon",
+          }
+        : {}),
+    }),
+  });
+  expect(r.stdout).toMatch(/^ok: /mu);
+  expect(r.code).toBe(0);
+  const favicon = r.written.asset_delivery_check.files.find((f) => f.kind === "favicon");
+  expect(favicon).toMatchObject({ new_redirected: true, bytes_match: true, referenced: true });
+  // 転送先は署名付き URL のクエリを含みうるので書き出さない
+  expect(JSON.stringify(r.written)).not.toContain("sig=secret");
+});
+
 test("落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
@@ -646,9 +687,9 @@ test("落とす: 台帳の「実体を写す」の行に記録が無い（突き
 
 test.each([
   [
-    "リダイレクト（ログイン画面への転送）",
-    { redirected: true, finalUrl: "http://sso.test/login" },
-    /リダイレクトされた/u,
+    "両側が同じ転送先（ログイン画面）に着く",
+    { redirected: true, finalUrl: "http://sso.test/login?state=secret" },
+    /移行元と新側が同じ転送先（http:\/\/sso.test\/login）に着いた/u,
   ],
   [
     "HTML の応答（SPA のフォールバック・ログイン画面）",
