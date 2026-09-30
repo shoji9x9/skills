@@ -10,11 +10,13 @@
   記録が `"runtime"` の場合は前提確認（preflight）の target 解決時に解決済みの値を使う（同一実行内で再解決しない）
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答・**応答ヘッダーのうち `.replace/survey.md`「7. 横断の応答ヘッダー」に載るもの**
   （防御は有無と値、露出の抑止は付かないこと。`json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
-  **渡す前に**新側の応答ヘッダーを、現側の録画と同じ `parity-suite` の `header-normalize.mjs`（`metadata.json.differ.header_normalize` のコピー。版が録画と揃う）で正規化する。
+  **渡す前に**新側の応答ヘッダーを、現側の録画と同じ `parity-suite` の `header-normalize.mjs`（`metadata.json.differ.header_normalize.path` のコピー。版が録画と揃う）で正規化する。
   現側は録画が既に正規化済み。絞り込み（付け手が `不明` の行は比べない）・名前の小文字化・`Set-Cookie` と `nonce-` の伏せ方の規則の正本はそのスクリプトで、ここへ転記しない。
   一覧は `.replace/survey.md` を渡して読む。呼び方と終了コードの正本は `parity-suite` の `references/api-batch.md`「応答ヘッダー」）
-- **`metadata.json.differ.header_normalize` に `header-normalize.mjs` の `VERSION` が無い、またはプロジェクト側コピーの `VERSION` と食い違う**なら、ヘッダーを比べず差分にも数えない
-  （正規化の規則が録画と揃っている保証が無く、規則の差が「現新の差」として出る）。未比較である旨を `diff.md` の未検証領域に残し、`parity-suite` での録り直しを促す。
+- **次のどれかに当たれば、ヘッダーを比べず差分にも数えない**——`metadata.json.differ.header_normalize` が無い（`null` を含む）、
+  記録した `version` が記録した `path` のコピーの `VERSION` と食い違う、記録した `headers` が今の一覧（同じコピーの `--survey .replace/survey.md --list` の出力）と食い違う。
+  版が違えば規則の差が、一覧が違えば録画の後に足された・外されたヘッダーが「現新の差」として出る（または外されたヘッダーの後退を黙って見落とす）。
+  新側の正規化も記録した `path` のコピーで行う（スキルディレクトリの同梱版を使わない）。未比較である旨を `diff.md` の未検証領域に残し、`parity-suite` での録り直しを促す。
   一覧が無い（正規化が exit 3）場合も同じく比べず未検証領域に残す
 - **現側が `parity-suite` の手順の改訂 2 より前に特性化した機能**（`.replace/parity/<slug>/metadata.json` の `run.procedure_revision` が 2 未満か、キーが無い）なら、
   **判定は改訂番号で行い、録画にヘッダーが無いことで判定しない**（改訂 2 でも、一覧のヘッダーが付かない応答の録画は空になり、露出の抑止の後退を見落とす）。

@@ -95,11 +95,13 @@ export function parseHeaderList(markdown) {
     if (!TOKEN.test(name)) {
       throw new Error(`7 節の表のヘッダー名を読めない: ${JSON.stringify(row[0] ?? "")}`);
     }
-    const setter = (row[setterColumn] ?? "").replaceAll("`", "").trim();
+    // 強調・コードの記号は語の判定に効かないので外してから読む（`**不明**` を「不明」と読む）。
+    const setter = (row[setterColumn] ?? "").replace(/[`*_]/g, "").trim();
     // 付け手が読めない行を「決まっている」にも「不明」にも倒さない。空欄は比べるかどうかを決められず、
-    // 「不明（要確認）」のような語彙外の書き方は、比べる（再構築の既定値を仕様として固定する）か
-    // 比べない（決まった行の後退を見落とす）かのどちらかへ黙って倒れるので、入力の誤りにする。
-    if (setter === "" || (setter.startsWith(UNKNOWN_SETTER) && setter !== UNKNOWN_SETTER)) {
+    // 「不明（要確認）」「（不明）」「サーバーの設定（不明）」のように「不明」を含む語彙外の書き方は、
+    // 比べる（再構築の既定値を仕様として固定する）か比べない（決まった行の後退を見落とす）かの
+    // どちらかへ黙って倒れるので、入力の誤りにする。
+    if (setter === "" || (setter.includes(UNKNOWN_SETTER) && setter !== UNKNOWN_SETTER)) {
       throw new Error(
         `7 節の表の ${name} の付け手を読めない（語彙は「${UNKNOWN_SETTER}」かそれ以外の付け手）: ${JSON.stringify(setter)}`,
       );
@@ -232,18 +234,23 @@ export function normalizeHeaders(headers, list) {
 }
 
 export function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
-  const usage = "usage: node header-normalize.mjs --survey <.replace/survey.md> <headers.json>\n";
+  const usage =
+    "usage: node header-normalize.mjs --survey <.replace/survey.md> <headers.json>\n" +
+    "       node header-normalize.mjs --survey <.replace/survey.md> --list\n";
   let survey;
+  let listOnly = false;
   const positionals = [];
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--survey") {
       survey = argv[i + 1];
       i += 1;
+    } else if (argv[i] === "--list") {
+      listOnly = true;
     } else {
       positionals.push(argv[i]);
     }
   }
-  if (!survey || positionals.length !== 1) {
+  if (!survey || positionals.length !== (listOnly ? 0 : 1)) {
     io.stderr.write(usage);
     return 2;
   }
@@ -263,6 +270,11 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
     const message = err instanceof Error ? err.message : String(err);
     io.stderr.write(`${err instanceof NoHeaderListError ? "no-list" : "error"}: ${message}\n`);
     return err instanceof NoHeaderListError ? 3 : 2;
+  }
+  // --list: 比べるヘッダー名（小文字・名前順）だけを出す。録画時の一覧を記録し、比較時の一覧と突き合わせるため。
+  if (listOnly) {
+    io.stdout.write(JSON.stringify([...list].sort()) + "\n");
+    return 0;
   }
   let normalized;
   try {

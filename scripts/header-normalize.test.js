@@ -71,6 +71,16 @@ test("一覧: 付け手が `不明` の行だけのヘッダーは比べる対�
   expect([...list]).toEqual(["x-frame-options"]);
 });
 
+test("一覧: 強調記号付きの `**不明**` は `不明` と読む", () => {
+  const list = parseHeaderList(
+    survey([
+      "| `Strict-Transport-Security` | 防御 | `max-age=1` | 画面 | **不明** | |",
+      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+    ]),
+  );
+  expect([...list]).toEqual(["x-frame-options"]);
+});
+
 test("一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない", () => {
   const list = parseHeaderList(
     survey([
@@ -126,6 +136,11 @@ test.each([
   [
     "語彙外の「不明（要確認）」",
     "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | 不明（要確認） | |",
+  ],
+  ["語彙外の「（不明）」", "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | （不明） | |"],
+  [
+    "語彙外の「サーバーの設定（不明）」",
+    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定（不明） | |",
   ],
 ])(
   "一覧: 付け手が %s の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
@@ -418,6 +433,20 @@ test("CLI: 一覧が無ければ exit 3（入力の誤りの 2 と分ける）",
   expect(main(["--survey", surveyPath, headersPath], io)).toBe(3);
   expect(chunks.stderr).toMatch(/^no-list: /);
   expect(chunks.stdout).toBe("");
+});
+
+test("CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）", () => {
+  const { surveyPath } = writeInputs(
+    survey([
+      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+      "| `Content-Security-Policy` | 防御 | x | 画面 | アプリのコード | |",
+      "| `Strict-Transport-Security` | 防御 | x | 画面 | 不明 | |",
+    ]),
+    {},
+  );
+  const { chunks, io } = capture();
+  expect(main(["--survey", surveyPath, "--list"], io)).toBe(0);
+  expect(JSON.parse(chunks.stdout)).toEqual(["content-security-policy", "x-frame-options"]);
 });
 
 test("CLI: survey.md 自体が無ければ exit 3（一覧が無い）", () => {

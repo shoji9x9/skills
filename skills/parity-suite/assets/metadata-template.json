@@ -344,7 +344,14 @@
   },
   "differ": {
     "trait_compare": "<プロジェクト側 trait-compare.mjs のパスと VERSION 値>",
-    "header_normalize": "<応答ヘッダーを録画したときだけ、プロジェクト側 header-normalize.mjs のパスと VERSION 値（parity-diff が新側を同じ版で正規化できるかを見る。api-resource / batch モードでも省略しない）。録画しないなら null>",
+    "header_normalize": {
+      "_note": "応答ヘッダーを録画したときだけ書く（録画しないなら header_normalize 自体を null にする。api-resource / batch モードでも省略しない）。parity-diff は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる。正本は parity-suite の references/api-batch.md「応答ヘッダー」。",
+      "path": "<プロジェクト側 header-normalize.mjs のパス（suite.tools のコピー専用ディレクトリの中）>",
+      "version": "<そのコピーの VERSION 値>",
+      "headers": [
+        "<録画に使った一覧。同じコピーの --survey .replace/survey.md --list の出力をそのまま写す>"
+      ]
+    },
     "align_tolerance": 1,
     "pixel_tool": "<画素差分ツール名とバージョン（例: pixelmatch / odiff）>",
     "pixel_threshold": 0,

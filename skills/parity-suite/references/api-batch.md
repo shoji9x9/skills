@@ -47,8 +47,10 @@
   スイートからは `trait-capture.mjs` と同じく `suite.tools` のコピー専用ディレクトリ（既定 `<parity_suite_dir>/parity/lib/tools/vendor/`）へコピーして import し、
   一覧は `parseHeaderList(<.replace/survey.md の中身>)` で読む。受け取れる形は `allHeaders()`・`headersArray()`・HAR の `headers` のどれでもよい（取得経路で名前の表記が違っても同じ出力になる）。
   `parseHeaderList` が `NoHeaderListError` を投げたら下の「一覧が無い」の項へ進む（一覧を推測で作らない）。それ以外の例外（付け手の欄が空・語彙外）は一覧を直してから採る。
-  **使ったコピーのパスと `VERSION` を `metadata.json.differ.header_normalize` に記録する**（`suite.tools` はスイートの指紋が読むパスなので版を混ぜない）——`parity-diff` は新側を同じ版で正規化できるときだけヘッダーを比べる（版が違うと規則の差が現新の差分に化ける）。
-  CLI（`node <スキルディレクトリ>/scripts/header-normalize.mjs --survey .replace/survey.md <headers.json>`）は、終了コード 0=正規化した JSON を出力 / 2=入力の誤り / 3=一覧が無い
+  **使ったコピーのパス・`VERSION`・録画に使った一覧（`--list` の出力）を `metadata.json.differ.header_normalize` に記録する**（`suite.tools` はスイートの指紋が読むパスなので版を混ぜない）——
+  `parity-diff` は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる（版が違うと規則の差が、一覧が違うと足された・外されたヘッダーが現新の差分に化ける）。
+  CLI は**記録したプロジェクト側コピーから**起動する（`node <differ.header_normalize.path> --survey .replace/survey.md <headers.json>` で正規化した JSON、`--list` で比べるヘッダー名の配列を出力。
+  スキルディレクトリの同梱版から起動しない——`gh skill update` で同梱版だけ上がると、記録した版と実行した版が食い違う）。終了コード 0=出力 / 2=入力の誤り / 3=一覧が無い
 - **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
   同じヘッダーに付け手の決まった行と `不明` の行が混ざる場合、正規化はそのヘッダーを録画に残さない（応答の種類を区別できないため）。決まった行の応答は、そのヘッダーの値を直接 assertion にする（`Set-Cookie` は同じスクリプトの `parseSetCookie`、CSP は `maskNonce` を通した値で書き、秘密を assertion に残さない）
   対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする

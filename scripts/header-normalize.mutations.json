@@ -27,9 +27,11 @@
       "replace": "&& true);",
       "occurrences": 1,
       "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
         "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む",
         "一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない",
-        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない"
+        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない",
+        "一覧: 強調記号付きの `**不明**` は `不明` と読む"
       ]
     },
     {
@@ -137,7 +139,9 @@
       "occurrences": 1,
       "expect_failing": [
         "一覧: 付け手が 空欄 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
-        "一覧: 付け手が 語彙外の「不明（要確認）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
+        "一覧: 付け手が 語彙外の「サーバーの設定（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「不明（要確認）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
       ]
     },
     {
@@ -168,6 +172,38 @@
       "replace": "(err).code === \"__never__\")",
       "occurrences": 1,
       "expect_failing": ["CLI: survey.md 自体が無ければ exit 3（一覧が無い）"]
+    },
+    {
+      "id": "setter-unknown-prefix-only",
+      "why": "「不明」を前方一致でだけ見て、（不明）・サーバーの設定（不明）を付け手の決まった行にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "setter.includes(UNKNOWN_SETTER)",
+      "replace": "setter.startsWith(UNKNOWN_SETTER)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 付け手が 語彙外の「サーバーの設定（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
+      ]
+    },
+    {
+      "id": "setter-emphasis-kept",
+      "why": "強調記号を外さず、**不明** を語彙外の誤りにする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".replace(/[`*_]/g, \"\")",
+      "replace": ".replace(/[`]/g, \"\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 強調記号付きの `**不明**` は `不明` と読む"]
+    },
+    {
+      "id": "list-flag-ignored",
+      "why": "--list を読まず、録画時の一覧を記録できない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "listOnly = true;",
+      "replace": "listOnly = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）"
+      ]
     }
   ]
 }
