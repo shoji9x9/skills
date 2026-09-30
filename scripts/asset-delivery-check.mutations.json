@@ -180,7 +180,10 @@
       "replace": "PAGE_PATH.test(usage)",
       "occurrences": 1,
       "expect_failing": [
-        "台帳: 「使われるページ」が /orders ほか共通ヘッダー なら used: false で外せるか: false"
+        "台帳: 「使われるページ」が /app 配下の all pages なら used: false で外せるか: false",
+        "台帳: 「使われるページ」が /orders ほか全ルート なら used: false で外せるか: false",
+        "台帳: 「使われるページ」が /orders ほか共通ヘッダー なら used: false で外せるか: false",
+        "台帳: 「使われるページ」が /orders/* なら used: false で外せるか: false"
       ]
     },
     {
@@ -200,10 +203,33 @@
       "id": "stray-rows-ignored",
       "why": "空行で表が切れた後の「実体を写す」行を黙って捨て、期待集合から消す",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "  if (strayLines.length > 0) {\n",
+      "find": "  if (stray.length > 0) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）"]
+      "expect_failing": [
+        "台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）",
+        "台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）"
+      ]
+    },
+    {
+      "id": "stray-no-leading-pipe-ignored",
+      "why": "行頭の `|` を省いた表の行（GFM では有効）が空行の後ろにあっても黙って捨てる",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "r.leadingPipe || r.cells === headers.length",
+      "replace": "r.leadingPipe",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）"
+      ]
+    },
+    {
+      "id": "wildcard-path-accepted",
+      "why": "`/orders/*` のようなワイルドカードの指定を具体的なページのパスとして外せる側に倒す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "screen)\\b|\\*/iu",
+      "replace": "screen)\\b/iu",
+      "occurrences": 1,
+      "expect_failing": ["台帳: 「使われるページ」が /orders/* なら used: false で外せるか: false"]
     }
   ]
 }

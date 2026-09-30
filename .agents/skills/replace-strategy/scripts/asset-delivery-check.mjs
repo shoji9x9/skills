@@ -49,9 +49,11 @@ const POLICIES = new Set([POLICY_COPY, "同等物を作る", "写さない", ""]
  * 列挙して弾く形にすると、列挙から漏れた表記で全ページの資産が外せてしまう（fail-open）。
  * そこで逆向きに、**具体的なページのパス（`/` 始まり）を書いた行だけ**を外せる候補にし、全ページの目印があれば候補から外す。
  */
-const PAGE_PATH = /(?:^|[\s、,，（「`])\/[^\s/、,，）)」`]/u;
+// パスの 1 文字目は英数字などの具体的な名前に限る（`/*` `/**` のような全ルートの指定を具体的なページに数えない）。
+const PAGE_PATH = /(?:^|[\s、,，（「`])\/[\p{L}\p{N}_.:-]/u;
+// パスを書いた行でも、全ページ・全ルートを表す言い方やワイルドカードを含めば外せない。
 const ALL_PAGES =
-  /全(?:ページ|画面|頁)|(?:すべて|全て)の(?:ページ|画面|頁)|各(?:ページ|画面|頁)|共通/u;
+  /全(?:ページ|画面|頁|ルート|部|体)|(?:すべて|全て)の(?:ページ|画面|頁|ルート)|各(?:ページ|画面|頁|ルート)|共通|\ball\s+(?:pages|routes|screens)\b|\bevery\s+(?:page|route|screen)\b|\*/iu;
 
 /**
  * 空白を 1 つに畳み、前後を除き、セル全体を囲む強調（`**` / `__`）を外す。台帳の人が書いた表記ゆれを揃える。
@@ -116,7 +118,7 @@ function fenceOf(line) {
  * （テンプレートの説明コメント・例示の表を本物の行として読まない）。
  * @param {string} text
  * 各行のファイル上の行番号（1 始まり）を rowLines に持つ（エラー文で台帳の行を指せるように）。
- * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayLines: number[] }}
+ * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayRows: { line: number, cells: number, leadingPipe: boolean }[] }}
  */
 export function parseTables(text) {
   // コメントは改行を保ったまま空白に置き換える（行の対応を崩さない）。閉じていないコメントは末尾まで。
@@ -124,9 +126,12 @@ export function parseTables(text) {
   const lines = uncommented.split(/\r?\n/u);
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
-  /** 表に属さない `|` 始まりの行（空行で本体が切れた後の行など）。黙って捨てず呼び出し側へ返す。 */
-  /** @type {number[]} */
-  const strayLines = [];
+  /**
+   * 表に属さないのに `|` を含む行（空行で本体が切れた後の行など）。黙って捨てず、行番号・セル数・行頭の `|` の有無を
+   * 呼び出し側へ返す（GFM は行頭・行末の `|` を省けるので、行頭の `|` だけでは表の行を見分けられない）。
+   */
+  /** @type {{ line: number, cells: number, leadingPipe: boolean }[]} */
+  const strayRows = [];
   /** @type {string | null} */
   let fence = null;
   for (let i = 0; i < lines.length; i += 1) {
@@ -145,7 +150,11 @@ export function parseTables(text) {
       !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) ||
       delimiter.length !== header.length
     ) {
-      if (lines[i].trim().startsWith("|")) strayLines.push(i + 1);
+      strayRows.push({
+        line: i + 1,
+        cells: header.length,
+        leadingPipe: lines[i].trim().startsWith("|"),
+      });
       continue;
     }
     /** @type {string[][]} */
@@ -163,7 +172,7 @@ export function parseTables(text) {
     tables.push({ headers: header.map(normalizeCell), rows, rowLines });
     i = j - 1;
   }
-  return { tables, strayLines };
+  return { tables, strayRows };
 }
 
 /**
@@ -176,14 +185,7 @@ export function parseTables(text) {
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
 export function readLedger(text) {
-  const { tables, strayLines } = parseTables(text);
-  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体を写す」の行があると、期待集合から黙って消える。
-  // どの表の行か決められないので判定しない（fail-closed）。
-  if (strayLines.length > 0) {
-    throw new UsageError(
-      `台帳の ${strayLines.join(", ")} 行目は表に属さない（直前の空行で表が切れている等）。表の本体に空行を挟まない`,
-    );
-  }
+  const { tables, strayRows } = parseTables(text);
   const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
@@ -198,6 +200,15 @@ export function readLedger(text) {
     );
   }
   const { headers, rows, rowLines } = candidates[0];
+  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体を写す」の行があると、期待集合から黙って消える。
+  // 行頭の `|` があるか、方針の表と同じセル数なら表の行を意図したものとみなし、どの表の行か決められないので判定しない（fail-closed）。
+  // 散文中の `|`（セル数が合わず行頭にも無い）は対象にしない。
+  const stray = strayRows.filter((r) => r.leadingPipe || r.cells === headers.length);
+  if (stray.length > 0) {
+    throw new UsageError(
+      `台帳の ${stray.map((r) => r.line).join(", ")} 行目は表に属さない（直前の空行で表が切れている等）。表の本体に空行を挟まない`,
+    );
+  }
   for (const name of ["種類", "方針", "状態"]) {
     if (headers.filter((h) => h === name).length > 1) {
       throw new UsageError(`台帳の表に「${name}」列が 2 つある`);

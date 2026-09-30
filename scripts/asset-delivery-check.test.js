@@ -186,6 +186,12 @@ test.each([
   ["ヘッダー", false],
   ["タブ", false],
   ["url(/bg.png)、ヘッダー", false],
+  // 外せない: パスを書いていても全ルートの指定（ワイルドカード・全ルートの言い方）
+  ["/*（SPA の全ルート）", false],
+  ["/**", false],
+  ["/orders/*", false],
+  ["/orders ほか全ルート", false],
+  ["/app 配下の all pages", false],
   // 外せる: 具体的なページのパスだけを書いた行
   ["/orders だけ", true],
   ["/orders/:id、/orders/new", true],
@@ -206,6 +212,17 @@ test("台帳: 表の本体が空行で切れた後の行は黙って捨てず判
     "| ロゴ | `img`、/a | 同等物を作る | 有効 |",
     "",
     "| favicon | `link[rel=icon]`、全ページ | 実体を写す | 有効 |",
+  ].join("\n");
+  expect(() => readLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
+});
+
+test("台帳: 空行で切れた後の、行頭の `|` を省いた行（GFM では表の行になりうる）も判定しない（例外）", () => {
+  const text = [
+    "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
+    "|---|---|---|---|",
+    "| ロゴ | `img`、/a | 同等物を作る | 有効 |",
+    "",
+    "favicon | `link[rel=icon]`、全ページ | 実体を写す | 有効",
   ].join("\n");
   expect(() => readLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
 });
