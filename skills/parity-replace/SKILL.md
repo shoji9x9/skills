@@ -249,7 +249,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    `node <replace-strategy>/scripts/asset-delivery-check.mjs --assets .replace/assets.md --record <new/<target>/asset-delivery.json> --current-base <現行の UI URL> --new-base <新側の UI URL>`
    `--probe <プローブの出力>... --write <new/<target>/replace-metadata.json>` を **exit 0 まで通す**（コピーせずスキル配下から実行する）。
    確かめるのは**新側の配信物が参照していること**と**取得したバイトが移行元の配信物と一致すること**。**exit 1 は未完了**、exit 2 は入力の不備で判定していないので完了扱いにしない。
-   この画面が使わない資産は `used: false` と理由を書く（台帳で全ページの行には使えない）。突き合わせないことを選ぶなら利用者の承認（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
+   この画面が使わない資産は `used: false` と理由を書く（台帳の「使われるページ」に具体的なページのパスを書いた行だけ外せる。全ページの行は外せない）。突き合わせないことを選ぶなら利用者の承認（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
    「実体を写す」の行が 0 件なら exit 0（記録は `{"entries": []}` でも要る。台帳そのものが無い・方針の表を読めないのは exit 2——手順 3 で台帳を作ってから通す）。手順と判定規則の正本は `replace-strategy` の `references/static-assets.md`「完了判定での突き合わせ」。
    `replace-strategy` が未インストールで到達できないときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills replace-strategy`）を示す
    **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。

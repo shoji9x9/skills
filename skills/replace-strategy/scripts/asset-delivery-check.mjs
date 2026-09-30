@@ -44,8 +44,14 @@ const STATUS_CANCELLED_PREFIX = "取り消し済み";
 /** 台帳の方針の語彙（空欄は未決）。 */
 export const POLICY_COPY = "実体を写す";
 const POLICIES = new Set([POLICY_COPY, "同等物を作る", "写さない", ""]);
-/** 全ページで使う資産の目印（used: false を認めない）。 */
-const ALL_PAGES = /全(?:ページ|画面)|(?:すべて|全て)の(?:ページ|画面)/u;
+/**
+ * used: false で外してよい行の条件。「使われるページ」は自由記述なので、全ページを表す言い方（全頁・各画面・共通ヘッダー…）を
+ * 列挙して弾く形にすると、列挙から漏れた表記で全ページの資産が外せてしまう（fail-open）。
+ * そこで逆向きに、**具体的なページのパス（`/` 始まり）を書いた行だけ**を外せる候補にし、全ページの目印があれば候補から外す。
+ */
+const PAGE_PATH = /(?:^|[\s、,，（「`])\/[^\s/、,，）)」`]/u;
+const ALL_PAGES =
+  /全(?:ページ|画面|頁)|(?:すべて|全て)の(?:ページ|画面|頁)|各(?:ページ|画面|頁)|共通/u;
 
 /**
  * 空白を 1 つに畳み、前後を除き、セル全体を囲む強調（`**` / `__`）を外す。台帳の人が書いた表記ゆれを揃える。
@@ -110,7 +116,7 @@ function fenceOf(line) {
  * （テンプレートの説明コメント・例示の表を本物の行として読まない）。
  * @param {string} text
  * 各行のファイル上の行番号（1 始まり）を rowLines に持つ（エラー文で台帳の行を指せるように）。
- * @returns {{ headers: string[], rows: string[][], rowLines: number[] }[]}
+ * @returns {{ tables: { headers: string[], rows: string[][], rowLines: number[] }[], strayLines: number[] }}
  */
 export function parseTables(text) {
   // コメントは改行を保ったまま空白に置き換える（行の対応を崩さない）。閉じていないコメントは末尾まで。
@@ -118,6 +124,9 @@ export function parseTables(text) {
   const lines = uncommented.split(/\r?\n/u);
   /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
+  /** 表に属さない `|` 始まりの行（空行で本体が切れた後の行など）。黙って捨てず呼び出し側へ返す。 */
+  /** @type {number[]} */
+  const strayLines = [];
   /** @type {string | null} */
   let fence = null;
   for (let i = 0; i < lines.length; i += 1) {
@@ -131,8 +140,14 @@ export function parseTables(text) {
     const header = splitRow(lines[i]);
     if (header === null) continue;
     const delimiter = splitRow(lines[i + 1]);
-    if (delimiter === null || !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim()))) continue;
-    if (delimiter.length !== header.length) continue;
+    if (
+      delimiter === null ||
+      !delimiter.every((cell) => /^:?-+:?$/u.test(cell.trim())) ||
+      delimiter.length !== header.length
+    ) {
+      if (lines[i].trim().startsWith("|")) strayLines.push(i + 1);
+      continue;
+    }
     /** @type {string[][]} */
     const rows = [];
     /** @type {number[]} */
@@ -148,11 +163,11 @@ export function parseTables(text) {
     tables.push({ headers: header.map(normalizeCell), rows, rowLines });
     i = j - 1;
   }
-  return tables;
+  return { tables, strayLines };
 }
 
 /**
- * @typedef {{ kind: string, allPages: boolean, line: number }} LedgerRow
+ * @typedef {{ kind: string, excludable: boolean, line: number }} LedgerRow
  */
 
 /**
@@ -161,7 +176,15 @@ export function parseTables(text) {
  * @returns {{ copyRows: LedgerRow[], activeRows: number }}
  */
 export function readLedger(text) {
-  const candidates = parseTables(text).filter(
+  const { tables, strayLines } = parseTables(text);
+  // 表に属さない行（本体の途中の空行で切れた追記など）に「実体を写す」の行があると、期待集合から黙って消える。
+  // どの表の行か決められないので判定しない（fail-closed）。
+  if (strayLines.length > 0) {
+    throw new UsageError(
+      `台帳の ${strayLines.join(", ")} 行目は表に属さない（直前の空行で表が切れている等）。表の本体に空行を挟まない`,
+    );
+  }
+  const candidates = tables.filter(
     (t) => t.headers.includes("種類") && t.headers.includes("方針") && t.headers.includes("状態"),
   );
   if (candidates.length === 0) {
@@ -228,7 +251,7 @@ export function readLedger(text) {
     activeByKind.set(kind, line);
     if (policy !== POLICY_COPY) return;
     const usage = normalizeCell(row[usageAt]);
-    copyRows.push({ kind, allPages: ALL_PAGES.test(usage), line });
+    copyRows.push({ kind, excludable: PAGE_PATH.test(usage) && !ALL_PAGES.test(usage), line });
   });
   return { copyRows, activeRows: activeByKind.size };
 }
@@ -442,9 +465,9 @@ export async function check(input) {
       continue;
     }
     if (!entry.used) {
-      if (row.allPages) {
+      if (!row.excludable) {
         findings.push(
-          `台帳の「${row.kind}」は全ページで使う資産なのに used: false になっている（台帳 ${row.line} 行目）`,
+          `台帳の「${row.kind}」は used: false で外せない（「使われるページ」が全ページを表すか、具体的なページのパスを書いていない。台帳 ${row.line} 行目）`,
         );
       } else {
         notes.push(`「${row.kind}」はこの機能の画面で使わない: ${entry.reason}`);

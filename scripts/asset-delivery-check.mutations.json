@@ -55,9 +55,9 @@
     },
     {
       "id": "all-pages-off",
-      "why": "全ページで使う資産（favicon）を used: false で外させる",
+      "why": "外せない行（全ページ・パスの無い行）の favicon を used: false で外させる",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "      if (row.allPages) {\n",
+      "find": "      if (!row.excludable) {\n",
       "replace": "      if (false) {\n",
       "occurrences": 1,
       "expect_failing": ["落とす: 全ページで使う資産を used: false で外す"]
@@ -171,6 +171,39 @@
       "expect_failing": [
         "落とす: 両側とも 200 の空（0 バイト）は sha256 が一致しても配っている証拠にしない"
       ]
+    },
+    {
+      "id": "all-pages-words-off",
+      "why": "「全頁」「共通ヘッダー」のようにパスを含んでも全ページを表す行を外せる側に倒す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "PAGE_PATH.test(usage) && !ALL_PAGES.test(usage)",
+      "replace": "PAGE_PATH.test(usage)",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 「使われるページ」が /orders ほか共通ヘッダー なら used: false で外せるか: false"
+      ]
+    },
+    {
+      "id": "path-required-off",
+      "why": "パスを書いていない行（列挙から漏れた全ページの表記を含む）を外せる側に倒す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "PAGE_PATH.test(usage) && !ALL_PAGES.test(usage)",
+      "replace": "!ALL_PAGES.test(usage)",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 「使われるページ」が url(/bg.png)、ヘッダー なら used: false で外せるか: false",
+        "台帳: 「使われるページ」が タブ なら used: false で外せるか: false",
+        "台帳: 「使われるページ」が ヘッダー なら used: false で外せるか: false"
+      ]
+    },
+    {
+      "id": "stray-rows-ignored",
+      "why": "空行で表が切れた後の「実体を写す」行を黙って捨て、期待集合から消す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (strayLines.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）"]
     }
   ]
 }

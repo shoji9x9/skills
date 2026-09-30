@@ -161,7 +161,7 @@ async function runCheck(opts) {
 test("台帳: 正本のテンプレートから「有効 × 実体を写す」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）", () => {
   const { copyRows } = readLedger(TEMPLATE);
   expect(copyRows.map((r) => r.kind)).toEqual(["本文の書体"]);
-  expect(copyRows[0].allPages).toBe(true);
+  expect(copyRows[0].excludable).toBe(false);
 });
 
 test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の行を指す（利用者が開く行と揃える）", () => {
@@ -173,18 +173,52 @@ test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の
 });
 
 test.each([
-  ["全ページ", true],
-  ["全画面", true],
-  ["すべてのページ", true],
-  ["全てのページ", true],
-  ["/orders だけ", false],
-])("台帳: 「使われるページ」が %s なら全ページの行として扱う: %s", (usage, expected) => {
+  // 外せない: 全ページの言い方（列挙は補助。本体は「パスが無ければ外せない」）
+  ["全ページ", false],
+  ["全画面", false],
+  ["全頁", false],
+  ["すべてのページ", false],
+  ["全てのページ", false],
+  ["各画面", false],
+  ["共通ヘッダー", false],
+  ["/orders ほか共通ヘッダー", false],
+  // 外せない: 具体的なページのパスを書いていない（全ページの言い方の列挙から漏れた表記も含む）
+  ["ヘッダー", false],
+  ["タブ", false],
+  ["url(/bg.png)、ヘッダー", false],
+  // 外せる: 具体的なページのパスだけを書いた行
+  ["/orders だけ", true],
+  ["/orders/:id、/orders/new", true],
+  ["一覧（/orders）", true],
+])("台帳: 「使われるページ」が %s なら used: false で外せるか: %s", (usage, expected) => {
   const text = [
     "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
     "|---|---|---|---|",
     `| ロゴ | \`img\`、${usage} | 実体を写す | 有効 |`,
   ].join("\n");
-  expect(readLedger(text).copyRows[0].allPages).toBe(expected);
+  expect(readLedger(text).copyRows[0].excludable).toBe(expected);
+});
+
+test("台帳: 表の本体が空行で切れた後の行は黙って捨てず判定しない（例外）", () => {
+  const text = [
+    "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
+    "|---|---|---|---|",
+    "| ロゴ | `img`、/a | 同等物を作る | 有効 |",
+    "",
+    "| favicon | `link[rel=icon]`、全ページ | 実体を写す | 有効 |",
+  ].join("\n");
+  expect(() => readLedger(text)).toThrow(/台帳の 5 行目は表に属さない/u);
+});
+
+test("台帳: 表の外の散文に `|` があっても行頭でなければ表の行とみなさない", () => {
+  const text = [
+    "方針は 実体を写す | 同等物を作る のどちらか。",
+    "",
+    "| 種類 | 描き方と使われるページ | 方針 | 状態 |",
+    "|---|---|---|---|",
+    "| ロゴ | `img`、/a | 実体を写す | 有効 |",
+  ].join("\n");
+  expect(readLedger(text).copyRows.map((r) => r.kind)).toEqual(["ロゴ"]);
 });
 
 test("台帳: HTML コメントとコードフェンスの中の表は台帳として読まない", () => {
@@ -541,7 +575,7 @@ test("落とす: 全ページで使う資産を used: false で外す", async ()
     record: { entries: [FONT_ENTRY, { kind: "favicon", used: false, reason: "タブは見ない" }] },
     probes: [FONT_PROBE],
   });
-  expect(r.stdout).toMatch(/「favicon」は全ページで使う資産なのに used: false/u);
+  expect(r.stdout).toMatch(/台帳の「favicon」は used: false で外せない/u);
   expect(r.code).toBe(1);
 });
 
