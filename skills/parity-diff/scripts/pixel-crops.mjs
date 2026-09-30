@@ -31,6 +31,7 @@
 // 一致で照合するため、どちらの bbox を書いても片方が unexplained に残り、両方を書くと件数と承認の N が倍になる。
 // そこで strict-only の画素のうち、しきい値つきの領域の芯を `--pad` だけ広げた範囲にあるものは、
 // その領域へ取り込んで bbox を外側に広げる。strict_only_regions に残るのは、その範囲の外の画素から作った領域だけ。
+// 縁が --pad より外まで続く差はそれでも 2 件に分かれうるので、外側の候補に隣り合う領域の id（overlaps_regions）を付けて警告する。
 //
 // 決定論的: 乱数・現在時刻に依存しない。連結成分はラスタ走査順に発見し、最終 bbox は
 // (y, x) 昇順に整列するため入力が同じなら出力は常に同じ。
@@ -454,6 +455,25 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
 }
 
 /**
+ * strict-only の候補ごとに、bbox が重なるか接する（隣の画素に並ぶ）しきい値つきの候補の id を返す。
+ *
+ * 縁の取り込みは「芯＋pad」の範囲に限る（範囲を広げると、ページ全体に広がる差が全領域を 1 件に潰す）ので、
+ * 縁が pad より外まで続く差（box-shadow のぼかし差等）は、芯の候補と外側の strict-only の候補の 2 件に分かれうる。
+ * 分かれたことを黙らせないため、隣り合う相手を候補に書いて見えるようにする（トリアージと台帳はこれを読んで同じ場所の差として扱う）。
+ * @param {Array<{ bbox:{ x:number, y:number, width:number, height:number } }>} strictCandidates
+ * @param {Array<{ id:number, bbox:{ x:number, y:number, width:number, height:number } }>} regions
+ * @returns {number[][]} strictCandidates と同じ並びで、隣り合う regions の id（昇順）
+ */
+export function adjacentRegionIds(strictCandidates, regions) {
+  return strictCandidates.map((s) =>
+    regions
+      .filter((r) => bboxOverlap(r.bbox, s.bbox, 1))
+      .map((r) => r.id)
+      .sort((a, b) => a - b),
+  );
+}
+
+/**
  * **先に pad 以内でマージしてから** minCluster 未満を落とす。結果は (y, x) 昇順。
  *
  * strict-only はこちらを使う。`filterAndMerge`（落としてからマージ）だと、
@@ -770,6 +790,12 @@ export async function main(argv) {
   summary.strict_only_dropped_pixels = strictClustered.droppedPixels;
   summary.strict_min_cluster = strictMinCluster;
   summary.strict_only_absorbed_pixels = absorbed.absorbedPixels;
+  const adjacency = adjacentRegionIds(strictResult, result);
+  strictResult.forEach((s, i) => {
+    s.overlaps_regions = adjacency[i];
+  });
+  const splitCount = strictResult.filter((s) => s.overlaps_regions.length > 0).length;
+  summary.strict_only_overlapping_regions = splitCount;
 
   // しきい値の内側に差が隠れていることは、差分領域が 0 件でも起きる。stdout の summary だけでなく
   // stderr にも出して、「差分領域なし」を「一致」と読めないようにする。
@@ -782,6 +808,13 @@ export async function main(argv) {
         `${strictResult.length} emitted as candidates, ` +
         `${absorbed.absorbedPixels} pixel(s) within --pad of a threshold region merged into it; ` +
         `report both numbers and compare the strict counts with the noise baseline\n`,
+    );
+  }
+  if (splitCount > 0) {
+    process.stderr.write(
+      `warning: ${splitCount} strict-only candidate(s) overlap or touch a threshold region ` +
+        `(see overlaps_regions): the fringe of the same difference extends beyond --pad ${pad}; ` +
+        `triage them together with those regions as one place\n`,
     );
   }
   if (strictClusters.length > strictResult.length) {

@@ -21,7 +21,8 @@
         "芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）",
         "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
         "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない",
-        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない",
+        "縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く"
       ]
     },
     {
@@ -33,7 +34,8 @@
       "occurrences": 1,
       "expect_failing": [
         "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない",
-        "疎に散った差は、芯から離れていれば取り込まない（離れた芯が 1 件に潰れない）"
+        "疎に散った差は、芯から離れていれば取り込まない（離れた芯が 1 件に潰れない）",
+        "縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く"
       ]
     },
     {
@@ -72,6 +74,29 @@
       "occurrences": 1,
       "expect_failing": [
         "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
+      ]
+    },
+    {
+      "id": "no-adjacency-mark",
+      "why": "外側の strict-only 候補に隣り合う領域を付けない（2 件に分かれたことが見えない）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "      .filter((r) => bboxOverlap(r.bbox, s.bbox, 1))",
+      "replace": "      .filter(() => false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く",
+        "離れた strict-only 候補には隣り合う領域を付けない（隣の画素に接していれば付け、1px でも隙間があれば付けない）"
+      ]
+    },
+    {
+      "id": "adjacency-overlap-only",
+      "why": "重なる領域だけを付け、接する領域を落とす",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "      .filter((r) => bboxOverlap(r.bbox, s.bbox, 1))",
+      "replace": "      .filter((r) => bboxOverlap(r.bbox, s.bbox, 0))",
+      "occurrences": 1,
+      "expect_failing": [
+        "離れた strict-only 候補には隣り合う領域を付けない（隣の画素に接していれば付け、1px でも隙間があれば付けない）"
       ]
     }
   ]

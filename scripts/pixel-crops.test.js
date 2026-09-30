@@ -20,6 +20,7 @@ const {
   filterAndMerge,
   mergeThenFilter,
   absorbStrictIntoRegions,
+  adjacentRegionIds,
 } = await import(script);
 
 // RGBA バッファを作る。pixels は [r,g,b,a] の配列。
@@ -536,4 +537,31 @@ test("まとめた領域の bbox の角に残る画素も取り込み、候補�
   expect(out.absorbedPixels).toBe(4);
   expect(out.regions[0].absorbed_strict_only_pixels).toBe(4);
   expect([...out.remainingMask].every((v) => v === 0)).toBe(true);
+});
+
+test("縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く", () => {
+  // PR #521 のレビュー（5 巡目）の再現: pad 2、4×4 の芯の周囲 6px に続く縁。
+  // 取り込みは芯＋pad に限るので 2 件に分かれるが、分かれたことを overlaps_regions で見えるようにする。
+  const w = 40;
+  const h = 40;
+  const thresholdMask = maskWith(w, h, [{ x: 18, y: 18, w: 4, h: 4 }]);
+  const strictOnly = buildStrictOnlyMask(
+    thresholdMask,
+    maskWith(w, h, [{ x: 12, y: 12, w: 16, h: 16 }]),
+  );
+  const thresholdRegions = filterAndMerge(clusterComponents(thresholdMask, w, h), 1, 2);
+  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnly, w, h, 2);
+  const strict = mergeThenFilter(clusterComponents(absorbed.remainingMask, w, h), 4, 2);
+  const regions = absorbed.regions.map((r, i) => ({ ...r, id: i + 1 }));
+
+  expect(regions.map((r) => r.bbox)).toEqual([{ x: 16, y: 16, width: 8, height: 8 }]);
+  expect(strict.kept.map((r) => r.bbox)).toEqual([{ x: 12, y: 12, width: 16, height: 16 }]);
+  expect(adjacentRegionIds(strict.kept, regions)).toEqual([[1]]);
+});
+
+test("離れた strict-only 候補には隣り合う領域を付けない（隣の画素に接していれば付け、1px でも隙間があれば付けない）", () => {
+  const regions = [{ id: 1, bbox: { x: 0, y: 0, width: 4, height: 4 } }];
+  const touching = { bbox: { x: 4, y: 0, width: 2, height: 2 } }; // 隣の画素 = 接する
+  const apart = { bbox: { x: 5, y: 0, width: 2, height: 2 } }; // 1px の隙間
+  expect(adjacentRegionIds([touching, apart], regions)).toEqual([[1], []]);
 });

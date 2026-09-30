@@ -32,9 +32,11 @@
     まとめた bbox の内側に残る画素（どの芯＋`--pad` にも入らない角）も取り込む（候補の内側に別の strict-only 候補を残さない。bbox の内側だけなので bbox は広がらない）。
     `regions[]` の `id` は外側の bbox の `(y, x)` 順で振る（`VERSION` が `3` までの出力とは id がずれうるので、旧出力の id で記録したトリアージは bbox で突き合わせ直す）。
     取り込んだ領域は `threshold_bbox`（芯を包む bbox）/ `absorbed_strict_only_pixels` を持ち、取り込んだ画素数の合計は `summary.strict_only_absorbed_pixels` に出る（黙って消さない）。
+    **縁が `--pad` より外まで続く差は 2 件に分かれうる**。外側の `strict_only_regions[]` の候補は、bbox が重なるか接する `regions[]` の `id` を `overlaps_regions` に持ち、
+    その件数が `summary.strict_only_overlapping_regions` と stderr の警告に出る（分かれたことを黙らせない。扱いは [`triage.md`](triage.md) と [`normalize.md`](normalize.md)「画素経路の例外の適用」）。
     分けたままだと同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になり、bbox の一致で照合する画素の例外の台帳
     （[`normalize.md`](normalize.md)「画素経路の例外の適用」）が片方にしか当たらない
-  - `strict_only_regions[]` は**しきい値の内側にだけ差があり、しきい値つきの領域の芯＋`--pad` の外にある画素**から作った候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
+  - `strict_only_regions[]` は**しきい値の内側にだけ差があり、しきい値つきの領域の芯＋`--pad` の外にある画素**から作った候補（`id` は `s1` から。`bbox` / `strict_pixels` / `overlaps_regions` / crop 対）。
     **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
     先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
   - **`id` は上限を掛ける前の全体の並び（`(y, x)` 昇順）から決まる**ので、警告に従って上限を上げても既存候補の採番は変わらない
