@@ -227,13 +227,18 @@
       "expect_failing": ["一覧: 未記入の同梱テンプレート（例示行が残る）は一覧が無い扱いにする"]
     },
     {
-      "id": "comment-counted-as-unmeasured",
-      "why": "HTML コメントの中の「未測定」で記入済みの一覧を捨てる",
+      "id": "comments-read",
+      "why": "HTML コメントの中の表・見出し・「未測定」を本文として読み、退避した旧一覧を一覧にするか記入済みの一覧を捨てる",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
       "find": ".replace(/<!--[\\s\\S]*?-->/g, \"\")",
       "replace": "",
       "occurrences": 1,
-      "expect_failing": ["一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない"]
+      "expect_failing": [
+        "一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない",
+        "一覧: HTML コメントの中のテンプレートの例示表は読まず、後ろの本物の表を読む",
+        "一覧: HTML コメントの中の見出しを含むコメントは読まず、後ろの本物の表を読む",
+        "一覧: HTML コメントの中の退避した旧一覧は読まず、後ろの本物の表を読む"
+      ]
     }
   ]
 }

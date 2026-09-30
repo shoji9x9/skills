@@ -446,6 +446,35 @@ test("一覧: HTML コメントの中の「未測定」では一覧が無い扱�
   expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
 });
 
+test.each([
+  [
+    "退避した旧一覧",
+    [
+      "<!--",
+      "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug |",
+      "|---|---|---|---|---|---|",
+      "| `X-Old` | 防御 | x | 全種類 | サーバーの設定 | |",
+      "-->",
+    ],
+  ],
+  [
+    "テンプレートの例示表",
+    [
+      "<!--",
+      "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug |",
+      "|---|---|---|---|---|---|",
+      "| `X-Content-Type-Options`（例） | 防御 | `nosniff` | 全種類 | サーバーの設定 | |",
+      "-->",
+    ],
+  ],
+  ["見出しを含むコメント", ["<!--", "## 8. 退避した節", "-->"]],
+])("一覧: HTML コメントの中の%sは読まず、後ろの本物の表を読む", (_name, commented) => {
+  const markdown = survey([
+    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+  ]).replace("- 採った応答: 画面 /login", [...commented, "- 採った応答: 画面 /login"].join("\n"));
+  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
+});
+
 test("一覧: 記入済みのテンプレートは例示を外した行を読む（HTML コメントの中の語は数えない）", () => {
   expect([...parseHeaderList(filledTemplate())].sort()).toEqual([
     "x-content-type-options",

@@ -71,19 +71,18 @@ function headerNameOf(cell) {
  * @returns {Set<string>}
  */
 export function parseHeaderList(markdown) {
-  const lines = String(markdown).split(/\r?\n/);
+  // HTML コメントは最初に全体から外す。節の境界・表の探索・行の読み取り・「未測定」の判定のすべてが
+  // 同じコメント抜きの本文を読む（一部だけ外すと、退避した旧一覧やテンプレートの例示表を一覧として読む）。
+  const lines = String(markdown)
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .split(/\r?\n/);
   const start = lines.findIndex((l) => /^##\s+7\.\s*横断の応答ヘッダー/.test(l));
   if (start < 0) throw new NoHeaderListError("survey.md に「7. 横断の応答ヘッダー」の節が無い");
   let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
   if (end < 0) end = lines.length;
   const section = lines.slice(start + 1, end);
   // 「未測定」と書いた節は、表が残っていても一覧ではない（replace-strategy はヘッダーを採れないとき停止せずこう書く）。
-  // HTML コメントの中の文言は数えない。
-  const prose = section
-    .join("\n")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .split("\n")
-    .filter((l) => !l.trim().startsWith("|"));
+  const prose = section.filter((l) => !l.trim().startsWith("|"));
   if (prose.some((l) => l.includes("未測定"))) throw new NoHeaderListError("7 節が「未測定」");
 
   const headIndex = section.findIndex(
