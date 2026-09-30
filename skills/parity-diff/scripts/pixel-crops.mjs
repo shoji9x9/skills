@@ -414,7 +414,10 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
       for (let j = i + 1; j < groups.length; j += 1) {
         const a = groups[i];
         const b = groups[j];
-        if (near(a.members, b.members)) {
+        // 構成要素が近いか、bbox が重なればまとめる。構成要素だけで判定すると、斜めに並んだ 2 つの芯がまとまった
+        // 大きな bbox の角に 3 つ目の領域が丸ごと入ったまま、別の候補として残る（同じ画素が 2 つの crop に入る）。
+        // どの bbox も「芯＋pad」の合併の内側なので、しきい値の内側の差だけで連鎖が広がることはない。
+        if (near(a.members, b.members) || bboxOverlap(a.bbox, b.bbox, 0)) {
           const combined = {
             pixels: a.pixels + b.pixels,
             bbox: unionBbox(a.bbox, b.bbox),

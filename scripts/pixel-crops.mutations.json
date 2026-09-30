@@ -22,7 +22,8 @@
         "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
         "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない",
         "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない",
-        "縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く"
+        "縁が --pad より外まで続く差は、外側の strict-only 候補に隣り合う領域の id が付く",
+        "まとめた bbox に別の領域が入るなら、その領域もまとめる（候補の内側に候補を残さない）"
       ]
     },
     {
@@ -57,12 +58,13 @@
       "id": "no-region-remerge",
       "why": "縁を取り込んで近接した領域同士をまとめない",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "        if (near(a.members, b.members)) {",
+      "find": "        if (near(a.members, b.members) || bboxOverlap(a.bbox, b.bbox, 0)) {",
       "replace": "        if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
-        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない",
+        "まとめた bbox に別の領域が入るなら、その領域もまとめる（候補の内側に候補を残さない）"
       ]
     },
     {
@@ -97,6 +99,17 @@
       "occurrences": 1,
       "expect_failing": [
         "離れた strict-only 候補には隣り合う領域を付けない（隣の画素に接していれば付け、1px でも隙間があれば付けない）"
+      ]
+    },
+    {
+      "id": "no-bbox-overlap-merge",
+      "why": "bbox が重なる領域同士をまとめない（まとめた bbox の内側に別の候補が残る）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "        if (near(a.members, b.members) || bboxOverlap(a.bbox, b.bbox, 0)) {",
+      "replace": "        if (near(a.members, b.members)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "まとめた bbox に別の領域が入るなら、その領域もまとめる（候補の内側に候補を残さない）"
       ]
     }
   ]

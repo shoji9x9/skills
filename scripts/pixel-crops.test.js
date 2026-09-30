@@ -565,3 +565,26 @@ test("離れた strict-only 候補には隣り合う領域を付けない（隣�
   const apart = { bbox: { x: 5, y: 0, width: 2, height: 2 } }; // 1px の隙間
   expect(adjacentRegionIds([touching, apart], regions)).toEqual([[1], []]);
 });
+
+test("まとめた bbox に別の領域が入るなら、その領域もまとめる（候補の内側に候補を残さない）", () => {
+  // PR #521 のレビュー（6 巡目）の再現: pad 10、(0,0) と (25,25) が縁でつながってまとまると、
+  // bbox (0,0,36,36) の角にある (25,0) の領域が、どの構成要素からも pad より離れたまま別の候補として残っていた。
+  const w = 40;
+  const h = 40;
+  const regions = [
+    { pixels: 121, bbox: { x: 0, y: 0, width: 11, height: 11 } },
+    { pixels: 44, bbox: { x: 25, y: 0, width: 11, height: 4 } },
+    { pixels: 121, bbox: { x: 25, y: 25, width: 11, height: 11 } },
+  ];
+  // (0,0) と (25,25) を斜めにつなぐ縁。(13,13) は前者の芯＋pad、(22,22) は後者の芯＋pad に入り、互いに pad 以内。
+  // (25,0) の領域はどの芯・縁からも pad より離れている。
+  const strictOnly = maskOfPoints(w, h, [
+    [13, 13],
+    [22, 22],
+  ]);
+
+  const out = absorbStrictIntoRegions(regions, strictOnly, w, h, 10);
+
+  expect(out.regions.map((r) => r.bbox)).toEqual([{ x: 0, y: 0, width: 36, height: 36 }]);
+  expect(out.regions[0].pixels).toBe(286);
+});
