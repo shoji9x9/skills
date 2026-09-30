@@ -16,6 +16,7 @@
 | リクエスト | パス・クエリ・ボディ |
 | レスポンス | ステータス・ボディ |
 | エラー応答 | エラー時のステータスとボディ |
+| 応答ヘッダー | `.replace/survey.md`「7. 横断の応答ヘッダー」に載るものだけ（下記「応答ヘッダー」） |
 | 認可 | 誰が何を参照・作成・更新できるか（[`auth.md`](auth.md)） |
 | 並び順 | 現行の並び順を固定する |
 | ページング | ページサイズ・境界・カーソル/オフセット |
@@ -28,6 +29,26 @@
 - **未分類の path を残して authoring を完了しない。** assertion を少数の代表項目へ狭めると、`parity-replace` は狭い範囲だけで green になり、record 全体を比較する `parity-diff` で初めて残りの差が出る。捕捉した path と assertion／正規化／gap の対応を同じ段階で確定し、この往復を前倒しで防ぐ
 - `intentional_diffs.pending` は現新の差を観測した後の確認待ちであり、**まだ assertion に入れていないだけの path の退避先にしない。** 差を観測していない未検証項目は `gaps.md` に置く
 - **並び順の検証には `references.db_semantics`（collation 等の意味論差）を読む。** 現行 DB と新 DB で並び順が変わりうる箇所を意図的差異として扱えるようにする
+
+## 応答ヘッダー
+
+サーバー・リバースプロキシの設定が全応答に付ける防御ヘッダーは画面の処理にも API の定義にも現れず、**スイートに assertion が無ければ新側が付けなくても両側で緑になる**（差は見た目にも機能にも出ず、安全性だけが後退する）。
+一覧は `replace-strategy` の `setup` が 1 度だけ採った `.replace/survey.md`「7. 横断の応答ヘッダー」（採り方と分類の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）。
+
+- **対象 slug が駆動する応答のうち、一覧の「付く応答」に当たるものに assertion を置く**——API の特性化ではステータス・ボディと並べて、画面ではページへの遷移の応答（`page.goto` の戻り値の `allHeaders()`。`headers()` は `Set-Cookie` 等のセキュリティ関連ヘッダーを返さない。出典: <https://playwright.dev/docs/api/class-response#response-headers>）で。
+  **`page.goto` はリダイレクトを追って最後の応答を返す**ので、一覧が採ったリダイレクトの応答（未ログインの 302 等）は `request` フィクスチャの `get(url, { maxRedirects: 0 })` で、
+  ログインの成功（POST）の `Set-Cookie` は正規のログイン操作の要求を `page.waitForResponse` で捕まえて採る
+  （複数の `Set-Cookie` は `headersArray()` で 1 つずつ読む。出典: <https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get> / <https://playwright.dev/docs/api/class-response#response-headers-array>）。
+  `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値）だけを assertion にして cookie の値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
+  **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record にも残さない（下の項。`Date` 等の揮発と秘密の値を持ち込まない）
+- **record にも秘密の値と要求ごとに変わる値を残さない**——録画は Git に入り、`parity-diff` の現側は録画から読むので、比べる前の変換では間に合わない。
+  record するヘッダーは**一覧に載るものだけに絞り**、ヘッダー名を小文字に揃え（取得経路で表記が変わるため）（`X-CSRF-Token` のような秘密の値・`Date` のような要求ごとに変わる値を録画に入れない）、
+  `Set-Cookie` を cookie ごとの名前と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値だけ）に、CSP の `nonce-` の値を固定の文字列に置き換えてから書く
+- **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
+  対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
+- **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
+- **一覧が無い**（`.replace/survey.md` に 7 節が無い・「未測定」）なら停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
+- 一覧の値と現行で採った値が食い違ったら（一覧の後に現行の設定が変わった等）、推測でどちらかに寄せず、現行で採った値で assertion を書き、食い違いを `gaps.md` に残して一覧の採り直しを促す
 
 ## 要求単位を確定したら features.md へ書き戻す
 

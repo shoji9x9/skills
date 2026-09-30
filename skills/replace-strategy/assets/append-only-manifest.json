@@ -49,6 +49,15 @@
       "source": "replace-strategy の references/static-assets.md"
     },
     {
+      "id": "weaknesses",
+      "pattern": ".replace/weaknesses.md",
+      "unit": "markdown-structure",
+      "mutable_columns": ["露出を広げた差異", "状態"],
+      "mutable_bullets": ["最終更新"],
+      "requirement": "行を消さず、決定の列（基準・仕分け・宣言・扱う設計作業・決定日・根拠）をその場で書き換えない。仕分け空欄の行を決めるときも、決めた仕分けを覆すときも、古い行の状態を 取り消し済み にして新しい行を追記する（その場で更新してよいのは 状態 と 露出を広げた差異 だけ）",
+      "source": "replace-strategy の references/security.md"
+    },
+    {
       "id": "dependencies",
       "pattern": ".replace/dependencies.md",
       "unit": "markdown-structure",

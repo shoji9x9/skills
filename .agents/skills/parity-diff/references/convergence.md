@@ -239,7 +239,7 @@
     判定しなかった事実と理由を `diff-metadata.json` の `artifact_health`（`judged: false`）と `diff.md` の未検証領域に残す。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す
   - **追記専用の成果物が縮んでいない**（正本は `replace-strategy` の `assets/append-only-manifest.json`）。
-    決定を積み上げる成果物（設定ファイル・`features.md` / `components.md` / `assets.md` / `dependencies.md`・
+    決定を積み上げる成果物（設定ファイル・`features.md` / `components.md` / `assets.md` / `dependencies.md` / `weaknesses.md`・
     インスタンス例外の台帳とその根拠・`gaps.md`・データセットの版の記録）は**非破壊追記**と定められているが、
     追記であることを確かめないと**丸ごと書き直しても現在の状態が整合していれば全部通る**。
     失われるのは**過去の決定**（なぜこの差分を許容したのか・いつ誰が承認したのか）で、

@@ -114,6 +114,9 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 - **表示を切り替える軸（ロケール・配色テーマ等）を数えずに既定の 1 値だけで撮らない。** 他の値での差はスイートにも 3 経路にも写らない。
   同梱の候補の一覧を全件「在る／無い」に振り分けて `capture_conditions.display_axes` に来歴付きで残し、既定以外の値ごとに 1 軸ずつ振った変種を全ページ × 全状態で撮り、
   相互に効く対だけ理由付きで掛け合わせ、値ごとに変わる文言・振る舞いを期待値解決層に持つ（[`references/baseline.md`](references/baseline.md)「表示を切り替える軸（掛け合わせずに撮る）」）
+- **現行と一致していることを、安全性が保たれていることの代わりにしない。** サーバーの設定が付ける防御ヘッダーは画面にも API の定義にも現れず、新側が付けなくても両側で緑になる。
+  `.replace/survey.md`「7. 横断の応答ヘッダー」に載るヘッダーを、対象 slug の応答（API とページへの遷移）に assertion する（[`references/api-batch.md`](references/api-batch.md)「応答ヘッダー」）。
+  逆に、現行の弱点を「直す」と仕分けた行（`.replace/weaknesses.md`）に触れる振る舞いは side 共通の期待値に固定しない（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）
 - **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない
 
@@ -298,6 +301,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 | 部品被覆表（feature モードのみ。**操作と状態の有無だけを数え、見た目は見ていない**） | `.replace/parity/<slug>/component-coverage.json` | `assets/component-coverage-template.json` |
 | 寸法の採取値（feature モードのみ。窓 × 論理名の矩形） | `.replace/parity/<slug>/dimension-samples.json` | 形式の正本: [`scripts/dimension-fit.mjs`](scripts/dimension-fit.mjs)（手順は [`references/baseline.md`](references/baseline.md)） |
 | 反応の被覆表（feature モードのみ。操作 → 反応・送る前の判定・送っている間の押し直し、表への書き込み、画面ごとの状態表示） | `.replace/parity/<slug>/reactions.json` | `assets/reactions-template.json` |
+| 現行の弱点の追記（台帳に無い弱点に気づいたときのみ） | `.replace/weaknesses.md` へ仕分け空欄の行を**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/weaknesses-template.md` |
 | 依存の決定記録（スイートに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 
 - テキスト成果物（特性 JSON・aria・`metadata.json`・`strength.md`・`gaps.md`・`component-coverage.json`・`reactions.json`・`dimension-samples.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
