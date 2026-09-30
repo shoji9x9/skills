@@ -164,6 +164,14 @@ test("台帳: 正本のテンプレートから「有効 × 実体を写す」�
   expect(copyRows[0].allPages).toBe(true);
 });
 
+test("台帳: 行番号は表の中の順番ではなく台帳ファイル上の行を指す（利用者が開く行と揃える）", () => {
+  const fileLine = TEMPLATE.split("\n").findIndex((l) => l.startsWith("| 本文の書体 |")) + 1;
+  expect(fileLine).toBeGreaterThan(1);
+  expect(readLedger(TEMPLATE).copyRows[0].line).toBe(fileLine);
+  const broken = TEMPLATE.replace("| 本文の書体 |", "|  |");
+  expect(() => readLedger(broken)).toThrow(`台帳の ${fileLine} 行目の「種類」が空`);
+});
+
 test.each([
   ["全ページ", true],
   ["全画面", true],

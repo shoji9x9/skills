@@ -109,13 +109,14 @@ function fenceOf(line) {
  * Markdown の表を全て取り出す。HTML コメントとコードフェンスの中は台帳ではないので読まない
  * （テンプレートの説明コメント・例示の表を本物の行として読まない）。
  * @param {string} text
- * @returns {{ headers: string[], rows: string[][] }[]}
+ * 各行のファイル上の行番号（1 始まり）を rowLines に持つ（エラー文で台帳の行を指せるように）。
+ * @returns {{ headers: string[], rows: string[][], rowLines: number[] }[]}
  */
 export function parseTables(text) {
   // コメントは改行を保ったまま空白に置き換える（行の対応を崩さない）。閉じていないコメントは末尾まで。
   const uncommented = text.replace(/<!--[\s\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\n]/gu, " "));
   const lines = uncommented.split(/\r?\n/u);
-  /** @type {{ headers: string[], rows: string[][] }[]} */
+  /** @type {{ headers: string[], rows: string[][], rowLines: number[] }[]} */
   const tables = [];
   /** @type {string | null} */
   let fence = null;
@@ -134,14 +135,17 @@ export function parseTables(text) {
     if (delimiter.length !== header.length) continue;
     /** @type {string[][]} */
     const rows = [];
+    /** @type {number[]} */
+    const rowLines = [];
     let j = i + 2;
     for (; j < lines.length; j += 1) {
       if (fenceOf(lines[j]) !== null) break;
       const row = splitRow(lines[j]);
       if (row === null) break;
       rows.push(row);
+      rowLines.push(j + 1);
     }
-    tables.push({ headers: header.map(normalizeCell), rows });
+    tables.push({ headers: header.map(normalizeCell), rows, rowLines });
     i = j - 1;
   }
   return tables;
@@ -170,7 +174,7 @@ export function readLedger(text) {
       `台帳に「種類」「方針」「状態」の列を持つ表が ${candidates.length} 個ある（どれが方針の表か決められない）`,
     );
   }
-  const { headers, rows } = candidates[0];
+  const { headers, rows, rowLines } = candidates[0];
   for (const name of ["種類", "方針", "状態"]) {
     if (headers.filter((h) => h === name).length > 1) {
       throw new UsageError(`台帳の表に「${name}」列が 2 つある`);
@@ -193,15 +197,16 @@ export function readLedger(text) {
   /** @type {LedgerRow[]} */
   const copyRows = [];
   rows.forEach((row, index) => {
-    const line = index + 1;
+    // 台帳ファイル上の行番号（表の中の何行目かではない）。エラー文・findings で利用者が開く行を指す。
+    const line = rowLines[index];
     if (row.length !== headers.length) {
       throw new UsageError(
-        `台帳の方針の表の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${headers.length}。セル内の | は \\| と書く）`,
+        `台帳の ${line} 行目の列数が見出しと違う（${row.length} ≠ ${headers.length}。セル内の | は \\| と書く）`,
       );
     }
     const kind = normalizeCell(row[kindAt]);
     const status = normalizeCell(row[statusAt]);
-    if (kind === "") throw new UsageError(`台帳の方針の表の ${line} 行目の「種類」が空`);
+    if (kind === "") throw new UsageError(`台帳の ${line} 行目の「種類」が空`);
     if (status.startsWith(STATUS_CANCELLED_PREFIX)) return;
     if (status !== STATUS_ACTIVE) {
       throw new UsageError(
