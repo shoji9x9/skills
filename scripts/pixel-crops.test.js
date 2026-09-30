@@ -338,15 +338,33 @@ function maskWith(width, height, rects) {
 }
 
 /** main と同じ段取りで regions / strict-only を作る（PNG を読まない部分）。 */
-function candidates(thresholdMask, strictOnlyMask, width, height, withAbsorb = true) {
-  const regions = filterAndMerge(clusterComponents(thresholdMask, width, height), 1, 8);
+function candidates(
+  thresholdMask,
+  strictOnlyMask,
+  width,
+  height,
+  withAbsorb = true,
+  minCluster = 4,
+) {
+  const thresholdRegions = filterAndMerge(clusterComponents(thresholdMask, width, height), 1, 8);
+  if (!withAbsorb) {
+    const strict = mergeThenFilter(clusterComponents(strictOnlyMask, width, height), minCluster, 8);
+    return { regions: thresholdRegions, strict, absorbedPixels: 0 };
+  }
+  const absorbed = absorbStrictIntoRegions(thresholdRegions, strictOnlyMask, width, height, 8);
   const strict = mergeThenFilter(
-    clusterComponents(strictOnlyMask, width, height),
-    4,
+    clusterComponents(absorbed.remainingMask, width, height),
+    minCluster,
     8,
-    withAbsorb ? regions : null,
   );
-  return { regions: strict.regions ?? regions, strict };
+  return { regions: absorbed.regions, strict, absorbedPixels: absorbed.absorbedPixels };
+}
+
+/** width×height のマスクに、点の並び [[x, y], ...] を立てる。 */
+function maskOfPoints(width, height, points) {
+  const mask = new Uint8Array(width * height);
+  for (const [x, y] of points) mask[y * width + x] = 1;
+  return mask;
 }
 
 // 実測の形: 漏斗の芯 6×9 がしきい値つき、そのまわりの 11×11 の縁がしきい値の内側。
@@ -361,16 +379,16 @@ test("芯と縁が重なる差は、外側の bbox を持つ 1 つの候補に�
   const thresholdMask = maskWith(W, H, [core]);
   const strictOnly = buildStrictOnlyMask(thresholdMask, maskWith(W, H, [core, halo]));
 
-  const { regions, strict } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
 
   expect(regions).toHaveLength(1);
   expect(regions[0].bbox).toEqual({ x: 8, y: 10, width: 11, height: 11 });
   expect(regions[0].threshold_bbox).toEqual({ x: 12, y: 11, width: 6, height: 9 });
   expect(regions[0].pixels).toBe(54); // しきい値つきの画素数は芯のまま
-  expect(regions[0].absorbed_strict_only_components).toBe(1);
   expect(regions[0].absorbed_strict_only_pixels).toBe(countInBbox(strictOnly, W, regions[0].bbox));
+  expect(absorbedPixels).toBe(regions[0].absorbed_strict_only_pixels);
   expect(strict.kept).toHaveLength(0);
-  expect(strict.absorbedComponents).toBe(1);
+  expect(strict.droppedClusters).toBe(0);
 });
 
 test("取り込まなければ同じ差が 2 件になる（陽性コントロール: 取り込みが効いていること）", () => {
@@ -388,11 +406,9 @@ test("取り込まなければ同じ差が 2 件になる（陽性コントロ�
 test("しきい値つきの差が近くに無い領域だけが strict_only に残り、id は下限を変えても変わらない", () => {
   const thresholdMask = maskWith(W, H, [core]);
   const strictOnly = buildStrictOnlyMask(thresholdMask, maskWith(W, H, [core, halo, thumb]));
-  const regions = filterAndMerge(clusterComponents(thresholdMask, W, H), 1, 8);
-  const components = clusterComponents(strictOnly, W, H);
 
-  const strict = mergeThenFilter(components, 4, 8, regions);
-  const loose = mergeThenFilter(components, 1, 8, regions);
+  const strict = candidates(thresholdMask, strictOnly, W, H, true, 4).strict;
+  const loose = candidates(thresholdMask, strictOnly, W, H, true, 1).strict;
 
   expect(strict.kept.map((r) => [r.id, r.bbox])).toEqual([
     ["s1", { x: 45, y: 30, width: 9, height: 5 }],
@@ -404,111 +420,96 @@ test("しきい値つきの差が近くに無い領域だけが strict_only に�
 test("取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）", () => {
   const thresholdMask = maskWith(W, H, [core]);
   // 縁が 2 画素だけ（--strict-min-cluster 4 に届かない）。
-  const strictOnly = new Uint8Array(W * H);
-  strictOnly[10 * W + 11] = 1;
-  strictOnly[10 * W + 12] = 1;
+  const strictOnly = maskOfPoints(W, H, [
+    [11, 10],
+    [12, 10],
+  ]);
 
-  const { regions, strict } = candidates(thresholdMask, strictOnly, W, H);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
 
   expect(strict.droppedClusters).toBe(0);
-  expect(strict.absorbedComponents).toBe(1);
-  expect(strict.absorbedPixels).toBe(2);
+  expect(absorbedPixels).toBe(2);
   expect(regions[0].bbox).toEqual({ x: 11, y: 10, width: 7, height: 10 });
 });
 
-test("縁を取り込んだ領域が、取り込んだ成分を介して別の領域と近接したら 1 つにまとめる", () => {
-  const regions = [
-    { pixels: 4, bbox: { x: 0, y: 0, width: 2, height: 2 } },
-    { pixels: 4, bbox: { x: 30, y: 0, width: 2, height: 2 } },
-  ];
-  // 左の芯のすぐ右から、右の芯の手前 5px まで伸びる縁（1 つの連結成分）。
-  const components = [{ pixels: 20, bbox: { x: 3, y: 0, width: 22, height: 1 } }];
+test("芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）", () => {
+  const thresholdMask = maskWith(W, H, [{ x: 0, y: 0, w: 2, h: 2 }]);
+  // 芯の右隣から x=20 まで続く 1 本の差（1 つの連結成分）。芯＋8 の範囲は x<=9。
+  const strictOnly = maskOfPoints(
+    W,
+    H,
+    Array.from({ length: 19 }, (_, i) => [2 + i, 0]),
+  );
 
-  const out = absorbStrictIntoRegions(regions, components, 8);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
 
-  expect(out.remaining).toHaveLength(0);
-  expect(out.regions).toHaveLength(1);
-  expect(out.regions[0].bbox).toEqual({ x: 0, y: 0, width: 32, height: 2 });
-  expect(out.regions[0].pixels).toBe(8);
-  expect(out.regions[0].absorbed_strict_only_components).toBe(1);
+  expect(regions[0].bbox).toEqual({ x: 0, y: 0, width: 10, height: 2 });
+  expect(absorbedPixels).toBe(8);
+  expect(strict.kept.map((r) => r.bbox)).toEqual([{ x: 10, y: 0, width: 11, height: 1 }]);
 });
 
-test("取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない", () => {
-  const regions = [{ pixels: 4, bbox: { x: 0, y: 0, width: 2, height: 2 } }];
-  const components = [
-    // 芯の右隣から伸びる縁（芯と重なるので取り込む）。
-    { pixels: 10, bbox: { x: 2, y: 0, width: 10, height: 1 } },
-    // 縁の端からは pad 以内だが、芯からは pad を超えて離れた無関係な差。
-    { pixels: 6, bbox: { x: 16, y: 0, width: 3, height: 2 } },
-  ];
+test("縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない", () => {
+  const thresholdMask = maskWith(W, H, [
+    { x: 0, y: 0, w: 2, h: 2 },
+    { x: 16, y: 0, w: 2, h: 2 },
+  ]);
+  // 2 つの芯の間を埋める縁。両方の芯の広げた範囲（x<=9 と x>=8）が x=8,9 で重なる。
+  const points = Array.from({ length: 13 }, (_, i) => [3 + i, 0]);
+  const strictOnly = maskOfPoints(W, H, points);
 
-  const out = absorbStrictIntoRegions(regions, components, 8);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, W, H);
 
-  expect(out.regions[0].absorbed_strict_only_components).toBe(1);
-  expect(out.regions[0].bbox).toEqual({ x: 0, y: 0, width: 12, height: 2 });
-  expect(out.remaining.map((r) => r.bbox)).toEqual([{ x: 16, y: 0, width: 3, height: 2 }]);
+  expect(regions).toHaveLength(1);
+  expect(regions[0].bbox).toEqual({ x: 0, y: 0, width: 18, height: 2 });
+  expect(regions[0].pixels).toBe(8);
+  expect(absorbedPixels).toBe(points.length);
+  expect(regions[0].absorbed_strict_only_pixels).toBe(points.length);
+  expect(strict.kept).toHaveLength(0);
+  expect(regions[0]).not.toHaveProperty("members");
 });
 
-test("まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない", () => {
-  // PR #521 のレビュー（1 巡目）の再現: 芯 A と芯 B を包む矩形で判定すると、どちらの芯からも離れた差まで取り込む。
-  const regions = [
-    { pixels: 16, bbox: { x: 0, y: 0, width: 4, height: 4 } },
-    { pixels: 16, bbox: { x: 100, y: 100, width: 4, height: 4 } },
+test("ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない", () => {
+  // PR #521 のレビュー（3 巡目）の再現: 背景色の 1 階調のずれのように全面がしきい値の内側で違い、
+  // 離れた 2 か所にしきい値つきの差がある。塊ごと取り込むと 800×600 の領域 1 件になる。
+  const w = 800;
+  const h = 600;
+  const cores = [
+    { x: 10, y: 10, w: 4, h: 4 },
+    { x: 700, y: 500, w: 4, h: 4 },
   ];
-  const components = [
-    { pixels: 92, bbox: { x: 3, y: 3, width: 92, height: 92 } },
-    { pixels: 16, bbox: { x: 0, y: 100, width: 4, height: 4 } },
-  ];
+  const thresholdMask = maskWith(w, h, cores);
+  const strictOnly = buildStrictOnlyMask(thresholdMask, new Uint8Array(w * h).fill(1));
 
-  const out = absorbStrictIntoRegions(regions, components, 8);
+  const { regions, strict } = candidates(thresholdMask, strictOnly, w, h);
 
-  expect(out.regions).toHaveLength(1);
-  expect(out.regions[0].absorbed_strict_only_components).toBe(1);
-  expect(out.regions[0]).not.toHaveProperty("cores");
-  expect(out.regions[0]).not.toHaveProperty("members");
-  expect(out.remaining.map((r) => r.bbox)).toEqual([{ x: 0, y: 100, width: 4, height: 4 }]);
+  expect(regions.map((r) => r.bbox)).toEqual([
+    { x: 2, y: 2, width: 20, height: 20 },
+    { x: 692, y: 492, width: 20, height: 20 },
+  ]);
+  expect(strict.kept).toHaveLength(1);
+  expect(strict.kept[0].bbox).toEqual({ x: 0, y: 0, width: 800, height: 600 });
 });
 
-test("疎に散った差をマージした塊の外接 bbox で取り込まない（離れた芯が画面大の候補に潰れない）", () => {
-  // PR #521 のレビュー（2 巡目）の再現: 3px 間隔の L 字に並ぶ 1 画素の差。芯 A・B はどれからも 90px 以上離れている。
-  // 塊をマージしてから外接 bbox で判定すると、A・B を内側に含む 801×589 の 1 件に潰れ、strict_only が 0 件になる。
-  const components = [];
-  for (let y = 10; y <= 598; y += 3)
-    components.push({ pixels: 1, bbox: { x: 0, y, width: 1, height: 1 } });
-  for (let x = 3; x <= 800; x += 3)
-    components.push({ pixels: 1, bbox: { x, y: 598, width: 1, height: 1 } });
-  const regions = [
-    { pixels: 16, bbox: { x: 100, y: 100, width: 4, height: 4 } },
-    { pixels: 16, bbox: { x: 700, y: 500, width: 4, height: 4 } },
-  ];
+test("疎に散った差は、芯から離れていれば取り込まない（離れた芯が 1 件に潰れない）", () => {
+  // PR #521 のレビュー（2 巡目）の再現: 3px 間隔の L 字に並ぶ 1 画素の差。芯はどれからも 90px 以上離れている。
+  const w = 801;
+  const h = 599;
+  const points = [];
+  for (let y = 10; y <= 598; y += 3) points.push([0, y]);
+  for (let x = 3; x <= 800; x += 3) points.push([x, 598]);
+  const thresholdMask = maskWith(w, h, [
+    { x: 100, y: 100, w: 4, h: 4 },
+    { x: 700, y: 500, w: 4, h: 4 },
+  ]);
+  const strictOnly = maskOfPoints(w, h, points);
 
-  const out = mergeThenFilter(components, 4, 4, regions);
+  const { regions, strict, absorbedPixels } = candidates(thresholdMask, strictOnly, w, h);
 
-  expect(out.regions.map((r) => r.bbox)).toEqual([
+  expect(regions.map((r) => r.bbox)).toEqual([
     { x: 100, y: 100, width: 4, height: 4 },
     { x: 700, y: 500, width: 4, height: 4 },
   ]);
-  expect(out.absorbedComponents).toBe(0);
-  expect(out.kept).toHaveLength(1);
-  expect(out.kept[0].pixels).toBe(components.length);
-});
-
-test("領域同士は構成要素（芯と取り込んだ成分）の近さでまとめ、外側の bbox の近さではまとめない", () => {
-  // A は芯の右と下に伸びる縁を取り込み、外側の bbox が B の芯を内側に含む。構成要素同士はどれも 17px 離れている。
-  const regions = [
-    { pixels: 4, bbox: { x: 0, y: 0, width: 2, height: 2 } },
-    { pixels: 4, bbox: { x: 18, y: 18, width: 2, height: 2 } },
-  ];
-  const components = [
-    { pixels: 20, bbox: { x: 3, y: 0, width: 20, height: 1 } },
-    { pixels: 20, bbox: { x: 0, y: 3, width: 1, height: 20 } },
-  ];
-
-  const out = absorbStrictIntoRegions(regions, components, 8);
-
-  expect(out.regions.map((r) => r.threshold_bbox)).toEqual([
-    { x: 0, y: 0, width: 2, height: 2 },
-    { x: 18, y: 18, width: 2, height: 2 },
-  ]);
-  expect(out.regions[0].absorbed_strict_only_components).toBe(2);
+  expect(absorbedPixels).toBe(0);
+  expect(strict.kept).toHaveLength(1);
+  expect(strict.kept[0].pixels).toBe(points.length);
 });

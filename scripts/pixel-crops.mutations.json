@@ -9,90 +9,56 @@
   "mutations": [
     {
       "id": "no-absorb",
-      "why": "しきい値つきの領域を渡されても strict-only を取り込まない（修正前の形: 同じ差が 2 件になる）",
+      "why": "strict-only の画素を 1 つも取り込まない（修正前の形: 同じ差が 2 件になる）",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "  if (thresholdRegions !== null) {",
-      "replace": "  if (false) {",
+      "find": "        if (remainingMask[idx] !== 1) continue;",
+      "replace": "        continue;",
       "occurrences": 1,
       "expect_failing": [
         "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
         "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は下限を変えても変わらない",
         "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
-        "疎に散った差をマージした塊の外接 bbox で取り込まない（離れた芯が画面大の候補に潰れない）"
+        "芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）",
+        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
+        "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない"
       ]
     },
     {
-      "id": "absorb-never-overlaps",
-      "why": "strict-only の成分がどの芯とも重ならないと見なす",
+      "id": "absorb-unbounded",
+      "why": "芯を --pad だけ広げた範囲に限らず取り込む（全面に広がる差が画面大の候補に潰れる）",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "      const group = groups.find((g) => near(g.cores, [component.bbox]));",
-      "replace": "      const group = undefined;",
+      "find": "    const x0 = Math.max(0, r.bbox.x - pad);",
+      "replace": "    const x0 = 0;",
+      "occurrences": 1,
+      "expect_failing": [
+        "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない",
+        "疎に散った差は、芯から離れていれば取り込まない（離れた芯が 1 件に潰れない）"
+      ]
+    },
+    {
+      "id": "absorb-double-count",
+      "why": "芯を広げた範囲が重なる画素を複数の領域が取る（取り込んだ画素数を二重に数える）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "        remainingMask[idx] = 0;\n",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
         "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
         "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は下限を変えても変わらない",
         "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
-        "縁を取り込んだ領域が、取り込んだ成分を介して別の領域と近接したら 1 つにまとめる",
-        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない",
-        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない",
-        "領域同士は構成要素（芯と取り込んだ成分）の近さでまとめ、外側の bbox の近さではまとめない"
-      ]
-    },
-    {
-      "id": "absorb-on-outer-bbox",
-      "why": "取り込みの判定を広がった外側の bbox に対して行う（連鎖して離れた差を飲み込む）",
-      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "      const group = groups.find((g) => near(g.cores, [component.bbox]));",
-      "replace": "      const group = groups.find((g) => bboxOverlap(g.bbox, component.bbox, pad));",
-      "occurrences": 1,
-      "expect_failing": [
-        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない",
-        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
-      ]
-    },
-    {
-      "id": "absorb-on-core-union",
-      "why": "まとめた領域の芯を包む矩形（threshold_bbox）で取り込みを判定する（対角に離れた芯の間の空白へ届く差を飲み込む）",
-      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "      const group = groups.find((g) => near(g.cores, [component.bbox]));",
-      "replace": "      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, component.bbox, pad));",
-      "occurrences": 1,
-      "expect_failing": [
-        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
-      ]
-    },
-    {
-      "id": "absorb-merged-clusters",
-      "why": "strict-only を pad でマージした塊の外接 bbox で取り込みを判定する（疎に散った差が画面大の候補に潰れる）",
-      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "    const absorbed = absorbStrictIntoRegions(thresholdRegions, components, pad);",
-      "replace": "    const absorbed = absorbStrictIntoRegions(thresholdRegions, filterAndMerge(components, 1, pad), pad);",
-      "occurrences": 1,
-      "expect_failing": [
-        "疎に散った差をマージした塊の外接 bbox で取り込まない（離れた芯が画面大の候補に潰れない）"
+        "芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）",
+        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない"
       ]
     },
     {
       "id": "no-region-remerge",
-      "why": "取り込みで広がった領域同士をまとめない",
+      "why": "縁を取り込んで近接した領域同士をまとめない",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
       "find": "        if (near(a.members, b.members)) {",
       "replace": "        if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "縁を取り込んだ領域が、取り込んだ成分を介して別の領域と近接したら 1 つにまとめる",
-        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
-      ]
-    },
-    {
-      "id": "region-merge-on-outer-bbox",
-      "why": "領域同士を外側の bbox の近さでまとめる（広がった矩形が無関係な領域を飲み込む）",
-      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "        if (near(a.members, b.members)) {",
-      "replace": "        if (bboxOverlap(a.bbox, b.bbox, pad)) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "領域同士は構成要素（芯と取り込んだ成分）の近さでまとめ、外側の bbox の近さではまとめない"
+        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない"
       ]
     }
   ]
