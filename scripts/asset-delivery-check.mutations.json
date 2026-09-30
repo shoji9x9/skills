@@ -1,0 +1,176 @@
+{
+  "$comment": [
+    "asset-delivery-check.test.js のうち、静的資産の新側突き合わせ（Issue #458）の各判定の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/asset-delivery-check.test.js",
+  "mutations": [
+    {
+      "id": "reference-off",
+      "why": "新側の画面が指していない資産（実例の favicon）を参照ありとして通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "      const isReferenced = referenced.has(newUrl);\n",
+      "replace": "      const isReferenced = true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: プローブの localFragmentRefs にしか現れない URL は参照に数えない",
+        "落とす: プローブの manifests にしか現れない URL は参照に数えない",
+        "落とす: プローブの unclassifiedResources にしか現れない URL は参照に数えない",
+        "落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない"
+      ]
+    },
+    {
+      "id": "bytes-off",
+      "why": "新側が別のバイト（SPA のフォールバック）を返しても通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "if (result.current_sha256 !== null && result.new_sha256 !== null && !match) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: node で起動し、ローカルの HTTP 配信物を実際に取得して突き合わせる（参照ありで exit 0・バイト違いで exit 1）",
+        "落とす: 新側が 200 で別のバイト（SPA のフォールバックの index.html）を返す"
+      ]
+    },
+    {
+      "id": "fetch-failure-off",
+      "why": "取得できない配信物を不一致にも失敗にも数えず通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        if (!res.ok || res.bytes === null) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 新側の配信物を取得できない（404）",
+        "落とす: 移行元の配信物を取得できない（404）"
+      ]
+    },
+    {
+      "id": "missing-entry-off",
+      "why": "記録の無い「実体を写す」行を突き合わせないまま通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (entry === undefined) {\n      findings.push(",
+      "replace": "    if (entry === undefined) { continue;\n      findings.push(",
+      "occurrences": 1,
+      "expect_failing": ["落とす: 台帳の「実体を写す」の行に記録が無い（突き合わせていない）"]
+    },
+    {
+      "id": "all-pages-off",
+      "why": "全ページで使う資産（favicon）を used: false で外させる",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "      if (row.allPages) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["落とす: 全ページで使う資産を used: false で外す"]
+    },
+    {
+      "id": "policy-filter-off",
+      "why": "同等物・写さない・空欄の行まで「実体を写す」として期待集合に入れる",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (policy !== POLICY_COPY) return;\n",
+      "replace": "    if (false) return;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 正本のテンプレートから「有効 × 実体を写す」の行だけを取り出す（取り消し済み・同等物・空欄は取らない）",
+        "落とす: 台帳の「実体を写す」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）",
+        "通す: 「実体を写す」の有効な行が 0 件の台帳は、プローブ無しで exit 0",
+        "通す: プローブの fontFaces[].src[] に現れれば参照している",
+        "通す: プローブの icons[].href に現れれば参照している",
+        "通す: プローブの images[].src に現れれば参照している",
+        "通す: プローブの resources[].url に現れれば参照している",
+        "通す: プローブの urlRefs[].url に現れれば参照している",
+        "通す: 全ページでない行を used: false と理由で外せる",
+        "通す: 別オリジン（CDN）の絶対 URL で配る資産も、プローブに同じ URL があれば突き合う",
+        "通す: 利用者が承認した accepted の行は突き合わせない",
+        "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）",
+        "通す: 突き合わせる行が全て accepted / used: false ならプローブ無しで exit 0",
+        "通す: 記録の種類の表記ゆれ（空白・強調）は台帳と同じ正規化で揃えて突き合わせる"
+      ]
+    },
+    {
+      "id": "stray-record-off",
+      "why": "台帳の「実体を写す」行に無い種類の記録（綴り違い・方針が変わった行）を黙って通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (!copyKinds.has(entry.kind)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 台帳の「実体を写す」の有効な行に無い種類の記録（同等物の行・取り消し済みの行）"
+      ]
+    },
+    {
+      "id": "duplicate-active-off",
+      "why": "同じ種類に有効な行が 2 つある台帳を読んで、どちらかの方針で判定する",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (previous !== undefined) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["台帳: 同じ種類に有効が 2 行 は判定しない（例外）"]
+    },
+    {
+      "id": "no-probe-off",
+      "why": "プローブを渡していない実行を「参照が無い」の exit 1 にして、判定していないことを隠す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (toCheck.length > 0 && input.probes.length === 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
+        "判定しない: 突き合わせる資産があるのにプローブが無い"
+      ]
+    },
+    {
+      "id": "comment-strip-off",
+      "why": "HTML コメント内の例示の表を本物の台帳として読む",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  const uncommented = text.replace(/<!--[\\s\\S]*?(?:-->|$)/gu, (m) => m.replace(/[^\\n]/gu, \" \"));\n",
+      "replace": "  const uncommented = text;\n",
+      "occurrences": 1,
+      "expect_failing": ["台帳: HTML コメントとコードフェンスの中の表は台帳として読まない"]
+    },
+    {
+      "id": "unclassified-counted",
+      "why": "資産以外の取得も混ざる unclassifiedResources を参照として数える",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (isPlainObject(row)) add(row.url);\n  return out;\n",
+      "replace": "    if (isPlainObject(row)) add(row.url);\n  for (const row of /** @type {unknown[]} */ (probe.unclassifiedResources ?? []))\n    if (isPlainObject(row)) add(row.url);\n  return out;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: プローブの unclassifiedResources にしか現れない URL は参照に数えない"
+      ]
+    },
+    {
+      "id": "failure-write-off",
+      "why": "exit 2 で前回の合格を replace-metadata.json に残す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "    if (writeTarget !== null) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "判定しない: exit 2 でも前回の合格を上書きし、ok: false と error を書く",
+        "判定しない: 引数の不備でも --write の先に失敗を記録する"
+      ]
+    },
+    {
+      "id": "usage-column-optional",
+      "why": "「使われるページ」列の無い台帳を読んで、全ページの行を「全ページでない」に倒す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "  if (usageCols.length !== 1) {\n",
+      "replace": "  if (usageCols.length > 1) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳: 「使われるページ」列が無い（全ページの行を見分けられない） は判定しない（例外）"
+      ]
+    },
+    {
+      "id": "empty-body-accepted",
+      "why": "両側とも 0 バイトの 200 を sha256 の一致で配っていることにする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        } else if (res.bytes.length === 0) {\n",
+      "replace": "        } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 両側とも 200 の空（0 バイト）は sha256 が一致しても配っている証拠にしない"
+      ]
+    }
+  ]
+}

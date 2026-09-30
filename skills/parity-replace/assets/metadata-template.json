@@ -65,6 +65,33 @@
     "model_fingerprint": "<照合した現側 capture_conditions.dimension_model の sha256。キーが無ければ null>",
     "samples_fingerprint": "<照合した新側 dimension-samples.json の sha256。読んでいなければ null>"
   },
+  "asset_delivery_check": {
+    "_note": "feature モードのみ。replace-strategy の scripts/asset-delivery-check.mjs --write が書く（手で転記しない）。台帳（.replace/assets.md）の「状態 有効 × 方針 実体を写す」の行を、同じディレクトリの asset-delivery.json と新側の画面のプローブで突き合わせた結果。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。ledger_fingerprint / record_fingerprint は突き合わせた台帳と記録の sha256 で、書き換えた後の古い結果を見分けるために使う。",
+    "tool": "asset-delivery-check",
+    "tool_version": "<asset-delivery-check.mjs の VERSION>",
+    "ok": true,
+    "rows": 0,
+    "checked_rows": 0,
+    "checked_files": 0,
+    "failures": 0,
+    "findings": [],
+    "files": [
+      {
+        "kind": "<台帳の種類>",
+        "current": "<記録の current>",
+        "new": "<記録の new>",
+        "referenced": "<新側の画面のプローブに new の URL が現れたか（真偽値）>",
+        "current_status": 200,
+        "new_status": 200,
+        "current_sha256": "<移行元の配信物の sha256。取得できなければ null>",
+        "new_sha256": "<新側の配信物の sha256。取得できなければ null>",
+        "bytes_match": "<両方を取得でき sha256 が一致したか（真偽値）>"
+      }
+    ],
+    "ledger_fingerprint": "<突き合わせた .replace/assets.md の sha256>",
+    "record_fingerprint": "<突き合わせた asset-delivery.json の sha256>",
+    "error": "<exit 2 で終わったときのエラー文。判定したときは null>"
+  },
   "loop": {
     "iterations": 0,
     "max_iterations": 5,

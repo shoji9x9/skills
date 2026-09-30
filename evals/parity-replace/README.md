@@ -75,5 +75,13 @@ scripts/run-skill-eval.sh \
   baseline も一致の主張は避け（assertion 1）完了も取り消さない（assertion 5）が、スイートが見る範囲と `parity-diff` の担当を区別せず、
   `converged: true` に触れず、「parity-diff を回してから」とだけ書いて target とコマンド形を示さなかった。
   assertion 1・5 は Delta ではなく後退検知の項目として残す。baseline は contamination: clean / isolation: sandboxed
+- eval 25（Issue #458）は fixture 無しで、台帳で「全ページ／実体を写す／有効」の favicon を新側がファイルだけ置いて `index.html` から指さず、
+  静的資産の突き合わせが exit 1 になった完了判定の場面を与え、`used: false` で外して完了にしてよいかを問う。
+  全ページの行を `used: false` で外さないこと・exit 1 のまま完了を名乗らないこと・配信物を直してプローブから取り直すこと・
+  参照に加えてバイト一致も確かめる対象であること・突き合わせないなら利用者の承認（`disposition: accepted`）が要ることを検証する。prompt には「外せない」という結論を書かない。
+  **iteration-28 で実測**（各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5。**弁別したのは assertion 3・4・5**——
+  baseline も `used: false` を記録の改ざんとして退け（assertion 1）未完了とした（assertion 2）が、プローブの取り直しに触れず、
+  バイト一致を確かめる対象に挙げず、突き合わせないときの承認の形を示さなかった。assertion 1・2 は Delta ではなく後退検知の項目として残す。
+  baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
 - 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
