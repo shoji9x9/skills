@@ -1,0 +1,288 @@
+{
+  "$comment": [
+    "header-normalize.test.js のうち、応答ヘッダーの正規化の各規則（Issue #531）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/header-normalize.test.js",
+  "mutations": [
+    {
+      "id": "filter-off",
+      "why": "一覧に載らないヘッダー（Date・秘密の値）を録画と比較へ持ち込む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    if (!list.has(name)) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: 一覧に載らなければ cookie の値ごと落とす",
+        "絞り込み: 一覧に載らないヘッダー（揮発・秘密の値）は落とす"
+      ]
+    },
+    {
+      "id": "unknown-setter-kept",
+      "why": "付け手が不明の行（再構築の既定値かもしれない）を比べる対象に入れる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "&& setter !== UNKNOWN_SETTER);",
+      "replace": "&& true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
+        "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む",
+        "一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない",
+        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない",
+        "一覧: 強調記号付きの `**不明**` は `不明` と読む"
+      ]
+    },
+    {
+      "id": "lowercase-off",
+      "why": "取得経路で表記の違うヘッダー名を揃えず、同じ応答が別の出力になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    const key = name.toLowerCase();\n    // allHeaders()",
+      "replace": "    const key = name;\n    // allHeaders()",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "小文字化: allHeaders() と headersArray() の同じ応答は同じ出力になる",
+        "小文字化: headersArray() / HAR の元の表記の名前を小文字に揃える",
+        "小文字化: 値の大文字小文字は変えない",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "絞り込み: 付いていない一覧のヘッダーは出力に作らない（無いことは無いまま比べる）"
+      ]
+    },
+    {
+      "id": "cookie-value-kept",
+      "why": "Set-Cookie の名前に値まで含めて録画と差分の出力へ秘密を出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" : pair.slice(0, eq).trim();",
+      "replace": "const name = pair.trim();",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "Set-Cookie: cookie 名で並べ替え、受け取った順に依らない",
+        "Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない",
+        "Set-Cookie: 属性が無ければ HttpOnly・Secure は false、SameSite は null にする",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "nameless-cookie-value-kept",
+      "why": "= の無い Set-Cookie 行の値を名前として出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" :",
+      "replace": "const name = eq < 0 ? pair.trim() :",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない"]
+    },
+    {
+      "id": "samesite-dropped",
+      "why": "SameSite の値を捨て、Lax → None の後退を見落とす",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "else if (key === \"samesite\")",
+      "replace": "else if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: SameSite は値ごと比べる（Lax と None を同じにしない）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない"
+      ]
+    },
+    {
+      "id": "cookie-sort-off",
+      "why": "Set-Cookie を cookie 名で並べ替えず、受け取った順の違いが差分になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (a.name !== b.name) return a.name < b.name ? -1 : 1;",
+      "replace": "if (a.name !== b.name) return 0;",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: cookie 名で並べ替え、受け取った順に依らない"]
+    },
+    {
+      "id": "nonce-kept",
+      "why": "CSP の nonce- の値を伏せず、要求ごとの値と秘密を録画と差分へ出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "out[name] = CSP_HEADERS.has(name) ? maskNonce(joined) : joined;",
+      "replace": "out[name] = joined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "nonce: CSP の nonce- の値を固定の文字列に置き換える",
+        "nonce: Report-Only でも値を伏せる",
+        "nonce: パディング付き でも値を伏せる",
+        "nonce: 大文字の NONCE- でも値を伏せる",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "nonce: 要求ごとに違う nonce でも同じ出力になる",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "escaped-pipe-split",
+      "why": "セル内の \\| でも列を分け、付け手を別のセルから読む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "s.split(/(?<!\\\\)\\|/)",
+      "replace": "s.split(\"|\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む"
+      ]
+    },
+    {
+      "id": "setter-unreadable-accepted",
+      "why": "空欄・語彙外の付け手を黙って「決まっている」に倒す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (setter === \"\" ||",
+      "replace": "if (false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 付け手が 空欄 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「サーバーの設定（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「不明（要確認）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
+      ]
+    },
+    {
+      "id": "empty-cookie-kept",
+      "why": "中身の無い Set-Cookie を [] として出し、付いていないのと別の値にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (cookies.length === 0) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 中身の無い Set-Cookie だけなら付いていないのと同じにする"]
+    },
+    {
+      "id": "mixed-setter-compared",
+      "why": "不明の行が混ざるヘッダーを比べる側へ倒し、不明の行が指す応答の値を仕様として固定する",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "known.get(key) ?? true) && setter",
+      "replace": "known.get(key) ?? false) || setter",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない"
+      ]
+    },
+    {
+      "id": "missing-survey-input-error",
+      "why": "survey.md が無いときを入力の誤りにし、一覧が無い経路（未検証に残す）へ送らない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "(err).code === \"ENOENT\" &&",
+      "replace": "(err).code === \"__never__\" &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: survey.md 自体が無ければ exit 3（一覧が無い）",
+        "一覧: loadHeaderList は survey.md が無ければ NoHeaderListError、あれば一覧を返す"
+      ]
+    },
+    {
+      "id": "setter-unknown-prefix-only",
+      "why": "「不明」を前方一致でだけ見て、（不明）・サーバーの設定（不明）を付け手の決まった行にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "setter.includes(UNKNOWN_SETTER)",
+      "replace": "setter.startsWith(UNKNOWN_SETTER)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 付け手が 語彙外の「サーバーの設定（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「（不明）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
+      ]
+    },
+    {
+      "id": "setter-emphasis-kept",
+      "why": "強調記号を外さず、**不明** を語彙外の誤りにする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".replace(/[`*_]/g, \"\")",
+      "replace": ".replace(/[`]/g, \"\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 強調記号付きの `**不明**` は `不明` と読む"]
+    },
+    {
+      "id": "list-flag-ignored",
+      "why": "--list を読まず、録画時の一覧を記録できない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "listOnly = true;",
+      "replace": "listOnly = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）"
+      ]
+    },
+    {
+      "id": "unmeasured-accepted",
+      "why": "「未測定」の 7 節に残った表を一覧として読み、測っていないヘッダーを仕様にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "section.some((l) => /^未測定(（[^）]*）)?$/.test(l.trim()))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 7 節が「未測定」なら、表が残っていても一覧が無い扱いにする"]
+    },
+    {
+      "id": "template-example-accepted",
+      "why": "テンプレートの例示行（（例））を一覧として読み、例示の値を仕様にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".includes(\"（例）\")",
+      "replace": ".includes(\"__never__\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 未記入の同梱テンプレート（例示行が残る）は一覧が無い扱いにする"]
+    },
+    {
+      "id": "comments-read",
+      "why": "HTML コメントの中の表・見出し・「未測定」を本文として読み、退避した旧一覧を一覧にするか記入済みの一覧を捨てる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": ".replace(/<!--[\\s\\S]*?-->/g, \"\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: HTML コメントの中のテンプレートの例示表は読まず、後ろの本物の表を読む",
+        "一覧: HTML コメントの中の見出しを含むコメントは読まず、後ろの本物の表を読む",
+        "一覧: HTML コメントの中の退避した旧一覧は読まず、後ろの本物の表を読む"
+      ]
+    },
+    {
+      "id": "unmeasured-substring",
+      "why": "本文中の部分的な「未測定」で埋まった一覧を捨て、その機能のヘッダーを比べなくなる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "/^未測定(（[^）]*）)?$/.test(l.trim())",
+      "replace": "l.includes(\"未測定\")",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 本文中の部分的な「未測定」の言及では、埋まった表を捨てない"]
+    },
+    {
+      "id": "name-emphasis-kept",
+      "why": "ヘッダー名の強調の囲みを外さず、**X-Frame-Options** を別名として一覧に入れて黙って比較から外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "for (let m; (m = /^(\\*\\*|__|\\*|_)(.+)\\1$/.exec(name));) name = m[2].trim();",
+      "replace": "// (mutated) emphasis kept",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: ヘッダー名のセル **X-Frame-Options** は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル **`X-Frame-Options`** は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル *X-Frame-Options* は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル __X-Frame-Options__ は強調の囲みだけを外して x-frame-options と読む"
+      ]
+    },
+    {
+      "id": "name-any-backtick",
+      "why": "セル内の最初のバッククォートを名前にし、補足のコード（frame-ancestors）を名前として CSP を黙って外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const quoted = /^`([^`]*)`/.exec(name);",
+      "replace": "const quoted = /`([^`]*)`/.exec(name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 名前を囲まず補足だけをコードにしたセルは、補足を名前にせず入力の誤りにする"
+      ]
+    },
+    {
+      "id": "enoent-any-dir",
+      "why": "置き場ごと無いパス（打ち間違い・作業ディレクトリの取り違え）も一覧が無い扱いにし、ヘッダーの比較を黙って外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "&& existsSync(dirname(path))",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: survey.md の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする"
+      ]
+    }
+  ]
+}

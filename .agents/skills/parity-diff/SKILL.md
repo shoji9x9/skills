@@ -210,7 +210,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 - 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
   [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) /
   [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) / [`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)）は
-  **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs`）を使う
+  **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合と応答ヘッダーの正規化は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs` / `header-normalize.mjs`）を使う
 
 ## 姉妹スキルとの連携
 

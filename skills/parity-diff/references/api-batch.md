@@ -9,12 +9,15 @@
 - 同一リクエスト（パス・クエリ・ボディ）を選択 target の API baseURL へ発行する——`.replace/parity/<slug>/new/<target>/replace-metadata.json` の `new.api_url`（target の `api_url`。省略時は `new.ui_url`）。
   記録が `"runtime"` の場合は前提確認（preflight）の target 解決時に解決済みの値を使う（同一実行内で再解決しない）
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答・**応答ヘッダーのうち `.replace/survey.md`「7. 横断の応答ヘッダー」に載るもの**
-  （防御は有無と値、露出の抑止は付かないこと。`Set-Cookie` は値を比べず出力もせず cookie 名と属性だけ、CSP の `nonce-` の値は伏せてから比べる。
-  `json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
-  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（ヘッダー名は小文字に揃える——`allHeaders()` は小文字、`headersArray()` や HAR は元の表記で返す。
-  `Set-Cookie` は cookie ごとに `{name, attributes}` にして cookie 名で並べ替え、
-  属性は `HttpOnly`・`Secure` の有無と `SameSite` の値だけ（`SameSite=Lax` → `None` の後退を見落とさないよう値ごと比べる）——`Expires` / `Max-Age` は実行ごとに変わる。
-  CSP は `nonce-` の値を固定の文字列へ置き換えた値）へ変換してから比べる。一覧に載らないヘッダーと付け手が `不明` の行は比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
+  （防御は有無と値、露出の抑止は付かないこと。`json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
+  **渡す前に**新側の応答ヘッダーを、現側の録画と同じ `parity-suite` の `header-normalize.mjs`（`metadata.json.differ.header_normalize.path` のコピー。版が録画と揃う）で正規化する。
+  現側は録画が既に正規化済み。絞り込み（付け手が `不明` の行は比べない）・名前の小文字化・`Set-Cookie` と `nonce-` の伏せ方の規則の正本はそのスクリプトで、ここへ転記しない。
+  一覧は `.replace/survey.md` を渡して読む。呼び方と終了コードの正本は `parity-suite` の `references/api-batch.md`「応答ヘッダー」）
+- **次のどれかに当たれば、ヘッダーを比べず差分にも数えない**——`metadata.json.differ.header_normalize` が無い（`null` を含む）、
+  記録した `version` が記録した `path` のコピーの `VERSION` と食い違う、記録した `headers` が今の一覧（同じコピーの `--survey .replace/survey.md --list` の出力）と食い違う。
+  版が違えば規則の差が、一覧が違えば録画の後に足された・外されたヘッダーが「現新の差」として出る（または外されたヘッダーの後退を黙って見落とす）。
+  新側の正規化も記録した `path` のコピーで行う（スキルディレクトリの同梱版を使わない）。未比較である旨を `diff.md` の未検証領域に残し、`parity-suite` での録り直しを促す。
+  一覧が無い（正規化が exit 3）場合も同じく比べず未検証領域に残す
 - **現側が `parity-suite` の手順の改訂 2 より前に特性化した機能**（`.replace/parity/<slug>/metadata.json` の `run.procedure_revision` が 2 未満か、キーが無い）なら、
   **判定は改訂番号で行い、録画にヘッダーが無いことで判定しない**（改訂 2 でも、一覧のヘッダーが付かない応答の録画は空になり、露出の抑止の後退を見落とす）。
   この場合はヘッダーを比べず差分にも数えない——新側が正しく付けた防御ヘッダーが全部「現側に無い差」として出て収束が止まる。
