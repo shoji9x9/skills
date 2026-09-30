@@ -1,7 +1,7 @@
 # 移行元の静的資産の棚卸しと方針決定（`.replace/assets.md`）
 
 移行元が配信している**静的資産**（画像・アイコン・favicon・ロゴ・図・本文の書体・アイコン用の書体）を、**新側へ写すかどうか**を実装が始まる前に種類ごとに一括で決める工程と記録の正本。
-`replace-strategy setup` の手順 11 が台帳を作り、`parity-replace` / `parity-component` が実装時に読む。
+`replace-strategy setup` の手順 11 が台帳を作り、`parity-replace` / `parity-component` が実装時に読み、`parity-replace` が完了判定で新側の配信物と突き合わせる（下記「完了判定での突き合わせ」）。
 
 **依存（`.replace/dependencies.md`）とは別物である。** 依存は「自前で書くか／どのパッケージを使うか」で、判断材料は更新頻度・採用規模・ライセンス・サイズ（[`dependency-selection.md`](dependency-selection.md)）。
 資産は移行元の配信物そのもので、判断材料は**再配布の可否・出どころ・同等物で置き換えたときに残る差**になる。混ぜると次の失敗が起きる。
@@ -106,3 +106,47 @@
 2. 無ければ、プローブの返り値（どのページで・どう描いているか）を添えて**台帳に方針空欄の行を追記**し、候補（3 択と、それぞれの再配布の可否・残る差）を示してユーザーに確認する
 3. 決まるまで、その資産に依存する実装単位は進めない。`porting.md` には台帳の行を指す 1 行だけを残す（`porting.md` に判断を書いて進まない）
 4. 決まったら台帳に記録し、「同等物を作る」なら上記のとおり宣言してから実装する
+
+## 完了判定での突き合わせ（`parity-replace`）
+
+**決めた方針どおりに新側が配っているかは、スイート・画素・特性照合・aria のどれにも写らないことがある。**
+favicon はタブにしか出ず、`title`・印刷用の資産も頁の外に出る。新側の `index.html` に指定が無いまま機能が閉じ、利用者がタブを見比べて気付いた実例がある。
+`parity-replace` は feature モードの完了判定（手順 8）で、台帳の**状態 `有効` × 方針「実体を写す」**の行を 1 行ずつ新側の配信物と突き合わせる。
+
+1. 台帳のその行 1 つにつき 1 件を `.replace/parity/<slug>/new/<target>/asset-delivery.json` に書く（**環境別**。様式: `parity-replace` の `assets/asset-delivery-template.json`）。
+   各行は次の 2 つのどちらかにする。**「この機能の画面では使わない」を自分で宣言して外す形は無い**
+   （台帳の「描き方と使われるページ」は自由記述で、そこから外してよい行を読み取る規則は表記ゆれ〈全頁・共通ヘッダー・`/*`・サブパス配下等〉のたびに外せる側へ漏れるため。外すのは常に利用者が決める）。
+   - **突き合わせる**: 移行元と新側の URL の組（`files[].current` / `files[].new`）を書く。
+     URL は `/` 始まりのパス（`--current-base` / `--new-base` の**オリジン**で解決する）か http(s) の絶対 URL で書く——**サブパス配下で配る環境**（base が `/app/` 等）や別オリジンの配信物は絶対 URL で書く。
+     クエリ（`?v=2` 等）も新側が参照している形のまま書く（参照は完全一致で数える）。
+     新側と移行元が別オリジンの構成で、`new` が移行元側のオリジン（`--current-base` か、移行元が CDN から配る資産ならその CDN）を指す行（新側が移行元へ直リンクしている）と、
+     `current` が新側のオリジンを指す行（移行元を取得していない）は落ちる（転送された先のオリジンでも同じ判定をする）。current と new が同じ URL に解決される行も落ちる
+   - **突き合わせない**: `disposition: accepted` と理由・**利用者の承認**（`approved_by` / `approved_at`）を書く。この機能の画面が使わない資産も、
+     機械的に突き合わせられない資産（manifest の `icons` からだけ参照されるインストール用アイコン・認証の内側にしか無い資産等）もこちら
+
+   該当する行が 0 件でも記録（`{"entries": []}`）は置く（無ければ入力の不備）。
+2. 新側の対象画面で [`../scripts/asset-probe.mjs`](../scripts/asset-probe.mjs) を当て（呼び方は「棚卸し」と同じ）、返り値を 1 画面 1 ファイルの JSON に保存する（`new/<target>/asset-probe/` 配下）
+3. インストール済みの `replace-strategy` から次を通す（コピーせずスキル配下から実行する）
+
+   ```bash
+   node <replace-strategy>/scripts/asset-delivery-check.mjs --assets .replace/assets.md \
+     --record .replace/parity/<slug>/new/<target>/asset-delivery.json \
+     --current-base <現行 target の UI URL> --new-base <選択中の new target の UI URL> \
+     --probe .replace/parity/<slug>/new/<target>/asset-probe/<page>.json \
+     --write .replace/parity/<slug>/new/<target>/replace-metadata.json
+   ```
+
+`files` の組ごとに確かめるのは 2 つ。
+
+- **新側の配信物が参照している**: `new` を `--new-base` で解決した URL が、プローブの `images[].src` / `urlRefs[].url` / `fontFaces[].src[]` / `icons[].href` / `resources[].url` のどれかに完全一致で現れる。
+  `unclassifiedResources`（資産以外の取得が混ざる）・`manifests`（manifest 自体の URL）・`localFragmentRefs`（文書内の参照）は参照に数えない。**ファイルを置いただけで `index.html` から指していない**形はここで落ちる
+- **取得したバイトが移行元の配信物と一致する**: `current` と `new` をそれぞれ取得し、どちらも（転送を追った最終応答が）2xx・空でなく・HTML でなく、sha256 が一致する。**SPA のフォールバックが 200 で `index.html` を返す**形もここで落ちる
+  （両側とも同じフォールバックを返すなら一致してしまうので、`current` が実際に資産を返す URL かは棚卸しのプローブで確かめたものを使う）
+  転送（ハッシュ付きのパスへの 301・署名付き URL への 302 等）は正規の配り方として通す——参照は転送前の URL（記録の `new`。プローブが記録するのもこちら）で、
+  バイトと HTML かどうかは最終応答で見る。両側が同じ転送先に着いた組は同じ配信物を比べているだけなので落とす（転送先は署名付き URL のクエリを含みうるので、記録にはオリジンとパスだけを出す）。
+  取得は認証情報を付けない。**ログインが要る配信物**は両側とも同じログイン画面が返って一致しうるため、最終応答が HTML なら不一致として落とす。
+  認証の内側にしか無い資産は機械的に突き合わせられないので、`disposition: accepted` と利用者の承認で扱う
+
+終了コード: **exit 0** は全行が突き合った（該当 0 行を含む）、**exit 1**（参照が無い・バイト不一致・取得の失敗・空の配信物・HTML の応答・同じ転送先・移行元のオリジンへの直リンク・同じ URL・記録に無い行・台帳に無い記録）は未完了、
+**exit 2**（台帳の方針の表が無い・複数ある、表の本体の空行で切れた後の行がある（行頭に `|` があるか、方針の表と同じセル数の行。どの表の行か決められない）、状態・方針が語彙外、同じ種類に `有効` が 2 行、記録の形の崩れ〈`used` を書いた行を含む〉、承認済み以外の行があるのにプローブが無い）は判定していないので完了扱いにしない。
+結果は `--write` で `replace-metadata.json` の `asset_delivery_check` に書かれる（exit 2 でも `ok: false` と `error` を書き、前回の合格を残さない）。

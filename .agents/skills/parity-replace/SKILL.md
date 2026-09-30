@@ -241,6 +241,16 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    `excluded_reason` の無い `sites` の全行に新側の根拠が要る。`verification: assertion` の行は `covered_by` のスイートが新で green であることが根拠になる。
    **`verification: source-only` の行（例外時など移行元で起こせない書き込み）はスイートに現れない**ので、新側で同じ表へ同じ値・時機・回数で書く箇所（ファイル・シンボル）を
    `porting.md`「表への書き込み（読解のみの行）」へ 1 行ずつ書き、敵対的レビューで移行元の該当行と突き合わせる。1 行でも空欄なら完了を名乗らない（書き込みがまるごと無い新側を通さないため。形式の正本は `parity-suite` の `references/coverage.md`「表への書き込み（`side_effect_writes`）」）。
+   **feature モードでは静的資産の台帳の新側突き合わせも完了判定に入れる**——`.replace/assets.md` の**状態 `有効` × 方針「実体を写す」**の行は、
+   決めた方針どおりに新側が配っているかがスイート・画素・特性照合・aria のどれにも写らないことがある（favicon はタブにしか出ない。`title`・印刷用の資産も頁の外に出る）。
+   その行 1 つにつき 1 件を `.replace/parity/<slug>/new/<target>/asset-delivery.json` に書き（**環境別**。様式: [`assets/asset-delivery-template.json`](assets/asset-delivery-template.json)）、
+   新側の対象画面で `replace-strategy` の `scripts/asset-probe.mjs` を当てた出力を添えて、インストール済みの `replace-strategy` の
+   `node <replace-strategy>/scripts/asset-delivery-check.mjs --assets .replace/assets.md --record <new/<target>/asset-delivery.json> --current-base <現行の UI URL> --new-base <新側の UI URL>`
+   `--probe <プローブの出力>... --write <new/<target>/replace-metadata.json>` を **exit 0 まで通す**（コピーせずスキル配下から実行する）。
+   確かめるのは**新側の配信物が参照していること**と**取得したバイトが移行元の配信物と一致すること**。**exit 1 は未完了**、exit 2 は入力の不備で判定していないので完了扱いにしない。
+   突き合わせない行（この画面が使わない資産を含む）は**自分で外さず**、利用者の承認（`disposition: accepted` ＋ `approved_by` / `approved_at`）を得る。
+   「実体を写す」の行が 0 件なら exit 0（記録は `{"entries": []}` でも要る。台帳そのものが無い・方針の表を読めないのは exit 2——手順 3 で台帳を作ってから通す）。手順と判定規則の正本は `replace-strategy` の `references/static-assets.md`「完了判定での突き合わせ」。
+   `replace-strategy` が未インストールで到達できないときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills replace-strategy`）を示す
    **`porting.md`「移行元の宣言を写さないと決めた箇所」が空欄のまま完了を名乗らない**（該当なしは「該当なし」と書く。空欄だと「写さなくてよい」と「誰も測っていない」が区別できない。記録の条件は [`references/theming.md`](references/theming.md)）。
    **完了判定は常に `full` で行う**——手順 7 で `diff` が通ったことを `full` を省く理由にしない。実行した列（`full` / `diff`）と各コマンドの結果は証跡（`replace-metadata.json` の `verification`）へ記録する。
    合わせて `verification.unchecked` に **`.replace/strategy.md`「未検証領域の扱い」の機械検査の穴のうち本機能に効くもの**を写す（正本は `.replace/strategy.md` 側。ここは機能ごとの証跡のための写し。該当が無ければ空配列）。
@@ -281,7 +291,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    **合わせて機能の Issue の受け入れ条件の突き合わせを完了判定に入れる**（全モード）——上の判定はどれも成果物の形の検査で、Issue にだけ書かれた条件
    （状態を URL で持つ・失敗時にログを書く・書き込み系ボタンの E2E 等）はどれにも数えられない。着手時に使った features.md の Issue 列の番号で
    `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json --allow-later parity-diff` を実行する。
-   **手順 8 の最後に、それまでに書いた成果物（`replace-metadata.json`・`component-comparison.json`・`porting.md` 等）と実装を commit してから**行う——
+   **手順 8 の最後に、それまでに書いた成果物（`replace-metadata.json`・`component-comparison.json`・`asset-delivery.json`・`asset-probe/`・`porting.md` 等）と実装を commit してから**行う——
    突き合わせは作業ツリーが表自身のほかに clean であることを求めるので、未コミットの成果物が残ると `commit-missing` で落ちる
    （保留の記録 `new/<target>/pending-decisions.json` があれば `--decisions` にも渡す。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
    **検査が exit 0 になるまで完了を名乗らない。** 満たせない条件は自分で外さず判断待ちに積み（上記「厳守の制約」）、行は `pending-decision` にする。
@@ -332,6 +342,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 移植メモ | `.replace/parity/<slug>/porting.md` | [`assets/porting-template.md`](assets/porting-template.md) |
 | レビュー記録 | `.replace/parity/<slug>/review.md` | [`assets/review-template.md`](assets/review-template.md) |
 | 部品被覆表の新側突き合わせ（feature モードで `component_coverage.declared: true` のとき。**環境別**） | `.replace/parity/<slug>/new/<target>/component-comparison.json` | 様式・検査の正本: `parity-suite` の `assets/component-comparison-template.json` と `scripts/component-comparison-check.mjs` |
+| 静的資産の新側突き合わせ（feature モード。**環境別**） | `.replace/parity/<slug>/new/<target>/asset-delivery.json` と、新側の画面のプローブの出力 `new/<target>/asset-probe/` | [`assets/asset-delivery-template.json`](assets/asset-delivery-template.json)（検査の正本: `replace-strategy` の `scripts/asset-delivery-check.mjs`） |
 | メタデータ（**環境別**） | `.replace/parity/<slug>/new/<target>/replace-metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 受け入れ条件の突き合わせ表（**環境別**） | `.replace/parity/<slug>/new/<target>/acceptance.json` | 様式・検査の正本: `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
@@ -341,7 +352,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
 - テキスト成果物（`porting.md` / `review.md` / `replace-metadata.json` / `new/<target>/component-comparison.json` / `new/<target>/acceptance.json` /
-  `new/<target>/dimension-samples.json`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
+  `new/<target>/dimension-samples.json` / `new/<target>/asset-delivery.json` / `new/<target>/asset-probe/`）は Git。敵対的レビューは PR レビュー機能上ではなく**ローカルの未コミット差分に対して実施**し、その記録が `review.md`（記録ファイル自体は Git 管理してよい）
 - **green 証跡だけが環境別**: `replace-metadata.json` は `new/<target>/` 配下に置き、環境を切り替えても他の target の証跡を上書きしない。`porting.md` / `review.md` は環境非依存のため slug 直下に置く
 - 本スキルは実行時に固有の決定論的ツールを同梱しない（差分器・視覚ベースラインは `parity-suite` 同梱・`parity-diff` 担当）
 
