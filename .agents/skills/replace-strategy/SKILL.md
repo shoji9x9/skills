@@ -156,7 +156,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**
 5. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価・**横断の応答ヘッダー**を行い、
-   `.replace/survey.md` に記録する。**測れない場合はここで停止する**。
+   `.replace/survey.md` に記録する。**測れない場合はここで停止する**（停止条件は [`references/measurement.md`](references/measurement.md)「停止条件」。横断の応答ヘッダーを採れないことは停止条件ではなく、未測定として `gaps` へ回す）。
    **応答ヘッダーは機能ごとの工程のどこも採らない**——サーバー・リバースプロキシの設定が全応答に付ける防御ヘッダーは画面の処理にも API の定義にも現れず、新側が付けなくても全工程が緑のまま安全性だけが後退する。
    画面・API・静的ファイル・エラー応答を 1 度だけ採り、アプリのコードの外で付くものを一覧にする（正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）
 6. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
