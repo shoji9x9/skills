@@ -499,6 +499,15 @@ export async function check(input) {
       const newUrl = resolveAssetUrl(file.new, input.newBase, `「${row.kind}」の new`);
       // 新側が移行元の配信物へ直リンクしていると、取得先が同じなので sha256 は必ず一致するが、移行元を止めた時点で消える。
       // 新側と移行元が別オリジンの構成で、new が移行元のオリジンを指していれば配っていないものとして落とす
+      // 組ごとの突き合わせの指摘の件数（bytes_match は、この組に指摘が 1 件も無いときだけ真にする）
+      const pairFindingsBefore = findings.length;
+      // 同じ URL に解決される組は、同じ配信物を 2 回取得して比べるだけで必ず一致する（同じオリジンの構成で
+      // current と new に同じパスを書いた等）。新側が配っていることの証拠にならないので落とす
+      if (currentUrl === newUrl) {
+        findings.push(
+          `「${row.kind}」の current と new が同じ URL（${newUrl}）に解決される（同じ配信物を比べているだけ。新側が配る URL を書く）`,
+        );
+      }
       const currentOrigin = new URL(input.currentBase).origin;
       if (
         currentOrigin !== new URL(input.newBase).origin &&
@@ -551,7 +560,8 @@ export async function check(input) {
         }
       }
       const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;
-      result.bytes_match = match;
+      // 転送・HTML・空・同じ URL などの指摘が出た組は、sha256 が一致していても「一致」と記録しない
+      result.bytes_match = match && findings.length === pairFindingsBefore;
       if (result.current_sha256 !== null && result.new_sha256 !== null && !match) {
         findings.push(
           `「${row.kind}」の新側の配信物が移行元とバイト一致しない（${file.current} → ${String(result.current_sha256).slice(0, 12)}… / ${file.new} → ${String(result.new_sha256).slice(0, 12)}…）`,

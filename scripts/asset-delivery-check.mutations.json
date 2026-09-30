@@ -216,6 +216,30 @@
       "replace": "false",
       "occurrences": 1,
       "expect_failing": ["落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）"]
+    },
+    {
+      "id": "same-url-accepted",
+      "why": "current と new が同じ URL に解決される組（同じ配信物を 2 回取得して比べるだけ）を一致として合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "      if (currentUrl === newUrl) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
+      ]
+    },
+    {
+      "id": "bytes-match-ignores-findings",
+      "why": "転送・HTML・同じ URL の指摘が出た組でも、sha256 が一致すれば行ごとの記録に bytes_match: true と書く",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "match && findings.length === pairFindingsBefore",
+      "replace": "match",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない",
+        "落とす: 両側とも同じバイトでも、リダイレクト（ログイン画面への転送） は配っている証拠にしない",
+        "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
+      ]
     }
   ]
 }

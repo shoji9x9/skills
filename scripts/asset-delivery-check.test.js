@@ -133,9 +133,9 @@ async function runCheck(opts) {
         "--record",
         record,
         "--current-base",
-        CUR,
+        opts.currentBase ?? CUR,
         "--new-base",
-        NEW,
+        opts.newBase ?? NEW,
         ...probeArgs,
         "--write",
         meta,
@@ -490,6 +490,34 @@ test("落とす: 実例の形——favicon を配っていてバイトも同じ�
   expect(r.written.asset_delivery_check.ok).toBe(false);
 });
 
+test("落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）", async () => {
+  const HOST = "http://host.test";
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    currentBase: `${HOST}/legacy/`,
+    newBase: `${HOST}/app/`,
+    record: {
+      entries: [
+        {
+          kind: "本文の書体",
+          disposition: "accepted",
+          reason: "r",
+          approved_by: "owner",
+          approved_at: "2026-09-30",
+        },
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+      ],
+    },
+    probes: [probe({ icons: [{ rel: "icon", href: `${HOST}/favicon.ico` }] })],
+    table: { [`${HOST}/favicon.ico`]: "ico" },
+  });
+  expect(r.stdout).toMatch(
+    /current と new が同じ URL（http:\/\/host.test\/favicon.ico）に解決される/u,
+  );
+  expect(r.code).toBe(1);
+  expect(r.written.asset_delivery_check.files[0].bytes_match).toBe(false);
+});
+
 test("落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
@@ -608,6 +636,9 @@ test.each([
       }),
     });
     expect(r.stdout).toMatch(message);
+    // 指摘の出た組は、sha256 が一致していても行ごとの記録で「一致」と読めないようにする
+    const favicon = r.written.asset_delivery_check.files.find((f) => f.kind === "favicon");
+    expect(favicon.bytes_match).toBe(false);
     expect(r.code).toBe(1);
   },
 );
