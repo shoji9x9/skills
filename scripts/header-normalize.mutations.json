@@ -1,0 +1,152 @@
+{
+  "$comment": [
+    "header-normalize.test.js のうち、応答ヘッダーの正規化の各規則（Issue #531）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/header-normalize.test.js",
+  "mutations": [
+    {
+      "id": "filter-off",
+      "why": "一覧に載らないヘッダー（Date・秘密の値）を録画と比較へ持ち込む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    if (!list.has(name)) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: 一覧に載らなければ cookie の値ごと落とす",
+        "絞り込み: 一覧に載らないヘッダー（揮発・秘密の値）は落とす"
+      ]
+    },
+    {
+      "id": "unknown-setter-kept",
+      "why": "付け手が不明の行（再構築の既定値かもしれない）を比べる対象に入れる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "|| setter !== UNKNOWN_SETTER",
+      "replace": "|| true",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む",
+        "一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない"
+      ]
+    },
+    {
+      "id": "lowercase-off",
+      "why": "取得経路で表記の違うヘッダー名を揃えず、同じ応答が別の出力になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    const key = name.toLowerCase();\n    // allHeaders()",
+      "replace": "    const key = name;\n    // allHeaders()",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "小文字化: allHeaders() と headersArray() の同じ応答は同じ出力になる",
+        "小文字化: headersArray() / HAR の元の表記の名前を小文字に揃える",
+        "小文字化: 値の大文字小文字は変えない",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "絞り込み: 付いていない一覧のヘッダーは出力に作らない（無いことは無いまま比べる）"
+      ]
+    },
+    {
+      "id": "cookie-value-kept",
+      "why": "Set-Cookie の名前に値まで含めて録画と差分の出力へ秘密を出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" : pair.slice(0, eq).trim();",
+      "replace": "const name = pair.trim();",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "Set-Cookie: cookie 名で並べ替え、受け取った順に依らない",
+        "Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない",
+        "Set-Cookie: 属性が無ければ HttpOnly・Secure は false、SameSite は null にする",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "nameless-cookie-value-kept",
+      "why": "= の無い Set-Cookie 行の値を名前として出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" :",
+      "replace": "const name = eq < 0 ? pair.trim() :",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない"]
+    },
+    {
+      "id": "samesite-dropped",
+      "why": "SameSite の値を捨て、Lax → None の後退を見落とす",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "else if (key === \"samesite\")",
+      "replace": "else if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: SameSite は値ごと比べる（Lax と None を同じにしない）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない"
+      ]
+    },
+    {
+      "id": "cookie-sort-off",
+      "why": "Set-Cookie を cookie 名で並べ替えず、受け取った順の違いが差分になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (a.name !== b.name) return a.name < b.name ? -1 : 1;",
+      "replace": "if (a.name !== b.name) return 0;",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: cookie 名で並べ替え、受け取った順に依らない"]
+    },
+    {
+      "id": "nonce-kept",
+      "why": "CSP の nonce- の値を伏せず、要求ごとの値と秘密を録画と差分へ出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "out[name] = CSP_HEADERS.has(name) ? maskNonce(joined) : joined;",
+      "replace": "out[name] = joined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "nonce: CSP の nonce- の値を固定の文字列に置き換える",
+        "nonce: Report-Only でも値を伏せる",
+        "nonce: パディング付き でも値を伏せる",
+        "nonce: 大文字の NONCE- でも値を伏せる",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "nonce: 要求ごとに違う nonce でも同じ出力になる",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "escaped-pipe-split",
+      "why": "セル内の \\| でも列を分け、付け手を別のセルから読む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "s.split(/(?<!\\\\)\\|/)",
+      "replace": "s.split(\"|\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む"
+      ]
+    },
+    {
+      "id": "setter-unreadable-accepted",
+      "why": "空欄・語彙外の付け手を黙って「決まっている」に倒す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (setter === \"\" ||",
+      "replace": "if (false &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 付け手が 空欄 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
+        "一覧: 付け手が 語彙外の「不明（要確認）」 の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）"
+      ]
+    },
+    {
+      "id": "empty-cookie-kept",
+      "why": "中身の無い Set-Cookie を [] として出し、付いていないのと別の値にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (cookies.length === 0) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 中身の無い Set-Cookie だけなら付いていないのと同じにする"]
+    }
+  ]
+}

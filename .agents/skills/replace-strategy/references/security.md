@@ -18,7 +18,7 @@
 - **分類**: 採ったヘッダーと、下の「露出の抑止」の候補を次の 3 つへ分ける
   - **防御**: `X-Content-Type-Options`・`X-Frame-Options`・`Content-Security-Policy`（`frame-ancestors` を含む）・`Strict-Transport-Security`・`Referrer-Policy`・`Permissions-Policy`・
     `Set-Cookie` の属性（`HttpOnly`・`Secure`・`SameSite`）・キャッシュ制御（認証後の応答の `Cache-Control`）。**有無と値を assertion にする**。
-    ただし要求ごとに変わる部分・秘密の部分は値に含めない（`Set-Cookie` は cookie 名と属性だけ、CSP の `nonce-` の値は伏せた形で比べる）——そのまま固定すると現側でも毎回赤くなり、秘密の値が一覧とスイートに残る
+    ただし要求ごとに変わる部分・秘密の部分は値に含めない（`Set-Cookie` は cookie 名と属性だけ、CSP の `nonce-` の値は伏せた形で比べる。比べる前の正規化の正本は `parity-suite` の `scripts/header-normalize.mjs`）——そのまま固定すると現側でも毎回赤くなり、秘密の値が一覧とスイートに残る
   - **露出の抑止**: 外したことに意味があるもの。**応答に在ったヘッダーからは生まれないので、候補（`Server`・`X-Powered-By`・`X-AspNet-Version`・`X-AspNetMvc-Version`）を 1 つずつ採った応答と突き合わせる**——
     現行のどの応答にも付かない候補は、値を「（付かない）」にしてこの分類の行にし、**無いことを assertion にする**（新側が付けても緑のまま通るのを防ぐ）。付いている候補は下記「現行の弱点の仕分け」の対象にする
   - **揮発・比較不要**: `Date`・`Content-Length`・`ETag` 等。一覧に載せず、比較しない
