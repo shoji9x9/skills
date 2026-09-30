@@ -212,10 +212,13 @@
       "id": "current-origin-link-accepted",
       "why": "新側が移行元の配信物へ直リンクしていても、同じ取得先なので一致として合格にする",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "new URL(newUrl).origin === currentOrigin",
-      "replace": "false",
+      "find": "        if (currentOrigins.has(newOrigin)) {\n",
+      "replace": "        if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）"]
+      "expect_failing": [
+        "落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）",
+        "落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている"
+      ]
     },
     {
       "id": "same-url-accepted",
@@ -232,13 +235,44 @@
       "id": "bytes-match-ignores-findings",
       "why": "転送・HTML・同じ URL の指摘が出た組でも、sha256 が一致すれば行ごとの記録に bytes_match: true と書く",
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
-      "find": "match && findings.length === pairFindingsBefore",
-      "replace": "match",
+      "find": "match && byteFindingsEnd === byteFindingsBefore && findings.length === fetchFindingsBefore;",
+      "replace": "match;",
       "occurrences": 1,
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない",
         "落とす: 両側とも同じバイトでも、リダイレクト（ログイン画面への転送） は配っている証拠にしない",
         "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
+      ]
+    },
+    {
+      "id": "current-points-new-accepted",
+      "why": "current が新側のオリジンを指す組（移行元を一度も取得しない）を一致として合格にする",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        if (new URL(currentUrl).origin === newBaseOrigin) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["落とす: current が新側のオリジンを指す（移行元を一度も取得していない）"]
+    },
+    {
+      "id": "cdn-origin-ignored",
+      "why": "移行元が CDN から配る資産への直リンクを、--current-base のオリジンだけと比べて見逃す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "new Set([currentBaseOrigin, new URL(currentUrl).origin])",
+      "replace": "new Set([currentBaseOrigin])",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている"
+      ]
+    },
+    {
+      "id": "bytes-match-counts-reference",
+      "why": "参照していないの指摘まで bytes_match に混ぜ、参照漏れだけの組を「バイト不一致」と読ませる",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "      const fetchFindingsBefore = findings.length;\n",
+      "replace": "      const fetchFindingsBefore = byteFindingsEnd;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "落とす: 実例の形——favicon を配っていてバイトも同じだが、新側の画面が指していない"
       ]
     }
   ]

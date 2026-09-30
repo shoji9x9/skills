@@ -488,6 +488,9 @@ test("落とす: 実例の形——favicon を配っていてバイトも同じ�
   expect(r.stdout).toMatch(/「favicon」の \/favicon.ico を新側の画面が参照していない/u);
   expect(r.code).toBe(1);
   expect(r.written.asset_delivery_check.ok).toBe(false);
+  // 参照の漏れは referenced の軸。バイトは一致しているので bytes_match に混ぜない（「バイト不一致」と読ませない）
+  const favicon = r.written.asset_delivery_check.files.find((f) => f.kind === "favicon");
+  expect(favicon).toMatchObject({ referenced: false, bytes_match: true });
 });
 
 test("落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）", async () => {
@@ -516,6 +519,45 @@ test("落とす: 同じオリジンの構成で current と new が同じ URL �
   );
   expect(r.code).toBe(1);
   expect(r.written.asset_delivery_check.files[0].bytes_match).toBe(false);
+});
+
+test("落とす: current が新側のオリジンを指す（移行元を一度も取得していない）", async () => {
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    record: {
+      entries: [
+        FONT_ENTRY,
+        {
+          kind: "favicon",
+          files: [{ current: `${NEW}/assets/favicon-abc.ico`, new: "/favicon.ico" }],
+        },
+      ],
+    },
+    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
+    table: {
+      ...SAME_FONTS,
+      [`${NEW}/assets/favicon-abc.ico`]: "ico",
+      [`${NEW}/favicon.ico`]: "ico",
+    },
+  });
+  expect(r.stdout).toMatch(
+    /assets\/favicon-abc.ico は新側のオリジン（http:\/\/new.test）を指している/u,
+  );
+  expect(r.code).toBe(1);
+});
+
+test("落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている", async () => {
+  const cdn = "https://static.old.test/img/logo.png";
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    record: {
+      entries: [FONT_ENTRY, { kind: "favicon", files: [{ current: cdn, new: `${cdn}?v=2` }] }],
+    },
+    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${cdn}?v=2` }] })],
+    table: { ...SAME_FONTS, [cdn]: "png", [`${cdn}?v=2`]: "png" },
+  });
+  expect(r.stdout).toMatch(/は移行元のオリジン（https:\/\/static.old.test）を指している/u);
+  expect(r.code).toBe(1);
 });
 
 test("落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）", async () => {

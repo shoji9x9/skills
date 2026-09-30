@@ -498,9 +498,9 @@ export async function check(input) {
       );
       const newUrl = resolveAssetUrl(file.new, input.newBase, `「${row.kind}」の new`);
       // 新側が移行元の配信物へ直リンクしていると、取得先が同じなので sha256 は必ず一致するが、移行元を止めた時点で消える。
-      // 新側と移行元が別オリジンの構成で、new が移行元のオリジンを指していれば配っていないものとして落とす
-      // 組ごとの突き合わせの指摘の件数（bytes_match は、この組に指摘が 1 件も無いときだけ真にする）
-      const pairFindingsBefore = findings.length;
+      // バイトの一致を「新側が移行元と同じものを配っている」の証拠にできない組の指摘の件数。
+      // bytes_match はこの種の指摘が無いときだけ真にする（参照していない等の別の軸の指摘は bytes_match に混ぜない）
+      const byteFindingsBefore = findings.length;
       // 同じ URL に解決される組は、同じ配信物を 2 回取得して比べるだけで必ず一致する（同じオリジンの構成で
       // current と new に同じパスを書いた等）。新側が配っていることの証拠にならないので落とす
       if (currentUrl === newUrl) {
@@ -508,15 +508,28 @@ export async function check(input) {
           `「${row.kind}」の current と new が同じ URL（${newUrl}）に解決される（同じ配信物を比べているだけ。新側が配る URL を書く）`,
         );
       }
-      const currentOrigin = new URL(input.currentBase).origin;
-      if (
-        currentOrigin !== new URL(input.newBase).origin &&
-        new URL(newUrl).origin === currentOrigin
-      ) {
-        findings.push(
-          `「${row.kind}」の ${file.new} は移行元のオリジン（${currentOrigin}）を指している（新側が移行元へ直リンクしている。新側が自分で配る URL を書く）`,
-        );
+      // 直リンクは両向きで落とす（どちらも同じ配信物を 2 回比べるだけで必ず一致する）。
+      // 新側と移行元が別オリジンの構成のときだけ判定する（同じオリジンの構成ではオリジンで見分けられない）。
+      //   - new が移行元側のオリジン（--current-base か、current を解決した URL のオリジン。移行元が CDN から配る資産を含む）を指す
+      //   - current が新側のオリジン（--new-base）を指す（移行元を一度も取得していない）
+      const newBaseOrigin = new URL(input.newBase).origin;
+      const currentBaseOrigin = new URL(input.currentBase).origin;
+      if (currentBaseOrigin !== newBaseOrigin) {
+        const newOrigin = new URL(newUrl).origin;
+        const currentOrigins = new Set([currentBaseOrigin, new URL(currentUrl).origin]);
+        currentOrigins.delete(newBaseOrigin);
+        if (currentOrigins.has(newOrigin)) {
+          findings.push(
+            `「${row.kind}」の ${file.new} は移行元のオリジン（${newOrigin}）を指している（新側が移行元へ直リンクしている。新側が自分で配る URL を書く）`,
+          );
+        }
+        if (new URL(currentUrl).origin === newBaseOrigin) {
+          findings.push(
+            `「${row.kind}」の ${file.current} は新側のオリジン（${newBaseOrigin}）を指している（移行元の配信物を取得していない。移行元が配る URL を書く）`,
+          );
+        }
       }
+      const byteFindingsEnd = findings.length;
       const isReferenced = referenced.has(newUrl);
       if (!isReferenced) {
         findings.push(
@@ -535,6 +548,7 @@ export async function check(input) {
         current_sha256: cur.ok && cur.bytes !== null ? sha256(cur.bytes) : null,
         new_sha256: neu.ok && neu.bytes !== null ? sha256(neu.bytes) : null,
       };
+      const fetchFindingsBefore = findings.length;
       for (const [side, res, url] of /** @type {const} */ ([
         ["移行元", cur, currentUrl],
         ["新側", neu, newUrl],
@@ -560,8 +574,10 @@ export async function check(input) {
         }
       }
       const match = result.current_sha256 !== null && result.current_sha256 === result.new_sha256;
-      // 転送・HTML・空・同じ URL などの指摘が出た組は、sha256 が一致していても「一致」と記録しない
-      result.bytes_match = match && findings.length === pairFindingsBefore;
+      // 転送・HTML・空・同じ URL・直リンクの指摘が出た組は、sha256 が一致していても「一致」と記録しない
+      // （参照していないの指摘は別の軸なので数えない。referenced に記録済み）
+      result.bytes_match =
+        match && byteFindingsEnd === byteFindingsBefore && findings.length === fetchFindingsBefore;
       if (result.current_sha256 !== null && result.new_sha256 !== null && !match) {
         findings.push(
           `「${row.kind}」の新側の配信物が移行元とバイト一致しない（${file.current} → ${String(result.current_sha256).slice(0, 12)}… / ${file.new} → ${String(result.new_sha256).slice(0, 12)}…）`,

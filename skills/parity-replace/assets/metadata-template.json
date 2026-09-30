@@ -85,7 +85,7 @@
         "new_status": "<新側の HTTP ステータス（整数）>",
         "current_sha256": "<移行元の配信物の sha256。取得できなければ null>",
         "new_sha256": "<新側の配信物の sha256。取得できなければ null>",
-        "bytes_match": "<両方を取得でき sha256 が一致したか（真偽値）>"
+        "bytes_match": "<両方を取得でき sha256 が一致し、かつ一致を配信の証拠にできない指摘（同じ URL・直リンク・転送・HTML・空）が無いか（真偽値）。参照の有無は referenced に分けて記録し、ここには混ぜない>"
       }
     ],
     "ledger_fingerprint": "<突き合わせた .replace/assets.md の sha256>",
