@@ -430,6 +430,20 @@ export function absorbStrictIntoRegions(regions, strictOnlyMask, width, height, 
       }
     }
   }
+  // まとめた領域の bbox は各「芯＋pad」を包む矩形なので、その角にはどの芯の範囲にも入らない画素が残りうる。
+  // 残すと候補の bbox の内側に別の strict-only 候補が出て、同じ場所の差が 2 件に分かれる。
+  // bbox の内側だけを取るので bbox は広がらない（有界のまま・これ以上まとめる相手も増えない）。
+  for (const g of groups) {
+    for (let y = g.bbox.y; y < g.bbox.y + g.bbox.height; y += 1) {
+      for (let x = g.bbox.x; x < g.bbox.x + g.bbox.width; x += 1) {
+        const idx = y * width + x;
+        if (remainingMask[idx] !== 1) continue;
+        remainingMask[idx] = 0;
+        g.absorbed_strict_only_pixels += 1;
+        absorbedPixels += 1;
+      }
+    }
+  }
   groups.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
   // members は判定用の内部状態なので出力に出さない（threshold_bbox が芯を包む bbox として残る）。
   return {

@@ -513,3 +513,27 @@ test("疎に散った差は、芯から離れていれば取り込まない（�
   expect(strict.kept).toHaveLength(1);
   expect(strict.kept[0].pixels).toBe(points.length);
 });
+
+test("まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない", () => {
+  // PR #521 のレビュー（4 巡目）の再現: 斜めに離れた 2 つの芯が縁を介してまとまると、包む bbox の角
+  // （どちらの芯＋pad にも入らない (9,0)(9,1)）の画素が strict_only に残り、同じ場所の差が 2 件に分かれていた。
+  const w = 20;
+  const h = 20;
+  const thresholdRegions = [
+    { pixels: 1, bbox: { x: 0, y: 0, width: 1, height: 1 } },
+    { pixels: 1, bbox: { x: 10, y: 10, width: 1, height: 1 } },
+  ];
+  const strictOnly = maskOfPoints(w, h, [
+    [4, 4],
+    [6, 6],
+    [9, 0],
+    [9, 1],
+  ]);
+
+  const out = absorbStrictIntoRegions(thresholdRegions, strictOnly, w, h, 4);
+
+  expect(out.regions.map((r) => r.bbox)).toEqual([{ x: 0, y: 0, width: 11, height: 11 }]);
+  expect(out.absorbedPixels).toBe(4);
+  expect(out.regions[0].absorbed_strict_only_pixels).toBe(4);
+  expect([...out.remainingMask].every((v) => v === 0)).toBe(true);
+});

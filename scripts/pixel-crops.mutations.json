@@ -11,8 +11,8 @@
       "id": "no-absorb",
       "why": "strict-only の画素を 1 つも取り込まない（修正前の形: 同じ差が 2 件になる）",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "        if (remainingMask[idx] !== 1) continue;",
-      "replace": "        continue;",
+      "find": "        if (remainingMask[idx] !== 1) continue;\n        remainingMask[idx] = 0;\n        count += 1;",
+      "replace": "        continue;\n        remainingMask[idx] = 0;\n        count += 1;",
       "occurrences": 1,
       "expect_failing": [
         "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
@@ -20,7 +20,8 @@
         "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
         "芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）",
         "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
-        "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない"
+        "ページ全体に広がる 1 つの差が、離れた領域を画面大の候補 1 件に潰さない",
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
       ]
     },
     {
@@ -39,15 +40,15 @@
       "id": "absorb-double-count",
       "why": "芯を広げた範囲が重なる画素を複数の領域が取る（取り込んだ画素数を二重に数える）",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "        remainingMask[idx] = 0;\n",
-      "replace": "",
+      "find": "        remainingMask[idx] = 0;\n        count += 1;",
+      "replace": "        count += 1;",
       "occurrences": 1,
       "expect_failing": [
         "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
-        "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は下限を変えても変わらない",
         "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
         "芯を --pad だけ広げた範囲の外の画素は取り込まず、strict_only に残す（連鎖しない）",
-        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない"
+        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
       ]
     },
     {
@@ -58,7 +59,19 @@
       "replace": "        if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない"
+        "縁を取り込んだ領域同士が近接したら 1 つにまとめ、重なる範囲の画素を二重に数えない",
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
+      ]
+    },
+    {
+      "id": "no-bbox-sweep",
+      "why": "まとめた領域の bbox の角に残る strict-only 画素を取り込まない（候補の内側に別の候補が出る）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "        remainingMask[idx] = 0;\n        g.absorbed_strict_only_pixels += 1;",
+      "replace": "        continue;\n        g.absorbed_strict_only_pixels += 1;",
+      "occurrences": 1,
+      "expect_failing": [
+        "まとめた領域の bbox の角に残る画素も取り込み、候補の内側に別の strict-only 候補を出さない"
       ]
     }
   ]
