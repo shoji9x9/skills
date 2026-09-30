@@ -230,3 +230,20 @@ test("採取が例外で落ちても探針を終わらせ、同じページで�
     /state disappeared/,
   );
 });
+
+test("最初の採取で失敗したら操作を起こさずに失敗する（操作の前から複数に当たる・不正なセレクタ）", async () => {
+  const still = () => ({ x: 0, y: 0, width: 10, height: 10 });
+  const { page } = installEnv({ model: still, matches: 2 });
+  let triggered = 0;
+  const trigger = async () => {
+    triggered += 1;
+  };
+  await expect(probeMotion(page, { selector: ".msg", trigger })).rejects.toThrow(
+    /matched 2 elements/,
+  );
+  globalThis.document.querySelectorAll = () => {
+    throw new Error("'.msg[' is not a valid selector");
+  };
+  await expect(probeMotion(page, { selector: ".msg[", trigger })).rejects.toThrow(/sampler failed/);
+  expect(triggered).toBe(0);
+});

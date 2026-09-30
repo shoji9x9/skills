@@ -136,6 +136,9 @@ export function installSampler({ selector, settleMs, timeoutMs, epsilon, maxSamp
     g.requestAnimationFrame(step);
   };
   step();
+  // 最初の採取で失敗した（不正なセレクタ・操作の前から複数に当たる）なら、操作を起こす前に返す。
+  // ok: true を返すと呼び出し側が trigger を実行し、失敗が報告される前にクリック・送信・遷移が現行へ届く。
+  if (state.error) return { ok: false, error: state.error };
   return { ok: true };
 }
 

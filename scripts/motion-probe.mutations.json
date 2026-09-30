@@ -41,7 +41,10 @@
       "find": "if (found.length > 1) return",
       "replace": "if (false) return",
       "occurrences": 1,
-      "expect_failing": ["セレクタが複数の要素に当たるなら採らずに失敗する"]
+      "expect_failing": [
+        "セレクタが複数の要素に当たるなら採らずに失敗する",
+        "最初の採取で失敗したら操作を起こさずに失敗する（操作の前から複数に当たる・不正なセレクタ）"
+      ]
     },
     {
       "id": "effective-opacity",
@@ -71,7 +74,8 @@
       "replace": "error: null,",
       "occurrences": 1,
       "expect_failing": [
-        "採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）"
+        "採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）",
+        "最初の採取で失敗したら操作を起こさずに失敗する（操作の前から複数に当たる・不正なセレクタ）"
       ]
     },
     {
@@ -83,6 +87,17 @@
       "occurrences": 1,
       "expect_failing": [
         "採取が例外で落ちても探針を終わらせ、同じページで採り直せる（不正なセレクタ・ページ遷移）"
+      ]
+    },
+    {
+      "id": "abort-before-trigger",
+      "why": "最初の採取の失敗を返さず、操作（クリック・送信）を起こしてから失敗を報告する",
+      "file": "skills/parity-component/scripts/motion-probe.mjs",
+      "find": "if (state.error) return { ok: false, error: state.error };",
+      "replace": "if (false) return { ok: false, error: state.error };",
+      "occurrences": 1,
+      "expect_failing": [
+        "最初の採取で失敗したら操作を起こさずに失敗する（操作の前から複数に当たる・不正なセレクタ）"
       ]
     }
   ]
