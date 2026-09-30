@@ -224,6 +224,32 @@ export function validateIntentionalDiffs(registry) {
 }
 
 /**
+ * `match` に `page` / `viewport` を書いた宣言のうち、実行側にその軸が無いため当たりようがないものを数える。
+ * 照合は fail-closed（実行側に無ければ当てない）なので、黙って 0 件にすると宣言の書き方の誤りと
+ * 本物の未説明の差を区別できない。インスタンス例外の `--page` / `--viewport` 省略の警告と同じ扱いにする。
+ * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {{ page?:string, viewport?:string }} ctx
+ * @returns {number}
+ */
+export function countMatchesMissingCtx(registry, ctx) {
+  let count = 0;
+  for (const group of INTENTIONAL_GROUPS) {
+    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    for (const entry of entries) {
+      const match = intentionalEntryMatch(entry);
+      if (match === null || "invalid" in match) continue;
+      if (
+        (match.page !== undefined && !ctx.page) ||
+        (match.viewport !== undefined && !ctx.viewport)
+      ) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+/**
  * `match` を持たない（散文だけの）宣言のうち、この実行で 1 件の差分にも当たらなかったものを数える。
  * 散文の宣言は文全体の包含でしか照合されないため、理由を添えた文は原理的に当たらない。
  * 宣言の書き方の誤りと本物の未説明の差を区別できるよう、件数を呼び出し側（CLI）が stderr に出す。
@@ -637,6 +663,14 @@ export function main(argv) {
     ? registries.component_diff_exceptions.length
     : 0;
   const missingCtx = ["page", "viewport"].filter((k) => !ctx[k]);
+  const intentionalNeedingCtx = countMatchesMissingCtx(registries.intentional_diffs, ctx);
+  if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {
+    process.stderr.write(
+      `warning: --${missingCtx.join(" / --")} not given; ` +
+        `${intentionalNeedingCtx} intentional_diffs declaration(s) with match.page / match.viewport ` +
+        `cannot be matched (fail-closed)\n`,
+    );
+  }
   if (exceptionCount > 0 && missingCtx.length > 0) {
     process.stderr.write(
       `warning: --${missingCtx.join(" / --")} not given; ` +

@@ -33,7 +33,8 @@
       "occurrences": 1,
       "expect_failing": [
         "壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）",
-        "CLI: 壊れた match は黙って無効化せず stderr へ警告を出す"
+        "CLI: 壊れた match は黙って無効化せず stderr へ警告を出す",
+        "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
       ]
     },
     {
@@ -73,7 +74,10 @@
       "find": "  if (match.page !== undefined && (!ctx.page || match.page !== ctx.page)) return false;",
       "replace": "  if (match.page !== undefined && ctx.page && match.page !== ctx.page) return false;",
       "occurrences": 1,
-      "expect_failing": ["page / state / viewport は書いたときだけ実行の組と突き合わせる"]
+      "expect_failing": [
+        "page / state / viewport は書いたときだけ実行の組と突き合わせる",
+        "CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す"
+      ]
     },
     {
       "id": "state-not-checked",
@@ -111,6 +115,28 @@
       "occurrences": 1,
       "expect_failing": [
         "item の無い match だけの宣言は照合に使わない（どの宣言で許容したかを追えない）"
+      ]
+    },
+    {
+      "id": "missing-ctx-silent",
+      "why": "match.page / match.viewport を書いた宣言が当たりようのない実行で警告しない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す"
+      ]
+    },
+    {
+      "id": "missing-ctx-viewport-ignored",
+      "why": "match.viewport を書いた宣言を数えない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "        (match.viewport !== undefined && !ctx.viewport)\n",
+      "replace": "        false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
       ]
     }
   ]

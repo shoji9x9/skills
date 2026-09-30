@@ -55,7 +55,7 @@ may_change:
 |---|---|---|
 | `element` | 必須 | 差分の論理名（`trait-compare.mjs` の `name`）。`*` を含めば glob、含まなければ完全一致。幾何差分の `"A \| B"` は両側が照合候補（`component_diffs` の `component` と同じ規則。下記「component_diffs T の照合方法」） |
 | `property` | 必須 | 差分の `prop`。`*` を含めば glob（`border-*-style`・`text[*]/font-family` 等）、含まなければ完全一致（大文字小文字は畳む） |
-| `page` / `state` / `viewport` | 任意 | 書いたときだけ実行の組（`--page` / `--state` / `--viewport`）と完全一致で突き合わせる。**実行側に無ければ当たらない**（`state` だけは両側で既定値 `default` を補う） |
+| `page` / `state` / `viewport` | 任意 | 書いたときだけ実行の組（`--page` / `--state` / `--viewport`）と完全一致で突き合わせる。**実行側に無ければ当たらない**（件数を `warning: --page not given; <N> intentional_diffs declaration(s) with match.page / match.viewport ...` として stderr に出す。`state` だけは両側で既定値 `default` を補う） |
 
 - **`match` のキーの欠落・空・未知のキー（`selector` 等）、`item` の欠落は「どれにでも合う」ではなく、その宣言を照合に使わない**（fail-closed。`item` が無いと棚卸しでも `matched_rule` でも宣言を追えない）。
   `diff-normalize.mjs` が `warning: intentional_diffs.<群>[<添字>]: ... — not used for matching` を stderr に出す

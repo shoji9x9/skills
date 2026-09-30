@@ -15,7 +15,12 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-diff/scripts/diff-normalize.mjs");
-const { matchIntentional, intentionalEntryMatch, validateIntentionalDiffs } = await import(script);
+const {
+  matchIntentional,
+  intentionalEntryMatch,
+  validateIntentionalDiffs,
+  countMatchesMissingCtx,
+} = await import(script);
 
 const ctx = { page: "main", state: "default", viewport: "1280x800" };
 
@@ -166,7 +171,7 @@ test("pending の要素も match で当たり、分類の群の優先順は keep
 });
 
 /** CLI を 1 回走らせる（分類・終了コード・stderr は同じ実行の観測でしか結び付かない）。 */
-function runCli(intentional, diffs) {
+function runCli(intentional, diffs, ctxArgs = ["--page", "main", "--viewport", "1280x800"]) {
   const dir = makeTempDir("diff-normalize-intentional-");
   const registries = join(dir, "registries.json");
   const input = join(dir, "diffs.json");
@@ -182,18 +187,7 @@ function runCli(intentional, diffs) {
   writeFileSync(input, JSON.stringify(diffs));
   const r = spawnSync(
     process.execPath,
-    [
-      script,
-      input,
-      "--registries",
-      registries,
-      "--slug",
-      "demo",
-      "--page",
-      "main",
-      "--viewport",
-      "1280x800",
-    ],
+    [script, input, "--registries", registries, "--slug", "demo", ...ctxArgs],
     { encoding: "utf8" },
   );
   return { status: r.status, stderr: r.stderr, classified: JSON.parse(r.stdout) };
@@ -240,4 +234,30 @@ test("CLI: 壊れた match は黙って無効化せず stderr へ警告を出す
   );
   expect(r.classified[0].classification).toBe("unexplained");
   expect(r.status).toBe(1);
+});
+
+test("page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）", () => {
+  const registry = {
+    keep: [
+      declared({ element: "heading", property: "border-top-style", page: "main" }),
+      declared({ element: "heading", property: "border-top-style", viewport: "1280x800" }),
+      declared({ element: "heading", property: "border-top-style" }),
+      declared({ property: "border-top-style", page: "main" }), // 壊れた match は別の警告で出るので数えない
+      PROSE,
+    ],
+  };
+  expect(countMatchesMissingCtx(registry, {})).toBe(2);
+  expect(countMatchesMissingCtx(registry, { page: "main" })).toBe(1);
+  expect(countMatchesMissingCtx(registry, { page: "main", viewport: "1280x800" })).toBe(0);
+});
+
+test("CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す", () => {
+  const entry = declared({ element: "heading", property: "border-top-style", page: "main" });
+  const r = runCli({ may_change: [entry] }, [borderDiff], ["--viewport", "1280x800"]);
+  expect(r.classified[0].classification).toBe("unexplained");
+  expect(r.stderr).toContain(
+    "warning: --page not given; 1 intentional_diffs declaration(s) with match.page / match.viewport cannot be matched (fail-closed)",
+  );
+  const ok = runCli({ may_change: [entry] }, [borderDiff]);
+  expect(ok.stderr).not.toContain("intentional_diffs declaration(s) with match.page");
 });
