@@ -546,27 +546,59 @@ test("現行の 2 回の揺れが上限を超えたら許容差を広げず基�
   expect(result.counts.matched).toBe(3);
 });
 
-test("ソースが動きを宣言しているのに現行が動かなかった時系列は基準にしない", () => {
+test("現行が一度も動かなかった時系列は、ソースの宣言の有無に関わらず基準にしない", () => {
   const still = timeline({ kind: "enter" });
   const end = still.samples.at(-1);
   still.samples = still.samples.map((s) => ({ ...end, t: s.t }));
-  const metadata = metadataOf();
-  metadata.capture.motions.transitions[0].declared = "show('slide', {direction: 'up'}, 600)";
   const motions = {
     orders: baselineOf("orders", { enter: [still, structuredClone(still)] }),
     stock: baselineOf("stock"),
   };
-  expect(codes(run({ metadata, motions }))).toEqual(["motion-baseline-static"]);
-  // 宣言が無ければ「動かない」も観測として基準にできる（新側が同じく動かなければ一致）。
-  const plain = metadataOf();
   const staticRows = rowsOf({ "enter/orders": structuredClone(still) });
-  expect(
-    run({
-      metadata: plain,
-      motions,
-      comparison: { component: "feedback-message", target: "preview", rows: staticRows },
-    }).findings,
-  ).toEqual([]);
+  const comparison = { component: "feedback-message", target: "preview", rows: staticRows };
+  // ソースに宣言がある動き。
+  const declared = metadataOf();
+  declared.capture.motions.transitions[0].declared = "show('slide', {direction: 'up'}, 600)";
+  expect(codes(run({ metadata: declared, motions, comparison }))).toEqual([
+    "motion-baseline-static",
+  ]);
+  // 実機でだけ見つかった動き（declared なし）。新側も静止でも「動きなし」同士で一致させない。
+  expect(codes(run({ metadata: metadataOf(), motions, comparison }))).toEqual([
+    "motion-baseline-static",
+  ]);
+});
+
+test("等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす", () => {
+  const pulse = (t) => {
+    const tl = timeline({ kind: "enter", duration: 1000 });
+    const origin = tl.samples.findIndex((s) => s.present) - 1;
+    const t0 = tl.samples[origin].t;
+    for (const s of tl.samples) {
+      // 最初の変化から約 234ms の 1 フレームだけ不透明度が落ちる。等間隔の比較点（約 51ms 刻み）の
+      // 203.7ms と 254.7ms は、どちらもこのフレームを補間の端に使わない。
+      if (t && s.present && s.t - t0 > 225 && s.t - t0 < 240) s.opacity = 0.2;
+    }
+    return tl;
+  };
+  const motions = {
+    orders: baselineOf("orders", { enter: [pulse(true), pulse(true)] }),
+    stock: baselineOf("stock"),
+  };
+  // 陽性コントロール: 同じ点滅を持つ新側は一致する。
+  const same = {
+    component: "feedback-message",
+    target: "preview",
+    rows: rowsOf({ "enter/orders": pulse(true) }),
+  };
+  expect(run({ motions, comparison: same }).findings).toEqual([]);
+  const without = {
+    component: "feedback-message",
+    target: "preview",
+    rows: rowsOf({ "enter/orders": pulse(false) }),
+  };
+  const result = run({ motions, comparison: without });
+  expect(codes(result)).toEqual(["motion-mismatch"]);
+  expect(result.findings[0].differing.map((d) => d.measure)).toEqual(["trajectory.opacity"]);
 });
 
 test("揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）", () => {

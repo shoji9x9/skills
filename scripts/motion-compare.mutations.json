@@ -37,7 +37,10 @@
       "find": "if (gap[metric] > tolerance) {",
       "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["新側が即時に出る（動きを持たない）なら長さと軌跡の食い違いで落とす"]
+      "expect_failing": [
+        "新側が即時に出る（動きを持たない）なら長さと軌跡の食い違いで落とす",
+        "等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす"
+      ]
     },
     {
       "id": "noise-tolerance",
@@ -134,12 +137,14 @@
     },
     {
       "id": "baseline-static",
-      "why": "ソースが動きを宣言しているのに動かなかった現行の時系列を基準にする",
+      "why": "現行で一度も動かなかった時系列を基準にする（止めたまま採った・静止した要素を引いた誤りを見逃す）",
       "file": "skills/parity-component/scripts/motion-compare.mjs",
-      "find": "if (!summaries[0].changed && filled(transitionById.get(tr).declared)) {",
+      "find": "if (!summaries[0].changed) {",
       "replace": "if (false) {",
       "occurrences": 1,
-      "expect_failing": ["ソースが動きを宣言しているのに現行が動かなかった時系列は基準にしない"]
+      "expect_failing": [
+        "現行が一度も動かなかった時系列は、ソースの宣言の有無に関わらず基準にしない"
+      ]
     },
     {
       "id": "noise-cap-trajectory",
@@ -151,6 +156,15 @@
       "expect_failing": [
         "揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）"
       ]
+    },
+    {
+      "id": "trajectory-sample-times",
+      "why": "軌跡を等間隔の点だけで比べる（点の間の短い動きを見逃す）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "for (const s of [...a.series, ...b.series]) if (s.t <= span) times.add(s.t);",
+      "replace": "for (const s of []) if (s.t <= span) times.add(s.t);",
+      "occurrences": 1,
+      "expect_failing": ["等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす"]
     }
   ]
 }

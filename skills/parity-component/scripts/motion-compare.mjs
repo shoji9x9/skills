@@ -202,8 +202,12 @@ export function trajectoryGap(a, b) {
   const span = Math.max(a.duration_ms, b.duration_ms);
   /** @type {Record<string, number>} */
   const gap = Object.fromEntries(TRAJECTORY_METRICS.map((m) => [m, 0]));
-  for (let i = 0; i <= TRAJECTORY_POINTS; i += 1) {
-    const t = (span * i) / TRAJECTORY_POINTS;
+  // 等間隔の点だけで比べると、点と点の間に収まる短い動き（一瞬の点滅・行き過ぎ）を見逃す。
+  // 両側が実際に採った標本の時刻も比較点に加える。
+  const times = new Set();
+  for (let i = 0; i <= TRAJECTORY_POINTS; i += 1) times.add((span * i) / TRAJECTORY_POINTS);
+  for (const s of [...a.series, ...b.series]) if (s.t <= span) times.add(s.t);
+  for (const t of times) {
     for (const metric of TRAJECTORY_METRICS) {
       const va = valueAt(a.series, t, metric);
       const vb = valueAt(b.series, t, metric);
@@ -332,8 +336,6 @@ export function compareMotions({ metadata, motions, comparison, target }) {
   );
   /** @type {Set<string>} */
   const transitionIds = new Set();
-  /** @type {Map<string, any>} */
-  const transitionById = new Map();
   for (const tr of transitions) {
     const id = tr && tr.id;
     if (!filled(id))
@@ -353,7 +355,6 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       }
     }
     transitionIds.add(id);
-    transitionById.set(id, tr);
   }
   const instances = metadata.instances;
   if (!Array.isArray(instances) || instances.length === 0) {
@@ -493,16 +494,17 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         baseline.set(key, undefined);
         continue;
       }
-      // ソースが動きを宣言しているのに現行で動かなかったのは、探針が動きを捉えていない疑いが濃い
-      // （アニメーションを止めたまま採った・セレクタが静止した別の要素に当たった）。そのまま基準にすると、
-      // 新側も動かなければ「動きなし」同士で一致してしまう。
-      if (!summaries[0].changed && filled(transitionById.get(tr).declared)) {
+      // 遷移に入れるのは探針が採れる動き（矩形か実効の不透明度が変わるもの）だけなので、現行で一度も
+      // 変化しなかったのは探針が動きを捉えていない疑いが濃い（アニメーションを止めたまま採った・セレクタが
+      // 静止した別の要素に当たった）。ソースに宣言の無い、実機でだけ見つかった動きも同じく落とす——
+      // 基準にすると、新側も動かなければ「動きなし」同士で一致してしまう。
+      if (!summaries[0].changed) {
         findings.push({
           code: "motion-baseline-static",
           instance: id,
           transition: tr,
           detail:
-            "declared に動きの宣言があるのに、現行の時系列が一度も変化していない（止めたまま採った・別の要素を引いた疑い。色だけの動きのように探針の射程外なら、遷移に入れず gaps.md へ残す）",
+            "現行の時系列が一度も変化していない（止めたまま採った・別の要素を引いた疑い。色だけの動きのように探針の射程外なら、遷移に入れず gaps.md へ残す）",
         });
         baseline.set(key, undefined);
         continue;
