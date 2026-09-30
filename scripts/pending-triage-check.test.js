@@ -70,7 +70,7 @@ const SLUG = "my-feature";
 
 /**
  * pending の要素と棚卸し記録を書いてスクリプトを 1 回走らせる。
- * @param {{pending: unknown[], entries?: unknown[], keep?: string[], may_change?: string[], slugs?: string[], features?: false}} input
+ * @param {{pending: unknown[], entries?: unknown[], keep?: unknown[], may_change?: unknown[], slugs?: string[], features?: false}} input
  */
 function run(input) {
   const work = makeTempDir("pending-triage-");
@@ -481,4 +481,29 @@ test("書き手が読めない要素は cross-cutting なら従来どおり対�
   // cross-cutting は書き手に依らず全機能の対象なので、名前空間の確認は要らない。
   expect(status).toBe(0);
   expect(stderr).not.toContain("slug の名前空間を確認できない");
+});
+
+// --- 照合キー（match）を持つ移動先（Issue #496）---
+// keep / may_change の要素は { item, match } のオブジェクトでも書ける。移した記録は item で突き合わせる。
+
+const promotedItem = "見出しの border-style が現行 none・新側 solid。幅は両側 0px";
+
+test("match を持つオブジェクトとして may_change へ移した要素は、移したと認める", () => {
+  const r = run({
+    pending: [],
+    may_change: [{ item: promotedItem, match: { element: "heading", property: "border-*-style" } }],
+    entries: [{ item: promotedItem, slug: SLUG, disposition: "may_change" }],
+  });
+  expect(r.stderr).not.toContain("に見つからない");
+  expect(r.status).toBe(0);
+});
+
+test("移動先に無ければ落ちる（陽性コントロール: 移動先の突き合わせが動いていること）", () => {
+  const r = run({
+    pending: [],
+    may_change: [],
+    entries: [{ item: promotedItem, slug: SLUG, disposition: "may_change" }],
+  });
+  expect(r.stderr).toContain("may_change に見つからない");
+  expect(r.status).not.toBe(0);
 });

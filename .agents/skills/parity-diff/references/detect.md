@@ -24,7 +24,19 @@
   - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
   - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
-  - `strict_only_regions[]` は**しきい値の内側にだけ差がある領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
+  - **同じ場所の 1 つの差は 1 つの候補にする。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
+    しきい値の内側の**画素**のうち、`regions[]` の芯（しきい値つきの画素の bbox）を `--pad` だけ広げた範囲にあるものを、その領域へ取り込んで `bbox` を外側（両者を包む bbox）へ広げる。
+    **取り込みは画素単位で、範囲は「芯＋`--pad`」に限る**——連結成分・マージした塊・外接 bbox を単位にすると、疎に散った差や
+    ページ全体に広がる 1 つの差（背景色の 1 階調のずれ等）が丸ごと取り込まれ、離れた領域まで画面大の候補 1 件に潰れる。
+    範囲の外の画素は取り込まず、残りの画素から作った塊が `strict_only_regions[]` になる。取り込み後、構成要素（芯と取り込んだ画素の bbox）同士が `--pad` 以内の領域と、bbox が重なる領域は 1 つにまとめ（候補の内側に別の候補を残さない）、
+    まとめた bbox の内側に残る画素（どの芯＋`--pad` にも入らない角）も取り込む（候補の内側に別の strict-only 候補を残さない。bbox の内側だけなので bbox は広がらない）。
+    `regions[]` の `id` は外側の bbox の `(y, x)` 順で振る（`VERSION` が `3` までの出力とは id がずれうるので、旧出力の id で記録したトリアージは bbox で突き合わせ直す）。
+    取り込んだ領域は `threshold_bbox`（芯を包む bbox）/ `absorbed_strict_only_pixels` を持ち、取り込んだ画素数の合計は `summary.strict_only_absorbed_pixels` に出る（黙って消さない）。
+    **縁が `--pad` より外まで続く差は 2 件に分かれうる**。外側の `strict_only_regions[]` の候補は、bbox が重なるか接する `regions[]` の `id` を `overlaps_regions` に持ち、
+    その件数が `summary.strict_only_overlapping_regions` と stderr の警告に出る（分かれたことを黙らせない。扱いは [`triage.md`](triage.md) と [`normalize.md`](normalize.md)「画素経路の例外の適用」）。
+    分けたままだと同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になり、bbox の一致で照合する画素の例外の台帳
+    （[`normalize.md`](normalize.md)「画素経路の例外の適用」）が片方にしか当たらない
+  - `strict_only_regions[]` は**しきい値の内側にだけ差があり、しきい値つきの領域の芯＋`--pad` の外にある画素**から作った候補（`id` は `s1` から。`bbox` / `strict_pixels` / `overlaps_regions` / crop 対）。
     **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
     先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
   - **`id` は上限を掛ける前の全体の並び（`(y, x)` 昇順）から決まる**ので、警告に従って上限を上げても既存候補の採番は変わらない

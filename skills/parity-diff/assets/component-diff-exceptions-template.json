@@ -17,7 +17,7 @@
       "state": "<状態。既定 default>",
       "viewport": "<viewport label>",
       "property": "<CSS プロパティ。画素経路のみで拾った差は pixel>",
-      "bbox": "<property: pixel のときだけ必須。差分領域の bbox「x,y,w,h」（現側 crop の座標）。照合キーはこれ>",
+      "bbox": "<property: pixel のときだけ必須。pixel-crops.mjs が出した候補の bbox「x,y,w,h」（regions[].bbox か strict_only_regions[].bbox。threshold_bbox ではない。現側 crop の座標）。照合キーはこれ>",
       "current": "<旧値。property: pixel のときは crop への相対パス（実行ごとに変わるため照合キーにしない＝根拠）>",
       "new": "<新値。同上>",
       "cause": "<component_diff_exception_causes[].id。必須（単発の例外でも原因を 1 件立てて参照する）>",

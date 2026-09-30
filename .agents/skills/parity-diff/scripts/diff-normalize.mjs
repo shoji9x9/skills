@@ -31,7 +31,7 @@ import { fileURLToPath } from "node:url";
  * diff-metadata.json の differ_versions.diff_normalize に記録する値はこれを使う（手入力にしない）。
  * @type {string}
  */
-export const VERSION = "4";
+export const VERSION = "5";
 
 /**
  * CSS 値・ラベルの表記ゆれを吸収した正規化文字列を返す（単位そのものは残す）。
@@ -69,27 +69,214 @@ export function intentionalEntryText(entry) {
   return "";
 }
 
+/** 意図的差異レジストリの分類 3 群（照合の優先順）。 */
+const INTENTIONAL_GROUPS = /** @type {const} */ (["keep", "may_change", "pending"]);
+
+/** `match` が持てるキー（照合に使うもの）。 */
+const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewport"];
+
 /**
- * 意図的差異レジストリの分類 3 群のどれに該当するかを返す（部分一致・最良努力）。
- * 各エントリはカテゴリの散文であり、Diff の name / prop にそのテキストが含まれるかで判定する。
+ * 意図的差異レジストリの 1 要素から構造化した照合キー（`match`）を取り出す。
+ *
+ * 散文の宣言（`item`）は人が読むためのもので、理由・測定対象・決定者を書くほど長くなる。
+ * 文全体を差分の `"<name> <prop>"` に含まれるかで照合すると、理由を添えた宣言は原理的に一度も当たらない
+ * （Issue #496）。そこで照合は `match` の構造（`element` / `property` は必須、`page` / `state` / `viewport` は任意）で行う。
+ *
+ * - `match` が無い要素は null（散文だけの宣言。文全体の包含で照合する旧来の経路へ回る）
+ * - `match` があるのに形が壊れている要素は `{ invalid: <理由> }`（fail-closed。照合に使わず警告に出す——
+ *   欠けたキーを「どれにでも合う」と読むと、1 件の宣言が全要素・全プロパティの差を吸収する）
+ * @param {unknown} entry
+ * @returns {{ element:string, property:string, page?:string, state?:string, viewport?:string } | { invalid:string } | null}
+ */
+export function intentionalEntryMatch(entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+  if (!Object.prototype.hasOwnProperty.call(entry, "match")) return null;
+  const match = /** @type {{ match?: unknown }} */ (entry).match;
+  // item（散文）は必須。棚卸し・追記専用の検査は item で要素を突き合わせ、matched_rule にも item が入るため、
+  // item の無い宣言は照合に使うと「どの宣言で許容したか」を追えない。
+  if (normalizeValue(intentionalEntryText(entry)).length === 0) {
+    return { invalid: "missing item (the prose declaration is required alongside match)" };
+  }
+  if (!match || typeof match !== "object" || Array.isArray(match)) {
+    return { invalid: "match is not an object" };
+  }
+  const m = /** @type {Record<string, unknown>} */ (match);
+  const unknownKeys = Object.keys(m).filter((k) => !INTENTIONAL_MATCH_KEYS.includes(k));
+  if (unknownKeys.length > 0) {
+    return { invalid: `unknown match key(s) ${unknownKeys.join(", ")}` };
+  }
+  const missing = ["element", "property"].filter(
+    (k) => typeof m[k] !== "string" || normalizeValue(m[k]).length === 0,
+  );
+  if (missing.length > 0) {
+    return { invalid: `missing match.${missing.join(" / match.")}` };
+  }
+  const optionalBad = ["page", "state", "viewport"].filter(
+    (k) => m[k] !== undefined && (typeof m[k] !== "string" || normalizeValue(m[k]).length === 0),
+  );
+  if (optionalBad.length > 0) {
+    return { invalid: `match.${optionalBad.join(" / match.")} must be a non-empty string` };
+  }
+  /** @type {{ element:string, property:string, page?:string, state?:string, viewport?:string }} */
+  const out = { element: String(m.element), property: String(m.property) };
+  for (const k of ["page", "state", "viewport"]) {
+    if (typeof m[k] === "string") out[k] = m[k];
+  }
+  return out;
+}
+
+/**
+ * glob（`*` は任意個の文字、それ以外はリテラル）か完全一致で、正規化した文字列を照合する。
+ * @param {unknown} pattern
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function matchesGlob(pattern, value) {
+  const pat = normalizeValue(pattern);
+  const val = normalizeValue(value);
+  if (pat.length === 0 || val.length === 0) return false;
+  if (!pat.includes("*")) return pat === val;
+  return new RegExp(`^${pat.split("*").map(escapeRegExp).join(".*")}$`).test(val);
+}
+
+/**
+ * 構造化した照合キーで 1 件の Diff を照合する。
+ * `element` は Diff の論理名（幾何差分は `"A | B"` の両側）へ、`property` は Diff の `prop` へ、
+ * それぞれ glob か完全一致で当てる。`page` / `state` / `viewport` は書いたときだけ実行の組（ctx）と
+ * 完全一致で突き合わせ、ctx 側に無ければ不一致にする（どの組の差分か確かめられないまま吸収しない）。
+ * `state` だけは両側でスキーマの既定値 `default` を補う。
+ * @param {{ element:string, property:string, page?:string, state?:string, viewport?:string }} match
+ * @param {{ name?:string, prop?:string }} diff
+ * @param {{ page?:string, state?:string, viewport?:string }} ctx
+ * @returns {boolean}
+ */
+export function matchesIntentionalKey(match, diff, ctx) {
+  if (!matchesComponentPattern(match.element, diff.name)) return false;
+  if (!matchesGlob(match.property, diff.prop)) return false;
+  if (match.page !== undefined && (!ctx.page || match.page !== ctx.page)) return false;
+  if (match.viewport !== undefined && (!ctx.viewport || match.viewport !== ctx.viewport)) {
+    return false;
+  }
+  if (match.state !== undefined && match.state !== (ctx.state || "default")) return false;
+  return true;
+}
+
+/**
+ * 意図的差異レジストリの分類 3 群のどれに該当するかを返す。
+ *
+ * - **`match` を持つ要素**は構造で照合する（`matchesIntentionalKey`）。散文の `item` は照合に使わない
+ * - **`match` を持たない要素**（素の文字列・`item` だけのオブジェクト）は、文全体が Diff の
+ *   `"<name> <prop>"` に含まれるときだけ当たる（旧来の経路。短い宣言〈`"heading border-top-style"`〉は
+ *   これで当たるので残すが、理由を添えた文は当たらない——`validateIntentionalDiffs` と CLI の警告で見えるようにする）
+ * - `match` が壊れている要素は照合に使わない（fail-closed）
+ *
  * 最終判断は triage が担う（ここは機械的な粗フィルタ）。
  * @param {{ name?:string, prop?:string }} diff
  * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
- * @returns {{ group:'keep'|'may_change'|'pending', entry:string } | null}
+ * @param {{ page?:string, state?:string, viewport?:string }} [ctx]
+ * @returns {{ group:'keep'|'may_change'|'pending', entry:string, index:number, by:'match'|'text' } | null}
  */
-export function matchIntentional(diff, registry) {
+export function matchIntentional(diff, registry, ctx = {}) {
   const hay = normalizeValue(`${diff.name ?? ""} ${diff.prop ?? ""}`);
-  for (const group of ["keep", "may_change", "pending"]) {
+  for (const group of INTENTIONAL_GROUPS) {
     const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
-    for (const entry of entries) {
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index];
       const text = intentionalEntryText(entry);
+      const match = intentionalEntryMatch(entry);
+      if (match !== null) {
+        if ("invalid" in match) continue;
+        if (matchesIntentionalKey(match, diff, ctx)) {
+          return { group, entry: text, index, by: "match" };
+        }
+        continue;
+      }
       const needle = normalizeValue(text);
       if (needle.length > 0 && hay.includes(needle)) {
-        return { group: /** @type {'keep'|'may_change'|'pending'} */ (group), entry: text };
+        return { group, entry: text, index, by: "text" };
       }
     }
   }
   return null;
+}
+
+/**
+ * 意図的差異レジストリの要素のうち、`match` が壊れていて照合に使えないものの理由を列挙する。
+ * 黙って無効化すると、宣言側からは吸収されたのか掛からなかったのかが見えない。
+ * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @returns {string[]}
+ */
+export function validateIntentionalDiffs(registry) {
+  const problems = [];
+  for (const group of INTENTIONAL_GROUPS) {
+    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    entries.forEach((entry, i) => {
+      const match = intentionalEntryMatch(entry);
+      if (match !== null && "invalid" in match) {
+        problems.push(
+          `intentional_diffs.${group}[${i}]: ${match.invalid} — not used for matching ` +
+            `(write match: { element, property } with the logical name / property or a glob)`,
+        );
+      }
+    });
+  }
+  return problems;
+}
+
+/**
+ * `match` に `page` / `viewport` を書いた宣言のうち、実行側にその軸が無いため当たりようがないものを数える。
+ * 照合は fail-closed（実行側に無ければ当てない）なので、黙って 0 件にすると宣言の書き方の誤りと
+ * 本物の未説明の差を区別できない。インスタンス例外の `--page` / `--viewport` 省略の警告と同じ扱いにする。
+ * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {{ page?:string, viewport?:string }} ctx
+ * @returns {number}
+ */
+export function countMatchesMissingCtx(registry, ctx) {
+  let count = 0;
+  for (const group of INTENTIONAL_GROUPS) {
+    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    for (const entry of entries) {
+      const match = intentionalEntryMatch(entry);
+      if (match === null || "invalid" in match) continue;
+      if (
+        (match.page !== undefined && !ctx.page) ||
+        (match.viewport !== undefined && !ctx.viewport)
+      ) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * `match` を持たない（散文だけの）宣言のうち、この実行で 1 件の差分にも当たらなかったものを数える。
+ * 散文の宣言は文全体の包含でしか照合されないため、理由を添えた文は原理的に当たらない。
+ * 宣言の書き方の誤りと本物の未説明の差を区別できるよう、件数を呼び出し側（CLI）が stderr に出す。
+ * 「当たった」は分類に使われた宣言（同じ差分に先に当たる宣言があれば、後ろの宣言は使われていない）。
+ * @param {{ keep?:unknown[], may_change?:unknown[], pending?:unknown[] }} registry
+ * @param {Array<{ name?:string, prop?:string }>} diffs
+ * @param {{ page?:string, state?:string, viewport?:string }} ctx
+ * @returns {{ unused:number, total:number }}
+ */
+export function countUnmatchedProseDeclarations(registry, diffs, ctx) {
+  const used = new Set();
+  for (const diff of diffs) {
+    const hit = matchIntentional(diff, registry, ctx);
+    if (hit) used.add(`${hit.group}[${hit.index}]`);
+  }
+  let total = 0;
+  let unused = 0;
+  for (const group of INTENTIONAL_GROUPS) {
+    const entries = Array.isArray(registry?.[group]) ? registry[group] : [];
+    entries.forEach((entry, i) => {
+      if (intentionalEntryMatch(entry) !== null) return;
+      if (normalizeValue(intentionalEntryText(entry)).length === 0) return;
+      total += 1;
+      if (!used.has(`${group}[${i}]`)) unused += 1;
+    });
+  }
+  return { unused, total };
 }
 
 /**
@@ -372,7 +559,7 @@ export function applyNoiseBaseline(classified, noiseBaseline, ctx) {
  * @returns {{ classification:string, matched_rule: (object|string|null) }}
  */
 export function classifyDiff(diff, registries, ctx) {
-  const intentional = matchIntentional(diff, registries.intentional_diffs || {});
+  const intentional = matchIntentional(diff, registries.intentional_diffs || {}, ctx);
   if (intentional) {
     if (intentional.group === "pending") {
       return {
@@ -453,6 +640,10 @@ export function main(argv) {
     return 2;
   }
   const ctx = { slug: opts.slug, page: opts.page, state: opts.state, viewport: opts.viewport };
+  // match が壊れた意図的差異の宣言は照合に使わない。黙って無効化せず理由を出す。
+  for (const problem of validateIntentionalDiffs(registries.intentional_diffs)) {
+    process.stderr.write(`warning: ${problem}\n`);
+  }
   // 照合キー（component）が欠けた T は 1 件も掛からない。黙って無効化せず理由を出す。
   for (const problem of validateComponentDiffs(registries.component_diffs)) {
     process.stderr.write(`warning: ${problem}\n`);
@@ -472,6 +663,14 @@ export function main(argv) {
     ? registries.component_diff_exceptions.length
     : 0;
   const missingCtx = ["page", "viewport"].filter((k) => !ctx[k]);
+  const intentionalNeedingCtx = countMatchesMissingCtx(registries.intentional_diffs, ctx);
+  if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {
+    process.stderr.write(
+      `warning: --${missingCtx.join(" / --")} not given; ` +
+        `${intentionalNeedingCtx} intentional_diffs declaration(s) with match.page / match.viewport ` +
+        `cannot be matched (fail-closed)\n`,
+    );
+  }
   if (exceptionCount > 0 && missingCtx.length > 0) {
     process.stderr.write(
       `warning: --${missingCtx.join(" / --")} not given; ` +
@@ -483,6 +682,20 @@ export function main(argv) {
     noiseBaseline,
     ctx,
   );
+  // 散文だけの宣言は文全体の包含でしか当たらない（理由を添えた文は原理的に当たらない）。
+  // 宣言があるのに照合に使われなかったことを数えて出し、宣言の書き方の誤りと本物の未説明の差を区別できるようにする。
+  const residual = classified.filter(
+    (d) => d.classification === "unexplained" || d.classification === "noise_candidate",
+  ).length;
+  const prose = countUnmatchedProseDeclarations(registries.intentional_diffs, diffs, ctx);
+  if (prose.unused > 0 && residual > 0) {
+    process.stderr.write(
+      `warning: intentional_diffs: ${prose.unused} of ${prose.total} prose-only declaration(s) ` +
+        `(no match key) matched none of the ${diffs.length} diff(s) while ${residual} remain unexplained; ` +
+        `prose is matched only when the whole text appears in "<name> <prop>" — ` +
+        `add match: { element, property } to use a declaration for matching\n`,
+    );
+  }
   process.stdout.write(JSON.stringify(classified, null, 2) + "\n");
   const actionable = classified.some(
     (d) =>

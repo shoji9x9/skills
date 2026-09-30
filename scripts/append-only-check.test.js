@@ -1084,6 +1084,108 @@ test("棚卸しを経ずに pending の要素を消せば落ちる（削除の�
   rmSync(root, { recursive: true, force: true });
 });
 
+// --- 照合キー（match）を持つ要素（Issue #496）---
+// keep / may_change / pending の要素は { item, match } のオブジェクトでも書ける。単位は item なので、
+// match を書き足す・pending から match ごと移すのは通り、要素を消せば落ちる。
+
+const MATCH_PENDING_BLOCK = [
+  "      pending: # 保留（測定結果で決める）",
+  "        - item: 見出しの border-style が現行 none・新側 solid。幅は両側 0px",
+  "          match:",
+  "            element: heading",
+  "            property: border-*-style",
+  "          slug: cross-cutting",
+  "          added_by: replace-strategy",
+  '          added_at: "2026-09-27"',
+  "",
+].join("\n");
+
+test("match を持つ pending の要素を match ごと may_change へ移しても縮小に数えない", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
+  );
+  commit(root, "match 付きの pending");
+  writeConfig(
+    root,
+    readConfig(root)
+      .replace(
+        "      may_change: [] # 変えてよい（例: ディレクトリ・ファイル名）\n",
+        [
+          "      may_change: # 変えてよい（例: ディレクトリ・ファイル名）",
+          "        - item: 見出しの border-style が現行 none・新側 solid。幅は両側 0px",
+          "          match: { element: heading, property: border-*-style }",
+          "",
+        ].join("\n"),
+      )
+      .replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("散文だけの keep の要素に match を書き足しても縮小に数えない（単位は item）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      '      keep: ["テーブル名を保つ"] # 変えない（例: テーブル名、項目名）\n',
+      [
+        "      keep: # 変えない（例: テーブル名、項目名）",
+        "        - item: テーブル名を保つ",
+        "          match: { element: order-table, property: data-table-name }",
+        "",
+      ].join("\n"),
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("警告に従って match の値を書き直しても縮小に数えない（ブロック形式の複数行）", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
+  );
+  commit(root, "match 付きの pending");
+  writeConfig(
+    root,
+    readConfig(root).replace(
+      "            property: border-*-style\n",
+      "            property: border-top-style\n            page: order-list\n",
+    ),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("match を持つ要素を棚卸しを経ずに消せば落ちる", () => {
+  const root = makeConfigRepo();
+  writeConfig(
+    root,
+    readConfig(root).replace("      pending: [] # 保留（測定結果で決める）\n", MATCH_PENDING_BLOCK),
+  );
+  commit(root, "match 付きの pending");
+  writeConfig(
+    root,
+    readConfig(root).replace(MATCH_PENDING_BLOCK, "      pending: [] # 保留（測定結果で決める）\n"),
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(
+    /<registry-item: intentional-diffs> 見出しの border-style が現行 none・新側 solid。幅は両側 0px/,
+  );
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("keep の既存要素を消せば落ちる（コンテナが育ったときだけ緩める）", () => {
   const root = makeConfigRepo();
   writeConfig(

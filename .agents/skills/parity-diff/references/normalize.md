@@ -4,7 +4,8 @@
 
 ## 適用順序
 
-1. **意図的差異レジストリ** `intentional_diffs.{keep,may_change,pending}`: 宣言済みの差分を落とす。**`pending` 該当は未確定なので落とさず要確認扱い**（未収束として残す）（`pending` の照合キーは要素の `item`）
+1. **意図的差異レジストリ** `intentional_diffs.{keep,may_change,pending}`: 宣言済みの差分を落とす。**`pending` 該当は未確定なので落とさず要確認扱い**（未収束として残す）。
+   特性照合経路の照合キーは要素の `match`（下記「意図的差異の照合キー（`match`）」）。`match` を持たない散文だけの宣言は文全体の包含でしか当たらない
 2. **コンポーネント系統差 T** `component_diffs[]`（`{component, property, current, new, reason}`）: 比較は「生の値が違うか」ではなく「新側の値が T から許容を超えて逸脱しているか」。
    **T に合致すれば吸収、逸脱すれば回帰候補として浮かせる。** 照合キーは `component`（対象要素の論理名 / glob）・`property`・値で、
    1 回の宣言が `component` に合致する全インスタンスに効く（下記「component_diffs T の照合方法」）。`references.ui_library`（旧→新 design token マッピング）を判断材料に読む
@@ -21,7 +22,7 @@
 
 | レジストリ | 効く経路 | 適用する主体と照合キー |
 |---|---|---|
-| `intentional_diffs` | 全経路（散文の宣言を候補の説明に使う） | 特性照合経路は `diff-normalize.mjs`、他経路は本スキルが同じ語で照合する |
+| `intentional_diffs` | 全経路（散文の `item` を候補の説明に使う） | 特性照合経路は `diff-normalize.mjs`（要素の `match` で照合。下記「意図的差異の照合キー（`match`）」）、他経路は本スキルが `item` の語で照合する |
 | `component_diffs`（T） | **特性照合経路のみ**（computed style・相対幾何を `component`〈論理名・glob〉 / `property` / `current` / `new` で照合する） | `diff-normalize.mjs`。**画素経路には効かない**（照合キーになる値の差が無いため）・aria にも効かない |
 | `component_diff_exceptions`（`property` が CSS プロパティ） | 特性照合経路 | `diff-normalize.mjs`（page / state / viewport / element ＋ **値の一致**で照合） |
 | `component_diff_exceptions`（`property: pixel`） | **画素経路のみ** | **本スキルが画素候補に対して適用する**（page / state / viewport / element / **`bbox`** で照合。値では照合しない） |
@@ -37,6 +38,37 @@
   **命名規約ではなくスキーマで縛る**——「`reason` の冒頭を同じ原因ラベルで揃える」型の規約は守られなくても検出手段が無く、実際に同一原因の `reason` が全インスタンスへ複製される
 - **SKILL.md の「インスタンス単位の無視リストで飲み込まない」はこの経路差の制約より優先されない。** 特性照合で値の差として出ている差分を、T を書かずにインスタンス例外へ落とすのが禁止対象であり、
   画素経路のみの差をインスタンス例外へ書くのは形式上の唯一の置き場所
+
+## 意図的差異の照合キー（`match`）
+
+**散文の宣言（`item`）は人が読むためのもので、照合キーにしない。** 宣言には理由・測定対象・決定者を書く（書くべきとされている）ので文が長くなり、
+「文全体が差分の `"<name> <prop>"` に含まれるか」で照合すると、理由を添えた宣言は**原理的に一度も当たらない**（登録済みの差分が `unexplained` のまま残り、分類を人が手で書き直すことになる）。
+特性照合経路の差分に効かせる宣言は、要素をオブジェクトにして照合キーを構造で持たせる。
+
+```yaml
+may_change:
+  - item: "font-family の大文字小文字: 現行の計算後スタイルは Roboto（大文字）、新側は roboto。描画は同じ書体"
+    match: { element: "grid-header-*", property: font-family }
+```
+
+| `match` のキー | 必須 | 照合 |
+|---|---|---|
+| `element` | 必須 | 差分の論理名（`trait-compare.mjs` の `name`）。`*` を含めば glob、含まなければ完全一致。幾何差分の `"A \| B"` は両側が照合候補（`component_diffs` の `component` と同じ規則。下記「component_diffs T の照合方法」） |
+| `property` | 必須 | 差分の `prop`。`*` を含めば glob（`border-*-style`・`text[*]/font-family` 等）、含まなければ完全一致（大文字小文字は畳む） |
+| `page` / `state` / `viewport` | 任意 | 書いたときだけ実行の組（`--page` / `--state` / `--viewport`）と完全一致で突き合わせる。**実行側に無ければ当たらない**（件数を `warning: --page not given; <N> intentional_diffs declaration(s) with match.page / match.viewport ...` として stderr に出す。`state` だけは両側で既定値 `default` を補う） |
+
+- **`match` のキーの欠落・空・未知のキー（`selector` 等）、`item` の欠落は「どれにでも合う」ではなく、その宣言を照合に使わない**（fail-closed。`item` が無いと棚卸しでも `matched_rule` でも宣言を追えない）。
+  `diff-normalize.mjs` が `warning: intentional_diffs.<群>[<添字>]: ... — not used for matching` を stderr に出す
+- **`match` を持つ宣言は `item` の文面では照合しない。** 文面が偶然 `"<name> <prop>"` を含んでも、`match` が指す要素・プロパティ以外には当たらない
+- **`match` を持たない宣言**（素の文字列・`item` だけのオブジェクト）は、従来どおり文全体が `"<name> <prop>"` に含まれるときだけ当たる（`"heading border-top-style"` のような短い宣言は当たる）。
+  **散文だけの宣言が 1 件の差分にも当たらず未説明が残った実行では**、`diff-normalize.mjs` が件数を stderr に出す
+  （`warning: intentional_diffs: <N> of <M> prose-only declaration(s) (no match key) matched none ...`）。
+  宣言の書き方の誤り（照合キーが無い）と本物の未説明の差を区別するためのもので、出たら該当しそうな宣言に `match` を足して実行し直す。
+  **分母 `<M>` はレジストリ全体の散文だけの宣言**（レジストリは機能横断なので、この組・この機能に無関係な宣言も含む）。`<N>` が大きいこと自体は誤りではない
+- **`matched_rule` には当たった宣言の `item` が入る**（`intentional_diffs.<群>: <item>`）。`diff.md` の根拠欄へそのまま写し、どの宣言で許容したかを追えるようにする
+- **`match` を書き足すのは宣言の文言の変更ではない。** 照合の単位は `item` なので、`pending` から `keep` / `may_change` へ移すときも `match` ごと移してよい
+  （要素の形の正本は `replace-strategy` の `references/project-config.md`「意図的差異レジストリ」）
+- 画素経路・aria 経路の候補には `match` は効かない（論理名とプロパティを持たないため）。本スキルが `item` の語で候補を説明する
 
 ## component_diffs T の照合方法
 
@@ -114,7 +146,7 @@ T が引けない箇所のインスタンス単位フォールバック。**ユ�
       "state": "<状態。既定 default>",
       "viewport": "<viewport label>",
       "property": "<CSS プロパティ。画素経路のみで拾った差は pixel>",
-      "bbox": "<property: pixel のときだけ必須。差分領域の bbox「x,y,w,h」（現側 crop の座標）。照合キーはこれ>",
+      "bbox": "<property: pixel のときだけ必須。pixel-crops.mjs が出した候補の bbox「x,y,w,h」（regions[].bbox か strict_only_regions[].bbox。threshold_bbox ではない。現側 crop の座標）。照合キーはこれ>",
       "current": "<旧値。property: pixel のときは crop への相対パス（実行ごとに変わるため照合キーにしない＝根拠）>",
       "new": "<新値。同上>",
       "cause": "<component_diff_exception_causes[].id。必須>",
@@ -143,8 +175,17 @@ T が引けない箇所のインスタンス単位フォールバック。**ユ�
 
 `diff-normalize.mjs` は特性照合の Diff しか見ないため、画素候補への例外適用は**本スキルがこの工程で行う**。判断は挟まず、次の機械的な一致だけで落とす。
 
-- **照合キーは `slug` / `page` / `state` / `viewport` / `element`（無ければ `none`）/ `bbox`。** `bbox` は `pixel-crops.mjs` が出したクラスタの bbox と、
-  `metadata.json.differ.align_tolerance` の範囲で一致すること（座標は現側 crop 基準）
+- **照合キーは `slug` / `page` / `state` / `viewport` / `element`（無ければ `none`）/ `bbox`。** `bbox` は `pixel-crops.mjs` が出した候補の `bbox`
+  （`regions[].bbox` か `strict_only_regions[].bbox`）と、`metadata.json.differ.align_tolerance` の範囲で一致すること（座標は現側 crop 基準）
+- **同じ場所の 1 つの差は 1 つの候補であり、台帳には 1 件で書く。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
+  `pixel-crops.mjs` が縁を芯の領域へ取り込み、**外側の bbox を持つ 1 件の `regions[]`** として出す（取り込んだ縁の画素数は `absorbed_strict_only_pixels`、芯を包む bbox は `threshold_bbox`。
+  正本は [`detect.md`](detect.md)）。台帳の `bbox` にはこの**候補の `bbox`**（外側）を書き、`threshold_bbox` は書かない。
+  芯＋`--pad` の範囲の縁と、候補の bbox の内側にある strict-only の画素は必ずその候補に入るので、**縁が `--pad` の内側に収まる差は 1 件になる**。
+  **縁が `--pad` より外まで続く差**（box-shadow のぼかし差等）は、芯の `regions[]` と外側の `strict_only_regions[]` の 2 件に分かれうる
+  （取り込みを芯＋`--pad` に限るのは、ページ全体に広がる差が全領域を画面大の候補 1 件に潰さないため）。分かれた外側の候補は
+  `overlaps_regions` に隣り合う `regions[]` の `id` を持ち、stderr に警告が出る。**このときは候補ごとに 1 件ずつ台帳に書き、同じ `cause` を参照する**
+  （照合は候補の bbox の一致なので、片方だけ書くともう片方が `unexplained` に残る。承認は原因単位なので 1 回で足りる）
+  （`pixel-crops.mjs` の `VERSION` が `3` までの出力は分かれていた。その出力に合わせて書いた台帳は、取り直した候補の外側の bbox に書き換える）
 - **`current` / `new`（crop への相対パス）は照合キーにしない。** 実行ごとに変わるため、値一致で照合すると毎回不一致になり例外が効かない。両者は承認時の根拠として保持する
 - **キーが揃わない候補は落とさない**（`unexplained` のまま残す）。bbox が動いた＝差の位置が変わったということなので、同じ例外で吸収してよい保証がない
 - **`cause` が解決できないインスタンスは照合に使わない**（上記「fail-closed の検証」と同じ扱い。画素経路は本スキルが適用するため、この解決も本スキルが行う）
@@ -161,6 +202,9 @@ node <スキルディレクトリ>/scripts/diff-normalize.mjs <trait-diffs.json>
 - `--noise <metadata.json>`: `noise_baseline[]` を読むために `parity-suite` の `metadata.json` を渡す
 - 出力は各 Diff に `classification`（`absorbed_registry` / `absorbed_T` / `deviates_T` / `absorbed_exception` / `noise_candidate` / `pending_review` / `unexplained`）と `matched_rule` を付けた JSON。
   `absorbed_exception` の `matched_rule` には解決済みの原因（`cause_reason` / `cause_evidence`）が入る
+- **意図的差異の `match` の不整合は `intentional_diffs.<群>[<添字>]: ...` の形で stderr に警告として出る**（上記「意図的差異の照合キー（`match`）」）。
+  警告が出た宣言は照合に使われていないので、設定ファイルの `match` を直して実行し直す。散文だけの宣言が当たらなかった件数（`intentional_diffs: <N> of <M> prose-only ...`）も同じく stderr に出る。
+  どちらも台帳（例外）の不整合ではないので `diff-metadata.json.accepted_exceptions.unresolved` には数えない
 - **T の不整合は `component_diffs[<添字>]: ...` の形で stderr に警告として出る**（`component` の欠落・空。上記「component_diffs T の照合方法」）。
   **警告が出た T は照合に使われていない**ので、設定ファイルの宣言に対象要素の論理名 / glob を補って実行し直す。
   台帳（例外）の不整合ではないので `diff-metadata.json.accepted_exceptions.unresolved` には数えない
