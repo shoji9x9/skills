@@ -25,12 +25,12 @@
   - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
   - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
   - **同じ場所の 1 つの差は 1 つの候補にする。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
-    しきい値の内側のクラスタのうち `regions[]` の芯（しきい値つきの画素の bbox）と `--pad` 以内で重なるものを、その領域へ取り込んで `bbox` を外側（両者を包む bbox）へ広げる。
-    判定は芯に対して行う（広がった外側に対して行うと、取り込むたびに届く範囲が伸びて離れた無関係な差まで連鎖して飲み込む）。外側の bbox が重なった領域同士は 1 つにまとめ、
-    まとめた後も芯は 1 つずつ判定に使う（芯同士を包む矩形で判定すると、対角に離れた芯の間の空白まで届く）。
+    しきい値の内側の**連結成分**（pad でマージする前）のうち `regions[]` の芯（しきい値つきの画素の bbox）と `--pad` 以内で重なるものを、その領域へ取り込んで `bbox` を外側（両者を包む bbox）へ広げる。
+    判定の単位は 2 つとも外接 bbox にしない——取り込みは**マージ前の成分と芯**の近さで、領域同士をまとめるのは**構成要素（芯と取り込んだ成分）同士**の近さで判定する
+    （マージ後の塊や広がった外側の bbox で判定すると、疎に散った差が連鎖して画面大の候補 1 件に潰れる）。取り込まれなかった成分だけをマージして `strict_only_regions[]` にする。
     `regions[]` の `id` は外側の bbox の `(y, x)` 順で振る（`VERSION` が `3` までの出力とは id がずれうるので、旧出力の id で記録したトリアージは bbox で突き合わせ直す）。
-    取り込んだ領域は `threshold_bbox`（芯を包む bbox）/ `absorbed_strict_only`（取り込んだ strict-only の `id`）/ `absorbed_strict_only_pixels` を持ち、
-    取り込んだ件数・画素数は `summary.strict_only_absorbed_clusters` / `strict_only_absorbed_pixels` に出る（黙って消さない）。
+    取り込んだ領域は `threshold_bbox`（芯を包む bbox）/ `absorbed_strict_only_components`（取り込んだ連結成分の数）/ `absorbed_strict_only_pixels` を持ち、
+    取り込んだ数・画素数は `summary.strict_only_absorbed_components` / `strict_only_absorbed_pixels` に出る（黙って消さない）。
     分けたままだと同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になり、bbox の一致で照合する画素の例外の台帳
     （[`normalize.md`](normalize.md)「画素経路の例外の適用」）が片方にしか当たらない
   - `strict_only_regions[]` は**しきい値の内側にだけ差があり、近くにしきい値つきの差が無い領域**の候補（`id` は `s1` から。`bbox` / `strict_pixels` / crop 対）。
