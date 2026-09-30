@@ -365,6 +365,7 @@ export function absorbStrictIntoRegions(regions, strictClusters, pad) {
     pixels: r.pixels,
     bbox: r.bbox,
     threshold_bbox: r.bbox,
+    cores: [r.bbox],
     absorbed_strict_only: [],
     absorbed_strict_only_pixels: 0,
   }));
@@ -376,7 +377,11 @@ export function absorbStrictIntoRegions(regions, strictClusters, pad) {
       const cluster = remaining[i];
       // 判定は芯（しきい値つきの画素の bbox）に対して行う。取り込みで広がった外側の bbox に対して行うと、
       // 取り込むたびに届く範囲が伸び、実際の差分画素から --pad を超えて離れた無関係な差まで連鎖して飲み込む。
-      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));
+      // まとめた領域でも芯は 1 つずつ持つ（芯同士を包む矩形で判定すると、対角に離れた芯の間の
+      // 芯の画素が 1 つも無い角まで届いてしまう）。
+      const group = groups.find((g) =>
+        g.cores.some((core) => bboxOverlap(core, cluster.bbox, pad)),
+      );
       if (group) {
         group.bbox = unionBbox(group.bbox, cluster.bbox);
         group.absorbed_strict_only.push(cluster.id);
@@ -396,6 +401,7 @@ export function absorbStrictIntoRegions(regions, strictClusters, pad) {
             pixels: a.pixels + b.pixels,
             bbox: unionBbox(a.bbox, b.bbox),
             threshold_bbox: unionBbox(a.threshold_bbox, b.threshold_bbox),
+            cores: [...a.cores, ...b.cores],
             absorbed_strict_only: [...a.absorbed_strict_only, ...b.absorbed_strict_only],
             absorbed_strict_only_pixels:
               a.absorbed_strict_only_pixels + b.absorbed_strict_only_pixels,
@@ -412,7 +418,8 @@ export function absorbStrictIntoRegions(regions, strictClusters, pad) {
   for (const g of groups) g.absorbed_strict_only.sort((a, b) => idNumber(a) - idNumber(b));
   groups.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
   remaining.sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
-  return { regions: groups, remaining };
+  // cores は判定用の内部状態なので出力に出さない（threshold_bbox が芯を包む bbox として残る）。
+  return { regions: groups.map(({ cores: _cores, ...g }) => g), remaining };
 }
 
 /**

@@ -178,7 +178,7 @@ T が引けない箇所のインスタンス単位フォールバック。**ユ�
 - **照合キーは `slug` / `page` / `state` / `viewport` / `element`（無ければ `none`）/ `bbox`。** `bbox` は `pixel-crops.mjs` が出した候補の `bbox`
   （`regions[].bbox` か `strict_only_regions[].bbox`）と、`metadata.json.differ.align_tolerance` の範囲で一致すること（座標は現側 crop 基準）
 - **同じ場所の 1 つの差は 1 つの候補であり、台帳には 1 件で書く。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
-  `pixel-crops.mjs` が縁を芯の領域へ取り込み、**外側の bbox を持つ 1 件の `regions[]`** として出す（取り込んだ縁の id は `absorbed_strict_only`、芯だけの bbox は `threshold_bbox`。
+  `pixel-crops.mjs` が縁を芯の領域へ取り込み、**外側の bbox を持つ 1 件の `regions[]`** として出す（取り込んだ縁の id は `absorbed_strict_only`、芯を包む bbox は `threshold_bbox`。
   正本は [`detect.md`](detect.md)）。台帳の `bbox` にはこの**候補の `bbox`**（外側）を書き、`threshold_bbox` は書かない。
   `strict_only_regions[]` に残るのは、近くにしきい値つきの差が 1 画素も無い領域だけなので、同じ差が `regions` と `strict_only_regions` の 2 件に分かれることはない
   （`pixel-crops.mjs` の `VERSION` が `3` までの出力は分かれていた。その出力に合わせて書いた台帳は、取り直した候補の外側の bbox に書き換える）

@@ -24,15 +24,16 @@
       "id": "absorb-never-overlaps",
       "why": "strict-only のクラスタがどの領域とも重ならないと見なす",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));",
-      "replace": "      const group = undefined;",
+      "find": "        g.cores.some((core) => bboxOverlap(core, cluster.bbox, pad)),",
+      "replace": "        false,",
       "occurrences": 1,
       "expect_failing": [
         "芯と縁が重なる差は、外側の bbox を持つ 1 つの候補になる",
         "しきい値つきの差が近くに無い領域だけが strict_only に残り、id は取り込みの有無で変わらない",
         "取り込んだ縁は下限未満でも「捨てた」に数えない（候補の一部として出ている）",
         "縁を取り込んで広がった領域が別の領域と近接したら 1 つにまとめる",
-        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない"
+        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない",
+        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
       ]
     },
     {
@@ -42,17 +43,32 @@
       "find": "        if (bboxOverlap(groups[i].bbox, groups[j].bbox, pad)) {",
       "replace": "        if (false) {",
       "occurrences": 1,
-      "expect_failing": ["縁を取り込んで広がった領域が別の領域と近接したら 1 つにまとめる"]
+      "expect_failing": [
+        "縁を取り込んで広がった領域が別の領域と近接したら 1 つにまとめる",
+        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
+      ]
     },
     {
       "id": "absorb-on-outer-bbox",
       "why": "取り込みの判定を広がった外側の bbox に対して行う（連鎖して離れた差を飲み込む）",
       "file": "skills/parity-diff/scripts/pixel-crops.mjs",
-      "find": "      const group = groups.find((g) => bboxOverlap(g.threshold_bbox, cluster.bbox, pad));",
-      "replace": "      const group = groups.find((g) => bboxOverlap(g.bbox, cluster.bbox, pad));",
+      "find": "        g.cores.some((core) => bboxOverlap(core, cluster.bbox, pad)),",
+      "replace": "        bboxOverlap(g.bbox, cluster.bbox, pad),",
       "occurrences": 1,
       "expect_failing": [
-        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない"
+        "取り込みの判定は芯に対して行い、広がった外側から連鎖して離れた差を飲み込まない",
+        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
+      ]
+    },
+    {
+      "id": "absorb-on-core-union",
+      "why": "まとめた領域の芯を包む矩形（threshold_bbox）で取り込みを判定する（対角に離れた芯の間の空白へ届く差を飲み込む）",
+      "file": "skills/parity-diff/scripts/pixel-crops.mjs",
+      "find": "        g.cores.some((core) => bboxOverlap(core, cluster.bbox, pad)),",
+      "replace": "        bboxOverlap(g.threshold_bbox, cluster.bbox, pad),",
+      "occurrences": 1,
+      "expect_failing": [
+        "まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない"
       ]
     }
   ]

@@ -446,3 +446,22 @@ test("取り込みの判定は芯に対して行い、広がった外側から�
   expect(out.regions[0].bbox).toEqual({ x: 0, y: 0, width: 12, height: 2 });
   expect(out.remaining.map((r) => r.id)).toEqual(["s2"]);
 });
+
+test("まとめた領域でも芯ごとに判定し、対角に離れた芯の間の空白へ届く差を取り込まない", () => {
+  // PR #521 のレビューの再現: 芯 A と芯 B を包む矩形で判定すると、どちらの芯からも離れた s2 まで取り込む。
+  const regions = [
+    { pixels: 16, bbox: { x: 0, y: 0, width: 4, height: 4 } },
+    { pixels: 16, bbox: { x: 100, y: 100, width: 4, height: 4 } },
+  ];
+  const strictClusters = [
+    { id: "s1", pixels: 92, bbox: { x: 3, y: 3, width: 92, height: 92 } },
+    { id: "s2", pixels: 16, bbox: { x: 0, y: 100, width: 4, height: 4 } },
+  ];
+
+  const out = absorbStrictIntoRegions(regions, strictClusters, 8);
+
+  expect(out.regions).toHaveLength(1);
+  expect(out.regions[0].absorbed_strict_only).toEqual(["s1"]);
+  expect(out.regions[0]).not.toHaveProperty("cores");
+  expect(out.remaining.map((r) => r.id)).toEqual(["s2"]);
+});
