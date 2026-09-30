@@ -1,18 +1,24 @@
 ---
 date: 2026-09-30
 type: skill
-priority: medium
+priority: high
 status: pending
 session: claude-code
 ---
 
-# 作業ツリー外に置けと指示された入力を扱うときも、node はリポジトリの cwd から起動する
+# 作業ツリー外の一時ディレクトリを使う手順でも、mise 管理のツールはリポジトリの cwd か実体パスで起動する
 
 ## 事象
 
 issue-start の受け入れ条件の突き合わせで、`issue.json` 等を指示どおり作業ツリー外（`$CLAUDE_JOB_DIR/tmp/acc`）に置き、
 そのディレクトリへ cd して `acceptance-check.mjs` を起動したところ
 `mise ERROR No version is set for shim: node` で起動自体が落ちた（1 往復の手戻り）。
+
+### 追記（2026-09-30・再発）
+
+pnpm-audit-alert-issue / dependabot-alert-issue の着手可否判定で、`package.json` / `pnpm-lock.yaml` / `pnpm-workspace.yaml` を scratchpad に複製し、
+そこへ cd して `pnpm update <pkg> --depth Infinity --lockfile-only` を実行したところ、`mise ERROR No version is set for shim: pnpm` で起動自体が落ちた。
+`pnpm config get minimumReleaseAge` も空で返り、診断が 1 往復無駄になった。リポジトリ内で `mise which pnpm` の実体パスを解決して渡し直すと通った。
 
 ## 根本原因
 
@@ -21,13 +27,19 @@ issue-start の受け入れ条件の突き合わせで、`issue.json` 等を指�
   コマンド例が相対の `<issue.json>` なので、置き場へ cd して相対で渡す形を取った
 - なぜ既存の規律で防げなかったか → `AGENTS.md`「ツール起動」に shim の cwd 依存は書いてあるが（[[2026-09-03-mise-shim-resolves-by-cwd]] applied）、
   置き場を外に指定する手順（`acceptance.md`）側に「cwd はリポジトリに保ち、入力は絶対パスで渡す」が無い ← 根本原因
+- 再発（追記）: dependabot-alert-issue の `references/pnpm-transitive-update.md`「リリース年齢ゲートによる無言 no-op を切り分ける」手順 2・3 は、
+  一時ディレクトリへの複製と「リポジトリと同じ pnpm 実体」を求めるが、その実体の取り方（shim は cwd で解決されるので実体パスを先に解決する）が無い
+- 同じ形が `acceptance.md` と `pnpm-transitive-update.md` の 2 箇所で同じ日に踏まれた → 手順書ごとの個別対応ではなく横断で直す
 
 ## KEDB 照合
 
 [[2026-09-03-mise-shim-resolves-by-cwd]]（applied）の再発。applied には追記しない。
+同日の再発はこのファイルへ追記した（`kaizen-kedb-match.sh "shim" "mise"` でヒット）。
 
 ## 提案
 
-issue-start の `references/acceptance.md` 手順 1・5 に、一時ディレクトリの入力は絶対パスで渡しコマンドはリポジトリの cwd から起動すると 1 行足す。
+作業ツリー外の一時ディレクトリでツールを走らせる手順は、起動前にリポジトリ内で実体パス（mise なら `mise which <tool>`）を解決して使うか、cwd をリポジトリに保って入力を絶対パスで渡す、と手順書に明記する。
 
-- 横断: 「作業ツリーの外に置く」と指示する他の手順（parity 系・pr-finalize-loop の一時ファイル）も同じ形か確認する
+- 対象: issue-start の `references/acceptance.md` 手順 1・5、dependabot-alert-issue の `references/pnpm-transitive-update.md`「リリース年齢ゲート」手順 2・3
+- 配布スキルなので mise に決め打ちせず「バージョンマネージャの shim は cwd で解決される。実体パスを先に解決する」と一般化して書く
+- 横断: 「作業ツリーの外に置く」「一時ディレクトリへ複製する」を指示する手順を `skills/` 配下で grep して同じ形を洗い出す（parity 系・pr-finalize-loop の一時ファイル）
