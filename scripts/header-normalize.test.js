@@ -71,10 +71,21 @@ test("一覧: 付け手が `不明` の行だけのヘッダーは比べる対�
   expect([...list]).toEqual(["x-frame-options"]);
 });
 
-test("一覧: 同じヘッダーの行のどれかで付け手が決まっていれば比べる対象に入れる", () => {
+test("一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない", () => {
   const list = parseHeaderList(
     survey([
-      "| `Cache-Control` | 防御 | `no-store` | 静的 | 不明 | |",
+      "| `Cache-Control` | 防御 | `no-store` | API | 不明 | |",
+      "| `Cache-Control` | 防御 | `no-store` | 画面 | アプリのコード | |",
+      "| `X-Frame-Options` | 防御 | `DENY` | 画面 | アプリのコード | |",
+    ]),
+  );
+  expect([...list]).toEqual(["x-frame-options"]);
+});
+
+test("一覧: 同じヘッダーの行がすべて付け手の決まった行なら比べる対象に入れる", () => {
+  const list = parseHeaderList(
+    survey([
+      "| `Cache-Control` | 防御 | `no-store` | API | サーバーの設定 | |",
       "| `Cache-Control` | 防御 | `no-store` | 画面 | アプリのコード | |",
     ]),
   );
@@ -407,6 +418,15 @@ test("CLI: 一覧が無ければ exit 3（入力の誤りの 2 と分ける）",
   expect(main(["--survey", surveyPath, headersPath], io)).toBe(3);
   expect(chunks.stderr).toMatch(/^no-list: /);
   expect(chunks.stdout).toBe("");
+});
+
+test("CLI: survey.md 自体が無ければ exit 3（一覧が無い）", () => {
+  const { headersPath } = writeInputs("## 1. 概要\n", {});
+  const { chunks, io } = capture();
+  expect(main(["--survey", join(dirname(headersPath), "missing-survey.md"), headersPath], io)).toBe(
+    3,
+  );
+  expect(chunks.stderr).toMatch(/^no-list: /);
 });
 
 test("CLI: 読めない headers.json は exit 2 で、入力の中身を stderr に出さない", () => {

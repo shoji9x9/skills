@@ -50,9 +50,10 @@
   **使ったコピーのパスと `VERSION` を `metadata.json.differ.header_normalize` に記録する**（`suite.tools` はスイートの指紋が読むパスなので版を混ぜない）——`parity-diff` は新側を同じ版で正規化できるときだけヘッダーを比べる（版が違うと規則の差が現新の差分に化ける）。
   CLI（`node <スキルディレクトリ>/scripts/header-normalize.mjs --survey .replace/survey.md <headers.json>`）は、終了コード 0=正規化した JSON を出力 / 2=入力の誤り / 3=一覧が無い
 - **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
+  同じヘッダーに付け手の決まった行と `不明` の行が混ざる場合、正規化はそのヘッダーを録画に残さない（応答の種類を区別できないため）。決まった行の応答は、そのヘッダーの値を直接 assertion にする（`Set-Cookie` は同じスクリプトの `parseSetCookie`、CSP は `maskNonce` を通した値で書き、秘密を assertion に残さない）
   対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
 - **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
-- **一覧が無い**（`.replace/survey.md` に 7 節が無い・「未測定」）なら停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
+- **一覧が無い**（`.replace/survey.md` が無い・7 節が無い・「未測定」）なら停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
 - 一覧の値と現行で採った値が食い違ったら（一覧の後に現行の設定が変わった等）、推測でどちらかに寄せず、現行で採った値で assertion を書き、食い違いを `gaps.md` に残して一覧の採り直しを促す
 
 ## 要求単位を確定したら features.md へ書き戻す

@@ -86,7 +86,7 @@ export function parseHeaderList(markdown) {
   const setterColumn = head.indexOf("付け手");
   if (setterColumn < 0) throw new NoHeaderListError("7 節の表に「付け手」列が無い");
 
-  /** @type {Map<string, boolean>} 名前 → 付け手が決まった行が 1 つでもあるか */
+  /** @type {Map<string, boolean>} 名前 → その名前の行がすべて付け手の決まった行か */
   const known = new Map();
   for (const line of section.slice(headIndex + 2)) {
     if (!line.trim().startsWith("|")) break;
@@ -105,9 +105,11 @@ export function parseHeaderList(markdown) {
       );
     }
     const key = name.toLowerCase();
-    // 同じヘッダーが応答の種類ごとに複数行ある場合、どれか 1 行でも付け手が決まっていれば比べる
-    // （比べずに落とす側へ倒すと、決まった行の後退まで見落とす）。
-    known.set(key, (known.get(key) ?? false) || setter !== UNKNOWN_SETTER);
+    // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が `不明` なら、そのヘッダーは録画にも比較にも入れない。
+    // 出力はヘッダー名で絞るだけで応答の種類を知らないので、比べる側へ倒すと `不明` の行が指す応答の値
+    // （再構築の既定値かもしれない）まで現行の仕様として固定する。決まった行の後退は、スイートがその応答の
+    // assertion で両側に確かめる（parity-suite の references/api-batch.md「応答ヘッダー」）。
+    known.set(key, (known.get(key) ?? true) && setter !== UNKNOWN_SETTER);
   }
   if (known.size === 0) throw new NoHeaderListError("7 節の表に行が無い");
   return new Set([...known].filter(([, ok]) => ok).map(([name]) => name));
@@ -247,7 +249,16 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
   }
   let list;
   try {
-    list = parseHeaderList(readFileSync(survey, "utf8"));
+    let markdown;
+    try {
+      markdown = readFileSync(survey, "utf8");
+    } catch (err) {
+      // survey.md 自体が無いのも「一覧が無い」（測定をやり直す経路へ送る）。読めない理由が他（権限等）なら入力の誤り。
+      if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT")
+        throw new NoHeaderListError(`${survey} が無い`);
+      throw err;
+    }
+    list = parseHeaderList(markdown);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     io.stderr.write(`${err instanceof NoHeaderListError ? "no-list" : "error"}: ${message}\n`);

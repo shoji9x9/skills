@@ -23,12 +23,13 @@
       "id": "unknown-setter-kept",
       "why": "付け手が不明の行（再構築の既定値かもしれない）を比べる対象に入れる",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "|| setter !== UNKNOWN_SETTER",
-      "replace": "|| true",
+      "find": "&& setter !== UNKNOWN_SETTER);",
+      "replace": "&& true);",
       "occurrences": 1,
       "expect_failing": [
         "一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む",
-        "一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない"
+        "一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない",
+        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない"
       ]
     },
     {
@@ -147,6 +148,26 @@
       "replace": "",
       "occurrences": 1,
       "expect_failing": ["Set-Cookie: 中身の無い Set-Cookie だけなら付いていないのと同じにする"]
+    },
+    {
+      "id": "mixed-setter-compared",
+      "why": "不明の行が混ざるヘッダーを比べる側へ倒し、不明の行が指す応答の値を仕様として固定する",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "known.get(key) ?? true) && setter",
+      "replace": "known.get(key) ?? false) || setter",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない"
+      ]
+    },
+    {
+      "id": "missing-survey-input-error",
+      "why": "survey.md が無いときを入力の誤りにし、一覧が無い経路（未検証に残す）へ送らない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "(err).code === \"ENOENT\")",
+      "replace": "(err).code === \"__never__\")",
+      "occurrences": 1,
+      "expect_failing": ["CLI: survey.md 自体が無ければ exit 3（一覧が無い）"]
     }
   ]
 }
