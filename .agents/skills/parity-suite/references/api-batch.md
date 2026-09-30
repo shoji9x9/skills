@@ -41,6 +41,10 @@
   （複数の `Set-Cookie` は `headersArray()` で 1 つずつ読む。出典: <https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get> / <https://playwright.dev/docs/api/class-response#response-headers-array>）。
   `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure`・`SameSite`）だけを assertion にして値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
   **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record しても assertion にしない（`Date` 等の揮発を比較に持ち込まない）
+- **record にも秘密の値と要求ごとに変わる値を残さない**——録画は Git に入り、`parity-diff` の現側は録画から読むので、比べる前の変換では間に合わない。
+  record する時点で `Set-Cookie` を cookie ごとの名前と属性（`HttpOnly`・`Secure`・`SameSite` だけ）に、CSP の `nonce-` の値を固定の文字列に置き換えてから書く
+- **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
+  対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
 - **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
 - **一覧が無い**（`.replace/survey.md` に 7 節が無い・「未測定」）なら停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
 - 一覧の値と現行で採った値が食い違ったら（一覧の後に現行の設定が変わった等）、推測でどちらかに寄せず、現行で採った値で assertion を書き、食い違いを `gaps.md` に残して一覧の採り直しを促す

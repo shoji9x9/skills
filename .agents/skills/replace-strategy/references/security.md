@@ -15,11 +15,12 @@
 - **採り方**: 現側 target へ要求し（ログインの成功だけは正規のログイン操作と同じ要求。それ以外は GET）、**リダイレクトを追わずに**最初の応答のヘッダーを採る（例: `curl -sS -o /dev/null -D - --max-redirs 0 "$URL"`。認証が要る応答は `targets[].auth.roles` の環境変数から得たセッションで採り、値を出力しない）。
   ブラウザが付けたヘッダーや中継点のヘッダーを混ぜない。
   **`Set-Cookie` の値（セッション ID 等）は出力・記録しない**——`-D -` の出力をそのまま残さず、cookie 名と属性だけを残す
-- **分類**: 採ったヘッダーを次の 3 つへ分ける
+- **分類**: 採ったヘッダーと、下の「露出の抑止」の候補を次の 3 つへ分ける
   - **防御**: `X-Content-Type-Options`・`X-Frame-Options`・`Content-Security-Policy`（`frame-ancestors` を含む）・`Strict-Transport-Security`・`Referrer-Policy`・`Permissions-Policy`・
     `Set-Cookie` の属性（`HttpOnly`・`Secure`・`SameSite`）・キャッシュ制御（認証後の応答の `Cache-Control`）。**有無と値を assertion にする**。
     ただし要求ごとに変わる部分・秘密の部分は値に含めない（`Set-Cookie` は cookie 名と属性だけ、CSP の `nonce-` の値は伏せた形で比べる）——そのまま固定すると現側でも毎回赤くなり、秘密の値が一覧とスイートに残る
-  - **露出の抑止**: 外したことに意味があるもの（`Server`・`X-Powered-By`・`X-AspNet-Version` 等が**付かない**こと）。**無いことを assertion にする**
+  - **露出の抑止**: 外したことに意味があるもの。**応答に在ったヘッダーからは生まれないので、候補（`Server`・`X-Powered-By`・`X-AspNet-Version`・`X-AspNetMvc-Version`）を 1 つずつ採った応答と突き合わせる**——
+    現行のどの応答にも付かない候補は、値を「（付かない）」にしてこの分類の行にし、**無いことを assertion にする**（新側が付けても緑のまま通るのを防ぐ）。付いている候補は下記「現行の弱点の仕分け」の対象にする
   - **揮発・比較不要**: `Date`・`Content-Length`・`ETag` 等。一覧に載せず、比較しない
 - **付け手を記録する**: ヘッダーごとに、アプリのコードで付くのか、サーバー・リバースプロキシの設定で付くのかを現行ソース・設定ファイルから読む（読めなければ `不明`）。
   付け手がコードの外にあるものは機能を実装しても付かないので、新側の**サーバー設定の作業**を 1 つの機能 Issue が引き受ける（下の所有者 slug の機能。`issues` モードがその Issue の受け入れ条件へ置く。[`features-issues.md`](features-issues.md)「機能 Issue」）

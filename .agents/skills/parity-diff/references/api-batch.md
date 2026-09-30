@@ -11,7 +11,8 @@
 - 突き合わせ対象: ステータス・ボディ・並び順・ページング・エラー応答・**応答ヘッダーのうち `.replace/survey.md`「7. 横断の応答ヘッダー」に載るもの**
   （防御は有無と値、露出の抑止は付かないこと。`Set-Cookie` は値を比べず出力もせず cookie 名と属性だけ、CSP の `nonce-` の値は伏せてから比べる。
   `json-normalize-diff.mjs` はヘッダーの値の一部だけを伏せられず、差分の両側の値を出力するので、
-  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（`Set-Cookie` は cookie ごとに `{name, attributes}`、CSP は `nonce-` の値を固定の文字列へ置き換えた値）へ変換してから比べる。一覧に載らないヘッダーは比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
+  **渡す前に**両側のヘッダーを一覧に載るものだけの JSON（`Set-Cookie` は cookie ごとに `{name, attributes}` で、属性は `HttpOnly`・`Secure`・`SameSite` だけ——`Expires` / `Max-Age` は実行ごとに変わる。
+  CSP は `nonce-` の値を固定の文字列へ置き換えた値）へ変換してから比べる。一覧に載らないヘッダーと付け手が `不明` の行は比べない。一覧の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）
 - **`references.db_semantics`（collation 等の意味論差）を並び順差の判断材料に読む。** 現行 DB と新 DB で並び順が変わりうる箇所を意図的差異として扱えるようにする
 - **揮発項目（生成日時・トークン等）は `intentional_diffs` で除外してから比較する**
 - 同梱 [`../scripts/json-normalize-diff.mjs`](../scripts/json-normalize-diff.mjs) で正規化＋決定論的比較を行う
