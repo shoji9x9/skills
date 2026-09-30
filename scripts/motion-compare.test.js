@@ -615,3 +615,28 @@ test("揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ�
     "motion-baseline-unstable",
   ]);
 });
+
+test("現行の 2 回の割れは、突き合わせ表が無い（capture の前提判定）・行が比較まで届かないときも報告する", () => {
+  const motions = {
+    orders: baselineOf("orders", {
+      enter: [timeline({ kind: "enter" }), timeline({ kind: "enter", duration: 0 })],
+    }),
+    stock: baselineOf("stock"),
+  };
+  expect(codes(run({ motions, comparison: null }))).toEqual([
+    "motion-baseline-unstable",
+    "comparison-missing",
+  ]);
+  const rows = rowsOf();
+  rows[0] = {
+    transition: "enter",
+    instance: "orders",
+    disposition: "accepted",
+    reason: "新側では動きを付けないことを決めた",
+    approved_by: "owner",
+    approved_at: "2026-09-29T10:00:00Z",
+  };
+  expect(
+    codes(run({ motions, comparison: { component: "feedback-message", target: "preview", rows } })),
+  ).toEqual(["motion-baseline-unstable"]);
+});

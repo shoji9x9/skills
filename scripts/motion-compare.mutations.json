@@ -165,6 +165,20 @@
       "replace": "for (const s of []) if (s.t <= span) times.add(s.t);",
       "occurrences": 1,
       "expect_failing": ["等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす"]
+    },
+    {
+      "id": "unstable-at-registration",
+      "why": "現行の 2 回の割れを基準の登録時に落とさない（capture の前提判定・比較まで届かない行で素通りする）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (unstable.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "現行の 2 回の割れは、突き合わせ表が無い（capture の前提判定）・行が比較まで届かないときも報告する",
+        "揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）",
+        "現行の 2 回で動く／動かないが割れたら基準にしない",
+        "現行の 2 回の揺れが上限を超えたら許容差を広げず基準にしない（600ms と即時の組で欠落を通さない）"
+      ]
     }
   ]
 }

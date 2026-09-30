@@ -231,13 +231,15 @@ function timeGap(a, b) {
 }
 
 /**
- * 現行の 2 回（基準・揺れ）と新側 1 回を比べ、許容差を超えた量を返す。
+ * 現行の 2 回（基準・揺れ）が割れていないかを見る。割れた量の名前を返す（空なら基準にできる）。
+ * 在る／無い・動いた／動かないの割れと、遅れ・長さ・軌跡の揺れが上限（MAX_NOISE）を超えたもの。
+ * 新側の記録に依らず現行の 2 回だけで決まるので、基準を登録する時点で判定する
+ * （突き合わせの行の中で判定すると、突き合わせ表の無い capture の前提判定や、比較まで届かない行で素通りする）。
  * @param {any} base 現行の 1 回目の要約
  * @param {any} noise 現行の 2 回目の要約
- * @param {any} candidate 新側の要約
- * @returns {{ unstable: string[], differing: object[] }}
+ * @returns {string[]}
  */
-export function judgeMotion(base, noise, candidate) {
+export function baselineInstability(base, noise) {
   const unstable = [];
   for (const key of ["present_start", "present_end", "changed"]) {
     if (base[key] !== noise[key]) unstable.push(key);
@@ -251,6 +253,19 @@ export function judgeMotion(base, noise, candidate) {
     const limit = metric === "opacity" ? MAX_NOISE.opacity : MAX_NOISE.px;
     if (noiseGapForLimit[metric] > limit) unstable.push(`trajectory.${metric}`);
   }
+  return unstable;
+}
+
+/**
+ * 現行の 2 回（基準・揺れ）と新側 1 回を比べ、許容差を超えた量を返す。
+ * 現行の 2 回が割れていないこと（baselineInstability が空）は、基準を登録する時点で確かめ済みの前提。
+ * @param {any} base 現行の 1 回目の要約
+ * @param {any} noise 現行の 2 回目の要約
+ * @param {any} candidate 新側の要約
+ * @returns {{ differing: object[] }}
+ */
+export function judgeMotion(base, noise, candidate) {
+  const noiseGapForLimit = trajectoryGap(base, noise);
   const differing = [];
   for (const key of ["present_start", "present_end"]) {
     if (base[key] !== candidate[key]) {
@@ -274,7 +289,7 @@ export function judgeMotion(base, noise, candidate) {
       differing.push({ measure: `trajectory.${metric}`, gap: gap[metric], tolerance });
     }
   }
-  return { unstable, differing };
+  return { differing };
 }
 
 /**
@@ -510,6 +525,18 @@ export function compareMotions({ metadata, motions, comparison, target }) {
         continue;
       }
       // 揺れは最初の 2 回の差から測る（3 回目以降は使わない）。
+      const unstable = baselineInstability(summaries[0], summaries[1]);
+      if (unstable.length > 0) {
+        // 現行の 2 回で在る／無い・動く／動かないが割れた・揺れが上限を超えたなら、どちらを基準にするかを決められない。
+        findings.push({
+          code: "motion-baseline-unstable",
+          instance: id,
+          transition: tr,
+          detail: `現行の 2 回で ${unstable.join(" / ")} が割れた（遷移の手順か初期状態が揃っていない）`,
+        });
+        baseline.set(key, undefined);
+        continue;
+      }
       baseline.set(key, [summaries[0], summaries[1]]);
     }
   }
@@ -633,17 +660,6 @@ export function compareMotions({ metadata, motions, comparison, target }) {
       continue;
     }
     const verdict = judgeMotion(pair[0], pair[1], read.summary);
-    if (verdict.unstable.length > 0) {
-      // 現行の 2 回で在る／無い・動く／動かないが割れたら、どちらを基準にするかを決められない。
-      findings.push({
-        code: "motion-baseline-unstable",
-        transition: tr,
-        instance: inst,
-        detail: `現行の 2 回で ${verdict.unstable.join(" / ")} が割れた（遷移の手順か初期状態が揃っていない）`,
-      });
-      counts.uncompared += 1;
-      continue;
-    }
     if (verdict.differing.length > 0) {
       counts.mismatched += 1;
       findings.push({
