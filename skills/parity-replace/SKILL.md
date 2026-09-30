@@ -337,7 +337,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 受け入れ条件の突き合わせ表（**環境別**） | `.replace/parity/<slug>/new/<target>/acceptance.json` | 様式・検査の正本: `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成）。`内蔵` / `機能固有` / `未確認` / `該当なし` を引き取って決めた結果も、古い行の `状態` を `取り消し済み` にして新しい行を追記する | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
-| 現行の弱点の追記 | 敵対的レビューで台帳に無い弱点が見つかったとき、`.replace/weaknesses.md` へ仕分け空欄の行を**非破壊追記**し（無ければテンプレートから作成）、宣言の案を `intentional_diffs.pending` へ回す（仕分けは人）。写した弱点の露出を広げる差異は同じ台帳の「露出を広げた差異」列へ | 様式の正本: `replace-strategy` の `assets/weaknesses-template.md` |
+| 現行の弱点の追記 | 敵対的レビューで台帳に無い弱点が見つかったとき、`.replace/weaknesses.md` へ仕分け空欄の行を**非破壊追記**し（無ければテンプレートから作成）、基準から導いた案の宣言を `intentional_diffs.pending` へ回す（仕分けは人。`未確認` の基準が残るなら案を出さず `pending` にも回さない。規則の正本は `replace-strategy` の `references/security.md`）。写した弱点の露出を広げる差異は同じ台帳の「露出を広げた差異」列へ | 様式の正本: `replace-strategy` の `assets/weaknesses-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 
