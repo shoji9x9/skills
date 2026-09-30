@@ -572,6 +572,26 @@ export async function check(input) {
       // （ログイン画面への転送は最終応答が HTML になるので上で落ちる）。
       // ただし両側が同じ転送先に着いたら、同じ配信物を比べているだけなので落とす。
       // 転送先は署名付き URL のクエリを含みうるので、記録と出力にはオリジンとパスだけを出す。
+      // 直リンクの判定は転送の後にも当てる（新側が移行元へ 302 で飛ばす形は、転送前の new だけを見ると通る）。
+      // 別オリジンの構成のときだけ判定する点と、移行元側のオリジンの集合は転送前の判定と同じ
+      if (currentBaseOrigin !== newBaseOrigin) {
+        const currentOrigins = new Set([currentBaseOrigin, new URL(currentUrl).origin]);
+        currentOrigins.delete(newBaseOrigin);
+        const finalOrigin = (/** @type {string | undefined} */ u) =>
+          typeof u === "string" && u !== "" ? new URL(u).origin : null;
+        const newFinal = neu.redirected === true ? finalOrigin(neu.finalUrl) : null;
+        const currentFinal = cur.redirected === true ? finalOrigin(cur.finalUrl) : null;
+        if (newFinal !== null && currentOrigins.has(newFinal)) {
+          findings.push(
+            `「${row.kind}」の ${file.new} は移行元のオリジン（${newFinal}）へ転送される（新側が移行元へ転送で直リンクしている。新側が自分で配る）`,
+          );
+        }
+        if (currentFinal !== null && currentFinal === newBaseOrigin) {
+          findings.push(
+            `「${row.kind}」の ${file.current} は新側のオリジン（${newBaseOrigin}）へ転送される（移行元の配信物を取得していない）`,
+          );
+        }
+      }
       result.current_redirected = cur.redirected === true;
       result.new_redirected = neu.redirected === true;
       if (

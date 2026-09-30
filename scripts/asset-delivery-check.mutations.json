@@ -231,7 +231,9 @@
       "expect_failing": [
         "落とす: 両側とも同じバイトでも、HTML の応答（SPA のフォールバック・ログイン画面） は配っている証拠にしない",
         "落とす: 両側とも同じバイトでも、両側が同じ転送先（ログイン画面）に着く は配っている証拠にしない",
-        "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）"
+        "落とす: 同じオリジンの構成で current と new が同じ URL に解決される（同じ配信物を比べているだけ）",
+        "落とす: 転送を経由した直リンク（新側が移行元へ転送する）",
+        "落とす: 転送を経由した直リンク（移行元が新側へ転送する）"
       ]
     },
     {
@@ -249,7 +251,7 @@
       "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
       "find": "new Set([currentBaseOrigin, new URL(currentUrl).origin])",
       "replace": "new Set([currentBaseOrigin])",
-      "occurrences": 1,
+      "occurrences": 2,
       "expect_failing": [
         "落とす: 移行元が CDN から配る資産へ、新側が同じ CDN のまま直リンクしている"
       ]
@@ -286,6 +288,24 @@
       "expect_failing": [
         "通す: 参照があり移行元とバイト一致する資産は exit 0 で、結果を replace-metadata.json に書く（他のキーは残す）"
       ]
+    },
+    {
+      "id": "new-final-direct-link-accepted",
+      "why": "新側が移行元へ転送で直リンクする形を、転送前の URL だけを見て通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        if (newFinal !== null && currentOrigins.has(newFinal)) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["落とす: 転送を経由した直リンク（新側が移行元へ転送する）"]
+    },
+    {
+      "id": "current-final-new-accepted",
+      "why": "移行元の URL が新側へ転送される形（移行元を取得していない）を通す",
+      "file": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "find": "        if (currentFinal !== null && currentFinal === newBaseOrigin) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["落とす: 転送を経由した直リンク（移行元が新側へ転送する）"]
     }
   ]
 }

@@ -601,6 +601,46 @@ test("通す: 新側が転送（ハッシュ付きのパスへの 301 等）で�
   expect(JSON.stringify(r.written)).not.toContain("sig=secret");
 });
 
+test.each([
+  [
+    "新側が移行元へ転送する",
+    `${NEW}/favicon.ico`,
+    `${CUR}/favicon.ico?v=2`,
+    /\/favicon.ico は移行元のオリジン（http:\/\/current.test）へ転送される/u,
+  ],
+  [
+    "移行元が新側へ転送する",
+    `${CUR}/favicon.ico`,
+    `${NEW}/favicon.ico?v=2`,
+    /\/favicon.ico は新側のオリジン（http:\/\/new.test）へ転送される/u,
+  ],
+])("落とす: 転送を経由した直リンク（%s）", async (_label, redirectedUrl, finalUrl, message) => {
+  const base = fetcherOf({
+    ...SAME_FONTS,
+    [`${CUR}/favicon.ico`]: "ico",
+    [`${NEW}/favicon.ico`]: "ico",
+  });
+  const r = await runCheck({
+    ledgerText: ledger(FAVICON_ROW),
+    record: {
+      entries: [
+        FONT_ENTRY,
+        { kind: "favicon", files: [{ current: "/favicon.ico", new: "/favicon.ico" }] },
+      ],
+    },
+    probes: [FONT_PROBE, probe({ icons: [{ rel: "icon", href: `${NEW}/favicon.ico` }] })],
+    fetcher: async (url) => ({
+      ...(await base(url)),
+      ...(url === redirectedUrl ? { redirected: true, finalUrl, contentType: "image/x-icon" } : {}),
+    }),
+  });
+  expect(r.stdout).toMatch(message);
+  expect(r.code).toBe(1);
+  expect(r.written.asset_delivery_check.files.find((f) => f.kind === "favicon").bytes_match).toBe(
+    false,
+  );
+});
+
 test("落とす: 新側が移行元の配信物へ直リンクしている（new が移行元のオリジン）", async () => {
   const r = await runCheck({
     ledgerText: ledger(FAVICON_ROW),
