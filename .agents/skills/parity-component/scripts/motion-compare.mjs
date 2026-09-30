@@ -502,7 +502,7 @@ export function compareMotions({ metadata, motions, comparison, target }) {
           instance: id,
           transition: tr,
           detail:
-            "declared に動きの宣言があるのに、現行の時系列が一度も変化していない（止めたまま採った・別の要素を引いた疑い）",
+            "declared に動きの宣言があるのに、現行の時系列が一度も変化していない（止めたまま採った・別の要素を引いた疑い。色だけの動きのように探針の射程外なら、遷移に入れず gaps.md へ残す）",
         });
         baseline.set(key, undefined);
         continue;

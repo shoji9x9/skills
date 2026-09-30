@@ -50,7 +50,7 @@
           ]
         }
       ],
-      "none_reason": "<動きを持たない部品のときだけ理由を書き transitions を空配列にする（例: 部品の規則に transition / animation が無く、JS の動きの呼び出しも無い）。それ以外は null>"
+      "none_reason": "<探針で比べる動きが無い部品のときだけ理由を書き transitions を空配列にする（例: 部品の規則に transition / animation が無く、JS の動きの呼び出しも無い／色だけの transition しか無く、それは gaps.md に残した）。transitions には探針が採れる動き（矩形か実効の不透明度が変わるもの）だけを入れる。それ以外は null>"
     },
     "auth_roles": [
       "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の正本は parity-suite の references/auth.md>"
