@@ -39,10 +39,11 @@
   **`page.goto` はリダイレクトを追って最後の応答を返す**ので、一覧が採ったリダイレクトの応答（未ログインの 302 等）は `request` フィクスチャの `get(url, { maxRedirects: 0 })` で、
   ログインの成功（POST）の `Set-Cookie` は正規のログイン操作の要求を `page.waitForResponse` で捕まえて採る
   （複数の `Set-Cookie` は `headersArray()` で 1 つずつ読む。出典: <https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get> / <https://playwright.dev/docs/api/class-response#response-headers-array>）。
-  `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure`・`SameSite`）だけを assertion にして値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
-  **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record しても assertion にしない（`Date` 等の揮発を比較に持ち込まない）
+  `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値）だけを assertion にして cookie の値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
+  **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record にも残さない（下の項。`Date` 等の揮発と秘密の値を持ち込まない）
 - **record にも秘密の値と要求ごとに変わる値を残さない**——録画は Git に入り、`parity-diff` の現側は録画から読むので、比べる前の変換では間に合わない。
-  record する時点で `Set-Cookie` を cookie ごとの名前と属性（`HttpOnly`・`Secure`・`SameSite` だけ）に、CSP の `nonce-` の値を固定の文字列に置き換えてから書く
+  record するヘッダーは**一覧に載るものだけに絞り**（`X-CSRF-Token` のような秘密の値・`Date` のような要求ごとに変わる値を録画に入れない）、
+  `Set-Cookie` を cookie ごとの名前と属性（`HttpOnly`・`Secure` の有無と `SameSite` の値だけ）に、CSP の `nonce-` の値を固定の文字列に置き換えてから書く
 - **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
   対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
 - **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
