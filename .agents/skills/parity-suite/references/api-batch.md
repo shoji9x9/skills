@@ -36,6 +36,10 @@
 一覧は `replace-strategy` の `setup` が 1 度だけ採った `.replace/survey.md`「7. 横断の応答ヘッダー」（採り方と分類の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）。
 
 - **対象 slug が駆動する応答のうち、一覧の「付く応答」に当たるものに assertion を置く**——API の特性化ではステータス・ボディと並べて、画面ではページへの遷移の応答（`page.goto` の戻り値の `allHeaders()`。`headers()` は `Set-Cookie` 等のセキュリティ関連ヘッダーを返さない。出典: <https://playwright.dev/docs/api/class-response#response-headers>）で。
+  **`page.goto` はリダイレクトを追って最後の応答を返す**ので、一覧が採ったリダイレクトの応答（未ログインの 302 等）は `request` フィクスチャの `get(url, { maxRedirects: 0 })` で、
+  ログインの成功（POST）の `Set-Cookie` は正規のログイン操作の要求を `page.waitForResponse` で捕まえて採る
+  （複数の `Set-Cookie` は `headersArray()` で 1 つずつ読む。出典: <https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get> / <https://playwright.dev/docs/api/class-response#response-headers-array>）。
+  `Set-Cookie` は cookie 名と属性（`HttpOnly`・`Secure`・`SameSite`）だけを assertion にして値を書かず、CSP の `nonce-` の値は伏せて比べる（正本は `replace-strategy` の `references/security.md`）
   **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは record しても assertion にしない（`Date` 等の揮発を比較に持ち込まない）
 - **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
 - **一覧が無い**（`.replace/survey.md` に 7 節が無い・「未測定」）なら停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
