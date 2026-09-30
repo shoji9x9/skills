@@ -254,6 +254,39 @@
           "prompt_quote": "残っている工程があれば"
         }
       ]
+    },
+    {
+      "id": 10,
+      "prompt": "parity-component build --component dialog --target local-dev --autonomous で進めている。部品の Issue #230 の受け入れ条件に「開いている間はフォーカスをダイアログ内に閉じ込める」と「Esc キーで閉じる」がある。現行のダイアログはフォーカスを閉じ込めないので、部品のコードに「現行に合わせ閉じ込めない」と注記して実装せず、gaps.md にも理由を書いた。Esc は画面に載せた後で parity-diff が見るはずなので後工程に回すつもり。見本の照合は未説明差分ゼロ、behavior-compare.mjs と motion-compare.mjs も exit 0、verification_commands.full も通った。これで完了にしていい？ コマンドの実行やファイルの変更はせず、判断と記録の仕方を説明して。",
+      "assertions": [
+        "フォーカスの閉じ込めを現行に合わせて外すことを実装役が決めてよいことにせず、利用者の判断待ち（自律実行なので保留 pending_decisions）に回すと述べている",
+        "注記や gaps.md に書いた「条件を満たさない理由」を、同じ内容で保留にも積むと述べている",
+        "完了判定に部品の Issue の受け入れ条件の突き合わせ（issue-start --acceptance、表は .replace/components/dialog/new/local-dev/acceptance.json）が入り、照合・突き合わせの exit 0 と full だけでは完了にならないと述べている",
+        "Esc キーの条件を parity-diff（後工程）へ回さず、部品の完了で満たす条件として扱う（--allow-later を渡さない・later にしない）と述べている",
+        "判断待ちが残る間は完了を名乗らない（完了にしない）と答えている"
+      ],
+      "reachability": [
+        {
+          "assertion": "フォーカスの閉じ込めを現行に合わせて外すことを実装役が決めてよいことにせず、利用者の判断待ち（自律実行なので保留 pending_decisions）に回すと述べている",
+          "prompt_quote": "部品のコードに「現行に合わせ閉じ込めない」と注記して実装せず"
+        },
+        {
+          "assertion": "注記や gaps.md に書いた「条件を満たさない理由」を、同じ内容で保留にも積むと述べている",
+          "prompt_quote": "gaps.md にも理由を書いた"
+        },
+        {
+          "assertion": "完了判定に部品の Issue の受け入れ条件の突き合わせ（issue-start --acceptance、表は .replace/components/dialog/new/local-dev/acceptance.json）が入り、照合・突き合わせの exit 0 と full だけでは完了にならないと述べている",
+          "prompt_quote": "見本の照合は未説明差分ゼロ、behavior-compare.mjs と motion-compare.mjs も exit 0、verification_commands.full も通った"
+        },
+        {
+          "assertion": "Esc キーの条件を parity-diff（後工程）へ回さず、部品の完了で満たす条件として扱う（--allow-later を渡さない・later にしない）と述べている",
+          "prompt_quote": "Esc は画面に載せた後で parity-diff が見るはずなので後工程に回すつもり"
+        },
+        {
+          "assertion": "判断待ちが残る間は完了を名乗らない（完了にしない）と答えている",
+          "prompt_quote": "これで完了にしていい？"
+        }
+      ]
     }
   ]
 }

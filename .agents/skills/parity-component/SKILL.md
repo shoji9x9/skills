@@ -31,9 +31,9 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 ## 前提
 
-- **ツール**: `git`、Node.js（Playwright の実行環境）。**`build` は `gh`（GitHub CLI）も要る**——手順 1 で `issue-start` へ委譲してブランチを作るため（`capture` は Issue を操作しないので不要）
+- **ツール**: `git`、Node.js（Playwright の実行環境）。**`build` は `gh`（GitHub CLI）も要る**——手順 1 で `issue-start` へ委譲してブランチを作り、手順 8 で部品の Issue を取り直して受け入れ条件を突き合わせるため（`capture` は Issue を操作しないので不要）
 - **前提スキル**: `replace-strategy`（`setup` 完了）、`golden-dataset`（フェーズ A 完了）、`parity-suite`（**同梱の差分器と撮影条件の正本を読むため。対象 slug の実行は不要**）。
-  `build` は `issue-start`（ブランチ作成の委譲先。`--branch-only` で呼ぶ）と `parity-replace`（敵対的レビューの手順の正本）も使う
+  `build` は `issue-start`（ブランチ作成と受け入れ条件の突き合わせの委譲先。`--branch-only` と `--acceptance` で呼ぶ）と `parity-replace`（敵対的レビューの手順の正本）も使う
 - **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
   本スキルは設定スキーマ・差分器・撮影条件の**正本を `replace-strategy` / `parity-suite` に持つ**ため、単体では成立しない
 - **MCP**: 不要（現行アプリ・カタログの駆動は Playwright 自身が行う）
@@ -95,6 +95,10 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - **カタログ同士・カタログとベンダーの見本を突き合わせない。** 比較の相手は常に現行アプリから採った基準
 - **意図的差異レジストリに宣言の無い差を、引数の既定値や個別分岐で吸収しない**（宣言に無い差は `intentional_diffs.pending` へ回してユーザー確認）
 - **既存パッケージを探さずに自前実装を始めない。探した結果として自前実装を選ぶのは可**（理由を記録する。正本は `replace-strategy` の `references/dependency-selection.md`）
+- **部品の Issue の受け入れ条件を黙って外さない。** 受け入れ条件と違う実装にすること（現行に無い振る舞い——フォーカスの閉じ込め・キーボード操作・引数の既定値等——を「現行に合わせる」を理由に外す等）と、
+  受け入れ条件に当たる観点・検証を飛ばすことは、利用者に確認してから決める。**飛ばす前に戻す手段を探し**、探した結果を判断材料に書く。
+  コードの注記・`gaps.md`・`parity.md` に「条件を満たさない理由」を書いたら、同じ内容を判断待ちにも積む（注記は「理由を書いた」形になり、照合もレビューもそれ以上を求めない）。
+  規律の正本は `replace-strategy` の `references/autonomy.md`「受け入れ条件から外れる判断」
 - **破壊的変更を自分で決めない。** 既存の見本の出力が変わる引数の削除・意味変更は、影響範囲を示してユーザーに判断を求める（[`references/amend.md`](references/amend.md)）
 - **シークレットの値をコード・ログ・成果物に残さない。** 環境変数名だけを扱い、値は復唱しない
 
@@ -129,7 +133,9 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 
 - **対象の選択**（`--component` の省略・既定の無い `--target`）は保留にせず、候補を示して停止する（記録先が slug と target で決まるため。正本の「宣言」）
 - **判断待ち（保留に落とす）**: 同梱ツールのコピー先が同梱版と一致しないときの扱い、
-  インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）、台帳に無い静的資産の方針
+  インスタンス間で割れているが区別する理由が見つからない軸（現行の不整合）を揃えるか、部品の依存の決定（`new.stack` が空のときを含む）、台帳に無い静的資産の方針、
+  **部品の Issue の受け入れ条件と違う実装・受け入れ条件に当たる観点の飛ばし**（上記「厳守の制約」）、
+  受け入れ条件の突き合わせ（`build` 手順 8）の結果を Issue へコメントしチェックを付けること（外向きの操作）
 - **保留に落としても進める工程**: 割れた軸の扱いが保留なら、その軸を含まない引数の設計・実装・見本の採取は進め、**その軸に依存する見本の照合は行わない**
 - **記録先**: `capture` は `.replace/components/<slug>/metadata.json`、`build` は `.replace/components/<slug>/new/<target>/build-metadata.json` の `pending_decisions[]` と `run.autonomous`。
   未解決の保留が残る間は `capture.complete` を `true` にせず、`build` は収束と報告しない（`loop.stopped_reason` に判断待ちを書く）
@@ -224,7 +230,19 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    ＋ **`motion-compare.mjs` が exit 0**（動きの未突合・不一致が 0 件）であること
    ＋ **一生の順番の経路の対象なら、`lifecycle.paths[]` の全件で検査が通り、各検査が経路に入ったこと（回数 1 以上）を症状より先に確かめ、直した処理を外すと落ちることを確かめてあり、順番の見本を `catalog.stories` にも `unbaselined_stories` にも入れていない**こと。
    記録の検査は `node <skill>/scripts/lifecycle-check.mjs --build-metadata <build-metadata.json>` の exit 0（4 経路の振り分けの漏れ・重複も落とす。対象でない部品も通す）（[`references/lifecycle.md`](references/lifecycle.md)「完了判定」）。
-   完了報告には、比べなかった操作・遷移（到達できない・承認して残した）と、列挙の外の挙動を引き受ける工程を収束と並べて示す
+   ＋ **部品の Issue の受け入れ条件の突き合わせが exit 0** であること——上の判定はどれも採取物との照合で、部品の Issue にだけ書かれた条件
+   （フォーカスの閉じ込め・キーボード操作・引数の既定値等）はどれにも数えられない。手順 1 で使った `.replace/components.md` の Issue 列の番号で
+   `issue-start <番号> --acceptance --out .replace/components/<slug>/new/<target>/acceptance.json --decisions .replace/components/<slug>/new/<target>/build-metadata.json` を実行する
+   （`build-metadata.json` の `verification` / `loop` / `pending_decisions` を確定して commit してから渡す——未コミットの変更が残ると表が根拠の版を固定できない。
+   検査の結果は後から同じファイルの `acceptance` に書き、次の commit に含める（表を取り直すときは `commit` をその時点の HEAD にする）。手順と表の様式の正本は `issue-start` の `references/acceptance.md`）。
+   **`--allow-later` は渡さない**——部品の Issue の条件はすべて本スキルの完了で満たす条件で（`replace-strategy` の `references/features-issues.md`「共通部品 Issue」）、
+   後工程の `parity-diff` は画面の収束を見る工程なので部品の条件を引き受けない（下記「姉妹スキルとの連携」の「`parity-diff` との関係」）。後工程へ回すと、どの工程も数えないまま Issue が閉じる。
+   満たせない条件は自分で外さず判断待ちに積み（上記「厳守の制約」）、行は `pending-decision` にする。
+   番号を機能の行と共有していて機能の条件が表に入るときは、`later` へ逃がさず停止して利用者に確認する（行と Issue は 1 対 1 が前提。正本は同じ `features-issues.md`「起票の後に行と受け入れ条件を突き合わせる」）。
+   `issue-start` が未インストールで委譲先に到達できないときは合格に倒さず完了を止め、導入手順（`gh skill install shoji9x9/skills issue-start`）を示す。
+   結果の Issue へのコメントとチェックは `issue-start` の `references/acceptance.md` 手順 7 に従う（自律実行では行わず保留に積む）。
+   完了報告には、受け入れ条件の突き合わせの行ごとの状態と根拠の強さ（実測／読解）を `pending-decision` / `deferred` の行も省かずに並べ、
+   比べなかった操作・遷移（到達できない・承認して残した）と、列挙の外の挙動を引き受ける工程を収束と並べて示す
    （[`references/behavior.md`](references/behavior.md)「完了報告に書くこと」、[`references/motion.md`](references/motion.md)「射程」）。
    実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う（`issue-start` の実装ステップへ再入しない）
 
@@ -247,12 +265,13 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 | メタデータ・ノイズ基準値 | `.replace/components/<slug>/metadata.json` | [`assets/metadata-template.json`](assets/metadata-template.json) |
 | 照合と往復の記録 | `.replace/components/<slug>/parity.md` | [`assets/parity-template.md`](assets/parity-template.md) |
 | 完了証跡（**環境別**） | `.replace/components/<slug>/new/<target>/build-metadata.json` | [`assets/build-metadata-template.json`](assets/build-metadata-template.json) |
+| 受け入れ条件の突き合わせ表（**環境別**） | `.replace/components/<slug>/new/<target>/acceptance.json` | 様式・検査の正本: `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
 | 未検証領域 | `.replace/components/<slug>/gaps.md` | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 実装・見本 | 新側リポジトリ（`references.architecture` の構成に従う） | — |
 
-- テキスト成果物（特性 JSON・CSS 規則 JSON・操作の結果 JSON・動きの時系列 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
+- テキスト成果物（特性 JSON・CSS 規則 JSON・操作の結果 JSON・動きの時系列 JSON・`metadata.json`・`component-api.md`・`parity.md`・`gaps.md`・`new/<target>/acceptance.json`）は Git。スクリーンショット等の大きなバイナリは `artifacts` 設定に従い、既定 `local`（コミットしない）
 - **ノイズ測定の 2 回目の採取物は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除する（正本: `parity-suite` の `references/baseline.md`）
 - **差分器・特性採取ツールは `parity-suite` 同梱を正本として使う**（本スキルで再実装しない）。実行時は `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーし、実際のパスを `metadata.json` に記録する。
   **機能単位の `parity-suite` より先に走るのでコピーが無いのが普通**——インストール済み `parity-suite` からの用意と、既存のコピーが同梱版と違うときに停止する規律は [`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」

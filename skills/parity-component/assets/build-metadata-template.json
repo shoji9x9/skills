@@ -92,6 +92,12 @@
       }
     ]
   },
+  "acceptance": {
+    "_note": "部品の Issue の受け入れ条件の突き合わせ（build 手順 8。issue-start <番号> --acceptance --out <record> --decisions <この build-metadata.json> に委譲する。--allow-later は渡さない）。表の様式と検査の正本は issue-start の assets/acceptance-template.json と scripts/acceptance-check.mjs。",
+    "record": ".replace/components/<slug>/new/<target>/acceptance.json",
+    "check_exit": "<issue-start の scripts/acceptance-check.mjs の終了コード。0 以外なら完了しない>",
+    "closable": "<検査の出力の closable。false なら PR で部品の Issue を閉じない。真偽値で書く>"
+  },
   "loop": {
     "iterations": "<照合と修正の反復回数>",
     "changed_scope": "<最後の反復で描画に効く変更を入れた範囲（トークン・共有スタイル・部品本体のどれか）>",
