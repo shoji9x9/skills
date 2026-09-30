@@ -32,10 +32,12 @@ const PLACEHOLDER_ORIGIN = "http://runtime.invalid/";
  *   resolvable: boolean,
  *   reason: string | null,
  *   pages: Map<string, ResolvedPage>,
+ *   unresolved: Map<string, string>,
  *   problems: string[],
  * }} PageResolution
  * resolvable: 全てのページを解けたか（false なら URL との照合をしない。reason に理由）。
  * pages: 解けたページだけ（名前 → 解決結果）。problems: 入力の誤り（path が空・解けない・baseURL が URL でない）。
+ * unresolved: runtime で baseURL が無く解けなかった相対の path（名前 → 書いた path）。使い回しは書いた path で数える
  */
 
 /**
@@ -102,11 +104,12 @@ export function resolvePages(pages, uiUrl) {
       resolvable: false,
       reason: baseRead.problem,
       pages: resolved,
+      unresolved: new Map(),
       problems: [baseRead.problem],
     };
   }
-  /** @type {string[]} */
-  const relativeUnderRuntime = [];
+  /** @type {Map<string, string>} */
+  const unresolved = new Map();
   for (const pg of list) {
     if (typeof pg !== "object" || pg === null || Array.isArray(pg)) continue;
     const name = /** @type {Record<string, unknown>} */ (pg).name;
@@ -125,7 +128,7 @@ export function resolvePages(pages, uiUrl) {
       continue;
     }
     if (baseRead.runtime && !originRelative(path)) {
-      relativeUnderRuntime.push(name);
+      unresolved.set(name, path);
       continue;
     }
     const u = new URL(path, baseRead.base ?? PLACEHOLDER_ORIGIN);
@@ -142,17 +145,24 @@ export function resolvePages(pages, uiUrl) {
     });
   }
   if (problems.length > 0) {
-    return { resolvable: false, reason: problems.join(" / "), pages: resolved, problems };
-  }
-  if (relativeUnderRuntime.length > 0) {
     return {
       resolvable: false,
-      reason: `target.ui_url が "runtime" で baseURL が成果物に無く、相対の path（${relativeUnderRuntime.join(", ")}）を解決できない（押した後の URL との照合をしない。照合させるなら path を baseURL のパス接頭辞を含めて "/" から書く）`,
+      reason: problems.join(" / "),
       pages: resolved,
+      unresolved,
+      problems,
+    };
+  }
+  if (unresolved.size > 0) {
+    return {
+      resolvable: false,
+      reason: `target.ui_url が "runtime" で baseURL が成果物に無く、相対の path（${[...unresolved.keys()].join(", ")}）を解決できない（押した後の URL との照合をしない。照合させるなら path を baseURL のパス接頭辞を含めて "/" から書く）`,
+      pages: resolved,
+      unresolved,
       problems: [],
     };
   }
-  return { resolvable: true, reason: null, pages: resolved, problems: [] };
+  return { resolvable: true, reason: null, pages: resolved, unresolved, problems: [] };
 }
 
 /**
@@ -195,11 +205,15 @@ export function pageForUrl(urlAfter, resolution) {
 }
 
 /**
- * 使い回しの照合のキー。解けたページは解決結果（別名は同じ 1 枚）、解けなければ名前で数える。
+ * 使い回しの照合のキー。解けたページは解決結果（別名は同じ 1 枚）。
+ * runtime で解けない相対の path は書いた path の文字列で数える（URL との照合はしないが、同じ path を書いた別名は同じ 1 枚にまとめる。
+ * 名前へ縮退させると、別名を名乗り分けるだけで根拠なしの使い回しが通る）。どれでもなければ名前で数える。
  * @param {string} name
  * @param {PageResolution | null} resolution
  */
 export function pageKey(name, resolution) {
   const pg = resolution?.pages.get(name);
-  return pg ? `url:${pg.key}` : `name:${name}`;
+  if (pg) return `url:${pg.key}`;
+  const raw = resolution?.unresolved.get(name);
+  return raw !== undefined ? `path:${raw}` : `name:${name}`;
 }

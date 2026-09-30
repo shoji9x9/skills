@@ -89,6 +89,7 @@
 - **`target.ui_url` が `runtime`（url_command の target。URL を成果物に残さない）なら baseURL が無い。**
   `/` で始まる path だけを解き、相対の path が 1 つでもあれば押した後の URL との照合をしない（`reaction-check.mjs` の出力の `capture_page_urls.checked: false` に理由が出る）。
   照合させるなら path を baseURL のパス接頭辞を含めて `/` から書く（オリジンは照合に使わないので、ホストは成果物に残らない）
+  - 照合しない場合も、撮る状態の使い回しは相対の path の文字列で数える（同じ path を書いた別名は同じ 1 枚。`orders` と `/portal/orders` のように書き方の違う同じページはまとまらない）
 
 **撮る状態を持つ操作は、押した後の URL（`reactions.json` の `aftermath.returns_to.url_after`）がこの規則で名乗ったページ（`capture_page`。ページが 1 つなら省略可）に解けなければ落ちる**
 （[`coverage.md`](coverage.md)「押した後に残るもの」）。

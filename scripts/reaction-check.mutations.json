@@ -510,7 +510,8 @@
         "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
         "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
         "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）",
-        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
       ]
     },
     {
@@ -536,7 +537,8 @@
         "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
         "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
         "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
-        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
       ]
     },
     {
@@ -1692,7 +1694,8 @@
       "replace": "    if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "target.ui_url が runtime で相対の path があれば照合せず、理由を出力に残す（Issue #484）"
+        "target.ui_url が runtime で相対の path があれば照合せず、理由を出力に残す（Issue #484）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
       ]
     },
     {
@@ -1712,8 +1715,8 @@
       "id": "page-key-by-name",
       "why": "使い回しを解決したページではなく名前で数える（別名のページで 1 枚を根拠なく共有できる。Issue #484）",
       "file": "skills/parity-suite/scripts/page-identity.mjs",
-      "find": "  return pg ? `url:${pg.key}` : `name:${name}`;\n",
-      "replace": "  return `name:${name}`;\n",
+      "find": "  if (pg) return `url:${pg.key}`;\n",
+      "replace": "\n",
       "occurrences": 1,
       "expect_failing": [
         "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
@@ -1812,6 +1815,17 @@
       "occurrences": 1,
       "expect_failing": [
         "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
+      ]
+    },
+    {
+      "id": "page-key-runtime-by-name",
+      "why": "runtime で解けない相対の path のページを名前で数える（同じ path の別名を名乗り分けるだけで根拠なしの使い回しが通る。Claude Code レビュー #524）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  return raw !== undefined ? `path:${raw}` : `name:${name}`;\n",
+      "replace": "  return `name:${name}`;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
       ]
     }
   ]

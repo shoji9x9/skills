@@ -2072,6 +2072,40 @@ test("別名のページ（同じ path の別の名前）は同じ 1 枚とし�
   expect(both.status).toBe(0);
 });
 
+test("ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）", () => {
+  const pages = { 共有画面: "share", 共有画面の別名: "share" };
+  const metadata = pagesMeta("runtime", pages);
+  const share = (t, reasons) => {
+    t.state_displays.pages = Object.keys(pages).map((name) => stateDisplayRow(name));
+    t.operations[0].capture_page = "共有画面の別名";
+    t.operations[1].capture_page = "共有画面";
+    const it = t.operations[1].aftermath.look.items[1];
+    it.captured = "copy-toast";
+    it.covered_by = [];
+    t.operations[0].reactions[0].capture.shared_capture_reason = reasons[0];
+    it.shared_capture_reason = reasons[1];
+  };
+  const bare = run(
+    mutated((t) => share(t, [null, null])),
+    { metadata },
+  );
+  expect(bare.status).toBe(1);
+  expect(bare.stderr).toContain('撮る状態 "共有画面の別名 の copy-toast" を');
+  // URL との照合はしていない（相対の path を解けない）ことも出力に残る
+  expect(JSON.parse(bare.stdout).capture_page_urls.checked).toBe(false);
+  const both = run(
+    mutated((t) =>
+      share(t, [
+        "コピーの後に検索しても同じ通知が残り、1 枚に両方が写ることを実 UI で確かめた",
+        "同上",
+      ]),
+    ),
+    { metadata },
+  );
+  expect(both.stderr).toBe("");
+  expect(both.status).toBe(0);
+});
+
 // --- 部品被覆表と反応の被覆表をまたいだ撮る状態の使い回し（Issue #485）---
 
 const coverageTemplate = JSON.parse(
