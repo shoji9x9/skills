@@ -70,6 +70,7 @@
   },
   "lifecycle": {
     "_note": "部品の一生の順番（結び直し・引数の差し替え・付け直し・初期化の後の変化）で壊れる経路の検査。判定と見本の形の正本は parity-component の references/lifecycle.md。ここに載る見本は見た目の照合の見本ではないので catalog.stories に載せず、parity.unbaselined_stories にも数えない。",
+    "check_exit": "<scripts/lifecycle-check.mjs の終了コード。0 以外なら完了しない>",
     "applies": "<対象か（初期化を 1 度しか通らず後の変化を自分で受け直す・その経路を既存の検査が通らない・壊れる処理を名指しできる、の 3 つがすべて当てはまるか）。真偽値で書く>",
     "reason": "<判定の根拠。対象でないなら 3 つのどれが外れたか>",
     "paths": [

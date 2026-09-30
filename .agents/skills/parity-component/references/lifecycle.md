@@ -58,4 +58,15 @@
 - 順番の見本が `catalog.stories` に無く、`parity.unbaselined_stories` にも数えていない（`lifecycle.paths[].story` に載っているものだけを除く）
 
 名指しできない経路は `not_applicable_paths[]` に理由付きで残っていること（空の経路を黙って落とさない）。
+
+**判定は同梱の [`../scripts/lifecycle-check.mjs`](../scripts/lifecycle-check.mjs) が行う**（コピーせずスキル配下から実行する）。
+4 経路が `paths` と `not_applicable_paths` のどちらかにちょうど 1 回ずつ現れること、`paths` の各行の検査が通り・経路に入った回数が 1 以上で・
+`fix_removal_verified` が真であること、対象でない部品が `paths` を持たないことを確かめる。結果の終了コードを `lifecycle.check_exit` に書く。
+
+```bash
+node <skill>/scripts/lifecycle-check.mjs \
+  --build-metadata .replace/components/<slug>/new/<target>/build-metadata.json
+```
+
+exit 0 ＝ 条件を満たす（対象でない部品を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ（`lifecycle` が無い・`applies` が真偽値でない等）。
 部品を改修したら検査を回し直す（[`amend.md`](amend.md)「回帰は目視で確かめない」）。完了報告には、対象にした経路と `not_applicable_paths` の理由を収束と並べて示す。

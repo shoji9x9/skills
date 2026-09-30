@@ -67,6 +67,7 @@
     "not_compared": 0
   },
   "lifecycle": {
+    "check_exit": 0,
     "applies": false,
     "reason": "初期化のコールバックで命令的に結ぶ処理も、引数の変化を部品の側で購読する処理も無い（描画は引数だけで決まる）",
     "paths": [],

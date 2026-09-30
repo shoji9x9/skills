@@ -1,0 +1,210 @@
+#!/usr/bin/env node
+// 部品の一生の順番で壊れる経路の記録（build-metadata.json の lifecycle）を検査する（正本）。Issue #477。
+//
+// 何のためか: 見本の照合・操作の突き合わせ・パリティスイートは毎回同じ順で部品を描くので、結び直し・引数の差し替え・
+// 付け直し・初期化の後の変化で壊れる不具合に一度も入らない。build はこの経路を判定して順番を強制する見本で確かめるが、
+// 記録が散文の規律だけだと、経路を黙って落とした記録（4 経路のどれにも振り分けていない・検査が落ちている・
+// 経路に入っていない）でも完了できてしまう。この検査が記録の形と完了の条件を機械的に確かめる。
+//
+// 判定（lifecycle.applies が true のとき）:
+//   - paths[].path と not_applicable_paths[].path の和が、4 経路（PATHS）をちょうど 1 回ずつ含む（漏れ・重複・語彙外を落とす）
+//   - paths は 1 件以上（名指しできる経路が 1 つも無いなら対象ではない＝applies: false）
+//   - paths の各行: breaking_process / story / entry_attribute / check が記入済み、result が pass、
+//     entered が 1 以上の整数、fix_removal_verified が true
+//   - not_applicable_paths の各行: reason が記入済み
+// applies が false のときは paths が空であること（対象でないのに検査の見本を置くと、照合されない見本がカタログに残る）。
+//
+// 決定論的: 乱数・現在時刻・ネットワークに依存しない。読むのは JSON だけで、見本も検査も実行しない
+// （検査を実行して結果を記録するのは build の手順。この検査は記録が条件を満たすかだけを見る）。
+//
+// 使い方: node lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>
+// 終了コード: 0 ＝ 条件を満たす（対象でない場合を含む）、1 ＝ 不足が残る、2 ＝ 使い方の誤り・型崩れ。
+
+import { readFileSync, realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+// 記入済みかの判定は behavior-compare.mjs と同じものを使う（実パスに解決したディレクトリから読む。
+// シンボリックリンク経由で --preserve-symlinks-main 起動されても兄弟ファイルを見つけられるように）。
+const { filled, nonEmptyString } = await import(
+  pathToFileURL(join(dirname(realpathSync(fileURLToPath(import.meta.url))), "behavior-compare.mjs"))
+    .href
+);
+
+/** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
+export const VERSION = "1";
+
+/** 4 経路の語彙（正本。references/lifecycle.md「4 つの経路」と同じ）。 */
+export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
+
+/**
+ * lifecycle の記録を検査する（純関数）。
+ * @param {any} lifecycle build-metadata.json の lifecycle
+ * @returns {{ structural: boolean, applies: boolean | null, findings: object[] }}
+ */
+export function checkLifecycle(lifecycle) {
+  /** @type {object[]} */
+  const findings = [];
+  const structural = (detail) => ({
+    structural: true,
+    applies: null,
+    findings: [{ code: "structural", detail }],
+  });
+  if (lifecycle === null || typeof lifecycle !== "object" || Array.isArray(lifecycle)) {
+    return structural("build-metadata.json の lifecycle が無い（対象かどうかを判定していない）");
+  }
+  if (typeof lifecycle.applies !== "boolean") {
+    return structural("lifecycle.applies が真偽値でない（テンプレートのプレースホルダのまま等）");
+  }
+  if (!filled(lifecycle.reason)) {
+    return structural("lifecycle.reason が空かプレースホルダのまま（判定の根拠が無い）");
+  }
+  const paths = lifecycle.paths;
+  const notApplicable = lifecycle.not_applicable_paths;
+  if (!Array.isArray(paths) || !Array.isArray(notApplicable)) {
+    return structural("lifecycle.paths / not_applicable_paths が配列でない");
+  }
+  if (!lifecycle.applies) {
+    if (paths.length > 0) {
+      findings.push({
+        code: "lifecycle-paths-when-not-applicable",
+        detail:
+          "対象でない（applies: false）のに paths がある（照合されない順番の見本がカタログに残る）",
+      });
+    }
+    return { structural: false, applies: false, findings };
+  }
+  if (paths.length === 0) {
+    findings.push({
+      code: "lifecycle-no-paths",
+      detail:
+        "対象（applies: true）なのに名指しできた経路が 0 件（名指しできないなら対象ではない）",
+    });
+  }
+  /** @type {Map<string, number>} */
+  const seen = new Map();
+  const count = (name, where) => {
+    if (!nonEmptyString(name) || !PATHS.includes(name)) {
+      findings.push({
+        code: "lifecycle-path-unknown",
+        where,
+        path: name ?? null,
+        detail: `path は ${PATHS.join(" / ")} のいずれか`,
+      });
+      return false;
+    }
+    seen.set(name, (seen.get(name) ?? 0) + 1);
+    return true;
+  };
+  for (const row of paths) {
+    const name = row && row.path;
+    if (!count(name, "paths")) continue;
+    const missing = ["breaking_process", "story", "entry_attribute", "check"].filter(
+      (key) => !filled(row[key]),
+    );
+    if (missing.length > 0) {
+      findings.push({ code: "lifecycle-path-incomplete", path: name, missing });
+    }
+    if (row.result !== "pass") {
+      findings.push({
+        code: "lifecycle-path-failed",
+        path: name,
+        detail: `result が pass でない: ${JSON.stringify(row.result)}`,
+      });
+    }
+    if (!Number.isInteger(row.entered) || row.entered < 1) {
+      findings.push({
+        code: "lifecycle-path-not-entered",
+        path: name,
+        detail: `entered が 1 以上の整数でない: ${JSON.stringify(row.entered)}（経路に入らないまま症状だけを見た検査は何も示さない）`,
+      });
+    }
+    if (row.fix_removal_verified !== true) {
+      findings.push({
+        code: "lifecycle-fix-removal-unverified",
+        path: name,
+        detail: "直した処理を外すとこの検査だけが落ちることを確かめていない",
+      });
+    }
+  }
+  for (const row of notApplicable) {
+    const name = row && row.path;
+    if (!count(name, "not_applicable_paths")) continue;
+    if (!filled(row.reason)) {
+      findings.push({
+        code: "lifecycle-na-reason-missing",
+        path: name,
+        detail: "名指しできない理由が空かプレースホルダのまま",
+      });
+    }
+  }
+  for (const name of PATHS) {
+    const n = seen.get(name) ?? 0;
+    if (n === 0) {
+      findings.push({
+        code: "lifecycle-path-missing",
+        path: name,
+        detail: "paths にも not_applicable_paths にも無い（経路を黙って落とさない）",
+      });
+    } else if (n > 1) {
+      findings.push({ code: "lifecycle-path-duplicate", path: name, count: n });
+    }
+  }
+  return { structural: false, applies: true, findings };
+}
+
+/**
+ * CLI 本体。
+ * @param {string[]} argv
+ * @param {{ cwd?: string, write?: (s: string) => void, writeErr?: (s: string) => void }} [io]
+ * @returns {number} 終了コード
+ */
+export function main(
+  argv,
+  {
+    cwd = process.cwd(),
+    write = (s) => process.stdout.write(s),
+    writeErr = (s) => process.stderr.write(s),
+  } = {},
+) {
+  const out = (obj) =>
+    write(`${JSON.stringify({ tool: "lifecycle-check", version: VERSION, ...obj }, null, 2)}\n`);
+  const usage = "usage: lifecycle-check.mjs --build-metadata <new/<target>/build-metadata.json>";
+  const fail = (message) => {
+    writeErr(`error: ${message}\n${usage}\n`);
+    return 2;
+  };
+  if (argv.length !== 2 || argv[0] !== "--build-metadata") {
+    return fail(argv.length === 0 ? "--build-metadata は必須" : `不明な引数: ${argv.join(" ")}`);
+  }
+  if (!nonEmptyString(argv[1])) return fail("--build-metadata は必須（空白だけの値も不可）");
+  let metadata;
+  try {
+    metadata = JSON.parse(readFileSync(resolve(cwd, argv[1]), "utf8"));
+  } catch (error) {
+    return fail(`build-metadata.json を読めない: ${error && error.message}`);
+  }
+  const result = checkLifecycle(metadata && metadata.lifecycle);
+  if (result.structural) {
+    out({ ok: false, structural: true, findings: result.findings });
+    return 2;
+  }
+  out({ ok: result.findings.length === 0, applies: result.applies, findings: result.findings });
+  return result.findings.length === 0 ? 0 : 1;
+}
+
+// CLI エントリ判定は両辺を実パスに解決してから突き合わせる（シンボリックリンク経由の起動でサイレント no-op にしない）。
+const invokedAsCli = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  const self = fileURLToPath(import.meta.url);
+  try {
+    return realpathSync(entry) === realpathSync(self);
+  } catch {
+    return entry === self;
+  }
+})();
+
+if (invokedAsCli) {
+  process.exitCode = main(process.argv.slice(2));
+}

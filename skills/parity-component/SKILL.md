@@ -223,7 +223,8 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
    ＋ **母集合に対応しない見本（基準の無い見本）が 0 件**であること（[`references/catalog.md`](references/catalog.md)「現行に無い見た目を見本に作らない」）
    ＋ **`behavior-compare.mjs` が exit 0**（操作の結果の未突合・不一致が 0 件）であること
    ＋ **`motion-compare.mjs` が exit 0**（動きの未突合・不一致が 0 件）であること
-   ＋ **一生の順番の経路の対象なら、`lifecycle.paths[]` の全件で検査が通り、各検査が経路に入ったこと（回数 1 以上）を症状より先に確かめ、直した処理を外すと落ちることを確かめてあり、順番の見本を `catalog.stories` にも `unbaselined_stories` にも入れていない**こと（[`references/lifecycle.md`](references/lifecycle.md)「完了判定」）。
+   ＋ **一生の順番の経路の対象なら、`lifecycle.paths[]` の全件で検査が通り、各検査が経路に入ったこと（回数 1 以上）を症状より先に確かめ、直した処理を外すと落ちることを確かめてあり、順番の見本を `catalog.stories` にも `unbaselined_stories` にも入れていない**こと。
+   記録の検査は `node <skill>/scripts/lifecycle-check.mjs --build-metadata <build-metadata.json>` の exit 0（4 経路の振り分けの漏れ・重複も落とす。対象でない部品も通す）（[`references/lifecycle.md`](references/lifecycle.md)「完了判定」）。
    完了報告には、比べなかった操作・遷移（到達できない・承認して残した）と、列挙の外の挙動を引き受ける工程を収束と並べて示す
    （[`references/behavior.md`](references/behavior.md)「完了報告に書くこと」、[`references/motion.md`](references/motion.md)「射程」）。
    実行した検証コマンドと結果、反復回数を **`.replace/components/<slug>/new/<target>/build-metadata.json`**（環境別）へ記録する。commit / push / PR は `issue-start` が解決した規約に従う（`issue-start` の実装ステップへ再入しない）
@@ -256,7 +257,7 @@ parity-component build   [--component <slug>] [--target <name>] [--autonomous]
 - **ノイズ測定の 2 回目の採取物は成果物ではない。** 基準値を `metadata.json.noise_baseline` へ記録したら削除する（正本: `parity-suite` の `references/baseline.md`）
 - **差分器・特性採取ツールは `parity-suite` 同梱を正本として使う**（本スキルで再実装しない）。実行時は `<parity_suite_dir>/parity/lib/tools/vendor/` へコピーし、実際のパスを `metadata.json` に記録する。
   **機能単位の `parity-suite` より先に走るのでコピーが無いのが普通**——インストール済み `parity-suite` からの用意と、既存のコピーが同梱版と違うときに停止する規律は [`references/capture.md`](references/capture.md)「`parity-suite` 同梱ツールの用意」
-- **[`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)・[`scripts/axis-diff.mjs`](scripts/axis-diff.mjs)・[`scripts/behavior-compare.mjs`](scripts/behavior-compare.mjs)・[`scripts/motion-compare.mjs`](scripts/motion-compare.mjs) はコピーしない。**
+- **[`scripts/css-rules-capture.mjs`](scripts/css-rules-capture.mjs)・[`scripts/axis-diff.mjs`](scripts/axis-diff.mjs)・[`scripts/behavior-compare.mjs`](scripts/behavior-compare.mjs)・[`scripts/motion-compare.mjs`](scripts/motion-compare.mjs)・[`scripts/lifecycle-check.mjs`](scripts/lifecycle-check.mjs) はコピーしない。**
   スキル配下のスクリプトをそのまま実行する（`gh skill update` の自動更新を効かせる）
 - **[`scripts/motion-probe.mjs`](scripts/motion-probe.mjs) だけはコピーする**——Playwright のスペックから import するため。`parity-suite` 同梱ツールと同じ置き場所・同じ一致確認で用意する（[`references/motion.md`](references/motion.md)「時系列を採る」）
 
