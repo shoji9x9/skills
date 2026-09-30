@@ -126,9 +126,11 @@
     ```
 
     `--recorded` は移行元ソースを読まず（テスト一覧は読む。`--tests` を省くと exit 2）、表の検査に加えて `conformance.ok: true`・`tool_version` の一致・**表の指紋の一致**（照合後に表を書き換えていない）を要求する。
-    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
+    終了コードは 0 ＝ 条件を満たす（判定しない場合を含む）、1 ＝ 未測定・不整合が残る（収束させず `parity-suite` へ戻す）、2 ＝ 型崩れ・`declared: false` なのに `reason` が空、または操作の痕跡がある機能の `declared: false`・手順の改訂 4 以降の画面駆動の機能の `declared: false`（後方互換に倒さず現側の成果物を直す）。
     **スクリプトが見つからないときは判定を飛ばさず停止し**、`gh skill install shoji9x9/skills parity-suite` を促す。
-    `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
+    `declared: false` と `reaction_coverage` を**キーごと持たない旧成果物**は判定に入れない（後方互換）が、理由を `diff-metadata.json` の `reaction_coverage`（`judged: false`）と `diff.md` の未検証領域に残す。
+    **判定に入れない `declared: false` は画面を持たない `api-resource` / `batch` と、改訂 4 より前の画面駆動の機能だけ**——
+    操作を持たない画面駆動の機能も `operations: []` の表で画面ごとの状態表示を振り分けるので、`declared: true` として同じ判定に入る（旧成果物の理由には状態表示を振り分けていない旨が出る）
     **表の文書ごとのオリジン（`document_origins` / `cross_origin_evidence`）と、`kind: none` の操作した文書（`observation.source_document`）も同じ判定に入る**。
     これらを持たない表は `declared: true` なら後方互換に倒さず exit 1 になるので、`parity-suite` で記録させて `reaction-check.mjs --tests <テスト一覧> --write` を通し直させる（`tool_version` も上がっている）。
     **操作ごとの頁の組み方の変化（`layout`）も同じ判定に入り、欠けた表も同じく exit 1 になる**。

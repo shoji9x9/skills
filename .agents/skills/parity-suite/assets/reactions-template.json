@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath・pre_send を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。操作 1 つにつき pre_send（送る前の判定）と resubmit（送っている間の押し直し）も必ず持ち、表の直下に side_effect_writes（表への書き込み）と state_displays（画面ごとの状態表示）を持つ。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。 covered_by の名前は「スペックのパス › describe の題 › テストの題」で、reaction-check.mjs の --tests（playwright test --list --reporter=json の出力）でスイートのテストへ解決させる（解決しない・曖昧・current / new の片側だけで走る名前は落ちる）。1 本のテストを 2 行以上の covered_by が名乗るなら全行に shared_assertion_reason を書く。assertion が期待値まで届くかは実装役と別の subagent が 1 行ずつ監査し、assertion_audit に残す。",
+  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath・pre_send を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。操作 1 つにつき pre_send（送る前の判定）と resubmit（送っている間の押し直し）も必ず持ち、表の直下に side_effect_writes（表への書き込み）と state_displays（画面ごとの状態表示）を持つ。操作を持たない画面駆動の機能も表を作り（metadata.json の reaction_coverage を declared: false にしない）、operations を空配列にして operations_none_reason に理由を書き、state_displays で全画面を振り分ける。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。 covered_by の名前は「スペックのパス › describe の題 › テストの題」で、reaction-check.mjs の --tests（playwright test --list --reporter=json の出力）でスイートのテストへ解決させる（解決しない・曖昧・current / new の片側だけで走る名前は落ちる）。1 本のテストを 2 行以上の covered_by が名乗るなら全行に shared_assertion_reason を書く。assertion が期待値まで届くかは実装役と別の subagent が 1 行ずつ監査し、assertion_audit に残す。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
   "documents": [
@@ -13,7 +13,7 @@
   "cross_origin_evidence": {
     "<document_origins で cross-origin の文書（例: 決済フレーム）>": "<その文書が移行元の本来の配置でも別オリジンになることを確かめた根拠（例: 移行元は決済フレームを設定 payment.origin の絶対 URL で読み込み、本番でも別オリジン）。cross-origin の文書ごとに 1 つ書く——表全体で 1 本にすると、意図して別オリジンにした文書の根拠が、環境の都合で別オリジンになった文書まで通してしまう。別オリジンのフレームの中の処理は親の文書へ届かず、実在する反応が kind: none に化ける。環境の都合（targets[].url にホストやポートの別名を書いた）で別オリジンなら、記録せず targets[].url を揃えて測り直す。cross-origin の文書が無ければ {}（キーは省略しない）>"
   },
-  "observation_window_ms": "<正の数。kind: none を書くときに最低限見続ける時間（ミリ秒）。observed の delay_ms_samples の最大値より長くとる（以下なら落ちる）。none の observation.window_ms はこれ以上でなければ落ちる>",
+  "observation_window_ms": "<正の数。kind: none を書くときに最低限見続ける時間（ミリ秒）。observed の delay_ms_samples の最大値より長くとる（以下なら落ちる）。none の observation.window_ms はこれ以上でなければ落ちる。operations が空の表（操作を持たない画面駆動の機能）では null>",
   "screen_states": {
     "states": [
       "<画面が持つ状態の名前（例: 検索条件・並べ替え・列フィルター・列の変更・行の選択・ページ送り）。押した後に戻す範囲の突き合わせに使う。各操作の returns_to.probed と not_probed のキーはこの名前から選ぶ。状態を持たない画面なら空配列>"
@@ -158,6 +158,7 @@
       }
     ]
   },
+  "operations_none_reason": "<操作を持たない画面駆動の機能のときだけ、画面に押せる要素（ボタン・リンク・入力）が無いことをどう確かめたか（例: 移行元の画面のテンプレートに押せる要素が無く、実 UI でもフォーカスの移る要素が無い）を書き、operations を空配列にする（observation_window_ms は null）。操作を持つ機能は null。理由の無い空の operations と、操作があるのに理由が残った表は reaction-check.mjs が落とす>",
   "operations": [
     {
       "id": "<操作 id（\"/\" を含めない。call_sites の reaction から参照する）>",

@@ -257,7 +257,8 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    `capture_conditions.dimension_model` は `node <skill>/scripts/dimension-fit.mjs fit --samples .replace/parity/<slug>/dimension-samples.json --metadata <metadata.json> --write` を exit 0 まで通して書かせる
    （`traits.elements` と `capture_conditions.viewports` を読むため、それらを書いた `metadata.json` の後に通す。手で転記しない。コピーせずスキル配下から実行する）。
    測れなかったときだけ `not_measured` と理由、ビューポートが 2 つ以上で測らないときだけ `not_required` と理由を書き、キーごと省略しない。
-   同じく `metadata.json` の `reaction_coverage` を宣言し（操作を持たない機能だけ `declared: false` ＋理由。キーごと省略しない）、
+   同じく `metadata.json` の `reaction_coverage` を宣言し（キーごと省略しない。**操作を持たない画面駆動の機能も `declared: false` にせず**、`operations: []` と理由の表で画面ごとの状態表示を振り分ける。
+   `declared: false` ＋理由は画面を持たない `api-resource` / `batch` だけ。書き方は [`references/coverage.md`](references/coverage.md)「照合と宣言」）、
    `reactions.json` を `node <skill>/scripts/reaction-check.mjs --metadata <metadata.json> --root <移行元ソースのルート> --tests <テスト一覧> --write` で exit 0 まで通す
    （`capture` の状態名を `capture_conditions.states` と照合するため、撮影状態を確定した `metadata.json` を書いた後に通す。コピーせずスキル配下から実行する）。
    **その前に `covered_by` をテストへ解決し、assertion が期待値まで届くかを監査する**——テスト一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力（両側を `=` 付きで明示する。省くと `new-capture` の採取スペックまで読み込まれ、採取用の環境変数が無いと一覧の取得が落ちる）。

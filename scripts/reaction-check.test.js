@@ -15,9 +15,14 @@ import { makeTempDir } from "./lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const script = join(repoRoot, "skills/parity-suite/scripts/reaction-check.mjs");
-const { main, coveredByOwners, tableFingerprint, indexTestList, specsFingerprint } = await import(
-  pathToFileURL(script).href
-);
+const {
+  main,
+  coveredByOwners,
+  tableFingerprint,
+  indexTestList,
+  specsFingerprint,
+  OPERATIONLESS_TABLE_REVISION,
+} = await import(pathToFileURL(script).href);
 
 /** 観測した反応（トースト）。消えるまでの時間を 2 標本で持つ。 */
 const toast = () => ({
@@ -3720,3 +3725,289 @@ test.each([
     expect(r.stderr).toContain("に line / column（1 以上の整数）が無い");
   },
 );
+
+// --- 操作を持たない画面駆動の機能（Issue #503）---
+// declared: false で表ごと省くと、表示だけの画面の状態表示（0 件・取得の失敗・読み込み中）を一度も測らずに完了・収束する。
+// 画面駆動の機能は operations: [] と理由の表で振り分けさせ、改訂より前の declared: false だけを旧成果物として判定しない
+
+/** 手順の改訂 4 以降の、操作を持たない画面駆動の機能の metadata.json。 */
+const displayOnlyMeta = (patch = {}) => ({
+  slug: "share",
+  mode: "feature",
+  run: { procedure_revision: OPERATIONLESS_TABLE_REVISION },
+  target: { name: "current-test", commit: "abc123", ui_url: "http://localhost:3000/" },
+  reaction_coverage: { declared: true, path: "reactions.json" },
+  capture_conditions: {
+    states: ["default", "share-empty"],
+    pages: [
+      { name: "共有画面", path: "share" },
+      { name: "履歴画面", path: "history" },
+    ],
+    popup_inventory: [],
+  },
+  ...patch,
+});
+
+/** 表示だけの 1 画面の状態表示。0 件は撮る状態で押さえ、操作の反応を名乗る候補（トースト）は「ない」にする。 */
+const displayOnlyRow = (page) => {
+  const row = stateDisplayRow(page);
+  row.candidates.empty = {
+    status: "present",
+    setup: { method: "data", detail: "一覧の元になる行を 0 件にする" },
+    observed: "覆いに「結果が無い」の文言",
+    captured: "share-empty",
+  };
+  row.candidates.toast = {
+    status: "absent",
+    setup: { method: "data", detail: "一覧を表示して待つ" },
+    observed: "トーストの器に何も出ない",
+    covered_by: [`share.spec.ts › ${page}: 表示してもトーストが出ない`],
+  };
+  return row;
+};
+
+/** 操作を持たない画面駆動の機能の、全画面・全候補を振り分けた表。 */
+const displayOnlyTable = () => {
+  const t = baseTable();
+  t.operations = [];
+  t.operations_none_reason =
+    "移行元の画面のテンプレートに押せる要素（ボタン・リンク・入力）が無く、実 UI でもフォーカスの移る要素が無い";
+  t.observation_window_ms = null;
+  t.feedback_calls = { declared: false, reason: "設定 current.feedback_calls が空と確認済み" };
+  t.side_effect_writes = {
+    declared: false,
+    reason: "features.md の副作用出力に表への書き込みが無い",
+  };
+  t.state_displays = { pages: [displayOnlyRow("共有画面"), displayOnlyRow("履歴画面")] };
+  return t;
+};
+
+test("操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）", () => {
+  const r = run(displayOnlyTable(), { metadata: displayOnlyMeta() });
+  expect(r.stderr).toBe("");
+  expect(r.status).toBe(0);
+  expect(JSON.parse(r.stdout)).toMatchObject({
+    judged: true,
+    ok: true,
+    operations: 0,
+    state_displays: { pages: 2, entries: 10, unmeasured: 0 },
+  });
+});
+
+test.each([
+  [
+    "画面を 1 つ振り分けていない",
+    (t) => t.state_displays.pages.pop(),
+    "画面 履歴画面 の状態表示を振り分けていない",
+  ],
+  [
+    "候補を 1 つ振り分けていない",
+    (t) => delete t.state_displays.pages[1].candidates.loading,
+    "候補 loading を振り分けていない",
+  ],
+  ["状態表示の振り分けが無い", (t) => delete t.state_displays, "state_displays.pages が配列でない"],
+])(
+  "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: %s（Issue #503）",
+  (_n, mutate, message) => {
+    const t = displayOnlyTable();
+    mutate(t);
+    // スイートのテスト一覧は振り分けを消す前の表から作る（振り分けを消しても、画面のテストはスイートに残る）
+    const r = run(t, { metadata: displayOnlyMeta(), tests: namesOf(displayOnlyTable()) });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(message);
+  },
+);
+
+test.each([
+  ["改訂 4", OPERATIONLESS_TABLE_REVISION],
+  ["改訂 4 より後", OPERATIONLESS_TABLE_REVISION + 1],
+])(
+  "画面駆動の機能の declared: false は %s の成果物なら exit 2（表を作らせる。Issue #503）",
+  (_n, revision) => {
+    const metadata = displayOnlyMeta({
+      run: { procedure_revision: revision },
+      reaction_coverage: { declared: false, reason: "操作を持たない" },
+      capture_conditions: { states: ["default"], pages: [{ name: "共有画面", path: "share" }] },
+    });
+    const r = run(displayOnlyTable(), { metadata });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("画面駆動の機能は reaction_coverage.declared: false を使えない");
+  },
+);
+
+test.each([
+  ["mode が無い", { mode: undefined }],
+  ["mode が語彙外", { mode: "screen" }],
+])(
+  "画面駆動として扱う: %s の declared: false も改訂 4 以降なら exit 2（Issue #503）",
+  (_n, patch) => {
+    const metadata = displayOnlyMeta({
+      reaction_coverage: { declared: false, reason: "操作を持たない" },
+      capture_conditions: { states: ["default"] },
+      ...patch,
+    });
+    const r = run(displayOnlyTable(), { metadata });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("画面駆動の機能は reaction_coverage.declared: false を使えない");
+  },
+);
+
+test.each([
+  [
+    "改訂 4 より前",
+    { procedure_revision: OPERATIONLESS_TABLE_REVISION - 1 },
+    "run.procedure_revision: 3",
+  ],
+  ["改訂番号の導入前（キーが無い）", {}, "run.procedure_revision: 0"],
+])(
+  "画面駆動の機能の declared: false は %s の成果物なら旧手順として判定しない（Issue #503）",
+  (_n, run_, shown) => {
+    const metadata = displayOnlyMeta({
+      run: run_,
+      reaction_coverage: { declared: false, reason: "操作を持たない" },
+      capture_conditions: { states: ["default"], popup_inventory: [] },
+    });
+    const r = run(displayOnlyTable(), { metadata });
+    expect(r.status).toBe(0);
+    const out = JSON.parse(r.stdout);
+    expect(out.judged).toBe(false);
+    expect(out.reason).toContain("画面ごとの状態表示を振り分けていない");
+    expect(out.reason).toContain(shown);
+  },
+);
+
+test.each([
+  ["文字列", "4"],
+  ["負の数", -1],
+  ["小数", 3.5],
+])("run.procedure_revision が %s なら exit 2（旧成果物に倒さない。Issue #503）", (_n, revision) => {
+  const metadata = displayOnlyMeta({
+    run: { procedure_revision: revision },
+    reaction_coverage: { declared: false, reason: "操作を持たない" },
+    capture_conditions: { states: ["default"] },
+  });
+  const r = run(displayOnlyTable(), { metadata });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("run.procedure_revision が 0 以上の整数でない");
+});
+
+test.each([
+  ["文字列", "4"],
+  ["配列", []],
+  ["null", null],
+])("run が %s なら exit 2（改訂番号の導入前に倒さない。Issue #503）", (_n, runValue) => {
+  const metadata = displayOnlyMeta({
+    run: runValue,
+    reaction_coverage: { declared: false, reason: "操作を持たない" },
+    capture_conditions: { states: ["default"] },
+  });
+  const r = run(displayOnlyTable(), { metadata });
+  expect(r.status).toBe(2);
+  expect(r.stderr).toContain("run がオブジェクトでない");
+});
+
+test.each([["api-resource"], ["batch"]])(
+  "%s モードの declared: false は改訂 4 以降でも従来どおり通す（画面を持たない。Issue #503）",
+  (mode) => {
+    const metadata = displayOnlyMeta({
+      mode,
+      reaction_coverage: { declared: false, reason: "画面を持たない" },
+    });
+    const r = run(displayOnlyTable(), { metadata });
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({
+      tool: "reaction-check",
+      version: expect.any(String),
+      judged: false,
+      reason: "画面を持たない",
+    });
+  },
+);
+
+test.each([
+  [
+    "理由が無い",
+    (t) => delete t.operations_none_reason,
+    {},
+    "operations が空なのに operations_none_reason が空",
+  ],
+  [
+    "理由がテンプレートの説明文のまま",
+    (t) =>
+      (t.operations_none_reason = JSON.parse(
+        readFileSync(
+          new URL("../skills/parity-suite/assets/reactions-template.json", import.meta.url),
+          "utf8",
+        ),
+      ).operations_none_reason),
+    {},
+    "operations が空なのに operations_none_reason が空",
+  ],
+  [
+    "器の棚卸しが空でない",
+    () => {},
+    { popup_inventory: [{ name: "x" }] },
+    "operations が空だが、操作の痕跡がある（capture_conditions.popup_inventory が空でない）",
+  ],
+  [
+    "観測時間の下限が正の数でも null でもない",
+    (t) => (t.observation_window_ms = 0),
+    {},
+    "observation_window_ms が正の数でない（none の観測時間の下限が無い。操作の無い表では null と書く）",
+  ],
+])("操作の無い表で %s なら落ちる（Issue #503）", (_n, mutate, ccPatch, message) => {
+  const t = displayOnlyTable();
+  mutate(t);
+  const meta = displayOnlyMeta();
+  meta.capture_conditions = { ...meta.capture_conditions, ...ccPatch };
+  const r = run(t, { metadata: meta });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(message);
+});
+
+test("操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）", () => {
+  const meta = displayOnlyMeta({
+    component_coverage: { declared: true, path: "component-coverage.json" },
+  });
+  const r = run(displayOnlyTable(), { metadata: meta, coverage: coverageWith([]) });
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain(
+    "operations が空だが、操作の痕跡がある（component_coverage.declared が true）",
+  );
+});
+
+test("操作がある表の operations_none_reason は落ちる（Issue #503）", () => {
+  const t = mutated((x) => (x.operations_none_reason = "操作が無い"));
+  const r = run(t);
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("operations があるのに operations_none_reason が null でない");
+});
+
+test("操作がある表の observation_window_ms: null は落ちる（Issue #503）", () => {
+  const r = run(mutated((x) => (x.observation_window_ms = null)));
+  expect(r.status).toBe(1);
+  expect(r.stderr).toContain("observation_window_ms が正の数でない（none の観測時間の下限が無い）");
+  expect(r.stderr).not.toContain("操作の無い表では null と書く");
+});
+
+test("操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）", () => {
+  const w = run(displayOnlyTable(), { metadata: displayOnlyMeta(), args: ["--write"] });
+  expect(w.status).toBe(0);
+  expect(rerun(w.dir, ["--recorded"]).status).toBe(0);
+  const written = JSON.parse(readFileSync(join(w.dir, "reactions.json"), "utf8"));
+  written.state_displays.pages.pop();
+  writeFileSync(join(w.dir, "reactions.json"), JSON.stringify(written));
+  const edited = rerun(w.dir, ["--recorded"]);
+  expect(edited.status).toBe(1);
+  expect(edited.stderr).toContain("画面 履歴画面 の状態表示を振り分けていない");
+});
+
+test("OPERATIONLESS_TABLE_REVISION は parity-suite の手順の改訂一覧に feature を対象として載っている（Issue #503）", () => {
+  const revisions = JSON.parse(
+    readFileSync(join(repoRoot, "skills/parity-suite/assets/procedure-revisions.json"), "utf8"),
+  );
+  const change = revisions.changes.find((c) => c.revision === OPERATIONLESS_TABLE_REVISION);
+  expect(change).toBeDefined();
+  expect(change.affects).toContain("feature");
+  expect(revisions.revision).toBeGreaterThanOrEqual(OPERATIONLESS_TABLE_REVISION);
+});

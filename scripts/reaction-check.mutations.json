@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）の検出能力を示す変異の一覧。",
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）・操作を持たない画面駆動の機能の表（Issue #503）の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
     "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
@@ -976,7 +976,10 @@
       "find": "  if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {\n",
       "replace": "  if (false) {\n",
       "occurrences": 1,
-      "expect_failing": ["状態表示の振り分けの欠けは落とす: キーごと無い（Issue #500）"]
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: キーごと無い（Issue #500）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 状態表示の振り分けが無い（Issue #503）"
+      ]
     },
     {
       "id": "state-display-no-pages",
@@ -1015,7 +1018,9 @@
       "replace": "    if (false) {\n      problems.push(\n        `state_displays: 画面 ${lacking.join(\", \")} の状態表示を振り分けていない（capture_conditions.pages の全ての画面を 1 回ずつ書く）`,\n",
       "occurrences": 1,
       "expect_failing": [
-        "状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）"
+        "状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 画面を 1 つ振り分けていない（Issue #503）"
       ]
     },
     {
@@ -1047,7 +1052,10 @@
       "find": "    if (lacking.length > 0) {\n      problems.push(\n        `${at}: 候補 ${lacking.join(\", \")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,\n",
       "replace": "    if (false) {\n      problems.push(\n        `${at}: 候補 ${lacking.join(\", \")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,\n",
       "occurrences": 1,
-      "expect_failing": ["状態表示の振り分けの欠けは落とす: 候補が欠けている（Issue #500）"]
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 候補が欠けている（Issue #500）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 候補を 1 つ振り分けていない（Issue #503）"
+      ]
     },
     {
       "id": "state-display-candidate-unknown",
@@ -1826,6 +1834,142 @@
       "occurrences": 1,
       "expect_failing": [
         "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
+      ]
+    },
+    {
+      "id": "operationless-revision-gate",
+      "why": "改訂 4 以降の画面駆動の機能でも declared: false を旧成果物として通す（状態表示の振り分けを測らずに収束する）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (revision >= OPERATIONLESS_TABLE_REVISION) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面駆動の機能の declared: false は 改訂 4 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動の機能の declared: false は 改訂 4 より後 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動として扱う: mode が無い の declared: false も改訂 4 以降なら exit 2（Issue #503）",
+        "画面駆動として扱う: mode が語彙外 の declared: false も改訂 4 以降なら exit 2（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-revision-boundary",
+      "why": "改訂 4 ちょうどの成果物を旧成果物に倒す（境界の取り違え）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (revision >= OPERATIONLESS_TABLE_REVISION) {\n",
+      "replace": "    if (revision > OPERATIONLESS_TABLE_REVISION) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面駆動の機能の declared: false は 改訂 4 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動として扱う: mode が無い の declared: false も改訂 4 以降なら exit 2（Issue #503）",
+        "画面駆動として扱う: mode が語彙外 の declared: false も改訂 4 以降なら exit 2（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-screenless-modes",
+      "why": "画面を持たない api-resource / batch の declared: false まで画面駆動として落とす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (metadata.mode === \"api-resource\" || metadata.mode === \"batch\") {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "api-resource モードの declared: false は改訂 4 以降でも従来どおり通す（画面を持たない。Issue #503）",
+        "batch モードの declared: false は改訂 4 以降でも従来どおり通す（画面を持たない。Issue #503）",
+        "declared: false は理由付きなら通す: api-resource モード"
+      ]
+    },
+    {
+      "id": "operationless-revision-invalid",
+      "why": "読めない run.procedure_revision を旧成果物か新しい成果物のどちらかへ黙って倒す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run.procedure_revision が 文字列 なら exit 2（旧成果物に倒さない。Issue #503）",
+        "run.procedure_revision が 負の数 なら exit 2（旧成果物に倒さない。Issue #503）",
+        "run.procedure_revision が 小数 なら exit 2（旧成果物に倒さない。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-none-reason",
+      "why": "理由の無い空の operations を正規の記録として通す（採り忘れと区別できない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(noneReason)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 理由が無い なら落ちる（Issue #503）",
+        "操作の無い表で 理由がテンプレートの説明文のまま なら落ちる（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-traces",
+      "why": "器の棚卸し・部品被覆表の宣言がある機能でも空の operations を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (traces !== null && traces.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-reason-with-operations",
+      "why": "操作があるのに操作が無い理由が残った表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  } else if (noneReason !== undefined && noneReason !== null) {\n",
+      "replace": "  } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["操作がある表の operations_none_reason は落ちる（Issue #503）"]
+    },
+    {
+      "id": "operationless-window-required",
+      "why": "操作の無い表にも none の観測時間の下限を要求する（測っていない値を書かせる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (windowMs === null && !(noOperations && table.observation_window_ms === null))\n",
+      "replace": "  if (windowMs === null)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-window-any",
+      "why": "操作の無い表なら observation_window_ms の型崩れまで通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (windowMs === null && !(noOperations && table.observation_window_ms === null))\n",
+      "replace": "  if (windowMs === null && !noOperations)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 観測時間の下限が正の数でも null でもない なら落ちる（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-states-not-trace",
+      "why": "操作の無い表で状態表示の撮る状態（default 以外の撮影状態）を操作の痕跡に数える",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      operationTraces: operationTraces(metadata, { withStates: false }),\n",
+      "replace": "      operationTraces: operationTraces(metadata, { withStates: true }),\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）",
+        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-run-shape",
+      "why": "読めない形の run を改訂番号の導入前（旧成果物）に倒す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(metadata.run)) throw new UsageError(\"run がオブジェクトでない\");\n",
+      "replace": "  if (!isPlainObject(metadata.run)) return 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run が 文字列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
+        "run が 配列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
+        "run が null なら exit 2（改訂番号の導入前に倒さない。Issue #503）"
       ]
     }
   ]
