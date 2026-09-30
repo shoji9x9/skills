@@ -55,6 +55,24 @@
     "accepted": 0,
     "not_compared": 0
   },
+  "motion": {
+    "record": ".replace/components/button/new/local-dev/motion-comparison.json",
+    "check_exit": 0,
+    "judged": false,
+    "cells": 0,
+    "matched": 0,
+    "mismatched": 0,
+    "uncompared": 0,
+    "accepted": 0,
+    "not_compared": 0
+  },
+  "lifecycle": {
+    "check_exit": 0,
+    "applies": false,
+    "reason": "初期化のコールバックで命令的に結ぶ処理も、引数の変化を部品の側で購読する処理も無い（描画は引数だけで決まる）",
+    "paths": [],
+    "not_applicable_paths": []
+  },
   "loop": {
     "iterations": 2,
     "changed_scope": "button 本体のスタイル規則",

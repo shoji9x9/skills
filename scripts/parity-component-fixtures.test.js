@@ -306,6 +306,7 @@ test("baseline を持つ fixture を見つけている（検査対象が 0 件�
     "breaking-change-request/.replace/components/button",
     "cascade-conflict/.replace/components/button",
     "catalog-unset/.replace/components/button",
+    "lifecycle-binding/.replace/components/button",
   ]);
 });
 

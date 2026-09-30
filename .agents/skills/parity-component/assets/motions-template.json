@@ -1,0 +1,29 @@
+{
+  "_note": "parity-component の capture が .replace/components/<slug>/baseline/<instance>/motions.json として生成する（インスタンスごと）。現行 target で metadata.json の capture.motions.transitions を 1 件ずつ、同じ初期状態から同じ手順（trigger）で起こし、同梱の scripts/motion-probe.mjs（プロジェクトの vendor へコピーしたもの）の出力を 1 回ずつ runs に積む。揺れを測るため同じ条件で 2 回以上採る（揺れは最初の 2 回の差から測り、3 回目以降は使わない）。探針のあいだはアニメーションを止めない。形式の正本は parity-component が定義し、判定は同梱の scripts/motion-compare.mjs が行う（記録された要約値は信用せず samples から組み立て直す）。全ての値はプレースホルダ例であり実測値で置き換える。到達できない遷移は時系列を書かず、metadata.json の instances[].unreachable_motions と gaps.md に理由付きで残す。",
+  "instance": "<インスタンス id（metadata.json の instances[].id と同じ）>",
+  "results": [
+    {
+      "transition": "<遷移 id（metadata.json の capture.motions.transitions[].id）>",
+      "runs": [
+        {
+          "probe_version": "<motion-probe.mjs の VERSION（probeMotion が書く。手で書かない）>",
+          "selector": "<動く要素を引いた CSS セレクタ（現行の実装に固有でよい。比べない）>",
+          "settle_ms": 500,
+          "timeout_ms": 10000,
+          "timed_out": "<打ち切られたか（probeMotion が書く真偽値。true の回は motion-timeline-invalid として落ちるので取り直す）>",
+          "samples": [
+            {
+              "t": "<採取を始めてからの経過時間 ms（probeMotion が書く）>",
+              "present": "<要素が在って見えているか（真偽値）>",
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0,
+              "opacity": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

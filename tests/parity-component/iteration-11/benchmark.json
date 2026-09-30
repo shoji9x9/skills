@@ -1,0 +1,109 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/parity-component",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-29T21:19:36Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 48.82,
+        "tokens": 188137,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で壊れる経路の検査の対象だと判断している",
+          "passed": true,
+          "evidence": "3 条件を Button.tsx:17-30 で示し対象と判断"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる経路を名指ししている",
+          "passed": true,
+          "evidence": "strict-rebind で Enter の結び付けが外れ Enter で押せなくなる恐れ"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない経路を名指ししている",
+          "passed": true,
+          "evidence": "prop-change-after-init ① setEnabled は初期化時だけ"
+        },
+        {
+          "text": "経路ごとに順番を強制する見本を置き、経路に入った回数を data-* 属性で出すと述べている",
+          "passed": true,
+          "evidence": "経路ごとに順番を強制する見本、data-* で入った回数"
+        },
+        {
+          "text": "検査は経路に入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": true,
+          "evidence": "経路に入った回数が 1 以上であることを症状より先に確かめる"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": true,
+          "evidence": "catalog.stories に入れない"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": true,
+          "evidence": "unbaselined_stories に入れない"
+        },
+        {
+          "text": "直した処理を外すとその経路の検査だけが落ちることを確かめると述べている",
+          "passed": true,
+          "evidence": "fix_removal_verified を確かめる"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "lifecycle が無いので手順 8 に進めない"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": true,
+          "evidence": "lifecycle.applies と reason を記録"
+        },
+        {
+          "text": "壊れる処理を名指しできない経路を、理由付きで not_applicable_paths に回すと述べている",
+          "passed": true,
+          "evidence": "prop-identity は名指しできなければ not_applicable_paths[] に理由付きで残す"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.82,
+        "stddev": 0,
+        "min": 48.82,
+        "max": 48.82
+      },
+      "tokens": {
+        "mean": 188137,
+        "stddev": 0,
+        "min": 188137,
+        "max": 188137
+      }
+    }
+  },
+  "notes": []
+}

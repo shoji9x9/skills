@@ -38,7 +38,8 @@
 | ドラッグ & ドロップによるファイル投入 | 対象外 | `setInputFiles` の射程外で、`DataTransfer` を `evaluate` で組む必要があり脆い | [`file-io.md`](file-io.md) |
 | ストレージ実体へのゴールデンデータ投入 | 対象外 | 設定スキーマ（`uses_storage` / `targets[].storage`）だけを先に切り、投入は実装しない。ストレージ依存の検証は `gaps.md` に未検証として必須記録 | [`project-config.md`](project-config.md)「ファイルストレージ」 |
 | メール送信・外部連携 | 対象外 | 捕捉に現行アプリの変更が要る | [`measurement.md`](measurement.md)「副作用の棚卸し」 |
-| アニメーションのパリティ | 対象外 | 差分比較で `animations: 'disabled'` にするため原理的に扱えない | `parity-suite` の `references/coverage.md` |
+| アニメーションのパリティ（画素の差分比較） | 対象外 | 差分比較で `animations: 'disabled'` にするため原理的に扱えない | `parity-suite` の `references/coverage.md` |
+| 共通部品の動き（出し入れ・開閉の時系列） | 条件付き | 部品を画面より先に作るとき。部品ごとに動きを数え、矩形と不透明度の時系列を数値で比べる。動きを写さない部品・遷移は部品ごとに `gaps.md` へ残す（一般論の「対象外」で済ませない） | `parity-component` の `references/motion.md` |
 | タブ順の厳密一致（停止数・順序の完全一致） | 対象外 | 仕様が保証するのは到達可能性と論理的順序。停止数は実装方式で変わる | `parity-suite` の `SKILL.md`「厳守の制約」 |
 | インフラ構成・CI/CD パイプラインのパリティ | 対象外 | **現・新で基盤が変わることは前提**であり、保存すべき仕様はアプリの外形的な振る舞い。現行の IaC / ワークフローと新側のそれを突き合わせない | — |
 | 状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ） | 対象 | ふだんの操作では入らない状態なので、反応の被覆表の `state_displays` で画面ごとに候補を ある／ない へ現行で振り分け、ある は撮る状態か assertion、ない も何も出ないことを assertion にする。取得の失敗・読み込み中は要求の横取りで起こし、試さずに「起こせない」とは書かない。測れない候補は `gaps.md` に必須記録 | `parity-suite` の `references/coverage.md` |

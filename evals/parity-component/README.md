@@ -39,6 +39,12 @@ scripts/run-skill-eval.sh \
   **ただし `width` は結果が `traits.json` の `rect.width`（60）に出る**ので、60px という値だけなら採取物から読める。
   この eval の弁別は値そのものではなく、**負ける側（インラインの 10px・先に現れる 40px）を採らない理由を述べているか**と、
   `rect` に出ない `letter-spacing` の勝者（1px）を当てられるかで取る
+- eval 8（`motion-in-current`）は capture の計画を問う。現行の `legacy-app/` に、出るとき 600ms・閉じるとき 500ms で滑る動きと、
+  出た後に閉じるボタンへフォーカスを移し info / success だけ 15 秒で自動で閉じる通知部品を置いてある（Issue #456）。
+  「アニメーションは対象外」で済ませず、動きを数えて探針で時系列を 2 回採る計画になるか、完了で始まる処理を操作に、表示時間を探針の遅れにするかを見る
+- eval 9（`lifecycle-binding`）は build の完了判定を問う。採取物と照合結果は `breaking-change-request` と同じで全部一致しているが、
+  新側の `new-app/src/components/Button/Button.tsx` が市販部品の `initialized` で Enter キーの結び付けと活性を命令的に結び、effect の片付けで外す（Issue #477）。
+  照合の一致だけで完了にせず、一生の順番で壊れる経路（結び直し・初期化の後の `disabled` の変化）を名指しし、順番を強制する見本で確かめる手順を出すかを見る
 - 採点は assertion のテキストで対応づける（位置で対応づけない）。出力内に矛盾があれば fail にする
 - **`--executor` を省略しない。** ランチャの引数省略時既定は後方互換用であり運用上の選択規則ではない。現在作業しているエージェントに合わせ（Claude Code なら `claude-code`、Codex なら `codex`）、`with_skill` と `without_skill` で同じ executor を使う（正本は `.agents/rules/eval-run-scope.md`）
 

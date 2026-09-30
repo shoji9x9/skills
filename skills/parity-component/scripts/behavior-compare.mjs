@@ -53,7 +53,7 @@ export const OPERATION_SOURCES = [
  * @param {unknown} value
  * @returns {boolean}
  */
-function nonEmptyString(value) {
+export function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
@@ -72,7 +72,7 @@ function isPlaceholder(value) {
  * @param {unknown} value
  * @returns {boolean}
  */
-function filled(value) {
+export function filled(value) {
   return nonEmptyString(value) && !isPlaceholder(value);
 }
 
@@ -496,7 +496,7 @@ export function compareBehaviors({ metadata, behaviors, comparison, target }) {
  * @param {unknown} value
  * @returns {boolean}
  */
-function safeSegment(value) {
+export function safeSegment(value) {
   return (
     typeof value === "string" &&
     value !== "" &&

@@ -1,0 +1,207 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/parity-component",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-09-29T22:03:01Z",
+    "evals_run": [8],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.9091,
+        "passed": 10,
+        "failed": 1,
+        "total": 11,
+        "time_seconds": 133.372,
+        "tokens": 522348,
+        "tool_calls": 13,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "source_scan に show 600 / hide 500、遷移 enter / exit-close / exit-auto"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": true,
+          "evidence": "capture.motions.source_scan / transitions[] に書く"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": true,
+          "evidence": "motion-probe.mjs をコピーし baseline/<instance>/motions.json に書く"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回（以上）採ると述べている",
+          "passed": true,
+          "evidence": "遷移ごとに同じ初期状態から 2 回ずつ採る"
+        },
+        {
+          "text": "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
+          "passed": false,
+          "evidence": "2 回の食い違いへの対処（許容差を広げず採り直す）に触れていない"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": true,
+          "evidence": "探針のあいだはアニメーションを止めない"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": true,
+          "evidence": "enter の on_complete に focus-after-enter と auto-close"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べている",
+          "passed": true,
+          "evidence": "exit-auto を enter の探針が返った直後に何もしない trigger、timeoutMs 20000 で採る。表示時間は探針でだけ測る"
+        },
+        {
+          "text": "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
+          "passed": true,
+          "evidence": "観測項目に時間の値は入れない"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        },
+        {
+          "text": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "passed": true,
+          "evidence": "本スキルの motion-probe.mjs をコピーし、capture.tools の各版はコピーしたファイルから読むと述べた（motion_probe_version の欄名は挙げていない）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2727,
+        "passed": 3,
+        "failed": 8,
+        "total": 11,
+        "time_seconds": 94.111,
+        "tokens": 305636,
+        "tool_calls": 10,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "表示 600ms・閉じる 500ms の時系列を採る"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": false,
+          "evidence": "capture.motions に触れない（motion 系の記録【推定】）"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": false,
+          "evidence": "motion-probe.mjs / motions.json に触れない"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回（以上）採ると述べている",
+          "passed": false,
+          "evidence": "動きを 2 回採るとは述べていない（静止画を 3 回撮る）"
+        },
+        {
+          "text": "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
+          "passed": false,
+          "evidence": "採り直しの条件に触れない"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": false,
+          "evidence": "動きの採取でアニメーションを止めないとは述べていない"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": false,
+          "evidence": "フォーカス移動を操作と on_complete で結んでいない"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べている",
+          "passed": false,
+          "evidence": "自動で閉じる時間を探針の遅れとして測る記述なし"
+        },
+        {
+          "text": "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
+          "passed": true,
+          "evidence": "behaviors.json に時間の値を書いていない"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        },
+        {
+          "text": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "passed": false,
+          "evidence": "motion-probe.mjs に触れない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9091,
+        "stddev": 0,
+        "min": 0.9091,
+        "max": 0.9091
+      },
+      "time_seconds": {
+        "mean": 133.372,
+        "stddev": 0,
+        "min": 133.372,
+        "max": 133.372
+      },
+      "tokens": {
+        "mean": 522348,
+        "stddev": 0,
+        "min": 522348,
+        "max": 522348
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2727,
+        "stddev": 0,
+        "min": 0.2727,
+        "max": 0.2727
+      },
+      "time_seconds": {
+        "mean": 94.111,
+        "stddev": 0,
+        "min": 94.111,
+        "max": 94.111
+      },
+      "tokens": {
+        "mean": 305636,
+        "stddev": 0,
+        "min": 305636,
+        "max": 305636
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.64",
+      "time_seconds": "+39.3",
+      "tokens": "+216712"
+    }
+  },
+  "notes": []
+}

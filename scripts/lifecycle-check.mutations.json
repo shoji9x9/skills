@@ -1,0 +1,94 @@
+{
+  "$comment": [
+    "lifecycle-check.test.js のうち、部品の一生の順番の経路の記録の検査（Issue #477）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/lifecycle-check.test.js",
+  "mutations": [
+    {
+      "id": "path-missing",
+      "why": "どちらにも振り分けていない経路を落とさない",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (n === 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "どちらにも振り分けていない経路は lifecycle-path-missing で落とす（空の paths も完了にしない）",
+        "CLI: 揃った記録で exit 0、経路の漏れで exit 1、引数の誤りは exit 2"
+      ]
+    },
+    {
+      "id": "path-duplicate",
+      "why": "同じ経路の二重の振り分けを落とさない",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "} else if (n > 1) {",
+      "replace": "} else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["同じ経路の二重の振り分けと語彙外の経路名を落とす"]
+    },
+    {
+      "id": "path-failed",
+      "why": "検査が落ちた経路を通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (row.result !== \"pass\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "検査が落ちた・経路に入っていない・直した処理を外した確認が無い経路を落とす"
+      ]
+    },
+    {
+      "id": "not-entered",
+      "why": "経路に入っていない検査を通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (!Number.isInteger(row.entered) || row.entered < 1) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "検査が落ちた・経路に入っていない・直した処理を外した確認が無い経路を落とす"
+      ]
+    },
+    {
+      "id": "fix-removal",
+      "why": "直した処理を外した確認の無い経路を通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (row.fix_removal_verified !== true) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "検査が落ちた・経路に入っていない・直した処理を外した確認が無い経路を落とす"
+      ]
+    },
+    {
+      "id": "paths-when-not-applicable",
+      "why": "対象でない部品の順番の見本を通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (paths.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["対象でない部品は paths が空なら通し、paths があれば落とす"]
+    },
+    {
+      "id": "na-reason",
+      "why": "名指しできない理由の無い振り分けを通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (!filled(row.reason)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["名指しできない経路の理由が無ければ落とす"]
+    },
+    {
+      "id": "story-in-catalog",
+      "why": "順番の見本が見た目の対応表にも載っていても通す",
+      "file": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "find": "if (nonEmptyString(row.story) && visualStories.has(row.story)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "順番の見本が catalog.stories にも載っていれば落とし、対応表が読めなければ型崩れ"
+      ]
+    }
+  ]
+}
