@@ -168,8 +168,8 @@
       "id": "missing-survey-input-error",
       "why": "survey.md が無いときを入力の誤りにし、一覧が無い経路（未検証に残す）へ送らない",
       "file": "skills/parity-suite/scripts/header-normalize.mjs",
-      "find": "(err).code === \"ENOENT\")",
-      "replace": "(err).code === \"__never__\")",
+      "find": "(err).code === \"ENOENT\" &&",
+      "replace": "(err).code === \"__never__\" &&",
       "occurrences": 1,
       "expect_failing": [
         "CLI: survey.md 自体が無ければ exit 3（一覧が無い）",
@@ -257,8 +257,31 @@
       "occurrences": 1,
       "expect_failing": [
         "一覧: ヘッダー名のセル **X-Frame-Options** は強調の囲みだけを外して x-frame-options と読む",
+        "一覧: ヘッダー名のセル **`X-Frame-Options`** は強調の囲みだけを外して x-frame-options と読む",
         "一覧: ヘッダー名のセル *X-Frame-Options* は強調の囲みだけを外して x-frame-options と読む",
         "一覧: ヘッダー名のセル __X-Frame-Options__ は強調の囲みだけを外して x-frame-options と読む"
+      ]
+    },
+    {
+      "id": "name-any-backtick",
+      "why": "セル内の最初のバッククォートを名前にし、補足のコード（frame-ancestors）を名前として CSP を黙って外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const quoted = /^`([^`]*)`/.exec(name);",
+      "replace": "const quoted = /`([^`]*)`/.exec(name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 名前を囲まず補足だけをコードにしたセルは、補足を名前にせず入力の誤りにする"
+      ]
+    },
+    {
+      "id": "enoent-any-dir",
+      "why": "置き場ごと無いパス（打ち間違い・作業ディレクトリの取り違え）も一覧が無い扱いにし、ヘッダーの比較を黙って外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "&& existsSync(dirname(path))",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: survey.md の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする"
       ]
     }
   ]

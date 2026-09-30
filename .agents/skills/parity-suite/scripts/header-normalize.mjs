@@ -15,7 +15,8 @@
 // 決定論的: 乱数・現在時刻に依存しない。出力のキーは名前順、Set-Cookie は cookie 名順。
 // TypeScript 構文は使わない（型は JSDoc）。スイートからはコピー（suite.tools）を import して使う。
 
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -55,19 +56,19 @@ function cells(line) {
 }
 
 /**
- * セルからヘッダー名を取り出す。バッククォートで囲んだ最初の語、無ければセル全体。
+ * セルからヘッダー名を取り出す。強調の囲みを外した後、セルの**先頭**がバッククォートならその中、無ければセル全体。
+ * 先頭以外のバッククォート（`Content-Security-Policy（`frame-ancestors` を含む）` の補足）を名前にしない——
+ * 補足の語も token として通り、本来のヘッダーが黙って比較から外れる。セル全体が token でなければ呼び出し側が入力の誤りにする。
  * @param {string} cell
  * @returns {string}
  */
 function headerNameOf(cell) {
-  const quoted = /`([^`]*)`/.exec(cell);
-  if (quoted) return quoted[1].trim();
-  // バッククォートの無いセルは強調（`**…**` / `__…__` / `*…*` / `_…_`）の囲みを外す。
-  // token は `*` と `_` を許すので、外さないと `**x-frame-options**` が名前として通り、黙って比較から外れる。
-  // 名前の中の `_`（`X_Custom` 等）は囲みではないので残す。
+  // 強調（`**…**` / `__…__` / `*…*` / `_…_`）の囲みを外す。token は `*` と `_` を許すので、
+  // 外さないと `**x-frame-options**` が名前として通り、黙って比較から外れる。名前の中の `_`（`X_Custom` 等）は残す。
   let name = cell.trim();
   for (let m; (m = /^(\*\*|__|\*|_)(.+)\1$/.exec(name));) name = m[2].trim();
-  return name;
+  const quoted = /^`([^`]*)`/.exec(name);
+  return (quoted ? quoted[1] : name).trim();
 }
 
 /**
@@ -231,7 +232,9 @@ export function loadHeaderList(path) {
   try {
     markdown = readFileSync(path, "utf8");
   } catch (err) {
-    if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT")
+    // survey.md の置き場（.replace/）はあるのにファイルが無いときだけ「一覧が無い」。置き場ごと無いのは
+    // パスの誤りか作業ディレクトリの取り違えで、「一覧が無い」にするとヘッダーの比較が黙って外れる。
+    if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT" && existsSync(dirname(path)))
       throw new NoHeaderListError(`${path} が無い`);
     throw err;
   }

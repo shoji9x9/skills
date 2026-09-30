@@ -45,7 +45,8 @@
   record するヘッダーは、同梱 [`../scripts/header-normalize.mjs`](../scripts/header-normalize.mjs) の `normalizeHeaders` を**通した出力だけ**を書く
   （規則の正本はスクリプト冒頭のコメント。ここへ転記しない。`parity-diff` も新側の応答を同じスクリプトで正規化してから比べるので、規則を 2 か所に書かない）。
   スイートからは `trait-capture.mjs` と同じく `suite.tools` のコピー専用ディレクトリ（既定 `<parity_suite_dir>/parity/lib/tools/vendor/`）へコピーして import し、
-  一覧は `loadHeaderList(".replace/survey.md")` で読む（ファイルを自分で読んで `parseHeaderList` へ渡さない——survey.md が無いときの「一覧が無い」への変換を通らない）。受け取れる形は `allHeaders()`・`headersArray()`・HAR の `headers` のどれでもよい（取得経路で名前の表記が違っても同じ出力になる）。
+  一覧は `loadHeaderList(<リポジトリのルートから解決した .replace/survey.md の絶対パス>)` で読む（`.replace/` ごと見つからないパスは「一覧が無い」ではなく入力の誤りになる）
+  （ファイルを自分で読んで `parseHeaderList` へ渡さない——survey.md が無いときの「一覧が無い」への変換を通らない）。受け取れる形は `allHeaders()`・`headersArray()`・HAR の `headers` のどれでもよい（取得経路で名前の表記が違っても同じ出力になる）。
   `parseHeaderList` が `NoHeaderListError` を投げたら下の「一覧が無い」の項へ進む（一覧を推測で作らない）。それ以外の例外（付け手の欄が空・語彙外）は一覧を直してから採る。
   **使ったコピーのパス・`VERSION`・録画に使った一覧（`--list` の出力）を `metadata.json.differ.header_normalize` に記録する**（`suite.tools` はスイートの指紋が読むパスなので版を混ぜない）——
   `parity-diff` は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる（版が違うと規則の差が、一覧が違うと足された・外されたヘッダーが現新の差分に化ける）。

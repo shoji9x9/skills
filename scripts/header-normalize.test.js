@@ -81,6 +81,30 @@ test.each([
   expect([...list]).toEqual([expected]);
 });
 
+test("一覧: 先頭がバッククォートの名前は、後ろの補足のコードを名前にしない", () => {
+  const list = parseHeaderList(
+    survey([
+      "| `Content-Security-Policy`（`frame-ancestors` を含む） | 防御 | x | 画面 | アプリのコード | |",
+    ]),
+  );
+  expect([...list]).toEqual(["content-security-policy"]);
+});
+
+test("一覧: 名前を囲まず補足だけをコードにしたセルは、補足を名前にせず入力の誤りにする", () => {
+  let caught;
+  try {
+    parseHeaderList(
+      survey([
+        "| Content-Security-Policy（`frame-ancestors` を含む） | 防御 | x | 画面 | アプリのコード | |",
+      ]),
+    );
+  } catch (err) {
+    caught = err;
+  }
+  expect(caught).toBeInstanceOf(Error);
+  expect(caught).not.toBeInstanceOf(NoHeaderListError);
+});
+
 test("一覧: 強調記号付きの `**不明**` は `不明` と読む", () => {
   const list = parseHeaderList(
     survey([
@@ -544,6 +568,21 @@ test("一覧: loadHeaderList は survey.md が無ければ NoHeaderListError、�
     NoHeaderListError,
   );
   expect([...loadHeaderList(surveyPath)]).toEqual(["x-frame-options"]);
+});
+
+test("一覧: survey.md の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする", () => {
+  const { surveyPath } = writeInputs(
+    survey(["| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |"]),
+    {},
+  );
+  let caught;
+  try {
+    loadHeaderList(join(dirname(surveyPath), "no-such-dir", "survey.md"));
+  } catch (err) {
+    caught = err;
+  }
+  expect(caught).toBeInstanceOf(Error);
+  expect(caught).not.toBeInstanceOf(NoHeaderListError);
 });
 
 test("CLI: survey.md 自体が無ければ exit 3（一覧が無い）", () => {
