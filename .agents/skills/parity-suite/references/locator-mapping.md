@@ -108,6 +108,11 @@ Playwright 以外の値は `document` / `window` を起点にした式で直接�
 **スイートは現・新の両方に当てて両方で green である必要がある。** 一方で意図的差異レジストリ `intentional_diffs` は散文の宣言が主で、期待値（現側・新側の値）を持たない（任意の `match` は差分を照合する鍵であって期待値ではない）ため、「現側ではこの値、新側ではこの値を期待する」を**スイートのどこかで解決する層**が要る。それが期待値解決層で、ロケータマッピング層とは別に置く（引き方と期待値を同じ場所に混ぜない）。
 
 - **既定は side 共通の 1 値**。side 別に分けるのは、`intentional_diffs.may_change` に**宣言済みの差**に触れる assertion だけ。宣言に無い差を勝手に side 別にしない（＝新側の不一致を期待値で吸収して緑にすることになる。レジストリに無い差は `intentional_diffs.pending` へ回してユーザー確認）
+- **現行の弱点を「直す」と仕分けた行（`.replace/weaknesses.md` の `仕分け: 直す`、宣言は `may_change`）に触れる振る舞いは、side 共通の期待値に固定しない**——
+  固定すると、スイートが現行の弱い振る舞いを正解として守り、新側で塞いだ瞬間に赤くなる（直すたびに期待値の書き換えが要る）。
+  対象 slug の経路に当たる行ごとに、**弱点が成立する入力を 1 つ assertion にし**（例: 書き込みの API へ `text/plain` で送る）、現側の値に現行の振る舞いを書き、新側は未定として `parity-replace` に渡す。
+  正規の使い方の assertion は side 共通のまま残す（基準 3 で振る舞いが変わらないと決めたものなので、分けると塞いだ副作用を見逃す）。
+  特性化の途中で台帳に無い弱点に気づいたら、仕分けを空欄にした行を `.replace/weaknesses.md` へ非破壊追記し、宣言の案を `pending` へ回す（仕分けの正本は `replace-strategy` の `references/security.md`）
 - **side 別にした項目には、根拠となるレジストリの該当項目を隣にコメントで書く**。これが無いと後から「なぜ 2 値なのか」を復元できない
 - **side の解決は Playwright の `projects` 名（`current` / `new`）から行う**。テスト内では `testInfo.project.name` で参照できる
   （出典: <https://playwright.dev/docs/api/class-testinfo#test-info-project> / <https://playwright.dev/docs/api/class-testproject#test-project-name>）。

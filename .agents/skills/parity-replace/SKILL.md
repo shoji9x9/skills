@@ -209,7 +209,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    壊れる相手が変更集合の外にいるため差分限定では原理的に捕まらない（走る範囲の正本はスキーマ文書「走る範囲」）。
    **前倒しは削除・改名だけではない**——共有された型・スキーマへの**必須プロパティの追加**のように、変更集合の外の利用側が満たさなくなる追加も同じ機構で捕まらないので `full` を回す
    （判断は操作名ではなく「変更集合の外の判定を変えるか」。利用側のテストが緑でも型の不足は見えないことがある）。
-   そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**判断の基準だけ**（差分・現行コード・規約・DB 意味論の点検表・レジストリの `keep` / `may_change`）を渡し、実装意図・確信度は知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
+   そのうえで**ローカルの未コミット差分**に対し commit 前に実施する。実装役とレビュー役を分離し、レビュー役には**判断の基準だけ**（差分・現行コード・規約・DB 意味論の点検表・レジストリの `keep` / `may_change`・現行の弱点の仕分け）を渡し、
+   実装意図・確信度は知らせない。指摘 → 修正 → 再レビュー。記録は `review.md`（PR に置かない）。詳細: [`references/adversarial-review.md`](references/adversarial-review.md)
 8. **完了判定（本スキル単体）**: 選択した target に対しパリティスイートが**新で green** ＋ **`verification_commands.full` が通る**（batch モードは実行可能スイートを持たないため**出力一致**＋ `full`。モード別の完了判定は [`references/paging.md`](references/paging.md)）。
    **feature モードでは寸法の決まり方の照合も完了判定に入れる**（機能の全ページのフェーズを終えた後に 1 回。ページのフェーズでは回さない。理由は [`references/paging.md`](references/paging.md)）
    ——`new` プロジェクトの `dimension/` を `PARITY_DIMENSION_CAPTURE=1 PARITY_NEW_TARGET=<選択中の new target>` 付きで回すと `new/<target>/dimension-samples.json` が書かれるので、**その直後に**
@@ -335,6 +336,7 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
 | 受け入れ条件の突き合わせ表（**環境別**） | `.replace/parity/<slug>/new/<target>/acceptance.json` | 様式・検査の正本: `issue-start` の `assets/acceptance-template.json` と `scripts/acceptance-check.mjs` |
 | レジストリ追記 | `.config/skills/shoji9x9/skills.yml` の `intentional_diffs` / `component_diffs` / `references.dependency_policy`（未確認だった場合のユーザー確認結果） / `new.stack`（空・欠落時に確認した結果） / `references.architecture`（既存実装から読み取り、ユーザーが確定させた決定記録のパス） | 正本: `replace-strategy` の `references/project-config.md` |
 | 依存の決定記録 | `.replace/dependencies.md` へ機能固有・実装中の追加を**非破壊追記**（無ければテンプレートから作成）。`内蔵` / `機能固有` / `未確認` / `該当なし` を引き取って決めた結果も、古い行の `状態` を `取り消し済み` にして新しい行を追記する | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 現行の弱点の追記 | 敵対的レビューで台帳に無い弱点が見つかったとき、`.replace/weaknesses.md` へ仕分け空欄の行を**非破壊追記**し（無ければテンプレートから作成）、宣言の案を `intentional_diffs.pending` へ回す（仕分けは人）。写した弱点の露出を広げる差異は同じ台帳の「露出を広げた差異」列へ | 様式の正本: `replace-strategy` の `assets/weaknesses-template.md` |
 | 静的資産の台帳への追記 | `.replace/assets.md` へ台帳に無い資産を方針空欄で**非破壊追記**し、ユーザーが決めた方針を記録する（無ければテンプレートから作成）。「同等物を作る」ならユーザー承認済みの宣言を `intentional_diffs.may_change` へ | 様式の正本: `replace-strategy` の `assets/assets-template.md` |
 | 宣言できない構造差 | `.replace/parity/<slug>/gaps.md` の「宣言できない構造差」節へ**本スキルが追記** | 様式の正本: `parity-suite` の `assets/gaps-template.md` |
 

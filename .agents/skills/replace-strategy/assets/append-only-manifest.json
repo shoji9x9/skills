@@ -49,6 +49,24 @@
       "source": "replace-strategy の references/static-assets.md"
     },
     {
+      "id": "weaknesses",
+      "pattern": ".replace/weaknesses.md",
+      "unit": "markdown-structure",
+      "mutable_columns": [
+        "基準（1 / 2 / 3）",
+        "仕分け",
+        "宣言",
+        "扱う設計作業",
+        "露出を広げた差異",
+        "状態",
+        "決定日・決めた工程",
+        "根拠"
+      ],
+      "mutable_bullets": ["最終更新"],
+      "requirement": "行を消さない。仕分けが空欄の行を埋める（基準・宣言・扱う設計作業・決定日・根拠を含む）・露出を広げた差異を書き足す・状態を 有効 → 取り消し済み にするのはその場で行い、決まった仕分けを覆すときは古い行を取り消し済みにして新しい行を追記する",
+      "source": "replace-strategy の references/security.md"
+    },
+    {
       "id": "dependencies",
       "pattern": ".replace/dependencies.md",
       "unit": "markdown-structure",

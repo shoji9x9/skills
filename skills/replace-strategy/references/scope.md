@@ -32,6 +32,7 @@
 | 共通 UI 部品の見た目（部品カタログ上での単体照合） | 対象 | **共通部品を画面より先に作る方針のときだけ。** 部品カタログが契約を満たし、インスタンスが 2 件以上あること。**画面に載せたときの差**（親からの継承・周囲の余白・隣接要素との重なり）はここでは見ず `parity-diff` が見る | `parity-component` の `references/compare.md` |
 | 部品の操作・状態の**有無**（被覆表 `component-coverage.json`） | 対象 | **見た目は数えない。** 機能が揃っていて色・寸法・余白が全部違う部品も `present` になる。見た目の担保は上の行（`parity-component`）と画素・特性照合（`parity-diff`）が別に持つ | `parity-suite` の `references/coverage.md` |
 | API（応答・エラー・並び順・ページング・認可） | 対象 | — | `parity-suite` の `references/api-batch.md` |
+| 横断の応答ヘッダー（サーバー・リバースプロキシの設定が付ける防御ヘッダー、外したことに意味のあるヘッダー） | 対象 | 画面の処理にも API の定義にも現れないため `setup` の測定で 1 度だけ一覧にし、各機能の特性化がその機能の応答に assertion する。一覧に載らないヘッダー（`Date` 等）は比較しない。受領資産から再構築した環境では、現行の設定を当てたと確かめられたものだけ | [`security.md`](security.md)「横断の応答ヘッダー」、`parity-suite` の `references/api-batch.md` |
 | バッチの出力（DB 状態・生成ファイル） | 対象 | 現行テスト環境のファイルシステムに到達できること | `parity-suite` の `references/api-batch.md`、[`file-io.md`](file-io.md) |
 | ファイル出力（CSV / Excel / 帳票・PDF） | 対象 | バイト列に到達できること（到達性は [`measurement.md`](measurement.md) で実測） | [`file-io.md`](file-io.md) |
 | ファイル入力（アップロード）の操作・保存結果 | 対象 | `targets[].storage.upload_route` が宣言済みで、対象 target が**アプリへの書き込み操作**を許可していること（`forbidden_actions`）。アップロードは書き込みであり、ストレージへ**直接**書く後始末を行うならさらに `storage.seedable: true` ＋ `write_scope` 配下が前提 | [`file-io.md`](file-io.md)、`parity-suite` の `references/data-discipline.md` |
@@ -86,6 +87,7 @@
 | IaC / CI-CD パイプラインの新規構築 | 対象外 | 事前条件。**スキル群の必須要件ではなく**、配信型 target（`develop` / `preview` 等）を `targets` に登録する場合にだけ「動いていること」が前提になる（ローカル target だけなら不要） | [`../SKILL.md`](../SKILL.md)「前提」 |
 | 既存 IaC への付随差分（テーブル追加・ルート追加等） | 対象 | 新側実装に付随する差分だけ。パリティスイートでは検証できないため、敵対的レビューと `verification_commands.full`（`cdk synth` / `terraform validate` 等、**認証情報・リモート state を要さない**機械検証）を通す | `parity-replace` の `SKILL.md`「厳守の制約」 |
 | 移行元の静的資産（画像・アイコン・favicon・ロゴ・図・書体）を新側へ写すかの方針 | 対象 | `setup` が実装前に種類ごとに決める（決めるのは人）。**比較の範囲とは別の軸**——`url()` 参照資産の中身が比較対象外でも、写さなければ画面に出ない。再配布の可否を確認できない資産は「実体を写す」を選ばない | [`static-assets.md`](static-assets.md) |
+| 現行の振る舞いに含まれるセキュリティ上の弱点を写すか直すかの仕分け | 対象 | `setup` が列挙して基準を当て、決めるのは人。**直すのは基準を 3 つとも満たすもの**（正規の使い方の振る舞いを変えずに塞げるもの）だけで、直すと仕様が変わるもの（認可の欠落等）は写して扱う設計の作業を記録する。**新側のセキュリティ設計一般は対象外**（仕分けた弱点の扱いに限る） | [`security.md`](security.md)「現行の弱点の仕分け」 |
 | 部品（ライブラリ・フォント等）の採否 | 対象 | 骨格の上に載るものだけ。判断材料・順序はリポジトリ方針（`references.dependency_policy`）に従う | [`dependency-selection.md`](dependency-selection.md) |
 | 共通 UI 部品の実装（画面より先に作る場合） | 対象 | 採取した基準に対して実装し、カタログ上で照合するところまで。**インスタンスが 1 件の部品は対象外**（その機能の実装時に `parity-replace` が作る） | `parity-component` の `SKILL.md` |
 | 部品カタログの用意（実体の選定・構築） | 対象外 | **事前条件型。** 実体はプロジェクトが選び、`references.component_catalog` と `targets[].catalog_url` / `catalog_url_command` で宣言する。スキルは契約を満たすかを確認して使うだけで、実体を決めも建てもしない | [`project-config.md`](project-config.md)「部品カタログ」 |

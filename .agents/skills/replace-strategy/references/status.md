@@ -9,6 +9,7 @@ Issue の状態とリポジトリ内の成果物から現況を導出する。**
 | `.replace/features.md` | 機能・横断 API・バッチ・その他の Issue（4 種以外）の一覧、slug、fan-out、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の所有者 slug）、**API の「要求単位の根拠」列（`実測` / `推定`）**、Issue 番号（**番号だけ。旧版テンプレート由来の「状態」列と、突き合わせの出力である「受け入れ条件」列は読まない**——下記「Issue 状態の取得」「導出する内容」12） |
 | `.replace/components.md` | 共通部品の一覧、slug、インスタンス、データ依存の有無、採否、Issue 番号（**画面より先に部品を作る方針のときだけ存在する。無いのは未着手ではなく「この方針を採っていない」**——`setup` 未実施として報告しない） |
 | `.replace/assets.md` | 静的資産の種類ごとの方針（空欄＝未決）と未走査・未確認の記録（`replace-strategy` の `setup` が作る。形式の正本は [`static-assets.md`](static-assets.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクト**——`setup` 未実施として報告しない） |
+| `.replace/weaknesses.md` | 現行のセキュリティ上の弱点ごとの仕分け（空欄＝未決）・扱う設計作業・露出を広げた差異（`replace-strategy` の `setup` が作る。形式の正本は [`security.md`](security.md)。**無いのは本工程の導入前に `setup` を終えたプロジェクトか、未実施**） |
 | `.replace/procedure-changes.md` と `parity-suite` の `assets/procedure-revisions.json` | 確かめる軸を足した変更（プロジェクト側の台帳とスキル側の改訂）と、既に閉じた機能への当て直しの判断（形式の正本は [`procedure-changes.md`](procedure-changes.md)。**台帳が無いのはプロジェクト側で軸を足していないだけ**——スキル側の改訂は台帳が無くても判定する） |
 | GitHub Issue | 各 Issue の open/closed（下記のとおりページネーションを処理する） |
 | `.replace/components/<slug>/metadata.json` | 部品の採取の状態（`capture.complete`・`axes.ok`・`capture_gaps`）と基準の陳腐化判定材料（`dataset_version`・`target.name`）（`parity-component` が生成。スキーマ正本は同スキル） |
@@ -199,6 +200,9 @@ done
     `--revisions` にはインストール済みの `parity-suite` の `assets/procedure-revisions.json` を渡す（プロジェクトへコピーしない）。
     `unresolved` を未解決、`undeterminable`（exit 3）を「対象かどうかを判定不能」、exit 4 を「特性化済みの機能が無く判定対象なし」、exit 2 を「入力を読めない（台帳の不整合・改訂一覧や成果物の置き場を読めない。stderr / `errors` の内容を添える）」として書き分ける（どれも 0 件に丸めない）。
     **`run.procedure_revision` を持たない成果物は改訂番号の導入前**なので、すべての改訂の対象として出る（旧版 `parity-suite` の成果物。判断を台帳に記録すれば消える）
+15. **現行の弱点の未決と露出の拡大**: `.replace/weaknesses.md` の `状態` が `有効` の行から、**仕分けが空欄の行**と、**「写す」なのに扱う設計作業が空欄の行**（直すと仕様が変わるもの）と、**「露出を広げた差異」が書かれた行**を列挙する（形式の正本は [`security.md`](security.md)「現行の弱点の仕分け」）。
+    **ファイルが無ければ「現行の弱点が未仕分け（`setup` 手順 8 未実施）」と報告する**——無いことを「弱点が無い」と読まない。
+    併せて `.replace/survey.md`「7. 横断の応答ヘッダー」の**所有者 slug が空欄の行・付け手が `不明` の行・引き受ける機能が未確定**を列挙する（節が無ければ「横断の応答ヘッダーが未測定」と報告する）
 
 ## 報告
 

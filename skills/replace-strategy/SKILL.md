@@ -88,7 +88,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 **置換系スキル群に共通する自律性ポリシーの正本は [`references/autonomy.md`](references/autonomy.md)**（宣言の仕方・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）。
 姉妹スキルはそれぞれの「自律実行」節で固有の対応だけを持ち、同ファイルを参照する。本スキル固有の対応:
 
-- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、静的資産の方針と「同等物を作る」の宣言の承認（手順 11）、`issues` モードの起票の承認と**落ちた行・落ちた配線を塞ぐ既存 Issue の本文追記の承認**
+- **判断待ち（保留に落とす）**: `setup` の対話セットアップ（手順 3）で人が決める値、戦略の承認（手順 6）、ページ要素の帰属の確定（手順 9）、依存方針の要否と共通部品の採否（手順 10）、静的資産の方針と「同等物を作る」の宣言の承認（手順 11）、**現行の弱点の仕分け（手順 8）**、`issues` モードの起票の承認と**落ちた行・落ちた配線を塞ぐ既存 Issue の本文追記の承認**
 - **保留に落とさないもの**: 手順 10 の洗い出しで**確かめられなかった種類**（禁止された操作でしか状態を作れない・自律実行では書き込みを伴う手段を使わない）は
   `.replace/dependencies.md` の `未確認` の行として残し、**件数と内訳を最終報告に並べる**。引き取り手（その部品が要る機能の `parity-replace`）が別にあるため、
   この種類が残っていても `setup` は完了できる（線引きの正本は [`references/autonomy.md`](references/autonomy.md)「保留に落とすか、成果物の値として残すか」）。
@@ -156,8 +156,10 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    **引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）まで測定へ進まない**（`blocked` なら質問票の回答・追加資産を待ち、`--resume` での再開を案内して停止する）。
    引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**
 5. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
-   セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価を行い、
-   `.replace/survey.md` に記録する。**測れない場合はここで停止する**
+   セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価・**横断の応答ヘッダー**を行い、
+   `.replace/survey.md` に記録する。**測れない場合はここで停止する**。
+   **応答ヘッダーは機能ごとの工程のどこも採らない**——サーバー・リバースプロキシの設定が全応答に付ける防御ヘッダーは画面の処理にも API の定義にも現れず、新側が付けなくても全工程が緑のまま安全性だけが後退する。
+   画面・API・静的ファイル・エラー応答を 1 度だけ採り、アプリのコードの外で付くものを一覧にする（正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）
 6. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
 7. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
 8. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**。
@@ -168,6 +170,10 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    `pending-triage-check.mjs` が「同じ文言が複数ある」として落ち、重複を消すのは既存の値の削除なので追記専用の検査にも当たる（どちらの契約も破らずには直せない）。
    `added_by` を空ける・`unknown` と書く・採番前の slug を推測で書くのはいずれも帰属不明へ倒れ、全機能の棚卸しに出続ける
    （検査は `parity-diff` の `pending-triage-check.mjs`。要素の形の正本は [`references/project-config.md`](references/project-config.md) の「`pending` 要素の形」）
+   **現行の振る舞いに含まれるセキュリティ上の弱点を列挙し、「直す（`may_change`）」か「写す（`keep`）」へ仕分けて `.replace/weaknesses.md` に記録する**——
+   スイートも敵対的レビューも「現行と一致しているか」を見るので、**現行と同じ弱点はどの工程にも指摘されず新側へ写る**。
+   列挙の起点は OWASP Top 10 の 1 版に固定し、3 つの基準（権限の無い人が届くか誘導するだけで成立する／影響が他の利用者のブラウザでのスクリプト実行か許可の無い書き込み／直しても正規の使い方で振る舞いが変わらない）を**すべて満たすものだけを直す**。
+   直すと仕様そのものが変わるもの（認可の欠落等）は写し、扱う設計の作業を記録する。仕分けは人が決める（手順・基準・宣言の正本は [`references/security.md`](references/security.md)「現行の弱点の仕分け」）
 9. **機能インベントリ**: 現アプリを機能単位に分解し、各機能のページ・API・テーブル・副作用出力、横断 API の fan-out と参照テーブル、slug を `.replace/features.md` に記録する。
    **機能は画面内の表示セクションではなく、利用者目的・データ境界・依存関係・副作用の所有者で分解する**（複数ページの機能は 1 行）。
    **API の口を書く前に、その口の要求単位を現行ソースコードから読み出し、根拠を「要求単位の根拠」列へ口ごとに `実測` / `推定` で記録する**——
@@ -182,6 +188,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    **ページ一覧を書いたら、そのページの可視要素が漏れなくどれかの slug に帰属しているかを確かめ、どの機能行のセクションにも収まらない要素を「ページ要素の帰属」表へ記録して配置の所有者を決める**——
    機能一覧が所有者を持つのはテーブル・API・副作用出力だけで、**スコープ外と決めた要素にも場所を占めるものがあり**、誰も配置しなければ実装後の `parity-diff` まで「説明できない差分」として現れない。
    **帰属の無い要素が残るなら、候補 slug を添えて着手前にユーザーへ確認し、確定するまで所有者は空欄のまま残す（暫定値で埋めない）**（規則は同 [`references/features-issues.md`](references/features-issues.md)）。
+   **`.replace/survey.md` の「7. 横断の応答ヘッダー」の所有者 slug（どの機能にも属さない静的ファイル・404 の応答と、新側のサーバー設定の作業の引き受け手）も、採番後に同じく候補を添えて確認して書き戻す**（測定の時点では slug が無いため空欄で残っている。正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）。
    **4 種（ゴールデンデータセット／横断 API／機能／バッチ）に還元できない作業**（例: テーブルをまたぐ新側スキーマの前倒し設計）は「その他の Issue（4 種以外）」表に置き、記録先が無いことを理由にヘッダへ独自項目を足したり記録を諦めたりしない
    **`current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列へ非破壊で書き戻す**——
    同ファイルは `.replace/features.md` が存在しない時点で書かれるため機能の呼び名しか持てず、書き戻さないと `golden-dataset` / `parity-suite` が確認待ちの意味論を slug で引けない
@@ -281,16 +288,17 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 
 ## 成果物
 
-すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md`・`assets.md`・`procedure-changes.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
+すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md`・`assets.md`・`weaknesses.md`・`procedure-changes.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
 下流スキルの成果物（`.replace/parity/<slug>/` や `.replace/dataset/`、`.replace/bootstrap/` の形式）は各スキルが定義する。同じ形式を複数スキルで重複定義しない。
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
-| 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値 |
+| 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価、横断の応答ヘッダー。すべて実測値 |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊。**「要求単位の根拠」列の `推定` → `実測` は `evidence` モードだけが書く** |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（`パッケージ採用` / `自前実装` / `該当なし` / `内蔵` / `機能固有` / `未確認` の 6 値）と状態（`有効` / `取り消し済み`）・判断材料・代替候補・不採用理由・理由／引き取り手。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |
+| 現行の弱点の仕分け | `.replace/weaknesses.md` | 現行のセキュリティ上の弱点ごとの経路・基準の当てはめ・仕分け（直す／写す）・宣言（`may_change` / `keep` の文言）・扱う設計作業・露出を広げた差異。本スキルが `setup` の手順 8 で作り、`parity-suite` / `parity-replace` が見つけた弱点を仕分け空欄で非破壊追記する。正本は [`references/security.md`](references/security.md) |
 | 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体を写す／同等物を作る／写さない）・ファイルと出どころ・描き方と使われるページ・再配布の可否・同等物で残る差と宣言。本スキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針空欄で非破壊追記する。正本は [`references/static-assets.md`](references/static-assets.md) |
 | 手順・観点の変更の台帳 | `.replace/procedure-changes.md` | プロジェクト側で足した確かめる軸（観点の追加）と、それより前に特性化を終えた機能への当て直しの判断（`当て直し済み` / `当てない` / `見直し中`）。軸を足した工程が非破壊追記する（無ければテンプレートから作る）。正本は [`references/procedure-changes.md`](references/procedure-changes.md) |
 | 共通部品インベントリ（**画面より先に部品を作る方針のときだけ**） | `.replace/components.md` | 部品ごとの slug・**インスタンス（ページ ＋ 論理名）**・データ依存の有無・採否・Issue 番号・受け入れ条件の被覆と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取対象をここから引く（同スキルは本ファイルを書かない）。更新は非破壊 |
