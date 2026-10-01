@@ -90,6 +90,9 @@
       echo "停止: 撮る版を読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
     elif [ "$RECORDED" = none ]; then
       echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
+    elif ! printf '%s' "$RECORDED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}'; then
+      # rev-parse は短縮 SHA や参照名（main 等）も完全 SHA へ展開するので、展開する前の値を検査する
+      echo "停止: 照合相手が完全な SHA でない（${RECORDED:-（読めない）}）"; exit 1
     elif ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
       # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）を版の一致にしない
       echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮る版 $CAPTURE）"; exit 1

@@ -69,14 +69,18 @@
    撮った新側の SHA（`commits.after`）は `diff.md` の前提確認表に書く（下記「記録」）。そのうえで機能ごとに:
 
    ```bash
-   # 検証先の版は変更宣言から機械的に取る（表示から書き写さない）。続けて当てた宣言があるなら最後の宣言を渡す
-   AFTER=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' \
-     .replace/components/<slug>/changes/<change-id>.json)
-   [ -n "$AFTER" ] || { echo "変更宣言の commits.after が読めない" >&2; exit 2; }
-   node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff \
-     --new-repo <新側リポジトリ> --carry-to "$AFTER"
-   node <parity-suite の skill>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> \
-     --replace-metadata <new/<target>/replace-metadata.json> --target <target> --new-repo <新側リポジトリ> --carry-to "$AFTER"
+   # 先の検査の失敗を後の検査の成功で上書きしない（非 0 をそのまま返す）。対話シェルを閉じないよう ( ) で囲む
+   (
+     # 検証先の版は変更宣言から機械的に取る（表示から書き写さない）。続けて当てた宣言があるなら最後の宣言を渡す
+     AFTER=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' \
+       .replace/components/<slug>/changes/<change-id>.json)
+     [ -n "$AFTER" ] || { echo "変更宣言の commits.after が読めない" >&2; exit 2; }
+     node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff \
+       --new-repo <新側リポジトリ> --carry-to "$AFTER" || exit $?
+     # component_coverage.declared: true の機能だけ
+     node <parity-suite の skill>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> \
+       --replace-metadata <new/<target>/replace-metadata.json> --target <target> --new-repo <新側リポジトリ> --carry-to "$AFTER"
+   )
    ```
 
    を通す（`component-comparison-check.mjs` は `component_coverage.declared: true` の機能だけ。宣言の無い機能には突き合わせ表が無いので、`--carry-to` は `artifact-health-check.mjs` だけが判定する。
