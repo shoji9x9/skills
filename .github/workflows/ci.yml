@@ -79,6 +79,8 @@ jobs:
         run: node scripts/check-kaizen-refs.js
       - name: Identical copies (scripts/identical-copies.json)
         run: node scripts/check-identical-copies.js
+      - name: Skill checks wiring declarations (checks.json / scripts/skill-checks-unwired.json)
+        run: node scripts/check-skill-checks.js
       - name: No mutation counts in prose (AGENTS.md / rules / docs / workflows)
         run: node scripts/check-mutation-count-prose.js
       - name: Skill index (AGENTS.md / README.md vs skills/)

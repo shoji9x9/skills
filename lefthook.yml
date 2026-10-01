@@ -90,6 +90,10 @@ pre-commit:
           - name: identical-copies
             # 同一であるべきコピー（scripts/identical-copies.json で宣言）の一致。
             run: node scripts/check-identical-copies.js
+          - name: skill-checks
+            # 配布スキルの検査が、利用者の入口へ配線するか（skills/<name>/checks.json）・しないか
+            # （scripts/skill-checks-unwired.json）のどちらかに分類されているか。
+            run: node scripts/check-skill-checks.js
           - name: mutation-count-prose
             # 変異の件数・全件の実測値を散文（AGENTS.md / rules / docs / workflows のコメント）へ再導入していないか。
             run: node scripts/check-mutation-count-prose.js
