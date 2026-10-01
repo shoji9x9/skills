@@ -11,7 +11,7 @@
 - **変更宣言があり、`catalog_verification` の 2 値（範囲の外は差分ゼロ・範囲の中は現行と一致）がどちらも `true`** のときだけこの手順を使う。
   宣言が無い・照合が済んでいないなら、部品に触れた反復として `loop.changed_scope.global: true` で各機能の `parity-diff` を回す
 - **新側の作業ツリーが clean で、動いている新側が宣言の `commits.after`（続けて当てた宣言があるなら最後の `after`）である**こと。
-  `url_command` の target の `commit_check` もこの SHA と照合する（`new.commit` は改修前の記録のまま残るので、そちらと照合すると止まる。食い違いの正当性は手順 5 の鮮度検査が判定する）
+  target の `commit_check`（固定の `url` か `url_command` かに依らない）もこの SHA と照合する（`new.commit` は改修前の記録のまま残るので、そちらと照合すると止まる。食い違いの正当性は手順 5 の鮮度検査が判定する）
 - **1 セッションで影響する機能をまとめて回す。** 機能ごとに `parity-diff` のセッションを開き直さない。ただし機能は 1 つずつ順に処理し、並行させない（「1 回の実行につき 1 機能」の例外はこの一括再検証だけ）
 
 ## 手順
@@ -31,7 +31,8 @@
    **exit 1（判定不能の機能がある）は、その機能だけ全組を通常の経路で回す**（下記「機械判定で通らない組がある機能」と同じ）——判定できないことを影響なしに倒さない
 2. **影響なしの機能は撮り直しも `parity-diff` も回さない。** 選択 target の `new/<target>/evidence-carry.json` に
    `{"change": "<変更宣言のパス>", "amend_verify": null}` を `carries` へ追記する（様式の正本は `parity-suite` の `assets/evidence-carry-template.json`）。
-   理由（どのページも影響インスタンスを持たない・その状態を撮っていない等）は出力のまま報告に載せる
+   理由（どのページも影響インスタンスを持たない・その状態を撮っていない等）は出力のまま報告に載せる。
+   追記した持ち越しも、手順 5 の鮮度検査（`--carry-to` 付き）で確かめる（影響なしの判定は追記した記録が壊れていないことを保証しない）
 3. **影響する機能の新側を、影響する組だけ撮り直す。**
    - **現側は撮り直さない。** 比較の相手は現側 `baseline/` の同じ組のまま
    - **撮る前に、影響する組の前回の新側採取物（`baseline-new/<page>/<state>/<viewport>/`）を `new/<target>/pre-change/<change-id>/<page>/<state>/<viewport>/` へ写す。** 手順 4 の「改修前の新側」になる。
@@ -68,18 +69,28 @@
    撮った新側の SHA（`commits.after`）は `diff.md` の前提確認表に書く（下記「記録」）。そのうえで機能ごとに:
 
    ```bash
-   node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff --new-repo <新側リポジトリ>
-   node <parity-suite の skill>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> \
-     --replace-metadata <new/<target>/replace-metadata.json> --target <target> --new-repo <新側リポジトリ>
+   # 先の検査の失敗を後の検査の成功で上書きしない（非 0 をそのまま返す）。対話シェルを閉じないよう ( ) で囲む
+   (
+     # 検証先の版は変更宣言から機械的に取る（表示から書き写さない）。続けて当てた宣言があるなら最後の宣言を渡す
+     AFTER=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' \
+       .replace/components/<slug>/changes/<change-id>.json)
+     [ -n "$AFTER" ] || { echo "変更宣言の commits.after が読めない" >&2; exit 2; }
+     node <parity-suite の skill>/scripts/artifact-health-check.mjs --metadata .replace/parity/<slug>/metadata.json --target <target> --stage diff \
+       --new-repo <新側リポジトリ> --carry-to "$AFTER" || exit $?
+     # component_coverage.declared: true の機能だけ
+     node <parity-suite の skill>/scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <突き合わせ表> --metadata <現側 metadata.json> \
+       --replace-metadata <new/<target>/replace-metadata.json> --target <target> --new-repo <新側リポジトリ> --carry-to "$AFTER"
+   )
    ```
 
-   を通す（`component-comparison-check.mjs` は `component_coverage.declared: true` の機能だけ。
+   を通す（`component-comparison-check.mjs` は `component_coverage.declared: true` の機能だけ。宣言の無い機能には突き合わせ表が無いので、`--carry-to` は `artifact-health-check.mjs` だけが判定する。
    `.replace` の場所は既定で `artifact-health-check.mjs` は `<root>/.replace`、`component-comparison-check.mjs` は `--replace-metadata` のパス中の `.replace` から決まり、
    `evidence-carry.json` は `replace-metadata.json` と同じディレクトリから読む——
    既定から外れる配置でだけ `--replace-root` / `--evidence-carry`〈後者は `component-comparison-check.mjs` のみ〉を渡す）。検査は SHA の食い違いを、そのページの描画入力（`replace-metadata.json` の `new.render_inputs`）の差分が
    持ち越した変更宣言の `files` に収まり、影響する組が合格の記録で覆われているときだけ通す。
-   `replace-metadata.json` の `new.commit` がまだ改修前の版なら SHA は一致して持ち越しは評価されない——
-   持ち越しが効くのは、その後 `new.commit` が改修後の版へ進んだとき（`evidence-carry.json` が改修の分を説明する）
+   **`--carry-to` を省かない。** 一括再検証の直後は `replace-metadata.json` の `new.commit` も改修前の版のままで記録と一致するので、
+   `--carry-to` が無いと持ち越しは評価されず、`evidence-carry.json` が無い・壊れている・宣言で説明できない差分がある状態でも通る。
+   `--carry-to` を渡すと、記録の版からその版への持ち越しを SHA の一致に依らず判定する（記録の版が `none` なら判定できないので落ちる）
    **落ちたら持ち越しは成立していない**——描画入力が無い・宣言の外のファイルが変わっている機能は、同じ target の `parity-replace` から回し直す。
    収束の判定は通常どおり [`convergence.md`](convergence.md) に従う
 

@@ -34,11 +34,79 @@
 | 前提スキルの未解決の保留 | setup・`golden-dataset` フェーズ A・選択 target のフェーズ B・対象 slug の `parity-suite`・選択 target の `parity-replace` について、範囲の一致する未解決の保留が無い（**`.replace/parity/<slug>/new/<target>/pending-decisions.json` を含む**。ファイルが無いのは保留なし。**`resolution` があっても `blocks` の工程が済んでいなければ未解決**。見る記録先と範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」、数え方は同ファイル「保留の状態」の `pending-decisions-check.mjs`） | 保留を抱えたスキル |
 | parity-replace 新側 green | `.replace/parity/<slug>/new/<target>/replace-metadata.json` の `suite.new_green: true` | `parity-replace`（**同じ `--target`** で新側 green にする） |
 | target 名の一致 | 同ファイルの `new.target` が解決した target 名と一致する | 停止（別環境の green 証跡を流用しない） |
+| 新側の版の一致 | 同ファイルの `new.commit`（green を取った版）が、これから撮る新側の版と一致する（下記「新側の版の一致」） | `parity-replace`（**同じ `--target`** で、撮る版の green を記録し直す） |
 | Node.js と新側疎通 | Node.js が使える／選択 target の `url`（＝ `new.ui_url`）に疎通できる。api-resource モードは `api_url`（＝ `new.api_url`。省略時 `ui_url`）にも疎通できる。`url_command` の target は解決後の URL へ疎通する（`new.ui_url` の記録は `"runtime"`） | 停止（環境を整える） |
 
 - 選択 target の `replace-metadata.json` が無い／`suite.new_green` が偽なら「**その環境ではまだ green 証跡が無い**」として停止する。別環境の証跡で代替しない（環境ごとに独立）
 - **parity-replace の「完了」を待つのではなく `suite.new_green` を前提とする。** 差分ゼロは本スキルとの往復で達成されるため、`parity-replace` 単体の完了条件に差分ゼロは含まれない
 - **スイートは再実行しない。** 新に対して green かは `suite.new_green` キーで判定する
+
+### 新側の版の一致
+
+`suite.new_green` は、その green を取った版（`new.commit`）でしか成立しない。新側のコードを変えた後に本スキルだけを回し直すと、
+採取・自己ノイズの 2 回撮り・検出を最後まで回してから収束判定の `artifact-health-check` で落ちる。**撮る前にここで止める。**
+
+- **撮る版**は、ローカルで起動する target（`start` を持つ）なら新側リポジトリ（設定の `new.repo`）の作業ツリーの `HEAD`。
+  配信型 target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に依らずその出力（照合の正本は [`capture-new.md`](capture-new.md)「URL の配線」。
+  `commit_check` の定義の正本は `replace-strategy` の `references/project-config.md`）。
+  配信型 target で `commit_check` を持たないものは撮る版を機械で知る手段が無い。**「対象環境に commit `<照合相手の SHA>` がデプロイ済みか」を利用者に確認し、確認が取れるまで撮らない**
+  （`parity-replace` の軽量経路と同じ扱い。`--autonomous` では判断待ちの保留に記録し、この機能の撮影は始めない）。確認した旨と回答は `diff.md` の前提確認表に書く
+- **部品改修の一括再検証（`--component-change`）では照合相手が変更宣言の `commits.after` になる**（`new.commit` は改修前の記録のまま。正本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
+  下の照合は `CHANGE` に変更宣言のパスを入れると照合相手を `commits.after` に切り替える——`new.commit` のまま照合すると、正しい一括再検証でも止まる
+- 照合相手（通常は `new.commit`、一括再検証では `commits.after`）を正本から読み、撮る版と完全 SHA で突き合わせる（表示から書き写さない）。
+  撮る版は `COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD`、配信型 target の `commit_check` を入れればその出力（完全 SHA を出すこと。短縮 SHA は一致しないとして止まる）。
+  `commit_check` を持たない配信型 target は `DELIVERED=1` にする（ローカルの `HEAD` と比べず、利用者の確認が要るとして止まる）:
+
+  ```bash
+  CHANGE=""   # --component-change の実行だけ変更宣言のパス（続けて当てた宣言があるなら最後の宣言）。通常の実行は空のまま
+  if [ -n "$CHANGE" ]; then
+    RECORDED=$(node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(c.commits?.after ?? ""))' "$CHANGE")
+  else
+    RECORDED=$(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(m.new?.commit ?? ""))' \
+      .replace/parity/<slug>/new/<target>/replace-metadata.json)
+  fi
+  COMMIT_CHECK=""   # start を持たない配信型 target で commit_check を持つなら、そのコマンド（secrets.wrapper が要るなら前置する）。ローカルの target は空のまま
+  DELIVERED=""      # start を持たない配信型 target なら 1（commit_check の有無に依らない）。ローカルの target は空のまま
+  # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
+  (
+    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
+      # 稼働中の版を機械で確かめる手段が無い。ローカルの HEAD はデプロイ済みの版を表さないので比べない
+      echo "停止: commit_check が無い配信型 target。commit ${RECORDED:-（読めない）} がデプロイ済みか利用者に確認する"; exit 1
+    elif [ -n "$COMMIT_CHECK" ]; then
+      # 配信型 target: 稼働中のコードの版は commit_check だけが知っている（HEAD はデプロイ済みの版を表さない）
+      # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
+      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮る版を特定できない）"; exit 1; }
+      CAPTURE=$(printf '%s' "$RAW" | tr -d '[:space:]' | tr 'A-F' 'a-f')
+      WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
+    else
+      CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
+      if [ -n "$CAPTURE" ] && [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
+        echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"; exit 1
+      fi
+      WANT=$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")
+    fi
+    if [ -z "$CAPTURE" ]; then
+      # リポジトリのパス違い・commit_check の失敗等で空になると、下の比較が空同士で「一致」に倒れる
+      echo "停止: 撮る版を読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
+    elif [ "$RECORDED" = none ]; then
+      echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
+    elif ! printf '%s' "$RECORDED" | grep -Eqix '[0-9a-f]{40}|[0-9a-f]{64}'; then
+      # rev-parse は短縮 SHA や参照名（main 等）も完全 SHA へ展開するので、展開する前の値を検査する
+      echo "停止: 照合相手が完全な SHA でない（${RECORDED:-（読めない）}）"; exit 1
+    elif ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
+      # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）を版の一致にしない
+      echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮る版 $CAPTURE）"; exit 1
+    elif [ "$WANT" = "$CAPTURE" ]; then
+      echo "一致: $CAPTURE"
+    else
+      echo "停止: 照合相手の版 ${RECORDED:-（読めない）} と撮る版 $CAPTURE が違う"; exit 1
+    fi
+  )
+  ```
+
+- **一致しなければ撮らずに停止**し、同じ `--target` での `parity-replace`（撮る版で新側 green を記録し直す）を案内する。
+  `new.commit` が読めない・リポジトリに無い版も一致しないとして扱う（合格に倒さない）
+- 収束判定の `artifact-health-check` の照合（[`convergence.md`](convergence.md)）は残す——撮った後に版が動いたときの網になる
 
 ## モード別の追加要求（`metadata.json.mode` で分岐）
 

@@ -32,7 +32,7 @@
   以降の工程では解決済みの値を再利用し、工程ごとに再実行しない——解決規則の正本は `replace-strategy` の `references/project-config.md`「URL の引き渡し」）
 - 解決値は `new/<target>/replace-metadata.json` の `new.ui_url` / `new.api_url` と一致することを確認する（別環境の URL で撮らない）。
   記録が `"runtime"` のフィールドは解決値を持たないため、照合は **target 名の一致**で代替する（固定値で記録されたフィールド〈例: `url_command` の target の固定 `api_url`〉はそのまま照合する）。
-  `url_command` の target に `commit_check` があれば、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する。部品改修の一括再検証では照合相手が変更宣言の `commits.after` になる——[`component-change.md`](component-change.md)）
+  target に `commit_check` があれば（固定の `url` か `url_command` かに依らない）、その出力が記録の `new.commit` と一致することも確認する（不一致は green 証跡と別デプロイのため停止する。部品改修の一括再検証では照合相手が変更宣言の `commits.after` になる——[`component-change.md`](component-change.md)）
 - **配線の正本は `parity-suite` の `references/locator-mapping.md`**（`current` / `new` / `new-capture` プロジェクトの baseURL を環境変数で参照する形。URL を config に直書きしない）
 
 ## 条件一致の先行検証（差分検出より前）

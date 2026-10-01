@@ -665,19 +665,16 @@ function writeCheckerInputs(p, recorded, wanted) {
 /**
  * 両検査器を CLI として回す。
  * @param {ReturnType<typeof project>} p
+ * @param {{ carryTo?: string, newRepo?: boolean }} [options] carryTo は両方へ --carry-to で渡す。newRepo: false で --new-repo を渡さない
  */
-function runBoth(p) {
+function runBoth(p, options = {}) {
+  const extra = [
+    ...(options.newRepo === false ? [] : ["--new-repo", p.repo]),
+    ...(options.carryTo === undefined ? [] : ["--carry-to", options.carryTo]),
+  ];
   const health = spawnSync(
     process.execPath,
-    [
-      healthCheck,
-      "--metadata",
-      join(p.slugDir, "metadata.json"),
-      "--target",
-      TARGET,
-      "--new-repo",
-      p.repo,
-    ],
+    [healthCheck, "--metadata", join(p.slugDir, "metadata.json"), "--target", TARGET, ...extra],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
   const comparison = spawnSync(
@@ -692,12 +689,15 @@ function runBoth(p) {
       TARGET,
       "--replace-metadata",
       join(p.stageDir, "replace-metadata.json"),
-      "--new-repo",
-      p.repo,
+      ...extra,
     ],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
-  return { health, comparison, comparisonResult: JSON.parse(comparison.stdout) };
+  return {
+    health,
+    comparison,
+    comparisonResult: comparison.stdout === "" ? null : JSON.parse(comparison.stdout),
+  };
 }
 
 test("両検査器の一致: 持ち越せる fixture では両方とも合格", () => {
@@ -781,4 +781,110 @@ test("影響インスタンスのページが別の機能のページにある: 
   const result = judge(p);
   expect(result.findings).toEqual([]);
   expect(result.ok).toBe(true);
+});
+
+// --carry-to（Issue #469）。部品改修の一括再検証の直後は diff-metadata.json・component-comparison.json・
+// replace-metadata.json の版がどれも改修前で一致し、食い違いの判定（judgeCarry）が呼ばれない。
+// 検証先の版を明示すると、記録の版からその版への持ち越しをその場で判定する。
+
+test("--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す", () => {
+  const p = project();
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  const { health, comparison, comparisonResult } = runBoth(p, { carryTo: p.commits.component });
+  expect(health.status).toBe(0);
+  expect(health.stdout).toMatch(
+    new RegExp(`note: --carry-to ${p.commits.component}: .*証跡を持ち越す`),
+  );
+  expect(comparison.status).toBe(0);
+  expect(comparisonResult.findings).toEqual([]);
+  expect(comparisonResult.notes.join("\n")).toMatch(
+    new RegExp(`--carry-to ${p.commits.component}: .*証跡を持ち越す`),
+  );
+});
+
+test("--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）", () => {
+  const p = project();
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  rmSync(p.evidenceCarryPath);
+  // 既存の呼び出し（検証先の版を明示しない）の挙動は変えない: 版が一致するので持ち越しを評価せず通る。
+  const before = runBoth(p);
+  expect(before.health.status).toBe(0);
+  expect(before.comparison.status).toBe(0);
+  const { health, comparison, comparisonResult } = runBoth(p, { carryTo: p.commits.component });
+  expect(health.status).toBe(1);
+  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(health.stdout).toContain("src/components/Button.tsx");
+  expect(comparison.status).toBe(1);
+  const messages = comparisonResult.findings.map((f) => `${f.code} ${f.message}`).join("\n");
+  expect(messages).toContain(
+    "evidence-carry-rejected 突き合わせ表の証跡を --carry-to の版へ持ち越せない",
+  );
+  expect(messages).toContain("src/components/Button.tsx");
+});
+
+test("--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす", () => {
+  const p = project();
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  writeFileSync(p.evidenceCarryPath, "{ not json");
+  const { health, comparison, comparisonResult } = runBoth(p, { carryTo: p.commits.component });
+  expect(health.status).toBe(1);
+  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(comparison.status).toBe(1);
+  expect(comparisonResult.findings.map((f) => f.code)).toContain("evidence-carry-rejected");
+});
+
+test("--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる", () => {
+  const p = project();
+  const theme = commit(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  const { health, comparison, comparisonResult } = runBoth(p, { carryTo: theme });
+  expect(health.status).toBe(1);
+  expect(health.stdout).toContain("--carry-to の版へ持ち越せない");
+  expect(health.stdout).toContain("src/theme.css");
+  expect(comparison.status).toBe(1);
+  expect(comparisonResult.findings.map((f) => f.message).join("\n")).toContain("src/theme.css");
+});
+
+test("--carry-to: 記録の版が none: 判定できないので両方とも落とす", () => {
+  const p = project();
+  writeCheckerInputs(p, "none", "none");
+  const { health, comparison, comparisonResult } = runBoth(p, { carryTo: p.commits.component });
+  expect(health.status).toBe(1);
+  expect(health.stdout).toContain(`--carry-to ${p.commits.component} への持ち越しを判定できない`);
+  expect(comparison.status).toBe(1);
+  expect(comparisonResult.findings.map((f) => f.code)).toContain("evidence-carry-unverifiable");
+});
+
+test("--carry-to: --new-repo が無い: 判定を飛ばさず両方とも使い方の誤り（exit 2）", () => {
+  const p = project();
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  const { health, comparison } = runBoth(p, { carryTo: p.commits.component, newRepo: false });
+  expect(health.status).toBe(2);
+  expect(health.stderr).toContain("--carry-to には --new-repo が要る");
+  expect(comparison.status).toBe(2);
+  expect(comparison.stderr).toContain("--carry-to には --new-repo が要る");
+});
+
+test("--carry-to: suite.new_green が真でない: 工程の節を飛ばして通さない（--carry-to 無しは従来どおり判定しない）", () => {
+  const p = project();
+  writeCheckerInputs(p, p.commits.base, p.commits.base);
+  const replacePath = join(p.stageDir, "replace-metadata.json");
+  const replace = JSON.parse(readFileSync(replacePath, "utf8"));
+  replace.suite.new_green = false;
+  writeJson(replacePath, replace);
+  expect(runBoth(p).health.status).toBe(0);
+  const { health } = runBoth(p, { carryTo: p.commits.component });
+  expect(health.status).toBe(1);
+  expect(health.stdout).toContain("への持ち越しを判定できない（suite.new_green が真でない");
+});
+
+test("--carry-to: replace-metadata.json の new.commit と同じ版: 同じ判定を重ねて出さない", () => {
+  const p = project();
+  const theme = commit(p.repo, { "src/theme.css": ":root { --accent: red; }\n" }, "theme");
+  writeCheckerInputs(p, p.commits.base, theme);
+  const plain = runBoth(p);
+  const withCarry = runBoth(p, { carryTo: theme });
+  expect(withCarry.health.status).toBe(1);
+  expect(withCarry.health.stdout).toBe(plain.health.stdout);
+  expect(withCarry.comparisonResult.findings).toEqual(plain.comparisonResult.findings);
 });

@@ -35,7 +35,7 @@ const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
  * ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "3";
+export const VERSION = "4";
 
 /** セルの鍵の区切り。`component` / `item` / `instance` にこの文字は使えない。 */
 export const KEY_SEPARATOR = "|";
@@ -104,7 +104,10 @@ export function fingerprintOf(keys) {
  * `carry`（任意）は new_implementation.commit と現在の new.commit が両側とも SHA で食い違うときに呼ぶ持ち越しの判定
  * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
  * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つの検査器の判定を揃える。
- * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
+ * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
+ * 記録と同じでも必ず判定する（Issue #469。部品改修の一括再検証の直後は両方が改修前の版で一致する）。
+ * 判定できない（記録の版が SHA でない・carry が無い）ときは合格に倒さない。
+ * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carryTo?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
  * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
  */
 export function checkComponentComparison(input) {
@@ -213,6 +216,9 @@ export function checkComponentComparison(input) {
     !Array.isArray(replaceMetadata.new)
       ? /** @type {Record<string, any>} */ (replaceMetadata.new)
       : null;
+  // 食い違いの判定で judgeCarry に掛けうる「今の版」。--carry-to が同じ版なら二重に判定しない。
+  /** @type {string | null} */
+  let judgedWanted = null;
   if (!replaceNew) {
     findings.push({
       code: "replace-metadata-unusable",
@@ -228,6 +234,7 @@ export function checkComponentComparison(input) {
       });
     } else if (nonEmptyString(observedCommit)) {
       const wanted = String(replaceNew.commit).trim();
+      judgedWanted = wanted;
       const recorded = String(observedCommit).trim();
       if (wanted === NO_COMMIT || recorded === NO_COMMIT) {
         // **`none` センチネルを素の文字列として比べない**——新側が git 管理を持たないと両側とも
@@ -300,6 +307,50 @@ export function checkComponentComparison(input) {
             }
             notes.push(...carry.notes);
           }
+        }
+      }
+    }
+    // --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する（Issue #469）。
+    const carryTo = nonEmptyString(input.carryTo) ? String(input.carryTo).trim() : null;
+    const recordedCommit = nonEmptyString(observedCommit) ? String(observedCommit).trim() : null;
+    // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じ版へ既に掛けたなら繰り返さない。
+    const alreadyJudged =
+      judgedWanted === carryTo &&
+      recordedCommit !== null &&
+      recordedCommit !== NO_COMMIT &&
+      judgedWanted !== NO_COMMIT &&
+      recordedCommit !== judgedWanted;
+    if (carryTo !== null && !alreadyJudged) {
+      if (recordedCommit === null || recordedCommit === NO_COMMIT) {
+        findings.push({
+          code: "evidence-carry-unverifiable",
+          message: `--carry-to ${carryTo} への持ち越しを判定できない（突き合わせ表の new_implementation.commit が ${recordedCommit ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）`,
+        });
+      } else if (typeof input.carry !== "function") {
+        findings.push({
+          code: "evidence-carry-unverifiable",
+          message: `--carry-to ${carryTo} への持ち越しを判定する手段が渡されていない（判定不能を合格にしない）`,
+        });
+      } else {
+        const carry = input.carry({
+          recordedCommit,
+          wantedCommit: carryTo,
+          renderInputs: replaceNew.render_inputs,
+        });
+        if (carry.ok) {
+          notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}`));
+        } else {
+          findings.push({
+            code: "evidence-carry-rejected",
+            message: `突き合わせ表の証跡を --carry-to の版へ持ち越せない（new_implementation.commit ${recordedCommit} → ${carryTo}）`,
+          });
+          for (const message of carry.findings) {
+            findings.push({
+              code: "evidence-carry-rejected",
+              message: `証跡を持ち越せない: ${message}`,
+            });
+          }
+          notes.push(...carry.notes);
         }
       }
     }
@@ -464,7 +515,7 @@ export function main(argv, deps = {}) {
   const write = deps.write ?? ((s) => process.stdout.write(s));
   const writeErr = deps.writeErr ?? ((s) => process.stderr.write(s));
   const usage =
-    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>] [--new-repo <path>] [--replace-root <.replace>] [--evidence-carry <evidence-carry.json>]";
+    "usage: component-comparison-check.mjs --coverage <component-coverage.json> --comparison <new/<target>/component-comparison.json> --target <name> --replace-metadata <new/<target>/replace-metadata.json> [--metadata <metadata.json>] [--new-repo <path>] [--replace-root <.replace>] [--evidence-carry <evidence-carry.json>] [--carry-to <SHA>]";
   /**
    * 引数・入力の誤りを stderr へ知らせる（判定結果ではないので stdout の JSON には混ぜない）。
    * @param {string} message
@@ -504,6 +555,7 @@ export function main(argv, deps = {}) {
     "--new-repo",
     "--replace-root",
     "--evidence-carry",
+    "--carry-to",
   ];
   const unknown = Object.keys(args).filter((k) => !known.includes(k));
   if (unknown.length > 0) {
@@ -528,6 +580,15 @@ export function main(argv, deps = {}) {
     return fail(
       "--target は必須（空白だけの値も不可。突き合わせ表は環境別の記録なので、別 target の記録を通さない）",
     );
+  }
+  // --carry-to は持ち越しを判定させる指定なので、差分を取るリポジトリが無いまま受け付けない。
+  if (args["--carry-to"] !== undefined) {
+    if (args["--carry-to"].trim() === "") {
+      return fail("--carry-to が空");
+    }
+    if (args["--new-repo"] === undefined || args["--new-repo"].trim() === "") {
+      return fail("--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）");
+    }
   }
   /** @type {Record<string, unknown>} */
   const parsed = {};
@@ -565,6 +626,7 @@ export function main(argv, deps = {}) {
     metadata: parsed["--metadata"],
     replaceMetadata: parsed["--replace-metadata"],
     target: args["--target"] ?? null,
+    carryTo: args["--carry-to"] ?? null,
     carry: ({ recordedCommit, wantedCommit, renderInputs }) =>
       judgeCarry({
         recordedCommit,
