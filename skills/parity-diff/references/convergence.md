@@ -209,7 +209,8 @@
     **未測定**（`unmeasured.entries` に `disposition: blocking` が残る。語彙外・承認記録の空は `blocking` として数える）、
     **工程の成果物**（`new/<target>/replace-metadata.json` の `suite.new_green` が真なのに同じ場所に `diff-metadata.json` が無い、
     それが**いまの新側に対応していない**〈`new.commit` が `replace-metadata.json` と違う・`iteration` が `loop.iterations` と違う〉、
-    ただし SHA の違いは、`--new-repo` を渡したときに限り部品改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) 手順 5）が覆えば通す、
+    ただし SHA の違いは、`--new-repo` を渡したときに限り部品改修の持ち越し（`evidence-carry.json`。[`component-change.md`](component-change.md) 手順 5）が覆えば通す
+    〈記録と `replace-metadata.json` の版が一致したままの一括再検証の直後は、検証先の版を `--carry-to` で渡したときだけ持ち越しを判定する。同手順 5〉、
     またはその `dataset_version` が読めない・現在の版より新しい・区間の `changes[].affects` に `*` がある・`changes` の履歴が壊れている）。
     **対応づけを版だけに委ねない**——データセットを変えずに `parity-replace` が実装を作り直すと、
     前の反復で収束した `diff-metadata.json` が `dataset_version` の一致だけでこのゲートを満たし、

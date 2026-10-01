@@ -83,7 +83,8 @@
         "影響あり・記録の領域が traits.json の rect と違う（画面全体など）: 持ち越さない",
         "影響あり・current が別の組の現側の基準（ハッシュは一致する）: 持ち越さない",
         "影響あり・current が同じ組を . 区切りの名前で指す（list.hover.desktop.png）: 持ち越す",
-        "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない"
+        "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない",
+        "--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す"
       ]
     },
     {
@@ -294,6 +295,109 @@
       "occurrences": 1,
       "expect_failing": [
         "影響あり・current の軸が入れ替わっている（hover/list/desktop）: 同じ組ではないので持ち越さない"
+      ]
+    },
+    {
+      "id": "health-carry-to-skipped",
+      "why": "artifact-health-check が --carry-to を受け取っても持ち越しを判定しない（一括再検証の直後に壊れた持ち越しが通る）",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (carryTo !== null && carryTo !== judgedWanted) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす",
+        "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
+        "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
+      ]
+    },
+    {
+      "id": "health-carry-to-duplicated",
+      "why": "artifact-health-check が replace-metadata.json の new.commit と同じ版への持ち越しを二重に判定する",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (carryTo !== null && carryTo !== judgedWanted) {",
+      "replace": "if (carryTo !== null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: replace-metadata.json の new.commit と同じ版: 同じ判定を重ねて出さない"
+      ]
+    },
+    {
+      "id": "health-carry-to-none-recorded",
+      "why": "artifact-health-check が記録の版 none を判定不能として扱わず、16 進でない値を judgeCarry へ渡す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (recorded === null || recorded === NO_COMMIT) {",
+      "replace": "if (recorded === null) {",
+      "occurrences": 1,
+      "expect_failing": ["--carry-to: 記録の版が none: 判定できないので両方とも落とす"]
+    },
+    {
+      "id": "health-carry-to-stage-skipped",
+      "why": "artifact-health-check が工程の節を判定しないとき --carry-to を黙って通す",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "    carryTo === null\n",
+      "replace": "    true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: suite.new_green が真でない: 工程の節を飛ばして通さない（--carry-to 無しは従来どおり判定しない）"
+      ]
+    },
+    {
+      "id": "health-carry-to-without-repo",
+      "why": "artifact-health-check が --new-repo の無い --carry-to を使い方の誤りにしない",
+      "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "find": "if (!nonEmptyString(opts[\"new-repo\"])) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: --new-repo が無い: 判定を飛ばさず両方とも使い方の誤り（exit 2）"
+      ]
+    },
+    {
+      "id": "comparison-carry-to-skipped",
+      "why": "component-comparison-check が --carry-to を受け取っても持ち越しを判定しない",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "if (carryTo !== null && !alreadyJudged) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: 一括再検証の直後で持ち越せる: 両方とも合格し、持ち越しを判定した注記を残す",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が無い: 両方とも落とす（--carry-to 無しは従来どおり通る）",
+        "--carry-to: 一括再検証の直後に evidence-carry.json が壊れている: 両方とも落とす",
+        "--carry-to: 宣言で説明できない差分がある: 両方とも落とし、そのファイルを挙げる",
+        "--carry-to: 記録の版が none: 判定できないので両方とも落とす"
+      ]
+    },
+    {
+      "id": "comparison-carry-to-duplicated",
+      "why": "component-comparison-check が replace-metadata.json の new.commit と同じ版への持ち越しを二重に判定する",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "if (carryTo !== null && !alreadyJudged) {",
+      "replace": "if (carryTo !== null) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: replace-metadata.json の new.commit と同じ版: 同じ判定を重ねて出さない"
+      ]
+    },
+    {
+      "id": "comparison-carry-to-none-recorded",
+      "why": "component-comparison-check が記録の版 none を判定不能として扱わない",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "if (recordedCommit === null || recordedCommit === NO_COMMIT) {",
+      "replace": "if (recordedCommit === null) {",
+      "occurrences": 1,
+      "expect_failing": ["--carry-to: 記録の版が none: 判定できないので両方とも落とす"]
+    },
+    {
+      "id": "comparison-carry-to-without-repo",
+      "why": "component-comparison-check が --new-repo の無い --carry-to を使い方の誤りにしない",
+      "file": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "find": "if (args[\"--new-repo\"] === undefined || args[\"--new-repo\"].trim() === \"\") {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--carry-to: --new-repo が無い: 判定を飛ばさず両方とも使い方の誤り（exit 2）"
       ]
     }
   ]

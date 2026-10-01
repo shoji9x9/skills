@@ -20,6 +20,8 @@
 //      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない——陳腐化の正本は
 //      golden-dataset の references/versioning.md で、交差を見るまでもなく確定する形だけをここで落とす。
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
+//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する（Issue #469。
+//      部品改修の一括再検証の直後は replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれない）。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
 //
@@ -56,7 +58,7 @@ const { EVIDENCE_CARRY_FILE, judgeCarry } = await import(
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "9";
+export const VERSION = "10";
 
 /** 採取物の種別。derived は元の実体から作った加工物。 */
 const ARTIFACT_KINDS = ["captured", "derived"];
@@ -1484,7 +1486,12 @@ export function affectsBetween(changes, v, c) {
  * new.commit が両側とも SHA で食い違うときは、evidence-carry.mjs の judgeCarry で描画入力の差分から
  * 持ち越せるかを判定する（replace-metadata.json に new.render_inputs があるときだけ。無ければ従来どおり落とす）。
  * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つの検査器の判定を揃える。
- * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown }} ctx
+ *
+ * carryTo（--carry-to）を渡すと、replace-metadata.json の new.commit とは別に、diff-metadata.json の new.commit から
+ * その版への持ち越しを必ず judgeCarry で判定する（Issue #469）。部品改修の一括再検証の直後は両方の記録が改修前の版で
+ * 一致し、上の食い違いの判定が呼ばれないため、壊れた evidence-carry.json がその場で見つからない。
+ * 判定できない状態（工程の節を判定しない・記録の版が SHA でない）は合格に倒さない。
+ * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }} ctx
  * @returns {{ judged: boolean, findings: string[], notes: string[] }}
  */
 export function checkStage(ctx) {
@@ -1494,12 +1501,21 @@ export function checkStage(ctx) {
   const notes = [];
   const stageDir = join(ctx.slugDir, "new", ctx.target);
   const replacePath = join(stageDir, "replace-metadata.json");
+  const carryTo = nonEmptyString(ctx.carryTo) ? ctx.carryTo.trim() : null;
+  /**
+   * 工程の節を判定しないで返す。--carry-to を渡したときは、持ち越しを確かめないまま通さない。
+   * @param {string} reason
+   */
+  const skipStage = (reason) =>
+    carryTo === null
+      ? { judged: false, findings, notes: [reason] }
+      : {
+          judged: true,
+          findings: [`--carry-to ${carryTo} への持ち越しを判定できない（${reason}）`],
+          notes,
+        };
   if (!existsSync(replacePath)) {
-    return {
-      judged: false,
-      findings,
-      notes: [`${replacePath} が無いため工程の節を判定しない（新側の工程が回っていない）`],
-    };
+    return skipStage(`${replacePath} が無いため工程の節を判定しない（新側の工程が回っていない）`);
   }
   const replaceMeta = readJson(replacePath, "replace-metadata.json");
   if (!isPlainObject(replaceMeta))
@@ -1510,11 +1526,7 @@ export function checkStage(ctx) {
   }
   const newGreen = isPlainObject(replaceSuite) ? replaceSuite.new_green : undefined;
   if (newGreen !== true) {
-    return {
-      judged: false,
-      findings,
-      notes: [`suite.new_green が真でないため工程の節を判定しない（${replacePath}）`],
-    };
+    return skipStage(`suite.new_green が真でないため工程の節を判定しない（${replacePath}）`);
   }
 
   const diffPath = join(stageDir, "diff-metadata.json");
@@ -1563,6 +1575,21 @@ export function checkStage(ctx) {
 
   const replaceCommit = replaceNew === null ? undefined : replaceNew.commit;
   const diffCommit = diffNew === null ? undefined : diffNew.commit;
+  /** @param {string} recordedCommit @param {string} wantedCommit */
+  const carryFrom = (recordedCommit, wantedCommit) =>
+    judgeCarry({
+      recordedCommit,
+      wantedCommit,
+      renderInputs: replaceNew === null ? undefined : replaceNew.render_inputs,
+      repo: ctx.newRepo ?? null,
+      evidenceCarryPath: join(stageDir, EVIDENCE_CARRY_FILE),
+      featureSlug: basename(ctx.slugDir),
+      featureMetadata: ctx.featureMetadata,
+      replaceRoot: ctx.replaceRoot ?? join(ctx.root, ".replace"),
+    });
+  // 食い違いの判定で既に judgeCarry に掛けた「今の版」。--carry-to が同じ版なら二重に判定しない。
+  /** @type {string | null} */
+  let judgedWanted = null;
   // commit が `none` センチネルで、版の対応が反復回数だけに委ねられたか。
   // 委ねた先も読めないときに合格へ倒さないための材料（下の反復回数の判定で使う）。
   let versionDelegatedToIteration = false;
@@ -1581,16 +1608,8 @@ export function checkStage(ctx) {
     } else if (wanted !== recordedCommit) {
       // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る（Issue #454）。
       // 判定の正本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
-      const carry = judgeCarry({
-        recordedCommit,
-        wantedCommit: wanted,
-        renderInputs: replaceNew === null ? undefined : replaceNew.render_inputs,
-        repo: ctx.newRepo ?? null,
-        evidenceCarryPath: join(stageDir, EVIDENCE_CARRY_FILE),
-        featureSlug: basename(ctx.slugDir),
-        featureMetadata: ctx.featureMetadata,
-        replaceRoot: ctx.replaceRoot ?? join(ctx.root, ".replace"),
-      });
+      const carry = carryFrom(recordedCommit, wanted);
+      judgedWanted = wanted;
       if (carry.ok) {
         notes.push(...carry.notes.map((note) => `${note}: ${diffPath}`));
       } else {
@@ -1605,6 +1624,27 @@ export function checkStage(ctx) {
     notes.push(
       "new.commit を片側が持たないため新側の版の対応を判定しない（旧成果物）: 記録があれば次の実行から判定する",
     );
+  }
+
+  // --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する（Issue #469）。
+  if (carryTo !== null && carryTo !== judgedWanted) {
+    const recorded = nonEmptyString(diffCommit) ? String(diffCommit).trim() : null;
+    if (recorded === null || recorded === NO_COMMIT) {
+      findings.push(
+        `--carry-to ${carryTo} への持ち越しを判定できない（diff-metadata.json の new.commit が ${recorded ?? "無い"}。記録の版が SHA でないと描画入力の差分を取れない）: ${diffPath}`,
+      );
+    } else {
+      const carry = carryFrom(recorded, carryTo);
+      if (carry.ok) {
+        notes.push(...carry.notes.map((note) => `--carry-to ${carryTo}: ${note}: ${diffPath}`));
+      } else {
+        findings.push(
+          `diff-metadata.json の証跡を --carry-to の版へ持ち越せない（new.commit ${recorded} → ${carryTo}）: ${diffPath}`,
+        );
+        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));
+        notes.push(...carry.notes);
+      }
+    }
   }
 
   const loop = isPlainObject(replaceMeta.loop) ? replaceMeta.loop : null;
@@ -1733,7 +1773,7 @@ export function deriveRoot(metadataPath) {
 
 /**
  * @param {string[]} argv
- * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null, fingerprint: boolean }}
+ * @returns {{ metadata: string, root: string | null, target: string | null, stage: string, newRepo: string | null, replaceRoot: string | null, carryTo: string | null, fingerprint: boolean }}
  */
 export function parseArgs(argv) {
   /** @type {Record<string, string>} */
@@ -1751,7 +1791,8 @@ export function parseArgs(argv) {
       arg === "--target" ||
       arg === "--stage" ||
       arg === "--new-repo" ||
-      arg === "--replace-root"
+      arg === "--replace-root" ||
+      arg === "--carry-to"
     ) {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
@@ -1760,13 +1801,28 @@ export function parseArgs(argv) {
       continue;
     }
     throw new UsageError(
-      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--fingerprint]（不明な引数: ${arg}）`,
+      `使い方: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]（不明な引数: ${arg}）`,
     );
   }
   if (!nonEmptyString(opts.metadata)) throw new UsageError("--metadata は必須");
   const stage = opts.stage ?? "diff";
   if (!STAGES.includes(stage)) {
     throw new UsageError(`--stage は ${STAGES.join(" | ")} のいずれか（渡された値: ${stage}）`);
+  }
+  // --carry-to は持ち越しを判定させる指定なので、判定に要る入力が欠けたまま受け付けない
+  // （黙って判定を飛ばすと、持ち越しを確かめないまま通る）。
+  if (opts["carry-to"] !== undefined) {
+    if (!nonEmptyString(opts["carry-to"])) throw new UsageError("--carry-to が空");
+    if (!nonEmptyString(opts.target)) {
+      throw new UsageError(
+        "--carry-to には --target が要る（持ち越しは工程の成果物について判定する）",
+      );
+    }
+    if (!nonEmptyString(opts["new-repo"])) {
+      throw new UsageError(
+        "--carry-to には --new-repo が要る（描画入力の差分を新側リポジトリで取る）",
+      );
+    }
   }
   return {
     metadata: opts.metadata,
@@ -1775,6 +1831,7 @@ export function parseArgs(argv) {
     stage,
     newRepo: opts["new-repo"] !== undefined ? resolve(opts["new-repo"]) : null,
     replaceRoot: opts["replace-root"] !== undefined ? resolve(opts["replace-root"]) : null,
+    carryTo: opts["carry-to"] !== undefined ? opts["carry-to"].trim() : null,
     fingerprint,
   };
 }
@@ -1872,6 +1929,7 @@ export function run(argv, io) {
       newRepo: args.newRepo,
       replaceRoot: args.replaceRoot,
       featureMetadata: metadata,
+      carryTo: args.carryTo,
     });
     findings.push(...stage.findings);
     notes.push(...stage.notes);
@@ -1893,12 +1951,13 @@ export function run(argv, io) {
 
 /** 使い方（stderr に出す。CLI エントリ判定が壊れたときのサイレント no-op を検出できるようにする）。 */
 const usage = [
-  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--fingerprint]",
+  "usage: artifact-health-check.mjs --metadata <path> [--root <dir>] [--target <name>] [--stage diff|suite] [--new-repo <path>] [--replace-root <dir>] [--carry-to <SHA>] [--fingerprint]",
   "  --metadata  .replace/parity/<slug>/metadata.json のパス（必須）",
   "  --root      リポジトリルート（省略時は metadata のパスの .replace の親から導く）",
   "  --target    新側 target 名。渡したときだけ工程の成果物（diff-metadata.json）の在否と鮮度を判定する",
   "  --stage     呼び出し元の工程。diff（既定・収束判定。未測定の blocking で落とす） | suite（完了判定。blocking は落とさない）",
   "  --new-repo  新側リポジトリの最上位。new.commit が食い違うとき、new.render_inputs の差分で証跡を持ち越せるかを判定する（無ければ持ち越さない）",
+  "  --carry-to  検証先の新側の版（部品改修の一括再検証では変更宣言の commits.after）。diff-metadata.json の new.commit からこの版への持ち越しを、replace-metadata.json の new.commit が同じでも必ず判定する（--target と --new-repo が要る）",
   "  --fingerprint  検査せず、反復実行の記録に書く指紋（suite_fingerprint / shared_fingerprint / spec_fingerprints）を JSON で出す",
   "  --replace-root  .replace ディレクトリ（省略時は <root>/.replace）。変更宣言・部品 metadata・evidence-carry.json の相対パスはその親から解決する",
   "exit: 0 = 条件を満たす（判定しない節を含む） / 1 = 未検証・不整合が残る / 2 = 使い方の誤り・型崩れ",

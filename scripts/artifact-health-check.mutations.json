@@ -73,8 +73,8 @@
       "id": "health-carry-ignored",
       "why": "持ち越しの合格を使わず SHA の不一致で落とす",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "      if (carry.ok) {",
-      "replace": "      if (false) {",
+      "find": "      judgedWanted = wanted;\n      if (carry.ok) {",
+      "replace": "      judgedWanted = wanted;\n      if (false) {",
       "occurrences": 1,
       "expect_failing": [
         "持ち越し: --replace-root が別の場所なら変更宣言を引けず落とす（既定は <root>/.replace）",
@@ -86,8 +86,8 @@
       "id": "health-carry-reason-dropped",
       "why": "持ち越せない理由を findings に残さない",
       "file": "skills/parity-suite/scripts/artifact-health-check.mjs",
-      "find": "        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));",
-      "replace": "        void 0;",
+      "find": "replace-metadata.json の ${wanted}）: ${diffPath}`,\n        );\n        findings.push(...carry.findings.map((f) => `証跡を持ち越せない: ${f}`));",
+      "replace": "replace-metadata.json の ${wanted}）: ${diffPath}`,\n        );\n        void 0;",
       "occurrences": 1,
       "expect_failing": [
         "持ち越し: --new-repo が無ければ持ち越さない（判定不能を合格にしない）",

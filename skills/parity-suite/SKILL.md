@@ -343,7 +343,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   `parity-diff` の部品改修の一括再検証（`parity-diff` の `references/component-change.md`）が呼び、鮮度検査も同じ判定を再計算する
 - **[`scripts/evidence-carry.mjs`](scripts/evidence-carry.mjs) もコピーしない。** 新側のコミットが変わった後も差分の証跡を持ち越せるかを判定するライブラリで、
   `artifact-health-check.mjs` と `component-comparison-check.mjs` が import し、自身は `component-impact.mjs` を import する——**この 4 本は同じディレクトリに置いたまま**呼ぶ
-  （持ち越しは両検査に `--new-repo` を渡したときだけ評価される。手順の正本は `parity-diff` の `references/component-change.md`）
+  （持ち越しは両検査に `--new-repo` を渡したときだけ評価される。記録と `replace-metadata.json` の版が一致している一括再検証の直後は、検証先の版を `--carry-to` で渡したときだけ評価される。手順の正本は `parity-diff` の `references/component-change.md`）
 
 ## 姉妹スキルとの連携
 
