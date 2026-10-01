@@ -354,7 +354,7 @@
       "path": "<プロジェクト側 header-normalize.mjs のパス（suite.tools のコピー専用ディレクトリの中）>",
       "version": "<そのコピーの VERSION 値>",
       "headers": [
-        "<録画に使った一覧。同じコピーの --survey .replace/survey.md --list の出力をそのまま写す>"
+        "<録画に使った一覧。同じコピーの --header-list .replace/response-headers.json --list の出力をそのまま写す>"
       ]
     },
     "align_tolerance": 1,

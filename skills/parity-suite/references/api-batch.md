@@ -16,7 +16,7 @@
 | リクエスト | パス・クエリ・ボディ |
 | レスポンス | ステータス・ボディ |
 | エラー応答 | エラー時のステータスとボディ |
-| 応答ヘッダー | `.replace/survey.md`「7. 横断の応答ヘッダー」に載るものだけ（下記「応答ヘッダー」） |
+| 応答ヘッダー | `.replace/response-headers.json`（横断の応答ヘッダーの一覧）に載るものだけ（下記「応答ヘッダー」） |
 | 認可 | 誰が何を参照・作成・更新できるか（[`auth.md`](auth.md)） |
 | 並び順 | 現行の並び順を固定する |
 | ページング | ページサイズ・境界・カーソル/オフセット |
@@ -33,30 +33,32 @@
 ## 応答ヘッダー
 
 サーバー・リバースプロキシの設定が全応答に付ける防御ヘッダーは画面の処理にも API の定義にも現れず、**スイートに assertion が無ければ新側が付けなくても両側で緑になる**（差は見た目にも機能にも出ず、安全性だけが後退する）。
-一覧は `replace-strategy` の `setup` が 1 度だけ採った `.replace/survey.md`「7. 横断の応答ヘッダー」（採り方と分類の正本は `replace-strategy` の `references/security.md`「横断の応答ヘッダー」）。
+一覧は `replace-strategy` の `setup` が 1 度だけ採った `.replace/response-headers.json`（形式の正本は `replace-strategy` の `assets/response-headers-template.json`、採り方と分類の正本は同 `references/security.md`「横断の応答ヘッダー」）。
 
 - **対象 slug が駆動する応答のうち、一覧の「付く応答」に当たるものに assertion を置く**——API の特性化ではステータス・ボディと並べて、画面ではページへの遷移の応答（`page.goto` の戻り値の `allHeaders()`。`headers()` は `Set-Cookie` 等のセキュリティ関連ヘッダーを返さない。出典: <https://playwright.dev/docs/api/class-response#response-headers>）で。
   **`page.goto` はリダイレクトを追って最後の応答を返す**ので、一覧が採ったリダイレクトの応答（未ログインの 302 等）は `request` フィクスチャの `get(url, { maxRedirects: 0 })` で、
   ログインの成功（POST）の `Set-Cookie` は正規のログイン操作の要求を `page.waitForResponse` で捕まえて採る
   （複数の `Set-Cookie` は `headersArray()` で 1 つずつ読む。出典: <https://playwright.dev/docs/api/class-apirequestcontext#api-request-context-get> / <https://playwright.dev/docs/api/class-response#response-headers-array>）。
   採ったヘッダーは**下の項の正規化を通した後の値**で assertion にする（cookie の値・`nonce-` の値を assertion に書かない）。
-  **防御**は有無と値を、**露出の抑止**は付かないことを assertion にする。一覧に載らないヘッダーは正規化の出力に残らないので record にも assertion にも入らない（`Date` 等の揮発と秘密の値を持ち込まない）
+  **防御**（`class: defense`）は有無と値を、**露出の抑止**（`class: exposure`）は付かないことを assertion にする。一覧に載らないヘッダーは正規化の出力に残らないので record にも assertion にも入らない（`Date` 等の揮発と秘密の値を持ち込まない）
 - **record にも秘密の値と要求ごとに変わる値を残さない**——録画は Git に入り、`parity-diff` の現側は録画から読むので、比べる前の変換では間に合わない。
   record するヘッダーは、同梱 [`../scripts/header-normalize.mjs`](../scripts/header-normalize.mjs) の `normalizeHeaders` を**通した出力だけ**を書く
   （規則の正本はスクリプト冒頭のコメント。ここへ転記しない。`parity-diff` も新側の応答を同じスクリプトで正規化してから比べるので、規則を 2 か所に書かない）。
-  スイートからは `trait-capture.mjs` と同じく `suite.tools` のコピー専用ディレクトリ（既定 `<parity_suite_dir>/parity/lib/tools/vendor/`）へコピーして import し、
-  一覧は `loadHeaderList(<リポジトリのルートから解決した .replace/survey.md の絶対パス>)` で読む（`.replace/` ごと見つからないパスは「一覧が無い」ではなく入力の誤りになる）
-  （ファイルを自分で読んで `parseHeaderList` へ渡さない——survey.md が無いときの「一覧が無い」への変換を通らない）。受け取れる形は `allHeaders()`・`headersArray()`・HAR の `headers` のどれでもよい（取得経路で名前の表記が違っても同じ出力になる）。
-  `parseHeaderList` が `NoHeaderListError` を投げたら下の「一覧が無い」の項へ進む（一覧を推測で作らない）。それ以外の例外（付け手の欄が空・語彙外）は一覧を直してから採る。
+  スイートからは `trait-capture.mjs` と同じく `suite.tools` のコピー専用ディレクトリ（既定 `<parity_suite_dir>/parity/lib/tools/vendor/`）へコピーして import し
+  （`VERSION` が `"1"` のコピーは `survey.md` の表を読む旧版で、`--header-list` を受け付けない。録り直す機能では同梱版をコピーし直す）、
+  一覧は `loadHeaderList(<リポジトリのルートから解決した .replace/response-headers.json の絶対パス>)` で読む（`.replace/` ごと見つからないパスは「一覧が無い」ではなく入力の誤りになる）
+  （ファイルを自分で読んで `parseHeaderList` へ渡さない——ファイルが無いときの「一覧が無い」への変換を通らない）。受け取れる形は `allHeaders()`・`headersArray()`・HAR の `headers` のどれでもよい（取得経路で名前の表記が違っても同じ出力になる）。
+  `loadHeaderList` が `NoHeaderListError` を投げたら下の「一覧が無い」の項へ進む（一覧を推測で作らない）。それ以外の例外（形の誤り。語彙外の値・キー、欠けた欄、未測定と行の併存、同じヘッダーの行どうしで付く応答が重なる等）は
+  `replace-strategy` の測定の 7 で一覧を直してから採る（自分で一覧を書き換えない）。
   **使ったコピーのパス・`VERSION`・録画に使った一覧（`--list` の出力）を `metadata.json.differ.header_normalize` に記録する**（`suite.tools` はスイートの指紋が読むパスなので版を混ぜない）——
   `parity-diff` は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる（版が違うと規則の差が、一覧が違うと足された・外されたヘッダーが現新の差分に化ける）。
-  CLI は**記録したプロジェクト側コピーから**起動する（`node <differ.header_normalize.path> --survey .replace/survey.md <headers.json>` で正規化した JSON、`--list` で比べるヘッダー名の配列を出力。
+  CLI は**記録したプロジェクト側コピーから**起動する（`node <differ.header_normalize.path> --header-list .replace/response-headers.json <headers.json>` で正規化した JSON、`--list` で比べるヘッダー名の配列を出力。
   スキルディレクトリの同梱版から起動しない——`gh skill update` で同梱版だけ上がると、記録した版と実行した版が食い違う）。終了コード 0=出力 / 2=入力の誤り / 3=一覧が無い
-- **付け手が `不明` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
-  同じヘッダーに付け手の決まった行と `不明` の行が混ざる場合、正規化はそのヘッダーを録画に残さない（応答の種類を区別できないため）。決まった行の応答は、そのヘッダーの値を直接 assertion にする（`Set-Cookie` は同じスクリプトの `parseSetCookie`、CSP は `maskNonce` を通した値で書き、秘密を assertion に残さない）
+- **付け手が `unknown` の行は assertion にしない**（`current.origin: received-assets` で、再構築の既定値かもしれないもの）。固定すると再構築の既定値を現行の仕様として守ることになる。
+  同じヘッダーに付け手の決まった行と `unknown` の行が混ざる場合、正規化はそのヘッダーを録画に残さない（応答の種類を区別できないため）。決まった行の応答は、そのヘッダーの値を直接 assertion にする（`Set-Cookie` は同じスクリプトの `parseSetCookie`、CSP は `maskNonce` を通した値で書き、秘密を assertion に残さない）
   対象 slug の応答に当たる行を `gaps.md` に未検証として残し、先方の確認で付け手が確定したら assertion にする
-- **所有者 slug が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。所有者が空欄の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
-- **一覧が無い**（`.replace/survey.md` が無い・7 節が無い・本文が「未測定（理由）」の 1 行・テンプレートの例示行〈`（例）`〉が残る。`loadHeaderList` が `NoHeaderListError` を投げる）なら
+- **`owner_slug` が対象 slug の行**（どの機能にも属さない静的ファイル・404 の応答）は、その応答を採って同じく assertion にする。`owner_slug` が `null` の行は推測で引き受けない（所有者の確定は `replace-strategy` の `setup` の工程）
+- **一覧が無い**（`.replace/response-headers.json` が無い・`status: unmeasured`。`loadHeaderList` が `NoHeaderListError` を投げる。**7 節が表のままの `survey.md` しか無いプロジェクトもここに当たる**——表は読まない）なら
   停止せず、対象 slug の応答のヘッダーを現行から採って防御ヘッダーの有無を `gaps.md` に未検証として記録し、`replace-strategy` の測定のやり直しを促す（一覧の代わりに自分で横断の一覧を作らない——付け手の判定と所有者の確定は `setup` の工程）
 - 一覧の値と現行で採った値が食い違ったら（一覧の後に現行の設定が変わった等）、推測でどちらかに寄せず、現行で採った値で assertion を書き、食い違いを `gaps.md` に残して一覧の採り直しを促す
 

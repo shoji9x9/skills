@@ -13,34 +13,80 @@ const diffScript = join(repoRoot, "skills/parity-diff/scripts/json-normalize-dif
 const { NONCE_MASK, NoHeaderListError, loadHeaderList, main, normalizeHeaders, parseHeaderList } =
   await import(script);
 
-/** survey.md の 7 節（replace-strategy の assets/survey-template.md と同じ列）。 */
-function survey(rows) {
-  return [
-    "## 6. 前の節",
-    "",
-    "## 7. 横断の応答ヘッダー",
-    "",
-    "- 採った応答: 画面 /login",
-    "",
-    "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug（機能に属さない応答のとき） |",
-    "|---|---|---|---|---|---|",
-    ...rows,
-    "",
-    "## 未測定の項目",
-    "",
-    "| ヘッダー | 付け手 |",
-    "|---|---|",
-    "| `X-Not-In-Section-7` | サーバーの設定 |",
-    "",
-  ].join("\n");
+/** 採った応答（全種類）。行の responses はここに載る種類だけを書ける。 */
+const ALL_CAPTURED = [
+  { kind: "page", url: "/login" },
+  { kind: "login", url: "/login" },
+  { kind: "redirect", url: "/orders" },
+  { kind: "api-success", url: "/api/orders" },
+  { kind: "api-error", url: "/api/orders?page=-1" },
+  { kind: "static", url: "/css/site.css" },
+  { kind: "not-found", url: "/__none__" },
+];
+const ALL_KINDS = ALL_CAPTURED.map((c) => c.kind);
+
+/** 一覧の 1 行（replace-strategy の assets/response-headers-template.json と同じキー）。 */
+function row(name, overrides = {}) {
+  return {
+    name,
+    class: "defense",
+    value: "x",
+    responses: ALL_KINDS,
+    setter: "server-config",
+    setter_source: "web.config",
+    owner_slug: null,
+    ...overrides,
+  };
 }
 
-const LIST = parseHeaderList(
-  survey([
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定（`web.config`） | |",
-    "| `Set-Cookie` | 防御 | `HttpOnly; Secure; SameSite=Lax` | ログインの成功 | アプリのコード | |",
-    "| `Content-Security-Policy` | 防御 | `script-src 'nonce-…'` | 画面 | アプリのコード | |",
-    "| `X-Powered-By` | 露出の抑止 | （付かない） | 全種類 | サーバーの設定で除去 | |",
+/** 測定済みの一覧（正本のテンプレートと同じトップレベルのキー）。 */
+function doc(headers, overrides = {}) {
+  return {
+    _note: "test",
+    schema_version: 1,
+    status: "measured",
+    captured_at: "2026-10-01T10:00:00+09:00",
+    target: "current",
+    captured_responses: ALL_CAPTURED,
+    notes: "",
+    headers,
+    server_config_slug: null,
+    ...overrides,
+  };
+}
+
+/** @param {unknown} value */
+function list(value) {
+  return parseHeaderList(JSON.stringify(value));
+}
+
+/** 入力の誤り（Error だが NoHeaderListError ではない）として落ちることを確かめ、メッセージを返す。 */
+function inputError(fn) {
+  let caught;
+  try {
+    fn();
+  } catch (err) {
+    caught = err;
+  }
+  expect(caught).toBeInstanceOf(Error);
+  expect(caught).not.toBeInstanceOf(NoHeaderListError);
+  return /** @type {Error} */ (caught).message;
+}
+
+const LIST = list(
+  doc([
+    row("X-Frame-Options", { value: "DENY" }),
+    row("Set-Cookie", {
+      value: "HttpOnly; Secure; SameSite=Lax",
+      responses: ["login"],
+      setter: "app-code",
+    }),
+    row("Content-Security-Policy", {
+      value: "script-src 'nonce-…'",
+      responses: ["page"],
+      setter: "app-code",
+    }),
+    row("X-Powered-By", { class: "exposure", value: null }),
   ]),
 );
 
@@ -51,7 +97,7 @@ const NONCE_SECRET_2 = "other-nonce-value";
 
 // --- 一覧の読み取り ---
 
-test("一覧: 7 節の表のヘッダー名を小文字で読み、他の節の表は読まない", () => {
+test("一覧: 行のヘッダー名を小文字で読む", () => {
   expect([...LIST].sort()).toEqual([
     "content-security-policy",
     "set-cookie",
@@ -60,135 +106,238 @@ test("一覧: 7 節の表のヘッダー名を小文字で読み、他の節の�
   ]);
 });
 
-test("一覧: 付け手が `不明` の行だけのヘッダーは比べる対象に入れない", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Strict-Transport-Security` | 防御 | `max-age=1` | 画面 | 不明 | |",
-      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+test("一覧: 付け手が unknown の行だけのヘッダーは比べる対象に入れない", () => {
+  const out = list(
+    doc([
+      row("Strict-Transport-Security", { responses: ["page"], setter: "unknown" }),
+      row("X-Frame-Options"),
     ]),
   );
-  expect([...list]).toEqual(["x-frame-options"]);
+  expect([...out]).toEqual(["x-frame-options"]);
 });
 
+test("一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない", () => {
+  const out = list(
+    doc([
+      row("Cache-Control", { responses: ["api-success"], setter: "unknown" }),
+      row("Cache-Control", { responses: ["page"], setter: "app-code" }),
+      row("X-Frame-Options", { responses: ["page"], setter: "app-code" }),
+    ]),
+  );
+  expect([...out]).toEqual(["x-frame-options"]);
+});
+
+test("一覧: 同じヘッダーの行がすべて付け手の決まった行なら比べる対象に入れる（名前の大文字小文字は問わない）", () => {
+  const out = list(
+    doc([
+      row("Cache-Control", { responses: ["api-success"] }),
+      row("cache-control", { responses: ["page"], setter: "app-code" }),
+    ]),
+  );
+  expect([...out]).toEqual(["cache-control"]);
+});
+
+// 通さねばならない入力（正本のテンプレートが正規と定める書き方）。
 test.each([
-  ["**X-Frame-Options**", "x-frame-options"],
-  ["__X-Frame-Options__", "x-frame-options"],
-  ["*X-Frame-Options*", "x-frame-options"],
-  ["**`X-Frame-Options`**", "x-frame-options"],
-  ["X_Custom_Header", "x_custom_header"],
-])("一覧: ヘッダー名のセル %s は強調の囲みだけを外して %s と読む", (cell, expected) => {
-  const list = parseHeaderList(survey([`| ${cell} | 防御 | x | 全種類 | サーバーの設定 | |`]));
-  expect([...list]).toEqual([expected]);
-});
-
-test("一覧: 先頭がバッククォートの名前は、後ろの補足のコードを名前にしない", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Content-Security-Policy`（`frame-ancestors` を含む） | 防御 | x | 画面 | アプリのコード | |",
-    ]),
-  );
-  expect([...list]).toEqual(["content-security-policy"]);
-});
-
-test("一覧: 名前を囲まず補足だけをコードにしたセルは、補足を名前にせず入力の誤りにする", () => {
-  let caught;
-  try {
-    parseHeaderList(
-      survey([
-        "| Content-Security-Policy（`frame-ancestors` を含む） | 防御 | x | 画面 | アプリのコード | |",
-      ]),
-    );
-  } catch (err) {
-    caught = err;
-  }
-  expect(caught).toBeInstanceOf(Error);
-  expect(caught).not.toBeInstanceOf(NoHeaderListError);
-});
-
-test("一覧: 強調記号付きの `**不明**` は `不明` と読む", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Strict-Transport-Security` | 防御 | `max-age=1` | 画面 | **不明** | |",
-      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-    ]),
-  );
-  expect([...list]).toEqual(["x-frame-options"]);
-});
-
-test("一覧: 同じヘッダーの行に付け手が `不明` の行が混ざれば比べる対象に入れない", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Cache-Control` | 防御 | `no-store` | API | 不明 | |",
-      "| `Cache-Control` | 防御 | `no-store` | 画面 | アプリのコード | |",
-      "| `X-Frame-Options` | 防御 | `DENY` | 画面 | アプリのコード | |",
-    ]),
-  );
-  expect([...list]).toEqual(["x-frame-options"]);
-});
-
-test("一覧: 同じヘッダーの行がすべて付け手の決まった行なら比べる対象に入れる", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Cache-Control` | 防御 | `no-store` | API | サーバーの設定 | |",
-      "| `Cache-Control` | 防御 | `no-store` | 画面 | アプリのコード | |",
-    ]),
-  );
-  expect([...list]).toEqual(["cache-control"]);
-});
-
-test.each([
-  ["7 節が無い", "## 6. 前の節\n\nなし\n"],
-  ["7 節に表が無い（未測定）", "## 7. 横断の応答ヘッダー\n\n未測定\n\n## 未測定の項目\n"],
-  ["表に行が無い", survey([])],
-])("一覧: %s なら NoHeaderListError（推測で一覧を作らない）", (_name, markdown) => {
-  expect(() => parseHeaderList(markdown)).toThrow(NoHeaderListError);
-});
-
-test("一覧: ヘッダー名として読めないセルは入力の誤りにする（一覧が無い扱いにしない）", () => {
-  let caught;
-  try {
-    parseHeaderList(survey(["| ヘッダー名 未記入 | 防御 | x | 全種類 | サーバーの設定 | |"]));
-  } catch (err) {
-    caught = err;
-  }
-  expect(caught).toBeInstanceOf(Error);
-  expect(caught).not.toBeInstanceOf(NoHeaderListError);
-});
-
-test("一覧: セル内のエスケープされた `\\|` では列を分けず、付け手を正しい列から読む", () => {
-  const list = parseHeaderList(
-    survey([
-      "| `Strict-Transport-Security` | 防御 | `a \\| b` | 画面 | 不明 | |",
-      "| `X-Frame-Options` | 防御 | `x \\| y` | 全種類 | サーバーの設定 | |",
-    ]),
-  );
-  expect([...list]).toEqual(["x-frame-options"]);
-});
-
-test.each([
-  ["空欄", "| `X-Frame-Options` | 防御 | `DENY` | 全種類 |  | |"],
+  ["setter_source を省いた行", [row("X-Frame-Options", { setter_source: undefined })]],
+  ["setter_source が null の行", [row("X-Frame-Options", { setter_source: null })]],
+  ["静的・404 を含む行の owner_slug", [row("X-Frame-Options", { owner_slug: "orders" })]],
   [
-    "語彙外の「不明（要確認）」",
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | 不明（要確認） | |",
+    "静的だけの行の owner_slug",
+    [row("X-Frame-Options", { responses: ["static"], owner_slug: "orders" })],
   ],
-  ["語彙外の「（不明）」", "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | （不明） | |"],
-  [
-    "語彙外の「サーバーの設定（不明）」",
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定（不明） | |",
-  ],
-])(
-  "一覧: 付け手が %s の行は入力の誤りにする（比べる・比べないのどちらにも黙って倒さない）",
-  (_name, row) => {
-    let caught;
-    try {
-      parseHeaderList(survey([row]));
-    } catch (err) {
-      caught = err;
-    }
-    expect(caught).toBeInstanceOf(Error);
-    expect(caught).not.toBeInstanceOf(NoHeaderListError);
+  ["露出の抑止（value: null）", [row("X-Frame-Options", { class: "exposure", value: null })]],
+  ["行の注記キー（_ で始まる）", [{ ...row("X-Frame-Options"), _why: "web.config の 12 行目" }]],
+])("一覧: %s は通す", (_name, headers) => {
+  expect([...list(doc(headers))]).toEqual(["x-frame-options"]);
+});
+
+test.each([["X_Custom_Header"], ["X.Custom"], ["x-frame-options"]])(
+  "一覧: 英数字と - _ . だけの名前 %s は通す",
+  (name) => {
+    expect([...list(doc([row(name)]))]).toEqual([name.toLowerCase()]);
   },
 );
+
+test("一覧: server_config_slug が確定していても通す", () => {
+  expect([...list(doc([row("X-Frame-Options")], { server_config_slug: "orders" }))]).toEqual([
+    "x-frame-options",
+  ]);
+});
+
+test("一覧: status: measured の空の headers は比べるヘッダーが無い一覧として通す", () => {
+  expect([...list(doc([]))]).toEqual([]);
+});
+
+test("一覧: 未測定（status: unmeasured と理由だけ）なら NoHeaderListError（推測で一覧を作らない）", () => {
+  expect(() =>
+    list({ schema_version: 1, status: "unmeasured", unmeasured_reason: "現行へ到達できなかった" }),
+  ).toThrow(NoHeaderListError);
+});
+
+// 落とす入力（形の誤り）。一覧が無い扱いにも、比べる・比べないのどちらにも黙って倒さない。
+test.each([
+  ["JSON として読めない", "{"],
+  ["配列", "[]"],
+  [
+    "schema_version が無い",
+    JSON.stringify({ ...doc([row("X-Frame-Options")]), schema_version: undefined }),
+  ],
+  ["schema_version が 2", JSON.stringify(doc([row("X-Frame-Options")], { schema_version: 2 }))],
+  ["status が語彙外", JSON.stringify(doc([row("X-Frame-Options")], { status: "partial" }))],
+  ["status が無い", JSON.stringify(doc([row("X-Frame-Options")], { status: undefined }))],
+  [
+    "未測定と行の併存",
+    JSON.stringify({
+      schema_version: 1,
+      status: "unmeasured",
+      unmeasured_reason: "x",
+      headers: [row("X-Frame-Options")],
+    }),
+  ],
+  [
+    "未測定の理由が空",
+    JSON.stringify({ schema_version: 1, status: "unmeasured", unmeasured_reason: " " }),
+  ],
+  ["未測定の理由が無い", JSON.stringify({ schema_version: 1, status: "unmeasured" })],
+  ["トップレベルの語彙外のキー", JSON.stringify(doc([row("X-Frame-Options")], { header: [] }))],
+  ["captured_at が無い", JSON.stringify(doc([row("X-Frame-Options")], { captured_at: undefined }))],
+  ["target が空", JSON.stringify(doc([row("X-Frame-Options")], { target: "" }))],
+  ["captured_responses が空", JSON.stringify(doc([], { captured_responses: [] }))],
+  [
+    "captured_responses の kind が語彙外",
+    JSON.stringify(doc([], { captured_responses: [{ kind: "画面", url: "/" }] })),
+  ],
+  [
+    "captured_responses の url が無い",
+    JSON.stringify(doc([], { captured_responses: [{ kind: "page" }] })),
+  ],
+  ["headers が無い", JSON.stringify(doc(undefined))],
+  ["headers がオブジェクト", JSON.stringify(doc({}))],
+  [
+    "server_config_slug が無い",
+    JSON.stringify(doc([row("X-Frame-Options")], { server_config_slug: undefined })),
+  ],
+  [
+    "server_config_slug が空文字",
+    JSON.stringify(doc([row("X-Frame-Options")], { server_config_slug: "" })),
+  ],
+  ["notes が文字列でない", JSON.stringify(doc([row("X-Frame-Options")], { notes: null }))],
+])("一覧: %s は入力の誤りにする", (_name, text) => {
+  inputError(() => parseHeaderList(text));
+});
+
+test.each([
+  ["行がオブジェクトでない", "X-Frame-Options"],
+  ["名前が無い", row(undefined)],
+  ["名前が token でない", row("X Frame Options")],
+  ["名前を強調記号で囲んだ", row("**X-Frame-Options**")],
+  ["名前をバッククォートで囲んだ", row("`X-Frame-Options`")],
+  ["名前に補足を付けた", row("Content-Security-Policy（frame-ancestors を含む）")],
+  ["テンプレートのプレースホルダの名前", row("<ヘッダー名（例: X-Content-Type-Options）>")],
+  ["class が語彙外", row("X-Frame-Options", { class: "防御" })],
+  ["defense の value が null", row("X-Frame-Options", { value: null })],
+  ["defense の value が空", row("X-Frame-Options", { value: "" })],
+  ["exposure の value が文字列", row("X-Powered-By", { class: "exposure", value: "（付かない）" })],
+  ["value のキーが無い", { ...row("X-Frame-Options"), value: undefined }],
+  ["responses が空", row("X-Frame-Options", { responses: [] })],
+  ["responses が文字列", row("X-Frame-Options", { responses: "全種類" })],
+  ["responses の種類が語彙外", row("X-Frame-Options", { responses: ["全種類"] })],
+  ["responses の種類が重複", row("X-Frame-Options", { responses: ["page", "page"] })],
+  ["付け手が無い", row("X-Frame-Options", { setter: undefined })],
+  ["付け手が空", row("X-Frame-Options", { setter: "" })],
+  ["付け手が語彙外の「不明」", row("X-Frame-Options", { setter: "不明" })],
+  ["付け手が語彙外の「unknown?」", row("X-Frame-Options", { setter: "unknown?" })],
+  ["setter_source が空文字", row("X-Frame-Options", { setter_source: "" })],
+  ["owner_slug のキーが無い", { ...row("X-Frame-Options"), owner_slug: undefined }],
+  ["owner_slug が空文字", row("X-Frame-Options", { owner_slug: "" })],
+  [
+    "機能の応答だけの行の owner_slug",
+    row("X-Frame-Options", { responses: ["page"], owner_slug: "orders" }),
+  ],
+  ["行の語彙外のキー（打ち間違い）", { ...row("X-Frame-Options"), setter_sorce: "web.config" }],
+])("一覧: 行が「%s」なら入力の誤りにする", (_name, bad) => {
+  inputError(() => list(doc([row("X-Content-Type-Options"), bad])));
+});
+
+test("一覧: 採っていない種類の応答に付くとは書けない（測っていない値を仕様にしない）", () => {
+  const message = inputError(() =>
+    list(
+      doc([row("X-Frame-Options", { responses: ["static"] })], {
+        captured_responses: [{ kind: "page", url: "/login" }],
+      }),
+    ),
+  );
+  expect(message).toContain("static");
+});
+
+test("一覧: 同じヘッダーの行どうしで付く応答が重なれば入力の誤りにする（どちらの値か読めない）", () => {
+  inputError(() =>
+    list(
+      doc([
+        row("Cache-Control", { responses: ["page", "api-success"] }),
+        row("cache-control", { responses: ["api-success"], setter: "unknown" }),
+      ]),
+    ),
+  );
+});
+
+test("一覧: 同梱テンプレートはそのままでは入力の誤りにする（プレースホルダを一覧として読まない）", () => {
+  const template = readFileSync(
+    join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
+    "utf8",
+  );
+  inputError(() => parseHeaderList(template));
+});
+
+// 形の検査では落ちない自由記述の欄に、同梱テンプレートのプレースホルダを 1 つだけ残した一覧。
+test.each([
+  ["captured_at", (t) => (t.captured_at = TEMPLATE.captured_at)],
+  ["target", (t) => (t.target = TEMPLATE.target)],
+  [
+    "captured_responses[].url",
+    (t) => (t.captured_responses[0].url = TEMPLATE.captured_responses[0].url),
+  ],
+  ["notes", (t) => (t.notes = TEMPLATE.notes)],
+  ["headers[].value", (t) => (t.headers[0].value = TEMPLATE.headers[0].value)],
+  [
+    "headers[].setter_source",
+    (t) => (t.headers[0].setter_source = TEMPLATE.headers[0].setter_source),
+  ],
+])("一覧: テンプレートのプレースホルダを %s に残したら入力の誤りにする", (field, edit) => {
+  const t = filledTemplate();
+  edit(t);
+  const message = inputError(() => parseHeaderList(JSON.stringify(t)));
+  expect(message).toContain("プレースホルダ");
+  expect(message).toContain(field.replaceAll("[]", "[0]"));
+});
+
+test("一覧: <…> を含むだけの値（注記キーの中も）はプレースホルダにしない", () => {
+  const t = filledTemplate();
+  t.headers[0].value = "default-src 'self' <x>; script-src 'self'";
+  t._extra = "<注記>";
+  expect([...parseHeaderList(JSON.stringify(t))]).toEqual(["x-content-type-options"]);
+});
+
+test("一覧: 同梱テンプレートのキーを埋めた一覧は読める（正本の形から作る）", () => {
+  expect([...parseHeaderList(JSON.stringify(filledTemplate()))]).toEqual([
+    "x-content-type-options",
+  ]);
+});
+
+test("一覧: 同梱テンプレートの未測定の形（注記が説明する 3 キー）は一覧が無い扱いにする", () => {
+  expect(() =>
+    list({ schema_version: 1, status: "unmeasured", unmeasured_reason: "現行へ到達できなかった" }),
+  ).toThrow(NoHeaderListError);
+  // 注記が「3 キーだけにする」と書いていることを固定する（注記と検査が食い違うと、書き手が従っても落ちる）。
+  const template = JSON.parse(
+    readFileSync(
+      join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
+      "utf8",
+    ),
+  );
+  expect(template._note).toContain('"status": "unmeasured", "unmeasured_reason"');
+});
 
 // --- 規則 1: 一覧に載るヘッダーだけに絞る ---
 
@@ -439,97 +588,60 @@ function capture() {
   };
 }
 
-function writeInputs(markdown, headers) {
+function writeInputs(listDoc, headers) {
   const dir = makeTempDir("header-normalize-cli-");
-  const surveyPath = join(dir, "survey.md");
+  const listPath = join(dir, "response-headers.json");
   const headersPath = join(dir, "headers.json");
-  writeFileSync(surveyPath, markdown);
+  writeFileSync(listPath, typeof listDoc === "string" ? listDoc : JSON.stringify(listDoc));
   writeFileSync(headersPath, typeof headers === "string" ? headers : JSON.stringify(headers));
-  return { surveyPath, headersPath };
+  return { listPath, headersPath };
 }
 
-/** 同梱テンプレートの 7 節を、例示行の `（例）` を外して記入済みにしたもの（正本の形から作る）。 */
+/** 同梱テンプレートそのもの（プレースホルダの値の出所）。 */
+const TEMPLATE = JSON.parse(
+  readFileSync(
+    join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
+    "utf8",
+  ),
+);
+
+/** 同梱テンプレートのプレースホルダを埋めたもの（正本の形から作る。キーは足さず値だけを書き換える）。 */
 function filledTemplate() {
-  return readFileSync(
-    join(repoRoot, "skills/replace-strategy/assets/survey-template.md"),
-    "utf8",
-  ).replaceAll("（例）", "");
+  const t = JSON.parse(
+    readFileSync(
+      join(repoRoot, "skills/replace-strategy/assets/response-headers-template.json"),
+      "utf8",
+    ),
+  );
+  t.status = "measured";
+  t.captured_at = "2026-10-01T10:00:00+09:00";
+  t.target = "current";
+  t.captured_responses = [
+    { kind: "page", url: "/login" },
+    { kind: "static", url: "/css/site.css" },
+  ];
+  t.notes = "";
+  t.headers = [
+    {
+      ...t.headers[0],
+      name: "X-Content-Type-Options",
+      class: "defense",
+      value: "nosniff",
+      responses: ["page", "static"],
+      setter: "server-config",
+      setter_source: "web.config",
+      owner_slug: "orders",
+    },
+  ];
+  return t;
 }
-
-test("一覧: 未記入の同梱テンプレート（例示行が残る）は一覧が無い扱いにする", () => {
-  const template = readFileSync(
-    join(repoRoot, "skills/replace-strategy/assets/survey-template.md"),
-    "utf8",
-  );
-  expect(() => parseHeaderList(template)).toThrow(NoHeaderListError);
-});
-
-test("一覧: 7 節が「未測定」なら、表が残っていても一覧が無い扱いにする", () => {
-  const markdown = survey([
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-  ]).replace("- 採った応答: 画面 /login", "未測定（現行へ到達できなかった）");
-  expect(() => parseHeaderList(markdown)).toThrow(NoHeaderListError);
-});
-
-test("一覧: 本文中の部分的な「未測定」の言及では、埋まった表を捨てない", () => {
-  const markdown = survey([
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-  ]).replace("- 採った応答: 画面 /login", "- 採った応答: 画面 /login（404 は未測定）");
-  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
-});
-
-test("一覧: HTML コメントの中の「未測定」では一覧が無い扱いにしない", () => {
-  const markdown = survey([
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-  ]).replace(
-    "- 採った応答: 画面 /login",
-    "<!-- 採れなかったら 未測定 と書く -->\n- 採った応答: 画面 /login",
-  );
-  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
-});
-
-test.each([
-  [
-    "退避した旧一覧",
-    [
-      "<!--",
-      "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug |",
-      "|---|---|---|---|---|---|",
-      "| `X-Old` | 防御 | x | 全種類 | サーバーの設定 | |",
-      "-->",
-    ],
-  ],
-  [
-    "テンプレートの例示表",
-    [
-      "<!--",
-      "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug |",
-      "|---|---|---|---|---|---|",
-      "| `X-Content-Type-Options`（例） | 防御 | `nosniff` | 全種類 | サーバーの設定 | |",
-      "-->",
-    ],
-  ],
-  ["見出しを含むコメント", ["<!--", "## 8. 退避した節", "-->"]],
-])("一覧: HTML コメントの中の%sは読まず、後ろの本物の表を読む", (_name, commented) => {
-  const markdown = survey([
-    "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-  ]).replace("- 採った応答: 画面 /login", [...commented, "- 採った応答: 画面 /login"].join("\n"));
-  expect([...parseHeaderList(markdown)]).toEqual(["x-frame-options"]);
-});
-
-test("一覧: 記入済みのテンプレートは例示を外した行を読む（HTML コメントの中の語は数えない）", () => {
-  expect([...parseHeaderList(filledTemplate())].sort()).toEqual([
-    "x-content-type-options",
-    "x-powered-by",
-  ]);
-});
 
 test("CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）", () => {
-  const { surveyPath, headersPath } = writeInputs(filledTemplate(), {
+  const { listPath, headersPath } = writeInputs(filledTemplate(), {
     "X-Content-Type-Options": "nosniff",
     Date: "now",
   });
-  const r = spawnSync(process.execPath, [script, "--survey", surveyPath, headersPath], {
+  const r = spawnSync(process.execPath, [script, "--header-list", listPath, headersPath], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -537,80 +649,102 @@ test("CLI: 正規化した JSON を出して exit 0（node で起動しても ma
   expect(JSON.parse(r.stdout)).toEqual({ "x-content-type-options": "nosniff" });
 });
 
-test("CLI: 一覧が無ければ exit 3（入力の誤りの 2 と分ける）", () => {
-  const { surveyPath, headersPath } = writeInputs("## 1. 概要\n", {});
+test("CLI: 一覧が未測定なら exit 3（入力の誤りの 2 と分ける）", () => {
+  const { listPath, headersPath } = writeInputs(
+    { schema_version: 1, status: "unmeasured", unmeasured_reason: "到達できない" },
+    {},
+  );
   const { chunks, io } = capture();
-  expect(main(["--survey", surveyPath, headersPath], io)).toBe(3);
+  expect(main(["--header-list", listPath, headersPath], io)).toBe(3);
   expect(chunks.stderr).toMatch(/^no-list: /);
   expect(chunks.stdout).toBe("");
 });
 
+test("CLI: 一覧の形の誤りは exit 2", () => {
+  const { listPath, headersPath } = writeInputs(
+    doc([row("X-Frame-Options", { setter: "不明" })]),
+    {},
+  );
+  const { chunks, io } = capture();
+  expect(main(["--header-list", listPath, headersPath], io)).toBe(2);
+  expect(chunks.stderr).toMatch(/^error: /);
+});
+
 test("CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）", () => {
-  const { surveyPath } = writeInputs(
-    survey([
-      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
-      "| `Content-Security-Policy` | 防御 | x | 画面 | アプリのコード | |",
-      "| `Strict-Transport-Security` | 防御 | x | 画面 | 不明 | |",
+  const { listPath } = writeInputs(
+    doc([
+      row("X-Frame-Options"),
+      row("Content-Security-Policy", { responses: ["page"], setter: "app-code" }),
+      row("Strict-Transport-Security", { responses: ["page"], setter: "unknown" }),
     ]),
     {},
   );
   const { chunks, io } = capture();
-  expect(main(["--survey", surveyPath, "--list"], io)).toBe(0);
+  expect(main(["--header-list", listPath, "--list"], io)).toBe(0);
   expect(JSON.parse(chunks.stdout)).toEqual(["content-security-policy", "x-frame-options"]);
 });
 
-test("一覧: loadHeaderList は survey.md が無ければ NoHeaderListError、あれば一覧を返す", () => {
-  const { surveyPath } = writeInputs(
-    survey(["| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |"]),
-    {},
-  );
-  expect(() => loadHeaderList(join(dirname(surveyPath), "missing-survey.md"))).toThrow(
-    NoHeaderListError,
-  );
-  expect([...loadHeaderList(surveyPath)]).toEqual(["x-frame-options"]);
+test("一覧: loadHeaderList は一覧のファイルが無ければ NoHeaderListError、あれば一覧を返す", () => {
+  const { listPath } = writeInputs(doc([row("X-Frame-Options")]), {});
+  expect(() => loadHeaderList(join(dirname(listPath), "missing.json"))).toThrow(NoHeaderListError);
+  expect([...loadHeaderList(listPath)]).toEqual(["x-frame-options"]);
 });
 
-test("一覧: survey.md の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする", () => {
-  const { surveyPath } = writeInputs(
-    survey(["| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |"]),
-    {},
-  );
-  let caught;
-  try {
-    loadHeaderList(join(dirname(surveyPath), "no-such-dir", "survey.md"));
-  } catch (err) {
-    caught = err;
-  }
-  expect(caught).toBeInstanceOf(Error);
-  expect(caught).not.toBeInstanceOf(NoHeaderListError);
+test("一覧: 一覧の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする", () => {
+  const { listPath } = writeInputs(doc([row("X-Frame-Options")]), {});
+  inputError(() => loadHeaderList(join(dirname(listPath), "no-such-dir", "response-headers.json")));
 });
 
-test("CLI: survey.md 自体が無ければ exit 3（一覧が無い）", () => {
-  const { headersPath } = writeInputs("## 1. 概要\n", {});
+test("一覧: 表で書いた survey.md を渡しても一覧として読まない（Markdown を解析しない）", () => {
+  const dir = makeTempDir("header-normalize-md-");
+  const surveyPath = join(dir, "survey.md");
+  writeFileSync(
+    surveyPath,
+    [
+      "## 7. 横断の応答ヘッダー",
+      "",
+      "| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug |",
+      "|---|---|---|---|---|---|",
+      "| `X-Frame-Options` | 防御 | `DENY` | 全種類 | サーバーの設定 | |",
+      "",
+    ].join("\n"),
+  );
+  inputError(() => loadHeaderList(surveyPath));
+});
+
+test("CLI: 一覧のファイル自体が無ければ exit 3（一覧が無い）で、表の survey.md からの移行を案内する", () => {
+  const { headersPath } = writeInputs(doc([]), {});
   const { chunks, io } = capture();
-  expect(main(["--survey", join(dirname(headersPath), "missing-survey.md"), headersPath], io)).toBe(
+  expect(main(["--header-list", join(dirname(headersPath), "missing.json"), headersPath], io)).toBe(
     3,
   );
   expect(chunks.stderr).toMatch(/^no-list: /);
+  expect(chunks.stderr).toContain("response-headers.json へ採り直す");
+});
+
+test("CLI: 旧版の --survey は受け付けない（exit 2）", () => {
+  const { listPath, headersPath } = writeInputs(doc([row("X-Frame-Options")]), {});
+  const { io } = capture();
+  expect(main(["--survey", listPath, headersPath], io)).toBe(2);
 });
 
 test("CLI: 読めない headers.json は exit 2 で、入力の中身を stderr に出さない", () => {
-  const { surveyPath, headersPath } = writeInputs(
-    survey(["| `Set-Cookie` | 防御 | x | 画面 | アプリのコード | |"]),
+  const { listPath, headersPath } = writeInputs(
+    doc([row("Set-Cookie", { responses: ["login"], setter: "app-code" })]),
     `{"set-cookie": "sid=${COOKIE_SECRET}"`,
   );
   const { chunks, io } = capture();
-  expect(main(["--survey", surveyPath, headersPath], io)).toBe(2);
+  expect(main(["--header-list", listPath, headersPath], io)).toBe(2);
   expect(chunks.stderr).not.toContain(COOKIE_SECRET);
 });
 
 test("CLI: 文字列でない値は exit 2 で、値を stderr に出さない", () => {
-  const { surveyPath, headersPath } = writeInputs(
-    survey(["| `Set-Cookie` | 防御 | x | 画面 | アプリのコード | |"]),
+  const { listPath, headersPath } = writeInputs(
+    doc([row("Set-Cookie", { responses: ["login"], setter: "app-code" })]),
     [{ name: "Set-Cookie", value: { raw: COOKIE_SECRET } }],
   );
   const { chunks, io } = capture();
-  expect(main(["--survey", surveyPath, headersPath], io)).toBe(2);
+  expect(main(["--header-list", listPath, headersPath], io)).toBe(2);
   expect(chunks.stderr).not.toContain(COOKIE_SECRET);
 });
 

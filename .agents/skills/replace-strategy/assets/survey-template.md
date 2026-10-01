@@ -65,22 +65,10 @@
 
 ## 7. 横断の応答ヘッダー
 
-<!-- 手順・分類の正本は replace-strategy の references/security.md「横断の応答ヘッダー」。parity-suite が各機能の特性化でこの表を読む。 -->
-<!-- 採った応答: 種類ごとに 1 つ以上（画面・未ログインのリダイレクト・API の成功とエラー・静的ファイル・404）。リダイレクトは追わない。 -->
-<!-- 分類: 防御（有無と値を assertion）｜ 露出の抑止（無いことを assertion）。揮発・比較不要のヘッダーは載せない。 -->
-<!-- 付け手: アプリのコード ｜ サーバー・リバースプロキシの設定（ファイルのパス）｜ 不明。received-assets で再構築の既定値かもしれないものは 不明 にして gaps へ。 -->
-<!-- 所有者 slug: どの機能にも属さない応答（静的ファイル・404）だけ。setup 手順 9 の採番後に書き戻す。未確定は空欄（暫定値で埋めない）。 -->
-<!-- 採れなかったら表を置かず、この節の本文を「未測定（理由）」の 1 行だけにする（parity-suite の header-normalize.mjs がこの行で一覧が無いと判定する。一部の応答だけ採れなかったことは「採った応答」の行に書く）。 -->
+<!-- 一覧はこの節に書かない。正本は .replace/response-headers.json（形式: replace-strategy の assets/response-headers-template.json。parity-suite の header-normalize.mjs がそのまま読む）。 -->
+<!-- 手順・分類の正本は replace-strategy の references/security.md「横断の応答ヘッダー」。採れなかったときも JSON 側に status: unmeasured と理由を書く（この節に「未測定」と書いても読まれない）。 -->
 
-- 採った応答: <種類 × URL（例: 画面 /login、リダイレクト /orders（未ログイン）、API GET /api/orders・400 応答、静的 /css/site.css、404 /__none__）>
-- 採った日時・target: <ISO 8601>・<target 名>
-
-| ヘッダー | 分類 | 値 | 付く応答 | 付け手 | 所有者 slug（機能に属さない応答のとき） |
-|---|---|---|---|---|---|
-| `X-Content-Type-Options`（例） | 防御 | `nosniff` | 全種類 | サーバーの設定（`web.config`） | 静的・404 → （slug） |
-| `X-Powered-By`（例） | 露出の抑止 | （付かない） | 全種類 | サーバーの設定で除去 | 静的・404 → （slug） |
-
-- 新側のサーバー設定で付ける作業を引き受ける機能 slug: <所有者 slug と同じ機能 ／ 未確定（手順 9 の前）>
+- 一覧: `.replace/response-headers.json`
 
 ## 未測定の項目
 

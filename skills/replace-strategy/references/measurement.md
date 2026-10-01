@@ -82,8 +82,9 @@
 機能ごとの工程はどれも応答ヘッダーを見ないため、ここで採らないと新側が付けなくても全工程が緑のまま安全性だけが後退する。
 採る応答・採り方・分類・付け手の記録・受領資産から再構築した環境での扱いの正本は [`security.md`](security.md)「横断の応答ヘッダー」（ここへ転記しない）。
 
-- 結果は `.replace/survey.md` の「7. 横断の応答ヘッダー」に記録する（`parity-suite` が各機能の特性化で読む）
-- 採れないこと（現側 target へ HTTP で届かない等）は停止条件ではない。「未測定」に書き、`gaps` に未検証として回す
+- 結果は `.replace/response-headers.json`（形式の正本: [`../assets/response-headers-template.json`](../assets/response-headers-template.json)）に記録する（`parity-suite` が各機能の特性化で読む）。
+  `.replace/survey.md` の 7 節には一覧を書かず、このファイルを指すだけにする
+- 採れないこと（現側 target へ HTTP で届かない等）は停止条件ではない。一覧を `status: unmeasured` と理由（`unmeasured_reason`）だけにし、`gaps` に未検証として回す
 
 ## 停止条件
 

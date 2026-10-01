@@ -1,0 +1,29 @@
+{
+  "_note": "横断の応答ヘッダーの一覧（.replace/response-headers.json）の形式の正本。setup の測定の 7 で書き、手順 9 で所有者 slug と引き受ける機能 slug を書き戻す。parity-suite の scripts/header-normalize.mjs がそのまま読む（人が読む表は持たない。survey.md の 7 節はこのファイルを指すだけ）。採り方・分類・付け手の決め方の正本は references/security.md「横断の応答ヘッダー」。<…> はすべて書き換える（残したまま読むと入力の誤りで落ちる）。`_` で始まるキーは注記として読まれず、それ以外の語彙外のキーは入力の誤りになる。採れなかったら {\"schema_version\": 1, \"status\": \"unmeasured\", \"unmeasured_reason\": \"<理由>\"} の 3 キーだけにする（headers を残すと入力の誤り。一部の応答だけ採れなかったことは notes に書く）。",
+  "schema_version": 1,
+  "status": "<measured | unmeasured>",
+  "captured_at": "<採った日時（ISO 8601）>",
+  "target": "<採った現側 target 名>",
+  "_captured_responses": "採った応答を種類ごとに 1 つ以上。kind は page（画面）/ login（ログインの成功）/ redirect（未ログインのリダイレクト）/ api-success / api-error / static（静的ファイル）/ not-found（404）。headers[].responses はここで採った kind だけを書ける。",
+  "captured_responses": [
+    {
+      "kind": "<page | login | redirect | api-success | api-error | static | not-found>",
+      "url": "<URL のパス（例: /login）>"
+    }
+  ],
+  "notes": "<一部の応答を採れなかった等の補足。無ければ空文字>",
+  "_headers": "1 行 = ヘッダー × 付く応答の組。同じヘッダーの値や付け手が応答の種類で違うなら行を分ける（同じヘッダーの行どうしで responses が重なると入力の誤り）。class: defense（有無と値を assertion）/ exposure（付かないことを assertion。value は null）。揮発・比較不要のヘッダーは載せない。setter: app-code / server-config / unknown（received-assets で再構築の既定値かもしれないものは unknown にして gaps へ。unknown の行を 1 つでも持つヘッダーは比べない）。setter_source は付け手のファイルのパス（読めなければ null）。owner_slug はどの行にもキーを書く（省略すると入力の誤り）。slug を書けるのは responses に static か not-found を含む行だけで、それ以外の行は常に null。static・404 を含む行も手順 9 の確定までは null（暫定値で埋めない）。",
+  "headers": [
+    {
+      "name": "<ヘッダー名（例: X-Content-Type-Options）>",
+      "class": "<defense | exposure>",
+      "value": "<defense なら値（Set-Cookie は属性だけ、CSP の nonce- は伏せた形）。exposure なら null>",
+      "responses": ["<page | login | redirect | api-success | api-error | static | not-found>"],
+      "setter": "<app-code | server-config | unknown>",
+      "setter_source": "<付け手のファイルのパス（例: web.config）か null>",
+      "owner_slug": null
+    }
+  ],
+  "_server_config_slug": "新側のサーバー設定で付ける作業を引き受ける機能 slug。手順 9 で決める（既定の候補は所有者 slug と同じ機能）。未確定は null。",
+  "server_config_slug": null
+}
