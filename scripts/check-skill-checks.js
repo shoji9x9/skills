@@ -227,21 +227,25 @@ export function checkDeclaration(root, skill) {
       }
     }
 
+    // 対象が現れた条件は作業ツリー（exists）か比較元の版（exists_at_base）のどちらか一方以上で書く。
+    // 削除を検出する検査は、作業ツリー側を条件にするとその削除の commit で検査ごと飛ぶので exists_at_base だけを使う。
     const aw = e.applies_when;
-    if (!isObject(aw) || !isTextArray(aw.exists)) {
-      v.push(`${at}: applies_when.exists に対象が現れたと分かるパスを 1 件以上書く`);
+    const awKeys = ["exists", "exists_at_base"];
+    if (!isObject(aw) || !awKeys.some((k) => k in aw)) {
+      v.push(
+        `${at}: applies_when に対象が現れたと分かるパスを exists（作業ツリー）か exists_at_base（比較元の版）で 1 件以上書く`,
+      );
     } else {
       for (const k of Object.keys(aw)) {
-        if (k !== "exists" && k !== "exists_at_base")
-          v.push(`${at}: applies_when の未知のキー ${k}`);
+        if (!awKeys.includes(k)) v.push(`${at}: applies_when の未知のキー ${k}`);
       }
-      if ("exists_at_base" in aw && !isTextArray(aw.exists_at_base)) {
-        v.push(`${at}: applies_when.exists_at_base は空でない配列にする`);
+      for (const k of awKeys) {
+        if (k in aw && !isTextArray(aw[k])) v.push(`${at}: applies_when.${k} は空でない配列にする`);
       }
-      // 形が違う exists_at_base は上で違反にしたので展開しない（真偽値・オブジェクトの展開は
+      // 形が違う値は上で違反にしたので展開しない（真偽値・オブジェクトの展開は
       // TypeError になり、宣言の誤り＝exit 1 が「判定できない」＝exit 2 に化ける）。
-      const atBase = isTextArray(aw.exists_at_base) ? aw.exists_at_base : [];
-      resolveIn([...aw.exists, ...atBase], "applies_when", false);
+      const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));
+      resolveIn(paths, "applies_when", false);
     }
 
     for (const name of paramNames) {

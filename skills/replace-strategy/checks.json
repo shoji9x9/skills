@@ -36,10 +36,9 @@
         }
       },
       "applies_when": {
-        "exists": [".replace/features.md"],
         "exists_at_base": [".replace/features.md"]
       },
-      "appears_after": "replace-strategy setup が .replace/features.md を書き、それが比較元の版に入った後（比較元に追記専用の成果物が 0 件だと exit 1、作業ツリーに 0 件だと exit 2）",
+      "appears_after": "replace-strategy setup が .replace/features.md を書き、それが比較元の版に入った後（比較元に追記専用の成果物が 0 件だと exit 1。作業ツリー側を条件にしない——成果物を消した commit で検査ごと飛ぶため。消えた成果物は縮小として exit 1）",
       "run_from": ".replace/ を置いたリポジトリのルート",
       "stages": ["pre-commit", "ci"],
       "notes": "作業ツリー（index ではない）を比較元と突き合わせる。プロジェクト設定（.config/skills/*/skills.yml、一覧の id project-config）は --exclude で外す——設定ファイルは全スキルの設定を持つので、入口で守ると他のスキルの設定を直す正当な編集まで止まる。設定ファイルの縮小は parity-diff の収束判定が見る。置き場所が既定と違うなら一覧をプロジェクトへコピーし、command に --manifest <path> を足す"

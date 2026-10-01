@@ -12,7 +12,7 @@
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
 // | params                     | config_key / by_stage（stages と一致・不一致、値は value・resolve・素の文字列・併用・語彙外）/ 両方 / config_key の形 |
-// | applies_when               | exists のみ / exists_at_base 付き / 無い / 空配列 / 配列でない / 未知のキー             |
+// | applies_when               | exists のみ / exists_at_base のみ / 両方 / どちらも無い / 無い / 空配列 / 配列でない / 未知のキー |
 // | stages                     | pre-commit・ci / 空 / 語彙外 / 重複                                        |
 // | unwired 一覧               | 在る / 無い / JSON でない / reason 空 / 実在しない検査 / 重複              |
 import { expect, test } from "vitest";
@@ -83,6 +83,17 @@ test("陰性: 全検査が wire か unwired の一方にだけ載っていれば
     declarations: 1,
     violations: [],
   });
+});
+
+test("陰性: applies_when は比較元の版の条件（exists_at_base）だけでもよい（削除を検出する検査向け）", () => {
+  const root = makeRepo({
+    decl: declWith({
+      command: ["node", "{script}"],
+      params: undefined,
+      applies_when: { exists_at_base: [".replace/features.md"] },
+    }),
+  });
+  expect(violationsOf(root)).toEqual([]);
 });
 
 test("陰性: 配線する検査が無いスキルは wire: [] で宣言できる", () => {
@@ -315,11 +326,16 @@ test.each([
   ],
   ["optional_args の形", { optional_args: [{ args: [] }] }, "optional_args[0] は args"],
   ["optional_args が空", { optional_args: [] }, "optional_args は空でない配列"],
-  ["applies_when が無い", { applies_when: undefined }, "applies_when.exists に対象が現れた"],
+  ["applies_when が無い", { applies_when: undefined }, "applies_when に対象が現れた"],
+  [
+    "applies_when に exists も exists_at_base も無い",
+    { applies_when: {} },
+    "applies_when に対象が現れた",
+  ],
   [
     "applies_when.exists が空",
     { applies_when: { exists: [] } },
-    "applies_when.exists に対象が現れた",
+    "applies_when.exists は空でない配列",
   ],
   [
     "applies_when の未知のキー",

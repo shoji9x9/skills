@@ -110,12 +110,14 @@
     },
     {
       "id": "SC-APPLIES-EMPTY",
-      "why": "applies_when.exists が空（対象が現れる契機を書いていない）でも通す",
+      "why": "applies_when に exists も exists_at_base も無い（対象が現れる契機を書いていない）宣言を通す",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (!isObject(aw) || !isTextArray(aw.exists)) {",
-      "replace": "    if (!isObject(aw) || !Array.isArray(aw.exists)) {",
+      "find": "    if (!isObject(aw) || !awKeys.some((k) => k in aw)) {",
+      "replace": "    if (!isObject(aw)) {",
       "occurrences": 1,
-      "expect_failing": ["陽性: wire の項目の誤り（applies_when.exists が空）を落とす"]
+      "expect_failing": [
+        "陽性: wire の項目の誤り（applies_when に exists も exists_at_base も無い）を落とす"
+      ]
     },
     {
       "id": "SC-UNKNOWN-KEY",
@@ -180,10 +182,10 @@
     },
     {
       "id": "SC-BASE-GUARD",
-      "why": "配列でない exists_at_base を展開する（宣言の誤りが判定不能の例外に化ける）",
+      "why": "配列でない applies_when の値を展開する（宣言の誤りが判定不能の例外に化ける）",
       "file": "scripts/check-skill-checks.js",
-      "find": "      const atBase = isTextArray(aw.exists_at_base) ? aw.exists_at_base : [];",
-      "replace": "      const atBase = aw.exists_at_base ?? [];",
+      "find": "      const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));",
+      "replace": "      const paths = awKeys.flatMap((k) => aw[k] ?? []);",
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（exists_at_base が配列でない（展開できない値））を落とす"
@@ -207,6 +209,18 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）"
+      ]
+    },
+    {
+      "id": "SC-APPLIES-ARRAY",
+      "why": "applies_when の空配列を受理する",
+      "file": "scripts/check-skill-checks.js",
+      "find": "        if (k in aw && !isTextArray(aw[k]))",
+      "replace": "        if (k in aw && !Array.isArray(aw[k]))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（applies_when.exists が空）を落とす",
+        "陽性: wire の項目の誤り（exists_at_base が空）を落とす"
       ]
     }
   ]
