@@ -61,19 +61,22 @@
     RECORDED=$(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(m.new?.commit ?? ""))' \
       .replace/parity/<slug>/new/<target>/replace-metadata.json)
   fi
-  CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
-  if [ -z "$CAPTURE" ]; then
-    # リポジトリのパス違い等で git が失敗すると、下の比較が空同士で「一致」に倒れる
-    echo "停止: 新側リポジトリの HEAD を読めない（撮る版を特定できない）"
-  elif [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
-    echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"
-  elif [ "$RECORDED" = none ]; then
-    echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
-  elif [ "$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")" = "$CAPTURE" ]; then
-    echo "一致: $CAPTURE"
-  else
-    echo "停止: 照合相手の版 ${RECORDED:-（読めない）} と撮る版 $CAPTURE が違う"
-  fi
+  # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
+  (
+    CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
+    if [ -z "$CAPTURE" ]; then
+      # リポジトリのパス違い等で git が失敗すると、下の比較が空同士で「一致」に倒れる
+      echo "停止: 新側リポジトリの HEAD を読めない（撮る版を特定できない）"; exit 1
+    elif [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
+      echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"; exit 1
+    elif [ "$RECORDED" = none ]; then
+      echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
+    elif [ "$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")" = "$CAPTURE" ]; then
+      echo "一致: $CAPTURE"
+    else
+      echo "停止: 照合相手の版 ${RECORDED:-（読めない）} と撮る版 $CAPTURE が違う"; exit 1
+    fi
+  )
   ```
 
 - **一致しなければ撮らずに停止**し、同じ `--target` での `parity-replace`（撮る版で新側 green を記録し直す）を案内する。
