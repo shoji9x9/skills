@@ -5,7 +5,7 @@
     "wire[] の各項目: script はスキル直下からの相対パス。command は argv で、{script} はインストール先でのそのスクリプトの絶対パス、{<名前>} は params の値に置き換える。",
     "params.<名前>: config_key はプロジェクト設定（.config/skills/<owner>/skills.yml）のキーで、未設定なら default。by_stage は入口（pre-commit / ci）ごとに、そのまま置き換える value か、入口側で求めて渡す値の手順 resolve のどちらか一方。",
     "optional_args は when_exists のパスがあるときだけ command の末尾へ足す。applies_when.exists（作業ツリー）と applies_when.exists_at_base（比較元の版）のパスが 1 つでも無いうちは走らせない（対象が現れる前に置くと落ちる）。",
-    "appears_after は対象が現れる工程、run_from は起動するディレクトリ。stages はその検査を置ける入口。終了コードは 0 だけが合格で、非 0 はすべて落とす。"
+    "appears_after は対象が現れる工程、run_from は起動するディレクトリ。stages はその検査を置ける入口。終了コードは 0 だけが合格で、非 0 はすべて落とす。検査は作業ツリーを読むので、pre-commit は部分ステージ（ステージした内容と作業ツリーが違う）の commit を見逃しうる。pre-commit は早い報告のためで、合否の正は ci（コミットされた木を読む）に置く。"
   ],
   "version": 1,
   "skill": "parity-component",
