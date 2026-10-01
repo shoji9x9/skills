@@ -7,6 +7,7 @@
 //
 // 何をするか:
 //   1. 追記専用の成果物を機械可読な一覧（assets/append-only-manifest.json）から読む
+//      （--exclude <id> で項目を外せる。一覧に無い id・全項目の除外は exit 2、外した id は出力に必ず出す）
 //   2. 一覧のパターンに一致する追跡ファイルを列挙し、比較元の版（既定 HEAD）の内容を git から取る
 //   3. 比較元に在った「単位」が現在も全部残っているかを数える（多重度まで見る）
 //   4. 比較元に在ったファイルが消えていれば落とす
@@ -59,7 +60,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "11";
+export const VERSION = "12";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -1544,13 +1545,28 @@ export function readManifest(manifestPath) {
 }
 
 /**
- * @param {{ root: string, manifestPath: string, base: string }} opts
+ * @param {{ root: string, manifestPath: string, base: string, exclude?: string[] }} opts
  * @returns {{ findings: string[], notes: string[], checked: number }}
  */
 export function check(opts) {
   const { root, manifestPath, base } = opts;
-  const artifacts = readManifest(manifestPath);
-  if (artifacts.length === 0) throw new UsageError(`一覧の artifacts が 0 件: ${manifestPath}`);
+  const exclude = opts.exclude ?? [];
+  // 一覧の形の検査（id の重複・パスの入れ子）は除外の前に全項目へ当てる。
+  const declared = readManifest(manifestPath);
+  if (declared.length === 0) throw new UsageError(`一覧の artifacts が 0 件: ${manifestPath}`);
+  // 除外は緩和経路なので閉じた集合にする: 一覧に無い id は綴り違いでも黙って何も外さないことになるため落とす。
+  const unknown = exclude.filter((id) => !declared.some((a) => a.id === id));
+  if (unknown.length > 0) {
+    throw new UsageError(
+      `--exclude の id が一覧に無い: ${unknown.join(", ")}（一覧=${manifestPath}）`,
+    );
+  }
+  const artifacts = declared.filter((a) => !exclude.includes(a.id));
+  if (artifacts.length === 0) {
+    throw new UsageError(
+      `--exclude で一覧の項目がすべて外れた（何も突き合わせずに合格に倒さない）`,
+    );
+  }
 
   const inside = git(root, ["rev-parse", "--is-inside-work-tree"]);
   if (inside.status !== 0 || inside.stdout.trim() !== "true") {
@@ -1583,6 +1599,7 @@ export function check(opts) {
   const findings = [];
   /** @type {string[]} */
   const notes = [];
+  if (exclude.length > 0) notes.push(`一覧から外した項目（突き合わせない）: ${exclude.join(", ")}`);
 
   // 比較元に在って作業ツリーから消えたファイルも対象にする（消失は縮小の極端な形）。
   const tracked = git(root, ["ls-tree", "-r", "--name-only", "--full-tree", "-z", base]);
@@ -1778,13 +1795,25 @@ export function defaultManifestPath() {
 
 /**
  * @param {string[]} argv
- * @returns {{ root: string, manifest: string, base: string }}
+ * @returns {{ root: string, manifest: string, base: string, exclude: string[] }}
  */
 export function parseArgs(argv) {
   /** @type {Record<string, string>} */
   const opts = {};
+  /** @type {string[]} */
+  const exclude = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === "--exclude") {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--") || value.trim() === "") {
+        throw new UsageError(`${arg} に値が無い`);
+      }
+      if (exclude.includes(value)) throw new UsageError(`--exclude の id が重複している: ${value}`);
+      exclude.push(value);
+      i += 1;
+      continue;
+    }
     if (arg === "--root" || arg === "--manifest" || arg === "--base") {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) throw new UsageError(`${arg} に値が無い`);
@@ -1799,15 +1828,17 @@ export function parseArgs(argv) {
     root: resolve(opts.root),
     manifest: opts.manifest !== undefined ? resolve(opts.manifest) : defaultManifestPath(),
     base: opts.base ?? "HEAD",
+    exclude,
   };
 }
 
 /** 使い方（stderr に出す）。 */
 const usage = [
-  "usage: append-only-check.mjs --root <dir> [--manifest <path>] [--base <rev>]",
+  "usage: append-only-check.mjs --root <dir> [--manifest <path>] [--base <rev>] [--exclude <id>]...",
   "  --root      リポジトリルート（必須。走査の起点を推測させない）",
   "  --manifest  追記専用の成果物の一覧（既定: スキル同梱の assets/append-only-manifest.json）",
   "  --base      比較元の版（既定: HEAD）",
+  "  --exclude   突き合わせない一覧の項目の id（繰り返し可。一覧に無い id・全項目の除外は exit 2）",
   "exit: 0 = 縮んでいない / 1 = 単位が失われている・成果物が消えている・比較元に在る成果物が 0 件 / 2 = 使い方の誤り・判定不能・作業ツリーの対象 0 件",
 ].join("\n");
 
@@ -1822,6 +1853,7 @@ export function main(argv) {
       root: args.root,
       manifestPath: args.manifest,
       base: args.base,
+      exclude: args.exclude,
     });
     for (const note of notes) process.stdout.write(`note: ${note}\n`);
     for (const finding of findings) process.stdout.write(`warn: ${finding}\n`);

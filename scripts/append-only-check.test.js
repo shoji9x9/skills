@@ -2774,3 +2774,73 @@ test("mutable_blocks で鍵を丸ごと消しても「人が確認して通す�
   expect(r.stdout).not.toMatch(/内容を人が確認して通す/);
   rmSync(root, { recursive: true, force: true });
 });
+
+// ---- --exclude（利用者の pre-commit・CI へ配線するとき、設定ファイルを外す。#540）----
+
+/** 設定ファイルの既存の値を書き換えた作業ツリー（他スキルの設定を直す正当な編集に当たる）。 */
+function makeConfigRepoWithEditedValue() {
+  const root = makeConfigRepo();
+  writeConfig(root, readConfig(root).replace("stack: [typescript]", "stack: [javascript]"));
+  return root;
+}
+
+test("対照: --exclude なしでは設定ファイルの既存の値の書き換えを縮小として落とす", () => {
+  const root = makeConfigRepoWithEditedValue();
+  const r = run(root);
+  expect(r.stdout).toMatch(/skills\.yml/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す", () => {
+  const root = makeConfigRepoWithEditedValue();
+  const r = run(root, ["--exclude", "project-config"]);
+  expect(r.stdout).toMatch(/^note: 一覧から外した項目（突き合わせない）: project-config$/m);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--exclude project-config でも残りの項目（features.md の行の削除）は落とす", () => {
+  const root = makeConfigRepoWithEditedValue();
+  writeFileSync(
+    join(root, ".replace/features.md"),
+    FEATURES.replace("| order-edit | 注文編集 | 未 | 未起票 |\n", ""),
+  );
+  const r = run(root, ["--exclude", "project-config"]);
+  expect(r.stdout).toMatch(/order-edit/);
+  expect(r.stdout).not.toMatch(/skills\.yml/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--exclude に一覧に無い id を渡したら合格に倒さない（exit 2。綴り違いで黙って何も外さない）", () => {
+  const root = makeConfigRepoWithEditedValue();
+  const r = run(root, ["--exclude", "project-cofig"]);
+  expect(r.stderr).toMatch(/--exclude の id が一覧に無い: project-cofig/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    { id: "features", pattern: ".replace/features.md", unit: "markdown-structure" },
+  ]);
+  const r = run(root, ["--manifest", manifest, "--exclude", "features"]);
+  expect(r.stderr).toMatch(/すべて外れた/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  ["値が無い", ["--exclude"], /--exclude に値が無い/],
+  ["値が空", ["--exclude", " "], /--exclude に値が無い/],
+  ["重複", ["--exclude", "gaps", "--exclude", "gaps"], /--exclude の id が重複している: gaps/],
+])("--exclude の使い方の誤り（%s）は exit 2", (_name, extra, message) => {
+  const root = makeRepo();
+  const r = run(root, extra);
+  expect(r.stderr).toMatch(message);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});

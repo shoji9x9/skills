@@ -1,0 +1,72 @@
+{
+  "$comment": [
+    "append-only-check.test.js の検出能力を示す変異の一覧（--exclude の分岐）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/append-only-check.test.js",
+  "mutations": [
+    {
+      "id": "AO-EXCL-FILTER",
+      "why": "--exclude を受け取っても項目を外さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  const artifacts = declared.filter((a) => !exclude.includes(a.id));",
+      "replace": "  const artifacts = declared;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す",
+        "--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）",
+        "--exclude project-config でも残りの項目（features.md の行の削除）は落とす"
+      ]
+    },
+    {
+      "id": "AO-EXCL-UNKNOWN",
+      "why": "一覧に無い id の除外を黙って受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (unknown.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude に一覧に無い id を渡したら合格に倒さない（exit 2。綴り違いで黙って何も外さない）"
+      ]
+    },
+    {
+      "id": "AO-EXCL-ALL",
+      "why": "全項目を外した一覧を受理する（後段の対象 0 件で別の理由に化ける）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (artifacts.length === 0) {\n    throw new UsageError(\n      `--exclude",
+      "replace": "  if (false) {\n    throw new UsageError(\n      `--exclude",
+      "occurrences": 1,
+      "expect_failing": ["--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）"]
+    },
+    {
+      "id": "AO-EXCL-NOTE",
+      "why": "外した id を出力に出さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (exclude.length > 0) notes.push(",
+      "replace": "  if (false) notes.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す"
+      ]
+    },
+    {
+      "id": "AO-EXCL-DUP",
+      "why": "同じ id の重複指定を受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (exclude.includes(value)) throw",
+      "replace": "      if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["--exclude の使い方の誤り（重複）は exit 2"]
+    },
+    {
+      "id": "AO-EXCL-BLANK",
+      "why": "空白だけの値を id として受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": " || value.trim() === \"\"",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["--exclude の使い方の誤り（値が空）は exit 2"]
+    }
+  ]
+}
