@@ -49,9 +49,11 @@ issue-batch run <Issue URL | 番号>... \
 
 実行前に `references/project-config.md` と `references/orchestration.md` を**両方最後まで読む**。次の順で進める。
 
-1. 全体 preflight を変更前に完了する。入力の正規化、重複、repo / Issue と PR の状態、依存関係、既存 branch / PR / worktree、設定、認証・権限、レビュー機能、Kaizen の transcript 同定、browser-test の安全性を確認する。
+1. 全体 preflight を変更前に完了する。入力の正規化、重複、repo / Issue と PR の状態、Issue の担当者と再開 PR の持ち主（自分以外なら BLOCKED）、依存関係、既存 branch / PR / worktree、設定、認証・権限、レビュー機能、Kaizen の transcript 同定、browser-test の安全性を確認する。
 2. `/tmp` に run manifest を作る。入力順、Issue URL、状態、branch、worktree、PR URL、試験結果、停止理由だけを記録し、秘密値と動的な環境 URL は書かない。
-3. 呼び出し元 worktree を checkout せず、Issue ごとに一意な隔離 worktree を `git-worktree` の契約で用意して**セッションを移す**。置き場所は `git-worktree setup` の決定に従う（Issue ごとに worktree を渡り歩くため、**リポジトリ内**に置く必要がある）。
+3. 呼び出し元 worktree を checkout せず、Issue ごとに一意な隔離 worktree を `git-worktree` の契約で用意して**セッションを移す**。
+   branch を作る前に、その Issue の担当者を確かめて自分を割り当て・読み直す（`references/orchestration.md`「issue-start への handoff」の 1。割り当てが通らなければ branch も worktree も作らない）。
+   置き場所は `git-worktree setup` の決定に従う（Issue ごとに worktree を渡り歩くため、**リポジトリ内**に置く必要がある）。
 4. 各 Issue を入力順に `issue-start` の契約で実装し、現在の agent のローカルレビュー、必要な検証、browser-test、`kaizen extract --current --record-pending`、commit / push / PR 作成へ進める。
 5. PR は `pr-finalize-loop` へ渡して収束させる。AI レビュー依頼は同スキルに一本化する。
 6. head SHA を固定し、解決済みの merge mode（`auto` は GitHub の auto-merge に委ねる、`agent` は PR の状況を実測してから merge する）で merge する。

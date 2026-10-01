@@ -1,0 +1,183 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/issue-batch",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:15:07Z",
+    "evals_run": [21, 22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 34.74,
+        "tokens": 109667,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#101 は自分以外が担当者なので、変更前の全体 preflight で BLOCKED にし、担当者の login を残して自分を割り当てないと述べている",
+          "passed": true,
+          "evidence": "preflight 5 で読むだけとし #101 を変更前に BLOCKED、carol の login を残し割り当てないと述べている"
+        },
+        {
+          "text": "#102 は着手の直前に自分を割り当ててから担当者を読み直し、自分以外も付いていたら BLOCKED にして自分を無人で外さないと述べている",
+          "passed": true,
+          "evidence": "着手直前に確かめる→割り当て→読み直しの 3 段、自分以外もいれば BLOCKED で自分を無人で外さないと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・branch 作成を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 32.413,
+        "tokens": 109642,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "再開対象の PR の作成者・担当者を読み、自分が作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "passed": true,
+          "evidence": "preflight 4 で再開 PR の持ち主を判定し #103 を BLOCKED、dave の PR に push・resolve しないと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 47.739,
+        "tokens": 38428,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#101 は自分以外が担当者なので、変更前の全体 preflight で BLOCKED にし、担当者の login を残して自分を割り当てないと述べている",
+          "passed": true,
+          "evidence": "#101 を preflight で blocked にし carol を残して担当者を変更しないと述べている"
+        },
+        {
+          "text": "#102 は着手の直前に自分を割り当ててから担当者を読み直し、自分以外も付いていたら BLOCKED にして自分を無人で外さないと述べている",
+          "passed": false,
+          "evidence": "割り当て前の再取得はあるが、割り当て後の読み直しと自分を無人で外さない扱いが無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・branch 作成を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "failed": 0,
+        "total": 2,
+        "time_seconds": 21.381,
+        "tokens": 36991,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "再開対象の PR の作成者・担当者を読み、自分が作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "passed": true,
+          "evidence": "再開 PR の author / assignees が dave のため #103 を保留し、push・resolve・PR 作成に進まないと述べている（弁別なし）"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 33.5765,
+        "stddev": 1.6454,
+        "min": 32.413,
+        "max": 34.74
+      },
+      "tokens": {
+        "mean": 109654.5,
+        "stddev": 17.6777,
+        "min": 109642,
+        "max": 109667
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8334,
+        "stddev": 0.2357,
+        "min": 0.6667,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.56,
+        "stddev": 18.6379,
+        "min": 21.381,
+        "max": 47.739
+      },
+      "tokens": {
+        "mean": 37709.5,
+        "stddev": 1016.1124,
+        "min": 36991,
+        "max": 38428
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.17",
+      "time_seconds": "-1.0",
+      "tokens": "+71945"
+    }
+  },
+  "notes": []
+}

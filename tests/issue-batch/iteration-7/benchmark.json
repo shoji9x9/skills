@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "issue-batch",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/issue-batch",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:29:14Z",
+    "evals_run": [22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 52.466,
+        "tokens": 145090,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#103 は再開対象の PR の作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "passed": true,
+          "evidence": "#103 を手順 4 で BLOCKED、無人で push・resolve しないと述べている"
+        },
+        {
+          "text": "#104 は自分が再開対象の PR の担当者に含まれるので、作成者が dave でも持ち主の判定を通過し、その PR を再開できると述べている（作成者だけを見て止めていない）",
+          "passed": true,
+          "evidence": "#104 は自分が PR の担当者に含まれるので作成者が dave でも再開できると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 22.827,
+        "tokens": 52005,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "#103 は再開対象の PR の作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "passed": true,
+          "evidence": "#103 を他人の PR としてスキップし push・新規 PR 作成をしないと述べている"
+        },
+        {
+          "text": "#104 は自分が再開対象の PR の担当者に含まれるので、作成者が dave でも持ち主の判定を通過し、その PR を再開できると述べている（作成者だけを見て止めていない）",
+          "passed": false,
+          "evidence": "#104 を『作成者は dave』として保留にしており、担当者に含まれることで再開できるとしていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "passed": true,
+          "evidence": "dry-run でコマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 52.466,
+        "stddev": 0,
+        "min": 52.466,
+        "max": 52.466
+      },
+      "tokens": {
+        "mean": 145090,
+        "stddev": 0,
+        "min": 145090,
+        "max": 145090
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6667,
+        "stddev": 0,
+        "min": 0.6667,
+        "max": 0.6667
+      },
+      "time_seconds": {
+        "mean": 22.827,
+        "stddev": 0,
+        "min": 22.827,
+        "max": 22.827
+      },
+      "tokens": {
+        "mean": 52005,
+        "stddev": 0,
+        "min": 52005,
+        "max": 52005
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "+29.6",
+      "tokens": "+93085"
+    }
+  },
+  "notes": []
+}
