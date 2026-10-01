@@ -7,7 +7,7 @@
 //
 // | 軸                         | 値                                                                         |
 // | -------------------------- | -------------------------------------------------------------------------- |
-// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
+// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 同じ先を指す兄弟のリンク / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
 // | 分類                       | wire だけ / unwired だけ / 両方 / どちらにも無い                           |
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
@@ -165,6 +165,18 @@ test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、
     "skills/s/scripts/b-check.mjs",
   ]);
   expect(main([root])).toBe(0);
+});
+
+test("陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）", () => {
+  const root = makeTempDir("skill-checks-");
+  write(root, "shared/a-check.mjs", "");
+  mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
+  symlinkSync(join(root, "shared"), join(root, "skills/s/scripts/one"));
+  symlinkSync(join(root, "shared"), join(root, "skills/s/scripts/two"));
+  expect(findCheckScripts(root)).toEqual([
+    "skills/s/scripts/one/a-check.mjs",
+    "skills/s/scripts/two/a-check.mjs",
+  ]);
 });
 
 test("陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）", () => {

@@ -53,16 +53,17 @@ const isTextArray = (v) => Array.isArray(v) && v.length > 0 && v.every(isText);
 /** real が base（実パス）の中か。 */
 const isInside = (base, real) => real === base || real.startsWith(base + sep);
 
-// visited は辿ったディレクトリの実パス。自分や祖先を指すディレクトリのリンクで同じ場所へ戻ったら
-// 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。
+// ancestors はいま辿っている経路上のディレクトリの実パス。自分や祖先を指すリンクで経路上へ戻ったら
+// 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。全体の訪問済み集合にはしない——
+// 兄弟の 2 本のリンクが同じディレクトリを指すと、2 本目の先の検査が分類を問われないまま漏れる。
 // リポジトリ（rootReal）の外を指すリンクは辿らず判定できないに倒す（CI のファイルシステムを走査しない。
 // 黙って飛ばすと、そのリンクの先の検査が分類を問われないまま通る）。
-function listFiles(dir, rootReal, visited = new Set()) {
+function listFiles(dir, rootReal, ancestors = new Set()) {
   const real = realpathSync(dir);
   // 走査の起点（skills/<name>/scripts）自体がリンクで外を指す場合も、辿る前に止める。
   if (!isInside(rootReal, real)) throw new Error(`${dir} がリポジトリの外（${real}）を指している`);
-  if (visited.has(real)) return [];
-  visited.add(real);
+  if (ancestors.has(real)) return [];
+  const path = new Set(ancestors).add(real);
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -72,7 +73,7 @@ function listFiles(dir, rootReal, visited = new Set()) {
       throw new Error(`${p} がリポジトリの外（${realpathSync(p)}）を指している`);
     }
     const kind = e.isSymbolicLink() ? statSync(p) : e;
-    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, visited));
+    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, path));
     else if (kind.isFile()) out.push(p);
   }
   return out;

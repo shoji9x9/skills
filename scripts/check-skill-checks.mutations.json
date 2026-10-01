@@ -52,12 +52,13 @@
       "id": "SC-RECURSE",
       "why": "scripts/ のサブディレクトリを走査しない",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, visited));",
-      "replace": "    if (false) out.push(...listFiles(p, rootReal, visited));",
+      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, path));",
+      "replace": "    if (false) out.push(...listFiles(p, rootReal, path));",
       "occurrences": 1,
       "expect_failing": [
         "陰性: scripts/ のサブディレクトリにある検査も拾う",
-        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）"
+        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）",
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
       ]
     },
     {
@@ -177,7 +178,8 @@
       "replace": "    const kind = e;",
       "occurrences": 1,
       "expect_failing": [
-        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）"
+        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）",
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
       ]
     },
     {
@@ -193,9 +195,9 @@
     },
     {
       "id": "SC-CYCLE",
-      "why": "訪問済みのディレクトリを辿り直す（祖先を指すリンクで ELOOP まで潜り判定不能に化ける）",
+      "why": "経路上のディレクトリを辿り直す（祖先を指すリンクで ELOOP まで潜り判定不能に化ける）",
       "file": "scripts/check-skill-checks.js",
-      "find": "  if (visited.has(real)) return [];",
+      "find": "  if (ancestors.has(real)) return [];",
       "replace": "  if (false) return [];",
       "occurrences": 1,
       "expect_failing": ["陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないに倒さない"]
@@ -265,6 +267,17 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: 検査でないファイルを配線し、本物の検査を配線しない側に載せた宣言を落とす"
+      ]
+    },
+    {
+      "id": "SC-ALIAS",
+      "why": "循環の判定を全体の訪問済み集合にする（同じ先を指す 2 本目のリンクの検査が漏れる）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "  const path = new Set(ancestors).add(real);",
+      "replace": "  const path = ancestors.add(real);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
       ]
     }
   ]
