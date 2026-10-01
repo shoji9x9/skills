@@ -156,7 +156,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 詳細は各 reference へ委譲する。番号順に進める。
 
 1. **target 解決と前提確認**（[`references/preflight.md`](references/preflight.md)）: 対象 target を決めてから、停止条件・データセットバージョンの陳腐化・差分器バージョン一致・反復上限を確認する。
-   選択 target の `new/<target>/replace-metadata.json` が無い・`suite.new_green` でなければ「**その環境ではまだ green 証跡が無い**」として停止し、同じ `--target` での `parity-replace` を案内する。欠ければ捏造せず停止し依存順に案内する
+   選択 target の `new/<target>/replace-metadata.json` が無い・`suite.new_green` でなければ「**その環境ではまだ green 証跡が無い**」として停止し、同じ `--target` での `parity-replace` を案内する。green を取った版（`new.commit`）が撮る新側の版と違うときも撮らずに同じく停止する。欠ければ捏造せず停止し依存順に案内する
 2. **モード分岐**: `metadata.json.mode` で feature（3 経路）/ api-resource / batch に分岐する。api-resource / batch は画面系 3 経路を動かさない（[`references/api-batch.md`](references/api-batch.md)）
 3. **新側ベースライン取得**（[`references/capture-new.md`](references/capture-new.md)）: 選択 target の `url` / `api_url` を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決して
    Playwright の**採取用プロジェクト**（`metadata.json.suite.new_only` に記録された名前。既定 `new-capture`）へ渡し、同一条件で新側だけを撮る。
