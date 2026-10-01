@@ -7,7 +7,7 @@
 //
 // | 軸                         | 値                                                                         |
 // | -------------------------- | -------------------------------------------------------------------------- |
-// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 同じ先を指す兄弟のリンク / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
+// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 同じ先を指す兄弟のリンク / リンクした skills/<name> / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
 // | 分類                       | wire だけ / unwired だけ / 両方 / どちらにも無い                           |
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
@@ -136,6 +136,31 @@ test("陰性: 検査を持たないスキルは checks.json が無くてよく�
   });
   expect(checkSkillChecks(root).checks).toBe(2);
   expect(violationsOf(root)).toEqual([]);
+});
+
+test("陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う", () => {
+  const root = makeTempDir("skill-checks-");
+  write(root, "target/scripts/a-check.mjs", "");
+  mkdirSync(join(root, "skills"), { recursive: true });
+  symlinkSync(join(root, "target"), join(root, "skills/s"));
+  write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
+  expect(findCheckScripts(root)).toEqual(["skills/s/scripts/a-check.mjs"]);
+  const v = violationsOf(root);
+  expect(v).toContainEqual(expect.stringContaining("skills/s: 検査を持つのに checks.json が無い"));
+  expect(v).toContainEqual(
+    expect.stringContaining("skills/s/scripts/a-check.mjs: 配線するか決まっていない"),
+  );
+});
+
+test("陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）", () => {
+  const root = makeTempDir("skill-checks-");
+  const outside = makeTempDir("skill-checks-outside-");
+  write(outside, "scripts/a-check.mjs", "");
+  mkdirSync(join(root, "skills"), { recursive: true });
+  symlinkSync(outside, join(root, "skills/s"));
+  write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
+  expect(() => checkSkillChecks(root)).toThrow("リポジトリの外");
+  expect(main([root])).toBe(2);
 });
 
 test("陰性: scripts/ のサブディレクトリにある検査も拾う", () => {

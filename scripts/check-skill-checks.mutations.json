@@ -16,7 +16,8 @@
       "expect_failing": [
         "陽性: どちらにも載っていない検査は「配線するか決まっていない」で落とす",
         "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0",
-        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）"
+        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）",
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う"
       ]
     },
     {
@@ -35,7 +36,10 @@
       "find": "      if (hasCheck) {",
       "replace": "      if (false) {",
       "occurrences": 1,
-      "expect_failing": ["陽性: 検査を持つのに checks.json が無いスキルを落とす"]
+      "expect_failing": [
+        "陽性: 検査を持つのに checks.json が無いスキルを落とす",
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う"
+      ]
     },
     {
       "id": "SC-ZERO",
@@ -255,7 +259,8 @@
       "replace": "  if (false) throw",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）"
+        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）",
+        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
       ]
     },
     {
@@ -278,6 +283,18 @@
       "occurrences": 1,
       "expect_failing": [
         "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
+      ]
+    },
+    {
+      "id": "SC-SKILL-LINK",
+      "why": "リンクした skills/<name> を走査から黙って外す",
+      "file": "scripts/check-skill-checks.js",
+      "find": "    .filter((e) => (e.isSymbolicLink() ? statSync(join(skillsDir, e.name)) : e).isDirectory())",
+      "replace": "    .filter((e) => e.isDirectory())",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う",
+        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
       ]
     }
   ]

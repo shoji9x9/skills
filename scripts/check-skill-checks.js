@@ -79,14 +79,25 @@ function listFiles(dir, rootReal, ancestors = new Set()) {
   return out;
 }
 
-/** 配布スキルの検査を `skills/<name>/scripts/...` のリポジトリ相対パスで返す。 */
-export function findCheckScripts(root) {
+/**
+ * skills/ 直下のスキルのディレクトリ名。リンクはリンク先の種類で判定する（Dirent の isDirectory は
+ * リンクで偽になり、リンクしたスキルの検査が分類を問われないまま漏れる）。リンク先がリポジトリの外なら
+ * scripts/ の走査（listFiles）が判定できないに倒す。
+ */
+function skillDirs(root) {
   const skillsDir = join(root, "skills");
   if (!existsSync(skillsDir)) return [];
+  return readdirSync(skillsDir, { withFileTypes: true })
+    .filter((e) => (e.isSymbolicLink() ? statSync(join(skillsDir, e.name)) : e).isDirectory())
+    .map((e) => e.name)
+    .sort();
+}
+
+/** 配布スキルの検査を `skills/<name>/scripts/...` のリポジトリ相対パスで返す。 */
+export function findCheckScripts(root) {
   const out = [];
-  for (const e of readdirSync(skillsDir, { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
-    const scriptsDir = join(skillsDir, e.name, "scripts");
+  for (const name of skillDirs(root)) {
+    const scriptsDir = join(root, "skills", name, "scripts");
     if (!existsSync(scriptsDir)) continue;
     for (const f of listFiles(scriptsDir, realpathSync(root))) {
       const base = f.split("/").pop();
@@ -285,12 +296,7 @@ export function checkSkillChecks(root) {
   const unwiredList = loadUnwired(root);
   const violations = [];
 
-  const skills = existsSync(join(root, "skills"))
-    ? readdirSync(join(root, "skills"), { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-        .map((e) => e.name)
-        .sort()
-    : [];
+  const skills = skillDirs(root);
   const wired = new Map(); // script -> 宣言したスキル
   let declarations = 0;
   for (const skill of skills) {
