@@ -1,7 +1,7 @@
 {
   "_note": "parity-suite の手順の改訂一覧（正本）。確かめる軸（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）を手順に足したら、revision を 1 上げて changes へ 1 要素を追記する（既存の要素は書き換えない）。parity-suite は .replace/parity/<slug>/metadata.json の run.procedure_revision に採取時のこの revision を書き、replace-strategy の scripts/procedure-staleness-check.mjs が、成果物の改訂番号より新しい改訂の affects に当たる機能を「旧手順で特性化した機能」として列挙する。revision 1 は本機構の導入点で、それより前の成果物（run.procedure_revision が無い）は、どの軸で閉じたかを記録していないため全件が対象になる。軸を足さない変更（文言・検査の修正・誤りの訂正で、閉じた機能に測り直しが要らないもの）では上げない。",
   "skill": "parity-suite",
-  "revision": 4,
+  "revision": 5,
   "changes": [
     {
       "revision": 1,
@@ -30,6 +30,13 @@
       "axis": "操作を持たない画面駆動の機能の状態表示の振り分け",
       "affects": ["feature"],
       "summary": "操作を持たない画面駆動の機能も metadata.json の reaction_coverage を declared: false にせず、operations: [] と operations_none_reason を書いた反応の被覆表（reactions.json）で画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）を振り分け、reaction-check.mjs を通す（references/coverage.md「画面ごとの状態表示」）。改訂 3 以前に declared: false で閉じた機能は振り分けを持たず、parity-diff も判定せず未検証に残す。procedure-staleness-check.mjs は mode でしか絞れないので改訂 3 以前の feature 機能を全て列挙するが、測り直しが要るのは reaction_coverage.declared: false の機能だけ（改訂 1 以降に declared: true で閉じた機能は状態表示を振り分け済み。改訂番号を持たない成果物の状態表示は改訂 1 が扱う）。列挙された機能ごとに、当て直すか当てないかを .replace/procedure-changes.md へ記録する"
+    },
+    {
+      "revision": 5,
+      "added_at": "2026-10-01",
+      "axis": "利用者環境のブラウザ（cdp）の描画するブラウザ側の OS",
+      "affects": ["feature"],
+      "summary": "capture_conditions.browser が cdp のとき、browser_identity に描画するブラウザ側の OS（browser_os: platform / platformVersion / architecture）を残す（references/locator-mapping.md「利用者環境のブラウザへ接続する」）。capture-scope-check.mjs は cdp で browser_os が無い記録を落とし、parity-diff の新側採取は現側に browser_os が無ければ撮らずに止まる。procedure-staleness-check.mjs は mode でしか絞れないので改訂 4 以前の feature 機能を全て列挙するが、撮り直しが要るのは capture_conditions.browser が cdp の機能だけ（launched の機能は照合しないので当てない）。列挙された機能ごとに、当て直すか当てないかを .replace/procedure-changes.md へ記録する"
     }
   ]
 }

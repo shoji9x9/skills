@@ -220,8 +220,66 @@ const identityPath = join(
 // 同一性は撮影に使うページ（プロジェクトの use の userAgent・デバイスの設定が当たったコンテキスト）から読む。
 // browser.newPage() の既定のコンテキストで読むと、撮影側の userAgent と食い違う。
 // OS も撮影するブラウザ側から読む——cdp では Node のランナーと描画する機械が別なので、os モジュールはランナーしか表さない。
-// userAgentData を持たないブラウザ（Firefox / WebKit、安全なコンテキストでない http の頁）は navigator.platform を残す。ランナーの OS は runner_os に別に残す
+// ランナーの OS は runner_os に別に残す
 let identityRecorded = false;
+
+// 描画するブラウザ側の OS。現側の browser_identity.browser_os と同じ正規化で読む
+// （正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。読み方・拾うキーを変えるなら両方を変える）。
+// - 撮影に使うコンテキストでは読まない。use の userAgent（デバイスの設定を含む）を当てると、Playwright は userAgentData も
+//   その文字列から作って上書きする（Linux の機械で Mac の UA を当てると platform が macOS になる。実測）ので、機械を表さない。
+//   同じブラウザに設定を当てない別のコンテキストを作って読み、閉じる（cdp では接続先の機械、launched では起動した機械）
+// - userAgentData は安全なコンテキストにしか無い。Playwright が開いた直後の about:blank は安全なコンテキストでない（実測）ので、
+//   合成した https の URL を route で返した頁で読む。撮影に使うページは移動させない（verifyScrollbars は about:blank で測る契約）
+// - 拾うのは platform / platformVersion / architecture の 3 キーだけ（getHighEntropyValues は brands・mobile も返す。版は product が持つ）
+// - userAgentData を持たないブラウザ（Firefox / WebKit）は navigator.platform だけを残す。cdp の接続先は Chromium 系で、
+//   現側の記録にこの形は capture-scope-check.mjs が通さない（Chromium の platform も縮められている）ので、cdp の照合では食い違いとして止まる
+const BROWSER_OS_PROBE_URL = "https://parity-browser-os.invalid/";
+let browserOs: Record<string, string> | null = null;
+async function readBrowserOs(
+  browser: import("@playwright/test").Browser | null,
+): Promise<Record<string, string>> {
+  if (browserOs !== null) return browserOs;
+  if (!browser) throw new Error("capture page has no browser: 描画するブラウザ側の OS を読めない");
+  const context = await browser.newContext();
+  try {
+    const probe = await context.newPage();
+    await probe.route(BROWSER_OS_PROBE_URL, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>os</title>",
+      }),
+    );
+    await probe.goto(BROWSER_OS_PROBE_URL);
+    browserOs = await probe.evaluate(async () => {
+      const data = (
+        navigator as Navigator & {
+          userAgentData?: {
+            getHighEntropyValues(hints: string[]): Promise<Record<string, string>>;
+          };
+        }
+      ).userAgentData;
+      if (!data) return { platform: navigator.platform };
+      const v = await data.getHighEntropyValues(["platform", "platformVersion", "architecture"]);
+      return {
+        platform: v.platform,
+        platformVersion: v.platformVersion,
+        architecture: v.architecture,
+      };
+    });
+  } finally {
+    await context.close();
+  }
+  return browserOs;
+}
+// 現新の OS をキーの集合ごと完全一致で照合する（片側だけ navigator.platform に代替した形・キーの過不足は食い違いとして扱う）
+function sameBrowserOs(a: unknown, b: Record<string, string>): boolean {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+  const left = a as Record<string, unknown>;
+  const keys = Object.keys(left).sort();
+  const want = Object.keys(b).sort();
+  return keys.length === want.length && keys.every((k, i) => k === want[i] && left[k] === b[k]);
+}
 // スクロールバーの扱いは起動引数ではなく、撮影に使うページで実測して確かめる。
 // cdp では共通のフィクスチャが connectOverCDP で接続するので launchOptions は効かず、接続先が --hide-scrollbars や
 // オーバーレイのバーで起動していても分からない。launched でもプロジェクトの launchOptions が上書きしうる。
@@ -265,17 +323,10 @@ async function recordIdentity(
   // beforeAll ではなく最初のテストで読むので、ワーカーごとに 1 回。書くのは並列の枠 0 のワーカーだけにし
   // （同じプロジェクトのワーカーは同じブラウザ・同じ use で撮る）、一時ファイルからの rename で書く（途中まで書いたファイルを parity-diff が読まない）
   if (testInfo.parallelIndex !== 0) return;
-  const seen = await page.evaluate(async () => {
-    const data = (
-      navigator as Navigator & {
-        userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
-      }
-    ).userAgentData;
-    const os = data
-      ? await data.getHighEntropyValues(["platform", "platformVersion", "architecture"])
-      : { platform: navigator.platform };
-    return { userAgent: navigator.userAgent, os };
-  });
+  const seen = {
+    userAgent: await page.evaluate(() => navigator.userAgent),
+    os: await readBrowserOs(page.context().browser()),
+  };
   writeJsonAtomic(identityPath, {
     browser: browserMode,
     browser_name: browserName,
@@ -343,9 +394,21 @@ for (const viewport of shots) {
             const identity = metadata.capture_conditions.browser_identity;
             const product = page.context().browser()?.version();
             const userAgent = await page.evaluate(() => navigator.userAgent);
-            if (!identity || identity.product !== product || identity.user_agent !== userAgent) {
+            // reduced UA は OS の版を固定値に縮めるので、product と userAgent だけでは OS の版・アーキテクチャが違う機械を見分けられない
+            const os = await readBrowserOs(page.context().browser());
+            if (identity && !Object.hasOwn(identity, "browser_os")) {
               throw new Error(
-                `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
+                "current side browser_identity has no browser_os: parity-suite で現側を撮り直す（描画するブラウザ側の OS を照合できない。手順の改訂 5）",
+              );
+            }
+            if (
+              !identity ||
+              identity.product !== product ||
+              identity.user_agent !== userAgent ||
+              !sameBrowserOs(identity.browser_os, os)
+            ) {
+              throw new Error(
+                `connected browser differs from the current side (current: ${JSON.stringify(identity)}, new: ${JSON.stringify({ product, user_agent: userAgent, browser_os: os })}): 新側 target の browser.cdp_url を現側と同じ利用者環境へ向ける`,
               );
             }
           }
