@@ -7,7 +7,7 @@
 //
 // | 軸                         | 値                                                                         |
 // | -------------------------- | -------------------------------------------------------------------------- |
-// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 規約外の拡張子 / 名前が -check でない |
+// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
 // | 分類                       | wire だけ / unwired だけ / 両方 / どちらにも無い                           |
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
@@ -165,6 +165,37 @@ test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、
     "skills/s/scripts/b-check.mjs",
   ]);
   expect(main([root])).toBe(0);
+});
+
+test("陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）", () => {
+  const root = makeRepo();
+  const outside = makeTempDir("skill-checks-outside-");
+  write(outside, "x-check.mjs", "");
+  symlinkSync(outside, join(root, "skills/s/scripts/external"));
+  expect(() => checkSkillChecks(root)).toThrow("リポジトリの外");
+  expect(main([root])).toBe(2);
+});
+
+test("陽性: 宣言した script がリンクでスキルの外を指していたら落とす（配布されない）", () => {
+  const root = makeRepo({
+    extraFiles: { "shared/c-check.mjs": "" },
+    unwired: {
+      unwired: [
+        { script: "skills/s/scripts/b-check.mjs", reason: "r" },
+        { script: "skills/s/scripts/c-check.mjs", reason: "r" },
+      ],
+    },
+  });
+  symlinkSync(join(root, "shared/c-check.mjs"), join(root, "skills/s/scripts/c-check.mjs"));
+  const { violations } = checkDeclaration(root, "s");
+  expect(violations).toEqual([]);
+  writeFileSync(
+    join(root, "skills/s/checks.json"),
+    JSON.stringify({ version: 1, skill: "s", wire: [entry({ script: "scripts/c-check.mjs" })] }),
+  );
+  expect(checkDeclaration(root, "s").violations).toContainEqual(
+    expect.stringContaining("script scripts/c-check.mjs がスキルのディレクトリの外を指している"),
+  );
 });
 
 test("陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）", () => {

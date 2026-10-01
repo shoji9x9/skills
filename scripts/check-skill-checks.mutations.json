@@ -52,8 +52,8 @@
       "id": "SC-RECURSE",
       "why": "scripts/ のサブディレクトリを走査しない",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, visited));",
-      "replace": "    if (false) out.push(...listFiles(p, visited));",
+      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, visited));",
+      "replace": "    if (false) out.push(...listFiles(p, rootReal, visited));",
       "occurrences": 1,
       "expect_failing": [
         "陰性: scripts/ のサブディレクトリにある検査も拾う",
@@ -221,6 +221,28 @@
       "expect_failing": [
         "陽性: wire の項目の誤り（applies_when.exists が空）を落とす",
         "陽性: wire の項目の誤り（exists_at_base が空）を落とす"
+      ]
+    },
+    {
+      "id": "SC-OUTSIDE-SCAN",
+      "why": "リポジトリの外を指すリンクを辿る（CI のファイルシステムを走査する）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "    if (e.isSymbolicLink() && !isInside(rootReal, realpathSync(p))) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）"
+      ]
+    },
+    {
+      "id": "SC-OUTSIDE-SCRIPT",
+      "why": "スキルの外を指す script の宣言を通す（配布されない検査を配線させる）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "      } else if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(path))) {",
+      "replace": "      } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 宣言した script がリンクでスキルの外を指していたら落とす（配布されない）"
       ]
     }
   ]

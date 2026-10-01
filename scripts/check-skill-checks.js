@@ -16,7 +16,7 @@
 //   読むので、未知のキーや解決できないプレースホルダは黙って無視されないよう違反にする。
 // - 一覧が読めない（JSON でない・形が違う）は exit 2、それ以外の違反は exit 1。
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const UNWIRED_PATH = "scripts/skill-checks-unwired.json";
@@ -47,9 +47,14 @@ const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v)
 const isText = (v) => typeof v === "string" && v.trim() !== "";
 const isTextArray = (v) => Array.isArray(v) && v.length > 0 && v.every(isText);
 
+/** real が base（実パス）の中か。 */
+const isInside = (base, real) => real === base || real.startsWith(base + sep);
+
 // visited は辿ったディレクトリの実パス。自分や祖先を指すディレクトリのリンクで同じ場所へ戻ったら
 // 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。
-function listFiles(dir, visited = new Set()) {
+// リポジトリ（rootReal）の外を指すリンクは辿らず判定できないに倒す（CI のファイルシステムを走査しない。
+// 黙って飛ばすと、そのリンクの先の検査が分類を問われないまま通る）。
+function listFiles(dir, rootReal, visited = new Set()) {
   const real = realpathSync(dir);
   if (visited.has(real)) return [];
   visited.add(real);
@@ -58,8 +63,11 @@ function listFiles(dir, visited = new Set()) {
     const p = join(dir, e.name);
     // シンボリックリンクは Dirent では isFile / isDirectory がどちらも偽になり、黙って走査から外れる
     // （リンクした検査が分類を問われないまま通る）ので、リンク先の種類で判定する。
+    if (e.isSymbolicLink() && !isInside(rootReal, realpathSync(p))) {
+      throw new Error(`${p} がリポジトリの外（${realpathSync(p)}）を指している`);
+    }
     const kind = e.isSymbolicLink() ? statSync(p) : e;
-    if (kind.isDirectory()) out.push(...listFiles(p, visited));
+    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, visited));
     else if (kind.isFile()) out.push(p);
   }
   return out;
@@ -74,7 +82,7 @@ export function findCheckScripts(root) {
     if (!e.isDirectory()) continue;
     const scriptsDir = join(skillsDir, e.name, "scripts");
     if (!existsSync(scriptsDir)) continue;
-    for (const f of listFiles(scriptsDir)) {
+    for (const f of listFiles(scriptsDir, realpathSync(root))) {
       const base = f.split("/").pop();
       if (CHECK_RE.test(base)) out.push(relative(root, f));
     }
@@ -143,6 +151,9 @@ export function checkDeclaration(root, skill) {
       const path = join(root, "skills", skill, e.script);
       if (!existsSync(path) || !statSync(path).isFile()) {
         v.push(`${at}: script ${e.script} が無い`);
+      } else if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(path))) {
+        // リンクでスキルの外を指す script は配布されない（配布されるのはスキルのディレクトリだけ）。
+        v.push(`${at}: script ${e.script} がスキルのディレクトリの外を指している`);
       } else scripts.push(`skills/${skill}/${e.script}`);
     }
 
