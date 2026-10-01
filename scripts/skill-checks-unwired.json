@@ -1,0 +1,62 @@
+{
+  "$comment": [
+    "配布スキルの検査（skills/*/scripts/*-check.*）のうち、利用者の検査の入口（pre-commit・CI）へ配線しないと決めたものと理由。",
+    "配線するものは各スキルの checks.json に宣言する。scripts/check-skill-checks.js が、全検査がどちらか一方にだけ載っていることを確かめる",
+    "（検査を足したのにどちらにも載せない＝配線するか決めていない状態を、配線しないと決めた状態と見分けるため）。",
+    "このファイルは配布しない。利用者には checks.json に無いことが「配線しない」を表す。"
+  ],
+  "unwired": [
+    {
+      "script": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "reason": "features.md（replace-strategy が書く）と design.md（golden-dataset が書く）の突き合わせ。機能を features.md に足してから設計へ写すまでの間は正当な途中状態で、入口に置くと機能を足す commit が設計を直すまで通らない（copy-missing-table で exit 1 を実測）"
+    },
+    {
+      "script": "skills/issue-start/scripts/acceptance-check.mjs",
+      "reason": "Issue の本文・コメントをその場で取得した JSON と、呼び出し元が渡す判断待ちの記録を入力にする工程の判定（push 前・完了判定）。取得物はリポジトリへコミットしない"
+    },
+    {
+      "script": "skills/parity-component/scripts/lifecycle-check.mjs",
+      "reason": "build の完了判定。build-metadata.json は build の途中で段階的に埋まるので、途中のコミットで落ちるのが正しい状態"
+    },
+    {
+      "script": "skills/parity-diff/scripts/coverage-check.mjs",
+      "reason": "収束条件。未測定のセルが残るのは parity-suite の後の正当なコミット状態で、parity-suite へ戻す判断の入口"
+    },
+    {
+      "script": "skills/parity-diff/scripts/pending-triage-check.mjs",
+      "reason": "収束条件。入力の registries.json はエージェントが設定から組み立て直す途中の記録で、未仕分けの pending は人の判断待ちとして正当"
+    },
+    {
+      "script": "skills/parity-suite/scripts/artifact-health-check.mjs",
+      "reason": "工程（--stage suite / diff）ごとの鮮度判定。コミットしない採取物（artifacts.storage: local）と新側の版を入力にする"
+    },
+    {
+      "script": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "reason": "parity-suite 手順 8 の判定。metadata.json は手順 6 から段階的に書かれるので、途中のコミットで落ちるのが正しい状態"
+    },
+    {
+      "script": "skills/parity-suite/scripts/component-comparison-check.mjs",
+      "reason": "target ごとの照合記録の鮮度判定。新側にコミットが入るたびに再検証まで古くなる設計"
+    },
+    {
+      "script": "skills/parity-suite/scripts/reaction-check.mjs",
+      "reason": "Playwright のテスト一覧（その場の実行結果）と移行元のチェックアウトを入力にする工程の判定"
+    },
+    {
+      "script": "skills/replace-strategy/scripts/asset-delivery-check.mjs",
+      "reason": "現行・新側の稼働中の環境から取得して比べる完了判定（ネットワークに依存する）"
+    },
+    {
+      "script": "skills/replace-strategy/scripts/evidence-gap-check.mjs",
+      "reason": "parity-replace の完了判定。宣言の無い推定が残るのは完了前の正当な状態"
+    },
+    {
+      "script": "skills/replace-strategy/scripts/pending-decisions-check.mjs",
+      "reason": "判断待ちの記録の前提・完了判定。範囲（--mode / --phase / --slug / --target）を呼び出し元の工程が渡し、判断待ちが残るのは正当な状態"
+    },
+    {
+      "script": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "reason": "status モードの報告。結果はインストールした parity-suite の改訂番号で変わり、利用者のコミットでは決まらない"
+    }
+  ]
+}

@@ -46,6 +46,8 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js` /
   `scripts/check-kaizen-refs.js`（`.kaizen/` の学びへの参照の実在。意図的な非実在は `scripts/kaizen-refs-exemptions.json`）/
   `scripts/check-identical-copies.js`（同一であるべきコピー。組は `scripts/identical-copies.json`）/
+  `scripts/check-skill-checks.js`（配布スキルの検査〈`*-check.*`〉を、利用者の入口へ配線する〈`skills/<name>/checks.json`〉か
+  しない〈理由付きで `scripts/skill-checks-unwired.json`〉かのどちらかへ分類）/
   `scripts/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/check-skill-index.js`（スキルガイド・README とスキル実体の対応）。
 - **変異実証（CI 専任）**: `scripts/check-mutation-proof.js` が `scripts/*.mutations.json` の宣言を再実行し、
   各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
@@ -98,6 +100,7 @@ JavaScript の拡張子は配布有無で使い分ける（新規ファイルも
 skills/<name>/          スキル実体（gh skill publish の対象）
   SKILL.md              スキルのメイン指示
   references/           進行的開示の補助ドキュメント（コンポーネント手順等。SKILL.md から参照）
+  checks.json           利用者の検査の入口（pre-commit・CI）へ配線すべき検査の宣言（scripts/ に *-check.* を持つスキルだけ）
 evals/<name>/           回帰テスト（配布しないため skills/<name>/ の外に置く）
   evals.json            回帰テスト定義
   README.md             テスト実行手順

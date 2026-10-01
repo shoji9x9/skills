@@ -220,6 +220,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
    （未整備でも停止しないが、推測で自分の流儀を持ち込まず基底ドキュメント・リント設定・既存コードから読み取る。解決順の正本は `replace-strategy` の `references/project-config.md`「コーディング規約」）。
    feature モードでは、authoring 後に `node <skill>/scripts/auto-wait-check.mjs <parity_suite_dir>/parity/` を実行し、走査対象が 1 件以上・待たない取得 API が 0 件・判定不能（`unresolved-receiver`）が 0 件になるまで修正する（スクリプトはコピーせずスキル配下から実行する）。
    **`ok:` 行が出す件数を読む**——走査ファイル数がスイートの実ファイル数と合っていること、判定不能が 0 件であることを確かめる（違反 0 件だけでは「検査が届いた」ことの証拠にならない）。
+   この検査はコミットされたスイートが常に満たす条件なので、工程の外で入った変更のためにプロジェクトの pre-commit・CI へも配線する（起動方法と配線できる時期は [`checks.json`](checks.json)）。
    **状態を変える工程（書き込み系スペック・ファイルアップロード・バッチ実行）は全モード共通で [`references/data-discipline.md`](references/data-discipline.md) の規律に従う**（復元 → 一意プレフィックス＋後始末 → 後始末できないなら承認を得て「hermetic でない」と明示）。
    **api-resource / batch モードは画面系工程（ロケータマッピング・手書き aria・状態遷移）を行わない**（[`references/api-batch.md`](references/api-batch.md) の該当モードに従う）。
    **API 特性化に入る前に、対象 slug の features.md で根拠が `推定` の口を拾い、record/replay で確定できた口は `replace-strategy evidence` へ委譲して書き戻す**——

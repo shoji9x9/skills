@@ -1,0 +1,47 @@
+{
+  "$comment": [
+    "利用者の検査の入口（pre-commit・CI）へ配線すべき検査の宣言。スキルの更新でこのファイルの差分を見れば、配線の追加・削除が要るかが分かる。",
+    "ここに無い検査（scripts/ の他の *-check.*）は工程の中でだけ呼ぶ判定で、入口へ配線しない（ライブ環境・呼び出し元が渡す記録・途中の状態を見るため）。",
+    "wire[] の各項目: script はスキル直下からの相対パス。command は argv で、{script} はインストール先でのそのスクリプトの絶対パス、{<名前>} は params の値に置き換える。",
+    "params.<名前>: config_key はプロジェクト設定（.config/skills/<owner>/skills.yml）のキーで、未設定なら default。by_stage は入口（pre-commit / ci）ごとに、そのまま置き換える value か、入口側で求めて渡す値の手順 resolve のどちらか一方。",
+    "optional_args は when_exists のパスがあるときだけ command の末尾へ足す。applies_when.exists（作業ツリー）と applies_when.exists_at_base（比較元の版）のパスが 1 つでも無いうちは走らせない（対象が現れる前に置くと落ちる）。",
+    "appears_after は対象が現れる工程、run_from は起動するディレクトリ。stages はその検査を置ける入口。終了コードは 0 だけが合格で、非 0 はすべて落とす。検査は作業ツリーを読むので、pre-commit は部分ステージ（ステージした内容と作業ツリーが違う）の commit を見逃しうる。pre-commit は早い報告のためで、合否の正は ci（コミットされた木を読む）に置く。"
+  ],
+  "version": 1,
+  "skill": "replace-strategy",
+  "wire": [
+    {
+      "id": "append-only",
+      "script": "scripts/append-only-check.mjs",
+      "command": [
+        "node",
+        "{script}",
+        "--root",
+        ".",
+        "--base",
+        "{base}",
+        "--exclude",
+        "project-config"
+      ],
+      "params": {
+        "base": {
+          "by_stage": {
+            "pre-commit": {
+              "value": "HEAD"
+            },
+            "ci": {
+              "resolve": "起動したイベントごとに、その変更が入る前の版を求めて渡す（履歴を全件取得してから求める）。PR は PR のベースブランチとの merge-base（例: git merge-base origin/<ベースブランチ> HEAD）。push は push 前の先端（例: GitHub Actions の github.event.before）、新しいブランチの最初の push で前の先端が無ければ既定ブランチとの merge-base。push 後の origin/<ベースブランチ> のように HEAD と同じ版になる値は渡さない（自分自身と比べて縮小を見逃す）"
+            }
+          }
+        }
+      },
+      "applies_when": {
+        "exists_at_base": [".replace/features.md"]
+      },
+      "appears_after": "replace-strategy setup が .replace/features.md を書き、それが比較元の版に入った後（比較元に追記専用の成果物が 0 件だと exit 1。作業ツリー側を条件にしない——成果物を消した commit で検査ごと飛ぶため。消えた成果物は縮小として exit 1）",
+      "run_from": ".replace/ を置いたリポジトリのルート",
+      "stages": ["pre-commit", "ci"],
+      "notes": "作業ツリー（index ではない）を比較元と突き合わせる。プロジェクト設定（.config/skills/*/skills.yml、一覧の id project-config）は --exclude で外す——設定ファイルは全スキルの設定を持つので、入口で守ると他のスキルの設定を直す正当な編集まで止まる。設定ファイルの縮小は parity-diff の収束判定が見る。置き場所が既定と違うなら一覧をプロジェクトへコピーし、command に --manifest <path> を足す"
+    }
+  ]
+}
