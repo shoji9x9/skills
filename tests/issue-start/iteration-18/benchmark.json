@@ -1,0 +1,149 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/issue-start",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T13:03:11Z",
+    "evals_run": [17],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.067,
+        "tokens": 75650,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`list-query-state` の検索を gh api の search/issues で回し、検索範囲を本文だけでなくコメントまで含める（`in:body,comments` 等）と述べている",
+          "passed": true,
+          "evidence": "識別子の検索を in:body,comments で回すと明記"
+        },
+        {
+          "text": "陽性コントロールとして、候補を引いたのと同じ `list-query-state` の検索で、改訂のコメントによって #12 自身が結果に出ることを確かめると述べている",
+          "passed": true,
+          "evidence": "is:open だけを外した同じ検索で #12 が出ることを確かめると明記"
+        },
+        {
+          "text": "新しい語が本文に無いことを理由に判定不能で止まらず、類似 Issue の候補を利用者に提示して見直しの要否を確かめる工程へ進むと述べている",
+          "passed": true,
+          "evidence": "「止まる必要はありません」とし候補整理・1 件ずつの確認へ進む"
+        },
+        {
+          "text": "候補の提示に、その Issue の該当する条件の原文と、#12 で変えた条件の変更前・変更後を並べると述べている",
+          "passed": true,
+          "evidence": "候補ごとに該当する条件の原文・変更前後の条件を並べると明記"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・Issue の編集・コメントを行っていない）",
+          "passed": true,
+          "evidence": "手順の提示のみ（読み取りの grep 1 回のみ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 30.28,
+        "tokens": 18701,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "`list-query-state` の検索を gh api の search/issues で回し、検索範囲を本文だけでなくコメントまで含める（`in:body,comments` 等）と述べている",
+          "passed": true,
+          "evidence": "list-query-state を in:comments、類似検索を in:title,body,comments で回すと述べる"
+        },
+        {
+          "text": "陽性コントロールとして、候補を引いたのと同じ `list-query-state` の検索で、改訂のコメントによって #12 自身が結果に出ることを確かめると述べている",
+          "passed": false,
+          "evidence": "陽性コントロールの list-query-state 検索と候補を引く検索（概念語・同義語）が別の検索で、同じ検索での陽性コントロールになっていない"
+        },
+        {
+          "text": "新しい語が本文に無いことを理由に判定不能で止まらず、類似 Issue の候補を利用者に提示して見直しの要否を確かめる工程へ進むと述べている",
+          "passed": true,
+          "evidence": "判定不能で止まらず検索・分類・他 Issue 変更前の利用者確認へ進む"
+        },
+        {
+          "text": "候補の提示に、その Issue の該当する条件の原文と、#12 で変えた条件の変更前・変更後を並べると述べている",
+          "passed": false,
+          "evidence": "候補の提示にその Issue の該当条件の原文・#12 の変更前後を並べると述べていない（分類のみ）"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・Issue の編集・コメントを行っていない）",
+          "passed": true,
+          "evidence": "手順の提示のみ"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 27.067,
+        "stddev": 0,
+        "min": 27.067,
+        "max": 27.067
+      },
+      "tokens": {
+        "mean": 75650,
+        "stddev": 0,
+        "min": 75650,
+        "max": 75650
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.6,
+        "stddev": 0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "time_seconds": {
+        "mean": 30.28,
+        "stddev": 0,
+        "min": 30.28,
+        "max": 30.28
+      },
+      "tokens": {
+        "mean": 18701,
+        "stddev": 0,
+        "min": 18701,
+        "max": 18701
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.40",
+      "time_seconds": "-3.2",
+      "tokens": "+56949"
+    }
+  },
+  "notes": [
+    "変更確認（#512）: eval 17 を with_skill / without_skill 各 1 run。弁別は「同じ検索での陽性コントロール」と「候補提示に該当条件の原文と変更前後を並べる」に残る。without_skill もコメント検索（in:comments）自体は自力で使う。"
+  ]
+}
