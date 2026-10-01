@@ -47,7 +47,8 @@
 採取・自己ノイズの 2 回撮り・検出を最後まで回してから収束判定の `artifact-health-check` で落ちる。**撮る前にここで止める。**
 
 - **撮る版**は、ローカルで起動する target（`start` を持つ）なら新側リポジトリ（設定の `new.repo`）の作業ツリーの `HEAD`。
-  `url_command` の target で `commit_check` を持つものはその出力（照合の正本は [`capture-new.md`](capture-new.md)「URL の配線」）。
+  配信型 target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に依らずその出力（照合の正本は [`capture-new.md`](capture-new.md)「URL の配線」。
+  `commit_check` の定義の正本は `replace-strategy` の `references/project-config.md`）。
   配信型 target で `commit_check` を持たないものは撮る版を知る手段が無いので照合せず、`diff.md` の前提確認表に「未確認」と書いて進む（収束判定の照合が残る）
 - **部品改修の一括再検証（`--component-change`）では照合相手が変更宣言の `commits.after` になる**（`new.commit` は改修前の記録のまま。正本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
   下の照合は `CHANGE` に変更宣言のパスを入れると照合相手を `commits.after` に切り替える——`new.commit` のまま照合すると、正しい一括再検証でも止まる
