@@ -30,7 +30,7 @@
               "value": "HEAD"
             },
             "ci": {
-              "resolve": "PR のベースブランチとの merge-base を求めて渡す（例: git merge-base origin/<ベースブランチ> HEAD。履歴を全件取得してから求める）"
+              "resolve": "起動したイベントごとに、その変更が入る前の版を求めて渡す（履歴を全件取得してから求める）。PR は PR のベースブランチとの merge-base（例: git merge-base origin/<ベースブランチ> HEAD）。push は push 前の先端（例: GitHub Actions の github.event.before）、新しいブランチの最初の push で前の先端が無ければ既定ブランチとの merge-base。push 後の origin/<ベースブランチ> のように HEAD と同じ版になる値は渡さない（自分自身と比べて縮小を見逃す）"
             }
           }
         }
