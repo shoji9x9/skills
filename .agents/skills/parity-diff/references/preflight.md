@@ -52,7 +52,8 @@
   配信型 target で `commit_check` を持たないものは撮る版を知る手段が無いので照合せず、`diff.md` の前提確認表に「未確認」と書いて進む（収束判定の照合が残る）
 - **部品改修の一括再検証（`--component-change`）では照合相手が変更宣言の `commits.after` になる**（`new.commit` は改修前の記録のまま。正本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
   下の照合は `CHANGE` に変更宣言のパスを入れると照合相手を `commits.after` に切り替える——`new.commit` のまま照合すると、正しい一括再検証でも止まる
-- ローカルの作業ツリーは、照合相手（通常は `new.commit`、一括再検証では `commits.after`）を正本から読み、同じリポジトリの `HEAD` と完全 SHA で突き合わせる（表示から書き写さない）:
+- 照合相手（通常は `new.commit`、一括再検証では `commits.after`）を正本から読み、撮る版と完全 SHA で突き合わせる（表示から書き写さない）。
+  撮る版は `COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD`、配信型 target の `commit_check` を入れればその出力（完全 SHA を出すこと。短縮 SHA は一致しないとして止まる）:
 
   ```bash
   CHANGE=""   # --component-change の実行だけ変更宣言のパス（続けて当てた宣言があるなら最後の宣言）。通常の実行は空のまま
@@ -62,17 +63,26 @@
     RECORDED=$(node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(m.new?.commit ?? ""))' \
       .replace/parity/<slug>/new/<target>/replace-metadata.json)
   fi
+  COMMIT_CHECK=""   # start を持たない配信型 target で commit_check を持つなら、そのコマンド（secrets.wrapper が要るなら前置する）。ローカルの target は空のまま
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
-    CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
+    if [ -n "$COMMIT_CHECK" ]; then
+      # 配信型 target: 稼働中のコードの版は commit_check だけが知っている（HEAD はデプロイ済みの版を表さない）
+      CAPTURE=$(bash -c "$COMMIT_CHECK" </dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')
+      WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
+    else
+      CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
+      if [ -n "$CAPTURE" ] && [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
+        echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"; exit 1
+      fi
+      WANT=$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")
+    fi
     if [ -z "$CAPTURE" ]; then
-      # リポジトリのパス違い等で git が失敗すると、下の比較が空同士で「一致」に倒れる
-      echo "停止: 新側リポジトリの HEAD を読めない（撮る版を特定できない）"; exit 1
-    elif [ -n "$(git -C <新側リポジトリ> status --porcelain)" ]; then
-      echo "停止: 新側の作業ツリーに未コミットの変更がある（撮る版を特定できない）"; exit 1
+      # リポジトリのパス違い・commit_check の失敗等で空になると、下の比較が空同士で「一致」に倒れる
+      echo "停止: 撮る版を読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
     elif [ "$RECORDED" = none ]; then
       echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
-    elif [ "$(git -C <新側リポジトリ> rev-parse --verify --quiet "${RECORDED}^{commit}")" = "$CAPTURE" ]; then
+    elif [ "$WANT" = "$CAPTURE" ]; then
       echo "一致: $CAPTURE"
     else
       echo "停止: 照合相手の版 ${RECORDED:-（読めない）} と撮る版 $CAPTURE が違う"; exit 1
