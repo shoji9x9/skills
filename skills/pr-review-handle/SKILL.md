@@ -49,7 +49,7 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 3. 現在のブランチが PR の head ブランチか確認する
    - `gh pr view <番号> --repo <owner>/<repo> --json headRefName,baseRefName,url,headRefOid`（`headRefOid` は後述「スレッド外に置かれた指摘」のレビュー絞り込みに使う）
    - ズレている場合は警告し、このブランチのまま進めてよいかユーザーに確認する（修正対象を取り違えないため）
-   - **PR の持ち主（作成者か担当者）が自分かを確かめる**（判定の正本は [`references/pr-ownership.md`](references/pr-ownership.md)）。
+   - **PR の持ち主（作成者か担当者）が自分かを確かめる**（判定と、自分の login を取得できないときの扱いの正本は [`references/pr-ownership.md`](references/pr-ownership.md)）。
      `not-owner` なら作成者・担当者を示し、次の 3 択で利用者に確認してから進む
      - **続行**: 通常どおり修正・返信・解決（`--push` なら commit / push も）を行う
      - **返信だけ**: 返信は行うが、ファイル修正・resolve・commit / push をしない（他の人が対応中のスレッドを閉じない）。
