@@ -11,7 +11,7 @@ resolve することが起こりうるため。**レビュアーとしての返�
 
 ```bash
 me=$(gh api user --jq .login </dev/null)
-[ -n "$me" ] || { echo '判定不能: 自分の login を取得できない' >&2; exit 1; }
+[ -n "$me" ] || { echo '判定不能: 自分の login を取得できない（ユーザーでないトークンの可能性）' >&2; exit 1; }
 owners=$(gh pr view <番号> --repo <owner>/<repo> --json author,assignees --jq '.author.login, .assignees[].login' </dev/null) \
   || { echo '判定不能: PR の作成者・担当者を取得できない' >&2; exit 1; }
 if printf '%s\n' "$owners" | grep -qxF -- "$me"; then
@@ -24,5 +24,8 @@ fi
 - `owner`: 自分が作成者か担当者に含まれる。確認なしで進めてよい。
 - `not-owner`: 作成者と担当者を示して利用者に確認する。選べる扱いは各スキルの `SKILL.md` が定める。
 - **取得の失敗を `not-owner` にも `owner` にも倒さない。** `me` が空、`gh pr view` が非 0 のときは判定不能として止まる。
+- **`me` が取れないのは、ユーザーでないトークン（GitHub App のインストールトークン・Actions の `GITHUB_TOKEN`）で認証している場合が多い**
+  （[Endpoints available for GitHub App installation access tokens](https://docs.github.com/en/rest/authentication/endpoints-available-for-github-app-installation-access-tokens) に `GET /user` は無い）。
+  持ち主を判定できないので、判定を飛ばして続行するか中止するかを利用者に確認する。
 - 利用者が続行を選んだら、その実行の間は確認を繰り返さない（同じ PR への 2 回目以降の push・resolve ごとに聞き直さない）。
 - PR に自分を担当者として割り当てない（持ち主を変える操作は利用者が決める）。
