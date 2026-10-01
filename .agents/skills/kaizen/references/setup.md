@@ -173,7 +173,8 @@ Codex は設定ファイルをマージしただけでは Hook を実行しな�
 `git commit` を捕捉し、lifecycle 不整合または未処理の学び候補があればブロックして、エージェントに `kaizen --current` の実行を促す。Claude Code / Codex / Copilot のいずれも「ツール実行前に発火し、ブロックできる」Hook（PreToolUse / preToolUse）を備えるため、全エージェント共通で機能する。
 
 判定はスキルにバンドルされた `kaizen-precommit-gate.sh` が行う。非 commit は Bash 組み込みの prefilter だけで終了し、jq / python / git を起動しない。
-commit のときだけ `kaizen-status-check.sh` を実行し、未抽出センチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理範囲を最大 8 秒で走査する。
+commit のときだけ `kaizen-status-check.sh` を実行し、未抽出センチネルがあるときだけ `kaizen-candidate-scan.sh` が `transcript_path` の未処理範囲を走査する。
+時間は**ゲート全体で 1 つの締め切り**（既定 8 秒）で縛る（後述「ゲートの締め切りとフックの timeout」）。
 走査結果は `0` = 候補あり、`1` = 検証済みゼロ、`2` = 不明。`1` だけが自動通過し、候補あり・読めない形式・jq 不在・timeout は **exit code 2 + stderr** でブロックする。
 `user correction` の判定に使うのは**文字列の `content` と `text` 要素だけ**で、`tool_result` 要素は除外する。
 Claude Code はツール結果も `role: "user"` のレコードに載せるため、連結するとツール出力の本文に含まれる修正語（「ではなく」等）が拾われ、実在しないユーザー修正で commit が止まる。
@@ -206,7 +207,12 @@ key を持たない旧形式のセンチネルは持ち主を特定できない�
 Copilot を主に使うプロジェクトでは、`kaizen-status-check.sh` を lefthook / CI からも実行して警告の表示経路を別に確保する（起動方法は [`checks.json`](../checks.json)。人のコミットもこの経路でだけ検査される）。
 
 自セッション分がブロック要因でなくなったら、**他セッションの未解決センチネルも同じ差分走査に掛ける**（センチネルが transcript パスと session id を持ち、そのセッションの checkpoint も残っているため）。候補ゼロを検証できたものはそこで解消する。
-走査には合計時間の上限があり、打ち切った分はそのまま残して打ち切った旨を出す（黙って諦めると「全部見た上で報告している」と読めてしまうため）。
+走査に使えるのはゲートの締め切りの残りだけで、打ち切った分はそのまま残して打ち切った旨を出す（黙って諦めると「全部見た上で報告している」と読めてしまうため）。
+
+**前回と同じ結論になる走査は繰り返さない。** 候補が残っている（判定不能・打ち切りも同じ）センチネルは解消されないので、そのままだと commit のたびに同じ範囲を走査し直して締め切りの残りを使い切る。
+ゲートは走査の結論を、それを決めた入力（transcript の大きさ・checkpoint・走査器・`jq`）と一緒にセンチネルの隣の `.kaizen/.extract-checkpoint.<session key>.foreign-scan` へ残し、入力がどれも変わっていなければ走査せず、省いた旨を出す。
+transcript は追記だけなので、大きさが変わっていなければ前回と同じ結論になる。打ち切りだったものは、前回より長い時間を使えるときだけ走査し直す。
+省くのは「解消しない」側の結論だけで、解消（センチネルの削除）は走査器がその場で候補ゼロを検証したときに限るため、キャッシュが commit の通過を左右することはない。
 
 ##### 他セッションのセンチネルは保持期間で回収する
 
@@ -256,6 +262,23 @@ key を持たない旧形式のセンチネルだけはマーカーが覆う—�
 > 論理コミットを連続で分けるときは、各 `git commit` の成功を確認してから次を stage する。失敗したコミットは stage を残し、次のコミットに巻き込まれて無関係な変更の混在・誤ラベルを生む。
 > 通常は `kaizen --current` がセンチネルを削除するので手動削除は不要。
 
+##### ゲートの締め切りとフックの timeout
+
+**フックが timeout で打ち切られると、ゲートは commit を止められない。** Claude Code は timeout に達した command hook をブロックとして扱わず
+（"A timed-out `command`, `http`, or `mcp_tool` hook doesn't block the tool call. The call continues through the normal permission flow"。[Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)）、
+Copilot も timeout だけが fail-open になる（[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
+exit 2 で止めるはずの commit が、ゲートが遅いとき（transcript が大きい長いセッション）ほど素通りする。
+
+そのためゲートは、lifecycle 検査 → 自セッション分の走査 → 他セッション分の走査を**開始からの経過時間で 1 つの締め切りに収める**。
+自セッション分までが締め切りに当たったら fail closed（exit 2）、他セッション分は打ち切った旨を出して残す（もともと止めない経路）。
+締め切りの既定は **8 秒**で、環境変数 `KAIZEN_PRECOMMIT_DEADLINE_SECONDS`（2〜3600 の整数。不正値は既定へ倒して stderr に出す）で変えられる。
+フックのコマンドに `KAIZEN_PRECOMMIT_DEADLINE_SECONDS=20 bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh` のように前置する。
+
+**フックに timeout を付けるなら、締め切りより十分長くする**（目安は締め切り ＋ 10 秒以上。既定の 8 秒なら 20 秒以上）。
+締め切りの後にも checkpoint の記録・センチネルの列挙・案内の出力が少し残るためで、締め切りを延ばしたら timeout も同じだけ延ばす。
+締め切りが短すぎると、走査が終わらず自セッション分が毎回 fail closed で止まる（素通りはしない）。
+`timeout` コマンドの無い環境では走査を行わず自セッション分を fail closed にするので、締め切りで縛れないのは lifecycle 検査 1 本だけになる。
+
 各エージェントの PreToolUse（Bash ツール実行前）に登録する。
 
 ##### Claude Code — PreToolUse (`.claude/settings.json`)
@@ -278,6 +301,8 @@ key を持たない旧形式のセンチネルだけはマーカーが覆う—�
   }
 }
 ```
+
+例は `timeout` を持たないので Claude Code の既定（600 秒）が効く。他のフックに合わせて `timeout` を付けるなら、上の「ゲートの締め切りとフックの timeout」に従って締め切りより十分長くする（短いと打ち切られた commit が黙って素通りする）。
 
 Claude Code の handler `if` は非 commit でスクリプト自体を起動しない第一段フィルタ。`if` をサポートしない旧版ではこのフィールドを省略し、スクリプト内 prefilter をフォールバックとして使う。複合 Bash コマンドは permission rule が安全側に handler を起動する場合があるため、スクリプト側の厳密判定を残す。
 
@@ -313,7 +338,7 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
         "matcher": "bash",
         "bash": "bash <KAIZEN_SCRIPTS_DIR>/kaizen-precommit-gate.sh -copilot",
         "cwd": ".",
-        "timeoutSec": 40
+        "timeoutSec": 20
       }
     ]
   }
@@ -324,7 +349,7 @@ Claude Code の handler `if` は非 commit でスクリプト自体を起動し�
 > 第 1 引数 `-copilot` は必須。Copilot は timeout 以外の非 0 をすべて deny するため、これが無いと「他セッションのセンチネルが残っている」だけの警告（exit 1）でも commit が拒否される。
 > 最低限コミットはブロックされるため、エージェントは失敗に反応して `kaizen --current` を実行する余地が残る。
 > Copilot の matcher は tool 名まででコマンド文字列を絞れないため、スクリプト内 prefilter を使う。
-> `timeoutSec` は**ゲートの最悪ケースより長くする**。内部の走査予算は自セッション分が 8 秒、他セッション分が合計 24 秒なので、合わせて 40 秒にしてある。
+> `timeoutSec` は**ゲートの締め切りより十分長くする**。既定の締め切り 8 秒に「締め切りの後に残る処理」の余裕を足して 20 秒にしてある（上の「ゲートの締め切りとフックの timeout」）。`KAIZEN_PRECOMMIT_DEADLINE_SECONDS` で締め切りを延ばしたら、`timeoutSec` も同じだけ延ばす。
 > **Copilot の `preToolUse` は timeout だけが fail-open** で、他の非 0 は deny される（[GitHub Copilot Hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)）。
 > 短すぎる `timeoutSec` はゲートを黙って素通りさせるため、遮断が効かなくなる側へ倒れる。
 > 現行の camelCase `preToolUse` payload は `toolArgs` を渡すが `transcriptPath` を渡さない。そのため非 commit の高速 prefilter と commit 判定は機能する一方、候補ゼロの自動通過は使わず `kaizen --current` を促すブロックへフォールバックする。
@@ -463,6 +488,8 @@ kaizen の Hook（タスク終了時のセンチネル記録・抽出完了マ�
 `.kaizen/config`（コミット前ゲートのセンチネル保持期間・自動忘却の閾値を置くプロジェクト設定）は除外せずコミットする。
 `.extract-checkpoint.<session key>` は処理済み transcript のパス（1 行目）・バイト位置（2 行目）・識別済みエージェント（3 行目、空可）・処理済み行数（4 行目）を保持し、セッションをまたいで差分走査を成立させる。
 **session 単位のファイルにするのは、同じプロジェクトで同じエージェントのセッションを 2 つ動かしたときに走査位置を上書きし合わないため**（session key を取れない環境では単一ファイルへ縮退する）。
+コミット前ゲートが他セッション分の走査結果を残す `.extract-checkpoint.<session key>.foreign-scan`（前述「遮断するのは自セッションのセンチネルだけ」）も同じパターンで除外される。
+既にこの 3 行を入れてあるプロジェクトは追記しなくてよい。
 2 行目・4 行目は**走査器が実際に検査し終えた終端**（`kaizen-candidate-scan.sh` が検証済みゼロのときに出力する `scanned-bytes` / `scanned-lines`）を記録する。
 記録側で `wc -c` を測り直すと、走査から記録までの間に追記されたレコードを検査しないまま処理済みにしてしまう（fail open）。走査済み位置を受け取れないときはブロックする（fail closed）。
 3 行目は、前回の走査以降にレコードが 1 件も増えていないときに使う。レコードが無いとエージェントを判定できず、どのセンチネルを消せばよいか分からなくなるため、

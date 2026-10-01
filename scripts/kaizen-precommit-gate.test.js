@@ -748,7 +748,7 @@ describe("ゲートの commit 検出", () => {
     ['echo "$(echo hi # ; git commit -m x\n)"', 0],
     // 逆側の回帰: 再帰マスクで**実行される** commit を潰さない。
     ['echo "$(cd /tmp && git commit -m x)"', 2],
-    ['echo "$(echo "$(git commit -m x)")"', 2],
+    // `echo "$(echo "$(git commit -m x)")"` は上の Issue #345 の組にある（同名のテストは名前で合否を判定できない）。
     // **行継続（`\` + 改行）はシェルが解析の前に取り除く。** 残したまま走査すると、トークンが
     // 継続で割れた形はどの正規表現にも当たらず素通りする（実測）。`git` / `commit` 自体が割れると
     // 生 JSON の prefilter（`*git*commit*`）でも落ちるので、**prefilter と走査の両方**を
@@ -769,7 +769,7 @@ describe("ゲートの commit 検出", () => {
     // **`case` は予約語として現れたときだけ弁別不能にする。** 語として含むかどうかで倒すと、
     // 引数に書かれた `case` でも倒れ、マスクを丸ごと捨てた結果、同じコマンド行の引用された
     // `; git commit -m x` が実行されるものとして読まれて誤ブロックになる（実測）。
-    ['echo "$(printf %s case)" "; git commit -m x"', 0],
+    // `echo "$(printf %s case)" ...` は下の「`in` が続かない `case`」の組にある（同名のテストを作らない）。
     ['echo "$(printf %s \'case\')" "; git commit -m x"', 0],
     ['echo "$(printf %s lowercase)" "; git commit -m x"', 0],
     // 予約語が置ける位置（行頭・`;` `(` `{` ・改行の直後）はいずれも倒す。
@@ -1441,5 +1441,218 @@ describe("ゲートはリポジトリの全作業ツリーの .kaizen/ を見る
     });
     expect(inject.status, inject.stderr).toBe(0);
     expect(existsSync(marker)).toBe(true);
+  });
+});
+
+// エージェントは timeout に達したフックをブロックとして扱わない（Claude Code / Copilot とも fail-open）。
+// ゲート全体の所要時間に上限が無いと、exit 2 で止めるはずの commit が遅いときほど素通りする（Issue #492）。
+// ゲートは 1 つの締め切りの内側で走り切り、自セッション分までは締め切りに当たったら fail closed にする。
+describe("ゲート全体の締め切り", () => {
+  const OWN = "own-session-1";
+
+  function stubScripts(files) {
+    const scripts = cloneScripts();
+    for (const [name, body] of Object.entries(files)) {
+      writeFileSync(join(scripts, name), `#!/usr/bin/env bash\n${body}\n`);
+    }
+    return scripts;
+  }
+
+  function writeSentinel(cwd, key, transcript, stamp = "2026-09-27T06:00:00Z") {
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${key}`),
+      `${stamp}\n${transcript}\nclaude-code\n${key}\n`,
+    );
+  }
+
+  function timedGate(options) {
+    const started = Date.now();
+    const gate = runGate("git commit -m x", options);
+    return { gate, elapsed: Date.now() - started };
+  }
+
+  test("自セッション分の走査が締め切りに当たったら、締め切りの内側で exit 2 にする", () => {
+    const scripts = stubScripts({ "kaizen-candidate-scan.sh": "exec sleep 30" });
+    const cwd = makeProject();
+    const transcript = join(cwd, "t.jsonl");
+    writeFileSync(transcript, "{}\n");
+    writeSentinel(cwd, OWN, transcript);
+
+    const { gate, elapsed } = timedGate({
+      cwd,
+      transcriptPath: transcript,
+      sessionId: OWN,
+      scripts,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" },
+    });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toMatch(/the transcript scan hit the gate deadline \(3s/);
+    expect(elapsed).toBeLessThan(3000 + 1500);
+    expect(existsSync(join(cwd, ".kaizen", `.pending-extract.${OWN}`))).toBe(true);
+  }, 15000);
+
+  test("lifecycle 検査が締め切りに当たったら、締め切りの内側で exit 2 にする", () => {
+    const scripts = stubScripts({ "kaizen-status-check.sh": "exec sleep 30" });
+    const cwd = makeProject();
+
+    const { gate, elapsed } = timedGate({
+      cwd,
+      sessionId: OWN,
+      scripts,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "2" },
+    });
+    expect(gate.status, gate.stderr).toBe(2);
+    expect(gate.stderr).toMatch(/lifecycle 検査がゲートの締め切り（2 秒）までに終わりませんでした/);
+    expect(elapsed).toBeLessThan(2000 + 1500);
+  }, 15000);
+
+  test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
+    "不正な締め切り %s は既定へ倒して知らせる",
+    (raw) => {
+      const cwd = makeProject();
+      const gate = runGate("git commit -m x", {
+        cwd,
+        sessionId: OWN,
+        env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
+      });
+      expect(gate.status, gate.stderr).toBe(0);
+      expect(gate.stderr).toMatch(
+        /KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です.*既定の 8 秒を使います/,
+      );
+    },
+  );
+
+  test.each([["2"], ["20"], ["3600"], ["08"]])("正しい締め切り %s は黙って受け付ける", (raw) => {
+    const cwd = makeProject();
+    const gate = runGate("git commit -m x", {
+      cwd,
+      sessionId: OWN,
+      env: { KAIZEN_PRECOMMIT_DEADLINE_SECONDS: raw },
+    });
+    // 受け付けたかだけを見る。最小の 2 秒では lifecycle 検査の持ち時間が 1 秒しかなく、負荷の高い
+    // 並列実行では締め切りで fail closed になりうる（それ自体は仕様どおり）。
+    expect(gate.stderr).not.toMatch(/不正です/);
+    expect([0, 2]).toContain(gate.status);
+  });
+});
+
+// 候補が残っている他セッションのセンチネルは解消されないので、そのままだと commit のたびに同じ範囲を
+// 走査し直し、締め切りの残りを同じ結論に使い切る（Issue #492 の提案 2）。
+describe("他セッション分の走査結果の再利用", () => {
+  const OWN = "own-session-1";
+  const FOREIGN = "foreign-session-1";
+
+  function setup(scannerBody) {
+    const scripts = cloneScripts();
+    const cwd = makeProject();
+    const counter = join(cwd, "scan-count");
+    writeFileSync(
+      join(scripts, "kaizen-candidate-scan.sh"),
+      `#!/usr/bin/env bash\necho x >>"$SCAN_COUNTER"\n${scannerBody}\n`,
+    );
+    const transcript = join(cwd, "foreign.jsonl");
+    writeFileSync(transcript, "{}\n");
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
+      `2099-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
+    );
+    const cache = join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}.foreign-scan`);
+    const gate = (env = {}) =>
+      runGate("git commit -m x", {
+        cwd,
+        sessionId: OWN,
+        scripts,
+        env: { SCAN_COUNTER: counter, ...env },
+      });
+    const scans = () =>
+      existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
+    return { scripts, cwd, transcript, cache, gate, scans };
+  }
+
+  test.each([
+    ["候補あり", "exit 0"],
+    ["判定不能", "exit 2"],
+  ])("%s は入力が変わらなければ走査し直さない", (_label, body) => {
+    const { gate, scans, cache } = setup(body);
+    const first = gate();
+    expect(first.status, first.stderr).toBe(1);
+    expect(scans()).toBe(1);
+    expect(existsSync(cache)).toBe(true);
+
+    const second = gate();
+    expect(second.status, second.stderr).toBe(1);
+    expect(scans()).toBe(1);
+    expect(second.stderr).toMatch(/skipped re-scanning .*unchanged since the last scan/);
+    // 省いても他セッションの警告は従来どおり出る。
+    expect(second.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
+
+  test("transcript が伸びたら走査し直す", () => {
+    const { gate, scans, transcript } = setup("exit 0");
+    gate();
+    appendFileSync(transcript, "{}\n");
+    gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("checkpoint が変わったら走査し直す", () => {
+    const { gate, scans, cwd, transcript } = setup("exit 0");
+    gate();
+    writeFileSync(
+      join(cwd, ".kaizen", `.extract-checkpoint.${FOREIGN}`),
+      `${transcript}\n3\nclaude-code\n1\n`,
+    );
+    gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("走査器が変わったら走査し直す", () => {
+    const { gate, scans, scripts } = setup("exit 0");
+    gate();
+    appendFileSync(join(scripts, "kaizen-candidate-scan.sh"), "# updated\n");
+    gate();
+    expect(scans()).toBe(2);
+  });
+
+  test.each([
+    [
+      "見出しが違う",
+      (c) => c.replace("kaizen-foreign-scan-cache v1", "kaizen-foreign-scan-cache v0"),
+    ],
+    ["結論が未知の値", (c) => c.replace(/\n0\n(\d+)\n$/, "\n7\n$1\n")],
+    ["秒数が欠けている", (c) => c.replace(/\n(\d+)\n$/, "\n")],
+  ])("キャッシュの形が違えば（%s）走査し直す", (_label, mutate) => {
+    const { gate, scans, cache } = setup("exit 0");
+    gate();
+    const mutated = mutate(readFileSync(cache, "utf8"));
+    expect(mutated).not.toBe(readFileSync(cache, "utf8"));
+    writeFileSync(cache, mutated);
+    gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("打ち切りは、前回より長く使えるときだけ走査し直す", () => {
+    const { gate, scans } = setup("exec sleep 30");
+    // 使える秒数は SECONDS の境界で 1 秒揺れる。同じ締め切りの 2 回目は許容内（+1 秒）に、
+    // 3 回目は確実に許容の外に収まる値を選ぶ。
+    gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    expect(scans()).toBe(1);
+    const same = gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "3" });
+    expect(scans()).toBe(1);
+    expect(same.stderr).toMatch(/skipped re-scanning .*\(exit 124 after up to [12]s\)/);
+    gate({ KAIZEN_PRECOMMIT_DEADLINE_SECONDS: "7" });
+    expect(scans()).toBe(2);
+  }, 30000);
+
+  test("保持期間で回収したセンチネルのキャッシュも消す", () => {
+    const { cwd, cache, gate, transcript } = setup("exit 0");
+    writeFileSync(
+      join(cwd, ".kaizen", `.pending-extract.${FOREIGN}`),
+      `2000-01-01T00:00:00Z\n${transcript}\nclaude-code\n${FOREIGN}\n`,
+    );
+    writeFileSync(cache, "kaizen-foreign-scan-cache v1\n");
+    const result = gate();
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(cache)).toBe(false);
   });
 });

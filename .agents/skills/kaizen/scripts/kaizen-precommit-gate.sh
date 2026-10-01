@@ -900,17 +900,70 @@ if [ "${extracted}" -eq 1 ]; then
 	fi
 fi
 
+# ゲート全体の締め切り（秒）。lifecycle 検査・自セッション分の走査・他セッション分の走査は、
+# **開始からの経過時間で残りを配って**この締め切りの内側で終える。
+#
+# 締め切りが要るのは、エージェントが timeout に達したフックを**ブロックとして扱わない**から
+# （Claude Code: "A timed-out `command`, `http`, or `mcp_tool` hook doesn't block the tool call. The call continues through the normal permission flow"。
+# https://code.claude.com/docs/en/hooks 。Copilot も timeout だけが fail-open）。走査ごとに上限を
+# 足し合わせる形では全体の上限が決まらず、フックの timeout より長くかかると、exit 2 で止めるはずの
+# commit が**遅いときほど素通りする**。全体を 1 つの締め切りで縛れば、フックの timeout がそれより
+# 長い限り、止めるべき commit は走り切って止まる。
+#
+# 配る順は lifecycle 検査 → 自セッション分 → 他セッション分。前の 2 つは締め切りに当たったら
+# fail closed（exit 2）、他セッション分はもともと警告だけの経路なので、打ち切った旨を出して残す。
+# 経過時間は bash の SECONDS（整数秒。開始・現在とも秒で切り捨てるので誤差は ±1 秒）で測り、
+# 残りは 1 秒差し引いて配る——実時間で締め切りを超えない側へ倒す。
+# 締め切り後に残る処理（checkpoint の記録・センチネルの列挙・案内の出力）は走査を伴わない固定の
+# 少量で、上限はこの分を足した値になる（setup.md の設定例はその余裕を含めた timeout を案内する）。
+gate_deadline=8
+gate_deadline_raw=${KAIZEN_PRECOMMIT_DEADLINE_SECONDS:-}
+if [ -n "${gate_deadline_raw}" ]; then
+	if [[ "${gate_deadline_raw}" =~ ^[0-9]{1,4}$ ]] && [ "$((10#${gate_deadline_raw}))" -ge 2 ] &&
+		[ "$((10#${gate_deadline_raw}))" -le 3600 ]; then
+		gate_deadline=$((10#${gate_deadline_raw}))
+	else
+		# 不正値は既定へ倒す。黙って倒すと、設定したつもりの締め切りで動いていると読めてしまう。
+		printf 'kaizen-precommit-gate: KAIZEN_PRECOMMIT_DEADLINE_SECONDS が不正です（%q。2〜3600 の整数）。既定の %s 秒を使います。\n' \
+			"${gate_deadline_raw:0:40}" "${gate_deadline}" >&2
+	fi
+fi
+# 最小は 2 秒。残りは 1 秒差し引いて配るので、1 秒では lifecycle 検査にも時間が残らず、
+# センチネルの有無にかかわらず毎回 fail closed で止まる。
+gate_remaining() {
+	printf '%s' $((gate_deadline - SECONDS - 1))
+}
+has_timeout=0
+command -v timeout >/dev/null 2>&1 && has_timeout=1
+
 # lifecycle の不整合はセンチネルの有無にかかわらず commit を止める。
 if [ -z "${script_dir}" ] || [ ! -r "${script_dir}/kaizen-status-check.sh" ]; then
 	echo "kaizen-precommit-gate: bundled kaizen-status-check.sh is unavailable" >&2
 	exit 2
 fi
 set +e
-status_output=$(bash "${script_dir}/kaizen-status-check.sh" 2>&1)
-status_rc=$?
+if [ "${has_timeout}" -eq 1 ]; then
+	status_slice=$(gate_remaining)
+	if [ "${status_slice}" -ge 1 ]; then
+		status_output=$(timeout "${status_slice}" bash "${script_dir}/kaizen-status-check.sh" 2>&1)
+		status_rc=$?
+	else
+		status_output=""
+		status_rc=124
+	fi
+else
+	# timeout が無い環境では縛れない。走査も行えず自セッション分は fail closed になるので、
+	# 上限が外れるのはこの検査 1 本ぶんだけ。
+	status_output=$(bash "${script_dir}/kaizen-status-check.sh" 2>&1)
+	status_rc=$?
+fi
 set -e
 if [ "${status_rc}" -ne 0 ]; then
-	printf '%s\n' "${status_output}" >&2
+	[ -n "${status_output}" ] && printf '%s\n' "${status_output}" >&2
+	if [ "${status_rc}" -eq 124 ]; then
+		printf 'kaizen-precommit-gate: lifecycle 検査がゲートの締め切り（%s 秒）までに終わりませんでした（fail closed）。KAIZEN_PRECOMMIT_DEADLINE_SECONDS で延ばせます（フックの timeout はそれより長くする）。\n' \
+			"${gate_deadline}" >&2
+	fi
 	exit 2
 fi
 # 警告（rc 0）も出す。ここは lifecycle 検査の唯一の自動実行経路なので、非 0 のときしか
@@ -1113,6 +1166,8 @@ sweep_expired_foreign_sentinels() {
 		rm -f "${sentinel}"
 		# 対応する制御ファイルも道連れにしない。checkpoint は持ち主が戻ってきたときの差分走査の
 		# 起点で、消すと全走査＝恒久ブロックへ戻る。残しても、センチネルが無い限り遮断はしない。
+		# 走査結果のキャッシュは別で、センチネルが無ければ読む者がいないので一緒に消す。
+		rm -f "$(foreign_scan_cache_path "${sentinel}" "${key}")"
 		printf 'kaizen-precommit-gate: 保持期間（%s 日）を過ぎた他セッションのセンチネルを回収しました: %q（%s 日前。transcript は残っています）\n' \
 			"${foreign_retention_days}" "${sentinel}" "${age}" >&2
 	done
@@ -1169,11 +1224,77 @@ collect_unresolved() {
 # 差分走査を他セッション分にも当てられる。**候補が残っているセンチネルはブロックのまま**なので、
 # 「学びを取りこぼさない」という保証は緩めず、候補ゼロだった残骸の後片付けだけを自動化する。
 #
-# 走査時間には上限を置く。打ち切った分は fail closed のまま残し、打ち切った事実を出す
-# （黙って諦めると「全部見た上でブロックしている」ように読めてしまう）。
-foreign_scan_budget=24
+# 走査時間はゲート全体の締め切りの残りで縛る。打ち切った分は fail closed のまま残し、打ち切った
+# 事実を出す（黙って諦めると「全部見た上でブロックしている」ように読めてしまう）。
+#
+# **前回と同じ結果になる走査は繰り返さない。** 候補が残っているセンチネルは解消されないので、
+# 何もしなければ commit のたびに同じ範囲を走査し直し、締め切りの残りを毎回同じ結論に使い切る。
+# 走査の結果を、それを決めた入力（transcript の大きさ・checkpoint・走査器・jq）と一緒に
+# センチネルの隣へ残し、入力がどれも変わっていなければ走査しない。transcript は追記だけなので、
+# 大きさが同じなら中身も同じ。
+#
+# キャッシュが誤っても commit の通過には効かない——この経路で解消（センチネルの削除）するのは
+# 走査器が**今回**検証済みゼロを返したときだけで、キャッシュを読んで省くのは「解消しない」側の
+# 結論（候補あり・判定不能・打ち切り）だけ。読めない・形が違うキャッシュは無いものとして走査する。
+#
+# 名前は `.extract-checkpoint.<key>.foreign-scan`。session key は `.` を含まないので checkpoint
+# と衝突せず、既存の `.gitignore` の `**/.kaizen/.extract-checkpoint*` が制御ファイルとして除外する
+# （利用者の `.gitignore` に追記を求めない）。
+foreign_scan_cache_path() { # $1: センチネルのパス $2: session key
+	printf '%s/.extract-checkpoint.%s.foreign-scan' "${1%/*}" "$2"
+}
+foreign_scan_cache_header="kaizen-foreign-scan-cache v1"
+scanner_fingerprint=""
+fingerprint_of() { # $1: ファイル。無い・読めないなら absent
+	local sum
+	if [ -r "$1" ]; then
+		sum=$(cksum <"$1" 2>/dev/null) || sum=""
+		printf '%s' "${sum:-unreadable}"
+	else
+		printf 'absent'
+	fi
+}
+# 走査の結論を決める入力を 1 行ずつ並べる（キャッシュの 2〜6 行目）。
+foreign_scan_inputs() { # $1: transcript $2: checkpoint
+	local size
+	size=$(wc -c <"$1" 2>/dev/null) || size=""
+	size=${size//[[:space:]]/}
+	[ -n "${scanner_fingerprint}" ] || scanner_fingerprint=$(fingerprint_of "${script_dir}/kaizen-candidate-scan.sh")
+	printf '%s\n%s\n%s\n%s\n%s' "$1" "${size:-unknown}" "$(fingerprint_of "$2")" "${scanner_fingerprint}" \
+		"$(command -v jq 2>/dev/null || printf 'none')"
+}
+# 前回の結論を再利用できるなら、その結論（rc と打ち切り秒数）を返す。できなければ非 0。
+foreign_scan_cached() { # $1: キャッシュ $2: 今回の入力 $3: 今回使える秒数
+	local content expected cached_rc cached_slice
+	[ -r "$1" ] || return 1
+	content=$(cat "$1" 2>/dev/null) || return 1
+	expected="${foreign_scan_cache_header}"$'\n'"$2"
+	case "${content}" in
+	"${expected}"$'\n'*) ;;
+	*) return 1 ;;
+	esac
+	content=${content#"${expected}"$'\n'}
+	# 残りは「結論」と「秒数」の 2 行ちょうど。改行が無いと、下の分割が両方に同じ値を入れてしまう。
+	case "${content}" in
+	*$'\n'*) ;;
+	*) return 1 ;;
+	esac
+	cached_rc=${content%%$'\n'*}
+	cached_slice=${content#*$'\n'}
+	[[ "${cached_slice}" =~ ^[0-9]{1,6}$ ]] || return 1
+	case "${cached_rc}" in
+	# 候補あり・判定不能は、入力が同じなら同じ結論になる。
+	0 | 2) ;;
+	# 打ち切りは、前回より長く使えるときだけ走査し直す（同じ時間では同じところで打ち切られる）。
+	# 使える秒数は SECONDS の誤差で ±1 秒揺れるので、1 秒の差では走査し直さない。
+	124) [ "$3" -le "$((10#${cached_slice} + 1))" ] || return 1 ;;
+	*) return 1 ;;
+	esac
+	printf '%s %s' "${cached_rc}" "$((10#${cached_slice}))"
+}
 resolve_foreign_sentinels() {
-	local sentinel key suffix f_transcript f_agent f_session f_checkpoint out rc agent bytes lines line slice started
+	local sentinel key suffix f_transcript f_agent f_session f_checkpoint out rc agent bytes lines line slice
+	local cache inputs cached tmp
 	for sentinel in "${unresolved[@]}"; do
 		[ -e "${sentinel}" ] || continue
 		key=$(kaizen_sentinel_key_of "${sentinel}")
@@ -1183,8 +1304,9 @@ resolve_foreign_sentinels() {
 		if [ -n "${session_key}" ] && [ "${key}" = "${session_key}" ]; then
 			continue
 		fi
-		if [ "${foreign_scan_budget}" -le 0 ]; then
-			echo "kaizen-precommit-gate: scan budget exhausted; the remaining sentinels were not auto-checked" >&2
+		slice=$(gate_remaining)
+		if [ "${slice}" -lt 1 ]; then
+			echo "kaizen-precommit-gate: gate deadline (${gate_deadline}s) reached; the remaining sentinels were not auto-checked" >&2
 			return 0
 		fi
 		f_transcript=$(sed -n '2p' "${sentinel}" 2>/dev/null || true)
@@ -1204,20 +1326,36 @@ resolve_foreign_sentinels() {
 		claude-code) [ -z "${suffix}" ] || continue ;;
 		codex) [ "${suffix}" = "-codex" ] || continue ;;
 		esac
-		slice=8
-		[ "${foreign_scan_budget}" -lt "${slice}" ] && slice=${foreign_scan_budget}
-		started=${SECONDS}
 		set +e
 		# checkpoint も全作業ツリーから探す（センチネルと同じ範囲）。
 		# 見つからなければ自分のツリーのパスを渡す＝不在扱いで offset 0（従来どおり）。
 		f_checkpoint=$(kaizen_checkpoint_path "${key}")
 		f_checkpoint=$(kaizen_find_control_file "${project_root}" "${f_checkpoint#.kaizen/}" 2>/dev/null) ||
 			f_checkpoint=$(kaizen_checkpoint_path "${key}")
+		cache=$(foreign_scan_cache_path "${sentinel}" "${key}")
+		inputs=$(foreign_scan_inputs "${f_transcript}" "${f_checkpoint}")
+		if cached=$(foreign_scan_cached "${cache}" "${inputs}" "${slice}"); then
+			set -e
+			# 省いたことは出す（出さないと、走査して残したのか見ずに残したのかが読めない）。
+			printf 'kaizen-precommit-gate: skipped re-scanning %q: unchanged since the last scan (exit %s after up to %ss)\n' \
+				"${sentinel}" "${cached%% *}" "${cached#* }" >&2
+			continue
+		fi
 		out=$(timeout "${slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${f_transcript}" "${f_checkpoint}" 2>&1)
 		rc=$?
+		case "${rc}" in
+		0 | 2 | 124)
+			# キャッシュは最適化なので、書けなくても走査の結論は変えない。
+			tmp="${cache}.tmp.$$"
+			if printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" >"${tmp}" 2>/dev/null; then
+				mv -f "${tmp}" "${cache}" 2>/dev/null || rm -f "${tmp}"
+			else
+				rm -f "${tmp}"
+			fi
+			;;
+		*) rm -f "${cache}" ;;
+		esac
 		set -e
-		# 予算は実際に使った秒数だけ減らす（一律 slice を引くと、速い走査の後で残りを不当に削る）。
-		foreign_scan_budget=$((foreign_scan_budget - (SECONDS - started)))
 		# 契約は自セッション分と同じ。1（検証済みゼロ）以外は触らず、ブロックのまま残す。
 		[ "${rc}" -eq 1 ] || continue
 		agent=""
@@ -1300,9 +1438,16 @@ if [ "${own_pending}" -eq 1 ] && [ -n "${transcript}" ] && [ -r "${script_dir}/k
 		fi
 	fi
 	set +e
-	if command -v timeout >/dev/null 2>&1; then
-		scan_output=$(timeout 8 bash "${script_dir}/kaizen-candidate-scan.sh" "${transcript}" "${checkpoint_path}" 2>&1)
+	own_slice=$(gate_remaining)
+	if [ "${has_timeout}" -eq 1 ] && [ "${own_slice}" -lt 1 ]; then
+		scan_output="kaizen-precommit-gate: no time left before the gate deadline (${gate_deadline}s) to scan the transcript; set KAIZEN_PRECOMMIT_DEADLINE_SECONDS higher (and the hook timeout above it)"
+		scan_rc=2
+	elif [ "${has_timeout}" -eq 1 ]; then
+		scan_output=$(timeout "${own_slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${transcript}" "${checkpoint_path}" 2>&1)
 		scan_rc=$?
+		if [ "${scan_rc}" -eq 124 ]; then
+			scan_output="${scan_output:+${scan_output}$'\n'}kaizen-precommit-gate: the transcript scan hit the gate deadline (${gate_deadline}s, ${own_slice}s left for the scan); set KAIZEN_PRECOMMIT_DEADLINE_SECONDS higher (and the hook timeout above it)"
+		fi
 	else
 		scan_output="kaizen-precommit-gate: timeout command is unavailable; automatic transcript scan is disabled"
 		scan_rc=2
@@ -1369,7 +1514,7 @@ fi
 
 # 自分側がブロック要因でないときだけ、他セッションのセンチネルの自動解消を試す。
 # 自分の transcript に候補が出ているならどのみちブロックなので、走査時間を使わない。
-if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && command -v timeout >/dev/null 2>&1 &&
+if { [ "${own_pending}" -eq 0 ] || [ "${own_resolved}" -eq 1 ]; } && [ "${has_timeout}" -eq 1 ] &&
 	[ -r "${script_dir}/kaizen-candidate-scan.sh" ]; then
 	resolve_foreign_sentinels
 	collect_unresolved
