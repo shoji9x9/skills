@@ -296,6 +296,24 @@
         "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う",
         "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
       ]
+    },
+    {
+      "id": "SC-SEP",
+      "why": "区切りを / へ揃えない（Windows で全検査が未分類に化ける）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "  return p.split(separator).join(\"/\");",
+      "replace": "  return p;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: Windows の区切り（\\）の相対パスも宣言と同じ / 区切りにする"]
+    },
+    {
+      "id": "SC-OPT-KEYS",
+      "why": "optional_args の要素の未知のキーを黙って無視する",
+      "file": "scripts/check-skill-checks.js",
+      "find": "          } else if (Object.keys(o).some((k) => k !== \"args\" && k !== \"when_exists\")) {",
+      "replace": "          } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（optional_args の未知のキー）を落とす"]
     }
   ]
 }

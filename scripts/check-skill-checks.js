@@ -19,7 +19,7 @@
 //   スキルの checks.json の誤り（JSON でない・形が違う）は exit 1 の違反として扱う——1 スキルの宣言が壊れていても
 //   他のスキルの分類は判定でき、全スキルの違反をまとめて報告できるため（宣言を直す人が 1 件ずつ往復しない）。
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const UNWIRED_PATH = "scripts/skill-checks-unwired.json";
@@ -93,6 +93,16 @@ function skillDirs(root) {
     .sort();
 }
 
+/**
+ * パスを宣言と同じ `/` 区切りにする。Windows の relative は `\\` 区切りを返すので、そのままでは
+ * checks.json / 配線しない一覧の `/` 区切りのパスと一致せず、全検査が未分類に化ける。
+ * @param {string} p
+ * @param {string} [separator] テスト用（既定は実行環境の区切り）
+ */
+export function toRepoPath(p, separator = sep) {
+  return p.split(separator).join("/");
+}
+
 /** 配布スキルの検査を `skills/<name>/scripts/...` のリポジトリ相対パスで返す。 */
 export function findCheckScripts(root) {
   const out = [];
@@ -100,8 +110,7 @@ export function findCheckScripts(root) {
     const scriptsDir = join(root, "skills", name, "scripts");
     if (!existsSync(scriptsDir)) continue;
     for (const f of listFiles(scriptsDir, realpathSync(root))) {
-      const base = f.split("/").pop();
-      if (CHECK_RE.test(base)) out.push(relative(root, f));
+      if (CHECK_RE.test(basename(f))) out.push(toRepoPath(relative(root, f)));
     }
   }
   return out.sort();
@@ -250,6 +259,9 @@ export function checkDeclaration(root, skill) {
         e.optional_args.forEach((o, j) => {
           if (!isObject(o) || !isTextArray(o.args) || !isText(o.when_exists)) {
             v.push(`${at}: optional_args[${j}] は args（空でない配列）と when_exists を持つ`);
+          } else if (Object.keys(o).some((k) => k !== "args" && k !== "when_exists")) {
+            // 未知のキー（綴り違いの条件など）を黙って捨てると、利用者は書かれた条件が効くと読む。
+            v.push(`${at}: optional_args[${j}] の未知のキー（args / when_exists だけを持つ）`);
           } else resolveIn([...o.args, o.when_exists], `optional_args[${j}]`, false);
         });
       }

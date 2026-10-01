@@ -26,6 +26,7 @@ import {
   checkSkillChecks,
   findCheckScripts,
   main,
+  toRepoPath,
 } from "./check-skill-checks.js";
 import { makeTempDir } from "./lib/test-tmpdir.js";
 
@@ -161,6 +162,11 @@ test("陽性: skills/<name> がリポジトリの外を指すリンクなら判�
   write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
   expect(() => checkSkillChecks(root)).toThrow("リポジトリの外");
   expect(main([root])).toBe(2);
+});
+
+test("陰性: Windows の区切り（\\）の相対パスも宣言と同じ / 区切りにする", () => {
+  expect(toRepoPath("skills\\s\\scripts\\a-check.mjs", "\\")).toBe("skills/s/scripts/a-check.mjs");
+  expect(toRepoPath("skills/s/scripts/a-check.mjs", "/")).toBe("skills/s/scripts/a-check.mjs");
 });
 
 test("陰性: scripts/ のサブディレクトリにある検査も拾う", () => {
@@ -424,6 +430,11 @@ test.each([
     "どちらか一方にする",
   ],
   ["optional_args の形", { optional_args: [{ args: [] }] }, "optional_args[0] は args"],
+  [
+    "optional_args の未知のキー",
+    { optional_args: [{ args: ["--v", "x.md"], when_exists: "x.md", when: "ci" }] },
+    "optional_args[0] の未知のキー",
+  ],
   ["optional_args が空", { optional_args: [] }, "optional_args は空でない配列"],
   ["applies_when が無い", { applies_when: undefined }, "applies_when に対象が現れた"],
   [
