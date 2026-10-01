@@ -56,8 +56,8 @@
       "id": "SC-RECURSE",
       "why": "scripts/ のサブディレクトリを走査しない",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, path));",
-      "replace": "    if (false) out.push(...listFiles(p, rootReal, path));",
+      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, skillReal, path));",
+      "replace": "    if (false) out.push(...listFiles(p, skillReal, path));",
       "occurrences": 1,
       "expect_failing": [
         "陰性: scripts/ のサブディレクトリにある検査も拾う",
@@ -231,13 +231,14 @@
     },
     {
       "id": "SC-OUTSIDE-SCAN",
-      "why": "リポジトリの外を指すリンクを辿る（CI のファイルシステムを走査する）",
+      "why": "スキルの外を指すリンクを辿る（配布されない検査・CI のファイルシステムを走査する）",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (e.isSymbolicLink() && !isInside(rootReal, realpathSync(p))) {",
+      "find": "    if (e.isSymbolicLink() && !isInside(skillReal, realpathSync(p))) {",
       "replace": "    if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）"
+        "陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）",
+        "陽性: スキルの外（リポジトリの中）を指す検査のリンクは判定できない（配線しない側に載せても通さない）"
       ]
     },
     {
@@ -253,14 +254,13 @@
     },
     {
       "id": "SC-ROOT-OUTSIDE",
-      "why": "走査の起点（scripts/）自体が外を指すリンクでも辿る",
+      "why": "走査の起点（scripts/）自体がスキルの外を指すリンクでも辿る",
       "file": "scripts/check-skill-checks.js",
-      "find": "  if (!isInside(rootReal, real)) throw",
-      "replace": "  if (false) throw",
+      "find": "  if (!isInside(skillReal, real)) {",
+      "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）",
-        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
+        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）"
       ]
     },
     {
@@ -333,6 +333,17 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: checks.json がリンクでスキルの外を指していたら落とす（配布されない）"
+      ]
+    },
+    {
+      "id": "SC-SKILL-OUTSIDE-REPO",
+      "why": "リポジトリの外を指す skills/<name> を走査する",
+      "file": "scripts/check-skill-checks.js",
+      "find": "    if (!isInside(rootReal, skillReal)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
       ]
     }
   ]

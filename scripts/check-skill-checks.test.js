@@ -7,7 +7,7 @@
 //
 // | 軸                         | 値                                                                         |
 // | -------------------------- | -------------------------------------------------------------------------- |
-// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 同じ先を指す兄弟のリンク / リンクした skills/<name> / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
+// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 同じ先を指す兄弟のリンク / リンクした skills/<name> / スキルの外（リポジトリの中）を指すリンク / リポジトリの外を指すリンク / 規約外の拡張子 / 名前が -check でない |
 // | 分類                       | wire だけ / unwired だけ / 両方 / どちらにも無い                           |
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
@@ -177,11 +177,14 @@ test("陰性: scripts/ のサブディレクトリにある検査も拾う", () 
 
 test("陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）", () => {
   const root = makeTempDir("skill-checks-");
-  write(root, "shared/d-check.mjs", "");
-  write(root, "shared/dir/e-check.mjs", "");
+  write(root, "skills/s/shared/d-check.mjs", "");
+  write(root, "skills/s/shared/dir/e-check.mjs", "");
   mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
-  symlinkSync(join(root, "shared/d-check.mjs"), join(root, "skills/s/scripts/d-check.mjs"));
-  symlinkSync(join(root, "shared/dir"), join(root, "skills/s/scripts/linked"));
+  symlinkSync(
+    join(root, "skills/s/shared/d-check.mjs"),
+    join(root, "skills/s/scripts/d-check.mjs"),
+  );
+  symlinkSync(join(root, "skills/s/shared/dir"), join(root, "skills/s/scripts/linked"));
   expect(findCheckScripts(root)).toEqual([
     "skills/s/scripts/d-check.mjs",
     "skills/s/scripts/linked/e-check.mjs",
@@ -200,10 +203,10 @@ test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、
 
 test("陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）", () => {
   const root = makeTempDir("skill-checks-");
-  write(root, "shared/a-check.mjs", "");
+  write(root, "skills/s/shared/a-check.mjs", "");
   mkdirSync(join(root, "skills/s/scripts"), { recursive: true });
-  symlinkSync(join(root, "shared"), join(root, "skills/s/scripts/one"));
-  symlinkSync(join(root, "shared"), join(root, "skills/s/scripts/two"));
+  symlinkSync(join(root, "skills/s/shared"), join(root, "skills/s/scripts/one"));
+  symlinkSync(join(root, "skills/s/shared"), join(root, "skills/s/scripts/two"));
   expect(findCheckScripts(root)).toEqual([
     "skills/s/scripts/one/a-check.mjs",
     "skills/s/scripts/two/a-check.mjs",
@@ -215,7 +218,22 @@ test("陽性: リポジトリの外を指すリンクは辿らず判定できな
   const outside = makeTempDir("skill-checks-outside-");
   write(outside, "x-check.mjs", "");
   symlinkSync(join(outside, "x-check.mjs"), join(root, "skills/s/scripts/x-check.mjs"));
-  expect(() => checkSkillChecks(root)).toThrow("リポジトリの外");
+  expect(() => checkSkillChecks(root)).toThrow("スキルのディレクトリの外");
+  expect(main([root])).toBe(2);
+});
+
+test("陽性: スキルの外（リポジトリの中）を指す検査のリンクは判定できない（配線しない側に載せても通さない）", () => {
+  const root = makeRepo({
+    extraFiles: { "shared/c-check.mjs": "" },
+    unwired: {
+      unwired: [
+        { script: "skills/s/scripts/b-check.mjs", reason: "r" },
+        { script: "skills/s/scripts/c-check.mjs", reason: "r" },
+      ],
+    },
+  });
+  symlinkSync(join(root, "shared/c-check.mjs"), join(root, "skills/s/scripts/c-check.mjs"));
+  expect(() => checkSkillChecks(root)).toThrow("スキルのディレクトリの外");
   expect(main([root])).toBe(2);
 });
 
@@ -248,7 +266,7 @@ test("陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿
   mkdirSync(join(root, "skills/s"), { recursive: true });
   symlinkSync(outside, join(root, "skills/s/scripts"));
   write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
-  expect(() => findCheckScripts(root)).toThrow("リポジトリの外");
+  expect(() => findCheckScripts(root)).toThrow("スキルのディレクトリの外");
   expect(main([root])).toBe(2);
 });
 

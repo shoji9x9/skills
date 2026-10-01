@@ -56,12 +56,16 @@ const isInside = (base, real) => real === base || real.startsWith(base + sep);
 // ancestors はいま辿っている経路上のディレクトリの実パス。自分や祖先を指すリンクで経路上へ戻ったら
 // 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。全体の訪問済み集合にはしない——
 // 兄弟の 2 本のリンクが同じディレクトリを指すと、2 本目の先の検査が分類を問われないまま漏れる。
-// リポジトリ（rootReal）の外を指すリンクは辿らず判定できないに倒す（CI のファイルシステムを走査しない。
-// 黙って飛ばすと、そのリンクの先の検査が分類を問われないまま通る）。
-function listFiles(dir, rootReal, ancestors = new Set()) {
+// 境界（skillReal＝そのスキルのディレクトリの実パス）の外を指すリンクは辿らず判定できないに倒す。
+// 配布されるのはスキルのディレクトリだけなので、外を指すリンクの先は利用者の手元に届かない
+// （リポジトリの外なら CI のファイルシステムを走査することにもなる）。黙って飛ばすと、その先の検査が
+// 分類を問われないまま通り、配線しない側に載せれば exit 0 になる。
+function listFiles(dir, skillReal, ancestors = new Set()) {
   const real = realpathSync(dir);
   // 走査の起点（skills/<name>/scripts）自体がリンクで外を指す場合も、辿る前に止める。
-  if (!isInside(rootReal, real)) throw new Error(`${dir} がリポジトリの外（${real}）を指している`);
+  if (!isInside(skillReal, real)) {
+    throw new Error(`${dir} がスキルのディレクトリの外（${real}）を指している（配布されない）`);
+  }
   if (ancestors.has(real)) return [];
   const path = new Set(ancestors).add(real);
   const out = [];
@@ -69,11 +73,13 @@ function listFiles(dir, rootReal, ancestors = new Set()) {
     const p = join(dir, e.name);
     // シンボリックリンクは Dirent では isFile / isDirectory がどちらも偽になり、黙って走査から外れる
     // （リンクした検査が分類を問われないまま通る）ので、リンク先の種類で判定する。
-    if (e.isSymbolicLink() && !isInside(rootReal, realpathSync(p))) {
-      throw new Error(`${p} がリポジトリの外（${realpathSync(p)}）を指している`);
+    if (e.isSymbolicLink() && !isInside(skillReal, realpathSync(p))) {
+      throw new Error(
+        `${p} がスキルのディレクトリの外（${realpathSync(p)}）を指している（配布されない）`,
+      );
     }
     const kind = e.isSymbolicLink() ? statSync(p) : e;
-    if (kind.isDirectory()) out.push(...listFiles(p, rootReal, path));
+    if (kind.isDirectory()) out.push(...listFiles(p, skillReal, path));
     else if (kind.isFile()) out.push(p);
   }
   return out;
@@ -106,10 +112,16 @@ export function toRepoPath(p, separator = sep) {
 /** 配布スキルの検査を `skills/<name>/scripts/...` のリポジトリ相対パスで返す。 */
 export function findCheckScripts(root) {
   const out = [];
+  const rootReal = realpathSync(root);
   for (const name of skillDirs(root)) {
+    // スキルのディレクトリ自体がリンクでもよいが、リポジトリの外を指すなら走査しない。
+    const skillReal = realpathSync(join(root, "skills", name));
+    if (!isInside(rootReal, skillReal)) {
+      throw new Error(`skills/${name} がリポジトリの外（${skillReal}）を指している`);
+    }
     const scriptsDir = join(root, "skills", name, "scripts");
     if (!existsSync(scriptsDir)) continue;
-    for (const f of listFiles(scriptsDir, realpathSync(root))) {
+    for (const f of listFiles(scriptsDir, skillReal)) {
       if (CHECK_RE.test(basename(f))) out.push(toRepoPath(relative(root, f)));
     }
   }
