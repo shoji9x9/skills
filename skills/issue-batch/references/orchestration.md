@@ -36,8 +36,10 @@ branch や設定を変更する前に次を全件分完了する。
 4. local / remote branch、open / closed PR、worktree を列挙する。再開対象が一意なら再利用し、複数候補なら全体を停止する。
    再開対象の PR の作成者でも担当者でもない（判定は `pr-finalize-loop` の `references/pr-ownership.md`）なら、その Issue を BLOCKED にする
    （他の人の PR へ無人で push・resolve しない）。参照先を読めなければ判定を推測せず全体を停止する。
+   判定不能（自分の login・PR の作成者と担当者を取得できない。ユーザーでないトークンを含む）も、利用者に確認できないので確認の代わりにその Issue を BLOCKED にして理由を残す。
 5. 各 Issue の担当者を読む（`gh issue view <番号> --json assignees`。手順の正本は `issue-start` の `references/assignee.md`）。
    自分以外が付いている Issue は、変更前にその Issue を BLOCKED にして担当者の login を残す。ここでは読むだけで割り当てない（割り当ては着手の直前に行う）。
+   担当者を判定できない（自分の login・担当者を取得できない）Issue も同じく BLOCKED にして理由を残す。
 6. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら対象外として開始前に停止する。
 7. browser-test が必要になり得る場合、環境を先に解決する。`auth: user`、未設定環境、ログイン待ち、禁止操作解除、課金・通知・CUD の承認が必要なら BLOCKED にする。
 8. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
