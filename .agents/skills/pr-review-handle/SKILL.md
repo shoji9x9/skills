@@ -48,6 +48,12 @@ pr-review-handle <PR URL | 番号 | レビュー URL> [--push]
 3. 現在のブランチが PR の head ブランチか確認する
    - `gh pr view <番号> --repo <owner>/<repo> --json headRefName,baseRefName,url,headRefOid`（`headRefOid` は後述「スレッド外に置かれた指摘」のレビュー絞り込みに使う）
    - ズレている場合は警告し、このブランチのまま進めてよいかユーザーに確認する（修正対象を取り違えないため）
+   - **PR の持ち主（作成者か担当者）が自分かを確かめる**（判定と、自分の login を取得できないときの扱いの正本は [`references/pr-ownership.md`](references/pr-ownership.md)）。
+     `not-owner` なら作成者・担当者を示し、次の 3 択で利用者に確認してから進む
+     - **続行**: 通常どおり修正・返信・解決（`--push` なら commit / push も）を行う
+     - **返信だけ**: 返信は行うが、ファイル修正・resolve・commit / push をしない（他の人が対応中のスレッドを閉じない）。
+       返信には判断と根拠だけを書き、修正していないのに「修正した」「対応済み」と書かない
+     - **中止**: 何もせず止まる
 4. 未解決レビュースレッドを取得する（後述の GraphQL）。各スレッドから `threadId` / 先頭コメントの `databaseId` / 本文 / `path` / `line` / 著者を得る
    - **全レビュアーが対象**。著者では絞らず、`isResolved == false` で絞る
    - 既に解決済みのスレッドはスキップする
@@ -259,6 +265,7 @@ gh pr checks <番号> --repo <owner>/<repo> --watch --fail-fast
 
 - 現在の repo と PR の owner / repo が一致しない
 - 現在のブランチが PR の head ブランチと異なる
+- PR の作成者でも担当者でもない（[`references/pr-ownership.md`](references/pr-ownership.md)。続行 / 返信だけ / 中止）
 - 指摘の妥当性がコードだけでは判断できない
 - 修正方針が複数あり、実装に大きく影響する
 - レビュー対応後の再レビュー依頼の要否・タイミング（push 時は 今すぐ / CI 完了後 / 依頼しない、push なしは 今すぐ / 依頼しない）。依頼先は設定した `review_tool`（[`references/review-tool.md`](references/review-tool.md)、既定 `copilot`）に従い、`none` なら確認しない

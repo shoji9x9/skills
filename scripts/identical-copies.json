@@ -14,6 +14,13 @@
     },
     {
       "files": [
+        "skills/pr-review-handle/references/pr-ownership.md",
+        "skills/pr-finalize-loop/references/pr-ownership.md"
+      ],
+      "reason": "PR の持ち主（作成者か担当者）の判定。姉妹スキルで判定が食い違うと、片方だけが他の人の PR へ確認なしに push・resolve する"
+    },
+    {
+      "files": [
         "skills/pr-review-handle/scripts/resolve-review-tool.sh",
         "skills/pr-finalize-loop/scripts/resolve-review-tool.sh"
       ],

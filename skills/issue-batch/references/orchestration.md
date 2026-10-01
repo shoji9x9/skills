@@ -34,9 +34,15 @@ branch や設定を変更する前に次を全件分完了する。
 3. 規約文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、agent 固有のローカルレビュー機能と Kaizen の current transcript を解決する。remote AI reviewer はここで固定せず pr-finalize-loop の解決規則へ委譲する。
    `--record-pending` が transcript を同定できない agent は候補ゼロを検証できないため変更前に BLOCKED。transcript を提供しない agent（例: Copilot）はこの経路を使えない。
 4. local / remote branch、open / closed PR、worktree を列挙する。再開対象が一意なら再利用し、複数候補なら全体を停止する。
-5. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら対象外として開始前に停止する。
-6. browser-test が必要になり得る場合、環境を先に解決する。`auth: user`、未設定環境、ログイン待ち、禁止操作解除、課金・通知・CUD の承認が必要なら BLOCKED にする。
-7. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
+   再開対象の PR の作成者でも担当者でもない（判定は `pr-finalize-loop` の `references/pr-ownership.md`）なら、その Issue を BLOCKED にする
+   （他の人の PR へ無人で push・resolve しない）。参照先を読めなければ判定を推測せず全体を停止する。
+   判定不能（自分の login・PR の作成者と担当者を取得できない。ユーザーでないトークンを含む）も、利用者に確認できないので確認の代わりにその Issue を BLOCKED にして理由を残す。
+5. 各 Issue の担当者を読む（`gh issue view <番号> --json assignees`。手順の正本は `issue-start` の `references/assignee.md`）。
+   自分以外が付いている Issue は、変更前にその Issue を BLOCKED にして担当者の login を残す。ここでは読むだけで割り当てない（割り当ては着手の直前に行う）。
+   担当者を判定できない（自分の login・担当者を取得できない）Issue も同じく BLOCKED にして理由を残す。
+6. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら対象外として開始前に停止する。
+7. browser-test が必要になり得る場合、環境を先に解決する。`auth: user`、未設定環境、ログイン待ち、禁止操作解除、課金・通知・CUD の承認が必要なら BLOCKED にする。
+8. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
    auto-merge 権限と repository の許可（`gh api repos/{owner}/{repo} --jq .allow_auto_merge`。
    [REST: Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)）を追加で確認し、
    `false` なら設定を無人で書き換えず全体を停止し、`issue-batch setup` を案内する。
@@ -73,7 +79,10 @@ token、cookie、認証 header、秘密の環境変数、設定から渡され�
 
 専用 worktree で Issue ごとに `issue-start <Issue URL> --pr` 相当の契約を使う。ただし PR 作成前にローカルレビューと検証を挟むため、次の境界で段階化する。
 
-1. repo 一致、本文＋コメント、規約、base branch、同番号 branch を `issue-start` と同じ順で確認する。
+1. repo 一致、本文＋コメント、規約、base branch、担当者、同番号 branch を `issue-start` と同じ順で確認する。
+   担当者は着手の直前に `issue-start` の `references/assignee.md` の 3 段（確かめる → 空なら自分を割り当てる → 読み直す）で扱う。
+   利用者への確認に当たる結果（自分以外が付いている・割り当てが成立しない・読み直して自分以外も付いていた）は、確認の代わりに BLOCKED にして担当者の login を残す。
+   読み直しで自分以外も付いていた場合も自分を無人で外さず、外すかの判断を残作業として最終報告へ載せる。
 2. branch を再利用または `gh issue develop` で作り、Issue 作成時刻以後の base 変更と現行コードから独立に再導出した影響範囲を突き合わせる。
 3. 全て解決済みなら `SKIPPED`。記載外へ大きく拡大する、または要件の選択が必要なら `BLOCKED`。
 4. 実装し、リポジトリ規約が要求する最小範囲の lint / test を実行する。

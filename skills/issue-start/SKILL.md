@@ -57,7 +57,10 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --a
    - 設計の改訂・実測に基づく方針変更はコメントに追記されることが多い。本文が最新とは限らないため、本文とコメントで改訂・追記・両論併記があれば最新の決定を優先し、計画・実装に反映する
 4. ブランチ名を `feature/<番号>-<英語の短い説明>` で決める（リポジトリの規約に別の命名があればそれに従う）
    - title が日本語中心なら、転写せず作業内容を表す短い英語の kebab-case に要約する
-5. 同じ issue 番号のブランチが既にないか確認する
+5. **担当者（assignee）を確かめ、空なら自分を割り当てて読み直す**。そのうえで同じ issue 番号のブランチが既にないか確認する
+   - 担当者の手順と止まる条件の正本は [`references/assignee.md`](references/assignee.md)（読めなければ着手せず止まる）。
+     自分以外が付いている・読み直して自分以外も付いていたら、ブランチを作らず・既存ブランチへ入らずに利用者へ確認する。
+     割り当てだけでは排他にならない（担当者は複数付けられる）ので、読み直しを省かない
    - local: `git --no-pager branch --list 'feature/<番号>-*'`
    - remote: `git ls-remote --heads origin 'refs/heads/feature/<番号>-*'`
      - **`git branch -r --list` を使わない。** 手元の remote-tracking ref を読むだけなので、fetch していないと
@@ -163,8 +166,9 @@ issue-start <Issue URL | 番号> [--branch-only | --plan | --commit | --pr | --a
 
 ## 追加確認が必要な条件
 
-以下のときだけブランチ作成後に確認する。
+以下のときだけ確認する。担当者の確認はブランチ作成前、それ以外はブランチ作成後に行う。
 
+- Issue に自分以外の担当者が付いている、または割り当て後の読み直しで自分以外も付いていた（[`references/assignee.md`](references/assignee.md)）
 - 要件のスコープが曖昧
 - 挙動の選択肢が複数あり、実装に大きく影響する
 - 既存ブランチが複数あり、どれを使うべきか判断できない

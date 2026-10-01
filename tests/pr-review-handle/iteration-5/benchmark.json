@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "pr-review-handle",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/pr-review-handle",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:15:07Z",
+    "evals_run": [11],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 48.664,
+        "tokens": 78768,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、修正・resolve・push より前に置いている",
+          "passed": true,
+          "evidence": "手順 3 で gh api user と gh pr view --json author,assignees を突き合わせ、修正・resolve・push（手順 6〜7）より前に置いている"
+        },
+        {
+          "text": "自分が作成者でも担当者でもないので、修正・resolve・commit / push の前に利用者へ確認すると述べ、確認の選択肢にレビュアーとして返信だけを行う扱いを含めている",
+          "passed": true,
+          "evidence": "not-owner で 続行 / 返信だけ / 中止 の 3 択を利用者に示すと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 20.144,
+        "tokens": 36804,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、修正・resolve・push より前に置いている",
+          "passed": false,
+          "evidence": "--json author,assignees は取るが自分の login との突き合わせ工程が無く、注意点として後置している"
+        },
+        {
+          "text": "自分が作成者でも担当者でもないので、修正・resolve・commit / push の前に利用者へ確認すると述べ、確認の選択肢にレビュアーとして返信だけを行う扱いを含めている",
+          "passed": false,
+          "evidence": "bob に了承を取るよう勧めるだけで、push・resolve 前に利用者へ確認する工程・返信だけの選択肢が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 48.664,
+        "stddev": 0,
+        "min": 48.664,
+        "max": 48.664
+      },
+      "tokens": {
+        "mean": 78768,
+        "stddev": 0,
+        "min": 78768,
+        "max": 78768
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 20.144,
+        "stddev": 0,
+        "min": 20.144,
+        "max": 20.144
+      },
+      "tokens": {
+        "mean": 36804,
+        "stddev": 0,
+        "min": 36804,
+        "max": 36804
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "+28.5",
+      "tokens": "+41964"
+    }
+  },
+  "notes": []
+}

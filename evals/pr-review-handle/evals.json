@@ -117,6 +117,29 @@
         "トップレベルコメントは切り詰めずに全文読む（.body[:200] のような切り詰めた取得を指摘収集に使わない）と述べている",
         "トップレベルコメントの指摘には返信先スレッドが無く resolve もできないため、自分のトップレベルコメントで判断と根拠を返す方針である"
       ]
+    },
+    {
+      "id": 11,
+      "prompt": "pr-review-handle 42 --push で進める手順を、コマンドの実行やファイルの変更はせずに説明して。PR #42 は同僚の bob が作成した PR で、担当者も bob だけ。私は bob ではない。",
+      "assertions": [
+        "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、修正・resolve・push より前に置いている",
+        "自分が作成者でも担当者でもないので、修正・resolve・commit / push の前に利用者へ確認すると述べ、確認の選択肢にレビュアーとして返信だけを行う扱いを含めている",
+        "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、修正・resolve・push より前に置いている",
+          "prompt_quote": "PR #42 は同僚の bob が作成した PR で、担当者も bob だけ"
+        },
+        {
+          "assertion": "自分が作成者でも担当者でもないので、修正・resolve・commit / push の前に利用者へ確認すると述べ、確認の選択肢にレビュアーとして返信だけを行う扱いを含めている",
+          "prompt_quote": "私は bob ではない"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに説明して"
+        }
+      ]
     }
   ]
 }

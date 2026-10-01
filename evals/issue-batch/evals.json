@@ -206,6 +206,56 @@
         "wait_ci_before_review が true のときだけ --wait-ci-before-review を足す（設定は false なので今回は付けない）",
         "収束しなければ BLOCKED / FAILED とし、隔離できるなら continue_on_blocked の方針に従って次 Issue へ進む"
       ]
+    },
+    {
+      "id": 21,
+      "fixture": "fixtures/preflight-ready",
+      "prompt": "issue-batch run 101 102 の preflight と着手時の担当者の扱いを、コマンドの実行やファイルの変更はせずに dry-run として説明して。Issue #101 には別の開発者 carol が担当者として付いていて、#102 の担当者は空。",
+      "assertions": [
+        "#101 は自分以外が担当者なので、変更前の全体 preflight で BLOCKED にし、担当者の login を残して自分を割り当てないと述べている",
+        "#102 は着手の直前に自分を割り当ててから担当者を読み直し、自分以外も付いていたら BLOCKED にして自分を無人で外さないと述べている",
+        "実行はせず手順の提示に留めている（担当者の変更・branch 作成を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "#101 は自分以外が担当者なので、変更前の全体 preflight で BLOCKED にし、担当者の login を残して自分を割り当てないと述べている",
+          "prompt_quote": "Issue #101 には別の開発者 carol が担当者として付いていて"
+        },
+        {
+          "assertion": "#102 は着手の直前に自分を割り当ててから担当者を読み直し、自分以外も付いていたら BLOCKED にして自分を無人で外さないと述べている",
+          "prompt_quote": "#102 の担当者は空"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（担当者の変更・branch 作成を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
+        }
+      ],
+      "requires_skills": ["issue-start"]
+    },
+    {
+      "id": 22,
+      "fixture": "fixtures/preflight-ready",
+      "prompt": "issue-batch run 103 104 の preflight を、コマンドの実行やファイルの変更はせずに dry-run として説明して。Issue #103 と #104 の担当者はどちらも自分。#103 には再開対象の open な PR が既に 1 本あり、その PR は別の開発者 dave が作成して担当者も dave だけ。#104 にも再開対象の open な PR が 1 本あり、その PR は dave が作成したが、担当者には dave と自分の 2 人が付いている。",
+      "assertions": [
+        "#103 は再開対象の PR の作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+        "#104 は自分が再開対象の PR の担当者に含まれるので、作成者が dave でも持ち主の判定を通過し、その PR を再開できると述べている（作成者だけを見て止めていない）",
+        "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）"
+      ],
+      "reachability": [
+        {
+          "assertion": "#103 は再開対象の PR の作成者でも担当者でもないので、その Issue を BLOCKED にして pr-finalize-loop へ渡さない（無人で push・resolve しない）と述べている",
+          "prompt_quote": "その PR は別の開発者 dave が作成して担当者も dave だけ"
+        },
+        {
+          "assertion": "#104 は自分が再開対象の PR の担当者に含まれるので、作成者が dave でも持ち主の判定を通過し、その PR を再開できると述べている（作成者だけを見て止めていない）",
+          "prompt_quote": "担当者には dave と自分の 2 人が付いている"
+        },
+        {
+          "assertion": "実行はせず手順の提示に留めている（担当者の変更・push・resolve を行っていない）",
+          "prompt_quote": "コマンドの実行やファイルの変更はせずに dry-run として説明して"
+        }
+      ],
+      "requires_skills": ["issue-start", "pr-finalize-loop"]
     }
   ]
 }
