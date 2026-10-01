@@ -145,7 +145,8 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 **同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
 
 - **判断待ち（保留に落とす）**: 「許容」の確定（原因単位。`diff.md` の分類は `許容候補（要確認）` のまま）、意図的差異の保留の棚卸しの処置、
-  旧成果物をユーザー承認の例外で続行するか、差分器・フォント解析ツールの導入、`on_diff` ドキュメントが指示する起票（越えない線）、`references.dependency_policy` の確認
+  旧成果物をユーザー承認の例外で続行するか、差分器・フォント解析ツールの導入、`on_diff` ドキュメントが指示する起票（越えない線）、`references.dependency_policy` の確認、
+  `commit_check` の無い配信型 target で照合相手の版がデプロイ済みかの確認（確認が取れるまでその機能は撮らない。[`references/preflight.md`](references/preflight.md)「新側の版の一致」）
 - **保留に落としても進める工程**: 要対応差分の `parity-replace` への差し戻し（同じ `--autonomous` を引き継ぐ）、他の候補のトリアージ、被覆表・反応の数え直し、`blocked_by` の検証、成果物の更新
 - **棚卸しの処置を自分で `carried_over` にしない**——理由の記録で通過できる処置なので、自律で書くと人の判断を経ずに棚卸しが通る。未記録のまま残し（`pending-triage-check.mjs` が exit 1 で未棚卸しとして落とす）、保留に記録する
 - **記録先**: `diff-metadata.json` の `pending_decisions[]` と `run.autonomous`、`diff.md` の「判断待ち」節。**未解決の保留が 1 件でも残る間は `converged` を `true` にしない**（収束の条件の 1 つ。[`references/convergence.md`](references/convergence.md)）

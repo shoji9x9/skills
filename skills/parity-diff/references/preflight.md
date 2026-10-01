@@ -49,11 +49,13 @@
 - **撮る版**は、ローカルで起動する target（`start` を持つ）なら新側リポジトリ（設定の `new.repo`）の作業ツリーの `HEAD`。
   配信型 target（`start` を持たない）で `commit_check` を持つものは、URL の書き方（固定の `url` か `url_command` か）に依らずその出力（照合の正本は [`capture-new.md`](capture-new.md)「URL の配線」。
   `commit_check` の定義の正本は `replace-strategy` の `references/project-config.md`）。
-  配信型 target で `commit_check` を持たないものは撮る版を知る手段が無いので照合せず、`diff.md` の前提確認表に「未確認」と書いて進む（収束判定の照合が残る）
+  配信型 target で `commit_check` を持たないものは撮る版を機械で知る手段が無い。**「対象環境に commit `<照合相手の SHA>` がデプロイ済みか」を利用者に確認し、確認が取れるまで撮らない**
+  （`parity-replace` の軽量経路と同じ扱い。`--autonomous` では判断待ちの保留に記録し、この機能の撮影は始めない）。確認した旨と回答は `diff.md` の前提確認表に書く
 - **部品改修の一括再検証（`--component-change`）では照合相手が変更宣言の `commits.after` になる**（`new.commit` は改修前の記録のまま。正本は [`component-change.md`](component-change.md)「使う場面と使わない場面」）。
   下の照合は `CHANGE` に変更宣言のパスを入れると照合相手を `commits.after` に切り替える——`new.commit` のまま照合すると、正しい一括再検証でも止まる
 - 照合相手（通常は `new.commit`、一括再検証では `commits.after`）を正本から読み、撮る版と完全 SHA で突き合わせる（表示から書き写さない）。
-  撮る版は `COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD`、配信型 target の `commit_check` を入れればその出力（完全 SHA を出すこと。短縮 SHA は一致しないとして止まる）:
+  撮る版は `COMMIT_CHECK` が空ならローカルの作業ツリーの `HEAD`、配信型 target の `commit_check` を入れればその出力（完全 SHA を出すこと。短縮 SHA は一致しないとして止まる）。
+  `commit_check` を持たない配信型 target は `DELIVERED=1` にする（ローカルの `HEAD` と比べず、利用者の確認が要るとして止まる）:
 
   ```bash
   CHANGE=""   # --component-change の実行だけ変更宣言のパス（続けて当てた宣言があるなら最後の宣言）。通常の実行は空のまま
@@ -64,9 +66,13 @@
       .replace/parity/<slug>/new/<target>/replace-metadata.json)
   fi
   COMMIT_CHECK=""   # start を持たない配信型 target で commit_check を持つなら、そのコマンド（secrets.wrapper が要るなら前置する）。ローカルの target は空のまま
+  DELIVERED=""      # start を持たない配信型 target なら 1（commit_check の有無に依らない）。ローカルの target は空のまま
   # 停止する分岐は非 0 で終える（手順に組み込んだときに停止を表示したまま撮影へ進ませない）。対話シェルを閉じないよう ( ) で囲む
   (
-    if [ -n "$COMMIT_CHECK" ]; then
+    if [ -n "$DELIVERED" ] && [ -z "$COMMIT_CHECK" ]; then
+      # 稼働中の版を機械で確かめる手段が無い。ローカルの HEAD はデプロイ済みの版を表さないので比べない
+      echo "停止: commit_check が無い配信型 target。commit ${RECORDED:-（読めない）} がデプロイ済みか利用者に確認する"; exit 1
+    elif [ -n "$COMMIT_CHECK" ]; then
       # 配信型 target: 稼働中のコードの版は commit_check だけが知っている（HEAD はデプロイ済みの版を表さない）
       # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
       RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮る版を特定できない）"; exit 1; }
@@ -84,6 +90,9 @@
       echo "停止: 撮る版を読めない（新側リポジトリの HEAD / commit_check の出力が空）"; exit 1
     elif [ "$RECORDED" = none ]; then
       echo "照合しない: 照合相手が none（版の対応は反復回数で取る）"
+    elif ! printf '%s' "$CAPTURE" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}' || ! printf '%s' "$WANT" | grep -Eqx '[0-9a-f]{40}|[0-9a-f]{64}'; then
+      # 短縮 SHA・16 進でない値同士の一致（両方 deadbeef 等）を版の一致にしない
+      echo "停止: 完全な SHA でない（照合相手 ${RECORDED:-（読めない）} / 撮る版 $CAPTURE）"; exit 1
     elif [ "$WANT" = "$CAPTURE" ]; then
       echo "一致: $CAPTURE"
     else
