@@ -142,6 +142,13 @@ export function checkDeclaration(root, skill) {
   const rel = `skills/${skill}/${DECLARATION_NAME}`;
   const v = [];
   const scripts = [];
+  // 宣言は配布物なので、リンクでスキルの外を指す checks.json は利用者の手元に届かない。読む前に落とす。
+  if (!isInside(realpathSync(join(root, "skills", skill)), realpathSync(join(root, rel)))) {
+    return {
+      scripts,
+      violations: [`${rel}: スキルのディレクトリの外を指している（配布されない）`],
+    };
+  }
   let data;
   try {
     data = JSON.parse(readFileSync(join(root, rel), "utf8"));

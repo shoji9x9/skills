@@ -323,6 +323,17 @@
       "replace": "      if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（{script} を他の引数に埋め込む）を落とす"]
+    },
+    {
+      "id": "SC-DECL-OUTSIDE",
+      "why": "スキルの外を指す checks.json を読む（配布されない宣言を通す）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "  if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(join(root, rel)))) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: checks.json がリンクでスキルの外を指していたら落とす（配布されない）"
+      ]
     }
   ]
 }

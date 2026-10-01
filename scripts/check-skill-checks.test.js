@@ -270,6 +270,15 @@ test("陽性: 検査でないファイルを配線し、本物の検査を配線
   ]);
 });
 
+test("陽性: checks.json がリンクでスキルの外を指していたら落とす（配布されない）", () => {
+  const root = makeRepo({ decl: null });
+  write(root, "outside.json", JSON.stringify({ version: 1, skill: "s", wire: [entry()] }));
+  symlinkSync(join(root, "outside.json"), join(root, "skills/s/checks.json"));
+  expect(violationsOf(root)).toContainEqual(
+    expect.stringContaining("skills/s/checks.json: スキルのディレクトリの外を指している"),
+  );
+});
+
 test("陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）", () => {
   const root = makeRepo({ extraFiles: { "skills/s/scripts/c-check.py": "" } });
   expect(violationsOf(root)).toEqual([
