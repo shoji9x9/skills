@@ -997,6 +997,14 @@ export const UNCONFIRMED_BODY =
 export const BROWSER_MODES = ["launched", "cdp"];
 
 /**
+ * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。Issue #502。
+ * Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
+ * `navigator.platform` への代替は認めない——`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ穴が残る。
+ * 正規化と読み方（安全なコンテキストの頁で読む）の正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
+ */
+export const BROWSER_OS_KEYS = ["platform", "platformVersion", "architecture"];
+
+/**
  * 撮影に使ったブラウザ（`capture_conditions.browser`）の記録を検査する。Issue #476。
  * `parity-diff` の新側採取が同じ扱いで撮るために読む（片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る）。
  * @param {Record<string, unknown>} conditions
@@ -1019,7 +1027,7 @@ export function checkBrowser(conditions) {
       },
     ];
   }
-  // cdp では接続先の同一性（Browser.version と userAgent）も残す。モードだけでは、現・新が別の機械へ接続しても揃ったことになる
+  // cdp では接続先の同一性（Browser.version・userAgent・描画するブラウザ側の OS）も残す。モードだけでは、現・新が別の機械へ接続しても揃ったことになる
   if (conditions.browser === "cdp") {
     const identity = /** @type {Record<string, unknown> | null | undefined} */ (
       conditions.browser_identity
@@ -1038,6 +1046,46 @@ export function checkBrowser(conditions) {
         },
       ];
     }
+    return checkBrowserOs(identity.browser_os);
+  }
+  return [];
+}
+
+/**
+ * `cdp` の `browser_identity.browser_os` を検査する。Issue #502。
+ * 新側の雛形は同じ正規化で読んだ値とキーごとに完全一致で照合するので、形が違えば同じ機械でも照合を通らない。
+ * ここで落とすのは、欠落・正規化していない形（キーの過不足。`brands` / `mobile` を残した生の値や `navigator.platform` への代替）・
+ * 文字列でない値・テンプレートのプレースホルダ。`platformVersion` は空文字を認める（Linux の Chromium は空で返す。実測）。
+ * @param {unknown} os
+ * @returns {{code:string, message:string}[]}
+ */
+function checkBrowserOs(os) {
+  if (!os || typeof os !== "object" || Array.isArray(os)) {
+    return [
+      {
+        code: "browser-os-missing",
+        message: `capture_conditions.browser が cdp なのに browser_identity.browser_os（${BROWSER_OS_KEYS.join(" / ")}）が無い（reduced UA では OS の版・アーキテクチャが違う機械を見分けられない）`,
+      },
+    ];
+  }
+  const record = /** @type {Record<string, unknown>} */ (os);
+  const keys = Object.keys(record).sort();
+  const sameKeys =
+    keys.length === BROWSER_OS_KEYS.length &&
+    [...BROWSER_OS_KEYS].sort().every((k, i) => k === keys[i]);
+  const valid =
+    sameKeys &&
+    BROWSER_OS_KEYS.every(
+      (k) => typeof record[k] === "string" && !String(record[k]).trim().startsWith("<"),
+    ) &&
+    evidenceText(record.platform);
+  if (!valid) {
+    return [
+      {
+        code: "browser-os-invalid",
+        message: `browser_identity.browser_os ${JSON.stringify(os)} が正規化した形（${BROWSER_OS_KEYS.join(" / ")} の文字列だけ。platform は空にしない）でない（新側が同じ正規化で照合できない）`,
+      },
+    ];
   }
   return [];
 }

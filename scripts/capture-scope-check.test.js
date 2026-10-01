@@ -204,6 +204,7 @@ function metadataOf(override = {}) {
           : {
               product: "140.0.3485.54",
               user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
+              browser_os: { platform: "Windows", platformVersion: "15.0.0", architecture: "x86" },
             },
     },
     noise_baseline: override.noise ?? [
@@ -1773,6 +1774,68 @@ test("browser が cdp なのに接続先の同一性が無ければ落とす（�
   }
   // 陰性コントロール: launched では同一性を求めない
   expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
+});
+
+/** browser_os だけを差し替えた cdp の browser_identity。 */
+function identityWithOs(/** @type {unknown} */ os) {
+  return {
+    product: "140.0.3485.54",
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0",
+    ...(os === undefined ? {} : { browser_os: os }),
+  };
+}
+
+test("browser が cdp なのに描画するブラウザ側の OS が無ければ落とす（reduced UA では別の機械を見分けられない。Issue #502）", () => {
+  for (const os of [undefined, null, "Windows 15.0.0", ["Windows"]]) {
+    expect(codesOf(metadataOf({ browserIdentity: identityWithOs(os) }))).toEqual([
+      "browser-os-missing",
+    ]);
+  }
+  // 陰性コントロール: launched では OS を求めない
+  expect(codesOf(metadataOf({ browser: "launched", browserIdentity: null }))).toEqual([]);
+});
+
+test.each([
+  ["navigator.platform への代替", { platform: "Win32" }],
+  [
+    "brands / mobile を残した生の値",
+    {
+      platform: "Windows",
+      platformVersion: "15.0.0",
+      architecture: "x86",
+      brands: [],
+      mobile: false,
+    },
+  ],
+  ["キーが欠けた値", { platform: "Windows", platformVersion: "15.0.0" }],
+  ["文字列でない値", { platform: "Windows", platformVersion: 15, architecture: "x86" }],
+  ["空の platform", { platform: "", platformVersion: "15.0.0", architecture: "x86" }],
+  ["空白だけの platform", { platform: "  ", platformVersion: "15.0.0", architecture: "x86" }],
+  [
+    "テンプレートのプレースホルダ",
+    {
+      platform: "<platform>",
+      platformVersion: "<platformVersion>",
+      architecture: "<architecture>",
+    },
+  ],
+  [
+    "platformVersion のプレースホルダ",
+    { platform: "Linux", platformVersion: "<v>", architecture: "x86" },
+  ],
+])("cdp の browser_os が正規化した形でなければ落とす: %s（Issue #502）", (_label, os) => {
+  expect(codesOf(metadataOf({ browserIdentity: identityWithOs(os) }))).toEqual([
+    "browser-os-invalid",
+  ]);
+});
+
+test("cdp の browser_os は正規化した 3 キーなら通し、空の platformVersion も認める（Linux の Chromium は空で返す。Issue #502）", () => {
+  for (const os of [
+    { platform: "Windows", platformVersion: "15.0.0", architecture: "x86" },
+    { architecture: "x86", platform: "Linux", platformVersion: "" },
+  ]) {
+    expect(codesOf(metadataOf({ browserIdentity: identityWithOs(os) }))).toEqual([]);
+  }
 });
 
 test("宣言に無い組（消した・改名した変種の古い記録）が noise_baseline と capture_scope に残っていたら落とす（Codex レビュー #491）", () => {

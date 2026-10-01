@@ -388,7 +388,81 @@
       "replace": "  if (false) {\n",
       "occurrences": 1,
       "expect_failing": [
-        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）"
+        "browser が cdp なのに接続先の同一性が無ければ落とす（現・新が別の機械へ接続しても揃ったことになる。Codex レビュー #491）",
+        "browser が cdp なのに描画するブラウザ側の OS が無ければ落とす（reduced UA では別の機械を見分けられない。Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: navigator.platform への代替（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: brands / mobile を残した生の値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: キーが欠けた値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 文字列でない値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 空の platform（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: テンプレートのプレースホルダ（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: platformVersion のプレースホルダ（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 空白だけの platform（Issue #502）"
+      ]
+    },
+    {
+      "id": "browser-os-missing",
+      "why": "cdp の描画するブラウザ側の OS の欠落を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    return checkBrowserOs(identity.browser_os);\n",
+      "replace": "    return [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "browser が cdp なのに描画するブラウザ側の OS が無ければ落とす（reduced UA では別の機械を見分けられない。Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: navigator.platform への代替（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: brands / mobile を残した生の値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: キーが欠けた値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 文字列でない値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 空の platform（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: テンプレートのプレースホルダ（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: platformVersion のプレースホルダ（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 空白だけの platform（Issue #502）"
+      ]
+    },
+    {
+      "id": "browser-os-shape-guard",
+      "why": "オブジェクトでない browser_os（文字列・配列）を欠落として数えない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "  if (!os || typeof os !== \"object\" || Array.isArray(os)) {\n",
+      "replace": "  if (!os) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "browser が cdp なのに描画するブラウザ側の OS が無ければ落とす（reduced UA では別の機械を見分けられない。Issue #502）"
+      ]
+    },
+    {
+      "id": "browser-os-key-set",
+      "why": "browser_os の余分なキーを見ない（brands / mobile を残した生の値を通す。欠けたキーは値の型の検査も落とす）",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    keys.length === BROWSER_OS_KEYS.length &&\n    [...BROWSER_OS_KEYS].sort().every((k, i) => k === keys[i]);\n",
+      "replace": "    true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "cdp の browser_os が正規化した形でなければ落とす: brands / mobile を残した生の値（Issue #502）"
+      ]
+    },
+    {
+      "id": "browser-os-value-type",
+      "why": "browser_os の値の型とプレースホルダを見ない",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "      (k) => typeof record[k] === \"string\" && !String(record[k]).trim().startsWith(\"<\"),\n",
+      "replace": "      (k) => true,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "cdp の browser_os が正規化した形でなければ落とす: 文字列でない値（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: platformVersion のプレースホルダ（Issue #502）"
+      ]
+    },
+    {
+      "id": "browser-os-platform-evidence",
+      "why": "空の platform を通す",
+      "file": "skills/parity-suite/scripts/capture-scope-check.mjs",
+      "find": "    evidenceText(record.platform);\n",
+      "replace": "    true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "cdp の browser_os が正規化した形でなければ落とす: 空の platform（Issue #502）",
+        "cdp の browser_os が正規化した形でなければ落とす: 空白だけの platform（Issue #502）"
       ]
     },
     {

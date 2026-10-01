@@ -238,9 +238,46 @@ Playwright が起動したブラウザではなく、**利用者環境で起動�
   （出典: <https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp> / <https://playwright.dev/docs/api/class-browser#browser-close> /
   組み込みフィクスチャの上書き <https://playwright.dev/docs/test-fixtures#overriding-fixtures>）
 - **現・新の両側に同じ宣言を要求する**——片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る。撮影に使ったブラウザは `metadata.json` の `capture_conditions.browser`（`launched` / `cdp`）に残し、
-  `cdp` では接続先の同一性を `capture_conditions.browser_identity`（`product`: `browser.version()`、`user_agent`: `navigator.userAgent`）にも残す。
+  `cdp` では接続先の同一性を `capture_conditions.browser_identity`（`product`: `browser.version()`、`user_agent`: `navigator.userAgent`、`browser_os`: 下の「描画するブラウザ側の OS」）にも残す。
   `parity-diff` は新側 target の宣言がこれと合わない、または接続したブラウザの同一性が違えば撮影せず停止する
   （出典: <https://playwright.dev/docs/api/class-browser#browser-version> / 起動・接続の選択肢 <https://playwright.dev/docs/api/class-testoptions>（`connectOptions` を含む）/ <https://playwright.dev/docs/api/class-browsertype#browser-type-connect>）
+- **描画するブラウザ側の OS（`browser_os`）は、下の `readBrowserOs` と同じ読み方・同じ正規化で読む**。`parity-diff` の新側採取の雛形（`assets/capture-new.spec.template.ts`）が同じ関数を持ち、キーの集合ごと完全一致で照合する（読み方を変えるなら両方を変える）。
+  Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
+  - **撮影に使うコンテキストでは読まない。** `use` の `userAgent`（デバイスの設定を含む）を当てると、Playwright は `userAgentData` もその文字列から作って上書きする
+    （Linux の機械で Mac の UA を当てると `platform` が `macOS` になる。実測）。同じブラウザに設定を当てない別のコンテキストを作って読み、閉じる
+  - **安全なコンテキストの頁で読む。** `navigator.userAgentData` は安全なコンテキストにしか無く、Playwright が開いた直後の `about:blank` は安全なコンテキストでない（実測）。
+    合成した https の URL を `route` で返した頁で読む（ネットワークへは出ない）
+  - **拾うのは `platform` / `platformVersion` / `architecture` の 3 キーだけ**（`getHighEntropyValues` は `brands`・`mobile` も返す。版は `product` が持つ）。
+    Linux の Chromium は `platformVersion` を空文字で返す（実測）ので空はそのまま残す
+  - **`cdp` では `navigator.platform` への代替を認めない**（接続先は Chromium 系で、`navigator.platform` も縮められており同じ穴が残る）。
+    `capture-scope-check.mjs` は、`cdp` なのに `browser_os` が無い（`browser-os-missing`）・3 キーの文字列でない（`browser-os-invalid`）記録を落とす
+  （出典: <https://developer.mozilla.org/en-US/docs/Web/API/NavigatorUAData/getHighEntropyValues> / <https://developer.mozilla.org/en-US/docs/Web/API/Navigator/userAgentData>（安全なコンテキストのみ）/
+  <https://playwright.dev/docs/api/class-route#route-fulfill>）
+
+```ts
+// 描画するブラウザ側の OS（browser_identity.browser_os）。現側の採取スペックで 1 回読み、metadata.json に書く
+const BROWSER_OS_PROBE_URL = "https://parity-browser-os.invalid/";
+async function readBrowserOs(browser: Browser): Promise<Record<string, string>> {
+  const context = await browser.newContext(); // use の userAgent を当てない
+  try {
+    const probe = await context.newPage();
+    await probe.route(BROWSER_OS_PROBE_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>os</title>" }),
+    );
+    await probe.goto(BROWSER_OS_PROBE_URL); // 安全なコンテキスト
+    return await probe.evaluate(async () => {
+      const data = (navigator as Navigator & {
+        userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Record<string, string>> };
+      }).userAgentData;
+      if (!data) return { platform: navigator.platform }; // Firefox / WebKit（launched だけ。cdp では検査が落とす）
+      const v = await data.getHighEntropyValues(["platform", "platformVersion", "architecture"]);
+      return { platform: v.platform, platformVersion: v.platformVersion, architecture: v.architecture };
+    });
+  } finally {
+    await context.close();
+  }
+}
+```
 
 ```ts
 // <parity_suite_dir>/parity/lib/fixtures.ts（抜粋）
