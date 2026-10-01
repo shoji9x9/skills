@@ -12,7 +12,7 @@
     }
   ],
   "notes": "<一部の応答を採れなかった等の補足。無ければ空文字>",
-  "_headers": "1 行 = ヘッダー × 付く応答の組。同じヘッダーの値や付け手が応答の種類で違うなら行を分ける（同じヘッダーの行どうしで responses が重なると入力の誤り）。class: defense（有無と値を assertion）/ exposure（付かないことを assertion。value は null）。揮発・比較不要のヘッダーは載せない。setter: app-code / server-config / unknown（received-assets で再構築の既定値かもしれないものは unknown にして gaps へ。unknown の行を 1 つでも持つヘッダーは比べない）。setter_source は付け手のファイルのパス（読めなければ null）。owner_slug は responses に static か not-found を含む行だけに書ける所有者の機能 slug（手順 9 の確定まで null。暫定値で埋めない）。",
+  "_headers": "1 行 = ヘッダー × 付く応答の組。同じヘッダーの値や付け手が応答の種類で違うなら行を分ける（同じヘッダーの行どうしで responses が重なると入力の誤り）。class: defense（有無と値を assertion）/ exposure（付かないことを assertion。value は null）。揮発・比較不要のヘッダーは載せない。setter: app-code / server-config / unknown（received-assets で再構築の既定値かもしれないものは unknown にして gaps へ。unknown の行を 1 つでも持つヘッダーは比べない）。setter_source は付け手のファイルのパス（読めなければ null）。owner_slug はどの行にもキーを書く（省略すると入力の誤り）。slug を書けるのは responses に static か not-found を含む行だけで、それ以外の行は常に null。static・404 を含む行も手順 9 の確定までは null（暫定値で埋めない）。",
   "headers": [
     {
       "name": "<ヘッダー名（例: X-Content-Type-Options）>",
