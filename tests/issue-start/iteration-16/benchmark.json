@@ -1,0 +1,203 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/issue-start",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:15:06Z",
+    "evals_run": [15, 16],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 26.82,
+        "tokens": 73562,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の担当者を gh issue view の --json assignees で読み、自分の login（gh api user 等）と突き合わせる工程を、ブランチの作成より前に置いている",
+          "passed": true,
+          "evidence": "step 5 で gh api user と gh issue view --json assignees を取り、ブランチ作成（step 6〜7）より前に置いている"
+        },
+        {
+          "text": "自分以外（alice）が担当者に付いているので、自分を割り当てず・ブランチを作らずに止まり、利用者に続行か中止かを確認すると述べている",
+          "passed": true,
+          "evidence": "alice が付いているので --add-assignee を実行せずブランチも作らず止まり、続行かやめるかを利用者に確認すると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "応答冒頭でコマンド未実行と明記。project-tree に git リポジトリ・ブランチの生成なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.652,
+        "tokens": 70181,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "担当者が空なので gh issue edit --add-assignee @me で自分を割り当てる工程を、ブランチの作成より前に置いている",
+          "passed": true,
+          "evidence": "手順 4 で --add-assignee @me をブランチ作成（手順 5）より前に置いている"
+        },
+        {
+          "text": "割り当ての後に担当者を読み直し、自分以外も付いていたら（同時に割り当てた開発者がいる）ブランチを作らずに止まると述べ、割り当てだけで排他になったとみなしていない",
+          "passed": true,
+          "evidence": "③ で必ず読み直し、自分以外も付いていれば止まると表で示し、割り当てだけでは取り合いを防げないと明記"
+        },
+        {
+          "text": "読み直しで自分以外も付いていた場合に、自分を外すかを自分で決めず利用者に確認すると述べている",
+          "passed": true,
+          "evidence": "『自分を外すかどうかは自分で決めません』と利用者確認を明記"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 28.574,
+        "tokens": 37163,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の担当者を gh issue view の --json assignees で読み、自分の login（gh api user 等）と突き合わせる工程を、ブランチの作成より前に置いている",
+          "passed": false,
+          "evidence": "gh issue view --json assignees は読むが、自分の login を取得して突き合わせる工程が無い"
+        },
+        {
+          "text": "自分以外（alice）が担当者に付いているので、自分を割り当てず・ブランチを作らずに止まり、利用者に続行か中止かを確認すると述べている",
+          "passed": true,
+          "evidence": "担当者を変更せずブランチ作成前で止まり、合意が無ければ着手せず人に確認すると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 19.443,
+        "tokens": 17533,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "担当者が空なので gh issue edit --add-assignee @me で自分を割り当てる工程を、ブランチの作成より前に置いている",
+          "passed": true,
+          "evidence": "手順 2 で --add-assignee @me をブランチ作成（手順 3）より前に置いている"
+        },
+        {
+          "text": "割り当ての後に担当者を読み直し、自分以外も付いていたら（同時に割り当てた開発者がいる）ブランチを作らずに止まると述べ、割り当てだけで排他になったとみなしていない",
+          "passed": true,
+          "evidence": "登録直後に再確認し、自分以外も同時に付いていたら作業を止めると述べている"
+        },
+        {
+          "text": "読み直しで自分以外も付いていた場合に、自分を外すかを自分で決めず利用者に確認すると述べている",
+          "passed": false,
+          "evidence": "同時割り当て時は『相手と調整』のみで、自分を外すかを利用者に確認する扱いが無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 29.236,
+        "stddev": 3.4167,
+        "min": 26.82,
+        "max": 31.652
+      },
+      "tokens": {
+        "mean": 71871.5,
+        "stddev": 2390.728,
+        "min": 70181,
+        "max": 73562
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.7084,
+        "stddev": 0.0589,
+        "min": 0.6667,
+        "max": 0.75
+      },
+      "time_seconds": {
+        "mean": 24.0085,
+        "stddev": 6.4566,
+        "min": 19.443,
+        "max": 28.574
+      },
+      "tokens": {
+        "mean": 27348,
+        "stddev": 13880.5061,
+        "min": 17533,
+        "max": 37163
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.29",
+      "time_seconds": "+5.2",
+      "tokens": "+44524"
+    }
+  },
+  "notes": []
+}

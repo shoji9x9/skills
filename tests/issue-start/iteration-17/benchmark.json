@@ -1,0 +1,137 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/issue-start",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:29:14Z",
+    "evals_run": [15],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 31.663,
+        "tokens": 73934,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の担当者を gh issue view の --json assignees で読み、自分の login（gh api user 等）と突き合わせる工程を、ブランチの作成より前に置いている",
+          "passed": true,
+          "evidence": "手順 4 で gh api user と gh issue view --json assignees を取りブランチ作成前に置いている"
+        },
+        {
+          "text": "自分以外（alice）が担当者に付いているので、自分を割り当てず・ブランチを作らずに止まり、利用者に続行か中止かを確認すると述べている",
+          "passed": true,
+          "evidence": "alice を見つけ割り当てず・ブランチを作らず止まり、続行か中止かを確認すると述べている"
+        },
+        {
+          "text": "続行が選ばれた場合も自分を割り当てた後に担当者を読み直し、確認済みの alice 以外の担当者が増えていたときだけ止まると述べている（割り当てで終わらせていない）",
+          "passed": true,
+          "evidence": "続行後も --add-assignee の後に読み直し、自分と alice だけなら進み、alice 以外が増えたら止まると述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 2,
+        "failed": 2,
+        "total": 4,
+        "time_seconds": 32.343,
+        "tokens": 37832,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Issue の担当者を gh issue view の --json assignees で読み、自分の login（gh api user 等）と突き合わせる工程を、ブランチの作成より前に置いている",
+          "passed": false,
+          "evidence": "--json assignees は読むが自分の login と突き合わせる工程が無い"
+        },
+        {
+          "text": "自分以外（alice）が担当者に付いているので、自分を割り当てず・ブランチを作らずに止まり、利用者に続行か中止かを確認すると述べている",
+          "passed": true,
+          "evidence": "alice がいるので担当者変更もせず止めて報告すると述べている"
+        },
+        {
+          "text": "続行が選ばれた場合も自分を割り当てた後に担当者を読み直し、確認済みの alice 以外の担当者が増えていたときだけ止まると述べている（割り当てで終わらせていない）",
+          "passed": false,
+          "evidence": "続行後は --add-assignee で終わり、割り当て後の読み直しが無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（担当者の変更・ブランチ作成を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 31.663,
+        "stddev": 0,
+        "min": 31.663,
+        "max": 31.663
+      },
+      "tokens": {
+        "mean": 73934,
+        "stddev": 0,
+        "min": 73934,
+        "max": 73934
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5,
+        "stddev": 0,
+        "min": 0.5,
+        "max": 0.5
+      },
+      "time_seconds": {
+        "mean": 32.343,
+        "stddev": 0,
+        "min": 32.343,
+        "max": 32.343
+      },
+      "tokens": {
+        "mean": 37832,
+        "stddev": 0,
+        "min": 37832,
+        "max": 37832
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.50",
+      "time_seconds": "-0.7",
+      "tokens": "+36102"
+    }
+  },
+  "notes": []
+}
