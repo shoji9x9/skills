@@ -157,9 +157,10 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    引き渡し後は、再構築された target が測定・特性化の対象になる。**`managed` の場合は本手順を飛ばす**
 5. **測定**: すべて実測する。手順は [`references/measurement.md`](references/measurement.md)。
    セマンティクス測定（同梱の [`scripts/role-probe.mjs`](scripts/role-probe.mjs) を使用）・DB 復元可否・現行コードの入手性・副作用の棚卸し・**ファイル入出力の到達性**（画面駆動の捕捉可否・バッチ出力のファイルシステム到達性・ストレージ）・既存テストの評価・**横断の応答ヘッダー**を行い、
-   `.replace/survey.md` に記録する。**測れない場合はここで停止する**（停止条件は [`references/measurement.md`](references/measurement.md)「停止条件」。横断の応答ヘッダーを採れないことは停止条件ではなく、未測定として `gaps` へ回す）。
+   `.replace/survey.md` に記録する（横断の応答ヘッダーの一覧だけは `.replace/response-headers.json`）。
+   **測れない場合はここで停止する**（停止条件は [`references/measurement.md`](references/measurement.md)「停止条件」。横断の応答ヘッダーを採れないことは停止条件ではなく、未測定として `gaps` へ回す）。
    **応答ヘッダーは機能ごとの工程のどこも採らない**——サーバー・リバースプロキシの設定が全応答に付ける防御ヘッダーは画面の処理にも API の定義にも現れず、新側が付けなくても全工程が緑のまま安全性だけが後退する。
-   画面・API・静的ファイル・エラー応答を 1 度だけ採り、アプリのコードの外で付くものを一覧にする（正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）
+   画面・API・静的ファイル・エラー応答を 1 度だけ採り、アプリのコードの外で付くものを `.replace/response-headers.json` に一覧にする（`survey.md` の表にしない。正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）
 6. **戦略の提示とユーザー承認**: 測定結果から、パリティスイート戦略・ゴールデンデータセットの作り方・フロント／バックの非対称設計（バックエンドは現行コードからの直接移植、フロントエンドはパリティスイート＋ベースライン駆動）・未検証領域の扱いを提示し、承認を得て `.replace/strategy.md` に記録する
 7. **成果物の扱いの決定**（設定ファイルへ）: 保持方針（ワークツリーは最新のみ。履歴は Git が持つ）・保存先（`local`（既定・コミットしない）／`git`／`git-lfs` に限る。それ以外の外部保管は対象外とし、選ぶ場合はポインタ記録のみで**検証しないことを明示する**）・容量閾値を決める。ここで決めるのは既定値であり、**機能ごとに上書きできる**
 8. **意図的差異レジストリの作成**（設定ファイルへ）: 「変えない」「変えてよい」「保留（測定結果で決める）」の 3 分類。references（`ui_library` / `db_semantics`）から注入された差（例: 空文字と NULL の扱い、collation による並び順）もレジストリに落とし込む。references の下書き（`architecture` を除く）は DDL・測定結果・技術スタックから生成し、**人間がレビューして確定する**。
@@ -188,7 +189,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
    **ページ一覧を書いたら、そのページの可視要素が漏れなくどれかの slug に帰属しているかを確かめ、どの機能行のセクションにも収まらない要素を「ページ要素の帰属」表へ記録して配置の所有者を決める**——
    機能一覧が所有者を持つのはテーブル・API・副作用出力だけで、**スコープ外と決めた要素にも場所を占めるものがあり**、誰も配置しなければ実装後の `parity-diff` まで「説明できない差分」として現れない。
    **帰属の無い要素が残るなら、候補 slug を添えて着手前にユーザーへ確認し、確定するまで所有者は空欄のまま残す（暫定値で埋めない）**（規則は同 [`references/features-issues.md`](references/features-issues.md)）。
-   **`.replace/survey.md` の「7. 横断の応答ヘッダー」の所有者 slug（どの機能にも属さない静的ファイル・404 の応答と、新側のサーバー設定の作業の引き受け手）も、採番後に同じく候補を添えて確認して書き戻す**（測定の時点では slug が無いため空欄で残っている。正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）。
+   **`.replace/response-headers.json` の所有者 slug（`owner_slug`。どの機能にも属さない静的ファイル・404 の応答）と、新側のサーバー設定の作業の引き受け手（`server_config_slug`）も、採番後に同じく候補を添えて確認して書き戻す**（測定の時点では slug が無いため `null` で残っている。正本は [`references/security.md`](references/security.md)「横断の応答ヘッダー」）。
    **4 種（ゴールデンデータセット／横断 API／機能／バッチ）に還元できない作業**（例: テーブルをまたぐ新側スキーマの前倒し設計）は「その他の Issue（4 種以外）」表に置き、記録先が無いことを理由にヘッダへ独自項目を足したり記録を諦めたりしない
    **`current.origin: received-assets` の場合は、採番した slug を `.replace/bootstrap/semantics.md` の「対象機能」列へ非破壊で書き戻す**——
    同ファイルは `.replace/features.md` が存在しない時点で書かれるため機能の呼び名しか持てず、書き戻さないと `golden-dataset` / `parity-suite` が確認待ちの意味論を slug で引けない
@@ -288,13 +289,15 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
 
 ## 成果物
 
-すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`strategy.md`・`features.md`・`dependencies.md`・`assets.md`・`weaknesses.md`・`procedure-changes.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
+すべて対象プロジェクト側に置く。**成果物スキーマの正本は生産側スキルが定義する**——本スキルは設定・`survey.md`・`response-headers.json`・
+`strategy.md`・`features.md`・`dependencies.md`・`assets.md`・`weaknesses.md`・`procedure-changes.md` の正本を定義し（テンプレート: [`assets/`](assets/)）、
 下流スキルの成果物（`.replace/parity/<slug>/` や `.replace/dataset/`、`.replace/bootstrap/` の形式）は各スキルが定義する。同じ形式を複数スキルで重複定義しない。
 
 | 成果物 | 場所 | 内容 |
 |---|---|---|
 | 設定 | `.config/skills/shoji9x9/skills.yml` | 現・新のリポジトリとスタック（`new.stack` は事前定義の骨格の記録）／**現行環境の由来（`current.origin` / `current.received_assets` / `bootstrap_tool_dir`）**／実行対象環境（`targets`。環境ごとの URL・DB（`env_vars` と `seedable`）・**ストレージ（`storage`）**・認証・禁止操作・起動・`on_diff`）／データセットの実体（`dataset_mode` / `dataset_static_paths`）／**ファイルストレージ利用の有無（`uses_storage`）**／起動ラッパー／検証コマンド（`verification_commands` の `full` / `diff` の 2 列）／成果物の保持方針・保存先・容量閾値／パリティスイートの配置／意図的差異レジストリ／references |
-| 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価、横断の応答ヘッダー。すべて実測値 |
+| 測定レポート | `.replace/survey.md` | セマンティクス測定値、DB 復元可否、コード入手性、副作用棚卸し、既存テスト評価。すべて実測値（横断の応答ヘッダーは下の一覧を指すだけ） |
+| 横断の応答ヘッダーの一覧 | `.replace/response-headers.json` | 採った応答・ヘッダーごとの分類・値・付く応答・付け手・所有者 slug・サーバー設定の引き受け手（形式の正本: [`assets/response-headers-template.json`](assets/response-headers-template.json)。`parity-suite` の `header-normalize.mjs` が読む） |
 | 戦略書 | `.replace/strategy.md` | 非対称設計、パリティスイート戦略、ゴールデンデータセットの方針、未検証領域の扱い |
 | 機能インベントリ | `.replace/features.md` | 機能一覧、依存順、ページ／API／テーブル／副作用出力、**API の「要求単位の根拠」（`実測` / `推定`）**、**ページ一覧（ページ × 乗る機能）**、**ページ要素の帰属（要素 × 配置の所有者 slug）**、横断 API の fan-out・参照テーブル・リソースグルーピング、**その他の Issue（4 種以外）**、slug、Issue 番号（`open` / `closed` は持たない——状態はトラッカーが正本）、**受け入れ条件の被覆（突き合わせの出力。被覆の正本は Issue 本文）**。更新は非破壊。**「要求単位の根拠」列の `推定` → `実測` は `evidence` モードだけが書く** |
 | 依存パッケージの決定記録 | `.replace/dependencies.md` | 部品ごとの決定（`パッケージ採用` / `自前実装` / `該当なし` / `内蔵` / `機能固有` / `未確認` の 6 値）と状態（`有効` / `取り消し済み`）・判断材料・代替候補・不採用理由・理由／引き取り手。本スキルが共通部品を、`parity-replace` / `parity-component` が機能固有・実装中の追加を非破壊追記する |

@@ -116,7 +116,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
   同梱の候補の一覧を全件「在る／無い」に振り分けて `capture_conditions.display_axes` に来歴付きで残し、既定以外の値ごとに 1 軸ずつ振った変種を全ページ × 全状態で撮り、
   相互に効く対だけ理由付きで掛け合わせ、値ごとに変わる文言・振る舞いを期待値解決層に持つ（[`references/baseline.md`](references/baseline.md)「表示を切り替える軸（掛け合わせずに撮る）」）
 - **現行と一致していることを、安全性が保たれていることの代わりにしない。** サーバーの設定が付ける防御ヘッダーは画面にも API の定義にも現れず、新側が付けなくても両側で緑になる。
-  `.replace/survey.md`「7. 横断の応答ヘッダー」に載るヘッダーを、対象 slug の応答（API とページへの遷移）に assertion する（[`references/api-batch.md`](references/api-batch.md)「応答ヘッダー」）。
+  `.replace/response-headers.json`（横断の応答ヘッダーの一覧）に載るヘッダーを、対象 slug の応答（API とページへの遷移）に assertion する（[`references/api-batch.md`](references/api-batch.md)「応答ヘッダー」）。
   逆に、現行の弱点を「直す」と仕分けた行（`.replace/weaknesses.md`）に触れる振る舞いは side 共通の期待値に固定しない（[`references/locator-mapping.md`](references/locator-mapping.md)「期待値解決層」）
 - **スイートに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
 - **シークレットの値をコード・コメント・ログ・成果物・スクリーンショット・スナップショットに残さない。** 設定・コードには環境変数名だけを置き、値は復唱しない

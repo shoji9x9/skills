@@ -1,8 +1,9 @@
 // 応答ヘッダーの正規化（正本）。parity-suite の録画と parity-diff の比較前の両方がこれを通す。
 // 規則を文書の 2 か所に書くと片方だけ直って食い違うため、規則はここだけに置く。
 //
-// 何をするか: .replace/survey.md「7. 横断の応答ヘッダー」の一覧を読み、応答ヘッダーを
-//   1. 一覧に載るヘッダーだけに絞る（付け手が `不明` の行だけのヘッダーは落とす）
+// 何をするか: .replace/response-headers.json（横断の応答ヘッダーの一覧。形式の正本は replace-strategy の
+//   assets/response-headers-template.json）を読み、応答ヘッダーを
+//   1. 一覧に載るヘッダーだけに絞る（付け手が unknown の行を含むヘッダーは落とす）
 //   2. ヘッダー名を小文字に揃える（allHeaders() は小文字、headersArray() や HAR は元の表記で返す）
 //   3. Set-Cookie を cookie ごとの { name, attributes: { HttpOnly, Secure, SameSite } } にして並べ替える
 //      （値と Expires / Max-Age / Domain / Path は捨てる。値は秘密、期限は実行ごとに変わる）
@@ -10,6 +11,7 @@
 // の順で変換した JSON を返す。出力には cookie の値も nonce の値も残らない。
 //
 // 何をしないか: 付く応答の種類（画面・API・静的）で絞らない（どの応答かを知るのは呼び出し側）。
+// Markdown の表（以前の survey.md 7 節）は読まない——人が書く表の区切り・強調・注記の書き方で穴が出続けたため（Issue #534）。
 // 値の空白や大文字小文字を揃えない（SameSite の値だけは大文字小文字を区別しない属性なので正準形に揃える）。
 //
 // 決定論的: 乱数・現在時刻に依存しない。出力のキーは名前順、Set-Cookie は cookie 名順。
@@ -24,115 +26,242 @@ import { fileURLToPath } from "node:url";
  * 録画と比較で違う版を使うと、規則の差が現新の差分に化ける。
  * @type {string}
  */
-export const VERSION = "1";
+export const VERSION = "2";
 
 /** 伏せた nonce の置き換え先。 */
 export const NONCE_MASK = "nonce-<masked>";
 
-/** 付け手が決まっていない行の語彙（正本は replace-strategy の assets/survey-template.md 7 節）。 */
-const UNKNOWN_SETTER = "不明";
+/** 応答の種類の語彙（正本は replace-strategy の assets/response-headers-template.json）。 */
+const RESPONSE_KINDS = new Set([
+  "page",
+  "login",
+  "redirect",
+  "api-success",
+  "api-error",
+  "static",
+  "not-found",
+]);
+
+/** どの機能にも属さない応答の種類。所有者 slug はこれを含む行にだけ書く。 */
+const UNOWNED_KINDS = new Set(["static", "not-found"]);
+
+/** 付け手の語彙。`unknown` の行は比べない（再構築の既定値かもしれない）。 */
+const SETTERS = new Set(["app-code", "server-config", "unknown"]);
+
+/** 分類の語彙。defense は値を、exposure は付かないこと（value: null）を持つ。 */
+const CLASSES = new Set(["defense", "exposure"]);
+
+/** 行のキー（`_` で始まるキーは注記として読まない）。 */
+const ROW_KEYS = new Set([
+  "name",
+  "class",
+  "value",
+  "responses",
+  "setter",
+  "setter_source",
+  "owner_slug",
+]);
+
+/** 測定済みの一覧のトップレベルのキー。 */
+const MEASURED_KEYS = new Set([
+  "schema_version",
+  "status",
+  "captured_at",
+  "target",
+  "captured_responses",
+  "notes",
+  "headers",
+  "server_config_slug",
+]);
+
+/** 未測定の一覧のトップレベルのキー。 */
+const UNMEASURED_KEYS = new Set(["schema_version", "status", "unmeasured_reason"]);
 
 /** CSP の nonce を持ちうるヘッダー（小文字）。 */
 const CSP_HEADERS = new Set(["content-security-policy", "content-security-policy-report-only"]);
 
-/** RFC 9110 の token（ヘッダー名に使える文字）。 */
-const TOKEN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+/**
+ * 一覧に書けるヘッダー名。RFC 9110 の token のうち英数字と `-` `_` `.` だけに絞る——token は `*` `_` とバッククォートも許すので、
+ * Markdown の強調・コードの記号を残した名前（`**X-Frame-Options**`）が別名として通り、本来のヘッダーが黙って比較から外れる。
+ */
+const HEADER_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
 
 /** 一覧を読めないときの例外。CLI は終了コード 3 に写す（入力の誤りの 2 と分ける）。 */
 export class NoHeaderListError extends Error {}
 
 /**
- * Markdown の表の 1 行をセルへ分ける（先頭・末尾の `|` を除く）。
- * GFM ではセル内の `|` はコードスパンの中でも `\|` と書くので、エスケープされた `|` では分けない
- * （分けると列がずれ、付け手を別のセルから読む）。
- * @param {string} line
- * @returns {string[]}
+ * @param {unknown} v
+ * @returns {v is Record<string, unknown>}
  */
-function cells(line) {
-  let s = line.trim();
-  if (s.startsWith("|")) s = s.slice(1);
-  if (s.endsWith("|") && !s.endsWith("\\|")) s = s.slice(0, -1);
-  return s.split(/(?<!\\)\|/).map((c) => c.replaceAll("\\|", "|").trim());
+function isObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 /**
- * セルからヘッダー名を取り出す。強調の囲みを外した後、セルの**先頭**がバッククォートならその中、無ければセル全体。
- * 先頭以外のバッククォート（`Content-Security-Policy（`frame-ancestors` を含む）` の補足）を名前にしない——
- * 補足の語も token として通り、本来のヘッダーが黙って比較から外れる。セル全体が token でなければ呼び出し側が入力の誤りにする。
- * @param {string} cell
- * @returns {string}
+ * @param {unknown} v
+ * @returns {v is string}
  */
-function headerNameOf(cell) {
-  // 強調（`**…**` / `__…__` / `*…*` / `_…_`）の囲みを外す。token は `*` と `_` を許すので、
-  // 外さないと `**x-frame-options**` が名前として通り、黙って比較から外れる。名前の中の `_`（`X_Custom` 等）は残す。
-  let name = cell.trim();
-  for (let m; (m = /^(\*\*|__|\*|_)(.+)\1$/.exec(name));) name = m[2].trim();
-  const quoted = /^`([^`]*)`/.exec(name);
-  return (quoted ? quoted[1] : name).trim();
+function isNonEmptyString(v) {
+  return typeof v === "string" && v.trim() !== "";
 }
 
 /**
- * survey.md から「7. 横断の応答ヘッダー」の一覧を読み、比べるヘッダー名（小文字）の集合を返す。
- * 節が無い・表が無い・行が 0 件なら NoHeaderListError を投げる（一覧の代わりを推測で作らない）。
- * @param {string} markdown
+ * 語彙に無いキー（`_` で始まる注記を除く）があれば投げる。打ち間違えたキーは読まれないまま既定値に倒れるため。
+ * @param {Record<string, unknown>} obj
+ * @param {Set<string>} allowed
+ * @param {string} where
+ */
+function rejectUnknownKeys(obj, allowed, where) {
+  const unknown = Object.keys(obj).filter((k) => !k.startsWith("_") && !allowed.has(k));
+  if (unknown.length > 0) throw new Error(`${where} に語彙外のキーがある: ${unknown.join(", ")}`);
+}
+
+/**
+ * 同梱テンプレートのプレースホルダ（`<…>` だけの文字列）が残っていれば投げる。`_` で始まる注記キーは見ない。
+ * 名前・語彙の欄は形の検査で落ちるが、自由記述の欄（value・target・captured_at・url・setter_source・notes 等）は
+ * 空でない文字列として通るので、書き換え忘れの値が測定結果として読まれる。
+ * @param {unknown} v
+ * @param {string} where
+ */
+function rejectPlaceholders(v, where) {
+  if (typeof v === "string") {
+    if (/^<[\s\S]*>$/.test(v.trim()))
+      throw new Error(`${where} にテンプレートのプレースホルダが残っている: ${JSON.stringify(v)}`);
+  } else if (Array.isArray(v)) {
+    v.forEach((x, i) => rejectPlaceholders(x, `${where}[${i}]`));
+  } else if (isObject(v)) {
+    for (const [k, x] of Object.entries(v)) {
+      if (!k.startsWith("_")) rejectPlaceholders(x, where === "" ? k : `${where}.${k}`);
+    }
+  }
+}
+
+/**
+ * 一覧の 1 行を検査する。書き手（replace-strategy の測定）の不変条件をここで全部確かめる——
+ * 読み手が使う欄（name・setter）だけを見ると、他の欄の誤りが残ったまま一覧として通る。
+ * @param {unknown} row
+ * @param {number} i
+ * @param {Set<string>} captured 採った応答の種類
+ * @returns {{ key: string, setter: string, responses: string[] }}
+ */
+function checkRow(row, i, captured) {
+  const where = `headers[${i}]`;
+  if (!isObject(row)) throw new Error(`${where} はオブジェクトで書く`);
+  rejectUnknownKeys(row, ROW_KEYS, where);
+  const { name, value, responses, setter, owner_slug: owner } = row;
+  if (typeof name !== "string" || !HEADER_NAME.test(name))
+    throw new Error(`${where}.name をヘッダー名として読めない: ${JSON.stringify(name)}`);
+  const at = `${where}（${name}）`;
+  if (typeof row.class !== "string" || !CLASSES.has(row.class))
+    throw new Error(
+      `${at}.class は ${[...CLASSES].join(" / ")} のどれか: ${JSON.stringify(row.class)}`,
+    );
+  // 防御は値を、露出の抑止は付かないこと（null）を assertion にする。逆の組み合わせは分類か値のどちらかの誤り。
+  if (row.class === "defense" && !isNonEmptyString(value))
+    throw new Error(`${at}.value は defense なら空でない文字列`);
+  if (row.class === "exposure" && value !== null)
+    throw new Error(`${at}.value は exposure なら null（付かない）`);
+  if (!Array.isArray(responses) || responses.length === 0)
+    throw new Error(`${at}.responses は応答の種類の空でない配列`);
+  for (const r of responses) {
+    // 採っていない種類の応答に付くとは書けない（測っていない値を仕様にする）。captured_responses の kind は
+    // 語彙で検査済みなので、語彙外の種類もここで落ちる。
+    if (typeof r !== "string" || !captured.has(r))
+      throw new Error(
+        `${at}.responses の ${JSON.stringify(r)} は captured_responses で採った種類ではない（語彙: ${[...RESPONSE_KINDS].join(" / ")}）`,
+      );
+  }
+  if (new Set(responses).size !== responses.length)
+    throw new Error(`${at}.responses に同じ種類が重複している`);
+  if (typeof setter !== "string" || !SETTERS.has(setter))
+    throw new Error(
+      `${at}.setter は ${[...SETTERS].join(" / ")} のどれか: ${JSON.stringify(setter)}`,
+    );
+  if (
+    Object.hasOwn(row, "setter_source") &&
+    row.setter_source !== null &&
+    !isNonEmptyString(row.setter_source)
+  )
+    throw new Error(`${at}.setter_source は空でない文字列か null`);
+  if (owner !== null) {
+    if (!isNonEmptyString(owner)) throw new Error(`${at}.owner_slug は空でない文字列か null`);
+    // 所有者は機能に属さない応答（静的・404）の引き受け手。機能の応答にだけ付く行に書くと、
+    // 所有者の確定（setup 手順 9）がどの応答を指したのか読めない。
+    if (!responses.some((r) => UNOWNED_KINDS.has(/** @type {string} */ (r))))
+      throw new Error(`${at}.owner_slug は responses に static か not-found を含む行にだけ書く`);
+  }
+  return { key: name.toLowerCase(), setter, responses: /** @type {string[]} */ (responses) };
+}
+
+/**
+ * .replace/response-headers.json の中身（JSON の文字列）から、比べるヘッダー名（小文字）の集合を返す。
+ * 未測定（status: unmeasured）なら NoHeaderListError、形の誤りは Error（入力の誤り）を投げる。
+ * 一覧の代わりを推測で作らない。
+ * @param {string} text
  * @returns {Set<string>}
  */
-export function parseHeaderList(markdown) {
-  // HTML コメントは最初に全体から外す。節の境界・表の探索・行の読み取り・「未測定」の判定のすべてが
-  // 同じコメント抜きの本文を読む（一部だけ外すと、退避した旧一覧やテンプレートの例示表を一覧として読む）。
-  const lines = String(markdown)
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .split(/\r?\n/);
-  const start = lines.findIndex((l) => /^##\s+7\.\s*横断の応答ヘッダー/.test(l));
-  if (start < 0) throw new NoHeaderListError("survey.md に「7. 横断の応答ヘッダー」の節が無い");
-  let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
-  if (end < 0) end = lines.length;
-  const section = lines.slice(start + 1, end);
-  // 節全体が未測定の印（`未測定` か `未測定（理由）` だけの 1 行。書式の正本は replace-strategy の
-  // assets/survey-template.md 7 節）があれば、表が残っていても一覧ではない。
-  // 本文中の「（404 は未測定）」のような部分的な言及では一覧を捨てない（埋まった表まで比べなくなる）。
-  if (section.some((l) => /^未測定(（[^）]*）)?$/.test(l.trim())))
-    throw new NoHeaderListError("7 節が「未測定」");
-
-  const headIndex = section.findIndex(
-    (l) => l.trim().startsWith("|") && cells(l)[0] === "ヘッダー",
-  );
-  if (headIndex < 0) throw new NoHeaderListError("7 節に「ヘッダー」列で始まる表が無い");
-  const head = cells(section[headIndex]);
-  const setterColumn = head.indexOf("付け手");
-  if (setterColumn < 0) throw new NoHeaderListError("7 節の表に「付け手」列が無い");
+export function parseHeaderList(text) {
+  let doc;
+  try {
+    doc = JSON.parse(String(text));
+  } catch {
+    throw new Error("一覧を JSON として読めない");
+  }
+  if (!isObject(doc)) throw new Error("一覧はオブジェクトで書く");
+  rejectPlaceholders(doc, "");
+  if (doc.schema_version !== 1)
+    throw new Error(`schema_version は 1: ${JSON.stringify(doc.schema_version)}`);
+  if (doc.status === "unmeasured") {
+    // 未測定と行の併存は、どちらが正しいかを決められない（退避した旧一覧か、status の書き忘れか）。
+    rejectUnknownKeys(doc, UNMEASURED_KEYS, "未測定の一覧");
+    if (!isNonEmptyString(doc.unmeasured_reason))
+      throw new Error("status: unmeasured には unmeasured_reason（理由）を書く");
+    throw new NoHeaderListError(`一覧が未測定（${doc.unmeasured_reason}）`);
+  }
+  if (doc.status !== "measured")
+    throw new Error(`status は measured / unmeasured のどれか: ${JSON.stringify(doc.status)}`);
+  rejectUnknownKeys(doc, MEASURED_KEYS, "測定済みの一覧");
+  if (!isNonEmptyString(doc.captured_at)) throw new Error("captured_at（採った日時）が無い");
+  if (!isNonEmptyString(doc.target)) throw new Error("target（採った target 名）が無い");
+  if (!Array.isArray(doc.captured_responses) || doc.captured_responses.length === 0)
+    throw new Error("captured_responses（採った応答）は空でない配列");
+  /** @type {Set<string>} */
+  const captured = new Set();
+  doc.captured_responses.forEach((c, i) => {
+    if (!isObject(c)) throw new Error(`captured_responses[${i}] はオブジェクトで書く`);
+    rejectUnknownKeys(c, new Set(["kind", "url"]), `captured_responses[${i}]`);
+    if (typeof c.kind !== "string" || !RESPONSE_KINDS.has(c.kind))
+      throw new Error(`captured_responses[${i}].kind は語彙外: ${JSON.stringify(c.kind)}`);
+    if (!isNonEmptyString(c.url)) throw new Error(`captured_responses[${i}].url が無い`);
+    captured.add(c.kind);
+  });
+  if (Object.hasOwn(doc, "notes") && typeof doc.notes !== "string")
+    throw new Error("notes は文字列");
+  // 欠落（undefined）も落とす。未確定は null と明示させ、欄の書き忘れと区別する。
+  if (doc.server_config_slug !== null && !isNonEmptyString(doc.server_config_slug))
+    throw new Error("server_config_slug は空でない文字列か null（未確定なら null）");
+  // 防御ヘッダーも露出の抑止の候補も 1 つも無い応答はありうるので、空の配列は「比べるヘッダーが無い」として通す
+  // （status: measured と明示した一覧なので、書き忘れの表と違い空であることが測定結果）。
+  if (!Array.isArray(doc.headers)) throw new Error("headers は配列");
 
   /** @type {Map<string, boolean>} 名前 → その名前の行がすべて付け手の決まった行か */
   const known = new Map();
-  for (const line of section.slice(headIndex + 2)) {
-    if (!line.trim().startsWith("|")) break;
-    const row = cells(line);
-    // テンプレートの例示行（`（例）` 付き）が残っているのは、一覧を書いていない印。例示の値を現行の仕様にしない。
-    if ((row[0] ?? "").includes("（例）"))
-      throw new NoHeaderListError("7 節の表にテンプレートの例示行（（例））が残っている");
-    const name = headerNameOf(row[0] ?? "");
-    if (!TOKEN.test(name)) {
-      throw new Error(`7 節の表のヘッダー名を読めない: ${JSON.stringify(row[0] ?? "")}`);
-    }
-    // 強調・コードの記号は語の判定に効かないので外してから読む（`**不明**` を「不明」と読む）。
-    const setter = (row[setterColumn] ?? "").replace(/[`*_]/g, "").trim();
-    // 付け手が読めない行を「決まっている」にも「不明」にも倒さない。空欄は比べるかどうかを決められず、
-    // 「不明（要確認）」「（不明）」「サーバーの設定（不明）」のように「不明」を含む語彙外の書き方は、
-    // 比べる（再構築の既定値を仕様として固定する）か比べない（決まった行の後退を見落とす）かの
-    // どちらかへ黙って倒れるので、入力の誤りにする。
-    if (setter === "" || (setter.includes(UNKNOWN_SETTER) && setter !== UNKNOWN_SETTER)) {
-      throw new Error(
-        `7 節の表の ${name} の付け手を読めない（語彙は「${UNKNOWN_SETTER}」かそれ以外の付け手）: ${JSON.stringify(setter)}`,
-      );
-    }
-    const key = name.toLowerCase();
-    // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が `不明` なら、そのヘッダーは録画にも比較にも入れない。
-    // 出力はヘッダー名で絞るだけで応答の種類を知らないので、比べる側へ倒すと `不明` の行が指す応答の値
+  /** @type {Map<string, Set<string>>} 名前 → その名前の行が覆う応答の種類 */
+  const covered = new Map();
+  doc.headers.forEach((row, i) => {
+    const { key, setter, responses } = checkRow(row, i, captured);
+    // 同じヘッダーの行が同じ種類の応答を 2 度覆うと、その応答の値・付け手がどちらか読めない。
+    const seen = covered.get(key) ?? new Set();
+    const dup = responses.find((r) => seen.has(r));
+    if (dup) throw new Error(`headers[${i}]（${key}）の responses の ${dup} は別の行と重なる`);
+    for (const r of responses) seen.add(r);
+    covered.set(key, seen);
+    // 同じヘッダーが応答の種類ごとに複数行あり、1 行でも付け手が unknown なら、そのヘッダーは録画にも比較にも入れない。
+    // 出力はヘッダー名で絞るだけで応答の種類を知らないので、比べる側へ倒すと unknown の行が指す応答の値
     // （再構築の既定値かもしれない）まで現行の仕様として固定する。決まった行の後退は、スイートがその応答の
     // assertion で両側に確かめる（parity-suite の references/api-batch.md「応答ヘッダー」）。
-    known.set(key, (known.get(key) ?? true) && setter !== UNKNOWN_SETTER);
-  }
-  if (known.size === 0) throw new NoHeaderListError("7 節の表に行が無い");
+    known.set(key, (known.get(key) ?? true) && setter !== "unknown");
+  });
   return new Set([...known].filter(([, ok]) => ok).map(([name]) => name));
 }
 
@@ -221,30 +350,32 @@ export function maskNonce(value) {
 }
 
 /**
- * survey.md のパスから一覧を読む。スイートも CLI もこれを使う（ファイルの読み方を 2 か所に書かない）。
- * survey.md 自体が無いのも「一覧が無い」（NoHeaderListError。測定をやり直す経路へ送る）。
+ * response-headers.json のパスから一覧を読む。スイートも CLI もこれを使う（ファイルの読み方を 2 か所に書かない）。
+ * ファイル自体が無いのも「一覧が無い」（NoHeaderListError。測定をやり直す経路へ送る）。
  * 読めない理由が他（権限等）なら、その例外をそのまま投げる（入力の誤り）。
  * @param {string} path
  * @returns {Set<string>}
  */
 export function loadHeaderList(path) {
-  let markdown;
+  let text;
   try {
-    markdown = readFileSync(path, "utf8");
+    text = readFileSync(path, "utf8");
   } catch (err) {
-    // survey.md の置き場（.replace/）はあるのにファイルが無いときだけ「一覧が無い」。置き場ごと無いのは
+    // 一覧の置き場（.replace/）はあるのにファイルが無いときだけ「一覧が無い」。置き場ごと無いのは
     // パスの誤りか作業ディレクトリの取り違えで、「一覧が無い」にするとヘッダーの比較が黙って外れる。
     if (/** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT" && existsSync(dirname(path)))
-      throw new NoHeaderListError(`${path} が無い`);
+      throw new NoHeaderListError(
+        `${path} が無い（survey.md の 7 節に表で書いた一覧は読まない。replace-strategy の測定の 7 で response-headers.json へ採り直す）`,
+      );
     throw err;
   }
-  return parseHeaderList(markdown);
+  return parseHeaderList(text);
 }
 
 /**
  * 応答ヘッダーを一覧に基づいて正規化する。
  * @param {unknown} headers allHeaders() / headersArray() / HAR の headers
- * @param {Set<string>} list parseHeaderList の戻り値
+ * @param {Set<string>} list parseHeaderList / loadHeaderList の戻り値
  * @returns {Record<string, unknown>}
  */
 export function normalizeHeaders(headers, list) {
@@ -275,14 +406,14 @@ export function normalizeHeaders(headers, list) {
 
 export function main(argv, io = { stdout: process.stdout, stderr: process.stderr }) {
   const usage =
-    "usage: node header-normalize.mjs --survey <.replace/survey.md> <headers.json>\n" +
-    "       node header-normalize.mjs --survey <.replace/survey.md> --list\n";
-  let survey;
+    "usage: node header-normalize.mjs --header-list <.replace/response-headers.json> <headers.json>\n" +
+    "       node header-normalize.mjs --header-list <.replace/response-headers.json> --list\n";
+  let listPath;
   let listOnly = false;
   const positionals = [];
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--survey") {
-      survey = argv[i + 1];
+    if (argv[i] === "--header-list") {
+      listPath = argv[i + 1];
       i += 1;
     } else if (argv[i] === "--list") {
       listOnly = true;
@@ -290,13 +421,13 @@ export function main(argv, io = { stdout: process.stdout, stderr: process.stderr
       positionals.push(argv[i]);
     }
   }
-  if (!survey || positionals.length !== (listOnly ? 0 : 1)) {
+  if (!listPath || positionals.length !== (listOnly ? 0 : 1)) {
     io.stderr.write(usage);
     return 2;
   }
   let list;
   try {
-    list = loadHeaderList(survey);
+    list = loadHeaderList(listPath);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     io.stderr.write(`${err instanceof NoHeaderListError ? "no-list" : "error"}: ${message}\n`);
