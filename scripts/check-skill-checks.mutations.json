@@ -244,6 +244,28 @@
       "expect_failing": [
         "陽性: 宣言した script がリンクでスキルの外を指していたら落とす（配布されない）"
       ]
+    },
+    {
+      "id": "SC-ROOT-OUTSIDE",
+      "why": "走査の起点（scripts/）自体が外を指すリンクでも辿る",
+      "file": "scripts/check-skill-checks.js",
+      "find": "  if (!isInside(rootReal, real)) throw",
+      "replace": "  if (false) throw",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）"
+      ]
+    },
+    {
+      "id": "SC-WIRED-NOT-CHECK",
+      "why": "検査として見つからないファイルの配線を通す",
+      "file": "scripts/check-skill-checks.js",
+      "find": "      if (checks.indexOf(s) === -1) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 検査でないファイルを配線し、本物の検査を配線しない側に載せた宣言を落とす"
+      ]
     }
   ]
 }

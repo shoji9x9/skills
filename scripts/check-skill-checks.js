@@ -59,6 +59,8 @@ const isInside = (base, real) => real === base || real.startsWith(base + sep);
 // 黙って飛ばすと、そのリンクの先の検査が分類を問われないまま通る）。
 function listFiles(dir, rootReal, visited = new Set()) {
   const real = realpathSync(dir);
+  // 走査の起点（skills/<name>/scripts）自体がリンクで外を指す場合も、辿る前に止める。
+  if (!isInside(rootReal, real)) throw new Error(`${dir} がリポジトリの外（${real}）を指している`);
   if (visited.has(real)) return [];
   visited.add(real);
   const out = [];
@@ -306,6 +308,13 @@ export function checkSkillChecks(root) {
     violations.push(...v);
     for (const s of scripts) {
       if (wired.has(s)) violations.push(`${s}: ${DECLARATION_NAME} に重複して宣言されている`);
+      // 配線できるのは走査で見つかった検査（scripts/ 配下の *-check.*）だけ。検査でないファイルを配線し、
+      // 本物の検査を「配線しない」に載せた宣言を通すと、利用者は検査でないものを入口で走らせる。
+      if (checks.indexOf(s) === -1) {
+        violations.push(
+          `${s}: 検査（scripts/ 配下の *-check.<拡張子>）として見つからないものを配線している`,
+        );
+      }
       wired.set(s, skill);
     }
   }

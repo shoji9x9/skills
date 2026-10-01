@@ -171,7 +171,7 @@ test("陽性: リポジトリの外を指すリンクは辿らず判定できな
   const root = makeRepo();
   const outside = makeTempDir("skill-checks-outside-");
   write(outside, "x-check.mjs", "");
-  symlinkSync(outside, join(root, "skills/s/scripts/external"));
+  symlinkSync(join(outside, "x-check.mjs"), join(root, "skills/s/scripts/x-check.mjs"));
   expect(() => checkSkillChecks(root)).toThrow("リポジトリの外");
   expect(main([root])).toBe(2);
 });
@@ -196,6 +196,35 @@ test("陽性: 宣言した script がリンクでスキルの外を指してい�
   expect(checkDeclaration(root, "s").violations).toContainEqual(
     expect.stringContaining("script scripts/c-check.mjs がスキルのディレクトリの外を指している"),
   );
+});
+
+test("陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）", () => {
+  const root = makeTempDir("skill-checks-");
+  const outside = makeTempDir("skill-checks-outside-");
+  write(outside, "x-check.mjs", "");
+  mkdirSync(join(root, "skills/s"), { recursive: true });
+  symlinkSync(outside, join(root, "skills/s/scripts"));
+  write(root, UNWIRED_PATH, JSON.stringify({ unwired: [] }));
+  expect(() => findCheckScripts(root)).toThrow("リポジトリの外");
+  expect(main([root])).toBe(2);
+});
+
+test("陽性: 検査でないファイルを配線し、本物の検査を配線しない側に載せた宣言を落とす", () => {
+  const root = makeRepo({
+    extraFiles: { "skills/s/scripts/not-check-helper.mjs": "" },
+    decl: declWith({ script: "scripts/not-check-helper.mjs" }),
+    unwired: {
+      unwired: [
+        { script: "skills/s/scripts/a-check.mjs", reason: "r" },
+        { script: "skills/s/scripts/b-check.mjs", reason: "r" },
+      ],
+    },
+  });
+  expect(violationsOf(root)).toEqual([
+    expect.stringContaining(
+      "skills/s/scripts/not-check-helper.mjs: 検査（scripts/ 配下の *-check.<拡張子>）として見つからない",
+    ),
+  ]);
 });
 
 test("陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）", () => {
