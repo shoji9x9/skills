@@ -68,7 +68,9 @@
   (
     if [ -n "$COMMIT_CHECK" ]; then
       # 配信型 target: 稼働中のコードの版は commit_check だけが知っている（HEAD はデプロイ済みの版を表さない）
-      CAPTURE=$(bash -c "$COMMIT_CHECK" </dev/null | tr -d '[:space:]' | tr 'A-F' 'a-f')
+      # 終了コードはパイプへ流す前に検査する（パイプの末尾の tr に隠れて、失敗した確認を成功扱いしない）
+      RAW=$(bash -c "$COMMIT_CHECK" </dev/null) || { echo "停止: commit_check が失敗した（撮る版を特定できない）"; exit 1; }
+      CAPTURE=$(printf '%s' "$RAW" | tr -d '[:space:]' | tr 'A-F' 'a-f')
       WANT=$(printf '%s' "$RECORDED" | tr 'A-F' 'a-f')
     else
       CAPTURE=$(git -C <新側リポジトリ> rev-parse --verify HEAD)
