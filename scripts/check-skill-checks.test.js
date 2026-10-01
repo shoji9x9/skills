@@ -7,7 +7,7 @@
 //
 // | 軸                         | 値                                                                         |
 // | -------------------------- | -------------------------------------------------------------------------- |
-// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 名前が -check でない |
+// | 検査スクリプト             | 0 本 / 1 本以上 / `*.test.*`（数えない）/ サブディレクトリ / シンボリックリンク / 祖先を指す循環リンク / 規約外の拡張子 / 名前が -check でない |
 // | 分類                       | wire だけ / unwired だけ / 両方 / どちらにも無い                           |
 // | checks.json                | 在る / 無い（検査あり・なし）/ JSON でない / 未知のキー / version・skill の誤り |
 // | wire の項目                | 正しい / script 不在・絶対パス・. / .. / 空セグメント / command の形 / {script} の回数 / 未解決・未使用のプレースホルダ |
@@ -143,6 +143,23 @@ test("陰性: シンボリックリンクの検査・ディレクトリも拾う
   expect(findCheckScripts(root)).toEqual([
     "skills/s/scripts/d-check.mjs",
     "skills/s/scripts/linked/e-check.mjs",
+  ]);
+});
+
+test("陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないに倒さない", () => {
+  const root = makeRepo();
+  symlinkSync("..", join(root, "skills/s/scripts/up"));
+  expect(findCheckScripts(root)).toEqual([
+    "skills/s/scripts/a-check.mjs",
+    "skills/s/scripts/b-check.mjs",
+  ]);
+  expect(main([root])).toBe(0);
+});
+
+test("陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）", () => {
+  const root = makeRepo({ extraFiles: { "skills/s/scripts/c-check.py": "" } });
+  expect(violationsOf(root)).toEqual([
+    expect.stringContaining("skills/s/scripts/c-check.py: 配線するか決まっていない"),
   ]);
 });
 

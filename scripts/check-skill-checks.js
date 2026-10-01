@@ -10,7 +10,7 @@
 // 全検査がどちらか一方にだけ載っていることをここで確かめる。
 //
 // 判定規則:
-// - 検査は名前で拾う（`*-check.{mjs,js,cjs,sh}`。`*-check.test.mjs` は末尾が合わないので拾わない）。0 本なら exit 2（走査が届いていない）。
+// - 検査は名前で拾う（`*-check.<拡張子>`。`*-check.test.mjs` は末尾が合わないので拾わない）。0 本なら exit 2（走査が届いていない）。
 // - 検査を 1 本でも持つスキルは `checks.json` を持つ（配線対象 0 件なら `"wire": []`）。
 // - `checks.json` の形（キー・型・プレースホルダの解決・スクリプトの実在）を確かめる。利用者が機械的に
 //   読むので、未知のキーや解決できないプレースホルダは黙って無視されないよう違反にする。
@@ -21,7 +21,9 @@ import { fileURLToPath } from "node:url";
 
 export const UNWIRED_PATH = "scripts/skill-checks-unwired.json";
 export const DECLARATION_NAME = "checks.json";
-const CHECK_RE = /-check\.(mjs|js|cjs|sh)$/;
+// 拡張子は限定しない（配布物の拡張子の規約が変わっても検査が分類から漏れないように）。
+// `*-check.test.mjs` は `-check.` の後ろに `.` を含むので拾わない。
+const CHECK_RE = /-check\.[A-Za-z0-9]+$/;
 const STAGES = new Set(["pre-commit", "ci"]);
 const RUNTIMES = new Set(["node", "bash"]);
 const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -45,14 +47,19 @@ const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v)
 const isText = (v) => typeof v === "string" && v.trim() !== "";
 const isTextArray = (v) => Array.isArray(v) && v.length > 0 && v.every(isText);
 
-function listFiles(dir) {
+// visited は辿ったディレクトリの実パス。自分や祖先を指すディレクトリのリンクで同じ場所へ戻ったら
+// 辿り直さない（辿ると ELOOP まで潜って「判定できない」に化ける）。
+function listFiles(dir, visited = new Set()) {
+  const real = realpathSync(dir);
+  if (visited.has(real)) return [];
+  visited.add(real);
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
     // シンボリックリンクは Dirent では isFile / isDirectory がどちらも偽になり、黙って走査から外れる
     // （リンクした検査が分類を問われないまま通る）ので、リンク先の種類で判定する。
     const kind = e.isSymbolicLink() ? statSync(p) : e;
-    if (kind.isDirectory()) out.push(...listFiles(p));
+    if (kind.isDirectory()) out.push(...listFiles(p, visited));
     else if (kind.isFile()) out.push(p);
   }
   return out;

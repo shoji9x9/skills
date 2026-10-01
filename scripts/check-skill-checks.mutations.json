@@ -15,7 +15,8 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: どちらにも載っていない検査は「配線するか決まっていない」で落とす",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0",
+        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）"
       ]
     },
     {
@@ -51,8 +52,8 @@
       "id": "SC-RECURSE",
       "why": "scripts/ のサブディレクトリを走査しない",
       "file": "scripts/check-skill-checks.js",
-      "find": "    if (kind.isDirectory()) out.push(...listFiles(p));",
-      "replace": "    if (false) out.push(...listFiles(p));",
+      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, visited));",
+      "replace": "    if (false) out.push(...listFiles(p, visited));",
       "occurrences": 1,
       "expect_failing": [
         "陰性: scripts/ のサブディレクトリにある検査も拾う",
@@ -186,6 +187,26 @@
       "occurrences": 1,
       "expect_failing": [
         "陽性: wire の項目の誤り（exists_at_base が配列でない（展開できない値））を落とす"
+      ]
+    },
+    {
+      "id": "SC-CYCLE",
+      "why": "訪問済みのディレクトリを辿り直す（祖先を指すリンクで ELOOP まで潜り判定不能に化ける）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "  if (visited.has(real)) return [];",
+      "replace": "  if (false) return [];",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないに倒さない"]
+    },
+    {
+      "id": "SC-EXT",
+      "why": "検査の拡張子を限定する（規約外の拡張子の検査が分類から漏れる）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "const CHECK_RE = /-check\\.[A-Za-z0-9]+$/;",
+      "replace": "const CHECK_RE = /-check\\.(mjs|js|cjs|sh)$/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）"
       ]
     }
   ]
