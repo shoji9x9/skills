@@ -314,6 +314,15 @@
       "replace": "          } else if (false) {",
       "occurrences": 1,
       "expect_failing": ["陽性: wire の項目の誤り（optional_args の未知のキー）を落とす"]
+    },
+    {
+      "id": "SC-SCRIPT-EMBED",
+      "why": "他の引数に埋め込んだ {script} を通す（利用者に壊れた引数が渡る）",
+      "file": "scripts/check-skill-checks.js",
+      "find": "      if (e.command.some((t) => t !== \"{script}\" && placeholders(t).includes(\"script\"))) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（{script} を他の引数に埋め込む）を落とす"]
     }
   ]
 }

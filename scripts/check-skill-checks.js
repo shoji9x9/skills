@@ -249,6 +249,11 @@ export function checkDeclaration(root, skill) {
       if (e.command.filter((t) => t === "{script}").length !== 1) {
         v.push(`${at}: command は {script} をちょうど 1 回、単独の要素として持つ`);
       }
+      // 他の要素に埋め込んだ {script}（x{script} 等）は単独の要素でないので落とす
+      // （resolveIn は {script} を params 扱いせず飛ばすので、ここで拾わないと素通りする）。
+      if (e.command.some((t) => t !== "{script}" && placeholders(t).includes("script"))) {
+        v.push(`${at}: command の {script} は単独の要素にする（他の引数に埋め込まない）`);
+      }
       resolveIn(e.command, "command", true);
     }
 

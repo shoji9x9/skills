@@ -350,6 +350,11 @@ test.each([
     "script はスキル直下からの相対パス",
   ],
   ["command が空", { command: [] }, "command は空でない文字列の配列"],
+  [
+    "{script} を他の引数に埋め込む",
+    { command: ["node", "{script}", "x{script}", "{dir}"] },
+    "{script} は単独の要素にする",
+  ],
   ["command の実行系", { command: ["python", "{script}", "{dir}"] }, "command[0] は node か bash"],
   ["{script} が無い", { command: ["node", "x.mjs", "{dir}"] }, "{script} をちょうど 1 回"],
   [
