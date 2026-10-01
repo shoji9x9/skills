@@ -256,6 +256,8 @@ test("陽性: checks.json のトップレベルの誤り（JSON でない・未�
   expect(violationsOf(makeRepo({ decl: "{" }))).toContainEqual(
     expect.stringContaining("JSON として読めない"),
   );
+  // JSON でない checks.json は違反（exit 1）で、判定不能（exit 2）にしない（他のスキルの分類は判定できる）。
+  expect(main([makeRepo({ decl: "{" })])).toBe(1);
   const v = violationsOf(makeRepo({ decl: { version: 2, skill: "x", wire: {}, extra: 1 } }));
   expect(v).toContainEqual(expect.stringContaining("未知のキー extra"));
   expect(v).toContainEqual(expect.stringContaining("version は 1"));

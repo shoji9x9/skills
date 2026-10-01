@@ -14,7 +14,10 @@
 // - 検査を 1 本でも持つスキルは `checks.json` を持つ（配線対象 0 件なら `"wire": []`）。
 // - `checks.json` の形（キー・型・プレースホルダの解決・スクリプトの実在）を確かめる。利用者が機械的に
 //   読むので、未知のキーや解決できないプレースホルダは黙って無視されないよう違反にする。
-// - 一覧が読めない（JSON でない・形が違う）は exit 2、それ以外の違反は exit 1。
+// - 終了コード: 判定そのものが成り立たない入力は exit 2——配線しない一覧（scripts/skill-checks-unwired.json）が
+//   読めない（無い・JSON でない・形が違う）、検査が 0 本、リポジトリの外を指すリンク。
+//   スキルの checks.json の誤り（JSON でない・形が違う）は exit 1 の違反として扱う——1 スキルの宣言が壊れていても
+//   他のスキルの分類は判定でき、全スキルの違反をまとめて報告できるため（宣言を直す人が 1 件ずつ往復しない）。
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
