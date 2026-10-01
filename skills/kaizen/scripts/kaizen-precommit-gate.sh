@@ -29,6 +29,11 @@ if [ "${gate_suffix}" = "-copilot" ]; then
 	warn_exit_code=0
 fi
 
+# ゲートの締め切り（後述）は bash の SECONDS で経過時間を測る。bash は環境変数 SECONDS を
+# 起動時の初期値として引き継ぐので、フックの親環境に export されていると経過時間が最初から
+# その値になり、毎回締め切り切れで fail closed になる（実測）。ここで 0 に戻して起点を揃える。
+SECONDS=0
+
 input=""
 if [ ! -t 0 ]; then
 	# NUL は通常の Hook JSON に現れないため、read 1 回で EOF まで読み込む。cat / jq / python を
@@ -1235,7 +1240,7 @@ collect_unresolved() {
 #
 # キャッシュが誤っても commit の通過には効かない——この経路で解消（センチネルの削除）するのは
 # 走査器が**今回**検証済みゼロを返したときだけで、キャッシュを読んで省くのは「解消しない」側の
-# 結論（候補あり・判定不能・打ち切り）だけ。読めない・形が違うキャッシュは無いものとして走査する。
+# 結論（候補あり・打ち切り）だけ。判定不能は一過性の失敗と区別できないので残さない。読めない・形が違うキャッシュは無いものとして走査する。
 #
 # 名前は `.extract-checkpoint.<key>.foreign-scan`。session key は `.` を含まないので checkpoint
 # と衝突せず、既存の `.gitignore` の `**/.kaizen/.extract-checkpoint*` が制御ファイルとして除外する
@@ -1283,8 +1288,10 @@ foreign_scan_cached() { # $1: キャッシュ $2: 今回の入力 $3: 今回使�
 	cached_slice=${content#*$'\n'}
 	[[ "${cached_slice}" =~ ^[0-9]{1,6}$ ]] || return 1
 	case "${cached_rc}" in
-	# 候補あり・判定不能は、入力が同じなら同じ結論になる。
-	0 | 2) ;;
+	# 候補ありは、入力が同じなら同じ結論になる。判定不能（2）は再利用しない——走査器は一時ファイルの
+	# 作成や読み取りの失敗といった一過性の理由でも 2 を返し、入力からは区別できない。再利用すると
+	# 持ち主が戻らないセンチネル（transcript がもう伸びない）を保持期間まで再試行しなくなる。
+	0) ;;
 	# 打ち切りは、前回より長く使えるときだけ走査し直す（同じ時間では同じところで打ち切られる）。
 	# 使える秒数は SECONDS の誤差で ±1 秒揺れるので、1 秒の差では走査し直さない。
 	124) [ "$3" -le "$((10#${cached_slice} + 1))" ] || return 1 ;;
@@ -1334,6 +1341,14 @@ resolve_foreign_sentinels() {
 			f_checkpoint=$(kaizen_checkpoint_path "${key}")
 		cache=$(foreign_scan_cache_path "${sentinel}" "${key}")
 		inputs=$(foreign_scan_inputs "${f_transcript}" "${f_checkpoint}")
+		# 持ち時間は走査の直前に取り直す。ループ先頭で取った値のままだと、ここまでの全作業ツリーの探索や
+		# wc / cksum に使った時間を差し引かず、最後の走査が締め切りを超える。
+		slice=$(gate_remaining)
+		if [ "${slice}" -lt 1 ]; then
+			set -e
+			echo "kaizen-precommit-gate: gate deadline (${gate_deadline}s) reached; the remaining sentinels were not auto-checked" >&2
+			return 0
+		fi
 		if cached=$(foreign_scan_cached "${cache}" "${inputs}" "${slice}"); then
 			set -e
 			# 省いたことは出す（出さないと、走査して残したのか見ずに残したのかが読めない）。
@@ -1344,7 +1359,7 @@ resolve_foreign_sentinels() {
 		out=$(timeout "${slice}" bash "${script_dir}/kaizen-candidate-scan.sh" "${f_transcript}" "${f_checkpoint}" 2>&1)
 		rc=$?
 		case "${rc}" in
-		0 | 2 | 124)
+		0 | 124)
 			# キャッシュは最適化なので、書けなくても走査の結論は変えない。
 			tmp="${cache}.tmp.$$"
 			if printf '%s\n%s\n%s\n%s\n' "${foreign_scan_cache_header}" "${inputs}" "${rc}" "${slice}" >"${tmp}" 2>/dev/null; then

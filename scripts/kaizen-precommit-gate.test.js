@@ -1506,6 +1506,15 @@ describe("ゲート全体の締め切り", () => {
     expect(elapsed).toBeLessThan(2000 + 1500);
   }, 15000);
 
+  // bash は環境変数 SECONDS を起動時の初期値として引き継ぐ。フックの親環境に export されていると、
+  // 経過時間が最初から大きくなり毎回 fail closed になる（PR #545 のレビュー指摘・実測）。
+  test("環境変数 SECONDS を引き継いでも経過時間は 0 から数える", () => {
+    const cwd = makeProject();
+    const gate = runGate("git commit -m x", { cwd, sessionId: OWN, env: { SECONDS: "100" } });
+    expect(gate.stderr).not.toMatch(/締め切り/);
+    expect(gate.status, gate.stderr).toBe(0);
+  });
+
   test.each([["abc"], ["0"], ["1"], ["3601"], ["-5"], ["8.5"]])(
     "不正な締め切り %s は既定へ倒して知らせる",
     (raw) => {
@@ -1569,10 +1578,7 @@ describe("他セッション分の走査結果の再利用", () => {
     return { scripts, cwd, transcript, cache, gate, scans };
   }
 
-  test.each([
-    ["候補あり", "exit 0"],
-    ["判定不能", "exit 2"],
-  ])("%s は入力が変わらなければ走査し直さない", (_label, body) => {
+  test.each([["候補あり", "exit 0"]])("%s は入力が変わらなければ走査し直さない", (_label, body) => {
     const { gate, scans, cache } = setup(body);
     const first = gate();
     expect(first.status, first.stderr).toBe(1);
@@ -1585,6 +1591,27 @@ describe("他セッション分の走査結果の再利用", () => {
     expect(second.stderr).toMatch(/skipped re-scanning .*unchanged since the last scan/);
     // 省いても他セッションの警告は従来どおり出る。
     expect(second.stderr).toMatch(/他セッションの未抽出センチネルが残っています/);
+  });
+
+  // 走査器は一時ファイルの作成・読み取りの失敗といった一過性の理由でも 2 を返す。残すと、持ち主が
+  // 戻らないセンチネルを保持期間まで再試行しなくなる（PR #545 のレビュー指摘）。
+  test("判定不能はキャッシュに残さず、毎回走査し直す", () => {
+    const { gate, scans, cache } = setup("exit 2");
+    gate();
+    expect(existsSync(cache)).toBe(false);
+    gate();
+    expect(scans()).toBe(2);
+  });
+
+  test("残っていた判定不能のキャッシュも使わない", () => {
+    const { gate, scans, cache } = setup("exit 0");
+    gate();
+    const content = readFileSync(cache, "utf8");
+    const inconclusive = content.replace(/\n0\n(\d+)\n$/, "\n2\n$1\n");
+    expect(inconclusive).not.toBe(content);
+    writeFileSync(cache, inconclusive);
+    gate();
+    expect(scans()).toBe(2);
   });
 
   test("transcript が伸びたら走査し直す", () => {
