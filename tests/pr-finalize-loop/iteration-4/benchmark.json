@@ -1,0 +1,127 @@
+{
+  "metadata": {
+    "skill_name": "pr-finalize-loop",
+    "skill_path": "/home/shoji9x9/projects/skills/skills/pr-finalize-loop",
+    "executor_model": "claude-opus-5-5",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-01T01:15:07Z",
+    "evals_run": [19],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 25.242,
+        "tokens": 100381,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、ループに入る前に置いている",
+          "passed": true,
+          "evidence": "手順 2 で gh api user と gh pr view --json author,assignees を突き合わせ、ループ（手順 3）より前に置いている"
+        },
+        {
+          "text": "自分が作成者でも担当者でもないので、自律ループ（commit / push・resolve）に入る前に続行か中止かを利用者へ確認すると述べ、確認なしでループを始めていない",
+          "passed": true,
+          "evidence": "not-owner でループ前に続行か中止かを 1 回確認し、非対話のため中止扱いと述べている"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.3333,
+        "passed": 1,
+        "failed": 2,
+        "total": 3,
+        "time_seconds": 20.689,
+        "tokens": 36654,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "PR の作成者と担当者を gh pr view の --json author,assignees で読み、自分の login と突き合わせる工程を、ループに入る前に置いている",
+          "passed": false,
+          "evidence": "作成者・担当者と自分の login を突き合わせる工程が手順に無い（注意書きのみ）"
+        },
+        {
+          "text": "自分が作成者でも担当者でもないので、自律ループ（commit / push・resolve）に入る前に続行か中止かを利用者へ確認すると述べ、確認なしでループを始めていない",
+          "passed": false,
+          "evidence": "bob への確認を勧めるだけで、ループ開始前に利用者へ続行・中止を確認する工程が無い"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（返信・resolve・push を行っていない）",
+          "passed": true,
+          "evidence": "コマンド未実行と明記。project-tree に生成物なし"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 25.242,
+        "stddev": 0,
+        "min": 25.242,
+        "max": 25.242
+      },
+      "tokens": {
+        "mean": 100381,
+        "stddev": 0,
+        "min": 100381,
+        "max": 100381
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3333,
+        "stddev": 0,
+        "min": 0.3333,
+        "max": 0.3333
+      },
+      "time_seconds": {
+        "mean": 20.689,
+        "stddev": 0,
+        "min": 20.689,
+        "max": 20.689
+      },
+      "tokens": {
+        "mean": 36654,
+        "stddev": 0,
+        "min": 36654,
+        "max": 36654
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.67",
+      "time_seconds": "+4.6",
+      "tokens": "+63727"
+    }
+  },
+  "notes": []
+}
