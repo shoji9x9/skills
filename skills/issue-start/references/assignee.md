@@ -15,10 +15,10 @@
 acked=''
 me=$(gh api user --jq .login </dev/null)
 [ -n "$me" ] || { echo '判定不能: 自分の login を取得できない（ユーザーでないトークンの可能性）' >&2; exit 1; }
-# me と acked を除いた担当者を返す
+# me と acked を除いた担当者を返す（全行が除かれた grep の終了コード 1 は該当なしなので吸収する。pipefail 下でも落ちない）
 others_of() {
-  printf '%s\n' "$1" | grep -vxF -- "$me" \
-    | if [ -n "$acked" ]; then grep -vxF -f <(printf '%s\n' "$acked"); else cat; fi | sed '/^$/d'
+  printf '%s\n' "$1" | { grep -vxF -- "$me" || true; } \
+    | if [ -n "$acked" ]; then { grep -vxF -f <(printf '%s\n' "$acked") || true; }; else cat; fi | sed '/^$/d'
 }
 
 # 1. 担当者を確かめる
