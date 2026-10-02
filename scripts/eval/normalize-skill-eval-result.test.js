@@ -1224,6 +1224,12 @@ describe("codex contamination surface", () => {
       "an echo of a substitution in an assignment prefix",
       command(`FOO=$(<references/x.md) /bin/bash -lc 'echo "$FOO"'`),
     ],
+    [
+      "an echo run with a BASH_ENV prefix",
+      command("BASH_ENV=references/x.md /bin/bash -c 'echo hi'", "references/x.md: line 1: ..."),
+    ],
+    ["an echo run behind sudo", command("sudo /bin/bash -lc 'echo references/x.md'")],
+    ["an echo with an assignment prefix", command("FOO=references/x.md echo hi")],
     ["an echo with a redirect", command("/bin/bash -lc 'echo x < references/x.md'")],
     ["an echo followed by a read", command("/bin/bash -lc 'echo x && cat references/x.md'")],
     ["an echo after a read", command("/bin/bash -lc 'cat references/x.md; echo done'")],

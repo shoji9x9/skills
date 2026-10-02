@@ -435,8 +435,7 @@
       "occurrences": 1,
       "expect_failing": [
         "codex contamination surface keeps an echo of a substitution verbatim",
-        "codex contamination surface keeps an echo of a backtick substitution verbatim",
-        "codex contamination surface keeps an echo of a substitution in an assignment prefix verbatim"
+        "codex contamination surface keeps an echo of a backtick substitution verbatim"
       ]
     },
     {
@@ -447,6 +446,18 @@
       "replace": "    } catch {\n      continue;\n    }\n",
       "occurrences": 1,
       "expect_failing": ["codex contamination surface keeps a line that is not JSON verbatim"]
+    },
+    {
+      "id": "surface-prefix-ignored",
+      "why": "bash -c の前の代入・sudo を読み飛ばして単独の echo と判定する",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (/^(?:[A-Za-z_]\\w*=|sudo(?:\\s|$))/u.test(trimmed)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "codex contamination surface keeps an echo run with a BASH_ENV prefix verbatim",
+        "codex contamination surface keeps an echo run behind sudo verbatim"
+      ]
     }
   ]
 }

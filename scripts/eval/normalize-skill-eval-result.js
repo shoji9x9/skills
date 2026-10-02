@@ -801,6 +801,13 @@ function isMentionOnlyCommand(command, depth = 0) {
   if (trimmed.includes("`") || trimmed.includes("$(")) {
     return false;
   }
+  // shellCScript also skips leading `VAR=value` / `sudo` words, which can make the
+  // shell read a file before the echo runs (`BASH_ENV=<file> bash -c 'echo hi'`
+  // sources it and prints its lines as errors). Those words are not part of a plain
+  // echo, so any prefix keeps the command on the surface.
+  if (/^(?:[A-Za-z_]\w*=|sudo(?:\s|$))/u.test(trimmed)) {
+    return false;
+  }
   const inner = shellCScript(trimmed);
   if (inner !== null) {
     return depth < 2 && isMentionOnlyCommand(inner, depth + 1);
