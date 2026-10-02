@@ -776,6 +776,73 @@ export function parseCodexTrace(rawText) {
   };
 }
 
+// What the harness's contamination scan searches in a codex trace (#401). The raw
+// trace is an event stream, so scanning all of it treats a marker the agent merely
+// wrote or said as one it read: a baseline whose only command was
+// `echo references/oauth-setup.md` would be discarded. Dropping raw/ entirely would
+// shrink the surface codex has always had, so this drops only a closed set of events
+// that cannot carry anything read from disk, and keeps every other line verbatim —
+// including lines it cannot parse or classify, so an unknown shape stays scanned.
+//
+// Dropped, and why each cannot be a read:
+// - agent_message / reasoning / todo_list: text the agent authored.
+// - file_change: paths the agent wrote; their contents never appear in the trace.
+// - command_execution of one plain `echo` / `printf`: it prints its own arguments.
+//   A glob, substitution, redirect or second command can print what is on disk, so
+//   any of those keeps the command (and its output) on the surface.
+const MENTION_ITEM_TYPES = new Set(["agent_message", "reasoning", "todo_list", "file_change"]);
+const MENTION_UTILITIES = new Set(["echo", "printf"]);
+
+function isMentionOnlyCommand(command, depth = 0) {
+  const trimmed = command.trim();
+  // A substitution runs a command even inside double quotes, which blankQuoted hides.
+  // Checked before unwrapping a -c script: shellCScript skips a `FOO=$(<file)` prefix,
+  // which would read the file and hand it to the echo inside.
+  if (trimmed.includes("`") || trimmed.includes("$(")) {
+    return false;
+  }
+  const inner = shellCScript(trimmed);
+  if (inner !== null) {
+    return depth < 2 && isMentionOnlyCommand(inner, depth + 1);
+  }
+  const blanked = blankQuoted(trimmed);
+  if (blanked === null || /[|&;\n(){}<>*?[]/u.test(blanked)) {
+    return false;
+  }
+  return MENTION_UTILITIES.has(blanked.split(/\s+/u)[0]);
+}
+
+export function codexContaminationSurface(rawText) {
+  const kept = [];
+  for (const line of rawText.split(/\r?\n/u)) {
+    if (line.trim() === "") {
+      continue;
+    }
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      kept.push(line);
+      continue;
+    }
+    const item = event?.item;
+    if (typeof item === "object" && item !== null) {
+      if (MENTION_ITEM_TYPES.has(item.type)) {
+        continue;
+      }
+      if (
+        item.type === "command_execution" &&
+        typeof item.command === "string" &&
+        isMentionOnlyCommand(item.command)
+      ) {
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+  return kept.length > 0 ? `${kept.join("\n")}\n` : "";
+}
+
 // The harness installs the subject skill under one of these, by executor
 // (run-skill-eval.sh `skill_home`). Both are matched regardless of executor so a
 // run that reaches for the other layout is still counted as having read it.
@@ -1074,6 +1141,13 @@ function main() {
   }
 
   const rawText = readFileSync(args.raw, "utf8");
+  // Written before normalization so a trace that fails to normalize is still scanned.
+  if (args["contamination-surface"] !== undefined) {
+    if (args.executor !== "codex") {
+      throw new Error("--contamination-surface is only defined for the codex executor");
+    }
+    atomicWrite(args["contamination-surface"], codexContaminationSurface(rawText));
+  }
   if ((args["project-files"] === undefined) !== (args["initial-files"] === undefined)) {
     throw new Error("--project-files and --initial-files must be provided together");
   }

@@ -1,0 +1,46 @@
+{
+  "$comment": [
+    "run-skill-eval.test.js のうち、codex baseline の汚染判定（Issue #401）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/eval/run-skill-eval.test.js",
+  "mutations": [
+    {
+      "id": "codex-scans-raw",
+      "why": "codex の汚染判定を走査面ではなく raw/ 全文に戻す",
+      "file": "scripts/eval/run-skill-eval.sh",
+      "find": "\tcodex) [ -d \"${contamination_surface_dir}\" ] && scan_directories+=(\"${contamination_surface_dir}\") ;;\n",
+      "replace": "\tcodex) [ -d \"${out}/raw\" ] && scan_directories+=(\"${out}/raw\") ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_MENTION as clean",
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_READ as CONTAMINATED",
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_IN_OUTPUT as CONTAMINATED"
+      ]
+    },
+    {
+      "id": "codex-surface-not-scanned",
+      "why": "codex の走査面を走査対象に入れない",
+      "file": "scripts/eval/run-skill-eval.sh",
+      "find": "\tcodex) [ -d \"${contamination_surface_dir}\" ] && scan_directories+=(\"${contamination_surface_dir}\") ;;\n",
+      "replace": "\tcodex) : ;;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_MENTION as clean",
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_READ as CONTAMINATED",
+        "run-skill-eval executor compatibility judges a codex baseline with EXPECT_MARKER_IN_OUTPUT as CONTAMINATED"
+      ]
+    },
+    {
+      "id": "empty-surface-accepted",
+      "why": "空の走査面を CHECK-BROKEN にしない",
+      "file": "scripts/eval/run-skill-eval.sh",
+      "find": "[ ! -s \"${contamination_surface}\" ]",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "run-skill-eval executor compatibility calls a codex baseline CHECK-BROKEN when its contamination surface is empty"
+      ]
+    }
+  ]
+}

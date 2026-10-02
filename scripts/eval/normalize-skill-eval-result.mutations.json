@@ -356,7 +356,8 @@
       "occurrences": 1,
       "expect_failing": [
         "skill eval result normalization skill read detection takes no evidence from a quoted $0 after a -c script",
-        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd after a child shell"
+        "skill eval result normalization skill read detection reads relative to the shell's working directory forgets the skill directory after a cd after a child shell",
+        "codex contamination surface drops an echo of a quoted separator"
       ]
     },
     {
@@ -381,6 +382,71 @@
       "expect_failing": [
         "skill eval result normalization skill read detection takes no evidence from an unterminated -c script"
       ]
+    },
+    {
+      "id": "surface-keeps-mention-items",
+      "why": "エージェントが書いたテキストの item（agent_message 等）を走査面から落とさない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "      if (MENTION_ITEM_TYPES.has(item.type)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "codex contamination surface drops an agent message",
+        "codex contamination surface drops reasoning",
+        "codex contamination surface drops a todo list",
+        "codex contamination surface drops a file change",
+        "codex contamination surface keeps the kept lines of a mixed trace in order and drops nothing else"
+      ]
+    },
+    {
+      "id": "surface-keeps-echo",
+      "why": "単独の echo / printf を言及として落とさない",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  return MENTION_UTILITIES.has(blanked.split(/\\s+/u)[0]);\n",
+      "replace": "  return false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "codex contamination surface drops a wrapped echo",
+        "codex contamination surface drops a bare printf",
+        "codex contamination surface drops a started echo",
+        "codex contamination surface drops an echo of a quoted separator",
+        "codex contamination surface keeps the kept lines of a mixed trace in order and drops nothing else"
+      ]
+    },
+    {
+      "id": "surface-echo-ignores-control-flow",
+      "why": "glob・リダイレクト・後続コマンドを持つ echo も言及として落とす",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (blanked === null || /[|&;\\n(){}<>*?[]/u.test(blanked)) {\n",
+      "replace": "  if (blanked === null) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "codex contamination surface keeps an echo of a glob verbatim",
+        "codex contamination surface keeps an echo with a redirect verbatim",
+        "codex contamination surface keeps an echo followed by a read verbatim"
+      ]
+    },
+    {
+      "id": "surface-echo-ignores-substitution",
+      "why": "コマンド置換を含む echo も言及として落とす",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "  if (trimmed.includes(\"`\") || trimmed.includes(\"$(\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "codex contamination surface keeps an echo of a substitution verbatim",
+        "codex contamination surface keeps an echo of a backtick substitution verbatim",
+        "codex contamination surface keeps an echo of a substitution in an assignment prefix verbatim"
+      ]
+    },
+    {
+      "id": "surface-drops-unparsable",
+      "why": "JSON として読めない行を走査面から落とす",
+      "file": "scripts/eval/normalize-skill-eval-result.js",
+      "find": "    } catch {\n      kept.push(line);\n      continue;\n    }\n",
+      "replace": "    } catch {\n      continue;\n    }\n",
+      "occurrences": 1,
+      "expect_failing": ["codex contamination surface keeps a line that is not JSON verbatim"]
     }
   ]
 }
