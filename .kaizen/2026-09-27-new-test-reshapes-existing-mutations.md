@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-`scripts/capture-scope-check.test.js` にテストを足した後、新しい変異だけを
+`scripts/skills/parity-suite/capture-scope-check.test.js` にテストを足した後、新しい変異だけを
 `check-mutation-proof.js --only <新 id>` で実証して済ませた。宣言ファイル全件を回すと、
 既存・別の変異 3 件が「宣言外で落ちた」で FAIL した
 （後から足したテンプレートのテスト・全ページ `not_applicable` のテストが既存の変異も検出したため）。2 回繰り返した。
@@ -42,5 +42,5 @@ session: claude-code
 - `.agents/rules/state-space-and-mutation-proof.md` §5 の「assertion を書き換えたら〜」に「テストを足したとき」も含める
 - 判定（finding）を足したときも同じ: 既存テストの `toEqual` の期待値と、既存変異の `expect_failing` が動く。`--only` で絞らず宣言ファイル全件を取り直す
 - CI の `--changed-since` は test_file の変更で全件を測るので最終的には捕まる（手元での手戻りを減らす規律）
-- 手元での全件は `node scripts/check-mutation-proof.js scripts/<name>.mutations.json`（宣言ファイルを位置引数）で取る。`--changed-since` は commit 前の手元では使わない
+- 手元での全件は `node scripts/mutation/check-mutation-proof.js scripts/<name>.mutations.json`（宣言ファイルを位置引数）で取る。`--changed-since` は commit 前の手元では使わない
 - 実行器側: `--changed-since` で作業ツリーに未コミットの変更がある場合は警告を出す（または未コミット分も差分に含める）。0 件選択を exit 0 の合格と区別できる出力にする

@@ -52,7 +52,7 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 ### 3. 結果を集計する
 
 ```bash
-node scripts/build-skill-eval-benchmark.js tests/pr-finalize-loop/iteration-N \
+node scripts/eval/build-skill-eval-benchmark.js tests/pr-finalize-loop/iteration-N \
   --skill-name pr-finalize-loop \
   --skill-path '<repo>/skills/pr-finalize-loop' \
   --executor-model <model-id> \

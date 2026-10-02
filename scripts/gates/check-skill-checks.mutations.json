@@ -1,0 +1,350 @@
+{
+  "$comment": [
+    "check-skill-checks.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/check-skill-checks.test.js",
+  "mutations": [
+    {
+      "id": "SC-UNDECIDED",
+      "why": "どちらにも載っていない検査を通す（配線するか決めていない状態を見逃す）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    } else if (!w && !u) {",
+      "replace": "    } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: どちらにも載っていない検査は「配線するか決まっていない」で落とす",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、合格なら exit 0",
+        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）",
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う"
+      ]
+    },
+    {
+      "id": "SC-BOTH",
+      "why": "wire と unwired の両方に載った検査を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (w && u) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire と unwired の両方に載っている検査を落とす"]
+    },
+    {
+      "id": "SC-NO-DECL",
+      "why": "検査を持つスキルに checks.json が無くても宣言漏れとして報告しない",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      if (hasCheck) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 検査を持つのに checks.json が無いスキルを落とす",
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う"
+      ]
+    },
+    {
+      "id": "SC-ZERO",
+      "why": "検査 0 本（走査が届いていない）を合格に倒す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  if (checks.length === 0) throw",
+      "replace": "  if (false) throw",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 検査が 0 本なら判定できない（exit 2。走査が届いていないのを合格に倒さない）"
+      ]
+    },
+    {
+      "id": "SC-RECURSE",
+      "why": "scripts/ のサブディレクトリを走査しない",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (kind.isDirectory()) out.push(...listFiles(p, skillReal, path));",
+      "replace": "    if (false) out.push(...listFiles(p, skillReal, path));",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: scripts/ のサブディレクトリにある検査も拾う",
+        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）",
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
+      ]
+    },
+    {
+      "id": "SC-PLACEHOLDER",
+      "why": "解決できないプレースホルダを通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "          if (paramNames.includes(name)) used.add(name);",
+      "replace": "          if (true) used.add(name);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（未解決のプレースホルダ）を落とす",
+        "陽性: wire の項目の誤り（applies_when の {script}）を落とす"
+      ]
+    },
+    {
+      "id": "SC-UNUSED",
+      "why": "どこからも参照されない params を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      if (!used.has(name)) v.push(",
+      "replace": "      if (false) v.push(",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（未使用の params）を落とす"]
+    },
+    {
+      "id": "SC-SCRIPT-EXISTS",
+      "why": "宣言した script の不在を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      if (!existsSync(path) || !statSync(path).isFile()) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（script の不在）を落とす"]
+    },
+    {
+      "id": "SC-STALE-UNWIRED",
+      "why": "改名・削除で実在しなくなった検査を unwired に残しても通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (!checks.includes(s)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: unwired に実在しない検査・重複があれば落とす"]
+    },
+    {
+      "id": "SC-BY-STAGE",
+      "why": "by_stage のキーと stages の不一致を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "        } else if (Object.keys(bs).sort().join(\",\") !== want) {",
+      "replace": "        } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（by_stage のキーが stages と不一致）を落とす"]
+    },
+    {
+      "id": "SC-APPLIES-EMPTY",
+      "why": "applies_when に exists も exists_at_base も無い（対象が現れる契機を書いていない）宣言を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (!isObject(aw) || !awKeys.some((k) => k in aw)) {",
+      "replace": "    if (!isObject(aw)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（applies_when に exists も exists_at_base も無い）を落とす"
+      ]
+    },
+    {
+      "id": "SC-UNKNOWN-KEY",
+      "why": "wire の項目の未知のキーを黙って無視する",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "if (!ENTRY_KEYS.has(k)) v.push(",
+      "replace": "if (false) v.push(",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（未知のキー）を落とす"]
+    },
+    {
+      "id": "SC-REASON",
+      "why": "理由の無い「配線しない」を受理する",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (!isText(u?.reason)) throw",
+      "replace": "    if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 配線しない一覧が読めない（reason が空白だけ）なら exit 2"]
+    },
+    {
+      "id": "SC-STAGE-SHAPE",
+      "why": "by_stage の value と resolve の併用を受理する（どちらで置き換えるか決まらない）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "isObject(sv) && Object.keys(sv).length === 1 && (",
+      "replace": "isObject(sv) && (",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（by_stage の value と resolve の併用）を落とす"]
+    },
+    {
+      "id": "SC-STAGE-STRING",
+      "why": "by_stage の値に素の文字列を受理する（説明文がそのまま引数に渡る）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "        const stageValue = (sv) =>\n          isObject(sv)",
+      "replace": "        const stageValue = (sv) =>\n          isText(sv) || isObject(sv)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（by_stage の値が素の文字列（説明文がそのまま引数に渡る））を落とす"
+      ]
+    },
+    {
+      "id": "SC-SEGMENT",
+      "why": "script の . と空のセグメントを受理する（検査一覧のパスと字面が合わない）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "s === \"..\" || s === \".\" || s === \"\"",
+      "replace": "s === \"..\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（script の .）を落とす",
+        "陽性: wire の項目の誤り（script の空セグメント）を落とす"
+      ]
+    },
+    {
+      "id": "SC-SYMLINK",
+      "why": "シンボリックリンクの検査・ディレクトリを走査から黙って外す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    const kind = e.isSymbolicLink() ? statSync(p) : e;",
+      "replace": "    const kind = e;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: シンボリックリンクの検査・ディレクトリも拾う（リンクを黙って走査から外さない）",
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
+      ]
+    },
+    {
+      "id": "SC-BASE-GUARD",
+      "why": "配列でない applies_when の値を展開する（宣言の誤りが判定不能の例外に化ける）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      const paths = awKeys.flatMap((k) => (isTextArray(aw[k]) ? aw[k] : []));",
+      "replace": "      const paths = awKeys.flatMap((k) => aw[k] ?? []);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（exists_at_base が配列でない（展開できない値））を落とす"
+      ]
+    },
+    {
+      "id": "SC-CYCLE",
+      "why": "経路上のディレクトリを辿り直す（祖先を指すリンクで ELOOP まで潜り判定不能に化ける）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  if (ancestors.has(real)) return [];",
+      "replace": "  if (false) return [];",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 祖先を指すディレクトリのリンクは辿り直さず、判定できないに倒さない"]
+    },
+    {
+      "id": "SC-EXT",
+      "why": "検査の拡張子を限定する（規約外の拡張子の検査が分類から漏れる）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "const CHECK_RE = /-check\\.[A-Za-z0-9]+$/;",
+      "replace": "const CHECK_RE = /-check\\.(mjs|js|cjs|sh)$/;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 規約外の拡張子の検査も拾い、分類を問う（拡張子で分類から漏らさない）"
+      ]
+    },
+    {
+      "id": "SC-APPLIES-ARRAY",
+      "why": "applies_when の空配列を受理する",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "        if (k in aw && !isTextArray(aw[k]))",
+      "replace": "        if (k in aw && !Array.isArray(aw[k]))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: wire の項目の誤り（applies_when.exists が空）を落とす",
+        "陽性: wire の項目の誤り（exists_at_base が空）を落とす"
+      ]
+    },
+    {
+      "id": "SC-OUTSIDE-SCAN",
+      "why": "スキルの外を指すリンクを辿る（配布されない検査・CI のファイルシステムを走査する）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (e.isSymbolicLink() && !isInside(skillReal, realpathSync(p))) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: リポジトリの外を指すリンクは辿らず判定できない（exit 2。CI のファイルシステムを走査しない）",
+        "陽性: スキルの外（リポジトリの中）を指す検査のリンクは判定できない（配線しない側に載せても通さない）"
+      ]
+    },
+    {
+      "id": "SC-OUTSIDE-SCRIPT",
+      "why": "スキルの外を指す script の宣言を通す（配布されない検査を配線させる）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      } else if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(path))) {",
+      "replace": "      } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 宣言した script がリンクでスキルの外を指していたら落とす（配布されない）"
+      ]
+    },
+    {
+      "id": "SC-ROOT-OUTSIDE",
+      "why": "走査の起点（scripts/）自体がスキルの外を指すリンクでも辿る",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  if (!isInside(skillReal, real)) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: scripts/ 自体がリポジトリの外を指すリンクなら辿らず判定できない（exit 2）"
+      ]
+    },
+    {
+      "id": "SC-WIRED-NOT-CHECK",
+      "why": "検査として見つからないファイルの配線を通す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      if (checks.indexOf(s) === -1) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 検査でないファイルを配線し、本物の検査を配線しない側に載せた宣言を落とす"
+      ]
+    },
+    {
+      "id": "SC-ALIAS",
+      "why": "循環の判定を全体の訪問済み集合にする（同じ先を指す 2 本目のリンクの検査が漏れる）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  const path = new Set(ancestors).add(real);",
+      "replace": "  const path = ancestors.add(real);",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 同じディレクトリを指す兄弟のリンクは、どちらの経路の検査も拾う（循環の判定で別名を捨てない）"
+      ]
+    },
+    {
+      "id": "SC-SKILL-LINK",
+      "why": "リンクした skills/<name> を走査から黙って外す",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    .filter((e) => (e.isSymbolicLink() ? statSync(join(skillsDir, e.name)) : e).isDirectory())",
+      "replace": "    .filter((e) => e.isDirectory())",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: リンクした skills/<name> の検査も拾い、宣言と分類を問う",
+        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
+      ]
+    },
+    {
+      "id": "SC-SEP",
+      "why": "区切りを / へ揃えない（Windows で全検査が未分類に化ける）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  return p.split(separator).join(\"/\");",
+      "replace": "  return p;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: Windows の区切り（\\）の相対パスも宣言と同じ / 区切りにする"]
+    },
+    {
+      "id": "SC-OPT-KEYS",
+      "why": "optional_args の要素の未知のキーを黙って無視する",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "          } else if (Object.keys(o).some((k) => k !== \"args\" && k !== \"when_exists\")) {",
+      "replace": "          } else if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（optional_args の未知のキー）を落とす"]
+    },
+    {
+      "id": "SC-SCRIPT-EMBED",
+      "why": "他の引数に埋め込んだ {script} を通す（利用者に壊れた引数が渡る）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "      if (e.command.some((t) => t !== \"{script}\" && placeholders(t).includes(\"script\"))) {",
+      "replace": "      if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["陽性: wire の項目の誤り（{script} を他の引数に埋め込む）を落とす"]
+    },
+    {
+      "id": "SC-DECL-OUTSIDE",
+      "why": "スキルの外を指す checks.json を読む（配布されない宣言を通す）",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "  if (!isInside(realpathSync(join(root, \"skills\", skill)), realpathSync(join(root, rel)))) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: checks.json がリンクでスキルの外を指していたら落とす（配布されない）"
+      ]
+    },
+    {
+      "id": "SC-SKILL-OUTSIDE-REPO",
+      "why": "リポジトリの外を指す skills/<name> を走査する",
+      "file": "scripts/gates/check-skill-checks.js",
+      "find": "    if (!isInside(rootReal, skillReal)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: skills/<name> がリポジトリの外を指すリンクなら判定できない（exit 2）"
+      ]
+    }
+  ]
+}

@@ -29,7 +29,7 @@ fail-closed テストは赤くなったのに `kaizen-schedule.yml` 側は緑の
     - なぜ委ねたか? → 「宣言をハードコードすると、宣言を落とす変異で緑のまま通る」を避けるため解決を宣言側へ寄せた。
       **宣言の検証（どこを指すか）と挙動の測定（何を測るか）を同じ 1 本のパスで兼ねた**のが誤り ← 根本原因（対策可能）
 
-コピーは `scripts/check-skills-sync.js` がバイト一致で見張るので「同期されていれば同じ」は普段は成立する。
+コピーは `scripts/gates/check-skills-sync.js` がバイト一致で見張るので「同期されていれば同じ」は普段は成立する。
 破れるのは**正本を編集してから再インストールするまでの窓**で、変異実証はまさにその窓を作る（正本だけを書き換えて測る）。
 
 ## KEDB 照合
@@ -48,6 +48,6 @@ fail-closed テストは赤くなったのに `kaizen-schedule.yml` 側は緑の
 
 - 挙動の測定は正本（`skills/<name>/...`）を渡す。インストール済みコピーを実行対象にしない
 - 宣言が実在の対象を指すことは別に検査する（探索ステップを走らせる・宣言値の実在を確かめる）
-- コピーとの一致は `scripts/check-skills-sync.js` に任せる（測定と同期検査を混ぜない）
+- コピーとの一致は `scripts/gates/check-skills-sync.js` に任せる（測定と同期検査を混ぜない）
 - 反映先: `.agents/rules/state-space-and-mutation-proof.md`（変異実証の節）か
   `.agents/rules/skill-reinstall.md`（正本とコピーの関係を述べている側）

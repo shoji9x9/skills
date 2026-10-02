@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-`scripts/bash-command-guard.sh` の `heredoc_open`（awk 関数）に外側のコマンド置換を記録するループを足した際、
+`scripts/hooks/bash-command-guard.sh` の `heredoc_open`（awk 関数）に外側のコマンド置換を記録するループを足した際、
 区切り語の終端を持つローカル `j` をループ変数に使い回し、直後の `i = j - 1` で `i` が後退して無限ループになった。
 検証を timeout なしで走らせたため 5 分ハングし、PID を指定して殺した。
 
@@ -26,5 +26,5 @@ session: claude-code
 
 awk の関数に処理を足すときは新しい変数を仮引数列へ追加して既存のローカル名を使い回さず、シェルゲートを検証するコマンドには必ず timeout を付ける。
 
-- 決定論的な対策: `scripts/bash-command-guard.test.js` の `run` に `spawnSync` の `timeout` を入れ、ハングを失敗として捕まえる
-- 適用先候補: `scripts/bash-command-guard.test.js`
+- 決定論的な対策: `scripts/hooks/bash-command-guard.test.js` の `run` に `spawnSync` の `timeout` を入れ、ハングを失敗として捕まえる
+- 適用先候補: `scripts/hooks/bash-command-guard.test.js`

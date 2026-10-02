@@ -24,5 +24,5 @@ parity-replace eval 24 を「…何も実行せず、判断と記録の仕方を
 
 手順提示型 eval の prompt は「何も実行しないで」ではなく「コマンドの実行やファイルの変更はせず」のように禁止対象を副作用に限る規約を `.agents/rules/eval-assertion-discrimination.md` に足す。
 
-- 強制点: `scripts/check-eval-reachability.js` に「何も実行しないで／何も実行せず」を含む prompt を警告する検査を足す案（既存 eval は backlog に入れる）
+- 強制点: `scripts/gates/check-eval-reachability.js` に「何も実行しないで／何も実行せず」を含む prompt を警告する検査を足す案（既存 eval は backlog に入れる）
 - 横断: `evals/issue-start` の eval 2/7/9/10/11/12 も同じ文言。実走時に `invalid_run` を確かめる

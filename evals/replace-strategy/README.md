@@ -12,14 +12,14 @@
 ## 実行例
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill replace-strategy --config with_skill \
   --prompt "replace-strategy setup" \
   --out tests/replace-strategy/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
 # fixture 付き eval（evals.json に `fixture` を持つもの）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill replace-strategy --config with_skill \
   --fixture evals/replace-strategy/fixtures/status-multi-target \
   --prompt "replace-strategy status" \
@@ -206,4 +206,4 @@ scripts/run-skill-eval.sh \
   baseline もスイート green が見た目の一致を示さないことには自力で気付くが、受け入れ条件には「スクリーンショット比較などの視覚差分チェック」を置き、
   `parity-diff` の収束（`converged: true`）には至らなかった。baseline は contamination: clean / isolation: sandboxed
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

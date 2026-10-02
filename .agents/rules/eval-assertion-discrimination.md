@@ -59,7 +59,7 @@ applyTo: "evals/**"
 **表を書き終えてから run を回す**。**assertion を弱めるのではなく問う形にする**
 （プロンプトが問うていない話題の自発的言及に賭けると、検査しているのは契約知識ではなく冗長さになり、run 間で揺れて flaky になる）。
 プロンプトを 1 語でも変えたら、追加・変更した assertion だけでなく**全 assertion**の対応表を作り直す。過去 run の pass は到達性の証拠ではない。
-対応表は内心ではなく eval の `reachability`（`{ assertion, prompt_quote }` の配列）として残し、`scripts/check-eval-reachability.js` が
+対応表は内心ではなく eval の `reachability`（`{ assertion, prompt_quote }` の配列）として残し、`scripts/gates/check-eval-reachability.js` が
 pre-commit と CI で「`prompt_quote` が prompt の部分文字列であること」「`assertion` がその eval の assertions に実在すること」を検査する。
 **機械検査が見るのは部分文字列の実在までなので、次の 4 点はレビュー側で担保する**（いずれも実走してから取り直した実例がある）。
 

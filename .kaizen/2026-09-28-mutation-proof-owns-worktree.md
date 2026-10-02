@@ -13,7 +13,7 @@ session: claude-code
 
 作業ツリーのファイルを書き換えて戻す長時間処理（変異実証など）を背景で走らせるなら別 worktree で走らせ、実行器側は復元の直前に対象が「自分が書いた変異後の内容」のままかを確かめて、外部の編集を黙って上書きしない。
 
-- 実行器（`scripts/check-mutation-proof.js` の `proveMutation`）: 復元前に現在の内容が `mutated` と一致するかを確かめ、一致しなければ上書きせず exit 2 で止める（`recoverFromInterrupted` は既に同じ照合をしている。通常経路にだけ無い）
+- 実行器（`scripts/mutation/check-mutation-proof.js` の `proveMutation`）: 復元前に現在の内容が `mutated` と一致するかを確かめ、一致しなければ上書きせず exit 2 で止める（`recoverFromInterrupted` は既に同じ照合をしている。通常経路にだけ無い）
 - 手順（`AGENTS.md`「変異実証」）: 「並行して走らせない」に、**実行中に同じツリーの対象ファイルを編集しない**ことと、変更前の計測は基点 commit の別 worktree（`git worktree add --detach`）で取ることを足す
 - 横断: 同じく作業ツリーを書き換えて戻す処理（`check-mutation-proof.test.js` の差分選択テストの実走）も同じ前提
 

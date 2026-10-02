@@ -60,31 +60,31 @@ jobs:
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
       # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功に倒さない（スクリプト側で exit 1）。
       - name: YAML lint
-        run: node scripts/lint-yaml.js
+        run: node scripts/gates/lint-yaml.js
       - name: Pagination lint
-        run: node scripts/lint-pagination.js
+        run: node scripts/gates/lint-pagination.js
       - name: Skills sync (skills/ vs .agents/skills/)
-        run: node scripts/check-skills-sync.js
+        run: node scripts/gates/check-skills-sync.js
       - name: JS extensions (skills/ => .mjs, scripts/ => .js)
-        run: node scripts/check-js-extensions.js
+        run: node scripts/gates/check-js-extensions.js
       - name: Rule symlinks (.agents/rules vs .claude/rules / .github/instructions)
-        run: node scripts/check-rule-symlinks.js
+        run: node scripts/gates/check-rule-symlinks.js
       - name: Control characters in tracked text files
-        run: node scripts/check-control-chars.js
+        run: node scripts/gates/check-control-chars.js
       - name: Eval assertion reachability
-        run: node scripts/check-eval-reachability.js
+        run: node scripts/gates/check-eval-reachability.js
       - name: SKILL.md frontmatter (YAML valid, description <=1024B, name format)
-        run: node scripts/check-skill-frontmatter.js
+        run: node scripts/gates/check-skill-frontmatter.js
       - name: Kaizen learning references exist
-        run: node scripts/check-kaizen-refs.js
-      - name: Identical copies (scripts/identical-copies.json)
-        run: node scripts/check-identical-copies.js
-      - name: Skill checks wiring declarations (checks.json / scripts/skill-checks-unwired.json)
-        run: node scripts/check-skill-checks.js
+        run: node scripts/gates/check-kaizen-refs.js
+      - name: Identical copies (scripts/gates/identical-copies.json)
+        run: node scripts/gates/check-identical-copies.js
+      - name: Skill checks wiring declarations (checks.json / scripts/gates/skill-checks-unwired.json)
+        run: node scripts/gates/check-skill-checks.js
       - name: No mutation counts in prose (AGENTS.md / rules / docs / workflows)
-        run: node scripts/check-mutation-count-prose.js
+        run: node scripts/gates/check-mutation-count-prose.js
       - name: Skill index (AGENTS.md / README.md vs skills/)
-        run: node scripts/check-skill-index.js
+        run: node scripts/gates/check-skill-index.js
 
   # ユニットテストは Lint から独立したジョブにして並べて走らせる（Lint の所要の大半を占めていたため）。
   # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。
@@ -146,7 +146,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           JOB_INDEX: ${{ strategy.job-index }}
           JOB_TOTAL: ${{ strategy.job-total }}
-        run: node scripts/check-mutation-proof.js --changed-since "origin/${BASE_REF}" --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
+        run: node scripts/mutation/check-mutation-proof.js --changed-since "origin/${BASE_REF}" --shard "$((JOB_INDEX + 1))/${JOB_TOTAL}"
 
   # 必須チェックの名前（`Mutation proof (PR)`）は集約ジョブで維持する。ルールセットはこの名前を要求し、
   # シャードの名前（分割数で変わる）を要求しない。**シャードが 1 本でも成功以外（失敗・中止・スキップ）なら落とす**

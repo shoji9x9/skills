@@ -1,7 +1,7 @@
 # kaizen の定期レビュー。
 #
 # 正本は kaizen スキルに同梱された `skills/kaizen/assets/kaizen-schedule.yml` で、
-# このファイルはその**バイト単位の複製**（`scripts/kaizen-schedule-workflow-sync.test.js` が検査）。
+# このファイルはその**バイト単位の複製**（`scripts/skills/kaizen/kaizen-schedule-workflow-sync.test.js` が検査）。
 # 片方だけ直すと、配布先へ配られるテンプレートと本リポの実物が食い違う。両方を同じ内容で更新する。
 #
 # 設定・skip・モード・エージェントの選び方は kaizen の `references/setup.md`「定期実行」を参照。

@@ -131,7 +131,7 @@ applyTo: "scripts/**,skills/*/scripts/**,evals/**"
 ## 5. テストが効いていることの示し方
 
 - **境界・分岐のテストは、その判定行を無効化する変異で赤くなることを実証してから green を根拠にする。**
-  対象は `evals/**` だけでなく `scripts/*.test.js` のユニットテストも含む。
+  対象は `evals/**` だけでなく `scripts/**/*.test.js` のユニットテストも含む。
   fixture が分岐へ到達していないテストは、判定行を変異させても green のままになる
   （実例: 「後続見出しで止まる」テストの fixture が空行で始まり、見出し境界の分岐に到達していなかった）。
 - **変異実証は列挙の実証ではない。** 全変異が RED になっても、それは書いたテストが判定行に到達している
@@ -156,8 +156,8 @@ applyTo: "scripts/**,skills/*/scripts/**,evals/**"
 - **変異の記録は散文のコメントに置かず、再実行できるデータで持つ。** 散文は「当時そうだった」ことしか示さず、
   テストを直した瞬間に検証されない主張になる（実例: 行単位の検査で分岐に混ざった変異を見逃す・
   当たらない変異を「実証」と読みかける・テストを書き換えた後に取り直さず記録だけ残る、の 3 通り）。
-  宣言は `scripts/<テスト名>.mutations.json`（`id` / `why` / `file` / `find` / `replace` / `occurrences` /
-  `expect_failing`）に置き、`node scripts/check-mutation-proof.js` で取り直す。判定の正本はそのスクリプトで、
+  宣言はテストと同じディレクトリの `<テスト名>.mutations.json`（`id` / `why` / `file` / `find` / `replace` / `occurrences` /
+  `expect_failing`）に置き、`node scripts/mutation/check-mutation-proof.js` で取り直す。判定の正本はそのスクリプトで、
   **置換が当たったこと**と**宣言したテストがそれだけ落ちたこと**の両方を見る
   （当たらない変異・宣言外まで落ちる変異は FAIL、実在しないテスト名・基準 run が赤いときは exit 2）。
   実行の運用（PR では差分に当たる宣言だけ・全件は週次・pre-commit に入れない・無関係なテスト実行と重ねない・

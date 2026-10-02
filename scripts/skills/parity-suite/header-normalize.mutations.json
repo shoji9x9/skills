@@ -1,0 +1,531 @@
+{
+  "$comment": [
+    "header-normalize.test.js のうち、応答ヘッダーの正規化の各規則（Issue #531）と一覧（.replace/response-headers.json）の形の検査（Issue #534）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す。"
+  ],
+  "test_file": "scripts/skills/parity-suite/header-normalize.test.js",
+  "mutations": [
+    {
+      "id": "filter-off",
+      "why": "一覧に載らないヘッダー（Date・秘密の値）を録画と比較へ持ち込む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    if (!list.has(name)) continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: 一覧に載らなければ cookie の値ごと落とす",
+        "絞り込み: 一覧に載らないヘッダー（揮発・秘密の値）は落とす"
+      ]
+    },
+    {
+      "id": "unknown-setter-kept",
+      "why": "付け手が unknown の行（再構築の既定値かもしれない）を比べる対象に入れる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "&& setter !== \"unknown\");",
+      "replace": "&& true);",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
+        "一覧: 付け手が unknown の行だけのヘッダーは比べる対象に入れない",
+        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない"
+      ]
+    },
+    {
+      "id": "mixed-setter-compared",
+      "why": "unknown の行が混ざるヘッダーを比べる側へ倒し、unknown の行が指す応答の値を仕様として固定する",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "known.get(key) ?? true) && setter",
+      "replace": "known.get(key) ?? false) || setter",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない"
+      ]
+    },
+    {
+      "id": "lowercase-off",
+      "why": "取得経路で表記の違うヘッダー名を揃えず、同じ応答が別の出力になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "    const key = name.toLowerCase();\n    // allHeaders()",
+      "replace": "    const key = name;\n    // allHeaders()",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "小文字化: allHeaders() と headersArray() の同じ応答は同じ出力になる",
+        "小文字化: headersArray() / HAR の元の表記の名前を小文字に揃える",
+        "小文字化: 値の大文字小文字は変えない",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "絞り込み: 付いていない一覧のヘッダーは出力に作らない（無いことは無いまま比べる）"
+      ]
+    },
+    {
+      "id": "list-name-lowercase-off",
+      "why": "一覧の名前を小文字に揃えず、表記の違う同じヘッダーを別名として扱う",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "return { key: name.toLowerCase(), setter",
+      "replace": "return { key: name, setter",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）",
+        "CLI: 正規化した JSON を出して exit 0（node で起動しても main が走る）",
+        "Set-Cookie: SameSite は値ごと比べる（Lax と None を同じにしない）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "Set-Cookie: cookie 名で並べ替え、受け取った順に依らない",
+        "Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない",
+        "Set-Cookie: 属性が無ければ HttpOnly・Secure は false、SameSite は null にする",
+        "Set-Cookie: 属性の違いは並べ替えで消さない（同じ名前の cookie が 2 つでも両方残る）",
+        "nonce: CSP の nonce- の値を固定の文字列に置き換える",
+        "nonce: CSP の中身の違い（nonce 以外）は伏せずに差として残す",
+        "nonce: nonce を持たない CSP はそのまま残す（伏せる対象を広げない）",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "一覧: loadHeaderList は一覧のファイルが無ければ NoHeaderListError、あれば一覧を返す",
+        "一覧: server_config_slug が確定していても通す",
+        "一覧: setter_source が null の行 は通す",
+        "一覧: setter_source を省いた行 は通す",
+        "一覧: 付け手が unknown の行だけのヘッダーは比べる対象に入れない",
+        "一覧: 同じヘッダーの行がすべて付け手の決まった行なら比べる対象に入れる（名前の大文字小文字は問わない）",
+        "一覧: 同じヘッダーの行どうしで付く応答が重なれば入力の誤りにする（どちらの値か読めない）",
+        "一覧: 同じヘッダーの行に付け手が unknown の行が混ざれば比べる対象に入れない",
+        "一覧: 同梱テンプレートのキーを埋めた一覧は読める（正本の形から作る）",
+        "一覧: 英数字と - _ . だけの名前 X.Custom は通す",
+        "一覧: 英数字と - _ . だけの名前 X_Custom_Header は通す",
+        "一覧: 行のヘッダー名を小文字で読む",
+        "一覧: 行の注記キー（_ で始まる） は通す",
+        "一覧: 露出の抑止（value: null） は通す",
+        "一覧: 静的だけの行の owner_slug は通す",
+        "一覧: 静的・404 を含む行の owner_slug は通す",
+        "小文字化: headersArray() / HAR の元の表記の名前を小文字に揃える",
+        "小文字化: 値の大文字小文字は変えない",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "絞り込み: 一覧に載らないヘッダー（揮発・秘密の値）は落とす",
+        "絞り込み: 一覧に載るヘッダーは残す",
+        "絞り込み: 付いていない一覧のヘッダーは出力に作らない（無いことは無いまま比べる）",
+        "一覧: <…> を含むだけの値（注記キーの中も）はプレースホルダにしない"
+      ]
+    },
+    {
+      "id": "cookie-value-kept",
+      "why": "Set-Cookie の名前に値まで含めて録画と差分の出力へ秘密を出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" : pair.slice(0, eq).trim();",
+      "replace": "const name = pair.trim();",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "Set-Cookie: cookie 名で並べ替え、受け取った順に依らない",
+        "Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない",
+        "Set-Cookie: 属性が無ければ HttpOnly・Secure は false、SameSite は null にする",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "nameless-cookie-value-kept",
+      "why": "= の無い Set-Cookie 行の値を名前として出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "const name = eq < 0 ? \"\" :",
+      "replace": "const name = eq < 0 ? pair.trim() :",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 名前の無い cookie（`=` が無い行）は値を名前にしない"]
+    },
+    {
+      "id": "samesite-dropped",
+      "why": "SameSite の値を捨て、Lax → None の後退を見落とす",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "else if (key === \"samesite\")",
+      "replace": "else if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "Set-Cookie: SameSite は値ごと比べる（Lax と None を同じにしない）",
+        "Set-Cookie: cookie ごとの名前と属性（HttpOnly・Secure の有無と SameSite の値）にする",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない"
+      ]
+    },
+    {
+      "id": "cookie-sort-off",
+      "why": "Set-Cookie を cookie 名で並べ替えず、受け取った順の違いが差分になる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (a.name !== b.name) return a.name < b.name ? -1 : 1;",
+      "replace": "if (a.name !== b.name) return 0;",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: cookie 名で並べ替え、受け取った順に依らない"]
+    },
+    {
+      "id": "nonce-kept",
+      "why": "CSP の nonce- の値を伏せず、要求ごとの値と秘密を録画と差分へ出す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "out[name] = CSP_HEADERS.has(name) ? maskNonce(joined) : joined;",
+      "replace": "out[name] = joined;",
+      "occurrences": 1,
+      "expect_failing": [
+        "nonce: CSP の nonce- の値を固定の文字列に置き換える",
+        "nonce: Report-Only でも値を伏せる",
+        "nonce: パディング付き でも値を伏せる",
+        "nonce: 大文字の NONCE- でも値を伏せる",
+        "nonce: 複数行の CSP を結合しても各行の nonce を伏せる",
+        "nonce: 要求ごとに違う nonce でも同じ出力になる",
+        "秘密の値: 値と nonce だけが違う両側は差分なしになる",
+        "秘密の値: 正規化した両側の差分は、属性の差を出しつつ cookie の値も nonce の値も出さない",
+        "秘密の値: 正規化の出力に cookie の値も nonce の値も現れない"
+      ]
+    },
+    {
+      "id": "empty-cookie-kept",
+      "why": "中身の無い Set-Cookie を [] として出し、付いていないのと別の値にする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (cookies.length === 0) continue;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["Set-Cookie: 中身の無い Set-Cookie だけなら付いていないのと同じにする"]
+    },
+    {
+      "id": "list-flag-ignored",
+      "why": "--list を読まず、録画時の一覧を記録できない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "listOnly = true;",
+      "replace": "listOnly = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --list は比べるヘッダー名を名前順の配列で出す（録画時の一覧の記録用）"
+      ]
+    },
+    {
+      "id": "missing-list-input-error",
+      "why": "一覧のファイルが無いときを入力の誤りにし、一覧が無い経路（未検証に残す）へ送らない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "(err).code === \"ENOENT\" &&",
+      "replace": "(err).code === \"__never__\" &&",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 一覧のファイル自体が無ければ exit 3（一覧が無い）で、表の survey.md からの移行を案内する",
+        "一覧: loadHeaderList は一覧のファイルが無ければ NoHeaderListError、あれば一覧を返す"
+      ]
+    },
+    {
+      "id": "enoent-any-dir",
+      "why": "置き場ごと無いパス（打ち間違い・作業ディレクトリの取り違え）も一覧が無い扱いにし、ヘッダーの比較を黙って外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "&& existsSync(dirname(path))",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 一覧の置き場ごと無いパスは「一覧が無い」にせず入力の誤りにする"]
+    },
+    {
+      "id": "schema-version-any",
+      "why": "schema_version を見ず、形の違う一覧を今の規則で読む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (doc.schema_version !== 1)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: schema_version が 2 は入力の誤りにする",
+        "一覧: schema_version が無い は入力の誤りにする"
+      ]
+    },
+    {
+      "id": "unmeasured-accepted",
+      "why": "未測定の一覧を空の一覧として読み、一覧が無い経路（測り直しを促す）へ送らない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "throw new NoHeaderListError(`一覧が未測定（${doc.unmeasured_reason}）`);",
+      "replace": "return new Set();",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 一覧が未測定なら exit 3（入力の誤りの 2 と分ける）",
+        "一覧: 同梱テンプレートの未測定の形（注記が説明する 3 キー）は一覧が無い扱いにする",
+        "一覧: 未測定（status: unmeasured と理由だけ）なら NoHeaderListError（推測で一覧を作らない）"
+      ]
+    },
+    {
+      "id": "unmeasured-with-rows",
+      "why": "未測定と行の併存を未測定として通し、どちらが正しいか決めないまま比較を外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "rejectUnknownKeys(doc, UNMEASURED_KEYS, \"未測定の一覧\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 未測定と行の併存 は入力の誤りにする"]
+    },
+    {
+      "id": "unmeasured-reason-optional",
+      "why": "理由の無い未測定を通し、測り直しの判断材料を残さない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!isNonEmptyString(doc.unmeasured_reason))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 未測定の理由が無い は入力の誤りにする",
+        "一覧: 未測定の理由が空 は入力の誤りにする"
+      ]
+    },
+    {
+      "id": "status-any",
+      "why": "語彙外・欠落の status を測定済みとして読む",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (doc.status !== \"measured\")",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: status が無い は入力の誤りにする",
+        "一覧: status が語彙外 は入力の誤りにする"
+      ]
+    },
+    {
+      "id": "unknown-keys-accepted",
+      "why": "語彙外のキー（打ち間違い）を黙って読み飛ばし、既定値に倒す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (unknown.length > 0)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: トップレベルの語彙外のキー は入力の誤りにする",
+        "一覧: 未測定と行の併存 は入力の誤りにする",
+        "一覧: 行が「行の語彙外のキー（打ち間違い）」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "captured-at-optional",
+      "why": "採った日時の無い一覧を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!isNonEmptyString(doc.captured_at))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: captured_at が無い は入力の誤りにする"]
+    },
+    {
+      "id": "target-optional",
+      "why": "採った target の無い一覧を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!isNonEmptyString(doc.target))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: target が空 は入力の誤りにする"]
+    },
+    {
+      "id": "captured-empty",
+      "why": "採った応答が空の一覧を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "doc.captured_responses.length === 0",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["一覧: captured_responses が空 は入力の誤りにする"]
+    },
+    {
+      "id": "captured-kind-any",
+      "why": "採った応答の種類の語彙を見ない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (typeof c.kind !== \"string\" || !RESPONSE_KINDS.has(c.kind))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: captured_responses の kind が語彙外 は入力の誤りにする"]
+    },
+    {
+      "id": "captured-url-optional",
+      "why": "採った応答の URL を求めない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!isNonEmptyString(c.url))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: captured_responses の url が無い は入力の誤りにする"]
+    },
+    {
+      "id": "notes-any",
+      "why": "notes の型を見ない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (Object.hasOwn(doc, \"notes\") && typeof doc.notes !== \"string\")",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: notes が文字列でない は入力の誤りにする"]
+    },
+    {
+      "id": "server-config-slug-unreadable",
+      "why": "欠落・空文字の引き受ける機能 slug を通し、欄の書き忘れを未確定と区別しない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (doc.server_config_slug !== null && !isNonEmptyString(doc.server_config_slug))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: server_config_slug が無い は入力の誤りにする",
+        "一覧: server_config_slug が空文字 は入力の誤りにする"
+      ]
+    },
+    {
+      "id": "headers-not-array",
+      "why": "headers が配列でない一覧を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!Array.isArray(doc.headers)) throw new Error(\"headers は配列\");",
+      "replace": "if (!Array.isArray(doc.headers)) return new Set();",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: headers がオブジェクト は入力の誤りにする",
+        "一覧: headers が無い は入力の誤りにする"
+      ]
+    },
+    {
+      "id": "name-any",
+      "why": "Markdown の記号やプレースホルダを残した名前を別名として通し、本来のヘッダーを黙って比較から外す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "!HEADER_NAME.test(name)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 行が「名前が token でない」なら入力の誤りにする",
+        "一覧: 行が「名前に補足を付けた」なら入力の誤りにする",
+        "一覧: 行が「名前をバッククォートで囲んだ」なら入力の誤りにする",
+        "一覧: 行が「名前を強調記号で囲んだ」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "class-any",
+      "why": "語彙外の分類を通し、防御・露出の抑止のどちらの assertion か決まらない",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "!CLASSES.has(row.class)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「class が語彙外」なら入力の誤りにする"]
+    },
+    {
+      "id": "defense-value-optional",
+      "why": "値の無い防御の行を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (row.class === \"defense\" && !isNonEmptyString(value))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 行が「defense の value が null」なら入力の誤りにする",
+        "一覧: 行が「defense の value が空」なら入力の誤りにする",
+        "一覧: 行が「value のキーが無い」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "exposure-value-any",
+      "why": "値を持つ露出の抑止の行を通し、付かないことの assertion と食い違う",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (row.class === \"exposure\" && value !== null)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「exposure の value が文字列」なら入力の誤りにする"]
+    },
+    {
+      "id": "responses-empty",
+      "why": "付く応答が空の行を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!Array.isArray(responses) || responses.length === 0)",
+      "replace": "if (!Array.isArray(responses))",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「responses が空」なら入力の誤りにする"]
+    },
+    {
+      "id": "responses-uncaptured",
+      "why": "採っていない・語彙外の種類の応答に付くと書いた行を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (typeof r !== \"string\" || !captured.has(r))",
+      "replace": "if (typeof r !== \"string\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 採っていない種類の応答に付くとは書けない（測っていない値を仕様にしない）",
+        "一覧: 行が「responses の種類が語彙外」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "responses-dup",
+      "why": "同じ種類が重複した付く応答を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (new Set(responses).size !== responses.length)",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「responses の種類が重複」なら入力の誤りにする"]
+    },
+    {
+      "id": "setter-any",
+      "why": "語彙外・空の付け手を付け手の決まった行に倒す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "!SETTERS.has(setter)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: 一覧の形の誤りは exit 2",
+        "一覧: 行が「付け手が空」なら入力の誤りにする",
+        "一覧: 行が「付け手が語彙外の「unknown?」」なら入力の誤りにする",
+        "一覧: 行が「付け手が語彙外の「不明」」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "setter-source-empty",
+      "why": "空文字の付け手のファイルを通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "!isNonEmptyString(row.setter_source)",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「setter_source が空文字」なら入力の誤りにする"]
+    },
+    {
+      "id": "owner-empty",
+      "why": "空文字・欠落の所有者 slug を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!isNonEmptyString(owner)) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 行が「owner_slug が空文字」なら入力の誤りにする",
+        "一覧: 行が「owner_slug のキーが無い」なら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "owner-on-feature-row",
+      "why": "機能の応答だけの行に書いた所有者 slug を通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!responses.some((r) => UNOWNED_KINDS.has(",
+      "replace": "if (false && !responses.some((r) => UNOWNED_KINDS.has(",
+      "occurrences": 1,
+      "expect_failing": ["一覧: 行が「機能の応答だけの行の owner_slug」なら入力の誤りにする"]
+    },
+    {
+      "id": "overlap-accepted",
+      "why": "同じヘッダーの行どうしで付く応答が重なっても通し、どちらの値か読めないまま比べる",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (dup) throw",
+      "replace": "if (false) throw",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: 同じヘッダーの行どうしで付く応答が重なれば入力の誤りにする（どちらの値か読めない）"
+      ]
+    },
+    {
+      "id": "placeholder-kept",
+      "why": "テンプレートのプレースホルダを書き換え忘れた自由記述の欄を測定結果として通す",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (/^<[\\s\\S]*>$/.test(v.trim()))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧: テンプレートのプレースホルダを captured_at に残したら入力の誤りにする",
+        "一覧: テンプレートのプレースホルダを target に残したら入力の誤りにする",
+        "一覧: テンプレートのプレースホルダを captured_responses[].url に残したら入力の誤りにする",
+        "一覧: テンプレートのプレースホルダを notes に残したら入力の誤りにする",
+        "一覧: テンプレートのプレースホルダを headers[].value に残したら入力の誤りにする",
+        "一覧: テンプレートのプレースホルダを headers[].setter_source に残したら入力の誤りにする"
+      ]
+    },
+    {
+      "id": "placeholder-unanchored",
+      "why": "<…> を含むだけの値までプレースホルダとして落とす",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (/^<[\\s\\S]*>$/.test(v.trim()))",
+      "replace": "if (/<[\\s\\S]*>/.test(v.trim()))",
+      "occurrences": 1,
+      "expect_failing": ["一覧: <…> を含むだけの値（注記キーの中も）はプレースホルダにしない"]
+    },
+    {
+      "id": "placeholder-note-keys",
+      "why": "注記キー（_ で始まる）の中の <…> まで入力の誤りにする",
+      "file": "skills/parity-suite/scripts/header-normalize.mjs",
+      "find": "if (!k.startsWith(\"_\")) rejectPlaceholders(",
+      "replace": "if (true) rejectPlaceholders(",
+      "occurrences": 1,
+      "expect_failing": ["一覧: <…> を含むだけの値（注記キーの中も）はプレースホルダにしない"]
+    }
+  ]
+}

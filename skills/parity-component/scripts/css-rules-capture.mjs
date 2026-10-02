@@ -34,7 +34,7 @@
 // `:hover` 宣言・入れ子の `&:hover` の解決（`:is(.card):hover`）・`@layer` と `@media` の条件付与・
 // `::after` の擬似要素判定・`@keyframes` をレイヤとして数えないこと、および当たらない入れ子
 // （`& .inner`）を採らないことを確認した。偽 CSSOM に対するユニットテストは
-// scripts/css-rules-capture.test.js（素朴な走査が同じ入力で取りこぼすことを併せて実証している）。
+// scripts/skills/parity-component/css-rules-capture.test.js（素朴な走査が同じ入力で取りこぼすことを併せて実証している）。
 //
 // Playwright はピア前提であり import しない。Locator は引数で受け取り、
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。

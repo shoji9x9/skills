@@ -24,7 +24,7 @@ Issue #449 ではこの既存の形を写して新しいコマンドを書き、
 
 ## 提案
 
-Markdown のシェルコードブロックで、可変長オプション（`playwright test --project` 等）の直後に位置引数が続く形を落とす lint を、`scripts/lint-pagination.js` と同じ入口に足す。
+Markdown のシェルコードブロックで、可変長オプション（`playwright test --project` 等）の直後に位置引数が続く形を落とす lint を、`scripts/gates/lint-pagination.js` と同じ入口に足す。
 
 - 対象 CLI とオプションは表で持ち、陽性（パスを後ろに置いた形）と陰性（パスを先に置いた形・`--project=a`）の両方をテストに置く
 - 横断: skills/ 内の `--project <名前> <パス>` 形は 2 件（今回修正済み）

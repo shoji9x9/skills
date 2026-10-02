@@ -7,7 +7,7 @@ applied-to:
   [
     AGENTS.md,
     .agents/rules/state-space-and-mutation-proof.md,
-    scripts/check-mutation-proof.test.js,
+    scripts/mutation/check-mutation-proof.test.js,
     vitest.config.js,
   ]
 session: claude-code
@@ -17,7 +17,7 @@ session: claude-code
 
 ## 事象
 
-PR #437 で、変異実行器（`scripts/check-mutation-proof.js`）に「差分に当たる宣言だけを測る」選択を足し、
+PR #437 で、変異実行器（`scripts/mutation/check-mutation-proof.js`）に「差分に当たる宣言だけを測る」選択を足し、
 その選択ロジックへ変異を当てた（`CHANGED-HITS`: 当たり判定を常に真にする）。
 
 この変異を実証する run が **30 分以上終わらず、runner のプロセスが 21 本以上に膨らんだ**。

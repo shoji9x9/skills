@@ -12,14 +12,14 @@
 ## 実行例
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
   --prompt "parity-replace" \
   --out tests/parity-replace/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill parity-replace --config with_skill \
   --prompt "parity-replace --feature order-list --target develop （新側の作業ツリーは clean で、コミット SHA は local-dev で green になった abc1234def5678 と同一です）" \
   --fixture evals/parity-replace/fixtures/lightweight-deploy-target \
@@ -85,4 +85,4 @@ scripts/run-skill-eval.sh \
   baseline は contamination: clean / isolation: sandboxed。
   **iteration-29 で取り直し**（`used: false` の廃止に合わせて assertion 1 を改訂。各 config 1 run・claude-code / opus）: `with_skill` 5/5・`without_skill` 2/5、弁別は同じ assertion 3・4・5
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

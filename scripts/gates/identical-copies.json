@@ -1,0 +1,39 @@
+{
+  "$comment": [
+    "バイト単位で同一であるべきコピーの組（scripts/gates/check-identical-copies.js が検査する）。",
+    "配布スキルは実行時に読むものを自分の中に同梱するので、姉妹スキルが同じ手順を持つとコピーになる。",
+    "組の宣言は観測（今一致しているもの）からではなく、同一であるべき理由から書く。"
+  ],
+  "groups": [
+    {
+      "files": [
+        "skills/pr-review-handle/references/review-tool.md",
+        "skills/pr-finalize-loop/references/review-tool.md"
+      ],
+      "reason": "レビューツールの解決規則と依頼・成立確認の手順。姉妹スキルが同じ規則で依頼先を決める（本文も両スキルから読める形で書いてある）"
+    },
+    {
+      "files": [
+        "skills/pr-review-handle/references/pr-ownership.md",
+        "skills/pr-finalize-loop/references/pr-ownership.md"
+      ],
+      "reason": "PR の持ち主（作成者か担当者）の判定。姉妹スキルで判定が食い違うと、片方だけが他の人の PR へ確認なしに push・resolve する"
+    },
+    {
+      "files": [
+        "skills/pr-review-handle/scripts/resolve-review-tool.sh",
+        "skills/pr-finalize-loop/scripts/resolve-review-tool.sh"
+      ],
+      "reason": "レビューツールの解決スクリプト。姉妹スキルで解決結果が食い違うと、同じ PR へ別のツールに再レビューを依頼する"
+    },
+    {
+      "files": [
+        "skills/issue-start/references/conventions.md",
+        "skills/dependabot-alert-issue/references/conventions.md",
+        "skills/pr-review-handle/references/conventions.md",
+        "skills/pr-finalize-loop/references/conventions.md"
+      ],
+      "reason": "ブランチ運用・commit 規約の解決手順。同じ設定キー（skills.common.conventions_doc）を読むスキル間で解決順が食い違わないようにする"
+    }
+  ]
+}
