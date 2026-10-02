@@ -1,0 +1,79 @@
+{
+  "$comment": [
+    "reinstall-skill.test.js の検出能力を示す変異の一覧（Issue #547）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/tools/reinstall-skill.test.js",
+  "mutations": [
+    {
+      "id": "no-cd-to-root",
+      "why": "ルートを特定しても cd せず、cwd 相対のまま操作する（変更前の挙動）",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "cd \"${repo_root}\"\n\nif [ \"$1\" = \"--all\" ]; then",
+      "replace": ":\n\nif [ \"$1\" = \"--all\" ]; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "サブディレクトリから相対パスで実行してもルートから実行したときと同じ結果になる",
+        "サブディレクトリから絶対パスで実行してもルートから実行したときと同じ結果になる",
+        "リポジトリの外から絶対パスで実行してもルートから実行したときと同じ結果になる",
+        "--all もサブディレクトリから実行できる",
+        "cwd が同名スキルを持つ別リポジトリでも、スクリプトのあるツリーを操作する",
+        "スクリプトへの symlink から実行しても、リンク先のツリーを操作する"
+      ]
+    },
+    {
+      "id": "no-gates-marker",
+      "why": "frontmatter 検査の実在を root の条件にしない",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "\t[ ! -f \"${repo_root}/scripts/gates/check-skill-frontmatter.js\" ] ||\n",
+      "replace": "\tfalse ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクリプトの位置のツリーに frontmatter 検査が無い ときは exit 2 で止まり、インストール済みのコピーと symlink を消さない"
+      ]
+    },
+    {
+      "id": "no-skills-marker",
+      "why": "skills/ の実在を root の条件にしない",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "\t[ ! -d \"${repo_root}/skills\" ]; then",
+      "replace": "\tfalse; then",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクリプトの位置のツリーに skills/ が無い ときは exit 2 で止まり、インストール済みのコピーと symlink を消さない"
+      ]
+    },
+    {
+      "id": "no-symlink-follow",
+      "why": "スクリプトへの symlink を辿らず、リンクの置き場所から root を求める",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "while [ -n \"${script_path}\" ] && [ -L \"${script_path}\" ]; do",
+      "replace": "while false; do",
+      "occurrences": 1,
+      "expect_failing": ["スクリプトへの symlink から実行しても、リンク先のツリーを操作する"]
+    },
+    {
+      "id": "stdin-falls-back-to-cwd",
+      "why": "位置が無い（stdin）ときに cwd をルートとみなす",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "script_path=\"${BASH_SOURCE[0]:-}\"",
+      "replace": "script_path=\"${BASH_SOURCE[0]:-$PWD/scripts/tools/reinstall-skill.sh}\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "スクリプトを stdin から読ませた ときは exit 2 で止まり、インストール済みのコピーと symlink を消さない"
+      ]
+    },
+    {
+      "id": "cdpath-not-cleared",
+      "why": "相対の dirname を export された CDPATH で解決させる",
+      "file": "scripts/tools/reinstall-skill.sh",
+      "find": "CDPATH='' cd -P",
+      "replace": "cd -P",
+      "occurrences": 1,
+      "expect_failing": [
+        "CDPATH が別ツリーの scripts/tools を指していても、スクリプトのあるツリーを操作する"
+      ]
+    }
+  ]
+}
