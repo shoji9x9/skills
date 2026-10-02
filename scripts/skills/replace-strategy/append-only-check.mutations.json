@@ -191,6 +191,49 @@
       "expect_failing": [
         "同じファイルに fill_only_columns の違う項目が当たれば合格に倒さない（exit 2）"
       ]
+    },
+    {
+      "id": "AO-HINT-SUPPRESS",
+      "why": "比較元側の案内が現在側の案内を抑止する（閉じ直せば通るコンテナが名指しされない。#432）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        (afterOnly.length === 0\n",
+      "replace": "        (afterOnly.length === 0 || blamedBefore.size > 0\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする"
+      ]
+    },
+    {
+      "id": "AO-HINT-SAME-PATH",
+      "why": "両側に帰属した同じ鍵にも「閉じ括弧を補う」を出す（閉じ直しても比較元の行は戻らない）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      const afterOnly = [...blamedAfter].filter((path) => !blamedBefore.has(path));\n",
+      "replace": "      const afterOnly = [...blamedAfter];\n",
+      "occurrences": 1,
+      "expect_failing": ["同じ鍵が比較元側と現在側の両方に帰属したら、比較元側の案内だけを出す"]
+    },
+    {
+      "id": "AO-HINT-FOLD",
+      "why": "現在側の案内が 1 行へ畳む直し方を示す（growable_containers では要素行の注記が消えて届かない）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "\" — 復元せず閉じ括弧を補う（折り返したまま、閉じ括弧までを同じ鍵のブロックに収める）\"",
+      "replace": "\" — 復元せず表記を直す（フロー形式は同じ行で閉じる）\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "growable_containers: 閉じ忘れには閉じ括弧を補う案内が出て、そのとおり直せば exit 0",
+        "registry_groups: 閉じ忘れには閉じ括弧を補う案内が出て、そのとおり直せば exit 0",
+        "現在側だけが読めないときは閉じ括弧を補うよう案内する",
+        "比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする"
+      ]
+    },
+    {
+      "id": "AO-HINT-MUTABLE-UNREGISTERED",
+      "why": "mutable_blocks の読めないコンテナを登録しない（鍵と同じインデントの要素行の消失にも案内が出ない）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        indent,\n        wrappedOut,\n        // **接頭辞は渡さない**",
+      "replace": "        indent,\n        [],\n        // **接頭辞は渡さない**",
+      "occurrences": 1,
+      "expect_failing": ["mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る"]
     }
   ]
 }
