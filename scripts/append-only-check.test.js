@@ -820,7 +820,7 @@ test("unit が json-arrays なのに mutable_bullets があれば合格に倒さ
   ]);
   const r = run(root, ["--manifest", manifest]);
   expect(r.stderr).toMatch(
-    /json-arrays なのに mutable_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers \/ registry_groups がある/,
+    /json-arrays なのに mutable_columns \/ fill_only_columns \/ mutable_bullets \/ mutable_blocks \/ growable_containers \/ registry_groups がある/,
   );
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
@@ -2841,6 +2841,254 @@ test.each([
   const root = makeRepo();
   const r = run(root, extra);
   expect(r.stderr).toMatch(message);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// 表の列の「空 → 非空だけ」（fill_only_columns。Issue #527）
+//
+// 空欄で追記し後で人が決定を埋める列は、mutable_columns に置くと決めた値の書き換えまで通り、
+// どちらにも置かないと空欄を埋めるだけの正規の編集が縮小に化ける。陽性（埋める）と陰性（差し替え・消去）を両方測る。
+// 台帳は同梱の一覧（既定の --manifest）で測る——一覧の列名がテンプレートの列名と食い違うと緩和が一度も効かない。
+// ---------------------------------------------------------------------------
+
+const WEAKNESS_HEADER =
+  "| 弱点 | 分類 | 経路 | 基準（1 / 2 / 3） | 仕分け | 宣言 | 扱う設計作業 | 露出を広げた差異 | 状態 | 決定日・決めた工程 | 根拠 |";
+const WEAKNESS_DECIDED =
+  "| CSRF | A01 | `POST /api/orders` | 満 / 満 / 否 | 写す | 書き込みの API は text/plain を受け付ける | #123 | - | 有効 | 2026-09-01・setup | 現行ソースのハンドラ |";
+const WEAKNESS_BLANK =
+  "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 |  |  |  | - | 有効 |  | 現行ソースのハンドラ |";
+const WEAKNESS_UNCONFIRMED =
+  "| XSS | A03 | `GET /settings` | 満 / 未確認 / 満 |  |  |  | - | 有効 |  | 保存した値を描画へ使う |";
+const WEAKNESS_NONE =
+  "| 該当なし（A04） | A04 | - | - | 該当なし | - | - | - | 有効 | 2026-09-01・setup | 探した場所 |";
+
+/** 弱点台帳と方針空欄の行を持つ資産台帳を比較元に持つプロジェクトを作る。 */
+function makeFillOnlyRepo() {
+  const root = makeRepo();
+  writeFileSync(
+    join(root, ".replace/weaknesses.md"),
+    [
+      "# 現行の弱点の仕分け（weaknesses）",
+      "",
+      "- 最終更新: 2026-09-01T00:00:00Z",
+      "",
+      "## 仕分け",
+      "",
+      WEAKNESS_HEADER,
+      "|---|---|---|---|---|---|---|---|---|---|---|",
+      WEAKNESS_DECIDED,
+      WEAKNESS_BLANK,
+      WEAKNESS_UNCONFIRMED,
+      WEAKNESS_NONE,
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(
+    join(root, ".replace/assets.md"),
+    [
+      "# 移行元の静的資産の台帳（assets）",
+      "",
+      "- 最終更新: 2026-09-01T00:00:00Z",
+      "",
+      "## 方針",
+      "",
+      "| 種類 | ファイル・出どころ | 描き方と使われるページ | 方針 | 再配布の可否（根拠） | 同等物で残る差 | 宣言 | 状態 | 決定日・決めた工程 | 理由 |",
+      "|---|---|---|---|---|---|---|---|---|---|",
+      "| ロゴ | `logo.png` | `img`、ヘッダー | 実体を写す | 可（ライセンス・2026-09-01） | - | - | 有効 | 2026-09-01・setup | 字形を一致させるため |",
+      "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
+      "",
+    ].join("\n"),
+  );
+  commit(root, "fill-only 台帳");
+  return root;
+}
+
+/**
+ * @param {string} root
+ * @param {string} file
+ * @param {string} from
+ * @param {string} to
+ */
+function replaceIn(root, file, from, to) {
+  const path = join(root, file);
+  const text = readFileSync(path, "utf8");
+  if (!text.includes(from)) throw new Error(`置換元が無い: ${from}`);
+  writeFileSync(path, text.replace(from, to));
+}
+
+test("weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(
+    root,
+    ".replace/weaknesses.md",
+    WEAKNESS_BLANK,
+    "| IDOR | A01 | `GET /api/orders/:id` | 満 / 満 / 満 | 直す | 注文の詳細 API は所有者以外に 404 を返す | #200 | - | 有効 | 2026-09-20・order-detail | 現行ソースのハンドラ |",
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("weaknesses.md の決めた仕分けを書き換えると落ちる（写す → 直す）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(root, ".replace/weaknesses.md", "/ 否 | 写す |", "/ 否 | 直す |");
+  const r = run(root);
+  expect(r.stdout).toMatch(/CSRF@0\|仕分け=写す/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("weaknesses.md の入っている値を未記入（-）へ戻すと落ちる", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(root, ".replace/weaknesses.md", "| #123 |", "| - |");
+  const r = run(root);
+  expect(r.stdout).toMatch(/CSRF@0\|扱う設計作業=#123/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(root, ".replace/weaknesses.md", "| 満 / 未確認 / 満 |", "| 満 / 満 / 満 |");
+  const r = run(root);
+  expect(r.stdout).toMatch(/XSS@0\|基準（1 \/ 2 \/ 3）=満 \/ 未確認 \/ 満/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(
+    root,
+    ".replace/weaknesses.md",
+    WEAKNESS_NONE,
+    "| 該当なし（A04） | A04 | - | - | 該当なし | パスワードは平文で保存する | - | - | 有効 | 2026-09-01・setup | 探した場所 |",
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/該当なし（A04）@0\|宣言=-/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(
+    root,
+    ".replace/assets.md",
+    "| 可（ライセンス・2026-09-01） | - |",
+    "| 可（ライセンス・2026-09-01） | 字形が違う |",
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/ロゴ@0\|同等物で残る差=-/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(
+    root,
+    ".replace/assets.md",
+    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders |  | 未確認 |  |  | 有効 |  | 再配布の可否を確認中 |",
+    "| 状態アイコン | `close.png` | `::before` のグリフ、/orders | 写さない | 未確認 | - | - | 有効 | 2026-09-20・order-list | 描いているのは書体のグリフ |",
+  );
+  const r = run(root);
+  expect(r.stdout).toMatch(/^ok: /m);
+  expect(r.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("assets.md の入っている方針を差し替えると落ちる", () => {
+  const root = makeFillOnlyRepo();
+  replaceIn(root, ".replace/assets.md", "| 実体を写す | 可", "| 同等物を作る | 可");
+  const r = run(root);
+  expect(r.stdout).toMatch(/ロゴ@0\|方針=実体を写す/);
+  expect(r.status).toBe(1);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test.each([
+  [
+    "同じ列が両方にある",
+    { mutable_columns: ["状態"], fill_only_columns: ["状態"] },
+    /同じ列が mutable_columns と fill_only_columns の両方にある: 状態/,
+  ],
+  [
+    "mutable_columns が * で fill_only_columns がある",
+    { mutable_columns: ["*"], fill_only_columns: ["Issue"] },
+    /同じ列が mutable_columns と fill_only_columns の両方にある: Issue/,
+  ],
+  ["fill_only_columns に *", { fill_only_columns: ["*"] }, /fill_only_columns に "\*" がある/],
+  [
+    "fill_only_columns が配列でない",
+    { fill_only_columns: "Issue" },
+    /fill_only_columns が配列でない/,
+  ],
+  [
+    "fill_only_columns に空の要素",
+    { fill_only_columns: [" "] },
+    /fill_only_columns に空の要素がある/,
+  ],
+])("fill_only_columns の宣言の誤り（%s）は exit 2", (_name, extra, message) => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    { id: "features", pattern: ".replace/features.md", unit: "markdown-structure", ...extra },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(message);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が lines なのに fill_only_columns があれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "features",
+      pattern: ".replace/features.md",
+      unit: "lines",
+      fill_only_columns: ["Issue"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/unit が lines なのに fill_only_columns がある/);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("unit が json-arrays なのに fill_only_columns があれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "dataset",
+      pattern: ".replace/dataset/metadata.json",
+      unit: "json-arrays",
+      arrays: ["changes"],
+      fill_only_columns: ["Issue"],
+    },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/json-arrays なのに mutable_columns \/ fill_only_columns \//);
+  expect(r.status).toBe(2);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じファイルに fill_only_columns の違う項目が当たれば合格に倒さない（exit 2）", () => {
+  const root = makeRepo();
+  const manifest = writeManifest(root, [
+    {
+      id: "a",
+      pattern: ".replace/features.md",
+      unit: "markdown-structure",
+      fill_only_columns: ["Issue"],
+    },
+    { id: "b", pattern: ".replace/features.md", unit: "markdown-structure" },
+  ]);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.stderr).toMatch(/同じファイルに突き合わせ方の違う一覧の項目が当たっている/);
   expect(r.status).toBe(2);
   rmSync(root, { recursive: true, force: true });
 });

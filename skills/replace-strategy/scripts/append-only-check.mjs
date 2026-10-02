@@ -30,6 +30,9 @@
 //     transitions（明示した <変更前>-><変更後> だけ。unmeasured.entries の blocking->accepted）で開ける。
 //     markdown-structure の表の行も同様に、鍵（先頭セル）だけでなく行 × 列のセルを単位にし、
 //     正本がその場の更新を定めている列だけ mutable_columns で外す（鍵だけだと残りのセルが自由に書き換わる）。
+//     「空欄で追記し、後で人が決定を埋める」列は fill_only_columns に挙げる（空セル → 非空だけを許し、
+//     入っている値の差し替えは落とす）。mutable_columns に置くと決めた値の書き換えまで通り、
+//     どちらにも置かないと空欄を埋めるだけの正規の編集が縮小に化ける。
 //     同じ鍵の行は出現順で区別する（区別しないと、同じ鍵の 2 行の間でセルを入れ替えても単位が変わらない）
 //
 // 行の突き合わせは空白を畳んで（連続する空白を 1 つに、前後を除去して）から行う——
@@ -60,7 +63,7 @@ import { fileURLToPath } from "node:url";
  * ツールのバージョン（正本）。判定ロジック・出力形状を変えたら上げる。
  * @type {string}
  */
-export const VERSION = "12";
+export const VERSION = "13";
 
 /** 走査で辿らないディレクトリ名。 */
 const SKIP_DIRS = new Set([".git", "node_modules"]);
@@ -923,14 +926,23 @@ function tableCells(line) {
  * 自由に書き換えられる**（決定の出どころ・方針・理由を丸ごと差し替えても行は在る）。
  * そこで行 × 列のセルも単位にし、正本がその場の更新を定めている列だけ mutableColumns で外す。
  * 列を足す非破壊更新は新しい単位が増えるだけなので落ちない。
+ * 空欄で追記して後で決定を埋める列は fillOnlyColumns に挙げ、**空セルだけ**を単位にしない——
+ * 空 → 非空は単位が増えるだけなので通り、入っている値の差し替え・消去は単位の消失として落ちる。
  * 箇条書きも鍵と値の両方を守り、正本が更新を定めている項目だけ mutableBullets で外す。散文は行そのもの。
  * @param {string} text
  * @param {string[]} [mutableColumns] 値の更新を正本が認めている列名（"*" でセルを契約の対象外）
  * @param {string[]} [mutableBullets] 値の更新を正本が認めている箇条書きの鍵（"*" で値を契約の対象外）
+ * @param {string[]} [fillOnlyColumns] 空 → 非空だけを許す列名
  * @returns {Map<string, number>} 単位 → 出現回数
  */
-export function markdownUnits(text, mutableColumns = [], mutableBullets = []) {
+export function markdownUnits(
+  text,
+  mutableColumns = [],
+  mutableBullets = [],
+  fillOnlyColumns = [],
+) {
   const mutable = new Set(mutableColumns.map((c) => c.trim()));
+  const fillOnly = new Set(fillOnlyColumns.map((c) => c.trim()));
   const mutableBullet = new Set(mutableBullets.map((c) => c.trim()));
   // "*" は「中身は契約の対象外」（一覧の requirement が節・列・行・ヘッダ項目だけを守ると定めている成果物）。
   const allCellsMutable = mutable.has("*");
@@ -992,6 +1004,9 @@ export function markdownUnits(text, mutableColumns = [], mutableBullets = []) {
           if (i === 0) continue; // 先頭セルは鍵そのもの
           const column = columns[i] ?? `#${i}`;
           if (mutable.has(column)) continue; // 正本がその場の更新を定めている列
+          // 未記入は空セルだけ。`-`（該当なし）と `未確認` は決めた値・記録として守る——
+          // `-` も未記入に数えると、決定済みの行の「該当なし」をその場で値へ書き換えられる。
+          if (fillOnly.has(column) && cell === "") continue;
           add(`R:${seenKey}@${occurrence}|${column}=${cell}`);
         }
       }
@@ -1214,7 +1229,7 @@ function keyedElements(text, path, key, label) {
 /**
  * 一覧の unit に従って単位を数える。
  * @param {string} text
- * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[] }} artifact
+ * @param {{ unit: string, arrays: string[], key?: string | null, mutableColumns?: string[], fillOnlyColumns?: string[], mutableBullets?: string[], mutableBlocks?: string[] }} artifact
  * @param {string} label
  * @param {{ path: string, prefixes: string[], lines: string[] }[]} [wrappedOut] 連結しても閉じない
  *   フロー形式のコンテナを積む先（診断用。帰属判定の材料を伴う）
@@ -1222,7 +1237,12 @@ function keyedElements(text, path, key, label) {
  */
 export function unitsOf(text, artifact, label, wrappedOut = []) {
   if (artifact.unit === "markdown-structure") {
-    return markdownUnits(text, artifact.mutableColumns ?? [], artifact.mutableBullets ?? []);
+    return markdownUnits(
+      text,
+      artifact.mutableColumns ?? [],
+      artifact.mutableBullets ?? [],
+      artifact.fillOnlyColumns ?? [],
+    );
   }
   if (artifact.unit === "json-arrays") {
     return jsonArrayUnits(text, artifact.arrays, label, artifact.key ?? null);
@@ -1254,7 +1274,7 @@ function git(root, args) {
 /**
  * 一覧を読む。
  * @param {string} manifestPath
- * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], requirement: string, source: string }[]}
+ * @returns {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[], requirement: string, source: string }[]}
  */
 export function readManifest(manifestPath) {
   if (!existsSync(manifestPath)) throw new UsageError(`一覧が無い: ${manifestPath}`);
@@ -1303,6 +1323,8 @@ export function readManifest(manifestPath) {
     const transitions = {};
     /** @type {string[]} */
     let mutableColumns = [];
+    /** @type {string[]} */
+    let fillOnlyColumns = [];
     /** @type {string[]} */
     let mutableBullets = [];
     /** @type {string[]} */
@@ -1357,13 +1379,14 @@ export function readManifest(manifestPath) {
       }
       if (
         a.mutable_columns !== undefined ||
+        a.fill_only_columns !== undefined ||
         a.mutable_bullets !== undefined ||
         a.mutable_blocks !== undefined ||
         a.growable_containers !== undefined ||
         a.registry_groups !== undefined
       ) {
         throw new UsageError(
-          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / mutable_bullets / mutable_blocks / growable_containers / registry_groups がある`,
+          `artifacts[${i}] の unit が json-arrays なのに mutable_columns / fill_only_columns / mutable_bullets / mutable_blocks / growable_containers / registry_groups がある`,
         );
       }
     } else {
@@ -1390,6 +1413,36 @@ export function readManifest(manifestPath) {
             throw new UsageError(`artifacts[${i}].mutable_columns に空の要素がある`);
         }
         mutableColumns = a.mutable_columns.map((x) => String(x).trim());
+      }
+      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {
+        if (unit !== "markdown-structure") {
+          throw new UsageError(
+            `artifacts[${i}] の unit が ${unit} なのに fill_only_columns がある`,
+          );
+        }
+        if (!Array.isArray(a.fill_only_columns)) {
+          throw new UsageError(`artifacts[${i}].fill_only_columns が配列でない`);
+        }
+        for (const c of a.fill_only_columns) {
+          if (!nonEmptyString(c))
+            throw new UsageError(`artifacts[${i}].fill_only_columns に空の要素がある`);
+        }
+        fillOnlyColumns = a.fill_only_columns.map((x) => String(x).trim());
+        // "*" は「全列を空 → 非空だけ」と「契約の対象外」のどちらにも読めるので受けない。
+        if (fillOnlyColumns.includes("*")) {
+          throw new UsageError(
+            `artifacts[${i}].fill_only_columns に "*" がある（列名で名指しする）`,
+          );
+        }
+        // 同じ列を両方に書くと、緩い方（mutable_columns）が黙って勝ち、決めた値の書き換えが通る。
+        const overlap = mutableColumns.includes("*")
+          ? fillOnlyColumns
+          : fillOnlyColumns.filter((c) => mutableColumns.includes(c));
+        if (overlap.length > 0) {
+          throw new UsageError(
+            `artifacts[${i}] の同じ列が mutable_columns と fill_only_columns の両方にある: ${overlap.join(" / ")}`,
+          );
+        }
       }
       if (a.registry_groups !== undefined && a.registry_groups !== null) {
         if (unit !== "lines") {
@@ -1534,6 +1587,7 @@ export function readManifest(manifestPath) {
       fillOnly,
       transitions,
       mutableColumns,
+      fillOnlyColumns,
       mutableBullets,
       mutableBlocks,
       growableContainers,
@@ -1625,11 +1679,11 @@ export function check(opts) {
     return files;
   };
 
-  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }>} */
+  /** @type {Map<string, { id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }>} */
   const byFile = new Map();
   /**
    * @param {string} file
-   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} artifact
+   * @param {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} artifact
    */
   const assign = (file, artifact) => {
     const prev = byFile.get(file);
@@ -1647,6 +1701,7 @@ export function check(opts) {
       prev.fillOnly.join(",") !== artifact.fillOnly.join(",") ||
       canonicalJson(prev.transitions) !== canonicalJson(artifact.transitions) ||
       prev.mutableColumns.join(",") !== artifact.mutableColumns.join(",") ||
+      prev.fillOnlyColumns.join(",") !== artifact.fillOnlyColumns.join(",") ||
       prev.mutableBullets.join(",") !== artifact.mutableBullets.join(",") ||
       prev.mutableBlocks.join(",") !== artifact.mutableBlocks.join(",") ||
       prev.growableContainers.join(",") !== artifact.growableContainers.join(",") ||
@@ -1678,7 +1733,7 @@ export function check(opts) {
   let checked = 0;
   for (const file of targets) {
     const artifact =
-      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} */ (
+      /** @type {{ id: string, pattern: string, unit: string, arrays: string[], key: string | null, fillOnly: string[], transitions: Record<string, string[]>, mutableColumns: string[], fillOnlyColumns: string[], mutableBullets: string[], mutableBlocks: string[], growableContainers: string[], registryGroups: { id: string, itemKey: string, paths: string[] }[] }} */ (
         byFile.get(file)
       );
     const inBase = trackedSet.has(file);
