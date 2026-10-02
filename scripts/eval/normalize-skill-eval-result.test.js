@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   buildSkillUsage,
+  codexContaminationSurface,
   normalizeTrace,
   parseClaudeTrace,
   parseCodexTrace,
@@ -1148,5 +1149,126 @@ describe("skill eval result normalization", () => {
 
     expect(normalized.result.status).toBe("failed");
     expect(normalized.result.normalization_error).toMatch(/fatal error item/u);
+  });
+});
+
+// #401: the contamination scan reads this surface instead of codex's whole raw trace.
+// A dropped line must be one that cannot carry anything read from disk, and every
+// shape the closed drop list does not name must stay, so both sides are listed.
+describe("codex contamination surface", () => {
+  const command = (text, output = "") => ({
+    type: "item.completed",
+    item: { type: "command_execution", command: text, aggregated_output: output, exit_code: 0 },
+  });
+  const surfaceOf = (event) =>
+    codexContaminationSurface(typeof event === "string" ? event : JSON.stringify(event));
+
+  test.each([
+    [
+      "an agent message",
+      { type: "item.completed", item: { type: "agent_message", text: "references/x.md" } },
+    ],
+    ["reasoning", { type: "item.completed", item: { type: "reasoning", text: "references/x.md" } }],
+    [
+      "a todo list",
+      { type: "item.updated", item: { type: "todo_list", items: [{ text: "references/x.md" }] } },
+    ],
+    [
+      "a file change",
+      {
+        type: "item.completed",
+        item: { type: "file_change", changes: [{ path: "references/x.md" }] },
+      },
+    ],
+    ["a wrapped echo", command("/bin/bash -lc 'echo references/x.md'", "references/x.md\n")],
+    ["a bare printf", command("printf '%s\\n' references/x.md", "references/x.md\n")],
+    [
+      "a started echo",
+      {
+        type: "item.started",
+        item: { type: "command_execution", command: "/bin/bash -lc 'echo references/x.md'" },
+      },
+    ],
+    ["an echo of a quoted separator", command(`/bin/bash -lc "echo 'a | b' references/x.md"`)],
+  ])("drops %s", (_name, event) => {
+    expect(surfaceOf(event)).toBe("");
+  });
+
+  test.each([
+    ["a read command", command("/bin/bash -lc 'cat /src/skills/box/references/x.md'")],
+    ["a piped read", command("/bin/bash -lc 'cat /src/skills/box/references/x.md | head -5'")],
+    [
+      "output of a command that does not name the marker",
+      command("/bin/bash -lc 'cat SKILL.md'", "see references/x.md"),
+    ],
+    [
+      "a failed read",
+      {
+        ...command("cat references/x.md"),
+        item: { ...command("cat references/x.md").item, exit_code: 1 },
+      },
+    ],
+    [
+      "an echo of a glob",
+      command(
+        "/bin/bash -lc 'echo /src/skills/box/references/*'",
+        "/src/skills/box/references/x.md",
+      ),
+    ],
+    [
+      "an echo of a substitution",
+      command(`/bin/bash -lc 'echo "$(cat /src/skills/box/SKILL.md)"'`),
+    ],
+    ["an echo of a backtick substitution", command("/bin/bash -lc 'echo `cat SKILL.md`'")],
+    [
+      "an echo of a substitution in an assignment prefix",
+      command(`FOO=$(<references/x.md) /bin/bash -lc 'echo "$FOO"'`),
+    ],
+    [
+      "an echo run with a BASH_ENV prefix",
+      command("BASH_ENV=references/x.md /bin/bash -c 'echo hi'", "references/x.md: line 1: ..."),
+    ],
+    ["an echo run behind sudo", command("sudo /bin/bash -lc 'echo references/x.md'")],
+    ["an echo with an assignment prefix", command("FOO=references/x.md echo hi")],
+    ["an echo with a redirect", command("/bin/bash -lc 'echo x < references/x.md'")],
+    ["an echo followed by a read", command("/bin/bash -lc 'echo x && cat references/x.md'")],
+    ["an echo after a read", command("/bin/bash -lc 'cat references/x.md; echo done'")],
+    ["a command spelled through a quote", command(`/bin/bash -lc "e'cho' references/x.md"`)],
+    ["an unbalanced quote", command(`/bin/bash -lc "echo 'references/x.md"`)],
+    [
+      "a command with no command text",
+      { type: "item.completed", item: { type: "command_execution" } },
+    ],
+    [
+      "a web search",
+      { type: "item.completed", item: { type: "web_search", query: "references/x.md" } },
+    ],
+    [
+      "an mcp tool call",
+      { type: "item.completed", item: { type: "mcp_tool_call", result: "references/x.md" } },
+    ],
+    [
+      "an unknown item type",
+      { type: "item.completed", item: { type: "future_item", text: "references/x.md" } },
+    ],
+    ["an event without an item", { type: "turn.failed", error: { message: "references/x.md" } }],
+    ["a line that is not JSON", "not-json references/x.md"],
+  ])("keeps %s verbatim", (_name, event) => {
+    const line = typeof event === "string" ? event : JSON.stringify(event);
+    expect(surfaceOf(event)).toBe(`${line}\n`);
+  });
+
+  test("keeps the kept lines of a mixed trace in order and drops nothing else", () => {
+    const events = [
+      { type: "thread.started", thread_id: "t" },
+      { type: "item.completed", item: { type: "agent_message", text: "references/x.md" } },
+      command("/bin/bash -lc 'echo references/x.md'"),
+      command("/bin/bash -lc 'cat references/x.md'"),
+      { type: "turn.completed", usage: {} },
+    ].map((event) => JSON.stringify(event));
+
+    expect(codexContaminationSurface(`${events.join("\n")}\n`)).toBe(
+      `${[events[0], events[3], events[4]].join("\n")}\n`,
+    );
   });
 });

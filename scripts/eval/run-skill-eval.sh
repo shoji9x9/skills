@@ -538,6 +538,15 @@ while IFS= read -r -d '' file; do
 done < <(cd "${proj}" && find . \( -path "*/.git" -o -path "*/node_modules" -o -path "./.claude/skills" -o -path "./.agents/skills" \) -prune -o -type f -print0)
 
 normalizer_args+=(--project-files "${snapshot_dir}" --initial-files "${initial_files_manifest}")
+# The codex side of the contamination scan (see below). Cleared first so a surface
+# left by an earlier run into the same --out cannot stand in for this one's.
+contamination_surface_dir="${out}/contamination-surface"
+rm -rf -- "${contamination_surface_dir}"
+if [ "${config}" = "without_skill" ] && [ "${executor}" = "codex" ]; then
+	mkdir -p -- "${contamination_surface_dir}"
+	contamination_surface="${contamination_surface_dir}/codex.jsonl"
+	normalizer_args+=(--contamination-surface "${contamination_surface}")
+fi
 normalizer_rc=0
 node "${normalizer}" "${normalizer_args[@]}" 2>>"${out}/stderr.log" || normalizer_rc=$?
 if [ "${normalizer_rc}" -ne 0 ]; then
@@ -607,16 +616,20 @@ if [ "${config}" = "without_skill" ]; then
 
 	scan_directories=()
 	[ -d "${snapshot_dir}" ] && scan_directories+=("${snapshot_dir}")
-	# Only codex's raw is scanned. Its trace has always been an event stream, so this
-	# is the surface it has always had. claude-code's raw used to be the final result
-	# object alone — the same text as result.json — and stream-json added intermediate
-	# messages and tool inputs, which are mentions, not reads: a baseline whose only
-	# tool call was `echo references/oauth-setup.md` was reported CONTAMINATED and the
-	# run discarded (measured). Read evidence for claude-code now lives in
-	# result.json `skill_usage` (`unexpected_read`), which is derived from successful
-	# reads rather than from any text that names a marker.
+	# Neither executor's raw/ is scanned whole: both are event streams that carry
+	# intermediate messages and tool inputs, which are mentions, not reads — a baseline
+	# whose only tool call was `echo references/oauth-setup.md` was reported
+	# CONTAMINATED and the run discarded (measured on claude-code, #400; same shape on
+	# codex, #401). claude-code's raw used to be the final result object alone — the
+	# same text as result.json — so it is simply out; its read evidence lives in
+	# result.json `skill_usage` (`unexpected_read`). Codex's raw has always been an event
+	# stream, so dropping it would shrink the surface it has always had. It is scanned
+	# through the normalizer's contamination surface instead: the trace minus a closed
+	# set of mention-only events (agent text, file_change paths, one plain echo/printf),
+	# with every other line — command strings, command output, unparsable lines — kept
+	# verbatim (normalize-skill-eval-result.js `codexContaminationSurface`).
 	case "${executor}" in
-	codex) [ -d "${out}/raw" ] && scan_directories+=("${out}/raw") ;;
+	codex) [ -d "${contamination_surface_dir}" ] && scan_directories+=("${contamination_surface_dir}") ;;
 	esac
 	scan_roots=()
 	[ -e "${out}/result.json" ] && scan_roots+=("${out}/result.json")
@@ -661,6 +674,10 @@ if [ "${config}" = "without_skill" ]; then
 			unusable="result.json is empty or unreadable; the response side was not searched"
 		elif [ ! -r "${raw_trace}" ] || [ ! -s "${raw_trace}" ]; then
 			unusable="raw trace is empty or unreadable; executor behavior was not searched"
+		elif [ "${executor}" = "codex" ] && { [ ! -r "${contamination_surface}" ] || [ ! -s "${contamination_surface}" ]; }; then
+			# A trace always opens with thread.started, which the surface keeps, so an
+			# empty or absent surface means the derivation failed, not a clean trace.
+			unusable="codex contamination surface is empty or unreadable; executor behavior was not searched"
 		fi
 
 		if [ -n "${undetected}" ]; then

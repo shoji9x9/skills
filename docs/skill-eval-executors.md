@@ -101,8 +101,10 @@ host の `/etc` は変更しない。
 同じ run の fixture と `.agents/skills/<name>/SKILL.md` は読取り成功しなければならない。
 deny-read の公式仕様と system requirements の配置は [OpenAI: Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) を参照する。
 
-汚染判定は正規化済み final response、project snapshot、raw trace を走査する。
-各 directory root に陽性コントロールを植えて検出能力を実証し、raw 不在・空・読取り不能も `CHECK-BROKEN` とする。
+汚染判定は正規化済み final response、project snapshot と、Codex では raw trace から導いた走査面（`contamination-surface/codex.jsonl`）を走査する。
+走査面は raw から言及しか運べない event（エージェントが書いたテキスト・`file_change` のパス・単独の `echo` / `printf`）だけを落とし、
+コマンド文字列・コマンド出力・解釈できない行は残す。claude-code の raw は走査せず、読み取りの証拠は `skill_usage` の `unexpected_read` が持つ。
+各 directory root に陽性コントロールを植えて検出能力を実証し、raw・走査面の不在・空・読取り不能も `CHECK-BROKEN` とする。
 
 ## Codex の trigger 回帰
 

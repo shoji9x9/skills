@@ -49,7 +49,24 @@ fi
 if [ "$1" = "exec" ]; then
   [[ " $args " == *" --approve-for-me "* ]]
   [[ " $args " != *" --sandbox "* ]]
+  if [[ "$args" == *EXPECT_CODEX_SURFACE_EMPTY* ]]; then
+    printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"codex stub response"}}'
+    exit 0
+  fi
   printf '%s\n' '{"type":"thread.started","thread_id":"stub"}'
+  # Codex emits item.started and item.completed for each command, like the real trace.
+  codex_command() {
+    printf '{"type":"item.started","item":{"id":"c1","type":"command_execution","command":%s,"aggregated_output":"","exit_code":null,"status":"in_progress"}}\n' "$1"
+    printf '{"type":"item.completed","item":{"id":"c1","type":"command_execution","command":%s,"aggregated_output":%s,"exit_code":0,"status":"completed"}}\n' "$1" "$2"
+  }
+  if [[ "$args" == *EXPECT_MARKER_MENTION* ]]; then
+    printf '%s\n' '{"type":"item.completed","item":{"id":"m1","type":"agent_message","text":"I will not open references/oauth-setup.md"}}'
+    codex_command '"/bin/bash -lc '"'"'echo references/oauth-setup.md'"'"'"' '"references/oauth-setup.md\\n"'
+  elif [[ "$args" == *EXPECT_MARKER_READ* ]]; then
+    codex_command '"/bin/bash -lc '"'"'cat /src/skills/box/references/oauth-setup.md | head -5'"'"'"' '"# OAuth\\n"'
+  elif [[ "$args" == *EXPECT_MARKER_IN_OUTPUT* ]]; then
+    codex_command '"/bin/bash -lc '"'"'cat /src/skills/box/SKILL.md'"'"'"' '"See references/oauth-setup.md\\n"'
+  fi
   printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"codex stub response"}}'
   printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"cache_write_input_tokens":0,"output_tokens":3,"reasoning_output_tokens":1}}'
 else
@@ -317,6 +334,62 @@ describe("run-skill-eval executor compatibility", () => {
         harness_version: "run-skill-eval/3",
       },
     });
+  });
+
+  // Codex's raw is an event stream too, but unlike claude-code it has always been
+  // scanned, so it is narrowed to the surface that can carry a read instead of being
+  // dropped (#401). Both sides are pinned: the mention passes, and a read — named in
+  // the command or only visible in its output — is still caught.
+  test.each([
+    ["EXPECT_MARKER_MENTION", "clean"],
+    ["EXPECT_MARKER_READ", "CONTAMINATED"],
+    ["EXPECT_MARKER_IN_OUTPUT", "CONTAMINATED"],
+  ])("judges a codex baseline with %s as %s", (marker, verdict) => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+
+    const run = () =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: `EXPECT_WITHOUT_SKILL ${marker}`,
+        output,
+        stub,
+      });
+    if (verdict === "clean") {
+      run();
+    } else {
+      expect(run).toThrow(expect.objectContaining({ status: 4 }));
+    }
+
+    const contamination = readFileSync(join(output, "contamination.txt"), "utf8");
+    expect(contamination).toMatch(new RegExp(`^verdict: ${verdict}$`, "mu"));
+    expect(contamination).toMatch(/^scanned: .*\/contamination-surface$/mu);
+    expect(contamination).not.toMatch(/\/raw(?:\s|$)/mu);
+    if (verdict === "CONTAMINATED") {
+      expect(contamination).toMatch(
+        /^references\/oauth-setup\.md\t.*contamination-surface\/codex\.jsonl$/mu,
+      );
+    }
+  });
+
+  test("calls a codex baseline CHECK-BROKEN when its contamination surface is empty", () => {
+    const { directory, stub } = makeStub();
+    const output = join(directory, "iteration-1", "eval-1", "without_skill", "run-1");
+
+    expect(() =>
+      runEval({
+        executor: "codex",
+        config: "without_skill",
+        prompt: "EXPECT_WITHOUT_SKILL EXPECT_CODEX_SURFACE_EMPTY",
+        output,
+        stub,
+      }),
+    ).toThrow(expect.objectContaining({ status: 4 }));
+
+    const contamination = readFileSync(join(output, "contamination.txt"), "utf8");
+    expect(contamination).toMatch(/^verdict: CHECK-BROKEN$/mu);
+    expect(contamination).toMatch(/^codex contamination surface is empty or unreadable;/mu);
   });
 
   test("infers the eval id before fingerprinting so ordinary runs include assertions", () => {
