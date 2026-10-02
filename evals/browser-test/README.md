@@ -11,14 +11,14 @@
 ## 実行例
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill browser-test --config with_skill \
   --prompt "ブラウザで動作確認して" \
   --out tests/browser-test/iteration-1/eval-1/with_skill/run-1 \
   --model opus
 
 # fixture 付き eval（eval 7）は --fixture で事前状態を使い捨てプロジェクトへコピーして実行する
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill browser-test --config with_skill \
   --fixture evals/browser-test/fixtures/handoff-ignores-config \
   --prompt "<evals.json の eval 7 の prompt>" \
@@ -28,4 +28,4 @@ scripts/run-skill-eval.sh \
 
 - eval 7 の fixture は `skills.browser-test.environments` だけを持つ設定を置く**囮**で、呼び出し元から環境を渡されたときに設定解決を行わない契約（`references/project-config.md`）を検証する
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

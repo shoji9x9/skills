@@ -1,0 +1,432 @@
+{
+  "$comment": [
+    "procedure-staleness-check.test.js のうち、手順に軸を足す前に閉じた機能を旧手順として列挙する（Issue #505）検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/replace-strategy/procedure-staleness-check.test.js",
+  "mutations": [
+    {
+      "id": "missing-revision-as-latest",
+      "why": "改訂番号を持たない成果物（導入前）を最新の手順で作ったとみなし、どの改訂の対象にもしない",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      procedureRevision = 0;\n",
+      "replace": "      procedureRevision = latestRevision;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "改訂番号を持たない成果物は、スキルのすべての改訂について未判断として落とす",
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "affects-ignored",
+      "why": "改訂の affects を見ず、対象外の mode の機能まで旧手順として出す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!change.affects.includes(entry.mode)) continue;\n      if (entry.procedure_revision === null) continue;",
+      "replace": "      if (entry.procedure_revision === null) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の改訂より新しい改訂だけが対象になり、affects に無い mode は対象にしない"
+      ]
+    },
+    {
+      "id": "same-day-excluded",
+      "why": "追加日と同じ日に作った成果物を追加後とみなして対象から外す（当てたかを日付で決められないのに合格に倒す）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (entry.finished_on <= change.added_at) {\n",
+      "replace": "      if (entry.finished_on < change.added_at) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない",
+        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"
+      ]
+    },
+    {
+      "id": "in-progress-counted-resolved",
+      "why": "見直し中の記録を判断済みとして数え、置き場で追っているだけの機能を解決扱いにする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      } else if (record.decision === DECISIONS.inProgress) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
+        "同じ組み合わせの記録は後の行を現在の判断として読む",
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "first-record-wins",
+      "why": "同じ組み合わせの記録を先勝ちで読み、後から足した判断（見直し中への差し戻し）を無視する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    latest.set(`${record.change}\\u0000${record.slug}`, record);\n",
+      "replace": "    if (!latest.has(`${record.change}\\u0000${record.slug}`)) latest.set(`${record.change}\\u0000${record.slug}`, record);\n",
+      "occurrences": 1,
+      "expect_failing": ["同じ組み合わせの記録は後の行を現在の判断として読む"]
+    },
+    {
+      "id": "placement-unchecked",
+      "why": "見直しの置き場が空の変更を通し、当て直しを誰の完了条件にも入れないまま台帳に載せる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (placement !== PLACEMENT_IN_CHANGE && !/^#\\d+$/u.test(placement)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "unknown-change-id-accepted",
+      "why": "台帳にも改訂一覧にも無い変更 ID の記録を通し、綴り違いで判断したつもりにさせる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (!changeIds.has(change) && !skillChangeIds.has(change)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "unreadable-finished-at-skipped",
+      "why": "終了日時を読めない成果物をプロジェクト側の変更の対象外に倒し、判定不能を合格にする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "        undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
+      "replace": "        if (false) undeterminable.push({\n          slug: entry.slug,\n          change: change.id,\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "undeterminable-exit-zero",
+      "why": "判定不能だけが残る実行を exit 0 にする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "        ? 3\n",
+      "replace": "        ? 0\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "orphan-rows-ignored",
+      "why": "空行で表が切れて表の外に落ちた行を数えず、観点の追加の行を黙って捨てたまま合格させる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (orphans > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "in-progress-without-placement",
+      "why": "置き場を持たない見直し中の記録を通し、どこで当て直すのか読めないまま追っていることにする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      else if (decision === DECISIONS.inProgress && !/^#\\d+/u.test(basis)) {\n",
+      "replace": "      else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "parity-dir-missing-passes",
+      "why": "成果物の置き場を読めない実行（無い・綴り違い）を空として通し、cwd の誤りで合格を出す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    return fail(`${parityDir} を読めない: ${error && /** @type {Error} */ (error).message}`);\n",
+      "replace": "    artifacts = { slugs: [] };\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
+    },
+    {
+      "id": "change-filter-ignored",
+      "why": "--change を無視して他の変更の未判断で止める（1 つの変更の完了条件を判定できない）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      : list.filter((item) => item.change === undefined || item.change === only);\n",
+      "replace": "      : list;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "orphan-requires-leading-pipe",
+      "why": "外側の | を省いて表の外に落ちた行を数えず、その行の変更を判定から黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  const cells = splitRow(line.trim());\n",
+      "replace": "  const cells = line.trim().startsWith(\"|\") ? splitRow(line.trim()) : null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "consumed-lines-not-recorded",
+      "why": "表として読んだ行を記録せず、表の行まで表の外の行として数えて正しい台帳を落とす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (consumed !== undefined) for (let k = i; k < j; k += 1) consumed.add(k);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす",
+        "--change は名指した変更だけで判定し、実在しない変更 ID は exit 2 で落とす",
+        "プロジェクト側で足した軸は、追加日以前（同じ日を含む）に作った成果物を対象にし、後のものは対象にしない",
+        "同じ組み合わせの記録は後の行を現在の判断として読む",
+        "同梱の改訂一覧と台帳テンプレートは検査がそのまま読める",
+        "対象でない組み合わせへの記録は落とさず stray として見せる",
+        "当て直し済み・当てないの記録で解決し、見直し中は未解決のまま残す",
+        "成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする",
+        "陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない",
+        "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: 1 行のコメント",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: 開始行と終了行に分けたコメント",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: 字下げした終了行",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: コードフェンスの中の記号",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号",
+        "セル内の \\| は区切りにせず、値では | として読む",
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "finished-date-converted-to-utc",
+      "why": "終了日時を UTC へ換算し、UTC より遅れたオフセットの成果物を同じ日の追加の対象から漏らす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return value.slice(0, 10);\n",
+      "replace": "  return new Date(Date.parse(value)).toISOString().slice(0, 10);\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "slug-mismatch-accepted",
+      "why": "置き場と成果物の slug の食い違いを見ず、別の機能の成果物をこの機能として旧手順判定する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (meta.slug !== name) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "orphan-requires-full-columns",
+      "why": "列が欠けた行が表の外に落ちても表の行とみなさず、その変更を判定から黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  return cells !== null && cells.length >= 3;\n",
+      "replace": "  return cells !== null && cells.length >= 6;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "台帳の表の欠落・語彙外の値・実在しない変更 ID・空の根拠・重複 ID は exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "multiline-comment-counted",
+      "why": "複数行の HTML コメントの中の記入例を表の外の行として数え、正しい台帳を落とす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      comment = !line.includes(\"-->\");\n",
+      "replace": "      comment = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性コントロール: 複数行の HTML コメントの中の `|` を含む行は表の外の行に数えない",
+        "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: 開始行と終了行に分けたコメント"
+      ]
+    },
+    {
+      "id": "dangling-metadata-skipped",
+      "why": "metadata.json が壊れたリンクの機能を特性化前として黙って外す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (linked) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "empty-artifacts-exit-zero",
+      "why": "成果物を 1 つも数えていない実行を exit 0 にし、何も見ていないことを合格に見せる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "          ? 4\n",
+      "replace": "          ? 0\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
+    },
+    {
+      "id": "comment-tables-parsed",
+      "why": "HTML コメントの中の表（退役した表・記入例）を台帳として読み、生きた表の代わりに変更を供給する",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      comment = !lines[i].includes(\"-->\");\n      continue;\n",
+      "replace": "      comment = false;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの中の表は台帳として読まない（生きた表の代わりにも、重複にもならない）",
+        "陰性コントロール: 扱える位置の HTML コメントは通す: コメントの中のフェンス記号"
+      ]
+    },
+    {
+      "id": "revision-gap-accepted",
+      "why": "改訂一覧の途中の番号の抜けを受理し、抜けた改訂の軸を一度も求めない",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!seen.has(rev)) errors.push",
+      "replace": "      if (rev === revision && !seen.has(rev)) errors.push",
+      "occurrences": 1,
+      "expect_failing": [
+        "改訂一覧の revision に対応する改訂が無い・affects が語彙外なら exit 2 で落とす"
+      ]
+    },
+    {
+      "id": "non-directory-entry-skipped",
+      "why": "slug の置き場がファイルに置き換わった機能を黙って飛ばす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (!name.startsWith(\".\")) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["成果物を読めず対象かを決められない機能は合格に倒さず exit 3 にする"]
+    },
+    {
+      "id": "dangling-ledger-as-absent",
+      "why": "壊れたシンボリックリンクの台帳を「台帳なし」として読み、記録された変更を黙って捨てる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (linked) return fail(",
+      "replace": "    if (false) return fail(",
+      "occurrences": 1,
+      "expect_failing": [
+        "成果物の置き場・台帳を読めないときは合格にも未判断にも倒さず exit 2 にする"
+      ]
+    },
+    {
+      "id": "stray-comment-markers-ignored",
+      "why": "扱えない位置の HTML コメントの記号を見ず、散文の後ろで開いたコメントの中の表などを生きた表として読む",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (markers.lines.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 散文の後ろで開いたコメントの中の表",
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 行の途中で閉じたコメント",
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 1 行に 2 つのコメント",
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 終了行の後ろの散文",
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: コメントの中で開き直したコメント"
+      ]
+    },
+    {
+      "id": "unclosed-comment-accepted",
+      "why": "閉じない HTML コメントを落とさず、以降の表を読まないまま合格させる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  if (markers.unclosed) errors.push(",
+      "replace": "  if (false) errors.push(",
+      "occurrences": 1,
+      "expect_failing": ["閉じない HTML コメントは、以降の表を読まずに合格させない"]
+    },
+    {
+      "id": "opener-after-prose-accepted",
+      "why": "散文の後ろの <!-- を開始行として受け入れる（読み飛ばしの規則はその行をコメントと見ないので、中の表を読む）",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (!trimmed.startsWith(\"<!--\") || opens > 1 || closes > 1) {\n",
+      "replace": "    if (opens > 1 || closes > 1) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 散文の後ろで開いたコメントの中の表"
+      ]
+    },
+    {
+      "id": "closer-trailing-prose-accepted",
+      "why": "終了行の --> の後ろに散文があっても受け入れる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "      if (opens > 0 || closes > 1 || !trimmed.endsWith(\"-->\")) lines.push(index + 1);\n",
+      "replace": "      if (opens > 0 || closes > 1) lines.push(index + 1);\n",
+      "occurrences": 1,
+      "expect_failing": ["HTML コメントの記号が扱えない位置にある台帳は落とす: 終了行の後ろの散文"]
+    },
+    {
+      "id": "inline-closer-accepted",
+      "why": "1 行のコメントの --> の後ろに散文があっても受け入れる",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    else if (!trimmed.endsWith(\"-->\")) lines.push(index + 1);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "HTML コメントの記号が扱えない位置にある台帳は落とす: 行の途中で閉じたコメント"
+      ]
+    },
+    {
+      "id": "markers-in-fence-rejected",
+      "why": "コードフェンスの中の例示まで HTML コメントの記号として落とす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (fence !== null) return;\n    if (opens === 0 && closes === 0) return;\n",
+      "replace": "    if (opens === 0 && closes === 0) return;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性コントロール: 扱える位置の HTML コメントは通す: コードフェンスの中の記号"
+      ]
+    },
+    {
+      "id": "foreign-revisions-accepted",
+      "why": "parity-suite 以外のスキルの改訂一覧を受け入れ、番号が偶然合うだけで無関係な改訂を当て済みと認める",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "  else if (skill !== REVISIONS_SKILL)\n",
+      "replace": "  else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["parity-suite 以外のスキルの改訂一覧は、番号が合っても exit 2 で落とす"]
+    },
+    {
+      "id": "explicit-ledger-missing-accepted",
+      "why": "明示した --ledger の綴り違いを「台帳なし」として読み、台帳の未判断を黙って消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    if (args[\"--ledger\"] !== undefined) return fail(`--ledger に渡した ${ledgerPath} が無い`);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["明示した --ledger が無いときは「台帳なし」に倒さず exit 2 にする"]
+    },
+    {
+      "id": "escaped-pipe-split",
+      "why": "セル内の \\| を区切りとして割り、正しく書いた台帳を列数エラーで読めなくする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "trimmed.split(/(?<!\\\\)\\|/u)",
+      "replace": "trimmed.split(\"|\")",
+      "occurrences": 1,
+      "expect_failing": ["セル内の \\| は区切りにせず、値では | として読む"]
+    },
+    {
+      "id": "handed-off-ignored",
+      "why": "置き場の別 Issue へ回した見直し中を --change でも未解決に数え、起票で完了するはずの変更を閉じられなくする",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    unresolved: picked.filter((item) => !handedOff(item)),",
+      "replace": "    unresolved: picked,",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-without-change",
+      "why": "--change なしの判定でも見直し中を受け渡し済みとし、status から当て直しの残りを消す",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    only !== undefined &&\n    item.state",
+      "replace": "    item.state",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-number-prefix",
+      "why": "置き場の番号の前方一致だけを見て、#131 の置き場に #1310 の見直し中を受け渡し済みと認める",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "(?!\\\\d)",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    },
+    {
+      "id": "handed-off-in-change-placement",
+      "why": "置き場がこの変更の完了条件でも見直し中を受け渡し済みとし、完了条件の当て直しを外へ逃がす",
+      "file": "skills/replace-strategy/scripts/procedure-staleness-check.mjs",
+      "find": "    typeof item.placement === \"string\" &&\n    /^#\\d+$/u.test(item.placement) &&\n    new RegExp(`^${item.placement}",
+      "replace": "    new RegExp(`^${\"#131\"}",
+      "occurrences": 1,
+      "expect_failing": [
+        "--change では置き場の別 Issue へ回した見直し中を受け渡し済みとし、置き場と違う番号・未判断は残す"
+      ]
+    }
+  ]
+}

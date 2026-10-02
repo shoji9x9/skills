@@ -1,0 +1,184 @@
+{
+  "$comment": [
+    "motion-compare.test.js のうち、部品の動きの突き合わせ（Issue #456）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-component/motion-compare.test.js",
+  "mutations": [
+    {
+      "id": "presence",
+      "why": "在るか（操作の前・落ち着いた後）の食い違いを見ない（出る動きが消える動きでも通る）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (base[key] !== candidate[key]) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["出る動きが消える動きになっていれば、在るかの食い違いで落とす"]
+    },
+    {
+      "id": "time-measures",
+      "why": "始まるまでの遅れと長さを比べない（即時に出る新側が通る）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (timeGap(base[key], candidate[key]) > tolerance) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "新側が即時に出る（動きを持たない）なら長さと軌跡の食い違いで落とす",
+        "長さだけが違う動き（600ms に対して 300ms）も落とす",
+        "始まるまでの遅れの違いは下限（50ms）までは許し、それを超えると落とす",
+        "許容差は現行の 2 回の揺れから広がる（揺れの 2 倍までは通す）"
+      ]
+    },
+    {
+      "id": "trajectory",
+      "why": "軌跡（基準の矩形からのずれ・不透明度）を比べない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (gap[metric] > tolerance) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "新側が即時に出る（動きを持たない）なら長さと軌跡の食い違いで落とす",
+        "等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす"
+      ]
+    },
+    {
+      "id": "noise-tolerance",
+      "why": "許容差を測った揺れから広げない（揺れの大きい現行で永久に落ちる）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "const tolerance = Math.max(floor, NOISE_FACTOR * timeGap(base[key], noise[key]));",
+      "replace": "const tolerance = floor;",
+      "occurrences": 1,
+      "expect_failing": ["許容差は現行の 2 回の揺れから広がる（揺れの 2 倍までは通す）"]
+    },
+    {
+      "id": "timed-out",
+      "why": "打ち切られた時系列（終わりを見ていない）を比較に使う",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (timeline.timed_out !== false) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["打ち切られた・要素が一度も在らなかった・t が戻る時系列は比較に使わない"]
+    },
+    {
+      "id": "relative-rect",
+      "why": "絶対座標で比べる（現行のページとカタログで置き場所が違うだけで落ちる）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "dx: s.present ? s.x - reference.x : null,",
+      "replace": "dx: s.present ? s.x : null,",
+      "occurrences": 1,
+      "expect_failing": [
+        "置き場所が違っても（絶対座標のずれ）、基準の矩形からのずれで比べるので一致する"
+      ]
+    },
+    {
+      "id": "uncompared",
+      "why": "行の無い組み合わせを未突合として数えない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!seen.has(key)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "突き合わせ表が無ければ全組み合わせを未突合、行の無い組み合わせは motion-uncompared",
+        "CLI: 揃った採取物と突き合わせ表で exit 0、行を欠くと exit 1、引数の誤りは exit 2",
+        "理由付きで到達できないと宣言した遷移は母集合から外れ、理由が無ければ外さない"
+      ]
+    },
+    {
+      "id": "unreachable-reason",
+      "why": "理由の無い到達不能の宣言を除外として扱う",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!filled(u.reason)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "理由付きで到達できないと宣言した遷移は母集合から外れ、理由が無ければ外さない"
+      ]
+    },
+    {
+      "id": "acceptance-approval",
+      "why": "承認の無い accepted を承認として数える",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!filled(row.reason) || !filled(row.approved_by) || !isoDateTime(row.approved_at)) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["比べないことを選ぶには承認が要る（プレースホルダは承認ではない）"]
+    },
+    {
+      "id": "none-reason-placeholder",
+      "why": "プレースホルダのままの none_reason で判定を省く",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (filled(declared.none_reason)) return",
+      "replace": "if (declared.none_reason) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "動きの列挙が無い・空（理由なし）・理由と遷移の併記・ソースの記録なしは型崩れ"
+      ]
+    },
+    {
+      "id": "probe-version",
+      "why": "探針の版が記録と違う時系列を比べる",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (read.summary.probe_version !== probeVersion) {",
+      "replace": "if (false) {",
+      "occurrences": 2,
+      "expect_failing": ["探針の版が記録と違う時系列は比べない（採取スキーマが違う）"]
+    },
+    {
+      "id": "noise-cap",
+      "why": "現行の遅れ・長さの揺れに上限を置かない（許容差が青天井になり、動きの欠落を通す）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (timeGap(base[key], noise[key]) > limit) unstable.push(key);",
+      "replace": "if (false) unstable.push(key);",
+      "occurrences": 1,
+      "expect_failing": [
+        "揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）"
+      ]
+    },
+    {
+      "id": "baseline-static",
+      "why": "現行で一度も動かなかった時系列を基準にする（止めたまま採った・静止した要素を引いた誤りを見逃す）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (!summaries[0].changed) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "現行が一度も動かなかった時系列は、ソースの宣言の有無に関わらず基準にしない"
+      ]
+    },
+    {
+      "id": "noise-cap-trajectory",
+      "why": "現行の軌跡の揺れに上限を置かない",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (noiseGapForLimit[metric] > limit) unstable.push(`trajectory.${metric}`);",
+      "replace": "if (false) unstable.push(`trajectory.${metric}`);",
+      "occurrences": 1,
+      "expect_failing": [
+        "揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）"
+      ]
+    },
+    {
+      "id": "trajectory-sample-times",
+      "why": "軌跡を等間隔の点だけで比べる（点の間の短い動きを見逃す）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "for (const s of [...a.series, ...b.series]) if (s.t <= span) times.add(s.t);",
+      "replace": "for (const s of []) if (s.t <= span) times.add(s.t);",
+      "occurrences": 1,
+      "expect_failing": ["等間隔の比較点の間に収まる短い動き（一瞬の点滅）も軌跡の比較で落とす"]
+    },
+    {
+      "id": "unstable-at-registration",
+      "why": "現行の 2 回の割れを基準の登録時に落とさない（capture の前提判定・比較まで届かない行で素通りする）",
+      "file": "skills/parity-component/scripts/motion-compare.mjs",
+      "find": "if (unstable.length > 0) {",
+      "replace": "if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "現行の 2 回の割れは、突き合わせ表が無い（capture の前提判定）・行が比較まで届かないときも報告する",
+        "揺れの上限は時間と軌跡のそれぞれで効く（遅れだけ・移動量だけが割れた現行も基準にしない）",
+        "現行の 2 回で動く／動かないが割れたら基準にしない",
+        "現行の 2 回の揺れが上限を超えたら許容差を広げず基準にしない（600ms と即時の組で欠落を通さない）"
+      ]
+    }
+  ]
+}

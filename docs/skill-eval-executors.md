@@ -1,6 +1,6 @@
 # スキル評価 executor 契約
 
-`scripts/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
+`scripts/eval/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
 Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択
@@ -14,7 +14,7 @@ Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
 各 run の `result.json` と `timing.json` に executor、model、reasoning effort、CLI version、harness version を記録する。
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill <name> \
   --executor codex \
   --model <model> \
@@ -73,7 +73,7 @@ tests/<skill>/iteration-N/
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
 各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、`requires_skills`（名前と設置内容のハッシュ）、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
 `without_skill` の `--reuse-baseline` は fingerprint と成果物の健全性を検証し、再利用した run に `baseline-reuse.json` を追加する。
-`scripts/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
+`scripts/eval/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
 `outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる run だけに置く。ツール記録を持たない trace（`result` イベント 1 つだけの旧 `--output-format json`）では `0` で埋めず省略する。
 `files_created` は run 前の fixture file manifest と、run 後に `project-files/` へ保存できた artifact の差分で生成する。既存 fixture、size cap 等で保存されなかったファイルは含めない。
 
@@ -81,7 +81,7 @@ raw trace は調査・deterministic grading 用であり、集計・viewer は r
 Codex の `item.type=error` / `turn.failed`、Claude Code の `is_error`、raw の parse 失敗、final response 不在は、CLI exit が 0 でも正規化を fail-closed にして runner を非 0 終了させる。
 
 `grading.json` は executor に依存しない既存 schema を使う。必須フィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}`。
-採点後の集計は repo の `scripts/build-skill-eval-benchmark.js`（判定を assertion テキストで突き合わせる）。viewer は既存 skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
+採点後の集計は repo の `scripts/eval/build-skill-eval-benchmark.js`（判定を assertion テキストで突き合わせる）。viewer は既存 skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
 
 ## Native skill と隔離
 

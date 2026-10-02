@@ -3,7 +3,7 @@
 `docs/skill-development.md` の隔離手順に従い、with-skill / without-skill を同じ prompt・同じモデル条件で実行する。
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill git-worktree \
   --prompt '<evals.json の該当 eval の prompt>' \
   --config with_skill \

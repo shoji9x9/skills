@@ -11,7 +11,7 @@ session: claude-code
 
 ## 事象
 
-PR #395 のレビュー対応中、`scripts/pixel-crops.test.js` の import ブロックを python の文字列置換で書き換えようとして
+PR #395 のレビュー対応中、`scripts/skills/parity-diff/pixel-crops.test.js` の import ブロックを python の文字列置換で書き換えようとして
 `AssertionError` で 1 回落ちた。直前の編集で `pnpm exec oxfmt` を通しており、整形が import を
 `const { ... } = await import(\n  script\n);` の形へ折り返していたため、記憶から組み立てた置換元と一致しなかった。
 失敗後にファイルを読み直して現在の中身から置換元を取り、成功した（手戻りは 1 回）。

@@ -51,7 +51,7 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 ### 3. 結果を集計する
 
 ```bash
-node scripts/build-skill-eval-benchmark.js tests/dependabot-merge/iteration-N \
+node scripts/eval/build-skill-eval-benchmark.js tests/dependabot-merge/iteration-N \
   --skill-name dependabot-merge \
   --skill-path '<repo>/skills/dependabot-merge' \
   --executor-model <model-id> \

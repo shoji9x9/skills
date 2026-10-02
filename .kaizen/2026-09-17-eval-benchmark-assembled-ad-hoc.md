@@ -5,9 +5,9 @@ priority: medium
 status: applied
 applied-to:
   [
-    scripts/build-skill-eval-benchmark.js,
-    scripts/build-skill-eval-benchmark.test.js,
-    scripts/build-skill-eval-benchmark.mutations.json,
+    scripts/eval/build-skill-eval-benchmark.js,
+    scripts/eval/build-skill-eval-benchmark.test.js,
+    scripts/eval/build-skill-eval-benchmark.mutations.json,
     docs/skill-development.md,
   ]
 session: claude-code
@@ -45,23 +45,23 @@ run 時点の正本が各 run の `eval_metadata.json` に在ることに気づ�
 
 eval の採点集計は書き捨てスクリプトで組み立てず、assertion テキストをキーにした入力だけを受理する repo のスクリプトで生成する。
 
-- `scripts/build-skill-eval-benchmark.js` を新設する
+- `scripts/eval/build-skill-eval-benchmark.js` を新設する
 - assertion テキストは各 run の `eval_metadata.json`（run 時点の正本）から取る——`evals.json` から取ると、
   後から assertion を変えたときに過去の記録のテキストがずれる
 - 判定は assertion テキストをキーにしたマップで受け取り、位置配列を受理しない
 - キー集合の不一致・件数の不一致で exit 2
-- `scripts/build-skill-eval-benchmark.test.js` で境界を固定し、判定行を無効化する変異で赤くなることを実証する
+- `scripts/eval/build-skill-eval-benchmark.test.js` で境界を固定し、判定行を無効化する変異で赤くなることを実証する
 - `docs/skill-development.md` の集計手順をこのスクリプトへ差し替える
 
 別作業へ切り出した（Issue #421）。Issue #416 の apply では、本 PR の範囲外として pending のまま残していた。
 
 ## 適用（Issue #421）
 
-`scripts/build-skill-eval-benchmark.js` を新設し、`docs/skill-development.md` の集計手順をそこへ差し替えた。
+`scripts/eval/build-skill-eval-benchmark.js` を新設し、`docs/skill-development.md` の集計手順をそこへ差し替えた。
 判定は assertion テキストをキーにして突き合わせ、位置配列・`text` の無い要素・キー集合の不一致・
 `summary` と採点内訳の食い違いを exit 2 で落とす。テキストの正本は各 run の `eval_metadata.json`。
-境界は `scripts/build-skill-eval-benchmark.test.js` で固定し、判定行を無効化する変異が狙ったテストを落とすことを
-`scripts/check-mutation-proof.js` で実証した（変異の一覧と件数は `scripts/build-skill-eval-benchmark.mutations.json` が正本。
+境界は `scripts/eval/build-skill-eval-benchmark.test.js` で固定し、判定行を無効化する変異が狙ったテストを落とすことを
+`scripts/mutation/check-mutation-proof.js` で実証した（変異の一覧と件数は `scripts/eval/build-skill-eval-benchmark.mutations.json` が正本。
 ここに件数を書くと、変異を足したときに記録だけが古くなる）。
 
 既存の `tests/**/benchmark.json` 2 件（`tests/parity-diff/iteration-13` / `iteration-24`）を成果物から

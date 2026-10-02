@@ -64,7 +64,7 @@ evals/evals.json のテストケースを使って回帰テストを実行した
 ### 3. 結果を集計する
 
 ```bash
-node scripts/build-skill-eval-benchmark.js tests/aws-architecture-diagram/iteration-N \
+node scripts/eval/build-skill-eval-benchmark.js tests/aws-architecture-diagram/iteration-N \
   --skill-name aws-architecture-diagram \
   --skill-path '<repo>/skills/aws-architecture-diagram' \
   --executor-model <model-id> \

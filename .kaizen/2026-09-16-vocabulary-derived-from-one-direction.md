@@ -68,7 +68,7 @@ KEDB: [[2026-09-01-matching-key-material-state-space]]（applied）は状態空�
   「整形ツールにディレクトリを渡さず対象ファイルを列挙する。ツールは引数で与えられた範囲を
   自分の判断で整形するので、対象外の種別が黙って書き換わる」。実例は両方向にある
   （oxfmt が `.md` の表を桁揃えし、markdownlint-cli2 が `.mjs` / `.png` / `.yml` を書き換えた）
-- `scripts/bash-command-guard.sh` に 3 形目として**整形コマンドへのディレクトリ引数**を足す。
+- `scripts/hooks/bash-command-guard.sh` に 3 形目として**整形コマンドへのディレクトリ引数**を足す。
   既存 2 形（`gh api` に無いフラグ `--body-file`、文字クラスで自分を避けない `pkill -f`）と同じく、
   文章規約で防げず再発した形なので PreToolUse で止める。対象は `oxfmt` / `markdownlint-cli2` の
   書き込みを伴う呼び出しで、**通さねばならない入力**（ファイル列挙・`--check` のみ・

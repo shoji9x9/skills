@@ -14,11 +14,11 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   **npm は使わない**（`package-lock.json` を作らない。誤った PM 利用は `devEngines` が警告する）
   - bump 手順（正本 4 箇所の同期）・broken 版回避は [`docs/package-manager.md`](docs/package-manager.md) を参照
 - **フォーマッタ／リンタ**: 下表の通り（**prettier は使わない**）
-- **テスト**: skill-creator（eval viewer に Python 3.8+）、集計は `scripts/build-skill-eval-benchmark.js`（Node）
+- **テスト**: skill-creator（eval viewer に Python 3.8+）、集計は `scripts/eval/build-skill-eval-benchmark.js`（Node）
 - **環境管理**: mise
 - **ツール起動**: スクリプト・lefthook・CI からツールを起動する際は `./node_modules/.bin/<tool>` のハードパスで叩かず、`pnpm exec <tool>`（または mise の shim）経由で起動する
   - **例外: 1 回の実行で同じツールを数十回以上起動するスクリプト**は、`pnpm exec` の起動コスト（実測 1 回約 0.6 秒）が支配的になるため、
-    Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）で entry を求めて `node` で起動してよい（現状は `scripts/check-mutation-proof.js` の子 vitest のみ）。
+    Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）で entry を求めて `node` で起動してよい（現状は `scripts/mutation/check-mutation-proof.js` の子 vitest のみ）。
     この場合も `.bin` のハードパスは使わない
   - **mise の shim は cwd の設定階層で解決する。** リポジトリ外の cwd（`/tmp` 等）から素のコマンド名で起動すると
     `No version is set for shim` で落ちる（グローバル既定が無いため。untrusted とは別の失敗）。
@@ -28,11 +28,11 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 
 | 対象                                              | リント              | フォーマット        | 補助検査                                                                                  |
 | ------------------------------------------------- | ------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| Markdown (`*.md`)                                 | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/lint-pagination.js` で shell コードブロック内の `gh api` ページネーションを検査 |
+| Markdown (`*.md`)                                 | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.js` で shell コードブロック内の `gh api` ページネーションを検査 |
 | JavaScript / TypeScript (`*.js`, `*.mjs`, `*.ts` 等) | `oxlint`          | `oxfmt`             | なし                                                                                      |
 | JSON (`*.json`)                                   | `jsonlint`          | `oxfmt`             | duplicate key も検査                                                                      |
-| YAML (`*.yml`, `*.yaml`)                          | `js-yaml`（`scripts/lint-yaml.js` が API で 1 プロセスにまとめて読む） | `oxfmt` | なし |
-| Shell (`*.sh`)                                    | `shellcheck`        | `shfmt`             | `scripts/lint-pagination.js` で `gh api` ページネーションを検査                          |
+| YAML (`*.yml`, `*.yaml`)                          | `js-yaml`（`scripts/gates/lint-yaml.js` が API で 1 プロセスにまとめて読む） | `oxfmt` | なし |
+| Shell (`*.sh`)                                    | `shellcheck`        | `shfmt`             | `scripts/gates/lint-pagination.js` で `gh api` ページネーションを検査                          |
 | GitHub Actions (`.github/workflows/*.{yml,yaml}`) | `actionlint` + `ghalint` | `oxfmt` | `pinact` で SHA pinning を確認 |
 
 表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は mise でインストールし（`mise.toml`）素のコマンド名で起動する。それ以外は pnpm devDependencies（`pnpm exec` で起動）。
@@ -41,15 +41,15 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   **lefthook の glob と `format:js*` スクリプトの glob もこの範囲に揃える**——片方だけ狭いと、その拡張子は手元で検査されず CI でだけ落ちる。
 - **GitHub Actions のポリシー検査**: `actionlint`（構文）に加え `ghalint`（`permissions`・`timeout-minutes`・`persist-credentials` 等のポリシー）で多層検査する。`ghalint` は全走査のため pre-commit に入れず CI（`GitHub Actions lint`）専任。
 - **横断ゲート（ファイル種別に依らない検査）**: pre-commit と CI の `Lint` ジョブで次を走らせる。いずれも対象 0 件を成功に倒さない。
-  `scripts/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
-  `scripts/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/check-skills-sync.js` / `scripts/check-js-extensions.js` /
-  `scripts/check-skill-frontmatter.js` / `scripts/lint-pagination.js` /
-  `scripts/check-kaizen-refs.js`（`.kaizen/` の学びへの参照の実在。意図的な非実在は `scripts/kaizen-refs-exemptions.json`）/
-  `scripts/check-identical-copies.js`（同一であるべきコピー。組は `scripts/identical-copies.json`）/
-  `scripts/check-skill-checks.js`（配布スキルの検査〈`*-check.*`〉を、利用者の入口へ配線する〈`skills/<name>/checks.json`〉か
-  しない〈理由付きで `scripts/skill-checks-unwired.json`〉かのどちらかへ分類）/
-  `scripts/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/check-skill-index.js`（スキルガイド・README とスキル実体の対応）。
-- **変異実証（CI 専任）**: `scripts/check-mutation-proof.js` が `scripts/*.mutations.json` の宣言を再実行し、
+  `scripts/gates/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/gates/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
+  `scripts/gates/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/gates/check-skills-sync.js` / `scripts/gates/check-js-extensions.js` /
+  `scripts/gates/check-skill-frontmatter.js` / `scripts/gates/lint-pagination.js` /
+  `scripts/gates/check-kaizen-refs.js`（`.kaizen/` の学びへの参照の実在。意図的な非実在は `scripts/gates/kaizen-refs-exemptions.json`）/
+  `scripts/gates/check-identical-copies.js`（同一であるべきコピー。組は `scripts/gates/identical-copies.json`）/
+  `scripts/gates/check-skill-checks.js`（配布スキルの検査〈`*-check.*`〉を、利用者の入口へ配線する〈`skills/<name>/checks.json`〉か
+  しない〈理由付きで `scripts/gates/skill-checks-unwired.json`〉かのどちらかへ分類）/
+  `scripts/gates/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/gates/check-skill-index.js`（スキルガイド・README とスキル実体の対応）。
+- **変異実証（CI 専任）**: `scripts/mutation/check-mutation-proof.js` が `scripts/**/*.mutations.json` の宣言を再実行し、
   各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
   検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
   - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
@@ -64,7 +64,7 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
   - **実行器自身を変異させる宣言があるときは、`--changed-since` を測るテストを `--only` で有界にする。**
     選択の判定を常に真にする変異が入ると、入れ子の runner が指数的に増える（実測で 30 分以上・21 プロセス以上、
     殺した後の作業ツリーに変異が残った）。
-- **実行前ゲート（PreToolUse）**: `scripts/bash-command-guard.sh` が、文章規約で防げず再発した 2 形を Bash 実行前に止める——
+- **実行前ゲート（PreToolUse）**: `scripts/hooks/bash-command-guard.sh` が、文章規約で防げず再発した 2 形を Bash 実行前に止める——
   `gh api` と同じセグメントの `--body-file`（`gh api` にこのフラグは無い。`gh pr` / `gh issue` の `--body-file` は通す）と、
   文字クラスで自分を避けていない `pkill -f` / `killall -f`（照合対象が full command line なので自分のシェルに一致する）。
   3 エージェントぶん配線してある（`.claude/settings.json` / `.codex/hooks.json` / `.github/hooks/kaizen-session.json`）。
@@ -85,12 +85,12 @@ JavaScript の拡張子は配布有無で使い分ける（新規ファイルも
 - **配布物は `.mjs`**: 配布スキル一式（`skills/**`）に含まれる JavaScript。インストール先の `package.json` の `type` に依存せず Node が常に ESM として解釈するため。
 - **非配布物は `.js`**: リポジトリ内ツール・テスト（`scripts/**/*.js`）と、配布しない private skill（`.private-skill`。`.agents/skills/<name>/` のみに存在）のスクリプト。
   `package.json` の `"type": "module"` 下で ESM として動くため拡張子で ESM を明示する必要がない。
-- **ツールが読む設定は `.ts`**: `vitest.config.ts` / `scripts/vitest-global-setup.ts` / `commitlint.config.ts` / `release.config.ts` / `commit-types.ts` /
+- **ツールが読む設定は `.ts`**: `vitest.config.ts` / `scripts/lib/vitest-global-setup.ts` / `commitlint.config.ts` / `release.config.ts` / `commit-types.ts` /
   `oxlint.config.ts` / `oxfmt.config.ts`。各ツールが `.ts` を自動探索して読む（commitlint と semantic-release の TypeScript loader が要る `typescript` は devDependencies に明示する。
   oxlint の `.ts` 設定は Node.js 経由の起動が前提なので、素のバイナリではなく `pnpm exec oxlint` で起動する）。
   `.ts` を読まないツールの設定は元の形式のまま（markdownlint-cli2 は `.mjs` / `.cjs` / JSON / YAML、lefthook は YAML / JSON / TOML、
   mise・pnpm・GitHub・各エージェントの設定は形式がツール側で決まっている）。
-- この規約は `scripts/check-js-extensions.js` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（`skills/**` 配下の `.js` と `scripts/**` 配下の `.mjs` を fail させる）。
+- この規約は `scripts/gates/check-js-extensions.js` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（`skills/**` 配下の `.js` と `scripts/**` 配下の `.mjs` を fail させる）。
 
 `tests/**` はリント／フォーマット対象に含める。`.agents/**` と `.claude/**` はインストール済みコピー／エージェント用シンボリックリンクのため対象外にする。
 
@@ -110,7 +110,21 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
     benchmark.json      結果サマリー
 .agents/skills/<name>/          実体（Codex が直接参照）
 .claude/skills/<name>           → ../../.agents/skills/<name>（Claude Code 用シンボリックリンク）
+scripts/                リポジトリ内ツールとテスト（配布しない）。直下にファイルを置かない
+  gates/                横断ゲート（check-* / lint-*）と、それが読む宣言データ
+  mutation/             変異実証の実行器
+  eval/                 eval ハーネス（実行・隔離・集計・指紋）と evals/ の fixture の生成・検査
+  hooks/                エージェントの Hook から起動するスクリプト（3 エージェントの設定から参照）
+  tools/                手で起動する補助（reinstall-skill.sh 等）
+  lib/                  テスト・ツールの共有ライブラリと vitest の globalSetup
+  skills/<name>/        配布スキル skills/<name>/ 同梱スクリプトのテストと fixture
+  skills/_cross/        複数スキルにまたがる契約のテスト
 ```
+
+`scripts/` のテスト（`*.test.js`）と変異宣言（`*.mutations.json`）は、テスト対象の隣に置く。
+置き場所は対象で決める——`scripts/` のツールのテストはそのツールと同じディレクトリ、
+配布スキルのスクリプトのテストは同名のスクリプトを持つスキル（同名が無ければ読み込む対象が収まる 1 スキル）の `scripts/skills/<name>/`、
+1 スキルに収まらない契約のテストは `scripts/skills/_cross/`。
 
 ## ワークフロー
 
@@ -226,7 +240,7 @@ tests/<name>/           テスト結果（git 管理はサマリーのみ）
     検出語が現れるだけでブロックされるため、検出語を部分文字列に分けて構築する（python なら `"com" + "mit"`）か、ファイル編集ツールへ迂回する。
   - **実行中のセッション自身を検査する仕組み（PreToolUse hook 等）の検出範囲を広げるときは、自分のツール呼び出しが新たに何に当たるかを先に 1 行宣言する。**
   - 使用する種別は `commit-types.ts` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
-    - commitlint / semantic-release はコードで `commit-types.ts` を import するが、dependabot.yml は手書きのため `scripts/commit-types-consistency.test.js` が型の整合を CI で検査する
+    - commitlint / semantic-release はコードで `commit-types.ts` を import するが、dependabot.yml は手書きのため `scripts/gates/commit-types-consistency.test.js` が型の整合を CI で検査する
 - **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
 - **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `Unit tests` / `Mutation proof (PR)` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
   - CI は `pull_request` に加え `push: main`（マージ後の main）でも起動する
@@ -266,12 +280,12 @@ major 更新に自動シグナルが出ない前提での手動確認方針は [
 
 - `.agents/rules/doc-altitude.md`: エージェント向けドキュメント（`AGENTS.md` / `CLAUDE.md` / `SKILL.md` / `skills/*/references/` / `.agents/rules/` / `docs/`）の記載粒度（altitude）。行動に必須な情報だけを single source of truth で置き、重複・読み手のいない節を避ける
 - `.agents/rules/github-actions-authoring.md`: GitHub Actions ワークフロー作成・変更時のレビュー観点（必要権限の突き合わせ・happy path 失敗時の fail-safe）。`.github/workflows/**` 編集時に適用
-- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**`（とインストール済みコピー）編集時に適用
+- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/tools/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**`（とインストール済みコピー）編集時に適用
 - `.agents/rules/external-tool-format-verification.md`: 外部ツール（Codex / Copilot / `gh` / GitHub API 等）の設定・Hook・API 形状は公式一次ドキュメントで構造とフィールド意味論を検証してから記述し、検証 URL を併記する。0 件・失敗時の分岐はその状態を作って実測する。`skills/**` 編集時に適用
 - `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl 例・スクリプトでは変数値を URL クエリ / フォームに直挿しせず `--data-urlencode`（GET は `-G` 併用）でエンコードする。秘密値は `k@file` で渡し argv 露出を塞ぐ。`skills/**` 編集時に適用
 - `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルは基底ドキュメントを `AGENTS.md` に決め打ちせず `CLAUDE.md` / `.github/copilot-instructions.md` のみの下流でも成立させる。`skills/**` 編集時に適用
 - `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に参照する成果物（テンプレート・スクリプト等）はスキル内（`assets/` / `scripts/` / `references/`）に正本を同梱する。`skills/**` 編集時に適用
-- `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
+- `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/gates/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
 - `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint` / `license`）を維持する。`skills/*/SKILL.md`（とインストール済みコピー）編集時に適用
 - `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval のアサーション・fixture は書いた時点で「弁別・到達・材料・主価値・入力が答えを持っていないか・正本整合」の 6 点を検証し、採点は位置でなく assertion のテキストで対応づけ、出力内の矛盾を fail にする。`evals/**` 編集時に適用
 - `.agents/rules/eval-run-scope.md`: eval の実走は起動前に目的とスコープを宣言する（既定の run 数と広げる判断の正本は `docs/skill-development.md`）。`evals/**` 編集時に適用

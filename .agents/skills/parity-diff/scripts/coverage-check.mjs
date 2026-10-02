@@ -80,7 +80,7 @@ function nonEmptyString(v) {
 // 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
 // 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
 // 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
-// リポジトリの scripts/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
+// リポジトリの scripts/skills/_cross/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。
@@ -672,7 +672,7 @@ function isPlainObject(v) {
 /**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
- * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/coverage-record-judge-parity.test.js。
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/skills/_cross/coverage-record-judge-parity.test.js。
  * 様式は reaction-check.mjs の tableFingerprint と同じ。
  * @param {Record<string, unknown>} table
  * @returns {string}

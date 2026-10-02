@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 
 // 表の読み方は evidence-gap-check.mjs と同じ（コードフェンスの中は読まない・外側の `|` は省略可）。
 // import せずに持つのは、CLI を単体のシンボリックリンク経由・--preserve-symlinks-main で起動すると
-// 相対 import がリンクの置き場から解決されて落ちるため（scripts/skill-script-cli-entry.test.js）。
+// 相対 import がリンクの置き場から解決されて落ちるため（scripts/skills/_cross/skill-script-cli-entry.test.js）。
 
 /**
  * 空白を 1 つに畳み、前後を除く。

@@ -1,0 +1,143 @@
+{
+  "$comment": [
+    "diff-normalize-intentional-match.test.js のうち、意図的差異レジストリの構造化した照合キー（match。Issue #496）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-diff/diff-normalize-intentional-match.test.js",
+  "mutations": [
+    {
+      "id": "no-structured-match",
+      "why": "match を読まず、すべての宣言を文全体の包含で照合する（修正前の形）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "      if (match !== null) {\n        if (\"invalid\" in match) continue;",
+      "replace": "      if (false) {\n        if (\"invalid\" in match) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "理由を添えた散文の宣言は、match があれば当たる",
+        "match があるときは item の文面では照合しない（別要素の差分を吸収しない）",
+        "element は論理名に対する完全一致・glob・幾何差分の対の両側で当たる",
+        "property は完全一致か glob で当たり、別のプロパティには当たらない",
+        "page / state / viewport は書いたときだけ実行の組と突き合わせる",
+        "pending の要素も match で当たり、分類の群の優先順は keep → may_change → pending",
+        "CLI: match で当たった宣言の差分は absorbed_registry で exit 0（陽性コントロール）"
+      ]
+    },
+    {
+      "id": "missing-key-wildcard",
+      "why": "match の element / property の欠落を不備として扱わない（欠けたキーがワイルドカードになる）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (missing.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）",
+        "CLI: 壊れた match は黙って無効化せず stderr へ警告を出す",
+        "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
+      ]
+    },
+    {
+      "id": "unknown-key-accepted",
+      "why": "match の未知のキー（selector 等）を黙って読み捨てる",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (unknownKeys.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["壊れた match は照合に使わない（欠けたキーはワイルドカードにならない）"]
+    },
+    {
+      "id": "element-not-checked",
+      "why": "match.element を照合しない（別要素の差分を吸収する）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (!matchesComponentPattern(match.element, diff.name)) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "match があるときは item の文面では照合しない（別要素の差分を吸収しない）",
+        "element は論理名に対する完全一致・glob・幾何差分の対の両側で当たる"
+      ]
+    },
+    {
+      "id": "property-not-checked",
+      "why": "match.property を照合しない（別のプロパティの差分を吸収する）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (!matchesGlob(match.property, diff.prop)) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["property は完全一致か glob で当たり、別のプロパティには当たらない"]
+    },
+    {
+      "id": "page-without-ctx",
+      "why": "実行側に page が無いとき、page を書いた宣言を当ててしまう",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (match.page !== undefined && (!ctx.page || match.page !== ctx.page)) return false;",
+      "replace": "  if (match.page !== undefined && ctx.page && match.page !== ctx.page) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "page / state / viewport は書いたときだけ実行の組と突き合わせる",
+        "CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す"
+      ]
+    },
+    {
+      "id": "state-not-checked",
+      "why": "match.state を照合しない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (match.state !== undefined && match.state !== (ctx.state || \"default\")) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["page / state / viewport は書いたときだけ実行の組と突き合わせる"]
+    },
+    {
+      "id": "prose-warning-silent",
+      "why": "散文だけの宣言が当たらなかったことを stderr に出さない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (prose.unused > 0 && residual > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 散文だけの宣言が当たらず未説明が残れば、件数を stderr に出す"]
+    },
+    {
+      "id": "prose-warning-always",
+      "why": "未説明が残らないときも散文の宣言の警告を出す（雑音で本物の警告が読まれなくなる）",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (prose.unused > 0 && residual > 0) {",
+      "replace": "  if (prose.unused > 0) {",
+      "occurrences": 1,
+      "expect_failing": ["CLI: 未説明が残らなければ、使われなかった散文の宣言があっても警告しない"]
+    },
+    {
+      "id": "item-not-required",
+      "why": "item の無い match だけの宣言を照合に使う",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (normalizeValue(intentionalEntryText(entry)).length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "item の無い match だけの宣言は照合に使わない（どの宣言で許容したかを追えない）"
+      ]
+    },
+    {
+      "id": "missing-ctx-silent",
+      "why": "match.page / match.viewport を書いた宣言が当たりようのない実行で警告しない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "  if (intentionalNeedingCtx > 0 && missingCtx.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "CLI: --page を省くと、match.page を書いた宣言が当たらないことを stderr に出す"
+      ]
+    },
+    {
+      "id": "missing-ctx-viewport-ignored",
+      "why": "match.viewport を書いた宣言を数えない",
+      "file": "skills/parity-diff/scripts/diff-normalize.mjs",
+      "find": "        (match.viewport !== undefined && !ctx.viewport)\n",
+      "replace": "        false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "page / viewport を書いた宣言は、実行側にその軸が無ければ数える（当たりようがない）"
+      ]
+    }
+  ]
+}

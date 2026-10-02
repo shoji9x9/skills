@@ -1,0 +1,196 @@
+{
+  "$comment": [
+    "append-only-check.test.js の検出能力を示す変異の一覧（--exclude の分岐と fill_only_columns）。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/replace-strategy/append-only-check.test.js",
+  "mutations": [
+    {
+      "id": "AO-EXCL-FILTER",
+      "why": "--exclude を受け取っても項目を外さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  const artifacts = declared.filter((a) => !exclude.includes(a.id));",
+      "replace": "  const artifacts = declared;",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す",
+        "--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）",
+        "--exclude project-config でも残りの項目（features.md の行の削除）は落とす"
+      ]
+    },
+    {
+      "id": "AO-EXCL-UNKNOWN",
+      "why": "一覧に無い id の除外を黙って受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (unknown.length > 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude に一覧に無い id を渡したら合格に倒さない（exit 2。綴り違いで黙って何も外さない）"
+      ]
+    },
+    {
+      "id": "AO-EXCL-ALL",
+      "why": "全項目を外した一覧を受理する（後段の対象 0 件で別の理由に化ける）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (artifacts.length === 0) {\n    throw new UsageError(\n      `--exclude",
+      "replace": "  if (false) {\n    throw new UsageError(\n      `--exclude",
+      "occurrences": 1,
+      "expect_failing": ["--exclude で一覧の項目がすべて外れたら合格に倒さない（exit 2）"]
+    },
+    {
+      "id": "AO-EXCL-NOTE",
+      "why": "外した id を出力に出さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "  if (exclude.length > 0) notes.push(",
+      "replace": "  if (false) notes.push(",
+      "occurrences": 1,
+      "expect_failing": [
+        "--exclude project-config なら設定ファイルの書き換えを通し、外した id を出力に出す"
+      ]
+    },
+    {
+      "id": "AO-EXCL-DUP",
+      "why": "同じ id の重複指定を受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (exclude.includes(value)) throw",
+      "replace": "      if (false) throw",
+      "occurrences": 1,
+      "expect_failing": ["--exclude の使い方の誤り（重複）は exit 2"]
+    },
+    {
+      "id": "AO-EXCL-BLANK",
+      "why": "空白だけの値を id として受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": " || value.trim() === \"\"",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["--exclude の使い方の誤り（値が空）は exit 2"]
+    },
+    {
+      "id": "AO-FILL-SKIP",
+      "why": "fill_only_columns の列の未記入セルも単位にする（空欄を埋める正規の編集が縮小に化ける）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "          if (fillOnly.has(column) && cell === \"\") continue;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）",
+        "assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）"
+      ]
+    },
+    {
+      "id": "AO-FILL-ANY",
+      "why": "fill_only_columns の列を値に依らず単位から外す（入っている値の差し替えが通る）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "fillOnly.has(column) && cell === \"\"",
+      "replace": "fillOnly.has(column)",
+      "occurrences": 1,
+      "expect_failing": [
+        "weaknesses.md の決めた仕分けを書き換えると落ちる（写す → 直す）",
+        "weaknesses.md の入っている値を未記入（-）へ戻すと落ちる",
+        "weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）",
+        "assets.md の入っている方針を差し替えると落ちる",
+        "weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）",
+        "assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）"
+      ]
+    },
+    {
+      "id": "AO-FILL-DASH",
+      "why": "`-`（決めた「該当なし」）を未記入とみなす（決定済みの行の該当なしをその場で値へ書き換えられる）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "fillOnly.has(column) && cell === \"\"",
+      "replace": "fillOnly.has(column) && (cell === \"\" || cell === \"-\")",
+      "occurrences": 1,
+      "expect_failing": [
+        "weaknesses.md の決めた「該当なし」（-）を値へ書き換えると落ちる（- は未記入ではない）",
+        "assets.md の決めた行の同等物で残る差（-）を値へ書き換えると落ちる（- は未記入ではない）"
+      ]
+    },
+    {
+      "id": "AO-FILL-UNCONFIRMED",
+      "why": "基準の `未確認` を含むセルを未記入とみなす（確かめられなかった記録を黙って書き換えられる）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "fillOnly.has(column) && cell === \"\"",
+      "replace": "fillOnly.has(column) && (cell === \"\" || cell.includes(\"未確認\"))",
+      "occurrences": 1,
+      "expect_failing": ["weaknesses.md の基準の 未確認 は未記入とみなさない（書き換えると落ちる）"]
+    },
+    {
+      "id": "AO-FILL-PASS",
+      "why": "一覧の fill_only_columns を markdownUnits へ渡さない",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      artifact.fillOnlyColumns ?? [],\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "weaknesses.md の仕分け空欄の行の決定の列（空セル）をその場で埋めると通る（fill_only_columns）",
+        "assets.md の方針空欄の行を後から埋めると通る（fill_only_columns）"
+      ]
+    },
+    {
+      "id": "AO-FILL-OVERLAP",
+      "why": "同じ列を mutable_columns と fill_only_columns の両方に書いた一覧を受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        if (overlap.length > 0) {",
+      "replace": "        if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "fill_only_columns の宣言の誤り（同じ列が両方にある）は exit 2",
+        "fill_only_columns の宣言の誤り（mutable_columns が * で fill_only_columns がある）は exit 2"
+      ]
+    },
+    {
+      "id": "AO-FILL-OVERLAP-STAR",
+      "why": "mutable_columns の * と fill_only_columns の重なりを見逃す",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        const overlap = mutableColumns.includes(\"*\")",
+      "replace": "        const overlap = false",
+      "occurrences": 1,
+      "expect_failing": [
+        "fill_only_columns の宣言の誤り（mutable_columns が * で fill_only_columns がある）は exit 2"
+      ]
+    },
+    {
+      "id": "AO-FILL-STAR",
+      "why": "fill_only_columns の * を受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        if (fillOnlyColumns.includes(\"*\")) {",
+      "replace": "        if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["fill_only_columns の宣言の誤り（fill_only_columns に *）は exit 2"]
+    },
+    {
+      "id": "AO-FILL-UNIT",
+      "why": "unit が lines の項目の fill_only_columns を受理する（黙って効かない）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (unit !== \"markdown-structure\") {",
+      "replace": "      if (a.fill_only_columns !== undefined && a.fill_only_columns !== null) {\n        if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["unit が lines なのに fill_only_columns があれば合格に倒さない（exit 2）"]
+    },
+    {
+      "id": "AO-FILL-JSON",
+      "why": "unit が json-arrays の項目の fill_only_columns を受理する",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "        a.fill_only_columns !== undefined ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "unit が json-arrays なのに fill_only_columns があれば合格に倒さない（exit 2）"
+      ]
+    },
+    {
+      "id": "AO-FILL-ASSIGN",
+      "why": "同じファイルに当たった項目の fill_only_columns の食い違いを見逃す（先勝ちで緩い方が採られうる）",
+      "file": "skills/replace-strategy/scripts/append-only-check.mjs",
+      "find": "      prev.fillOnlyColumns.join(\",\") !== artifact.fillOnlyColumns.join(\",\") ||\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じファイルに fill_only_columns の違う項目が当たれば合格に倒さない（exit 2）"
+      ]
+    }
+  ]
+}

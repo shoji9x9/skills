@@ -12,7 +12,7 @@
 ## 実行例
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill current-environment-bootstrap --config with_skill \
   --fixture evals/current-environment-bootstrap/fixtures/assets-complete \
   --prompt "current-environment-bootstrap" \
@@ -82,4 +82,4 @@ scripts/run-skill-eval.sh \
   **この executor では弁別せず後退検知として機能する**。Delta を読むときは executor 別に扱う。
 
 - 採点は `evals.json` の assertions と `result.json` / `project-files/` を突き合わせ、`grading.json` を残す
-- 集計（`benchmark.json`）は `node scripts/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）
+- 集計（`benchmark.json`）は `node scripts/eval/build-skill-eval-benchmark.js` で生成する（判定は assertion テキストで突き合わせる。`benchmark.md` は人が書く。詳細は `docs/skill-development.md`）

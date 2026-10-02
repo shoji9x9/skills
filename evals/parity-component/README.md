@@ -13,14 +13,14 @@
 ## 実行例
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component capture" \
   --out tests/parity-component/iteration-1/eval-1/with_skill/run-1 \
   --executor claude-code --model opus
 
 # fixture 付き eval（前提が揃った状態から始める。evals.json の "fixture" をスキルディレクトリ相対で解決する）
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill parity-component --config with_skill \
   --prompt "parity-component build --component button" \
   --fixture evals/parity-component/fixtures/catalog-unset \
@@ -62,7 +62,7 @@ Issue #433 が報告した実際の失敗（`feedback-message` / `pagination` / 
 **基礎 → テーマ層 → 個別テーマの 3 層に散った再宣言のうち最初の 1 件を採る**形で、
 規則数が多く争点が一覧で見えない状態が failure mode だった。合成 fixture で再現するには実アプリ規模のスタイルシートが要る。
 そのためこの eval は **Delta に寄与せず、後退検知専用**として維持し、
-手順の効果は `scripts/cascade-resolve.test.js`（実測 3 件を回帰ケースにしてある）で担保する。
+手順の効果は `scripts/skills/parity-component/cascade-resolve.test.js`（実測 3 件を回帰ケースにしてある）で担保する。
 詳細は [`tests/parity-component/iteration-8/benchmark.md`](../../tests/parity-component/iteration-8/benchmark.md)。
 
 ## eval 3 は Delta ではなく後退検知
@@ -105,10 +105,10 @@ fixture をさらに削っても弁別は戻らない——items と evidence �
 
 **採取物（`baseline/`・`axes.json`・`metadata.json` のツール版とプロパティ集合・軸の件数）は手で書かない。** 手で作った採取物は、
 `traits_property_set` が実物の `FIXED_PROPERTIES` と違う・`css-rules.json` の宣言が `traits.json` の計算値と食い違う・`element.png` がプレースホルダ、という形で壊れていた（Issue #354）。
-`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/generate-parity-component-fixtures.js` が headless Chrome で最小のページに
+`catalog-unset` / `breaking-change-request` の `button` は、リポジトリの `scripts/eval/generate-parity-component-fixtures.js` が headless Chrome で最小のページに
 trait-capture.mjs・css-rules-capture.mjs・要素スクリーンショットを当てて生成したもの（2 回採って一致を確かめている）。ツールや採取条件を変えたら同スクリプトで取り直す。
 書き出した JSON の整形は同スクリプトが対象ファイルを列挙して行うので、手で `oxfmt` を当てない（`oxfmt` に `.md` やディレクトリを渡すと fixture の Markdown の表が桁揃えされる）。
-生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は `scripts/parity-component-fixtures.test.js` が CI で検査する。
+生成物どうしの整合（プロパティ集合・ツール版・計算値と規則の宣言・PNG の寸法・`axes.json` の再導出）は `scripts/eval/parity-component-fixtures.test.js` が CI で検査する。
 `component-api.md` / `parity.md` などエージェントが書く成果物は、生成物の値（幅・ツール版）に合わせて手で揃える。
 
 **`build` の前段には姉妹スキル `parity-suite` もある。** 陳腐化の判定（`traits_version` / `traits_property_set` の突き合わせ）はインストール済み `parity-suite` の同梱ツールを読むので、
@@ -164,4 +164,4 @@ eval 5 の `without_skill` は停止せず実装まで進んだため、fixture 
 - `element.png` が実際のボタンの画像ではなくプレースホルダなので、画素比較の入力にはならない
 
 **入力（prompt・fixture・assertion）を変えたら、その eval の過去の結果は使えない。**
-`scripts/skill-eval-fingerprint.js` が assertions を含めて指紋を取るため、baseline の再利用も拒否される。
+`scripts/eval/skill-eval-fingerprint.js` が assertions を含めて指紋を取るため、baseline の再利用も拒否される。

@@ -11,8 +11,8 @@
    - **`parity-suite` の手順に確かめる軸を足したら**（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）、
      同じ変更で `skills/parity-suite/assets/procedure-revisions.json` の `revision` を 1 上げ、`changes` へ 1 要素を追記する。
      下流の `replace-strategy status` はこの一覧で「旧手順で閉じた機能」を列挙するため、上げ忘れると前に閉じた機能が古い手順のまま収束扱いで残る。
-     **これは規約で、強制点は無い**（軸を足したかは差分から機械的に決められない）。一覧の形は `scripts/procedure-staleness-check.test.js` が検査する
-3. `scripts/reinstall-skill.sh <name>` でインストール済みスキルを更新する
+     **これは規約で、強制点は無い**（軸を足したかは差分から機械的に決められない）。一覧の形は `scripts/skills/replace-strategy/procedure-staleness-check.test.js` が検査する
+3. `scripts/tools/reinstall-skill.sh <name>` でインストール済みスキルを更新する
 4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
 5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
 6. `gh skill publish --dry-run` でバリデーションを確認する
@@ -27,7 +27,7 @@
    散文の説明と直後のコード例を突き合わせる。編集した概念のキーワードで対象ファイルを `grep` し、別表記・矛盾記述が残っていないか確認する。
    **文字数・バイト数・書式のような「数えれば分かる」規約の合否は、それを強制する実装をそのまま実行して取る**（自前の近似を書かない）。
    単位（バイト / 文字 / 表示幅）は強制する実装ごとに違うため、近似は偽陽性・偽陰性を出す——commit message は `pnpm exec commitlint --edit <file>`、
-   Markdown は `pnpm exec markdownlint-cli2 <path>`、`SKILL.md` の frontmatter は `node scripts/check-skill-frontmatter.js <path>` で測る。
+   Markdown は `pnpm exec markdownlint-cli2 <path>`、`SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.js <path>` で測る。
 2. **複製ボイラープレートの横断適用**: スキル間で複製されたファイル（`evals/<name>/README.md` 等）は、修正対象の文字列で `grep -rn <キーワード> skills/ evals/` を実行し、全複製に同じ修正を適用する。
 3. **ルール記述 ↔ 強制ゲートの実在とスコープ一致**: まず**強制点が実在するか**を確かめる——「この規律を破ろうとしたとき、どのコード / lint / hook が落とすか」を 1 つ名指しできない規律は、
    「仕組みで縛った」ではなく規約である（散文に書いた箇所数は強度ではない。効くのは強制点だけ）。名指しできないなら強制点を実装するか、規約であることを明記する。
@@ -81,7 +81,7 @@
 このリポジトリでは Claude Code / Codex / GitHub Copilot の3エージェントを使うため、開発中スキルは `--agent codex` で `.agents/skills/<name>/` に実体を置き、`.claude/skills/<name>` にシンボリックリンクを張る単一ソース構成でドッグフードする。スキルを修正した場合は、手作業ではなくスクリプトで再インストールする:
 
 ```bash
-scripts/reinstall-skill.sh <name>
+scripts/tools/reinstall-skill.sh <name>
 ```
 
 このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作成する。
@@ -98,9 +98,9 @@ scripts/reinstall-skill.sh <name>
 
 **新規・変更した eval には `reachability` を書く。** 各 assertion を引き出す prompt の文を
 `{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` として並べる。
-`scripts/check-eval-reachability.js` が pre-commit と CI で、対応要素の欠落・空の引用・prompt に無い引用・
+`scripts/gates/check-eval-reachability.js` が pre-commit と CI で、対応要素の欠落・空の引用・prompt に無い引用・
 assertions に無い assertion を落とす（対応づけは位置ではなくテキスト）。
-既存 eval は `scripts/eval-reachability-backlog.json` の宣言で段階適用にしてあり、
+既存 eval は `scripts/gates/eval-reachability-backlog.json` の宣言で段階適用にしてあり、
 項目は eval の指紋（prompt + assertions のハッシュ）を持つ——**その eval を書き換えると免除が外れて
 `reachability` が必須になる**ので、触った eval から順に埋まる。新規 eval を backlog へ足さない。
 
@@ -131,11 +131,11 @@ LLM eval は最初のデバッグ手段にしない。先に変更したラン�
 #### without-skill baseline の再利用
 
 prompt・対象 eval の assertion と `requires_skills`・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
-既存の成功した `without_skill` run を再利用できる。`scripts/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
+既存の成功した `without_skill` run を再利用できる。`scripts/eval/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
 再利用では assertion の欠落を防ぐため `--eval-id`、実行時の既定値変化を防ぐため `--model` と `--reasoning-effort` を明示し、executor の CLI version を取得できなければ停止する。
 
 ```bash
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill <name> --config without_skill \
   --executor <executor> --model <model> --reasoning-effort <effort> \
   --eval-id <id> --prompt '<prompt>' --fixture <fixture-dir> \
@@ -159,7 +159,7 @@ eval プロンプトはファイルを生成・改変する（スキル・ルー
 エージェントの Bash ツールの cwd は呼び出し間で持続しうるが、ターン境界やプロジェクト外へ出た場合はリセットされうるため前提にできない。
 スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような**相対パス**なので、後続の呼び出しでこのリポジトリを汚染する。
 
-**対策**: `scripts/run-skill-eval.sh` を使う。
+**対策**: `scripts/eval/run-skill-eval.sh` を使う。
 ランチャ側で cwd を固定したヘッドレス executor を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
 `with_skill` は executor の native skill path にスキルを設置し、`without_skill` は設置しない。ただし**未設置は公正なベースラインの十分条件ではない**——CLI はマシン上の任意パスを読めるため、read 隔離と汚染判定まで含めて初めて Delta が信号になる（下記）。
 被験体へコピーするのは `SKILL.md`、`references/`、`assets/`、`scripts/` など実行に必要な成果物だけとし、`evals/` の assertion・採点基準・トピック表は同梱しない。
@@ -168,7 +168,7 @@ Claude Code / Codex の選択、共通 artifact schema、native skill discovery�
 
 ```bash
 # 1 run を隔離実行（生成物は --out 配下に保存され、リポジトリは汚れない）
-scripts/run-skill-eval.sh \
+scripts/eval/run-skill-eval.sh \
   --skill <name> --executor <claude-code|codex> --config with_skill \
   --prompt "<evals.json の prompt>" \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
@@ -193,7 +193,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 - 配列でない・空・kebab-case でない・重複・対象スキル自身・`skills/<name>/SKILL.md` が無い、のいずれも executor を起動せずに失敗する
 
 - **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
-  `run-skill-eval.sh` は**両 configuration** を `scripts/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
+  `run-skill-eval.sh` は**両 configuration** を `scripts/eval/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
   各 run に `isolation.txt`（遮断できたか）を必ず残す。`without_skill` にはさらに `contamination.txt`（判定）を残す。`SKILL_EVAL_RUNNER` を明示した場合はそれが優先され、遮断は未検証として記録される。
   **`with_skill` も隔離するのは、比較の差を「スキルの有無」だけに保つため**——隔離しないと `with_skill` はエージェントの履歴（スキルを書いた／eval を設計したセッションのトランスクリプト）や
   グローバルインストール済みスキルを読めてしまい、Delta が上方に膨らむ（実測で、そこを読んで根拠にした run がある）。使い捨てプロジェクト内のスキルはサンドボックス内でも読めるため `with_skill` は成立する。
@@ -201,7 +201,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
     **その run の Delta は無効**として扱い、`grading.json` を置かず集計から除外し、遮断（または判定の前提）を直して取り直したうえで benchmark に経緯を残す。
     `SKIPPED` は「判定が走らなかった」であって clean ではない。
   - bwrap（または `eval-sandbox.sh`）が無い環境は `UNISOLATED` を記録し、`flock` で `with_skill` 実行と排他して逐次へ落とす（並列実行は `/tmp` 隔離が効いているときだけ成立する）。
-  - 遮断そのものを確かめるときは `scripts/eval-sandbox.sh --verify <marker>...` を使う（3 段: リポジトリがサンドボックス内で消えていること・マーカーが 1 件も見つからないこと〈走査根ごとに陽性コントロールを植えて検出能力を実証する〉・`$HOME` が書き込みを拒み書き込み可の箇所への書き込みがホストへ漏れないこと）。
+  - 遮断そのものを確かめるときは `scripts/eval/eval-sandbox.sh --verify <marker>...` を使う（3 段: リポジトリがサンドボックス内で消えていること・マーカーが 1 件も見つからないこと〈走査根ごとに陽性コントロールを植えて検出能力を実証する〉・`$HOME` が書き込みを拒み書き込み可の箇所への書き込みがホストへ漏れないこと）。
   - 残る穴: 対象リポジトリが public なら `gh` / WebFetch でスキル本文を取得する経路はローカル遮断では塞げない。採点時に「baseline がスキル固有の語彙・契約を再現していないか」は見る。
 - **fixture に「期待する答え」を書かない。** fixture はスキルが読む**入力**であって契約知識ではない。
   設定・成果物に置くコメントや注記が、その eval が検査している結論（移行先のパス・意図的にそう作った旨・こう扱うのが正しいという診断）を述べていると、
@@ -229,7 +229,7 @@ setup が非 0 なら executor を起動せず eval を失敗させ、setup が�
 `grading.json` は集計スクリプト／ビューアが実際に読むスキーマで生成する（後段の集計が 0.0% や「No runs found」になるのを防ぐ）。
 必須フィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text` / `passed` / `evidence`。
 **判定は assertion テキストで対応づけるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする**
-（位置で並べた配列や `text` の無い要素は集計器が受理しない。`scripts/build-skill-eval-benchmark.js`）。
+（位置で並べた配列や `text` の無い要素は集計器が受理しない。`scripts/eval/build-skill-eval-benchmark.js`）。
 ビューアを使う場合は run 配下のレイアウト（`outputs/` と `eval_metadata.json`）も揃える。正本は skill-creator の `references/schemas.md`（インストール先の skill-creator 配下。無い場合は skill-creator のドキュメントを参照）を参照する。
 
 ### 対象スキルを読まなかった run を集計から外す
@@ -343,7 +343,7 @@ eval は**スキルの欠陥を見つけるための装置**であり、モデ�
 対応づけて件数を誤る。
 
 ```bash
-node scripts/build-skill-eval-benchmark.js tests/<name>/iteration-N \
+node scripts/eval/build-skill-eval-benchmark.js tests/<name>/iteration-N \
   --skill-name <name> \
   --skill-path '<repo>/skills/<name>' \
   --executor-model <model-id> \

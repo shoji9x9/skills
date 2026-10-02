@@ -1,0 +1,1987 @@
+{
+  "$comment": [
+    "reaction-check.test.js のうち、文書のオリジン（Issue #450）・操作で変わる頁の組み方（Issue #460）・押した後に残るもの（Issue #471）・送る前の判定（Issue #483）・表への書き込み（Issue #466）・状態表示と送っている間の押し直し（Issue #500）・押した後に撮ったページと URL の照合（Issue #484）・表をまたいだ撮る状態の使い回し（Issue #485）・操作を持たない画面駆動の機能の表（Issue #503）の検出能力を示す変異の一覧。",
+    "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "各変異は『置換が当たったこと』と『expect_failing のテストがそれだけ落ちたこと』の両方で判定する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/skills/parity-suite/reaction-check.test.js",
+  "mutations": [
+    {
+      "id": "source-document-missing",
+      "why": "none の操作した文書が空でも通す（オリジンを照合する起点を記録させない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonEmptyString(obs.source_document)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: none に操作した文書が無い"]
+    },
+    {
+      "id": "source-document-unknown",
+      "why": "none の操作した文書が棚卸しに無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (documents && !documents.has(/** @type {string} */ (obs.source_document))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: none の操作した文書が棚卸しに無い"]
+    },
+    {
+      "id": "origins-missing",
+      "why": "文書のオリジンの記録が無くても欠落として数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(origins)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 文書のオリジンの記録が無い",
+        "未測定として落とす: 文書のオリジンの記録が配列"
+      ]
+    },
+    {
+      "id": "origins-lacking",
+      "why": "棚卸しの文書がオリジンの記録から欠けていても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0) problems.push(",
+      "replace": "    if (false) problems.push(",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 文書のオリジンに棚卸しの文書が欠けている"]
+    },
+    {
+      "id": "origins-unknown",
+      "why": "棚卸しに無い文書のオリジンの記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unknown.length > 0)\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 文書のオリジンに棚卸しに無い文書がある"]
+    },
+    {
+      "id": "origins-invalid",
+      "why": "オリジンの記録が語彙外でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (invalid.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 文書のオリジンが語彙外（オリジンの値そのものを書いた）",
+        "同梱テンプレートのプレースホルダのままの文書のオリジンは落とす（Issue #450）"
+      ]
+    },
+    {
+      "id": "evidence-key-missing",
+      "why": "根拠がオブジェクトでない（欠落・null・旧形式の文字列）ときも落とさない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(evidence)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 根拠が表全体で 1 本の文字列（旧形式）",
+        "未測定として落とす: オリジンの根拠のキーが無い",
+        "未測定として落とす: オリジンの根拠が null"
+      ]
+    },
+    {
+      "id": "cross-origin-without-evidence",
+      "why": "別オリジンの文書に文書ごとの根拠を要求しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lackingEvidence.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未測定として落とす: 別オリジンの文書があるのに根拠が無い",
+        "未測定として落とす: 別オリジンの文書の根拠が空白だけ",
+        "未測定として落とす: 別オリジンの文書が複数あり、根拠が一方にしか無い"
+      ]
+    },
+    {
+      "id": "stale-evidence",
+      "why": "別オリジンでない文書に残った根拠を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (staleEvidence.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["未測定として落とす: 別オリジンでない文書の根拠が残っている"]
+    },
+    {
+      "id": "layout-missing",
+      "why": "操作に layout が無くても・配列でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(layout)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: layout が無い（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: layout が配列（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-changes-vocab",
+      "why": "changes が語彙外でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (typeof layout.changes !== \"boolean\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: changes が語彙外（Issue #460）"]
+    },
+    {
+      "id": "layout-unmeasured",
+      "why": "changes: null（測れなかった）を未測定として数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (layout.changes === null) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: null（測れなかった）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-false-evidence",
+      "why": "changes: false の確かめ方が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(layout.evidence) || isPlaceholder(layout.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: false に確かめ方が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: evidence がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "layout-false-covered",
+      "why": "changes: false の assertion が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!covered) {\n      return {\n        problem:\n          \"layout.changes: false",
+      "replace": "    if (false) {\n      return {\n        problem:\n          \"layout.changes: false",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: false に assertion が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: covered_by がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "layout-samples-min",
+      "why": "変える操作を 1 回の標本で通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(samples) || samples.length < 2) {\n",
+      "replace": "  if (!Array.isArray(samples) || samples.length < 1) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true の標本が 1 回（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-before",
+      "why": "操作の前の測定を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (beforeProblem) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true に操作の前の測定が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-repeat",
+      "why": "repeat の連番を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!repeats.every((r, i) => r === i + 1)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本の repeat が連番でない（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: 標本の repeat が重複（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-client-height",
+      "why": "client_height を要求しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!positiveNumber(m.client_height)) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本に client_height が無い（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-scroll-height",
+      "why": "scroll_height を検査しない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonNegativeNumber(m.scroll_height)) return",
+      "replace": "  if (false) return",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 標本の scroll_height が非数（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-rects-empty",
+      "why": "矩形が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(m.rects) || Object.keys(m.rects).length === 0) {\n",
+      "replace": "  if (!isPlainObject(m.rects)) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 標本の矩形が空（Issue #460）"]
+    },
+    {
+      "id": "layout-rect-axes",
+      "why": "矩形の軸の欠けを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      !RECT_AXES.every((k) => typeof r[k] === \"number\" && Number.isFinite(r[k]))\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 矩形の軸が欠けている（Issue #460）"]
+    },
+    {
+      "id": "layout-rect-negative",
+      "why": "負の幅・高さを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (/** @type {number} */ (r.width) < 0 || /** @type {number} */ (r.height) < 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["頁の組み方の記録の欠けを落とす: 矩形の幅が負（Issue #460）"]
+    },
+    {
+      "id": "layout-keys",
+      "why": "回によって測った論理名が違っても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!samples.every((m) => keysOf(m) === beforeKeys)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 回によって測った論理名が違う（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-all-same",
+      "why": "変わると書いたのに全ての標本が操作の前と同じでも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (samples.every((m) => same(m, layout.before))) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（矩形の軸の書き順だけが違う）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-same-key-order",
+      "why": "矩形を軸の順に正規化せず、書き順の違いで「変わった」と読む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    rectsText(a) === rectsText(b);\n",
+      "replace": "    JSON.stringify(a.rects) === JSON.stringify(b.rects);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true なのに全ての標本が操作の前と同じ（矩形の軸の書き順だけが違う）（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-true-covered",
+      "why": "変える操作の assertion が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!covered) {\n    return {\n      problem:\n        \"layout.changes: true",
+      "replace": "  if (false) {\n    return {\n      problem:\n        \"layout.changes: true",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: changes: true に assertion が無い（Issue #460）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: changes: true の covered_by がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "layout-rect-empty-name",
+      "why": "空の論理名の矩形を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(name)) return \"rects に空の論理名がある\";\n",
+      "replace": "    if (false) return \"rects に空の論理名がある\";\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "頁の組み方の記録の欠けを落とす: 矩形の論理名が空（Issue #460）",
+        "頁の組み方の記録の欠けを落とす: 矩形の論理名が空白だけ（Issue #460）"
+      ]
+    },
+    {
+      "id": "layout-evidence-placeholder",
+      "why": "テンプレートの説明文のままの evidence を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!nonEmptyString(layout.evidence) || isPlaceholder(layout.evidence)) {\n",
+      "replace": "    if (!nonEmptyString(layout.evidence)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "layout の欄をテンプレートの説明文のまま出したら落とす: evidence がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "layout-covered-placeholder",
+      "why": "テンプレートの説明文のままの covered_by を受ける",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    coveredBy.every((c) => nonEmptyString(c) && !isPlaceholder(c));\n",
+      "replace": "    coveredBy.every((c) => nonEmptyString(c));\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "layout の欄をテンプレートの説明文のまま出したら落とす: covered_by がテンプレートの説明文のまま（Codex レビュー）",
+        "layout の欄をテンプレートの説明文のまま出したら落とす: changes: true の covered_by がテンプレートの説明文のまま（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "aftermath-missing",
+      "why": "aftermath が無い操作を未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const amProblems = isPlainObject(am)\n",
+      "replace": "    const amProblems = true\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: aftermath が無い（Issue #471）",
+        "押した後に残るものの記録の欠けを落とす: aftermath が配列（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-missing",
+      "why": "look が無くても未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(look)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["押した後に残るものの記録の欠けを落とす: look が無い（Issue #471）"]
+    },
+    {
+      "id": "aftermath-look-evidence",
+      "why": "残らないと書いた記録に確かめ方が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(look.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に確かめ方が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-items-empty",
+      "why": "残ると書いたのに見た目を 1 つも列挙しなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(items) || items.length === 0) {\n",
+      "replace": "  if (!Array.isArray(items)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: true に items が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-observed",
+      "why": "現行で測った値が無い見た目を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(item.observed)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items に現行で測った値が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-unassigned",
+      "why": "撮る状態にも assertion にも割り当てず理由も無い見た目を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!hasState && !hasAssertion && !hasReason) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items を撮る状態にも assertion にも割り当てていない（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-captured-unknown",
+      "why": "撮影条件に無い状態名へ割り当てても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (item.captured))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: items の撮る状態が撮影条件に無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-missing",
+      "why": "戻り先が無くても未測定に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(ret)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["押した後に残るものの記録の欠けを落とす: returns_to が無い（Issue #471）"]
+    },
+    {
+      "id": "aftermath-returns-url-origin",
+      "why": "オリジン付きの URL を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(v) || !String(v).startsWith(\"/\") || String(v).startsWith(\"//\")) {\n",
+      "replace": "    if (!filled(v) || String(v).startsWith(\"//\")) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 押す前の URL にオリジンが入っている（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-url-protocol-relative",
+      "why": "プロトコル相対の URL を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(v) || !String(v).startsWith(\"/\") || String(v).startsWith(\"//\")) {\n",
+      "replace": "    if (!filled(v) || !String(v).startsWith(\"/\")) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 押す前の URL がプロトコル相対（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-reset-stray",
+      "why": "動かしていない状態を戻したと書いても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (stray.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 動かしていない状態を戻したと書く（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-not-probed-lacking",
+      "why": "棚卸しの状態を動かさず理由も無い記録を通す（1 つだけ動かして 1 つだけ確かめる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (lacking.length > 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 棚卸しの状態を動かさず理由も無い（1 つだけ動かして 1 つだけ確かめる）（Issue #471）",
+        "押した後に残るものの記録の欠けを落とす: 何も動かさず理由も無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-covered",
+      "why": "戻り先を assertion にしていなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filledStrings(ret.covered_by)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 戻り先に assertion が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-look-false-covered",
+      "why": "残らないと書いた記録に assertion が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filledStrings(look.covered_by)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に assertion が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-returns-probed-unknown",
+      "why": "棚卸しに無い状態を動かしたと書いても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (unknown.length > 0) {\n        out.push({\n          problem: `aftermath.returns_to.probed",
+      "replace": "      if (false) {\n        out.push({\n          problem: `aftermath.returns_to.probed",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 棚卸しに無い状態を動かしたと書く（Issue #471）"
+      ]
+    },
+    {
+      "id": "screen-states-missing",
+      "why": "画面の状態の棚卸しが無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    problems.push(\n      \"screen_states.states が",
+      "replace": "    [].push(\n      \"screen_states.states が",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: 画面の状態の棚卸しが無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "aftermath-capture-shared",
+      "why": "撮る状態を操作をまたいで根拠なしに使い回しても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length === 0) continue;\n",
+      "replace": "    continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "残る見た目の撮る状態を操作をまたいで使い回すなら、全行に根拠を要求する（Codex レビュー）",
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）",
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
+      ]
+    },
+    {
+      "id": "aftermath-look-false-targets",
+      "why": "残らないと書いた記録に確かめた論理名が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filledStrings(look.targets)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に残るものの記録の欠けを落とす: look.changes: false に確かめた論理名が無い（Issue #471）"
+      ]
+    },
+    {
+      "id": "capture-shared-reaction",
+      "why": "反応の撮る状態を使い回しの照合に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!isPlainObject(r) || r.kind !== \"observed\" || !isPlainObject(r.capture)) continue;\n",
+      "replace": "      continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "反応の撮る状態と、別の操作の残る見た目が 1 枚を共有するなら根拠を要求する（Codex レビュー）",
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
+      ]
+    },
+    {
+      "id": "capture-key-page",
+      "why": "撮る状態の使い回しをページで割らない（別のページの 1 枚を同じ 1 枚と数える）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "JSON.stringify([page === null ? null : pageKey(page, pageResolution), state])",
+      "replace": "JSON.stringify([null, state])",
+      "occurrences": 1,
+      "expect_failing": [
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）",
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）"
+      ]
+    },
+    {
+      "id": "page-unknown",
+      "why": "撮影条件に無いページ名を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      else if (pageNames !== null && !pageNames.has(/** @type {string} */ (op.capture_page)))\n",
+      "replace": "      else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "別のページの同じ状態名は別の 1 枚として扱い、同じページだけ根拠を要求する（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "capture-page-required",
+      "why": "ページが 2 つ以上あるのに capture_page の無い撮る状態を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      else if (pageNames.size > 1)\n",
+      "replace": "      else if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ページが 2 つ以上ある機能で撮る状態を持つ操作は capture_page を要求し、1 つならそのページとみなす（Codex レビュー）"
+      ]
+    },
+    {
+      "id": "pre-send-missing",
+      "why": "操作に pre_send が無くても未測定にしない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(ps)) {\n",
+      "replace": "  if (!isPlainObject(ps)) {\n    return { problems: out, refs };\n  }\n  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["送る前の判定の欠けは未測定として落とす: pre_send が無い（Issue #483）"]
+    },
+    {
+      "id": "pre-send-traced-to",
+      "why": "追った到達点が空でも通す（画面の処理で読むのを止めた記録が通る）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 到達点が空（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 到達点のシンボルが欠けている（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-trace",
+      "why": "辿り方がテンプレートの説明文のままでも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(ps.trace)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 辿り方がテンプレートの説明文のまま（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-evidence",
+      "why": "判定が無いと書いて確かめた記録が無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(ps.evidence)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 判定が無いと書いて確かめた記録が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-order-includes",
+      "why": "順序にこの判定の id が無くても通す（どこに入る判定かが残らない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      !order.includes(item.id)\n",
+      "replace": "      false\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 順序にこの判定が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-order-length",
+      "why": "順序がこの判定だけでも通す（前後を語れない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      order.length < 2 ||\n",
+      "replace": "      false ||\n",
+      "occurrences": 1,
+      "expect_failing": ["送る前の判定の欠けは未測定として落とす: 順序がこの判定だけ（Issue #483）"]
+    },
+    {
+      "id": "pre-send-order-dup",
+      "why": "順序に同じ工程が 2 回あっても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      new Set(order).size !== order.length ||\n",
+      "replace": "      false ||\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 順序に同じ工程が 2 回（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-setup",
+      "why": "境界の状態の作り方が空でも通す（ゴールデンデータが届かないときの代わりの作り方が残らない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filled(side.input) || !filled(side.setup)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 境界の状態の作り方が空（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-side-measured",
+      "why": "observed / covered_by の無い側を測った側として数える",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (filled(side.observed) && filledStrings(side.covered_by)) {\n",
+      "replace": "      if (true) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 止まる側を測れなかった（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 止まる側の assertion が無い（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-both-sides",
+      "why": "境界の片側だけを測った判定を通す（ふだん通る側だけで緑になる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0 && out.every((o) => !o.problem.startsWith(`${at}.sides`))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 止まる側を測っていない（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 通る側を測っていない（Issue #483）",
+        "送る前の判定の欠けは未測定として落とす: 両側とも通る側（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-in-scan",
+      "why": "到達点のファイルが走査範囲に無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        (file) => scan.texts.get(file),\n",
+      "replace": "        (file) => scan.texts.get(file) ?? \"sendExport\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 到達点が走査範囲の外（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-symbol",
+      "why": "判定の場所のシンボルがファイルに無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      } else if (!symbolIn(text, ref.symbol)) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送る前の判定の欠けは未測定として落とす: 判定の場所のシンボルがファイルに無い（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ファイルに無いシンボル（Issue #483）"
+      ]
+    },
+    {
+      "id": "side-effects-declared",
+      "why": "表への書き込みの宣言が無い旧表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(sew) || typeof sew.declared !== \"boolean\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: キーごと無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-declared-false-records",
+      "why": "declared: false のまま記録を持つ表を走査せずに通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (value !== undefined && !(Array.isArray(value) && value.length === 0))\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: declared: false なのに記録がある（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-pattern-table",
+      "why": "パターンの書く表が表の一覧に無くても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(t) || !tableSet.has(/** @type {string} */ (t))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: パターンの表が表の一覧に無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-unwritten",
+      "why": "書く箇所を 1 件も記録していない表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (unwritten.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 表に書く箇所を 1 件も記録していない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-unrecorded",
+      "why": "ソースにある書き込み（例外処理の中）の記録漏れを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!recordedCount.has(key))\n        problems.push(\n          `side_effect_writes.sites: ソースの書き込み",
+      "replace": "      if (false)\n        problems.push(\n          `side_effect_writes.sites: ソースの書き込み",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 例外時の書き込みを記録していない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-operation",
+      "why": "被覆表に無い操作へ結び付けた書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (s.operation !== null && !opIds.has(/** @type {string} */ (s.operation))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 操作が被覆表に無い（Issue #466）",
+        "表への書き込みの欠けは落とす: 操作を書いていない（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-assertion",
+      "why": "assertion と書いて assertion の無い書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filledStrings(s.covered_by)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: assertion と書いて assertion が無い（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-source-only",
+      "why": "読解のみと書いて理由の無い書き込みを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!filled(s.source_only_reason)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: 読解のみと書いて理由が無い（Issue #466）"]
+    },
+    {
+      "id": "side-effects-recorded",
+      "why": "--recorded で表への書き込みを突き合わせていない記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (sideEffects.declared === true && conf.side_effects_checked !== true)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--recorded は表への書き込みを突き合わせていない記録を落とす（Issue #466）"
+      ]
+    },
+    {
+      "id": "side-effects-site-shape",
+      "why": "位置の欠けた書き込みの記録を黙って読み飛ばす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      problems.push(\"side_effect_writes.sites: file / line / column / pattern が欠けた行がある\");\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["表への書き込みの欠けは落とす: 書き込みの位置が欠けている（Issue #466）"]
+    },
+    {
+      "id": "side-effects-source-only-covered",
+      "why": "読解のみと assertion が同時に書かれた記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (Array.isArray(s.covered_by) && s.covered_by.length > 0) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表への書き込みの欠けは落とす: 読解のみと書いて assertion もある（Issue #466）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-direct-read",
+      "why": "declared: false のとき読めない参照を読めたことにする",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        (file) => readSourceFile(root, file),\n",
+      "replace": "        (file) => readSourceFile(root, file) ?? \"send\",\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 無いファイル（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: 絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの中の絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ./ で始まる相対パス（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-canonical",
+      "why": "--root からの相対パスでない形（ルートの中の絶対パス・./ 始まり）の参照を読む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rel.split(sep).join(\"/\") !== file) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの中の絶対パス（Issue #483）",
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ./ で始まる相対パス（Issue #483）"
+      ]
+    },
+    {
+      "id": "pre-send-ref-outside-root",
+      "why": "ルートの外を .. で指す参照を読む（ルートの外の絶対パスは相対パスの形の判定でも落ちるので、この判定だけでは落ちない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rel === \"\" || rel === \"..\" || rel.startsWith(`..${sep}`)) return null;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "feedback_calls.declared: false でも送る前の判定の到達点を --root から読んで照合する: ルートの外（Issue #483）"
+      ]
+    },
+    {
+      "id": "state-display-status-vocab",
+      "why": "語彙に無い status を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (typeof entry.status !== \"string\" || !STATE_DISPLAY_STATUSES.includes(entry.status)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: status が語彙に無い（Issue #500）"]
+    },
+    {
+      "id": "state-display-unmeasured",
+      "why": "未測定の候補を present / absent の検査へ流し、未測定の理由を出さない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (entry.status === \"unmeasured\") {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: 理由付きの未測定（Issue #500）"]
+    },
+    {
+      "id": "state-display-method",
+      "why": "要求の横取りで試していない「ない」と、語彙外の作り方を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (typeof method !== \"string\" || !allowed.includes(method)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 取得の失敗の「ない」を横取りで試していない（Issue #500）",
+        "状態表示の振り分けの欠けは落とす: 読み込み中の「ない」を abort で確かめた（保留していない）（Issue #500）",
+        "状態表示の振り分けの欠けは落とす: present に要求が無いことの記録（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-detail",
+      "why": "作り方が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(/** @type {Record<string, unknown>} */ (setup).detail)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: 作り方が空（Issue #500）"]
+    },
+    {
+      "id": "state-display-request",
+      "why": "横取りした要求が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (\n      INTERCEPT_METHODS.includes(method) &&\n      !originFreePattern(/** @type {Record<string, unknown>} */ (setup).request)\n    ) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 横取りした要求が空（Issue #500）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が / で始まらない（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "state-display-observed",
+      "why": "現行で見たものが空・プレースホルダでも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(entry.observed)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 現行で見たものがテンプレートの説明文のまま（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-present-unassigned",
+      "why": "present をどこにも割り当てなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!hasState && !hasAssertion) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: present をどこにも割り当てていない（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-captured-unknown",
+      "why": "撮影状態に無い captured を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (hasState && captureStates && !captureStates.has(/** @type {string} */ (entry.captured))) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: present の撮る状態が capture_conditions.states に無い（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-absent-contradiction",
+      "why": "absent に captured / reactions があっても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (hasState) {\n    out.push({\n      problem: `${candidate}: absent なのに captured がある",
+      "replace": "  if (false) {\n    out.push({\n      problem: `${candidate}: absent なのに captured がある",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: absent に撮る状態（Issue #500）"]
+    },
+    {
+      "id": "state-display-absent-assertion",
+      "why": "absent の不在を assertion にしなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!ABSENT_WITHOUT_ASSERTION.includes(/** @type {string} */ (method)) && !hasAssertion) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: absent の不在を assertion にしていない（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-key-missing",
+      "why": "state_displays をキーごと省略しても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(sd) || !Array.isArray(sd.pages)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: キーごと無い（Issue #500）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 状態表示の振り分けが無い（Issue #503）"
+      ]
+    },
+    {
+      "id": "state-display-no-pages",
+      "why": "画面の宣言を読めなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (pageNames === null || pageNames.size === 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-page-empty",
+      "why": "page が空の行を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(page)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: page が空の行（Issue #500）"]
+    },
+    {
+      "id": "state-display-page-duplicate",
+      "why": "同じ画面の 2 行を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (n > 1)\n",
+      "replace": "    if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: 同じ画面が 2 行（Issue #500）"]
+    },
+    {
+      "id": "state-display-page-lacking",
+      "why": "振り分けていない画面を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0) {\n      problems.push(\n        `state_displays: 画面 ${lacking.join(\", \")} の状態表示を振り分けていない（capture_conditions.pages の全ての画面を 1 回ずつ書く）`,\n",
+      "replace": "    if (false) {\n      problems.push(\n        `state_displays: 画面 ${lacking.join(\", \")} の状態表示を振り分けていない（capture_conditions.pages の全ての画面を 1 回ずつ書く）`,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示は metadata.json の画面の宣言から期待集合を作る（記録に無い画面・読めない宣言を落とす。Issue #500）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 画面を 1 つ振り分けていない（Issue #503）"
+      ]
+    },
+    {
+      "id": "state-display-page-unknown",
+      "why": "宣言に無い画面を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unknown.length > 0) {\n      problems.push(\n        `state_displays: 画面 ${unknown.join(\", \")} が capture_conditions.pages に無い（誤記・旧称）`,\n",
+      "replace": "    if (false) {\n      problems.push(\n        `state_displays: 画面 ${unknown.join(\", \")} が capture_conditions.pages に無い（誤記・旧称）`,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 画面の名前が capture_conditions.pages に無い（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-candidates-object",
+      "why": "candidates がオブジェクトでなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!isPlainObject(candidates)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: candidates がオブジェクトでない（Issue #500）"
+      ]
+    },
+    {
+      "id": "state-display-candidate-lacking",
+      "why": "欠けた候補を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (lacking.length > 0) {\n      problems.push(\n        `${at}: 候補 ${lacking.join(\", \")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,\n",
+      "replace": "    if (false) {\n      problems.push(\n        `${at}: 候補 ${lacking.join(\", \")} を振り分けていない（ある／ない を現行で測って書く。測れなければ status: unmeasured と理由）`,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 候補が欠けている（Issue #500）",
+        "操作を持たない画面駆動の機能で、状態表示を振り分けていない表は落ちる: 候補を 1 つ振り分けていない（Issue #503）"
+      ]
+    },
+    {
+      "id": "state-display-candidate-unknown",
+      "why": "語彙に無い候補を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unknown.length > 0) {\n      problems.push(\n        `${at}: 候補の語彙（${STATE_DISPLAY_CANDIDATES.join(\" / \")}）に無いキー: ${unknown.join(\", \")}`,\n",
+      "replace": "    if (false) {\n      problems.push(\n        `${at}: 候補の語彙（${STATE_DISPLAY_CANDIDATES.join(\" / \")}）に無いキー: ${unknown.join(\", \")}`,\n",
+      "occurrences": 1,
+      "expect_failing": ["状態表示の振り分けの欠けは落とす: 語彙に無い候補（Issue #500）"]
+    },
+    {
+      "id": "state-display-shared-capture",
+      "why": "状態表示の撮る状態を使い回しの集合に入れない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (isPlainObject(entry) && entry.status === \"present\" && filled(entry.captured)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: 撮る状態を反応と根拠なしに共有する（Issue #500）",
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
+      ]
+    },
+    {
+      "id": "resubmit-missing",
+      "why": "resubmit をキーごと省略しても通す（欠けを空の問題として返す）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(rs)) {\n",
+      "replace": "  if (!isPlainObject(rs)) return [];\n  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["送っている間の押し直しの欠けは落とす: キーごと無い（Issue #500）"]
+    },
+    {
+      "id": "resubmit-unmeasured",
+      "why": "sends: null（未測定）を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rs.sends === null) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["送っている間の押し直しの欠けは落とす: 理由付きの未測定（Issue #500）"]
+    },
+    {
+      "id": "resubmit-no-send-reason",
+      "why": "送らない根拠が空でも通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(rs.reason)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 送らない根拠が空（Issue #500）",
+        "同梱テンプレートのプレースホルダのままの状態表示と押し直しは落とす（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-no-send-writes",
+      "why": "書き込む操作を送らないと書いても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (writes) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 書き込む操作を送らないと書いた（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-no-send-contradiction",
+      "why": "送らないのに測定が残っていても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (rs[key] !== undefined && rs[key] !== null) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 送らないのに測定が残っている（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-sends-vocab",
+      "why": "sends の語彙外を送る扱いにする",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (rs.sends !== true) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["送っている間の押し直しの欠けは落とす: sends が語彙に無い（Issue #500）"]
+    },
+    {
+      "id": "resubmit-hold",
+      "why": "応答を保留せずに押し直した記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(hold) || hold.method !== \"route-delay\" || !originFreePattern(hold.request)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 応答を保留していない（Issue #500）",
+        "送っている間の押し直しの欠けは落とす: 保留した要求が空（Issue #500）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が glob の後ろにホストを持つ（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "resubmit-presses",
+      "why": "押し直していない記録を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Number.isInteger(rs.presses) || /** @type {number} */ (rs.presses) < 2) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 押し直していない（1 回）（Issue #500）",
+        "同梱テンプレートのプレースホルダのままの状態表示と押し直しは落とす（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-observed",
+      "why": "送った回数・確認の回数・覆いの欠けを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (\n    !isPlainObject(obs) ||\n    !Number.isInteger(obs.requests_sent) ||\n    /** @type {number} */ (obs.requests_sent) < 1 ||\n    !Number.isInteger(obs.confirms_shown) ||\n    /** @type {number} */ (obs.confirms_shown) < 0 ||\n    !filled(obs.overlay)\n  ) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 送った回数が 0（Issue #500）",
+        "送っている間の押し直しの欠けは落とす: 確認の回数が負（Issue #500）",
+        "送っている間の押し直しの欠けは落とす: 覆いが空（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-writes",
+      "why": "書き込む操作で書き込みの回数を数えなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (\n      !isPlainObject(w) ||\n      !Number.isInteger(w.count) ||\n      /** @type {number} */ (w.count) < 0 ||\n      !filled(w.evidence)\n    ) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 書き込む操作で書き込みの回数を数えていない（Issue #500）",
+        "送っている間の押し直しの欠けは落とす: 書き込みの回数が整数でない（Issue #500）",
+        "送っている間の押し直しの欠けは落とす: 書き込みの数え方が空（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-writes-stale",
+      "why": "書き込みの無い操作に書き込みの回数があっても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  } else if (w !== undefined && w !== null) {\n",
+      "replace": "  } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: 書き込みの無い操作に書き込みの回数（Issue #500）"
+      ]
+    },
+    {
+      "id": "resubmit-covered-by",
+      "why": "押し直しを assertion にしなくても通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filledStrings(rs.covered_by)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "送っている間の押し直しの欠けは落とす: assertion にしていない（Issue #500）"
+      ]
+    },
+    {
+      "id": "page-declaration-name",
+      "why": "名前の無い・空の画面の宣言を黙って扱う",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!isPlainObject(pg) || !nonEmptyString(pg.name)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面の宣言の型崩れは黙って捨てずに exit 2: name の無い宣言（Codex レビュー #504）",
+        "画面の宣言の型崩れは黙って捨てずに exit 2: 空の name（Codex レビュー #504）",
+        "画面の宣言の型崩れは黙って捨てずに exit 2: オブジェクトでない宣言（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "page-declaration-duplicate",
+      "why": "同じ名前の画面の宣言を 1 つに畳む",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (names.has(pg.name)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面の宣言の型崩れは黙って捨てずに exit 2: 同じ名前の宣言（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "request-pattern-origin",
+      "why": "オリジン付きの要求パターンを通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  return path.startsWith(\"/\") && !path.startsWith(\"//\") && !path.includes(\"://\");\n",
+      "replace": "  return true;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求がスキーム相対（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が絶対 URL（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 押し直しの保留した要求が glob の後ろにホストを持つ（Codex レビュー #504）",
+        "要求のパターンにオリジンを残す記録は落とす: 状態表示の横取りした要求が / で始まらない（Codex レビュー #504）"
+      ]
+    },
+    {
+      "id": "state-display-reactions-forbidden",
+      "why": "状態表示に操作の反応の参照を書いても通す（入力形式ごと外した参照を黙って受ける）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (Object.hasOwn(entry, \"reactions\")) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "状態表示の振り分けの欠けは落とす: toast に反応の参照を書いた（Codex レビュー #504 で入力形式ごと外した）（Issue #500）",
+        "状態表示の振り分けの欠けは落とす: dialog の反応の参照が空配列（キーがあれば落とす）（Issue #500）"
+      ]
+    },
+    {
+      "id": "reaction-check-cli-entry-skipped",
+      "why": "CLI として起動されても main を呼ばない（テストは main を直接呼ぶので、子プロセスで起動する陽性コントロールだけが検出する。Issue #507）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "if (invokedAsCli) {\n",
+      "replace": "if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、完全な表は exit 0 で結果を stdout に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、不整合は exit 1 で stderr に出す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、使い方の誤りは exit 2 で usage を stderr に出す"
+      ]
+    },
+    {
+      "id": "covered-by-unresolved-accepted",
+      "why": "covered_by の名前が一覧に無くても解決したことにする（書いた名前のテストが実在するかを見ない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      const hit = testIndex.get(name);\n      if (hit === undefined) {\n",
+      "replace": "      const hit =\n        testIndex.get(name) ??\n        { keys: new Set([name]), projects: new Set(REQUIRED_PROJECTS), file: null, line: null };\n      if (hit === undefined) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by の名前が一覧のどのテストにも解決しなければ落とす（Issue #506）",
+        "表のどの欄の covered_by も解決の対象にする（欄を列挙せず表全体を歩く。Issue #506）",
+        "--write は解決できない名前が残れば covered_by_resolved: false を記録する（Issue #506）",
+        "--audit-sheet は解決できない名前があれば exit 1（監査の土台にしない。Issue #506）",
+        "_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-ambiguous-accepted",
+      "why": "1 つの名前が 2 本のテストに当たっても通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      } else if (hit.keys.size > 1) {\n",
+      "replace": "      } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "1 つの名前が 2 本のテストに当たるなら曖昧として落とす（Issue #506）",
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "covered-by-projects-ignored",
+      "why": "covered_by のテストが current / new の片側でしか走らなくても通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        const absentIn = REQUIRED_PROJECTS.filter((p) => !hit.projects.has(p));\n",
+      "replace": "        const absentIn = [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストが current / new の片側でしか走らなければ落とす（Issue #506）",
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-shared-reason-ignored",
+      "why": "1 本のテストを 2 行以上が名乗っても根拠を求めない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (paths.length < 2) continue;\n",
+      "replace": "    continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "1 本のテストを 2 行が名乗るのに根拠の無い行があれば落とし、全行に根拠があれば通す（Issue #506）",
+        "別の欄が同じテストを名乗る形も共有として数える（layout と returns_to。Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "covered-by-empty-describe-kept",
+      "why": "題の空の describe を名前の題に入れる（一覧表示と名前がずれ、書いた名前が解決しない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const here = top || !nonEmptyString(suite.title) ? titles : [...titles, suite.title];\n",
+      "replace": "    const here = top ? titles : [...titles, suite.title];\n",
+      "occurrences": 1,
+      "expect_failing": ["題の空の describe は名前に入らない（一覧表示と同じ。Issue #506）"]
+    },
+    {
+      "id": "test-list-errors-ignored",
+      "why": "一覧の読み込みエラーを無視する（読めなかったスペックのテストが一覧から黙って消える。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (report.errors.length > 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["--tests の一覧が使えなければ exit 2: 読み込みエラーがある（Issue #506）"]
+    },
+    {
+      "id": "tests-not-required",
+      "why": "--tests が無くても照合を通す（covered_by を解決しないまま緑にする。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (testsPath === null) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests が無ければ使い方の誤りとして exit 2（Issue #506）",
+        "--recorded も --tests が無ければ exit 2（記録だけではスペックを取り直せない。Issue #506）"
+      ]
+    },
+    {
+      "id": "assertion-audit-ignored",
+      "why": "assertion の深さの監査の記録を見ない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (owners.length === 0) return [];\n",
+      "replace": "  return [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "assertion の深さの監査の記録が無ければ落とす（Issue #506）",
+        "監査の後に期待値を変えたら、監査の指紋で落とす（Issue #506）",
+        "監査の記録の不備は落とす: 監査していない行がある（Issue #506）",
+        "監査の記録の不備は落とす: 期待値に届いていない行がある（Issue #506）",
+        "監査の記録の不備は落とす: reaches なのに確かめた部分が空（Issue #506）",
+        "監査の記録の不備は落とす: 語彙外の verdict（Issue #506）",
+        "監査の記録の不備は落とす: covered_by を持たない行を監査した（Issue #506）",
+        "監査の記録の不備は落とす: 同じ行を 2 回監査した（Issue #506）",
+        "監査の記録の不備は落とす: 監査役が空（Issue #506）",
+        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）",
+        "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
+        "監査の記録にスペックの指紋が無ければ落とす（Issue #506）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）",
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "assertion-audit-fingerprint-ignored",
+      "why": "監査の後に期待値を変えても古い監査で通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (audit.table_fingerprint !== fingerprint) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の後に期待値を変えたら、監査の指紋で落とす（Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-short-accepted",
+      "why": "監査で期待値に届いていないとされた行を通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    } else if (e.verdict === \"short\") {\n",
+      "replace": "    } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の記録の不備は落とす: 期待値に届いていない行がある（Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-coverage-ignored",
+      "why": "監査していない行が残っても通す（1 件ずつ当てたことを数えない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  const lacking = [...expected].filter((p) => !seen.has(p));\n",
+      "replace": "  const lacking = [];\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "監査の記録の不備は落とす: 監査していない行がある（Issue #506）",
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "recorded-covered-by-resolution-ignored",
+      "why": "--recorded で covered_by を解決した記録を求めない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (owners.length > 0 && conf.covered_by_resolved !== true)\n",
+      "replace": "      if (false)\n",
+      "occurrences": 1,
+      "expect_failing": ["--recorded は covered_by を解決した記録が無ければ落とす（Issue #506）"]
+    },
+    {
+      "id": "covered-by-malformed-dropped",
+      "why": "形の壊れた covered_by を黙って捨てる（未知の欄で解決・共有・監査のどれにも入らない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!Array.isArray(v.covered_by) || !v.covered_by.every(nonEmptyString)) malformed.push(path);\n",
+      "replace": "      if (false) malformed.push(path);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列（Issue #506）",
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 空文字を含む配列（Issue #506）",
+        "未知の欄の形の壊れた covered_by は黙って捨てず落とす: 文字列以外を含む配列（Issue #506）",
+        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+      ]
+    },
+    {
+      "id": "audit-sheet-malformed-dropped",
+      "why": "--audit-sheet が形の壊れた covered_by を黙って捨て、欠けた監査入力を ok として出す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        ...scanned.malformed.map(\n",
+      "replace": "        ...[].map(\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は形の壊れた covered_by があれば exit 1（欠けた監査入力を ok として出さない。Issue #506）"
+      ]
+    },
+    {
+      "id": "covered-by-underscore-key-skipped",
+      "why": "_ で始まるキーの下の行を走査しない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (k === \"covered_by\" || (k.startsWith(\"_\") && typeof v[k] === \"string\")) continue;\n",
+      "replace": "      if (k === \"covered_by\" || k.startsWith(\"_\")) continue;\n",
+      "occurrences": 1,
+      "expect_failing": ["_ で始まるキーの下の行も走査する（注記の文字列だけを飛ばす。Issue #506）"]
+    },
+    {
+      "id": "assertion-audit-specs-mismatch-ignored",
+      "why": "監査の後にスペックの assertion を弱めても古い監査で通す（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  } else if (specs !== null && audit.specs_fingerprint !== specs) {\n",
+      "replace": "  } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "監査の後に covered_by のスペックの assertion を弱めたら落とす（表は同じ。Issue #506）",
+        "--recorded もスペックの指紋を取り直し、--write の後に弱めたスペックを落とす（Issue #506）"
+      ]
+    },
+    {
+      "id": "assertion-audit-specs-empty-accepted",
+      "why": "監査の記録にスペックの指紋が無くても空欄として落とさない（Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!nonEmptyString(audit.specs_fingerprint)) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["監査の記録にスペックの指紋が無ければ落とす（Issue #506）"]
+    },
+    {
+      "id": "recorded-tests-optional",
+      "why": "--recorded ではテスト一覧を要求しない（記録だけで判定し、--write の後に弱めたスペックを取り直さない。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (testsPath === null) {\n",
+      "replace": "    if (testsPath === null && !recorded) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--recorded も --tests が無ければ exit 2（記録だけではスペックを取り直せない。Issue #506）"
+      ]
+    },
+    {
+      "id": "tests-root-dir-unchecked",
+      "why": "一覧の config.rootDir を確かめない（スペックを読む起点が無いまま進む。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!nonEmptyString(testsRoot) || !isAbsolute(testsRoot)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests の config.rootDir が 無い なら exit 2（Issue #506）",
+        "--tests の config.rootDir が 相対パス なら exit 2（Issue #506）"
+      ]
+    },
+    {
+      "id": "specs-unreadable-ignored",
+      "why": "covered_by のスペックを読めなくても落とさない（指紋を取れないまま照合を飛ばす。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (specs !== null) problems.push(...specs.problems);\n",
+      "replace": "  if (false) problems.push(...specs.problems);\n",
+      "occurrences": 1,
+      "expect_failing": ["covered_by のスペックを rootDir から読めなければ落とす（Issue #506）"]
+    },
+    {
+      "id": "covered-by-skipped-project-counted",
+      "why": "expectedStatus が passed でない側（静的に飛ばす skipped・失敗を期待する failed・値の欠け）も走るものとして数える（片側で assertion が通ることを示さないまま解決する。Issue #506）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (isPlainObject(t) && nonEmptyString(t.projectName) && t.expectedStatus === \"passed\") {\n",
+      "replace": "        if (isPlainObject(t) && nonEmptyString(t.projectName)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "covered_by のテストを片側で静的に飛ばす（test.skip / test.fixme）なら、その側では走らないものとして落とす（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 失敗を期待する（failed）（Issue #506）",
+        "covered_by のテストの expectedStatus が passed でない側は走らないものとして落とす: 値が無い（Issue #506）"
+      ]
+    },
+    {
+      "id": "shared-reason-placeholder-accepted",
+      "why": "共有の根拠がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      return !o || !filled(o.owner.shared_assertion_reason);\n",
+      "replace": "      return !o || !nonEmptyString(o.owner.shared_assertion_reason);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 共有の根拠（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-auditor-placeholder-accepted",
+      "why": "監査役がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!filled(audit.auditor)) {\n",
+      "replace": "  if (!nonEmptyString(audit.auditor)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 監査役（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-checked-placeholder-accepted",
+      "why": "確かめた部分がテンプレートの説明文のままでも通す（Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    } else if (!filled(e.checked)) {\n",
+      "replace": "    } else if (!nonEmptyString(e.checked)) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "根拠の欄をテンプレートの説明文のまま出したら落とす: 確かめた部分（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-identity-without-location",
+      "why": "テストの同定から位置を外す（同じ題の別のテストの project を合算し、片側だけ走る 2 本を 1 本の両側のテストとして通す。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      const key = JSON.stringify([spec.file, spec.line, spec.column, ...path]);\n",
+      "replace": "      const key = JSON.stringify([spec.file, ...path]);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "同じ題で位置の違うテストは 1 本に畳まず曖昧として落とす（片側だけ走る 2 本を合算しない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "owner-path-keys-concatenated",
+      "why": "キーを字面のまま連結して位置を作る（\"a.b\" と a.b が同じ位置になり、監査の記録 1 件が 2 行を満たす。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`,\n",
+      "replace": "        `${path}.${k}`,\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "区切りを含むキーの下の行は別の位置として監査させる（\"a.b\" と a.b を 1 件で満たさない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-sheet-context-dropped",
+      "why": "監査の入力から持ち主を含む操作・画面の同定を外す（似た期待値を持つ別の操作のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      context: ancestors.map((a) => ({ path: a.path, fields: scalarFields(a.obj) })),\n",
+      "replace": "      context: [],\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "audit-sheet-context-outermost-only",
+      "why": "監査の入力の文脈を最も外側の祖先（操作）だけにする（送る前の判定の項目のような中間の祖先が抜け、別の判定のテストでも届いていると判定されうる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        path === \"$\" ? chain : [...chain, { path, obj: v }],\n",
+      "replace": "        path === \"$\" ? chain : chain.length > 0 ? chain : [{ path, obj: v }],\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--audit-sheet は操作・画面の中の行に、それを含む操作と画面の同定を添える（Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "test-location-unchecked",
+      "why": "一覧の spec の位置（line / column）を確かめない（位置の無い同じ題の別のテストが 1 本に畳まれる。Codex レビュー #510）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      if (!positiveInteger(spec.line) || !positiveInteger(spec.column)) {\n",
+      "replace": "      if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "--tests の spec の位置が line が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が column が無い なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が 0 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）",
+        "--tests の spec の位置が line が文字列 なら exit 2（位置の無い同じ題のテストを畳まない。Codex レビュー #510）"
+      ]
+    },
+    {
+      "id": "capture-page-url-mismatch-passes",
+      "why": "名乗ったページと押した後の URL が解決したページが違っても通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        } else if (got.page !== null && got.page.key !== named.key) {\n",
+      "replace": "        } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: baseURL にパスの接頭辞がある target の根のページ（Issue #484）",
+        "押した後に撮ったページを URL と照合する: 接尾辞で重なる path（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリで分かれるページ（書いたクエリの方が狭い）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）",
+        "押した後に撮ったページを URL と照合する: フラグメントで分かれるページ（ハッシュルーティング）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: フラグメントを書かないページは、書いたフラグメントと違う URL に合う（Issue #484）",
+        "押した後に撮ったページを URL と照合する: ui_url が runtime でも / から書いた path は照合する（Issue #484）"
+      ]
+    },
+    {
+      "id": "capture-page-url-unresolved-passes",
+      "why": "押した後の URL がどのページにも一意に解決しなくても通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "        if (got.problem !== null) {\n",
+      "replace": "        if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: どのページにも解決しない URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 末尾のスラッシュだけが違う URL（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: バックスラッシュを含む URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-query-ignored",
+      "why": "path に書いたクエリをページの識別に含めない（クエリで分かれるページが区別できない。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (pg.search !== null && pg.search !== u.search) continue;\n",
+      "replace": "    if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-hash-ignored",
+      "why": "path に書いたフラグメントをページの識別に含めない（ハッシュルーティングのページが区別できない。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (pg.hash !== null && pg.hash !== u.hash) continue;\n",
+      "replace": "    if (false) continue;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: フラグメントを書かないページは、書いたフラグメントと違う URL に合う（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-query-never-declared",
+      "why": "path にクエリを書いてもクエリを識別に入れない（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    const search = path.split(\"#\")[0].includes(\"?\") ? u.search : null;\n",
+      "replace": "    const search = null;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後に撮ったページを URL と照合する: クエリで分かれるページ（書いたクエリの方が狭い）（Issue #484）",
+        "押した後に撮ったページを URL と照合する: クエリを書かないページは、押した後の URL のクエリが何でも合う（Issue #484）",
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-ambiguity-first-wins",
+      "why": "同じ狭さの複数のページに解決する URL を先勝ちで通す（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  if (keys.size > 1) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: 同じ狭さの 2 ページに解決する URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-runtime-relative-resolved",
+      "why": "ui_url が runtime なのに相対の path を仮のオリジンで解いて照合する（baseURL のパス接頭辞を知らないまま照合する。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (baseRead.runtime && !originRelative(path)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "target.ui_url が runtime で相対の path があれば照合せず、理由を出力に残す（Issue #484）",
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
+      ]
+    },
+    {
+      "id": "page-absolute-path-accepted",
+      "why": "オリジンを持つ path を相対パスとして受ける（Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "    if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith(\"//\") || path.includes(\"\\\\\")) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がオリジンを持つ（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がスキーム相対（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がバックスラッシュを含む（Issue #484）"
+      ]
+    },
+    {
+      "id": "page-key-by-name",
+      "why": "使い回しを解決したページではなく名前で数える（別名のページで 1 枚を根拠なく共有できる。Issue #484）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  if (pg) return `url:${pg.key}`;\n",
+      "replace": "\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "別名のページ（同じ path の別の名前）は同じ 1 枚として数え、名乗りの照合も通す（Issue #484）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "page-resolution-problems-dropped",
+      "why": "ページを解けない理由（ui_url・path の誤り）を落とさない（Issue #484）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    (capturePageNeedsResolution || aftermathCaptureUses.size > 0) &&\n",
+      "replace": "    false &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "target.ui_url が URL でも runtime でもなければ、撮る状態を持つ操作があるとき落とす（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path が無い（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がオリジンを持つ（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がスキーム相対（Issue #484）",
+        "ページの path を解けなければ、撮る状態を持つ操作があるとき落とす: path がバックスラッシュを含む（Issue #484）",
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-not-counted",
+      "why": "部品被覆表の撮る状態を使い回しの集合に入れない（表をまたいだ使い回しが根拠なしで通る。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  for (const c of coverageCaptures ?? []) {\n",
+      "replace": "  for (const c of []) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "表をまたいで同じページ × 状態名を指す 2 行は、根拠なしなら落ち、両方に根拠があれば通す（Issue #485）",
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-unreadable-passes",
+      "why": "部品被覆表を宣言したのに読めなくても通す（Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (coverageProblem !== null) problems.push(coverageProblem);\n",
+      "replace": "  if (false) problems.push(coverageProblem);\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表を宣言したのに読めなければ落とす: 部品被覆表が無い（Issue #485）",
+        "部品被覆表を宣言したのに読めなければ落とす: visual_state_coverage.rows が無い（Issue #485）",
+        "部品被覆表を宣言したのに path が空なら落とす（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-only-alias-skipped",
+      "why": "部品被覆表の中だけの使い回しを、別名のページをまたいでも coverage-expand.mjs に任せる（名前で数える coverage-expand.mjs は別名を分けて通す。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (uses.every((u) => u.source === \"coverage\") && new Set(uses.map((u) => u.page)).size === 1)\n",
+      "replace": "    if (uses.every((u) => u.source === \"coverage\"))\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表の中だけの使い回しは、同じページ名なら coverage-expand.mjs に任せ、別名をまたぐならここで数える（Issue #485）"
+      ]
+    },
+    {
+      "id": "cross-table-coverage-row-page-ignored",
+      "why": "部品被覆表の行のページを見ずに数える（別のページの同じ状態名まで使い回しに数える。Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    const key = JSON.stringify([pageKey(c.page, pageResolution), c.captured]);\n",
+      "replace": "    const key = JSON.stringify([pageKey(\"共有画面\", pageResolution), c.captured]);\n",
+      "occurrences": 1,
+      "expect_failing": ["表をまたいでも別のページなら同じ状態名で通す（Issue #485）"]
+    },
+    {
+      "id": "url-after-backslash-accepted",
+      "why": "バックスラッシュを含む押した後の URL を受ける（http(s) では \"/\" と同じに読まれ、別のホストのパスとして解ける）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  path.startsWith(\"/\") && !path.startsWith(\"//\") && !path.includes(\"\\\\\");\n",
+      "replace": "  path.startsWith(\"/\") && !path.startsWith(\"//\");\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "押した後の URL を一意に引けなければ落とす: バックスラッシュを含む URL（Issue #484）"
+      ]
+    },
+    {
+      "id": "coverage-skipped-uncounted",
+      "why": "部品被覆表のうちページを引けない行を黙って捨て、件数を出力に残さない（Issue #485）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      skipped += 1;\n",
+      "replace": "\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "部品被覆表の行のうちページを引けない行は数えず、件数を出力に残す（Issue #485）"
+      ]
+    },
+    {
+      "id": "page-resolution-problems-ops-only",
+      "why": "ページを解けない理由を、撮る状態を持つ操作があるときだけ落とす（状態表示・部品被覆表だけが撮る機能で、名前で数える縮退に黙って倒れる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    (capturePageNeedsResolution || aftermathCaptureUses.size > 0) &&\n",
+      "replace": "    capturePageNeedsResolution &&\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "撮る状態が状態表示だけでも、ページを解けなければ落とす（別名をまたいだ使い回しを数えられない。Issue #484）"
+      ]
+    },
+    {
+      "id": "page-key-runtime-by-name",
+      "why": "runtime で解けない相対の path のページを名前で数える（同じ path の別名を名乗り分けるだけで根拠なしの使い回しが通る。Claude Code レビュー #524）",
+      "file": "skills/parity-suite/scripts/page-identity.mjs",
+      "find": "  return raw !== undefined ? `path:${raw}` : `name:${name}`;\n",
+      "replace": "  return `name:${name}`;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "ui_url が runtime で解けない相対の path も、同じ path の別名は同じ 1 枚として数える（Claude Code レビュー #524）"
+      ]
+    },
+    {
+      "id": "operationless-revision-gate",
+      "why": "改訂 4 以降の画面駆動の機能でも declared: false を旧成果物として通す（状態表示の振り分けを測らずに収束する）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (revision >= OPERATIONLESS_TABLE_REVISION) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面駆動の機能の declared: false は 改訂 4 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動の機能の declared: false は 改訂 4 より後 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動として扱う: mode が無い の declared: false も改訂 4 以降なら exit 2（Issue #503）",
+        "画面駆動として扱う: mode が語彙外 の declared: false も改訂 4 以降なら exit 2（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-revision-boundary",
+      "why": "改訂 4 ちょうどの成果物を旧成果物に倒す（境界の取り違え）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (revision >= OPERATIONLESS_TABLE_REVISION) {\n",
+      "replace": "    if (revision > OPERATIONLESS_TABLE_REVISION) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "画面駆動の機能の declared: false は 改訂 4 の成果物なら exit 2（表を作らせる。Issue #503）",
+        "画面駆動として扱う: mode が無い の declared: false も改訂 4 以降なら exit 2（Issue #503）",
+        "画面駆動として扱う: mode が語彙外 の declared: false も改訂 4 以降なら exit 2（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-screenless-modes",
+      "why": "画面を持たない api-resource / batch の declared: false まで画面駆動として落とす",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (metadata.mode === \"api-resource\" || metadata.mode === \"batch\") {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "api-resource モードの declared: false は改訂 4 以降でも従来どおり通す（画面を持たない。Issue #503）",
+        "batch モードの declared: false は改訂 4 以降でも従来どおり通す（画面を持たない。Issue #503）",
+        "declared: false は理由付きなら通す: api-resource モード"
+      ]
+    },
+    {
+      "id": "operationless-revision-invalid",
+      "why": "読めない run.procedure_revision を旧成果物か新しい成果物のどちらかへ黙って倒す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!Number.isInteger(rev) || /** @type {number} */ (rev) < 0) {\n",
+      "replace": "  if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run.procedure_revision が 文字列 なら exit 2（旧成果物に倒さない。Issue #503）",
+        "run.procedure_revision が 負の数 なら exit 2（旧成果物に倒さない。Issue #503）",
+        "run.procedure_revision が 小数 なら exit 2（旧成果物に倒さない。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-none-reason",
+      "why": "理由の無い空の operations を正規の記録として通す（採り忘れと区別できない）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (!filled(noneReason)) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 理由が無い なら落ちる（Issue #503）",
+        "操作の無い表で 理由がテンプレートの説明文のまま なら落ちる（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-traces",
+      "why": "器の棚卸し・部品被覆表の宣言がある機能でも空の operations を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (traces !== null && traces.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-reason-with-operations",
+      "why": "操作があるのに操作が無い理由が残った表を通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  } else if (noneReason !== undefined && noneReason !== null) {\n",
+      "replace": "  } else if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": ["操作がある表の operations_none_reason は落ちる（Issue #503）"]
+    },
+    {
+      "id": "operationless-window-required",
+      "why": "操作の無い表にも none の観測時間の下限を要求する（測っていない値を書かせる）",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (windowMs === null && !(noOperations && table.observation_window_ms === null))\n",
+      "replace": "  if (windowMs === null)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-window-any",
+      "why": "操作の無い表なら observation_window_ms の型崩れまで通す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (windowMs === null && !(noOperations && table.observation_window_ms === null))\n",
+      "replace": "  if (windowMs === null && !noOperations)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で 観測時間の下限が正の数でも null でもない なら落ちる（Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-states-not-trace",
+      "why": "操作の無い表で状態表示の撮る状態（default 以外の撮影状態）を操作の痕跡に数える",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "      operationTraces: operationTraces(metadata, { withStates: false }),\n",
+      "replace": "      operationTraces: operationTraces(metadata, { withStates: true }),\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作を持たない画面駆動の機能で、全画面・全候補を振り分けた表は通る（Issue #503）",
+        "操作の無い表も --write の後の --recorded で通り、振り分けを消すと落ちる（parity-diff の収束判定。Issue #503）",
+        "操作の無い表で 器の棚卸しが空でない なら落ちる（Issue #503）",
+        "操作の無い表で部品被覆表を宣言していれば落ちる（操作の痕跡。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-run-shape",
+      "why": "読めない形の run を改訂番号の導入前（旧成果物）に倒す",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "  if (!isPlainObject(metadata.run)) throw new UsageError(\"run がオブジェクトでない\");\n",
+      "replace": "  if (!isPlainObject(metadata.run)) return 0;\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "run が 文字列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
+        "run が 配列 なら exit 2（改訂番号の導入前に倒さない。Issue #503）",
+        "run が null なら exit 2（改訂番号の導入前に倒さない。Issue #503）"
+      ]
+    },
+    {
+      "id": "operationless-unexplained-states",
+      "why": "操作の無い表で、どの状態表示も撮らない撮影状態（操作で作る状態）を痕跡に数えない",
+      "file": "skills/parity-suite/scripts/reaction-check.mjs",
+      "find": "    if (unexplained.length > 0) {\n",
+      "replace": "    if (false) {\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "操作の無い表で、どの状態表示も撮らない撮影状態があれば落ちる（操作の痕跡。PR #536 のレビュー）"
+      ]
+    }
+  ]
+}
