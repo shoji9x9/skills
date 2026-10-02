@@ -102,6 +102,38 @@ if [ "$#" -ne 1 ]; then
 	exit 2
 fi
 
+# Operate on the repository this copy of the script belongs to, not on the cwd: every
+# path below is relative, so running from a subdirectory used to stop at "Skill source
+# not found", and a cwd in another repo with the same skills/<name> would fail the
+# frontmatter preflight for the wrong reason. In a worktree this picks that worktree.
+# The root is positional (two levels above the resolved script file), confirmed by
+# markers. When it can't be identified (copied out of the repo, read from stdin), stop
+# with exit 2 before anything destructive, with a message that can't be mistaken for a
+# frontmatter failure.
+script_path="${BASH_SOURCE[0]:-}"
+# Follow a symlink to the script file itself. The chain terminates: bash has already read
+# the script through this path, so it is not a loop (the kernel would refuse with ELOOP).
+while [ -n "${script_path}" ] && [ -L "${script_path}" ]; do
+	link="$(readlink -- "${script_path}")"
+	case "${link}" in
+	/*) script_path="${link}" ;;
+	*) script_path="$(dirname -- "${script_path}")/${link}" ;;
+	esac
+done
+repo_root=""
+if [ -n "${script_path}" ] && [ -f "${script_path}" ]; then
+	# CDPATH is cleared: a relative dirname (scripts/tools/../..) is otherwise searched in an
+	# exported CDPATH first, and cd then lands elsewhere and echoes the path into repo_root.
+	repo_root="$(CDPATH='' cd -P -- "$(dirname -- "${script_path}")/../.." 2>/dev/null && pwd)" || repo_root=""
+fi
+if [ -z "${repo_root}" ] ||
+	[ ! -f "${repo_root}/scripts/gates/check-skill-frontmatter.js" ] ||
+	[ ! -d "${repo_root}/skills" ]; then
+	echo "Repository root not found from the script location: ${BASH_SOURCE[0]:-<stdin>}（scripts/gates/check-skill-frontmatter.js と skills/ を持つツリーを特定できない。既存のインストールは触っていない）" >&2
+	exit 2
+fi
+cd "${repo_root}"
+
 if [ "$1" = "--all" ]; then
 	for dir in skills/*/; do
 		reinstall_one "$(basename "${dir}")"
