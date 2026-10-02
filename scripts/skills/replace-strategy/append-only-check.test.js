@@ -2322,7 +2322,7 @@ test("折り返しの連結: 読めない形は行のまま突き合わせる（
   expect(keepUnits("a:\n  keep: [\n  other: 1\n")).toEqual(["a:", "  keep: [", "  other: 1"]);
 });
 
-test("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る（案内どおり直せば通る）", () => {
+test("空行を挟んだ折り返しでも、追記と 1 行への書き直しが通る", () => {
   const wrapped = [
     "      keep: [",
     "",
@@ -2346,7 +2346,7 @@ test("空行を挟んだ折り返しでも、追記と 1 行への書き直し�
   const added = run(root);
   expect(added.stdout).toMatch(/^ok: /m);
   expect(added.status).toBe(0);
-  // 案内が指す「1 行へ書き直す」。
+  // 1 行へ書き直す（keep は要素行の注記を単位にしないので、畳んでも単位は減らない）。
   writeConfig(
     root,
     readConfig(root).replace(
@@ -2360,7 +2360,7 @@ test("空行を挟んだ折り返しでも、追記と 1 行への書き直し�
   rmSync(root, { recursive: true, force: true });
 });
 
-// 案内はファイル単位で出さない。読めないコンテナと無関係な鍵の削除に「復元せず表記を直す」が付くと、
+// 案内はファイル単位で出さない。読めないコンテナと無関係な鍵の削除に「復元せず閉じ括弧を補う」が付くと、
 // 記録した決定を消させないというツールの目的と逆向きの指示になる。
 /** 閉じないコンテナ（比較元・現在で不変）と、別の鍵の育つコンテナを持つ設定。 */
 const UNREADABLE_CONFIG = CONFIG.replace(
@@ -2571,10 +2571,11 @@ test("比較元に読めないコンテナがあるときは「直せば通る�
   expect(r.status).toBe(1);
   expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある/);
   expect(r.stdout).toMatch(/判定できない/);
+  expect(r.stdout).not.toMatch(/閉じ括弧を補う/);
   rmSync(root, { recursive: true, force: true });
 });
 
-test("現在側だけが読めないときは 1 行への書き直しを案内する", () => {
+test("現在側だけが読めないときは閉じ括弧を補うよう案内する", () => {
   const root = makeConfigRepo();
   writeConfig(
     root,
@@ -2585,8 +2586,150 @@ test("現在側だけが読めないときは 1 行への書き直しを案内�
   );
   const r = run(root);
   expect(r.status).toBe(1);
-  expect(r.stdout).toMatch(/復元せず表記を直す/);
+  expect(r.stdout).toMatch(/復元せず閉じ括弧を補う/);
+  // 1 行へ畳むは示さない（growable_containers では要素行の注記の単位が消えて落ちる）。
+  expect(r.stdout).not.toMatch(/同じ行で閉じる/);
   expect(r.stdout).not.toMatch(/判定できない/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// 案内が示す直し方で exit 0 に届くことを、成果物の種別ごとに測る（#432）。
+// 「1 行へ畳む」は growable_containers では届かない（要素行の注記も単位なので、畳むとその単位が消える）。
+// 案内はどの種別でも届く「閉じ括弧を補う」だけを示す。mutable_blocks は案内を出さない側に倒してあり、
+// 例に出た注記を戻せば届く（正本は assets/append-only-manifest.json の _note）。
+const HINT_BASE = [
+  "a:",
+  "  keep: [",
+  '    "x", # なぜ x か',
+  '    "y"',
+  "  ] # 鍵",
+  "  next: 1",
+  "",
+].join("\n");
+/** 要素を足したが閉じ括弧を書き忘れた。 */
+const HINT_UNCLOSED = HINT_BASE.replace('    "y"\n  ] # 鍵\n', '    "y",\n    "z"\n');
+/** 案内どおり閉じ括弧を補った。 */
+const HINT_CLOSED = HINT_BASE.replace('    "y"\n', '    "y",\n    "z"\n');
+/** 1 行へ畳んだ（要素行の注記の置き場所が無い）。 */
+const HINT_FOLDED = 'a:\n  keep: ["x", "y", "z"] # 鍵\n  next: 1\n';
+
+/**
+ * @param {Record<string, unknown>} option
+ * @param {string} before
+ */
+function makeHintRepo(option, before) {
+  const root = makeConfigRepo(before);
+  const manifest = writeManifest(root, [
+    { id: "c", pattern: ".config/skills/*/skills.yml", unit: "lines", ...option },
+  ]);
+  return { root, manifest };
+}
+
+for (const [kind, option] of [
+  ["growable_containers", { growable_containers: ["a.keep"] }],
+  ["registry_groups", { registry_groups: [{ id: "g", item_key: "item", paths: ["a.keep"] }] }],
+]) {
+  test(`${kind}: 閉じ忘れには閉じ括弧を補う案内が出て、そのとおり直せば exit 0`, () => {
+    const { root, manifest } = makeHintRepo(option, HINT_BASE);
+    writeConfig(root, HINT_UNCLOSED);
+    const r = run(root, ["--manifest", manifest]);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(
+      /閉じていないフロー形式のコンテナがある: a\.keep — 復元せず閉じ括弧を補う/,
+    );
+    writeConfig(root, HINT_CLOSED);
+    const fixed = run(root, ["--manifest", manifest]);
+    expect(fixed.stdout).toMatch(/^ok: /m);
+    expect(fixed.status).toBe(0);
+    rmSync(root, { recursive: true, force: true });
+  });
+}
+
+test("growable_containers: 1 行へ畳むと要素行の注記が失われて落ちる（だから案内に出さない）", () => {
+  const { root, manifest } = makeHintRepo({ growable_containers: ["a.keep"] }, HINT_BASE);
+  writeConfig(root, HINT_FOLDED);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/1 件.*# なぜ x か/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks: 閉じ忘れで鍵の注記が失われても案内は出さず、注記を戻せば exit 0", () => {
+  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, HINT_BASE);
+  writeConfig(root, HINT_UNCLOSED);
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/1 件.*# 鍵/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  // 配下は単位から外れるので、閉じなくても注記を独立した行で戻せば届く。
+  writeConfig(root, HINT_UNCLOSED.replace("  next: 1\n", "  # 鍵\n  next: 1\n"));
+  const fixed = run(root, ["--manifest", manifest]);
+  expect(fixed.stdout).toMatch(/^ok: /m);
+  expect(fixed.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks: 比較元が閉じていなくても判定は成り立ち、案内を出さない（注記を戻せば exit 0）", () => {
+  // growable_containers では同じ編集に「判定できない」が出る（読めない鍵の行がそのまま単位になる）。
+  // mutable_blocks は鍵の行を鍵だけの単位へ畳み注記を独立させるので、比較元が読めなくても直せる。
+  const before = 'a:\n  keep: [ # 鍵\n    "x"\n  next: 1\n';
+  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
+  writeConfig(root, 'a:\n  keep: [\n    "x"\n  next: 1\n');
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/1 件.*# 鍵/);
+  expect(r.stdout).not.toMatch(/閉じていないフロー形式のコンテナがある/);
+  writeConfig(root, 'a:\n  keep: [ # 鍵\n    "x",\n    "y"\n  ]\n  next: 1\n');
+  const fixed = run(root, ["--manifest", manifest]);
+  expect(fixed.stdout).toMatch(/^ok: /m);
+  expect(fixed.status).toBe(0);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("mutable_blocks: 鍵と同じインデントの要素行が失われたときだけ案内が出る", () => {
+  // 除外は鍵と同じインデントの行で閉じるので、その要素行は行のまま単位になり、読みに行った行として帰属できる。
+  const before = 'a:\n  keep: [ # 鍵\n  "x",\n  "y"\n  next: 1\n';
+  const { root, manifest } = makeHintRepo({ mutable_blocks: ["a.keep"] }, before);
+  writeConfig(root, 'a:\n  keep: [ # 鍵\n  "x",\n  "y",\n  "z"\n  next: 1\n');
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("比較元側と現在側の両方に読めないコンテナがあると、現在側のキーパスも名指しする", () => {
+  // 比較元側の案内で現在側を抑止すると、閉じ直せば通る a.comp が一度も案内されない。
+  const option = { growable_containers: ["a.keep", "a.comp"] };
+  const before = 'a:\n  keep: [\n    "x"\n  comp: ["p"] # c\n  next: 1\n';
+  const { root, manifest } = makeHintRepo(option, before);
+  writeConfig(root, 'a:\n  keep: [\n    "x",\n    "y"\n  comp: [\n    "p", "q"\n  next: 1\n');
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(
+    /閉じていないフロー形式のコンテナがある: a\.comp — 復元せず閉じ括弧を補う/,
+  );
+  expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
+  // 案内どおり a.comp を閉じると、残るのは比較元側（人の確認で通す）だけになる。
+  writeConfig(
+    root,
+    'a:\n  keep: [\n    "x",\n    "y"\n  comp: [\n    "p", "q"\n  ] # c\n  next: 1\n',
+  );
+  const partly = run(root, ["--manifest", manifest]);
+  expect(partly.status).toBe(1);
+  expect(partly.stdout).not.toMatch(/a\.comp/);
+  expect(partly.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("同じ鍵が比較元側と現在側の両方に帰属したら、比較元側の案内だけを出す", () => {
+  // 閉じ直しても比較元の行は戻らないので、「閉じ括弧を補う」は実行できない指示になる。
+  const before = 'a:\n  keep: [\n    "x",\n    "x",\n  next: 1\n';
+  const { root, manifest } = makeHintRepo({ growable_containers: ["a.keep"] }, before);
+  writeConfig(root, 'a:\n  keep: [\n    "x",\n  next: 1\n');
+  const r = run(root, ["--manifest", manifest]);
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/比較元 .+ に閉じていないフロー形式のコンテナがある: a\.keep/);
+  expect(r.stdout).not.toMatch(/閉じ括弧を補う/);
   rmSync(root, { recursive: true, force: true });
 });
 
