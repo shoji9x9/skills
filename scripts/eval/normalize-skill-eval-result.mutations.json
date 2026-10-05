@@ -133,7 +133,7 @@
     },
     {
       "id": "background-call-moves-cwd",
-      "why": "run_in_background の cd を前景のシェルの cwd に反映する",
+      "why": "run_in_background の cd をフォアグラウンドのシェルの cwd に反映する",
       "file": "scripts/eval/normalize-skill-eval-result.js",
       "find": "input.run_in_background === true ? null : cwdAfter",
       "replace": "false ? null : cwdAfter",
