@@ -1,7 +1,7 @@
 import { test, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   lint,
@@ -248,18 +248,30 @@ test("指摘ゼロのときは走査したファイル数を出す（0 件の素
   expect(out.stdout).toContain("1 ファイル走査");
 });
 
-test("gitFiles は node_modules / .agents / .claude を外す", () => {
-  const dir = makeRepo();
-  write(dir, ".agents/skills/x/SKILL.md", "# t\n");
-  write(dir, ".claude/skills/x.md", "# t\n");
-  write(dir, "node_modules/pkg/readme.md", "# t\n");
-  write(dir, "kept.md", "# t\n");
+test.each([
+  ["gitFiles", (dir) => gitFiles(dir)],
+  ["walkFiles", (dir) => walkFiles(dir)],
+])(
+  "%s は node_modules とエージェント用のコピー・リンクを外し、rule と private skill の実体は見る",
+  (_, list) => {
+    const dir = makeRepo();
+    write(dir, "skills/x/SKILL.md", "# t\n");
+    write(dir, ".agents/skills/x/SKILL.md", "# t\n");
+    write(dir, ".claude/skills/x.md", "# t\n");
+    write(dir, "node_modules/pkg/readme.md", "# t\n");
+    write(dir, ".agents/rules/r.md", "# t\n");
+    write(dir, ".agents/skills/priv/SKILL.md", "# t\n");
 
-  const files = gitFiles(dir);
-  expect(files).not.toBeNull();
-  expect(files.some((f) => f.endsWith("kept.md"))).toBe(true);
-  expect(files.filter((f) => /\.agents|\.claude|node_modules/.test(f))).toEqual([]);
-});
+    const files = list(dir);
+    expect(files).not.toBeNull();
+    const rel = files.map((f) => relative(dir, resolve(f))).sort();
+    expect(rel).toEqual([
+      ".agents/rules/r.md",
+      ".agents/skills/priv/SKILL.md",
+      "skills/x/SKILL.md",
+    ]);
+  },
+);
 
 test("walkFiles は .sh と .md だけを拾い、除外ディレクトリへ降りない", () => {
   const dir = makeRepo({ git: false });

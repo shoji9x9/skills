@@ -1,0 +1,62 @@
+{
+  "$comment": [
+    "run-on-sources.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/gates/run-on-sources.test.js",
+  "mutations": [
+    {
+      "id": "RS-COPIES",
+      "why": "エージェント用のコピーとリンクも選ぶ",
+      "file": "scripts/gates/run-on-sources.js",
+      "find": " && !isAgentCopy(root, rel))",
+      "replace": ")",
+      "occurrences": 1,
+      "expect_failing": [
+        "実体（rule・private skill を含む）だけを選び、コピー・リンク・node_modules・ignore・削除済み・シンボリックリンク・拡張子違いは選ばない"
+      ]
+    },
+    {
+      "id": "RS-OTHERS",
+      "why": "未追跡のファイルを選ばない",
+      "file": "scripts/gates/run-on-sources.js",
+      "find": "\"--cached\", \"--others\", \"--exclude-standard\"",
+      "replace": "\"--cached\"",
+      "occurrences": 1,
+      "expect_failing": [
+        "実体（rule・private skill を含む）だけを選び、コピー・リンク・node_modules・ignore・削除済み・シンボリックリンク・拡張子違いは選ばない",
+        "対象をコマンドの引数に渡し、コマンドの終了コードを返す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、private skill のファイルをコマンドに渡す"
+      ]
+    },
+    {
+      "id": "RS-SYMLINK",
+      "why": "シンボリックリンクも選ぶ（リンク先を二重に lint する）",
+      "file": "scripts/gates/run-on-sources.js",
+      "find": "existsSync(abs) && !lstatSync(abs).isSymbolicLink()",
+      "replace": "existsSync(abs)",
+      "occurrences": 1,
+      "expect_failing": [
+        "実体（rule・private skill を含む）だけを選び、コピー・リンク・node_modules・ignore・削除済み・シンボリックリンク・拡張子違いは選ばない"
+      ]
+    },
+    {
+      "id": "RS-ZERO",
+      "why": "対象 0 件でもコマンドを実行して成功にする",
+      "file": "scripts/gates/run-on-sources.js",
+      "find": "  if (files.length === 0) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["対象が 0 件・引数の誤り・コマンドを起動できないときは exit 2"]
+    },
+    {
+      "id": "RS-STATUS",
+      "why": "コマンドの失敗を返さない",
+      "file": "scripts/gates/run-on-sources.js",
+      "find": "  return r.status ?? 1;",
+      "replace": "  return 0;",
+      "occurrences": 1,
+      "expect_failing": ["対象をコマンドの引数に渡し、コマンドの終了コードを返す"]
+    }
+  ]
+}

@@ -2,8 +2,8 @@
 date: 2026-10-05
 type: hook
 priority: medium
-status: pending
-applied-to: []
+status: applied
+applied-to: [scripts/lib/source-scope.js, scripts/gates/lint-scope.test.js]
 session: claude-code
 ---
 

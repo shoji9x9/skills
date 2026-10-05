@@ -17,12 +17,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
+import { isAgentCopy } from "../lib/source-scope.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-// 起点直下のこれらは対象外（CI の旧 `find` の `-path "./<dir>" -prune` と同じ集合）。
-// `.agents` / `.claude` はインストール済みコピーとエージェント用シンボリックリンク（AGENTS.md）。
-export const PRUNED = ["node_modules", ".git", ".agents", ".claude"];
+// 起点直下のこれらは対象外。エージェント用のコピーとリンクも除く（判定は scripts/lib/source-scope.js）。
+// `.agents/` を丸ごと除くと、rule と private skill の実体が検査されない。
+export const PRUNED = ["node_modules", ".git"];
 const YAML_RE = /\.ya?ml$/;
 
 /**
@@ -42,6 +43,7 @@ export function findYamlFiles(root) {
   const found = out
     .split("\0")
     .filter((f) => f && YAML_RE.test(f) && !PRUNED.includes(f.split("/")[0]))
+    .filter((f) => !isAgentCopy(root, f))
     .map((f) => join(root, f))
     // `--cached` は作業ツリーで消した（未ステージの削除）追跡ファイルも返す。読めない ENOENT で赤くしない。
     .filter((p) => existsSync(p));

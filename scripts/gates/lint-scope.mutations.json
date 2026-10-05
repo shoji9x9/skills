@@ -1,0 +1,115 @@
+{
+  "$comment": [
+    "lint-scope.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/gates/lint-scope.test.js",
+  "mutations": [
+    {
+      "id": "MS-PRIVATE",
+      "why": "private skill を含め直さない（その文書が markdownlint に見られない）",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["private skill が 1 件以上あり、すべてを名前で含め直している"]
+    },
+    {
+      "id": "MS-COPIES",
+      "why": ".agents/ を丸ごと除く（rule の実体を見ない）",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.agents/skills/**\"\n",
+      "replace": "  - \"!.agents/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スキルのコピーと rule のリンクを除き、rule の実体は除かない",
+        "含め直しは除外より後に書く（前に書くと除外に打ち消される）"
+      ]
+    },
+    {
+      "id": "MS-LINKS",
+      "why": "rule のリンク（.github/instructions/）を除かない",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.github/instructions/**\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["スキルのコピーと rule のリンクを除き、rule の実体は除かない"]
+    },
+    {
+      "id": "MS-ORDER",
+      "why": "含め直しを除外より前に書く",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.agents/skills/**\"\n  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n",
+      "replace": "  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n  - \"!.agents/skills/**\"\n",
+      "occurrences": 1,
+      "expect_failing": ["含め直しは除外より後に書く（前に書くと除外に打ち消される）"]
+    },
+    {
+      "id": "LS-OXLINT",
+      "why": "oxlint が .agents/ を丸ごと除く（rule と private skill の実体を lint しない）",
+      "file": "oxlint.config.ts",
+      "find": "ignorePatterns: agentCopyGlobs(import.meta.dirname),",
+      "replace": "ignorePatterns: [\".agents/**\", \".claude/**\"],",
+      "occurrences": 1,
+      "expect_failing": ["oxlint の ignorePatterns は、エージェント用のコピーとリンクだけを除く"]
+    },
+    {
+      "id": "LS-OXFMT",
+      "why": "oxfmt が .agents/ を丸ごと除く",
+      "file": "oxfmt.config.ts",
+      "find": "ignorePatterns: agentCopyGlobs(import.meta.dirname),",
+      "replace": "ignorePatterns: [\".agents/**\", \".claude/**\"],",
+      "occurrences": 1,
+      "expect_failing": ["oxfmt の ignorePatterns は、エージェント用のコピーとリンクだけを除く"]
+    },
+    {
+      "id": "LS-LH-AGENTS",
+      "why": "lefthook のジョブが .agents/ を丸ごと除く",
+      "file": "lefthook.yml",
+      "find": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n",
+      "replace": "            exclude: &agent-copies\n              - \".agents/**\"\n              - \".claude/rules/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の exclude は、コピーとリンク以外の .agents/ と .claude/ を除かない"
+      ]
+    },
+    {
+      "id": "LS-LH-COPY",
+      "why": "lefthook の除外からコピーを 1 つ挙げ忘れる（そのコピーを二重に整形・lint する）",
+      "file": "lefthook.yml",
+      "find": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n              - \".agents/skills/aws-architecture-diagram/**\"\n",
+      "replace": "            exclude: &agent-copies\n              - \".claude/rules/**\"\n              - \".claude/skills/**\"\n              - \".github/instructions/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "lefthook の shfmt は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の oxfmt-js は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の oxfmt-json は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の shellcheck は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の jsonlint は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の js-yaml は、エージェント用のコピーとリンクをすべて除く",
+        "lefthook の pagination は、エージェント用のコピーとリンクをすべて除く"
+      ]
+    },
+    {
+      "id": "LS-LH-JOB",
+      "why": "lefthook の oxlint ジョブが除外を持たない（コピーだけの commit で対象 0 件になり失敗する）",
+      "file": "lefthook.yml",
+      "find": "          - name: oxlint\n            glob: \"*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"\n            exclude: *agent-copies\n",
+      "replace": "          - name: oxlint\n            glob: \"*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}\"\n",
+      "occurrences": 1,
+      "expect_failing": ["lefthook の oxlint は、エージェント用のコピーとリンクをすべて除く"]
+    },
+    {
+      "id": "LS-CI",
+      "why": "CI の Shell lint を find で .agents を丸ごと除く形に戻す",
+      "file": ".github/workflows/ci.yml",
+      "find": "        run: node scripts/gates/run-on-sources.js --ext sh -- shellcheck\n",
+      "replace": "        run: find . \\( -path \"./node_modules\" -o -path \"./.git\" -o -path \"./.agents\" -o -path \"./.claude\" \\) -prune -o -name \"*.sh\" -type f -exec shellcheck {} +\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "CI の Shell lint と JSON lint は、run-on-sources.js で対象を選ぶ（find で .agents を丸ごと除かない）"
+      ]
+    }
+  ]
+}

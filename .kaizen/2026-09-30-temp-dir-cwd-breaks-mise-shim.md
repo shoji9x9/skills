@@ -20,6 +20,19 @@ pnpm-audit-alert-issue / dependabot-alert-issue の着手可否判定で、`pack
 そこへ cd して `pnpm update <pkg> --depth Infinity --lockfile-only` を実行したところ、`mise ERROR No version is set for shim: pnpm` で起動自体が落ちた。
 `pnpm config get minimumReleaseAge` も空で返り、診断が 1 往復無駄になった。リポジトリ内で `mise which pnpm` の実体パスを解決して渡し直すと通った。
 
+### 追記（2026-10-05・再発）
+
+Issue #372 の ②-a で、`.claude/settings.json` が oxfmt の整形済みかを確かめるため、
+scratchpad へ複製して cd し、`/home/.../node_modules/.bin/oxfmt --check` を実行した。
+`mise ERROR No version is set for shim: node` で起動自体が落ちた。
+
+`AGENTS.md`「技術スタック」には「リポジトリの外では `mise which <tool>` で実体のパスを取得して使う」
+「`./node_modules/.bin/<tool>` を直接指定しない」が既にある。基底ドキュメントの規約があっても再発した。
+
+- なぜ 1: node の shim は cwd がリポジトリの外だと版を決められない
+- なぜ 2: 複製先で確かめる形を選び、`node_modules/.bin` を絶対パスで指定すれば動くと考えた（bin のシバンが `node` の shim を通ることを見落とした）
+- なぜ 3: 規約は文章だけで、`cd <リポジトリ外>` と shim 経由のツールの組み合わせを止める仕組みが無い
+
 ## 根本原因
 
 - なぜ落ちたか → `node` は mise の shim で、cwd がプロジェクト外だとバージョンを決められない
@@ -43,3 +56,5 @@ pnpm-audit-alert-issue / dependabot-alert-issue の着手可否判定で、`pack
 - 対象: issue-start の `references/acceptance.md` 手順 1・5、dependabot-alert-issue の `references/pnpm-transitive-update.md`「リリース年齢ゲート」手順 2・3
 - 配布スキルなので mise に決め打ちせず「バージョンマネージャの shim は cwd で解決される。実体パスを先に解決する」と一般化して書く
 - 横断: 「作業ツリーの外に置く」「一時ディレクトリへ複製する」を指示する手順を `skills/` 配下で grep して同じ形を洗い出す（parity 系・pr-finalize-loop の一時ファイル）
+- 追記（2026-10-05）: 確かめたいだけならリポジトリの中で設定を一時的に変えて実行する方法を優先する（今回もその方法で確かめられた）。
+  3 回目の再発なので、apply では PreToolUse で `cd` 先がリポジトリの外かつ shim 経由のツールを呼ぶ形を警告する案も検討する。

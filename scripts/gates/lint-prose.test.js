@@ -107,8 +107,9 @@ test("陽性: 対象の Markdown の指摘をファイル・行・列付きで�
 test("陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない", async () => {
   const root = makeRepo({
     "a.md": CLEAN,
+    "skills/pub/SKILL.md": CLEAN,
     ".agents/skills/pub/SKILL.md": DIRTY,
-    ".claude/x.md": DIRTY,
+    ".claude/rules/x.md": DIRTY,
     ".kaizen/archive/x.md": DIRTY,
     "tests/x/result.md": DIRTY,
     "notes.txt": DIRTY,
@@ -116,7 +117,7 @@ test("陰性: スキルのコピー・エージェント用のリンク・過去
   symlinkSync(join(root, "tests/x/result.md"), join(root, "link.md"));
   spawnSync("git", ["add", "-A"], { cwd: root });
   const result = await lintProse({ root });
-  expect(result).toEqual({ checked: 1, pending: 0, violations: [], stale: [] });
+  expect(result).toEqual({ checked: 2, pending: 0, violations: [], stale: [] });
 });
 
 test("陽性: rule の実体・private skill の実体・有効な学びは見る", async () => {
@@ -125,11 +126,13 @@ test("陽性: rule の実体・private skill の実体・有効な学びは見�
     ".agents/skills/priv/.private-skill": "",
     ".agents/skills/priv/SKILL.md": DIRTY,
     ".agents/skills/priv/references/r.md": DIRTY,
+    ".agents/skills/nomark/SKILL.md": DIRTY,
     ".kaizen/learning.md": DIRTY,
   });
   const files = (await lintProse({ root })).violations.map((v) => v.split(":")[0]).sort();
   expect(files).toEqual([
     ".agents/rules/x.md",
+    ".agents/skills/nomark/SKILL.md",
     ".agents/skills/priv/SKILL.md",
     ".agents/skills/priv/references/r.md",
     ".kaizen/learning.md",
