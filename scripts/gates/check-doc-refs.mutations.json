@@ -67,7 +67,10 @@
       "find": "path.startsWith(\"/\") ? path.slice(1) : join(dirname(file), path)",
       "replace": "join(dirname(file), path)",
       "occurrences": 1,
-      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+      "expect_failing": [
+        "陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す",
+        "陽性: ルートからのリンク"
+      ]
     },
     {
       "id": "DR-SEC-ANCHOR",
@@ -82,7 +85,9 @@
         "陽性: 生成ファイルのテンプレートに節が無い",
         "陽性: スキル名付きで節が無い",
         "陽性: フェンスの外のコメント",
-        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件",
+        "陽性: ルートからのリンク",
+        "陽性: 符号化したリンク"
       ]
     },
     {
@@ -542,7 +547,19 @@
       "find": "path = decodeURIComponent(raw);",
       "replace": "path = raw;",
       "occurrences": 1,
-      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+      "expect_failing": [
+        "陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す",
+        "陽性: 符号化したリンク"
+      ]
+    },
+    {
+      "id": "DR-SECTION-LINKPATH",
+      "why": "節名のリンク先を、link 規則と違う方法（ルートからのパス・符号化を扱わない）で解決する",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    const p = linkPath(file, path);",
+      "replace": "    const p = normalize(join(dirname(file), path));",
+      "occurrences": 1,
+      "expect_failing": ["陽性: ルートからのリンク", "陽性: 符号化したリンク"]
     }
   ]
 }

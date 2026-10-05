@@ -137,6 +137,21 @@ function skillDirOf(root, file) {
 }
 
 /** 参照先のファイル（リポジトリ相対）。見つからなければ null。 */
+/**
+ * Markdown のリンク先をリポジトリ相対のパスにする。アンカーとクエリを除き、`%` の符号化を戻し、
+ * `/` で始まるものはルートから読む。link 規則と section 規則が同じ解決を使う。
+ */
+export function linkPath(file, target) {
+  const raw = target.replace(/[#?].*$/, "");
+  let path = raw;
+  try {
+    path = decodeURIComponent(raw);
+  } catch {
+    // 符号化として読めない `%`（`100%.md`）は、書いた文字のままのパスとして確かめる。
+  }
+  return normalize(path.startsWith("/") ? path.slice(1) : join(dirname(file), path));
+}
+
 export function resolveSectionTarget(root, file, kind, path, skill) {
   if (kind === "skill") {
     for (const base of [`skills/${skill}`, `.agents/skills/${skill}`]) {
@@ -145,7 +160,7 @@ export function resolveSectionTarget(root, file, kind, path, skill) {
     return null;
   }
   if (kind === "link") {
-    const p = normalize(join(dirname(file), path));
+    const p = linkPath(file, path);
     return existsSync(join(root, p)) ? p : null;
   }
   const sk = skillDirOf(root, file);
@@ -201,14 +216,7 @@ export function findInFile(root, config, { file, tier, markdown }, text, anchorC
         const target = m[1];
         if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith("#") || target.startsWith("<"))
           continue;
-        const raw = target.replace(/[#?].*$/, "");
-        let path = raw;
-        try {
-          path = decodeURIComponent(raw);
-        } catch {
-          // 符号化として読めない `%`（`100%.md`）は、書いた文字のままのパスとして確かめる。
-        }
-        const rel = normalize(path.startsWith("/") ? path.slice(1) : join(dirname(file), path));
+        const rel = linkPath(file, target);
         if (!existsSync(join(root, rel))) at("link", target, `リンク先 ${target} が無い`);
         // 配布スキルのリンクは、スキルのディレクトリの中だけを指す（他のスキルも導入先に在るとは限らない）。
         else if (dist && !rel.startsWith(`${dist}/`))

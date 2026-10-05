@@ -155,6 +155,13 @@ test.each([
     "s/references/ref.md「無い」",
   ],
   ["フェンスの外のコメント", "scripts/a.js", "// `docs/guide.md`「無い」", "docs/guide.md「無い」"],
+  [
+    "ルートからのリンク",
+    "docs/sub/a.md",
+    "[g](/docs/guide.md)「無い節」",
+    "/docs/guide.md「無い節」",
+  ],
+  ["符号化したリンク", "docs/a.md", "[g](gui%64e.md)「無い節」", "gui%64e.md「無い節」"],
 ])("陽性: %s", (_, file, line, text) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 section ${text}`]);
 });
