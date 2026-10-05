@@ -6,33 +6,9 @@
   ],
   "pending": [
     {
-      "file": ".agents/skills/pnpm-audit-alert-issue/SKILL.md",
-      "rule": "tier-down",
-      "text": "#14794",
-      "stage": "4"
-    },
-    {
       "file": "skills/golden-dataset/SKILL.md",
       "rule": "section",
       "text": "references/project-config.md「ファイルストレージ」",
-      "stage": "4"
-    },
-    {
-      "file": "skills/kaizen/references/apply.md",
-      "rule": "date",
-      "text": "2026-08-08",
-      "stage": "4"
-    },
-    {
-      "file": "skills/kaizen/references/extract.md",
-      "rule": "section",
-      "text": "apply.md「記述先の選び方」",
-      "stage": "4"
-    },
-    {
-      "file": "skills/kaizen/references/setup.md",
-      "rule": "date",
-      "text": "2026-09-19",
       "stage": "4"
     },
     {

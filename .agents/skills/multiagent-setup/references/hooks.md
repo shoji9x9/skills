@@ -8,7 +8,8 @@
 | Codex | `.codex/hooks.json` または `.codex/config.toml` の `[hooks]` テーブル | SessionStart, PreToolUse, PostToolUse, Stop |
 | Copilot | `.github/hooks/*.json`（ファイル名は任意） | sessionStart, preToolUse, postToolUse, sessionEnd |
 
-イベントの全一覧・入力 JSON・exit code の意味はエージェントごとに違い、版で増える。上の列は例なので、使うイベントは各エージェントの公式リファレンスで確かめる:
+イベントの一覧、入力の JSON、exit code の意味はエージェントごとに違い、版が上がると増える。
+上の列は例なので、使うイベントは各エージェントの公式のリファレンスで確かめる。
 
 - [Claude Code Hooks reference](https://code.claude.com/docs/en/hooks)
 - [Codex Hooks](https://learn.chatgpt.com/docs/hooks)
@@ -16,8 +17,11 @@
 
 ## フックスクリプトの配置
 
-- **スキル同梱の Hook**（`kaizen` / `git-worktree` 等）は、スキルに同梱されたスクリプトを各エージェントの設定ファイルから直接参照する。配線先と手順は各スキルのセットアップ手順に従い、`.agents/hooks/scripts/` へ複製しない（複製するとスキル更新に追随しない）。
-- **プロジェクト固有の Hook** は `.agents/hooks/scripts/` に配置し、各エージェントの設定ファイルからそのパスを参照する。これにより複数エージェントで同じスクリプトを共有できる。
+- スキルに同梱の Hook（`kaizen`・`git-worktree` など）は、スキルに同梱のスクリプトを、各エージェントの設定ファイルから直接参照する。
+  どこから参照するかと手順は、各スキルのセットアップの手順に従う。
+  `.agents/hooks/scripts/` には複製しない（複製すると、スキルを更新しても反映されない）。
+- プロジェクトに固有の Hook は `.agents/hooks/scripts/` に置き、各エージェントの設定ファイルからそのパスを参照する。
+  こうすると、複数のエージェントで同じスクリプトを共有できる。
 
 ```text
 .agents/hooks/scripts/
@@ -40,4 +44,4 @@ chmod +x .agents/hooks/scripts/<script>.sh
 
 ## 削除手順
 
-各エージェントの設定ファイルから該当フックの設定を削除し、不要になったスクリプトを `.agents/hooks/scripts/` から削除する。
+各エージェントの設定ファイルから該当するフックの設定を削除し、不要になったスクリプトを `.agents/hooks/scripts/` から削除する。

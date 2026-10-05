@@ -1,4 +1,4 @@
-# オーケストレーション契約
+# 複数の Issue を順に処理する取り決め
 
 ## 状態モデル
 
@@ -16,139 +16,168 @@ READY_TO_MERGE -- base 遅れ / head 更新 --> FINALIZING
 未着手かつ前提不成立 -> SKIPPED
 ```
 
-`MERGE_QUEUED` は merge 要求を送った後の待機状態を表す。`merge_mode: auto` では auto-merge 予約または merge queue 投入、
-`merge_mode: agent` では merge queue 必須 base で queue に入った状態を指す。queue 不要な base の `agent` mode は
-`READY_TO_MERGE` から直接 `MERGED` へ進む。いずれの mode でも要求の送信は `MERGED` の根拠にしない。
-`READY_TO_MERGE` からの `FINALIZING` 差し戻し（base 遅れ、待機中の head 更新）は前進ではなく、
-`max_pr_iterations` を上限に同一 PR での回数を数える。上限超過は merge 要求を送らず BLOCKED。
+`MERGE_QUEUED` は、merge の要求を送った後に待っている状態を表す。
+`merge_mode: auto` では、auto-merge を予約したか merge queue に入れた状態を指す。
+`merge_mode: agent` では、merge queue が必須の base で、queue に入った状態を指す。queue が要らない base の `agent` mode は、
+`READY_TO_MERGE` から直接 `MERGED` に進む。どちらの mode でも、要求を送ったことを `MERGED` の根拠にしない。
+`READY_TO_MERGE` から `FINALIZING` に戻ること（base が遅れた、待っている間に head が更新された）は前進ではない。
+`max_pr_iterations` を上限として、同じ PR で戻った回数を数える。上限を超えたら、merge の要求を送らずに BLOCKED にする。
 
-状態を進める直前に実状態を再取得し、満たした述語と証拠 URL / SHA を manifest に記録する。状態ファイルは判断のキャッシュではない。
+状態を進める直前に実際の状態を取得し直し、満たした条件と証拠の URL や SHA を manifest に記録する。状態のファイルは、判断のキャッシュではない。
 
 ## 全体 preflight
 
-branch や設定を変更する前に次を全件分完了する。
+branch や設定を変更する前に、すべての Issue について次を済ませる。
 
-1. Issue URL / 番号を正規化し、入力順を保持して重複を拒否する。
-2. current repository と全 Issue の owner/repo が一致することを確認する。新規着手は Issue が OPEN の場合だけ許可する。
-   再開時は一意な linked PR が MERGED で、Issue がその merge により CLOSED、残作業が deployment / cleanup に限られることを実状態から確認できれば CLOSED を受理する。それ以外の CLOSED Issue は SKIPPED または BLOCKED。本文と全コメントを取得し、最新の決定を優先する。
-3. 規約文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、agent 固有のローカルレビュー機能と Kaizen の current transcript を解決する。remote AI reviewer はここで固定せず pr-finalize-loop の解決規則へ委譲する。
-   `--record-pending` が transcript を同定できない agent は候補ゼロを検証できないため変更前に BLOCKED。transcript を提供しない agent（例: Copilot）はこの経路を使えない。
-4. local / remote branch、open / closed PR、worktree を列挙する。再開対象が一意なら再利用し、複数候補なら全体を停止する。
-   再開対象の PR の作成者でも担当者でもない（判定は `pr-finalize-loop` の `references/pr-ownership.md`）なら、その Issue を BLOCKED にする
-   （他の人の PR へ無人で push・resolve しない）。参照先を読めなければ判定を推測せず全体を停止する。
-   判定不能（自分の login・PR の作成者と担当者を取得できない。ユーザーでないトークンを含む）も、利用者に確認できないので確認の代わりにその Issue を BLOCKED にして理由を残す。
-5. 各 Issue の担当者を読む（`gh issue view <番号> --json assignees`。手順の正本は `issue-start` の `references/assignee.md`）。
-   自分以外が付いている Issue は、変更前にその Issue を BLOCKED にして担当者の login を残す。ここでは読むだけで割り当てない（割り当ては着手の直前に行う）。
-   担当者を判定できない（自分の login・担当者を取得できない）Issue も同じく BLOCKED にして理由を残す。
-6. Issue 本文・コメントの linked Issue / blocking relationship を確認する。先行 PR の merge が必要なら対象外として開始前に停止する。
-7. browser-test が必要になり得る場合、環境を先に解決する。`auth: user`、未設定環境、ログイン待ち、禁止操作解除、課金・通知・CUD の承認が必要なら BLOCKED にする。
-8. GitHub 認証、push / PR / merge / workflow read に必要な権限を確認する。解決した `merge_mode` が `auto` の場合だけ
-   auto-merge 権限と repository の許可（`gh api repos/{owner}/{repo} --jq .allow_auto_merge`。
-   [REST: Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)）を追加で確認し、
-   `false` なら設定を無人で書き換えず全体を停止し、`issue-batch setup` を案内する。
-   `--merge-mode agent` での再実行を案内できるのは**設定に `merge_ready_timeout_minutes` が既にある場合だけ**で、
-   無ければ `agent` に必要な待機上限が埋まらず再実行しても preflight で止まる（設定を読んでどちらかを案内する）。
-   `agent` でも base が merge queue 必須なら `gh pr merge` は queue 投入（要件未充足なら auto-merge 有効化）になるため、
-   その base では同じ確認を行う。共有障害は全体停止にする。
+1. Issue の URL と番号を正規化し、入力の順を保って、重複を拒否する。
+2. 現在のリポジトリと、すべての Issue の owner/repo が一致することを確かめる。新しく着手するのは、Issue が OPEN の場合だけである。
+   再開するときは、次のことを実際の状態から確かめられれば、CLOSED の Issue も受け付ける。
+   一意に決まる linked PR が MERGED で、Issue がその merge で CLOSED になり、残りの作業が deployment と cleanup だけである。
+   それ以外の CLOSED の Issue は、SKIPPED か BLOCKED にする。本文とすべてのコメントを取得し、最新の決定を優先する。
+3. 規約の文書、base branch、`skills.issue-batch`（`merge_mode` と `merge_method` を含む）、エージェントごとのローカルレビューの機能、Kaizen が読む現在の transcript を決める。
+   リモートの AI レビュアーはここでは固定せず、pr-finalize-loop の決め方に任せる。
+   `--record-pending` が transcript を特定できないエージェントでは、候補が 0 件であることを確かめられないので、何かを変更する前に BLOCKED にする。
+   transcript を提供しないエージェント（例: Copilot）は、この方法を使えない。
+4. local と remote の branch、open と closed の PR、worktree を挙げる。再開する対象が 1 つに決まれば使い回し、候補が複数あれば全体を停止する。
+   再開する PR の作成者でも担当者でもない（判定は `pr-finalize-loop` の `references/pr-ownership.md`）なら、その Issue を BLOCKED にする。
+   他の人の PR に、無人で push や resolve をしない。参照先を読めなければ、判定を推測せずに全体を停止する。
+   判定できない場合（自分の login や、PR の作成者と担当者を取得できない。ユーザーでないトークンを含む）も、利用者に確認できない。
+   確認の代わりに、その Issue を BLOCKED にして理由を残す。
+5. 各 Issue の担当者を読む（`gh issue view <番号> --json assignees`。手順は `issue-start` の `references/assignee.md` で定義する）。
+   自分以外が付いている Issue は、何かを変更する前に BLOCKED にして、担当者の login を残す。ここでは読むだけで、割り当てない（割り当ては着手の直前に行う）。
+   担当者を判定できない Issue（自分の login や担当者を取得できない）も、同じく BLOCKED にして理由を残す。
+6. Issue の本文とコメントにある linked Issue と blocking relationship を確かめる。先に別の PR の merge が要るなら、対象外として始める前に停止する。
+7. browser-test が要る可能性がある場合は、先に環境を決める。
+   `auth: user`、設定されていない環境、ログインの待ち、禁止した操作の解除、課金・通知・データの作成や変更や削除の承認が要るなら、BLOCKED にする。
+8. GitHub の認証と、push・PR・merge・workflow の読み取りに要る権限を確かめる。決まった `merge_mode` が `auto` の場合だけ、
+   auto-merge の権限とリポジトリの許可（`gh api repos/{owner}/{repo} --jq .allow_auto_merge`。
+   [REST: Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)）も確かめる。
+   `false` なら、設定を無人で書き換えずに全体を停止し、`issue-batch setup` を案内する。
+   `--merge-mode agent` でやり直すよう案内できるのは、設定に `merge_ready_timeout_minutes` が既にある場合だけである。
+   無ければ `agent` に要る待機の上限が決まらず、やり直しても preflight で止まる（設定を読んで、どちらかを案内する）。
+   `agent` でも、base で merge queue が必須なら、`gh pr merge` は queue への投入（条件を満たしていなければ auto-merge の有効化）になる。
+   その base では、同じ確認をする。共有の障害では全体を停止する。
 
 ## worktree と manifest
 
-`mktemp -d` で run root を作り、その配下に manifest を置く。run root のパスを最終報告まで保持する。
+`mktemp -d` で run root を作り、その下に manifest を置く。run root のパスは、最終報告まで保持する。
 
-worktree の機構（置き場所、セッションの移動、`.gitignore` 対象ファイルの運搬、検査からの除外、clean 確認付きの後片付け）は
-`git-worktree` スキルへ委譲し、ここへ複製しない。branch を先に作ってから `git-worktree enter <branch>` 相当の契約で入る。
-**`git worktree add` だけで隔離できたとしない**——セッションを移さないと subagent・フォークして走るスキル・
-バックグラウンドの Bash が呼び出し元の作業ツリーで動く。参照先が読めなければ停止する。
+worktree の仕組み（置き場所、セッションの移動、`.gitignore` 対象ファイルの運搬、チェックからの除外、clean を確かめてからの後片付け）は、
+`git-worktree` スキルに任せ、ここには書き写さない。branch を先に作ってから、`git-worktree enter <branch>` と同じ取り決めで入る。
+**`git worktree add` を実行しただけで、隔離できたとしない。** セッションを移さないと、subagent・フォークして動くスキル・
+バックグラウンドの Bash が、呼び出し元の作業ツリーで動く。参照先を読めなければ停止する。
 
-**worktree は run root（`mktemp -d`）配下に置かない。** リポジトリ外の worktree には
-起動ディレクトリからの 1 回しか入れず、Issue ごとに worktree を移る本スキルの進め方が 2 件目で成立しない。
-移動のたびユーザー承認も要り無人実行で詰まる（根拠は `git-worktree` の `references/isolation.md`）。
-置き場所は `git-worktree setup` が決めたリポジトリ内のディレクトリを使い、
-その除外が全走査ジョブに入っていることを preflight で確認する。未設定・未除外なら BLOCKED。
+**worktree は run root（`mktemp -d`）の下に置かない。** リポジトリの外の worktree には、
+起動したディレクトリからの 1 回しか入れない。そのため、Issue ごとに worktree を移るこのスキルの進め方が、2 件目で成り立たない。
+移るたびに利用者の承認も要り、無人の実行では止まる（根拠は `git-worktree` の `references/isolation.md`）。
+置き場所には、`git-worktree setup` が決めたリポジトリの中のディレクトリを使う。
+その除外が、リポジトリ全体を読むすべてのジョブに入っていることを、preflight で確かめる。設定されていないか、除外されていなければ BLOCKED にする。
 
-manifest が持てるのは次だけ。
+manifest に書いてよいのは、次のものだけである。
 
 - run ID、入力順、Issue URL / 番号
 - 状態、branch、worktree、PR URL
 - 検証名・結果・証拠 URL / SHA
 - BLOCKED / FAILED の理由と残作業
 
-token、cookie、認証 header、秘密の環境変数、設定から渡された動的 URL は記録しない。再実行では manifest を入口に候補を得ても、branch / PR / CI の現状を GitHub / git から再確認する。
+token・cookie・認証の header・秘密の環境変数・設定から渡された変わる URL は、記録しない。
+やり直すときは、manifest を起点に候補を得ても、branch・PR・CI の今の状態を、GitHub と git から確かめ直す。
 
 ## issue-start への handoff
 
-専用 worktree で Issue ごとに `issue-start <Issue URL> --pr` 相当の契約を使う。ただし PR 作成前にローカルレビューと検証を挟むため、次の境界で段階化する。
+Issue ごとの専用の worktree で、`issue-start <Issue URL> --pr` と同じ取り決めを使う。
+ただし、PR を作る前にローカルレビューと検証を挟むので、次の区切りで段階に分ける。
 
-1. repo 一致、本文＋コメント、規約、base branch、担当者、同番号 branch を `issue-start` と同じ順で確認する。
-   担当者は着手の直前に `issue-start` の `references/assignee.md` の 3 段（確かめる → 空なら自分を割り当てる → 読み直す）で扱う。
-   利用者への確認に当たる結果（自分以外が付いている・割り当てが成立しない・読み直して自分以外も付いていた）は、確認の代わりに BLOCKED にして担当者の login を残す。
-   読み直しで自分以外も付いていた場合も自分を無人で外さず、外すかの判断を残作業として最終報告へ載せる。
-2. branch を再利用または `gh issue develop` で作り、Issue 作成時刻以後の base 変更と現行コードから独立に再導出した影響範囲を突き合わせる。
-3. 全て解決済みなら `SKIPPED`。記載外へ大きく拡大する、または要件の選択が必要なら `BLOCKED`。
-4. 実装し、リポジトリ規約が要求する最小範囲の lint / test を実行する。
+1. repo の一致、本文とコメント、規約、base branch、担当者、同じ番号の branch を、`issue-start` と同じ順で確かめる。
+   担当者は着手の直前に、`issue-start` の `references/assignee.md` の 3 段（確かめる・空なら自分を割り当てる・読み直す）で扱う。
+   利用者への確認に当たる結果（自分以外が付いている・割り当てができない・読み直して自分以外も付いていた）は、確認の代わりに BLOCKED にして担当者の login を残す。
+   読み直して自分以外も付いていた場合も、自分を無人で外さない。外すかの判断を、残りの作業として最終報告に載せる。
+2. branch を使い回すか、`gh issue develop` で作る。Issue を作った時刻より後の base の変更と、今のコードから独立に導き直した影響範囲を突き合わせる。
+3. すべて解決済みなら `SKIPPED` にする。書かれた範囲の外に大きく広がる場合や、要件の選択が要る場合は `BLOCKED` にする。
+4. 実装し、リポジトリの規約が求める最小の範囲の lint と test を実行する。
 
-`issue-start` の規約解決・影響範囲再検証・commit / PR 規約をここへ複製しない。参照先が読めなければ停止する。
+`issue-start` の規約の決め方・影響範囲の確かめ直し・commit と PR の規約を、ここには書き写さない。参照先を読めなければ停止する。
 
 ## ローカルレビュー
 
-実装コンテキストと分離したレビューを、**現在利用中の agent 自身**の機能で行う。別 agent へ自動 fallback しない。
+実装したときの文脈から切り離したレビューを、今使っているエージェント自身の機能で行う。別のエージェントに自動で切り替えない。
 
-- Codex: `codex review --uncommitted`。staged / unstaged / untracked が対象であることをローカル `--help` でも確認する（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
-- Claude Code: current diff / branch をレビューする組み込み `/code-review high` を使う。非対話 `claude -p` adapter は現在の CLI で実走して成立した場合だけ使い、成立しなければ BLOCKED（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
-- GitHub Copilot CLI: `copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'`（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
+- Codex: `codex review --uncommitted`。staged・unstaged・untracked が対象であることを、ローカルの `--help` でも確かめる（[OpenAI Developers](https://developers.openai.com/codex/cli/reference)）。
+- Claude Code: 現在の差分か branch をレビューする、組み込みの `/code-review high` を使う。
+  非対話の `claude -p` で呼ぶ方法は、今の CLI で実際に実行して動いた場合だけ使う。動かなければ BLOCKED にする（[Claude Code commands](https://code.claude.com/docs/en/commands)）。
+- GitHub Copilot CLI: 次のコマンドを使う（[GitHub Docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically#code-review-a-branch)）。
 
-指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ修正する。修正後は検証とレビューを再実行する。上限で収束しない、機能が利用不能、人間判断が必要なら BLOCKED。
+  ```bash
+  copilot -p '/review the changes on this branch compared to <base>. Focus on bugs and security issues.' -s --allow-tool='shell(git:*)'
+  ```
+
+指摘をコードと実測に照らして 1 件ずつ判断し、妥当なものだけ直す。直した後は、検証とレビューをやり直す。
+上限までに収束しない場合、機能を使えない場合、人の判断が要る場合は BLOCKED にする。
 
 ## browser-test への handoff
 
-差分から UI / API 経由の画面影響を逆引きする。
+差分から、UI や API を通して影響する画面を逆にたどる。
 
-- 影響なし: 変更パスと逆引き結果を根拠に `not-applicable`
-- 影響あり: preflight 済みの `{url, pre_commands, start, check_urls, forbidden_actions}` だけを渡し、`browser-test --scope branch` 相当で確認する。handoff 後に設定ファイルを再読させない
+- 影響なし: 変更したパスと、逆にたどった結果を根拠に、`not-applicable` にする
+- 影響あり: preflight で確かめた `{url, pre_commands, start, check_urls, forbidden_actions}` だけを渡し、`browser-test --scope branch` と同じ方法で確かめる。handoff の後に設定ファイルを読み直させない
 
-console、主要要素、Network / API、副作用のない操作を確認する。回帰は同じ Issue の実装へ戻す。副作用が必要な受入条件は BLOCKED。
+console、主要な要素、Network と API、副作用の無い操作を確かめる。回帰は、同じ Issue の実装に戻す。副作用が要る受け入れ条件は BLOCKED にする。
 
 ## Kaizen、commit、PR
 
-検証後に `kaizen extract --current --record-pending` を使う。候補は最大 1 件、`status: pending` の記録だけで、apply / archive / delete は行わない。
-候補ゼロは current transcript と scanner の検出能力を確認した no-op とする。transcript を同定できない agent は no-op に倒さず BLOCKED。
+検証の後に、`kaizen extract --current --record-pending` を使う。候補は最大 1 件で、`status: pending` として記録するだけである。apply・archive・delete は行わない。
+候補が 0 件のときは、現在の transcript とスキャナの検出能力を確かめたうえで、何もしないで進む。
+transcript を特定できないエージェントでは、何もしないで進むことにせず、BLOCKED にする。
 
-学びが作られた場合は実装変更と分離した commit にする。関連ファイルだけを stage し、規約どおり commit する。
-**全 commit の後・push の直前に** `issue-start` の受け入れ条件の突き合わせ（基本フロー step 10。正本は `issue-start` の `references/acceptance.md`）を通す——
-ローカルレビューは未コミット差分を対象にし、レビュー修正や Kaizen の commit で HEAD が進むので、それより前に取った表は `commit-missing` か `stale-commit` で落ちる。
-exit 0 にならない、満たせない条件に利用者の判断が要る、`closable: false`（Issue を閉じられない）、または**受け入れ条件を変えて類似 Issue の見直しの要否を確かめる必要がある**（同 `acceptance.md` 手順 6。全行が `met` でも起きる——コメントでの条件の改訂・本文の書き換え）なら `BLOCKED`。
-見直しの要否は候補の一覧を添えて BLOCKED の理由に残す（exit 0 だけを見て push すると、確認がどこにも残らず消える）。通ったら push する。PR 本文に `Closes #<Issue番号>`、変更概要、静的検査、受け入れ条件の突き合わせ表、browser-test の結果／非適用根拠、Kaizen 結果を含める。
+学びが作られた場合は、実装の変更とは別の commit にする。関連するファイルだけを stage し、規約どおりに commit する。
+**すべての commit の後、push の直前に**、`issue-start` の受け入れ条件の突き合わせ（基本フローの step 10。手順は `issue-start` の `references/acceptance.md` で定義する）を通す。
+ローカルレビューは commit していない差分を対象にし、レビューの修正や Kaizen の commit で HEAD が進む。
+そのため、それより前に作った表は、`commit-missing` か `stale-commit` で失敗する。
+次のどれかに当たれば `BLOCKED` にする。
+
+- exit 0 にならない
+- 満たせない条件に、利用者の判断が要る
+- `closable: false`（Issue を閉じられない）
+- 受け入れ条件を変えたので、似た Issue を見直すかを確かめる必要がある（同じ `acceptance.md` の手順 6。すべての行が `met` でも、コメントでの条件の改訂や本文の書き換えで起きる）
+
+見直すかどうかは、候補の一覧を添えて、BLOCKED の理由に残す。exit 0 だけを見て push すると、確認がどこにも残らずに消える。
+通ったら push する。PR の本文には、`Closes #<Issue番号>`、変更の概要、静的な検査、受け入れ条件の突き合わせの表、browser-test の結果か対象外の根拠、Kaizen の結果を含める。
 
 ## pr-finalize-loop への handoff
 
-PR URL と解決済みの `max_pr_iterations` を `pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ `--wait-ci-before-review` を足す。
-レビューツールは pr-finalize-loop が解決するため、issue-batch は値を先に固定・転送しない。pr-finalize-loop の参照先を読めなければ handoff 前に停止する。
+PR の URL と、決まった `max_pr_iterations` を、`pr-finalize-loop <PR URL> --max-iterations <N>` に渡す。`wait_ci_before_review: true` の場合だけ、`--wait-ci-before-review` を足す。
+レビューツールは pr-finalize-loop が決めるので、issue-batch は値を先に固定したり渡したりしない。pr-finalize-loop の参照先を読めなければ、handoff の前に停止する。
 
-CI、全 reviewer の thread / review body、再レビュー依頼は `pr-finalize-loop` が正本。issue-batch 自身から remote AI review を依頼しない。収束しなければ BLOCKED / FAILED とし、隔離可能なら方針に従って次 Issue へ進む。
+CI、すべてのレビュアーの thread と review の本文、再レビューの依頼は、`pr-finalize-loop` が扱う。issue-batch 自身からは、リモートの AI レビューを依頼しない。
+収束しなければ BLOCKED か FAILED にし、影響をその Issue の中に留められるなら、方針に従って次の Issue に進む。
 
 ## merge、close、deployment
 
-merge の実行方法だけが `merge_mode` で分かれる。head SHA の固定、`--admin` 不使用、`MERGED` の実測、以降の close / deployment は mode 共通。
+merge の実行方法だけが、`merge_mode` で分かれる。head の SHA の固定、`--admin` を使わないこと、`MERGED` の確認、その後の close と deployment は、どちらの mode でも同じである。
 
-1. 収束後に PR の `headRefOid` を再取得して `READY_TO_MERGE` にする。以降のコマンドは全てこの SHA を `--match-head-commit` に渡し、収束後に入った push を取り違えない。
-2. 解決済みの `merge_mode` で merge する。
-   - `auto`: `gh pr merge <PR URL> --auto --<method> --match-head-commit <headRefOid>`。要件充足の判定は GitHub に委ねる（[gh pr merge](https://cli.github.com/manual/gh_pr_merge)）。
-   - `agent`: 下の「agent mode の merge 前判定」を通してから `gh pr merge <PR URL> --<method> --match-head-commit <headRefOid>`（`--auto` を付けない）。
-   どちらでも `--admin` は使わない。**merge queue 必須の base では `--auto` を付けなくても gh は auto-merge 有効化または
-   queue 投入になる**（required check 未通過なら auto-merge、通過済みなら queue 投入。`gh pr merge --help` に明記）。
-   `agent` mode でも即時 merge を前提にせず `MERGE_QUEUED` を経由し得るものとして扱う。
-3. 上限付きで PR を再取得し、`MERGED` を確認する。auto-merge request の作成、queue 投入、merge コマンドの成功終了はいずれも完了根拠にしない。
-4. Issue の `state` と linked PR を再取得し、`CLOSED` を確認する。OPEN なら手動 close で隠さず BLOCKED。
-5. PR から merge commit OID / mergedAt を取得する。workflow ごとに
-   `gh run list --workflow <file> --commit <OID> --event <event> --limit <N> --json ...` を使い、`headSha == OID`、event、base branch を全て照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
-   **`--limit` を明示する**（既定 20 件で暗黙に打ち切られ、再実行で同一 commit の run が増えると取りこぼす）。返却件数が `--limit` に達したら打ち切りを疑い、広げて取り直す。
-6. 適用対象 run が registration timeout 内に現れなければ BLOCKED。`gh run watch <id> --exit-status` を completion timeout で打ち切り、全対象が `completed/success` のときだけ `DEPLOYED`（[gh run watch](https://cli.github.com/manual/gh_run_watch)）。
+1. 収束した後に PR の `headRefOid` を取得し直して、`READY_TO_MERGE` にする。この後のコマンドにはすべてこの SHA を `--match-head-commit` で渡し、収束した後に入った push と取り違えない。
+2. 決まった `merge_mode` で merge する。
+   - `auto`: `gh pr merge <PR URL> --auto --<method> --match-head-commit <headRefOid>`。条件を満たしたかの判定は GitHub に任せる（[gh pr merge](https://cli.github.com/manual/gh_pr_merge)）。
+   - `agent`: 下の「agent mode の merge 前判定」を通してから、`gh pr merge <PR URL> --<method> --match-head-commit <headRefOid>` を実行する（`--auto` を付けない）。
 
-workflow の `branches` / `paths` と変更ファイルから確実に外れる場合だけ `not-applicable`。設定で空配列が明示されていれば `not-configured`。同名の最新 run や別 SHA の成功を代用しない。
+   どちらでも `--admin` は使わない。**merge queue が必須の base では、`--auto` を付けなくても gh は auto-merge を有効にするか queue に入れる**。
+   required check を通っていなければ auto-merge に、通っていれば queue への投入になる（`gh pr merge --help` に書かれている）。
+   `agent` mode でも、すぐに merge されると決めつけず、`MERGE_QUEUED` を通ることがあるものとして扱う。
+3. 上限を決めて PR を取得し直し、`MERGED` を確かめる。auto-merge の要求の作成、queue への投入、merge のコマンドの成功は、どれも完了の根拠にしない。
+4. Issue の `state` と linked PR を取得し直し、`CLOSED` を確かめる。OPEN なら、手で close して隠さず、BLOCKED にする。
+5. PR から merge commit の OID と mergedAt を取得する。workflow ごとに
+   `gh run list --workflow <file> --commit <OID> --event <event> --limit <N> --json ...` を使い、`headSha == OID`、event、base branch をすべて照合する（[gh run list](https://cli.github.com/manual/gh_run_list)）。
+   `--limit` は明示する。デフォルトの 20 件で警告なしに打ち切られ、やり直しで同じ commit の run が増えると見逃す。
+   返った件数が `--limit` に達したら、打ち切られたことを疑い、範囲を広げて取得し直す。
+6. 対象の run が登録の待ち時間（registration timeout）の内に現れなければ BLOCKED にする。
+   `gh run watch <id> --exit-status` を完了の待ち時間（completion timeout）で打ち切り、すべての対象が `completed/success` のときだけ `DEPLOYED` にする（[gh run watch](https://cli.github.com/manual/gh_run_watch)）。
+
+workflow の `branches` と `paths` から、変更したファイルが確実に外れる場合だけ `not-applicable` にする。設定で空の配列が明示されていれば `not-configured` にする。
+同じ名前の最新の run や、別の SHA での成功を、代わりに使わない。
 
 ## agent mode の merge 前判定
 
-`merge_mode: agent` のときだけ実行する。判定は全て PR の実状態から取り、`pr-finalize-loop` の報告や manifest の記憶で代替しない。
+`merge_mode: agent` のときだけ実行する。判定はすべて PR の実際の状態から取り、`pr-finalize-loop` の報告や manifest の記憶で代えない。
 
 ```bash
 gh pr view "$PR_URL" --json state,mergeable,mergeStateStatus,reviewDecision,headRefOid
@@ -164,9 +193,9 @@ req_json=$(gh pr checks "$PR_URL" --required --json "$fields" 2>"$req_err") && r
 all_json=$(gh pr checks "$PR_URL" --json "$fields" 2>"$all_err") && all_rc=0 || all_rc=$?
 ```
 
-`gh pr checks --json` の `bucket` は `state` を `pass` / `fail` / `pending` / `skipping` / `cancel` に正規化した値で、
-この 5 値が許容値の全部（`gh pr checks --help`）。生の `state` を自分で分類せず `bucket` を使う。
-`req_rc` の弁別は次のとおり。**非 0 を「失敗」に倒さない。**
+`gh pr checks --json` の `bucket` は、`state` を `pass`・`fail`・`pending`・`skipping`・`cancel` に正規化した値で、
+この 5 つが取りうる値のすべてである（`gh pr checks --help`）。生の `state` を自分で分類せず、`bucket` を使う。
+`req_rc` は次のように区別する。**0 以外を「失敗」として扱わない。**
 
 | `req_rc` | 観測 | 意味 |
 | --- | --- | --- |
@@ -174,7 +203,7 @@ all_json=$(gh pr checks "$PR_URL" --json "$fields" 2>"$all_err") && all_rc=0 || 
 | `8` | — | checks pending（`gh pr checks --help` の Additional exit codes） |
 | それ以外（実測は `1`） | `req_json` は**空**、`req_err` に `no (required )?checks reported on the '<branch>' branch` | 必須チェックが 0 件。内訳は下表で `all_rc` と `all_err` から決める |
 
-`req_rc != 0` のときの内訳は次の 3 通り。**`all_rc != 0` を一律「取得失敗」に倒さない**（CI が 1 件も無い repository でも `all_rc` は非 0 になる・実測）。
+`req_rc != 0` のときの内訳は、次の 3 通りである。**`all_rc != 0` を、すべて「取得の失敗」として扱わない。** CI が 1 件も無いリポジトリでも、`all_rc` は 0 以外になる（実測）。
 
 | `all_rc` | `all_err` | 状態 |
 | --- | --- | --- |
@@ -182,41 +211,45 @@ all_json=$(gh pr checks "$PR_URL" --json "$fields" 2>"$all_err") && all_rc=0 || 
 | 非 0 | `no checks reported on the '<branch>' branch` | **check が 1 件も無い**（CI 未設定）。pass 扱いにせず、check を根拠にしていない旨を manifest に残す |
 | 非 0 | それ以外（認証・ネットワーク等） | 取得に失敗した。0 件と読み替えず BLOCKED |
 
-`req_json` / `all_json` が空のまま JSON として解析しない（`rc != 0` のとき stdout は空になる・実測）。
-**必須チェックが 0 件のときは required の pass を merge 根拠にできない**（branch protection の無い repository では常にこの状態で、
-「required が全て pass」は空集合で自明に成立してしまう）。この場合は `--required` なしの全 check の `bucket` へ下の規則を当て、
-`UNSTABLE` の免除も適用しない。全 check も 0 件なら「CI 未設定のため check を根拠にしていない」と manifest に明示し、
-check が pass したことにしない。
+`req_json` と `all_json` が空のまま、JSON として解析しない（`rc != 0` のとき、stdout は空になる。実測）。
+**必須チェックが 0 件のときは、required が pass したことを merge の根拠にできない。**
+branch protection の無いリポジトリは常にこの状態で、「required がすべて pass」は対象が空なので当然に成り立ってしまう。
+この場合は、`--required` なしのすべての check の `bucket` に下の規則を当て、`UNSTABLE` の免除も当てない。
+すべての check も 0 件なら、「CI が設定されていないので、check を根拠にしていない」と manifest に明記し、check が pass したことにしない。
 
-判定と分岐は次のとおり。`mergeable` は GraphQL の `MergeableState`、`mergeStateStatus` は `MergeStateStatus` で、いずれも下表が許容値の全部（`gh api graphql` の introspection で確認。[GraphQL enums](https://docs.github.com/en/graphql/reference/enums)）。
+判定と分岐は次のとおりである。`mergeable` は GraphQL の `MergeableState`、`mergeStateStatus` は `MergeStateStatus` で、どちらも下の表が取りうる値のすべてである。
+`gh api graphql` の introspection で確かめた（[GraphQL enums](https://docs.github.com/en/graphql/reference/enums)）。
 
 | 観測 | 扱い |
 | --- | --- |
-| `state` が `OPEN` でない | 実状態に従う。`MERGED` なら merge 済みとして次へ、`CLOSED` なら BLOCKED |
-| required check に `fail` / `cancel` がある | `pr-finalize-loop` の収束が破れている。merge せず BLOCKED |
-| required check に `pending` がある | `merge_ready_timeout_minutes` を上限に再取得を繰り返す。上限超過は BLOCKED |
-| `mergeable: UNKNOWN` / `mergeStateStatus: UNKNOWN` | GitHub が計算中。同じ待機上限内で再取得する |
-| `mergeable: CONFLICTING`（`mergeStateStatus: DIRTY`） | 競合解消は無人判断にせず BLOCKED |
-| `mergeStateStatus: BEHIND` | base 遅れ。rebase / force push / 別 branch を使わず、同じ feature branch に最新 base を merge して `FINALIZING` へ戻す（「deployment 修復」の 2 と同じ扱い）。差し戻し回数は `max_pr_iterations` を上限に数え、超過は BLOCKED |
-| `mergeStateStatus: BLOCKED` | 保護要件未達（review 不足・未解決 thread 等）。`reviewDecision` を不足内訳の根拠として manifest に残し、要件を無人で解除せず BLOCKED |
-| `mergeStateStatus: UNSTABLE` | 必須でない check の失敗。**必須チェックが 1 件以上あり**その全てが `pass` なら merge してよいが、どの check が失敗したかを判断根拠として manifest に残す |
-| `mergeStateStatus: CLEAN` / `HAS_HOOKS`、`mergeable: MERGEABLE` | merge へ進む |
+| `state` が `OPEN` でない | 実際の状態に従う。`MERGED` なら merge 済みとして次に進み、`CLOSED` なら BLOCKED にする |
+| required check に `fail` か `cancel` がある | `pr-finalize-loop` の収束が成り立っていない。merge せずに BLOCKED にする |
+| required check に `pending` がある | `merge_ready_timeout_minutes` を上限として、取得し直しを繰り返す。上限を超えたら BLOCKED にする |
+| `mergeable: UNKNOWN` か `mergeStateStatus: UNKNOWN` | GitHub が計算している。同じ待機の上限の内で取得し直す |
+| `mergeable: CONFLICTING`（`mergeStateStatus: DIRTY`） | 競合の解消を無人では判断せず、BLOCKED にする |
+| `mergeStateStatus: BEHIND` | base が遅れている。rebase・force push・別の branch を使わず、同じ feature branch に最新の base を merge して、`FINALIZING` に戻す（「deployment 修復」の 2 と同じ扱い）。戻した回数は `max_pr_iterations` を上限に数え、超えたら BLOCKED にする |
+| `mergeStateStatus: BLOCKED` | 保護の条件を満たしていない（review が足りない、解決していない thread があるなど）。`reviewDecision` を足りないものの根拠として manifest に残し、条件を無人で外さずに BLOCKED にする |
+| `mergeStateStatus: UNSTABLE` | 必須でない check が失敗している。必須チェックが 1 件以上あり、そのすべてが `pass` なら merge してよい。どの check が失敗したかを、判断の根拠として manifest に残す |
+| `mergeStateStatus: CLEAN` か `HAS_HOOKS`、`mergeable: MERGEABLE` | merge に進む |
 
-待機は上限を分単位で持ち、超過したら merge コマンドを送らずに BLOCKED にする。待機中に `headRefOid` が変わったら、その時点の PR は収束済みでないため merge せず `FINALIZING` へ戻す（差し戻し回数は上の `max_pr_iterations` 上限に含める）。
+待機の上限は分の単位で持ち、超えたら merge のコマンドを送らずに BLOCKED にする。
+待っている間に `headRefOid` が変わったら、その時点の PR は収束していないので、merge せずに `FINALIZING` に戻す（戻した回数は、上の `max_pr_iterations` の上限に含める）。
 
 ## deployment 修復
 
-失敗 run の log からコード変更で直す根拠がある場合だけ修復する。
+失敗した run の log から、コードの変更で直せる根拠がある場合だけ直す。
 
-1. Issue を reopen し、failed run URL と理由をコメントする。
-2. 元の feature branch / worktree を保持し、最新 base を**同じ branch に merge**する。rebase / force push / 別 branch 作成は禁止。
-3. 最小修正 → local review → 検証 → commit / push → `Closes #<番号>` の follow-up PR → PR 収束 → merge → close → 新 merge SHA の deployment へ戻る。
+1. Issue を reopen し、失敗した run の URL と理由をコメントする。
+2. 元の feature branch と worktree を残し、最新の base を同じ branch に merge する。rebase・force push・別の branch の作成は禁止する。
+3. 最小の修正、local review、検証、commit と push、`Closes #<番号>` の follow-up PR、PR の収束、merge、close の順に進め、新しい merge の SHA の deployment に戻る。
 
-外部障害は repository 契約で安全な rerun が許可される場合だけ rerun する。修正上限、認証・権限、人間判断、競合、timeout は BLOCKED。
+外部の障害は、リポジトリの取り決めで安全な rerun が許されている場合だけ rerun する。修正の上限、認証と権限、人の判断、競合、timeout は BLOCKED にする。
 
 ## branch cleanup
 
-全 deployment が success / not-configured / 根拠ある not-applicable、Issue が CLOSED、worktree が clean、同じ branch の全 PR が MERGED のときだけ進む。
+次のすべてを満たすときだけ進む。
+すべての deployment が success・not-configured・根拠のある not-applicable のどれかで、Issue が CLOSED、worktree が clean、同じ branch のすべての PR が MERGED である。
 
-manifest の worktree と branch が期待する Issue に完全一致し、branch が default / protected branch でなく `feature/<Issue番号>-` prefix を持つことを再検証する。
-解除と削除は `git-worktree cleanup` 相当の契約に従う（clean 確認 → 解除 → `git worktree list` を取り直して再確認 → 完全一致した local branch、remote ref の順に削除）。glob と `gh pr merge --delete-branch` は使わない。解除・削除のいずれかが失敗したら BLOCKED。
+manifest の worktree と branch が期待する Issue と完全一致し、branch がデフォルトでも保護されてもおらず、`feature/<Issue番号>-` で始まることを確かめ直す。
+解除と削除は、`git-worktree cleanup` と同じ取り決めに従う。clean を確かめ、解除し、`git worktree list` をもう一度実行して確かめ、完全一致した local branch、remote ref の順に削除する。
+glob と `gh pr merge --delete-branch` は使わない。解除か削除のどちらかが失敗したら BLOCKED にする。

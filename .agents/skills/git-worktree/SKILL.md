@@ -6,8 +6,8 @@ name: git-worktree
 ---
 # Git Worktree
 
-worktree は**ディレクトリを作ることではなく、セッションを移すこと**で成立する。
-このスキルは worktree の機構だけを担い、隔離の前提が破れる箇所を 1 か所に集約する。
+worktree は、ディレクトリを作っただけでは隔離にならない。セッションをそこへ移したときに隔離が成り立つ。
+このスキルは worktree の仕組みだけを担い、隔離の前提が成り立たなくなる箇所を 1 か所にまとめる。
 
 ## 使い方
 
@@ -17,114 +17,125 @@ git-worktree enter <branch>
 git-worktree cleanup [<worktree パス>]
 ```
 
-- `setup`: 置き場所を決め、検査からの除外と運搬経路を整える。worktree は作らない
-- `enter`: **既に存在する branch** に worktree を用意し、セッションをそこへ移す
-- `cleanup`: clean を確認してから解除・削除する
+- `setup`: 置き場所を決め、チェックからの除外と、ファイルを運ぶ方法を整える。worktree は作らない
+- `enter`: 既に在る branch に worktree を用意し、セッションをそこへ移す
+- `cleanup`: clean であることを確かめてから、解除して削除する
 
-自然文でも発動する:「worktree で作業して」「隔離した作業ツリーで進めて」。
+自然文でも発動する（「worktree で作業して」「隔離した作業ツリーで進めて」）。
 
-置き場所・運搬経路は `setup` で決めた内容に従う。`enter` で個別に切り替えない
-（切り替えたいときは `setup` をやり直す。判断が分散すると[除外漏れ](references/scanner-exclusions.md)になる）。
+置き場所とファイルを運ぶ方法は、`setup` で決めた内容に従う。`enter` で個別に切り替えない。
+切り替えたいときは `setup` をやり直す。判断が分かれると、[除外の抜け](references/scanner-exclusions.md)が出る。
 
 ## 前提
 
-- **ツール**: `git` **2.23+**（下の手順が使うコマンドの追加時期は
-  `git worktree list --porcelain` が 2.7、`git worktree remove` が 2.17、`git branch --show-current` が 2.22、
-  `git switch` が 2.23。2.5 では揃わない）。
-  エージェント側にセッションを移す機能（Claude Code の `EnterWorktree` 等）
-- **前提スキル**: なし
-- **シェル**: bash。Windows では WSL / Git Bash 等を使う
+- ツール: `git` 2.23 以上。下の手順が使うコマンドが入った版は、`git worktree list --porcelain` が 2.7、
+  `git worktree remove` が 2.17、`git branch --show-current` が 2.22、`git switch` が 2.23 である。2.5 では揃わない。
+  加えて、エージェント側にセッションを移す機能（Claude Code の `EnterWorktree` など）が要る
+- 前提スキル: なし
+- シェル: bash。Windows では WSL や Git Bash などを使う
 
-セッションを移す機能が無いエージェントでは**隔離は成立しない**。`git worktree add` だけを行って
+セッションを移す機能が無いエージェントでは、隔離は成り立たない。`git worktree add` だけを実行して
 「隔離した」と報告せず、その旨を述べて停止する（理由は [`references/isolation.md`](references/isolation.md)）。
 
-**`references/` を読めない場合は、推測で代替せず停止する。** 下の「破ってはいけない前提」はいずれも
-根拠が reference 側にあり、要約だけで正しく判断できるようには書かれていない。
+`references/` を読めない場合は、推測で代わりの方法を取らずに停止する。下の「破ってはいけない前提」は
+どれも根拠が reference 側にあり、要約だけでは正しく判断できない。
 
 ## 責務の境界
 
 | 担当する | 担当しない |
 | --- | --- |
 | 渡された branch への worktree 作成 | branch の作成・命名 |
-| セッションの移動と、移動が成立したことの確認 | Issue と branch の紐付け（Issue のワークフローの責務） |
+| セッションの移動と、移動したことの確認 | Issue と branch の紐付け（Issue のワークフローの責務） |
 | `.gitignore` 対象ファイルの運搬 | どの branch で何を実装するか（呼び出し側の責務） |
 | 検査ツールからの除外 | 実装・レビュー・commit・PR |
 | clean 確認付きの後片付け | |
 
-**branch は渡してもらう。自分で作らない。**
-worktree の作成手段（`git worktree add -b` / `EnterWorktree` の `name`）に branch を作らせると
-`worktree-<名前>` のような別名になり、Issue との紐付けが失われる（[`references/isolation.md`](references/isolation.md) の「branch を作らせない」）。
-呼び出し側が branch を用意していなければ、worktree を作らずその旨を述べて停止する。
-停止したときに「このスキルを使わず私が直接 branch を作りましょうか」と**スキル外の代替を提案しない**。
-必要な branch の名前と、それを作る手順（Issue のワークフロー）を示して呼び出し側へ返す。
+**branch は渡してもらい、自分では作らない。**
+worktree を作る手段（`git worktree add -b` や `EnterWorktree` の `name`）に branch を作らせると、
+`worktree-<名前>` のような別の名前になる。その結果、Issue との紐付けが失われる
+（[`references/isolation.md`](references/isolation.md) の「branch を作らせない」）。
+呼び出し側が branch を用意していなければ、worktree を作らずにその旨を述べて停止する。
+停止したときに「このスキルを使わず私が直接 branch を作りましょうか」のような、スキルの外の代わりの方法を提案しない。
+必要な branch の名前と、それを作る手順（Issue のワークフロー）を示して、呼び出し側へ返す。
 
-この規律は散文だけでは守られない（このスキルを呼ばずに worktree を作れば、指示は読まれない）。
-`setup` が配線する branch guard hook が、branch を作る経路を PreToolUse で捕捉して通知する
+この規律は、文書に書くだけでは守られない。このスキルを呼ばずに worktree を作れば、指示は読まれないからである。
+そこで `setup` で設定する branch guard hook が、branch を作るコマンドを PreToolUse で捕まえて通知する
 （[`references/branch-guard-hook.md`](references/branch-guard-hook.md)）。
 
 ## モード
 
 ### setup
 
-置き場所と運搬経路を決め、リポジトリ設定へ反映する。詳細は
+置き場所とファイルを運ぶ方法を決め、リポジトリの設定に反映する。詳細は
 [`references/scanner-exclusions.md`](references/scanner-exclusions.md) と
-[`references/carry-in.md`](references/carry-in.md) を参照する。
+[`references/carry-in.md`](references/carry-in.md) にある。
 
-1. 置き場所を決める。**この判断が後続を縛る**ため最初に確定する（判断材料は下表）。
-2. 置き場所がリポジトリ内なら、worktree ディレクトリを**全ての検査から除外する**。`.gitignore` 1 か所では足りない。
-3. `.gitignore` 対象で worktree に必要なファイル（`.env`・受領物・ベンダー配布物）を列挙し、運搬経路を選ぶ。
-4. 決めた内容を設定ファイル（`.config/skills/shoji9x9/skills.yml` 等、リポジトリの慣行に従う）へ記録する。エージェントが自身の設定ファイルを書けない場合は一時ファイルに出してユーザーへ適用を依頼する。
-5. 同梱の branch guard hook（`scripts/git-worktree-branch-guard.sh`）を各エージェントの PreToolUse へ配線する。手順は [`references/branch-guard-hook.md`](references/branch-guard-hook.md) を参照する。上の「責務の境界」の「branch は渡してもらう」を散文の指示のままにせず機構で守らせる部分で、**ブロックはせず通知だけ**する。
+1. 置き場所を決める。この判断が後の手順を決めるので、最初に確定する（判断の材料は下の表）。
+2. 置き場所がリポジトリの中なら、worktree のディレクトリをすべてのチェックから除外する。`.gitignore` の 1 か所では足りない。
+3. `.gitignore` の対象のうち worktree で要るファイル（`.env`・受領物・ベンダーの配布物）を挙げ、運ぶ方法を選ぶ。
+4. 決めた内容を設定ファイル（`.config/skills/shoji9x9/skills.yml` など。リポジトリの慣行に従う）に記録する。
+   エージェントが自分の設定ファイルを書けない場合は、一時ファイルに書き出して、利用者に適用を依頼する。
+5. 同梱の branch guard hook（`scripts/git-worktree-branch-guard.sh`）を、各エージェントの PreToolUse に設定する。
+   手順は [`references/branch-guard-hook.md`](references/branch-guard-hook.md) にある。
+   上の「責務の境界」の「branch は渡してもらう」を、文書の指示だけにせず仕組みで守らせる部分である。hook は止めずに通知だけする。
 
 | 置き場所 | 利点 | 代償 |
 | --- | --- | --- |
-| リポジトリ内（`.claude/worktrees/<名前>` 等） | 運搬経路が自動で走る（新規作成時）。セッション移動に承認が要らない | **全検査に除外が要る**。除外漏れは共有ツリー側の検査を落とす |
-| リポジトリ外（`$(mktemp -d)` 配下等） | 除外が一切不要 | 運搬は手動。**セッションを移すたびユーザー承認が要る**（無人実行では詰まる）。**入れるのは起動ディレクトリからの 1 回だけ**で、worktree 間の移動はできない（[`references/isolation.md`](references/isolation.md)「入れ子と再入場」） |
+| リポジトリの中（`.claude/worktrees/<名前>` など） | 新しく作るときは、ファイルが自動で運ばれる。セッションの移動に承認が要らない | すべてのチェックに除外が要る。除外を忘れると、共有ツリー側のチェックが失敗する |
+| リポジトリの外（`$(mktemp -d)` の下など） | 除外がまったく要らない | ファイルは手で運ぶ。セッションを移すたびに利用者の承認が要るので、無人の実行では止まる。入れるのは起動したディレクトリからの 1 回だけで、worktree の間は移れない（[`references/isolation.md`](references/isolation.md)「入れ子と再入場」） |
 
 ### enter
 
-1. 渡された branch が**存在すること**を確認する（`git rev-parse --verify --quiet refs/heads/<branch>`）。存在しなければ作らずに停止する。
-2. 同じ branch を checkout 済みの worktree が既にないか `git worktree list --porcelain` で確認する。
-   **一覧の先頭はメインチェックアウト**（共有ツリー）であり、そこを「既存 worktree」として再利用すると隔離にならない。再利用してよいのは**メインチェックアウト以外**のエントリだけ。
-   メインチェックアウトがその branch を checkout している場合（`gh issue develop --checkout` の直後がこれ）、`git worktree add` は
-   `fatal: '<branch>' is already used by worktree at ...` で失敗する。共有ツリーを base branch へ戻して（`git switch <base branch>`）から張り直すか、
-   戻してよいか判断できなければ呼び出し側へ返して停止する。
-3. worktree を用意する。**branch を作らせない形**で呼ぶ（[`references/isolation.md`](references/isolation.md)）。
-4. **セッションをその worktree へ移す。** 移動が成立するまでは隔離されていない。
-5. 移動を実測で確認する: `git rev-parse --show-toplevel` と `git branch --show-current` が期待値であること。
-6. 運搬が必要なファイルを [`references/carry-in.md`](references/carry-in.md) に従って揃える。**エージェントの自動運搬は新規作成時にしか走らない**ため、既存 worktree に入った場合は手で運ぶ。
-7. 運搬したファイルが検査対象に入っていないことを確認する（`.env` の**実物の資格情報**がシークレット走査に載る）。
-8. **パスで信頼・承認を判定するツールの信頼を通す**（mise の trust 等）。worktree は新しいパスなので、
-   共有ツリーで通した信頼は引き継がれない（`mise ERROR ... are not trusted` で `node -e` すら落ちる）。
-9. **ツールチェーンの生存を実測する。** 入った直後に検証コマンドを 1 つ回し（例: lint か test を 1 本）、
-   通ることを確認してから作業へ進む。運搬や信頼の不備は、作業を進めてから「全ツールが回らない」形で出る。
+1. 渡された branch が在ることを確かめる（`git rev-parse --verify --quiet refs/heads/<branch>`）。無ければ作らずに停止する。
+2. 同じ branch を checkout している worktree が既に無いかを、`git worktree list --porcelain` で確かめる。
+   一覧の先頭はメインチェックアウト（共有ツリー）である。そこを「既存の worktree」として使い回すと、隔離にならない。
+   使い回してよいのは、メインチェックアウト以外の項目だけである。
+   メインチェックアウトがその branch を checkout している場合（`gh issue develop --checkout` の直後がこれに当たる）、
+   `git worktree add` は `fatal: '<branch>' is already used by worktree at ...` で失敗する。
+   共有ツリーを base branch に戻して（`git switch <base branch>`）から作り直す。
+   戻してよいか判断できなければ、呼び出し側へ返して停止する。
+3. worktree を用意する。branch を作らせない形で呼ぶ（[`references/isolation.md`](references/isolation.md)）。
+4. セッションをその worktree へ移す。移るまでは隔離されていない。
+5. 移ったことを、`git rev-parse --show-toplevel` と `git branch --show-current` が期待どおりの値を返すことで確かめる。
+6. 運ぶ必要があるファイルを、[`references/carry-in.md`](references/carry-in.md) に従って揃える。
+   エージェントがファイルを自動で運ぶのは新しく作るときだけなので、既存の worktree に入った場合は手で運ぶ。
+7. 運んだファイルがチェックの対象に入っていないことを確かめる（`.env` の本物の資格情報が、シークレットのスキャンで検出される）。
+8. パスで信頼や承認を判定するツール（mise の trust など）で、信頼の設定を通す。worktree は新しいパスなので、
+   共有ツリーで通した信頼は引き継がれない（`mise ERROR ... are not trusted` で `node -e` も失敗する）。
+9. ツールが動くことを確かめる。入った直後に検証のコマンドを 1 つ実行し（lint か test を 1 つなど）、
+   通ることを確かめてから作業に進む。運び忘れや信頼の不備は、作業を進めた後で「どのツールも動かない」という形で現れる。
 
 ### cleanup
 
-[`references/cleanup.md`](references/cleanup.md) の規律に従う。要約すると:
+[`references/cleanup.md`](references/cleanup.md) の規律に従う。要点は次のとおりである。
 
-1. worktree が clean であることを確認する。dirty なら削除せず、絶対パスと残作業を報告する。
-2. **セッションがその worktree の中にいるなら、先に出る**（`ExitWorktree` の `action: "keep"`）。中にいるまま解除すると成功してしまい、自分の作業ディレクトリごと消える。
+1. worktree が clean であることを確かめる。dirty なら削除せず、絶対パスと残りの作業を報告する。
+2. セッションがその worktree の中にいるなら、先に出る（`ExitWorktree` の `action: "keep"`）。
+   中にいるまま解除すると、解除は成功し、自分の作業ディレクトリごと消える。
 3. `git worktree remove` で解除する。
-4. `git worktree list` を**取り直して**解除済みを確認する。
-5. **完全一致した ref だけ**を削除する。**glob は使わない。** squash / rebase merge された branch は `git branch -d` が拒否するため、PR の MERGED を実測してから削除する。
-6. いずれかが失敗したら止め、何が残ったかを報告する。
+4. `git worktree list` をもう一度実行して、解除されたことを確かめる。
+5. 名前が完全一致した ref だけを削除する。glob は使わない。
+   squash merge や rebase merge された branch は `git branch -d` が拒否するので、PR が MERGED であることを確かめてから削除する。
+6. どれかが失敗したら止め、何が残ったかを報告する。
 
 ## 破ってはいけない前提
 
-以下は実測で確かめた挙動であり、知らないと隔離したつもりで破れる。根拠と再現手順は各 reference にある。
+次の挙動は実際に確かめたもので、知らないと、隔離したつもりで隔離されていない状態になる。根拠と再現の手順は各 reference にある。
 
-- **作るだけでは隔離にならない。** subagent・フォークして走るスキル・バックグラウンドの Bash は**起動時の作業ディレクトリを継承する**。ツール呼び出しを `cd <絶対パス> && ...` で書いても、そこから起動したものは共有ツリーで動く（[`references/isolation.md`](references/isolation.md)）
-- **逆に、セッションを移せばハーネスが subagent まで含めて強制する。** 「入る」ことが隔離の実体であり、代わりになる書き方は無い（[`references/isolation.md`](references/isolation.md)）
-- **hook のパスは worktree に追従しない。** `${CLAUDE_PROJECT_DIR}` は起動時のプロジェクトルートを指したままで、hook はメインチェックアウト側のスクリプトを走らせる（[`references/isolation.md`](references/isolation.md)）
-- **`.gitignore` 対象のファイルは checkout で入らない。** 明示的に運ぶ必要があり、自動運搬は**新規作成時だけ**走る（[`references/carry-in.md`](references/carry-in.md)）
-- **共有ツリーへのシンボリックリンクは読み取り専用ではない。** リンク越しに実体へ**書ける・消せる**。`rm` を見るガードでは `sed -i` を捕まえられない（[`references/carry-in.md`](references/carry-in.md)）
-- **除外は 1 か所では足りない。** `.gitignore` を読まない検査があるため、同じ除外を全ての検査へ入れる（[`references/scanner-exclusions.md`](references/scanner-exclusions.md)）
-- **削除は完全一致だけ。** glob での worktree / branch 削除は行わない（[`references/cleanup.md`](references/cleanup.md)）
+- worktree を作るだけでは隔離にならない。subagent・フォークして動くスキル・バックグラウンドの Bash は、起動したときの作業ディレクトリを引き継ぐ。
+  ツールの呼び出しを `cd <絶対パス> && ...` の形で書いても、そこから起動したものは共有ツリーで動く（[`references/isolation.md`](references/isolation.md)）
+- 逆に、セッションを移せば、ハーネスが subagent まで含めて隔離する。隔離の実体は「入る」ことで、代わりになる書き方は無い（[`references/isolation.md`](references/isolation.md)）
+- hook のパスは worktree に合わせて変わらない。`${CLAUDE_PROJECT_DIR}` は起動したときのプロジェクトのルートを指したままで、
+  hook はメインチェックアウト側のスクリプトを実行する（[`references/isolation.md`](references/isolation.md)）
+- `.gitignore` の対象のファイルは、checkout では入らない。明示的に運ぶ必要があり、自動で運ばれるのは新しく作るときだけである（[`references/carry-in.md`](references/carry-in.md)）
+- 共有ツリーへのシンボリックリンクは読み取り専用ではない。リンク越しに実体を書き換えたり消したりできる。
+  `rm` を見るガードでは、`sed -i` を止められない（[`references/carry-in.md`](references/carry-in.md)）
+- 除外は 1 か所では足りない。`.gitignore` を読まないチェックがあるので、同じ除外をすべてのチェックに入れる（[`references/scanner-exclusions.md`](references/scanner-exclusions.md)）
+- 削除は名前が完全一致したものだけにする。glob で worktree や branch を削除しない（[`references/cleanup.md`](references/cleanup.md)）
 
 ## 呼び出し側からの利用
 
-`issue-start` / `issue-batch` / レビュー系フローは、worktree の機構をここへ委譲する。
-呼び出し側は branch を用意し、`git-worktree enter <branch>` 相当の契約で入り、
-作業後に `git-worktree cleanup` 相当の契約で片付ける。
-**上記の前提を呼び出し側へ複製しない。**
+`issue-start`・`issue-batch`・レビュー系の流れは、worktree の仕組みをこのスキルに任せる。
+呼び出し側は branch を用意し、`git-worktree enter <branch>` と同じ取り決めで入り、
+作業の後は `git-worktree cleanup` と同じ取り決めで片付ける。
+上の前提を呼び出し側に書き写さない。
