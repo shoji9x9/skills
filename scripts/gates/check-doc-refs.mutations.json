@@ -1,0 +1,548 @@
+{
+  "$comment": [
+    "scripts/gates/check-doc-refs.test.js の検出能力を示す変異の一覧（参照のチェックと、scripts/lib/doc-scan.js の走査対象・保留）。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/check-doc-refs.test.js",
+  "mutations": [
+    {
+      "id": "DR-LINK",
+      "why": "無いリンク先を報告しない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (!existsSync(join(root, rel))) at(",
+      "replace": "if (false) at(",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 無いリンク先を落とす",
+        "陽性: 閉じたフェンスの後の行は読む",
+        "陰性: リンク切れの節名は link だけで報告する（二重に数えない）。フェンスの中は読まない",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、違反は exit 1、無ければ exit 0",
+        "陰性: 符号化として読めない % を含むリンク先は、書いた文字のままのパスとして確かめる"
+      ]
+    },
+    {
+      "id": "DR-LINK-URL",
+      "why": "URL・mailto・# をリンク先として確かめる",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith(\"#\") || target.startsWith(\"<\"))",
+      "replace": "if (target.startsWith(\"<\"))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-LINK-FENCE",
+      "why": "コードフェンスの中のリンクも読む",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    if (markdown && !fenced[i]) {",
+      "replace": "    if (markdown) {",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+    },
+    {
+      "id": "DR-LINK-INLINE",
+      "why": "インラインコードの中のリンクも読む",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "for (const m of blankInlineCode(line).matchAll(/\\]\\(",
+      "replace": "for (const m of line.matchAll(/\\]\\(",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+    },
+    {
+      "id": "DR-LINK-ANCHOR",
+      "why": "アンカーを除かずにファイルを探す",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "const raw = target.replace(/[#?].*$/, \"\");",
+      "replace": "const raw = target;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+    },
+    {
+      "id": "DR-LINK-ABS",
+      "why": "ルートからの絶対パスを書いたファイルからの相対として探す",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "path.startsWith(\"/\") ? path.slice(1) : join(dirname(file), path)",
+      "replace": "join(dirname(file), path)",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+    },
+    {
+      "id": "DR-SEC-ANCHOR",
+      "why": "節名が参照先に無くても報告しない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "} else if (!hasAnchor(anchors(target), name)) {",
+      "replace": "} else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 見出しに無い",
+        "陽性: 一部だけ一致",
+        "陽性: 生成ファイルのテンプレートに節が無い",
+        "陽性: スキル名付きで節が無い",
+        "陽性: フェンスの外のコメント",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-SEC-NOTFOUND",
+      "why": "参照先が見つからなくても報告しない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "          if (target === null) {\n            at(",
+      "replace": "          if (target === null) {\n            (() => {})(",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 参照先が無い",
+        "陽性: 生成ファイルの宣言がスキルに当たらない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-SEC-LINKSKIP",
+      "why": "リンク切れの節名を section でも報告する",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (target === null && kind === \"link\") continue;",
+      "replace": "if (false) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: リンク切れの節名は link だけで報告する（二重に数えない）。フェンスの中は読まない"
+      ]
+    },
+    {
+      "id": "DR-GEN-SKILLS",
+      "why": "生成ファイルの宣言を、宣言外のスキルにも当てる",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "(g.skills === undefined || (sk && g.skills.includes(sk)))",
+      "replace": "true",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 生成ファイルの宣言がスキルに当たらない"]
+    },
+    {
+      "id": "DR-GEN-SKILLNAME",
+      "why": "スキル名付きの参照で、書いたファイルのスキルを使う",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "const sk = skill ?? skillDirOf(root, file)",
+      "replace": "const sk = skillDirOf(root, file)",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 節名が在る（生成ファイル（スキル名付き））"]
+    },
+    {
+      "id": "DR-RESOLVE-REFS",
+      "why": "スキルの references/ を探さない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (sk) cands.push(join(sk, path), join(sk, \"references\", path));",
+      "replace": "if (sk) cands.push(join(sk, path));",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 節名が在る（スキルの references/ から）"]
+    },
+    {
+      "id": "DR-RESOLVE-ROOT",
+      "why": "ルートを探さない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "const cands = [join(dirname(file), path), path];",
+      "replace": "const cands = [join(dirname(file), path)];",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 節名が在る（ルートから）",
+        "陰性: 節名が在る（JS のコメント）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-HAS-PAREN",
+      "why": "見出しの末尾の括弧書きを省いた参照を通さない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (a.startsWith(`${n}（`) || a.startsWith(`${n}(`) || a.startsWith(`${n} (`)) return true;",
+      "replace": "if (false) return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "hasAnchor: 末尾の括弧書き",
+        "hasAnchor: 半角の括弧書き",
+        "陰性: 節名が在る（ディレクトリからの相対（バッククォート））",
+        "陰性: 節名が在る（JS のコメント）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-NORM-QUOTE",
+      "why": "『』と「」を揃えない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": ".replace(/『/g, \"「\")",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "hasAnchor: 『』と「」",
+        "陰性: 節名が在る（リンク）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-NUMBERED",
+      "why": "番号を除いた見出しを集めない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "      names.add(norm(h[1].replace(/^\\d+(?:\\.\\d+)*\\.?\\s+/, \"\")));\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
+        "陰性: 節名が在る（ルートから）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-BOLD",
+      "why": "太字の項目を集めない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    for (const m of line.matchAll(/\\*\\*(.+?)\\*\\*/g)) names.add(norm(m[1]));\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
+        "陰性: 節名が在る（リンク）",
+        "陰性: 節名が在る（入れ子の「」）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-CELL",
+      "why": "表のセルを集めない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "for (const cell of line.split(\"|\").slice(1, -1)) names.add(",
+      "replace": "for (const cell of []) names.add(",
+      "occurrences": 1,
+      "expect_failing": [
+        "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない",
+        "陰性: 節名が在る（表のセル）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-ANCHOR-FENCE",
+      "why": "フェンスの中の見出しも集める",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    if (fenced[i]) return;\n    const h =",
+      "replace": "    const h =",
+      "occurrences": 1,
+      "expect_failing": [
+        "anchorsOf: 見出し・番号を除いた見出し・太字・表のセルを集め、フェンスの中は集めない"
+      ]
+    },
+    {
+      "id": "DR-NESTED",
+      "why": "節名の中の「」を許さない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "const NAME = \"「((?:[^「」]|「[^「」]*」)+)」\";",
+      "replace": "const NAME = \"「([^」]+)」\";",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 節名が在る（入れ子の「」）",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-SEC-FENCE",
+      "why": "フェンスの中の節名も読む",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    if (!fenced[i]) {\n      for (const { re, kind }",
+      "replace": "    if (true) {\n      for (const { re, kind }",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: リンク切れの節名は link だけで報告する（二重に数えない）。フェンスの中は読まない"
+      ]
+    },
+    {
+      "id": "DR-TIER-SCOPE",
+      "why": "Tier 3 にも Tier 4 への参照を禁じる",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "const toTier4 = tier <= 2 && !dist;",
+      "replace": "const toTier4 = tier <= 3 && !dist;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: Tier 3（eval の文書・コメント）は Tier 4 を出所として参照してよい",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-KAIZEN",
+      "why": "学びへの参照を見ない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    for (const m of line.matchAll(KAIZEN_RE))",
+      "replace": "    for (const m of [])",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: Tier 2 の文書から 学び（日付付き） を参照すると落とす",
+        "陽性: Tier 2 の文書から 学び（archive） を参照すると落とす",
+        "陽性: 配布スキルから 学び を参照すると落とす"
+      ]
+    },
+    {
+      "id": "DR-KAIZEN-INDEX",
+      "why": "kaizen の索引を学びとして数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "(?:archive\\/(?!INDEX\\.md)",
+      "replace": "(?:archive\\/",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: kaizen の索引 は Tier 4 への参照として数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-TESTS",
+      "why": "eval の結果への参照を見ない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "      for (const m of line.matchAll(TESTS_RE))",
+      "replace": "      for (const m of [])",
+      "occurrences": 1,
+      "expect_failing": ["陽性: Tier 2 の文書から eval の結果 を参照すると落とす"]
+    },
+    {
+      "id": "DR-ISSUE-WORD",
+      "why": "他のリポジトリの番号（owner/repo#1）も数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "/(?<![\\w/.&{-])#\\d+\\b/g",
+      "replace": "/(?<![/.&{-])#\\d+\\b/g",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 他のリポジトリの番号 は Tier 4 への参照として数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-ISSUE-BRACE",
+      "why": "シェルの ${#1} も数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "/(?<![\\w/.&{-])#\\d+\\b/g",
+      "replace": "/(?<![\\w/.&-])#\\d+\\b/g",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: シェルの ${#1} は Tier 4 への参照として数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-ISSUE-AMP",
+      "why": "文字参照（&#123;）も数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "/(?<![\\w/.&{-])#\\d+\\b/g",
+      "replace": "/(?<![\\w/.{-])#\\d+\\b/g",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 文字参照 は Tier 4 への参照として数えない"]
+    },
+    {
+      "id": "DR-ISSUE-URL",
+      "why": "Issue の URL を見ない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "  new RegExp(`github\\\\.com/${repo.replace(/[.]/g, \"\\\\.\")}/(?:issues|pull)/\\\\d+`, \"g\"),\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: Tier 2 の文書から Issue の URL を参照すると落とす"]
+    },
+    {
+      "id": "DR-ISSUE-INLINE",
+      "why": "インラインコードの中の番号も数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "for (const m of blankInlineCode(line).matchAll(re))",
+      "replace": "for (const m of line.matchAll(re))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: インラインコード は Tier 4 への参照として数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-ISSUE-EXAMPLE",
+      "why": "例の行の番号も数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    if (!isExample) {",
+      "replace": "    if (true) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 例の行 は Tier 4 への参照として数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-DIST-PATH",
+      "why": "スキルの中に在るパスもスキルの外として数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))",
+      "replace": "if (existsSync(join(root, p)))",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 配布スキルの中に在るパスと、どこにも無いパスは数えない"]
+    },
+    {
+      "id": "DR-DIST-PATH-ROOT",
+      "why": "どこにも無いパスもスキルの外として数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (existsSync(join(root, p)) && !existsSync(join(root, dist, p)))",
+      "replace": "if (!existsSync(join(root, dist, p)))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 配布スキルの中に在るパスと、どこにも無いパスは数えない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-DIST-RULE",
+      "why": "配布スキルの学びへの参照を tier-down として数える",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "at(dist ? \"dist-kaizen\" : \"tier-down\"",
+      "replace": "at(\"tier-down\"",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 配布スキルから 学び を参照すると落とす"]
+    },
+    {
+      "id": "DR-SELF",
+      "why": "このチェック自身のテストも読む",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "scannedFiles(root, { exclude: SELF_FIXTURES })",
+      "replace": "scannedFiles(root, { exclude: [] })",
+      "occurrences": 1,
+      "expect_failing": [
+        "このチェック自身のテストは読まない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-REPO",
+      "why": "repo の形を確かめない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "if (typeof data?.repo !== \"string\" || !/^[\\w.-]+\\/[\\w.-]+$/.test(data.repo))",
+      "replace": "if (typeof data?.repo !== \"string\")",
+      "occurrences": 1,
+      "expect_failing": ["repo の形の誤り はチェックできない（exit 2）"]
+    },
+    {
+      "id": "DR-TEMPLATE",
+      "why": "テンプレートの実在を確かめない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "    if (!existsSync(join(root, g.template)))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": ["テンプレートが無い はチェックできない（exit 2）"]
+    },
+    {
+      "id": "DS-TIER4",
+      "why": "Tier 4 も読む",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "if (tier === null || tier === 4) continue;",
+      "replace": "if (tier === null) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: Tier 4 と階層の外とスキルのコピーは読まない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DS-OUTSIDE",
+      "why": "階層の外も読む",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "if (tier === null || tier === 4) continue;",
+      "replace": "if (tier === 4) continue;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: Tier 4 と階層の外とスキルのコピーは読まない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DS-EVALINPUT",
+      "why": "eval の入力も読む",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "|| EVAL_INPUT_RE.test(file)) continue;",
+      "replace": ") continue;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: Tier 4 と階層の外とスキルのコピーは読まない"]
+    },
+    {
+      "id": "DS-PENDING-MATCH",
+      "why": "保留に一致する違反も失敗にする",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "else if (pending.has(k)) {",
+      "replace": "else if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DS-STALE",
+      "why": "古い保留を失敗にしない",
+      "file": "scripts/lib/doc-scan.js",
+      "find": ".filter(([k]) => !usedPending.has(k))",
+      "replace": ".filter(() => false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない",
+        "--prune は古い保留を消して exit 0 にする"
+      ]
+    },
+    {
+      "id": "DS-ALLOWED-UNUSED",
+      "why": "使われていない許可を失敗にしない",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "if (!usedAllowed.has(k))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない"
+      ]
+    },
+    {
+      "id": "DS-RULES",
+      "why": "他のチェックの規則の保留も古いと判定する",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "const mine = (e) => rules.includes(e.rule);",
+      "replace": "const mine = () => true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留: 一致は失敗にしない。古い保留・使われない許可は失敗にし、他のチェックの規則は見ない",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DS-PRUNE",
+      "why": "--prune で古い保留を消さない",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "data.pending = data.pending.filter((e) => !drop.has(key(e)));",
+      "replace": "data.pending = data.pending;",
+      "occurrences": 1,
+      "expect_failing": ["--prune は古い保留を消して exit 0 にする"]
+    },
+    {
+      "id": "DS-FENCE-CLOSE",
+      "why": "フェンスを閉じない（後の行をすべてフェンスの中とみなす）",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "m[1].length >= fence.length) fence = null;",
+      "replace": "m[1].length >= fence.length) fence = fence;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 閉じたフェンスの後の行は読む",
+        "陰性: 実リポジトリは保留と許可を当てると失敗 0 件"
+      ]
+    },
+    {
+      "id": "DR-DIST-LINK",
+      "why": "配布スキルのリンクがスキルの外を指しても数えない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "else if (dist && !rel.startsWith(`${dist}/`))",
+      "replace": "else if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 配布スキルのリンクがスキルのディレクトリの外（リポジトリ・他のスキル）を指すと落とす"
+      ]
+    },
+    {
+      "id": "DR-DECODE",
+      "why": "% で符号化したリンク先を復号しない",
+      "file": "scripts/gates/check-doc-refs.js",
+      "find": "path = decodeURIComponent(raw);",
+      "replace": "path = raw;",
+      "occurrences": 1,
+      "expect_failing": ["陰性: 在るリンク先・URL・アンカー・絶対パス・符号化・コードの中は通す"]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "scripts/gates/check-doc-refs.js の設定。",
+    "repo: このリポジトリ（Issue と PR の URL を見分ける）。",
+    "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。skills を書くと、そのスキルの文書からの参照だけに当てる。"
+  ],
+  "repo": "shoji9x9/skills",
+  "generated": [
+    {
+      "ref": "gaps.md",
+      "skills": ["parity-suite", "golden-dataset", "replace-strategy"],
+      "template": "skills/parity-suite/assets/gaps-template.md"
+    },
+    {
+      "ref": "design.md",
+      "skills": ["golden-dataset"],
+      "template": "skills/golden-dataset/assets/design-template.md"
+    },
+    {
+      "ref": "porting.md",
+      "skills": ["parity-replace"],
+      "template": "skills/parity-replace/assets/porting-template.md"
+    },
+    {
+      "ref": ".replace/strategy.md",
+      "skills": ["parity-replace"],
+      "template": "skills/replace-strategy/assets/strategy-template.md"
+    }
+  ]
+}

@@ -31,3 +31,8 @@ KEDB: archive/2026-06-08-mise-shim-runtime-untrusted（applied。eval の使い�
 比較計測などでスキルを通さず worktree を作るときも、依存導入の前にその worktree で `mise trust` を通す。
 
 - AGENTS.md「mise の shim は cwd の設定階層で解決する」節に、新しいパスの worktree は trust が引き継がれない旨を 1 行足す
+
+## 追記（2026-10-05）
+
+AGENTS.md の「mise の shim は cwd の設定階層で解決する」節は Issue #372 で `docs/tooling.md` へ移した（同じ見出しの箇条書き）。
+AGENTS.md「技術スタック」には要約だけがある。適用するときは `docs/tooling.md` の箇条書きに足す。

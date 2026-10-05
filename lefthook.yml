@@ -152,9 +152,17 @@ pre-commit:
             # 配布スキルの検査が、利用者の入口へ配線するか（skills/<name>/checks.json）・しないか
             # （scripts/gates/skill-checks-unwired.json）のどちらかに分類されているか。
             run: node scripts/gates/check-skill-checks.js
-          - name: mutation-count-prose
-            # 変異の件数・全件の実測値を散文（AGENTS.md / rules / docs / workflows のコメント）へ再導入していないか。
-            run: node scripts/gates/check-mutation-count-prose.js
+          - name: time-sensitive-prose
+            # 時間がたつと正しくなくなる記述（日付・「現状は」「当面」と、変異の件数・全件の実測値）を
+            # Tier 1〜3 の文書とコメントに書いていないか。保留は scripts/gates/doc-pending.json。
+            run: node scripts/gates/check-time-sensitive-prose.js
+          - name: doc-tiers
+            # Markdown がちょうど 1 つの階層に属するか、doc-altitude.md の表が doc-tiers.json と一致するか。
+            run: node scripts/gates/check-doc-tiers.js
+          - name: doc-refs
+            # 文書のリンク・節名の実在と、参照の向き（Tier 4 と、配布スキルからリポジトリ固有のものへの参照）。
+            # 参照される側の変更（見出しの変更・ファイルの移動）で参照する側が失敗するので、全体を見る。
+            run: node scripts/gates/check-doc-refs.js
           - name: skill-index
             # AGENTS.md の参照スキルガイドと README のスキル表が skills/ の実体と対応しているか。
             run: node scripts/gates/check-skill-index.js

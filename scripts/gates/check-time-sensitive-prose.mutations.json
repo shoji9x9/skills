@@ -1,15 +1,15 @@
 {
   "$comment": [
-    "check-mutation-count-prose.test.js の検出能力を示す変異の一覧。",
+    "check-time-sensitive-prose.test.js の検出能力を示す変異の一覧。",
     "散文コメントで持つと腐るため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
     "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
   ],
-  "test_file": "scripts/gates/check-mutation-count-prose.test.js",
+  "test_file": "scripts/gates/check-time-sensitive-prose.test.js",
   "mutations": [
     {
       "id": "MC-NUM-LEAD",
       "why": "番号（#509）や英数字の直後の数字も件数として取る（PR 番号の後に「変異」が続く文を落とす）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "const NUM_LEAD = \"(?<![#\\\\w.,])\";",
       "replace": "const NUM_LEAD = \"\";",
       "occurrences": 1,
@@ -18,7 +18,7 @@
     {
       "id": "MC-ONE",
       "why": "数が 1 の単位の定義も件数として落とす",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "        if (!isOne(m[1])) hits.push",
       "replace": "        if (true) hits.push",
       "occurrences": 1,
@@ -35,7 +35,7 @@
     {
       "id": "MC-COUNT-PLAIN",
       "why": "「<数> 変異」の形を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  new RegExp(`${NUM}\\\\s*(?:件の)?変異`, \"g\"),\n",
       "replace": "",
       "occurrences": 1,
@@ -60,7 +60,7 @@
     {
       "id": "MC-COUNT-KEN",
       "why": "「<数> 件の変異」の形を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "`${NUM}\\\\s*(?:件の)?変異`",
       "replace": "`${NUM}\\\\s*変異`",
       "occurrences": 1,
@@ -69,7 +69,7 @@
     {
       "id": "MC-COUNT-TRAILING",
       "why": "「変異 <数> 件」の形を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  new RegExp(`変異\\\\s*(?:[はがもをの]\\\\s*)?(?:、\\\\s*)?${NUM}\\\\s*件`, \"g\"),\n",
       "replace": "",
       "occurrences": 1,
@@ -84,7 +84,7 @@
     {
       "id": "MC-COUNT-PARTICLE",
       "why": "後置の「変異」と数の間の助詞を許さない（「変異は 42 件」を見逃す）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "(?:[はがもをの]\\\\s*)?",
       "replace": "",
       "occurrences": 1,
@@ -97,7 +97,7 @@
     {
       "id": "MC-COUNT-COMMA",
       "why": "後置の「変異」と数の間の読点を許さない（「変異、42 件」を見逃す）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "(?:、\\\\s*)?",
       "replace": "",
       "occurrences": 1,
@@ -106,7 +106,7 @@
     {
       "id": "MC-COUNT-TRAILING-UNIT",
       "why": "後置の形で単位「件」を要求しない（「変異は 3 通り」「変異を 2 回」を件数と読む）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "(?:、\\\\s*)?${NUM}\\\\s*件`",
       "replace": "(?:、\\\\s*)?${NUM}\\\\s*(?:件)?`",
       "occurrences": 1,
@@ -118,7 +118,7 @@
     {
       "id": "MC-COUNT-NOUN",
       "why": "「変異数 <数>」の形を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  new RegExp(`変異(?:の総数|の数|数)\\\\s*[:：は]?\\\\s*(?:約\\\\s*)?${NUM}`, \"g\"),\n",
       "replace": "",
       "occurrences": 1,
@@ -127,7 +127,7 @@
     {
       "id": "MC-COUNT-EN",
       "why": "「<数> mutations」の形を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  new RegExp(`${NUM}\\\\s*mutations?\\\\b`, \"gi\"),\n",
       "replace": "",
       "occurrences": 1,
@@ -136,7 +136,7 @@
     {
       "id": "MC-NFKC",
       "why": "全角数字を半角に揃えない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "    const line = raw.normalize(\"NFKC\");",
       "replace": "    const line = raw;",
       "occurrences": 1,
@@ -148,7 +148,7 @@
     {
       "id": "MC-DURATION",
       "why": "全件の所要時間を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "line.matchAll(DURATION_RE)",
       "replace": "[]",
       "occurrences": 1,
@@ -164,7 +164,7 @@
     {
       "id": "MC-SENTENCE",
       "why": "所要時間の照合を文の中に限らない（別の文の時間を全件の実測と読む）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "`全件[^。\\\\n]*?${NUM}",
       "replace": "`全件.*?${NUM}",
       "occurrences": 1,
@@ -173,7 +173,7 @@
     {
       "id": "MC-UNIT-EN",
       "why": "英語の時間単位を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "|sec(?:onds?)?\\\\b|min(?:utes?)?\\\\b",
       "replace": "",
       "occurrences": 1,
@@ -182,7 +182,7 @@
     {
       "id": "MC-DIRS-NARROW",
       "why": "docs/ を対象から外す",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "export const TARGET_DIRS = [\".agents/rules\", \"docs\"];",
       "replace": "export const TARGET_DIRS = [\".agents/rules\"];",
       "occurrences": 1,
@@ -195,7 +195,7 @@
     {
       "id": "MC-DIRS-WIDE",
       "why": "対象外の skills/ まで見る（skills/parity-suite/references/baseline.md の「全件の 2 回実行…約 35 分」のような変異実証と無関係な全件の時間で赤くなる）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "export const TARGET_DIRS = [\".agents/rules\", \"docs\"];",
       "replace": "export const TARGET_DIRS = [\".agents/rules\", \"docs\", \"skills\"];",
       "occurrences": 1,
@@ -207,7 +207,7 @@
     {
       "id": "MC-RECURSE",
       "why": "docs/ の入れ子を辿らない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "    if (e.isDirectory()) out.push(...walkMarkdown(p));",
       "replace": "    if (e.isDirectory()) void p;",
       "occurrences": 1,
@@ -216,7 +216,7 @@
     {
       "id": "MC-MD-ONLY",
       "why": ".md 以外も読む",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "    else if (e.name.endsWith(\".md\") && statSync(p).isFile()) out.push(p);",
       "replace": "    else if (statSync(p).isFile()) out.push(p);",
       "occurrences": 1,
@@ -225,7 +225,7 @@
     {
       "id": "MC-ZERO",
       "why": "対象ファイル 0 件を成功に倒す",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  if (files.length === 0) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -234,7 +234,7 @@
     {
       "id": "MC-FRACTION",
       "why": "「6 分割」「3 分の 2」の「分」を時間として読む",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "分(?![割の])",
       "replace": "分",
       "occurrences": 1,
@@ -246,7 +246,7 @@
     {
       "id": "MC-WORKFLOWS-NONE",
       "why": "ワークフローを走査しない（ci.yml のコメントに残った件数・所要時間を見逃す）",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "  if (existsSync(wf)) {",
       "replace": "  if (false) {",
       "occurrences": 1,
@@ -260,7 +260,7 @@
     {
       "id": "MC-MEASUREMENTS",
       "why": "実測値の置き場（mutation-proof.yml）まで落とす",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": " && rel !== MEASUREMENTS_FILE) files.push(rel);",
       "replace": ") files.push(rel);",
       "occurrences": 1,
@@ -272,7 +272,7 @@
     {
       "id": "MC-YAML-ONLY",
       "why": "ワークフローのディレクトリの YAML 以外も読む",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "if (/\\.ya?ml$/.test(e.name) && e.isFile()",
       "replace": "if (e.isFile()",
       "occurrences": 1,
@@ -283,7 +283,7 @@
     {
       "id": "MC-YAML-EXT",
       "why": ".yaml を見ない",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "/\\.ya?ml$/.test(e.name)",
       "replace": "/\\.yml$/.test(e.name)",
       "occurrences": 1,
@@ -294,12 +294,196 @@
     {
       "id": "MC-WORKFLOW-FILE",
       "why": "名前が .yml のディレクトリをファイルとして読む",
-      "file": "scripts/gates/check-mutation-count-prose.js",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
       "find": "/.test(e.name) && e.isFile() && rel",
       "replace": "/.test(e.name) && rel",
       "occurrences": 1,
       "expect_failing": [
         "陰性: 実測値の置き場（mutation-proof.yml）・YAML 以外・サブディレクトリ（名前が .yml のディレクトリを含む）のワークフローは見ない"
+      ]
+    },
+    {
+      "id": "TS-WORD-NO",
+      "why": "前が「の」の語も数える",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "const TIME_WORD_RE = /(?<![の「])",
+      "replace": "const TIME_WORD_RE = /(?<![「])",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 前が「の」 は拾わない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-WORD-QUOTE",
+      "why": "語として挙げた形も数える",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "const TIME_WORD_RE = /(?<![の「])",
+      "replace": "const TIME_WORD_RE = /(?<![の])",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 語として挙げた形 は拾わない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-DATE-MD",
+      "why": "学びのファイル名の日付も数える",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "20\\d\\d-\\d\\d-\\d\\d(?![\\w-]*\\.md)",
+      "replace": "20\\d\\d-\\d\\d-\\d\\d",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 学びのファイル名 は拾わない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-DATE-JA",
+      "why": "「2026 年 9 月」の形を見ない",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "|20\\d\\d\\s*年\\s*\\d{1,2}\\s*月)/g",
+      "replace": ")/g",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 年月 を拾う"]
+    },
+    {
+      "id": "TS-EXAMPLE",
+      "why": "例の行も読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "if (line === null || EXAMPLE_LINE_RE.test(line)) return;",
+      "replace": "if (line === null) return;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 例の行 は拾わない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-MD-FENCE",
+      "why": "Markdown のフェンスの中も読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "(fenced[i] ? null : blankInlineCode(l))",
+      "replace": "(fenced[i] ? blankInlineCode(l) : blankInlineCode(l))",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: コードフェンス は拾わない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-MD-INLINE",
+      "why": "Markdown のインラインコードの中も読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "(fenced[i] ? null : blankInlineCode(l))",
+      "replace": "(fenced[i] ? null : l)",
+      "occurrences": 1,
+      "expect_failing": ["陰性: インラインコード は拾わない"]
+    },
+    {
+      "id": "TS-SLASH",
+      "why": "行頭の // と /* と * のコメントを読まない",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "    if (slash && (t.startsWith(\"//\") || t.startsWith(\"/*\") || t.startsWith(\"*\")))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: JS の行コメント を拾う",
+        "陽性: JS のブロックコメント を拾う",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-HASH",
+      "why": "shebang もコメントとして読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "if (hash && t.startsWith(\"#\") && !t.startsWith(\"#!\"))",
+      "replace": "if (hash && t.startsWith(\"#\"))",
+      "occurrences": 1,
+      "expect_failing": ["陰性: shebang は拾わない"]
+    },
+    {
+      "id": "TS-TAIL",
+      "why": "行末のコメントを読まない",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "    const tail = slash ? /\\s\\/\\/\\s|\\/\\*/.exec(l) : /\\s#\\s/.exec(l);",
+      "replace": "    const tail = null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: JS の行末コメント を拾う",
+        "陽性: YAML の行末コメント を拾う",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件",
+        "陽性: JS の行の途中のブロックコメント を拾う"
+      ]
+    },
+    {
+      "id": "TS-NOCOMMENT",
+      "why": "コメントを持たない種類（JSON など）も読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "  if (!slash && !hash) return lines.map(() => null);\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陰性: JSON（行の途中の # も読まない） は拾わない"]
+    },
+    {
+      "id": "TS-SELF",
+      "why": "このチェック自身のテストも読む",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "scannedFiles(root, { exclude: SELF_FIXTURES })",
+      "replace": "scannedFiles(root, { exclude: [] })",
+      "occurrences": 1,
+      "expect_failing": [
+        "走査対象: Tier 4・階層の外・スキルのコピー・このチェックのテストは読まない",
+        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
+      ]
+    },
+    {
+      "id": "TS-PRUNE",
+      "why": "--prune の後も古い保留を失敗として数える",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "failures = failures.filter((f) => !f.startsWith(\"古い保留: \"));",
+      "replace": "failures = failures;",
+      "occurrences": 1,
+      "expect_failing": ["--prune は古い保留だけを消し、一致する保留と許可は残す"]
+    },
+    {
+      "id": "TS-MIDBLOCK",
+      "why": "行の途中のブロックコメントを読まない",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "/\\s\\/\\/\\s|\\/\\*/.exec(l)",
+      "replace": "/\\s\\/\\/\\s/.exec(l)",
+      "occurrences": 1,
+      "expect_failing": ["陽性: JS の行の途中のブロックコメント を拾う"]
+    },
+    {
+      "id": "TS-SLASHDATE",
+      "why": "スラッシュ区切りの日付を見ない",
+      "file": "scripts/gates/check-time-sensitive-prose.js",
+      "find": "|20\\d\\d\\/\\d\\d\\/\\d\\d|",
+      "replace": "|",
+      "occurrences": 1,
+      "expect_failing": ["陽性: スラッシュ区切りの日付 を拾う"]
+    },
+    {
+      "id": "DS-KNOWN-RULE",
+      "why": "知らない規則の保留を通す",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "if (!KNOWN_RULES.includes(e.rule))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）"
+      ]
+    },
+    {
+      "id": "DS-STAGE-SET",
+      "why": "知らない stage の保留を通す",
+      "file": "scripts/lib/doc-scan.js",
+      "find": "if (!STAGES.includes(e.stage))",
+      "replace": "if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "保留の一覧の形の誤り（stage が無い・reason が無い・知らない規則・知らない stage）はチェックできない（exit 2）"
       ]
     }
   ]

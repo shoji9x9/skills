@@ -38,3 +38,8 @@ eval の assertion 差し替えで `...; node check-eval-reachability.js >/dev/n
 
 - 2 回目の再発なので、`bash-command-guard.sh` 等で呼び出し末尾の `[ ... ] && ...` を検出する仕組み化を apply で検討する
 - 旧提案の `[ -d <path> ] && ls <path>` は同じ故障を持つので使わない
+
+## 追記（2026-10-05）
+
+AGENTS.md の「判定結果として期待される非 0 を…漏らさない」は Issue #372 で `docs/agent-workflow.md`「原則」へ移した。
+AGENTS.md「シェルの書き方」には要約（「結果として期待される 0 以外の終了コード」）だけがある。
