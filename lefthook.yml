@@ -9,15 +9,16 @@ pre-commit:
         piped: true
         jobs:
           - name: markdownlint
+            # 見る範囲は .markdownlint-cli2.yaml の globs が決める（引数で渡したファイルにも除外が効く）。
+            # ここで .agents/** を除くと、.agents/rules/ と private skill だけを直した commit で走らない。
             glob: "*.md"
-            exclude: &agent-copies
-              - ".agents/**"
-              - ".claude/**"
             run: pnpm exec markdownlint-cli2 --fix {staged_files}
             stage_fixed: true
           - name: shfmt
             glob: "*.sh"
-            exclude: *agent-copies
+            exclude: &agent-copies
+              - ".agents/**"
+              - ".claude/**"
             run: shfmt -w {staged_files}
             stage_fixed: true
           - name: oxfmt-js
@@ -72,6 +73,18 @@ pre-commit:
           - name: gha-lint
             glob: ".github/workflows/*.{yml,yaml}"
             run: actionlint
+          - name: prose
+            # 人が読む Markdown の語と書式（textlint）。全体は CI で見るので、ここは staged だけにする。
+            # 見る範囲はスクリプトが決める（.agents/rules/ と private skill を見て、スキルのコピーは見ない）。
+            glob: "*.md"
+            run: node scripts/gates/lint-prose.js {staged_files}
+          - name: agents-md-size
+            # AGENTS.md のサイズ（Codex はデフォルトで 32 KiB までしか読まない）。このブランチで 30 KiB を超えたら、
+            # 24 KiB 以下になるまで失敗させる。超えたかは origin/main との分岐点より後の履歴で判定する。
+            run: node scripts/gates/check-agents-md-size.js --pre-commit --base origin/main
+          - name: word-list
+            # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）が .textlint/words.json と一致しているか。
+            run: node scripts/gates/check-word-list.js
           - name: pagination
             glob: "*.{sh,md}"
             exclude: *agent-copies

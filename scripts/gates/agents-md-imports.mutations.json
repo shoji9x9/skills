@@ -1,0 +1,36 @@
+{
+  "$comment": [
+    "agents-md-imports.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/gates/agents-md-imports.test.js",
+  "mutations": [
+    {
+      "id": "AI-WORKFLOW",
+      "why": "作業の原則の詳細の取り込みを消す",
+      "file": "AGENTS.md",
+      "find": "@docs/agent-workflow.md\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["作業の原則の詳細と使わない語の一覧を、行頭の @path で取り込んでいる"]
+    },
+    {
+      "id": "AI-WORDLIST-CODESPAN",
+      "why": "使わない語の一覧の取り込みをコードスパンにする（Claude Code は展開しない）",
+      "file": "AGENTS.md",
+      "find": "@.textlint/word-list.md\n",
+      "replace": "`@.textlint/word-list.md`\n",
+      "occurrences": 1,
+      "expect_failing": ["作業の原則の詳細と使わない語の一覧を、行頭の @path で取り込んでいる"]
+    },
+    {
+      "id": "AI-MISSING",
+      "why": "実在しないファイルを取り込む",
+      "file": "AGENTS.md",
+      "find": "@docs/agent-workflow.md\n",
+      "replace": "@docs/agent-workflow.md\n@docs/missing.md\n",
+      "occurrences": 1,
+      "expect_failing": ["取り込むファイルはすべて実在する"]
+    }
+  ]
+}

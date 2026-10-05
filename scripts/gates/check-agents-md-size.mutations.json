@@ -1,0 +1,100 @@
+{
+  "$comment": [
+    "check-agents-md-size.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/gates/check-agents-md-size.test.js",
+  "mutations": [
+    {
+      "id": "AS-HISTORY",
+      "why": "ブランチの履歴で limit を超えたことを数えない（縮めきらずに通る）",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  const exceeded = rangeCommits(root, base).some((c) => (sizeAt(root, c) ?? 0) > limit);",
+      "replace": "  const exceeded = false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0",
+        "base を解決できなければ例外にする",
+        "main: 通れば 0、違反は 1、判定できなければ 2 を返す"
+      ]
+    },
+    {
+      "id": "AS-TARGET",
+      "why": "limit を超えた後も target を求めない",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (size > limit || (exceeded && size > target)) {",
+      "replace": "  if (size > limit) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0"
+      ]
+    },
+    {
+      "id": "AS-LIMIT",
+      "why": "CI で limit 超の HEAD を通す",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (size > limit || (exceeded && size > target)) {",
+      "replace": "  if (exceeded && size > target && false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: CI は、初めて limit を超えた commit が HEAD でも失敗する",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "main: 通れば 0、違反は 1、判定できなければ 2 を返す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0"
+      ]
+    },
+    {
+      "id": "AS-FIRST",
+      "why": "初めて超えた commit も失敗させる（履歴に残らず、縮めきらずに通る）",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (preCommit && !exceeded && size > limit) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "pre-commit: 初めて limit を超えた commit は、警告して通す（履歴に残すため）"
+      ]
+    },
+    {
+      "id": "AS-BASE",
+      "why": "分岐点を使わず、base 側の履歴まで数える",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  const out = git(root, [\"rev-list\", `${mergeBase}..HEAD`]);",
+      "replace": "  const out = git(root, [\"rev-list\", \"HEAD\"]);",
+      "occurrences": 1,
+      "expect_failing": ["陰性: base 側（分岐点より前）の limit 超は数えない"]
+    },
+    {
+      "id": "AS-INDEX",
+      "why": "pre-commit でも HEAD を測る",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  const size = sizeAt(root, preCommit ? \"\" : \"HEAD\");",
+      "replace": "  const size = sizeAt(root, \"HEAD\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "pre-commit: 初めて limit を超えた commit は、警告して通す（履歴に残すため）",
+        "サイズは作業ツリーではなく、pre-commit は index、CI は HEAD の AGENTS.md で測る",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0",
+        "測る版に AGENTS.md が無ければ例外にする",
+        "陰性: ブランチで limit を超えた後でも、target 以下まで縮めれば通す（pre-commit・CI とも）",
+        "陰性: 範囲に AGENTS.md が無い commit があっても、そこは超えていない扱いにする"
+      ]
+    },
+    {
+      "id": "AS-BOUNDS",
+      "why": "target と limit の大小を確かめない",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (!Number.isInteger(limit) || !Number.isInteger(target) || target <= 0 || target >= limit) {",
+      "replace": "  if (!Number.isInteger(limit) || !Number.isInteger(target)) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "設定のファイルがtarget が limit 以上なら例外にする",
+        "設定のファイルがtarget が 0なら例外にする"
+      ]
+    }
+  ]
+}

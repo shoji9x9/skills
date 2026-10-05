@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # 追跡 Issue（接頭辞 + 更新日）を引く共通ロジック。source して関数を呼ぶ。
 #
-# 正本はこの 1 ファイル。`.github/workflows/kaizen-schedule.yml`（＝配布テンプレート
-# `skills/kaizen/assets/kaizen-schedule.yml` のバイト単位の複製）と
-# `.github/workflows/outdated.yml` の両方がこれを source する。以前は同じ約 100 行が
-# 両ワークフローへ展開されており、片方だけ直る余地があった。
+# このロジックはこの 1 ファイルだけに書く。定期実行のワークフロー（このスキルの assets/kaizen-schedule.yml を
+# 導入先へコピーしたもの）や、同じ追跡 Issue の仕組みを使う他のワークフローは、ここを source する。
+# ワークフローごとに同じ処理を書くと、片方だけが直される。
 #
-# **正本をスキル内に置くのは配布物だから**（`.agents/rules/distributed-skill-bundle-artifacts.md`）。
+# スキルの中に置くのは、スキルが配布物だから。
 # composite action へ括り出すと、下流リポジトリが本リポへの外部参照と SHA pin 更新を負い、
 # `gh skill install` が配る一式だけでは定期実行が成立しなくなる。
 #
