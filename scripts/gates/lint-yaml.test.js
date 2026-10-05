@@ -70,10 +70,11 @@ test("未追跡でも ignore されていない YAML は検査する（add 前�
   expect(r.status).toBe(1);
 });
 
-test.each([[".agents/skills/x/a.yml"], [".claude/y.yml"], ["node_modules/pkg/z.yml"]])(
+test.each([[".agents/skills/x/a.yml"], [".claude/skills/y.yml"], ["node_modules/pkg/z.yml"]])(
   "起点直下の除外（%s）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
   (excluded) => {
-    const inside = repo({ "a.yml": VALID, [excluded]: BROKEN });
+    // `.agents/skills/x/` は `skills/x/` があるのでコピーとして除く。
+    const inside = repo({ "a.yml": VALID, "skills/x/SKILL.md": "", [excluded]: BROKEN });
     const r = run(["--root", inside]);
     expect(r.stderr).toBe("");
     expect(r.stdout).toContain("1 件を検査した");
@@ -86,6 +87,18 @@ test.each([[".agents/skills/x/a.yml"], [".claude/y.yml"], ["node_modules/pkg/z.y
     expect(o.status).toBe(1);
   },
 );
+
+test("rule と private skill（skills/ に同名の無い .agents/skills/<name>/）の実体は検査する", () => {
+  const dir = repo({
+    "a.yml": VALID,
+    ".agents/rules/r.yml": BROKEN,
+    ".agents/skills/priv/p.yml": BROKEN,
+  });
+  const r = run(["--root", dir]);
+  expect(r.stderr).toContain(".agents/rules/r.yml:");
+  expect(r.stderr).toContain(".agents/skills/priv/p.yml:");
+  expect(r.status).toBe(1);
+});
 
 test("gitignore された壊れた YAML は見ない（手元の eval 出力で CI と食い違わない）", () => {
   const dir = repo(

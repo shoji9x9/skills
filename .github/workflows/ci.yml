@@ -51,14 +51,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Markdown lint
         run: pnpm exec markdownlint-cli2
+      # 対象はエージェント用のコピーとリンクを除いた実体（scripts/lib/source-scope.js）。.agents を丸ごと除くと、
+      # rule と private skill の実体が lint されない。
       - name: Shell lint
-        run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.sh" -type f -exec shellcheck {} +
+        run: node scripts/gates/run-on-sources.js --ext sh -- shellcheck
       - name: JavaScript lint
         run: pnpm run lint:js
       - name: JavaScript format check
         run: pnpm run format:js:check
       - name: JSON lint
-        run: find . \( -path "./node_modules" -o -path "./.git" -o -path "./.agents" -o -path "./.claude" \) -prune -o -name "*.json" -type f -exec pnpm exec jsonlint --quiet --continue --no-duplicate-keys {} +
+        run: node scripts/gates/run-on-sources.js --ext json -- pnpm exec jsonlint --quiet --continue --no-duplicate-keys
       # js-yaml の API で全ファイルを 1 プロセスで読む（ファイルごとに `pnpm exec js-yaml` を起動すると
       # 66 件で 44 秒かかっていた。Issue #507）。対象 0 件は成功に倒さない（スクリプト側で exit 1）。
       - name: YAML lint

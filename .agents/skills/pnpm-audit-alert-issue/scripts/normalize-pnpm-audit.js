@@ -36,7 +36,9 @@ function asArray(value) {
 }
 
 function uniq(values) {
-  return [...new Set(values.filter((value) => value !== undefined && value !== null && value !== ""))];
+  return [
+    ...new Set(values.filter((value) => value !== undefined && value !== null && value !== "")),
+  ];
 }
 
 function firstString(...values) {
@@ -68,7 +70,9 @@ function patchedFrom(range) {
 
 function normalizeSeverity(value) {
   const severity = String(value || "unknown").toLowerCase();
-  return ["critical", "high", "moderate", "medium", "low"].includes(severity) ? severity : "unknown";
+  return ["critical", "high", "moderate", "medium", "low"].includes(severity)
+    ? severity
+    : "unknown";
 }
 
 function findingKey(finding) {
@@ -85,7 +89,10 @@ function mergeStringValue(left, right) {
 function mergeFinding(target, source) {
   target.current_versions = uniq([...target.current_versions, ...source.current_versions]);
   target.dependency_paths = uniq([...target.dependency_paths, ...source.dependency_paths]);
-  target.vulnerable_versions = mergeStringValue(target.vulnerable_versions, source.vulnerable_versions);
+  target.vulnerable_versions = mergeStringValue(
+    target.vulnerable_versions,
+    source.vulnerable_versions,
+  );
   target.patched_versions = mergeStringValue(target.patched_versions, source.patched_versions);
   if (!target.patched && source.patched) target.patched = source.patched;
   if (!target.ghsa && source.ghsa) target.ghsa = source.ghsa;
@@ -128,7 +135,10 @@ function fromAdvisory(advisory) {
     ghsaFrom(advisory.source),
     ghsaFrom(advisory.title),
   );
-  const advisoryUrl = firstString(advisory.url, ghsa ? `https://github.com/advisories/${ghsa}` : "");
+  const advisoryUrl = firstString(
+    advisory.url,
+    ghsa ? `https://github.com/advisories/${ghsa}` : "",
+  );
   const patchedVersions = firstString(advisory.patched_versions, advisory.patchedVersions);
   return {
     package: firstString(advisory.module_name, advisory.name, advisory.dependency),
@@ -137,10 +147,16 @@ function fromAdvisory(advisory) {
     ghsa,
     advisory_url: advisoryUrl,
     title: firstString(advisory.title, advisory.overview),
-    vulnerable_versions: firstString(advisory.vulnerable_versions, advisory.range, advisory.versions),
+    vulnerable_versions: firstString(
+      advisory.vulnerable_versions,
+      advisory.range,
+      advisory.versions,
+    ),
     patched_versions: patchedVersions,
     patched: patchedFrom(patchedVersions),
-    current_versions: uniq(asArray(advisory.findings).flatMap((finding) => asArray(finding.version))),
+    current_versions: uniq(
+      asArray(advisory.findings).flatMap((finding) => asArray(finding.version)),
+    ),
     dependency_paths: uniq(asArray(advisory.findings).flatMap((finding) => asArray(finding.paths))),
     manifest: "pnpm-lock.yaml",
     scope: "unknown",
@@ -149,7 +165,10 @@ function fromAdvisory(advisory) {
 
 function fromVulnerability(packageName, vulnerability, via, packages) {
   const advisory = advisoryFromVia(via);
-  const fix = typeof vulnerability.fixAvailable === "object" && vulnerability.fixAvailable ? vulnerability.fixAvailable : {};
+  const fix =
+    typeof vulnerability.fixAvailable === "object" && vulnerability.fixAvailable
+      ? vulnerability.fixAvailable
+      : {};
   const ghsa = firstString(
     normalizeGhsa(advisory.ghsa),
     normalizeGhsa(advisory.ghsa_id),
@@ -159,7 +178,11 @@ function fromVulnerability(packageName, vulnerability, via, packages) {
     ghsaFrom(advisory.title),
   );
   const patched = firstString(fix.version);
-  const patchedVersions = firstString(advisory.patched_versions, advisory.patchedVersions, patched ? `>=${patched}` : "");
+  const patchedVersions = firstString(
+    advisory.patched_versions,
+    advisory.patchedVersions,
+    patched ? `>=${patched}` : "",
+  );
   return {
     package: firstString(advisory.dependency, advisory.name, packageName),
     ecosystem: "npm",

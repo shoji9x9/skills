@@ -30,28 +30,10 @@
       ]
     },
     {
-      "id": "LP-RULES",
-      "why": "rule の実体（.agents/rules/）を見ない",
-      "file": "scripts/gates/lint-prose.js",
-      "find": "  if (rel.startsWith(\".agents/rules/\")) return true;",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["陽性: rule の実体・private skill の実体・有効な学びは見る"]
-    },
-    {
-      "id": "LP-PRIVATE",
-      "why": "private skill の実体を見ない",
-      "file": "scripts/gates/lint-prose.js",
-      "find": "existsSync(join(root, \".agents/skills\", skill[1], \".private-skill\"))",
-      "replace": "false",
-      "occurrences": 1,
-      "expect_failing": ["陽性: rule の実体・private skill の実体・有効な学びは見る"]
-    },
-    {
       "id": "LP-COPIES",
-      "why": ".private-skill を持たないスキルのコピーも見る",
+      "why": "エージェント用のコピーとリンクも見る",
       "file": "scripts/gates/lint-prose.js",
-      "find": "  if (rel.startsWith(\".agents/\") && !isAgentsSource(root, rel)) return false;",
+      "find": "  if (isAgentCopy(root, rel)) return false;",
       "replace": "",
       "occurrences": 1,
       "expect_failing": [

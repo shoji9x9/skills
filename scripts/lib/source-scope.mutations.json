@@ -1,0 +1,63 @@
+{
+  "$comment": [
+    "source-scope.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/lib/source-scope.test.js",
+  "mutations": [
+    {
+      "id": "SS-MARK",
+      "why": "コピーを .private-skill の印の有無で決める（印の無い private skill をコピーとして除く）",
+      "file": "scripts/lib/source-scope.js",
+      "find": "    .filter((e) => e.isDirectory() && existsSync(join(root, \"skills\", e.name)))",
+      "replace": "    .filter((e) => e.isDirectory() && !existsSync(join(dir, e.name, \".private-skill\")))",
+      "occurrences": 1,
+      "expect_failing": [
+        "skills/ に同名の実体があるものだけをコピーとし、それ以外（印の無いものを含む）は実体とする",
+        "除外のパターンは、リンクのディレクトリとコピーのディレクトリだけを挙げる"
+      ]
+    },
+    {
+      "id": "SS-AGENTS",
+      "why": ".agents/skills/ の下をすべてコピーとして扱う（private skill を除く）",
+      "file": "scripts/lib/source-scope.js",
+      "find": "  return m !== null && existsSync(join(root, \"skills\", m[1]));",
+      "replace": "  return m !== null;",
+      "occurrences": 1,
+      "expect_failing": [
+        "isAgentCopy(.agents/skills/priv/SKILL.md) は false",
+        "isAgentCopy(.agents/skills/nomark/SKILL.md) は false"
+      ]
+    },
+    {
+      "id": "SS-LINKS",
+      "why": ".github/instructions/（rule へのリンク）を除かない",
+      "file": "scripts/lib/source-scope.js",
+      "find": "export const LINK_DIRS = [\".claude/rules\", \".claude/skills\", \".github/instructions\"];",
+      "replace": "export const LINK_DIRS = [\".claude/rules\", \".claude/skills\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "isAgentCopy(.github/instructions/r.instructions.md) は true",
+        "除外のパターンは、リンクのディレクトリとコピーのディレクトリだけを挙げる"
+      ]
+    },
+    {
+      "id": "SS-PREFIX",
+      "why": "リンクのディレクトリを文字列の前方一致で判定する（.claude/rules-old/ も除く）",
+      "file": "scripts/lib/source-scope.js",
+      "find": "rel === d || rel.startsWith(`${d}/`)",
+      "replace": "rel.startsWith(d)",
+      "occurrences": 1,
+      "expect_failing": ["isAgentCopy(.claude/rules-old/x.md) は false"]
+    },
+    {
+      "id": "SS-NODIR",
+      "why": ".agents/skills/ が無いときに例外にする",
+      "file": "scripts/lib/source-scope.js",
+      "find": "export function copySkillNames(root) {\n  const dir = join(root, \".agents/skills\");\n  if (!existsSync(dir)) return [];\n",
+      "replace": "export function copySkillNames(root) {\n  const dir = join(root, \".agents/skills\");\n",
+      "occurrences": 1,
+      "expect_failing": [".agents/skills/ が無ければ、コピーも private skill も 0 件"]
+    }
+  ]
+}

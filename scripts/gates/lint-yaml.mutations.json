@@ -13,22 +13,30 @@
       "replace": "!f.split(\"/\").some((c) => PRUNED.includes(c))",
       "occurrences": 1,
       "expect_failing": [
-        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
         "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
       "id": "LY-PRUNE-NONE",
-      "why": "起点直下の除外を効かせない（インストール済みコピーまで検査して二重に報告する）",
+      "why": "起点直下の node_modules を除かない",
       "file": "scripts/gates/lint-yaml.js",
       "find": "!PRUNED.includes(f.split(\"/\")[0])",
       "replace": "true",
       "occurrences": 1,
       "expect_failing": [
-        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
         "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
+      ]
+    },
+    {
+      "id": "LY-COPIES",
+      "why": "エージェント用のコピーとリンクも検査する（二重に報告する）",
+      "file": "scripts/gates/lint-yaml.js",
+      "find": "    .filter((f) => !isAgentCopy(root, f))\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/skills/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす"
       ]
     },
     {
@@ -83,10 +91,11 @@
         "壊れた YAML を 1 件置くと exit 1 でそのファイルを名指しする",
         "未追跡でも ignore されていない YAML は検査する（add 前の新規ファイルを見落とさない）",
         "起点直下の除外（.agents/skills/x/a.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
-        "起点直下の除外（.claude/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
+        "起点直下の除外（.claude/skills/y.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
         "起点直下の除外（node_modules/pkg/z.yml）の中の壊れた YAML は見ないが、外に同じものがあれば落とす",
         "ファイルを指定したらそれだけを検査する（lefthook 用）",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0"
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、壊れた YAML は exit 1、読めれば exit 0",
+        "rule と private skill（skills/ に同名の無い .agents/skills/<name>/）の実体は検査する"
       ]
     },
     {

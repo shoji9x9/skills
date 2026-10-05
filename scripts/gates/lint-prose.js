@@ -8,9 +8,8 @@
 //
 // 判定規則:
 // - 対象は git が管理する（または ignore されていない未追跡の）`*.md`。次のものは除く。
-//   - インストール済みのスキルのコピー（`.agents/skills/<name>/`。`skills/<name>/` と同じ中身）と、
-//     エージェント用のリンク（`.claude/`）。ただし `.agents/rules/` は rule の実体なので見る。
-//     `.private-skill` を持つ `.agents/skills/<name>/` も、配布しないスキルの実体なので見る。
+//   - エージェント用のコピーとリンク（判定は `scripts/lib/source-scope.js`）。rule（`.agents/rules/`）と
+//     private skill（`skills/` に無い `.agents/skills/<name>/`）は実体なので見る。
 //   - 過去の記録（`.kaizen/archive/`）とテスト結果（`tests/`）。有効な学び（`.kaizen/*.md`）は見る。
 //   - シンボリックリンク（`.github/instructions/` など。リンク先を見れば足りる）。
 // - 引数でファイルを渡したときは、そのうち対象に当たるものだけを見る（lefthook の staged_files）。
@@ -23,9 +22,10 @@ import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLinter, loadTextlintrc } from "textlint";
+import { isAgentCopy } from "../lib/source-scope.js";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
-const EXCLUDED_PREFIXES = [".claude/", ".kaizen/archive/", "tests/", "node_modules/"];
+const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** 一覧を読み、形の誤りは例外にする（読めない一覧を「保留 0 件」として扱わない）。 */
@@ -45,18 +45,11 @@ export function loadPending(root) {
   return set;
 }
 
-/** `.agents/` の下で実体として見るもの（rule と、`.private-skill` を持つスキル）か。 */
-function isAgentsSource(root, rel) {
-  if (rel.startsWith(".agents/rules/")) return true;
-  const skill = /^\.agents\/skills\/([^/]+)\//.exec(rel);
-  return skill !== null && existsSync(join(root, ".agents/skills", skill[1], ".private-skill"));
-}
-
 /** リポジトリ相対パスが対象か。 */
 export function isTarget(root, rel) {
   if (!rel.endsWith(".md")) return false;
   if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;
-  if (rel.startsWith(".agents/") && !isAgentsSource(root, rel)) return false;
+  if (isAgentCopy(root, rel)) return false;
   const abs = join(root, rel);
   if (!existsSync(abs)) return false;
   return !lstatSync(abs).isSymbolicLink();

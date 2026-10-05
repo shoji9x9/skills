@@ -27,6 +27,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isAgentCopy } from "../lib/source-scope.js";
 
 const COLLECTION_SEGMENTS = new Set([
   "comments",
@@ -222,22 +223,26 @@ export function lint(path, content) {
   return findings;
 }
 
-/** インストール済みコピー（生成物）とツールの作業領域。どちらの列挙経路でも外す。 */
-const SKIP_DIRS = new Set(["node_modules", ".git", ".agents", ".claude"]);
+/** ツールの作業領域。どちらの列挙経路でも外す。 */
+const SKIP_DIRS = new Set(["node_modules", ".git"]);
 
 export function isLintable(path) {
   return path.endsWith(".sh") || path.endsWith(".md");
 }
 
-/** dir 配下を素朴に辿る（git を使えないときのフォールバック。無視規則は効かない）。 */
-export function walkFiles(dir, deps = {}) {
+/**
+ * dir 配下を素朴に辿る（git を使えないときのフォールバック。無視規則は効かない）。
+ * エージェント用のコピーとリンク（scripts/lib/source-scope.js）も、走査の起点 root からの相対で外す。
+ */
+export function walkFiles(dir, deps = {}, root = dir) {
   const readdir = deps.readdirSync ?? readdirSync;
   const stat = deps.statSync ?? statSync;
   const out = [];
   for (const name of readdir(dir)) {
     if (SKIP_DIRS.has(name)) continue;
     const p = join(dir, name);
-    if (stat(p).isDirectory()) out.push(...walkFiles(p, deps));
+    if (isAgentCopy(root, `${relative(root, p)}/`)) continue;
+    if (stat(p).isDirectory()) out.push(...walkFiles(p, deps, root));
     else if (isLintable(name)) out.push(p);
   }
   return out;
@@ -273,6 +278,7 @@ export function gitFiles(dir, deps = {}) {
     // 判定すると、dir の外側のディレクトリ名（`node_modules/` 配下への checkout・`../` を挟む
     // 呼び出し）を拾って、走査対象を丸ごと落としてしまう。
     if (entry.split("/").some((segment) => SKIP_DIRS.has(segment))) continue;
+    if (isAgentCopy(base, entry)) continue;
     // git は起動時の cwd（`-C dir` なので dir）からの相対で返す。読める形へ直して返す。
     const abs = resolve(base, entry);
     out.push(relative(process.cwd(), abs) || entry);

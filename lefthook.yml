@@ -16,9 +16,33 @@ pre-commit:
             stage_fixed: true
           - name: shfmt
             glob: "*.sh"
+            # エージェント用のコピーとリンクだけを除く（scripts/lib/source-scope.js と同じ集合。
+            # 一致は scripts/gates/lint-scope.test.js が確かめる）。.agents/** と書くと rule と private skill の
+            # 実体も外れる。lefthook の exclude は否定パターンで含め直せないので、コピーを名前で挙げる。
             exclude: &agent-copies
-              - ".agents/**"
-              - ".claude/**"
+              - ".claude/rules/**"
+              - ".claude/skills/**"
+              - ".github/instructions/**"
+              - ".agents/skills/aws-architecture-diagram/**"
+              - ".agents/skills/box/**"
+              - ".agents/skills/browser-test/**"
+              - ".agents/skills/current-environment-bootstrap/**"
+              - ".agents/skills/dependabot-alert-issue/**"
+              - ".agents/skills/dependabot-merge/**"
+              - ".agents/skills/git-worktree/**"
+              - ".agents/skills/golden-dataset/**"
+              - ".agents/skills/issue-batch/**"
+              - ".agents/skills/issue-create/**"
+              - ".agents/skills/issue-start/**"
+              - ".agents/skills/kaizen/**"
+              - ".agents/skills/multiagent-setup/**"
+              - ".agents/skills/parity-component/**"
+              - ".agents/skills/parity-diff/**"
+              - ".agents/skills/parity-replace/**"
+              - ".agents/skills/parity-suite/**"
+              - ".agents/skills/pr-finalize-loop/**"
+              - ".agents/skills/pr-review-handle/**"
+              - ".agents/skills/replace-strategy/**"
             run: shfmt -w {staged_files}
             stage_fixed: true
           - name: oxfmt-js
@@ -38,9 +62,30 @@ pre-commit:
             # oxfmt は pnpm-lock.yaml を内蔵 ignore するため、これだけが staged だと
             # 対象ゼロで exit 2 になる。lockfile は整形対象外なので除外する。
             exclude:
-              - ".agents/**"
-              - ".claude/**"
               - "pnpm-lock.yaml"
+              - ".claude/rules/**"
+              - ".claude/skills/**"
+              - ".github/instructions/**"
+              - ".agents/skills/aws-architecture-diagram/**"
+              - ".agents/skills/box/**"
+              - ".agents/skills/browser-test/**"
+              - ".agents/skills/current-environment-bootstrap/**"
+              - ".agents/skills/dependabot-alert-issue/**"
+              - ".agents/skills/dependabot-merge/**"
+              - ".agents/skills/git-worktree/**"
+              - ".agents/skills/golden-dataset/**"
+              - ".agents/skills/issue-batch/**"
+              - ".agents/skills/issue-create/**"
+              - ".agents/skills/issue-start/**"
+              - ".agents/skills/kaizen/**"
+              - ".agents/skills/multiagent-setup/**"
+              - ".agents/skills/parity-component/**"
+              - ".agents/skills/parity-diff/**"
+              - ".agents/skills/parity-replace/**"
+              - ".agents/skills/parity-suite/**"
+              - ".agents/skills/pr-finalize-loop/**"
+              - ".agents/skills/pr-review-handle/**"
+              - ".agents/skills/replace-strategy/**"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
           - name: gha-pinact
@@ -117,6 +162,11 @@ pre-commit:
             # rule の多エージェント配線（.agents/rules → .claude/rules / .github/instructions）。
             # 配線漏れは「ドキュメント上は適用される」状態と見分けが付かないので毎コミット検査する。
             run: node scripts/gates/check-rule-symlinks.js
+          - name: lint-scope
+            # 各 lint と整形の除外が scripts/lib/source-scope.js と一致するか。スキルを足してインストールすると
+            # lefthook.yml のコピーの一覧が古くなるので、コピーや除外の設定を変えた commit で確かめる。
+            glob: "{.agents/skills/*/SKILL.md,skills/*/SKILL.md,lefthook.yml,oxlint.config.ts,oxfmt.config.ts,.markdownlint-cli2.yaml,.github/workflows/ci.yml,scripts/lib/source-scope.js}"
+            run: pnpm exec vitest run scripts/gates/lint-scope.test.js
           - name: control-chars
             # テキスト拡張子のステージ差分に NUL 等の制御バイトが混入していないか。
             # 整形用の除外（*agent-copies）は流用しない。CI は全走査するので、
