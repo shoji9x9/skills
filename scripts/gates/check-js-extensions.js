@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // JavaScript の拡張子ポリシーを決定論的に検査する（lefthook pre-commit + CI）。
-// docs/tooling.md「リント／フォーマット」の住み分けに対応する自動ガード:
+// docs/tooling.md「JavaScript の拡張子」の住み分けに対応する自動ガード:
 //   - 配布物は `.mjs`: 配布スキルのスクリプト（`skills/**`）は ESM を拡張子で保証する。
 //     よって `skills/**` 配下の `.js` は違反。
 //   - 非配布物は `.js`: リポジトリ内ツール（`scripts/**`）は `package.json` の

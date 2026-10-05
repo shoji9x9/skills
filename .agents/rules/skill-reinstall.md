@@ -10,23 +10,22 @@ applyTo: "skills/**,.agents/skills/**,.claude/skills/**"
 
 ## 編集はソース（`skills/<name>/`）に対して行う
 
-スキルの**唯一のソースは `skills/<name>/`**。`.agents/skills/<name>/` とその Claude 用シンボリックリンク
-`.claude/skills/<name>` は `reinstall-skill.sh` が生成する**インストール済みコピー**なので直接編集しない。
-installed copy を直接編集するとソースが stale になり、`skills-sync`（後述）が commit をブロックする。
+スキルのソースは `skills/<name>/` だけである。
+`.agents/skills/<name>/` と Claude Code 用のシンボリックリンク `.claude/skills/<name>` は、`reinstall-skill.sh` が作るインストール済みのコピーなので、直接編集しない。
+コピーを直接編集すると、ソースが古いまま残り、後述の `skills-sync` が commit を止める。
 
-- `multiagent-setup` の `references/skills.md` は「`.agents/skills/<name>/SKILL.md` を直接編集」と案内するが、
-  これは `skills/` ソースを持たない**配布先（下流）**向けの手順。本リポ（配布元）では必ず `skills/<name>/` を編集する。
+- `multiagent-setup` の `references/skills.md` は「`.agents/skills/<name>/SKILL.md` を直接編集」と案内している。
+  これは `skills/` のソースを持たない配布先の手順である。配布元のこのリポジトリでは、`skills/<name>/` を編集する。
 
-## 再インストールで installed copy を同期する
+## 再インストールでインストール済みのコピーを同期する
 
-`skills/<name>/` 配下を編集したら、同じ作業の中で必ず再インストールしてインストール済みコピー
-（`.agents/skills/<name>/` ＋ `.claude/skills/<name>` シンボリックリンク）を同期する:
+`skills/<name>/` の中を編集したら、同じ作業の中で再インストールし、インストール済みのコピー（`.agents/skills/<name>/` と `.claude/skills/<name>` のシンボリックリンク）を同期する。
 
 ```bash
 scripts/tools/reinstall-skill.sh <name>
 ```
 
-- 編集したスキル**すべて**に対して実行する（横展開修正で複数スキルに触れた場合は各スキル分。全スキルは `--all`）
-- 同期漏れは lefthook pre-commit / CI の `skills-sync`（`scripts/gates/check-skills-sync.js`）が commit 時にブロックするが、
-  編集直後に再インストールしてドッグフード環境を最新に保つこと
-- 詳細手順は `docs/skill-development.md`「スキル修正後の再インストール」を参照
+- 編集したスキルごとに実行する。複数のスキルを直したら、それぞれについて実行する。全スキルを同期するなら `--all` を付ける。
+- 同期を忘れると、lefthook の pre-commit と CI の `skills-sync`（`scripts/gates/check-skills-sync.js`）が commit を止める。
+  それでも、手元で使うスキルを最新に保つため、編集の直後に再インストールする。
+- 詳しい手順は `docs/skill-development.md` の「スキル修正後の再インストール」にある。

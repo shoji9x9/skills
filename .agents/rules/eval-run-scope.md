@@ -4,25 +4,27 @@ paths:
 applyTo: "evals/**"
 ---
 
-# eval の実走スコープは起動前に宣言する
+# eval を実行する前に目的と範囲を述べる
 
-eval の実走はコストを伴うため、**起動前に目的とスコープを宣言してから走らせる**。
-既定は**入力が変わった eval だけを `with_skill` / `without_skill` 各 1 run**（変更確認）で、
-`benchmark.json` を更新する 3 run × 2 config へ広げるのは**明示的に決めたときだけ**。
-前 iteration が benchmark だったことを理由に自動で広げない。
+eval の実行には費用がかかるので、起動する前に目的と範囲を述べてから実行する。
+デフォルトの範囲は、入力が変わった eval だけを `with_skill` と `without_skill` で 1 run ずつ実行する変更確認である。
+`benchmark.json` を更新する 3 run × 2 config に広げるのは、そう決めたときだけにする。
+前の iteration が benchmark だったことは、範囲を広げる理由にしない。
 
-LLM run 前の決定論的検証と `without_skill` baseline 再利用は、下記の正本にある preflight と fingerprint gate を通す。
+LLM の run の前に行う決定論的な検証と、`without_skill` の baseline の再利用は、下に挙げる原本の preflight と fingerprint のチェックを通す。
 
-**複数 eval をまとめて起動する前に、対象一覧と出力先を preflight で検証する。**
-構造化 spec から出力パスを組み立てるときは **scalar field だけ**を使い（オブジェクトをテンプレートリテラルへ展開すると
-`tests/[object Object]/iteration-N` のようなパスが黙って通る）、全パスが**期待ルート配下**・**相互に一意**・
-**`[object Object]` を含まない**ことを起動前に確かめる。承認を伴う外向き実行では、ここで止まると承認の取り直しになる。
+複数の eval をまとめて起動する前に、対象の一覧と出力先を preflight で確かめる。
+構造化した spec から出力パスを組み立てるときは、文字列や数値のフィールドだけを使う。
+オブジェクトをテンプレートリテラルに展開すると、`tests/[object Object]/iteration-N` のようなパスがエラーにならずに通る。
+起動する前に、すべてのパスが期待するルートの下にあり、互いに重複せず、`[object Object]` を含まないことを確かめる。
+承認を伴う外向きの実行では、ここで止まると承認をもう一度もらうことになる。
 
-executor は invocation ごとの `--executor` 指定だけで決まる。**運用上の既定は現在作業しているエージェントと同じ executor** とし、
-Codex は `codex`、Claude Code は `claude-code` を省略せず指定する（ランチャの引数省略時既定は後方互換用であり、運用上の選択規則ではない）。
-ユーザー指定・スキル固有契約を優先し、対応 executor が無いエージェントではユーザーに確認する。**実走中の executor 切り替えは人が決める**（利用上限到達は executor 非対応の証拠ではない）。
-切り替えるなら iteration ごと破棄して最初から取り直し、`with_skill` と `without_skill` を別 executor にしない。
+executor は、invocation ごとに指定する `--executor` だけで決まる。
+運用では、いま作業しているエージェントと同じ executor を使う。Codex なら `codex`、Claude Code なら `claude-code` を省略せずに指定する。
+ランチャの引数を省いたときの値は後方互換のためのもので、運用で選ぶ基準ではない。
+ユーザーの指定とスキル固有の取り決めを優先し、対応する executor が無いエージェントではユーザーに確認する。
+実行中に executor を切り替えるかは人が決める。利用上限に達したことは、その executor が対応していない証拠にならない。
+切り替えるなら iteration をまとめて破棄して最初からやり直し、`with_skill` と `without_skill` を別の executor にしない。
 
-判断表・手順・切り替え時の運用の正本は
-[`docs/skill-development.md`](../../docs/skill-development.md) の「実走の既定スコープ」と
-「without-skill baseline の再利用」と「eval が失敗したとき executor を変えない」を参照する（ここで再定義しない）。
+判断の表、手順、切り替えるときの運用は、[`docs/skill-development.md`](../../docs/skill-development.md) の
+「実走の既定スコープ」「without-skill baseline の再利用」「eval が失敗したとき executor を変えない」で定義する。ここでは定義し直さない。

@@ -8,7 +8,7 @@ applyTo: "skills/*/SKILL.md,.agents/skills/*/SKILL.md,.claude/skills/*/SKILL.md"
 
 # スキルファイル形式
 
-`skills/*/SKILL.md` を編集する際は Agent Skills 仕様のフォーマットを維持すること:
+`skills/*/SKILL.md` を編集するときは、frontmatter を Agent Skills 仕様の形に保つ。
 
 ```yaml
 ---
@@ -19,5 +19,5 @@ license: MIT # 任意（Agent Skills 仕様のフィールド）: 配布スキ�
 ---
 ```
 
-`argument-hint` は Agent Skills 標準仕様外の拡張フィールド（Claude Code / VS Code が表示に使用。Codex CLI・Copilot CLI は無視するがエラーにはならない）。
-値が `[` で始まると YAML の flow sequence と誤解釈されるため引用符で囲む（単・二重どちらでも可）。
+`argument-hint` は Agent Skills 仕様に無い拡張フィールドである。Claude Code と VS Code は表示に使い、Codex CLI と Copilot CLI は読まないがエラーにもしない。
+値が `[` で始まると、YAML はリスト（flow sequence）として読む。そのため値を引用符で囲む。単引用符でも二重引用符でもよい。

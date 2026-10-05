@@ -1,15 +1,16 @@
-# スキル評価 executor 契約
+# スキル評価の executor の仕様
 
 `scripts/eval/run-skill-eval.sh` は同じ `evals/<name>/evals.json` を Claude Code と Codex で実行し、executor 固有の出力を共通 artifact へ正規化する。
 Anthropic 版 `skill-creator` と既存の集計・viewer は変更しない。
 
 ## Executor の選択
 
-`--executor claude-code|codex` で選ぶ。**エージェントが実走を起動する場合の既定は、現在その作業をしているエージェントと同じ executor** とする
-（Codex セッションは `--executor codex`、Claude Code セッションは `--executor claude-code`）。評価対象と日常の利用環境を揃え、別ベンダーの利用枠を意図せず消費しないためである。
-ユーザーが executor を明示した場合とスキル固有の executor 契約がある場合はそちらを優先する。GitHub Copilot など対応する executor が無い環境では推測せずユーザーに選択を確認する。
+`--executor claude-code|codex` で選ぶ。エージェントが実行を始めるときは、その作業をしているエージェントと同じ executor を選ぶ。
+Codex のセッションなら `--executor codex`、Claude Code のセッションなら `--executor claude-code` にする。
+評価する環境と普段使う環境をそろえ、別のベンダーの利用枠を意図せず使わないためである。
+ユーザーが executor を指定した場合と、スキルが executor を指定している場合は、そちらに従う。GitHub Copilot のように対応する executor が無い環境では、推測せずユーザーに確認する。
 
-引数省略時のランチャ自体の既定は後方互換のため `claude-code` だが、これはエージェント運用上の既定ではない。エージェントは `--executor` を省略せず上記の選択を明示する。
+引数を省いたときのランチャのデフォルトは、以前の呼び出し方と互換にするため `claude-code` になっている。これはエージェントが使うときの選び方とは別なので、エージェントは `--executor` を省かずに指定する。
 比較可能性を保つため、1 つの iteration に異なる executor・model・reasoning effort を混在させない。
 各 run の `result.json` と `timing.json` に executor、model、reasoning effort、CLI version、harness version を記録する。
 
@@ -25,11 +26,11 @@ scripts/eval/run-skill-eval.sh \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1
 ```
 
-`--fixture`、`with_skill|without_skill`、`--model` の既存契約は両 executor で共通。
-fixture ルートの executable な `setup.sh` はコピー後・executor 起動前に実行し、非 0 終了なら fail-closed にする。
-`--eval-id` を渡すと `evals.json` の assertion を読み、canonical な `eval-<id>/eval_metadata.json` と viewer 後方互換用の run 配下コピーを生成する。
+`--fixture`、`with_skill|without_skill`、`--model` の扱いは、どちらの executor でも同じである。
+fixture のルートに実行できる `setup.sh` があれば、fixture をコピーした後、executor を起動する前に実行する。0 以外で終了したら、run を失敗として扱う。
+`--eval-id` を渡すと、`evals.json` の assertion を読み、`eval-<id>/eval_metadata.json` を作る。viewer が以前の配置でも読めるように、run の下にもコピーを置く。
 
-Codex-only の run は `codex exec` だけを起動し、Claude Code CLI や Anthropic API を呼ばない。
+Codex だけの run は `codex exec` だけを起動し、Claude Code CLI や Anthropic API を呼ばない。
 CLI version の取得も選択した executor だけを対象にする。
 
 ## 共通 artifact
@@ -60,55 +61,60 @@ tests/<skill>/iteration-N/
 
 `result.json` は次の共通フィールドを持つ。
 
-- `schema_version`: 現在は `1`
+- `schema_version`: `1`
 - `executor.{name,model,reasoning_effort,cli_version,harness_version}`
 - `status`: `succeeded|failed`
 - `exit_code`
 - `result`: 最終アシスタントメッセージ
 - `usage.{input_tokens,cached_input_tokens,cache_write_input_tokens,output_tokens,reasoning_output_tokens,total_tokens}`
 - `raw_trace`: run からの相対パス
-- `skill_usage`: 対象スキルを読んだかの判定（`visible` / `invoked` / `files_read` / `read` / `invalid_run` / `undeterminable`、`without_skill` では汚染の signal の `unexpected_read` も）。
-  各軸は true / false / `null`（この executor では測れない）の 3 値。除外の運用は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」を参照する
+- `skill_usage`: 対象のスキルを読んだかの判定。`visible`・`invoked`・`files_read`・`read`・`invalid_run`・`undeterminable` を持ち、`without_skill` では汚染を示す `unexpected_read` も持つ。
+  各項目は true・false・`null`（この executor では測れない）のどれかになる。集計から外す方法は [`skill-development.md`](skill-development.md)「対象スキルを読まなかった run を集計から外す」にある
 
 `timing.json` は同じ `executor` と、`total_tokens`、開始・終了時刻、ミリ秒・秒の実測時間を持つ。
-各 run の `eval-fingerprint.json` は prompt、対象 assertion、fixture、`requires_skills`（名前と設置内容のハッシュ）、executor、model、reasoning effort、CLI / harness version を canonical JSON から SHA-256 化する。
-`without_skill` の `--reuse-baseline` は fingerprint と成果物の健全性を検証し、再利用した run に `baseline-reuse.json` を追加する。
-`scripts/eval/normalize-skill-eval-result.js` とそのテストが両 executor の必須フィールドと token 正規化を強制する。
-`outputs/metrics.json` の `tool_calls` / `total_tool_calls` は raw trace から測れる run だけに置く。ツール記録を持たない trace（`result` イベント 1 つだけの旧 `--output-format json`）では `0` で埋めず省略する。
-`files_created` は run 前の fixture file manifest と、run 後に `project-files/` へ保存できた artifact の差分で生成する。既存 fixture、size cap 等で保存されなかったファイルは含めない。
+各 run の `eval-fingerprint.json` は、次の値を正規化した JSON にまとめ、SHA-256 のハッシュにしたものである。
+prompt、対象の assertion、fixture、`requires_skills`（名前と、置いた内容のハッシュ）、executor、model、reasoning effort、CLI と harness の版。
+`without_skill` の `--reuse-baseline` は、fingerprint が一致し成果物がそろっていることを確かめてから、前の run を再利用する。再利用した run には `baseline-reuse.json` を足す。
+`scripts/eval/normalize-skill-eval-result.js` とそのテストが、どちらの executor でも必須のフィールドがあることと、token の数え方がそろっていることを確かめる。
+`outputs/metrics.json` の `tool_calls` と `total_tool_calls` は、raw trace から数えられる run にだけ置く。
+ツールの記録を持たない trace（古い `--output-format json` の、`result` イベントが 1 つだけのもの）では、`0` で埋めずに省く。
+`files_created` は、run の前の fixture のファイル一覧と、run の後に `project-files/` に保存できた成果物の差分から作る。もとからある fixture のファイルと、サイズの上限などで保存しなかったファイルは含めない。
 
-raw trace は調査・deterministic grading 用であり、集計・viewer は raw の vendor 固有 schema に依存しない。
-Codex の `item.type=error` / `turn.failed`、Claude Code の `is_error`、raw の parse 失敗、final response 不在は、CLI exit が 0 でも正規化を fail-closed にして runner を非 0 終了させる。
+raw trace は、調査と決定論的な採点に使う。集計と viewer は、ベンダーごとに違う raw の形に依存しない。
+次の場合は、CLI が 0 で終了していても、正規化を失敗として扱い、runner を 0 以外で終了させる。
+Codex の `item.type=error` か `turn.failed`、Claude Code の `is_error`、raw を解析できない、最後の応答が無い、のどれかに当たる場合である。
 
-`grading.json` は executor に依存しない既存 schema を使う。必須フィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}`。
-採点後の集計は repo の `scripts/eval/build-skill-eval-benchmark.js`（判定を assertion テキストで突き合わせる）。viewer は既存 skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
+`grading.json` は、executor に依存しない既存のスキーマを使う。必須のフィールドは `summary.{pass_rate,passed,failed,total}` と `expectations[].{text,passed,evidence}` である。
+採点の後は、このリポジトリの `scripts/eval/build-skill-eval-benchmark.js` が集計する。判定は assertion の文で突き合わせる。viewer は skill-creator の `eval-viewer/generate_review.py` をそのまま使う。
 
 ## Native skill と隔離
 
 - Claude Code: `with_skill` だけ使い捨て project の `.claude/skills/<name>` に bundle をコピーする。
 - Codex: `with_skill` だけ `.agents/skills/<name>` にコピーする。`SKILL.md` 本文の prompt 注入はしない。
 - `without_skill`: どちらも対象スキルの bundle をコピーしない。
-- eval が宣言した `requires_skills` は、両 executor・両 configuration で同じ場所へコピーする（宣言の契約は [`skill-development.md`](skill-development.md)「eval 実行の隔離（必須）」）。
+- eval が宣言した `requires_skills` は、両 executor・両 configuration で同じ場所へコピーする（宣言の書き方は [`skill-development.md`](skill-development.md)「eval 実行の隔離（必須）」にある）。
 
 Codex は `--ephemeral --ignore-user-config --ignore-rules` で実行する。
-Bubblewrap は既定の `~/.codex` と、`CODEX_HOME` が指定する canonical state root の user config・履歴・global skills を隠す。選択した state root の read-only `bin/` と `auth.json` だけを戻す。
-Codex はファイル操作で sibling の `codex-code-mode-host` を起動するため、単一 executable ではなく `bin/` 全体が必要。
-内側の Codex `workspace-write` sandbox も有効に保つ。
-`/tmp` の scratch から隔離 namespace 内だけに一時 `/etc/codex/requirements.toml` を重ね、`permissions.filesystem.deny_read` で CLI 起動用の `auth.json` を agent shell command から保護する。
-host の `/etc` は変更しない。
+Bubblewrap は、デフォルトの `~/.codex` と、`CODEX_HOME` が指す状態のディレクトリにある、ユーザー設定・履歴・global skills を隠す。
+選んだ状態のディレクトリの `bin/`（読み取り専用）と `auth.json` だけを見えるようにする。
+Codex はファイルを操作するときに同じディレクトリの `codex-code-mode-host` を起動するので、実行ファイル 1 つではなく `bin/` 全体が要る。
+内側の Codex の `workspace-write` sandbox も有効にしておく。
+隔離した namespace の中だけで、`/tmp` の作業ディレクトリから一時的な `/etc/codex/requirements.toml` を重ねる。
+その `permissions.filesystem.deny_read` で、CLI の起動に使う `auth.json` を、エージェントが実行するシェルのコマンドから読めないようにする。ホストの `/etc` は変えない。
 
-この境界は、eval run 内で agent が発行する shell command から内容を読み出す probe で実測する。`cat "$CODEX_HOME/auth.json" >/dev/null` は非 0 でなければならない（エラー文言はバージョン差があるため固定しない）。
-同じ run の fixture と `.agents/skills/<name>/SKILL.md` は読取り成功しなければならない。
+この隔離は、eval の run の中でエージェントが実行するシェルのコマンドから内容を読み出すプローブで実測する。
+`cat "$CODEX_HOME/auth.json" >/dev/null` は 0 以外で終了しなければならない。エラーの文言は版によって違うので、判定には使わない。
+同じ run で、fixture と `.agents/skills/<name>/SKILL.md` は読めなければならない。
 deny-read の公式仕様と system requirements の配置は [OpenAI: Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) を参照する。
 
-汚染判定は正規化済み final response、project snapshot と、Codex では raw trace から導いた走査面（`contamination-surface/codex.jsonl`）を走査する。
-走査面は raw から言及しか運べない event（エージェントが書いたテキスト・`file_change` のパス・単独の `echo` / `printf`）だけを落とし、
-コマンド文字列・コマンド出力・解釈できない行は残す。claude-code の raw は走査せず、読み取りの証拠は `skill_usage` の `unexpected_read` が持つ。
-各 directory root に陽性コントロールを植えて検出能力を実証し、raw・走査面の不在・空・読取り不能も `CHECK-BROKEN` とする。
+汚染の判定では、正規化した最後の応答と、プロジェクトのスナップショットを調べる。Codex では、raw trace から作った調べる範囲（`contamination-surface/codex.jsonl`）も調べる。
+この範囲は、raw から、名前に触れただけのイベント（エージェントが書いた文、`file_change` のパス、単独の `echo`・`printf`）だけを除いたものである。
+コマンドの文字列、コマンドの出力、解釈できない行は残す。claude-code の raw は調べず、読み取りの証拠は `skill_usage` の `unexpected_read` が持つ。
+各ディレクトリのルートに標的の文字列をわざと置き、検出されることを確かめる。raw や調べる範囲が無い・空・読めない場合も `CHECK-BROKEN` にする。
 
 ## Codex の trigger 回帰
 
-Codex は skill を明示と暗黙の 2 経路で選ぶ。回帰では次の 3 ケースを別々に実測する。
+Codex は、明示の指定と暗黙の判定の 2 つの方法でスキルを選ぶ。回帰では次の 3 ケースを別々に実測する。
 
 1. explicit positive: prompt で `$<skill>` を指定し、native `SKILL.md` 読取りと期待動作を確認する
 2. implicit positive: skill 名を出さず description に一致する prompt を与え、native `SKILL.md` 読取りを確認する
@@ -125,7 +131,7 @@ Codex は skill を明示と暗黙の 2 経路で選ぶ。回帰では次の 3 �
 
 ## NVIDIA SkillEvaluator の pilot 判断
 
-2026-08-27 に NVIDIA SkillEvaluator `0.2.1`、commit `009aa300be7925c7ba75760592baeb941cc29ba8` を一時 venv へ導入し、次を実測した。
+NVIDIA SkillEvaluator `0.2.1`（commit `009aa300be7925c7ba75760592baeb941cc29ba8`）を一時的な venv に導入し、次の結果を得た。
 
 ```text
 skillevaluator doctor --agents codex --env-mode local
@@ -135,10 +141,11 @@ local prerequisite: pass
 Public LLM provider: fail
 ```
 
-今回は採用しない。Codex CLI と local sandbox の認識は通るが、Tier 3 には Codex の既存認証とは別の evaluator provider credential が必要で、Python 3.12–3.13、Harbor と大きな依存集合、独自 results schema も追加される。
-既存 skill-creator artifact へ戻す adapter が別途必要になり、Codex-only で既存資産を再利用する目的に対して層が増えるためである。
+SkillEvaluator は採用しない。Codex CLI と local sandbox は認識される。
+しかし、SkillEvaluator の Tier 3 には、Codex の認証とは別に evaluator の provider の認証情報が要る。Python 3.12–3.13、Harbor と多くの依存、独自の結果のスキーマも増える。
+結果を skill-creator の成果物の形に戻す変換も別に要り、Codex だけで既存の資産を使い回すという目的に対して、層が増えるからである。
 
-fallback は OpenAI 公式 `plugin-eval` と eval guide の設計を採る。実 `codex exec --json` を一時 workspace で動かし、raw trace を保持しながら本リポジトリの共通 schema へ正規化する。
+代わりに、OpenAI 公式の `plugin-eval` と eval guide の設計を採る。実 `codex exec --json` を一時 workspace で動かし、raw trace を保持しながら本リポジトリの共通 schema へ正規化する。
 
 - [NVIDIA SkillEvaluator](https://github.com/NVIDIA/SkillEvaluator)
 - [OpenAI plugin-eval](https://github.com/openai/plugins/tree/main/plugins/plugin-eval)

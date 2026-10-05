@@ -454,7 +454,7 @@ function loadSpec(specPath) {
  * **既定は vitest の entry を Node のモジュール解決で求め、`node` で直接起動する。** `pnpm exec` を経由すると
  * 1 回あたり約 0.6 秒の起動コストが乗り（実測: `pnpm exec vitest --version` 0.70 秒 / `node vitest.mjs --version`
  * 0.07 秒）、変異 1 件ごとに基準 run・入れ子の runner を含めて数十回起動するこの検査では支配的になる。
- * `node_modules/.bin/` のハードパスは使わない（docs/tooling.md の「ツール起動」の例外。解決はパッケージの `bin` から取る）。
+ * `node_modules/.bin/` のハードパスは使わない（docs/tooling.md「ツールの起動」の例外。解決はパッケージの `bin` から取る）。
  *
  * `MUTATION_PROOF_TEST_COMMAND` で実行ファイルを差し替えられる（**テスト用の seam**。実行器のロック・復元・
  * 判定のテストを、決まった JSON レポートを返すスタブで回して vitest の起動を省くため）。引数は vitest と同じ

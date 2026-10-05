@@ -6,8 +6,10 @@ applyTo: "skills/**"
 
 # API 取得のページネーション
 
-`gh api` 等で一覧を取得する shell / markdown コードは、**指定件数で暗黙に打ち切らない**こと。
-ページングを処理して必要な範囲をすべて辿る（REST は `--paginate`、GraphQL は `pageInfo`/`endCursor` ＋ `--paginate`）。
-件数が大きくなりうる場合は、全件をメモリに抱えず**ページ単位で逐次処理**し、十分なら早期終了の条件を明示する。
-この規約は `scripts/gates/lint-pagination.js` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（完全なシェルパーサではなくヒューリスティックな安全網）。判定ロジックは vitest で `scripts/gates/lint-pagination.test.js` がカバーする。
-意図的な単発取得は当該箇所に `# pagination-ok` を付けて明示する。
+`gh api` などで一覧を取得するシェルや Markdown のコードは、指定した件数で取得を打ち切らずに、ページングを処理して必要な範囲をすべて取得する。
+REST では `--paginate` を、GraphQL では `pageInfo`・`endCursor` と `--paginate` を使う。
+件数が大きくなりうる場合は、全件をメモリに保持せずにページ単位で順に処理する。途中で終えてよいなら、終える条件を書く。
+
+この規約は `scripts/gates/lint-pagination.js` が lefthook の pre-commit と CI の `Lint` ジョブでチェックする。
+完全なシェルのパーサではなく、ヒューリスティックで検出するチェックである。判定の処理は `scripts/gates/lint-pagination.test.js` がテストする。
+意図して 1 回だけ取得する箇所には、`# pagination-ok` を付ける。

@@ -76,7 +76,7 @@ fixture 付き eval（`evals.json` に `fixture` があるもの）は `--fixtur
   **assertion は 2 度直している**——初版（iteration-29）の強度ゲートの assertion は prompt が強度ゲートに触れないため
   両 config が無条件 pass する空振りだったので削除し、2 版目（iteration-30）で要求していた `approved_by` / `approved_at` というキー名は
   **正本が `parity-suite` の `metadata-template.json` にあり、`with_skill` には対象スキルの成果物しかコピーされないため原理的に到達できない**
-  （`.agents/rules/eval-assertion-discrimination.md`「到達」が名指ししている失敗）。本スキルの `references/convergence.md` で読める粒度
+  （`.agents/rules/eval-assertion-discrimination.md`「到達できるか」が名指ししている失敗）。本スキルの `references/convergence.md` で読める粒度
   （承認記録が空なら `blocking`）へ直して iteration-31 で取り直し、`with_skill` 6/6 / `without_skill` 2/6。
   **ただし「`gaps.md` を降格させない」の弁別は run 間で揺れる**——iteration-30 の baseline は `gaps.md` の生成物への降格を提案し、
   iteration-31 の baseline は散文のまま残すと答えた。1 run では分散を測れないので、弁別の根拠をこの 1 本に置かない

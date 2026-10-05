@@ -1,138 +1,174 @@
 # スキル開発ワークフロー
 
-スキルの作成・改善・評価・リリースに関する詳細手順。全エージェント共通の前提・規約は `AGENTS.md` を参照する。
+スキルの作成・改善・評価・リリースの手順を書く。全エージェントに共通の前提と規約は `AGENTS.md` にある。
 
 スキルの作成・改善・評価には `skill-creator` スキルを使う。
 
 ## スキルを追加・修正する
 
-1. `skills/<name>/` を作成または編集する
-2. `evals/<name>/evals.json` にテストケースを追加・更新する（eval は配布しないため `skills/<name>/` の外に置く）
-   - **`parity-suite` の手順に確かめる軸を足したら**（被覆表の候補・撮影条件・反応の数え方など、閉じた機能の成果物に足りない測定が出る変更）、
-     同じ変更で `skills/parity-suite/assets/procedure-revisions.json` の `revision` を 1 上げ、`changes` へ 1 要素を追記する。
-     下流の `replace-strategy status` はこの一覧で「旧手順で閉じた機能」を列挙するため、上げ忘れると前に閉じた機能が古い手順のまま収束扱いで残る。
-     **これは規約で、強制点は無い**（軸を足したかは差分から機械的に決められない）。一覧の形は `scripts/skills/replace-strategy/procedure-staleness-check.test.js` が検査する
-3. `scripts/tools/reinstall-skill.sh <name>` でインストール済みスキルを更新する
-4. スキルにセットアップ手順が定義されている場合は実行する。既存ファイルや既存 Hook がある場合は上書きせず、更新するか確認する
-5. skill-creator で回帰テストを実行し `tests/<name>/iteration-N/` に結果を保存する
-6. `gh skill publish --dry-run` でバリデーションを確認する
-   - `name "..." does not match directory name "."` エラーは現環境では全スキル共通で出る偽陽性。既存の公開済みスキルで同コマンドを実行して差分（license 等の warning）を比較し、実質的な問題だけを見る
-7. PR を作成してレビュー・マージする（リリースは CD が自動で行う）
+1. `skills/<name>/` を作るか編集する。
+2. `evals/<name>/evals.json` のテストケースを追加・更新する。eval は配布しないので、`skills/<name>/` の外に置く。
+   - `parity-suite` の手順に確かめる軸を足したときは、同じ変更で `skills/parity-suite/assets/procedure-revisions.json` の `revision` を 1 上げ、`changes` に 1 要素を追記する。
+     確かめる項目の候補・撮影条件・反応の数え方など、収束した機能の成果物で測定が足りなくなる変更が当たる。
+     下流の `replace-strategy status` は、この一覧を見て古い手順で収束した機能を挙げる。上げ忘れると、前に収束した機能が古い手順のまま収束した扱いで残る。
+     軸を足したかどうかは差分から機械的に決められないので、これはチェックの無い規約である。
+     一覧の形は `scripts/skills/replace-strategy/procedure-staleness-check.test.js` がチェックする。
+3. `scripts/tools/reinstall-skill.sh <name>` で、インストール済みのスキルを更新する。
+4. スキルにセットアップ手順があれば実行する。既存のファイルや Hook があるときは上書きせず、更新するかを確認する。
+5. skill-creator で回帰テストを実行し、結果を `tests/<name>/iteration-N/` に保存する。
+6. `gh skill publish --dry-run` で検証する。
+   - `name "..." does not match directory name "."` のエラーは、このリポジトリで実行すると全スキルで出る誤検知である。
+     公開済みの既存のスキルで同じコマンドを実行し、license などの warning の差分を比べて、実際の問題だけを扱う。
+7. PR を作り、レビューを受けてマージする。リリースは CD が自動で行う。
 
 ## push 前の整合パス
 
-ドキュメント・スキルを push する前に、以下を突き合わせて内部・横断の不整合を潰す（レビュー任せにしない）。
+ドキュメントやスキルを push する前に、次の項目を突き合わせて、文書の中と文書の間の食い違いを直す。レビューに任せない。
 
-1. **同一成果物内の自己整合**: 外部由来の語（API 値・enum・フラグ名）はドキュメント内で 1 表記に統一する。
-   散文の説明と直後のコード例を突き合わせる。編集した概念のキーワードで対象ファイルを `grep` し、別表記・矛盾記述が残っていないか確認する。
-   **文字数・バイト数・書式のような「数えれば分かる」規約の合否は、それを強制する実装をそのまま実行して取る**（自前の近似を書かない）。
-   単位（バイト / 文字 / 表示幅）は強制する実装ごとに違うため、近似は偽陽性・偽陰性を出す——commit message は `pnpm exec commitlint --edit <file>`、
-   Markdown は `pnpm exec markdownlint-cli2 <path>`、`SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.js <path>` で測る。
-2. **複製ボイラープレートの横断適用**: スキル間で複製されたファイル（`evals/<name>/README.md` 等）は、修正対象の文字列で `grep -rn <キーワード> skills/ evals/` を実行し、全複製に同じ修正を適用する。
-3. **ルール記述 ↔ 強制ゲートの実在とスコープ一致**: まず**強制点が実在するか**を確かめる——「この規律を破ろうとしたとき、どのコード / lint / hook が落とすか」を 1 つ名指しできない規律は、
-   「仕組みで縛った」ではなく規約である（散文に書いた箇所数は強度ではない。効くのは強制点だけ）。名指しできないなら強制点を実装するか、規約であることを明記する。
-   **強制点があると宣言したら陰性コントロールで実際に破ってみる**（違反する最小入力が落ちること）とともに**陽性コントロールも通す**（正当な入力が通ること。でないと「全部落とすだけの検査」と区別できない）。
-   **fail-closed は「落とす」だけでなく「見える」まで作る**——黙って捨てる実装は機械可読値に 0 を記録しレポートにも載らないため、後段の判定から検証不能になる。
-   そのうえで、ルールとそれを強制する lint / ゲート / スクリプトを同じ変更で追加・更新したら、両者の走査スコープ（対象 glob・条件）が一致しているか確認する。
-4. **SKILL.md 本文 ↔ evals の整合**: スキルの挙動・手順を変更したら、変更した概念のキーワードで同スキルの `evals/<name>/` を `grep` し、旧仕様前提の assertion を更新する。
-   **変更したのが姉妹スキルの読む共有契約**（`replace-strategy/references/project-config.md` 等）や、他スキルが根拠として引用しうる記述なら、`grep` の範囲を同スキルに閉じず `evals/` 横断にする。
-   `grep` する語は**変更後の新しい語ではなく、変更前の語彙／既存要素の名前**にする（古いアサーションは変更前の語彙で書かれているため、新語では原理的に引っかからない）。
-   ヒットしたアサーションは、**更新後のドキュメントに沿った回答が pass するか**を 1 件ずつ読み直す（放置すると、正しい回答が不合格になり、いまは誤りである主張が合格になる回帰テストを埋め込むことになる）。
-5. **実装物 ↔ 消費側仕様の契約整合**: 共有契約（設定キー・成果物スキーマ・プロパティ集合・経路・名前）を定義・変更したら、消費側仕様（姉妹 Issue の本文・コメント、下流スキルの前提節）と契約面を 1 項目ずつ突き合わせる。
-   突合対象の列挙は既知キーワードの grep に閉じず「**その契約フィールドを読む・書く箇所**」の軸で行う——姉妹スキルの同名 references・`assets/` のテンプレート（成果物スキーマの正本）を含め、
-   拡張子絞り（`--include="*.md"` 等）で成果物テンプレートを落とさない。「値を成果物に書かない」型の規律は、キーワードに一致しない表現で値を記録する成果物が漏れやすい。
-   **契約の新設だけでなく既存の条件リストへ項目を追加したときも grep は空振る**（定義元以外に出現が無い、または変更前の語彙で条件が再掲される）。
-   **このとき grep するのは足した語ではなく「既存要素の名前」にする**——古い列挙は変更前の語彙で書かれている以上、既存要素名を必ず含む（新語では原理的に引っかからない）。
-   表セル・原則行・要約行・テンプレートのコメント・設定ファイルの YAML コメントなど、**要約・短縮形で同じ集合を再掲している箇所**がここで出る。
-   そのうえで突合の軸を追加語の出現ではなく「その運用を**義務づけた記述**」「条件リストを再掲・要約・例外化する箇所」に取り、そこから消費側コンポーネントを逆引きする。
-   条件を減らす分岐の完了条件、要約行、追加コマンドのプレースホルダ取得元、姉妹スキルに複製した実例値も 1 件ずつ確認する。
-   消費側ごとに「読む／書く」の宣言（設定キー表・成果物表）を**新設**し、既存の権限宣言（「読むだけ」「設定を生成しない」等）と矛盾しないかまで確かめる。
-   義務の目的語が「キーを読む」ではなく「どこかに**書く**」のときは、逆引き先は記録先の**様式**になる——**書く先のテンプレート（`assets/` の成果物様式）にその節が存在すること**まで確認する（節が無いと記録の義務が黙って抜け、「確認済みにしない」ガードが効かない）。
-   配布スキルが生成する様式を増やしたら、生成側が既存インスタンスへ非破壊で列・節を追加して埋め、読み手側は欠落を「値が無い」でなく記録漏れとして扱うことまで規定する。
-6. **共有契約変更時のライフサイクル実走**: 設定スキーマ・成果物パス等の共有契約を変えたら、消費側スキルの代表ワークフロー（正常系・境界ケース）を doc の記述だけで順にたどり、
-   途切れ・矛盾・到達不能（デッドロック）がないかを検証する。突合（項目 5）は壊れた参照しか見つけられず、「手順として成立しないフロー」は参照が全部整合していても起きる。
-7. **状態を持ち越す機構の反復実走**: キャッシュ・再利用・反復カウンタなど**実行をまたいで状態を持ち越す**機構を設計・変更したら、1 回のフローをたどるだけで終えず、
-   反復 N → N+1（および中断した反復）を通して各判定材料の**書き込みタイミング**（誰がいつ書くか。カウンタの +1 と範囲記録の前後関係）と
-   **粒度**（全体スカラーか再利用単位ごとか）を突き合わせ、「無効化すべきなのに発火しない」経路が無いことを 1 件ずつ確認する。
-   粒度の粗いスカラーは一部の更新で全体を新鮮に見せ、書き込み順の逆転は前の反復の値を今の反復の値として名乗らせる（項目 6 の 1 回実走では反復間の持ち越しを追えない）。
-8. **停止条件・「未確定を残す」様式の行動 eval**: 進行を止める条件（ゲート・停止・ブロック）や「空欄のまま確認へ上げる」様式を新設・変更したら、
-   **それが満たせない場を作った eval を実走**して回避経路が出ていないか確かめる。
-   項目 3 の陰性コントロールが検査するのは強制点の実装で、ここで検査するのは**満たせないときにエージェントが何をするか**であり、
-   記述の突合（項目 1・5）と紙上のライフサイクル実走（項目 6）ではどちらも見つからない
-   （「空欄のまま確認へ上げる」と「空欄なら起票を止める」は記述として整合し、突合でも紙上追跡でも矛盾が出ない。実走すると暫定値で埋め、理由に「空欄で止めると全機能の起票がブロックされるため」と明言した）。
-   満たせない場とは**非対話実行・判断材料が手元に無い状況**、回避経路とは**暫定値で埋める・行を消す・条件を読み替える**こと。
-   ゲートは「値が実際に必要になる地点」に置く。記録の様式と進行のブロックを同じ地点に重ねると、記録側が消える方向のインセンティブになる。
+1. 同じ成果物の中で食い違いが無いかを確かめる。
+   外部から来た語（API の値・enum・フラグ名）は、ドキュメントの中で 1 つの表記にそろえる。
+   散文の説明と、その直後のコード例を突き合わせる。編集した概念のキーワードで対象のファイルを `grep` し、別の表記や矛盾する記述が残っていないかを確かめる。
+   文字数・バイト数・書式のように数えれば分かる規約は、その規約をチェックする実装をそのまま実行して確かめる。自分で近似のスクリプトを書かない。
+   単位（バイト・文字・表示幅）はチェックする実装ごとに違うので、近似は誤検知と見逃しを出す。
+   commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>`、
+   `SKILL.md` の frontmatter は `node scripts/gates/check-skill-frontmatter.js <path>` で確かめる。
+2. スキルの間でコピーしたファイルに、同じ修正を当てる。
+   `evals/<name>/README.md` のようにスキルごとにコピーしたファイルは、直す文字列で `grep -rn <キーワード> skills/ evals/` を実行し、すべてのコピーに同じ修正を当てる。
+3. ルールに書いた規律を、チェックが実際に強制しているかを確かめる。
+   まず、その規律を破ったときにどのコード・lint・hook がエラーにするかを 1 つ挙げる。
+   挙げられない規律は、仕組みで強制したものではなく規約である。散文に何か所書いても強制にはならない。
+   挙げられないなら、チェックを実装するか、規約であることを明記する。
+   チェックがあると書いたら、違反する最小の入力を置いてエラーになることと、正しい入力が通ることの両方を確かめる。
+   正しい入力を通さないと、すべてを失敗にするだけのチェックと区別できない。
+   判定できないときに失敗にするチェックは、失敗にするだけでなく、失敗したことが見えるように作る。
+   警告なしに入力を捨てる実装は機械が読む値に 0 を記録し、レポートにも出ないので、後の判定で確かめられなくなる。
+   そのうえで、ルールとそれを強制する lint・チェック・スクリプトを同じ変更で追加・更新したら、両方の対象（glob と条件）が一致しているかを確かめる。
+4. `SKILL.md` の本文と eval が食い違っていないかを確かめる。
+   スキルの挙動や手順を変えたら、変えた概念のキーワードで同じスキルの `evals/<name>/` を `grep` し、古い仕様を前提にした assertion を直す。
+   変えたのが姉妹スキルの読む共通の取り決め（`replace-strategy/references/project-config.md` など）や、他のスキルが根拠として引用しうる記述なら、`grep` を同じスキルに限らず `evals/` 全体に広げる。
+   `grep` する語は、変えた後の新しい語ではなく、変える前の語や既存の要素の名前にする。古い assertion は変える前の語で書かれているので、新しい語では見つからない。
+   見つかった assertion は、直した後のドキュメントに沿った回答が pass するかを 1 件ずつ読み直す。
+   直さずに置くと、正しい回答を不合格にし、今は誤りになった主張を合格にする回帰テストが残る。
+5. 実装と、それを使う側の仕様が食い違っていないかを確かめる。
+   共通の取り決め（設定キー・成果物のスキーマ・プロパティの集合・パス・名前）を定義したり変えたりしたら、使う側の仕様（姉妹 Issue の本文とコメント、下流のスキルの前提の節）と 1 項目ずつ突き合わせる。
+   突き合わせる箇所は、既知のキーワードの grep だけで挙げず、その項目を読む箇所と書く箇所から挙げる。
+   姉妹スキルの同じ名前の references と、`assets/` のテンプレート（成果物のスキーマの原本）も含める。`--include="*.md"` のように拡張子で絞って、成果物のテンプレートを外さない。
+   「値を成果物に書かない」という規律は、キーワードと違う表現で値を記録する成果物を見逃しやすい。
+   取り決めを新しく作ったときだけでなく、既存の条件のリストに項目を足したときも、grep で見つからないことがある。
+   足した語は定義元にしか無く、条件を書き直した箇所は変える前の語で書かれているからである。
+   このときは、足した語ではなく既存の要素の名前で grep する。古いリストは変える前の語で書かれているので、既存の要素の名前を必ず含む。
+   表のセル・原則の行・要約の行・テンプレートのコメント・設定ファイルの YAML のコメントなど、同じ集合を要約や短い形で書き直した箇所がここで見つかる。
+   そのうえで、足した語が出てくる箇所は起点にしない。その運用を義務づけた記述と、条件のリストを書き直し・要約・例外にしている箇所を起点にして、使う側のコンポーネントをたどる。
+   条件を減らす分岐の完了条件、要約の行、追加したコマンドのプレースホルダの値の取得元、姉妹スキルにコピーした実例の値も、1 件ずつ確かめる。
+   使う側ごとに、何を読み何を書くかの宣言（設定キーの表・成果物の表）を新しく作り、既存の権限の宣言（「読むだけ」「設定を生成しない」など）と矛盾しないかを確かめる。
+   義務がキーを読むことではなく、どこかに書くことなら、たどる先は記録先の様式になる。
+   書き込み先のテンプレート（`assets/` の成果物の様式）に、その節があることまで確かめる。
+   節が無いと、記録の義務が警告なしに抜け、「確認済みにしない」という制限が機能しない。
+   配布スキルが作る様式を増やしたら、作る側は既存のファイルを壊さずに列や節を足して埋め、読む側は欠けた項目を「値が無い」ではなく記録の抜けとして扱う、と書く。
+6. 共通の取り決めを変えたら、使う側の手順を通してたどる。
+   設定のスキーマや成果物のパスのような共通の取り決めを変えたら、使う側のスキルの代表的な手順（正常な場合と境界の場合）を、ドキュメントの記述だけで順にたどる。
+   途中で途切れる・矛盾する・先に進めなくなる（デッドロック）箇所が無いかを確かめる。
+   項目 5 の突き合わせで見つかるのは、誤った参照だけである。参照がすべて合っていても、手順としては成り立たないことがある。
+7. 実行をまたいで状態を持ち越す仕組みは、繰り返してたどる。
+   キャッシュ・再利用・反復の回数のように、実行をまたいで状態を持ち越す仕組みを設計したり変えたりしたら、1 回の手順をたどるだけで終えない。
+   反復 N から N+1 へ進む場合と途中で止めた反復を通して、判定に使う値ごとに次の 2 つを突き合わせる。
+   誰がいつ書くか（回数の加算と範囲の記録のどちらが先か）と、値の単位（全体で 1 つか、再利用の単位ごとか）である。無効にすべきなのに無効にならない場合が無いことを、1 件ずつ確かめる。
+   単位の粗い値は、一部の更新で全体を新しく見せる。書く順序が逆になると、前の反復の値が今の反復の値として扱われる。項目 6 の 1 回だけのたどり方では、反復の間で持ち越す値を追えない。
+8. 止める条件と、未確定のまま残す様式は、eval を実行して確かめる。
+   進行を止める条件（チェック・停止・ブロック）や、「空欄のまま確認に回す」様式を新しく作ったり変えたりしたら、その条件を満たせない状況を作った eval を実行する。
+   エージェントが条件を避けて進まないかを確かめる。
+   項目 3 で確かめるのはチェックの実装で、ここで確かめるのは、条件を満たせないときにエージェントが何をするかである。
+   これは記述の突き合わせ（項目 1・5）でも、文書の上でたどる確認（項目 6）でも見つからない。
+   たとえば「空欄のまま確認に回す」と「空欄なら起票を止める」は記述として合っていて、突き合わせても文書の上でたどっても矛盾は出ない。
+   実行すると、エージェントは暫定の値で埋め、理由に「空欄で止めると全機能の起票がブロックされるため」と書いた。
+   条件を満たせない状況とは、非対話で実行していて、判断に要る情報が手元に無い状況のことである。
+   条件を避ける振る舞いとは、暫定の値で埋める・行を消す・条件を読み替えるのどれかである。
+   チェックは、値が実際に必要になる地点に置く。記録の様式と進行のブロックを同じ地点に置くと、記録を消す方向に動く理由ができる。
 
-執筆注意: リンク化しない注記に ASCII `[text]` を使わない。対応する `[text]: URL` 定義が無いと Markdown の未定義 shortcut 参照リンクになり GitHub 上で表示が崩れる（markdownlint 既定の MD052 は shortcut 構文を検査せず検出されない）。必要なら全角『』や丸括弧を使い、リンクにするなら必ず定義／URL を付ける。
+リンクにしない注記に ASCII の `[text]` を使わない。
+対応する `[text]: URL` の定義が無いと、Markdown の未定義の shortcut 参照リンクになり、GitHub で正しく表示されない。
+markdownlint のデフォルトの MD052 は shortcut の構文をチェックしないので、この誤りを検出しない。
+注記には全角の『』や丸括弧を使う。リンクにするなら、定義か URL を必ず付ける。
 
 ## 禁止事項の執筆
 
-配布スキルの禁止事項は、ワークフロー内の手順制約としてだけでなく「**スキル外の代替提供**」（"スキル不要で私が直接やりましょうか" 型のすり抜け）も明示的に禁止する。拒否系 eval には代替提供のすり抜けを検出する assertion を含める。
+配布スキルの禁止事項は、ワークフローの中の手順の制約だけでなく、スキルの外で代わりの方法を提供することも禁止する。
+「スキルを使わずに私が直接やりましょうか」のような提案で、禁止をすり抜けるのを防ぐためである。
+断る場合を確かめる eval には、代わりの方法の提供を検出する assertion を入れる。
 
 ## リリース（CD）
 
-`skills/**` を含む変更が `main` にマージされると `.github/workflows/release.yml` が自動公開する（詳細は同ファイル参照）。**手動でのタグ付け・publish は不要**。
+`skills/**` を含む変更が `main` にマージされると、`.github/workflows/release.yml` が自動で公開する。詳細はこのワークフローのファイルにある。
+タグ付けと publish を手で行う必要は無い。
 
-- バージョンはリポジトリ単位の git タグ（conventional commits から決定）が唯一の真実。スキル毎の独立バージョンは持たない
-- `package.json` の `version` はリリースに使わないため `0.0.0` 固定（書き換えない）
+- バージョンはリポジトリ単位の git タグで決まり、conventional commits から決める。スキルごとのバージョンは持たない。
+- `package.json` の `version` はリリースに使わないので、`0.0.0` のまま変えない。
 
 ## スキル修正後の再インストール
 
-このリポジトリでは Claude Code / Codex / GitHub Copilot の3エージェントを使うため、開発中スキルは `--agent codex` で `.agents/skills/<name>/` に実体を置き、`.claude/skills/<name>` にシンボリックリンクを張る単一ソース構成でドッグフードする。スキルを修正した場合は、手作業ではなくスクリプトで再インストールする:
+このリポジトリでは Claude Code・Codex・GitHub Copilot の 3 つのエージェントを使う。
+開発中のスキルは `--agent codex` で `.agents/skills/<name>/` に実体を置き、`.claude/skills/<name>` にシンボリックリンクを張って、1 つの実体を全エージェントで使う。
+スキルを直したら、手で直さずに次のスクリプトで再インストールする。
 
 ```bash
 scripts/tools/reinstall-skill.sh <name>
 ```
 
-このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作成する。
-また、`gh skill install --from-local` が自動追加する `metadata.local-path` をインストール済み `SKILL.md` から削除する。
-`gh skill install` にはこのメタデータ追加を無効化するオプションが無い（`gh skill install --help` で確かめる）。
+このスクリプトは `.agents/skills/<name>/` に実体をインストールし、`.claude/skills/<name>` にシンボリックリンクを作る。
+また、`gh skill install --from-local` が自動で足す `metadata.local-path` を、インストールした `SKILL.md` から消す。
+`gh skill install` には、このメタデータを足さないようにするオプションが無い（`gh skill install --help` で確かめる）。
 
-このスクリプトは **このリポジトリ専用の開発ツール**であり、配布スキルには同梱されない（インストール先には付いて行かない）。
-**ローカル未公開の編集**を `.agents/` / `.claude/` に反映するためのもので、**リモート公開版**を更新する `gh skill update` とは役割が異なり代替もできない。
-配布スキルの利用者は `gh skill install` / `gh skill update` を使う（README のインストール手順を参照）。
+このスクリプトはこのリポジトリの開発用のツールで、配布スキルには含めない。
+まだ公開していない手元の編集を `.agents/` と `.claude/` に反映するためのもので、公開済みの版を更新する `gh skill update` とは役割が違い、代わりにもならない。
+配布スキルの利用者は `gh skill install` と `gh skill update` を使う（README のインストール手順にある）。
 
 ## 回帰テストを実行する
 
-各スキルのテストケースと手順は `evals/<name>/`（`evals.json` / `README.md`）にある。
+各スキルのテストケースと手順は `evals/<name>/` の `evals.json` と `README.md` にある。
 
-**新規・変更した eval には `reachability` を書く。** 各 assertion を引き出す prompt の文を
-`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` として並べる。
-`scripts/gates/check-eval-reachability.js` が pre-commit と CI で、対応要素の欠落・空の引用・prompt に無い引用・
-assertions に無い assertion を落とす（対応づけは位置ではなくテキスト）。
-既存 eval は `scripts/gates/eval-reachability-backlog.json` の宣言で段階適用にしてあり、
-項目は eval の指紋（prompt + assertions のハッシュ）を持つ——**その eval を書き換えると免除が外れて
-`reachability` が必須になる**ので、触った eval から順に埋まる。新規 eval を backlog へ足さない。
+新しく作った eval と変えた eval には `reachability` を書く。
+各 assertion を引き出す prompt の文を、`{ "assertion": "<assertions に実在するテキスト>", "prompt_quote": "<prompt 内の部分文字列>" }` の形で並べる。
+`scripts/gates/check-eval-reachability.js` が pre-commit と CI で次のものをエラーにする。
+対応する要素が無いもの、引用が空のもの、prompt に無い引用、assertions に無い assertion である。対応はテキストで付け、位置では付けない。
+既存の eval は `scripts/gates/eval-reachability-backlog.json` に載せて、順に適用している。
+この一覧の各項目は eval の指紋（prompt と assertions のハッシュ）を持つ。その eval を書き換えると一覧から外れたものとして扱われ、`reachability` が必要になる。
+そのため、触った eval から順に `reachability` が埋まる。新しい eval をこの一覧に足さない。
 
 ### 実走の既定スコープ（変更確認と benchmark を分ける）
 
-LLM eval は最初のデバッグ手段にしない。先に変更したランチャー・fixture・grader の unit test を通し、判定を反転・削除する mutation でテストが赤くなることまで確認する。開発中はこの決定論的検証で反復し、LLM eval は最終候補に対する変更確認へ遅らせる。
+LLM の eval を最初のデバッグに使わない。
+先に、変えたランチャー・fixture・採点のスクリプトの unit test を通し、判定を反転したり削除したりするミューテーションでテストが失敗することまで確かめる。
+開発中はこの決定論的な検証で繰り返し、LLM の eval は最後の候補に対する変更確認まで遅らせる。
 
-**実走には目的が 2 つあり、必要な run 数が桁で違う。起動前にどちらかを宣言する。**
+eval の実行には 2 つの目的があり、必要な run の数が大きく違う。起動する前に、どちらの目的かを書く。
 
-| 目的 | スコープ | run 数 |
+| 目的 | 範囲 | run の数 |
 |---|---|---|
-| **変更確認**（既定） | **入力が変わった eval だけ**を `with_skill` と `without_skill` 各 1 run | 変更 eval 数 × 2 |
-| **benchmark 更新** | `benchmark.json` を更新すると**明示的に決めたとき**だけ。対象 eval × 2 config × 3 run | 対象 eval 数 × 6 |
+| 変更確認（デフォルト） | 入力が変わった eval だけを、`with_skill` と `without_skill` で 1 run ずつ | 変えた eval の数 × 2 |
+| benchmark の更新 | `benchmark.json` を更新すると決めたときだけ。対象の eval × 2 つの config × 3 run | 対象の eval の数 × 6 |
 
-- **入力が変わった eval だけを回す。** 変わったのは prompt（`evals.json`）・fixture・assertion のいずれか。
-  触っていない eval は実走しない。
-- **変更確認でも `without_skill` を 1 run 回す。** prompt や fixture を変えると**ベースラインの入力も変わる**ため、
-  到達性（`with_skill` が assertion に届くか）だけを見ると、**弁別が消えたこと**——新しい prompt で baseline も自力到達するようになった——を見逃す。
-  1 run では分散を測れないので、Delta の数値は語らず「弁別が残っているか」だけを見る。
-- **前 iteration が benchmark だったことを理由に、自動で benchmark へ広げない。**
-  Issue や依頼が「実走して挙動を確認」までしか求めていないなら、既定スコープで止める。
-  benchmark へ広げるかはコスト（executor の利用上限を使い切りうる）を伴う判断なので、エージェントが前例に合わせて決めず**依頼者に諮る**。
-- **起動前に「どの eval のどの入力が変わったか」と総 run 数を書き出してから実行する。**
-  数えずに並列起動すると、上限到達で走り切れず、成功 run と失敗 run が混ざった集計不能な iteration が残る。
-- **executor は現在作業しているエージェントに合わせ、`--executor` で明示する。** Codex セッションなら `codex`、Claude Code セッションなら `claude-code` を既定にする。
-  ユーザー指定・スキル固有契約があればそれを優先し、対応 executor が無いエージェントではユーザーに確認する。選択規則の正本は [`skill-eval-executors.md`](skill-eval-executors.md)「Executor の選択」。
+- 入力が変わった eval だけを実行する。入力とは、prompt（`evals.json`）・fixture・assertion のどれかである。
+  触っていない eval は実行しない。
+- 変更確認でも `without_skill` を 1 run 実行する。
+  prompt や fixture を変えると、ベースラインの入力も変わる。
+  `with_skill` が assertion に届くかだけを見ると、新しい prompt でベースラインも自力で届くようになり、スキルの有無で差が出なくなったことを見逃す。
+  1 run では分散を測れないので、Delta の値は扱わず、差が残っているかだけを見る。
+- 前の iteration が benchmark だったことを理由に、benchmark に広げない。
+  Issue や依頼が「実行して挙動を確かめる」までしか求めていないなら、デフォルトの範囲で止める。
+  benchmark に広げると executor の利用上限を使い切ることがある。コストを伴う判断なので、エージェントが前例に合わせて決めず、依頼者に確認する。
+- 起動する前に、どの eval のどの入力が変わったかと、run の総数を書き出してから実行する。
+  数えずに並列で起動すると、上限に達して最後まで実行できず、成功した run と失敗した run が混在した、集計できない iteration が残る。
+- executor は今作業しているエージェントに合わせ、`--executor` で指定する。Codex のセッションなら `codex`、Claude Code のセッションなら `claude-code` をデフォルトにする。
+  ユーザーの指定やスキル固有の指定があればそれを優先し、対応する executor が無いエージェントではユーザーに確認する。
+  選び方は [`skill-eval-executors.md`](skill-eval-executors.md)「Executor の選択」で定義する。
 
 #### without-skill baseline の再利用
 
-prompt・対象 eval の assertion と `requires_skills`・fixture の相対パス／内容／実行 bit・executor・model・reasoning effort・CLI version・harness version が同一なら、
-既存の成功した `without_skill` run を再利用できる。`scripts/eval/run-skill-eval.sh` が作る `eval-fingerprint.json` を正本にし、目視やファイル名だけで同一と判断しない。
-再利用では assertion の欠落を防ぐため `--eval-id`、実行時の既定値変化を防ぐため `--model` と `--reasoning-effort` を明示し、executor の CLI version を取得できなければ停止する。
+次のものがすべて同じなら、成功した既存の `without_skill` の run を再利用できる。
+prompt、対象の eval の assertion と `requires_skills`、fixture の相対パス・内容・実行権限、executor、model、reasoning effort、CLI の版、ハーネスの版である。
+同じかどうかは `scripts/eval/run-skill-eval.sh` が作る `eval-fingerprint.json` で判断し、目で見たりファイル名だけで判断したりしない。
+再利用するときは、assertion が欠けないように `--eval-id` を、実行時のデフォルト値が変わらないように `--model` と `--reasoning-effort` を指定する。
+executor の CLI の版を取得できなければ止める。
 
 ```bash
 scripts/eval/run-skill-eval.sh \
@@ -143,204 +179,242 @@ scripts/eval/run-skill-eval.sh \
   --reuse-baseline tests/<name>/iteration-M/eval-<id>/without_skill/run-1
 ```
 
-再利用時は executor を起動せず、元 run の成功、`contamination.txt` の `clean`、`isolation.txt` の `sandboxed`、必須 artifact、fingerprint の完全一致を検証してからコピーする。
-`baseline-reuse.json` に再利用元、fingerprint、executor、model、reasoning effort、CLI / harness version を記録する。不一致・欠損・汚染判定不良は exit 6 で停止し、新しい run を要求する。
-自動で新規 LLM run へフォールバックするとコスト発生を隠すため行わない。
+再利用するときは executor を起動しない。
+コピーする前に次のことを確かめる。元の run が成功したこと。`contamination.txt` が `clean` で `isolation.txt` が `sandboxed` であること。
+必要な成果物が揃っていること。fingerprint のすべての項目が一致すること。
+`baseline-reuse.json` に、再利用元・fingerprint・executor・model・reasoning effort・CLI とハーネスの版を記録する。
+一致しない・欠けている・汚染の判定が不正のいずれかなら exit 6 で止め、新しい run を求める。
+自動で新しい LLM の run を実行すると、かかったコストが見えなくなるので、そうしない。
 
-assertion、prompt、fixture、executor、model、reasoning effort、CLI / harness のどれかを変えた場合は再利用しない。benchmark の監査では `baseline-reuse.json` をたどり、元 run と再利用 run を独立した反復サンプルとして数えない。
+assertion・prompt・fixture・executor・model・reasoning effort・CLI とハーネスのどれかを変えたら、再利用しない。
+benchmark を確かめるときは `baseline-reuse.json` をたどり、元の run と再利用した run を別々の反復として数えない。
 
-with-skill run の前には対象 `SKILL.md` の参照導線を確認し、その eval の処理に必要な `references/` だけを読むよう本文から選択条件が付いているかを確認する。全 reference の一括読込を促す導線は token 削減だけでなく progressive disclosure の境界を壊すため修正する。
+`with_skill` の run の前に、対象の `SKILL.md` が references をどう案内しているかを確かめる。
+その eval の処理に必要な `references/` だけを読むように、本文に読む条件が書いてあるかを見る。
+すべての reference をまとめて読ませる案内は、トークンを増やすうえに、必要な分だけ段階的に読ませる構成を成り立たなくするので直す。
 
 ### eval 実行の隔離（必須）
 
-eval プロンプトはファイルを生成・改変する（スキル・ルール・Hooks・`AGENTS.md` 等）。**このリポジトリの作業ツリーで直接実行してはならない。**
+eval の prompt は、スキル・ルール・Hook・`AGENTS.md` などのファイルを作ったり変えたりする。このリポジトリの作業ツリーで直接実行しない。
 
-**落とし穴**: コーディングエージェントに「`/tmp` で作業して」と `cd` で指示しても安全にならない。
-エージェントの Bash ツールの cwd は呼び出し間で持続しうるが、ターン境界やプロジェクト外へ出た場合はリセットされうるため前提にできない。
-スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような**相対パス**なので、後続の呼び出しでこのリポジトリを汚染する。
+コーディングエージェントに `cd` で「`/tmp` で作業して」と指示しても安全にはならない。
+エージェントの Bash ツールの cwd は呼び出しをまたいで残ることがあるが、ターンの区切りやプロジェクトの外に出たときにリセットされることもあるので、前提にできない。
+スキルの手順は `mkdir -p .agents/skills/<name>` や `ln -s ../../...` のような相対パスなので、後の呼び出しでこのリポジトリを汚す。
 
-**対策**: `scripts/eval/run-skill-eval.sh` を使う。
-ランチャ側で cwd を固定したヘッドレス executor を**使い捨ての空プロジェクト**（`/tmp` 配下）で実行するため、相対パス操作も cwd リセットも常にその dir 内に収まる。
-`with_skill` は executor の native skill path にスキルを設置し、`without_skill` は設置しない。ただし**未設置は公正なベースラインの十分条件ではない**——CLI はマシン上の任意パスを読めるため、read 隔離と汚染判定まで含めて初めて Delta が信号になる（下記）。
-被験体へコピーするのは `SKILL.md`、`references/`、`assets/`、`scripts/` など実行に必要な成果物だけとし、`evals/` の assertion・採点基準・トピック表は同梱しない。
+`scripts/eval/run-skill-eval.sh` を使う。
+このランチャーは cwd を固定したヘッドレスの executor を、`/tmp` の下の使い捨ての空のプロジェクトで実行する。相対パスの操作も cwd のリセットも、そのディレクトリの中で起きる。
+`with_skill` は executor がスキルを読む場所にスキルを置き、`without_skill` は置かない。
+スキルを置かないだけでは、公平なベースラインにならない。CLI はマシンの任意のパスを読めるので、読み取りの遮断と汚染の判定まで揃って、初めて Delta が意味を持つ（後述）。
+被験体にコピーするのは `SKILL.md`・`references/`・`assets/`・`scripts/` など実行に要る成果物だけにし、`evals/` の assertion・採点の基準・トピックの表は含めない。
 
-Claude Code / Codex の選択、共通 artifact schema、native skill discovery、NVIDIA SkillEvaluator の pilot 判断は [`skill-eval-executors.md`](skill-eval-executors.md) を正本とする。
+Claude Code と Codex の選び方、共通の成果物のスキーマ、executor がスキルを見つける仕組み、NVIDIA SkillEvaluator を試すかの判断は、[`skill-eval-executors.md`](skill-eval-executors.md) で定義する。
 
 ```bash
-# 1 run を隔離実行（生成物は --out 配下に保存され、リポジトリは汚れない）
+# 1 run を隔離して実行する（生成物は --out の下に保存され、リポジトリは汚れない）
 scripts/eval/run-skill-eval.sh \
   --skill <name> --executor <claude-code|codex> --config with_skill \
   --prompt "<evals.json の prompt>" \
   --out tests/<name>/iteration-N/eval-<id>/with_skill/run-1 \
   --eval-id <id> --model <model> --reasoning-effort <effort>
-# without_skill も同様に --config without_skill で実行する。
-# 正常系 eval（前提が揃った状態の検証）は --fixture <dir> で使い捨てプロジェクトへ
-# 事前状態（設定・.replace/ 成果物等）をコピーして実行する。fixture の正本は
-# evals/<name>/fixtures/<fixture名>/ に置き、evals.json の当該 eval に
-# "fixture": "fixtures/<fixture名>"（evals/<name>/ からの相対）を記録する（fixture は実行で変更されない）。
+# without_skill も同じように --config without_skill で実行する。
+# 前提が揃った状態を確かめる eval は、--fixture <dir> で使い捨てのプロジェクトに
+# 事前の状態（設定・.replace/ の成果物など）をコピーして実行する。fixture の原本は
+# evals/<name>/fixtures/<fixture名>/ に置き、evals.json のその eval に
+# "fixture": "fixtures/<fixture名>"（evals/<name>/ からの相対パス）を書く。fixture は実行しても変わらない。
 ```
 
-fixture のルートに executable な `setup.sh` があれば、ハーネスはコピー後・executor 起動前に使い捨てプロジェクト内で実行する。
-Git 管理領域や local bare remote のように通常ファイルとして同梱できない前提状態はここで決定論的に構築する。
-setup が非 0 なら executor を起動せず eval を失敗させ、setup が生成したファイルは run 前の入力として扱う。
+fixture のルートに実行権限のある `setup.sh` があれば、ハーネスはコピーの後、executor を起動する前に、使い捨てのプロジェクトの中でそれを実行する。
+Git の管理領域や手元の bare remote のように、普通のファイルとして置けない前提の状態は、ここで決定論的に作る。
+setup が 0 以外で終わったら、executor を起動せずに eval を失敗にする。setup が作ったファイルは、run の前の入力として扱う。
 
-**対象分岐が姉妹スキルの同梱物に依存する eval は、`evals.json` の当該 eval に `"requires_skills": ["<姉妹スキル名>"]` を宣言する。**
-ハーネスは宣言したスキルを**両 configuration** に同じ形で設置し、対象スキルだけを `with_skill` に足す（比較の差を対象スキルの有無だけに保つ。`with_skill` だけに併設すると姉妹スキルの指示の効果が対象スキルの Delta に混ざる）。
-宣言が無いと、姉妹スキル不在の停止が対象分岐より手前に来て、到達が前提を調べる順序に依存する。姉妹スキルの成果物を fixture に手で置いて代替しない。
+対象の分岐が姉妹スキルの同梱物に依存する eval は、`evals.json` のその eval に `"requires_skills": ["<姉妹スキル名>"]` を書く。
+ハーネスは書かれたスキルを両方の configuration に同じ形で置き、対象のスキルだけを `with_skill` に足す。
+比べる差を対象のスキルの有無だけにするためである。`with_skill` だけに姉妹スキルを置くと、姉妹スキルの指示の効果が対象のスキルの Delta に含まれる。
+書かないと、姉妹スキルが無いことによる停止が対象の分岐より先に起き、分岐に届くかが前提を調べる順序で決まってしまう。姉妹スキルの成果物を fixture に手で置いて代わりにしない。
 
-- `isolation.txt` の `required_skills:` と、fingerprint の `required_skills`（名前と設置した内容のハッシュ）に記録される。姉妹スキルを変えると baseline の再利用は拒否される（宣言の無い eval の fingerprint は変わらない）
-- `without_skill` の汚染マーカーは対象スキルの同梱物だけにし、姉妹スキルの同梱物に同じパスがあるもの・姉妹スキルの本文に現れるものは除く（baseline が設置済みの姉妹スキルから正当に読めるため）
-- 配列でない・空・kebab-case でない・重複・対象スキル自身・`skills/<name>/SKILL.md` が無い、のいずれも executor を起動せずに失敗する
+- 宣言したスキルは、`isolation.txt` の `required_skills:` と、fingerprint の `required_skills`（名前と、置いた内容のハッシュ）に記録される。
+  姉妹スキルを変えると、baseline の再利用は拒否される。宣言の無い eval の fingerprint は変わらない。
+- `without_skill` の汚染の目印は、対象のスキルの同梱物だけにする。姉妹スキルの同梱物に同じパスがあるものと、姉妹スキルの本文に出てくるものは除く。
+  baseline は置かれた姉妹スキルから、それらを正当に読めるからである。
+- 宣言が次のどれかに当たると、executor を起動せずに失敗する。配列でない・空・kebab-case でない・重複している・対象のスキル自身を含む・`skills/<name>/SKILL.md` が無い。
 
-- **read 隔離と汚染判定はハーネスの既定挙動**であり、オペレータがラッパーを組む作業ではない。
-  `run-skill-eval.sh` は**両 configuration** を `scripts/eval/eval-sandbox.sh`（bwrap で作業ツリー・兄弟 run の `/tmp`・OS ミラー・エージェントの記録の 4 群を遮断）経由で起動し、
-  各 run に `isolation.txt`（遮断できたか）を必ず残す。`without_skill` にはさらに `contamination.txt`（判定）を残す。`SKILL_EVAL_RUNNER` を明示した場合はそれが優先され、遮断は未検証として記録される。
-  **`with_skill` も隔離するのは、比較の差を「スキルの有無」だけに保つため**——隔離しないと `with_skill` はエージェントの履歴（スキルを書いた／eval を設計したセッションのトランスクリプト）や
-  グローバルインストール済みスキルを読めてしまい、Delta が上方に膨らむ（実測で、そこを読んで根拠にした run がある）。使い捨てプロジェクト内のスキルはサンドボックス内でも読めるため `with_skill` は成立する。
-  - `contamination.txt` の `verdict` が `clean` 以外（`CONTAMINATED` / `CHECK-BROKEN` / `SKIPPED`）のとき、run 自体が成功していても exit 4 になる。
-    **その run の Delta は無効**として扱い、`grading.json` を置かず集計から除外し、遮断（または判定の前提）を直して取り直したうえで benchmark に経緯を残す。
-    `SKIPPED` は「判定が走らなかった」であって clean ではない。
-  - bwrap（または `eval-sandbox.sh`）が無い環境は `UNISOLATED` を記録し、`flock` で `with_skill` 実行と排他して逐次へ落とす（並列実行は `/tmp` 隔離が効いているときだけ成立する）。
-  - 遮断そのものを確かめるときは `scripts/eval/eval-sandbox.sh --verify <marker>...` を使う（3 段: リポジトリがサンドボックス内で消えていること・マーカーが 1 件も見つからないこと〈走査根ごとに陽性コントロールを植えて検出能力を実証する〉・`$HOME` が書き込みを拒み書き込み可の箇所への書き込みがホストへ漏れないこと）。
-  - 残る穴: 対象リポジトリが public なら `gh` / WebFetch でスキル本文を取得する経路はローカル遮断では塞げない。採点時に「baseline がスキル固有の語彙・契約を再現していないか」は見る。
-- **fixture に「期待する答え」を書かない。** fixture はスキルが読む**入力**であって契約知識ではない。
-  設定・成果物に置くコメントや注記が、その eval が検査している結論（移行先のパス・意図的にそう作った旨・こう扱うのが正しいという診断）を述べていると、
-  **ベースラインがそれを読んで assertion を満たし、Delta が消える**。
-  fixture に書いてよいのは下流プロジェクトに実在しうる記述（調査メモ・運用上の但し書き）だけで、**判定・分類・あるべき置き場所は書かない**。
-  否定形の assertion（「〜を理由に停止していない」等）は「意図的」と明言するコメント 1 行で通ってしまうため特に注意する。
+読み取りの遮断と汚染の判定は、ハーネスがデフォルトで行う。オペレータがラッパーを組む必要は無い。
 
-各 run の `result.json`、`project-tree.txt`、`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。`project-files/` には採点に使う軽量なテキスト生成物だけを保存し、使い捨てプロジェクト全体は `tests/` 配下へコピーしない。採点後に下記の集計へ進む。
+- `run-skill-eval.sh` は両方の configuration を `scripts/eval/eval-sandbox.sh` を通して起動する。
+  このスクリプトは bwrap で、作業ツリー・兄弟の run の `/tmp`・OS のミラー・エージェントの記録の 4 つを読めなくする。
+  各 run には、遮断できたかを書いた `isolation.txt` を必ず残す。`without_skill` には、判定を書いた `contamination.txt` も残す。
+  `SKILL_EVAL_RUNNER` を指定したときはそれを優先し、遮断は確かめていないものとして記録する。
+- `with_skill` も隔離するのは、比べる差をスキルの有無だけにするためである。
+  隔離しないと、`with_skill` はエージェントの履歴（スキルを書いたセッションや eval を設計したセッションのトランスクリプト）や、グローバルにインストールしたスキルを読めてしまい、Delta が実際より大きくなる。
+  実際に、それを読んで根拠にした run があった。使い捨てのプロジェクトの中のスキルはサンドボックスの中でも読めるので、`with_skill` は成り立つ。
+- `contamination.txt` の `verdict` が `clean` 以外（`CONTAMINATED`・`CHECK-BROKEN`・`SKIPPED`）のときは、run が成功していても exit 4 になる。
+  その run の Delta は無効として扱う。`grading.json` を置かずに集計から外し、遮断か判定の前提を直してから実行し直し、benchmark に経緯を残す。
+  `SKIPPED` は判定が実行されなかったことを表し、`clean` ではない。
+- bwrap か `eval-sandbox.sh` が無い環境では `UNISOLATED` を記録し、`flock` で `with_skill` の実行と排他にして、1 つずつ実行する。
+  並列に実行できるのは、`/tmp` の隔離が有効なときだけである。
+- 遮断そのものを確かめるときは `scripts/eval/eval-sandbox.sh --verify <marker>...` を使う。確かめるのは次の 3 つである。
+  リポジトリがサンドボックスの中から見えないこと。目印が 1 件も見つからないこと（探す場所ごとに既知の目印を置いて、見つけられることを先に確かめる）。
+  `$HOME` への書き込みが拒否され、書き込める場所に書いたものがホストに出てこないこと。
+- 対象のリポジトリが public なら、`gh` や WebFetch でスキルの本文を取得する方法は、ローカルの遮断では防げない。
+  採点のときに、baseline がスキル固有の語や取り決めを再現していないかを確かめる。
 
-- **「`project-files/` に無い ＝ 生成しなかった」と判定する前に `project-files-skipped.txt` を見る。** サイズ上限・読み取り失敗でスナップショットから漏れたファイルがここに理由付きで記録される（0 行なら漏れなし）。
-  スナップショット対象の拡張子は `.md` / `.txt` / `.json` / `.yml` / `.yaml` / `.toml` / `.sh` / `.js` / `.mjs` / `.ts` / `.tsx` / `.sql`。
-  拡張子を持たない設定ファイルは `.gitignore` / `.gitattributes` だけを名前で対象に含める。
-  **これ以外は最初から対象外**で skipped にも載らないため、その判定には `project-tree.txt`（全パスを列挙）を使う。
-  **内容を検査する assertion を書くときは、その成果物がこの対象に入っているかを先に確かめる**（入っていなければ対象へ追加するか、`project-tree.txt` で測れる形へ assertion を変える）。
-- **`result.json` の `result` に残るのは最終アシスタントメッセージだけ**で、途中のメッセージ・ツール出力は採点用の応答には含まれない。executor 固有の trace は `raw/` に残るが、共通の採点・集計を raw schema へ依存させない。
-  **`raw/` の粒度は executor で違う。** claude-code は `raw/claude-code.jsonl`（`--output-format stream-json --verbose`）で、
-  `system`/`init`・`assistant` の `tool_use`・末尾の `result` を含むイベント列。codex は `raw/codex.jsonl`（`exec --json`）で
-  `command_execution` を含むイベント列（同じコマンドが `item.started` と `item.completed` の 2 行に出る）。
-- **「エージェントが X を実行していない」を raw の 0 件で示さない。** 抽出器が対象を拾えていない場合も 0 件になる。
-  副作用の不在（`project-tree.txt` / `project-files/`）・`permission_denials`・環境条件（認証・実在しない対象）・応答の記述で示し、
-  raw から判定できない executor ではその旨を `grading.json` に明記する。
-  プロンプトが**作業の実行を誘発**すると回答が複数メッセージに分かれ、前半に書かれた根拠（実行した終了コード・引用した実装）が採取物から落ちて採点不能になる。
-  eval プロンプトは「実行してから報告させる」のではなく**1 つの報告にまとめさせる**形にし、`〜した後に` のような完了を前提とする言い回しを避ける。
+fixture に期待する答えを書かない。
+fixture はスキルが読む入力で、取り決めの知識ではない。
+設定や成果物に置いたコメントや注記が、その eval が確かめる結論を書いていると、ベースラインがそれを読んで assertion を満たし、Delta が無くなる。
+結論とは、移行先のパス・意図してそう作ったこと・こう扱うのが正しいという診断などである。
+fixture に書いてよいのは、下流のプロジェクトに実際にありうる記述（調査のメモ、運用の但し書き）だけで、判定・分類・あるべき置き場所は書かない。
+「〜を理由に停止していない」のような否定形の assertion は、「意図的」と書いたコメント 1 行で通ってしまうので、特に注意する。
 
-`grading.json` は集計スクリプト／ビューアが実際に読むスキーマで生成する（後段の集計が 0.0% や「No runs found」になるのを防ぐ）。
-必須フィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text` / `passed` / `evidence`。
-**判定は assertion テキストで対応づけるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする**
-（位置で並べた配列や `text` の無い要素は集計器が受理しない。`scripts/eval/build-skill-eval-benchmark.js`）。
-ビューアを使う場合は run 配下のレイアウト（`outputs/` と `eval_metadata.json`）も揃える。正本は skill-creator の `references/schemas.md`（インストール先の skill-creator 配下。無い場合は skill-creator のドキュメントを参照）を参照する。
+各 run の `result.json`・`project-tree.txt`・`project-files/` を `evals.json` の assertions と突き合わせて採点し、`grading.json` を残す。
+`project-files/` には採点に使う小さなテキストの生成物だけを保存し、使い捨てのプロジェクト全体を `tests/` の下にコピーしない。採点した後は、後述の集計に進む。
+
+- 生成物が `project-files/` に無いことを「作らなかった」と判定する前に、`project-files-skipped.txt` を見る。
+  サイズの上限や読み取りの失敗でスナップショットから外れたファイルは、理由と一緒にここに記録される。0 行なら外れたファイルは無い。
+  スナップショットの対象の拡張子は `.md`・`.txt`・`.json`・`.yml`・`.yaml`・`.toml`・`.sh`・`.js`・`.mjs`・`.ts`・`.tsx`・`.sql` である。
+  拡張子の無い設定ファイルは、`.gitignore` と `.gitattributes` だけを名前で対象にする。
+  これ以外のファイルは最初から対象の外で、`project-files-skipped.txt` にも載らない。その有無は、全パスを並べた `project-tree.txt` で判定する。
+  内容を確かめる assertion を書くときは、その成果物がスナップショットの対象かを先に確かめる。
+  対象でなければ、対象に足すか、`project-tree.txt` で測れる形に assertion を変える。
+- `result.json` の `result` に残るのは最後のアシスタントのメッセージだけで、途中のメッセージやツールの出力は含まれない。
+  executor 固有の記録は `raw/` に残るが、共通の採点と集計を raw の形式に依存させない。
+  `raw/` の細かさは executor で違う。
+  claude-code は `raw/claude-code.jsonl`（`--output-format stream-json --verbose`）で、`system`/`init`・`assistant` の `tool_use`・最後の `result` を含むイベントの列である。
+  codex は `raw/codex.jsonl`（`exec --json`）で、`command_execution` を含むイベントの列である。同じコマンドが `item.started` と `item.completed` の 2 行に出る。
+- エージェントが X を実行していないことを、raw で 0 件だったことで示さない。抽出するスクリプトが対象を拾えていないときも 0 件になる。
+  副作用が無いこと（`project-tree.txt`・`project-files/`）、`permission_denials`、環境の条件（認証、存在しない対象）、応答の記述で示す。
+  raw から判定できない executor では、そのことを `grading.json` に書く。
+  prompt が作業の実行を促すと、回答が複数のメッセージに分かれる。前半に書いた根拠（実行した終了コード、引用した実装）が記録から消え、採点できなくなる。
+  eval の prompt は、実行してから報告させる形にせず、1 つの報告にまとめさせる形にする。「〜した後に」のような完了を前提にした言い方も避ける。
+
+`grading.json` は、集計スクリプトやビューアが実際に読むスキーマで作る。スキーマが違うと、後の集計が 0.0% や「No runs found」になる。
+必須のフィールドは `summary.{pass_rate,passed,failed,total}` と、各 expectation の `text`・`passed`・`evidence` である。
+判定は assertion のテキストで対応を付けるので、`text` は `eval_metadata.json` の宣言と一字一句同じにする。
+位置で並べた配列や `text` の無い要素は、集計スクリプト（`scripts/eval/build-skill-eval-benchmark.js`）が受け付けない。
+ビューアを使うときは、run の下の構成（`outputs/` と `eval_metadata.json`）も揃える。
+スキーマは skill-creator の `references/schemas.md`（インストール先の skill-creator の下）で定義している。無ければ skill-creator のドキュメントを見る。
 
 ### 対象スキルを読まなかった run を集計から外す
 
-`with_skill` の run でも、スキルが見えているだけで発動せず、スキルなしと同じ答えを返すことがある。
-これを混ぜると Delta が「スキルの中身が足りない」のか「読まなかった」のか区別できなくなるため、**採点前に分ける**。
+`with_skill` の run でも、スキルが見えているだけで使われず、スキルが無いときと同じ答えを返すことがある。
+これを含めると、Delta が小さいのはスキルの中身が足りないからか、スキルを読まなかったからかを区別できない。そのため、採点の前に分ける。
 
-判定は `result.json` の `skill_usage` にある（`run-skill-eval.sh` が run ごとに書く）。
+判定には `result.json` の `skill_usage` を使う。`run-skill-eval.sh` が run ごとに書く。
 
-| フィールド | 意味 | `null` のとき |
+| フィールド | 意味 | `null` になるとき |
 | --- | --- | --- |
-| `visible` | 対象スキルが提示されていたか（claude-code の `system`/`init` の `skills`） | executor が提示一覧を出さない（codex） |
+| `visible` | 対象のスキルが提示されていたか（claude-code の `system`/`init` の `skills`） | executor が提示の一覧を出さない（codex） |
 | `invoked` | Skill として起動したか | 起動の仕組みが無い（codex はシェルで読む） |
-| `files_read` | **中身を返す操作**で開いたスキル配下のパス（`Read` / `Grep` の引数、`cat` / `head` / `sed` 等のシェル片） | ツール記録が無い trace |
-| `read` | 起動したか、またはスキル配下のパスに触れたか | 上記がどちらも判定不能 |
-| `invalid_run` | `with_skill` なのに `read` が false | `read` が判定不能 |
+| `files_read` | 中身を返す操作で開いた、スキルの下のパス（`Read`・`Grep` の引数、`cat`・`head`・`sed` などのシェルのコマンド） | ツールの記録が無い |
+| `read` | 起動したか、スキルの下のパスを読んだか | 上の 2 つがどちらも判定できない |
+| `invalid_run` | `with_skill` なのに `read` が false | `read` が判定できない |
 
-- **`invalid_run: true` の run は採点・集計から外す**（汚染 run と同じ扱い）。除外した件数と run のパスを `benchmark.json` の備考に残し、
-  同じ条件で追加 run を取る。
-- **`null` を false として扱わない。** `undeterminable` に列挙された軸は「測れなかった」であり「起きなかった」ではない。
-  `invalid_run: null` の run は自動で外さず、`raw/` を見て人が判断する。
-- **パスを名指しただけの run を read に数えない。** baseline が `test ! -e <スキル配下>` で不在を確かめる、報告文にパスを書く、`echo` する、といった操作は読み取りではない。
-  証拠に採るのは中身を返す操作だけで、`ls` / `stat` / `find` / `rm` / `Glob`（名前を返すだけ）・`Write` / `Edit`（書く側）は除外する。
-- **成功した呼び出しだけを証拠にする。** コマンド文字列は「読もうとした」ことしか示さない。
-  claude-code は `tool_result` を `tool_use` の id で突き合わせて `is_error` でないものだけ、codex は `exit_code` が 0 のものだけを採る。
-  スキルが存在しない baseline の `cat <スキル配下>` は失敗するので汚染にならず、結果が返らなかった呼び出しも数えない。**Skill 起動も同じ扱い**で、結果がエラー・未達なら `invoked` にしない。
-- **複合コマンドからは、`&&` だけで繋いだリストの素の読み取りしか採らない。** `a && b` が成功したなら全要素が走って成功しているので、その中の `cat X` は読んでいる。
-  それ以外の接続は成否が要素を語らない —— `test -f X && cat X || echo absent` は X が無くても終了コード 0 になり、`a && b; c` / `a && b & c` も最後の要素で決まる。
-  `printf '%s' 'note; cat X'` のように引用符・`$( )` の中の区切りは区切りではない。トップレベルに `||` `;` 改行 単独の `&` 括弧 コメントがあるコマンドと、
-  要素自体がパイプ・リダイレクト・置換を含む読み取りは不採用にする。`exit 0 && cat X` のようにシェルを終えうる要素（`exit` `return` `exec` `eval` 等、下の許可リストを通らない要素）より後の読み取りも採らない。
-- **`cd` した後の相対パスは cwd で解決してから照合する。** claude-code の Bash は呼び出しをまたいでシェルを保つので、`cd <スキル配下>` の後の `cat SKILL.md` は読んでいる。
-  cwd を進めるのは成功した `&&` リスト内の素の `cd <リテラル>` だけで、行き先は絶対パスか `./` `../` 始まり（CDPATH を経由しない形）に限る。起点は init の `cwd`。
-  **cwd を保つ条件は許可リストで書く**——呼び出し内の全コマンド語が素の字面（引用符・展開・グロブ・エスケープを含まない）で、移動語（`cd` `pushd` `source` `eval` 等）や予約語でないときだけ保つ。
-  移動の綴りを列挙する拒否リストは `\cd` / `c'd'` / `c$'d'` / `c$(printf d)` と綴りの数だけ抜けた（#463 のレビューで 4 巡）。
-  失敗・未達の呼び出し・背景実行・並行に出た移動とその前後の呼び出し・ツールが `Shell cwd was reset` を返した後も cwd を不明に倒し、相対パスを解決しない。
-  `..` を含む読み取りは cwd で解決しない（symlink を経ると物理的な親が字面と食い違い、trace からは分からない）。codex は呼び出しごとに独立なので 1 コマンド内でだけ追う。
-- **逆向きの取りこぼしは許容する** —— 実際に読んだが非 0 で終わる形（一致なしの `grep`）や複合コマンド内の読み取り（`cat X | head`、`cd X && …; …` の後の相対パス）は read にならない。
-  これは run を 1 つ `invalid_run` として落とすだけで、**汚染を捏造しない側**の誤りだから。落ちた run は目に見えるので追加 run を取れる。
-- `without_skill` 側の対称な signal は `unexpected_read`（ベースラインがスキルに触れた＝汚染）。`contamination.txt` と併せて見る。
-  **claude-code の `raw/` はマーカー走査の対象外**にしてある —— stream-json には中間メッセージとツール入力が入り、
-  マーカーを口にしただけの baseline が CONTAMINATED（exit 4）になって正当な測定が捨てられるため（実測）。
-  読み取りの signal は `skill_usage.unexpected_read` が担う（成功した読み取りから導くので、名前を挙げただけでは立たない）。
-  codex の `raw/` はイベント列なので走査対象に含める。
+- `invalid_run: true` の run は採点と集計から外す。汚染した run と同じ扱いである。
+  外した件数と run のパスを `benchmark.json` の備考に残し、同じ条件で run を追加する。
+- `null` を false として扱わない。`undeterminable` に挙がった軸は、測れなかったことを表し、起きなかったことは表さない。
+  `invalid_run: null` の run は自動では外さず、`raw/` を見て人が判断する。
+- パスを挙げただけの run を、読んだものとして数えない。
+  baseline が `test ! -e <スキルの下のパス>` で無いことを確かめる、報告にパスを書く、`echo` する、といった操作は読み取りではない。
+  証拠にするのは中身を返す操作だけである。名前を返すだけの `ls`・`stat`・`find`・`rm`・`Glob` と、書く側の `Write`・`Edit` は除く。
+- 成功した呼び出しだけを証拠にする。コマンドの文字列は、読もうとしたことしか示さない。
+  claude-code は `tool_result` を `tool_use` の id で突き合わせ、`is_error` でないものだけを採る。codex は `exit_code` が 0 のものだけを採る。
+  スキルが無い baseline で `cat <スキルの下のパス>` を実行しても失敗するので、汚染にはならない。結果が返らなかった呼び出しも数えない。
+  Skill の起動も同じように扱い、結果がエラーか届かなかったときは `invoked` にしない。
+- 複数のコマンドをつないだ呼び出しからは、`&&` だけでつないだリストの中の、単純な読み取りだけを採る。
+  `a && b` が成功したなら、すべての要素が実行されて成功しているので、その中の `cat X` は読んでいる。
+  それ以外のつなぎ方では、全体の成否から各要素の成否が分からない。
+  `test -f X && cat X || echo absent` は X が無くても終了コードが 0 になり、`a && b; c` や `a && b & c` も最後の要素で終了コードが決まる。
+  `printf '%s' 'note; cat X'` のように、引用符や `$( )` の中の区切り文字は区切りではない。
+  トップレベルに `||`・`;`・改行・単独の `&`・括弧・コメントのどれかがあるコマンドと、要素そのものがパイプ・リダイレクト・置換を含む読み取りは採らない。
+  `exit 0 && cat X` のように、シェルを終えうる要素（`exit`・`return`・`exec`・`eval` など、後述の許可リストを通らない要素）より後の読み取りも採らない。
+- `cd` した後の相対パスは、cwd で解決してから照合する。
+  claude-code の Bash は呼び出しをまたいでシェルを保つので、`cd <スキルの下のパス>` の後の `cat SKILL.md` は読んでいる。
+  cwd を進めるのは、成功した `&&` のリストの中の、単純な `cd <リテラル>` だけである。行き先は、絶対パスか、`./` か `../` で始まるパス（CDPATH を使わない形）に限る。起点は init の `cwd` である。
+  cwd を保つ条件は、許可リストで書く。
+  呼び出しの中のすべてのコマンド名が、引用符・展開・グロブ・エスケープを含まない字面のままで、移動するコマンド（`cd`・`pushd`・`source`・`eval` など）や予約語でないときだけ保つ。
+  移動するコマンドの綴りを拒否リストで並べると、`\cd`・`c'd'`・`c$'d'`・`c$(printf d)` のように綴りの数だけ見逃しが出る。
+  失敗した呼び出し、結果が届かなかった呼び出し、背景での実行、並行して出た移動とその前後の呼び出しの後は、cwd を不明として扱い、相対パスを解決しない。
+  ツールが `Shell cwd was reset` を返した後も同じである。
+  `..` を含む読み取りは cwd で解決しない。シンボリックリンクを通ると、実際の親ディレクトリが字面と違い、記録からは分からないからである。
+  codex は呼び出しごとに独立しているので、1 つのコマンドの中でだけ追う。
+- 逆向きの見逃しは許す。
+  実際に読んだが 0 以外で終わる形（一致しない `grep`）や、複数のコマンドをつないだ中の読み取り（`cat X | head`、`cd X && …; …` の後の相対パス）は、読んだことにならない。
+  この誤りは run を 1 つ `invalid_run` として外すだけで、汚染を作り出す方向の誤りではない。外した run は見えるので、run を追加できる。
+- `without_skill` の側で対になるのは `unexpected_read` で、ベースラインがスキルを読んだこと、つまり汚染を表す。`contamination.txt` と合わせて見る。
+  claude-code の `raw/` は目印の走査の対象から外している。
+  stream-json には途中のメッセージとツールの入力が入るので、目印の語を口にしただけの baseline が CONTAMINATED（exit 4）になり、正当な測定が捨てられるからである（実際に起きた）。
+  読み取りは `skill_usage.unexpected_read` で判定する。成功した読み取りから判定するので、名前を挙げただけでは立たない。
+  codex の `raw/` はイベントの列なので、走査の対象に含める。
 
 ### eval 環境の前提（runtime / repo / 非対話）
 
-`run-skill-eval.sh` の使い捨てプロジェクトは「空・未 trust・非対話」だ。スキルの**前提条件**をハーネス側で用意しないと、失敗がスキル欠陥か環境かを切り分けられずシグナルが汚れる。eval を組むとき次を満たす:
+`run-skill-eval.sh` の使い捨てのプロジェクトは、空で、mise の trust が無く、非対話である。
+スキルの前提をハーネスの側で用意しないと、失敗がスキルの欠陥か環境のせいかを区別できず、結果が信用できなくなる。eval を作るときは次の 3 つを満たす。
 
-- **ランタイム（mise shim）**: 使い捨てプロジェクトに `mise.toml` が無く、mise shim（`python3` / `node` / `jq` 等）は untrusted／未設定で `No version is set for shim` で落ちる。
-  スキルが叩くランタイムは shim 単一依存にせず、システムランタイムへフォールバックするか、fixture 側で `mise trust` 済みの runtime を PATH 前段に置く。
-- **対象リポジトリのコンテキスト**: `gh` / `git` 系スキルは cwd の repo 文脈に暗黙依存しない（引数の URL/番号から `OWNER/REPO` を確定し `--repo` で明示する）。
-  シナリオでは**実在する** PR/Issue 番号を使い、必要なら fixture で対象 repo を clone するか `gh repo set-default OWNER/REPO` する。架空の `PR#42` / `other-org/other-repo` は `Could not resolve` で必ず落ちる。
-- **非対話**: ヘッドレス executor には対話確認の応答者がいない。質問を投げるとツールがエラーし進行が止まる。
-  eval プロンプトは意図が一意に決まる形（フラグ・URL を明示）で与え、ハーネス側（`run-skill-eval.sh`）がプロンプト先頭に非対話の縮退指示を注入する（配布スキルには載せない）。
+- ランタイム（mise の shim）を用意する。
+  使い捨てのプロジェクトには `mise.toml` が無いので、mise の shim（`python3`・`node`・`jq` など）は trust も設定も無く、`No version is set for shim` で失敗する。
+  スキルが使うランタイムを shim だけに頼らせず、システムのランタイムを使うようにするか、fixture の側で `mise trust` 済みのランタイムを PATH の前に置く。
+- 対象のリポジトリを明示する。
+  `gh` と `git` を使うスキルは、cwd のリポジトリに頼らない。引数の URL や番号から `OWNER/REPO` を決めて、`--repo` で指定する。
+  シナリオでは実在する PR と Issue の番号を使い、必要なら fixture で対象のリポジトリを clone するか、`gh repo set-default OWNER/REPO` を実行する。
+  架空の `PR#42` や `other-org/other-repo` は、`Could not resolve` で必ず失敗する。
+- 非対話で動くようにする。
+  ヘッドレスの executor には、対話の確認に答える人がいない。質問するとツールがエラーになり、進まなくなる。
+  eval の prompt は、フラグや URL を書いて意図が 1 つに決まる形で渡す。
+  ハーネス（`run-skill-eval.sh`）が prompt の先頭に、非対話で動くための指示を入れる。この指示は配布スキルには書かない。
 
 ### eval が失敗したとき executor を変えない
 
-比較 executor を変えると **Delta の母集団が変わる**ため、失敗の回避策として executor を切り替えない
-（途中に見えたエラーが直接の停止原因とは限らない。利用上限到達など別の原因が raw trace に残っていることがあり、
-途中のエラーだけで「この executor では評価できない」と判断すると誤る）。
+比べる executor を変えると、Delta を測る対象が変わる。そのため、失敗を避ける方法として executor を切り替えない。
+途中で見えたエラーが、止まった直接の原因とは限らない。利用上限に達したなど、別の原因が raw の記録に残っていることがある。
+途中のエラーだけを見て「この executor では評価できない」と判断すると誤る。
 
-失敗したら、次の順で切り分けてから対処する。
+失敗したら、次の順に原因を絞ってから対処する。
 
-1. **`raw/` の trace で最終的な失敗を確認する。** `result.json` の途中報告は run の停止原因とは限らない
-   （`turn.failed` の理由・利用上限・sandbox 制約は raw 側にしか出ない）。
-   claude-code では末尾の `result` イベントの `stop_reason` / `terminal_reason` / `is_error` / `permission_denials` / `usage` を読む。
-2. **そのスキルの executor 契約**（Codex-only 等）を確認する。契約があるなら executor は固定で、
-   直すのは fixture かハーネス側。
-3. **sandbox 内で使える非書き込みの代替**を探す。例: Codex の `.git` 保護下で到達性を測るなら、
-   fixture setup で remote-tracking ref を用意し `git fetch --no-write-fetch-head` で実測する。
+1. `raw/` の記録で、最後に何で失敗したかを確かめる。
+   `result.json` の途中の報告は、run が止まった原因とは限らない。`turn.failed` の理由・利用上限・サンドボックスの制約は raw にしか出ない。
+   claude-code では、最後の `result` イベントの `stop_reason`・`terminal_reason`・`is_error`・`permission_denials`・`usage` を読む。
+2. そのスキルの executor の指定（Codex だけで実行する、など）を確かめる。指定があるなら executor は変えず、直すのは fixture かハーネスである。
+3. サンドボックスの中で使える、書き込まない別のコマンドを探す。
+   たとえば Codex の `.git` の保護の下で到達できるかを測るなら、fixture の setup で remote-tracking ref を用意し、`git fetch --no-write-fetch-head` で確かめる。
 
-「評価前提を満たす代替コマンドへの差し替え」と「executor の変更」は同じ回避策ではない。
-前者は測る対象を変えず、後者は比較可能性そのものを変える。
+評価の前提を満たす別のコマンドに差し替えることと、executor を変えることは、同じ対処ではない。
+前者は測る対象を変えないが、後者は比べられるかどうかそのものを変える。
 
 #### それでも executor を切り替えるときの運用
 
-利用上限（クォータ）到達など、**切り分けの結果が「executor の非対応ではない」と分かったうえで、
-待たずに別 executor で取り直すと人が判断した場合**に限り、次を守る。
+利用上限に達したなど、原因を絞った結果 executor が対応していないためではないと分かり、待たずに別の executor で実行し直すと人が判断したときだけ、次を守る。
 
-1. **切り替えは人が決める。** エージェントが判断して切り替えない。上限到達は executor 非対応の証拠ではないため、
-   「落ちたから別の executor で」は理由にならない。待つ選択肢（上限のリセット時刻）を添えて諮る。
-2. **切り替え前の run は iteration ごと破棄する。** 1 つの iteration に 2 つの executor を混在させない
-   （[`skill-eval-executors.md`](skill-eval-executors.md)）。部分的に成功した run を新 executor の run と混ぜて集計しない。
-3. **新 executor で最初から取り直す。** 同じ eval・同じ config・同じ run 数を揃える。
-   **`with_skill` と `without_skill` を別 executor にしない**——Delta が「スキルの有無」ではなく「executor の違い」を測る。
-4. **切り替えた事実と理由を成果物に残す。** `benchmark.md` / `benchmark.json` に executor と切り替え理由（利用上限到達など）を書き、
-   前 iteration と executor が異なるなら**その Delta を前 iteration と直接比較しない**旨を明記する。
-   変更確認だけで benchmark を作らない場合も、実走の報告に executor と切り替え理由を書く。
-5. **切り替え先でも上限に当たる前提で run 数を数える。** 起動前に総 run 数を書き出し、
-   「実走の既定スコープ」を超えるなら実行前に諮る。
+1. 切り替えるかは人が決め、エージェントは決めない。
+   上限に達したことは、executor が対応していない証拠ではない。「失敗したから別の executor で」は理由にならない。上限がリセットされる時刻を添えて、待つという選択肢と一緒に確認する。
+2. 切り替える前の run は、iteration ごと捨てる。
+   1 つの iteration に 2 つの executor を含めない（[`skill-eval-executors.md`](skill-eval-executors.md)）。一部が成功した run を、新しい executor の run と一緒に集計しない。
+3. 新しい executor で最初から実行し直す。eval・config・run の数は同じにする。
+   `with_skill` と `without_skill` を別の executor にしない。そうすると、Delta はスキルの有無ではなく executor の違いを測る。
+4. 切り替えたことと、その理由を成果物に残す。
+   `benchmark.md` と `benchmark.json` に、executor と切り替えた理由（利用上限に達した、など）を書く。
+   前の iteration と executor が違うなら、その Delta を前の iteration と直接比べないことを書く。
+   変更確認だけで benchmark を作らないときも、実行の報告に executor と切り替えた理由を書く。
+5. 切り替えた先でも上限に達すると考えて、run の数を数える。
+   起動する前に run の総数を書き出し、「実走の既定スコープ」を超えるなら、実行する前に確認する。
 
 ### 採点（一次資料は成果物、応答は補助）
 
-**採点の一次資料は `project-files/` と `project-tree.txt`。** 応答（`result.json` の `result`）は補助として読む。
-eval は**スキルの欠陥を見つけるための装置**であり、モデルの完了報告を根拠に採点すると
-「報告はできるが実行できていない」という欠陥クラスが構造的に検出できなくなる
-（具体的なパス・件数付きの「作成した」という報告は、ファイルを 1 つも書いていない run からも出る）。
+採点ではまず `project-files/` と `project-tree.txt` を見る。応答（`result.json` の `result`）は補助として読む。
+eval はスキルの欠陥を見つけるためのものである。
+モデルの完了の報告を根拠に採点すると、「報告はできるが実行できていない」という種類の欠陥を検出できなくなる。
+パスや件数まで書いた「作成した」という報告は、ファイルを 1 つも書いていない run からも出る。
 
-- **「作成した」「記録した」「更新した」という報告は、対応するファイルの実在を確認してから pass にする。**
-  完了報告は具体的なほど信憑性が上がるが、パス・件数・キー名まで書かれていてもそれは**モデルが書いた文字列**であって観測ではない
-- **成果物の不在は 2 通りある。区別する。** `project-files-skipped.txt` が非 0 行なら拡張子フィルタ落ちの可能性があり
-  「作らなかった」と読めない。0 行なら**本当に書いていない**
-- **実在だけでなく中身も見る。** 「`status: blocked` を記録した」は、そのキーが実際にその値で入っていることまで確認する
-  （空のテンプレートが置かれただけのことがある）
-- 応答にしか現れない主張（判断の理由・停止の説明）を検査する assertion は、
-  **それが応答で判定される項目であることを assertion の文面に含める**（成果物の検査と混ぜない）
+- 「作成した」「記録した」「更新した」という報告は、対応するファイルが実在することを確かめてから pass にする。
+  完了の報告は具体的なほど信じやすくなるが、パス・件数・キーの名前まで書いてあっても、それはモデルが書いた文字列で、観測した結果ではない。
+- 成果物が無い理由は 2 つあり、区別する。
+  `project-files-skipped.txt` に行があるなら、拡張子で外れた可能性があり、作らなかったとは読めない。0 行なら、本当に書いていない。
+- 実在だけでなく中身も見る。
+  「`status: blocked` を記録した」なら、そのキーが実際にその値で入っていることまで確かめる。空のテンプレートが置かれただけのことがある。
+- 応答にしか出ない主張（判断の理由、停止の説明）を確かめる assertion は、応答で判定する項目であることを assertion の文に書く。成果物を確かめる assertion と混在させない。
 
 ### 集計
 
-集計は**リポジトリのスクリプト**で行う。書き捨てのスクリプトで組み立てない——判定を位置（配列 index）で
-対応づけて件数を誤る。
+集計はリポジトリのスクリプトで行う。使い捨てのスクリプトで組み立てると、判定を配列の位置で対応させて、件数を誤る。
 
 ```bash
 node scripts/eval/build-skill-eval-benchmark.js tests/<name>/iteration-N \
@@ -351,24 +425,25 @@ node scripts/eval/build-skill-eval-benchmark.js tests/<name>/iteration-N \
   [--notes-file <備考のテキスト>] [--ungraded skip] [--force] [--stdout]
 ```
 
-- **判定は assertion テキストをキーにして突き合わせる。** 位置配列（`[true, ...]` /
-  `[[passed, evidence], ...]`）と `text` を持たない要素は受理しない（exit 2）。
-  `grading.json` は `expectations: [{text, passed, evidence}]` か
-  `verdicts: {"<assertion テキスト>": {passed, evidence}}` のどちらでもよい。
-- **assertion テキストの正本は各 run の `eval_metadata.json`**（run 時点の宣言）。`evals.json` から採らない
-  ——後から assertion を変えると過去の記録のテキストがずれる。出力の `expectations` はこの宣言順に並ぶ。
-- キー集合の不一致（判定の無い assertion・宣言に無い判定）、テキストの重複、`summary` と採点内訳の食い違いは exit 2。
-- `runs_per_configuration` は成果物から数える（手で直す運用に戻さない）。`eval × configuration` の run 数が
-  揃っていない、`timing.json` の executor / model / effort が混ざっている場合は exit 2（iteration を分ける）。
-- 採点の無い run（汚染・`invalid_run` で `grading.json` を置かなかった run）は既定で exit 2。除外して進めるなら
-  `--ungraded skip` を付け、**除外した件数とパスを `--notes-file` の備考に残す**。
-- `notes` は文章なのでスクリプトが作らない。`--notes-file`（1 行 1 note のテキスト、または文字列配列の JSON）で渡す。
-- 既存の `benchmark.json` は `--force` なしに上書きしない（手で足した備考を消さないため）。
-- `time_seconds` / `tokens` は `timing.json`、`tool_calls` / `errors` は `outputs/metrics.json` から採る。
-  model・reasoning effort・CLI / harness version の一次情報も各 run の `result.json` / `timing.json` にある。
-- `benchmark.md` は人が書く（このスクリプトは `benchmark.json` だけを作る）。テスト結果にローカル絶対パスや
-  ユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
+- 判定は assertion のテキストをキーにして突き合わせる。
+  位置で並べた配列（`[true, ...]` や `[[passed, evidence], ...]`）と、`text` を持たない要素は受け付けない（exit 2）。
+  `grading.json` は `expectations: [{text, passed, evidence}]` と `verdicts: {"<assertion テキスト>": {passed, evidence}}` のどちらの形でもよい。
+- assertion のテキストは、各 run の `eval_metadata.json`（run の時点の宣言）から取る。`evals.json` からは取らない。
+  後で assertion を変えると、過去の記録とテキストが合わなくなるからである。出力の `expectations` はこの宣言の順に並ぶ。
+- 次のどれかに当たると exit 2 になる。キーの集合が一致しない（判定の無い assertion や、宣言に無い判定がある）。テキストが重複している。`summary` と採点の内訳が合わない。
+- `runs_per_configuration` は成果物から数える。手で直さない。
+  `eval × configuration` ごとの run の数が揃っていないときと、`timing.json` の executor・model・effort が混在しているときは exit 2 になる。この場合は iteration を分ける。
+- 採点の無い run（汚染や `invalid_run` で `grading.json` を置かなかった run）があると、デフォルトでは exit 2 になる。
+  外して進めるなら `--ungraded skip` を付け、外した件数とパスを `--notes-file` の備考に残す。
+- `notes` は文章なので、スクリプトは作らない。`--notes-file`（1 行に 1 つの note を書いたテキストか、文字列の配列の JSON）で渡す。
+- 既存の `benchmark.json` は、`--force` を付けない限り上書きしない。手で足した備考を消さないためである。
+- `time_seconds` と `tokens` は `timing.json` から、`tool_calls` と `errors` は `outputs/metrics.json` から取る。
+  model・reasoning effort・CLI とハーネスの版は、各 run の `result.json` と `timing.json` にある。
+- `benchmark.md` は人が書く。このスクリプトが作るのは `benchmark.json` だけである。
+  テストの結果に手元の絶対パスやユーザー固有の情報が含まれるときは、commit の前に `<repo>` や `<home>` などのプレースホルダに置き換える。
 
-スキルのインストールまたはセットアップ手順を変更した場合も、そのスキルで定義された評価を実行する。テスト結果にローカル絶対パスやユーザー固有情報が含まれる場合は、コミット前に `<repo>` や `<home>` などのプレースホルダーへ置換する。
+スキルのインストールの手順やセットアップの手順を変えたときも、そのスキルの eval を実行する。
+テストの結果に手元の絶対パスやユーザー固有の情報が含まれるときは、commit の前に `<repo>` や `<home>` などのプレースホルダに置き換える。
 
-未コミットの skill 変更をベンチする場合、worktree 分離を使うと HEAD の古い版を測ってしまう。読み取り専用ドライランなら分離なしで作業ツリー版を測る（または先に commit する）。
+まだ commit していないスキルの変更で benchmark を取るとき、worktree で分けると HEAD の古い版を測ってしまう。
+読み取りだけの試し実行なら、分けずに作業ツリーの版を測るか、先に commit する。

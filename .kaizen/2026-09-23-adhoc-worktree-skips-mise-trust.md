@@ -36,3 +36,4 @@ KEDB: archive/2026-06-08-mise-shim-runtime-untrusted（applied。eval の使い�
 
 AGENTS.md の「mise の shim は cwd の設定階層で解決する」節は Issue #372 で `docs/tooling.md` へ移した（同じ見出しの箇条書き）。
 AGENTS.md「技術スタック」には要約だけがある。適用するときは `docs/tooling.md` の箇条書きに足す。
+文章の書き換えで、この箇条書きは `docs/tooling.md`「ツールの起動」の段落になった。適用するときはこの段落に足す。

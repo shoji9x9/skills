@@ -1,6 +1,6 @@
 # Skills
 
-Claude Code / Codex / GitHub Copilot に対応したマルチエージェント向け汎用スキル集。
+Claude Code・Codex・GitHub Copilot に対応した、マルチエージェント向けの汎用スキル集。
 エージェントによる自律的な開発（Issue の起票・着手から実装・レビュー対応・リリースまで）に必要なスキルを提供する。
 
 ## 利用可能なスキル
@@ -11,26 +11,26 @@ Claude Code / Codex / GitHub Copilot に対応したマルチエージェント�
 | [kaizen](./skills/kaizen/) | セッションから失敗・修正・エラーを抽出し根本原因を分析。スキル・ルール・Hooks・ドキュメントへ反映して同じ失敗の再発を防ぐ |
 | [issue-create](./skills/issue-create/) | 短い説明から GitHub Issue を作成。重複チェック・`.github/ISSUE_TEMPLATE/` 参照・ドラフト承認を経て起票 |
 | [issue-start](./skills/issue-start/) | GitHub Issue を起点に branch 作成・実装・commit・PR 作成までを標準化 |
-| [git-worktree](./skills/git-worktree/) | git worktree による作業隔離の機構。渡された branch に worktree を用意してセッションをそこへ移し（作るだけでは subagent・fork・background Bash が共有ツリーで動くため隔離にならない）、`.gitignore` 対象ファイルの運搬、検査ツールからの除外、clean 確認付きの後片付けまでを標準化。branch 作成と Issue との紐付けは呼び出し側（issue-start / issue-batch 等）に委ねる。`setup` / `enter` / `cleanup` の 3 モード |
+| [git-worktree](./skills/git-worktree/) | git worktree で作業を隔離する。渡された branch に worktree を用意してセッションをそこへ移し、`.gitignore` の対象のファイルの持ち込み、チェックツールからの除外、clean を確かめてからの後片付けまでを標準化する。worktree を作るだけでは、subagent・fork・背景で動く Bash が共有の作業ツリーで動くので、隔離にならない。branch の作成と Issue との紐付けは呼び出し側（issue-start・issue-batch など）が行う。`setup`・`enter`・`cleanup` の 3 つのモードを持つ |
 | [issue-batch](./skills/issue-batch/) | 複数 Issue を 1 件ずつ隔離 worktree・独立 branch / PR で連続処理し、実装、レビュー、検証、PR 収束、merge（GitHub の auto-merge／エージェントが実測して merge、を選択）、Issue close、deployment、branch cleanup まで追跡。初回は `setup` で無人実行ポリシーとマージ方式を確定 |
 | [pr-review-handle](./skills/pr-review-handle/) | PR のレビューコメント（全レビュアー対象）を確認・妥当性判断・必要時のみ修正・返信・解決。`--push` で commit・push・CI 確認後の再レビュー依頼（依頼先は `review_tool` で選択: Copilot/Claude Code/Codex/none）まで |
 | [dependabot-merge](./skills/dependabot-merge/) | Dependabot PR の CI 確認・影響レビュー・判断のコメント記録・マージを標準化。PR 単体または `--all` で open な全 PR を処理（0.x や自動マージ未設定リポジトリ向け） |
 | [dependabot-alert-issue](./skills/dependabot-alert-issue/) | Dependabot alerts を確認し解消 Issue を作成。着手可否で分類し severity・パッケージ単位でグルーピング、着手不能なものは着手可能条件を明記。設定で特定 alert の無視・dismiss も指定可 |
 | [pr-finalize-loop](./skills/pr-finalize-loop/) | 作成済み PR の CI エラー解消とレビュー指摘対応を、CI 成功かつ未解決スレッドなしになるまで自律ループで反復。再レビュー依頼先は `review_tool` で選択（Copilot/Claude Code/Codex/none）。`--max-iterations`（既定 5）で停止し、人間判断を要する指摘だけ確認して反映後に復帰 |
-| [browser-test](./skills/browser-test/) | フロント／バックエンドの変更を実ブラウザ（chrome-devtools MCP）で回帰確認。実施できる操作は環境ごとの設定（`forbidden_actions`）に従い、副作用を伴う操作は承認制（未設定の環境は読み取り専用）。変更スコープから影響ページを導出し、描画・console・API 応答を確認して課題をクロス環境で切り分け。`setup` で対話的に設定を記録 |
-| [aws-architecture-diagram](./skills/aws-architecture-diagram/) | AWS 構成図を IaC（CDK / Terraform 等）や説明から spec に起こし SVG として生成・更新。作図ルール（交差最小・直交配線・軸整列）に従い、環境（prod / local 等）を単一ベース spec＋変換で出し分け、PNG 化して目視確認しながら反復。初回は `setup` で対話導入、以降は `update` |
+| [browser-test](./skills/browser-test/) | フロント／バックエンドの変更を実ブラウザ（chrome-devtools MCP）で回帰確認。実施できる操作は環境ごとの設定（`forbidden_actions`）に従い、副作用を伴う操作は承認制（未設定の環境は読み取り専用）。変更の範囲から影響するページを割り出し、描画・console・API 応答を確認して課題をクロス環境で切り分け。`setup` で対話的に設定を記録 |
+| [aws-architecture-diagram](./skills/aws-architecture-diagram/) | AWS 構成図を IaC（CDK / Terraform 等）や説明から spec に起こし SVG として生成・更新。作図ルール（線の交差を減らす・線を直角に曲げる・軸をそろえる）に従い、環境（prod・local など）ごとの図を 1 つの基本の spec と変換で出し分け、PNG 化して目視確認しながら反復。初回は `setup` で対話導入、以降は `update` |
 | [box](./skills/box/) | Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新。フォルダ一覧・メタ取得・ダウンロード・検索・アップロード・新バージョン作成を、Dev Token または OAuth refresh のトークンで実行。MCP・SDK 不要 |
-| [replace-strategy](./skills/replace-strategy/) | 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測（セマンティクス・DB 復元可否・コード入手性・副作用・既存テスト）して戦略を決め、機能に分解して姉妹スキルへ振り分ける。自分では実装しない。`setup` / `issues`（issue-create へ委譲）/ `status` / `evidence`（確定した要求単位の根拠を機能インベントリへ書き戻す唯一の経路）の 4 モード。測定できなければ停止 |
-| [current-environment-bootstrap](./skills/current-environment-bootstrap/) | replace-strategy の姉妹スキル。先方から受領した資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を自社へ再構築する。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマと設定の復元、データ意味論の根拠収集、不足に対する先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再構築の再実行検証、current target の引き渡しまで。カラム名や型からの推測でドメイン値を確定せず、来歴・利用許可が不明なデータは投入しない。`current.origin: received-assets` のとき `replace-strategy setup` が測定の前に委譲する |
-| [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへ写像・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
+| [replace-strategy](./skills/replace-strategy/) | 仕様を変えないアプリケーションリプレイスの起点。現行アプリを実測（セマンティクス・DB 復元可否・コード入手性・副作用・既存テスト）して戦略を決め、機能に分解して姉妹スキルへ振り分ける。自分では実装しない。`setup` / `issues`（issue-create へ委譲）/ `status` / `evidence`（確定した要求単位の根拠を機能インベントリへ書き戻す唯一の方法）の 4 モード。測定できなければ停止 |
+| [current-environment-bootstrap](./skills/current-environment-bootstrap/) | replace-strategy の姉妹スキル。先方から受領した資産だけを起点に、比較基準として測定可能な現行テスト環境（current target）を自社へ再構築する。受領資産の棚卸しと「受領済み／導出可能／不足」の分類、DB スキーマと設定の復元、データ意味論の根拠収集、不足に対する先方・SME 向け質問票の生成、根拠のある範囲での最小の暫定起動データ構築、起動・認証・主要画面到達の実測、空環境からの再構築の再実行検証、current target の引き渡しまで。カラム名や型からの推測でドメイン値を確定せず、出所・利用許可が不明なデータは投入しない。`current.origin: received-assets` のとき `replace-strategy setup` が測定の前に委譲する |
+| [golden-dataset](./skills/golden-dataset/) | replace-strategy の姉妹スキル。現行と新側の比較を成立させる共通データセットを構築。データそのものではなく冪等・決定論的な投入ツール（TypeScript / SQL）を作り、本番を参照せず一から作る。新側スキーマは後から出来るため 2 フェーズ（A: 現行テスト環境へ投入・検証、B: 新側スキーマへの対応づけ・投入・現新一致検証）。データセットのバージョンで parity-suite / parity-diff のベースライン陳腐化を検出。replace-strategy setup 未完了なら停止 |
 | [parity-component](./skills/parity-component/) | replace-strategy の姉妹スキル。共通 UI 部品を画面より先に作るときに、現行アプリから部品の見た目の基準を採り、実装し、部品カタログ上で照合する。採取の単位は部品インスタンス（部品 × ページ）で、要素単位のスクリーンショット・状態別の計算後スタイル・当たっている CSS 規則・データ依存部品の実データを採る。インスタンス間で値が割れた軸を可変（引数）、割れない軸を固定として決定論的に割り出す。`capture` / `build` の 2 モード。1 回で 1 部品。画面より先に部品を作らない方針なら使わない（機能ごとに parity-replace が作る） |
 | [parity-suite](./skills/parity-suite/) | replace-strategy の姉妹スキル。現行アプリに対してパリティスイート（新旧どちらの実装にも当てられる実行可能な合否判定基準）を Playwright で構築し、故障注入で強度を検証。論理名のロケータマッピング・手書きの寛容な aria スナップショット・API の record/replay・視覚ベースラインとノイズ基準値の採取まで。1 回の実行で 1 機能。replace-strategy setup / golden-dataset 未完了・Playwright 不可なら停止 |
 | [parity-replace](./skills/parity-replace/) | replace-strategy の姉妹スキル。parity-suite が定義した論理名に対して新側を実装する意図的に薄い層。機能をページ単位のフェーズに分割し、新側ロケータマッピングの例外を充填し、実装役と分離した敵対的レビューを未コミット差分にかける。ブランチ作成・commit・PR は issue-start へ委譲。現行コードを一次情報源に読み、推測せず確信度を申告し、スイートが新に対して green ＋ 検証コマンド ＋ Issue の受け入れ条件の照合で完了（差分ゼロは parity-diff との往復の終了条件）。1 回で 1 機能。前提未完了なら停止 |
-| [parity-diff](./skills/parity-diff/) | replace-strategy の姉妹スキル。現行と新側の差分を検出・分類する。検出は決定論的ツール（画素・特性照合・aria の 3 経路）が行い、LLM は分類（要対応／許容／環境ノイズ）のみを行う。1 回の実行で 1 機能。前提（replace-strategy setup / golden-dataset / 対象 slug の parity-suite 完了・parity-replace の新側 green）未完了なら停止 |
+| [parity-diff](./skills/parity-diff/) | replace-strategy の姉妹スキル。現行と新側の差分を検出・分類する。検出は決定論的ツール（画素・特性照合・aria の 3 つの方法）が行い、LLM は分類（要対応／許容／環境ノイズ）のみを行う。1 回の実行で 1 機能。前提（replace-strategy setup / golden-dataset / 対象 slug の parity-suite 完了・parity-replace の新側 green）未完了なら停止 |
 
 ## 前提条件
 
-- [GitHub CLI](https://cli.github.com/) **v2.90.0 以降**（`gh skill` コマンドが必要。`gh --version` で確認）。`gh skill` は v2.90.0 で導入された（[changelog](https://github.blog/changelog/2026-04-16-manage-agent-skills-with-github-cli/)）
+- [GitHub CLI](https://cli.github.com/) の v2.90.0 以降。`gh skill` コマンドは v2.90.0 で導入された（[リリースノート](https://github.com/cli/cli/releases/tag/v2.90.0)）。版は `gh --version` で確かめる。
 - `gh auth login` で GitHub に認証済みであること
 
 ## インストール
@@ -66,12 +66,17 @@ gh skill update --all
 
 ## スキルの設定
 
-一部のスキル（issue-start / issue-batch / git-worktree / pr-review-handle / dependabot-merge / dependabot-alert-issue / pr-finalize-loop / browser-test /
-replace-strategy / current-environment-bootstrap / golden-dataset / parity-component / parity-suite / parity-replace / parity-diff）は、
-インストール先プロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
-`<owner>/<repo>` は**配布元（publisher）の owner/repo で固定**であり、導入先のリポジトリ名ではない（本リポジトリ配布物は常に `.config/skills/shoji9x9/skills.yml`）。
-設定は、**設定を作成するスキル**（`replace-strategy setup` / `browser-test setup` や各スキルの規約解決フロー等）の実行時に**非破壊で自動作成・追記**され（既存のキー・値・コメントは変更しない）、
-skill ディレクトリ外にあるため `gh skill update` でも保持される。共有契約を**読むだけ**のスキル（golden-dataset / parity-suite 等）は設定を生成せず、未設定なら作成元スキル（`replace-strategy setup`）の実行を促して停止する。
+次のスキルは、インストール先のプロジェクトの設定を `.config/skills/<owner>/<repo>.yml` から読む。
+
+- Issue と PR: issue-start、issue-batch、git-worktree、pr-review-handle、pr-finalize-loop
+- 依存の更新: dependabot-merge、dependabot-alert-issue
+- ブラウザでの確認: browser-test
+- リプレイス: replace-strategy、current-environment-bootstrap、golden-dataset、parity-component、parity-suite、parity-replace、parity-diff
+
+`<owner>/<repo>` には、インストール先のリポジトリ名ではなく、配布元の owner/repo が入る。このリポジトリのスキルなら、常に `.config/skills/shoji9x9/skills.yml` になる。
+設定ファイルは、設定を作るスキル（`replace-strategy setup`、`browser-test setup`、各スキルの規約の解決の手順など）が、実行時に自動で作るか追記する。
+そのとき、既にあるキー・値・コメントは変えない。設定ファイルはスキルのディレクトリの外にあるので、`gh skill update` を実行しても残る。
+共通の設定を読むだけのスキル（golden-dataset・parity-suite など）は設定を作らない。設定が無ければ、設定を作るスキル（`replace-strategy setup`）を実行するよう促して止まる。
 
 ```yaml
 version: 1
@@ -110,15 +115,20 @@ skills:
         forbidden_actions: [] # この環境で実施しない操作。空 = すべて実施可、未定義 = 読み取り専用
 ```
 
-- `skills.common.conventions_doc`: ブランチ運用・commit 規約を記した**導入先に実在する**ドキュメント。上の `AGENTS.md` は例（盲目コピーしない）。未設定なら標準ドキュメント（`AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` / `CONTRIBUTING.md` 等）を探索し、解決できなければスキルがユーザーに確認する。
-- `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（既定）/ `claude-code` / `codex` / `none`。
-  `copilot` は `requested_reviewers` API、`claude-code` / `codex` はトップレベル PR コメントの mention（`@claude review` / `@codex review`）で依頼する。`none` は再依頼をしない。未設定なら `copilot`。
-  このソースリポジトリでの一時的な個人設定は Git 管理外の `.env.local` に `SKILLS_REVIEW_TOOL=codex` のように書く。
-  ルートの `mise.toml` がこのファイルを読み込み、環境変数は共有設定より優先される。インストール先へルートの mise 設定は配布されないため、利用側では `export SKILLS_REVIEW_TOOL=codex` または利用側自身の環境管理へ設定する。
+- `skills.common.conventions_doc`: ブランチ運用と commit の規約を書いた、インストール先に実在するドキュメント。上の `AGENTS.md` は例なので、そのままコピーしない。
+  未設定なら、スキルはよく使われるドキュメント（`AGENTS.md`・`CLAUDE.md`・`.github/copilot-instructions.md`・`CONTRIBUTING.md` など）を探し、見つからなければユーザーに確認する。
+- `skills.common.review_tool`: pr-review-handle / pr-finalize-loop が再レビューを依頼する AI レビュアー。`copilot`（デフォルト）・`claude-code`・`codex`・`none` のどれかを書く。
+  `copilot` には `requested_reviewers` API で、`claude-code` と `codex` には PR のトップレベルのコメントでの mention（`@claude review`・`@codex review`）で依頼する。`none` なら再レビューを依頼しない。未設定なら `copilot` を使う。
+  このリポジトリで一時的に個人の設定を変えるときは、Git で管理しない `.env.local` に `SKILLS_REVIEW_TOOL=codex` のように書く。
+  ルートの `mise.toml` がこのファイルを読み込み、環境変数は共通の設定ファイルより優先される。
+  ルートの mise の設定はインストール先に配布されないので、インストール先では `export SKILLS_REVIEW_TOOL=codex` を実行するか、そのプロジェクトの環境変数の管理の仕組みで設定する。
   1 回だけ変える場合は `pr-finalize-loop 6 --review-tool <tool>` のように対象 PR も指定する。
-- `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（既定 `squash`）。
-- `skills.issue-batch.*`: 複数 Issue のローカルレビュー／PR 収束上限、CI 待機、BLOCKED 後の続行、merge、deployment 監視を定める。値は例を盲目コピーせず `issue-batch setup` で対話的に作成する（schema はスキルの `references/project-config.md`）。
-- `skills.dependabot-alert-issue.*`: dependabot-alert-issue が読む特別処理設定（リリース年齢のしきい値・無視・dismiss）。すべて任意。
-- `skills.browser-test.*`: browser-test が読む環境・禁止操作の設定。上の値は例（盲目コピーしない）。未設定ならリポジトリ探索とユーザー確認で解決する。`browser-test setup` で対話的に作成・更新できる（詳細はスキルの `references/project-config.md`）。
+- `skills.dependabot-merge.merge_method`: dependabot-merge のマージ方式（デフォルトは `squash`）。
+- `skills.issue-batch.*`: 複数の Issue を処理するときの、ローカルのレビューと PR の収束の反復の上限、CI の待機、BLOCKED の後に続けるか、merge、deployment の監視を決める。
+  例の値をそのままコピーせず、`issue-batch setup` で対話しながら作る。スキーマはスキルの `references/project-config.md` にある。
+- `skills.dependabot-alert-issue.*`: dependabot-alert-issue が読む特別な処理の設定（公開されてからの日数のしきい値・無視・dismiss）。すべて任意。
+- `skills.browser-test.*`: browser-test が読む、環境と禁止する操作の設定。上の値は例なので、そのままコピーしない。
+  未設定なら、スキルはリポジトリを探し、ユーザーに確認して決める。`browser-test setup` で対話しながら作成・更新できる。詳細はスキルの `references/project-config.md` にある。
 - `skills.replace-strategy.*`: リプレイス対象（現・新）・DB 接続の環境変数名・成果物方針・意図的差異レジストリ・references（利用者が選ぶ UI ライブラリ／DB 意味論／環境変数の用意方法のドキュメントパス）。
-  姉妹スキル（golden-dataset / parity-suite 等）が直接読む共有契約で、`replace-strategy setup` が対話的に作成する（スキーマはスキルの `references/project-config.md`）。golden-dataset / parity-suite は専用キーを持たず、この共有契約だけを読む。
+  姉妹スキル（golden-dataset・parity-suite など）が直接読む共通の設定で、`replace-strategy setup` が対話しながら作る。スキーマはスキルの `references/project-config.md` にある。
+  golden-dataset と parity-suite は専用のキーを持たず、この共通の設定だけを読む。
