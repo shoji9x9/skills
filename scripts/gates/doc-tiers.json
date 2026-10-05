@@ -1,0 +1,54 @@
+{
+  "$comment": [
+    "文書の階層（Tier）の原本。.agents/rules/doc-altitude.md の表は、ここから scripts/gates/check-doc-tiers.js --fix で生成する。",
+    "docs の glob は Markdown の分類に使う。glob を持たない項目（text）は、ファイルで分けられない文書を表に出すためのもの。",
+    "Markdown はちょうど 1 つの項目（tiers か outside）に当たらなければならない。コピーとリンク（scripts/lib/source-scope.js）は数えない。"
+  ],
+  "tiers": [
+    {
+      "tier": 1,
+      "contents": "リポジトリの目的と、作業内容に依らず常に守る原則・規約の要約",
+      "docs": [
+        { "glob": "AGENTS.md" },
+        { "glob": "CLAUDE.md", "note": "`AGENTS.md` を読み込むだけ" },
+        { "glob": ".github/copilot-instructions.md", "note": "`AGENTS.md` を参照するだけ" }
+      ]
+    },
+    {
+      "tier": 2,
+      "contents": "特定の作業で守る規約・手順と、スキル",
+      "docs": [
+        { "glob": ".agents/rules/**" },
+        { "glob": "docs/**" },
+        { "glob": "skills/**" },
+        {
+          "glob": ".agents/skills/*/**",
+          "label": "private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）"
+        },
+        { "glob": ".textlint/word-list.md", "note": "`.textlint/words.json` から生成する" },
+        { "glob": "README.md" }
+      ]
+    },
+    {
+      "tier": 3,
+      "contents": "テストの設計と、実装の説明",
+      "docs": [
+        { "glob": "evals/*/README.md" },
+        { "label": "コードコメント（設定ファイルのコメントを含む）" }
+      ]
+    },
+    {
+      "tier": 4,
+      "contents": "経過と判断の記録（追記していく）",
+      "docs": [
+        { "glob": ".kaizen/**" },
+        { "glob": "tests/**", "label": "`tests/` の結果" },
+        { "label": "Issue・PR" }
+      ]
+    }
+  ],
+  "outside": [
+    { "glob": "evals/*/fixtures/**", "note": "eval の入力" },
+    { "glob": ".github/ISSUE_TEMPLATE/**", "note": "Issue のテンプレート" }
+  ]
+}

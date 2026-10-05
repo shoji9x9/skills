@@ -73,3 +73,8 @@ KEDB: [[2026-09-01-matching-key-material-state-space]]（applied）は状態空�
   文章規約で防げず再発した形なので PreToolUse で止める。対象は `oxfmt` / `markdownlint-cli2` の
   書き込みを伴う呼び出しで、**通さねばならない入力**（ファイル列挙・`--check` のみ・
   lefthook が渡す staged file 列）を同数の陰性コントロールで固定する
+
+## 追記（2026-10-05）
+
+AGENTS.md の「リント／フォーマット」節は Issue #372 で無くなった。
+oxfmt の注意は、要約が AGENTS.md「技術スタック」に、詳細が `docs/tooling.md` にある。適用するときはこの 2 か所を対象にする。

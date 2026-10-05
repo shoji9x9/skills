@@ -27,12 +27,18 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 
 文書を 4 つの階層に分け、置き場所と参照の向きを決める。どのファイルがどの階層かは次の表で決める。
 
+<!-- doc-tiers:begin（scripts/gates/doc-tiers.json から scripts/gates/check-doc-tiers.js --fix で生成する。手で直さない） -->
+
 | Tier | 文書 | 置くもの |
 | --- | --- | --- |
-| 1 | `AGENTS.md`（`CLAUDE.md` と `.github/copilot-instructions.md` はこれを読み込むだけ） | リポジトリの目的と、作業内容に依らず常に守る原則・規約の要約 |
-| 2 | `.agents/rules/`、`docs/`、`skills/`、private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの） | 特定の作業で守る規約・手順と、スキル |
+| 1 | `AGENTS.md`、`CLAUDE.md`（`AGENTS.md` を読み込むだけ）、`.github/copilot-instructions.md`（`AGENTS.md` を参照するだけ） | リポジトリの目的と、作業内容に依らず常に守る原則・規約の要約 |
+| 2 | `.agents/rules/**`、`docs/**`、`skills/**`、private skill（`.agents/skills/<name>/` のうち `.private-skill` を持つもの）、`.textlint/word-list.md`（`.textlint/words.json` から生成する）、`README.md` | 特定の作業で守る規約・手順と、スキル |
 | 3 | `evals/*/README.md`、コードコメント（設定ファイルのコメントを含む） | テストの設計と、実装の説明 |
-| 4 | `.kaizen/`、`tests/` の結果、Issue・PR | 経過と判断の記録（追記していく） |
+| 4 | `.kaizen/**`、`tests/` の結果、Issue・PR | 経過と判断の記録（追記していく） |
+
+階層の外に置く文書: `evals/*/fixtures/**`（eval の入力）、`.github/ISSUE_TEMPLATE/**`（Issue のテンプレート）。
+
+<!-- doc-tiers:end -->
 
 コードと設定の値そのものは階層の外に置く。文書がスクリプトや設定ファイルの名前・パスを挙げるのは、案内として書いてよい。
 インストール済みのスキルのコピー（`.agents/skills/<name>/`）とエージェント用のリンク（`.claude/`）は `skills/` と同じ中身なので、階層に数えない。
@@ -45,6 +51,8 @@ applyTo: "AGENTS.md,CLAUDE.md,**/SKILL.md,skills/**/references/**/*.md,.agents/r
 - 同じ内容を複数の文書に書かない。1 か所に書き、他からは参照する。
 - 作成日、「現状は」「当面」のように時間がたつと正しくなくなる記述を Tier 1〜3 に書かない。経過は Tier 4 に追記する。
 - 配布するスキル（`skills/`）は配布先で単独で動く。階層とは別の制約として、このリポジトリの他の文書を参照せず、必要なものは同梱する。
+
+参照の向き・リンクと節名の実在は `scripts/gates/check-doc-refs.js`、時間がたつと正しくなくなる記述は `scripts/gates/check-time-sensitive-prose.js` がチェックする。
 
 ## 既にある重複を正本参照へ縮約するとき
 

@@ -85,8 +85,12 @@ jobs:
         run: node scripts/gates/check-identical-copies.js
       - name: Skill checks wiring declarations (checks.json / scripts/gates/skill-checks-unwired.json)
         run: node scripts/gates/check-skill-checks.js
-      - name: No mutation counts in prose (AGENTS.md / rules / docs / workflows)
-        run: node scripts/gates/check-mutation-count-prose.js
+      - name: Time-sensitive prose (mutation counts, dates, 現状は / 当面)
+        run: node scripts/gates/check-time-sensitive-prose.js
+      - name: Document tiers (scripts/gates/doc-tiers.json)
+        run: node scripts/gates/check-doc-tiers.js
+      - name: Document references (links, section names, tier direction)
+        run: node scripts/gates/check-doc-refs.js
       - name: Skill index (AGENTS.md / README.md vs skills/)
         run: node scripts/gates/check-skill-index.js
       - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)

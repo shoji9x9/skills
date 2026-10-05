@@ -45,7 +45,10 @@
   `scripts/gates/check-identical-copies.js`（同一であるべきコピー。組は `scripts/gates/identical-copies.json`）/
   `scripts/gates/check-skill-checks.js`（配布スキルの検査〈`*-check.*`〉を、利用者の入口へ配線する〈`skills/<name>/checks.json`〉か
   しない〈理由付きで `scripts/gates/skill-checks-unwired.json`〉かのどちらかへ分類）/
-  `scripts/gates/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/gates/check-skill-index.js`（スキルガイド・README とスキル実体の対応）/
+  `scripts/gates/check-time-sensitive-prose.js`（日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書かない。変異の件数・全件の実測値の置き場は `mutation-proof.yml` だけ）/
+  `scripts/gates/check-doc-tiers.js`（文書の階層。原本は `scripts/gates/doc-tiers.json`、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する）/
+  `scripts/gates/check-doc-refs.js`（リンクと節名の実在、参照の向き。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json`）/
+  `scripts/gates/check-skill-index.js`（スキルガイド・README とスキル実体の対応）/
   `scripts/gates/lint-prose.js`（人が読む Markdown の文章。書き換え前のファイルは `scripts/gates/prose-lint-pending.json`）/
   `scripts/gates/check-word-list.js`（`.textlint/word-list.md` と `.textlint/words.json` の一致）/
   `scripts/gates/check-agents-md-size.js`（AGENTS.md のサイズ。ブランチで 30 KiB を超えたら 24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json`）。
