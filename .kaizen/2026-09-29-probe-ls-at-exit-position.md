@@ -42,4 +42,5 @@ eval の assertion 差し替えで `...; node check-eval-reachability.js >/dev/n
 ## 追記（2026-10-05）
 
 AGENTS.md の「判定結果として期待される非 0 を…漏らさない」は Issue #372 で `docs/agent-workflow.md`「原則」へ移した。
+文章の書き換えで、この原則は `docs/agent-workflow.md`「結果として期待される 0 以外の終了コードを、呼び出し全体の終了コードにしない」の節になった。
 AGENTS.md「シェルの書き方」には要約（「結果として期待される 0 以外の終了コード」）だけがある。

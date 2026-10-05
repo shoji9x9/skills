@@ -6,54 +6,6 @@
   ],
   "pending": [
     {
-      "file": "docs/agent-workflow.md",
-      "rule": "tier-down",
-      "text": "#372",
-      "stage": "3"
-    },
-    {
-      "file": "docs/agent-workflow.md",
-      "rule": "time-word",
-      "text": "現状は",
-      "stage": "3"
-    },
-    {
-      "file": "docs/skill-development.md",
-      "rule": "tier-down",
-      "text": "#463",
-      "stage": "3"
-    },
-    {
-      "file": "docs/skill-eval-executors.md",
-      "rule": "date",
-      "text": "2026-08-27",
-      "stage": "3"
-    },
-    {
-      "file": "docs/tooling.md",
-      "rule": "tier-down",
-      "text": "#372",
-      "stage": "3"
-    },
-    {
-      "file": "docs/tooling.md",
-      "rule": "time-word",
-      "text": "現状は",
-      "stage": "3"
-    },
-    {
-      "file": "docs/vulnerability-handling.md",
-      "rule": "tier-down",
-      "text": "#14794",
-      "stage": "3"
-    },
-    {
-      "file": "README.md",
-      "rule": "date",
-      "text": "2026-04-16",
-      "stage": "3"
-    },
-    {
       "file": ".agents/skills/pnpm-audit-alert-issue/SKILL.md",
       "rule": "tier-down",
       "text": "#14794",

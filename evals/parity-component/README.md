@@ -74,7 +74,7 @@ fixture の `component-coverage.json` は `items` が `click` / `disabled` / `ke
 
 fixture をさらに削っても弁別は戻らない——items と evidence は被覆表の実体であり、抽象化すると「実在しうる成果物」でなくなる。
 そのためこの eval は **Delta に寄与せず、後退検知（この判断がスキル改訂で失われていないか）専用**として維持する
-（判断の正本は `.agents/rules/eval-assertion-discrimination.md`「cue を消しても弁別しないなら、その項目はこの eval では測れないと結論する」）。
+（判断の正本は `.agents/rules/eval-assertion-discrimination.md`「手がかりを消しても差が出ない項目」）。
 
 ## fixture
 
