@@ -1,6 +1,6 @@
 # スキルセットアップガイド
 
-スキルの書き方・設計方針は `skill-creator` スキルを参照。
+スキルの書き方と設計の方針は、`skill-creator` スキルにある。
 
 ## ディレクトリ構造
 
@@ -9,18 +9,19 @@
 .claude/skills/<name>            Claude Code 用シンボリックリンク（ディレクトリへのリンク）
 ```
 
-Copilot は `.agents/skills/` と `.claude/skills/` の両方を参照するため、追加対応不要。
+Copilot は `.agents/skills/` と `.claude/skills/` の両方を参照するので、追加の対応は要らない。
 
 ## 初期セットアップ
 
-プロジェクトにマルチエージェント対応の基本構造を導入する場合は、`references/docs.md` を利用して以下を作成・更新する:
+プロジェクトにマルチエージェントに対応した基本の構成を入れるときは、`references/docs.md` を使って次を作成・更新する。
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `.github/copilot-instructions.md`
 - `README.md`
 
-既にファイルが存在する場合は上書きせず、更新するかユーザーに確認する。共通内容は `AGENTS.md` に集約し、`CLAUDE.md` と `.github/copilot-instructions.md` には各エージェント固有の差分のみを記述する。
+ファイルがすでにあれば上書きせず、更新するかをユーザーに確かめる。
+共通の内容は `AGENTS.md` にまとめ、`CLAUDE.md` と `.github/copilot-instructions.md` には、各エージェントに固有の差分だけを書く。
 
 ## SKILL.md frontmatter
 
@@ -32,9 +33,9 @@ argument-hint: "<hint>"     # 任意: スラッシュコマンド実行時に表
 ---
 ```
 
-`argument-hint` は Agent Skills 標準仕様（agentskills.io）外の拡張フィールド。Claude Code と VS Code（Copilot の Agent Skills）が
-autocomplete 時のヒント表示に使い、Codex CLI・Copilot CLI は未知フィールドとして無視する（エラーにならない）。
-値が `[` で始まると YAML の flow sequence と誤解釈されるため引用符で囲む（単・二重どちらでも可）。
+`argument-hint` は、Agent Skills の標準仕様（agentskills.io）の外にある拡張のフィールドである。
+Claude Code と VS Code（Copilot の Agent Skills）は、補完のときのヒントの表示に使う。Codex CLI と Copilot CLI は知らないフィールドとして無視する（エラーにはならない）。
+値が `[` で始まると、YAML の flow sequence と誤って解釈されるので、引用符で囲む（シングルとダブルのどちらでもよい）。
 
 ## スキル作成手順
 
@@ -49,7 +50,7 @@ mkdir -p .claude/skills
 ln -s ../../.agents/skills/<name> .claude/skills/<name>
 ```
 
-常に参照させたい場合は `AGENTS.md` の「参照スキルガイド」セクションに追記する:
+常に参照させたいときは、`AGENTS.md` の「参照スキルガイド」の節に追記する。
 
 ```markdown
 ## 参照スキルガイド
@@ -59,7 +60,7 @@ ln -s ../../.agents/skills/<name> .claude/skills/<name>
 
 ## スキル更新手順
 
-`.agents/skills/<name>/SKILL.md` を編集するだけでよい。シンボリックリンク経由で自動的に反映される。
+`.agents/skills/<name>/SKILL.md` を直接編集するだけでよい。シンボリックリンクを通して、自動で反映される。
 
 ## スキル削除手順
 
@@ -68,8 +69,8 @@ rm -rf .agents/skills/<name>
 rm .claude/skills/<name>
 ```
 
-`AGENTS.md` に参照がある場合は該当行も削除する。
+`AGENTS.md` に参照があるときは、その行も削除する。
 
 ## スキル検証
 
-`skill-creator` スキルが利用可能な場合、スキル作成後に検証と改善を提案する。利用不可の場合はスキップする。
+`skill-creator` スキルが使えるときは、スキルを作った後に検証と改善を提案する。使えなければ飛ばす。

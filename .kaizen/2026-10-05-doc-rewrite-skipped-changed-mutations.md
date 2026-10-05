@@ -26,3 +26,4 @@ session: claude-code
 
 - CI の Mutation proof (PR) と同じ選び方なので、文書を読むテストを持つ定義も選ばれる。
 - 時間がかかるときは、バックグラウンドで実行して push の前に結果を確かめる。
+- `--changed-since` は commit の差分（`origin/main...HEAD`）だけを見る。commit していない変更は「変更ファイル: 0 件」になり、何も実行しないので、commit した後に実行する。

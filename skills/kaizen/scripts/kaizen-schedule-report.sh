@@ -397,7 +397,7 @@ cmd_prompt() {
 1. `.kaizen/` 配下の未適用（frontmatter が `status: pending`）のノートを読む。対象は末尾に列挙してある。
 2. 同じ根本原因・同じ `type`・同じ適用先になるものをグループにまとめる。
 3. 各グループについて、**どこへ何を書けば再発を止められるか**を提案する。
-   判断基準はスキル本体のガイド `references/apply.md` の「記述先（適用先）の選び方」に従う。
+   判断基準はスキル本体のガイド `references/apply.md` の「記述先の選び方」に従う。
    置き場はインストール形態で変わるので、次の順に最初に読めたものを使う:
    `.claude/skills/kaizen/references/apply.md` / `.agents/skills/kaizen/references/apply.md` /
    `.github/skills/kaizen/references/apply.md` / `skills/kaizen/references/apply.md`。

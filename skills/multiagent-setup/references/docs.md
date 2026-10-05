@@ -2,9 +2,11 @@
 
 ## 基本方針
 
-**AGENTS.md を基底とし、CLAUDE.md と `.github/copilot-instructions.md` で上書きする。** 共通内容は AGENTS.md に集約し、各エージェント固有の内容のみ各ファイルに記述する。AGENTS.md の内容を他のファイルに複製しない。
+AGENTS.md を基本の文書とし、CLAUDE.md と `.github/copilot-instructions.md` で上書きする。
+共通の内容は AGENTS.md にまとめ、各エージェントに固有の内容だけをそれぞれのファイルに書く。AGENTS.md の内容を他のファイルに複製しない。
 
-AGENTS.md を持たず Claude Code のみ（`CLAUDE.md`）／GitHub Copilot のみ（`.github/copilot-instructions.md`）で運用するプロジェクトでは、その常時ロードされる doc が「基底ドキュメント」の役割を担う。以降 AGENTS.md と記す箇所は、そのプロジェクトの基底ドキュメントに読み替える。
+AGENTS.md を持たず、Claude Code だけ（`CLAUDE.md`）か GitHub Copilot だけ（`.github/copilot-instructions.md`）で運用するプロジェクトもある。
+その場合は、常に読み込まれるそのドキュメントが「基底ドキュメント」の役割を持つ。以下で AGENTS.md と書いた箇所は、そのプロジェクトの基底ドキュメントと読み替える。
 
 ## ファイル別役割
 
@@ -59,17 +61,22 @@ AGENTS.md を持たず Claude Code のみ（`CLAUDE.md`）／GitHub Copilot の�
 - `.agents/rules/<name>.md`: <ルールの適用範囲>
 ```
 
-応答方針は上記の短い節だけにまとめ、用語集・文章検査 Hook・エージェント固有ファイルへの複製は追加しない。
+応答の方針は上の短い節だけにまとめる。用語集、文章をチェックする Hook、エージェントに固有のファイルへの複製は追加しない。
 
 ## 既存の基底ドキュメントへの選択基準の追記
 
-新規プロジェクトより、既に基底ドキュメントがある既存プロジェクトのほうが多い。ドキュメントの整備・整理・分割・集約を行うとき、対象に既存の基底ドキュメント（`AGENTS.md`、または非利用構成では `CLAUDE.md` / `.github/copilot-instructions.md`）があり、そこに `## コンポーネント選択基準` セクションが無ければ追加する（既存の他の内容は上書きしない）。これにより、以後はスキルを明示的に呼ばなくても、常時ロードされる基底ドキュメント経由で選択基準が適用される。
+新しいプロジェクトより、基底ドキュメントがすでにある既存のプロジェクトのほうが多い。
+ドキュメントの整備・整理・分割・集約をするとき、対象に既存の基底ドキュメントがあり、そこに `## コンポーネント選択基準` の節が無ければ追加する。
+基底ドキュメントは `AGENTS.md`、AGENTS.md を使わない構成では `CLAUDE.md` か `.github/copilot-instructions.md` である。既存の他の内容は上書きしない。
+こうすると、以後はスキルを明示的に呼ばなくても、常に読み込まれる基底ドキュメントを通して選択基準が当たる。
 
-同じタイミングで、基底ドキュメントに上記 `## コミュニケーション` の方針が無ければ5項目すべてを追加する。既に同等の方針がある場合は重複させず、既存の構成と表現を尊重する。
+同じときに、基底ドキュメントに上の `## コミュニケーション` の方針が無ければ、5 項目すべてを追加する。
+同じ内容の方針がすでにあれば重複させず、既存の構成と表現に合わせる。
 
 ## CLAUDE.md / `.github/copilot-instructions.md` の方針
 
-どちらも AGENTS.md の内容を参照し、**差分のみ**を記述する。そのエージェントにしか適用されない設定のみを追記する。固有の設定が何もない場合は AGENTS.md 参照行のみで十分。
+どちらも AGENTS.md の内容を参照し、差分だけを書く。そのエージェントにしか当てはまらない設定だけを追記する。
+固有の設定が何も無ければ、AGENTS.md を参照する行だけで足りる。
 
 ```markdown
 # <エージェント名> 設定
@@ -81,7 +88,7 @@ See AGENTS.md for project overview, tech stack, and workflow.
 <このエージェントにのみ適用するルール・設定>
 ```
 
-**エージェント固有の設定の例:**
+エージェントに固有の設定の例は次のとおりである。
 
 | エージェント | 固有の設定の例 |
 |------------|--------------|
@@ -89,13 +96,14 @@ See AGENTS.md for project overview, tech stack, and workflow.
 | GitHub Copilot | Copilot 拡張の設定、GitHub Copilot Chat スラッシュコマンド、Copilot ワークスペースの挙動 |
 | Codex | AGENTS.md がメインのため通常は不要 |
 
-**共通の規約や仕様（スキルのフォーマット、コーディング規約、ディレクトリ構造など）は AGENTS.md に書く。** `.github/copilot-instructions.md` に書いた内容が AGENTS.md にも存在する場合、または Claude Code にも同様に適用されるなら、それは AGENTS.md に移すべき内容。
+共通の規約や仕様（スキルの形式、コーディング規約、ディレクトリ構造など）は AGENTS.md に書く。
+`.github/copilot-instructions.md` に書いた内容が AGENTS.md にもあるときや、Claude Code にも同じように当てはまるときは、その内容は AGENTS.md に移す。
 
 ## 作成順序
 
-1. `AGENTS.md` — 全エージェント共通の指示を先に確定する
-2. `CLAUDE.md` と `.github/copilot-instructions.md` — AGENTS.md が確定した後に差分のみ記述する（順序は問わない）
+1. `AGENTS.md`: すべてのエージェントに共通の指示を先に決める。
+2. `CLAUDE.md` と `.github/copilot-instructions.md`: AGENTS.md が決まった後に、差分だけを書く（この 2 つの順序は問わない）。
 
 ## 更新手順
 
-全エージェント共通の変更は `AGENTS.md` のみを更新する。エージェント固有の変更は対応するファイルのみを更新する。
+すべてのエージェントに共通の変更は、`AGENTS.md` だけを更新する。エージェントに固有の変更は、対応するファイルだけを更新する。

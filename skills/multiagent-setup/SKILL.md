@@ -7,26 +7,27 @@ license: MIT
 
 # Multiagent Setup
 
-Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプロジェクト構造を整備するスキル。
+Claude Code・Codex・GitHub Copilot の 3 つのエージェントが共有できる、プロジェクトの構成を整えるスキル。
 
 ## 前提
 
-- **ツール**: `gh`（`gh skill` 拡張）, `git`
-- **前提スキル**: なし（スキル作成後の検証に `skill-creator` を使えるが任意）
-- **MCP**: なし
-- **シェル**: bash（POSIX 互換シェル）。コマンド例（シンボリックリンク作成等）は bash 前提のため、Windows では WSL / Git Bash 等の bash 環境で実行する
-- node / pnpm / python などのランタイムは不要。
+- ツール: `gh`（`gh skill` 拡張）、`git`
+- 前提スキル: なし（スキルを作った後の検証に `skill-creator` を使えるが、必須ではない）
+- MCP: なし
+- シェル: bash（POSIX 互換のシェル）。
+  コマンドの例（シンボリックリンクの作成など）は bash を前提にしているので、Windows では WSL や Git Bash などの bash の環境で実行する。
+- node・pnpm・python などのランタイムは要らない。
 
 ## 基本原則
 
-- `.agents/` ディレクトリを実体の保管場所とし、各エージェント固有のディレクトリへはシンボリックリンクを作成する。同一ファイルを複数箇所に複製しない。
-- **スコープはプロジェクトレベルのみ。** ユーザー設定（`~/.claude/`、`~/.codex/` 等）は対象外。
+- `.agents/` ディレクトリに実体を置き、各エージェントに固有のディレクトリにはシンボリックリンクを作る。同じファイルを複数の場所に複製しない。
+- 対象はプロジェクトのレベルだけである。ユーザーの設定（`~/.claude/`、`~/.codex/` など）は対象にしない。
 
 ## フロー
 
 ### Step 1: コンポーネントの特定
 
-ユーザーのメッセージから操作対象を推論する。
+ユーザーのメッセージから、操作の対象を推論する。
 
 | ユーザーの意図 | コンポーネント |
 |-------------|-------------|
@@ -36,31 +37,31 @@ Claude Code / Codex / GitHub Copilot の3エージェントが共有できるプ
 | ドキュメントを整備 / 整理 / 分割 / 集約 / 再配置 / 初期化 / 作成 | ドキュメント |
 | プロジェクトを初期化 / セットアップ | 全コンポーネント |
 
-意図が不明または複数該当する場合は AskUserQuestion で確認する。
+意図が分からないときや、複数に当たるときは、AskUserQuestion で確かめる。
 
-追加したい知識・規約・処理を skill / rule / hook / ドキュメントのどれに落とすか迷う場合は、`references/component-selection.md` の判断基準に従う。
+追加したい知識・規約・処理を、skill・rule・hook・ドキュメントのどれにするか迷うときは、`references/component-selection.md` の基準に従う。
 
 ### Step 2: 対象エージェントの確認
 
-プロジェクトの現状を確認する:
+プロジェクトの今の状態を確かめる。
 
 ```bash
 ls -d .agents .claude .github .codex 2>/dev/null
 ```
 
-対象エージェントが明示されていない場合は AskUserQuestion で確認する。
+対象のエージェントが明示されていないときは、AskUserQuestion で確かめる。
 
 ### Step 3: コンポーネントの実行
 
-SKILL.md と同じディレクトリの `references/` にある対応コンポーネントファイルを Read ツールで読み込み、手順に従って実行する:
+SKILL.md と同じディレクトリの `references/` にある、対応するコンポーネントのファイルを Read ツールで読み、その手順に従って実行する。
 
-- コンポーネント選択基準（どのコンポーネントか迷う場合にまず参照する判断基準） → `references/component-selection.md`
-- スキル設定 → `references/skills.md`
-- ルール設定 → `references/rules.md`
-- Hooks 設定 → `references/hooks.md`
-- ドキュメント整備 → `references/docs.md`
+- コンポーネントの選択基準（どのコンポーネントにするか迷うときに最初に読む） → `references/component-selection.md`
+- スキルの設定 → `references/skills.md`
+- ルールの設定 → `references/rules.md`
+- Hooks の設定 → `references/hooks.md`
+- ドキュメントの整備 → `references/docs.md`
 
-コンポーネントファイルは SKILL.md と同じディレクトリの `references/` 配下にある。インストール先に応じて以下を試みる:
+コンポーネントのファイルは、SKILL.md と同じディレクトリの `references/` の下にある。インストール先に応じて、次の場所を順に試す。
 
 - `~/.claude/skills/multiagent-setup/references/<file>.md`
 - `.claude/skills/multiagent-setup/references/<file>.md`
@@ -68,6 +69,5 @@ SKILL.md と同じディレクトリの `references/` にある対応コンポ�
 
 ### Step 4: 後処理
 
-**スキルを作成した場合**: `skill-creator` スキルが利用可能であれば、スキルの検証・改善を提案する。利用不可の場合はスキップする。
-
-**ドキュメントを整備した場合**: `references/docs.md` の指示に従う。
+- スキルを作った場合: `skill-creator` スキルが使えれば、スキルの検証と改善を提案する。使えなければ飛ばす。
+- ドキュメントを整備した場合: `references/docs.md` の指示に従う。
