@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "markdownlint-scope.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。"
+  ],
+  "test_file": "scripts/gates/markdownlint-scope.test.js",
+  "mutations": [
+    {
+      "id": "MS-PRIVATE",
+      "why": "private skill を含め直さない（その文書が markdownlint に見られない）",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["private skill が 1 件以上あり、すべてを名前で含め直している"]
+    },
+    {
+      "id": "MS-COPIES",
+      "why": ".agents/ を丸ごと除く（rule の実体を見ない）",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.agents/skills/**\"\n",
+      "replace": "  - \"!.agents/**\"\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "スキルのコピーと rule のリンクを除き、rule の実体は除かない",
+        "含め直しは除外より後に書く（前に書くと除外に打ち消される）"
+      ]
+    },
+    {
+      "id": "MS-LINKS",
+      "why": "rule のリンク（.github/instructions/）を除かない",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.github/instructions/**\"\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["スキルのコピーと rule のリンクを除き、rule の実体は除かない"]
+    },
+    {
+      "id": "MS-ORDER",
+      "why": "含め直しを除外より前に書く",
+      "file": ".markdownlint-cli2.yaml",
+      "find": "  - \"!.agents/skills/**\"\n  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n",
+      "replace": "  - \".agents/skills/pnpm-audit-alert-issue/**/*.md\"\n  - \"!.agents/skills/**\"\n",
+      "occurrences": 1,
+      "expect_failing": ["含め直しは除外より後に書く（前に書くと除外に打ち消される）"]
+    }
+  ]
+}

@@ -66,7 +66,8 @@ node .agents/skills/pnpm-audit-alert-issue/scripts/normalize-pnpm-audit.js \
 
 正規化 JSON の `findings[].package` を重複排除し、各 package について `pnpm why` を実行する。これは pnpm audit の結果に、pnpm 固有の依存経路コンテキストを付与するための手順であり、Issue の重複確認や分類は `dependabot-alert-issue` に任せる。
 
-**実行前に基本フロー 5 の同期を済ませる。** `pnpm why` / `pnpm list` は lockfile ではなく node_modules の実インストールツリーを読むため、同期前の出力は過去の解決状態を映す（ブランチを切った直後は特にずれる）。同期後も用途は依存経路の補強に限り、現況の version 判定は lockfile / `pnpm audit` を権威とする（正本は `dependabot-alert-issue` の `references/pnpm-transitive-update.md`「判断の権威は lockfile」）。
+**実行前に基本フロー 5 の同期を済ませる。** `pnpm why` / `pnpm list` は lockfile ではなく node_modules の実インストールツリーを読むため、同期前の出力は過去の解決状態を映す（ブランチを切った直後は特にずれる）。
+同期後も用途は依存経路の補強に限り、現況の version 判定は lockfile / `pnpm audit` を権威とする（正本は `dependabot-alert-issue` の `references/pnpm-transitive-update.md`「判断の権威は lockfile」）。
 
 ```bash
 pnpm install --frozen-lockfile   # 未実施なら先に
@@ -83,12 +84,15 @@ pnpm why <package>
 
 ### transitive dependency の解決可否確認
 
-transitive dependency は、親 range が patched version を許容していても `pnpm update <pkg>` で再解決されないことがある（lockfile 上で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で顕著）。着手可否分類（`dependabot-alert-issue` 側の責務）を誤らせないよう、次を確認して `context_note` に記録する。
+transitive dependency は、親 range が patched version を許容していても `pnpm update <pkg>` で再解決されないことがある（lockfile 上で `pkg@x.y.z(peer@a.b.c)` の形を持つ peer-keyed transitive で顕著）。
+着手可否分類（`dependabot-alert-issue` 側の責務）を誤らせないよう、次を確認して `context_note` に記録する。
 
 - 対象が peer-keyed か plain か
 - 可能なら使い捨てのコピーで、バージョン無指定の `pnpm update <package> --depth Infinity --lockfile-only` を試し、patched version に到達するか（到達しなくても「完全再生成しかない」と記録しない。下記の手段の優先順に従って判定する）
 
-pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・手段の優先順・判断の権威は現況・更新結果とも node_modules 由来の出力でなく lockfile）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
+pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の update で再解決されない・完全再生成は無関係な依存も float させる・plain transitive でも `pnpm update` が in-range の無関係依存を巻き込み得る・
+親を remove して同一 range で add し直すサブツリー再解決・最小差分が必要な場合の surgical hand-edit 手順・
+手段の優先順・判断の権威は現況・更新結果とも node_modules 由来の出力でなく lockfile）の詳細は `dependabot-alert-issue` の `references/pnpm-transitive-update.md` を参照する。
 
 補強できる場合は、外部 audit findings JSON の各 finding に次の任意フィールドを追加してよい:
 
@@ -128,5 +132,5 @@ pnpm の transitive 更新特有の制約と手段（peer-keyed は通常の upd
 
 ## 注意
 
-- Dependabot 側の対応は https://github.com/dependabot/dependabot-core/issues/15904 を追跡する（dependabot-core#14794 は close 済みだが、依存グラフには devDependencies が載らないまま）
+- Dependabot 側の対応は <https://github.com/dependabot/dependabot-core/issues/15904> を追跡する（dependabot-core#14794 は close 済みだが、依存グラフには devDependencies が載らないまま）
 - 依存グラフ（`gh api repos/<owner>/<repo>/dependency-graph/sbom`）に devDependencies（例: `vitest`）が載り、Dependabot alerts が安定して生成されるようになったら、この private skill の利用をやめ、通常の `dependabot-alert-issue` に戻す

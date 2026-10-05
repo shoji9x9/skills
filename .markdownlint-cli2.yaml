@@ -1,10 +1,14 @@
 globs:
   - "**/*.md"
   - "!node_modules/**"
-  # .agents/** は installed copy 向けの除外。ただし .agents/rules/ の実体は
-  # .github/instructions/ のシンボリックリンク経由で lint 対象になるため、ルール実体は
-  # symlink 経由で検査される（除外されるのは installed copy であってルール実体ではない）。
-  - "!.agents/**"
+  # .agents/skills/ はインストール済みのスキルのコピー（skills/ と同じ中身）なので除く。
+  # private skill（.private-skill を持つもの）は実体なので、名前を挙げて含め直す
+  # （挙げ忘れは scripts/gates/markdownlint-scope.test.js が検出する）。
+  # .agents/rules/ は rule の実体なので見る。そのリンクの .github/instructions/ は除く
+  # （リンク側で見るとエラーがリンクのパスで出て、pre-commit でも実体が staged にならない）。
+  - "!.agents/skills/**"
+  - ".agents/skills/pnpm-audit-alert-issue/**/*.md"
+  - "!.github/instructions/**"
   - "!.claude/**"
   # eval 実行の生成スナップショット（.gitignore 済み・エージェント生成物）。コミットされず
   # CI にも存在しないため、lint スコープを git 管理対象に揃えて pre-commit のブロックを防ぐ。
