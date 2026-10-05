@@ -6,79 +6,82 @@
   "test_file": "scripts/gates/check-agents-md-size.test.js",
   "mutations": [
     {
-      "id": "AS-LIMIT",
-      "why": "limit を超えても失敗しない",
+      "id": "AS-HISTORY",
+      "why": "ブランチの履歴で limit を超えたことを数えない（縮めきらずに通る）",
       "file": "scripts/gates/check-agents-md-size.js",
-      "find": "  if (!shrinking && size > limit) {",
-      "replace": "  if (false) {",
+      "find": "  const exceeded = rangeCommits(root, base).some((c) => (sizeAt(root, c) ?? 0) > limit);",
+      "replace": "  const exceeded = false;",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: 縮小中でなく limit を超えたら失敗し、--record がなければ状態を書き換えない",
-        "--record: limit を超えたら shrinking を true にして stage する",
-        "超えてから縮めるまでの流れ: 29 KiB 相当まで縮めただけでは通らず、24 KiB 相当で通る",
-        "main: 通れば 0、違反は 1、判定できなければ 2 を返す",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、limit 超は exit 1、--record で状態が残る"
-      ]
-    },
-    {
-      "id": "AS-RECORD-ON",
-      "why": "limit を超えても縮小中の印を記録しない（29 KiB 相当で通ってしまう）",
-      "file": "scripts/gates/check-agents-md-size.js",
-      "find": "    if (record) saveState(root, { ...state, shrinking: true });",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "--record: limit を超えたら shrinking を true にして stage する",
-        "超えてから縮めるまでの流れ: 29 KiB 相当まで縮めただけでは通らず、24 KiB 相当で通る",
-        "陽性コントロール（CLI）: 子プロセスとして起動しても、limit 超は exit 1、--record で状態が残る"
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0",
+        "base を解決できなければ例外にする",
+        "main: 通れば 0、違反は 1、判定できなければ 2 を返す"
       ]
     },
     {
       "id": "AS-TARGET",
-      "why": "縮小中でも target を超えたまま通す",
+      "why": "limit を超えた後も target を求めない",
       "file": "scripts/gates/check-agents-md-size.js",
-      "find": "  if (shrinking && size > target) {",
+      "find": "  if (size > limit || (exceeded && size > target)) {",
+      "replace": "  if (size > limit) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0"
+      ]
+    },
+    {
+      "id": "AS-LIMIT",
+      "why": "CI で limit 超の HEAD を通す",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (size > limit || (exceeded && size > target)) {",
+      "replace": "  if (exceeded && size > target && false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: ブランチで limit を超えた後は、limit 以下でも target を超えていれば失敗する（pre-commit・CI とも）",
+        "陽性: CI は、初めて limit を超えた commit が HEAD でも失敗する",
+        "陽性: 作業ツリーの状態を消しても、超えた事実は履歴に残る（restore・別の clone でも効く）",
+        "main: 通れば 0、違反は 1、判定できなければ 2 を返す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0"
+      ]
+    },
+    {
+      "id": "AS-FIRST",
+      "why": "初めて超えた commit も失敗させる（履歴に残らず、縮めきらずに通る）",
+      "file": "scripts/gates/check-agents-md-size.js",
+      "find": "  if (preCommit && !exceeded && size > limit) {",
       "replace": "  if (false) {",
       "occurrences": 1,
       "expect_failing": [
-        "陽性: 縮小中は、limit 以下でも target を超えていれば失敗する",
-        "超えてから縮めるまでの流れ: 29 KiB 相当まで縮めただけでは通らず、24 KiB 相当で通る"
+        "pre-commit: 初めて limit を超えた commit は、警告して通す（履歴に残すため）"
       ]
     },
     {
-      "id": "AS-CI-STALE",
-      "why": "CI で縮小中の印が残ったままでも通す",
+      "id": "AS-BASE",
+      "why": "分岐点を使わず、base 側の履歴まで数える",
       "file": "scripts/gates/check-agents-md-size.js",
-      "find": "    if (!record) {",
-      "replace": "    if (false) {",
+      "find": "  const out = git(root, [\"rev-list\", `${mergeBase}..HEAD`]);",
+      "replace": "  const out = git(root, [\"rev-list\", \"HEAD\"]);",
       "occurrences": 1,
-      "expect_failing": [
-        "陽性: --record なし（CI）で縮小中のまま target 以下なら、記録を戻すよう求めて失敗する"
-      ]
+      "expect_failing": ["陰性: base 側（分岐点より前）の limit 超は数えない"]
     },
     {
-      "id": "AS-RESET",
-      "why": "target 以下になっても縮小中の印を戻さない",
+      "id": "AS-INDEX",
+      "why": "pre-commit でも HEAD を測る",
       "file": "scripts/gates/check-agents-md-size.js",
-      "find": "    saveState(root, { ...state, shrinking: false });",
-      "replace": "",
+      "find": "  const size = sizeAt(root, preCommit ? \"\" : \"HEAD\");",
+      "replace": "  const size = sizeAt(root, \"HEAD\");",
       "occurrences": 1,
       "expect_failing": [
-        "--record: 縮小中に target 以下になったら通し、shrinking を false に戻して stage する",
-        "超えてから縮めるまでの流れ: 29 KiB 相当まで縮めただけでは通らず、24 KiB 相当で通る"
-      ]
-    },
-    {
-      "id": "AS-STAGE",
-      "why": "記録を書き換えても stage しない（commit に入らない）",
-      "file": "scripts/gates/check-agents-md-size.js",
-      "find": "  execFileSync(\"git\", [\"add\", \"--\", STATE_PATH], { cwd: root });",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "--record: limit を超えたら shrinking を true にして stage する",
-        "--record: 縮小中に target 以下になったら通し、shrinking を false に戻して stage する",
-        "超えてから縮めるまでの流れ: 29 KiB 相当まで縮めただけでは通らず、24 KiB 相当で通る"
+        "pre-commit: 初めて limit を超えた commit は、警告して通す（履歴に残すため）",
+        "サイズは作業ツリーではなく、pre-commit は index、CI は HEAD の AGENTS.md で測る",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、超えた後に縮めきらなければ exit 1、縮めれば exit 0",
+        "測る版に AGENTS.md が無ければ例外にする",
+        "陰性: ブランチで limit を超えた後でも、target 以下まで縮めれば通す（pre-commit・CI とも）",
+        "陰性: 範囲に AGENTS.md が無い commit があっても、そこは超えていない扱いにする"
       ]
     },
     {
@@ -89,18 +92,9 @@
       "replace": "  if (!Number.isInteger(limit) || !Number.isInteger(target)) {",
       "occurrences": 1,
       "expect_failing": [
-        "状態のファイルがtarget が limit 以上なら例外にする",
-        "状態のファイルがtarget が 0なら例外にする"
+        "設定のファイルがtarget が limit 以上なら例外にする",
+        "設定のファイルがtarget が 0なら例外にする"
       ]
-    },
-    {
-      "id": "AS-BOOL",
-      "why": "shrinking が真偽値でなくても受け付ける",
-      "file": "scripts/gates/check-agents-md-size.js",
-      "find": "  if (typeof shrinking !== \"boolean\") throw new Error(\"shrinking は true か false にする\");",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["状態のファイルがshrinking が真偽値でないなら例外にする"]
     }
   ]
 }

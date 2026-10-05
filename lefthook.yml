@@ -43,11 +43,6 @@ pre-commit:
               - "pnpm-lock.yaml"
             run: pnpm exec oxfmt {staged_files}
             stage_fixed: true
-          - name: agents-md-size
-            # AGENTS.md のサイズ（Codex はデフォルトで 32 KiB までしか読まない）。30 KiB を超えたら縮小中の印を
-            # scripts/gates/agents-md-size.json に記録して stage し、24 KiB 以下になるまで失敗させる。
-            # 状態のファイルを stage するので、並列の lint 段ではなく、逐次の format 段に置く。
-            run: node scripts/gates/check-agents-md-size.js --record
           - name: gha-pinact
             # 配布スキル同梱のワークフローテンプレートも対象にする。`.github/workflows/` 側だけ
             # 固定すると、配布先へ配られるテンプレートの SHA だけが古いまま残る。
@@ -83,6 +78,10 @@ pre-commit:
             # 見る範囲はスクリプトが決める（.agents/rules/ と private skill を見て、スキルのコピーは見ない）。
             glob: "*.md"
             run: node scripts/gates/lint-prose.js {staged_files}
+          - name: agents-md-size
+            # AGENTS.md のサイズ（Codex はデフォルトで 32 KiB までしか読まない）。このブランチで 30 KiB を超えたら、
+            # 24 KiB 以下になるまで失敗させる。超えたかは origin/main との分岐点より後の履歴で判定する。
+            run: node scripts/gates/check-agents-md-size.js --pre-commit --base origin/main
           - name: word-list
             # 使わない語の一覧（.textlint/word-list.md。AGENTS.md が @ で取り込む生成物）が .textlint/words.json と一致しているか。
             run: node scripts/gates/check-word-list.js

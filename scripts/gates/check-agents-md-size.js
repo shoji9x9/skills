@@ -3,113 +3,117 @@
 //
 // なぜ要るか: Codex は AGENTS.md を `project_doc_max_bytes`（デフォルトは 32 KiB）までしか読まず、超えた分を切り捨てる
 // （openai/codex の codex-rs/core/src/agents_md.rs）。切り捨てられても警告はログに出るだけなので、気づかないまま
-// 後半の規約が届かなくなる。上限の手前で止めるため、30 KiB を超えたら失敗させる。
-// 超えるたびに少しずつ削ると上限の近くに張り付くので、一度超えたら 24 KiB 以下まで縮めることを求める。
+// 後半の規約が届かなくなる。上限の手前で止めるため、30 KiB（limit_bytes）を超えたら縮めさせる。
+// 超えるたびに少しずつ削ると上限の近くに張り付くので、一度超えたら 24 KiB（target_bytes）以下まで縮めることを求める。
 //
-// 判定規則:
-// - サイズは index にある AGENTS.md のバイト数（`git cat-file -s :AGENTS.md`）。commit される内容を測る。
-// - 状態は `scripts/gates/agents-md-size.json` の `shrinking` に記録する。
-//   - `shrinking` が false のとき、`limit_bytes` を超えたら失敗する。
-//   - `shrinking` が true のとき、`target_bytes` を超えたら失敗する。
-// - `--record`（pre-commit）を付けると、状態を書き換えて stage する。
-//   `limit_bytes` を超えたら true にし、true のまま `target_bytes` 以下になったら false に戻す。
-//   付けないとき（CI）は書き換えず、true のまま `target_bytes` 以下なら、戻した記録を commit するよう求めて失敗する。
-// - 状態のファイルが読めない・値が不正・AGENTS.md が index に無いときは exit 2、サイズや記録の違反は exit 1。
+// 「一度超えた」は git の履歴で判定する。状態をファイルに記録すると、commit されない限り手元の作業ツリーにしか残らず、
+// restore・別の clone・hook の無い環境で消える。履歴なら pre-commit と CI が同じ事実を読める。
+//
+// 判定規則（範囲は base との分岐点より後の commit。サイズは各 commit の AGENTS.md のバイト数）:
+// - pre-commit（`--pre-commit`）: 測るのは index の AGENTS.md。
+//   - 範囲に limit 超の commit がなく、index だけが limit を超える: 初めて超えた commit なので、警告して通す
+//     （履歴に残して、以降の commit と CI に「一度超えた」ことを伝えるため）。
+//   - 範囲に limit 超の commit があり、index が target を超える: 失敗する。
+// - CI（`--pre-commit` なし）: 測るのは HEAD の AGENTS.md。
+//   - HEAD が limit を超える、または範囲に limit 超の commit があって HEAD が target を超える: 失敗する。
+// - 設定が読めない・base を解決できない・AGENTS.md が無いときは exit 2、サイズの違反は exit 1。
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const STATE_PATH = "scripts/gates/agents-md-size.json";
+export const CONFIG_PATH = "scripts/gates/agents-md-size.json";
 export const TARGET_PATH = "AGENTS.md";
 
-/** 状態を読み、形の誤りは例外にする（読めない状態を「縮小中でない」として扱わない）。 */
-export function loadState(root) {
-  const path = join(root, STATE_PATH);
-  if (!existsSync(path)) throw new Error(`${STATE_PATH} が無い`);
-  const data = JSON.parse(readFileSync(path, "utf8"));
-  const { limit_bytes: limit, target_bytes: target, shrinking } = data ?? {};
+/** 設定を読み、形の誤りは例外にする。 */
+export function loadConfig(root) {
+  const path = join(root, CONFIG_PATH);
+  if (!existsSync(path)) throw new Error(`${CONFIG_PATH} が無い`);
+  const { limit_bytes: limit, target_bytes: target } = JSON.parse(readFileSync(path, "utf8")) ?? {};
   if (!Number.isInteger(limit) || !Number.isInteger(target) || target <= 0 || target >= limit) {
     throw new Error("limit_bytes と target_bytes は 0 < target_bytes < limit_bytes の整数にする");
   }
-  if (typeof shrinking !== "boolean") throw new Error("shrinking は true か false にする");
-  return data;
+  return { limit, target };
 }
 
-/** index にある AGENTS.md のバイト数。 */
-export function stagedSize(root) {
+const git = (root, args) =>
+  execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+
+/** `<rev>:AGENTS.md` のバイト数。rev が空文字なら index。無ければ null。 */
+function sizeAt(root, rev) {
   try {
-    const out = execFileSync("git", ["cat-file", "-s", `:${TARGET_PATH}`], {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return Number.parseInt(out.trim(), 10);
+    return Number.parseInt(git(root, ["cat-file", "-s", `${rev}:${TARGET_PATH}`]), 10);
   } catch {
-    throw new Error(`index に ${TARGET_PATH} が無い`);
+    return null;
   }
 }
 
-function saveState(root, state) {
-  writeFileSync(join(root, STATE_PATH), `${JSON.stringify(state, null, 2)}\n`);
-  execFileSync("git", ["add", "--", STATE_PATH], { cwd: root });
+/** base との分岐点より後の commit（HEAD を含む）。 */
+export function rangeCommits(root, base) {
+  let mergeBase;
+  try {
+    mergeBase = git(root, ["merge-base", base, "HEAD"]);
+  } catch {
+    throw new Error(`base「${base}」と HEAD の分岐点を求められない（base が無いか、履歴が浅い）`);
+  }
+  const out = git(root, ["rev-list", `${mergeBase}..HEAD`]);
+  return out ? out.split("\n") : [];
 }
 
 /**
  * @param {string} root リポジトリルート（テストでは一時ディレクトリ）
- * @param {{ record?: boolean }} options record が true なら状態を書き換えて stage する（pre-commit）
- * @returns {{ ok: boolean, size: number, shrinking: boolean, reason: string }}
+ * @param {{ base: string, preCommit?: boolean }} options
+ * @returns {{ ok: boolean, size: number, exceeded: boolean, warning: string, reason: string }}
  */
-export function checkAgentsMdSize(root, { record = false } = {}) {
-  const state = loadState(root);
-  const size = stagedSize(root);
-  const { limit_bytes: limit, target_bytes: target } = state;
-  let { shrinking } = state;
+export function checkAgentsMdSize(root, { base, preCommit = false }) {
+  const { limit, target } = loadConfig(root);
+  const size = sizeAt(root, preCommit ? "" : "HEAD");
+  if (size === null) throw new Error(`${preCommit ? "index" : "HEAD"} に ${TARGET_PATH} が無い`);
+  const exceeded = rangeCommits(root, base).some((c) => (sizeAt(root, c) ?? 0) > limit);
 
-  if (!shrinking && size > limit) {
-    if (record) saveState(root, { ...state, shrinking: true });
+  if (preCommit && !exceeded && size > limit) {
     return {
-      ok: false,
+      ok: true,
       size,
-      shrinking: true,
-      reason: `${limit} バイトを超えた。${target} バイト以下まで縮める`,
+      exceeded: true,
+      warning: `${limit} バイトを超えた。次の commit からは ${target} バイト以下まで縮めないと失敗する`,
+      reason: "",
     };
   }
-  if (shrinking && size > target) {
-    return {
-      ok: false,
-      size,
-      shrinking,
-      reason: `縮小中。${target} バイト以下まで縮める`,
-    };
+  if (size > limit || (exceeded && size > target)) {
+    const why = exceeded
+      ? `このブランチで ${limit} バイトを超えたので、${target} バイト以下まで縮める`
+      : `${limit} バイトを超えた。${target} バイト以下まで縮める`;
+    return { ok: false, size, exceeded, warning: "", reason: why };
   }
-  if (shrinking) {
-    if (!record) {
-      return {
-        ok: false,
-        size,
-        shrinking,
-        reason: `${target} バイト以下になったが、${STATE_PATH} の shrinking が true のまま commit されている。手元で node scripts/gates/check-agents-md-size.js --record を実行して commit する`,
-      };
-    }
-    saveState(root, { ...state, shrinking: false });
-    shrinking = false;
-  }
-  return { ok: true, size, shrinking, reason: "" };
+  return { ok: true, size, exceeded, warning: "", reason: "" };
 }
 
 export function main(argv) {
   const args = argv.filter((a) => a !== "--");
-  const record = args.includes("--record");
-  const root = args.find((a) => a !== "--record") ?? process.cwd();
+  const preCommit = args.includes("--pre-commit");
+  const baseIndex = args.indexOf("--base");
+  const base = baseIndex >= 0 ? args[baseIndex + 1] : undefined;
+  const root =
+    args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--base") ?? process.cwd();
+  if (!base) {
+    console.error(
+      "agents-md-size: --base <ref> を指定する（分岐点を求める base。例: origin/main）",
+    );
+    return 2;
+  }
   let result;
   try {
-    result = checkAgentsMdSize(root, { record });
+    result = checkAgentsMdSize(root, { base, preCommit });
   } catch (error) {
     console.error(`agents-md-size: 判定できない: ${error.message}`);
     return 2;
   }
-  const { ok, size, reason } = result;
+  const { ok, size, warning, reason } = result;
   if (!ok) {
     console.error(
       `agents-md-size: ${TARGET_PATH} は ${size} バイト。${reason}。` +
@@ -117,6 +121,8 @@ export function main(argv) {
     );
     return 1;
   }
+  if (warning)
+    console.error(`agents-md-size: 警告: ${TARGET_PATH} は ${size} バイト。${warning}。`);
   console.log(`agents-md-size: OK（${TARGET_PATH} は ${size} バイト）`);
   return 0;
 }

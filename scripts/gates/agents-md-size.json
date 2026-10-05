@@ -1,6 +1,5 @@
 {
-  "$comment": "scripts/gates/check-agents-md-size.js が読み書きする AGENTS.md のサイズの状態。shrinking は pre-commit が書き換える（手で直さない）。",
+  "$comment": "scripts/gates/check-agents-md-size.js の設定。limit_bytes を超えたブランチでは、target_bytes 以下まで縮めることを求める。",
   "limit_bytes": 30720,
-  "target_bytes": 24576,
-  "shrinking": false
+  "target_bytes": 24576
 }

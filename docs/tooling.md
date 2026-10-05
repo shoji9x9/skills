@@ -48,7 +48,7 @@
   `scripts/gates/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/gates/check-skill-index.js`（スキルガイド・README とスキル実体の対応）/
   `scripts/gates/lint-prose.js`（人が読む Markdown の文章。書き換え前のファイルは `scripts/gates/prose-lint-pending.json`）/
   `scripts/gates/check-word-list.js`（`.textlint/word-list.md` と `.textlint/words.json` の一致）/
-  `scripts/gates/check-agents-md-size.js`（AGENTS.md のサイズ。状態は `scripts/gates/agents-md-size.json`）。
+  `scripts/gates/check-agents-md-size.js`（AGENTS.md のサイズ。ブランチで 30 KiB を超えたら 24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json`）。
 
 ### 変異実証（CI 専任）
 
