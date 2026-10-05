@@ -34,7 +34,7 @@ const { filled, nonEmptyString } = await import(
 /** ツールのバージョン（正本）。判定規則・出力形状を変えたら上げる。 */
 export const VERSION = "1";
 
-/** 4 経路の語彙（正本。references/lifecycle.md「4 つの経路」と同じ）。 */
+/** 4 経路の語彙（正本。references/lifecycle.md「4 つの実行パス」と同じ）。 */
 export const PATHS = ["strict-rebind", "prop-identity", "remount", "prop-change-after-init"];
 
 /**

@@ -1,9 +1,9 @@
 # 差分レポート（diff）
 
-<!-- parity-diff が .replace/parity/<slug>/new/<target>/diff.md として生成する（新側の成果物は target ごとに分かれる）。このファイルの形式の正本は parity-diff が定義する。 -->
-<!-- 収束の定義: 未説明差分ゼロ かつ 未修正回帰ゼロ（生の差分ゼロは求めない）。判定は差分器（diff-normalize の機械分類）が行い、モデルの主観を根拠にしない。 -->
-<!-- 「確認済みにしない」原則: ベースラインに写らない箇所・宣言できない構造差・アニメーションは「未検証」として残す。 -->
-<!-- 各行・各値は例。実際の検出結果・分類・根拠で置き換える。 -->
+<!-- parity-diff が .replace/parity/<slug>/new/<target>/diff.md として生成する（新側の成果物は target ごとに分かれる）。このファイルの形式は parity-diff が定義する。 -->
+<!-- 収束の定義は、説明の付いていない差分がゼロで、かつ直していない回帰がゼロであること（生の差分のゼロは求めない）。判定は差分ツール（diff-normalize の機械分類）が行い、モデルの主観を根拠にしない。 -->
+<!-- 「確認済みにしない」原則。ベースラインに記録されない箇所・宣言できない構造差・アニメーションは「未検証」として残す。 -->
+<!-- 各行と各値は例である。実際の検出結果・分類・根拠で置き換える。 -->
 
 - 対象 slug: （features.md の slug）
 - 対象 target: （skills.replace-strategy.targets のうち side: new の環境名）
@@ -13,8 +13,8 @@
 
 ## 1. 前提確認の結果
 
-<!-- preflight の確認値。欠け・不一致があれば差分検出へ進まず停止していること。 -->
-<!-- 視覚系の行（noise_baseline・baseline 実体・自己ノイズ・条件一致・差分器バージョン）は feature モードのみ。api-resource / batch は該当行を「対象外」にする。 -->
+<!-- preflight で確かめた値。欠けや不一致があれば、差分の検出に進まず止まっていること。 -->
+<!-- 見た目に関する行（noise_baseline・baseline の実体・自己ノイズ・条件の一致・差分ツールのバージョン）は feature モードだけで使う。api-resource と batch では、該当する行を「対象外」にする。 -->
 
 | 前提 | 確認値 | 判定 |
 |---|---|---|
@@ -25,23 +25,23 @@
 | データセットバージョン三者整合（metadata / dataset changes / `phase_b.<slug>.<target>`） | （3 値と記録後に交差した affects。投入対象でない target〈db 無し／seedable 無しの読み取り専用〉は「免除」） | （影響変更なし／免除／陳腐化→差し戻し先／整合不能→停止） |
 | 条件一致検証（viewports / animations / masks / states / popup_inventory / environment） | （項目ごとの結果。environment は原則 unverified。popup_inventory のキーが無い旧成果物は停止。承認済みの例外で続行したときだけ absent） | （OK／未検証〈environment の unverified・承認済み例外の popup_inventory absent。7. へ転記〉／停止） |
 | 新側の自己ノイズ（noise_baseline_new と現側 noise_baseline の対比。承認済みの例外では対比しない） | （組ごとの値と source＝measured／reused の別・その組の measured_at。再測定した組はその失効条件） | （OK／乖離→停止／承認済みの例外: 自己ノイズが 0 でない組を 7. へ未検証として転記） |
-| 差分器バージョン一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |
+| 差分ツールのバージョンの一致（trait_capture・trait_compare・pixel_tool・aria_compare・align_tolerance） | （値） | （一致／不一致→parity-suite） |
 
-## 2. 経路別サマリ
+## 2. 比較方法別のサマリ
 
-<!-- feature モードは画素／特性／aria。api-resource / batch は API／バッチの構造・バイト比較。 -->
+<!-- feature モードは画素・特性・aria の 3 つ。api-resource と batch は、API とバッチの構造とバイトの比較。 -->
 
-<!-- 画素の量は 2 本書く。しきい値つき（記録済み pixel_tool）だけを書くと、許容の内側に隠れた差が「ほぼ一致」と読まれる。 -->
-<!-- 値は pixel-crops.mjs の summary から写す（threshold_pixels / threshold_ratio・strict_pixels / strict_ratio・strict_only_pixels）。 -->
+<!-- 画素の量は 2 本書く。しきい値つき（記録した pixel_tool）だけを書くと、許容の内側に隠れた差が「ほぼ一致」と読まれる。 -->
+<!-- 値は pixel-crops.mjs の summary から転記する（threshold_pixels / threshold_ratio・strict_pixels / strict_ratio・strict_only_pixels）。 -->
 <!-- 最大チャンネル差は全体（strict_max_channel_delta）ではなく、しきい値の内側だけの値（strict_only_max_channel_delta）を書く。 -->
 
-| 経路 | 適用したノイズ基準値（page/state/viewport） | 検出件数 | 画素数（しきい値つき／しきい値なし） | 備考 |
+| 比較方法 | 適用したノイズ基準値（page/state/viewport） | 検出件数 | 画素数（しきい値つき／しきい値なし） | 備考 |
 |---|---|---|---|---|
 | 画素 | （基準値。strict は同じ軸の基準値と対比したか） | （件数。しきい値つきの領域＋ strict_only_regions） | （例: 756 画素 0.0569% ／ 4,120 画素 0.3102%〈うちしきい値の内側 3,364・最大チャンネル差 1・候補 3 件〉） | 名前無し要素の見た目差 |
 | 特性照合 | （基準値） | （件数） | — | 論理名付き要素の computed style・相対幾何 |
-| aria | — | （件数） | — | テーブル/フォームの内容パリティ（補助経路） |
+| aria | — | （件数） | — | テーブル/フォームの内容パリティ（補助の方法） |
 
-<!-- しきい値の内側の差（strict_only_pixels）が非ゼロなら、差分領域 0 件でも「一致」と書かない。 -->
+<!-- しきい値の内側の差（strict_only_pixels）が 0 でなければ、差分の領域が 0 件でも「一致」と書かない。 -->
 <!-- 対比する相手は同じ軸の基準値（noise_baseline[].pixel_diff_strict / pixel_diff_strict_only）。strict の基準値が無い組はノイズと断定せず要確認で残す。 -->
 <!-- しきい値つきの領域に取り込んだ縁（summary.strict_only_absorbed_pixels）はその領域の候補の一部なので、別の件数として足さない。 -->
 <!-- strict_only_regions（しきい値の内側にだけ差がある領域）は crop 対を持つ候補なので、件数を検出件数へ含め、下の差分一覧にも 1 件ずつ並べる。 -->
@@ -52,9 +52,9 @@
 <!-- 「許容」は承認後にだけ書く。承認前は 許容候補（要確認） と書き、収束判定では未説明として数える。 -->
 <!-- 他機能の新側未実装に由来する差分は分類を 未説明 のままにし、次節「他機能待ち」へ帰属させる（分類の 4 値目にしない）。 -->
 <!-- 根拠には測定・実験で得た結論を書くとき、どの条件（要素・サイズ・ウェイト・状態）で測ったかを併記する。条件を書けない結論は書かず未説明のまま残す。 -->
-<!-- 正規化結果が absorbed_exception の行は、吸収した例外の cause（原因 id）と reason を根拠欄に書く（画素経路は bbox の実測ずれも併記する）。どの例外がどの候補を吸収したか追えるようにする。 -->
+<!-- 正規化の結果が absorbed_exception の行は、吸収した例外の cause（原因の id）と reason を根拠の欄に書く（画素の比較では、bbox の実測のずれも書く）。どの例外がどの候補を吸収したかを追えるようにする。 -->
 
-| ID | 経路 | ページ | 状態 | ビューポート | 位置（論理名 or bbox） | 内容 | 正規化結果 | 分類 | 根拠（測定条件を併記） |
+| ID | 比較方法 | ページ | 状態 | ビューポート | 位置（論理名 or bbox） | 内容 | 正規化結果 | 分類 | 根拠（測定条件を併記） |
 |---|---|---|---|---|---|---|---|---|---|
 | （例: 1） | 特性照合 | （ページ） | default | desktop | （論理名） | padding-left 差 | deviates_T | 要対応 | T の期待値から逸脱 |
 | （例: 2） | 画素 | （ページ） | hover | mobile | （bbox） | 罫線色の微差 | noise_candidate | 環境ノイズ | ノイズ基準値と同程度 |
@@ -75,7 +75,7 @@
 ## 5. 許容 — 記録先とユーザー承認
 
 <!-- 「許容」の確定にはユーザー承認が要る。承認済みのものだけを記録先へ非破壊追記する。承認前の行は「許容候補（要確認）」のまま置き、記録先は空にする。 -->
-<!-- 記録先はレジストリごとに効く経路が違う。画素経路でしか出ない差は component_diffs では吸収されず、インスタンス例外（property: pixel）へ書く。 -->
+<!-- 記録先のレジストリごとに、当たる差の種類が違う。画素の比較でしか出ない差は component_diffs では吸収されないので、インスタンス例外（property: pixel）に書く。 -->
 <!-- インスタンス例外の置き場所は設定ファイルではなく slug 成果物 .replace/parity/<slug>/component-diff-exceptions.json（原因は cause で参照し、根拠は同ディレクトリの component-diff-exceptions.md）。 -->
 <!-- 同一原因の複数インスタンスに同じ文言を複製しない。原因を 1 回定義して cause 参照にし、インスタンス件数は畳まない（件数は検証の弱さのシグナル）。 -->
 <!-- 承認は原因単位で取る（1 原因につき 1 回）。同一原因の N インスタンスはその承認で確定し、下の候補表の承認欄はその原因の承認を参照する。 -->
@@ -114,7 +114,7 @@
 
 ## 6a. 判断待ち（pending_decisions）
 
-<!-- --autonomous の実行で人の判断待ちにした保留。diff-metadata.json の pending_decisions と一致させる。記録の形の正本は replace-strategy の references/autonomy.md。 -->
+<!-- --autonomous の実行で人の判断待ちにした保留。diff-metadata.json の pending_decisions と一致させる。記録の形の原本は replace-strategy の references/autonomy.md である。 -->
 <!-- 暫定値で埋めない。「許容」の承認待ちは 5 の分類を 許容候補（要確認）のまま置き、ここに原因単位で 1 行立てる。自律実行でない・保留が無いなら「なし」と書く。 -->
 
 | id | 問い（question） | 原因（cause） | 止めた工程（blocks） | 判断材料（evidence） | 解決（answer / answered_at。未解決なら 未解決） |
@@ -123,26 +123,26 @@
 
 ## 7. 未検証領域
 
-<!-- ベースラインに写らない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・投入対象でない target のデータ依存差分・部品被覆表を判定しなかった場合。確認済みにしない。 -->
+<!-- ベースラインに記録されない箇所・gaps.md の宣言できない構造差・アニメーション・撮影条件のうち照合できなかった項目・投入の対象でない target のデータに依存する差分・部品網羅表を判定しなかった場合。確認済みにしない。 -->
 
-| 箇所 | 種別（写らない／宣言できない構造差／アニメーション／撮影条件／撮影状態の対象外／データ依存／部品被覆表未判定） | 理由 |
+| 箇所 | 種別（記録されない／宣言できない構造差／アニメーション／撮影条件／撮影状態の対象外／データ依存／部品網羅表を未判定） | 理由 |
 |---|---|---|
 | （例: 保存ボタンのフォーカスリング） | 宣言できない構造差 | クラス/トークンのプロパティ差に還元できない |
 | （例: 一覧のフェードイン） | アニメーション | 停止させて比較するため扱えない |
 | （例: 撮影環境の一致） | 撮影条件 | capture_conditions.environment は自由記述で機械照合できない（unverified: 理由） |
-| （例: 列を選ぶ吹き出し） | 撮影状態の対象外 | 現側 `popup_inventory` で `captured: null`。理由は `popup_inventory[].reason` をそのまま転記（例: 同じ吹き出しを一覧機能のスイートで撮る）。撮っていない器の見た目は 3 経路のどれにも出ない |
-| （例: 操作で開く器全般） | 撮影状態の対象外 | 現側 `metadata.json` に `popup_inventory` が無い旧成果物を、採り直せない理由（例: 現行 target 撤去済み）のユーザー承認で続行。撮っていない器の見た目は未検証で、ノイズ基準値は静止待ち導入前の採取のため吸収に使っていない |
+| （例: 列を選ぶ吹き出し） | 撮影状態の対象外 | 現側 `popup_inventory` で `captured: null`。理由は `popup_inventory[].reason` をそのまま転記（例: 同じ吹き出しを一覧機能のスイートで撮る）。撮っていないコンテナの見た目は、3 つの比較方法のどれにも出ない |
+| （例: 操作で開くコンテナの全般） | 撮影状態の対象外 | 現側 `metadata.json` に `popup_inventory` が無い旧成果物を、採り直せない理由（例: 現行 target 撤去済み）のユーザー承認で続行。撮っていないコンテナの見た目は未検証で、ノイズ基準値は静止待ち導入前の採取のため吸収に使っていない |
 | （例: 一覧の表示件数・並び） | データ依存 | 選択 target が投入対象外（db 無し／seedable 無し）でゴールデンデータ未投入。実装差かデータ差か判別できない |
-| （例: 操作が返すトースト・ダイアログの開閉） | 反応の被覆表未判定 | 現側 `metadata.json` に `reaction_coverage` が無い（旧成果物）ため未測定を判定できない。遅れて出る・別の文書に出る・自動で消える反応の欠落は差分ゼロとして通る |
-| （例: データグリッドが持つ操作の網羅） | 部品被覆表未判定 | 現側 `metadata.json` に `component_coverage` が無い（旧成果物）ため未測定を判定できない。採取状態の外にある操作の欠落は差分ゼロとして通る |
+| （例: 操作が返すトースト・ダイアログの開閉） | 反応の網羅表を未判定 | 現側 `metadata.json` に `reaction_coverage` が無い（旧成果物）ため未測定を判定できない。遅れて出る・別の文書に出る・自動で消える反応の欠落は差分ゼロとして通る |
+| （例: データグリッドが持つ操作の網羅） | 部品網羅表を未判定 | 現側 `metadata.json` に `component_coverage` が無い（旧成果物）ため未測定を判定できない。採取状態の外にある操作の欠落は差分ゼロとして通る |
 
 ## 8. 意図的差異の保留（intentional_diffs.pending）の棚卸し
 
 <!-- 設定ファイルの intentional_diffs.pending のうち、この機能で棚卸しした保留。件数は diff-metadata.json の intentional_diffs_pending と一致させる。 -->
 <!-- 対象は 3 群: この機能に帰属（slug 一致）／横断（cross-cutting。閉じる工程を持たないため毎回提示）／帰属不明（素の文字列の旧形式・slug 欠落）。他の機能に帰属する保留は対象外。 -->
-<!-- 1 件ずつ人へ提示して決める。keep / may_change へ移すのは人間で、スキルは設定ファイルを書き換えない。対象 0 件でも「0 件」と書く（無記録にしない）。 -->
+<!-- 1 件ずつ人に見せて決める。keep か may_change に移すのは人で、スキルは設定ファイルを書き換えない。対象が 0 件でも「0 件」と書く（記録を空にしない）。 -->
 
-- 棚卸し対象: （件数。内訳: この機能 （件数） / 横断 （件数） / 帰属不明 （件数））
+- 棚卸し対象: （件数。内訳は、この機能〈件数〉・横断〈件数〉・帰属不明〈件数〉）
 - 確定（keep / may_change へ移した）: （件数）
 - 持ち越し: （件数。持ち越しは理由の記録が条件）
 
@@ -153,17 +153,21 @@
 
 ## 9. 収束判定
 
-<!-- 差分器の集計で判定する。converged は diff-metadata.json と一致させる。 -->
-<!-- 状態は 4 つ: 収束 / 他機能待ち（残る未説明がすべて blocked_by に帰属し要対応ゼロ・未解決の保留ゼロ）/ 判断待ち（要対応ゼロで未解決の保留が残り、残る未説明がすべて保留か blocked_by に帰属）/ 未収束。 -->
+<!-- 差分ツールの集計で判定する。converged は diff-metadata.json と一致させる。 -->
+<!-- 状態は 4 つある。収束、他機能待ち（残る未説明がすべて blocked_by に帰属し、要対応ゼロ・未解決の保留ゼロ）、判断待ち（要対応ゼロで未解決の保留が残り、残る未説明がすべて保留か blocked_by に帰属）、未収束である。 -->
 
-- 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属: （件数））
+- 未説明差分: （件数。ゼロが条件。うち他機能待ちに帰属する件数〈件数〉）
 - 未修正回帰（deviates_T / actionable）: （件数。ゼロが条件）
-- 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。承認は原因単位で数える〈承認済み原因数／承認単位の総数〉。`許容候補（要確認）` の残数: （件数。ゼロが条件））
-- 承認記録が覆う件数と台帳の一致: （原因ごとに component-diff-exceptions.md の承認記録の累計 N ＝ JSON の cause 参照数。超過件数: （件数。ゼロが条件。超過分は未承認＝未説明として数える））
+- 「許容」例外の確定（ユーザー承認）: （すべて済み／未済。承認は原因の単位で数える〈承認済みの原因の数／承認単位の総数〉。`許容候補（要確認）` の残りの件数〈ゼロが条件〉）
+- 承認記録が覆う件数と台帳の一致: （原因ごとに、component-diff-exceptions.md の承認記録の累計 N が、JSON の cause の参照の数と等しいこと。超えた件数〈ゼロが条件。超えた分は未承認なので、未説明として数える〉）
 - インスタンス例外台帳の不整合（cause 未解決・evidence 空・slug 不一致・照合キー（page / viewport / element）欠落）: （件数。ゼロが条件。diff-metadata.json の accepted_exceptions.unresolved と一致させる）
 - 意図的差異の保留の棚卸し: （棚卸し対象 （件数） / 確定 （件数） / 持ち越し （件数）。未棚卸しはゼロが条件。diff-metadata.json の intentional_diffs_pending と一致させる）
-- 部品被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら数え直した 期待セル数 と 未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
-- 反応の被覆表の未測定: （判定した／判定していない〈理由〉。判定したなら reaction-check.mjs --tests <テスト一覧> --recorded の ok と未測定の操作数・状態表示の未測定数。ok: true かつどちらもゼロが条件。diff-metadata.json の reaction_coverage と一致させる）
-- 未解決の判断待ち（pending_decisions のうち resolution: null と、回答はあるが blocks の工程が済んでいないもの）: （件数。ゼロが条件。pending-decisions-check.mjs の unsettled と一致させる。置き場へ回したもの（follow_up）は置き場とともに列挙）
+- 部品網羅表の未測定: （判定した／判定していない〈理由〉。判定したなら、数え直した期待セル数と未測定数。未測定数はゼロが条件。diff-metadata.json の component_coverage と一致させる）
+- 反応の網羅表の未測定: （判定した／判定していない〈理由〉。diff-metadata.json の reaction_coverage と一致させる）
+  - 判定したなら、reaction-check.mjs --tests <テスト一覧> --recorded の ok を書く。
+  - あわせて、未測定の操作の数と、状態表示の未測定の数を書く。ok: true で、どちらもゼロが条件。
+
+- 未解決の判断待ち（pending_decisions のうち resolution: null と、回答はあるが blocks の工程が済んでいないもの）: （件数。ゼロが条件）
+  - pending-decisions-check.mjs の unsettled と一致させる。置き場に回したもの〈follow_up〉は、置き場と一緒に挙げる
 - 収束状態: （収束／他機能待ち／判断待ち／未収束）と根拠
 - 収束: （converged: true / false）

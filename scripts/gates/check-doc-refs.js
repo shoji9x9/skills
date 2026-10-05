@@ -114,7 +114,7 @@ export function hasAnchor(names, name) {
   return false;
 }
 
-// 節名。中に「」を 1 段だけ含んでよい（「機能の在否は「器と文言がある」…」）。
+// 節名。中に「」を 1 段だけ含んでよい（「機能の在否は「コンテナと文言がある」…」）。
 const NAME = "「((?:[^「」]|「[^「」]*」)+)」";
 
 const SECTION_PATTERNS = [

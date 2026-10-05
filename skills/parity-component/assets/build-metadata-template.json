@@ -1,5 +1,5 @@
 {
-  "_note": "parity-component の build が .replace/components/<slug>/new/<target>/build-metadata.json として生成する（環境別。他の target の証跡を上書きしない）。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
+  "_note": "parity-component の build が .replace/components/<slug>/new/<target>/build-metadata.json として生成する（環境別。他の target の証跡を上書きしない）。形式の原本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の原本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。原本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
   "slug": "<.replace/components.md が採番した slug>",
   "target": {
     "name": "<選択した new target 名（設定 targets の side: new）>"
@@ -23,7 +23,7 @@
   "review": {
     "performed": "<敵対的レビューを実施したか。真偽値で書く。型検査・テストが通ったことを省略の理由にしない>",
     "reviewer": "<サブエージェント | 人間（起動できない場合の代替）>",
-    "record": "<レビュー記録のパス（様式の正本は parity-replace の assets/review-template.md）>"
+    "record": "<レビュー記録のパス（様式の原本は parity-replace の assets/review-template.md）>"
   },
   "verification": {
     "column": "full",
@@ -34,7 +34,7 @@
       }
     ],
     "unchecked": [
-      "<.replace/strategy.md「未検証領域の扱い」の機械検査の穴のうち、この部品に効くもの。該当が無ければ空配列>"
+      "<.replace/strategy.md「未検証領域の扱い」の機械検査の抜けのうち、この部品に効くもの。該当が無ければ空配列>"
     ]
   },
   "parity": {
@@ -55,7 +55,7 @@
     "mismatched": "<観測が食い違った件数。1 以上なら完了しない（要対応として実装へ戻す）>",
     "uncompared": "<比べていない件数。1 以上なら完了しない>",
     "accepted": "<比べない・差を残すことを利用者が承認した件数。完了報告で操作名と理由を示す>",
-    "not_compared": "<到達できないと宣言して母集合から外した件数。完了報告で示し、引き受ける工程（機能単位の parity-suite の被覆表と parity-replace の突き合わせ）を書く>"
+    "not_compared": "<到達できないと宣言して母集合から外した件数。完了報告で示し、引き受ける工程（機能単位の parity-suite の網羅表と parity-replace の突き合わせ）を書く>"
   },
   "motion": {
     "record": ".replace/components/<slug>/new/<target>/motion-comparison.json",
@@ -69,17 +69,17 @@
     "not_compared": "<到達できないと宣言して母集合から外した件数。完了報告で示す>"
   },
   "lifecycle": {
-    "_note": "部品の一生の順番（結び直し・引数の差し替え・付け直し・初期化の後の変化）で壊れる経路の検査。判定と見本の形の正本は parity-component の references/lifecycle.md。ここに載る見本は見た目の照合の見本ではないので catalog.stories に載せず、parity.unbaselined_stories にも数えない。",
+    "_note": "部品の一生の順番（結び直し・引数の差し替え・付け直し・初期化の後の変化）で壊れる実行パスの検査。判定と見本の形の原本は parity-component の references/lifecycle.md。ここに載る見本は見た目の照合の見本ではないので catalog.stories に載せず、parity.unbaselined_stories にも数えない。",
     "check_exit": "<scripts/lifecycle-check.mjs の終了コード。0 以外なら完了しない>",
-    "applies": "<対象か（初期化を 1 度しか通らず後の変化を自分で受け直す・その経路を既存の検査が通らない・壊れる処理を名指しできる、の 3 つがすべて当てはまるか）。真偽値で書く>",
+    "applies": "<対象か（初期化を 1 度しか通らず後の変化を自分で受け直す・その実行パスを既存の検査が通らない・壊れる処理を名指しできる、の 3 つがすべて当てはまるか）。真偽値で書く>",
     "reason": "<判定の根拠。対象でないなら 3 つのどれが外れたか>",
     "paths": [
       {
         "path": "<strict-rebind | prop-identity | remount | prop-change-after-init>",
-        "breaking_process": "<この経路で壊れる処理の名指し（例: 列の作り直しの後にフィルターの種別を戻す処理）>",
+        "breaking_process": "<この実行パスで壊れる処理の名指し（例: 列の作り直しの後にフィルターの種別を戻す処理）>",
         "story": "<順番を強制する見本の識別子>",
-        "entry_attribute": "<経路に入った回数を出す data-* 属性名>",
-        "entered": "<検査で確かめた、経路に入った回数。0 なら検査は何も示していない>",
+        "entry_attribute": "<実行パスに入った回数を出す data-* 属性名>",
+        "entered": "<検査で確かめた、実行パスに入った回数。0 なら検査は何も示していない>",
         "check": "<実行した検査コマンド>",
         "result": "<pass | fail>",
         "fix_removal_verified": "<直した処理を外すとこの検査だけが落ちることを確かめたか。真偽値で書く>"
@@ -87,13 +87,13 @@
     ],
     "not_applicable_paths": [
       {
-        "path": "<壊れる処理を名指しできなかった経路>",
+        "path": "<壊れる処理を名指しできなかった実行パス>",
         "reason": "<名指しできない理由（例: 引数は初期化の後に変わらない）>"
       }
     ]
   },
   "acceptance": {
-    "_note": "部品の Issue の受け入れ条件の突き合わせ（build 手順 8。issue-start <番号> --acceptance --out <record> --decisions <この build-metadata.json> に委譲する。--allow-later は渡さない）。表の様式と検査の正本は issue-start の assets/acceptance-template.json と scripts/acceptance-check.mjs。",
+    "_note": "部品の Issue の受け入れ条件の突き合わせ（build 手順 8。issue-start <番号> --acceptance --out <record> --decisions <この build-metadata.json> に委譲する。--allow-later は渡さない）。表の様式と検査の原本は issue-start の assets/acceptance-template.json と scripts/acceptance-check.mjs。",
     "record": ".replace/components/<slug>/new/<target>/acceptance.json",
     "check_exit": "<issue-start の scripts/acceptance-check.mjs の終了コード。0 以外なら完了しない>",
     "closable": "<検査の出力の closable。false なら PR で部品の Issue を閉じない。真偽値で書く>"
@@ -111,7 +111,7 @@
       {
         "instance": "<インスタンス id（capture の metadata.json の instances[].id）>",
         "state": "<状態名>",
-        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（書き写さない）>"
+        "story": "<見本の識別子。カタログから機械的に取得した一覧と突き合わせて作る（転記しない）>"
       }
     ]
   },

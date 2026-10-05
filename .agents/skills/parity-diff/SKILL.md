@@ -1,16 +1,18 @@
 ---
 argument-hint: '[--feature <slug>] [--target <name>] [--remeasure-noise] [--component-change <change.json>] [--autonomous]'
-description: 仕様を変えないアプリケーションリプレイスで、parity-suite が採取したベースライン・ノイズ基準値・強度ゲートで検証済みの差分器を使い、現行と新側の差分を決定論的ツールで検出して分類する replace-strategy の姉妹スキル。検出は画素・特性照合・aria の 3 経路が担い、LLM には「差分があるか」を聞かず「この差分は重要か」だけを 1 件ずつ crop 対で聞いて要対応／許容／環境ノイズに分類する。新側環境は --target で選び成果物は環境別。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロかつ未修正回帰ゼロ。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite・parity-replace の新側 green が前提で、未完了なら捏造せず停止する。「現新の差分を検出して」「差分を分類して」「parity-diff」や --feature / --target を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスで、parity-suite が採取したベースライン・ノイズ基準値・強度チェックを通った差分ツールを使い、現行と新側の差分を決定論的ツールで検出して分類する replace-strategy の姉妹スキル。検出は画素・特性照合・aria の比較が担い、LLM には「差分があるか」を聞かず「この差分は重要か」だけを 1 件ずつ crop 対で聞いて要対応／許容／環境ノイズに分類する。新側環境は --target で選び成果物は環境別。要対応は parity-replace へ差し戻し、収束は未説明差分ゼロかつ未修正回帰ゼロ。1 回で 1 機能。replace-strategy setup・golden-dataset・対象 slug の parity-suite・parity-replace の新側 green が前提で、未完了なら捏造せず停止する。「現新の差分を検出して」「差分を分類して」「parity-diff」や --feature / --target を伴う依頼で発動する。
 license: MIT
 name: parity-diff
 ---
 # Parity Diff
 
-`replace-strategy` の姉妹スキル。**現行と新側の差分を決定論的ツールで検出し、モデルには分類だけを担わせる**ところを担う。
+`replace-strategy` の姉妹スキル。現行と新側の差分を決定論的なツールで検出し、モデルには分類だけを任せる。
 
-- **検出は決定論的ツールの仕事、モデルの仕事は分類だけ。** モデルに「差分があるか」を聞かず（＝探させず）、決定論的ツールが検出済みの差分について「この差分は重要か」だけを聞く
-- **`parity-replace` との住み分け**: `parity-replace` はスイートが見ている範囲（新に対して green か）、本スキルはスイートに写らない差分（余白・色・フォント・角丸・行間・罫線等の見た目）を扱う
-- **1 回の実行につき 1 機能**（部品改修の一括再検証を除く）。ページ単位で処理する。差分の**修正は行わない**——要対応は `parity-replace` へ差し戻す
+- 検出は決定論的なツールが行い、モデルは分類だけを行う。モデルに「差分があるか」を聞かない（探させない）。ツールが検出した差分について、「この差分は重要か」だけを聞く。
+- `parity-replace` は、スイートが見ている範囲（新側に対して green か）を扱う。
+  このスキルは、スイートでは捉えられない差分（余白・色・フォント・角丸・行間・罫線などの見た目）を扱う。
+- 1 回の実行で扱うのは 1 機能で、ページ単位で処理する（部品の改修の一括再検証は除く）。
+  このスキルは差分を修正しない。要対応の差分は `parity-replace` へ差し戻す。
 
 ## 使い方
 
@@ -19,217 +21,279 @@ parity-diff [--feature <slug>] [--target <name>] [--remeasure-noise] [--autonomo
 parity-diff --component-change <change.json> [--target <name>] [--autonomous]
 ```
 
-- **1 回の実行につき 1 機能。** 複数機能を並行して進めない（例外は下記 `--component-change` の一括再検証だけで、そこでも機能は 1 つずつ順に処理する）
-- `slug` は `.replace/features.md` が採番したもの。**自分で採番しない。** 省略時は features.md の未着手から対話選択する
-- `--target` は差分を検出する**新側の環境**（`skills.replace-strategy.targets` のうち `side: new` のもの。本スキルが対象とする側の宣言はここが正本）。
-  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）。
-  **成果物は環境ごとに分かれる**（下記「成果物」）
-- `--remeasure-noise` は新側の自己ノイズを**全組で測り直す**（既定は前回実行の測定値を組単位で再利用する。再利用の可否・失効条件は [`references/capture-new.md`](references/capture-new.md)「測定値の再利用」が正本）
-- **モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）を正として引く**（フラグは無い。features.md の表位置から再導出しない）
-- `--component-change` は共通部品を後から直したときの一括再検証。変更宣言（`.replace/components/<slug>/changes/<change-id>.json`）から影響する機能と組を導き、影響する組だけを新側で撮り直して機械で判定する。
-  現側は撮り直さない。手順・判定・持ち越しの記録の正本は [`references/component-change.md`](references/component-change.md)
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
-- 自然文でも発動する:「現新の差分を検出して」「差分を分類して」「この画面の差を見て」
+- 1 回の実行で扱うのは 1 機能である。複数の機能を並行して進めない。
+  例外は下記の `--component-change` の一括再検証だけで、そこでも機能は 1 つずつ順に処理する。
+- `slug` は `.replace/features.md` が採番したものを使い、自分では採番しない。省略したときは、features.md の未着手の機能から対話で選ぶ。
+- `--target` は、差分を検出する新側の環境である（`skills.replace-strategy.targets` のうち `side: new` のもの）。
+  このスキルが対象とする側は、ここで定義する。
+  省略したときのデフォルト・候補の提示・存在しない名前や側の違いでの停止といった選択規則は、`replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）。
+  成果物は環境ごとに分かれる（下記「成果物」）。
+- `--remeasure-noise` は、新側の自己ノイズを全組で測り直す。
+  デフォルトでは、前回の実行の測定値を組ごとに再利用する。
+  再利用できるかどうかと失効の条件は、[`references/capture-new.md`](references/capture-new.md)「測定値の再利用」で定義する。
+- モードは `.replace/parity/<slug>/metadata.json` の `mode`（feature / api-resource / batch）から読む。フラグは無く、features.md の表の位置から導き直さない。
+- `--component-change` は、共通部品を後から直したときの一括再検証である。
+  変更の宣言（`.replace/components/<slug>/changes/<change-id>.json`）から影響する機能と組を導き、影響する組だけを新側で撮り直して、ツールで判定する。
+  現側は撮り直さない。手順・判定・持ち越しの記録は [`references/component-change.md`](references/component-change.md) で定義する。
+- `--autonomous` は、その実行だけを自律で進める宣言である（下記「自律実行」）。省略したときは、判断のたびに確認する。
+- 自然文でも発動する。「現新の差分を検出して」「差分を分類して」「この画面の差を見て」など。
 
 | モード | 内容 |
 |---|---|
-| 機能（feature） | 画素・特性照合・aria の 3 経路で検出し、正規化 → トリアージ → 収束判定 |
-| 横断 API（api-resource） | 画面系 3 経路は動かさない。現行応答（record/replay）を正に新側応答を構造比較（[`references/api-batch.md`](references/api-batch.md)） |
-| バッチ（batch） | 視覚経路は使わない。現行ベースライン（DB 状態・生成ファイル）と新側出力を決定論的に構造・バイト比較（[`references/api-batch.md`](references/api-batch.md)） |
+| 機能（feature） | 画素・特性照合・aria の 3 つの比較方法で検出し、正規化 → トリアージ → 収束判定の順に進める |
+| 横断 API（api-resource） | 画面の 3 つの比較方法は使わない。現行の応答（record/replay）を正として、新側の応答を構造で比べる（[`references/api-batch.md`](references/api-batch.md)） |
+| バッチ（batch） | 視覚の比較方法は使わない。現行のベースライン（DB の状態・生成ファイル）と新側の出力を、決定論的に構造とバイトで比べる（[`references/api-batch.md`](references/api-batch.md)） |
 
 ## 前提
 
-前提が欠けたら**捏造せず停止**し、該当スキルを依存順に案内する（検出・成果物・ベースラインを作り出さない）。判定は指定パスの Read で行う。
+前提が欠けていたら、成果物を作り出さずに停止し、足りないスキルを依存の順に案内する（検出の結果・成果物・ベースラインを作り出さない）。
+前提があるかは、決まったパスを Read して判定する。
 
-- **ツール**: `git`、Node.js。画素経路は記録済み画素差分ツールの出力（差分画像）を読むため `pngjs` を要する（[`references/detect.md`](references/detect.md)）
-- **前提スキル（依存順）**: `replace-strategy`（`setup` 完了）→ `golden-dataset`（フェーズ A・B）→ 対象 slug の `parity-suite`（完了）→ `parity-replace`（**選択した target で**新側 green）
-- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills <name>` で導入してから実行する。
-  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` / `parity-suite` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
-- **`issue-create`**: 選択した target の `on_diff` ドキュメントが Issue 起票を指示する場合のみ必要（要対応差分の起票を委譲する）
-- **本スキルは現行アプリを駆動しない。** ノイズ基準値・視覚ベースラインの測定は `parity-suite` の仕事。撮るのは新側だけ
-- 判定の詳細（target の解決・起動・モード別の要求・確認するキーのフルパス・データセットバージョンの三者整合・差分器バージョン一致・反復上限）は [`references/preflight.md`](references/preflight.md)
+- ツール: `git`、Node.js。画素の検出は、記録済みの画素差分ツールの出力（差分画像）を読むので `pngjs` が要る（[`references/detect.md`](references/detect.md)）
+- 前提スキル（依存の順）: `replace-strategy`（`setup` が完了）→ `golden-dataset`（フェーズ A・B）→ 対象の slug の `parity-suite`（完了）→ `parity-replace`（選択した target で新側が green）
+- 前提スキルが未インストールの場合: `gh skill install shoji9x9/skills <name>` で入れてから実行する。
+  このスキルは設定のスキーマと成果物の様式を、`replace-strategy` と `parity-suite` の `references/`・`assets/` で定義しているので、単体では動かない（同時に入っていることが前提である）。
+- `issue-create`: 選択した target の `on_diff` のドキュメントが Issue の起票を指示する場合だけ要る（要対応の差分の起票を任せる）
+- このスキルは現行アプリを動かさない。ノイズ基準値と視覚ベースラインの測定は `parity-suite` が行う。このスキルが撮るのは新側だけである。
+- 判定の詳細は [`references/preflight.md`](references/preflight.md) にある。
+  target の解決・起動・モードごとの要求・確かめるキーのフルパス・データセットの版の三者の整合・差分ツールの版の一致・反復の上限を扱う。
 
 ## 厳守の制約（禁止事項）
 
-- **差分調査は十分な証拠が得られる最小コストの経路から始める。** 選択した target から採取され、前提ゲートで対象版・採取時点・条件の一致を確認した差分成果物／観測記録 → 現行／新側ソースコード → API の実動作 → UI の実動作の順に原因を切り分け、
-  下位の証拠だけでは分類できない場合に限って次へ上げる。これは調査コストが差分成果物／観測記録 < ソースコード < API 操作 < UI 操作の順に高くなるためで、必要な証拠が得られた時点で止め、API／UI 操作は不足する場合だけ行う。
-  設計書・仕様書・受領ログを含む受領資料は調査候補の抽出に使ってよいが、現行挙動の確定根拠にはしない。画面差の観測条件確認は UI で行う
+- 差分の調査は、十分な証拠を最も安く得られる方法から始める。原因は次の順に切り分ける。
+  1. 選択した target から採取した差分の成果物・観測記録（前提の確認で、対象の版・採取の時点・条件が一致すると確かめたもの）
+  2. 現行と新側のソースコード
+  3. API の実際の動作
+  4. UI の実際の動作
 
-- **LLM に「差分があるか」を聞かない**（検出させない）。検出は決定論的ツール、モデルは分類のみ
-- **モデルの「もう同じに見えます」を収束根拠にしない**
-- **全画面のスクリーンショット対をモデルに渡して比較させない。** トリアージは差分領域の crop 対を 1 件ずつ渡す。スイート外の依頼（「2 枚を見比べて違いを見つけて」等）にも**目視検出を代替提供しない**——決定論的ツール（画素経路）に検出させてから分類だけを担う。
-  **拒否するときは正しい進め方（決定論的ツールに検出させ、差分領域の crop 対を 1 件ずつ提示して要対応／許容／環境ノイズの 3 値に分類する）を必ず添える**
-- **現行と異なる条件で新側を撮らない**（環境差を差分として報告しないため）
-- **失効条件を確かめずに自己ノイズ測定値を再利用しない。** 判断材料が欠ければ再利用せず測り直す（安全側）。再利用してもゲート判定は毎回行う
-- **カタログサイト（コンポーネントライブラリの見本）・部品ベンダーの機能一覧を比較の正解にしない。** どちらも状態網羅の列挙の生成源であり、正解は動いている現行アプリ
-- **ピクセル比較系 VRT ツールで新旧を突き合わせない**（実装が違えば全面赤になり無意味）
-- **差分をしきい値で潰さない**（特性照合の別経路で捉える）
-- **xlsx・PDF をバイト一致で比較しない**（揮発項目が入るため一致しない）。xlsx はシート × セル値と構造、PDF は抽出テキストと構造で比較する。
-  **解析ツールは `metadata.json.differ.file_extract` の記録値を使い、自分で選び直さない**（現側と抽出ツールが変われば差分がツール差か実装差か切り分けられない。正本: `replace-strategy` の `references/file-io.md`）
-- **テキストの幅・字形の差を切り分けずに分類しない。** 「同じフォント名だから」で環境ノイズ・許容にしない——版（`head.fontRevision`）とヒンティング命令の有無で決まるため、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する
-- **コンポーネント差分をインスタンス単位の無視リストで飲み込まない。** クラス/トークン単位の系統差 T（`component_diffs`）で宣言し、T からの逸脱を検出する。
-  ただし**画素経路でしか出ない差**（computed style は一致し描画だけ違う）は T の照合キーが無く `component_diffs` では吸収されないため、インスタンス例外（`property: pixel`）が唯一の置き場所（レジストリごとに効く経路の正本は [`references/normalize.md`](references/normalize.md)）
-- **インスタンス例外を設定ファイル（`.config/skills/shoji9x9/skills.yml`）へ書かない。** slug スコープの台帳なので `.replace/parity/<slug>/component-diff-exceptions.json` に書く（旧キーが残っていたら移行を案内して停止する）
-- **同一原因の複数インスタンスに同じ `reason` を複製しない。** 原因は `component_diff_exception_causes[]` に 1 回定義して `cause` で参照する（インスタンスに `reason` フィールドを持たせない）
-- **例外のインスタンス件数を畳まない。** `page` / `element` / `bbox` にワイルドカードを置いて 1 エントリで N 箇所を吸収させない——**例外の件数は検証の弱さのシグナル**であり、行数削減のために隠さない
-- **同一原因の候補に承認を N 回求めない。** 分類は候補ごと、**承認は原因ごと**——`component_diff_exception_causes[]` の 1 原因につき 1 回承認し、同一原因の N インスタンスはその承認で確定する。
-  「件数を畳まない」は台帳の規則であって承認の粒度ではない（台帳のインスタンスは N 件のまま並べ、承認 UI にも件数 N と内訳を出す）
-- **承認済み原因への参照を足して未承認のインスタンスを吸収しない。** 承認後にインスタンスが増えたら増分の承認を 1 回取る——
-  承認記録の累計 N と `cause` 参照数が一致しなければ超過分は未承認＝未説明として数え、収束させない
-- **承認済み例外の根拠を `gaps.md` に書かない。** `gaps.md` は未検証領域の台帳で、そこに置くと承認済み（説明済み・許容）と未検証が混ざる。宛先は `component-diff-exceptions.md`
-- **承認前の分類を成果物に「許容」と書かない。** 承認前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で後続の判断の入力になるため）
-- **観測条件を列挙せずに仮説を検証しない。** 差分が出た条件（要素・サイズ・ウェイト・状態）で測る——手近な代表値 1 点の結果を全体に一般化しない。
-  比較の相手は常に**現行**であり、新側の実験変種どうしの一致を結論にしない。結論を成果物に書くときは測定条件を併記する（書けない結論は未説明のまま残す）
-- **意図的差異の保留（`intentional_diffs.pending`）を棚卸ししないまま機能を閉じない。** この機能に帰属する保留・横断（`cross-cutting`）・帰属不明の保留を人へ 1 件ずつ提示し、
-  `keep` / `may_change` へ移す（移すのは人間）か持ち越す理由を記録して、件数を `diff-metadata.json` の `intentional_diffs_pending` に残す。数え直しは [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)
-  （確定の時期を工程が要求しないと、保留が機能をまたいで積み上がり「まだ決まっていない差」と「決まったが記録が古い差」の区別が付かなくなる。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **部品被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら `scripts/coverage-check.mjs` で数え直し、未測定が 1 件以上なら `parity-suite` へ戻す
-  （差分器は**採取した状態しか見ない**ため、測っていない操作の欠落は差分ゼロとして通る。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **反応の被覆表に未測定が残る状態で `converged: true` にしない。** 現側 `metadata.json` の `reaction_coverage.declared` が `true` なら、
-  インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直し、exit 0 以外なら `parity-suite` へ戻す
-  （遅れて出る・別の文書に出る・自動で消える反応は差分器の採取に写らない。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **被覆表の `present` を新側で突き合わせていない状態で `converged: true` にしない。** 現側 `metadata.json` の `component_coverage.declared` が `true` なら、
-  インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs --coverage <被覆表> --comparison <新側突き合わせ表>`
-  `--metadata <現側 metadata.json> --replace-metadata <replace-metadata.json> --target <target>` で数え直し、
-  exit 0 以外なら `parity-replace` へ戻す（**被覆表の 3 値は移行元側の測定**で、入口・当たり判定・完了のどこかで止まる欠落は示さない。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **撮る範囲に宣言されていない穴が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
-  `scripts/capture-scope-check.mjs --metadata <現側 metadata.json>` で数え直し、exit 0 以外なら `parity-suite` へ戻す
-  （撮影領域の外・内部スクロール器の中・領域外に出た論理名は**差分ゼロとして通る**。`capture_scope` を持たない現側成果物は後方互換に倒さず範囲の実測から採り直す。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **採取物と工程の健全性に未検証が残る状態で `converged: true` にしない。** インストール済みの `parity-suite` の
-  `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す
-  （読まれていない採取物・元が採り直されたのに古い加工物・後始末が効いていないスイート・`blocking` の未測定・
-  `suite.new_green` が真なのに無い／古い `diff-metadata.json` は、どれも**緑のまま抜ける**。
-  **`converged` が偽でも落とさない**——落とすのは「無い」と「古い」だけ。スクリプトが無ければ判定を飛ばさず停止する。判定の正本は [`references/convergence.md`](references/convergence.md)）
-- **追記専用の成果物が縮んだ状態で `converged: true` にしない。** インストール済みの `replace-strategy` の
-  `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて過去の決定を復元する
-  （**既定の `HEAD` を使わない**——書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何も失われていなくても素通りする）
-  （収束の判定は現在の状態しか見ないため、積み上げた文書を丸ごと書き直しても「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
-  **対象 0 件は合格に倒さない**。一覧の正本は `replace-strategy` の `assets/append-only-manifest.json`）
-- **被覆プロファイルを宣言した部品の期待セルを 項目 × インスタンス で数えない。** 宣言した部品はインスタンスごとの候補（`instances[].candidates`）が期待セルで、
-  列挙した要素が候補に現れない・`conformance` が無い／`ok: false` なら収束させない（プロファイル本体は `parity-suite` の同梱物なので読まない）
-- **被覆表を判定しなかったことを黙って合格にしない。** `declared: false` と `component_coverage` を持たない旧成果物は判定に入れない（後方互換）が、
-  判定しなかった事実と理由を `diff-metadata.json.component_coverage`（`judged: false`）と `diff.md` の未検証領域に残す
-- **他機能の未実装に由来して解消できない差分を、`converged: true` で押し通さない／`parity-replace` へ差し戻さない。** `blocked_by` に帰属させて停止し、依存先の実装後に再実行する（[`references/convergence.md`](references/convergence.md)）
-- **共同居住機能の未実装領域を、実行時マスクより先に `blocked_by` へ分類しない。** 新側 root の欠落は通常状態なので、現側ベースラインで測定済みの target 非依存 `bbox` を両作業画像へ適用し、特性・aria の同領域も除外してから差分検出する。`blocked_by` はマスク外へ残った差分だけに使う
-- **生の差分ゼロを収束条件にしない。** 収束＝未説明差分ゼロ かつ 未修正回帰ゼロ
-- **名前の付かない要素の見た目差を「computed style で保証済み」と扱わない**（特性照合は名前付き要素しか見ない。名前無しは画素経路の担当）
-- **セル/行/フィールドに論理名を付けてテーブル/フォームを比較しない**（内容パリティは aria 経路が担う）
-- **未検証の箇所を「確認済み」にしない**（ベースラインに写らない箇所・宣言できない構造差は `diff.md` に未検証として残す）
-- **差分器・トリアージ補助に依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
-- **シークレットの値をコード・コメント・ログ・成果物・スクリーンショットに残さない**（環境変数名だけを扱い、値は復唱しない。正本: `replace-strategy` の `references/project-config.md`「シークレットの扱い」）
+  下位の証拠だけでは分類できない場合に限って、次の段へ進む。調査のコストはこの順に高くなるので、必要な証拠が得られた時点で止める。API と UI の操作は、証拠が足りない場合だけ行う。
+  設計書・仕様書・受け取ったログなどの受領資料は、調べる候補を挙げるのに使ってよいが、現行の挙動を確定する根拠にはしない。画面の差の観測条件は UI で確かめる。
+
+- LLM に「差分があるか」を聞かない（検出させない）。検出は決定論的なツールが行い、モデルは分類だけを行う。
+- モデルの「もう同じに見えます」を収束の根拠にしない。
+- 全画面のスクリーンショットの対をモデルに渡して比べさせない。トリアージでは、差分領域の crop の対を 1 件ずつ渡す。
+  スイートの外の依頼（「2 枚を見比べて違いを見つけて」など）にも、目視での検出を代わりに提供しない。決定論的なツール（画素の検出）に検出させてから、分類だけを行う。
+  断るときは、正しい進め方を必ず添える。決定論的なツールに検出させ、差分領域の crop の対を 1 件ずつ見せて、要対応／許容／環境ノイズの 3 値に分類する進め方である。
+- 現行と違う条件で新側を撮らない（環境の差を差分として報告しないため）。
+- 失効の条件を確かめずに、自己ノイズの測定値を再利用しない。判断の材料が欠けていたら、再利用せずに測り直す（安全な側の扱い）。再利用しても、チェックの判定は毎回行う。
+- カタログサイト（コンポーネントライブラリの見本）や部品ベンダーの機能一覧を、比較の正解にしない。どちらも状態を網羅して挙げるための材料で、正解は動いている現行アプリである。
+- 画素を比べる VRT ツールで新旧を突き合わせない（実装が違えば全面が赤になり、意味が無い）。
+- 差分をしきい値で消さない（特性照合という別の方法で捉える）。
+- xlsx と PDF をバイトの一致で比べない（揮発する項目が入るので一致しない）。xlsx はシート × セルの値と構造で、PDF は抽出したテキストと構造で比べる。
+  解析ツールは `metadata.json.differ.file_extract` に記録された値を使い、自分で選び直さない。
+  現側と抽出ツールが変わると、差分がツールの差か実装の差かを切り分けられないからである（原本は `replace-strategy` の `references/file-io.md`）。
+- テキストの幅や字形の差を、切り分けずに分類しない。「同じフォント名だから」という理由で、環境ノイズや許容にしない。
+  差は版（`head.fontRevision`）とヒンティング命令の有無で決まるので、[`references/font-diff.md`](references/font-diff.md) の手順で切り分けてから分類する。
+- コンポーネントの差分を、インスタンス単位の無視リストで吸収しない。クラスやトークンの単位の系統差 T（`component_diffs`）で宣言し、T から外れたものを検出する。
+  ただし、画素の検出でしか出ない差（computed style は一致し、描画だけが違う）には T の照合キーが無く、`component_diffs` では吸収されない。
+  その差を置ける場所は、インスタンス例外（`property: pixel`）だけである（レジストリごとにどの比較方法に使われるかは [`references/normalize.md`](references/normalize.md) で定義する）。
+- インスタンス例外を設定ファイル（`.config/skills/shoji9x9/skills.yml`）へ書かない。
+  slug の範囲の台帳なので、`.replace/parity/<slug>/component-diff-exceptions.json` に書く（古いキーが残っていたら、移行を案内して停止する）。
+- 同じ原因の複数のインスタンスに、同じ `reason` を複製しない。原因は `component_diff_exception_causes[]` に 1 回だけ定義し、`cause` で参照する（インスタンスに `reason` を持たせない）。
+- 例外のインスタンスの件数をまとめない。`page`・`element`・`bbox` にワイルドカードを置いて、1 つのエントリで N 箇所を吸収させない。
+  例外の件数は検証の弱さを示すので、行数を減らすために隠さない。
+- 同じ原因の候補について、承認を N 回求めない。分類は候補ごとに行い、承認は原因ごとに行う。
+  `component_diff_exception_causes[]` の 1 つの原因につき承認を 1 回取り、同じ原因の N インスタンスはその承認で確定する。
+  「件数をまとめない」は台帳の規則で、承認の単位の規則ではない（台帳のインスタンスは N 件のまま並べ、承認の UI にも件数 N と内訳を出す）。
+- 承認済みの原因への参照を足して、未承認のインスタンスを吸収しない。承認の後にインスタンスが増えたら、増えた分の承認を 1 回取る。
+  承認記録の累計 N と `cause` の参照の数が一致しなければ、超えた分は未承認（未説明）として数え、収束させない。
+- 承認済みの例外の根拠を `gaps.md` に書かない。`gaps.md` は未検証の領域の台帳なので、そこに置くと承認済み（説明済み・許容）と未検証が混在する。書く先は `component-diff-exceptions.md` である。
+- 承認の前の分類を、成果物に「許容」と書かない。承認の前は `許容候補（要確認）` と書き、収束判定では未説明として数える（分類がレポートに載った時点で、後の判断の入力になるため）。
+- 観測条件を挙げずに仮説を検証しない。差分が出た条件（要素・サイズ・ウェイト・状態）で測る。手近な代表値 1 点の結果を、全体に広げない。
+  比べる相手は常に現行で、新側の実験の変種どうしの一致を結論にしない。結論を成果物に書くときは測った条件も書く（条件を書けない結論は、未説明のまま残す）。
+- 意図的差異の保留（`intentional_diffs.pending`）を棚卸ししないまま、機能を閉じない。
+  この機能に帰属する保留・横断（`cross-cutting`）の保留・帰属不明の保留を人へ 1 件ずつ見せ、`keep` / `may_change` へ移す（移すのは人間）か、持ち越す理由を記録する。
+  件数は `diff-metadata.json` の `intentional_diffs_pending` に残す。数え直しは [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) が行う。
+  工程が確定の時期を決めないと、保留が機能をまたいで積み上がり、「まだ決まっていない差」と「決まったが記録が古い差」を区別できなくなる。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 部品網羅表に未測定が残る状態で、`converged: true` にしない。現側の `metadata.json` の `component_coverage.declared` が `true` なら、`scripts/coverage-check.mjs` で数え直す。
+  未測定が 1 件以上なら `parity-suite` へ戻す。
+  差分ツールは採取した状態しか見ないので、測っていない操作の欠落は差分ゼロとして通る。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 反応の網羅表に未測定が残る状態で、`converged: true` にしない。
+  現側の `metadata.json` の `reaction_coverage.declared` が `true` なら、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す。
+  exit 0 以外なら `parity-suite` へ戻す。
+  遅れて出る反応・別の文書に出る反応・自動で消える反応は、差分ツールの採取に記録されない。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 網羅表の `present` を新側で突き合わせていない状態で、`converged: true` にしない。
+  現側の `metadata.json` の `component_coverage.declared` が `true` なら、インストール済みの `parity-suite` の次のスクリプトで数え直す。
+  `scripts/component-comparison-check.mjs --coverage <網羅表> --comparison <新側突き合わせ表>`
+  `--metadata <現側 metadata.json> --replace-metadata <replace-metadata.json> --target <target>`。exit 0 以外なら `parity-replace` へ戻す。
+  網羅表の 3 値は移行元の側の測定で、起点・当たり判定・完了のどこかで止まる欠落は示さない。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 撮る範囲に、宣言されていない抜けが残る状態で `converged: true` にしない。インストール済みの `parity-suite` の
+  `scripts/capture-scope-check.mjs --metadata <現側 metadata.json>` で数え直し、exit 0 以外なら `parity-suite` へ戻す。
+  撮影領域の外・内部のスクロール領域の中・領域の外に出た論理名は、差分ゼロとして通る。
+  `capture_scope` を持たない現側の成果物は、後方互換として扱わず、範囲を実測して採り直す。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 採取物と工程の健全性に未検証が残る状態で、`converged: true` にしない。インストール済みの `parity-suite` の
+  `scripts/artifact-health-check.mjs --metadata <現側 metadata.json> --target <target> --stage diff` で数え直し、exit 0 以外なら `parity-suite` へ戻す。
+  次のものは、どれも緑のまま通ってしまう。読まれていない採取物、元が採り直されたのに古いままの加工物、後始末が機能していないスイート、`blocking` の未測定、
+  `suite.new_green` が真なのに無いか古い `diff-metadata.json`。
+  `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」だけである。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
+- 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
+  `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
+  デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何も失われていなくても通ってしまう。
+  収束の判定は今の状態しか見ないので、積み上げた文書を丸ごと書き直しても、「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
+  対象が 0 件のときは合格として扱わない。一覧は `replace-strategy` の `assets/append-only-manifest.json` で定義する。
+- 網羅プロファイルを宣言した部品の期待セルを、項目 × インスタンスで数えない。宣言した部品では、インスタンスごとの候補（`instances[].candidates`）が期待セルである。
+  挙げた要素が候補に現れない、または `conformance` が無いか `ok: false` なら、収束させない（プロファイルの本体は `parity-suite` の同梱物なので読まない）。
+- 網羅表を判定しなかったことを、警告なしに合格にしない。`declared: false` と、`component_coverage` を持たない古い成果物は判定に入れない（後方互換）。
+  ただし、判定しなかった事実と理由を `diff-metadata.json.component_coverage`（`judged: false`）と、`diff.md` の未検証の領域に残す。
+- 他の機能が未実装であるために解消できない差分を、`converged: true` で通さず、`parity-replace` へも差し戻さない。
+  `blocked_by` に帰属させて停止し、依存先の実装の後に再実行する（[`references/convergence.md`](references/convergence.md)）。
+- 同じページに乗る別の機能（共同居住機能）の未実装の領域を、実行時のマスクより先に `blocked_by` に分類しない。新側で root が欠けているのは通常の状態である。
+  現側のベースラインで測った target に依存しない `bbox` を両方の作業画像に当て、特性と aria の同じ領域も除いてから差分を検出する。
+  `blocked_by` は、マスクの外に残った差分だけに使う。
+- 生の差分ゼロを収束の条件にしない。収束は、未説明の差分がゼロで、かつ未修正の回帰がゼロのことである。
+- 名前の付かない要素の見た目の差を、「computed style で保証済み」として扱わない（特性照合は名前付きの要素しか見ない。名前の無い要素は画素の検出が担う）。
+- セル・行・フィールドに論理名を付けて、テーブルやフォームを比べない（内容が同じかは aria の検出が担う）。
+- 未検証の箇所を「確認済み」にしない（ベースラインに記録されない箇所と、宣言できない構造の差は、`diff.md` に未検証として残す）。
+- 差分ツールやトリアージの補助に依存を足すときは、配布元の素性・ライセンス・メンテナンスの状況を確かめてから入れる（既存のパッケージを探さずに自前で実装し始めるのも同じく避ける）。
+  判断の材料と工程は `replace-strategy` の `references/dependency-selection.md` で定義し、記録先は `.replace/dependencies.md` である。
+- シークレットの値を、コード・コメント・ログ・成果物・スクリーンショットに残さない（環境変数の名前だけを扱い、値は繰り返さない。原本は `replace-strategy` の `references/project-config.md`「シークレットの扱い」）。
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読む・書くキー:
+設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。
+スキーマは `replace-strategy` の `references/project-config.md` で定義する。このスキルが読み書きするキーは次のとおりである。
 
 | キー | 読/書 | 用途 |
 |---|---|---|
-| `targets[]`（`side: new`） | 読 | 差分検出の対象環境。`--target` で選択（選択規則は上記「使い方」の正本参照。ここへ転記しない）。`url` / `api_url` は新側疎通・撮影先・api-resource モードの発行先（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決。`url_command` の target はコマンド実行で解決し、失敗・空出力は停止）、`pre_commands` / `start` / `check_urls` は撮影前の起動・稼働確認、`on_diff`（対応手順ドキュメントのパス）は要対応差分が残ったときの分岐（手順 7）。**投入対象でない target**（`dataset_mode: db` で `db` 未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用）**はゴールデンデータ未投入**＝phase B との整合を免除する代わりに、データ依存の差分を「未検証」として `diff.md` に明記する（[`references/preflight.md`](references/preflight.md)） |
-| `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異レジストリ（正規化のノイズフィルタ）。`pending` 該当は落とさず要確認。**`pending` は収束判定で棚卸しの対象としても読む**（対象の決め方は要素の `slug`。書き換えは人間が行い本スキルは書かない。要素の形の正本はスキーマ文書の「`pending` 要素の形」） |
-| `uses_storage` / `targets[].storage` | 読 | ファイルストレージの利用と、選択した新側 target の接続（`env_vars`）・アップロード経路（`upload_route`）。**現側と `upload_route` が違う場合、保存 path の命名規則差は宣言が無ければ「許容」にせず未説明として残す**（`intentional_diffs` の対象）。ストレージ実体への投入はスコープ外（正本: `replace-strategy` の `references/scope.md`）のため、事前配置に依存する差分は「未検証」として `diff.md` に明記する |
-| `component_diffs` | 読 | コンポーネント系統差 T（クラス/トークン単位）。宣言者は `parity-replace`。T に合致すれば吸収、逸脱すれば回帰候補。**設定側に残るのは `component` × `property` で slug 横断に効くため**（`component` は対象要素の論理名 / glob。1 回の宣言が範囲内の全インスタンスに効く）。T が引けないインスタンス例外は設定に置かず slug 成果物（下記「成果物」） |
-| `artifacts.{storage,overrides.<slug>}` | 読 | 新側ベースラインの保存先既定と機能ごと上書き |
-| `references.ui_library` | 読 | 旧→新 design token マッピング（系統差の正規化の判断材料） |
-| `references.db_semantics` | 読 | DB 意味論の差（API 応答の並び順差の判断材料） |
-| （上記 2 キーが**未整備**のとき） | — | キー欠落・空値・解決できないパスはいずれも未整備。**停止はしない**が、判断材料が無いまま「許容」へ寄せず、該当候補は未説明のまま残して `diff.md` に理由を記録する |
-| `references.dependency_policy` | 読・書 | 差分器・トリアージ補助に依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**書くのはキー欠落＝未確認のときだけ**（ユーザーに要否を確認した結果を非破壊追記） |
-| `secrets.wrapper` | 読 | シークレットが要るコマンドの前置ラッパー |
+| `targets[]`（`side: new`） | 読 | 差分を検出する環境。`--target` で選ぶ（選択規則は上記「使い方」で示した原本に従い、ここへ転記しない）。`url` / `api_url` は、新側の疎通・撮影先・api-resource モードの送信先に使う（`PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` として解決する。`url_command` の target はコマンドを実行して解決し、失敗や空の出力なら停止する）。`pre_commands` / `start` / `check_urls` は撮影の前の起動と稼働の確認に使う。`on_diff`（対応手順のドキュメントのパス）は、要対応の差分が残ったときの分岐に使う（手順 7）。投入対象でない target（`dataset_mode: db` で `db` が未定義、または `db.env_vars` はあるが `seedable` の無い読み取り専用のもの）にはゴールデンデータが入っていない。この場合は phase B との整合を免除する代わりに、データに依存する差分を「未検証」として `diff.md` に書く（[`references/preflight.md`](references/preflight.md)） |
+| `intentional_diffs.{keep,may_change,pending}` | 読 | 意図的差異のレジストリ（正規化のノイズフィルタ）。`pending` に当たるものは除かずに要確認にする。`pending` は、収束判定での棚卸しの対象としても読む（対象は要素の `slug` で決める。書き換えるのは人間で、このスキルは書かない。要素の形はスキーマの文書の「`pending` 要素の形」で定義する） |
+| `uses_storage` / `targets[].storage` | 読 | ファイルストレージを使うかと、選択した新側の target の接続（`env_vars`）・アップロードの方法（`upload_route`）。現側と `upload_route` が違う場合、保存先の path の命名規則の差は、宣言が無ければ「許容」にせず未説明として残す（`intentional_diffs` の対象）。ストレージの実体への投入は範囲外（原本は `replace-strategy` の `references/scope.md`）なので、事前の配置に依存する差分は「未検証」として `diff.md` に書く |
+| `component_diffs` | 読 | コンポーネントの系統差 T（クラス・トークンの単位）。宣言するのは `parity-replace` である。T に合えば吸収し、外れれば回帰の候補にする。設定の側に残るのは `component` × `property` で、slug をまたいで使われる（`component` は対象の要素の論理名か glob。1 回の宣言が範囲内のすべてのインスタンスに当たる）。T で照合できないインスタンス例外は設定に置かず、slug の成果物に置く（下記「成果物」） |
+| `artifacts.{storage,overrides.<slug>}` | 読 | 新側のベースラインの保存先のデフォルトと、機能ごとの上書き |
+| `references.ui_library` | 読 | 旧 → 新の design token の対応表（系統差を正規化するときの判断の材料） |
+| `references.db_semantics` | 読 | DB の意味の差（API の応答の並び順の差を判断する材料） |
+| （上の 2 キーが未整備のとき） | — | キーの欠落・空の値・解決できないパスは、どれも未整備として扱う。停止はしないが、判断の材料が無いまま「許容」に寄せない。該当する候補は未説明のまま残し、`diff.md` に理由を書く |
+| `references.dependency_policy` | 読・書 | 差分ツールやトリアージの補助に依存を足すときの方針（3 つの値をとる。意味はスキーマの文書の「依存導入の方針」で定義する）。書くのは、キーが無い（未確認の）ときだけである（ユーザーに要否を確かめた結果を、既存の内容を消さずに追記する） |
+| `secrets.wrapper` | 読 | シークレットが要るコマンドの前に付けるラッパー |
 
-設定・`.replace/features.md` が無ければ `replace-strategy setup` を促して停止する。
-**旧スキーマ・旧レイアウトはフォールバックとして読まず**、見つけたら移行を案内して停止する。
-検出対象の旧キー・旧レイアウトの一覧と移行手順は `replace-strategy` の `references/project-config.md`「移行」を正本として参照する（本スキルで個別に列挙しない）。
+設定と `.replace/features.md` が無ければ、`replace-strategy setup` を促して停止する。
+古いスキーマや古いレイアウトは代わりに読まない。見つけたら、移行を案内して停止する。
+検出の対象にする古いキー・古いレイアウトの一覧と移行の手順は、`replace-strategy` の `references/project-config.md`「移行」に従う（このスキルでは個別に挙げない）。
 
 ## 自律実行（`--autonomous`）
 
-規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
+規約（宣言・越えない線・停止の 2 つの分類・保留の記録の形・終わりにまとめて聞く手順）は、`replace-strategy` の `references/autonomy.md` で定義する（ここへ転記しない）。
+`replace-strategy` の `references/autonomy.md` を読めない場合は、自律実行せずに、確認のたびに止まる。このスキル固有の扱いは次のとおりである。
 
-- **判断待ち（保留に落とす）**: 「許容」の確定（原因単位。`diff.md` の分類は `許容候補（要確認）` のまま）、意図的差異の保留の棚卸しの処置、
-  旧成果物をユーザー承認の例外で続行するか、差分器・フォント解析ツールの導入、`on_diff` ドキュメントが指示する起票（越えない線）、`references.dependency_policy` の確認、
-  `commit_check` の無い配信型 target で照合相手の版がデプロイ済みかの確認（確認が取れるまでその機能は撮らない。[`references/preflight.md`](references/preflight.md)「新側の版の一致」）
-- **保留に落としても進める工程**: 要対応差分の `parity-replace` への差し戻し（同じ `--autonomous` を引き継ぐ）、他の候補のトリアージ、被覆表・反応の数え直し、`blocked_by` の検証、成果物の更新
-- **棚卸しの処置を自分で `carried_over` にしない**——理由の記録で通過できる処置なので、自律で書くと人の判断を経ずに棚卸しが通る。未記録のまま残し（`pending-triage-check.mjs` が exit 1 で未棚卸しとして落とす）、保留に記録する
-- **記録先**: `diff-metadata.json` の `pending_decisions[]` と `run.autonomous`、`diff.md` の「判断待ち」節。**未解決の保留が 1 件でも残る間は `converged` を `true` にしない**（収束の条件の 1 つ。[`references/convergence.md`](references/convergence.md)）
+- 判断待ち（保留として記録する）にするもの
+  - 「許容」の確定（原因の単位。`diff.md` の分類は `許容候補（要確認）` のままにする）
+  - 意図的差異の保留の棚卸しの処置
+  - 古い成果物を、ユーザーの承認による例外として続けるか
+  - 差分ツールやフォント解析ツールを入れるか
+  - `on_diff` のドキュメントが指示する起票（越えない線）
+  - `references.dependency_policy` の確認
+  - `commit_check` の無い配信型の target で、照合する相手の版がデプロイ済みかの確認。確認が取れるまで、その機能は撮らない（[`references/preflight.md`](references/preflight.md)「新側の版の一致」）
+- 保留にしても進める工程
+  - 要対応の差分の `parity-replace` への差し戻し（同じ `--autonomous` を引き継ぐ）
+  - 他の候補のトリアージ、網羅表と反応の数え直し、`blocked_by` の検証、成果物の更新
+- 棚卸しの処置を、自分で `carried_over` にしない。理由を記録すれば通る処置なので、自律で書くと人の判断を経ずに棚卸しが通ってしまう。
+  未記録のまま残し（`pending-triage-check.mjs` が exit 1 で未棚卸しとして失敗にする）、保留に記録する。
+- 記録先は、`diff-metadata.json` の `pending_decisions[]` と `run.autonomous`、`diff.md` の「判断待ち」の節である。
+  未解決の保留が 1 件でも残る間は、`converged` を `true` にしない（収束の条件の 1 つ。[`references/convergence.md`](references/convergence.md)）。
 
 ## 実行フロー
 
-詳細は各 reference へ委譲する。番号順に進める。
+詳細は各 reference に書いてある。番号の順に進める。
 
-1. **target 解決と前提確認**（[`references/preflight.md`](references/preflight.md)）: 対象 target を決めてから、停止条件・データセットバージョンの陳腐化・差分器バージョン一致・反復上限を確認する。
-   選択 target の `new/<target>/replace-metadata.json` が無い・`suite.new_green` でなければ「**その環境ではまだ green 証跡が無い**」として停止し、同じ `--target` での `parity-replace` を案内する。
-   green を取った版（`new.commit`。`--component-change` の一括再検証では変更宣言の `commits.after`）が撮る新側の版と違うときも撮らずに同じく停止する。欠ければ捏造せず停止し依存順に案内する
-2. **モード分岐**: `metadata.json.mode` で feature（3 経路）/ api-resource / batch に分岐する。api-resource / batch は画面系 3 経路を動かさない（[`references/api-batch.md`](references/api-batch.md)）
-3. **新側ベースライン取得**（[`references/capture-new.md`](references/capture-new.md)）: 選択 target の `url` / `api_url` を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決して
-   Playwright の**採取用プロジェクト**（`metadata.json.suite.new_only` に記録された名前。既定 `new-capture`）へ渡し、同一条件で新側だけを撮る。
-   採取スペックは**現側スペックから手で書き起こさず**同梱雛形（[`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts)）を `metadata.json.suite.new_only` の場所へコピーして埋め、
-   `current` / `new` からの `testIgnore` 除外と採取用プロジェクト（既定 `new-capture`）を撮影前に確認する。
-   `url_command` の target は手順 1 の target 解決時に解決した URL を再利用する（工程ごとに再実行しない）。
-   **条件一致を先行検証**し、不一致なら差分報告せず停止する。新側の自己ノイズも測り（往復ループでは前回実行の測定値を組単位で再利用してよい。失効条件は同 reference）、現側 `noise_baseline` との乖離が大きければ停止する（旧成果物をユーザー承認の例外で続行した場合は対比せず、自己ノイズが 0 でない組を未検証にする）。
-   既存の新側ベースラインから再開する場合も、差分検出の前に同 reference「共同居住機能の実行時マスク」を必ず通す。ページ一覧と同 target の green 証跡から有効集合を再導出し、現側由来の `bbox` を両画像へ適用する。新側 root が無いことを停止理由や `blocked_by` の根拠にしない
-   適用詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録・報告し、恒久マスクの検証結果である既存 `.masks` へ混ぜない
-4. **決定論的差分検出**（[`references/detect.md`](references/detect.md)）: 画素・特性照合・aria の 3 経路。**LLM を介さない**
-5. **正規化・ノイズフィルタ**（[`references/normalize.md`](references/normalize.md)）: `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残余へ集計適用）→ 宣言できない構造差（`gaps.md`）は未検証として転記
-6. **LLM トリアージ**（[`references/triage.md`](references/triage.md)）: 正規化を生き残った候補だけを 1 件ずつ crop 対で。**モデルに聞くのは要対応／許容／環境ノイズの 3 値**で、どれとも判断できない候補は未説明のまま残す（`diff.md` の分類欄には未説明も並ぶ）。
-   「許容」の確定はユーザー承認で、**承認は原因単位**（同一原因の N インスタンスを 1 回で確定する。代表インスタンスの判断材料と件数 N を UI に載せる）。
-   テキストの幅・字形の差は分類の前に**フォント差を切り分ける**（版差かヒンティング差か。[`references/font-diff.md`](references/font-diff.md)）
-7. **収束判定・差し戻し**（[`references/convergence.md`](references/convergence.md)）: **差分器が判定する**。状態は 4 つ（収束／**他機能待ち**／**判断待ち**／未収束）。
-   現側 `metadata.json.component_coverage` が `declared: true` なら**部品被覆表の未測定**も収束条件に入れ、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は理由を記録して未検証に残す）。
-   現側 `metadata.json.reaction_coverage` が `declared: true` なら**反応の被覆表の未測定**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す
-   （一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力）。
-   **意図的差異の保留の棚卸し**も収束条件に入れ、[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象 0 件でも記録を省かない）。
-   現側 `metadata.json.component_coverage` が `declared: true` なら**新側での突き合わせ**（`present` セルごとの入口・当たり判定・完了）も収束条件に入れ、
-   インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
-   **撮る範囲の穴**（撮影領域の外・内部スクロール器の中・領域外に出た論理名・撮っていない表示の軸の値）と**採取環境と利用者環境の一致の未確認**も収束条件に入れ、インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
-   **採取物と工程の健全性**（採取物の読み手・加工物の鮮度・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の在否と鮮度）も収束条件に入れ、
-   インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す（**`diff-metadata.json` に結果を書いた後**に通す——工程の節は自分が書く成果物の在否を見るため。`--stage suite` を渡すと未測定の `blocking` を素通りさせる）。
-   **追記専用の成果物が縮んでいないこと**も収束条件に入れ、インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
-   **`converged: true` にしたら、`parity-replace` が `later`（`owner` が本スキル）で残した受け入れ条件の行を取り直すよう報告に書く**——
-   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json` で表を取り直し（`--allow-later` は渡さない）、
-   収束の行を `met` にして `closable: true` になるまで機能の Issue を閉じない（正本は `issue-start` の `references/acceptance.md`。本スキルは表を書かない）。
-   他機能の新側未実装に由来する差分は `blocked_by` に帰属させ、差し戻さず停止してユーザーへ報告する（`converged` は false のまま）。要対応が残れば選択 target の `on_diff` ドキュメントに従う——無ければ `diff.md` を差し戻し入力に同じ `--target` の `parity-replace` へ渡す。
-   ドキュメントが起票して停止する運用を指示するなら、差し戻さず差分の要約を `issue-create` へ委譲して起票し停止する（修正ループを回さない）。反復上限超過なら差し戻さず停止してユーザーへ
+1. target の解決と前提の確認（[`references/preflight.md`](references/preflight.md)）。対象の target を決めてから、停止条件・データセットの版が古くなっていないか・差分ツールの版の一致・反復の上限を確かめる。
+   選択した target の `new/<target>/replace-metadata.json` が無いか、`suite.new_green` でなければ、「その環境ではまだ green 証跡が無い」として停止し、同じ `--target` での `parity-replace` を案内する。
+   green を取った版（`new.commit`。`--component-change` の一括再検証では変更の宣言の `commits.after`）が、撮る新側の版と違うときも、撮らずに同じく停止する。
+   前提が欠けていれば、成果物を作り出さずに停止し、依存の順に案内する。
+2. モードで分ける。`metadata.json.mode` で、feature（3 つの比較方法）/ api-resource / batch に分ける。api-resource と batch では、画面の 3 つの比較方法を使わない（[`references/api-batch.md`](references/api-batch.md)）。
+3. 新側のベースラインを取得する（[`references/capture-new.md`](references/capture-new.md)）。
+   選択した target の `url` / `api_url` を `PARITY_NEW_UI_URL` / `PARITY_NEW_API_URL` に解決して、Playwright の採取用のプロジェクトへ渡し、同じ条件で新側だけを撮る。
+   採取用のプロジェクトの名前は `metadata.json.suite.new_only` に記録されている（デフォルトは `new-capture`）。
+   採取のスペックは、現側のスペックから手で書き起こさない。同梱の雛形（[`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts)）を `metadata.json.suite.new_only` の場所へコピーして埋める。
+   撮影の前に、`current` / `new` からの `testIgnore` の除外と、採取用のプロジェクト（デフォルトは `new-capture`）があることを確かめる。
+   `url_command` の target では、手順 1 で解決した URL を使い回す（工程ごとに実行し直さない）。
+   条件が一致するかを先に確かめ、一致しなければ差分を報告せずに停止する。
+   新側の自己ノイズも測り、現側の `noise_baseline` との開きが大きければ停止する。
+   行き来のループでは、前回の実行の測定値を組ごとに再利用してよい（失効の条件は同じ reference にある）。
+   古い成果物をユーザーの承認による例外として続けた場合は対比せず、自己ノイズが 0 でない組を未検証にする。
+   既存の新側のベースラインから再開する場合も、差分を検出する前に、同じ reference の「共同居住機能の実行時マスク」を必ず通す。
+   ページの一覧と、同じ target の green 証跡から有効な集合を導き直し、現側に由来する `bbox` を両方の画像に当てる。新側に root が無いことを、停止の理由や `blocked_by` の根拠にしない。
+   当てた詳細は `diff-metadata.json.capture_conditions_verified.cofeature_masks[]` に記録して報告する。恒久的なマスクの検証の結果である既存の `.masks` には混ぜない。
+4. 決定論的に差分を検出する（[`references/detect.md`](references/detect.md)）。画素・特性照合・aria の 3 つの比較方法で検出し、LLM は使わない。
+5. 正規化とノイズフィルタ（[`references/normalize.md`](references/normalize.md)）。
+   `intentional_diffs` → `component_diffs`（T）→ インスタンス例外 → ノイズ基準値（残りへまとめて当てる）の順に当てる。宣言できない構造の差（`gaps.md`）は、未検証として転記する。
+6. LLM でトリアージする（[`references/triage.md`](references/triage.md)）。正規化の後に残った候補だけを、1 件ずつ crop の対で見せる。
+   モデルに聞くのは、要対応／許容／環境ノイズの 3 値である。どれとも判断できない候補は、未説明のまま残す（`diff.md` の分類の欄には未説明も並ぶ）。
+   「許容」はユーザーの承認で確定し、承認は原因の単位で行う（同じ原因の N インスタンスを 1 回で確定する。代表のインスタンスの判断の材料と件数 N を UI に載せる）。
+   テキストの幅や字形の差は、分類の前にフォントの差を切り分ける（版の差かヒンティングの差か。[`references/font-diff.md`](references/font-diff.md)）。
+7. 収束を判定し、差し戻す（[`references/convergence.md`](references/convergence.md)）。判定するのは差分ツールである。状態は 4 つある（収束／他機能待ち／判断待ち／未収束）。
+   収束の条件に入れるものと、数え直しに使うスクリプトは次のとおりである。
+   - 部品網羅表の未測定。現側の `metadata.json.component_coverage` が `declared: true` のとき、[`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) で数え直す（目視で数えない。判定しなかった場合は、理由を記録して未検証に残す）。
+   - 反応の網羅表の未測定。現側の `metadata.json.reaction_coverage` が `declared: true` のとき、インストール済みの `parity-suite` の `scripts/reaction-check.mjs --tests <テスト一覧> --recorded` で数え直す。
+     一覧は `npx playwright test --list --reporter=json --project=current --project=new` の出力である。
+   - 意図的差異の保留の棚卸し。[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) で数え直す（対象が 0 件でも記録を省かない）。
+   - 新側での突き合わせ（`present` のセルごとの起点・当たり判定・完了）。現側の `metadata.json.component_coverage` が `declared: true` のとき、インストール済みの `parity-suite` の `scripts/component-comparison-check.mjs` で数え直す。
+   - 撮る範囲の抜け（撮影領域の外・内部のスクロール領域の中・領域の外に出た論理名・撮っていない表示の軸の値）と、採取の環境と利用者の環境が一致するかの未確認。
+     インストール済みの `parity-suite` の `scripts/capture-scope-check.mjs` で数え直す。
+   - 採取物と工程の健全性（採取物の読み手・加工物の新しさ・状態を変えるスイートの 2 回続けての緑・未測定の `blocking`・`suite.new_green` に対する `diff-metadata.json` の有無と新しさ）。
+     インストール済みの `parity-suite` の `scripts/artifact-health-check.mjs --target <target> --stage diff` で数え直す。
+     このチェックは、`diff-metadata.json` に結果を書いた後に通す。工程の節は、自分が書く成果物があるかを見るからである。`--stage suite` を渡すと、未測定の `blocking` を通してしまう。
+   - 追記専用の成果物が縮んでいないこと。インストール済みの `replace-strategy` の `scripts/append-only-check.mjs` で数え直す（結果は `diff-metadata.json` の `artifact_health` / `append_only` に残す）。
+
+   `converged: true` にしたら、`parity-replace` が `later`（`owner` がこのスキル）で残した受け入れ条件の行を再取得するよう、報告に書く。
+   `issue-start <番号> --acceptance --out .replace/parity/<slug>/new/<target>/acceptance.json` で表を作り直す（`--allow-later` は渡さない）。
+   収束の行を `met` にして `closable: true` になるまで、機能の Issue を閉じない（原本は `issue-start` の `references/acceptance.md`。このスキルは表を書かない）。
+
+   他の機能が新側で未実装であることに由来する差分は、`blocked_by` に帰属させ、差し戻さずに停止してユーザーへ報告する（`converged` は false のまま）。
+   要対応の差分が残れば、選択した target の `on_diff` のドキュメントに従う。ドキュメントが無ければ、`diff.md` を差し戻しの入力にして、同じ `--target` の `parity-replace` へ渡す。
+   ドキュメントが「起票して停止する」運用を指示するなら、差し戻さずに差分の要約を `issue-create` に渡して起票し、停止する（修正のループを回さない）。
+   反復の上限を超えていたら、差し戻さずに停止してユーザーへ上げる。
 
 ## 成果物
 
-すべて対象プロジェクト側に置く。**本スキルが正本を定義するテンプレート**（[`assets/`](assets/)）がある。
+すべて対象のプロジェクトの側に置く。このスキルが原本として定義するテンプレート（[`assets/`](assets/)）がある。
 
-| 成果物 | 場所 | 正本テンプレート |
+| 成果物 | 場所 | 原本のテンプレート |
 |---|---|---|
 | 差分レポート | `.replace/parity/<slug>/new/<target>/diff.md` | [`assets/diff-template.md`](assets/diff-template.md) |
 | メタデータ | `.replace/parity/<slug>/new/<target>/diff-metadata.json` | [`assets/diff-metadata-template.json`](assets/diff-metadata-template.json) |
-| 新側ベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側 `baseline/` と対称のレイアウト） | — |
-| 新側採取スペック | `metadata.json.suite.new_only` の場所（既定 `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
-| インスタンス例外レジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` へ**非破壊追記**（無ければテンプレートから作成）。ユーザー承認済みのみ・**設定ファイルには置かない** | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
-| 承認済み例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` へ**非破壊追記**（無ければテンプレートから作成）。`component_diff_exception_causes[].evidence` の宛先で、**`gaps.md` に書かない** | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
-| 証跡の持ち越し（`--component-change` のときのみ。**環境別**） | `.replace/parity/<slug>/new/<target>/evidence-carry.json` へ追記（撮り直した組の判定記録も同じ `new/<target>/` の下） | 様式の正本: `parity-suite` の `assets/evidence-carry-template.json`（手順: [`references/component-change.md`](references/component-change.md)） |
-| 依存の決定記録（差分器・トリアージ補助に依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 新側のベースライン | `.replace/parity/<slug>/new/<target>/baseline-new/`（現側の `baseline/` と対称のレイアウト） | — |
+| 新側の採取スペック | `metadata.json.suite.new_only` の場所（デフォルトは `<parity_suite_dir>/parity/<slug>/new-only/`。既にあれば上書きしない） | [`assets/capture-new.spec.template.ts`](assets/capture-new.spec.template.ts) |
+| インスタンス例外のレジストリ | `.replace/parity/<slug>/component-diff-exceptions.json` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。ユーザーが承認したものだけを書き、設定ファイルには置かない | [`assets/component-diff-exceptions-template.json`](assets/component-diff-exceptions-template.json)（スキーマ: [`references/normalize.md`](references/normalize.md)） |
+| 承認済みの例外の根拠 | `.replace/parity/<slug>/component-diff-exceptions.md` に、既存の内容を消さずに追記する（無ければテンプレートから作る）。`component_diff_exception_causes[].evidence` が指す先で、`gaps.md` には書かない | [`assets/component-diff-exceptions-template.md`](assets/component-diff-exceptions-template.md) |
+| 証跡の持ち越し（`--component-change` のときだけ。環境ごと） | `.replace/parity/<slug>/new/<target>/evidence-carry.json` に追記する（撮り直した組の判定の記録も、同じ `new/<target>/` の下に置く） | 様式の原本は `parity-suite` の `assets/evidence-carry-template.json`（手順: [`references/component-change.md`](references/component-change.md)） |
+| 依存の決定の記録（差分ツールやトリアージの補助に依存を足したときだけ） | `.replace/dependencies.md` に、既存の内容を消さずに追記する（無ければテンプレートから作る） | 様式の原本は `replace-strategy` の `assets/dependencies-template.md` |
 
-- **新側の成果物は環境別**（`new/<target>/` 配下）。環境を切り替えても他の環境の差分レポート・メタデータ・新側ベースラインを上書きしない。現側 `baseline/` は 1 環境で slug 直下のまま
-- **インスタンス例外レジストリとその根拠は環境非依存**なので slug 直下に置く（`gaps.md` / `porting.md` と同じ扱い）。特定の target でだけ出る差は例外ではなく環境差であり、ノイズ基準値と新側の自己ノイズで扱う
-- テキスト成果物（`diff.md` / `diff-metadata.json` / 例外レジストリとその根拠）は Git。
-  新側ベースラインの大きなバイナリ（スクリーンショット等）は `artifacts` 設定に従い、既定 `local`（コミットしない）。テキスト（特性 JSON・aria）は Git
-- **自己ノイズ測定の 2 回目の採取物（`new/<target>/noise-pass2/`）と、撮影に使ったブラウザの同一性の記録（`new/<target>/browser-identity.<pass>.json`）は成果物ではない。** 測定値・指紋を `diff-metadata.json` へ記録したら削除し、コミットしない（テキストでも Git に入れない。正本: [`references/capture-new.md`](references/capture-new.md)）
-- 本スキル同梱の決定論的ツール（[`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs) / [`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs) /
-  [`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs) / [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs) /
-  [`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs) / [`scripts/amend-verify.mjs`](scripts/amend-verify.mjs)）は
-  **プロジェクトへコピーせず、スキルディレクトリ内から実行する**（`gh skill update` の自動更新を効かせるため）。特性照合と応答ヘッダーの正規化は `parity-suite` の確定契約によりプロジェクト側コピー（`trait-capture.mjs` / `trait-compare.mjs` / `header-normalize.mjs`）を使う
+- 新側の成果物は環境ごとに置く（`new/<target>/` の下）。環境を切り替えても、他の環境の差分レポート・メタデータ・新側のベースラインを上書きしない。現側の `baseline/` は 1 つの環境だけで、slug の直下に置いたままにする。
+- インスタンス例外のレジストリとその根拠は、環境に依存しないので slug の直下に置く（`gaps.md` / `porting.md` と同じ扱い）。
+  特定の target でだけ出る差は、例外ではなく環境の差なので、ノイズ基準値と新側の自己ノイズで扱う。
+- テキストの成果物（`diff.md`・`diff-metadata.json`・例外のレジストリとその根拠）は Git に入れる。
+  新側のベースラインの大きなバイナリ（スクリーンショットなど）は `artifacts` の設定に従い、デフォルトは `local`（commit しない）である。テキスト（特性の JSON・aria）は Git に入れる。
+- 自己ノイズの測定の 2 回目の採取物（`new/<target>/noise-pass2/`）と、撮影に使ったブラウザの同一性の記録（`new/<target>/browser-identity.<pass>.json`）は成果物ではない。
+  測定値と指紋を `diff-metadata.json` に記録したら削除し、commit しない（テキストでも Git に入れない。原本は [`references/capture-new.md`](references/capture-new.md)）。
+- このスキルに同梱した決定論的なツールは、プロジェクトへコピーせず、スキルのディレクトリの中から実行する（`gh skill update` で自動で更新されるようにするため）。
+  対象は [`scripts/pixel-crops.mjs`](scripts/pixel-crops.mjs)・[`scripts/diff-normalize.mjs`](scripts/diff-normalize.mjs)・[`scripts/json-normalize-diff.mjs`](scripts/json-normalize-diff.mjs)・
+  [`scripts/coverage-check.mjs`](scripts/coverage-check.mjs)・[`scripts/pending-triage-check.mjs`](scripts/pending-triage-check.mjs)・[`scripts/amend-verify.mjs`](scripts/amend-verify.mjs) である。
+  特性照合と応答ヘッダーの正規化は、`parity-suite` で確定した取り決めに従い、プロジェクトの側のコピー（`trait-capture.mjs`・`trait-compare.mjs`・`header-normalize.mjs`）を使う。
 
 ## 姉妹スキルとの連携
 
-- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。本スキルの直前は同じ target で新側 green にした `parity-replace`（本スキルと往復）
-- **`parity-suite` から引き継ぐもの**: 強度ゲートで健全性を確認済みの差分器（画素・特性照合・aria の 3 経路のツール・しきい値）、ノイズ基準値、撮影条件（ページ一覧・マスクの論理名を含む）、
-  部品被覆表（`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読み、未測定が残れば収束させず `parity-suite` へ戻す。様式・被覆プロファイルの正本は `parity-suite`）、
-  反応の被覆表（`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --tests <テスト一覧> --recorded` で判定し、未測定が残れば収束させず `parity-suite` へ戻す。様式の正本は `parity-suite`）、
-  新側専用スペックの置き場所・`current` / `new` からの `testIgnore` 除外・採取用の `new-capture` プロジェクト（`suite.new_only`）。すべて `.replace/parity/<slug>/metadata.json` 経由
-- **`parity-replace` から引き継ぐもの**: 新側の部品突き合わせ（`component_coverage.declared: true` のとき `new/<target>/component-comparison.json`。
-  `parity-suite` の `component-comparison-check.mjs` で判定し、未突合が残れば収束させず `parity-replace` へ戻す。様式の正本は `parity-suite`）、
-  新側 green の証拠（`suite.new_green`）・target 名と新側 URL（`new.{target,ui_url,api_url}`。`url_command` の target は `"runtime"` が記録されるため target 設定から再解決する）・新側マッピング例外・実装時に前提としたデータセットバージョン（`dataset_version`）。
-  すべて選択 target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` から推測せず引く（スイートは再実行しない）。
-  データセットバージョンの**陳腐化判定はこの値では行わない**——判定は [`references/preflight.md`](references/preflight.md) の三者整合（`metadata.json` / dataset の `changes` / `phase_b.<slug>.<target>`）で行う
-- **`parity-replace` へ差し戻すもの**: 要対応差分が残り、target の `on_diff` が無い（既定）か、そのドキュメントが修正を指示するなら `diff.md` を差し戻し入力として**同じ target** で渡す。
-  反復回数の記録・上限管理（`--max-iterations` 既定 5）は `parity-replace` が当該 target の `replace-metadata.json` の `loop.*` で行う（環境ごとに独立）。上限超過時は差し戻さず停止してユーザーへ。
-  同 `loop.changed_scope`（直近の反復で描画に効く変更を入れた範囲）は自己ノイズ測定値を再利用してよい組の判定に使う（[`references/capture-new.md`](references/capture-new.md)「測定値の再利用」）
-- **`issue-create` へ委譲するもの**: target の `on_diff` ドキュメントが起票して停止する運用を指示するなら、差し戻しの代わりに要対応差分の要約（該当ページ・分類・根拠・`diff.md` のパス）を渡して起票し停止する（`gh` で直接起票しない）
-- **ブランチ作成・commit・PR は `issue-start` へ委譲**（`parity-replace` と同じ流儀。本スキルは実装フローを再実装しない）
-- **`replace-strategy status`** が `diff.md` / `diff-metadata.json` を読んで現況を導出する。
-  **他機能待ち（`blocked_by`）の解除検出もそちらが持つ**——依存先が同 target で新側 green になった slug を挙げ、本スキルの再実行が必要だと列挙する（本スキルは再実行時に前回の `blocked_by` を検証し直す）
+- 依存の順: 全体の依存の順は、`replace-strategy` の `SKILL.md`「姉妹スキルと依存順」で定義する（ここへ転記しない）。
+  このスキルの直前は、同じ target で新側を green にした `parity-replace` である（このスキルと行き来する）。
+- `parity-suite` から受け取るものは次のとおりで、すべて `.replace/parity/<slug>/metadata.json` を通して受け取る。
+  - 強度のチェックで健全なことを確かめた差分ツール（画素・特性照合・aria の 3 つの比較方法のツールとしきい値）、ノイズ基準値、撮影条件（ページの一覧とマスクの論理名を含む）
+  - 部品網羅表。`component_coverage.declared: true` のとき `.replace/parity/<slug>/component-coverage.json` を読む。
+    未測定が残れば、収束させずに `parity-suite` へ戻す（様式と網羅プロファイルは `parity-suite` で定義する）
+  - 反応の網羅表。`reaction_coverage.declared: true` のとき `parity-suite` の `reaction-check.mjs --tests <テスト一覧> --recorded` で判定する。
+    未測定が残れば、収束させずに `parity-suite` へ戻す（様式は `parity-suite` で定義する）
+  - 新側専用のスペックの置き場所、`current` / `new` からの `testIgnore` の除外、採取用の `new-capture` プロジェクト（`suite.new_only`）
+- `parity-replace` から受け取るものは次のとおりで、すべて選択した target の `.replace/parity/<slug>/new/<target>/replace-metadata.json` から読む（推測せず、スイートも実行し直さない）。
+  - 新側の部品の突き合わせ。`component_coverage.declared: true` のとき `new/<target>/component-comparison.json` を、`parity-suite` の `component-comparison-check.mjs` で判定する。
+    突き合わせていないものが残れば、収束させずに `parity-replace` へ戻す（様式は `parity-suite` で定義する）
+  - 新側の green の証拠（`suite.new_green`）
+  - target の名前と新側の URL（`new.{target,ui_url,api_url}`）。`url_command` の target では `"runtime"` が記録されるので、target の設定から解決し直す
+  - 新側のマッピングの例外と、実装で前提にしたデータセットの版（`dataset_version`）
+  - データセットの版が古くなったかは、この値では判定しない。判定は [`references/preflight.md`](references/preflight.md) の三者の整合（`metadata.json`・データセットの `changes`・`phase_b.<slug>.<target>`）で行う
+- `parity-replace` へ差し戻すもの: 要対応の差分が残り、target の `on_diff` が無い（デフォルト）か、そのドキュメントが修正を指示するとき、`diff.md` を差し戻しの入力として同じ target で渡す。
+  反復の回数の記録と上限の管理（`--max-iterations` のデフォルトは 5）は、`parity-replace` がその target の `replace-metadata.json` の `loop.*` で行う（環境ごとに独立している）。
+  上限を超えたら、差し戻さずに停止してユーザーへ上げる。
+  同じ `loop.changed_scope`（直近の反復で描画に影響する変更を入れた範囲）は、自己ノイズの測定値を再利用してよい組の判定に使う（[`references/capture-new.md`](references/capture-new.md)「測定値の再利用」）。
+- `issue-create` に任せるもの: target の `on_diff` のドキュメントが「起票して停止する」運用を指示するとき、差し戻す代わりに、要対応の差分の要約（該当のページ・分類・根拠・`diff.md` のパス）を渡して起票し、停止する（`gh` で直接起票しない）。
+- ブランチの作成・commit・PR は `issue-start` に任せる（`parity-replace` と同じやり方。このスキルは実装の流れを作り直さない）。
+- `replace-strategy status` が、`diff.md` と `diff-metadata.json` を読んで今の状態を導く。
+  他機能待ち（`blocked_by`）が解けたことの検出も、`replace-strategy status` が行う。
+  依存先が同じ target で新側を green にした slug を挙げ、このスキルの再実行が要ると示す（このスキルは、再実行のときに前回の `blocked_by` を検証し直す）。

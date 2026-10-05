@@ -1,7 +1,7 @@
 # 引数の設計（component-api）
 
 <!-- parity-component の capture が .replace/components/<slug>/component-api.md として生成し、build が判断を追記する。 -->
-<!-- このファイルの形式の正本は parity-component が定義する。 -->
+<!-- このファイルの形式は parity-component が定義する。 -->
 <!-- 残すのは「割り出しの結果どう判断したか」。axis-diff.mjs の出力そのものは axes.json に併存させ、ここへ貼り直さない。 -->
 <!-- 各行は例。実際の軸・判断で置き換える。 -->
 
@@ -29,12 +29,12 @@
 | （例: default / padding-left） | 現行の不整合 | ユーザー確認へ | （`intentional_diffs.pending` の該当項目） |
 | （例: hover / color） | 未判別 | ユーザーへ上げる | （区別する理由を見つけられていない） |
 
-- **未判別を「現行の不整合」に倒さない。** 用途の違いを見つけられていないだけのことがある
+- **未判別を「現行の不整合」として扱わない。** 用途の違いを見つけられていないだけのことがある
 
 ## 勝っている宣言（カスケード解決）
 
 <!-- cascade-resolve.mjs で確定した勝者。競合があった軸だけ書く（競合の無い軸は書かない）。 -->
-<!-- 手順の正本は parity-component の references/catalog.md「勝っている宣言を確定してから写す」。 -->
+<!-- 手順の原本は parity-component の references/catalog.md「勝っている宣言を確定してから転記する」。 -->
 
 - 実行した確定コマンドと exit: （`cascade-resolve.mjs --css-rules <path> --state <state> --all` の exit。1 なら下の未確定表に全件並べる）
 - 採取の完全性: （出力の `capture_completeness`。`inaccessible` / `unresolved` が非ゼロなら `--allow-incomplete` で免除した理由も書く。免除していなければ「完全（0 / 0）」）
@@ -69,7 +69,7 @@
 
 - 標準コントロールを使っているか: （現行の実測。`select` / `checkbox` 等）
 - `::before` / `::after` で描いている箇所: （軸 `::before/<present>` の割り出し結果）
-- 新側で採る方式: （現行の方式を写す。変えるならユーザー確認の記録）
+- 新側で採る方式: （現行の方式をそのまま採る。変えるなら、ユーザーが確認した記録）
 
 ## 未確定・確認待ち
 

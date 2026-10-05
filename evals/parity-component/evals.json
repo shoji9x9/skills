@@ -138,7 +138,7 @@
         "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
         "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
         "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
-        "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べている",
+        "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
         "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
         "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
         "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている"
@@ -173,7 +173,7 @@
           "prompt_quote": "何を・どの順で"
         },
         {
-          "assertion": "info / success で 15 秒後に自動で閉じる時間を、探針で閉じる遷移の遅れとして測ると述べている",
+          "assertion": "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
           "prompt_quote": "何を・どの順で・どの条件で採り"
         },
         {
@@ -196,37 +196,37 @@
       "fixture": "fixtures/lifecycle-binding",
       "requires_skills": ["parity-suite"],
       "assertions": [
-        "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で壊れる経路の検査の対象だと判断している",
-        "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる経路を名指ししている",
-        "初期化の後に disabled が変わっても setEnabled が呼び直されない経路を名指ししている",
-        "経路ごとに順番を強制する見本を置き、経路に入った回数を data-* 属性で出すと述べている",
-        "検査は経路に入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+        "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+        "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
+        "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+        "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+        "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
         "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
         "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
-        "直した処理を外すとその経路の検査だけが落ちることを確かめると述べている",
+        "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
         "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
         "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
-        "壊れる処理を名指しできない経路を、理由付きで not_applicable_paths に回すと述べている"
+        "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている"
       ],
       "reachability": [
         {
-          "assertion": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で壊れる経路の検査の対象だと判断している",
+          "assertion": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
           "prompt_quote": "新側の実装は new-app/src/components/Button/Button.tsx"
         },
         {
-          "assertion": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる経路を名指ししている",
+          "assertion": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
           "prompt_quote": "完了判定（手順 8）に進んでよいかを判断し"
         },
         {
-          "assertion": "初期化の後に disabled が変わっても setEnabled が呼び直されない経路を名指ししている",
+          "assertion": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
           "prompt_quote": "残っている工程があれば"
         },
         {
-          "assertion": "経路ごとに順番を強制する見本を置き、経路に入った回数を data-* 属性で出すと述べている",
+          "assertion": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
           "prompt_quote": "その手順と結論を報告して"
         },
         {
-          "assertion": "検査は経路に入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "assertion": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
           "prompt_quote": "その手順と結論を報告して"
         },
         {
@@ -238,7 +238,7 @@
           "prompt_quote": "完了判定（手順 8）に進んでよいかを判断し"
         },
         {
-          "assertion": "直した処理を外すとその経路の検査だけが落ちることを確かめると述べている",
+          "assertion": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
           "prompt_quote": "その手順と結論を報告して"
         },
         {
@@ -250,7 +250,7 @@
           "prompt_quote": "結果は .replace/components/button/new/local-dev/build-metadata.json に記録してある"
         },
         {
-          "assertion": "壊れる処理を名指しできない経路を、理由付きで not_applicable_paths に回すと述べている",
+          "assertion": "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
           "prompt_quote": "残っている工程があれば"
         }
       ]

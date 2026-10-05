@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
  */
 export const VERSION = "20";
 
-/** 被覆表のセルが取りうる値（正本は coverage.md「部品被覆表」）。 */
+/** 被覆表のセルが取りうる値（正本は coverage.md「部品網羅表」）。 */
 const VALUES = ["present", "absent", "unmeasured"];
 
 // 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
@@ -638,7 +638,7 @@ function collectGenericIds(entries, label, problems) {
 }
 
 /**
- * 被覆表のセル 1 件を採点する。判定規則の正本は `references/coverage.md`「部品被覆表」。
+ * 被覆表のセル 1 件を採点する。判定規則の正本は `references/coverage.md`「部品網羅表」。
  * **候補経路（プロファイル宣言あり）と汎用経路（`profile: null`）で同じ規則を使う**——
  * 片方だけ検査すると、記録側は conformance.ok を出すのに収束側（parity-diff の
  * coverage-check.mjs）が同じ表を弾く状態になる。
@@ -1854,7 +1854,7 @@ export function reconcile(coverage, profiles, metadata = null) {
           }
         }
 
-        // セルの判定規則は coverage.md「部品被覆表」が正本。候補由来の期待セルへ同じ規則を当てる。
+        // セルの判定規則は coverage.md「部品網羅表」が正本。候補由来の期待セルへ同じ規則を当てる。
         const key = keyOf(cid, cand.id, iid);
         expectedKeys.add(key);
         // 記録の不備とセルの不備は別の欠陥として数える。判定側は軸値が引けない候補を 1 件数えたうえで、

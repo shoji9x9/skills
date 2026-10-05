@@ -1,5 +1,5 @@
 {
-  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の正本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が正本で、ここへ転記しない。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の正本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。正本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
+  "_note": "parity-component の capture が .replace/components/<slug>/metadata.json として生成する。形式の原本は parity-component が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。撮影条件・ノイズ基準値の意味論は parity-suite の references/baseline.md が原本で、ここへ転記しない。 pending_decisions は --autonomous の実行で人の判断待ちにした保留（要素の形・持ち越し・解決の記録の原本は replace-strategy の references/autonomy.md「記録の形」）。自律実行でない実行・保留の無い実行も空配列を書く。次の実行は上書きする前に未解決の保留（resolution: null と、回答はあるが blocks の工程を実施した記録 resumed も残作業の置き場 follow_up も無いもの。原本は replace-strategy の references/autonomy.md「保留の状態」）を読む。",
   "slug": "<.replace/components.md が採番した slug（自分で採番しない）>",
   "component": "<部品の呼び名（components.md の表記）>",
   "target": {
@@ -16,7 +16,7 @@
     "skill_version": "<parity-component のバージョン>",
     "autonomous": "<--autonomous で起動した実行なら true、それ以外は false（真偽値で書く）>"
   },
-  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの来歴でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の正本は golden-dataset の references/versioning.md>",
+  "dataset_version": "<採取時の .replace/dataset/metadata.json の version。データ依存部品の抽出データの出所でもある。陳腐化は版の数値では決まらず、この版から現在までの changes[].affects がこの部品の実効参照テーブルと交差するときだけ。判定規則の原本は golden-dataset の references/versioning.md>",
   "capture": {
     "complete": "<採取が**比較の母集合**（instances × capture.states − 宣言済みの unreachable_states）で完了したか。全インスタンス × 全状態ではない——宣言済みの到達不能な組み合わせを数えると、正当な採取が永久に false のまま build を塞ぐ。build はこの値が true のときだけ進む。真偽値で書く>",
     "states": [
@@ -37,7 +37,7 @@
     "operations_none_reason": "<操作を持たない部品（静的な表示だけ等）のときだけ理由を書き operations を空配列にする。それ以外は null>",
     "motions": {
       "source_scan": [
-        "<現行のソースで見つけた、この部品に掛かる動きの呼び出し・宣言（例: message.js:42 show('slide', {direction: 'up'}, 600) / css-rules.json の transition: opacity .2s）。見つからなければ空配列にし、何を数えたかを none_reason に書く。判定の手順の正本は parity-component の references/motion.md>"
+        "<現行のソースで見つけた、この部品に掛かる動きの呼び出し・宣言（例: message.js:42 show('slide', {direction: 'up'}, 600) / css-rules.json の transition: opacity .2s）。見つからなければ空配列にし、何を数えたかを none_reason に書く。判定の手順の原本は parity-component の references/motion.md>"
       ],
       "transitions": [
         {
@@ -50,10 +50,10 @@
           ]
         }
       ],
-      "none_reason": "<探針で比べる動きが無い部品のときだけ理由を書き transitions を空配列にする（例: 部品の規則に transition / animation が無く、JS の動きの呼び出しも無い／色だけの transition しか無く、それは gaps.md に残した）。transitions には探針が採れる動き（矩形か実効の不透明度が変わるもの）だけを入れる。それ以外は null>"
+      "none_reason": "<プローブで比べる動きが無い部品のときだけ理由を書き transitions を空配列にする（例: 部品の規則に transition / animation が無く、JS の動きの呼び出しも無い／色だけの transition しか無く、それは gaps.md に残した）。transitions にはプローブが採れる動き（矩形か実効の不透明度が変わるもの）だけを入れる。それ以外は null>"
     },
     "auth_roles": [
-      "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の正本は parity-suite の references/auth.md>"
+      "<採取に使ったロール名（設定 targets[].auth.roles のキー）。認証不要な target では空配列。ロール名は設定・成果物を通して同じ名前を使い読み替えない。規律の原本は parity-suite の references/auth.md>"
     ],
     "tools": {
       "traits": "<parity-suite 同梱 trait-capture.mjs のコピー先パス>",
@@ -78,7 +78,7 @@
       "auth_role": "<このインスタンスのページへ到達するのに使ったロール名。認証不要なら null。capture.auth_roles に含まれること>",
       "data": {
         "dependent": "<描画がデータに左右される部品か。真偽値で書く>",
-        "rows": "<データ依存のとき、採取範囲に写した行数。見本にも同じ件数を与える>",
+        "rows": "<データ依存のとき、採取範囲に入れた行数。見本にも同じ件数を与える>",
         "extract_path": "<抽出した実データのパス（例: baseline/<id>/data.json）。データ依存でなければ null>"
       },
       "unreachable_states": [
@@ -100,7 +100,7 @@
         }
       ],
       "ua_defaults": [
-        "<当たっている CSS 規則が無く、ブラウザ・OS の既定で決まっていると判定した項目。採取環境でだけ一致する穴になるため記録する>"
+        "<当たっている CSS 規則が無く、ブラウザ・OS の既定で決まっていると判定した項目。採取環境でだけ一致する抜けになるため記録する>"
       ]
     }
   ],
@@ -115,7 +115,7 @@
       }
     ],
     "animations": "disabled",
-    "element_screenshot": "<要素の矩形で撮ったこと（parity-suite 同梱 element-shot.mjs。locator.screenshot は外接整数矩形へ丸めるので使わない）。ページ全体ではないため margin は写らない。真偽値で書く>",
+    "element_screenshot": "<要素の矩形で撮ったこと（parity-suite 同梱 element-shot.mjs。locator.screenshot は外接整数矩形へ丸めるので使わない）。ページ全体ではないため margin は撮影範囲に入らない。真偽値で書く>",
     "masks": [
       "<認証情報・トークン・個人情報・揮発項目を成果物へ残さないための恒久マスク（parity-suite の references/auth.md の方針に従う）>"
     ]

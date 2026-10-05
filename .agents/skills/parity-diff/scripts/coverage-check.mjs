@@ -774,7 +774,7 @@ function readJustifiedElementAbsences(raw) {
 }
 
 /**
- * セル 1 件を採点する。判定規則の正本は parity-suite の references/coverage.md「部品被覆表」。
+ * セル 1 件を採点する。判定規則の正本は parity-suite の references/coverage.md「部品網羅表」。
  * @param {Record<string, unknown>|undefined} row
  * @param {boolean} duplicated
  * @param {string} label - 問題文に付けるセルの識別子
