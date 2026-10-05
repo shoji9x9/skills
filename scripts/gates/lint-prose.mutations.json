@@ -1,0 +1,132 @@
+{
+  "$comment": [
+    "lint-prose.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/lint-prose.test.js",
+  "mutations": [
+    {
+      "id": "LP-EXCLUDE",
+      "why": "エージェント用のコピー・台帳・テスト結果を対象から外さない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (EXCLUDED_PREFIXES.some((p) => rel.startsWith(p))) return false;",
+      "replace": "  if (false) return false;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない",
+        "ファイル指定: 渡したもののうち対象だけを見る（保留していないファイルの指摘は報告する）"
+      ]
+    },
+    {
+      "id": "LP-SYMLINK",
+      "why": "シンボリックリンクを対象から外さない（リンク先と二重に見る）",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  return !lstatSync(abs).isSymbolicLink();",
+      "replace": "  return true;",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない"
+      ]
+    },
+    {
+      "id": "LP-RULES",
+      "why": "rule の実体（.agents/rules/）を見ない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (rel.startsWith(\".agents/rules/\")) return true;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["陽性: rule の実体・private skill の実体・有効な学びは見る"]
+    },
+    {
+      "id": "LP-PRIVATE",
+      "why": "private skill の実体を見ない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "existsSync(join(root, \".agents/skills\", skill[1], \".private-skill\"))",
+      "replace": "false",
+      "occurrences": 1,
+      "expect_failing": ["陽性: rule の実体・private skill の実体・有効な学びは見る"]
+    },
+    {
+      "id": "LP-COPIES",
+      "why": ".private-skill を持たないスキルのコピーも見る",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (rel.startsWith(\".agents/\") && !isAgentsSource(root, rel)) return false;",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: スキルのコピー・エージェント用のリンク・過去の記録・テスト結果・シンボリックリンク・.md 以外は見ない"
+      ]
+    },
+    {
+      "id": "LP-UNTRACKED",
+      "why": "ignore されていない未追跡のファイルを見ない（新しく作った文書が commit 前に見られない）",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "\"--cached\", \"--others\", \"--exclude-standard\",",
+      "replace": "\"--cached\",",
+      "occurrences": 1,
+      "expect_failing": ["陽性: ignore されていない未追跡のファイルも見る"]
+    },
+    {
+      "id": "LP-ZERO",
+      "why": "全体を見る実行で対象 0 件を合格として扱う",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (whole && targets.length === 0) throw new Error(\"対象の Markdown が 0 件\");",
+      "replace": "  if (false) throw new Error(\"対象の Markdown が 0 件\");",
+      "occurrences": 1,
+      "expect_failing": [
+        "全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）"
+      ]
+    },
+    {
+      "id": "LP-PENDING",
+      "why": "保留したファイルの指摘も数える（書き換え前のファイルで毎回落ちる）",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    if (pending.has(rel)) {",
+      "replace": "    if (false) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "陰性: 保留したファイルの指摘は数えない",
+        "陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める"
+      ]
+    },
+    {
+      "id": "LP-STALE",
+      "why": "指摘が 0 件になった保留を古い一覧として報告しない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "      if (messages.length === 0)",
+      "replace": "      if (false)",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 保留したファイルの指摘が 0 件になったら、一覧から外すよう求める"]
+    },
+    {
+      "id": "LP-GONE",
+      "why": "保留したファイルが無くなっても報告しない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "      if (!existsSync(join(root, rel)))",
+      "replace": "      if (false)",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 保留したファイルが無ければ、一覧から外すよう求める（全体を見るときだけ）"
+      ]
+    },
+    {
+      "id": "LP-REASON",
+      "why": "保留の理由が空でも受け付ける",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (typeof data?.reason !== \"string\" || !data.reason.trim()) {",
+      "replace": "  if (false) {",
+      "occurrences": 1,
+      "expect_failing": ["保留の一覧がreason が空なら例外にする"]
+    },
+    {
+      "id": "LP-DUP",
+      "why": "保留の一覧の重複を受け付ける",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "  if (set.size !== files.length) throw new Error(\"files に同じパスが重複している\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["保留の一覧がfiles が重複なら例外にする"]
+    }
+  ]
+}

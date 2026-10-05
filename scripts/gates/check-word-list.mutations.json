@@ -1,0 +1,78 @@
+{
+  "$comment": [
+    "check-word-list.test.js の検出能力を示す変異の一覧。",
+    "散文コメントで持つと古くなるため、データとして持ち scripts/mutation/check-mutation-proof.js が再実行する。",
+    "テスト名を変えたら expect_failing も直す（実在しない名前は基準 run で検出して exit 2）。"
+  ],
+  "test_file": "scripts/gates/check-word-list.test.js",
+  "mutations": [
+    {
+      "id": "WL-COMPARE",
+      "why": "一覧の内容を比べない（食い違い・不在を通す）",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "  if (existsSync(path) && readFileSync(path, \"utf8\") === expected)\n",
+      "replace": "  if (true)\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 1 行だけ違えば一致しないと報告し、ファイルは書き換えない",
+        "陽性: 一覧のファイルが無ければ一致しないと報告する",
+        "--fix: 生成した内容で書き換え（無ければ作り）、その後は一致する",
+        "main: 一致なら 0、食い違いは 1、作れなければ 2 を返す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、食い違いは exit 1、--fix の後は exit 0"
+      ]
+    },
+    {
+      "id": "WL-NOFIX",
+      "why": "--fix なしでも書き換える",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "  if (!fix) return { ok: false, fixed: false };",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "陽性: 1 行だけ違えば一致しないと報告し、ファイルは書き換えない",
+        "陽性: 一覧のファイルが無ければ一致しないと報告する",
+        "main: 一致なら 0、食い違いは 1、作れなければ 2 を返す",
+        "陽性コントロール（CLI）: 子プロセスとして起動しても、食い違いは exit 1、--fix の後は exit 0"
+      ]
+    },
+    {
+      "id": "WL-PAIR",
+      "why": "term と instead の片方だけを持つエントリを通す",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "    if (hasTerm !== hasInstead)",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": ["term だけを持つ なら例外にする", "instead だけを持つ なら例外にする"]
+    },
+    {
+      "id": "WL-DUP",
+      "why": "term の重複を通す",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "    if (seen.has(e.term)) throw new Error(`term「${e.term}」が重複している`);",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["term が重複 なら例外にする"]
+    },
+    {
+      "id": "WL-PIPE",
+      "why": "「|」を含むエントリを通す（表が崩れる）",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "    if (`${e.term}${e.instead}`.includes(\"|\"))",
+      "replace": "    if (false)",
+      "occurrences": 1,
+      "expect_failing": ["「|」を含む なら例外にする"]
+    },
+    {
+      "id": "WL-ZERO",
+      "why": "一覧が 0 行でも通す",
+      "file": "scripts/gates/check-word-list.js",
+      "find": "  if (rows.length === 0) throw new Error(\"一覧に出すエントリが 0 件\");",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": [
+        "一覧に出す行が 0 件 なら例外にする",
+        "main: 一致なら 0、食い違いは 1、作れなければ 2 を返す"
+      ]
+    }
+  ]
+}

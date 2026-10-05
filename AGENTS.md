@@ -1,321 +1,211 @@
 # Skills
 
-Claude Code / Codex / GitHub Copilot に対応したマルチエージェント向けスキル集。
+Claude Code・Codex・GitHub Copilot に対応した、マルチエージェント向けのスキル集。
 
 ## プロジェクト概要
 
-このリポジトリは、複数の AI エージェントが共通のスキル・ルール・Hooks・ドキュメント構造を共有できるよう整備するための汎用スキルを提供する。  
-スキルは `gh skill install` で任意のプロジェクトにインストールして使用する。
+複数の AI エージェントが、スキル・ルール・Hooks・ドキュメントの構成を共有できるようにするための汎用スキルを提供する。
+スキルは `gh skill install` で任意のプロジェクトにインストールして使う。
 
 ## 技術スタック
 
-- **スキル管理**: GitHub CLI (`gh skill`、**v2.90.0+**)、Agent Skills 仕様
-- **パッケージマネージャ**: pnpm（mise で管理）。版の正本は `mise.toml`・`package.json` の `packageManager` / `devEngines.packageManager`・`pnpm-lock.yaml` の 4 箇所。
-  **npm は使わない**（`package-lock.json` を作らない。誤った PM 利用は `devEngines` が警告する）
-  - bump 手順（正本 4 箇所の同期）・broken 版回避は [`docs/package-manager.md`](docs/package-manager.md) を参照
-- **フォーマッタ／リンタ**: 下表の通り（**prettier は使わない**）
-- **テスト**: skill-creator（eval viewer に Python 3.8+）、集計は `scripts/eval/build-skill-eval-benchmark.js`（Node）
-- **環境管理**: mise
-- **ツール起動**: スクリプト・lefthook・CI からツールを起動する際は `./node_modules/.bin/<tool>` のハードパスで叩かず、`pnpm exec <tool>`（または mise の shim）経由で起動する
-  - **例外: 1 回の実行で同じツールを数十回以上起動するスクリプト**は、`pnpm exec` の起動コスト（実測 1 回約 0.6 秒）が支配的になるため、
-    Node のモジュール解決（`createRequire(...).resolve("<pkg>/package.json")` の `bin`）で entry を求めて `node` で起動してよい（現状は `scripts/mutation/check-mutation-proof.js` の子 vitest のみ）。
-    この場合も `.bin` のハードパスは使わない
-  - **mise の shim は cwd の設定階層で解決する。** リポジトリ外の cwd（`/tmp` 等）から素のコマンド名で起動すると
-    `No version is set for shim` で落ちる（グローバル既定が無いため。untrusted とは別の失敗）。
-    プロジェクト外で動かす検証は `mise which <tool>` で実体パスを解決して渡すか、cwd をプロジェクト内に保つ
+- スキルは GitHub CLI（`gh skill`、v2.90.0 以上）と Agent Skills 仕様で管理する。
+- パッケージマネージャは pnpm で、版は mise で管理する。npm は使わず、`package-lock.json` を作らない。版を変える手順は [`docs/package-manager.md`](docs/package-manager.md) にある。
+- ツールは `pnpm exec <tool>` か mise の shim で起動する。`./node_modules/.bin/<tool>` を直接指定しない。
+- mise の shim はリポジトリの外のディレクトリでは解決できない。リポジトリの外で動かすときは、`mise which <tool>` で実体のパスを取得して使う。
+- `oxfmt` には Markdown とディレクトリを渡さない。Markdown の整形は `markdownlint-cli2 --fix` で行う。prettier は使わない。
 
-### リント／フォーマット
+| 対象 | リント | 整形 |
+| --- | --- | --- |
+| Markdown | `markdownlint-cli2`、文章は textlint（`scripts/gates/lint-prose.js`） | `markdownlint-cli2` |
+| JavaScript・TypeScript | `oxlint` | `oxfmt` |
+| JSON | `jsonlint` | `oxfmt` |
+| YAML | `js-yaml`（`scripts/gates/lint-yaml.js`） | `oxfmt` |
+| シェル | `shellcheck` | `shfmt` |
+| GitHub Actions | `actionlint` と `ghalint`、SHA の固定は `pinact` | `oxfmt` |
 
-| 対象                                              | リント              | フォーマット        | 補助検査                                                                                  |
-| ------------------------------------------------- | ------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| Markdown (`*.md`)                                 | `markdownlint-cli2` | `markdownlint-cli2` | `scripts/gates/lint-pagination.js` で shell コードブロック内の `gh api` ページネーションを検査 |
-| JavaScript / TypeScript (`*.js`, `*.mjs`, `*.ts` 等) | `oxlint`          | `oxfmt`             | なし                                                                                      |
-| JSON (`*.json`)                                   | `jsonlint`          | `oxfmt`             | duplicate key も検査                                                                      |
-| YAML (`*.yml`, `*.yaml`)                          | `js-yaml`（`scripts/gates/lint-yaml.js` が API で 1 プロセスにまとめて読む） | `oxfmt` | なし |
-| Shell (`*.sh`)                                    | `shellcheck`        | `shfmt`             | `scripts/gates/lint-pagination.js` で `gh api` ページネーションを検査                          |
-| GitHub Actions (`.github/workflows/*.{yml,yaml}`) | `actionlint` + `ghalint` | `oxfmt` | `pinact` で SHA pinning を確認 |
+JavaScript の拡張子は、配布する `skills/**` では `.mjs`、配布しない `scripts/**` と private skill では `.js` にする。
+ツールが読む設定ファイル（`vitest.config.ts` など）は `.ts` にする。`scripts/gates/check-js-extensions.js` がこれをチェックする。
 
-表のうち `shellcheck`・`shfmt`・`actionlint`・`pinact`・`ghalint`・`gitleaks` は mise でインストールし（`mise.toml`）素のコマンド名で起動する。それ以外は pnpm devDependencies（`pnpm exec` で起動）。
-
-- **`oxlint` / `oxfmt` の対象は JS/TS ファミリ全体**（`js` / `mjs` / `cjs` / `jsx` / `ts` / `tsx` / `mts` / `cts`）。CI は引数なし（`pnpm run lint:js`）で走らせるためこの範囲を自動で拾う。
-  **lefthook の glob と `format:js*` スクリプトの glob もこの範囲に揃える**——片方だけ狭いと、その拡張子は手元で検査されず CI でだけ落ちる。
-- **GitHub Actions のポリシー検査**: `actionlint`（構文）に加え `ghalint`（`permissions`・`timeout-minutes`・`persist-credentials` 等のポリシー）で多層検査する。`ghalint` は全走査のため pre-commit に入れず CI（`GitHub Actions lint`）専任。
-- **横断ゲート（ファイル種別に依らない検査）**: pre-commit と CI の `Lint` ジョブで次を走らせる。いずれも対象 0 件を成功に倒さない。
-  `scripts/gates/check-rule-symlinks.js`（rule の多エージェント配線）/ `scripts/gates/check-control-chars.js`（テキスト拡張子への制御バイト混入）/
-  `scripts/gates/check-eval-reachability.js`（eval の assertion と prompt の対応）/ `scripts/gates/check-skills-sync.js` / `scripts/gates/check-js-extensions.js` /
-  `scripts/gates/check-skill-frontmatter.js` / `scripts/gates/lint-pagination.js` /
-  `scripts/gates/check-kaizen-refs.js`（`.kaizen/` の学びへの参照の実在。意図的な非実在は `scripts/gates/kaizen-refs-exemptions.json`）/
-  `scripts/gates/check-identical-copies.js`（同一であるべきコピー。組は `scripts/gates/identical-copies.json`）/
-  `scripts/gates/check-skill-checks.js`（配布スキルの検査〈`*-check.*`〉を、利用者の入口へ配線する〈`skills/<name>/checks.json`〉か
-  しない〈理由付きで `scripts/gates/skill-checks-unwired.json`〉かのどちらかへ分類）/
-  `scripts/gates/check-mutation-count-prose.js`（変異の件数・全件の実測値を散文・ワークフローのコメントへ書かない。置き場は `mutation-proof.yml` だけ）/ `scripts/gates/check-skill-index.js`（スキルガイド・README とスキル実体の対応）。
-- **変異実証（CI 専任）**: `scripts/mutation/check-mutation-proof.js` が `scripts/**/*.mutations.json` の宣言を再実行し、
-  各変異について「置換が当たったこと」と「宣言したテストがそれだけ落ちたこと」を確かめる。
-  検査の検出能力の記録を散文コメントで持つと腐るため、データとして持ちここで機械的に取り直す。
-  - **PR では差分に当たる宣言だけ**を測る（`--changed-since origin/<base>`。当たり方は「実行器が変わった＝全件」
-    「宣言ファイル自身」「その宣言の `test_file` か変異の対象ファイル」の 3 通り）。全件は毎 PR では払えない重さになる（実測値は `.github/workflows/mutation-proof.yml` のコメント）。
-    1 変異 = 対象テストファイル 1 回の実行なので、対象テストは子プロセスを起動せず `main` を直接呼び、CLI としての起動は陽性コントロールの数本に絞る。
-    CI では選んだ変異を matrix で 6 分割して並べて走らせ（`--shard i/N`）、必須チェック名 `Mutation proof (PR)` は全シャードの成功を確かめる集約ジョブが持つ。
-    実行器のテストは本物の vitest を e2e の 3 本に絞り、残りはスタブで回す（`MUTATION_PROOF_TEST_COMMAND`）。
-  - **全件は週次の定期実行**（`.github/workflows/mutation-proof.yml`）。対象も検査も変わっていない宣言は前回の実証が
-    有効だが、共有ライブラリやツールの版で前提が崩れることはあるので測り直す。
-  - pre-commit には入れない（実行中に対象ファイルを書き換えて戻すため、staged な変更と混ざると取り違える）。
-    **並行して走らせない**——同時実行はロックで弾くが、無関係な `pnpm test` と重ねると変異中の中間状態を読んで無関係に赤くなる（実測）。
-  - **実行器自身を変異させる宣言があるときは、`--changed-since` を測るテストを `--only` で有界にする。**
-    選択の判定を常に真にする変異が入ると、入れ子の runner が指数的に増える（実測で 30 分以上・21 プロセス以上、
-    殺した後の作業ツリーに変異が残った）。
-- **実行前ゲート（PreToolUse）**: `scripts/hooks/bash-command-guard.sh` が、文章規約で防げず再発した 2 形を Bash 実行前に止める——
-  `gh api` と同じセグメントの `--body-file`（`gh api` にこのフラグは無い。`gh pr` / `gh issue` の `--body-file` は通す）と、
-  文字クラスで自分を避けていない `pkill -f` / `killall -f`（照合対象が full command line なので自分のシェルに一致する）。
-  3 エージェントぶん配線してある（`.claude/settings.json` / `.codex/hooks.json` / `.github/hooks/kaizen-session.json`）。
-- **シークレット走査**: `gitleaks` で行う。pre-commit はステージ差分（`gitleaks git --staged`）、CI はリポジトリ全体・全履歴（`Secret scan` ジョブ・`fetch-depth: 0`）を走査する。
-- **整形の割り当ての正本は `lefthook.yml` の glob と `package.json` の `format:*`**。上表はその要約であって、ツールが扱える範囲の上限ではない。
-  フォーマッタを当てる前に、そのファイル種別がそのフォーマッタに**割り当てられているか**を正本で確かめる。
-  割り当て外のファイルに `--check` を当てて赤くなっても、それは誰も強制していない検査なので指摘ではない（直すと無関係な差分になる）。
-- **`oxfmt` には Markdown を渡さない**。oxfmt は渡されたファイルを種類で判定して整形するため、`.md` を渡すと表の桁揃えまで行う。
-  Markdown の整形は `markdownlint-cli2 --fix`。**oxfmt にディレクトリを渡さず対象ファイルを列挙する**（ディレクトリを渡すと目的外のファイルが黙って書き換わる）。
-  生成物の整形は生成スクリプト自身が出力ファイルを列挙して行い、手順書で人に oxfmt を当てさせない。
-- **Markdown の行長（MD013）**: `markdownlint-cli2` の MD013 は非 strict 運用（`line_length: 200`、`code_blocks` / `tables` / `headings` は除外）。
-  200 桁超でも**半角スペース（改行可能点）が 200 桁を超えた位置に残る行だけ**を弾く。
-  純 CJK の長行は分かち書きしないため通るが、英数字・ツール名など半角スペースを含む語を長行に足すと fail する。
-  日本語長行に英数を追記したら、200 桁以内に収めるか、200 桁超に半角スペースを残さないよう折り返す。
-
-JavaScript の拡張子は配布有無で使い分ける（新規ファイルもこれに従う）。
-
-- **配布物は `.mjs`**: 配布スキル一式（`skills/**`）に含まれる JavaScript。インストール先の `package.json` の `type` に依存せず Node が常に ESM として解釈するため。
-- **非配布物は `.js`**: リポジトリ内ツール・テスト（`scripts/**/*.js`）と、配布しない private skill（`.private-skill`。`.agents/skills/<name>/` のみに存在）のスクリプト。
-  `package.json` の `"type": "module"` 下で ESM として動くため拡張子で ESM を明示する必要がない。
-- **ツールが読む設定は `.ts`**: `vitest.config.ts` / `scripts/lib/vitest-global-setup.ts` / `commitlint.config.ts` / `release.config.ts` / `commit-types.ts` /
-  `oxlint.config.ts` / `oxfmt.config.ts`。各ツールが `.ts` を自動探索して読む（commitlint と semantic-release の TypeScript loader が要る `typescript` は devDependencies に明示する。
-  oxlint の `.ts` 設定は Node.js 経由の起動が前提なので、素のバイナリではなく `pnpm exec oxlint` で起動する）。
-  `.ts` を読まないツールの設定は元の形式のまま（markdownlint-cli2 は `.mjs` / `.cjs` / JSON / YAML、lefthook は YAML / JSON / TOML、
-  mise・pnpm・GitHub・各エージェントの設定は形式がツール側で決まっている）。
-- この規約は `scripts/gates/check-js-extensions.js` が lefthook pre-commit と CI（`Lint` ジョブ）で検査する（`skills/**` 配下の `.js` と `scripts/**` 配下の `.mjs` を fail させる）。
-
-`tests/**` はリント／フォーマット対象に含める。`.agents/**` と `.claude/**` はインストール済みコピー／エージェント用シンボリックリンクのため対象外にする。
+pre-commit と CI で実行するチェックの一覧、ミューテーションテスト、Markdown の行長などの詳細は [`docs/tooling.md`](docs/tooling.md) にある。
 
 ## ディレクトリ構造
 
 ```text
-skills/<name>/          スキル実体（gh skill publish の対象）
-  SKILL.md              スキルのメイン指示
-  references/           進行的開示の補助ドキュメント（コンポーネント手順等。SKILL.md から参照）
-  checks.json           利用者の検査の入口（pre-commit・CI）へ配線すべき検査の宣言（scripts/ に *-check.* を持つスキルだけ）
-evals/<name>/           回帰テスト（配布しないため skills/<name>/ の外に置く）
-  evals.json            回帰テスト定義
-  README.md             テスト実行手順
-  fixtures/             fixture 付き eval の初期状態
-tests/<name>/           テスト結果（git 管理はサマリーのみ）
+skills/<name>/          スキルの実体（gh skill publish の対象）
+  SKILL.md              スキルのメインの指示
+  references/           SKILL.md から必要なときに読む補助ドキュメント
+  checks.json           利用者の pre-commit・CI に組み込むべきチェックの宣言（scripts/ に *-check.* を持つスキルだけ）
+evals/<name>/           回帰テスト（配布しないので skills/<name>/ の外に置く）
+  evals.json            回帰テストの定義
+  README.md             テストの実行手順
+  fixtures/             eval の初期状態
+tests/<name>/           テスト結果（git にはサマリーだけを入れる）
   iteration-N/
-    benchmark.json      結果サマリー
-.agents/skills/<name>/          実体（Codex が直接参照）
-.claude/skills/<name>           → ../../.agents/skills/<name>（Claude Code 用シンボリックリンク）
-scripts/                リポジトリ内ツールとテスト（配布しない）。直下にファイルを置かない
-  gates/                横断ゲート（check-* / lint-*）と、それが読む宣言データ
-  mutation/             変異実証の実行器
-  eval/                 eval ハーネス（実行・隔離・集計・指紋）と evals/ の fixture の生成・検査
-  hooks/                エージェントの Hook から起動するスクリプト（3 エージェントの設定から参照）
-  tools/                手で起動する補助（reinstall-skill.sh 等）
-  lib/                  テスト・ツールの共有ライブラリと vitest の globalSetup
-  skills/<name>/        配布スキル skills/<name>/ 同梱スクリプトのテストと fixture
-  skills/_cross/        複数スキルにまたがる契約のテスト
+    benchmark.json      結果のサマリー
+.agents/skills/<name>/  インストール済みのスキル（Codex が直接読む）
+.claude/skills/<name>   → ../../.agents/skills/<name>（Claude Code 用のシンボリックリンク）
+scripts/                リポジトリ内のツールとテスト（配布しない）。直下にファイルを置かない
+  gates/                横断チェック（check-* / lint-*）と、それが読む定義データ
+  mutation/             ミューテーションテストのランナー
+  eval/                 eval の実行・隔離・集計と、evals/ の fixture の生成・チェック
+  hooks/                エージェントの Hook から起動するスクリプト
+  tools/                手で起動する補助スクリプト（reinstall-skill.sh など）
+  lib/                  テストとツールの共有ライブラリ、vitest の globalSetup
+  skills/<name>/        配布スキル skills/<name>/ のスクリプトのテストと fixture
+  skills/_cross/        複数のスキルにまたがる取り決めのテスト
 ```
 
-`scripts/` のテスト（`*.test.js`）と変異宣言（`*.mutations.json`）は、テスト対象の隣に置く。
-置き場所は対象で決める——`scripts/` のツールのテストはそのツールと同じディレクトリ、
-配布スキルのスクリプトのテストは同名のスクリプトを持つスキル（同名が無ければ読み込む対象が収まる 1 スキル）の `scripts/skills/<name>/`、
-1 スキルに収まらない契約のテストは `scripts/skills/_cross/`。
+`scripts/` のテスト（`*.test.js`）とミューテーションテストの定義ファイル（`*.mutations.json`）は、テスト対象の隣に置く。
+`scripts/` のツールのテストはそのツールと同じディレクトリに置く。
+配布スキルのスクリプトのテストは `scripts/skills/<name>/` に置き、複数のスキルにまたがるものは `scripts/skills/_cross/` に置く。
 
 ## ワークフロー
 
 スキルの作成・改善・評価には `skill-creator` スキルを使う。
+スキルの追加・修正・リリース・再インストール・回帰テストの手順は [`docs/skill-development.md`](docs/skill-development.md) にある。
 
-- **検証は目的を果たす最低限のツール実行で行う**。目的より広い一括実行（例: `lefthook run pre-commit --all-files`）は auto-fix・`stage_fixed` による staging などの副作用を伴う。絞り込み方が不明なら範囲を広げる前に `--help` 等で調べる。広い実行をした場合は直後に `git status --short` で意図しない変更を確認して戻す。
-- **現状は verify してから言い切る**。ファイル・パス・成果物・ツール挙動・実行環境の現状は、述べる前に Read / grep / 実行で確かめる。記憶や一般論で断定しない（自明に見える一行ほど verify を省きやすい）。
-- **規約の合否は、それを強制する実装をそのまま実行して測る**。文字数・バイト数・書式のような「数えれば分かる」規約ほど自前の近似（`awk 'length > N'` 等）を書きやすいが、
-  単位（バイト / 文字 / 表示幅）は強制する実装ごとに違い、近似は偽陽性・偽陰性を出す。commit message は `pnpm exec commitlint --edit <file>`、Markdown は `pnpm exec markdownlint-cli2 <path>` で取る。
-- **パイプ越しの成否判定に末尾 `$?` を使わない**。パイプで出力を整形する検証の成否は、`${PIPESTATUS[0]}` か `set -o pipefail` で対象コマンド自身の終了コードを取る（末尾 `$?` はパイプ最後のコマンドの終了コード）。
-  **出力した終了コードは必ず主張として読まれる。判定に使わないなら出さない**——`cmd | tail -5; echo "exit=$?"` の `0` は `tail` のもので、添え物のつもりの印字が偽の合格報告になる。
-  出力を絞りたいときは `cmd >out 2>&1 || rc=$?` と**分離して**から `tail out` する。
-- **バッククォートや `$` を含む本文は、二重引用符の `-c` ではなく quoted heredoc（`<<'PY'`）でインタプリタへ渡す**。二重引用符の中のバッククォートはシェルが command substitution として解釈して落ちる（Markdown のコードフェンス・正規表現・テンプレート文字列で踏む）。検証コマンドに書きかけの実験断片を残さない——原因が重なって読めなくなるうえ、落ちた検証は「実行していない」ので別手段で取り直す。
-- **「該当が無い」を根拠にする検査・走査は、陽性コントロールで検出能力を実証してから使う**。
-  遮断・除外・フィルタ・シークレット走査・差分ゼロの判定は、「本当に無い」と「検査が動いていない」が同じ出力になる。
-  **既知マーカーを遮断・除外の対象外に置いて検出できることを確かめ**（対象内に置いた確認は何も実証しない）、打ち切り（`timeout`）・非ゼロ終了は合格に倒さず FAIL にする。予算は実測時間から決める。
-  **発動条件を「何も出ない検査」に限定しない。件数が非ゼロでも検出能力の証拠にはならない**——誤検知だけで埋まった真陽性 0 の走査器は、非ゼロ出力に化けて「動いている」ように見える。
-  横断スコープ確認で書く使い捨ての grep ／スクリプトも対象。陽性コントロールは「何か出るか」ではなく**「標的パターンが出るか」**で取る（修正済みなら修正前の版を入力にする）。
-  除外ロジック（フェンス・コメント等）を持つ走査器は、除外内と除外外の両方に標的インスタンスを置き、弁別できることまで確かめる。
-- **ファイル移動＋索引再生成系の `set -e` スクリプトは冪等にする**。既に目的状態にある入力（同一ディレクトリへの `mv` 等）を明示スキップし、no-op で `set -e` が末尾のクリーンアップ／索引再生成に到達しない事態を防ぐ。到達性が重要なら `trap '...' EXIT` を検討する。
-- **「常に壊れる／失敗する」系のレビュー指摘は、適用前に使い捨て環境で再現テストして裏取りする**。
-  - **回帰（「この変更で壊れた」「以前は動いていた」）の主張は 2 版についての主張なので、旧版と現行版を同じ条件で測る**。
-    旧版は `git show <base>:<path>` で取り出し、同じ入力・同じ環境変数で走らせる。現行版だけの再現では「壊れている」と「もともと動いていない」が同じ出力になる。
-    差が出なければ回帰ではないので修正を当てず、**なぜ元から成立していないか**をコードへ 1 箇所注記する（次のレビューが同じ指摘を再提出するため）。
-  - **両方 0 件は陽性コントロールで弁別する**。測定が動いていない可能性と区別できないので、成立するはずの構成（通常構成など）を同じ手順で測って観測側が見えることを示す。
-  - **却下・保留するときも同じ裏取りを行う**。問いは「新しい挙動が妥当か」ではなく **「以前通っていた入力が落ちるか」**。
-    他コンポーネントとの対称性（「B は前からそうだった」）は A を新たに壊してよい根拠にならない。保留すると決めた場合も、その形を再現するテストだけは同じ変更に入れる。
-  - **修正の安さを着手順の根拠にしない**。8 行の修正でも、事実でない前提のコメントが一緒に入る。
-- **等値比較を「正規化」で直すときは、両辺がズレうる軸を列挙して同じ正規化を両辺に当てる**。
-  片側だけ・一軸だけの正規化は、別軸や別オプションが効いた瞬間に同じ故障へ戻る
-  （例: Node の `--preserve-symlinks-main` では `import.meta.url` も未解決になり、`process.argv[1]` 側だけ realpath しても一致しない）。
-  正規化に失敗したときのフォールバックを、直そうとしている故障モード（サイレントに成功扱い）へ倒さない。
-- **階層マージされる設定（mise / git / npm 等）に依存する検証は、まず有効な設定ソースを列挙する**。`mise config ls` 等でどの階層由来かを切り分けてから原因を判断する（ユーザーグローバル設定はリポジトリ外なので、ローカルの失敗が CI と乖離する）。下位スコープを対象にする一括操作（`mise lock --global` 等）は上位設定の無いディレクトリから実行し、そのスコープの地点で再検証する（上位に同名エントリがあると下位側が隠れて取りこぼす）。
-- **修正で新設した分岐・新たに受理する入力クラスは、その状態を作って実測する**。陽性コントロールは報告済みの欠陥だけを測る。入力の状態空間（候補探索なら 0 件 / 1 件 / 複数件、表記ゆれなら引用符・空白・改行・引数の有無）を列挙し、曖昧性を黙って先勝ちにしない。
-- **集合を答えにする検査・0 件で no-op になりうる一括処理は、検出能力と対象件数を実証してから根拠にする**。既知要素の陽性コントロールと総数を突き合わせ、構造化形式の列挙には実パーサを使う。対象 0 件は成功に倒さず、絶対パスで対象と処理件数を出す。
-- **縮退環境の検査は、対象コードが意図した分岐へ到達した証拠まで固定する**。終了コードだけでなく識別可能な stderr 等で理由を確かめ、削る依存は検査対象だけにする。
-  **同梱物を相対パスで読むコンポーネントの検証は正本の場所で行う**——1 ファイルだけを別ディレクトリへコピーして実行すると、共通ライブラリが見つからず**無言で縮退**し、検証対象がすり替わる。
-  コピーするならディレクトリ一式をコピーする。縮退する実装には、縮退した run と本番構成の run を出力で区別できる 1 行を持たせる。
-- **切り離した仕事の生死は出力ファイルではなくプロセスの実在で判定する**。再起動・出力先の削除前に前のプロセスを確認し、多重実行や書き込み中の削除を避ける。
-- **止まって見える子プロセスを経過時間で判断しない**。生死（`pgrep`）は「動いているか」しか答えず、ブロックと処理中を区別しない。
-  最初に見るのは **stderr の最終行と出力サイズ**で、「何を待っているか」を確定してから待つ・落とす・直すを選ぶ
-  （出力 0 バイトのまま無応答は、処理中ではなく入力待ちの疑いが濃い）。
-  **切り離して起動する子プロセスの stdin は明示的に `</dev/null` へ倒す**——引数で入力を渡していても CLI が stdin も読む実装は珍しくなく、
-  対話 TTY では即 EOF で顕在化せず、非対話・背景実行でだけ無限待機になる。
-  **外部プロセス（ブラウザ・CLI・サーバ）を駆動するツールを書く前に、本体が使う能力を本体と同じ経路・同じ呼び出しで最小プローブして実測する**——
-  別経路で取った実証は本体の経路を保証しない（`Page.setDocumentContent` で確かめて `Page.navigate` で書き、そこで無応答になった）。
-  本体では全体 timeout でまとめず**呼び出し単位でタイムアウトを切り、どの呼び出しかを示す stderr をファイルへ出す**（止まった位置が出力に残る）。
-- **切り離して起動するコマンドは、失敗が終了コードに残る形で書く**。`|| echo "exit $?"` のような握り潰しを付けると、
-  起動自体が短絡しても完了通知が exit 0 に化け、1 コマンドも走らずに「実行した」と報告することになる。
-  入力に正本があるならセッション寿命の一時ファイルへ写さず**正本から読む**（scratchpad はセッション再開でパスごと消える）。
-  起動前に入力の非空（`[ -n "$VAR" ]`）を確認する。
-- **終了コードを決める位置に条件式を置かない**。`done; [ $n -ge 30 ] && echo ...` や `[ $i -lt 3 ] && sleep 20` は、
-  **成功したのに非 0** で終わって呼び出し側（Monitor・フック・`set -e`）が失敗として拾う。
-  `if ... then ... fi` にするか、末尾を明示的な `true` / `:` で締める。出力だけを見ると成功に見えるため気づきにくい。
-  待機は前景 Bash のループに置かず（ツール timeout で切られる）、完了で終わる背景コマンドか監視ツールへ渡す。
-- **判定結果として期待される非 0 を、複数コマンドをまとめたツール呼び出しの終了コードへ漏らさない**。`grep` の該当なしや KEDB 検査の一致なしなど、
-  終了コードが状態を表すコマンドは直後に値を保存し、`case` / `if` で正常な分岐を 0 に、仕様外・検査失敗だけを非 0 に写像する。
-  期待する非 0 を裸の最終コマンドにすると、判定自体は成功していてもツールエラーとして記録され、Kaizen 候補・監視・後続の成否判定を汚染する。
-  保存した状態変数は比較より先に非空・期待型を検証し、代入名と参照名を同じ短いブロック内で突き合わせる。別名を参照した空値を数値比較へ渡すと、
-  検査対象ではなくラッパー自身のエラーを反復する。単発取得で足りる状態確認を shell ループへ広げず、取得結果を呼び出し側で判定する。
-  **存在が実行構成で変わる成果物の確認も同じ位置に置かない**——`cat` / `ls` を終了コードを決める位置に置く前に実在を確かめるか `[ -f ]` で分岐する。
-  artifact 一覧が config で変わらないことを確かめずに両構成へ同じ確認を当てると、本体が成功していてもツールエラーになる。
-- **opaque ID・完全 SHA・長い prompt は表示結果から手で転記・補完しない**。構造化された正本（JSON・API 応答・`git rev-parse` 等）から、
-  それを消費する同じ呼び出し内で機械取得し、非空・形式・比較対象との一致を検証してから渡す。短縮 SHA の残りを推測すると別 commit を指し、
-  prompt の一字違いは別の eval 入力になる。stdin も読む CLI を非対話で起動するときは `</dev/null` を付け、引数以外の入力経路を閉じる。
-  **名前で呼ぶ識別子（npm スクリプト名・ツール名・タスク名・スキル名）も同じ扱い**——意味のある単語でも記憶から組み立てず、正本（`package.json` の `scripts`・利用可能なツール一覧）を読んで写してから呼ぶ。
-  **定型化した呼び出しの可変部は、毎回その場で取得した出力から埋める**。同じ形を繰り返すほど可変部（id・番号・SHA）の由来確認が抜け、前ラウンドのコマンドを写して可変部だけ書き換える形になる。
-  **SHA で相関するポーリング（commit ↔ review ↔ check-run）は、各ツール呼び出しの中で完全 SHA を構造化レスポンスから取得し、形式と対象の現在 HEAD との一致を検証してから同じ呼び出しの API へ渡す**。
-  「初回に完全 SHA を確認した」と「各ポーリングが正本から取る」は別物で、表示済みの短縮 SHA を変数初期値・フィルタ文字列・URL へ手入力すると、存在しない SHA で常に 0 件・422 が返る。
-  **0 件を結論にする前に、その SHA で commit か check-suites を取得できることを陽性コントロールにする**（422 や対象不一致を「レビューなし」へ倒さない）。
-- **本文を伴う外向き操作は、本文を先にファイルへ書いて渡す**。渡すフラグはコマンドごとに違う——`gh pr` / `gh issue` は `--body-file <path>`、`gh api` は `-F body=@<path>`（`--body-file` は無く unknown flag で落ちる）か `--input <path>`。失敗時は再実行前に部分的な作成を確認し、存在すれば新規作成でなく補完する。
-- **順序依存のある外向き操作は `&&` で連鎖する**。前が失敗したら後が走らない形にする（`reply && resolve`）。
-  ループで回すときはとくに効く——1 件失敗しても次の反復へ進むので、失敗を見逃すと不整合な状態（返信の無いまま解決済みのスレッド等）だけが残る。
-  **不可逆な操作の引数を、その操作と同じコマンド内のコマンド置換で作らない**。先に別コマンドで取って非空を確かめてから渡す。
-  **確認を `||` / fallback に置かない**——引数の由来が不確かなら、確認を先に実行して値を確定させてから本番の外向き操作を撃つ（`id=$(...); [ -n "$id" ] && gh api .../$id/...`）。
-  fallback へ回すと「不確かだと認識したまま本番を先に実行する」形になり、外向きの副作用が先に飛ぶ。
-- **破壊的操作は allowlist で対象を定め、破壊フラグなしで対象と件数を確認してから実行する**。絞り込み条件を削った再実行では、破壊フラグも外して安全弁が残ることを確認する。
-- **プロセス終了（`pkill` / `killall`）も破壊的操作として扱う**。自分で起動したプロセスは起動時に PID を保存し `kill "$PID"` で落とす。
-  起動と後片付けが別のツール呼び出しに分かれるなら PID をファイルへ残し `kill "$(cat <file>)"` で撃つ（変数はツール呼び出しをまたいで残らないので、後片付けの段でパターンへ戻りやすい）。
-  パターンで撃つのは PID を持っていない場合だけにし、その前に `pgrep -af <pattern>` で対象と件数を確認する。
-  **`pkill -f` の照合対象は full command line なので、そのコマンドを実行している自分のシェルにも一致する**。
-  症状は非 0 終了だけで、対象が死んだのか自分が死んだのかは出力から読めない。自分の呼び出しが一致しない形（`[d]ump-dom` 等）にするか、PID 指定へ切り替える。
-- **制限付き sandbox で子プロセス起動の `EPERM` を確認したら、待機・再試行せず承認付きの sandbox 外実行へ切り替える**。
-- **文字列一致で編集するときは、置換元を直前に読んだ現在の中身から一字一句コピーする**（Edit の `old_string` も、`python` / `perl` などスクリプト経由の置換も同じ）。不一致時は目視調整で再試行せず対象を再読するか、行番号ベースの置換へ切り替える。
-  **フォーマッタ（`oxfmt` 等）を通した後は特に効く**——自分が書いた文字列は整形で折り返し・引用符・空白が変わっており、記憶から組み立てた置換元は一致しない。整形を挟んだら置換前に読み直す。
-- **複数の置換を 1 スクリプトにまとめるなら、置換ごとに書き戻すのを既定にする**（`p.write_text(s)` を各置換の直後に置く）。落ちても成功分は残り、再実行は残りだけで済む。
-  末尾 1 回の書き込みにしてよいのは、**途中状態がファイルとして不正になる**など全件が一つの原子単位であるべき場合だけで、そのときは理由を 1 行書く。
-  各 `assert` にはどの置換か分かるラベルを付ける（`assert s.count(old) == 1, '<置換名>'`）——行番号だけの AssertionError は、どの置換が古いのかをスクリプトを読み返すまで特定できない。
-  「今回は不一致しないだろう」で粒度を落とさない。
-- **網羅を指示する言い回し（「全て」「漏れなく」）を受けたら、着手前に取る解釈を 1 行で宣言してから動く**。
-  「全件を検討し、妥当なものは直し、不要と判断したものは根拠を残して直さない」のように、**機械的な適用ではないこと**と**判断の残し方**を明示する。
-  判断が分かれる余地のある指示ほど、宣言のコストは小さく、途中で訂正が入るコストは大きい。
+人が読む文章（Markdown・コードコメント・利用者に表示するメッセージ・人への応答）は [`docs/writing-style.md`](docs/writing-style.md) に従って書く。
+使わない語とその言い換えは、次の一覧に従う（Claude Code はセッション開始時に読み込む。他のエージェントはこのファイルを開いて従う）。
 
-スキルの追加・修正、リリース（CD）、修正後の再インストール、回帰テストの**詳細手順は [`docs/skill-development.md`](docs/skill-development.md) を参照**する。
+@.textlint/word-list.md
+
+作業では次の原則を守る。各原則の理由と実例は次のファイルにある（Claude Code はセッション開始時に読み込む。他のエージェントは作業の前に開いて読む）。
+
+@docs/agent-workflow.md
+
+### 確かめ方
+
+- ファイル・パス・ツールの挙動・実行環境の現状は、述べる前に読むか、検索するか、実行して確かめる。
+- 規約を満たすかは、その規約をチェックするツールをそのまま実行して確かめる。自分で書いた近似のスクリプトで数えない。
+- 検証は目的を果たす最小の範囲で実行する。広い範囲で一括実行したら、直後に `git status --short` で意図しない変更がないかを確かめる。
+- 「該当なし」を根拠にするチェックは、わざと違反を置いて検出されることを先に確かめる。違反は除外の対象の外に置く。
+- 0 件の結果、時間切れ、0 以外の終了コードを、合格として扱わない。
+- 回帰だという指摘は、旧版と現行版を同じ条件で実行して確かめる。差が出なければ回帰ではない。
+- 新しく作った分岐や、新しく受け付ける入力は、その状態を実際に作って確かめる。
+- 等しいかを比べる処理を正規化で直すときは、ずれうる軸をすべて挙げ、両辺に同じ正規化を当てる。
+- 階層で合わさる設定（mise・git・npm など）に依存する検証は、先に有効な設定の出所を一覧にする。
+- ツールが欠けた環境でのチェックは、意図した分岐に達した証拠（stderr など）まで確かめる。同梱物を相対パスで読むものは、ディレクトリ一式で検証する。
+
+### シェルの書き方
+
+- パイプでつないだ検証の成否は、`${PIPESTATUS[0]}` か `set -o pipefail` で取る。判定に使わない終了コードは表示しない。
+- バッククォートや `$` を含む本文は、quoted heredoc（`<<'PY'`）でインタプリタに渡す。
+- 終了コードを決める最後の位置に条件式を置かない。`if` で書くか、`true` で終える。
+- 結果として期待される 0 以外の終了コード（grep の該当なしなど）は、値を保存して分岐し、呼び出し全体の終了コードにしない。
+- 背景で起動するコマンドは、失敗が終了コードに残る形で書き、stdin を `</dev/null` にする。
+- 止まって見える子プロセスは、stderr の最終行と出力サイズを見て、何を待っているかを確かめてから扱う。
+- 背景の処理が動いているかは、出力ファイルではなくプロセスの有無で判断する。
+- 外部プロセスを動かすツールを書く前に、本番と同じ呼び出しで小さく試す。タイムアウトは呼び出しごとに設定する。
+- ファイルを移動して索引を作り直す `set -e` のスクリプトは、何度実行しても同じ結果になるように書く。
+- ID・完全な SHA・長い prompt・スクリプト名は、表示された結果から手で書き写さない。構造化された出力から同じ呼び出しの中で取得し、形式を確かめて渡す。
+- 制限付きの sandbox で子プロセスの起動が `EPERM` になったら、待たずに承認付きの sandbox 外の実行に切り替える。
+
+### 外向きの操作と破壊的な操作
+
+- 本文を伴う外向きの操作は、本文を先にファイルへ書いて渡す。`gh pr` と `gh issue` は `--body-file` を、`gh api` は `-F body=@<path>` か `--input` を使う。
+- 順序のある外向きの操作は `&&` でつなぐ。取り消せない操作の引数は、別のコマンドで先に取得し、空でないことを確かめてから渡す。
+- 破壊的な操作は、対象を許可リストで決め、破壊のフラグを付けずに対象と件数を確かめてから実行する。
+- プロセスは、起動時に保存した PID で終了させる。`pkill -f` は自分のシェルにも一致するので使わない。
+
+### 編集
+
+- 文字列の一致で編集するときは、置換元を直前に読んだ内容からそのまま使う。フォーマッタを通した後は読み直す。
+- 複数の置換をまとめたスクリプトは、置換ごとにファイルへ書き戻し、`assert` にどの置換かを書く。
+- 「すべて」のように網羅を求める指示を受けたら、どう解釈するかを 1 行で述べてから始める。
 
 ## ブランチ運用
 
-トランクベース（`main` 単一）の Issue 駆動・PR ベース運用とする。`issue-start` スキルがこのフローを標準化する。
+`main` だけを持つトランクベースで、Issue を起点にして PR で取り込む。`issue-start` スキルがこの流れを標準化する。
 
-- **ブランチ**: `main` から feature ブランチを切る（`develop` は持たない）
-- **命名**: `feature/<issue番号>-<英語の短い説明>`（kebab-case）。日本語 Issue は短い英語に要約する
-- **起点**: Issue 駆動。`gh issue develop <issue番号> --name "feature/<issue番号>-<英語の短い説明>" --base main --checkout` で作成・checkout する
-  - 作成前に同番号ブランチの重複を local / remote で確認する
-- **マージ**: feature ブランチ → PR → `main`。PR には関連 Issue・変更概要・確認内容を含める
-- **commit message**: conventional commits（`feat:` / `fix:` / `docs:` など）。commitlint と lefthook の commit-msg フックで検証される
-  - body は 1 行 100 文字以内（`body-max-line-length`）。長い本文は `git commit -F <file>` で渡す
-  - **`git commit` を含む呼び出しには、コミット前の準備（`git add`・message ファイルの作成）を混ぜない。**
-    PreToolUse ゲート（kaizen 等）は `git commit` を含む**呼び出し全体**を実行前にブロックするため、
-    同一コマンドに入れた準備も走らない。ゲート解消後に `git commit` だけ再実行すると、
-    作られていない message ファイルを読もうとして `could not read log file` で落ちる
-    （ブロックの症状と別物に見えるため原因を取り違えやすい）。準備は別コマンドで先に済ませる
-  - **ゲートの判定は字面で決まるので、`git commit` を含まない呼び出しもリテラルだけで止まる。** テスト・コメント・置換文字列に
-    検出語が現れるだけでブロックされるため、検出語を部分文字列に分けて構築する（python なら `"com" + "mit"`）か、ファイル編集ツールへ迂回する。
-  - **実行中のセッション自身を検査する仕組み（PreToolUse hook 等）の検出範囲を広げるときは、自分のツール呼び出しが新たに何に当たるかを先に 1 行宣言する。**
-  - 使用する種別は `commit-types.ts` を単一の真実として定義する（commitlint の `type-enum`・semantic-release の `releaseRules`・`.github/dependabot.yml` の `commit-message.prefix` が共有。`build` / `style` は使わない。依存更新は `chore`）
-    - commitlint / semantic-release はコードで `commit-types.ts` を import するが、dependabot.yml は手書きのため `scripts/gates/commit-types-consistency.test.js` が型の整合を CI で検査する
-- **禁止**: `main` への直接 push、commit の `--amend`、force push。無関係な変更を同一 commit に混ぜない
-- **`main` の保護**: ルールセットで force push とブランチ削除をブロックし、PR と CI 必須チェック（`Supply chain` / `Lint` / `Unit tests` / `Mutation proof (PR)` / `GitHub Actions lint` / `Secret scan`）の通過を要求する
-  - CI は `pull_request` に加え `push: main`（マージ後の main）でも起動する
+- `main` から feature ブランチを作る。`develop` は持たない。
+- ブランチ名は `feature/<issue番号>-<英語の短い説明>`（kebab-case）にする。Issue が日本語なら、説明は短い英語に要約する。
+- ブランチは `gh issue develop <issue番号> --name "feature/<issue番号>-<英語の短い説明>" --base main --checkout` で作る。
+  作る前に、同じ番号のブランチが local と remote に無いかを確かめる。
+- feature ブランチは PR で `main` に取り込む。PR には関連 Issue、変更の概要、確認した内容を書く。
+- `main` への直接の push、commit の `--amend`、force push はしない。無関係な変更を同じ commit に入れない。
+- `main` はルールセットで保護し、force push とブランチの削除を禁じている。
+- `main` への取り込みには、PR と CI の必須チェックの成功が必要である。
+  必須チェックは `Supply chain`・`Lint`・`Unit tests`・`Mutation proof (PR)`・`GitHub Actions lint`・`Secret scan` である。
+- CI は `pull_request` と、マージ後の `push: main` で実行する。
+
+### commit message
+
+- conventional commits（`feat:`・`fix:`・`docs:` など）で書く。commitlint と lefthook の commit-msg フックがチェックする。
+- 種別は `commit-types.ts` で定義し、commitlint・semantic-release・`.github/dependabot.yml` が同じ種別を使う。
+  `build` と `style` は使わず、依存の更新は `chore` にする。dependabot.yml との一致は `scripts/gates/commit-types-consistency.test.js` が CI で確かめる。
+- 本文は 1 行 100 文字以内にする。長い本文は `git commit -F <file>` で渡す。
+- `git commit` を含む呼び出しに、`git add` や message ファイルの作成を入れない。
+  PreToolUse のチェック（kaizen など）は呼び出し全体を止めるので、準備も実行されず、後で `could not read log file` で失敗する。
+- PreToolUse のチェックは文字列で判定するので、`git commit` を実行しない呼び出しでも、その文字列を含むだけで止まる。
+  テストや置換の文字列では語を分けて組み立てる（python なら `"com" + "mit"`）か、ファイル編集ツールを使う。
+- 実行中のセッション自身をチェックする仕組みの範囲を広げるときは、自分の呼び出しが新たに何に当たるかを先に 1 行で述べる。
 
 ## 脆弱性対応
 
-Dependabot の pnpm 11 未対応期間の脆弱性確認・起票フロー（`pnpm-audit-alert-issue` / `dependabot-alert-issue` の連携）と、
-major 更新に自動シグナルが出ない前提での手動確認方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) を参照する。
+Dependabot が pnpm 11 に対応するまでの脆弱性の確認と起票、major 更新の手動確認の方針は [`docs/vulnerability-handling.md`](docs/vulnerability-handling.md) にある。
 
-## エージェントの自己設定編集について
+## エージェントの自己設定編集
 
-コーディングエージェントは自身の設定ファイルの編集が制限される場合がある（自己改変ガード）。設定ファイルを書き換える作業（kaizen の Hook セットアップ等）でブロックされたら、適用すべき内容を一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` 等での適用を依頼する。
-
-**ブロックされないこともある。** ガードが効くかは版と権限モードに依るので、**権限・検査を緩める設定変更は、止められるかどうかに関わらず人に確認する。** 下表の可否は前提にせず、その場で実測した結果を優先する。
-
-| エージェント   | 自己設定ファイル                                     | 編集可否                                                                              |
-| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Claude Code    | `.claude/settings.json` と `~/.claude/settings.json` | **版と権限モードで変わる。前提にせず実測する**（ある版 × `defaultMode: auto` では確認なく両方書けた。1 環境 1 回の実測なので「可」の側にも一般化しない） |
-| Codex          | `.codex/config.toml` / hooks                         | 現状は可（ただし credentials/auth/profile 等の上書きは制限）                          |
-| GitHub Copilot | `.github/agents/`（指示）                            | 不可（ハードブロック）                                                                |
-| GitHub Copilot | `.github/hooks/`（フック）                           | 可（手動承認ガードの設定を推奨）                                                      |
+エージェントは自分の設定ファイルを編集できないことがある。
+止められたら、適用する内容を一時ファイルに書き出し、ユーザーに `! cp <tmp> <設定ファイル>` などで適用してもらう。
+権限やチェックを緩める設定の変更は、止められるかどうかに関わらず人に確認する。
+エージェントごとの編集の可否は [`docs/agent-workflow.md`](docs/agent-workflow.md) にある。
 
 ## コンポーネント選択基準
 
-知識・規約・処理を追加、またはドキュメントを整理・分割するときは、まず skill / rule / hook / ドキュメントのどれに落とすかを判断する。
+知識・規約・処理を追加するときや文書を整理するときは、skill・rule・hook・ドキュメントのどれにするかを先に決める。
+新しい仕組みを設計する前に、同じ問題の公開済みの解（上流の対応・既存のスキル・Issue）を調べる。見つからなかった場合も、その結果を提案に添える。
 
-新しい仕組みを設計する前に、同じ問題の公開済みの解（上流の対応状況・既存スキル・Issue）を調べる。見つからなかった結果も提案に添え、調査未実施と区別できるようにする。
+| 種類 | 置くもの |
+| --- | --- |
+| skill | 人やエージェントが実行する一連の手順 |
+| rule | 特定のファイル群を触るときだけ関係する規約（`.agents/rules/`。paths は対象のディレクトリまで絞る） |
+| hook | 特定のイベントで自動実行する決定論的な処理（チェック・整形） |
+| ドキュメント | 上のどれにも当たらない知識・方針・仕様。常に必要なものは `AGENTS.md`、スキルの実行時だけ要るものは `SKILL.md` や `references/` |
 
-- **skill**: 人／エージェントが実行する一連の手順・ワークフロー
-- **rule**: 特定のファイル群を触るときだけ関係する規約（`.agents/rules/`。paths を最小スコープで切って自動適用。ファイル種別だけで広く指定〈`**/*.ts` 等〉せず対象ディレクトリまで絞る）
-- **hook**: 特定イベントで自動実行する決定論的な処理（ゲート・整形・検査）
-- **ドキュメント**: 上記に当たらない知識・方針・仕様。作業対象に依らず常に必要なものは基底ドキュメント（本 `AGENTS.md`）へ集約し、スキル実行時のみ要る詳細は各 `SKILL.md` / `references/` へ置く
-
-詳細な判断基準は `multiagent-setup` スキルの `references/component-selection.md` を参照する。
+判断の詳細は `multiagent-setup` スキルの `references/component-selection.md` にある。
 
 ## 参照ルールガイド
 
-- `.agents/rules/doc-altitude.md`: エージェント向けドキュメント（`AGENTS.md` / `CLAUDE.md` / `SKILL.md` / `skills/*/references/` / `.agents/rules/` / `docs/`）の記載粒度（altitude）。行動に必須な情報だけを single source of truth で置き、重複・読み手のいない節を避ける
-- `.agents/rules/github-actions-authoring.md`: GitHub Actions ワークフロー作成・変更時のレビュー観点（必要権限の突き合わせ・happy path 失敗時の fail-safe）。`.github/workflows/**` 編集時に適用
-- `.agents/rules/skill-reinstall.md`: `skills/<name>/` 編集後は `scripts/tools/reinstall-skill.sh <name>` でインストール済みコピーを再同期する。`skills/**`（とインストール済みコピー）編集時に適用
-- `.agents/rules/external-tool-format-verification.md`: 外部ツール（Codex / Copilot / `gh` / GitHub API 等）の設定・Hook・API 形状は公式一次ドキュメントで構造とフィールド意味論を検証してから記述し、検証 URL を併記する。0 件・失敗時の分岐はその状態を作って実測する。`skills/**` 編集時に適用
-- `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl 例・スクリプトでは変数値を URL クエリ / フォームに直挿しせず `--data-urlencode`（GET は `-G` 併用）でエンコードする。秘密値は `k@file` で渡し argv 露出を塞ぐ。`skills/**` 編集時に適用
-- `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルは基底ドキュメントを `AGENTS.md` に決め打ちせず `CLAUDE.md` / `.github/copilot-instructions.md` のみの下流でも成立させる。`skills/**` 編集時に適用
-- `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に参照する成果物（テンプレート・スクリプト等）はスキル内（`assets/` / `scripts/` / `references/`）に正本を同梱する。`skills/**` 編集時に適用
-- `.agents/rules/api-pagination.md`: `gh api` 等の一覧取得は指定件数で暗黙に打ち切らずページネーションを処理する（`scripts/gates/lint-pagination.js` が検査。単発は `# pagination-ok`）。`skills/**` 編集時に適用
-- `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter は Agent Skills 仕様（`name` / `description` 最大 1024 バイト / 任意 `argument-hint` / `license`）を維持する。`skills/*/SKILL.md`（とインストール済みコピー）編集時に適用
-- `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval のアサーション・fixture は書いた時点で「弁別・到達・材料・主価値・入力が答えを持っていないか・正本整合」の 6 点を検証し、採点は位置でなく assertion のテキストで対応づけ、出力内の矛盾を fail にする。`evals/**` 編集時に適用
-- `.agents/rules/eval-run-scope.md`: eval の実走は起動前に目的とスコープを宣言する（既定の run 数と広げる判断の正本は `docs/skill-development.md`）。`evals/**` 編集時に適用
-- `.agents/rules/state-space-and-mutation-proof.md`: 検査を書く前に入力形式・一致の単位・証拠フィールド・期待集合の出所を決め、状態空間の軸は判定に使う全入力で引く
-  （各軸に「読めない」を含める）。fail-closed なゲートは「落とす入力」と「通さねばならない入力」を同じ数だけ列挙し、
-  変異実証は終了コードでなく「対象テストが走り狙った assertion が落ちたこと」で判定する。`scripts/**` / `skills/*/scripts/**` / `evals/**` 編集時に適用
-- `.agents/rules/skill-consistency-pass.md`: 配布スキルの変更時に、`docs/skill-development.md` の push 前整合パスを実行する入口。`skills/**` 編集時に適用
+rule は、対象のファイルを触るときに自動で読み込まれる。
+
+- `.agents/rules/doc-altitude.md`: 文書に載せる粒度と、文書の階層（Tier）
+- `.agents/rules/github-actions-authoring.md`: GitHub Actions のワークフローを書くときのレビューの観点
+- `.agents/rules/skill-reinstall.md`: `skills/<name>/` を直した後のインストール済みのコピーの再同期
+- `.agents/rules/external-tool-format-verification.md`: 外部ツールの設定・Hook・API の形を、公式のドキュメントで確かめてから書く
+- `.agents/rules/curl-data-urlencode.md`: 配布スキルの curl で、変数の値を `--data-urlencode` でエンコードする
+- `.agents/rules/distributed-skill-base-doc-generalization.md`: 配布スキルで、基底ドキュメントを `AGENTS.md` に決め打ちしない
+- `.agents/rules/distributed-skill-bundle-artifacts.md`: 配布スキルが実行時に使う成果物を、スキルの中に同梱する
+- `.agents/rules/api-pagination.md`: `gh api` などの一覧の取得で、ページネーションを処理する
+- `.agents/rules/skill-file-format.md`: `SKILL.md` の frontmatter を Agent Skills 仕様に合わせる
+- `.agents/rules/eval-assertion-discrimination.md`: 回帰 eval の assertion と fixture を書いたときに確かめること
+- `.agents/rules/eval-run-scope.md`: eval を実行する前に、目的と範囲を述べる
+- `.agents/rules/state-space-and-mutation-proof.md`: チェックを書く前に入力の状態を列挙し、ミューテーションテストで効果を確かめる
+- `.agents/rules/skill-consistency-pass.md`: 配布スキルを変えたときに、push 前に整合を確認する
 
 ## 参照スキルガイド
 
-各スキルの用途だけを置く。モード・前提・手順の正本は各スキルの `SKILL.md`（ここへ転記しない）。
+各スキルの用途だけを書く。モード・前提・手順は各スキルの `SKILL.md` にある（ここへ書き写さない）。
 
-- `multiagent-setup`: スキル・ルール・Hooks・ドキュメントをマルチエージェント対応構造でセットアップする
-- `kaizen`: セッションから学びを抽出し根本原因を分析してスキル・ルール等に反映する
-- `git-worktree`: git worktree による作業隔離（セッションの移動・運搬・検査からの除外・後片付け）。branch の作成と Issue との紐付けは呼び出し側に委ねる
-- `issue-create`: 短い説明から重複チェック・ドラフト承認を経て GitHub Issue を起票する
-- `issue-start`: GitHub Issue を起点に branch 作成から実装・commit・PR 作成・受け入れ条件の突き合わせまでを標準化する
-- `issue-batch`: 複数 Issue を隔離 worktree・独立 PR で連続処理し、merge・Issue close・deployment・後片付けまで追跡する
-- `pr-review-handle`: PR のレビューコメントを確認・妥当性判断・必要時のみ修正・返信・解決する
-- `pr-finalize-loop`: 作成済み PR の CI エラーとレビュー指摘を、CI 成功＋未解決なしまで自律ループで解消する
-- `dependabot-merge`: Dependabot PR の CI 確認・影響レビュー・判断の記録・マージを標準化する
-- `dependabot-alert-issue`: Dependabot alerts（または外部 audit findings）から解消 Issue を作成する
-- `pnpm-audit-alert-issue`: private skill。Dependabot が pnpm-lock.yaml の依存グラフを読めない間（dependabot/dependabot-core#15904）、`pnpm audit --json` から `dependabot-alert-issue` 経由で Issue を作る
-- `browser-test`: 変更の回帰を実ブラウザ（chrome-devtools MCP）で確認する
-- `aws-architecture-diagram`: IaC や説明から AWS 構成図を spec に起こし SVG として生成・更新する
-- `box`: Box のファイル/フォルダを Box REST API（`curl` + `jq`）で参照・検索・更新する
-- `replace-strategy`: 仕様を変えないアプリケーションリプレイスの入口。現行アプリを実測して戦略を決め、機能を姉妹スキルへ振り分ける
-- `current-environment-bootstrap`: replace-strategy 姉妹。受領資産だけを起点に現行テスト環境を再構築する
-- `golden-dataset`: replace-strategy 姉妹。現新比較用の共通データセットを投入する冪等・決定論的なツールを作る
-- `parity-component`: replace-strategy 姉妹。共通 UI 部品の見た目の基準を現行から採り、実装してカタログ上で照合する
-- `parity-suite`: replace-strategy 姉妹。新旧両実装に当てられる合否判定基準を Playwright で構築し、故障注入で強度を検証する
-- `parity-replace`: replace-strategy 姉妹。parity-suite の論理名に対して新側を実装する
-- `parity-diff`: replace-strategy 姉妹。現新差分を決定論的ツールで検出し、LLM は分類だけを行う
+- `multiagent-setup`: スキル・ルール・Hooks・ドキュメントを、マルチエージェントに対応した構成でセットアップする
+- `kaizen`: セッションから学びを抽出し、根本原因を分析して、スキルやルールなどに反映する
+- `git-worktree`: git worktree で作業を隔離する（セッションの移動・ファイルの持ち込み・チェックからの除外・後片付け）。branch の作成と Issue との紐付けは呼び出し側が行う
+- `issue-create`: 短い説明から、重複の確認と下書きの承認を経て GitHub Issue を作る
+- `issue-start`: GitHub Issue を起点に、branch の作成から実装・commit・PR の作成・受け入れ条件の確認までを標準化する
+- `issue-batch`: 複数の Issue を、隔離した worktree と独立した PR で順に処理し、merge・Issue の close・deployment・後片付けまで追う
+- `pr-review-handle`: PR のレビューコメントを確認し、妥当性を判断して、必要なときだけ修正し、返信して解決する
+- `pr-finalize-loop`: 作成済みの PR の CI エラーとレビューの指摘を、CI が成功して未解決が無くなるまで自律的に解消する
+- `dependabot-merge`: Dependabot の PR の CI の確認・影響のレビュー・判断の記録・マージを標準化する
+- `dependabot-alert-issue`: Dependabot alerts（または外部の audit の結果）から、解消用の Issue を作る
+- `pnpm-audit-alert-issue`: private skill。Dependabot が pnpm-lock.yaml の依存グラフを読めない間（dependabot/dependabot-core#15904）、`pnpm audit --json` から `dependabot-alert-issue` を通して Issue を作る
+- `browser-test`: 変更による回帰を、実際のブラウザ（chrome-devtools MCP）で確認する
+- `aws-architecture-diagram`: IaC や説明から AWS の構成図を spec に起こし、SVG として生成・更新する
+- `box`: Box のファイルとフォルダを、Box REST API（`curl` と `jq`）で参照・検索・更新する
+- `replace-strategy`: 仕様を変えないアプリケーションのリプレイスの起点。現行アプリを測って戦略を決め、機能を姉妹スキルに振り分ける
+- `current-environment-bootstrap`: replace-strategy の姉妹スキル。受け取った資産だけを基に、現行のテスト環境を作り直す
+- `golden-dataset`: replace-strategy の姉妹スキル。新旧の比較に使う共通のデータセットを投入する、冪等で決定論的なツールを作る
+- `parity-component`: replace-strategy の姉妹スキル。共通の UI 部品の見た目の基準を現行から採り、実装してカタログで照合する
+- `parity-suite`: replace-strategy の姉妹スキル。新旧どちらの実装にも当てられる合否の基準を Playwright で作り、故障を注入して強度を確かめる
+- `parity-replace`: replace-strategy の姉妹スキル。parity-suite の論理名に対して新しい実装を作る
+- `parity-diff`: replace-strategy の姉妹スキル。新旧の差分を決定論的なツールで検出し、LLM は分類だけを行う

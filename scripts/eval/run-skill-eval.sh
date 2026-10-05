@@ -646,8 +646,8 @@ if [ "${config}" = "without_skill" ]; then
 	else
 		# Positive control first: "no hits" and "the scan never worked" produce the
 		# same output, so prove the scan finds a marker it is meant to find before
-		# any clean verdict is trusted (AGENTS.md「何も出ないこと」を合格根拠に
-		# する検査は、陽性コントロールで検出能力を実証してから使う).
+		# any clean verdict is trusted (docs/agent-workflow.md「「該当が無い」を根拠にする
+		# 検査・走査は、陽性コントロールで検出能力を実証してから使う」).
 		# Put one control in every scanned directory and search that directory by
 		# itself. A single control would prove only one root and could let a broken
 		# raw-trace leg report a false clean verdict.

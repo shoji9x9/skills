@@ -85,6 +85,12 @@ jobs:
         run: node scripts/gates/check-mutation-count-prose.js
       - name: Skill index (AGENTS.md / README.md vs skills/)
         run: node scripts/gates/check-skill-index.js
+      - name: Prose lint (textlint; .textlintrc.json / .textlint/words.json)
+        run: node scripts/gates/lint-prose.js
+      - name: AGENTS.md size (scripts/gates/agents-md-size.json)
+        run: node scripts/gates/check-agents-md-size.js
+      - name: Word list (.textlint/word-list.md) matches .textlint/words.json
+        run: node scripts/gates/check-word-list.js
 
   # ユニットテストは Lint から独立したジョブにして並べて走らせる（Lint の所要の大半を占めていたため）。
   # ファイル並列と、tracked ファイルを書き換えるテストの単独実行の分け方は `vitest.config.ts` が持つ。
