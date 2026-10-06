@@ -250,7 +250,11 @@
         "シェル エスケープした二重引用符の後 の # はコメントにしない",
         "シェル 複数行にまたがる引用の中の # はコメントにしない",
         "シェル $'...' の中のエスケープした ' で引用を閉じない",
-        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
+        "シェル コマンド名の case.sh は case の構文として数えない",
+        "シェル ファイル名の case は case の構文として数えない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない",
+        "シェル 引数の case は case の構文として数えない"
       ]
     },
     {
@@ -307,7 +311,12 @@
         "シェル 行頭と空白の後の # をコメントにする",
         "シェル ; や && の直後の # もコメントにする",
         "シェル 区切りの行と同じ行の後ろのコメントは取り出す",
-        "シェル 位置: 行頭と行の後ろのコメントを元の行と桁に戻す"
+        "シェル 位置: 行頭と行の後ろのコメントを元の行と桁に戻す",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル コマンド名の case.sh は case の構文として数えない",
+        "シェル ファイル名の case は case の構文として数えない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない",
+        "シェル 引数の case は case の構文として数えない"
       ]
     },
     {
@@ -484,7 +493,9 @@
       "expect_failing": [
         "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
         "シェル 置換の中の括弧 のあとのコメントも取り出す",
-        "シェル 置換の中の case の分岐の ) で置換を閉じない"
+        "シェル 置換の中の case の分岐の ) で置換を閉じない",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない"
       ]
     },
     {
@@ -498,7 +509,12 @@
         "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
         "シェル 置換の中の括弧 のあとのコメントも取り出す",
         "シェル 置換の中の case の分岐の ) で置換を閉じない",
-        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル コマンド名の case.sh は case の構文として数えない",
+        "シェル ファイル名の case は case の構文として数えない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない",
+        "シェル 引数の case は case の構文として数えない"
       ]
     },
     {
@@ -526,7 +542,41 @@
       "find": "        else if (top.cases === 0) quote = substitutions.pop().outer;",
       "replace": "        else quote = substitutions.pop().outer;",
       "occurrences": 1,
-      "expect_failing": ["シェル 置換の中の case の分岐の ) で置換を閉じない"]
+      "expect_failing": [
+        "シェル 置換の中の case の分岐の ) で置換を閉じない",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない"
+      ]
+    },
+    {
+      "id": "CC-CASE-COMMAND",
+      "why": "case と esac をコマンドの位置以外（引数）でも数える",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (substitutions.length && atWordStart && atCommandStart) {",
+      "replace": "      if (substitutions.length && atWordStart) {",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 引数の case は case の構文として数えない",
+        "シェル 分岐の本体の引数の esac は case の構文として数えない"
+      ]
+    },
+    {
+      "id": "CC-CASE-WORD",
+      "why": "case の後に . や / が続く語（case.txt）も case として数える",
+      "file": "scripts/lib/code-comments.js",
+      "find": "/^(case|esac)(?=[\\s;)]|$)/",
+      "replace": "/^(case|esac)(?![\\w-])/",
+      "occurrences": 1,
+      "expect_failing": ["シェル コマンド名の case.sh は case の構文として数えない"]
+    },
+    {
+      "id": "CC-COMMAND-SEP",
+      "why": "; や ( の後をコマンドの位置として扱わない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "        if (/[;&|(]/.test(c)) commandStart = true;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["シェル ; の後の case も数え、その分岐の ) で置換を閉じない"]
     }
   ]
 }

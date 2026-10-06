@@ -209,9 +209,26 @@ describe("シェル", () => {
     expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
   });
 
+  test("; の後の case も数え、その分岐の ) で置換を閉じない", () => {
+    const src = 'x="$(a=1; case "$a" in b) echo "it\'s" ;; esac)"\n# 後の説明。\n';
+    expect(paragraphs("a.sh", src)).toEqual(["後の説明。"]);
+  });
+
   test("置換の中の case の分岐の ) で置換を閉じない", () => {
     const src = 'x="$(case "$a" in\n  b) echo "it\'s" ;;\nesac)"\n# 後の説明。\n';
     expect(paragraphs("a.sh", src)).toEqual(["後の説明。"]);
+  });
+
+  test.each([
+    ["引数の case", 'x="$(echo case)"'],
+    ["ファイル名の case", 'x="$(cat case.txt)"'],
+    ["コマンド名の case.sh", 'x="$(case.sh a)"'],
+    [
+      "分岐の本体の引数の esac",
+      'x="$(case "$a" in\n  b) echo esac ;;\n  c) echo "it\'s" ;;\nesac)"',
+    ],
+  ])("%s は case の構文として数えない", (_, src) => {
+    expect(paragraphs("a.sh", `${src}\ny=1 # 本物。\nz="a # 引用の中"\n`)).toEqual(["本物。"]);
   });
 
   test("置換を閉じた後の二重引用符の中の # はコメントにしない", () => {

@@ -258,10 +258,15 @@ function shellComments(source) {
     // `#` は語の先頭（行頭・空白の後・`;` などの区切りの後）に置いたときだけコメントを始める。
     // エスケープした空白（`\ `）の後は語の途中なので、直前の 1 文字では判断せず、この状態で持つ。
     let wordStart = true;
+    // コマンドの位置（行頭・`;` `&` `|` `(` の後・置換の始まり）か。`case` と `esac` はここでだけ数える。
+    // `echo case` や `cat case.txt` の `case` は引数で、構文ではない。
+    let commandStart = true;
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
       const atWordStart = wordStart;
+      const atCommandStart = commandStart;
       wordStart = false;
+      if (!/\s/.test(c)) commandStart = false;
       if (quote === "'") {
         if (c === "'") quote = "";
         continue;
@@ -281,6 +286,7 @@ function shellComments(source) {
           quote = "";
           i++;
           wordStart = true;
+          commandStart = true;
           continue;
         }
         if (c === '"') quote = "";
@@ -301,6 +307,7 @@ function shellComments(source) {
         substitutions.push({ outer: "", depth: 0, cases: 0 });
         i++;
         wordStart = true;
+        commandStart = true;
         continue;
       }
       if (c === "(" && line[i + 1] === "(") {
@@ -315,8 +322,8 @@ function shellComments(source) {
         wordStart = true;
         continue;
       }
-      if (substitutions.length && atWordStart) {
-        const word = line.slice(i).match(/^(case|esac)(?![\w-])/)?.[1];
+      if (substitutions.length && atWordStart && atCommandStart) {
+        const word = line.slice(i).match(/^(case|esac)(?=[\s;)]|$)/)?.[1];
         if (word === "case") substitutions.at(-1).cases++;
         if (word === "esac" && substitutions.at(-1).cases > 0) substitutions.at(-1).cases--;
       }
@@ -328,6 +335,7 @@ function shellComments(source) {
       }
       if (/[\s;&|()]/.test(c)) {
         wordStart = true;
+        if (/[;&|(]/.test(c)) commandStart = true;
         continue;
       }
       // heredoc の開始。本文は次の行から始まる。
