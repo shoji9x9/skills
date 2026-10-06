@@ -1,4 +1,4 @@
-// capture_conditions.pages[].path を URL へ解決し、押した後の URL を宣言済みのページへ一意に引く（正本）。Issue #484。
+// capture_conditions.pages[].path を URL へ解決し、押した後の URL を宣言済みのページへ一意に引く（正本）。
 //
 // 何のためか: 撮影の単位はページ × 状態名 × ビューポートで、使い回しの照合（reaction-check.mjs）は
 // 「押した後に撮ったページ」（capture_page）を名乗らせて数える。名乗りを押した後の URL（aftermath.returns_to.url_after）と

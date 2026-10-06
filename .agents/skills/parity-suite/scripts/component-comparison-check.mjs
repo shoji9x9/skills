@@ -1,4 +1,4 @@
-// 被覆表の `present` を新側で突き合わせたかを数える検査（正本）。Issue #337。
+// 被覆表の `present` を新側で突き合わせたかを数える検査（正本）。
 //
 // 何のためか: 部品被覆表の 3 値（`present` / `absent` / `unmeasured`）は**移行元側の測定**である。
 // 「移行元でその操作が在ることを確かめた」と「新側で同じ操作を実施して移行元と差が無いことを確かめた」は
@@ -105,7 +105,7 @@ export function fingerprintOf(keys) {
  * （evidence-carry.mjs の judgeCarry を包んだもの。CLI が組み立てる）。渡されなければ従来どおり stale で落とす。
  * artifact-health-check.mjs の checkStage も同じ judgeCarry で判定し、2 つの検査器の判定を揃える。
  * `carryTo`（任意。--carry-to）を渡すと、new_implementation.commit からその版への持ち越しを、現在の new.commit が
- * 記録と同じでも必ず判定する（Issue #469。部品改修の一括再検証の直後は両方が改修前の版で一致する）。
+ * 記録と同じでも必ず判定する（部品改修の一括再検証の直後は両方が改修前の版で一致する）。
  * 判定できない（記録の版が SHA でない・carry が無い）ときは合格に倒さない。
  * @param {{ coverage: unknown, comparison: unknown, metadata?: unknown, replaceMetadata?: unknown, target?: string | null, carryTo?: string | null, carry?: (input: { recordedCommit: string, wantedCommit: string, renderInputs: unknown }) => { ok: boolean, findings: string[], notes: string[] } }} input
  * @returns {{ findings: {code:string, message:string}[], notes: string[], counts: Record<string, number>, structural: boolean, judged: boolean }}
@@ -281,7 +281,7 @@ export function checkComponentComparison(input) {
           }
         }
       } else if (recorded !== wanted) {
-        // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る（Issue #454）。
+        // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
         // 判定の正本は evidence-carry.mjs。artifact-health-check.mjs の checkStage も同じ関数で判定する。
         const carry =
           typeof input.carry === "function"
@@ -310,7 +310,7 @@ export function checkComponentComparison(input) {
         }
       }
     }
-    // --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する（Issue #469）。
+    // --carry-to: 記録の版から検証先の版への持ち越しを、現在の new.commit に依らず判定する。
     const carryTo = nonEmptyString(input.carryTo) ? String(input.carryTo).trim() : null;
     const recordedCommit = nonEmptyString(observedCommit) ? String(observedCommit).trim() : null;
     // 食い違いの判定は SHA 同士が違うときだけ judgeCarry を呼ぶ。同じ版へ既に掛けたなら繰り返さない。

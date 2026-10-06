@@ -145,7 +145,7 @@
       "assertions": [
         "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
         "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
-        "コメントで足された CSV 出力の条件も、原文を quote に写した行（source: comment）として表に載せると述べている",
+        "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
         "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
         "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
         "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
@@ -161,7 +161,7 @@
           "prompt_quote": "- [ ] 検索条件を URL のクエリで持ち、再読み込みで復元する / - [ ] 保存に失敗したらエラーログを書く"
         },
         {
-          "assertion": "コメントで足された CSV 出力の条件も、原文を quote に写した行（source: comment）として表に載せると述べている",
+          "assertion": "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
           "prompt_quote": "CSV 出力も対象にしてほしい"
         },
         {

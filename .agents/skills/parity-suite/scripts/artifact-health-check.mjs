@@ -11,7 +11,7 @@
 //      1 回目は初期状態から始まるため後始末の有無が結果に現れない。
 //      記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける——
 //      結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。
-//      repeat_run.specs（スペックごとの分類）を持つ成果物はスペック単位で判定する（Issue #473）——
+//      repeat_run.specs（スペックごとの分類）を持つ成果物はスペック単位で判定する——
 //      2 回を求めるのは状態を変えるスペックだけで、記録はスペックごとの指紋と共有の土台の指紋に結びつける。
 //      記録する指紋は --fingerprint で出す（手で計算しない）。
 //   3. 未測定（unmeasured）: gaps.md の散文と対になる機械可読の宣言。disposition: blocking が残る間は収束させない。
@@ -20,7 +20,7 @@
 //      （converged が偽でも落とさない）。dataset_version は数値の一致では見ない——陳腐化の正本は
 //      golden-dataset の references/versioning.md で、交差を見るまでもなく確定する形だけをここで落とす。
 //      投入対象でない target は dataset_version: null ＋ dataset_version_exempt で免除される（parity-diff の references/preflight.md）。
-//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する（Issue #469。
+//      --carry-to <SHA> を渡すと、diff-metadata.json の new.commit からその版への持ち越しも必ず判定する（
 //      部品改修の一括再検証の直後は replace-metadata.json の new.commit が改修前のままで、食い違いの判定が呼ばれない）。
 //
 // 何をしないか: 採取・加工・スイートの実行はしない。ここでは記録と実体を突き合わせるだけ。
@@ -664,7 +664,7 @@ const SUITE_SOURCE_KEYS = ["specs", "locator_map", "expectations", "interactions
  * ディレクトリは再帰、並びはソートで固定する。1 つでも実体が無ければ判定不能として null を返す。
  *
  * 既定（接頭辞 `sha256-nc:`）は JS / TS 系のファイルをコメントを除いた正規形（stripJsComments）で数える。
- * 注記を書き換えただけで指紋が変わると、テストの動きが同じなのに現行で 2 回回し直すことになるため（#457）。
+ * 注記を書き換えただけで指紋が変わると、テストの動きが同じなのに現行で 2 回回し直すことになるため。
  * それ以外の拡張子と、字句解析が閉じない JS / TS 系のファイルは生バイトで数える。
  * `legacy: true` は旧方式（接頭辞 `sha256:`・全ファイル生バイト）で、`sha256:` で記録済みの runs と照合するのに使う。
  * @param {Record<string, unknown>} suiteObj
@@ -782,7 +782,7 @@ function underRel(f, r) {
 }
 
 /**
- * スペック単位の指紋を計算する（Issue #473）。
+ * スペック単位の指紋を計算する。
  *
  * スイート全体の 1 つの指紋に 2 回の記録を結びつけると、状態を変えないスペックを 1 行変えただけで
  * 状態を変えるスペックまで現行へ 2 回回し直すことになる。2 回目が意味を持つのは状態を変えるスペックだけなので、
@@ -830,7 +830,7 @@ export function specFingerprints(suiteObj, root, opts = {}) {
   for (const f of specFiles) sharedFiles.delete(f);
   // suite.specs の下で命名規則にも分類表にも当たらない JS / TS 系のファイルは、repeat_run.shared_files に宣言していなければ落とす。
   // 字面（test( の呼び出し）でスペックかどうかを推測すると、別名 import（test as it）等ですり抜け、状態を変えるスペックが
-  // 2 回続けての緑を求められないまま土台に紛れる（Codex レビュー、PR #475）。推測せず宣言を求める（fail-closed）
+  // 2 回続けての緑を求められないまま土台に紛れる。推測せず宣言を求める（fail-closed）
   /** @type {string[]} */
   const specsTreeShared = [];
   /** @type {string[]} */
@@ -1019,7 +1019,7 @@ function readSpecClassification(record, root, specsDecl) {
 }
 
 /**
- * スペック単位の反復実行を数え直す（Issue #473。repeat_run.specs を持つ成果物）。
+ * スペック単位の反復実行を数え直す（repeat_run.specs を持つ成果物）。
  *
  * 状態を変えるスペックごとに、そのスペックを含む直近 2 回の記録が緑・別の日時で順に始まり、
  * どちらもそのスペックの指紋と土台（shared）の指紋が現在と一致することを求める。
@@ -1488,7 +1488,7 @@ export function affectsBetween(changes, v, c) {
  * component-comparison-check.mjs の comparison-implementation-stale と同じ関数で判定し、2 つの検査器の判定を揃える。
  *
  * carryTo（--carry-to）を渡すと、replace-metadata.json の new.commit とは別に、diff-metadata.json の new.commit から
- * その版への持ち越しを必ず judgeCarry で判定する（Issue #469）。部品改修の一括再検証の直後は両方の記録が改修前の版で
+ * その版への持ち越しを必ず judgeCarry で判定する。部品改修の一括再検証の直後は両方の記録が改修前の版で
  * 一致し、上の食い違いの判定が呼ばれないため、壊れた evidence-carry.json がその場で見つからない。
  * 判定できない状態（工程の節を判定しない・記録の版が SHA でない）は合格に倒さない。
  * @param {{ root: string, slugDir: string, target: string, newRepo?: string | null, replaceRoot?: string | null, featureMetadata?: unknown, carryTo?: string | null }} ctx
@@ -1606,7 +1606,7 @@ export function checkStage(ctx) {
         `new.commit が ${NO_COMMIT}（新側リポジトリのコミットを持たない）ため版の対応は反復回数だけで判定する: ${diffPath}`,
       );
     } else if (wanted !== recordedCommit) {
-      // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る（Issue #454）。
+      // SHA の不一致を即失効にせず、ページの描画入力の差分で持ち越せるかを見る。
       // 判定の正本は evidence-carry.mjs。component-comparison-check.mjs も同じ関数で判定する。
       const carry = carryFrom(recordedCommit, wanted);
       judgedWanted = wanted;
@@ -1626,7 +1626,7 @@ export function checkStage(ctx) {
     );
   }
 
-  // --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する（Issue #469）。
+  // --carry-to: 記録の版から検証先の版への持ち越しを、replace-metadata.json の new.commit に依らず判定する。
   if (carryTo !== null && carryTo !== judgedWanted) {
     const recorded = nonEmptyString(diffCommit) ? String(diffCommit).trim() : null;
     if (recorded === null || recorded === NO_COMMIT) {

@@ -1,7 +1,7 @@
 // parity-suite の実行フローの区切り（成果物で引き継げる境目）を記録し、再開の前に照合する（正本）。
 // 正本は parity-suite にあり、スキルディレクトリ内から直接実行する（プロジェクトへコピーしない）。
 //
-// なぜ要るか（Issue #468）: 実行フロー 1〜9 を 1 つの文脈で最後まで回すと、読んだ参照・書いた成果物が
+// なぜ要るか: 実行フロー 1〜9 を 1 つの文脈で最後まで回すと、読んだ参照・書いた成果物が
 // 文脈に積まれ続け、費用がターン数の 2 乗で増える。区切りで止めて新しい文脈から再開するには、
 // 「どこまで済んだか」と「止めた後に成果物が動いていないか」を成果物の側で確かめられなければならない。
 // 文脈の記憶で「手順 6 まで済んだ」と判断すると、途中まで進んだ採り直しや手で直した表を済んだものとして引き継ぐ。
@@ -116,7 +116,7 @@ function realUnder(a, b) {
  *
  * 字面の比較だけでは、slug のディレクトリの中を指すシンボリックリンク（`e2e/parity/share.spec.ts` →
  * `.replace/parity/share/reactions.json` 等）がスイートの根として通り、スイートを 1 つも照合しないまま
- * record と verify が通る（Issue #474）。根の重複も同じで、字面の違う 2 つの根が同じ実体を指すと 1 つの根として働く。
+ * record と verify が通る。根の重複も同じで、字面の違う 2 つの根が同じ実体を指すと 1 つの根として働く。
  * @param {string} cwd
  * @param {string} slugDir - cwd 基準の相対パス
  * @param {string[]} suiteRoots - cwd 基準の相対パス（slug のディレクトリを含まない）
@@ -168,7 +168,7 @@ export function fingerprintFiles(cwd, roots, slugDir, opts = {}) {
    */
   const visit = (abs, inSuite) => {
     // スイートの根の中のシンボリックリンクが slug のディレクトリの中を指すと、スイートの指紋が slug の成果物の写しになり、
-    // 書いたスイートを 1 つも照合しないまま通る（Codex レビュー、PR #475）。根の下で辿る要素をすべて実パスで確かめる
+    // 書いたスイートを 1 つも照合しないまま通る。根の下で辿る要素をすべて実パスで確かめる
     if (inSuite) {
       const real = realPathOf(abs);
       if (real === null)
@@ -296,7 +296,7 @@ export function recordProblem(rec, slugDir, opts) {
         return `${c.at} の roots に正規化されていないパスがある: ${r}`;
       }
     }
-    // 包含と重複は字面でなく実パスで判定する（字面の包含は実パスの包含に含まれる。Issue #474）
+    // 包含と重複は字面でなく実パスで判定する（字面の包含は実パスの包含に含まれる）
     const real = realRootProblem(opts.cwd, slugDir, roots.slice(1));
     if (real !== null) return `${c.at} の ${real}`;
     // W5
@@ -462,7 +462,7 @@ export function main(argv, deps = {}) {
       if (!existsSync(abs)) throw new UsageError(`--include が存在しない: ${inc}`);
       if (!inherited.includes(rel)) inherited.push(rel);
     }
-    // 包含（中を指す・祖先を指す）と重複は実パスで判定する。字面だけではシンボリックリンクで slug のディレクトリの中を指す根が通る（Issue #474）
+    // 包含（中を指す・祖先を指す）と重複は実パスで判定する。字面だけではシンボリックリンクで slug のディレクトリの中を指す根が通る
     const realProblem = realRootProblem(cwd, slugDir, inherited);
     if (realProblem !== null) throw new UsageError(`--include の ${realProblem}`);
     // スイートは authored の主な成果物。slug のディレクトリだけの指紋では、スイートを書き換えた再開を見逃す
