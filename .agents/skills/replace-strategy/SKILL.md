@@ -273,7 +273,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
        重複を消すのは既存の値の削除なので、追記専用のチェックにも当たる（どちらの取り決めにも反せずに直すことはできない）。
      - 次の書き方は、どれも帰属が分からないと判定され、すべての機能の棚卸しに出続ける。`added_by` を空にする。`unknown` と書く。採番の前の slug を推測で書く。
        チェックは `parity-diff` の `pending-triage-check.mjs` が行う。要素の形の原本は [`references/project-config.md`](references/project-config.md) の「`pending` 要素の形」である。
-   - 現行の振る舞いに含まれるセキュリティ上の弱点を挙げ、「直す（`may_change`）」か「そのまま移す（`keep`）」に仕分けて、`.replace/weaknesses.md` に記録する。
+   - 現行の振る舞いに含まれるセキュリティ上の弱点を挙げ、「直す（`may_change`）」か「引き継ぐ（`keep`）」に仕分けて、`.replace/weaknesses.md` に記録する。
      - スイートも敵対的レビューも、「現行と一致しているか」を見る。そのため、現行と同じ弱点はどの工程にも指摘されず、新側にそのまま移る。
      - 挙げる起点は、OWASP Top 10 の 1 つの版に固定する。
      - 次の 3 つの基準を、すべて満たすものだけを直す。
@@ -297,7 +297,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
      - 同じ表や同じ主キーを触ることは、要求の単位が同じであることの根拠にならない。規則は [`references/features-issues.md`](references/features-issues.md) にある。
    - あわせて、ページ一覧（ページ × そのページに乗る機能）を記録する。
      機能の単位に分けたことの裏返しとして、同じページに乗る別の機能のセクションが丸ごと欠けても、どのスイートも赤くならない。
-     `parity-suite` は、このページ一覧を、ページに部品があるかのチェックの根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md) にある。
+     `parity-suite` は、このページ一覧を、在席チェック（同じページに乗る他の機能が欠けていないかのチェック）の根拠に使う。規則は [`references/features-issues.md`](references/features-issues.md) にある。
    - ページ一覧を書いたら、そのページの見える要素が、抜けなくどれかの slug に帰属しているかを確かめる。
      どの機能の行のセクションにも収まらない要素は、「ページ要素の帰属」表に記録して、配置の持ち主を決める。
      - 機能一覧が持ち主を持つのは、テーブル・API・副作用の出力だけである。スコープ外と決めた要素にも場所を占めるものがあり、誰も配置しなければ、実装した後の `parity-diff` まで「説明できない差分」として現れない。
@@ -340,7 +340,7 @@ replace-strategy evidence --feature <slug> (--endpoint <口> --evidence <根拠>
         確定しなければ枠だけを残し、`parity-component build` に入る前に確定させる。
     - 画面より先に作らない方針なら、`.replace/components.md` は作らない（機能ごとに `parity-replace` が部品も作る）。
 11. 移行元の静的資産の方針の決定
-    - 移行元が配信している画像・アイコン・favicon・ロゴ・図・書体を、新側で実体をコピーするかを、実装が始まる前に、種類ごとにまとめて決めて `.replace/assets.md` に記録する。
+    - 移行元が配信している画像・アイコン・favicon・ロゴ・図・書体を、新側でどう扱うか（実体をコピーする・同等物を作る・コピーしない）を、実装が始まる前に、種類ごとにまとめて決めて `.replace/assets.md` に記録する。
       テンプレートは [`assets/assets-template.md`](assets/assets-template.md)、棚卸し・判断・記録の原本は [`references/static-assets.md`](references/static-assets.md) である。
     - 手順 10 の依存とは別に決める。
       依存は「自前か、どのパッケージか」で、資産は移行元の配信物そのものである。依存の選定の表に「本文フォント」の行があっても、アイコン用の書体や画像を移すかは決まっていない。
@@ -457,7 +457,7 @@ Issue の種類は 6 つある。ゴールデンデータセット／横断 API�
 | 機能インベントリ | `.replace/features.md` | 機能の一覧、依存の順、ページ／API／テーブル／副作用の出力、API の「要求単位の根拠」（`実測` / `推定`）、ページ一覧（ページ × 乗る機能）、ページ要素の帰属（要素 × 配置の持ち主の slug）、横断 API の fan-out・参照するテーブル・リソースのグループ、その他の Issue（4 種以外）、slug、Issue の番号（`open` / `closed` は持たない。状態の原本はトラッカー）、受け入れ条件との突き合わせの結果（どの行を引き受けたかの原本は Issue の本文）。更新は非破壊。「要求単位の根拠」列の `推定` → `実測` は、`evidence` モードだけが書く |
 | 依存パッケージの決定の記録 | `.replace/dependencies.md` | 部品ごとの決定（`パッケージ採用` / `自前実装` / `該当なし` / `内蔵` / `機能固有` / `未確認` の 6 値）と状態（`有効` / `取り消し済み`）、判断の材料、代わりの候補、採用しなかった理由、理由と引き取り手。このスキルが共通部品を、`parity-replace` / `parity-component` が機能に固有の部品と実装中の追加を、非破壊で追記する |
 | 現行の弱点の仕分け | `.replace/weaknesses.md` | 現行のセキュリティ上の弱点ごとの攻撃の流れ、基準の当てはめ、仕分け（直す／引き継ぐ）、宣言（`may_change` / `keep` の文言）、扱う設計の作業、露出を広げた差異。このスキルが `setup` の手順 8 で作り、`parity-suite` / `parity-replace` が見つけた弱点を、仕分けを空欄にして非破壊で追記する。原本は [`references/security.md`](references/security.md) |
-| 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体をコピーする／同等物を作る／コピーしない）、ファイルと出どころ、描き方と使われるページ、再配布してよいか、同等物で残る差と宣言。このスキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針を空欄にして非破壊で追記する。`parity-replace` は完了判定で、「実体を移す」行を新側の配信物と突き合わせる（`scripts/asset-delivery-check.mjs`）。原本は [`references/static-assets.md`](references/static-assets.md) |
+| 静的資産の台帳 | `.replace/assets.md` | 資産の種類ごとの方針（実体をコピーする／同等物を作る／コピーしない）、ファイルと出どころ、描き方と使われるページ、再配布してよいか、同等物で残る差と宣言。このスキルが `setup` で作り、`parity-replace` / `parity-component` が台帳に無い資産を方針を空欄にして非破壊で追記する。`parity-replace` は完了判定で、「実体をコピーする」行を新側の配信物と突き合わせる（`scripts/asset-delivery-check.mjs`）。原本は [`references/static-assets.md`](references/static-assets.md) |
 | 手順・観点の変更の台帳 | `.replace/procedure-changes.md` | プロジェクト側で足した確かめる軸（観点の追加）と、それより前に特性化を終えた機能への当て直しの判断（`当て直し済み` / `当てない` / `見直し中`）。軸を足した工程が非破壊で追記する（無ければテンプレートから作る）。原本は [`references/procedure-changes.md`](references/procedure-changes.md) |
 | 共通部品インベントリ（画面より先に部品を作る方針のときだけ） | `.replace/components.md` | 部品ごとの slug、インスタンス（ページと論理名）、データへの依存の有無、採否、Issue の番号、受け入れ条件との突き合わせの結果と、先に作らない部品とその理由、部品カタログの実体。`parity-component` が採取の対象をここから読む（`parity-component` はこのファイルを書かない）。更新は非破壊 |
 | 自律実行の保留（`--autonomous` の実行だけ） | `.replace/strategy-pending.json` | `setup` / `issues` / `evidence` の実行で、人の判断待ちにした保留（`pending_decisions[]`）と `run.autonomous`。要素ごとの `mode` で、どのモードの保留かを書き分ける（`setup` が済んだかの前提の判定は `mode: setup` だけで絞るので、`evidence` の保留は下流を止めない）。形の原本は [`references/autonomy.md`](references/autonomy.md) |
