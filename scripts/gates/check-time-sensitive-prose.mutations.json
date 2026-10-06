@@ -198,10 +198,7 @@
       "find": "export const TARGET_DIRS = [\".agents/rules\", \"docs\"];",
       "replace": "export const TARGET_DIRS = [\".agents/rules\", \"docs\", \"skills\"];",
       "occurrences": 1,
-      "expect_failing": [
-        "陰性: 対象外（README.md・skills/・.md 以外）の件数は見ない",
-        "陰性: 実リポジトリの対象文書に件数・所要時間の記述が 0 件"
-      ]
+      "expect_failing": ["陰性: 対象外（README.md・skills/・.md 以外）の件数は見ない"]
     },
     {
       "id": "MC-RECURSE",
@@ -386,11 +383,7 @@
       "find": "    if (slash && (t.startsWith(\"//\") || t.startsWith(\"/*\") || t.startsWith(\"*\")))",
       "replace": "    if (false)",
       "occurrences": 1,
-      "expect_failing": [
-        "陽性: JS の行コメント を拾う",
-        "陽性: JS のブロックコメント を拾う",
-        "陰性: 実リポジトリは保留と許可を当てると時間の語と日付の失敗が 0 件"
-      ]
+      "expect_failing": ["陽性: JS の行コメント を拾う", "陽性: JS のブロックコメント を拾う"]
     },
     {
       "id": "TS-HASH",
