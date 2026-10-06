@@ -323,9 +323,17 @@ function shellComments(source) {
         continue;
       }
       if (substitutions.length && atWordStart && atCommandStart) {
-        const word = line.slice(i).match(/^(case|esac)(?=[\s;)]|$)/)?.[1];
+        // 予約語の後（`then case` など）もコマンドの位置なので、予約語を読み飛ばして位置を保つ。
+        const word = line
+          .slice(i)
+          .match(/^(case|esac|then|do|else|elif|if|while|until|time|!|\{)(?=[\s;|&<>()]|$)/)?.[1];
         if (word === "case") substitutions.at(-1).cases++;
         if (word === "esac" && substitutions.at(-1).cases > 0) substitutions.at(-1).cases--;
+        if (word && word !== "case" && word !== "esac") {
+          i += word.length - 1;
+          commandStart = true;
+          continue;
+        }
       }
       if (substitutions.length && c === "(") substitutions.at(-1).depth++;
       if (substitutions.length && c === ")") {
@@ -350,6 +358,13 @@ function shellComments(source) {
       }
     }
   });
+  // 終わりで引用・置換・heredoc が開いたままなら、どこかで読み違えている。後ろのコメントを警告なしに
+  // チェックから外さないよう、判定できないとして例外にする。
+  if (quote || substitutions.length || heredocs.length) {
+    throw new Error(
+      "シェルの引用・コマンド置換・heredoc の終わりを判定できない（コメントを取り出せない）",
+    );
+  }
   return pieces;
 }
 

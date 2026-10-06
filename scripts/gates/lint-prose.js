@@ -75,7 +75,14 @@ export function listTargets(root) {
  */
 async function lintComments(linter, root, rel) {
   const abs = join(root, rel);
-  const { markdown, lines, columns, starts } = commentMarkdown(rel, readFileSync(abs, "utf8"));
+  let parsed;
+  try {
+    parsed = commentMarkdown(rel, readFileSync(abs, "utf8"));
+  } catch (error) {
+    // コメントを取り出せないファイルは、指摘として報告する（0 件として通さない）。
+    return [{ line: 1, column: 1, message: error.message, ruleId: "code-comments" }];
+  }
+  const { markdown, lines, columns, starts } = parsed;
   if (!markdown) return [];
   const result = await linter.lintText(markdown, `${abs}.md`);
   return result.messages.map((m) => ({

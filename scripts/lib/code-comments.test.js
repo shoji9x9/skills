@@ -209,6 +209,31 @@ describe("シェル", () => {
     expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
   });
 
+  test.each([
+    ["then の後", 'x="$(if true; then case "$a" in b) echo "it\'s" ;; esac; fi)"'],
+    ["do の後", 'x="$(for v in 1; do case "$a" in b) echo "it\'s" ;; esac; done)"'],
+    ["{ の後", 'x="$({ case "$a" in b) echo "it\'s" ;; esac; })"'],
+  ])("%s の case も数える", (_, line) => {
+    expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
+  });
+
+  test.each([
+    ["|", "esac|tr a b"],
+    ["&&", "esac&&echo"],
+    [">", "esac>out"],
+  ])("直後に %s が続く esac も数える", (_, tail) => {
+    const src = `x="$(case "$a" in b) echo b ;; ${tail})"\ny=1 # 本物。\nz="a # 引用の中"\n`;
+    expect(paragraphs("a.sh", src)).toEqual(["本物。"]);
+  });
+
+  test.each([
+    ["閉じていない引用", 'x="abc\n# 引用の中\n'],
+    ["閉じていない置換", "x=$(echo a\n# 中\n"],
+    ["区切りの行が無い heredoc", "cat <<EOF\n# 本文\n"],
+  ])("終わりで %s が残れば例外にする", (_, src) => {
+    expect(() => commentMarkdown("a.sh", src)).toThrow("判定できない");
+  });
+
   test("; の後の case も数え、その分岐の ) で置換を閉じない", () => {
     const src = 'x="$(a=1; case "$a" in b) echo "it\'s" ;; esac)"\n# 後の説明。\n';
     expect(paragraphs("a.sh", src)).toEqual(["後の説明。"]);

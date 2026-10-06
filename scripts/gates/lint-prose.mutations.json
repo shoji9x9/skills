@@ -127,7 +127,8 @@
         "コメントの textlint-disable で囲んだ箇所だけを除外する",
         "文の長さの指摘に、Markdown の行番号を残さない",
         "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
-        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"
+        "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
+        "陽性: コメントを取り出せないシェルは、指摘として報告する"
       ]
     },
     {
@@ -170,6 +171,15 @@
       "replace": "    column: columns[m.line - 1] + m.column,\n",
       "occurrences": 1,
       "expect_failing": ["JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない"]
+    },
+    {
+      "id": "LP-PARSE-ERROR",
+      "why": "コメントを取り出せないファイルを指摘 0 件として通す",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "    return [{ line: 1, column: 1, message: error.message, ruleId: \"code-comments\" }];",
+      "replace": "    return [];",
+      "occurrences": 1,
+      "expect_failing": ["陽性: コメントを取り出せないシェルは、指摘として報告する"]
     }
   ]
 }
