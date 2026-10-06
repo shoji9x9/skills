@@ -82,7 +82,8 @@
         "YAML エスケープした二重引用符の後 の # はコメントにしない",
         "YAML フローの配列 の引用の中の # はコメントにしない",
         "YAML フローの対応 の引用の中の # はコメントにしない",
-        "YAML フローの区切りの後 の引用の中の # はコメントにしない"
+        "YAML フローの区切りの後 の引用の中の # はコメントにしない",
+        "YAML 一重引用符の中の '' は引用の終わりにしない"
       ]
     },
     {
@@ -248,7 +249,8 @@
         "シェル 二重引用符 の # はコメントにしない",
         "シェル エスケープした二重引用符の後 の # はコメントにしない",
         "シェル 複数行にまたがる引用の中の # はコメントにしない",
-        "シェル $'...' の中のエスケープした ' で引用を閉じない"
+        "シェル $'...' の中のエスケープした ' で引用を閉じない",
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
       ]
     },
     {
@@ -471,6 +473,49 @@
       "expect_failing": [
         "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
       ]
+    },
+    {
+      "id": "CC-SUBST-DQ",
+      "why": "二重引用符の中のコマンド置換を、引用の続きとして読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "          substitutions.push({ outer: '\"', depth: 0 });\n          quote = \"\";\n",
+      "replace": "          substitutions.push({ outer: '\"', depth: 0 });\n",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
+        "シェル 置換の中の括弧 のあとのコメントも取り出す"
+      ]
+    },
+    {
+      "id": "CC-SUBST-POP",
+      "why": "コマンド置換を閉じても、外側の引用に戻さない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "        else quote = substitutions.pop().outer;",
+      "replace": "        else substitutions.pop();",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
+        "シェル 置換の中の括弧 のあとのコメントも取り出す",
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
+      ]
+    },
+    {
+      "id": "CC-SUBST-DEPTH",
+      "why": "コマンド置換の中の ( を数えない",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (substitutions.length && c === \"(\") substitutions.at(-1).depth++;\n",
+      "replace": "",
+      "occurrences": 1,
+      "expect_failing": ["シェル 置換の中の括弧 のあとのコメントも取り出す"]
+    },
+    {
+      "id": "CC-YAML-ESCAPE",
+      "why": "YAML の一重引用符の中の '' を引用の終わりとして読む",
+      "file": "scripts/lib/code-comments.js",
+      "find": "        if (c === \"'\" && line[i + 1] === \"'\") i++;\n        else if",
+      "replace": "        if",
+      "occurrences": 1,
+      "expect_failing": ["YAML 一重引用符の中の '' は引用の終わりにしない"]
     }
   ]
 }

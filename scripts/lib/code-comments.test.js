@@ -201,6 +201,18 @@ describe("シェル", () => {
     expect(paragraphs("a.sh", `${line}\n`)).toEqual([]);
   });
 
+  test.each([
+    ["二重引用符の中の置換の中の引用", 'x="$(echo "it\'s")"'],
+    ["置換の中の括弧", 'x="$(f (a) "it\'s")"'],
+    ["引用の外の置換の中の引用", 'x=$(echo "it\'s")'],
+  ])("%s のあとのコメントも取り出す", (_, line) => {
+    expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
+  });
+
+  test("置換を閉じた後の二重引用符の中の # はコメントにしない", () => {
+    expect(paragraphs("a.sh", 'x="$(echo a) # 引用の中"\n# 後の説明。\n')).toEqual(["後の説明。"]);
+  });
+
   test("複数行にまたがる引用の中の # はコメントにしない", () => {
     const src = 'msg="1 行目\n# 引用の中\n"\n# 外の説明。\n';
     expect(paragraphs("a.sh", src)).toEqual(["外の説明。"]);
@@ -278,6 +290,10 @@ describe("YAML", () => {
     ["フローの区切りの後", 'a: [1,"x # 引用の中"]'],
   ])("%s の引用の中の # はコメントにしない", (_, line) => {
     expect(paragraphs("a.yml", `${line}\n`)).toEqual([]);
+  });
+
+  test("一重引用符の中の '' は引用の終わりにしない", () => {
+    expect(paragraphs("a.yml", "a: 'it''s # 引用の中' # 後ろの説明\n")).toEqual(["後ろの説明"]);
   });
 
   test("語の中の ' は引用の始まりにしない（後ろのコメントを取り出す）", () => {

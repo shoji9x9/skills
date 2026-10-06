@@ -243,6 +243,9 @@ function shellComments(source) {
   let quote = "";
   // 算術（`$(( ... ))`・`(( ... ))`）の入れ子の深さ。その中の `<<` はシフトで、heredoc ではない。
   let arith = 0;
+  // コマンド置換（`$( ... )`）の入れ子。二重引用符の中の `"$( ... )"` では、置換の中で引用が新しく始まる。
+  // 置換を閉じたら、外側の引用の状態（outer）に戻す。depth は置換の中の `(` の数。
+  const substitutions = [];
   source.split("\n").forEach((line, n) => {
     if (heredocs.length) {
       const { delimiter, stripTabs } = heredocs[0];
@@ -272,6 +275,13 @@ function shellComments(source) {
         continue;
       }
       if (quote === '"') {
+        if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
+          substitutions.push({ outer: '"', depth: 0 });
+          quote = "";
+          i++;
+          wordStart = true;
+          continue;
+        }
         if (c === '"') quote = "";
         continue;
       }
@@ -286,6 +296,12 @@ function shellComments(source) {
         pieces.push({ line: n, column: i + 1 + pad, text: rest.slice(pad).trimEnd(), trailing });
         break;
       }
+      if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
+        substitutions.push({ outer: "", depth: 0 });
+        i++;
+        wordStart = true;
+        continue;
+      }
       if (c === "(" && line[i + 1] === "(") {
         arith++;
         i++;
@@ -297,6 +313,12 @@ function shellComments(source) {
         i++;
         wordStart = true;
         continue;
+      }
+      if (substitutions.length && c === "(") substitutions.at(-1).depth++;
+      if (substitutions.length && c === ")") {
+        const top = substitutions.at(-1);
+        if (top.depth > 0) top.depth--;
+        else quote = substitutions.pop().outer;
       }
       if (/[\s;&|()]/.test(c)) {
         wordStart = true;
@@ -324,7 +346,9 @@ function yamlComments(source) {
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
       if (quote === "'") {
-        if (c === "'") quote = "";
+        // 一重引用符の中の `''` は `'` のエスケープで、引用の終わりではない。
+        if (c === "'" && line[i + 1] === "'") i++;
+        else if (c === "'") quote = "";
         continue;
       }
       if (quote === '"') {
