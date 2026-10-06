@@ -402,14 +402,15 @@
       "expect_failing": ["シェル 行頭と空白の後の # をコメントにする"]
     },
     {
-      "id": "CC-SH-ENOENT",
-      "why": "shfmt が無いことを、ファイルの解析の失敗と同じに扱う",
+      "id": "CC-SH-TOOL",
+      "why": "shfmt を起動できないことを、ファイルの解析の失敗と同じに扱う",
       "file": "scripts/lib/code-comments.js",
-      "find": "    if (error.code === \"ENOENT\") {",
-      "replace": "    if (false) {",
+      "find": "  if (problem) throw Object.assign(new Error(problem), { missingTool: true });",
+      "replace": "",
       "occurrences": 1,
       "expect_failing": [
-        "シェル shfmt が無ければ、解析の失敗と分けて missingTool を付けた例外にする"
+        "シェル shfmt を起動できない（PATH に無い）なら、解析の失敗と分けて missingTool を付けた例外にする",
+        "シェル shfmt を起動できない（shim が版を解決できない（exit 1））なら、解析の失敗と分けて missingTool を付けた例外にする"
       ]
     }
   ]

@@ -14,9 +14,9 @@
 // | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
 // | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
 // | 実行のしかた       | 全体（引数なし）/ ファイル指定（lefthook）/ 対象 0 件                          |
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -249,20 +249,28 @@ test("陽性: 保留したファイルでも、コメントを取り出せなけ
   expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
 });
 
-test("shfmt が無ければ、ファイルの指摘にせず例外にする（main は exit 2）", async () => {
+test("shfmt が無ければ、ファイルの指摘にせず例外にし、main は保留の一覧を名指ししない exit 2", async () => {
   const root = makeRepo({ "a.sh": "# 説明。\n" });
-  // git は要るので、git のあるディレクトリだけを PATH に残す（そこに shfmt が無いことも確かめる）。
-  const gitDir = dirname(
-    spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim(),
-  );
-  expect(existsSync(join(gitDir, "shfmt"))).toBe(false);
+  // git は要るので、git へのリンクだけを置いたディレクトリを PATH にする（shfmt の置き場所に依らない）。
+  const bin = makeTempDir("git-only-");
+  const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  symlinkSync(git, join(bin, "git"));
   const path = process.env.PATH;
-  process.env.PATH = gitDir;
+  const cwd = process.cwd();
+  const errors = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((m) => errors.push(String(m)));
+  process.env.PATH = bin;
   try {
-    await expect(lintProse({ root })).rejects.toThrow("shfmt が見つからない");
+    await expect(lintProse({ root })).rejects.toThrow("shfmt を起動できない");
+    process.chdir(root);
+    expect(await main([])).toBe(2);
   } finally {
     process.env.PATH = path;
+    process.chdir(cwd);
+    spy.mockRestore();
   }
+  expect(errors.join("\n")).toMatch(/^lint-prose: 実行できない: shfmt を起動できない/m);
+  expect(errors.join("\n")).not.toContain(PENDING_PATH);
 });
 
 test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {

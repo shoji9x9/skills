@@ -163,7 +163,9 @@ export async function main(argv) {
   try {
     result = await lintProse({ root: process.cwd(), files: files.length ? files : undefined });
   } catch (error) {
-    console.error(`lint-prose: 実行できない（${resolve(PENDING_PATH)}）: ${error.message}`);
+    // ツールが無いときは、保留の一覧の問題と読めないように、一覧のパスを添えない。
+    const where = error.missingTool ? "" : `（${resolve(PENDING_PATH)}）`;
+    console.error(`lint-prose: 実行できない${where}: ${error.message}`);
     return 2;
   }
   const { checked, pending, violations, stale } = result;

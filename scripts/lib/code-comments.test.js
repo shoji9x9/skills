@@ -13,7 +13,10 @@
 // | ディレクティブ       | textlint-disable・enable（単独の行 / 段落の途中）                                       |
 // | 位置                 | 行番号・桁（行コメント / `/**` / ` * ` / シェル / YAML）                                  |
 import { describe, expect, test } from "vitest";
+import { chmodSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { COMMENT_EXTENSIONS, commentMarkdown, hasComments } from "./code-comments.js";
+import { makeTempDir } from "./test-tmpdir.js";
 
 /** Markdown の段落ごとの本文（空行で分ける）。 */
 const paragraphs = (path, source) =>
@@ -252,22 +255,42 @@ describe("シェル", () => {
     ]);
   });
 
-  test("shfmt が無ければ、解析の失敗と分けて missingTool を付けた例外にする", () => {
+  /** PATH を dir だけにして fn を実行し、投げられた例外を返す。 */
+  const caughtWithPath = (dir, fn) => {
     const path = process.env.PATH;
-    process.env.PATH = "";
+    process.env.PATH = dir;
     try {
-      let caught;
-      try {
-        commentMarkdown("a.sh", "# 説明。\n");
-      } catch (error) {
-        caught = error;
-      }
-      expect(caught?.missingTool).toBe(true);
-      expect(caught?.message).toContain("shfmt が見つからない");
+      fn();
+    } catch (error) {
+      return error;
     } finally {
       process.env.PATH = path;
     }
-  });
+    return undefined;
+  };
+
+  test.each([
+    ["PATH に無い", () => makeTempDir("no-shfmt-")],
+    [
+      "shim が版を解決できない（exit 1）",
+      () => {
+        const dir = makeTempDir("shfmt-shim-");
+        writeFileSync(
+          join(dir, "shfmt"),
+          "#!/bin/sh\necho 'mise ERROR No version is set for shim: shfmt' >&2\nexit 1\n",
+        );
+        chmodSync(join(dir, "shfmt"), 0o755);
+        return dir;
+      },
+    ],
+  ])(
+    "shfmt を起動できない（%s）なら、解析の失敗と分けて missingTool を付けた例外にする",
+    (_, makeDir) => {
+      const caught = caughtWithPath(makeDir(), () => commentMarkdown("a.sh", "# 説明。\n"));
+      expect(caught?.missingTool).toBe(true);
+      expect(caught?.message).toContain("shfmt を起動できない");
+    },
+  );
 
   test("位置: 同じ行の # の前に日本語があっても、元の桁に戻す", () => {
     const src = 'echo "日本語" # 後ろの語\n';

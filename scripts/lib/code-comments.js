@@ -239,7 +239,36 @@ function startsComment(line, i) {
   return i === 0 || /\s/.test(line[i - 1]);
 }
 
+/** PATH ごとに、shfmt を起動できるかを 1 回だけ確かめた結果（エラーの文、または null）。 */
+const shfmtProblems = new Map();
+
+/**
+ * shfmt を起動できるかを `shfmt --version` で確かめる。起動できない理由は、PATH に無い（ENOENT）ことに加えて、
+ * mise の shim が版を解決できない（設定の無いディレクトリ、未インストールの版）ことがある。shim は後者で exit 1 になり、
+ * 解析の失敗と同じ形になるので、解析の前にツールの有無だけを分けて確かめる。
+ */
+function shfmtProblem() {
+  const key = process.env.PATH ?? "";
+  if (!shfmtProblems.has(key)) {
+    let problem = null;
+    try {
+      execFileSync("shfmt", ["--version"], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+    } catch (error) {
+      const detail = String(error.stderr || error.message)
+        .trim()
+        .split("\n")[0];
+      problem = `shfmt を起動できない（${detail}）。mise の shim が PATH にあり、mise.toml の版が入っているかを確かめる`;
+    }
+    shfmtProblems.set(key, problem);
+  }
+  return shfmtProblems.get(key);
+}
+
 function shellComments(source, path) {
+  const problem = shfmtProblem();
+  // 起動できないのはファイルではなく実行環境の問題なので、ファイルごとの解析の失敗と分ける。
+  // 呼び出し元が実行そのものを止められるように missingTool を付ける。
+  if (problem) throw Object.assign(new Error(problem), { missingTool: true });
   let json;
   try {
     // --filename は方言（bash・posix など）の判定に使う。拡張子とシバンから決まる。
@@ -250,14 +279,6 @@ function shellComments(source, path) {
       maxBuffer: 64 * 1024 * 1024,
     });
   } catch (error) {
-    // shfmt を起動できないのは、ファイルではなく実行環境の問題である。ファイルごとの解析の失敗と分け、
-    // 呼び出し元が実行そのものを止められるように missingTool を付ける。
-    if (error.code === "ENOENT") {
-      throw Object.assign(
-        new Error("shfmt が見つからない（mise の shim が PATH に無いか、shfmt が入っていない）"),
-        { missingTool: true },
-      );
-    }
     const detail = String(error.stderr || error.message)
       .trim()
       .split("\n")[0];
