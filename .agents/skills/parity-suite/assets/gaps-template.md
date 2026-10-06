@@ -35,7 +35,7 @@
 ## API record / assertion の未対応
 
 <!-- api-resource や API の特性化で、record に記録したが assertion にできない応答の項目を残す。 -->
-<!-- 記録した JSON path は、次のどれかに分類し、未分類を残さない: assertion・record ／ assertion・record と parity-diff の両方に同じ形で当てる正規化 ／ この表。 -->
+<!-- 記録した JSON path は、次のどれかに分類し、未分類を残さない: assertion ／ record/replay と parity-diff の両方に同じ形で当てる正規化 ／ この表。 -->
 <!-- 現側と新側の差をまだ観測していない段階なので、intentional_diffs.pending には置かない。 -->
 <!-- 各行は例。実際のシナリオ・JSON path・理由で置き換える。該当が無ければ「なし（すべての path を assertion か正規化に分類済み）」と書く。 -->
 

@@ -259,7 +259,7 @@
       }
     ],
     "dimension_model": {
-      "_note": "寸法の決まり方（窓の寸法に対する位置・寸法の式）。feature モードではキーごと省略しない。status: measured は parity-suite の scripts/dimension-fit.mjs fit --write が書く（手で転記しない）。ビューポートが 1 つなら measured か not_measured、2 つ以上なら not_required も選べる（not_measured / not_required は reason 必須）。not_measured は gaps.md で済ませず parity-replace への引き渡し条件として残す（parity-replace が完了判定で dimension-fit.mjs check を通し、コピーしていない旨を porting.md に明示する）。原本は parity-suite の references/baseline.md「寸法の決まり方（窓への追従）」。",
+      "_note": "寸法の決まり方（窓の寸法に対する位置・寸法の式）。feature モードではキーごと省略しない。status: measured は parity-suite の scripts/dimension-fit.mjs fit --write が書く（手で転記しない）。ビューポートが 1 つなら measured か not_measured、2 つ以上なら not_required も選べる（not_measured / not_required は reason 必須）。not_measured は gaps.md で済ませず parity-replace への引き渡し条件として残す（parity-replace が完了判定で dimension-fit.mjs check を通し、反映していない旨を porting.md に明示する）。原本は parity-suite の references/baseline.md「寸法の決まり方（窓への追従）」。",
       "status": "<measured | not_measured | not_required>",
       "tool": "dimension-fit",
       "tool_version": "<dimension-fit.mjs の VERSION>",

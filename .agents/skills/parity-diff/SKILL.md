@@ -128,7 +128,7 @@ parity-diff --component-change <change.json> [--target <name>] [--autonomous]
   `converged` が偽でも失敗にはしない。失敗にするのは「無い」と「古い」だけである。スクリプトが無ければ、判定を飛ばさずに停止する。判定は [`references/convergence.md`](references/convergence.md) で定義する。
 - 追記専用の成果物が縮んだ状態で、`converged: true` にしない。インストール済みの `replace-strategy` の
   `scripts/append-only-check.mjs --root . --base <機能に着手した時点の版>` で数え直し、exit 0 以外なら止めて、過去の決定を元に戻す。
-  デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何も失われていなくても通ってしまう。
+  デフォルトの `HEAD` は使わない。書き直しを commit した後の `HEAD` は作業ツリーと同じなので、何かが失われていても通ってしまう。
   収束の判定は今の状態しか見ないので、積み上げた文書を丸ごと書き直しても、「なぜ許容したのか・いつ誰が承認したのか」が消えたまま通る。
   対象が 0 件のときは合格として扱わない。一覧は `replace-strategy` の `assets/append-only-manifest.json` で定義する。
 - 網羅プロファイルを宣言した部品の期待セルを、項目 × インスタンスで数えない。宣言した部品では、インスタンスごとの候補（`instances[].candidates`）が期待セルである。
