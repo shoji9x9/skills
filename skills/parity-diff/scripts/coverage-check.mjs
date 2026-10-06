@@ -47,7 +47,7 @@ export const VERSION = "16";
 // **なぜ 20 か**: 16 で導出の意味論が変わった——要求元をルール id でまとめるのをやめ、候補 id 単位にし、
 // 縮約は宣言・検証済みの同値クラス経由だけにした。15 以前は 1 ルールが展開する複数候補が 1 行へ潰れ、
 // 縮約してはいけない軸（datagrid の sort-direction 等）まで畳んでいた。
-// 18 で操作を終えた後に残る見た目の種別（after-operation）を足した（Issue #471）。17 以前の要約は
+// 18 で操作を終えた後に残る見た目の種別（after-operation）を足した。17 以前の要約は
 // 選択の塗り・絞り込みの印・並べ替えの印の行を 1 行も持たず、撮られなかった差が「差 0 件」に戻る。
 // 20 は同じ Issue のレビューで確定した候補の生成規則（表示切替で出す列の選択の塗り・複数列の並べ替えの
 // 両方の向き・必須ルールの代替の組）。18・19 はその途中の版で、これらの候補を持たない要約でも通ってしまう。
@@ -80,7 +80,7 @@ function nonEmptyString(v) {
 // 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
 // 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
 // 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
-// リポジトリの scripts/skills/_cross/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
+// 配布元のリポジトリのテストが、このマーカー間の一致を検査する。
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。
@@ -672,7 +672,7 @@ function isPlainObject(v) {
 /**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
- * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/skills/_cross/coverage-record-judge-parity.test.js。
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは、配布元のリポジトリにある。
  * 様式は reaction-check.mjs の tableFingerprint と同じ。
  * @param {Record<string, unknown>} table
  * @returns {string}

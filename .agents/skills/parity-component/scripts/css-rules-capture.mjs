@@ -26,7 +26,7 @@
 //   3. 入れ子の規則の `selectorText` は `&` を保った形で返る（`.inner` と書いても `& .inner`）。
 //      `el.matches("&:hover")` は throw せず false を返すため、`&` を解決しないと静かに取りこぼす。
 //   4. `el.matches(".btn::after")` も throw せず false を返す。擬似要素も剥がさないと同じ取りこぼしになる。
-// 1 と 2 は Issue #326 の報告（辿らないと 883 件、辿ると 3,206 件／883 件のはずが 4 件）と同じ現象で、
+// 1 と 2 は実際の移行の報告（辿らないと 883 件、辿ると 3,206 件／883 件のはずが 4 件）と同じ現象で、
 // どちらも「取りこぼしても例外が出ない」ため、走査が壊れていることが出力から分からない。
 // だから本ツールは**数えられなかったものを必ず出力に残す**（`inaccessible` / `unresolved`）。
 //
@@ -34,7 +34,7 @@
 // `:hover` 宣言・入れ子の `&:hover` の解決（`:is(.card):hover`）・`@layer` と `@media` の条件付与・
 // `::after` の擬似要素判定・`@keyframes` をレイヤとして数えないこと、および当たらない入れ子
 // （`& .inner`）を採らないことを確認した。偽 CSSOM に対するユニットテストは
-// scripts/skills/parity-component/css-rules-capture.test.js（素朴な走査が同じ入力で取りこぼすことを併せて実証している）。
+// 配布元のリポジトリのテスト（素朴な走査が同じ入力で取りこぼすことを併せて実証している）。
 //
 // Playwright はピア前提であり import しない。Locator は引数で受け取り、
 // locator.evaluate() 経由でブラウザ内 DOM を操作する（型は JSDoc のみ。TypeScript 構文は使わない）。
@@ -102,7 +102,7 @@ export const STRUCTURAL_PSEUDO_CLASSES = [
  * これらは「その状態のときだけ当たる」ことを意味するので、セレクタから剥がして
  * 残りで要素に当たるかを判定し、剥がした名前を `states` として記録する。
  * 剥がさずに matches() へ渡すと、hover 中でない要素に対して常に false になり、
- * `:hover` の宣言が 1 件も採れない（Issue #326 が計算値だけでは足りないと書いた箇所）。
+ * `:hover` の宣言が 1 件も採れない（計算値だけでは足りない箇所）。
  * @type {readonly string[]}
  */
 export const STATE_PSEUDO_CLASSES = [

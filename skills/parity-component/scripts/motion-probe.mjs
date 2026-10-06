@@ -1,10 +1,10 @@
-// 部品の動き（出し入れ・開閉のアニメーション）の時系列を採る探針（正本）。Issue #456。
+// 部品の動き（出し入れ・開閉のアニメーション）の時系列を採る探針（正本）。
 // 正本はこのスキル側にあり、実行時はプロジェクトの `<parity_suite_dir>/parity/lib/tools/vendor/` へ
 // コピーして使う（Playwright のスペックから import するため。parity-suite 同梱の element-shot.mjs と同じ規約）。
 //
 // 何のためか: 見た目の照合は `animations: "disabled"` で止めて撮るので、現行の部品が持つ動き
 // （jQuery の `show('slide')` / `fadeIn`、CSS の `transition` / `animation`）は採取物にも見本の照合にも写らない。
-// 新側が動きを持たないまま、部品の照合・スイート・parity-diff がすべて緑になる（Issue #456 の実例）。
+// 新側が動きを持たないまま、部品の照合・スイート・parity-diff がすべて緑になる（実際の移行で起きた）。
 // 画素では比べられなくても、`requestAnimationFrame` ごとに要素の矩形と不透明度を採れば、
 // 動きの長さ・始まるまでの遅れ・軌跡は数値で比べられる。比較は同梱の motion-compare.mjs が行う。
 //

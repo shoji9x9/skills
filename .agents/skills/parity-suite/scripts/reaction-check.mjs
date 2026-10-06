@@ -5,29 +5,29 @@
 // 何をするか:
 //   1. 現側 metadata.json の reaction_coverage 宣言を読み、declared: true のときだけ反応の被覆表を開く
 //      画面駆動の機能は操作を持たなくても declared: false を使えず、operations: [] と operations_none_reason の表で
-//      状態表示を振り分けさせる（Issue #503。表示だけの画面も取得の失敗・読み込み中・0 件を持ちうる）。
+//      状態表示を振り分けさせる（表示だけの画面も取得の失敗・読み込み中・0 件を持ちうる）。
 //      手順の改訂 OPERATIONLESS_TABLE_REVISION より前の declared: false は旧成果物として判定しない
 //   2. 操作ごとに反応の欄が埋まっているかを数え直す（空欄・証拠の欠けは未測定。「なし」も実測の記録を要求する）
-//      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する（Issue #450）
-//      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する（Issue #460）
+//      文書ごとのオリジン（対象 URL と同じか）も数える。別オリジンの文書は親へ反応が届かず「なし」に化けうるので根拠を要求する
+//      操作ごとの頁の組み方の変化（layout）も数える。操作で頁の高さ・要素の位置が変わるなら、2 回以上繰り返した後の実測を要求する
 //      操作を終えた後に残るもの（aftermath）も数える。残る見た目は撮る状態か assertion に割り当て、
-//      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる（Issue #471）
-//      撮る状態を持つ操作は、名乗った撮影ページ（capture_page）を押した後の URL を解いたページと照合する（Issue #484。解決規則は page-identity.mjs）。
-//      撮る状態の使い回しは解いたページ × 状態名で数え、部品被覆表（component_coverage）の導いた行も同じ集合に入れる（Issue #485）
+//      戻り先は押す前後の URL と、押す前に動かした状態のうち戻った範囲を実測させる
+//      撮る状態を持つ操作は、名乗った撮影ページ（capture_page）を押した後の URL を解いたページと照合する（解決規則は page-identity.mjs）。
+//      撮る状態の使い回しは解いたページ × 状態名で数え、部品被覆表（component_coverage）の導いた行も同じ集合に入れる
 //      操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）も数える。部品の内側の判定は画面の処理にも
-//      部品へ渡す引数にも現れず、境界の外側でしか姿を現さないので、境界の両側を現行で測らせる（Issue #483）
+//      部品へ渡す引数にも現れず、境界の外側でしか姿を現さないので、境界の両側を現行で測らせる
 //      表への書き込み（side_effect_writes）も数える。移行元ソースを書き込みのパターンで走査して全件と突き合わせ、
-//      1 か所ずつ値・時機・回数と確かめ方を記録させる（Issue #466。利用者に見える反応が無いので反応の欄には現れない）
+//      1 か所ずつ値・時機・回数と確かめ方を記録させる（利用者に見える反応が無いので反応の欄には現れない）
 //      画面ごとの状態表示（空データ・取得の失敗・読み込み中・トースト・ダイアログ）も数える。候補ごとに ある／ない を現行で測らせ、
 //      要求に結び付く候補（取得の失敗・読み込み中）の「ない」は要求の横取りで試した記録か、要求が無いことの記録でだけ通す。
 //      送る操作ごとの「送っている間にもう一度押す」（resubmit）も数える。応答を保留して押し直し、送った回数・確認の回数・覆いを測らせ、
-//      表への書き込みを持つ操作は書き込みの回数とも突き合わせる（Issue #500。1 回押した後の反応や押している最中の見た目には現れない）
+//      表への書き込みを持つ操作は書き込みの回数とも突き合わせる（1 回押した後の反応や押している最中の見た目には現れない）
 //   3. feedback_calls.declared: true なら、移行元ソースを設定のパターンで走査して呼び出し箇所を列挙し、
 //      被覆表の call_sites と集合で突き合わせる（記録漏れ・記録だけ残った箇所・反応へ対応付かない箇所を落とす）。
 //      side_effect_writes.declared: true なら、表に書いた書き込みのパターンで同じく走査して sites と突き合わせる
 //   4. 表の全ての covered_by を --tests（playwright test --list --reporter=json の出力）のテストへ解決し、
 //      1 本のテストを 2 行以上が名乗るなら全行に根拠（shared_assertion_reason）を要求する。あわせて、covered_by の assertion が
-//      期待値まで届いているかを実装役と別の subagent が 1 行ずつ監査した記録（assertion_audit）が今の表に対してあるかを数える（Issue #506。
+//      期待値まで届いているかを実装役と別の subagent が 1 行ずつ監査した記録（assertion_audit）が今の表に対してあるかを数える（
 //      欄の検査は空でない文字列かまでしか見ないので、浅い assertion を名乗っても緑・収束した）。監査の入力は --audit-sheet が出す。
 //      監査の記録は表の指紋に加えて covered_by のスペックファイルの中身の指紋を持ち、監査の後に assertion を弱めたら落とす（--recorded も一覧を読んで取り直す）
 //   5. --write なら照合結果を conformance として被覆表へ書き戻す（表の指紋付き）
@@ -63,7 +63,7 @@ const { pageForUrl, pageKey, resolvePages } = await import(
 export const VERSION = "9";
 
 /**
- * 撮る状態を指す 1 行（使い回しの照合の単位。Issue #485）。
+ * 撮る状態を指す 1 行（使い回しの照合の単位）。
  * source は出どころの表（reactions ＝ 反応の被覆表、coverage ＝ 部品被覆表の visual_state_coverage）、page は名乗ったページ名。
  * @typedef {{ opId: string | null, label: string, shared: boolean, source: "reactions" | "coverage", page: string | null }} CaptureUse
  */
@@ -72,7 +72,7 @@ export const VERSION = "9";
 const REACTION_KINDS = ["observed", "none", "unmeasured"];
 
 /**
- * 文書のオリジンが対象 URL（targets[].url）のオリジンと同じか（Issue #450）。
+ * 文書のオリジンが対象 URL（targets[].url）のオリジンと同じか。
  * 値そのもの（ホスト・ポート）は書かせない——url_command の target は URL を成果物に残さない規約なので、関係だけを記録する。
  */
 const ORIGIN_RELATIONS = ["same-origin", "cross-origin"];
@@ -83,7 +83,7 @@ const DISMISSAL_MODES = ["auto", "manual", "persistent", "not-applicable"];
 /** layout の矩形 1 つが持つ数値の軸。 */
 const RECT_AXES = ["x", "y", "width", "height"];
 
-/** 送る前の判定の種類（Issue #483）。 */
+/** 送る前の判定の種類。 */
 const PRE_SEND_KINDS = [
   "count-limit",
   "length-limit",
@@ -97,14 +97,14 @@ const PRE_SEND_KINDS = [
 /** 境界のどちら側を測ったか。inside ＝ 判定を通る側（上限ちょうど・形式の内側）、outside ＝ 止まる側（1 つ超え・形式の外側）。 */
 const BOUNDARY_SIDES = ["inside", "outside"];
 
-/** 表への書き込みが通る経路（Issue #466）。例外処理の中の書き込みは通常の操作では起きないので経路を分けて数える。 */
+/** 表への書き込みが通る経路。例外処理の中の書き込みは通常の操作では起きないので経路を分けて数える。 */
 const WRITE_PATHS = ["normal", "exception"];
 
 /** 表への書き込みの確かめ方。source-only は移行元で起こせない書き込み（例外時等）を読解だけで記録したもの。 */
 const WRITE_VERIFICATIONS = ["assertion", "source-only"];
 
 /**
- * 画面ごとに ある／ない を振り分ける状態表示の候補（Issue #500）。
+ * 画面ごとに ある／ない を振り分ける状態表示の候補。
  * 操作が返すトースト・ダイアログは反応の欄が測るが、画面の状態（0 件・取得の失敗・読み込み中）に出るものは操作の反応に現れない。
  */
 const STATE_DISPLAY_CANDIDATES = ["empty", "fetch-error", "loading", "toast", "dialog"];
@@ -131,7 +131,7 @@ const INTERCEPT_METHODS = ["route-abort", "route-fulfill", "route-delay"];
 
 /**
  * 候補ごとに absent（ない）を名乗れる手段。取得の失敗と読み込み中は、移行元で「起こせない」と書かれやすいが
- * 要求の横取りで起こせる（Issue #500）。横取りで試した記録か、要求が無いことの記録が無い「ない」は通さない。
+ * 要求の横取りで起こせる。横取りで試した記録か、要求が無いことの記録が無い「ない」は通さない。
  * @type {Record<string, string[]>}
  */
 const ABSENT_METHODS = {
@@ -184,7 +184,7 @@ function nonNegativeNumber(v) {
 export class UsageError extends Error {}
 
 /**
- * 画面駆動の機能に declared: false を認めなくした手順の改訂（parity-suite の assets/procedure-revisions.json の revision）。Issue #503
+ * 画面駆動の機能に declared: false を認めなくした手順の改訂（parity-suite の assets/procedure-revisions.json の revision）。
  * これより前の成果物の declared: false は、状態表示を振り分ける前の旧手順として判定しない（当て直すかは replace-strategy の台帳で決める）。
  */
 export const OPERATIONLESS_TABLE_REVISION = 4;
@@ -258,7 +258,7 @@ export function readDeclaration(metadata) {
       return { judged: false, reason: decl.reason };
     }
     // 画面駆動の機能（mode が無い・語彙外も含める）は、操作を持たなくても状態表示（0 件・取得の失敗・読み込み中）を持ちうる。
-    // declared: false で表ごと省くと振り分けを一度も測らずに完了・収束するので、operations: [] の表を作らせる（Issue #503）
+    // declared: false で表ごと省くと振り分けを一度も測らずに完了・収束するので、operations: [] の表を作らせる
     const revision = procedureRevisionOf(metadata);
     if (revision >= OPERATIONLESS_TABLE_REVISION) {
       throw new UsageError(
@@ -328,7 +328,7 @@ const NON_TABLE_KEYS = new Set(["conformance", "assertion_audit"]);
 
 /**
  * 表の中で covered_by を持つオブジェクト（持ち主）を全て列挙する。欄の位置を決め打ちせず表全体を歩く——
- * 欄を足すたびに列挙を足す形にすると、足し忘れた欄の covered_by が解決・共有・監査のどれにも入らない（Issue #506）。
+ * 欄を足すたびに列挙を足す形にすると、足し忘れた欄の covered_by が解決・共有・監査のどれにも入らない。
  * path は JSON の位置（例: $.operations[0].reactions[1]）で、監査の記録（assertion_audit.entries[].path）の突き合わせに使う。
  * @param {Record<string, unknown>} table
  * @returns {{ path: string, owner: Record<string, unknown>, names: string[], ancestors: { path: string, obj: Record<string, unknown> }[] }[]}
@@ -339,7 +339,7 @@ export function coveredByOwners(table) {
 
 /**
  * coveredByOwners の走査本体。形の壊れた covered_by（配列でない・空文字や文字列以外の要素を持つ）の位置も返す——
- * 欄の位置を列挙しない走査なので、未知の欄で形が壊れていると解決・共有・監査のどれにも入らず黙って消える（Issue #506）。
+ * 欄の位置を列挙しない走査なので、未知の欄で形が壊れていると解決・共有・監査のどれにも入らず黙って消える。
  * 空配列と null は「名乗らない」として通す（撮る状態だけで押さえる行・source-only の書き込み等）。
  * @param {Record<string, unknown>} table
  */
@@ -367,7 +367,7 @@ function scanCoveredBy(table) {
       if (k === "covered_by" || (k.startsWith("_") && typeof v[k] === "string")) continue;
       if (path === "$" && NON_TABLE_KEYS.has(k)) continue;
       // 区切り（. [ ] 等）を含みうるキーは JSON 文字列の添字で書く。字面を連結すると "a.b" と a.b が同じ位置になり、
-      // 監査の記録 1 件が別々の 2 行を満たす（Codex レビュー #510）
+      // 監査の記録 1 件が別々の 2 行を満たす
       walk(
         v[k],
         SAFE_KEY.test(k) ? `${path}.${k}` : `${path}[${JSON.stringify(k)}]`,
@@ -416,7 +416,7 @@ export function indexTestList(report) {
       if (!isPlainObject(spec) || !nonEmptyString(spec.file) || typeof spec.title !== "string") {
         throw new UsageError("--tests の specs に file / title の無い要素がある");
       }
-      // 位置はテストの同定に使う。欠けを null で埋めると、位置の無い同じ題の別のテストが 1 本に畳まれる（Codex レビュー #510。
+      // 位置はテストの同定に使う。欠けを null で埋めると、位置の無い同じ題の別のテストが 1 本に畳まれる（
       // Playwright の一覧は常に 1 始まりの line / column を持つので、欠けは作り変えた一覧として落とす）
       if (!positiveInteger(spec.line) || !positiveInteger(spec.column)) {
         throw new UsageError(
@@ -426,7 +426,7 @@ export function indexTestList(report) {
       const path = [...here, spec.title];
       const name = [spec.file, ...path].join(TITLE_SEPARATOR);
       // 同じテストの project ごとの写しだけを 1 本に畳む。位置（行・列）も同定に入れ、同じ題の別のテストは曖昧として残す
-      // （Playwright は同じ題を読み込みエラーにするが、一覧を手で作り変えた入力でも別のテストの project を合算しない。Codex レビュー #510）
+      // （Playwright は同じ題を読み込みエラーにするが、一覧を手で作り変えた入力でも別のテストの project を合算しない）
       const key = JSON.stringify([spec.file, spec.line, spec.column, ...path]);
       const entry = index.get(name) ?? {
         keys: new Set(),
@@ -456,7 +456,7 @@ export function indexTestList(report) {
 }
 
 /**
- * covered_by を検査する（Issue #506）。
+ * covered_by を検査する。
  * - 解決: 名前が一覧のテストへ 1 つだけ解決し、current / new の両プロジェクトで走ること（testIndex があるときだけ）
  * - 共有: 1 本のテストを 2 つ以上の持ち主が名乗るなら、全ての持ち主に shared_assertion_reason を要求する
  *   （1 本の assertion が持ち主ごとの期待値を全て確かめている保証は無いので、同じテストで足りる根拠を書かせる）
@@ -517,7 +517,7 @@ export function coveredByProblems(owners, testIndex) {
 }
 
 /**
- * assertion の深さの監査の記録（assertion_audit）を検査する（Issue #506）。
+ * assertion の深さの監査の記録（assertion_audit）を検査する。
  * 監査そのもの（期待値のどこを確かめていないか）は実装役と別の subagent が行い、ここでは「全ての持ち主を 1 件ずつ当てた記録が、
  * 今の表に対して残っているか」だけを数える——記録の指紋が表と違えば、監査の後に期待値か covered_by が変わっている。
  * @param {unknown} audit
@@ -591,7 +591,7 @@ export function assertionAuditProblems(audit, owners, fingerprint, specs = null)
 }
 
 /**
- * covered_by が名指ししたスペックファイルの中身の指紋（Issue #506 のレビュー）。
+ * covered_by が名指ししたスペックファイルの中身の指紋。
  * 監査の記録は表の指紋だけだと、監査の後にスペックの assertion を弱めても（toHaveText を toBeVisible に置き換える等）表を触らない限り通る。
  * 監査したときのスペックの中身を指紋で結び、--write・--recorded で取り直して照合する。
  * 範囲は covered_by が名指ししたスペックファイルだけ——マッピング層・期待値解決層は新側の実装で正規に変わるので含めない
@@ -637,7 +637,7 @@ export function specsFingerprint(owners, testIndex, rootDir, readFile) {
  * expected は持ち主の欄から covered_by と共有の根拠を除いたもの（期待値そのもの）。
  * context は持ち主を含む祖先（外側から。表そのものは除く）の位置と値の欄——操作の id / trigger、送る前の判定の項目の
  * id / kind / condition、状態表示の画面名など。欄だけを渡すと、似た期待値を持つ別の操作・別の判定のテストでも
- * 「届いている」と判定されうる（Codex レビュー #510。祖先を 1 段ずつ足すと段の数だけ抜けるので、全ての祖先を載せる）。
+ * 「届いている」と判定されうる（祖先を 1 段ずつ足すと段の数だけ抜けるので、全ての祖先を載せる）。
  * @param {ReturnType<typeof coveredByOwners>} owners
  * @param {ReturnType<typeof indexTestList>} testIndex
  */
@@ -862,7 +862,7 @@ function layoutMeasureProblem(m) {
 }
 
 /**
- * 操作の頁の組み方の変化（layout）の欠けを返す（無ければ null）。Issue #460
+ * 操作の頁の組み方の変化（layout）の欠けを返す（無ければ null）。
  *
  * 寸法の式（dimension_model）と視覚ベースラインは初期表示の状態しか見ないので、操作で頁の高さや要素の位置が変わる振る舞いは
  * どの経路にも入らない。1 回の操作の差分では「窓から書き直す絶対値」と「前の値からの相対」を区別できないため、
@@ -989,7 +989,7 @@ function filled(v) {
 }
 
 /**
- * 操作を終えた後に残る見た目（aftermath.look）の欠けを返す。Issue #471
+ * 操作を終えた後に残る見た目（aftermath.look）の欠けを返す。
  *
  * 撮影状態の導出は操作の途中（器を開く・指を乗せる等）までしか導かないので、終えた後に残る塗り・色・印は
  * 撮る状態にも assertion にも入らず、差は「差 0 件」と同じ見え方になる。見た目ごとに現行で測った値を残させ、
@@ -1114,7 +1114,7 @@ function aftermathLookProblems(look, captureStates) {
 }
 
 /**
- * 押した後に URL の上でも状態の上でもどこへ戻るか（aftermath.returns_to）の欠けを返す。Issue #471
+ * 押した後に URL の上でも状態の上でもどこへ戻るか（aftermath.returns_to）の欠けを返す。
  *
  * 遷移しないはずの操作が遷移する・戻すはずの状態を戻さない差は、撮った画面の上には現れない。
  * 押す前後の URL と、押す前に既定から動かした状態（probed）のうち押した後に既定へ戻ったもの（reset）を実測させる。
@@ -1221,8 +1221,8 @@ function aftermathReturnsProblems(ret, screenStates) {
 
 /**
  * 横取り・保留した要求の URL のパターンが、オリジン（スキームとホスト・ポート）を含まない形か。
- * 成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、実行時に解決した URL がそのまま記録されるのを落とす
- * （Codex レビュー #504）。先頭の `*`（Playwright の glob）を外した残りが `/` で始まるパス（`//` で始まらない）で、
+ * 成果物にホスト・ポートを残さない規約（url_command の target）に合わせ、実行時に解決した URL がそのまま記録されるのを落とす。
+ * 先頭の `*`（Playwright の glob）を外した残りが `/` で始まるパス（`//` で始まらない）で、
  * どこにも `://` を含まないものだけを通す——`https://host/…`・`//host/…` に加えて、glob の後ろにスキームやホストを書いた
  * `*` + `*://host/…` の形も落とす。
  * @param {unknown} v
@@ -1235,13 +1235,13 @@ function originFreePattern(v) {
 }
 
 /**
- * 状態表示の候補 1 つ（state_displays.pages[].candidates の 1 値）の欠けを返す。Issue #500
+ * 状態表示の候補 1 つ（state_displays.pages[].candidates の 1 値）の欠けを返す。
  *
  * 「状態表示」を散文の観点にしておくと、画面がその状態を持つかを一度も測らないまま完了できる。
  * 候補ごとに ある（present）／ない（absent）を現行で測らせ、ある は撮る状態か assertion へ割り当てさせる。
  * ない も測った結果なので、不在を確かめる assertion を要求する（新側が警告のダイアログを足しても、撮っていない状態は 3 経路に写らない）。
  * toast / dialog も操作の反応を参照させない。参照は画面・見えるか・種別の一致を検査で保証し続ける必要があり、
- * 軸を 1 つ塞ぐたびに別の軸の穴が出た（Codex レビュー #504 で 3 巡）ので、入力形式ごと外した。反応と同じ assertion 名を covered_by に書く。
+ * 軸を 1 つ塞ぐたびに別の軸の穴が出た（レビューで 3 巡）ので、入力形式ごと外した。反応と同じ assertion 名を covered_by に書く。
  * @param {unknown} entry
  * @param {string} candidate - STATE_DISPLAY_CANDIDATES の 1 つ
  * @param {Set<string> | null} captureStates
@@ -1354,7 +1354,7 @@ function stateDisplayProblems(entry, candidate, captureStates) {
 }
 
 /**
- * 画面ごとの状態表示の振り分け（state_displays）を検査する。Issue #500
+ * 画面ごとの状態表示の振り分け（state_displays）を検査する。
  *
  * 画面の集合は metadata.json の capture_conditions.pages（宣言）から取る。記録した画面の一覧を期待値にすると、
  * 画面ごと落とした振り分けが期待値からも消える。
@@ -1465,7 +1465,7 @@ function checkStateDisplays(sd, ctx) {
 }
 
 /**
- * 送っている間にもう一度押したときの振る舞い（resubmit）の欠けを返す。Issue #500
+ * 送っている間にもう一度押したときの振る舞い（resubmit）の欠けを返す。
  *
  * 撮影状態の active は押している最中の見た目で、反応の欄は 1 回押した後を測る。要求が往復している間の操作の受け付け
  * （無視する・もう一度送る・確認をもう一度出す）はどちらにも現れず、移行元と移行先で違いやすい。
@@ -1609,7 +1609,7 @@ function symbolIn(text, symbol) {
 }
 
 /**
- * 操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）の欠けを返す。Issue #483
+ * 操作が最終的に呼ぶ送信・実行の関数の手前にある判定（pre_send）の欠けを返す。
  *
  * 件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプトや送信の関数の中に置かれることがあり、
  * 画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、スイートも差分器も両側で緑のまま新側に判定が無いことが分からない。
@@ -1642,7 +1642,7 @@ function preSendProblems(ps) {
     out.push({ problem: "pre_send.found が true / false / null のどれでもない", unmeasured: true });
     return { problems: out, refs };
   }
-  // 到達点。画面の処理で読むのを止めると、部品の内側の判定は読まれない（Issue #483 の実例は送信の関数の中の上限）
+  // 到達点。画面の処理で読むのを止めると、部品の内側の判定は読まれない（実例は送信の関数の中の上限）
   const traced = ps.traced_to;
   if (!Array.isArray(traced) || traced.length === 0 || !traced.every(isSourceRef)) {
     out.push({
@@ -1865,7 +1865,7 @@ function sourceProblems(src, targetCommit, label) {
 }
 
 /**
- * 表への書き込み（side_effect_writes）を検査する。Issue #466
+ * 表への書き込み（side_effect_writes）を検査する。
  *
  * 監査・利用ログのような表への書き込みは利用者に見える反応を出さないので、反応の欄では「反応が無い」に落ち、
  * 差分器の 3 経路（画素・特性・aria）も DB を見ない。書き込みがまるごと無い新側でもスイートと差分検出が緑になる。
@@ -2219,7 +2219,7 @@ export function checkReactions(table, opts = {}) {
   } else {
     documents = new Set(/** @type {string[]} */ (docs));
   }
-  // 文書ごとのオリジン（対象 URL と同じか）。Issue #450
+  // 文書ごとのオリジン（対象 URL と同じか）。
   // 移行元が絶対 URL で組み立てるフレームの読み込み先と targets[].url のオリジンが違うと、フレームの中の処理が親の文書に届かず、
   // 実在する反応が「無い」と記録される。差分器は「無い」同士で一致させてしまうので、別オリジンの文書には根拠を要求する
   const origins = table.document_origins;
@@ -2249,7 +2249,7 @@ export function checkReactions(table, opts = {}) {
     }
   }
   // 根拠は別オリジンの文書ごとに持たせる。表全体で 1 本だと、意図して別オリジンにした文書の根拠が
-  // 環境の都合で別オリジンになった文書まで通してしまう（Codex レビュー #453）
+  // 環境の都合で別オリジンになった文書まで通してしまう
   const evidence = table.cross_origin_evidence;
   if (!isPlainObject(evidence)) {
     problems.push(
@@ -2272,7 +2272,7 @@ export function checkReactions(table, opts = {}) {
   const windowMs = positiveNumber(table.observation_window_ms)
     ? /** @type {number} */ (table.observation_window_ms)
     : null;
-  // 操作の無い表（Issue #503）には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
+  // 操作の無い表には none の反応が無いので、観測時間の下限は null でよい（測っていない値を書かせない）。
   // 正の数を書いた表も通す——照合する none が無いので値は判定に使われず、落とす理由が無い
   const noOperations = Array.isArray(table.operations) && table.operations.length === 0;
   if (windowMs === null && !(noOperations && table.observation_window_ms === null))
@@ -2280,7 +2280,7 @@ export function checkReactions(table, opts = {}) {
       `observation_window_ms が正の数でない（none の観測時間の下限が無い${noOperations ? "。操作の無い表では null と書く" : ""}）`,
     );
 
-  // 画面が持つ状態の棚卸し（Issue #471）。押した後に戻す範囲を、操作ごとの自己申告ではなくこの一覧と突き合わせる
+  // 画面が持つ状態の棚卸し。押した後に戻す範囲を、操作ごとの自己申告ではなくこの一覧と突き合わせる
   const ss = table.screen_states;
   /** @type {string[] | null} */
   let screenStates = null;
@@ -2303,7 +2303,7 @@ export function checkReactions(table, opts = {}) {
 
   const operations = Array.isArray(table.operations) ? table.operations : null;
   if (operations === null) throw new UsageError("operations が配列でない");
-  // 操作の無い表は、理由を書いたときだけ正規の記録として通す（Issue #503。理由の無い 0 件は採り忘れと区別できない）。
+  // 操作の無い表は、理由を書いたときだけ正規の記録として通す（理由の無い 0 件は採り忘れと区別できない）。
   // 画面の状態表示の振り分けは操作の有無に依らず下で数える
   const noneReason = table.operations_none_reason;
   if (operations.length === 0) {
@@ -2332,7 +2332,7 @@ export function checkReactions(table, opts = {}) {
   const unmeasuredOps = new Set();
   /** @type {Map<string, CaptureUse[]>} [解決したページ, 撮る状態名] → 割り当てた行（状態表示・部品被覆表の行は opId: null） */
   const aftermathCaptureUses = new Map();
-  // 押した後の URL と名乗ったページの照合（Issue #484）。照合できないときは理由を出力に残す（黙って照合済みにしない）
+  // 押した後の URL と名乗ったページの照合。照合できないときは理由を出力に残す（黙って照合済みにしない）
   const capturePageUrls = {
     checked: pageResolution !== null && pageResolution.resolvable,
     reason:
@@ -2362,7 +2362,7 @@ export function checkReactions(table, opts = {}) {
       if (lp.unmeasured) fail(lp.problem);
       else problems.push(`${label}: ${lp.problem}`);
     }
-    // 押した後に残る見た目と戻り先（Issue #471）。欠けは layout と同じく未測定に数える
+    // 押した後に残る見た目と戻り先。欠けは layout と同じく未測定に数える
     const am = op.aftermath;
     const amProblems = isPlainObject(am)
       ? [
@@ -2380,7 +2380,7 @@ export function checkReactions(table, opts = {}) {
       if (ap.unmeasured) fail(ap.problem);
       else problems.push(`${label}: ${ap.problem}`);
     }
-    // 送る前の判定（Issue #483）。欠けは layout と同じく未測定に数える
+    // 送る前の判定。欠けは layout と同じく未測定に数える
     const ps = preSendProblems(op.pre_send);
     for (const pp of ps.problems) {
       if (pp.unmeasured) fail(pp.problem);
@@ -2429,7 +2429,7 @@ export function checkReactions(table, opts = {}) {
           "capture_page が無い（撮る状態を持つ操作は、capture_conditions.pages が 2 つ以上なら押した後に撮ったページを書く）",
         );
     }
-    // 名乗ったページが本当に撮ったページかを、押した後の URL（returns_to.url_after）を宣言済みのページへ解決して確かめる（Issue #484）。
+    // 名乗ったページが本当に撮ったページかを、押した後の URL（returns_to.url_after）を宣言済みのページへ解決して確かめる。
     // 解決規則は page-identity.mjs（正本は baseline.md「ページの path の解決規則」）。別名のページ（path が同じ別の名前）は同じ 1 枚として通す。
     // 戻り先を測っていない操作は returns_to の欠けとして別に落ちるので、ここでは照合しない
     if (page !== null && consumesCapture) {
@@ -2688,7 +2688,7 @@ export function checkReactions(table, opts = {}) {
     }
   }
 
-  // --- 表への書き込みとの突き合わせ（Issue #466）---
+  // --- 表への書き込みとの突き合わせ ---
   /** @type {Set<string>} 表への書き込みを持つ操作 */
   const writeOps = new Set();
   const sideEffects = checkSideEffectWrites(table.side_effect_writes, {
@@ -2700,7 +2700,7 @@ export function checkReactions(table, opts = {}) {
     writeOps,
   });
 
-  // --- 送っている間の押し直し（Issue #500）---
+  // --- 送っている間の押し直し ---
   // 書き込みを持つ操作は表への書き込みの突き合わせが済んでから分かるので、操作の走査とは別に回す
   for (const op of operations) {
     if (!isPlainObject(op) || !opIds.has(/** @type {string} */ (op.id))) continue;
@@ -2710,7 +2710,7 @@ export function checkReactions(table, opts = {}) {
     }
   }
 
-  // --- 画面ごとの状態表示（Issue #500）---
+  // --- 画面ごとの状態表示 ---
   const stateDisplays = checkStateDisplays(table.state_displays, {
     pageNames,
     captureStates,
@@ -2719,7 +2719,7 @@ export function checkReactions(table, opts = {}) {
     captureLabel,
     pageResolution,
   });
-  // 操作の無い表では、状態表示のどれも撮らない default 以外の撮影状態を操作の痕跡に数える（PR #536 のレビュー）。
+  // 操作の無い表では、状態表示のどれも撮らない default 以外の撮影状態を操作の痕跡に数える。
   // 撮影状態の照合は「表が名乗った状態が宣言に在るか」の片向きなので、ここで数えないと、タブを押して撮る状態を
   // 宣言したまま operations: [] と理由だけで反応の判定を飛ばせる
   if (operations.length === 0 && captureStates !== null) {
@@ -2744,7 +2744,7 @@ export function checkReactions(table, opts = {}) {
   }
 
   if (coverageProblem !== null) problems.push(coverageProblem);
-  // 部品被覆表の撮る状態も同じ集合（解決したページ × 状態名）で数える（Issue #485）。
+  // 部品被覆表の撮る状態も同じ集合（解決したページ × 状態名）で数える。
   // 部品から導いた行と反応・残る見た目・状態表示の行が同じ 1 枚を指すと、各表の中では 1 件にしか見えず根拠なしで通る
   for (const c of coverageCaptures ?? []) {
     const key = JSON.stringify([pageKey(c.page, pageResolution), c.captured]);
@@ -2765,7 +2765,7 @@ export function checkReactions(table, opts = {}) {
 
   // 同じ撮る状態名を複数の残る見た目が指すと、その 1 枚が片方の操作しか作っていなくても全行が満たされる（Codex レビュー）。
   // coverage-expand.mjs の撮影状態と同じく、使い回す全行に実 UI で確かめた根拠（shared_capture_reason）を要求する。
-  // 状態表示を撮る状態も同じ集合で数える（0 件の 1 枚を、押した後の 1 枚と根拠なしに兼ねさせない。Issue #500）
+  // 状態表示を撮る状態も同じ集合で数える（0 件の 1 枚を、押した後の 1 枚と根拠なしに兼ねさせない）
   for (const [key, uses] of aftermathCaptureUses) {
     if (uses.length < 2) continue;
     // 部品被覆表の中だけの同じページ名の使い回しは coverage-expand.mjs が数える（二重に報告しない）。
@@ -2781,7 +2781,7 @@ export function checkReactions(table, opts = {}) {
     );
   }
 
-  // --- covered_by の解決・共有と、assertion の深さの監査の記録（Issue #506）---
+  // --- covered_by の解決・共有と、assertion の深さの監査の記録 ---
   // 欄の検査は「空でない文字列の配列か」までなので、書いた名前のテストが実在するか・1 本を何行が名乗るか・
   // その assertion が期待値まで届くかをここで数える（届くかの判断は監査役の subagent。ここは全行を当てた記録があるかだけ）
   const fingerprint = tableFingerprint(table);
@@ -2852,7 +2852,7 @@ export function checkReactions(table, opts = {}) {
 }
 
 /**
- * 部品被覆表（metadata.json の component_coverage）の撮る状態を、表をまたいだ使い回しの照合用に読む（Issue #485）。
+ * 部品被覆表（metadata.json の component_coverage）の撮る状態を、表をまたいだ使い回しの照合用に読む。
  * 行のページはインスタンスの page（capture_conditions.pages の名前）。page が無い・宣言に無い行は
  * coverage-expand.mjs が落とす（parity-diff の収束判定は部品被覆表の conformance.ok を要求する）ので、ここでは数えない。
  * @param {Record<string, unknown>} metadata
@@ -2927,7 +2927,7 @@ export function readCoverageCaptures(metadata, pageNames, readFile, cwd) {
 }
 
 /**
- * capture_conditions.pages から画面名の集合を作る。名前の無い・空・重複した宣言は黙って捨てずに落とす（Codex レビュー #504）——
+ * capture_conditions.pages から画面名の集合を作る。名前の無い・空・重複した宣言は黙って捨てずに落とす——
  * 捨てると、宣言した画面の一部が期待集合から消え、状態表示の全画面の振り分けが残りの画面だけで通る。
  * @param {unknown[]} pages
  * @returns {Set<string>}
@@ -2953,7 +2953,7 @@ function pageNameSet(pages) {
 /**
  * @param {string[]} argv - process.argv.slice(2)
  * @param {{ readFile?: (p: string) => string, writeFile?: (p: string, s: string) => void, cwd?: string, out?: (s: string) => void, err?: (s: string) => void }} [deps]
- *   out / err は出力先（既定は process.stdout / process.stderr）。テストが子プロセスを起動せず main を直接呼ぶために差し込む（Issue #507）
+ *   out / err は出力先（既定は process.stdout / process.stderr）。テストが子プロセスを起動せず main を直接呼ぶために差し込む
  * @returns {number}
  */
 export function main(argv, deps = {}) {

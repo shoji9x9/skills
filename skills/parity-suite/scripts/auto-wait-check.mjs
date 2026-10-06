@@ -767,7 +767,7 @@ function playwrightReceivers(code, file = "<source>") {
    */
   // 角括弧のアサーションは右辺の先頭に付くので、1 行目で切らず右辺全体の先頭で見る。
   // 1 行目だけに当てると、`<Locator>` と対象が別の行にある形（`const row = <Locator>\n  raw;`）で
-  // アサーションを読み落とし、別名がどこにも入らないまま消える（Issue #412）。
+  // アサーションを読み落とし、別名がどこにも入らないまま消える。
   const assertionKind = (statement, rawRhs) => {
     const angle = angleAssertionAllowed ? rawRhs.match(ANGLE_ASSERTION) : null;
     const name = (angle ?? statement.match(TRAILING_ASSERTION))?.[1] ?? null;
@@ -935,7 +935,7 @@ function declaratorRhs(rawRhs) {
 }
 
 /**
- * 受け側として現れたとき「Playwright 以外」と確定できる名前を返す（Issue #412）。
+ * 受け側として現れたとき「Playwright 以外」と確定できる名前を返す。
  *
  * どれにも解決しない受け側は、ここに入った名前を起点にするものだけを対象外に数え、残りは判定不能にする。
  * **確定の根拠を閉じた集合で持つ**——「解決しなかったら対象外」にすると、読んでいない束縛の形
@@ -946,7 +946,7 @@ function declaratorRhs(rawRhs) {
  *      （リテラル・起点が全て確定済みの式・JSX・Page から取り出した Page / Locator でないプロパティ）
  *   2. 標準の組み込み（BUILTIN_NON_RECEIVERS）
  *
- * **型注釈と関数値は根拠にしない**（PR #448 のレビュー後に絞った）。型名の中身はファイルの外にありうり
+ * **型注釈と関数値は根拠にしない**（レビュー後に絞った）。型名の中身はファイルの外にありうり
  * （import した型エイリアス・型引数・構造的な interface）、関数値は呼び出し・タグ付きテンプレートの戻り値と
  * 見分けられない（テンプレートは maskNonCode で空白になる）。どちらも例外を 1 つ塞ぐたびに次の書き方が
  * 見つかったので、根拠の側を閉じた小さな集合に保つ。代わりに DOM を扱う callback の引数は判定不能になる。
@@ -1200,7 +1200,7 @@ export function scanSourceWithStats(source, file = "<source>") {
       if (kind === null) {
         // どれにも解決しない受け側は、起点が Playwright 以外と確定した名前のときだけ対象外に数える。
         // 黙って読み飛ばすと、束縛を読めなかった名前（引数・分割代入・再代入・for-of・import）の呼び出しが
-        // 違反 0 件でも判定不能 0 件でもないまま消える（Issue #412）。
+        // 違反 0 件でも判定不能 0 件でもないまま消える。
         // 同じファイルで確定した名前は、その名前そのもの（チェーン長 1）だけを対象外に数える。
         // プロパティ（`box.row` / `timers.row`）は後から Locator を代入できる（代入・Object.assign 等）ので、
         // 辿った先は確定にしない。組み込み（`document.body`）は実行環境の値なので辿ってよい。

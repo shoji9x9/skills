@@ -1,4 +1,4 @@
-// 撮る範囲の穴を採取の段で数える検査（正本）。Issue #239。
+// 撮る範囲の穴を採取の段で数える検査（正本）。
 //
 // 何のためか: 撮る範囲が狭いと、**実装したあとに範囲外の差分が現れる**。
 // そこで範囲を広げて撮り直すことになるが、**現側も撮り直し**なので反復が 1 つ増える。
@@ -11,19 +11,19 @@
 //   2. **文書が撮影領域より大きい**（`below-fold` / `beyond-right`）: `full_page: false` で下・右が切れている。
 //   3. **内部スクロール器の外**（`scroll:<名前>`）: 器の `scrollHeight` / `scrollWidth` が `clientHeight` / `clientWidth` より大きく、
 //      画素にも特性にも出ない領域が器の中に残っている（仮想スクロール・固定高のグリッドが該当する）。
-//      あわせて器ごとに（Issue #495）、**特性照合に器が無い**（`untraced:<名前>`。器の名前が `traits.elements` に無く、
+//      あわせて器ごとに、**特性照合に器が無い**（`untraced:<名前>`。器の名前が `traits.elements` に無く、
 //      スクロールバーの有無・厚み・見た目が trait-capture.mjs の `scroll` に採られない）と、
 //      **スクロールバーを表示して撮ったのに、はみ出した向きのバーが場所を取っていない**（`scrollbar-hidden:<名前>`。
 //      `--hide-scrollbars` が残っているか、オーバーレイ型・`scrollbar-width: none` のバー）を穴として数える。
 //   4. **撮影領域の外にある論理名付き要素**（`offscreen:<名前>`）: 特性は採れても画素には写らない。
 //
-// あわせて**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（Issue #449。`checkOverflow`）。
+// あわせて**スクロールバーが場所を取る窓でのはみ出し**の宣言を数える（`checkOverflow`）。
 // スクロールバーを隠した撮影では `100vh` と `height: 100%` の差が 0 になり、上の穴と同じく「差分 0 件」に化けるため。
 // 撮影時の扱い（`scrollbars`）は `shown` を既定にし、`hidden` で撮るなら理由（`scrollbars_reason`）を、
-// `shown` ならどの環境のスクロールバーで撮ったか（`scrollbar_environment`）を書かせる（Issue #495）。
-// **表示を切り替える軸**（ロケール・配色テーマ等。Issue #489。`checkDisplayAxes`）も数える——既定の 1 値だけで撮ると、
+// `shown` ならどの環境のスクロールバーで撮ったか（`scrollbar_environment`）を書かせる。
+// **表示を切り替える軸**（ロケール・配色テーマ等。`checkDisplayAxes`）も数える——既定の 1 値だけで撮ると、
 // 他の値での差がどの経路にも写らない。既定以外の値ごとの撮影（変種）は撮るはずの組に入り、撮っていなければ `#not-captured` の穴になる。
-// **採取環境と利用者環境の一致**（Issue #476。`checkViewerEnvironment` / `checkBrowser`）も数える——「未確認」のままでは、
+// **採取環境と利用者環境の一致**（`checkViewerEnvironment` / `checkBrowser`）も数える——「未確認」のままでは、
 // 採取環境でだけ成立する一致が差分ゼロのまま収束する。
 //
 // 穴は消すか、**対象外として理由付きで宣言する**（`capture_scope_exemptions`）。宣言の無い穴は落とす。
@@ -235,7 +235,7 @@ export function deriveHoles(entry, context = {}) {
           detail: `器 ${String(name)} の内容 ${scroll.width}x${scroll.height} が可視部 ${client.width}x${client.height} より大きい`,
         });
       }
-      // 器ごとの overflow とスクロールバーの厚み（Issue #495）。寸法だけでは、現行が overflow: auto で横のバーを出し、
+      // 器ごとの overflow とスクロールバーの厚み。寸法だけでは、現行が overflow: auto で横のバーを出し、
       // 新側が overflow-x: hidden で右端を切る差が見えない（バーを隠して撮ると client と scroll が両側とも揃う）
       const overflowX = container.overflow_x;
       const overflowY = container.overflow_y;
@@ -340,7 +340,7 @@ export function deriveHoles(entry, context = {}) {
  *
  * 軸の材料に区切り文字が入ると別々の組が同じ鍵に潰れるため、`keyPartsAreSafe` と同じ規律で材料の側を弾く。
  *
- * **表示の軸の値ごとの撮影（`display_axes.variants`）も撮るはずの組に入れる**（Issue #489）。変種の label は
+ * **表示の軸の値ごとの撮影（`display_axes.variants`）も撮るはずの組に入れる**。変種の label は
  * ビューポートの軸の値として扱い（`noise_baseline` / `capture_scope` の `viewport` に書く）、全ページ × 全状態を期待する。
  * 変種が持つ軸を `not_applicable` と宣言したページだけは期待しない。
  * @param {Record<string, unknown>} conditions
@@ -422,12 +422,12 @@ export function declaredCombinations(conditions, displayAxes) {
 }
 
 /**
- * 表示を切り替える軸の候補（正本）。Issue #489。
+ * 表示を切り替える軸の候補（正本）。
  *
  * **軸は思いついた分だけ数えると、数えなかった軸の値での差がどの経路にも写らない**（ロケールを数えずに English だけで撮り、
  * 利用者が Japanese で開いて初めて気づいた）。候補の全件を「在る（`axes[].candidate`）」か「無い（`absent`）」に振り分けさせ、
  * 振り分けていない候補を落とす。一覧に無い軸は `candidate: "other"` で足す。
- * スクロールバーの出方（常に表示・オーバーレイ）は利用者の OS・ブラウザの設定で変わる軸として数える（Issue #495）。
+ * スクロールバーの出方（常に表示・オーバーレイ）は利用者の OS・ブラウザの設定で変わる軸として数える。
  * 採取環境で撮るバーの扱い（場所を取るか）は別に `scrollbars` / `overflow` が持つ。
  * @type {{id:string, label:string}[]}
  */
@@ -485,7 +485,7 @@ function variantSignature(values) {
 }
 
 /**
- * 表示を切り替える軸（`capture_conditions.display_axes`）の宣言を検査する。Issue #489。
+ * 表示を切り替える軸（`capture_conditions.display_axes`）の宣言を検査する。
  *
  * 落とすのは 4 群。
  *   1. **数えていない**: キーごと無い・候補の一覧に振り分けていない候補がある。
@@ -937,7 +937,7 @@ export function checkDisplayAxes(conditions) {
 }
 
 /**
- * 採取環境と利用者環境の一致（`capture_conditions.viewer_environment`）を検査する。Issue #476。
+ * 採取環境と利用者環境の一致（`capture_conditions.viewer_environment`）を検査する。
  *
  * 通すのは `一致: <確かめ方>` と `乖離: <内容と gaps.md の該当箇所>` の 2 形だけ。
  * **「未確認」を通さない**——記録しただけでは誰も読まず、採取環境でだけ成立する一致（フォントのフォールバック先等）が
@@ -997,7 +997,7 @@ export const UNCONFIRMED_BODY =
 export const BROWSER_MODES = ["launched", "cdp"];
 
 /**
- * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。Issue #502。
+ * `cdp` の `browser_identity.browser_os` のキー（`navigator.userAgentData.getHighEntropyValues` から、この 3 つだけを拾った形）。
  * Chromium は UA の OS 版を固定値に縮めて返す（reduced UA）ので、`product` と `user_agent` だけでは OS の版・アーキテクチャが違う機械を見分けられない。
  * `navigator.platform` への代替は認めない——`cdp` の接続先は Chromium 系で、`platform` も縮められており同じ穴が残る。
  * 正規化と読み方（安全なコンテキストの頁で読む）の正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。
@@ -1005,7 +1005,7 @@ export const BROWSER_MODES = ["launched", "cdp"];
 export const BROWSER_OS_KEYS = ["platform", "platformVersion", "architecture"];
 
 /**
- * 撮影に使ったブラウザ（`capture_conditions.browser`）の記録を検査する。Issue #476。
+ * 撮影に使ったブラウザ（`capture_conditions.browser`）の記録を検査する。
  * `parity-diff` の新側採取が同じ扱いで撮るために読む（片側だけ利用者環境で撮ると、環境の差がそのまま差分に出る）。
  * @param {Record<string, unknown>} conditions
  * @returns {{code:string, message:string}[]}
@@ -1052,7 +1052,7 @@ export function checkBrowser(conditions) {
 }
 
 /**
- * `cdp` の `browser_identity.browser_os` を検査する。Issue #502。
+ * `cdp` の `browser_identity.browser_os` を検査する。
  * 新側の雛形は同じ正規化で読んだ値とキーごとに完全一致で照合するので、形が違えば同じ機械でも照合を通らない。
  * ここで落とすのは、欠落・正規化していない形（キーの過不足。`brands` / `mobile` を残した生の値や `navigator.platform` への代替）・
  * 文字列でない値・テンプレートのプレースホルダ。`platformVersion` は空文字を認める（Linux の Chromium は空で返す。実測）。
@@ -1097,7 +1097,7 @@ export const SCROLLBAR_MODES = ["hidden", "shown"];
 export const OVERFLOW_STATUSES = ["measured", "not_measured"];
 
 /**
- * スクロールバーの扱いと、スクロールバーが場所を取る窓での「はみ出し」の宣言を検査する。Issue #449。
+ * スクロールバーの扱いと、スクロールバーが場所を取る窓での「はみ出し」の宣言を検査する。
  *
  * **スクロールバーが隠れていると `100vh` と `height: 100%` の差が測れない。** 隠れたスクロールバーは場所を取らないので、
  * 横スクロールバーが出る窓でも「見える高さ」が減らず、頁の高さの決め方の違いが 3 経路のどれにも写らない。
@@ -1123,13 +1123,13 @@ export function checkOverflow(conditions) {
       `capture_conditions.scrollbars「${String(conditions.scrollbars)}」が語彙外（${SCROLLBAR_MODES.join(" / ")}）`,
     );
   } else if (conditions.scrollbars === "hidden" && !evidenceText(conditions.scrollbars_reason)) {
-    // 既定は shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 経路のどれにも写らない（Issue #495）
+    // 既定は shown。隠して撮ると、バーが場所を取る差（はみ出し・横のバーの有無）が 3 経路のどれにも写らない
     add(
       "scrollbars-hidden-reason-missing",
       "capture_conditions.scrollbars が hidden なのに scrollbars_reason が無い（既定は shown。隠して撮るなら、スクロールバーが場所を取る差を測らない理由を書き gaps.md に残す）",
     );
   } else if (conditions.scrollbars === "shown" && !evidenceText(conditions.scrollbar_environment)) {
-    // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない（Issue #495）
+    // バーの描き方は OS とブラウザで変わるので、撮ったバーの画素を利用者環境の見え方の根拠にしない
     add(
       "scrollbar-environment-missing",
       "capture_conditions.scrollbars が shown なのに scrollbar_environment が無い（どの OS・ブラウザのどの種類〈クラシック / オーバーレイ〉のスクロールバーで撮ったかを書く）",
@@ -1235,7 +1235,7 @@ export function checkOverflow(conditions) {
         `${at}.content_height が正の整数でない（最小幅より狭い窓で読んだ文書の scrollHeight を書く）`,
       );
     }
-    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ効く最小幅を見落とすので、メディアクエリの境界も探す（Codex レビュー #453）。
+    // 最小幅の探索の範囲。刻みだけの探索は狭い帯でだけ効く最小幅を見落とすので、メディアクエリの境界も探す。
     // 読めないスタイルシートの境界は探索できていないので、未検証として gaps.md への参照を要求する
     const probe = /** @type {Record<string, unknown>} */ (entry.probe ?? {});
     if (
@@ -1305,7 +1305,7 @@ export function checkOverflow(conditions) {
         return;
       }
       // はみ出し量。真偽値だけだと、どの高さでも縦にはみ出す頁（body の height: 100% と既定の margin）で
-      // 100% と 100vh が両側とも vertical: true になり見分けられない（Codex レビュー #453）。スイートは量を比べる
+      // 100% と 100vh が両側とも vertical: true になり見分けられない。スイートは量を比べる
       const extentOk = (v) => Number.isInteger(v) && /** @type {number} */ (v) >= 0;
       if (!extentOk(w.overflow_x_px) || !extentOk(w.overflow_y_px)) {
         add(

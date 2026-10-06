@@ -1,7 +1,7 @@
 // issue-start の受け入れ条件の検査（acceptance-check.test.js）が使う、GitHub が描画した本文の HTML（Issue #464）。
 //
 // 検査はチェックリストの項目を Issue の bodyHTML から取るので、fixture の HTML は手で書かず GitHub の描画から採る。
-// 採り方: 各 markdown を `gh api -X POST markdown` へ {mode: "gfm", context: "shoji9x9/skills"} で渡した出力（2026-09-26）。
+// 採り方: 各 markdown を `gh api -X POST markdown` へ {mode: "gfm", context: "shoji9x9/skills"} で渡した出力。
 // この経路のタスク項目の描画が Issue の bodyHTML と一致することは、#486・#487 の本文で突き合わせて確かめた。
 // 本文を変えたら同じ経路で採り直す（HTML だけを手で直さない）。
 

@@ -12,7 +12,7 @@
 // 関係が変わった対だけを差分にする。位置がページ全体でずれても、要素同士の関係が保たれていれば差分にしない。
 //
 // 文字の持ち主（text_owners。trait-capture.mjs VERSION 5 以降）: 名前を付けた要素の計算値は、文字を描いている
-// 子孫の書体・大きさを持たない（Issue #459）。両側の text_owners を**並び順（i 番目どうし）**で突き合わせ、
+// 子孫の書体・大きさを持たない。両側の text_owners を**並び順（i 番目どうし）**で突き合わせ、
 // 書体・大きさ・行の高さの計算値と、文字の寸法（行の数 lines、幅の合計 advance と高さ glyph_height は
 // alignTolerance 付き）の差を kind "text" で出す。外接矩形（rect）は折り返しや間に挟まる子要素で膨らむので比べない。
 // DOM の道筋（path）では突き合わせない——入れ子の深さが違う現・新（span に文字を持つ現行と、要素自身が
@@ -20,7 +20,7 @@
 // 書体の差は出す。件数の違いは、はみ出した側の行を 1 件ずつ出す。
 // 片側だけが text_owners を持つ（採取ツールの版違い）なら kind "missing" で出し、黙って比較を省かない。
 //
-// スクロールする器（scroll。trait-capture.mjs VERSION 6 以降。Issue #495）: 器かどうか（null か否か）、
+// スクロールする器（scroll。trait-capture.mjs VERSION 6 以降）: 器かどうか（null か否か）、
 // はみ出しの有無、スクロールバーが取った幅・高さ（alignTolerance 付き）、見た目の宣言と ::-webkit-scrollbar 系の
 // 計算値の差を kind "scroll" で出す。片側だけがキーを持つ（採取ツールの版違い）なら text_owners と同じく kind "missing"。
 //

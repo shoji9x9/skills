@@ -79,8 +79,8 @@ const INTENTIONAL_MATCH_KEYS = ["element", "property", "page", "state", "viewpor
  * 意図的差異レジストリの 1 要素から構造化した照合キー（`match`）を取り出す。
  *
  * 散文の宣言（`item`）は人が読むためのもので、理由・測定対象・決定者を書くほど長くなる。
- * 文全体を差分の `"<name> <prop>"` に含まれるかで照合すると、理由を添えた宣言は原理的に一度も当たらない
- * （Issue #496）。そこで照合は `match` の構造（`element` / `property` は必須、`page` / `state` / `viewport` は任意）で行う。
+ * 文全体を差分の `"<name> <prop>"` に含まれるかで照合すると、理由を添えた宣言は原理的に一度も当たらない。
+ * そこで照合は `match` の構造（`element` / `property` は必須、`page` / `state` / `viewport` は任意）で行う。
  *
  * - `match` が無い要素は null（散文だけの宣言。文全体の包含で照合する旧来の経路へ回る）
  * - `match` があるのに形が壊れている要素は `{ invalid: <理由> }`（fail-closed。照合に使わず警告に出す——

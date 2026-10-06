@@ -40,7 +40,7 @@ const VALUES = ["present", "absent", "unmeasured"];
 // 撮影状態の種別。部品の操作から「見た目が変わる状態」を写す語彙で、
 // capture_conditions.states の状態名そのものではない（名前は撮る側が決める）。
 // 先頭の 5 種は操作の**途中**の見た目、after-operation は操作を**終えた後に残る**見た目
-// （選択の塗り・絞り込み中の見出しの印・並べ替えの印。Issue #471）。途中だけを導くと、
+// （選択の塗り・絞り込み中の見出しの印・並べ替えの印）。途中だけを導くと、
 // 終えた後の見た目は撮られず、差は「差 0 件」と同じ見え方になる。
 // 導出は下限であって上限ではない——操作から導けない状態（error / 初期表示のバリアント）は
 // 従来どおり手で states へ足す。
@@ -83,7 +83,7 @@ function isPlainObject(v) {
 /**
  * 表の指紋。conformance を除いた内容をキー順に正規化して sha256 を取る。
  * 記録側（parity-suite の coverage-expand.mjs）と判定側（parity-diff の coverage-check.mjs）で
- * 同じ値になる必要がある。両者を突き合わせる往復テストは scripts/skills/_cross/coverage-record-judge-parity.test.js。
+ * 同じ値になる必要がある。両者を突き合わせる往復テストは、配布元のリポジトリにある。
  * 様式は reaction-check.mjs の tableFingerprint と同じ。
  * @param {Record<string, unknown>} table
  * @returns {string}
@@ -135,7 +135,7 @@ function canonicalize(v) {
 // 収束判定側（parity-diff の coverage-check.mjs）でバイト単位に同一へ保つ。
 // 配布スキルは実行時に参照する成果物を自分で同梱する規約のため共有モジュールにできず実体が複製される。
 // 片方だけ直すと「記録側は通すが収束側が弾く」（またはその逆）が起きるため、
-// リポジトリの scripts/skills/_cross/absence-evidence-contract-sync.test.js がこのマーカー間の一致を検査する。
+// 配布元のリポジトリのテストが、このマーカー間の一致を検査する。
 
 /**
  * `instances[].applicable_states.source.kind` の語彙。

@@ -1,10 +1,10 @@
 # kaizen の定期レビュー。
 #
 # 正本は kaizen スキルに同梱された `skills/kaizen/assets/kaizen-schedule.yml` で、
-# このファイルはその**バイト単位の複製**（`scripts/skills/kaizen/kaizen-schedule-workflow-sync.test.js` が検査）。
+# このファイルはその**バイト単位の複製**（配布元のリポジトリのテストが一致を検査する）。
 # 片方だけ直すと、配布先へ配られるテンプレートと本リポの実物が食い違う。両方を同じ内容で更新する。
 #
-# 設定・skip・モード・エージェントの選び方は kaizen の `references/setup.md`「定期実行」を参照。
+# 設定・skip・モード・エージェントの選び方は kaizen の `references/setup.md`「定期実行（任意・GitHub Actions）」を参照。
 name: Kaizen schedule
 
 on:
@@ -241,7 +241,7 @@ jobs:
           # メジャーを固定する。`uses:` の SHA pin と違い、インライン install は pinact も
           # Dependabot も見ないため、完全固定にすると更新経路が無いまま古い CLI が配布先へ
           # 残り、その版が unpublish されると install ごと落ちる。メジャー範囲なら破壊的変更を
-          # 避けつつ修正は入る。2026-09-19 時点の最新は 1.0.86（`npm view @github/copilot version`）。
+          # 避けつつ修正は入る。最新の版は `npm view @github/copilot version` で確かめる。
           npm install -g "@github/copilot@^1"
           model_args=()
           if [ -n "$MODEL" ]; then

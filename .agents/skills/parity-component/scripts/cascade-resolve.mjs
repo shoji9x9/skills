@@ -15,7 +15,7 @@
 // 実際の描画と逆の実装になる**。`feedback-message` の閉じるボタン（`top` が 0 → 2px → 5px、
 // グリフの不透明度が不透明 → alpha≈0.5）と `radio-button` の外側の輪（inset の影 → `none`）が
 // この形で実装に残っていた。インライン値が `!important` 付き規則に負ける形（`width: 10px` の
-// インラインが `.SearchBoxButton { width: 25px !important }` に負ける）も同じ（Issue #433）。
+// インラインが `.SearchBoxButton { width: 25px !important }` に負ける）も同じ。
 //
 // fail-closed: 「勝者を 1 つに決められない」ことを黙って最初の宣言に倒さない。次は `undecidable`
 // として理由付きで残し、exit 1 にする（利用者は現行の CSS を直接読んで確定する）:
