@@ -245,6 +245,7 @@ function shellComments(source) {
   let arith = 0;
   // コマンド置換（`$( ... )`）の入れ子。二重引用符の中の `"$( ... )"` では、置換の中で引用が新しく始まる。
   // 置換を閉じたら、外側の引用の状態（outer）に戻す。depth は置換の中の `(` の数。
+  // cases は置換の中で開いている `case` の数。`case` の分岐の `b)` は `(` と対にならないので、置換を閉じない。
   const substitutions = [];
   source.split("\n").forEach((line, n) => {
     if (heredocs.length) {
@@ -276,7 +277,7 @@ function shellComments(source) {
       }
       if (quote === '"') {
         if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
-          substitutions.push({ outer: '"', depth: 0 });
+          substitutions.push({ outer: '"', depth: 0, cases: 0 });
           quote = "";
           i++;
           wordStart = true;
@@ -297,7 +298,7 @@ function shellComments(source) {
         break;
       }
       if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
-        substitutions.push({ outer: "", depth: 0 });
+        substitutions.push({ outer: "", depth: 0, cases: 0 });
         i++;
         wordStart = true;
         continue;
@@ -314,11 +315,16 @@ function shellComments(source) {
         wordStart = true;
         continue;
       }
+      if (substitutions.length && atWordStart) {
+        const word = line.slice(i).match(/^(case|esac)(?![\w-])/)?.[1];
+        if (word === "case") substitutions.at(-1).cases++;
+        if (word === "esac" && substitutions.at(-1).cases > 0) substitutions.at(-1).cases--;
+      }
       if (substitutions.length && c === "(") substitutions.at(-1).depth++;
       if (substitutions.length && c === ")") {
         const top = substitutions.at(-1);
         if (top.depth > 0) top.depth--;
-        else quote = substitutions.pop().outer;
+        else if (top.cases === 0) quote = substitutions.pop().outer;
       }
       if (/[\s;&|()]/.test(c)) {
         wordStart = true;

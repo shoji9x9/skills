@@ -478,24 +478,26 @@
       "id": "CC-SUBST-DQ",
       "why": "二重引用符の中のコマンド置換を、引用の続きとして読む",
       "file": "scripts/lib/code-comments.js",
-      "find": "          substitutions.push({ outer: '\"', depth: 0 });\n          quote = \"\";\n",
-      "replace": "          substitutions.push({ outer: '\"', depth: 0 });\n",
+      "find": "          substitutions.push({ outer: '\"', depth: 0, cases: 0 });\n          quote = \"\";\n",
+      "replace": "          substitutions.push({ outer: '\"', depth: 0, cases: 0 });\n",
       "occurrences": 1,
       "expect_failing": [
         "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
-        "シェル 置換の中の括弧 のあとのコメントも取り出す"
+        "シェル 置換の中の括弧 のあとのコメントも取り出す",
+        "シェル 置換の中の case の分岐の ) で置換を閉じない"
       ]
     },
     {
       "id": "CC-SUBST-POP",
       "why": "コマンド置換を閉じても、外側の引用に戻さない",
       "file": "scripts/lib/code-comments.js",
-      "find": "        else quote = substitutions.pop().outer;",
-      "replace": "        else substitutions.pop();",
+      "find": "        else if (top.cases === 0) quote = substitutions.pop().outer;",
+      "replace": "        else if (top.cases === 0) substitutions.pop();",
       "occurrences": 1,
       "expect_failing": [
         "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
         "シェル 置換の中の括弧 のあとのコメントも取り出す",
+        "シェル 置換の中の case の分岐の ) で置換を閉じない",
         "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
       ]
     },
@@ -516,6 +518,15 @@
       "replace": "        if",
       "occurrences": 1,
       "expect_failing": ["YAML 一重引用符の中の '' は引用の終わりにしない"]
+    },
+    {
+      "id": "CC-SUBST-CASE",
+      "why": "置換の中の case の分岐の ) で置換を閉じる",
+      "file": "scripts/lib/code-comments.js",
+      "find": "        else if (top.cases === 0) quote = substitutions.pop().outer;",
+      "replace": "        else quote = substitutions.pop().outer;",
+      "occurrences": 1,
+      "expect_failing": ["シェル 置換の中の case の分岐の ) で置換を閉じない"]
     }
   ]
 }

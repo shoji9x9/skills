@@ -209,6 +209,11 @@ describe("シェル", () => {
     expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
   });
 
+  test("置換の中の case の分岐の ) で置換を閉じない", () => {
+    const src = 'x="$(case "$a" in\n  b) echo "it\'s" ;;\nesac)"\n# 後の説明。\n';
+    expect(paragraphs("a.sh", src)).toEqual(["後の説明。"]);
+  });
+
   test("置換を閉じた後の二重引用符の中の # はコメントにしない", () => {
     expect(paragraphs("a.sh", 'x="$(echo a) # 引用の中"\n# 後の説明。\n')).toEqual(["後の説明。"]);
   });
