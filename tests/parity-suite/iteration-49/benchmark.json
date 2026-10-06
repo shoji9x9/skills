@@ -1,0 +1,179 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T08:19:30Z",
+    "evals_run": [38],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 49.275,
+        "tokens": 225322,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "緑でも、その要素が描かれている見出しかは照合では保証されないと述べる"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のためのコピーを別の木に作った合図だと説明している",
+          "passed": true,
+          "evidence": "9 件の rect を見て y が大きく負になっていないかを確かめるよう述べ、aria のための木（y = -32000）が描かれていないコピーだと説明する"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": true,
+          "evidence": "ロケータマッピングを直し、描かれている見出しセルに論理名を付けると述べる"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": true,
+          "evidence": "採取ツールは文書の外に丸ごと出た要素で失敗にすると触れ、採取失敗を要素の欠落でなくマッピングの欠陥として扱うと述べる（VERSION には触れていないが趣旨は合う）"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": true,
+          "evidence": "child_inline_styles で 1 段下の子の inline style を確かめると述べる"
+        },
+        {
+          "text": "文字を描いているのが論理名を付けた要素の子孫だと、要素自身の font 系の計算値は文字の見た目を表さないことに触れ、採取物の text_owners（文字の持ち主ごとの書体・大きさ・寸法）と特性差分の kind: \"text\" を確かめると述べている",
+          "passed": true,
+          "evidence": "文字を描くのが子孫の span だと要素の font 系の計算値は文字の見た目を表さないとし、text_owners と kind: \"text\" を確かめると述べる"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残ったコピーからの採取物を使い続けない）",
+          "passed": true,
+          "evidence": "直したら特性を採り直し、コピーを相手にした緑の結果は信用できないと述べる"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "fontTools はまだ早いとし、手順 1〜3 を先に確かめると答える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 2,
+        "failed": 6,
+        "total": 8,
+        "time_seconds": 49.111,
+        "tokens": 39453,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "緑で言えるのは固定集合のプロパティの一致だけで、描画しているのは名前を付けた要素でないことが多いと述べ、緑を描かれている根拠にしていない"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のためのコピーを別の木に作った合図だと説明している",
+          "passed": false,
+          "evidence": "矩形の座標は述べるが、画面の外の座標（y = -32000）が支援技術のためのコピーの合図だとは説明していない"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": false,
+          "evidence": "描かれている要素へ論理名を付け直すことに触れていない（内側の要素にも名前を付けるという別の理由）"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": false,
+          "evidence": "trait-capture.mjs が文書の外の要素で失敗させることに触れていない"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": false,
+          "evidence": "child_inline_styles に触れていない"
+        },
+        {
+          "text": "文字を描いているのが論理名を付けた要素の子孫だと、要素自身の font 系の計算値は文字の見た目を表さないことに触れ、採取物の text_owners（文字の持ち主ごとの書体・大きさ・寸法）と特性差分の kind: \"text\" を確かめると述べている",
+          "passed": false,
+          "evidence": "子孫が文字を持つことは述べるが、text_owners と kind: \"text\" に触れていない"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残ったコピーからの採取物を使い続けない）",
+          "passed": false,
+          "evidence": "マッピングを直した後の採り直しに触れていない"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "fontTools は後回しにし、先に他を確かめると答えている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 49.275,
+        "stddev": 0,
+        "min": 49.275,
+        "max": 49.275
+      },
+      "tokens": {
+        "mean": 225322,
+        "stddev": 0,
+        "min": 225322,
+        "max": 225322
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.25,
+        "stddev": 0,
+        "min": 0.25,
+        "max": 0.25
+      },
+      "time_seconds": {
+        "mean": 49.111,
+        "stddev": 0,
+        "min": 49.111,
+        "max": 49.111
+      },
+      "tokens": {
+        "mean": 39453,
+        "stddev": 0,
+        "min": 39453,
+        "max": 39453
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.75",
+      "time_seconds": "+0.2",
+      "tokens": "+185869"
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ⑤-a で eval 38 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。"
+  ]
+}

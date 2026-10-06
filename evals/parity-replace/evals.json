@@ -268,7 +268,7 @@
         "スイートが見るのは値・ラベル・役割で、見た目の比較は parity-diff の担当であることを、一致と書けない理由として挙げている",
         "現行との比較が収束した（見た目も含めて比べ終えた）と報告できるのは parity-diff が diff-metadata.json を converged: true にしてからだと述べている",
         "次の工程として、target を省かないコマンド parity-diff --feature order-list --target local-dev を案内している（--target を省いた案内は不合格）",
-        "通した判定（スイート green・verification_commands.full・dimension-fit などのゲート）自体は完了として報告しており、完了そのものを取り消していない"
+        "通した判定（スイート green・verification_commands.full・dimension-fit などのチェック）自体は完了として報告しており、完了そのものを取り消していない"
       ],
       "reachability": [
         {
@@ -288,7 +288,7 @@
           "prompt_quote": "parity-replace --feature order-list --target local-dev の作業が終わった"
         },
         {
-          "assertion": "通した判定（スイート green・verification_commands.full・dimension-fit などのゲート）自体は完了として報告しており、完了そのものを取り消していない",
+          "assertion": "通した判定（スイート green・verification_commands.full・dimension-fit などのチェック）自体は完了として報告しており、完了そのものを取り消していない",
           "prompt_quote": "dimension-fit の check、component-comparison-check、evidence-gap-check もすべて exit 0"
         }
       ]

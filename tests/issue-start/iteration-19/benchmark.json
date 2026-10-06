@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "skill_name": "issue-start",
+    "skill_path": "<repo>/skills/issue-start",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T08:19:30Z",
+    "evals_run": [13],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 32.727,
+        "tokens": 81208,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+          "passed": true,
+          "evidence": "テスト・リントの緑は受け入れ条件の充足にならないとし、突き合わせ表を作って acceptance-check.mjs を exit 0 まで通す手順を示す"
+        },
+        {
+          "text": "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+          "passed": true,
+          "evidence": "チェックリストの 2 項目を検査の出力の文言どおりに表の行にすると述べ、表でも出どころを本文のチェックリストとしている"
+        },
+        {
+          "text": "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
+          "passed": true,
+          "evidence": "CSV はコメントの原文を一字一句書き写し、source: comment の行にすると述べている"
+        },
+        {
+          "text": "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+          "passed": true,
+          "evidence": "URL の件はコードの注記では承認の記録にならないとし、実装・waived・deferred のどれにするかを利用者に決めてもらうと述べる"
+        },
+        {
+          "text": "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+          "passed": true,
+          "evidence": "--pr では検査が exit 0 になるまで push しない決まりで、今は exit 1 の見込みと述べる"
+        },
+        {
+          "text": "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+          "passed": true,
+          "evidence": "Closes #12 は exit 0 かつ closable が true のときだけで、CSV を deferred にすると closable は false になり Refs #12 にすると述べる"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
+          "passed": true,
+          "evidence": "何も実行していないと明記し、手順の提示に留めている（project-tree は .claude のみ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2857,
+        "passed": 2,
+        "failed": 5,
+        "total": 7,
+        "time_seconds": 26.02,
+        "tokens": 18498,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "push の前に、Issue の受け入れ条件を 1 項目ずつ根拠と突き合わせた表を作り、issue-start 同梱の acceptance-check.mjs を通すと述べ、テスト・lint の緑を受け入れ条件の充足の根拠にしていない",
+          "passed": false,
+          "evidence": "受け入れ条件と実装の突き合わせは述べるが、表を作ることと acceptance-check.mjs に触れていない"
+        },
+        {
+          "text": "本文のチェックリスト 2 項目をそれぞれ表の行（source: checklist）にすると述べている",
+          "passed": false,
+          "evidence": "チェックリストの項目を表の行（source: checklist）にすることに触れていない"
+        },
+        {
+          "text": "コメントで足された CSV 出力の条件も、原文を quote に転記した行（source: comment）として表に載せると述べている",
+          "passed": false,
+          "evidence": "CSV は対象外とするだけで、原文を quote に転記した source: comment の行に触れていない"
+        },
+        {
+          "text": "URL の条件を、移行元に合わせてコードに注記しただけで満たした扱い（met）や外した扱い（waived）にせず、利用者の判断を仰ぐと述べている",
+          "passed": true,
+          "evidence": "URL の条件を外すか別 Issue にするかの判断を利用者に求めると述べる"
+        },
+        {
+          "text": "検査が exit 0 にならない間（unmet・判断待ちの行が残る間）は push しないと述べている",
+          "passed": false,
+          "evidence": "検査の exit 0 を push の条件にしていない（合意が取れたら push と述べるだけ）"
+        },
+        {
+          "text": "Closes #12 と書けるのは検査の closable が true のときだけで、CSV 出力を利用者の承認で別作業へ回す（deferred）なら Refs #12 にすると述べている",
+          "passed": false,
+          "evidence": "Refs #12 を勧めるが、closable の値で決めることと deferred との関係に触れていない"
+        },
+        {
+          "text": "実行はせず手順の提示に留めている（push・PR 作成・Issue へのコメントを行っていない）",
+          "passed": true,
+          "evidence": "外向きの操作はせず、手順の提示に留めている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 32.727,
+        "stddev": 0,
+        "min": 32.727,
+        "max": 32.727
+      },
+      "tokens": {
+        "mean": 81208,
+        "stddev": 0,
+        "min": 81208,
+        "max": 81208
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.2857,
+        "stddev": 0,
+        "min": 0.2857,
+        "max": 0.2857
+      },
+      "time_seconds": {
+        "mean": 26.02,
+        "stddev": 0,
+        "min": 26.02,
+        "max": 26.02
+      },
+      "tokens": {
+        "mean": 18498,
+        "stddev": 0,
+        "min": 18498,
+        "max": 18498
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.71",
+      "time_seconds": "+6.7",
+      "tokens": "+62710"
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ⑤-a で eval 13 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。"
+  ]
+}

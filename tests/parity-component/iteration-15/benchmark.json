@@ -1,0 +1,209 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T08:19:30Z",
+    "evals_run": [9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 47.838,
+        "tokens": 201633,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+          "passed": true,
+          "evidence": "initialized で bindEnterKey と setEnabled を命令的に呼び、effect で片付ける形（Button.tsx:17-21・24-30）を根拠に、判定の対象だとする"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが不具合を起こしうる実行パスを名指ししている",
+          "passed": true,
+          "evidence": "strict-rebind で、片付けで Enter キーの結び付けが外れ、Enter で押せなくなる実行パスを名指しする"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+          "passed": true,
+          "evidence": "prop-change-after-init で、後から disabled が変わっても setEnabled が呼び直されない実行パスを名指しする"
+        },
+        {
+          "text": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+          "passed": true,
+          "evidence": "実行パスごとに順番を強制する見本と検査を置き、入った回数を data-* 属性で出すと述べる"
+        },
+        {
+          "text": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": true,
+          "evidence": "検査は流れに入った回数を先に確かめてから症状を見ると述べる"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": true,
+          "evidence": "順番の見本は catalog.stories に載せないと述べる"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": true,
+          "evidence": "unbaselined_stories にも数えないと述べる"
+        },
+        {
+          "text": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
+          "passed": true,
+          "evidence": "直した処理を外すと検査が失敗することを確かめる（fix_removal_verified）と述べる"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "見本の照合と操作の突き合わせが一致していても、手順 8 にはまだ進めないと結論する"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": true,
+          "evidence": "lifecycle.applies と reason を build-metadata.json に記録すると述べる"
+        },
+        {
+          "text": "不具合を起こす処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "passed": true,
+          "evidence": "remount は名指しできなければ not_applicable_paths[] に理由を書くと述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.1818,
+        "passed": 2,
+        "failed": 9,
+        "total": 11,
+        "time_seconds": 65.217,
+        "tokens": 169321,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+          "passed": false,
+          "evidence": "Enter キーの二重発火などの実装上の問題は挙げるが、一生の順番で起きる不具合の実行パスの検査の対象とは判断していない"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが不具合を起こしうる実行パスを名指ししている",
+          "passed": false,
+          "evidence": "StrictMode の結び直しに触れていない"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+          "passed": true,
+          "evidence": "setEnabled(!disabled) は初期化のときに 1 回呼ばれるだけで、後から disabled が変わっても反映されないと名指しする"
+        },
+        {
+          "text": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+          "passed": false,
+          "evidence": "順番を強制する見本と data-* 属性に触れていない"
+        },
+        {
+          "text": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": false,
+          "evidence": "実行パスに入ったことを先に確かめる検査に触れていない"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": false,
+          "evidence": "catalog.stories の対応表に載せないことに触れていない"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": false,
+          "evidence": "unbaselined_stories に触れていない"
+        },
+        {
+          "text": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
+          "passed": false,
+          "evidence": "直した処理を外して検査が落ちることを確かめる手順に触れていない"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "照合の数字だけでは手順 8 に進めないと結論している"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": false,
+          "evidence": "build-metadata.json の lifecycle（applies / reason）に触れていない"
+        },
+        {
+          "text": "不具合を起こす処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "passed": false,
+          "evidence": "not_applicable_paths に触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 47.838,
+        "stddev": 0,
+        "min": 47.838,
+        "max": 47.838
+      },
+      "tokens": {
+        "mean": 201633,
+        "stddev": 0,
+        "min": 201633,
+        "max": 201633
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.1818,
+        "stddev": 0,
+        "min": 0.1818,
+        "max": 0.1818
+      },
+      "time_seconds": {
+        "mean": 65.217,
+        "stddev": 0,
+        "min": 65.217,
+        "max": 65.217
+      },
+      "tokens": {
+        "mean": 169321,
+        "stddev": 0,
+        "min": 169321,
+        "max": 169321
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.82",
+      "time_seconds": "-17.4",
+      "tokens": "+32312"
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ⑤-a で eval 9 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。"
+  ]
+}

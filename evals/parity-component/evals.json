@@ -197,7 +197,7 @@
       "requires_skills": ["parity-suite"],
       "assertions": [
         "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
-        "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
+        "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが不具合を起こしうる実行パスを名指ししている",
         "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
         "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
         "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
@@ -206,7 +206,7 @@
         "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
         "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
         "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
-        "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている"
+        "不具合を起こす処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている"
       ],
       "reachability": [
         {
@@ -214,7 +214,7 @@
           "prompt_quote": "新側の実装は new-app/src/components/Button/Button.tsx"
         },
         {
-          "assertion": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
+          "assertion": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが不具合を起こしうる実行パスを名指ししている",
           "prompt_quote": "完了判定（手順 8）に進んでよいかを判断し"
         },
         {
@@ -250,7 +250,7 @@
           "prompt_quote": "結果は .replace/components/button/new/local-dev/build-metadata.json に記録してある"
         },
         {
-          "assertion": "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "assertion": "不具合を起こす処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
           "prompt_quote": "残っている工程があれば"
         }
       ]
