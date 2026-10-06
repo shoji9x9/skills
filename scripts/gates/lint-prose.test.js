@@ -8,7 +8,8 @@
 // | 軸                 | 値                                                                          |
 // | ------------------ | --------------------------------------------------------------------------- |
 // | 単語帳のエントリ   | 全エントリの example（検出される）/ 残すと決めた語・技術用語（検出されない）    |
-// | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter                         |
+// | 文章の位置         | 本文 / インラインコード / コードブロック / frontmatter / コメント / 文字列       |
+// | コメントの言語     | JavaScript / シェル / YAML（取り出し方の状態は scripts/lib/code-comments.test.js） |
 // | ファイルの場所     | 対象 / .agents/rules / private skill / スキルのコピー / .claude/ / .kaizen/ と archive / tests/ / シンボリックリンク / .md 以外 |
 // | 保留の一覧         | 在る / 無い / JSON でない / reason が空 / files が配列でない / 重複            |
 // | 保留したファイル   | 指摘あり / 指摘 0 件 / ファイルが無い                                         |
@@ -18,7 +19,9 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { PENDING_PATH, lintProse, loadPending, main } from "./lint-prose.js";
+import { COMMENT_EXTENSIONS } from "../lib/code-comments.js";
 import { makeSharedTempDir, makeTempDir } from "../lib/test-tmpdir.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -169,6 +172,71 @@ test("ファイル指定: 対象が 0 件でも失敗にしない（lefthook は
 test("全体: 対象が 0 件なら例外にする（何も見ていない実行を合格として扱わない）", async () => {
   const root = makeRepo({ "notes.txt": "x" });
   await expect(lintProse({ root })).rejects.toThrow("0 件");
+});
+
+// ---- コメント ----
+
+test("陽性: コメントの指摘を、元のファイルの行と桁で報告する", async () => {
+  const root = makeRepo({
+    "a.js": "const a = 1;\n// 一覧は正本である。\n",
+    "b.sh": "echo x\necho y # 一覧は正本である。\n",
+    "c.yml": "a: 1\n# 一覧は正本である。\n",
+  });
+  const { checked, violations } = await lintProse({ root });
+  expect(checked).toBe(3);
+  expect(violations.map((v) => v.split(" ")[0]).sort()).toEqual([
+    "a.js:2:7",
+    "b.sh:2:13",
+    "c.yml:2:6",
+  ]);
+});
+
+test("陰性: 文字列の中の語と、日本語を含まないコメントは検出しない", async () => {
+  const root = makeRepo({
+    "a.js":
+      'console.log("一覧は正本である。");\n// a, b, c, d, e, f: see https://example.com?x=1!\n',
+  });
+  expect((await lintProse({ root })).violations).toEqual([]);
+});
+
+test("コメントの textlint-disable で囲んだ箇所だけを除外する", async () => {
+  const src =
+    "// textlint-disable\n// 一覧は正本である。\n// textlint-enable\nconst a = 1;\n// 仕様は正本にある。\n";
+  const { violations } = await lintProse({ root: makeRepo({ "a.js": src }) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.js:5:/);
+});
+
+test("文の長さの指摘に、Markdown の行番号を残さない", async () => {
+  // 1 行目を空けて、Markdown の行番号（1）と元の行番号（3）をずらす。
+  const long = "ファイルを読んで中身を確かめてから結果を返す".repeat(8);
+  const root = makeRepo({ "a.js": `const a = 1;\n\n// ${long}。\n` });
+  const lengths = (await lintProse({ root })).violations.filter((v) =>
+    v.includes("sentence-length"),
+  );
+  expect(lengths).toHaveLength(1);
+  expect(lengths[0]).toMatch(/^a\.js:3:\d+ sentence length\(\d+\) exceeds/);
+});
+
+test("陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める", async () => {
+  const dirty = await lintProse({
+    root: makeRepo({ "a.js": "// 一覧は正本である。\n" }, ["a.js"]),
+  });
+  expect(dirty).toEqual({ checked: 1, pending: 1, violations: [], stale: [] });
+  const clean = await lintProse({ root: makeRepo({ "a.js": "// 一覧を確かめる。\n" }, ["a.js"]) });
+  expect(clean.stale).toEqual([`a.js: 指摘が 0 件になった。${PENDING_PATH} から外す`]);
+});
+
+test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {
+  const jobs = yaml
+    .load(readFileSync(join(repoRoot, "lefthook.yml"), "utf8"))
+    ["pre-commit"].jobs.flatMap((j) => j.group?.jobs ?? [j]);
+  const glob = jobs.find((j) => j.name === "prose").glob;
+  const exts = glob
+    .match(/^\*\.\{(.+)\}$/)[1]
+    .split(",")
+    .map((e) => `.${e}`);
+  expect(exts.sort()).toEqual([".md", ...COMMENT_EXTENSIONS].sort());
 });
 
 // ---- 保留の一覧 ----
