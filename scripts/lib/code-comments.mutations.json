@@ -7,52 +7,6 @@
   "test_file": "scripts/lib/code-comments.test.js",
   "mutations": [
     {
-      "id": "CC-SHEBANG",
-      "why": "シェルの 1 行目のシバンをコメントとして取り出す",
-      "file": "scripts/lib/code-comments.js",
-      "find": "    if (n === 0 && line.startsWith(\"#!\")) return;",
-      "replace": "    if (false) return;",
-      "occurrences": 1,
-      "expect_failing": ["シェル シバンは 1 行目だけ外し、2 行目以降の #! は外さない"]
-    },
-    {
-      "id": "CC-HEREDOC",
-      "why": "heredoc の本文をコメントとして取り出す",
-      "file": "scripts/lib/code-comments.js",
-      "find": "          heredocs.push({ delimiter: m[3].replace(/\\\\/g, \"\"), stripTabs: m[1] === \"-\" });",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル heredoc の本文（引用符で囲んだ区切り）はコメントにしない",
-        "シェル heredoc の本文（二重引用符で囲んだ区切り）はコメントにしない",
-        "シェル heredoc の本文（囲まない区切り）はコメントにしない",
-        "シェル heredoc の本文（タブを外す区切り）はコメントにしない",
-        "シェル heredoc の本文（コマンド置換の中）はコメントにしない",
-        "シェル CRLF の heredoc でも、区切りの行で本文が終わる",
-        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
-        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない",
-        "シェル 終わりで 区切りの行が無い heredoc が残れば例外にする"
-      ]
-    },
-    {
-      "id": "CC-HEREDOC-TABS",
-      "why": "<<- の区切りの行の先頭のタブを外さない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "stripTabs: m[1] === \"-\" }",
-      "replace": "stripTabs: false }",
-      "occurrences": 1,
-      "expect_failing": ["シェル heredoc の本文（タブを外す区切り）はコメントにしない"]
-    },
-    {
-      "id": "CC-HERESTRING",
-      "why": "here-string（<<<）の 2 文字目から heredoc として読む",
-      "file": "scripts/lib/code-comments.js",
-      "find": " && line[i - 1] !== \"<\"",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["シェル here-string（<<<）は heredoc として扱わない"]
-    },
-    {
       "id": "CC-STARTS",
       "why": "YAML の語の途中の # もコメントの始まりにする",
       "file": "scripts/lib/code-comments.js",
@@ -60,18 +14,6 @@
       "replace": "  return true;",
       "occurrences": 1,
       "expect_failing": ["YAML URL の # の # はコメントにしない"]
-    },
-    {
-      "id": "CC-SH-QUOTE-LINES",
-      "why": "シェルの引用の状態を行ごとに戻す（複数行の引用の中の # を取り出す）",
-      "file": "scripts/lib/code-comments.js",
-      "find": "    if (n === 0 && line.startsWith(\"#!\")) return;",
-      "replace": "    quote = \"\";\n    if (n === 0 && line.startsWith(\"#!\")) return;",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 複数行にまたがる引用の中の # はコメントにしない",
-        "シェル 終わりで 閉じていない引用 が残れば例外にする"
-      ]
     },
     {
       "id": "CC-YAML-QUOTE",
@@ -113,18 +55,6 @@
       ]
     },
     {
-      "id": "CC-TRAILING-SH",
-      "why": "シェルと YAML の行の後ろのコメントを、行頭のコメントとして扱う",
-      "file": "scripts/lib/code-comments.js",
-      "find": "        const trailing = line.slice(0, i).trim() !== \"\";",
-      "replace": "        const trailing = false;",
-      "occurrences": 2,
-      "expect_failing": [
-        "シェル 行頭と空白の後の # をコメントにする",
-        "YAML 行頭と空白の後の # をコメントにし、ブロックスカラーの中のシェルのコメントも取り出す"
-      ]
-    },
-    {
       "id": "CC-JOIN-LINE",
       "why": "間にコードの行があっても 1 段落にする",
       "file": "scripts/lib/code-comments.js",
@@ -136,7 +66,10 @@
         "JavaScript・TypeScript 続く行は 1 段落、間にコードの行があれば別の段落にする",
         "JavaScript・TypeScript コメントの中の空行で段落を分ける",
         "JavaScript・TypeScript 日本語を含まない段落は入れない",
-        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない"
+        "JavaScript・TypeScript 英語だけの JSDoc は、次の行に続く型を置き換えても入れない",
+        "シェル esac の後のリダイレクト の case も構文どおりに読む",
+        "シェル time のオプションの後 の case も構文どおりに読む",
+        "シェル 関数の定義の中 の case も構文どおりに読む"
       ]
     },
     {
@@ -229,43 +162,6 @@
       ]
     },
     {
-      "id": "CC-SH-ESCAPE",
-      "why": "シェルのバックスラッシュの次の文字を読み飛ばさない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (c === \"\\\\\") {\n        i++;\n        continue;\n      }\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル エスケープした二重引用符の後 の # はコメントにしない",
-        "シェル エスケープした空白の後 の # はコメントにしない",
-        "シェル $'...' の中のエスケープした ' で引用を閉じない"
-      ]
-    },
-    {
-      "id": "CC-SH-QUOTE",
-      "why": "シェルの引用符の中の # をコメントとして取り出す",
-      "file": "scripts/lib/code-comments.js",
-      "find": "        quote = c === \"'\" && line[i - 1] === \"$\" ? \"$'\" : c;",
-      "replace": "        continue;",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 一重引用符 の # はコメントにしない",
-        "シェル 二重引用符 の # はコメントにしない",
-        "シェル エスケープした二重引用符の後 の # はコメントにしない",
-        "シェル 複数行にまたがる引用の中の # はコメントにしない",
-        "シェル $'...' の中のエスケープした ' で引用を閉じない",
-        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
-        "シェル コマンド名の case.sh は case の構文として数えない",
-        "シェル ファイル名の case は case の構文として数えない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない",
-        "シェル 引数の case は case の構文として数えない",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える",
-        "シェル 直後に | が続く esac も数える",
-        "シェル 終わりで 閉じていない引用 が残れば例外にする"
-      ]
-    },
-    {
       "id": "CC-JS-VISIT",
       "why": "JavaScript の子のノードをたどらない（ファイルの先頭のコメントしか取り出さない）",
       "file": "scripts/lib/code-comments.js",
@@ -295,45 +191,6 @@
       ]
     },
     {
-      "id": "CC-SH-WORDSTART",
-      "why": "シェルの語の途中の # もコメントの始まりにする",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (c === \"#\" && atWordStart) {",
-      "replace": "      if (c === \"#\") {",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル エスケープした空白の後 の # はコメントにしない",
-        "シェル ${#x} の # はコメントにしない",
-        "シェル $# の # はコメントにしない",
-        "シェル 語の途中 の # はコメントにしない"
-      ]
-    },
-    {
-      "id": "CC-SH-SEPARATOR",
-      "why": "シェルの空白と区切りの後を語の先頭として扱わない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (/[\\s;&|()]/.test(c)) {\n        wordStart = true;\n",
-      "replace": "      if (/[\\s;&|()]/.test(c)) {\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 行頭と空白の後の # をコメントにする",
-        "シェル ; や && の直後の # もコメントにする",
-        "シェル 区切りの行と同じ行の後ろのコメントは取り出す",
-        "シェル 位置: 行頭と行の後ろのコメントを元の行と桁に戻す",
-        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
-        "シェル コマンド名の case.sh は case の構文として数えない",
-        "シェル ファイル名の case は case の構文として数えない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない",
-        "シェル 引数の case は case の構文として数えない",
-        "シェル do の後 の case も数える",
-        "シェル then の後 の case も数える",
-        "シェル { の後 の case も数える",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える",
-        "シェル 直後に | が続く esac も数える"
-      ]
-    },
-    {
       "id": "CC-JSDOC-COLUMN",
       "why": "JSDoc の型を置き換えた分の桁を戻さない",
       "file": "scripts/lib/code-comments.js",
@@ -344,36 +201,6 @@
         "JavaScript・TypeScript 位置: 型の続きの行の後ろの文章も、元の行と桁に戻す",
         "JavaScript・TypeScript 位置: JSDoc のタグの後ろの文章も、元の行と桁に戻す"
       ]
-    },
-    {
-      "id": "CC-CRLF",
-      "why": "CRLF の heredoc の区切りの行の \\r を外さない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      const body = line.replace(/\\r$/, \"\");",
-      "replace": "      const body = line;",
-      "occurrences": 1,
-      "expect_failing": ["シェル CRLF の heredoc でも、区切りの行で本文が終わる"]
-    },
-    {
-      "id": "CC-DELIM",
-      "why": "heredoc の区切りの名前を識別子の文字だけで読む",
-      "file": "scripts/lib/code-comments.js",
-      "find": "([^\\s'\"<>;&|()]+)",
-      "replace": "([A-Za-z_][A-Za-z0-9_]*)",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
-        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない"
-      ]
-    },
-    {
-      "id": "CC-ANSI",
-      "why": "$'...' を普通の一重引用符として扱う",
-      "file": "scripts/lib/code-comments.js",
-      "find": "        quote = c === \"'\" && line[i - 1] === \"$\" ? \"$'\" : c;",
-      "replace": "        quote = c;",
-      "occurrences": 1,
-      "expect_failing": ["シェル $'...' の中のエスケープした ' で引用を閉じない"]
     },
     {
       "id": "CC-BOLD",
@@ -453,29 +280,6 @@
       ]
     },
     {
-      "id": "CC-SH-ARITH",
-      "why": "算術の中の << を heredoc の開始として読む",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (arith === 0 && c === \"<\"",
-      "replace": "      if (c === \"<\"",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 算術（$(( ))）の中の << は heredoc として扱わない",
-        "シェル 算術（(( ))）の中の << は heredoc として扱わない"
-      ]
-    },
-    {
-      "id": "CC-DELIM-BACKSLASH",
-      "why": "バックスラッシュで引用した区切りの \\ を外さず、本文の終わりを見つけられない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "delimiter: m[3].replace(/\\\\/g, \"\")",
-      "replace": "delimiter: m[3]",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない"
-      ]
-    },
-    {
       "id": "CC-JS-NESTED",
       "why": "JSDoc の中から読んだ範囲を別のコメントとして二重に取り出す",
       "file": "scripts/lib/code-comments.js",
@@ -498,65 +302,6 @@
       ]
     },
     {
-      "id": "CC-SUBST-DQ",
-      "why": "二重引用符の中のコマンド置換を、引用の続きとして読む",
-      "file": "scripts/lib/code-comments.js",
-      "find": "          substitutions.push({ outer: '\"', depth: 0, cases: 0 });\n          quote = \"\";\n",
-      "replace": "          substitutions.push({ outer: '\"', depth: 0, cases: 0 });\n",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
-        "シェル 置換の中の括弧 のあとのコメントも取り出す",
-        "シェル 置換の中の case の分岐の ) で置換を閉じない",
-        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない",
-        "シェル do の後 の case も数える",
-        "シェル then の後 の case も数える",
-        "シェル { の後 の case も数える",
-        "シェル コマンド名の case.sh は case の構文として数えない",
-        "シェル ファイル名の case は case の構文として数えない",
-        "シェル 引数の case は case の構文として数えない",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える",
-        "シェル 直後に | が続く esac も数える",
-        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない"
-      ]
-    },
-    {
-      "id": "CC-SUBST-POP",
-      "why": "コマンド置換を閉じても、外側の引用に戻さない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "        else if (top.cases === 0) quote = substitutions.pop().outer;",
-      "replace": "        else if (top.cases === 0) substitutions.pop();",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
-        "シェル 置換の中の括弧 のあとのコメントも取り出す",
-        "シェル 置換の中の case の分岐の ) で置換を閉じない",
-        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
-        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
-        "シェル コマンド名の case.sh は case の構文として数えない",
-        "シェル ファイル名の case は case の構文として数えない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない",
-        "シェル 引数の case は case の構文として数えない",
-        "シェル do の後 の case も数える",
-        "シェル then の後 の case も数える",
-        "シェル { の後 の case も数える",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える",
-        "シェル 直後に | が続く esac も数える"
-      ]
-    },
-    {
-      "id": "CC-SUBST-DEPTH",
-      "why": "コマンド置換の中の ( を数えない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (substitutions.length && c === \"(\") substitutions.at(-1).depth++;\n",
-      "replace": "",
-      "occurrences": 1,
-      "expect_failing": ["シェル 置換の中の括弧 のあとのコメントも取り出す"]
-    },
-    {
       "id": "CC-YAML-ESCAPE",
       "why": "YAML の一重引用符の中の '' を引用の終わりとして読む",
       "file": "scripts/lib/code-comments.js",
@@ -566,97 +311,95 @@
       "expect_failing": ["YAML 一重引用符の中の '' は引用の終わりにしない"]
     },
     {
-      "id": "CC-SUBST-CASE",
-      "why": "置換の中の case の分岐の ) で置換を閉じる",
+      "id": "CC-SHEBANG",
+      "why": "シェルの 1 行目のシバンをコメントとして取り出す",
       "file": "scripts/lib/code-comments.js",
-      "find": "        else if (top.cases === 0) quote = substitutions.pop().outer;",
-      "replace": "        else quote = substitutions.pop().outer;",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 置換の中の case の分岐の ) で置換を閉じない",
-        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない",
-        "シェル do の後 の case も数える",
-        "シェル then の後 の case も数える",
-        "シェル { の後 の case も数える"
-      ]
-    },
-    {
-      "id": "CC-CASE-COMMAND",
-      "why": "case と esac をコマンドの位置以外（引数）でも数える",
-      "file": "scripts/lib/code-comments.js",
-      "find": "      if (substitutions.length && atWordStart && atCommandStart) {",
-      "replace": "      if (substitutions.length && atWordStart) {",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 引数の case は case の構文として数えない",
-        "シェル 分岐の本体の引数の esac は case の構文として数えない"
-      ]
-    },
-    {
-      "id": "CC-CASE-WORD",
-      "why": "case の後に . や / が続く語（case.txt）も case として数える",
-      "file": "scripts/lib/code-comments.js",
-      "find": "(?=[\\s;|&<>()]|$)",
-      "replace": "(?![\\w-])",
-      "occurrences": 1,
-      "expect_failing": ["シェル コマンド名の case.sh は case の構文として数えない"]
-    },
-    {
-      "id": "CC-COMMAND-SEP",
-      "why": "; や ( の後をコマンドの位置として扱わない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "        if (/[;&|(]/.test(c)) commandStart = true;\n",
+      "find": "    if (c.Hash.Offset === 0 && c.Text.startsWith(\"!\")) continue;\n",
       "replace": "",
       "occurrences": 1,
+      "expect_failing": ["シェル シバンは 1 行目だけ外し、2 行目以降の #! は外さない"]
+    },
+    {
+      "id": "CC-SH-EMPTY",
+      "why": "# だけの空のコメント（Text が省かれる）を取りこぼす",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
+      "replace": "      if (node.Hash && typeof node.Text === \"string\") comments.set(node.Hash.Offset, node);",
+      "occurrences": 1,
       "expect_failing": [
-        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
-        "シェル do の後 の case も数える",
+        "シェル # だけの行も取り出し、前後の行と 1 つの塊にする（英語の行も日本語を含む塊として入る）"
+      ]
+    },
+    {
+      "id": "CC-SH-LAST",
+      "why": "Comments のキーにあるコメントだけを集める（末尾の Last を取りこぼす）",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? \"\" });",
+      "replace": "      for (const c of node.Comments ?? []) comments.set(c.Hash.Offset, { ...c, Text: c.Text ?? \"\" });",
+      "occurrences": 1,
+      "expect_failing": [
+        "シェル シバンは 1 行目だけ外し、2 行目以降の #! は外さない",
+        "シェル 二重引用符の中の置換の中の引用 のあとのコメントも取り出す",
+        "シェル 置換の中の括弧 のあとのコメントも取り出す",
+        "シェル 引用の外の置換の中の引用 のあとのコメントも取り出す",
         "シェル then の後 の case も数える",
+        "シェル do の後 の case も数える",
         "シェル { の後 の case も数える",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える",
-        "シェル 直後に | が続く esac も数える"
+        "シェル time のオプションの後 の case も構文どおりに読む",
+        "シェル esac の後のリダイレクト の case も構文どおりに読む",
+        "シェル 関数の定義の中 の case も構文どおりに読む",
+        "シェル ; の後の case も数え、その分岐の ) で置換を閉じない",
+        "シェル 置換の中の case の分岐の ) で置換を閉じない",
+        "シェル 置換を閉じた後の二重引用符の中の # はコメントにしない",
+        "シェル 複数行にまたがる引用の中の # はコメントにしない",
+        "シェル heredoc の本文（引用符で囲んだ区切り）はコメントにしない",
+        "シェル heredoc の本文（二重引用符で囲んだ区切り）はコメントにしない",
+        "シェル heredoc の本文（囲まない区切り）はコメントにしない",
+        "シェル heredoc の本文（タブを外す区切り）はコメントにしない",
+        "シェル heredoc の本文（コマンド置換の中）はコメントにしない",
+        "シェル heredoc の本文（バックスラッシュで引用した区切り）はコメントにしない",
+        "シェル CRLF の heredoc でも、区切りの行で本文が終わる",
+        "シェル 区切りの名前に - や . を含む heredoc も、その名前の行で終わる",
+        "シェル $'...' の中のエスケープした ' で引用を閉じない",
+        "シェル 算術（$(( ))）の中の << は heredoc として扱わない",
+        "シェル 算術（(( ))）の中の << は heredoc として扱わない",
+        "シェル here-string（<<<）は heredoc として扱わない",
+        "textlint-disable・enable ディレクティブだけの段落は、日本語を含まなくても入れる"
       ]
     },
     {
-      "id": "CC-KEYWORD",
-      "why": "予約語（then・do・{ など）の後をコマンドの位置として扱わない",
+      "id": "CC-SH-BYTES",
+      "why": "shfmt のバイト単位の位置を、文字の位置に直さない",
       "file": "scripts/lib/code-comments.js",
-      "find": ".match(/^(case|esac|then|do|else|elif|if|while|until|time|!|\\{)(?=[\\s;|&<>()]|$)/)?.[1];",
-      "replace": ".match(/^(case|esac)(?=[\\s;|&<>()]|$)/)?.[1];",
+      "find": "    const index = bytes.subarray(0, c.Hash.Offset).toString(\"utf8\").length;",
+      "replace": "    const index = c.Hash.Offset;",
       "occurrences": 1,
       "expect_failing": [
-        "シェル then の後 の case も数える",
-        "シェル do の後 の case も数える",
-        "シェル { の後 の case も数える"
+        "シェル 位置: 同じ行の # の前に日本語があっても、元の桁に戻す",
+        "シェル 位置: 行頭と行の後ろのコメントを元の行と桁に戻す"
       ]
     },
     {
-      "id": "CC-ESAC-LOOKAHEAD",
-      "why": "直後に | & < > が続く esac を数えない",
+      "id": "CC-SH-PARSE",
+      "why": "shfmt で解析できないシェルを、コメント 0 件として通す",
       "file": "scripts/lib/code-comments.js",
-      "find": "(?=[\\s;|&<>()]|$)",
-      "replace": "(?=[\\s;)]|$)",
-      "occurrences": 1,
-      "expect_failing": [
-        "シェル 直後に | が続く esac も数える",
-        "シェル 直後に && が続く esac も数える",
-        "シェル 直後に > が続く esac も数える"
-      ]
-    },
-    {
-      "id": "CC-EOF-CHECK",
-      "why": "終わりで引用・置換・heredoc が開いたままでも例外にしない",
-      "file": "scripts/lib/code-comments.js",
-      "find": "  if (quote || substitutions.length || heredocs.length) {",
-      "replace": "  if (false) {",
+      "find": "    throw new Error(\n      `シェルを解析できないので、コメントを判定できない（shfmt --to-json: ${detail}）`,\n    );",
+      "replace": "    return [];",
       "occurrences": 1,
       "expect_failing": [
         "シェル 終わりで 閉じていない引用 が残れば例外にする",
         "シェル 終わりで 閉じていない置換 が残れば例外にする",
         "シェル 終わりで 区切りの行が無い heredoc が残れば例外にする"
       ]
+    },
+    {
+      "id": "CC-TRAILING-SH",
+      "why": "シェルの行の後ろのコメントを、行頭のコメントとして扱う",
+      "file": "scripts/lib/code-comments.js",
+      "find": "      trailing: source.slice(starts[line], index).trim() !== \"\",",
+      "replace": "      trailing: false,",
+      "occurrences": 1,
+      "expect_failing": ["シェル 行頭と空白の後の # をコメントにする"]
     }
   ]
 }

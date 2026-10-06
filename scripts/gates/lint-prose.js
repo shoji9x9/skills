@@ -29,6 +29,8 @@ import { commentMarkdown, hasComments } from "../lib/code-comments.js";
 import { isAgentCopy } from "../lib/source-scope.js";
 
 export const PENDING_PATH = "scripts/gates/prose-lint-pending.json";
+/** コメントを取り出せなかったファイルの指摘に付ける ruleId。 */
+const PARSE_RULE = "code-comments";
 const EXCLUDED_PREFIXES = [".kaizen/archive/", "tests/", "node_modules/"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -80,7 +82,7 @@ async function lintComments(linter, root, rel) {
     parsed = commentMarkdown(rel, readFileSync(abs, "utf8"));
   } catch (error) {
     // コメントを取り出せないファイルは、指摘として報告する（0 件として通さない）。
-    return [{ line: 1, column: 1, message: error.message, ruleId: "code-comments" }];
+    return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];
   }
   const { markdown, lines, columns, starts } = parsed;
   if (!markdown) return [];
@@ -131,6 +133,9 @@ export async function lintProse({ root, files, configRoot = REPO_ROOT }) {
     if (pending.has(rel)) {
       if (messages.length === 0)
         stale.push(`${rel}: 指摘が 0 件になった。${PENDING_PATH} から外す`);
+      // コメントを取り出せないことは、書き換えの保留と関係が無いので、保留したファイルでも報告する。
+      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))
+        violations.push(`${rel}:${m.line}:${m.column} ${m.message} (${m.ruleId})`);
       continue;
     }
     for (const m of messages)

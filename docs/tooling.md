@@ -64,7 +64,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `check-doc-tiers.js` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
 | `check-doc-refs.js` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
 | `check-skill-index.js` | スキルガイド・README とスキルの実体の対応 |
-| `lint-prose.js` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
+| `lint-prose.js` | 人が読む Markdown の文章と、JavaScript・TypeScript・シェル・YAML のコメントの文章。シェルのコメントは `shfmt --to-json` の構文木から取り出すので、shfmt（`mise.toml` で版を固定）が要る。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
 | `check-word-list.js` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |
 | `check-agents-md-size.js` | `AGENTS.md` のサイズ。ブランチで 30 KiB を超えたら、24 KiB 以下まで縮めさせる。超えたかは履歴で判定し、上限は `scripts/gates/agents-md-size.json` に書く |
 

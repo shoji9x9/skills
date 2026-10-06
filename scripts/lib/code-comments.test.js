@@ -203,7 +203,7 @@ describe("シェル", () => {
 
   test.each([
     ["二重引用符の中の置換の中の引用", 'x="$(echo "it\'s")"'],
-    ["置換の中の括弧", 'x="$(f (a) "it\'s")"'],
+    ["置換の中の括弧", 'x="$( (echo a) ; echo "it\'s")"'],
     ["引用の外の置換の中の引用", 'x=$(echo "it\'s")'],
   ])("%s のあとのコメントも取り出す", (_, line) => {
     expect(paragraphs("a.sh", `${line}\n# 後の説明。\n`)).toEqual(["後の説明。"]);
@@ -232,6 +232,29 @@ describe("シェル", () => {
     ["区切りの行が無い heredoc", "cat <<EOF\n# 本文\n"],
   ])("終わりで %s が残れば例外にする", (_, src) => {
     expect(() => commentMarkdown("a.sh", src)).toThrow("判定できない");
+  });
+
+  test.each([
+    ["time のオプションの後", 'x="$(time -p case "$a" in b) echo "it\'s" ;; esac)"'],
+    ["esac の後のリダイレクト", 'x="$(case "$a" in b) echo "it\'s" ;; esac 2>/dev/null)"'],
+    ["関数の定義の中", 'x="$(f() { case "$a" in b) echo "it\'s" ;; esac; })"'],
+  ])("%s の case も構文どおりに読む", (_, line) => {
+    expect(paragraphs("a.sh", `${line}\n# 間の説明。\n${line}\n# 後の説明。\n`)).toEqual([
+      "間の説明。",
+      "後の説明。",
+    ]);
+  });
+
+  test("# だけの行も取り出し、前後の行と 1 つの塊にする（英語の行も日本語を含む塊として入る）", () => {
+    expect(paragraphs("a.sh", "# title\n#\n# 日本語の説明。\nset -e\n")).toEqual([
+      "title",
+      "日本語の説明。",
+    ]);
+  });
+
+  test("位置: 同じ行の # の前に日本語があっても、元の桁に戻す", () => {
+    const src = 'echo "日本語" # 後ろの語\n';
+    expect(locate("a.sh", src, "後ろの語")).toEqual(sourcePosition(src, "後ろの語"));
   });
 
   test("; の後の case も数え、その分岐の ) で置換を閉じない", () => {

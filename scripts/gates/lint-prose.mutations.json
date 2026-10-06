@@ -128,7 +128,8 @@
         "文の長さの指摘に、Markdown の行番号を残さない",
         "陰性: コメントの指摘も、保留したファイルなら数えず、0 件になったら外すよう求める",
         "JSDoc のタグの行の指摘も、元の行の文章より前の桁を指さない",
-        "陽性: コメントを取り出せないシェルは、指摘として報告する"
+        "陽性: コメントを取り出せないシェルは、指摘として報告する",
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する"
       ]
     },
     {
@@ -176,10 +177,22 @@
       "id": "LP-PARSE-ERROR",
       "why": "コメントを取り出せないファイルを指摘 0 件として通す",
       "file": "scripts/gates/lint-prose.js",
-      "find": "    return [{ line: 1, column: 1, message: error.message, ruleId: \"code-comments\" }];",
+      "find": "    return [{ line: 1, column: 1, message: error.message, ruleId: PARSE_RULE }];",
       "replace": "    return [];",
       "occurrences": 1,
-      "expect_failing": ["陽性: コメントを取り出せないシェルは、指摘として報告する"]
+      "expect_failing": [
+        "陽性: コメントを取り出せないシェルは、指摘として報告する",
+        "陽性: 保留したファイルでも、コメントを取り出せなければ報告する"
+      ]
+    },
+    {
+      "id": "LP-PENDING-PARSE",
+      "why": "保留したファイルでは、コメントを取り出せないことを報告しない",
+      "file": "scripts/gates/lint-prose.js",
+      "find": "      for (const m of messages.filter((m) => m.ruleId === PARSE_RULE))\n",
+      "replace": "      for (const m of [])\n",
+      "occurrences": 1,
+      "expect_failing": ["陽性: 保留したファイルでも、コメントを取り出せなければ報告する"]
     }
   ]
 }

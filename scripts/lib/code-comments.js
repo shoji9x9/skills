@@ -7,13 +7,15 @@
 // 言語ごとの取り出し方:
 // - JavaScript・TypeScript: TypeScript のパーサでコメントの範囲を得る。文字列・正規表現・テンプレートの中の
 //   `//` をコメントとして扱わない。
-// - シェル: 行頭か空白の後に置いた `#` から行末までをコメントにする。引用符の中と heredoc の本文は見ない。
-//   1 行目の `#!` は見ない。
+// - シェル: `shfmt --to-json` の構文木からコメントを得る。引用・heredoc・コマンド置換・case の中を
+//   構文どおりに区別する。1 行目の `#!` は見ない。shfmt で解析できないファイルは、判定できないとして例外にする。
+//   自前で引用や置換を追う読み方は、文法の形ごとに読み違えが見つかり続けたので使わない。
 // - YAML: 行頭か空白の後に置いた `#` から行末までをコメントにする。引用符の中は見ない。
 //   ブロックスカラー（`run: |` など）の中の `#` もコメントとして扱う。シェルのコメントを見るためである。
 //
 // コメントだけの行 `textlint-disable` と `textlint-enable` は、Markdown の `<!-- textlint-disable -->` に置き換える。
 // 字義どおりに使う語を、その範囲だけチェックから外すためである。
+import { execFileSync } from "node:child_process";
 import ts from "typescript";
 
 /** 拡張子ごとの取り出し方。ここに無い拡張子は対象にしない。 */
@@ -237,133 +239,52 @@ function startsComment(line, i) {
   return i === 0 || /\s/.test(line[i - 1]);
 }
 
-function shellComments(source) {
-  const pieces = [];
-  const heredocs = [];
-  let quote = "";
-  // 算術（`$(( ... ))`・`(( ... ))`）の入れ子の深さ。その中の `<<` はシフトで、heredoc ではない。
-  let arith = 0;
-  // コマンド置換（`$( ... )`）の入れ子。二重引用符の中の `"$( ... )"` では、置換の中で引用が新しく始まる。
-  // 置換を閉じたら、外側の引用の状態（outer）に戻す。depth は置換の中の `(` の数。
-  // cases は置換の中で開いている `case` の数。`case` の分岐の `b)` は `(` と対にならないので、置換を閉じない。
-  const substitutions = [];
-  source.split("\n").forEach((line, n) => {
-    if (heredocs.length) {
-      const { delimiter, stripTabs } = heredocs[0];
-      const body = line.replace(/\r$/, "");
-      if ((stripTabs ? body.replace(/^\t+/, "") : body) === delimiter) heredocs.shift();
-      return;
-    }
-    if (n === 0 && line.startsWith("#!")) return;
-    // `#` は語の先頭（行頭・空白の後・`;` などの区切りの後）に置いたときだけコメントを始める。
-    // エスケープした空白（`\ `）の後は語の途中なので、直前の 1 文字では判断せず、この状態で持つ。
-    let wordStart = true;
-    // コマンドの位置（行頭・`;` `&` `|` `(` の後・置換の始まり）か。`case` と `esac` はここでだけ数える。
-    // `echo case` や `cat case.txt` の `case` は引数で、構文ではない。
-    let commandStart = true;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      const atWordStart = wordStart;
-      const atCommandStart = commandStart;
-      wordStart = false;
-      if (!/\s/.test(c)) commandStart = false;
-      if (quote === "'") {
-        if (c === "'") quote = "";
-        continue;
-      }
-      // `$'...'`（ANSI-C の引用）の中では、バックスラッシュが次の `'` もエスケープする。
-      if (c === "\\") {
-        i++;
-        continue;
-      }
-      if (quote === "$'") {
-        if (c === "'") quote = "";
-        continue;
-      }
-      if (quote === '"') {
-        if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
-          substitutions.push({ outer: '"', depth: 0, cases: 0 });
-          quote = "";
-          i++;
-          wordStart = true;
-          commandStart = true;
-          continue;
-        }
-        if (c === '"') quote = "";
-        continue;
-      }
-      if (c === "'" || c === '"') {
-        quote = c === "'" && line[i - 1] === "$" ? "$'" : c;
-        continue;
-      }
-      if (c === "#" && atWordStart) {
-        const rest = line.slice(i + 1);
-        const pad = rest.startsWith(" ") ? 1 : 0;
-        const trailing = line.slice(0, i).trim() !== "";
-        pieces.push({ line: n, column: i + 1 + pad, text: rest.slice(pad).trimEnd(), trailing });
-        break;
-      }
-      if (c === "$" && line[i + 1] === "(" && line[i + 2] !== "(") {
-        substitutions.push({ outer: "", depth: 0, cases: 0 });
-        i++;
-        wordStart = true;
-        commandStart = true;
-        continue;
-      }
-      if (c === "(" && line[i + 1] === "(") {
-        arith++;
-        i++;
-        wordStart = true;
-        continue;
-      }
-      if (c === ")" && line[i + 1] === ")" && arith > 0) {
-        arith--;
-        i++;
-        wordStart = true;
-        continue;
-      }
-      if (substitutions.length && atWordStart && atCommandStart) {
-        // 予約語の後（`then case` など）もコマンドの位置なので、予約語を読み飛ばして位置を保つ。
-        const word = line
-          .slice(i)
-          .match(/^(case|esac|then|do|else|elif|if|while|until|time|!|\{)(?=[\s;|&<>()]|$)/)?.[1];
-        if (word === "case") substitutions.at(-1).cases++;
-        if (word === "esac" && substitutions.at(-1).cases > 0) substitutions.at(-1).cases--;
-        if (word && word !== "case" && word !== "esac") {
-          i += word.length - 1;
-          commandStart = true;
-          continue;
-        }
-      }
-      if (substitutions.length && c === "(") substitutions.at(-1).depth++;
-      if (substitutions.length && c === ")") {
-        const top = substitutions.at(-1);
-        if (top.depth > 0) top.depth--;
-        else if (top.cases === 0) quote = substitutions.pop().outer;
-      }
-      if (/[\s;&|()]/.test(c)) {
-        wordStart = true;
-        if (/[;&|(]/.test(c)) commandStart = true;
-        continue;
-      }
-      // heredoc の開始。本文は次の行から始まる。
-      // `<<<` の 1 文字目は、続く `<` が区切りの名前に当たらないので heredoc にならない。2 文字目は直前の `<` で外す。
-      if (arith === 0 && c === "<" && line[i + 1] === "<" && line[i - 1] !== "<") {
-        const m = line.slice(i + 2).match(/^(-?)\s*(['"]?)([^\s'"<>;&|()]+)\2/);
-        if (m) {
-          // `<<\EOF` のようにバックスラッシュで引用した区切りも、区切りの行は `EOF` になる。
-          heredocs.push({ delimiter: m[3].replace(/\\/g, ""), stripTabs: m[1] === "-" });
-          i += 1 + m[0].length;
-        }
-      }
-    }
-  });
-  // 終わりで引用・置換・heredoc が開いたままなら、どこかで読み違えている。後ろのコメントを警告なしに
-  // チェックから外さないよう、判定できないとして例外にする。
-  if (quote || substitutions.length || heredocs.length) {
+function shellComments(source, path) {
+  let json;
+  try {
+    // --filename は方言（bash・posix など）の判定に使う。拡張子とシバンから決まる。
+    json = execFileSync("shfmt", ["--to-json", "--filename", path], {
+      input: source,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (error) {
+    const detail = String(error.stderr || error.message)
+      .trim()
+      .split("\n")[0];
     throw new Error(
-      "シェルの引用・コマンド置換・heredoc の終わりを判定できない（コメントを取り出せない）",
+      `シェルを解析できないので、コメントを判定できない（shfmt --to-json: ${detail}）`,
     );
+  }
+  // コメントのノードは `Comments` のほか、ファイルやブロックの末尾の `Last` にも入る。
+  // 置き場所のキーを並べると取りこぼすので、`Hash`（`#` の位置。コメントのノードだけが持つ）を持つノードをすべて集める。
+  // 空のコメント（`#` だけの行）は `Text` が省かれるので、`Text` の有無では判定しない。
+  const comments = new Map();
+  const walk = (node) => {
+    if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === "object") {
+      if (node.Hash) comments.set(node.Hash.Offset, { ...node, Text: node.Text ?? "" });
+      Object.values(node).forEach(walk);
+    }
+  };
+  walk(JSON.parse(json));
+
+  // shfmt の位置はバイト単位なので、文字の位置に直す（行に日本語があると桁がずれる）。
+  const bytes = Buffer.from(source, "utf8");
+  const starts = lineStarts(source);
+  const pieces = [];
+  for (const c of [...comments.values()].sort((a, b) => a.Hash.Offset - b.Hash.Offset)) {
+    if (c.Hash.Offset === 0 && c.Text.startsWith("!")) continue;
+    const index = bytes.subarray(0, c.Hash.Offset).toString("utf8").length;
+    const line = c.Hash.Line - 1;
+    const pad = c.Text.startsWith(" ") ? 1 : 0;
+    pieces.push({
+      line,
+      column: index - starts[line] + 1 + pad,
+      text: c.Text.slice(pad).trimEnd(),
+      trailing: source.slice(starts[line], index).trim() !== "",
+    });
   }
   return pieces;
 }

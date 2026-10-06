@@ -243,6 +243,12 @@ test("陽性: コメントを取り出せないシェルは、指摘として報
   expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
 });
 
+test("陽性: 保留したファイルでも、コメントを取り出せなければ報告する", async () => {
+  const { violations } = await lintProse({ root: makeRepo({ "a.sh": 'x="abc\n' }, ["a.sh"]) });
+  expect(violations).toHaveLength(1);
+  expect(violations[0]).toMatch(/^a\.sh:1:1 .*判定できない.*\(code-comments\)$/);
+});
+
 test("lefthook の prose の glob は、Markdown とコメントを持つ拡張子に一致する", () => {
   const jobs = yaml
     .load(readFileSync(join(repoRoot, "lefthook.yml"), "utf8"))
