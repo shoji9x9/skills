@@ -419,7 +419,8 @@ function strongest(candidates) {
  * states: いま採っている状態で成立している状態擬似クラスの集合（`default` は空集合と同じ意味）。
  * properties: 解決するプロパティ名（省略時は候補に現れるすべてのプロパティ）。
  * allowIncomplete: `inaccessible` / `unresolved` が 0 でなくても解決する（デフォルトは止まる）。
- * @returns {object} source・tool_version・active_states・results・counts（resolved・undecidable・absent）を持つ結果。
+ * @returns {{ source:(string|null), tool_version:(string|null), active_states:string[],
+ *             results:any[], counts:{resolved:number, undecidable:number, absent:number} }}
 
  */
 export function resolveCascade(document, options) {

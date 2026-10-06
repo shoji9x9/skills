@@ -86,7 +86,8 @@ export function flattenTraits(traits) {
 /**
  * マニフェストから固定軸・可変軸を割り出す。
  * @param {object} manifest
- * @returns {object} component・tool_version・instances・states・fixed・variable・problems・ok を持つ結果。
+ * @returns {{component: string|null, tool_version: string, instances: number, states: string[],
+ *            fixed: object[], variable: object[], problems: string[], ok: boolean}}
  */
 /**
  * 採取物のディレクトリ（`.replace/components/<slug>/`）からマニフェストを組み立てる。
