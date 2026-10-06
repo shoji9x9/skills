@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/parity-suite",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-06T08:19:30Z",
+    "timestamp": "2026-10-06T08:56:15Z",
     "evals_run": [38],
     "runs_per_configuration": 1
   },
@@ -14,9 +14,9 @@
       "configuration": "with_skill",
       "run_number": 1,
       "result": {
-        "pass_rate": 1,
-        "passed": 8,
-        "failed": 0,
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
         "total": 8,
         "time_seconds": 49.275,
         "tokens": 225322,
@@ -41,8 +41,8 @@
         },
         {
           "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
-          "passed": true,
-          "evidence": "採取ツールは文書の外に丸ごと出た要素で失敗にすると触れ、採取失敗を要素の欠落でなくマッピングの欠陥として扱うと述べる（VERSION には触れていないが趣旨は合う）"
+          "passed": false,
+          "evidence": "採取ツールが文書の外の要素で失敗にすることと、マッピングを直すことには触れるが、採取スキーマを変えて VERSION が上がったことには触れていない"
         },
         {
           "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
@@ -129,10 +129,10 @@
   "run_summary": {
     "with_skill": {
       "pass_rate": {
-        "mean": 1,
+        "mean": 0.875,
         "stddev": 0,
-        "min": 1,
-        "max": 1
+        "min": 0.875,
+        "max": 0.875
       },
       "time_seconds": {
         "mean": 49.275,
@@ -168,12 +168,13 @@
       }
     },
     "delta": {
-      "pass_rate": "+0.75",
+      "pass_rate": "+0.63",
       "time_seconds": "+0.2",
       "tokens": "+185869"
     }
   },
   "notes": [
-    "Issue #372 段階 ⑤-a で eval 38 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。"
+    "Issue #372 段階 ⑤-a で eval 38 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。",
+    "#3 は VERSION が上がったことに触れておらず不合格（前回の iteration-47 は合格）。スキルと #3 の文は変えていないので、実行ごとのばらつきである。"
   ]
 }

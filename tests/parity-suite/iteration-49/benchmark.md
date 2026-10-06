@@ -12,11 +12,12 @@ Issue #372 段階 ⑤-a で、eval 38 の assertion の使わない語を新し�
 
 | config | pass_rate |
 | --- | --- |
-| with_skill | 8/8 |
+| with_skill | 7/8 |
 | without_skill | 2/8 |
 
-前回の with_skill から下がった assertion は無い。
+前回（iteration-47）の with_skill から下がったのは #3 だけである。
 
 ## 読み取れたこと
 
-- 語を変えた assertion は、どちらも with_skill だけが合格した（区別している）。前回（iteration-47）落ちた #5 も合格した。
+- 語を変えた assertion は、どちらも with_skill だけが合格した（区別している）。前回（iteration-47）落ちた #5 は合格した。
+- #3 は VERSION が上がったことに触れず、不合格だった（前回は「VERSION 6」と明記して合格）。スキルと #3 の文は変えていないので、実行ごとのばらつきである。

@@ -20,4 +20,5 @@ Issue #372 段階 ⑤-a で、eval 23 の assertion の使わない語を新し�
 ## 読み取れたこと
 
 - 語を変えた assertion は、without_skill も合格した。この assertion は語を変える前から、完了を取り消さないことだけを確かめる形で、区別しないのは語の変更によるものではない。
-- with_skill は 2 回スキルを読まなかった（`invalid_run`）。SKILL.md と prompt は前回から変えていないので、スキルが選ばれるかのばらつきとして、3 回目に読んだ run を使った。
+- with_skill は 2 回スキルを読まなかった（`invalid_run`）。2 本とも `tests/parity-replace/iteration-31/eval-23/with_skill/run-1` に出力し、採点と集計から外して、同じ条件で実行し直した 3 回目の run に差し替えた。
+  SKILL.md と prompt は前回から変えていないので、スキルが選ばれるかのばらつきである。

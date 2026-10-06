@@ -4,7 +4,7 @@
     "skill_path": "<repo>/skills/parity-replace",
     "executor_model": "opus",
     "analyzer_model": "claude-opus-5-5",
-    "timestamp": "2026-10-06T08:19:30Z",
+    "timestamp": "2026-10-06T08:56:15Z",
     "evals_run": [23],
     "runs_per_configuration": 1
   },
@@ -144,6 +144,7 @@
     }
   },
   "notes": [
-    "Issue #372 段階 ⑤-a で eval 23 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。 with_skill は 2 回スキルを読まなかった（invalid_run）ので、3 回目に読んだ run を使った。"
+    "Issue #372 段階 ⑤-a で eval 23 の assertion の使わない語を新しい語にした。with_skill と without_skill を 1 run ずつ、1 本ずつ順に実行した。",
+    "with_skill は 2 回スキルを読まなかった（invalid_run）。2 本とも tests/parity-replace/iteration-31/eval-23/with_skill/run-1 に出力し、採点と集計から外して、同じ条件で実行し直した 3 回目の run に差し替えた。SKILL.md と prompt は前回から変えていないので、スキルが選ばれるかのばらつきである。"
   ]
 }
