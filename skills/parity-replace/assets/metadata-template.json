@@ -1,5 +1,5 @@
 {
-  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の正本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量経路は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。loop.changed_scope は直近の反復で描画に効く変更を入れた範囲で、parity-diff が新側の自己ノイズ測定を再利用してよい組の判定に使う（pages は features.md のページ識別子で書く。global は共有資産に変更宣言なしで触れたときだけ真にし、真なら pages は空でよい。変更宣言（parity-component の references/amend.md）のある共通部品の改修は global にせず components に {slug, change} で書く。反復の +1 時に null へ戻し修正完了時に確定値を書く。判断が付かない・記録しない場合は null のまま＝parity-diff 側で全組再測定に倒れる。pages: [] は「描画に効く変更なし」の積極的な申告であり null と意味が違う）。 new.render_inputs は、新側のコミットが変わった後も差分の証跡（diff-metadata.json・component-comparison.json）を持ち越せるかを parity-suite の scripts/evidence-carry.mjs が判定する材料で、記録の版から今の版までの差分がこの pathspec の外だけなら持ち越し、中にあれば同じディレクトリの evidence-carry.json が指す変更宣言と amend-verify の記録で説明できるときだけ持ち越す（キーごと省く・空配列なら持ち越さず SHA の不一致で古いとする。プレースホルダのままは読めない入力として落ちる）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（parity-diff がこのファイルの存在と suite.new_green を前提に使うため）。",
+  "_note": "parity-replace が .replace/parity/<slug>/new/<target>/replace-metadata.json として生成する（新側の green 証跡は環境別。環境を切り替えても他の target の証跡を上書きしない）。形式の原本は parity-replace が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す。数値項目は数値のまま書く）。parity-diff は同じ target のこのファイルから新側の前提（green・パス・dataset_version）を推測せず引く。パリティスイート・現側マッピング・操作アダプタのパスは parity-suite の metadata.json から引く（重複させない）。new.dirty は記録時点の新側リポジトリで git status --porcelain が空でなかったか（true = 未コミット変更あり）を真偽値で記録する。軽量な手順は既存証跡と現在の両方が false かつコミット SHA 一致を適用条件にする。loop.changed_scope は直近の反復で描画に効く変更を入れた範囲で、parity-diff が新側の自己ノイズ測定を再利用してよい組の判定に使う（pages は features.md のページ識別子で書く。global は共有資産に変更宣言なしで触れたときだけ真にし、真なら pages は空でよい。変更宣言（parity-component の references/amend.md）のある共通部品の改修は global にせず components に {slug, change} で書く。反復の +1 時に null へ戻し修正完了時に確定値を書く。判断が付かない・記録しない場合は null のまま＝parity-diff 側で全組再測定に倒れる。pages: [] は「描画に効く変更なし」の積極的な申告であり null と意味が違う）。 new.render_inputs は、新側のコミットが変わった後も差分の証跡（diff-metadata.json・component-comparison.json）を持ち越せるかを parity-suite の scripts/evidence-carry.mjs が判定する材料で、記録の版から今の版までの差分がこの pathspec の外だけなら持ち越し、中にあれば同じディレクトリの evidence-carry.json が指す変更宣言と amend-verify の記録で説明できるときだけ持ち越す（キーごと省く・空配列なら持ち越さず SHA の不一致で古いとする。プレースホルダのままは読めない入力として落ちる）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（parity-diff がこのファイルの存在と suite.new_green を前提に使うため）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "run": {
@@ -16,7 +16,7 @@
     "target": "<選択した新側 target 名（設定 targets の side: new）。成果物ディレクトリ名と一致させる>",
     "ui_url": "<その target の UI baseURL（PARITY_NEW_UI_URL に解決した値）。開発前で未設定なら none。target が url_command のときは解決値を書かず \"runtime\"（値は成果物に書かない。利用側は target 名から再解決する）>",
     "api_url": "<その target の API baseURL（PARITY_NEW_API_URL に解決した値。api_url 省略時は url と同じ）。固定の api_url はその値を記録し、api_url を省略して url_command で解決した UI URL を使う場合のみ \"runtime\">",
-    "commit": "<新側リポジトリのコミット SHA。無ければ none。別 target での軽量経路の判定に使う>",
+    "commit": "<新側リポジトリのコミット SHA。無ければ none。別 target での軽量な手順の判定に使う>",
     "dirty": false,
     "render_inputs": [
       "<このページの描画に効くファイルの git pathspec（新側リポジトリ最上位からの相対。:(glob) で解釈し ** だけが階層を跨ぐ。例: ページの route・使う部品・テーマ・トークン・グローバル CSS）。無い・空なら証跡の鮮度は new.commit の一致だけで判定する>"
@@ -40,12 +40,12 @@
       "not_run_reason": "<回さなかった場合の理由（例: diff 列が未設定 / 変更ファイル 0 件）。回した場合は null>"
     },
     "unchecked": [
-      "<.replace/strategy.md「未検証領域の扱い」の機械検査の穴のうち本機能に効く項目を写す（全体走査の起動形が無く full に載せられないツール／full で落ちない規約項目）。無ければ空配列>"
+      "<.replace/strategy.md「未検証領域の扱い」の機械チェックで検出できない範囲のうち本機能に効く項目を転記する（全体走査の起動形が無く full に載せられないツール／full で落ちない規約項目）。無ければ空配列>"
     ],
     "passed_at": "<verification_commands.full が全て通った日時（ISO 8601）>"
   },
   "dimension_check": {
-    "_note": "feature モードのみ。parity-suite の scripts/dimension-fit.mjs check --write が書く（手で転記しない）。judged: false（現側の dimension_model が not_measured・not_required、または fits が 0 件。キーが無い・現側 samples が指紋と一致しないのは exit 2）と unfit_to_note は、写していない旨と理由を porting.md「寸法の決まり方」に明示してから完了を名乗る。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。model_fingerprint / samples_fingerprint は照合した現側の式と新側 samples の sha256 で、採り直した後の古い記録を見分けるために使う。",
+    "_note": "feature モードのみ。parity-suite の scripts/dimension-fit.mjs check --write が書く（手で転記しない）。judged: false（現側の dimension_model が not_measured・not_required、または fits が 0 件。キーが無い・現側 samples が指紋と一致しないのは exit 2）と unfit_to_note は、反映していない旨と理由を porting.md「寸法の決まり方」に明示してから完了を名乗る。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。model_fingerprint / samples_fingerprint は照合した現側の式と新側 samples の sha256 で、採り直した後の古い記録を見分けるために使う。",
     "tool": "dimension-fit",
     "tool_version": "<dimension-fit.mjs の VERSION>",
     "judged": true,
@@ -66,11 +66,11 @@
     "samples_fingerprint": "<照合した新側 dimension-samples.json の sha256。読んでいなければ null>"
   },
   "asset_delivery_check": {
-    "_note": "feature モードのみ。replace-strategy の scripts/asset-delivery-check.mjs --write が書く（手で転記しない）。台帳（.replace/assets.md）の「状態 有効 × 方針 実体を写す」の行を、同じディレクトリの asset-delivery.json と新側の画面のプローブで突き合わせた結果。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。ledger_fingerprint / record_fingerprint / probe_fingerprints は突き合わせた台帳・記録・プローブの sha256 で、書き換えた後の古い結果を見分けるために使う。",
+    "_note": "feature モードのみ。replace-strategy の scripts/asset-delivery-check.mjs --write が書く（手で転記しない）。台帳（.replace/assets.md）の「状態 有効 × 方針 実体をコピーする」の行を、同じディレクトリの asset-delivery.json と新側の画面のプローブで突き合わせた結果。ok: false は未完了。exit 2（入力の不備）でも ok: false と error を書き、前回の合格を残さない。ledger_fingerprint / record_fingerprint / probe_fingerprints は突き合わせた台帳・記録・プローブの sha256 で、書き換えた後の古い結果を見分けるために使う。",
     "tool": "asset-delivery-check",
     "tool_version": "<asset-delivery-check.mjs の VERSION>",
-    "ok": "<全行が突き合ったか（真偽値）。検査を走らせずにこのテンプレートを写した値を合格と読まれないよう、ここは文字列のプレースホルダにしてある>",
-    "rows": "<台帳の「有効 × 実体を写す」の行数（整数）>",
+    "ok": "<全行が突き合ったか（真偽値）。検査を走らせずにこのテンプレートをコピーした値を合格と読まれないよう、ここは文字列のプレースホルダにしてある>",
+    "rows": "<台帳の「有効 × 実体をコピーする」の行数（整数）>",
     "checked_rows": "<突き合わせた行数（整数）>",
     "checked_files": "<突き合わせたファイルの組の数（整数）>",
     "failures": "<findings の件数（整数）>",

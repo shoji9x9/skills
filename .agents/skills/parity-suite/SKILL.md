@@ -256,7 +256,7 @@ parity-suite [--feature <slug>] [--target <name>] [--autonomous] [--from <区切
 `current.origin: received-assets` の場合は、ここでシナリオを確定できるかを確かめる。次のどちらかに当たれば、スイートの構築へ進まずに停止する。
 
 - `.replace/dataset/verification.md` の「意味論が未確定の機能」に、対象の slug がある
-- `.replace/bootstrap/semantics.md` の「確認待ち」か「確認したが確定できなかったもの」に、その slug に必須の意味論が残っている
+- `.replace/bootstrap/semantics.md` の状態「確認待ち」か「確認したが確定できなかったもの」に、その slug に必須の意味論が残っている
 
 停止したら、足りない意味論・質問票の該当する項目・回答が返るまで始められないことを報告する。
 `managed` のプロジェクトと、キーが無いプロジェクトでは、この確認をしない。

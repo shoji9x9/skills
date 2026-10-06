@@ -102,7 +102,7 @@ ${targets.join("\n")}
 |---|---|---|---|---|---|
 ${params.join("\n")}
 
-## 述語ごとの分岐被覆
+## 述語ごとの分岐網羅
 
 | 述語 id | テーブル | 消費側 slug | 述語（列・条件） | 値の出どころ | 真の行数 | 偽の行数 | 判定 | 扱い | 根拠 |
 |---|---|---|---|---|---:|---:|---|---|---|
@@ -703,10 +703,22 @@ test("読めない入力は exit 2（存在しないことを合格に倒さな�
   expect(run(["--features", "f.md", "--design", "d.md"], { "/w/f.md": FEATURES }).code).toBe(2);
 });
 
+test("述語の表は新しい見出し（述語ごとの分岐網羅）でも旧称（述語ごとの分岐被覆）でも同じに読む", () => {
+  const renamed = designOf();
+  expect(renamed).toContain("## 述語ごとの分岐網羅");
+  const legacy = renamed.replace("## 述語ごとの分岐網羅", "## 述語ごとの分岐被覆");
+  expect(legacy).not.toContain("## 述語ごとの分岐網羅");
+  expect(codesOf({ design: renamed })).toEqual(codesOf({ design: legacy }));
+  expect(codesOf({ design: renamed })).not.toContain("design-predicate-table-missing");
+  // どちらの見出しも無ければ、表が無いとして落ちる（候補を足したことで何でも通すようにしていない）。
+  const missing = renamed.replace("## 述語ごとの分岐網羅", "## 別の表");
+  expect(codesOf({ design: missing })).toContain("design-predicate-table-missing");
+});
+
 test("「消費側パラメータ」表が無ければ落ちる（絞り込みの数え漏らしが 0 件と同じ見え方になる）", () => {
   const withoutParams = designOf().replace(
-    /## 消費側パラメータ\n\n\| 機能[\s\S]*?\n\n## 述語ごとの分岐被覆/,
-    "## 述語ごとの分岐被覆",
+    /## 消費側パラメータ\n\n\| 機能[\s\S]*?\n\n## 述語ごとの分岐網羅/,
+    "## 述語ごとの分岐網羅",
   );
   // 表を確かに落とせていること（落とせていなければ、この検査は何も実証しない）。
   expect(withoutParams).not.toContain("## 消費側パラメータ");

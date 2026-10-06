@@ -2,14 +2,52 @@
   "$comment": [
     "scripts/gates/check-doc-refs.js の設定。",
     "repo: このリポジトリ（Issue と PR の URL を見分ける）。",
-    "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。skills を書くと、そのスキルの文書からの参照だけに当てる。"
+    "generated: 導入先で生成するファイルの名前と、節名を確かめるテンプレート。参照のパスが ref と同じか、/ref で終わると当てる（上から順に探す）。skills を書くと、そのスキルの文書からの参照だけに当てる。"
   ],
   "repo": "shoji9x9/skills",
   "generated": [
     {
+      "ref": ".replace/dataset/verification.md",
+      "template": "skills/golden-dataset/assets/verification-template.md"
+    },
+    {
+      "ref": ".replace/bootstrap/verification.md",
+      "template": "skills/current-environment-bootstrap/assets/verification-template.md"
+    },
+    {
+      "ref": ".replace/bootstrap/semantics.md",
+      "template": "skills/current-environment-bootstrap/assets/semantics-template.md"
+    },
+    {
+      "ref": ".replace/procedure-changes.md",
+      "template": "skills/replace-strategy/assets/procedure-changes-template.md"
+    },
+    {
+      "ref": "verification.md",
+      "skills": ["golden-dataset"],
+      "template": "skills/golden-dataset/assets/verification-template.md"
+    },
+    {
+      "ref": "verification.md",
+      "skills": ["current-environment-bootstrap"],
+      "template": "skills/current-environment-bootstrap/assets/verification-template.md"
+    },
+    {
+      "ref": "semantics.md",
+      "skills": ["current-environment-bootstrap"],
+      "template": "skills/current-environment-bootstrap/assets/semantics-template.md"
+    },
+    {
       "ref": "gaps.md",
-      "skills": ["parity-suite", "golden-dataset", "replace-strategy"],
       "template": "skills/parity-suite/assets/gaps-template.md"
+    },
+    {
+      "ref": "strength.md",
+      "template": "skills/parity-suite/assets/strength-template.md"
+    },
+    {
+      "ref": "diff.md",
+      "template": "skills/parity-diff/assets/diff-template.md"
     },
     {
       "ref": "design.md",
@@ -18,13 +56,28 @@
     },
     {
       "ref": "porting.md",
-      "skills": ["parity-replace"],
       "template": "skills/parity-replace/assets/porting-template.md"
     },
     {
-      "ref": ".replace/strategy.md",
+      "ref": "review.md",
       "skills": ["parity-replace"],
+      "template": "skills/parity-replace/assets/review-template.md"
+    },
+    {
+      "ref": "features.md",
+      "template": "skills/replace-strategy/assets/features-template.md"
+    },
+    {
+      "ref": "components.md",
+      "template": "skills/replace-strategy/assets/components-template.md"
+    },
+    {
+      "ref": "strategy.md",
       "template": "skills/replace-strategy/assets/strategy-template.md"
+    },
+    {
+      "ref": "survey.md",
+      "template": "skills/replace-strategy/assets/survey-template.md"
     }
   ]
 }

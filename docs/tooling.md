@@ -62,7 +62,7 @@ GitHub Actions は、`actionlint` で構文を、`ghalint` で `permissions`・`
 | `check-skill-checks.js` | 配布スキルのチェック（`*-check.*`）の分類。利用者の pre-commit・CI に組み込むもの（`skills/<name>/checks.json`）か、組み込まないもの（理由を付けて `scripts/gates/skill-checks-unwired.json`）のどちらかにする |
 | `check-time-sensitive-prose.js` | 日付・「現状は」「当面」を Tier 1〜3 の文書とコメントに書いていないか。変異の件数や全件の実測値は `mutation-proof.yml` だけに書く |
 | `check-doc-tiers.js` | 文書の階層。原本は `scripts/gates/doc-tiers.json` で、`.agents/rules/doc-altitude.md` の表は `--fix` で生成する |
-| `check-doc-refs.js` | リンクと節名の実在、参照の向き。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
+| `check-doc-refs.js` | リンクと節名の実在、参照の向き。節名は、パス（バッククォート・リンク・スキル名付き）の後に「」で書いたものを照合する。間に「の」や空白を挟んでもよく、節名でない語句を引用するときは名詞を挟む。導入先で生成するファイルは `scripts/gates/doc-refs.json`、保留は `scripts/gates/doc-pending.json` に書く |
 | `check-skill-index.js` | スキルガイド・README とスキルの実体の対応 |
 | `lint-prose.js` | 人が読む Markdown の文章。書き換え前のファイルは `scripts/gates/prose-lint-pending.json` に書く |
 | `check-word-list.js` | `.textlint/word-list.md` と `.textlint/words.json` の一致 |

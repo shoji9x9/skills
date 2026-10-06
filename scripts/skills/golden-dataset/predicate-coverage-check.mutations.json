@@ -266,6 +266,17 @@
       "replace": "if (false) {",
       "occurrences": 1,
       "expect_failing": ["識別子の値の範囲の不備: 列に複数の列が並んでいる"]
+    },
+    {
+      "id": "predicate-heading-legacy-off",
+      "why": "旧称の見出し（述語ごとの分岐被覆）の表を読まず、表が無いとして落とす",
+      "file": "skills/golden-dataset/scripts/predicate-coverage-check.mjs",
+      "find": "export const PREDICATE_TABLE_HEADINGS = [\"述語ごとの分岐網羅\", \"述語ごとの分岐被覆\"];",
+      "replace": "export const PREDICATE_TABLE_HEADINGS = [\"述語ごとの分岐網羅\"];",
+      "occurrences": 1,
+      "expect_failing": [
+        "述語の表は新しい見出し（述語ごとの分岐網羅）でも旧称（述語ごとの分岐被覆）でも同じに読む"
+      ]
     }
   ]
 }

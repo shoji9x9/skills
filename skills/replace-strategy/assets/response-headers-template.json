@@ -1,5 +1,5 @@
 {
-  "_note": "横断の応答ヘッダーの一覧（.replace/response-headers.json）の形式の正本。setup の測定の 7 で書き、手順 9 で所有者 slug と引き受ける機能 slug を書き戻す。parity-suite の scripts/header-normalize.mjs がそのまま読む（人が読む表は持たない。survey.md の 7 節はこのファイルを指すだけ）。採り方・分類・付け手の決め方の正本は references/security.md「横断の応答ヘッダー」。<…> はすべて書き換える（残したまま読むと入力の誤りで落ちる）。`_` で始まるキーは注記として読まれず、それ以外の語彙外のキーは入力の誤りになる。採れなかったら {\"schema_version\": 1, \"status\": \"unmeasured\", \"unmeasured_reason\": \"<理由>\"} の 3 キーだけにする（headers を残すと入力の誤り。一部の応答だけ採れなかったことは notes に書く）。",
+  "_note": "横断の応答ヘッダーの一覧（.replace/response-headers.json）の形式の原本。setup の測定の 7 で書き、手順 9 で所有者 slug と引き受ける機能 slug を書き戻す。parity-suite の scripts/header-normalize.mjs がそのまま読む（人が読む表は持たない。survey.md の 7 節はこのファイルを指すだけ）。採り方・分類・付け手の決め方の原本は references/security.md「横断の応答ヘッダー」。<…> はすべて書き換える（残したまま読むと入力の誤りで落ちる）。`_` で始まるキーは注記として読まれず、それ以外の語彙外のキーは入力の誤りになる。採れなかったら {\"schema_version\": 1, \"status\": \"unmeasured\", \"unmeasured_reason\": \"<理由>\"} の 3 キーだけにする（headers を残すと入力の誤り。一部の応答だけ採れなかったことは notes に書く）。",
   "schema_version": 1,
   "status": "<measured | unmeasured>",
   "captured_at": "<採った日時（ISO 8601）>",

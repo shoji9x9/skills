@@ -1,16 +1,18 @@
 ---
 argument-hint: '[--phase <a|b>] [--feature <slug>...] [--target <name>] [--autonomous]'
-description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（TypeScript か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの写像・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
+description: 仕様を変えないアプリケーションリプレイスで、現行と新側の比較を成立させるための共通ゴールデンデータセットを構築する replace-strategy の姉妹スキル。データそのものではなく、冪等・決定論的な投入ツール（TypeScript か SQL）を作る。本番環境は参照せずデータを一から作る。新側スキーマは後から出来るため 2 フェーズに分ける（A は論理データ設計と現行テスト環境への投入・検証、B は新側スキーマへの変換・投入・現新一致検証）。投入先の環境は --target で選ぶ（フェーズ B の記録は target 別）。データセットにバージョンを持たせ parity-suite / parity-diff のベースライン陳腐化検出に使う。replace-strategy setup 完了が前提。「ゴールデンデータセットを作って」「テストデータを投入して」「golden-dataset」や --phase / --target を伴う依頼で発動する。
 license: MIT
 name: golden-dataset
 ---
 # Golden Dataset
 
-`replace-strategy` の姉妹スキル。**現行と新側の比較を成立させるための共通データセットを構築する**。共通データが両側に無ければ「一覧に 3 件出る」という現行の正解を新側で検証できず、**構造しか比べられない**。
+`replace-strategy` の姉妹スキル。現行と新側の比較を成り立たせるための、共通のデータセットを作る。
+共通のデータが両側に無ければ、「一覧に 3 件出る」という現行の正解を新側で確かめられず、構造しか比べられない。
 
-**作るのはデータそのものではなく、投入ツールである。** データはその出力にすぎない。ツールは冪等・決定論的で、何度実行しても同じ状態になり、現行と新側に同じ論理データを入れる。
+作るのは、データそのものではなく投入ツールである。データはその出力にすぎない。
+ツールは冪等で決定論的に作る。何度実行しても同じ状態になり、現行と新側に同じ論理データを入れる。
 
-**新側スキーマは `parity-replace` が実装するまで存在しない**ため、両側への投入を 1 回で完結できない。作業を 2 フェーズに分ける。
+新側のスキーマは、`parity-replace` が実装するまで存在しない。そのため、両側への投入を 1 回で終えられないので、作業を 2 つのフェーズに分ける。
 
 ## 使い方
 
@@ -20,195 +22,210 @@ golden-dataset [--phase <a|b>] [--feature <slug>...] [--target <name>] [--autono
 
 | モード | 起点 | 内容 |
 |---|---|---|
-| フェーズ A（初回） | `.replace/dataset/metadata.json` が無い | 論理データ設計 → 投入ツール生成 → 現行側へ投入 → 現行側検証 |
-| フェーズ A（再実行） | `parity-suite` の `gaps.md`「データ不足」行 | 設計追記 → ツール更新 → 再投入 → 再検証。`version` を +1 し、影響ベースラインの再取得（`parity-suite` 再実行）を案内する |
-| フェーズ B（`--phase b --feature <slug>... [--target <name>]`） | 対象 slug の新側の受け皿（スキーマ／静的データ形式）が揃った | 新側への写像 → 選択した新側 target へ投入 → 新側整合性＋現新一致検証。**論理データは変えないので `version` は上げない** |
+| フェーズ A（初回） | `.replace/dataset/metadata.json` が無い | 論理データの設計、投入ツールの生成、現行側への投入、現行側の検証 |
+| フェーズ A（再実行） | `parity-suite` の `gaps.md`「データ不足」の行 | 設計の追記、ツールの更新、再投入、再検証。`version` を 1 上げ、影響を受けるベースラインの再取得（`parity-suite` の再実行）を案内する |
+| フェーズ B（`--phase b --feature <slug>... [--target <name>]`） | 対象の slug の新側の受け皿（スキーマ／静的データの形式）がそろった | 新側への変換、選んだ新側の target への投入、新側の整合性と現新一致の検証。論理データは変えないので `version` は上げない |
 
-- **無指定**: `.replace/dataset/metadata.json` が無ければフェーズ A（初回）。あれば用途を確認する（データ追加＝フェーズ A 再実行か、フェーズ B か）
-- **データセットの実体は設定の `dataset_mode`**（既定 `db`）。`db` は各 target の DB、`static` はリポジトリ内の静的データ（`dataset_static_paths` 配下）で、
-  **`static` は投入先 target に `db` を要求しない**（DB を持たない静的サイト等でもフェーズ A が成立する）。契約の正本は `replace-strategy` の `references/project-config.md`
-- `--target <name>` は**投入先の実行対象環境**。フェーズ A は設定の `targets` のうち `side: current`、フェーズ B は `side: new` のものだけを候補にする（本スキルが対象とする側の宣言はここが正本）。
-  `dataset_mode: db` ではさらに**`db.seedable: true` の target に限る**（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れない）。
-  省略時の既定・候補提示・存在しない名前や側違いでの停止といった**選択規則は `replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う**（ここへ転記しない）
-- フェーズ A の論理データが共通の正本で、**フェーズ B は写像するだけ**（新しいデータを作らない）
-- `slug` は `.replace/features.md` が採番したものを使う。**自分で採番しない**
-- `--autonomous` はその実行だけを自律で進める宣言（下記「自律実行」）。省略時は判断のたびに確認する
+- 何も指定しないとき: `.replace/dataset/metadata.json` が無ければフェーズ A（初回）を行う。あれば用途（データの追加＝フェーズ A の再実行か、フェーズ B か）を確認する
+- データセットの実体は、設定の `dataset_mode`（デフォルトは `db`）で決まる。`db` は各 target の DB、`static` はリポジトリの中の静的データ（`dataset_static_paths` の下）である。
+  `static` は投入先の target に `db` を求めない（DB を持たない静的サイトなどでもフェーズ A が成り立つ）。取り決めは `replace-strategy` の `references/project-config.md` で定義する
+- `--target <name>` は、投入先の実行対象環境である。フェーズ A は設定の `targets` のうち `side: current` のものだけを、フェーズ B は `side: new` のものだけを候補にする（このスキルが対象とする側は、ここで定義する）。
+  `dataset_mode: db` では、さらに `db.seedable: true` の target に限る（`env_vars` だけの target は読み取り専用で、`db` を書かない target の DB には触れない）。
+  省略したときのデフォルト、候補の提示、存在しない名前や側の違いで止めることなどの選択の規則は、`replace-strategy` の `references/project-config.md`「実行対象環境」の「選択規則」に従う（ここへ転記しない）
+- フェーズ A の論理データが共通の原本で、フェーズ B は変換するだけである（新しいデータを作らない）
+- `slug` は `.replace/features.md` が採番したものを使う。自分で採番しない
+- `--autonomous` は、その実行だけを自律で進めるという宣言である（下の「自律実行」）。省いたときは、判断のたびに確認する
 - 自然文でも発動する:「ゴールデンデータセットを作って」「テストデータを投入して」
 
 ## 前提
 
-- **ツール**: `git`、`node`（同梱スクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) の実行に使う。依存パッケージは不要）。投入ツールの実行手段（DB クライアント・言語ランタイム）はプロジェクト側の前提
-- **前提スキル**: `replace-strategy`（`setup` 完了）。`current.origin: received-assets` のプロジェクトではさらに `current-environment-bootstrap` の引き渡し完了（`.replace/bootstrap/metadata.json` の `status: handed-off`）
-- **前提スキルが未インストールの場合**: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
-  本スキルは設定スキーマ・成果物様式の**正本を `replace-strategy` の `references/` / `assets/` に持つ**ため、単体では成立しない（同時に導入されている前提）
-- **MCP**: 不要
-- **固定の技術スタック前提**: 投入ツールは TypeScript が既定。難しければ SQL（まとめてコミットできる形）
+- ツール: `git`、`node`（同梱のスクリプト [`scripts/predicate-coverage-check.mjs`](scripts/predicate-coverage-check.mjs) の実行に使う。依存パッケージは要らない）。投入ツールを実行する手段（DB クライアント・言語ランタイム）は、プロジェクト側で用意する
+- 前提スキル: `replace-strategy`（`setup` が完了していること）。`current.origin: received-assets` のプロジェクトでは、さらに `current-environment-bootstrap` の引き渡しが完了していること（`.replace/bootstrap/metadata.json` の `status: handed-off`）
+- 前提スキルがインストールされていない場合: `gh skill install shoji9x9/skills replace-strategy` で導入してから実行する。
+  このスキルは、設定のスキーマと成果物の様式を `replace-strategy` の `references/` と `assets/` で定義しているので、単体では動かない（同時に導入されている前提）
+- MCP: 要らない
+- 技術スタック: 投入ツールは、デフォルトでは TypeScript で書く。難しければ SQL（まとめてコミットできる形）で書く
 
-設定（`skills.replace-strategy.*`）または `.replace/features.md` が無ければ、成果物を捏造せず停止して `replace-strategy setup` を促す。
-`.replace/strategy-pending.json` に `setup` の未解決の保留があるときも同じく停止する（見る保留の範囲の正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）。
+設定（`skills.replace-strategy.*`）か `.replace/features.md` が無ければ、成果物を捏造せずに止まり、`replace-strategy setup` を促す。
+`.replace/strategy-pending.json` に `setup` の未解決の保留があるときも、同じく止まる。どの保留を見るかは、`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する。
 
 ## 厳守の制約（禁止事項）
 
-**仕様確認は十分な証拠が得られる最小コストの経路から始める。** 選択した現行 target から取得し、対象版・採取時点・条件を追跡できる実行ログ／観測記録 → 現行ソースコード → API の実動作 → UI の実動作の順に調べる。
-ページサイズや状態値を下位の証拠だけで確定できない場合に限って次へ上げる。これは調査コストが実行ログ／観測記録 < ソースコード < API 操作 < UI 操作の順に高くなるためで、必要な証拠が得られた時点で止め、API／UI 操作は不足する場合だけ行う。
-設計書・仕様書・受領ログを含む受領資料は調査候補の抽出に使ってよいが、現行挙動の確定根拠にはしない。UI 固有のページ送り機能は UI で確定し、どこまで上げたかと理由を `design.md` に残す。
+仕様の確認は、十分な証拠が得られる、いちばんコストの低い方法から始める。
+選んだ現行の target から取得し、対象の版・採取の時点・条件を追跡できる実行ログや観測記録、現行のソースコード、API の実際の動き、UI の実際の動きの順に調べる。
+ページサイズや状態の値を下位の証拠だけで確定できない場合に限って、次に上げる。調査のコストは、実行ログや観測記録、ソースコード、API の操作、UI の操作の順に高くなるからである。
+必要な証拠が得られた時点で止め、API や UI の操作は足りないときだけ行う。
+設計書・仕様書・受け取ったログを含む受領資料は、調べる候補を挙げるのに使ってよいが、現行の挙動を確定する根拠にはしない。
+UI に固有のページ送りの機能は UI で確定し、どこまで上げたかと理由を `design.md` に残す。
 
-1. **本番環境を参照しない・本番へ投入しない。** 投入前に接続先の環境変数**名**を提示し（値は表示しない）、テスト環境であることをユーザーに確認してから実行する。
-   この自己申告ゲートに加えて**設定由来ゲート**（禁止事項 9）を必ず通す。**どちらか一方でも通らなければ投入しない**
-2. **非冪等なツールを作らない。** 事前削除 → 投入で、何度実行しても同じ状態にする
-3. **非決定論的なデータを生成しない。** ID・連番・UUID・基準時刻を固定する
-4. **代表性を「確認済み」と宣言しない。** 何を含めなかったかを理由付きで必ず残す
-5. **本番データ移行ツールを兼ねさせない**（要件が異なる: データ量・性能・停止時間・実データの取り扱い）
-6. **非現実的な値ばかりにしない**（文字幅・桁数・改行が表示比較に影響する。`テスト1` のような値ばかりにしない）
-7. **シークレットの値をログ・成果物・応答に出さない**（変数名のみ扱う。ユーザーが値を提示しても復唱しない）
-8. **データは一から作る。** 例外として非本番の既存データを参考にする場合のみ、本番コピーの可能性を前提にマスキング方針を適用する（**既定は新規作成**）
-9. **設定が許可した書き込み先の外へ投入しない**（設定由来ゲート）。`dataset_mode: db` では `db.seedable: true` の target の DB のみ、`static` では `dataset_static_paths` 配下のみ。
-   **読み取り専用接続（`db.env_vars` はあるが `seedable` の無い target）へ削除・投入を行わない。** 許可が無ければ設定の修正を促して停止する（自分で設定に `seedable: true` を足さない）
-10. **投入ツールに依存を追加するとき、配布元の素性・ライセンス・メンテナンス状況を確認せずに導入しない**（既存パッケージを探さずに自前実装を始めるのも同様）。
-    判断材料・工程の正本は `replace-strategy` の `references/dependency-selection.md`、記録先は `.replace/dependencies.md`
-11. **フェーズ B の現新一致を逆写像の往復で検証しない**（`map∘unmap = id` で空回りし、宣言外の正規化を足しても通る）。判定は「差の列挙 × 宣言済み差分一覧との完全一致」で行い、
-    **宣言外の正規化を 1 件足したら落ちること**まで確認する（詳細: [`references/phase-b.md`](references/phase-b.md)）
-12. **ファイルストレージ実体へ投入しない**（スコープ外。正本: `replace-strategy` の `references/scope.md`）。`targets[].storage.seedable: true` でも投入せず、ストレージ実体に依存するデータは
-    「ストレージ投入はスコープ外＝未検証」として `verification.md` と `gaps` に残す（確認済みにしない）。アップロード用ファイルの**生成**（決定論的な fixture 生成）は対象で、
-    **手書きの静的ファイルを直接コミットして生成ツールを省略しない**（正本: `replace-strategy` の `references/file-io.md`「ファイル入力（アップロード）」・同 `references/project-config.md`「ファイルストレージ」）
-13. **暫定起動データをゴールデンデータへ昇格させない。** `current-environment-bootstrap` が作った暫定起動データ（`<bootstrap_tool_dir>`・`.replace/bootstrap/semantics.md` の「暫定起動データに投入した値」）は
-    **起動・ログイン・画面探索のための最小限であって比較の正解ではない**。流用は代表性の検討を飛ばすことになる——本スキルは確認済みの意味論から**一から設計する**（投入ツールも別ディレクトリに分ける）
-14. **確認待ちの意味論を確定扱いにしない。** `.replace/bootstrap/semantics.md` の「確認待ち」行と「確認したが確定できなかったもの」行の値を、推測・多数決・LLM の一般論で確定させない
-    （後者は確認済みだが**確定していない**——「確認待ちに無いから確定済み」と読み替えない）。
-    確定できないまま必要になった場合は、その機能のデータを捏造せず**未確定として記録し `verification.md` の「意味論が未確定の機能」へ回す**（その機能の `parity-suite` は開始できない）
-15. **同じ投入先へ 2 つの実行を同時に入れない。** 投入は削除 → 投入の構造なので、**途中では対象テーブル（`static` では生成先）が空**である。
-    同じ target へ別の実行が重なると、片方が空を読んで**落ちるか、落ちずに空を正解として通す**。**冪等性はこれを守らない**（「繰り返しても同じ状態」と「同時に入っても壊れない」は別）。
-    機能ごとに別ブランチ・別 worktree で並列に進めること自体は禁じないので、**投入ツールに排他（ロック）を実装し**、取得できなければ待たずに投入せず非 0 で終える
-    （単位・手段・効くことの実測は [`references/seeding-tool.md`](references/seeding-tool.md)「同時実行の排他（ロック）」）。
-    **ロックが止めるのは投入どうしの衝突だけ**なので、**同じ投入先を読むテスト（`parity-suite` / `parity-diff` の実行）を投入中に走らせない**ことは運用で守る——
-    守れなかったことは検出できない（空を読んだテストは落ちるとは限らない）。並列に進めるなら投入先そのものを分ける（target を分ける）
+1. 本番環境を参照せず、本番へ投入しない。投入の前に、接続先の環境変数の名前を示し（値は表示しない）、テスト環境であることをユーザーに確認してから実行する。
+   この自己申告のチェックに加えて、設定によるチェック（禁止事項 9）を必ず通す。どちらか一方でも通らなければ投入しない
+2. 冪等でないツールを作らない。事前に削除してから投入し、何度実行しても同じ状態にする
+3. 決定論的でないデータを生成しない。ID・連番・UUID・基準の時刻を固定する
+4. 代表性を「確認済み」と宣言しない。何を含めなかったかを、理由付きで必ず残す
+5. 本番のデータ移行ツールを兼ねさせない（データの量・性能・停止時間・実データの扱いという要件が違う）
+6. 現実的でない値ばかりにしない（文字の幅・桁数・改行が表示の比較に影響する。`テスト1` のような値ばかりにしない）
+7. シークレットの値を、ログ・成果物・応答に出さない（変数名だけを扱う。ユーザーが値を示しても繰り返さない）
+8. データは一から作る。例外として、本番でない既存のデータを参考にする場合だけ、本番のコピーである可能性を前提に、マスキングの方針を当てる（デフォルトは新規の作成）
+9. 設定が許した書き込み先の外へ投入しない（設定によるチェック）。`dataset_mode: db` では `db.seedable: true` の target の DB だけ、`static` では `dataset_static_paths` の下だけに投入する。
+   読み取り専用の接続（`db.env_vars` はあるが `seedable` の無い target）に、削除も投入もしない。許可が無ければ設定を直すよう促して止まる（自分で設定に `seedable: true` を足さない）
+10. 投入ツールに依存を足すとき、配布元の素性・ライセンス・メンテナンスの状況を確かめずに導入しない（既存のパッケージを探さずに自前の実装を始めるのも同じ）。
+    判断の材料と工程は `replace-strategy` の `references/dependency-selection.md` で定義し、記録先は `.replace/dependencies.md` である
+11. フェーズ B の現新一致を、逆変換の往復で検証しない。前向きの変換と同じ表を使う限り `map∘unmap = id` になるので、宣言していない正規化を足しても通ってしまう。
+    判定は、差の列挙と、宣言済みの差分の一覧が過不足なく一致するかで行う。宣言していない正規化を 1 件足したら失敗することまで確かめる（詳細: [`references/phase-b.md`](references/phase-b.md)）
+12. ファイルストレージの実体へ投入しない。スコープ外で、`replace-strategy` の `references/scope.md` で定義している。
+    `targets[].storage.seedable: true` でも投入せず、ストレージの実体に依存するデータは「ストレージへの投入はスコープ外＝未検証」として `verification.md` と `gaps` に残す（確認済みにしない）。
+    アップロード用のファイルの生成（決定論的な fixture の生成）は対象である。手で書いた静的ファイルを直接コミットして、生成ツールを省かない。
+    取り決めは `replace-strategy` の `references/file-io.md`「ファイル入力（アップロード）」と、`replace-strategy` の `references/project-config.md`「ファイルストレージ」で定義する
+13. 暫定の起動データを、ゴールデンデータに昇格させない。
+    `current-environment-bootstrap` が作った暫定の起動データ（`<bootstrap_tool_dir>` と、`.replace/bootstrap/semantics.md` の「暫定起動データに投入した値」）は、起動・ログイン・画面の探索のための最小限で、比較の正解ではない。流用すると代表性の検討を飛ばすことになる。このスキルは、確認済みの意味論から一から設計する（投入ツールも別のディレクトリに分ける）
+14. 確認待ちの意味論を、確定したものとして扱わない。`.replace/bootstrap/semantics.md` の状態「確認待ち」の行と「確認したが確定できなかったもの」の行の値を、推測・多数決・LLM の一般論で確定させない。
+    後者は確認済みだが確定していない。「確認待ちに無いから確定済み」と読み替えない。
+    確定できないまま必要になった場合は、その機能のデータを捏造せず、未確定として記録して `verification.md` の「意味論が未確定の機能」に回す（その機能の `parity-suite` は始められない）
+15. 同じ投入先に、2 つの実行を同時に入れない。投入は削除してから投入する構造なので、途中では対象のテーブル（`static` では生成先）が空になる。
+    同じ target に別の実行が重なると、片方が空を読んで、失敗するか、失敗せずに空を正解として通す。冪等性はこれを防がない（「繰り返しても同じ状態」と「同時に入っても不具合が出ない」は別である）。
+    機能ごとに別のブランチや別の worktree で並列に進めること自体は禁じない。そのため、投入ツールに排他（ロック）を実装し、ロックを取れなければ待たずに、投入せずに 0 以外で終える
+    （単位・手段・機能することの実測は [`references/seeding-tool.md`](references/seeding-tool.md)「同時実行の排他（ロック）」）。
+    ロックが止めるのは、投入どうしの衝突だけである。同じ投入先を読むテスト（`parity-suite` / `parity-diff` の実行）を投入の間に実行しないことは、運用で守る。
+    守れなかったことは検出できない（空を読んだテストが失敗するとは限らない）。並列に進めるなら、投入先そのものを分ける（target を分ける）
 
 ## プロジェクト設定の解決
 
-設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を**直接読む**（転記しない）。スキーマの正本は `replace-strategy` の `references/project-config.md`。本スキルが読む・書くキー:
+設定ファイル `.config/skills/shoji9x9/skills.yml` の `skills.replace-strategy.*` を直接読む（転記しない）。スキーマは `replace-strategy` の `references/project-config.md` で定義する。
+このスキルが読み書きするキーは次のとおりである。
 
 | キー | 用途 |
 |---|---|
-| `dataset_mode` | データセットの実体（`db`〈既定〉/ `static`）。投入先解決とフェーズ A / B の投入手順が分岐する |
-| `dataset_static_paths` | `dataset_mode: static` のとき投入ツールが生成・削除してよいパス（**書き込み範囲の設定由来ゲート**。無ければ停止） |
-| `targets[].db.seedable` | **投入許可の設定由来ゲート**。`true` の target だけが投入対象（省略・`false` は読み取り専用接続） |
-| `uses_storage` / `targets[].storage` | ファイルストレージの利用と、その環境の接続・書き込み範囲・投入ゲート（`storage.seedable`）・アップロード経路。**読むだけで投入しない**——ストレージ実体への投入はスコープ外（禁止事項 12）。`uses_storage: true` なら、ストレージ実体に依存するデータを `verification.md` の未投入一覧に残し `gaps` へ回す |
-| `targets[].db.env_vars` | 投入先 DB 接続の環境変数**名**（フェーズ A は `side: current`、フェーズ B は `side: new` の選択 target のもの。値は読まない・出力しない） |
-| `secrets.wrapper` | シークレットが要るコマンドの前置ラッパー |
-| `references.db_semantics` | フェーズ B の写像・現新一致検証で読む型マッピングと意味論差（`static` では静的データ形式の対応と意味論差）。**キー欠落・空値・解決できないパスはいずれも未整備**として停止する |
-| `verification_commands` | 生成・更新した投入ツールに通す検証コマンド。**通すのは `full`（全体走査の列）**で、`diff`（変更ファイルだけの列）は使わない。**`full` が無くても、値がリスト（旧形式＝走る範囲が未宣言）でも停止せず**、その旨を `verification.md` に記録して進む（`parity-replace` の完了判定と違い、ここでは生成物の品質担保であって投入の合否判定ではない。意味論の正本はスキーマ文書の「検証コマンド」） |
-| `references.coding_conventions` | 投入ツールを書くときに従うコーディング規約（**投入ツールは対象プロジェクト側のコード**であり、リポジトリの規約に従う）。**未整備でも停止しないが、推測で自分の流儀を持ち込まない**——基底ドキュメント・リント設定・既存コードから読み取る（意味論の正本はスキーマ文書の「コーディング規約」） |
-| `references.dependency_policy` | 投入ツールに依存を足すときの方針（**三値**。意味論の正本はスキーマ文書の「依存導入の方針」）。**キー欠落＝未確認**のときだけ、ユーザーに要否を確認した結果を同キーへ非破壊追記する |
-| `dataset_tool_dir` | 投入ツールの配置先（未指定時は `seed/`） |
-| `current.origin` | 現行環境の由来（`managed` / `received-assets`。**キー欠落は `managed`**）。`received-assets` のときだけ `.replace/bootstrap/` を前提確認と設計の入力にする（意味論の正本はスキーマ文書の「現行環境の由来」） |
-| `bootstrap_tool_dir` | `current-environment-bootstrap` の暫定起動データ投入ツールの配置先（未指定時 `bootstrap/`）。**本スキルの `dataset_tool_dir` と分けるため**に読む（同じディレクトリ・同じエントリに相乗りさせない。禁止事項 13） |
+| `dataset_mode` | データセットの実体（`db`〈デフォルト〉/ `static`）。投入先の解決と、フェーズ A / B の投入の手順が分かれる |
+| `dataset_static_paths` | `dataset_mode: static` のとき、投入ツールが生成・削除してよいパス（書き込みの範囲の、設定によるチェック）。無ければ止まる |
+| `targets[].db.seedable` | 投入の許可の、設定によるチェック。`true` の target だけが投入の対象になる（省略や `false` は読み取り専用の接続） |
+| `uses_storage` / `targets[].storage` | ファイルストレージを使うかと、その環境の接続・書き込みの範囲・投入の許可（`storage.seedable`）・アップロードの方法。読むだけで投入しない。ストレージの実体への投入はスコープ外である（禁止事項 12）。`uses_storage: true` なら、ストレージの実体に依存するデータを `verification.md` の未投入の一覧に残し、`gaps` に回す |
+| `targets[].db.env_vars` | 投入先の DB に接続する環境変数の名前（フェーズ A は `side: current`、フェーズ B は `side: new` の、選んだ target のもの。値は読まず、出力しない） |
+| `secrets.wrapper` | シークレットが要るコマンドの前に付けるラッパー |
+| `references.db_semantics` | フェーズ B の変換と現新一致の検証で読む、型の対応づけと意味論の差（`static` では静的データの形式の対応と意味論の差）。キーが無い・値が空・解決できないパスは、どれも未整備として止まる |
+| `verification_commands` | 生成・更新した投入ツールに通す検証コマンド。通すのは `full`（全体を見る列）で、`diff`（変更したファイルだけの列）は使わない。`full` が無くても、値がリスト（旧形式で、実行の範囲が宣言されていない）でも止まらず、その旨を `verification.md` に記録して進む。`parity-replace` の完了の判定と違い、ここでは生成物の品質を保つためのもので、投入の合否の判定ではない。意味論はスキーマの文書の「検証コマンド」で定義する |
+| `references.coding_conventions` | 投入ツールを書くときに従うコーディング規約。投入ツールは対象のプロジェクト側のコードなので、そのリポジトリの規約に従う。未整備でも止まらないが、推測で自分の流儀を持ち込まず、基底ドキュメント・リントの設定・既存のコードから読み取る。意味論はスキーマの文書の「コーディング規約」で定義する |
+| `references.dependency_policy` | 投入ツールに依存を足すときの方針（3 つの値。意味論はスキーマの文書の「依存導入の方針」で定義する）。キーが無い＝未確認のときだけ、ユーザーに要否を確かめた結果を同じキーに、既存を消さずに追記する |
+| `dataset_tool_dir` | 投入ツールの置き場所（指定が無ければ `seed/`） |
+| `current.origin` | 現行環境の由来（`managed` / `received-assets`。キーが無ければ `managed`）。`received-assets` のときだけ、`.replace/bootstrap/` を前提の確認と設計の入力にする。意味論はスキーマの文書の「現行環境の由来」で定義する |
+| `bootstrap_tool_dir` | `current-environment-bootstrap` の暫定起動データの投入ツールの置き場所（指定が無ければ `bootstrap/`）。このスキルの `dataset_tool_dir` と分けるために読む（同じディレクトリ・同じエントリに相乗りさせない。禁止事項 13） |
 
-`targets[].forbidden_actions` は**アプリへの UI / API 操作**が対象で投入ツールには適用されないため、本スキルは読まない（正本参照）。投入の安全弁は上表の設定由来ゲートと「本番でないことの確認ゲート」の 2 枚が担う。
+`targets[].forbidden_actions` は、アプリへの UI と API の操作が対象で、投入ツールには当てはまらない。そのため、このスキルは読まない。
+投入の安全のための確認は、上の表の設定によるチェックと、本番でないことの確認の 2 つが担う。
 
-対象テーブル・リソースドメインは `.replace/features.md` から引く。**テーブルは 3 つの表（機能一覧の「テーブル」列・横断 API とバッチの「参照テーブル」列）に分散しているので 3 つとも読む**。その後、現行コード／実測から各消費側の絞り込み列・並び替え列・ページサイズを導き、必要な値と件数を決める（詳細: [`references/data-design.md`](references/data-design.md)）。
+対象のテーブルとリソースのドメインは、`.replace/features.md` から取得する。テーブルは 3 つの表（機能の一覧の「テーブル」列、横断 API とバッチの「参照テーブル」列）に分かれているので、3 つとも読む。
+その後、現行のコードや実測から、各消費側の絞り込みの列・並び替えの列・ページサイズを求め、必要な値と件数を決める（詳細: [`references/data-design.md`](references/data-design.md)）。
 
-- **正本の「移行」節に列挙された旧キーはフォールバックとして読まない。** 見つけたら同節を示して停止する（**一律停止はキー名が変わった旧キーだけ**。`verification_commands` がリストなど「キー名が変わらない移行」は上表の挙動に従う）
-- **本スキルは設定を生成しない**（読むだけ）。例外は**非破壊追記の 2 つ**——フェーズ B で見つかった新規の意図的差異を
-  `intentional_diffs.pending` へ**追記元が分かる形で**追記してユーザー確認へ回すこと（差異の文言は **`item`**〈照合キー〉／ `added_by: golden-dataset` ／ `added_at` ／
-  `slug` は帰属できる機能があればその slug、無ければ `cross-cutting` の 4 キー。`item` を別のキー名で書くと追記時は通り、数工程あとの `parity-diff` の棚卸しで「`item` が空」として現れる。要素の形の正本はスキーマ文書の「`pending` 要素の形」）と、
-  投入ツールに依存を足すときに `references.dependency_policy` が**キー欠落＝未確認**だった場合の確認結果を同キーへ追記すること
+- スキーマの文書の「移行」の節に挙がった旧キーは、フォールバックとして読まない。見つけたら、その節を示して止まる。
+  一律に止まるのは、キーの名前が変わった旧キーだけである。`verification_commands` がリストの場合のように、キーの名前が変わらない移行は、上の表の挙動に従う
+- このスキルは設定を生成しない（読むだけ）。例外は、既存を消さずに追記する次の 2 つである。
+  - フェーズ B で見つけた新しい意図的差異を、`intentional_diffs.pending` に、追記元が分かる形で追記し、ユーザーの確認に回す。
+    書くのは 4 つのキーで、差異の文言は `item`（照合のキー）、`added_by: golden-dataset`、`added_at`、`slug` である。`slug` は、帰属できる機能があればその slug、無ければ `cross-cutting` にする。
+    `item` を別のキーの名前で書くと、追記のときは通り、何工程か後の `parity-diff` の棚卸しで「`item` が空」として表に出る。要素の形は、スキーマの文書の「`pending` 要素の形」で定義する
+  - 投入ツールに依存を足すときに `references.dependency_policy` がキーの無い＝未確認だった場合、確認の結果を同じキーに追記する
 
 ## 自律実行（`--autonomous`）
 
-規約（宣言・越えない線・停止の 2 分類・保留の記録形・終わりにまとめて聞く手順）の**正本は `replace-strategy` の `references/autonomy.md`**（ここへ転記しない）。
-**同ファイルを読めない場合は自律実行せず**、確認のたびに止まる。本スキル固有の対応:
+宣言、越えない線、停止の 2 つの分類、保留の記録の形、終わりにまとめて聞く手順という規約は、`replace-strategy` の `references/autonomy.md` で定義する（ここへ転記しない）。
+`replace-strategy` の `references/autonomy.md` を読めない場合は、自律実行せず、確認のたびに止まる。このスキルに固有の扱いは次のとおりである。
 
-- **対象の選択**（無指定で既存の `metadata.json` があるときの用途〈フェーズ A 再実行かフェーズ B か〉・既定の無い `--target`）は保留にせず、候補を示して停止する（正本の「宣言」）
-- **判断待ち（保留に落とす）**: 投入前の自己申告ゲート（テスト環境であることの確認。**自律でも省かない**）、
-  投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` へ追記した差異の確認
-- **保留に落としても進める工程**: 自己申告ゲートが保留なら、データ設計・投入ツール生成・`verification_commands.full` の実行までは進め、**投入・投入後の検証・`metadata.json` の投入記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない**
-- **自律実行でも停止する**: DDL・静的データ形式を決定論的に得られない、設定由来ゲート（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
-- **記録先**: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
-  **要素ごとに `phase` を書き、フェーズ B では `slugs`（その判断が影響するすべての slug）と `target` も書く**——下流は範囲が一致する保留だけで止まるので、書かないと無関係な機能まで止まる。
-  **`metadata.json` には書かない**——下流（`parity-suite` / `parity-component` / `parity-replace`）はその存在をフェーズ A 完了とみなすため、保留を残す目的でこのファイルを作ると未投入の環境で後続が進む。
-  未解決の保留が残る間は、そのフェーズの `metadata.json` を新規作成・更新せず（投入していない版を記録しない）、完了と報告しない。
-  **再実行で既存の `metadata.json` が残っていても**、下流は `pending-decisions.json` の未解決の保留を見て未完了として止まる（正本: `replace-strategy` の `references/autonomy.md`「下流の前提判定」）
+- 対象の選択（何も指定せず既存の `metadata.json` があるときの用途〈フェーズ A の再実行かフェーズ B か〉と、デフォルトの無い `--target`）は、保留にせず、候補を示して止まる（`replace-strategy` の `references/autonomy.md`「宣言」）
+- 判断待ち（保留にする）: 投入の前の自己申告のチェック（テスト環境であることの確認。自律実行でも省かない）、投入ツールへの依存の追加、フェーズ B で `intentional_diffs.pending` に追記した差異の確認
+- 保留にしても進める工程: 自己申告のチェックが保留なら、データの設計・投入ツールの生成・`verification_commands.full` の実行までは進める。
+  投入・投入後の検証・`metadata.json` への投入の記録（`current.seeded_at` / `current.verified_at` / `phase_b.<slug>.<target>`）は行わない
+- 自律実行でも止まる場合: DDL や静的データの形式を決定論的に得られない、設定によるチェック（`seedable` / `dataset_static_paths`）を通らない、`current-environment-bootstrap` が `handed-off` でない
+- 記録先: `.replace/dataset/pending-decisions.json`（テンプレート: [`assets/pending-decisions-template.json`](assets/pending-decisions-template.json)）。
+  - 要素ごとに `phase` を書く。フェーズ B では、`slugs`（その判断が影響するすべての slug）と `target` も書く。下流は範囲が一致する保留だけで止まるので、書かないと関係の無い機能まで止まる
+  - `metadata.json` には書かない。下流（`parity-suite` / `parity-component` / `parity-replace`）は、そのファイルがあることをフェーズ A の完了とみなす。
+    保留を残すためにこのファイルを作ると、投入していない環境で後続が進んでしまう
+  - 未解決の保留が残る間は、そのフェーズの `metadata.json` を新しく作ることも更新することもせず（投入していない版を記録しない）、完了と報告しない
+  - 再実行で既存の `metadata.json` が残っていても、下流は `pending-decisions.json` の未解決の保留を見て、未完了として止まる（`replace-strategy` の `references/autonomy.md`「下流の前提判定」で定義する）
 
 ## 実行フロー
 
-詳細は各 reference へ委譲する。番号順に進める。
+詳細は各 reference で定義する。番号の順に進める。
 
 ### フェーズ A（現行フェーズ）
 
-1. **前提確認と早期失敗**: 設定・`.replace/features.md` を確認し、`dataset_mode`（既定 `db`）で分岐する。
-   **`current.origin: received-assets` の場合は先に `.replace/bootstrap/metadata.json` を読む**——`status` が `handed-off` でなければ、現行環境がまだ比較基準として成立していないため
-   **投入せず停止**して `current-environment-bootstrap` の完了を促す（`blocked` なら質問票の回答待ちであることを併せて示す）。
-   `handed-off` なら `handoff.boot_requirements` を控える（手順 2 で使う）。`managed`・キー欠落のプロジェクトでは本確認を行わない。
-   - **`db`**: DDL（またはスキーマを決定論的に得る手段）が無ければ停止してユーザーに確認する。投入先 target（`side: current`）を確定する。
-     **候補は `db.seedable: true` の target に限る**——選択された target（`--target` 省略時の `default` を含む）が `seedable: true` を持たなければ**投入せず停止**し、
-     投入してよい target を選ぶか設定に `seedable: true` を足すようユーザーに促す（`env_vars` だけの target は読み取り専用、`db` を書かない target の DB には触れないため）。
-     確定したらその `db.env_vars` の存在確認（値は出さない）を `secrets.wrapper` 前置で最初に行い、繋がらなければ早期に失敗する
-   - **`static`**: `dataset_static_paths` が 1 つ以上あることを確認し（無ければ停止）、その配下が現行リポジトリで読み書きできることを確認する。**投入先 target に `db` を要求しない**。
-     現行の静的データの形式（ファイル配置・フィールド構成・型。DDL に相当する）を現行リポジトリから決定論的に読み取れなければ停止してユーザーに確認する
-2. **データ設計**: DDL の制約と機能インベントリを起点に、エッジケースを意図的に含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)。
-   **`current.origin: received-assets` では加えて `.replace/bootstrap/semantics.md` を読む**——「確定済み」の意味論だけを設計の根拠に使い、「確認待ち」の行は根拠にしない（禁止事項 14）。
-   `handoff.boot_requirements` に挙がった**起動要件（認証ユーザー・マスタ・コード表等）を必ず設計に含める**——本フェーズの投入は暫定起動データを事前削除で置き換えるため、
-   含めないと投入後に現行アプリが起動しなくなる。確認待ちのために設計できなかった機能は手順 6 で「意味論が未確定の機能」として記録する。
-   **設計の段で参照表の役割と行数を消費側から決める**——3 表の写しを `design.md`「対象テーブル」へ落として役割（`投入する` / `読み取りだけ`）を付け、
-   述語ごとに真・偽の両側を踏める行数を「述語ごとの分岐被覆」へ数え、踏めない分岐は「足す」「gaps に記録」のどちらかを選ぶ。
-   **述語の値は消費側が述語に渡す値（変換の後）で書き、「値の出どころ」を残す。データセットが決める識別子の値（採番帯）は、
-   消費側 (slug × テーブル) ごとに受け取る型・変換を列挙して「識別子の値の範囲」へ記録し、変換の後も同じ値で届くかを確かめる**
-   （届かないと、述語は設計者の値で真でも消費側が引く行は 0 件で、分岐被覆にも検証にも出ない）。
-   突き合わせは `node <skill>/scripts/predicate-coverage-check.mjs --features .replace/features.md --design .replace/dataset/design.md` を**exit 0 まで**通す
-   （踏めない分岐を下流で見つけると、ベースラインを採り終えた後に version が上がって採取物が陳腐化する）
-3. **投入ツール生成**: 削除（FK 依存の逆順）→ 投入（依存順）→ 検証の構造で、冪等・決定論的に作る。
-   **同じ投入先への同時実行を止める排他（ロック）もツールに実装する**（禁止事項 15）——投入の途中は投入先が空なので、これが無いと並列に進める別機能のテストが空を読む。
-   **効くことを実測してから使う**（ロックを保持したまま 2 つ目を起動し、1 行も書かずに非 0 で終えること）。実測日時は `metadata.json` の `tool.lock.verified_at` に残す。
-   書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成後に設定の `verification_commands.full` を通す（無ければ停止せず記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
-4. **投入ゲート（2 枚）**: **設定由来**（禁止事項 9。`db` は投入先 target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` 配下に収まること）と
-   **自己申告**（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
-5. **投入**: `db` は選択した `side: current` の target へ投入し、`static` は `dataset_static_paths` 配下へ生成する（新側の受け皿はまだ存在しないため新側へは投入しない）
-6. **検証**: `db` は FK 整合・必須項目・件数、`static` は形式妥当性（必須フィールド・型・参照整合）・件数を検査し、カバレッジ（どのテーブル／どの静的データのどのパターンを含んだか）を報告する。
-   **加えて、design.md の述語を 1 つずつ実行して該当行数を数え、`verification.md` の「述語ごとの該当行数」に残す**——
-   ここで数えるのは「入れたものが入ったか」ではなく「入れたもので消費側のどの分岐が踏めるか」で、**0 件と 1 件が報告に出る**。
-   突き合わせは同じスクリプトを `--verification .replace/dataset/verification.md` 付きで**exit 0 まで**通す。
-   **`current.origin: received-assets` では、未確定の意味論（「確認待ち」と「確認したが確定できなかったもの」の両方）のせいで最低限のシナリオを確定できなかった機能を
-   `verification.md` の「意味論が未確定の機能」へ slug 単位で記録する**
-   （`parity-suite` がこの記録を読んで開始可否を判断する。**捏造で埋めて「確認済み」にしない**）
-7. **成果物記録**: `design.md` / `verification.md` / `metadata.json` を生成し、**投入ツールとデータをコミットする**
-   （本番由来でなく PII を含まないため。大きなバイナリをコミットしない規約は視覚ベースラインの話でここには当てはまらない）。
-   初回は `changes` に version 1、再実行は新 version と実際に変更したテーブル／静的データ単位の `affects` を追記し、過去の履歴を保持する。
-   `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで:
-   - **`db`**: `current.target` に**投入先の current target 名**を記録する（`parity-suite` がベースライン採取時に自分の選択 target と照合し、不一致なら停止する）
-   - **`static`**: 投入先環境を持たないため `current.target` と `current.seeded_at` を `null` にし、代わりに `current.fingerprint` へ生成物の決定論的ハッシュを記録する
-     （`parity-suite` は `current.target` が `null` なら target 照合を行わない）
+1. 前提の確認と早期の失敗。設定と `.replace/features.md` を確かめ、`dataset_mode`（デフォルトは `db`）で分岐する。
+   `current.origin: received-assets` の場合は、先に `.replace/bootstrap/metadata.json` を読む。`status` が `handed-off` でなければ、現行環境がまだ比較の基準として成り立っていない。
+   そのため、投入せずに止まり、`current-environment-bootstrap` の完了を促す（`blocked` なら、質問票の回答待ちであることもあわせて示す）。
+   `handed-off` なら、`handoff.boot_requirements` を控える（手順 2 で使う）。`managed` とキーが無いプロジェクトでは、この確認をしない。
+   - `db`: DDL（またはスキーマを決定論的に得る手段）が無ければ止まり、ユーザーに確認する。投入先の target（`side: current`）を確定する。
+     候補は `db.seedable: true` の target に限る。選んだ target（`--target` を省いたときの `default` を含む）が `seedable: true` を持たなければ、投入せずに止まる。
+     そして、投入してよい target を選ぶか、設定に `seedable: true` を足すよう、ユーザーに促す（`env_vars` だけの target は読み取り専用で、`db` を書かない target の DB には触れないため）。
+     確定したら、その `db.env_vars` があることの確認（値は出さない）を、`secrets.wrapper` を前に付けて最初に行い、つながらなければ早く失敗させる
+   - `static`: `dataset_static_paths` が 1 つ以上あることを確かめ（無ければ止まる）、その下を現行のリポジトリで読み書きできることを確かめる。投入先の target に `db` を求めない。
+     現行の静的データの形式（ファイルの配置・フィールドの構成・型。DDL に当たる）を現行のリポジトリから決定論的に読み取れなければ、止まってユーザーに確認する
+2. データの設計。DDL の制約と機能のインベントリを起点に、エッジケースを意図して含めて設計する。詳細: [`references/data-design.md`](references/data-design.md)。
+   - `current.origin: received-assets` では、加えて `.replace/bootstrap/semantics.md` を読む。「確定済み」の意味論だけを設計の根拠に使い、「確認待ち」の行は根拠にしない（禁止事項 14）。
+   - `handoff.boot_requirements` に挙がった起動の要件（認証ユーザー・マスタ・コード表など）は、必ず設計に含める。このフェーズの投入は、暫定の起動データを事前の削除で置き換える。
+     そのため、含めないと投入した後に現行のアプリが起動しなくなる。確認待ちのために設計できなかった機能は、手順 6 で「意味論が未確定の機能」として記録する。
+   - 設計の段階で、参照表の役割と行数を消費側から決める。3 つの表を `design.md`「対象テーブル」に転記して役割（`投入する` / `読み取りだけ`）を付ける。
+     述語ごとに真と偽の両側を通れる行数を「述語ごとの分岐網羅」に数え、通れない分岐は「足す」か「gaps に記録」のどちらかを選ぶ。
+   - 述語の値は、消費側が述語に渡す値（変換の後の値）で書き、「値の出どころ」を残す。データセットが決める識別子の値（採番の帯）は、
+     消費側（slug × テーブル）ごとに受け取る型と変換を挙げて「識別子の値の範囲」に記録し、変換の後も同じ値で届くかを確かめる。
+     届かないと、述語は設計者の値では真でも、消費側が取得する行は 0 件になり、分岐網羅の表にも検証にも表れない。
+   - 突き合わせは、`node <skill>/scripts/predicate-coverage-check.mjs --features .replace/features.md --design .replace/dataset/design.md` を exit 0 になるまで通す。
+     通れない分岐を下流で見つけると、ベースラインを採り終えた後に version が上がり、採取した成果物が古くなる
+3. 投入ツールの生成。削除（FK の依存の逆順）、投入（依存の順）、検証の構造で、冪等で決定論的に作る。
+   同じ投入先への同時の実行を止める排他（ロック）も、ツールに実装する（禁止事項 15）。投入の途中は投入先が空なので、これが無いと、並列に進める別の機能のテストが空を読む。
+   機能することを実測してから使う（ロックを持ったまま 2 つ目を起動し、1 行も書かずに 0 以外で終えること）。実測した日時は、`metadata.json` の `tool.lock.verified_at` に残す。
+   書き方はリポジトリの規約（`references.coding_conventions`）に従い、生成した後に設定の `verification_commands.full` を通す（無ければ止まらず、記録して進む）。詳細: [`references/seeding-tool.md`](references/seeding-tool.md)
+4. 投入のチェック（2 つ）。設定によるチェック（禁止事項 9。`db` は投入先の target の `db.seedable: true`、`static` は書き込み先がすべて `dataset_static_paths` の下に収まること）と、
+   自己申告のチェック（厳守の制約 1 の確認）の両方を通してから投入する。どちらか一方でも通らなければ投入しない
+5. 投入。`db` は選んだ `side: current` の target へ投入し、`static` は `dataset_static_paths` の下に生成する（新側の受け皿はまだ無いので、新側へは投入しない）
+6. 検証。`db` は FK の整合・必須の項目・件数を、`static` は形式の妥当性（必須のフィールド・型・参照の整合）・件数を検査し、カバレッジ（どのテーブル、どの静的データのどのパターンを含んだか）を報告する。
+   - 加えて、`design.md` の述語を 1 つずつ実行して該当する行数を数え、`verification.md` の「述語ごとの該当行数」に残す。
+     ここで数えるのは、入れたものが入ったかではなく、入れたもので消費側のどの分岐を通れるかである。0 件と 1 件が報告に表れる。
+     突き合わせは、同じスクリプトを `--verification .replace/dataset/verification.md` を付けて、exit 0 になるまで通す。
+   - `current.origin: received-assets` では、未確定の意味論（「確認待ち」と「確認したが確定できなかったもの」の両方）のために最低限のシナリオを確定できなかった機能を、
+     `verification.md` の「意味論が未確定の機能」に slug の単位で記録する。`parity-suite` はこの記録を読んで、始めてよいかを判断する。捏造で埋めて「確認済み」にしない
+7. 成果物の記録。`design.md` / `verification.md` / `metadata.json` を生成し、投入ツールとデータをコミットする。
+   本番に由来せず PII を含まないからである。大きなバイナリをコミットしないという規約は視覚のベースラインの話で、ここには当てはまらない。
+   初回は `changes` に version 1 を、再実行では新しい version と、実際に変えたテーブルや静的データの単位の `affects` を追記し、過去の履歴を残す。
+   `metadata.json` の `mode` に `dataset_mode` の値を記録したうえで、次のように書く。
+   - `db`: `current.target` に、投入先の current の target 名を記録する（`parity-suite` がベースラインの採取のときに自分の選んだ target と照らし合わせ、一致しなければ止まる）
+   - `static`: 投入先の環境を持たないので、`current.target` と `current.seeded_at` を `null` にする。代わりに、`current.fingerprint` に生成物の決定論的なハッシュを記録する
+     （`parity-suite` は、`current.target` が `null` なら target を照らし合わせない）
 
 ### フェーズ B（新側フェーズ・slug ごと）
 
-1. **前提確認**: 対象 slug の新側の受け皿（`parity-replace` が実装したスキーマ／静的データ形式）と `references.db_semantics` を確認し、無ければ停止する（`db_semantics` は整備を促す）。
-   投入先 target（`side: new`。`--target` で選択）は `dataset_mode: db` なら `db.seedable: true` と `db.env_vars` 接続を要求し、`static` なら `db` を要求せず `dataset_static_paths` の書き込み可否を確認する。
-   `.replace/dataset/metadata.json`（フェーズ A 完了）が無い、または `.replace/dataset/pending-decisions.json` にフェーズ A の未解決の保留があれば、フェーズ A を先に実行するよう案内する
-2. **写像設計**: 論理データ → 新側の受け皿への写像を設計する（`db_semantics` の型マッピング・意味論差、`intentional_diffs.may_change` の型変換等を適用）。詳細: [`references/phase-b.md`](references/phase-b.md)
-3. **投入**: 投入ツールに新側ターゲットを追加し、フェーズ A と同じ 2 枚のゲートを通してから選択した target へ投入（`static` は生成）する。
-   **ツールを更新したらフェーズ A と同じく規約（`references.coding_conventions`）に従い、設定の `verification_commands.full` を通す**（無ければ停止せず `verification.md` に記録して進む）
-4. **検証**: 新側整合性＋現新一致を検査する。現新一致は**差のある箇所を列挙し、宣言済みの差分一覧（`db_semantics` / `intentional_diffs.may_change`）と完全一致するか**で判定し、**逆写像（新側 → 論理）の往復で書かない**（前方写像と同じ表を使う限り恒等になり、宣言外の正規化を足しても通る）。
-   宣言外の正規化を 1 件足したら検証が落ちることまで確認して `verification.md` に記録する。**説明できない不一致は失敗として扱い修正する**。新規の意図的差異は `intentional_diffs.pending` へ追記しユーザー確認へ回す
-5. **成果物記録**: `metadata.json` の `phase_b.<slug>.<target>` を更新する（`version` は上げない）。同じ DB を共有する target でも target ごとに実行して記録する
+1. 前提の確認。対象の slug の新側の受け皿（`parity-replace` が実装したスキーマ／静的データの形式）と `references.db_semantics` を確かめ、無ければ止まる（`db_semantics` は整備を促す）。
+   投入先の target（`side: new`。`--target` で選ぶ）について、`dataset_mode: db` なら `db.seedable: true` と `db.env_vars` の接続を求め、`static` なら `db` を求めず、`dataset_static_paths` に書けるかを確かめる。
+   `.replace/dataset/metadata.json`（フェーズ A の完了）が無いか、`.replace/dataset/pending-decisions.json` にフェーズ A の未解決の保留があれば、フェーズ A を先に実行するよう案内する
+2. 変換の設計。論理データから新側の受け皿への変換を設計する（`db_semantics` の型の対応づけ・意味論の差、`intentional_diffs.may_change` の型の変換などを当てる）。詳細: [`references/phase-b.md`](references/phase-b.md)
+3. 投入。投入ツールに新側のターゲットを足し、フェーズ A と同じ 2 つのチェックを通してから、選んだ target へ投入する（`static` は生成する）。
+   ツールを更新したら、フェーズ A と同じく規約（`references.coding_conventions`）に従い、設定の `verification_commands.full` を通す（無ければ止まらず、`verification.md` に記録して進む）
+4. 検証。新側の整合性と現新一致を検査する。現新一致は、差のある箇所を挙げ、宣言済みの差分の一覧（`db_semantics` / `intentional_diffs.may_change`）と過不足なく一致するかで判定する。
+   逆変換（新側 → 論理）の往復では書かない。前方の変換と同じ表を使う限り恒等になり、宣言していない正規化を足しても通るからである。
+   宣言していない正規化を 1 件足したら検証が失敗することまで確かめて、`verification.md` に記録する。説明できない不一致は失敗として扱い、直す。
+   新しい意図的差異は、`intentional_diffs.pending` に追記してユーザーの確認に回す
+5. 成果物の記録。`metadata.json` の `phase_b.<slug>.<target>` を更新する（`version` は上げない）。同じ DB を共有する target でも、target ごとに実行して記録する
 
 ## 成果物
 
-すべて対象プロジェクト側に置く。**スキーマの正本は本スキル**（テンプレート: [`assets/`](assets/)）。**投入ツールは対象プロジェクト側の成果物**であり、スキル本体に同梱する配布物ではない（位置づけの詳細: [`references/seeding-tool.md`](references/seeding-tool.md)）。
+すべて対象のプロジェクト側に置く。スキーマはこのスキルが定義する（テンプレート: [`assets/`](assets/)）。
+投入ツールは対象のプロジェクト側の成果物で、スキル本体に同梱する配布物ではない（位置づけの詳細: [`references/seeding-tool.md`](references/seeding-tool.md)）。
 
-| 成果物 | 場所 | 内容・正本 |
+| 成果物 | 場所 | 内容・原本 |
 |---|---|---|
-| 投入ツール | `<dataset_tool_dir>`（既定 `seed/`） | 削除・投入・検証。冪等・決定論的・**コミットする** |
-| データ設計 | `.replace/dataset/design.md` | 正本: [`assets/design-template.md`](assets/design-template.md) |
-| 検証レポート | `.replace/dataset/verification.md` | 正本: [`assets/verification-template.md`](assets/verification-template.md) |
-| メタデータ | `.replace/dataset/metadata.json` | 正本: [`assets/metadata-template.json`](assets/metadata-template.json) |
-| 依存の決定記録（投入ツールに依存を足したときのみ） | `.replace/dependencies.md` へ**非破壊追記**（無ければテンプレートから作成） | 様式の正本: `replace-strategy` の `assets/dependencies-template.md` |
+| 投入ツール | `<dataset_tool_dir>`（デフォルトは `seed/`） | 削除・投入・検証。冪等・決定論的で、コミットする |
+| データの設計 | `.replace/dataset/design.md` | 原本: [`assets/design-template.md`](assets/design-template.md) |
+| 検証のレポート | `.replace/dataset/verification.md` | 原本: [`assets/verification-template.md`](assets/verification-template.md) |
+| メタデータ | `.replace/dataset/metadata.json` | 原本: [`assets/metadata-template.json`](assets/metadata-template.json) |
+| 依存の決定の記録（投入ツールに依存を足したときだけ） | `.replace/dependencies.md` に既存を消さずに追記する（無ければテンプレートから作る） | 様式の原本: `replace-strategy` の `assets/dependencies-template.md` |
 
-- `version` の運用（上げる条件・フェーズ B で不変・陳腐化検出）は [`references/versioning.md`](references/versioning.md) が正本
+- `version` の運用（上げる条件、フェーズ B では変えないこと、古くなったことの検出）は、[`references/versioning.md`](references/versioning.md) で定義する
 
 ## 姉妹スキルとの連携
 
-- **依存順**: 全体の依存順の正本は `replace-strategy` の `SKILL.md`「姉妹スキルと依存順」（ここへ転記しない）。フェーズ A の直前は `replace-strategy setup` の完了、フェーズ B は各機能の `parity-replace` の途中（新側スキーマの確定後）で呼ばれる
-- **`current-environment-bootstrap`**: `current.origin: received-assets` のとき、`.replace/bootstrap/semantics.md` の**確定済み**の意味論と根拠を引き継ぐ。
-  暫定起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動要件だけを本スキルのデータ設計へ取り込む
-- **`parity-suite`**: フェーズ A 完了（＝`.replace/dataset/metadata.json` の存在）が前提。探索でシード不足を見つけると `gaps.md`「データ不足」で本スキルへ戻る。戻ると `version` が上がり、影響ベースラインを再取得する
-- **`parity-replace`**: フェーズ B の前提となる新側スキーマを作る。自分が選んだ新側 target を渡して `golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
-- **`parity-diff` / `replace-strategy status`**: `metadata.json` の version 順序と `changes[].affects` を slug の実効参照テーブルに照合して陳腐化を検出する。フェーズ B の投入状況は `phase_b.<slug>.<target>` を target 単位で同じ判定にかける
+- 依存の順: 全体の依存の順は、`replace-strategy` の `SKILL.md`「姉妹スキルと依存順」で定義する（ここへ転記しない）。
+  フェーズ A の直前は `replace-strategy setup` が完了していること、フェーズ B は各機能の `parity-replace` の途中（新側のスキーマが確定した後）で呼ばれる
+- `current-environment-bootstrap`: `current.origin: received-assets` のとき、`.replace/bootstrap/semantics.md` の確定済みの意味論と根拠を引き継ぐ。
+  暫定の起動データとツールは流用せず（禁止事項 13）、`handoff.boot_requirements` の起動の要件だけを、このスキルのデータの設計に取り込む
+- `parity-suite`: フェーズ A の完了（`.replace/dataset/metadata.json` があること）が前提である。探索でシードの不足を見つけると、`gaps.md`「データ不足」でこのスキルに戻る。
+  戻ると `version` が上がり、影響を受けるベースラインを再取得する
+- `parity-replace`: フェーズ B の前提となる新側のスキーマを作る。自分が選んだ新側の target を渡して、`golden-dataset --phase b --feature <slug> --target <name>` として呼ぶ
+- `parity-diff` / `replace-strategy status`: `metadata.json` の version の順序と `changes[].affects` を、slug が実際に参照するテーブルと照らし合わせて、古くなったことを検出する。
+  フェーズ B の投入の状況は、`phase_b.<slug>.<target>` を target の単位で同じ判定にかける

@@ -7,9 +7,10 @@
 // | リンク先           | 在る / 無い / URL・#・mailto / アンカー付き / ルートからの絶対パス / % で符号化 |
 // | リンクの位置       | 本文 / インラインコード / コードフェンス / Markdown 以外                          |
 // | 節名の参照の形     | バッククォート / リンク / スキル名付き                                           |
+// | パスと節名の間     | なし / 「の」 / 「の、」 / 空白 / 名詞を挟む（引用。照合しない）/ 1 行に複数       |
 // | 参照先の探し方     | 書いたファイルのディレクトリ / ルート / スキル / スキルの references/ / 無い      |
-// | 生成ファイル       | 宣言あり（スキルが一致・不一致）/ スキル名付きの参照の宣言                       |
-// | 節名の一致         | 見出し / 末尾の括弧書き / 番号付き / 太字（末尾の句点）/ 表のセル / 『』/ 入れ子の「」/ バッククォート / 無い |
+// | 生成ファイル       | 宣言あり（スキルが一致・不一致）/ スキル名付きの参照の宣言 / /名前 で終わるパス / 名前の一部だけ一致 |
+// | 節名の一致         | 見出し / 末尾の括弧書き / 番号付き（英字付きの番号を含む）/ 太字（末尾の句点）/ 表のセル / 『』/ 入れ子の「」/ バッククォート / 無い |
 // | 参照元の階層       | Tier 1 / Tier 2（docs・private skill）/ Tier 3（eval の文書・コメント）/ 配布スキル |
 // | Tier 4 への参照    | 学び（日付付き・archive・INDEX.md）/ eval の結果 / #番号 / Issue の URL /       |
 // |                    | 他のリポジトリ（owner/repo#1・他の URL）/ ${#1} / &#123; / インラインコード / 例の行 |
@@ -80,6 +81,10 @@ test("anchorsOf: 見出し・番号を除いた見出し・太字・表のセル
   );
 });
 
+test("anchorsOf: 英字の付いた番号（6a.）も除いた見出しを集める", () => {
+  expect(anchorsOf("## 6a. 判断待ち（x）\n").has("判断待ち（x）")).toBe(true);
+});
+
 test.each([
   ["完全一致", ["手順"], "手順", true],
   ["末尾の括弧書き", ["手順（補足）"], "手順", true],
@@ -128,6 +133,13 @@ test.each([
   ["生成ファイル（スキル名付き）", "docs/a.md", "`s` の `gaps.md`「特性化できなかった箇所」"],
   ["入れ子の「」", "docs/a.md", "`guide.md`「規則は「要素」に付ける」"],
   ["JS のコメント", "scripts/a.js", "// `docs/guide.md`「手順」"],
+  ["「の」を挟む形", "docs/a.md", "`guide.md` の「手順」"],
+  ["「の」を挟み、節名をバッククォートで囲む形", "docs/a.md", "`guide.md` の「`手順`」"],
+  [
+    "/名前 で終わる生成ファイル",
+    "skills/s/SKILL.md",
+    "`.replace/x/gaps.md`「特性化できなかった箇所」",
+  ],
 ])("陰性: 節名が在る（%s）", (_, file, line) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([]);
 });
@@ -164,6 +176,49 @@ test.each([
   ["符号化したリンク", "docs/a.md", "[g](gui%64e.md)「無い節」", "gui%64e.md「無い節」"],
 ])("陽性: %s", (_, file, line, text) => {
   expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 section ${text}`]);
+});
+
+test.each([
+  ["「の」を挟む形", "docs/a.md", "`guide.md` の「無い節」", "guide.md「無い節」"],
+  ["「の、」を挟む形", "docs/a.md", "`guide.md` の、「無い節」", "guide.md「無い節」"],
+  ["空白を挟む形", "docs/a.md", "`guide.md` 「無い節」", "guide.md「無い節」"],
+  ["リンクの後に「の」を挟む形", "docs/a.md", "[g](guide.md) の「無い節」", "guide.md「無い節」"],
+  [
+    "スキル名付きで「の」を挟む形",
+    "docs/a.md",
+    "`s` の `references/ref.md` の「無い」",
+    "s/references/ref.md「無い」",
+  ],
+  [
+    "節名をバッククォートで囲む形",
+    "docs/a.md",
+    "`guide.md` の「`無い節`」",
+    "guide.md「`無い節`」",
+  ],
+  [
+    "1 行に複数（後ろだけ無い）",
+    "docs/a.md",
+    "`guide.md`「手順」と `guide.md` の「無い節」",
+    "guide.md「無い節」",
+  ],
+  [
+    "/名前 で終わる生成ファイルに節が無い",
+    "skills/s/SKILL.md",
+    "`.replace/x/gaps.md`「無い節」",
+    ".replace/x/gaps.md「無い節」",
+  ],
+  [
+    "名前の一部だけ一致するパスは生成ファイルとして当てない",
+    "skills/s/SKILL.md",
+    "`xgaps.md`「特性化できなかった箇所」",
+    "xgaps.md「特性化できなかった箇所」",
+  ],
+])("陽性: 間に語を挟む形と生成ファイル（%s）", (_, file, line, text) => {
+  expect(found(makeRepo({ [file]: `${line}\n` }))).toEqual([`${file}:1 section ${text}`]);
+});
+
+test("陰性: 名詞を挟んだ引用は節名として読まない", () => {
+  expect(found(makeRepo({ "docs/a.md": "`guide.md` の分類「無い」\n" }))).toEqual([]);
 });
 
 test("陽性: 閉じたフェンスの後の行は読む", () => {
