@@ -279,8 +279,8 @@ parity-replace [--feature <slug>] [--target <name>] [--max-iterations <n>] [--au
    スイートが green でも、「操作を最後まで完了できない」欠落は残る。たとえば、下位を持つ項目を押すとメニューが閉じる。印が押せる範囲の外にある。並び替えの印が文字に重なる。
    - 現側の `metadata.json` の `component_coverage.declared` が `true` なら、`value: present` のセル 1 つにつき 1 行を書く。
      書き先は `.replace/parity/<slug>/new/<target>/component-comparison.json` である（環境別。様式の原本は `parity-suite` の `assets/component-comparison-template.json`）。
-     起点・当たり判定・完了の 3 点を観測して記録する
-   - 突き合わせられないセルは理由を書く。突き合わせないことを選ぶなら、利用者の承認（`disposition: accepted` と `approved_by`・`approved_at`）を得る
+     起点・当たり判定・完了の 3 点を観測して記録する。
+     突き合わせられないセルは理由を書く。突き合わせないことを選ぶなら、**利用者の承認**（`disposition: accepted` と `approved_by`・`approved_at`）を得る
    - 記録には新側の版（`new_implementation.commit` にそのときの `new.commit`、`dirty: false`）も書く。書かないと、記録の後に実装を変えても古い証拠が通る
      （当たり判定と完了の退行はスイートの green に出ないので、この工程が唯一の確認になる）
    - `new.commit` が `none`（新側が git の管理を持たない）なら、`new_implementation.iteration` にそのときの `loop.iterations` も書く。

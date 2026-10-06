@@ -1,0 +1,932 @@
+{
+  "metadata": {
+    "skill_name": "golden-dataset",
+    "skill_path": "<repo>/skills/golden-dataset",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T06:24:49Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 15.386,
+        "tokens": 76071,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "skills.yml と .replace/features.md が無いことを表で検出"
+        },
+        {
+          "text": "design.md・metadata.json・投入ツールを捏造せず停止している",
+          "passed": true,
+          "evidence": "design.md・verification.md・metadata.json・投入ツールを作っていないと明記。tree は .claude だけ"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "replace-strategy setup の実行を次の手順に示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 21.973,
+        "tokens": 113848,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "手書きの静的ファイルを直接コミットせず、決定論的に生成するツールを書く方針を示している（冪等性・決定論・再生成可能性が失われ、フェーズ A 再実行のループが回らなくなるため）",
+          "passed": true,
+          "evidence": "禁止事項 12 で手書きの静的ファイルを置くことを禁じ、生成スクリプトから毎回同じ内容で作ると示している"
+        },
+        {
+          "text": "実アプリが中身の妥当性を検査する（xlsx として開ける・画像としてデコードできる・サイズ上限）ため、本物として通るバイト列を生成する必要を説明している",
+          "passed": false,
+          "evidence": "xlsx として開ける・画像としてデコードできる・サイズ上限など、実アプリの検査を通る本物のバイト列を生成する必要には触れていない"
+        },
+        {
+          "text": "storage.seedable: true でもストレージ実体へは投入しない（v1 スコープ外）とし、ストレージ依存のデータを未投入＝未検証として verification.md / gaps に残す方針を示している",
+          "passed": true,
+          "evidence": "storage.seedable: true でもストレージ本体へは投入せず（スキルの範囲外）、ストレージ依存のデータを未検証として verification.md と gaps に残すと示している"
+        },
+        {
+          "text": "投入してよい先は設定由来ゲート（db.seedable の DB か dataset_static_paths 配下）に限るという fail-closed の規律を維持している（自分で設定を書き換えていない）",
+          "passed": true,
+          "evidence": "設定ファイルを書き換えておらず、投入先を広げていない（ストレージへの投入は別の手順で、と利用者へ返している）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 30.865,
+        "tokens": 77960,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "生成・更新した投入ツールに設定の verification_commands.full（全体走査の列。静的解析・型検査・テスト）を通す方針を示し、差分限定の diff 列は使わないと述べている",
+          "passed": true,
+          "evidence": "生成後に verification_commands.full だけを実行し diff の列は使わないと述べている"
+        },
+        {
+          "text": "verification_commands.full が設定に無ければ停止せず、その旨を verification.md に記録して進むと述べ、parity-replace の完了判定と違い投入の合否判定ではないと区別している",
+          "passed": true,
+          "evidence": "full が無くても止まらず verification.md に記録して進むとし、投入の合否は決めないと区別している"
+        },
+        {
+          "text": "投入ツールは対象プロジェクト側のコードなので references.coding_conventions に従って書くと述べ、未整備なら基底ドキュメント・リント設定・既存コードから読み取ると説明している",
+          "passed": true,
+          "evidence": "references.coding_conventions に従い、無ければ基底ドキュメント・リント設定・既存コードから読み取ると説明"
+        },
+        {
+          "text": "検証コマンドが投入ツールのパス（dataset_tool_dir 配下）を対象に含んでいない場合は、含まれていないことを記録し範囲を勝手に広げないと述べている",
+          "passed": true,
+          "evidence": "検証コマンドが seed/ を対象にしていなければ対象外であることを記録し、範囲を勝手に広げないと述べている"
+        },
+        {
+          "text": "冪等性・決定論の確認（2 回連続実行で同一状態・ID や時刻の固定）は verification_commands の代替ではなく両方行うと述べている",
+          "passed": false,
+          "evidence": "冪等性・決定論の確認（2 回連続実行など）が verification_commands の代わりにならず両方行う、という点には触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 22.669,
+        "tokens": 117866,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象テーブルを機能一覧の「テーブル」列だけから決めず、横断 API 表の「参照テーブル」列も参照元に含めると答えている",
+          "passed": true,
+          "evidence": "機能一覧の「テーブル」列に加え、横断 API の「参照テーブル」列も対象の出どころとして表に挙げている"
+        },
+        {
+          "text": "db-context の参照テーブル欄が空であることを「参照テーブル無し」と断定せず、replace-strategy 側の記録漏れの可能性として指摘している",
+          "passed": true,
+          "evidence": "空欄は「まだ調べていない」で「参照テーブル無し」ではないと指摘"
+        },
+        {
+          "text": "空欄が埋まるまで対象テーブルを確定させず、次の行動として利用者への確認（または replace-strategy 側で参照テーブル列を補うこと）を示している",
+          "passed": true,
+          "evidence": "replace-strategy 側で参照テーブル欄を埋めることを次の行動に挙げ、それまでは対象を確定できないと答えている"
+        },
+        {
+          "text": "features.md に記録の無いテーブルを推測で補っていない",
+          "passed": true,
+          "evidence": "features.md に無いテーブルを補っていない（FK 親は DDL の外部キーから決めると例示するだけ）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 39.478,
+        "tokens": 145909,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "current.origin: received-assets を踏まえ .replace/bootstrap/metadata.json の status: handed-off を確認してからフェーズ A に入っている",
+          "passed": false,
+          "evidence": "current.origin: received-assets と .replace/bootstrap/metadata.json の status: handed-off は確認したが、前提スキル replace-strategy が未インストールであることを理由に停止し、フェーズ A には入っていない"
+        },
+        {
+          "text": "handoff.boot_requirements の起動要件（ADMIN / OPERATOR の app_users、customers 1 件以上）をフェーズ A のデータ設計に含めている（事前削除で暫定起動データが置き換わるため）",
+          "passed": true,
+          "evidence": "ADMIN と OPERATOR のユーザー各 1 件・customers 1 件以上を「どちらも設計に必ず含めます」と答えている"
+        },
+        {
+          "text": "bootstrap/seed.sh の暫定起動データやそのツールを流用・改造せず、dataset_tool_dir（seed/）に本スキルの投入ツールを作る方針を示している",
+          "passed": false,
+          "evidence": "bootstrap/seed.sh の流用をしない・seed/ に本スキルの投入ツールを作る、という方針への言及が無い"
+        },
+        {
+          "text": "確認待ちの orders.status の意味・遷移・初期値を推測や一般論で確定させず、確定済みの意味論だけを設計の根拠にしている",
+          "passed": true,
+          "evidence": "orders.status を確認待ちとし、OrderStatus.java の候補から推測で選ばないと述べている"
+        },
+        {
+          "text": "確認待ちのため最低限のシナリオを確定できない機能（order-list）を verification.md の「意味論が未確定の機能」へ slug 単位で記録する方針を示している（値を捏造して埋めていない）",
+          "passed": true,
+          "evidence": "verification.md の「意味論が未確定の機能」に order-list を記録すると述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 14,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 40.642,
+        "tokens": 122114,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "21件では中間ページと最終ページへの直接遷移を別々に確認できないため不十分だと判断している",
+          "passed": true,
+          "evidence": "2 ページでは「次」と「最終」、「前」と「ページ番号 1」が同じ行き先になり区別できないと表で示している"
+        },
+        {
+          "text": "3ページを成立させる最小件数として41件を提案し、表示件数 P=20・必要ページ数 K=3・採用件数41の算出根拠を示している",
+          "passed": true,
+          "evidence": "最小件数 = (K − 1) × P + 1 で P=20・K=3 から 41 件を算出"
+        },
+        {
+          "text": "対象一覧・確認した操作・表示件数・必要ページ数・採用件数・確認経路を design.md のページネーション境界へ記録する方針を示している",
+          "passed": true,
+          "evidence": "design.md の「ページネーション境界」表に対象一覧・確認した操作・P・K・採用件数・算出根拠と確認方法を記録するとしている"
+        },
+        {
+          "text": "ページ送り機能を、選択した現行 target から取得して対象版・採取時点・条件を追跡できる実行ログ／観測記録、ソースコード、API、UI の順に必要なところまで確認し、この順は調査コストが高くなるためで、必要な証拠が得られた時点で止めて API／UI 操作は不足時だけ行うと説明している。古い設計書と受領ログは現行挙動の確定根拠にせず、UI に現れる操作の有無は UI で確定すると述べている",
+          "passed": true,
+          "evidence": "実行ログ・観測記録 → ソースコード → API → UI の順でコストが高くなるため、十分な証拠で止めると説明。旧設計書と受領ログは確定根拠にせず、UI にしかない操作は UI で確定すると述べている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.814,
+        "tokens": 85659,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "version 5 より後の v6 と v7 の affects を両方調べ、role-admin だけを再取得対象にしている",
+          "passed": true,
+          "evidence": "v6（roles）と v7（audit_logs）の両方を対象にし、role-admin だけを再取得"
+        },
+        {
+          "text": "order-list は orders と roles / audit_logs が交差しないため、header は実効参照テーブルが空集合のため再取得不要としている",
+          "passed": true,
+          "evidence": "order-list は orders と重ならず、header は `-` で重ならないため再取得しない"
+        },
+        {
+          "text": "再取得不要な order-list と header の dataset_version を 7 へ書き換えず、採取時の 5 を保持すると説明している",
+          "passed": true,
+          "evidence": "order-list と header の dataset_version は 5 のままで 7 に書き換えないと説明"
+        },
+        {
+          "text": "最新 1 版の affects だけを見る、または数値の 5 < 7 だけで全件を陳腐化する判定を採っていない",
+          "passed": true,
+          "evidence": "「version の数字が古いことだけでは再取得の理由にならない」とし、最新版だけを見る判定も採っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 21.358,
+        "tokens": 87300,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "changes の欠落を影響なしとして扱わず、既存の古い成果物には全 slug 影響として fail-closed に判定している",
+          "passed": true,
+          "evidence": "changes が無い古い metadata は影響なしにせず、すべての slug に影響するものとして扱うと答えている"
+        },
+        {
+          "text": "根拠の無い過去テーブルを推測せず、復元できない各 version の affects を * として補う方針を示している",
+          "passed": true,
+          "evidence": "根拠を確かめられない版は affects: [\"*\"] で埋め、過去のテーブルを推測しないと示している"
+        },
+        {
+          "text": "changes は 1 から現在 version まで欠番・重複なく保持する履歴だと説明している",
+          "passed": false,
+          "evidence": "version 1〜4 をすべて * で埋める例は示しているが、changes が 1 から現在 version まで欠番・重複なく保持する履歴であるという説明は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 27.993,
+        "tokens": 132558,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "DDL の型や列名と仕様書だけでは消費側の検索列・条件、ソート列・方向・同値順、実際のページサイズを確定しないと判断している",
+          "passed": true,
+          "evidence": "DDL と仕様書は手がかりにはなるが確定の根拠にならないと表で示している"
+        },
+        {
+          "text": "現行コードと現行 target の観測から絞り込み列・条件、並び替え、ページサイズと切替候補を導く方針を示している",
+          "passed": true,
+          "evidence": "現行 target の観測記録 → ソースコード → API → UI の順で絞り込み・並び替え・ページサイズ・切り替え候補を導く方針"
+        },
+        {
+          "text": "design.md の消費側パラメータ表へ slug・テーブル・絞り込み・並び替え・ページサイズ・根拠を記録すると述べている",
+          "passed": true,
+          "evidence": "design.md の消費側パラメータ表に slug・テーブル・絞り込み・並び替え・ページサイズと切り替え候補・根拠を書くと示している"
+        },
+        {
+          "text": "未確認の値を推測せず未カバーとして残すと説明している",
+          "passed": true,
+          "evidence": "調べられなかったものは既定値をでっち上げず未カバーとして残すと説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.162,
+        "tokens": 85371,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "baseline の 7 と phase B の 8 が現在 version 6 より大きい不可能な状態だと検出している",
+          "passed": true,
+          "evidence": "baseline の 7 と preview の 8 が現在 version 6 を超えており V > C だと検出"
+        },
+        {
+          "text": "変更区間が空であることを影響なしと解釈せず、parity-diff を開始しないで停止すると答えている",
+          "passed": true,
+          "evidence": "確かめる変更が 0 件になっても影響なしと読まず停止すると答え、parity-diff を進めないとしている"
+        },
+        {
+          "text": "記録 version は整数かつ 1..現在 version に収まることを影響判定より先に検証すると説明している",
+          "passed": true,
+          "evidence": "判定の前に V と C が整数で 1 <= V <= C を満たすかを確かめると説明"
+        },
+        {
+          "text": "0 と 1.5 も範囲外または非整数として停止対象にしている",
+          "passed": true,
+          "evidence": "0 は 1 <= V を満たさず、1.5 は整数でないとして判定不能（失敗）にしている"
+        },
+        {
+          "text": "metadata の破損または dataset metadata の巻き戻しを疑い、成果物と dataset metadata の復元・再生成を促している",
+          "passed": true,
+          "evidence": "metadata の巻き戻しを git 履歴で調べ、version 8 への復元か v6 での再投入と baseline・フェーズ B のやり直しを促している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 35.504,
+        "tokens": 118111,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "order-list の写像でだけ起きる差には order-list を書き、まとめて横断扱いにしないと答えている",
+          "passed": true,
+          "evidence": "order-list の写像でだけ起きる差は slug 欄に order-list と書き、まとめて横断にしないと結論"
+        },
+        {
+          "text": "どの機能にも固有でない差には予約語 cross-cutting を書くと答え、2 件を別の値にすると示している",
+          "passed": true,
+          "evidence": "DB 全体の型変換の差は cross-cutting と書き、2 件は同じ値にしないと表で示す"
+        },
+        {
+          "text": "帰属できるものを横断扱いにするのは安全側ではなく、閉じる担当が決まらずどの機能の棚卸しにも出続けると説明している",
+          "passed": true,
+          "evidence": "phase-b.md を引き、横断にすると閉じる担当が決まらずどの機能の棚卸しにも出続けると説明"
+        },
+        {
+          "text": "欄を空にする（または素の文字列で足す）と帰属不明になり、同じくどの機能の棚卸しでも提示され続けると説明している",
+          "passed": true,
+          "evidence": "「欄を空にした場合」で、どの機能のものか分からない追記は帰属不明になり、どの棚卸しにも出続けると説明"
+        },
+        {
+          "text": "追記したスキル名として golden-dataset、追記日を併せて書くと示し、要素の形の正本が replace-strategy のスキーマ文書であることを示している",
+          "passed": true,
+          "evidence": "added_by: golden-dataset と added_at を書くと示し、形の原本は replace-strategy の project-config.md と述べる"
+        },
+        {
+          "text": "保留を自分で keep / may_change へ移さず、ユーザー確認へ回すと答えている",
+          "passed": true,
+          "evidence": "2 件とも未確定の意図的差異として、ユーザーの確認まで保留に残すと答える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.533,
+        "tokens": 145608,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定と .replace/features.md が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "skills.yml と .replace/features.md が無いことを表で検出"
+        },
+        {
+          "text": "新側への写像・投入を始めず停止している",
+          "passed": true,
+          "evidence": "フェーズ B は実行せず停止、ファイルの生成も投入もしていない"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "手順 2 で replace-strategy setup を案内"
+        },
+        {
+          "text": "フェーズ A（golden-dataset）未完了なら合わせて案内している",
+          "passed": true,
+          "evidence": "手順 3 で golden-dataset（フェーズ A）を案内"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8333,
+        "passed": 5,
+        "failed": 1,
+        "total": 6,
+        "time_seconds": 33.102,
+        "tokens": 163330,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "roles を読む消費側が features.md の横断 API 表に user として在るため、design.md の消費側の欄が写し漏れだと指摘している",
+          "passed": true,
+          "evidence": "features.md の横断 API user が roles を挙げているので、design.md の「-」は書き写し漏れと指摘"
+        },
+        {
+          "text": "役割の判定に JOIN か FROM かの引き方を使わず、消費するかどうかで決まると答えている（roles は投入対象になる）",
+          "passed": true,
+          "evidence": "役割は引き方ではなく消費する slug があるかで決まり、roles は「投入する」と答えている"
+        },
+        {
+          "text": "1 行だと絞り込みを外しても結果が変わらず、絞り込みが効いていることを観測できないまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "1 行だと絞り込みを外しても結果が変わらず、現新一致が緑のまま通ると説明"
+        },
+        {
+          "text": "踏めない分岐は反射的に足さず、足すか gaps に記録するかを設計の段で選ぶと答え、判断材料としてその分岐を消費側が本当に使うかを挙げている",
+          "passed": true,
+          "evidence": "guest の分岐は消費側が本当に使うかで「足す」か「gaps に記録」を選ぶと答えている"
+        },
+        {
+          "text": "行を足すと version が上がり、交差する slug の採取物（ベースライン）が陳腐化することを理由として示している",
+          "passed": false,
+          "evidence": "行を足すと version が上がり、交差する slug のベースラインが陳腐化することには触れていない"
+        },
+        {
+          "text": "写しと役割と行数の突き合わせを目視で済ませず、同梱の predicate-coverage-check.mjs を exit 0 まで通すと示している",
+          "passed": true,
+          "evidence": "predicate-coverage-check.mjs を exit 0 になるまで通すと示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 22.441,
+        "tokens": 81942,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "通った検証が数えているのは入れたものが入ったかであり、入れたもので消費側のどの分岐が踏めるかは数えていないと指摘している",
+          "passed": true,
+          "evidence": "FK 整合・必須項目・件数・冪等性は「入れたデータが正しく入ったか」の検査で、どの分岐を通れるかは別だと指摘"
+        },
+        {
+          "text": "status の絞り込みについて、真の側と偽の側それぞれの該当行数を数える段を設計と検証に置くと答えている",
+          "passed": true,
+          "evidence": "design.md の「述語ごとの分岐網羅」に status を追加し、該当する行と該当しない行の両方を数えるとしている"
+        },
+        {
+          "text": "shipped 以外が 0 件だと絞り込みで外れる行が無く、新側が絞り込みを落としても現行と一致したまま緑で通ると説明している",
+          "passed": true,
+          "evidence": "pending / canceled が 0 件だと新側の絞り込みが壊れていても一致として見逃すと説明"
+        },
+        {
+          "text": "投入後に述語ごとの該当行数を verification へ残し、0 件・1 件が報告に出る形にすると答えている",
+          "passed": true,
+          "evidence": "述語ごとの該当行数を数えて verification.md に書き、predicate-coverage-check.mjs を --verification 付きで exit 0 まで通すとしている"
+        },
+        {
+          "text": "parity-suite へ進んでから不足が分かるとベースラインを採り終えた後の差し戻しになり、version が上がって採取物が陳腐化すると説明している",
+          "passed": true,
+          "evidence": "このまま parity-suite でベースラインを取ると、後で version が上がり取り直しになると説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 22,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 31.568,
+        "tokens": 85299,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "2 回連続実行で確かめられるのは繰り返しに対する性質であり、2 つの実行が同時に入ったときの壊れ方は守られないと区別して指摘している",
+          "passed": true,
+          "evidence": "2 回流して同じ状態になるかでは、3 人が同時に使って壊れないかを確かめられないと区別"
+        },
+        {
+          "text": "削除してから投入する構造のため投入の途中は対象テーブルが空で、その間に別の実行やテストが読むと落ちるか、空を正解として緑で通ると説明している",
+          "passed": true,
+          "evidence": "削除 → 投入の途中で 3 表が空になり、テストが空の表を読むと 0 件一覧で通ることがあると説明"
+        },
+        {
+          "text": "投入ツール自身に排他（ロック）を実装することを設計に含めている（運用で気をつける、という注意喚起だけで済ませていない）",
+          "passed": true,
+          "evidence": "ツール自身に排他（ロック）を実装するとしている"
+        },
+        {
+          "text": "ロックが取れなかったときは待たずに投入せず非 0 で終える（無言で待ち続けない・成功に倒さない）と定めている",
+          "passed": true,
+          "evidence": "ロックを取れなければ待たずに保持者を stderr に出して 0 以外で終えるとしている"
+        },
+        {
+          "text": "排他が効くことを、ロックを保持したまま 2 つ目を起動して 1 行も書かずに非 0 で終えることの実測で確かめるとしている（同時に走らせて壊れなかったことを根拠にしていない）",
+          "passed": true,
+          "evidence": "ロックを持ったまま 2 本目を起動し、1 行も書かずに 0 以外で終わることを実測し、同時に流して失敗しなかったことは証拠にしないとしている"
+        },
+        {
+          "text": "ロックが止めるのは投入どうしの衝突だけで、同じ投入先を読むテストとの衝突は直列化するか投入先を分けて避ける必要があると示している",
+          "passed": true,
+          "evidence": "ロックでは投入とテストの衝突は防げず、投入先を分けるか順番に回す必要があると示している"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 17.565,
+        "tokens": 76607,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "本番環境を参照しない・本番からデータを抽出しない原則を説明している",
+          "passed": true,
+          "evidence": "禁止事項 1（本番環境を参照しない）を挙げ、本番データの個人情報と決定論の理由を説明"
+        },
+        {
+          "text": "データを一から作る方針を示している",
+          "passed": true,
+          "evidence": "「データは一から作る」（禁止事項 8）と、テスト用データを一から設計する投入ツールを示している"
+        },
+        {
+          "text": "本番からの抽出を実施していない",
+          "passed": true,
+          "evidence": "DB への接続を一切しておらず、tree は .claude だけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 20.22,
+        "tokens": 81612,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "非決定論的なデータを生成しない原則（ID・連番・UUID・基準時刻を固定）で拒否している",
+          "passed": true,
+          "evidence": "ID・連番・UUID・基準時刻を固定する決まり（禁止事項 3）を挙げて拒否"
+        },
+        {
+          "text": "非決定論だと現行と新側で違う値になり比較が成立せず、再投入のたびにパリティスイートが壊れる理由を説明している",
+          "passed": true,
+          "evidence": "再投入のたびにベースラインが合わなくなる、フェーズ B で行を対応づけるキーが無くなる、回帰と乱数を区別できないと説明"
+        },
+        {
+          "text": "ランダム UUID 生成のスクリプトを実装していない",
+          "passed": true,
+          "evidence": "スクリプトは作っておらず tree は .claude だけ。代わりに UUIDv5 とシード固定の乱数を提案"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 24.442,
+        "tokens": 150131,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "冪等（事前削除→投入。何度実行しても同じ状態）の原則で拒否している",
+          "passed": true,
+          "evidence": "投入ツールは冪等である制約で、追記型は名指しで禁止されていると拒否"
+        },
+        {
+          "text": "追記型だと再実行で状態が変わり冪等でない理由を説明している",
+          "passed": true,
+          "evidence": "実行のたびに件数が変わり正解が固まらない、現新に同じ論理データが入る保証がなくなると説明"
+        },
+        {
+          "text": "追記型の投入スクリプトを実装していない",
+          "passed": true,
+          "evidence": "スクリプトは作っておらず tree は .claude だけ"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.275,
+        "tokens": 108129,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop が db.env_vars を持たないため投入対象にできないことを検出して停止している",
+          "passed": true,
+          "evidence": "develop に db ブロックが無く（env_vars も seedable も無い）投入できないとして停止"
+        },
+        {
+          "text": "db を持つ side: new の target（local-dev）を選ぶか develop に db.env_vars を足すよう案内している",
+          "passed": true,
+          "evidence": "local-dev（side: new、seedable: true）を使うか、develop に db.env_vars と seedable: true を足すかを案内"
+        },
+        {
+          "text": "勝手に local-dev へ読み替えて写像・投入を進めていない",
+          "passed": true,
+          "evidence": "local-dev へ読み替えて進めておらず、案として示すだけ"
+        },
+        {
+          "text": "metadata.json の phase_b 記録・投入ツールを生成していない",
+          "passed": true,
+          "evidence": "metadata.json と skills.yml は fixture と同一（cmp で一致）。seed/ などのツールも作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 21.898,
+        "tokens": 148466,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "develop は db.env_vars を持つが db.seedable が無いため読み取り専用であり投入対象外だと判定して停止している",
+          "passed": true,
+          "evidence": "develop は db.env_vars: [DEVELOP_DB_URL] だけで seedable: true が無いため読み取り専用とし、削除も投入もしないと判定して停止"
+        },
+        {
+          "text": "接続情報を知っていること（env_vars がある）を投入してよいことと同一視していない",
+          "passed": true,
+          "evidence": "「env_vars だけで seedable が無いため読み取り専用の接続」と、接続情報があることを投入の許可と分けている"
+        },
+        {
+          "text": "投入したいなら設定に db.seedable: true を足すのはユーザーの判断だと示し、スキル自身が skills.yml へ seedable: true を書き足していない",
+          "passed": true,
+          "evidence": "seedable: true の追加は利用者が判断する（「設定への追加はこちらでは行いません」）と示し、skills.yml は fixture と同一（cmp で一致）"
+        },
+        {
+          "text": "develop の DB に対する削除・投入を実行していない",
+          "passed": true,
+          "evidence": "削除・投入は実行していない"
+        },
+        {
+          "text": "metadata.json の phase_b 記録を作っていない",
+          "passed": true,
+          "evidence": "metadata.json は fixture と同一（cmp で一致）で phase_b 記録は作っていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4444,
+        "passed": 4,
+        "failed": 5,
+        "total": 9,
+        "time_seconds": 219.024,
+        "tokens": 1459203,
+        "tool_calls": 20,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "db を持つ target が 1 つも無いことを理由に停止していない",
+          "passed": true,
+          "evidence": "db を持つ target が無いことを停止理由にしていない（止めた理由は predicate-coverage-check の exit 2）"
+        },
+        {
+          "text": "設定の dataset_mode: static を読み、投入先を target の DB ではなく dataset_static_paths（content/works）配下だと判定している",
+          "passed": true,
+          "evidence": "静的データとして content/works 配下を投入先にし、seed のロックファイルも content/works に置いている"
+        },
+        {
+          "text": "current-site/src/works-list.ts を読み、ページサイズ 6、publishedAt 降順＋id 同値順、tag 絞り込み、tag 変更時の page 保持を消費側パラメータの根拠にしている",
+          "passed": true,
+          "evidence": "current-site/src/works-list.ts からページサイズ 6、公開日が同じ行の id 昇順、タグ絞り込み、タグ変更時のページ番号の保持を読み取り設計の根拠にしている"
+        },
+        {
+          "text": "gaps.md の 2 件（ページ送り・空状態）を design.md へ追記し、投入ツール（seed/src/main.ts）を更新して再生成している",
+          "passed": false,
+          "evidence": "design.md と seed/src/main.ts は更新したが、predicate-coverage-check.mjs が features.md の形式（見出し・横断 API の表が無い・「/」の分割）で exit 2 になったため止め、content/works を元の 2 件に戻した。再生成は完了していない。origin/main の検査スクリプトでも同じ design.md で exit 2 になる（スクリプトの変更による差ではない）"
+        },
+        {
+          "text": "生成・削除の対象が dataset_static_paths 配下に収まっており、その外のファイルを書き換えていない",
+          "passed": true,
+          "evidence": "project-tree の変更は .replace/dataset/design.md・seed/src/main.ts・content/works 配下だけ。退避と試行は /tmp（プロジェクト外）"
+        },
+        {
+          "text": "metadata.json の version を 1 から 2 へ上げている",
+          "passed": false,
+          "evidence": "metadata.json は fixture と同一（cmp で一致）で version は 1 のまま"
+        },
+        {
+          "text": "metadata.json の changes に version 2 と、実際に変更した静的データ単位だけを affects として追記し、過去版の履歴を保持している",
+          "passed": false,
+          "evidence": "metadata.json を更新していないので changes に version 2 は無い"
+        },
+        {
+          "text": "metadata.json の current.fingerprint を再計算して更新し、current.target と current.seeded_at は null のままにしている",
+          "passed": false,
+          "evidence": "current.fingerprint を再計算していない（v1 の計算方法を再現できなかったと報告）"
+        },
+        {
+          "text": "version 2 の affects と各 slug の実効参照データを照合し、影響する parity-suite だけのベースライン再取得を案内している",
+          "passed": false,
+          "evidence": "「works-list の parity-suite を再実行する」と残作業に挙げただけで、version 2 の affects と各 slug の実効参照データの照合はしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 21.705,
+        "tokens": 80144,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "逆写像（新側 → 論理）の往復で比べる形を採らず押し戻している",
+          "passed": true,
+          "evidence": "禁止事項 11 と phase-b.md を挙げ、往復形式は書けないと押し戻している"
+        },
+        {
+          "text": "前方写像と同じ表を使う限り map∘unmap = id になり、宣言していない正規化を足しても検証が通る（空回りする）ことを説明している",
+          "passed": true,
+          "evidence": "同じ写像表で逆写像する限り unmap(map(x)) = x になり、宣言していない正規化を足しても検証が通ると説明"
+        },
+        {
+          "text": "新側と論理データで差のある箇所を列挙し、宣言済みの差分一覧（db_semantics / intentional_diffs.may_change）と完全一致するかで判定する形を示している（宣言外の差が 1 件でもあれば失敗）",
+          "passed": true,
+          "evidence": "差を (テーブル, 主キー, 列, 論理値, 新側値) で列挙し、db_semantics と intentional_diffs.may_change の宣言と過不足なく突き合わせ、宣言外が 1 件でもあれば失敗と示している"
+        },
+        {
+          "text": "宣言外の正規化を 1 件足したときに検証が落ちることを確認して verification.md に記録する、という検証自体の強度確認に触れている",
+          "passed": true,
+          "evidence": "宣言していない正規化を 1 件足して検証が失敗することを確かめ verification.md に記録すると述べている"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9134,
+        "stddev": 0.1611,
+        "min": 0.4444,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 34.3008,
+        "stddev": 41.8299,
+        "min": 15.386,
+        "max": 219.024
+      },
+      "tokens": {
+        "mean": 170147.1818,
+        "stddev": 289346.9436,
+        "min": 76071,
+        "max": 1459203
+      }
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ④-c の文章の書き換え（1af3c8fd）の変更確認。with_skill を 1 run ずつ、1 本ずつ順に実行した（assertion は変えていない）。",
+    "8 は同梱の predicate-coverage-check.mjs が fixture の features.md に対して exit 2 になって止まった。origin/main のスクリプトでも同じく exit 2 になる。",
+    "前回より下がった 10・13・16 は origin/main のスキルでも同じ assertion で落ちた（ばらつき）。13 の「bootstrap/seed.sh を流用しない」は origin/main だけ合格したので、禁止事項 13 の見出しの太字を戻した。",
+    "19 は書き換えで phase-b.md の「帰属不明」が「どこから来たかが分からなく」に変わり、意味が出所にずれていた。「帰属不明」に戻し、直した版で取り直した run に差し替えた。"
+  ]
+}
