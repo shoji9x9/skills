@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の被覆表。形式の正本は parity-suite が定義する。被覆の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath・pre_send を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。操作 1 つにつき pre_send（送る前の判定）と resubmit（送っている間の押し直し）も必ず持ち、表の直下に side_effect_writes（表への書き込み）と state_displays（画面ごとの状態表示）を持つ。操作を持たない画面駆動の機能も表を作り（metadata.json の reaction_coverage を declared: false にしない）、operations を空配列にして operations_none_reason に理由を書き、state_displays で全画面を振り分ける。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。 covered_by の名前は「スペックのパス › describe の題 › テストの題」で、reaction-check.mjs の --tests（playwright test --list --reporter=json の出力）でスイートのテストへ解決させる（解決しない・曖昧・current / new の片側だけで走る名前は落ちる）。1 本のテストを 2 行以上の covered_by が名乗るなら全行に shared_assertion_reason を書く。assertion が期待値まで届くかは実装役と別の subagent が 1 行ずつ監査し、assertion_audit に残す。",
+  "_note": "parity-suite が .replace/parity/<slug>/reactions.json として生成する反応の網羅表。形式の原本は parity-suite が定義する。網羅の単位は「操作 → 反応」で、操作 1 つにつき reactions・layout・aftermath・pre_send を必ず持つ（空欄を許さず、反応が無ければ kind: none を、押した後に何も残らなければ changes: false を実測で書く）。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。操作 1 つにつき pre_send（送る前の判定）と resubmit（送っている間の押し直し）も必ず持ち、表の直下に side_effect_writes（表への書き込み）と state_displays（画面ごとの状態表示）を持つ。操作を持たない画面駆動の機能も表を作り（metadata.json の reaction_coverage を declared: false にしない）、operations を空配列にして operations_none_reason に理由を書き、state_displays で全画面を振り分ける。照合は parity-suite の scripts/reaction-check.mjs が行い、--write で conformance を書き戻す。parity-diff は metadata.json の reaction_coverage.declared が true のときだけ同じスクリプトを --recorded で呼び、未測定・不整合が残る間は収束させない。 covered_by の名前は「スペックのパス › describe の題 › テストの題」で、reaction-check.mjs の --tests（playwright test --list --reporter=json の出力）でスイートのテストへ解決させる（解決しない・曖昧・current / new の片側だけで走る名前は落ちる）。1 本のテストを 2 行以上の covered_by が名乗るなら全行に shared_assertion_reason を書く。assertion が期待値まで届くかは実装役と別の subagent が 1 行ずつ監査し、assertion_audit に残す。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "measured_target": "<測定に使った current target 名（metadata.json.target.name と一致）>",
   "documents": [
@@ -28,7 +28,7 @@
         "id": "<パターン id（設定 current.feedback_calls[].id を転記）>",
         "regex": "<呼び出しの字面に当たる JavaScript の正規表現（設定 current.feedback_calls[].regex を転記）。ファイル全体に複数行モードで照合し、^ / $ は行頭・行末に効く>",
         "kind": "<利用者に見える副作用の種類（設定から転記。例: toast / script / dialog）>",
-        "example": "<regex が一致すべき実際の呼び出しの字面（設定 current.feedback_calls[].example を転記。移行元ソースから 1 つ写す）。一致しなければ落ちる——走査 0 件を「呼び出しが無い」と区別するための陽性コントロール>"
+        "example": "<regex が一致すべき実際の呼び出しの字面（設定 current.feedback_calls[].example を転記。移行元ソースから 1 つ転記する）。一致しなければ落ちる——走査 0 件を「呼び出しが無い」と区別するための陽性コントロール>"
       }
     ],
     "source": {
@@ -52,7 +52,7 @@
     ]
   },
   "side_effect_writes": {
-    "_note": "表への書き込み。監査・利用ログのように利用者に見える反応を出さない書き込みは、反応の欄では「反応が無い」に落ち、差分器の 3 経路も DB を見ないので、ここでしか押さえられない。書き込みのパターンで移行元ソースを走査し、見つかった呼び出しを例外処理の中を含めて全件 sites に 1 行ずつ記録する（記録漏れ・記録だけ残った行は落ちる）。キーごと省略しない。",
+    "_note": "表への書き込み。監査・利用ログのように利用者に見える反応を出さない書き込みは、反応の欄では「反応が無い」に落ち、差分ツールの 3 つの比較方法も DB を見ないので、ここでしか押さえられない。書き込みのパターンで移行元ソースを走査し、見つかった呼び出しを例外処理の中を含めて全件 sites に 1 行ずつ記録する（記録漏れ・記録だけ残った行は落ちる）。キーごと省略しない。",
     "declared": "<真偽値。features.md の副作用出力に表への書き込みがある機能なら true。書き込みを持たない機能は false と reason>",
     "reason": "<declared: false のときだけ、書き込みを持たない根拠（例: features.md の副作用出力に表への書き込みが無く、操作のハンドラから到達点まで読んでも書き込みが無い）。移行元ソースを読めずに列挙できないなら、その旨を書いて gaps.md と metadata.json の unmeasured にも残す。declared: true では null>",
     "tables": ["<書き込み先の表（features.md の副作用出力の列から転記。例: access_log）>"],
@@ -61,7 +61,7 @@
         "id": "<パターン id（\"/\" を含めない）>",
         "table": "<このパターンが書く表（tables の中から）。表ごとにパターンを 1 つ以上持たせる>",
         "regex": "<書き込みの呼び出しの字面に当たる JavaScript の正規表現（移行元ソースの書き込みの関数・SQL から起こす）。ファイル全体に複数行モードで照合する>",
-        "example": "<regex が一致すべき実際の呼び出しの字面（移行元ソースから 1 つ写す）。一致しなければ落ちる>"
+        "example": "<regex が一致すべき実際の呼び出しの字面（移行元ソースから 1 つ転記する）。一致しなければ落ちる>"
       }
     ],
     "source": {
@@ -80,7 +80,7 @@
         "pattern": "<当たったパターン id>",
         "operation": "<この書き込みを起こす操作 id。画面を開いたときのように操作に結び付かないなら null（occasion に時機を書く）>",
         "occasion": "<いつ書くか。送信・確認・例外との前後が分かるように書く（例: 書き出しの送信の前・送信が例外で失敗したときに巻き戻した後・画面を開いたとき）>",
-        "path": "<normal（通常の経路）| exception（例外処理の中）>",
+        "path": "<normal（通常の処理の流れ）| exception（例外処理の中）>",
         "values": "<書く値（列ごと。例: 種別 export・利用者 id・対象件数）>",
         "count": "<回数（例: 1 操作につき 1 行）>",
         "verification": "<assertion（スイートで確かめる）| source-only（移行元で起こせないので読解だけで記録する。例外時等）>",
@@ -94,7 +94,7 @@
     ]
   },
   "state_displays": {
-    "_note": "画面ごとの状態表示の振り分け。metadata.json の capture_conditions.pages の全ての画面を 1 行ずつ（page に名前。欠け・余分・重複は落ちる）、候補 empty / fetch-error / loading / toast / dialog を全て書く（欠けは未測定）。status は present（ある: setup・observed を書き、captured か covered_by に割り当てる。toast / dialog も操作の反応を参照せず covered_by に反応と同じ assertion 名を書く（そのときは両方の行に shared_assertion_reason）。reactions の欄は書けない）/ absent（ない: setup・observed を書き、何も出ないことを covered_by の assertion にする。setup.method が no-request / not-applicable のときだけ省ける）/ unmeasured（reason。未測定として数えられ、gaps.md にも残す）。fetch-error の absent は route-abort / route-fulfill / no-request、loading の absent は route-delay / no-request でしか名乗れない（「起こせない」と書く前に要求の横取りで試す）。1 行ずつ table-upsert.mjs の --array state_displays.pages --key page で書く。正本は parity-suite の references/coverage.md「画面ごとの状態表示（state_displays）」。",
+    "_note": "画面ごとの状態表示の振り分け。metadata.json の capture_conditions.pages の全ての画面を 1 行ずつ（page に名前。欠け・余分・重複は落ちる）、候補 empty / fetch-error / loading / toast / dialog を全て書く（欠けは未測定）。status は present（ある: setup・observed を書き、captured か covered_by に割り当てる。toast / dialog も操作の反応を参照せず covered_by に反応と同じ assertion 名を書く（そのときは両方の行に shared_assertion_reason）。reactions の欄は書けない）/ absent（ない: setup・observed を書き、何も出ないことを covered_by の assertion にする。setup.method が no-request / not-applicable のときだけ省ける）/ unmeasured（reason。未測定として数えられ、gaps.md にも残す）。fetch-error の absent は route-abort / route-fulfill / no-request、loading の absent は route-delay / no-request でしか名乗れない（「起こせない」と書く前に要求の横取りで試す）。1 行ずつ table-upsert.mjs の --array state_displays.pages --key page で書く。原本は parity-suite の references/coverage.md「画面ごとの状態表示（state_displays）」。",
     "pages": [
       {
         "page": "<capture_conditions.pages[].name。全ての画面を 1 回ずつ>",
@@ -108,7 +108,7 @@
             },
             "observed": "<現行で見た文言・覆い・ページ表示（例: 覆いに「結果が無い」の文言、ページ表示 1 / 0）>",
             "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
-            "shared_capture_reason": "<captured の状態名を同じページの別の行（反応・残る見た目・状態表示・部品被覆表の visual_state_coverage.rows）も指すときだけ、その 1 枚が全ての行の状態を写すことを実 UI で確かめた根拠。使い回さないなら null>",
+            "shared_capture_reason": "<captured の状態名を同じページの別の行（反応・残る見た目・状態表示・部品網羅表の visual_state_coverage.rows）も指すときだけ、その 1 枚が全ての行の状態を撮ることを実 UI で確かめた根拠。使い回さないなら null>",
             "covered_by": [
               "<この状態の表示を確かめたスイートの assertion。captured だけで押さえるなら空配列>"
             ]
@@ -179,7 +179,7 @@
           "scroll_height": "<changes: true のときだけ。操作の前の document.documentElement.scrollHeight>",
           "client_height": "<正の数。同じ時点の document.documentElement.clientHeight（scroll_height がこれを超えれば頁が窓からはみ出している。スクロールバーを隠す撮影では横幅のずれが矩形に出ないので高さで見る）>",
           "rects": {
-            "<主な論理名（操作で動く・現れる要素と、窓の寸法で決まる器）>": "<{ x, y, width, height }（ページ座標）。その時点で表示されないなら null（操作で現れる要素は操作の前は null）>"
+            "<主な論理名（操作で動く・現れる要素と、窓の寸法で決まるコンテナ）>": "<{ x, y, width, height }（ページ座標）。その時点で表示されないなら null（操作で現れる要素は操作の前は null）>"
           }
         },
         "samples": [
@@ -199,7 +199,7 @@
         ]
       },
       "aftermath": {
-        "_note": "押した後に残るもの。撮影状態の導出は操作の途中（器を開く・指を乗せる・焦点・押している最中・不活性）までしか導かないので、終えた後に残る見た目と戻り先はここでしか押さえられない。操作ごとに必ず書く（欠けると未測定）。look と returns_to はどちらも現行で 1 度ずつ測って書く。",
+        "_note": "押した後に残るもの。撮影状態の導出は操作の途中（コンテナを開く・ポインターを乗せる・フォーカス・押している最中・不活性）までしか導かないので、終えた後に残る見た目と戻り先はここでしか押さえられない。操作ごとに必ず書く（欠けると未測定）。look と returns_to はどちらも現行で 1 度ずつ測って書く。",
         "look": {
           "changes": "<真偽値。押した後に見た目（塗り・色・印・焦点）が残るなら true と items、残らないなら false と evidence。測れなければ null と reason（gaps.md にも残す）>",
           "items": [
@@ -209,7 +209,7 @@
               "description": "<残る見た目（例: 絞り込み中の見出しの文字色・複数列の並べ替えの順位の印・選択した行のこの列の塗り）>",
               "observed": "<現行で測った値（例: color: rgb(204, 0, 0)・印の文言「2▲」・塗りが付かない〈background-color が選択前と同じ〉）。付かないことも値として書く>",
               "captured": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
-              "shared_capture_reason": "<同じページで同じ captured の状態名を別の行（別の操作・状態表示・部品被覆表の visual_state_coverage.rows を含む）も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く（片方だけでは落ちる）。使い回さないなら null>",
+              "shared_capture_reason": "<同じページで同じ captured の状態名を別の行（別の操作・状態表示・部品網羅表の visual_state_coverage.rows を含む）も指すときだけ、その 1 枚が全ての操作の後を撮ることを実 UI で確かめた根拠。使い回す全行に書く（片方だけでは落ちる）。使い回さないなら null>",
               "covered_by": [
                 "<押さえた assertion（toHaveCSS・印の文言など。名前は「スペックのパス › describe の題 › テストの題」）。撮る状態だけで押さえるなら空配列>"
               ],
@@ -218,10 +218,10 @@
           ],
           "evidence": "<changes: false のときだけ、押した後に見た目が残らないことを確かめた記録（例: 押した前後で対象の論理名の計算後スタイルが同じ）>",
           "targets": [
-            "<changes: false のときだけ、押した後に見た目が残らないことを確かめた論理名。強度ゲートがここへ押した後だけ残る塗り・輪郭を注入し、covered_by の不在の assertion が赤くなるかを確かめる。空なら落ちる>"
+            "<changes: false のときだけ、押した後に見た目が残らないことを確かめた論理名。強度チェックがここへ押した後だけ残る塗り・輪郭を注入し、covered_by の不在の assertion が赤くなるかを確かめる。空なら落ちる>"
           ],
           "covered_by": [
-            "<changes: false のときだけ、押した後に見た目が残らないことを確かめたスイートの assertion（名前は「スペックのパス › describe の題 › テストの題」。例: 押した後も対象の論理名の計算後スタイルが押す前と同じ）。空なら落ちる——新側が塗り・焦点の輪を残しても撮っていない状態は 3 経路に写らない>"
+            "<changes: false のときだけ、押した後に見た目が残らないことを確かめたスイートの assertion（名前は「スペックのパス › describe の題 › テストの題」。例: 押した後も対象の論理名の計算後スタイルが押す前と同じ）。空なら落ちる——新側が塗り・焦点の輪を残しても撮っていない状態は 3 つの比較方法に記録されない>"
           ],
           "reason": "<changes: null のときだけ、測れなかった理由>"
         },
@@ -236,7 +236,7 @@
             "<probed のうち、押した後に既定へ戻ったもの。戻らなかったものは書かない（probed との差が「残した状態」になる）>"
           ],
           "not_probed": {
-            "<screen_states のうち押す前に動かさなかった状態>": "<動かさなかった理由（例: この操作は列フィルターの器を開いている間は押せない）。全て動かしたなら {}（キーは省略しない）>"
+            "<screen_states のうち押す前に動かさなかった状態>": "<動かさなかった理由（例: この操作は列フィルターのコンテナを開いている間は押せない）。全て動かしたなら {}（キーは省略しない）>"
           },
           "covered_by": [
             "<押した後の URL と、戻る状態・戻らない状態を押さえた assertion（名前は「スペックのパス › describe の題 › テストの題」）。空なら落ちる>"
@@ -244,7 +244,7 @@
         }
       },
       "pre_send": {
-        "_note": "送る前の判定。件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプト・部品が持つ送信の関数・サーバー側の共通処理に置かれることがあり、画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、境界の外側を測らないとスイートも差分器も両側で緑のまま新側に判定が無いことが分からない。操作ごとに必ず書く（欠けると未測定）。found: true / false / null（追えなかった）のどれか。",
+        "_note": "送る前の判定。件数・長さ・大きさの上限や必須・形式の検証は、共通部品のクライアント側スクリプト・部品が持つ送信の関数・サーバー側の共通処理に置かれることがあり、画面の処理にも部品へ渡す引数にも現れない。ふだんの操作では通るので、境界の外側を測らないとスイートも差分ツールも両側で緑のまま新側に判定が無いことが分からない。操作ごとに必ず書く（欠けると未測定）。found: true / false / null（追えなかった）のどれか。",
         "found": "<真偽値。操作が最終的に呼ぶ送信・実行の関数まで追い、その手前に止める判定があるなら true と items。無いなら false と evidence。追えなければ null と reason（gaps.md にも残す）>",
         "traced_to": [
           {
@@ -334,7 +334,7 @@
           "capture": {
             "state": "<撮るなら capture_conditions.states の状態名。撮らないなら null>",
             "reason": "<撮らないなら理由（gaps.md の「撮影状態の対象外」と同じ文言）。撮るなら null>",
-            "shared_capture_reason": "<同じページで同じ state の状態名を別の反応・残る見た目（aftermath.look.items[].captured）・状態表示・部品被覆表の visual_state_coverage.rows も指すときだけ、その 1 枚が全ての操作の後を写すことを実 UI で確かめた根拠。使い回す全行に書く。使い回さないなら null>"
+            "shared_capture_reason": "<同じページで同じ state の状態名を別の反応・残る見た目（aftermath.look.items[].captured）・状態表示・部品網羅表の visual_state_coverage.rows も指すときだけ、その 1 枚が全ての操作の後を撮ることを実 UI で確かめた根拠。使い回す全行に書く。使い回さないなら null>"
           }
         }
       ]
@@ -392,13 +392,13 @@
           "observation": {
             "window_ms": "<正の数。observation_window_ms 以上見続けた時間>",
             "documents": [
-              "<見た文書。top と表の documents の全てを含める（欠けると落ちる）。操作した器の中だけを見て none と書かない>"
+              "<見た文書。top と表の documents の全てを含める（欠けると落ちる）。操作したコンテナの中だけを見て none と書かない>"
             ],
             "source_document": "<操作した文書（documents の中から。例: 共有ダイアログの iframe）。見た文書と合わせて、どのオリジンの間で「無い」を確かめたかを残す>",
             "method": "<どう見たか（例: 全文書の DOM 変化を監視）>"
           },
           "covered_by": [
-            "<観測時間・文書にわたって反応が出ないことを確かめたスイートの assertion（名前は「スペックのパス › describe の題 › テストの題」）。空なら落ちる——新側が反応を足しても静止画・特性照合には写らない>"
+            "<観測時間・文書にわたって反応が出ないことを確かめたスイートの assertion（名前は「スペックのパス › describe の題 › テストの題」）。空なら落ちる——新側が反応を足しても静止画・特性照合には記録されない>"
           ],
           "_note": "kind: none は同じ操作に他の反応と同居させない（無いと在るが同時に成立する）"
         }
@@ -441,10 +441,10 @@
     }
   ],
   "assertion_audit": {
-    "_note": "covered_by の assertion が期待値まで届いているかの監査の記録。reaction-check.mjs --tests <一覧> --audit-sheet が出す entries（path・expected・tests）とテストのソースの 2 つだけを実装役と別の subagent に渡し、「期待値のうち確かめていない部分はどこか」を 1 行ずつ問わせて書く。covered_by を持つ全ての行を 1 件ずつ（欠け・余分・重複は落ちる）。verdict: short が残る表、監査の後に期待値か covered_by を変えた表（table_fingerprint が違う）、監査の後に covered_by のスペックファイルを書き換えた表（specs_fingerprint が違う）は落ちる。正本は parity-suite の references/coverage.md「covered_by をテストへ解決し、assertion が期待値まで届くかを監査する」。",
+    "_note": "covered_by の assertion が期待値まで届いているかの監査の記録。reaction-check.mjs --tests <一覧> --audit-sheet が出す entries（path・expected・tests）とテストのソースの 2 つだけを実装役と別の subagent に渡し、「期待値のうち確かめていない部分はどこか」を 1 行ずつ問わせて書く。covered_by を持つ全ての行を 1 件ずつ（欠け・余分・重複は落ちる）。verdict: short が残る表、監査の後に期待値か covered_by を変えた表（table_fingerprint が違う）、監査の後に covered_by のスペックファイルを書き換えた表（specs_fingerprint が違う）は落ちる。原本は parity-suite の references/coverage.md「covered_by をテストへ解決し、assertion が期待値まで届くかを監査する」。",
     "auditor": "<監査した subagent（実装役と別の文脈で起動したもの）>",
-    "table_fingerprint": "<--audit-sheet の出力の table_fingerprint を写す（手で計算しない）>",
-    "specs_fingerprint": "<--audit-sheet の出力の specs_fingerprint を写す（covered_by が名指ししたスペックファイルの中身の指紋。監査の後にスペックを書き換えると --write・--recorded で落ちる）>",
+    "table_fingerprint": "<--audit-sheet の出力の table_fingerprint を転記する（手で計算しない）>",
+    "specs_fingerprint": "<--audit-sheet の出力の specs_fingerprint を転記する（covered_by が名指ししたスペックファイルの中身の指紋。監査の後にスペックを書き換えると --write・--recorded で落ちる）>",
     "entries": [
       {
         "path": "<--audit-sheet の entries[].path（例: $.operations[0].reactions[0]）>",

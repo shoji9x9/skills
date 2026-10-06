@@ -1,0 +1,1602 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T00:22:48Z",
+    "evals_run": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 24, 26, 27, 30, 31,
+      32, 33, 34, 35, 37, 38, 39, 40, 41, 42
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 16.468,
+        "tokens": 155841,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md と replace-strategy の設定が無い（setup 未完了）ことを検出している",
+          "passed": true,
+          "evidence": "設定と features.md が無いことを表で示した"
+        },
+        {
+          "text": "スイート・ベースライン・metadata を捏造せず停止している",
+          "passed": true,
+          "evidence": "何も作らず停止"
+        },
+        {
+          "text": "replace-strategy setup の実行を促している",
+          "passed": true,
+          "evidence": "replace-strategy setup を手順 2 に挙げた"
+        },
+        {
+          "text": "golden-dataset 未完了なら合わせて案内している",
+          "passed": true,
+          "evidence": "golden-dataset フェーズ A を案内"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 24.4,
+        "tokens": 112989,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部分一致が許容するのは書いていない兄弟が在ることだけで、中間の階層を省略する（入れ子の深さを飛ばす）と一致しないことを説明している",
+          "passed": true,
+          "evidence": "入れ子の深さは飛ばせないと表に書いた"
+        },
+        {
+          "text": "兄弟の順序は厳密に効くと述べている",
+          "passed": true,
+          "evidence": "順序は厳しいと表に書いた"
+        },
+        {
+          "text": "ページ全体 1 枚ではなく、セクション単位でロケータにアンカーして複数枚に分ける方針を示している",
+          "passed": true,
+          "evidence": "セクションごとに分けて手書きするコード例"
+        },
+        {
+          "text": "1 枚で書くと現行の DOM 階層が契約に入り、新側がセクションを landmark 化するなど構造を改善しただけで赤くなることを理由として述べている",
+          "passed": true,
+          "evidence": "landmark 化で赤くなる例を挙げた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 11,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 24.674,
+        "tokens": 118153,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "期待値解決層をロケータマッピング層とは別の層として置く役割分担（どう引くか／何を期待するか）を示している",
+          "passed": true,
+          "evidence": "どう取得するか／何を期待するかの層の分担を説明"
+        },
+        {
+          "text": "side の判定を Playwright の projects 名（current / new。testInfo.project.name）から行う方針を示している（環境変数や baseURL の中身で判定していない）",
+          "passed": true,
+          "evidence": "testInfo.project.name で判定し環境変数・baseURL では判定しないと明記"
+        },
+        {
+          "text": "side 別にするのは intentional_diffs に宣言済みの差だけで、宣言に無い差は intentional_diffs.pending へ非破壊追記してユーザー確認へ回すと述べている",
+          "passed": true,
+          "evidence": "may_change 宣言済みだけ、宣言が無ければ pending に追記してユーザー確認"
+        },
+        {
+          "text": "期待値解決層のパスを metadata.json の suite.expectations に記録し parity-replace が推測せず引ける形にすると述べている",
+          "passed": false,
+          "evidence": "metadata.json の suite.expectations への記録に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 12,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 27.693,
+        "tokens": 210541,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "無注入で全経路が緑になること（ポジティブコントロール）を、同じ実行系（同じ Playwright config・同じ actionTimeout・同じ差分器としきい値・同じベースライン）で先に確認する、と条件まで含めて説明している",
+          "passed": true,
+          "evidence": "同じ config・actionTimeout・差分ツール・しきい値・ベースラインで無注入の緑を先に確認"
+        },
+        {
+          "text": "注入スクリプトの副作用・環境差など注入以外の理由でも赤くなりうる（常に赤い状態を捕捉と読み違える）ことに触れている",
+          "passed": true,
+          "evidence": "注入スクリプトの副作用・環境の差でも赤になると述べた"
+        },
+        {
+          "text": "確認する経路として手書き assertion／特性照合／画素／aria 比較の 4 経路を挙げ、1 経路でも赤ければ原因を潰してから注入に進むとしている",
+          "passed": true,
+          "evidence": "4 つの検出方法を挙げ、1 つでも赤なら原因を取り除いてから注入"
+        },
+        {
+          "text": "確認前に「捕捉」と記録して完了にしていない",
+          "passed": true,
+          "evidence": "捕捉と記録せず、ファイルを変更していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 13,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.861,
+        "tokens": 165070,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度ゲートの実行では actionTimeout を短く設定する方針を示している（タイムアウトを伸ばす案を採っていない）",
+          "passed": true,
+          "evidence": "注入用の設定で actionTimeout を短くする"
+        },
+        {
+          "text": "actionTimeout の既定は 0（無制限）で、テスト全体のタイムアウトまで待つことを前提として説明している",
+          "passed": true,
+          "evidence": "actionTimeout のデフォルトは 0（無制限）と説明"
+        },
+        {
+          "text": "ロケータが解決しないことを例外で run を止めず、差分（要素の欠落）として検出結果に変換する呼び出し側の扱いを示している",
+          "passed": true,
+          "evidence": "解決しない失敗を捕捉して論理名を落とし先へ進める"
+        },
+        {
+          "text": "欠落が差分器（特性照合）で missing として現れる、または採用値・扱いを strength.md に記録すると述べている",
+          "passed": true,
+          "evidence": "trait-compare.mjs が kind: missing を出す、採用値を strength.md に記録"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 15,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 15.255,
+        "tokens": 110450,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同梱スクリプトのコピーはコピー専用のサブディレクトリ（既定 tools/vendor/）へ置き、プロジェクト自作ツールと同居させない方針を示している",
+          "passed": true,
+          "evidence": "tools/vendor/ に分けると回答"
+        },
+        {
+          "text": "コピーは修正しない規約であり、自作ツールと同居するとプロジェクトの整形・リント設定からパスで分けられなくなることを理由として述べている",
+          "passed": true,
+          "evidence": "コピーは修正しない取り決めとパスで区別するためと説明"
+        },
+        {
+          "text": "実際の配置パスを metadata.json に記録する（parity-diff / parity-replace が推測しない）ことに触れている",
+          "passed": true,
+          "evidence": "実際のパスを metadata.json に記録すると述べた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 16,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.25,
+        "passed": 1,
+        "failed": 3,
+        "total": 4,
+        "time_seconds": 21.816,
+        "tokens": 110327,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ブラウザで流していないアップロードを「確認済み」と記録せず、未検証として gaps.md に残す方針を示している（setInputFiles で操作できることと、その画面で通ったことを区別している）",
+          "passed": true,
+          "evidence": "setInputFiles で流せることは通った証拠にならず、未検証は gaps.md に残すと述べた"
+        },
+        {
+          "text": "ドラッグ & ドロップによるファイル投入は対象外（setInputFiles の射程外で DataTransfer を evaluate で組む必要があり脆い）として押し戻している",
+          "passed": false,
+          "evidence": "ドラッグ & ドロップを「対象に含めます」と答え、対象外として押し戻していない"
+        },
+        {
+          "text": "アップロードは書き込みであり、復元可能な環境で行う／一意プレフィックス付きデータ＋後始末／後始末できないなら事前にユーザーへ残置可否を確認して「hermetic でない」と明示する規律に従う方針を示している",
+          "passed": false,
+          "evidence": "forbidden_actions・upload_route・write_scope と後始末に触れたが、復元・一意プレフィックス・残置の事前確認と hermetic でない明示の規律は述べていない"
+        },
+        {
+          "text": "後始末できないアップロードを gaps.md の「hermetic でないテスト一覧」へ載せる（隠さない）ことに触れている",
+          "passed": false,
+          "evidence": "gaps.md の hermetic でないテスト一覧に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 17,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 22.928,
+        "tokens": 152059,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "スイート・ロケータマッピング層・操作アダプタは対象プロジェクト側のコードなので references.coding_conventions に従って書くと述べている",
+          "passed": true,
+          "evidence": "スイート等はプロジェクト側のコードとして規約に従い、references.coding_conventions から読むと述べた"
+        },
+        {
+          "text": "同梱スクリプトのコピーは修正しない規約のため、プロジェクト自作ツールとパスで分けられるコピー専用のサブディレクトリ（既定 tools/vendor/）へ置き、整形・リント設定からパスで除外できる状態にすると述べている",
+          "passed": true,
+          "evidence": "tools/vendor/ に分けてパスで除外できる配置にすると述べた"
+        },
+        {
+          "text": "コピーを除外するか否かの規約自体はプロジェクト側の判断であり本スキルは決めないと述べている",
+          "passed": true,
+          "evidence": "除外するかの最終判断はプロジェクトに任されると明記"
+        },
+        {
+          "text": "書いたスイートに設定の verification_commands.full（全体走査の列）を通し、設定に無ければ停止せず gaps.md に記録して進むと述べている",
+          "passed": false,
+          "evidence": "verification_commands.full を通すとは述べたが、設定に無いときに停止せず gaps.md に記録して進むことに触れていない"
+        },
+        {
+          "text": "検証コマンドがスイートのパス（parity_suite_dir 配下）を対象に含んでいない場合も、含まれていないことを記録し範囲を勝手に広げないと述べている",
+          "passed": true,
+          "evidence": "スイートのパスを含まない場合は広げず gaps.md に記録すると述べた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 18,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 21.899,
+        "tokens": 160258,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "対象 slug（order-list）の必須データ意味論が確認待ちであることを検出し、スイート構築（authoring）へ進まず停止している",
+          "passed": true,
+          "evidence": "order-list の意味論が未確定で手順 2 で停止"
+        },
+        {
+          "text": "確定できていない意味論（orders.status の意味・正常系遷移・初期値）と質問票の該当項目（Q-2）を挙げ、回答が返るまで開始できないと報告している",
+          "passed": true,
+          "evidence": "orders.status の意味・遷移・初期値と Q-2 を表で挙げた"
+        },
+        {
+          "text": "推測でシナリオ・状態・期待値を埋めてスイートを書き始めていない（何が正解かが決まっていないため合否判定基準を作れないと述べている）",
+          "passed": true,
+          "evidence": "正解を推測で埋めることになるので止めたと述べた"
+        },
+        {
+          "text": "e2e/ 配下にスペック・ロケータマッピング層・aria スナップショットを生成していない",
+          "passed": true,
+          "evidence": "e2e/ に何も生成していない（project-tree に無い）"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files は fixture と同一"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 19,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 98.925,
+        "tokens": 203479,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "customer-list の意味論は確定済みであることを確認し、意味論の確認待ちを理由には停止していない（order-list の Q-2 を customer-list の停止理由に持ち込んでいない）",
+          "passed": true,
+          "evidence": "customer-list の customers.code は確定済みと確認し、Q-2 を持ち込んでいない"
+        },
+        {
+          "text": "current.origin: received-assets であること自体を停止理由にしていない（受領資産由来の環境でもスイート構築は成立すると扱っている）",
+          "passed": true,
+          "evidence": "received-assets を停止理由にしていない"
+        },
+        {
+          "text": "停止する場合の理由が Playwright / Node の不在または現行アプリ（current-test）へ到達できないことであり、その旨を明示している",
+          "passed": true,
+          "evidence": "Playwright 不在と current-test の不通を理由に明示"
+        },
+        {
+          "text": "到達できていない現行アプリの挙動を「確認済み」として strength.md / metadata.json に記録していない",
+          "passed": true,
+          "evidence": "metadata.json や strength.md を作っていない"
+        },
+        {
+          "text": "fixture の成果物・設定（.replace/ 配下・skills.yml）を書き換えていない",
+          "passed": true,
+          "evidence": "project-files は fixture と同一"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 17.552,
+        "tokens": 202694,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/features.md が無いことを検出している",
+          "passed": true,
+          "evidence": ".replace/features.md が無いと報告"
+        },
+        {
+          "text": "slug を自分で採番せず features.md から引く契約を守っている",
+          "passed": true,
+          "evidence": "slug は自分で採番しない決まりと明記"
+        },
+        {
+          "text": "スイートを書き始めず停止し、setup の実行を促している",
+          "passed": true,
+          "evidence": "停止し replace-strategy setup を案内"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 20,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 27.401,
+        "tokens": 166941,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ベンダーの試験仕様書を状態網羅の導出源（列挙の生成源）として使い、比較の正解にはしない（正解は動いている現行アプリ）と答えている",
+          "passed": true,
+          "evidence": "試験仕様書は一覧として使い比較の正解にしない、正解は動いている現行アプリと回答"
+        },
+        {
+          "text": "明細一覧で測った結果を検索結果のインスタンスへ流用せず、部品 × ページのインスタンスごとに測ると答えている",
+          "passed": true,
+          "evidence": "部品 × ページでインスタンスごとに測ると回答"
+        },
+        {
+          "text": "機能表の項目 × 部品インスタンスの被覆表を .replace/parity/<slug>/component-coverage.json に作り、値を present / absent / unmeasured の 3 値で残すと示している",
+          "passed": true,
+          "evidence": "component-coverage.json に present / absent / unmeasured で残すと示した"
+        },
+        {
+          "text": "現行インスタンスに無い操作も absent として測った結果を記録し、未測定と同じ空欄にしないと説明している",
+          "passed": true,
+          "evidence": "absent には実際に確かめた証拠が要り、測れなかったものは空欄にせず unmeasured と述べた"
+        },
+        {
+          "text": "present のセルは採取状態（capture_conditions.states）か assertion に落として covered_by に書く（列挙しただけでは押さえたことにしない）と答えている",
+          "passed": false,
+          "evidence": "present のセルを capture_conditions.states か assertion に落として covered_by に書くことに触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 21,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.036,
+        "tokens": 115227,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "行を落としても fail-closed で unmeasured として数えられる（落としても未測定は消えない）と説明し、行を落とす案を採らない",
+          "passed": true,
+          "evidence": "行を落としても cells は項目 × インスタンスから出すので unmeasured として数えられると説明"
+        },
+        {
+          "text": "測れなかった組み合わせは value: unmeasured と unmeasured_reason で残し、gaps.md にも記録すると答えている",
+          "passed": true,
+          "evidence": "value: unmeasured と reason、gaps.md への記録を挙げた"
+        },
+        {
+          "text": "metadata.json の component_coverage をキーごと省略しないと答えている",
+          "passed": true,
+          "evidence": "component_coverage を抜かないと回答"
+        },
+        {
+          "text": "キーの欠落は旧版 parity-suite の成果物という意味になり、parity-diff が後方互換で判定を飛ばす経路に測らなかった事実が紛れると説明している",
+          "passed": true,
+          "evidence": "キーが無いと古い手順の成果物として扱われ parity-diff が判定を飛ばすと説明"
+        },
+        {
+          "text": "未測定が残る間は parity-diff が収束させないため、測るか理由を残して未測定と宣言するかのどちらかだと示している",
+          "passed": true,
+          "evidence": "parity-diff が収束を止めること、測るか未測定として宣言するかを示した"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 23,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 28.319,
+        "tokens": 160739,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "メニューが出なかっただけでは absent にせず、操作の発火を確認できない現状は unmeasured として理由を残すと答えている",
+          "passed": true,
+          "evidence": "「いまの状態で absent と記録してはいけません。…unmeasured にしてください」と答え、unmeasured_reason と gaps.md に理由を残すと述べている"
+        },
+        {
+          "text": "判定用ロケータは role ＋アクセシブルネームを保ち、座標操作用には実際に描画されている要素を別に引くと答えている",
+          "passed": true,
+          "evidence": "判定用は getByRole('columnheader', { name }) のまま、操作用は操作アダプタの中で実際に表示されている要素を取得すると答えている"
+        },
+        {
+          "text": "locator.click({ button: 'right' }) で発火しない実装では、正の寸法と中心座標の hit-test を確認した可視要素に限り、boundingBox() の中心座標へ page.mouse.click(x, y, { button: 'right' }) を送る具体策を示している",
+          "passed": true,
+          "evidence": "boundingBox() が null でなく幅と高さが正、中心座標の document.elementFromPoint() が要素かその子孫を返すことを確かめ、page.mouse.click(x, y, { button: 'right' }) を送ると示している"
+        },
+        {
+          "text": "再試行後は操作イベントの到達、または操作に応じる DOM・状態変化で発火を別途確認し、その確認と観測結果を evidence に記録すると答えている",
+          "passed": true,
+          "evidence": "contextmenu が届いたことを確かめたうえで absent にし、absence_evidence.kind: fired-without-response と action.method・hit_test_target などの実測値を残すと答えている"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 24,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.403,
+        "tokens": 178666,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "代表列だけの確認では、登録しなかった列が期待セルにすら現れず未測定として残らないことを説明している",
+          "passed": true,
+          "evidence": "coverage-profiles.md の「期待するセルにすら現れない…未測定 0 件で収束」を引用して説明"
+        },
+        {
+          "text": "被覆表の項目を自分の判断で決めず、部品の構成要素（全 38 列）から候補集合を機械的に展開する契約を示している",
+          "passed": true,
+          "evidence": "粒度を自分で決めないとし、datagrid プロファイルで 38 列から候補を展開すると述べる"
+        },
+        {
+          "text": "初期非表示の列・横スクロールで到達する列を候補から落とさない扱いを示している",
+          "passed": true,
+          "evidence": "column-toggle（初期非表示 9 列）と column-scroll-reach を候補に挙げる"
+        },
+        {
+          "text": "列挙元・対象版・抽出条件を来歴として記録する必要があると述べている",
+          "passed": true,
+          "evidence": "enumeration.source に kind・ref・version・extracted_at・condition を記録し complete: true を宣言すると述べる"
+        },
+        {
+          "text": "「フィルターあり」「ソートあり」の 2 項目で被覆表を確定していない",
+          "passed": true,
+          "evidence": "2 項目では coverage-expand が失敗するとして確定させていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 26,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.31,
+        "tokens": 166302,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "視覚採取の削減は認めつつ、E2E は削減の対象外で全候補が assertion に紐づく必要があると述べている",
+          "passed": true,
+          "evidence": "減らせるのは視覚採取だけで、E2E は全候補が covered_by に assertion を持つと述べる"
+        },
+        {
+          "text": "撮らない候補を成果物から消さず、束ねた事実を分類根拠つきで記録するよう求めている",
+          "passed": true,
+          "evidence": "equivalence_classes に axis・rationale・members・representative を書き、撮らない列も残すと述べる"
+        },
+        {
+          "text": "同値クラスを 1 つでも宣言したら、どのクラスにも属さない候補が残ると失敗する（全候補の所属が要る）と述べている",
+          "passed": true,
+          "evidence": "どのクラスにも属さない候補があると coverage-expand が失敗すると述べる"
+        },
+        {
+          "text": "「見た目が同じそう」「並べて眺めた印象」を根拠にせず、現行アプリで同じ描画になることを確かめた手順を根拠として求めている",
+          "passed": true,
+          "evidence": "「見た目が同じそう」を禁止し、現行で同じ描画になることを確かめた手順を rationale に書くと述べる"
+        },
+        {
+          "text": "E2E も代表だけでよいと認めていない",
+          "passed": true,
+          "evidence": "E2E を代表だけにするのは不可と答える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 27,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 20.864,
+        "tokens": 111393,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "適合する被覆プロファイルが無い複雑な部品を、暗黙に汎用扱い（項目 × インスタンス）で通さないと述べている",
+          "passed": true,
+          "evidence": "合うプロファイルが無い複雑な部品を暗黙に汎用扱いにしてはいけないと述べる"
+        },
+        {
+          "text": "プロファイルが無いことを明示し理由を記録したうえで、未検証として残す扱いを示している",
+          "passed": true,
+          "evidence": "profile: null と profile_absent_reason を書くと述べる"
+        },
+        {
+          "text": "同じ理由を未検証領域（gaps）にも残すよう求めている",
+          "passed": true,
+          "evidence": "同じ理由を gaps.md の未検証の領域に書くと述べる"
+        },
+        {
+          "text": "「表示」「クリック」の 2 項目で確認済みとして先に進めていない",
+          "passed": true,
+          "evidence": "2 項目で網羅済みに見せる形にしないと答える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 19.888,
+        "tokens": 64024,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "設計が Playwright 固有機能（toMatchAriaSnapshot の部分一致・getByRole 系のセマンティクス解決・projects の 2 baseURL）に依存し成立しない旨を明示している",
+          "passed": true,
+          "evidence": "toMatchAriaSnapshot の部分一致・getByRole・projects の 2 baseURL を表で説明"
+        },
+        {
+          "text": "Selenium / Cypress など代替ツールでスイートを書いていない",
+          "passed": true,
+          "evidence": "代替ツールで書いていない"
+        },
+        {
+          "text": "設計不成立を明示して停止している",
+          "passed": true,
+          "evidence": "設計が成り立たないとして停止"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 30,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 34.65,
+        "tokens": 219445,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "少数の代表項目だけの assertion のまま引き渡すと、record 全体を見る parity-diff まで残りの差の発見が遅れるため、そのまま完了しないと答えている",
+          "passed": true,
+          "evidence": "api-batch.md を引用し、parity-diff まで差の発見が遅れるので渡さないと答える"
+        },
+        {
+          "text": "捕捉したステータスは assertion で確認し、レスポンスボディの全 JSON path は assertion・両工程で同じ正規化をする揮発項目・未検証のいずれかへ分類するよう求めている",
+          "passed": true,
+          "evidence": "ステータスはシナリオごとに assertion、全 path を assertion・正規化（両工程で同じ）・gaps.md に分類すると述べる"
+        },
+        {
+          "text": "親オブジェクトや配列の深い等値比較で覆う場合を含め、各 path がどの assertion に覆われるかを record と突き合わせる方針を示している",
+          "passed": true,
+          "evidence": "親オブジェクトの深い等値比較を根拠にでき、path の網羅を照合できる一覧で突き合わせると述べる"
+        },
+        {
+          "text": "assertion にできない path はシナリオ・JSON path・理由とともに gaps.md の未検証として残し、未分類の path がある状態で authoring を完了しないと述べている",
+          "passed": true,
+          "evidence": "gaps.md にシナリオ・JSON path・理由を書き、分類していない path を残したまま書き終えないと述べる"
+        },
+        {
+          "text": "差をまだ観測していない未 assertion 項目は gaps.md、現新の差を観測した後の確認待ちは intentional_diffs.pending と使い分ける旨を説明している",
+          "passed": true,
+          "evidence": "未 assertion は gaps.md、差を観測した後の確認待ちは intentional_diffs.pending と使い分けると述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 31,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 68.224,
+        "tokens": 177768,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "メニューを開く前だけ非表示の menuitem と desktop でだけ 0 幅のレスポンシブ操作を absent にせず、表示される到達状態で操作を測り、操作が存在すれば present として採取状態または assertion を covered_by に記録すると答えている",
+          "passed": true,
+          "evidence": "menuitem とレスポンシブ操作を present とし、表示される状態の covered_by と撮影状態に記録すると述べる"
+        },
+        {
+          "text": "非表示確認用には includeHidden: true または同等に一意な構造ロケータで操作要素を特定し、候補の導出源から適用可能な状態と遷移を列挙して、全状態で非描画を実測した候補だけ操作を送らず absent にできると答えている",
+          "passed": true,
+          "evidence": "getByRole(..., { includeHidden: true }) で特定し、全状態で非描画を実測した候補だけ操作を送らず absent と述べる"
+        },
+        {
+          "text": "インスタンス側の完全な applicable_states manifest と、non-renderable の重複なし expected_states・states を状態 id と遷移まで完全一致させ、ロケータ、状態の導出源、各状態の矩形と offsetParent を機械可読に残すと示している",
+          "passed": true,
+          "evidence": "applicable_states の manifest（complete・一意な id・遷移・source）と expected_states・states の一致、矩形・offset_parent を記録すると述べる"
+        },
+        {
+          "text": "hidden_by は target_locator と本人／祖先の relation を検証済みとして記録し、display: none または visibility: hidden / collapse を持つ場合だけ証拠にし、正寸法との矛盾・offsetParent: null・表示中のstyleだけでは判定しないと示している",
+          "passed": true,
+          "evidence": "hidden_by は display:none / visibility hidden・collapse のときだけ relation と relationship_verified 付きで書き、矩形との矛盾や offsetParent: null だけでは判定しないと述べる"
+        },
+        {
+          "text": "未確認の適用可能状態がある、状態へ到達できない、対象要素の引き方が不確か、または非描画の理由を実測できない場合は unmeasured にすると答えている",
+          "passed": true,
+          "evidence": "到達できない状態・ロケータの一致数が不確か・理由を実測できない場合は unmeasured と述べる"
+        },
+        {
+          "text": "座標操作は expect.poll で boundingBox が null でなく幅・高さがともに正、中心座標の hit-test が操作用要素または子孫を指す状態まで自動リトライし、条件成立直後だけ行うと答えている",
+          "passed": true,
+          "evidence": "expect.poll で矩形の幅・高さが正、中心の hit-test が対象か子孫になるまで待ち、成立直後にクリックするコードを示す"
+        },
+        {
+          "text": "0 幅の中心座標へ mouse.click して下の別要素に届いた発火を、対象操作の発火確認として使う案を退けている",
+          "passed": true,
+          "evidence": "0 幅の中心へのクリックで下の要素に届いた発火は使えないと答える"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 32,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 43.26,
+        "tokens": 173207,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "同じ条件で 2 回撮ってノイズ 0 だったことは採取が決定論的である証明にならない（2 値に転ぶ採取は一致しうる）と答え、新側の実装差として parity-replace へ戻さないと答えている",
+          "passed": true,
+          "evidence": "2 通りに揺れる撮り方でも 2 回一致しうるので、ノイズ 0 は安定の証拠にならず parity-replace へ戻さないと答える"
+        },
+        {
+          "text": "吹き出しが出たことを待つだけでは足りず、撮る対象の矩形（位置・大きさ）が 2 回続けて同じ値になるまで待ってから撮る形を示している",
+          "passed": true,
+          "evidence": "撮る吹き出しの矩形が 2 回続けて同じ値になるまで待つと述べる"
+        },
+        {
+          "text": "待ちは固定時間の待機（waitForTimeout 等）ではなく、expect.poll 等の自動リトライで矩形を読み比べる形にすると述べている",
+          "passed": true,
+          "evidence": "expect.poll で boundingBox を読み比べ、waitForTimeout を禁止と述べる"
+        },
+        {
+          "text": "待ちを状態遷移の操作アダプタ側に置き、新側の採取も同じ待ちを通るようにすると述べている",
+          "passed": true,
+          "evidence": "操作アダプタの applyState に待ちを置き、新側の採取も同じアダプタを通ると述べる"
+        },
+        {
+          "text": "待っても位置が落ち着かない状態は、ノイズ基準値を記録せず撮影状態から外し、gaps.md に理由付きで残すと述べている",
+          "passed": true,
+          "evidence": "落ち着かない状態は states から外し gaps.md に理由付きで残すと述べる"
+        },
+        {
+          "text": "待ちを入れた後にベースラインとノイズ基準値を採り直すと述べている",
+          "passed": true,
+          "evidence": "直した後にベースラインとノイズ基準値を採り直すと述べる"
+        },
+        {
+          "text": "回答内で「2 回一致したので採取は安定」「実装差として戻してよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 33,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 53.27,
+        "tokens": 173805,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品被覆表の present は操作の有無を数えるだけで、開いた中身の見た目を突き合わせたことにはならず、撮影状態に入れなかった器は画素・特性照合・aria のどの経路にも差として出ないと説明している",
+          "passed": true,
+          "evidence": "被覆表の present は操作の有無だけで、撮っていない状態の差は差分ツールで「差 0 件」と区別できないと説明"
+        },
+        {
+          "text": "操作で開く器を再帰的に数え、吹き出しの中で開く一覧（2 段目）と項目に指を乗せた状態まで降りると述べている",
+          "passed": true,
+          "evidence": "吹き出しの中のコンボボックスの一覧と項目に指を乗せた状態まで降りると述べる"
+        },
+        {
+          "text": "数えた器を撮る器も撮らない器も metadata.json の capture_conditions.popup_inventory に 1 行ずつ残し、撮る器は captured に撮影状態名と reason: null、撮らない器は captured: null と reason を書き、両方を埋めた行は不整合だと述べている",
+          "passed": false,
+          "evidence": "popup_inventory に撮る行（captured と reason: null）と撮らない行（captured: null と reason）を残すと述べるが、両方を埋めた行が不整合であることには触れていない"
+        },
+        {
+          "text": "列を選ぶ吹き出しを何も書かずに外すことを退け、gaps.md に「撮影状態の対象外」として理由付きで残すと述べている",
+          "passed": true,
+          "evidence": "列を選ぶ吹き出しを何も書かずに外すのは不可とし、gaps.md に同じ理由を残すと述べる"
+        },
+        {
+          "text": "器を開く呼び出しを関数名だけでなく開く対象（引数の論理名）ごとに列挙し、棚卸しの opened_by を関数名＋開く対象の形で書いて全て現れるかを突き合わせる（openPopup の 1 行で他の器まで満たしたことにしない）と述べている",
+          "passed": true,
+          "evidence": "opened_by を <関数名>(<開く対象の論理名>) で書き、関数名だけだと 1 行で全部を満たすと述べる"
+        },
+        {
+          "text": "1 つの器を複数の操作で開ける場合は行を分けず、opened_by を配列にして開き方を全て並べる（棚卸しの単位は器 1 つにつき 1 行で、同じ parent × 同じ name の行が 2 つあるのは不整合）と述べている",
+          "passed": true,
+          "evidence": "同じポップアップを 2 行に分けず opened_by に並べ、同じ name の行が 2 つあると不整合と述べる"
+        },
+        {
+          "text": "同じ openPopup(page, 演算子) でも呼ぶ文脈（親の器）が違えば別の呼び出しとして扱い、列挙も突き合わせも parent × 呼び出しの単位で行う（文脈を落とすと別の親から呼ぶ同じ呼び出しが 1 つに潰れる）と述べている",
+          "passed": true,
+          "evidence": "照合の単位を parent × 呼び出しとし、親が違えば別の呼び出しとして扱うと述べる"
+        },
+        {
+          "text": "回答内で「被覆表が present なので撮影状態に入れなくてよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 34,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 44.857,
+        "tokens": 170982,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "押した直後の 1 回のスナップショットや、時間を置いて見て出ていなかったことは「トーストが無い」証拠にならない（遅れて出る・自動で消えるため測る時刻を外すと無いが返る）と答え、完了とはしていない",
+          "passed": true,
+          "evidence": "直後の静止画は遅れて出る・コンテナの外に出る・自動で消える反応を見落とし、2 回見ただけでは「無い」の証拠にならないとして「まだ完了とは言えません」と答えている"
+        },
+        {
+          "text": "ダイアログの中だけでなく、最上位の文書（親文書）と全フレームを対象に、上限つきで出現を待って探すと述べている",
+          "passed": true,
+          "evidence": "最上位の文書と全フレームに監視を仕掛け、expect(toast).toBeVisible({ timeout: waitLimit }) で上限つきで待つと述べている"
+        },
+        {
+          "text": "自動で消える反応は出現から消えるまでの時間を 2 回以上測って許容幅を決め、消える時間までスイートの assertion にする（出しっぱなしの新側を赤くするため）と述べている",
+          "passed": true,
+          "evidence": "出てから消えるまでを 2 回以上測って duration_ms_samples と tolerance_ms を決め、測り方を assertion と同じ toBeVisible から toBeHidden の経過時間にすると述べている"
+        },
+        {
+          "text": "反応が無い操作（検索ボタン等）も空欄にせず、見続けた時間と見た文書を添えて「反応なし」を実測の結果として記録すると述べている",
+          "passed": true,
+          "evidence": "検索ボタンなども kind: none の行にし、observation に見続けた時間・見た全文書・操作した文書を書くと述べている"
+        },
+        {
+          "text": "移行元ソースからフィードバックを出す呼び出しを、プロジェクト設定で宣言した呼び出しの一覧（パターン）で機械的に列挙し、記録した反応と 1 件ずつ突き合わせる（記録漏れ・対応付けの無い呼び出しを落とす）と述べている",
+          "passed": true,
+          "evidence": "current.feedback_calls のパターンで走査し、call_sites を反応に 1 件ずつ対応付ける（reaction-check.mjs が失敗にする）と述べている"
+        },
+        {
+          "text": "回答内で「直後に見て無かったのでトーストは無い」「被覆が埋まっているので完了」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "完了とせず、矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 35,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 40.581,
+        "tokens": 172441,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "1 ビューポートだけの撮影では画素・特性照合・aria のいずれもその 1 点でしか比べないため、1366×768 の px を並べた新側が 3 経路すべてで緑になり別の窓でずれる、と理由を挙げて引き渡しを止めている",
+          "passed": true,
+          "evidence": "3 つの比較は 1 点でしか比べないので、1366×768 の px で組んだ新側が全部緑になり別の窓でずれると説明して引き渡しを止める"
+        },
+        {
+          "text": "gaps.md に「測っていない」と書くことを未測定の免除にせず、metadata.json の capture_conditions.dimension_model に記録する（測れないなら not_measured と理由を残し parity-replace への引き渡し条件にする）と述べている",
+          "passed": true,
+          "evidence": "gaps.md で済ませず capture_conditions.dimension_model に measured か理由付きの not_measured を書くと述べる"
+        },
+        {
+          "text": "画素比較の点を増やす必要はなく、足すのは窓を変えて getBoundingClientRect() 等で位置・寸法を読む工程だけだと述べている",
+          "passed": true,
+          "evidence": "追加のスクリーンショットは無く、getBoundingClientRect() で読むだけと述べる"
+        },
+        {
+          "text": "撮影したビューポートを含み、幅と高さを独立に動かした 4 窓以上（同じブレークポイントの範囲内）で traits.elements の論理名を読み、値 = 割合 × 窓の寸法 ＋ 定数 に当てはめると述べている",
+          "passed": true,
+          "evidence": "1366×768 を含む 4 窓以上で幅と高さを別々に動かし、同じブレークポイント内で traits.elements の論理名を読み、a×幅＋b×高さ＋定数に当てはめると述べる"
+        },
+        {
+          "text": "当てはめは parity-suite 同梱の dimension-fit.mjs の fit で行い（手で係数を転記しない）、残差が許容を超える・一部の窓で表示されない軸は式が読めないとして unfit に残すと述べている",
+          "passed": true,
+          "evidence": "dimension-fit.mjs fit で当てはめ手で転記しない、残差超過・一部の窓で表示されない軸は unfit と述べる"
+        },
+        {
+          "text": "新側は parity-replace の完了判定で同じ窓の矩形を採って dimension-fit.mjs の check で式と照合し、写していない軸や判定しなかった場合は porting.md に明示すると述べている",
+          "passed": true,
+          "evidence": "parity-replace が dimension-fit.mjs check で照合し、not_measured の場合は porting.md に明示すると述べる"
+        },
+        {
+          "text": "回答内で「1 ビューポートで引き渡してよい」と「寸法の式を測る必要がある」を矛盾したまま併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 37,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 44.295,
+        "tokens": 167701,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "画面を歩いて列挙した部品とページの集合そのものに来歴と完全性の宣言が無いことを問題として挙げ、列挙しなかった部品は期待セルにすら現れないため未測定 0 が「測り漏れ」と「本当に無い」を区別しない、と理由を挙げて引き渡しを止めている",
+          "passed": true,
+          "evidence": "「まだ渡さないでください」とし、画面から数えた集合では未測定 0 が「挙げたものは全部測った」の意味にしかならず、挙げなかった要素は期待セルに現れないと理由を述べている"
+        },
+        {
+          "text": "受領した移行元ソースが読めるなら、画面を開く前にそこから「どの画面にどの部品を何個置いたか」を静的に列挙し、画面（実 UI）は期待値の確定に使うと述べている",
+          "passed": true,
+          "evidence": "受領したソースから静的に列挙し（kind: current-source）、ソースの設定値を実測の代わりにせず期待値は画面で確定すると述べている"
+        },
+        {
+          "text": "実 UI の歩行では、本体の周りに置かれた部品（ページャ・設定の保存と復元・右クリックの器など）が本体の軸には現れないため集合の側で落ちる、という取りこぼしの機序を述べている",
+          "passed": true,
+          "evidence": "ページャ・表示設定の保存と復元・右クリックのメニューなどグリッドの周りの部品は列として現れず画面からは落ちると述べている"
+        },
+        {
+          "text": "列の本数・初期非表示の数が一致していることは軸の要素の列挙についての証拠にすぎず、部品とインスタンスの集合が揃っている根拠にはならないと述べている",
+          "passed": true,
+          "evidence": "列の数が正しいかはソースと照合するまで分からず、周りの部品とインスタンスも別に抜けうると述べ、列数を集合の根拠にしていない"
+        },
+        {
+          "text": "一次情報源（受領したソース）を使わずに弱い情報源で列挙した場合は、その情報源が使えなかった理由を成果物に申告する（「読めなかった」と「実 UI から起こした」を別物として残す）と述べている",
+          "passed": true,
+          "evidence": "stronger_source_unavailable_reason は読めないときだけで、読めるのに読まなかった場合は理由として認められないと述べている"
+        },
+        {
+          "text": "未検証領域に一行書くだけでは収束判定が止まらない（機械が読まない）ため、収束判定が読む欄に機械可読な形で残すと述べている",
+          "passed": true,
+          "evidence": "gaps.md の 1 行は機械が読まず unmeasured に数えられないので、3 つの集合に出所と完全性を記録すると述べている"
+        },
+        {
+          "text": "いま渡すと落ちた部品が新側の実装からも落ち、被覆表・パリティスイート・実装と現行側のベースラインの採り直しになる（気づくのは利用者が画面を見たとき）と述べている",
+          "passed": true,
+          "evidence": "後の工程も網羅表のセルしか数えず緑で通り、受け入れ試験や本番で利用者が気づき、網羅表・ベースライン・ノイズ・強度の採り直しと新側の手戻りが起きると述べている"
+        },
+        {
+          "text": "回答内で「列数が一致しているので集合も揃っている」「未検証領域に書いたので渡してよい」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 38,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.875,
+        "passed": 7,
+        "failed": 1,
+        "total": 8,
+        "time_seconds": 42.02,
+        "tokens": 280168,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "特性照合が緑であることを「採った対象が画面に描かれている」根拠として扱っていない",
+          "passed": true,
+          "evidence": "固定プロパティ集合が見るのは論理名の要素の計算値だけで、描かれている見出しとは限らないと述べる"
+        },
+        {
+          "text": "採取した要素の矩形（getBoundingClientRect の座標）を確かめるよう述べ、画面の外の座標（y = -32000 のような値）は部品が支援技術のための写しを別の木に作った合図だと説明している",
+          "passed": true,
+          "evidence": "採取物の rect を確認し、y = -32000 などの画面の外は支援技術向けの写しと説明する"
+        },
+        {
+          "text": "getByRole 等で引いた要素が描かれているとは限らないため、論理名は画面に描かれている要素へ付け直すと述べている",
+          "passed": true,
+          "evidence": "特性の採取と座標の操作には画面に描かれている見出しのセルを返すロケータを別に用意すると述べる"
+        },
+        {
+          "text": "同梱の trait-capture.mjs は矩形が文書の外に出ている要素で採取を失敗させる（採取スキーマを変えたので VERSION が上がっている）ことに触れ、失敗を要素の欠落へ変換せず停止してマッピングを直すと述べている",
+          "passed": true,
+          "evidence": "trait-capture.mjs（VERSION 6）が文書の外の要素で止めると述べ、エラーを要素の欠落に変換しないと述べる"
+        },
+        {
+          "text": "採取物の child_inline_styles（1 段下の子の inline style）を読み、装飾が子に乗っていないかも確かめると述べている",
+          "passed": true,
+          "evidence": "child_inline_styles（1 段下の子の inline style）を読むと述べる"
+        },
+        {
+          "text": "文字を描いているのが論理名を付けた要素の子孫だと、要素自身の font 系の計算値は文字の見た目を表さないことに触れ、採取物の text_owners（文字の持ち主ごとの書体・大きさ・寸法）と特性差分の kind: \"text\" を確かめると述べている",
+          "passed": false,
+          "evidence": "子孫が文字を描くと外側の font 系の計算値は文字の見た目を表さないことと text_owners には触れるが、特性差分の kind: \"text\" を確かめることには触れていない"
+        },
+        {
+          "text": "ロケータマッピングを直したら、その論理名の採取物を採り直すと述べている（緑のまま残った写しからの採取物を使い続けない）",
+          "passed": true,
+          "evidence": "9 件の論理名の採取物は無効なので、直したマッピングで採り直すと述べる"
+        },
+        {
+          "text": "書体の版・ヒンティングの切り分けへ進む前に上記を確かめると答え、緑のまま先へ進めていない",
+          "passed": true,
+          "evidence": "rect → text_owners → getPlatformFontsForNode の後に fontTools と順番を示し、先へ進めていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 39,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 48.672,
+        "tokens": 170203,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "採取物ごとに読むスペックを metadata.json の artifact_health に宣言させると述べている",
+          "passed": true,
+          "evidence": "artifact_health.entries に read_by を宣言する形を示す"
+        },
+        {
+          "text": "読み手の検査は字面の照合（そのスペックの中に採取物の名前が現れるか）で足りると述べ、assertion に使っているかまで見なくてもこの事象は止まると説明している",
+          "passed": true,
+          "evidence": "read_by の検査は字面の照合で足り、assertion まで見るのは別の工程が受け持つと説明する"
+        },
+        {
+          "text": "読み手のいない採取物は在りえるので unread_reason で宣言の口を持たせ、宣言の無いものだけを落とすと述べている（採っただけのファイルを黙って通さない）",
+          "passed": true,
+          "evidence": "読まない参考 aria は read_by: [] と unread_reason で宣言し、未宣言は失敗になると述べる"
+        },
+        {
+          "text": "ベースラインは採る実行の中で最終形まで作るか、分けるなら加工物に derived_from（元の実体のパスと sha256）を書かせて古さを検出すると述べている",
+          "passed": true,
+          "evidence": "採取と同じ実行で JSON を作り直すか、derived_from に元の xlsx のパスと sha256 を書くと述べる"
+        },
+        {
+          "text": "derived_from を書けないときは freshness_unverified_reason で『古いかもしれない』を未検証として残すと述べている",
+          "passed": true,
+          "evidence": "作り直せないときだけ freshness_unverified_reason を書き未検証として残すと述べる"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs を exit 0 まで通してから完了にすると述べている",
+          "passed": true,
+          "evidence": "artifact-health-check.mjs --stage suite を exit 0 まで通してから完了と述べる"
+        },
+        {
+          "text": "差分器の全経路が緑であることを、採取物が読まれている・加工物が新しいことの根拠として扱っていない",
+          "passed": true,
+          "evidence": "差分ツールの全経路が緑でも今回の 2 つの問題は現れないと述べ、根拠にしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 23.203,
+        "tokens": 131027,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "取って diff しない原則を説明している（改善とノイズが混ざりシグナルにならない）",
+          "passed": true,
+          "evidence": "新旧を機械的に突き合わせると改善とノイズが混在すると説明"
+        },
+        {
+          "text": "assertion は仕様が保証する項目だけを手書きした寛容なスナップショットであると説明している",
+          "passed": true,
+          "evidence": "仕様が保証する項目だけを手書きした寛容なスナップショットと説明"
+        },
+        {
+          "text": "機械 diff の実装をしていない",
+          "passed": true,
+          "evidence": "diff を実装していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 40,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.7143,
+        "passed": 5,
+        "failed": 2,
+        "total": 7,
+        "time_seconds": 52.897,
+        "tokens": 230718,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "状態を変えるスイートは 2 回続けて回して両方緑であることを求めると述べている",
+          "passed": true,
+          "evidence": "書き込み系のスペックは 2 回続けて回して両方 green にする必要があると述べる"
+        },
+        {
+          "text": "初期状態から始まる 1 回目には後始末の有無が結果に現れないため、1 回の緑は後始末が効いた証拠にならないと説明している",
+          "passed": true,
+          "evidence": "1 回目には後始末の有無が出ないので 1 回の green は証拠にならないと説明"
+        },
+        {
+          "text": "戻す操作をスイートの中に置くよう述べ、外の道具に頼ると回した人が忘れた時点で次の実行が壊れると説明している",
+          "passed": true,
+          "evidence": "戻す操作はスイートの中に置き、外にあると忘れた時点で次の実行が失敗すると説明"
+        },
+        {
+          "text": "後始末が効いていない壊れ方は「現行が変わった」と同じ見え方になることに触れている",
+          "passed": true,
+          "evidence": "その失敗は「現行が変わった」と同じに見えると述べる"
+        },
+        {
+          "text": "scripts/artifact-health-check.mjs の反復実行の節が cleanup_in_suite: true でないこと・runs が 2 件未満であることを未検証として exit 1 にすると述べ、--stage suite でも免除されないことに触れている",
+          "passed": false,
+          "evidence": "runs が 2 件未満で exit 0 にならないことには触れるが、cleanup_in_suite: true でないと失敗することには触れず、逆に「後始末をスイートの中に置いたかを機械的に確かめる検査は無い」と述べている"
+        },
+        {
+          "text": "記録先が metadata.json の suite.state_mutating と suite.repeat_run（cleanup_in_suite・2 回分の runs）だと述べ、2 回の started_at は別の日時にすると説明している",
+          "passed": false,
+          "evidence": "suite.state_mutating・repeat_run.runs と started_at が別の日時であることは述べるが、cleanup_in_suite には触れていない"
+        },
+        {
+          "text": "1 回の緑と強度ゲートの素通り 0 件を根拠に完了にしていない",
+          "passed": true,
+          "evidence": "1 回の緑と強度チェックの素通り 0 件を根拠に完了にしていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 41,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8571,
+        "passed": 6,
+        "failed": 1,
+        "total": 7,
+        "time_seconds": 32.829,
+        "tokens": 171527,
+        "tool_calls": 3,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮影領域の外（下に切れている分）とグリッド本体の可視部より大きい中身が、画素にも特性照合にも出ないまま差分ゼロとして通ると指摘している",
+          "passed": true,
+          "evidence": "below-fold とグリッド内部のスクロール領域がどの比較方法にも出ず差分 0 件に見えると指摘"
+        },
+        {
+          "text": "撮影状態の集合が揃っていることを撮る範囲が足りている根拠にしていない",
+          "passed": true,
+          "evidence": "網羅表から導いた 5 状態は土台にすぎないとして範囲の根拠にしていない"
+        },
+        {
+          "text": "撮った組ごとに文書と撮影領域の寸法・内部スクロール器・撮影領域の外にある論理名を実測して capture_conditions.capture_scope に残すと答えている",
+          "passed": false,
+          "evidence": "capture-scope-check.mjs が抜けを数えると述べるが、文書と撮影領域の寸法・内部のスクロール領域・領域外の論理名を実測して capture_conditions.capture_scope に残すことには触れていない"
+        },
+        {
+          "text": "既定を全画面（full_page: true）にし、ビューポート内で撮るのは撮れない理由があるときだけだと答えている",
+          "passed": true,
+          "evidence": "既定は full_page: true で、ビューポート内は撮れない理由があるときだけと述べる"
+        },
+        {
+          "text": "広げられない穴は capture_scope_exemptions に穴の id・理由・gaps.md の該当箇所を書いて対象外として宣言すると答えている",
+          "passed": true,
+          "evidence": "撮れない理由を capture_scope_exemptions と gaps.md の両方に書くと述べ、抜けの id（scroll:<名前>）を示す"
+        },
+        {
+          "text": "範囲の穴を目視で数えず、同梱の scripts/capture-scope-check.mjs を exit 0 まで通すと述べている",
+          "passed": true,
+          "evidence": "capture-scope-check.mjs を exit 0 まで通すと述べる"
+        },
+        {
+          "text": "範囲の狭さは実装後に範囲外の差分が出てから現側ごと撮り直すループになるため、採取の段で数えると説明している",
+          "passed": true,
+          "evidence": "新側の実装後に範囲外の差が見つかり現側から撮り直すことになると説明"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 42,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 66.462,
+        "tokens": 430083,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "被覆表の 3 値が移行元側の測定であり、present をいくら積んでも新側の欠落は 1 件も示さないと答えている",
+          "passed": true,
+          "evidence": "網羅表の 3 値は移行元に操作が在るかだけを表すと述べる"
+        },
+        {
+          "text": "unmeasured 0 を「新側で操作を完了できる」の根拠にしていない",
+          "passed": true,
+          "evidence": "green は新側で最後まで操作できることの代わりにならないと述べる"
+        },
+        {
+          "text": "新側で同じ操作を実施した記録を別の成果物（new/<target>/component-comparison.json）に持たせ、present のセル 1 つにつき 1 行を要求すると答えている",
+          "passed": true,
+          "evidence": "new/<target>/component-comparison.json に present のセル 1 つにつき 1 行を書くと述べる"
+        },
+        {
+          "text": "突き合わせの証拠を入口・当たり判定・完了の 3 点に分けると答え、3 点が揃うまで突き合わせ済みにしないと述べている",
+          "passed": true,
+          "evidence": "起点（entry）・当たり判定・完了の 3 点がそろうまで compared: true にしないと述べる"
+        },
+        {
+          "text": "ケースの文面（エクスポート・列のソート）には出てこない欠落であることに触れ、ケース一覧の網羅では拾えないと説明している",
+          "passed": true,
+          "evidence": "ケースの文面に出てこない欠落なので green のまま通ると説明"
+        },
+        {
+          "text": "新側で突き合わせていないことを理由に present を unmeasured へ落とさないと答えている",
+          "passed": true,
+          "evidence": "present を unmeasured に戻してはいけないと答える"
+        },
+        {
+          "text": "新側の突き合わせを書くのは parity-replace だと示し、component-comparison-check.mjs で数え直すと述べている",
+          "passed": true,
+          "evidence": "parity-replace が書く表とし、component-comparison-check.mjs で検査すると述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 18.1,
+        "tokens": 105201,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "強度検証を省略しない理由（テストの存在自体は品質の証拠にならない）を説明している",
+          "passed": true,
+          "evidence": "テストがあること自体は品質の証拠にならないと引用"
+        },
+        {
+          "text": "完了扱いにしていない",
+          "passed": true,
+          "evidence": "完了にできないと明言、何も変更していない"
+        },
+        {
+          "text": "故障注入の手順か再開方法を示している",
+          "passed": true,
+          "evidence": "--from captured で手順 7 から再開と提示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 24.553,
+        "tokens": 207895,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target（current-staging）と選択した target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "current-staging と current-test の不一致を表で示した"
+        },
+        {
+          "text": "「ベースラインとシードの環境不一致」として停止し、ベースライン採取（スクリーンショット・computed style・aria スナップショット）へ進んでいない",
+          "passed": true,
+          "evidence": "手順 4 の照合で停止、採取に進んでいない"
+        },
+        {
+          "text": "解決策として current-staging を選び直すか current-test へ再シード（golden-dataset フェーズ A）するかを提示している",
+          "passed": true,
+          "evidence": "target を合わせるか current-test へ再投入の 2 案"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/order-list/metadata.json を生成していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-files は fixture と同一"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 102.748,
+        "tokens": 208379,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": ".replace/dataset/metadata.json の current.target が null であることを理由に「ベースラインとシードの環境不一致」として停止していない",
+          "passed": true,
+          "evidence": "current.target: null を停止理由にしていない"
+        },
+        {
+          "text": "dataset_mode: static ではゴールデンデータが特定環境に紐づかないため current.target の照合を行わない契約に触れている",
+          "passed": true,
+          "evidence": "mode: static で投入先の照合は不要と表に書いた"
+        },
+        {
+          "text": "スイート・ベースライン・.replace/parity/works-list/ の成果物を捏造していない（project-files に存在しない）",
+          "passed": true,
+          "evidence": "project-files は fixture と同一"
+        },
+        {
+          "text": "停止する場合はデータセットの target 照合ではなく別の前提（現行アプリへの疎通・Playwright の可否など）が理由であることを明示している",
+          "passed": true,
+          "evidence": "前提スキル不在・現行アプリ不通・Playwright 未導入が理由と明示"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.75,
+        "passed": 3,
+        "failed": 1,
+        "total": 4,
+        "time_seconds": 20.44,
+        "tokens": 110423,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）を new プロジェクトの実行対象に含めない方針で押し戻している",
+          "passed": true,
+          "evidence": "current-only を new から testIgnore で外すと押し戻した"
+        },
+        {
+          "text": "new プロジェクトの testIgnore で除外する具体策を示している（スペック内の条件分岐に頼っていない）",
+          "passed": true,
+          "evidence": "projects の testIgnore の設定例を示した"
+        },
+        {
+          "text": "除外しないと新側の実行が現側の証跡（ベースライン・強度ゲートの結果ファイル）を静かに上書きすることを、成果物を書き出すスペックの危険として説明している",
+          "passed": true,
+          "evidence": "新側の実行が baseline・noise_baseline を警告なしに上書きすると説明"
+        },
+        {
+          "text": "除外の設定内容を metadata.json（suite.current_only）に記録し parity-replace が新側実行前に確認できるようにする方針に触れている",
+          "passed": false,
+          "evidence": "metadata.json の suite.current_only への記録に触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 29.726,
+        "tokens": 112472,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "title・favicon・主要な meta・html[lang] をカバレッジの対象（ドキュメントレベルの要素）として含める方針を示している",
+          "passed": true,
+          "evidence": "title・favicon・meta・html[lang] を対象として表にした"
+        },
+        {
+          "text": "これらは視覚ベースラインにも aria スナップショットにも写らないため、手書き assertion 以外に捕まえる経路が無いことを説明している",
+          "passed": true,
+          "evidence": "3 つの比較方法のどれにも映らないと説明"
+        },
+        {
+          "text": "新側テンプレートの既定 favicon・既定 title のまま置き換わっても誰も赤くならない、という具体的な見落としに触れている",
+          "passed": true,
+          "evidence": "Vite App の title、フレームワーク標準のアイコンの例"
+        },
+        {
+          "text": "決定論的に取得できるためページごとに 1 回の手書き assertion に向くと述べている",
+          "passed": true,
+          "evidence": "決まった値として取れるので手書き assertion に向くと述べた"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9353,
+        "stddev": 0.1464,
+        "min": 0.25,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 35.5411,
+        "stddev": 21.0156,
+        "min": 15.255,
+        "max": 102.748
+      },
+      "tokens": {
+        "mean": 168849.9444,
+        "stddev": 62522.9954,
+        "min": 64024,
+        "max": 430083
+      }
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ④-b の文章の書き換え（4b506877）の変更確認。with_skill を 1 run ずつ。assertion を変えた 36・43・44 は without_skill も実行したので iteration-48 に分けた。",
+    "3 並列の実行で with_skill の 8 run がスキルを読まなかった（invalid_run）。1 本ずつ順に実行し直し、読んだ 23・34・37 の run に差し替えた。読まなかった 14・22・25・28・29 は iteration から外した。",
+    "スキルが選ばれるかは run ごとのばらつきが大きい。1 本ずつ順の実行で、書き換え後は 3/8、書き換え前（origin/main）は 6/8 が読んだ。parity-suite の description は変えていない。",
+    "前回より下がった 8・11・16・33・38・40 は、origin/main のスキルでも 38 を除いて同じ assertion で落ちた（ばらつき）。38 は答えに語を書かなかっただけで本文は前後で同じ。20 は origin/main の run がスキルを読まず比べられなかった。"
+  ]
+}

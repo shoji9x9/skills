@@ -67,7 +67,7 @@
 
 **ただし宣言だけでは画素経路の差は消えない。** `intentional_diffs` は分類の根拠としては全経路に効くが、
 画素経路の候補は**インスタンス単位の例外**（`.replace/parity/<slug>/component-diff-exceptions.json` の `property: pixel`）でしか吸収できず、
-それを書くのは差分が出た後の `parity-diff` である（正本は `parity-diff` の `references/normalize.md`「レジストリの適用対象」と「画素経路の例外の適用」）。
+それを書くのは差分が出た後の `parity-diff` である（正本は `parity-diff` の `references/normalize.md`「レジストリの適用対象」と「画素の比較の例外の適用」）。
 **宣言は往復を無くすものではなく、承認の根拠を実装前に用意して分類を決定論的にするもの**として扱う。
 
 - ユーザーが「同等物を作る」を選んだら、**残る差を 1 文の宣言にして、ユーザーの承認を得てから** `intentional_diffs.may_change` へ非破壊追記する（承認済みの方針を 1 回記録するだけ。書き手区分の正本は [`project-config.md`](project-config.md)「キーの書き手とライフサイクル」）。

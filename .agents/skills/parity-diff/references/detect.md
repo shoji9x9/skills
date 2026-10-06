@@ -1,92 +1,107 @@
-# 決定論的差分検出（3 経路）
+# 決定論的な差分の検出（3 つの比較方法）
 
-**検出は決定論的ツールの仕事、モデルの仕事は分類だけ。** この工程に LLM を介さない。使うツール・しきい値は `metadata.json.differ` の記録値を使い（強度ゲートで検証済みの差分器）、CLI へ渡す（外部ツールの引数・出力形式を確認無しに断定しない）。
+検出は決定論的なツールが行い、モデルは分類だけを行う。この工程では LLM を使わない。
+ツールとしきい値は `metadata.json.differ` に記録した値を使い、CLI に渡す。記録してあるのは、強度のチェックで確かめた差分ツールである。
+外部ツールの引数と出力形式は、確かめずに断定しない。
 
-## 3 経路の分担
+## 3 つの比較方法の分担
 
-| 経路 | 何を拾うか | 何を見ないか |
+| 方法 | 拾うもの | 見ないもの |
 |---|---|---|
-| 画素 | **名前の付かない要素の見た目差**（この経路だけが拾う）。固定集合外プロパティ（letter-spacing・text-transform・background-image 等）の描画差 | 論理名・プロパティ名。何が違うかは crop で示すのみ |
-| 特性照合 | 論理名付き要素の computed style（固定集合）・擬似要素・相対幾何 | 名前無し要素・固定集合外プロパティ・描画テキストの内容 |
-| aria | テーブル/フォームの内容パリティ（行・列・セル値・フィールド並び）・構造 | 見た目（余白・色・フォント）。新実装が正しくなった差が混ざる**補助経路** |
+| 画素の比較 | 名前の付かない要素の見た目の差（この方法だけが拾う）。固定集合の外のプロパティ（letter-spacing・text-transform・background-image など）の描画の差 | 論理名とプロパティ名。何が違うかは crop で示すだけ |
+| 特性照合 | 論理名の付いた要素の computed style（固定集合）・擬似要素・相対幾何 | 名前の無い要素・固定集合の外のプロパティ・描画されたテキストの内容 |
+| aria の比較 | テーブルとフォームの内容のパリティ（行・列・セル値・フィールドの並び）と構造 | 見た目（余白・色・フォント）。新しい実装が正しくなったことによる差も含まれる補助の方法 |
 
-- 特性照合が見ない箇所を「computed style で保証済み」と扱わない。名前無し要素の見た目差は画素経路が担う
+- 特性照合が見ない箇所を「computed style で保証済み」として扱わない。名前の無い要素の見た目の差は、画素の比較が受け持つ
 
-## 画素経路
+## 画素の比較
 
-- `metadata.json.differ.pixel_tool` / `pixel_threshold` に記録されたツール・しきい値で、現行 `baseline/`（slug 直下）と新側 `new/<target>/baseline-new/`（選択 target のもの）のスクリーンショットを**ページ・状態・ビューポートごと**に比較する
-- 記録ツールに差分画像を出力させ、同梱 [`../scripts/pixel-crops.mjs`](../scripts/pixel-crops.mjs) で差分画素の bbox クラスタリング → crop 対を生成する。**検出はツールに委ね、本スクリプトは差分画素のクラスタリングと crop 切り出しだけを行う**（差分器を再実装しない）
+- `metadata.json.differ.pixel_tool` と `pixel_threshold` に記録したツールとしきい値で、スクリーンショットをページ・状態・ビューポートごとに比べる。
+  比べるのは、現行の `baseline/`（slug の直下）と、新側の `new/<target>/baseline-new/`（選んだ target のもの）である
+- 記録したツールに差分画像を出力させる。同梱の [`../scripts/pixel-crops.mjs`](../scripts/pixel-crops.mjs) が、差分画素の bbox をクラスタリングして crop 対を作る。
+  検出はツールに任せ、このスクリプトは差分画素のクラスタリングと crop の切り出しだけを行う（差分ツールを作り直さない）
 
   ```text
   node <スキルディレクトリ>/scripts/pixel-crops.mjs <current.png> <new.png> <diff.png> --out <dir> [--min-cluster <count>] [--pad <px>] [--crop-margin <px>] [--diff-color <hex>]
   ```
 
-  - `diff.png` は記録済み `pixel_tool` が出力した差分画像。差分画素は差分画像上でマークされた色（多くのツールの既定は赤）で判定する。既定の判定色は `--diff-color`（既定 `ff0000` 近傍）で上書きできる。判定基準はスクリプト内に明記してある
-  - crop は bbox の周囲に `--crop-margin`（既定 24px）の文脈を含めて切り出す（1px の罫線差などを crop 単体で判断できるようにするため。bbox 自体は広げない）
-  - 出力は `{ summary, regions, strict_only_regions }`。`regions[]` は `bbox` / `pixels`（しきい値つき）/ crop 対で、`strict_pixels` がその bbox 内のしきい値なしの画素数
-  - **同じ場所の 1 つの差は 1 つの候補にする。** 芯がしきい値を超え縁がしきい値の内側に収まる差（アイコンの輪郭のにじみ等）は、
-    しきい値の内側の**画素**のうち、`regions[]` の芯（しきい値つきの画素の bbox）を `--pad` だけ広げた範囲にあるものを、その領域へ取り込んで `bbox` を外側（両者を包む bbox）へ広げる。
-    **取り込みは画素単位で、範囲は「芯＋`--pad`」に限る**——連結成分・マージした塊・外接 bbox を単位にすると、疎に散った差や
-    ページ全体に広がる 1 つの差（背景色の 1 階調のずれ等）が丸ごと取り込まれ、離れた領域まで画面大の候補 1 件に潰れる。
-    範囲の外の画素は取り込まず、残りの画素から作った塊が `strict_only_regions[]` になる。取り込み後、構成要素（芯と取り込んだ画素の bbox）同士が `--pad` 以内の領域と、bbox が重なる領域は 1 つにまとめ（候補の内側に別の候補を残さない）、
-    まとめた bbox の内側に残る画素（どの芯＋`--pad` にも入らない角）も取り込む（候補の内側に別の strict-only 候補を残さない。bbox の内側だけなので bbox は広がらない）。
-    `regions[]` の `id` は外側の bbox の `(y, x)` 順で振る（`VERSION` が `3` までの出力とは id がずれうるので、旧出力の id で記録したトリアージは bbox で突き合わせ直す）。
-    取り込んだ領域は `threshold_bbox`（芯を包む bbox）/ `absorbed_strict_only_pixels` を持ち、取り込んだ画素数の合計は `summary.strict_only_absorbed_pixels` に出る（黙って消さない）。
-    **縁が `--pad` より外まで続く差は 2 件に分かれうる**。外側の `strict_only_regions[]` の候補は、bbox が重なるか接する `regions[]` の `id` を `overlaps_regions` に持ち、
-    その件数が `summary.strict_only_overlapping_regions` と stderr の警告に出る（分かれたことを黙らせない。扱いは [`triage.md`](triage.md) と [`normalize.md`](normalize.md)「画素経路の例外の適用」）。
-    分けたままだと同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になり、bbox の一致で照合する画素の例外の台帳
-    （[`normalize.md`](normalize.md)「画素経路の例外の適用」）が片方にしか当たらない
-  - `strict_only_regions[]` は**しきい値の内側にだけ差があり、しきい値つきの領域の芯＋`--pad` の外にある画素**から作った候補（`id` は `s1` から。`bbox` / `strict_pixels` / `overlaps_regions` / crop 対）。
-    **近接する成分を先にマージしてから** `--strict-min-cluster`（既定 4）を当てる——1〜3 画素に散る差（細いグリフのヒンティング差・点線装飾）は
-    先に下限で落とすと合流する前に全部消え、`strict_only_pixels > 0` なのに候補ゼロになる
-  - **`id` は上限を掛ける前の全体の並び（`(y, x)` 昇順）から決まる**ので、警告に従って上限を上げても既存候補の採番は変わらない
-    （選抜後の位置で採番すると、割り込んだ手前の領域で `crop-sN-*` が別の bbox を指し、記録済みのトリアージが別の crop に貼り付く）
-  - **画素の比較は見えている色で行う**——両側とも完全な透明な画素は、隠れている RGB が違っても差にしない（マスクした領域・要素切り出しで起きる）
-  - 件数の上限は `--strict-max-regions`（既定 20）。**上限で出せなかった分も、マージ後に下限へ届かなかった分も、数を残す**
-    （`summary.strict_only_regions_total` / `strict_only_dropped_clusters` / `strict_only_dropped_pixels` ＋ stderr の警告。**黙って捨てない**）
-  - 終了コード 0=分類すべき候補なし / 1=候補あり / 2=入力エラー。**下限に届かず捨てた分が残るときも 1**（候補を出せていない＝分類できていない状態を「差が無い」と読ませない）。
-    下限を下げて候補にするか、strict 側のノイズ基準値との対比で説明を付ける
-  - `pngjs` に依存する。記録ツールが `pixelmatch` ならプロジェクトに入っていることが多い。無ければ導入をユーザーに確認する（本スキルは勝手にインストールしない）
+  - `diff.png` は、記録した `pixel_tool` が出力した差分画像である。差分画素は、差分画像に付いた印の色で判定する（多くのツールのデフォルトは赤）。
+    判定の色は `--diff-color`（デフォルトは `ff0000` の近く）で変えられる。判定の基準はスクリプトの中に書いてある
+  - crop は、bbox の周りに `--crop-margin`（デフォルトは 24px）の文脈を含めて切り出す。1px の罫線の差なども crop だけで判断できるようにするためで、bbox 自体は広げない
+  - 出力は `{ summary, regions, strict_only_regions }` である。`regions[]` は `bbox`・`pixels`（しきい値つき）・crop 対を持つ。`strict_pixels` は、その bbox の中のしきい値なしの画素数である
+  - 同じ場所の 1 つの差は、1 つの候補にする。芯がしきい値を超え、縁がしきい値の内側に収まる差（アイコンの輪郭のにじみなど）は、次のように扱う。
+    - しきい値の内側の画素のうち、`regions[]` の芯（しきい値つきの画素の bbox）を `--pad` だけ広げた範囲にあるものを、その領域に取り込む。`bbox` は外側（両方を包む bbox）に広げる。
+    - 取り込みは画素単位で行い、範囲は「芯＋`--pad`」に限る。連結成分・マージした塊・外接 bbox を単位にすると、疎に散った差や、ページ全体に広がる 1 つの差（背景色の 1 階調のずれなど）を丸ごと取り込んでしまう。
+      そうなると、離れた領域まで画面の大きさの候補 1 件にまとまる。
+    - 範囲の外の画素は取り込まない。残りの画素から作った塊が `strict_only_regions[]` になる。
+    - 取り込んだ後、構成要素（芯と取り込んだ画素の bbox）どうしが `--pad` 以内にある領域と、bbox が重なる領域は 1 つにまとめる（候補の内側に別の候補を残さない）。
+      まとめた bbox の内側に残る画素（どの芯＋`--pad` にも入らない角）も取り込む。候補の内側に別の strict-only の候補を残さないためで、bbox の内側だけなので bbox は広がらない。
+    - `regions[]` の `id` は、外側の bbox の `(y, x)` の順に振る。`VERSION` が `3` までの出力とは id がずれることがあるので、古い出力の id で記録したトリアージは bbox で突き合わせ直す。
+    - 取り込んだ領域は `threshold_bbox`（芯を包む bbox）と `absorbed_strict_only_pixels` を持つ。取り込んだ画素数の合計は `summary.strict_only_absorbed_pixels` に出る（警告なしに消さない）。
+  - 縁が `--pad` より外まで続く差は、2 件に分かれることがある。
+    外側の `strict_only_regions[]` の候補は、bbox が重なるか接する `regions[]` の `id` を `overlaps_regions` に持つ。その件数は `summary.strict_only_overlapping_regions` と stderr の警告に出る。
+    分かれたことは必ず出力に残す。扱いは [`triage.md`](triage.md) と、[`normalize.md`](normalize.md) の画素の例外を適用する節にある。
+    分けたままだと、同じ差が `regions` の小さい bbox と `strict_only_regions` の大きい bbox の 2 件になる。
+    画素の例外の台帳（[`normalize.md`](normalize.md) の画素の例外を適用する節）は bbox の一致で照合するので、片方にしか当たらない
+  - `strict_only_regions[]` は、しきい値の内側にだけ差があり、しきい値つきの領域の芯＋`--pad` の外にある画素から作った候補である。
+    `id` は `s1` から振り、`bbox`・`strict_pixels`・`overlaps_regions`・crop 対を持つ。
+    近い成分を先にマージしてから、`--strict-min-cluster`（デフォルトは 4）を当てる。
+    1〜3 画素に散る差（細いグリフのヒンティングの差、点線の装飾）は、先に下限で除くと合流する前に全部消え、`strict_only_pixels > 0` なのに候補が 0 件になる
+  - `id` は、上限を当てる前の全体の並び（`(y, x)` の昇順）で決まる。そのため、警告に従って上限を上げても、既存の候補の番号は変わらない。
+    選んだ後の位置で番号を振ると、手前に割り込んだ領域のせいで `crop-sN-*` が別の bbox を指し、記録したトリアージが別の crop に付いてしまう
+  - 画素は、見えている色で比べる。両側とも不透明度が 0 の画素は、隠れている RGB が違っても差にしない（マスクした領域や、要素の切り出しで起きる）
+  - 件数の上限は `--strict-max-regions`（デフォルトは 20）である。上限のために出せなかった分と、マージした後に下限に届かなかった分も、数を残す。
+    数は `summary.strict_only_regions_total`・`strict_only_dropped_clusters`・`strict_only_dropped_pixels` と stderr の警告に出る（警告なしに捨てない）
+  - 終了コードは、0 が分類する候補なし、1 が候補あり、2 が入力の誤りである。下限に届かずに捨てた分が残るときも 1 を返す。
+    候補を出せていない状態は分類できていない状態なので、「差が無い」と読ませない。
+    下限を下げて候補にするか、strict 側のノイズ基準値と比べて説明を付ける
+  - `pngjs` に依存する。記録したツールが `pixelmatch` なら、プロジェクトに入っていることが多い。無ければ、導入してよいかをユーザーに確認する（このスキルは自分ではインストールしない）
 
-### 画素の量は 2 本で報告する（しきい値つき／しきい値なし）
+### 画素の量は 2 本で報告する（しきい値つきと、しきい値なし）
 
-**しきい値つきの比較器の結果を「差の量」として単独で報告しない。** `pixel_tool` のしきい値（`pixel_threshold`）は
-**許容の内側の差を総量にも件数にも出さない**ため、1 本だけだと小さな数が「ほぼ一致」と読まれる
-（実測: 報告は 756 画素・0.0569%。枠色の緑が 1/255 違う画素が別に 3,364 画素あり、特性照合〈その要素に論理名が無い〉も手書きの aria〈色を見ない〉も見ていなかった）。
+しきい値つきの比較の結果を、差の量として単独で報告しない。
+`pixel_tool` のしきい値（`pixel_threshold`）は、許容の内側の差を総量にも件数にも出さない。そのため 1 本だけだと、小さな数が「ほぼ一致」と読まれる。
+実測では、報告は 756 画素・0.0569% だった。枠の緑色が 1/255 違う画素が、別に 3,364 画素あった。
+特性照合（その要素に論理名が無かった）も、手で書いた aria の比較（色を見ない）も、この差を見ていなかった。
 
-- `pixel-crops.mjs` の `summary` に**両方**が出る: `threshold_pixels` / `threshold_ratio`（記録済みツールのしきい値つき）と
-  `strict_pixels` / `strict_ratio`（しきい値なし）、そのうちマークされていない `strict_only_pixels`、最大チャンネル差 2 本
-  （差がある画素全体の `strict_max_channel_delta` と、しきい値の内側だけの `strict_only_max_channel_delta`）
-- **`diff.md` の経路別サマリに両方の数を書く**（様式は [`../assets/diff-template.md`](../assets/diff-template.md)）。片方だけを書かない
-- **`strict_only_pixels` が非ゼロなら「差分領域なし」を「一致」と読まない。** 対比する相手は**同じ軸の基準値**——
-  `metadata.json.noise_baseline` の該当 page/state/viewport の `pixel_diff_strict` / `pixel_diff_strict_only` であって、しきい値つきの `pixel_diff` ではない
-  （しきい値つきの値はほぼ 0 になるため、strict の実測をそれと比べると通常の描画揺れが必ず超過になる）
-- **strict の基準値を持たない成果物（この項目の導入前に測った `noise_baseline`）では、strict の差をノイズと断定しない。**
-  `parity-suite` に基準値を測り直させるか、その組の候補を未確認として [`triage.md`](triage.md) の分類へ回す（fail-closed）
-- **`strict_only_regions[]` は crop 対を持つ候補としてトリアージへ渡す。** 数だけを報告して終えない——
+- `pixel-crops.mjs` の `summary` には、次の値が両方出る。
+  - 記録したツールのしきい値つきの `threshold_pixels`・`threshold_ratio`
+  - しきい値なしの `strict_pixels`・`strict_ratio`
+  - そのうち印の付いていない `strict_only_pixels`
+  - 最大のチャンネル差 2 本（差がある画素全体の `strict_max_channel_delta` と、しきい値の内側だけの `strict_only_max_channel_delta`）
+- `diff.md` の 2 番目の節（サマリ）に、両方の数を書く（様式は [`../assets/diff-template.md`](../assets/diff-template.md)）。片方だけを書かない
+- `strict_only_pixels` が 0 でなければ、「差分の領域なし」を「一致」と読まない。
+  比べる相手は、同じ軸の基準値である。`metadata.json.noise_baseline` の該当する page・state・viewport の `pixel_diff_strict`・`pixel_diff_strict_only` と比べ、しきい値つきの `pixel_diff` とは比べない。
+  しきい値つきの値はほぼ 0 になるので、strict の実測をそれと比べると、ふつうの描画の揺れも必ず超過になる
+- strict の基準値を持たない成果物（この項目を入れる前に測った `noise_baseline`）では、strict の差をノイズと断定しない。
+  `parity-suite` に基準値を測り直させるか、その組の候補を未確認として [`triage.md`](triage.md) の分類に回す（判定できないときは、ノイズとして扱わない）
+- `strict_only_regions[]` は、crop 対を持つ候補としてトリアージに渡す。数だけを報告して終えない。
   [`triage.md`](triage.md) の入力は候補ごとの crop 対なので、crop が無い候補は分類も差し戻しもできない
-- **判断材料にも両方を渡す**（承認 UI・差し戻し）。**隠れた差の大きさを読むのは `strict_only_max_channel_delta`**——これが 1 なら「色が 1/255 違う」という形が読み取れる
-  （`strict_max_channel_delta` は差がある画素全体の最大値なので、別の場所に本物の差があると 255 等になり、隠れた差の大きさとしては読めない）
+- 判断の材料（承認 UI・差し戻し）にも、両方の数を渡す。隠れた差の大きさは `strict_only_max_channel_delta` で読む。これが 1 なら「色が 1/255 違う」という形が分かる。
+  `strict_max_channel_delta` は差がある画素全体の最大値なので、別の場所に本物の差があると 255 などになり、隠れた差の大きさとしては読めない
 
-## 特性照合経路
+## 特性照合
 
-- プロジェクト側コピー `metadata.json.differ.trait_compare` の `trait-compare.mjs` を使う
+- プロジェクト側のコピー `metadata.json.differ.trait_compare` の `trait-compare.mjs` を使う
 
   ```text
   node <trait-compare.mjs のパス> <baseline.json> <capture.json> --align-tolerance <metadata の differ.align_tolerance>
   ```
 
-  - `baseline.json` は現行の採取結果、`capture.json` は新側の採取結果（[`capture-new.md`](capture-new.md)）
-  - **記録値 `align_tolerance` を必ず渡す**（省略すると既定 1 になり、記録値と食い違うと結果が変わる）
-  - 終了コード 0=差分なし / 1=差分あり / 2=入力エラー。出力 JSON の `kind` は `property` / `pseudo` / `geometry` / `missing` / `duplicate` / `text`（文字の持ち主の差。`prop` は `text[<i>]/<項目>` で、`text` にベースライン側の文字が付く）
-    / `scroll`（スクロールする器の差。`prop` は `scroll`〈器かどうか〉・`scroll/<項目>`〈はみ出し・バーの厚み・見た目の宣言〉・`scroll/<擬似要素>/<プロパティ>`）
+  - `baseline.json` は現行の採取結果、`capture.json` は新側の採取結果（[`capture-new.md`](capture-new.md)）である
+  - 記録した `align_tolerance` を必ず渡す。省くとデフォルトの 1 になり、記録した値と違うと結果が変わる
+  - 終了コードは、0 が差分なし、1 が差分あり、2 が入力の誤りである。出力の JSON の `kind` は次のどれかである。
+    - `property`・`pseudo`・`geometry`・`missing`・`duplicate`
+    - `text`: 文字の持ち主の差。`prop` は `text[<i>]/<項目>` で、`text` にベースライン側の文字が付く
+    - `scroll`: スクロール領域の差。`prop` は `scroll`（スクロール領域かどうか）・`scroll/<項目>`（はみ出し・バーの厚み・見た目の宣言）・`scroll/<擬似要素>/<プロパティ>` である
 
-## aria 経路
+## aria の比較
 
-- `metadata.json.differ.aria_compare` に記録された手段で、現行の参考 aria スナップショットと新側採取分を構造比較する
-- **補助経路**（新実装が ARIA 的に正しくなったことによる差が混ざるため、単独の合否根拠にしない）。ただしテーブル/フォームの内容パリティ（行・列・セル値・フィールド並び）はこの経路が担う
-- 深掘りが要る帳票テーブル等だけ、テーブルをアンカーに代表セル（ヘッダー・先頭行）を相対で測る（オプトイン。全セルに論理名を付けない）
+- `metadata.json.differ.aria_compare` に記録した手段で、現行の参考の aria スナップショットと、新側で採取したものの構造を比べる
+- 補助の方法である。新しい実装が ARIA として正しくなったことによる差が含まれるので、これだけを合否の根拠にしない。
+  ただし、テーブルとフォームの内容のパリティ（行・列・セル値・フィールドの並び）は、この方法が受け持つ
+- 深く確かめたい帳票のテーブルなどに限って、テーブルを基準にして代表のセル（ヘッダー・先頭の行）を相対で測る。これはオプトインで、すべてのセルに論理名を付けることはしない
 
 ## 検出結果の受け渡し
 
-3 経路の出力（crop 対・特性差分 JSON・aria 構造差）を [`normalize.md`](normalize.md) の正規化へ渡す。この時点では**どれも「検出された候補」であって分類済みではない**。
+3 つの比較方法の出力（crop 対・特性の差分の JSON・aria の構造の差）を、[`normalize.md`](normalize.md) の正規化に渡す。この時点では、どれも「検出された候補」であって、分類はまだしていない。

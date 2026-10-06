@@ -12,33 +12,9 @@
       "stage": "4"
     },
     {
-      "file": "skills/parity-component/SKILL.md",
-      "rule": "section",
-      "text": "features-issues.md「起票の後に行と受け入れ条件を突き合わせる」",
-      "stage": "4"
-    },
-    {
-      "file": "skills/parity-diff/references/convergence.md",
-      "rule": "section",
-      "text": "references/coverage.md「未測定を機械可読にする」",
-      "stage": "4"
-    },
-    {
       "file": "skills/parity-replace/references/implementation.md",
       "rule": "section",
       "text": "references/project-config.md「DB 意味論」",
-      "stage": "4"
-    },
-    {
-      "file": "skills/parity-suite/references/api-batch.md",
-      "rule": "section",
-      "text": "references/security.md「横断の応答ヘッダー」",
-      "stage": "4"
-    },
-    {
-      "file": "skills/parity-suite/references/baseline.md",
-      "rule": "dist-issue",
-      "text": "#485",
       "stage": "4"
     },
     {

@@ -1,5 +1,5 @@
 {
-  "_note": "parity-component の capture が .replace/components/<slug>/baseline/<instance>/motions.json として生成する（インスタンスごと）。現行 target で metadata.json の capture.motions.transitions を 1 件ずつ、同じ初期状態から同じ手順（trigger）で起こし、同梱の scripts/motion-probe.mjs（プロジェクトの vendor へコピーしたもの）の出力を 1 回ずつ runs に積む。揺れを測るため同じ条件で 2 回以上採る（揺れは最初の 2 回の差から測り、3 回目以降は使わない）。探針のあいだはアニメーションを止めない。形式の正本は parity-component が定義し、判定は同梱の scripts/motion-compare.mjs が行う（記録された要約値は信用せず samples から組み立て直す）。全ての値はプレースホルダ例であり実測値で置き換える。到達できない遷移は時系列を書かず、metadata.json の instances[].unreachable_motions と gaps.md に理由付きで残す。",
+  "_note": "parity-component の capture が .replace/components/<slug>/baseline/<instance>/motions.json として生成する（インスタンスごと）。現行 target で metadata.json の capture.motions.transitions を 1 件ずつ、同じ初期状態から同じ手順（trigger）で起こし、同梱の scripts/motion-probe.mjs（プロジェクトの vendor へコピーしたもの）の出力を 1 回ずつ runs に積む。揺れを測るため同じ条件で 2 回以上採る（揺れは最初の 2 回の差から測り、3 回目以降は使わない）。プローブのあいだはアニメーションを止めない。形式の原本は parity-component が定義し、判定は同梱の scripts/motion-compare.mjs が行う（記録された要約値は信用せず samples から組み立て直す）。全ての値はプレースホルダ例であり実測値で置き換える。到達できない遷移は時系列を書かず、metadata.json の instances[].unreachable_motions と gaps.md に理由付きで残す。",
   "instance": "<インスタンス id（metadata.json の instances[].id と同じ）>",
   "results": [
     {

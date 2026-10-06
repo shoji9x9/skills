@@ -1,5 +1,5 @@
 {
-  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の正本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。capture_conditions.popup_inventory は操作で開く器の棚卸しで、撮る器も撮らない器も 1 要素ずつ書き、器が無い機能は空配列にする（キーを省かない。正本は parity-suite の references/baseline.md「撮影状態の決め方（2）器の棚卸し」）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（下流がこのファイルの存在を完了の証拠に使うため）。",
+  "_note": "parity-suite が .replace/parity/<slug>/metadata.json として生成する。形式の原本は parity-suite が定義する。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。api-resource / batch モードでは視覚系フィールド（capture_conditions・traits・differ の画素/特性項目・noise_baseline・artifacts_storage.baseline_pointer）と component_coverage を持たない（省略する）。capture_conditions.masks は恒久マスク、cofeature_masks は同一ページの別機能が同 target で未実装の間だけ parity-diff が作業コピーへ対称適用する候補であり、用途を混ぜない。capture_conditions.popup_inventory は操作で開くコンテナの棚卸しで、撮るコンテナも撮らないコンテナも 1 要素ずつ書き、コンテナが無い機能は空配列にする（キーを省かない。原本は parity-suite の references/baseline.md「撮影状態の決め方（2）コンテナの棚卸し」）。 自律実行の保留はこのファイルに書かず assets/pending-decisions-template.json の形で同じディレクトリの pending-decisions.json に書く（下流がこのファイルの存在を完了の証拠に使うため）。",
   "slug": "<features.md が採番した slug（自分で採番しない）>",
   "mode": "<feature | api-resource | batch>",
   "target": {
@@ -22,26 +22,26 @@
   "suite": {
     "dir": "<parity_suite_dir。未指定時 e2e/>",
     "specs": "<スペックのパス（推測させないため実際のパスを記録）>",
-    "current_only": "<現側専用スペック（ベースライン採取・ノイズ測定・強度ゲート）のパスと、new プロジェクトへ設定した testIgnore のパターン。新側実行が現側の証跡を上書きしないことの記録>",
+    "current_only": "<現側専用スペック（ベースライン採取・ノイズ測定・強度チェック）のパスと、new プロジェクトへ設定した testIgnore のパターン。新側実行が現側の証跡を上書きしないことの記録>",
     "new_only": "<新側専用スペック（新側ベースライン採取・自己ノイズ測定。置くのは parity-diff）の置き場所と、current / new の両プロジェクトへ設定した testIgnore のパターン、および採取を実行する専用プロジェクト名（既定 new-capture）。本スキル時点ではディレクトリは空でよく、除外・プロジェクト・場所だけを用意して記録する（current に混ざると現行アプリが新側ベースラインとして書き出され差分ゼロに化け、new に残ると parity-replace の green 検証が収集時に落ちる）>",
     "locator_map": "<現側マッピングのパス>",
     "expectations": "<期待値解決層（論理名 → side 別期待値）のパス。現側の値だけを埋めた状態で引き渡し、新側の値は parity-replace が充填する>",
     "interactions": "<操作アダプタのパス>",
-    "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度ゲート等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
+    "dimension": "<寸法の決まり方の測定スペックのパス（既定 <parity_suite_dir>/parity/<slug>/dimension/）。current / new の両プロジェクトに含め、PARITY_DIMENSION_CAPTURE=1 の実行でだけ書く（強度チェック等で上書きさせない）。current は .replace/parity/<slug>/dimension-samples.json、new は .replace/parity/<slug>/new/<PARITY_NEW_TARGET>/dimension-samples.json へ書く>",
     "tools": "<決定論的ツール（trait-capture / trait-compare / 応答ヘッダーを録画するなら header-normalize のコピー）のパス（ディレクトリかファイルのパスだけを書く。版は traits.tool・differ.* の側に書く）。コピー専用サブディレクトリ（既定 <parity_suite_dir>/parity/lib/tools/vendor/）に置き、プロジェクト自作ツールと同居させない>",
     "auth_roles": [
       "<特性化に使ったロール名（設定 targets[].auth.roles のキー。認証不要なら空配列）>"
     ],
     "current_green": true,
-    "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
+    "state_mutating": "<このスイートが現行アプリの状態を変えるか（書き込み・更新・削除を含むか）を真偽値で書く。artifact_health.declared: true では省略しない。判断の原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」>",
     "repeat_run": {
-      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。正本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
+      "_note": "状態を変えるスイートの反復実行の記録。state_mutating: true のときだけ検査に入る（false では runs を空配列にし reason を書く）。1 回目は初期状態から始まるため後始末の有無が結果に現れない——2 回続けて緑になって初めて後始末が効いたことの証拠になる。記録は suite_fingerprint で「どの版のスイートを回したか」に結びつける（結びつけないと、記録した後にスペックや後始末を変えても古い記録で通る）。原本は parity-suite の references/baseline.md「状態を変えるスイートは 2 回続けて緑にする」。",
       "cleanup_in_suite": "<後始末（反対の操作）をスイートの中に置いたか。外の道具に頼ると回した人が忘れた時点で次の実行が壊れ、しかも壊れ方が「現行が変わった」と同じ見え方になる。state_mutating: true では true でなければ未検証として数える>",
       "specs": [
         {
-          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。正本は parity-suite の references/baseline.md「スペック単位で記録する」。",
+          "_note": "任意（推奨）。書くとスペック単位で判定する——2 回続けての緑を求めるのは state_mutating: true のスペックだけで、state_mutating: false のスペックは現在の版での 1 回の緑の記録で足りる。変えたスペックだけを回し直せば足りる。書かなければ suite_fingerprint でスイート全体を判定する。suite.specs の下のスペック（Playwright 既定の testMatch に当たる *.spec.* / *.test.* と、ここに書いたファイル）はすべて分類する（分類漏れは未検証として落ちる）。原本は parity-suite の references/baseline.md「スペック単位で記録する」。",
           "path": "<スペックのリポジトリルート基準の相対パス>",
-          "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度ゲートは、現行へ保存する操作を含まなければ false>",
+          "state_mutating": "<このスペックが現行アプリの状態を変えるかを真偽値で。現側専用の採取・ノイズ測定・強度チェックは、現行へ保存する操作を含まなければ false>",
           "reason": "<判断の根拠（必須）。検査は字面で裏づけないので、レビューで読まれる記録として書く。迷ったら true>"
         }
       ],
@@ -59,41 +59,41 @@
       ],
       "runs": [
         {
-          "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録の写しと区別が付かない）>",
+          "started_at": "<ISO 8601 の開始日時。連続する 2 回は別の日時にする（同じ値は 1 回の記録のコピーと区別が付かない）>",
           "result": "<green | red。連続する 2 回とも green であることを求める>",
-          "shared_fingerprint": "<specs を書いたときに書く。スペックが共通に読む土台（locator_map / expectations / interactions / tools と suite.specs の下のスペック以外）の指紋。artifact-health-check.mjs --fingerprint の出力から写す>",
+          "shared_fingerprint": "<specs を書いたときに書く。スペックが共通に読む土台（locator_map / expectations / interactions / tools と suite.specs の下のスペック以外）の指紋。artifact-health-check.mjs --fingerprint の出力から転記する>",
           "spec_fingerprints": {
-            "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から写す>"
+            "<その回に回したスペックのパス>": "<そのスペックの指紋（sha256-nc:<16 進>）。specs を書いたときに書き、その回に回したスペックの分だけを --fingerprint の出力から転記する>"
           },
-          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から写す。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
+          "suite_fingerprint": "<specs を書かないときに書く。その回に回したスイートの指紋（sha256-nc:<16 進>）。artifact-health-check.mjs が suite.specs / locator_map / expectations / interactions / tools の宣言パスから再計算して照合する（ディレクトリは再帰、パスはソート、各ファイルの sha256 を連結して sha256）。TypeScript（.ts .mts .cts）はコメントを除いた内容で数えるので、注記だけの書き換えでは取り直しにならない（文字列・テンプレート・正規表現の中身と、ツールへの指示コメント〈@ts-expect-error・///・/*! */・eslint- 等〉は除かない）。.js 系・.jsx / .tsx（JSX のテキストの // をコメントと区別できない）を含むそれ以外の拡張子は生バイト。旧方式の sha256: で記録済みの runs は旧方式（コメントも含めた生バイト）で照合する。手で計算せず artifact-health-check.mjs --fingerprint の出力から転記する。連続する 2 回で同じ値になり、かつ現在のスイートと一致することを求める——記録をスイートの版に結びつけないと、2 回緑を記録した後にスペックや後始末を変えても古い記録で緑のまま通る。キーごと持たない旧成果物はこの軸を判定しない>"
         }
       ],
       "reason": "<state_mutating: false のときだけ、状態を変えないと判断した根拠。true では null>"
     }
   },
   "component_coverage": {
-    "_note": "部品被覆表（component-coverage.json）の宣言。parity-diff はこのキーがあるときだけ被覆表を収束判定に入れ、キーごと無い旧成果物は現状どおり収束させる（後方互換）。feature モードのみ持つ。件数は概観用で、parity-diff は被覆表の実体から数え直す（宣言値を信用しない）。",
+    "_note": "部品網羅表（component-coverage.json）の宣言。parity-diff はこのキーがあるときだけ網羅表を収束判定に入れ、キーごと無い旧成果物は現状どおり収束させる（後方互換）。feature モードのみ持つ。件数は概観用で、parity-diff は網羅表の実体から数え直す（宣言値を信用しない）。",
     "declared": true,
     "path": ".replace/parity/<slug>/component-coverage.json",
     "components": 0,
     "items": 0,
     "instances": 0,
-    "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。被覆表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
-    "unmeasured": "<未測定セル数。記録側の正本は parity-suite の references/coverage.md「部品被覆表」、数え直し側の正本は parity-diff の references/convergence.md。absent の経路別証拠・非描画経路の applicable_states manifest・hidden_by の検証済み関係・重複行まで含むため、条件をここへ書き写すと実際のゲートとずれる。概観用の宣言値で、判定側は被覆表の実体から数え直す。1 以上なら parity-diff は収束させない>",
+    "cells": "<期待セル数。プロファイルを宣言していない部品は 項目数 × インスタンス数、宣言した部品はインスタンスごとの候補数の合計。網羅表の行数ではない——行が無い組み合わせは unmeasured として数えるため>",
+    "unmeasured": "<未測定セル数。記録側の原本は parity-suite の references/coverage.md「部品網羅表」、数え直し側の原本は parity-diff の references/convergence.md。absent の比較方法ごとの証拠・非描画の確かめ方の applicable_states manifest・hidden_by の検証済み関係・重複行まで含むため、条件をここへ転記すると実際のチェックとずれる。概観用の宣言値で、判定側は網羅表の実体から数え直す。1 以上なら parity-diff は収束させない>",
     "profiles": [
-      "<被覆表の components[].profile に現れたプロファイル id。適合プロファイルが無い部品は含めない（その部品は profile: null ＋ profile_absent_reason で未検証として残す）>"
+      "<網羅表の components[].profile に現れたプロファイル id。適合プロファイルが無い部品は含めない（その部品は profile: null ＋ profile_absent_reason で未検証として残す）>"
     ],
-    "conformance_ok": "<被覆表の conformance.ok（scripts/coverage-expand.mjs の照合結果）。false・記録なしなら parity-diff は収束させない>",
+    "conformance_ok": "<網羅表の conformance.ok（scripts/coverage-expand.mjs の照合結果）。false・記録なしなら parity-diff は収束させない>",
     "reason": "<declared: false のときだけ、宣言しない理由（例: 共通部品を使っていない／ベンダー資料にも実 UI にも到達できず列挙を起こせない）。同じ理由を gaps.md にも残す。declared: false で空だと免除の根拠が残らないため parity-diff の coverage-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "reaction_coverage": {
-    "_note": "反応の被覆表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --tests <テスト一覧> --recorded で被覆表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない——判定側は被覆表の実体から数え直す。",
+    "_note": "反応の網羅表（reactions.json）の宣言。feature モードのみ持つ。parity-diff はこのキーがあるときだけ parity-suite の scripts/reaction-check.mjs --tests <テスト一覧> --recorded で網羅表を収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。件数は書かない——判定側は網羅表の実体から数え直す。",
     "declared": true,
     "path": ".replace/parity/<slug>/reactions.json",
     "reason": "<declared: false のときだけ、宣言しない理由（画面を持たない api-resource / batch モードだけ。操作を持たない画面駆動の機能も declared: true にし、reactions.json を operations: [] と operations_none_reason で作って画面ごとの状態表示を振り分ける——run.procedure_revision が 4 以上の画面駆動の機能の declared: false は reaction-check.mjs が exit 2 で落とす）。同じ理由を gaps.md にも残す。declared: false で空だと reaction-check.mjs が exit 2 で落とす。declared: true では null>"
   },
   "unmeasured": {
-    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う——同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。正本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
+    "_note": "未測定の宣言（gaps.md の散文を機械可読にした対）。parity-diff はこのキーがあるときだけ収束判定に入れ、キーごと無い旧成果物は判定しない（後方互換）。gaps.md は人向けの説明としてそのまま残し、ここには判定に入れる項目だけを書く。disposition: blocking が 1 件でも残る間は parity-diff を収束させない。accepted は「測っていないことをユーザーが承認した」記録で、approved_by / approved_at が空なら blocking として数える（fail-closed）。追記は非破壊で行う（既存要素の item を消さない。検査は replace-strategy の scripts/append-only-check.mjs が append-only-manifest.json の parity-unmeasured で行う——同一性は item で取るので disposition の blocking → accepted〈承認の追記〉は正規の遷移として通り、item を消すと gaps.md を触らなくても落ちる）。原本は parity-suite の references/coverage.md「未測定を機械可読にする」。",
     "declared": true,
     "entries": [
       {
@@ -109,10 +109,10 @@
   },
   "capture_conditions": {
     "environment": "<撮影環境。OS・ブラウザとバージョン・DPR に加え、総称ファミリー（system-ui / sans-serif）が何に解決されたかまで書く。parity-diff が新側を同一環境で撮れるようにする>",
-    "viewer_environment": "<想定利用者環境との一致。「一致: <確かめ方（例: 利用者環境のブラウザへ接続して撮り、CSS.getPlatformFontsForNode で描いた書体を読んだ）>」か「乖離: <内容と gaps.md の該当箇所>」の 2 形だけ。未確認・確かめ方の無い一致は capture-scope-check.mjs が落とし parity-diff が収束させない。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分器が見逃す。正本は parity-suite の references/baseline.md「採取環境と利用者環境の乖離」>",
+    "viewer_environment": "<想定利用者環境との一致。「一致: <確かめ方（例: 利用者環境のブラウザへ接続して撮り、CSS.getPlatformFontsForNode で描いた書体を読んだ）>」か「乖離: <内容と gaps.md の該当箇所>」の 2 形だけ。未確認・確かめ方の無い一致は capture-scope-check.mjs が落とし parity-diff が収束させない。乖離のまま撮ると、採取環境でだけ成立する一致（フォントフォールバック・システム UI 由来の既定値）を差分ツールが見逃す。原本は parity-suite の references/baseline.md「採取環境と利用者環境の乖離」>",
     "browser": "<launched | cdp。launched は Playwright が起動したブラウザ、cdp は選択した target の browser.cdp_url（利用者環境で起動した Chromium 系ブラウザ）へ connectOverCDP で接続して撮った。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ利用者環境で撮ると環境の差がそのまま差分に出る）>",
     "browser_identity": {
-      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別の版で撮るのを止める。browser_os は描画するブラウザ側の OS で、use の userAgent を当てない別のコンテキストの安全なコンテキストの頁で navigator.userAgentData.getHighEntropyValues から platform / platformVersion / architecture の 3 キーだけを拾う（navigator.platform への代替は認めない。キーの過不足は capture-scope-check.mjs が落とす）。読み方の正本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。",
+      "_note": "browser が cdp のときだけ書く（launched では null）。現側で接続した利用者環境のブラウザの同一性。parity-diff の新側採取が、接続したブラウザと照合して別の機械・別の版で撮るのを止める。browser_os は描画するブラウザ側の OS で、use の userAgent を当てない別のコンテキストの安全なコンテキストの頁で navigator.userAgentData.getHighEntropyValues から platform / platformVersion / architecture の 3 キーだけを拾う（navigator.platform への代替は認めない。キーの過不足は capture-scope-check.mjs が落とす）。読み方の原本は parity-suite の references/locator-mapping.md「利用者環境のブラウザへ接続する」。",
       "product": "<Playwright の browser.version() の値>",
       "user_agent": "<撮影したページで読んだ navigator.userAgent>",
       "browser_os": {
@@ -122,21 +122,21 @@
       }
     },
     "display_axes": {
-      "_note": "表示を切り替える軸（ロケール・配色テーマ等）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の穴として数える。正本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
+      "_note": "表示を切り替える軸（ロケール・配色テーマ等）。feature モードではキーごと省略しない（軸が無い機能も候補を全て absent に書く）。基準の組（全軸が既定値）は viewports × pages × states で撮り、既定以外の値は variants として撮る。変種の label は noise_baseline / capture_scope の viewport に書き、撮るはずの組（pages × states × variants。not_applicable のページを除く）に入る——撮っていない組は capture-scope-check.mjs が #not-captured の抜けとして数える。原本は parity-suite の references/baseline.md「表示を切り替える軸（掛け合わせずに撮る）」。",
       "axes": [
         {
           "name": "<軸の名前（例: locale）。variants / pairs から指す。| # = , と予約語 viewport は使えない>",
           "candidate": "<候補の一覧（capture-scope-check.mjs の AXIS_CANDIDATES）の id。一覧に無い軸は other>",
           "values": ["<現行が持つ値（2 つ以上）。例: en>", "<例: ja>"],
           "default": "<基準の組を撮った値（values の要素）。ブラウザや OS の既定に委ねず、この値を明示して当てる>",
-          "source": "<値の一覧をどこから数えたかの来歴（例: 現行のロケール切替の選択肢〈実測〉・移行元ソースのリソースファイル）>",
+          "source": "<値の一覧をどこから数えたかの出所（例: 現行のロケール切替の選択肢〈実測〉・移行元ソースのリソースファイル）>",
           "apply": "<値の当て方（操作アダプタ applyDisplayAxes の中で何をするか。例: cookie lang を書いて再読み込み / page.emulateMedia({ colorScheme })）。parity-diff が新側を同じ値で撮るために読む>",
           "suite_expectations": "<値ごとの文言・振る舞いの期待値を引く期待値解決層のパス（例: <parity_suite_dir>/parity/lib/expectations/<slug>.ts）。値で文言・振る舞いが変わらないなら null>",
           "suite_reason": "<suite_expectations が null のときだけ、値で文言・振る舞いが変わらない根拠。書いたら suite_expectations は null>",
           "not_applicable": [
             {
               "page": "<この軸が効かない capture_conditions.pages[].name（例: 配色テーマを持たない画面）。このページは変種で撮らない>",
-              "reason": "<効かないことを確かめた来歴>"
+              "reason": "<効かないことを確かめた出所>"
             }
           ]
         }
@@ -144,7 +144,7 @@
       "absent": [
         {
           "candidate": "<現行に無い候補の id（AXIS_CANDIDATES の全件を axes か absent のどちらかに 1 回だけ書く）>",
-          "source": "<無いと確かめた来歴（例: 設定画面と移行元ソースに切り替えが無い）>"
+          "source": "<無いと確かめた出所（例: 設定画面と移行元ソースに切り替えが無い）>"
         }
       ],
       "pairs": [
@@ -173,13 +173,13 @@
     ],
     "animations": "disabled",
     "full_page": "<スクリーンショットを全画面（true）で撮ったかビューポート内（false）で撮ったか。parity-diff の新側採取が同じ値で撮るために必須（決め打ちすると画像サイズが違い全面差分になる）。真偽値で書く>",
-    "scrollbars": "<撮影時にスクロールバーが場所を取ったか。shown（既定。場所を取る。current と new-capture プロジェクトの launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）| hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden。器のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・バーの見た目の差が 3 経路のどれにも写らないので、scrollbars_reason が要る）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
+    "scrollbars": "<撮影時にスクロールバーが場所を取ったか。shown（既定。場所を取る。current と new-capture プロジェクトの launchOptions.ignoreDefaultArgs で --hide-scrollbars を外した起動・ヘッドあり起動）| hidden（場所を取らない。Playwright のヘッドレス Chromium の既定は --hide-scrollbars で hidden。スクロール領域のスクロールバーが場所を取って中身がはみ出す差・横のバーが出るか出ないかの差・バーの見た目の差が 3 つの比較方法のどれにも記録されないので、scrollbars_reason が要る）。parity-diff の新側採取が同じ扱いで撮るために必須（片側だけ場所を取ると、見える幅・高さが厚みの分ずれて全面差分になる）>",
     "scrollbars_reason": "<scrollbars が hidden のときだけ、スクロールバーを隠して撮る理由（同じ内容を gaps.md に残す）。無い・プレースホルダのままは capture-scope-check.mjs が落とす。shown ではキーごと消す>",
     "scrollbar_environment": "<scrollbars が shown のとき、どの OS・ブラウザのどの種類（クラシック / オーバーレイ）のスクロールバーで撮ったか（例: Linux の headless Chromium 140〈クラシック・15px〉）。バーの描き方は OS とブラウザで変わるので、撮ったバーの画素・厚みを利用者環境の見え方の根拠にしない（種類が違えば viewer_environment を乖離にする）。hidden ではキーごと消す>",
     "pages": [
       {
         "name": "<ページ名。noise_baseline[].page と同じ語彙を使う（parity-diff が組の再測定範囲を突き合わせるため）>",
-        "path": "<baseURL（target.ui_url）からの相対パス。parity-diff が新側を同一ページで撮るために使う。解き方は page.goto(path) と同じ new URL(path, baseURL)（\"/\" で始めると baseURL のパス接頭辞を捨てる。接頭辞の下のページは相対で書く。根のページは空文字列）。ページの識別はパスの完全一致（末尾の \"/\" を正規化しない）で、クエリ・フラグメントは書いたときだけ識別に含める。path が同じ別の名前は同じページとして数える。ui_url が runtime のときは \"/\" で始まる path だけが押した後の URL と照合される。正本は parity-suite の references/baseline.md「ページの path の解決規則」>"
+        "path": "<baseURL（target.ui_url）からの相対パス。parity-diff が新側を同一ページで撮るために使う。解き方は page.goto(path) と同じ new URL(path, baseURL)（\"/\" で始めると baseURL のパス接頭辞を捨てる。接頭辞の下のページは相対で書く。根のページは空文字列）。ページの識別はパスの完全一致（末尾の \"/\" を正規化しない）で、クエリ・フラグメントは書いたときだけ識別に含める。path が同じ別の名前は同じページとして数える。ui_url が runtime のときは \"/\" で始まる path だけが押した後の URL と照合される。原本は parity-suite の references/baseline.md「ページの path の解決規則」>"
       }
     ],
     "masks": [
@@ -209,11 +209,11 @@
       }
     ],
     "states": [
-      "<遷移させた状態: default | hover | focus | active | disabled | selected | error、または popup_inventory[].captured が指す器を開いた状態の名前>"
+      "<遷移させた状態: default | hover | focus | active | disabled | selected | error、または popup_inventory[].captured が指すコンテナを開いた状態の名前>"
     ],
     "capture_scope": [
       {
-        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の穴として数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。穴は記録せず寸法から導くので、ここには実測だけを書く。正本は parity-suite の references/baseline.md「撮る範囲の決め方（穴は採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では穴が 1 つも出ないため）。",
+        "_note": "撮った組ごとの範囲の実測。撮るはずの組は pages × states × viewports の直積と、pages × states × display_axes.variants の label（その軸が not_applicable のページを除く）で、noise_baseline にもここにも無い組は #not-captured の抜けとして数える（採った組の一覧を期待値にすると、組ごと落とした範囲が期待値からも消える）。突き合わせ相手は noise_baseline（採った組に実測が無ければ「測っていない」として落ちる）。抜けは記録せず寸法から導くので、ここには実測だけを書く。原本は parity-suite の references/baseline.md「撮る範囲の決め方（抜けは採取の段で数える）」。寸法は実測値（正の数）で埋める——下のプレースホルダ 0 を残した組は「測っていない」として落ちる（0×0 では抜けが 1 つも出ないため）。",
         "page": "<capture_conditions.pages[].name>",
         "state": "<capture_conditions.states の状態名>",
         "viewport": "<ビューポート label。表示の軸の変種は変種の label>",
@@ -227,7 +227,7 @@
         },
         "scroll_containers": [
           {
-            "name": "<内部スクロール器の名前（論理名で引けるならその論理名。宣言の鍵になるので実行ごとに変わる名前にしない）>",
+            "name": "<内部スクロール領域の名前（論理名で引けるならその論理名。宣言の鍵になるので実行ごとに変わる名前にしない）>",
             "client": {
               "width": 0,
               "height": 0
@@ -236,10 +236,10 @@
               "width": 0,
               "height": 0
             },
-            "overflow_x": "<器の overflow-x の計算値（visible / hidden / clip / scroll / auto）>",
-            "overflow_y": "<器の overflow-y の計算値>",
+            "overflow_x": "<スクロール領域の overflow-x の計算値（visible / hidden / clip / scroll / auto）>",
+            "overflow_y": "<スクロール領域の overflow-y の計算値>",
             "bar": {
-              "_note": "スクロールバー（とガター）が取った寸法。offsetWidth − clientWidth から左右の枠を除いたものが vertical、offsetHeight − clientHeight から上下の枠を除いたものが horizontal。scrollbars: shown で auto / scroll の向きにはみ出しているのに 0 なら scrollbar-hidden:<名前> の穴になる。器の名前が traits.elements に無ければ untraced:<名前> の穴になる（スクロールバーの差が特性照合に写らない）。",
+              "_note": "スクロールバー（とガター）が取った寸法。offsetWidth − clientWidth から左右の枠を除いたものが vertical、offsetHeight − clientHeight から上下の枠を除いたものが horizontal。scrollbars: shown で auto / scroll の向きにはみ出しているのに 0 なら scrollbar-hidden:<名前> の抜けになる。スクロール領域の名前が traits.elements に無ければ untraced:<名前> の抜けになる（スクロールバーの差が特性照合に記録されない）。",
               "vertical": 0,
               "horizontal": 0
             }
@@ -252,14 +252,14 @@
     ],
     "capture_scope_exemptions": [
       {
-        "_note": "撮る範囲の穴のうち、範囲を広げずに対象外とするものの宣言。対応する穴が無い宣言は効かない宣言として落ちる（古い宣言が残ると範囲を狭めても静かに通る）。",
-        "id": "<穴の id: <page>|<state>|<viewport>#below-fold | #beyond-right | #scroll:<器の名前> | #offscreen:<論理名> | #not-captured（撮影条件が宣言した組を採っていない）>",
+        "_note": "撮る範囲の抜けのうち、範囲を広げずに対象外とするものの宣言。対応する抜けが無い宣言は効かない宣言として落ちる（古い宣言が残ると範囲を狭めても静かに通る）。",
+        "id": "<抜けの id: <page>|<state>|<viewport>#below-fold | #beyond-right | #scroll:<スクロール領域の名前> | #offscreen:<論理名> | #not-captured（撮影条件が宣言した組を採っていない）>",
         "reason": "<範囲を広げられない理由>",
         "gaps_ref": "<gaps.md「特性化できなかった箇所と理由」の該当箇所（種別「撮影範囲の対象外」）>"
       }
     ],
     "dimension_model": {
-      "_note": "寸法の決まり方（窓の寸法に対する位置・寸法の式）。feature モードではキーごと省略しない。status: measured は parity-suite の scripts/dimension-fit.mjs fit --write が書く（手で転記しない）。ビューポートが 1 つなら measured か not_measured、2 つ以上なら not_required も選べる（not_measured / not_required は reason 必須）。not_measured は gaps.md で済ませず parity-replace への引き渡し条件として残す（parity-replace が完了判定で dimension-fit.mjs check を通し、写していない旨を porting.md に明示する）。正本は parity-suite の references/baseline.md「寸法の決まり方（窓への追従）」。",
+      "_note": "寸法の決まり方（窓の寸法に対する位置・寸法の式）。feature モードではキーごと省略しない。status: measured は parity-suite の scripts/dimension-fit.mjs fit --write が書く（手で転記しない）。ビューポートが 1 つなら measured か not_measured、2 つ以上なら not_required も選べる（not_measured / not_required は reason 必須）。not_measured は gaps.md で済ませず parity-replace への引き渡し条件として残す（parity-replace が完了判定で dimension-fit.mjs check を通し、反映していない旨を porting.md に明示する）。原本は parity-suite の references/baseline.md「寸法の決まり方（窓への追従）」。",
       "status": "<measured | not_measured | not_required>",
       "tool": "dimension-fit",
       "tool_version": "<dimension-fit.mjs の VERSION>",
@@ -296,7 +296,7 @@
       "reason": "<status が not_measured / not_required のときだけ理由。measured では null>"
     },
     "overflow": {
-      "_note": "スクロールバーが場所を取る窓での縦・横のはみ出し。feature モードではキーごと省略しない。スクロールバーが隠れていると 100vh と height: 100% の差が 0 になり、頁の高さの決め方の違いが 3 経路のどれにも写らないため、scrollbars: shown の窓で測る。記録は overflow/ の測定スペックが現側で書き、同じスペックが通常実行でこの記録を期待値として現・新の両側に当てる（手で転記しない）。検査は parity-suite の scripts/capture-scope-check.mjs。正本は parity-suite の references/baseline.md「スクロールバーが場所を取る窓のはみ出し」。",
+      "_note": "スクロールバーが場所を取る窓での縦・横のはみ出し。feature モードではキーごと省略しない。スクロールバーが隠れていると 100vh と height: 100% の差が 0 になり、頁の高さの決め方の違いが 3 つの比較方法のどれにも記録されないため、scrollbars: shown の窓で測る。記録は overflow/ の測定スペックが現側で書き、同じスペックが通常実行でこの記録を期待値として現・新の両側に当てる（手で転記しない）。検査は parity-suite の scripts/capture-scope-check.mjs。原本は parity-suite の references/baseline.md「スクロールバーが場所を取る窓のはみ出し」。",
       "status": "<measured | not_measured>",
       "scrollbars": "<測った窓でのスクロールバーの扱い。measured では shown だけを受ける>",
       "spec": "<この記録を期待値として現・新の両側に当てるスペックのパス（例: <parity_suite_dir>/parity/<slug>/overflow/overflow.spec.ts）>",
@@ -330,10 +330,10 @@
     },
     "popup_inventory": [
       {
-        "name": "<器の名前（例: 列フィルタの吹き出し / 演算子の引き出し / 項目に指を乗せた状態）。この棚卸し全体で一意にする——parent が name で親を指すので、兄弟の中だけで一意にすると 3 段目以降で親が決まらない。衝突するなら文脈を含めて改名する>",
-        "parent": "<この器を内側に持つ器の name。1 段目は null>",
+        "name": "<コンテナの名前（例: 列フィルタの吹き出し / 演算子の引き出し / 項目に指を乗せた状態）。この棚卸し全体で一意にする——parent が name で親を指すので、兄弟の中だけで一意にすると 3 段目以降で親が決まらない。衝突するなら文脈を含めて改名する>",
+        "parent": "<このコンテナを内側に持つコンテナの name。1 段目は null>",
         "opened_by": [
-          "<開く操作を操作アダプタの呼び出しとして <関数名>(<開く対象の論理名>) の形で書く（引数なしは <関数名>()。関数名だけ・状態名での代用はしない。開く対象を決める引数だけを書き、それ以外は全て落とす〈page のような不変の引数も ArrowDown のような操作の詳細も〉。列挙側にも同じ正規化を当てる）。1 つの器を複数の操作で開けるなら全ての開き方を要素に並べ、行は分けない（空配列は不整合）>",
+          "<開く操作を操作アダプタの呼び出しとして <関数名>(<開く対象の論理名>) の形で書く（引数なしは <関数名>()。関数名だけ・状態名での代用はしない。開く対象を決める引数だけを書き、それ以外は全て落とす〈page のような不変の引数も ArrowDown のような操作の詳細も〉。列挙側にも同じ正規化を当てる）。1 つのコンテナを複数の操作で開けるなら全ての開き方を要素に並べ、行は分けない（空配列は不整合）>",
           "<2 つ目の開き方の例: openComboByKeyboard(<開く対象の論理名>)。開き方の違いは引数ではなく関数名で分ける。同じ行に同じ要素を 2 つ書かない。parity-diff は parent × この要素の単位で呼び出しの列挙と突き合わせるため、同じ parent × 同じ要素が 2 行に現れたら不整合>"
         ],
         "captured": "<撮る状態名（states の要素）。撮らないなら null>",
@@ -350,11 +350,11 @@
   "differ": {
     "trait_compare": "<プロジェクト側 trait-compare.mjs のパスと VERSION 値>",
     "header_normalize": {
-      "_note": "応答ヘッダーを録画したときだけ書く（録画しないなら header_normalize 自体を null にする。api-resource / batch モードでも省略しない）。parity-diff は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる。正本は parity-suite の references/api-batch.md「応答ヘッダー」。",
+      "_note": "応答ヘッダーを録画したときだけ書く（録画しないなら header_normalize 自体を null にする。api-resource / batch モードでも省略しない）。parity-diff は新側を同じ版・同じ一覧で正規化できるときだけヘッダーを比べる。原本は parity-suite の references/api-batch.md「応答ヘッダー」。",
       "path": "<プロジェクト側 header-normalize.mjs のパス（suite.tools のコピー専用ディレクトリの中）>",
       "version": "<そのコピーの VERSION 値>",
       "headers": [
-        "<録画に使った一覧。同じコピーの --header-list .replace/response-headers.json --list の出力をそのまま写す>"
+        "<録画に使った一覧。同じコピーの --header-list .replace/response-headers.json --list の出力をそのまま転記する>"
       ]
     },
     "align_tolerance": 1,
@@ -362,7 +362,7 @@
     "pixel_threshold": 0,
     "aria_compare": "<aria 構造比較の手段（取得スナップショットのベースライン相手の構造比較。ツールを使う場合はパスとバージョン）>",
     "file_extract": {
-      "_note": "ファイル出力（xlsx / PDF 等）の解析ツール。プロジェクトが選び、ここに記録する（parity-diff は記録値を使い自分で選び直さない）。ファイル出力が無いモード・機能では省略する。選定の正本は replace-strategy の references/file-io.md。",
+      "_note": "ファイル出力（xlsx / PDF 等）の解析ツール。プロジェクトが選び、ここに記録する（parity-diff は記録値を使い自分で選び直さない）。ファイル出力が無いモード・機能では省略する。選定の原本は replace-strategy の references/file-io.md。",
       "xlsx": "<xlsx 解析ツール名とバージョン。バイト一致は取らずシート × セル値と構造で比較する>",
       "pdf": "<PDF テキスト抽出ツール名とバージョン。抽出テキストと構造で比較する>",
       "text": "<CSV・固定長・テキストの比較手段。既定はバイト列（Buffer）比較で、文字コード・BOM・改行コードを保つ>"
@@ -386,7 +386,7 @@
     "baseline_pointer": "<ベースライン（.replace/parity/<slug>/baseline/）の保存先ポインタ>"
   },
   "artifact_health": {
-    "_note": "採取物ごとの「読むスペック」と「何から作ったか」の宣言。採取物は工程の出力であり次の工程の入力なので、読まれていない採取物と古い加工物を数える段をここに置く。検査は parity-suite の scripts/artifact-health-check.mjs（parity-diff が収束判定で同じスクリプトを呼ぶ）。キーごと無い旧成果物は判定しない（後方互換）。正本は parity-suite の references/baseline.md「採取物の健全性」。",
+    "_note": "採取物ごとの「読むスペック」と「何から作ったか」の宣言。採取物は工程の出力であり次の工程の入力なので、読まれていない採取物と古い加工物を数える段をここに置く。検査は parity-suite の scripts/artifact-health-check.mjs（parity-diff が収束判定で同じスクリプトを呼ぶ）。キーごと無い旧成果物は判定しない（後方互換）。原本は parity-suite の references/baseline.md「採取物の健全性」。",
     "declared": true,
     "baseline_dir": "<採取物の置き場所（リポジトリルートからの相対パス。既定 .replace/parity/<slug>/baseline/）。この直下を再帰的に列挙し、entries に現れないファイルは未宣言として数える>",
     "entries": [

@@ -1,0 +1,355 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T00:22:48Z",
+    "evals_run": [8, 9],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 8,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.9091,
+        "passed": 10,
+        "failed": 1,
+        "total": 11,
+        "time_seconds": 131.606,
+        "tokens": 576527,
+        "tool_calls": 11,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "source_scan に show 600 / hide 500、遷移 enter / exit-close / exit-auto"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": true,
+          "evidence": "capture.motions の source_scan / transitions[] に書くと述べた"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": true,
+          "evidence": "vendor にコピーした motion-probe で採り、baseline/<instance>/motions.json に書く"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回（以上）採ると述べている",
+          "passed": true,
+          "evidence": "遷移ごと・インスタンスごとに同じ条件で 2 回採る"
+        },
+        {
+          "text": "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
+          "passed": false,
+          "evidence": "2 回の時系列が食い違ったときの対処（許容差を広げず手順・初期状態を揃えて採り直す）に触れていない"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": true,
+          "evidence": "動きを採るあいだはアニメーションを止めないと明記（静止画は animations: disabled の別の撮り方）"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": true,
+          "evidence": "focus-after-enter を操作に挙げ、enter の on_complete で結んだ"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
+          "passed": true,
+          "evidence": "exit-auto の timeoutMs を 20000ms にし、表示時間をこの遷移の遅れとして測る"
+        },
+        {
+          "text": "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
+          "passed": true,
+          "evidence": "behaviors.json の観測項目に時間の値は書かないと明記"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        },
+        {
+          "text": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "passed": true,
+          "evidence": "motion-probe.mjs は parity-component/scripts/ からコピーし、capture.tools の版はコピーしたファイルから読むと述べた（motion_probe_version の欄名は挙げていない）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 11,
+        "failed": 0,
+        "total": 11,
+        "time_seconds": 37.456,
+        "tokens": 202356,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+          "passed": true,
+          "evidence": "initialized で命令的に結び effect の片付けで外す形を根拠に、対象の 3 条件を満たすと判断"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
+          "passed": true,
+          "evidence": "strict-rebind で bindEnterKey が外れ Enter で押せなくなる流れを名指し"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+          "passed": true,
+          "evidence": "prop-change-after-init で disabled の変化が setEnabled に反映されない流れを名指し"
+        },
+        {
+          "text": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+          "passed": true,
+          "evidence": "実行パスごとに順番を強制する見本を置き、data-* 属性で入った回数を出すと述べた"
+        },
+        {
+          "text": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": true,
+          "evidence": "「その流れに入った回数が 1 以上」を先に確かめると述べた"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": true,
+          "evidence": "順番の見本は catalog.stories に入れないと述べた"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": true,
+          "evidence": "unbaselined_stories にも数えないと述べた"
+        },
+        {
+          "text": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
+          "passed": true,
+          "evidence": "直した処理を外すと検査が失敗することを確かめる（fix_removal_verified）"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "照合と突き合わせの一致だけでは手順 8 に進めないと結論"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": true,
+          "evidence": "判定の結果を build-metadata.json の lifecycle に記録すると述べた"
+        },
+        {
+          "text": "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "passed": true,
+          "evidence": "名指しできない prop-identity / remount は理由を書いて not_applicable_paths に入れると述べた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4545,
+        "passed": 5,
+        "failed": 6,
+        "total": 11,
+        "time_seconds": 65.556,
+        "tokens": 323431,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "現行の feedback-message.js が掛ける動き（出るときの slide 600ms と閉じるときの slide 500ms）を、採取すべき遷移として数えている",
+          "passed": true,
+          "evidence": "出るとき 600ms・閉じるとき 500ms のスライドを動きとして挙げた"
+        },
+        {
+          "text": "数えた動きを metadata.json の capture.motions（source_scan / transitions）に記録すると述べている",
+          "passed": false,
+          "evidence": "capture.motions に触れない（記録先は「references/motion.md に従う記録（仮）」）"
+        },
+        {
+          "text": "動きのある遷移は同梱の motion-probe.mjs で時系列を採り、baseline/<instance>/motions.json に書くと述べている",
+          "passed": false,
+          "evidence": "motion-probe.mjs / motions.json に触れない"
+        },
+        {
+          "text": "同じ遷移を同じ条件で 2 回（以上）採ると述べている",
+          "passed": true,
+          "evidence": "自動クローズを「約 15 秒を 2 回以上測る」と述べた"
+        },
+        {
+          "text": "2 回の時系列が大きく食い違ったら、許容差を広げず、遷移の手順か初期状態を揃えて採り直すと述べている",
+          "passed": false,
+          "evidence": "採り直しの条件に触れない"
+        },
+        {
+          "text": "動きの時系列を採るあいだはアニメーションを止めない（見た目の採取とは別の開き方にする）と述べている",
+          "passed": true,
+          "evidence": "動きはアニメーションを有効にしたまま採り、静止画は animations: 'disabled' と分けた"
+        },
+        {
+          "text": "出た後に閉じるボタンへフォーカスを移す処理を、操作（capture.operations）として挙げ、遷移の on_complete で結ぶと述べている",
+          "passed": false,
+          "evidence": "フォーカス移動を挙げたが、操作として on_complete で結んでいない"
+        },
+        {
+          "text": "info / success で 15 秒後に自動で閉じる時間を、プローブで閉じる遷移の遅れとして測ると述べている",
+          "passed": false,
+          "evidence": "自動クローズの時間をプローブで閉じる遷移の遅れとして測る記述が無い"
+        },
+        {
+          "text": "自動で閉じる時間（時間の値）を behaviors.json の観測値にしていない",
+          "passed": true,
+          "evidence": "behaviors.json に時間の値を書いていない"
+        },
+        {
+          "text": "「アニメーションは対象外」を理由に動きを採らない計画にしていない",
+          "passed": true,
+          "evidence": "動きを採る計画"
+        },
+        {
+          "text": "motion-probe.mjs のコピー元を parity-suite ではなく parity-component 自身の scripts/ とし、版を capture.tools.motion_probe_version に記録すると述べている",
+          "passed": false,
+          "evidence": "motion-probe.mjs に触れない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 9,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.2727,
+        "passed": 3,
+        "failed": 8,
+        "total": 11,
+        "time_seconds": 56.642,
+        "tokens": 135890,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Button.tsx が市販部品の initialized で命令的に処理を結び、effect の片付けで外す形であることを根拠に、一生の順番で起きる不具合の実行パスの検査の対象だと判断している",
+          "passed": false,
+          "evidence": "StrictMode と disabled の問題は挙げたが、一生の順番の検査の対象という判断はしていない"
+        },
+        {
+          "text": "開発時の結び直し（StrictMode の 付ける → 片付ける → 付ける）で bindEnterKey の結び付けが壊れうる実行パスを名指ししている",
+          "passed": true,
+          "evidence": "StrictMode の片付けで結び付けが外れ Enter で押せなくなるおそれを挙げた"
+        },
+        {
+          "text": "初期化の後に disabled が変わっても setEnabled が呼び直されない実行パスを名指ししている",
+          "passed": true,
+          "evidence": "disabled が初期化時にしか反映されないことを挙げた"
+        },
+        {
+          "text": "実行パスごとに順番を強制する見本を置き、実行パスに入った回数を data-* 属性で出すと述べている",
+          "passed": false,
+          "evidence": "順番を強制する見本と data-* 属性に触れない"
+        },
+        {
+          "text": "検査は実行パスに入ったことを先に確かめてから症状を見る（入らないまま症状だけを見ない）と述べている",
+          "passed": false,
+          "evidence": "実行パスに入ったことを先に確かめる記述が無い"
+        },
+        {
+          "text": "順番を強制する見本を catalog.stories の対応表に載せないと述べている",
+          "passed": false,
+          "evidence": "catalog.stories の扱いに触れない"
+        },
+        {
+          "text": "順番を強制する見本を、基準の無い見本（parity.unbaselined_stories）に数えないと述べている",
+          "passed": false,
+          "evidence": "unbaselined_stories に触れない"
+        },
+        {
+          "text": "直した処理を外すとその実行パスの検査だけが落ちることを確かめると述べている",
+          "passed": false,
+          "evidence": "直した処理を外して検査が落ちることを確かめる記述が無い"
+        },
+        {
+          "text": "見本の照合と操作の突き合わせが一致していることだけを根拠に、完了判定へ進んでよいとしていない",
+          "passed": true,
+          "evidence": "照合の一致だけでは手順 8 に進めないと結論"
+        },
+        {
+          "text": "対象かどうかの判定と根拠を build-metadata.json の lifecycle（applies / reason）に記録すると述べている",
+          "passed": false,
+          "evidence": "lifecycle の記録に触れない"
+        },
+        {
+          "text": "壊れる処理を名指しできない実行パスを、理由付きで not_applicable_paths に回すと述べている",
+          "passed": false,
+          "evidence": "not_applicable_paths に触れない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9546,
+        "stddev": 0.0643,
+        "min": 0.9091,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 84.531,
+        "stddev": 66.5741,
+        "min": 37.456,
+        "max": 131.606
+      },
+      "tokens": {
+        "mean": 389441.5,
+        "stddev": 264578.8514,
+        "min": 202356,
+        "max": 576527
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.3636,
+        "stddev": 0.1286,
+        "min": 0.2727,
+        "max": 0.4545
+      },
+      "time_seconds": {
+        "mean": 61.099,
+        "stddev": 6.3031,
+        "min": 56.642,
+        "max": 65.556
+      },
+      "tokens": {
+        "mean": 229660.5,
+        "stddev": 132611.5129,
+        "min": 135890,
+        "max": 323431
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.59",
+      "time_seconds": "+23.4",
+      "tokens": "+159781"
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ④-b の変更確認。assertion の語を新しい語に直した 8・9 を with_skill と without_skill で 1 run ずつ。両方とも with_skill と without_skill の差が残っている（8 は 10/11 と 5/11、9 は 11/11 と 3/11）。"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "_note": "共通部品への 1 回の改修を「部品 × インスタンス × 状態 × プロパティ」で宣言する変更宣言。.replace/components/<slug>/changes/<change-id>.json として書く。形式の正本はこの雛形。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。プレースホルダ（<...>）を残した宣言は parity-suite 同梱 component-impact.mjs が使い方の誤り（exit 2）として落とす。この宣言が component-impact.mjs の入力になり、影響する撮影組（ページ × 状態 × ビューポート）と影響しない機能を導く。改修の手順の正本は parity-component の references/amend.md、ページ側の一括再検証は parity-diff の references/component-change.md。",
+  "_note": "共通部品への 1 回の改修を「部品 × インスタンス × 状態 × プロパティ」で宣言する変更宣言。.replace/components/<slug>/changes/<change-id>.json として書く。形式の原本はこの雛形。全ての値はプレースホルダ例であり実測値で置き換える（JSON はコメント不可のため説明を値文字列で示す）。プレースホルダ（<...>）を残した宣言は parity-suite 同梱 component-impact.mjs が使い方の誤り（exit 2）として落とす。この宣言が component-impact.mjs の入力になり、影響する撮影組（ページ × 状態 × ビューポート）と影響しない機能を導く。改修の手順の原本は parity-component の references/amend.md、ページ側の一括再検証は parity-diff の references/component-change.md。",
   "id": "<変更宣言の id（.replace/components/<slug>/changes/ の中で一意。ファイル名の <change-id> と同じにする）>",
   "slug": "<部品 slug（.replace/components.md が採番したもの。部品 metadata.json の slug と一致させる）>",
   "kind": "<align-to-current（現行に合わせ直す修正）| new-appearance（利用側の要求で足す新しい見た目）のどちらか>",
