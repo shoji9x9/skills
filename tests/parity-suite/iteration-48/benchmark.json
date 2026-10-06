@@ -1,0 +1,352 @@
+{
+  "metadata": {
+    "skill_name": "parity-suite",
+    "skill_path": "<repo>/skills/parity-suite",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T00:22:48Z",
+    "evals_run": [36, 43, 44],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 36,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 7,
+        "failed": 0,
+        "total": 7,
+        "time_seconds": 88.359,
+        "tokens": 306959,
+        "tool_calls": 5,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮る状態を画面を見ながら思い付きで決めることを退け、部品網羅表の present のセル（測った操作）から必要な撮影状態の集合を機械的に導くと述べている",
+          "passed": true,
+          "evidence": "思い付きで決めた順番を退け、網羅表の present のセルから撮る状態を導くと述べる"
+        },
+        {
+          "text": "操作から導く見た目の状態として、コンテナを開く・指を乗せる・焦点を当てる・押している最中・不活性の操作の途中の 5 種に加え、操作を終えた後に残る見た目（絞り込み中や並べ替えた後の印など）を挙げている",
+          "passed": true,
+          "evidence": "opens-container・hover・focus・active・disabled と after-operation（絞り込み後の印・ソート後の印・選択の塗り）を挙げる"
+        },
+        {
+          "text": "導いた集合と metadata.json の capture_conditions.states の差（足りない状態の一覧）を、parity-suite 同梱の coverage-expand.mjs に metadata を渡した実行で報告させると述べている",
+          "passed": true,
+          "evidence": "手順 8 で coverage-expand.mjs --metadata で撮影状態との照合を通すと述べる"
+        },
+        {
+          "text": "不活性になる条件が現行に無いメニュー項目を何も書かずに飛ばすことを退け、撮れない理由を導出の行に残したうえで gaps.md に「撮影状態の対象外」として同じ文言を残すと述べている",
+          "passed": true,
+          "evidence": "何も書かずに飛ばすのは不可とし、作れない場合は rows の reason と gaps.md（撮影状態の対象外）に同じ文言で残すと述べる"
+        },
+        {
+          "text": "撮影状態を後から足すと新側だけでなく現行側もベースライン（3 点セット）とノイズ基準値を採り直しになるため、撮る前に集合を確定させると述べている",
+          "passed": true,
+          "evidence": "後から足すと現行側の 3 点セットとノイズ基準値も採り直しになるので先に集合を確定させると述べる"
+        },
+        {
+          "text": "導出が出すのは必要な撮影状態の下限だけで、操作から導けない状態（error / 初期表示のバリアント等）は手で capture_conditions.states へ足すと述べている",
+          "passed": true,
+          "evidence": "error や初期表示のバリアントを撮影状態に足すと述べる"
+        },
+        {
+          "text": "回答内で「網羅表が全部 present なので 2 状態で足りる」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 43,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 30.014,
+        "tokens": 113937,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "iframe の読み込み先は移行元がアプリ自身のベース URL から組み立てているので、本来の配置では本体と同じオリジンになり、別オリジンは対象 URL（localhost:8080）の別名による環境の都合だと判断している",
+          "passed": true,
+          "evidence": "本来の配置では同じオリジンで、localhost:8080 の別名による環境の都合と判断"
+        },
+        {
+          "text": "根拠の欄に「本番でも別オリジン」と推測で書いて通す案を採らない",
+          "passed": true,
+          "evidence": "推測を根拠に書いて通さないと答える"
+        },
+        {
+          "text": "別オリジンのフレームの中の処理は親の文書へ届かない（同一オリジンポリシー）ため、「反応なし」の記録は移行元に実在する反応を取りこぼしている疑いがあると述べている",
+          "passed": true,
+          "evidence": "同一オリジンポリシーで親の文書に届かず、反応なしの記録が誤っている可能性が高いと述べる"
+        },
+        {
+          "text": "「反応なし」の記録を確定させず、対象環境の URL を移行元が組み立てるオリジン（app.internal.example）に揃える設定変更をユーザーに求め、揃えてから測り直すと答えている",
+          "passed": true,
+          "evidence": "kind: none を取り下げ、オリジンをそろえる設定変更を利用者に任せ、測り直すと答える"
+        },
+        {
+          "text": "このまま進むと差分ツールは「無い」同士を一致させるため、新側も反応なしで作られても検出できないことに触れている",
+          "passed": false,
+          "evidence": "差分ツールが「無い」どうしを一致とみなし、新側も反応なしで作られても検出できないことには触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 44,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 79.541,
+        "tokens": 231317,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Playwright のヘッドレス Chromium はスクロールバーを隠す（場所を取らない）ため、横スクロールバーが出る窓でも 100vh と height: 100% の差が 0 になり、3 つの比較方法にも寸法の測定にも写らなかったと説明している",
+          "passed": true,
+          "evidence": "ヘッドレス Chromium の --hide-scrollbars で 100% と 100vh が同じ値になり、3 つの比較にも寸法にも差が出なかったと説明"
+        },
+        {
+          "text": "検査が緑であることを根拠に、利用者環境の問題として未検証の一覧に書いて済ませる案を採らない",
+          "passed": true,
+          "evidence": "利用者環境の問題として gaps.md に書くのは誤りと答える"
+        },
+        {
+          "text": "スクロールバーが場所を取る状態（--hide-scrollbars を外した起動）で、最小幅より狭い窓の縦・横のはみ出しを現側で測り、同じ窓で新側にも当てる検査をスイートに足すと答えている",
+          "passed": true,
+          "evidence": "--hide-scrollbars を外して撮り、overflow/ スペックで最小幅より狭い窓のはみ出しを現側で測り、両側に当てると述べる"
+        },
+        {
+          "text": "測る窓に、最小幅より狭く中身が収まる高さの窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を含めると述べている",
+          "passed": true,
+          "evidence": "最小幅より狭く中身が収まる高さの窓（② の窓）を導くと述べる"
+        },
+        {
+          "text": "撮影時にスクロールバーが場所を取ったかどうかを撮影条件として記録し、新側を同じ扱いで撮ると述べている",
+          "passed": true,
+          "evidence": "scrollbars: shown を current と new-capture の両方で設定し、バーの幅を実測して記録すると述べる"
+        },
+        {
+          "text": "強度チェックで height: 100% を min-height: 100vh に置き換える故障を注入し、足した検査が赤くなることを確かめると述べている",
+          "passed": true,
+          "evidence": "故障カタログに height: auto; min-height: 100vh を注入し overflow/ が赤くなることを確かめると述べる"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 36,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4286,
+        "passed": 3,
+        "failed": 4,
+        "total": 7,
+        "time_seconds": 45.919,
+        "tokens": 37975,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "撮る状態を画面を見ながら思い付きで決めることを退け、部品網羅表の present のセル（測った操作）から必要な撮影状態の集合を機械的に導くと述べている",
+          "passed": true,
+          "evidence": "被覆表から機械的に決めるのがよいと述べる"
+        },
+        {
+          "text": "操作から導く見た目の状態として、コンテナを開く・指を乗せる・焦点を当てる・押している最中・不活性の操作の途中の 5 種に加え、操作を終えた後に残る見た目（絞り込み中や並べ替えた後の印など）を挙げている",
+          "passed": false,
+          "evidence": "フィルタ・ソート・メニューの状態は挙げるが、focus・押している最中などの 5 種には触れていない"
+        },
+        {
+          "text": "導いた集合と metadata.json の capture_conditions.states の差（足りない状態の一覧）を、parity-suite 同梱の coverage-expand.mjs に metadata を渡した実行で報告させると述べている",
+          "passed": false,
+          "evidence": "coverage-expand.mjs などで差を報告させる方法に触れていない"
+        },
+        {
+          "text": "不活性になる条件が現行に無いメニュー項目を何も書かずに飛ばすことを退け、撮れない理由を導出の行に残したうえで gaps.md に「撮影状態の対象外」として同じ文言を残すと述べている",
+          "passed": false,
+          "evidence": "記録を残すべきと述べるが、gaps.md に「撮影状態の対象外」として残す形は示していない"
+        },
+        {
+          "text": "撮影状態を後から足すと新側だけでなく現行側もベースライン（3 点セット）とノイズ基準値を採り直しになるため、撮る前に集合を確定させると述べている",
+          "passed": true,
+          "evidence": "追加する状態ごとに 3 点セットとノイズ基準値を採り直すので、撮り始める前に確定させると述べる"
+        },
+        {
+          "text": "導出が出すのは必要な撮影状態の下限だけで、操作から導けない状態（error / 初期表示のバリアント等）は手で capture_conditions.states へ足すと述べている",
+          "passed": false,
+          "evidence": "導出が下限であることと、操作から導けない状態を手で足すことに触れていない"
+        },
+        {
+          "text": "回答内で「網羅表が全部 present なので 2 状態で足りる」と矛盾する結論を併記していない",
+          "passed": true,
+          "evidence": "矛盾する結論を併記していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 43,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 27.884,
+        "tokens": 37877,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "iframe の読み込み先は移行元がアプリ自身のベース URL から組み立てているので、本来の配置では本体と同じオリジンになり、別オリジンは対象 URL（localhost:8080）の別名による環境の都合だと判断している",
+          "passed": true,
+          "evidence": "本番では同一オリジンの見込みで、別オリジンは観測環境の都合と判断"
+        },
+        {
+          "text": "根拠の欄に「本番でも別オリジン」と推測で書いて通す案を採らない",
+          "passed": true,
+          "evidence": "推測を書いて通すのはやめたほうがよいと答える"
+        },
+        {
+          "text": "別オリジンのフレームの中の処理は親の文書へ届かない（同一オリジンポリシー）ため、「反応なし」の記録は移行元に実在する反応を取りこぼしている疑いがあると述べている",
+          "passed": true,
+          "evidence": "別オリジンでは postMessage の宛先オリジンなどで結果が親に届かない理由を挙げ、反応なしは環境が原因の疑いが強いと述べる"
+        },
+        {
+          "text": "「反応なし」の記録を確定させず、対象環境の URL を移行元が組み立てるオリジン（app.internal.example）に揃える設定変更をユーザーに求め、揃えてから測り直すと答えている",
+          "passed": true,
+          "evidence": "APP_BASE_URL か hosts でオリジンをそろえて観測し直すよう述べる"
+        },
+        {
+          "text": "このまま進むと差分ツールは「無い」同士を一致させるため、新側も反応なしで作られても検出できないことに触れている",
+          "passed": false,
+          "evidence": "差分ツールで新側の欠落を検出できなくなることには触れていない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 44,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.5,
+        "passed": 3,
+        "failed": 3,
+        "total": 6,
+        "time_seconds": 40.707,
+        "tokens": 38975,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Playwright のヘッドレス Chromium はスクロールバーを隠す（場所を取らない）ため、横スクロールバーが出る窓でも 100vh と height: 100% の差が 0 になり、3 つの比較方法にも寸法の測定にも写らなかったと説明している",
+          "passed": true,
+          "evidence": "ヘッドレスの Chromium が --hide-scrollbars でバーを隠すので 100% と 100vh が同じ値になると説明"
+        },
+        {
+          "text": "検査が緑であることを根拠に、利用者環境の問題として未検証の一覧に書いて済ませる案を採らない",
+          "passed": true,
+          "evidence": "利用者環境の問題として済ませないと答える"
+        },
+        {
+          "text": "スクロールバーが場所を取る状態（--hide-scrollbars を外した起動）で、最小幅より狭い窓の縦・横のはみ出しを現側で測り、同じ窓で新側にも当てる検査をスイートに足すと答えている",
+          "passed": true,
+          "evidence": "スクロールバーが場所を取る条件で 1280px 未満の窓を含め、文書全体のスクロール量を現側・新側で比べる項目を足すと述べる"
+        },
+        {
+          "text": "測る窓に、最小幅より狭く中身が収まる高さの窓（縦のはみ出しが頁の高さの決め方だけで決まる窓）を含めると述べている",
+          "passed": false,
+          "evidence": "「高さの低い窓も加える」と述べるが、最小幅より狭く中身が収まる高さの窓を含めることには触れていない"
+        },
+        {
+          "text": "撮影時にスクロールバーが場所を取ったかどうかを撮影条件として記録し、新側を同じ扱いで撮ると述べている",
+          "passed": false,
+          "evidence": "スクロールバーの方式を条件に加えるとは述べるが、撮影条件として記録し新側を同じ扱いで撮ることには触れていない"
+        },
+        {
+          "text": "強度チェックで height: 100% を min-height: 100vh に置き換える故障を注入し、足した検査が赤くなることを確かめると述べている",
+          "passed": false,
+          "evidence": "強度チェックの故障注入には触れていない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.9333,
+        "stddev": 0.1155,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 65.9713,
+        "stddev": 31.4505,
+        "min": 30.014,
+        "max": 88.359
+      },
+      "tokens": {
+        "mean": 217404.3333,
+        "stddev": 97260.1915,
+        "min": 113937,
+        "max": 306959
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.5762,
+        "stddev": 0.1971,
+        "min": 0.4286,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 38.17,
+        "stddev": 9.2813,
+        "min": 27.884,
+        "max": 45.919
+      },
+      "tokens": {
+        "mean": 38275.6667,
+        "stddev": 607.6194,
+        "min": 37877,
+        "max": 38975
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.36",
+      "time_seconds": "+27.8",
+      "tokens": "+179129"
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ④-b の変更確認。assertion の語を新しい語（網羅表・強度チェック・差分ツール）に直した 36・43・44 を with_skill と without_skill で 1 run ずつ。",
+    "43 は with_skill と without_skill がともに 4/5 になり差が消えた（前回は 1.0 と 0.6）。origin/main のスキルでも with_skill は同じ A5 で落ちた。"
+  ]
+}

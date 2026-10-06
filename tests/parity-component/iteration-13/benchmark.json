@@ -1,0 +1,403 @@
+{
+  "metadata": {
+    "skill_name": "parity-component",
+    "skill_path": "<repo>/skills/parity-component",
+    "executor_model": "opus",
+    "analyzer_model": "claude-opus-5-5",
+    "timestamp": "2026-10-06T00:22:48Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7, 10],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 16.201,
+        "tokens": 97201,
+        "tool_calls": 2,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "replace-strategy の設定（.config/skills/shoji9x9/skills.yml）と .replace/components.md が無いことを検出している",
+          "passed": true,
+          "evidence": "skills.yml と components.md が無いことを前提の表で検出"
+        },
+        {
+          "text": "採取物・metadata・部品インベントリを捏造せず停止している",
+          "passed": true,
+          "evidence": "手順 1 で停止。project-tree は .claude だけでファイルを作っていない"
+        },
+        {
+          "text": "replace-strategy setup の実行（および共通部品インベントリの作成）を促している",
+          "passed": true,
+          "evidence": "replace-strategy setup の実行と components.md が setup の手順 10 で作られることを案内"
+        },
+        {
+          "text": "対象の部品 slug を自分で採番・推測していない",
+          "passed": true,
+          "evidence": "slug は components.md の名前を使うよう求め、自分で採番していない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "停止の判断と矛盾する記述は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 10,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 30.272,
+        "tokens": 60653,
+        "tool_calls": 1,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "フォーカスの閉じ込めを現行に合わせて外すことを実装役が決めてよいことにせず、利用者の判断待ち（自律実行なので保留 pending_decisions）に回すと述べている",
+          "passed": true,
+          "evidence": "--autonomous なので止まらず、pending_decisions[] に積むと述べた"
+        },
+        {
+          "text": "注記や gaps.md に書いた「条件を満たさない理由」を、同じ内容で保留にも積むと述べている",
+          "passed": true,
+          "evidence": "注記や gaps.md に書いた理由と同じ内容を判断待ちにも積むと述べた"
+        },
+        {
+          "text": "完了判定に部品の Issue の受け入れ条件の突き合わせ（issue-start --acceptance、表は .replace/components/dialog/new/local-dev/acceptance.json）が入り、照合・突き合わせの exit 0 と full だけでは完了にならないと述べている",
+          "passed": true,
+          "evidence": "issue-start 230 --acceptance --out …/new/local-dev/acceptance.json の exit 0 が必要で、照合系と full だけでは完了にならないと述べた"
+        },
+        {
+          "text": "Esc キーの条件を parity-diff（後工程）へ回さず、部品の完了で満たす条件として扱う（--allow-later を渡さない・later にしない）と述べている",
+          "passed": true,
+          "evidence": "部品の Issue の条件はこのスキルの完了で満たす条件で、--allow-later を渡さないと述べた"
+        },
+        {
+          "text": "判断待ちが残る間は完了を名乗らない（完了にしない）と答えている",
+          "passed": true,
+          "evidence": "判断待ちが残る間は「収束」と書かず完了にしないと答えた"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 26.314,
+        "tokens": 171042,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "print-preview のインスタンスが 1 件しか挙がっていないことを検出している",
+          "passed": true,
+          "evidence": "components.md の print-preview の行にインスタンスが 1 件しかないことを引用して検出"
+        },
+        {
+          "text": "インスタンスが 1 件では固定の軸と可変の軸を区別できないことを、採取へ進まない理由として述べている",
+          "passed": true,
+          "evidence": "2 つ以上の利用箇所を比べないと固定と引数を見分けられないことを停止の理由に挙げた"
+        },
+        {
+          "text": "共通部品として先に作る対象から外し、その機能の実装時に parity-replace が作るよう提案している",
+          "passed": true,
+          "evidence": "components.md から外し、order 機能の実装時に parity-replace が作ると提案"
+        },
+        {
+          "text": "「今後 2 つ目の利用箇所が出る見込み」等の推測でインスタンスを補って採取へ進んでいない",
+          "passed": true,
+          "evidence": "「今後増える見込み」も採取の根拠にならないと明言"
+        },
+        {
+          "text": "対象を勝手に button（インスタンスが 2 件ある部品）へ差し替えていない",
+          "passed": true,
+          "evidence": "button は選択肢として挙げただけで、対象を差し替えていない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "停止の判断と矛盾する記述は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 4,
+        "failed": 0,
+        "total": 4,
+        "time_seconds": 24.766,
+        "tokens": 180581,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "component-coverage.json が数えているのは操作と状態の有無だけで、色・寸法・余白などの見た目を見ていないことを指摘している",
+          "passed": true,
+          "evidence": "component-coverage.json は操作と状態の有無だけで色・寸法・余白・フォントは測っていないと指摘"
+        },
+        {
+          "text": "unmeasured 0 を「見た目が現行と一致している」根拠として受け入れていない",
+          "passed": true,
+          "evidence": "unmeasured 0 でも見た目の一致は示せないとした"
+        },
+        {
+          "text": "capture を飛ばさず、現行アプリから部品インスタンスごとに見た目の基準を採る必要があると述べている",
+          "passed": true,
+          "evidence": "capture を実行し 2 インスタンスの状態ごとの見た目を採る必要があると述べた"
+        },
+        {
+          "text": "スキルを使わず直接実装する等の、スキル外の代替を提案していない",
+          "passed": true,
+          "evidence": "スキル外の代替は提案していない"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 38.918,
+        "tokens": 181054,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "ゴールデンデータセットの投入先（current-staging）と採取対象の target（current-test）が一致しないことを検出している",
+          "passed": true,
+          "evidence": "dataset の current.target が current-staging で採取対象 current-test と違うことを挙げた（「確かめてほしい点」として）"
+        },
+        {
+          "text": "現行の画面から抜いた行を、来歴を確認できないままカタログの見本の入力に使わないと述べている",
+          "passed": true,
+          "evidence": "data.json にはゴールデンデータセットから来たと確かめられたデータしか使えないと述べた"
+        },
+        {
+          "text": "golden-dataset のフェーズ A を採取対象の target に対して実施する（または target を揃える）よう促している",
+          "passed": false,
+          "evidence": "current-test に同じデータを入れたかを確かめるよう求めただけで、フェーズ A を current-test に実施する（または target を揃える）よう促していない。食い違いを「止める理由ではありません」と扱った"
+        },
+        {
+          "text": "データ依存の部品であるのに、抽出データ無しのまま採取を完了扱いにしていない",
+          "passed": true,
+          "evidence": "採取物を作らずに停止し、完了扱いにしていない"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "停止の判断と矛盾する結論は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 43.013,
+        "tokens": 295347,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "部品カタログの契約ドキュメント（references.component_catalog）と baseURL（targets[].catalog_url / catalog_url_command）が設定に無いことを検出している",
+          "passed": true,
+          "evidence": "references.component_catalog が無く、local-dev に catalog_url / catalog_url_command が無いことを検出"
+        },
+        {
+          "text": "実装・見本の作成へ進まず停止している",
+          "passed": true,
+          "evidence": "手順 1 で停止し、実装・見本を作っていない"
+        },
+        {
+          "text": "カタログの実体を自分で選んでいない（Storybook 等を既定として決め打ちしていない）",
+          "passed": true,
+          "evidence": "カタログの実体は推測で決めないとして、Storybook を決め打ちしていない"
+        },
+        {
+          "text": "カタログの宣言（契約ドキュメントのパスと新側 target の baseURL）を設定へ整備するよう促している",
+          "passed": true,
+          "evidence": "取り決めの文書を作り component_catalog と catalog_url を設定へ追記するよう案内"
+        },
+        {
+          "text": "capture 成果物（axes.json / component-api.md / baseline）の実体を確認したうえで、capture は完了済みと認識している",
+          "passed": true,
+          "evidence": "8 組の 4 点・axes.json・component-api.md の実在と capture.complete を確かめた"
+        },
+        {
+          "text": "回答内で、停止の判断と矛盾する結論（前提が揃っているかのような記述・推測で埋めた値）を述べていない",
+          "passed": true,
+          "evidence": "停止の判断と矛盾する記述は無い"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 37.203,
+        "tokens": 279827,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "既存の引数の削除・改名・意味の変更が破壊的変更に当たると判断している",
+          "passed": true,
+          "evidence": "引数の削除・意味の変更で破壊的な変更に当たると判断"
+        },
+        {
+          "text": "自分で決めずにユーザーの判断を求めている",
+          "passed": true,
+          "evidence": "何も変更せず判断を求めた"
+        },
+        {
+          "text": "影響範囲（その部品を使っている箇所と、変更後に出力が変わる見本）を示している",
+          "passed": true,
+          "evidence": "影響範囲の表（orders-search の呼び出し側、見本 4 件、click-submit）を示した"
+        },
+        {
+          "text": "引数を足して既定値を据え置く形で解けるかという代替案を示している",
+          "passed": true,
+          "evidence": "代替案 A: 新しい引数を足し既定値を据え置く形を示した"
+        },
+        {
+          "text": "承認を得ないまま variant から primary を削除する実装を行っていない",
+          "passed": true,
+          "evidence": "実装・見本・成果物に手を入れていない（project-tree に変更なし）"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 92.184,
+        "tokens": 643628,
+        "tool_calls": 12,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "orders-search の css-rules.json で width の宣言が競合していること（インラインの 10px・.searchbox-btn の 40px・.searchbox-btn の 60px !important）を挙げている",
+          "passed": true,
+          "evidence": "インラインの 10px、.searchbox-btn の 40px、60px !important の 3 つを表で挙げた"
+        },
+        {
+          "text": "width の最終値として 60px を採っており、インラインの 10px も先に現れる 40px も採用していない",
+          "passed": true,
+          "evidence": "width は 60px が勝ちとし、10px と 40px は転記しないとした"
+        },
+        {
+          "text": "インラインの非 !important 宣言が !important 付きの規則に負けることを、60px を採る理由として述べている",
+          "passed": true,
+          "evidence": "インラインの宣言は !important 付きの規則に負けると理由を述べた"
+        },
+        {
+          "text": "letter-spacing の最終値として 1px を採っており、先に現れる normal を採用していない",
+          "passed": true,
+          "evidence": "letter-spacing は order 10 の 1px が勝ちで normal は負けとした"
+        },
+        {
+          "text": "letter-spacing について、後から読み込まれるスタイルシートが同じセレクタ・同じプロパティを再宣言して上書きしていることを述べている",
+          "passed": true,
+          "evidence": "後から読み込まれるスタイルシートが前の値を上書きする構成と述べた"
+        },
+        {
+          "text": "css-rules.json の inline_declarations と matched の両方を読んでいる（片方だけを根拠に値を決めていない）",
+          "passed": true,
+          "evidence": "inline_declarations と規則の両方を表に挙げて決めた"
+        },
+        {
+          "text": "orders-search の幅は CSS の宣言で決まっており、users-create の文言に追従する幅とは別の扱いだと判断している",
+          "passed": true,
+          "evidence": "orders-search の幅は .searchbox-btn で決まり、users-create は文言に追従する auto だと区別した"
+        },
+        {
+          "text": "回答内で、採った最終値と矛盾する記述（10px / 40px / normal を新側の実装値として示す記述）を残していない",
+          "passed": true,
+          "evidence": "10px / 40px / normal を新側の値として示していない"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 0.975,
+        "stddev": 0.0707,
+        "min": 0.8,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 38.6089,
+        "stddev": 23.3182,
+        "min": 16.201,
+        "max": 92.184
+      },
+      "tokens": {
+        "mean": 238666.625,
+        "stddev": 182000.0685,
+        "min": 60653,
+        "max": 643628
+      }
+    }
+  },
+  "notes": [
+    "Issue #372 段階 ④-b の文章の書き換え（4b506877）の変更確認。with_skill を 1 run ずつ。assertion を変えた 8・9 は without_skill も実行したので iteration-14 に分けた。",
+    "前回より下がった 4 は origin/main のスキルでも同じ assertion（フェーズ A を促す）で落ちた（ばらつき）。"
+  ]
+}
